@@ -1,0 +1,57 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-test-to-server
+  namespace: {{ .Values.namespace | default "k8s-tests-dev" }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchExpressions:
+              - key: job-name
+                operator: Exists
+      ports:
+        - port: 1094   # root://
+        - port: 1095   # roots://
+        - port: 8443   # davs://
+        - port: 9100   # metrics (optional)
+
+---
+# Default deny all ingress traffic to server pods except allowed ports
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-server-ingress
+  namespace: {{ .Values.namespace | default "k8s-tests-dev" }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+
+---
+# Allow test runner pods to access JWT keys ConfigMap (for token auth scenarios)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-test-runner-to-jwt-keys
+  namespace: {{ .Values.namespace | default "k8s-tests-dev" }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: jwt-keys
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: job-name
+                operator: Exists

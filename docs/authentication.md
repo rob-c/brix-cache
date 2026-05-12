@@ -1,6 +1,96 @@
 # Authentication
 
-The native XRootD module supports anonymous access, GSI/x509 proxy-certificate authentication, JWT/WLCG bearer-token authentication, or a mixed mode that accepts either GSI or bearer tokens. The WebDAV module can authenticate HTTPS requests with proxy certificates or `Authorization: Bearer` tokens.
+The native XRootD module supports anonymous access, GSI/x509 proxy-certificate authentication, JWT/WLCG bearer-token authentication, or a mixed mode that accepts either GSI or bearer tokens. The WebDAV module can authenticate HTTPS requests with proxy certificates or `Authorization: Bearer` tokens. The S3-compatible HTTP endpoint uses its own optional AWS SigV4-style authentication and does not participate in the GSI/JWT policy described for native XRootD and WebDAV.
+
+---
+
+## Authentication decision map
+
+Different URL schemes carry credentials in different places. Start with the
+listener, then follow the credential type:
+
+```text
+client connection
+      |
+      +-- root:// or roots://  (nginx stream module)
+      |        |
+      |        +-- xrootd_auth none
+      |        |        -> anonymous session
+      |        |
+      |        +-- xrootd_auth gsi
+      |        |        -> kXR_login
+      |        |        -> multi-step kXR_auth GSI exchange
+      |        |        -> DN + optional VOMS groups
+      |        |
+      |        +-- xrootd_auth token
+      |        |        -> kXR_login advertises ztn
+      |        |        -> kXR_auth carries JWT
+      |        |        -> sub + scopes + wlcg.groups
+      |        |
+      |        +-- xrootd_auth both
+      |                 -> client chooses gsi or ztn in kXR_auth
+      |
+      +-- davs:// or https:// WebDAV  (nginx HTTP module)
+      |        |
+      |        +-- TLS client proxy certificate
+      |        |        -> WebDAV x509 verifier
+      |        |        -> DN + optional VOMS groups
+      |        |
+      |        +-- Authorization: Bearer <jwt>
+      |        |        -> WebDAV token verifier
+      |        |        -> sub + scopes + wlcg.groups
+      |        |
+      |        +-- no valid credential
+      |                 -> anonymous or 403, depending on xrootd_webdav_auth
+      |
+      +-- S3-compatible HTTP location
+               |
+               +-- optional AWS SigV4 Authorization header
+               +-- separate from GSI/JWT policy in this document
+```
+
+For native XRootD and WebDAV, successful GSI/token identity paths eventually
+feed the same authorization questions:
+
+```text
+verified identity facts
+    |
+    +-- token scopes: storage.read / storage.write / storage.create
+    +-- VO/group facts: VOMS FQANs or token wlcg.groups
+    +-- server gates: xrootd_allow_write, xrootd_require_vo, filesystem mode
+    |
+    v
+allow or reject this operation on this path
+```
+
+Authorization is a second step after the credential has been accepted:
+
+```text
+incoming operation
+        |
+        +-- path-based? --------------------+
+        |                                   |
+        | yes                               | no, handle-based
+        v                                   v
+resolve and confine path              find ctx->files[handle]
+        |                                   |
+        v                                   v
+read or metadata?                     use permissions recorded
+        |                             when the handle was opened
+        +-- yes -> require read scope/VO/path permission
+        |
+        v
+write or namespace mutation?
+        |
+        +-- yes -> xrootd_allow_write must be on
+                  and token/VO/path policy must allow write/create
+        |
+        v
+filesystem permission and syscall result still matter
+        |
+        v
+allow response or protocol error
+```
 
 ---
 
@@ -87,7 +177,9 @@ After a successful GSI handshake, the module extracts the subject Distinguished 
 
 ## How GSI authentication works (simplified)
 
-If you do not care about the internals, skip this section.
+If you do not care about the internals, skip this section. For the complete
+certificate hierarchy, proxy certificate internals, VOMS two-chain trust model,
+and detailed GSI DH exchange diagrams, see [pki.md](pki.md).
 
 The GSI handshake uses Diffie-Hellman key exchange to establish a shared session key, then the client sends their proxy certificate chain encrypted with that key. The server verifies the chain against its configured trusted CA.
 
@@ -215,7 +307,13 @@ Tokens may carry WLCG storage scopes:
 | `storage.read:/public` | Read grant scoped to `/public` |
 | `storage.write:/uploads` | Write grant scoped to `/uploads` |
 
-The current native XRootD stream path validates tokens and parses scopes, but write access is still governed by `xrootd_allow_write`; native stream operations do not yet enforce `storage.read` or `storage.write` scopes per path. WebDAV enforces `storage.write`/`storage.create` scopes for `PUT` requests when the request is accepted via a bearer token.
+The native XRootD stream path validates tokens and enforces storage scopes on
+path-resolving operations. A read scope is required for read opens and metadata
+operations; a write/create scope is required for namespace mutation and write
+opens. Handle-based I/O inherits the decision made when the handle was opened.
+`xrootd_allow_write` remains an additional server-wide write gate. WebDAV
+enforces `storage.write`/`storage.create` scopes for `PUT` requests when the
+request is authenticated via a bearer token.
 
 Tokens can also carry `wlcg.groups`. The stream module maps those groups into the same VO list used for VOMS, so `xrootd_require_vo` can protect paths for token-authenticated clients as well as GSI clients.
 

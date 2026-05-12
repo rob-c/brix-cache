@@ -1,0 +1,81 @@
+# Kubernetes Job — generate JWT signing keys at test cluster startup.
+# This replaces Keycloak with on-demand key generation (no persistent OAuth provider).
+# The generated jwks.json is mounted into server pods via the xrootd_token_jwks directive.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jwt-key-generation
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: jwt-keys
+    app.kubernetes.io/managed-by: helm
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: jwt-keys
+      annotations:
+        # Ensure this Job completes before server pods start
+        "helm.sh/hook": pre-install,pre-upgrade
+        "helm.sh/hook-weight": "-5"
+        "helm.sh/hook-delete-policy": hook-succeeded
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: generate-keys
+          image: {{ .Values.jwtKeys.image }}:{{ .Values.jwtKeys.imageTag | default "latest" }}
+          imagePullPolicy: {{ .Values.jwtKeys.pullPolicy | default "Always" }}
+          command: ["/usr/local/bin/python3"]
+          args:
+            - "/app/generate-jwt-keys.py"
+            - --mode-both
+            - --output-jwks=/tmp/jwt-keys/jwks.json
+            - --output-secret={{ .Values.jwtKeys.secretOutputDir | default "/tmp/secret-yaml" }}
+          env:
+            - name: KEY_ID
+              value: {{ .Values.jwtKeys.keyId | default "test-key-1" }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: EXPIRY_DAYS
+              value: {{ .Values.jwtKeys.tokenExpiryDays | default "1" | quote }}
+          volumeMounts:
+            - name: jwt-keys-volume
+              mountPath: /tmp/jwt-keys
+      volumes:
+        - name: jwt-keys-volume
+          emptyDir: {}
+
+---
+# K8s Secret — created from the Job output, mounted into server pods.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.jwtKeys.secretName | default "nginx-xrootd-jwt-keys" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: jwt-keys
+    app.kubernetes.io/managed-by: helm
+type: Opaque
+stringData:
+  # jwks.json — loaded by nginx-xrootd via xrootd_token_jwks directive
+  # Populated at runtime by the JWT key generation Job.
+  # For static test deployments, use a pre-generated value or set this via --set-file.
+  jwks.json: {{ .Values.jwtKeys.jwksJson | default "" }}
+
+---
+# ConfigMap — alternative way to mount JWKS (less sensitive than Secret).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.jwtKeys.configmapName | default "nginx-xrootd-jwt-keys" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: jwt-keys
+    app.kubernetes.io/managed-by: helm
+data:
+  jwks.json: {{ .Values.jwtKeys.jwksJson | default "" }}

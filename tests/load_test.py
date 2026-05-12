@@ -452,20 +452,25 @@ class Suite:
         self.concurrency = concurrency
         self.runs: list[RunStats] = []
 
+    def run_one(self, n: int) -> RunStats:
+        """Run a single concurrency level and append the result to self.runs."""
+        args = self.arg_fn(n)
+        stats = run_concurrent(self.worker_fn, args, n,
+                               label=f"{self.label} n={n}")
+        self.runs.append(stats)
+        print(stats.summary_line())
+        if stats.errors:
+            sample = stats.errors[:3]
+            print(f"    errors (sample): {sample}")
+        return stats
+
     def run(self) -> list[RunStats]:
         print(f"\n{'='*60}")
         print(f"  {self.label}")
         print(f"{'='*60}")
         for n in self.concurrency:
-            args = self.arg_fn(n)
             print(f"  launching {n} workers ...", flush=True)
-            stats = run_concurrent(self.worker_fn, args, n,
-                                   label=f"{self.label} n={n}")
-            self.runs.append(stats)
-            print(stats.summary_line())
-            if stats.errors:
-                sample = stats.errors[:3]
-                print(f"    errors (sample): {sample}")
+            self.run_one(n)
         return self.runs
 
 
@@ -679,6 +684,10 @@ def main():
                     help="where root:// read workers write downloaded bytes")
     ap.add_argument("--json", metavar="FILE",
                     help="save results to JSON file")
+    ap.add_argument("--cooldown", type=int, default=0, metavar="SECS",
+                    help="sleep this many seconds between concurrency levels "
+                         "when --target both; reduces CPU thermal noise "
+                         "(default: 0)")
     args = ap.parse_args()
 
     concurrency = [int(c) for c in args.concurrency.split(",")]
@@ -690,23 +699,47 @@ def main():
 
     all_results: dict[str, list[Suite]] = {}
 
-    if args.target in ("nginx", "both"):
-        suites = build_suites("nginx", args.file, concurrency, args.mode,
-                              args.suite, args.read_sink)
-        for s in suites:
-            s.run()
-        all_results["nginx"] = suites
-        if args.json:
-            save_json(suites, args.json.replace(".json", "_nginx.json"), "nginx")
+    if args.target == "both":
+        # Build both suite lists up front so we can interleave at each
+        # concurrency level.  This ensures nginx and xrootd are benchmarked
+        # under the same thermal conditions (both start cool at n=1,
+        # both are warm at n=32) instead of nginx always getting the
+        # cool CPU and xrootd always getting the throttled one.
+        nginx_suites = build_suites("nginx",   args.file, concurrency,
+                                    args.mode, args.suite, args.read_sink)
+        xrd_suites   = build_suites("xrootd",  args.file, concurrency,
+                                    args.mode, args.suite, args.read_sink)
 
-    if args.target in ("xrootd", "both"):
-        suites = build_suites("xrootd", args.file, concurrency, args.mode,
+        for n in concurrency:
+            for ns in nginx_suites:
+                print(f"\n  nginx   {ns.label}", flush=True)
+                ns.run_one(n)
+            for xs in xrd_suites:
+                print(f"\n  xrootd  {xs.label}", flush=True)
+                xs.run_one(n)
+            if args.cooldown > 0 and n != concurrency[-1]:
+                print(f"\n  [cooldown {args.cooldown}s between concurrency levels...]",
+                      flush=True)
+                time.sleep(args.cooldown)
+
+        all_results["nginx"]  = nginx_suites
+        all_results["xrootd"] = xrd_suites
+
+        if args.json:
+            save_json(nginx_suites,
+                      args.json.replace(".json", "_nginx.json"), "nginx")
+            save_json(xrd_suites,
+                      args.json.replace(".json", "_xrootd.json"), "xrootd")
+
+    else:
+        target_name = args.target
+        suites = build_suites(target_name, args.file, concurrency, args.mode,
                               args.suite, args.read_sink)
         for s in suites:
             s.run()
-        all_results["xrootd"] = suites
+        all_results[target_name] = suites
         if args.json:
-            save_json(suites, args.json.replace(".json", "_xrootd.json"), "xrootd")
+            save_json(suites, args.json, target_name)
 
     if args.target == "both":
         # Pair up by position — assumes same suite ordering

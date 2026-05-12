@@ -1,0 +1,243 @@
+name: Build RPM & Container Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'k8s-tests/**'
+      - 'packaging/rpm/**'
+      - 'src/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'k8s-tests/**'
+      - 'packaging/rpm/**'
+      - 'src/**'
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_ORG: ${{ github.repository_owner }}
+  VERSION: ${{ github.event.release.tag_name || github.sha }}
+
+jobs:
+  build-rpm:
+    name: Build RPM Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up AlmaLinux 9 builder
+        run: |
+          docker pull almalinux:9-minimal
+          docker build \
+            --build-arg VERSION=${{ env.VERSION }} \
+            -t nginx-xrootd-rpm-builder \
+            -f k8s-tests/Dockerfiles/rpm-builder/Dockerfile .
+
+      - name: Build RPM in container
+        run: |
+          docker create --name rpm-builder nginx-xrootd-rpm-builder
+          docker cp rpm-builder:/rpmbuild/RPMS/x86_64/ .
+          docker rm rpm-builder
+          ls -la RPMS/x86_64/
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-mod-xrootd-rpm
+          path: RPMS/x86_64/*.rpm
+          retention-days: 14
+
+      - name: Verify RPM integrity
+        run: |
+          rpm --checksig RPMS/x86_64/nginx-mod-xrootd-*.rpm
+
+  build-images:
+    name: Build Container Images
+    needs: [build-rpm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: [server, client, test-runner]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download RPM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nginx-mod-xrootd-rpm
+          path: k8s-tests/rpms/
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from RPM
+        id: version
+        run: |
+          RPM=$(ls k8s-tests/rpms/*.rpm | head -1)
+          VER=$(rpm --queryformat '%{VERSION}-%{RELEASE}' -qpi "$RPM" 2>/dev/null || echo "${{ env.VERSION }}")
+          echo "version=${VER}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: k8s-tests/Dockerfiles/${{ matrix.image }}/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/nginx-xrootd-${{ matrix.image }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/nginx-xrootd-${{ matrix.image }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  deploy-dev:
+    name: Deploy to Dev Cluster
+    needs: [build-images]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Connect to minikube (or managed cluster)
+        run: |
+          # For local development, use minikube
+          if [ -n "$MINIKUBE_KUBECONFIG" ]; then
+            export KUBECONFIG="$MINIKUBE_KUBECONFIG"
+            kubectl config set-context --current --namespace=k8s-tests-dev
+          fi
+
+      - name: Update server deployment with new image tag
+        run: |
+          VERSION=$(git rev-parse --short HEAD)
+          helm upgrade --install xrootd-servers ./k8s-tests/server-helm \
+            --namespace k8s-tests-dev \
+            --create-namespace \
+            -f ./k8s-tests/server-helm/values.dev.yaml \
+            --set image.tag="${VERSION}"
+
+  test-k8s-integration:
+    name: Run K8s Integration Tests
+    needs: [build-images]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Start minikube with 3 nodes
+        run: |
+          curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          sudo install minikube-linux-amd64 /usr/local/bin/minikube
+          minikube start \
+            --nodes=3 \
+            --cpus=4 \
+            --memory=8192000 \
+            --driver=docker \
+            --kubernetes-version=v1.28.3
+          minikube addons enable ingress metrics-server
+
+      - name: Deploy cert-manager and test infrastructure
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --set crds.enabled=true
+
+          # Deploy PKI infrastructure (CA, certificates)
+          helm upgrade --install test-infra ./k8s-tests/test-infra-helm \
+            --namespace k8s-tests-dev \
+            --create-namespace \
+            -f ./k8s-tests/test-infra-helm/values.yaml
+
+      - name: Load images to minikube registry
+        run: |
+          for img in server client test-runner; do
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/nginx-xrootd-${img}:${{ env.VERSION }}
+            minikube image load ${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/nginx-xrootd-${img}:${{ env.VERSION }}
+          done
+
+      - name: Deploy nginx-xrootd servers with GSI auth
+        run: |
+          helm upgrade --install xrootd-servers ./k8s-tests/server-helm \
+            --namespace k8s-tests-dev \
+            --create-namespace \
+            -f ./k8s-tests/server-helm/values.dev.yaml \
+            --set image.pullPolicy=Never \
+            --set auth.mode=gsi \
+            --set server.nodeCount=3
+
+      - name: Wait for servers to be ready
+        run: |
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=server \
+            --namespace=k8s-tests-dev --timeout=300s
+
+      - name: Deploy Keycloak for token auth testing
+        run: |
+          # Wait for realm init job to complete before running token tests
+          kubectl wait --for=condition=complete job/keycloak-realm-init \
+            --namespace=k8s-tests-dev --timeout=120s
+
+      - name: Run integration tests
+        run: |
+          # Deploy test runner Job
+          helm upgrade --install test-job ./k8s-tests/test-infra-helm \
+            --namespace k8s-tests-dev \
+            --set job.image=${{ env.REGISTRY }}/${{ env.IMAGE_ORG }}/nginx-xrootd-test-runner:${{ env.VERSION }} \
+            --set job.imagePullPolicy=Never \
+            --set job.authMode=gsi
+
+          # Wait for test completion and collect results
+          kubectl wait --for=condition=complete job/test-job \
+            --namespace=k8s-tests-dev --timeout=1800s || true
+
+          # Collect logs from test runner
+          echo "=== Test Runner Logs ==="
+          kubectl logs -l app.kubernetes.io/component=test-runner \
+            --namespace=k8s-tests-dev --tail=-1 2>/dev/null || true
+
+      - name: Aggregate test results
+        run: |
+          # Collect XML results from pod volume or ConfigMap
+          mkdir -p /tmp/test-results
+          kubectl cp k8s-tests-dev/test-runner:/test-results/*.xml /tmp/test-results/ 2>/dev/null || true
+
+          if ls /tmp/test-results/*.xml &>/dev/null; then
+            python ./k8s-tests/test-runner/aggregate_results.py \
+              --results-dir /tmp/test-results \
+              --summary-out /tmp/test-summary.json
+            cat /tmp/test-summary.json
+          else
+            echo "No XML results found — checking pod logs for summary"
+          fi
+
+      - name: Teardown test cluster
+        if: always()
+        run: |
+          helm uninstall xrootd-servers --namespace k8s-tests-dev 2>/dev/null || true
+          helm uninstall test-infra --namespace k8s-tests-dev 2>/dev/null || true
+          helm uninstall cert-manager --namespace cert-manager 2>/dev/null || true
+          minikube delete --all 2>/dev/null || true

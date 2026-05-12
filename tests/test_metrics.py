@@ -108,6 +108,10 @@ class TestMetricsEndpoint:
             "# TYPE xrootd_bytes_tx_total counter",
             "# HELP xrootd_requests_total",
             "# TYPE xrootd_requests_total counter",
+            "# HELP xrootd_s3_requests_total",
+            "# TYPE xrootd_s3_requests_total counter",
+            "# HELP xrootd_s3_responses_total",
+            "# TYPE xrootd_s3_responses_total counter",
         ]
         for line in expected:
             assert line in text, f"Missing: {line!r}"

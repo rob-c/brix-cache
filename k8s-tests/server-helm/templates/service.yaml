@@ -1,0 +1,69 @@
+{{- range $i := until (.Values.server.nodeCount | int) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "xrootd.fullname" $ }}-node{{ $i }}-xrootd
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "xrootd.labels" $ | nindent 4 }}
+    node-index: "{{ $i }}"
+spec:
+  type: {{ $.Values.service.xrootd.type }}
+  selector:
+    {{- include "xrootd.selectorLabels" $ | nindent 4 }}
+    node-index: "{{ $i }}"
+  ports:
+    - name: xrootd
+      port: {{ $.Values.ports.xrootd }}
+      targetPort: {{ $.Values.ports.xrootd }}
+      protocol: TCP
+{{- if eq $.Values.service.xrootd.type "NodePort" }}
+      nodePort: {{ $.Values.service.xrootd.nodePort | add $i | int }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "xrootd.fullname" $ }}-node{{ $i }}-webdav
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "xrootd.labels" $ | nindent 4 }}
+    node-index: "{{ $i }}"
+spec:
+  type: {{ $.Values.service.webdav.type }}
+  selector:
+    {{- include "xrootd.selectorLabels" $ | nindent 4 }}
+    node-index: "{{ $i }}"
+  ports:
+    - name: webdav-https
+      port: {{ $.Values.ports.webdav }}
+      targetPort: {{ $.Values.ports.webdav }}
+      protocol: TCP
+{{- if eq $.Values.service.webdav.type "NodePort" }}
+      nodePort: {{ $.Values.service.webdav.nodePort | add $i | int }}
+{{- end }}
+    - name: webdav-http
+      port: {{ $.Values.ports.webdavPlain }}
+      targetPort: {{ $.Values.ports.webdavPlain }}
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "xrootd.fullname" $ }}-node{{ $i }}-metrics
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "xrootd.labels" $ | nindent 4 }}
+    node-index: "{{ $i }}"
+spec:
+  type: {{ $.Values.service.metrics.type }}
+  selector:
+    {{- include "xrootd.selectorLabels" $ | nindent 4 }}
+    node-index: "{{ $i }}"
+  ports:
+    - name: metrics
+      port: {{ $.Values.ports.metrics }}
+      targetPort: {{ $.Values.ports.metrics }}
+      protocol: TCP
+{{- end }}

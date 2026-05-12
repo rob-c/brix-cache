@@ -1,0 +1,80 @@
+
+image:
+  repository: ghcr.io/HEP-x/nginx-xrootd-server
+  tag: latest
+  pullPolicy: IfNotPresent
+
+server:
+  nodeCount: 1
+  replicasPerNode: 1
+
+ports:
+  xrootd: 1094        # root:// native XRootD (stream layer)
+  roots: 1095         # roots:// TLS-from-first-byte
+  webdav: 8443        # davs:// WebDAV over HTTPS
+  webdavPlain: 8080   # http:// WebDAV plain HTTP
+  metrics: 9100       # Prometheus /metrics
+
+auth:
+  mode: none          # none | gsi | token | both
+  allowWrite: false   # server-wide write gate (Recipe D in AGENTS.md)
+  requireVO: ""       # WLCG VO requirement (e.g., "atlas", "cms")
+
+pki:
+  hostCertificate: /etc/grid-security/hostcert.pem
+  hostPrivateKey: /etc/grid-security/hostkey.pem
+  caDir: /etc/grid-security/certificates
+  vomsDir: /etc/grid-security/vomsdir
+  crlFiles: []        # List of CRL filenames to load
+
+data:
+  root: /data/xrootd
+  createPVC: false    # Set true for persistent storage
+  pvcSize: 10Gi
+  storageClass: ""
+
+service:
+  xrootd:
+    type: NodePort      # ClusterIP | NodePort | LoadBalancer
+    nodePort: 31094
+  webdav:
+    type: NodePort
+    nodePort: 38443
+  metrics:
+    type: ClusterIP     # Always internal for Prometheus scraping
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+nginx:
+  workerProcesses: auto
+  workerConnections: 1024
+  threadPoolThreads: 4
+  threadPoolMaxQueue: 65536
+
+proxy:
+  enabled: false
+  upstream: ""          # e.g., "ceph-xrootd.site.example:1094"
+
+webdavProxy:
+  enabled: false
+  upstream: ""          # e.g., "http://internal-dav.site.example:8080"
+
+cms:
+  enabled: false
+  heartbeatInterval: 30
+  registryPort: 1096
+
+# JWT token auth — dynamic key generation (no Keycloak).
+# JWKS file is mounted from test-infra-helm's jwt-keys.yaml template.
+jwtKeys:
+  # Path to the jwks.json file inside server pods
+  configPath: /etc/nginx/jwks/jwks.json
+  issuer: nginx-xrootd-test
+  audience: nginx-xrootd-test-clients
+

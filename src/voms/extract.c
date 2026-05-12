@@ -1,0 +1,90 @@
+#include "voms_internal.h"
+
+#include <limits.h>
+
+/*
+ * Public VOMS extraction entry point used by the GSI authentication path.
+ */
+
+ngx_int_t
+xrootd_extract_voms_info(ngx_log_t *log, X509 *leaf, STACK_OF(X509) *chain,
+    const ngx_str_t *vomsdir, const ngx_str_t *cert_dir,
+    char *primary_vo, size_t primary_vo_sz, char *vo_list, size_t vo_list_sz)
+{
+    struct voms_data *vd;
+    STACK_OF(X509)  *voms_chain = NULL;
+    char             vomsdir_buf[PATH_MAX];
+    char             cert_dir_buf[PATH_MAX];
+    char             errbuf[512];
+    int              error = 0;
+    ngx_int_t        rc = NGX_DECLINED;
+
+    if (!xrootd_voms_loaded) {
+        return NGX_DECLINED;
+    }
+
+    if (leaf == NULL || vomsdir == NULL || cert_dir == NULL
+        || vomsdir->len == 0 || cert_dir->len == 0)
+    {
+        return NGX_DECLINED;
+    }
+
+    if (vomsdir->len >= sizeof(vomsdir_buf)
+        || cert_dir->len >= sizeof(cert_dir_buf))
+    {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(vomsdir_buf, vomsdir->data, vomsdir->len);
+    vomsdir_buf[vomsdir->len] = '\0';
+    ngx_memcpy(cert_dir_buf, cert_dir->data, cert_dir->len);
+    cert_dir_buf[cert_dir->len] = '\0';
+
+    if (primary_vo != NULL && primary_vo_sz > 0) {
+        primary_vo[0] = '\0';
+    }
+    if (vo_list != NULL && vo_list_sz > 0) {
+        vo_list[0] = '\0';
+    }
+
+    vd = xrootd_voms_api.init(vomsdir_buf, cert_dir_buf);
+    if (vd == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (chain != NULL && sk_X509_num(chain) > 0) {
+        voms_chain = sk_X509_dup(chain);
+        if (voms_chain == NULL) {
+            xrootd_voms_api.destroy(vd);
+            return NGX_ERROR;
+        }
+
+        if (sk_X509_num(voms_chain) > 0
+            && X509_cmp(sk_X509_value(voms_chain, 0), leaf) == 0)
+        {
+            sk_X509_delete(voms_chain, 0);
+        }
+    }
+
+    if (!xrootd_voms_api.retrieve(leaf, voms_chain, VOMS_RECURSE_CHAIN, vd,
+                                  &error))
+    {
+        if (error != VOMS_VERR_NOEXT && error != VOMS_VERR_NODATA) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "xrootd: VOMS extraction failed: %s",
+                          xrootd_voms_api.error_message(vd, error, errbuf,
+                                                        (int) sizeof(errbuf)));
+            rc = NGX_ERROR;
+        }
+
+    } else {
+        rc = xrootd_collect_voms_vos(vd, primary_vo, primary_vo_sz,
+                                     vo_list, vo_list_sz);
+    }
+
+    if (voms_chain != NULL) {
+        sk_X509_free(voms_chain);
+    }
+    xrootd_voms_api.destroy(vd);
+    return rc;
+}

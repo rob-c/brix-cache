@@ -1,0 +1,70 @@
+# Container-based RPM builder for AlmaLinux 9 (EPEL 9 / el9)
+#
+# Usage:
+#   docker build -f packaging/rpm/Dockerfile.alma9 \
+#     --build-arg VERSION=0.1.0 \
+#     -t nginx-xrootd-rpm-builder:alma9 .
+#
+#   # Extract the RPMs:
+#   docker run --rm -v "$PWD/dist:/out" nginx-xrootd-rpm-builder:alma9 \
+#     cp -r /artifacts/. /out/
+#
+# The build requires network access during the docker build step to install
+# packages.  The resulting image contains the built RPMs under /artifacts/.
+
+FROM almalinux:9 AS builder
+
+# Enable EPEL 9 for packages not in BaseOS/AppStream (e.g. nginx-mod-devel).
+# Enable the nginx stable repo in case the distribution nginx lags behind the
+# version for which nginx-mod-devel is built.
+RUN dnf install -y epel-release && \
+    dnf install -y \
+        gcc \
+        make \
+        rpm-build \
+        rpmdevtools \
+        redhat-rpm-config \
+        nginx-mod-devel \
+        openssl-devel \
+        pcre2-devel \
+        zlib-devel \
+    && dnf clean all
+
+ARG VERSION=0.1.0
+
+# Copy the full source tree.  .dockerignore should exclude build artefacts and
+# virtual environments.
+WORKDIR /build/src
+COPY . .
+
+# Build the source archive from the working tree, then build the RPM.
+RUN set -euo pipefail && \
+    rpmdev-setuptree && \
+    source_name="nginx-xrootd-${VERSION}" && \
+    tar \
+        --exclude-vcs \
+        --exclude='./.rpmbuild' \
+        --exclude='./.tmp' \
+        --exclude='./.venv*' \
+        --exclude='./__pycache__' \
+        --exclude='./*.pyc' \
+        --exclude='./davs:*' \
+        --exclude='./tests/davs:*' \
+        --transform "s,^\.,${source_name}," \
+        -czf ~/rpmbuild/SOURCES/"${source_name}.tar.gz" \
+        -C /build/src . && \
+    rpmbuild -ba \
+        --define "version_override ${VERSION}" \
+        /build/src/packaging/rpm/nginx-mod-xrootd.spec
+
+# Collect built RPMs into /artifacts for extraction.
+RUN mkdir -p /artifacts && \
+    find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} /artifacts/ \;
+
+
+FROM almalinux:9-minimal AS final
+
+COPY --from=builder /artifacts /artifacts
+
+# Print the built RPMs by default.
+CMD ["find", "/artifacts", "-name", "*.rpm"]

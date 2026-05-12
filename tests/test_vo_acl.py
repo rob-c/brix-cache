@@ -59,6 +59,7 @@ from settings import (
     SERVER_KEY,
     USER_CERT,
     USER_KEY,
+    VO_PORT,
     VOMS_CERT,
     VOMSDIR,
     VOMS_KEY,
@@ -68,7 +69,6 @@ from settings import (
 # Paths
 # ---------------------------------------------------------------------------
 
-VO_PORT     = 11103
 VO_URL      = f"root://localhost:{VO_PORT}"
 
 VO_NGINX_DIR = "/tmp/xrd-vo-test"

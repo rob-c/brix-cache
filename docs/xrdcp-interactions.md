@@ -43,6 +43,26 @@ That distinction matters:
 The same user action, "copy file A to file B", therefore looks very different
 to the server depending on the URL scheme.
 
+```text
+xrdcp source destination
+        |
+        +-- URL contains root:// or roots://
+        |       |
+        |       v
+        |   XRootD native client
+        |       |
+        |       v
+        |   handshake -> protocol -> login/auth -> open -> read/write -> close
+        |
+        +-- URL contains davs:// and --allow-http is set
+                |
+                v
+            XrdClHttp / libcurl
+                |
+                v
+            TLS -> HTTP/WebDAV method sequence -> close/keepalive
+```
+
 ---
 
 ## Before the transfer starts
@@ -120,10 +140,10 @@ Important notes:
 
 Relevant code:
 
-- `src/ngx_xrootd_handshake.c`
-- `src/ngx_xrootd_session.c`
-- `src/ngx_xrootd_connection.c`
-- `src/ngx_xrootd_gsi.c`
+- `src/handshake/*.c`
+- `src/session/*.c`
+- `src/connection/*.c`
+- `src/gsi/*.c`
 
 ### Common native download flow
 
@@ -155,9 +175,9 @@ Details worth knowing:
 
 The read-side handlers live in:
 
-- `src/ngx_xrootd_read_handlers.c`
-- `src/ngx_xrootd_query.c`
-- `src/ngx_xrootd_aio.c`
+- `src/read/*.c`
+- `src/query/*.c`
+- `src/aio/*.c`
 
 ### Common native upload flow
 
@@ -192,8 +212,8 @@ Important details:
 
 Relevant code:
 
-- `src/ngx_xrootd_write_handlers.c`
-- `src/ngx_xrootd_response.c`
+- `src/write/*.c`
+- `src/response/*.c`
 
 ### Optional follow-up operations
 
@@ -247,7 +267,8 @@ If x509 auth is used:
 
 Relevant code:
 
-- `src/ngx_http_xrootd_webdav_module.c`
+- `src/webdav/auth_*.c`
+- `src/webdav/dispatch.c`
 
 ### Common WebDAV download flow
 
@@ -345,21 +366,22 @@ x509 verification work on every request.
 It is worth calling out one special case because users often expect `xrdcp` to
 hide it:
 
-- native root TPC is its own XRootD rendezvous/delegation flow and is not
-  currently implemented here
-- WebDAV HTTP-TPC is implemented separately as WebDAV `COPY` pull support
+- native root TPC uses a shared key registry and source register/consume
+  semantics; destination pull runs in the thread pool with anonymous outbound
+  `kXR_login` to `tpc.src` (see `src/tpc/` and `docs/status.md`)
+- WebDAV HTTP-TPC is implemented separately as WebDAV `COPY` pull/push
 
 So:
 
-- `xrdcp --tpc only root://...` is expected to fail against this module's
-  native stream listener
-- `xrdcp --tpc first root://...` can still fall back to a normal streamed copy
+- `xrdcp --tpc` / `xrdcp --tpc first` against nginx-xrootd is covered by
+  `tests/test_root_tpc.py` for typical disk-only anonymous or compatible-auth
+  sources
 - WebDAV TPC is a different HTTP code path entirely
 
 See:
 
 - `tests/test_root_tpc.py`
-- `src/ngx_http_xrootd_webdav_tpc.c`
+- `src/webdav/tpc*.c`
 
 ---
 
@@ -369,18 +391,17 @@ If you want to step through the server side of an `xrdcp` session:
 
 ### Native `root://`
 
-- `src/ngx_xrootd_handshake.c`
-- `src/ngx_xrootd_session.c`
-- `src/ngx_xrootd_gsi.c`
-- `src/ngx_xrootd_read_handlers.c`
-- `src/ngx_xrootd_write_handlers.c`
-- `src/ngx_xrootd_query.c`
-- `src/ngx_xrootd_connection.c`
+- `src/handshake/*.c`
+- `src/session/*.c`
+- `src/gsi/*.c`
+- `src/read/*.c`
+- `src/write/*.c`
+- `src/query/*.c`
+- `src/connection/*.c`
 
 ### WebDAV `davs://`
 
-- `src/ngx_http_xrootd_webdav_module.c`
-- `src/ngx_http_xrootd_webdav_tpc.c`
+- `src/webdav/*.c`
 
 ### Tests that show real client behavior
 

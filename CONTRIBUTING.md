@@ -1,0 +1,69 @@
+# Contributing to nginx-xrootd
+
+nginx-xrootd is an nginx stream module that speaks the XRootD `root://` wire
+protocol and serves files over WebDAV (`davs://`). It is used in production
+at CERN and other HEP computing sites as a drop-in replacement for the native
+xrootd daemon. See [`docs/background.md`](docs/background.md) for an XRootD
+protocol primer if this is your first encounter with the project.
+
+---
+
+## Read these first
+
+Work through these five documents in order before writing any code. Each one
+builds on the previous.
+
+1. [`docs/architecture.md`](docs/architecture.md) — request lifecycle, state
+   machine, and entry points. Start here to understand how a TCP byte becomes a
+   file operation.
+2. [`docs/types.md`](docs/types.md) — the three core types (`xrootd_ctx_t`,
+   `xrootd_file_t`, `ngx_stream_xrootd_srv_conf_t`) and their field-by-field
+   semantics. You will reference this constantly.
+3. [`docs/contributing.md`](docs/contributing.md) — step-by-step mechanics for
+   the two most common contribution tasks: adding an opcode and adding a
+   directive. Also contains the code style guide and test requirements.
+4. [`docs/protocol-notes.md`](docs/protocol-notes.md) — wire-format quirks,
+   XRootD version differences, and client compatibility notes.
+5. [`docs/building.md`](docs/building.md) — how to compile, what flags do, and
+   how to run the test suite.
+
+---
+
+## Quick task guide
+
+| What you want to do | Where to start |
+|---|---|
+| Add a new XRootD opcode | [`docs/contributing.md`](docs/contributing.md) §1 |
+| Add a new nginx directive | [`docs/contributing.md`](docs/contributing.md) §2 |
+| Add or change auth | [`docs/authentication.md`](docs/authentication.md) |
+| Write a handler (response API, AIO) | [`docs/handler-reference.md`](docs/handler-reference.md) |
+| Run tests / set up test PKI | [`docs/development.md`](docs/development.md) |
+| Understand the metrics exporter | [`docs/metrics-and-logging.md`](docs/metrics-and-logging.md) |
+| Understand the WebDAV / S3 surface | [`docs/webdav.md`](docs/webdav.md) |
+| Understand the CMS manager mode | [`docs/manager-mode.md`](docs/manager-mode.md) |
+
+---
+
+## Quick orientation
+
+```
+src/
+  protocol/   — wire-format constants and structs (read this first)
+  types/      — core type definitions (xrootd_ctx_t etc.)
+  connection/ — TCP state machine and event wiring
+  handshake/  — request dispatch (dispatch.c and four dispatch_*.c files)
+  session/    — login, auth, bind, lifecycle
+  read/       — open, stat, read, readv, pgread, close, dirlist, locate
+  write/      — write, sync, mkdir, rm, truncate, chmod, mv, fattr, set
+  path/       — path resolution, ACL enforcement, access logging
+  aio/        — thread-pool async I/O helpers
+  gsi/        — GSI x509 authentication
+  token/      — JWT/WLCG bearer-token authentication
+  sss/        — simple shared-secret (Blowfish) authentication
+  tpc/        — third-party copy (WebDAV COPY with Source: header)
+  cache/      — read-through origin cache
+  metrics/    — Prometheus counter exporter
+  stream/     — nginx module glue (directive table, lifecycle hooks)
+```
+
+Each directory has a `README.md` explaining its purpose and key files.

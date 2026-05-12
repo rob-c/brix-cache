@@ -24,8 +24,8 @@ and stream frameworks.
 | x509 proxies in WebDAV | nginx/OpenSSL does not naturally love RFC 3820 proxy chains | patch `SSL_CTX`, then verify proxy chains in module code |
 | zero-copy vs TLS | file-backed send paths are easiest on cleartext sockets | cleartext native reads use sendfile-style chains; TLS paths fall back to memory-backed reads when needed |
 | session model vs request model | native XRootD is session-oriented; WebDAV is HTTP request-oriented | stream keeps session state; WebDAV re-evaluates requests and uses caches to recover some session-like efficiency |
-| token scopes | stream and WebDAV were implemented at different stages | stream parses token scopes but still gates writes mainly with `xrootd_allow_write`; WebDAV enforces write scopes for `PUT` and `COPY` |
-| third-party copy | root TPC and HTTP-TPC are different protocols | native root TPC not implemented; WebDAV HTTP-TPC implemented separately with a helper process |
+| token scopes | stream and WebDAV were implemented at different stages | stream enforces scopes on path-resolving operations; handle I/O inherits the open-time decision; WebDAV enforces scopes for bearer-token writes |
+| third-party copy | root TPC and HTTP-TPC are different protocols | native root TPC has a narrow destination-side pull path; WebDAV HTTP-TPC is implemented separately with a helper process |
 | nginx body handling | HTTP request bodies may be in memory or temp files | WebDAV `PUT` has separate fast paths for in-memory and spooled bodies |
 | nginx connection context | HTTP module has fewer natural per-connection hooks than stream | WebDAV stores fd-cache state in SSL `ex_data` |
 | real clients vs spec text | `xrdcp` behavior often differs from the nominal protocol docs | implementation follows working client behavior first |
@@ -169,14 +169,17 @@ There are two different "third-party copy" stories:
 - native root TPC in the XRootD stream protocol
 - HTTP-TPC via WebDAV `COPY`
 
-The module currently implements only the HTTP/WebDAV side.
+The module has separate implementations with different limits:
 
-The compromise is very explicit:
-
-- native root TPC is reported as unsupported
+- native root TPC implements destination-side pull when a write open carries
+  `tpc.src=root://...` (and optional `tpc.key=`); the pull runs in the thread pool
+- on the source, read-opens with `tpc.dst` + `tpc.key` register the rendezvous key;
+  read-opens with `tpc.org` + `tpc.key` consume it before serving bytes
+- the outbound pull client still uses anonymous `kXR_login` to the source;
+  GSI/token on the outbound hop is not implemented (see `docs/status.md`)
 - WebDAV HTTP-TPC is handled in a dedicated helper path
 
-And even the WebDAV TPC implementation is intentionally pragmatic:
+The WebDAV TPC implementation is intentionally pragmatic:
 
 - it shells out to `curl`
 - it does not implement GridSite or OIDC delegation endpoints
@@ -186,26 +189,29 @@ the nginx module manageable and makes the HTTP behavior predictable.
 
 ---
 
-## 7. Token auth is intentionally split by protocol
+## 7. Token authorization is similar, but still protocol-shaped
 
-Today the token story is not symmetric:
+The token story is now closer across native XRootD and WebDAV, but the two
+protocols still enforce at different natural points:
 
 - native stream:
   - validates JWTs
   - parses `scope` and `wlcg.groups`
-  - still relies mainly on `xrootd_allow_write` and VO-style ACLs for actual
-    path authorization
+  - enforces `storage.read`, `storage.write`, and `storage.create` on
+    path-resolving operations
+  - lets handle-based I/O inherit the authorization decision made at `kXR_open`
 - WebDAV:
   - validates bearer tokens
   - enforces `storage.write` / `storage.create` for mutating requests like
     `PUT` and `COPY`
 
-This is a compromise between shipping useful token support now and waiting for a
-fully uniform authz model across both protocol stacks.
+This is not a single shared middleware layer because native XRootD is
+handle-oriented while WebDAV is request-oriented.
 
 Practical consequence:
 
-- do not assume stream and WebDAV token writes are governed by identical rules
+- do not assume stream and WebDAV token writes are checked at the same point in
+  the request lifecycle
 
 The docs call this out in multiple places because it matters operationally.
 
@@ -335,14 +341,131 @@ Across both the stream and WebDAV code, a repeated design choice is:
 
 Examples:
 
-- native root TPC unsupported
-- WebDAV TPC implemented separately and narrowly
-- token path authorization still split by protocol
-- no redirector/federation role
-- no remote backend abstraction layer
+- native root TPC is destination-pull oriented and does not implement the full
+  upstream delegation/rendezvous surface
+- WebDAV TPC is implemented separately and narrowly
+- token authorization is checked at protocol-appropriate points rather than in
+  one shared abstraction
+- remote storage backends are out of scope
+- read-through cache mode has a narrow anonymous origin client, not a general
+  remote backend abstraction layer
 
 This keeps the module understandable and maintainable inside nginx, even though
 it means some advanced XRootD-daemon features are intentionally out of scope.
+
+---
+
+## 15. WebDAV COPY routes to three different handlers
+
+`COPY` is unique in having three completely different handler paths:
+
+```
+COPY request
+    │
+    ├── Source: header → TPC pull (src/webdav/tpc.c)
+    │       server fetches from remote URL into local path
+    │
+    ├── Destination: header + Credential: header → TPC push (src/webdav/tpc.c)
+    │       server reads local file and streams to remote URL
+    │
+    └── Destination: header, no Credential: → server-side copy (src/webdav/copy.c)
+            RFC 4918 §9.8 — local file copy within the export root
+```
+
+The `Credential:` header is the WLCG HTTP-TPC signal. Standard WebDAV COPY
+(RFC 4918 §9.8) never includes it. Routing based on the Destination URL scheme
+(`https://`) is tempting but wrong — a TPC request to a disabled-TPC server
+would fall through to local copy and spuriously succeed.
+
+This matters when debugging: a COPY that returns unexpected 200 may be routing
+to the wrong handler. Check which headers the client sent first.
+
+---
+
+## 16. WebDAV LOCK tokens must be sent in If: header, not Authorization:
+
+WebDAV LOCK tokens (format `urn:uuid:...`) are presented in the `If:` header
+as a "condition list", not in `Authorization:`. A client that sends a bearer
+token AND holds a lock must provide both headers on write requests:
+
+```http
+PUT /path HTTP/1.1
+Authorization: Bearer eyJ...
+If: (<urn:uuid:a1b2c3d4-...>)
+```
+
+The module checks `If:` for a matching lock token before allowing writes.
+A PUT with a valid bearer token but a locked resource and no `If:` header
+returns 423 Locked.
+
+---
+
+## 17. The WebDAV fd cache is TLS-connection-scoped
+
+The per-connection file descriptor cache (`src/webdav/fd_cache.c`) reuses open
+file descriptors across keepalive requests on the same connection. It is stored
+in OpenSSL `ex_data` — which means it only exists on TLS connections that have
+a stable `SSL` object.
+
+On plain HTTP keepalive connections, the fd cache falls through to open-per-request
+behavior. For HTTP clients (e.g. testing with plain `http://`) you may see higher
+`open(2)` syscall counts than on `https://` connections even for identical access
+patterns. This is expected behavior, not a bug.
+
+---
+
+## 18. S3 multipart upload IDs are not globally unique
+
+The upload ID format is `<pid>.<timestamp_usec>`. This is locally unique across
+concurrent uploads from one nginx worker but could theoretically collide across
+worker restarts within the same microsecond. In practice this is not a problem
+for typical HEP storage workloads, but it means:
+
+- Do not use upload IDs as global identifiers across servers
+- The staging directory namespace (`.KEYNAME.mpu-UPLOADID/`) is scoped to the
+  filesystem path, so collisions across different keys are impossible even with
+  identical IDs
+
+If you need cryptographically strong upload IDs, the `s3_handle_multipart_initiate`
+function in `src/s3/multipart.c` is the right place to change the generation logic.
+
+---
+
+## 19. S3 ListObjectsV2 does not support all query parameters
+
+The S3 ListObjectsV2 implementation (`src/s3/list.c`) supports:
+
+- `prefix` — filters keys by prefix
+- `max-keys` — limits result count
+- `continuation-token` — paginated listing
+
+It does not currently support:
+- `delimiter` — no virtual directory grouping (CommonPrefixes)
+- `start-after` — cursor-based start position
+- `fetch-owner` — owner fields are always empty
+
+For AWS SDK clients that require these parameters, the server returns a valid XML
+response but ignores the unsupported parameters. AWS SDK clients typically fall
+back gracefully to listing without grouping. Clients that strictly require
+`delimiter` behavior (e.g. for virtual directory browsing) may see incorrect
+results.
+
+---
+
+## 20. The WebDAV TPC credential delegation uses a subprocess, not in-process async
+
+HTTP-TPC credential delegation (`oidc-agent` mode and RFC 8693 token-exchange
+mode) uses a `curl` subprocess rather than an in-process HTTP client. This means:
+
+- Each TPC transfer with credential delegation forks a curl process
+- The nginx event loop is not blocked (curl runs in the nginx thread pool)
+- The curl subprocess inherits the configured CA bundle and TLS identity
+- Credential exchange errors appear in the nginx error log from the subprocess
+
+This is the same design used for TPC pull/push: keep complex external protocol
+interactions out of the event loop and out of the nginx process itself. The
+alternative would be embedding a full OAuth2 client library in C, which adds
+significant maintenance surface for a rarely-invoked code path.
 
 ---
 
@@ -353,3 +476,5 @@ it means some advanced XRootD-daemon features are intentionally out of scope.
 - [optimizations.md](optimizations.md) - performance-driven implementation choices
 - [tls.md](tls.md) - auth and transport layering
 - [development.md](development.md) - source layout and workflow
+- [webdav.md](webdav.md) - WebDAV RFC compliance and method reference
+- [comparison-with-xrootd.md](comparison-with-xrootd.md) - where design compromises affect deployment choices

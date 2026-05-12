@@ -1,0 +1,83 @@
+# Container-based RPM builder for AlmaLinux 10 (EPEL 10 / el10)
+#
+# Usage:
+#   docker build -f packaging/rpm/Dockerfile.alma10 \
+#     --build-arg VERSION=0.1.0 \
+#     -t nginx-xrootd-rpm-builder:alma10 .
+#
+#   # Extract the RPMs:
+#   docker run --rm -v "$PWD/dist:/out" nginx-xrootd-rpm-builder:alma10 \
+#     cp -r /artifacts/. /out/
+#
+# AlmaLinux 10 notes:
+#   - Based on RHEL 10 (CS1).  Uses GCC 14 by default.
+#   - EPEL 10 provides nginx-mod-devel.  If EPEL 10 does not yet carry
+#     nginx-mod-devel, enable the nginx stable upstream repo (see the commented
+#     block below).
+#   - The resulting RPM will carry the .el10 dist tag.
+#   - voms-libs at runtime: enable the WLCG EL10 repository on the target
+#     host before installing this RPM:
+#       dnf install -y https://linuxsoft.cern.ch/wlcg/el10/x86_64/wlcg-repo-*.noarch.rpm
+#     If the WLCG EL10 repo is not yet published, voms-libs from the EL9 WLCG
+#     repo may install with --releasever=9 compatibility shims — verify before
+#     production use.
+
+FROM almalinux:10 AS builder
+
+# Enable EPEL 10 for packages not in BaseOS/AppStream.
+RUN dnf install -y epel-release && \
+    dnf install -y \
+        gcc \
+        make \
+        rpm-build \
+        rpmdevtools \
+        redhat-rpm-config \
+        nginx-mod-devel \
+        openssl-devel \
+        pcre2-devel \
+        zlib-devel \
+    && dnf clean all
+
+# If nginx-mod-devel is not available in EPEL 10 at the time of the build,
+# uncomment the block below to add the nginx stable upstream repo first:
+#
+# RUN printf '[nginx-stable]\nname=nginx stable repo\n\
+# baseurl=https://nginx.org/packages/rhel/10/$basearch/\ngpgcheck=1\nenabled=1\n\
+# gpgkey=https://nginx.org/keys/nginx_signing.key\nmodule_hotfixes=true\n' \
+#     > /etc/yum.repos.d/nginx.repo && \
+#     dnf install -y nginx-mod-devel && \
+#     dnf clean all
+
+ARG VERSION=0.1.0
+
+WORKDIR /build/src
+COPY . .
+
+RUN set -euo pipefail && \
+    rpmdev-setuptree && \
+    source_name="nginx-xrootd-${VERSION}" && \
+    tar \
+        --exclude-vcs \
+        --exclude='./.rpmbuild' \
+        --exclude='./.tmp' \
+        --exclude='./.venv*' \
+        --exclude='./__pycache__' \
+        --exclude='./*.pyc' \
+        --exclude='./davs:*' \
+        --exclude='./tests/davs:*' \
+        --transform "s,^\.,${source_name}," \
+        -czf ~/rpmbuild/SOURCES/"${source_name}.tar.gz" \
+        -C /build/src . && \
+    rpmbuild -ba \
+        --define "version_override ${VERSION}" \
+        /build/src/packaging/rpm/nginx-mod-xrootd.spec
+
+RUN mkdir -p /artifacts && \
+    find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} /artifacts/ \;
+
+
+FROM almalinux:10-minimal AS final
+
+COPY --from=builder /artifacts /artifacts
+
+CMD ["find", "/artifacts", "-name", "*.rpm"]

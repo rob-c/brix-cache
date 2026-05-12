@@ -14,12 +14,26 @@ __pycache__/
 
 # local scratch output
 .tmp/
+.rpmbuild/
 
 # local agent and test caches
+.aider*
+.aider*/
+.opencode/
+.ralph/
 .claude/
 .codex/
 .pytest_cache/
 .venv/
+.venv*/
+
+# URL-shaped paths accidentally created by WebDAV/xrdcp test transfers
+davs:/
+tests/davs:/
 
 # Local helper scripts not for upstream
 tools/
+.aider*
+
+.rpmbuild/
+.tmp/

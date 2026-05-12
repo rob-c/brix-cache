@@ -1,0 +1,228 @@
+#include "read.h"
+
+#include "../ngx_xrootd_module.h"
+
+size_t
+xrootd_pgread_encode_pages(const u_char *src, size_t len, u_char *dst)
+{
+    const u_char *p;
+    u_char       *out;
+    size_t        remaining;
+
+    p = src;
+    out = dst;
+    remaining = len;
+
+    while (remaining > 0) {
+        size_t   page_data;
+        uint32_t crc_be;
+
+        page_data = (remaining >= (size_t) kXR_pgPageSZ)
+                    ? (size_t) kXR_pgPageSZ : remaining;
+        crc_be = htonl(xrootd_crc32c_copy(p, out, page_data));
+
+        out += page_data;
+        p += page_data;
+        remaining -= page_data;
+
+        ngx_memcpy(out, &crc_be, 4);
+        out += 4;
+    }
+
+    return (size_t) (out - dst);
+}
+
+ngx_int_t
+xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
+{
+    ClientPgReadRequest          *req = (ClientPgReadRequest *) ctx->hdr_buf;
+    int                           idx;
+    int64_t                       offset;
+    size_t                        rlen;
+    int                           fd;
+    ssize_t                       nread;
+    size_t                        n_pages;
+    u_char                       *flat_buf;
+    u_char                       *out_buf;
+    size_t                        out_size;
+    ServerStatusResponse_pgRead  *hdr_buf;
+    ngx_chain_t                  *cl_hdr;
+    ngx_chain_t                  *rsp_chain;
+    ngx_stream_xrootd_srv_conf_t *rconf;
+    char                          detail[64];
+    ngx_int_t                     validate_rc;
+
+    idx = (int) (unsigned char) req->fhandle[0];
+    offset = (int64_t) be64toh((uint64_t) req->offset);
+    rlen = (size_t) (uint32_t) ntohl((uint32_t) req->rlen);
+
+    if (!xrootd_validate_read_handle(ctx, c, idx, "PGREAD",
+                                     XROOTD_OP_PGREAD, &validate_rc)) {
+        return validate_rc;
+    }
+
+    if (offset < 0) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_PGREAD);
+        return xrootd_send_error(ctx, c, kXR_IOError,
+                                 "negative read offset");
+    }
+
+    if (rlen == 0) {
+        hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
+        if (hdr_buf == NULL) {
+            return NGX_ERROR;
+        }
+        xrootd_build_pgread_status(ctx, offset, 0, hdr_buf);
+        XROOTD_OP_OK(ctx, XROOTD_OP_PGREAD);
+        return xrootd_queue_response(ctx, c, (u_char *) hdr_buf,
+                                     sizeof(*hdr_buf));
+    }
+
+    if (rlen > XROOTD_READ_REQUEST_MAX) {
+        rlen = XROOTD_READ_REQUEST_MAX;
+    }
+
+    fd = ctx->files[idx].fd;
+
+    {
+        size_t  n_pages_max;
+        size_t  scratch_size;
+        u_char *scratch;
+
+        rconf = ngx_stream_get_module_srv_conf(
+            (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+
+        n_pages_max = (rlen + kXR_pgPageSZ - 1) / kXR_pgPageSZ;
+        if (n_pages_max == 0) {
+            n_pages_max = 1;
+        }
+        scratch_size = rlen + n_pages_max * kXR_pgUnitSZ;
+
+        scratch = xrootd_get_read_scratch(ctx, c, scratch_size);
+        if (scratch == NULL) {
+            return NGX_ERROR;
+        }
+
+#if (NGX_THREADS)
+        if (rconf->thread_pool != NULL) {
+            ngx_thread_task_t   *task;
+            xrootd_pgread_aio_t *t;
+            ngx_flag_t           posted;
+
+            task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_pgread_aio_t));
+            if (task == NULL) {
+                return NGX_ERROR;
+            }
+
+            t = task->ctx;
+            t->c = c;
+            t->ctx = ctx;
+            t->fd = fd;
+            t->handle_idx = idx;
+            t->offset = (off_t) offset;
+            t->rlen = rlen;
+            t->scratch = scratch;
+            t->out_size = 0;
+            t->streamid[0] = ctx->cur_streamid[0];
+            t->streamid[1] = ctx->cur_streamid[1];
+
+            task->handler = xrootd_pgread_aio_thread;
+            task->event.handler = xrootd_pgread_aio_done;
+            task->event.data = task;
+
+            (void) xrootd_aio_post_task(ctx, c, rconf->thread_pool, task,
+                                        "xrootd: thread_task_post failed, sync pgread fallback",
+                                        &posted);
+            if (posted) {
+                return NGX_OK;
+            }
+        }
+#endif
+
+        /*
+         * Sync fallback: pread into scratch[0..rlen-1], encode into
+         * scratch[rlen..], matching the AIO scratch layout so the same single
+         * allocation is reused on subsequent requests.
+         */
+        nread = pread(fd, scratch, rlen, (off_t) offset);
+        if (nread < 0) {
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_PGREAD, "PGREAD",
+                              ctx->files[idx].path, "-",
+                              kXR_IOError, strerror(errno));
+        }
+
+        flat_buf = scratch;
+        rlen     = (size_t) nread;
+
+        n_pages = (rlen + kXR_pgPageSZ - 1) / kXR_pgPageSZ;
+        if (n_pages == 0) {
+            n_pages = 1;
+        }
+
+        /* Encoded output placed at scratch[original rlen..] */
+        out_buf  = scratch + (scratch_size - n_pages_max * kXR_pgUnitSZ);
+        out_size = xrootd_pgread_encode_pages(flat_buf, rlen, out_buf);
+    }
+
+    hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
+    if (hdr_buf == NULL) {
+        xrootd_release_read_buffer(ctx, c, flat_buf);
+        return NGX_ERROR;
+    }
+    xrootd_build_pgread_status(ctx, offset, (uint32_t) out_size, hdr_buf);
+
+    cl_hdr = ngx_alloc_chain_link(c->pool);
+    if (cl_hdr == NULL) {
+        xrootd_release_read_buffer(ctx, c, flat_buf);
+        return NGX_ERROR;
+    }
+    cl_hdr->buf = ngx_calloc_buf(c->pool);
+    if (cl_hdr->buf == NULL) {
+        xrootd_release_read_buffer(ctx, c, flat_buf);
+        return NGX_ERROR;
+    }
+    cl_hdr->buf->pos = (u_char *) hdr_buf;
+    cl_hdr->buf->last = cl_hdr->buf->pos + sizeof(*hdr_buf);
+    cl_hdr->buf->memory = 1;
+    cl_hdr->buf->last_buf = 0;
+
+    {
+        ngx_chain_t *cl_data;
+        ngx_buf_t   *bd;
+
+        cl_data = ngx_alloc_chain_link(c->pool);
+        bd = ngx_calloc_buf(c->pool);
+        if (cl_data == NULL || bd == NULL) {
+            xrootd_release_read_buffer(ctx, c, flat_buf);
+            return NGX_ERROR;
+        }
+        bd->pos = out_buf;
+        bd->last = out_buf + out_size;
+        bd->memory = 1;
+        bd->last_buf = 1;
+        cl_data->buf = bd;
+        cl_data->next = NULL;
+
+        cl_hdr->next = cl_data;
+        rsp_chain = cl_hdr;
+    }
+
+    ctx->files[idx].bytes_read += rlen;
+    ctx->session_bytes += rlen;
+
+    if (rconf->access_log_fd != NGX_INVALID_FILE) {
+        snprintf(detail, sizeof(detail), "%lld+%zu", (long long) offset, rlen);
+        xrootd_log_access(ctx, c, "PGREAD", ctx->files[idx].path,
+                          detail, 1, 0, NULL, rlen);
+    }
+    XROOTD_OP_OK(ctx, XROOTD_OP_PGREAD);
+
+    {
+        ngx_int_t rc = xrootd_queue_response_chain(ctx, c, rsp_chain, flat_buf);
+
+        if (rc != NGX_OK || ctx->state != XRD_ST_SENDING) {
+            xrootd_release_read_buffer(ctx, c, flat_buf);
+        }
+        return rc;
+    }
+}

@@ -9,7 +9,6 @@ configurations without disturbing the main test server:
 """
 
 import os
-import socket
 
 import pytest
 import requests
@@ -18,16 +17,19 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import server_control
-from settings import CA_CERT, DATA_ROOT, NGINX_BIN, PROXY_STD, SERVER_CERT, SERVER_KEY
+from settings import (
+    CA_CERT,
+    DATA_ROOT,
+    NGINX_BIN,
+    PROXY_STD,
+    SERVER_CERT,
+    SERVER_KEY,
+    WEBDAV_AUTH_CACHE_MANUAL_PORT,
+    WEBDAV_AUTH_CACHE_NGINX_PORT,
+)
 
 PROXY_PEM = PROXY_STD
 TEST_FILE = "auth_cache_probe.txt"
-
-
-def _free_port():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -39,8 +41,8 @@ def webdav_auth_cache_nginx():
         if not os.path.exists(path):
             pytest.skip(f"required PKI file not found: {path}")
 
-    manual_port = _free_port()
-    nginx_port = _free_port()
+    manual_port = WEBDAV_AUTH_CACHE_MANUAL_PORT
+    nginx_port = WEBDAV_AUTH_CACHE_NGINX_PORT
 
     os.makedirs(DATA_ROOT, exist_ok=True)
     with open(os.path.join(DATA_ROOT, TEST_FILE), "wb") as fh:

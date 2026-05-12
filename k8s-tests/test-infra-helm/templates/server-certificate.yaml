@@ -1,0 +1,28 @@
+{{- if .Values.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.ca.name | quote }}
+spec:
+  ca:
+    secretName: {{ .Values.ca.name }}-ca-secret
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.serverCert.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ .Release.Name }}-server-tls
+  duration: 8760h
+  renewBefore: {{ .Values.serverCert.renewBefore }}
+  issuerRef:
+    name: {{ .Values.ca.name | quote }}
+    kind: ClusterIssuer
+    group: cert-manager.io
+  commonName: {{ .Values.serverCert.commonName }}
+  dnsNames:
+{{- range .Values.serverCert.dnsNames }}
+    - {{ . | quote }}
+{{- end }}
+{{- end }}

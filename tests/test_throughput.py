@@ -33,7 +33,7 @@ PROXY_PEM  = PROXY_STD
 
 LARGE_FILE      = "large200.bin"
 LARGE_FILE_SIZE = 200 * 1024 * 1024   # 200 MiB
-LARGE_FILE_MD5  = "e974166996ffd73416120d15574672d6"
+LARGE_FILE_MD5  = os.environ.get("LARGE_FILE_MD5", "")
 
 READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches XROOTD_READ_MAX in the module
 
@@ -109,6 +109,14 @@ def _report(label: str, size_bytes: int, elapsed: float):
     )
 
 
+def _md5_file(path: str) -> str:
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def _check_md5(data: bytes):
     got = hashlib.md5(data).hexdigest()
     assert got == LARGE_FILE_MD5, f"md5 mismatch: got {got}"
@@ -120,12 +128,15 @@ def _check_md5(data: bytes):
 
 @pytest.fixture(scope="module", autouse=True)
 def _configure(test_env):
-    global ANON_URL, GSI_URL, DATA_ROOT, CA_DIR, PROXY_PEM
+    global ANON_URL, GSI_URL, DATA_ROOT, CA_DIR, PROXY_PEM, LARGE_FILE_MD5
     ANON_URL  = test_env["anon_url"]
     GSI_URL   = test_env["gsi_url"]
     DATA_ROOT = test_env["data_dir"]
     CA_DIR    = test_env["ca_dir"]
     PROXY_PEM = test_env["proxy_pem"]
+    LARGE_FILE_MD5 = os.environ.get("LARGE_FILE_MD5") or _md5_file(
+        os.path.join(DATA_ROOT, LARGE_FILE)
+    )
     _set_gsi_env()
 
 

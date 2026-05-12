@@ -76,7 +76,10 @@ def anon_fs():
 
 @pytest.fixture(scope="module")
 def gsi_fs():
-    return client.FileSystem(GSI_URL)
+    os.environ["X509_CERT_DIR"] = CA_DIR
+    os.environ["X509_USER_PROXY"] = PROXY_PEM
+    fs = client.FileSystem(GSI_URL)
+    return fs
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +229,11 @@ class TestGSI:
     directory at CA_DIR.  Environment variables are set by the gsi_env fixture.
     """
 
+    @pytest.fixture(scope="class", autouse=True)
+    def _setup_env(self):
+        os.environ["X509_CERT_DIR"] = CA_DIR
+        os.environ["X509_USER_PROXY"] = PROXY_PEM
+
     def test_gsi_stat_root(self, gsi_fs):
         """GSI: stat('/') on authenticated endpoint succeeds."""
         status, info = gsi_fs.stat("/")
@@ -249,11 +257,15 @@ class TestGSI:
 
     def test_gsi_read_small_file(self):
         """GSI: read a small file, verify content matches reference."""
+        os.environ["X509_CERT_DIR"] = CA_DIR
+        os.environ["X509_USER_PROXY"] = PROXY_PEM
         data = xrd_read_all(f"{GSI_URL}//test.txt")
         assert data == TEST_FILES["test.txt"]["content"]
 
     def test_gsi_read_large_file_integrity(self):
         """GSI: read a 5 MB binary file and verify md5 matches disk."""
+        os.environ["X509_CERT_DIR"] = CA_DIR
+        os.environ["X509_USER_PROXY"] = PROXY_PEM
         expected_md5 = md5_of_file(os.path.join(DATA_ROOT, "random.bin"))
         data = xrd_read_all(f"{GSI_URL}//random.bin")
         assert len(data) == TEST_FILES["random.bin"]["size"]
@@ -261,6 +273,8 @@ class TestGSI:
 
     def test_gsi_copy_small_file(self):
         """GSI: CopyProcess copy a small file and verify content."""
+        os.environ["X509_CERT_DIR"] = CA_DIR
+        os.environ["X509_USER_PROXY"] = PROXY_PEM
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_path = tmp.name
         try:
@@ -277,6 +291,8 @@ class TestGSI:
 
     def test_gsi_copy_large_file_integrity(self):
         """GSI: CopyProcess copy a 5 MB binary file and verify md5."""
+        os.environ["X509_CERT_DIR"] = CA_DIR
+        os.environ["X509_USER_PROXY"] = PROXY_PEM
         expected_md5 = md5_of_file(os.path.join(DATA_ROOT, "random.bin"))
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp_path = tmp.name
@@ -297,6 +313,8 @@ class TestGSI:
 
     def test_gsi_open_read_partial(self):
         """GSI: partial read (offset + size) returns correct bytes."""
+        os.environ["X509_CERT_DIR"] = CA_DIR
+        os.environ["X509_USER_PROXY"] = PROXY_PEM
         f = client.File()
         status, _ = f.open(f"{GSI_URL}//test.txt")
         assert status.ok
@@ -312,6 +330,8 @@ class TestGSI:
 
     def test_gsi_anon_same_data(self):
         """Data read via GSI endpoint equals data read via anonymous endpoint."""
+        os.environ["X509_CERT_DIR"] = CA_DIR
+        os.environ["X509_USER_PROXY"] = PROXY_PEM
         anon_data = xrd_read_all(f"{ANON_URL}//random.bin")
         gsi_data  = xrd_read_all(f"{GSI_URL}//random.bin")
         assert anon_data == gsi_data
@@ -324,11 +344,9 @@ class TestGSI:
         assert not (info.flags & StatInfoFlags.IS_DIR)
 
     def test_gsi_wrong_ca_rejected(self):
-        """GSI: unknown CA dir causes auth failure (tested in fresh subprocess).
-
-        The XRootD C++ client pools connections within a process, so env-var
-        changes only take effect in a fresh process.  We use subprocess.run.
-        """
+        """GSI: unknown CA dir causes auth failure (tested in fresh subprocess)."""
+        os.environ["X509_CERT_DIR"] = "/nonexistent/ca"
+        os.environ["X509_USER_PROXY"] = PROXY_PEM
         script = """\
 import os, sys
 os.environ["X509_CERT_DIR"]  = "/nonexistent/ca"

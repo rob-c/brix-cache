@@ -1,0 +1,31 @@
+# ResourceQuota: Prevent a single test profile from consuming all cluster resources
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: test-profile-quota
+  namespace: {{ .Release.Namespace }}
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "16"
+    limits.memory: 32Gi
+    pods: "50"
+    services: "20"
+
+---
+# LimitRange: Set default container resource boundaries
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: pod-limits
+  namespace: {{ .Release.Namespace }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi

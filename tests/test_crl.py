@@ -33,7 +33,21 @@ from cryptography.x509 import (
     CertificateRevocationListBuilder,
     RevokedCertificateBuilder,
 )
-from settings import CA_CERT, CA_KEY, DATA_ROOT, NGINX_BIN, PKI_DIR, PROXY_STD, USER_CERT
+from settings import (
+    CA_CERT,
+    CA_KEY,
+    CRL_DIR_PORT,
+    CRL_PORT,
+    CRL_RELOAD_HTTP_PORT,
+    CRL_RELOAD_PORT,
+    DATA_ROOT,
+    NGINX_BIN,
+    PKI_DIR,
+    PROXY_STD,
+    USER_CERT,
+    WEBDAV_CRL_PORT,
+    WEBDAV_DIR_PORT,
+)
 
 # Suppress InsecureRequestWarning — test certs have no SAN
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -42,32 +56,20 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Paths
 # ---------------------------------------------------------------------------
 
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 PROXY_PEM  = PROXY_STD
 
 CRL_DIR    = "/tmp/xrd-crl-test"
 CRL_PEM    = os.path.join(CRL_DIR, "crl.pem")
 
-CRL_PORT   = _free_port()
 CRL_HOST   = "127.0.0.1"
-
-WEBDAV_CRL_PORT = _free_port()
 
 # Directory-mode test paths
 CRL_DIR_TEST      = "/tmp/xrd-crl-dir-test"
 CRL_DIR_CRLS      = os.path.join(CRL_DIR_TEST, "crls")   # directory of CRLs
-CRL_DIR_PORT      = _free_port()
-WEBDAV_DIR_PORT   = _free_port()
 
 # Reload-mode test paths
 CRL_RELOAD_DIR    = "/tmp/xrd-crl-reload-test"
 CRL_RELOAD_CRLS   = os.path.join(CRL_RELOAD_DIR, "crls")
-CRL_RELOAD_PORT   = _free_port()
 RELOAD_INTERVAL   = 2  # seconds — keep short for testing
 
 # ---------------------------------------------------------------------------
@@ -257,7 +259,7 @@ def crl_reload_nginx(crl_file):
             "DATA_DIR": DATA_ROOT,
             "CRL_PATH": CRL_RELOAD_CRLS,
             "CRL_RELOAD_INTERVAL": RELOAD_INTERVAL,
-            "HTTP_STUB_PORT": 18999,
+            "HTTP_STUB_PORT": CRL_RELOAD_HTTP_PORT,
         },
     )
 
@@ -315,7 +317,7 @@ class TestCRLGeneration:
 class TestCRLStreamRejection:
     """XRootD GSI auth should reject a revoked user certificate."""
 
-    def test_baseline_non_crl_server_accepts(self):
+    def test_baseline_non_crl_server_accepts(self, test_env):
         """Sanity check: the normal GSI listener (no CRL) still accepts."""
         env = os.environ.copy()
         env["X509_CERT_DIR"]     = os.path.join(PKI_DIR, "ca")
@@ -324,7 +326,7 @@ class TestCRLStreamRejection:
         env["XrdSecGSISRVNAMES"] = "*"
 
         result = subprocess.run(
-            ["xrdfs", "root://localhost:11095", "stat", "/test.txt"],
+            ["xrdfs", test_env["gsi_url"], "stat", "/test.txt"],
             capture_output=True, text=True, timeout=10, env=env,
         )
         assert result.returncode == 0, (

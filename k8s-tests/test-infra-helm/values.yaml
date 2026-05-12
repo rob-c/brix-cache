@@ -1,0 +1,54 @@
+certManager:
+  enabled: true
+  installCRDs: true
+
+ca:
+  name: test-xrootd-ca
+  subject: "/DC=test/DC=xrootd/CN=Test XRootD CA"
+  validityDays: 3650
+  renewBefore: 90d
+
+serverCert:
+  name: xrootd-server-tls
+  commonName: "xrootd-server.k8s-tests.local"
+  dnsNames:
+    - "xrootd-server.k8s-tests.local"
+    - "localhost"
+  validityDays: 365
+  renewBefore: 30d
+
+clientCerts:
+  enabled: true
+  users:
+    - name: test-user-1
+      subject: "/DC=test/DC=xrootd/CN=Test User 1/CN=12345"
+      vo: "atlas"
+    - name: test-user-2
+      subject: "/DC=test/DC=xrootd/CN=Test User 2/CN=67890"
+      vo: "cms"
+
+crl:
+  enabled: true
+  validityDays: 30
+  distributionPoints:
+    - uri: "ldap://voms-server:18888/cn=crl?certificateRevocationList?base"
+
+voms:
+  enabled: false
+  port: 15150
+  attributes:
+    atlas: /atlas/Role=production
+    cms: /cms/Role=production
+
+# Dynamic JWT key generation (no Keycloak).
+jwtKeys:
+  image: python:3.12-slim
+  pullPolicy: IfNotPresent
+  keyId: test-key-1
+  tokenExpiryDays: 1
+  secretName: nginx-xrootd-jwt-keys-secret
+  configmapName: nginx-xrootd-jwt-keys
+  # Pre-generated JWKS (for static deployments without Job).
+  # Generate with: python3 pki-scripts/generate-jwt-keys.py --mode-jwks -j /tmp/jwks.json
+  jwksJson: ""
+

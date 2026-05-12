@@ -1,0 +1,94 @@
+{{- range $i := until (.Values.server.nodeCount | int) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "xrootd.fullname" $ }}-node{{ $i }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "xrootd.labels" $ | nindent 4 }}
+    node-index: "{{ $i }}"
+spec:
+  replicas: {{ $.Values.server.replicasPerNode | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "xrootd.selectorLabels" $ | nindent 6 }}
+      node-index: "{{ $i }}"
+  template:
+    metadata:
+      labels:
+        {{- include "xrootd.labels" $ | nindent 8 }}
+        node-index: "{{ $i }}"
+    spec:
+      containers:
+        - name: nginx-xrootd
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $.Values.ports.xrootd }}
+              protocol: TCP
+              name: xrootd
+            - containerPort: {{ $.Values.ports.roots }}
+              protocol: TCP
+              name: roots
+            - containerPort: {{ $.Values.ports.webdav }}
+              protocol: TCP
+              name: webdav
+            - containerPort: {{ $.Values.ports.metrics }}
+              protocol: TCP
+              name: metrics
+          env:
+            - name: NGINX_CONF
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "xrootd.fullname" $ }}-config
+                  key: nginx.conf
+            - name: XROOTD_DATA_ROOT
+              value: "{{ $.Values.data.root }}"
+            - name: AUTH_MODE
+              value: "{{ $.Values.auth.mode }}"
+            - name: ALLOW_WRITE
+              value: "{{ $.Values.auth.allowWrite | quote }}"
+          volumeMounts:
+            - name: data
+              mountPath: {{ $.Values.data.root }}
+            - name: hostcert
+              mountPath: {{ $.Values.pki.hostCertificate | dirname }}
+              readOnly: true
+            - name: hostkey
+              mountPath: {{ $.Values.pki.hostPrivateKey | dirname }}
+              readOnly: true
+            - name: cacerts
+              mountPath: {{ $.Values.pki.caDir }}
+              readOnly: true
+            {{- if eq $.Values.auth.mode "token" | or $.Values.auth.mode "both" }}
+            - name: jwt-keys
+              mountPath: {{ $.Values.jwtKeys.configPath | dirname }}
+              readOnly: true
+            {{- end }}
+          resources:
+            limits:
+              cpu: {{ $.Values.resources.limits.cpu }}
+              memory: {{ $.Values.resources.limits.memory }}
+            requests:
+              cpu: {{ $.Values.resources.requests.cpu }}
+              memory: {{ $.Values.resources.requests.memory }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ if $.Values.data.createPVC }}{{ include "xrootd.fullname" $ }}-data{{ else }}""{{ end }}
+        - name: hostcert
+          secret:
+            secretName: {{ include "xrootd.fullname" $ }}-tls-cert
+        - name: hostkey
+          secret:
+            secretName: {{ include "xrootd.fullname" $ }}-tls-key
+        - name: cacerts
+          configMap:
+            name: {{ include "xrootd.fullname" $ }}-ca-certs
+        {{- if eq $.Values.auth.mode "token" | or $.Values.auth.mode "both" }}
+        - name: jwt-keys
+          configMap:
+            name: nginx-xrootd-jwt-keys
+        {{- end }}
+{{- end }}

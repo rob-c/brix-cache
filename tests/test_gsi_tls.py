@@ -60,9 +60,13 @@ def _configure(test_env):
     CA_DIR      = test_env["ca_dir"]
     PROXY_PEM   = test_env["proxy_pem"]
     old = {}
-    for k, v in [("X509_CERT_DIR", CA_DIR), ("X509_USER_PROXY", PROXY_PEM)]:
+    for k, v in [("X509_CERT_DIR", CA_DIR), ("X509_USER_PROXY", PROXY_PEM),
+                 ("XrdSecPROTOCOL", None)]:
         old[k] = os.environ.get(k)
-        os.environ[k] = v
+        if v is not None:
+            os.environ[k] = v
+        else:
+            os.environ.pop(k, None)
     yield
     for k, v in old.items():
         if v is None:

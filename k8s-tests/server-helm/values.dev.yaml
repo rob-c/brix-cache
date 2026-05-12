@@ -1,0 +1,28 @@
+
+server:
+  nodeCount: 1
+
+auth:
+  mode: none
+  allowWrite: true
+
+service:
+  xrootd:
+    type: NodePort
+    nodePort: 31094
+  webdav:
+    type: NodePort
+    nodePort: 38443
+  metrics:
+    type: ClusterIP
+
+data:
+  createPVC: false
+
+resources:
+  limits:
+    cpu: 250m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi

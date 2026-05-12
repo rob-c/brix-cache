@@ -38,7 +38,7 @@ Key packages and why they are needed:
 | `curl` | Runtime helper for optional HTTP-TPC WebDAV COPY pulls |
 | Python `cryptography` | Test PKI, proxy, CRL, and JWT token generation |
 
-VOMS support is loaded at runtime via `dlopen("libvomsapi.so.1")` — no compile-time VOMS headers or link flags are needed. If the library is present at startup, VO ACL enforcement is available; if absent, the module starts normally but `xrootd_require_vo` directives will fail with an error telling you to install `voms-libs` (EL9) or `libvomsapi1` (Debian/Ubuntu).
+VOMS support is loaded at runtime via `dlopen("libvomsapi.so.1")` — no compile-time VOMS headers or link flags are needed. If the library is present at startup, VO ACL enforcement is available; if absent, the module starts normally but `xrootd_require_vo` directives will fail with an error telling you to install `voms-libs` (EL9) or `libvomsapi1` (Debian/Ubuntu). See [pki.md](pki.md) for the VOMS attribute certificate model and vomsdir/LSC file setup.
 
 Verify `libvomsapi` is installed:
 
@@ -96,13 +96,13 @@ What each flag does:
 |---|---|---|
 | `--with-stream` | **Yes** | Enables nginx's raw TCP stream handling — this is how the XRootD protocol is served |
 | `--with-stream_ssl_module` | Recommended | TLS for the stream (XRootD) protocol |
-| `--with-http_ssl_module` | Recommended | TLS for the HTTP (WebDAV) protocol |
-| `--with-threads` | **Strongly recommended** | Enables nginx thread pools for async file I/O. Without this, every disk read/write blocks the entire event loop. |
+| `--with-http_ssl_module` | Recommended | TLS for HTTP modules: WebDAV and S3-compatible HTTPS |
+| `--with-threads` | **Strongly recommended** | Enables nginx thread pools for async file I/O. Without this, slow disk/network I/O paths may fall back to synchronous work on a worker process. |
 | `--add-module=<path>` | **Yes** | Points to the nginx-xrootd source directory |
 
 The module's `config` script (at the root of this repository) runs automatically during `./configure`. It:
-- Registers the **stream** module (`ngx_stream_xrootd_module`) for the XRootD protocol
-- Registers two **HTTP** modules: `ngx_http_xrootd_metrics_module` (Prometheus) and `ngx_http_xrootd_webdav_module` (WebDAV)
+- Registers the **stream** modules: `ngx_stream_xrootd_module` for native XRootD and `ngx_stream_xrootd_cms_srv_module` for the CMS management listener
+- Registers the **HTTP** modules: `ngx_http_xrootd_metrics_module` (Prometheus), `ngx_http_xrootd_webdav_module` (WebDAV), and `ngx_http_xrootd_s3_module` (S3-compatible HTTP)
 - Links `-lssl -lcrypto` for OpenSSL/GSI support
 - VOMS support requires no compile-time flags — `libvomsapi.so.1` is loaded at runtime via `dlopen`
 
@@ -132,6 +132,65 @@ The binary is at `/tmp/nginx-1.28.3/objs/nginx`. Verify the module compiled in:
 /tmp/nginx-1.28.3/objs/nginx -V 2>&1 | grep -o 'add-module=[^ ]*'
 # Expected: add-module=/opt/nginx-xrootd
 ```
+
+---
+
+## 5a. Quick build for testing (minimal)
+
+For quick testing without the full test infrastructure setup:
+
+```bash
+# Download and extract nginx
+cd /tmp
+curl -O https://nginx.org/download/nginx-1.28.3.tar.gz
+tar xzf nginx-1.28.3.tar.gz
+
+# Configure with the module (adjust paths as needed)
+cd /tmp/nginx-1.28.3
+./configure \
+    --with-stream \
+    --with-http_ssl_module \
+    --with-threads \
+    --add-module=/home/rcurrie/HEP-x/nginx-xrootd
+
+# Build
+make -j$(nproc)
+
+# Binary is at: /tmp/nginx-1.28.3/objs/nginx
+```
+
+### Building with maximum features for comprehensive testing
+
+To ensure the fix doesn't break any code paths that might be disabled by optimizations:
+
+```bash
+cd /tmp/nginx-1.28.3
+./configure \
+    --with-stream \
+    --with-http_ssl_module \
+    --with-http_v2_module \
+    --with-http_v3_module \
+    --with-threads \
+    --with-file-aio \
+    --with-pcre \
+    --with-http_realip_module \
+    --with-http_addition_module \
+    --with-http_flv_module \
+    --with-http_mp4_module \
+    --with-http_gunzip_module \
+    --with-http_gzip_static_module \
+    --with-http_secure_link_module \
+    --with-http_slice_module \
+    --with-http_stub_status_module \
+    --with-debug \
+    --add-module=/home/rcurrie/HEP-x/nginx-xrootd
+
+make -j$(nproc)
+```
+
+Note: `--with-debug` enables expensive runtime assertions. Remove it for production builds.
+
+The binary is at `/tmp/nginx-1.28.3/objs/nginx`.
 
 ---
 
@@ -301,6 +360,8 @@ xrdfs root://localhost:11099 ls /
 
 ## 8. Run the test suite
 
+For the complete testing guide — session lifecycle, how PKI/tokens/VOMS are generated, how to write new tests, and environment variables — see [testing.md](testing.md).
+
 ### 8.1 Install Python dependencies
 
 ```bash
@@ -312,7 +373,7 @@ pip install pytest xrootd pytest-timeout cryptography requests urllib3
 
 ### 8.2 Run tests
 
-The test suite expects nginx to be running on the core ports configured above: 11094 for anonymous native XRootD, 11095 for GSI native XRootD, 11099 for token native XRootD, and 8443 for WebDAV.
+The test suite generates the PKI, starts all test servers, and tears them down automatically. No manual server startup is needed.
 
 ```bash
 # Core tests (protocol, file API, metrics)
@@ -411,3 +472,155 @@ sudo make install
 ```
 
 The binary installs to `/usr/local/nginx/sbin/nginx` and configuration goes in `/usr/local/nginx/conf/`.
+
+---
+
+## 11. RPM packaging (AlmaLinux 9 / RHEL 9 / Rocky 9)
+
+The `packaging/rpm/nginx-mod-xrootd.spec` file builds three dynamic modules as
+a single RPM against the system nginx from the RHEL 9 AppStream repository.
+
+### Prerequisites
+
+```bash
+sudo dnf install -y rpm-build nginx-mod-devel pcre2-devel zlib-devel openssl-devel
+```
+
+`nginx-mod-devel` provides the `%nginx_modconfigure` and `%nginx_modbuild` RPM
+macros (in `/usr/lib/rpm/macros.d/macros.nginxmods`), which configure and build
+the module against the exact nginx headers and flags used to build the installed
+nginx binary. The resulting `.so` files are tied to the nginx ABI version; on
+AlmaLinux 9 that is currently `nginx(abi) = 1.20.1`.
+
+### Set up the rpmbuild tree
+
+```bash
+mkdir -p ~/rpmbuild/{SOURCES,SPECS,RPMS,SRPMS,BUILD,BUILDROOT}
+```
+
+### Create the source tarball
+
+The spec expects a `nginx-xrootd-<version>.tar.gz` archive in `~/rpmbuild/SOURCES/`:
+
+```bash
+VERSION=0.1.0
+git -C /path/to/nginx-xrootd archive \
+    --format=tar.gz \
+    --prefix=nginx-xrootd-${VERSION}/ \
+    HEAD \
+    -o ~/rpmbuild/SOURCES/nginx-xrootd-${VERSION}.tar.gz
+```
+
+Or, to build from a released tag:
+
+```bash
+VERSION=0.1.0
+spectool -g -R packaging/rpm/nginx-mod-xrootd.spec
+```
+
+(`spectool` is in the `rpm-build` package.)
+
+### Build the RPM
+
+```bash
+cp packaging/rpm/nginx-mod-xrootd.spec ~/rpmbuild/SPECS/
+
+rpmbuild -bb \
+    --define "version_override 0.1.0" \
+    ~/rpmbuild/SPECS/nginx-mod-xrootd.spec
+```
+
+The finished RPM lands in `~/rpmbuild/RPMS/x86_64/`:
+
+```
+~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-0.1.0-1.el9.x86_64.rpm
+```
+
+You can also build directly from the working tree without a tarball by using
+`--build-in-place` (requires rpmbuild ≥ 4.16):
+
+```bash
+rpmbuild -bb --build-in-place \
+    --define "_builddir $(pwd)" \
+    --define "version_override 0.1.0" \
+    packaging/rpm/nginx-mod-xrootd.spec
+```
+
+### Verify the RPM contents
+
+```bash
+rpm -qpl ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
+```
+
+Expected output:
+
+```
+/usr/lib64/nginx/modules/ngx_stream_xrootd_module.so
+/usr/lib64/nginx/modules/ngx_stream_xrootd_cms_srv_module.so
+/usr/lib64/nginx/modules/ngx_http_xrootd_metrics_module.so
+/usr/lib64/nginx/modules/ngx_http_xrootd_webdav_module.so
+/usr/lib64/nginx/modules/ngx_http_xrootd_s3_module.so
+/usr/share/nginx/modules/mod-xrootd.conf
+/usr/share/doc/nginx-mod-xrootd/README.md
+/usr/share/doc/nginx-mod-xrootd/docs/   (all docs files)
+```
+
+Check the automatic ABI dependency:
+
+```bash
+rpm -qp --requires ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm | grep nginx
+# nginx(abi) = 1.20.1
+# nginx-mod-stream(x86-64)
+```
+
+### Install
+
+```bash
+sudo dnf install ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
+```
+
+Or, for a local-only install without updating the dnf database:
+
+```bash
+sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
+```
+
+### Post-install: load the modules
+
+The RPM writes `/usr/share/nginx/modules/mod-xrootd.conf`:
+
+```nginx
+load_module "/usr/lib64/nginx/modules/ngx_stream_xrootd_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_stream_xrootd_cms_srv_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_http_xrootd_metrics_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_http_xrootd_webdav_module.so";
+load_module "/usr/lib64/nginx/modules/ngx_http_xrootd_s3_module.so";
+```
+
+On AlmaLinux 9, `/etc/nginx/nginx.conf` includes `*.conf` from
+`/usr/share/nginx/modules/` in its `include` statement, so the modules are
+loaded automatically after installation. Verify:
+
+```bash
+sudo nginx -t   # should say 'configuration file ... is ok'
+```
+
+If you are using a custom `nginx.conf` that does not include that directory,
+add the `load_module` lines to the top level of your config (before the
+`events {}` block).
+
+### ABI compatibility note
+
+The RPM is built against the system nginx ABI. If you update nginx (e.g. during
+a `dnf update`), the module RPM must be rebuilt against the new nginx headers.
+The `Requires: nginx(abi) = 1.20.1` dependency will cause `dnf` to hold back
+nginx upgrades that would break the module, or refuse to install the old module
+against a new nginx — whichever you prefer to resolve first.
+
+To rebuild after a nginx update:
+
+```bash
+sudo dnf update nginx nginx-mod-devel
+rpmbuild -bb --define "version_override 0.1.0" ~/rpmbuild/SPECS/nginx-mod-xrootd.spec
+sudo dnf install ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
+```

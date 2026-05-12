@@ -4,37 +4,245 @@
 # VOMS support: loaded at runtime via dlopen(libvomsapi.so.1) — no compile-time
 # link needed.  Install voms-libs on EL9 to enable VO ACL enforcement.
 
+# Compiler hardening flags:
+#   -D_FORTIFY_SOURCE=2          runtime buffer-overflow detection via glibc wrappers
+#   -fstack-protector-strong     stack canary for functions with local buffers
+#   -fstack-clash-protection     probe stack on entry to catch stack-clash attacks (GCC 8+)
+#   -fcf-protection=full         Intel CET control-flow integrity (x86, GCC 8+)
+#   -Wformat -Werror=format-security  reject printf calls with non-literal format strings
+# These are additive and safe to combine with nginx's own CFLAGS.
+# Alternatively, pass via:  ./configure ... --with-cc-opt="-D_FORTIFY_SOURCE=2 ..."
+# For full RELRO/BIND_NOW, pass at configure time: --with-ld-opt="-Wl,-z,relro,-z,now"
+CFLAGS="$CFLAGS -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -Wformat -Werror=format-security"
+
 ngx_addon_name=ngx_stream_xrootd_module
 
 ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
-                        $ngx_addon_dir/src/ngx_xrootd_cms_heartbeat.h \
-                        $ngx_addon_dir/src/ngx_xrootd_metrics.h \
-                        $ngx_addon_dir/src/xrootd_protocol.h"
-ngx_xrootd_metrics_deps="$ngx_addon_dir/src/ngx_xrootd_metrics.h"
-ngx_xrootd_webdav_deps="$ngx_addon_dir/src/ngx_http_xrootd_webdav_module.h"
+                        $ngx_addon_dir/src/config/config.h \
+                        $ngx_addon_dir/src/handshake/handshake.h \
+                        $ngx_addon_dir/src/cache/cache_internal.h \
+                        $ngx_addon_dir/src/tpc/tpc_internal.h \
+                        $ngx_addon_dir/src/tpc/key_registry.h \
+                        $ngx_addon_dir/src/path/path_internal.h \
+                        $ngx_addon_dir/src/path/path.h \
+                        $ngx_addon_dir/src/read/clone.h \
+                        $ngx_addon_dir/src/read/close.h \
+                        $ngx_addon_dir/src/read/locate.h \
+                        $ngx_addon_dir/src/read/open.h \
+                        $ngx_addon_dir/src/read/prefetch.h \
+                        $ngx_addon_dir/src/read/read.h \
+                        $ngx_addon_dir/src/read/stat.h \
+                        $ngx_addon_dir/src/read/statx.h \
+                        $ngx_addon_dir/src/session/session.h \
+                        $ngx_addon_dir/src/response/response.h \
+                        $ngx_addon_dir/src/write/write.h \
+                        $ngx_addon_dir/src/write/chkpoint.h \
+                        $ngx_addon_dir/src/dirlist/dirlist.h \
+                        $ngx_addon_dir/src/aio/aio.h \
+                        $ngx_addon_dir/src/connection/handler.h \
+                        $ngx_addon_dir/src/connection/event_sched.h \
+                        $ngx_addon_dir/src/connection/write_helpers.h \
+                        $ngx_addon_dir/src/connection/tls.h \
+                        $ngx_addon_dir/src/connection/fd_table.h \
+                        $ngx_addon_dir/src/connection/disconnect.h \
+                        $ngx_addon_dir/src/connection/chain_helpers.h \
+                        $ngx_addon_dir/src/fattr/ngx_xrootd_fattr.h \
+                        $ngx_addon_dir/src/upstream/upstream.h \
+                        $ngx_addon_dir/src/upstream/upstream_internal.h \
+                        $ngx_addon_dir/src/token/token_internal.h \
+                        $ngx_addon_dir/src/token/b64url.h \
+                        $ngx_addon_dir/src/token/json.h \
+                        $ngx_addon_dir/src/token/scopes.h \
+                        $ngx_addon_dir/src/token/token.h \
+                        $ngx_addon_dir/src/manager/registry.h \
+                        $ngx_addon_dir/src/proxy/proxy.h \
+                        $ngx_addon_dir/src/proxy/proxy_internal.h \
+                        $ngx_addon_dir/src/cms/cms_internal.h \
+                        $ngx_addon_dir/src/metrics/metrics.h \
+                        $ngx_addon_dir/src/protocol/protocol.h \
+                        $ngx_addon_dir/src/protocol/types.h \
+                        $ngx_addon_dir/src/protocol/opcodes.h \
+                        $ngx_addon_dir/src/protocol/flags.h \
+                        $ngx_addon_dir/src/protocol/wire.h \
+                        $ngx_addon_dir/src/protocol/gsi.h"
+ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h"
 
 # Build both the stream module and the companion HTTP metrics module
 ngx_module_type=STREAM
 ngx_module_name=ngx_stream_xrootd_module
-ngx_module_srcs="$ngx_addon_dir/src/ngx_stream_xrootd_module.c \
-                 $ngx_addon_dir/src/ngx_xrootd_config.c \
-                 $ngx_addon_dir/src/ngx_xrootd_connection.c \
-                 $ngx_addon_dir/src/ngx_xrootd_handshake.c \
-                 $ngx_addon_dir/src/ngx_xrootd_session.c \
-                 $ngx_addon_dir/src/ngx_xrootd_gsi.c \
-                 $ngx_addon_dir/src/ngx_xrootd_token.c \
-                 $ngx_addon_dir/src/ngx_xrootd_read_handlers.c \
-                 $ngx_addon_dir/src/ngx_xrootd_query.c \
-                 $ngx_addon_dir/src/ngx_xrootd_fattr.c \
-                 $ngx_addon_dir/src/ngx_xrootd_dirlist.c \
-                 $ngx_addon_dir/src/ngx_xrootd_write_handlers.c \
-                 $ngx_addon_dir/src/ngx_xrootd_aio.c \
-                 $ngx_addon_dir/src/ngx_xrootd_response.c \
-                 $ngx_addon_dir/src/ngx_xrootd_path.c \
-                 $ngx_addon_dir/src/ngx_xrootd_pki_check.c \
-                 $ngx_addon_dir/src/ngx_xrootd_voms.c \
-                 $ngx_addon_dir/src/ngx_xrootd_upstream.c \
-                 $ngx_addon_dir/src/ngx_xrootd_cms_heartbeat.c"
+ngx_module_incs="$ngx_addon_dir/src"
+ngx_module_srcs="\
+    $ngx_addon_dir/src/stream/module.c \
+    $ngx_addon_dir/src/config/helpers.c \
+    $ngx_addon_dir/src/config/server_conf.c \
+    $ngx_addon_dir/src/config/policy.c \
+    $ngx_addon_dir/src/config/manager_map.c \
+    $ngx_addon_dir/src/config/runtime_server.c \
+    $ngx_addon_dir/src/cms/config.c \
+    $ngx_addon_dir/src/gsi/config.c \
+    $ngx_addon_dir/src/session/tls_config.c \
+    $ngx_addon_dir/src/token/config.c \
+    $ngx_addon_dir/src/sss/config.c \
+    $ngx_addon_dir/src/metrics/config.c \
+    $ngx_addon_dir/src/metrics/tracking.c \
+    $ngx_addon_dir/src/aio/config.c \
+    $ngx_addon_dir/src/upstream/directives.c \
+    $ngx_addon_dir/src/cache/directives.c \
+    $ngx_addon_dir/src/config/process.c \
+    $ngx_addon_dir/src/config/postconfiguration.c \
+    $ngx_addon_dir/src/handshake/client_hello.c \
+    $ngx_addon_dir/src/handshake/sigver.c \
+    $ngx_addon_dir/src/handshake/policy.c \
+    $ngx_addon_dir/src/handshake/dispatch.c \
+    $ngx_addon_dir/src/handshake/dispatch_session.c \
+    $ngx_addon_dir/src/handshake/dispatch_read.c \
+    $ngx_addon_dir/src/handshake/dispatch_write.c \
+    $ngx_addon_dir/src/handshake/dispatch_signing.c \
+    $ngx_addon_dir/src/session/protocol.c \
+    $ngx_addon_dir/src/session/login.c \
+    $ngx_addon_dir/src/session/lifecycle.c \
+    $ngx_addon_dir/src/session/signing.c \
+    $ngx_addon_dir/src/session/bind.c \
+    $ngx_addon_dir/src/session/registry.c \
+    $ngx_addon_dir/src/manager/registry.c \
+    $ngx_addon_dir/src/manager/pending.c \
+    $ngx_addon_dir/src/tpc/key_registry.c \
+    $ngx_addon_dir/src/tpc/parse.c \
+    $ngx_addon_dir/src/tpc/io.c \
+    $ngx_addon_dir/src/tpc/connect.c \
+    $ngx_addon_dir/src/tpc/bootstrap.c \
+    $ngx_addon_dir/src/tpc/gsi_outbound.c \
+    $ngx_addon_dir/src/tpc/source.c \
+    $ngx_addon_dir/src/tpc/thread.c \
+    $ngx_addon_dir/src/tpc/done.c \
+    $ngx_addon_dir/src/tpc/launch.c \
+    $ngx_addon_dir/src/tpc/tpc_token.c \
+    $ngx_addon_dir/src/token/jwks.c \
+    $ngx_addon_dir/src/token/keys.c \
+    $ngx_addon_dir/src/token/signature.c \
+    $ngx_addon_dir/src/token/validate.c \
+    $ngx_addon_dir/src/token/macaroon.c \
+    $ngx_addon_dir/src/fattr/helpers.c \
+    $ngx_addon_dir/src/fattr/dispatch.c \
+    $ngx_addon_dir/src/fattr/get.c \
+    $ngx_addon_dir/src/fattr/set.c \
+    $ngx_addon_dir/src/fattr/del.c \
+    $ngx_addon_dir/src/fattr/list.c \
+    $ngx_addon_dir/src/path/access_log.c \
+    $ngx_addon_dir/src/path/helpers.c \
+    $ngx_addon_dir/src/path/resolve.c \
+    $ngx_addon_dir/src/path/normalize.c \
+    $ngx_addon_dir/src/path/merge.c \
+    $ngx_addon_dir/src/path/acl.c \
+    $ngx_addon_dir/src/path/group_policy.c \
+    $ngx_addon_dir/src/path/mkdir.c \
+    $ngx_addon_dir/src/path/stat_body.c \
+    $ngx_addon_dir/src/path/strip_cgi.c \
+    $ngx_addon_dir/src/path/extract.c \
+    $ngx_addon_dir/src/path/find_rule.c \
+    $ngx_addon_dir/src/path/canonical.c \
+    $ngx_addon_dir/src/path/authdb.c \
+    $ngx_addon_dir/src/cache/errors.c \
+    $ngx_addon_dir/src/cache/io.c \
+    $ngx_addon_dir/src/cache/paths.c \
+    $ngx_addon_dir/src/cache/lock.c \
+    $ngx_addon_dir/src/cache/origin_connection.c \
+    $ngx_addon_dir/src/cache/origin_response.c \
+    $ngx_addon_dir/src/cache/origin_protocol.c \
+    $ngx_addon_dir/src/cache/fetch.c \
+    $ngx_addon_dir/src/cache/evict.c \
+    $ngx_addon_dir/src/cache/thread.c \
+    $ngx_addon_dir/src/cache/open_or_fill.c \
+    $ngx_addon_dir/src/cms/wire.c \
+    $ngx_addon_dir/src/cms/space.c \
+    $ngx_addon_dir/src/cms/send.c \
+    $ngx_addon_dir/src/cms/recv.c \
+    $ngx_addon_dir/src/cms/connect.c \
+    $ngx_addon_dir/src/token/b64url.c \
+    $ngx_addon_dir/src/token/json.c \
+    $ngx_addon_dir/src/token/scopes.c \
+    $ngx_addon_dir/src/crypto/pki_load.c \
+    $ngx_addon_dir/src/crypto/pki_check.c \
+    $ngx_addon_dir/src/gsi/pki.c \
+    $ngx_addon_dir/src/webdav/pki.c \
+    $ngx_addon_dir/src/voms/loader.c \
+    $ngx_addon_dir/src/voms/collect.c \
+    $ngx_addon_dir/src/voms/extract.c \
+    $ngx_addon_dir/src/gsi/buffer.c \
+    $ngx_addon_dir/src/gsi/parse.c \
+    $ngx_addon_dir/src/gsi/cert_response.c \
+    $ngx_addon_dir/src/gsi/token.c \
+    $ngx_addon_dir/src/gsi/auth.c \
+    $ngx_addon_dir/src/sss/auth.c \
+    $ngx_addon_dir/src/query/util.c \
+    $ngx_addon_dir/src/query/checksum.c \
+    $ngx_addon_dir/src/query/space.c \
+    $ngx_addon_dir/src/query/config.c \
+    $ngx_addon_dir/src/query/metadata.c \
+    $ngx_addon_dir/src/query/prepare.c \
+    $ngx_addon_dir/src/query/set.c \
+    $ngx_addon_dir/src/query/dispatch.c \
+    $ngx_addon_dir/src/upstream/lifecycle.c \
+    $ngx_addon_dir/src/upstream/bootstrap.c \
+    $ngx_addon_dir/src/upstream/request.c \
+    $ngx_addon_dir/src/upstream/response.c \
+    $ngx_addon_dir/src/upstream/events.c \
+    $ngx_addon_dir/src/upstream/start.c \
+    $ngx_addon_dir/src/proxy/connect.c \
+    $ngx_addon_dir/src/proxy/events.c \
+    $ngx_addon_dir/src/proxy/forward.c \
+    $ngx_addon_dir/src/proxy/pool.c \
+    $ngx_addon_dir/src/proxy/directives.c \
+    $ngx_addon_dir/src/connection/handler.c \
+    $ngx_addon_dir/src/connection/recv.c \
+    $ngx_addon_dir/src/connection/send.c \
+    $ngx_addon_dir/src/connection/fd_table.c \
+    $ngx_addon_dir/src/connection/event_sched.c \
+    $ngx_addon_dir/src/connection/chain_helpers.c \
+    $ngx_addon_dir/src/connection/tls.c \
+    $ngx_addon_dir/src/connection/write_helpers.c \
+    $ngx_addon_dir/src/connection/disconnect.c \
+    $ngx_addon_dir/src/response/basic.c \
+    $ngx_addon_dir/src/response/control.c \
+    $ngx_addon_dir/src/response/status.c \
+    $ngx_addon_dir/src/response/crc32c.c \
+    $ngx_addon_dir/src/read/prefetch.c \
+    $ngx_addon_dir/src/read/clone.c \
+    $ngx_addon_dir/src/read/open.c \
+    $ngx_addon_dir/src/read/open_cache.c \
+    $ngx_addon_dir/src/read/read.c \
+    $ngx_addon_dir/src/read/readv.c \
+    $ngx_addon_dir/src/read/pgread.c \
+    $ngx_addon_dir/src/read/locate.c \
+    $ngx_addon_dir/src/read/close.c \
+    $ngx_addon_dir/src/read/stat.c \
+    $ngx_addon_dir/src/read/statx.c \
+    $ngx_addon_dir/src/aio/buffers.c \
+    $ngx_addon_dir/src/aio/resume.c \
+    $ngx_addon_dir/src/aio/read.c \
+    $ngx_addon_dir/src/aio/write.c \
+    $ngx_addon_dir/src/aio/readv.c \
+    $ngx_addon_dir/src/aio/pgread.c \
+    $ngx_addon_dir/src/write/chkpoint.c \
+    $ngx_addon_dir/src/write/chkpoint_xeq.c \
+    $ngx_addon_dir/src/write/chmod.c \
+    $ngx_addon_dir/src/write/common.c \
+    $ngx_addon_dir/src/write/mkdir.c \
+    $ngx_addon_dir/src/write/mv.c \
+    $ngx_addon_dir/src/write/pgwrite.c \
+    $ngx_addon_dir/src/write/rm.c \
+    $ngx_addon_dir/src/write/rmdir.c \
+    $ngx_addon_dir/src/write/sync.c \
+    $ngx_addon_dir/src/write/truncate.c \
+    $ngx_addon_dir/src/write/write.c \
+    $ngx_addon_dir/src/write/writev.c \
+    $ngx_addon_dir/src/dirlist/handler.c \
+    $ngx_addon_dir/src/dirlist/dcksm.c \
+    $ngx_addon_dir/src/dirlist/name_sanitize.c \
+    $ngx_addon_dir/src/dirlist/stat.c \
+    $ngx_addon_dir/src/dirlist/util.c \
+"
+
 ngx_module_deps="$ngx_xrootd_stream_deps"
 ngx_module_libs="-lssl -lcrypto"
 CORE_LIBS="$CORE_LIBS -lssl -lcrypto"
@@ -42,18 +250,74 @@ CORE_LIBS="$CORE_LIBS -lssl -lcrypto"
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_metrics_module
-ngx_module_srcs="$ngx_addon_dir/src/ngx_http_xrootd_metrics_module.c"
-ngx_module_deps="$ngx_xrootd_metrics_deps"
+ ngx_module_srcs="$ngx_addon_dir/src/metrics/module.c \
+                  $ngx_addon_dir/src/metrics/writer.c \
+                  $ngx_addon_dir/src/metrics/stream.c \
+                  $ngx_addon_dir/src/metrics/webdav.c \
+                  $ngx_addon_dir/src/metrics/s3.c \
+                  $ngx_addon_dir/src/metrics/tracking.c \
+                  $ngx_addon_dir/src/metrics/handler.c"
+ngx_module_deps="$ngx_addon_dir/src/metrics/metrics.h \
+                 $ngx_addon_dir/src/metrics/metrics_internal.h"
 ngx_module_libs=
 . auto/module
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_webdav_module
-ngx_module_srcs="$ngx_addon_dir/src/ngx_http_xrootd_webdav_module.c \
-                 $ngx_addon_dir/src/ngx_http_xrootd_webdav_path.c \
-                 $ngx_addon_dir/src/ngx_http_xrootd_webdav_auth.c \
-                 $ngx_addon_dir/src/ngx_http_xrootd_webdav_handlers.c \
-                 $ngx_addon_dir/src/ngx_http_xrootd_webdav_tpc.c"
+ngx_module_srcs="$ngx_addon_dir/src/webdav/module.c \
+                 $ngx_addon_dir/src/webdav/config.c \
+                 $ngx_addon_dir/src/webdav/postconfig.c \
+                 $ngx_addon_dir/src/webdav/dispatch.c \
+                 $ngx_addon_dir/src/webdav/path.c \
+                 $ngx_addon_dir/src/webdav/date.c \
+                 $ngx_addon_dir/src/webdav/headers.c \
+                 $ngx_addon_dir/src/webdav/cors.c \
+                 $ngx_addon_dir/src/webdav/metrics.c \
+                 $ngx_addon_dir/src/webdav/io.c \
+                 $ngx_addon_dir/src/webdav/resource.c \
+                 $ngx_addon_dir/src/webdav/fd_cache.c \
+                 $ngx_addon_dir/src/webdav/auth_store.c \
+                 $ngx_addon_dir/src/webdav/auth_cert.c \
+                 $ngx_addon_dir/src/webdav/auth_token.c \
+                 $ngx_addon_dir/src/webdav/lock.c \
+                 $ngx_addon_dir/src/webdav/methods_basic.c \
+                 $ngx_addon_dir/src/webdav/get.c \
+                 $ngx_addon_dir/src/webdav/put.c \
+                 $ngx_addon_dir/src/webdav/move.c \
+                 $ngx_addon_dir/src/webdav/copy.c \
+                 $ngx_addon_dir/src/webdav/namespace.c \
+                 $ngx_addon_dir/src/webdav/propfind.c \
+                  $ngx_addon_dir/src/webdav/tpc_config.c \
+                  $ngx_addon_dir/src/webdav/tpc_headers.c \
+                  $ngx_addon_dir/src/webdav/tpc_curl.c \
+                  $ngx_addon_dir/src/webdav/tpc_cred.c \
+                  $ngx_addon_dir/src/webdav/tpc.c \
+                  $ngx_addon_dir/src/webdav/proxy.c"
 ngx_module_deps="$ngx_xrootd_webdav_deps"
 ngx_module_libs="-lssl -lcrypto"
+. auto/module
+
+ngx_module_type=HTTP
+ngx_module_name=ngx_http_xrootd_s3_module
+ngx_module_srcs="$ngx_addon_dir/src/s3/module.c \
+                 $ngx_addon_dir/src/s3/handler.c \
+                 $ngx_addon_dir/src/s3/metrics.c \
+                 $ngx_addon_dir/src/s3/put.c \
+                 $ngx_addon_dir/src/s3/list.c \
+                 $ngx_addon_dir/src/s3/auth.c \
+                 $ngx_addon_dir/src/s3/multipart.c \
+                 $ngx_addon_dir/src/s3/util.c"
+ngx_module_deps="$ngx_addon_dir/src/s3/s3.h \
+                 $ngx_addon_dir/src/metrics/metrics.h"
+ngx_module_libs="-lssl -lcrypto"
+. auto/module
+
+ngx_module_type=STREAM
+ngx_module_name=ngx_stream_xrootd_cms_srv_module
+ngx_module_srcs="$ngx_addon_dir/src/cms/server_handler.c \
+                 $ngx_addon_dir/src/cms/server_recv.c \
+                 $ngx_addon_dir/src/cms/server_send.c \
+                 $ngx_addon_dir/src/cms/server_module.c"
+ngx_module_deps="$ngx_addon_dir/src/cms/server.h"
+ngx_module_libs=
 . auto/module

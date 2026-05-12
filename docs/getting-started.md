@@ -149,6 +149,197 @@ The helper lists `/`, reads `/test.txt`, and exits non-zero if either operation 
 
 ---
 
+## Step 7: Add HTTPS and WebDAV (davs://)
+
+WebDAV lets the same files be accessible over `davs://` URLs — used by `xrdcp --allow-http`,
+FTS3/FTS4, Rucio, GFAL2, and standard HTTP tools. This requires a TLS certificate and key.
+
+### 7a: Get a certificate
+
+For testing, create a self-signed certificate:
+
+```bash
+openssl req -x509 -newkey rsa:4096 -keyout /etc/nginx/server.key \
+    -out /etc/nginx/server.crt -days 365 -nodes \
+    -subj "/CN=localhost"
+```
+
+For production, use a certificate from your site CA or Let's Encrypt.
+
+### 7b: Update nginx.conf
+
+Add an `http {}` block alongside the existing `stream {}` block:
+
+```nginx
+worker_processes auto;
+thread_pool default threads=4 max_queue=65536;
+
+events {
+    worker_connections 1024;
+}
+
+# Native XRootD (root://)
+stream {
+    server {
+        listen 1094;
+        xrootd on;
+        xrootd_root /data;
+        xrootd_allow_write on;
+    }
+}
+
+# WebDAV over HTTPS (davs://)
+http {
+    server {
+        listen 8443 ssl;
+        ssl_certificate     /etc/nginx/server.crt;
+        ssl_certificate_key /etc/nginx/server.key;
+
+        location / {
+            xrootd_webdav             on;
+            xrootd_webdav_root        /data;    # same backing storage
+            xrootd_webdav_allow_write on;
+        }
+    }
+}
+```
+
+Reload nginx:
+
+```bash
+sudo /usr/local/nginx/sbin/nginx -s stop
+sudo /usr/local/nginx/sbin/nginx
+```
+
+### 7c: Test WebDAV
+
+```bash
+# Upload via curl
+curl -k -T /tmp/test.txt https://localhost:8443//test-webdav.txt
+
+# Download via curl
+curl -k https://localhost:8443//test-webdav.txt -o /tmp/downloaded-webdav.txt
+
+# List directory via curl (PROPFIND)
+curl -k -X PROPFIND https://localhost:8443/ -H "Depth: 1"
+
+# Upload via xrdcp (using WebDAV instead of native XRootD)
+xrdcp -f --allow-http /tmp/test.txt davs://localhost:8443//test-xrdcp.txt
+
+# Download via xrdcp WebDAV
+xrdcp --allow-http davs://localhost:8443//test-xrdcp.txt /tmp/out-webdav.txt
+```
+
+The `-k` flag skips certificate verification for self-signed certs. In production with a real
+certificate, omit it.
+
+---
+
+## Step 8: Add the S3-compatible endpoint (optional)
+
+The S3 endpoint exposes the same data through the AWS S3 REST API subset used by
+XrdClS3-backed `xrdcp` and FTS.
+
+### 8a: Update nginx.conf
+
+Add an S3 location in the http block:
+
+```nginx
+http {
+    server {
+        listen 9001;
+
+        location / {
+            xrootd_s3          on;
+            xrootd_s3_root     /data;       # same backing storage
+            xrootd_s3_bucket   mybucket;    # bucket name clients will use
+            # xrootd_s3_access_key  mykey;  # optional SigV4 auth
+            # xrootd_s3_secret_key  mysecret;
+        }
+    }
+}
+```
+
+### 8b: Test S3
+
+```bash
+# Upload via curl (path-style)
+curl -T /tmp/test.txt http://localhost:9001/mybucket/test.txt
+
+# Download
+curl http://localhost:9001/mybucket/test.txt -o /tmp/s3-download.txt
+
+# List bucket (ListObjectsV2)
+curl "http://localhost:9001/mybucket/?list-type=2"
+
+# With AWS CLI (configure with any key/secret if auth is not set)
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+aws --endpoint-url http://localhost:9001 s3 ls s3://mybucket/
+aws --endpoint-url http://localhost:9001 s3 cp /tmp/test.txt s3://mybucket/test.txt
+aws --endpoint-url http://localhost:9001 s3 cp s3://mybucket/test.txt /tmp/s3-out.txt
+```
+
+### Multipart upload (for files > 5 GiB)
+
+The S3 endpoint supports the full multipart lifecycle. AWS SDK clients use this
+automatically for large files. To test manually:
+
+```bash
+# Initiate
+curl -X POST "http://localhost:9001/mybucket/bigfile.dat?uploads" \
+     -o /tmp/init.xml
+# Extract UploadId from XML response
+
+UPLOAD_ID="<from init response>"
+
+# Upload parts (minimum part size is 5 MiB except the last)
+dd if=/dev/urandom bs=6M count=1 | \
+    curl -T - "http://localhost:9001/mybucket/bigfile.dat?partNumber=1&uploadId=$UPLOAD_ID" \
+         -o /tmp/part1.xml
+
+# Complete (include ETag from each part response)
+curl -X POST "http://localhost:9001/mybucket/bigfile.dat?uploadId=$UPLOAD_ID" \
+     -H "Content-Type: application/xml" \
+     -d '<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>"..."</ETag></Part></CompleteMultipartUpload>'
+```
+
+---
+
+## Step 9: Enable Prometheus metrics (optional)
+
+```nginx
+http {
+    server {
+        listen 9100;
+        location /metrics {
+            xrootd_metrics on;
+        }
+    }
+}
+```
+
+```bash
+# Scrape metrics
+curl http://localhost:9100/metrics
+
+# Example output:
+# xrootd_native_ops_total{port="1094",op="open",status="ok"} 42
+# xrootd_webdav_requests_total{port="8443",method="GET",status="200"} 17
+# xrootd_s3_requests_total{port="9001",method="GET",status="200"} 5
+```
+
+Add to your `prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: 'nginx-xrootd'
+    static_configs:
+      - targets: ['localhost:9100']
+```
+
+---
+
 ## What's next?
 
 - **Add GSI authentication** — [docs/authentication.md](authentication.md)
@@ -158,6 +349,11 @@ The helper lists `/`, reads `/test.txt`, and exits non-zero if either operation 
 - **All configuration options** — [docs/configuration.md](configuration.md)
 - **Prometheus metrics** — [docs/metrics-and-logging.md](metrics-and-logging.md)
 - **Understand all supported operations** — [docs/operations.md](operations.md)
+- **Enable WebDAV over HTTPS** — [docs/webdav.md](webdav.md)
+- **Set up HTTP-TPC (FTS3/FTS4 transfers)** — [docs/webdav.md#http-tpc](webdav.md)
+- **Enable S3-compatible endpoint** — [docs/configuration.md](configuration.md)
+- **Understand the comparison with official xrootd** — [docs/comparison-with-xrootd.md](comparison-with-xrootd.md)
+- **Run the full test suite** — [docs/testing.md](testing.md)
 
 ---
 
@@ -182,3 +378,27 @@ When repeating upload tests against the same destination path, prefer `xrdcp -f`
 
 **Error log shows "xrootd: thread pool 'default' not found":**
 Add `thread_pool default threads=4 max_queue=65536;` at the top level of `nginx.conf` (outside `stream {}`), or compile with `--with-threads`.
+
+**WebDAV `curl -k https://localhost:8443//file` returns 403:**
+Either `xrootd_webdav_auth` is set to `required` and no certificate/token was provided,
+or `xrootd_webdav_allow_write` is off and the client tried a write operation.
+Check the nginx error log: `tail -f /usr/local/nginx/logs/error.log`.
+
+**WebDAV `xrdcp davs://` fails with SSL handshake error:**
+The server certificate may not be trusted by the XRootD client. Either use a
+CA-signed cert, or set `XRD_REQUESTTIMEOUT=60` and pass `--cacert /etc/nginx/server.crt`
+to configure trust. For testing, `curl -k` skips verification; xrdcp does not
+have an equivalent flag so use a real certificate for davs:// testing.
+
+**S3 `curl` returns 404 on a key that exists:**
+Check that the bucket name in the URL matches `xrootd_s3_bucket` in the config.
+The S3 module uses path-style routing: `http://host/BUCKET/key`.
+
+**S3 `aws s3` returns `SignatureDoesNotMatch`:**
+The access key and secret key in the environment must match `xrootd_s3_access_key`
+and `xrootd_s3_secret_key` in the nginx config. If S3 auth is disabled (no key
+configured), any credentials work.
+
+**nginx fails to start with "unknown directive xrootd_webdav":**
+The module must be compiled with `--with-http_ssl_module` for WebDAV over HTTPS.
+Re-run `./configure --with-stream --with-http_ssl_module --with-threads --add-module=...`.

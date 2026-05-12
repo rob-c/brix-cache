@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: xrootd-nginx-config
+  namespace: k8s-tests-dev
+data:
+  nginx.conf: |
+    worker_processes auto;
+    thread_pool default threads=4 max_queue=65536;
+    events { worker_connections 1024; }
+
+    stream {
+      server {
+        listen 1094;
+        xrootd on;
+        xrootd_root /data/xrootd;
+        xrootd_allow_write off;
+      }
+    }
+
+    http {
+      server {
+        listen 9100;
+        location /metrics { xrootd_metrics on; }
+      }
+
+      server {
+        listen 8443 ssl;
+        ssl_certificate     /etc/grid-security/hostcert.pem;
+        ssl_certificate_key /etc/grid-security/hostkey.pem;
+        ssl_verify_client   optional_no_ca;
+        xrootd_webdav_proxy_certs on;
+
+        location / {
+          xrootd_webdav      on;
+          xrootd_webdav_root /data/xrootd;
+          xrootd_webdav_cadir /etc/grid-security/certificates;
+        }
+      }
+    }
