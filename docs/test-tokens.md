@@ -4,6 +4,8 @@ This guide walks through creating a JWT/WLCG token signing authority, generating
 
 The generated material is used by the nginx-xrootd test suite but is also a useful reference for understanding how WLCG bearer-token authentication works in the native XRootD stream protocol and in WebDAV.
 
+For the full session lifecycle (how tokens are initialized automatically alongside the PKI on each `pytest` run), per-test nginx instances, and how to write new tests, see [testing.md](testing.md).
+
 ---
 
 ## Background: what are WLCG tokens?
@@ -28,7 +30,12 @@ The server validates a token by:
 4. Checking `iss`, `aud`, `exp`, and `nbf` claims
 5. Parsing `scope` and `wlcg.groups` claims for later authorization decisions
 
-Current behavior is intentionally split by protocol. The native stream path validates tokens and stores scopes/groups, but write access is still controlled by `xrootd_allow_write` and path ACLs use `xrootd_require_vo` with `wlcg.groups`. WebDAV enforces `storage.write`/`storage.create` scopes for `PUT` requests authenticated by bearer token.
+Current behavior is intentionally shaped by protocol. The native stream path
+validates tokens, stores scopes/groups, enforces storage scopes when resolving
+paths, and still applies `xrootd_allow_write` as a server-wide write gate. Path
+ACLs can also use `xrootd_require_vo` with token `wlcg.groups`. WebDAV enforces
+`storage.write`/`storage.create` scopes for mutating bearer-token requests such
+as `PUT`.
 
 No network call to an identity provider is needed at validation time — the JWKS file contains everything.
 
@@ -260,7 +267,10 @@ python3 utils/make_token.py gen \
     /tmp/xrd-test/tokens
 ```
 
-The helper emits standard WLCG scope strings. In the current server implementation, WebDAV uses write scopes for `PUT`; the native stream path parses scopes but does not yet enforce read/write scopes per path.
+The helper emits standard WLCG scope strings. WebDAV uses write scopes for
+`PUT`, and the native stream path enforces scopes when resolving paths for
+opens, metadata requests, and namespace mutation. Later handle-based reads or
+writes inherit the decision made when the handle was opened.
 
 ### 4.4 Generate a token with WLCG group claims
 
@@ -367,7 +377,7 @@ python3 utils/make_token.py gen --scope "storage.read:/" /tmp/xrd-test/tokens \
 | `exp` | `1713400000` | Unix timestamp when the token expires |
 | `iat` | `1713396400` | Unix timestamp when the token was issued |
 | `nbf` | `1713396400` | "Not before" — token is not valid before this time |
-| `scope` | `storage.read:/ storage.write:/data` | Space-separated WLCG authorization scopes; currently enforced for WebDAV `PUT` write scope checks |
+| `scope` | `storage.read:/ storage.write:/data` | Space-separated WLCG authorization scopes; enforced by WebDAV writes and native path-resolving operations |
 | `wlcg.ver` | `1.0` | WLCG token profile version |
 | `wlcg.groups` | `["/cms", "/atlas"]` | Optional — VO group memberships |
 
@@ -408,8 +418,8 @@ cat /tmp/downloaded.txt
 ### 6.3 XRootD protocol — uploading on a write-enabled token listener
 
 ```bash
-# Generate a token. The stream listener validates the token; xrootd_allow_write
-# controls whether writes are accepted.
+# Generate a token with write scope. The stream listener validates the token;
+# xrootd_allow_write is still an additional server-wide write gate.
 export BEARER_TOKEN=$(python3 utils/make_token.py gen \
     --scope "storage.read:/ storage.write:/" /tmp/xrd-test/tokens)
 
@@ -422,9 +432,12 @@ xrdcp root://localhost:11099//upload_test.txt -
 # Expected: uploaded via token
 ```
 
-### 6.4 XRootD protocol — understand the write gate
+### 6.4 XRootD protocol — understand scopes and the write gate
 
-Native stream token authentication currently parses `storage.read` and `storage.write` scopes but does not enforce them per operation. A valid token can write when the listener has `xrootd_allow_write on`; no token can write when `xrootd_allow_write off`.
+Native stream token authentication enforces `storage.read`, `storage.write`,
+and `storage.create` on path-resolving operations. A valid write-scoped token
+can write only when the listener also has `xrootd_allow_write on`; no token can
+write when `xrootd_allow_write off`.
 
 Use separate listeners if you need a read-only token-authenticated stream endpoint:
 
@@ -737,7 +750,10 @@ python3 utils/inspect_token.py "$BEARER_TOKEN" | grep scope
 
 Also verify that the server has `xrootd_webdav_allow_write on`.
 
-For the native stream protocol, token scopes are not currently enforced for writes. If a native stream upload is denied, check `xrootd_allow_write on` first.
+For the native stream protocol, write/create scopes are enforced when the path
+is resolved for a write open or namespace mutation. If a native stream upload is
+denied, check both the token scope for the destination path and the server-wide
+`xrootd_allow_write on` gate.
 
 ---
 

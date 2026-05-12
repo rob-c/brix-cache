@@ -1,220 +1,247 @@
-"""Shared session-scoped fixtures for the nginx-xrootd test suite.
+"""Shared fixtures for nginx-xrootd test suite.
 
-Provides a ``test_env`` fixture that starts a single nginx instance with the
-full server configuration (anonymous, GSI, GSI+TLS, token-auth, metrics,
-and WebDAV endpoints) on dynamically allocated ports.  Tests that previously
-assumed pre-running servers on hardcoded ports now request ``test_env`` and
-read ports / paths from the returned dict.
+Servers must be started before running tests:
+    tests/manage_test_servers.sh start
 
-Also provides:
-  - ``ref_xrootd`` — a session-scoped anonymous xrootd reference server
-    sharing the same data directory, for protocol conformance comparisons.
-  - ``ref_xrootd_gsi`` — a session-scoped GSI-authenticated xrootd reference
-    server with its own data directory, for GSI bridge / cross-server tests.
+Servers are stopped after tests finish:
+    tests/manage_test_servers.sh stop
+
+This module provides access to running server configuration.
 """
 
 import os
-import subprocess
-import time
-from pathlib import Path
+import shutil
+import random
 
 import pytest
-from settings import CA_CERT, CA_DIR, DATA_ROOT, PROXY_STD, SERVER_CERT, SERVER_KEY, TOKENS_DIR
-
-from server_control import (
-    start_nginx_instance,
-    start_xrootd_instance,
-    _free_port,
-    _wait_for_port,
+from pki_helpers import blitz_test_pki
+from settings import (
+    CA_CERT,
+    CA_DIR,
+    DATA_ROOT,
+    LOG_DIR,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    NGINX_GSI_TLS_PORT,
+    NGINX_METRICS_PORT,
+    NGINX_TOKEN_PORT,
+    NGINX_WEBDAV_PORT,
+    NGINX_HTTP_WEBDAV_PORT,
+    NGINX_S3_PORT,
+    PROXY_STD,
+    PKI_DIR,
+    REF_XROOTD_GSI_PORT,
+    REF_XROOTD_GSI_SHARED_PORT,
+    REF_XROOTD_PORT,
+    TEST_ROOT,
+    TOKENS_DIR,
+    TMP_DIR,
 )
 
 
-def _wait_for_gsi_ref(url: str, ca_dir: str, proxy_pem: str) -> bool:
-    """Probe a GSI-authenticated reference server until it responds."""
-    gsi_env = os.environ.copy()
-    gsi_env["X509_CERT_DIR"] = ca_dir
-    gsi_env["X509_USER_PROXY"] = proxy_pem
-    gsi_env["XrdSecPROTOCOL"] = "gsi"
+def _setup_session():
+    """Shared session setup logic used by both pytest_sessionstart and fixture."""
+    import subprocess
 
-    for _ in range(30):
-        try:
-            result = subprocess.run(
-                ["xrdfs", url, "ls", "/"],
-                env=gsi_env,
-                capture_output=True,
-                timeout=5,
-            )
-        except subprocess.TimeoutExpired:
-            time.sleep(0.5)
-            continue
-        if result.returncode == 0:
-            return True
-        time.sleep(0.5)
-    return False
+    # Clear data and pki folders before each test session
+    if os.path.exists(DATA_ROOT):
+        shutil.rmtree(DATA_ROOT)
+    os.makedirs(DATA_ROOT, exist_ok=True)
 
+    if os.path.exists(PKI_DIR):
+        shutil.rmtree(PKI_DIR)
+    os.makedirs(PKI_DIR, exist_ok=True)
 
-def _start_or_attach_ref_xrootd_gsi(test_env, ref_base: Path, data_dir: str) -> dict:
-    """Return a ready GSI-authenticated reference xrootd instance."""
-    os.makedirs(data_dir, exist_ok=True)
+    # Create subdirectories for PKI
+    for subdir in ["ca", "server", "user", "voms", "vomsdir"]:
+        os.makedirs(os.path.join(PKI_DIR, subdir), exist_ok=True)
 
-    ext = os.environ.get("TEST_REF_GSI_URL")
-    if ext:
-        if not _wait_for_gsi_ref(ext, test_env["ca_dir"], test_env["proxy_pem"]):
-            pytest.fail(f"External ref xrootd GSI not reachable at {ext}")
-        return {"url": ext, "port": 0, "data_dir": data_dir, "stop": lambda: None}
+    # Create logs and tmp directories
+    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(TMP_DIR, exist_ok=True)
 
-    port = _free_port()
-    url = f"root://localhost:{port}"
+    # Create data-gsi-bridge directory for cross-server GSI tests (test_gsi_bridge.py)
+    gsi_bridge_data = os.path.join(TEST_ROOT, "data-gsi-bridge")
+    if os.path.exists(gsi_bridge_data):
+        shutil.rmtree(gsi_bridge_data)
+    os.makedirs(gsi_bridge_data, exist_ok=True)
 
-    authdb_path = str(ref_base / "authdb")
-    with open(authdb_path, "w") as f:
-        f.write("u * / lr\n")
+    # Create required test files in data directory
+    with open(os.path.join(DATA_ROOT, "test.txt"), "wb") as f:
+        f.write(b"hello from nginx-xrootd\n")
 
-    ref = start_xrootd_instance(
-        port=port,
-        ref_dir=str(ref_base),
-        data_dir=data_dir,
-        conf_file="xrootd_ref_gsi.conf",
-        template_kwargs={
-            "SECLIB": "/usr/lib64/libXrdSec-5.so",
-            "CA_DIR": test_env["ca_dir"],
-            "SERVER_CERT": SERVER_CERT,
-            "SERVER_KEY": SERVER_KEY,
-            "AUTHDB_PATH": authdb_path,
-        },
+    # Generate random.bin (5MB of random data)
+    with open(os.path.join(DATA_ROOT, "random.bin"), "wb") as f:
+        f.write(bytes(random.getrandbits(8) for _ in range(5242880)))
+
+    # Generate large200.bin (200 MiB) — MD5 exposed via env var for tests that need it.
+    LARGE_FILE_SIZE = 200 * 1024 * 1024
+    LARGE_FILE_PATH = os.path.join(DATA_ROOT, "large200.bin")
+    import hashlib as _hashlib
+    h = _hashlib.md5()
+    seed_val = int(os.environ.get("LARGE_FILE_SEED", "42"))
+    rng = random.Random(seed_val)
+    if not os.path.exists(LARGE_FILE_PATH):
+        with open(LARGE_FILE_PATH, "wb") as f:
+            # Write in 16 MiB chunks to limit memory pressure
+            chunk_size = 16 * 1024 * 1024
+            remaining = LARGE_FILE_SIZE
+            while remaining > 0:
+                n = min(chunk_size, remaining)
+                chunk = bytes(rng.getrandbits(8) for _ in range(n))
+                f.write(chunk)
+                h.update(chunk)
+                remaining -= n
+        os.environ["LARGE_FILE_MD5"] = h.hexdigest()
+    else:
+        # File exists from prior run — recompute MD5 to stay consistent.
+        with open(LARGE_FILE_PATH, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        os.environ["LARGE_FILE_MD5"] = h.hexdigest()
+
+    os.environ["X509_CERT_DIR"] = CA_DIR
+    os.environ["X509_USER_PROXY"] = PROXY_STD
+
+    if os.environ.get("TEST_SKIP_PKI_REGEN") == "1":
+        subprocess.run(
+            ["bash", "-c", f"{os.path.dirname(__file__)}/manage_test_servers.sh", "start"],
+            check=True,
+        )
+        return
+
+    try:
+        blitz_test_pki()
+    except RuntimeError as exc:
+        raise pytest.UsageError(
+            f"failed to regenerate PKI under {PKI_DIR}: {exc}"
+        ) from exc
+
+    subprocess.run(["python3", os.path.join(os.path.dirname(__file__), "..", "utils", "make_proxy.py"), PKI_DIR],
+                   check=True, capture_output=True)
+
+    subprocess.run(
+        ["bash", "-c", f"{os.path.dirname(__file__)}/manage_test_servers.sh start"],
+        check=True,
+        capture_output=True,
     )
 
-    if not _wait_for_gsi_ref(url, test_env["ca_dir"], test_env["proxy_pem"]):
-        ref["stop"]()
-        log_path = ref_base / "conformance.log"
-        log_text = ""
-        try:
-            log_text = log_path.read_text()[-3000:]
-        except Exception:
-            pass
-        pytest.fail(
-            f"Reference xrootd GSI did not start on port {port}.\n"
-            f"Log:\n{log_text}"
-        )
 
-    return {"url": url, "port": port, "data_dir": data_dir, "stop": ref["stop"]}
+def pytest_sessionstart(session):
+    _setup_session()
+
+
+def pytest_collection_modifyitems(config, items):
+    """Run the CMS threaded fixture after PyXRootD-based tests."""
+    cms_items = []
+    other_items = []
+
+    for item in items:
+        name = os.path.basename(str(item.fspath))
+        if name == "test_cms.py":
+            cms_items.append(item)
+        else:
+            other_items.append(item)
+
+    if cms_items:
+        items[:] = other_items + cms_items
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Ensure test servers are stopped when the session ends (even on timeout/crash)."""
+    import subprocess
+
+    # Only stop if we didn't skip PKI regen (in that case, caller manages servers)
+    if os.environ.get("TEST_SKIP_PKI_REGEN") == "1":
+        return
+
+    try:
+        subprocess.run(
+            ["bash", "-c", f"{os.path.dirname(__file__)}/manage_test_servers.sh stop"],
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception:
+        pass  # best-effort cleanup
+
+
+@pytest.fixture(scope="session")
+def _test_session_setup():
+    """Session-scoped fixture that ensures servers are running.
+
+    This replaces the old pytest_sessionstart hook for tests that need
+    the test_env fixture. The fixture guarantees proper teardown even
+    if individual tests fail or timeout.
+    """
+    _setup_session()
+    yield
+    # Teardown: stop servers when session ends
+    import subprocess
+
+    try:
+        subprocess.run(
+            ["bash", "-c", f"{os.path.dirname(__file__)}/manage_test_servers.sh stop"],
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception:
+        pass
 
 
 @pytest.fixture(scope="session")
 def test_env():
-    """Start the shared nginx test environment on dynamic ports.
-
-    Yields a dict with keys:
-
-        Ports:   anon_port, gsi_port, gsi_tls_port, token_port,
-                 metrics_port, webdav_port
-        URLs:    anon_url, gsi_url, gsi_tls_url, token_url,
-                 metrics_url, webdav_url
-        Paths:   data_dir, ca_dir, ca_pem, proxy_pem, token_dir, log_dir
-    """
-    data_dir = DATA_ROOT
-    ca_dir = CA_DIR
-    ca_pem = CA_CERT
-    proxy_pem = PROXY_STD
-    token_dir = TOKENS_DIR
-
     ports = {
-        "anon_port": _free_port(),
-        "gsi_port": _free_port(),
-        "gsi_tls_port": _free_port(),
-        "token_port": _free_port(),
-        "metrics_port": _free_port(),
-        "webdav_port": _free_port(),
+        "anon_port": NGINX_ANON_PORT,
+        "gsi_port": NGINX_GSI_PORT,
+        "gsi_tls_port": NGINX_GSI_TLS_PORT,
+        "token_port": NGINX_TOKEN_PORT,
+        "metrics_port": NGINX_METRICS_PORT,
+        "webdav_port": NGINX_WEBDAV_PORT,
+        "http_webdav_port": NGINX_HTTP_WEBDAV_PORT,
+        "s3_port": NGINX_S3_PORT,
     }
 
-    info = start_nginx_instance(
-        port=ports["anon_port"],
-        conf_file="nginx_shared.conf",
-        template_kwargs={
-            "DATA_DIR": data_dir,
-            "ANON_PORT": ports["anon_port"],
-            "GSI_PORT": ports["gsi_port"],
-            "GSI_TLS_PORT": ports["gsi_tls_port"],
-            "TOKEN_PORT": ports["token_port"],
-            "METRICS_PORT": ports["metrics_port"],
-            "WEBDAV_PORT": ports["webdav_port"],
-            "CA_DIR": ca_dir,
-            "TOKEN_DIR": token_dir,
-        },
-    )
-
-    # start_nginx_instance only waits for the primary port; wait for the rest.
-    for name, p in ports.items():
-        if name == "anon_port":
-            continue
-        if not _wait_for_port("127.0.0.1", p, timeout=15):
-            info["stop"]()
-            raise RuntimeError(f"nginx port {p} ({name}) did not become ready")
-
-    log_dir = str(Path(info["prefix"]) / "logs")
-
-    env = {
+    return {
         **ports,
-        "anon_url": f"root://localhost:{ports['anon_port']}",
-        "gsi_url": f"root://localhost:{ports['gsi_port']}",
-        "gsi_tls_url": f"roots://localhost:{ports['gsi_tls_port']}",
-        "token_url": f"root://localhost:{ports['token_port']}",
-        "metrics_url": f"http://localhost:{ports['metrics_port']}/metrics",
-        "webdav_url": f"https://localhost:{ports['webdav_port']}",
-        "data_dir": data_dir,
-        "ca_dir": ca_dir,
-        "ca_pem": ca_pem,
-        "proxy_pem": proxy_pem,
-        "token_dir": token_dir,
-        "log_dir": log_dir,
+        "anon_url": f"root://127.0.0.1:{ports['anon_port']}",
+        "gsi_url": f"root://127.0.0.1:{ports['gsi_port']}",
+        "gsi_tls_url": f"roots://127.0.0.1:{ports['gsi_tls_port']}",
+        "token_url": f"root://127.0.0.1:{ports['token_port']}",
+        "metrics_url": f"http://127.0.0.1:{ports['metrics_port']}/metrics",
+        "webdav_url": f"https://127.0.0.1:{ports['webdav_port']}",
+        "http_webdav_url": f"http://127.0.0.1:{ports['http_webdav_port']}",
+        "s3_url": f"http://127.0.0.1:{ports['s3_port']}",
+        "data_dir": DATA_ROOT,
+        "ca_dir": CA_DIR,
+        "ca_pem": CA_CERT,
+        "proxy_pem": PROXY_STD,
+        "token_dir": TOKENS_DIR,
+        "log_dir": LOG_DIR,
     }
 
-    yield env
-
-    info["stop"]()
-
-
-# ---------------------------------------------------------------------------
-# Session-scoped anonymous reference xrootd
-# ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
 def ref_xrootd(test_env):
-    """Start a session-scoped anonymous xrootd serving the same data directory.
-
-    Yields a dict with keys: ``url``, ``port``, ``ref_dir``, ``data_dir``,
-    ``stop()``.
-    Used by conformance and comparison tests.
-    """
-    ref = start_xrootd_instance(port=None, data_dir=test_env["data_dir"])
-    ref["data_dir"] = test_env["data_dir"]
-    yield ref
-    ref["stop"]()
-
-
-# ---------------------------------------------------------------------------
-# Session-scoped GSI-authenticated reference xrootd
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="session")
-def ref_xrootd_gsi(test_env, tmp_path_factory):
-    """Start a session-scoped GSI-authenticated xrootd with its own data dir.
-
-    Yields a dict with keys: ``url``, ``port``, ``data_dir``.
-    The data directory is separate from the main nginx data so cross-server
-    transfer tests can distinguish which server a file came from.
-    """
-    ref_base = tmp_path_factory.mktemp("xrd-gsi-bridge")
-    bridge_data = str(ref_base / "data")
-    ref = _start_or_attach_ref_xrootd_gsi(test_env, ref_base, bridge_data)
-    yield ref
-    ref["stop"]()
+    return {
+        "url": f"root://localhost:{REF_XROOTD_PORT}",
+        "port": REF_XROOTD_PORT,
+        "data_dir": test_env["data_dir"],
+    }
 
 
 @pytest.fixture(scope="session")
-def ref_xrootd_gsi_shared(test_env, tmp_path_factory):
-    """Start a GSI-authenticated reference xrootd sharing the anon data dir."""
-    ref_base = tmp_path_factory.mktemp("xrd-gsi-shared")
-    ref = _start_or_attach_ref_xrootd_gsi(test_env, ref_base, test_env["data_dir"])
-    yield ref
-    ref["stop"]()
+def ref_xrootd_gsi(test_env):
+    return {
+        "url": f"root://localhost:{REF_XROOTD_GSI_PORT}",
+        "port": REF_XROOTD_GSI_PORT,
+        "data_dir": os.path.join(TEST_ROOT, "data-gsi-bridge"),
+    }
+
+
+@pytest.fixture(scope="session")
+def ref_xrootd_gsi_shared(test_env):
+    return {
+        "url": f"root://localhost:{REF_XROOTD_GSI_SHARED_PORT}",
+        "port": REF_XROOTD_GSI_SHARED_PORT,
+        "data_dir": test_env["data_dir"],
+    }

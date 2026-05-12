@@ -95,6 +95,16 @@ def _configure(test_env, ref_xrootd_gsi):
     REF_URL     = ref_xrootd_gsi["url"]
     BRIDGE_DATA = ref_xrootd_gsi["data_dir"]
 
+    _ENV_KEYS = ("X509_CERT_DIR", "X509_USER_PROXY", "XrdSecPROTOCOL",
+                 "X509_USER_CERT", "X509_USER_KEY")
+    saved = {k: os.environ.get(k) for k in _ENV_KEYS}
+    yield
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

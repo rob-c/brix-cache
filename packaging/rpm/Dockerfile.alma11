@@ -1,0 +1,80 @@
+# Container-based RPM builder for AlmaLinux 11 (EPEL 11 / el11)
+#
+# Usage:
+#   docker build -f packaging/rpm/Dockerfile.alma11 \
+#     --build-arg VERSION=0.1.0 \
+#     -t nginx-xrootd-rpm-builder:alma11 .
+#
+#   # Extract the RPMs:
+#   docker run --rm -v "$PWD/dist:/out" nginx-xrootd-rpm-builder:alma11 \
+#     cp -r /artifacts/. /out/
+#
+# AlmaLinux 11 notes:
+#   - Based on RHEL 11 (EL11).  AlmaLinux 11 / RHEL 11 is pre-release as of
+#     the time of writing; this Dockerfile assumes the almalinux:11 container
+#     image and EPEL 11 are available.
+#   - If nginx-mod-devel is not yet in EPEL 11, uncomment the nginx stable
+#     upstream repo block below.
+#   - The resulting RPM carries the .el11 dist tag.
+#   - voms-libs at runtime: the WLCG EL11 repository may not yet exist.
+#     Monitor https://linuxsoft.cern.ch/wlcg/ for availability, or backport
+#     the EL10 voms-libs package under compatibility testing.
+
+FROM almalinux:11 AS builder
+
+# Enable EPEL 11 for packages not in BaseOS/AppStream.
+RUN dnf install -y epel-release && \
+    dnf install -y \
+        gcc \
+        make \
+        rpm-build \
+        rpmdevtools \
+        redhat-rpm-config \
+        nginx-mod-devel \
+        openssl-devel \
+        pcre2-devel \
+        zlib-devel \
+    && dnf clean all
+
+# If nginx-mod-devel is not available in EPEL 11, uncomment the block below:
+#
+# RUN printf '[nginx-stable]\nname=nginx stable repo\n\
+# baseurl=https://nginx.org/packages/rhel/11/$basearch/\ngpgcheck=1\nenabled=1\n\
+# gpgkey=https://nginx.org/keys/nginx_signing.key\nmodule_hotfixes=true\n' \
+#     > /etc/yum.repos.d/nginx.repo && \
+#     dnf install -y nginx-mod-devel && \
+#     dnf clean all
+
+ARG VERSION=0.1.0
+
+WORKDIR /build/src
+COPY . .
+
+RUN set -euo pipefail && \
+    rpmdev-setuptree && \
+    source_name="nginx-xrootd-${VERSION}" && \
+    tar \
+        --exclude-vcs \
+        --exclude='./.rpmbuild' \
+        --exclude='./.tmp' \
+        --exclude='./.venv*' \
+        --exclude='./__pycache__' \
+        --exclude='./*.pyc' \
+        --exclude='./davs:*' \
+        --exclude='./tests/davs:*' \
+        --transform "s,^\.,${source_name}," \
+        -czf ~/rpmbuild/SOURCES/"${source_name}.tar.gz" \
+        -C /build/src . && \
+    rpmbuild -ba \
+        --define "version_override ${VERSION}" \
+        /build/src/packaging/rpm/nginx-mod-xrootd.spec
+
+RUN mkdir -p /artifacts && \
+    find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} /artifacts/ \;
+
+
+FROM almalinux:11-minimal AS final
+
+COPY --from=builder /artifacts /artifacts
+
+CMD ["find", "/artifacts", "-name", "*.rpm"]

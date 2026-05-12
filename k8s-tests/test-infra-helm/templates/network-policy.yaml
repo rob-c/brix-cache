@@ -1,0 +1,64 @@
+# NetworkPolicy: Allow test-runner pods to reach server pods on specific ports only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-test-to-server
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic from test-runner pods in the same or sibling test namespaces
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: k8s-tests/profile
+                operator: Exists
+          podSelector: {}
+      ports:
+        - port: 1094   # root:// (native XRootD)
+          protocol: TCP
+        - port: 1095   # roots:// (TLS-from-first-byte)
+          protocol: TCP
+        - port: 8443   # davs:// (WebDAV over HTTPS)
+          protocol: TCP
+        - port: 9100   # /metrics (optional, for debugging)
+          protocol: TCP
+
+---
+# NetworkPolicy: Deny cross-namespace traffic by default
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-cross-namespace
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# NetworkPolicy: Allow server pods to communicate with Keycloak (token auth)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-server-to-keycloak
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+          namespaceSelector:
+            matchLabels:
+              k8s-tests/profile: test
+      ports:
+        - port: 8080   # Keycloak HTTP API
+          protocol: TCP

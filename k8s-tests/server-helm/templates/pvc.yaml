@@ -1,0 +1,16 @@
+{{- if $.Values.data.createPVC }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "xrootd.fullname" $ }}-data
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "xrootd.labels" $ | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ .Values.data.storageClass | default "" }}
+  resources:
+    requests:
+      storage: {{ $.Values.data.pvcSize }}
+{{- end }}

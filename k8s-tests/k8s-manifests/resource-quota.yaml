@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: hep-tests-quota
+  namespace: {{ .Values.namespace | default "k8s-tests-dev" }}
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "16"
+    limits.memory: 32Gi
+    pods: "50"
+    services: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: pod-limits
+  namespace: {{ .Values.namespace | default "k8s-tests-dev" }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+---
+# Pod Security Standards — enforce restricted policy (no privileged containers)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace | default "k8s-tests-dev" }}
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

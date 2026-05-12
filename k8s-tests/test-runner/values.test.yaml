@@ -1,0 +1,32 @@
+image:
+  repository: ghcr.io/HEP-x/nginx-xrootd-test-runner
+  tag: latest
+  pullPolicy: Always
+
+tests:
+  parallel: true
+  maxfailures: 10
+  timeout: 300
+  markers:
+    include: []      # Run all tests if empty
+    exclude: ["slow", "integration"]
+
+namespace: k8s-tests-dev
+profile: dev
+
+auth:
+  mode: none
+  allowWrite: true
+
+serverUrls:
+  xrootd: root://xrootd-servers-xrootd.k8s-tests-dev.svc.cluster.local:1094
+  webdav-https: davs://xrootd-servers-webdav-https.k8s-tests-dev.svc.cluster.local:8443
+
+pki:
+  caCertPath: /etc/grid-security/certificates/ca.crt
+  hostCertPath: /etc/grid-security/hostcert.pem
+  hostKeyPath: /etc/grid-security/hostkey.pem
+
+results:
+  outputDir: /test-results
+  format: junitxml

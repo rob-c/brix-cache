@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "xrootd.fullname" $ }}-config
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "xrootd.labels" $ | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes {{ $.Values.nginx.workerProcesses }};
+    thread_pool default threads={{ $.Values.nginx.threadPoolThreads }} max_queue={{ $.Values.nginx.threadPoolMaxQueue }};
+    events { worker_connections {{ $.Values.nginx.workerConnections }}; }
+
+    stream {
+      {{- range $i := until ($.Values.server.nodeCount | int) }}
+      server {
+        listen {{ $.Values.ports.xrootd }};
+        xrootd on;
+        xrootd_root {{ $.Values.data.root }};
+        xrootd_allow_write {{ $.Values.auth.allowWrite }};
+
+        {{- if eq $.Values.auth.mode "token" | or $.Values.auth.mode "both" }}
+        xrootd_auth token;
+        xrootd_token_jwks {{ $.Values.jwtKeys.configPath }};
+        xrootd_token_issuer {{ $.Values.jwtKeys.issuer }};
+        xrootd_token_audience {{ $.Values.jwtKeys.audience }};
+        {{- end }}
+
+        {{- if eq $.Values.proxy.enabled true }}
+        xrootd_proxy on;
+        xrootd_proxy_upstream {{ $.Values.proxy.upstream }};
+        {{- end }}
+      }
+      {{- end }}
+    }
+
+    http {
+      server {
+        listen {{ $.Values.ports.metrics }};
+        location /metrics { xrootd_metrics on; }
+      }
+
+      {{- range $i := until ($.Values.server.nodeCount | int) }}
+      server {
+        listen {{ $.Values.ports.webdav }} ssl;
+
+        {{- if eq $.Values.auth.mode "gsi" }}
+        ssl_certificate     /etc/grid-security/hostcert.pem;
+        ssl_certificate_key /etc/grid-security/hostkey.pem;
+        ssl_verify_client   optional_no_ca;
+        xrootd_webdav_proxy_certs on;
+        {{- end }}
+
+        location / {
+          xrootd_webdav      on;
+          xrootd_webdav_root {{ $.Values.data.root }};
+          xrootd_webdav_cadir {{ $.Values.pki.caDir }};
+{{- if $.Values.auth.requireVO }}
+          xrootd_require_vo  {{ $.Values.auth.requireVO }};
+{{- end }}
+
+          {{- if eq $.Values.webdavProxy.enabled true }}
+          xrootd_webdav_proxy on;
+          xrootd_webdav_proxy_upstream {{ $.Values.webdavProxy.upstream }};
+          {{- end }}
+        }
+      }
+      {{- end }}
+    }

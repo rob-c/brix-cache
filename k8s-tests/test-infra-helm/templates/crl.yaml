@@ -1,0 +1,36 @@
+{{- if .Values.crl.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "infra.fullname" . }}-crl
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: k8s-tests-crl
+data:
+  crl-generation.sh: |
+    #!/bin/bash
+    set -e
+    CA_CERT="/etc/grid-security/certificates/ca.crt"
+    CRL_OUTPUT="/tmp/crl.pem"
+    INDEX_FILE="/etc/grid-security/crl/index.txt"
+    
+    touch "$INDEX_FILE"
+    openssl ca -gencrl \
+      -keyfile /etc/grid-security/crl/ca-key.pem \
+      -cert "$CA_CERT" \
+      -out "$CRL_OUTPUT" \
+      -crldays {{ .Values.crl.validityDays }} 2>/dev/null || true
+    
+    # Convert to PEM if needed
+    openssl crl -in "$CRL_OUTPUT" -outform PEM -out "${CRL_OUTPUT}.pem" 2>/dev/null || cp "$CRL_OUTPUT" "${CRL_OUTPUT}.pem"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "infra.fullname" . }}-ca-certs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: k8s-tests-ca-certs
+data: {}
+{{- end }}

@@ -2,7 +2,7 @@
 
 This project now has three distinct encrypted transport patterns:
 
-1. `davs://` - WebDAV over HTTPS in nginx's `http {}` layer
+1. HTTP TLS - WebDAV `davs://` and S3-compatible HTTPS in nginx's `http {}` layer
 2. `root://` with an in-protocol TLS upgrade driven by `xrootd_tls on`
 3. `roots://` using nginx stream SSL (`listen ... ssl`) from the first byte
 
@@ -11,16 +11,49 @@ parts of the codebase.
 
 ---
 
+For the PKI prerequisites — CA bundle layout, proxy certificate format, VOMS
+attribute certificates, CRL conventions, and GSI DH exchange details — see
+[pki.md](pki.md).
+
 ## At a glance
 
 | Client URL / mode | Where TLS starts | Main nginx config | Main code path | Notes |
 |---|---|---|---|---|
-| `davs://host:8443/...` | Before HTTP request parsing | `listen ... ssl` in `http {}` | `ngx_http_xrootd_webdav_module.c` | Standard HTTPS/WebDAV |
-| `root://host:1094/...` + `xrootd_tls on` | After `kXR_protocol` advertises `kXR_haveTLS` | `xrootd_tls on` in `stream {}` | `ngx_xrootd_session.c`, `ngx_xrootd_connection.c` | Same TCP port, XRootD-native upgrade |
+| `davs://host:8443/...` | Before HTTP request parsing | `listen ... ssl` in `http {}` | `src/webdav/*.c` | Standard HTTPS/WebDAV |
+| S3-compatible `https://host/bucket/key` | Before HTTP request parsing | `listen ... ssl` in `http {}` + `xrootd_s3 on` | `src/s3/*.c` | HTTPS transport with optional SigV4 auth |
+| `root://host:1094/...` + `xrootd_tls on` | After `kXR_protocol` advertises `kXR_haveTLS` | `xrootd_tls on` in `stream {}` | `src/session/protocol.c`, `src/connection/*.c` | Same TCP port, XRootD-native upgrade |
 | `roots://host:1094/...` | Immediately after TCP connect | `listen ... ssl` in `stream {}` | nginx stream SSL + normal XRootD stream module | Transport TLS from byte 0 |
 
 One listener should use one transport-TLS model. If a stream listener already
 uses `listen ... ssl` for `roots://`, leave `xrootd_tls` off on that listener.
+
+```text
+davs://
+    TCP connect
+        -> TLS handshake in nginx HTTP
+        -> HTTP/WebDAV request parsing
+        -> WebDAV auth and method handler
+
+S3 over HTTPS
+    TCP connect
+        -> TLS handshake in nginx HTTP
+        -> HTTP request parsing
+        -> S3 SigV4 check if configured
+        -> S3 method handler
+
+root:// + xrootd_tls on
+    TCP connect
+        -> cleartext XRootD handshake + kXR_protocol
+        -> server advertises kXR_gotoTLS
+        -> TLS handshake on the same stream socket
+        -> XRootD login/auth and file traffic inside TLS
+
+roots://
+    TCP connect
+        -> TLS handshake in nginx stream SSL
+        -> XRootD handshake/login/auth after decrypt
+        -> file traffic inside TLS from byte zero
+```
 
 ---
 
@@ -99,9 +132,9 @@ the module enables XRootD's in-band TLS negotiation:
 
 That flow is implemented in two places:
 
-- `src/ngx_xrootd_session.c`
+- `src/session/protocol.c`
   - `xrootd_handle_protocol()` decides whether to advertise TLS
-- `src/ngx_xrootd_connection.c`
+- `src/connection/*.c`
   - `xrootd_start_tls()` creates the nginx SSL connection
   - `xrootd_tls_handshake_done()` restores the normal read/write handlers
 
@@ -242,7 +275,8 @@ stack:
    - keepalive requests and resumed TLS sessions can skip repeated chain
      verification work
 
-The relevant code lives in `src/ngx_http_xrootd_webdav_module.c`.
+The relevant code lives in `src/webdav/auth_*.c`, `src/webdav/dispatch.c`, and
+`src/webdav/postconfig.c`.
 
 ### WebDAV auth order
 
@@ -293,9 +327,9 @@ For the code-level optimizations that help offset this overhead, see
 
 Choose the transport based on what you need:
 
-- `davs://`
-  - best when you need HTTP/WebDAV compatibility, proxies, bearer tokens, or
-    HTTP-TPC
+- HTTP TLS (`davs://`, WebDAV HTTPS, or S3-compatible HTTPS)
+  - best when you need HTTP/WebDAV compatibility, proxies, bearer tokens,
+    HTTP-TPC, or the S3-compatible HTTP endpoint
 - `root://` + `xrootd_tls on`
   - best when clients already speak native XRootD and you want XRootD's
     negotiated in-band TLS model
@@ -304,7 +338,9 @@ Choose the transport based on what you need:
     policy directly
 
 If your main question is "why is HTTPS slower than raw XRootD/GSI?", the short
-answer is that HTTPS adds both TLS record processing and HTTP/WebDAV framing.
+answer is that HTTPS adds TLS record processing and HTTP framing. WebDAV adds
+WebDAV-specific method/header behavior on top of that; S3 adds S3 headers,
+range/list semantics, and optional SigV4 verification.
 The detailed code-level mitigations are documented in
 [optimizations.md](optimizations.md).
 
@@ -320,4 +356,4 @@ The detailed code-level mitigations are documented in
   - shows all three TLS patterns in one config:
     - `xrootd_tls on`
     - `roots://` via `listen ... ssl`
-    - `davs://` via `http {}` + `listen ... ssl`
+    - `davs://` / S3-compatible HTTPS via `http {}` + `listen ... ssl`

@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-xrootd-server
+  namespace: k8s-tests-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-xrootd-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-xrootd-server
+    spec:
+      containers:
+        - name: nginx-xrootd
+          image: nginx-xrootd-server:latest
+          ports:
+            - containerPort: 1094
+              protocol: TCP
+            - containerPort: 8443
+              protocol: TCP
+            - containerPort: 9100
+              protocol: TCP

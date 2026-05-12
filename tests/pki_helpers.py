@@ -1,0 +1,180 @@
+"""Helpers for rebuilding the local test PKI from scratch."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from settings import CA_CERT, CA_DIR, CA_KEY, PKI_DIR, SERVER_CERT, SERVER_KEY, USER_CERT, USER_KEY
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+MAKE_PROXY = ROOT_DIR / "utils" / "make_proxy.py"
+MAKE_CRL = ROOT_DIR / "utils" / "make_crl.py"
+
+CA_SUBJECT = "/DC=test/DC=xrootd/CN=Test XRootD CA"
+SERVER_SUBJECT = "/DC=test/DC=xrootd/CN=localhost"
+USER_SUBJECT = "/DC=test/DC=xrootd/CN=Test User/CN=12345"
+
+
+def _run(cmd: list[str]) -> str:
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"command failed: {' '.join(cmd)}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return result.stdout.strip()
+
+
+def _symlink(target: str, link_path: Path) -> None:
+    if link_path.exists() or link_path.is_symlink():
+        link_path.unlink()
+    link_path.symlink_to(target)
+
+
+def _write(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8")
+
+
+def blitz_test_pki() -> None:
+    """Replace the local test PKI with a clean, canonical layout."""
+    pki_dir = Path(PKI_DIR)
+    ca_dir = Path(CA_DIR)
+    server_dir = Path(SERVER_CERT).parent
+    user_dir = Path(USER_CERT).parent
+
+    if pki_dir.exists():
+        shutil.rmtree(pki_dir)
+
+    for subdir in ("ca", "server", "user", "voms", "vomsdir"):
+        (pki_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+    # CA certificate, hash links, and signing-policy files.
+    _run(["openssl", "genrsa", "-out", CA_KEY, "4096"])
+    os.chmod(CA_KEY, 0o400)
+    _run(
+        [
+            "openssl",
+            "req",
+            "-new",
+            "-x509",
+            "-key",
+            CA_KEY,
+            "-out",
+            CA_CERT,
+            "-days",
+            "3650",
+            "-sha256",
+            "-subj",
+            CA_SUBJECT,
+            "-addext",
+            "basicConstraints=critical,CA:TRUE",
+            "-addext",
+            "subjectKeyIdentifier=hash",
+            "-addext",
+            "keyUsage=critical,keyCertSign,cRLSign",
+        ]
+    )
+
+    new_hash = _run(["openssl", "x509", "-in", CA_CERT, "-noout", "-subject_hash"])
+    old_hash = _run(["openssl", "x509", "-in", CA_CERT, "-noout", "-subject_hash_old"])
+
+    signing_policy = ca_dir / "signing-policy"
+    _write(
+        signing_policy,
+        "\n".join(
+            [
+                f"access_id_CA    X509    '{CA_SUBJECT}'",
+                "pos_rights      globus  CA:sign",
+                "cond_subjects   globus  '\"/DC=test/DC=xrootd/*\"'",
+                "",
+            ]
+        ),
+    )
+
+    for hash_name in {new_hash, old_hash}:
+        _symlink("ca.pem", ca_dir / f"{hash_name}.0")
+        _symlink("signing-policy", ca_dir / f"{hash_name}.signing_policy")
+
+    # Host certificate and compatibility symlink for older helper scripts.
+    _run(["openssl", "genrsa", "-out", SERVER_KEY, "2048"])
+    os.chmod(SERVER_KEY, 0o400)
+    _run(
+        [
+            "openssl",
+            "req",
+            "-new",
+            "-key",
+            SERVER_KEY,
+            "-out",
+            str(server_dir / "host.csr"),
+            "-subj",
+            SERVER_SUBJECT,
+        ]
+    )
+    _run(
+        [
+            "openssl",
+            "x509",
+            "-req",
+            "-in",
+            str(server_dir / "host.csr"),
+            "-CA",
+            CA_CERT,
+            "-CAkey",
+            CA_KEY,
+            "-CAcreateserial",
+            "-out",
+            SERVER_CERT,
+            "-days",
+            "3650",
+            "-sha256",
+        ]
+    )
+    _symlink("hostkey.pem", server_dir / "host.key")
+
+    # User certificate and compatibility symlink for older helper scripts.
+    _run(["openssl", "genrsa", "-out", USER_KEY, "2048"])
+    os.chmod(USER_KEY, 0o400)
+    _run(
+        [
+            "openssl",
+            "req",
+            "-new",
+            "-key",
+            USER_KEY,
+            "-out",
+            str(user_dir / "user.csr"),
+            "-subj",
+            USER_SUBJECT,
+        ]
+    )
+    _run(
+        [
+            "openssl",
+            "x509",
+            "-req",
+            "-in",
+            str(user_dir / "user.csr"),
+            "-CA",
+            CA_CERT,
+            "-CAkey",
+            CA_KEY,
+            "-CAcreateserial",
+            "-out",
+            USER_CERT,
+            "-days",
+            "3650",
+            "-sha256",
+        ]
+    )
+    _symlink("userkey.pem", user_dir / "user.key")
+
+    _run([sys.executable, str(MAKE_PROXY), PKI_DIR])
+
+    if MAKE_CRL.exists():
+        _run([sys.executable, str(MAKE_CRL), PKI_DIR])

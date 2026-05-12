@@ -27,7 +27,7 @@ import tempfile
 import pytest
 
 from backend_matrix import root_endpoint_parts, selected_backend_name
-from settings import DATA_ROOT, NGINX_BIN
+from settings import DATA_ROOT, NGINX_ANON_PORT, NGINX_BIN, READONLY_PORT as FIXED_READONLY_PORT
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -35,16 +35,10 @@ from settings import DATA_ROOT, NGINX_BIN
 
 CROSS_BACKEND = selected_backend_name()
 ANON_HOST = "127.0.0.1"
-ANON_PORT = 11094
+ANON_PORT = NGINX_ANON_PORT
 DATA_DIR  = DATA_ROOT
 READONLY_HOST = "127.0.0.1"
-READONLY_PORT = 0
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+READONLY_PORT = FIXED_READONLY_PORT
 
 # XRootD request opcodes
 kXR_auth      = 3000
@@ -63,6 +57,7 @@ kXR_rm        = 3014
 kXR_rmdir     = 3015
 kXR_sync      = 3016
 kXR_stat      = 3017
+kXR_set       = 3018
 kXR_write     = 3019
 kXR_writev    = 3031
 kXR_endsess   = 3023
@@ -281,9 +276,6 @@ def readonly_nginx():
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     import server_control
-
-    global READONLY_PORT
-    READONLY_PORT = _free_port()
 
     info = server_control.start_nginx_instance(
         port=READONLY_PORT, nginx_bin=NGINX_BIN,
@@ -1402,4 +1394,53 @@ class TestPathTraversal:
             assert not os.path.exists("/tmp/_priv_mv_escaped.txt")
         finally:
             _unlink_if_exists(src)
-            _unlink_if_exists("/tmp/_priv_mv_escaped.txt")
+
+# ===========================================================================
+# kXR_set — advisory session configuration
+# ===========================================================================
+
+class TestSet:
+    """kXR_set (3018) accepts all advisory modifier values after login."""
+
+    def _send_set(self, sock, modifier: int, payload: bytes,
+                  streamid: bytes = b"\x00\x02") -> tuple:
+        req = struct.pack(
+            "!2sHB15sI",
+            streamid, kXR_set, modifier, b"\x00" * 15, len(payload),
+        )
+        sock.sendall(req + payload)
+        return _read_response(sock)
+
+    def test_set_appid_returns_ok(self):
+        """kXR_set with modifier=0x00 (appid) returns kXR_ok after login."""
+        with _raw_session() as sock:
+            _login_anon(sock)
+            status, body = self._send_set(sock, 0x00, b"pytest-app\n")
+        assert status == kXR_OK, f"expected kXR_ok, got status={status} body={body!r}"
+
+    def test_set_clttl_returns_ok(self):
+        """kXR_set with modifier=0x01 (client TTL hint) returns kXR_ok after login."""
+        with _raw_session() as sock:
+            _login_anon(sock)
+            status, body = self._send_set(sock, 0x01, b"3600\n")
+        assert status == kXR_OK, f"expected kXR_ok, got status={status} body={body!r}"
+
+    def test_set_unknown_modifier_returns_ok(self):
+        """Unknown modifier values must also return kXR_ok (advisory; spec mandates acceptance)."""
+        with _raw_session() as sock:
+            _login_anon(sock)
+            status, body = self._send_set(sock, 0xFF, b"anything\n")
+        assert status == kXR_OK, f"expected kXR_ok for unknown modifier, got status={status}"
+
+    def test_set_empty_payload_returns_ok(self):
+        """kXR_set with zero-length payload returns kXR_ok."""
+        with _raw_session() as sock:
+            _login_anon(sock)
+            status, body = self._send_set(sock, 0x00, b"")
+        assert status == kXR_OK, f"expected kXR_ok for empty payload, got status={status}"
+
+    def test_set_before_login_rejected(self):
+        """kXR_set before kXR_login must be rejected (login guard)."""
+        with _raw_session() as sock:
+            status, body = self._send_set(sock, 0x00, b"early-app\n")
+        assert status == kXR_ERROR, f"expected kXR_error before login, got status={status}"

@@ -1,0 +1,137 @@
+#include "ngx_xrootd_module.h"
+
+/*
+ * Control-flow responses: redirects and asynchronous retry hints.
+ */
+
+ngx_int_t
+xrootd_send_redirect(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    const char *host, uint16_t port)
+{
+    size_t    hostlen;
+    uint32_t  bodylen, pbe;
+    size_t    total;
+    u_char   *buf;
+
+    hostlen = (host != NULL) ? strlen(host) : 0;
+    bodylen = (uint32_t) (sizeof(uint32_t) + hostlen);
+    total = XRD_RESPONSE_HDR_LEN + bodylen;
+
+    buf = ngx_palloc(c->pool, total);
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_redirect, bodylen,
+        (ServerResponseHdr *) buf);
+
+    pbe = htonl((uint32_t) port);
+    ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &pbe, sizeof(pbe));
+    if (hostlen > 0) {
+        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(pbe), host, hostlen);
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        "xrootd: sending redirect to %s:%d", host ? host : "", (int) port);
+
+    return xrootd_queue_response(ctx, c, buf, total);
+}
+
+
+/*
+ * xrootd_send_redirect_tpc — redirect with a TPC key appended as opaque.
+ *
+ * The redirect body is: [port: 4 bytes][host string][?tpc.key=<key>]
+ * which the XRootD client parses as an opaque-qualified host.  Passing a
+ * NULL or empty key falls back to a plain redirect (no opaque appended).
+ */
+ngx_int_t
+xrootd_send_redirect_tpc(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    const char *host, uint16_t port, const char *tpc_key)
+{
+    size_t    hostlen, opaquelen, bodylen, total;
+    uint32_t  pbe;
+    u_char   *buf, *p;
+    char      opaque[160];
+
+    if (tpc_key == NULL || tpc_key[0] == '\0') {
+        return xrootd_send_redirect(ctx, c, host, port);
+    }
+
+    hostlen   = (host != NULL) ? strlen(host) : 0;
+    opaquelen = (size_t) snprintf(opaque, sizeof(opaque), "?tpc.key=%s", tpc_key);
+    bodylen   = sizeof(uint32_t) + hostlen + opaquelen;
+    total     = XRD_RESPONSE_HDR_LEN + bodylen;
+
+    buf = ngx_palloc(c->pool, total);
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_redirect, (uint32_t) bodylen,
+        (ServerResponseHdr *) buf);
+
+    p   = buf + XRD_RESPONSE_HDR_LEN;
+    pbe = htonl((uint32_t) port);
+    ngx_memcpy(p, &pbe, sizeof(pbe));
+    p += sizeof(pbe);
+
+    if (hostlen > 0) {
+        ngx_memcpy(p, host, hostlen);
+        p += hostlen;
+    }
+    ngx_memcpy(p, opaque, opaquelen);
+
+    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        "xrootd: sending TPC redirect to %s:%d key=%s",
+        host ? host : "", (int) port, tpc_key);
+
+    return xrootd_queue_response(ctx, c, buf, total);
+}
+
+
+ngx_int_t
+xrootd_send_wait(xrootd_ctx_t *ctx, ngx_connection_t *c, uint32_t seconds)
+{
+    size_t    total;
+    uint32_t  sbe;
+    u_char   *buf;
+
+    total = XRD_RESPONSE_HDR_LEN + sizeof(uint32_t);
+    buf = ngx_palloc(c->pool, total);
+
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_wait,
+        (uint32_t) sizeof(uint32_t), (ServerResponseHdr *) buf);
+
+    sbe = htonl(seconds);
+    ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &sbe, sizeof(sbe));
+
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        "xrootd: sending kXR_wait %u seconds", (unsigned) seconds);
+
+    return xrootd_queue_response(ctx, c, buf, total);
+}
+
+
+ngx_int_t
+xrootd_send_waitresp(xrootd_ctx_t *ctx, ngx_connection_t *c)
+{
+    u_char *buf;
+
+    buf = ngx_palloc(c->pool, XRD_RESPONSE_HDR_LEN);
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_waitresp, 0,
+        (ServerResponseHdr *) buf);
+
+    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        "xrootd: sending kXR_waitresp");
+
+    return xrootd_queue_response(ctx, c, buf, XRD_RESPONSE_HDR_LEN);
+}

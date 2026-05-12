@@ -1,9 +1,18 @@
-# Manager Mode (static path → backend mapping)
+# Manager Mode
 
-The manager-mode feature provides a simple static mapping from request path prefixes
-to backend host:port endpoints. When a locate or open request matches a configured
-prefix the server responds with an XRootD `kXR_redirect` response pointing the
-client to the mapped backend.
+nginx-xrootd supports two manager/redirector modes:
+
+- **Static map** (`xrootd_manager_map`) — fixed path-prefix → backend mapping. Simple, no moving parts. Covered in this document.
+- **Dynamic cluster mode** (`xrootd_manager_mode` + `xrootd_cms_server`) — data servers register at runtime via the CMS protocol; the redirector picks the best server for each request. See [cluster-mode.md](cluster-mode.md).
+
+---
+
+## Static path → backend mapping
+
+The static map provides a fixed mapping from request path prefixes to backend
+host:port endpoints. When a locate or open request matches a configured prefix
+the server responds with an XRootD `kXR_redirect` response pointing the client
+to the mapped backend.
 
 Directive
 
@@ -46,6 +55,6 @@ Notes
 
 - The redirect body contains no trailing NUL; parse the host using the body
   length minus four bytes.
-- Manager-mode is intentionally simple: it is a static map useful for small
-  deployments or as a building block for an external manager process that
-  programs the mappings via configuration and restarts.
+- The static map is useful for small deployments or fixed topologies. For
+  clusters where data servers register at runtime, use
+  [cluster mode](cluster-mode.md) instead.

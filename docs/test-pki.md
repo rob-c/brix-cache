@@ -1,8 +1,10 @@
 # Test PKI and VOMS from scratch
 
-This guide walks through creating an entire test Certificate Authority, host/user certificates, RFC 3820 proxy certificates, and a VOMS infrastructure — all using standard command-line tools and a small Python script. Everything is self-signed and local; no external CA is involved.
+This guide walks through creating an entire test Certificate Authority, host/user certificates, RFC 3820 proxy certificates, and a VOMS infrastructure — both manually with `openssl` and automatically via the Python test helpers. Everything is self-signed and local; no external CA is involved.
 
-The generated material is used by the nginx-xrootd test suite but is also a useful reference for understanding how GSI and VOMS authentication work in XRootD.
+The test suite regenerates the PKI automatically on each `pytest` run via `tests/pki_helpers.py:blitz_test_pki()` and `utils/make_proxy.py`. This guide explains both paths: the automated flow (what happens under the hood) and the manual steps (for debugging and learning).
+
+For the complete session lifecycle, per-test nginx instances, and how to write new tests, see [testing.md](testing.md). For the PKI trust model, proxy certificate internals, VOMS AC structure, and GSI DH exchange diagrams, see [pki.md](pki.md).
 
 ---
 
@@ -11,10 +13,67 @@ The generated material is used by the nginx-xrootd test suite but is also a usef
 ```bash
 # Tools
 openssl version          # 1.1.1+ or 3.x
-voms-proxy-fake --help   # from voms-clients-cpp package
 
-# Python (for RFC 3820 proxy generation)
+# Python (for RFC 3820 proxy generation and VOMS proxies)
 pip install cryptography
+
+# Optional: system voms-proxy-fake (the test suite uses utils/voms_proxy_fake.py instead)
+voms-proxy-fake --help   # from voms-clients-cpp package, not required
+```
+
+---
+
+## Automated generation (what `pytest` does)
+
+When you run `pytest`, `conftest.pytest_sessionstart()` calls `blitz_test_pki()` which rebuilds the entire PKI from scratch. Here is the exact sequence:
+
+```
+blitz_test_pki()  (tests/pki_helpers.py)
+    │
+    ├── openssl genrsa 4096           → pki/ca/ca.key          (0400)
+    ├── openssl req -new -x509 -sha256 -days 3650
+    │       -subj "/DC=test/DC=xrootd/CN=Test XRootD CA"
+    │       -addext basicConstraints=critical,CA:TRUE
+    │       -addext keyUsage=critical,keyCertSign,cRLSign
+    │                                 → pki/ca/ca.pem
+    ├── compute NEW_HASH (subject_hash) and OLD_HASH (subject_hash_old)
+    ├── symlink ca.pem → <NEW_HASH>.0, <OLD_HASH>.0
+    ├── write <NEW_HASH>.signing_policy, <OLD_HASH>.signing_policy
+    │
+    ├── openssl genrsa 2048           → pki/server/hostkey.pem  (0400)
+    ├── openssl req -new -subj "/DC=test/DC=xrootd/CN=localhost"
+    │                                 → pki/server/host.csr
+    ├── openssl x509 -req -CA ca.pem -days 3650
+    │                                 → pki/server/hostcert.pem
+    │
+    ├── openssl genrsa 2048           → pki/user/userkey.pem    (0400)
+    ├── openssl req -new -subj "/DC=test/DC=xrootd/CN=Test User/CN=12345"
+    │                                 → pki/user/user.csr
+    └── openssl x509 -req -CA ca.pem -days 3650
+                                      → pki/user/usercert.pem
+
+utils/make_proxy.py  (called after blitz_test_pki)
+    │
+    ├── load usercert.pem + userkey.pem
+    ├── generate ephemeral RSA-2048 proxy key
+    ├── DER-encode proxyCertInfo (OID 1.3.6.1.5.5.7.1.14, id-ppl-inheritAll)
+    ├── sign proxy cert with userkey (SHA-256)
+    └── write proxy_std.pem = [proxy cert] + [user cert] + [proxy key]  (0400)
+
+test_vo_acl.py session fixture  (lazy — only when VO tests run)
+    │
+    ├── openssl genrsa 2048 + req + x509 -days 365 → pki/voms/vomscert.pem
+    │       (with SubjectKeyIdentifier extension — required for AKI in AC)
+    ├── write pki/vomsdir/cms/voms.test.local.lsc
+    ├── write pki/vomsdir/atlas/voms.test.local.lsc
+    ├── utils/voms_proxy_fake.py -voms cms  → pki/user/proxy_cms.pem
+    └── utils/voms_proxy_fake.py -voms atlas → pki/user/proxy_atlas.pem
+```
+
+To force a fresh PKI rebuild, just run `pytest` — `blitz_test_pki()` always starts from scratch. To skip regeneration (use an existing PKI):
+
+```bash
+TEST_SKIP_PKI_REGEN=1 pytest tests/test_xrootd.py -v
 ```
 
 ---
@@ -372,12 +431,80 @@ cat $PKI/vomsdir/atlas/voms.test.local.lsc
 
 ## 7. Generate VOMS proxies
 
-A VOMS proxy is a standard GSI proxy with an additional extension containing the Attribute Certificate. The `voms-proxy-fake` tool generates these without needing a running VOMS server.
+A VOMS proxy is a standard GSI proxy with an additional extension (OID `1.3.6.1.4.1.8005.100.100.5`) containing the VOMS Attribute Certificate. No running VOMS server is needed — the AC is signed offline using the VOMS signing key.
 
-### 7.1 Generate per-VO proxies
+The project provides `utils/voms_proxy_fake.py`, a pure-Python implementation with the same command-line flags as the C++ `voms-proxy-fake` tool. It is used automatically by the test suite.
+
+### 7.1 What `voms_proxy_fake.py` builds
+
+```
+Input:
+  usercert.pem + userkey.pem     — proxy issuer (the user's long-term identity)
+  vomscert.pem + vomskey.pem     — VOMS signing authority
+  vo="cms", fqan="/cms/Role=NULL/Capability=NULL"
+
+Step 1 — Build VOMS Attribute Certificate (raw DER, manually encoded):
+  AttributeCertificate SEQUENCE {
+      TBSAttributeCertificate:
+          version         1              -- v2
+          holder          [baseCertificateID: user cert subject DN + serial]
+          issuer          [v2Form: VOMS cert subject DN]
+          sigAlg          SHA256WithRSA
+          serial          1
+          validity        { notBefore=now-5min, notAfter=now+24h }
+          attributes      [OID 1.3.6.1.4.1.8005.100.100.4 (VOMS FQANs):
+                            policy_authority = "cms://voms.test.local:15000"
+                            fqan_list = ["/cms/Role=NULL/Capability=NULL"]]
+          extensions      [OID ...100.10: embed vomscert.pem DER,
+                           OID 2.5.29.56: noRevocationAvailable,
+                           OID 2.5.29.35: authorityKeyIdentifier ← VOMS cert SKI]
+      sigAlg  SHA256WithRSA
+      sig     vomskey signs TBSAttributeCertificate
+  }
+  Wrapped as: SEQUENCE { SEQUENCE { ac } }  (libvomsapi expects this outer wrapper)
+
+Step 2 — Build RFC 3820 proxy cert with two extra extensions:
+  Subject = user DN + CN=<random serial>
+  Issuer  = user cert subject
+  Extensions:
+    OID 1.3.6.1.5.5.7.1.14  proxyCertInfo (critical) — id-ppl-inheritAll
+    OID 1.3.6.1.4.1.8005.100.100.5  — VOMS AC wrapped DER (non-critical)
+  Signed by userkey
+
+Step 3 — Write output PEM:
+  [proxy cert]   ← contains VOMS AC in extension
+  [proxy key]
+  [user cert]
+  (file mode 0400, written via mkstemp+rename to avoid 0400 truncation failure)
+```
+
+### 7.2 Generate per-VO proxies
 
 ```bash
-# CMS proxy
+# Using the Python script (no system dependency on voms-proxy-fake)
+python3 utils/voms_proxy_fake.py \
+    -cert     $PKI/user/usercert.pem \
+    -key      $PKI/user/userkey.pem \
+    -hostcert $PKI/voms/vomscert.pem \
+    -hostkey  $PKI/voms/vomskey.pem \
+    -voms     cms \
+    -fqan     "/cms/Role=NULL/Capability=NULL" \
+    -uri      "voms.test.local:15000" \
+    -out      $PKI/user/proxy_cms.pem \
+    -hours    24
+
+python3 utils/voms_proxy_fake.py \
+    -cert     $PKI/user/usercert.pem \
+    -key      $PKI/user/userkey.pem \
+    -hostcert $PKI/voms/vomscert.pem \
+    -hostkey  $PKI/voms/vomskey.pem \
+    -voms     atlas \
+    -fqan     "/atlas/Role=NULL/Capability=NULL" \
+    -uri      "voms.test.local:15000" \
+    -out      $PKI/user/proxy_atlas.pem \
+    -hours    24
+
+# Or using the system voms-proxy-fake if installed (flags are identical)
 voms-proxy-fake \
     -cert     $PKI/user/usercert.pem \
     -key      $PKI/user/userkey.pem \
@@ -388,19 +515,6 @@ voms-proxy-fake \
     -fqan     "/cms/Role=NULL/Capability=NULL" \
     -uri      "voms.test.local:15000" \
     -out      $PKI/user/proxy_cms.pem \
-    -hours    24
-
-# ATLAS proxy
-voms-proxy-fake \
-    -cert     $PKI/user/usercert.pem \
-    -key      $PKI/user/userkey.pem \
-    -certdir  $PKI/ca \
-    -hostcert $PKI/voms/vomscert.pem \
-    -hostkey  $PKI/voms/vomskey.pem \
-    -voms     atlas \
-    -fqan     "/atlas/Role=NULL/Capability=NULL" \
-    -uri      "voms.test.local:15000" \
-    -out      $PKI/user/proxy_atlas.pem \
     -hours    24
 ```
 

@@ -1,0 +1,39 @@
+
+server:
+  nodeCount: 3
+  replicasPerNode: 1
+
+auth:
+  mode: gsi
+  allowWrite: true
+  requireVO: ""
+
+pki:
+  crlFiles:
+    - ca.crl
+
+service:
+  xrootd:
+    type: LoadBalancer
+  webdav:
+    type: LoadBalancer
+  metrics:
+    type: ClusterIP
+
+data:
+  createPVC: true
+  pvcSize: 100Gi
+  storageClass: "standard"
+
+resources:
+  limits:
+    cpu: "1"
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+nginx:
+  workerConnections: 4096
+  threadPoolThreads: 8
+  threadPoolMaxQueue: 131072

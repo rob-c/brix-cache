@@ -22,6 +22,8 @@ def _render_config(conf_text: str, placeholders: dict[str, str]) -> str:
     text = conf_text
     for k, v in placeholders.items():
         text = text.replace(f"{{{k}}}", str(v))
+    # Convert escaped braces (Python f-string convention) to literal braces
+    text = text.replace("{{", "{").replace("}}", "}")
     return text
 
 
@@ -134,6 +136,10 @@ def start_nginx_instance(
     # Replace {KEY} placeholders (safe — nginx braces are not affected)
     text = _render_config(conf_text, placeholders)
 
+    # Ensure events block exists — inline test configs often omit it
+    if "events" not in text:
+        text = "events {\n    worker_connections 1024;\n}\n\n" + text
+
     conf_path = conf_dir / "nginx.conf"
     conf_path.write_text(text, encoding="utf-8")
 
@@ -141,11 +147,25 @@ def start_nginx_instance(
     env["NGINX_PREFIX"] = str(prefix)
     env["NGINX_CONF_REL"] = "conf/nginx.conf"
     env["NGINX_PORT"] = str(port)
+    env["LOG_DIR"] = str(log_dir)
+    env["TMP_DIR"] = str(tmp_dir)
+    env["DATA_DIR"] = str(data_dir)
     if nginx_bin:
         env["NGINX_BIN"] = nginx_bin
     env["SKIP_XRDFS_CHECK"] = "1"
+    env["START_EXTRA_NGINX_CONFIGS"] = "0"
+    env["SKIP_NGINX_FORCE_STOP_ON_START"] = "1"
+    env["NGINX_CONF_PREGENERATED"] = "1"
 
-    subprocess.run([MANAGE_SCRIPT, "start", "nginx"], env=env, check=True)
+    result = subprocess.run(
+        [MANAGE_SCRIPT, "start", "nginx"], env=env, check=False,
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"manage_test_servers.sh start nginx failed (rc={result.returncode}): "
+            f"{result.stderr[:500]}"
+        )
 
     if not _wait_for_port("127.0.0.1", port, timeout=15):
         # try stop for cleanup

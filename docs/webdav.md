@@ -1,385 +1,960 @@
-# WebDAV / HTTPS+GSI/Bearer
+# WebDAV module
 
-The `ngx_http_xrootd_webdav_module` adds a WebDAV content handler to nginx's HTTP layer. Together with TLS, GSI proxy-certificate support, and optional JWT bearer-token validation, it lets `xrdcp` use the `davs://host:8443/` URL scheme — the same transfer path used by Grid and WLCG workflows that prefer HTTP over the native `root://` protocol.
-
-For the full TLS implementation details across both WebDAV and native XRootD,
-see [tls.md](tls.md). For the WebDAV fast paths and syscall-reduction work, see
-[optimizations.md](optimizations.md). For the usual `xrdcp --allow-http`
-request flow, see [xrdcp-interactions.md](xrdcp-interactions.md).
-
----
-
-## How it works
-
-`xrdcp --allow-http davs://host:8443/path` is handled by the `XrdClHttp` plugin, which speaks WebDAV (HTTP methods OPTIONS, GET with Range, HEAD, PUT, DELETE, MKCOL, PROPFIND) over TLS. Authentication can come from RFC 3820 proxy certificates or from an `Authorization: Bearer <JWT>` header.
-
-nginx's built-in SSL stack does not accept RFC 3820 proxy certificates by default. This module patches the `SSL_CTX` in postconfiguration to set `X509_V_FLAG_ALLOW_PROXY_CERTS`, enabling proxy chains issued by your test CA. Per-request certificate verification is then performed using the configured CA directory or CA file. Bearer tokens are verified against a local JWKS file without a network call to an identity provider.
+The WebDAV module turns nginx into a `davs://` endpoint: it speaks HTTP/HTTPS
+with the full set of WebDAV methods, enforces GSI proxy-certificate and WLCG
+bearer-token authentication, and optionally forwards authenticated requests to
+a backend WebDAV server. It is a standalone `ngx_http` module — completely
+separate from the native XRootD stream module — and can be deployed on the
+same nginx instance as the stream module or on its own.
 
 ---
 
-## nginx.conf setup
+## Contents
 
-Add to the `http {}` block:
+- [Overview](#overview)
+- [Quick start](#quick-start)
+- [Authentication](#authentication)
+- [HTTP methods](#http-methods)
+- [HTTP Third-Party Copy (TPC)](#http-third-party-copy-tpc)
+- [Upstream proxy mode](#upstream-proxy-mode)
+- [CORS](#cors)
+- [WebDAV locks](#webdav-locks)
+- [Configuration reference](#configuration-reference)
+- [Troubleshooting](#troubleshooting)
 
-```nginx
-http {
-    server {
-        listen 8443 ssl;
-        server_name your.host.name;
+---
 
-        ssl_certificate     /etc/grid-security/hostcert.pem;
-        ssl_certificate_key /etc/grid-security/hostkey.pem;
+## Overview
 
-        # Request a client cert but don't reject connections that lack one.
-        # Our module enforces auth policy per-request.
-        ssl_verify_client optional_no_ca;
-        ssl_verify_depth  10;
-
-        # Patch the SSL_CTX to accept RFC 3820 proxy certificates.
-        xrootd_webdav_proxy_certs on;
-
-        # Allow uploads up to 1 GB
-        client_max_body_size 1g;
-
-        access_log /var/log/nginx/webdav_access.log;
-
-        location / {
-            xrootd_webdav         on;
-            xrootd_webdav_root    /data;
-            xrootd_webdav_cadir   /etc/grid-security/certificates;
-            xrootd_webdav_auth    optional;    # or: none | required
-            xrootd_webdav_allow_write on;
-
-            # Optional HTTP-TPC pull support (COPY with a Source header)
-            xrootd_webdav_tpc       on;
-            xrootd_webdav_tpc_cert  /etc/grid-security/xrd/xrdcert.pem;
-            xrootd_webdav_tpc_key   /etc/grid-security/xrd/xrdkey.pem;
-
-            # Optional bearer-token auth
-            xrootd_webdav_token_jwks     /etc/tokens/jwks.json;
-            xrootd_webdav_token_issuer   "https://idp.example.com";
-            xrootd_webdav_token_audience "my-storage";
-        }
-    }
-}
+```text
+                        ┌─────────────────────────────────────────┐
+  xrdcp davs://…        │            nginx (HTTP module)           │
+  curl -X PROPFIND      │                                          │
+  rclone davs://…  ───► │  SSL termination + auth gate             │
+                        │       │                                  │
+                        │       ├─ cert OK / token OK / anon       │
+                        │       │                                  │
+                        │       ├─► local filesystem (POSIX)       │
+                        │       │       GET, PUT, PROPFIND, …      │
+                        │       │                                  │
+                        │       └─► upstream HTTP(S) proxy         │
+                        │               (xrootd_webdav_proxy on)   │
+                        └─────────────────────────────────────────┘
 ```
 
----
+**What it does:**
 
-## Directives
+- Accepts HTTPS connections and optionally requires mTLS (client certificates)
+- Authenticates via RFC 3820 GSI proxy certificates or WLCG/JWT bearer tokens
+- Serves a POSIX filesystem through OPTIONS, GET (byte-range), HEAD, PUT,
+  DELETE, MKCOL, PROPFIND, PROPPATCH, COPY, MOVE, LOCK, and UNLOCK
+- Handles HTTP-TPC (server-to-server copy) used by `xrdcp davs://src davs://dst`
+- Adds CORS response headers for browser WebDAV clients
+- Can forward all requests to a backend HTTP/HTTPS server after the auth gate
+  (proxy mode — see [Upstream proxy mode](#upstream-proxy-mode))
 
-All `xrootd_webdav_*` directives go inside an `http` server or location block.
+**What it is not:**
 
-### `xrootd_webdav on|off`
-
-**Context:** `location`
-
-Activates the WebDAV content handler for this location.
-
----
-
-### `xrootd_webdav_root <path>`
-
-**Context:** `location` · **Default:** `/`
-
-Filesystem directory that clients see as `/`. Path traversal and symlink-escape attempts are blocked.
+- It does not speak the XRootD binary protocol. For `root://` use the
+  stream module (`xrootd` directive in the `stream {}` block).
+- It is not a generic nginx reverse proxy. Its upstream proxy mode is
+  purpose-built for the WebDAV auth-termination pattern.
 
 ---
 
-### `xrootd_webdav_auth none|optional|required`
+## Quick start
 
-**Context:** `location` · **Default:** `optional`
-
-- `none` — serve all requests without checking client certificates or bearer tokens
-- `optional` — check a proxy certificate or bearer token if one is presented; unauthenticated requests are still served
-- `required` — reject requests that do not present a valid proxy certificate or bearer token (returns 403)
-
-With `optional`, an invalid bearer token is declined and the request may still proceed anonymously. Use `required` when token or proxy authentication must be mandatory.
-
----
-
-### `xrootd_webdav_cadir <path>`
-
-**Context:** `location`
-
-Directory containing hashed CA certificates (the standard Grid format: `<hash>.0` files). Used for per-request proxy-certificate chain verification when `xrootd_webdav_auth` is `optional` or `required`.
-
----
-
-### `xrootd_webdav_cafile <path>`
-
-**Context:** `location`
-
-Alternative to `xrootd_webdav_cadir`: a single PEM file containing one or more CA certificates.
-
----
-
-### `xrootd_webdav_crl <path>`
-
-**Context:** `location`
-
-PEM CRL file used when verifying proxy-certificate chains. When configured, OpenSSL CRL checks are enabled for the full chain.
-
----
-
-### `xrootd_webdav_allow_write on|off`
-
-**Context:** `location` · **Default:** `off`
-
-Enables PUT, DELETE, MKCOL, and HTTP-TPC COPY when `xrootd_webdav_tpc on` is also configured. Off by default so read-only deployments are safe without extra configuration. When the request is accepted via a bearer token, `PUT` and TPC `COPY` also require a matching `storage.write` or `storage.create` scope for the request path.
-
----
-
-### `xrootd_webdav_tpc on|off`
-
-**Context:** `location` · **Default:** `off`
-
-Enables HTTP third-party copy pull requests using WebDAV `COPY` with a remote `Source` header. The destination is the request URI on this server.
-
-This is an explicit opt-in because the nginx worker starts an external `curl` helper and the server makes an outbound HTTPS request to the `Source` URL. Only `https://` sources are accepted. The request waits for `curl` to finish, so set `xrootd_webdav_tpc_timeout` and size nginx workers accordingly for production transfers.
-
----
-
-### `xrootd_webdav_tpc_curl <path>`
-
-**Context:** `location` · **Default:** `/usr/bin/curl`
-
-Path to the `curl` executable used for HTTP-TPC pulls. The helper is run without a shell.
-
----
-
-### `xrootd_webdav_tpc_cert <path>`
-
-**Context:** `location`
-
-PEM certificate or proxy certificate used by the server when it pulls from the remote HTTPS source. For proxy PEM files that contain both certificate and private key, set only this directive or set `xrootd_webdav_tpc_key` to the same path.
-
----
-
-### `xrootd_webdav_tpc_key <path>`
-
-**Context:** `location` · **Default:** `xrootd_webdav_tpc_cert`
-
-PEM private key used with `xrootd_webdav_tpc_cert`.
-
----
-
-### `xrootd_webdav_tpc_cadir <path>`
-
-**Context:** `location` · **Default:** `xrootd_webdav_cadir`
-
-CA directory passed to `curl --capath` when verifying the source HTTPS endpoint.
-
----
-
-### `xrootd_webdav_tpc_cafile <path>`
-
-**Context:** `location` · **Default:** `xrootd_webdav_cafile`
-
-CA bundle passed to `curl --cacert` when verifying the source HTTPS endpoint.
-
----
-
-### `xrootd_webdav_tpc_timeout <seconds>`
-
-**Context:** `location` · **Default:** `0` (curl default)
-
-Maximum wall-clock time passed to `curl --max-time` for a single HTTP-TPC pull.
-
----
-
-### `xrootd_webdav_proxy_certs on|off`
-
-**Context:** `server` or `location` (HTTP) · **Default:** `off`
-
-Sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on the `SSL_CTX` for this server in postconfiguration. Without this, nginx's TLS layer rejects RFC 3820 proxy certificates with error 40 (`proxy certificates not allowed`) even when `ssl_verify_client optional_no_ca` is set.
-
-In normal TLS deployments, put this in the `server {}` block so the SSL context is patched for the whole virtual server.
-
----
-
-### `xrootd_webdav_verify_depth <n>`
-
-**Context:** `location` · **Default:** `10`
-
-Maximum depth for proxy-certificate chain verification.
-
----
-
-### `xrootd_webdav_token_jwks <path>`
-
-**Context:** `location`
-
-Path to a JWKS file containing public keys trusted for JWT/WLCG bearer-token validation.
-
----
-
-### `xrootd_webdav_token_issuer <string>`
-
-**Context:** `location`
-
-Expected JWT `iss` claim.
-
----
-
-### `xrootd_webdav_token_audience <string>`
-
-**Context:** `location`
-
-Expected JWT `aud` claim.
-
----
-
-### `xrootd_webdav_thread_pool <name>`
-
-**Context:** `location` · **Default:** `default`
-
-Names the nginx thread pool used for async WebDAV file I/O, primarily the
-in-memory `PUT` fast path. If the named pool does not exist, the module logs a
-notice and falls back to synchronous I/O.
+### Minimal read-only setup (anonymous access)
 
 ```nginx
-thread_pool webdav_io threads=8 max_queue=65536;
-
 server {
-    listen 8443 ssl;
+    listen 443 ssl;
+    ssl_certificate     /etc/grid-security/hostcert.pem;
+    ssl_certificate_key /etc/grid-security/hostkey.pem;
 
-    location / {
-        xrootd_webdav on;
-        xrootd_webdav_root /data;
-        xrootd_webdav_thread_pool webdav_io;
+    location /dav/ {
+        xrootd_webdav      on;
+        xrootd_webdav_root /data/store;
+        xrootd_webdav_auth none;
     }
 }
 ```
 
----
-
-## WebDAV methods supported
-
-| Method | Notes |
-|---|---|
-| `OPTIONS` | Returns `Allow` header with all supported methods; `DAV: 1` |
-| `GET` | Full file and RFC 7233 `Range` requests (including suffix ranges `bytes=-N`) |
-| `HEAD` | Returns headers without body |
-| `PUT` | Upload; returns 201 on create, 204 on overwrite |
-| `DELETE` | Removes files and empty directories |
-| `MKCOL` | Creates a directory; trailing slash in URL is accepted |
-| `COPY` | HTTP-TPC pull when `xrootd_webdav_tpc on`; remote source comes from the `Source` header |
-| `PROPFIND` | `Depth: 0` for stat, `Depth: 1` for directory listing; returns `207 Multi-Status` XML |
-
----
-
-## Testing with curl
-
-```bash
-PROXY=/path/to/proxy_cert.pem
-CA=/etc/grid-security/certificates/ca.pem
-
-# OPTIONS
-curl -sk --cert $PROXY --key $PROXY --cacert $CA \
-  -X OPTIONS https://host:8443/ -I
-
-# Upload
-curl -sk --cert $PROXY --key $PROXY --cacert $CA \
-  -X PUT https://host:8443/file.txt --data-binary @localfile.txt
-
-# Download
-curl -sk --cert $PROXY --key $PROXY --cacert $CA \
-  https://host:8443/file.txt -o downloaded.txt
-
-# Stat (PROPFIND Depth:0)
-curl -sk --cert $PROXY --key $PROXY --cacert $CA \
-  -X PROPFIND -H "Depth: 0" https://host:8443/file.txt
-
-# Create directory
-curl -sk --cert $PROXY --key $PROXY --cacert $CA \
-  -X MKCOL https://host:8443/newdir/
-```
-
-Bearer-token requests use a normal HTTP `Authorization` header:
-
-```bash
-TOKEN=$(python3 utils/make_token.py gen \
-  --scope "storage.read:/ storage.write:/" /tmp/xrd-test/tokens)
-
-curl -sk -H "Authorization: Bearer $TOKEN" \
-  https://host:8443/file.txt -o downloaded.txt
-
-curl -sk -X PUT -H "Authorization: Bearer $TOKEN" \
-  --data-binary @localfile.txt https://host:8443/file.txt
-```
-
----
-
-## HTTP-TPC pull
-
-With `xrootd_webdav_tpc on`, this module accepts the WLCG-style WebDAV `COPY` pull shape:
-
-```bash
-curl -sk --cert /tmp/x509up_u$(id -u) --key /tmp/x509up_u$(id -u) \
-  --capath /etc/grid-security/certificates \
-  -X COPY \
-  -H "Credential: none" \
-  -H "Source: https://source.example.org:8443//store/input.dat" \
-  https://dest.example.org:8443//store/output.dat
-```
-
-The server writes to a temporary file next to the destination and then renames it into place after `curl` succeeds. `Overwrite: F` fails with HTTP 412 if the destination exists; the default is overwrite (`Overwrite: T`).
-
-`TransferHeader*` request headers are forwarded to the source request without the prefix. For example, `TransferHeaderAuthorization: Bearer <token>` becomes `Authorization: Bearer <token>` in the outbound source request.
-
-This implementation does not implement GridSite or OIDC delegation endpoints. Requests that explicitly set `Credential: gridsite` or `Credential: oidc` are rejected with HTTP 400. Use `Credential: none` with configured service X.509 credentials or forwarded `TransferHeader*` authorization.
-
-Native `root://` third-party copy is not the same protocol. It requires XRootD rendezvous-key handling and, for delegated copies, GSI credential delegation on the stream protocol. The current nginx stream module serves normal `root://` reads and writes, but does not yet implement native XRootD TPC.
-
----
-
-## Testing with xrdcp
-
-The `davs://` URL scheme requires the `XrdClHttp` plugin (`libXrdClHttp-5.so`), which ships with full xrootd builds but may be absent from client-only packages:
-
-```bash
-# Check whether the plugin is available
-ls $(xrdcp --version 2>&1 | awk '/^v/{print "/usr/lib64"}')/*XrdClHttp* 2>/dev/null \
-  || echo "XrdClHttp plugin not installed"
-
-# Upload
-X509_USER_PROXY=/path/to/proxy_cert.pem \
-  xrdcp --allow-http /local/file.txt davs://host:8443//file.txt
-
-# Download
-X509_USER_PROXY=/path/to/proxy_cert.pem \
-  xrdcp --allow-http davs://host:8443//file.txt /local/copy.txt
-```
-
-Set `X509_CERT_DIR` to your CA hash directory if the proxy's issuer CA is not in the system default location.
-
----
-
-## Relationship to the native XRootD protocol
-
-The WebDAV and native `root://` modules are independent; you can run both on the same nginx instance. They share the same `xrootd_root` / `xrootd_webdav_root` filesystem path if you want clients to access the same data via either protocol:
+### Read-write with WLCG bearer tokens
 
 ```nginx
-stream {
-    server {
-        listen 1095;
-        xrootd on;
-        xrootd_root /data;
-        xrootd_auth gsi;
-        # ... GSI cert directives ...
-    }
-}
+server {
+    listen 443 ssl;
+    ssl_certificate     /etc/grid-security/hostcert.pem;
+    ssl_certificate_key /etc/grid-security/hostkey.pem;
 
-http {
-    server {
-        listen 8443 ssl;
-        # ... TLS directives ...
-        location / {
-            xrootd_webdav      on;
-            xrootd_webdav_root /data;   # same data directory
-            xrootd_webdav_auth optional;
-        }
+    # Optional: allow GSI proxy certificates too
+    ssl_verify_client optional_no_ca;
+    ssl_verify_depth  10;
+
+    location /dav/ {
+        xrootd_webdav       on;
+        xrootd_webdav_root  /data/store;
+        xrootd_webdav_auth  required;
+        xrootd_webdav_cadir /etc/grid-security/certificates;
+        xrootd_webdav_crl   /etc/grid-security/certificates;
+
+        # Bearer token (WLCG/SciTokens)
+        xrootd_webdav_token_jwks     /etc/xrootd/issuer.jwks;
+        xrootd_webdav_token_issuer   https://token.example.org;
+        xrootd_webdav_token_audience https://se.example.org;
+
+        xrootd_webdav_allow_write on;
     }
 }
 ```
+
+> **Tip:** `xrootd_webdav_auth required` blocks all unauthenticated requests
+> with HTTP 403. Use `optional` to allow anonymous reads while still
+> recording the identity of authenticated clients.
+
+### Read-write with GSI proxy certificates
+
+```nginx
+server {
+    listen 443 ssl;
+    ssl_certificate      /etc/grid-security/hostcert.pem;
+    ssl_certificate_key  /etc/grid-security/hostkey.pem;
+    ssl_client_certificate /etc/grid-security/certificates/all-cas.pem;
+    ssl_verify_client    optional_no_ca;
+    ssl_verify_depth     10;
+
+    location /dav/ {
+        xrootd_webdav        on;
+        xrootd_webdav_root   /data/store;
+        xrootd_webdav_auth   required;
+        xrootd_webdav_proxy_certs on;           # accept RFC 3820 proxy certs
+        xrootd_webdav_cadir  /etc/grid-security/certificates;
+        xrootd_webdav_crl    /etc/grid-security/certificates;
+        xrootd_webdav_allow_write on;
+    }
+}
+```
+
+> **Note:** `ssl_verify_client optional_no_ca` lets nginx request the client
+> certificate without refusing connections that have none. The WebDAV module
+> performs its own chain verification using the configured CA store.
+
+---
+
+## Authentication
+
+Authentication is controlled by `xrootd_webdav_auth` and applies to every
+request that reaches the location block.
+
+```text
+Incoming request
+      │
+      ▼
+  auth == none? ──► proceed as anonymous
+      │
+      ▼
+  Try GSI proxy cert (mTLS)
+      │ verified?
+      ├─► yes: proceed as <DN>
+      │
+      ▼
+  Try Authorization: Bearer <jwt>
+      │ verified?
+      ├─► yes: proceed as <sub> + scopes
+      │
+      ▼
+  auth == optional? ──► proceed as anonymous
+      │
+  auth == required? ──► HTTP 403 Forbidden
+```
+
+### Auth modes
+
+| Value | Behaviour |
+|---|---|
+| `none` | All requests anonymous; no CA store needed |
+| `optional` | Auth attempted; falls back to anonymous if no valid credential |
+| `required` | Unauthenticated requests get HTTP 403 |
+
+Default is `optional`.
+
+### GSI / X.509 proxy certificates
+
+The module validates the full RFC 3820 proxy chain using an OpenSSL X509_STORE
+built from `xrootd_webdav_cadir` / `xrootd_webdav_cafile` and checked against
+CRLs from `xrootd_webdav_crl`. The CA store is built once at startup and
+cached for the worker lifetime — no per-request disk I/O.
+
+Enable `xrootd_webdav_proxy_certs on` to accept VOMS proxy certificates.
+Without it, only end-entity certificates are accepted.
+
+### WLCG/SciTokens JWT bearer tokens
+
+Set `xrootd_webdav_token_jwks` to a local JWKS file (RS256). The module
+validates signature, expiry, `iss`, and `aud` claims. Token scopes
+(`storage.read`, `storage.write`, `storage.create`) are enforced on write
+methods when the token path is present.
+
+All three of `xrootd_webdav_token_jwks`, `xrootd_webdav_token_issuer`, and
+`xrootd_webdav_token_audience` must be set together.
+
+> **Key rotation:** use `xrootd_webdav_macaroon_secret_old` to keep accepting
+> tokens signed by the previous key during a rotation window. Remove it once
+> all clients have migrated.
+
+---
+
+## HTTP methods
+
+The module implements the full set of WebDAV methods. Write methods require
+`xrootd_webdav_allow_write on` and, when using bearer tokens, an appropriate
+write scope in the token.
+
+| Method | Description |
+|---|---|
+| `OPTIONS` | Advertise allowed methods; handles CORS pre-flight |
+| `GET` | Retrieve file; supports `Range`, `If-None-Match`, `If-Modified-Since` |
+| `HEAD` | Same as GET but without body; returns `Content-Length`, `ETag`, `Last-Modified` |
+| `PUT` | Upload file; uses thread pool for large files when configured |
+| `DELETE` | Remove file or directory tree |
+| `MKCOL` | Create directory |
+| `PROPFIND` | List properties; depth `0` (resource), `1` (immediate children), `infinity` |
+| `PROPPATCH` | Set/remove dead properties |
+| `COPY` | Duplicate file or directory within the namespace; also initiates HTTP-TPC pull |
+| `MOVE` | Rename or move within the namespace |
+| `LOCK` | Acquire exclusive write lock; timeout from `xrootd_webdav_lock_timeout` |
+| `UNLOCK` | Release a write lock |
+
+> **GET with Range:** byte-range requests are fully supported, including
+> multi-range. The fd cache (16 slots per connection) avoids repeated
+> `open()`/`fstat()` for PROPFIND+GET pairs on the same resource.
+
+> **Thread pool for PUT:** if `xrootd_webdav_thread_pool` names a thread pool
+> configured with nginx's `thread_pool` directive, large PUT bodies are written
+> from a worker thread, keeping the event loop unblocked.
+
+---
+
+## HTTP Third-Party Copy (TPC)
+
+HTTP-TPC lets `xrdcp davs://source davs://dest` copy directly between two
+servers without buffering through the client. The client sends a `COPY` request
+to the destination server; the destination server then pulls the data from the
+source.
+
+```text
+  xrdcp client
+      │
+      │  COPY /dest/file
+      │  Source: https://src.example.org/src/file
+      │  Credential: <token>
+      ▼
+  nginx (destination) ──pull─► src.example.org
+      │
+      ▼
+  local filesystem
+```
+
+Enable TPC with `xrootd_webdav_tpc on`. You also need `xrootd_webdav_allow_write on`.
+
+```nginx
+location /dav/ {
+    xrootd_webdav           on;
+    xrootd_webdav_root      /data/store;
+    xrootd_webdav_auth      required;
+    xrootd_webdav_cadir     /etc/grid-security/certificates;
+    xrootd_webdav_allow_write on;
+    xrootd_webdav_tpc       on;
+
+    # curl binary used to perform the pull
+    xrootd_webdav_tpc_curl  /usr/bin/curl;
+
+    # Service certificate for authenticating to the source server
+    xrootd_webdav_tpc_cert  /etc/grid-security/hostcert.pem;
+    xrootd_webdav_tpc_key   /etc/grid-security/hostkey.pem;
+    xrootd_webdav_tpc_cadir /etc/grid-security/certificates;
+
+    # Maximum time for a single curl pull (seconds)
+    xrootd_webdav_tpc_timeout 300;
+}
+```
+
+### OAuth2/OIDC credential delegation for TPC
+
+When the client sends a `Credential: oidc-agent` or `Credential: token-exchange`
+header, the server obtains a delegated access token for the source server via
+RFC 8693 token exchange. Configure the token endpoint:
+
+```nginx
+xrootd_webdav_tpc_token_endpoint      https://iam.example.org/token;
+xrootd_webdav_tpc_token_client_id     my-service;
+xrootd_webdav_tpc_token_client_secret /etc/xrootd/client-secret;
+xrootd_webdav_tpc_token_scope         storage.read;
+```
+
+> **Security:** TPC pull uses an external `curl` process spawned per transfer.
+> Ensure the `curl` binary at `xrootd_webdav_tpc_curl` is the system curl and
+> not writable by untrusted users.
+
+---
+
+## Upstream proxy mode
+
+Proxy mode lets nginx act as an authenticating gateway in front of any HTTP/HTTPS
+WebDAV backend. Nginx terminates TLS and WLCG auth at the perimeter; the backend
+runs plain HTTP with no auth of its own.
+
+```text
+  client (xrdcp / curl / rclone)
+      │  davs://public.example.org/dav/…
+      │  TLS + WLCG token
+      ▼
+  ┌─────────────────────────────────────────┐
+  │  nginx (public, port 443)               │
+  │                                         │
+  │  1. Terminate TLS                       │
+  │  2. Verify WLCG bearer token            │
+  │  3. Strip / rewrite Authorization       │
+  │  4. Rewrite Destination header          │
+  └──────────────────┬──────────────────────┘
+                     │ plain HTTP
+                     ▼
+  ┌─────────────────────────────────────────┐
+  │  xrootd WebDAV (internal, port 1094)    │
+  │  no TLS, no auth, trusted network only  │
+  └─────────────────────────────────────────┘
+```
+
+### Minimal proxy config
+
+```nginx
+server {
+    listen 443 ssl;
+    ssl_certificate     /etc/grid-security/hostcert.pem;
+    ssl_certificate_key /etc/grid-security/hostkey.pem;
+    ssl_verify_client   optional_no_ca;
+    ssl_verify_depth    10;
+
+    location /dav/ {
+        xrootd_webdav       on;
+        xrootd_webdav_root  /data/store;   # still used for auth path checks
+        xrootd_webdav_auth  required;
+        xrootd_webdav_cadir /etc/grid-security/certificates;
+        xrootd_webdav_token_jwks     /etc/xrootd/issuer.jwks;
+        xrootd_webdav_token_issuer   https://token.example.org;
+        xrootd_webdav_token_audience https://se.example.org;
+
+        # Enable proxy mode
+        xrootd_webdav_proxy          on;
+        xrootd_webdav_proxy_upstream http://xrootd-backend.internal:1094;
+        xrootd_webdav_proxy_auth     anonymous;   # strip Authorization (default)
+    }
+}
+```
+
+### Auth forwarding policies
+
+`xrootd_webdav_proxy_auth` controls what nginx puts in the `Authorization`
+header of the forwarded request.
+
+| Policy | Forwarded Authorization |
+|---|---|
+| `anonymous` | Stripped — no `Authorization` header sent to backend (default) |
+| `forward` | Client's original `Authorization` header forwarded unchanged |
+| `token <value>` | Replaced with `Bearer <value>` (static service credential) |
+
+Example — inject a static service token:
+
+```nginx
+xrootd_webdav_proxy_auth token eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...;
+```
+
+> **Note:** the token value is placed in nginx.conf in plaintext. Protect the
+> configuration file with appropriate file permissions (readable by root only).
+
+### HTTPS upstream
+
+The upstream URL can be `https://`. When it is, nginx opens a TLS connection to
+the backend but does **not** verify the backend's server certificate. This is
+intentional for internal-network backends where the trust is established by
+network topology rather than PKI.
+
+```nginx
+xrootd_webdav_proxy_upstream https://xrootd-backend.internal:2094;
+```
+
+### Destination header rewriting
+
+For `COPY` and `MOVE`, the WebDAV `Destination` header contains an absolute URL
+pointing at the public nginx address. The proxy rewrites it to point at the
+upstream base URL before forwarding:
+
+```text
+  Destination: https://public.example.org/dav/new-name
+          ──►  http://xrootd-backend.internal:1094/dav/new-name
+```
+
+This rewrite is automatic and requires no additional configuration.
+
+### Timeout tuning
+
+```nginx
+xrootd_webdav_proxy_connect_timeout 10s;
+xrootd_webdav_proxy_send_timeout    60s;
+xrootd_webdav_proxy_read_timeout    120s;
+```
+
+All three default to 60 seconds. For large file uploads, increase
+`xrootd_webdav_proxy_send_timeout` and `xrootd_webdav_proxy_read_timeout`.
+
+> **Note:** these are nginx msec-slot values; you can use suffix notation
+> (`10s`, `2m`, `500ms`) or plain milliseconds.
+
+---
+
+## CORS
+
+Configure CORS for browser-based WebDAV clients. Multiple `xrootd_webdav_cors_origin`
+lines are allowed.
+
+```nginx
+xrootd_webdav_cors_origin      https://portal.example.org;
+xrootd_webdav_cors_origin      https://dashboard.example.org;
+xrootd_webdav_cors_credentials on;
+xrootd_webdav_cors_max_age     3600;
+```
+
+CORS pre-flight `OPTIONS` requests (those carrying both `Origin` and
+`Access-Control-Request-Method`) are answered immediately, before the auth
+gate. All other requests get `Access-Control-Allow-Origin` and related headers
+appended to the response.
+
+> **Tip:** omit `xrootd_webdav_cors_origin` entirely if you do not need CORS.
+> No CORS headers are added when no origins are configured.
+
+---
+
+## WebDAV locks
+
+The module implements `LOCK` and `UNLOCK` using a shared-memory lock table
+(1024 slots) that is visible to all nginx worker processes.
+
+```nginx
+xrootd_webdav_lock_timeout 600;   # maximum lock lifetime in seconds (default)
+```
+
+Locks expire automatically after `lock_timeout` seconds. The lock table is
+process-shared via nginx's `ngx_shared_memory` mechanism; no external lock
+server is required.
+
+> **Limitation:** the lock table is not persistent across nginx restarts. Any
+> active locks are lost on `nginx -s reload`. This is acceptable for most HEP
+> transfer workloads.
+
+---
+
+## Configuration reference
+
+### Core directives
+
+#### `xrootd_webdav`
+
+```nginx
+xrootd_webdav on | off;
+```
+
+Enable or disable the WebDAV module for this location block. Default: `off`.
+Must be `on` for any other directive in this section to have effect.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_root`
+
+```nginx
+xrootd_webdav_root /path/to/export;
+```
+
+Filesystem directory to expose. All WebDAV operations are confined to this
+tree — path traversal outside the root is rejected. The module validates at
+startup that the directory exists and is accessible. Default: `/`.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_auth`
+
+```nginx
+xrootd_webdav_auth none | optional | required;
+```
+
+Authentication policy. Default: `optional`.
+
+- `none` — no authentication attempted; all requests are anonymous
+- `optional` — authentication is tried but anonymous access is allowed if no
+  valid credential is present
+- `required` — requests without a valid certificate or token are rejected with
+  HTTP 403
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_allow_write`
+
+```nginx
+xrootd_webdav_allow_write on | off;
+```
+
+Enable write methods: PUT, DELETE, MKCOL, COPY, MOVE. Default: `off`.
+
+When bearer tokens are in use, write methods additionally require the token to
+carry a `storage.write` or `storage.create` scope at the requested path.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_proxy_certs`
+
+```nginx
+xrootd_webdav_proxy_certs on | off;
+```
+
+Accept RFC 3820 proxy certificates (VOMS proxies). Default: `off`.
+
+When `on`, the module walks the proxy chain up to `xrootd_webdav_verify_depth`
+levels deep. When `off`, only end-entity certificates are accepted.
+
+Context: `server`, `location`
+
+---
+
+#### `xrootd_webdav_cadir`
+
+```nginx
+xrootd_webdav_cadir /etc/grid-security/certificates;
+```
+
+Directory of trusted CA PEM files (hashed, as produced by `update-ca-trust` or
+`c_rehash`). Required when `xrootd_webdav_auth` is `optional` or `required`
+unless `xrootd_webdav_cafile` is set instead.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_cafile`
+
+```nginx
+xrootd_webdav_cafile /etc/pki/tls/certs/ca-bundle.crt;
+```
+
+Single PEM file containing one or more trusted CA certificates. Alternative to
+`xrootd_webdav_cadir`; both can be set.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_crl`
+
+```nginx
+xrootd_webdav_crl /etc/grid-security/certificates;
+```
+
+Path to CRL file(s). Accepts a directory (hashed CRL PEMs) or a single PEM
+bundle. CRLs are loaded once at startup.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_token_jwks`
+
+```nginx
+xrootd_webdav_token_jwks /etc/xrootd/issuer.jwks;
+```
+
+Path to a local JWKS file (JSON, RS256 keys) used for bearer token signature
+verification. Must be set together with `xrootd_webdav_token_issuer` and
+`xrootd_webdav_token_audience`.
+
+The JWKS is loaded once at startup. To rotate keys, reload nginx.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_token_issuer`
+
+```nginx
+xrootd_webdav_token_issuer https://token.example.org;
+```
+
+Required `iss` claim value. Tokens with a different issuer are rejected.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_token_audience`
+
+```nginx
+xrootd_webdav_token_audience https://se.example.org;
+```
+
+Required `aud` claim value. Tokens with a different audience are rejected.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_cors_origin`
+
+```nginx
+xrootd_webdav_cors_origin https://portal.example.org;
+```
+
+Permitted CORS origin. Repeat for multiple origins. No default; CORS headers
+are suppressed entirely when no origins are listed.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_cors_credentials`
+
+```nginx
+xrootd_webdav_cors_credentials on | off;
+```
+
+Set `Access-Control-Allow-Credentials: true`. Default: `off`.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_cors_max_age`
+
+```nginx
+xrootd_webdav_cors_max_age 86400;
+```
+
+Value for `Access-Control-Max-Age` (seconds). Default: `86400` (24 hours).
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_lock_timeout`
+
+```nginx
+xrootd_webdav_lock_timeout 600;
+```
+
+Maximum lifetime of a WebDAV lock in seconds. Default: `600` (10 minutes).
+Clients can request a shorter timeout; requests for a longer one are capped
+at this value.
+
+Context: `main`, `server`, `location`
+
+---
+
+#### `xrootd_webdav_thread_pool`
+
+```nginx
+xrootd_webdav_thread_pool default;
+```
+
+Name of an nginx `thread_pool` to use for asynchronous PUT body writes. When
+set, large file uploads are written from a worker thread, avoiding event-loop
+stalls. Requires nginx to be compiled with `--with-threads`.
+
+```nginx
+# In the http {} block:
+thread_pool default threads=4 max_queue=65536;
+
+# In location {}:
+xrootd_webdav_thread_pool default;
+```
+
+Context: `location`
+
+---
+
+### TPC directives
+
+#### `xrootd_webdav_tpc`
+
+```nginx
+xrootd_webdav_tpc on | off;
+```
+
+Enable HTTP Third-Party Copy. Default: `off`. Also requires
+`xrootd_webdav_allow_write on`.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_curl`
+
+```nginx
+xrootd_webdav_tpc_curl /usr/bin/curl;
+```
+
+Path to the `curl` binary used to perform TPC pull transfers. Must be
+executable by the nginx worker process.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_cert`
+
+```nginx
+xrootd_webdav_tpc_cert /etc/grid-security/hostcert.pem;
+```
+
+Client certificate PEM presented when `curl` authenticates to the source server.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_key`
+
+```nginx
+xrootd_webdav_tpc_key /etc/grid-security/hostkey.pem;
+```
+
+Private key PEM for `xrootd_webdav_tpc_cert`.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_cadir`
+
+```nginx
+xrootd_webdav_tpc_cadir /etc/grid-security/certificates;
+```
+
+CA directory (hashed PEMs) used by `curl` to verify the source server's
+certificate during TPC pull.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_timeout`
+
+```nginx
+xrootd_webdav_tpc_timeout 300;
+```
+
+Maximum time in seconds for a single TPC `curl` transfer (`--max-time`).
+Default: `0` (no limit). Set this to prevent hung transfers from occupying
+worker processes indefinitely.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_token_endpoint`
+
+```nginx
+xrootd_webdav_tpc_token_endpoint https://iam.example.org/token;
+```
+
+OAuth2 token endpoint for RFC 8693 token exchange used when the client sends
+`Credential: token-exchange`.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_token_client_id`
+
+```nginx
+xrootd_webdav_tpc_token_client_id my-service;
+```
+
+OAuth2 client ID for confidential client token exchange.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_token_client_secret`
+
+```nginx
+xrootd_webdav_tpc_token_client_secret s3cr3t;
+```
+
+OAuth2 client secret for confidential client token exchange.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_tpc_token_scope`
+
+```nginx
+xrootd_webdav_tpc_token_scope storage.read;
+```
+
+Scope string to request during token exchange.
+
+Context: `location`
+
+---
+
+### Proxy directives
+
+#### `xrootd_webdav_proxy`
+
+```nginx
+xrootd_webdav_proxy on | off;
+```
+
+Enable upstream proxy mode. When `on`, all requests are forwarded to
+`xrootd_webdav_proxy_upstream` after the auth gate. Default: `off`.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_proxy_upstream`
+
+```nginx
+xrootd_webdav_proxy_upstream http://host:port;
+xrootd_webdav_proxy_upstream https://host:port;
+```
+
+URL of the backend WebDAV server. Required when `xrootd_webdav_proxy on`.
+Supports both `http://` and `https://` schemes. The upstream address is
+resolved once at startup.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_proxy_auth`
+
+```nginx
+xrootd_webdav_proxy_auth anonymous;
+xrootd_webdav_proxy_auth forward;
+xrootd_webdav_proxy_auth token <bearer-value>;
+```
+
+Authorization header policy for forwarded requests. Default: `anonymous`.
+
+| Value | Effect |
+|---|---|
+| `anonymous` | `Authorization` header stripped before forwarding |
+| `forward` | Client's `Authorization` header forwarded unchanged |
+| `token <value>` | `Authorization: Bearer <value>` injected |
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_proxy_connect_timeout`
+
+```nginx
+xrootd_webdav_proxy_connect_timeout 10s;
+```
+
+Timeout for establishing the TCP (or TLS) connection to the upstream.
+Default: `60s`.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_proxy_send_timeout`
+
+```nginx
+xrootd_webdav_proxy_send_timeout 60s;
+```
+
+Timeout for sending the request (headers + body) to the upstream. Default: `60s`.
+
+Context: `location`
+
+---
+
+#### `xrootd_webdav_proxy_read_timeout`
+
+```nginx
+xrootd_webdav_proxy_read_timeout 120s;
+```
+
+Timeout for reading the response from the upstream. Default: `60s`. Increase
+this for slow backends or large responses.
+
+Context: `location`
+
+---
+
+## Troubleshooting
+
+### "auth optional/required needs xrootd_webdav_cadir or xrootd_webdav_cafile"
+
+`xrootd_webdav_auth optional` and `required` both need a trust anchor to
+verify certificates. Set `xrootd_webdav_cadir` or `xrootd_webdav_cafile`.
+If you only want bearer token auth and no certificate support, that is not
+supported directly — set a cadir that points at your issuer's CA.
+
+### Token verification fails
+
+1. Check that `xrootd_webdav_token_issuer` matches the `iss` claim exactly
+   (trailing slashes matter).
+2. Check that `xrootd_webdav_token_audience` matches the `aud` claim.
+3. Verify the JWKS file is valid JSON and contains the correct public keys
+   for your issuer. You can inspect it with `python3 -m json.tool`.
+4. Check the clock on the nginx host — JWT `exp` verification requires
+   reasonably accurate system time.
+
+### "xrootd_webdav: root path ... is not accessible"
+
+The nginx worker process must be able to read (and, for writes, write) the
+`xrootd_webdav_root` directory. Check filesystem permissions and that the
+nginx worker user (typically `nginx` or `www-data`) has appropriate access.
+
+### Proxy mode returns 502 Bad Gateway
+
+1. Confirm the upstream is running and listening on the configured address and
+   port.
+2. Check firewall rules between nginx and the backend.
+3. Look for the upstream address in the nginx error log:
+   `xrootd_webdav_proxy: upstream ... -> ... (ssl=0)` is logged at `notice`
+   level during startup.
+4. Increase `xrootd_webdav_proxy_read_timeout` if the backend is slow.
+
+### TPC transfer hangs or times out
+
+Set `xrootd_webdav_tpc_timeout` to a reasonable value (e.g. `300` for 5
+minutes). Without it, a hung curl process holds the worker thread until nginx
+is killed or reloaded.
+
+Check that the `curl` binary at `xrootd_webdav_tpc_curl` can reach the source
+server. Test manually:
+
+```sh
+curl -v --cert /etc/grid-security/hostcert.pem \
+        --key  /etc/grid-security/hostkey.pem \
+        --capath /etc/grid-security/certificates \
+        https://src.example.org/dav/path/to/file
+```
+
+### Lock table full
+
+The lock table holds 1024 concurrent locks. If this limit is reached, new LOCK
+requests return HTTP 507 Insufficient Storage. Locks expire automatically after
+`xrootd_webdav_lock_timeout` seconds — reducing that value frees slots sooner.

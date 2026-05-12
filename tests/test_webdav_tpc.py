@@ -22,14 +22,26 @@ Run:
 
 import os
 import shutil
-import socket
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from settings import NGINX_BIN, PKI_DIR as PKI_DIR_STR, XROOTD_BIN
+from settings import (
+    NGINX_BIN,
+    PKI_DIR as PKI_DIR_STR,
+    WEBDAV_TPC_DEST_CADIR_PORT,
+    WEBDAV_TPC_DEST_CAFILE_PORT,
+    WEBDAV_TPC_DEST_DISABLED_PORT,
+    WEBDAV_TPC_DEST_NO_SERVICE_CERT_PORT,
+    WEBDAV_TPC_DEST_READONLY_PORT,
+    WEBDAV_TPC_SOURCE_OPEN_PORT,
+    WEBDAV_TPC_SOURCE_REQUIRED_PORT,
+    XRDHTTP_HTTP_PORT,
+    XRDHTTP_ROOT_PORT,
+    XROOTD_BIN,
+)
 
 PKI_DIR = Path(PKI_DIR_STR)
 CA_DIR = PKI_DIR / "ca"
@@ -76,12 +88,6 @@ def _require_common_tools():
             pytest.skip(f"test PKI file not found: {path}")
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
-
-
 def _curl(*args, timeout=30):
     cmd = [
         "curl",
@@ -100,6 +106,29 @@ def _curl(*args, timeout=30):
         stderr=subprocess.PIPE,
         timeout=timeout,
     )
+
+
+def _copy_push(source_port: int, source_path: str, dest_url: str, *headers, timeout=30):
+    """Send a TPC push COPY to source_port: the server reads source_path and
+    PUTs it to dest_url."""
+    args = [
+        "-X",
+        "COPY",
+        f"https://localhost:{source_port}{source_path}",
+        "-H",
+        "Credential: none",
+        "-H",
+        f"Destination: {dest_url}",
+    ]
+    for header in headers:
+        args.extend(["-H", header])
+    return _curl(*args, "-w", "%{http_code}", "-o", "/dev/null", timeout=timeout)
+
+
+def _copy_push_code(source_port: int, source_path: str, dest_url: str, *headers, timeout=30) -> int:
+    result = _copy_push(source_port, source_path, dest_url, *headers, timeout=timeout)
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    return int(result.stdout.strip())
 
 
 def _copy_pull(dest_port: int, dest_path: str, source_url: str, *headers, timeout=30):
@@ -193,13 +222,13 @@ def tpc_nginx(tmp_path_factory):
         root.mkdir(parents=True, exist_ok=True)
 
     ports = {
-        "source_required": _free_port(),
-        "source_open": _free_port(),
-        "dest_cafile": _free_port(),
-        "dest_cadir": _free_port(),
-        "dest_no_service_cert": _free_port(),
-        "dest_disabled": _free_port(),
-        "dest_readonly": _free_port(),
+        "source_required": WEBDAV_TPC_SOURCE_REQUIRED_PORT,
+        "source_open": WEBDAV_TPC_SOURCE_OPEN_PORT,
+        "dest_cafile": WEBDAV_TPC_DEST_CAFILE_PORT,
+        "dest_cadir": WEBDAV_TPC_DEST_CADIR_PORT,
+        "dest_no_service_cert": WEBDAV_TPC_DEST_NO_SERVICE_CERT_PORT,
+        "dest_disabled": WEBDAV_TPC_DEST_DISABLED_PORT,
+        "dest_readonly": WEBDAV_TPC_DEST_READONLY_PORT,
     }
 
     import server_control
@@ -302,8 +331,8 @@ def reference_xrd_http(tmp_path_factory):
     for directory in (data_root, admin_dir, run_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
-    root_port = _free_port()
-    http_port = _free_port()
+    root_port = XRDHTTP_ROOT_PORT
+    http_port = XRDHTTP_HTTP_PORT
     cfg_path = workdir / "xrootd-http.cfg"
     log_path = workdir / "xrootd-http.log"
     import server_control
@@ -483,3 +512,181 @@ class TestXrootdHttpInteropTPC:
             reference_xrd_http.data_root / "from-nginx-plugin.txt",
             content,
         )
+
+
+class TestHTTPTPCPush:
+    """HTTP-TPC push-mode tests: the source server reads a local file and PUTs
+    it to a remote HTTPS destination (curl --upload-file)."""
+
+    def test_push_basic_creates_file_at_destination(self, tpc_nginx):
+        content = b"pushed via HTTP-TPC push mode\n"
+        _write(tpc_nginx.source_open_root / "push-source.txt", content)
+
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-basic-dest.txt"
+        )
+        code = _copy_push_code(
+            tpc_nginx.source_open_port, "/push-source.txt", dest_url
+        )
+
+        assert code == 201
+        assert (tpc_nginx.dest_cafile_root / "push-basic-dest.txt").read_bytes() == content
+
+    def test_push_required_source_with_auth(self, tpc_nginx):
+        content = b"push from auth-required source\n"
+        _write(tpc_nginx.source_required_root / "push-required-source.txt", content)
+
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-from-required.txt"
+        )
+        code = _copy_push_code(
+            tpc_nginx.source_required_port,
+            "/push-required-source.txt",
+            dest_url,
+        )
+
+        assert code == 201
+        assert (tpc_nginx.dest_cafile_root / "push-from-required.txt").read_bytes() == content
+
+    def test_push_to_cadir_destination(self, tpc_nginx):
+        content = b"push to cadir destination\n"
+        _write(tpc_nginx.source_open_root / "push-cadir-source.txt", content)
+
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cadir_port}/push-via-cadir.txt"
+        )
+        code = _copy_push_code(
+            tpc_nginx.source_open_port, "/push-cadir-source.txt", dest_url
+        )
+
+        assert code == 201
+        assert (tpc_nginx.dest_cadir_root / "push-via-cadir.txt").read_bytes() == content
+
+    def test_push_nonexistent_source_returns_404(self, tpc_nginx):
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-should-not-exist.txt"
+        )
+        code = _copy_push_code(
+            tpc_nginx.source_open_port, "/no-such-file.txt", dest_url
+        )
+
+        assert code == 404
+        assert not (tpc_nginx.dest_cafile_root / "push-should-not-exist.txt").exists()
+
+    def test_push_directory_source_returns_409(self, tpc_nginx):
+        (tpc_nginx.source_open_root / "push-dir").mkdir(exist_ok=True)
+
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-dir-dest.txt"
+        )
+        code = _copy_push_code(
+            tpc_nginx.source_open_port, "/push-dir", dest_url
+        )
+
+        assert code == 409
+
+    def test_push_tpc_disabled_on_source_returns_405(self, tpc_nginx):
+        """dest_disabled_port has xrootd_webdav_tpc off — COPY must be rejected."""
+        _write(tpc_nginx.dest_disabled_root / "push-disabled-src.txt", b"x\n")
+
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-disabled.txt"
+        )
+        code = _copy_push_code(
+            tpc_nginx.dest_disabled_port, "/push-disabled-src.txt", dest_url
+        )
+
+        assert code == 405
+
+    def test_push_missing_service_cert_destination_fails_502(self, tpc_nginx):
+        """Source has no outbound cert — destination (auth required) rejects curl PUT."""
+        _write(tpc_nginx.dest_no_service_cert_root / "push-no-cert-src.txt", b"data\n")
+
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-no-cert-dest.txt"
+        )
+        code = _copy_push_code(
+            tpc_nginx.dest_no_service_cert_port,
+            "/push-no-cert-src.txt",
+            dest_url,
+        )
+
+        assert code == 502
+        assert not (tpc_nginx.dest_cafile_root / "push-no-cert-dest.txt").exists()
+
+    def test_push_non_https_destination_rejected_400(self, tpc_nginx):
+        _write(tpc_nginx.source_open_root / "push-http-dest-src.txt", b"data\n")
+
+        code = _copy_push_code(
+            tpc_nginx.source_open_port,
+            "/push-http-dest-src.txt",
+            "http://localhost:9999/should-be-rejected",
+        )
+
+        assert code == 400
+
+    def test_push_with_transfer_header_forwarded(self, tpc_nginx):
+        content = b"push with transfer header\n"
+        _write(tpc_nginx.source_open_root / "push-xfer-hdr-src.txt", content)
+
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-xfer-hdr-dest.txt"
+        )
+        code = _copy_push_code(
+            tpc_nginx.source_open_port,
+            "/push-xfer-hdr-src.txt",
+            dest_url,
+            "TransferHeaderX-Custom-Test: tpc-push-test",
+        )
+
+        assert code == 201
+        assert (tpc_nginx.dest_cafile_root / "push-xfer-hdr-dest.txt").read_bytes() == content
+
+    def test_push_overwrite_false_forwarded(self, tpc_nginx):
+        """Pushing with Overwrite: F should be forwarded to the destination.
+        If the destination exists, it should return 412."""
+        _write(tpc_nginx.source_open_root / "push-ovr-src.txt", b"new\n")
+        dest_file = tpc_nginx.dest_cafile_root / "push-ovr-dest.txt"
+        _write(dest_file, b"old\n")
+
+        dest_url = f"https://localhost:{tpc_nginx.dest_cafile_port}/push-ovr-dest.txt"
+        
+        # When Overwrite: F is forwarded, the destination returns 412.
+        # Since we use curl --fail, it exits with an error and we return 502.
+        code = _copy_push_code(
+            tpc_nginx.source_open_port,
+            "/push-ovr-src.txt",
+            dest_url,
+            "Overwrite: F",
+        )
+
+        assert code == 502
+        assert dest_file.read_bytes() == b"old\n"
+
+    def test_both_source_and_destination_headers_rejected_400(self, tpc_nginx):
+        """Supplying both Source: and Destination: is ambiguous — must return 400."""
+        _write(tpc_nginx.source_open_root / "push-both-hdrs.txt", b"data\n")
+
+        source_url = (
+            f"https://localhost:{tpc_nginx.source_open_port}/push-both-hdrs.txt"
+        )
+        dest_url = (
+            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-both-hdrs-dest.txt"
+        )
+        result = _curl(
+            "-X",
+            "COPY",
+            f"https://localhost:{tpc_nginx.source_open_port}/push-both-hdrs.txt",
+            "-H",
+            "Credential: none",
+            "-H",
+            f"Source: {source_url}",
+            "-H",
+            f"Destination: {dest_url}",
+            "-w",
+            "%{http_code}",
+            "-o",
+            "/dev/null",
+        )
+        assert result.returncode == 0
+        assert int(result.stdout.strip()) == 400

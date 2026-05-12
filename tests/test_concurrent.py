@@ -10,10 +10,11 @@ Run:
 """
 
 import hashlib
+import multiprocessing as mp
 import os
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pytest
 from XRootD import client
@@ -32,7 +33,8 @@ PROXY_PEM = PROXY_STD
 
 LARGE_FILE      = "large200.bin"
 LARGE_FILE_SIZE = 200 * 1024 * 1024
-LARGE_FILE_MD5  = "e974166996ffd73416120d15574672d6"
+# MD5 is computed at session startup by conftest._setup_session() — read it from env.
+LARGE_FILE_MD5  = os.environ.get("LARGE_FILE_MD5", "e974166996ffd73416120d15574672d6")
 
 READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches XROOTD_READ_MAX in module
 
@@ -124,13 +126,20 @@ def _transfer_worker(worker_id: int, base_url: str) -> dict:
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _worker_pool(max_workers: int):
+    return ProcessPoolExecutor(
+        max_workers=max_workers,
+        mp_context=mp.get_context("spawn"),
+    )
+
+
 def _run_concurrent(n_workers: int, base_url: str) -> tuple[list[dict], float]:
     """
     Launch n_workers threads simultaneously, each transferring LARGE_FILE.
     Returns (results_list, wall_clock_elapsed).
     """
     t_wall_start = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=n_workers) as pool:
+    with _worker_pool(n_workers) as pool:
         futures = [
             pool.submit(_transfer_worker, i, base_url)
             for i in range(n_workers)
@@ -235,7 +244,7 @@ class TestConcurrent:
         Verifies the server correctly multiplexes authenticated and
         unauthenticated connections in one event loop.
         """
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        with _worker_pool(8) as pool:
             t0 = time.perf_counter()
             futures = (
                 [pool.submit(_transfer_worker, i,   ANON_URL) for i in range(4)]
@@ -315,7 +324,7 @@ class TestConcurrentTLS:
         Verifies the server correctly multiplexes TLS-upgraded and plain
         connections within one event loop.
         """
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        with _worker_pool(8) as pool:
             t0 = time.perf_counter()
             futures = (
                 [pool.submit(_transfer_worker, i,   GSI_URL)     for i in range(4)]

@@ -30,6 +30,16 @@ If you send the old 12-byte format, it parses as `status=0x0008` (some intermedi
 
 When the client's `kXR_protocol` request has bit `kXR_secreqs=0x01` set (meaning "tell me what security you require"), the response body must include a 4-byte `SecurityInfo` header after `pval + flags`, plus one 8-byte entry per supported authentication protocol.
 
+The 4-byte `SecurityInfo` header layout is:
+- `byte 0`: 0 (reserved)
+- `byte 1`: `0x01` if security is required, `0x00` otherwise
+- `byte 2`: number of following 8-byte security protocol entries
+- `byte 3`: 0 (reserved)
+
+Each 8-byte entry starts with a 4-byte protocol name (e.g., `gsi `, `ztn `, `sss `) followed by 4 zero bytes.
+
+If TLS is supported, the `ServerProtocolBody.flags` should include `kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin`.
+
 Without this, the client sees the protocol exchange as complete but then disconnects silently — no error message. The only symptom is the TCP connection closing immediately after the protocol exchange.
 
 ---
@@ -228,15 +238,21 @@ Without an explicit `stat(2)` check, the module hands the client a directory fd.
 
 ## 17. `kXR_dirlist` dStat response must start with a specific 10-byte sentinel
 
-When the client requests per-entry stat (`kXR_dstat` option flag), the response body must begin with the exact 10-byte string `".\n0 0 0 0\n"`.
+When the client requests per-entry stat (`kXR_dstat` option flag `0x02`), the response body must begin with the exact 10-byte string `".\n0 0 0 0\n"`.
 
 The client library (`DirectoryList::HasStatInfo`) checks for the 9-byte prefix `".\n0 0 0 0"` at position 0 of the response body. If found, it enters stat-pairing mode and pairs up lines as `(name, stat_string)` alternating. Without the sentinel, every line — including stat strings — is treated as a filename.
+
+If `kXR_dcksm` (option flag `0x04`) is requested, it implies `kXR_dstat`. The response for each entry then includes a checksum token appended to the stat line:
+
+```
+"<name>\n<id> <size> <flags> <mtime> [ <algo>:<hex_checksum> ]\n"
+```
 
 Wire format with dStat:
 ```
 ".\n0 0 0 0\n"                          ← 10-byte lead-in (REQUIRED)
 "<name1>\n<id> <size> <flags> <mtime>\n"  ← filename + stat, repeated
-"<name2>\n<id> <size> <flags> <mtime>\n"
+"<name2>\n<id> <size> <flags> <mtime> [ adler32:abc12345 ]\n"
 ...
 ```
 The final `\n` is replaced by `\0`. Intermediate chunks (`kXR_oksofar`) must not contain a `\0`.
@@ -347,3 +363,67 @@ When `xrootd_auth both` is configured, the server advertises token first and the
 ```
 
 The auth handler routes by the credential type in the request: `ztn` goes to JWT/JWKS validation; `gsi` goes to the GSI certificate exchange.
+
+---
+
+## 24. `kXR_set` is always advisory and must return `kXR_ok`
+
+The `kXR_set` (3018) request is used by clients to send advisory configuration hints (e.g., `appid`, `clttl`). Per the XRootD specification, the server MUST respond with `kXR_ok` even if it does not recognize the modifier byte. This ensures compatibility with newer clients that might send hints the server hasn't implemented yet.
+
+---
+
+## 25. `kXR_bind` attaches secondary channels for parallel I/O
+
+`kXR_bind` is used to attach a secondary TCP connection to an existing primary session.
+- It is sent on a new TCP connection without a preceding `kXR_login`.
+- The request contains the `sessid` of the primary connection.
+- The server responds with a 1-byte `pathid` (1–253).
+- Bound connections are restricted: they can only perform `READ`, `READV`, and `PGREAD` operations using handles opened by the primary session. They cannot `OPEN`, `CLOSE`, `WRITE`, or `STAT` files independently.
+
+---
+
+## 26. Large read responses must be chunked with `kXR_oksofar`
+
+XRootD responses larger than 16 MiB must be split into multiple wire frames. Each frame except the last one must use the `kXR_oksofar` status code. The final frame uses `kXR_ok`.
+
+```
+[kXR_oksofar header][data chunk 1] [kXR_oksofar header][data chunk 2] ... [kXR_ok header][final data chunk]
+```
+
+This prevents the client from timing out or overflowing its internal receive buffers when handling very large data transfers.
+
+---
+
+## 27. `kXR_dirlist` must skip filenames with control characters
+
+The `kXR_dirlist` wire format is newline-delimited (`\n`). If a filename contains a newline or other control characters (bytes `< 0x20` or `0x7f`), it would corrupt the response and cause the client to misinterpret the listing. The server should silently skip such entries to maintain protocol integrity.
+
+---
+
+## 28. `kXR_Qconfig` TPC response must be a raw numeric value
+
+When responding to a `kXR_query` with `infotype=kXR_Qconfig` for the `tpc` key, the response body should be a literal `1\n` or `0\n`.
+
+Unlike other config keys which might use a `key=value\n` format, the `XrdCl` client (specifically `CheckTPCLite`) parses the first response line using `isdigit()` and `atoi()`. Including a `tpc=` prefix would cause the client to fail its TPC capability check.
+
+---
+
+## 29. `kXR_posc` (Persist-on-Successful-Close) behavior
+
+When the `kXR_posc` (0x02) option is set in a `kXR_open` write request, the server implements atomic write semantics:
+- The server creates a hidden temporary staging file (e.g., `<path>.posc.<pid>.<random>`).
+- All subsequent writes are directed to this staging file.
+- The file is renamed to its final destination only upon a successful and explicit `kXR_close` request.
+- If the connection drops or the session is terminated without a clean close, the temporary file is deleted, ensuring that partial or failed uploads never overwrite existing data or leave orphaned fragments at the final path.
+
+---
+
+## 30. TPC (Third-Party Copy) context via CGI parameters
+
+Native XRootD TPC uses CGI-style query parameters appended to the path in `kXR_open` to exchange transfer context:
+- `tpc.src=root://host//path`: Tells a destination server where to pull data from.
+- `tpc.key=<token>`: A shared rendezvous secret used to authorize the transfer between the source and destination servers.
+- `tpc.dst=<url>`: Tells a source server where the data is being pushed to (primarily for logging).
+- `tpc.org=<url>`: Tells a source server which destination is performing the pull.
+
+A server in the **destination** role intercepts these parameters, performs an outbound connection to the source, and streams the data directly, only responding to the original `kXR_open` once the pull is successfully initiated or completed.

@@ -184,13 +184,14 @@ if os.path.exists(proxy_std_path):
     os.chmod(proxy_std_path, 0o600)
 with open(proxy_std_path, "wb") as f:
     f.write(proxy_cert_pem)
-    f.write(proxy_key_pem)
     f.write(user_cert_pem)
+    f.write(proxy_key_pem)
 os.chmod(proxy_std_path, 0o400)
 
 # Separate files for inspection
 proxy_cert_path = os.path.join(PKI_DIR, "user", "proxy.pem")
 proxy_key_path = os.path.join(PKI_DIR, "user", "proxykey.pem")
+ca_path = os.path.join(PKI_DIR, "ca", "ca.pem")
 
 with open(proxy_cert_path, "wb") as f:
     f.write(proxy_cert_pem)

@@ -121,8 +121,8 @@ def _error_family(status) -> str:
 
 class TestPing:
     def test_both_respond_to_ping(self):
-        n_st, _ = _fs(NGINX_URL).ping()
-        r_st, _ = _fs(REF_URL).ping()
+        n_st, _ = _fs(NGINX_URL).ping(timeout=5)
+        r_st, _ = _fs(REF_URL).ping(timeout=5)
         assert n_st.ok, f"nginx ping failed: {n_st.message}"
         assert r_st.ok, f"ref   ping failed: {r_st.message}"
 
