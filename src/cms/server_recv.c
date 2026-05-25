@@ -1,5 +1,7 @@
 #include "server.h"
 
+/* ---- xrootd_cms_srv_close — tear down CMS server-side connection and unregister data server ----
+ * WHAT: Closes the TCP connection to a CMS data-server client, removes ping timer, and unregisters from the server registry if logged_in. WHY: When a data server disconnects, it must be removed from the CMS manager's registry so locate queries don't route clients to dead servers. HOW: 1) If ping_timer set → remove timer → 2) If logged_in → unregister host/port from registry → 3) Set ctx->c = NULL → 4) Close TCP connection. */
 
 void
 xrootd_cms_srv_close(xrootd_cms_srv_ctx_t *ctx)
@@ -25,7 +27,6 @@ xrootd_cms_srv_close(xrootd_cms_srv_ctx_t *ctx)
     ctx->c = NULL;
     ngx_close_connection(c);
 }
-
 
 /* --- TLV walk helpers ---------------------------------------------------- */
 
@@ -63,7 +64,6 @@ tlv_read_next(const u_char **p, const u_char *end)
     *p = end;
     return 0;
 }
-
 
 /* --- LOGIN payload parser ------------------------------------------------- */
 
@@ -133,7 +133,6 @@ cms_srv_parse_login(xrootd_cms_srv_ctx_t *ctx,
     return 1;
 }
 
-
 /* --- LOAD/AVAIL payload parsers ------------------------------------------ */
 
 /*
@@ -161,7 +160,6 @@ cms_srv_parse_load_free_mb(const u_char *payload, size_t payload_len)
     return tlv_read_next(&p, end);
 }
 
-
 /*
  * AVAIL payload (from cms/send.c):
  *   PT_INT    free_mb      (5 bytes)  ← extracted
@@ -180,7 +178,6 @@ cms_srv_parse_avail(const u_char *payload, size_t payload_len,
     *util_pct = tlv_read_next(&p, end);
 }
 
-
 /* --- Ping timer ----------------------------------------------------------- */
 
 static void
@@ -198,7 +195,6 @@ xrootd_cms_srv_ping_timer(ngx_event_t *ev)
 
     ngx_add_timer(&ctx->ping_timer, ctx->interval_ms);
 }
-
 
 /* --- Frame dispatcher ----------------------------------------------------- */
 
@@ -283,8 +279,10 @@ cms_srv_process_frame(xrootd_cms_srv_ctx_t *ctx, u_char code,
     }
 }
 
-
 /* --- Read handler --------------------------------------------------------- */
+
+/* ---- xrootd_cms_srv_write — CMS server write event handler (sync-only) ----
+ * WHAT: Write handler for incoming CMS data-server connections. Since all writes are synchronous via send_ping(), this handler only processes timeout events and closes the connection if timed out. WHY: The ping timer fires and calls send_ping() synchronously; no async write buffering needed — write handler is essentially a timeout guard. HOW: On timeout → close connection via xrootd_cms_srv_close(). */
 
 void
 xrootd_cms_srv_write(ngx_event_t *ev)
@@ -298,6 +296,8 @@ xrootd_cms_srv_write(ngx_event_t *ev)
     }
 }
 
+/* ---- xrootd_cms_srv_read — CMS server-side frame read loop and dispatch ----
+ * WHAT: Event handler for reading incoming frames from connected CMS data-server clients. Accumulates bytes until header complete, then reads payload based on dlen. Dispatches each opcode (LOGIN→register, LOAD/AVAIL→update load, PONG→debug log, GONE→unregister path) via cms_srv_process_frame(). WHY: Server-side counterpart to recv.c — accepts incoming connections from data servers and manages their registration lifecycle with the CMS manager. HOW: 1) Loop recv() until in_pos >= in_need → 2) If header size → extend to full frame → 3) On complete frame → decode code at offset 4 → 4) Call cms_srv_process_frame(). Disconnect on timeout, error, or frame too large (>NGX_XROOTD_CMS_MAX_FRAME). */
 
 void
 xrootd_cms_srv_read(ngx_event_t *ev)

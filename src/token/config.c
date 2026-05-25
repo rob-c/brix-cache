@@ -1,4 +1,11 @@
 #include "../config/config.h"
+#include <sys/stat.h>
+
+/* ---- Function: xrootd_configure_token_auth() — validate and initialize token authentication config ----
+ *
+ * WHAT: Validates that required token auth configuration fields are present when auth mode is XROOTD_AUTH_TOKEN or XROOTD_AUTH_BOTH. Checks for non-empty token_jwks (JWKS key file path), token_issuer, and token_audience. Validates JWKS file exists as a regular file with read permissions via xrootd_validate_path(). Loads all public keys from the JWKS file into jwks_keys array using xrootd_jwks_load() — returns NGX_OK only when at least one key loaded successfully. Logs configuration summary with key count on success, or emerg-level errors on any validation failure.
+ *
+ * WHY: Token authentication requires three prerequisites: a valid JWKS file containing public keys for JWT verification, an issuer string to validate token claims against, and an audience string to restrict which tokens are accepted. Missing any of these would cause runtime auth failures for all clients — nginx -t must catch this at configuration validation time rather than allowing the server to start with broken auth. The JWKS key count serves as a sanity check: loading zero keys indicates file corruption or invalid format, not just absence. Thread safety: config setup runs once during nginx startup on main process thread; no concurrent access after initialization. */
 
 ngx_int_t
 xrootd_configure_token_auth(ngx_conf_t *cf,
@@ -37,6 +44,14 @@ xrootd_configure_token_auth(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
+    {
+        /* Record mtime so the refresh timer can detect changes */
+        struct stat  st;
+        if (stat((const char *) xcf->token_jwks.data, &st) == 0) {
+            xcf->jwks_mtime = st.st_mtime;
+        }
+    }
+
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "xrootd: token auth configured - jwks=%s issuer=%s "
         "audience=%s keys=%d",
@@ -44,4 +59,12 @@ xrootd_configure_token_auth(ngx_conf_t *cf,
         xcf->token_audience.data, xcf->jwks_key_count);
 
     return NGX_OK;
+/*
+ * HOW: 1) Early-exit if auth mode is not token/both (anonymous/GSI pass).
+ *       2) Check all three required ngx_str_t fields are non-empty — log emerg and return NGX_ERROR if any missing.
+ *       3) Validate JWKS file path via xrootd_validate_path() (must be regular file, readable). Early-exit on failure.
+ *       4) Load public keys from JWKS into jwks_keys array; check return count ≥ 0 for success.
+ *       5) Capture file mtime via stat() so refresh timer can detect changes. Ignored if stat fails (mtime stays unset).
+ *       6) Log configuration summary with key count at notice level.
+ */
 }

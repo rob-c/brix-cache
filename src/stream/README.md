@@ -9,6 +9,9 @@ is delegated to callbacks declared in `ngx_xrootd_module.h`.
 | File | Contents |
 |------|----------|
 | `module.c` | `xrootd_auth_modes[]` enum table, `ngx_stream_xrootd_commands[]` directive array, `ngx_stream_xrootd_module_ctx`, `ngx_module_t ngx_stream_xrootd_module` |
+| `module_cache_proxy_directives.c` | Cache and proxy directive parsing: xrootd_cache, xrootd_cache_root, xrootd_cache_origin, xrootd_upstream |
+| `module_core_directives.c` | Core stream directive parsing: xrootd_root, xrootd_auth, TLS, write, access log |
+| `ngx_xrootd_module.h` | Module callback declarations and cross-file prototypes |
 
 ## Directive index
 
@@ -45,4 +48,6 @@ is delegated to callbacks declared in `ngx_xrootd_module.h`.
 | `xrootd_cms_manager` | host:port | CMS manager to register with |
 | `xrootd_cms_paths` | string | Exported path list sent to CMS |
 | `xrootd_cms_interval` | seconds | CMS heartbeat interval |
+| `xrootd_ckscan_depth` | number | Maximum recursive depth for kXR_Qckscan |
+| `xrootd_ckscan_max_files` | number | Maximum files returned by one kXR_Qckscan |
 | `xrootd_thread_pool` | string | nginx thread_pool for async I/O (NGX_THREADS only) |

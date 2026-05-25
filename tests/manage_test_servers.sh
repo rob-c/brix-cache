@@ -3,13 +3,13 @@
 # Helper launcher for the local nginx+xrootd test environment.
 #
 # Manages:
-#   - Multiple nginx instances (ports 11094-11123, 8443, 9100, 18444-18456)
+#   - Multiple nginx instances (ports 11094-11123, 8443, 8444, 9100, 18444-18456)
 #   - Reference xrootd instances (ports 11098-11113)
 #   - PKI regeneration (CA, certs, proxies, VOMS)
 #
 # Usage:
-#   tests/manage_test_servers.sh start
-#   tests/manage_test_servers.sh stop
+#   tests/manage_test_servers.sh start-all
+#   tests/manage_test_servers.sh stop-all
 #   tests/manage_test_servers.sh force-stop
 #   tests/manage_test_servers.sh restart
 #   tests/manage_test_servers.sh status
@@ -50,13 +50,14 @@ CONFIGS_DIR="$(cd "$(dirname "$0")" && pwd)/configs"
 usage() {
     cat <<'EOF'
 Usage:
-    tests/manage_test_servers.sh <start|stop|force-stop|restart|status> [all|nginx|ref]
+    tests/manage_test_servers.sh <start-all|stop-all|start|stop|force-stop|restart|status> [all|nginx|ref|xrdhttp]
 
 Examples:
-  tests/manage_test_servers.sh start
+  tests/manage_test_servers.sh start-all
+  tests/manage_test_servers.sh stop-all
   tests/manage_test_servers.sh force-stop ref
   tests/manage_test_servers.sh restart nginx
-  tests/manage_test_servers.sh status ref
+  tests/manage_test_servers.sh status xrdhttp
 EOF
 }
 
@@ -180,11 +181,19 @@ substitute_config() {
     : "${NGINX_TOKEN_PORT:=11097}"
     : "${NGINX_METRICS_PORT:=9100}"
     : "${NGINX_WEBDAV_PORT:=8443}"
+    : "${NGINX_WEBDAV_GSI_TLS_PORT:=8444}"
     : "${NGINX_HTTP_WEBDAV_PORT:=8080}"
     : "${NGINX_S3_PORT:=9001}"
     : "${TOKEN_DIR:=${TEST_ROOT}/tokens}"
+    : "${CRL_PATH:=${PKI_DIR}/ca/test-user.crl.pem}"
     : "${CRL_RELOAD_INTERVAL:=5}"
     : "${HTTP_STUB_PORT:=11123}"
+    : "${UPSTREAM_PORT:=12120}"
+    : "${TOKEN_FILE:=${TEST_ROOT}/tokens/upstream.jwt}"
+    : "${JWKS_FILE:=${TEST_ROOT}/tokens/jwks.json}"
+    : "${REFRESH_INTERVAL_MS:=100}"
+    : "${TOKEN_ISSUER:=https://test.example.com}"
+    : "${TOKEN_AUDIENCE:=nginx-xrootd}"
     : "${WEBDAV_AUTH_CACHE_NGINX_PORT:=18445}"
     : "${WEBDAV_TPC_SOURCE_REQUIRED_PORT:=18450}"
     : "${WEBDAV_TPC_SOURCE_OPEN_PORT:=18451}"
@@ -212,10 +221,17 @@ substitute_config() {
         -e "s|{GSI_TLS_PORT}|${NGINX_GSI_TLS_PORT}|g" \
         -e "s|{TOKEN_PORT}|${NGINX_TOKEN_PORT}|g" \
         -e "s|{METRICS_PORT}|${NGINX_METRICS_PORT}|g" \
-        -e "s|{WEBDAV_PORT}|${NGINX_WEBDAV_PORT}|g" \
+-e "s|{WEBDAV_PORT}|${NGINX_WEBDAV_PORT}|g" \
+        -e "s|{WEBDAV_GSI_TLS_PORT}|${NGINX_WEBDAV_GSI_TLS_PORT}|g" \
         -e "s|{HTTP_WEBDAV_PORT}|${NGINX_HTTP_WEBDAV_PORT}|g" \
         -e "s|{S3_PORT}|${NGINX_S3_PORT}|g" \
         -e "s|{TOKEN_DIR}|${TOKEN_DIR}|g" \
+        -e "s|{UPSTREAM_PORT}|${UPSTREAM_PORT}|g" \
+        -e "s|{TOKEN_FILE}|${TOKEN_FILE}|g" \
+        -e "s|{JWKS_FILE}|${JWKS_FILE}|g" \
+        -e "s|{REFRESH_INTERVAL_MS}|${REFRESH_INTERVAL_MS}|g" \
+        -e "s|{TOKEN_ISSUER}|${TOKEN_ISSUER}|g" \
+        -e "s|{TOKEN_AUDIENCE}|${TOKEN_AUDIENCE}|g" \
         -e "s|{LOG_DIR}|$LOG_DIR|g" \
         -e "s|{DATA_DIR}|$DATA_DIR|g" \
         -e "s|{TMP_DIR}|$TMP_DIR|g" \
@@ -226,7 +242,7 @@ substitute_config() {
         -e "s|{CA_PEM}|$PKI_DIR/ca/ca.pem|g" \
         -e "s|{CLIENT_CERT}|$PKI_DIR/user/usercert.pem|g" \
         -e "s|{CLIENT_KEY}|$PKI_DIR/user/userkey.pem|g" \
-        -e "s|{CRL_PATH}|$PKI_DIR/ca/crl.pem|g" \
+        -e "s|{CRL_PATH}|${CRL_PATH}|g" \
         -e "s|{VOMSDIR}|$PKI_DIR/vomsdir|g" \
         -e "s|{CRL_RELOAD_INTERVAL}|${CRL_RELOAD_INTERVAL}|g" \
         -e "s|{HTTP_STUB_PORT}|${HTTP_STUB_PORT}|g" \
@@ -374,12 +390,20 @@ force_stop_nginx() {
             pids_on_port 11108
             pids_on_port 11109
             pids_on_port 11110
+            pids_on_port 11112
+            pids_on_port 11113
+            pids_on_port 11114
+            pids_on_port 11115
             pids_on_port 11120
             pids_on_port 11121
             pids_on_port 11122
             pids_on_port 11123
+            pids_on_port 11124
+            pids_on_port 11125
+            pids_on_port 11126
             pids_on_port 8080
             pids_on_port 8443
+            pids_on_port 8444
             pids_on_port 9001
             pids_on_port 9100
             pids_on_port 18444
@@ -391,12 +415,72 @@ force_stop_nginx() {
             pids_on_port 18454
             pids_on_port 18455
             pids_on_port 18456
+            pids_on_port 19450
+            pids_on_port 19451
+            pids_on_port 19452
+            pids_on_port 19453
+            pids_on_port 19454
+            pids_on_port 19455
+            pids_on_port 19456
         } | sort -u
     )"
     kill_pid_list "$pids"
 
     rm -f "${LOG_DIR}"/*.pid
     echo "nginx force-stopped"
+}
+
+start_dedicated_nginx() {
+    local name="$1"
+    local template="$2"
+    local port="$3"
+    local upstream_port="${4:-}"
+
+    local instance_root="${TEST_ROOT}/dedicated/${name}"
+    local conf_rel="conf/nginx.conf"
+    local conf_path="${instance_root}/${conf_rel}"
+    local data_root="${TEST_ROOT}/data-${name}"
+
+    mkdir -p \
+        "${instance_root}/conf" \
+        "${instance_root}/logs" \
+        "${instance_root}/tmp" \
+        "${data_root}" \
+        "${data_root}/source_required" \
+        "${data_root}/source_open" \
+        "${data_root}/dest_cafile" \
+        "${data_root}/dest_cadir" \
+        "${data_root}/dest_no_service_cert" \
+        "${data_root}/dest_disabled" \
+        "${data_root}/dest_readonly"
+    rm -f "${instance_root}/logs"/*.log "${instance_root}/logs"/*.pid
+    if [[ ! -f "${data_root}/test.txt" ]]; then
+        printf '%s\n' "hello from nginx-xrootd" > "${data_root}/test.txt"
+    fi
+
+    (
+        NGINX_PREFIX="${instance_root}"
+        NGINX_CONF_REL="${conf_rel}"
+        NGINX_PORT="${port}"
+        LOG_DIR="${instance_root}/logs"
+        TMP_DIR="${instance_root}/tmp"
+        DATA_DIR="${data_root}"
+        SOURCE_REQUIRED_ROOT="${data_root}/source_required"
+        SOURCE_OPEN_ROOT="${data_root}/source_open"
+        DEST_CAFILE_ROOT="${data_root}/dest_cafile"
+        DEST_CADIR_ROOT="${data_root}/dest_cadir"
+        DEST_NO_SERVICE_CERT_ROOT="${data_root}/dest_no_service_cert"
+        DEST_DISABLED_ROOT="${data_root}/dest_disabled"
+        DEST_READONLY_ROOT="${data_root}/dest_readonly"
+        UPSTREAM_PORT="${upstream_port:-${UPSTREAM_PORT:-12120}}"
+        TOKEN_FILE="${TOKEN_FILE:-${TEST_ROOT}/tokens/upstream.jwt}"
+        NGINX_CONF_PREGENERATED=1
+        SKIP_NGINX_FORCE_STOP_ON_START=1
+        SKIP_XRDFS_CHECK=1
+
+        substitute_config "${CONFIGS_DIR}/${template}" "${conf_path}"
+        start_nginx
+    )
 }
 
 write_ref_cfg() {
@@ -498,6 +582,90 @@ start_extra_ref_gsi() {
     fi
 }
 
+start_extra_ref_anon() {
+    local label="$1"
+    local port="$2"
+    local data_dir="$3"
+    local admin_dir="${REF_DIR}/${label}-admin-conf"
+    local run_dir="${REF_DIR}/${label}-run-conf"
+    local cfg="${REF_DIR}/${label}-conformance.cfg"
+    local log="${REF_DIR}/${label}-conformance.log"
+
+    if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
+        if pids_on_port "$port" | grep -q .; then
+            echo "reference xrootd ${label} appears to be listening on $port (SKIP_XRDFS_CHECK set)"
+            return 0
+        fi
+    elif wait_ready_xrdfs "root://localhost:$port" 1 0.1; then
+        echo "reference xrootd ${label} already running on $port"
+        return 0
+    fi
+
+    mkdir -p "$admin_dir" "$run_dir" "$data_dir"
+    write_anon_ref_cfg "$cfg" "$port" "$data_dir" "$admin_dir" "$run_dir"
+
+    "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1 || true
+
+    if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
+        echo "reference xrootd ${label} started on $port"
+    elif wait_ready_xrdfs "root://localhost:$port"; then
+        echo "reference xrootd ${label} started and ready on $port"
+    else
+        echo "WARNING: reference xrootd ${label} started but readiness probe failed on $port" >&2
+    fi
+}
+
+start_root_tpc_ref() {
+    local label="root-tpc-ref"
+    local port="${ROOT_TPC_REF_PORT:-11111}"
+    local data_dir="${TEST_ROOT}/data-root-tpc-ref"
+    local admin_dir="${REF_DIR}/${label}-admin-conf"
+    local run_dir="${REF_DIR}/${label}-run-conf"
+    local cfg="${REF_DIR}/${label}-conformance.cfg"
+    local log="${REF_DIR}/${label}-conformance.log"
+    local xrdcp_cmd="${XRDCP_BIN:-xrdcp}"
+    local xrdcp_bin
+
+    if ! xrdcp_bin="$(command -v "$xrdcp_cmd" 2>/dev/null)"; then
+        echo "WARNING: xrdcp binary not found; skipping reference xrootd ${label}" >&2
+        return 0
+    fi
+
+    if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
+        if pids_on_port "$port" | grep -q .; then
+            echo "reference xrootd ${label} appears to be listening on $port (SKIP_XRDFS_CHECK set)"
+            return 0
+        fi
+    elif wait_ready_xrdfs "root://localhost:$port" 1 0.1; then
+        echo "reference xrootd ${label} already running on $port"
+        return 0
+    fi
+
+    mkdir -p "$admin_dir" "$run_dir" "$data_dir"
+    : > "$log"
+    cat >"$cfg" <<EOF
+all.role server
+all.export /
+oss.localroot ${data_dir}
+all.adminpath ${admin_dir}
+all.pidpath ${run_dir}
+
+xrd.port ${port}
+xrd.trace off
+ofs.tpc streams 4 pgm ${xrdcp_bin} --server
+EOF
+
+    "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1 || true
+
+    if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
+        echo "reference xrootd ${label} started on $port"
+    elif wait_ready_xrdfs "root://localhost:$port"; then
+        echo "reference xrootd ${label} started and ready on $port"
+    else
+        echo "WARNING: reference xrootd ${label} started but readiness probe failed on $port" >&2
+    fi
+}
+
 start_ref() {
     if ! have_cmd "$REF_BIN"; then
         echo "ERROR: xrootd binary not found on PATH" >&2
@@ -580,6 +748,210 @@ stop_ref() {
     echo "reference xrootd not running"
 }
 
+start_xrdhttp() {
+    if ! have_cmd "$REF_BIN"; then
+        echo "ERROR: xrootd binary not found on PATH" >&2
+        return 1
+    fi
+
+    # Check for required XrdHttp libraries
+    local http_lib tpc_lib sec_lib
+    http_lib="$(find_xrd_library libXrdHttp-5.so libXrdHttp.so)" || true
+    tpc_lib="$(find_xrd_library libXrdHttpTPC-5.so libXrdHttpTPC.so)" || true
+
+    if [[ -z "$http_lib" ]]; then
+        echo "WARNING: XrdHttp library not found; skipping xrdhttp start" >&2
+        return 0
+    fi
+    if [[ -z "$tpc_lib" ]]; then
+        echo "WARNING: XrdHttpTPC library not found; skipping xrdhttp start" >&2
+        return 0
+    fi
+
+    local port="${REF_XRDHTTP_HTTP_PORT:-11113}"
+    local root_port="${REF_XRDHTTP_ROOT_PORT:-11112}"
+    local xrdhttp_dir="${XRDHTTP_DIR:-$TEST_ROOT/xrdhttp}"
+    local cfg_path="${xrdhttp_dir}/xrdhttp.cfg"
+    local log_path="${xrdhttp_dir}/xrdhttp.log"
+    local pid_file="${xrdhttp_dir}/xrdhttp.pid"
+    local data_dir="${XRDHTTP_DATA_DIR:-$TEST_ROOT/data-xrdhttp}"
+
+    mkdir -p "$xrdhttp_dir" "$data_dir" "${xrdhttp_dir}/admin-conf" "${xrdhttp_dir}/run-conf"
+
+    # Check if already running on the HTTP port
+    if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
+        if pids_on_port "$port" | grep -q .; then
+            echo "XrdHttp appears to be listening on $port (SKIP_XRDFS_CHECK set)"
+            return 0
+        fi
+    else
+        local tries=3
+        for ((i = 0; i < tries; i++)); do
+            if timeout 2s curl -skf "https://localhost:${port}/" >/dev/null 2>&1; then
+                echo "XrdHttp already running on $port"
+                return 0
+            fi
+            sleep 0.5
+        done
+    fi
+
+    # Write config
+    if [[ ! -f "$PKI_DIR/ca/ca.pem" || \
+          ! -f "$PKI_DIR/server/hostcert.pem" || \
+          ! -f "$PKI_DIR/server/hostkey.pem" ]]; then
+        echo "WARNING: PKI files missing; cannot start XrdHttp with TLS" >&2
+        return 1
+    fi
+
+    cat >"$cfg_path" <<EOF
+all.role server
+all.export /
+oss.localroot ${data_dir}
+all.adminpath ${xrdhttp_dir}/admin-conf
+all.pidpath   ${xrdhttp_dir}/run-conf
+
+xrd.port ${root_port}
+xrootd.seclib ${sec_lib:-/usr/lib64/libXrdSec-5.so}
+xrd.protocol XrdHttp:${port} ${http_lib}
+
+http.cert ${PKI_DIR}/server/hostcert.pem
+http.key  ${PKI_DIR}/server/hostkey.pem
+http.cadir ${PKI_DIR}/ca
+http.desthttps yes
+http.selfhttps2http no
+http.exthandler xrdtpc ${tpc_lib}
+tpc.timeout 10
+EOF
+
+    # Start xrootd with HTTP module
+    "$REF_BIN" -c "$cfg_path" -l "$log_path" -b >/dev/null 2>&1 || true
+
+    # Wait for readiness
+    local ready=false
+    for _ in {1..40}; do
+        if timeout 2s curl -skf "https://localhost:${port}/" >/dev/null 2>&1; then
+            ready=true
+            break
+        fi
+        sleep 0.25
+    done
+
+    if [[ "$ready" == "true" ]]; then
+        echo "XrdHttp started and ready on port $port (HTTP) / $root_port (root://)"
+    else
+        local log_content=""
+        if [[ -f "$log_path" ]]; then
+            log_content="$(tail -50 "$log_path")"
+        fi
+        echo "WARNING: XrdHttp started but readiness probe failed on port $port" >&2
+        echo "Log tail:" >&2
+        echo "$log_content" >&2
+    fi
+
+    # Save PID file for later cleanup
+    if [[ -f "${xrdhttp_dir}/run-conf/xrootd.pid" ]]; then
+        cp "${xrdhttp_dir}/run-conf/xrootd.pid" "$pid_file" 2>/dev/null || true
+    fi
+}
+
+stop_xrdhttp() {
+    local xrdhttp_dir="${XRDHTTP_DIR:-$TEST_ROOT/xrdhttp}"
+    local port="${REF_XRDHTTP_HTTP_PORT:-11113}"
+    local root_port="${REF_XRDHTTP_ROOT_PORT:-11112}"
+
+    # Try to stop via PID file first
+    local pid_file="${xrdhttp_dir}/xrdhttp.pid"
+    if [[ -f "$pid_file" ]]; then
+        local pid
+        pid="$(cat "$pid_file" 2>/dev/null || true)"
+        if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+            kill "$pid" >/dev/null 2>&1 || true
+            sleep 0.5
+            if kill -0 "$pid" >/dev/null 2>&1; then
+                kill -9 "$pid" >/dev/null 2>&1 || true
+            fi
+        fi
+    fi
+
+    # Also try to stop via any xrootd.pid in run-conf
+    local run_pid="${xrdhttp_dir}/run-conf/xrootd.pid"
+    if [[ -f "$run_pid" ]]; then
+        local pid
+        pid="$(cat "$run_pid" 2>/dev/null || true)"
+        if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+            kill "$pid" >/dev/null 2>&1 || true
+        fi
+    fi
+
+    # Safety net: kill any process on the XrdHttp ports
+    local pids=""
+    pids="$(
+        {
+            pids_on_port "$port"
+            pids_on_port "$root_port"
+            pgrep -f "xrootd.*${cfg_path:-$TEST_ROOT/xrdhttp}" 2>/dev/null || true
+        } | sort -u
+    )"
+    kill_pid_list "$pids"
+
+    rm -f "$pid_file" "${xrdhttp_dir}/run-conf/xrootd.pid"
+    echo "XrdHttp stopped (ports $port, $root_port)"
+}
+
+force_stop_xrdhttp() {
+    stop_xrdhttp
+
+    local port="${REF_XRDHTTP_HTTP_PORT:-11113}"
+    local root_port="${REF_XRDHTTP_ROOT_PORT:-11112}"
+
+    # Aggressive kill on XrdHttp ports
+    local pids=""
+    pids="$(pids_on_port "$port"; pids_on_port "$root_port")"
+    if have_cmd pgrep; then
+        pids="$pids $(pgrep -f 'xrootd.*http' 2>/dev/null || true)"
+    fi
+    kill_pid_list "$pids"
+
+    echo "XrdHttp force-stopped (ports $port, $root_port)"
+}
+
+status_xrdhttp() {
+    local port="${REF_XRDHTTP_HTTP_PORT:-11113}"
+    local root_port="${REF_XRDHTTP_ROOT_PORT:-11112}"
+
+    if pids_on_port "$port" | grep -q .; then
+        echo "XrdHttp: running (HTTP port=$port)"
+        return 0
+    fi
+    if pids_on_port "$root_port" | grep -q .; then
+        echo "XrdHttp: running (root:// port=$root_port)"
+        return 0
+    fi
+
+    # Quick HTTP probe as fallback
+    if timeout 2s curl -skf "https://localhost:${port}/" >/dev/null 2>&1; then
+        echo "XrdHttp: running (HTTP port=$port, unmanaged)"
+        return 0
+    fi
+
+    echo "XrdHttp: stopped"
+}
+
+find_xrd_library() {
+    local candidate
+    for candidate in "$@"; do
+        if [[ -f "/usr/lib64/$candidate" ]]; then
+            echo "/usr/lib64/$candidate"
+            return 0
+        fi
+        if [[ -f "/usr/lib/$candidate" ]]; then
+            echo "/usr/lib/$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 force_stop_ref() {
     stop_ref
 
@@ -595,6 +967,13 @@ force_stop_ref() {
             pids_on_port 11111
             pids_on_port 11112
             pids_on_port 11113
+            pids_on_port 12120
+            pids_on_port 12121
+            pids_on_port 12122
+            pids_on_port 12123
+            pids_on_port 12124
+            pids_on_port 12125
+            pids_on_port 12126
         } | sort -u
     )"
     kill_pid_list "$pids"
@@ -607,6 +986,85 @@ force_stop_ref() {
 
     rm -f "$REF_PID_FILE"
     echo "reference xrootd force-stopped"
+}
+
+start_all_dedicated() {
+    force_stop_ref
+    force_stop_nginx
+    regenerate_pki
+
+    mkdir -p "${TEST_ROOT}/tokens"
+    if [[ ! -f "${TEST_ROOT}/tokens/upstream.jwt" ]]; then
+        printf '%s\n' "eyJhbGciOiJSUzI1NiJ9.dedicated-test.sig" > "${TEST_ROOT}/tokens/upstream.jwt"
+    fi
+    local jwks_refresh_dir="${TEST_ROOT}/tokens/jwks-refresh"
+    mkdir -p "${jwks_refresh_dir}"
+    python3 utils/make_token.py init "${jwks_refresh_dir}" >/dev/null
+
+    local crl_dir="${TEST_ROOT}/crls"
+    local crl_reload_dir="${TEST_ROOT}/crl-reload"
+    mkdir -p "${crl_dir}" "${crl_reload_dir}"
+    rm -f "${crl_dir}"/* "${crl_reload_dir}"/*
+    if [[ -f "${PKI_DIR}/ca/test-user.crl.pem" ]]; then
+        cp "${PKI_DIR}/ca/test-user.crl.pem" "${crl_dir}/ca.r0"
+    fi
+
+    start_nginx
+    start_ref
+
+    # Dedicated xrootd backends used by upstream/proxy migration work.  These
+    # are real xrootd daemons; tests must not replace them with Python socket
+    # listeners.
+    start_extra_ref_anon "upstream-redirect" "${UPSTREAM_REDIRECT_BACKEND_PORT:-12120}" "${TEST_ROOT}/data-upstream-redirect"
+    start_extra_ref_anon "upstream-wait" "${UPSTREAM_WAIT_BACKEND_PORT:-12121}" "${TEST_ROOT}/data-upstream-wait"
+    start_extra_ref_anon "upstream-waitresp" "${UPSTREAM_WAITRESP_BACKEND_PORT:-12122}" "${TEST_ROOT}/data-upstream-waitresp"
+    start_extra_ref_anon "upstream-error" "${UPSTREAM_ERROR_BACKEND_PORT:-12123}" "${TEST_ROOT}/data-upstream-error"
+    start_extra_ref_anon "upstream-auth" "${UPSTREAM_AUTH_BACKEND_PORT:-12124}" "${TEST_ROOT}/data-upstream-auth"
+    start_extra_ref_anon "upstream-auth-nofile" "${UPSTREAM_AUTH_NOFILE_BACKEND_PORT:-12125}" "${TEST_ROOT}/data-upstream-auth-nofile"
+    start_extra_ref_anon "upstream-gotorls-notls" "${UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT:-12126}" "${TEST_ROOT}/data-upstream-gotorls-notls"
+    start_root_tpc_ref
+
+    start_dedicated_nginx "readonly" "nginx_readonly.conf" "${READONLY_PORT:-11102}"
+    start_dedicated_nginx "vo-acl" "nginx_vo_acl.conf" "${VO_PORT:-11103}"
+    start_dedicated_nginx "manager" "nginx_manager.conf" "${MANAGER_PORT:-11101}"
+    NGINX_WEBDAV_PORT="${WEBDAV_CRL_PORT:-11105}" \
+        start_dedicated_nginx "crl" "nginx_crl.conf" "${CRL_PORT:-11104}"
+    CRL_PATH="${crl_dir}" NGINX_WEBDAV_PORT="${WEBDAV_DIR_PORT:-11107}" \
+        start_dedicated_nginx "crl-dir" "nginx_crl.conf" "${CRL_DIR_PORT:-11106}"
+    CRL_PATH="${crl_reload_dir}" CRL_RELOAD_INTERVAL="${TEST_CRL_RELOAD_INTERVAL:-2}" \
+        HTTP_STUB_PORT="${CRL_RELOAD_HTTP_PORT:-11109}" \
+        start_dedicated_nginx "crl-reload" "nginx_crl_reload.conf" "${CRL_RELOAD_PORT:-11108}"
+    start_dedicated_nginx "webdav-auth-cache" "nginx_webdav_auth_cache.conf" "${WEBDAV_AUTH_CACHE_MANUAL_PORT:-18444}"
+    start_dedicated_nginx "webdav-tpc" "nginx_webdav_tpc.conf" "${WEBDAV_TPC_SOURCE_REQUIRED_PORT:-18450}"
+    start_dedicated_nginx "root-tpc" "nginx_root_tpc.conf" "${ROOT_TPC_NGINX_PORT:-11110}"
+    JWKS_FILE="${jwks_refresh_dir}/jwks.json" \
+        REFRESH_INTERVAL_MS="${TEST_JWKS_REFRESH_INTERVAL_MS:-500}" \
+        TOKEN_ISSUER="${TOKEN_ISSUER:-https://test.example.com}" \
+        TOKEN_AUDIENCE="${TOKEN_AUDIENCE:-nginx-xrootd}" \
+        start_dedicated_nginx "jwks-refresh" "nginx_jwks_refresh.conf" "${NGINX_JWKS_REFRESH_PORT:-11115}"
+
+    start_dedicated_nginx "upstream-redirect" "nginx_upstream_redirect.conf" "${UPSTREAM_REDIRECT_NGINX_PORT:-11120}" "${UPSTREAM_REDIRECT_BACKEND_PORT:-12120}"
+    start_dedicated_nginx "upstream-waitresp" "nginx_upstream_waitresp.conf" "${UPSTREAM_WAITRESP_NGINX_PORT:-11122}" "${UPSTREAM_WAITRESP_BACKEND_PORT:-12122}"
+    start_dedicated_nginx "upstream-error" "nginx_upstream_error.conf" "${UPSTREAM_ERROR_NGINX_PORT:-11123}" "${UPSTREAM_ERROR_BACKEND_PORT:-12123}"
+    start_dedicated_nginx "upstream-auth" "nginx_upstream_auth.conf" "${UPSTREAM_AUTH_NGINX_PORT:-11124}" "${UPSTREAM_AUTH_BACKEND_PORT:-12124}"
+    start_dedicated_nginx "upstream-auth-nofile" "nginx_upstream_auth_nofile.conf" "${UPSTREAM_AUTH_NOFILE_NGINX_PORT:-11125}" "${UPSTREAM_AUTH_NOFILE_BACKEND_PORT:-12125}"
+    start_dedicated_nginx "upstream-gotorls-notls" "nginx_upstream_gotorls_notls.conf" "${UPSTREAM_GOTORLS_NOTLS_NGINX_PORT:-11126}" "${UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT:-12126}"
+
+    start_dedicated_nginx "tpc-ssrf-default" "nginx_tpc_ssrf_default.conf" "${TPC_SSRF_DEFAULT_PORT:-11180}"
+    start_dedicated_nginx "tpc-ssrf-allow-local" "nginx_tpc_ssrf_allow_local.conf" "${TPC_SSRF_ALLOW_LOCAL_PORT:-11181}"
+    start_dedicated_nginx "tpc-ssrf-deny-private" "nginx_tpc_ssrf_deny_private.conf" "${TPC_SSRF_DENY_PRIVATE_PORT:-11182}"
+    start_dedicated_nginx "s3-presigned" "nginx_s3_presigned.conf" "${S3_PRESIGNED_PORT:-11183}"
+    start_dedicated_nginx "s3-presigned-sts" "nginx_s3_presigned_sts.conf" "${S3_PRESIGNED_STS_PORT:-11184}"
+    start_dedicated_nginx "security-level-standard" "nginx_security_level_standard.conf" "${SECURITY_LEVEL_STANDARD_PORT:-11191}"
+    start_dedicated_nginx "security-level-pedantic" "nginx_security_level_pedantic.conf" "${SECURITY_LEVEL_PEDANTIC_PORT:-11192}"
+
+    start_xrdhttp
+}
+
+stop_all_dedicated() {
+    stop_xrdhttp
+    force_stop_ref
+    force_stop_nginx
 }
 
 status_nginx() {
@@ -656,9 +1114,15 @@ if [[ -z "$ACTION" ]]; then
 fi
 
 case "$ACTION" in
+    start-all)
+        start_all_dedicated
+        ;;
+    stop-all)
+        stop_all_dedicated
+        ;;
     start)
         case "$TARGET" in
-            all) force_stop_ref; force_stop_nginx; regenerate_pki; start_nginx; start_ref ;;
+            all) start_all_dedicated ;;
             nginx)
                 if [[ "${SKIP_NGINX_FORCE_STOP_ON_START:-0}" == "1" ]]; then
                     start_nginx
@@ -668,14 +1132,16 @@ case "$ACTION" in
                 fi
                 ;;
             ref) force_stop_ref; start_ref ;;
+            xrdhttp) stop_xrdhttp; start_xrdhttp ;;
             *) usage; exit 1 ;;
         esac
         ;;
     stop)
         case "$TARGET" in
-            all) stop_ref; stop_nginx ;;
+            all) stop_all_dedicated ;;
             nginx) stop_nginx ;;
             ref) stop_ref ;;
+            xrdhttp) stop_xrdhttp ;;
             *) usage; exit 1 ;;
         esac
         ;;
@@ -684,14 +1150,16 @@ case "$ACTION" in
             all) force_stop_ref; force_stop_nginx ;;
             nginx) force_stop_nginx ;;
             ref) force_stop_ref ;;
+            xrdhttp) force_stop_xrdhttp ;;
             *) usage; exit 1 ;;
         esac
         ;;
     restart)
         case "$TARGET" in
-            all) stop_ref; stop_nginx; regenerate_pki; start_nginx; start_ref ;;
+            all) stop_all_dedicated; start_all_dedicated ;;
             nginx) stop_nginx; start_nginx ;;
             ref) stop_ref; start_ref ;;
+            xrdhttp) stop_xrdhttp; start_xrdhttp ;;
             *) usage; exit 1 ;;
         esac
         ;;
@@ -700,6 +1168,7 @@ case "$ACTION" in
             all) status_nginx; status_ref ;;
             nginx) status_nginx ;;
             ref) status_ref ;;
+            xrdhttp) status_xrdhttp ;;
             *) usage; exit 1 ;;
         esac
         ;;

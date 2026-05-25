@@ -1,5 +1,24 @@
 #ifndef XROOTD_READ_OPEN_H
 #define XROOTD_READ_OPEN_H
+/*
+ * kXR_open (3012) — file handle lifecycle initiation.
+
+ * Exported:
+ *   xrootd_handle_open()       — Implements the open opcode: parses ClientOpenRequest
+ *     from wire, resolves path via xrootd_resolve_path(), checks VO ACL and token scope,
+ *     detects write-mode vs read-mode, opens file with appropriate flags, allocates fhandle
+ *     slot in fd_table.c, returns retstat body.
+
+ *   xrootd_open_resolved_file() — Opens a pre-resolved path: allocates fhandle via
+ *     xrootd_alloc_fhandle(), open(2) with write-mode detection and TPC flag check,
+ *     sends retstat response. Flags=0 for cache reads, flags=1 for write opens.
+
+ *   xrootd_open_cached_read()  — Cache-aware read-open: resolves against auth root for ACL
+ *     check, then tries cache root (hit → direct serve) or triggers background origin fill
+ *     on miss via xrootd_cache_open_or_fill(). Implements XCache-style caching.
+
+ * See also: src/read/open.c (full implementation), src/read/README.md (read module overview).
+ */
 
 #include "../ngx_xrootd_module.h"
 

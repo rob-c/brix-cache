@@ -1,6 +1,5 @@
 #include "../config/config.h"
 
-#if (NGX_THREADS)
 
 /*
  * xrootd_configure_thread_pools — resolve thread-pool names to concrete pool
@@ -36,17 +35,17 @@ xrootd_configure_thread_pools(ngx_conf_t *cf,
 
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
                                                    ngx_stream_xrootd_module);
-        if (!xcf->enable) {
+        if (!xcf->common.enable) {
             continue;
         }
 
         /* Empty name means "use nginx's default thread pool". */
-        pool_name = (xcf->thread_pool_name.len > 0)
-                    ? &xcf->thread_pool_name
+        pool_name = (xcf->common.thread_pool_name.len > 0)
+                    ? &xcf->common.thread_pool_name
                     : &default_pool_name;
 
-        xcf->thread_pool = ngx_thread_pool_get(cf->cycle, pool_name);
-        if (xcf->thread_pool == NULL) {
+        xcf->common.thread_pool = ngx_thread_pool_get(cf->cycle, pool_name);
+        if (xcf->common.thread_pool == NULL) {
             if (xcf->cache) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                     "xrootd_cache requires a working thread pool "
@@ -69,4 +68,3 @@ xrootd_configure_thread_pools(ngx_conf_t *cf,
     return NGX_OK;
 }
 
-#endif

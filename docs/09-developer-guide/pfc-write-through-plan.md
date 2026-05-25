@@ -1,0 +1,110 @@
+# Write-Through PFC Cache Mode
+
+Status: implemented as a close/sync whole-file origin mirror.
+
+## Goal
+
+Allow nginx-xrootd to accept write-mode XRootD handles while write-through is
+enabled, keep the local filesystem copy authoritative during the request, and
+mirror dirty data to an origin XRootD data server when the client issues
+`kXR_sync` or `kXR_close`.
+
+This is intentionally not a persistent per-write dual-dispatch design. The
+module mirrors the final local file to the origin in bounded chunks, then sends
+origin `kXR_truncate`, `kXR_sync`, and `kXR_close`.
+
+## Configuration
+
+```nginx
+thread_pool xrootd_cache_io threads=8 max_queue=65536;
+
+stream {
+    server {
+        listen 1094;
+        xrootd on;
+        xrootd_root /data;
+        xrootd_thread_pool xrootd_cache_io;
+
+        xrootd_write_through on;
+        xrootd_wt_mode sync;                  # sync | async
+        xrootd_wt_origin origin.example.org:1094;
+        xrootd_wt_allow_prefix /data/ingest/;
+        xrootd_wt_deny_prefix /data/private/;
+    }
+}
+```
+
+Directives:
+- `xrootd_write_through on|off` enables WT policy evaluation for write opens.
+- `xrootd_wt_mode sync|async` chooses close behavior. `kXR_sync` is always
+  synchronous.
+- `xrootd_wt_origin host:port` sets the write-back data server. If omitted,
+  the read-through `xrootd_cache_origin` is used when configured.
+- `xrootd_wt_allow_prefix` and `xrootd_wt_deny_prefix` are repeatable prefix
+  filters. Deny entries win over allow entries.
+
+## Implementation
+
+Key files:
+- `src/cache/writethrough_decision.c` — open-time allow/deny decision.
+- `src/read/open_resolved_file.c` — stores WT policy and mode bits on the
+  `xrootd_file_t` handle.
+- `src/write/write.c`, `src/write/pgwrite.c`, `src/write/writev.c`,
+  `src/write/truncate.c`, `src/aio/write.c` — mark handles dirty after local
+  write completion.
+- `src/cache/origin_connection.c` — connects to `xrootd_wt_origin` or the
+  configured cache origin.
+- `src/cache/origin_protocol.c` — sends origin write-open, write, truncate,
+  sync, and close operations.
+- `src/cache/writethrough_flush.c` — mirrors the local file to origin.
+- `src/write/sync.c` — flushes dirty WT handles synchronously and returns a
+  client error if the origin flush fails.
+- `src/read/close.c` — runs sync close flush, or posts an async flush task when
+  `xrootd_wt_mode async` and a thread pool are configured.
+
+## Semantics
+
+Dirty tracking is handle-local:
+- `wt_enabled` is set only when global WT is on and the decision callback
+  allows the path.
+- `wt_dirty_offset >= 0` means a write, pgwrite, writev, or truncate has
+  modified the local file since the last successful WT flush.
+- `wt_bytes_written` is reset after a successful explicit `kXR_sync` flush.
+
+Flush behavior:
+- `kXR_sync` mirrors the full local file to origin before returning `kXR_ok`.
+  Origin errors are returned to the client as `kXR_IOError`.
+- `kXR_close` mirrors dirty data before releasing the handle in `sync` mode.
+  Close-time origin errors are logged and access-logged with `WT flush` but do
+  not turn a successful local write into a failed close.
+- `async` close posts the same mirror operation to the nginx thread pool. The
+  handle is released immediately; completion is logged from the task callback.
+- POSC writes are renamed to their final local path before WT flush, so the
+  origin receives the final file name, not the temporary staging name.
+
+## Limitations
+
+- The origin client requires a direct data-server origin. `kXR_redirect` from
+  the WT origin open is treated as unsupported.
+- The write-back strategy is whole-file replacement, not per-write
+  dual-dispatch. This is simpler and robust for ingest-style workflows, but it
+  is not ideal for very large random-write workloads.
+- Origin authentication follows the existing cache/upstream origin machinery.
+  TLS and ztn token outbound auth are implemented elsewhere; outbound GSI auth
+  remains a missing feature.
+- There is no dynamic STS-style credential forwarding directive yet.
+
+## Verification
+
+Current verification used for this implementation:
+- Full nginx module build after regenerating the nginx source list with
+  `./configure --with-stream --with-http_ssl_module --with-threads --add-module=$REPO`.
+- Incremental `make -j2` after final code edits.
+- `nginx -t -c /tmp/xrd-test/conf/nginx.conf` passed once after the source-list
+  regeneration. A later repeat was blocked by the sandbox escalation budget,
+  but the final code-only patch was compile-verified.
+
+Recommended integration coverage:
+- Success: write, `kXR_sync`, verify origin content and truncation match local.
+- Error: origin unavailable during explicit sync returns `kXR_IOError`.
+- Security negative: denied prefix writes locally but emits no WT origin flush.

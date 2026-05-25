@@ -37,7 +37,10 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags
 
-from settings import CA_DIR, DATA_ROOT
+from settings import CA_DIR, DATA_ROOT, SERVER_HOST
+
+ANON_HOST = SERVER_HOST
+ANON_PORT = 0
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +52,10 @@ kXR_error    = 4003
 kXR_ArgMissing    = 3001
 kXR_NotFound      = 3011
 kXR_isDirectory   = 3016
-kXR_ArgInvalid    = 3002
+kXR_ArgInvalid    = 3000
+
+kXR_query   = 3001
+kXR_QPrep   = 2
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +84,7 @@ def _read_response(sock):
 def _establish_session(port):
     """Bootstrap a session: handshake + protocol + login. Returns (sock, streamid)."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(("127.0.0.1", port))
+    sock.connect((ANON_HOST, port))
     sock.settimeout(5)
 
     # Handshake (20 bytes: 5 x int32 BE)
@@ -117,6 +123,15 @@ def _send_prepare(sock, streamid, options, optionX, payload):
     return _read_response(sock)
 
 
+def _send_query(sock, streamid, infotype, payload):
+    """Send a kXR_query request. Returns (status, body)."""
+    hdr = struct.pack(">2sHHH4s8sI",
+                      streamid, kXR_query, infotype, 0,
+                      b"\x00" * 4, b"\x00" * 8, len(payload))
+    sock.sendall(hdr + payload)
+    return _read_response(sock)
+
+
 # ---------------------------------------------------------------------------
 # Fixture -- anonymous nginx port for prepare tests
 # ---------------------------------------------------------------------------
@@ -124,8 +139,15 @@ def _send_prepare(sock, streamid, options, optionX, payload):
 @pytest.fixture(scope="module")
 def anon_port(test_env):
     """Use the shared anonymous nginx endpoint."""
-    global ANON_PORT
+    global ANON_HOST, ANON_PORT
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
+    data_dir = test_env["data_dir"]
+    os.makedirs(data_dir, exist_ok=True)
+    with open(os.path.join(data_dir, "auth_cache_probe.txt"), "wb") as fh:
+        fh.write(b"prepare staging probe\n")
+    with open(os.path.join(data_dir, "prepare_large_probe.bin"), "wb") as fh:
+        fh.write(b"x" * 200)
     yield ANON_PORT
 
 
@@ -152,10 +174,75 @@ class TestPrepareValid:
         sock, streamid = _establish_session(ANON_PORT)
 
         # Prepare with multiple files (newline-separated)
-        payload = b"/auth_cache_probe.txt\n/large200.bin\n"
+        payload = b"/auth_cache_probe.txt\n/prepare_large_probe.bin\n"
         status, body = _send_prepare(sock, streamid, 8, 0, payload)
         assert status == kXR_ok or status == kXR_error, \
             f"prepare for multiple files: status={status}, body={body!r}"
+
+        sock.close()
+
+
+# ---------------------------------------------------------------------------
+# QPrep status query
+# ---------------------------------------------------------------------------
+
+class TestQPrepStatus:
+    """Verify kXR_QPrep returns per-path disk availability status."""
+
+    def test_qprep_no_prior_prepare_returns_empty_ok(self, anon_port):
+        sock, streamid = _establish_session(ANON_PORT)
+
+        status, body = _send_query(sock, streamid, kXR_QPrep, b"")
+        assert status == kXR_ok
+        assert body == b""
+
+        sock.close()
+
+    def test_qprep_after_stage_reports_available(self, anon_port):
+        sock, streamid = _establish_session(ANON_PORT)
+
+        status, body = _send_prepare(sock, streamid, 8, 0,
+                                     b"/auth_cache_probe.txt")
+        assert status == kXR_ok, f"prepare stage failed: status={status}, body={body!r}"
+
+        status, body = _send_query(sock, streamid, kXR_QPrep, b"0")
+        assert status == kXR_ok
+        assert body.rstrip(b"\x00") == b"A /auth_cache_probe.txt\n"
+
+        sock.close()
+
+    def test_qprep_after_stage_noerrs_reports_missing(self, anon_port):
+        sock, streamid = _establish_session(ANON_PORT)
+
+        status, body = _send_prepare(sock, streamid, 8 | 4, 0,
+                                     b"/qprep_missing.bin")
+        assert status == kXR_ok, f"prepare noerrs stage failed: status={status}, body={body!r}"
+
+        status, body = _send_query(sock, streamid, kXR_QPrep, b"0")
+        assert status == kXR_ok
+        assert body.rstrip(b"\x00") == b"M /qprep_missing.bin\n"
+
+        sock.close()
+
+    def test_qprep_inline_paths_do_not_need_stored_prepare(self, anon_port):
+        sock, streamid = _establish_session(ANON_PORT)
+
+        status, body = _send_query(sock, streamid, kXR_QPrep,
+                                   b"0\n/auth_cache_probe.txt\n/qprep_missing.bin\n")
+        assert status == kXR_ok
+        lines = set(body.rstrip(b"\x00").splitlines())
+        assert b"A /auth_cache_probe.txt" in lines
+        assert b"M /qprep_missing.bin" in lines
+
+        sock.close()
+
+    def test_qprep_traversal_path_is_reported_missing(self, anon_port):
+        sock, streamid = _establish_session(ANON_PORT)
+
+        status, body = _send_query(sock, streamid, kXR_QPrep,
+                                   b"0\n/../etc/passwd\n")
+        assert status == kXR_ok
+        assert body.rstrip(b"\x00") == b"M /../etc/passwd\n"
 
         sock.close()
 
@@ -297,3 +384,242 @@ class TestPreparePathSecurity:
             f"expected ArgInvalid for dot-dot path: status={status}, body={body!r}"
 
         sock.close()
+
+
+# ---------------------------------------------------------------------------
+# xrootd_prepare_command — fire-and-forget staging hook
+# ---------------------------------------------------------------------------
+
+class TestPrepareStageCommand:
+    """Verify xrootd_prepare_command is invoked on kXR_stage requests.
+
+    Each test starts its own isolated nginx instance with xrootd_prepare_command
+    configured to a temporary shell script that records the paths it receives.
+    All tests are local-server-only (they manage custom nginx instances).
+    """
+
+    # Inline nginx config template — uses server_control placeholders.
+    _CONF = """\
+worker_processes 1;
+error_log {LOG_DIR}/error.log info;
+stream {
+    server {
+        listen {PORT};
+        xrootd on;
+        xrootd_root {DATA_DIR};
+        xrootd_allow_write on;
+        xrootd_prepare_command {STAGE_CMD};
+    }
+}
+"""
+
+    # Nginx config WITHOUT xrootd_prepare_command — for the "no config" test.
+    _CONF_NOCMD = """\
+worker_processes 1;
+error_log {LOG_DIR}/error.log info;
+stream {
+    server {
+        listen {PORT};
+        xrootd on;
+        xrootd_root {DATA_DIR};
+    }
+}
+"""
+
+    @staticmethod
+    def _make_stage_script(tmp_path: str, out_file: str) -> str:
+        """Write a script that appends all argv paths to out_file."""
+        script = os.path.join(tmp_path, "stage_hook.sh")
+        with open(script, "w") as f:
+            f.write("#!/bin/sh\n")
+            f.write(f"printf '%s\\n' \"$@\" >> {out_file}\n")
+        os.chmod(script, 0o755)
+        return script
+
+    @staticmethod
+    def _start_nginx_with_cmd(stage_cmd: str, conf_template: str) -> dict:
+        """Start a custom nginx instance with the given prepare_command."""
+        import server_control
+        return server_control.start_nginx_instance(
+            nginx_bin="/tmp/nginx-1.28.3/objs/nginx",
+            conf_text=conf_template,
+            template_kwargs={"STAGE_CMD": stage_cmd},
+        )
+
+    @staticmethod
+    def _session_on(port: int):
+        return _establish_session(port)
+
+    @pytest.mark.requires_local_server
+    def test_stage_flag_invokes_command(self, tmp_path):
+        """kXR_prepare with kXR_stage flag must invoke xrootd_prepare_command
+        with the resolved absolute paths of all staged files.
+        """
+        tmp = str(tmp_path)
+        out_file = os.path.join(tmp, "staged_paths.txt")
+        stage_cmd = self._make_stage_script(tmp, out_file)
+
+        info = self._start_nginx_with_cmd(stage_cmd, self._CONF)
+        port = info["port"]
+        data_dir = info["data_dir"]
+
+        # Seed a real file so path resolution succeeds.
+        seed = os.path.join(data_dir, "tape_file.dat")
+        with open(seed, "wb") as f:
+            f.write(b"tape seed\n")
+
+        try:
+            sock, streamid = self._session_on(port)
+            # kXR_stage = 0x08
+            status, body = _send_prepare(sock, streamid, 0x08, 0,
+                                         b"/tape_file.dat\n")
+            sock.close()
+
+            assert status == kXR_ok, \
+                f"kXR_prepare kXR_stage failed: status={status} body={body!r}"
+
+            # Give the child process up to 3 seconds to write the marker file.
+            for _ in range(30):
+                if os.path.exists(out_file):
+                    break
+                time.sleep(0.1)
+
+            assert os.path.exists(out_file), \
+                "xrootd_prepare_command was not invoked (marker file not created)"
+
+            content = open(out_file).read().strip()
+            # Script receives resolved absolute path under xrootd_root.
+            assert content.endswith("/tape_file.dat"), \
+                f"unexpected staged path recorded: {content!r}"
+        finally:
+            info["stop"]()
+
+    @pytest.mark.requires_local_server
+    def test_no_stage_flag_skips_command(self, tmp_path):
+        """kXR_prepare WITHOUT kXR_stage must NOT invoke xrootd_prepare_command."""
+        tmp = str(tmp_path)
+        out_file = os.path.join(tmp, "staged_paths.txt")
+        stage_cmd = self._make_stage_script(tmp, out_file)
+
+        info = self._start_nginx_with_cmd(stage_cmd, self._CONF)
+        port = info["port"]
+        data_dir = info["data_dir"]
+
+        seed = os.path.join(data_dir, "local_file.dat")
+        with open(seed, "wb") as f:
+            f.write(b"local seed\n")
+
+        try:
+            sock, streamid = self._session_on(port)
+            # options=0 → no kXR_stage, no kXR_cancel, no kXR_noerrs
+            # (The server treats this as a cache-hint / stat-only prepare.)
+            status, body = _send_prepare(sock, streamid, 0x00, 0,
+                                         b"/local_file.dat\n")
+            sock.close()
+
+            # kXR_prepare without kXR_stage returns kXR_ok (plain stat check).
+            assert status == kXR_ok, \
+                f"plain prepare returned error: status={status} body={body!r}"
+
+            # Wait briefly; command must NOT be invoked.
+            time.sleep(0.3)
+            assert not os.path.exists(out_file), \
+                "xrootd_prepare_command was wrongly invoked (no kXR_stage flag)"
+        finally:
+            info["stop"]()
+
+    @pytest.mark.requires_local_server
+    def test_no_config_stage_silently_accepted(self, tmp_path):
+        """kXR_stage with no xrootd_prepare_command configured must return
+        kXR_ok — silently accepted with no error and no command invoked.
+        """
+        import server_control
+
+        info = server_control.start_nginx_instance(
+            nginx_bin="/tmp/nginx-1.28.3/objs/nginx",
+            conf_text=self._CONF_NOCMD,
+        )
+        port = info["port"]
+        data_dir = info["data_dir"]
+
+        seed = os.path.join(data_dir, "noop_file.dat")
+        with open(seed, "wb") as f:
+            f.write(b"noop seed\n")
+
+        try:
+            sock, streamid = self._session_on(port)
+            # kXR_stage flag set, but no prepare_command configured.
+            status, body = _send_prepare(sock, streamid, 0x08, 0,
+                                         b"/noop_file.dat\n")
+            sock.close()
+
+            assert status == kXR_ok, \
+                f"kXR_stage without prepare_command must return ok: " \
+                f"status={status} body={body!r}"
+        finally:
+            info["stop"]()
+
+    @pytest.mark.requires_local_server
+    def test_stage_noerrs_missing_file_collected(self, tmp_path):
+        """kXR_prepare with kXR_stage|kXR_noerrs and a missing file must still
+        return kXR_ok and pass the resolved (pre-staging) path to the command.
+        """
+        tmp = str(tmp_path)
+        out_file = os.path.join(tmp, "staged_paths.txt")
+        stage_cmd = self._make_stage_script(tmp, out_file)
+
+        info = self._start_nginx_with_cmd(stage_cmd, self._CONF)
+        port = info["port"]
+
+        try:
+            sock, streamid = self._session_on(port)
+            # kXR_stage (0x08) | kXR_noerrs (0x04) = 0x0c; file does not exist
+            status, body = _send_prepare(sock, streamid, 0x0c, 0,
+                                         b"/on_tape_not_disk.dat\n")
+            sock.close()
+
+            assert status == kXR_ok, \
+                f"kXR_stage|kXR_noerrs for missing file must return ok: " \
+                f"status={status} body={body!r}"
+
+            # Command should be invoked with the resolved tape path.
+            for _ in range(30):
+                if os.path.exists(out_file):
+                    break
+                time.sleep(0.1)
+
+            assert os.path.exists(out_file), \
+                "prepare_command not invoked for missing-file kXR_stage|kXR_noerrs"
+            content = open(out_file).read().strip()
+            assert content.endswith("/on_tape_not_disk.dat"), \
+                f"unexpected path in command args: {content!r}"
+        finally:
+            info["stop"]()
+
+    @pytest.mark.requires_local_server
+    def test_stage_cancel_skips_command(self, tmp_path):
+        """kXR_prepare with kXR_cancel must return ok immediately (no-op) and
+        must NOT invoke xrootd_prepare_command even if configured.
+        """
+        tmp = str(tmp_path)
+        out_file = os.path.join(tmp, "staged_paths.txt")
+        stage_cmd = self._make_stage_script(tmp, out_file)
+
+        info = self._start_nginx_with_cmd(stage_cmd, self._CONF)
+        port = info["port"]
+
+        try:
+            sock, streamid = self._session_on(port)
+            # kXR_cancel = 0x01; cancel overrides stage in the dispatch path.
+            status, body = _send_prepare(sock, streamid, 0x01, 0,
+                                         b"/any_file.dat\n")
+            sock.close()
+
+            assert status == kXR_ok, \
+                f"cancel prepare must return ok: status={status} body={body!r}"
+
+            time.sleep(0.3)
+            assert not os.path.exists(out_file), \
+                "prepare_command was wrongly invoked on kXR_cancel request"
+        finally:
+            info["stop"]()

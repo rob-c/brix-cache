@@ -1,0 +1,283 @@
+"""SigV4 authentication tests for S3 presigned URLs."""
+
+from __future__ import annotations
+
+import datetime as dt
+import hashlib
+import hmac
+import os
+from pathlib import Path
+from urllib.parse import quote, urlencode, urlparse
+
+import pytest
+import requests
+
+from pathlib import Path
+from settings import S3_PRESIGNED_PORT, S3_PRESIGNED_STS_PORT, TEST_ROOT
+
+
+BUCKET = "testbucket"
+ACCESS_KEY = "test-access-key"
+SECRET_KEY = "test-secret-key"
+REGION = "us-east-1"
+
+
+@pytest.fixture(scope="module")
+def s3_auth_instance():
+    """Use the dedicated S3 presigned URL server."""
+    import socket as _sock
+    try:
+        with _sock.create_connection(("127.0.0.1", S3_PRESIGNED_PORT), timeout=5):
+            pass
+    except OSError:
+        pytest.skip(f"S3 presigned server not reachable at port {S3_PRESIGNED_PORT}")
+    data_dir = Path(TEST_ROOT) / "data-s3-presigned"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    yield {
+        "base": f"http://127.0.0.1:{S3_PRESIGNED_PORT}",
+        "data_dir": data_dir,
+    }
+
+
+@pytest.fixture(scope="module")
+def s3_auth_sts_instance():
+    """Use the dedicated S3 presigned URL + STS server."""
+    import socket as _sock
+    try:
+        with _sock.create_connection(("127.0.0.1", S3_PRESIGNED_STS_PORT), timeout=5):
+            pass
+    except OSError:
+        pytest.skip(f"S3 presigned STS server not reachable at port {S3_PRESIGNED_STS_PORT}")
+    data_dir = Path(TEST_ROOT) / "data-s3-presigned-sts"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    yield {
+        "base": f"http://127.0.0.1:{S3_PRESIGNED_STS_PORT}",
+        "data_dir": data_dir,
+    }
+
+
+def _put_object_file(instance, key: str, data: bytes) -> None:
+    path = Path(instance["data_dir"]) / key
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+
+
+def _signing_key(secret: str, date: str, region: str) -> bytes:
+    k_date = hmac.new(f"AWS4{secret}".encode(), date.encode(), hashlib.sha256).digest()
+    k_region = hmac.new(k_date, region.encode(), hashlib.sha256).digest()
+    k_service = hmac.new(k_region, b"s3", hashlib.sha256).digest()
+    return hmac.new(k_service, b"aws4_request", hashlib.sha256).digest()
+
+
+def _canonical_query(params: dict[str, str]) -> str:
+    parts = []
+    for key, value in sorted(params.items()):
+        parts.append(
+            f"{quote(key, safe='-_.~')}={quote(value, safe='-_.~')}"
+        )
+    return "&".join(parts)
+
+
+def _canonical_uri(path: str) -> str:
+    return quote(path, safe="/-_.~")
+
+
+def _string_to_sign(amz_date: str, date: str, canonical_request: str) -> str:
+    digest = hashlib.sha256(canonical_request.encode()).hexdigest()
+    return (
+        "AWS4-HMAC-SHA256\n"
+        f"{amz_date}\n"
+        f"{date}/{REGION}/s3/aws4_request\n"
+        f"{digest}"
+    )
+
+
+def _presigned_get_url(base: str, key: str, *, request_time: dt.datetime,
+                       expires: int = 300,
+                       session_token: str | None = None) -> str:
+    parsed = urlparse(base)
+    host = parsed.netloc
+    path = f"/{BUCKET}/{key}"
+    amz_date = request_time.strftime("%Y%m%dT%H%M%SZ")
+    date = request_time.strftime("%Y%m%d")
+    credential = f"{ACCESS_KEY}/{date}/{REGION}/s3/aws4_request"
+    params = {
+        "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+        "X-Amz-Credential": credential,
+        "X-Amz-Date": amz_date,
+        "X-Amz-Expires": str(expires),
+        "X-Amz-SignedHeaders": "host",
+    }
+    if session_token is not None:
+        params["X-Amz-Security-Token"] = session_token
+    canonical_request = (
+        "GET\n"
+        f"{_canonical_uri(path)}\n"
+        f"{_canonical_query(params)}\n"
+        f"host:{host}\n"
+        "\n"
+        "host\n"
+        "UNSIGNED-PAYLOAD"
+    )
+    signature = hmac.new(
+        _signing_key(SECRET_KEY, date, REGION),
+        _string_to_sign(amz_date, date, canonical_request).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    params["X-Amz-Signature"] = signature
+    return f"{base}{path}?{urlencode(params, quote_via=quote, safe='-_.~')}"
+
+
+def _header_auth(base: str, key: str, request_time: dt.datetime,
+                 session_token: str | None = None) -> dict[str, str]:
+    parsed = urlparse(base)
+    host = parsed.netloc
+    path = f"/{BUCKET}/{key}"
+    amz_date = request_time.strftime("%Y%m%dT%H%M%SZ")
+    date = request_time.strftime("%Y%m%d")
+    signed_headers = "host;x-amz-date"
+    token_header = ""
+    if session_token is not None:
+        signed_headers = "host;x-amz-date;x-amz-security-token"
+        token_header = f"x-amz-security-token:{session_token}\n"
+    canonical_request = (
+        "GET\n"
+        f"{_canonical_uri(path)}\n"
+        "\n"
+        f"host:{host}\n"
+        f"x-amz-date:{amz_date}\n"
+        f"{token_header}"
+        "\n"
+        f"{signed_headers}\n"
+        "UNSIGNED-PAYLOAD"
+    )
+    signature = hmac.new(
+        _signing_key(SECRET_KEY, date, REGION),
+        _string_to_sign(amz_date, date, canonical_request).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    credential = f"{ACCESS_KEY}/{date}/{REGION}/s3/aws4_request"
+    headers = {
+        "x-amz-date": amz_date,
+        "Authorization": (
+            "AWS4-HMAC-SHA256 "
+            f"Credential={credential}, "
+            f"SignedHeaders={signed_headers}, "
+            f"Signature={signature}"
+        ),
+    }
+    if session_token is not None:
+        headers["x-amz-security-token"] = session_token
+    return headers
+
+
+def test_presigned_url_get_succeeds(s3_auth_instance):
+    key = "presigned/success.txt"
+    content = b"presigned-url-ok"
+    _put_object_file(s3_auth_instance, key, content)
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
+
+    r = requests.get(url, timeout=10)
+    assert r.status_code == 200
+    assert r.content == content
+
+
+def test_presigned_url_expired_returns_403(s3_auth_instance):
+    key = "presigned/expired.txt"
+    _put_object_file(s3_auth_instance, key, b"expired")
+
+    old = dt.datetime.now(dt.UTC).replace(microsecond=0) - dt.timedelta(minutes=5)
+    url = _presigned_get_url(
+        s3_auth_instance["base"], key, request_time=old, expires=1
+    )
+
+    r = requests.get(url, timeout=10)
+    assert r.status_code == 403
+
+
+def test_presigned_url_bad_signature_returns_403(s3_auth_instance):
+    key = "presigned/bad-signature.txt"
+    _put_object_file(s3_auth_instance, key, b"bad-signature")
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=now)
+    url = url[:-1] + ("0" if url[-1] != "0" else "1")
+
+    r = requests.get(url, timeout=10)
+    assert r.status_code == 403
+
+
+def test_sigv4_header_auth_still_works(s3_auth_instance):
+    key = "presigned/header-auth.txt"
+    content = b"header-auth-ok"
+    _put_object_file(s3_auth_instance, key, content)
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    url = f"{s3_auth_instance['base']}/{BUCKET}/{key}"
+    r = requests.get(url, headers=_header_auth(s3_auth_instance["base"], key, now),
+                     timeout=10)
+
+    assert r.status_code == 200
+    assert r.content == content
+
+
+def test_session_token_rejected_by_default(s3_auth_instance):
+    key = "sts/default-reject.txt"
+    _put_object_file(s3_auth_instance, key, b"sts-default-reject")
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    url = f"{s3_auth_instance['base']}/{BUCKET}/{key}"
+    r = requests.get(
+        url,
+        headers=_header_auth(
+            s3_auth_instance["base"],
+            key,
+            now,
+            session_token="static-session-token",
+        ),
+        timeout=10,
+    )
+
+    assert r.status_code == 403
+
+
+def test_session_token_header_allowed_with_static_secret(s3_auth_sts_instance):
+    key = "sts/header-allowed.txt"
+    content = b"sts-header-allowed"
+    _put_object_file(s3_auth_sts_instance, key, content)
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    url = f"{s3_auth_sts_instance['base']}/{BUCKET}/{key}"
+    r = requests.get(
+        url,
+        headers=_header_auth(
+            s3_auth_sts_instance["base"],
+            key,
+            now,
+            session_token="static-session-token",
+        ),
+        timeout=10,
+    )
+
+    assert r.status_code == 200
+    assert r.content == content
+
+
+def test_session_token_presigned_allowed_with_static_secret(s3_auth_sts_instance):
+    key = "sts/presigned-allowed.txt"
+    content = b"sts-presigned-allowed"
+    _put_object_file(s3_auth_sts_instance, key, content)
+
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+    url = _presigned_get_url(
+        s3_auth_sts_instance["base"],
+        key,
+        request_time=now,
+        session_token="static-session-token",
+    )
+    r = requests.get(url, timeout=10)
+
+    assert r.status_code == 200
+    assert r.content == content

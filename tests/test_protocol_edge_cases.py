@@ -25,7 +25,7 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags, QueryCode
 from backend_matrix import root_endpoint_parts, selected_backend_name
-from settings import DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -33,7 +33,7 @@ from settings import DATA_ROOT as DEFAULT_DATA_ROOT
 
 CROSS_BACKEND = selected_backend_name()
 ANON_URL  = ""
-ANON_HOST = "127.0.0.1"
+ANON_HOST = SERVER_HOST
 ANON_PORT = 0
 DATA_DIR  = DEFAULT_DATA_ROOT
 

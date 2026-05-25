@@ -1,12 +1,26 @@
 #include "cache_internal.h"
 
-#if (NGX_THREADS)
 
 #include <fcntl.h>
 #include <regex.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
+/* ---- xrootd_cache_fetch_origin — origin file fetch and cache fill ----
+ *
+ * WHAT: Thread-pool worker function that fetches a complete file from the configured XRootD origin into a local `.part` file,
+ *       then atomically renames it to the cache path. Handles admission filtering (size + regex) before caching begins. */
+
+/* ---- Fetch protocol sequence ----
+ *
+ * HOW: Connect → bootstrap (handshake+login) → open source file → read loop → fsync local part → rename atomic.
+ *      Each phase is isolated with error cleanup (origin close on failure). Returns 1 for policy rejection, -1 for errors, 0 for success. */
+
+/* ---- Admission filter invariant ----
+ *
+ * WHY: Large files (> cache_max_file_size) are not cached unless basename matches include regex.
+ *      Rejection returns NGX_DECLINED (not error) so done callback redirects client to origin directly instead of failing. */
 
 int
 xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
@@ -57,8 +71,14 @@ xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
         }
     }
 
-    unlink(t->part_path);
-    outfd = open(t->part_path, O_CREAT | O_TRUNC | O_WRONLY | O_NOCTTY | O_CLOEXEC,
+    /*
+     * Open the part file in a single atomic call — O_CREAT|O_TRUNC creates or
+     * truncates, O_NOFOLLOW rejects any symlink placed at part_path between
+     * calls (prevents TOCTOU / symlink-swap attacks).  The prior unlink() was
+     * removed: it created a race window and is made redundant by O_TRUNC.
+     */
+    outfd = open(t->part_path,
+                 O_CREAT | O_TRUNC | O_WRONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW,
                  0644);
     if (outfd < 0) {
         xrootd_cache_origin_close_file(&oc, fhandle);
@@ -121,4 +141,3 @@ xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
     return 0;
 }
 
-#endif /* NGX_THREADS */

@@ -1,4 +1,12 @@
 #include "tpc_internal.h"
+/* ---- File: launch.c — TPC pull entry point and destination-side preparation for native root:// third-party copy ----
+ *
+ * WHAT: Six functions implement the TPC pull launch pipeline on the event thread. tpc_send_open_response builds kXR_ok open response body (fhandle + optional statbuf) → xrootd_queue_response; tpc_build_origin_id constructs origin ID string from ctx->login_user+ngx_pid+getnameinfo host via snprintf+cpystrn; tpc_destination_open_flags derives O_CREAT/O_EXCL/O_TRUNC flags from options bitmask for POSIX open; xrootd_tpc_prepare_pull validates thread_pool + TPC source host/path → checks src policy (allow_local/allow_private) → alloc fhandle idx → xrootd_open_confined(canonical path) → set file metadata (writable=1, tpc_destination=1) → generate+register key if empty → store token_mode → send open response; xrootd_tpc_start_pull validates fhandle_idx + tpc_destination flag → alloc ngx_thread_task → populate xrootd_tpc_pull_t struct from file fields → set handler=xrootd_tpc_pull_thread, event.handler=xrootd_tpc_pull_done → post to thread pool; xrootd_tpc_launch_pull is wrapper for prepare_pull. Non-NGX_THREADS stubs return kXR_ServerError "TPC pull requires NGX_THREADS support". Caller: dispatch.c (kXR_open TPC opaque param path).
+ *
+ * WHY: The destination server needs to create the local file handle before connecting to the source — this ensures the write target exists with correct permissions and metadata before the thread-pool worker starts pulling data. The launch pipeline separates preparation (event-thread, synchronous) from execution (thread-pool, blocking I/O), allowing nginx to respond immediately to the client open request while the actual fetch runs asynchronously.
+ *
+ * HOW: prepare_pull — conf->common.thread_pool == NULL → error; tpc->src_host/path empty → error; xrootd_tpc_check_src_policy → error if denied; idx = xrootd_alloc_fhandle(ctx) → fd = xrootd_open_confined(c->log, &conf->common.root, dst_path, tpc_destination_open_flags(options), create_mode) → fstat(fd, &st) → file[idx] metadata set (writable=1, readable=0, tpc_destination=1, tpc_key generated or echoed from tpc->key, token_mode stored) → send open response with fhandle idx + stat if kXR_retstat. start_pull — fhandle_idx valid + file->tpc_destination true → ngx_thread_task_alloc(sizeof(xrootd_tpc_pull_t)) → memcpy src_host/path/key/org/token_mode/dst_path from file fields → task->handler=xrootd_tpc_pull_thread, event.handler=xrootd_tpc_pull_done → ngx_thread_task_post(thread_pool, task) → file->tpc_started=1, ctx->state=XRD_ST_AIO.
+ * ------------------------------------------------------------------ */
 #include "../session/registry.h"
 
 #include <string.h>
@@ -6,10 +14,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#if (NGX_THREADS)
 #include <netdb.h>
-#endif
 
+/* WHAT: Build kXR_ok open response body (fhandle + optional statbuf from fstat) → xrootd_build_resp_hdr → xrootd_queue_response. Returns NGX_OK or NGX_ERROR on alloc failure. Caller: xrootd_tpc_prepare_pull (end of pull prep pipeline). */
 static ngx_int_t
 tpc_send_open_response(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     int fd, uint16_t options)
@@ -65,7 +72,7 @@ tpc_send_open_response(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_queue_response(ctx, c, buf, total);
 }
 
-#if (NGX_THREADS)
+/* WHAT: Construct origin ID string from ctx->login_user+ngx_pid+getnameinfo host via snprintf("%s.%u@host") — falls back to "xrd" for empty user, ngx_pid for zero pid, addr_text.len then "unknown" for unresolved host. Caller: xrootd_tpc_prepare_pull (origin ID storage step). */
 
 static void
 tpc_build_origin_id(xrootd_ctx_t *ctx, ngx_connection_t *c, char *dst,
@@ -113,7 +120,6 @@ tpc_build_origin_id(xrootd_ctx_t *ctx, ngx_connection_t *c, char *dst,
     }
 }
 
-
 static int
 tpc_destination_open_flags(uint16_t options)
 {
@@ -136,7 +142,7 @@ tpc_destination_open_flags(uint16_t options)
     return oflags;
 }
 
-
+/* WHAT: Derive O_CREAT/O_EXCL/O_TRUNC flags from options bitmask — kXR_new → O_CREAT+O_EXCL, kXR_delete → O_CREAT+O_TRUNC, neither → O_CREAT+O_TRUNC (default create-new). Always includes O_RDWR|O_NOCTTY. Caller: xrootd_tpc_prepare_pull (open flags step). */
 ngx_int_t
 xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
@@ -148,7 +154,7 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int            idx;
     int            fd;
 
-    if (conf->thread_pool == NULL) {
+    if (conf->common.thread_pool == NULL) {
         xrootd_log_access(ctx, c, "OPEN", dst_path, "tpc-pull",
                           0, kXR_ServerError, "TPC requires xrootd_thread_pool",
                           0);
@@ -195,7 +201,7 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     create_mode = (mode_bits & 0777) ? (mode_t) (mode_bits & 0777) : 0644;
-    fd = xrootd_open_confined(c->log, &conf->root, dst_path,
+    fd = xrootd_open_confined(c->log, &conf->common.root, dst_path,
                               tpc_destination_open_flags(options),
                               create_mode);
     if (fd < 0) {
@@ -271,7 +277,7 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return tpc_send_open_response(ctx, c, idx, fd, options);
 }
 
-
+/* WHAT: Allocate ngx_thread_task(sizeof(xrootd_tpc_pull_t)) → populate struct from file fields (src_host/path/key/org/token_mode/dst_path) → set handler=xrootd_tpc_pull_thread, event.handler=xrootd_tpc_pull_done → post to thread pool. Returns NGX_OK or error on alloc/post failure. Caller: dispatch.c (kXR_sync TPC launch path). */
 ngx_int_t
 xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, int fhandle_idx)
@@ -335,7 +341,7 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     task->event.handler = xrootd_tpc_pull_done;
     task->event.data = task;
 
-    if (ngx_thread_task_post(conf->thread_pool, task) != NGX_OK) {
+    if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
         xrootd_log_access(ctx, c, "SYNC", file->path, "tpc-pull",
                           0, kXR_ServerError, "thread post failed", 0);
         XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
@@ -348,7 +354,7 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
-
+/* WHAT: Wrapper for xrootd_tpc_prepare_pull — delegates full validation + fhandle allocation + confined fd open + metadata setup + key generation to prepare_pull. Returns prepare_pull result (NGX_OK or error). Caller: dispatch.c (kXR_open TPC opaque param path entry point). */
 ngx_int_t
 xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
@@ -358,38 +364,3 @@ xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                    mode_bits);
 }
 
-#else /* !NGX_THREADS */
-
-ngx_int_t
-xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
-    const char *dst_path, uint16_t options, uint16_t mode_bits)
-{
-    (void) conf; (void) tpc; (void) dst_path; (void) options; (void) mode_bits;
-    XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-    return xrootd_send_error(ctx, c, kXR_ServerError,
-                             "TPC pull requires NGX_THREADS support");
-}
-
-
-ngx_int_t
-xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, int fhandle_idx)
-{
-    (void) conf; (void) fhandle_idx;
-    XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
-    return xrootd_send_error(ctx, c, kXR_ServerError,
-                             "TPC pull requires NGX_THREADS support");
-}
-
-
-ngx_int_t
-xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
-    const char *dst_path, uint16_t options, uint16_t mode_bits)
-{
-    return xrootd_tpc_prepare_pull(ctx, c, conf, tpc, dst_path, options,
-                                   mode_bits);
-}
-
-#endif /* NGX_THREADS */

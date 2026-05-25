@@ -11,10 +11,11 @@ Run:
 import os
 import socket
 import struct
+import zlib
 
 import pytest
 
-from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Protocol constants
@@ -29,7 +30,9 @@ kXR_ping     = 3011
 
 # Query infotypes
 kXR_QStats   = 1
+kXR_QPrep    = 2
 kXR_Qcksum   = 3
+kXR_Qckscan  = 6
 kXR_Qspace   = 5
 kXR_Qconfig  = 7
 kXR_Qvisa    = 8
@@ -40,6 +43,7 @@ kXR_Qopaque  = 16
 kXR_ok       = 0
 kXR_error    = 4003
 kXR_ArgInvalid = 3000
+kXR_NotFound = 3011
 kXR_Unsupported = 3013
 
 # Open flags
@@ -52,7 +56,7 @@ kXR_dstat = 0x02
 # Module globals
 # ---------------------------------------------------------------------------
 
-ANON_HOST = "127.0.0.1"
+ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
 DATA_DIR  = DEFAULT_DATA_ROOT
 
@@ -60,7 +64,7 @@ DATA_DIR  = DEFAULT_DATA_ROOT
 @pytest.fixture(scope="module", autouse=True)
 def _configure(test_env):
     global ANON_HOST, ANON_PORT, DATA_DIR
-    ANON_HOST = "127.0.0.1"
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
     DATA_DIR  = test_env["data_dir"]
 
@@ -136,6 +140,10 @@ def _make_file(name, content=b"x"):
 
 def _make_dir(name):
     os.makedirs(os.path.join(DATA_DIR, name.lstrip("/")), exist_ok=True)
+
+
+def _adler_hex(data):
+    return f"{zlib.adler32(data) & 0xFFFFFFFF:08x}"
 
 
 # =========================================================================
@@ -400,7 +408,138 @@ class TestDirlistEdgeCases:
 
 
 # =========================================================================
-# Class 5 — Query Consistency
+# Class 5 — Checksum Query Coverage
+# =========================================================================
+
+class TestChecksumQueries:
+
+    def test_qcksum_crc32_known_file(self):
+        """kXR_Qcksum crc32 (ISO-3309) must return the zlib CRC32 as 8 hex chars."""
+        import zlib
+        payload = b"123456789"
+        _make_file("/qcrc32_known.bin", payload)
+        expected = zlib.crc32(payload) & 0xFFFFFFFF
+        sock = _session()
+        status, body = _query(sock, kXR_Qcksum, b"crc32:/qcrc32_known.bin\x00")
+        sock.close()
+        assert status == kXR_ok
+        text = body.rstrip(b"\x00").decode("ascii")
+        algo, hexval = text.split()
+        assert algo == "crc32"
+        assert int(hexval, 16) == expected
+
+    def test_qcksum_crc32_response_shape(self):
+        """crc32 response is 'crc32 XXXXXXXX' (8 lower-hex digits)."""
+        _make_file("/qcrc32_shape.bin", b"shape-test-crc32")
+        sock = _session()
+        status, body = _query(sock, kXR_Qcksum, b"crc32:/qcrc32_shape.bin\x00")
+        sock.close()
+        assert status == kXR_ok
+        text = body.rstrip(b"\x00").decode("ascii")
+        algo, hexval = text.split()
+        assert algo == "crc32"
+        assert len(hexval) == 8
+        int(hexval, 16)  # must be valid hex
+
+    def test_qcksum_crc32c_known_file(self):
+        _make_file("/qcrc32c_known.bin", b"123456789")
+        sock = _session()
+        status, body = _query(sock, kXR_Qcksum, b"crc32c:/qcrc32c_known.bin\x00")
+        sock.close()
+        assert status == kXR_ok
+        assert body.rstrip(b"\x00") == b"crc32c e3069283"
+
+    def test_qcksum_crc32c_response_shape(self):
+        _make_file("/qcrc32c_shape.bin", b"shape-test")
+        sock = _session()
+        status, body = _query(sock, kXR_Qcksum, b"crc32c:/qcrc32c_shape.bin\x00")
+        sock.close()
+        assert status == kXR_ok
+        text = body.rstrip(b"\x00").decode("ascii")
+        algo, hexval = text.split()
+        assert algo == "crc32c"
+        assert len(hexval) == 8
+        int(hexval, 16)
+
+    def test_qcksum_unknown_algorithm_still_errors(self):
+        _make_file("/qcrc32c_unknown_alg.bin", b"alg-test")
+        sock = _session()
+        status, body = _query(sock, kXR_Qcksum, b"bogus:/qcrc32c_unknown_alg.bin\x00")
+        sock.close()
+        assert status == kXR_error
+        assert _error_code(body) == kXR_ArgInvalid
+
+
+# =========================================================================
+# Class 6 — Qckscan
+# =========================================================================
+
+class TestQckscan:
+
+    def _lines(self, body):
+        text = body.rstrip(b"\x00").decode("utf-8", errors="replace")
+        return [line for line in text.splitlines() if line]
+
+    def test_qckscan_single_file(self):
+        data = b"single-file-qckscan"
+        _make_file("/qckscan_single.bin", data)
+        sock = _session()
+        status, body = _query(sock, kXR_Qckscan, b"/qckscan_single.bin\x00")
+        sock.close()
+        assert status == kXR_ok
+        assert self._lines(body) == [
+            f"adler32 {_adler_hex(data)}  /qckscan_single.bin"
+        ]
+
+    def test_qckscan_directory_tree(self):
+        a = b"alpha"
+        b = b"beta"
+        _make_dir("/qckscan_tree/sub")
+        _make_file("/qckscan_tree/a.bin", a)
+        _make_file("/qckscan_tree/sub/b.bin", b)
+        sock = _session()
+        status, body = _query(sock, kXR_Qckscan, b"/qckscan_tree\x00")
+        sock.close()
+        assert status == kXR_ok
+        assert set(self._lines(body)) == {
+            f"adler32 {_adler_hex(a)}  /qckscan_tree/a.bin",
+            f"adler32 {_adler_hex(b)}  /qckscan_tree/sub/b.bin",
+        }
+
+    def test_qckscan_nonexistent_path_errors(self):
+        sock = _session()
+        status, body = _query(sock, kXR_Qckscan, b"/qckscan_missing_xyz\x00")
+        sock.close()
+        assert status == kXR_error
+        assert _error_code(body) == kXR_NotFound
+
+    def test_qckscan_symlink_escape_is_not_followed(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "hidden.txt").write_bytes(b"hidden")
+
+        scan_dir = os.path.join(DATA_DIR, "qckscan_symlink")
+        os.makedirs(scan_dir, exist_ok=True)
+        _make_file("/qckscan_symlink/visible.txt", b"visible")
+
+        link_path = os.path.join(scan_dir, "outside")
+        try:
+            os.unlink(link_path)
+        except FileNotFoundError:
+            pass
+        os.symlink(str(outside), link_path)
+
+        sock = _session()
+        status, body = _query(sock, kXR_Qckscan, b"/qckscan_symlink\x00")
+        sock.close()
+        assert status == kXR_ok
+        text = body.decode("utf-8", errors="replace")
+        assert "visible.txt" in text
+        assert "hidden.txt" not in text
+
+
+# =========================================================================
+# Class 7 — Query Consistency
 # =========================================================================
 
 class TestQueryConsistency:

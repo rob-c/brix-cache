@@ -1,3 +1,9 @@
+/* ---- Function: fattr_del() — delete extended attributes from file ----
+ *
+ * WHAT: Iterates over requested attribute names and deletes each one using POSIX removexattr (path-based) or fremovexattr (open-file-handle). Records individual success/failure for every attribute deletion, then sends a vector status response summarizing how many deletions succeeded versus failed. Supports both operations modes: when path is provided uses removexattr on the filesystem; when fd is provided uses fremovexattr on the open file handle.
+ *
+ * WHY: Extended attribute deletion is batched — clients may request removal of multiple attributes in a single kXR_fattr_del opcode. Processing each attribute individually with error recording allows precise per-attribute status reporting rather than aborting on first failure. This matches XRootD semantics where partial success is valid and reported via vector status response (kXR_status, opcode 4007). Thread safety: no shared state — operates only on provided path/fd and local stack variables. */
+
 #include "fattr/ngx_xrootd_fattr.h"
 #include <errno.h>
 #include <sys/types.h>

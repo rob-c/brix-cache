@@ -3,7 +3,6 @@
 
 #include "../ngx_xrootd_module.h"
 
-#if (NGX_THREADS)
 
 /*
  * Cache fill operation constants.
@@ -74,6 +73,28 @@ typedef struct {
     char      err_msg[256]; /* human-readable error description */
 } xrootd_cache_fill_t;
 
+/*
+ * xrootd_wt_flush_t — write-through close/sync task context.
+ *
+ * The flush worker mirrors one local file to an XRootD origin by replacing the
+ * origin copy with the current local contents, then issuing truncate, sync, and
+ * close on the origin handle.  Async close owns a copy of this structure in an
+ * nginx thread task; sync close uses it on the stack.
+ */
+typedef struct {
+    ngx_stream_xrootd_srv_conf_t  *conf;
+    ngx_log_t                    *log;
+    ngx_xrootd_srv_metrics_t      *metrics;
+    char                          local_path[PATH_MAX];
+    char                          origin_path[PATH_MAX];
+    size_t                        bytes_flushed;
+    uint16_t                      mode_bits;
+    int                           result;
+    int                           xrd_error;
+    int                           sys_errno;
+    char                          err_msg[256];
+} xrootd_wt_flush_t;
+
 void xrootd_cache_set_error(xrootd_cache_fill_t *t, int xrd_error,
     int sys_errno, const char *msg);
 void xrootd_cache_set_syserror(xrootd_cache_fill_t *t, int xrd_error,
@@ -95,6 +116,8 @@ int xrootd_cache_wait_or_lock(xrootd_cache_fill_t *t, int *owned);
 void xrootd_cache_origin_close(xrootd_cache_origin_conn_t *oc);
 int xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc);
+int xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t port);
 
 int xrootd_cache_read_response(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, uint16_t *status, u_char **body,
@@ -106,11 +129,30 @@ int xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc);
 int xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, u_char fhandle[XRD_FHANDLE_LEN]);
+int xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *path, uint16_t mode_bits,
+    u_char fhandle[XRD_FHANDLE_LEN]);
 void xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
     const u_char fhandle[XRD_FHANDLE_LEN]);
 int xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
     int outfd, uint64_t offset, size_t want, size_t *got);
+int xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+    uint64_t offset, const u_char *data, size_t len);
+int xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+    uint64_t length);
+int xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN]);
+
+ngx_int_t xrootd_wt_flush_on_close(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf, int idx, const char *local_path);
+ngx_int_t xrootd_wt_flush_sync_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf, int idx, const char *local_path,
+    uint16_t fail_status);
+void xrootd_wt_flush_thread(void *data, ngx_log_t *log);
+void xrootd_wt_flush_done(ngx_event_t *ev);
 
 int xrootd_cache_fetch_origin(xrootd_cache_fill_t *t);
 void xrootd_cache_evict_if_needed(xrootd_cache_fill_t *t,
@@ -118,6 +160,5 @@ void xrootd_cache_evict_if_needed(xrootd_cache_fill_t *t,
 void xrootd_cache_fill_thread(void *data, ngx_log_t *log);
 void xrootd_cache_fill_done(ngx_event_t *ev);
 
-#endif /* NGX_THREADS */
 
 #endif /* XROOTD_CACHE_INTERNAL_H */

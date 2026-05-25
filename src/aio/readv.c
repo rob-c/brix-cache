@@ -1,6 +1,17 @@
 #include "ngx_xrootd_module.h"
 
-#if (NGX_THREADS)
+/*
+ * Section: kXR_readv async I/O — multi-segment parallel read for large files.
+ *
+ * This file implements the thread-pool offload for xrdcp's segmented read mode,
+ * where a single request is split into multiple segments and each segment is
+ * fetched by pread(2) on a worker thread. The response is assembled as:
+ *   [segment header][segment payload] × N_segments
+ *
+ * Two functions: the _thread function does the blocking I/O; the _done callback
+ * builds the response chain on the main event loop and resumes connection flow.
+ */
+
 
 /*
  * xrootd_readv_aio_thread — thread-pool worker for kXR_readv.
@@ -49,7 +60,26 @@ xrootd_readv_aio_thread(void *data, ngx_log_t *log)
                         + t->bytes_read_total;
 }
 
-
+/*
+ * xrootd_readv_aio_done — main-thread response builder for kXR_readv AIO completion.
+ *
+ * WHAT: Reconstructs the XRootD response chain after the worker thread finishes reading
+ * all segments in a segmented read request. The response consists of multiple segment headers
+ * (each containing segment size, handle index, offset) followed by their corresponding payload data.
+ * Unlike standard kXR_read, each segment has its own header describing which file and offset
+ * it corresponds to — enabling clients to reassemble fragments from potentially different sources.
+ *
+ * WHY: kXR_readv enables parallel multi-segment reads for large files where segments can be fetched
+ * concurrently across different file descriptors or offsets. This callback must handle four distinct paths:
+ * connection teardown (free segments + buffer), I/O error (send IOError message), success (build chain,
+ * update counters), and allocation failure (release before resume). The segment array is dynamically allocated
+ * by the main thread and freed here after all processing completes.
+ *
+ * HOW: 1) Restore request context via xrootd_aio_restore_request(). 2) Free segments on failure path.
+ *   3) On I/O error: send kXR_IOError with t->err_msg, release buffers, resume.
+ *   4) On success: update session_bytes and per-handle bytes_read for each segment, build chunked chain via
+ *      xrootd_build_chunked_chain(), queue response, free segments array, resume connection events.
+ */
 void
 xrootd_readv_aio_done(ngx_event_t *ev)
 {
@@ -100,4 +130,3 @@ xrootd_readv_aio_done(ngx_event_t *ev)
     xrootd_aio_resume(c);
 }
 
-#endif /* NGX_THREADS */

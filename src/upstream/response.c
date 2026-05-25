@@ -1,5 +1,20 @@
 #include "upstream_internal.h"
 
+/*
+ * WHAT: Translate upstream XRootD responses back to the client — kXR_redirect, kXR_wait, kXR_ok, and
+ *      kXR_error handling with header reconstruction and state transitions.
+ * WHY: The proxy relays opaque wire frames between client and backend server. Upstream responses must be
+ *      re-wrapped with a fresh ServerResponseHdr using the client's streamid (not upstream's), then queued
+ *      for delivery to the client connection. Special cases redirect (cleanup upstream, resume client read),
+ *      wait (schedule retry timer), and error (extract errno+message). State machine transitions ensure
+ *      correct sequencing across proxy lifecycle phases.
+ * HOW: Single function xrootd_upstream_forward_response() with switch(status) covering all four response types.
+ *      kXR_redirect rebuilds header + body, cleans upstream, queues to client. kXR_wait extracts seconds from
+ *      body, sets timer handler, re-arms read event (epoll ET mode edge recovery). kXR_ok rebuilds header +
+ *      body, cleans upstream, queues. kXR_error extracts errno/code/message, sends error frame. Default case
+ *      aborts on unexpected status.
+ */
+
 void
 xrootd_upstream_forward_response(xrootd_upstream_t *up)
 {
@@ -76,6 +91,15 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
         up->timer.data = up;
         up->timer.log = c->log;
         ngx_add_timer(&up->timer, (ngx_msec_t) secs * 1000);
+
+        /* Re-arm the read event: with epoll ET mode a follow-up response
+         * (e.g. kXR_redirect arriving in the same TCP segment as kXR_wait)
+         * is already buffered in the kernel but won't trigger a new edge.
+         * Re-registering ensures nginx reads it without waiting for the
+         * retry timer. */
+        if (ngx_handle_read_event(up->conn->read, 0) != NGX_OK) {
+            xrootd_upstream_abort(up, "upstream read arm failed after kXR_wait");
+        }
         return;
     }
 

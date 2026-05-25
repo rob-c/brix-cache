@@ -28,6 +28,8 @@ RUN dnf install -y epel-release && \
         openssl-devel \
         pcre2-devel \
         zlib-devel \
+        libxml2-devel \
+        jansson-devel \
     && dnf clean all
 
 ARG VERSION=0.1.0

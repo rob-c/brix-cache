@@ -1,6 +1,5 @@
 #include "tpc_internal.h"
 
-#if (NGX_THREADS)
 
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +9,14 @@
 #if defined(__linux__)
 #include <endian.h>
 #endif
+
+/* ---- File: source.c — TPC remote source pull (open → read loop → close) ----
+ *
+ * WHAT: Single public function `tpc_pull_from_source()` executes the complete native XRootD third-party-copy fetch from a remote origin into dst_fd. Phase 1 → builds ClientOpenRequest with src_path + opaque key/org params, sends kXR_open to remote, receives ServerOpenBody fhandle (handles both minimal 4-byte and full 12+ byte responses), extracts fhandle; Phase 2 → streaming read loop via repeated kXR_read requests at TPC_CHUNK_SIZE offsets, accumulates kXR_oksofar + kXR_ok frames per request, writes each frame's body bytes to dst_fd via write() (EINTR retry), tracks offset advancement and total bytes_written; Phase 3 → fsync(dst_fd) for durability, sets result=NGX_OK/xrd_error=0, best-effort remote close via kXR_close. Returns -1 on failure with error message + xrd_error code, 0 on success.
+ *
+ * WHY: TPC (Third-Party Copy) transfers require the destination server to connect to a remote root:// origin, open the source file, stream all bytes into dst_fd, and close the remote handle. This function encapsulates the entire pull lifecycle — open → read loop → fsync → close — so launch.c/thread.c can delegate it to a thread-pool worker without managing the protocol sequence themselves. Handles peer diversity (minimal vs full ServerOpenBody), oksofar accumulation for large reads, EINTR-safe writes, and best-effort remote cleanup on failure paths.
+ *
+ * HOW: Build open_buf with ClientOpenRequest header + src_path + opaque "?tpc.key=...&tpc.org=..." → send_all(fd) kXR_open → recv_response fd status/body → check kXR_ok + dlen>=XRD_FHANDLE_LEN → memcpy fhandle → free(body) → offset=0 loop: build ClientReadRequest with streamid[1]=3, kXR_read, fhandle, htobe64(offset), htonl(TPC_CHUNK_SIZE) → send_all → inner for-loop: recv_response accumulating kXR_oksofar/kXR_ok frames → write body bytes to dst_fd (EINTR continue, failure=break) → got_this_req+=dlen → offset+=got_this_req → outer loop exits when done=1(got_this_req==0/EOF) or failed=1 → fsync(dst_fd) → goto close_remote: build ClientCloseRequest with kXR_close + fhandle → send_all + recv_response (best-effort, discard result). */
 
 /* ------------------------------------------------------------------ */
 /* Remote file open, streaming read loop, and protocol-level close       */
@@ -253,4 +260,3 @@ close_remote:
     return rc;
 }
 
-#endif /* NGX_THREADS */

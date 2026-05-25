@@ -27,7 +27,10 @@ import time
 
 import pytest
 
-from settings import CA_DIR, DATA_ROOT
+from settings import CA_DIR, DATA_ROOT, SERVER_HOST
+
+ANON_HOST = SERVER_HOST
+ANON_PORT = 0
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +87,7 @@ def _establish_primary(url_port):
     Returns (sock, sessid, streamid).
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(("127.0.0.1", url_port))
+    sock.connect((ANON_HOST, url_port))
 
     # Handshake
     handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
@@ -133,7 +136,8 @@ def _read_handle(sock, streamid, fhandle, length, offset=0):
 @pytest.fixture(scope="module")
 def bind_nginx(test_env):
     """Use the shared anonymous nginx endpoint for bind tests."""
-    global ANON_PORT
+    global ANON_HOST, ANON_PORT
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
     yield ANON_PORT
 
@@ -151,7 +155,7 @@ class TestBindValid:
 
         # Open a secondary connection and send bind
         sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sec_sock.connect(("127.0.0.1", bind_nginx))
+        sec_sock.connect((ANON_HOST, bind_nginx))
 
         # Handshake on secondary
         handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
@@ -184,7 +188,7 @@ class TestBindValid:
 
         # Secondary connection — no login, just bind + read
         sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sec_sock.connect(("127.0.0.1", bind_nginx))
+        sec_sock.connect((ANON_HOST, bind_nginx))
 
         handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
         sec_sock.sendall(handshake)
@@ -210,7 +214,7 @@ class TestBindValid:
         primary_sock, sessid, _ = _establish_primary(bind_nginx)
 
         sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sec_sock.connect(("127.0.0.1", bind_nginx))
+        sec_sock.connect((ANON_HOST, bind_nginx))
 
         handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
         sec_sock.sendall(handshake)
@@ -243,7 +247,7 @@ class TestBindPathidCycling:
         pathids = []
         for i in range(5):
             sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sec_sock.connect(("127.0.0.1", bind_nginx))
+            sec_sock.connect((ANON_HOST, bind_nginx))
 
             handshake = struct.pack(">4I", 0, 0, 0, 4) + struct.pack(">I", 2012)
             sec_sock.sendall(handshake)
@@ -272,7 +276,7 @@ class TestBindInvalidSessid:
         random_sessid = os.urandom(16)
 
         sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sec_sock.connect(("127.0.0.1", bind_nginx))
+        sec_sock.connect((ANON_HOST, bind_nginx))
 
         handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
         sec_sock.sendall(handshake)
@@ -298,7 +302,7 @@ class TestBindNoHandshake:
         The server expects the 20-byte client hello before processing any request.
         """
         sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sec_sock.connect(("127.0.0.1", bind_nginx))
+        sec_sock.connect((ANON_HOST, bind_nginx))
 
         # Skip handshake — send bind directly
         random_sessid = os.urandom(16)
@@ -336,7 +340,7 @@ class TestBindWithPathidTag:
 
         # Secondary: bind + read with pathid tag
         sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sec_sock.connect(("127.0.0.1", bind_nginx))
+        sec_sock.connect((ANON_HOST, bind_nginx))
 
         handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
         sec_sock.sendall(handshake)
@@ -373,7 +377,7 @@ class TestBindMultipleOnSamePrimary:
         pathids = []
         for i in range(3):
             sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sec_sock.connect(("127.0.0.1", bind_nginx))
+            sec_sock.connect((ANON_HOST, bind_nginx))
 
             handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
             sec_sock.sendall(handshake)

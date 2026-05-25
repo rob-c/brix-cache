@@ -38,6 +38,14 @@ does not stall the nginx event loop.
 | `io.c` | thread pool | Low-level socket helpers: `send_all`, `recv_all`, and the XRootD response framer `xrootd_tpc_read_response`. |
 | `done.c` | event thread | Completion callback — sends the deferred `kXR_open` success response or error after the thread finishes. |
 | `tpc_internal.h` | — | Shared types (`xrootd_tpc_params_t`, `xrootd_tpc_pull_t`, `xrootd_tpc_conn_t`) and internal API declarations. |
+| `gsi_outbound_certreq.c` | GSI outbound certificate request: build and send XrdSutBuffer cert chain |
+| `gsi_outbound_common.c` | Shared GSI outbound helpers: buffer allocation, step sequencing |
+| `gsi_outbound_dh_helpers.c` | Diffie-Hellman key exchange: DH parameter generation and shared secret derivation |
+| `gsi_outbound_exchange.c` | GSI certificate/DH exchange protocol between source and destination |
+| `gsi_outbound_finish.c` | Finalize GSI handshake with source server |
+| `key_registry.c` | SHM-based TPC key registry — cross-process zero-copy file handle coordination |
+| `key_registry.h` | Key registry types and prototypes |
+| `tpc_token.c` | Token-authenticated TPC: JWT credential forwarding to remote source |
 
 ## Thread-safety note
 

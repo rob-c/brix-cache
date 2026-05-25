@@ -1,0 +1,29 @@
+---
+# ConfigMap holding the JWKS JSON is created at deploy time by
+# launch-xrootd-integration.sh (it runs generate-jwt-keys.py first).
+# This placeholder records the structure; the real data is patched in.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jwks-data
+  namespace: xrootd-integration
+data:
+  # Populated by launch-xrootd-integration.sh --auth-mode token|both.
+  jwks.json: |
+    {"keys":[]}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: xrootd-scitokens-config
+  namespace: xrootd-integration
+data:
+  scitokens.cfg: |
+    [Global]
+    audience = xrootd-test
+
+    [Issuer https://test.xrootd.local]
+    issuer = https://test.xrootd.local
+    base_path = /
+    default_user = xrootd
+    map_subject = false

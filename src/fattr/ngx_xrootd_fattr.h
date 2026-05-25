@@ -91,7 +91,8 @@ ngx_int_t fattr_del(xrootd_ctx_t *ctx, ngx_connection_t *c,
 /*
  * fattr_list — enumerate all "user.U.*" xattrs via listxattr(2) and send
  * the names as a kXR_fattr response.
- * options: kXR_fattrRecurse flag (currently not supported; returns empty list).
+ * options: kXR_fa_aData returns values; kXR_fa_recurse (local extension)
+ *   walks subdirectories and emits "<relpath>:<U.name>\0" entries.
  */
 ngx_int_t fattr_list(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const char *path, int fd, int options);

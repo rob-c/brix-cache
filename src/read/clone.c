@@ -9,82 +9,31 @@
  * Each item copies src_len bytes from src_offset in the source file to
  * dst_offset in the destination file.  Uses copy_file_range(2) for
  * same-filesystem copies; falls back to pread/pwrite for cross-filesystem.
+ *
+ * WHAT: Implements kXR_clone (3032), a server-side range-copy operation that copies multiple byte ranges
+ * from one source file into a single destination file in a single protocol round-trip.
+ *
+ * WHY: Clone avoids client-server data transfer — the copy happens entirely on the server using zero-copy
+ * syscalls when possible. The batched wire format lets clients specify arbitrary source ranges and
+ * destination offsets without multiple individual requests, reducing latency and network bandwidth.
+ *
+ * HOW: Parse clone_item array from payload (32 bytes each), validate dst_fhandle for write access and each
+ * src_fhandle for read access via xrootd_validate_write_handle/xrootd_validate_read_handle, decode big-endian
+ * uint64 fields (src_offset, src_len, dst_offset) with be64toh, iterate items calling xrootd_copy_range() for
+ * each (which uses copy_file_range when same filesystem or pread/pwrite fallback otherwise), skip zero-length
+ * items silently, accumulate total_bytes into file.bytes_written and session_bytes counters, return kXR_OK with
+ * byte count via XROOTD_RETURN_OK.
  */
 
 #include "clone.h"
 #include "../connection/fd_table.h"
+#include "../compat/copy_range.h"
 
 #include <errno.h>
 #include <unistd.h>
 
 #define CLONE_ITEM_LEN   32u      /* sizeof(clone_item) */
 #define CLONE_MAX_ITEMS  1024u    /* maxClonesz from XProtocol.hh */
-#define CLONE_COPY_BUF   (256 * 1024)  /* fallback pread/pwrite chunk */
-
-
-static ngx_int_t
-clone_copy_range(ngx_connection_t *c, int src_fd, off_t src_off,
-    int dst_fd, off_t dst_off, size_t len,
-    const char *src_path, const char *dst_path)
-{
-#if defined(__linux__) && defined(__NR_copy_file_range)
-    /* Attempt kernel-side copy — zero user-space buffering. */
-    while (len > 0) {
-        loff_t  si = src_off;
-        loff_t  di = dst_off;
-        ssize_t n  = syscall(__NR_copy_file_range,
-                             src_fd, &si, dst_fd, &di, len, 0u);
-        if (n < 0) {
-            if (errno == EXDEV || errno == ENOSYS || errno == EOPNOTSUPP) {
-                goto fallback;
-            }
-            ngx_log_error(NGX_LOG_ERR, c->log, errno,
-                          "xrootd: clone copy_file_range failed %s->%s",
-                          src_path, dst_path);
-            return NGX_ERROR;
-        }
-        if (n == 0) {
-            break;  /* src EOF */
-        }
-        src_off += n;
-        dst_off += n;
-        len     -= (size_t) n;
-    }
-    return NGX_OK;
-
-fallback:
-#endif
-    {
-        u_char  buf[CLONE_COPY_BUF];
-        while (len > 0) {
-            size_t  want = (len < CLONE_COPY_BUF) ? len : CLONE_COPY_BUF;
-            ssize_t nr   = pread(src_fd, buf, want, src_off);
-            ssize_t nw;
-
-            if (nr < 0) {
-                ngx_log_error(NGX_LOG_ERR, c->log, errno,
-                              "xrootd: clone pread failed %s", src_path);
-                return NGX_ERROR;
-            }
-            if (nr == 0) {
-                break;  /* src EOF */
-            }
-
-            nw = pwrite(dst_fd, buf, (size_t) nr, dst_off);
-            if (nw != nr) {
-                ngx_log_error(NGX_LOG_ERR, c->log, errno,
-                              "xrootd: clone pwrite failed %s", dst_path);
-                return NGX_ERROR;
-            }
-
-            src_off += nr;
-            dst_off += nw;
-            len     -= (size_t) nr;
-        }
-    }
-    return NGX_OK;
-}
-
 
 ngx_int_t
 xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -161,10 +110,10 @@ xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
             continue;
         }
 
-        if (clone_copy_range(c, ctx->files[src_idx].fd, src_off,
-                             dst_fd, dst_off, copy_len,
-                             ctx->files[src_idx].path,
-                             ctx->files[dst_idx].path) != NGX_OK)
+        if (xrootd_copy_range(c->log, ctx->files[src_idx].fd, src_off,
+                              dst_fd, dst_off, copy_len,
+                              ctx->files[src_idx].path,
+                              ctx->files[dst_idx].path) != NGX_OK)
         {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CLONE, "CLONE",
                               ctx->files[src_idx].path,

@@ -2,6 +2,53 @@
 #include "../proxy/proxy.h"
 #include "../proxy/proxy_internal.h"
 
+/* ------------------------------------------------------------------ */
+/* Session Lifecycle — kXR_ping and kXR_endsess handlers              */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements three session-level lifecycle requests that do not
+ *       involve any file I/O or namespace operations. They keep the TCP
+ *       connection alive (PING) or terminate it cleanly (ENDSESS).
+ *
+ * WHY: These opcodes are simple but critical for operational health monitoring:
+ *      PING is used by clients and proxy gateways to verify that their XRootD
+ *      server is responsive. ENDSESS allows a client to explicitly close its
+ *      session rather than relying on TCP-level disconnect, which gives us time
+ *      to log throughput metrics, release open file handles, and clear auth state.
+ *
+ * HOW: Both functions return kXR_ok immediately — they are pure bookkeeping ops
+ *      with no data transfer involved. ENDSESS additionally performs cleanup:
+ *      closing all open files in fd_table.c, resetting logged_in/auth_done flags,
+ *      and (in proxy mode) forwarding the endsess signal to the upstream server. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Ping — Liveness Check                                      */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: kXR_ping is a no-op request that simply confirms the server is alive.
+ *       Clients send it periodically (typically every 10–30 seconds) to verify
+ *       their connection hasn't silently dropped. The handler does nothing but
+ *       log the request and return kXR_ok — no state change, no data transfer.
+ *
+ * WHY: In high-availability deployments where servers may restart or network
+ *      partitions occur, clients need a way to detect stale connections before
+ *      attempting expensive file operations that would fail anyway.
+ *
+ * HOW: The handler increments the PING operation counter (XROOTD_OP_PING),
+ *      writes an access-log entry with detail "PING" and status 1 (success),
+ *      then returns kXR_ok via xrootd_send_ok(). No body payload is required. */
+
+/* ---- Function: xrootd_handle_ping() ----
+ *
+ * WHAT: Handles the kXR_ping opcode — a simple liveness check that returns ok
+ *       without any state transition or data transfer. Called by clients to verify
+ *       their connection is still alive with the XRootD server.
+ *
+ * WHY: Minimal overhead operation used for health monitoring in production deployments.
+ *      Clients typically ping every 10–30 seconds; high ping rates may indicate network issues.
+ *
+ * HOW: Logs access entry → increments PING counter → returns kXR_ok response with no body. */
+
 /* kXR_ping - liveness check */
 ngx_int_t
 xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -11,6 +58,41 @@ xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c)
     XROOTD_OP_OK(ctx, XROOTD_OP_PING);
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
+
+/* ------------------------------------------------------------------ */
+/* Section: End Session — Graceful Termination                          */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: kXR_endsess is the client's explicit request to terminate its session.
+ *       Unlike a TCP-level disconnect (which can happen silently due to network
+ *       issues), this opcode gives us structured cleanup time to log metrics,
+ *       release all open file handles, and clear authentication state.
+ *
+ * WHY: In production deployments, especially with GSI certificates that expire,
+ *      clients may end their session when their proxy certificate expires rather
+ *      than continuing to use stale credentials. We need to enforce this boundary
+ *      by clearing auth flags so no further operations are allowed on the connection.
+ *
+ * HOW: Three-phase cleanup sequence:
+ *      1. Proxy forwarding (if enabled): send endsess frame to upstream server
+ *         so it can record final stats and release slots gracefully
+ *      2. Local cleanup: disconnect handler + close all open file handles
+ *      3. Security enforcement: clear logged_in/auth_done flags — dispatcher
+ *         will reject any subsequent requests on this TCP connection */
+
+/* ---- Function: xrootd_handle_endsess() ----
+ *
+ * WHAT: Handles the kXR_endsess opcode — gracefully terminates a client session by:
+ *       (1) forwarding endsess to upstream in proxy mode, (2) closing all open files,
+ *       (3) clearing authentication state (logged_in=0, auth_done=0), and returning kXR_ok.
+ *
+ * WHY: Provides structured session cleanup with security enforcement. Without this,
+ *      a client could continue file operations after their GSI proxy certificate expired
+ *      or they explicitly wanted to end their session — bypassing both session-end semantics
+ *      and auth expiry enforcement.
+ *
+ * HOW: Three-phase sequence → proxy forward (fire-and-forget) → local cleanup (disconnect + close files) →
+ *      security clear (logged_in=0, auth_done=0) → return kXR_ok response with no body payload. */
 
 /* kXR_endsess - client wants to end the session gracefully */
 ngx_int_t
@@ -29,6 +111,8 @@ xrootd_handle_endsess(xrootd_ctx_t *ctx, ngx_connection_t *c)
      */
     if (ctx->proxy != NULL) {
         xrootd_proxy_ctx_t *proxy = (xrootd_proxy_ctx_t *) ctx->proxy;
+
+        proxy->no_pool = 1;
 
         if (proxy->state == XRD_PX_IDLE && proxy->conn != NULL) {
             u_char frame[XRD_REQUEST_HDR_LEN + 16]; /* hdr + 16-byte sessid */

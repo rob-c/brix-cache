@@ -52,7 +52,7 @@ Servers
 -------
     nginx-xrootd:
         XRootD+GSI    root://localhost:11095
-        WebDAV+GSI    davs://localhost:8443
+        WebDAV+GSI    davs://localhost:8444
         WebDAV+token  davs://localhost:8443  (Bearer token in env)
 
     xrootd native:
@@ -87,8 +87,10 @@ NGINX_XRD_GSI_URL       = "root://localhost:11095"
 NGINX_XRD_TLS_URL       = "roots://localhost:11096"  # stream-level TLS, auth none
 NGINX_XRD_GSI_TLS_URL   = "roots://localhost:11097"  # stream-level TLS, auth gsi
 NGINX_XRD_ANON_URL      = "root://localhost:11093"   # perf config anon port
-NGINX_DAV_URL           = "davs://localhost:8443"
-NGINX_DAV_HTTP_URL      = "https://localhost:8443"   # for curl
+NGINX_DAV_GSI_URL       = "davs://localhost:8444"
+NGINX_DAV_GSI_HTTP_URL  = "https://localhost:8444"   # for curl
+NGINX_DAV_TOKEN_URL     = "davs://localhost:8443"
+NGINX_DAV_TOKEN_HTTP_URL = "https://localhost:8443"  # for curl
 
 XROOTD_GSI_URL      = "root://localhost:12094"   # official xrootd GSI instance
 XROOTD_ANON_URL     = "root://localhost:12093"   # official xrootd anon instance
@@ -548,13 +550,15 @@ def build_suites(target: str, filename: str, concurrency: list[int],
         xrd_tls_url      = NGINX_XRD_TLS_URL
         xrd_gsi_tls_url  = NGINX_XRD_GSI_TLS_URL
         xrd_anon_url     = NGINX_XRD_ANON_URL
-        dav_url          = NGINX_DAV_HTTP_URL
+        dav_gsi_url      = NGINX_DAV_GSI_HTTP_URL
+        dav_token_url    = NGINX_DAV_TOKEN_HTTP_URL
     else:
         xrd_gsi_url      = XROOTD_GSI_URL
         xrd_tls_url      = None   # xrootd native has no stream-TLS endpoint
         xrd_gsi_tls_url  = None
         xrd_anon_url     = XROOTD_ANON_URL
-        dav_url          = XROOTD_DAV_HTTP_URL
+        dav_gsi_url      = XROOTD_DAV_HTTP_URL
+        dav_token_url    = XROOTD_DAV_HTTP_URL
 
     suites = []
 
@@ -611,7 +615,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
             suites.append(Suite(
                 label="WebDAV davs:// + GSI (read)",
                 worker_fn=_webdav_read_worker,
-                arg_fn=lambda n: _read_args_dav(dav_url, filename, n,
+                arg_fn=lambda n: _read_args_dav(dav_gsi_url, filename, n,
                                                  proxy=PROXY_PEM),
                 concurrency=concurrency,
             ))
@@ -620,7 +624,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
             suites.append(Suite(
                 label="WebDAV davs:// + token (read)",
                 worker_fn=_webdav_read_worker,
-                arg_fn=lambda n, t=token: _read_args_dav(dav_url, filename, n,
+                arg_fn=lambda n, t=token: _read_args_dav(dav_token_url, filename, n,
                                                           token=t),
                 concurrency=concurrency,
             ))
@@ -640,7 +644,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
             suites.append(Suite(
                 label="WebDAV davs:// + GSI (write)",
                 worker_fn=_webdav_write_worker,
-                arg_fn=lambda n: _write_args_dav(dav_url, src_file, n,
+                arg_fn=lambda n: _write_args_dav(dav_gsi_url, src_file, n,
                                                   proxy=PROXY_PEM),
                 concurrency=concurrency,
             ))
@@ -650,7 +654,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
                 label="WebDAV davs:// + token (write)",
                 worker_fn=_webdav_write_worker,
                 arg_fn=lambda n, t=token: _write_args_dav(
-                    dav_url, src_file, n, token=t),
+                    dav_token_url, src_file, n, token=t),
                 concurrency=concurrency,
             ))
 

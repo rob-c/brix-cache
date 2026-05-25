@@ -32,6 +32,8 @@ RUN dnf install -y epel-release && \
         openssl-devel \
         pcre2-devel \
         zlib-devel \
+        libxml2-devel \
+        jansson-devel \
     && dnf clean all
 
 # If nginx-mod-devel is not available in EPEL 8, uncomment the block below:

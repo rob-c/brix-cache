@@ -29,7 +29,6 @@ from pathlib import Path
 
 import pytest
 from settings import (
-    NGINX_BIN,
     PKI_DIR as PKI_DIR_STR,
     WEBDAV_TPC_DEST_CADIR_PORT,
     WEBDAV_TPC_DEST_CAFILE_PORT,
@@ -38,9 +37,8 @@ from settings import (
     WEBDAV_TPC_DEST_READONLY_PORT,
     WEBDAV_TPC_SOURCE_OPEN_PORT,
     WEBDAV_TPC_SOURCE_REQUIRED_PORT,
+    TEST_ROOT,
     XRDHTTP_HTTP_PORT,
-    XRDHTTP_ROOT_PORT,
-    XROOTD_BIN,
 )
 
 PKI_DIR = Path(PKI_DIR_STR)
@@ -79,8 +77,6 @@ class ReferenceXrdHttp:
 
 
 def _require_common_tools():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     if shutil.which("curl") is None:
         pytest.skip("curl not found")
     for path in (CA_PEM, CLIENT_CERT, CLIENT_KEY, SERVER_CERT, SERVER_KEY):
@@ -152,31 +148,6 @@ def _copy_code(dest_port: int, dest_path: str, source_url: str, *headers, timeou
     return int(result.stdout.strip())
 
 
-def _wait_for_https(port: int, proc, timeout=10):
-    deadline = time.monotonic() + timeout
-    last_stderr = b""
-    while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            return False, last_stderr
-        try:
-            result = _curl(
-                "-X",
-                "OPTIONS",
-                f"https://localhost:{port}/",
-                "-o",
-                "/dev/null",
-                timeout=3,
-            )
-        except subprocess.TimeoutExpired:
-            time.sleep(0.2)
-            continue
-        last_stderr = result.stderr
-        if result.returncode == 0:
-            return True, last_stderr
-        time.sleep(0.2)
-    return False, last_stderr
-
-
 def _write(path: Path, content: bytes):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
@@ -191,23 +162,15 @@ def _wait_for_file(path: Path, content: bytes, timeout=10):
     return False
 
 
-def _xrd_library(*names):
-    for dirname in (Path("/usr/lib64"), Path("/usr/lib")):
-        for name in names:
-            candidate = dirname / name
-            if candidate.exists():
-                return candidate
-    return None
-
-
 @pytest.fixture(scope="session", autouse=True)
-def tpc_nginx(tmp_path_factory):
+def tpc_nginx():
     _require_common_tools()
 
-    workdir = tmp_path_factory.mktemp("webdav-tpc-nginx")
+    workdir = Path(TEST_ROOT) / "dedicated" / "webdav-tpc"
+    data_root = Path(TEST_ROOT) / "data-webdav-tpc"
 
     roots = {
-        name: workdir / "data" / name
+        name: data_root / name
         for name in (
             "source_required",
             "source_open",
@@ -231,33 +194,6 @@ def tpc_nginx(tmp_path_factory):
         "dest_readonly": WEBDAV_TPC_DEST_READONLY_PORT,
     }
 
-    import server_control
-    info = server_control.start_nginx_instance(
-        port=ports["source_required"], nginx_bin=NGINX_BIN,
-        conf_file="nginx_webdav_tpc.conf",
-        template_kwargs={
-            "SOURCE_REQUIRED_PORT": ports["source_required"],
-            "SOURCE_REQUIRED_ROOT": roots["source_required"],
-            "SOURCE_OPEN_PORT": ports["source_open"],
-            "SOURCE_OPEN_ROOT": roots["source_open"],
-            "DEST_CAFILE_PORT": ports["dest_cafile"],
-            "DEST_CAFILE_ROOT": roots["dest_cafile"],
-            "DEST_CADIR_PORT": ports["dest_cadir"],
-            "DEST_CADIR_ROOT": roots["dest_cadir"],
-            "DEST_NO_SERVICE_CERT_PORT": ports["dest_no_service_cert"],
-            "DEST_NO_SERVICE_CERT_ROOT": roots["dest_no_service_cert"],
-            "DEST_DISABLED_PORT": ports["dest_disabled"],
-            "DEST_DISABLED_ROOT": roots["dest_disabled"],
-            "DEST_READONLY_PORT": ports["dest_readonly"],
-            "DEST_READONLY_ROOT": roots["dest_readonly"],
-            "CA_PEM": CA_PEM,
-            "CA_DIR": CA_DIR,
-            "CLIENT_CERT": CLIENT_CERT,
-            "CLIENT_KEY": CLIENT_KEY,
-        },
-    )
-
-    # Wait for each HTTPS endpoint to respond to OPTIONS
     for port in ports.values():
         ok = False
         for _ in range(40):
@@ -278,123 +214,61 @@ def tpc_nginx(tmp_path_factory):
                 break
             time.sleep(0.2)
         if not ok:
-            info["stop"]()
             pytest.fail(f"nginx WebDAV TPC fixture did not start on port {port}.")
 
-    try:
-        yield TpcNginx(
-            workdir=workdir,
-            source_required_port=ports["source_required"],
-            source_open_port=ports["source_open"],
-            dest_cafile_port=ports["dest_cafile"],
-            dest_cadir_port=ports["dest_cadir"],
-            dest_no_service_cert_port=ports["dest_no_service_cert"],
-            dest_disabled_port=ports["dest_disabled"],
-            dest_readonly_port=ports["dest_readonly"],
-            source_required_root=roots["source_required"],
-            source_open_root=roots["source_open"],
-            dest_cafile_root=roots["dest_cafile"],
-            dest_cadir_root=roots["dest_cadir"],
-            dest_no_service_cert_root=roots["dest_no_service_cert"],
-            dest_disabled_root=roots["dest_disabled"],
-            dest_readonly_root=roots["dest_readonly"],
-        )
-    finally:
-        try:
-            info["stop"]()
-        except Exception:
-            pass
+    yield TpcNginx(
+        workdir=workdir,
+        source_required_port=ports["source_required"],
+        source_open_port=ports["source_open"],
+        dest_cafile_port=ports["dest_cafile"],
+        dest_cadir_port=ports["dest_cadir"],
+        dest_no_service_cert_port=ports["dest_no_service_cert"],
+        dest_disabled_port=ports["dest_disabled"],
+        dest_readonly_port=ports["dest_readonly"],
+        source_required_root=roots["source_required"],
+        source_open_root=roots["source_open"],
+        dest_cafile_root=roots["dest_cafile"],
+        dest_cadir_root=roots["dest_cadir"],
+        dest_no_service_cert_root=roots["dest_no_service_cert"],
+        dest_disabled_root=roots["dest_disabled"],
+        dest_readonly_root=roots["dest_readonly"],
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)
-def reference_xrd_http(tmp_path_factory):
-    if shutil.which(XROOTD_BIN) is None:
-        pytest.skip("xrootd binary not found")
-
-    http_lib = _xrd_library("libXrdHttp-5.so", "libXrdHttp.so")
-    tpc_lib = _xrd_library("libXrdHttpTPC-5.so", "libXrdHttpTPC.so")
-    sec_lib = _xrd_library("libXrdSec-5.so", "libXrdSec.so")
-    if http_lib is None:
-        pytest.skip("XrdHttp plugin not found")
-    if tpc_lib is None:
-        pytest.skip("XrdHttpTPC plugin not found")
-    if sec_lib is None:
-        pytest.skip("XrdSec plugin not found")
+def reference_xrd_http():
     for path in (CA_PEM, SERVER_CERT, SERVER_KEY):
         if not path.exists():
             pytest.skip(f"test PKI file not found: {path}")
 
-    workdir = tmp_path_factory.mktemp("webdav-tpc-xrootd")
-    data_root = workdir / "data"
-    admin_dir = workdir / "admin"
-    run_dir = workdir / "run"
-    for directory in (data_root, admin_dir, run_dir):
-        directory.mkdir(parents=True, exist_ok=True)
-
-    root_port = XRDHTTP_ROOT_PORT
+    workdir = Path(TEST_ROOT) / "xrdhttp"
+    data_root = Path(TEST_ROOT) / "data-xrdhttp"
+    data_root.mkdir(parents=True, exist_ok=True)
     http_port = XRDHTTP_HTTP_PORT
-    cfg_path = workdir / "xrootd-http.cfg"
-    log_path = workdir / "xrootd-http.log"
-    import server_control
-    cfg_path.write_text(
-        server_control.render_config_file(
-            "xrootd_http_tpc.conf",
-            {
-                "DATA_DIR": str(data_root),
-                "ADMIN_DIR": str(admin_dir),
-                "RUN_DIR": str(run_dir),
-                "ROOT_PORT": str(root_port),
-                "HTTP_PORT": str(http_port),
-                "SECLIB": str(sec_lib),
-                "HTTP_LIB": str(http_lib),
-                "SERVER_CERT": str(SERVER_CERT),
-                "SERVER_KEY": str(SERVER_KEY),
-                "CA_DIR": str(CA_DIR),
-                "TPC_LIB": str(tpc_lib),
-            },
+
+    ready = False
+    probe_path = data_root / "probe.txt"
+    probe_path.write_text("xrootd http probe\n")
+    for _ in range(40):
+        result = _curl(
+            f"https://localhost:{http_port}/probe.txt",
+            "-o",
+            "/dev/null",
+            timeout=3,
         )
-    )
+        if result.returncode == 0:
+            ready = True
+            break
+        time.sleep(0.25)
+    if not ready:
+        log_path = workdir / "xrdhttp.log"
+        log = log_path.read_text(errors="replace") if log_path.exists() else ""
+        pytest.skip(
+            "reference XrdHttp endpoint did not start; "
+            f"log tail:\n{log[-3000:]}"
+        )
 
-    proc = subprocess.Popen(
-        [XROOTD_BIN, "-c", str(cfg_path), "-l", str(log_path)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    try:
-        ready = False
-        probe_path = data_root / "probe.txt"
-        probe_path.write_text("xrootd http probe\n")
-        for _ in range(40):
-            if proc.poll() is not None:
-                break
-            result = _curl(
-                f"https://localhost:{http_port}/probe.txt",
-                "-o",
-                "/dev/null",
-                timeout=3,
-            )
-            if result.returncode == 0:
-                ready = True
-                break
-            time.sleep(0.25)
-        if not ready:
-            proc.terminate()
-            proc.wait(timeout=5)
-            log = log_path.read_text(errors="replace") if log_path.exists() else ""
-            pytest.skip(
-                "reference XrdHttp endpoint did not start; "
-                f"log tail:\n{log[-3000:]}"
-            )
-
-        yield ReferenceXrdHttp(workdir=workdir, data_root=data_root, http_port=http_port)
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
+    yield ReferenceXrdHttp(workdir=workdir, data_root=data_root, http_port=http_port)
 
 
 class TestNginxPluginToPluginTPC:

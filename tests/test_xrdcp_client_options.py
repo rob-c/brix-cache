@@ -216,6 +216,32 @@ def test_xrdcp_posc_upload_with_adler32_checksum_verification(test_env, tmp_path
     assert _sha256(remote_disk) == _sha256(local_src)
 
 
+def test_xrdcp_posc_upload_with_crc32c_checksum_verification(test_env, tmp_path):
+    """xrdcp --posc plus --cksum crc32c should verify against kXR_Qcksum."""
+    _require_xrdcp()
+
+    local_src = tmp_path / "posc-crc32c.bin"
+    remote_name = f"{PREFIX}posc_crc32c.bin"
+    _write_pattern(local_src, 1024 * 1024 + 321)
+
+    result = _run_xrdcp(
+        [
+            "-f",
+            "--posc",
+            "--cksum",
+            "crc32c:source",
+            str(local_src),
+            _remote(test_env, remote_name),
+        ],
+        timeout=120,
+    )
+    _assert_xrdcp_ok(result)
+
+    remote_disk = Path(test_env["data_dir"]) / remote_name
+    assert remote_disk.exists()
+    assert _sha256(remote_disk) == _sha256(local_src)
+
+
 def test_xrdcp_continue_resumes_partial_download(test_env, tmp_path):
     """xrdcp --continue should resume reading from an existing local partial."""
     _require_xrdcp()

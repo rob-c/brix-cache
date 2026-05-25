@@ -1,18 +1,34 @@
 /*
  * methods_basic.c - OPTIONS and HEAD handlers.
+ *
+ * WHAT: Implements HTTP OPTIONS, HEAD, and PROPPATCH responses for WebDAV resources. OPTIONS advertises supported DAV capabilities (version 1+2) and method Allow list derived from write permission configuration. HEAD returns resource metadata without body transfer. PROPPATCH handles dead property requests by draining the body and returning 207 Multi-Status with 200 OK per property — minimal compliance for client compatibility.
+ *
+ * WHY: HTTP OPTIONS is required for pre-flight CORS validation (webdav_add_cors_headers integration) and DAV capability discovery. RFC 4918 §5.3 requires OPTIONS responses to include Allow header listing enabled methods. HEAD provides lightweight resource metadata access without body transfer overhead — essential for fd-cache optimization in GET operations (avoiding full file read). PROPPATCH dead property handling follows minimal compliance strategy: Cyberduck and rucio clients issue PROPPATCH after PUT treating 501 as hard error, so draining + returning 207 avoids blocking these widely-used WebDAV clients.
+ *
+ * HOW: OPTIONS handler sets DAV: "1, 2" header, constructs Allow list from conf->common.allow_write (read-only vs write-enabled), pushes MS-Author-Via: "DAV" header for Microsoft client compatibility, sends via ngx_http_send_special with NGX_HTTP_LAST (no body). HEAD handler uses webdav_resolve_stat composition helper for path+stat, sets Content-Length based on file size (0 for directories), last_modified_time, allow_ranges flag (disabled for directories), Content-Type (httpd/unix-directory vs application/octet-stream), and optional ETag via webdav_add_etag. PROPPATCH handler drains request body immediately, escapes URI with webdav_escape_xml_text, generates minimal 207 Multi-Status XML response with empty D:prop element and HTTP/1.1 200 OK status per property.
  */
 
 #include "webdav.h"
+#include "../compat/etag.h"
+#include "../compat/http_body.h"
+#include "../compat/http_file_response.h"
+#include "../compat/http_xml.h"
+
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+#define WEBDAV_PROPPATCH_BODY_MAX 65536u
 
 /*
- * webdav_handle_options — respond to HTTP OPTIONS with DAV: 1 and the Allow
- * header listing which methods are enabled for this location.
+ * WHAT: Handle HTTP OPTIONS request — advertise DAV capabilities (version 1+2) and method Allow list for this location.
  *
- * The Allow list is derived from conf->allow_write:
- *   read-only: OPTIONS, GET, HEAD, PROPFIND
- *   write-enabled: + PUT, DELETE, MKCOL, MOVE, COPY
+ * WHY: RFC 4918 §5.3 requires OPTIONS responses to include DAV header listing supported versions and Allow header listing enabled methods. CORS pre-flight validation depends on OPTIONS response (webdav_add_cors_headers integration). MS-Author-Via: "DAV" header enables Microsoft Office client compatibility for WebDAV-based document storage workflows.
  *
- * Also emits CORS response headers (webdav_add_cors_headers).
+ * HOW: Set status 200 OK with zero Content-Length, push DAV: "1, 2" header (DAV version 1 and extension), construct Allow list from conf->common.allow_write flag (read-only: OPTIONS+GET+HEAD+PROPFIND; write-enabled: adds PUT+DELETE+MKCOL+MOVE+COPY), push MS-Author-Via: "DAV" for Microsoft client compatibility. Send headers via ngx_http_send_header() then complete with ngx_http_send_special(r, NGX_HTTP_LAST) — no body required for OPTIONS response.
  */
 ngx_int_t
 webdav_handle_options(ngx_http_request_t *r)
@@ -31,7 +47,15 @@ webdav_handle_options(ngx_http_request_t *r)
     }
     h->hash = 1;
     ngx_str_set(&h->key, "DAV");
-    ngx_str_set(&h->value, "1, 2");
+    ngx_str_set(&h->value, "1, 2, access-control");
+
+    h = ngx_list_push(&r->headers_out.headers);
+    if (h == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    h->hash = 1;
+    ngx_str_set(&h->key, "DASL");
+    ngx_str_set(&h->value, "<DAV:basicsearch>");
 
     h = ngx_list_push(&r->headers_out.headers);
     if (h == NULL) {
@@ -39,11 +63,12 @@ webdav_handle_options(ngx_http_request_t *r)
     }
     h->hash = 1;
     ngx_str_set(&h->key, "Allow");
-    if (conf->allow_write) {
-        ngx_str_set(&h->value,
-            "OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, PROPFIND, PROPPATCH, LOCK, UNLOCK");
-    } else {
-        ngx_str_set(&h->value, "OPTIONS, GET, HEAD, PROPFIND");
+    if (xrootd_http_operation_allow_header(r->pool,
+            xrootd_webdav_operations, xrootd_webdav_operations_count,
+            XROOTD_WEBDAV_ALLOW_FLAGS(conf),
+            &h->value) != NGX_OK)
+    {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     h = ngx_list_push(&r->headers_out.headers);
@@ -58,6 +83,13 @@ webdav_handle_options(ngx_http_request_t *r)
     return ngx_http_send_special(r, NGX_HTTP_LAST);
 }
 
+/*
+ * WHAT: Handle HTTP HEAD request — return resource metadata headers without body transfer. Uses webdav_resolve_stat composition helper for path+stat lookup.
+ *
+ * WHY: HEAD provides lightweight resource metadata access without full file read overhead — essential for fd-cache optimization in GET operations (avoiding expensive stat+open syscall pairs when cache already holds valid fd). Also enables pre-flight content length validation before body transfer decisions. The send_body parameter controls whether to proceed with body generation after header response (used by PROPFIND/PROPPATCH integration paths).
+ *
+ * HOW: Resolve path + stat via webdav_resolve_stat composition helper, set Content-Length based on file type (0 for directories, st_size for files), last_modified_time from sb.st_mtime, allow_ranges flag (disabled for directories per RFC 7233 §14.1). Set Content-Type (httpd/unix-directory vs application/octet-stream). Add ETag via webdav_add_etag only for non-directories. Send headers via ngx_http_send_header() — if send_body=0 or r->header_only=1, complete with NGX_HTTP_LAST without body transfer; otherwise return NGX_OK allowing downstream body generation.
+ */
 ngx_int_t
 webdav_handle_head(ngx_http_request_t *r, int send_body)
 {
@@ -74,26 +106,23 @@ webdav_handle_head(ngx_http_request_t *r, int send_body)
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_length_n = S_ISDIR(sb.st_mode) ? 0 : sb.st_size;
     r->headers_out.last_modified_time = sb.st_mtime;
+    r->allow_ranges = S_ISDIR(sb.st_mode) ? 0 : 1;
 
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    h->hash = 1;
-    ngx_str_set(&h->key, "Content-Type");
     if (S_ISDIR(sb.st_mode)) {
+        h = ngx_list_push(&r->headers_out.headers);
+        if (h == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        h->hash = 1;
+        ngx_str_set(&h->key, "Content-Type");
         ngx_str_set(&h->value, "httpd/unix-directory");
     } else {
-        ngx_str_set(&h->value, "application/octet-stream");
-    }
-
-    rc = webdav_add_last_modified(r, sb.st_mtime);
-    if (rc != NGX_OK) {
-        return rc;
+        ngx_http_set_content_type(r);  /* uses nginx types{} block */
     }
 
     if (!S_ISDIR(sb.st_mode)) {
-        rc = webdav_add_etag(r, sb.st_mtime, sb.st_size);
+        rc = xrootd_http_add_etag_header(r, sb.st_mtime, sb.st_size,
+                                         XROOTD_ETAG_WEAK, 1);
         if (rc != NGX_OK) {
             return rc;
         }
@@ -108,16 +137,87 @@ webdav_handle_head(ngx_http_request_t *r, int send_body)
     return NGX_OK;
 }
 
-/*
- * webdav_handle_proppatch — RFC 4918 §9.2 PROPPATCH.
- *
- * Dead properties (arbitrary client metadata) are not stored.  We drain the
- * request body and return 207 Multi-Status with HTTP/1.1 200 OK per property,
- * which is the minimal response that unblocks clients such as Cyberduck and
- * rucio that issue PROPPATCH after PUT and treat 501 as a hard error.
- */
-ngx_int_t
-webdav_handle_proppatch(ngx_http_request_t *r)
+static char *
+webdav_proppatch_serialize_dead_prop(ngx_http_request_t *r, xmlNodePtr prop,
+    size_t *out_len)
+{
+    const char *local;
+    const char *ns;
+    char       *safe_ns = NULL;
+    char       *safe_text;
+    char       *xml;
+    xmlChar    *text;
+    size_t      len;
+
+    local = (const char *) prop->name;
+    ns = (prop->ns != NULL && prop->ns->href != NULL)
+         ? (const char *) prop->ns->href : "";
+
+    text = xmlNodeGetContent(prop);
+    safe_text = webdav_escape_xml_text(r->pool,
+                                       text != NULL ? (const char *) text : "");
+    if (text != NULL) {
+        xmlFree(text);
+    }
+    if (safe_text == NULL) {
+        return NULL;
+    }
+
+    if (ns[0] != '\0') {
+        safe_ns = webdav_escape_xml_text(r->pool, ns);
+        if (safe_ns == NULL) {
+            return NULL;
+        }
+
+        len = ngx_strlen("<X: xmlns:X=\"\"></X:>")
+              + strlen(local) * 2 + strlen(safe_ns) + strlen(safe_text) + 1;
+        xml = ngx_pnalloc(r->pool, len);
+        if (xml == NULL) {
+            return NULL;
+        }
+        snprintf(xml, len, "<X:%s xmlns:X=\"%s\">%s</X:%s>",
+                 local, safe_ns, safe_text, local);
+
+    } else {
+        len = ngx_strlen("<></>") + strlen(local) * 2 + strlen(safe_text) + 1;
+        xml = ngx_pnalloc(r->pool, len);
+        if (xml == NULL) {
+            return NULL;
+        }
+        snprintf(xml, len, "<%s>%s</%s>", local, safe_text, local);
+    }
+
+    *out_len = strlen(xml);
+    return xml;
+}
+
+static ngx_int_t
+webdav_proppatch_append_propstat(ngx_http_request_t *r, ngx_chain_t **head,
+    ngx_chain_t **tail, const char *ns, const char *local,
+    const char *status)
+{
+    if (xrootd_http_chain_appendf(r->pool, head, tail,
+            "<D:propstat><D:prop>") == NULL)
+    {
+        return NGX_ERROR;
+    }
+
+    if (webdav_dead_prop_append_empty(r, ns, local, head, tail) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (xrootd_http_chain_appendf(r->pool, head, tail,
+            "</D:prop><D:status>%s</D:status></D:propstat>",
+            status) == NULL)
+    {
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+static ngx_int_t
+webdav_proppatch_do(ngx_http_request_t *r)
 {
     ngx_chain_t     *head = NULL;
     ngx_chain_t     *tail = NULL;
@@ -127,26 +227,154 @@ webdav_handle_proppatch(ngx_http_request_t *r)
     ngx_table_elt_t *h;
     ngx_int_t        rc;
     char            *safe_href;
+    char             href_buf[WEBDAV_MAX_PATH + 1];
+    char             path[WEBDAV_MAX_PATH];
+    struct stat      sb;
+    u_char          *body = NULL;
+    size_t           body_len = 0;
+    xmlDocPtr        doc;
+    xmlNodePtr       root, action, prop_container, prop;
+    ngx_uint_t       processed = 0;
+    size_t           uri_len;
+    int              opts = XML_PARSE_NONET | XML_PARSE_NOERROR
+                          | XML_PARSE_NOWARNING;
+#if defined(XML_PARSE_NO_XXE)
+    opts |= XML_PARSE_NO_XXE;
+#endif
 
-    ngx_http_discard_request_body(r);
+    rc = webdav_resolve_stat(r, path, sizeof(path), &sb);
+    if (rc != NGX_OK) {
+        return rc;
+    }
 
-    safe_href = webdav_escape_xml_text(pool, (const char *) r->uri.data);
+    rc = webdav_check_locks(r, path, 1);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    rc = xrootd_http_body_read_all(r, WEBDAV_PROPPATCH_BODY_MAX,
+                                   &body, &body_len);
+    if (rc != NGX_OK || body_len == 0) {
+        return NGX_HTTP_BAD_REQUEST;
+    }
+
+    doc = xmlReadMemory((const char *) body, (int) body_len,
+                        "proppatch.xml", NULL, opts);
+    if (doc == NULL) {
+        return NGX_HTTP_BAD_REQUEST;
+    }
+
+    root = xmlDocGetRootElement(doc);
+    if (root == NULL
+        || xmlStrcmp(root->name, BAD_CAST "propertyupdate") != 0)
+    {
+        xmlFreeDoc(doc);
+        return NGX_HTTP_BAD_REQUEST;
+    }
+
+    uri_len = r->uri.len < sizeof(href_buf) - 1
+              ? r->uri.len : sizeof(href_buf) - 1;
+    ngx_memcpy(href_buf, r->uri.data, uri_len);
+    href_buf[uri_len] = '\0';
+
+    safe_href = webdav_escape_xml_text(pool, href_buf);
     if (safe_href == NULL) {
+        xmlFreeDoc(doc);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (webdav_propfind_append(pool, &head, &tail,
+    if (xrootd_http_chain_appendf(pool, &head, &tail,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<D:multistatus xmlns:D=\"DAV:\">"
             "<D:response>"
-            "<D:href>%s</D:href>"
-            "<D:propstat>"
-            "<D:prop/>"
-            "<D:status>HTTP/1.1 200 OK</D:status>"
-            "</D:propstat>"
-            "</D:response>"
-            "</D:multistatus>",
+            "<D:href>%s</D:href>",
             safe_href) == NULL)
+    {
+        xmlFreeDoc(doc);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    for (action = root->children; action != NULL; action = action->next) {
+        ngx_flag_t is_set;
+
+        if (action->type != XML_ELEMENT_NODE) {
+            continue;
+        }
+
+        if (xmlStrcmp(action->name, BAD_CAST "set") == 0) {
+            is_set = 1;
+        } else if (xmlStrcmp(action->name, BAD_CAST "remove") == 0) {
+            is_set = 0;
+        } else {
+            continue;
+        }
+
+        for (prop_container = action->children; prop_container != NULL;
+             prop_container = prop_container->next)
+        {
+            if (prop_container->type == XML_ELEMENT_NODE
+                && xmlStrcmp(prop_container->name, BAD_CAST "prop") == 0)
+            {
+                break;
+            }
+        }
+        if (prop_container == NULL) {
+            continue;
+        }
+
+        for (prop = prop_container->children; prop != NULL; prop = prop->next) {
+            const char *local;
+            const char *ns;
+            const char *status = "HTTP/1.1 200 OK";
+
+            if (prop->type != XML_ELEMENT_NODE) {
+                continue;
+            }
+
+            local = (const char *) prop->name;
+            ns = (prop->ns != NULL && prop->ns->href != NULL)
+                 ? (const char *) prop->ns->href : "";
+
+            if (strcmp(ns, "DAV:") == 0
+                && webdav_dead_prop_is_protected_dav(local))
+            {
+                status = "HTTP/1.1 403 Forbidden";
+
+            } else if (is_set) {
+                char   *xml;
+                size_t  xml_len;
+
+                xml = webdav_proppatch_serialize_dead_prop(r, prop, &xml_len);
+                if (xml == NULL
+                    || webdav_dead_prop_set(r, path, ns, local, xml, xml_len)
+                       != NGX_OK)
+                {
+                    status = "HTTP/1.1 507 Insufficient Storage";
+                }
+
+            } else if (webdav_dead_prop_remove(r, path, ns, local) != NGX_OK) {
+                status = "HTTP/1.1 507 Insufficient Storage";
+            }
+
+            if (webdav_proppatch_append_propstat(r, &head, &tail, ns, local,
+                                                 status) != NGX_OK)
+            {
+                xmlFreeDoc(doc);
+                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            processed++;
+        }
+    }
+
+    xmlFreeDoc(doc);
+
+    if (processed == 0) {
+        return NGX_HTTP_BAD_REQUEST;
+    }
+
+    if (xrootd_http_chain_appendf(pool, &head, &tail,
+            "</D:response></D:multistatus>") == NULL)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -177,4 +405,22 @@ webdav_handle_proppatch(ngx_http_request_t *r)
     }
 
     return ngx_http_output_filter(r, head);
+}
+
+static void
+webdav_proppatch_body_handler(ngx_http_request_t *r)
+{
+    webdav_metrics_finalize_request(r, webdav_proppatch_do(r));
+}
+
+/*
+ * WHAT: Handle WebDAV PROPPATCH request — RFC 4918 §9.2 dead property
+ * modification handler. Dead properties are persisted as filesystem xattrs on
+ * the resolved resource; protected DAV live properties are rejected per
+ * property with a 403 propstat.
+ */
+ngx_int_t
+webdav_handle_proppatch(ngx_http_request_t *r)
+{
+    return xrootd_http_read_body(r, webdav_proppatch_body_handler);
 }

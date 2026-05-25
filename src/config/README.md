@@ -6,13 +6,8 @@ validation for the native XRootD stream module:
 - `server_conf.c`: create, merge, and enable callbacks for stream server config
 - `helpers.c`: shared config string and filesystem validation helpers
 - `policy.c`: VO/group policy directives and policy finalization
-- `backend_directives.c`: manager-map, upstream redirector, and cache-origin directives
-- `cms.c`: CMS manager directive parsing
-- `gsi.c`: GSI certificate/key/CA/CRL setup and CRL store rebuilds
-- `tls.c`: in-protocol XRootD TLS context setup
-- `token.c`: native token/JWKS auth setup
-- `runtime_server.c`: root/cache/access-log validation for enabled servers
-- `metrics.c`: metrics shared-memory setup and init callback
-- `threads.c`: thread-pool resolution for async I/O
-- `process.c`: worker-process CMS startup and CRL reload timers
-- `postconfiguration.c`: postconfiguration pass ordering
+- `manager_map.c`: manager-map directive parsing for CMS cluster configuration
+- `root_prepare.c`: root directory preparation and confinement validation
+- `root_prepare.h`: Root-preparation types and prototypes
+- `shared_conf.h`: Shared config types across stream and HTTP modules
+- `config.h`: Config types, constants, and NGX_CONF_UNSET initialization

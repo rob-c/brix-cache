@@ -4,52 +4,18 @@
 #include "tls.h"
 #include "../manager/pending.h"
 
-/*
- * Read event handler and request framing state machine.
+/* ---- File: recv.c — TCP read-event loop and request framing state machine ----
  *
- * State transitions (XRD_ST_* values from types/state.h):
+ * WHAT: The core async recv loop that drives the XRootD protocol lifecycle on each TCP connection. Frames handshake (20-byte ClientInitHandShake), request headers (24-byte ClientRequestHdr), and payload bytes into a deterministic four-state machine — HANDSHAKE → REQ_HEADER → REQ_PAYLOAD → dispatch, with suspend states for SENDING/AIO/UPSTREAM/TLS. Security invariant: dlen must pass xrootd_max_payload_for_request() BEFORE any allocation. Timeout handling: CMS wait timeout sends retry response; other timeouts disconnect. Thread safety: single-owner per connection on nginx event thread — no locking required.
  *
- *   XRD_ST_HANDSHAKE
- *     Accept exactly XRD_HANDSHAKE_LEN bytes.  Validate the fixed
- *     20-byte ClientInitHandShake; on success → XRD_ST_REQ_HEADER.
+ * WHY: Every XRootD request flows through recv.c's state machine before dispatch to opcode handlers. The recv loop ensures correct byte-level framing (handshake → header → payload) so dispatch receives a complete, validated request with streamid/reqid/dlen extracted from the wire header. Without this framing layer, dispatch would receive partial or misaligned data causing protocol errors.
  *
- *   XRD_ST_REQ_HEADER
- *     Accept exactly XRD_REQUEST_HDR_LEN (24) bytes (ClientRequestHdr).
- *     Extract streamid, requestid, body[16], and dlen.
- *     Validate dlen against xrootd_max_payload_for_request().
- *     If dlen > 0 → XRD_ST_REQ_PAYLOAD.
- *     If dlen == 0 → dispatch immediately, then reset to XRD_ST_REQ_HEADER.
- *
- *   XRD_ST_REQ_PAYLOAD
- *     Accept ctx->cur_dlen bytes into ctx->payload_buf.
- *     On completion → dispatch, then XRD_ST_REQ_HEADER.
- *
- *   XRD_ST_SENDING
- *     The response writer owns the connection; recv suspends here and
- *     returns immediately.  The writer reactivates recv when done.
- *
- *   XRD_ST_AIO
- *     An async I/O thread has taken over.  Recv re-arms the read event
- *     and returns; the AIO completion resets the state.
- *
- *   XRD_ST_UPSTREAM / XRD_ST_TLS_HANDSHAKE
- *     Similar suspend states for cache upstream and TLS negotiation.
- *
- * Any protocol error or oversized dlen drops straight to disconnect.
- */
+ * HOW: On each read-ready event, recv checks ctx->state to determine what bytes are expected (handshake=20, header=24, payload=dlen), calls c->recv(), accumulates into hdr_buf/payload_buf, dispatches when complete, then resets state for the next request. Suspend states (SENDING/AIO/UPSTREAM/TLS) return immediately without reading.
+ * ------------------------------------------------------------------ */
 
-/*
- * Return the maximum permitted payload byte count for a given request
- * opcode.  This is the first line of defence against memory exhaustion:
- * a client that sends dlen > this limit is disconnected immediately,
- * before any allocation occurs.
+/* ---- xrootd_max_payload_for_request — return per-opcode payload size limit ----
  *
- * Per-opcode limits reflect the practical maximum for that operation's
- * legitimate use.  "dlen is untrusted input" — always check here first.
- *
- * Preconditions: none.
- * Returns: maximum allowed dlen in bytes.
- */
+ * WHAT: Security guard that defines the maximum allowed wire payload for each request opcode. Called BEFORE any allocation to prevent memory exhaustion attacks — clients sending dlen > this limit are disconnected immediately. Limits vary by opcode type: write/pgwrite/chkpoint -> XROOTD_MAX_WRITE_PAYLOAD; readv -> segments x segsize; auth -> XROOTD_MAX_AUTH_PAYLOAD (16KB); prepare -> XROOTD_MAX_PREPARE_PAYLOAD; all others -> path + 64 bytes. This is the first line of defense against oversized payloads. */
 static uint32_t
 xrootd_max_payload_for_request(uint16_t reqid)
 {
@@ -77,23 +43,13 @@ xrootd_max_payload_for_request(uint16_t reqid)
     return XROOTD_MAX_PATH + 64;
 }
 
-
-/*
- * Ensure ctx->payload_buf holds at least (dlen + 1) bytes and point
- * ctx->payload at it.  The extra byte is pre-zeroed so that callers
- * treating the payload as a C string (e.g. path-based operations) see a
- * guaranteed NUL terminator even without one in the wire data.
+/* ---- xrootd_ensure_payload_buffer: allocate/resize payload buffer for incoming request data ----
  *
- * The buffer is heap-allocated (ngx_alloc / ngx_free) rather than
- * pool-allocated so it can be grown across requests on the same connection
- * without fragmenting the connection pool.  It is freed by
- * xrootd_on_disconnect() when the connection closes.
+ * WHAT: Ensures ctx->payload_buf has sufficient capacity (dlen + 1 bytes) and points ctx->payload to it. The extra byte is pre-zeroed as a C-string NUL terminator guarantee. Uses heap allocation (ngx_alloc), NOT pool-allocated, so the buffer can grow across multiple requests on the same connection without fragmenting the nginx pool. On resize: frees old buffer, allocates new one. Returns NGX_OK if capacity sufficient or successfully resized, NGX_ERROR on overflow check failure or allocation failure.
  *
- * Preconditions: dlen must have passed xrootd_max_payload_for_request().
- * Postconditions: ctx->payload points to a buffer of at least dlen+1 bytes;
- *   ctx->payload[dlen] == '\0'.
- * Returns: NGX_OK on success, NGX_ERROR on allocation failure.
- */
+ * WHY: Payload buffers must survive across multiple requests on a persistent TCP connection (pool-allocated buffers would fragment under repeated large allocations). Heap allocation (ngx_alloc) allows resizing without pool pressure and is freed explicitly when the connection closes via xrootd_on_disconnect(). The pre-zeroed NUL byte ensures ctx->payload always has a valid C-string terminator even for zero-length payloads.
+ *
+ * HOW: First checks if existing buffer has sufficient capacity (ctx->payload_buf_size >= need), reuses it and sets payload pointer. If insufficient, frees old buffer via ngx_free(), allocates new one via ngx_alloc(need), sets ctx->payload_buf/payload_buf_size/payload, pre-zeroes byte at position dlen. Returns NGX_OK or NGX_ERROR. */
 static ngx_int_t
 xrootd_ensure_payload_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uint32_t dlen)
@@ -129,28 +85,14 @@ xrootd_ensure_payload_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
-
-/*
- * ngx_stream_xrootd_recv — nginx stream read-event callback.
+ /* ---- Function: ngx_stream_xrootd_recv() ----
  *
- * Drives the XRootD request-framing state machine.  nginx calls this
- * whenever data is available on the TCP socket (or when a timeout fires).
+ * WHAT: The core async recv loop that drives the XRootD protocol lifecycle on each TCP connection. Called by nginx whenever data is available or timeout fires.
  *
- * The inner loop reads as much as is immediately available each time it
- * runs; it returns only when:
- *   (a) recv() returns NGX_AGAIN (kernel buffer empty), or
- *   (b) the state transitions to XRD_ST_SENDING / XRD_ST_AIO (another
- *       subsystem now owns the connection write/compute path), or
- *   (c) a protocol error occurs, causing disconnect.
+ * WHY: Every XRootD request requires byte-level framing before dispatch — handshake validates client identity, header extracts routing fields (streamid/reqid), payload accumulates opcode-specific data. Without this loop, dispatch would receive partial or misaligned wire data causing protocol errors. The suspend-state design prevents recv from reading while send/AIO/upstream subsystems own the connection.
  *
- * Thread safety: called exclusively on the nginx event thread.  No
- * locking required; all state is single-owner per connection.
- *
- * Preconditions: rev->data is a valid ngx_connection_t * whose ctx is an
- *   initialised xrootd_ctx_t *.
- * Postconditions: either the connection is still alive (state advanced) or
- *   ngx_stream_finalize_session() was called.
- */
+ * HOW: On each read-ready event, checks ctx->state to determine expected bytes (handshake=20, header=24, payload=dlen), calls c->recv(), accumulates into hdr_buf/payload_buf, dispatches when complete, resets state for next request. Suspend states return immediately without reading. Timeout handling: CMS wait timeout sends retry response; other timeouts disconnect.
+ * ------------------------------------------------------------------ */
 void
 ngx_stream_xrootd_recv(ngx_event_t *rev)
 {
@@ -169,7 +111,7 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
 
     if (rev->timedout) {
         if (ctx->state == XRD_ST_WAITING_CMS) {
-            /* kYR_select did not arrive in time — tell client to retry. */
+            /* kYR_select did not arrive in time - tell client to retry. */
             rev->timedout = 0;
             xrootd_pending_remove(ctx->cms_wait_streamid, ngx_pid);
             ctx->state = XRD_ST_REQ_HEADER;

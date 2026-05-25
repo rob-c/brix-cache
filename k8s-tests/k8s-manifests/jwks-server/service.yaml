@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jwks-server
+  namespace: xrootd-integration
+  labels:
+    app.kubernetes.io/name: jwks-server
+    app.kubernetes.io/component: token-infrastructure
+spec:
+  selector:
+    app.kubernetes.io/name: jwks-server
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 80
+      protocol: TCP

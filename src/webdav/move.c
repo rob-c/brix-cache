@@ -3,12 +3,153 @@
  */
 
 #include "webdav.h"
+#include "../compat/namespace_ops.h"
+#include "../compat/http_conditionals.h"
 
 #include <limits.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+typedef struct {
+    ngx_http_request_t *r;
+    ngx_log_t         *log;
+    char               root_canon[WEBDAV_MAX_PATH];
+    char               src_path[WEBDAV_MAX_PATH];
+    char               dst_path[WEBDAV_MAX_PATH];
+    ngx_flag_t         dst_existed;
+    ngx_flag_t         overwrite;
+    ngx_int_t          http_status;
+    int                sys_errno;
+} webdav_move_collection_task_t;
+
+static ngx_int_t
+webdav_move_execute(ngx_log_t *log, const char *root_canon,
+    const char *src_path, const char *dst_path, ngx_flag_t overwrite,
+    ngx_flag_t dst_existed, int *sys_errno)
+{
+    xrootd_ns_result_t res;
+
+    res = xrootd_ns_rename(log, root_canon, src_path, dst_path, overwrite);
+
+    if (sys_errno != NULL) {
+        *sys_errno = res.sys_errno;
+    }
+
+    if (res.status == XROOTD_NS_OK) {
+        return dst_existed ? NGX_HTTP_NO_CONTENT : NGX_HTTP_CREATED;
+    }
+
+    if (res.status == XROOTD_NS_EXISTS) {
+        return NGX_HTTP_PRECONDITION_FAILED;
+    }
+
+    if (res.status == XROOTD_NS_CONFLICT || res.status == XROOTD_NS_NOT_FOUND) {
+        return NGX_HTTP_CONFLICT;
+    }
+
+    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+}
+
+static void
+webdav_move_collection_thread(void *data, ngx_log_t *log)
+{
+    webdav_move_collection_task_t *t = data;
+
+    (void) log;
+
+    t->http_status = webdav_move_execute(t->log, t->root_canon,
+                                         t->src_path, t->dst_path,
+                                         t->overwrite, t->dst_existed,
+                                         &t->sys_errno);
+}
+
+static void
+webdav_move_collection_done(ngx_event_t *ev)
+{
+    ngx_thread_task_t             *task = ev->data;
+    webdav_move_collection_task_t *t = task->ctx;
+    ngx_http_request_t            *r = t->r;
+    ngx_int_t                      status = t->http_status;
+
+    if (status == NGX_HTTP_CREATED || status == NGX_HTTP_NO_CONTENT) {
+        r->headers_out.status = (ngx_uint_t) status;
+        r->headers_out.content_length_n = 0;
+        ngx_http_send_header(r);
+        webdav_metrics_finalize_request(r, ngx_http_send_special(r,
+                                                                 NGX_HTTP_LAST));
+        return;
+    }
+
+    if (status == NGX_HTTP_INTERNAL_SERVER_ERROR) {
+        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, t->sys_errno,
+                             "xrootd_webdav MOVE: rename() failed for: \"%s\"",
+                             t->src_path);
+    }
+
+    webdav_metrics_finalize_request(r, status);
+}
+
+static ngx_int_t
+webdav_move_collection_post_task(ngx_http_request_t *r,
+    ngx_http_xrootd_webdav_loc_conf_t *conf, const char *src_path,
+    const char *dst_path, ngx_flag_t overwrite, ngx_flag_t dst_existed)
+{
+    ngx_thread_task_t             *task;
+    webdav_move_collection_task_t *t;
+    ngx_thread_pool_t             *pool;
+
+    /* postconfig only visits server-level loc_conf; resolve lazily for nested
+     * location blocks where conf->common.thread_pool may still be NULL. */
+    pool = conf->common.thread_pool;
+    if (pool == NULL) {
+        static ngx_str_t default_name = ngx_string("default");
+        ngx_str_t *pname = conf->common.thread_pool_name.len > 0
+                           ? &conf->common.thread_pool_name : &default_name;
+        pool = ngx_thread_pool_get((ngx_cycle_t *) ngx_cycle, pname);
+        if (pool != NULL) {
+            conf->common.thread_pool = pool;
+        }
+    }
+    if (pool == NULL) {
+        return NGX_DECLINED;
+    }
+
+    task = ngx_thread_task_alloc(r->pool, sizeof(webdav_move_collection_task_t));
+    if (task == NULL) {
+        return NGX_ERROR;
+    }
+
+    t = task->ctx;
+    t->r = r;
+    t->log = r->connection->log;
+    t->dst_existed = dst_existed;
+    t->overwrite = overwrite;
+    t->http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    t->sys_errno = 0;
+
+    ngx_cpystrn((u_char *) t->root_canon, (u_char *) conf->common.root_canon,
+                sizeof(t->root_canon));
+    ngx_cpystrn((u_char *) t->src_path, (u_char *) src_path,
+                sizeof(t->src_path));
+    ngx_cpystrn((u_char *) t->dst_path, (u_char *) dst_path,
+                sizeof(t->dst_path));
+
+    task->handler = webdav_move_collection_thread;
+    task->event.handler = webdav_move_collection_done;
+    task->event.data = task;
+    task->event.log = r->connection->log;
+
+    if (ngx_thread_task_post(pool, task) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                  "xrootd_webdav: offloaded collection MOVE to thread pool");
+
+    r->main->count++;
+    return NGX_DONE;
+}
 
 /*
  * webdav_handle_move — implement RFC 4918 §9.9 MOVE.
@@ -31,7 +172,6 @@ webdav_handle_move(ngx_http_request_t *r)
 {
     ngx_http_xrootd_webdav_loc_conf_t *conf;
     ngx_table_elt_t    *dest_hdr;
-    ngx_table_elt_t    *overwrite_hdr;
     char                src_path[WEBDAV_MAX_PATH];
     char                dst_path[WEBDAV_MAX_PATH];
     char                dest_decoded[WEBDAV_MAX_PATH];
@@ -52,44 +192,15 @@ webdav_handle_move(ngx_http_request_t *r)
         return NGX_HTTP_BAD_REQUEST;
     }
 
-    /* Parse Overwrite header; default is "T" (RFC 4918 §10.6) */
-    overwrite_hdr = webdav_tpc_find_header(r, "Overwrite",
-                                           sizeof("Overwrite") - 1);
-    if (overwrite_hdr != NULL) {
-        ngx_str_t ov = overwrite_hdr->value;
-        if (ov.len == 1 && (ov.data[0] == 'F' || ov.data[0] == 'f')) {
-            overwrite = 0;
-        }
-    }
+    overwrite = !xrootd_http_overwrite_forbidden(r);
 
-    /* Extract path component from Destination URL.
-     * Destination may be an absolute URL (http://host/path) or a path (/path).
-     */
+    /* Extract path component from Destination URL, stripping scheme://authority. */
     dest_path_start = dest_hdr->value.data;
     dest_path_len   = dest_hdr->value.len;
-
-    /* Skip scheme://authority if present */
-    {
-        const u_char *p   = dest_path_start;
-        const u_char *end = p + dest_path_len;
-        const u_char *scheme_end;
-
-        scheme_end = ngx_strlchr((u_char *) p, (u_char *) end, ':');
-        if (scheme_end != NULL && scheme_end + 2 < end
-            && scheme_end[1] == '/' && scheme_end[2] == '/')
-        {
-            /* skip to the next '/' after authority */
-            p = scheme_end + 3;
-            while (p < end && *p != '/') {
-                p++;
-            }
-            dest_path_start = p;
-            dest_path_len   = (size_t) (end - p);
-        }
-    }
-
-    if (dest_path_len == 0) {
-        return NGX_HTTP_BAD_REQUEST;
+    rc = webdav_destination_extract_path(dest_path_start, dest_path_len,
+                                         &dest_path_start, &dest_path_len);
+    if (rc != NGX_OK) {
+        return rc;
     }
 
     /* URL-decode the destination path */
@@ -100,7 +211,7 @@ webdav_handle_move(ngx_http_request_t *r)
     }
 
     /* Resolve source */
-    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->root_canon,
+    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->common.root_canon,
                                               src_path, sizeof(src_path));
     if (rc != NGX_OK) {
         return rc;
@@ -117,7 +228,7 @@ webdav_handle_move(ngx_http_request_t *r)
 
     /* Resolve destination */
     rc = webdav_resolve_destination_path(r->connection->log, "MOVE",
-                                         conf->root_canon, dest_decoded,
+                                         conf->common.root_canon, dest_decoded,
                                          dst_path, sizeof(dst_path));
     if (rc != NGX_OK) {
         return rc;
@@ -142,47 +253,41 @@ webdav_handle_move(ngx_http_request_t *r)
         return NGX_HTTP_FORBIDDEN;
     }
 
-    /* If destination exists and we are overwriting, remove it if it's a dir.
-     * rename(2) only overwrites if both are files or both are directories
-     * (and the destination is empty).  To match RFC 4918 §9.9.1 we must
-     * perform a DELETE on the destination first. */
-    if (dst_existed && overwrite) {
-        if (S_ISDIR(dst_sb.st_mode)) {
-            (void) webdav_delete_path_recursive(r->connection->log,
-                                                conf->root_canon, dst_path);
+    if (S_ISDIR(src_sb.st_mode)) {
+        rc = webdav_move_collection_post_task(r, conf, src_path, dst_path,
+                                              overwrite, dst_existed);
+        if (rc == NGX_DONE) {
+            return NGX_DONE;
+        }
+        if (rc == NGX_ERROR) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
 
-    if (xrootd_rename_confined_canon(r->connection->log, conf->root_canon,
-                                     src_path, dst_path) != 0)
     {
-        if (errno == ENOTEMPTY || errno == EEXIST) {
-            /* Destination dir is non-empty — can't atomically overwrite dir */
-            return NGX_HTTP_CONFLICT;
+        int sys_errno = 0;
+
+        rc = webdav_move_execute(r->connection->log, conf->common.root_canon,
+                                 src_path, dst_path, overwrite, dst_existed,
+                                 &sys_errno);
+
+        if (rc == NGX_HTTP_CREATED || rc == NGX_HTTP_NO_CONTENT) {
+            r->headers_out.status = (ngx_uint_t) rc;
+            r->headers_out.content_length_n = 0;
+            ngx_http_send_header(r);
+            return ngx_http_send_special(r, NGX_HTTP_LAST);
         }
-        if (errno == ENOENT) {
-            /* Source vanished or destination parent missing */
-            return NGX_HTTP_CONFLICT;
+
+        if (rc == NGX_HTTP_INTERNAL_SERVER_ERROR) {
+            xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, sys_errno,
+                                 "xrootd_webdav MOVE: rename() failed for: \"%s\"",
+                                 src_path);
         }
-        ngx_http_xrootd_webdav_log_safe_path(r->connection->log, NGX_LOG_ERR,
-                                             ngx_errno,
-                                             "xrootd_webdav MOVE: rename() failed for",
-                                             src_path);
+
+        if (rc == NGX_HTTP_PRECONDITION_FAILED || rc == NGX_HTTP_CONFLICT) {
+            return rc;
+        }
+
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-
-    /* Evict both paths from fd cache */
-    {
-        webdav_fd_table_t *fdt = webdav_get_fd_table(r->connection);
-        if (fdt != NULL) {
-            webdav_fd_table_evict(fdt, src_path);
-            webdav_fd_table_evict(fdt, dst_path);
-        }
-    }
-
-    r->headers_out.status           = dst_existed ? NGX_HTTP_NO_CONTENT
-                                                   : NGX_HTTP_CREATED;
-    r->headers_out.content_length_n = 0;
-    ngx_http_send_header(r);
-    return ngx_http_send_special(r, NGX_HTTP_LAST);
 }

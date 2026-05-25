@@ -1,15 +1,97 @@
 #include "cache_internal.h"
 
-#if (NGX_THREADS)
 
 #if defined(__linux__)
 #include <endian.h>
 #endif
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
+/* ---- xrootd_cache_origin_bootstrap — handshake + protocol negotiation + login ----
+ *
+ * WHAT: Performs the three-phase XRootD connection bootstrap on a raw TCP/TLS socket:
+ *       ClientInitHandShake → server response → kXR_protocol negotiation → kXR_login.
+ *       Returns 0 when anonymous login succeeds, -1 on any phase failure.
+ *
+ * WHY: Every cache fill must establish a valid XRootD session before reading files.
+ *      The handshake identifies the client (fourth=4, fifth=ROOTD_PQ), protocol negotiation
+ *      checks server capabilities (kXR_gotoTLS flag triggers TLS upgrade if configured),
+ *      and anonymous login establishes streamid[1]=1 for subsequent read/write requests.
+ *      The login uses username 'xrd' and capver kXR_ver005 — no credentials needed for
+ *      anonymous reads from an open origin. */
+
+/* ---- xrootd_cache_origin_open — open source file with fhandle + stat parsing ----
+ *
+ * WHAT: Sends kXR_open request (read + kXR_retstat) to the origin, parses ServerOpenBody
+ *       for fhandle, and optionally extracts file size from appended stat string.
+ *       Returns 0 on success with fhandle populated, -1 on error or redirect.
+ *
+ * WHY: The read loop needs an opaque file handle (fhandle) to identify the open file in
+ *      subsequent kXR_read/kXR_close requests. kXR_retstat adds an ASCII stat string after
+ *      the fhandle so we learn file_size before committing to a full download — this enables
+ *      the admission filter to reject oversized files without downloading them. */
+
+/* ---- xrootd_cache_origin_open_write — write-through origin open with mkpath ----
+ *
+ * WHAT: Sends kXR_open request (update + delete + mkpath) to mirror a local file onto
+ *       the origin. Truncates destination, creates missing parent directories if supported.
+ *       Returns 0 on success with fhandle populated, -1 on error or redirect.
+ *
+ * WHY: Write-through mirroring copies cached content back to the origin storage. Options:
+ *      kXR_open_updt (update mode), kXR_delete (truncate before write), kXR_mkpath (create
+ *      parent dirs if missing) ensure atomic replacement of the origin file from the
+ *      write-through point of view. */
+
+/* ---- xrootd_cache_origin_close_file — send kXR_close for fhandle ----
+ *
+ * WHAT: Sends kXR_close request with the given fhandle and reads (but discards) the
+ *       server response. Uses a dummy fill_t struct since no metrics logging needed.
+ *
+ * WHY: Every opened file must be closed on the origin before reconnecting or finishing
+ *      the fetch. The response is discarded because close status only matters for errors
+ *      — a failed close doesn't invalidate the fetched data already written to disk. */
+
+/* ---- xrootd_cache_origin_write_chunk — write data chunk to origin file ----
+ *
+ * WHAT: Sends kXR_write request with offset, fhandle, and data payload. Reads response
+ *       expecting kXR_ok with zero data length. Returns 0 on success, -1 on error.
+ *
+ * WHY: Write-through mirroring streams local cache content to the origin file at the
+ *      correct offset using big-endian 64-bit offsets (htobe64) matching XRootD wire format.
+ *      Response validation requires status=kXR_ok and dlen=0 — any extra data is invalid. */
+
+/* ---- xrootd_cache_origin_truncate — set origin file size to length ----
+ *
+ * WHAT: Sends kXR_truncate request with fhandle and target offset (big-endian 64-bit).
+ *       Reads response expecting kXR_ok. Returns 0 on success, -1 on error.
+ *
+ * WHY: Write-through may need to shrink the origin file before streaming new content.
+ *      Truncate sets the exact byte length — everything beyond offset is discarded.
+ *      Used before write_chunk when the destination file is larger than the source. */
+
+/* ---- xrootd_cache_origin_sync — flush origin file buffers ----
+ *
+ * WHAT: Sends kXR_sync request with fhandle, reads response expecting kXR_ok.
+ *       Returns 0 on success, -1 on error.
+ *
+ * WHY: Write-through mirroring syncs the origin file after streaming all chunks to ensure
+ *      data is flushed to disk. Equivalent to fsync() on the origin side — guarantees
+ *      the mirrored content survives a server crash before close is issued. */
+
+/* ---- xrootd_cache_origin_read_chunk — read data from origin into local fd ----
+ *
+ * WHAT: Sends kXR_read request with fhandle, offset, and requested length (rlen). Reads
+ *       response loop handling both kXR_ok (final chunk) and kXR_oksofar (intermediate),
+ *       writes each data payload to the local part file fd via xrootd_cache_fd_write_all.
+ *       Sets *got = total bytes received. Returns 0 on complete read, -1 on error.
+ *
+ * WHY: The full cache fill downloads the origin file in chunks (XROOTD_CACHE_FETCH_CHUNK).
+ *      kXR_oksofar indicates partial delivery — the loop continues until status=kXR_ok
+ *      signals final chunk. Data length validation prevents overflow: dlen <= want and
+ *      accumulated *got stays within requested bounds. */
 int
 xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc)
@@ -215,6 +297,87 @@ xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     return 0;
 }
 
+int
+xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *path, uint16_t mode_bits,
+    u_char fhandle[XRD_FHANDLE_LEN])
+{
+    size_t             pathlen, total;
+    u_char            *buf;
+    ClientOpenRequest *req;
+    uint16_t           status;
+    uint32_t           dlen;
+    u_char            *body;
+
+    if (path == NULL || path[0] == '\0') {
+        xrootd_cache_set_error(t, kXR_ArgInvalid, 0,
+                               "write-through origin path missing");
+        return -1;
+    }
+
+    pathlen = strlen(path);
+    total = sizeof(ClientOpenRequest) + pathlen;
+
+    buf = malloc(total);
+    if (buf == NULL) {
+        xrootd_cache_set_error(t, kXR_NoMemory, 0,
+                               "write-through origin open allocation failed");
+        return -1;
+    }
+
+    ngx_memzero(buf, total);
+    req = (ClientOpenRequest *) buf;
+    req->streamid[1] = 2;
+    req->requestid = htons(kXR_open);
+    req->mode = htons(mode_bits != 0 ? mode_bits : 0644);
+    /*
+     * Replace the origin copy atomically from the write-through point of view:
+     * open for update, create missing parents if the origin supports mkpath,
+     * and truncate the destination before streaming the local contents.
+     */
+    req->options = htons(kXR_open_updt | kXR_delete | kXR_mkpath);
+    req->dlen = htonl((kXR_int32) pathlen);
+    ngx_memcpy(buf + sizeof(*req), path, pathlen);
+
+    if (xrootd_cache_io_send(oc, buf, total) != 0) {
+        free(buf);
+        xrootd_cache_set_error(t, kXR_ServerError, errno,
+                               "write-through origin open write failed");
+        return -1;
+    }
+    free(buf);
+
+    body = NULL;
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
+                                   XROOTD_MAX_PATH + 256) != 0) {
+        return -1;
+    }
+
+    if (status == kXR_error) {
+        xrootd_cache_set_origin_error(t, body, dlen,
+                                      "write-through origin open failed");
+        free(body);
+        return -1;
+    }
+    if (status == kXR_redirect) {
+        free(body);
+        xrootd_cache_set_error(t, kXR_Unsupported, 0,
+                               "write-through origin redirected open; direct "
+                               "data server origin is required");
+        return -1;
+    }
+    if (status != kXR_ok || dlen < sizeof(ServerOpenBody)) {
+        free(body);
+        xrootd_cache_set_error(t, kXR_ServerError, 0,
+                               "write-through origin open invalid response");
+        return -1;
+    }
+
+    ngx_memcpy(fhandle, ((ServerOpenBody *) body)->fhandle, XRD_FHANDLE_LEN);
+    free(body);
+    return 0;
+}
+
 void
 xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
     const u_char fhandle[XRD_FHANDLE_LEN])
@@ -240,6 +403,150 @@ xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
                                    4096) == 0) {
         free(body);
     }
+}
+
+int
+xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+    uint64_t offset, const u_char *data, size_t len)
+{
+    ClientWriteRequest req;
+    uint16_t           status;
+    uint32_t           dlen;
+    u_char            *body;
+
+    if (len > INT32_MAX) {
+        xrootd_cache_set_error(t, kXR_ArgTooLong, 0,
+                               "write-through origin write too large");
+        return -1;
+    }
+
+    ngx_memzero(&req, sizeof(req));
+    req.streamid[1] = 3;
+    req.requestid = htons(kXR_write);
+    ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
+    req.offset = (kXR_int64) htobe64(offset);
+    req.dlen = htonl((kXR_int32) len);
+
+    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0
+        || (len > 0 && xrootd_cache_io_send(oc, data, len) != 0))
+    {
+        xrootd_cache_set_error(t, kXR_ServerError, errno,
+                               "write-through origin write failed");
+        return -1;
+    }
+
+    body = NULL;
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
+                                   4096) != 0) {
+        return -1;
+    }
+
+    if (status == kXR_error) {
+        xrootd_cache_set_origin_error(t, body, dlen,
+                                      "write-through origin write rejected");
+        free(body);
+        return -1;
+    }
+
+    free(body);
+    if (status != kXR_ok || dlen != 0) {
+        xrootd_cache_set_error(t, kXR_ServerError, 0,
+                               "write-through origin write invalid response");
+        return -1;
+    }
+
+    return 0;
+}
+
+int
+xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+    uint64_t length)
+{
+    ClientTruncateRequest req;
+    uint16_t              status;
+    uint32_t              dlen;
+    u_char               *body;
+
+    ngx_memzero(&req, sizeof(req));
+    req.streamid[1] = 4;
+    req.requestid = htons(kXR_truncate);
+    ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
+    req.offset = (kXR_int64) htobe64(length);
+    req.dlen = 0;
+
+    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0) {
+        xrootd_cache_set_error(t, kXR_ServerError, errno,
+                               "write-through origin truncate send failed");
+        return -1;
+    }
+
+    body = NULL;
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
+                                   4096) != 0) {
+        return -1;
+    }
+
+    if (status == kXR_error) {
+        xrootd_cache_set_origin_error(t, body, dlen,
+                                      "write-through origin truncate failed");
+        free(body);
+        return -1;
+    }
+
+    free(body);
+    if (status != kXR_ok) {
+        xrootd_cache_set_error(t, kXR_ServerError, 0,
+                               "write-through origin truncate invalid response");
+        return -1;
+    }
+
+    return 0;
+}
+
+int
+xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN])
+{
+    ClientSyncRequest req;
+    uint16_t          status;
+    uint32_t          dlen;
+    u_char           *body;
+
+    ngx_memzero(&req, sizeof(req));
+    req.streamid[1] = 5;
+    req.requestid = htons(kXR_sync);
+    ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
+    req.dlen = 0;
+
+    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0) {
+        xrootd_cache_set_error(t, kXR_ServerError, errno,
+                               "write-through origin sync send failed");
+        return -1;
+    }
+
+    body = NULL;
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
+                                   4096) != 0) {
+        return -1;
+    }
+
+    if (status == kXR_error) {
+        xrootd_cache_set_origin_error(t, body, dlen,
+                                      "write-through origin sync failed");
+        free(body);
+        return -1;
+    }
+
+    free(body);
+    if (status != kXR_ok) {
+        xrootd_cache_set_error(t, kXR_ServerError, 0,
+                               "write-through origin sync invalid response");
+        return -1;
+    }
+
+    return 0;
 }
 
 int
@@ -314,4 +621,3 @@ xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
     }
 }
 
-#endif /* NGX_THREADS */

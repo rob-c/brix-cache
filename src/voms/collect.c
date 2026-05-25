@@ -7,6 +7,16 @@
  * VO list format.
  */
 
+/* ---- Section: Duplicate Detection & Append Helper ----
+ *
+ * WHAT: xrootd_append_vo_token() — deduplicates and appends a VO name to both
+ * primary_vo (single VO) and vo_list (comma-separated multi-VO string). Returns
+ * ngx_flag_t: 1 on success, 0 when buffer is full. Guards against duplicates via
+ * xrootd_vo_list_contains(). Handles first-entry case separately from append-case
+ * to avoid leading commas. Uses ngx_cpystrn for initial write and ngx_memcpy +
+ * manual NUL termination for subsequent appends. Caller must ensure vo_list_sz
+ * and primary_vo_sz are sufficient (typically 256 bytes). */
+
 static ngx_flag_t
 xrootd_append_vo_token(char *primary_vo, size_t primary_vo_sz,
     char *vo_list, size_t vo_list_sz, const char *vo)
@@ -45,6 +55,15 @@ xrootd_append_vo_token(char *primary_vo, size_t primary_vo_sz,
     return 1;
 }
 
+/* ---- Section: FQAN → VO Name Parser ----
+ *
+ * WHAT: xrootd_fqan_to_vo() — extracts the VO name from a Fully-Qualified Attribute
+ * Name (FQAN). FQAN format: "/VO/Role=X/Capability=Y" — the VO is the first path
+ * component after the leading slash. Returns ngx_flag_t: 1 on success, 0 when fqan
+ * is NULL, malformed (no second '/'), or VO name exceeds vo_sz. Uses pointer arithmetic
+ * (end - start) for length calculation to avoid strlen on the full string, then
+ * ngx_memcpy + manual NUL termination. Caller must provide vo_sz >= 128 bytes
+ * (VO names are typically short: "cms", "atlas", "alice"). */
 
 static ngx_flag_t
 xrootd_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
@@ -73,6 +92,16 @@ xrootd_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
     return 1;
 }
 
+/* ---- Section: VOMS Entry → VO List Collector ----
+ *
+ * WHAT: xrootd_collect_voms_vos() — iterates over all VOMS attribute certificate
+ * entries in vd->data and populates primary_vo (single VO name) and vo_list
+ * (comma-separated multi-VO string). Two-pass per entry: first uses voname field
+ * directly, then derives additional VOs from each FQAN via xrootd_fqan_to_vo().
+ * Delegates append/dedup to xrootd_append_vo_token() for both paths. Returns
+ * NGX_OK when vo_list is non-empty, NGX_DECLINED when no VO membership found,
+ * NGX_ERROR on buffer overflow during append. Caller must ensure primary_vo_sz
+ * and vo_list_sz are sufficient (typically 256 bytes). */
 
 ngx_int_t
 xrootd_collect_voms_vos(struct voms_data *vd,

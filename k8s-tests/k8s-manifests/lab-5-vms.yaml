@@ -1,0 +1,240 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xrootd-lab
+---
+# Lab configurations
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lab-configs
+  namespace: xrootd-lab
+data:
+  nginx-data.conf: |
+    events { worker_connections 1024; }
+    stream {
+      server {
+        listen 1094;
+        xrootd on;
+        xrootd_root /data/xrootd;
+        xrootd_allow_write on;
+      }
+    }
+    http {
+      server {
+        listen 8443;
+        location / {
+          xrootd_webdav on;
+          xrootd_webdav_root /data/xrootd;
+        }
+      }
+    }
+  nginx-redir.conf: |
+    events { worker_connections 1024; }
+    stream {
+      server {
+        listen 1094;
+        xrootd on;
+        xrootd_proxy on;
+        xrootd_proxy_upstream 172.16.0.10:1094;
+      }
+    }
+  xrootd-data.cf: |
+    xrd.port 1094
+    all.role server
+    oss.localroot /data/xrootd
+    all.export /
+    all.adminpath /var/spool/xrootd/admin
+    all.pidpath   /var/run/xrootd
+  xrootd-redir.cf: |
+    xrd.port 1094
+    all.role manager
+    all.export /
+    all.adminpath /var/spool/xrootd/admin
+    all.pidpath   /var/run/xrootd
+    # Simplified manager config: tell it about the data node
+    xrd.network 172.16.0.20:1094
+---
+# 1. nginx-xrootd data-node (172.16.0.10)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-data
+  namespace: xrootd-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: nginx-data }
+  template:
+    metadata:
+      labels: { app: nginx-data }
+    spec:
+      containers:
+      - name: server
+        image: nginx-xrootd-server:latest
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx-data.conf
+      volumes:
+      - name: config
+        configMap: { name: lab-configs }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-nginx-data
+  namespace: xrootd-lab
+spec:
+  clusterIP: 172.16.0.10
+  selector: { app: nginx-data }
+  ports:
+  - { name: xrootd, port: 1094 }
+  - { name: webdav, port: 8443 }
+---
+# 2. nginx-xrootd redirector (172.16.0.11)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-redir
+  namespace: xrootd-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: nginx-redir }
+  template:
+    metadata:
+      labels: { app: nginx-redir }
+    spec:
+      containers:
+      - name: server
+        image: nginx-xrootd-server:latest
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx-redir.conf
+      volumes:
+      - name: config
+        configMap: { name: lab-configs }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-nginx-redir
+  namespace: xrootd-lab
+spec:
+  clusterIP: 172.16.0.11
+  selector: { app: nginx-redir }
+  ports:
+  - { name: xrootd, port: 1094 }
+---
+# 3. Official XRootD server (172.16.0.20)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xrootd-data
+  namespace: xrootd-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: xrootd-data }
+  template:
+    metadata:
+      labels: { app: xrootd-data }
+    spec:
+      containers:
+      - name: server
+        image: xrootd-reference:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - { name: AUTH_MODE, value: anonymous }
+        volumeMounts:
+        - name: config
+          mountPath: /etc/xrootd/xrootd-anon.cf
+          subPath: xrootd-data.cf
+      volumes:
+      - name: config
+        configMap: { name: lab-configs }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-xrootd-data
+  namespace: xrootd-lab
+spec:
+  clusterIP: 172.16.0.20
+  selector: { app: xrootd-data }
+  ports:
+  - { name: xrootd, port: 1094 }
+---
+# 4. Official XRootD redirector (172.16.0.21)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xrootd-redir
+  namespace: xrootd-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: xrootd-redir }
+  template:
+    metadata:
+      labels: { app: xrootd-redir }
+    spec:
+      containers:
+      - name: server
+        image: xrootd-reference:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - { name: AUTH_MODE, value: anonymous }
+        volumeMounts:
+        - name: config
+          mountPath: /etc/xrootd/xrootd-anon.cf
+          subPath: xrootd-redir.cf
+      volumes:
+      - name: config
+        configMap: { name: lab-configs }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-xrootd-redir
+  namespace: xrootd-lab
+spec:
+  clusterIP: 172.16.0.21
+  selector: { app: xrootd-redir }
+  ports:
+  - { name: xrootd, port: 1094 }
+---
+# 5. Interactive Client (172.16.0.100)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: interactive-client
+  namespace: xrootd-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: interactive-client }
+  template:
+    metadata:
+      labels: { app: interactive-client }
+    spec:
+      containers:
+      - name: client
+        image: nginx-xrootd-test-runner:latest
+        imagePullPolicy: IfNotPresent
+        command: ["sleep", "infinity"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-interactive-client
+  namespace: xrootd-lab
+spec:
+  clusterIP: 172.16.0.100
+  selector: { app: interactive-client }
+  ports:
+  - { name: dummy, port: 80 }

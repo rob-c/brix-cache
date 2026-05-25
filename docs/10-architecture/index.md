@@ -1,0 +1,136 @@
+# Architecture: request lifecycle
+
+Traces a single XRootD request from TCP connection arrival to the last response byte leaving the socket. Read it alongside the source code — file names link to the corresponding directories.
+
+---
+
+## Mental Model For New nginx Developers
+
+nginx has a few ideas that show up everywhere in this module:
+
+| nginx concept | How to think about it in this project |
+|---|---|
+| Master process | Starts workers, owns config reloads, does not handle client I/O directly |
+| Worker process | Single-threaded event loop that accepts sockets and runs handlers |
+| `stream {}` | Raw TCP layer; used for native XRootD `root://` and `roots://` |
+| `http {}` | HTTP request layer; used for WebDAV `davs://`, S3-compatible HTTP, and metrics |
+| `ngx_connection_t` | The live socket plus read/write events and send functions |
+| `ngx_stream_session_t` | nginx's per-connection stream session wrapper |
+| `ngx_http_request_t` | nginx's per-HTTP-request object for WebDAV, S3, and metrics |
+| Pool allocation | Memory tied to a connection/request lifetime; cheap, but not free |
+| Module context | Our per-connection or per-request state attached to nginx objects |
+| Thread pool | Optional worker threads for blocking disk I/O, not protocol parsing |
+
+The key rule: nginx workers must not block for long. A worker may be handling
+thousands of sockets, so a slow disk read in the event loop delays unrelated
+clients. This module therefore tries to keep protocol parsing and response
+construction on the worker, while large or potentially slow file I/O can move
+through nginx thread pools.
+
+nginx module code also tends to split configuration by lifecycle:
+
+| Phase | What happens |
+|---|---|
+| Config parsing | Directives are read and stored in `ngx_stream_xrootd_srv_conf_t` or the relevant HTTP location conf |
+| Postconfiguration | SSL contexts, module hooks, and shared settings are finalized |
+| Worker init | Per-worker timers or runtime objects can be started |
+| Connection/request runtime | `xrootd_ctx_t` or WebDAV request context carries live state |
+
+If you are new to nginx, this explains why the code does not look like a
+single blocking server loop. There is no `while (accept()) { read(); write(); }`
+in the module. nginx owns accept, event polling, timers, memory pools, and most
+socket details; the module supplies handlers.
+
+---
+
+## Mental Model For ROOT/XRootD Developers
+
+From the client side, native XRootD feels like a stateful file protocol:
+
+```
+connect → handshake → protocol → login → auth → open → read/readv/pgread → close
+```
+
+The server does not receive "read `/store/a.root`" on every read. It receives an
+open request first, returns a small file-handle byte, and later reads reference
+that handle. The module stores those handles in `ctx->files[]`.
+
+ROOT users usually see this through higher-level APIs:
+
+```cpp
+TFile::Open("root://host//store/a.root");
+```
+
+or through `xrdcp`. In both cases the XRootD client library emits the same
+wire-level operations: `kXR_open`, `kXR_read`, `kXR_stat`, `kXR_close`, and
+occasionally `kXR_readv` or paged-read/write operations. nginx-xrootd implements
+the storage protocol; it does not inspect the ROOT object model.
+
+WebDAV is different. `davs://` clients use HTTP methods:
+
+```
+GET /store/a.root
+PUT /store/new.root
+HEAD /store/a.root
+PROPFIND /store/
+```
+
+That means the code path is different too: native XRootD requests enter under
+`src/connection/`, `src/handshake/`, `src/read/`, and `src/write/`; WebDAV
+requests enter through nginx HTTP and land under `src/webdav/`.
+
+---
+
+## Which Code Path Handles My URL?
+
+| URL | nginx block | Main state object | Main source directories |
+|---|---|---|---|
+| `root://host//path` | `stream { server { xrootd on; } }` | `xrootd_ctx_t` | `connection/`, `handshake/`, `session/`, `read/`, `write/` |
+| `roots://host//path` | `stream { listen ... ssl; xrootd on; }` or native TLS upgrade | `xrootd_ctx_t` plus `c->ssl` | same native path, with TLS in `connection/tls.c` |
+| `http://host/path` | `http { location { xrootd_webdav on; } }` | `ngx_http_xrootd_webdav_req_ctx_t` | `webdav/` |
+| `https://host/path` | `http { listen ... ssl; location { xrootd_webdav on; } }` | `ngx_http_xrootd_webdav_req_ctx_t` plus `r->connection->ssl` | `webdav/`, plus nginx HTTP SSL |
+| `davs://host/path` | XRootD client WebDAV mode over HTTPS; same nginx block as `https://` WebDAV | `ngx_http_xrootd_webdav_req_ctx_t` plus `r->connection->ssl` | `webdav/`, plus nginx HTTP SSL |
+| `s3://host/bucket/key` in clients, or `https://host/bucket/key` on the wire | `http { location { xrootd_s3 on; } }` | `ngx_http_request_t` plus `ngx_http_s3_loc_conf_t` | `s3/` |
+| `/metrics` | `http { location { xrootd_metrics on; } }` | HTTP request | `metrics/` |
+
+When debugging, start by identifying both the URL scheme and the configured
+nginx location. A `davs://` URL is WebDAV over HTTPS from nginx's point of
+view. S3 clients also use HTTP(S) on the wire, but a location with
+`xrootd_s3 on;` dispatches to `src/s3/` instead of `src/webdav/`. A
+`root://` bug and an HTTPS/WebDAV/S3 bug may touch the same filesystem, CA
+bundle, and user credential, but they travel through different nginx modules
+and different code.
+
+```text
+                         accepted socket
+                               |
+                +--------------+--------------+
+                |                             |
+            stream{}                        http{}
+                |                             |
+      +---------+---------+        +----------+----------+
+      |                   |        |          |          |
+   root://             roots://   WebDAV      S3      metrics
+      |                   |        |          |          |
+ raw XRootD        TLS, then raw   HTTP       HTTP       HTTP
+ request frames    XRootD frames   methods    S3 API     GET
+      |                   |        |          |          |
+      +---------+---------+        |          |          |
+                |                  |          |          |
+          xrootd_ctx_t       WebDAV req   S3 loc    counters
+                |              ctx         conf
+                |                  |          |
+                +------------------+----------+
+                                   |
+                           filesystem and logs
+```
+
+---
+
+## Protocol-specific lifecycle docs
+
+- [Native XRootD stream](stream.md) — state machine, file handles, handlers, backpressure, AIO, auth flow, key source files
+- [WebDAV request lifecycle](webdav.md) — HTTP dispatch, auth gate, GET/PUT paths
+- [S3 request lifecycle](s3.md) — SigV4 auth gate, method routing, multipart staging
+
+---

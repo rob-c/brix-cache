@@ -20,3 +20,8 @@ on canonical path matching.
 | `stat_body.c` | XRootD `kXR_stat` body formatting |
 | `strip_cgi.c` | Simple path query-string stripping |
 | `path_internal.h` | Internal declarations shared only by path sources |
+| `authdb.c` | Auth database: path-to-user/group mapping for ACL evaluation |
+| `path.h` | Public path types and cross-file prototypes |
+| `resolve_confined_helpers.c` | Confined path resolution helpers — prefix checks, parent traversal |
+| `resolve_confined_ops.c` | Confined path operations — confined open, rename, mkdir wrappers |
+| `resolve_path_variants.c` | Variant path resolution: read/write/create style differences |

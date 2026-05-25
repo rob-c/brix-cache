@@ -53,13 +53,13 @@ import threading
 import time
 
 import pytest
-from settings import DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Target
 # ---------------------------------------------------------------------------
 
-ANON_HOST = "localhost"
+ANON_HOST = SERVER_HOST
 ANON_PORT = 0             # nginx-xrootd anonymous endpoint
 DATA_DIR  = DEFAULT_DATA_ROOT
 
@@ -68,7 +68,7 @@ DATA_DIR  = DEFAULT_DATA_ROOT
 def _configure(test_env):
     """Bind module constants from the shared test environment."""
     global ANON_HOST, ANON_PORT, DATA_DIR
-    ANON_HOST = "127.0.0.1"
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
     DATA_DIR  = test_env["data_dir"]
 

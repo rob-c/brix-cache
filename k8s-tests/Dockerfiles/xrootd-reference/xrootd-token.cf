@@ -1,0 +1,22 @@
+# xrootd-token.cf — WLCG JWT / SciTokens authentication
+# Variables substituted by entrypoint.sh:
+#   {PORT}          Listener port
+#   {DATA_DIR}      Filesystem root
+#   {SERVER_CERT}   Host EE certificate (required by SciTokens TLS handshake)
+#   {SERVER_KEY}    Host private key
+#   {CA_DIR}        Trusted CA directory
+#   {SCITOKENS_CFG} Path to the SciTokens issuer/audience config
+
+xrd.port {PORT}
+
+oss.localroot {DATA_DIR}
+all.export /
+
+all.adminpath /var/spool/xrootd/admin
+all.pidpath   /var/run/xrootd
+
+xrd.trace off
+
+# SciTokens authorization library (handles WLCG JWT / Bearer tokens).
+# The ++ flag means it is additive — multiple authlibs can stack.
+ofs.authlib ++ libXrdAccSciTokens.so config={SCITOKENS_CFG}

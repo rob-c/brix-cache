@@ -1,5 +1,27 @@
 /*
  * directives.c — nginx config directives for xrootd_proxy and xrootd_proxy_upstream.
+ *
+ * WHAT: Parses and validates nginx configuration directives for proxy mode operation.
+ *       Provides four directive handlers: xrootd_conf_set_proxy_upstream (register upstream endpoints),
+ *       xrootd_conf_set_proxy_auth (set global auth policy), xrootd_conf_set_proxy_login_user
+ *       (control username sent to upstream), and xrootd_conf_set_proxy_path_rewrite (strip/add path prefix).
+ *       Also includes static helper proxy_parse_host_port for parsing host:port address strings.
+ *
+ * WHY: Proxy mode requires configurable upstream endpoints with per-endpoint auth policies,
+ *      username passthrough/fixed/anonymous modes, and optional path rewriting for namespace mapping.
+ *      These directives populate conf->proxy_upstreams array, conf->proxy_auth policy enum,
+ *      conf->proxy_login_user mode, and strip/add prefix strings — all consumed by proxy forward
+ *      handlers (forward_request.c, forward_relay.c). Backward compat: first upstream occurrence sets
+ *      legacy single-upstream fields (proxy_host/proxy_port) for prior configuration style.
+ *
+ * HOW: Each directive handler reads cf->args->elts for parsed argument values. proxy_parse_host_port()
+ *      handles IPv6 literal [addr]:port and IPv4/hostname host:port formats — zeroing colon delimiter,
+ *      extracting host string via ngx_pnalloc, parsing port via strtol with 1-65535 range validation.
+ *      xrootd_conf_set_proxy_upstream() appends to conf->proxy_upstreams array (lazily created), sets
+ *      host/port/auth=-1 (inherit global default), parses optional third arg for per-upstream auth override.
+ *      xrootd_conf_set_proxy_auth() maps value string to XROOTD_PROXY_AUTH_* enum, logs EMERG on invalid.
+ *      xrootd_conf_set_proxy_login_user() handles anonymous/passthrough/fixed:<name> (1-8 chars) modes.
+ *      xrootd_conf_set_proxy_path_rewrite() copies two argument values to strip/add fields directly.
  */
 
 #include "proxy_internal.h"
@@ -201,6 +223,57 @@ xrootd_conf_set_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "xrootd_proxy_auth: invalid value \"%V\"; "
             "use anonymous, forward, or sss", &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+
+/*
+ * xrootd_proxy_login_user anonymous|passthrough|fixed:<name>
+ *
+ * Controls the username placed in the upstream kXR_login frame:
+ *
+ *   anonymous     — always send "xrd" (default, preserves prior behaviour)
+ *   passthrough   — copy the client's authenticated username (from kXR_login),
+ *                   truncated to 8 bytes if necessary.  Falls back to "xrd" for
+ *                   anonymous client sessions.
+ *   fixed:<name>  — always send the literal <name> (1–8 characters)
+ */
+char *
+xrootd_conf_set_proxy_login_user(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf_ptr)
+{
+    ngx_stream_xrootd_srv_conf_t *conf = conf_ptr;
+    ngx_str_t                    *value;
+
+    (void) cmd;
+
+    value = cf->args->elts;
+
+    if (ngx_strcmp(value[1].data, "anonymous") == 0) {
+        conf->proxy_login_user = XROOTD_PROXY_LOGIN_ANONYMOUS;
+
+    } else if (ngx_strcmp(value[1].data, "passthrough") == 0) {
+        conf->proxy_login_user = XROOTD_PROXY_LOGIN_PASSTHROUGH;
+
+    } else if (value[1].len >= 7
+               && ngx_strncmp(value[1].data, "fixed:", 6) == 0)
+    {
+        size_t nlen = value[1].len - 6;
+        if (nlen == 0 || nlen > 8) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_proxy_login_user: fixed name must be 1-8 characters");
+            return NGX_CONF_ERROR;
+        }
+        conf->proxy_login_user = XROOTD_PROXY_LOGIN_FIXED;
+        ngx_memcpy(conf->proxy_login_user_name, value[1].data + 6, nlen);
+        conf->proxy_login_user_name[nlen] = '\0';
+
+    } else {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_proxy_login_user: invalid value \"%V\"; "
+            "use anonymous, passthrough, or fixed:<name>", &value[1]);
         return NGX_CONF_ERROR;
     }
 

@@ -12,8 +12,10 @@ ngx_int_t xrootd_dirlist_checksum_algorithm(const u_char *payload,
     char *bad_algo, size_t bad_algo_sz);
 
 /* Compute the checksum of a single directory entry and write the
- * "algo:hexdigest" token into out[]. */
-void xrootd_dirlist_checksum_token(ngx_connection_t *c, int dfd,
+ * "algo:hexdigest" token into out[].
+ * Takes ngx_log_t* instead of ngx_connection_t* so it is safe to call
+ * from a thread-pool worker (no access to connection state). */
+void xrootd_dirlist_checksum_token(ngx_log_t *log, int dfd,
     const char *name, const char *path, const struct stat *st,
     const char *algo, char *out, size_t outsz);
 

@@ -16,6 +16,15 @@ Read-through cache support is split by the job each file owns:
 | `paths.c` | Cache path suffix, parent-directory, and ready-file checks |
 | `errors.c` | Shared fill error formatting |
 
+| `cache_internal.h` | Internal cache types shared across cache files |
+| `directives.c` | nginx directives for `xrootd_cache_*` (max_file_size, include_regex, eviction_threshold) |
+| `evict_candidates.c` | Candidate selection for eviction: sort by size then access time |
+| `evict_internal.h` | Internal eviction types and prototypes |
+| `evict_policy.c` | Eviction policy decision logic — which files to evict at high-water |
+| `writethrough_decision.c` | Write-through mirroring decision: when to mirror write to origin |
+| `writethrough_decision.h` | Write-through decision types and prototypes |
+| `writethrough_flush.c` | Write-through flush to origin after local write completes |
+| `writethrough_metrics.h` | Write-through metrics counters and labels |
 ## Admission filter
 
 Two directives control which files are admitted to the cache:

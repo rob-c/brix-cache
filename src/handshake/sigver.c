@@ -101,6 +101,8 @@ xrootd_verify_pending_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
     ngx_int_t rc;
 
+    ctx->verified_signing = 0;
+
     if (ctx->sigver_pending && ctx->cur_reqid != kXR_sigver) {
         ctx->sigver_pending = 0;
 
@@ -110,7 +112,8 @@ xrootd_verify_pending_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
                               "xrootd: sigver expectrid=%d but got reqid=%d",
                               (int) ctx->sigver_expectrid,
                               (int) ctx->cur_reqid);
-                return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                /* kXR_InvalidRequest: the request is malformed or not allowed now */
+                return xrootd_send_error(ctx, c, kXR_InvalidRequest,
                                          "signed request opcode mismatch");
             }
 
@@ -118,9 +121,81 @@ xrootd_verify_pending_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
             if (rc != XROOTD_DISPATCH_CONTINUE) {
                 return rc;
             }
+
+            ctx->verified_signing = 1;
         }
     } else if (ctx->cur_reqid == kXR_sigver) {
         ctx->sigver_pending = 0;
+    }
+
+    return XROOTD_DISPATCH_CONTINUE;
+}
+
+static int
+xrootd_sigver_opcode_requires(uint16_t opcode, ngx_uint_t level)
+{
+    /* Level 0: none, Level 1: compatible -> nothing requires signing */
+    if (level <= 1) {
+        return 0;
+    }
+
+    /* These are always allowed unsigned as they are part of the auth/session state machine. */
+    if (opcode == kXR_login || opcode == kXR_protocol || opcode == kXR_auth
+        || opcode == kXR_endsess || opcode == kXR_ping || opcode == kXR_sigver
+        || opcode == kXR_bind)
+    {
+        return 0;
+    }
+
+    /* Level 2: standard -> require for mutations and handle open */
+    if (level == 2) {
+        return (opcode == kXR_open || opcode == kXR_write || opcode == kXR_pgwrite
+                || opcode == kXR_writev || opcode == kXR_truncate || opcode == kXR_mkdir
+                || opcode == kXR_rm || opcode == kXR_rmdir || opcode == kXR_mv
+                || opcode == kXR_chmod || opcode == kXR_fattr || opcode == kXR_chkpoint
+                || opcode == kXR_clone);
+    }
+
+    /* Level 3: intense -> require for everything post-login */
+    if (level == 3) {
+        return 1;
+    }
+
+    /* Level 4: pedantic -> require for everything (except session ops handled above) */
+    return 1;
+}
+
+/*
+ * xrootd_signing_enforce_level — enforce the configured xrootd_security_level.
+ *
+ * Checks whether the current opcode requires a signature at the configured
+ * security level.  If it does and the request was not signed (verified_signing=0),
+ * rejects the request with kXR_NotAuthorized.
+ */
+ngx_int_t
+xrootd_signing_enforce_level(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf)
+{
+    if (!ctx->signing_active || conf->security_level == 0) {
+        return XROOTD_DISPATCH_CONTINUE;
+    }
+
+    if (xrootd_sigver_opcode_requires(ctx->cur_reqid, conf->security_level)) {
+        if (!ctx->verified_signing) {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                          "xrootd: unsigned request %d rejected by security_level=%d",
+                          (int) ctx->cur_reqid, (int) conf->security_level);
+            return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                     "request signing required for this opcode");
+        }
+
+        /* Pedantic mode: also enforce that the signature covered the payload. */
+        if (conf->security_level >= 4 && ctx->sigver_nodata && ctx->cur_dlen > 0) {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                          "xrootd: pedantic signing rejection: sigver nodata flag set but payload present");
+            return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                     "payload signing required in pedantic mode");
+        }
     }
 
     return XROOTD_DISPATCH_CONTINUE;

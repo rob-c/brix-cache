@@ -25,12 +25,29 @@
 # define CRL_GET_ISSUER(crl) X509_CRL_get_issuer((crl))
 #endif
 
+/* ---- Function: xrootd_pki_name_to_str() (static) ----
+ *
+ * WHAT: Converts an X509_NAME structure to a human-readable string via X509_NAME_oneline — produces the standard OpenSSL DN format used for CA/CRL issuer identification in error logs. Returns caller-owned malloc'd string that must be freed with OPENSSL_free.
+ *
+ * WHY: PKI verification functions need to log issuer DNs when CRL/CA mismatches occur; without converting the binary X509_NAME structure to readable text, operators can't determine which certificate in their trust store is causing the issue.
+ *
+ * HOW: Calls X509_NAME_oneline(name, NULL, 0) which returns a malloc'd string in standard DN format. Caller retains ownership and must free via OPENSSL_free.
+ */
+
 static char *
 xrootd_pki_name_to_str(const X509_NAME *name)
 {
     return X509_NAME_oneline(name, NULL, 0);
 }
 
+/* ---- Function: xrootd_pki_log_name_error() (static) ----
+ *
+ * WHAT: Logs a structured PKI error message containing the X509_NAME as readable text — combines log_prefix, descriptive message, and DN string into a single ngx_log_error call. Frees the OpenSSL-allocated name string after logging.
+ *
+ * WHY: CRL/CA mismatch errors need to identify which issuer or CA was problematic; without converting the binary X509_NAME structure to readable text, operators can't determine which certificate in their trust store is causing the issue.
+ *
+ * HOW: Calls xrootd_pki_name_to_str() to convert name → string, logs with format "%s: PKI check: %s %s" using log_prefix + message + name_text (or "<unknown>" if conversion failed), frees name_text via OPENSSL_free.
+ */
 
 static void
 xrootd_pki_log_name_error(ngx_log_t *log, const char *log_prefix,
@@ -48,6 +65,14 @@ xrootd_pki_log_name_error(ngx_log_t *log, const char *log_prefix,
     }
 }
 
+/* ---- Function: xrootd_pki_crl_matches_ca() (static) ----
+ *
+ * WHAT: Compares the issuer DN of a CRL against the subject DN of a CA certificate — returns 1 if they match, 0 otherwise. Uses HAVE_X509_CRL_GET0_ISSUER compile-time macro to select between modern X509_CRL_get0_issuer (const pointer) and legacy X509_CRL_get_issuer (malloc'd pointer).
+ *
+ * WHY: CRL issuer matching is the first step of cross-signature verification; DN comparison selects candidate CA, then signature check proves the CRL was actually signed by that CA's private key. Without this helper, each caller would duplicate the issuer/subject extraction + comparison logic.
+ *
+ * HOW: Extracts crl_issuer via CRL_GET_ISSUER macro (conditional on OpenSSL version), extracts ca_subject via X509_get_subject_name, compares with X509_NAME_cmp — returns 1 if zero difference.
+ */
 
 static ngx_flag_t
 xrootd_pki_crl_matches_ca(X509_CRL *crl, X509 *ca_cert)
@@ -61,6 +86,14 @@ xrootd_pki_crl_matches_ca(X509_CRL *crl, X509 *ca_cert)
     return X509_NAME_cmp(crl_issuer, ca_subject) == 0;
 }
 
+/* ---- Function: xrootd_pki_crl_signature_valid() (static) ----
+ *
+ * WHAT: Verifies that a CRL's digital signature was produced by the specified issuer CA's public key — returns 1 if valid, 0 on failure with structured error log. Extracts public key from CA cert, calls X509_CRL_verify, frees key.
+ *
+ * WHY: DN matching alone is insufficient to prove a CRL belongs to a CA; a different CA could have the same subject DN in misconfigured setups. The signature check proves cryptographic ownership — the CRL was actually signed by that CA's private key, not just nominally issued by it.
+ *
+ * HOW: Extracts issuer_subject and issuer_public_key from issuer_ca cert; if pubkey extraction fails, logs "CA has no public key" error; calls X509_CRL_verify(crl, issuer_public_key); frees pubkey via EVP_PKEY_free; on failure logs CRL signature verification error with issuer DN.
+ */
 
 static ngx_flag_t
 xrootd_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
@@ -95,7 +128,6 @@ xrootd_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
 
     return 1;
 }
-
 
 /*
  * xrootd_pki_verify_crls — at startup, check that every loaded CRL has a
@@ -159,7 +191,6 @@ xrootd_pki_verify_crls(ngx_log_t *log, STACK_OF(X509) *ca_certs,
     return NGX_OK;
 }
 
-
 /*
  * xrootd_pki_check_paths — load CAs and CRLs from disk and verify
  * cross-signatures.  Called during nginx configuration phase.
@@ -208,7 +239,6 @@ xrootd_pki_check_paths(ngx_log_t *log, const char *ca_path,
 
     return NGX_OK;
 }
-
 
 int
 xrootd_check_pki_and_crl(const char *ca_dir, const char *crl_dir, ngx_log_t *log)

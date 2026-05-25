@@ -13,7 +13,7 @@
  * small helper that exits once the token is returned.
  */
 
-#include "tpc_cred.h"
+#include "tpc_cred_internal.h"
 #include "tpc_config.h"
 #include "webdav.h"
 
@@ -44,102 +44,8 @@ webdav_tpc_cred_metric_increment(ngx_http_request_t *r,
     return NGX_OK;
 }
 
-/* Maximum token length (RFC 6750: opaque tokens rarely exceed 1 KiB). */
-#define TPC_CRED_MAX_TOKEN_LEN  4096
-
 /* Path to the dedicated oidc-agent helper binary. */
 #define TPC_CRED_HELPER_PATH    "/usr/local/sbin/nginx-xrootd-tpc-cred"
-
-/* Internal helper: parse a JSON string value for a given key.
- *
- * Returns a pointer into `json` (the opening quote of the value) on
- * success, or NULL if the key is absent or the value is not a string.
- * The caller must skip past the opening '"' and read until the closing '"'.
- */
-static const char *
-tpc_cred_json_find_string(const char *json, const char *key)
-{
-    u_char *p;
-    size_t key_len;
-
-    key_len = strlen(key);
-    p = ngx_strstrn((u_char *) json, (char *) key, key_len - 1);
-    if (p == NULL)
-        return NULL;
-
-    /* Skip past the key string and optional whitespace to the colon. */
-    p += key_len;
-    while (*p == ' ' || *p == '\t')
-        p++;
-    if (*p != ':')
-        return NULL;
-    p++;
-    while (*p == ' ' || *p == '\t')
-        p++;
-
-    /* Expect an opening quote. */
-    if (*p != '"')
-        return NULL;
-    return (const char *) p;
-}
-
-/*
- * Extract the raw token string from a JSON response.
- *
- * The JSON must contain a "access_token": "<token>" field.
- * Returns NGX_OK and fills `token_out` (allocated in r->pool) on success.
- */
-static ngx_int_t
-tpc_cred_parse_token_response(ngx_http_request_t *r,
-                              const char *json,
-                              ngx_str_t *token_out)
-{
-    const char *val;
-    const char *end;
-    size_t tok_len;
-
-    val = tpc_cred_json_find_string(json, "access_token");
-    if (val == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "tpc_cred: no \"access_token\" in response");
-        return NGX_ERROR;
-    }
-
-    /* val points at the opening '"'.  Skip it. */
-    val++;
-
-    /* Find the closing quote. */
-    end = val;
-    while (*end && *end != '"') {
-        /* Defensive: prevent runaway scan on malformed JSON. */
-        if ((size_t)(end - val) >= TPC_CRED_MAX_TOKEN_LEN) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                          "tpc_cred: token exceeds max length (%d)",
-                          TPC_CRED_MAX_TOKEN_LEN);
-            return NGX_ERROR;
-        }
-        end++;
-    }
-
-    if (*end != '"') {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "tpc_cred: unterminated token string");
-        return NGX_ERROR;
-    }
-
-    tok_len = (size_t)(end - val);
-    token_out->len = tok_len;
-    token_out->data = ngx_pnalloc(r->pool, tok_len + 1);
-    if (token_out->data == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "tpc_cred: pnalloc failed for token");
-        return NGX_ERROR;
-    }
-    memcpy(token_out->data, val, tok_len);
-    token_out->data[tok_len] = '\0';
-
-    return NGX_OK;
-}
 
 /* ------------------------------------------------------------------ */
 /*  oidc-agent IPC                                                    */

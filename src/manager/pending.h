@@ -23,6 +23,8 @@ typedef struct {
     uint32_t    streamid;       /* CMS streamid used for correlation          */
     ngx_pid_t   worker_pid;     /* pid of the worker that inserted this entry */
     int         conn_fd;        /* fd of the waiting XRootD client connection */
+    ngx_atomic_uint_t conn_number; /* nginx connection generation guard       */
+    u_char      client_streamid[2]; /* original XRootD client stream id       */
     ngx_msec_t  expires;        /* ngx_current_msec + timeout_ms at insert    */
     char        redir_host[256];/* filled by recv.c when kYR_select arrives   */
     uint16_t    redir_port;     /* filled by recv.c when kYR_select arrives   */
@@ -43,7 +45,8 @@ ngx_int_t xrootd_pending_configure(ngx_conf_t *cf);
  * NGX_AGAIN if the table is full, or NGX_ERROR on a locking failure.
  */
 ngx_int_t xrootd_pending_insert(uint32_t streamid, ngx_pid_t worker_pid,
-    int conn_fd, ngx_msec_t timeout_ms);
+    int conn_fd, ngx_atomic_uint_t conn_number,
+    const u_char client_streamid[2], ngx_msec_t timeout_ms);
 
 /*
  * Find the entry matching streamid and worker_pid.  Returns a pointer into

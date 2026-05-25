@@ -1,10 +1,10 @@
 #include "ngx_xrootd_module.h"
 #include "chkpoint_xeq.h"
+#include "../compat/copy_range.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <unistd.h>
 
 /*
@@ -26,64 +26,6 @@
 /* Helpers                                                              */
 /* ------------------------------------------------------------------ */
 
-/*
- * Copy len bytes from src_fd at src_off → dst_fd at dst_off.
- * Tries copy_file_range(2); falls back to pread/pwrite on ENOSYS/EOPNOTSUPP.
- */
-static int
-ckp_copy_range(int src_fd, off_t src_off, int dst_fd, off_t dst_off,
-    size_t len, ngx_log_t *log)
-{
-    size_t    remaining = len;
-    u_char    buf[65536];
-    ssize_t   nr, nw;
-
-    while (remaining > 0) {
-#ifdef __NR_copy_file_range
-        loff_t  s_off = (loff_t) src_off;
-        loff_t  d_off = (loff_t) dst_off;
-        ssize_t cfr;
-
-        cfr = (ssize_t) syscall(__NR_copy_file_range,
-                                src_fd, &s_off,
-                                dst_fd, &d_off,
-                                remaining, 0);
-        if (cfr > 0) {
-            src_off   += (off_t) cfr;
-            dst_off   += (off_t) cfr;
-            remaining -= (size_t) cfr;
-            continue;
-        }
-        if (cfr < 0 && errno != ENOSYS && errno != EOPNOTSUPP && errno != EXDEV) {
-            ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd: chkpoint copy_file_range failed");
-            return -1;
-        }
-        /* Fall through to pread/pwrite for ENOSYS / EOPNOTSUPP / EXDEV */
-#endif
-
-        nr = pread(src_fd, buf, remaining < sizeof(buf) ? remaining : sizeof(buf),
-                   src_off);
-        if (nr <= 0) {
-            ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd: chkpoint pread failed");
-            return -1;
-        }
-        nw = pwrite(dst_fd, buf, (size_t) nr, dst_off);
-        if (nw != nr) {
-            ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd: chkpoint pwrite failed");
-            return -1;
-        }
-        src_off   += (off_t) nr;
-        dst_off   += (off_t) nr;
-        remaining -= (size_t) nr;
-    }
-
-    return 0;
-}
-
-
 static void
 ckp_clear_path(xrootd_file_t *f)
 {
@@ -93,11 +35,17 @@ ckp_clear_path(xrootd_file_t *f)
     }
     f->ckp_size = 0;
 }
+/* ---- WHY: Clean up checkpoint state when no longer active — prevents memory leaks (ckp_path string) and stale size tracking. Called after unlink() in commit/rollback, on copy failure cleanup, and by ckp_xeq.c to reset the file slot between sub-operations. ---- */
 
+/* ---- HOW: Free f->ckp_path if non-NULL via ngx_free(), set it to NULL; zero out f->ckp_size. No stat() or unlink() — caller handles .ckp file removal before calling this helper. Used exclusively by ckp_commit, ckp_rollback, and ckp_begin failure cleanup paths. */
 
-/* ------------------------------------------------------------------ */
-/* kXR_ckpBegin — snapshot current file state                          */
-/* ------------------------------------------------------------------ */
+/* ---- Function: ckp_begin() — kXR_ckpBegin: snapshot current file state ---- */
+/* WHAT: Creates a checkpoint snapshot by copying the entire file to <path>.ckp.
+ *      Marks f->ckp_path as non-NULL and stores original size in f->ckp_size.
+ * WHY: Enables transactional write semantics — writes under ckpXeq are "tentative"
+ *      until committed; rollback restores the pre-write state from the snapshot.
+ * HOW: 1) Verify no existing checkpoint (f->ckp_path == NULL). 2) Check file size ≤ kXR_ckpMinMax.
+ *      3) Allocate .ckp path string. 4) Create .ckp file with O_CREAT|O_TRUNC. 5) Copy full file via xrootd_copy_range(). */
 
 static ngx_int_t
 ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
@@ -139,7 +87,7 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     ngx_memcpy(f->ckp_path, f->path, plen);
     ngx_memcpy(f->ckp_path + plen, ".ckp", 5); /* includes NUL */
 
-    ckp_fd = open(f->ckp_path, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
+    ckp_fd = open(f->ckp_path, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600);
     if (ckp_fd < 0) {
         ckp_clear_path(f);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
@@ -149,8 +97,8 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     f->ckp_size = (int64_t) st.st_size;
 
     if (f->ckp_size > 0) {
-        if (ckp_copy_range(f->fd, 0, ckp_fd, 0, (size_t) f->ckp_size,
-                           c->log) != 0) {
+        if (xrootd_copy_range(c->log, f->fd, 0, ckp_fd, 0, (size_t) f->ckp_size,
+                              f->path, f->ckp_path) != NGX_OK) {
             close(ckp_fd);
             unlink(f->ckp_path);
             ckp_clear_path(f);
@@ -165,6 +113,28 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin", 0);
 }
 
+/* ---- Function: ckp_commit() — kXR_ckpCommit: discard checkpoint, writes are permanent ---- */
+/* WHAT: Unlinks the .ckp snapshot file and clears f->ckp_path/f->ckp_size. After commit,
+ *      all ckpXeq writes become permanent on the original file.
+ * WHY: Transactional write semantics require two-phase commitment — tentative writes (ckpXeq)
+ *      are only finalized after explicit commit. Committing means "accept these changes" by
+ *      deleting the rollback snapshot.
+ * HOW: Verify f->ckp_path != NULL, unlink .ckp file, call ckp_clear_path() to reset state. */
+
+/* ---- Function: ckp_rollback() — kXR_ckpRollback: restore file from checkpoint ---- */
+/* WHAT: Truncates original file to f->ckp_size, then restores content from .ckp snapshot via xrootd_copy_range().
+ *      After rollback, the original file returns to pre-checkpoint state.
+ * WHY: Transactional write semantics provide "undo" capability — if writes under ckpXeq should be rejected,
+ *      rollback restores the exact original content and length. This is essential for atomic operations where
+ *      partial failures must not leave the file in inconsistent state.
+ * HOW: 1) Verify f->ckp_path != NULL. 2) ftruncate() to checkpointed size (may shrink). 3) Copy .ckp→original via xrootd_copy_range(). 4) unlink + clear_path. */
+
+/* ---- Function: ckp_query() — kXR_ckpQuery: report checkpoint capacity / current usage ---- */
+/* WHAT: Returns ServerResponseBody_ChkPoint with maxCkpSize (kXR_ckpMinMax) and useCkpSize
+ *      (size of .ckp file if active, 0 otherwise).
+ * WHY: Clients need to know available checkpoint space before beginning a transaction. Large files
+ *      may require more disk space for the snapshot than is available.
+ * HOW: Check f->ckp_path != NULL; stat() .ckp file for current usage; populate response body with max/usage values. */
 
 /* ------------------------------------------------------------------ */
 /* kXR_ckpCommit — discard checkpoint, writes are permanent            */
@@ -185,7 +155,6 @@ ckp_commit(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
 
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "commit", 0);
 }
-
 
 /* ------------------------------------------------------------------ */
 /* kXR_ckpRollback — restore file from checkpoint                      */
@@ -216,8 +185,8 @@ ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
                               kXR_IOError, strerror(errno));
         }
 
-        if (ckp_copy_range(ckp_fd, 0, f->fd, 0, (size_t) f->ckp_size,
-                           c->log) != 0) {
+        if (xrootd_copy_range(c->log, ckp_fd, 0, f->fd, 0, (size_t) f->ckp_size,
+                              f->ckp_path, f->path) != NGX_OK) {
             close(ckp_fd);
             XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
             return xrootd_send_error(ctx, c, kXR_IOError,
@@ -231,7 +200,6 @@ ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
 
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback", 0);
 }
-
 
 /* ------------------------------------------------------------------ */
 /* kXR_ckpQuery — report checkpoint capacity / current usage           */
@@ -259,7 +227,6 @@ ckp_query(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     XROOTD_OP_OK(ctx, XROOTD_OP_CHKPOINT);
     return xrootd_send_ok(ctx, c, &body, (uint32_t) sizeof(body));
 }
-
 
 /* ------------------------------------------------------------------ */
 /* Top-level kXR_chkpoint dispatcher                                   */
@@ -307,4 +274,10 @@ xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_ArgInvalid,
                                  "unknown chkpoint opcode");
     }
+
+/* ---- WHAT: Dispatches kXR_chkpoint sub-operations on req->opcode — routes to ckp_begin, ckp_commit, ckp_query, or ckp_rollback; also handles ckpXeq via ckp_xeq(). Validates the write handle before dispatch. ---- */
+
+/* ---- WHY: kXR_chkpoint is a compound opcode with 5 sub-codes (begin/commit/query/rollback/Xeq). The dispatcher extracts the file handle from req->fhandle[0], validates it as an open write handle, then routes to the appropriate handler. ckpXeq is delegated to chkpoint_xeq.c which parses the inner 24-byte sub-header and executes a single write operation under checkpoint protection. ---- */
+
+/* ---- HOW: Extracts idx from req->fhandle[0] as unsigned char; calls xrootd_validate_write_handle() for validation (returns early on failure). switch(req->opcode): kXR_ckpBegin→ckp_begin, kXR_ckpCommit→ckp_commit, kXR_ckpQuery→ckp_query, kXR_ckpRollback→ckp_rollback, kXR_ckpXeq→ckp_xeq. Default case logs debug + returns kXR_ArgInvalid error. */
 }

@@ -197,6 +197,24 @@ def test_list_basic(s3_url):
     assert not truncated
 
 
+def test_list_type_detection_requires_exact_key(s3_url):
+    r = requests.get(f"{s3_url}/{BUCKET}/?not-list-type=2", timeout=10)
+    assert r.status_code == 400
+    assert "InvalidURI" in r.text
+
+
+def test_list_type_detection_rejects_wrong_value(s3_url):
+    r = requests.get(f"{s3_url}/{BUCKET}/?list-type=12", timeout=10)
+    assert r.status_code == 400
+    assert "InvalidURI" in r.text
+
+
+def test_list_type_detection_not_substring_in_value(s3_url):
+    r = requests.get(f"{s3_url}/{BUCKET}/?prefix=list-type=2", timeout=10)
+    assert r.status_code == 400
+    assert "InvalidURI" in r.text
+
+
 def test_list_prefix_filter(s3_url):
     uid = uuid.uuid4().hex
     prefix_a = f"pfx_a_{uid}_"
@@ -320,3 +338,133 @@ def test_anonymous_access_no_auth_header(s3_url):
 
     r = requests.get(_obj_url(s3_url, key), timeout=10)
     assert r.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# CopyObject (PUT with x-amz-copy-source)
+# ---------------------------------------------------------------------------
+
+
+def test_copy_object(s3_url):
+    uid = uuid.uuid4().hex
+    src_key = f"copy_src_{uid}.txt"
+    dst_key = f"copy_dst_{uid}.txt"
+    content = f"copy object content {uid}".encode()
+
+    r = requests.put(_obj_url(s3_url, src_key), data=content, timeout=10)
+    assert r.status_code == 200, f"source PUT failed: {r.status_code}"
+
+    r = requests.put(
+        _obj_url(s3_url, dst_key),
+        headers={"x-amz-copy-source": f"/{BUCKET}/{src_key}"},
+        timeout=10,
+    )
+    assert r.status_code == 200, f"CopyObject failed: {r.status_code} {r.text}"
+    assert "CopyObjectResult" in r.text
+    assert "ETag" in r.text
+
+    r = requests.get(_obj_url(s3_url, dst_key), timeout=10)
+    assert r.status_code == 200
+    assert r.content == content
+
+
+def test_copy_object_missing_source(s3_url):
+    uid = uuid.uuid4().hex
+    dst_key = f"copy_dst_nosrc_{uid}.txt"
+
+    r = requests.put(
+        _obj_url(s3_url, dst_key),
+        headers={"x-amz-copy-source": f"/{BUCKET}/no_such_src_{uid}"},
+        timeout=10,
+    )
+    assert r.status_code == 404, f"expected 404 for missing source, got {r.status_code}"
+    assert "NoSuchKey" in r.text
+
+
+def test_copy_object_path_traversal(s3_url):
+    uid = uuid.uuid4().hex
+    dst_key = f"copy_dst_trav_{uid}.txt"
+
+    r = requests.put(
+        _obj_url(s3_url, dst_key),
+        headers={"x-amz-copy-source": f"/{BUCKET}/../../../etc/passwd"},
+        timeout=10,
+    )
+    assert r.status_code in (400, 403), (
+        f"path traversal source should be rejected, got {r.status_code}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# DeleteObjects (POST /?delete)
+# ---------------------------------------------------------------------------
+
+
+def _delete_objects_url(s3_url):
+    return f"{s3_url}/{BUCKET}/?delete"
+
+
+def _delete_objects_body(*keys):
+    objects_xml = "".join(f"<Object><Key>{k}</Key></Object>" for k in keys)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+        f"{objects_xml}"
+        "</Delete>"
+    ).encode()
+
+
+def test_delete_objects_success(s3_url):
+    uid = uuid.uuid4().hex
+    keys = [f"del_multi_{uid}_{i}.txt" for i in range(3)]
+    for k in keys:
+        requests.put(_obj_url(s3_url, k), data=b"x", timeout=10)
+
+    r = requests.post(
+        _delete_objects_url(s3_url),
+        data=_delete_objects_body(*keys),
+        headers={"Content-Type": "application/xml"},
+        timeout=10,
+    )
+    assert r.status_code == 200, f"DeleteObjects failed: {r.status_code} {r.text}"
+    assert "DeleteResult" in r.text
+    for k in keys:
+        assert k in r.text, f"key {k} not in DeleteResult"
+        assert "Deleted" in r.text
+
+    for k in keys:
+        r2 = requests.get(_obj_url(s3_url, k), timeout=10)
+        assert r2.status_code == 404, f"key {k} should be deleted"
+
+
+def test_delete_objects_nonexistent_is_ok(s3_url):
+    uid = uuid.uuid4().hex
+    key = f"never_existed_del_{uid}.txt"
+
+    r = requests.post(
+        _delete_objects_url(s3_url),
+        data=_delete_objects_body(key),
+        headers={"Content-Type": "application/xml"},
+        timeout=10,
+    )
+    assert r.status_code == 200
+    assert "DeleteResult" in r.text
+    assert "Deleted" in r.text
+    assert "Error" not in r.text or "AccessDenied" not in r.text
+
+
+def test_delete_objects_path_traversal(s3_url):
+    """Keys with path traversal must be rejected with AccessDenied, not deleted."""
+    uid = uuid.uuid4().hex
+    traversal_key = f"../../../etc/hosts_del_{uid}"
+
+    r = requests.post(
+        _delete_objects_url(s3_url),
+        data=_delete_objects_body(traversal_key),
+        headers={"Content-Type": "application/xml"},
+        timeout=10,
+    )
+    assert r.status_code == 200
+    assert "DeleteResult" in r.text
+    assert "AccessDenied" in r.text
+    assert "Deleted" not in r.text

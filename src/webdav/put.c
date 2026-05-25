@@ -3,12 +3,15 @@
  */
 
 #include "webdav.h"
+#include "../compat/etag.h"
+#include "../compat/http_body.h"
+#include "../compat/http_conditionals.h"
+#include "../dashboard/dashboard_tracking.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-#if (NGX_THREADS)
 typedef struct {
     ngx_http_request_t  *r;
     ngx_fd_t             fd;
@@ -60,25 +63,23 @@ webdav_put_aio_done(ngx_event_t *ev)
     webdav_put_aio_t   *t = task->ctx;
     ngx_http_request_t *r = t->r;
     ngx_int_t           status;
-    webdav_fd_table_t  *fdt;
 
     if (t->nwritten < 0 || (size_t) t->nwritten < t->len) {
-        ngx_http_xrootd_webdav_log_safe_path(r->connection->log,
-                                             NGX_LOG_ERR,
-                                             (ngx_uint_t) t->io_errno,
-                                             "xrootd_webdav: async write() failed for",
-                                             t->path);
+
+        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR,
+                             (ngx_uint_t) t->io_errno,
+                             "xrootd_webdav: async write() failed for: \"%s\"",
+                             t->path);
+        xrootd_dashboard_http_error(r, "webdav PUT async write failed");
+        xrootd_dashboard_http_finish(r);
         ngx_close_file(t->fd);
-        fdt = webdav_get_fd_table(r->connection);
-        webdav_fd_table_evict(fdt, t->path);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
+    xrootd_dashboard_http_add(r, (ngx_atomic_int_t) t->len);
+    xrootd_dashboard_http_finish(r);
     ngx_close_file(t->fd);
-
-    fdt = webdav_get_fd_table(r->connection);
-    webdav_fd_table_evict(fdt, t->path);
 
     status = t->created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
     r->headers_out.status = status;
@@ -87,7 +88,6 @@ webdav_put_aio_done(ngx_event_t *ev)
     webdav_metrics_finalize_request(r, ngx_http_send_special(r,
                                                              NGX_HTTP_LAST));
 }
-#endif
 
 /*
  * webdav_handle_put_body — write the request body to the destination file.
@@ -124,21 +124,17 @@ webdav_handle_put_body(ngx_http_request_t *r)
     char               path[WEBDAV_MAX_PATH];
     ngx_int_t          rc;
     ngx_fd_t           fd;
-    ngx_buf_t         *buf;
-    ngx_chain_t       *chain;
     int                created = 0;
+    int                window_bits = 0;
     struct stat        sb;
     ngx_int_t          status;
-    u_char            *copy_scratch = NULL;
-    off_t              write_offset = 0;
-    webdav_fd_table_t *fdt;
-    size_t             total_body_size = 0;
-    int                has_memory_body = 0;
-    int                has_spooled_body = 0;
+    xrootd_http_body_summary_t body_summary;
+    ngx_http_xrootd_webdav_req_ctx_t *wctx;
+    const char        *identity;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
 
-    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->root_canon, path,
+    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->common.root_canon, path,
                                              sizeof(path));
     if (rc != NGX_OK) {
         /* RFC 4918 §9.7.1: missing intermediate collection → 409 Conflict */
@@ -152,47 +148,11 @@ webdav_handle_put_body(ngx_http_request_t *r)
 
     created = (stat(path, &sb) != 0);
 
-    /* RFC 7232 §3.2 — If-None-Match: * on existing file → 412 */
-    if (!created && r->headers_in.if_none_match != NULL) {
-        ngx_str_t inm = r->headers_in.if_none_match->value;
-        if (inm.len == 1 && inm.data[0] == '*') {
-            webdav_metrics_finalize_request(r,
-                                            NGX_HTTP_PRECONDITION_FAILED);
-            return;
-        }
-    }
-
-    /* RFC 7232 §3.1 — If-Match: <tag> on existing file, but ETag differs → 412 */
-    if (!created && r->headers_in.if_match != NULL) {
-        ngx_str_t  im = r->headers_in.if_match->value;
-        char       etag_buf[64];
-
-        webdav_etag_str(etag_buf, sizeof(etag_buf), sb.st_mtime, sb.st_size);
-
-        /* Accept both weak W/"..." and the bare "..." forms in the header */
-        if (!(im.len == 1 && im.data[0] == '*')) {
-            ngx_str_t tag  = { strlen(etag_buf), (u_char *) etag_buf };
-            /* strip W/ prefix for comparison if present */
-            u_char *tag_data = tag.data;
-            size_t  tag_len  = tag.len;
-            if (tag_len >= 2 && tag_data[0] == 'W' && tag_data[1] == '/') {
-                tag_data += 2;
-                tag_len  -= 2;
-            }
-            u_char *hdr_data = im.data;
-            size_t  hdr_len  = im.len;
-            if (hdr_len >= 2 && hdr_data[0] == 'W' && hdr_data[1] == '/') {
-                hdr_data += 2;
-                hdr_len  -= 2;
-            }
-            if (hdr_len != tag_len
-                || ngx_strncmp(hdr_data, tag_data, tag_len) != 0)
-            {
-                webdav_metrics_finalize_request(r,
-                                                NGX_HTTP_PRECONDITION_FAILED);
-                return;
-            }
-        }
+    rc = xrootd_http_check_etag_preconditions(
+        r, !created, &sb, XROOTD_ETAG_WEAK, XROOTD_HTTP_COND_WEAK_EQUIV);
+    if (rc != NGX_OK) {
+        webdav_metrics_finalize_request(r, rc);
+        return;
     }
 
     /* Open for write, creating if absent, truncating if present.
@@ -200,7 +160,7 @@ webdav_handle_put_body(ngx_http_request_t *r)
      * NGX_FILE_DEFAULT_ACCESS is the 0644 permission octal — it goes in
      * the access (4th) position, NOT the create position.  Passing 0644
      * as create would set O_EXCL (0200 bit) and break concurrent writes. */
-    fd = xrootd_open_confined_canon(r->connection->log, conf->root_canon,
+    fd = xrootd_open_confined_canon(r->connection->log, conf->common.root_canon,
                                     path, O_WRONLY | O_CREAT | O_TRUNC,
                                     NGX_FILE_DEFAULT_ACCESS);
     if (fd == NGX_INVALID_FILE) {
@@ -209,44 +169,61 @@ webdav_handle_put_body(ngx_http_request_t *r)
             webdav_metrics_finalize_request(r, NGX_HTTP_CONFLICT);
             return;
         }
-        ngx_http_xrootd_webdav_log_safe_path(r->connection->log, NGX_LOG_ERR,
-                                             ngx_errno,
-                                             "xrootd_webdav: open() for write failed for",
-                                             path);
+        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd_webdav: open() for write failed for: \"%s\"",
+                             path);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
-    fdt = webdav_get_fd_table(r->connection);
-    webdav_fd_table_evict(fdt, path);
-
     if (r->request_body != NULL) {
-        for (chain = r->request_body->bufs; chain != NULL; chain = chain->next) {
-            buf = chain->buf;
-            if (buf->in_file) {
-                has_spooled_body = 1;
-                if (buf->file_last > buf->file_pos) {
-                    total_body_size += (size_t) (buf->file_last
-                                                 - buf->file_pos);
+        if (xrootd_http_body_summary(r, &body_summary) != NGX_OK) {
+            ngx_close_file(fd);
+            webdav_metrics_finalize_request(r,
+                                            NGX_HTTP_INTERNAL_SERVER_ERROR);
+            return;
+        }
+
+        wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+        identity = (wctx != NULL && wctx->dn[0] != '\0')
+                   ? wctx->dn : "anonymous";
+        (void) xrootd_dashboard_http_start_identity(r, path, identity, "",
+            XROOTD_XFER_PROTO_WEBDAV, XROOTD_XFER_DIR_WRITE, "PUT",
+            (int64_t) body_summary.bytes);
+
+        XROOTD_WEBDAV_METRIC_ADD(bytes_rx_total, body_summary.bytes);
+
+        {
+            ngx_table_elt_t  *ce = xrootd_http_find_header(
+                r, "Content-Encoding", sizeof("Content-Encoding") - 1);
+            if (ce != NULL) {
+                if (ce->value.len == 4
+                    && ngx_strncasecmp(ce->value.data,
+                                       (u_char *) "gzip", 4) == 0)
+                {
+                    window_bits = 15 + 16;
+                } else if (ce->value.len == 7
+                           && ngx_strncasecmp(ce->value.data,
+                                              (u_char *) "deflate", 7) == 0)
+                {
+                    window_bits = 15;
                 }
-            } else if (buf->pos < buf->last) {
-                has_memory_body = 1;
-                total_body_size += (size_t) (buf->last - buf->pos);
             }
         }
 
-        XROOTD_WEBDAV_METRIC_ADD(bytes_rx_total, total_body_size);
-
-#if (NGX_THREADS)
-        if (!has_spooled_body && total_body_size > 0
-            && conf->thread_pool != NULL)
+        if (!body_summary.has_spooled && body_summary.bytes > 0
+            && window_bits == 0 && conf->common.thread_pool != NULL)
         {
             ngx_thread_task_t *task;
             webdav_put_aio_t  *t;
             u_char            *wbuf;
+            ngx_buf_t         *buf;
+            ngx_chain_t       *chain;
 
             task = ngx_thread_task_alloc(r->pool, sizeof(webdav_put_aio_t));
             if (task == NULL) {
+                xrootd_dashboard_http_error(r, "webdav PUT task allocation failed");
+                xrootd_dashboard_http_finish(r);
                 ngx_close_file(fd);
                 webdav_metrics_finalize_request(r,
                                                 NGX_HTTP_INTERNAL_SERVER_ERROR);
@@ -257,13 +234,15 @@ webdav_handle_put_body(ngx_http_request_t *r)
             t->r = r;
             t->fd = fd;
             t->offset = 0;
-            t->len = total_body_size;
+            t->len = body_summary.bytes;
             t->created = created;
             ngx_cpystrn((u_char *) t->path, (u_char *) path,
                         sizeof(t->path));
 
-            wbuf = ngx_palloc(r->pool, total_body_size);
+            wbuf = ngx_palloc(r->pool, body_summary.bytes);
             if (wbuf == NULL) {
+                xrootd_dashboard_http_error(r, "webdav PUT buffer allocation failed");
+                xrootd_dashboard_http_finish(r);
                 ngx_close_file(fd);
                 webdav_metrics_finalize_request(r,
                                                 NGX_HTTP_INTERNAL_SERVER_ERROR);
@@ -293,7 +272,9 @@ webdav_handle_put_body(ngx_http_request_t *r)
             task->event.handler = webdav_put_aio_done;
             task->event.data = task;
 
-            if (ngx_thread_task_post(conf->thread_pool, task) != NGX_OK) {
+            if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
+                xrootd_dashboard_http_error(r, "webdav PUT task post failed");
+                xrootd_dashboard_http_finish(r);
                 ngx_close_file(fd);
                 webdav_metrics_finalize_request(r,
                                                 NGX_HTTP_INTERNAL_SERVER_ERROR);
@@ -304,48 +285,46 @@ webdav_handle_put_body(ngx_http_request_t *r)
             r->main->count++;
             return;
         }
-#endif
 
-        if (has_spooled_body) {
+        if (body_summary.has_spooled) {
             XROOTD_WEBDAV_METRIC_INC(put_body_total[XROOTD_WEBDAV_PUT_SPOOLED]);
-        } else if (has_memory_body) {
+        } else if (body_summary.has_memory) {
             XROOTD_WEBDAV_METRIC_INC(put_body_total[XROOTD_WEBDAV_PUT_MEMORY]);
         } else {
             XROOTD_WEBDAV_METRIC_INC(put_body_total[XROOTD_WEBDAV_PUT_EMPTY]);
         }
 
-        for (chain = r->request_body->bufs; chain != NULL; chain = chain->next) {
-            buf = chain->buf;
-            if (buf->in_file) {
-                if (webdav_copy_spooled_file(r, fd, buf, path, &copy_scratch)
-                    != NGX_OK)
-                {
-                    ngx_close_file(fd);
-                    webdav_metrics_finalize_request(
-                        r, NGX_HTTP_INTERNAL_SERVER_ERROR);
-                    return;
-                }
-            } else if (buf->pos < buf->last) {
-                size_t  blen = (size_t) (buf->last - buf->pos);
-                ssize_t n = pwrite(fd, buf->pos, blen, write_offset);
+        {
+            ngx_int_t  wrc;
 
-                if (n < 0 || (size_t) n < blen) {
-                    ngx_http_xrootd_webdav_log_safe_path(
-                        r->connection->log, NGX_LOG_ERR, ngx_errno,
-                        "xrootd_webdav: write() failed for",
-                        path);
-                    ngx_close_file(fd);
-                    webdav_metrics_finalize_request(
-                        r, NGX_HTTP_INTERNAL_SERVER_ERROR);
-                    return;
-                }
-                write_offset += n;
+            if (window_bits != 0) {
+                wrc = xrootd_http_body_inflate_to_fd(r, fd, path,
+                                                      window_bits,
+                                                      &body_summary);
+            } else {
+                wrc = xrootd_http_body_write_to_fd(r, fd, path,
+                                                    &body_summary);
+            }
+            if (wrc != NGX_OK) {
+                xrootd_dashboard_http_error(r, "webdav PUT body write failed");
+                xrootd_dashboard_http_finish(r);
+                ngx_close_file(fd);
+                webdav_metrics_finalize_request(r,
+                    NGX_HTTP_INTERNAL_SERVER_ERROR);
+                return;
             }
         }
+        xrootd_dashboard_http_add(r, (ngx_atomic_int_t) body_summary.bytes);
     } else {
+        wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+        identity = (wctx != NULL && wctx->dn[0] != '\0')
+                   ? wctx->dn : "anonymous";
+        (void) xrootd_dashboard_http_start_identity(r, path, identity, "",
+            XROOTD_XFER_PROTO_WEBDAV, XROOTD_XFER_DIR_WRITE, "PUT", 0);
         XROOTD_WEBDAV_METRIC_INC(put_body_total[XROOTD_WEBDAV_PUT_EMPTY]);
     }
 
+    xrootd_dashboard_http_finish(r);
     ngx_close_file(fd);
 
     status = created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;

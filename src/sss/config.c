@@ -2,11 +2,21 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+/* ------------------------------------------------------------------ */
+/* WHAT: Hexadecimal nibble value lookup                                */
+/* WHY: Converts individual hex characters (0-9, a-f, A-F) to their     */
+/*      numeric equivalents for binary key decoding. Used by           */
+/*      xrootd_sss_decode_hex() to pair consecutive nibbles into       */
+/*      single output bytes.                                           */
+/* HOW: Returns 0-15 for valid hex chars, -1 otherwise. Case-insensitive*/
+/*      via separate checks for lowercase and uppercase ranges.        */
+/* ------------------------------------------------------------------ */
 static int
 xrootd_sss_hex_value(int ch)
 {
@@ -25,7 +35,9 @@ xrootd_sss_hex_value(int ch)
     return -1;
 }
 
-
+/* ---- xrootd_sss_decode_hex — hex string to binary key conversion (SSS master key decoding) ----
+ *
+ * WHAT: Converts a hexadecimal-encoded string into raw bytes for SSS authentication keys. Validates input length is even and ≤ XROOTD_SSS_KEY_MAX, then pairs consecutive nibbles (high|low) into single output bytes using xrootd_sss_hex_value() lookup. Returns NGX_OK with out_len set to hex_len/2 on success, NGX_ERROR on invalid input (odd-length, non-hex characters, or exceeding key max length). Security invariant: rejects malformed hex strings that could indicate tampered master keys — fails closed on any decode error. Used by SSS authentication flow to convert config-stored hex keys into usable byte arrays for HMAC computation. */
 static ngx_int_t
 xrootd_sss_decode_hex(const char *hex, u_char *out, size_t *out_len)
 {
@@ -57,7 +69,9 @@ xrootd_sss_decode_hex(const char *hex, u_char *out, size_t *out_len)
     return NGX_OK;
 }
 
-
+/* ---- xrootd_sss_parse_i64 — integer parsing with errno validation (keytab expiry/ID field extraction) ----
+ *
+ * WHAT: Parses a text string into int64_t using strtoll() with strict validation. Checks errno for overflow, parse_end==text for empty input, and *parse_end!='\0' for trailing non-numeric characters. Returns NGX_OK with out populated on successful parse, NGX_ERROR on any invalid input. Used by SSS keytab parser to extract expiry timestamps (e: field) and key entry IDs (N: field). Security invariant: fails closed on malformed integer strings — rejects partial parses or overflow conditions that could indicate corrupted configuration. */
 static ngx_int_t
 xrootd_sss_parse_i64(const char *text, int64_t *out)
 {
@@ -74,7 +88,9 @@ xrootd_sss_parse_i64(const char *text, int64_t *out)
     return NGX_OK;
 }
 
-
+/* ---- xrootd_sss_copy_string — bounded string copy with length validation (SSS keytab field extraction safety) ----
+ *
+ * WHAT: Copies src string into dst buffer with strict length check. Validates strlen(src) < dst_len before copying via ngx_memcpy including NUL terminator. Returns NGX_OK on successful bounded copy, NGX_ERROR if src exceeds dst capacity preventing buffer overflow. Used by SSS keytab parser to extract user (u:), group (g:), and name (N:) fields into fixed-size buffers without risking overflow from oversized input values. Security invariant: always validates source length before copying — prevents buffer overflows that could corrupt adjacent configuration state or cause crashes on oversized keytab entries. */
 static ngx_int_t
 xrootd_sss_copy_string(char *dst, size_t dst_len, const char *src)
 {
@@ -89,38 +105,74 @@ xrootd_sss_copy_string(char *dst, size_t dst_len, const char *src)
     return NGX_OK;
 }
 
-
+/* ------------------------------------------------------------------ */
+/* WHAT: Keytab file permission validation                              */
+/* WHY: Ensures SSS keytab files have restrictive permissions before    */
+/*      loading. Plain keytabs require owner-only access (rw); the     */
+/*      historical .grp variant permits group-read due to shared       */
+/*      config management practices, but world-access is always        */
+/*      rejected to prevent unauthorized key exposure.               */
+/* HOW: Checks filename suffix ".grp" for legacy variant detection,    */
+/*      then compares file mode against allowed permission set.       */
+/*      Returns NGX_OK if permissions are within bounds, NGX_ERROR     */
+/*      otherwise. Security invariant: fails closed on overly permissive*/
+/*      keytab files — prevents accidental exposure of shared secrets.*/
+/* ------------------------------------------------------------------ */
 static ngx_int_t
 xrootd_sss_keytab_mode_ok(const char *path, mode_t mode)
 {
     mode_t allowed;
     size_t len;
 
-    len = strlen(path);
     /*
      * Plain keytabs must be owner-only.  The historical .grp variant may be
      * group-readable because sites sometimes distribute it via shared config
      * management, but world bits are still rejected.
      */
+    len = strlen(path);
     allowed = (len >= 4 && strcmp(path + len - 4, ".grp") == 0)
-              ? (S_IRUSR | S_IWUSR | S_IRGRP)
-              : (S_IRUSR | S_IWUSR);
+               ? (S_IRUSR | S_IWUSR | S_IRGRP)
+               : (S_IRUSR | S_IWUSR);
 
     return ((mode & (S_IRWXG | S_IRWXO)) & ~allowed) ? NGX_ERROR : NGX_OK;
 }
 
-
+/* ------------------------------------------------------------------ */
+/* WHAT: Keytab parsing error logger                                    */
+/* WHY: Provides consistent emergency-level logging for malformed      */
+/*      keytab lines during configuration validation. Uses NGX_LOG_    */
+/*      EMERG because a corrupted keytab entry could cause incorrect   */
+/*      authentication decisions at runtime.                           */
+/* HOW: Formats error message as "xrootd_sss_keytab: <reason> on line  */
+/*      <N>" with line number for operator troubleshooting. Always     */
+/*      returns NGX_ERROR to signal parse failure to caller.          */
+/* ------------------------------------------------------------------ */
 static ngx_int_t
 xrootd_sss_keytab_line_error(ngx_conf_t *cf, ngx_uint_t line_no,
     const char *reason)
 {
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                       "xrootd_sss_keytab: %s on line %ui",
-                       reason, line_no);
+                        "xrootd_sss_keytab: %s on line %ui",
+                        reason, line_no);
     return NGX_ERROR;
 }
 
-
+/* ------------------------------------------------------------------ */
+/* WHAT: SSS keytab line parser — extracts authentication credentials   */
+/* WHY: Parses each line of the server-side SSS keytab file into a      */
+/*      xrootd_sss_key_t struct. The keytab format contains fields for  */
+/*      entry ID (N), hex-encoded master key (k), user identity (u),    */
+/*      group membership (g), name (n), and optional expiry timestamp  */
+/*      (e). Unknown fields are ignored for compatibility with         */
+/*      reference xrootd keytabs, but malformed required fields        */
+/*      fail closed.                                                   */
+/* HOW: Uses strtok_r() (thread-safe) to tokenize whitespace-separated  */
+/*      fields. Each field is parsed via switch-case on prefix char     */
+/*      ("N:", "k:", "u:", etc.). Key validation checks: ID must be    */
+/*      positive, key bytes must exist, expiry must not have passed.   */
+/*      Special user/group values ("anybody", "allusers") and name     */
+/*      suffix "+" set policy options (XROOTD_SSS_OPT_*).             */
+/* ------------------------------------------------------------------ */
 static ngx_int_t
 xrootd_sss_parse_key_line(ngx_conf_t *cf, ngx_array_t *keys,
     char *line, ngx_uint_t line_no)
@@ -264,7 +316,22 @@ xrootd_sss_parse_key_line(ngx_conf_t *cf, ngx_array_t *keys,
     return NGX_OK;
 }
 
-
+/* ------------------------------------------------------------------ */
+/* WHAT: SSS authentication configuration validator                     */
+/* WHY: Validates and loads the server-side SSS keytab file during      */
+/*      nginx startup. Ensures the keytab exists, has proper           */
+/*      permissions (owner-only), contains parseable entries, and      */
+/*      has at least one usable (non-expired) key before enabling      */
+/*      SSS auth mode.                                                 */
+/* HOW: Checks xcf->auth == XROOTD_AUTH_SSS first for early exit.       */
+/*      Validates keytab path exists as regular file with R_OK.        */
+/*      Calls stat() to check permissions via xrootd_sss_keytab_mode_ok().*/
+/*      Creates ngx_array_t for keys, opens file with FD_CLOEXEC,     */
+/*      reads lines one-by-one via fgets(), parses each with           */
+/*      xrootd_sss_parse_key_line(). Skips expired entries.            */
+/*      Requires at least one non-expired key — logs NOTICE on         */
+/*      successful configuration with key count.                     */
+/* ------------------------------------------------------------------ */
 ngx_int_t
 xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
 {
@@ -290,33 +357,53 @@ xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
         return NGX_ERROR;
     }
 
-    if (stat((const char *) xcf->sss_keytab.data, &st) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: cannot stat SSS keytab \"%V\"",
-                           &xcf->sss_keytab);
-        return NGX_ERROR;
-    }
-
-    if (xrootd_sss_keytab_mode_ok((const char *) xcf->sss_keytab.data,
-                                  st.st_mode)
-        != NGX_OK)
+    /* Open with O_NOFOLLOW to reject symlinks before any permission check.
+     * Using fstat() on the resulting fd eliminates the stat()/open() TOCTOU
+     * race where an attacker could swap the keytab for a symlink between
+     * the permission check and the actual open. */
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd: SSS keytab \"%V\" is not private enough",
-                           &xcf->sss_keytab);
-        return NGX_ERROR;
+        int keytab_fd = open((const char *) xcf->sss_keytab.data,
+                             O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+        if (keytab_fd < 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                               "xrootd: cannot open SSS keytab \"%V\"",
+                               &xcf->sss_keytab);
+            return NGX_ERROR;
+        }
+
+        if (fstat(keytab_fd, &st) != 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                               "xrootd: cannot stat SSS keytab \"%V\"",
+                               &xcf->sss_keytab);
+            close(keytab_fd);
+            return NGX_ERROR;
+        }
+
+        if (xrootd_sss_keytab_mode_ok((const char *) xcf->sss_keytab.data,
+                                      st.st_mode)
+            != NGX_OK)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                               "xrootd: SSS keytab \"%V\" is not private enough",
+                               &xcf->sss_keytab);
+            close(keytab_fd);
+            return NGX_ERROR;
+        }
+
+        fp = fdopen(keytab_fd, "r");
+        if (fp == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                               "xrootd: cannot fdopen SSS keytab \"%V\"",
+                               &xcf->sss_keytab);
+            close(keytab_fd);
+            return NGX_ERROR;
+        }
+        /* O_CLOEXEC was set at open() — no separate fcntl needed */
     }
 
     xcf->sss_keys = ngx_array_create(cf->pool, 4, sizeof(xrootd_sss_key_t));
     if (xcf->sss_keys == NULL) {
-        return NGX_ERROR;
-    }
-
-    fp = fopen((const char *) xcf->sss_keytab.data, "r");
-    if (fp == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: cannot open SSS keytab \"%V\"",
-                           &xcf->sss_keytab);
+        fclose(fp);
         return NGX_ERROR;
     }
 

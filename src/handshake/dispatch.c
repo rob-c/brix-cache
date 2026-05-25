@@ -40,6 +40,11 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
+    rc = xrootd_signing_enforce_level(ctx, c, conf);
+    if (rc != XROOTD_DISPATCH_CONTINUE) {
+        return rc;
+    }
+
     rc = xrootd_dispatch_session_opcode(ctx, c, conf);
     if (rc != XROOTD_DISPATCH_CONTINUE) {
         return rc;

@@ -14,6 +14,8 @@ declarations.
 | `flags.h` | Bitmask / option constants for every request type: open flags, stat flags, protocol capability bits, login capver, dirlist / stat / prepare / pgread / pgwrite / readv / writev / sigver / fattr options |
 | `wire.h` | All `#pragma pack(1)` structs: client request headers, server response bodies, composite types (`ServerStatusResponse_pgWrite`, etc.) |
 | `gsi.h` | GSI / XrdSutBuffer step numbers (`kXGS_*`, `kXGC_*`) and bucket type codes (`kXRS_*`) |
+| `wire_core_requests.h` | Core request structs: client request headers and standard response bodies |
+| `wire_write_extended_requests.h` | Extended write request structs: pgwrite, writev, sync variants |
 
 ## Navigating the protocol
 

@@ -17,6 +17,22 @@
  * object named ".xrdcls3.dirsentinel".  On a PUT of a sentinel the module
  * creates the parent directory on disk.  Sentinels are omitted from listings.
  */
+/*
+ * ============================================================
+ * WHAT: Internal types and declarations for the S3-compatible module.
+ * ============================================================
+ *
+ * This header is the API boundary between module.c (the nginx module entry)
+ * point) and every S3 operation file (handler, get, put, list, multipart,
+ * copy, delete_objects). All internal sub-handlers, metrics functions,
+ * auth helpers, and utility declarations live here.
+ *
+ * The config struct ngx_http_s3_loc_conf_t carries per-location settings:
+ * enable flag, filesystem root, bucket name to strip, SigV4 credentials,
+ * allow_write gate, max_keys pagination limit, and the resolved canonical
+ * root path.
+ * ============================================================
+ */
 
 #ifndef NGX_HTTP_S3_H
 #define NGX_HTTP_S3_H
@@ -27,22 +43,34 @@
 #include <limits.h>
 #include <sys/types.h>
 
+#include <ngx_thread_pool.h>
+
 #include "../metrics/metrics.h"
+#include "../compat/protocol_caps.h"
+#include "../config/shared_conf.h"
+#include "../compat/namespace_ops.h"
+#include "../compat/etag.h"
+#include "../compat/error_mapping.h"
+#include "../compat/http_xml.h"
+#include "../compat/log.h"
+#include "../compat/range.h"
+#include "../compat/time.h"
+#include "../compat/uri.h"
+#include "../compat/xml.h"
 
 /* -------------------------------------------------------------------------
  * Configuration
  * ---------------------------------------------------------------------- */
 
 typedef struct {
-    ngx_flag_t   enable;
-    ngx_str_t    root;        /* filesystem export root                  */
+    ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
+                                             thread_pool_name, thread_pool */
     ngx_str_t    bucket;      /* bucket name to strip from request path  */
     ngx_str_t    access_key;  /* AWS access key ID (empty → anonymous)   */
     ngx_str_t    secret_key;  /* AWS secret access key                   */
     ngx_str_t    region;      /* region for SigV4 scope (default "us-east-1") */
-    ngx_flag_t   allow_write; /* allow PUT and DELETE                    */
+    ngx_flag_t   allow_unsigned_session_token; /* accept STS token with static secret */
     ngx_int_t    max_keys;    /* max objects per list page (default 1000)*/
-    char         root_canon[PATH_MAX];
 } ngx_http_s3_loc_conf_t;
 
 /* Sentinel filename created by XrdClS3 mkdir */
@@ -54,11 +82,60 @@ typedef struct {
 /* Max query param value length */
 #define S3_MAX_PARAM 2048
 
+/* Max entries collected by s3_walk before sorting/pagination */
+#define S3_LIST_MAX_ENTRIES  65536
+
+/* One entry in a ListObjectsV2 response */
+typedef struct {
+    char    key[S3_MAX_KEY];
+    int     is_prefix;
+    off_t   size;
+    time_t  mtime;
+    char    etag[48];
+} s3_entry_t;
+
+/* s3_entry_t — one object or prefix returned by ListObjectsV2. is_prefix == 1 means this entry represents a directory delimiter (e.g. "photos/" when delimiter="/"), not an actual file. */
+
+/*
+ * XML_APPEND / XML_APPEND_ELEM — flat-buffer XML building macros.
+ *
+ * Both reference local variables `xml` (u_char *), `xml_len` (size_t),
+ * and `xml_capacity` (size_t) that must be in scope at each call site.
+ * On overflow or encode error the macro returns NGX_HTTP_INTERNAL_SERVER_ERROR.
+ */
+#define XML_APPEND(fmt, ...) do { \
+    int _xml_n = snprintf((char *) xml + xml_len, xml_capacity - xml_len, \
+                          fmt, ##__VA_ARGS__); \
+    if (_xml_n < 0 || (size_t) _xml_n >= xml_capacity - xml_len) { \
+        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]); \
+        return NGX_HTTP_INTERNAL_SERVER_ERROR; \
+    } \
+    xml_len += (size_t) _xml_n; \
+} while (0)
+
+#define XML_APPEND_ELEM(name, value, value_len) do { \
+    size_t _xml_written; \
+    if (xrootd_xml_write_text_element((name), \
+            (const unsigned char *)(value), (value_len), \
+            XROOTD_XML_ESCAPE_APOS_ENTITY, \
+            xml + xml_len, xml_capacity - xml_len, \
+            &_xml_written) != 0) \
+    { \
+        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]); \
+        return NGX_HTTP_INTERNAL_SERVER_ERROR; \
+    } \
+    xml_len += _xml_written; \
+} while (0)
+
 /* -------------------------------------------------------------------------
  * Module symbol (defined in module.c, referenced by handler/put)
  * ---------------------------------------------------------------------- */
 
 extern ngx_module_t ngx_http_xrootd_s3_module;
+
+/* Operation Registry (operation_table.c) */
+extern const xrootd_http_operation_t xrootd_s3_operations[];
+extern const ngx_uint_t xrootd_s3_operations_count;
 
 int xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int flags, mode_t mode);
@@ -89,6 +166,12 @@ ngx_int_t s3_handle_get(ngx_http_request_t *r,
 /* GET /bucket/?list-type=2 → ListObjectsV2 */
 ngx_int_t s3_handle_list(ngx_http_request_t *r,
                           ngx_http_s3_loc_conf_t *cf);
+
+/* list_walk.c — directory walker and key comparator */
+int s3_walk(const char *root, const char *dir_path, const char *key_prefix,
+    const char *filter_prefix, const char *delimiter, s3_entry_t *entries,
+    int max_entries, int *count);
+int entry_cmp(const void *a, const void *b);
 
 /* HEAD /bucket/key → metadata */
 ngx_int_t s3_handle_head(ngx_http_request_t *r,
@@ -139,12 +222,15 @@ ngx_int_t s3_send_xml_error(ngx_http_request_t *r,
                               const char *code,
                               const char *message);
 
-/* Append XML-escaped string to buf */
-void s3_xml_escape(ngx_buf_t *b, const u_char *s, size_t len);
 
 /* -------------------------------------------------------------------------
  * Utility
  * ---------------------------------------------------------------------- */
+
+/* Allocate and set a response header (key must be a string literal). */
+ngx_int_t s3_set_header(ngx_http_request_t *r, const char *key,
+    const char *val);
+
 
 /*
  * Resolve a key to an absolute filesystem path.
@@ -152,12 +238,6 @@ void s3_xml_escape(ngx_buf_t *b, const u_char *s, size_t len);
  * out must be at least PATH_MAX bytes.
  */
 int s3_resolve_key(const char *root, const char *key, char *out, size_t outsz);
-
-/*
- * URL-decode src (application/x-www-form-urlencoded or percent-encoding)
- * into dst.  Returns the decoded length, or -1 on error.
- */
-ssize_t s3_urldecode(const u_char *src, size_t slen, u_char *dst, size_t dsz);
 
 /* multipart.c */
 int s3_has_query_flag(ngx_http_request_t *r, const char *key);
@@ -170,17 +250,16 @@ ngx_int_t s3_handle_list_parts(ngx_http_request_t *r, const char *fs_path, ngx_h
 ngx_int_t s3_handle_list_multipart_uploads(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf);
 ngx_int_t s3_handle_upload_part_copy(ngx_http_request_t *r, const char *fs_path, ngx_http_s3_loc_conf_t *cf, const char *upload_id, int part_num);
 
+/* copy.c */
+ngx_int_t s3_handle_copy_object(ngx_http_request_t *r, const char *dst_fs_path, ngx_http_s3_loc_conf_t *cf);
+
+/* delete_objects.c */
+void s3_delete_objects_body_handler(ngx_http_request_t *r);
+
 /*
  * Populate an ETag string (format: "\"mtime-size\"") for a stat result.
  * buf must be at least 40 bytes.
  */
 void s3_etag(const struct stat *st, char *buf, size_t bufsz);
-
-/*
- * Format a UTC timestamp from time_t as ISO 8601 (S3 format):
- * "2023-08-21T11:02:53.000Z"
- * buf must be at least 25 bytes.
- */
-void s3_iso8601(time_t t, char *buf, size_t bufsz);
 
 #endif /* NGX_HTTP_S3_H */

@@ -3,40 +3,77 @@
 
 #include "../ngx_xrootd_module.h"
 
-/*
- * xrootd_gsi_send_cert — respond to a kXR_auth/kXGC_certreq message by
- * generating a Diffie-Hellman ephemeral key pair, encoding the public key as a
- * hex string, signing it with the server's RSA key, and sending the kXGC_cert
- * response.
+/*---- GSI internal header — function declarations for credential authentication ----
  *
- * Sets ctx->gsi_dh_key on success; the key is freed after kXGC_cert arrives
- * and the shared secret is derived (signing_key = SHA-256(DH-shared)).
+ * WHAT: Declares three authentication handlers dispatched from src/gsi/auth.c based on credtype field:
+ *   - xrootd_gsi_send_cert() — GSI round 1 DH key generation response
+ *   - xrootd_handle_token_auth() — WLCG/SciToken (ztn) JWT validation
+ *   - xrootd_handle_sss_auth() — Simple Shared Secret (sss) Blowfish decryption */
+
+/*---- Credential type routing function declarations ----
  *
- * Returns NGX_OK (response queued), NGX_ERROR on crypto or send failure.
- */
+ * WHY: Each credential type has its own handler with different cryptographic mechanisms:
+ *   GSI = DH key exchange + AES encryption + X509 certificate parsing;
+ *   Token = JWT validation against JWKS (RSA/ECDSA signature verification);
+ *   SSS = Blowfish-CFB64 decryption + CRC32 integrity + timestamp replay prevention. */
+
+/*---- GSI round 1 response function declaration ----
+ *
+ * WHAT: xrootd_gsi_send_cert() — respond to kXGC_certreq by generating ephemeral DH key pair (ffdhe2048),
+ *       encoding public key as hex blob, signing client rtag with RSA PKCS1, assembling kXGS_cert wire response. */
+
+/*---- GSI round 1 function postconditions ----
+ *
+ * WHY: Sets ctx->gsi_dh_key on success — this private DH key is used in round 2 (parse.c) for shared secret derivation via EVP_PKEY_derive().
+ *      Key is freed after kXGC_cert arrives and signing_key = SHA-256(DH-shared) is computed. */
+
+/*---- GSI round 1 function return values ----
+ *
+ * WHY: Returns NGX_OK (response queued successfully), NGX_ERROR on crypto or send failure — caller sends appropriate error response. */
+
+/*---- GSI round 1 function declaration ----
+ *
+ * WHAT: Called from src/gsi/auth.c as part of kXGC_certreq handling after credential type verification. Returns ngx_int_t result. */
+
 ngx_int_t xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
-/*
- * xrootd_handle_token_auth — handle kXR_auth with protocol "ztn" (WLCG/SciToken).
+/*---- WLCG/SciToken JWT validation function declaration ----
  *
- * Extracts the bearer token from the payload, validates it via
- * xrootd_token_validate(), and sets ctx->auth_done = 1 on success.
+ * WHAT: xrootd_handle_token_auth() — handle kXR_auth with protocol "ztn" (WLCG/SciToken bearer token). */
+
+/*---- Token authentication mechanism ----
  *
- * Returns NGX_OK (auth accepted or rejected with error response queued).
- */
+ * WHY: Extracts bearer token from payload, validates via xrootd_token_validate() against configured JWKS and issuer.
+ *      Uses RSA/ECDSA signature verification to validate JWT claims — single-round authentication (no DH exchange needed). */
+
+/*---- Token authentication postconditions ----
+ *
+ * WHY: Sets ctx->auth_done = 1 on success — enables subsequent authenticated operations like file access and TPC transfers. */
+
+/*---- Token authentication function declaration ----
+ *
+ * WHAT: Called from src/gsi/auth.c as part of kXR_auth handling after credential type "ztn" verification. Returns NGX_OK result. */
+
 ngx_int_t xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 
-/*
- * xrootd_handle_sss_auth — handle kXR_auth with protocol "sss" (Simple Shared
- * Secret).
+/*---- SSS shared secret authentication function declaration ----
  *
- * Decrypts the Blowfish-CFB64 token, verifies the CRC32 integrity check,
- * validates the timestamp (replay prevention), and optionally checks the source
- * IP.  Sets ctx->auth_done = 1 on success.
+ * WHAT: xrootd_handle_sss_auth() — handle kXR_auth with protocol "sss" (Simple Shared Secret for trusted environments). */
+
+/*---- SSS authentication mechanism ----
  *
- * Returns NGX_OK (auth accepted or rejected with error response queued).
- */
+ * WHY: Decrypts Blowfish-CFB64 token, verifies CRC32 integrity check, validates timestamp (replay prevention), 
+ *      optionally checks source IP. Used in trusted/controlled environments where pre-shared secrets are acceptable. */
+
+/*---- SSS authentication postconditions ----
+ *
+ * WHY: Sets ctx->auth_done = 1 on success — enables subsequent authenticated operations like file access and TPC transfers. */
+
+/*---- SSS authentication function declaration ----
+ *
+ * WHAT: Called from src/gsi/auth.c as part of kXR_auth handling after credential type "sss" verification. Returns NGX_OK result. */
+
 ngx_int_t xrootd_handle_sss_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 

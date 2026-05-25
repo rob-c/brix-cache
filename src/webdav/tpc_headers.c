@@ -1,124 +1,21 @@
 /*
- * tpc_headers.c - HTTP-TPC COPY header parsing and validation helpers.
+ * tpc_headers.c - HTTP-TPC TransferHeader* request header collection.
+ *
+ * The simple header lookup, value comparison, and string helpers previously
+ * defined here are now macro aliases to src/compat/http_headers.c in webdav.h.
+ * Only webdav_tpc_collect_transfer_headers() remains here as it has real logic.
  */
 
 #include "webdav.h"
 
-#include <string.h>
-
-ngx_table_elt_t *
-webdav_tpc_find_header(ngx_http_request_t *r, const char *name,
-                       size_t name_len)
-{
-    ngx_list_part_t *part;
-    ngx_table_elt_t *hdr;
-    ngx_uint_t       i;
-
-    part = &r->headers_in.headers.part;
-    hdr = part->elts;
-
-    for (;;) {
-        for (i = 0; i < part->nelts; i++) {
-            if (hdr[i].key.len == name_len
-                && ngx_strncasecmp(hdr[i].key.data,
-                                   (u_char *) name, name_len) == 0)
-            {
-                return &hdr[i];
-            }
-        }
-
-        if (part->next == NULL) {
-            break;
-        }
-
-        part = part->next;
-        hdr = part->elts;
-    }
-
-    return NULL;
-}
-
-ngx_flag_t
-webdav_tpc_str_has_ctl(const u_char *data, size_t len)
-{
-    size_t i;
-
-    if (data == NULL) {
-        return 1;
-    }
-
-    for (i = 0; i < len; i++) {
-        if (data[i] < 0x20 || data[i] == 0x7f) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-ngx_int_t
-webdav_tpc_header_value_equals(ngx_str_t *value, const char *literal)
-{
-    u_char *start;
-    u_char *end;
-    size_t  len;
-    size_t  literal_len;
-
-    if (value == NULL || literal == NULL) {
-        return 0;
-    }
-
-    start = value->data;
-    end = value->data + value->len;
-
-    while (start < end && (*start == ' ' || *start == '\t')) {
-        start++;
-    }
-    while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
-        end--;
-    }
-
-    len = (size_t) (end - start);
-    literal_len = strlen(literal);
-
-    return len == literal_len
-           && ngx_strncasecmp(start, (u_char *) literal, literal_len) == 0;
-}
-
-char *
-webdav_tpc_pstrndup0(ngx_pool_t *pool, const u_char *data, size_t len)
-{
-    char *out;
-
-    out = ngx_pnalloc(pool, len + 1);
-    if (out == NULL) {
-        return NULL;
-    }
-
-    ngx_memcpy(out, data, len);
-    out[len] = '\0';
-    return out;
-}
-
-char *
-webdav_strnstr(const char *s1, const char *s2, size_t len)
-{
-    size_t n = strlen(s2);
-    const char *p;
-
-    if (n == 0) {
-        return (char *) s1;
-    }
-
-    for (p = s1; len >= n; p++, len--) {
-        if (*p == *s2 && strncmp(p, s2, n) == 0) {
-            return (char *) p;
-        }
-    }
-
-    return NULL;
-}
-
+/*
+ * webdav_tpc_collect_transfer_headers — collect all TransferHeader* request
+ * headers into an ngx_array_t of ngx_str_t values for the curl TPC transfer.
+ *
+ * Each matching header "TransferHeaderX-Foo: bar" contributes a string
+ * "X-Foo: bar" to the output array.  Headers with control characters in
+ * either name or value are rejected (400 Bad Request).
+ */
 ngx_int_t
 webdav_tpc_collect_transfer_headers(ngx_http_request_t *r, ngx_array_t **out)
 {

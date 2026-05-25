@@ -1,298 +1,181 @@
 /*
- * tpc_curl.c - external curl helper execution for HTTP-TPC COPY pull and push.
+ * tpc_curl.c - HTTP-TPC transfer using libcurl for WebDAV COPY operations.
+ *
+ * Both pull (remote → local via GET) and push (local → remote via PUT) share
+ * the same curl setup: HTTPS-only protocol restriction, TLS credentials,
+ * timeout, and forwarded transfer headers. Only the direction-specific options
+ * differ.
+ *
+ * curl_global_init() is called once per worker process in the module's
+ * init_process hook (module.c) before any thread pool threads start.
+ * CURLOPT_NOSIGNAL=1 is required for all handles in multi-threaded nginx.
  */
 
 #include "webdav.h"
 
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <curl/curl.h>
+#include <sys/stat.h>
+
+/*
+ * webdav_tpc_run_curl_core — perform a single HTTP transfer using libcurl.
+ *
+ * @is_push:   0 = pull (GET remote → write to file_path)
+ *             1 = push (read from file_path → PUT to url)
+ * @file_path: local file to write (pull) or read (push)
+ * @url:       remote HTTPS URL to fetch from (pull) or PUT to (push)
+ * @log_tag:   short label for log messages, e.g. "pull" or "push"
+ */
+static ngx_int_t
+webdav_tpc_run_curl_core(ngx_log_t *log,
+                         ngx_http_xrootd_webdav_loc_conf_t *conf,
+                         ngx_array_t *transfer_headers,
+                         int is_push,
+                         const char *file_path,
+                         const char *url,
+                         const char *log_tag)
+{
+    CURL              *curl = NULL;
+    struct curl_slist *hdrs = NULL;
+    CURLcode           res;
+    FILE              *fp = NULL;
+    char               errbuf[CURL_ERROR_SIZE];
+    ngx_int_t          rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    ngx_uint_t         i;
+    ngx_str_t         *headers;
+
+    XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_STARTED]);
+
+    curl = curl_easy_init();
+    if (curl == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "xrootd_webdav: curl_easy_init() failed for TPC %s",
+                      log_tag);
+        goto cleanup;
+    }
+
+    errbuf[0] = '\0';
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+
+    /* Restrict to HTTPS only — equivalent to curl --proto =https */
+#ifdef CURLOPT_PROTOCOLS_STR
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
+#else
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, (long) CURLPROTO_HTTPS);
+#endif
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+
+    if (conf->tpc_timeout > 0) {
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) conf->tpc_timeout);
+    }
+
+    if (conf->tpc_cert.len > 0) {
+        curl_easy_setopt(curl, CURLOPT_SSLCERT,
+                         (const char *) conf->tpc_cert.data);
+    }
+    if (conf->tpc_key.len > 0) {
+        curl_easy_setopt(curl, CURLOPT_SSLKEY,
+                         (const char *) conf->tpc_key.data);
+    }
+    if (conf->tpc_cafile.len > 0) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO,
+                         (const char *) conf->tpc_cafile.data);
+    }
+    if (conf->tpc_cadir.len > 0) {
+        curl_easy_setopt(curl, CURLOPT_CAPATH,
+                         (const char *) conf->tpc_cadir.data);
+    }
+
+    if (transfer_headers != NULL && transfer_headers->nelts > 0) {
+        headers = transfer_headers->elts;
+        for (i = 0; i < transfer_headers->nelts; i++) {
+            struct curl_slist *next;
+            next = curl_slist_append(hdrs, (const char *) headers[i].data);
+            if (next == NULL) {
+                ngx_log_error(NGX_LOG_ERR, log, 0,
+                              "xrootd_webdav: curl_slist_append() OOM for TPC %s",
+                              log_tag);
+                goto cleanup;
+            }
+            hdrs = next;
+        }
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
+    }
+
+    if (is_push) {
+        struct stat  st;
+
+        fp = fopen(file_path, "rb");
+        if (fp == NULL) {
+            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+                          "xrootd_webdav: TPC push fopen(\"%s\") failed",
+                          file_path);
+            goto cleanup;
+        }
+        if (fstat(fileno(fp), &st) == 0) {
+            curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
+                             (curl_off_t) st.st_size);
+        }
+        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_READDATA, fp);
+    } else {
+        fp = fopen(file_path, "wb");
+        if (fp == NULL) {
+            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+                          "xrootd_webdav: TPC pull fopen(\"%s\") failed",
+                          file_path);
+            goto cleanup;
+        }
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+    }
+
+    res = curl_easy_perform(curl);
+    if (res == CURLE_OK) {
+        rc = NGX_OK;
+    } else {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd_webdav: HTTP-TPC %s failed: %s",
+                      log_tag, errbuf[0] ? errbuf : curl_easy_strerror(res));
+        rc = NGX_HTTP_BAD_GATEWAY;
+    }
+
+cleanup:
+    if (fp != NULL) {
+        fclose(fp);
+    }
+    if (hdrs != NULL) {
+        curl_slist_free_all(hdrs);
+    }
+    if (curl != NULL) {
+        curl_easy_cleanup(curl);
+    }
+
+    if (rc == NGX_OK) {
+        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
+    } else {
+        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
+    }
+    return rc;
+}
 
 ngx_int_t
-webdav_tpc_run_curl_pull(ngx_http_request_t *r,
+webdav_tpc_run_curl_pull(ngx_log_t *log,
                          ngx_http_xrootd_webdav_loc_conf_t *conf,
                          const char *source_url, const char *tmp_path,
                          ngx_array_t *transfer_headers)
 {
-    char       *argv[WEBDAV_TPC_MAX_ARGS];
-    ngx_uint_t  argc = 0;
-    ngx_uint_t  i;
-    ngx_str_t  *headers;
-    pid_t       pid;
-    int         status;
-    char        timeout_buf[32];
-
-#define WEBDAV_TPC_ARG(v)                                                   \
-    do {                                                                    \
-        if (argc + 1 >= WEBDAV_TPC_MAX_ARGS) {                              \
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,                \
-                          "xrootd_webdav: HTTP-TPC curl argv too long");    \
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;                          \
-        }                                                                   \
-        argv[argc++] = (char *) (v);                                         \
-    } while (0)
-
-    WEBDAV_TPC_ARG((char *) conf->tpc_curl.data);
-    WEBDAV_TPC_ARG("--fail");
-    WEBDAV_TPC_ARG("--location");
-    WEBDAV_TPC_ARG("--silent");
-    WEBDAV_TPC_ARG("--show-error");
-    WEBDAV_TPC_ARG("--proto");
-    WEBDAV_TPC_ARG("=https");
-
-    if (conf->tpc_timeout > 0) {
-        (void) snprintf(timeout_buf, sizeof(timeout_buf), "%u",
-                        (unsigned) conf->tpc_timeout);
-        WEBDAV_TPC_ARG("--max-time");
-        WEBDAV_TPC_ARG(timeout_buf);
-    }
-
-    if (conf->tpc_cert.len > 0) {
-        WEBDAV_TPC_ARG("--cert");
-        WEBDAV_TPC_ARG((char *) conf->tpc_cert.data);
-    }
-    if (conf->tpc_key.len > 0) {
-        WEBDAV_TPC_ARG("--key");
-        WEBDAV_TPC_ARG((char *) conf->tpc_key.data);
-    }
-    if (conf->tpc_cafile.len > 0) {
-        WEBDAV_TPC_ARG("--cacert");
-        WEBDAV_TPC_ARG((char *) conf->tpc_cafile.data);
-    }
-    if (conf->tpc_cadir.len > 0) {
-        WEBDAV_TPC_ARG("--capath");
-        WEBDAV_TPC_ARG((char *) conf->tpc_cadir.data);
-    }
-
-    if (transfer_headers != NULL && transfer_headers->nelts > 0) {
-        headers = transfer_headers->elts;
-        for (i = 0; i < transfer_headers->nelts; i++) {
-            WEBDAV_TPC_ARG("-H");
-            WEBDAV_TPC_ARG((char *) headers[i].data);
-        }
-    }
-
-    WEBDAV_TPC_ARG("--output");
-    WEBDAV_TPC_ARG((char *) tmp_path);
-    WEBDAV_TPC_ARG((char *) source_url);
-    argv[argc] = NULL;
-
-#undef WEBDAV_TPC_ARG
-
-    XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_STARTED]);
-
-    pid = fork();
-    if (pid < 0) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
-                      "xrootd_webdav: fork() failed for HTTP-TPC curl");
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (pid == 0) {
-        int  nullfd;
-        long fd;
-        long maxfd;
-
-        nullfd = open("/dev/null", O_RDONLY);
-        if (nullfd >= 0) {
-            (void) dup2(nullfd, STDIN_FILENO);
-            if (nullfd > STDERR_FILENO) {
-                close(nullfd);
-            }
-        }
-
-        maxfd = sysconf(_SC_OPEN_MAX);
-        if (maxfd < 0 || maxfd > 65536) {
-            maxfd = 65536;
-        }
-        for (fd = STDERR_FILENO + 1; fd < maxfd; fd++) {
-            close((int) fd);
-        }
-
-        if (strchr((const char *) conf->tpc_curl.data, '/') != NULL) {
-            execv((const char *) conf->tpc_curl.data, argv);
-        } else {
-            execvp((const char *) conf->tpc_curl.data, argv);
-        }
-
-        _exit(127);
-    }
-
-    for (;;) {
-        if (waitpid(pid, &status, 0) >= 0) {
-            break;
-        }
-        if (errno == EINTR) {
-            continue;
-        }
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
-                      "xrootd_webdav: waitpid() failed for HTTP-TPC curl");
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
-        return NGX_OK;
-    }
-
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                  "xrootd_webdav: HTTP-TPC curl failed status=%d",
-                  status);
-    XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-    return NGX_HTTP_BAD_GATEWAY;
+    return webdav_tpc_run_curl_core(log, conf, transfer_headers,
+                                    0, tmp_path, source_url, "pull");
 }
 
-
-/*
- * webdav_tpc_run_curl_push — run curl to push a local file to a remote HTTPS
- * destination (HTTP-TPC push mode).
- *
- * Invokes: curl --upload-file <local_path> <dest_url>
- *
- * The destination receives a plain HTTP PUT.  TPC transfer headers forwarded
- * from the original COPY request (Authorization, TransferHeader* stripped and
- * re-attached) are passed via -H flags exactly as in the pull direction.
- *
- * Returns NGX_OK on curl exit 0, NGX_HTTP_BAD_GATEWAY on remote error,
- * NGX_HTTP_INTERNAL_SERVER_ERROR on fork/exec failure.
- */
 ngx_int_t
-webdav_tpc_run_curl_push(ngx_http_request_t *r,
+webdav_tpc_run_curl_push(ngx_log_t *log,
                          ngx_http_xrootd_webdav_loc_conf_t *conf,
                          const char *dest_url, const char *local_path,
                          ngx_array_t *transfer_headers)
 {
-    char       *argv[WEBDAV_TPC_MAX_ARGS];
-    ngx_uint_t  argc = 0;
-    ngx_uint_t  i;
-    ngx_str_t  *headers;
-    pid_t       pid;
-    int         status;
-    char        timeout_buf[32];
-
-#define WEBDAV_TPC_PUSH_ARG(v)                                              \
-    do {                                                                    \
-        if (argc + 1 >= WEBDAV_TPC_MAX_ARGS) {                             \
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,              \
-                          "xrootd_webdav: HTTP-TPC push curl argv overflow"); \
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;                          \
-        }                                                                   \
-        argv[argc++] = (char *) (v);                                        \
-    } while (0)
-
-    WEBDAV_TPC_PUSH_ARG((char *) conf->tpc_curl.data);
-    WEBDAV_TPC_PUSH_ARG("--fail");
-    WEBDAV_TPC_PUSH_ARG("--location");
-    WEBDAV_TPC_PUSH_ARG("--silent");
-    WEBDAV_TPC_PUSH_ARG("--show-error");
-    WEBDAV_TPC_PUSH_ARG("--proto");
-    WEBDAV_TPC_PUSH_ARG("=https");
-
-    if (conf->tpc_timeout > 0) {
-        (void) snprintf(timeout_buf, sizeof(timeout_buf), "%u",
-                        (unsigned) conf->tpc_timeout);
-        WEBDAV_TPC_PUSH_ARG("--max-time");
-        WEBDAV_TPC_PUSH_ARG(timeout_buf);
-    }
-
-    if (conf->tpc_cert.len > 0) {
-        WEBDAV_TPC_PUSH_ARG("--cert");
-        WEBDAV_TPC_PUSH_ARG((char *) conf->tpc_cert.data);
-    }
-    if (conf->tpc_key.len > 0) {
-        WEBDAV_TPC_PUSH_ARG("--key");
-        WEBDAV_TPC_PUSH_ARG((char *) conf->tpc_key.data);
-    }
-    if (conf->tpc_cafile.len > 0) {
-        WEBDAV_TPC_PUSH_ARG("--cacert");
-        WEBDAV_TPC_PUSH_ARG((char *) conf->tpc_cafile.data);
-    }
-    if (conf->tpc_cadir.len > 0) {
-        WEBDAV_TPC_PUSH_ARG("--capath");
-        WEBDAV_TPC_PUSH_ARG((char *) conf->tpc_cadir.data);
-    }
-
-    if (transfer_headers != NULL && transfer_headers->nelts > 0) {
-        headers = transfer_headers->elts;
-        for (i = 0; i < transfer_headers->nelts; i++) {
-            WEBDAV_TPC_PUSH_ARG("-H");
-            WEBDAV_TPC_PUSH_ARG((char *) headers[i].data);
-        }
-    }
-
-    /* --upload-file sends a PUT to the destination URL. */
-    WEBDAV_TPC_PUSH_ARG("--upload-file");
-    WEBDAV_TPC_PUSH_ARG((char *) local_path);
-    WEBDAV_TPC_PUSH_ARG((char *) dest_url);
-    argv[argc] = NULL;
-
-#undef WEBDAV_TPC_PUSH_ARG
-
-    XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_STARTED]);
-
-    pid = fork();
-    if (pid < 0) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
-                      "xrootd_webdav: fork() failed for HTTP-TPC push curl");
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (pid == 0) {
-        int  nullfd;
-        long fd;
-        long maxfd;
-
-        nullfd = open("/dev/null", O_RDONLY);
-        if (nullfd >= 0) {
-            (void) dup2(nullfd, STDIN_FILENO);
-            if (nullfd > STDERR_FILENO) {
-                close(nullfd);
-            }
-        }
-
-        maxfd = sysconf(_SC_OPEN_MAX);
-        if (maxfd < 0 || maxfd > 65536) {
-            maxfd = 65536;
-        }
-        for (fd = STDERR_FILENO + 1; fd < maxfd; fd++) {
-            close((int) fd);
-        }
-
-        if (strchr((const char *) conf->tpc_curl.data, '/') != NULL) {
-            execv((const char *) conf->tpc_curl.data, argv);
-        } else {
-            execvp((const char *) conf->tpc_curl.data, argv);
-        }
-
-        _exit(127);
-    }
-
-    for (;;) {
-        if (waitpid(pid, &status, 0) >= 0) {
-            break;
-        }
-        if (errno == EINTR) {
-            continue;
-        }
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
-                      "xrootd_webdav: waitpid() failed for HTTP-TPC push curl");
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
-        return NGX_OK;
-    }
-
-    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                  "xrootd_webdav: HTTP-TPC push curl failed status=%d",
-                  status);
-    XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-    return NGX_HTTP_BAD_GATEWAY;
+    return webdav_tpc_run_curl_core(log, conf, transfer_headers,
+                                    1, local_path, dest_url, "push");
 }

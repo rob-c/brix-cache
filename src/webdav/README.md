@@ -23,6 +23,15 @@ content handler via `xrootd_webdav on` in a location block.
 | `put.c` | PUT body → file (sync or thread-pool) |
 | `propfind.c` | PROPFIND and Multi-Status XML generation |
 | `namespace.c` | DELETE and MKCOL |
+| `copy.c` | COPY request orchestration and response status handling |
+| `move.c` | MOVE request orchestration |
+
+## Method Helpers
+
+| File | Responsibility |
+|------|----------------|
+| `methods/copy_conditionals.c` | If-Match / If-None-Match checks for COPY destinations |
+| `locks/request.c` | LOCK request parsing: Timeout, If/Lock-Token, Depth, owner, lockscope |
 
 ## Authentication
 
@@ -46,9 +55,17 @@ content handler via `xrootd_webdav on` in a location block.
 | File | Responsibility |
 |------|----------------|
 | `pki.c` | `webdav_check_pki_consistency` — validate CA/CRL paths at postconfiguration time |
-| `path.c` | URI decoding, path confinement to root, safe log formatting, XML escaping |
+| `path.c` | URI-to-filesystem path confinement under the configured export root |
+| `util/uri.c` | Percent-decoding for request and Destination URI paths |
+| `util/xml.c` | XML text escaping for PROPFIND/HEAD/LOCK response bodies |
+| `util/logging.c` | Safe path formatting for nginx error logs |
+| `fs/copy_engine.c` | Confined file and directory copy implementation, including xattr preservation |
 | `fd_cache.c` | Per-connection open-file cache for GET fast paths |
 | `date.c` | RFC 1123 HTTP date formatting for Last-Modified headers |
 | `headers.c` | Shared response header assembly |
 | `io.c` | Blocking file write helpers shared by PUT handlers |
 | `resource.c` | Shared URI-to-path resolution plus stat lookup |
+| `access.c` | Access control: path-level permissions, write gate enforcement |
+| `copy_conditionals.c` | If-Match / If-None-Match checks for COPY destinations |
+| `method_handlers.c` | Generic HTTP method handler registration and dispatch table |
+| `tpc_cred.c` | TPC credential extraction from Source/Credential headers |

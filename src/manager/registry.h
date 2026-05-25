@@ -40,6 +40,15 @@ typedef struct {
     xrootd_srv_entry_t   slots[];  /* C99 flexible array; capacity entries follow */
 } xrootd_srv_table_t;
 
+typedef struct {
+    char        host[256];
+    uint16_t    port;
+    char        paths[XROOTD_SRV_MAX_PATHS];
+    uint32_t    free_mb;
+    uint32_t    util_pct;
+    ngx_msec_t  last_seen;
+} xrootd_srv_snapshot_entry_t;
+
 extern ngx_shm_zone_t *xrootd_srv_shm_zone;
 
 ngx_int_t xrootd_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data);
@@ -83,5 +92,8 @@ int xrootd_srv_select(const char *path, int for_write,
  */
 void xrootd_srv_aggregate_space(uint32_t *total_free_mb,
     uint32_t *avg_util_pct);
+
+ngx_uint_t xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out,
+    ngx_uint_t max_entries, ngx_msec_t now);
 
 #endif /* XROOTD_SRV_REGISTRY_H */

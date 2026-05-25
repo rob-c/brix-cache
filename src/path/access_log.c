@@ -1,3 +1,27 @@
+/*
+ * WHAT: Format and write an access log line for every XRootD request. Produces a structured
+ * one-line record containing client IP, authentication method, user identity (DN), timestamp,
+ * verb/path/detail triple, result status (OK/ERR), byte count, and request duration in milliseconds.
+ * All fields are sanitized through xrootd_sanitize_log_string() before inclusion in the log line.
+ */
+
+/* WHY: Every request must be observable for security auditing, capacity planning, and anomaly detection.
+ * Access logs provide three critical data streams: (1) Security — authmethod+identity shows who accessed
+ * what resources; (2) Operations — duration_ms enables SLA monitoring and performance trending; (3)
+ * Capacity — bytes sent per op reveals bandwidth utilization patterns across protocols. Sanitization is
+ * mandatory because wire protocol paths, error messages, and client addresses may contain arbitrary byte
+ * sequences that would corrupt downstream log parsers (Prometheus exporters, ELK collectors). The 4096-byte
+ * buffer accommodates the worst-case expanded sanitized output where each dangerous byte becomes a \xNN escape. */
+
+/* HOW: Six-phase formatting pipeline. Phase 1: Extract client IP from c->addr_text or fallback to '-'.
+ * Phase 2: Determine authmethod (gsi/sss/anon) and identity (ctx->dn or '-') based on server config + session state.
+ * Phase 3: Format timestamp using ngx_timeofday() + strftime() in Apache-like "%d/%b/%Y:%H:%M:%S %z" format.
+ * Phase 4: Compute request duration from ngx_current_msec - ctx->req_start with floor at zero (clock skew protection).
+ * Phase 5: Sanitize ALL fields through xrootd_sanitize_log_string() — client_ip, identity, verb, path, detail, errmsg.
+ * If error but no errmsg provided, generate "code:N" placeholder from errcode. Phase 6: Select line template based on
+ * xrd_ok flag (OK or ERR variant), snprintf into 4096-byte buffer, write to conf->access_log_fd if valid. Early return
+ * if access_log_fd == NGX_INVALID_FILE (logging disabled by config). */
+
 #include "../ngx_xrootd_module.h"
 
 #include <arpa/inet.h>

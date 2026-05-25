@@ -13,6 +13,13 @@ to this server.
 | `space.c` | Filesystem space measurement via `statvfs`; exported path selection |
 | `wire.c` | Big-endian encode/decode helpers used by send and recv |
 | `cms_internal.h` | Shared types (`ngx_xrootd_cms_ctx_s`), constants, and cross-file prototypes |
+| `frame_io.c` | Low-level frame read/write helpers: read loop, write queue, error handling |
+| `frame_io.h` | Frame I/O types and prototypes |
+| `server.h` | Server registry entry types and cross-file prototypes |
+| `server_handler.c` | CMS server handler: parse entries, maintain local member list |
+| `server_module.c` | Server module registration for CMS heartbeat client |
+| `server_recv.c` | Receive server entries from CMS manager |
+| `server_send.c` | Send server entries to CMS manager |
 
 ## Connection lifecycle
 

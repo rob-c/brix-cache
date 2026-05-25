@@ -1,23 +1,26 @@
+/* ------------------------------------------------------------------ */
+/* Section: Connection Entry Point Initialization                       */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements the nginx stream module connection handler that serves as the per-connection entry point for XRootD protocol processing. Called once per accepted TCP connection before any data exchange — performs four-phase initialization including ctx allocation, file-handle slot preparation, session ID generation, and event handler wiring. Also initializes metrics slot assignment (connections_active++) and auth method label on first use. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Connection Handler Entry Point                              */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: ngx_stream_xrootd_handler() is the nginx stream module connection entry point called once per accepted TCP connection before any data exchange — performs four-phase initialization: (1) allocates and zero-initializes xrootd_ctx_t via ngx_pcalloc on c->pool lifetime; (2) marks all XROOTD_MAX_FILES file-handle slots as empty (fd=-1); (3) generates 16-byte opaque session ID from time+pid+c-pointer+random for kXR_bind/kXR_endsess identification; (4) wires up read/write event handlers and fires first recv loop. Also initializes protocol_label="root", ip_version detection, metrics slot assignment (connections_active++), and auth method label on first use. */
+
+/* ---- Function: ngx_stream_xrootd_handler() ----
+ *
+ * WHAT: The nginx stream module connection entry point called once per accepted TCP connection before any data exchange — performs four-phase initialization: (1) allocates xrootd_ctx_t via ngx_pcalloc on c->pool lifetime; (2) marks all XROOTD_MAX_FILES file-handle slots as empty (fd=-1); (3) generates 16-byte opaque session ID from time+pid+c-pointer+random for kXR_bind/kXR_endsess identification; (4) wires up read/write event handlers and fires first recv loop. Also initializes protocol_label="root", ip_version detection, metrics slot assignment (connections_active++), auth method label on first use, cache configuration tracking per server metrics zone. Returns immediately if ctx allocation fails with NGX_STREAM_INTERNAL_SERVER_ERROR. */
+
+/* ---- WHY: This handler is the critical entry point that transitions nginx from stream core default behavior to XRootD protocol processing — without it, incoming TCP connections would be processed as raw stream data rather than routed through XRootD session lifecycle (handshake → login → auth → read/write). Four-phase initialization ensures all resources are ready before any wire protocol exchange begins. Metrics slot assignment enables per-server tracking of connection counts and cache configuration across all worker processes using shared memory zones. ---- */
+
 #include "../ngx_xrootd_module.h"
 
-/*
- * Stream-module connection entry point.
+/* ---- ngx_stream_xrootd_handler — stream-module connection entry point (per-connection init) ----
  *
- * Called by nginx once per accepted TCP connection, before any data is
- * exchanged.  Responsibilities:
- *
- *   1. Allocate and zero-initialise the per-connection xrootd_ctx_t.
- *      Lifetime: c->pool — freed when the TCP connection closes.
- *      Do not cache pointers to ctx members beyond that lifetime.
- *
- *   2. Mark every file-handle slot as empty (fd = -1).
- *
- *   3. Generate a 16-byte session ID from time+pid+connection pointer+random.
- *      This is not a cryptographic secret; it is used as an opaque handle
- *      in kXR_bind and kXR_endsess.
- *
- *   4. Wire up the read/write event handlers and fire the first read.
- */
+ * WHAT: Called by nginx once per accepted TCP connection before any data exchange. Performs four-phase initialization: (1) allocates and zero-initializes xrootd_ctx_t via ngx_pcalloc on c->pool lifetime; (2) marks all XROOTD_MAX_FILES file-handle slots as empty (fd=-1); (3) generates 16-byte opaque session ID from time+pid+c-pointer+random (not cryptographic, used for kXR_bind/kXR_endsess identification); (4) wires up read/write event handlers and fires first recv loop. Also initializes protocol_label="root", ip_version detection, metrics slot assignment (connections_active++), and auth method label on first use. */
 
 void
 ngx_stream_xrootd_handler(ngx_stream_session_t *s)
@@ -50,6 +53,14 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
         }
     } else {
         ctx->ip_version = 0; /* unknown */
+    }
+    if (c->addr_text.len > 0) {
+        size_t n = c->addr_text.len;
+        if (n >= sizeof(ctx->peer_ip)) {
+            n = sizeof(ctx->peer_ip) - 1;
+        }
+        ngx_memcpy(ctx->peer_ip, c->addr_text.data, n);
+        ctx->peer_ip[n] = '\0';
     }
 
     /* Sentinel value: fd < 0 means the slot is free. */
@@ -149,3 +160,4 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
 
     ngx_stream_xrootd_recv(c->read);
 }
+/* ---- HOW: Allocates xrootd_ctx_t via ngx_pcalloc on c->pool lifetime — if NULL returns immediately with NGX_STREAM_INTERNAL_SERVER_ERROR. Sets ctx->session=s, state=XRD_ST_HANDSHAKE, hdr_pos=0. Copies "root" into protocol_label; detects ip_version from c->sockaddr (AF_INET6 or AF_INET); copies peer_ip from c->addr_text (bounded to sizeof(ctx->peer_ip)-1). Marks all XROOTD_MAX_FILES file-handle slots empty via fd=-1 loop. Builds 16-byte session ID from parts[0]=ngx_time(), parts[1]=ngx_pid, parts[2]=(uintptr_t)c, parts[3]=ngx_random() — memcpy into ctx->sessid. Sets ngx_stream_set_ctx(s,ctx,module). Retrieves mconf from srv_conf; if metrics_slot≥0 and shm_zone valid: sets ctx->metrics=srv; copies cache_enabled/eviction_threshold/cache_root into srv; on first use (srv->in_use==0): writes auth label (gsi/token/sss/anon), local port from sockaddr, proxy upstream labels into srv; increments connections_total+connections_active atomically. Arms c->read handler to ngx_stream_xrootd_recv and c->write handler to ngx_stream_xrootd_send — fires first recv loop via ngx_stream_xrootd_recv(c->read). */

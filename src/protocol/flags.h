@@ -102,6 +102,13 @@
                                         requires TLS protection */
 
 /* ------------------------------------------------------------------ */
+/* Protocol security requirement options                               */
+/* ------------------------------------------------------------------ */
+
+#define kXR_secOData  0x01u  /* signed requests include write payload data */
+#define kXR_secOFrce  0x02u  /* allow unencrypted hash signatures */
+
+/* ------------------------------------------------------------------ */
 /* Login capver / ability flags  (ClientLoginRequest.capver, uint8)    */
 /* ------------------------------------------------------------------ */
 /*
@@ -248,3 +255,6 @@
 #define kXR_fa_isNew   0x01    /* (set) fail if the attribute already exists */
 #define kXR_fa_aData   0x10    /* (list) include attribute values in response,
                                    not just names */
+#define kXR_fa_recurse 0x20    /* (list) LOCAL EXTENSION — recurse into
+                                   subdirectories; response entries are
+                                   "<relpath>:<U.name>\0" pairs */

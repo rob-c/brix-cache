@@ -10,6 +10,8 @@ cluster, not just a leaf data server.
 |---|---|
 | `registry.h` | Types (`xrootd_srv_entry_t`, `xrootd_srv_table_t`) and API declarations. |
 | `registry.c` | 128-slot shared-memory server table (spinlock-protected). Implements `xrootd_srv_register`, `xrootd_srv_update_load`, `xrootd_srv_unregister`, and `xrootd_srv_select`. |
+| `pending.c` | Pending operation tracking: queued requests, timeout management, completion callbacks |
+| `pending.h` | Pending operation types and prototypes |
 
 ## How the registry is used
 
@@ -35,6 +37,16 @@ matching servers it picks:
 All mutations and reads are serialised by a single `ngx_shmtx_t` spinlock
 embedded at the start of the shared region.  The lock is held only for the
 duration of the linear scan — it is never held across I/O.
+
+## Operational monitoring
+
+Manager mode still uses the same global observability surface as a leaf data
+server: access logs and Prometheus counters for request outcomes, plus the
+HTTPS monitoring dashboard for live transfer visibility. Configure the
+dashboard on an HTTP/TLS admin location at `/xrootd/`; it serves the page,
+login form, and `/xrootd/transfers` JSON endpoint there. The dashboard is
+documented in
+`docs/08-metrics-monitoring/monitoring-guide.md#https-monitoring-dashboard`.
 
 ## See also
 

@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xrootd-reference
+  namespace: xrootd-integration
+  labels:
+    app.kubernetes.io/name: xrootd-reference
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: xrootd-reference
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: xrootd-reference
+        app.kubernetes.io/component: server
+    spec:
+      # Run as root because hostkey.pem must be mode 0400 owned by root
+      # (xrootd GSI requirement).
+      securityContext:
+        runAsUser: 0
+
+      initContainers:
+        # Ensure data directory has correct permissions before xrootd starts.
+        - name: data-init
+          image: busybox:1.36
+          command: ["sh", "-c", "mkdir -p /data/xrootd && chmod 1777 /data/xrootd"]
+          volumeMounts:
+            - name: data
+              mountPath: /data/xrootd
+
+      containers:
+        - name: xrootd
+          # Image built by:  make -C k8s-tests build-xrootd-reference
+          image: xrootd-reference:latest
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: AUTH_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: xrootd-reference-config
+                  key: auth_mode
+            - name: DATA_DIR
+              value: /data/xrootd
+            - name: XROOTD_PORT
+              value: "1094"
+            - name: SERVER_CERT
+              value: /etc/grid-security/hostcert.pem
+            - name: SERVER_KEY
+              value: /etc/grid-security/hostkey.pem
+            - name: CA_DIR
+              value: /etc/grid-security/certificates
+            - name: AUTHDB_PATH
+              value: /etc/xrootd/authdb
+            - name: SCITOKENS_CFG
+              value: /etc/xrootd/scitokens.cfg
+            - name: TOKEN_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: xrootd-reference-config
+                  key: token_issuer
+            - name: TOKEN_AUDIENCE
+              valueFrom:
+                configMapKeyRef:
+                  name: xrootd-reference-config
+                  key: token_audience
+            - name: JWKS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: xrootd-reference-config
+                  key: jwks_url
+
+          ports:
+            - containerPort: 1094
+              name: xrootd
+              protocol: TCP
+            - containerPort: 1095
+              name: xrootd-tls
+              protocol: TCP
+
+          readinessProbe:
+            tcpSocket:
+              port: 1094
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: 1094
+            initialDelaySeconds: 15
+            periodSeconds: 15
+
+          volumeMounts:
+            - name: data
+              mountPath: /data/xrootd
+            - name: pki-server
+              mountPath: /etc/grid-security
+              readOnly: true
+            - name: pki-ca
+              mountPath: /etc/grid-security/certificates
+              readOnly: true
+            - name: xrootd-authdb
+              mountPath: /etc/xrootd/authdb
+              subPath: authdb
+              readOnly: true
+            - name: scitokens-cfg
+              mountPath: /etc/xrootd/scitokens.cfg
+              subPath: scitokens.cfg
+              readOnly: true
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: pki-server
+          secret:
+            secretName: xrootd-server-pki
+            defaultMode: 0400
+        - name: pki-ca
+          secret:
+            secretName: xrootd-ca-bundle
+            defaultMode: 0444
+        - name: xrootd-authdb
+          configMap:
+            name: xrootd-reference-config
+        - name: scitokens-cfg
+          configMap:
+            name: xrootd-scitokens-config

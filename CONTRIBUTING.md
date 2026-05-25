@@ -3,7 +3,7 @@
 nginx-xrootd is an nginx stream module that speaks the XRootD `root://` wire
 protocol and serves files over WebDAV (`davs://`). It is used in production
 at CERN and other HEP computing sites as a drop-in replacement for the native
-xrootd daemon. See [`docs/background.md`](docs/background.md) for an XRootD
+xrootd daemon. See [`docs/02-concepts/xrootd-basics.md`](docs/02-concepts/xrootd-basics.md) for an XRootD
 protocol primer if this is your first encounter with the project.
 
 ---
@@ -13,18 +13,18 @@ protocol primer if this is your first encounter with the project.
 Work through these five documents in order before writing any code. Each one
 builds on the previous.
 
-1. [`docs/architecture.md`](docs/architecture.md) — request lifecycle, state
+1. [`docs/10-reference/design-rationale.md`](docs/10-reference/design-rationale.md) — request lifecycle, state
    machine, and entry points. Start here to understand how a TCP byte becomes a
    file operation.
-2. [`docs/types.md`](docs/types.md) — the three core types (`xrootd_ctx_t`,
+2. [`docs/10-reference/types.md`](docs/10-reference/types.md) — the three core types (`xrootd_ctx_t`,
    `xrootd_file_t`, `ngx_stream_xrootd_srv_conf_t`) and their field-by-field
    semantics. You will reference this constantly.
-3. [`docs/contributing.md`](docs/contributing.md) — step-by-step mechanics for
+3. [`docs/09-developer-guide/contributing.md`](docs/09-developer-guide/contributing.md) — step-by-step mechanics for
    the two most common contribution tasks: adding an opcode and adding a
    directive. Also contains the code style guide and test requirements.
-4. [`docs/protocol-notes.md`](docs/protocol-notes.md) — wire-format quirks,
+4. [`docs/10-reference/protocol-notes.md`](docs/10-reference/protocol-notes.md) — wire-format quirks,
    XRootD version differences, and client compatibility notes.
-5. [`docs/building.md`](docs/building.md) — how to compile, what flags do, and
+5. [`docs/03-configuration/build-guide.md`](docs/03-configuration/build-guide.md) — how to compile, what flags do, and
    how to run the test suite.
 
 ---
@@ -33,14 +33,14 @@ builds on the previous.
 
 | What you want to do | Where to start |
 |---|---|
-| Add a new XRootD opcode | [`docs/contributing.md`](docs/contributing.md) §1 |
-| Add a new nginx directive | [`docs/contributing.md`](docs/contributing.md) §2 |
-| Add or change auth | [`docs/authentication.md`](docs/authentication.md) |
-| Write a handler (response API, AIO) | [`docs/handler-reference.md`](docs/handler-reference.md) |
-| Run tests / set up test PKI | [`docs/development.md`](docs/development.md) |
-| Understand the metrics exporter | [`docs/metrics-and-logging.md`](docs/metrics-and-logging.md) |
-| Understand the WebDAV / S3 surface | [`docs/webdav.md`](docs/webdav.md) |
-| Understand the CMS manager mode | [`docs/manager-mode.md`](docs/manager-mode.md) |
+| Add a new XRootD opcode | [`docs/09-developer-guide/contributing.md`](docs/09-developer-guide/contributing.md) §1 |
+| Add a new nginx directive | [`docs/09-developer-guide/contributing.md`](docs/09-developer-guide/contributing.md) §2 |
+| Add or change auth | [`docs/06-authentication/auth-overview.md`](docs/06-authentication/auth-overview.md) |
+| Write a handler (response API, AIO) | [`docs/10-reference/handler-reference.md`](docs/10-reference/handler-reference.md) |
+| Run tests / set up test PKI | [`docs/09-developer-guide/dev-workflow.md`](docs/09-developer-guide/dev-workflow.md) |
+| Understand the metrics exporter | [`docs/08-metrics-monitoring/monitoring-guide.md`](docs/08-metrics-monitoring/monitoring-guide.md) |
+| Understand the WebDAV / S3 surface | [`docs/04-protocols/webdav-overview.md`](docs/04-protocols/webdav-overview.md) |
+| Understand the CMS manager mode | [`docs/05-operations/manager-mode.md`](docs/05-operations/manager-mode.md) |
 
 ---
 

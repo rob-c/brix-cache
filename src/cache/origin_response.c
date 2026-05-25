@@ -1,10 +1,33 @@
 #include "cache_internal.h"
 
-#if (NGX_THREADS)
 
 #include <errno.h>
 #include <stdlib.h>
 
+/* ---- xrootd_cache_read_response — read XRootD server response header + body ----
+ *
+ * WHAT: Reads ServerResponseHdr (fixed-size wire header) via recv_exact, extracts status
+ *       and dlen fields via ntohs/ntohl, validates dlen against max_body guard, allocates
+ *       body buffer (dlen+1 for null termination), reads body payload, null-terminates.
+ *       Returns 0 on success with status/dlen/body populated, -1 on any error.
+ *
+ * WHY: Every XRootD request/response cycle requires parsing the fixed-size response header
+ *      before reading the variable-length data body. max_body prevents oversized responses
+ *      from exhausting thread-pool memory (malloc on each call). The +1 byte for null
+ *      termination enables string operations on error messages and stat strings.
+ *      All wire fields are big-endian — ntohs/ntohl convert to host byte order. */
+
+/* ---- xrootd_cache_set_origin_error — extract origin error code + message, fallback ----
+ *
+ * WHAT: Parses the first 4 bytes of body as big-endian kXR error code, extracts remaining
+ *       bytes as error message string (capped at 256 chars), calls set_error with extracted
+ *       values. If body is NULL or too short (< 4 bytes): falls back to generic fallback msg.
+ *
+ * WHY: XRootD error responses embed a kXR error code in the first 4 bytes followed by a
+ *      human-readable message string. This function preserves the origin's exact error code
+ *      (e.g., kXR_NotFound, kXR_NotAuthorized) rather than collapsing everything to
+ *      ServerError — clients need precise codes for retry/redirect decisions. The fallback
+ *      handles malformed responses where body is missing or truncated. */
 int
 xrootd_cache_read_response(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, uint16_t *status, u_char **body,
@@ -84,4 +107,3 @@ xrootd_cache_set_origin_error(xrootd_cache_fill_t *t, u_char *body,
     xrootd_cache_set_error(t, errcode, 0, fallback);
 }
 
-#endif /* NGX_THREADS */

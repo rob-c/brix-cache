@@ -3,6 +3,12 @@
  */
 
 #include "webdav.h"
+#include "xrdhttp.h"
+#include "../compat/etag.h"
+#include "../compat/http_conditionals.h"
+#include "../compat/http_file_response.h"
+#include "../compat/range.h"
+#include "../dashboard/dashboard_tracking.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -47,149 +53,92 @@ webdav_handle_get(ngx_http_request_t *r)
     off_t               range_end = 0;
     off_t               send_len;
     int                 has_range = 0;
-    int                 fd_from_table = 0;
-    ngx_buf_t          *b;
-    ngx_chain_t         out;
-    ngx_table_elt_t    *h;
-    char                cr_buf[64];
-    webdav_fd_table_t  *fdt;
-    ngx_pool_cleanup_t *cln;
-    ngx_pool_cleanup_file_t *clnf;
-    char                uri_decoded[WEBDAV_MAX_PATH];
-    uint64_t            uri_h = 0;
+    ngx_open_file_info_t  of;
+    ngx_str_t           path_str;
+    ngx_http_xrootd_webdav_req_ctx_t *wctx;
+    const char         *identity;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    path[0] = '\0';
-    fd = NGX_INVALID_FILE;
 
-    fdt = webdav_get_fd_table(r->connection);
-
-    {
-        ngx_int_t   urc;
-        const char *cached_path = NULL;
-
-        urc = webdav_urldecode(r->uri.data, r->uri.len,
-                               uri_decoded, sizeof(uri_decoded));
-        if (urc == NGX_OK) {
-            size_t dlen = strlen(uri_decoded);
-
-            while (dlen > 1 && uri_decoded[dlen - 1] == '/') {
-                uri_decoded[--dlen] = '\0';
-            }
-
-            uri_h = webdav_uri_hash(uri_decoded);
-            fd = webdav_fd_table_get_by_uri(fdt, uri_h, &sb, &cached_path);
-
-            if (fd != NGX_INVALID_FILE) {
-                if (S_ISDIR(sb.st_mode)) {
-                    return NGX_HTTP_FORBIDDEN;
-                }
-                if (cached_path != NULL) {
-                    ngx_cpystrn((u_char *) path, (u_char *) cached_path,
-                                sizeof(path));
-                }
-                fd_from_table = 1;
-            }
-        }
+    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->common.root_canon, path,
+                                             sizeof(path));
+    if (rc != NGX_OK) {
+        return rc;
     }
 
-    if (!fd_from_table) {
-        rc = ngx_http_xrootd_webdav_resolve_path(r, conf->root_canon, path,
-                                                 sizeof(path));
-        if (rc != NGX_OK) {
-            return rc;
+    path_str.len = ngx_strlen(path);
+    path_str.data = (u_char *) path;
+
+    ngx_memzero(&of, sizeof(ngx_open_file_info_t));
+
+    of.read_ahead = 0;
+    of.directio = NGX_OPEN_FILE_DIRECTIO_OFF;
+    of.valid = conf->open_file_cache_valid;
+    of.min_uses = conf->open_file_cache_min_uses;
+    of.errors = conf->open_file_cache_errors;
+    of.events = conf->open_file_cache_events;
+
+    if (ngx_open_cached_file(conf->open_file_cache, &path_str, &of, r->pool)
+        != NGX_OK)
+    {
+        if (of.err == NGX_ENOENT || of.err == NGX_ENOTDIR
+            || of.err == NGX_ENAMETOOLONG)
+        {
+            xrdhttp_add_response_headers(r, NGX_HTTP_NOT_FOUND);
+            return NGX_HTTP_NOT_FOUND;
         }
 
-        fd = xrootd_open_confined_canon(r->connection->log, conf->root_canon,
-                                        path, O_RDONLY, 0);
-        if (fd == NGX_INVALID_FILE) {
-            if (ngx_errno == NGX_ENOENT || ngx_errno == NGX_ENOTDIR) {
-                return NGX_HTTP_NOT_FOUND;
-            }
-            ngx_http_xrootd_webdav_log_safe_path(r->connection->log,
-                                                 NGX_LOG_ERR,
-                                                 ngx_errno,
-                                                 "xrootd_webdav: open() failed for",
-                                                 path);
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        if (fstat(fd, &sb) != 0) {
-            ngx_close_file(fd);
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        if (S_ISDIR(sb.st_mode)) {
-            ngx_close_file(fd);
+        if (of.err == NGX_EACCES) {
             return NGX_HTTP_FORBIDDEN;
         }
 
-        if (fdt != NULL) {
-            webdav_fd_table_put(fdt, path, &sb, fd, uri_h);
-            fd_from_table = 1;
-        }
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, of.err,
+                      ngx_open_file_n " \"%s\" failed", path);
+
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* RFC 7232 §3.3 — If-Modified-Since: return 304 if not modified since then */
-    if (r->headers_in.if_modified_since != NULL) {
-        ngx_str_t ims_str = r->headers_in.if_modified_since->value;
-        time_t    ims_time = ngx_parse_http_time(ims_str.data, ims_str.len);
-
-        if (ims_time != NGX_ERROR && sb.st_mtime <= ims_time) {
-            r->headers_out.status           = NGX_HTTP_NOT_MODIFIED;
-            r->headers_out.content_length_n = 0;
-            ngx_http_send_header(r);
-            return ngx_http_send_special(r, NGX_HTTP_LAST);
-        }
+    if (of.is_dir) {
+        return NGX_HTTP_FORBIDDEN;
     }
 
-    if (r->headers_in.range != NULL) {
-        ngx_str_t rv = r->headers_in.range->value;
+    fd = of.fd;
+    sb.st_size = of.size;
+    sb.st_mtime = of.mtime;
 
-        if (rv.len > 6 && ngx_strncmp(rv.data, "bytes=", 6) == 0) {
-            u_char *p = rv.data + 6;
-            u_char *end = rv.data + rv.len;
-            u_char *dash = ngx_strlchr(p, end, '-');
-
-            if (dash != NULL) {
-                if (dash == p) {
-                    off_t suffix = 0;
-                    u_char *q;
-
-                    for (q = dash + 1; q < end; q++) {
-                        suffix = suffix * 10 + (*q - '0');
-                    }
-                    range_start = (suffix >= sb.st_size) ? 0
-                                                         : sb.st_size - suffix;
-                    range_end = sb.st_size - 1;
-                } else {
-                    u_char *q;
-
-                    range_start = 0;
-                    for (q = p; q < dash; q++) {
-                        range_start = range_start * 10 + (*q - '0');
-                    }
-                    if (dash + 1 < end && *(dash + 1) != '\0') {
-                        range_end = 0;
-                        for (q = dash + 1; q < end; q++) {
-                            range_end = range_end * 10 + (*q - '0');
-                        }
-                    } else {
-                        range_end = sb.st_size - 1;
-                    }
-                }
-                has_range = 1;
-            }
-        }
+    /* XrdHttp: multi-range vector read (kXR_readv equivalent over HTTP).
+     * A comma in the Range: value indicates multiple byte ranges — delegate
+     * to the multipart/byteranges handler rather than the single-range path. */
+    if (xrdhttp_request_is_multirange(r)) {
+        /*
+         * Note: multipart handler must be updated to NOT close the fd if it's
+         * from the cache, but ngx_open_cached_file returns an fd that should
+         * NOT be closed by the caller if it's cached, UNLESS it's a new open.
+         * Actually, nginx core handlers usually just use the fd and don't
+         * close it themselves if it's part of a buffer that will be closed.
+         */
+        return xrdhttp_handle_multipart_get(r, fd, &sb, 1);
     }
 
-    if (!has_range) {
-        range_start = 0;
-        range_end = sb.st_size - 1;
+    rc = xrootd_http_check_if_modified_since(r, sb.st_mtime);
+    if (rc == NGX_HTTP_NOT_MODIFIED) {
+        r->headers_out.status           = NGX_HTTP_NOT_MODIFIED;
+        r->headers_out.content_length_n = 0;
+        ngx_http_send_header(r);
+        return ngx_http_send_special(r, NGX_HTTP_LAST);
+    }
+    if (rc != NGX_OK) {
+        return rc;
     }
 
-    if (sb.st_size == 0) {
-        if (has_range) {
+    {
+        xrootd_http_range_t rng;
+        xrootd_http_parse_range(
+            r->headers_in.range ? r->headers_in.range->value.data : NULL,
+            r->headers_in.range ? r->headers_in.range->value.len : 0,
+            sb.st_size, &rng);
+
+        if (rng.present && !rng.satisfiable) {
             XROOTD_WEBDAV_METRIC_INC(
                 range_total[XROOTD_WEBDAV_RANGE_UNSATISFIED]);
             r->headers_out.status = NGX_HTTP_RANGE_NOT_SATISFIABLE;
@@ -197,22 +146,11 @@ webdav_handle_get(ngx_http_request_t *r)
             ngx_http_send_header(r);
             return ngx_http_send_special(r, NGX_HTTP_LAST);
         }
-        range_start = 0;
-        range_end = 0;
-        send_len = 0;
-    } else {
-        if (range_end >= sb.st_size) {
-            range_end = sb.st_size - 1;
-        }
-        if (range_start > range_end) {
-            XROOTD_WEBDAV_METRIC_INC(
-                range_total[XROOTD_WEBDAV_RANGE_UNSATISFIED]);
-            r->headers_out.status = NGX_HTTP_RANGE_NOT_SATISFIABLE;
-            r->headers_out.content_length_n = 0;
-            ngx_http_send_header(r);
-            return ngx_http_send_special(r, NGX_HTTP_LAST);
-        }
-        send_len = range_end - range_start + 1;
+
+        range_start = rng.start;
+        range_end   = rng.end;
+        send_len    = (sb.st_size > 0) ? (range_end - range_start + 1) : 0;
+        has_range   = rng.present;
     }
 
     if (has_range) {
@@ -226,53 +164,41 @@ webdav_handle_get(ngx_http_request_t *r)
                                 (size_t) send_len);
     }
 
-    r->headers_out.status = has_range ? NGX_HTTP_PARTIAL_CONTENT
-                                      : NGX_HTTP_OK;
-    r->headers_out.content_length_n = send_len;
-    r->headers_out.last_modified_time = sb.st_mtime;
+    r->allow_ranges = 1;
 
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
+    rc = xrootd_http_set_file_headers(r, sb.st_mtime, sb.st_size, send_len,
+                                      NULL,
+                                      XROOTD_ETAG_WEAK,
+                                      has_range, range_start, range_end);
+    if (rc != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    h->hash = 1;
-    ngx_str_set(&h->key, "Content-Type");
-    ngx_str_set(&h->value, "application/octet-stream");
 
-    rc = webdav_add_last_modified(r, sb.st_mtime);
-    if (rc != NGX_OK) {
+    /* XrdHttp: add Digest: checksum header if the client requested one via
+     * ?xrd.want.cksum=<algo>.  Computed inline before header flush. */
+    xrdhttp_add_checksum_header(r, fd, &sb);
+
+    /* XrdHttp: add X-Xrootd-Requuid / X-Xrootd-Status response headers. */
+    xrdhttp_add_response_headers(r, r->headers_out.status);
+
+    wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    identity = (wctx != NULL && wctx->dn[0] != '\0') ? wctx->dn : "anonymous";
+    (void) xrootd_dashboard_http_start_identity(r, path, identity, "",
+        XROOTD_XFER_PROTO_WEBDAV, XROOTD_XFER_DIR_READ, "GET",
+        (int64_t) send_len);
+
+    rc = xrootd_http_send_file_range(r, fd, path, range_start, send_len, 0);
+    if (rc == NGX_ERROR) {
+        xrootd_dashboard_http_error(r, "webdav GET send failed");
+        xrootd_dashboard_http_finish(r);
+        return rc;
+    }
+    if (r->header_only) {
+        xrootd_dashboard_http_finish(r);
         return rc;
     }
 
-    rc = webdav_add_etag(r, sb.st_mtime, sb.st_size);
-    if (rc != NGX_OK) {
-        return rc;
-    }
-
-    if (has_range) {
-        snprintf(cr_buf, sizeof(cr_buf),
-                 "bytes %lld-%lld/%lld",
-                 (long long) range_start,
-                 (long long) range_end,
-                 (long long) sb.st_size);
-        h = ngx_list_push(&r->headers_out.headers);
-        if (h == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        h->hash = 1;
-        ngx_str_set(&h->key, "Content-Range");
-        h->value.data = ngx_pstrdup(r->pool, &(ngx_str_t) {
-            strlen(cr_buf), (u_char *) cr_buf
-        });
-        h->value.len = strlen(cr_buf);
-    }
-
-    rc = ngx_http_send_header(r);
-    /* r->header_only is set for HEAD requests — never send a body. */
-    if (rc == NGX_ERROR || r->header_only) {
-        return rc;
-    }
-
+    xrootd_dashboard_http_add(r, (ngx_atomic_int_t) send_len);
     XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) send_len);
 
     /* Track per-IP-version bytes for this GET body transfer. */
@@ -287,53 +213,5 @@ webdav_handle_get(ngx_http_request_t *r)
         }
     }
 
-    if (send_len == 0) {
-        if (!fd_from_table) {
-            ngx_close_file(fd);
-        }
-        return ngx_http_send_special(r, NGX_HTTP_LAST);
-    }
-
-    b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    b->file = ngx_pcalloc(r->pool, sizeof(ngx_file_t));
-    if (b->file == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    b->file->name.len = ngx_strlen(path);
-    b->file->name.data = ngx_pnalloc(r->pool, b->file->name.len + 1);
-    if (b->file->name.data == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    ngx_cpystrn(b->file->name.data, (u_char *) path, b->file->name.len + 1);
-
-    b->in_file = 1;
-    b->last_buf = 1;
-    b->last_in_chain = 1;
-    b->file->fd = fd;
-    b->file->log = r->connection->log;
-    b->file_pos = range_start;
-    b->file_last = range_start + send_len;
-
-    cln = ngx_pool_cleanup_add(r->pool, sizeof(ngx_pool_cleanup_file_t));
-    if (cln != NULL) {
-        cln->handler = ngx_pool_cleanup_file;
-        clnf = cln->data;
-        clnf->fd = fd;
-        clnf->name = b->file->name.data;
-        clnf->log = r->pool->log;
-
-        if (fd_from_table) {
-            clnf->fd = NGX_INVALID_FILE;
-        }
-    }
-
-    out.buf = b;
-    out.next = NULL;
-
-    return ngx_http_output_filter(r, &out);
+    return rc;
 }

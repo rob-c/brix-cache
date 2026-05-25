@@ -28,7 +28,17 @@ import time
 
 import pytest
 
-from settings import CA_DIR, PROXY_STD
+from settings import CA_DIR, NGINX_ANON_PORT, PROXY_STD, SERVER_HOST
+
+ANON_HOST = SERVER_HOST
+ANON_PORT = NGINX_ANON_PORT
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _configure(test_env):
+    global ANON_HOST, ANON_PORT
+    ANON_HOST = test_env["server_host"]
+    ANON_PORT = test_env["anon_port"]
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +88,7 @@ def _send_req(sock, streamid, reqid, body=b"", payload=b""):
 
 def _establish_gsi_session(url_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(("127.0.0.1", url_port))
+    sock.connect((ANON_HOST, url_port))
 
     handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
     sock.sendall(handshake)
@@ -207,10 +217,8 @@ class TestSigverNoVerification:
         """On an anonymous session (signing_active=0), kXR_sigver is accepted
         with kXR_ok but no HMAC verification occurs.
         """
-        from settings import NGINX_ANON_PORT as ANON_PORT
-
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(("127.0.0.1", ANON_PORT))
+        sock.connect((ANON_HOST, ANON_PORT))
 
         handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
         sock.sendall(handshake)
@@ -273,10 +281,8 @@ class TestSigverCorrectRequestAnonymous:
 
     def test_sigver_then_ping_anonymous(self):
         """sigver with expectrid=kXR_ping followed by kXR_ping must succeed."""
-        ANON_PORT = 11094
-
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(("127.0.0.1", ANON_PORT))
+        sock.connect((ANON_HOST, ANON_PORT))
 
         handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
         sock.sendall(handshake)

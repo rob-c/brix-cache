@@ -1,19 +1,12 @@
 #include "cms_internal.h"
 #include "../manager/pending.h"
 
+static ngx_connection_t *cms_find_client_connection(int fd);
 
-/*
- * Parse the first host:port entry from a kYR_select or kYR_try payload
- * and wake the suspended XRootD client session that is waiting for it.
+/* ---- cms_wake_pending_session — redirect waiting XRootD client to CMS-managed server ----
  *
- * Payload format (both kYR_select and the first entry of kYR_try):
- *   NUL-terminated hostname  (up to 255 chars)
- *   2-byte big-endian port
- *
- * Per-worker design (step 2): the CMS connection and the waiting XRootD
- * connection are in the same nginx worker process, so looking up the client
- * connection by file descriptor via ngx_cycle->connections is always safe.
- */
+ * WHAT: Parses the first host:port entry from a kYR_select or kYR_try payload and wakes the suspended XRootD client session that is waiting for a locate response. The CMS manager has resolved which server should serve this path, and we redirect the client there. WHY: Per-worker design — the CMS connection and the waiting XRootD connection are in the same nginx worker process, so resolving the saved client fd within this worker is sufficient. HOW: 1) Lookup pending locate entry by streamid + pid → 2) Remove from pending table → 3) Resolve fd to live ngx_connection_t → 4) Update client state to XRD_ST_REQ_HEADER → 5) Call xrootd_send_redirect with host/port → 6) Resume reading on client connection. */
+
 static ngx_int_t
 cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
     const char *host, uint16_t port)
@@ -23,26 +16,27 @@ cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
     ngx_stream_session_t     *session;
     xrootd_ctx_t             *xrd_ctx;
     int                       conn_fd;
+    ngx_atomic_uint_t         conn_number;
+    u_char                    client_streamid[2];
 
     pending = xrootd_pending_lookup(streamid, ngx_pid);
     if (pending == NULL) {
-        ngx_log_error(NGX_LOG_DEBUG_EVENT, cms_ctx->cycle->log, 0,
-                      "xrootd: CMS wake: streamid=%uD not found in pending table",
-                      streamid);
+        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cms_ctx->cycle->log, 0,
+                       "xrootd: CMS wake: streamid=%uD not found in pending table",
+                       streamid);
         return NGX_OK;  /* session timed out and was already removed */
     }
 
     conn_fd = pending->conn_fd;
+    conn_number = pending->conn_number;
+    client_streamid[0] = pending->client_streamid[0];
+    client_streamid[1] = pending->client_streamid[1];
     xrootd_pending_unlock();
 
     xrootd_pending_remove(streamid, ngx_pid);
 
-    if ((ngx_uint_t) conn_fd >= ngx_cycle->connection_n) {
-        return NGX_OK;
-    }
-
-    client_conn = &ngx_cycle->connections[conn_fd];
-    if (client_conn->fd != conn_fd) {
+    client_conn = cms_find_client_connection(conn_fd);
+    if (client_conn == NULL || client_conn->number != conn_number) {
         return NGX_OK;  /* fd was recycled after the client disconnected */
     }
 
@@ -62,11 +56,49 @@ cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
 
     ngx_del_timer(client_conn->read);
     xrd_ctx->state = XRD_ST_REQ_HEADER;
-    xrootd_send_redirect(xrd_ctx, client_conn, host, port);
+    xrd_ctx->cur_streamid[0] = client_streamid[0];
+    xrd_ctx->cur_streamid[1] = client_streamid[1];
+    if (xrootd_send_redirect(xrd_ctx, client_conn, host, port) == NGX_ERROR) {
+        ngx_log_error(NGX_LOG_ERR, cms_ctx->cycle->log, 0,
+                      "xrootd: CMS select: failed to queue redirect for fd=%d",
+                      conn_fd);
+        return NGX_ERROR;
+    }
     xrootd_schedule_read_resume(client_conn);
     return NGX_OK;
 }
 
+static ngx_connection_t *
+cms_find_client_connection(int fd)
+{
+    ngx_uint_t        i;
+    ngx_connection_t *c;
+
+    if (fd < 0) {
+        return NULL;
+    }
+
+    if (ngx_cycle->files != NULL && (ngx_uint_t) fd < ngx_cycle->files_n) {
+        c = ngx_cycle->files[fd];
+        if (c != NULL && c->fd == fd) {
+            return c;
+        }
+        return NULL;
+    }
+
+    for (i = 0; i < ngx_cycle->connection_n; i++) {
+        c = &ngx_cycle->connections[i];
+        if (c->fd == fd) {
+            return c;
+        }
+    }
+
+    return NULL;
+}
+
+/* ---- ngx_xrootd_cms_process_frame — CMS opcode dispatch from received frame ----
+ *
+ * WHAT: Decodes the first 4 bytes of a complete CMS frame (streamid + rrCode) and dispatches to handler based on opcode. Handles PING→PONG, SPACE→AVAIL, STATUS=suspend/resume control, SELECT/TRY=client redirect. WHY: Centralized dispatch keeps recv.c self-contained — each opcode handler is inline rather than delegating to separate files. HOW: 1) Extract streamid via ngx_xrootd_cms_get32() → 2) Read rrCode at offset 4 → 3) Switch on code → 4) Call appropriate send function or update conf flags. Unknown opcodes are silently ignored (debug log). */
 
 static ngx_int_t
 ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
@@ -77,9 +109,9 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
     streamid = ngx_xrootd_cms_get32(ctx->inbuf);
     code = ctx->inbuf[4];
 
-    ngx_log_error(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                  "xrootd: CMS process frame code=%ui streamid=%uD",
-                  (ngx_uint_t) code, streamid);
+    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                   "xrootd: CMS process frame code=%ui streamid=%uD",
+                   (ngx_uint_t) code, streamid);
 
     switch (code) {
     case CMS_RR_PING:
@@ -169,6 +201,9 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
     }
 }
 
+/* ---- ngx_xrootd_cms_read_handler — CMS incoming frame read loop and dispatch ----
+ *
+ * WHAT: Event handler for reading incoming CMS frames from the manager connection. Accumulates bytes until a complete header is received, then reads payload based on dlen. Dispatches each opcode (PING→PONG, SPACE→AVAIL, STATUS=suspend/resume, SELECT/TRY=redirect) via ngx_xrootd_cms_process_frame(). Disconnects and retries on timeout or error. */
 
 void
 ngx_xrootd_cms_read_handler(ngx_event_t *ev)
@@ -181,8 +216,12 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
     c = ev->data;
     ctx = c->data;
 
-    ngx_log_error(NGX_LOG_DEBUG_EVENT, ev->log, 0,
-                  "xrootd: CMS recv handler called timedout=%d in_pos=%uz in_need=%uz",
+    if (ctx == NULL || ctx->connection != c) {
+        return;
+    }
+
+    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                  "xrootd: CMS READ handler called timedout=%d in_pos=%uz in_need=%uz",
                   (int) ev->timedout, ctx->in_pos, ctx->in_need);
 
     if (ev->timedout) {
@@ -191,15 +230,24 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
         return;
     }
 
+    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                  "xrootd: CMS read: c=%p ctx=%p fd=%d",
+                  c, ctx, c->fd);
+
     for ( ;; ) {
         n = c->recv(c, ctx->inbuf + ctx->in_pos,
                     ctx->in_need - ctx->in_pos);
+
+        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                      "xrootd: CMS recv returned n=%z", n);
 
         if (n == NGX_AGAIN) {
             break;
         }
 
         if (n == NGX_ERROR || n == 0) {
+            ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                          "xrootd: CMS recv: EOF/error, disconnecting");
             ngx_xrootd_cms_disconnect(ctx);
             ngx_xrootd_cms_schedule_retry(ctx);
             return;
@@ -213,6 +261,11 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
 
         if (ctx->in_need == NGX_XROOTD_CMS_HDR_LEN) {
             dlen = ngx_xrootd_cms_get16(ctx->inbuf + 6);
+
+            ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                          "xrootd: CMS header complete dlen=%ui code=%ui",
+                          (ngx_uint_t) dlen, (ngx_uint_t) ctx->inbuf[4]);
+
             if ((size_t) dlen + NGX_XROOTD_CMS_HDR_LEN
                 > NGX_XROOTD_CMS_MAX_FRAME)
             {
@@ -230,6 +283,10 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
             }
         }
 
+        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                      "xrootd: CMS process_frame code=%ui",
+                      (ngx_uint_t) ctx->inbuf[4]);
+
         if (ngx_xrootd_cms_process_frame(ctx) != NGX_OK) {
             ngx_xrootd_cms_disconnect(ctx);
             ngx_xrootd_cms_schedule_retry(ctx);
@@ -239,6 +296,10 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
         ctx->in_pos = 0;
         ctx->in_need = NGX_XROOTD_CMS_HDR_LEN;
     }
+
+    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                  "xrootd: CMS read: loop done, ctx->connection=%p",
+                  ctx->connection);
 
     if (ctx->connection != NULL
         && ngx_handle_read_event(c->read, 0) != NGX_OK)

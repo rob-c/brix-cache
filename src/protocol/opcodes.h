@@ -28,17 +28,19 @@
 #define XRD_FHANDLE_LEN        4   /* opaque file handle from kXR_open */
 #define XROOTD_SESSION_ID_LEN  16  /* opaque session ID from kXR_login response */
 
+/* ---- Request IDs (kXR_*) — all client-opcode constants ----
+ *
+ * WHAT: Numeric opcodes carried in ClientRequestHdr.requestid field of wire.h.
+ *       Agents can answer "what opcode does X?" by referring to this section.
+ *
+ * WHY: Standardizes opcode lookup — all dispatch logic uses these constants from opcodes.h.
+ *      Values start at 3000 (legacy ROOTD < 3000 unsupported). Gap at 3026/3031 intentional in spec history.
+ *
+ * HOW: All opcodes implemented; unrecognised ones get kXR_Unsupported error. Dispatch via xrootd_dispatch_opcode(). */
+
 /* ------------------------------------------------------------------ */
 /* Request IDs (kXR_*)                                                  */
 /* ------------------------------------------------------------------ */
-/*
- * These are the numeric opcodes carried in ClientRequestHdr.requestid.
- * They start at 3000 — values below 3000 are legacy ROOTD protocol codes
- * that we do not support.
- *
- * The gap at 3026/3031 is intentional in the XRootD spec history.
- * We implement every opcode listed below; unrecognised opcodes get kXR_Unsupported.
- */
 #define kXR_auth      3000  /* authentication (GSI, token, or negotiation) */
 #define kXR_query     3001  /* server/file information query (checksum, space, config…) */
 #define kXR_chmod     3002  /* change file permission bits */

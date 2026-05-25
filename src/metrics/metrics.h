@@ -43,25 +43,25 @@
 #define XROOTD_OP_TRUNCATE    15
 #define XROOTD_OP_PING        16
 #define XROOTD_OP_QUERY_CKSUM 17  /* kXR_query / kXR_QChecksum */
-#define XROOTD_OP_QUERY_SPACE 18  /* kXR_query / kXR_QSpace    */
-#define XROOTD_OP_READV       19  /* kXR_readv                 */
-#define XROOTD_OP_PGREAD      20  /* kXR_pgread                */
-#define XROOTD_OP_WRITEV      21  /* kXR_writev                */
-#define XROOTD_OP_LOCATE      22  /* kXR_locate                */
-#define XROOTD_OP_STATX       23  /* kXR_statx                 */
-#define XROOTD_OP_FATTR       24  /* kXR_fattr                 */
-#define XROOTD_OP_QUERY_STATS 25  /* kXR_query / kXR_QStats    */
-#define XROOTD_OP_QUERY_XATTR 26  /* kXR_query / kXR_Qxattr    */
-#define XROOTD_OP_QUERY_FINFO 27  /* kXR_query / kXR_QFinfo    */
-#define XROOTD_OP_QUERY_FSINFO 28 /* kXR_query / kXR_QFSinfo   */
-#define XROOTD_OP_SET          29 /* kXR_set                    */
-#define XROOTD_OP_QUERY_VISA   30 /* kXR_query / kXR_Qvisa     */
-#define XROOTD_OP_QUERY_OPAQUE 31 /* kXR_query / kXR_Qopaque   */
-#define XROOTD_OP_QUERY_OPAQUF 32 /* kXR_query / kXR_Qopaquf   */
-#define XROOTD_OP_QUERY_OPAQUG 33 /* kXR_query / kXR_Qopaqug   */
-#define XROOTD_OP_QUERY_CKSCAN 34 /* kXR_query / kXR_Qckscan   */
-#define XROOTD_OP_CLONE        35 /* kXR_clone                 */
-#define XROOTD_OP_CHKPOINT     36 /* kXR_chkpoint              */
+#define XROOTD_OP_QUERY_SPACE 17  /* kXR_query / kXR_QSpace    */
+#define XROOTD_OP_READV       18  /* kXR_readv                 */
+#define XROOTD_OP_PGREAD      19  /* kXR_pgread                */
+#define XROOTD_OP_WRITEV      20  /* kXR_writev                */
+#define XROOTD_OP_LOCATE      21  /* kXR_locate                */
+#define XROOTD_OP_STATX       22  /* kXR_statx                 */
+#define XROOTD_OP_FATTR       23  /* kXR_fattr                 */
+#define XROOTD_OP_QUERY_STATS 24  /* kXR_query / kXR_QStats    */
+#define XROOTD_OP_QUERY_XATTR 25  /* kXR_query / kXR_Qxattr    */
+#define XROOTD_OP_QUERY_FINFO 26  /* kXR_query / kXR_QFinfo    */
+#define XROOTD_OP_QUERY_FSINFO 27 /* kXR_query / kXR_QFSinfo   */
+#define XROOTD_OP_SET          28 /* kXR_set                    */
+#define XROOTD_OP_QUERY_VISA   29 /* kXR_query / kXR_Qvisa     */
+#define XROOTD_OP_QUERY_OPAQUE 30 /* kXR_query / kXR_Qopaque   */
+#define XROOTD_OP_QUERY_OPAQUF 31 /* kXR_query / kXR_Qopaquf   */
+#define XROOTD_OP_QUERY_OPAQUG 32 /* kXR_query / kXR_Qopaqug   */
+#define XROOTD_OP_QUERY_CKSCAN 33 /* kXR_query / kXR_Qckscan   */
+#define XROOTD_OP_CLONE        34 /* kXR_clone                 */
+#define XROOTD_OP_CHKPOINT     35 /* kXR_chkpoint              */
 /* Number of entries in op_ok[] / op_err[] and xrootd_op_names[]. */
 #define XROOTD_NOPS           37
 
@@ -106,17 +106,10 @@
 #define XROOTD_WEBDAV_PUT_THREADED   3
 #define XROOTD_WEBDAV_NPUT_MODES     4
 
-#define XROOTD_WEBDAV_FD_CACHE_HIT       0
-#define XROOTD_WEBDAV_FD_CACHE_MISS      1
-#define XROOTD_WEBDAV_FD_CACHE_INSERT    2
-#define XROOTD_WEBDAV_FD_CACHE_UPDATE    3
-#define XROOTD_WEBDAV_FD_CACHE_EVICT     4
-#define XROOTD_WEBDAV_FD_CACHE_STALE     5
-#define XROOTD_WEBDAV_NFD_CACHE_EVENTS   6
-
 #define XROOTD_WEBDAV_PROPFIND_DEPTH_0      0
 #define XROOTD_WEBDAV_PROPFIND_DEPTH_1      1
-#define XROOTD_WEBDAV_NPROPFIND_DEPTHS      2
+#define XROOTD_WEBDAV_PROPFIND_DEPTH_INF    2
+#define XROOTD_WEBDAV_NPROPFIND_DEPTHS      3
 
 #define XROOTD_WEBDAV_TPC_PULL_STARTED       0
 #define XROOTD_WEBDAV_TPC_PULL_SUCCESS       1
@@ -209,7 +202,6 @@ typedef struct {
 
     ngx_atomic_t  range_total[XROOTD_WEBDAV_NRANGE_RESULTS];  /* Range request outcomes */
     ngx_atomic_t  put_body_total[XROOTD_WEBDAV_NPUT_MODES];   /* PUT receive mode used */
-    ngx_atomic_t  fd_cache_total[XROOTD_WEBDAV_NFD_CACHE_EVENTS]; /* fd-cache hit/miss/evict */
     ngx_atomic_t  propfind_depth_total[XROOTD_WEBDAV_NPROPFIND_DEPTHS]; /* PROPFIND Depth: header value */
     ngx_atomic_t  propfind_entries_total;  /* total directory entries listed */
     ngx_atomic_t  tpc_total[XROOTD_WEBDAV_NTPC_EVENTS];   /* HTTP-TPC curl pull events */
@@ -344,6 +336,17 @@ typedef struct {
     ngx_atomic_t  cache_evicted_bytes_total;  /* bytes reclaimed by eviction */
     ngx_atomic_t  cache_eviction_errors_total;/* eviction/stat/unlink errors */
 
+    /* Write-through health counters. */
+    ngx_atomic_t  wt_dirty_handles;
+    ngx_atomic_t  wt_flush_pending;
+    ngx_atomic_t  wt_flush_success_total;
+    ngx_atomic_t  wt_flush_error_total;
+    ngx_atomic_t  wt_flush_bytes_total;
+
+    /* Path depth violation counter — requests rejected due to excessive component count.
+     * Prevents CPU exhaustion from malicious symlink traversal chains or deep nesting. */
+    ngx_atomic_t  path_depth_violations_total;
+
     /*
      * Identity for the listener bound to this slot.
      * The stream module assigns one slot per enabled server during startup.
@@ -383,7 +386,7 @@ typedef struct {
 } ngx_xrootd_vo_global_t;
 
 /* ---- Unique user identity tracking (bounded LRU, hash-based) ---- */
-#define XROOTD_USERS_MAX_TRACKED  512
+#define XROOTD_USERS_MAX_TRACKED  1024
 
 typedef struct {
     uint32_t      id_hash;
@@ -428,126 +431,6 @@ ngx_int_t  xrootd_track_vo_activity(ngx_xrootd_metrics_t *shm,
 ngx_int_t  xrootd_track_unique_user(ngx_xrootd_metrics_t *shm,
     const char *identity, size_t identity_len);
 
-static ngx_inline ngx_xrootd_metrics_t *
-xrootd_metrics_shared(void)
-{
-    if (ngx_xrootd_shm_zone == NULL
-        || ngx_xrootd_shm_zone->data == NULL
-        || ngx_xrootd_shm_zone->data == (void *) 1)
-    {
-        return NULL;
-    }
-
-    return (ngx_xrootd_metrics_t *) ngx_xrootd_shm_zone->data;
-}
-
-#define XROOTD_ATOMIC_INC(counter)                                           \
-    do {                                                                     \
-        ngx_atomic_fetch_add((counter), 1);                                  \
-    } while (0)
-
-#define XROOTD_ATOMIC_DEC(counter)                                           \
-    do {                                                                     \
-        ngx_atomic_fetch_add((counter), (ngx_atomic_int_t) -1);              \
-    } while (0)
-
-#define XROOTD_ATOMIC_ADD(counter, amount)                                   \
-    do {                                                                     \
-        size_t _xrootd_metric_amount = (size_t) (amount);                    \
-        if (_xrootd_metric_amount > 0) {                                     \
-            ngx_atomic_fetch_add((counter), _xrootd_metric_amount);          \
-        }                                                                    \
-    } while (0)
-
-#define XROOTD_SRV_METRIC_INC(ctx, field)                                    \
-    do {                                                                     \
-        if ((ctx) != NULL && (ctx)->metrics != NULL) {                       \
-            XROOTD_ATOMIC_INC(&(ctx)->metrics->field);                       \
-        }                                                                    \
-    } while (0)
-
-#define XROOTD_SRV_METRIC_ADD(ctx, field, amount)                            \
-    do {                                                                     \
-        if ((ctx) != NULL && (ctx)->metrics != NULL) {                       \
-            XROOTD_ATOMIC_ADD(&(ctx)->metrics->field, (amount));             \
-        }                                                                    \
-    } while (0)
-
-#define XROOTD_WEBDAV_METRIC_INC(field)                                      \
-    do {                                                                     \
-        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
-        if (_xrootd_metrics != NULL) {                                       \
-            XROOTD_ATOMIC_INC(&_xrootd_metrics->webdav.field);               \
-        }                                                                    \
-    } while (0)
-
-#define XROOTD_WEBDAV_METRIC_ADD(field, amount)                              \
-    do {                                                                     \
-        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
-        if (_xrootd_metrics != NULL) {                                       \
-            XROOTD_ATOMIC_ADD(&_xrootd_metrics->webdav.field, (amount));     \
-        }                                                                    \
-    } while (0)
-
-#define XROOTD_S3_METRIC_INC(field)                                          \
-    do {                                                                     \
-        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
-        if (_xrootd_metrics != NULL) {                                       \
-            XROOTD_ATOMIC_INC(&_xrootd_metrics->s3.field);                   \
-        }                                                                    \
-    } while (0)
-
-#define XROOTD_S3_METRIC_ADD(field, amount)                                  \
-    do {                                                                     \
-        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
-        if (_xrootd_metrics != NULL) {                                       \
-            XROOTD_ATOMIC_ADD(&_xrootd_metrics->s3.field, (amount));         \
-        }                                                                    \
-    } while (0)
-
-/* Proxy metrics — use these from proxy/ sources.  ctx->metrics may be NULL. */
-#define XROOTD_PROXY_METRIC_INC(ctx, field)                                  \
-    do {                                                                     \
-        if ((ctx) != NULL && (ctx)->metrics != NULL) {                       \
-            XROOTD_ATOMIC_INC(&(ctx)->metrics->proxy.field);                 \
-        }                                                                    \
-    } while (0)
-
-#define XROOTD_PROXY_METRIC_ADD(ctx, field, amount)                          \
-    do {                                                                     \
-        if ((ctx) != NULL && (ctx)->metrics != NULL) {                       \
-            XROOTD_ATOMIC_ADD(&(ctx)->metrics->proxy.field, (amount));       \
-        }                                                                    \
-    } while (0)
-
-/*
- * Per-upstream breakdown macros.  proxy_ptr must be xrootd_proxy_ctx_t *.
- * These increment the per-upstream slice at proxy_ptr->upstream_idx alongside
- * the aggregate; call XROOTD_PROXY_METRIC_INC first, then one of these.
- */
-#define XROOTD_PROXY_UP_INC(proxy_ptr, field)                                \
-    do {                                                                     \
-        int _ui = (proxy_ptr)->upstream_idx;                                 \
-        if (_ui >= 0 && _ui < XROOTD_PROXY_MAX_UPSTREAMS                    \
-            && (proxy_ptr)->client_ctx != NULL                               \
-            && (proxy_ptr)->client_ctx->metrics != NULL)                     \
-        {                                                                    \
-            XROOTD_ATOMIC_INC(                                               \
-                &(proxy_ptr)->client_ctx->metrics->proxy.upstreams[_ui].field); \
-        }                                                                    \
-    } while (0)
-
-#define XROOTD_PROXY_UP_ADD(proxy_ptr, field, amount)                        \
-    do {                                                                     \
-        int _ui = (proxy_ptr)->upstream_idx;                                 \
-        if (_ui >= 0 && _ui < XROOTD_PROXY_MAX_UPSTREAMS                    \
-            && (proxy_ptr)->client_ctx != NULL                               \
-            && (proxy_ptr)->client_ctx->metrics != NULL)                     \
-        {                                                                    \
-            XROOTD_ATOMIC_ADD(                                               \
-                &(proxy_ptr)->client_ctx->metrics->proxy.upstreams[_ui].field, \
-                (amount));                                                   \
-        }                                                                    \
-    } while (0)
+#include "metrics_macros.h"
 
 #endif /* NGX_XROOTD_METRICS_H */

@@ -18,6 +18,7 @@ Run:
 import time
 import uuid
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import pytest
 import requests
@@ -27,8 +28,9 @@ _PFX = "htsc_"
 
 @pytest.fixture(scope="module", autouse=True)
 def _base(test_env):
-    global BASE
+    global BASE, LOG_DIR
     BASE = test_env["http_webdav_url"]
+    LOG_DIR = Path(test_env["log_dir"])
 
 
 def _url(path):
@@ -69,6 +71,22 @@ def _propfind(path, depth="1", body=None, **kw):
     headers.update(kw.pop("headers", {}))
     return requests.request(
         "PROPFIND", _url(path), data=body, headers=headers, timeout=10, **kw
+    )
+
+
+def _proppatch(path, body, **kw):
+    headers = {"Content-Type": "application/xml"}
+    headers.update(kw.pop("headers", {}))
+    return requests.request(
+        "PROPPATCH", _url(path), data=body, headers=headers, timeout=10, **kw
+    )
+
+
+def _search(path, body, **kw):
+    headers = {"Content-Type": "application/xml"}
+    headers.update(kw.pop("headers", {}))
+    return requests.request(
+        "SEARCH", _url(path), data=body, headers=headers, timeout=10, **kw
     )
 
 
@@ -124,6 +142,28 @@ def _existing_file():
     assert r.status_code == 201, f"setup PUT failed: {r.status_code}"
     etag = r.headers.get("ETag", "")
     return path, content, etag
+
+
+def _error_log_size():
+    path = LOG_DIR / "error.log"
+    try:
+        return path.stat().st_size
+    except FileNotFoundError:
+        return 0
+
+
+def _assert_error_log_contains_since(offset, needle):
+    path = LOG_DIR / "error.log"
+    for _ in range(20):
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as fh:
+                fh.seek(offset)
+                if needle in fh.read():
+                    return
+        except FileNotFoundError:
+            pass
+        time.sleep(0.05)
+    pytest.fail(f"expected {needle!r} in {path} after offset {offset}")
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +584,123 @@ class TestPropfind:
 
 
 # ---------------------------------------------------------------------------
+# PROPPATCH / dead properties
+# ---------------------------------------------------------------------------
+
+
+class TestProppatch:
+    def test_proppatch_dead_property_persists_in_propfind(self):
+        path, _, _ = _existing_file()
+        body = (
+            '<?xml version="1.0"?>'
+            '<D:propertyupdate xmlns:D="DAV:" xmlns:X="urn:nginx-xrootd:test">'
+            '<D:set><D:prop><X:analysis>beam-spot</X:analysis></D:prop></D:set>'
+            '</D:propertyupdate>'
+        )
+        r = _proppatch(path, body)
+        assert r.status_code == 207
+        assert "HTTP/1.1 200 OK" in r.text
+
+        prop_body = (
+            '<?xml version="1.0"?>'
+            '<D:propfind xmlns:D="DAV:" xmlns:X="urn:nginx-xrootd:test">'
+            '<D:prop><X:analysis/></D:prop>'
+            '</D:propfind>'
+        )
+        r = _propfind(path, depth="0", body=prop_body)
+        assert r.status_code == 207
+        assert "beam-spot" in r.text
+        ET.fromstring(r.text)
+
+    def test_proppatch_invalid_xml_400(self):
+        path, _, _ = _existing_file()
+        r = _proppatch(path, "<D:propertyupdate>")
+        assert r.status_code == 400
+
+    def test_proppatch_protected_live_property_has_403_propstat(self):
+        path, content, _ = _existing_file()
+        body = (
+            '<?xml version="1.0"?>'
+            '<D:propertyupdate xmlns:D="DAV:">'
+            '<D:set><D:prop><D:getcontentlength>1</D:getcontentlength></D:prop></D:set>'
+            '</D:propertyupdate>'
+        )
+        r = _proppatch(path, body)
+        assert r.status_code == 207
+        assert "HTTP/1.1 403 Forbidden" in r.text
+
+        r = _propfind(path, depth="0")
+        assert r.status_code == 207
+        assert f"<D:getcontentlength>{len(content)}</D:getcontentlength>" in r.text
+
+
+# ---------------------------------------------------------------------------
+# SEARCH / ACL
+# ---------------------------------------------------------------------------
+
+
+class TestSearchAndAcl:
+    def test_options_advertises_search_and_acl_discovery(self):
+        r = requests.options(_url("/"), timeout=10)
+        assert r.status_code == 200
+        assert "SEARCH" in r.headers.get("Allow", "")
+        assert "ACL" in r.headers.get("Allow", "")
+        assert "basicsearch" in r.headers.get("DASL", "")
+
+    def test_search_basic_depth1_finds_child(self):
+        parent = f"/{_PFX}search_{_uid()}"
+        _mkcol(parent)
+        _put(f"{parent}/needle.txt", b"needle")
+        body = (
+            '<?xml version="1.0"?>'
+            '<D:searchrequest xmlns:D="DAV:">'
+            '<D:basicsearch>'
+            '<D:select><D:prop><D:displayname/></D:prop></D:select>'
+            '<D:from><D:scope>'
+            f'<D:href>{parent}</D:href><D:depth>1</D:depth>'
+            '</D:scope></D:from>'
+            '<D:where><D:contains><D:prop><D:displayname/></D:prop>'
+            '<D:literal>needle</D:literal></D:contains></D:where>'
+            '</D:basicsearch>'
+            '</D:searchrequest>'
+        )
+        r = _search(parent, body)
+        assert r.status_code == 207
+        assert f"{parent}/needle.txt" in r.text
+        ET.fromstring(r.text)
+
+    def test_search_invalid_xml_400(self):
+        r = _search("/", "<D:searchrequest>")
+        assert r.status_code == 400
+
+    def test_propfind_acl_privileges_are_discoverable(self):
+        path, _, _ = _existing_file()
+        body = (
+            '<?xml version="1.0"?>'
+            '<D:propfind xmlns:D="DAV:">'
+            '<D:prop><D:current-user-privilege-set/><D:acl/></D:prop>'
+            '</D:propfind>'
+        )
+        r = _propfind(path, depth="0", body=body)
+        assert r.status_code == 207
+        assert "<D:current-user-privilege-set>" in r.text
+        assert "<D:acl>" in r.text
+        ET.fromstring(r.text)
+
+    def test_acl_method_is_protected_403(self):
+        path, _, _ = _existing_file()
+        body = (
+            '<?xml version="1.0"?>'
+            '<D:acl xmlns:D="DAV:"><D:ace><D:principal><D:all/></D:principal>'
+            '<D:grant><D:privilege><D:write/></D:privilege></D:grant>'
+            '</D:ace></D:acl>'
+        )
+        r = requests.request("ACL", _url(path), data=body, timeout=10)
+        assert r.status_code == 403
+        assert "cannot-modify-protected-property" in r.text
+
+
+# ---------------------------------------------------------------------------
 # MOVE
 # ---------------------------------------------------------------------------
 
@@ -611,6 +768,22 @@ class TestMove:
         assert _get(f"{dst}/file.txt").content == b"content"
         assert _get(f"{dst}/old.txt").status_code == 404
         assert _propfind(src).status_code == 404
+
+    def test_move_directory_offloads_to_thread_pool(self):
+        src = f"/{_PFX}dir_src_async_{_uid()}"
+        _mkcol(src)
+        _put(f"{src}/file.txt", b"content")
+
+        dst = f"/{_PFX}dir_dst_async_{_uid()}"
+        start = _error_log_size()
+        r = _move(src, dst)
+
+        assert r.status_code == 201
+        assert _get(f"{dst}/file.txt").content == b"content"
+        assert _propfind(src).status_code == 404
+        _assert_error_log_contains_since(
+            start, "offloaded collection MOVE to thread pool"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -691,6 +864,24 @@ class TestCopy:
         assert _get(f"{dst}/file1.txt").content == b"content1"
         assert _get(f"{dst}/file2.txt").content == b"content2"
         assert _get(f"{dst}/subdir/file3.txt").content == b"content3"
+
+    def test_copy_directory_recursive_offloads_to_thread_pool(self):
+        parent = f"/{_PFX}dir_async_{_uid()}"
+        _mkcol(parent)
+        _put(f"{parent}/file1.txt", b"content1")
+        _mkcol(f"{parent}/subdir")
+        _put(f"{parent}/subdir/file2.txt", b"content2")
+
+        dst = f"/{_PFX}dir_async_dst_{_uid()}"
+        start = _error_log_size()
+        r = _copy(parent, dst)
+
+        assert r.status_code == 201
+        assert _get(f"{dst}/file1.txt").content == b"content1"
+        assert _get(f"{dst}/subdir/file2.txt").content == b"content2"
+        _assert_error_log_contains_since(
+            start, "offloaded collection COPY to thread pool"
+        )
 
     def test_copy_directory_depth_0_201(self):
         parent = f"/{_PFX}dir_{_uid()}"

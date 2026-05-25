@@ -1,12 +1,30 @@
 #include "cache_internal.h"
 
-#if (NGX_THREADS)
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
+
+/* ---- xrootd_cache_try_lock — attempt exclusive lock on cache fill path ----
+ *
+ * WHAT: Creates a lock file (O_CREAT|O_EXCL) at t->lock_path to claim ownership of cache fill. Writes PID into the file for identification. Returns 1 if locked, 0 if another process holds it (EEXIST), -1 on any other error (including write failure or unlink cleanup). This is an atomic filesystem lock — no fcntl(2). */
+
+/* WHY: Atomic filesystem locking via O_CREAT|O_EXCL avoids the complexity of
+ * fcntl(2) advisory locks which require fd ownership and don't work across process
+ * boundaries. A lock file created with O_EXCL guarantees mutual exclusion at the
+ * kernel level — only one process can succeed in creating the file simultaneously.
+ * This approach is simpler, portable, and works correctly even when nginx workers
+ * are running under different UID/GID combinations (e.g., during privilege drops). */
+
+/* HOW: Three-step atomic acquisition. Step 1: open() with O_CREAT|O_EXCL — if another
+ * process already created the lock file, EEXIST is returned (another worker filling
+ * this cache entry). Step 2: write PID into lock file via snprintf+write — identifies
+ * the locking process for debugging. If write fails, close(fd) and unlink(lock_path)
+ * to clean up orphaned lock. Step 3: close(fd) without unlinking — the lock persists
+ * until the cache fill completes and cleanup removes it. Returns 1 (success), 0
+ * (EEXIST = someone else owns this), or -1 (any other error). */
 
 static int
 xrootd_cache_try_lock(xrootd_cache_fill_t *t)
@@ -38,6 +56,25 @@ xrootd_cache_try_lock(xrootd_cache_fill_t *t)
 
     return 1;
 }
+
+/* ---- xrootd_cache_wait_or_lock — poll until cache file exists or claim fill ownership ----
+ *
+ * WHAT: Two-phase polling loop that either waits for the cache file to appear (another process already filling it) or claims ownership via lock. Phase 1: checks file_ready() — if file exists, returns 0 without locking. Phase 2: tries atomic lock — if locked, sets *owned=1 and fills. Polls at XROOTD_CACHE_LOCK_POLL_USEC intervals until cache_lock_timeout expires (returns kXR_FileLocked). */
+
+/* WHY: Two-phase polling prevents race conditions between concurrent workers attempting
+ * to fill the same cache entry simultaneously. Without this loop, two workers might both
+ * try to open() the origin file and perform duplicate fills — wasting bandwidth and
+ * creating inconsistent cache state. The timeout ensures we don't hang indefinitely if
+ * a stale lock exists from a crashed process (the lock file cleanup in try_lock handles
+ * write failures, but orphaned locks can persist after SIGKILL). */
+
+/* HOW: Infinite loop with three checks per iteration. Check 1: file_ready() — the cache
+ * file already appeared (another worker completed fill first), return immediately without
+ * locking. Check 2: try_lock() — attempt O_CREAT|O_EXCL atomic lock; if success (*owned=1,
+ * caller will perform the origin fetch). Check 3: timeout comparison — time(NULL) - start >=
+ * conf->cache_lock_timeout (returns kXR_FileLocked with error message). Between checks:
+ * usleep(XROOTD_CACHE_LOCK_POLL_USEC) provides backoff to reduce contention. Every failure
+ * path sets cache error via xrootd_cache_set_syserror() or xrootd_cache_set_error(). */
 
 int
 xrootd_cache_wait_or_lock(xrootd_cache_fill_t *t, int *owned)
@@ -81,4 +118,3 @@ xrootd_cache_wait_or_lock(xrootd_cache_fill_t *t, int *owned)
     }
 }
 
-#endif /* NGX_THREADS */

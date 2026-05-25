@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# xrd-k8s — Unified CLI for nginx-xrootd Kubernetes testing.
+set -euo pipefail
+
+K8S_TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PATH="$K8S_TESTS_DIR/scripts:$PATH"
+
+usage() {
+    cat <<EOF
+Usage: $0 <command> [args]
+
+Commands:
+  cluster {start|stop|delete|status}  Manage the minikube cluster
+  build {rpm|images|all}              Build RPM and Docker images
+  deploy {infra|servers|all}          Deploy the stack to minikube
+  test                                Run integration tests and show results
+  lab                                 Start the 5-node interactive laboratory
+  teardown                            Clean up everything
+
+Example:
+  $0 cluster start
+  $0 build all
+  $0 deploy all
+  $0 test
+EOF
+}
+
+command="${1:-}"
+shift || true
+
+case "$command" in
+    cluster)  bash "$K8S_TESTS_DIR/scripts/cluster.sh" "$@" ;;
+    build)    bash "$K8S_TESTS_DIR/scripts/build.sh" "$@" ;;
+    deploy)   bash "$K8S_TESTS_DIR/scripts/deploy.sh" "$@" ;;
+    test)     bash "$K8S_TESTS_DIR/scripts/test.sh" "$@" ;;
+    lab)
+        bash "$K8S_TESTS_DIR/scripts/cluster.sh" start
+        bash "$K8S_TESTS_DIR/scripts/build.sh" all
+        kubectl apply -f "$K8S_TESTS_DIR/k8s-manifests/lab-5-vms.yaml"
+        ;;
+    teardown)
+        bash "$K8S_TESTS_DIR/scripts/deploy.sh" servers-uninstall || true
+        bash "$K8S_TESTS_DIR/scripts/cluster.sh" delete
+        ;;
+    help|*) usage ;;
+esac

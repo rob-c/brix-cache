@@ -32,6 +32,12 @@ Scrape with `curl http://localhost:9100/metrics`.
 | `webdav.c` | `xrootd_export_webdav_metrics` — Prometheus export for WebDAV HTTP counters (requests, responses, auth, TPC, CORS, PROPFIND, range, fd-cache) |
 | `s3.c` | `xrootd_export_s3_metrics` — Prometheus export for S3-compatible HTTP counters (requests, responses, auth, bytes, range, PUT body mode, ListObjectsV2, diagnostics) |
 | `handler.c` | `ngx_http_xrootd_metrics_handler` HTTP content handler; also owns the `ngx_xrootd_shm_zone` definition |
+| `http_common.h` | Shared HTTP metric helpers for webdav and s3 |
+| `metrics_macros.h` | Metric increment macros: XROOTD_OP_*_METRIC_INC, XROOTD_PROTO_*_METRIC_INC |
+| `stream_cache.c` | Read-through cache metrics — fills, hits, misses, evictions |
+| `stream_proxy.c` | Proxy-mode metrics — upstream connect/disconnect, handle translation counts |
+| `stream_tracking.c` | Stream connection-level tracking: active sessions, file counts |
+| `tracking.c` | Cross-protocol tracking aggregator: total active sessions across all protocols |
 
 ## Shared memory ABI
 

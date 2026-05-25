@@ -48,7 +48,22 @@ xrootd_get_pool_scratch(ngx_pool_t *pool, u_char **slot, size_t *slot_size,
     return p;
 }
 
-
+/*
+ * xrootd_get_read_scratch — allocate or reuse the per-connection read data buffer.
+ *
+ * WHAT: Provides a scratch buffer for holding raw wire response data during
+ * synchronous and AIO-read operations. The buffer is anchored in the connection
+ * pool's lifetime so it persists across multiple requests on the same stream.
+ *
+ * WHY: xrdcp sessions may issue hundreds of read requests sequentially. Without
+ * reuse, each request would allocate a new block — causing unbounded pool growth
+ * and memory pressure on long-running transfers. This wrapper delegates to
+ * xrootd_get_pool_scratch which grows the buffer only when needed.
+ *
+ * HOW: Returns xrootd_get_pool_scratch(c->pool, &ctx->read_scratch, ...) with
+ * the ctx-level slot pointer. First call allocates; subsequent calls return the
+ * existing buffer if size >= need.
+ */
 u_char *
 xrootd_get_read_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c, size_t need)
 {
@@ -56,7 +71,23 @@ xrootd_get_read_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c, size_t need)
                                    &ctx->read_scratch_size, need);
 }
 
-
+/*
+ * xrootd_get_read_header_scratch — allocate or reuse the per-connection wire
+ * response header buffer.
+ *
+ * WHAT: Provides a scratch buffer for writing ServerResponseHdr structures that
+ * precede each data chunk in an XRootD response chain. These headers contain
+ * streamid, status code (kXR_ok/kXR_oksofar), and data length fields.
+ *
+ * WHY: Each wire frame requires its own header block. For single-chunk responses
+ * one allocation suffices; for chunked (>16 MiB) reads n_chunks headers are
+ * packed contiguously into this buffer. Reuse prevents repeated pool allocations
+ * during large transfers.
+ *
+ * HOW: Returns xrootd_get_pool_scratch(c->pool, &ctx->read_hdr_scratch, ...) with
+ * the header-specific ctx slot pointer. Chunked chain builders pack multiple
+ * headers sequentially into one allocation sized as n_chunks × XRD_RESPONSE_HDR_LEN.
+ */
 u_char *
 xrootd_get_read_header_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c,
     size_t need)
@@ -65,14 +96,28 @@ xrootd_get_read_header_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                    &ctx->read_hdr_scratch_size, need);
 }
 
-
+/*
+ * xrootd_get_write_scratch — allocate or reuse the per-connection write data buffer.
+ *
+ * WHAT: Provides a scratch buffer for holding wire request payload during AIO-write
+ * and synchronous write operations (pgwrite, kXR_write). The buffer accumulates
+ * raw data from the client before being forwarded to xrootd upstream.
+ *
+ * WHY: Write requests may span multiple pages or contain large payloads. Without
+ * per-connection reuse each request would trigger a fresh allocation — causing
+ * pool fragmentation and unnecessary memory churn on repeated write operations.
+ * This wrapper delegates to xrootd_get_pool_scratch for automatic grow-on-demand.
+ *
+ * HOW: Returns xrootd_get_pool_scratch(c->pool, &ctx->write_scratch, ...) with
+ * the write-specific ctx slot pointer. First call allocates; subsequent calls
+ * return the existing buffer if current size >= needed amount.
+ */
 u_char *
 xrootd_get_write_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c, size_t need)
 {
     return xrootd_get_pool_scratch(c->pool, &ctx->write_scratch,
                                    &ctx->write_scratch_size, need);
 }
-
 
 /*
  * xrootd_release_read_buffer — return a response data buffer to the pool,
@@ -98,14 +143,28 @@ xrootd_release_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
     (void) ngx_pfree(c->pool, buf);
 }
 
-
 /*
  * xrootd_build_single_memory_chain — build a two-link chain for a kXR_ok
  * response whose data fits in one wire chunk (data_total <= XROOTD_READ_CHUNK_MAX).
  *
- * Uses the pre-allocated ctx->read_fast_* structs to avoid pool allocation on
- * the common case of single-chunk xrdcp reads.  The header link points to
- * read_hdr_scratch; the data link points directly into databuf (no copy).
+ * WHAT: Constructs an nginx ngx_chain_t with exactly two links: a header buffer
+ * containing the ServerResponseHdr (streamid, status=kXR_ok, length) followed by
+ * a single data buffer pointing into databuf. Both buffers are memory-backed
+ * (memory=1), enabling nginx to write via read()+write() rather than sendfile.
+ *
+ * WHY: The vast majority of xrdcp reads produce responses under 16 MiB that fit
+ * in one wire chunk. Allocating fresh ngx_chain_t and ngx_buf_t structures on
+ * every response would waste pool memory and CPU cycles. This function uses the
+ * pre-allocated ctx->read_fast_* structs (hdr_chain, body_chain, hdr_buf, body_buf)
+ * to avoid any pool allocation — zero-cost for the common case.
+ *
+ * HOW: 1) Acquires read_hdr_scratch via xrootd_get_read_header_scratch.
+ *      2) Calls xrootd_build_resp_hdr() to populate ServerResponseHdr with
+ *         ctx->cur_streamid, kXR_ok status, and data_total length.
+ *      3) Memzeros the fast structs then configures hdr_buf → hdr_chain (header).
+ *      4) If data_total==0 returns header-only chain; otherwise configures
+ *         body_buf pointing into databuf → body_chain (data), linking them.
+ *      5) Sets last_buf/last_in_chain on the final buffer to signal end-of-response.
  *
  * Precondition: data_total <= XROOTD_READ_CHUNK_MAX.
  */
@@ -156,17 +215,32 @@ xrootd_build_single_memory_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return &ctx->read_fast_hdr_chain;
 }
 
-
 /*
  * xrootd_build_single_sendfile_chain — build a header+file chain for a single
  * chunk sendfile response (data_total <= XROOTD_READ_CHUNK_MAX).
  *
- * The header link is allocated from read_hdr_scratch.  The file link sets
- * ngx_buf_t.in_file = 1 so nginx's send_chain path calls sendfile(2) rather
- * than read()+write().
+ * WHAT: Constructs an nginx ngx_chain_t with two links where the second link is
+ * a file-backed buffer (in_file=1) pointing to an open fd at offset..offset+data.
+ * The header link contains ServerResponseHdr; the data link enables direct kernel
+ * sendfile(2) — bypassing read()+write() and reducing CPU utilization on large reads.
  *
- * base_out: if non-NULL, receives the hdrbuf pointer so the caller can pass it
- *   as owned_base to xrootd_queue_response_chain (freed after send completes).
+ * WHY: Non-TLS (cleartext) connections can leverage kernel-level zero-copy for superior
+ * throughput. TLS connections automatically fall back to memory-backed chains because
+ * nginx's SSL layer cannot wrap sendfile(2). This function handles the single-chunk
+ * case; multi-chunk responses are built by xrootd_build_sendfile_chain via iteration.
+ * Setting in_file=1 is critical: it tells nginx's output_filter to invoke sendfile()
+ * syscall directly rather than reading into user space and writing back out.
+ *
+ * HOW: 1) Acquires read_hdr_scratch for the header buffer (same as memory chain).
+ *      2) Calls xrootd_build_resp_hdr() with ctx->cur_streamid, kXR_ok, data_total.
+ *      3) Memzeros fast structs including read_fast_file (ngx_file_t).
+ *      4) Configures hdr_buf → hdr_chain (header memory-backed).
+ *      5) If data_total==0 returns header-only; otherwise configures:
+ *         - file.fd = fd, file.name = path
+ *         - body_buf.file = &file, body_buf.in_file = 1
+ *         - body_buf.file_pos = offset, body_buf.file_last = offset + data
+ *      6) Links hdr_chain → body_chain; sets last_buf/last_in_chain on final buffer.
+ *      7) If base_out is non-NULL, stores hdrbuf pointer for deferred free after send.
  */
 static ngx_chain_t *
 xrootd_build_single_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -224,7 +298,6 @@ xrootd_build_single_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     return &ctx->read_fast_hdr_chain;
 }
-
 
 /*
  * xrootd_build_chunked_chain — build a multi-chunk memory chain for large
@@ -335,21 +408,28 @@ xrootd_build_chunked_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return head;
 }
 
-
 /*
  * xrootd_build_sendfile_chain — build a multi-chunk sendfile chain for reads
  * from a kernel file descriptor (zero-copy path for non-TLS connections).
  *
- * Like xrootd_build_chunked_chain but the data links use in_file=1 buffers
- * pointing at [fd, offset+di .. offset+di+chunk_data) instead of memory.
- * Each chunk gets its own ngx_file_t so the chain can contain different file
- * regions (though here all chunks are from the same fd at successive offsets).
+ * WHAT: Constructs an nginx ngx_chain_t where each wire frame consists of:
+ *   1. A header buffer (memory-backed, contains ServerResponseHdr)
+ *   2. A file buffer (in_file=1, points to fd at offset+di .. offset+di+chunk)
  *
- * For TLS connections, nginx's SSL send_chain falls back to read()+write()
- * automatically when it encounters in_file buffers — no special handling here.
+ * This enables nginx's send_chain to invoke sendfile(2) syscalls directly —
+ * bypassing read()+write() round-trips and reducing CPU utilization on large
+ * transfers. Zero-copy semantics are preserved: data never enters user space.
  *
- * base_out: receives hdrbuf pointer so the caller can track the allocation for
- *   deferred free (same pattern as xrootd_build_single_sendfile_chain).
+ * WHY: Non-TLS connections can use the kernel-level zero-copy path for superior
+ * throughput. TLS connections automatically fall back to read+write because
+ * nginx's SSL layer cannot wrap sendfile — no explicit handling needed here.
+ * Multi-chunk support handles reads exceeding XROOTD_READ_CHUNK_MAX (16 MiB).
+ *
+ * HOW: Delegates to xrootd_build_single_sendfile_chain for small responses.
+ * For large responses, iterates over n_chunks allocating one ngx_file_t per
+ * data link (all referencing the same fd at successive offsets). hdrbuf is
+ * packed contiguously like chunked memory chain; base_out tracks allocation
+ * for deferred free after send completion.
  */
 ngx_chain_t *
 xrootd_build_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,

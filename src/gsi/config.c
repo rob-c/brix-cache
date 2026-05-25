@@ -1,182 +1,35 @@
 #include "../config/config.h"
-
-/*
- * Load all PEM-encoded CRLs from a single file into the given X509_STORE.
- * Returns the number of CRLs added, or -1 on error opening the file.
- */
-static int
-xrootd_load_crls_from_file(X509_STORE *store, const char *path, ngx_log_t *log)
-{
-    FILE      *fp;
-    X509_CRL  *crl;
-    int        count = 0;
-
-    fp = fopen(path, "r");
-    if (fp == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                      "xrootd: cannot open CRL file \"%s\"", path);
-        return -1;
-    }
-
-    while ((crl = PEM_read_X509_CRL(fp, NULL, NULL, NULL)) != NULL) {
-        if (!X509_STORE_add_crl(store, crl)) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: failed to add CRL entry from \"%s\"", path);
-        } else {
-            count++;
-        }
-        X509_CRL_free(crl);
-    }
-
-    fclose(fp);
-    return count;
-}
-
-/*
- * Load CRLs from a path that is either a single PEM file or a directory
- * (scanning *.pem, *.r0, *.r1, ... *.r9 files, matching /etc/grid-security/certificates).
- * Returns the total number of CRLs loaded, or -1 on error.
- */
-static int
-xrootd_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
-{
-    struct stat     st;
-    DIR            *dir;
-    struct dirent  *ent;
-    int             total = 0;
-    int             n;
-
-    if (stat(path, &st) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd: cannot stat CRL path \"%s\"", path);
-        return -1;
-    }
-
-    /* Single file */
-    if (S_ISREG(st.st_mode)) {
-        return xrootd_load_crls_from_file(store, path, log);
-    }
-
-    /* Directory - scan for CRL files */
-    if (!S_ISDIR(st.st_mode)) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd: CRL path \"%s\" is neither a file nor directory",
-                      path);
-        return -1;
-    }
-
-    dir = opendir(path);
-    if (dir == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd: cannot open CRL directory \"%s\"", path);
-        return -1;
-    }
-
-    while ((ent = readdir(dir)) != NULL) {
-        const char *name = ent->d_name;
-        size_t      nlen = strlen(name);
-        char        fullpath[PATH_MAX];
-        int         match = 0;
-
-        /* Match *.pem */
-        if (nlen > 4 && strcmp(name + nlen - 4, ".pem") == 0) {
-            match = 1;
-        }
-        /* Match *.r0 through *.r9 (grid CA CRL naming convention) */
-        if (nlen > 3 && name[nlen - 3] == '.' && name[nlen - 2] == 'r'
-            && name[nlen - 1] >= '0' && name[nlen - 1] <= '9')
-        {
-            match = 1;
-        }
-
-        if (!match) {
-            continue;
-        }
-
-        n = snprintf(fullpath, sizeof(fullpath), "%s/%s", path, name);
-        if (n < 0 || (size_t) n >= sizeof(fullpath)) {
-            continue;
-        }
-
-        /* Only load regular files, skip symlink targets that vanished etc. */
-        if (stat(fullpath, &st) != 0 || !S_ISREG(st.st_mode)) {
-            continue;
-        }
-
-        n = xrootd_load_crls_from_file(store, fullpath, log);
-        if (n > 0) {
-            total += n;
-        }
-    }
-
-    closedir(dir);
-    return total;
-}
+#include "../crypto/pki_build.h"
 
 /*
  * Build (or rebuild) the X509_STORE used for GSI certificate verification.
  *
- * Loads the trusted CA from xcf->trusted_ca, then loads CRLs from xcf->crl
- * (which may be a single PEM file or a directory of *.pem / *.r0 files).
+ * Loads the trusted CA from xcf->trusted_ca, then loads CRLs from xcf->crl.
+ * Sets X509_V_FLAG_ALLOW_PROXY_CERTS so GSI proxy certificate chains verify.
  *
  * On success the new store is atomically swapped into xcf->gsi_store and any
- * previous store is freed. On failure the old store is left in place so
+ * previous store is freed.  On failure the old store is left intact so
  * existing connections are not disrupted.
  */
 ngx_int_t
 xrootd_rebuild_gsi_store(ngx_stream_xrootd_srv_conf_t *xcf, ngx_log_t *log)
 {
-    X509_STORE   *store;
-    X509_STORE   *old_store;
-    X509_LOOKUP  *lookup;
+    X509_STORE *store;
+    X509_STORE *old_store;
+    int         crl_count = 0;
 
-    store = X509_STORE_new();
+    store = xrootd_build_ca_store(log,
+                                   NULL,
+                                   (char *) xcf->trusted_ca.data,
+                                   xcf->crl.len > 0
+                                       ? (char *) xcf->crl.data : NULL,
+                                   X509_V_FLAG_ALLOW_PROXY_CERTS,
+                                   &crl_count);
     if (store == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd: X509_STORE_new() failed");
         return NGX_ERROR;
     }
 
-    X509_STORE_set_flags(store, X509_V_FLAG_ALLOW_PROXY_CERTS);
-
-    lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file());
-    if (lookup == NULL) {
-        X509_STORE_free(store);
-        return NGX_ERROR;
-    }
-
-    if (!X509_LOOKUP_load_file(lookup,
-                               (char *) xcf->trusted_ca.data,
-                               X509_FILETYPE_PEM))
-    {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd: cannot load trusted CA \"%s\"",
-                      xcf->trusted_ca.data);
-        X509_STORE_free(store);
-        return NGX_ERROR;
-    }
-
-    /* Load CRLs if configured (file or directory) */
     if (xcf->crl.len > 0) {
-        int crl_count = xrootd_load_crls(store, (char *) xcf->crl.data, log);
-        if (crl_count < 0) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,
-                          "xrootd: failed to load CRLs from \"%s\"",
-                          xcf->crl.data);
-            X509_STORE_free(store);
-            return NGX_ERROR;
-        }
-
-        if (crl_count > 0) {
-            /*
-             * Enable CRL checking on the store. X509_V_FLAG_CRL_CHECK checks
-             * the leaf issuer's CRL; _CHECK_ALL checks the entire chain.
-             */
-            X509_STORE_set_flags(store,
-                                 X509_V_FLAG_CRL_CHECK |
-                                 X509_V_FLAG_CRL_CHECK_ALL);
-        }
-
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
                       "xrootd: loaded %d CRL(s) from \"%s\"",
                       crl_count, xcf->crl.data);
@@ -185,7 +38,6 @@ xrootd_rebuild_gsi_store(ngx_stream_xrootd_srv_conf_t *xcf, ngx_log_t *log)
     /* Atomic swap */
     old_store = xcf->gsi_store;
     xcf->gsi_store = store;
-
     if (old_store != NULL) {
         X509_STORE_free(old_store);
     }
@@ -193,6 +45,10 @@ xrootd_rebuild_gsi_store(ngx_stream_xrootd_srv_conf_t *xcf, ngx_log_t *log)
     return NGX_OK;
 }
 
+/* ---- Function: xrootd_configure_gsi() ----
+ * WHAT: Full GSI authentication configuration loader — validates auth method (GSI or BOTH), checks all three trust inputs (certificate, private key, trusted CA) are present and path-valid, loads server certificate via PEM_read_X509(), serializes it into cached PEM buffer for kXGS_cert responses on every GSI login, loads private key via PEM_read_PrivateKey(), builds X509_STORE with trusted CA + CRLs via xrootd_rebuild_gsi_store() (with proxy cert flag and CRL_CHECK_ALL), runs PKI/CRL consistency check, computes CA hash via X509_subject_name_hash() for kXRS_issuer_hash advertisement during GSI bootstrap.
+ * WHY: All three trust inputs must be present simultaneously — missing any one makes GSI auth meaningless. Cert serialization caching avoids per-request PEM encoding overhead on every client login. CRL checking enables revocation detection across the full certificate chain. CA hash allows clients to confirm which CA the server trusts before initiating DH exchange.
+ */
 ngx_int_t
 xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
 {
@@ -232,6 +88,7 @@ xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
                 xcf->certificate.data);
             return NGX_ERROR;
         }
+        fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
         xcf->gsi_cert = PEM_read_X509(fp, NULL, NULL, NULL);
         fclose(fp);
         if (xcf->gsi_cert == NULL) {
@@ -281,6 +138,7 @@ xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
                 xcf->certificate_key.data);
             return NGX_ERROR;
         }
+        fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
         xcf->gsi_key = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
         fclose(fp);
         if (xcf->gsi_key == NULL) {
@@ -306,6 +164,7 @@ xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
 
         fp = fopen((char *) xcf->trusted_ca.data, "r");
         if (fp) {
+            fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
             ca = PEM_read_X509(fp, NULL, NULL, NULL);
             fclose(fp);
             if (ca) {

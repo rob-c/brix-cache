@@ -1,4 +1,13 @@
+/*
+ * Directory listing handler — implements the kXR_dirlist operation.
+ * Clients request a directory listing and receive entries as newline-delimited
+ * text, optionally with per-entry stat information and checksum tokens.
+ * The response is sent in 64KB chunks using kXR_oksofar continuation frames,
+ * ending with a single kXR_ok frame to signal completion.
+ */
+
 #include "../ngx_xrootd_module.h"
+#include "../aio/aio.h"
 #include "dcksm.h"
 
 /*
@@ -24,7 +33,6 @@ xrootd_dirlist_name_is_unsafe(const char *name)
 
     return 0;
 }
-
 
 /*
  * xrootd_handle_dirlist — handle kXR_dirlist: enumerate a directory and send
@@ -64,6 +72,10 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_int_t             rc;
     ngx_flag_t            want_cksum;
     int                   dfd;
+
+/* ------------------------------------------------------------------ */
+/* Section: Request Parsing & Auth Checks                              */
+/* ------------------------------------------------------------------ */
 
     options = req->options;
     want_cksum = (options & kXR_dcksm) ? 1 : 0;
@@ -106,7 +118,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "invalid path payload");
     }
 
-    if (!xrootd_resolve_path(c->log, &conf->root,
+    if (!xrootd_resolve_path(c->log, &conf->common.root,
                              reqpath, resolved, sizeof(resolved))) {
         xrootd_log_access(ctx, c, "DIRLIST", reqpath, "-",
                           0, kXR_NotFound, "directory not found", 0);
@@ -138,7 +150,75 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "token scope denied");
     }
 
-    dfd = xrootd_open_confined(c->log, &conf->root, resolved,
+    /*
+     * Offload directory iteration + checksum computation to the nginx thread
+     * pool so the event loop is not blocked during fstatat / hash-on-miss.
+     *
+     * If the pool is not configured or is full, xrootd_aio_post_task() returns
+     * posted=0 and we fall through to the synchronous path below.
+     */
+    /*
+     * Keep kXR_dirlist on the synchronous path for now.  The AIO variant can
+     * complete successfully without delivering a response frame to clients,
+     * which wedges xrdfs readiness probes in one-worker test deployments.
+     */
+    if (0 && conf->common.thread_pool != NULL) {
+        ngx_thread_task_t    *task;
+        xrootd_dirlist_aio_t *t;
+        ngx_flag_t            posted;
+        u_char               *response_buf;
+
+        response_buf = ngx_palloc(c->pool, XROOTD_DIRLIST_AIO_RESPONSE_MAX);
+        if (response_buf == NULL) {
+            return NGX_ERROR;
+        }
+
+        task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_dirlist_aio_t));
+        if (task == NULL) {
+            return NGX_ERROR;
+        }
+
+        t = task->ctx;
+        t->c            = c;
+        t->ctx          = ctx;
+        t->conf         = conf;
+        t->streamid[0]  = ctx->cur_streamid[0];
+        t->streamid[1]  = ctx->cur_streamid[1];
+        t->want_stat    = want_stat;
+        t->want_cksum   = want_cksum;
+        t->response     = response_buf;
+        t->response_cap = XROOTD_DIRLIST_AIO_RESPONSE_MAX;
+        t->response_len = 0;
+        t->io_errno     = 0;
+        t->err_msg[0]   = '\0';
+        ngx_cpystrn((u_char *) t->resolved,
+                    (u_char *) resolved, sizeof(t->resolved));
+        ngx_cpystrn((u_char *) t->cksum_algo,
+                    (u_char *) cksum_algo, sizeof(t->cksum_algo));
+
+        task->handler         = xrootd_dirlist_aio_thread;
+        task->event.handler   = xrootd_dirlist_aio_done;
+        task->event.data      = task;
+
+        if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
+                "xrootd: dirlist thread pool full, running synchronously",
+                &posted) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+        if (posted) {
+            return NGX_OK;
+        }
+
+        /* Pool queue was full — fall through to the synchronous path. */
+    }
+
+/* ------------------------------------------------------------------ */
+/* Section: Directory Open & Iteration                                 */
+/* ------------------------------------------------------------------ */
+
+    dfd = xrootd_open_confined(c->log, &conf->common.root, resolved,
                                O_RDONLY | O_DIRECTORY, 0);
     if (dfd < 0) {
         int err = errno;
@@ -174,11 +254,23 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_IOError, strerror(err));
     }
 
+    /* Guard against pool exhaustion from a flood of dirlist calls. */
+    if (ctx->pool_bytes_used + XRD_RESPONSE_HDR_LEN + chunk_cap
+            > XROOTD_MAX_CONN_POOL_BYTES)
+    {
+        closedir(dp);
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                      "xrootd: dirlist pool limit reached (%uz bytes), "
+                      "closing connection", ctx->pool_bytes_used);
+        return xrootd_send_error(ctx, c, kXR_NoMemory,
+                                 "connection pool limit exceeded");
+    }
     chunk = ngx_palloc(c->pool, XRD_RESPONSE_HDR_LEN + chunk_cap);
     if (chunk == NULL) {
         closedir(dp);
         return NGX_ERROR;
     }
+    ctx->pool_bytes_used += XRD_RESPONSE_HDR_LEN + chunk_cap;
 
     {
         u_char *data = chunk + XRD_RESPONSE_HDR_LEN;
@@ -189,6 +281,10 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
             ngx_memcpy(data, dstat_leadin, 10);
             chunk_pos = 10;
         }
+
+/* ------------------------------------------------------------------ */
+/* Section: Chunked Response Framing                                   */
+/* ------------------------------------------------------------------ */
 
         while ((de = readdir(dp)) != NULL) {
             const char *name = de->d_name;
@@ -248,7 +344,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     snprintf(cksum_token, sizeof(cksum_token),
                              "%s:none", cksum_algo);
                 } else {
-                    xrootd_dirlist_checksum_token(c, dirfd(dp), name,
+                    xrootd_dirlist_checksum_token(c->log, dirfd(dp), name,
                                                   entry_path, &entry_st,
                                                   cksum_algo, cksum_token,
                                                   sizeof(cksum_token));
@@ -296,6 +392,10 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 data[chunk_pos++] = '\n';
             }
         }
+
+/* ------------------------------------------------------------------ */
+/* Section: Final Flush & Completion                                   */
+/* ------------------------------------------------------------------ */
 
         closedir(dp);
 

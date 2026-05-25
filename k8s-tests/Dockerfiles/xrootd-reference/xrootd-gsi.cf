@@ -1,0 +1,35 @@
+# xrootd-gsi.cf — x509 proxy certificate (GSI) authentication
+# Variables substituted by entrypoint.sh:
+#   {PORT}         Listener port
+#   {DATA_DIR}     Filesystem root
+#   {SERVER_CERT}  Host EE certificate (PEM)
+#   {SERVER_KEY}   Host private key (PEM, mode 0400)
+#   {CA_DIR}       Directory of trusted CA certificates with OpenSSL hash symlinks
+#   {AUTHDB_PATH}  xrootd authorization database
+
+xrd.port {PORT}
+
+oss.localroot {DATA_DIR}
+all.export /
+
+all.adminpath /var/spool/xrootd/admin
+all.pidpath   /var/run/xrootd
+
+xrd.trace off
+
+# Load the GSI security library.
+xrootd.seclib /usr/lib64/security/XrdSecgsi.so
+
+# GSI plugin configuration:
+#   -certdir   directory of trusted CAs (with OpenSSL hash symlinks)
+#   -cert      server EE certificate
+#   -key       server private key
+#   -gmapopt:10 allow mapping without full grid-mapfile (grid-mapfile optional)
+sec.protocol gsi \
+    -certdir:{CA_DIR} \
+    -cert:{SERVER_CERT} \
+    -key:{SERVER_KEY} \
+    -gmapopt:10
+
+# Authorization: allow read/write for any DN under /DC=test/.
+acc.authdb {AUTHDB_PATH}

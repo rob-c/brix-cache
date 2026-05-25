@@ -2,6 +2,28 @@
 
 #include "proxy.h"
 
+/*
+ * WHAT: Internal declarations for the transparent XRootD proxy module — state machine enums,
+ *       per-connection context struct, file handle map entry, pooled connection metadata, upstream
+ *       health status, constants, and internal function signatures organized by source file.
+ *       This header bridges proxy.h (public API) with implementation files across connect.c, events.c,
+ *       forward.c, pool.c, and their sub-fragments.
+ *
+ * WHY:  The proxy operates a multi-phase upstream connection lifecycle (connecting → TLS handshake →
+ *       bootstrap → idle → forwarding) tracked via xrootd_proxy_up_state_t + xrootd_proxy_bs_t enums.
+ *       Each client-proxy session maintains a full context struct with write buffers, response accumulators,
+ *       fh translation map, lazy-open queue, wait-retry state, redirect follow-through, and splice zero-copy
+ *       plumbing. Pooled connections carry auth type/token hash/upstream index metadata for matching reuse.
+ *       Health status per upstream enables fail detection and automatic skip of DOWN servers.
+ *       Constants define pool size limits, keepalive intervals, retry budgets, and path length caps.
+ *
+ * HOW:  Structs defined inline with field comments explaining each member's purpose. Enums map state phases
+ *       to numeric values for efficient comparison in event handlers. Function declarations grouped by source
+ *       file (connect.c, events.c, forward.c) with inline WHAT comments where logic is non-obvious. The opaque
+ *       typedef xrootd_proxy_ctx_t references the full struct definition here; public API in proxy.h declares
+ *       only the externally visible functions.
+ */
+
 /* Maximum upstream response body we will buffer (16 MiB — matches max write payload) */
 #define XROOTD_PROXY_MAX_BODY  (16 * 1024 * 1024)
 
@@ -61,9 +83,10 @@ typedef struct {
     ngx_connection_t  *conn;
     ngx_uint_t         upstream_idx;
     ngx_uint_t         auth_type;
-    u_char             token_hash[16];  /* MD5 of bearer token for pooling */
+    u_char             token_hash[16];   /* MD5 of bearer token for pooling */
     time_t             idle_since;
-    ngx_event_t        ping_ev;         /* kXR_ping keepalive timer */
+    ngx_msec_t         keepalive_interval; /* snapshot of conf->proxy_keepalive_interval */
+    ngx_event_t        ping_ev;            /* kXR_ping keepalive timer */
 } xrootd_proxy_pooled_conn_t;
 
 /* ---- upstream health status (per-worker) ---- */
@@ -81,6 +104,7 @@ struct xrootd_proxy_ctx_s {
     ngx_connection_t        *conn;
     xrootd_proxy_up_state_t  state;
     xrootd_proxy_bs_t        bs_phase;
+    int                      no_pool;
 
     /* server config — needed in connect/events without carrying it everywhere */
     ngx_stream_xrootd_srv_conf_t  *conf;
@@ -152,16 +176,25 @@ struct xrootd_proxy_ctx_s {
     /* file handle translation: fh_map[local_idx].upstream_fh = upstream handle
      * upstream_fh == XROOTD_PROXY_FH_FREE (-1) means the slot is unallocated */
     xrootd_proxy_fh_entry_t  fh_map[XROOTD_MAX_FILES];
+
+    /* zero-copy splice state (kXR_read / kXR_pgread without TLS) */
+    int    splice_pipe[2];       /* kernel pipe fds; [-1,-1] when not open */
+    int    splice_active;        /* 1 while splicing a response body */
+    size_t splice_total;         /* body bytes to transfer this response */
+    size_t splice_upstream;      /* bytes moved: upstream_fd → pipe[1]  */
+    size_t splice_downstream;    /* bytes moved: pipe[0]   → client_fd  */
 };
 
 /* ---- internal function declarations ---- */
 
 /* connect.c */
+
 ngx_int_t xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
     ngx_connection_t *client_conn,
     ngx_stream_xrootd_srv_conf_t *conf);
-void xrootd_proxy_abort(xrootd_proxy_ctx_t *proxy, const char *reason);
+void      xrootd_proxy_abort(xrootd_proxy_ctx_t *proxy, const char *reason);
 ngx_int_t xrootd_proxy_flush(xrootd_proxy_ctx_t *proxy);
+
 #if (NGX_SSL)
 /* Called by write_handler when TLS is requested after async TCP connect. */
 void xrootd_proxy_tls_handshake_done(ngx_connection_t *uconn);
@@ -182,8 +215,26 @@ void xrootd_proxy_up_mark_failed(xrootd_proxy_ctx_t *proxy);
 void xrootd_proxy_up_mark_ok(xrootd_proxy_ctx_t *proxy);
 
 /* events.c */
+
+/* ---- public API: xrootd_proxy_write_handler() — upstream write event callback ----
+ * WHAT: Event handler for the upstream connection's write event; drains proxy->wbuf through the socket (TLS or plain),
+ *       re-arms write event on partial sends, frees fully-transmitted buffers. Transitions state from CONNECTING/BOOTSTRAP/
+ *       FORWARDING as bytes are consumed. On completion arms read event for response data. */
+
+/* ---- public API: xrootd_proxy_read_handler() — upstream read event callback ----
+ * WHAT: Event handler for the upstream connection's read event; accumulates response headers and body into rhdr/resp_body,
+ *       dispatches based on current state (bootstrap phase reads handshake/protocol/login/auth responses, forwarding reads
+ *       opcode results). On bootstrap completion calls handle_bootstrap(); on forwarding completes relay_to_client(). */
+
 void xrootd_proxy_write_handler(ngx_event_t *wev);
 void xrootd_proxy_read_handler(ngx_event_t *rev);
+
+/* events_bootstrap.c — called from events_read.c on bootstrap completion. */
+void xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy);
+
+/* events_splice.c — zero-copy splice path for plain-text kXR_read responses. */
+void      xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy);
+ngx_int_t xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy);
 
 /* forward.c */
 ngx_int_t xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
@@ -192,6 +243,22 @@ void      xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy);
 int       xrootd_proxy_alloc_local_fh(xrootd_proxy_ctx_t *proxy);
 /* Emit a JSON audit record for fh_map[local_fh]; safe to call on any slot. */
 void      proxy_write_audit(xrootd_proxy_ctx_t *proxy, int local_fh);
+
+/* forward_rewrite_helpers.c — path/fh rewriting (called from forward_request.c). */
+u_char *proxy_rewrite_path(ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf, u_char *req, size_t total,
+    size_t path_off, size_t path_len, size_t *total_out);
+u_char *proxy_rewrite_prepare_payload(ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf, u_char *req, size_t total,
+    size_t *total_out);
+int proxy_translate_fh(xrootd_proxy_ctx_t *proxy, u_char *buf, size_t offset);
+/*
+ * Issue a synthetic kXR_open on the upstream for a handle that was opened
+ * lazily (open-on-read).  Called from both forward.c and forward_relay.c.
+ */
+ngx_int_t xrootd_proxy_lazy_open(xrootd_proxy_ctx_t *proxy,
+    xrootd_ctx_t *ctx, ngx_connection_t *c,
+    int local_fh, u_char *read_req, size_t read_req_len);
 /*
  * Dispatch the saved_req that was queued during bootstrap.
  * Handles lazy-open for bound-secondary kXR_read with an unresolved handle.

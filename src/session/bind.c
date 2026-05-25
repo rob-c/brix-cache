@@ -1,6 +1,40 @@
 #include "../ngx_xrootd_module.h"
 #include "registry.h"
 
+/* ------------------------------------------------------------------ */
+/* Session Binding — kXR_bind handler                                     */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements the kXR_bind opcode — attaching a secondary TCP data channel to an existing session. Secondary connections allow xrdcp clients to establish parallel data transfer channels for read operations, bypassing the primary connection bottleneck. The client first establishes a primary connection (handshake + login + auth), then opens additional TCP connections that skip authentication and send kXR_bind with the primary session's sessid.
+ *
+ * WHY: Parallel data channels enable high-throughput reads by allowing multiple concurrent read requests to arrive on different sockets simultaneously. The server assigns each secondary a pathid (1–253) which clients use to tag their kXR_read payloads, enabling load-balancing across channels. Bound connections are intentionally narrower than full sessions — they may only read primary-published handles but cannot open, close, write, or stat files independently. The primary connection remains the authority that decides which handles exist; secondaries are purely data channels.
+ *
+ * HOW: Two-phase binding → session registry lookup (verify sessid exists in primary's session entry) — inherit token_auth state from primary — assign pathid cycling 1–253 — record bound_sessid + set is_bound=1 + logged_in=1 + auth_done=1 (identity inherited from registry lookup, secondary skips kXR_login) — return kXR_ok with single-byte pathid body payload. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Secondary Connection Scope                                    */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: Bound connections have restricted capabilities compared to full sessions. They may read primary-published handles (via pathid-tagged kXR_read), but cannot open, close, write, stat, or otherwise manipulate files independently. This restriction ensures the primary connection remains the sole authority for file handle lifecycle decisions — secondaries are purely data channels for parallel reads.
+ *
+ * WHY: Prevents race conditions and security issues where secondary connections could create new handles or mutate files without coordination with the primary session. The primary establishes which handles exist via kXR_open; secondaries read from those handles only, using their pathid to tag requests so the server can multiplex responses across channels. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Path ID Allocation                                            */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: xrootd_next_pathid is a static counter cycling 1–253 for secondary connection identification. Pathid 0 is reserved exclusively for the primary connection; secondaries receive values starting at 1 and wrap around after reaching 253 to prevent exhaustion in long-running deployments with many parallel channels.
+ *
+ * WHY: Each secondary connection needs a unique identifier so clients can tag their kXR_read payloads with the correct pathid, allowing the server to route responses back to the originating socket. The 1–253 range provides sufficient capacity for typical xrdcp parallel read patterns without requiring complex allocation schemes or session cleanup. */
+
+/* ---- Function: xrootd_handle_bind() ----
+ *
+ * WHAT: Handles the kXR_bind opcode — attaches a secondary TCP data channel to an existing primary session by performing registry lookup, pathid assignment, and state inheritance. Returns kXR_ok with single-byte pathid body payload (1–253). Secondary connections skip kXR_login and inherit logged_in/auth_done=1 from the primary's session registry entry, but are restricted to read-only operations on primary-published handles only.
+ *
+ * WHY: Enables parallel data transfer for high-throughput reads by allowing multiple concurrent read requests to arrive on different sockets simultaneously. The pathid allows clients to tag kXR_read payloads so the server can multiplex responses across channels. Bound connections have intentionally narrower capabilities — they may only read primary-published handles but cannot open, close, write, or stat files independently, ensuring the primary remains sole authority for file handle lifecycle decisions.
+ *
+ * HOW: Two-phase binding → session registry lookup (verify sessid exists in primary entry) — inherit token_auth from primary — assign pathid cycling 1–253 — record bound_sessid + set is_bound=1 + logged_in=1 + auth_done=1 (identity inherited, secondary skips login) — return kXR_ok with single-byte pathid body payload. */
+
 /*
  * kXR_bind — attach a secondary TCP data channel to an existing session.
  *
