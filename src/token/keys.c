@@ -1,6 +1,18 @@
-/*
- * Public-key construction for JWKS entries (RSA and EC).
- */
+/* Public-key construction for JWKS entries (RSA and EC P-256).
+ *
+ * WHAT: Converts base64url-encoded JWK key parameters into OpenSSL EVP_PKEY objects.
+ * RSA path: decode n/e from base64url → BIGNUMs → OSSL_PARAM_BLD → EVP_PKEY_fromdata(RSA);
+ * EC P-256 path: decode x/y from base64url → uncompressed 65-byte point (0x04||x||y) →
+ *   OSSL_PARAM_BLD with group name P-256 → EVP_PKEY_fromdata(EC).
+ *
+ * WHY: JWKS keys arrive as base64url-encoded n/e (RSA) or x/y (EC) strings in JSON.
+ * The token layer needs OpenSSL EVP_PKEY handles to verify RS256 signatures via
+ * xrootd_token_verify_signature(). These functions bridge JWK wire format → OpenSSL native.
+ *
+ * HOW: Both functions use b64url_decode() for base64url→binary conversion, then
+ * OSSL_PARAM_BLD/OSSL_PARAM_BLD_to_param() to build key parameters, and
+ * EVP_PKEY_CTX_new_from_name() + EVP_PKEY_fromdata() to construct the final handle.
+ * All intermediate BIGNUMs/params/bld are freed before return. */
 
 #include "token_internal.h"
 #include "b64url.h"
@@ -9,6 +21,12 @@
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
 
+/* WHAT: Construct OpenSSL RSA public key from base64url-encoded modulus (n) and
+ * exponent (e). Returns EVP_PKEY on success, NULL on decode failure or BIGNUM/OSSL
+ * construction error.
+ * HOW: b64url_decode(n_b64→n_bin[512]) → BN_bin2bn → OSSL_PARAM_BLD_push_BN(N,e)
+ *   → OSSL_PARAM_BLD_to_param → EVP_PKEY_CTX_new_from_name(RSA) + EVP_PKEY_fromdata;
+ *   all intermediates freed before return. */
 EVP_PKEY *
 xrootd_token_rsa_pubkey_from_ne(const char *n_b64, size_t n_b64_len,
     const char *e_b64, size_t e_b64_len, ngx_log_t *log)
@@ -63,7 +81,11 @@ xrootd_token_rsa_pubkey_from_ne(const char *n_b64, size_t n_b64_len,
 
     return pkey;
 }
-
+/* WHAT: Construct OpenSSL EC P-256 public key from base64url-encoded x and y
+ * coordinate values. Returns EVP_PKEY on success, NULL if decoded length != 32 bytes.
+ * HOW: b64url_decode(x_b64→x_bin[32], y_b64→y_bin[32]) → validate each = 32 bytes;
+ *   assemble uncompressed point (0x04||x||y in 65-byte buffer) → OSSL_PARAM_BLD with
+ *   group P-256 + octet-string pub key → EVP_PKEY_CTX_new_from_name(EC) + EVP_PKEY_fromdata; */
 
 EVP_PKEY *
 xrootd_token_ec_pubkey_from_xy(const char *x_b64, size_t x_b64_len,

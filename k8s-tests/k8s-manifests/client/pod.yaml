@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: xrootd-client
+  namespace: xrootd-integration
+  labels:
+    app.kubernetes.io/name: xrootd-client
+    app.kubernetes.io/component: client
+spec:
+  restartPolicy: Always   # Keep the pod alive for interactive kubectl exec sessions.
+
+  containers:
+    - name: client
+      image: xrootd-client:latest
+      imagePullPolicy: IfNotPresent
+
+      # sleep infinity keeps the pod alive; override CMD for automated test runs.
+      command: ["sleep", "infinity"]
+
+      env:
+        - name: XROOTD_SERVER
+          value: "xrootd-reference:1094"
+        - name: AUTH_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: xrootd-reference-config
+              key: auth_mode
+        - name: CA_DIR
+          value: /etc/grid-security/certificates
+        - name: CLIENT_CERT
+          value: /etc/grid-security/usercert.pem
+        - name: CLIENT_KEY
+          value: /etc/grid-security/userkey.pem
+        - name: PROXY_FILE
+          value: /tmp/x509up_u0
+        # TOKEN_ISSUER / TOKEN_AUDIENCE / JWKS_URL forwarded for xrd-gen-token.
+        - name: TOKEN_ISSUER
+          valueFrom:
+            configMapKeyRef:
+              name: xrootd-reference-config
+              key: token_issuer
+        - name: TOKEN_AUDIENCE
+          valueFrom:
+            configMapKeyRef:
+              name: xrootd-reference-config
+              key: token_audience
+        # X509_USER_PROXY must be generated at runtime via xrd-gen-proxy.
+        # BEARER_TOKEN must be generated at runtime via xrd-gen-token.
+
+      volumeMounts:
+        # Client user credentials (mounted read-only; gen-proxy copies to /tmp).
+        - name: pki-client
+          mountPath: /etc/grid-security
+          readOnly: true
+        - name: pki-ca
+          mountPath: /etc/grid-security/certificates
+          readOnly: true
+        # JWT signing key for xrd-gen-token (token auth mode only).
+        - name: jwt-signing-key
+          mountPath: /etc/xrootd-client
+          readOnly: true
+        # Writable scratch space for proxies, downloaded files, etc.
+        - name: scratch
+          mountPath: /tmp
+
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "128Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+
+  volumes:
+    - name: pki-client
+      secret:
+        secretName: xrootd-client-pki
+        defaultMode: 0400
+    - name: pki-ca
+      secret:
+        secretName: xrootd-ca-bundle
+        defaultMode: 0444
+    - name: jwt-signing-key
+      secret:
+        secretName: xrootd-jwt-signing-key
+        optional: true    # Not required in anonymous / GSI-only mode.
+        defaultMode: 0400
+    - name: scratch
+      emptyDir: {}

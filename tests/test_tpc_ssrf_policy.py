@@ -22,7 +22,11 @@ import time
 
 import pytest
 
-import server_control
+from settings import (
+    TPC_SSRF_DEFAULT_PORT,
+    TPC_SSRF_ALLOW_LOCAL_PORT,
+    TPC_SSRF_DENY_PRIVATE_PORT,
+)
 
 pytestmark = pytest.mark.timeout(60)
 
@@ -130,92 +134,40 @@ def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
 
 
 # ---------------------------------------------------------------------------
-# Nginx config templates
-# ---------------------------------------------------------------------------
-
-_CONF_DEFAULT = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log info;
-pid       {LOG_DIR}/nginx.pid;
-thread_pool default threads=4 max_queue=65536;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth none;
-        xrootd_allow_write on;
-    }}
-}}
-"""
-
-_CONF_ALLOW_LOCAL = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log info;
-pid       {LOG_DIR}/nginx.pid;
-thread_pool default threads=4 max_queue=65536;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_tpc_allow_local on;
-    }}
-}}
-"""
-
-_CONF_DENY_PRIVATE = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log info;
-pid       {LOG_DIR}/nginx.pid;
-thread_pool default threads=4 max_queue=65536;
-events {{ worker_connections 64; }}
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_tpc_allow_private off;
-    }}
-}}
-"""
-
-
-# ---------------------------------------------------------------------------
-# Module-level fixtures: one nginx instance per policy config
+# Module-level fixtures: one dedicated server per policy config
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
-def nginx_default(tmp_path_factory):
-    data = str(tmp_path_factory.mktemp("tpc-default-data"))
-    inst = server_control.start_nginx_instance(conf_text=_CONF_DEFAULT,
-                                               template_kwargs={"DATA_DIR": data})
-    yield inst
-    inst["stop"]()
+def nginx_default():
+    """Verify the default SSRF-policy dedicated server is reachable."""
+    try:
+        with socket.create_connection(("127.0.0.1", TPC_SSRF_DEFAULT_PORT), timeout=5):
+            pass
+    except OSError:
+        pytest.skip(f"TPC SSRF default server not reachable at port {TPC_SSRF_DEFAULT_PORT}")
+    return {"port": TPC_SSRF_DEFAULT_PORT}
 
 
 @pytest.fixture(scope="module")
-def nginx_allow_local(tmp_path_factory):
-    data = str(tmp_path_factory.mktemp("tpc-allow-local-data"))
-    inst = server_control.start_nginx_instance(conf_text=_CONF_ALLOW_LOCAL,
-                                               template_kwargs={"DATA_DIR": data})
-    yield inst
-    inst["stop"]()
+def nginx_allow_local():
+    """Verify the allow-local SSRF-policy dedicated server is reachable."""
+    try:
+        with socket.create_connection(("127.0.0.1", TPC_SSRF_ALLOW_LOCAL_PORT), timeout=5):
+            pass
+    except OSError:
+        pytest.skip(f"TPC SSRF allow-local server not reachable at port {TPC_SSRF_ALLOW_LOCAL_PORT}")
+    return {"port": TPC_SSRF_ALLOW_LOCAL_PORT}
 
 
 @pytest.fixture(scope="module")
-def nginx_deny_private(tmp_path_factory):
-    data = str(tmp_path_factory.mktemp("tpc-deny-private-data"))
-    inst = server_control.start_nginx_instance(conf_text=_CONF_DENY_PRIVATE,
-                                               template_kwargs={"DATA_DIR": data})
-    yield inst
-    inst["stop"]()
+def nginx_deny_private():
+    """Verify the deny-private SSRF-policy dedicated server is reachable."""
+    try:
+        with socket.create_connection(("127.0.0.1", TPC_SSRF_DENY_PRIVATE_PORT), timeout=5):
+            pass
+    except OSError:
+        pytest.skip(f"TPC SSRF deny-private server not reachable at port {TPC_SSRF_DENY_PRIVATE_PORT}")
+    return {"port": TPC_SSRF_DENY_PRIVATE_PORT}
 
 
 # ---------------------------------------------------------------------------

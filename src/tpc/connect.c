@@ -1,6 +1,15 @@
-#include "tpc_internal.h"
+/* ---- File: connect.c — DNS resolution and TCP connect to TPC source server ----
+ *
+ * WHAT: Resolves the remote XRootD origin host via getaddrinfo, validates each candidate address against SSRF policy rules (allow_local/allow_private), creates a blocking socket with configurable receive/send timeouts, then performs non-blocking connect followed by poll-based wait for connection completion. Also provides xrootd_tpc_check_src_policy as an SSRF preflight wrapper that resolves host+port without creating the socket — used before kXR_open destination file creation to validate source addresses early.
+ *
+ * WHY: Native TPC pull requires nginx to establish a TCP connection to the remote root:// origin server before it can send handshake frames and read the file. DNS resolution must iterate over all addrinfo candidates (IPv4/IPv6) because some may be unreachable; SSRF policy validation prevents connecting to localhost or private ranges when configured to reject them. Non-blocking connect with poll-based wait avoids blocking the nginx event loop while still respecting configurable timeout limits. The preflight check enables early source address validation before allocating destination file resources.
+ *
+ * HOW: getaddrinfo(src_host, port_str, hints SOCK_STREAM+AF_UNSPEC) → iterate addrinfo candidates → xrootd_net_target_check_addr with SSRF policy → socket(family,socktype,proto) → setsockopt SO_RCVTIMEO/SO_SNDTIMEO → fcntl O_NONBLOCK → connect() → if EINPROGRESS then poll POLLOUT with TPC_CONNECT_TIMEOUT_SEC → getsockopt SO_ERROR to verify zero → restore original flags. Returns connected fd or -1 on failure. Preflight: xrootd_net_target_check_dns resolves host+port without creating socket, returns 0/-1.
+ * ------------------------------------------------------------------ */
 
-#if (NGX_THREADS)
+#include "tpc_internal.h"
+#include "../compat/net_target.h"
+
 
 #include <netdb.h>
 #include <sys/socket.h>
@@ -12,120 +21,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-/* ------------------------------------------------------------------ */
-/* SSRF guard: reject TPC connections to loopback or link-local addrs  */
-/* ------------------------------------------------------------------ */
-
-/*
- * Return 1 if the resolved address is prohibited under the current policy.
- *
- * allow_local:   if 0, block loopback (127/8, ::1) and link-local
- *                (169.254/16, fe80::/10).  Default policy: off.
- * allow_private: if 0, block RFC-1918 private ranges
- *                (10/8, 172.16/12, 192.168/16) and IPv6 ULA (fc00::/7).
- *                Default policy: on (allowed), because federation nodes
- *                commonly live on private networks.
- */
-static int
-tpc_ipv4_is_prohibited(uint32_t addr, ngx_flag_t allow_local,
-    ngx_flag_t allow_private)
-{
-    if (!allow_local) {
-        /* 127.0.0.0/8 */
-        if ((addr >> 24) == 127) {
-            return 1;
-        }
-
-        /* 169.254.0.0/16 */
-        if ((addr >> 16) == 0xa9fe) {
-            return 1;
-        }
-    }
-
-    if (!allow_private) {
-        /* 10.0.0.0/8 */
-        if ((addr & 0xff000000u) == 0x0a000000u) {
-            return 1;
-        }
-
-        /* 172.16.0.0/12 — must mask, not shift/compare nibble (172.16–172.31). */
-        if ((addr & 0xfff00000u) == 0xac100000u) {
-            return 1;
-        }
-
-        /* 192.168.0.0/16 */
-        if ((addr & 0xffff0000u) == 0xc0a80000u) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-
-static int
-tpc_ipv6_is_prohibited(const uint8_t *addr, ngx_flag_t allow_local,
-    ngx_flag_t allow_private)
-{
-    if (!allow_local) {
-        static const uint8_t loopback6[16] = {
-            0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1
-        };
-
-        /* ::1 */
-        if (ngx_memcmp(addr, loopback6, 16) == 0) {
-            return 1;
-        }
-
-        /* fe80::/10 */
-        if (addr[0] == 0xfe && (addr[1] & 0xc0) == 0x80) {
-            return 1;
-        }
-    }
-
-    if (!allow_private) {
-        /* fc00::/7 - IPv6 Unique Local Addresses */
-        if ((addr[0] & 0xfe) == 0xfc) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-
-static int
-tpc_addr_is_prohibited(const struct sockaddr *sa, ngx_flag_t allow_local,
-    ngx_flag_t allow_private)
-{
-    if (sa->sa_family == AF_INET) {
-        const struct sockaddr_in *sin = (const struct sockaddr_in *) sa;
-        uint32_t addr = ntohl(sin->sin_addr.s_addr);
-
-        return tpc_ipv4_is_prohibited(addr, allow_local, allow_private);
-    }
-
-    if (sa->sa_family == AF_INET6) {
-        const struct sockaddr_in6 *sin6 = (const struct sockaddr_in6 *) sa;
-
-#if defined(IN6_IS_ADDR_V4MAPPED)
-        /* ::ffff:x.x.x.x — classify using IPv4 SSRF rules */
-        if (IN6_IS_ADDR_V4MAPPED(&sin6->sin6_addr)) {
-            uint32_t v4;
-
-            v4 = ntohl(*(const uint32_t *) &sin6->sin6_addr.s6_addr[12]);
-            return tpc_ipv4_is_prohibited(v4, allow_local, allow_private);
-        }
-#endif
-
-        return tpc_ipv6_is_prohibited(sin6->sin6_addr.s6_addr,
-                                      allow_local, allow_private);
-    }
-
-    return 0;
-}
-
-
+/* WHAT: Wait for non-blocking TCP connect to complete using poll(POLLOUT) + getsockopt(SO_ERROR). */
 static int
 tpc_wait_for_connect(int fd)
 {
@@ -152,7 +48,7 @@ tpc_wait_for_connect(int fd)
     return socket_error == 0 ? 0 : -1;
 }
 
-
+/* WHAT: Connect socket with timeout — set O_NONBLOCK, call connect(), if EINPROGRESS then poll-based wait via tpc_wait_for_connect. */
 static int
 tpc_connect_addr_with_timeout(int fd, const struct sockaddr *addr,
     socklen_t addrlen)
@@ -190,6 +86,7 @@ tpc_connect_addr_with_timeout(int fd, const struct sockaddr *addr,
 /* ------------------------------------------------------------------ */
 /* DNS resolution and TCP connect to TPC source server                   */
 /* ------------------------------------------------------------------ */
+/* WHAT: DNS resolve + TCP connect to TPC origin — getaddrinfo → SSRF policy check per candidate → socket with SO_RCVTIMEO/SO_SNDTIMEO → non-blocking connect via poll. Returns connected fd or -1. */
 
 int
 tpc_connect(xrootd_tpc_pull_t *t)
@@ -214,15 +111,19 @@ tpc_connect(xrootd_tpc_pull_t *t)
     }
 
     for (rp = res; rp != NULL; rp = rp->ai_next) {
-        if (tpc_addr_is_prohibited(rp->ai_addr,
-                                   t->conf->tpc_allow_local,
-                                   t->conf->tpc_allow_private)) {
+        xrootd_net_target_policy_t  policy;
+        char                        ssrf_err[128];
+
+        ngx_memzero(&policy, sizeof(policy));
+        policy.allow_local   = t->conf->tpc_allow_local;
+        policy.allow_private = t->conf->tpc_allow_private;
+
+        if (xrootd_net_target_check_addr(rp->ai_addr, &policy,
+                                         ssrf_err, sizeof(ssrf_err))
+            != NGX_OK)
+        {
             snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC source host %s resolves to a prohibited address; "
-                     "rejecting (tpc_allow_local=%d tpc_allow_private=%d)",
-                     t->src_host,
-                     (int) t->conf->tpc_allow_local,
-                     (int) t->conf->tpc_allow_private);
+                     "TPC source host %s: %s", t->src_host, ssrf_err);
             freeaddrinfo(res);
             return -1;
         }
@@ -257,58 +158,48 @@ tpc_connect(xrootd_tpc_pull_t *t)
     return fd;
 }
 
-
 /*
  * SSRF preflight for kXR_open TPC destination path: validate the resolved
  * source addresses before creating the local destination file or returning an
  * open handle. Uses the same prohibited-address rules as tpc_connect() for
  * the first candidate addrinfo entry (matching that connect path).
  */
+/* WHAT: SSRF preflight — resolve host+port via xrootd_net_target_check_dns without creating socket, validate against allow_local/allow_private policy. Used before kXR_open destination file creation. */
+/*
+ * xrootd_tpc_check_src_policy — SSRF preflight wrapper for native root:// TPC.
+ *
+ * Thin wrapper over xrootd_net_target_check_dns() that accepts the bare
+ * host+port form used by the native TPC handshake, rather than a full URL.
+ */
 int
 xrootd_tpc_check_src_policy(const char *src_host, uint16_t src_port,
     ngx_flag_t allow_local, ngx_flag_t allow_private,
     char *err_msg, size_t err_msg_sz)
 {
-    struct addrinfo  hints, *res, *rp;
-    char             port_str[16];
+    xrootd_net_target_t         target;
+    xrootd_net_target_policy_t  policy;
 
     if (src_host == NULL || src_host[0] == '\0') {
         snprintf(err_msg, err_msg_sz, "TPC source host missing");
         return -1;
     }
 
-    if (src_port == 0) {
-        src_port = 1094;
-    }
-    snprintf(port_str, sizeof(port_str), "%u", (unsigned) src_port);
+    ngx_memzero(&target, sizeof(target));
+    target.host.data = (u_char *) src_host;
+    target.host.len  = ngx_strlen(src_host);
+    target.port      = src_port ? src_port : 1094;
+    target.has_port  = 1;
 
-    ngx_memzero(&hints, sizeof(hints));
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family   = AF_UNSPEC;
+    ngx_memzero(&policy, sizeof(policy));
+    policy.allow_local   = allow_local;
+    policy.allow_private = allow_private;
 
-    if (getaddrinfo(src_host, port_str, &hints, &res) != 0) {
-        snprintf(err_msg, err_msg_sz,
-                 "TPC DNS resolution failed for %s", src_host);
+    if (xrootd_net_target_check_dns(&target, &policy,
+                                    err_msg, err_msg_sz) != NGX_OK)
+    {
         return -1;
     }
 
-    for (rp = res; rp != NULL; rp = rp->ai_next) {
-        if (tpc_addr_is_prohibited(rp->ai_addr, allow_local,
-                                   allow_private)) {
-            snprintf(err_msg, err_msg_sz,
-                     "TPC source host %s resolves to a prohibited address; "
-                     "rejecting (tpc_allow_local=%d tpc_allow_private=%d)",
-                     src_host,
-                     (int) allow_local,
-                     (int) allow_private);
-            freeaddrinfo(res);
-            return -1;
-        }
-        /* address is allowed — continue checking remaining entries */
-    }
-
-    freeaddrinfo(res);
     return 0;
 }
 
-#endif /* NGX_THREADS */

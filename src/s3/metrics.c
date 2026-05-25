@@ -1,56 +1,47 @@
 /*
  * metrics.c - S3-compatible endpoint request/result accounting helpers.
+ *
+ * WHAT: Maps HTTP method codes to XRootD metric slot enums, increments request
+ *       and response counters by method+status-class buckets, and converts handler
+ *       return codes to HTTP status for metric recording. Provides six public functions:
+ *       s3_metrics_method_slot (HTTP→metric enum), s3_metrics_request_method (request counter),
+ *       s3_metrics_response_status (response counter by class), s3_metrics_response_method
+ *       (handler RC → status → response counter), s3_metrics_return_method (counter + return),
+ *       and s3_metrics_finalize_request_method (counter + ngx_http_finalize_request).
+ *
+ * WHY: S3-compatible endpoints require separate metric buckets from WebDAV/XRootD stream.
+ *      Metrics track requests_total per-method and responses_total per-method×status-class.
+ *      These helpers centralize method-to-slot mapping, status-class extraction via
+ *      xrootd_http_status_class(), and handler-RC-to-HTTP-status conversion — ensuring all
+ *      S3 handlers (get.c, put.c, list.c, multipart.c) use consistent metric accounting.
+ *      NGX_DONE handling: async PUT body reads defer final response counting to callbacks.
+ *
+ * HOW: s3_metrics_method_slot() maps r->method enum values to XROOTD_S3_METHOD_* constants —
+ *      GET→GET, HEAD→HEAD, PUT→PUT, DELETE→DELETE, POST→POST, everything else→OTHER.
+ *      s3_metrics_request_method() clamps method_slot to XROOTD_S3_NMETHODS, increments
+ *      requests_total[slot] via XROOTD_S3_METRIC_INC(). s3_metrics_response_status() same clamp,
+ *      extracts status_class from http_status via xrootd_http_status_class(), increments
+ *      responses_total[slot][status_class]. s3_metrics_response_method() skips NGX_DONE (deferred),
+ *      converts handler RC to HTTP status: ERROR→500, >=NGX_HTTP_SPECIAL_RESPONSE→RC value,
+ *      r->headers_out.status non-zero→that value, else→200. Calls s3_metrics_response_status().
+ *      s3_metrics_return_method() delegates response counting then returns original handler_rc.
+ *      s3_metrics_finalize_request_method() same + calls ngx_http_finalize_request(r, handler_rc).
  */
 
 #include "s3.h"
-
+#include "../compat/http_headers.h"
+#include "../metrics/http_common.h"
 
 ngx_uint_t
 s3_metrics_method_slot(ngx_http_request_t *r)
 {
-    if (r->method == NGX_HTTP_GET) {
-        return XROOTD_S3_METHOD_GET;
-    }
-    if (r->method == NGX_HTTP_HEAD) {
-        return XROOTD_S3_METHOD_HEAD;
-    }
-    if (r->method == NGX_HTTP_PUT) {
-        return XROOTD_S3_METHOD_PUT;
-    }
-    if (r->method == NGX_HTTP_DELETE) {
-        return XROOTD_S3_METHOD_DELETE;
-    }
+    const xrootd_http_operation_t *op;
 
-    if (r->method == NGX_HTTP_POST) {
-        return XROOTD_S3_METHOD_POST;
-    }
+    op = xrootd_http_operation_find(r, xrootd_s3_operations,
+                                    xrootd_s3_operations_count);
 
-    return XROOTD_S3_METHOD_OTHER;
+    return op ? op->metric_slot : XROOTD_S3_METHOD_OTHER;
 }
-
-
-static ngx_uint_t
-s3_metrics_status_class(ngx_uint_t http_status)
-{
-    if (http_status >= 100 && http_status < 200) {
-        return XROOTD_HTTP_STATUS_1XX;
-    }
-    if (http_status >= 200 && http_status < 300) {
-        return XROOTD_HTTP_STATUS_2XX;
-    }
-    if (http_status >= 300 && http_status < 400) {
-        return XROOTD_HTTP_STATUS_3XX;
-    }
-    if (http_status >= 400 && http_status < 500) {
-        return XROOTD_HTTP_STATUS_4XX;
-    }
-    if (http_status >= 500 && http_status < 600) {
-        return XROOTD_HTTP_STATUS_5XX;
-    }
-
-    return XROOTD_HTTP_STATUS_OTHER;
-}
-
 
 void
 s3_metrics_request_method(ngx_uint_t method_slot)
@@ -62,7 +53,6 @@ s3_metrics_request_method(ngx_uint_t method_slot)
     XROOTD_S3_METRIC_INC(requests_total[method_slot]);
 }
 
-
 void
 s3_metrics_response_status(ngx_uint_t method_slot, ngx_uint_t http_status)
 {
@@ -72,10 +62,9 @@ s3_metrics_response_status(ngx_uint_t method_slot, ngx_uint_t http_status)
         method_slot = XROOTD_S3_METHOD_OTHER;
     }
 
-    status_class = s3_metrics_status_class(http_status);
+    status_class = xrootd_http_status_class(http_status);
     XROOTD_S3_METRIC_INC(responses_total[method_slot][status_class]);
 }
-
 
 void
 s3_metrics_response_method(ngx_http_request_t *r, ngx_uint_t method_slot,
@@ -91,19 +80,9 @@ s3_metrics_response_method(ngx_http_request_t *r, ngx_uint_t method_slot,
         return;
     }
 
-    if (handler_rc == NGX_ERROR) {
-        http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-    } else if (handler_rc >= NGX_HTTP_SPECIAL_RESPONSE) {
-        http_status = (ngx_uint_t) handler_rc;
-    } else if (r->headers_out.status != 0) {
-        http_status = r->headers_out.status;
-    } else {
-        http_status = NGX_HTTP_OK;
-    }
-
+    http_status = xrootd_http_effective_status(r, handler_rc);
     s3_metrics_response_status(method_slot, http_status);
 }
-
 
 ngx_int_t
 s3_metrics_return_method(ngx_http_request_t *r, ngx_uint_t method_slot,
@@ -112,7 +91,6 @@ s3_metrics_return_method(ngx_http_request_t *r, ngx_uint_t method_slot,
     s3_metrics_response_method(r, method_slot, handler_rc);
     return handler_rc;
 }
-
 
 void
 s3_metrics_finalize_request_method(ngx_http_request_t *r,

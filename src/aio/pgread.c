@@ -1,6 +1,16 @@
 #include "ngx_xrootd_module.h"
 
-#if (NGX_THREADS)
+/*
+ * Section: kXR_pgread async I/O — page-granular read with CRC32C checksum.
+ *
+ * This file implements the thread-pool offload for pgread, where each 4096-byte
+ * page is read and a CRC32C checksum is computed on it. The output format is:
+ *   [CRC32C(4 bytes)][page data (4096 bytes)] × N_pages
+ *
+ * Two functions: the _thread function does the pread + CRC encoding on the worker
+ * thread; the _done callback builds the response chain on the main event loop.
+ */
+
 
 /*
  * xrootd_pgread_aio_thread — thread-pool worker for kXR_pgread.
@@ -40,7 +50,27 @@ xrootd_pgread_aio_thread(void *data, ngx_log_t *log)
                                              out);
 }
 
-
+/*
+ * xrootd_pgread_aio_done — main-thread response builder for pgread AIO completion.
+ *
+ * WHAT: Reconstructs the XRootD response chain after the worker thread finishes
+ * pread() + CRC32C encoding of each 4096-byte page. The response consists of a
+ * single ServerStatusResponse_pgRead header followed by the encoded data (t->scratch+rlen).
+ * Unlike standard reads, pgread does NOT use xrootd_build_chunked_chain — its own
+ * per-page CRC format requires direct chain construction.
+ *
+ * WHY: pgread responses have a unique wire format [CRC32C(4 bytes)][page data] × N that
+ * cannot be handled by generic chunked-chain builders. This callback must build the
+ * correct header type and payload layout on the main thread after AIO completion. It also
+ * handles four error paths: connection teardown, I/O failure, empty read, and allocation
+ * failure — each releasing buffers appropriately before resuming flow.
+ *
+ * HOW: 1) Restore request context via xrootd_aio_restore_request(). 2) Branch on nread:
+ *     negative → kXR_IOError + release; zero/empty → status-only response.
+ *   3) On success: allocates pgReadStatus header, builds two-link chain (hdr→data),
+ *      updates ctx->files.bytes_read and session_bytes counters, logs access event,
+ *      queues via xrootd_queue_response_chain(). Releases scratch if not already queued.
+ */
 void
 xrootd_pgread_aio_done(ngx_event_t *ev)
 {
@@ -149,4 +179,3 @@ xrootd_pgread_aio_done(ngx_event_t *ev)
     xrootd_aio_resume(c);
 }
 
-#endif /* NGX_THREADS */

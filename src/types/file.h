@@ -1,5 +1,13 @@
 #pragma once
 
+/* ---- File: file.h — Per-open-file bookkeeping type (xrootd_file_t) ----
+ *
+ * WHAT: Defines xrootd_file_t — one slot per open XRootD file handle where array index IS the handle value (0..XROOTD_MAX_FILES-1). Fields: fd (OS descriptor; -1 = free), path (resolved absolute allocated on open), bytes_read/bytes_written cumulative counters, open_time timestamp for throughput log, writable/readable permission flags, from_cache flag drives kXR_cachersp in stat. Immutable over handle lifetime: is_regular S_ISREG at open, device/ino captured at open validates bound reopens, cached_size st_size valid for read-only. Read tracking: read_last_end previous read end offset (-1=none), read_ahead_end WILLNEED hint farthest byte. kXR_chkpoint state: ckp_path checkpoint temp file (NULL=no active checkpoint), ckp_size bytes captured at kXR_ckpBegin. kXR_posc persist-on-successful-close lifecycle: write open with posc → staged to temporary path → clean kXR_close renames temp to posc_final_path → disconnect/error close unlinks temp via path field (set to temp path at open). Native root:// TPC destination state: tpc_destination=1 pending target, tpc_armed first sync acknowledged rendezvous setup, tpc_started pull task posted, tpc_done completed successfully, tpc_key[128] shared rendezvous key, tpc_org[256] origin identity sent to source as tpc.org, tpc_src_host/tpc_src_port/tpc_src_path[PATH_MAX] source address + path, tpc_token_mode[32] OAuth2/OIDC delegation mode for source auth. Write-through state (mirrors XrdPfcFile::m_dirtyOffset/m_bytesWritten): wt_enabled=1 eligible for WT flush on close, wt_policy cached decision at open time (XROOTD_WT_*), wt_mode_bits POSIX mode sent to origin write-open, wt_dirty_offset last dirty write offset (-1=no pending writes), wt_bytes_written cumulative writes since last sync for metrics. Async flush state: wt_flush_task pending async flush task heap allocated before ngx_thread_task_post freed in completion callback after result consumed on main thread, wt_flush_pending=1 flush posted but not confirmed.
+ *
+ * WHY: Array index directly = XRootD file handle — clients echo back this opaque 4-byte value in kXR_read/kXR_write/kXR_close etc., server uses index directly so handles are sequential 0..N-1. Slot "in use" when fd >= 0, reset to -1 via xrootd_free_fhandle() on close or disconnect. Bound connections validate device/inode against values captured at open time (nginx workers cannot share post-fork fd integers safely). POSC lifecycle ensures atomic rename-on-success: temp file created at open, renamed to final path only on clean close, unlinked on error/disconnect preventing orphaned temps. TPC destination mirrors XrdCl's full sequence: open target → sync arm rendezvous → open source with tpc.dst → sync run copy. Write-through dirty semantics: wt_enabled=1 eligible for flush on close, wt_dirty_offset > -1 means data written since last sync point, actual write-back happens synchronously (wt_mode==SYNC) or asynchronously via ngx_thread_task_post (WT_ASYNC).
+ *
+ * HOW: Struct layout — fd/path/bytes_read/bytes_written/open_time/writable/readable/from_cache (lines 17-25) → is_regular/device/inode/cached_size/read_last_end/read_ahead_end (lines 27-32) → ckp_path/ckp_size chkpoint state (lines 35-36) → posc_final_path POSC state (line 47) → TPC destination tpc_destination/tpc_armed/tpc_started/tpc_done + tpc_key[128]/tpc_org[256]/tpc_src_host[256]/tpc_src_port/tpc_src_path[PATH_MAX]/tpc_token_mode[32] (lines 57-66) → write-through wt_enabled/wt_policy/wt_mode_bits/wt_dirty_offset/wt_bytes_written (lines 81-85) → async flush wt_flush_task/wt_flush_pending (lines 91-92). */
+
 /*
  * Per-open-file bookkeeping (xrootd_file_t).
  *
@@ -64,4 +72,35 @@ typedef struct {
     uint16_t   tpc_src_port;     /* 0 means default XRootD port */
     char       tpc_src_path[PATH_MAX];
     char       tpc_token_mode[32]; /* OAuth2/OIDC delegation mode for source auth */
+
+    /* ---- write-through state (mirrors XrdPfcFile::m_dirtyOffset, m_bytesWritten) ----
+     *
+     * These fields track whether a handle has written dirty data that needs to be
+     * propagated back to the origin server at close time. The decision callback is
+     * evaluated once at kXR_open and cached in wt_policy; the actual write-back
+     * happens either synchronously (wt_mode == SYNC) or asynchronously (WT_ASYNC).
+     *
+     * Dirty state semantics:
+     *   wt_enabled = 1 → handle is eligible for WT flush on close()
+     *   wt_dirty_offset > -1 → data has been written since last sync point
+     *   wt_bytes_written tracks cumulative writes between sync points (for metrics)
+     */
+
+    int              wt_enabled;      /* 1 = write-back enabled for this handle */
+    uint8_t          wt_policy;       /* cached decision at open time — XROOTD_WT_* */
+    uint16_t         wt_mode_bits;    /* POSIX mode sent to the origin write-open */
+    off_t            wt_dirty_offset; /* last dirty write offset; -1 = no pending writes */
+    size_t           wt_bytes_written;/* cumulative writes since last sync (metrics) */
+
+    /* Async flush state — only used when wt_mode == WT_ASYNC.
+     * wt_flush_task is allocated before ngx_thread_task_post(); freed in the
+     * completion callback after the result is consumed on the main thread.
+     * wt_flush_pending = 1 means a flush has been posted but not yet confirmed. */
+    ngx_thread_task_t   *wt_flush_task; /* pending async flush task (heap) */
+    int                  wt_flush_pending; /* 1 = flush not yet confirmed by origin */
+
+    /* Live transfer monitor slot index — index into xrootd_transfer_table_t.slots[].
+     * -1 means this handle is not currently tracked (table full, or dashboard disabled). */
+    int32_t  dashboard_slot;
+
 } xrootd_file_t;

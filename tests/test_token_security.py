@@ -26,14 +26,14 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.make_token import TokenIssuer, b64url_encode
 
-from settings import TOKENS_DIR, DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import TOKENS_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Module globals
 # ---------------------------------------------------------------------------
 
 TOKEN_DIR    = TOKENS_DIR
-TOKEN_HOST   = "127.0.0.1"
+TOKEN_HOST   = SERVER_HOST
 TOKEN_PORT   = 0
 WEBDAV_BASE  = ""
 DATA_ROOT    = DEFAULT_DATA_ROOT
@@ -60,7 +60,7 @@ kXR_error    = 4003
 def _configure(test_env):
     global TOKEN_DIR, TOKEN_HOST, TOKEN_PORT, WEBDAV_BASE, DATA_ROOT, CA_PEM
     TOKEN_DIR   = test_env["token_dir"]
-    TOKEN_HOST  = "127.0.0.1"
+    TOKEN_HOST  = test_env["server_host"]
     TOKEN_PORT  = test_env["token_port"]
     WEBDAV_BASE = test_env["webdav_url"]
     DATA_ROOT   = test_env["data_dir"]

@@ -77,9 +77,27 @@ struct voms_data {
     void  *real;          /* internal library state; do not free directly */
 };
 
+/* ---- Section: VOMS Error Codes & Flags ----
+ *
+ * WHAT: Constants for VOMS API error codes and flags used throughout the module.
+ * VOMS_VERR_NOEXT (5) = no VOMS extensions found in certificate — silently skipped
+ * per GSI auth convention. VOMS_VERR_NODATA (11) = extensions exist but contain no
+ * attribute data — also silently skipped. VOMS_RECURSE_CHAIN (0) = flag passed to
+ * VOMS_Retrieve() instructing it to search all certificates in the chain, not just
+ * the leaf. */
+
 #define VOMS_VERR_NOEXT   5
 #define VOMS_VERR_NODATA  11
 #define VOMS_RECURSE_CHAIN 0
+
+/* ---- Section: Function Pointer Types & API Table ----
+ *
+ * WHAT: typedefs for four VOMS API function signatures and the xrootd_voms_api_t
+ * struct that bundles them. Each typedef maps to one libvomsapi.so symbol loaded at
+ * runtime via dlsym: init→VOMS_Init, retrieve→VOMS_Retrieve, destroy→VOMS_Destroy,
+ * error_message→VOMS_ErrorMessage. The API table holds the dlopen handle plus these
+ * four function pointers — populated once during xrootd_voms_init() and read-only
+ * thereafter. Thread safety: set at startup, immutable after initialization. */
 
 typedef struct voms_data *(*xrootd_voms_init_pt)(char *voms, char *cert);
 typedef int (*xrootd_voms_retrieve_pt)(X509 *cert, STACK_OF(X509) *chain,
@@ -95,6 +113,16 @@ typedef struct {
     xrootd_voms_destroy_pt       destroy;
     xrootd_voms_error_message_pt error_message;
 } xrootd_voms_api_t;
+
+/* ---- Section: Extern Globals & Public API ----
+ *
+ * WHAT: External declarations for the globally accessible VOMS state and public
+ * function. xrootd_voms_api is the function-pointer table populated at startup —
+ * callers access VOMS operations through this struct (init, retrieve, destroy,
+ * error_message). xrootd_voms_loaded is the availability flag read by ACL code
+ * in path/acl.c to conditionally enable VO checks. xrootd_collect_voms_vos() is
+ * the public function for converting VOMS API result structs into comma-separated
+ * VO list strings — called internally by extract.c after VOMS_Retrieve(). */
 
 extern xrootd_voms_api_t xrootd_voms_api;
 extern ngx_flag_t        xrootd_voms_loaded;

@@ -1,3 +1,11 @@
+/* ---- File: tpc_internal.h — Native TPC source-side pull API and shared types ----
+ *
+ * WHAT: Defines all shared types, constants, and function declarations for native XRootD third-party-copy (TPC) destination-side pull. Wire constants → TPC_IO_TIMEOUT_SEC(60s), TPC_CONNECT_TIMEOUT_SEC(5s), TPC_CHUNK_SIZE(1MB per kXR_read), TPC_RESP_MAX_BODY(1MB+256 malloc cap); typedef xrootd_tpc_params_t — parsed tpc.* opaque fields (key/src/src_host/src_path/dst/lfn/org/stage/token_mode + has_* flags + src_port); typedef xrootd_tpc_pull_t — per-pull heap-allocated task context containing connection/ctx/conf refs, streamid/options/mode_bits, src info, key/org/delegated_token/token_scope, dst_path/dst_fd/fhandle_idx/reply_kind/result/xrd_error/bytes_written/err_msg; API declarations → xrootd_tpc_parse_opaque(opaque,out) parses opaque into params struct (parse.c); tpc_send_all(fd,buf,len)/tpc_recv_response(fd,status,body,dlen) low-level socket helpers (io.c); tpc_connect(t) DNS+TCP connect with timeout (connect.c); xrootd_tpc_check_src_policy(src_host,port,allow_local,allow_private,err_msg,sz) SSRF preflight; tpc_bootstrap(t,fd) anonymous session setup kXR_protocol+kXR_login (bootstrap.c); tpc_outbound_finish_login/tpc_outbound_gsi/tpc_outbound_ztn/GSI DH helpers for source auth; tpc_pull_from_source(t,fd) remote open+read loop+fsync+close (source.c); xrootd_tpc_pull_thread(data,log) thread-pool orchestrator connect→bootstrap→pull (thread.c); tpc_fetch_delegated_token(t) OAuth2/OIDC token fetch (tpc_token.c); xrootd_tpc_pull_done(ev) main-thread completion callback sends kXR_open response/error (done.c); xrootd_tpc_prepare_pull/launch_pull/start_pull event-thread entry points validate+allocate+post to thread pool (launch.c).
+ *
+ * WHY: TPC destination-side pull requires a coordinated sequence across multiple files — parsing opaque params, connecting to remote origin, bootstrapping session, streaming reads, completion callback. This header centralizes all shared types so launch.c/thread.c/source.c/connect.c/bootstrap.c/io.c/done.c/tpc_token.c can reference the same structs and function signatures without duplication. Heap-allocated pull_t struct enables ngx_thread_task_post() lifecycle (allocate in event thread → post to pool → free in done callback). Wire constants ensure consistent timeout/chunk sizes across all TPC files.
+ *
+ * HOW: Constants at top → typedef xrootd_tpc_params_t with opaque field comments → API declaration for parse_opaque → typedef xrootd_tpc_pull_t with heap/lifecycle comments → grouped function declarations by file (io.c helpers, connect.c, bootstrap.c auth helpers, source.c pull, thread.c worker, tpc_token.c fetch, done.c callback, launch.c entry points). Each declaration includes brief WHAT describing behavior and return value. */
+
 #pragma once
 
 #include "../ngx_xrootd_module.h"
@@ -57,7 +65,6 @@ typedef struct {
  */
 int xrootd_tpc_parse_opaque(const char *opaque, xrootd_tpc_params_t *out);
 
-#if (NGX_THREADS)
 
 /* ------------------------------------------------------------------ */
 /* TPC destination-side pull task                                        */
@@ -125,12 +132,39 @@ int xrootd_tpc_check_src_policy(const char *src_host, uint16_t src_port,
  */
 int tpc_bootstrap(xrootd_tpc_pull_t *t, int fd);
 
+void tpc_put_u32(u_char *p, uint32_t v);
+int tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char seq,
+    const u_char *cred, uint32_t len);
+
 /*
  * Complete kXR_login kXR_authmore using ztn and/or GSI credentials from
  * ngx_stream_xrootd_srv_conf_t (bearer file, certificate paths).
  */
 int tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
     u_char *login_body, uint32_t login_dlen);
+
+int tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd);
+int tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
+    u_char *body, uint32_t dlen,
+    X509 *x, STACK_OF(X509) *chain, EVP_PKEY *pkey,
+    u_char *certreq, BIO *cbio, BIO *kbio);
+
+/*
+ * gsi_outbound_common.c — anonymous (ZTN) token outbound auth.
+ * Sends a bearer-token kXR_authmore response to the source server.
+ */
+int tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd);
+
+/*
+ * gsi_outbound_dh_helpers.c — DH key-exchange helpers for GSI outbound auth.
+ * tpc_gsi_select_cipher   — pick a cipher from a server-advertised list.
+ * tpc_parse_hex_pub       — decode a hex-encoded DH public key blob.
+ * tpc_dh_peer_from        — build an EVP_PKEY peer key from local key + BIGNUM.
+ */
+void tpc_gsi_select_cipher(const u_char *payload, size_t payload_len,
+    char *out, size_t outsz);
+BIGNUM *tpc_parse_hex_pub(const u_char *puk_data, size_t puk_len);
+EVP_PKEY *tpc_dh_peer_from(EVP_PKEY *local_key, BIGNUM *peer_pub_bn);
 
 /*
  * source.c — remote file open, streaming read loop, and close.
@@ -164,4 +198,3 @@ ngx_int_t xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
     const char *dst_path, uint16_t options, uint16_t mode_bits);
 
-#endif /* NGX_THREADS */

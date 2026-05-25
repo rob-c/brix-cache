@@ -1,0 +1,278 @@
+/* ------------------------------------------------------------------ */
+/* Session Handle Registry — Shared File Handles for Bound Streams       */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements the shared memory handle table used by kXR_bind
+ * secondary connections.  Primary connections publish readable file handle
+ * metadata so another nginx worker can reopen and validate the same file.
+ *
+ * WHY: nginx workers do not share descriptors opened after fork.  Bound
+ * streams therefore cannot inherit a raw fd from the primary connection; they
+ * need a shared, validated description of the handle instead.
+ *
+ * HOW: All operations are serialized by the handle-zone mutex.  Entries are
+ * keyed by sessid + handle_index and carry path, readable/writable flags,
+ * cache status, device, inode, and size metadata for reopen validation.
+ */
+
+#include "registry.h"
+#include <ngx_shmtx.h>
+#include <string.h>
+
+static ngx_shmtx_t  xrootd_handle_mutex;
+
+static xrootd_shared_handle_table_t *
+handle_table(void)
+{
+    if (xrootd_handle_shm_zone == NULL
+        || xrootd_handle_shm_zone->data == NULL
+        || xrootd_handle_shm_zone->data == (void *) 1)
+    {
+        return NULL;
+    }
+    return (xrootd_shared_handle_table_t *) xrootd_handle_shm_zone->data;
+}
+
+ngx_int_t
+xrootd_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
+{
+    xrootd_shared_handle_table_t *tbl;
+
+    if (data) {
+        shm_zone->data = data;
+        tbl = (xrootd_shared_handle_table_t *) data;
+        if (ngx_shmtx_create(&xrootd_handle_mutex, &tbl->lock, NULL)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
+
+    tbl = (xrootd_shared_handle_table_t *) shm_zone->shm.addr;
+    ngx_memzero(tbl, sizeof(*tbl));
+
+    if (ngx_shmtx_create(&xrootd_handle_mutex, &tbl->lock, NULL) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    shm_zone->data = tbl;
+    return NGX_OK;
+}
+
+static ngx_flag_t
+xrootd_shared_handle_same_key(const xrootd_shared_handle_entry_t *entry,
+    const u_char sessid[XROOTD_SESSION_ID_LEN], int handle_index)
+{
+    return entry->in_use
+           && entry->handle_index == (uint8_t) handle_index
+           && ngx_memcmp(entry->sessid, sessid, XROOTD_SESSION_ID_LEN) == 0;
+}
+
+/* ---- Function: xrootd_session_handle_publish() ----
+ *
+ * WHAT: Shares file handle metadata with other workers enabling bound stream
+ * secondary connections to read primary-published handles.  Write-only
+ * handles are not published because bound streams are read-only data channels.
+ *
+ * WHY: xrdcp secondary connections established via kXR_bind may arrive at
+ * different workers than the primary connection.  Device/inode metadata lets
+ * the secondary verify the reopened path still refers to the original file.
+ */
+void
+xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
+    int handle_index, const xrootd_file_t *file)
+{
+    xrootd_shared_handle_table_t *tbl;
+    xrootd_shared_handle_entry_t *entry;
+    ngx_uint_t                    i, free_slot;
+    size_t                        path_len;
+
+    if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES
+        || file == NULL || file->fd < 0)
+    {
+        return;
+    }
+
+    tbl = handle_table();
+    if (tbl == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&xrootd_handle_mutex);
+
+    free_slot = XROOTD_SESSION_HANDLE_SLOTS;
+    entry = NULL;
+
+    for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
+        if (xrootd_shared_handle_same_key(&tbl->slots[i], sessid,
+                                          handle_index))
+        {
+            entry = &tbl->slots[i];
+            break;
+        }
+
+        if (!tbl->slots[i].in_use
+            && free_slot == XROOTD_SESSION_HANDLE_SLOTS)
+        {
+            free_slot = i;
+        }
+    }
+
+    /*
+     * Bound streams are read-only data channels.  Publishing a write-only
+     * primary handle would create an attractive misuse path, so treat it as
+     * removal of any stale shared entry for the same slot.
+     */
+    if (!file->readable || file->path == NULL) {
+        if (entry != NULL) {
+            ngx_memzero(entry, sizeof(*entry));
+        }
+        ngx_shmtx_unlock(&xrootd_handle_mutex);
+        return;
+    }
+
+    path_len = ngx_strlen(file->path);
+    if (path_len > XROOTD_MAX_PATH) {
+        if (entry != NULL) {
+            ngx_memzero(entry, sizeof(*entry));
+        }
+        ngx_shmtx_unlock(&xrootd_handle_mutex);
+        return;
+    }
+
+    if (entry == NULL) {
+        if (free_slot == XROOTD_SESSION_HANDLE_SLOTS) {
+            ngx_shmtx_unlock(&xrootd_handle_mutex);
+            return;
+        }
+        entry = &tbl->slots[free_slot];
+    }
+
+    ngx_memzero(entry, sizeof(*entry));
+    ngx_memcpy(entry->sessid, sessid, XROOTD_SESSION_ID_LEN);
+    entry->handle_index = (uint8_t) handle_index;
+    entry->readable = file->readable ? 1 : 0;
+    entry->writable = file->writable ? 1 : 0;
+    entry->from_cache = file->from_cache ? 1 : 0;
+    entry->is_regular = file->is_regular ? 1 : 0;
+    entry->device = file->device;
+    entry->inode = file->inode;
+    entry->cached_size = file->cached_size;
+    ngx_cpystrn((u_char *) entry->path, (u_char *) file->path,
+                sizeof(entry->path));
+    entry->in_use = 1;
+
+    ngx_shmtx_unlock(&xrootd_handle_mutex);
+}
+
+/* ---- Function: xrootd_session_handle_lookup() ----
+ *
+ * WHAT: Retrieves published handle metadata for bound stream read requests.
+ *
+ * WHY: Bound streams can reopen a primary-published handle in their own worker
+ * and validate path identity against the stored device/inode tuple.
+ */
+int
+xrootd_session_handle_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
+    int handle_index, xrootd_shared_handle_entry_t *out)
+{
+    xrootd_shared_handle_table_t *tbl;
+    ngx_uint_t                    i;
+    int                           found = 0;
+
+    if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES || out == NULL) {
+        return 0;
+    }
+
+    tbl = handle_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&xrootd_handle_mutex);
+
+    for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
+        if (xrootd_shared_handle_same_key(&tbl->slots[i], sessid,
+                                          handle_index))
+        {
+            ngx_memcpy(out, &tbl->slots[i], sizeof(*out));
+            out->path[XROOTD_MAX_PATH] = '\0';
+            found = 1;
+            break;
+        }
+    }
+
+    ngx_shmtx_unlock(&xrootd_handle_mutex);
+    return found;
+}
+
+/* ---- Function: xrootd_session_handle_unpublish() ----
+ *
+ * WHAT: Removes one published handle entry during kXR_close.
+ *
+ * WHY: Secondary connections must not continue reading a primary handle after
+ * that handle has been closed or reused.
+ */
+void
+xrootd_session_handle_unpublish(const u_char sessid[XROOTD_SESSION_ID_LEN],
+    int handle_index)
+{
+    xrootd_shared_handle_table_t *tbl;
+    ngx_uint_t                    i;
+
+    if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES) {
+        return;
+    }
+
+    tbl = handle_table();
+    if (tbl == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&xrootd_handle_mutex);
+
+    for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
+        if (xrootd_shared_handle_same_key(&tbl->slots[i], sessid,
+                                          handle_index))
+        {
+            ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
+            break;
+        }
+    }
+
+    ngx_shmtx_unlock(&xrootd_handle_mutex);
+}
+
+/* ---- Function: xrootd_session_handle_unpublish_all() ----
+ *
+ * WHAT: Removes all published handles for a session during session teardown.
+ *
+ * WHY: kXR_endsess and disconnect cleanup must revoke every bound-stream
+ * handle regardless of which worker originally published it.
+ */
+void
+xrootd_session_handle_unpublish_all(
+    const u_char sessid[XROOTD_SESSION_ID_LEN])
+{
+    xrootd_shared_handle_table_t *tbl;
+    ngx_uint_t                    i;
+
+    tbl = handle_table();
+    if (tbl == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&xrootd_handle_mutex);
+
+    for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
+        if (tbl->slots[i].in_use
+            && ngx_memcmp(tbl->slots[i].sessid, sessid,
+                          XROOTD_SESSION_ID_LEN) == 0)
+        {
+            ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
+        }
+    }
+
+    ngx_shmtx_unlock(&xrootd_handle_mutex);
+}

@@ -35,6 +35,12 @@ void       mw_finish(metrics_writer_t *mw);
 /* stream.c */
 void  xrootd_export_prometheus_metrics(metrics_writer_t *mw,
     ngx_xrootd_metrics_t *shm);
+void  xrootd_export_stream_cache_metrics(metrics_writer_t *mw,
+    ngx_xrootd_metrics_t *shm);
+void  xrootd_export_stream_proxy_metrics(metrics_writer_t *mw,
+    ngx_xrootd_metrics_t *shm);
+void  xrootd_export_stream_tracking_metrics(metrics_writer_t *mw,
+    ngx_xrootd_metrics_t *shm);
 
 /* webdav.c */
 void  xrootd_export_webdav_metrics(metrics_writer_t *mw,

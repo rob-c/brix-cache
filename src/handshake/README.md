@@ -10,6 +10,7 @@ These files cover request entry into the native XRootD stream module:
 - `dispatch_signing.c`: `kXR_sigver` request routing
 - `policy.c`: login/auth/write gates used by the routing table
 - `sigver.c`: verifies pending `kXR_sigver` state before routing the covered request
+- `handshake.h`: Public handshake types and cross-file prototypes
 
 The request-specific handlers live in `src/session/`, `src/read/`,
 `src/write/`, `src/query/`, `src/fattr/`, and related operation directories.

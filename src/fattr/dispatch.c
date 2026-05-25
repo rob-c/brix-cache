@@ -1,3 +1,11 @@
+/*
+ * Fattr dispatcher — routes kXR_fattr requests to the appropriate sub-handler.
+ * The fattr operation has four sub-codes: get (read attributes), set (write
+ * attributes), del (delete attributes), and list (enumerate all attributes).
+ * This function validates parameters, resolves path or file handle, checks
+ * authorization, then dispatches to the specific handler based on sub-code.
+ */
+
 #include "fattr/ngx_xrootd_fattr.h"
 
 #include <string.h>
@@ -32,7 +40,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if ((subcode == kXR_fattrSet || subcode == kXR_fattrDel) &&
-        !conf->allow_write)
+        !conf->common.allow_write)
     {
         XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
         return xrootd_send_error(ctx, c, kXR_fsReadOnly,
@@ -89,7 +97,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
             return xrootd_send_error(ctx, c, kXR_ArgInvalid,
                                      "fattr: invalid path");
         }
-        if (!xrootd_resolve_path(c->log, &conf->root, pathbuf,
+        if (!xrootd_resolve_path(c->log, &conf->common.root, pathbuf,
                                  resolved, sizeof(resolved))) {
             XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
             return xrootd_send_error(ctx, c, kXR_NotFound,

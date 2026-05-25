@@ -1,66 +1,38 @@
 #include "cms_internal.h"
+#include "frame_io.h"
 #include "../manager/registry.h"
 
 #include <unistd.h>
 
-
-static ngx_int_t
-ngx_xrootd_cms_send_all(ngx_xrootd_cms_ctx_t *ctx, const u_char *buf,
-    size_t len)
-{
-    ngx_connection_t  *c;
-    ssize_t            n;
-    size_t             sent;
-
-    c = ctx->connection;
-    sent = 0;
-
-    while (sent < len) {
-        n = c->send(c, (u_char *) buf + sent, len - sent);
-
-        if (n == NGX_AGAIN || n == 0) {
-            return NGX_AGAIN;
-        }
-
-        if (n == NGX_ERROR) {
-            return NGX_ERROR;
-        }
-
-        sent += (size_t) n;
-    }
-
-    return NGX_OK;
-}
-
+/*
+ * ngx_xrootd_cms_send_frame — thin wrapper around xrootd_cms_send_frame().
+ *
+ * WHAT: Delegates CMS frame transmission to the shared helper in frame_io.c,
+ *      passing ctx->connection as the target socket. WHY: Keeps send.c callers
+ *      insulated from the connection pointer — they operate on ctx and delegate
+ *      wire I/O without knowing which connection object is used. HOW: Single
+ *      return line forwarding all parameters plus ctx->connection to
+ *      xrootd_cms_send_frame(). */
 
 static ngx_int_t
 ngx_xrootd_cms_send_frame(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid,
     u_char code, u_char modifier, const u_char *payload, size_t payload_len)
 {
-    u_char  hdr[NGX_XROOTD_CMS_HDR_LEN];
-
-    if (ctx->connection == NULL || payload_len > 65535) {
-        return NGX_ERROR;
-    }
-
-    ngx_xrootd_cms_put32(hdr, streamid);
-    hdr[4] = code;
-    hdr[5] = modifier;
-    ngx_xrootd_cms_put16(hdr + 6, (uint16_t) payload_len);
-
-    if (ngx_xrootd_cms_send_all(ctx, hdr, sizeof(hdr)) != NGX_OK) {
-        return NGX_ERROR;
-    }
-
-    if (payload_len > 0
-        && ngx_xrootd_cms_send_all(ctx, payload, payload_len) != NGX_OK)
-    {
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
+    return xrootd_cms_send_frame(ctx->connection, streamid, code, modifier,
+                                 payload, payload_len);
 }
 
+/*
+ * ngx_xrootd_cms_send_login — initial CMS login frame with server capabilities.
+ *
+ * WHAT: Builds and sends the first CMS frame after establishing a TCP connection,
+ *      reporting version, mode (client/manager), PID, filesystem space stats,
+ *      listen port, exported paths, and reserved fields. WHY: The CMS manager
+ *      needs this information to decide whether to route client requests here;
+ *      without login the server is invisible in the cluster registry. HOW: Call
+ *      stat_space() for total_gb/free_mb/util_pct (aggregate if manager mode),
+ *      pack type/value payload fields in wire order via put_short/put_int, append
+ *      exported paths from cms_export_paths(), send frame with CMS_RR_LOGIN code. */
 
 ngx_int_t
 ngx_xrootd_cms_send_login(ngx_xrootd_cms_ctx_t *ctx)
@@ -137,6 +109,16 @@ ngx_xrootd_cms_send_login(ngx_xrootd_cms_ctx_t *ctx)
                                      (size_t) (payload_cursor - payload));
 }
 
+/*
+ * ngx_xrootd_cms_send_load — periodic load heartbeat report.
+ *
+ * WHAT: Builds and sends a CMS_LOAD frame reporting current free disk space in MB,
+ *      optionally aggregated across all servers when in manager mode. WHY: The CMS
+ *      manager uses load reports to distribute client requests proportionally to
+ *      available capacity; stale or missing reports cause the manager to stop routing
+ *      here. HOW: Call stat_space() for free_mb (aggregate via xrootd_srv_aggregate_space
+ *      if manager mode), pack payload as put_short(6) + 6 zero bytes + put_int(free_mb),
+ *      send with CMS_RR_LOAD code. */
 
 ngx_int_t
 ngx_xrootd_cms_send_load(ngx_xrootd_cms_ctx_t *ctx)
@@ -145,8 +127,14 @@ ngx_xrootd_cms_send_load(ngx_xrootd_cms_ctx_t *ctx)
     u_char   *payload_cursor;
     uint32_t  free_mb;
 
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
+                   "xrootd: send_load: conn=%p", ctx->connection);
+
     free_mb = 0;
     (void) ngx_xrootd_cms_stat_space(ctx->conf, NULL, &free_mb, NULL);
+
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
+                   "xrootd: send_load: free_mb=%uD", free_mb);
 
     if (ctx->conf->manager_mode) {
         uint32_t agg_free = 0, agg_util = 0;
@@ -166,6 +154,15 @@ ngx_xrootd_cms_send_load(ngx_xrootd_cms_ctx_t *ctx)
                                      (size_t) (payload_cursor - payload));
 }
 
+/*
+ * ngx_xrootd_cms_send_avail — availability reply to CMS SPACE request.
+ *
+ * WHAT: Builds and sends a CMS_AVAIL frame with current free_mb and util_pct in response
+ *      to a received CMS_SPACE opcode from the manager. WHY: The manager queries space on
+ *      demand (via kYR_space) and expects an immediate avail reply; this function mirrors
+ *      the synchronous request-response pattern for space reporting. HOW: Call stat_space()
+ *      for free_mb/util_pct, aggregate if manager mode, pack as put_int(free_mb) +
+ *      put_int(util_pct), send with CMS_RR_AVAIL code and the requesting streamid. */
 
 ngx_int_t
 ngx_xrootd_cms_send_avail(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid)
@@ -196,6 +193,13 @@ ngx_xrootd_cms_send_avail(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid)
                                      (size_t) (payload_cursor - payload));
 }
 
+/*
+ * ngx_xrootd_cms_send_pong — empty reply to CMS PING probe.
+ *
+ * WHAT: Sends a zero-payload frame with CMS_RR_PONG code acknowledging the manager's
+ *      periodic liveness check. WHY: The CMS manager sends PING frames at regular intervals;
+ *      a missing pong indicates the server connection has died and triggers disconnect/retry.
+ *      HOW: Single-line dispatch to send_frame with empty payload (NULL, 0). */
 
 ngx_int_t
 ngx_xrootd_cms_send_pong(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid)
@@ -203,6 +207,14 @@ ngx_xrootd_cms_send_pong(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid)
     return ngx_xrootd_cms_send_frame(ctx, streamid, CMS_RR_PONG, 0, NULL, 0);
 }
 
+/*
+ * ngx_xrootd_cms_next_streamid — monotonic stream ID allocator.
+ *
+ * WHAT: Returns the next available stream ID for outgoing CMS frames, wrapping from
+ *      UINT32_MAX back to 1 on overflow. WHY: Each CMS frame must carry a unique streamid
+ *      so the manager can correlate requests with responses; wrapping ensures continuous
+ *      allocation without running out of IDs over long-lived connections. HOW: Increment
+ *      ctx->next_streamid, wrap at UINT32_MAX → 1, return current value. */
 
 uint32_t
 ngx_xrootd_cms_next_streamid(ngx_xrootd_cms_ctx_t *ctx)
@@ -215,6 +227,14 @@ ngx_xrootd_cms_next_streamid(ngx_xrootd_cms_ctx_t *ctx)
     return ctx->next_streamid;
 }
 
+/*
+ * ngx_xrootd_cms_send_locate — client-side locate request to CMS manager.
+ *
+ * WHAT: Sends a CMS_LOCATE frame asking the manager which server should serve a given path.
+ * WHY: When a client issues kYR_locate and this server is not the data owner, it forwards
+ *      the lookup to the CMS manager which resolves the owning server and returns a redirect.
+ * HOW: Copy path (NUL-terminated) into payload buffer bounded by XROOTD_SRV_MAX_PATHS,
+ *      send with CMS_RR_LOCATE code and the originating streamid. */
 
 ngx_int_t
 ngx_xrootd_cms_send_locate(ngx_xrootd_cms_ctx_t *ctx,

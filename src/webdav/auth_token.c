@@ -3,6 +3,7 @@
  */
 
 #include "webdav.h"
+#include "../compat/http_headers.h"
 #include "../token/macaroon.h"
 
 #include <string.h>
@@ -20,6 +21,13 @@
  * path — the path-prefix invariant is enforced by the scope matching code in
  * token/scopes.c (must be an exact prefix, not a partial directory name match).
  */
+/* ---- Function: webdav_check_token_write_scope() ----
+ *
+ * WHAT: Enforces WLCG/SciToken write scope authorization for WebDAV mutating methods (PUT, DELETE, MKCOL, MOVE). Checks whether the authenticated bearer token's write scopes cover the request URI path before allowing any file modification operation. Returns NGX_OK if the scope check passes or if authentication was not via token (e.g., GSI cert auth has no equivalent scope concept). Returns NGX_HTTP_FORBIDDEN when the token lacks sufficient write permissions for the target resource.
+ *
+ * WHY: WLCG/SciToken grants fine-grained path-based access rights rather than binary allow/deny. A token might grant read-only access to /data/atlas but write access to /data/cms — this function prevents cross-VO file mutation by ensuring only tokens with matching scope prefixes can execute mutating operations. The raw URI path check (not filesystem path) is intentional because scope granularity must match the client-facing namespace, not the underlying storage layout.
+ *
+ * HOW: Retrieves request context and verifies token_auth flag is set; copies r->uri into a null-terminated buffer for scope checking; calls xrootd_token_check_write() with the extracted scopes to verify the URI path is covered by at least one write scope prefix; logs warning and returns 403 if no matching scope found. */
 ngx_int_t
 webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
 {
@@ -51,6 +59,13 @@ webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
     return NGX_HTTP_FORBIDDEN;
 }
 
+/* ---- Function: webdav_verify_bearer_token() ----
+ *
+ * WHAT: Validates WLCG/SciToken bearer tokens presented in HTTP Authorization headers using either JWKS-based JWT verification or macaroon secret-key validation. Extracts token claims (subject, scopes, expiration) and stores them in the request context for downstream operations. Supports grace-period key rotation — if a macaroon is rejected by the current secret but accepted by an old secret configured via conf->token_macaroon_secret_old, the token is still accepted with an informational log message indicating graceful migration during nginx -s reload.
+ *
+ * WHY: WebDAV clients authenticate using bearer tokens rather than GSI certificates or anonymous access. This function must handle both JWT (via JWKS key set) and macaroon formats since different WLCG sites use different token types. The grace-period fallback prevents immediate access disruption during secret key rotation — in-flight tokens should be accepted until they naturally expire, avoiding a "hard break" scenario where all active clients are suddenly denied after a config reload.
+ *
+ * HOW: Declines if no keys/secrets configured; parses macaroon secret for validation if present; creates or retrieves request context (declines if already token-authenticated to avoid redundant verification); extracts a Bearer token from Authorization with shared case-insensitive scheme parsing; calls xrootd_token_validate() with JWKS keys, issuer/audience config, and optionally the macaroon secret; attempts old-secret fallback only when primary validation fails AND an old secret exists; on success stores claims (sub, scopes) in ctx for downstream scope checks. */
 ngx_int_t
 webdav_verify_bearer_token(ngx_http_request_t *r,
                            ngx_http_xrootd_webdav_loc_conf_t *conf)
@@ -58,6 +73,7 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     ngx_http_xrootd_webdav_req_ctx_t *ctx;
     xrootd_token_claims_t             claims;
     ngx_str_t                         auth_hdr;
+    ngx_str_t                         bearer;
     const char                       *token;
     size_t                            token_len;
     int                               rc;
@@ -94,24 +110,17 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     }
  
     auth_hdr = r->headers_in.authorization->value;
- 
-    if (auth_hdr.len < 7
-        || ngx_strncmp(auth_hdr.data, "Bearer ", 7) != 0)
-    {
+
+    rc = xrootd_http_extract_bearer(&auth_hdr, &bearer);
+    if (rc == NGX_DECLINED) {
         return NGX_DECLINED;
     }
- 
-    token = (const char *) (auth_hdr.data + 7);
-    token_len = auth_hdr.len - 7;
- 
-    while (token_len > 0 && *token == ' ') {
-        token++;
-        token_len--;
-    }
- 
-    if (token_len == 0) {
+    if (rc != NGX_OK) {
         return NGX_HTTP_UNAUTHORIZED;
     }
+
+    token = (const char *) bearer.data;
+    token_len = bearer.len;
  
     rc = xrootd_token_validate(r->connection->log, token, token_len,
                                conf->jwks_keys, conf->jwks_key_count,

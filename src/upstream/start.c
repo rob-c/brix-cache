@@ -1,5 +1,18 @@
 #include "upstream_internal.h"
 
+/*
+ * WHAT: Start an upstream XRootD connection — context allocation, DNS/TCP setup, bootstrap buffer build,
+ *      and connect initiation for transparent proxy mode.
+ * WHY: When a client connects in proxy mode, nginx must lazily open a backend XRootD server connection
+ *      on the first post-login opcode. This file owns that startup sequence: allocating upstream context,
+ *      resolving the upstream address (pre-configured or per-request DNS), creating a non-blocking socket,
+ *      arming event handlers, and building the initial handshake/protocol/login bootstrap bytes.
+ * HOW: Two-path address resolution — fast path uses pre-resolved sockaddr from config (no DNS on event loop);
+ *      fallback path calls getaddrinfo() per-request with warning logged at startup. Non-blocking socket +
+ *      ngx_get_connection + pool setup + read/write handler assignment + timer for kXR_wait retry. Bootstrap
+ *      buffer contains handshake zeros, protocol request, and login request concatenated in wire order.
+ */
+
 #include <netdb.h>
 #include <sys/socket.h>
 
@@ -54,7 +67,24 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
         up->req_open_mode = ntohs(oreq->mode);
     }
 
-    {
+    fd = (int) NGX_INVALID_FILE;
+
+    if (conf->upstream_addr != NULL) {
+        /* fast path: address pre-resolved at config time — no DNS on event loop */
+        struct sockaddr *sa = conf->upstream_addr->sockaddr;
+
+        fd = ngx_socket(sa->sa_family, SOCK_STREAM, 0);
+        if (fd != (int) NGX_INVALID_FILE) {
+            if (ngx_nonblocking(fd) == NGX_ERROR) {
+                ngx_close_socket(fd);
+                fd = (int) NGX_INVALID_FILE;
+            } else {
+                ngx_memcpy(&chosen_addr, sa, conf->upstream_addr->socklen);
+                chosen_addrlen = conf->upstream_addr->socklen;
+            }
+        }
+    } else {
+        /* fallback: resolve per-request (blocks event loop; logged as warning at startup) */
         struct addrinfo  hints_ai, *res_ai, *rp_ai;
         char             port_str[16];
 
@@ -73,7 +103,6 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
             return NGX_ERROR;
         }
 
-        fd = (int) NGX_INVALID_FILE;
         for (rp_ai = res_ai; rp_ai != NULL; rp_ai = rp_ai->ai_next) {
             fd = ngx_socket(rp_ai->ai_family, rp_ai->ai_socktype,
                             rp_ai->ai_protocol);

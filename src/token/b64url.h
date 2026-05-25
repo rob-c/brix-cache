@@ -10,4 +10,17 @@ typedef long ssize_t;
 # endif
 #endif
 ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_max);
+/* Decodes base64url-encoded input (RFC 4648 URL-safe variant) into raw binary.
+ * in:       base64url string to decode
+ * in_len:   length of the input string
+ * out:      destination buffer for decoded bytes
+ * out_max:  maximum capacity of out buffer
+ * Returns:  number of decoded bytes written to out, or -1 on failure. */
+void      b64url_encode(const char *src, size_t slen, char *dst, size_t dsz);
+/* Encodes source bytes into base64url string (RFC 4648 URL-safe variant).
+ * src:      source bytes to encode
+ * slen:     length of the source data
+ * dst:      destination buffer for encoded string (must be null-terminated)
+ * dsz:      capacity of dst buffer including space for null terminator
+ * Returns:  void — caller determines success by checking dsz before calling. */
 #endif // TOKEN_B64URL_H

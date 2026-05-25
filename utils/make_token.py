@@ -116,9 +116,15 @@ class TokenIssuer:
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption(),
         )
-        with open(self.key_path, "wb") as f:
-            f.write(pem)
-        os.chmod(self.key_path, 0o400)
+        tmp_key_path = f"{self.key_path}.tmp.{os.getpid()}"
+        try:
+            with open(tmp_key_path, "wb") as f:
+                f.write(pem)
+            os.chmod(tmp_key_path, 0o400)
+            os.replace(tmp_key_path, self.key_path)
+        finally:
+            if os.path.exists(tmp_key_path):
+                os.unlink(tmp_key_path)
 
         # Write JWKS (public key)
         pub = key.public_key()

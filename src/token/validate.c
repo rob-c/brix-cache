@@ -1,12 +1,18 @@
-/*
- * Public JWT bearer-token validation.
- */
+/* ---- File: validate.c — WLCG/SciToken JWT bearer-token validation and claim extraction ----
+ *
+ * WHAT: Validates JWT tokens (RS256/ES256) against a JWKS key set, checks issuer/audience/expiry/nbf constraints, extracts claims (scopes, groups, iss/sub/aud), and handles macaroon tokens as an alternative auth path. The main exported function xrootd_token_validate() performs structural verification → algorithm check → key selection → signature verification → claim extraction → time-window enforcement in a single deterministic pipeline.
+ *
+ * WHY: WLCG storage tokens are the primary bearer-token mechanism for HEP data access — they encode scope-granted paths (storage.read/write/create) and VO group membership. This module provides the authoritative validation path so every nginx connection can trust token claims before granting filesystem access. Macaroon support adds a fallback path for sites that use macaroon-based auth instead of JWT.
+ *
+ * HOW: Structural check → 3 dot-separated segments (header.payload.signature) → decode header JSON → verify alg is RS256 or ES256 → select key by kid or single-key fallback → verify signature with OpenSSL EVP → decode payload JSON → extract standard claims + groups array → parse scope string into per-path xrootd_token_scope_t entries → check exp/nbf against server clock. Returns 0 on success (claims populated) or -1 on failure (reason logged).
+ * ------------------------------------------------------------------ */
 
 #include "token_internal.h"
 #include "b64url.h"
 #include "json.h"
 #include "scopes.h"
 #include "macaroon.h"
+#include "../types/tunables.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +26,11 @@
  * Output format: printable ASCII is kept verbatim; anything < 0x20, 0x7f, or
  * DEL is replaced with \xHH.  The output is always NUL-terminated.
  */
+/* ---- Function: token_sanitize_for_log() ----
+ *
+ * WHAT: Escapes control characters and non-printable bytes in a string before it is written to the nginx error log. Printable ASCII (0x20-0x7e) passes through verbatim; anything below 0x20, at 0x7f, or DEL is replaced with \xHH hex notation. This prevents log-injection attacks where malicious tokens could embed newlines or other control codes to forge or corrupt log entries.
+ *
+ * WHY: JWT tokens are untrusted input that may contain arbitrary bytes (base64url decoded payloads). Without sanitization, an attacker could inject newline characters into a token's issuer or subject claim and make it appear as if separate log entries were generated — this is a log forgery attack vector. This function follows the AGENTS.md FAQ rule for "Log strings from wire" which mandates using xrootd_sanitize_log_string(). */
 static void
 token_sanitize_for_log(const char *in, char *out, size_t outsz)
 {
@@ -52,6 +63,13 @@ token_sanitize_for_log(const char *in, char *out, size_t outsz)
     out[i] = '\0';
 }
 
+/* ---- Function: xrootd_token_malformed() ----
+ *
+ * WHAT: Logs a warning that the JWT token has malformed structure and returns -1 to signal validation failure. Used whenever the three-segment dot-separated format (header.payload.signature) is violated — missing dots, extra dots, or any structural anomaly indicates an invalid token.
+ *
+ * WHY: Provides a single point of error logging for all malformed-structure detection paths so operators see consistent "malformed JWT structure" messages regardless of which specific structural violation occurred. This makes log parsing easier when troubleshooting token delivery issues from upstream services.
+ * HOW: Checks for exactly two dots in the token string (three segments);
+ logs and returns -1 on any structural anomaly. */
 static int
 xrootd_token_malformed(ngx_log_t *log)
 {
@@ -60,6 +78,12 @@ xrootd_token_malformed(ngx_log_t *log)
     return -1;
 }
 
+/* ---- Function: xrootd_token_extract_groups() ----
+ *
+ * WHAT: Extracts the WLCG groups array from the JWT payload JSON into a comma-separated string stored in claims->groups. Reads up to 16 group names from the "wlcg.groups" claim and concatenates them with commas, truncating any individual group name that would exceed remaining buffer space. Empty result (no groups) produces an empty string.
+ *
+ * WHY: WLCG tokens include a groups array for VO membership attribution but nginx needs a flat comma-separated representation for logging and ACL matching. This helper converts the JSON array into a format compatible with existing path/acl.c logic which checks group memberships against configured VO ACLs without requiring additional JSON parsing at access time.
+ * HOW: Reads up to 16 group names from JSON "wlcg.groups" array, concatenates with commas into claims->groups buffer, truncating individual groups that exceed remaining space. */
 static void
 xrootd_token_extract_groups(const char *pay_json, size_t pay_len,
     xrootd_token_claims_t *claims)
@@ -312,14 +336,21 @@ xrootd_token_validate(ngx_log_t *log,
 
     now = time(NULL);
 
-    if (claims->exp > 0 && now > (time_t) claims->exp) {
+    /* Apply a clock-skew window so that tokens from systems whose clock differs
+     * from ours by a few seconds are not spuriously rejected.  The skew widens
+     * the acceptance window on both sides without permanently extending validity. */
+    if (claims->exp > 0
+        && now > (time_t) claims->exp + XROOTD_TOKEN_CLOCK_SKEW_SECS)
+    {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_token: token expired at %L (now=%L)",
-                      (long long) claims->exp, (long long) now);
+                      "xrootd_token: token expired at %L (now=%L skew=%d)",
+                      (long long) claims->exp, (long long) now,
+                      XROOTD_TOKEN_CLOCK_SKEW_SECS);
         return -1;
     }
 
-    if (claims->nbf > 0 && now < (time_t) claims->nbf) {
+    if (claims->nbf > 0 && now < (time_t) claims->nbf)
+    {
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd_token: token not yet valid (nbf=%L now=%L)",
                       (long long) claims->nbf, (long long) now);

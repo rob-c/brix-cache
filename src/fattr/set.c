@@ -4,6 +4,12 @@
 #include <sys/xattr.h>
 #include <arpa/inet.h>
 
+/* ---- fattr_set — Section: Extended Attribute Setting ----
+ *
+ * WHAT: Sets XRootD file extended attributes via POSIX setxattr/fsetxattr syscalls. Parses wire-format vvec buffer (4-byte big-endian length + value bytes per attribute) and applies each attribute to either path or fd based on options. Returns vector status response with per-attribute error codes.
+ * WHY: Extended attribute management is critical for HEP data file metadata (checksums, provenance, access permissions). The wire protocol uses signed lengths which must be converted to unsigned before pointer arithmetic — this prevents the "negative length becomes huge size_t" trap that would cause buffer overruns. XATTR_CREATE flag enables kXR_fa_isNew option semantics (fail if attribute exists rather than overwrite).
+ * HOW: Four-phase execution: (1) parse vvec with bounds checking and signed-to-unsigned conversion for safety, (2) apply each attribute via path-based or handle-based syscall depending on options, (3) collect per-attribute errors into attrs[] array, (4) send fattr_send_vector_status response with kXR_status(4007) framing containing per-attribute success/failure codes. INVARIANT #1 referenced: vector status responses use kXR_status framing + per-page CRC for integrity verification in pgwrite context; here applied to attribute error reporting consistency. */
+
 ngx_int_t
 fattr_set(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
     int options, u_char *nvec_copy, size_t nvec_len, u_char *vvec_buf,

@@ -1,63 +1,25 @@
 #include "server.h"
+#include "frame_io.h"
 
-
-static ngx_int_t
-xrootd_cms_srv_send_all(xrootd_cms_srv_ctx_t *ctx, const u_char *buf,
-    size_t len)
-{
-    ngx_connection_t  *c;
-    ssize_t            n;
-    size_t             sent;
-
-    c = ctx->c;
-    sent = 0;
-
-    while (sent < len) {
-        n = c->send(c, (u_char *) buf + sent, len - sent);
-
-        if (n == NGX_AGAIN || n == 0) {
-            return NGX_AGAIN;
-        }
-
-        if (n == NGX_ERROR) {
-            return NGX_ERROR;
-        }
-
-        sent += (size_t) n;
-    }
-
-    return NGX_OK;
-}
-
+/*
+ * xrootd_cms_srv_send_frame — thin wrapper for server-side frame dispatch.
+ *
+ * WHAT: Delegates CMS frame transmission to the shared helper in frame_io.c,
+ *      passing ctx->c as the target socket. WHY: Keeps server_send.c callers
+ *      insulated from the connection pointer — they operate on ctx and delegate
+ *      wire I/O without knowing which connection object is used. HOW: Single
+ *      return line forwarding all parameters plus ctx->c to xrootd_cms_send_frame(). */
 
 static ngx_int_t
 xrootd_cms_srv_send_frame(xrootd_cms_srv_ctx_t *ctx, uint32_t streamid,
     u_char code, u_char modifier, const u_char *payload, size_t payload_len)
 {
-    u_char  hdr[NGX_XROOTD_CMS_HDR_LEN];
-
-    if (payload_len > 65535) {
-        return NGX_ERROR;
-    }
-
-    ngx_xrootd_cms_put32(hdr, streamid);
-    hdr[4] = code;
-    hdr[5] = modifier;
-    ngx_xrootd_cms_put16(hdr + 6, (uint16_t) payload_len);
-
-    if (xrootd_cms_srv_send_all(ctx, hdr, sizeof(hdr)) != NGX_OK) {
-        return NGX_ERROR;
-    }
-
-    if (payload_len > 0
-        && xrootd_cms_srv_send_all(ctx, payload, payload_len) != NGX_OK)
-    {
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
+    return xrootd_cms_send_frame(ctx->c, streamid, code, modifier, payload,
+                                 payload_len);
 }
 
+/* ---- xrootd_cms_srv_send_ping — send periodic liveness probe to registered data-server ----
+ * WHAT: Sends a kYR_pong ping frame to the connected CMS data-server client. This is the heartbeat mechanism that keeps the connection alive and confirms the data server is still responding. WHY: The CMS manager needs periodic confirmation that registered data servers are active — stale registrations would route clients to dead nodes. The ping timer in server_recv.c fires every `interval_ms` seconds (default 60s) to send these probes. HOW: Single-line frame builder: streamid=0, code=CMS_RR_PING, modifier=0, payload=NULL (empty). Returns error from xrootd_cms_srv_send_frame if connection closed or write fails. */
 
 ngx_int_t
 xrootd_cms_srv_send_ping(xrootd_cms_srv_ctx_t *ctx)

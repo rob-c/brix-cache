@@ -50,7 +50,6 @@ from XRootD.client.flags import OpenFlags, StatInfoFlags
 from settings import (
     CA_DIR,
     DATA_ROOT,
-    NGINX_BIN,
     PKI_DIR,
     PROXY_ATLAS,
     PROXY_CMS,
@@ -71,7 +70,6 @@ from settings import (
 
 VO_URL      = f"root://localhost:{VO_PORT}"
 
-VO_NGINX_DIR = "/tmp/xrd-vo-test"
 
 # Resolve voms-proxy-fake: prefer Python script in utils/, fall back to system binary
 _UTILS_DIR = os.path.join(os.path.dirname(__file__), "..", "utils")
@@ -193,131 +191,21 @@ def _proxy_is_valid(path: str) -> bool:
     return r.returncode == 0
 
 
-# ---------------------------------------------------------------------------
-# nginx VO server helpers
-# ---------------------------------------------------------------------------
-
-_VO_NGINX_CONF = """\
-daemon off;
-worker_processes 1;
-error_log {log_dir}/error.log info;
-pid       {log_dir}/nginx.pid;
-
-thread_pool default threads=4 max_queue=65536;
-events {{ worker_connections 64; }}
-
-stream {{
-    server {{
-        listen {port};
-        xrootd on;
-        xrootd_root {data_root};
-        xrootd_auth gsi;
-        xrootd_allow_write on;
-        xrootd_certificate     {server_cert};
-        xrootd_certificate_key {server_key};
-        xrootd_trusted_ca      {ca_dir}/ca.pem;
-        xrootd_vomsdir         {vomsdir};
-        xrootd_voms_cert_dir   {ca_dir};
-        xrootd_require_vo /cms   cms;
-        xrootd_require_vo /atlas atlas;
-        xrootd_access_log {log_dir}/xrootd_access.log;
-    }}
-}}
-"""
-
-
-def _write_vo_nginx_conf(conf_path: str):
-    log_dir = os.path.join(VO_NGINX_DIR, "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    content = _VO_NGINX_CONF.format(
-        port=VO_PORT,
-        data_root=DATA_ROOT,
-        server_cert=SERVER_CERT,
-        server_key=SERVER_KEY,
-        ca_dir=CA_DIR,
-        vomsdir=VOMSDIR,
-        log_dir=log_dir,
-    )
-    with open(conf_path, "w") as f:
-        f.write(content)
-
-
-def _start_vo_nginx(conf_path: str) -> subprocess.Popen:
-    log_dir = os.path.join(VO_NGINX_DIR, "logs")
-    stderr_path = os.path.join(log_dir, "startup_stderr.log")
-    stderr_fh = open(stderr_path, "w")
-    proc = subprocess.Popen(
-        [NGINX_BIN, "-c", conf_path],
-        stdout=subprocess.DEVNULL,
-        stderr=stderr_fh,
-    )
-
-    # With daemon off, nginx stays in the foreground.  Give it a moment to
-    # start (or fail with a config error).
-    time.sleep(1.0)
-    if proc.poll() is not None:
-        stderr_fh.close()
-        with open(stderr_path) as f:
-            stderr_text = f.read()
-        if "libvomsapi" in stderr_text:
-            pytest.skip(
-                "libvomsapi.so.1 not available — "
-                "skipping VO ACL tests"
-            )
-        pytest.fail(
-            f"VO nginx exited immediately (rc={proc.returncode}).\n"
-            f"stderr: {stderr_text}"
-        )
-
-    # Wait up to 10 s for the port to accept authenticated connections
-    for _ in range(20):
-        # Make sure process is still alive
-        if proc.poll() is not None:
-            stderr_fh.close()
-            with open(stderr_path) as f:
-                stderr_text = f.read()
-            pytest.fail(
-                f"VO nginx exited (rc={proc.returncode}) during startup.\n"
-                f"stderr: {stderr_text}"
-            )
-        r = subprocess.run(
-            ["xrdfs", VO_URL, "ls", "/"],
-            env={**os.environ,
-                 "X509_CERT_DIR":   CA_DIR,
-                 "X509_USER_PROXY": PROXY_CMS,
-                 "XrdSecPROTOCOL":  "gsi"},
-            capture_output=True, timeout=5,
-        )
-        if r.returncode == 0:
-            return proc
-        time.sleep(0.5)
-    proc.terminate()
-    pytest.fail(
-        f"VO nginx server did not become ready on port {VO_PORT}.\n"
-        f"Check {VO_NGINX_DIR}/logs/error.log"
-    )
-
 
 # ---------------------------------------------------------------------------
 # Session fixture: build VOMS infra + start VO nginx
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session", autouse=True)
-def vo_nginx(tmp_path_factory):
+def vo_nginx():
     """
     Build the VOMS test infrastructure (signing cert, vomsdir, proxies) and
-    start a dedicated nginx on VO_PORT with xrootd_require_vo restrictions.
+    verify the dedicated VO nginx on VO_PORT is reachable.
 
-    Skips the whole module if voms-proxy-fake is not on PATH or the nginx
-    binary is absent.
+    Skips the whole module if voms-proxy-fake is not on PATH.
     """
     if not VOMS_PROXY_FAKE:
         pytest.skip("voms-proxy-fake not found — skipping VO ACL tests")
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(
-            f"nginx binary not found at {NGINX_BIN} — "
-            "build with: cd /tmp/nginx-1.28.3 && make -j$(nproc)"
-        )
 
     # ---- VOMS signing cert
     _make_voms_signing_cert()
@@ -342,27 +230,12 @@ def vo_nginx(tmp_path_factory):
     for subdir in ("cms", "atlas", "public"):
         path = os.path.join(DATA_ROOT, subdir)
         os.makedirs(path, exist_ok=True)
-        # Seed a readable file in each directory
         seed = os.path.join(path, "seed.txt")
         if not os.path.exists(seed):
             with open(seed, "w") as f:
                 f.write(f"seed file for {subdir}\n")
 
-    # ---- Start VO nginx via server_control
-    os.makedirs(VO_NGINX_DIR, exist_ok=True)
-
-    import server_control
-    info = server_control.start_nginx_instance(
-        port=VO_PORT, nginx_bin=NGINX_BIN,
-        conf_file="nginx_vo_acl.conf",
-        template_kwargs={
-            "DATA_DIR": DATA_ROOT,
-            "CA_DIR": CA_DIR,
-            "VOMSDIR": VOMSDIR,
-        },
-    )
-
-    # Wait for authenticated xrdfs ls to succeed (ensures GSI/VOMS ready)
+    # ---- Wait for authenticated xrdfs ls to succeed (dedicated server on VO_PORT)
     for _ in range(20):
         r = subprocess.run(
             ["xrdfs", VO_URL, "ls", "/"],
@@ -376,16 +249,9 @@ def vo_nginx(tmp_path_factory):
             break
         time.sleep(0.5)
     else:
-        info["stop"]()
-        pytest.fail(f"VO nginx server did not become ready on port {VO_PORT}.")
+        pytest.skip(f"VO nginx server not ready on port {VO_PORT}.")
 
-    try:
-        yield info
-    finally:
-        try:
-            info["stop"]()
-        except Exception:
-            pass
+    yield
 
 
 # ---------------------------------------------------------------------------

@@ -1,12 +1,31 @@
+/* ---- File: tpc io — low-level socket helpers for native TPC data transfer ----
+ *
+ * WHAT: Three blocking I/O primitives used exclusively by the TPC thread-pool worker
+ *       to read/write bytes between a remote XRootD origin and nginx's local file.
+ *       All functions run inside NGX_THREADS detached workers — allocations use
+ *       malloc/free (not ngx_palloc). No SSL wrapping; plain TCP sockets only.
+ *
+ * WHY: TPC transfers require the destination server to connect directly to the
+ *      source XRootD endpoint and pull data over raw TCP. Unlike event-loop I/O
+ *      which accumulates incrementally via callbacks, these helpers guarantee
+ *      exact byte counts — partial sends/recv loop until complete. The recv_response
+ *      function additionally parses XRootD ServerResponseHdr framing (status +
+ *      payload length) and allocates the body for caller use.
+ *
+ * HOW: tpc_send_all iterates remaining bytes with send() loop, continues on EINTR,
+ *      returns -1 on any other failure. tpc_recv_exact mirrors this pattern with
+ *      recv(). tpc_recv_response reads fixed-size ServerResponseHdr first, then
+ *      mallocs the payload body and calls tpc_recv_exact for the remainder.
+ *      Caller must free the returned body pointer. */
 #include "tpc_internal.h"
 
-#if (NGX_THREADS)
 
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* ------------------------------------------------------------------ */
+/* WHAT: Send all bytes from buf over fd using send() loop — continues on EINTR, returns -1 on any other failure. Returns 0 on full write success. Caller: thread.c, bootstrap.c, source.c (wire I/O pipeline). */
 /* Low-level socket helpers                                              */
 /* ------------------------------------------------------------------ */
 
@@ -32,6 +51,7 @@ tpc_send_all(int fd, const void *buf, size_t len)
 
     return 0;
 }
+/* WHAT: Receive exactly len bytes into buf over fd using recv() loop — continues on EINTR, returns -1 on any other failure. Returns 0 on full read success. Caller: tpc_recv_response (header + payload), thread.c (wire I/O pipeline). */
 
 static int
 tpc_recv_exact(int fd, void *buf, size_t len)
@@ -56,11 +76,23 @@ tpc_recv_exact(int fd, void *buf, size_t len)
     return 0;
 }
 
-/*
- * Read one complete XRootD response frame.
- * *body is malloc'd (caller must free); NULL when dlen==0.
- * Returns 0 on success, -1 on I/O or allocation error.
- */
+/* ---- Function: tpc_recv_response — read one complete XRootD response frame ----
+ *
+ * WHAT: Reads a full XRootD ServerResponseHdr (status code + payload length), then
+ *       allocates and reads the payload body. Returns parsed status, malloc'd body,
+ *       and payload length via output pointers. NULL body when dlen==0.
+ *
+ * WHY: TPC transfers require parsing wire protocol response frames before processing
+ *      data — the header encodes whether the operation succeeded (kXR_ok) or failed
+ *      with a specific kXR error code, plus how many bytes of payload follow. The
+ *      malloc'd body lets callers handle variable-length responses without fixed buffers.
+ *
+ * HOW: Three-phase read → 1) tpc_recv_exact fetches sizeof(ServerResponseHdr) bytes,
+ *      then ntohs/ntohl decode status and dlen from network byte order. 2) If dlen==0
+ *      returns immediately with NULL body. 3) Validates dlen <= TPC_RESP_MAX_BODY,
+ *      mallocs (dlen + 1) bytes for safety, calls tpc_recv_exact to read payload,
+ *      null-terminates the buffer, sets output pointers, and returns 0 on success.
+ *      Caller must free(*body) after use. Returns -1 on any I/O or allocation error. */
 int
 tpc_recv_response(int fd, uint16_t *status, u_char **body, uint32_t *dlen)
 {
@@ -98,4 +130,3 @@ tpc_recv_response(int fd, uint16_t *status, u_char **body, uint32_t *dlen)
     return 0;
 }
 
-#endif /* NGX_THREADS */

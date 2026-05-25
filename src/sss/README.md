@@ -12,6 +12,12 @@ It is widely used at production grid sites that cannot deploy x509 certificates.
 | `auth.c` | `kXR_auth` handler — parses the encrypted challenge, decrypts with Blowfish-CFB, verifies the CRC32 integrity check, extracts the client identity (`name`, `grps`), and sets `ctx->dn` / `ctx->vo_list` on success. |
 | `key_parse.c` | Parses the server-side SSS key file (`/etc/xrootd/s.sss.keytab` or configured path). Loads key ID, key bytes, optional expiry, and policy options (`anyuser`, `anygroup`, etc.). |
 | `config.c` | `xrootd_sss_keytab` directive parser. Reads and validates the keytab file at nginx startup. |
+| `auth_crypto_helpers.c` | Blowfish-CFB encryption and CRC32 helpers for SSS auth |
+| `auth_crypto_helpers.h` | Crypto helper types and prototypes |
+| `auth_identity_challenge.c` | Challenge generation: session ID, encrypted login-ID block |
+| `auth_proxy_credential.c` | Proxy credential parsing and validation |
+| `auth_request.c` | Auth request parsing, CRC verification, identity extraction |
+| `ss_internal.h` | Internal SSS types and cross-file prototypes |
 
 ## Protocol sketch
 

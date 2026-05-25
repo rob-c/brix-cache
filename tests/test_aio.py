@@ -30,7 +30,11 @@ from settings import (
     CA_DIR,
     DATA_ROOT,
     PROXY_STD,
+    SERVER_HOST,
 )
+
+ANON_HOST = SERVER_HOST
+ANON_PORT = NGINX_ANON_PORT
 
 
 # ---------------------------------------------------------------------------
@@ -39,8 +43,9 @@ from settings import (
 
 @pytest.fixture(scope="module", autouse=True)
 def _configure(test_env):
-    global ANON_URL, ANON_PORT, CA_DIR, DATA_ROOT, PROXY_PEM
+    global ANON_URL, ANON_HOST, ANON_PORT, CA_DIR, DATA_ROOT, PROXY_PEM
     ANON_URL  = test_env["anon_url"]
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
     CA_DIR    = test_env["ca_dir"]
     DATA_ROOT = test_env["data_dir"]
@@ -274,7 +279,7 @@ class TestAioPgRead:
         _upload(ANON_URL, "aio-pgread.bin", content)
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(("127.0.0.1", ANON_PORT))
+        sock.connect((ANON_HOST, ANON_PORT))
         sock.settimeout(10)
 
         sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
@@ -352,7 +357,7 @@ class TestAioDestroyedGuard:
 
         # Open and start a large read on a raw socket (we control the lifecycle)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(("127.0.0.1", ANON_PORT))
+        sock.connect((ANON_HOST, ANON_PORT))
 
         # Handshake (20 bytes: 5 x int32 BE)
         sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
@@ -397,7 +402,7 @@ class TestAioDestroyedGuard:
 
         # Verify the server is still alive by making a fresh request
         fresh_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        fresh_sock.connect(("127.0.0.1", ANON_PORT))
+        fresh_sock.connect((ANON_HOST, ANON_PORT))
 
         # Handshake
         fresh_sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))

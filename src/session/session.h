@@ -26,39 +26,40 @@
  * XrdSutBuffer step numbers in protocol/gsi.h.
  */
 
-/* kXR_protocol — advertise server capabilities and negotiate TLS */
+/* ---- Function: xrootd_handle_protocol() ----
+ * WHAT: kXR_protocol handler — first opcode every client must send. Advertises server capabilities (TLS support, auth modes, version) and negotiates TLS upgrade flags. Returns NGX_OK on successful capability exchange, NGX_ERROR if protocol version incompatible or TLS negotiation fails. Called immediately after TCP connection establishment before any other opcode. */
 ngx_int_t xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 
-/* kXR_login — accept username, generate session ID, start auth if required */
+/* ---- Function: xrootd_handle_login() ----
+ * WHAT: kXR_login handler — accepts client username and generates unique session ID. Sets logged_in=1 in context; if auth mode requires credentials (gsi/token), initiates auth round-trip by returning kXR_authmore prompting client to send kXR_auth. If auth_mode=none, sets auth_done=1 immediately allowing subsequent file operations without credential exchange. Session ID stored in shared memory registry for cross-worker lookup by bound stream connections. */
 ngx_int_t xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 
-/* kXR_ping — liveness check; responds kXR_ok with empty body */
+/* ---- Function: xrootd_handle_ping() ----
+ * WHAT: kXR_ping handler — liveness check allowing clients to verify server is still responsive without requiring logged_in/auth_done state. Responds with kXR_ok and empty body at any point in session lifecycle including before login completion. Called by clients monitoring connection health during long transfers or idle periods. */
 ngx_int_t xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
-/* kXR_endsess — graceful teardown; flushes pending I/O then closes */
+/* ---- Function: xrootd_handle_endsess() ----
+ * WHAT: kXR_endsess handler — graceful session teardown. Flushes any pending I/O operations, unregisters session from shared memory registry clearing all published handles via xrootd_session_handle_unpublish_all(), then closes connection. Called by client explicitly requesting session end or after auth_done=1 with no further requests expected. Prevents stale handle references remaining in shared table after session termination. */
 ngx_int_t xrootd_handle_endsess(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
-/* kXR_sigver — validate the HMAC envelope before routing the next request */
+/* ---- Function: xrootd_handle_sigver() ----
+ * WHAT: kXR_sigver handler — validates HMAC-SHA256 request signing envelope before routing the next opcode to its handler. Only required for GSI sessions (xrootd_auth=gsi). Verifies signature covers opcode+body using session secret derived from DH exchange; returns kXR_ok on valid signature, kXR_notAuthorized on invalid or missing signature. Prevents unauthorized opcode injection in authenticated sessions. */
 ngx_int_t xrootd_handle_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
-/*
- * kXR_auth — multi-round authentication dispatcher.
- * Routes to GSI or token auth based on the configured auth mode.
- *
- * gsi_find_bucket() scans an XrdSutBuffer payload for a bucket of a given
- * type (one of the kXRS_* codes in protocol/gsi.h), returning a pointer and
- * length into the raw payload.  Used by GSI cert parsing and response building.
- *
- * xrootd_gsi_parse_x509() extracts the DER-encoded certificate chain from a
- * kXRS_x509 bucket and returns it as an OpenSSL STACK_OF(X509).  The caller
- * is responsible for freeing the stack with sk_X509_pop_free().
- */
+/* ---- Function: gsi_find_bucket() ----
+ * WHAT: Scans an XrdSutBuffer payload for a bucket of a given type (one of the kXRS_* codes in protocol/gsi.h), returning pointer and length into the raw payload. Used by GSI certificate parsing and response building to locate specific data buckets within multi-bucket payloads. Returns 0 on success with data_out/len_out populated, -1 if target bucket not found in payload. */
 int gsi_find_bucket(const u_char *payload, size_t plen,
     uint32_t target_type, const u_char **data_out, size_t *len_out);
+
+/* ---- Function: xrootd_gsi_parse_x509() ----
+ * WHAT: Extracts the DER-encoded certificate chain from a kXRS_x509 bucket within an XrdSutBuffer payload and returns it as an OpenSSL STACK_OF(X509). The caller is responsible for freeing the stack with sk_X509_pop_free(). Used during GSI authentication round-trips to parse client-provided proxy certificates. Returns NULL if no kXRS_x509 bucket found in payload or parsing fails. */
 STACK_OF(X509) *xrootd_gsi_parse_x509(xrootd_ctx_t *ctx,
     ngx_connection_t *c);
+
+/* ---- Function: xrootd_handle_auth() ----
+ * WHAT: kXR_auth handler — multi-round authentication dispatcher routing to GSI or token auth based on configured auth mode. For GSI: exchanges DH keys, certificates, and signed random challenge via multiple kXR_auth/kXR_authmore round-trips tracked by XrdSutBuffer step numbers in protocol/gsi.h. For tokens: validates JWT bearer token against JWKS endpoint checking signature, scope (storage.read/storage.write), expiry, and issuer. Sets auth_done=1 upon successful authentication enabling subsequent file operations. */
 ngx_int_t xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
 #endif /* XROOTD_SESSION_H */

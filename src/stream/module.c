@@ -3,39 +3,6 @@
  *
  * nginx stream module implementing the XRootD root:// protocol.
  * Acts as a kXR_DataServer at the TCP level, with optional write support.
- *
- * Read operations (always available when logged in):
- *   handshake / protocol negotiation
- *   kXR_protocol   — negotiate capabilities and security mode
- *   kXR_login      — accept username; triggers GSI auth when configured
- *   kXR_auth       — GSI/x509 proxy certificate authentication
- *   kXR_ping       — liveness check
- *   kXR_stat       — path-based and handle-based stat
- *   kXR_open       — open files for reading or writing
- *   kXR_read       — read file data (chunked with kXR_oksofar)
- *   kXR_readv      — scatter-gather vector read (up to 1024 segments)
- *   kXR_close      — close an open handle (logs throughput)
- *   kXR_dirlist    — list a directory (with optional kXR_dstat per-entry stat)
- *   kXR_query      — kXR_Qcksum (adler32), kXR_Qspace (statvfs), kXR_Qconfig
- *   kXR_endsess    — graceful session termination
- *
- * Write operations (require xrootd_allow_write on):
- *   kXR_pgwrite    — paged write with CRC32c integrity (used by xrdcp v5)
- *   kXR_write      — raw write at offset (v3/v4 clients)
- *   kXR_sync       — fsync an open handle
- *   kXR_truncate   — truncate by path or open handle
- *   kXR_mkdir      — create directory; recursive with kXR_mkdirpath
- *   kXR_rmdir      — remove an empty directory
- *   kXR_rm         — remove a file
- *   kXR_mv         — rename/move a file or directory
- *   kXR_chmod      — change permission bits
- *
- * -------------------------------------------------------------------------
- * Build
- * -------------------------------------------------------------------------
- *
- *   ./configure --with-stream --add-module=/path/to/nginx-xrootd
- *   make && make install
  */
 
 #include "ngx_xrootd_module.h"
@@ -46,10 +13,16 @@
 /* Module directives                                                    */
 /* ------------------------------------------------------------------ */
 
-/*
- * Text values accepted by `xrootd_auth` in nginx.conf.
- * nginx's enum setter walks this table until it hits ngx_null_string.
- */
+/* ------------------------------------------------------------------ */
+/* WHAT: Authentication mode enum table                                 */
+/* WHY: Provides nginx with selectable auth policy options mapped to    */
+/*      internal constants. The dispatcher uses this during handshake   */
+/*      to advertise available login methods to clients.               */
+/* HOW: Maps textual config values ("none"/"gsi"/"token"/"both"/"sss") */
+/*      onto XROOTD_AUTH_* enum constants used by the session/login     */
+/*      subsystem. "both" enables dual authentication (GSI+token).     */
+/* ------------------------------------------------------------------ */
+/* Text values accepted by `xrootd_auth` in nginx.conf. */
 static ngx_conf_enum_t xrootd_auth_modes[] = {
     { ngx_string("none"),  XROOTD_AUTH_NONE  },
     { ngx_string("gsi"),   XROOTD_AUTH_GSI   },
@@ -59,22 +32,38 @@ static ngx_conf_enum_t xrootd_auth_modes[] = {
     { ngx_null_string,     0                 }
 };
 
-/*
- * Directive table for the stream module.
- *
- * Most entries use nginx's stock setters plus an offsetof() into
- * ngx_stream_xrootd_srv_conf_t, so parsing writes config values directly into
- * the per-server config struct created in ngx_stream_xrootd_create_srv_conf().
- *
- * Entry fields follow nginx's usual pattern:
- *   1. directive name as it appears in nginx.conf
- *   2. where the directive is legal and how many arguments it takes
- *   3. setter callback
- *   4. which config object the setter should write into
- *   5. byte offset of the destination field inside that config object
- *   6. optional extra data for the setter (for example enum tables)
- */
-static ngx_command_t ngx_stream_xrootd_commands[] = {
+/* ------------------------------------------------------------------ */
+/* WHAT: Security/ signing level enum table                             */
+/* WHY: Controls kXR_sigver (HMAC-SHA256 request signing) enforcement  */
+/*      granularity. Higher levels require more rigorous signature      */
+/*      verification but may reject legacy clients that don't sign     */
+/*      requests.                                                      */
+/* HOW: Levels progress from "none" (no signing required) through       */
+/*      "compatible" (legacy tolerance), "standard" (default),          */
+/*      "intense" (strict), to "pedantic" (maximum enforcement).       */
+/* ------------------------------------------------------------------ */
+/* Security level enum for xrootd_security_level. */
+static ngx_conf_enum_t xrootd_security_levels[] = {
+    { ngx_string("none"),       0 },
+    { ngx_string("compatible"), 1 },
+    { ngx_string("standard"),   2 },
+    { ngx_string("intense"),    3 },
+    { ngx_string("pedantic"),   4 },
+    { ngx_null_string,          0 }
+};
+
+/* ------------------------------------------------------------------ */
+/* WHAT: Complete nginx stream module directive configuration table     */
+/* WHY: Consolidates all XRootD configuration options into a single    */
+/*      array so the nginx event loop can parse them during startup.   */
+/*      The table is organized by feature group (core → auth → cache)  */
+/*      for readability and future maintenance.                      */
+/* HOW: Each entry follows nginx convention: directive name, config     */
+/*      level flag, setter function, offset into srv_conf struct,      */
+/*      optional enum/table reference. Terminator is ngx_null_command.*/
+/* ------------------------------------------------------------------ */
+/* Combined directive table: core + cache/proxy directives. */
+ngx_command_t ngx_stream_xrootd_commands[] = {
 
     { ngx_string("xrootd"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
@@ -82,16 +71,16 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_stream_xrootd_enable,
       /* Store the parsed flag in the per-server stream config. */
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, enable),
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.enable),
       NULL },
 
     /* Filesystem/export settings used by nearly every request handler. */
     { ngx_string("xrootd_root"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      /* Single string argument copied into srv_conf->root. */
+      /* Single string argument copied into srv_conf->common.root. */
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, root),
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.root),
       NULL },
 
     /* Selects the login/auth flow the dispatcher advertises to clients. */
@@ -187,6 +176,14 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, token_jwks),
       NULL },
 
+    /* Millisecond interval for mtime-poll JWKS hot refresh (0 = disabled). */
+    { ngx_string("xrootd_token_jwks_refresh_interval"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, token_jwks_refresh_interval),
+      NULL },
+
     { ngx_string("xrootd_token_issuer"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -222,6 +219,14 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, sss_keytab),
       NULL },
+
+    /* Minimum signing level: none, compatible, standard, intense, pedantic. */
+    { ngx_string("xrootd_security_level"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, security_level),
+      xrootd_security_levels },
 
     /* Enable kXR_ableTLS in-protocol TLS upgrade using xrootd_certificate/key. */
     { ngx_string("xrootd_tls"),
@@ -298,10 +303,10 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
     /* Write handlers still perform per-op auth checks; this only enables the feature. */
     { ngx_string("xrootd_allow_write"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      /* Standard boolean setter writing into srv_conf->allow_write. */
+      /* Standard boolean setter writing into srv_conf->common.allow_write. */
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, allow_write),
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.allow_write),
       NULL },
 
     /* Optional observability and runtime-tuning directives. */
@@ -343,6 +348,44 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },
+
+    { ngx_string("xrootd_upstream_tls"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, upstream_tls),
+      NULL },
+
+    { ngx_string("xrootd_upstream_tls_ca"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, upstream_tls_ca),
+      NULL },
+
+    { ngx_string("xrootd_upstream_tls_name"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, upstream_tls_name),
+      NULL },
+
+    { ngx_string("xrootd_upstream_token_file"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, upstream_token_file),
+      NULL },
+
+    /* kXR_prepare / kXR_stage tape-backend dispatch hook */
+    { ngx_string("xrootd_prepare_command"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, prepare_command),
+      NULL },
+
+    /* ---- cache/proxy directives (merged into ngx_stream_xrootd_commands[]) ---- */
 
     /* Read-through cache mode: serve from a local cache_root and fill misses. */
     { ngx_string("xrootd_cache"),
@@ -405,6 +448,46 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       0,
       NULL },
 
+    /* ---- write-through mode directives (mirrors XrdPfc configuration from
+     * /tmp/xrootd-src/src/XrdPfc/README) ---- */
+
+    { ngx_string("xrootd_write_through"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      xrootd_conf_set_wt_enable,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_wt_mode"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_wt_mode,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_wt_origin"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_wt_origin,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Repeatable: path prefix that is NEVER write-through (deny list). */
+    { ngx_string("xrootd_wt_deny_prefix"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_wt_deny_prefix,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Repeatable: path prefix that is ALWAYS write-through (allow list). */
+    { ngx_string("xrootd_wt_allow_prefix"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_wt_allow_prefix,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
     /* Optional CMS manager registration/heartbeat. */
     { ngx_string("xrootd_cms_manager"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -441,7 +524,20 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, listen_port),
       NULL },
 
-#if (NGX_THREADS)
+    { ngx_string("xrootd_ckscan_depth"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ckscan_max_depth),
+      NULL },
+
+    { ngx_string("xrootd_ckscan_max_files"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ckscan_max_files),
+      NULL },
+
     /*
      * Async pread/pwrite support is only compiled when nginx itself was built
      * with thread-pool support.
@@ -451,9 +547,8 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       /* Names an nginx thread_pool block to service async disk I/O. */
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, thread_pool_name),
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.thread_pool_name),
       NULL },
-#endif
 
     /* ---- transparent proxy mode ---- */
 
@@ -481,6 +576,13 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
     { ngx_string("xrootd_proxy_auth"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       xrootd_conf_set_proxy_auth,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_proxy_login_user"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_proxy_login_user,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },
@@ -527,6 +629,13 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, proxy_read_timeout),
       NULL },
 
+    { ngx_string("xrootd_proxy_keepalive_interval"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_keepalive_interval),
+      NULL },
+
     { ngx_string("xrootd_proxy_path_rewrite"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
       xrootd_conf_set_proxy_path_rewrite,
@@ -534,45 +643,28 @@ static ngx_command_t ngx_stream_xrootd_commands[] = {
       0,
       NULL },
 
+    /* OCSP certificate status checking and stapling. */
+    { ngx_string("xrootd_ocsp_enable"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ocsp_enable),
+      NULL },
+
+    { ngx_string("xrootd_ocsp_soft_fail"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ocsp_soft_fail),
+      NULL },
+
+    { ngx_string("xrootd_ocsp_stapling"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ocsp_stapling),
+      NULL },
+
     /* Required terminator so nginx knows where the directive table ends. */
     ngx_null_command
-};
-
-/* ------------------------------------------------------------------ */
-/* Module context                                                       */
-/* ------------------------------------------------------------------ */
-
-static ngx_stream_module_t ngx_stream_xrootd_module_ctx = {
-    /* No global parser rewrites are needed before nginx reads stream blocks. */
-    NULL,                                 /* preconfiguration  */
-    /* Final validation and resource setup once all stream servers are parsed. */
-    ngx_stream_xrootd_postconfiguration,  /* postconfiguration */
-    /* This module keeps no stream-wide main configuration object. */
-    NULL,                                 /* create main conf  */
-  /* Therefore there is also nothing to normalize/validate at main-conf level. */
-    NULL,                                 /* init main conf    */
-    /* Per-server config object allocation and parent/child merging hooks. */
-    ngx_stream_xrootd_create_srv_conf,    /* create srv conf   */
-    ngx_stream_xrootd_merge_srv_conf,     /* merge srv conf    */
-};
-
-/* ------------------------------------------------------------------ */
-/* Module definition                                                    */
-/* ------------------------------------------------------------------ */
-
-/*
- * Static module descriptor consumed by nginx at startup. Once linked into the
- * binary, this is how nginx discovers our directive table and lifecycle hooks.
- * NGX_STREAM_MODULE tells nginx which subsystem owns the callbacks above.
- */
-ngx_module_t ngx_stream_xrootd_module = {
-  NGX_MODULE_V1,
-  &ngx_stream_xrootd_module_ctx,
-  ngx_stream_xrootd_commands,
-  NGX_STREAM_MODULE,
-  /* No master/module init hooks beyond the stream-specific callbacks above. */
-    NULL, NULL,
-    ngx_stream_xrootd_init_process,         /* init process       */
-    NULL, NULL, NULL, NULL,
-    NGX_MODULE_V1_PADDING
 };

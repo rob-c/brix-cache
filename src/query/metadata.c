@@ -1,7 +1,21 @@
 #include "query_internal.h"
 
 /*
- * kXR_QStats, kXR_Qxattr, kXR_QFinfo, and plugin/fctl-style queries.
+ * WHAT: kXR_QStats, kXR_Qxattr, kXR_QFinfo, kXR_QFSinfo, kXR_Qvisa, kXR_Qopaque, kXR_Qopaquf, kXR_Qopaqug — metadata and plugin-style query handlers.
+ *       QStats returns XML-formatted server statistics (connections, bytes, uptime); Qxattr lists extended attributes on a file path;
+ *       QFinfo returns "0" as placeholder; QFSinfo delegates to space handler; Qvisa/opaques return FSctl/fctl unsupported responses
+ *       matching reference XRootD behavior since nginx-xrootd does not embed the XrdOfs plugin layer.
+ *
+ * WHY:  These queries provide server observability (stats), filesystem metadata (xattr, finfo), and extension hooks (visa/opaques) that clients use
+ *       to discover server capabilities and file properties. QStats XML matches reference format for monitoring dashboards; xattr returns oss.* key-value
+ *       pairs including file type, size, timestamps, and user.U.* extended attributes for HEP data provenance tracking. Opaque queries return unsupported
+ *       to maintain protocol compatibility with clients that send FSctl/fctl requests expecting a consistent response shape.
+ *
+ * HOW:  Three shared static helpers handle common patterns: arg_missing() logs + sends kXR_ArgMissing error; fsctl_unsupported()/fctl_unsupported()
+ *       log + send kXR_Unsupported for plugin operations. payload_equals() compares wire payload against expected text with null-termination handling.
+ * Public APIs follow security chain (extract_path → resolve_path → authdb → vo_acl) where applicable, then delegate to stat/listxattr/getxattr syscalls
+ * or return placeholder/unsupported responses. QStats reads metrics struct + local socket address for port extraction; xattr builds oss.* key-value string
+ * with listxattr iteration filtering user.U.* prefixes.
  */
 
 static ngx_int_t
@@ -16,7 +30,6 @@ xrootd_query_arg_missing(xrootd_ctx_t *ctx, ngx_connection_t *c,
                              "Required query argument not present");
 }
 
-
 static ngx_int_t
 xrootd_query_fsctl_unsupported(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const char *path, const char *tag, ngx_uint_t op)
@@ -29,7 +42,6 @@ xrootd_query_fsctl_unsupported(xrootd_ctx_t *ctx, ngx_connection_t *c,
                              "FSctl operation not supported");
 }
 
-
 static ngx_int_t
 xrootd_query_fctl_unsupported(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const char *path, const char *tag, ngx_uint_t op)
@@ -41,7 +53,6 @@ xrootd_query_fctl_unsupported(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_send_error(ctx, c, kXR_Unsupported,
                              "fctl operation not supported");
 }
-
 
 static ngx_flag_t
 xrootd_query_payload_equals(xrootd_ctx_t *ctx, const char *text)
@@ -109,17 +120,23 @@ xrootd_query_stats(xrootd_ctx_t *ctx, ngx_connection_t *c)
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (n + 1));
 }
 
+/* ---- public API: xrootd_query_stats() — kXR_QStats server statistics handler ----
+ * WHAT: Returns XML-formatted server statistics including active/total connections, bytes received/sent, current timestamp, and listening port.
+ */
 
 ngx_int_t
 xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    char    pathbuf[XROOTD_MAX_PATH + 1];
-    char    resolved[PATH_MAX];
-    char    resp[4096];
-    int     pos = 0;
-    char    raw_list[4096];
-    ssize_t list_sz;
+    char        pathbuf[XROOTD_MAX_PATH + 1];
+    char        resolved[PATH_MAX];
+    char        resp[4096];
+    int         pos = 0;
+    char        raw_list[4096];
+    ssize_t     list_sz;
+    struct stat st;
+    char        ftype;
+    char        facc;
 
     if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
@@ -133,7 +150,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
     }
 
-    if (!xrootd_resolve_path(c->log, &conf->root, pathbuf,
+    if (!xrootd_resolve_path(c->log, &conf->common.root, pathbuf,
                              resolved, sizeof(resolved))) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
         return xrootd_send_error(ctx, c, kXR_NotFound, "file not found");
@@ -151,6 +168,29 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "VO not authorized");
     }
 
+    if (stat(resolved, &st) != 0) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
+        return xrootd_send_error(ctx, c, kXR_IOError, "stat failed");
+    }
+
+    if (S_ISREG(st.st_mode)) {
+        ftype = 'f';
+    } else if (S_ISDIR(st.st_mode)) {
+        ftype = 'd';
+    } else {
+        ftype = 'o';
+    }
+
+    facc = (st.st_mode & S_IWUSR) ? 'w' : 'r';
+
+    pos = snprintf(resp, sizeof(resp) - 1,
+                   "oss.cgroup=default&oss.type=%c&oss.used=%lld"
+                   "&oss.mt=%ld&oss.ct=%ld&oss.at=%ld"
+                   "&oss.u=*&oss.g=*&oss.fs=%c",
+                   ftype, (long long) st.st_size,
+                   (long) st.st_mtime, (long) st.st_ctime, (long) st.st_atime,
+                   facc);
+
     list_sz = listxattr(resolved, raw_list, sizeof(raw_list));
     if (list_sz > 0) {
         char *lp = raw_list;
@@ -167,7 +207,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 if (vlen >= 0) {
                     val[vlen] = '\0';
                     pos += snprintf(resp + pos, sizeof(resp) - pos - 1,
-                                    "%s=%.*s\n", lp + 5, (int) vlen, val);
+                                    "&%s=%.*s", lp + 5, (int) vlen, val);
                 }
             }
 
@@ -177,13 +217,13 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     xrootd_log_access(ctx, c, "QUERY", pathbuf, "xattr", 1, 0, NULL, 0);
     XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_XATTR);
-    if (pos == 0) {
-        return xrootd_send_ok(ctx, c, NULL, 0);
-    }
 
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (pos + 1));
 }
 
+/* ---- public API: xrootd_query_xattr() — kXR_Qxattr extended attribute listing handler ----
+ * WHAT: Lists file extended attributes (xattrs) on a resolved path. Full security chain: extract_path → resolve_path → authdb read check → vo ACL check → stat → listxattr iteration filtering user.U.* prefixes → getxattr per matching attr. Returns oss.* key-value string with file type, size, timestamps, and access flags plus any user.U.* xattrs.
+ */
 
 ngx_int_t
 xrootd_query_finfo(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -193,6 +233,9 @@ xrootd_query_finfo(xrootd_ctx_t *ctx, ngx_connection_t *c)
     return xrootd_send_ok(ctx, c, "0", 2);
 }
 
+/* ---- public API: xrootd_query_finfo() — kXR_QFinfo file info placeholder handler ----
+ * WHAT: Returns "0" as a placeholder response matching reference XRootD behavior for QFinfo (file info) which nginx-xrootd does not implement via the XrdOfs plugin layer.
+ */
 
 ngx_int_t
 xrootd_query_visa(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -211,6 +254,9 @@ xrootd_query_visa(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                          "visa", XROOTD_OP_QUERY_VISA);
 }
 
+/* ---- public API: xrootd_query_visa() — kXR_Qvisa visa query handler ----
+ * WHAT: Validates fhandle index, then returns FSctl unsupported response matching reference XRootD behavior since nginx-xrootd does not embed the XrdOfs plugin layer.
+ */
 
 ngx_int_t
 xrootd_query_opaque(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -224,6 +270,9 @@ xrootd_query_opaque(xrootd_ctx_t *ctx, ngx_connection_t *c)
                                           XROOTD_OP_QUERY_OPAQUE);
 }
 
+/* ---- public API: xrootd_query_opaque() — kXR_Qopaque opaque FSctl query handler ----
+ * WHAT: Validates payload presence, then returns FSctl unsupported response matching reference XRootD behavior since nginx-xrootd does not embed the XrdOfs plugin layer.
+ */
 
 ngx_int_t
 xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -243,7 +292,7 @@ xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
                           "opaquf", kXR_ArgInvalid, "invalid path");
     }
 
-    if (!xrootd_resolve_path_noexist(c->log, &conf->root, pathbuf,
+    if (!xrootd_resolve_path_noexist(c->log, &conf->common.root, pathbuf,
                                      resolved, sizeof(resolved))) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_OPAQUF, "QUERY", pathbuf,
                           "opaquf", kXR_NotFound, "invalid path");
@@ -264,6 +313,9 @@ xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                           XROOTD_OP_QUERY_OPAQUF);
 }
 
+/* ---- public API: xrootd_query_opaquf() — kXR_Qopaquf opaque fctl query handler ----
+ * WHAT: Full security chain: extract_path → resolve_path_noexist (allows non-existing paths) → authdb read check → vo ACL check, then returns fctl unsupported response matching reference XRootD behavior.
+ */
 
 ngx_int_t
 xrootd_query_opaqug(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -286,4 +338,8 @@ xrootd_query_opaqug(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     return xrootd_query_fctl_unsupported(ctx, c, ctx->files[idx].path,
                                          "opaqug", XROOTD_OP_QUERY_OPAQUG);
+
+/* ---- public API: xrootd_query_opaqug() — kXR_Qopaqug opaque fctl query handler ----
+ * WHAT: Validates fhandle index, checks payload against "ofs.tpc cancel" string for TPC cancellation detection (returns kXR_FSError if not found), then returns fctl unsupported response matching reference XRootD behavior.
+ */
 }

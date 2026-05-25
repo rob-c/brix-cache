@@ -1,5 +1,13 @@
 #pragma once
 
+/* ---- File: context.h — Per-connection session context (xrootd_ctx_t) ----
+ *
+ * WHAT: Defines xrootd_ctx_t — per-TCP-connection session context holding all state for the XRootD protocol lifecycle. Struct sections: input accumulation (hdr_buf[24] + hdr_pos for fixed header read, cur_streamid/cur_reqid/cur_body/cur_dlen for parsed header fields), payload accumulation (payload pointer + pos into reusable payload_buf with size guard, async handlers detach buf on completion), session auth state (sessid from kXR_login, logged_in/auth_done flags, login_user[9]/login_pid from client, auth_fail_count capped at XROOTD_MAX_AUTH_ATTEMPTS, pool_bytes_used capped at XROOTD_MAX_CONN_POOL_BYTES), authenticated identity (dn[512] GSI subject DN, primary_vo[128], vo_list[512] space-separated VOs, peer_ip[64]), open file table (xrootd_file_t[XROOTD_MAX_FILES] — array index = XRootD file handle), pending flat-buffer send path (wbuf/wbuf_len/wbuf_pos/wbuf_base for EAGAIN tail storage + write event arm), pending chain send path (wchain remaining links + wchain_pending unsent bytes + wchain_base backing buffer, only one of wbuf or wchain active at a time), reusable response scratch buffers (read_scratch/read_hdr_scratch/write_scratch with size fields — malloc/realloc single buffer per session lifetime avoids pool growth), reusable thread-pool task (read_aio_task for memory-backed kXR_read TLS reads), reusable chain objects (read_fast_hdr/body_chain + hdr/body_buf + read_fast_file for common one-chunk response avoiding per-read allocation), GSI Diffie-Hellman key (gsi_dh_key generated at kXGS_cert freed after DH secret derivation at kXGC_cert), bearer-token auth state (token_auth flag + token_scope_count + token_scopes[XROOTD_MAX_TOKEN_SCOPES]), per-request latency start time, prepare polling state (prepare_reqid/prepare_paths heap-allocated newline-separated path list), session-level transfer totals (session_bytes/session_bytes_written/session_bytes_tx_ipv4/ipv6/session_bytes_rx_ipv4/ipv6/session_start for access log at disconnect), metrics pointer to shared-memory segment, AIO destruction guard (destroyed=1 in on_disconnect prevents stale callback writes), TLS upgrade state (tls_pending=1 when kXR_haveTLS sent awaiting ClientHello), upstream redirector query pointer, proxy forwarding context pointer, raw bearer token [4096] for proxy forward, kXR_sigver request-signing lifecycle (signing_key HMAC-SHA256 from DH secret + signing_active/last_seqno replay guard + sigver_pending envelope fields + sigver_hmac verification + cached EVP_MAC/EVP_MAC_CTX handles), kXR_bind parallel-stream state (is_bound/pathid/bound_sessid for secondary data channel inheriting primary auth, lazy reopen of canonical path in own worker with device/inode validation), CMS locate suspension (cms_wait_streamid pending-table key), protocol label/IP version (read-only set at connection time).
+ *
+ * WHY: One instance per TCP connection allocated from nginx connection pool. State machine runs on single worker thread — XRootD multiplexing handled via streamid matching on client side, server serialises responses. Reusable scratch buffers and chain objects prevent pool growth in long-lived xrdcp sessions (malloc/realloc instead of ngx_palloc per-request). AIO destruction guard prevents post-disconnect callback writes to freed memory. TLS upgrade path intercepts next recv as ClientHello when kXR_haveTLS advertised. Bind connections lazily reopen primary's canonical path in own worker (nginx workers cannot share post-fork fd integers safely) and validate device/inode before serving data. Sigver lifecycle: kXGC_cert → signing_key=SHA-256(DH-secret)/active=1, sigver arrives → pending=1/envelope saved, next dispatch → HMAC verified/pending=0, replay guard → seqno > last_seqno.
+ *
+ * HOW: Struct layout — session pointer/state (lines 16-17) → input accumulation hdr_buf/hdr_pos (lines 24-26) → parsed header cur_streamid/cur_reqid/cur_body/cur_dlen (lines 28-31) → payload accumulation payload/payload_pos/payload_buf/payload_buf_size (lines 43-46) → session auth sessid/logged_in/auth_done/login_user/login_pid/auth_fail_count/pool_bytes_used (lines 59-65) → authenticated identity dn/primary_vo/vo_list/peer_ip (lines 68-71) → file table files[XROOTD_MAX_FILES] (line 74) → flat-buffer send wbuf/wbuf_len/wbuf_pos/wbuf_base (lines 84-87) → chain send wchain/wchain_pending/wchain_base (lines 97-99) → scratch buffers read_scratch/read_hdr_scratch/write_scratch + sizes (lines 112-117) → aio task read_aio_task (line 124) → fast-chain objects read_fast_* (lines 131-135) → gsi_dh_key (line 142) → token auth token_auth/token_scope_count/token_scopes (lines 153-155) → req_start (line 158) → prepare polling prepare_reqid/prepare_paths/prepare_paths_len (lines 164-166) → session totals bytes/session_bytes_tx_ipv4/ipv6/session_bytes_rx_ipv4/ipv6/session_start (lines 169-175) → metrics pointer (line 179) → destroyed guard (line 187) → tls_pending (line 195) → upstream pointer (line 198) → proxy pointer (line 201) → bearer_token[4096] (line 208) → sigver signing_key/signing_active/last_seqno/sigver_* fields/EVP_MAC/EVP_MAC_CTX (lines 225-235) → bind is_bound/pathid/bound_sessid (lines 253-255) → cms_wait_streamid (line 258) → protocol_label/ip_version (lines 261-262). */
+
 /*
  * Per-connection context (xrootd_ctx_t).
  *
@@ -61,11 +69,14 @@ typedef struct {
     ngx_flag_t auth_done;  /* set when authentication is complete */
     char       login_user[9]; /* fixed-width kXR_login username, NUL-terminated */
     uint32_t   login_pid;     /* client pid from kXR_login, host byte order */
+    uint8_t    auth_fail_count; /* failed kXR_auth attempts; capped at XROOTD_MAX_AUTH_ATTEMPTS */
+    size_t     pool_bytes_used; /* cumulative ngx_palloc bytes; capped at XROOTD_MAX_CONN_POOL_BYTES */
 
     /* Authenticated identity (filled during kXR_auth / token validation) */
     char  dn[512];          /* GSI subject DN, e.g. "/DC=org/DC=cilogon/CN=Rob" */
     char  primary_vo[128];  /* first VO from the VOMS attribute cert, e.g. "cms" */
     char  vo_list[512];     /* space-separated list of all VOs, e.g. "cms atlas" */
+    char  peer_ip[64];      /* remote peer address for authdb HOST ('p') rules */
 
     /* Open file table — array index IS the XRootD file handle (0-based) */
     xrootd_file_t  files[XROOTD_MAX_FILES];
@@ -113,14 +124,12 @@ typedef struct {
     u_char   *write_scratch;          /* reusable pgwrite decode buffer */
     size_t    write_scratch_size;     /* current allocated size */
 
-#if (NGX_THREADS)
     /*
      * Reusable thread-pool task for memory-backed kXR_read.  TLS/native GSI
      * reads cannot use sendfile, so avoiding per-request task allocation keeps
      * single-stream encrypted reads from growing the connection pool.
      */
     ngx_thread_task_t *read_aio_task;
-#endif
 
     /*
      * Reusable chain objects for the common one-chunk read response.
@@ -226,6 +235,7 @@ typedef struct {
     uint64_t  last_seqno;         /* highest seqno accepted so far */
 
     int       sigver_pending;     /* 1 = next dispatch must verify the HMAC */
+    int       verified_signing;   /* 1 = current request passed sigver verification */
     uint16_t  sigver_expectrid;   /* the opcode the sigver envelope covers */
     uint64_t  sigver_seqno;       /* seqno from the kXR_sigver frame */
     int       sigver_nodata;      /* 1 = payload was excluded from the HMAC */

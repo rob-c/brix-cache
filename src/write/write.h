@@ -55,7 +55,6 @@ ngx_flag_t xrootd_write_resolve_existing_path(xrootd_ctx_t *ctx,
     char *reqpath, size_t reqpathsz, char *resolved, size_t resolvedsz,
     ngx_int_t *rc);
 
-
 /*
  * xrootd_pgwrite_decode_payload — decode a kXR_pgwrite payload into a flat
  * data buffer by stripping the per-4096-byte CRC records.
@@ -74,12 +73,11 @@ ngx_int_t xrootd_pgwrite_decode_payload(const u_char *payload,
     size_t payload_len, int64_t offset, u_char *flat, size_t *flat_len,
     int64_t *bad_offset);
 
-#if (NGX_THREADS)
 /*
  * xrootd_try_post_write_aio — allocate an AIO write task and post it to the
  * thread pool.
  *
- * If no thread pool is configured (conf->thread_pool == NULL), returns NGX_OK
+ * If no thread pool is configured (conf->common.thread_pool == NULL), returns NGX_OK
  * with *posted = 0 so the caller falls back to synchronous pwrite.
  *
  * payload_to_free: if non-NULL, this buffer is freed by the done callback
@@ -92,6 +90,5 @@ ngx_int_t xrootd_try_post_write_aio(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int idx, off_t offset, const u_char *data, size_t len,
     int64_t req_offset, ngx_uint_t is_pgwrite, u_char *payload_to_free,
     const char *fallback_log, ngx_flag_t *posted);
-#endif
 
 #endif /* XROOTD_WRITE_H */

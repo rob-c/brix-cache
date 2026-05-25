@@ -1,6 +1,14 @@
 #include "handshake.h"
 #include "../read/clone.h"
 
+/* ---- Bound-stream restriction helper — read-only access for secondary connections ----
+ *
+ * WHAT: Rejects non-read file operations on bound (secondary) connections. Only read operations allowed.
+ *       Returns XROOTD_DISPATCH_CONTINUE if connection is NOT bound; otherwise sends kXR_NotAuthorized error.
+ *
+ * WHY: Bound streams are established for parallel read transfers — secondary connections must only perform
+ *      read operations on primary handles to prevent data corruption or unauthorized mutations. */
+
 static ngx_int_t
 xrootd_reject_bound_nonread_file_op(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const char *verb)
@@ -16,6 +24,52 @@ xrootd_reject_bound_nonread_file_op(xrootd_ctx_t *ctx, ngx_connection_t *c,
                              "bound streams may only read primary handles");
 }
 
+/* ---- Read phase dispatcher — non-mutating filesystem operations ----
+ *
+ * WHAT: Handles all non-mutating (read-only) and metadata opcodes after authentication is verified.
+ *       Includes stat/statx (metadata), open/read/close (file access), dirlist/query/locate (directory ops),
+ *       readv/pgread (multi-segment reads), fattr (extended attributes), prepare (staging), clone (server-side copy). */
+
+/* ---- Authentication gate pattern (require_auth) ----
+ *
+ * WHAT: Every read opcode calls xrootd_dispatch_require_auth() first. Returns error if client is not authenticated.
+ *       This ensures all filesystem operations require valid GSI/token/SSS authentication before proceeding. */
+
+/* ---- Bound-stream check pattern (reject_bound_nonread_file_op) ----
+ *
+ * WHAT: For stat/open/close/dirlist/query/prepare/locate/statx/fattr — bound connections must be checked.
+ *       These operations affect primary handle state, so secondary connections need explicit permission gating. */
+
+/* Gate macros: check auth (and bound for non-read ops), then invoke handler.
+ * ctx/c/conf/rc are from the enclosing xrootd_dispatch_read_opcode scope. */
+#define DISPATCH_RD(fn, ...) \
+    rc = xrootd_dispatch_require_auth(ctx, c); \
+    if (rc != XROOTD_DISPATCH_CONTINUE) { return rc; } \
+    return fn(ctx, c, ##__VA_ARGS__)
+
+#define DISPATCH_RD_BOUND(verb, fn, ...) \
+    rc = xrootd_dispatch_require_auth(ctx, c); \
+    if (rc != XROOTD_DISPATCH_CONTINUE) { return rc; } \
+    rc = xrootd_reject_bound_nonread_file_op(ctx, c, verb); \
+    if (rc != XROOTD_DISPATCH_CONTINUE) { return rc; } \
+    return fn(ctx, c, ##__VA_ARGS__)
+
+/* ---- Function: xrootd_dispatch_read_opcode() ----
+ *
+ * WHAT: Dispatches all non-mutating (read-only) and metadata opcodes from the central dispatcher (src/handshake/dispatch.c). Handles
+ *      fifteen read-side requests including: stat/statx (metadata queries), open/read/close (file access), dirlist/query/locate
+ *      (directory operations), readv/pgread (multi-segment reads), fattr (extended attributes), prepare (staging), and clone
+ *      (server-side file copy). Every opcode calls require_auth() first, then optionally reject_bound_nonread_file_op() for
+ *      bound-stream connections. Returns XROOTD_DISPATCH_CONTINUE if opcode is not a read opcode — passes to write dispatcher.
+ *
+ * WHY: Ensures all filesystem operations are authenticated before proceeding. Read opcodes do not mutate data but affect session
+ *      state (open handles, byte counters), so authentication gating prevents unauthorized access even on anonymous connections.
+ *      Bound-stream secondary connections have additional restrictions — they may only read primary handles to prevent data corruption.
+ *
+ * HOW: Single switch statement matching ctx->cur_reqid against fifteen read opcodes → each case calls require_auth() first (return error if not authed),
+ *      optionally calls reject_bound_nonread_file_op() for bound connections, then calls corresponding handler function → returns handler result
+ *      or XROOTD_DISPATCH_CONTINUE for unhandled cases. kXR_open additionally requires write check before read-side handling. */
+
 ngx_int_t
 xrootd_dispatch_read_opcode(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
@@ -24,138 +78,24 @@ xrootd_dispatch_read_opcode(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     switch (ctx->cur_reqid) {
 
-    case kXR_stat:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "STAT");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_stat(ctx, c, conf);
-
-    case kXR_open:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "OPEN");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_open(ctx, c, conf);
-
-    case kXR_read:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_read(ctx, c);
-
-    case kXR_close:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "CLOSE");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_close(ctx, c);
-
-    case kXR_dirlist:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "DIRLIST");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_dirlist(ctx, c, conf);
-
-    case kXR_readv:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_readv(ctx, c);
-
-    case kXR_query:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "QUERY");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_query(ctx, c, conf);
-
-    case kXR_prepare:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "PREPARE");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_prepare(ctx, c, conf);
-
-    case kXR_pgread:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_pgread(ctx, c);
-
-    case kXR_locate:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "LOCATE");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_locate(ctx, c, conf);
-
-    case kXR_statx:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "STATX");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_statx(ctx, c, conf);
-
-    case kXR_fattr:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "FATTR");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_fattr(ctx, c, conf);
-
-    case kXR_clone:
-        rc = xrootd_dispatch_require_auth(ctx, c);
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        rc = xrootd_reject_bound_nonread_file_op(ctx, c, "CLONE");
-        if (rc != XROOTD_DISPATCH_CONTINUE) {
-            return rc;
-        }
-        return xrootd_handle_clone(ctx, c);
+    case kXR_stat:    DISPATCH_RD_BOUND("STAT",    xrootd_handle_stat,    conf);
+    case kXR_open:    DISPATCH_RD_BOUND("OPEN",    xrootd_handle_open,    conf);
+    case kXR_read:    DISPATCH_RD(xrootd_handle_read);
+    case kXR_close:   DISPATCH_RD_BOUND("CLOSE",   xrootd_handle_close);
+    case kXR_dirlist: DISPATCH_RD_BOUND("DIRLIST", xrootd_handle_dirlist, conf);
+    case kXR_readv:   DISPATCH_RD(xrootd_handle_readv);
+    case kXR_query:   DISPATCH_RD_BOUND("QUERY",   xrootd_handle_query,   conf);
+    case kXR_prepare: DISPATCH_RD_BOUND("PREPARE", xrootd_handle_prepare, conf);
+    case kXR_pgread:  DISPATCH_RD(xrootd_handle_pgread);
+    case kXR_locate:  DISPATCH_RD_BOUND("LOCATE",  xrootd_handle_locate,  conf);
+    case kXR_statx:   DISPATCH_RD_BOUND("STATX",   xrootd_handle_statx,   conf);
+    case kXR_fattr:   DISPATCH_RD_BOUND("FATTR",   xrootd_handle_fattr,   conf);
+    case kXR_clone:   DISPATCH_RD_BOUND("CLONE",   xrootd_handle_clone);
 
     default:
         return XROOTD_DISPATCH_CONTINUE;
     }
 }
+
+#undef DISPATCH_RD
+#undef DISPATCH_RD_BOUND

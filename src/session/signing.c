@@ -1,5 +1,55 @@
 #include "../ngx_xrootd_module.h"
 
+/* ------------------------------------------------------------------ */
+/* Request Signing — kXR_sigver handler                                  */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements the kXR_sigver opcode — XRootD request signing mechanism.
+ *       When enabled, clients must provide an HMAC-SHA256 signature for every subsequent
+ *       request after this opcode. The server stores the expected HMAC (pending state) and
+ *       verifies it in xrootd_dispatch() before processing each covered request. This prevents
+ *       request forgery and replay attacks on GSI sessions.
+ *
+ * WHY: GSI sessions use a Diffie-Hellman shared secret as their signing key. Without sigver,
+ *      an attacker could inject fake requests into the session stream — signatures ensure every
+ *      opcode (read/write/stat/etc.) is cryptographically verified before execution. This is a
+ *      critical security invariant for GSI deployments.
+ *
+ * HOW: Two-phase mechanism:
+ *      Phase 1 (sigver handler): client sends HMAC + seqno + expectrid → server stores pending state,
+ *         rejects replays (seqno must strictly increase), only verifies HMAC-SHA256 (not RSA)
+ *      Phase 2 (dispatch verification): xrootd_verify_pending_sigver() computes HMAC of next request
+ *         and compares against stored pending value — mismatch returns kXR_NotAuthorized */
+
+/* ------------------------------------------------------------------ */
+/* Section: Sigver Replay Protection                                     */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: Sequential number tracking prevents replay attacks. Each sigver uses a monotonically
+ *       increasing seqno; if the server sees a seqno that is <= its last recorded value, it rejects
+ *      as a potential replay attack. This ensures signatures cannot be reused across requests.
+ *
+ * WHY: Without seqno tracking, an attacker could capture a valid sigver response and inject it into
+ *      subsequent requests — the HMAC would still match but the request content would differ. Seqno
+ *      provides cryptographic binding between signature and specific request context.
+ *
+ * HOW: On each sigver update: compare new seqno against ctx->last_seqno → reject if <= (replay) →
+ *      update last_seqno = new seqno for future comparisons. */
+
+/* ---- Function: xrootd_handle_sigver() ----
+ *
+ * WHAT: Handles the kXR_sigver opcode — stores an expected HMAC-SHA256 signature for verification of the next
+ *       request. Validates seqno monotonicity (rejects replays), stores pending state including expectrid,
+ *      seqno, hmac bytes, and nodata flag. Only verifies HMAC-SHA256 signatures; RSA paths are accepted without check.
+ *
+ * WHY: Critical security mechanism for GSI sessions — prevents request forgery by ensuring every subsequent opcode
+ *      is cryptographically verified before processing. In token/anonymous modes sigver is accepted but not enforced,
+ *      accommodating clients that may send it unsolicited when connecting to unknown server types.
+ *
+ * HOW: Two-phase flow → parse expectrid (uint16) + seqno (uint64 BE) from wire format → GSI signing check (reject replay if
+ *      seqno <= last_seqno, only verify HMAC-SHA256 not RSA) → store pending state (sigver_pending=1, sigver_hmac[32],
+ *      sigver_expectrid, sigver_seqno, sigver_nodata flag) → return kXR_ok with access-log entry. */
+
 /*
  * xrootd_handle_sigver - XRootD request signing (kXR_sigver).
  *

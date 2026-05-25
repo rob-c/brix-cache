@@ -1,0 +1,117 @@
+#include "proxy_internal.h"
+#include "../connection/handler.h"
+#include <sys/socket.h>
+
+/*
+ * WHAT: Handle upstream write events — TCP connect validation, TLS handshake initiation (if configured),
+ *      buffered data flush to upstream, and read event arming after write completes.
+ * WHY: nginx-xrootd proxy buffers client requests before writing them to the upstream XRootD server.
+ *      The first write event is special because it must validate TCP connectivity, optionally initiate TLS,
+ *      then transition into bootstrap phase for protocol negotiation. Subsequent write events flush the buffer.
+ * HOW: Extract uconn and proxy ctx from wev->data; check client destruction/timeout; delegate TLS to SSL layer;
+ *      on CONNECTING state: getsockopt SO_ERROR for connect validation + optional ngx_ssl_create_connection for TLS;
+ *      transition to XRD_PX_BOOTSTRAP then flush wbuf via xrootd_proxy_flush(); arm upstream read event after write done.
+ */
+
+/* ---- write event handler -------------------------------------------------- */
+
+void
+xrootd_proxy_write_handler(ngx_event_t *wev)
+{
+    ngx_connection_t   *uconn = wev->data;
+    xrootd_proxy_ctx_t *proxy = uconn->data;
+    xrootd_ctx_t       *ctx   = proxy->client_ctx;
+
+    if (ctx == NULL || ctx->destroyed) {
+        xrootd_proxy_cleanup(proxy);
+        return;
+    }
+
+    if (wev->timedout) {
+        xrootd_proxy_abort(proxy, "proxy: upstream write timeout");
+        return;
+    }
+
+    /* TLS handshake is driven by the SSL layer, not the write handler */
+    if (proxy->state == XRD_PX_TLS_HANDSHAKE) {
+        return;
+    }
+
+    /* On first write event after connect(), check socket error */
+    if (proxy->state == XRD_PX_CONNECTING) {
+        int       err = 0;
+        socklen_t len = sizeof(err);
+
+        if (getsockopt(uconn->fd, SOL_SOCKET, SO_ERROR,
+                       (char *) &err, &len) == -1 || err)
+        {
+            ngx_log_error(NGX_LOG_ERR, proxy->client_conn->log,
+                          err ? err : ngx_socket_errno,
+                          "xrootd proxy: upstream TCP connect failed");
+            XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+            XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
+            xrootd_proxy_abort(proxy, "proxy: TCP connect failed");
+            return;
+        }
+
+        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+                       "xrootd proxy: upstream TCP connected");
+
+        /* Remove the connect-timeout timer — it must not fire during normal use. */
+        if (uconn->write->timer_set) {
+            ngx_del_timer(uconn->write);
+        }
+
+#if (NGX_SSL)
+        if (proxy->conf != NULL
+            && proxy->conf->proxy_upstream_tls
+            && proxy->conf->proxy_tls_ctx != NULL)
+        {
+            if (ngx_ssl_create_connection(proxy->conf->proxy_tls_ctx, uconn,
+                                          NGX_SSL_BUFFER | NGX_SSL_CLIENT)
+                != NGX_OK)
+            {
+                XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
+                XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
+                xrootd_proxy_abort(proxy, "proxy: TLS setup failed");
+                return;
+            }
+            /* SNI: prefer explicit name directive, fall back to configured host */
+            {
+                const char *sni =
+                    (proxy->conf->proxy_upstream_tls_name.len > 0)
+                    ? (const char *) proxy->conf->proxy_upstream_tls_name.data
+                    : (const char *) proxy->conf->proxy_host.data;
+                SSL_set_tlsext_host_name(uconn->ssl->connection, sni);
+            }
+            uconn->ssl->handler = xrootd_proxy_tls_handshake_done;
+            proxy->state = XRD_PX_TLS_HANDSHAKE;
+            if (ngx_ssl_handshake(uconn) != NGX_AGAIN) {
+                xrootd_proxy_tls_handshake_done(uconn);
+            }
+            return;
+        }
+#endif
+
+        proxy->state    = XRD_PX_BOOTSTRAP;
+        proxy->bs_phase = XRD_PX_BS_HANDSHAKE;
+        proxy->rhdr_pos = 0;
+    }
+
+    if (proxy->wbuf_pos < proxy->wbuf_len) {
+        ngx_int_t rc = xrootd_proxy_flush(proxy);
+        if (rc == NGX_ERROR) {
+            xrootd_proxy_abort(proxy, "proxy: upstream write error");
+            return;
+        }
+        if (rc == NGX_AGAIN) {
+            return;
+        }
+    }
+
+    /* Write complete — arm upstream read */
+    if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
+        xrootd_proxy_abort(proxy, "proxy: read arm failed after write");
+    }
+}
+

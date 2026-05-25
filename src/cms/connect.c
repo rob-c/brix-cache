@@ -2,6 +2,9 @@
 
 #include <ngx_event_connect.h>
 
+/* ---- ngx_xrootd_cms_schedule — set or replace the CMS timer with given delay ----
+ *
+ * WHAT: Arms or replaces the CMS heartbeat timer to fire after `delay` milliseconds. If a timer is already set, it's removed first before the new one is added. Used by connect lifecycle (initial connection retry, periodic heartbeat). */
 
 void
 ngx_xrootd_cms_schedule(ngx_xrootd_cms_ctx_t *ctx, ngx_msec_t delay)
@@ -13,6 +16,9 @@ ngx_xrootd_cms_schedule(ngx_xrootd_cms_ctx_t *ctx, ngx_msec_t delay)
     ngx_add_timer(&ctx->timer, delay);
 }
 
+/* ---- ngx_xrootd_cms_schedule_retry — exponential backoff reconnect scheduler ----
+ *
+ * WHAT: Doubles the current backoff delay (up to NGX_XROOTD_CMS_BACKOFF_MAX = 60s) and schedules a retry. Called after connection failure or disconnect to stagger reconnection attempts. Prevents hammering the CMS manager during transient failures. */
 
 void
 ngx_xrootd_cms_schedule_retry(ngx_xrootd_cms_ctx_t *ctx)
@@ -30,6 +36,9 @@ ngx_xrootd_cms_schedule_retry(ngx_xrootd_cms_ctx_t *ctx)
     ngx_xrootd_cms_schedule(ctx, delay);
 }
 
+/* ---- ngx_xrootd_cms_disconnect — tear down active CMS connection and reset state ----
+ *
+ * WHAT: Closes the active TCP connection, removes read/write timers, resets ctx->connection to NULL. Also clears logged_in flag and resets inbuf position for next reconnection attempt. Called on I/O errors or timeouts. */
 
 void
 ngx_xrootd_cms_disconnect(ngx_xrootd_cms_ctx_t *ctx)
@@ -57,7 +66,6 @@ ngx_xrootd_cms_disconnect(ngx_xrootd_cms_ctx_t *ctx)
     ctx->in_need = NGX_XROOTD_CMS_HDR_LEN;
 }
 
-
 static void
 ngx_xrootd_cms_write_handler(ngx_event_t *ev)
 {
@@ -66,6 +74,12 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
 
     c = ev->data;
     ctx = c->data;
+
+    ngx_log_error(NGX_LOG_WARN, c->write->log, 0,
+                  "xrootd: CMS write handler called timedout=%d "
+                  "c=%p ctx=%p logged_in=%d",
+                  (int) ev->timedout, c, ctx,
+                  ctx ? (int) ctx->logged_in : -1);
 
     if (ev->timedout) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
@@ -94,21 +108,41 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
                       &ctx->conf->cms_manager);
     }
 
+    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                  "xrootd: CMS write handler: calling send_load");
+
     if (ngx_xrootd_cms_send_load(ctx) != NGX_OK) {
+        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                      "xrootd: CMS write handler: send_load failed");
         ngx_xrootd_cms_disconnect(ctx);
         ngx_xrootd_cms_schedule_retry(ctx);
         return;
     }
+
+    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                  "xrootd: CMS write handler: send_load OK, calling handle_read_event");
 
     if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
+        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                      "xrootd: CMS write handler: handle_read_event failed");
         ngx_xrootd_cms_disconnect(ctx);
         ngx_xrootd_cms_schedule_retry(ctx);
         return;
     }
 
+    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                  "xrootd: CMS write handler: scheduling next heartbeat interval=%T",
+                  ctx->conf->cms_interval);
+
     ngx_xrootd_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms_interval * 1000);
+
+    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                  "xrootd: CMS write handler: complete");
 }
 
+/* ---- ngx_xrootd_cms_connect — establish TCP connection to CMS manager ----
+ *
+ * WHAT: Configures an nginx peer connection to the CMS manager address and initiates TCP connect via ngx_event_connect_peer. On success, sets up read/write handlers and either fires immediately or waits for connect timeout (NGX_XROOTD_CMS_CONNECT_TIMEOUT = 5s). Called from timer handler when ctx->connection == NULL. */
 
 static void
 ngx_xrootd_cms_connect(ngx_xrootd_cms_ctx_t *ctx)
@@ -151,6 +185,9 @@ ngx_xrootd_cms_connect(ngx_xrootd_cms_ctx_t *ctx)
     ngx_xrootd_cms_write_handler(c->write);
 }
 
+/* ---- ngx_xrootd_cms_timer — periodic heartbeat or initial connect trigger ----
+ *
+ * WHAT: Timer handler for two purposes: (1) After initial connection success, fires periodically to send load heartbeat reports every `cms_interval` seconds. (2) When no active connection exists (ctx->connection == NULL), triggers reconnection attempt. Also handles load heartbeat failures by disconnecting and retrying with backoff. */
 
 static void
 ngx_xrootd_cms_timer(ngx_event_t *ev)
@@ -158,6 +195,11 @@ ngx_xrootd_cms_timer(ngx_event_t *ev)
     ngx_xrootd_cms_ctx_t  *ctx;
 
     ctx = ev->data;
+
+    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+                  "xrootd: CMS timer fired connection=%p logged_in=%d",
+                  ctx->connection,
+                  ctx->connection ? (int) ctx->logged_in : -1);
 
     if (ctx->connection == NULL) {
         ngx_xrootd_cms_connect(ctx);
@@ -175,6 +217,13 @@ ngx_xrootd_cms_timer(ngx_event_t *ev)
     ngx_xrootd_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms_interval * 1000);
 }
 
+/* ---- ngx_xrootd_cms_start — initialize and start CMS heartbeat client ----
+ *
+ * WHAT: Entry point called from config/process.c at worker init. Allocates the CMS context, sets up timer handler, stores initial backoff delay (6s), then schedules first connection attempt after NGX_XROOTD_CMS_INITIAL_DELAY (1s). Each nginx worker maintains its own independent CMS connection to the parent manager. */
+
+/* ---- ngx_xrootd_cms_start — initialize and start CMS heartbeat client ----
+ *
+ * WHAT: Entry point called from config/process.c at worker init. Allocates the CMS context, sets up timer handler, stores initial backoff delay (6s), then schedules first connection attempt after NGX_XROOTD_CMS_INITIAL_DELAY (1s). Each nginx worker maintains its own independent CMS connection to the parent manager. */
 
 void
 ngx_xrootd_cms_start(ngx_cycle_t *cycle, ngx_stream_xrootd_srv_conf_t *conf)

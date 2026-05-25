@@ -1,20 +1,74 @@
 #include "read.h"
 
+/* ------------------------------------------------------------------ */
+/* ReadV — multi-segment parallel read with contiguous-range coalescing   */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements kXR_readv — a single opcode that reads multiple byte ranges from one or more open file handles in a single request. The handler validates segment descriptors, computes response buffer size upfront (prevents OOM mid-read), builds wire body layout before I/O, and coalesces contiguous adjacent segments into fewer preadv() syscalls for efficiency. Supports async dispatch via nginx thread pool when configured.
+ *
+ * WHY: Multi-segment reads eliminate per-request overhead for ROOT clients that need scattered data access — a single readv opcode replaces N individual kXR_read calls with one wire message, reducing latency and connection idle time. Coalescing contiguous segments into fewer preadv() syscalls minimizes syscall overhead while preserving on-wire segment order unchanged. Two-phase allocation (validate→allocate) prevents OOM mid-read by computing total size before allocating scratch buffer.
+ *
+ * HOW: Parse wire payload → validate each fhandle and cap per-segment rlen at XROOTD_READ_MAX → compute max_response_bytes across all segments → allocate single response scratch buffer → build wire body layout with segment headers (fhandle+rlen+offset) + payload pointers before I/O → dispatch to AIO thread pool or synchronous preadv() → assemble chunked response chain and queue to client event loop.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Section: Segment Coalescing Strategy                                  */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: The readv segment descriptor loop identifies runs of contiguous ranges from the same fd and groups them into a single preadv() syscall. Non-contiguous segments (different fds, gaps in offset) are serviced separately.
+ *
+ * WHY: Coalescing reduces syscall count for adjacent segments while preserving on-wire order — ROOT clients typically issue readv with many small contiguous slices (e.g., reading multiple events from a ROOT file). A single preadv() replaces N individual pread(2) calls, reducing kernel context-switch overhead and improving throughput.
+ *
+ * HOW: Walk segment list in-order; for each segment check if current_segment->fd == first_segment->fd AND current_segment->offset == run_end (contiguous); accumulate into iov[] array up to XROOTD_READV_PREADV_MAXIOV cap (64) — when contiguous run ends or max_iov reached, call preadv() with accumulated iovec entries; advance segment_index by run_iov_count count.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Section: Size Validation and Buffer Allocation                      */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: Two-phase allocation — first pass validates every fhandle and computes max_response_bytes across all segments, then allocates the single response scratch buffer only after confirming the request is sane.
+ *
+ * WHY: Single large allocation upfront prevents OOM mid-read — if a malformed request has huge rlen values, we catch it during validation before allocating 256MB+ of scratch memory. XROOTD_MAX_READV_TOTAL (256MB) cap prevents excessive allocations; individual segment read length capped at XROOTD_READ_MAX per invariant #4.
+ *
+ * HOW: Walk wire_segments array — extract fhandle[0], ntohl(rlen), validate each handle via xrootd_validate_read_handle(), cap rlen at XROOTD_READ_MAX, accumulate max_response_bytes += XROOTD_READV_SEGSIZE + read_length; if total exceeds XROOTD_MAX_READV_TOTAL → reject with kXR_ArgTooLong; otherwise allocate response_buffer = xrootd_get_read_scratch(ctx, c, max_response_bytes).
+ */
+
+/* ------------------------------------------------------------------ */
+/* Section: AIO Thread Pool Dispatch                                   */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: When NGX_THREADS is enabled and a thread pool is configured, the readv operation is posted to xrootd_readv_aio_thread via ngx_thread_task_alloc. The async handler performs preadv() in a worker thread; the main event loop receives completion via xrootd_readv_aio_done. Falls back to synchronous inline preadv if task posting fails.
+ *
+ * WHY: AIO offload prevents blocking the main event loop during multi-segment reads where disk I/O could take extended periods — enables concurrent request processing while readv proceeds in parallel worker threads. Synchronous fallback ensures reads always succeed even when thread pool is unavailable or queue is full (high contention scenario), preventing read failures due to resource exhaustion rather than falling back gracefully.
+ *
+ * HOW: Allocate task via ngx_thread_task_alloc(c->pool, sizeof(xrootd_readv_aio_t)) — populate t struct with c, ctx, segment_count, segments, response_buffer, streamid — set task handler = xrootd_readv_aio_thread and event handler = xrootd_readv_aio_done — post via xrootd_aio_post_task() to rconf->common.thread_pool; if posted → return NGX_OK (main loop continues); if not posted → fall through to synchronous preadv inline.
+ */
+
 #include "../ngx_xrootd_module.h"
 #include "prefetch.h"
+#include "../compat/range_vector.h"
 
+#include <stdlib.h>
 #include <sys/uio.h>
 
 #define XROOTD_MAX_READV_TOTAL  (256u * 1024u * 1024u)
 #define XROOTD_READV_PREADV_MAXIOV  64
+
+/* ---- Function: xrootd_readv_read_segments() ----
+ *
+ * WHAT: Performs the actual I/O — coalesces contiguous segments from the same fd into grouped preadv() syscalls, validates offset non-negativity and overflow protection, reads bytes into response buffer payload pointers, returns total bytes read. Error messages populated on negative offset, past EOF, or syscall failure.
+ *
+ * WHY: Coalescing reduces syscall count for adjacent segments while preserving on-wire order. The preadv() max_iov cap (64) prevents kernel-side limits; per-run validation catches overflow before the syscall. EINTR retry loop ensures reliability under signal interruption. */
 
 ngx_int_t
 xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
     size_t segment_count, size_t *bytes_read_total, char *error_message,
     size_t error_message_len)
 {
-    struct iovec iov[XROOTD_READV_PREADV_MAXIOV];
-    size_t       segment_index;
+    struct iovec         iov[XROOTD_READV_PREADV_MAXIOV];
+    xrootd_byte_range_t *ranges;
+    size_t               segment_index;
+    size_t               i;
 
     if (bytes_read_total == NULL) {
         return NGX_ERROR;
@@ -22,111 +76,110 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
 
     *bytes_read_total = 0;
 
+    ranges = malloc(segment_count * sizeof(*ranges));
+    if (ranges == NULL) {
+        snprintf(error_message, error_message_len, "readv: out of memory");
+        return NGX_ERROR;
+    }
+
+    /*
+     * Validate all segments upfront and build the xrootd_byte_range_t array
+     * used by the shared coalescer.  Overflow and negative-offset errors are
+     * caught here before any I/O.
+     */
+    for (i = 0; i < segment_count; i++) {
+        if (segments[i].offset < 0) {
+            snprintf(error_message, error_message_len,
+                     "negative readv offset at seg %zu", i);
+            free(ranges);
+            return NGX_ERROR;
+        }
+        if (segments[i].read_length > 0
+            && (off_t) segments[i].read_length
+               > NGX_MAX_OFF_T_VALUE - segments[i].offset)
+        {
+            snprintf(error_message, error_message_len,
+                     "readv offset overflow at seg %zu", i);
+            free(ranges);
+            return NGX_ERROR;
+        }
+        ranges[i].fd     = segments[i].fd;
+        ranges[i].start  = segments[i].offset;
+        ranges[i].end    = (segments[i].read_length > 0)
+                           ? segments[i].offset
+                             + (off_t) segments[i].read_length - 1
+                           : segments[i].offset - 1; /* degenerate, no coalescing */
+        ranges[i].handle = 0;
+    }
+
     for (segment_index = 0; segment_index < segment_count; ) {
-        xrootd_readv_seg_desc_t *first_segment;
-        uint32_t                 read_length_be;
-        size_t                   run_iov_count;
+        xrootd_readv_seg_desc_t *first_segment = &segments[segment_index];
+        ngx_uint_t               run_count;
         size_t                   run_bytes;
-        off_t                    run_offset;
-        off_t                    run_end;
+        ngx_uint_t               k;
         ssize_t                  bytes_read;
+        uint32_t                 rlen_be;
 
-        first_segment = &segments[segment_index];
-
-        read_length_be = htonl(first_segment->read_length);
-        ngx_memcpy(first_segment->header_read_length_ptr, &read_length_be, 4);
+        /* Write actual read length back to the wire header. */
+        rlen_be = htonl(first_segment->read_length);
+        ngx_memcpy(first_segment->header_read_length_ptr, &rlen_be, 4);
 
         if (first_segment->read_length == 0) {
             segment_index++;
             continue;
         }
 
-        if (first_segment->offset < 0) {
-            snprintf(error_message, error_message_len,
-                     "negative readv offset at seg %zu", segment_index);
-            return NGX_ERROR;
-        }
-
-        run_iov_count = 0;
-        run_bytes = 0;
-        run_offset = first_segment->offset;
-        run_end = first_segment->offset;
-
         /*
-         * Coalesce only contiguous ranges from the same open fd.  That keeps
-         * the on-wire segment order unchanged while reducing syscall count for
-         * ROOT clients that issue adjacent readv slices.
+         * Delegate the contiguous-run decision to the shared coalescer.
+         * The coalescer checks fd equality and byte adjacency using the
+         * ranges array built above.
          */
-        while (segment_index + run_iov_count < segment_count
-               && run_iov_count < XROOTD_READV_PREADV_MAXIOV)
-        {
-            xrootd_readv_seg_desc_t *current_segment;
-            off_t                    current_end;
+        run_count = xrootd_range_vector_next_coalesced_run(
+            ranges, (ngx_uint_t) segment_count,
+            (ngx_uint_t) segment_index,
+            (ngx_uint_t) XROOTD_READV_PREADV_MAXIOV);
 
-            current_segment = &segments[segment_index + run_iov_count];
-
-            if (current_segment->read_length == 0) {
-                if (run_iov_count == 0) {
-                    break;
-                }
-                break;
-            }
-
-            if (current_segment->fd != first_segment->fd
-                || current_segment->offset != run_end
-                || current_segment->offset < 0)
-            {
-                break;
-            }
-
-            if ((off_t) current_segment->read_length
-                > NGX_MAX_OFF_T_VALUE - current_segment->offset)
-            {
-                snprintf(error_message, error_message_len,
-                         "readv offset overflow at seg %zu",
-                         segment_index + run_iov_count);
-                return NGX_ERROR;
-            }
-
-            current_end = current_segment->offset
-                          + (off_t) current_segment->read_length;
-            iov[run_iov_count].iov_base = current_segment->payload_ptr;
-            iov[run_iov_count].iov_len =
-                (size_t) current_segment->read_length;
-            run_bytes += (size_t) current_segment->read_length;
-            run_end = current_end;
-            run_iov_count++;
-        }
-
-        if (run_iov_count == 0) {
-            continue;
+        /* Assemble the preadv iovec from the original segment descriptors. */
+        run_bytes = 0;
+        for (k = 0; k < run_count; k++) {
+            iov[k].iov_base = segments[segment_index + k].payload_ptr;
+            iov[k].iov_len  = (size_t) segments[segment_index + k].read_length;
+            run_bytes      += (size_t) segments[segment_index + k].read_length;
         }
 
         do {
             bytes_read = preadv(first_segment->fd, iov,
-                                (int) run_iov_count, run_offset);
+                                (int) run_count, first_segment->offset);
         } while (bytes_read < 0 && errno == EINTR);
 
         if (bytes_read < 0) {
             snprintf(error_message, error_message_len,
                      "readv I/O error at seg %zu: %s",
                      segment_index, strerror(errno));
+            free(ranges);
             return NGX_ERROR;
         }
 
         if ((size_t) bytes_read != run_bytes) {
             snprintf(error_message, error_message_len,
                      "readv past EOF at seg %zu", segment_index);
+            free(ranges);
             return NGX_ERROR;
         }
 
         *bytes_read_total += run_bytes;
-        segment_index += run_iov_count;
+        segment_index     += run_count;
     }
 
+    free(ranges);
     return NGX_OK;
 }
 
+/* ---- Function: xrootd_handle_readv() ----
+ *
+ * WHAT: Protocol-level kXR_readv handler — validates request format (payload length must be multiple of XROOTD_READV_SEGSIZE), first-pass validates every fhandle and computes max_response_bytes across all segments, allocates response buffer only after sanity check passes. Builds wire body layout with segment headers (fhandle+rlen+offset) + payload pointers before I/O. Prefetches read-ahead for contiguous adjacent segments. Dispatches to AIO thread pool when configured; falls back to synchronous inline preadv otherwise. Updates per-handle byte counters and session_bytes total on completion.
+ *
+ * WHY: Two-phase allocation (validate→allocate) prevents OOM mid-read. Wire body is assembled before I/O so the response buffer payload pointers are already set — preadv() writes directly into them without post-I/O copying. AIO dispatch preserves event-loop responsiveness for high-throughput multi-segment reads. Session_bytes tracking enables Prometheus metric aggregation across all readv segments. */
 
 ngx_int_t
 xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -245,9 +298,8 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
         }
     }
 
-#if (NGX_THREADS)
     {
-        if (rconf->thread_pool != NULL) {
+        if (rconf->common.thread_pool != NULL) {
             ngx_thread_task_t       *task;
             xrootd_readv_aio_t      *t;
             ngx_flag_t               posted;
@@ -275,7 +327,7 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             task->event.handler = xrootd_readv_aio_done;
             task->event.data = task;
 
-            (void) xrootd_aio_post_task(ctx, c, rconf->thread_pool, task,
+            (void) xrootd_aio_post_task(ctx, c, rconf->common.thread_pool, task,
                                         "xrootd: thread_task_post failed, falling back to sync readv",
                                         &posted);
             if (posted) {
@@ -283,7 +335,6 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             }
         }
     }
-#endif
 
     {
         size_t       bytes_read_total = 0;

@@ -1,7 +1,48 @@
 /*
  * write.c — kXR_write opcode handler.
+ *
+ * This file implements the standard XRootD write operation: client sends data,
+ * server writes it to a local file at the specified offset. The flow is:
+ *   1. Validate that the requested file handle is open and writable
+ *   2. If thread pool available → post async pwrite task (non-blocking)
+ *   3. Otherwise → synchronously write from recv buffer to disk
+ *   4. Track bytes written for access-log throughput calculation
+ *   5. Return kXR_ok response to client
  */
+
+/* ---- Write-through dirty state tracking section ----
+ *
+ * This is the core of the Policy File Cache (PFC) write-back feature.
+ * When wt_enabled = 1, every write increments two counters:
+ *   - wt_bytes_written: cumulative total for session metrics reporting
+ *   - wt_dirty_offset: highest offset that hasn't been flushed to origin yet
+ *
+ * These values are retained for a future close-time write-back implementation.
+ * At close time, if wt_dirty_offset > -1 (dirty data exists), the flush handler
+ * propagates those bytes back to an origin XRootD server before closing the handle.
+ */
+
+/* ---- AIO (Async I/O) section ----
+ *
+ * When nginx has a thread pool configured, writes are posted to background threads
+ * so the main event loop doesn't block on disk I/O. The payload buffer is detached
+ * from ctx->payload_buf and freed in the completion callback. This allows the main
+ * thread to continue reading the next request header while write happens elsewhere. */
+
+/* ---- Synchronous fallback section ----
+ *
+ * When no thread pool is configured OR queue is full, writes happen synchronously
+ * on the main event loop thread using pwrite() directly from the recv buffer.
+ * This ensures writes always succeed even under degraded conditions. */
+
+/* ---- Function: xrootd_handle_write() ----
+ *
+ * WHAT: Protocol-level kXR_write handler — validates write handle (must be open and writable), handles zero-length writes as valid no-ops, dispatches to AIO thread pool when configured (pwrite in worker thread with detached payload buffer), falls back to synchronous inline pwrite on main event loop. Tracks bytes written for access-log throughput calculation and PFC write-through dirty state tracking (wt_bytes_written + wt_dirty_offset for future close-time origin flush). Access-log detail format: "<offset>+<requested-bytes>".
+ *
+ * WHY: AIO dispatch detaches the payload buffer from ctx->payload_buf so the main thread can safely begin reading the next request header while write happens in a worker thread. PFC write-through dirty state tracking accumulates wt_bytes_written and wt_dirty_offset for future close-time origin propagation — mirroring XrdPfcFile::m_bytesWritten, m_dirtyOffset semantics. Short-write detection catches disk-full conditions before silently truncating client data. */
+
 #include "ngx_xrootd_module.h"
+#include "cache/writethrough_metrics.h"
 
 /*
  * xrootd_handle_write — handle kXR_write: write the request payload to an
@@ -44,7 +85,6 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		return xrootd_send_ok(ctx, c, NULL, 0);
 	}
 
-#if (NGX_THREADS)
 	{
 	ngx_flag_t posted;
 
@@ -65,7 +105,6 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	}
 	} /* end NGX_THREADS block */
 
-#endif /* NGX_THREADS */
 
 	/* Synchronous fallback writes the request payload directly from the recv buffer. */
 	nwritten = pwrite(ctx->files[idx].fd,
@@ -91,6 +130,35 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	ctx->files[idx].bytes_written  += (size_t) nwritten;
 	ctx->session_bytes_written     += (size_t) nwritten;
 
+	if (ctx->files[idx].dashboard_slot >= 0 &&
+	    ngx_xrootd_dashboard_shm_zone != NULL)
+	{
+		xrootd_transfer_slot_update(ngx_xrootd_dashboard_shm_zone->data,
+		                            ctx->files[idx].dashboard_slot,
+		                            (ngx_atomic_int_t) nwritten,
+		                            (int64_t) ngx_current_msec);
+		xrootd_transfer_slot_count_op(ngx_xrootd_dashboard_shm_zone->data,
+		                              ctx->files[idx].dashboard_slot,
+		                              "write");
+	}
+
+	/* ---- write-through dirty state tracking (mirrors XrdPfcFile::m_bytesWritten, m_dirtyOffset) ----
+	 *
+	 * When wt_enabled = 1 this handle has a cached DECISION to propagate writes
+	 * back to the origin at close time. We track:
+	 *   - wt_bytes_written: cumulative bytes since last sync point (for metrics)
+	 *   - wt_dirty_offset:  offset of most recent write that hasn't been flushed yet
+	 *
+	 * These fields are retained for a future close-time write-back implementation.
+	 */
+	if (ctx->files[idx].wt_enabled) {
+		xrootd_wt_mark_dirty(ctx, idx,
+		                      offset + (int64_t) nwritten - 1,
+		                      (size_t) nwritten);
+	}
+
 	XROOTD_RETURN_OK(ctx, c, XROOTD_OP_WRITE, "WRITE",
 					 ctx->files[idx].path, write_detail, (size_t) nwritten);
 }
+
+/* ---- HOW: Extracts idx from req->fhandle[0], offset from be64toh(req->offset), wlen from ctx->cur_dlen. Validates write handle via xrootd_validate_write_handle() — returns early on failure. Zero-length writes return kXR_ok immediately as valid no-ops. NGX_THREADS block: calls xrootd_try_post_write_aio() with detached payload; if posted=1 sets ctx->payload=NULL and returns NGX_OK (completion callback sends response); if posted=0 falls through to sync write. Synchronous fallback: pwrite(fd, payload, wlen, offset) inline. Logs access detail "<offset>+<wlen>". On negative nwritten returns kXR_IOError; on short write (<wlen) returns kXR_IOError with "disk full?" message. Updates bytes_written counters (file+session). If wt_enabled updates wt_bytes_written and wt_dirty_offset for PFC write-through tracking. Returns XROOTD_RETURN_OK. */

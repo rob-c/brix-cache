@@ -3,7 +3,29 @@
 #include <limits.h>
 
 /*
- * Public VOMS extraction entry point used by the GSI authentication path.
+ * WHAT: Public entry point for extracting VOMS virtual organisation membership
+ * from an x509 proxy certificate. Called by the GSI authentication path after
+ * the proxy chain is verified to populate ctx->primary_vo and ctx->vo_list.
+ *
+ * WHY: VO-based ACL enforcement (xrootd_require_vo) requires knowledge of which
+ * virtual organisations the user belongs to. VOMS extensions embedded in the
+ * certificate provide this information. This function encapsulates the entire
+ * extraction pipeline — chain preparation, API call, and result collection.
+ *
+ * HOW: Four-phase flow:
+ *   1. Pre-checks — return NGX_DECLINED if VOMS library not loaded or parameters
+ *      missing (graceful degradation per INVARIANT #8: metric labels low-cardinality)
+ *   2. Buffer preparation — convert ngx_str_t paths to NUL-terminated buffers with
+ *      bounds validation against PATH_MAX
+ *   3. VOMS extraction — initialise API, duplicate certificate chain and remove the
+ *      leaf (VOMS needs parent certificates for extension lookup), call retrieve()
+ *      with VOMS_RECURSE_CHAIN flag; non-critical errors (VOMS_VERR_NOEXT /
+ *      VOMS_VERR_NODATA) are silently skipped per GSI auth convention
+ *   4. Result collection — delegate to xrootd_collect_voms_vos(); cleanup chain and
+ *      API state regardless of outcome
+ *
+ * INVARIANT: All wire paths → resolve_path() before open(). This function operates
+ * on certificate data, not filesystem paths, so the invariant does not apply directly.
  */
 
 ngx_int_t

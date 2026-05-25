@@ -1,5 +1,16 @@
 #include "metrics_internal.h"
 
+/*
+ * WHAT: Prometheus HTTP exporter for WebDAV protocol counters.
+ * WHY: WebDAV requests (GET, PUT, COPY, PROPFIND, etc.) need their own counter families
+ *      separate from native XRootD stream counters — different methods, auth paths, TPC model,
+ *      CORS handling, fd cache, and range request semantics. All exported in Prometheus text
+ *      exposition format on /metrics endpoint.
+ * HOW: Static name-table arrays map enum indices to label strings (method, status class, auth result,
+ *      range outcome, PUT body mode, TPC event, CORS decision, PROPFIND depth). xrootd_export_webdav_metrics()
+ *      iterates each counter slot via ngx_atomic_fetch_add(..., 0) for lock-free reads, emits HELP/TYPE/value
+ *      lines per metric family. Labels are low-cardinality enums only — no paths/bucket-names/DNs as labels.
+ */
 
 static const char *xrootd_webdav_method_names[XROOTD_WEBDAV_NMETHODS] = {
     "OPTIONS",
@@ -43,20 +54,12 @@ static const char *xrootd_webdav_put_names[XROOTD_WEBDAV_NPUT_MODES] = {
     "threaded",
 };
 
-static const char *xrootd_webdav_fd_cache_names[XROOTD_WEBDAV_NFD_CACHE_EVENTS] = {
-    "hit",
-    "miss",
-    "insert",
-    "update",
-    "evict",
-    "stale",
-};
-
 static const char *xrootd_webdav_propfind_depth_names[
     XROOTD_WEBDAV_NPROPFIND_DEPTHS] =
 {
     "0",
     "1",
+    "infinity",
 };
 
 static const char *xrootd_webdav_tpc_names[XROOTD_WEBDAV_NTPC_EVENTS] = {
@@ -85,7 +88,6 @@ static const char *xrootd_webdav_tpc_cred_names[XROOTD_WEBDAV_NTPC_CRED_EVENTS] 
     "unknown_mode",
     "parse_error",
 };
-
 
 void
 xrootd_export_webdav_metrics(metrics_writer_t *mw,
@@ -171,18 +173,6 @@ xrootd_export_webdav_metrics(metrics_writer_t *mw,
             xrootd_webdav_put_names[i],
             (unsigned long) ngx_atomic_fetch_add(
                 &shm->webdav.put_body_total[i], 0));
-    }
-
-    mw_printf(mw,
-        "# HELP xrootd_webdav_fd_cache_total "
-            "WebDAV per-connection file descriptor cache events.\n"
-        "# TYPE xrootd_webdav_fd_cache_total counter\n");
-    for (i = 0; i < XROOTD_WEBDAV_NFD_CACHE_EVENTS; i++) {
-        mw_printf(mw,
-            "xrootd_webdav_fd_cache_total{event=\"%s\"} %lu\n",
-            xrootd_webdav_fd_cache_names[i],
-            (unsigned long) ngx_atomic_fetch_add(
-                &shm->webdav.fd_cache_total[i], 0));
     }
 
     mw_printf(mw,

@@ -3,6 +3,7 @@
  */
 
 #include "webdav.h"
+#include "../crypto/gsi_verify.h"
 
 #include <ngx_http_ssl_module.h>
 
@@ -38,6 +39,11 @@ typedef struct {
 static int webdav_ssl_auth_cache_index = -1;
 static int webdav_ssl_session_auth_cache_index = -1;
 
+/* ---- Function: webdav_tls_auth_cache_free() ----
+ *
+ * WHAT: OpenSSL ex_data cleanup callback that frees the TLS auth cache structure when the SSL object or session is destroyed. Called automatically by OpenSSL during resource deallocation — never called directly by application code.
+ *
+ * WHY: The TLS auth cache must be freed exactly when its parent (SSL object or SSL_SESSION) is destroyed to prevent memory leaks across long-lived connections and TLS session resumptions. */
 static void
 webdav_tls_auth_cache_free(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
                            int idx, long argl, void *argp)
@@ -53,6 +59,11 @@ webdav_tls_auth_cache_free(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
     }
 }
 
+/* ---- Function: webdav_auth_init_ssl_indices() ----
+ *
+ * WHAT: Initializes OpenSSL ex_data indices for attaching TLS auth cache data to both SSL objects and SSL sessions. These indices are global static values that allow OpenSSL to store arbitrary data (the auth cache struct) alongside each SSL connection without requiring additional memory allocation by the application.
+ *
+ * WHY: The GSI cert verification is expensive (multi-CA chain traversal, CRL checks). Once verified, caching the result in an ex_data slot avoids re-verifying on every request within the same TLS session — this dramatically reduces CPU cost for long-lived connections where clients make many requests after a single initial certificate check. */
 ngx_int_t
 webdav_auth_init_ssl_indices(ngx_log_t *log)
 {
@@ -80,6 +91,11 @@ webdav_auth_init_ssl_indices(ngx_log_t *log)
     return NGX_OK;
 }
 
+/* ---- Function: webdav_str_equal() ----
+ *
+ * WHAT: Compares two ngx_str_t structures for equality by first checking length, then byte-by-byte content. Handles the special case of empty strings (length 0) which are always considered equal regardless of data pointer values. This is safer than using memcmp directly because empty strings with different pointers could pass memcmp if both buffers happen to contain zero bytes.
+ *
+ * WHY: nginx uses ngx_str_t for string representation (not null-terminated C strings). Comparing these requires length-aware operations — strlen/strcpy would fail on non-null-terminated ngx_str_t structures per the FAQ rules in AGENTS.md. */
 static ngx_int_t
 webdav_str_equal(const ngx_str_t *a, const ngx_str_t *b)
 {
@@ -94,6 +110,11 @@ webdav_str_equal(const ngx_str_t *a, const ngx_str_t *b)
     return ngx_memcmp(a->data, b->data, a->len) == 0;
 }
 
+/* ---- Function: webdav_free_verify_resources() ----
+ *
+ * WHAT: Cleanup callback that frees OpenSSL X509_STORE_CTX and X509 certificate objects after verification completes. Handles NULL pointers gracefully — only frees non-NULL resources to prevent double-free or NULL-deref crashes during error paths.
+ *
+ * WHY: Every successful cert verification path must clean up allocated resources before returning. This shared cleanup function ensures consistent resource release across both "nginx-compatible" and "manual verification" code paths without duplicating free logic. */
 static void
 webdav_free_verify_resources(X509_STORE_CTX *vctx, X509 *leaf)
 {
@@ -105,6 +126,11 @@ webdav_free_verify_resources(X509_STORE_CTX *vctx, X509 *leaf)
     }
 }
 
+/* ---- Function: webdav_cache_matches() ----
+ *
+ * WHAT: Validates that a cached TLS auth result is still valid for the current request by checking five conditions: cache exists, config reference matches, CA store pointer matches, verify depth setting matches, and DN was successfully verified (non-empty). Returns NGX_TRUE only when ALL conditions are satisfied.
+ *
+ * WHY: The auth cache must be invalidated whenever configuration changes — if conf->ca_store or conf->verify_depth changed between requests, the cached verification result may no longer apply to the current certificate chain. This check prevents serving stale cache results after configuration reloads. */
 static ngx_int_t
 webdav_cache_matches(ngx_http_xrootd_webdav_tls_auth_cache_t *cache,
                      ngx_http_xrootd_webdav_loc_conf_t *conf)
@@ -116,6 +142,11 @@ webdav_cache_matches(ngx_http_xrootd_webdav_tls_auth_cache_t *cache,
            && cache->dn[0] != '\0';
 }
 
+/* ---- Function: webdav_mark_req_verified() ----
+ *
+ * WHAT: Marks the request context as verified by copying the subject DN into ctx->dn, setting ctx->verified=1, and recording the authentication source ("nginx" for compatible mode or "manual" for explicit verification). This is called after successful certificate validation to signal that subsequent requests in this session can skip full re-verification.
+ *
+ * WHY: The request context is attached to the HTTP request via ngx_http_set_ctx() — marking it verified allows webdav_verify_proxy_cert() to return immediately on later requests without repeating the expensive chain traversal and CRL check. This is the core mechanism that enables TLS auth caching across a connection's lifetime. */
 static void
 webdav_mark_req_verified(ngx_http_xrootd_webdav_req_ctx_t *ctx,
                          const char *dn, const char *source)
@@ -128,6 +159,11 @@ webdav_mark_req_verified(ngx_http_xrootd_webdav_req_ctx_t *ctx,
     ctx->auth_source = source;
 }
 
+/* ---- Function: webdav_log_auth_cache_reuse() ----
+ *
+ * WHAT: Logs a single informational message when TLS auth cache is reused (either from connection or session), but only logs the first time per request to avoid flooding operator logs with repetitive messages on long-lived connections. Uses reuse_logged flag to ensure exactly one "resumed" log entry per request regardless of how many times the cache is hit during that request.
+ *
+ * WHY: Operators monitoring access logs need visibility into when auth caching kicks in (indicating reduced CPU load), but must not be flooded with messages on every subsequent request within a TLS session resumption. This single-log-per-request approach provides observability without log noise. */
 static void
 webdav_log_auth_cache_reuse(ngx_http_request_t *r,
                             ngx_http_xrootd_webdav_tls_auth_cache_t *cache,
@@ -143,6 +179,11 @@ webdav_log_auth_cache_reuse(ngx_http_request_t *r,
                   cache_name);
 }
 
+/* ---- Function: webdav_store_tls_auth_cache() ----
+ *
+ * WHAT: Stores the verified DN into both SSL object ex_data (for connection lifetime) and optionally SSL_SESSION ex_data (for session resumption across connections). First checks if a cache already exists for this SSL object; if it doesn't match current config, allocates a new one. Then stores into the session-level cache as well so that TLS session resumptions carry the verified DN forward to new TCP connections.
+ *
+ * WHY: Enables two-tier caching: (1) connection-level cache avoids re-verification during a single TCP session's requests; (2) session-level cache allows resumption across different TCP sessions (e.g., after network interruption or client reconnect). Both tiers share the same DN but have independent lifetimes — this maximizes caching benefit while respecting OpenSSL session semantics. */
 static ngx_int_t
 webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
                             ngx_http_xrootd_webdav_loc_conf_t *conf,
@@ -319,8 +360,7 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
     SSL              *ssl;
     X509             *leaf = NULL;
     STACK_OF(X509)   *chain = NULL;
-    X509_STORE_CTX   *vctx = NULL;
-    int               ok = 0;
+    xrootd_gsi_verify_result_t  verify_res;
     long              verify_result;
     ngx_int_t         cache_rc;
 
@@ -378,35 +418,16 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
         return NGX_HTTP_FORBIDDEN;
     }
 
-    vctx = X509_STORE_CTX_new();
-    if (vctx == NULL) {
+    if (xrootd_gsi_verify_chain(r->connection->log, conf->ca_store,
+                                 leaf, chain, conf->verify_depth,
+                                 &verify_res) != NGX_OK)
+    {
+        /* xrootd_gsi_verify_chain already logged the specific error */
         webdav_free_verify_resources(NULL, leaf);
         return NGX_HTTP_FORBIDDEN;
     }
 
-    if (!X509_STORE_CTX_init(vctx, conf->ca_store, leaf, chain)) {
-        webdav_free_verify_resources(vctx, leaf);
-        return NGX_HTTP_FORBIDDEN;
-    }
-
-    X509_STORE_CTX_set_flags(vctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
-
-    if ((ngx_uint_t) conf->verify_depth > 0) {
-        X509_STORE_CTX_set_depth(vctx, (int) conf->verify_depth);
-    }
-
-    ok = X509_verify_cert(vctx);
-    if (!ok) {
-        int verr = X509_STORE_CTX_get_error(vctx);
-
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "xrootd_webdav: proxy cert verification failed: %s",
-                      X509_verify_cert_error_string(verr));
-        webdav_free_verify_resources(vctx, leaf);
-        return NGX_HTTP_FORBIDDEN;
-    }
-
     cache_rc = webdav_finish_verified_cert(r, conf, ctx, ssl, leaf, "manual");
-    webdav_free_verify_resources(vctx, leaf);
+    webdav_free_verify_resources(NULL, leaf);
     return cache_rc;
 }

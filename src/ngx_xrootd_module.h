@@ -72,11 +72,10 @@
 
 #include "protocol/protocol.h"
 #include "metrics/metrics.h"
+#include "dashboard/dashboard.h"
 #include "token/token.h"
 
-#if (NGX_THREADS)
 #include <ngx_thread_pool.h>
-#endif
 
 /* ------------------------------------------------------------------ */
 /* Module forward declaration                                           */
@@ -131,6 +130,16 @@ char *xrootd_conf_set_cache_max_file_size(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 char *xrootd_conf_set_cache_include_regex(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
+char *xrootd_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+char *xrootd_conf_set_wt_mode(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+char *xrootd_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+char *xrootd_conf_set_wt_deny_prefix(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+char *xrootd_conf_set_wt_allow_prefix(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
 
 /* ------------------------------------------------------------------ */
 /* Subsystem public APIs                                                */
@@ -190,6 +199,9 @@ ngx_int_t xrootd_handle_query(xrootd_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 ngx_int_t xrootd_handle_set(xrootd_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t xrootd_prepare_invoke_command(ngx_log_t *log,
+    ngx_stream_xrootd_srv_conf_t *conf,
+    const char **paths, ngx_uint_t count);
 
 /* manager map lookup helper (longest-prefix match) */
 const xrootd_manager_map_t *xrootd_find_manager_map(const char *reqpath,

@@ -13,4 +13,7 @@ resolution misses and `xrootd_upstream` is configured.
 | `start.c` | Context allocation, DNS/TCP setup, and connect start |
 | `upstream.h` | Public upstream API |
 | `upstream_internal.h` | Internal upstream state shared by split sources |
+| `auth.c` | Upstream authentication: login handshake with backend server |
+| `directives.c` | nginx directives for `xrootd_upstream_*` (upstream host, timeout) |
+| `tls.c` | TLS setup for upstream connection: certificate verification, SSL context |
 

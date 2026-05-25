@@ -1,7 +1,11 @@
 """
 Functional tests exercising WebDAV uploads/downloads using `xrdcp`
 and `curl` so we can verify both clients work against the HTTPS WebDAV
-interface the module serves.
+interface the module serves.  x509/GSI client flows target the dedicated
+HTTPS+GSI server on port 8444.  curl bearer-token flows target the HTTPS+Token
+server on port 8443; xrdcp davs:// coverage stays on the x509 path because
+the client plugin's bearer-token discovery is not a stable server assertion in
+this test layout.
 
 These tests start a small nginx instance (using the repo test layout PKI)
 and then attempt uploads and downloads with the real client binaries. If
@@ -12,30 +16,57 @@ skipped.
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
 import pytest
 import requests
-from settings import CA_CERT, CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD, XRDCP_BIN
+from settings import (
+    CA_CERT,
+    CA_DIR,
+    DATA_ROOT as DEFAULT_DATA_ROOT,
+    PROXY_STD,
+    TOKENS_DIR,
+    XRDCP_BIN,
+)
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from utils.make_token import TokenIssuer
 
 PROXY_PEM = PROXY_STD
 
 # Filled at module scope by _configure
-WEBDAV_PORT = 0
-WEBDAV_URL = ""
+WEBDAV_GSI_PORT = 0
+WEBDAV_GSI_URL = ""
+WEBDAV_TOKEN_PORT = 0
+WEBDAV_TOKEN_URL = ""
 DATA_DIR = DEFAULT_DATA_ROOT
 LOG_DIR = ""
+_RW_TOKEN = ""
 
 
 @pytest.fixture(scope="module", autouse=True)
 def _configure(test_env):
     """Bind module constants from the shared test environment."""
-    global WEBDAV_PORT, WEBDAV_URL, DATA_DIR, LOG_DIR
-    WEBDAV_PORT = test_env["webdav_port"]
-    WEBDAV_URL  = test_env["webdav_url"]
-    DATA_DIR    = test_env["data_dir"]
-    LOG_DIR     = test_env["log_dir"]
+    global WEBDAV_GSI_PORT, WEBDAV_GSI_URL, WEBDAV_TOKEN_PORT, WEBDAV_TOKEN_URL
+    global DATA_DIR, LOG_DIR, PROXY_PEM, _RW_TOKEN
+    WEBDAV_GSI_PORT   = test_env["webdav_gsi_tls_port"]
+    WEBDAV_GSI_URL    = test_env["webdav_gsi_tls_url"]
+    WEBDAV_TOKEN_PORT = test_env["webdav_port"]
+    WEBDAV_TOKEN_URL  = test_env["webdav_url"]
+    DATA_DIR          = test_env["data_dir"]
+    LOG_DIR           = test_env["log_dir"]
+    PROXY_PEM         = test_env["proxy_pem"]
+
+    token_dir = test_env.get("token_dir", TOKENS_DIR)
+    issuer = TokenIssuer(token_dir)
+    if not os.path.exists(issuer.key_path):
+        issuer.init_keys()
+    _RW_TOKEN = issuer.generate(
+        scope="storage.read:/ storage.write:/",
+        lifetime=7200,
+    )
 
 
 def _write_temp_file(contents: bytes):
@@ -48,6 +79,38 @@ def _write_temp_file(contents: bytes):
 
 def _run(cmd, env=None, cwd=None):
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=cwd)
+
+
+def _webdav_modes():
+    return (
+        {
+            "id": "gsi-8444",
+            "mode": "gsi",
+            "port": WEBDAV_GSI_PORT,
+            "url": WEBDAV_GSI_URL,
+            "curl_auth": ["--cert", PROXY_PEM],
+            "requests_kwargs": {"cert": PROXY_PEM},
+        },
+        {
+            "id": "token-8443",
+            "mode": "token",
+            "port": WEBDAV_TOKEN_PORT,
+            "url": WEBDAV_TOKEN_URL,
+            "curl_auth": ["-H", f"Authorization: Bearer {_RW_TOKEN}"],
+            "requests_kwargs": {
+                "headers": {"Authorization": f"Bearer {_RW_TOKEN}"},
+            },
+        },
+    )
+
+
+@pytest.fixture(scope="module", params=("gsi", "token"),
+                ids=("gsi-8444", "token-8443"))
+def webdav_mode(request):
+    for mode in _webdav_modes():
+        if mode["mode"] == request.param:
+            return mode
+    raise AssertionError(f"unknown WebDAV mode {request.param}")
 
 
 def _wait_for_file_content(remote_name: str, expected: bytes, timeout: float) -> bool:
@@ -68,8 +131,8 @@ def test_xrdcp_upload_and_download():
     if shutil.which(XRDCP_BIN) is None:
         pytest.skip(f"{XRDCP_BIN} not found on PATH")
 
-    port = WEBDAV_PORT
-    url_base = WEBDAV_URL
+    port = WEBDAV_GSI_PORT
+    url_base = WEBDAV_GSI_URL
 
     content = b"hello-xrdcp-" + os.urandom(1024)
     local = _write_temp_file(content)
@@ -142,24 +205,28 @@ def test_xrdcp_upload_and_download():
         assert fh.read() == content
 
 
-def test_curl_upload_and_download():
+def test_curl_upload_and_download(webdav_mode):
     if shutil.which("curl") is None:
         pytest.skip("curl not found on PATH")
 
-    port = WEBDAV_PORT
-    url_base = WEBDAV_URL
+    url_base = webdav_mode["url"]
+    curl_auth = webdav_mode["curl_auth"]
 
     content = b"hello-curl-" + os.urandom(512)
     local = _write_temp_file(content)
-    remote_name = "curl-upload.bin"
+    remote_name = f"curl-upload-{webdav_mode['mode']}.bin"
     upload_url = f"{url_base}/{remote_name}"
 
-    # Upload with curl (-k to ignore server cert, --cert for client proxy)
-    r = _run(["curl", "-k", "--cert", PROXY_PEM, "-T", local, upload_url])
+    # Upload with curl (-k to ignore the test server certificate).
+    r = _run(["curl", "-k", *curl_auth, "-T", local, upload_url])
     assert r.returncode == 0, (r.returncode, r.stderr.decode())
 
     # Download with curl and capture stdout
-    r2 = subprocess.run(["curl", "-k", "--cert", PROXY_PEM, upload_url], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    r2 = subprocess.run(
+        ["curl", "-k", *curl_auth, upload_url],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     assert r2.returncode == 0, (r2.returncode, r2.stderr.decode())
     assert r2.stdout == content
 
@@ -169,8 +236,8 @@ def test_xrdcp_large_upload_and_download():
     if shutil.which(XRDCP_BIN) is None:
         pytest.skip(f"{XRDCP_BIN} not found on PATH")
 
-    port = WEBDAV_PORT
-    url_base = WEBDAV_URL
+    port = WEBDAV_GSI_PORT
+    url_base = WEBDAV_GSI_URL
 
     content = os.urandom((2 * 1024 * 1024) + 137)
     local = _write_temp_file(content)
@@ -216,20 +283,20 @@ def test_xrdcp_large_upload_and_download():
 
 
 @pytest.mark.timeout(45)
-def test_curl_large_upload_and_download():
+def test_curl_large_upload_and_download(webdav_mode):
     if shutil.which("curl") is None:
         pytest.skip("curl not found on PATH")
 
-    port = WEBDAV_PORT
-    url_base = WEBDAV_URL
+    url_base = webdav_mode["url"]
+    curl_auth = webdav_mode["curl_auth"]
 
     content = os.urandom((2 * 1024 * 1024) + 137)
     local = _write_temp_file(content)
-    remote_name = "curl-large.bin"
+    remote_name = f"curl-large-{webdav_mode['mode']}.bin"
     upload_url = f"{url_base}/{remote_name}"
 
-    # Upload with curl (-k to ignore server cert, --cert for client proxy)
-    r = _run(["curl", "-k", "--cert", PROXY_PEM, "-T", local, upload_url])
+    # Upload with curl (-k to ignore the test server certificate).
+    r = _run(["curl", "-k", *curl_auth, "-T", local, upload_url])
     assert r.returncode == 0, (r.returncode, r.stderr.decode(errors="replace"))
 
     # Wait for nginx to log the upload
@@ -250,6 +317,10 @@ def test_curl_large_upload_and_download():
     assert seen, "curl upload not observed in nginx log"
 
     # Download with curl and capture stdout
-    r2 = subprocess.run(["curl", "-k", "--cert", PROXY_PEM, upload_url], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    r2 = subprocess.run(
+        ["curl", "-k", *curl_auth, upload_url],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     assert r2.returncode == 0, (r2.returncode, r2.stderr.decode(errors="replace"))
     assert r2.stdout == content

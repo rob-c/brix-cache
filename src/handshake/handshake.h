@@ -25,6 +25,13 @@ ngx_int_t xrootd_verify_pending_sigver(xrootd_ctx_t *ctx,
     ngx_connection_t *c);
 
 /*
+ * xrootd_signing_enforce_level — enforce the configured security_level policy.
+ * Rejects unsigned requests when the policy requires signing for the opcode.
+ */
+ngx_int_t xrootd_signing_enforce_level(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf);
+
+/*
  * xrootd_dispatch_require_login — reject the request with kXR_NotAuthorized if
  * the session has not completed kXR_login yet.
  *
@@ -42,7 +49,7 @@ ngx_int_t xrootd_dispatch_require_auth(xrootd_ctx_t *ctx,
 
 /*
  * xrootd_dispatch_require_write — reject if the server is configured read-only
- * (conf->allow_write == 0).  Returns XROOTD_DISPATCH_CONTINUE if writes are
+ * (conf->common.allow_write == 0).  Returns XROOTD_DISPATCH_CONTINUE if writes are
  * permitted.
  */
 ngx_int_t xrootd_dispatch_require_write(xrootd_ctx_t *ctx,

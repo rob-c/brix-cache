@@ -38,12 +38,10 @@ from settings import (
     CA_KEY,
     CRL_DIR_PORT,
     CRL_PORT,
-    CRL_RELOAD_HTTP_PORT,
     CRL_RELOAD_PORT,
-    DATA_ROOT,
-    NGINX_BIN,
     PKI_DIR,
     PROXY_STD,
+    TEST_ROOT,
     USER_CERT,
     WEBDAV_CRL_PORT,
     WEBDAV_DIR_PORT,
@@ -58,18 +56,18 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 PROXY_PEM  = PROXY_STD
 
-CRL_DIR    = "/tmp/xrd-crl-test"
+CRL_DIR    = os.path.join(TEST_ROOT, "generated-crl")
 CRL_PEM    = os.path.join(CRL_DIR, "crl.pem")
 
 CRL_HOST   = "127.0.0.1"
 
 # Directory-mode test paths
-CRL_DIR_TEST      = "/tmp/xrd-crl-dir-test"
-CRL_DIR_CRLS      = os.path.join(CRL_DIR_TEST, "crls")   # directory of CRLs
+CRL_DIR_TEST      = os.path.join(TEST_ROOT, "crls")
+CRL_DIR_CRLS      = CRL_DIR_TEST   # directory of CRLs
 
 # Reload-mode test paths
-CRL_RELOAD_DIR    = "/tmp/xrd-crl-reload-test"
-CRL_RELOAD_CRLS   = os.path.join(CRL_RELOAD_DIR, "crls")
+CRL_RELOAD_DIR    = os.path.join(TEST_ROOT, "crl-reload")
+CRL_RELOAD_CRLS   = CRL_RELOAD_DIR
 RELOAD_INTERVAL   = 2  # seconds — keep short for testing
 
 # ---------------------------------------------------------------------------
@@ -112,12 +110,10 @@ def generate_crl(ca_cert_path, ca_key_path, revoked_cert_path, crl_path):
 # Wait for port
 # ---------------------------------------------------------------------------
 
-def _wait_for_port(host, port, proc, timeout=5):
-    """Block until a TCP port accepts connections or the process dies."""
+def _wait_for_port(host, port, timeout=5):
+    """Block until a TCP port accepts connections."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            return False
         try:
             with socket.create_connection((host, port), timeout=0.2):
                 return True
@@ -139,155 +135,51 @@ def crl_file():
 
 @pytest.fixture(scope="session", autouse=True)
 def crl_nginx(crl_file):
-    """Start an nginx with CRL checking enabled on a dedicated port."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    import server_control
-
-    info = server_control.start_nginx_instance(
-        port=CRL_PORT, nginx_bin=NGINX_BIN,
-        conf_file="nginx_crl.conf",
-        template_kwargs={
-            "DATA_DIR": DATA_ROOT,
-            "CRL_PATH": crl_file,
-            "WEBDAV_PORT": WEBDAV_CRL_PORT,
-        },
-    )
-
-    # Wait for the HTTPS port to become available as well
-    ok_https = False
-    for _ in range(30):
-        try:
-            with socket.create_connection(("127.0.0.1", WEBDAV_CRL_PORT), timeout=0.5):
-                ok_https = True
-                break
-        except Exception:
-            time.sleep(0.1)
-
-    if not ok_https:
-        try:
-            info["stop"]()
-        except Exception:
-            pass
+    """Use the suite-level nginx with CRL checking enabled."""
+    if not _wait_for_port("127.0.0.1", WEBDAV_CRL_PORT):
         pytest.fail("CRL nginx did not start (HTTPS port not reachable)")
 
-    yield info
-
-    try:
-        info["stop"]()
-    except Exception:
-        pass
+    yield {
+        "conf": os.path.join(TEST_ROOT, "dedicated", "crl", "conf", "nginx.conf"),
+        "log_dir": os.path.join(TEST_ROOT, "dedicated", "crl", "logs"),
+    }
 
 
 @pytest.fixture(scope="session", autouse=True)
 def crl_dir_nginx(crl_file):
-    """Start nginx with xrootd_crl pointing at a *directory* of CRL files."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-
-    # Put the CRL in a directory
-    os.makedirs(CRL_RELOAD_CRLS, exist_ok=True)
+    """Use the suite-level nginx with xrootd_crl pointing at a directory."""
     os.makedirs(CRL_DIR_CRLS, exist_ok=True)
     import shutil
     shutil.copy2(crl_file, os.path.join(CRL_DIR_CRLS, "ca.r0"))
 
-    import server_control
-    info = server_control.start_nginx_instance(
-        port=CRL_DIR_PORT, nginx_bin=NGINX_BIN,
-        conf_file="nginx_crl.conf",
-        template_kwargs={
-            "DATA_DIR": DATA_ROOT,
-            "CRL_PATH": CRL_DIR_CRLS,
-            "WEBDAV_PORT": WEBDAV_DIR_PORT,
-        },
-    )
-
-    # Wait for both stream and HTTPS to be reachable
-    ok_stream = False
-    ok_https = False
-    for _ in range(30):
-        try:
-            with socket.create_connection(("127.0.0.1", CRL_DIR_PORT), timeout=0.5):
-                ok_stream = True
-        except Exception:
-            ok_stream = False
-        try:
-            with socket.create_connection(("127.0.0.1", WEBDAV_DIR_PORT), timeout=0.5):
-                ok_https = True
-        except Exception:
-            ok_https = False
-        if ok_stream and ok_https:
-            break
-        time.sleep(0.1)
+    ok_stream = _wait_for_port("127.0.0.1", CRL_DIR_PORT)
+    ok_https = _wait_for_port("127.0.0.1", WEBDAV_DIR_PORT)
 
     if not ok_stream or not ok_https:
-        try:
-            info["stop"]()
-        except Exception:
-            pass
         pytest.fail(f"CRL dir nginx did not start. stream={ok_stream} https={ok_https}")
 
-    yield info
-
-    try:
-        info["stop"]()
-    except Exception:
-        pass
+    yield {
+        "conf": os.path.join(TEST_ROOT, "dedicated", "crl-dir", "conf", "nginx.conf"),
+        "log_dir": os.path.join(TEST_ROOT, "dedicated", "crl-dir", "logs"),
+    }
 
 
 @pytest.fixture(scope="session", autouse=True)
 def crl_reload_nginx(crl_file):
-    """Start nginx with CRL reload enabled, initially with NO CRL in the dir.
+    """Use the suite-level nginx with CRL reload enabled.
 
     The test will copy the CRL into the directory after nginx starts,
     wait for the reload timer to fire, then verify rejection.
     """
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-
-    # Start with an empty CRL directory
     os.makedirs(CRL_RELOAD_CRLS, exist_ok=True)
-    # Remove any leftover CRL files from previous runs
-    for f in os.listdir(CRL_RELOAD_CRLS):
-        os.remove(os.path.join(CRL_RELOAD_CRLS, f))
 
-    import server_control
-    info = server_control.start_nginx_instance(
-        port=CRL_RELOAD_PORT, nginx_bin=NGINX_BIN,
-        conf_file="nginx_crl_reload.conf",
-        template_kwargs={
-            "DATA_DIR": DATA_ROOT,
-            "CRL_PATH": CRL_RELOAD_CRLS,
-            "CRL_RELOAD_INTERVAL": RELOAD_INTERVAL,
-            "HTTP_STUB_PORT": CRL_RELOAD_HTTP_PORT,
-        },
-    )
-
-    ok = False
-    for _ in range(30):
-        try:
-            with socket.create_connection((CRL_HOST, CRL_RELOAD_PORT), timeout=0.5):
-                ok = True
-                break
-        except Exception:
-            time.sleep(0.1)
-
-    if not ok:
-        try:
-            info["stop"]()
-        except Exception:
-            pass
+    if not _wait_for_port(CRL_HOST, CRL_RELOAD_PORT):
         pytest.fail("CRL reload nginx did not start.")
 
-    yield {"proc": None, "crl_src": crl_file, "log_dir": info["prefix"] + "/logs"}
-    try:
-        info["stop"]()
-    except Exception:
-        pass
-    try:
-        info["stop"]()
-    except Exception:
-        pass
+    yield {
+        "crl_src": crl_file,
+        "log_dir": os.path.join(TEST_ROOT, "dedicated", "crl-reload", "logs"),
+    }
 
 
 # =========================================================================
@@ -370,39 +262,23 @@ class TestCRLWebDAVRejection:
 
 
 class TestCRLConfigDirectives:
-    """Verify CRL configuration directives are accepted."""
+    """Verify CRL configuration is accepted and operational."""
 
-    def test_nginx_config_test_passes(self, crl_file):
-        """nginx -t should validate config with xrootd_crl."""
-        conf_path = os.path.join(CRL_DIR, "conf", "nginx.conf")
-        if not os.path.exists(conf_path):
-            pytest.skip("CRL config not written")
-
-        result = subprocess.run(
-            [NGINX_BIN, "-t", "-c", conf_path],
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 0, (
-            f"nginx -t failed: {result.stderr}"
+    def test_nginx_config_accepted(self, crl_nginx):
+        """Server reachability confirms the CRL config was accepted by nginx."""
+        assert _wait_for_port(CRL_HOST, CRL_PORT), (
+            f"CRL nginx not reachable on port {CRL_PORT}"
         )
 
-    def test_crl_loaded_in_logs(self, crl_file):
-        """Postconfiguration should log that the CRL was loaded."""
-        conf_path = os.path.join(CRL_DIR, "conf", "nginx.conf")
-        if not os.path.exists(conf_path):
-            pytest.skip("CRL config not written")
-
-        # ngx_conf_log_error() during postconfiguration writes to stderr,
-        # not to the error_log file.  Use `nginx -t` to capture it.
-        result = subprocess.run(
-            [NGINX_BIN, "-t", "-c", conf_path],
-            capture_output=True,
-            text=True,
-        )
-        combined = result.stdout + result.stderr
-        assert "loaded" in combined and "CRL" in combined, (
-            f"expected CRL loaded message in nginx -t output:\n{combined}"
+    def test_crl_loaded_in_logs(self, crl_nginx):
+        """Error log should contain a message confirming the CRL was loaded."""
+        log_path = os.path.join(crl_nginx["log_dir"], "error.log")
+        if not os.path.exists(log_path):
+            pytest.skip("error.log not found")
+        with open(log_path) as f:
+            log_content = f.read()
+        assert "CRL" in log_content and "loaded" in log_content, (
+            f"expected CRL loaded message in error.log:\n{log_content[:500]}"
         )
 
 
@@ -436,33 +312,21 @@ class TestCRLDirectoryMode:
             f"expected 403, got {resp.status_code}: {resp.text}"
         )
 
-    def test_directory_crl_config_test(self, crl_file):
-        """nginx -t should accept a directory path for xrootd_crl."""
-        conf_path = os.path.join(CRL_DIR_TEST, "conf", "nginx.conf")
-        if not os.path.exists(conf_path):
-            pytest.skip("dir-mode config not written")
-
-        result = subprocess.run(
-            [NGINX_BIN, "-t", "-c", conf_path],
-            capture_output=True, text=True,
-        )
-        assert result.returncode == 0, (
-            f"nginx -t failed for directory CRL: {result.stderr}"
+    def test_directory_crl_config_accepted(self, crl_dir_nginx):
+        """Server reachability confirms the directory-mode CRL config was accepted."""
+        assert _wait_for_port(CRL_HOST, CRL_DIR_PORT), (
+            f"CRL dir nginx not reachable on port {CRL_DIR_PORT}"
         )
 
-    def test_directory_crl_loaded_in_logs(self, crl_file):
-        """Postconfiguration should log CRL count for directory mode."""
-        conf_path = os.path.join(CRL_DIR_TEST, "conf", "nginx.conf")
-        if not os.path.exists(conf_path):
-            pytest.skip("dir-mode config not written")
-
-        result = subprocess.run(
-            [NGINX_BIN, "-t", "-c", conf_path],
-            capture_output=True, text=True,
-        )
-        combined = result.stdout + result.stderr
-        assert "CRL" in combined and "loaded" in combined, (
-            f"expected CRL loaded message in nginx -t output:\n{combined}"
+    def test_directory_crl_loaded_in_logs(self, crl_dir_nginx):
+        """Error log should confirm CRL files were loaded from the directory."""
+        log_path = os.path.join(crl_dir_nginx["log_dir"], "error.log")
+        if not os.path.exists(log_path):
+            pytest.skip("error.log not found")
+        with open(log_path) as f:
+            log_content = f.read()
+        assert "CRL" in log_content and "loaded" in log_content, (
+            f"expected CRL loaded message in error.log:\n{log_content[:500]}"
         )
 
 

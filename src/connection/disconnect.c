@@ -8,6 +8,13 @@
 #include <stdio.h>
 #include <string.h>
 
+/* ---- Buffer release helper — disconnect-owned payload cleanup ----
+ *
+ * WHAT: Free payload buffer and prepare_paths allocated during connection lifecycle.
+ *       Called on any disconnect/close path to prevent memory leaks.
+ *
+ * WHY: Payload buffers are detached from ctx->payload_buf in AIO write/read paths (src/write/write.c, src/aio/).
+ *      Prepare paths allocated for kXR_prepare staging requests (src/prepare/). Must be freed on disconnect. */
 
 static void
 xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
@@ -26,6 +33,13 @@ xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
     }
 }
 
+/* ---- Crypto state release — GSI/sigver cleanup on disconnect ----
+ *
+ * WHAT: Free OpenSSL crypto objects allocated during authentication.
+ *       GSI DH key (EVP_PKEY) and sigver MAC context (EVP_MAC_CTX/EVP_MAC).
+ *
+ * WHY: Gsi authentication allocates DH key pair in src/gsi/; request signing allocates MAC ctx
+ *      in src/sigver/. These are NOT freed during normal session — only on unexpected disconnect. */
 
 static void
 xrootd_release_disconnect_crypto_state(xrootd_ctx_t *ctx)
@@ -46,6 +60,13 @@ xrootd_release_disconnect_crypto_state(xrootd_ctx_t *ctx)
     }
 }
 
+/* ---- Metrics update — session byte totals accumulation on disconnect ----
+ *
+ * WHAT: Finalize session metrics by decrementing connections_active and accumulating
+ *       total bytes (rx/tx) for the connection lifecycle. Includes per-IP-version and per-protocol breakdowns.
+ *
+ * WHY: Prometheus metrics need accurate session totals at close time — not just individual request counts.
+ *      Bytes accumulated during AIO operations must be finalized here before ctx is destroyed. */
 
 static void
 xrootd_disconnect_update_metrics(xrootd_ctx_t *ctx)
@@ -83,6 +104,13 @@ xrootd_disconnect_update_metrics(xrootd_ctx_t *ctx)
     }
 }
 
+/* ---- File bytes helper — prefer written over read for interrupted uploads ----
+ *
+ * WHAT: Return the dominant byte count for an open handle during disconnect logging.
+ *       If writes occurred (upload), return bytes_written; otherwise bytes_read.
+ *
+ * WHY: Interrupted uploads should NOT be reported as zero-byte reads in access logs.
+ *      This ensures metrics accuracy when a connection drops mid-upload. */
 
 static size_t
 xrootd_disconnect_file_bytes(const xrootd_file_t *file)
@@ -99,6 +127,13 @@ xrootd_disconnect_file_bytes(const xrootd_file_t *file)
     return file->bytes_read;
 }
 
+/* ---- Log open files — access-log entries for all handles at disconnect ----
+ *
+ * WHAT: Log access entries for every still-open handle when connection drops.
+ *       Detail = "interrupted X.XXMB/s" or "interrupted". Status = kXR_Cancelled.
+ *
+ * WHY: When a connection drops unexpectedly, all open handles must be logged as cancelled.
+ *      Duration measured from original open_time (not disconnect time) via req_start reuse. */
 
 static void
 xrootd_disconnect_log_open_files(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -141,6 +176,13 @@ xrootd_disconnect_log_open_files(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 }
 
+/* ---- Session detail formatter — throughput calculation for disconnect logging ----
+ *
+ * WHAT: Format session-level throughput details (rx/tx MB/s breakdown or single aggregate).
+ *       Called before final access-log entry for the connection lifecycle.
+ *
+ * WHY: Provides accurate session-level metrics for Prometheus dashboards and access logs.
+ *      Shows separate read/write throughput when both occurred; aggregate otherwise. */
 
 static void
 xrootd_disconnect_format_session_detail(xrootd_ctx_t *ctx, ngx_msec_t now,
@@ -163,7 +205,7 @@ xrootd_disconnect_format_session_detail(xrootd_ctx_t *ctx, ngx_msec_t now,
         read_mbps = (double) ctx->session_bytes
                     / (double) session_duration_ms / 1000.0;
         write_mbps = (double) ctx->session_bytes_written
-                     / (double) session_duration_ms / 1000.0;
+                      / (double) session_duration_ms / 1000.0;
         snprintf(detail, detail_size, "rx=%.2fMB/s tx=%.2fMB/s",
                  read_mbps, write_mbps);
         return;
@@ -173,6 +215,13 @@ xrootd_disconnect_format_session_detail(xrootd_ctx_t *ctx, ngx_msec_t now,
              (double) *total_bytes / (double) session_duration_ms / 1000.0);
 }
 
+/* ---- xrootd_on_disconnect — main entry point for unexpected connection close ----
+ *
+ * WHAT: Called when a TCP connection is closed unexpectedly (not via normal kXR_close).
+ *       Performs three-phase cleanup: buffer/crypto release, metrics finalization, access-log entries.
+ *
+ * WHY: Handles graceful degradation when clients disconnect without proper session termination.
+ *      Must clean up ALL resources — buffers, crypto objects, open handles, registry slots. */
 
 void
 xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -197,6 +246,12 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
     xrootd_release_disconnect_crypto_state(ctx);
     xrootd_disconnect_update_metrics(ctx);
     xrootd_disconnect_log_open_files(ctx, c, now);
+
+    /* Free any transfer monitor slots for this session (handles kXR_close was never sent). */
+    if (ngx_xrootd_dashboard_shm_zone != NULL) {
+        xrootd_transfer_slot_free_all_for_session(
+            ngx_xrootd_dashboard_shm_zone->data, ctx->sessid);
+    }
 
     if (!ctx->logged_in) {
         return;

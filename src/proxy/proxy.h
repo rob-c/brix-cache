@@ -53,6 +53,13 @@ char *xrootd_conf_set_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
 /*
+ * xrootd_conf_set_proxy_login_user — nginx directive handler for
+ * "xrootd_proxy_login_user anonymous|passthrough|fixed:<name>".
+ */
+char *xrootd_conf_set_proxy_login_user(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+
+/*
  * xrootd_conf_set_proxy_path_rewrite — nginx directive handler for
  * "xrootd_proxy_path_rewrite /strip-prefix /add-prefix".
  */

@@ -1,8 +1,16 @@
 /*
  * config.c - WebDAV location config create/merge and startup validation.
+ *
+ * WHAT: nginx HTTP module location configuration lifecycle — allocates a fresh config struct with all fields set to NGX_CONF_UNSET sentinel values (create_loc_conf), then merges parent→child inheritance chain applying ngx_conf_merge_* macros to resolve defaults (merge_loc_conf). After merging, performs startup validation: canonicalizes the export root path, validates CA/CRL file/directory paths, builds a cached OpenSSL X509_STORE from configured certificates and CRLs, loads JWKS keys for token auth, and validates TPC curl binary paths. Returns NGX_CONF_OK on success or NGX_CONF_ERROR with emerg-level log messages on failure.
+ *
+ * WHY: WebDAV requires many interdependent config values (CA store, root path, CORS origins, token issuer/audience, upstream URL) that must be validated together before accepting traffic. The merge chain ensures location-level directives inherit from server and main context defaults, while the validation phase catches configuration errors at postconfig time so nginx -t fails early rather than a worker crashing on first request. Building the CA store during config merge (not per-request) eliminates repeated X509_STORE construction cost.
+ *
+ * HOW: create_loc_conf allocates with ngx_pcalloc and sets every field to NGX_CONF_UNSET or NGX_CONF_UNSET_UINT; merge_loc_conf applies ngx_conf_merge_* macros for each field, then conditionally validates root path, CA/CRL paths, CORS origins, JWKS load, TPC binary paths, and upstream URL parsing. On validation success builds X509_STORE via webdav_build_ca_store() and attaches a pool cleanup handler for automatic deallocation on worker exit.
  */
 
 #include "webdav.h"
+#include "../config/config.h"
+#include "../config/root_prepare.h"
 
 #include <openssl/x509.h>
 
@@ -10,68 +18,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-typedef enum {
-    WEBDAV_PATH_REGULAR_FILE,
-    WEBDAV_PATH_DIRECTORY,
-    WEBDAV_PATH_FILE_OR_DIRECTORY
-} webdav_path_kind_t;
+#define webdav_validate_path          xrootd_validate_path
+#define WEBDAV_PATH_REGULAR_FILE      XROOTD_PATH_REGULAR_FILE
+#define WEBDAV_PATH_DIRECTORY         XROOTD_PATH_DIRECTORY
+#define WEBDAV_PATH_FILE_OR_DIRECTORY XROOTD_PATH_FILE_OR_DIRECTORY
 
-static ngx_int_t
-webdav_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path,
-                     webdav_path_kind_t kind, int access_mode)
-{
-    struct stat st;
-
-    if (path == NULL || path->len == 0 || path->data == NULL) {
-        return NGX_OK;
-    }
-
-    if (stat((char *) path->data, &st) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd_webdav: %s path \"%s\" is not accessible",
-                           label, path->data);
-        return NGX_ERROR;
-    }
-
-    switch (kind) {
-    case WEBDAV_PATH_REGULAR_FILE:
-        if (!S_ISREG(st.st_mode)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "xrootd_webdav: %s path \"%s\" must be a regular file",
-                               label, path->data);
-            return NGX_ERROR;
-        }
-        break;
-
-    case WEBDAV_PATH_DIRECTORY:
-        if (!S_ISDIR(st.st_mode)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "xrootd_webdav: %s path \"%s\" must be a directory",
-                               label, path->data);
-            return NGX_ERROR;
-        }
-        break;
-
-    case WEBDAV_PATH_FILE_OR_DIRECTORY:
-        if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "xrootd_webdav: %s path \"%s\" must be a file or directory",
-                               label, path->data);
-            return NGX_ERROR;
-        }
-        break;
-    }
-
-    if (access_mode != 0 && access((char *) path->data, access_mode) != 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd_webdav: %s path \"%s\" failed permission check",
-                           label, path->data);
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
-}
-
+/* ---- Function: webdav_x509_store_cleanup() ----
+ *
+ * WHAT: Pool cleanup callback that frees an OpenSSL X509_STORE when the nginx configuration pool is destroyed during worker process exit. Called automatically by ngx_pool_cleanup_add — never invoked directly by application code. Only frees non-NULL store pointers to prevent NULL-deref crashes during error paths in config parsing.
+ *
+ * WHY: The CA store built by webdav_build_ca_store() must be freed when the nginx worker process shuts down to prevent memory leaks across multiple worker restarts (e.g., graceful shutdown/restart cycles). Attaching this cleanup handler to the configuration pool ensures automatic deallocation without requiring explicit free calls in every config parsing code path. */
 static void
 webdav_x509_store_cleanup(void *data)
 {
@@ -118,16 +74,21 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
         return NULL;
     }
 
-    conf->enable       = NGX_CONF_UNSET;
+    conf->common.enable       = NGX_CONF_UNSET;
     conf->verify_depth = NGX_CONF_UNSET_UINT;
     conf->auth         = NGX_CONF_UNSET_UINT;
     conf->proxy_certs  = NGX_CONF_UNSET;
-    conf->allow_write  = NGX_CONF_UNSET;
+    conf->common.allow_write  = NGX_CONF_UNSET;
     conf->ca_store     = NULL;
     conf->cors_origins = NULL;
     conf->cors_credentials = NGX_CONF_UNSET;
     conf->cors_max_age = NGX_CONF_UNSET_UINT;
     conf->lock_timeout = NGX_CONF_UNSET_UINT;
+    conf->open_file_cache = NGX_CONF_UNSET_PTR;
+    conf->open_file_cache_valid = NGX_CONF_UNSET_UINT;
+    conf->open_file_cache_min_uses = NGX_CONF_UNSET_UINT;
+    conf->open_file_cache_errors = NGX_CONF_UNSET;
+    conf->open_file_cache_events = NGX_CONF_UNSET;
     ngx_http_xrootd_webdav_tpc_create_loc_conf(conf);
 
     conf->upstream_proxy    = NGX_CONF_UNSET;
@@ -151,8 +112,8 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
 
     conf->lock_shm_zone = webdav_lock_shm_zone;
 
-    ngx_conf_merge_value(conf->enable, prev->enable, 0);
-    ngx_conf_merge_str_value(conf->root, prev->root, "/");
+    ngx_conf_merge_value(conf->common.enable, prev->common.enable, 0);
+    ngx_conf_merge_str_value(conf->common.root, prev->common.root, "/");
     ngx_conf_merge_str_value(conf->cadir, prev->cadir, "");
     ngx_conf_merge_str_value(conf->cafile, prev->cafile, "");
     ngx_conf_merge_str_value(conf->crl, prev->crl, "");
@@ -160,7 +121,7 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_uint_value(conf->auth, prev->auth,
                               WEBDAV_AUTH_OPTIONAL);
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
-    ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
+    ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
     ngx_http_xrootd_webdav_tpc_merge_loc_conf(conf, prev);
     if (conf->cors_origins == NULL) {
         conf->cors_origins = prev->cors_origins;
@@ -168,6 +129,17 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->cors_credentials, prev->cors_credentials, 0);
     ngx_conf_merge_uint_value(conf->cors_max_age, prev->cors_max_age, 86400);
     ngx_conf_merge_uint_value(conf->lock_timeout, prev->lock_timeout, 600);
+
+    ngx_conf_merge_ptr_value(conf->open_file_cache,
+                              prev->open_file_cache, NULL);
+    ngx_conf_merge_uint_value(conf->open_file_cache_valid,
+                              prev->open_file_cache_valid, 60);
+    ngx_conf_merge_uint_value(conf->open_file_cache_min_uses,
+                              prev->open_file_cache_min_uses, 1);
+    ngx_conf_merge_value(conf->open_file_cache_errors,
+                         prev->open_file_cache_errors, 0);
+    ngx_conf_merge_value(conf->open_file_cache_events,
+                         prev->open_file_cache_events, 0);
 
     ngx_conf_merge_str_value(conf->token_jwks, prev->token_jwks, "");
     ngx_conf_merge_str_value(conf->token_issuer, prev->token_issuer, "");
@@ -177,32 +149,16 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
                              prev->token_macaroon_secret_old, "");
 
-    if (conf->enable) {
-        if (webdav_validate_path(cf, "xrootd_webdav_root", &conf->root,
-                                 WEBDAV_PATH_DIRECTORY,
-                                 conf->allow_write ? (R_OK | W_OK | X_OK)
-                                                   : (R_OK | X_OK))
-            != NGX_OK)
+    if (conf->common.enable) {
         {
-            return NGX_CONF_ERROR;
-        }
-
-        {
-            char root_buf[WEBDAV_MAX_PATH];
-
-            if (conf->root.len >= sizeof(root_buf)) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                                   "xrootd_webdav: root path too long");
-                return NGX_CONF_ERROR;
-            }
-
-            ngx_memcpy(root_buf, conf->root.data, conf->root.len);
-            root_buf[conf->root.len] = '\0';
-
-            if (realpath(root_buf, conf->root_canon) == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, errno,
-                                   "xrootd_webdav: cannot resolve root \"%V\"",
-                                   &conf->root);
+            xrootd_export_root_opts_t root_opts;
+            root_opts.directive_name = "xrootd_webdav_root";
+            root_opts.allow_write    = conf->common.allow_write;
+            root_opts.required       = 1;
+            root_opts.canon_size     = sizeof(conf->common.root_canon);
+            if (xrootd_prepare_export_root(cf, &conf->common.root, &root_opts,
+                                           conf->common.root_canon) != NGX_CONF_OK)
+            {
                 return NGX_CONF_ERROR;
             }
         }
@@ -263,7 +219,7 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
                                "xrootd_webdav: cached CA store built"
                                " for root=\"%V\" crls=%d",
-                               &conf->root, crl_count);
+                               &conf->common.root, crl_count);
         }
 
         if (conf->token_jwks.len > 0) {

@@ -1,11 +1,32 @@
 #include "ngx_xrootd_module.h"
 
-/*
- * Basic XRootD response framing helpers.
+/* ---- Function: xrootd_build_resp_hdr() — build wire response header structure ----
  *
- * All wire responses eventually go through xrootd_queue_response(), which
- * handles partial writes and EAGAIN buffering for the connection.
- */
+ * WHAT: Builds XRootD wire protocol response header (ServerResponseHdr) from
+ *       components. Sets streamid bytes copied directly from caller-provided
+ *       pointer for connection tracking. Converts status opcode and dlen to
+ *       network byte order via htons()/htonl() ensuring correct wire format.
+ *       All fields written in fixed positions per XRootD protocol spec.
+ *
+ * WHY: Every handler calls this to construct the 8-byte response header
+ *      before payload. Streamid consistency prevents cross-stream confusion
+ *      with concurrent operations on same connection. Network byte order
+ *      ensures wire-format correctness across architectures.
+ *
+ * HOW: Copy streamid[0..1] → out->streamid; htons(status) → out->status;
+ *      htonl(dlen) → out->dlen. Pure function, no shared state. Sets streamid bytes (0 and 1) copied directly from caller-provided streamid pointer for connection tracking. Converts status opcode to network byte order via htons() ensuring correct wire format across architectures. Converts dlen (data length) to network byte order via htonl() — this includes body size only, not header overhead. All fields written in fixed positions within ServerResponseHdr structure following XRootD protocol specification. Caller must provide pre-allocated out buffer with sufficient capacity for the struct. Thread safety: pure function with no shared state — operates only on provided streamid pointer and local out struct during response construction. */
+
+/* ---- Function: xrootd_send_ok() — send kXR_ok success response with optional body ----
+ *
+ * WHAT: Sends XRootD kXR_ok (opcode 1) success response with optional payload body. Calculates total size = header length + bodylen, allocates buffer from connection pool via ngx_palloc(). Builds response header using xrootd_build_resp_hdr() with ctx->cur_streamid and status=kXR_ok, dlen=bodylen. If bodylen > 0 AND body != NULL, copies body payload to buffer after header via ngx_memcpy(); if bodylen == 0 or body is NULL skips copy (zero-length success responses valid). Queues complete response for wire delivery via xrootd_queue_response() with total size including header + body. Returns NGX_ERROR only on allocation failure; always succeeds when memory available. Per AGENTS.md INVARIANT: all wire paths → xrootd_queue_response() before sending — this function delegates to the queueing infrastructure for partial write/EAGAIN handling.
+ *
+ * WHY: kXR_ok success responses are sent after successful open/read/write/close/stat operations — the optional body allows returning metadata alongside confirmation (e.g., file size in stat response, or path string in rename response). The kXR_ok opcode indicates operation completed without error, enabling clients to proceed with subsequent requests. Streamid consistency via ctx->cur_streamid prevents cross-stream confusion when multiple concurrent operations are active on same connection. Thread safety: operates only on local stack variables (buf) and provided ctx/c connection; no shared state modification during response construction. */
+
+/* ---- Function: xrootd_send_error() — send kXR_error failure response with code and message ----
+ *
+ * WHAT: Sends XRootD kXR_error (opcode -1) failure response containing error code and human-readable message. Calculates body length = 4 bytes error code + strlen(msg) + 1 NUL terminator (total msglen). Total size = header length + body length. Allocates buffer from connection pool via ngx_palloc(). Builds response header using xrootd_build_resp_hdr() with ctx->cur_streamid and status=kXR_error, dlen=bodylen. Error code converted to network byte order via htonl(), copied after header. Message string (including NUL terminator) copied immediately after error code — trailing NUL matters because several clients treat the text as a C string requiring proper termination. Logs debug-level entry showing error code and message before sending for observability. Queues complete response for wire delivery via xrootd_queue_response() with total size including header + 4-byte error code + null-terminated message. Returns NGX_ERROR only on allocation failure; always succeeds when memory available. Per AGENTS.md errno→kXR mapping: ENOENT→kXR_NotFound, EACCES/EPERM→kXR_NotAuthorized, EINVAL→kXR_ArgInvalid, EIO→kXR_IOError, ENOMEM→kXR_NoMemory.
+ *
+ * WHY: Error responses must include both numeric code and human-readable message — clients use the code for programmatic error handling while operators use the message for debugging. The trailing NUL terminator is critical because multiple XRootD clients parse error messages as C strings without explicit length field; omitting it would cause buffer over-reads on client side. kXR_error opcode distinguishes failure from success responses, enabling clients to detect operation failures and retry or abort accordingly. Debug-level logging provides observability for troubleshooting without increasing log verbosity in production (debug level only). Thread safety: operates only on local stack variables (buf) and provided ctx/c connection; no shared state modification during response construction. */
 
 void
 xrootd_build_resp_hdr(const u_char *streamid, uint16_t status,
@@ -16,7 +37,6 @@ xrootd_build_resp_hdr(const u_char *streamid, uint16_t status,
     out->status      = htons(status);
     out->dlen        = htonl(dlen);
 }
-
 
 ngx_int_t
 xrootd_send_ok(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -41,7 +61,6 @@ xrootd_send_ok(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     return xrootd_queue_response(ctx, c, buf, total);
 }
-
 
 ngx_int_t
 xrootd_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,

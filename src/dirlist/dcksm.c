@@ -1,53 +1,48 @@
+/*
+ * Checksum computation helpers for kXR_dcksm mode.
+ * When the dirlist request includes the kXR_dcksm flag, each directory entry
+ * is accompanied by a reference checksum (adler32, crc32, crc32c, md5, sha1,
+ * or sha256). These functions parse the requested algorithm from the CGI
+ * parameter and compute the corresponding digest on disk.
+ */
+
 #include "dcksm.h"
-#include "../query/query_internal.h"
+#include "../compat/checksum.h"
+#include "../compat/integrity_info.h"
 
 #include <ctype.h>
 #include <string.h>
+#include <sys/xattr.h>
 
-
-static void
-xrootd_dirlist_hex_digest(const unsigned char *digest, unsigned int digest_len,
-    char *hex)
-{
-    unsigned int i;
-
-    for (i = 0; i < digest_len; i++) {
-        snprintf(hex + i * 2, 3, "%02x", digest[i]);
-    }
-}
-
-
-static ngx_flag_t
-xrootd_dirlist_algorithm_supported(const char *algo)
-{
-    return (strcmp(algo, "adler32") == 0
-            || strcmp(algo, "md5") == 0
-            || strcmp(algo, "sha1") == 0
-            || strcmp(algo, "sha256") == 0);
-}
-
+/*
+ * Parse a raw algorithm string into lowercase and validate it.
+ * Returns NGX_OK if supported, NGX_DECLINED for unsupported algorithms,
+ * or NGX_ERROR on invalid input (e.g., non-alphanumeric characters).
+ */
+/* ------------------------------------------------------------------ */
+/* Section: Algorithm Parsing                                          */
+/* ------------------------------------------------------------------ */
 
 static ngx_int_t
 xrootd_dirlist_parse_algorithm(const u_char *src, size_t len,
     char *algo, size_t algo_sz)
 {
-    size_t i;
+    xrootd_checksum_alg_t alg;
 
-    if (len == 0 || len >= algo_sz) {
-        return NGX_ERROR;
-    }
-
-    for (i = 0; i < len; i++) {
-        if (!isalnum((unsigned char) src[i])) {
-            return NGX_ERROR;
-        }
-        algo[i] = (char) tolower((unsigned char) src[i]);
-    }
-    algo[len] = '\0';
-
-    return xrootd_dirlist_algorithm_supported(algo) ? NGX_OK : NGX_DECLINED;
+    return xrootd_checksum_parse((const char *) src, len, &alg, algo,
+                                 algo_sz);
 }
 
+/*
+ * Extract the requested checksum algorithm from the dirlist request payload.
+ * The client may append a CGI parameter like "?cks.type=sha256" to specify
+ * which algorithm to use. If no parameter is present, defaults to adler32.
+ * Returns NGX_OK on success, NGX_DECLINED if an unsupported algorithm was
+ * requested (bad_algo contains the rejected name for error reporting).
+ */
+/* ------------------------------------------------------------------ */
+/* Section: CGI Parameter Extraction                                   */
+/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_dirlist_checksum_algorithm(const u_char *payload, size_t payload_len,
@@ -114,14 +109,19 @@ xrootd_dirlist_checksum_algorithm(const u_char *payload, size_t payload_len,
     return NGX_OK;
 }
 
-
+/*
+ * Compute a checksum token for a single directory entry.
+ * Opens the file, computes the digest using the requested algorithm (adler32,
+ * crc32, crc32c, md5, sha1, or sha256), and writes the result as
+ * "algo:hexvalue" to out.  Returns "algo:none" if the file is not regular or
+ * checksum fails.
+ */
 void
-xrootd_dirlist_checksum_token(ngx_connection_t *c, int dfd,
+xrootd_dirlist_checksum_token(ngx_log_t *log, int dfd,
     const char *name, const char *path, const struct stat *st,
     const char *algo, char *out, size_t outsz)
 {
-    const EVP_MD *md = NULL;
-    int           fd;
+    int   fd;
 
     if (!S_ISREG(st->st_mode)) {
         snprintf(out, outsz, "%s:none", algo);
@@ -134,49 +134,30 @@ xrootd_dirlist_checksum_token(ngx_connection_t *c, int dfd,
         return;
     }
 
-    if (strcmp(algo, "adler32") == 0) {
-        uint32_t cksum;
+    {
+        xrootd_integrity_info_t  info;
+        xrootd_integrity_opts_t  iopts;
 
-        cksum = xrootd_query_adler32_fd(fd, path, c->log);
-        if (cksum == 0xFFFFFFFF) {
-            close(fd);
+        ngx_memzero(&iopts, sizeof(iopts));
+        iopts.allow_xattr_cache  = 1;
+        iopts.update_xattr_cache = 1;
+
+        if (xrootd_integrity_get_fd(log, fd, path, algo, &iopts, &info) == NGX_OK) {
+            snprintf(out, outsz, "%s:%s", info.alg_name, info.hex);
+        } else {
             snprintf(out, outsz, "%s:none", algo);
-            return;
-        }
-
-        snprintf(out, outsz, "%s:%08x", algo, (unsigned int) cksum);
-        close(fd);
-        return;
-    }
-
-    if (strcmp(algo, "md5") == 0) {
-        md = EVP_md5();
-
-    } else if (strcmp(algo, "sha1") == 0) {
-        md = EVP_sha1();
-
-    } else if (strcmp(algo, "sha256") == 0) {
-        md = EVP_sha256();
-    }
-
-    if (md != NULL) {
-        unsigned char mdout[EVP_MAX_MD_SIZE];
-        unsigned int  mdlen = 0;
-        char          hex[EVP_MAX_MD_SIZE * 2 + 1];
-
-        if (xrootd_query_digest_fd(fd, path, md, mdout, &mdlen, c->log)) {
-            xrootd_dirlist_hex_digest(mdout, mdlen, hex);
-            snprintf(out, outsz, "%s:%s", algo, hex);
-            close(fd);
-            return;
         }
     }
 
     close(fd);
-    snprintf(out, outsz, "%s:none", algo);
 }
 
-
+/*
+ * Format a dcksm stat body for one directory entry.
+ * Produces the 9-field line: inode size flags mtime ctime atime mode uid gid.
+ * Sets kXR_isDir or kXR_other flags based on file type, and readable/writable/xset
+ * flags based on permission bits. This is used when kXR_dcksm is requested.
+ */
 void
 xrootd_dirlist_make_dcksm_stat_body(const struct stat *st, char *out,
     size_t outsz)

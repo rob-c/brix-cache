@@ -16,10 +16,10 @@ in src/tpc/ has a pre-existing bug that needs investigation.
 
 import pytest
 
-# TPC tests now run against both nginx-xrootd and reference xrootd.
-# Known issue: xrdcp --tpc may fail if the source/destination doesn't
-# properly advertise TPC support via kXR_query config tpc.
-pytestmark = pytest.mark.skip(reason="TPC implementation has a pre-existing bug causing xrdcp --tpc to hang when nginx is destination")
+# Each TPC test may run xrdcp with up to 40 s timeout; give the test wrapper
+# 60 s so subprocess.TimeoutExpired fires before the pytest-timeout kills the
+# test process.
+pytestmark = pytest.mark.timeout(60)
 
 import os
 import shutil
@@ -30,12 +30,11 @@ from pathlib import Path
 
 import pytest
 from settings import (
-    NGINX_BIN,
     ROOT_TPC_NGINX_PORT,
     ROOT_TPC_REF_PORT,
+    TEST_ROOT,
     XRDCP_BIN,
     XRDFS_BIN,
-    XROOTD_BIN,
 )
 
 @dataclass(frozen=True)
@@ -141,144 +140,84 @@ def _reports_tpc_disabled(result) -> bool:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def nginx_root(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+def nginx_root():
     if shutil.which(XRDFS_BIN) is None:
         pytest.skip("xrdfs not found")
     if shutil.which(XRDCP_BIN) is None:
         pytest.skip("xrdcp not found")
 
-    workdir = tmp_path_factory.mktemp("root-tpc-nginx")
-    data_root = workdir / "data"
+    workdir = Path(TEST_ROOT) / "dedicated" / "root-tpc"
+    data_root = Path(TEST_ROOT) / "data-root-tpc"
     data_root.mkdir(parents=True, exist_ok=True)
 
     port = ROOT_TPC_NGINX_PORT
     url = f"root://localhost:{port}"
 
-    import server_control
-    info = server_control.start_nginx_instance(
-        port=port, nginx_bin=NGINX_BIN,
-        conf_file="nginx_root_tpc.conf",
-        template_kwargs={"DATA_DIR": str(data_root)},
-    )
-
-    try:
-        ready = False
-        last_result = None
-        for _ in range(30):
-            try:
-                result = _query_tpc(url)
-            except subprocess.TimeoutExpired:
-                time.sleep(0.5)
-                continue
-            last_result = result
-            if result.returncode == 0:
-                ready = True
-                break
-            time.sleep(0.5)
-
-        if not ready:
-            info["stop"]()
-            stdout = ""
-            stderr = ""
-            if last_result is not None:
-                stdout = last_result.stdout.decode(errors="replace")
-                stderr = last_result.stderr.decode(errors="replace")
-            pytest.fail(
-                f"nginx root:// fixture did not start on port {port}.\n"
-                f"xrdfs stdout: {stdout}\n"
-                f"xrdfs stderr: {stderr}\n"
-            )
-
-        yield NginxRoot(workdir=workdir, data_root=data_root, url=url)
-    finally:
+    ready = False
+    last_result = None
+    for _ in range(30):
         try:
-            info["stop"]()
-        except Exception:
-            pass
+            result = _query_tpc(url)
+        except subprocess.TimeoutExpired:
+            time.sleep(0.5)
+            continue
+        last_result = result
+        if result.returncode == 0:
+            ready = True
+            break
+        time.sleep(0.5)
+
+    if not ready:
+        stdout = ""
+        stderr = ""
+        if last_result is not None:
+            stdout = last_result.stdout.decode(errors="replace")
+            stderr = last_result.stderr.decode(errors="replace")
+        pytest.fail(
+            f"dedicated nginx root:// TPC server is not ready on port {port}.\n"
+            f"xrdfs stdout: {stdout}\n"
+            f"xrdfs stderr: {stderr}\n"
+        )
+
+    yield NginxRoot(workdir=workdir, data_root=data_root, url=url)
 
 
 @pytest.fixture(scope="session", autouse=True)
-def reference_root_tpc(tmp_path_factory):
-    if shutil.which(XROOTD_BIN) is None:
-        pytest.skip("xrootd binary not found")
+def reference_root_tpc():
     xrdcp = shutil.which(XRDCP_BIN)
     if xrdcp is None:
         pytest.skip("xrdcp not found")
 
-    workdir = tmp_path_factory.mktemp("root-tpc-xrootd")
-    data_root = workdir / "data"
-    admin_dir = workdir / "admin"
-    run_dir = workdir / "run"
-    for directory in (data_root, admin_dir, run_dir):
-        directory.mkdir(parents=True, exist_ok=True)
+    workdir = Path(TEST_ROOT) / "ref"
+    data_root = Path(TEST_ROOT) / "data-root-tpc-ref"
+    data_root.mkdir(parents=True, exist_ok=True)
 
     port = ROOT_TPC_REF_PORT
     url = f"root://localhost:{port}"
-    cfg_path = workdir / "xrootd-tpc.cfg"
-    log_path = workdir / "xrootd-tpc.log"
-    import server_control
-    cfg_path.write_text(
-        server_control.render_config_file(
-            "xrootd_root_tpc.conf",
-            {
-                "DATA_DIR": str(data_root),
-                "ADMIN_DIR": str(admin_dir),
-                "RUN_DIR": str(run_dir),
-                "PORT": str(port),
-                "XRDCP_BIN": xrdcp,
-            },
-        )
-    )
 
-    proc = subprocess.Popen(
-        [XROOTD_BIN, "-c", str(cfg_path), "-l", str(log_path)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    try:
-        ready = False
-        for _ in range(30):
-            if proc.poll() is not None:
-                break
-            try:
-                result = _query_tpc(url)
-            except subprocess.TimeoutExpired:
-                time.sleep(0.5)
-                continue
-            if result.returncode == 0:
-                ready = True
-                break
-            time.sleep(0.5)
-        if not ready:
-            proc.terminate()
-            proc.wait(timeout=5)
-            log = log_path.read_text(errors="replace") if log_path.exists() else ""
-            pytest.skip(
-                "reference root:// xrootd endpoint did not start; "
-                f"log tail:\n{log[-3000:]}"
-            )
-
-        query = _query_tpc(url)
-        if query.returncode != 0 or not _reports_tpc_enabled(query):
-            proc.terminate()
-            proc.wait(timeout=5)
-            pytest.skip(
-                "reference xrootd did not advertise native TPC support; "
-                f"stdout={query.stdout.decode(errors='replace')!r} "
-                f"stderr={query.stderr.decode(errors='replace')!r}"
-            )
-
-        yield ReferenceRootTPC(workdir=workdir, data_root=data_root, url=url)
-    finally:
-        proc.terminate()
+    ready = False
+    for _ in range(30):
         try:
-            proc.wait(timeout=5)
+            result = _query_tpc(url)
         except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
+            time.sleep(0.5)
+            continue
+        if result.returncode == 0:
+            ready = True
+            break
+        time.sleep(0.5)
+    if not ready:
+        pytest.skip("dedicated reference root:// TPC endpoint is not ready")
+
+    query = _query_tpc(url)
+    if query.returncode != 0 or not _reports_tpc_enabled(query):
+        pytest.skip(
+            "reference xrootd did not advertise native TPC support; "
+            f"stdout={query.stdout.decode(errors='replace')!r} "
+            f"stderr={query.stderr.decode(errors='replace')!r}"
+        )
+
+    yield ReferenceRootTPC(workdir=workdir, data_root=data_root, url=url)
 
 
 class TestNginxRootTPC:

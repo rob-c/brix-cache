@@ -1,20 +1,89 @@
 #include "gsi_internal.h"
 #include "../session/registry.h"
+#include "../crypto/ocsp.h"
+#include "../crypto/gsi_verify.h"
 
+/* ------------------------------------------------------------------ */
+/* GSI Auth — Credential Routing, DH Key Exchange, Certificate Verification  */
+/* ------------------------------------------------------------------ */
 /*
- * Top-level kXR_auth dispatcher.
- */
+ * WHAT: Implements the kXR_auth dispatcher for all client authentication requests (GSI/x509 proxy certs, bearer tokens/WLCG JWT, SSS shared secrets). Routes to specialized handlers based on credtype field extracted from wire payload. GSI path implements two-round DH key exchange protocol (kXGC_certreq→server cert response via xrootd_gsi_send_cert(), kXGC_cert→encrypted proxy chain parsed by xrootd_gsi_parse_x509()), verifies against configured CA store with X509_V_FLAG_ALLOW_PROXY_CERTS, extracts DN from verified leaf and optionally VOMS VO membership attributes. Token path validates JWT against configured JWKS via xrootd_handle_token_auth(). SSS path delegates to xrootd_handle_sss_auth() in src/sss/. Rate-limited public entry point guards against brute-force attempts.
+ *
+ * WHY: GSI authentication requires two-round DH key exchange to protect the client's proxy certificate from man-in-the-middle attacks. DN extraction enables VO ACL rule matching for path authorization. VOMS membership provides granular VO-level access control beyond basic DN-based rules. Session registration after auth_done=1 enables bind operations and CMS/manager mode cross-node communication. Rate limiting prevents CPU-amplification via costly GSI/OpenSSL/VOMS operations from brute-force attackers.
+ *
+ * HOW: xrootd_handle_auth() (public entry point) → validate auth_fail_count against XROOTD_MAX_AUTH_ATTEMPTS, detect certreq round to skip rate limit → call xrootd_handle_auth_inner(). Inner dispatcher → extract 4-byte credtype from payload +12 offset → route: ztn→token handler, sss→SSS handler, gsi→GSI path. GSI path → validate ctx->logged_in → check conf->auth method → extract gsi_step (kXGC_certreq vs kXGC_cert) → certreq→send server cert via xrootd_gsi_send_cert(), cert→parse x509 chain via xrootd_gsi_parse_x509() → verify against CA store with X509_V_FLAG_ALLOW_PROXY_CERTS for proxy certs → optional OCSP revocation check (conf->ocsp_enable) → extract DN from verified leaf → optional VOMS VO membership extraction → mark ctx->auth_done=1, register session in shared registry → track unique user/VO metrics. */
+/* ---- kXR_auth dispatcher — top-level credential type routing and authentication ----
+ *
+ * WHAT: Central entry point for all client authentication requests (GSI/x509 proxy certs, bearer tokens/WLCG JWT, SSS shared secrets).
+ *       Routes to specialized handlers based on credtype field extracted from wire payload. */
 
-ngx_int_t
-xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
+/* ---- Authentication credential types supported ----
+ *
+ * WHAT: Three credential types identified by 4-byte credtype field in kXR_auth payload:
+ *   - "gsi" = Grid Security Infrastructure — multi-round DH key exchange over x509 proxy certs
+ *   - "ztn" = WLCG bearer token — single-round JWT validation against configured JWKS
+ *   - "sss" = Shared secret authentication — pre-shared password/secret for trusted environments */
+
+/* ---- Authentication phase ordering (must be logged in first) ----
+ *
+ * WHY: kXR_auth occurs AFTER kXR_login establishes the session ID. Requires ctx->logged_in to prevent
+ *      unauthenticated sessions from attempting credential exchange without proper session context. */
+
+/* ---- Credential type routing pattern ----
+ *
+ * HOW: Extract 4-byte credtype from payload +12 offset, compare against configured auth method (conf->auth).
+ *      Each credential type has its own handler: xrootd_handle_token_auth() for ztn, xrootd_handle_sss_auth() for sss. */
+
+/* ---- GSI multi-step authentication flow ----
+ *
+ * WHAT: GSI authentication uses two-round protocol with DH key exchange for secure credential transfer:
+ *   Round 1 (kXGC_certreq): Client requests server certificate — server responds via xrootd_gsi_send_cert()
+ *   Round 2 (kXGC_cert): Client sends encrypted proxy cert chain using shared DH secret — parsed by xrootd_gsi_parse_x509() */
+
+/* ---- GSI authentication invariant (GSISecureBucket protocol) ----
+ *
+ * WHY: The two-round pattern ensures the client's proxy certificate is encrypted with a DH shared secret,
+ *      preventing man-in-the-middle attacks where an interceptor could read the raw certificate chain. */
+
+/* ---- Certificate verification mechanism ----
+ *
+ * WHAT: After parsing the x509 proxy chain, creates X509_STORE_CTX and verifies against configured CA store.
+ *       Uses X509_V_FLAG_ALLOW_PROXY_CERTS flag to permit proxy certificates (intermediate certs between leaf and root). */
+
+/*---- Certificate verification error handling ----
+ *
+ * WHAT: On verification failure, extracts specific error code via X509_STORE_CTX_get_error() and provides human-readable string.
+ *       Logs both debug-level warning and access-log entry with the specific verification failure reason (expired cert, revoked CRL, etc.). */
+
+/*---- DN extraction from verified certificate leaf ----
+ *
+ * WHAT: Extracts the Subject Distinguished Name (DN) from the verified certificate's first element (leaf).
+ *       The DN is stored in ctx->dn for VO ACL rule matching and session registration. Truncated to sizeof(ctx->dn)-1 bytes if too long. */
+
+/*---- VOMS membership extraction (VO attribute extension) ----
+ *
+ * WHAT: After successful GSI authentication, optionally extracts Virtual Organization (VO) membership attributes from proxy cert extensions.
+ *       Requires vomsdir and voms_cert_dir configuration for OSG/VO certificate validation infrastructure. Extracts to ctx->primary_vo and ctx->vo_list. */
+
+/*---- Session registration after successful authentication ----
+ *
+ * WHAT: Marks ctx->auth_done = 1, registers the authenticated session in shared registry with DN and VO list for cluster coordination.
+ *      This enables bind operations (secondary connections) and CMS/manager mode cross-node communication. */
+
+/* ---- Function: xrootd_handle_auth() ----
+ *
+ * WHAT: Top-level kXR_auth dispatcher — routes by 4-byte credtype field (ztn=token, sss=SSS, gsi=GSI) to specialized handlers. GSI path implements two-round DH key exchange protocol (kXGC_certreq→server cert response, kXGC_cert→encrypted proxy chain), parses x509 chain via OpenSSL, verifies against configured CA store with X509_V_FLAG_ALLOW_PROXY_CERTS for intermediate proxy certs, extracts DN from verified leaf and optionally VOMS VO membership attributes. Marks ctx->auth_done=1 and registers authenticated session in shared registry after success. Tracks unique user/VO metrics at auth completion.
+ *
+ * WHY: The two-round GSI pattern ensures the client's proxy certificate is encrypted with a DH shared secret, preventing man-in-the-middle attacks. DN extraction enables VO ACL rule matching for path authorization. VOMS membership provides granular VO-level access control beyond basic DN-based rules. Session registration after auth_done=1 enables bind operations (secondary connections) and CMS/manager mode cross-node communication. Auth metrics tracking provides production visibility into authentication throughput per-VO and per-user. */
+
+static ngx_int_t
+xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
     ngx_stream_xrootd_srv_conf_t *conf;
     STACK_OF(X509)               *chain;
     X509                         *leaf;
-    X509_STORE_CTX               *vctx;
-    char                         *dn_str;
+    xrootd_gsi_verify_result_t    verify_res;
     uint32_t                      gsi_step;
-    int                           ok;
 
     if (!ctx->logged_in) {
         return xrootd_send_error(ctx, c, kXR_NotAuthorized,
@@ -118,61 +187,63 @@ xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
     leaf = sk_X509_value(chain, 0);
 
-    vctx = X509_STORE_CTX_new();
-    if (vctx == NULL) {
-        sk_X509_pop_free(chain, X509_free);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "internal OpenSSL error");
-    }
-
     {
         STACK_OF(X509) *untrusted = NULL;
+        ngx_int_t       gsi_rc;
 
         if (sk_X509_num(chain) > 1) {
             untrusted = sk_X509_dup(chain);
             sk_X509_delete(untrusted, 0);
         }
 
-        X509_STORE_CTX_init(vctx, conf->gsi_store, leaf, untrusted);
-        X509_STORE_CTX_set_flags(vctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
-
-        ok = X509_verify_cert(vctx);
+        gsi_rc = xrootd_gsi_verify_chain(c->log, conf->gsi_store,
+                                          leaf, untrusted, 0, &verify_res);
 
         if (untrusted) {
             sk_X509_free(untrusted);
         }
-    }
 
-    if (ok != 1) {
-        int         verr = X509_STORE_CTX_get_error(vctx);
-        const char *verr_str = X509_verify_cert_error_string(verr);
-
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "xrootd: GSI cert verification failed: %s", verr_str);
-        xrootd_log_access(ctx, c, "AUTH", "-", "gsi",
-                          0, kXR_NotAuthorized, verr_str, 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
-        X509_STORE_CTX_free(vctx);
-        sk_X509_pop_free(chain, X509_free);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "certificate verification failed");
-    }
-
-    X509_STORE_CTX_free(vctx);
-
-    dn_str = X509_NAME_oneline(X509_get_subject_name(leaf), NULL, 0);
-    if (dn_str) {
-        if (strlen(dn_str) >= sizeof(ctx->dn)) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: GSI DN too long (%uz bytes), truncating to %uz; "
-                          "VO ACL rules may not match correctly",
-                          strlen(dn_str), sizeof(ctx->dn) - 1);
+        if (gsi_rc != NGX_OK) {
+            /* xrootd_gsi_verify_chain already logged the specific error */
+            xrootd_log_access(ctx, c, "AUTH", "-", "gsi",
+                              0, kXR_NotAuthorized,
+                              "certificate verification failed", 0);
+            XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
+            sk_X509_pop_free(chain, X509_free);
+            return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                     "certificate verification failed");
         }
-        ngx_cpystrn((u_char *) ctx->dn,
-                    (u_char *) dn_str,
-                    sizeof(ctx->dn) - 1);
-        OPENSSL_free(dn_str);
     }
+
+    /*
+     * OCSP revocation check (Feature 8e).
+     * The certificate chain is still valid at this point: leaf is chain[0],
+     * its issuer is chain[1] (may be NULL for single-cert chains).
+     */
+    if (conf->ocsp_enable) {
+        X509 *issuer = (sk_X509_num(chain) > 1)
+                       ? sk_X509_value(chain, 1) : NULL;
+        if (xrootd_ocsp_check_cert(c->log, leaf, issuer,
+                                   (int)conf->ocsp_soft_fail) != 0)
+        {
+            xrootd_log_access(ctx, c, "AUTH", "-", "gsi",
+                              0, kXR_NotAuthorized, "OCSP check failed", 0);
+            XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
+            sk_X509_pop_free(chain, X509_free);
+            return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                     "OCSP certificate check failed");
+        }
+    }
+
+    if (strlen(verify_res.dn_buf) >= sizeof(ctx->dn)) {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                      "xrootd: GSI DN too long (%uz bytes), truncating to %uz; "
+                      "VO ACL rules may not match correctly",
+                      strlen(verify_res.dn_buf), sizeof(ctx->dn) - 1);
+    }
+    ngx_cpystrn((u_char *) ctx->dn,
+                (u_char *) verify_res.dn_buf,
+                sizeof(ctx->dn));
 
     if (xrootd_voms_available()
         && conf->vomsdir.len > 0 && conf->voms_cert_dir.len > 0)
@@ -231,4 +302,55 @@ xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
     XROOTD_OP_OK(ctx, XROOTD_OP_AUTH);
 
     return xrootd_send_ok(ctx, c, NULL, 0);
+}
+
+/* ---- xrootd_handle_auth — rate-limited public entry point ---- */
+/* ---- Function: xrootd_handle_auth() ----
+ * WHAT: Rate-limited public entry point for kXR_auth — validates auth_fail_count against XROOTD_MAX_AUTH_ATTEMPTS to reject brute-force attempts and CPU-amplification via costly GSI/OpenSSL/VOMS operations. Detects GSI round 1 (kXGC_certreq) to skip rate limit since server cert response is not a credential failure. Calls xrootd_handle_auth_inner() for actual dispatch, then updates auth_fail_count: resets to zero on successful auth, increments on failed or protocol-level challenge (skipping certreq round).
+ * WHY: Rate limiting prevents brute-force attackers from exhausting CPU via expensive GSI certificate verification chains and VOMS attribute extraction. Certreq round exclusion ensures the two-round GSI handshake completes without counting server's first response as a failure.
+ */
+ngx_int_t
+xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
+{
+    ngx_flag_t  was_auth_done;
+    ngx_flag_t  is_certreq;
+    ngx_int_t   rc;
+
+    /* Reject after repeated failures — guards against brute-force attempts
+     * and CPU-amplification via costly GSI/OpenSSL/VOMS operations. */
+    if (ctx->auth_fail_count >= XROOTD_MAX_AUTH_ATTEMPTS) {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                      "xrootd: %s: auth attempt limit reached, disconnecting",
+                      ctx->login_user);
+        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                 "Too many authentication failures");
+    }
+
+    /*
+     * GSI round 1 (kXGC_certreq): the server responds with kXR_authmore
+     * carrying its certificate — this is not a credential failure and must
+     * not count toward the limit.
+     */
+    is_certreq = 0;
+    if (ctx->cur_dlen >= 8 && ctx->payload != NULL) {
+        const u_char *ctype = ctx->cur_body + 12;
+        if (ctype[0] == 'g' && ctype[1] == 's' && ctype[2] == 'i') {
+            uint32_t step;
+            ngx_memcpy(&step, ctx->payload + 4, 4);
+            is_certreq = (ntohl(step) == (uint32_t) kXGC_certreq);
+        }
+    }
+
+    was_auth_done = ctx->auth_done;
+    rc = xrootd_handle_auth_inner(ctx, c);
+
+    if (!is_certreq) {
+        if (!was_auth_done && ctx->auth_done) {
+            ctx->auth_fail_count = 0;   /* successful auth resets the counter */
+        } else if (!ctx->auth_done) {
+            ctx->auth_fail_count++;     /* failed or protocol-level challenge */
+        }
+    }
+
+    return rc;
 }

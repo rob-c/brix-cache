@@ -23,7 +23,7 @@ import struct
 import tempfile
 import time
 import pytest
-from settings import CA_DIR as DEFAULT_CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD
+from settings import CA_DIR as DEFAULT_CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD, SERVER_HOST
 
 # ── XRootD Python client imports ─────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ pytestmark = pytest.mark.skipif(not HAS_XROOTD,
 
 ANON_URL = ""
 GSI_URL  = ""
-ANON_HOST, ANON_PORT = "localhost", 0
+ANON_HOST, ANON_PORT = SERVER_HOST, 0
 DATA_DIR = DEFAULT_DATA_ROOT
 CA_DIR   = DEFAULT_CA_DIR
 PROXY_PEM = PROXY_STD
@@ -53,7 +53,7 @@ def _configure(test_env):
     global ANON_URL, GSI_URL, ANON_HOST, ANON_PORT, DATA_DIR, CA_DIR, PROXY_PEM
     ANON_URL  = test_env["anon_url"] + "/"
     GSI_URL   = test_env["gsi_url"] + "/"
-    ANON_HOST = "127.0.0.1"
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
     DATA_DIR  = test_env["data_dir"]
     CA_DIR    = test_env["ca_dir"]
@@ -292,24 +292,19 @@ class TestFattr:
 
     def test_fattr_gsi_endpoint(self) -> None:
         """Attributes work on the GSI-authenticated endpoint."""
-        # Ensure GSI environment is set for authenticated endpoint
         os.environ["X509_CERT_DIR"] = CA_DIR
         os.environ["X509_USER_PROXY"] = PROXY_PEM
-        try:
-            fs_gsi = xrd_client.FileSystem(GSI_URL)
-            status, _ = fs_gsi.set_xattr(self.xrd_path, [("gsi_tag", "ok")])
-            assert status.ok, f"GSI fattr set failed: {status.message}"
+        fs_gsi = xrd_client.FileSystem(GSI_URL)
+        status, _ = fs_gsi.set_xattr(self.xrd_path, [("gsi_tag", "ok")])
+        assert status.ok, f"GSI fattr set failed: {status.message}"
 
-            status, attrs = fs_gsi.get_xattr(self.xrd_path, ["gsi_tag"])
-            assert status.ok
-            if attrs and hasattr(attrs[0], 'name'):
-                attr_map = {a.name: a.value for a in (attrs or [])}
-            else:
-                attr_map = {t[0]: t[1] for t in (attrs or [])}
-            assert attr_map.get("gsi_tag") == "ok"
-        finally:
-            for k in ("X509_CERT_DIR", "X509_USER_PROXY"):
-                os.environ.pop(k, None)
+        status, attrs = fs_gsi.get_xattr(self.xrd_path, ["gsi_tag"])
+        assert status.ok
+        if attrs and hasattr(attrs[0], 'name'):
+            attr_map = {a.name: a.value for a in (attrs or [])}
+        else:
+            attr_map = {t[0]: t[1] for t in (attrs or [])}
+        assert attr_map.get("gsi_tag") == "ok"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -484,39 +479,34 @@ class TestQueryFSinfo:
         finally:
             sock.close()
 
-    def test_fsinfo_contains_oss_keys(self) -> None:
-        """kXR_QFSinfo response uses oss.* key-value format."""
+    def test_fsinfo_format(self) -> None:
+        """kXR_QFSinfo response uses standard 6-number format."""
         sock = _raw_session(ANON_HOST, ANON_PORT)
         try:
             body = _send_query(sock, _kXR_QFSinfo, b"/\x00")
             text = body.rstrip(b"\x00").decode("utf-8", errors="replace")
-            assert "oss." in text, f"Expected oss.* keys in fsinfo: {text!r}"
+            parts = text.split()
+            assert len(parts) == 6, f"Expected 6 numbers in fsinfo: {text!r}"
+            # Format: NodesRW FreeMB Util NodesStaging FreeMB Util
+            for p in parts:
+                assert p.isdigit(), f"Non-numeric value in fsinfo: {p!r}"
         finally:
             sock.close()
 
-    def test_fsinfo_has_free_and_total(self) -> None:
-        """FSinfo response includes oss.free and oss.total fields."""
+    def test_fsinfo_values_are_sane(self) -> None:
+        """FSinfo values for space and utilization are sane."""
         sock = _raw_session(ANON_HOST, ANON_PORT)
         try:
             body = _send_query(sock, _kXR_QFSinfo, b"/\x00")
             text = body.rstrip(b"\x00").decode("utf-8", errors="replace")
-            assert "oss.free=" in text,  f"Missing oss.free in: {text!r}"
-            assert "oss.total=" in text, f"Missing oss.total in: {text!r}"
-        finally:
-            sock.close()
-
-    def test_fsinfo_values_are_numeric(self) -> None:
-        """oss.free and oss.total values are positive integers."""
-        sock = _raw_session(ANON_HOST, ANON_PORT)
-        try:
-            body = _send_query(sock, _kXR_QFSinfo, b"/\x00")
-            text = body.rstrip(b"\x00").decode("utf-8", errors="replace")
-            params = dict(kv.split("=", 1) for kv in text.split("&") if "=" in kv)
-            free  = int(params.get("oss.free",  "0"))
-            total = int(params.get("oss.total", "0"))
-            assert free  >= 0, f"oss.free is negative: {free}"
-            assert total >  0, f"oss.total is zero: {total}"
-            assert free  <= total, f"oss.free > oss.total: {free} > {total}"
+            parts = [int(p) for p in text.split()]
+            wVal, freeMB, util, sVal, freeMB2, util2 = parts
+            assert wVal == 1
+            assert sVal == 1
+            assert freeMB >= 0
+            assert util >= 0 and util <= 100
+            assert freeMB == freeMB2
+            assert util == util2
         finally:
             sock.close()
 
@@ -535,3 +525,134 @@ class TestQueryFSinfo:
         # Both should contain numeric free-space info
         assert space_resp is not None
         assert fsinfo_body is not None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TestFattrRecurse — kXR_fa_recurse (local extension, options=0x20)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestFattrRecurse:
+    """Tests for the kXR_fa_recurse local extension (options bit 0x20).
+
+    The XRootD Python client has no API for custom option bits, so these
+    tests use raw socket protocol to send kXR_fattr list with the recurse
+    flag and verify the response format.
+
+    Wire format — ClientFattrRequest (24 bytes total):
+      streamid[2]  requestid[2]=3020  fhandle[4]
+      subcode[1]=2  numattr[1]=0  options[1]  reserved[9]  dlen[4]
+
+    Recursive response entries: "<relpath>:<U.name>\\0" per attribute.
+    """
+
+    _kXR_fattr     = 3020
+    _kXR_fattrList = 2
+    _kXR_fa_recurse = 0x20
+
+    # ── Helpers ────────────────────────────────────────────────────────────
+
+    def _send_fattr_list(self, sock: socket.socket, path: str,
+                         options: int) -> tuple[int, bytes]:
+        """Send kXR_fattr list for *path* and return (status, body)."""
+        payload = path.encode() + b"\x00"
+        # 2(sid) + 2(requestid) + 4(fhandle) + 1(subcode) + 1(numattr) +
+        # 1(options) + 9(reserved) + 4(dlen) = 24 bytes
+        hdr = struct.pack(
+            ">BB H 4x B B B 9x I",
+            0, 1,                    # streamid
+            self._kXR_fattr,         # requestid = 3020
+            self._kXR_fattrList,     # subcode   = 2
+            0,                       # numattr   = 0 (required for list)
+            options,                 # options   = kXR_fa_recurse etc.
+            len(payload),            # dlen
+        )
+        sock.sendall(hdr + payload)
+        hdr_bytes = _recvall(sock, 8)
+        _sid0, _sid1, status, dlen = struct.unpack(">BBHI", hdr_bytes)
+        body = _recvall(sock, dlen) if dlen else b""
+        return status, body
+
+    def _parse_entries(self, body: bytes) -> list[str]:
+        """Split NUL-terminated entry list into a list of decoded strings."""
+        return [p.decode(errors="replace") for p in body.split(b"\x00") if p]
+
+    # ── Setup / teardown ──────────────────────────────────────────────────
+
+    def setup_method(self) -> None:
+        """Create a two-level directory tree with user.U.* xattrs."""
+        pid = os.getpid()
+        self.dir_name = f"fattr_recurse_{pid}"
+        self.dir_fs   = os.path.join(DATA_DIR, self.dir_name)
+        os.makedirs(self.dir_fs, exist_ok=True)
+
+        # Top-level file with one xattr
+        self.top_file_fs = os.path.join(self.dir_fs, "top.txt")
+        with open(self.top_file_fs, "w") as f:
+            f.write("top\n")
+        try:
+            os.setxattr(self.top_file_fs, b"user.U.color", b"blue")
+        except OSError:
+            pytest.skip("xattr not supported on test filesystem")
+
+        # Subdirectory + nested file with a different xattr
+        sub_fs = os.path.join(self.dir_fs, "sub")
+        os.makedirs(sub_fs, exist_ok=True)
+        self.nested_file_fs = os.path.join(sub_fs, "nested.txt")
+        with open(self.nested_file_fs, "w") as f:
+            f.write("nested\n")
+        os.setxattr(self.nested_file_fs, b"user.U.project", b"cms")
+
+    def teardown_method(self) -> None:
+        import shutil
+        shutil.rmtree(self.dir_fs, ignore_errors=True)
+
+    # ── Tests ─────────────────────────────────────────────────────────────
+
+    def test_recurse_returns_top_level_file_attrs(self) -> None:
+        """kXR_fa_recurse on a directory returns attrs from top-level files."""
+        sock = _raw_session(ANON_HOST, ANON_PORT)
+        try:
+            status, body = self._send_fattr_list(
+                sock, "/" + self.dir_name, self._kXR_fa_recurse)
+        finally:
+            sock.close()
+
+        assert status == _kXR_ok, f"fattr list returned status={status}"
+        entries = self._parse_entries(body)
+        # Expect an entry like "top.txt:U.color" (relpath:U.name)
+        assert any("top.txt" in e and "U.color" in e for e in entries), \
+            f"top-level attr 'U.color' not found in recurse result: {entries}"
+
+    def test_recurse_finds_nested_subdir_attrs(self) -> None:
+        """kXR_fa_recurse descends into subdirectories and returns nested attrs."""
+        sock = _raw_session(ANON_HOST, ANON_PORT)
+        try:
+            status, body = self._send_fattr_list(
+                sock, "/" + self.dir_name, self._kXR_fa_recurse)
+        finally:
+            sock.close()
+
+        assert status == _kXR_ok, f"fattr list returned status={status}"
+        entries = self._parse_entries(body)
+        # Expect an entry like "sub/nested.txt:U.project"
+        assert any("nested.txt" in e and "U.project" in e for e in entries), \
+            f"nested attr 'U.project' not found in recurse result: {entries}"
+
+    def test_recurse_flag_absent_does_not_list_children(self) -> None:
+        """Without kXR_fa_recurse, listing a directory uses single-file semantics
+        (the directory's own xattrs only, not its children's attrs)."""
+        sock = _raw_session(ANON_HOST, ANON_PORT)
+        try:
+            # options=0: no recurse — directory has no user.U.* xattrs itself
+            status, body = self._send_fattr_list(
+                sock, "/" + self.dir_name, 0)
+        finally:
+            sock.close()
+
+        assert status == _kXR_ok, f"fattr list returned status={status}"
+        entries = self._parse_entries(body)
+        # Children's attributes must not appear when recurse is not requested
+        assert not any("top.txt" in e for e in entries), \
+            f"child file attr appeared without recurse flag: {entries}"
+        assert not any("nested.txt" in e for e in entries), \
+            f"nested file attr appeared without recurse flag: {entries}"

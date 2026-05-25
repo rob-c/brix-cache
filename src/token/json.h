@@ -10,14 +10,20 @@ typedef SSIZE_T ssize_t;
 # include <sys/types.h>
 #endif
 
-const char *json_skip_ws(const char *p, const char *end);
-const char *json_skip_value(const char *p, const char *end);
-const char *json_find_key(const char *json, const char *end,
-    const char *key, const char **val_end);
 ssize_t json_get_string(const char *json, size_t json_len, const char *key,
     char *out, size_t out_max);
+/* Extract a single string value from JSON by key into caller-supplied output buffer
+ * with bounds checking. Returns copy length on success, -1 on failure.
+ * json/json_len: raw JSON buffer and its length; key: field name to extract;
+ * out/out_max: destination buffer and capacity (copy capped at out_max-1). */
 int json_get_string_array(const char *json, size_t json_len, const char *key,
     char out[][256], int max_items);
+/* Extract an array of string values from JSON by key into a fixed-size output
+ * array with per-item 256-byte truncation. Returns count on success, 0 on failure. */
 int json_get_int64(const char *json, size_t json_len, const char *key, int64_t *out);
+/* Extract a single integer value from JSON by key into caller-supplied int64 output pointer. Returns 0 on success, -1 on failure (key missing or non-integer). */
+/* Return the string name of the active JSON parsing backend ("jansson"). Used
+ * for logging, metrics labels, and conditional behaviour across backends. */
+const char *json_backend_name(void);
 
 #endif /* TOKEN_JSON_H */

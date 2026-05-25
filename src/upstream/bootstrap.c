@@ -1,5 +1,24 @@
 #include "upstream_internal.h"
 
+/*
+ * WHAT: XRootD upstream bootstrap sequence — handshake, protocol negotiation, TLS upgrade detection,
+ *      and login authentication for transparent proxy mode.
+ * WHY: When nginx connects to a backend XRootD server, it must complete the initial bootstrap protocol
+ *      before sending client requests. This involves four phases in order: handshake (12 zero bytes +
+ *      version markers), protocol request (streamid/kXR_protocol/kXR_PROTOCOLVERSION), TLS upgrade check
+ *      (kXR_gotoTLS flag detection → ngx_ssl handshake callback), and login (pid/username/capver).
+ *      kXR_authmore responses trigger token credential exchange via upstream_token_file.
+ * HOW: xrootd_upstream_build_bootstrap() concatenates handshake zeros, protocol request struct, and
+ *      login request struct into a single wire buffer. xrootd_upstream_handle_bootstrap_response()
+ *      implements the state machine across XRD_UP_BS_HANDSHAKE → BS_PROTOCOL → BS_TLS (optional) →
+ *      BS_LOGIN → BS_DONE, checking resp_status at each phase transition. bs_phase enum tracks current
+ *      stage; on completion, xrootd_upstream_send_request() is called to forward the saved client request.
+ */
+
+#include <stdio.h>
+#include <ctype.h>
+#include <errno.h>
+
 static u_char *
 xrootd_upstream_write_be32(u_char *cursor, uint32_t value)
 {
@@ -10,7 +29,6 @@ xrootd_upstream_write_be32(u_char *cursor, uint32_t value)
 
     return cursor + sizeof(value_be);
 }
-
 
 void
 xrootd_upstream_build_bootstrap(u_char *buf)
@@ -66,6 +84,27 @@ xrootd_upstream_build_bootstrap(u_char *buf)
     }
 }
 
+/*
+ * xrootd_upstream_build_login — fill a single kXR_login frame.
+ *
+ * Called after a kXR_gotoTLS upgrade to resend login over TLS; the server
+ * discards the plaintext login that was pre-sent with the bootstrap buffer.
+ */
+void
+xrootd_upstream_build_login(ClientLoginRequest *req)
+{
+    ngx_memzero(req, sizeof(*req));
+    req->streamid[0] = 0;
+    req->streamid[1] = 1;
+    req->requestid = htons(kXR_login);
+    req->pid = htonl((kXR_int32) ngx_pid);
+    req->username[0] = 'x';
+    req->username[1] = 'r';
+    req->username[2] = 'd';
+    req->capver = kXR_ver005;
+    req->dlen = 0;
+}
+
 void
 xrootd_upstream_handle_bootstrap_response(xrootd_upstream_t *up)
 {
@@ -83,7 +122,9 @@ xrootd_upstream_handle_bootstrap_response(xrootd_upstream_t *up)
         up->bs_phase = XRD_UP_BS_PROTOCOL;
         break;
 
-    case XRD_UP_BS_PROTOCOL:
+    case XRD_UP_BS_PROTOCOL: {
+        ngx_stream_xrootd_srv_conf_t *conf;
+
         if (up->resp_status != kXR_ok) {
             xrootd_upstream_abort(up, "upstream: protocol response not ok");
             return;
@@ -92,33 +133,88 @@ xrootd_upstream_handle_bootstrap_response(xrootd_upstream_t *up)
             uint32_t flags_be;
 
             ngx_memcpy(&flags_be, up->resp_body + 4, sizeof(flags_be));
-            /*
-             * This forwarding path is intentionally plaintext-only today.
-             * Abort instead of silently forwarding credentials to a server that
-             * requested TLS upgrade semantics we do not implement.
-             */
+
             if (ntohl(flags_be) & kXR_gotoTLS) {
+                conf = ngx_stream_get_module_srv_conf(
+                    up->client_ctx->session, ngx_stream_xrootd_module);
+
+#if (NGX_SSL)
+                if (!conf->upstream_tls || conf->upstream_tls_ctx == NULL) {
+                    xrootd_upstream_abort(up,
+                        "upstream requires TLS; set xrootd_upstream_tls on");
+                    return;
+                }
+                /*
+                 * Upgrade the existing plaintext connection to TLS.
+                 * The kXR_login frame already in the socket buffer is
+                 * discarded by the server upon receiving gotoTLS; we resend
+                 * it over TLS from the handshake callback.
+                 */
+                if (xrootd_upstream_start_tls(up, conf) != NGX_OK) {
+                    xrootd_upstream_abort(up,
+                        "upstream: TLS upgrade failed");
+                }
+#else
+                (void) conf;
                 xrootd_upstream_abort(up,
-                    "upstream requires TLS (not supported on outbound)");
-                return;
+                    "upstream requires TLS but nginx was built without SSL");
+#endif
+                return;  /* resume in TLS handshake callback */
             }
         }
         up->bs_phase = XRD_UP_BS_LOGIN;
         break;
+    }
 
-    case XRD_UP_BS_LOGIN:
+    case XRD_UP_BS_TLS:
         /*
-         * Upstream auth negotiation would require proxy credentials and more
-         * state.  For now, only unauthenticated upstream storage endpoints are
-         * accepted by this forwarding path.
+         * Should not arrive here: the TLS handshake callback transitions
+         * directly to XRD_UP_BS_LOGIN before arming the read event.
          */
+        xrootd_upstream_abort(up, "upstream: unexpected read in TLS phase");
+        return;
+
+    case XRD_UP_BS_LOGIN: {
+        ngx_stream_xrootd_srv_conf_t *conf;
+
         if (up->resp_status == kXR_authmore) {
-            xrootd_upstream_abort(up,
-                "upstream requires authentication (not supported)");
-            return;
+            if (up->authmore_count > 0) {
+                xrootd_upstream_abort(up,
+                    "upstream: repeated kXR_authmore (not supported)");
+                return;
+            }
+            up->authmore_count++;
+
+            conf = ngx_stream_get_module_srv_conf(
+                up->client_ctx->session, ngx_stream_xrootd_module);
+
+            if (conf->upstream_token_file.len == 0) {
+                xrootd_upstream_abort(up,
+                    "upstream requires auth; set xrootd_upstream_token_file");
+                return;
+            }
+            if (xrootd_upstream_send_token_auth(up, conf) != NGX_OK) {
+                xrootd_upstream_abort(up,
+                    "upstream: token auth exchange failed");
+            }
+            return;  /* resume after write + read cycle */
         }
         if (up->resp_status != kXR_ok) {
             xrootd_upstream_abort(up, "upstream: login failed");
+            return;
+        }
+        up->bs_phase = XRD_UP_BS_DONE;
+        break;
+    }
+
+    case XRD_UP_BS_AUTH:
+        /*
+         * kXR_auth response after we sent a ztn token credential.
+         * kXR_ok → authenticated, proceed to send request.
+         * Anything else (including a second kXR_authmore) → abort.
+         */
+        if (up->resp_status != kXR_ok) {
+            xrootd_upstream_abort(up, "upstream: token auth rejected by server");
             return;
         }
         up->bs_phase = XRD_UP_BS_DONE;

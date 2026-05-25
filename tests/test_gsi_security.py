@@ -33,6 +33,7 @@ from settings import (
     NGINX_GSI_PORT,
     NGINX_GSI_TLS_PORT,
     PROXY_STD,
+    SERVER_HOST,
     USER_CERT,
 )
 
@@ -40,7 +41,7 @@ from settings import (
 # Module-level state
 # ---------------------------------------------------------------------------
 
-GSI_HOST     = "127.0.0.1"
+GSI_HOST     = SERVER_HOST
 GSI_PORT     = NGINX_GSI_PORT      # plain GSI, port 11095
 GSI_URL      = ""
 GSI_TLS_URL  = ""

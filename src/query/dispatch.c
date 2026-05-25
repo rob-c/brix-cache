@@ -1,3 +1,11 @@
+/*
+ * WHAT: Dispatch the kXR_query opcode to one of 14+ sub-handlers based on the request's infotype field. Each infotype value routes to a specialized handler: checksum computation, filesystem space inquiry, server configuration query, statistics collection, extended attribute listing, file info retrieval, and various opaque/visa extension hooks. Returns kXR_Unsupported for unrecognized infotypes with debug logging.
+ */
+
+/* WHY: The XRootD query protocol consolidates diverse server-side operations into a single opcode (kXR_query) rather than requiring separate opcodes for each operation type. This reduces wire protocol complexity while enabling flexible sub-protocol extension — new query types can be added by registering handlers without changing the core dispatcher or client code. The typedef struct xrootd_ckscan_aio_t and extern declarations cross-reference checksum scan AIO infrastructure defined in separate files (checksum_ckscan_common.c, checksum_ckscan_async.c) to maintain modular architecture while keeping dispatcher self-contained. */
+
+/* HOW: Sequential infotype comparison chain using ntohs() to convert big-endian 16-bit value from wire format into host byte order. Each if-block calls a dedicated handler function (xrootd_query_prep_status through xrootd_query_opaqug) — handlers return NGX_OK/NGX_ERROR or send error responses directly. The last kXR_Qvisa case includes an additional precondition check: ctx->cur_dlen must be zero (no pending data length) before proceeding to visa query. After all comparisons, debug log the unsupported infotype value and call xrootd_send_error() with kXR_Unsupported status. */
+
 #include "query_internal.h"
 
 /*

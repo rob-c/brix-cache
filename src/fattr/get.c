@@ -4,6 +4,19 @@
 #include <sys/xattr.h>
 #include <arpa/inet.h>
 
+/* ---- Function: fattr_read_value_size() — query POSIX xattr value length ----
+ *
+ * WHAT: Calls getxattr(path, key, NULL, 0) for path-based operations or
+ *       fgetxattr(fd, key, NULL, 0) for open-file-handle operations to
+ *       query the size of an extended attribute's stored value without
+ *       allocating a buffer. Returns ssize_t: positive = value length in bytes,
+ *       -1 = syscall error (errno set). Used as the first step before
+ *       fattr_read_value() which allocates and reads the actual data.
+ *
+ * WHY: Two-phase read pattern — query size first then allocate buffer
+ *       second avoids over-allocation and handles zero-length attributes
+ *       correctly. Path-based vs fd-based dispatch via path != NULL check
+ *       allows callers to use either operation mode without duplication. */
 static ssize_t
 fattr_read_value_size(const char *path, int fd, const char *xkey)
 {
@@ -11,7 +24,19 @@ fattr_read_value_size(const char *path, int fd, const char *xkey)
                         : fgetxattr(fd, xkey, NULL, 0);
 }
 
-
+/* ---- Function: fattr_read_value() — read POSIX xattr value bytes ----
+ *
+ * WHAT: Calls getxattr(path, key, buffer, len) for path-based operations or
+ *       fgetxattr(fd, key, buffer, len) for open-file-handle operations to
+ *       read the actual bytes stored in an extended attribute into caller-
+ *       provided buffer. Returns ssize_t: positive = bytes read, -1 = syscall
+ *       error (errno set). Caller must ensure value_len >= queried size from
+ *       fattr_read_value_size().
+ *
+ * WHY: Same path/fd dispatch pattern as fattr_read_value_size() — single
+ *       helper serves both operation modes. Buffer filled with raw attribute
+ *       bytes; caller responsible for null-termination if needed (fattr_get
+ *       adds +1 byte padding at allocation). */
 static ssize_t
 fattr_read_value(const char *path, int fd, const char *xkey, u_char *value,
     size_t value_len)
@@ -20,14 +45,39 @@ fattr_read_value(const char *path, int fd, const char *xkey, u_char *value,
                         : fgetxattr(fd, xkey, value, value_len);
 }
 
-
+/* ---- Function: fattr_value_len_for_response() — compute response payload length ----
+ *
+ * WHAT: Returns the number of bytes an attribute's value contributes to the
+ *       vvec (value vector) portion of the kXR_fattrGet response body. If
+ *       attr->vlen > 0 returns that value as size_t; if vlen == 0 (error or
+ *       zero-length attribute) returns 0. Used during response-size estimation
+ *       phase to calculate total buffer allocation before building wire format. */
 static size_t
 fattr_value_len_for_response(const xrootd_fattr_entry_t *attr)
 {
     return attr->vlen > 0 ? (size_t) attr->vlen : 0;
 }
 
-
+/* ---- Function: fattr_get() — handle kXR_fattrGet: read extended attributes ----
+ *
+ * WHAT: Iterates over requested attribute names from the nvec (name vector),
+ *       queries each value size via getxattr/fgetxattr, allocates buffers for
+ *       successful reads, then builds a vector status response containing
+ *       error count, total attr count, name vector copy, and per-attribute
+ *       value lengths + raw bytes. Sends the response as kXR_ok with the
+ *       complete vvec payload. Supports both path-based and open-file-handle
+ *       operations — dispatches to getxattr or fgetxattr based on whether
+ *       path parameter is non-null. Thread safety: operates only on provided
+ *       ctx, c, pool and local stack variables (attrs array).
+ *
+ * WHY: XRootD kXR_fattrGet returns a structured vector response where each
+ *       attribute gets its own value_len field followed by raw bytes in the
+ *       vvec. Per-attribute error recording allows partial success — clients
+ *       can read some attributes even if others fail (e.g., permission denied
+ *       on specific xkeys). Two-phase read (size query then buffer alloc +
+ *       read) prevents over-allocation and handles zero-length attributes
+ *       correctly. Value length capped at kXR_faMaxVlen to prevent oversized
+ *       responses from a single attribute. */
 ngx_int_t
 fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
     u_char *nvec_copy, size_t nvec_len, int numattr,

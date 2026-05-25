@@ -1,3 +1,11 @@
+/* ---- File: tpc_token.c — OAuth2/OIDC delegated token fetching for TPC source auth ----
+ *
+ * WHAT: Three static helper functions + one public API function fetch OAuth2/OIDC access tokens for native XRootD TPC outbound authentication. Two delegation modes: oidc-agent → fork/exec UNIX-socket JSON IPC to local oidc-agent daemon (tries dedicated helper binary first, falls back to oidc-token CLI) — reads pipe stdout, trims trailing whitespace, parses JSON {"access_token":...} or returns plain token string; token-exchange → RFC 8693 POST to external OAuth2 token endpoint via fork/exec curl — builds subject_token from tpc_outbound_bearer_file, constructs grant_type=urn:ietf:params:oauth:grant-type:token-exchange POST body with subject_token/resource/audience/scope params into temp file, executes curl -s -S -f -X POST with Content-Type application/x-www-form-urlencoded and optional client_id/client_secret basic auth — reads pipe stdout, parses JSON access_token; tpc_fetch_delegated_token (public API) dispatches to oidc-agent or token-exchange based on t->token_mode ("none"=skip, "oidc-agent"=mode1, "token-exchange"=mode2), validates token_endpoint configured for mode2, returns 0 on success, -1 with err_msg/xrd_error set on failure.
+ *
+ * WHY: TPC source authentication may require delegated OAuth2/OIDC access tokens when the destination server needs to authenticate as a different identity to the remote origin. oidc-agent mode fetches tokens from a local agent daemon (common in CMS/Fermilab environments); token-exchange mode performs RFC 8693 exchange using a bearer file subject token against an external OAuth2 endpoint. Both modes fork-exec subprocesses and read stdout via pipe — EINTR-safe with waitpid status check. JSON parsing delegates to xrootd_oauth2_parse_access_token(); plain-token paths copy directly into t->delegated_token buffer with size guard.
+ *
+ * HOW: fetch_delegated_token → token_mode=="none" return 0; "oidc-agent"→tpc_token_oidc_agent(pipe fork exec helper/oidc-token read parse); "token-exchange"→validate token_endpoint configured→tpc_token_rfc8693(read bearer file build POST body mkstemp temp write curl -X POST pipe read parse JSON); oidc_agent → pipe() fork dup2 STDOUT execve helper binary or execlp oidc-token read pipe trim trailing whitespace if buf[0]=='{'parse_json else copy_plain; rfc8693 → read bearer file snprintf POST body mkstemp temp write curl_argv -s -S -f -X POST -H Content-Type -u client_id/client_secret -d body_file token_endpoint pipe fork execvp curl read waitpid unlink parse JSON. */
+
 /*
  * tpc_token.c — OAuth2/OIDC token fetching for native XRootD TPC pulls.
  *
@@ -9,8 +17,9 @@
  */
 
 #include "tpc_internal.h"
+#include "../token/file.h"
+#include "../token/oauth2.h"
 
-#if (NGX_THREADS)
 
 #include <stdio.h>
 #include <string.h>
@@ -19,10 +28,14 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <ctype.h>
-#include <fcntl.h>
 
 #define TPC_TOKEN_MAX_LEN  65536
 #define TPC_TOKEN_HELPER_PATH  "/usr/local/sbin/nginx-xrootd-tpc-token"
+
+/* ---- Function: tpc_trim_trailing() — trailing whitespace/newline removal ---- */
+/* WHAT: Trims trailing whitespace characters (space, tab), newline ('\n'), and carriage return ('\r') from string s by decrementing len and setting each trimmed position to '\0'. Returns early if s is NULL or already empty. Enforces strlen() boundary via while(len > 0) guard to prevent underflow when trimming an all-whitespace string.
+ * WHY: TPC token helper outputs may arrive with trailing whitespace from subprocess execution; this cleanup ensures clean token strings before parsing and comparison operations downstream. Prevents token validation failures caused by invisible trailing characters from subprocess stdout buffering or terminal emulation artifacts.
+ * HOW: NULL/empty check → strlen(s) → while loop decrementing len from end, replacing each whitespace/newline/carriage-return byte with '\0' → stops when first non-trimmable character reached or len reaches 0 (all-whitespace string case). */
 
 static void
 tpc_trim_trailing(char *s)
@@ -40,75 +53,25 @@ tpc_trim_trailing(char *s)
     }
 }
 
-static const char *
-tpc_token_json_find_string(const char *json, const char *key)
-{
-    const char *p;
-    size_t key_len;
-
-    key_len = strlen(key);
-    p = (const char *) ngx_strstrn((u_char *) json, (char *) key, key_len - 1);
-    if (p == NULL) {
-        return NULL;
-    }
-
-    p += key_len;
-    while (*p == ' ' || *p == '\t') {
-        p++;
-    }
-    if (*p != ':') {
-        return NULL;
-    }
-    p++;
-    while (*p == ' ' || *p == '\t') {
-        p++;
-    }
-
-    if (*p != '"') {
-        return NULL;
-    }
-    return p;
-}
-
 static int
 tpc_token_parse_access_token(const char *json, char *out, size_t out_sz)
 {
-    const char *val;
-    const char *end;
-    size_t tok_len;
+    char err[256];
 
-    val = tpc_token_json_find_string(json, "access_token");
-    if (val == NULL) {
-        snprintf(out, out_sz, "no \"access_token\" in token response");
+    if (xrootd_oauth2_parse_access_token(json, out, out_sz, err, sizeof(err))
+        != NGX_OK)
+    {
+        snprintf(out, out_sz, "%s", err);
         return -1;
     }
 
-    val++;
-    end = val;
-    while (*end && *end != '"') {
-        if ((size_t)(end - val) >= TPC_TOKEN_MAX_LEN) {
-            snprintf(out, out_sz, "token exceeds max length");
-            return -1;
-        }
-        end++;
-    }
-
-    if (*end != '"') {
-        snprintf(out, out_sz, "unterminated token string");
-        return -1;
-    }
-
-    tok_len = (size_t)(end - val);
-    if (tok_len >= out_sz) {
-        snprintf(out, out_sz, "token too long for output buffer");
-        return -1;
-    }
-
-    ngx_memcpy(out, val, tok_len);
-    out[tok_len] = '\0';
     return 0;
 }
 
+/* ---- Function: tpc_token_oidc_agent() — OIDC agent UNIX-socket token fetch ---- */
+/* WHAT: Fetches OAuth2/OIDC access token via fork/exec to local oidc-agent daemon using UNIX-socket JSON IPC. Creates pipe → forks child → dup2 STDOUT → execve dedicated helper binary (nginx-xrootd-tpc-token) with OIDC_SOCK env or fallback /run/user/1000/oidc/oidc_agent.sock → if execve fails falls back to execlp oidc-token -c default → parent reads pipe stdout into buffer → waitpid checks WIFEXITED+WEXITSTATUS==0 → tpc_trim_trailing(buf) → if buf[0]=='{' parses JSON via xrootd_oauth2_parse_access_token else copies plain token with size guard. Returns 0 on success, -1 with err_msg/xrd_error=kXR_AuthFailed on failure.
+ * WHY: CMS/Fermilab environments use oidc-agent daemons for OIDC token management. This function provides a robust fallback chain (dedicated helper binary → generic oidc-token CLI) ensuring token fetch works even when the custom binary is absent. JSON parsing handles agent daemon's structured output; plain-token paths handle oidc-token CLI's raw output. Pipe-based IPC avoids TOCTOU race on executable path (execve without access() pre-check).
+ * HOW: pipe() → fork() → child close(pipefd[0]) dup2(pipefd[1],STDOUT) execve helper binary or execlp oidc-token → parent close(pipefd[1]) read loop into buffer null-terminate waitpid check trim trailing whitespace if JSON parse access_token else memcpy plain token. */
 static int
 tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 {
@@ -145,14 +108,16 @@ tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
 
-        if (access(TPC_TOKEN_HELPER_PATH, X_OK) == 0) {
-            sock_env = getenv("OIDC_SOCK");
-            argv[0] = (char *) TPC_TOKEN_HELPER_PATH;
-            argv[1] = sock_env ? (char *) sock_env
-                               : (char *) "/run/user/1000/oidc/oidc_agent.sock";
-            argv[2] = NULL;
-            execve(argv[0], argv, NULL);
-        }
+        /* Try the dedicated helper first; fall through to oidc-token if
+         * execve fails (binary absent / not executable). Avoid access()
+         * before execve — that is a TOCTOU race on the executable path. */
+        sock_env = getenv("OIDC_SOCK");
+        argv[0] = (char *) TPC_TOKEN_HELPER_PATH;
+        argv[1] = sock_env ? (char *) sock_env
+                           : (char *) "/run/user/1000/oidc/oidc_agent.sock";
+        argv[2] = NULL;
+        execve(argv[0], argv, NULL);
+        /* execve returned — helper not found or not executable; continue */
 
         execlp("oidc-token", "oidc-token", "-c", "default", (char *) NULL);
         _exit(127);
@@ -201,6 +166,10 @@ tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     return 0;
 }
 
+/* ---- Function: tpc_token_rfc8693() — RFC 8693 OAuth2 token-exchange via curl ---- */
+/* WHAT: Fetches delegated OAuth2/OIDC access token via RFC 8693 token-exchange POST to external OAuth2 endpoint using fork/exec curl. Reads subject_token from tpc_outbound_bearer_file → builds POST body with grant_type=urn:ietf:params:oauth:grant-type:token-exchange + subject_token/resource/audience/scope params into mkstemp temp file → constructs curl argv (-s -S -f -X POST -H Content-Type application/x-www-form-urlencoded optional -u client_id/client_secret -d body_file token_endpoint) → pipe fork execvp curl → parent reads pipe stdout → waitpid checks exit status 0 → unlink temp file → parses JSON access_token via xrootd_oauth2_parse_access_token. Returns 0 on success, -1 with err_msg/xrd_error set on failure.
+ * WHY: When TPC source requires a delegated token (different identity from client), RFC 8693 token-exchange converts the destination's bearer file subject token into an access token scoped for the remote origin. curl subprocess handles HTTP POST with form-urlencoded body; temp file avoids shell quoting issues with long tokens; unlink ensures cleanup on both success and failure paths. Optional client_id/client_secret basic auth supports OAuth2 client credential requirements.
+ * HOW: read bearer file → snprintf POST body (grant_type+subject_token+resource+audience+scope) → mkstemp temp write body_buf → close body_fd → curl_argv build (-s -S -f -X POST -H Content-Type optional -u client_id/client_secret -d body_file token_endpoint) → pipe fork dup2 STDOUT execvp curl → parent read loop null-terminate waitpid check unlink → parse JSON access_token. */
 static int
 tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 {
@@ -215,35 +184,21 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     char body_file[NGX_MAX_PATH];
     int body_fd;
     char subject_token[TPC_TOKEN_MAX_LEN];
-    size_t subject_token_len;
 
-    /* Read subject token from the bearer file. */
-    if (t->conf->tpc_outbound_bearer_file.len == 0
-        || t->conf->tpc_outbound_bearer_file.len >= sizeof(subject_token)) {
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC token: bearer file not configured for token-exchange");
-        t->xrd_error = kXR_ArgInvalid;
-        return -1;
-    }
-
+    if (xrootd_token_read_file(&t->conf->tpc_outbound_bearer_file,
+                               (u_char *) subject_token, sizeof(subject_token),
+                               NULL, NULL, "TPC token")
+        != NGX_OK)
     {
-        FILE *fp = fopen((char *) t->conf->tpc_outbound_bearer_file.data, "rb");
-        if (fp == NULL) {
+        if (errno == EINVAL) {
             snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC token: cannot open bearer file: %s", strerror(errno));
+                     "TPC token: bearer file not configured or empty");
+            t->xrd_error = kXR_ArgInvalid;
+        } else {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: cannot read bearer file: %s", strerror(errno));
             t->xrd_error = kXR_IOError;
-            return -1;
         }
-        subject_token_len = fread(subject_token, 1, sizeof(subject_token) - 1, fp);
-        fclose(fp);
-    }
-    subject_token[subject_token_len] = '\0';
-    tpc_trim_trailing(subject_token);
-
-    if (subject_token_len == 0) {
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC token: bearer file is empty");
-        t->xrd_error = kXR_ArgInvalid;
         return -1;
     }
 
@@ -362,6 +317,11 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     return 0;
 }
 
+
+/* ---- Function: tpc_fetch_delegated_token() — OAuth2/OIDC token delegation dispatcher (public API) ---- */
+/* WHAT: Public entry point that dispatches delegated token fetching based on t->token_mode. Returns 0 immediately for "none" or empty mode; delegates to tpc_token_oidc_agent() for "oidc-agent" mode (UNIX-socket JSON IPC); delegates to tpc_token_rfc8693() for "token-exchange" mode (RFC 8693 POST, validates token_endpoint configured first). Returns -1 with err_msg/xrd_error set on unknown mode or dispatch failure.
+ * WHY: TPC source authentication requires delegated tokens when the destination server authenticates as a different identity to the remote origin. This dispatcher centralizes mode selection — callers pass t->token_mode and receive the fetched token in t->delegated_token without knowing which backend mechanism was used. Prevents callers from duplicating mode-switch logic across launch.c/thread.c.
+ * HOW: token_mode=="none"/empty → return 0; "oidc-agent" → call tpc_token_oidc_agent(t, delegated_token, sizeof); "token-exchange" → validate conf->tpc_outbound_token_endpoint.len>0 else error → call tpc_token_rfc8693(t, delegated_token, sizeof); unknown mode → snprintf err_msg/xrd_error=kXR_ArgInvalid → return -1. */
 int
 tpc_fetch_delegated_token(xrootd_tpc_pull_t *t)
 {
@@ -393,4 +353,3 @@ tpc_fetch_delegated_token(xrootd_tpc_pull_t *t)
     return -1;
 }
 
-#endif /* NGX_THREADS */

@@ -148,10 +148,10 @@ class TestRmdir:
         assert not status.ok, "Expected rmdir of non-empty dir to fail"
 
     def test_rmdir_nonexistent_fails(self):
-        """Removing a directory that doesn't exist must fail."""
+        """Removing a directory that doesn't exist is idempotent."""
         fs = anon_fs()
         status, _ = fs.rmdir("/_fstest_rmdir_gone")
-        assert not status.ok, "Expected rmdir of nonexistent dir to fail"
+        assert status.ok, f"rmdir of nonexistent dir failed: {status.message}"
 
     def test_rmdir_gsi(self):
         """Remove a directory over the GSI endpoint."""
@@ -183,6 +183,15 @@ class TestRm:
         fs = anon_fs()
         status, _ = fs.rm("/_fstest_rm_gone.txt")
         assert not status.ok, "Expected rm of nonexistent file to fail"
+
+    def test_rm_empty_directory(self):
+        """rm on an empty directory follows reference XRootD semantics."""
+        path = os.path.join(DATA_DIR, "_fstest_rm_empty_dir")
+        os.makedirs(path, exist_ok=True)
+        fs = anon_fs()
+        status, _ = fs.rm("/_fstest_rm_empty_dir")
+        assert status.ok, f"rm of empty directory failed: {status.message}"
+        assert not os.path.exists(path)
 
     def test_rm_gsi(self):
         """Remove a file over the GSI endpoint."""

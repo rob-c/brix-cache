@@ -17,13 +17,13 @@ import time
 
 import pytest
 
-from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Module globals
 # ---------------------------------------------------------------------------
 
-ANON_HOST = "127.0.0.1"
+ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
 DATA_DIR  = DEFAULT_DATA_ROOT
 
@@ -78,7 +78,7 @@ kXR_open_new  = 0x0008
 @pytest.fixture(scope="module", autouse=True)
 def _configure(test_env):
     global ANON_HOST, ANON_PORT, DATA_DIR
-    ANON_HOST = "127.0.0.1"
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
     DATA_DIR  = test_env["data_dir"]
 

@@ -3,66 +3,40 @@
  */
 
 #include "webdav.h"
+#include "../compat/http_headers.h"
+#include "../metrics/http_common.h"
 
+/**
+ * WHAT: Map nginx HTTP method to the WebDAV metric enum for Prometheus request counting.
+ *
+ * Returns a value from XROOTD_WEBDAV_METHOD_* enum corresponding to the incoming
+ * request's HTTP method. Uses r->method (nginx internal enum) for OPTIONS/HEAD/GET/
+ * PUT/DELETE; uses r->method_name string comparison for WebDAV-specific methods
+ * MKCOL, COPY, and PROPFIND (which nginx doesn't have built-in enums for). Returns
+ * XROOTD_WEBDAV_METHOD_OTHER as fallback for unknown or custom methods. All callers
+ * use this to index into the requests_total[METHOD] metric counter before processing
+ * begins or after completing an operation.
+ */
 ngx_uint_t
 webdav_metrics_method(ngx_http_request_t *r)
 {
-    if (r->method == NGX_HTTP_OPTIONS) {
-        return XROOTD_WEBDAV_METHOD_OPTIONS;
-    }
-    if (r->method == NGX_HTTP_HEAD) {
-        return XROOTD_WEBDAV_METHOD_HEAD;
-    }
-    if (r->method == NGX_HTTP_GET) {
-        return XROOTD_WEBDAV_METHOD_GET;
-    }
-    if (r->method == NGX_HTTP_PUT) {
-        return XROOTD_WEBDAV_METHOD_PUT;
-    }
-    if (r->method == NGX_HTTP_DELETE) {
-        return XROOTD_WEBDAV_METHOD_DELETE;
-    }
-    if (r->method_name.len == 5
-        && ngx_strncmp(r->method_name.data, "MKCOL", 5) == 0)
-    {
-        return XROOTD_WEBDAV_METHOD_MKCOL;
-    }
-    if (r->method_name.len == 4
-        && ngx_strncmp(r->method_name.data, "COPY", 4) == 0)
-    {
-        return XROOTD_WEBDAV_METHOD_COPY;
-    }
-    if (r->method_name.len == 8
-        && ngx_strncmp(r->method_name.data, "PROPFIND", 8) == 0)
-    {
-        return XROOTD_WEBDAV_METHOD_PROPFIND;
-    }
+    const xrootd_http_operation_t *op;
 
-    return XROOTD_WEBDAV_METHOD_OTHER;
+    op = xrootd_http_operation_find(r, xrootd_webdav_operations,
+                                    xrootd_webdav_operations_count);
+
+    return op ? op->metric_slot : XROOTD_WEBDAV_METHOD_OTHER;
 }
 
-static ngx_uint_t
-webdav_metrics_status_class(ngx_uint_t status)
-{
-    if (status >= 100 && status < 200) {
-        return XROOTD_HTTP_STATUS_1XX;
-    }
-    if (status >= 200 && status < 300) {
-        return XROOTD_HTTP_STATUS_2XX;
-    }
-    if (status >= 300 && status < 400) {
-        return XROOTD_HTTP_STATUS_3XX;
-    }
-    if (status >= 400 && status < 500) {
-        return XROOTD_HTTP_STATUS_4XX;
-    }
-    if (status >= 500 && status < 600) {
-        return XROOTD_HTTP_STATUS_5XX;
-    }
-
-    return XROOTD_HTTP_STATUS_OTHER;
-}
-
+/**
+ * WHAT: Increment the WebDAV requests_total counter for this request's method.
+ *
+ * Called early in each handler to record that a request arrived for a specific HTTP
+ * method. Uses webdav_metrics_method() to classify the method, then increments the
+ * requests_total[method] Prometheus metric via XROOTD_WEBDAV_METRIC_INC(). This is
+ * typically called at the start of every WebDAV operation handler (GET, PUT, DELETE, etc.)
+ * before any processing begins. Does not track status — only counts request arrivals.
+ */
 void
 webdav_metrics_request(ngx_http_request_t *r)
 {
@@ -71,6 +45,16 @@ webdav_metrics_request(ngx_http_request_t *r)
     XROOTD_WEBDAV_METRIC_INC(requests_total[method]);
 }
 
+/**
+ * WHAT: Increment the WebDAV responses_total counter by method and status class.
+ *
+ * Called at end of each handler to record the outcome of processing. Determines the HTTP
+ * status from either rc (error code), r->headers_out.status (explicitly set response), or
+ * defaults to NGX_HTTP_OK if no status was set. Maps to a low-cardinality status class via
+ * webdav_metrics_status_class(), then increments responses_total[method][status_class].
+ * Returns immediately if rc == NGX_DONE (request already finalized, metrics should not be
+ * double-counted). Used by all handlers after completing their operation logic.
+ */
 void
 webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc)
 {
@@ -84,20 +68,19 @@ webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc)
 
     method = webdav_metrics_method(r);
 
-    if (rc == NGX_ERROR) {
-        status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-    } else if (rc >= NGX_HTTP_SPECIAL_RESPONSE) {
-        status = (ngx_uint_t) rc;
-    } else if (r->headers_out.status != 0) {
-        status = r->headers_out.status;
-    } else {
-        status = NGX_HTTP_OK;
-    }
-
-    status_class = webdav_metrics_status_class(status);
+    status = xrootd_http_effective_status(r, rc);
+    status_class = xrootd_http_status_class(status);
     XROOTD_WEBDAV_METRIC_INC(responses_total[method][status_class]);
 }
 
+/**
+ * WHAT: Wrapper helper — records response metrics then returns the original rc value.
+ *
+ * Convenience function that calls webdav_metrics_response(r, rc) and immediately returns
+ * rc to the caller. Used by handlers that want to record metrics before returning an nginx
+ * result code without needing two separate statement lines. Equivalent to:
+ *   webdav_metrics_response(r, rc); return rc;
+ */
 ngx_int_t
 webdav_metrics_return(ngx_http_request_t *r, ngx_int_t rc)
 {
@@ -105,6 +88,14 @@ webdav_metrics_return(ngx_http_request_t *r, ngx_int_t rc)
     return rc;
 }
 
+/**
+ * WHAT: Wrapper helper — records response metrics then finalizes the nginx request.
+ *
+ * Convenience function that calls webdav_metrics_response(r, rc) followed by
+ * ngx_http_finalize_request(r, rc). Used by handlers that want to record metrics and
+ * complete the request lifecycle in a single call. Equivalent to:
+ *   webdav_metrics_response(r, rc); ngx_http_finalize_request(r, rc);
+ */
 void
 webdav_metrics_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 {

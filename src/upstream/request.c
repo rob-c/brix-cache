@@ -1,3 +1,25 @@
+/*
+ * WHAT: Serialize client XRootD requests into wire format and flush to upstream
+ * redirector. This is the request side of transparent proxy mode — nginx receives a
+ * client opcode, translates it into the upstream protocol buffer, and sends it over
+ * TCP without exposing the backend's identity to the client.
+ *
+ * WHY: Transparent XRootD proxy requires opaque relay of opcodes while maintaining
+ * file-handle translation end-to-end. The upstream context (xrootd_upstream_t) stores
+ * a saved copy of the original client request; these functions serialize that state
+ * into the wire protocol format and deliver it to the backend connection.
+ *
+ * HOW: Two-phase pipeline per function:
+ *   xrootd_upstream_send_request — buffer allocation (ngx_palloc), switch dispatch
+ *     across three supported opcodes (kXR_locate, kXR_open, kXR_stat), wire-format
+ *     serialization with network-byte-order conversions (htons/htonl), write buffer
+ *     setup and state machine transition to XRD_UP_REQUEST. INVARIANT #4 enforced:
+ *     all wire paths → resolve_path() before open().
+ *   xrootd_upstream_flush — non-blocking TCP write loop using ngx_connection_t->send,
+ *     NGX_AGAIN handling via ngx_handle_write_event for event-loop readiness, read
+ *     event setup for response reception.
+ */
+
 #include "upstream_internal.h"
 
 #include <string.h>

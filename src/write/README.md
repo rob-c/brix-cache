@@ -19,6 +19,8 @@ shared helpers live in `common.c` and `aio.c`.
 | `chkpoint.c` | `kXR_chkpoint` | Checkpoint lifecycle: begin (snapshot), commit (discard), rollback (restore), query |
 | `chkpoint_xeq.c` | — | `ckpXeq` sub-dispatcher: executes write/pgwrite/truncate/writev under an active checkpoint |
 | `common.c` | — | Shared path resolution for mutating requests and write AIO posting |
+| `write.h` | Public write types and cross-file prototypes |
+| `aiodone.c` | AIO completion callbacks — thread pool worker → event loop response forwarding |
 
 All handlers require `xrootd_allow_write on` in the server block; the
 dispatcher rejects mutating requests with `kXR_NotAuthorized` if writes are

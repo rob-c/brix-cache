@@ -18,6 +18,10 @@ import hashlib
 import pytest
 from settings import DATA_ROOT as DEFAULT_DATA_ROOT
 
+# Each xrdcp call has a 20 s subprocess timeout; two calls + overhead = ~50 s.
+# Set the function timeout above that to avoid pytest-timeout firing first.
+pytestmark = pytest.mark.timeout(60)
+
 NGINX_URL = ""
 REF_URL   = ""
 DATA_DIR  = DEFAULT_DATA_ROOT
@@ -45,7 +49,7 @@ def _run_xrdcp_get(remote: str) -> (int, bytes | None):
     env = os.environ.copy()
     env.pop("X509_USER_PROXY", None)
     env.pop("X509_CERT_DIR", None)
-    proc = subprocess.run(["xrdcp", "-f", remote, out_name], env=env, capture_output=True)
+    proc = subprocess.run(["xrdcp", "-f", remote, out_name], env=env, capture_output=True, timeout=20)
     rc = proc.returncode
     data = None
     if rc == 0:

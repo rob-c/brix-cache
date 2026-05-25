@@ -1,6 +1,5 @@
 #include "ngx_xrootd_module.h"
 
-#if (NGX_THREADS)
 
 /*
  * Re-enter the XRootD event flow after a thread-pool completion.
@@ -136,4 +135,3 @@ xrootd_aio_resume(ngx_connection_t *c)
     }
 }
 
-#endif /* NGX_THREADS */

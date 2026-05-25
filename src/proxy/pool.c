@@ -1,5 +1,24 @@
 /*
- * pool.c — upstream connection pooling, health tracking, and keepalives.
+ * WHAT: Upstream connection pooling with health-aware selection, fail detection,
+ *       and idle-timeout keepalive management. Maintains a worker-local queue of
+ *       authenticated upstream connections that can be reused by subsequent client
+ *       sessions matching auth type and bearer token hash.
+ *
+ * WHY:  Transparent proxy authentication (GSI/TLS) is expensive — reusing an already-
+ *       authenticated connection avoids repeating handshake for every new client. Health
+ *       tracking detects upstream failures and marks servers DOWN after XROOTD_PROXY_MAX_FAILS,
+ *       skipping them in pool selection until the fail timeout expires. Bearer token hashing
+ *       ensures forwarded-token connections reuse only sessions authenticated with matching tokens.
+ *       Keepalive timers prevent stale pooled connections from accumulating unread kXR_ok frames
+ *       from previous pings (re-arm without ping to avoid buffer contamination).
+ *
+ * HOW:  xrootd_proxy_up_status_init() allocates per-upstream health status array on first call;
+ *       reuses existing if count >= configured upstreams. up_mark_failed/up_mark_ok increment
+ *       fail counters or reset them and log state transitions. pool_init creates the ngx_queue.
+ *       pool_get performs random-start round-robin across upstreams, skipping DOWN servers within
+ *       fail timeout, then scans pool for matching idx/auth_type/token_hash — returns connection
+ *       on match, NULL otherwise. pool_put ejects oldest when pool full, allocates pooled_conn_t,
+ *       detaches conn from proxy ctx, sets keepalive timer, inserts head of queue.
  */
 
 #include "proxy_internal.h"
@@ -12,6 +31,10 @@ static ngx_uint_t   proxy_pool_count;
 /* Worker-local health status for each upstream endpoint. */
 xrootd_proxy_up_status_t *proxy_up_status;
 static ngx_uint_t          proxy_up_status_count;
+
+/* ---- public API: xrootd_proxy_up_status_init() — initialize upstream health status array ----
+ * WHAT: Allocate and zero the per-upstream health status array based on configured upstream count.
+ *       Reuses existing array if already sized for >= N upstreams (worker-local singleton). */
 
 /* ---- health tracking ----------------------------------------------------- */
 
@@ -35,6 +58,10 @@ xrootd_proxy_up_status_init(ngx_stream_xrootd_srv_conf_t *conf)
     proxy_up_status_count = n;
 }
 
+/* ---- public API: xrootd_proxy_up_mark_failed() — mark upstream as failed ----
+ * WHAT: Increment fail counter for the proxy's current upstream index, record check timestamp.
+ *       Marks the upstream DOWN after XROOTD_PROXY_MAX_FAILS failures and logs an error. */
+
 void
 xrootd_proxy_up_mark_failed(xrootd_proxy_ctx_t *proxy)
 {
@@ -55,6 +82,10 @@ xrootd_proxy_up_mark_failed(xrootd_proxy_ctx_t *proxy)
                       idx, proxy_up_status[idx].fails);
     }
 }
+
+/* ---- public API: xrootd_proxy_up_mark_ok() — mark upstream healthy again ----
+ * WHAT: Reset fail counter, clear DOWN flag for the proxy's current upstream index. Logs notice
+ *       if transitioning from DOWN to UP. Records check timestamp. */
 
 void
 xrootd_proxy_up_mark_ok(xrootd_proxy_ctx_t *proxy)
@@ -83,7 +114,6 @@ xrootd_proxy_pool_ping_handler(ngx_event_t *ev)
 {
     xrootd_proxy_pooled_conn_t *pc = ev->data;
     ngx_connection_t           *c  = pc->conn;
-    u_char                      ping[XRD_REQUEST_HDR_LEN];
 
     /* If the connection was already closed or taken from pool, ignore. */
     if (c == NULL) {
@@ -101,26 +131,16 @@ xrootd_proxy_pool_ping_handler(ngx_event_t *ev)
         return;
     }
 
-    /* Build and send kXR_ping. */
-    ngx_memzero(ping, sizeof(ping));
-    {
-        uint16_t rid = htons(kXR_ping);
-        ngx_memcpy(ping + 2, &rid, 2);
-    }
-
-    if (c->send(c, ping, sizeof(ping)) < 0) {
-        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd proxy: pooled ping failed, closing");
-        ngx_queue_remove(&pc->queue);
-        proxy_pool_count--;
-        ngx_close_connection(c);
-        ngx_free(pc);
-        return;
-    }
-
-    /* Re-arm the ping timer. */
-    ngx_add_timer(ev, 15000); /* 15s pings */
+    /* Re-arm the idle-timeout timer without sending a ping.
+     * Sending pings and not reading their responses leaves stale kXR_ok
+     * frames in the socket buffer, which the next reused connection reads
+     * as an unexpected response to its first real request. */
+    ngx_add_timer(ev, pc->keepalive_interval);
 }
+
+/* ---- public API: xrootd_proxy_pool_init() — initialize upstream connection pool ----
+ * WHAT: Initialize the worker-local idle connection queue and zero the pool counter. Called once
+ *       at startup to prepare the pool for subsequent get/put operations. */
 
 /* ---- pool management ----------------------------------------------------- */
 
@@ -130,6 +150,13 @@ xrootd_proxy_pool_init(void)
     ngx_queue_init(&proxy_pool);
     proxy_pool_count = 0;
 }
+
+/* ---- public API: xrootd_proxy_pool_get() — retrieve pooled upstream connection ----
+ * WHAT: Select an authenticated upstream connection from the pool using health-aware random-start
+ *       round-robin across configured upstreams. Skips DOWN servers within fail timeout. Matches
+ *       connections by upstream index, auth type (GSI/TLS/forwarded token), and bearer token MD5 hash
+ *       for forwarded-token mode. Returns matched connection on success, NULL if no match found — caller
+ *       must then establish a new connection. Sets idx_out to the selected upstream index. */
 
 ngx_connection_t *
 xrootd_proxy_pool_get(xrootd_proxy_ctx_t *proxy,
@@ -205,6 +232,12 @@ xrootd_proxy_pool_get(xrootd_proxy_ctx_t *proxy,
     return NULL;
 }
 
+/* ---- public API: xrootd_proxy_pool_put() — return idle upstream connection to pool ----
+ * WHAT: Place an authenticated, idle upstream connection back into the worker-local pool queue for
+ *       reuse by subsequent sessions. Ejects oldest connection when pool is full (XROOTD_PROXY_POOL_SIZE).
+ *       Skips redirected connections (too transient). Detaches conn from proxy ctx, allocates pooled_conn_t
+ *       with auth type/upstream index/token hash/keepalive timer metadata, inserts head of queue. */
+
 void
 xrootd_proxy_pool_put(xrootd_proxy_ctx_t *proxy)
 {
@@ -238,7 +271,9 @@ xrootd_proxy_pool_put(xrootd_proxy_ctx_t *proxy)
     pc->conn         = proxy->conn;
     pc->upstream_idx = (proxy->upstream_idx < 0) ? 0 : (ngx_uint_t) proxy->upstream_idx;
     pc->auth_type    = conf->proxy_auth;
-    pc->idle_since   = ngx_time();
+    pc->idle_since         = ngx_time();
+    pc->keepalive_interval = (conf->proxy_keepalive_interval > 0)
+                             ? conf->proxy_keepalive_interval : 15000;
 
     if (pc->auth_type == XROOTD_PROXY_AUTH_FORWARD && proxy->client_ctx->bearer_token[0]) {
         MD5((const u_char *) proxy->client_ctx->bearer_token,
@@ -255,7 +290,7 @@ xrootd_proxy_pool_put(xrootd_proxy_ctx_t *proxy)
     pc->ping_ev.handler = xrootd_proxy_pool_ping_handler;
     pc->ping_ev.data    = pc;
     pc->ping_ev.log     = pc->conn->log;
-    ngx_add_timer(&pc->ping_ev, 15000);
+    ngx_add_timer(&pc->ping_ev, pc->keepalive_interval);
 
     ngx_queue_insert_head(&proxy_pool, &pc->queue);
     proxy_pool_count++;

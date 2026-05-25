@@ -1,3 +1,31 @@
+/*
+ * registry.c — Shared-memory server registry for XRootD redirector mode.
+ */
+
+/* ---- WHAT ---------------------------------------------------------------
+ * Maintains a fixed-capacity (128-slot) shared-memory table of registered
+ * data servers. Each entry records host, port, colon-delimited path tokens,
+ * free space (MB), utilisation percentage, and last-seen timestamp.
+ * Used by kXR_locate / kXR_open to redirect clients to the best server for
+ * a given path — reads pick least-loaded, writes pick most-free-space.
+
+ * ---- WHY ---------------------------------------------------------------
+ * In CMS cluster mode nginx-xrootd acts as a sub-manager/redirector. Data
+ * servers heartbeat into this registry via xrootd_srv_register() and update
+ * load metrics via xrootd_srv_update_load(). The redirector uses the table to
+ * answer locate requests and pick optimal servers for open operations.
+
+ * ---- HOW ---------------------------------------------------------------
+ * 1. xrootd_srv_configure_registry() allocates an nginx shared-memory zone
+ *    with ngx_shared_memory_add() — size = sizeof(table) + slots × entry_size.
+ * 2. xrootd_srv_shm_init_zone() zero-fills the shared region and creates a
+ *    spinlock (ngx_shmtx_t) embedded at the start of the table.
+ * 3. All public APIs lock the mutex, scan/modify slots, unlock — never hold
+ *    the lock across I/O. srv_table() returns NULL when the zone is not yet
+ *    initialised (data == NULL or data == (void *)1 sentinel).
+ * 4. Path matching uses colon-delimited tokens with longest-prefix semantics.
+ */
+
 #include "registry.h"
 #include <ngx_shmtx.h>
 #include <string.h>
@@ -19,6 +47,23 @@ srv_table(void)
     return (xrootd_srv_table_t *) xrootd_srv_shm_zone->data;
 }
 
+/* ---- Function: xrootd_srv_shm_init_zone() --------------------------------- */
+
+/* WHAT
+ * Shared-memory zone initialiser callback. Called by nginx when the shared-
+ * memory zone is mapped (first time) or reattached (subsequent workers).
+
+ * WHY
+ * Ensures the registry table is zero-filled and the spinlock is created on
+ * first boot; on restart (data != NULL) just recreates the lock against the
+ * existing table structure.
+
+ * HOW
+ * If data pointer is non-NULL → this worker reattached to an already-
+ * initialised zone: copy data into shm_zone->data, create mutex against
+ * tbl->lock. Otherwise → first boot: cast shm.addr to table, set capacity,
+ * zero-fill slots array, create mutex.
+ */
 ngx_int_t
 xrootd_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
@@ -46,6 +91,21 @@ xrootd_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
     return NGX_OK;
 }
 
+/* ---- Function: xrootd_srv_configure_registry() ---------------------------- */
+
+/* WHAT
+ * Allocates the shared-memory zone for the server registry and sets its size
+ * based on the configured slot count.
+
+ * WHY
+ * Called during nginx configuration parsing (xrootd_registry_slots directive).
+ * Must happen before any traffic so that workers can find the zone at startup.
+
+ * HOW
+ * Sets xrootd_srv_registry_nslots to the requested value, computes zone size
+ * as sizeof(table) + slots × entry_size + ngx_pagesize padding, adds the zone
+ * via ngx_shared_memory_add(), sets init callback and (void *)1 sentinel data.
+ */
 ngx_int_t
 xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
 {
@@ -100,6 +160,23 @@ srv_path_matches(const char *paths, const char *path)
     return 0;
 }
 
+/* ---- Function: xrootd_srv_register() -------------------------------------- */
+
+/* WHAT
+ * Registers or updates a data server entry in the shared-memory registry.
+ * Called by CMS server handler when a data server logs in or heartbeats.
+
+ * WHY
+ * The redirector needs to know which servers exist, what paths they serve,
+ * and their current load metrics so that kXR_locate / kXR_open can pick the
+ * best server for each request.
+
+ * HOW
+ * Locks mutex → scans all slots: if host+port match found, update paths/free/
+ * util/last_seen fields. If no match and a free slot exists, allocate it with
+ * host/port/paths/free/util/last_seen/in_use=1. If registry is full, log warn
+ * and increment registry_full_total Prometheus counter.
+ */
 void
 xrootd_srv_register(const char *host, uint16_t port,
     const char *paths, uint32_t free_mb, uint32_t util_pct)
@@ -169,6 +246,20 @@ xrootd_srv_register(const char *host, uint16_t port,
     ngx_shmtx_unlock(&xrootd_srv_mutex);
 }
 
+/* ---- Function: xrootd_srv_update_load() ----------------------------------- */
+
+/* WHAT
+ * Refreshes free-space and utilisation metrics for an already-registered server.
+ * Called on each CMS heartbeat from the data server.
+
+ * WHY
+ * Selection policy depends on current load: reads pick least-loaded servers,
+ * writes pick most-free-space. Metrics must stay fresh for accurate routing.
+
+ * HOW
+ * Locks mutex → scans slots for host+port match → updates free_mb, util_pct,
+ * last_seen fields only (no path changes). Unlocks and returns.
+ */
 void
 xrootd_srv_update_load(const char *host, uint16_t port,
     uint32_t free_mb, uint32_t util_pct)
@@ -199,6 +290,20 @@ xrootd_srv_update_load(const char *host, uint16_t port,
     ngx_shmtx_unlock(&xrootd_srv_mutex);
 }
 
+/* ---- Function: xrootd_srv_unregister() ------------------------------------ */
+
+/* WHAT
+ * Removes a data server entry from the registry by host+port match.
+ * Called when a data server disconnects or is removed from the cluster.
+
+ * WHY
+ * Prevents stale entries from being selected by locate/open operations. A
+ * disconnected server should not receive client traffic.
+
+ * HOW
+ * Locks mutex → scans slots for host+port match → zero-fills the entry (all
+ * fields cleared, in_use=0). Unlocks and returns.
+ */
 void
 xrootd_srv_unregister(const char *host, uint16_t port)
 {
@@ -226,6 +331,22 @@ xrootd_srv_unregister(const char *host, uint16_t port)
     ngx_shmtx_unlock(&xrootd_srv_mutex);
 }
 
+/* ---- Function: xrootd_srv_select() ---------------------------------------- */
+
+/* WHAT
+ * Selects the best data server for a given path from the registry table.
+ * Used by kXR_locate and kXR_open to redirect clients to optimal servers.
+
+ * WHY
+ * Selection policy: reads → lowest util_pct (least loaded); writes → highest
+ * free_mb (most available space). Path matching uses longest-prefix over colon-
+ * delimited tokens in each entry's paths field.
+
+ * HOW
+ * Locks mutex → scans all occupied slots → filters by srv_path_matches() →
+ * picks best based on for_write flag (free_mb max for writes, util_pct min
+ * for reads). Writes host+port to output buffers. Unlocks and returns 1/0.
+ */
 int
 xrootd_srv_select(const char *path, int for_write,
     char *host_out, size_t host_size, uint16_t *port_out)
@@ -277,6 +398,21 @@ xrootd_srv_select(const char *path, int for_write,
     return best >= 0;
 }
 
+/* ---- Function: xrootd_srv_unregister_path() ------------------------------- */
+
+/* WHAT
+ * Removes a single path token from an existing server entry's paths field.
+ * Used when a data server revokes access to a specific directory.
+
+ * WHY
+ * A server may serve multiple colon-delimited path tokens. Removing one token
+ * keeps the entry alive for other paths without full unregister.
+
+ * HOW
+ * Locks mutex → scans slots for host+port match → in-place token walk: copies
+ * non-matching tokens to dst buffer, drops matching ones. Safe overlap because
+ * dst <= p always (copy forward direction). Null-terminates result.
+ */
 void
 xrootd_srv_unregister_path(const char *host, uint16_t port, const char *path)
 {
@@ -338,7 +474,20 @@ xrootd_srv_unregister_path(const char *host, uint16_t port, const char *path)
     ngx_shmtx_unlock(&xrootd_srv_mutex);
 }
 
+/* ---- Function: xrootd_srv_aggregate_space() ------------------------------- */
 
+/* WHAT
+ * Aggregates free-space and utilisation metrics across all registered servers.
+ * Returns total free MB and average utilisation percentage via output pointers.
+
+ * WHY
+ * Used by the redirector to report cluster-wide capacity to CMS management or
+ * for S3 gateway decisions about which region has sufficient space.
+
+ * HOW
+ * Locks mutex → sums free_mb and util_pct across all occupied slots, counts
+ * entries. Unlocks → computes average = sum_util / count (0 if no servers).
+ */
 void
 xrootd_srv_aggregate_space(uint32_t *total_free_mb, uint32_t *avg_util_pct)
 {
@@ -377,4 +526,48 @@ xrootd_srv_aggregate_space(uint32_t *total_free_mb, uint32_t *avg_util_pct)
 
     *total_free_mb = sum_free;
     *avg_util_pct  = count > 0 ? (uint32_t) (sum_util / count) : 0;
+}
+
+ngx_uint_t
+xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
+    ngx_msec_t now)
+{
+    xrootd_srv_table_t *tbl;
+    xrootd_srv_entry_t *e;
+    ngx_uint_t          i;
+    ngx_uint_t          n;
+
+    (void) now;
+
+    if (out == NULL || max_entries == 0) {
+        return 0;
+    }
+
+    tbl = srv_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+
+    n = 0;
+    ngx_shmtx_lock(&xrootd_srv_mutex);
+
+    for (i = 0; i < tbl->capacity && n < max_entries; i++) {
+        e = &tbl->slots[i];
+        if (!e->in_use) {
+            continue;
+        }
+
+        ngx_cpystrn((u_char *) out[n].host, (u_char *) e->host,
+                    sizeof(out[n].host));
+        out[n].port = e->port;
+        ngx_cpystrn((u_char *) out[n].paths, (u_char *) e->paths,
+                    sizeof(out[n].paths));
+        out[n].free_mb = e->free_mb;
+        out[n].util_pct = e->util_pct;
+        out[n].last_seen = e->last_seen;
+        n++;
+    }
+
+    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    return n;
 }

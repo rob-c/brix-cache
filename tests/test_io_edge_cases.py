@@ -14,7 +14,7 @@ import socket
 
 import pytest
 
-from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Protocol constants
@@ -51,7 +51,7 @@ kXR_pgPageSZ  = 4096
 # Module globals
 # ---------------------------------------------------------------------------
 
-ANON_HOST = "127.0.0.1"
+ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
 DATA_DIR  = DEFAULT_DATA_ROOT
 
@@ -59,7 +59,7 @@ DATA_DIR  = DEFAULT_DATA_ROOT
 @pytest.fixture(scope="module", autouse=True)
 def _configure(test_env):
     global ANON_HOST, ANON_PORT, DATA_DIR
-    ANON_HOST = "127.0.0.1"
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
     DATA_DIR  = test_env["data_dir"]
 

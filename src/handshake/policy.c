@@ -76,7 +76,7 @@ xrootd_dispatch_require_write(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "bound streams may only read primary handles");
     }
 
-    if (!conf->allow_write) {
+    if (!conf->common.allow_write) {
         return xrootd_send_error(ctx, c, kXR_fsReadOnly,
                                  "this is a read-only server");
     }

@@ -1,3 +1,37 @@
+/* ------------------------------------------------------------------ */
+/* Section: CMS Manager Map Configuration                               */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements the manager_map directive handler that configures CMS management mode backend mappings.
+ *      Each entry associates a prefix path (policy-style normalization applied) with a host:port endpoint where a CMS
+ *      server manages that namespace segment. Supports both IPv4/hostname and IPv6 literal [addr]:port formats with port
+ *      range validation (1-65535).
+ *
+ * WHY: CMS management mode allows partitioning namespaces across multiple backend servers — each prefix maps to the
+ *      CMS manager responsible for that path segment. Configuration parsing must handle IPv6 bracket literals carefully,
+ *      validate port ranges, and normalize paths using policy conventions before storing in the manager_map array. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Manager Map Directive Handler                               */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: xrootd_conf_set_manager_map() parses the "manager_map" config directive creating a prefix→host:port mapping entry.
+ *      The first argument is a prefix path (normalized via policy conventions); the second is a host:port endpoint. Creates
+ *      or appends to the manager_map array, validates IPv6 bracket format and port range, stores normalized results in
+ *      xcf->manager_map. Returns NGX_CONF_OK on success; NGX_CONF_ERROR with emerg-level log on any validation failure. */
+
+/* ---- Function: xrootd_conf_set_manager_map() ----
+ *
+ * WHAT: Parses the "manager_map" config directive creating a prefix→host:port mapping entry for CMS management mode.
+ *      First argument = prefix path (normalized via policy conventions); second = host:port endpoint. Creates or appends to
+ *      manager_map array, validates IPv6 bracket format [addr]:port and port range 1-65535, stores normalized results in
+ *      xcf->manager_map. Returns NGX_CONF_OK on success; NGX_CONF_ERROR with emerg-level log on any validation failure. */
+
+/* ---- WHY: CMS management mode partitions namespaces across multiple backend servers — each prefix maps to the CMS manager
+ *      responsible for that path segment. IPv6 literal handling requires bracket detection and parsing before colon split.
+ *      Port validation prevents malformed endpoints from being stored in the registry. Path normalization ensures consistent
+ *      policy-style prefixes across all entries. ---- */
+
 #include "config.h"
 
 #include <stdlib.h>

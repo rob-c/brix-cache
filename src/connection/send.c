@@ -1,24 +1,30 @@
+/* ------------------------------------------------------------------ */
+/* Section: Write Event Handler — Async Response Flush                  */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements the nginx write event handler that drives the async response flush cycle when the kernel socket send buffer has room. Called by nginx whenever a previous c->send()/c->send_chain() returned NGX_AGAIN — drains wbuf/wchain into the socket, transitions to XRD_ST_REQ_HEADER on completion, and re-enters recv loop for next request. Also triggers TLS handshake if tls_pending after flushing kXR_haveTLS response. Security invariant: timeout → disconnect immediately. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Write Event Handler                                         */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: ngx_stream_xrootd_send() is the write event handler called by nginx whenever the kernel socket send buffer has room again after a previous c->send()/c->send_chain() returned NGX_AGAIN — drives the async flush cycle: (1) calls xrootd_flush_pending() to drain wbuf/wchain into the socket; (2) if NGX_AGAIN, returns and waits for next write event; (3) on success with state==XRD_ST_SENDING, transitions to XRD_ST_REQ_HEADER and re-enters recv loop for next request; (4) if tls_pending after flushing kXR_haveTLS response, triggers TLS handshake via xrootd_start_tls(). Security invariant: timeout → disconnect immediately. Thread safety: single-owner per connection on nginx event thread — no locking required. Returns only when flush=NGX_AGAIN or state≠SENDING. */
+
+/* ---- WHY: This handler is the critical counterpart to recv() in the async I/O cycle — without it, response buffers would stall until the next natural epoll write event detection. Flush pending ensures all queued response data (wire protocol headers + payload) are sent efficiently to the client socket rather than accumulating in memory indefinitely. TLS handshake trigger enables in-protocol upgrade for roots:// clients when kXR_haveTLS response has been flushed and the server is ready to negotiate secure transport. ---- */
+
 #include "../ngx_xrootd_module.h"
 #include "disconnect.h"
 #include "fd_table.h"
 #include "tls.h"
 #include "write_helpers.h"
 
-/*
- * Write event handler for pending response buffers and chains.
+/* ---- ngx_stream_xrootd_send — write event handler for pending response buffers (async flush cycle) ----
  *
- * nginx calls this when the kernel socket send buffer has room again (i.e.
- * after a previous c->send() / c->send_chain() returned NGX_AGAIN).
+ * WHAT: Called by nginx whenever the kernel socket send buffer has room again after a previous c->send()/c->send_chain() returned NGX_AGAIN. Drives the async flush cycle: (1) calls xrootd_flush_pending() to drain wbuf/wchain into the socket; (2) if NGX_AGAIN, returns and waits for next write event; (3) on success with state==XRD_ST_SENDING, transitions to XRD_ST_REQ_HEADER and re-enters recv loop for next request; (4) if tls_pending after flushing kXR_haveTLS response, triggers TLS handshake via xrootd_start_tls(). Security invariant: timeout → disconnect immediately. Thread safety: single-owner per connection on nginx event thread — no locking required. Returns only when flush=NGX_AGAIN or state≠SENDING.
  *
- * Flow:
- *   1. Flush any pending wbuf / wchain bytes via xrootd_flush_pending().
- *   2. If the flush returns NGX_AGAIN (still blocked), return and wait.
- *   3. If the flush succeeds and state == XRD_ST_SENDING, transition back
- *      to XRD_ST_REQ_HEADER and re-enter the recv loop so the next request
- *      can be processed.
- *   4. If tls_pending, start the TLS handshake now that the kXR_haveTLS
- *      response has been fully flushed.
- */
+ * WHY: This handler is the critical counterpart to recv() in the async I/O cycle — without it, response buffers would stall until the next natural epoll write event detection. Flush pending ensures all queued response data (wire protocol headers + payload) are sent efficiently to the client socket rather than accumulating in memory indefinitely. TLS handshake trigger enables in-protocol upgrade for roots:// clients when kXR_haveTLS response has been flushed and the server is ready to negotiate secure transport.
+ *
+ * HOW: Event-driven flow → wev->timedout check (disconnect + close files) → xrootd_flush_pending() call → NGX_AGAIN return (wait for next write event) → on success: state=XRD_ST_REQ_HEADER reset → tls_pending check (trigger TLS handshake) → ngx_stream_xrootd_recv() re-arm read loop. */
 void
 ngx_stream_xrootd_send(ngx_event_t *wev)
 {

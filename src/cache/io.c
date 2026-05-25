@@ -1,10 +1,22 @@
 #include "cache_internal.h"
 
-#if (NGX_THREADS)
 
 #include <errno.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+/* ---- xrootd_cache_io_send — send all bytes over socket/TLS ----
+ *
+ * WHAT: Blocking send helper that writes len bytes to the origin connection.
+ *       Handles both SSL and plain TCP sockets, retries on WANT_READ/WANT_WRITE/EINTR.
+ *
+ * WHY: Cache fill operations run in nginx thread pool (blocking context). Unlike
+ *      the event-loop main thread, this function can block indefinitely waiting for
+ *      network bytes — it must handle SSL renegotiation states and partial writes.
+ *
+ * HOW: Iterates remaining bytes with send/SSL_write loop. On WANT_READ/WANT_WRITE:
+ *      continues without advancing pointer (retry same chunk). On other errors:
+ *      maps to EIO and returns -1. Zero-length write on TCP → errno=EPIPE. */
 
 int
 xrootd_cache_io_send(xrootd_cache_origin_conn_t *oc, const void *buf,
@@ -55,6 +67,19 @@ xrootd_cache_io_send(xrootd_cache_origin_conn_t *oc, const void *buf,
     return 0;
 }
 
+/* ---- xrootd_cache_io_recv_exact — receive exact byte count from socket/TLS ----
+ *
+ * WHAT: Blocking recv helper that reads exactly len bytes from the origin connection.
+ *       Handles both SSL and plain TCP sockets, retries on WANT_READ/WANT_WRITE/EINTR.
+ *
+ * WHY: Cache fill operations require exact-length wire protocol messages (XRootD
+ *      headers are fixed-size). Unlike event-loop recv which accumulates incrementally,
+ *      this function guarantees exactly len bytes — partial reads loop until complete.
+ *
+ * HOW: Iterates remaining bytes with recv/SSL_read loop. On WANT_READ/WANT_WRITE:
+ *      continues without advancing pointer (retry same chunk). On other errors:
+ *      maps to EIO and returns -1. Zero-length read on TCP → errno=ECONNRESET. */
+
 int
 xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
     size_t len)
@@ -104,6 +129,15 @@ xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
     return 0;
 }
 
+/* ---- xrootd_cache_fd_write_all — write all bytes to local file descriptor ----
+ *
+ * WHAT: Blocking fd write helper that writes len bytes to a local file descriptor.
+ *       Retries on EINTR, returns -1 on any other error (including zero-length write).
+ *
+ * WHY: Cache fill worker thread writes received origin data to a local .part temp
+ *      file before atomic rename. Must guarantee all bytes land on disk — partial
+ *      writes loop until complete. Used only within NGX_THREADS build. */
+
 int
 xrootd_cache_fd_write_all(int fd, const void *buf, size_t len)
 {
@@ -130,4 +164,3 @@ xrootd_cache_fd_write_all(int fd, const void *buf, size_t len)
     return 0;
 }
 
-#endif /* NGX_THREADS */

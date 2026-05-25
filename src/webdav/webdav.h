@@ -1,30 +1,80 @@
 #ifndef XROOTD_WEBDAV_H
 #define XROOTD_WEBDAV_H
 
+/*
+ * webdav.h — Shared types, configuration structs, and function declarations for the
+ * nginx HTTP WebDAV module (davs:// endpoint).
+ *
+ * WHAT: Declares all shared data structures used across WebDAV source files:
+ *       location-level config (`ngx_http_xrootd_webdav_loc_conf_t`), per-request
+ *       auth context (`ngx_http_xrootd_webdav_req_ctx_t`), lock table entry and
+ *       shared-memory table, authentication enums, and constants. Also declares
+ *       every public function across the WebDAV module — path resolution, URI
+ *       utilities, XML escaping, metrics, authentication, HTTP method handlers,
+ *       file I/O helpers, HTTP-TPC (third-party copy), upstream proxy, and
+ *       credential delegation.
+ *
+ * WHY: This header is included by every webdav source file so that all modules see
+ *      the same types in a single include. It also includes xrdhttp.h so that both
+ *      WebDAV and XrdHttp types coexist — pointer casting between req_ctx_t and
+ *      xrdhttp_req_ctx_t relies on layout compatibility (C11 §6.7.2.1p15). Without
+ *      this unified header, each file would need to re-declare overlapping types.
+ *
+ * HOW: The header is organized into sections by responsibility:
+ *       1. Includes — nginx core + module headers, shared protocol/compat headers
+ *       2. Constants — path max, fd table size, lock sizes, TPC limits
+ *       3. Enums — auth modes (NONE/OPTIONAL/REQUIRED), proxy auth modes
+ *       4. LOCK structures — entry and shared-memory table
+ *       5. Location config struct — all directives mapped to fields with inline comments
+ *       6. Per-request context struct — auth results, token scopes, lock metadata
+ *       7. Module wiring — create/merge loc conf, postconfig, access handler, content handler
+ *       8. Operation registry — extern declarations for the operation capability table
+ *       9. Path/URI/XML/logging utilities — resolve_path, urldecode, escape_xml, cors
+ *       10. Authentication — ca store build, cert verification, bearer token validation
+ *       11. HTTP method handlers — options, head, get, put, delete, mkcol, propfind, move, copy, lock, unlock
+ *       12. File I/O helpers — fadvise, write_full, spooled file copy
+ *       13. HTTP-TPC — header macros, curl pull/push, thread task posting, COPY handler
+ *       14. Upstream proxy — handler, URL parsing
+ *       15. Credential delegation — mode parse, token obtain, metric names
+ *       16. Capability table macro — XROOTD_WEBDAV_ALLOW_FLAGS()
+ *
+ * INCLUDES: xrdhttp.h is included here so all webdav source files see both types in
+ *           a single include. See src/webdav/xrdhttp.h for the XrdHttp extension API.
+ */
+
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#if (NGX_THREADS)
 #include <ngx_thread_pool.h>
-#endif
 
 #include <stdint.h>
 #include <sys/stat.h>
 
 #include "../metrics/metrics.h"
+#include "../compat/error_mapping.h"
+#include "../compat/http_headers.h"
+#include "../compat/log.h"
 #include "../token/token.h"
 #include "tpc_config.h"
 #include "tpc_cred.h"
+#include "../compat/path.h"
+#include "../compat/protocol_caps.h"
+#include "../config/shared_conf.h"
+
+#include <ngx_open_file_cache.h>
+
+/* XrdHttp protocol extension API — included here so all webdav source
+ * files see both the webdav and xrdhttp types in a single include. */
+#include "xrdhttp.h"
 
 typedef struct x509_store_st X509_STORE;
 
-#define WEBDAV_MAX_PATH          4096
+#define WEBDAV_MAX_PATH          XROOTD_PATH_MAX
 #define WEBDAV_FD_TABLE_SIZE     16
 #define WEBDAV_PUT_COPY_BUFSZ    (1024 * 1024)
 #define WEBDAV_PUT_COPY_CHUNK    (16 * 1024 * 1024)
 #define WEBDAV_TPC_MAX_HEADERS   64
-#define WEBDAV_TPC_MAX_ARGS      (32 + WEBDAV_TPC_MAX_HEADERS * 2)
 
 #define WEBDAV_LOCK_TABLE_SIZE   1024
 #define WEBDAV_LOCK_TOKEN_LEN    64
@@ -59,7 +109,6 @@ typedef struct {
     webdav_lock_entry_t  slots[WEBDAV_LOCK_TABLE_SIZE];
 } webdav_lock_table_t;
 
-
 /*
  * Per-location WebDAV configuration.  Populated from nginx directives during
  * the configuration phase (cf->pool lifetime).
@@ -67,9 +116,8 @@ typedef struct {
  * Lifetime: nginx worker lifetime (allocated in cf->pool at startup).
  */
 typedef struct {
-    ngx_flag_t     enable;          /* 1 if xrootd_webdav is on for this loc */
-    ngx_str_t      root;            /* configured export root path (may contain
-                                     * nginx variables; use root_canon for ops) */
+    ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
+                                             thread_pool_name, thread_pool */
 
     /* --- X.509 / GSI authentication --- */
     ngx_str_t      cadir;           /* directory of trusted CA PEM files */
@@ -82,9 +130,12 @@ typedef struct {
     X509_STORE    *ca_store;        /* loaded trust store; built at postconfiguration;
                                      * NULL if no CA dir/file configured */
 
-    /* --- Write permissions --- */
-    ngx_flag_t     allow_write;     /* 1 to allow PUT/DELETE/MKCOL/MOVE/COPY */
+    /* --- Write permissions / TPC --- */
     ngx_flag_t     tpc;             /* 1 to allow HTTP-TPC (third-party copy) */
+
+    /* --- HTTP-TPC SSRF policy --- */
+    ngx_flag_t     tpc_allow_local;   /* 0: reject loopback+link-local targets */
+    ngx_flag_t     tpc_allow_private; /* 0: reject RFC-1918 / ULA targets */
 
     /* --- HTTP-TPC (curl-based pull) settings --- */
     ngx_str_t      tpc_curl;        /* path to curl binary */
@@ -108,27 +159,21 @@ typedef struct {
     xrootd_jwks_key_t  jwks_keys[XROOTD_MAX_JWKS_KEYS]; /* loaded RSA pub keys */
     int                 jwks_key_count;  /* number of valid entries in jwks_keys */
 
-    /* --- Thread pool for async PUT writes --- */
-    ngx_str_t           thread_pool_name; /* nginx thread_pool directive name */
-#if (NGX_THREADS)
-    ngx_thread_pool_t  *thread_pool;  /* resolved at postconfiguration; NULL
-                                       * if NGX_THREADS disabled or not configured */
-#endif
-
     /* --- CORS settings --- */
     ngx_array_t        *cors_origins;    /* allowed origins (ngx_str_t array) */
     ngx_flag_t          cors_credentials; /* Access-Control-Allow-Credentials */
     ngx_uint_t          cors_max_age;     /* Access-Control-Max-Age in seconds */
 
-    /* Canonicalised absolute path corresponding to root; resolved at
-     * postconfiguration.  Use this (not root) for all filesystem operations.
-     * WEBDAV_MAX_PATH bytes, NUL-terminated.  Never free() this buffer —
-     * it is embedded in the struct allocated from cf->pool. */
-    char                root_canon[WEBDAV_MAX_PATH];
-
     /* --- WebDAV LOCK shared memory --- */
     ngx_shm_zone_t     *lock_shm_zone;
     ngx_uint_t          lock_timeout;    /* max lock timeout in seconds */
+
+    /* --- Open file cache --- */
+    ngx_open_file_cache_t  *open_file_cache;
+    ngx_uint_t              open_file_cache_valid;
+    ngx_uint_t              open_file_cache_min_uses;
+    ngx_flag_t              open_file_cache_errors;
+    ngx_flag_t              open_file_cache_events;
 
     /* --- Upstream HTTP(S) proxy --- */
     ngx_flag_t                    upstream_proxy;      /* xrootd_webdav_proxy on/off */
@@ -152,6 +197,11 @@ typedef struct {
  * the auth gate in ngx_http_xrootd_webdav_handler().
  */
 typedef struct {
+    /* XrdHttp per-request context — MUST be first member so that a pointer
+     * to this struct can be safely cast to xrdhttp_req_ctx_t * via C struct
+     * layout rule (C11 §6.7.2.1p15). */
+    xrdhttp_req_ctx_t  xrdhttp;
+
     int            verified;     /* 1 if auth was accepted, 0 if anonymous */
     char           dn[1024];     /* Distinguished Name from cert or token sub;
                                   * NUL-terminated; empty string if anonymous */
@@ -166,47 +216,6 @@ typedef struct {
     unsigned       lock_depth_infinity:1;
     char           lock_owner[WEBDAV_LOCK_OWNER_LEN];
 } ngx_http_xrootd_webdav_req_ctx_t;
-
-/*
- * One slot in the per-connection fd cache.
- *
- * The fd-cache avoids repeated open()/fstat()/close() for hot files (e.g.
- * a PROPFIND + GET pair on the same URI).  It is connection-scoped: fds here
- * live until the HTTP connection is closed or explicitly evicted.
- *
- * IMPORTANT — fhandle scope: an fd cached here is a live kernel file
- * descriptor, not an XRootD 4-byte fhandle.  It is valid only for the
- * lifetime of the HTTP connection.  Do not cache these fds across connections.
- */
-typedef struct {
-    ngx_fd_t    fd;                  /* open file descriptor; NGX_INVALID_FILE
-                                      * when this slot is empty */
-    char        path[WEBDAV_MAX_PATH]; /* canonicalised absolute filesystem path,
-                                        * NUL-terminated */
-    uint64_t    uri_hash;            /* FNV-1a hash of the decoded URI for O(1)
-                                      * lookup in webdav_fd_table_get_by_uri() */
-    ino_t       ino;                 /* inode number — used with dev to detect
-                                      * whether the file was replaced on disk */
-    dev_t       dev;                 /* device ID — paired with ino for
-                                      * cross-mount uniqueness */
-    ngx_msec_t  open_time;          /* ngx_current_msec when the fd was inserted;
-                                      * used by the LRU eviction policy */
-} webdav_fd_entry_t;
-
-/*
- * Per-connection fd cache table.
- *
- * WEBDAV_FD_TABLE_SIZE slots (16) is intentionally small — the typical HTTP
- * connection issues a PROPFIND followed by one or a few GETs.  The small size
- * bounds kernel fd consumption to 16 per HTTP connection.
- *
- * Lifetime: allocated in c->pool; freed when the HTTP connection closes.
- * Do NOT share this table across connections.
- */
-typedef struct {
-    webdav_fd_entry_t  fds[WEBDAV_FD_TABLE_SIZE]; /* fd slots */
-    int                count;  /* number of currently occupied slots */
-} webdav_fd_table_t;
 
 extern ngx_module_t ngx_http_xrootd_webdav_module;
 
@@ -227,25 +236,25 @@ void *ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf);
 char *ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
 ngx_int_t ngx_http_xrootd_webdav_postconfiguration(ngx_conf_t *cf);
+ngx_int_t ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r);
 ngx_int_t ngx_http_xrootd_webdav_handler(ngx_http_request_t *r);
 
-/* Path and XML utilities */
+/* Operation Registry (operation_table.c) */
+extern const xrootd_http_operation_t xrootd_webdav_operations[];
+extern const ngx_uint_t xrootd_webdav_operations_count;
+
+/* Path, URI, XML, and logging utilities */
 ngx_int_t ngx_http_xrootd_webdav_resolve_path(ngx_http_request_t *r,
     const char *root_canon, char *out, size_t outsz);
 ngx_int_t webdav_resolve_destination_path(ngx_log_t *log, const char *op_label,
     const char *root_canon, const char *decoded_path, char *out, size_t outsz);
 ngx_int_t webdav_resolve_stat(ngx_http_request_t *r, char *path,
     size_t pathsz, struct stat *sb);
-void ngx_http_xrootd_webdav_log_safe_path(ngx_log_t *log, ngx_uint_t level,
-    ngx_err_t err, const char *prefix, const char *path);
 ngx_int_t webdav_urldecode(const u_char *src, size_t src_len,
     char *dst, size_t dst_sz);
+ngx_int_t webdav_destination_extract_path(const u_char *dest_data,
+    size_t dest_len, const u_char **path_out, size_t *path_len_out);
 char *webdav_escape_xml_text(ngx_pool_t *pool, const char *src);
-void webdav_http_date(time_t t, char *buf, size_t sz);
-void webdav_iso8601_date(time_t t, char *buf, size_t sz);
-ngx_int_t webdav_add_last_modified(ngx_http_request_t *r, time_t mtime);
-void webdav_etag_str(char *buf, size_t bufsz, time_t mtime, off_t size);
-ngx_int_t webdav_add_etag(ngx_http_request_t *r, time_t mtime, off_t size);
 ngx_int_t webdav_add_cors_headers(ngx_http_request_t *r);
 ngx_int_t webdav_lock_init_shm(ngx_shm_zone_t *shm_zone, void *data);
 ngx_int_t webdav_check_locks(ngx_http_request_t *r, const char *path,
@@ -284,25 +293,32 @@ ngx_int_t webdav_delete_path_recursive(ngx_log_t *log, const char *root_canon,
 ngx_int_t webdav_handle_mkcol(ngx_http_request_t *r);
 ngx_int_t webdav_handle_propfind(ngx_http_request_t *r);
 ngx_int_t webdav_handle_proppatch(ngx_http_request_t *r);
-ngx_buf_t *webdav_propfind_append(ngx_pool_t *pool, ngx_chain_t **head,
-    ngx_chain_t **tail, const char *fmt, ...);
+ngx_int_t webdav_handle_search(ngx_http_request_t *r);
+ngx_int_t webdav_handle_acl(ngx_http_request_t *r);
+
 ngx_int_t webdav_handle_move(ngx_http_request_t *r);
 ngx_int_t webdav_handle_copy(ngx_http_request_t *r);
 void webdav_handle_lock(ngx_http_request_t *r);
 ngx_int_t webdav_handle_unlock(ngx_http_request_t *r);
 
-/* FD cache and file I/O helpers */
-ngx_int_t webdav_fd_table_init_ssl_index(ngx_log_t *log);
-webdav_fd_table_t *webdav_get_fd_table(ngx_connection_t *c);
-ngx_fd_t webdav_fd_table_get(webdav_fd_table_t *t, const char *path,
-    const struct stat *sb);
-void webdav_fd_table_put(webdav_fd_table_t *t, const char *path,
-    const struct stat *sb, ngx_fd_t fd, uint64_t uri_hash);
-void webdav_fd_table_evict(webdav_fd_table_t *t, const char *path);
-char *webdav_strnstr(const char *s1, const char *s2, size_t len);
-uint64_t webdav_uri_hash(const char *s);
-ngx_fd_t webdav_fd_table_get_by_uri(webdav_fd_table_t *t, uint64_t uri_hash,
-    struct stat *sb_out, const char **path_out);
+/* Dead WebDAV properties persisted as filesystem extended attributes. */
+ngx_int_t webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
+    const char *ns, const char *local, const char *xml, size_t xml_len);
+ngx_int_t webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
+    const char *ns, const char *local);
+ngx_int_t webdav_dead_prop_append_value(ngx_http_request_t *r,
+    const char *path, const char *ns, const char *local,
+    ngx_chain_t **head, ngx_chain_t **tail, ngx_flag_t *found);
+ngx_int_t webdav_dead_prop_append_empty(ngx_http_request_t *r,
+    const char *ns, const char *local, ngx_chain_t **head,
+    ngx_chain_t **tail);
+ngx_int_t webdav_dead_props_append_all(ngx_http_request_t *r,
+    const char *path, ngx_chain_t **head, ngx_chain_t **tail,
+    ngx_flag_t names_only);
+ngx_flag_t webdav_dead_prop_is_protected_dav(const char *local);
+void webdav_dead_props_copy(ngx_log_t *log, const char *src, const char *dst);
+
+/* File I/O helpers */
 void webdav_fadvise_willneed(ngx_log_t *log, ngx_fd_t fd, off_t offset,
     size_t len);
 ngx_int_t webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len);
@@ -315,20 +331,38 @@ void ngx_http_xrootd_webdav_tpc_create_loc_conf(
 void ngx_http_xrootd_webdav_tpc_merge_loc_conf(
     ngx_http_xrootd_webdav_loc_conf_t *conf,
     ngx_http_xrootd_webdav_loc_conf_t *prev);
-ngx_table_elt_t *webdav_tpc_find_header(ngx_http_request_t *r,
-    const char *name, size_t name_len);
-ngx_flag_t webdav_tpc_str_has_ctl(const u_char *data, size_t len);
-ngx_int_t webdav_tpc_header_value_equals(ngx_str_t *value,
-    const char *literal);
-char *webdav_tpc_pstrndup0(ngx_pool_t *pool, const u_char *data, size_t len);
+/* TPC header lookup, value comparison, and NUL-copy helpers.
+ * Macro aliases to compat equivalents — call sites unchanged, no wrapper functions. */
+#define webdav_tpc_find_header(r, name, name_len) \
+    xrootd_http_find_header(r, name, name_len)
+#define webdav_tpc_str_has_ctl(data, len) \
+    xrootd_http_str_has_ctl(data, len)
+#define webdav_tpc_header_value_equals(value, literal) \
+    xrootd_http_header_value_equals(value, literal)
+
+static inline char *
+webdav_tpc_pstrndup0(ngx_pool_t *pool, const u_char *data, size_t len)
+{
+    char *out = ngx_pnalloc(pool, len + 1);
+    if (out != NULL) {
+        ngx_memcpy(out, data, len);
+        out[len] = '\0';
+    }
+    return out;
+}
 ngx_int_t webdav_tpc_collect_transfer_headers(ngx_http_request_t *r,
     ngx_array_t **out);
-ngx_int_t webdav_tpc_run_curl_pull(ngx_http_request_t *r,
+ngx_int_t webdav_tpc_run_curl_pull(ngx_log_t *log,
     ngx_http_xrootd_webdav_loc_conf_t *conf, const char *source_url,
     const char *tmp_path, ngx_array_t *transfer_headers);
-ngx_int_t webdav_tpc_run_curl_push(ngx_http_request_t *r,
+ngx_int_t webdav_tpc_run_curl_push(ngx_log_t *log,
     ngx_http_xrootd_webdav_loc_conf_t *conf, const char *dest_url,
     const char *local_path, ngx_array_t *transfer_headers);
+ngx_int_t webdav_tpc_post_thread_task(ngx_http_request_t *r,
+    ngx_http_xrootd_webdav_loc_conf_t *conf,
+    int is_push, ngx_flag_t existed, ngx_flag_t overwrite,
+    const char *url, const char *local_path, const char *dest_path,
+    ngx_array_t *transfer_headers);
 ngx_int_t ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r);
 
 /* Upstream HTTP(S) proxy */
@@ -342,5 +376,15 @@ ngx_int_t webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
     xrootd_tpc_cred_mode_e mode, const char *source_url,
     const char *subject_token, const char *scope, ngx_str_t *token_out);
 const char *webdav_tpc_cred_metric_name(xrootd_tpc_cred_metrics_e idx);
+
+/* Operation capability table (operation_table.c) */
+#include "../compat/protocol_caps.h"
+extern const xrootd_http_operation_t xrootd_webdav_operations[];
+extern const ngx_uint_t              xrootd_webdav_operations_count;
+#define XROOTD_WEBDAV_ALLOW_FLAGS(conf)                                    \
+    (XROOTD_PROTO_OP_READ | XROOTD_PROTO_OP_LIST                           \
+     | ((conf)->common.allow_write                                          \
+            ? (XROOTD_PROTO_OP_WRITE | XROOTD_PROTO_OP_LOCK) : 0)         \
+     | ((conf)->tpc ? XROOTD_PROTO_OP_TPC : 0))
 
 #endif /* XROOTD_WEBDAV_H */

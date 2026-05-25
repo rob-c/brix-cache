@@ -94,6 +94,13 @@ int xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
 int xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
 
+/*
+ * xrootd_openat2_runtime_available — returns 1 if openat2(2) works on the
+ * running kernel, 0 if it is compiled out or the syscall returns ENOSYS.
+ * Call once from init_process to log a warning on degraded systems.
+ */
+int xrootd_openat2_runtime_available(void);
+
 /* Extract a NUL-terminated path from a raw XRootD request payload. */
 int xrootd_extract_path(ngx_log_t *log, const u_char *payload,
     size_t payload_len, char *out, size_t outsz, ngx_flag_t strip_cgi);
@@ -104,9 +111,25 @@ int xrootd_mkdir_recursive_policy(const char *path, mode_t mode,
     ngx_log_t *log, ngx_array_t *rules);
 int xrootd_mkdir_recursive_confined(ngx_log_t *log, const ngx_str_t *root,
     const char *resolved, mode_t mode, ngx_array_t *rules);
+/*
+ * xrootd_mkdir_recursive_confined_canon — like xrootd_mkdir_recursive_confined
+ * but takes an already-resolved root_canon string (char *) instead of an
+ * ngx_str_t, skipping the internal xrootd_get_canonical_root() call.
+ * Used by callers (e.g. S3 PUT) that have already resolved the canonical root.
+ */
+int xrootd_mkdir_recursive_confined_canon(ngx_log_t *log,
+    const char *root_canon, const char *resolved, mode_t mode,
+    ngx_array_t *rules);
 
 /* Strip CGI query string from a path (modifies out in-place). */
 void xrootd_strip_cgi(const char *in, char *out, size_t outsz);
+
+/*
+ * Count path components before filesystem operations begin.
+ * Returns NGX_OK if depth ≤ XROOTD_MAX_WALK_DEPTH; NGX_ERROR otherwise.
+ * Prevents CPU exhaustion from excessive symlink traversal or deep nesting.
+ */
+ngx_int_t xrootd_count_path_depth(const char *path);
 
 /* Format the ASCII stat body: "<id> <size> <flags> <mtime>".
  * extra_flags is OR-ed into the computed flags field — pass kXR_cachersp

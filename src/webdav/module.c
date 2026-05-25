@@ -4,6 +4,7 @@
 
 #include "webdav.h"
 
+#include <curl/curl.h>
 #include <stddef.h>
 
 static ngx_conf_enum_t  webdav_auth_values[] = {
@@ -13,6 +14,16 @@ static ngx_conf_enum_t  webdav_auth_values[] = {
     { ngx_null_string, 0 }
 };
 
+/**
+ * WHAT: Config directive handler for the xrootd_webdav_cors_origin nginx directive.
+ *
+ * Called by nginx when parsing "xrootd_webdav_cors_origin <origin>" directives in the
+ * configuration file. Creates a dynamic array of ngx_str_t values (if not already created)
+ * on first invocation, then pushes each parsed origin string onto the array for later
+ * CORS origin validation via webdav_cors_origin_allowed(). The directive accepts one or
+ * more occurrences to build an allowlist of permitted cross-origin request sources. Returns
+ * NGX_CONF_OK on success; NGX_CONF_ERROR if pool allocation fails (rare under normal conditions).
+ */
 static char *
 webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -78,20 +89,97 @@ webdav_conf_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     return NGX_CONF_ERROR;
 }
 
+static char *
+webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *wlcf = conf;
+
+    time_t       inactive;
+    ngx_str_t   *value, s;
+    ngx_int_t    max;
+    ngx_uint_t   i;
+
+    if (wlcf->open_file_cache != NGX_CONF_UNSET_PTR) {
+        return "is duplicate";
+    }
+
+    value = cf->args->elts;
+
+    max = 0;
+    inactive = 60;
+
+    for (i = 1; i < cf->args->nelts; i++) {
+
+        if (ngx_strncmp(value[i].data, "max=", 4) == 0) {
+
+            max = ngx_atoi(value[i].data + 4, value[i].len - 4);
+            if (max <= 0) {
+                goto failed;
+            }
+
+            continue;
+        }
+
+        if (ngx_strncmp(value[i].data, "inactive=", 9) == 0) {
+
+            s.len = value[i].len - 9;
+            s.data = value[i].data + 9;
+
+            inactive = ngx_parse_time(&s, 1);
+            if (inactive == (time_t) NGX_ERROR) {
+                goto failed;
+            }
+
+            continue;
+        }
+
+        if (ngx_strcmp(value[i].data, "off") == 0) {
+
+            wlcf->open_file_cache = NULL;
+
+            continue;
+        }
+
+    failed:
+
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "invalid \"xrootd_webdav_open_file_cache\" parameter \"%V\"",
+                           &value[i]);
+        return NGX_CONF_ERROR;
+    }
+
+    if (wlcf->open_file_cache == NULL) {
+        return NGX_CONF_OK;
+    }
+
+    if (max == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                        "\"xrootd_webdav_open_file_cache\" must have the \"max\" parameter");
+        return NGX_CONF_ERROR;
+    }
+
+    wlcf->open_file_cache = ngx_open_file_cache_init(cf->pool, max, inactive);
+    if (wlcf->open_file_cache) {
+        return NGX_CONF_OK;
+    }
+
+    return NGX_CONF_ERROR;
+}
+
 static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
 
     { ngx_string("xrootd_webdav"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, enable),
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.enable),
       NULL },
 
     { ngx_string("xrootd_webdav_root"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, root),
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.root),
       NULL },
 
     { ngx_string("xrootd_webdav_cadir"),
@@ -140,7 +228,7 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, allow_write),
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.allow_write),
       NULL },
 
     { ngx_string("xrootd_webdav_tpc"),
@@ -148,6 +236,20 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc),
+      NULL },
+
+    { ngx_string("xrootd_webdav_tpc_allow_local"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc_allow_local),
+      NULL },
+
+    { ngx_string("xrootd_webdav_tpc_allow_private"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc_allow_private),
       NULL },
 
     { ngx_string("xrootd_webdav_tpc_curl"),
@@ -259,7 +361,7 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, thread_pool_name),
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.thread_pool_name),
       NULL },
 
     { ngx_string("xrootd_webdav_cors_origin"),
@@ -282,12 +384,46 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, cors_max_age),
       NULL },
-
     { ngx_string("xrootd_webdav_lock_timeout"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, lock_timeout),
+      NULL },
+
+    { ngx_string("xrootd_webdav_open_file_cache"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_ANY,
+      webdav_conf_open_file_cache,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, open_file_cache),
+      NULL },
+
+    { ngx_string("xrootd_webdav_open_file_cache_valid"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, open_file_cache_valid),
+      NULL },
+
+    { ngx_string("xrootd_webdav_open_file_cache_min_uses"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, open_file_cache_min_uses),
+      NULL },
+
+    { ngx_string("xrootd_webdav_open_file_cache_errors"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, open_file_cache_errors),
+      NULL },
+
+    { ngx_string("xrootd_webdav_open_file_cache_events"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, open_file_cache_events),
       NULL },
 
     /* --- upstream HTTP(S) proxy --- */
@@ -339,6 +475,18 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
 
 ngx_shm_zone_t *webdav_lock_shm_zone;
 
+/**
+ * WHAT: Preconfiguration phase — allocate shared memory zone for the WebDAV lock registry.
+ *
+ * Called during nginx's preconfiguration lifecycle before any server or location blocks are
+ * parsed. Allocates a shared memory region (ngx_shared_memory_add) named "xrootd_webdav_lock_registry"
+ * sized to sizeof(webdav_lock_table_t) + one page (ngx_pagesize). This shared memory is used by the
+ * lock table (webdav_lock_table_t) for inter-worker coordination — WebDAV LOCK/UNLOCK operations across
+ * different nginx worker processes need access to a common lock state store. The init callback
+ * (webdav_lock_init_shm) is registered so each worker can initialize its local view of the shared zone
+ * when starting up. Returns NGX_ERROR if shared memory allocation fails (would cause nginx -t to reject
+ * configuration).
+ */
 static ngx_int_t
 ngx_http_xrootd_webdav_preconfiguration(ngx_conf_t *cf)
 {
@@ -348,7 +496,7 @@ ngx_http_xrootd_webdav_preconfiguration(ngx_conf_t *cf)
     size = sizeof(webdav_lock_table_t) + ngx_pagesize;
 
     webdav_lock_shm_zone = ngx_shared_memory_add(cf, &name, size,
-                                                 &ngx_http_xrootd_webdav_module);
+                                                  &ngx_http_xrootd_webdav_module);
     if (webdav_lock_shm_zone == NULL) {
         return NGX_ERROR;
     }
@@ -358,6 +506,20 @@ ngx_http_xrootd_webdav_preconfiguration(ngx_conf_t *cf)
     return NGX_OK;
 }
 
+static ngx_int_t
+ngx_http_xrootd_webdav_init_process(ngx_cycle_t *cycle)
+{
+    (void) cycle;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    return NGX_OK;
+}
+
+static void
+ngx_http_xrootd_webdav_exit_process(ngx_cycle_t *cycle)
+{
+    (void) cycle;
+    curl_global_cleanup();
+}
 
 static ngx_http_module_t ngx_http_xrootd_webdav_module_ctx = {
     ngx_http_xrootd_webdav_preconfiguration,  /* preconfiguration */
@@ -377,10 +539,10 @@ ngx_module_t ngx_http_xrootd_webdav_module = {
     NGX_HTTP_MODULE,
     NULL,  /* init_master */
     NULL,  /* init_module */
-    NULL,  /* init_process */
+    ngx_http_xrootd_webdav_init_process,  /* init_process */
     NULL,  /* init_thread */
     NULL,  /* exit_thread */
-    NULL,  /* exit_process */
+    ngx_http_xrootd_webdav_exit_process,  /* exit_process */
     NULL,  /* exit_master */
     NGX_MODULE_V1_PADDING
 };

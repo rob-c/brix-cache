@@ -1,21 +1,53 @@
+/* ------------------------------------------------------------------ */
+/* Section: Server Block Runtime Preparation                            */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements server block runtime preparation during postconfiguration phase — validates root path existence and access,
+ *      checks cache configuration prerequisites (read-only constraint, origin host requirement, thread pool availability), opens access/proxy
+ *      audit log files, creates proxy upstream TLS context when proxy_upstream_tls is enabled. Called once per enabled server after config parsing. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Root Path and Cache Validation                              */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: First phase validates root path existence (directory) with access mode matching write permission policy, then checks cache configuration
+ *      prerequisites when xrootd_cache is enabled — read-only constraint requires allow_write off, origin host must be configured, cache_root directory
+ *      must exist, lock timeout and eviction threshold must be within valid ranges, nginx must be built with --with-threads. Logs notice-level message on cache enablement. */
+
+/* ---- Function: xrootd_config_prepare_server() ----
+ *
+ * WHAT: Performs server block runtime preparation during postconfiguration phase — validates root path existence (directory) with access mode matching
+ *      write permission policy, checks cache configuration prerequisites when enabled (read-only constraint + origin host + directory + thread availability),
+ *      opens access/proxy audit log files when configured, creates proxy upstream TLS context when proxy_upstream_tls is enabled. Returns NGX_OK on success;
+ *      NGX_ERROR with emerg-level log on any validation or resource creation failure. Called once per enabled server after config parsing. */
+
+/* ---- WHY: Runtime preparation ensures all server resources are available before accepting client connections — root path validation prevents runtime
+ *      failures where nginx would attempt to serve files from non-existent directory under load. Cache prerequisite checks prevent misconfigured cache
+ *      operations that could cause data corruption or performance degradation. Log file opening catches permission issues during startup rather than failing
+ *      during high-traffic periods. TLS context creation ensures upstream proxy connections can negotiate secure transport when required. ---- */
+
 #include "config.h"
+#include "root_prepare.h"
 
 ngx_int_t
 xrootd_config_prepare_server(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf)
 {
-    if (!xcf->manager_mode
-        && xrootd_validate_path(cf, "xrootd_root", &xcf->root,
-                                XROOTD_PATH_DIRECTORY,
-                                xcf->allow_write ? (R_OK | W_OK | X_OK)
-                                                 : (R_OK | X_OK))
-               != NGX_OK)
-    {
-        return NGX_ERROR;
+    if (!xcf->manager_mode) {
+        xrootd_export_root_opts_t root_opts;
+        root_opts.directive_name = "xrootd_root";
+        root_opts.allow_write    = xcf->common.allow_write;
+        root_opts.required       = 1;
+        root_opts.canon_size     = sizeof(xcf->common.root_canon);
+        if (xrootd_prepare_export_root(cf, &xcf->common.root, &root_opts,
+                                       xcf->common.root_canon) != NGX_CONF_OK)
+        {
+            return NGX_ERROR;
+        }
     }
 
     if (xcf->cache) {
-        if (xcf->allow_write) {
+        if (xcf->common.allow_write) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "xrootd_cache is read-only and requires "
                 "xrootd_allow_write off");
@@ -52,12 +84,6 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                 "and less than 1.0");
             return NGX_ERROR;
         }
-
-#if !(NGX_THREADS)
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_cache requires nginx built with --with-threads");
-        return NGX_ERROR;
-#endif
 
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
             "xrootd: cache enabled root=%V origin=%V tls=%s "
@@ -142,6 +168,37 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                 "xrootd: proxy upstream TLS CA loaded from \"%V\"",
                 &xcf->proxy_upstream_tls_ca);
         }
+    }
+
+    /* Upstream redirector TLS (for mid-stream kXR_gotoTLS upgrade). */
+    if (xcf->upstream_tls) {
+        xcf->upstream_tls_ctx = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
+        if (xcf->upstream_tls_ctx == NULL) {
+            return NGX_ERROR;
+        }
+        xcf->upstream_tls_ctx->log = cf->log;
+        if (ngx_ssl_create(xcf->upstream_tls_ctx,
+                           NGX_SSL_TLSv1_2 | NGX_SSL_TLSv1_3,
+                           NULL) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+        if (xcf->upstream_tls_ca.len > 0) {
+            if (ngx_ssl_trusted_certificate(cf, xcf->upstream_tls_ctx,
+                                             &xcf->upstream_tls_ca,
+                                             5 /* chain depth */)
+                != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+                "xrootd: upstream redirector TLS CA loaded from \"%V\"",
+                &xcf->upstream_tls_ca);
+        }
+
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "xrootd: upstream redirector TLS enabled (kXR_gotoTLS support)");
     }
 #endif
 

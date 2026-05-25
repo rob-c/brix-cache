@@ -1,7 +1,7 @@
 """
 tests/test_webdav.py
 
-HTTPS+GSI WebDAV module tests for the ngx_http_xrootd_webdav_module.
+HTTPS WebDAV module tests for the ngx_http_xrootd_webdav_module.
 
 Covers the WebDAV methods that xrdcp (XrdClHttp plugin) and compatible
 clients depend on:
@@ -14,9 +14,14 @@ clients depend on:
   MKCOL     – directory creation, with and without trailing slash
   PROPFIND  – Depth:0 (stat) and Depth:1 (directory listing)
 
-Authentication is via RFC 3820 x509 proxy certificates (GSI) over TLS.
-The tests also verify that requests without a client cert are still served
-(xrootd_webdav_auth optional) and that auth-required mode rejects them.
+The same WebDAV behaviour is exercised against both authenticated HTTPS test
+servers:
+
+  - HTTPS+GSI/x509 on port 8444, using an RFC 3820 proxy certificate
+  - HTTPS+Token on port 8443, using an Authorization: Bearer JWT
+
+Anonymous requests are checked against each server's configured policy: the
+GSI endpoint requires credentials, while the token endpoint is optional-auth.
 
 Run against an already-running nginx instance:
 
@@ -25,7 +30,8 @@ Run against an already-running nginx instance:
     pytest tests/test_webdav.py -v
 
 Environment:
-    nginx WebDAV endpoint: https://localhost:8443/
+    GSI WebDAV endpoint:   https://localhost:8444/
+    Token WebDAV endpoint: https://localhost:8443/
     CA cert:    /tmp/xrd-test/pki/ca/ca.pem
     Proxy cert: /tmp/xrd-test/pki/user/proxy_std.pem
     Data root:  /tmp/xrd-test/data/
@@ -34,13 +40,17 @@ Environment:
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
 import pytest
 import urllib.request
 import ssl
-from settings import CA_CERT, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD
+from settings import CA_CERT, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD, TOKENS_DIR
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from utils.make_token import TokenIssuer
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -50,6 +60,9 @@ BASE_URL   = ""
 CA_PEM     = CA_CERT
 PROXY_PEM  = PROXY_STD
 DATA_ROOT  = DEFAULT_DATA_ROOT
+TOKEN_DIR  = TOKENS_DIR
+AUTH_MODE  = "gsi"
+TOKEN      = ""
 
 # Unique prefix for test artefacts so parallel runs don't collide
 _PFX = "wdav_"
@@ -60,7 +73,7 @@ _PFX = "wdav_"
 
 def _curl(*args, timeout=20):
     """
-    Run curl with the common TLS / proxy-cert flags and return
+    Run curl with the common TLS / WebDAV auth flags and return
     (returncode, stdout_bytes, stderr_bytes).
 
     All WebDAV tests go through this helper so that any future change to
@@ -68,11 +81,13 @@ def _curl(*args, timeout=20):
     """
     cmd = [
         "curl", "-sk",
-        "--cert",   PROXY_PEM,
-        "--key",    PROXY_PEM,
         "--cacert", CA_PEM,
-        *args,
     ]
+    if AUTH_MODE == "gsi":
+        cmd.extend(["--cert", PROXY_PEM, "--key", PROXY_PEM])
+    elif AUTH_MODE == "token":
+        cmd.extend(["-H", f"Authorization: Bearer {TOKEN}"])
+    cmd.extend(args)
     result = subprocess.run(
         cmd,
         stdout=subprocess.PIPE,
@@ -139,14 +154,31 @@ def _data_path(rel: str) -> str:
 # Session fixture: verify nginx is reachable before running any test
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="session", autouse=True)
-def nginx_webdav_ready(test_env):
+@pytest.fixture(scope="module", autouse=True, params=("gsi", "token"),
+                ids=("gsi-8444", "token-8443"))
+def nginx_webdav_ready(request, test_env):
     """Bind module constants from the shared test environment."""
-    global BASE_URL, CA_PEM, PROXY_PEM, DATA_ROOT
-    BASE_URL  = test_env["webdav_url"]
+    global BASE_URL, CA_PEM, PROXY_PEM, DATA_ROOT, TOKEN_DIR, AUTH_MODE, TOKEN
+    AUTH_MODE = request.param
+    BASE_URL  = (
+        test_env["webdav_gsi_tls_url"]
+        if AUTH_MODE == "gsi"
+        else test_env["webdav_url"]
+    )
     CA_PEM    = test_env["ca_pem"]
     PROXY_PEM = test_env["proxy_pem"]
     DATA_ROOT = test_env["data_dir"]
+    TOKEN_DIR = test_env.get("token_dir", TOKENS_DIR)
+    TOKEN     = ""
+
+    if AUTH_MODE == "token":
+        issuer = TokenIssuer(TOKEN_DIR)
+        if not os.path.exists(issuer.key_path):
+            issuer.init_keys()
+        TOKEN = issuer.generate(
+            scope="storage.read:/ storage.write:/",
+            lifetime=7200,
+        )
 
     rc, _, _ = _curl("-X", "OPTIONS", f"{BASE_URL}/", "-o", "/dev/null",
                      timeout=5)
@@ -421,7 +453,9 @@ class TestDelete:
         dst  = _data_path(name)
         os.makedirs(dst, exist_ok=True)
         try:
-            code = _http_code("-X", "DELETE", f"{BASE_URL}/{name}")
+            # RFC 4918 §9.6: collection DELETE URI should end with '/'.
+            # nginx DAV (and many strict servers) require the trailing slash.
+            code = _http_code("-X", "DELETE", f"{BASE_URL}/{name}/")
             assert code == 204
             assert not os.path.exists(dst)
         finally:
@@ -652,24 +686,266 @@ class TestPropfind:
 
 
 # ---------------------------------------------------------------------------
+# PROPFIND body parsing (RFC 4918 §9.1): allprop / propname / prop
+# ---------------------------------------------------------------------------
+
+class TestPropfindBody:
+    """Test PROPFIND request body parsing via libxml2."""
+
+    DAV_NS = "DAV:"
+    NS = {"D": "DAV:"}
+
+    def _propfind_body(self, path: str, depth: str, body: bytes) -> ET.Element:
+        """Run a PROPFIND with an explicit XML body; return parsed XML root."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as f:
+            f.write(body)
+            tmp = f.name
+        try:
+            rc, out, err = _curl(
+                "-X", "PROPFIND",
+                "-H", f"Depth: {depth}",
+                "-H", "Content-Type: application/xml; charset=utf-8",
+                "--data-binary", f"@{tmp}",
+                f"{BASE_URL}{path}",
+            )
+            assert rc == 0, f"curl failed: {err.decode()}"
+            try:
+                return ET.fromstring(out)
+            except ET.ParseError as exc:
+                pytest.fail(
+                    f"PROPFIND response is not valid XML: {exc}\nBody:\n{out.decode()}"
+                )
+        finally:
+            os.unlink(tmp)
+
+    def _propfind_body_code(self, path: str, depth: str, body: bytes) -> int:
+        """Return HTTP status code for a PROPFIND with a body."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as f:
+            f.write(body)
+            tmp = f.name
+        try:
+            return _http_code(
+                "-X", "PROPFIND",
+                "-H", f"Depth: {depth}",
+                "-H", "Content-Type: application/xml; charset=utf-8",
+                "--data-binary", f"@{tmp}",
+            )
+        finally:
+            os.unlink(tmp)
+
+    # --- allprop body ---
+
+    def test_propfind_allprop_body_returns_207(self, scratch_file):
+        """Explicit <allprop/> body must produce the same 207 as a no-body request."""
+        url_path, _ = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:allprop/>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        ns = self.NS
+        assert root.findall(".//D:getcontentlength", ns), \
+            "allprop body: expected D:getcontentlength in response"
+
+    def test_propfind_allprop_includes_etag(self, scratch_file):
+        """allprop response must include D:getetag."""
+        url_path, _ = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:allprop/>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        assert root.findall(".//D:getetag", self.NS), \
+            "allprop body: expected D:getetag in response"
+
+    # --- propname body ---
+
+    def test_propfind_propname_returns_207(self, scratch_file):
+        """<propname/> body must return 207 Multi-Status."""
+        url_path, _ = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:propname/>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        ns = self.NS
+        props = root.findall(".//D:prop", ns)
+        assert props, "propname: expected D:prop element in response"
+
+    def test_propfind_propname_names_only_no_values(self, scratch_file):
+        """propname response must have empty property elements (names, no values)."""
+        url_path, _ = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:propname/>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        ns = self.NS
+        # getcontentlength must appear as a name (empty tag)
+        cl_els = root.findall(".//D:getcontentlength", ns)
+        assert cl_els, "propname: expected D:getcontentlength name element"
+        # but it must have no text value
+        assert cl_els[0].text is None or cl_els[0].text.strip() == "", \
+            f"propname: D:getcontentlength must be empty, got {cl_els[0].text!r}"
+
+    def test_propfind_propname_contains_known_property_names(self, scratch_file):
+        """propname must include all standard DAV: property names."""
+        url_path, _ = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:propname/>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        ns = self.NS
+        expected = [
+            "D:resourcetype",
+            "D:getcontentlength",
+            "D:getlastmodified",
+            "D:getetag",
+        ]
+        for tag in expected:
+            assert root.findall(f".//{tag}", ns), \
+                f"propname: missing {tag} in property names list"
+
+    # --- prop body (specific properties) ---
+
+    def test_propfind_prop_returns_requested_property(self, scratch_file):
+        """<prop> body requesting getcontentlength must return that property."""
+        url_path, content = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:prop>'
+            b'    <D:getcontentlength/>'
+            b'  </D:prop>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        ns = self.NS
+        cl_els = root.findall(".//D:getcontentlength", ns)
+        assert cl_els, "prop: expected D:getcontentlength in response"
+        assert int(cl_els[0].text) == len(content), \
+            f"prop: getcontentlength {cl_els[0].text!r} != {len(content)}"
+
+    def test_propfind_prop_multiple_properties(self, scratch_file):
+        """<prop> body requesting multiple properties must return all of them."""
+        url_path, _ = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:prop>'
+            b'    <D:getcontentlength/>'
+            b'    <D:getlastmodified/>'
+            b'    <D:getetag/>'
+            b'    <D:resourcetype/>'
+            b'  </D:prop>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        ns = self.NS
+        for tag in ["D:getcontentlength", "D:getlastmodified", "D:getetag", "D:resourcetype"]:
+            assert root.findall(f".//{tag}", ns), \
+                f"prop: missing {tag} in response"
+
+    def test_propfind_prop_unknown_property_in_404_propstat(self, scratch_file):
+        """Unknown properties must appear in a 404 propstat, not be silently dropped."""
+        url_path, _ = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:prop>'
+            b'    <D:getcontentlength/>'
+            b'    <D:no-such-prop/>'
+            b'  </D:prop>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        ns = self.NS
+
+        # Find propstat elements; one should have 200, one should have 404
+        propstats = root.findall(".//D:propstat", ns)
+        statuses = [ps.findtext("D:status", namespaces=ns) for ps in propstats]
+        assert any("404" in (s or "") for s in statuses), \
+            f"prop: unknown property not in 404 propstat; statuses={statuses}"
+
+        # The 404 propstat should contain D:no-such-prop
+        for ps in propstats:
+            status = ps.findtext("D:status", namespaces=ns) or ""
+            if "404" in status:
+                props = ps.findall(".//D:prop/*", ns)
+                names = [p.tag.split("}")[-1] if "}" in p.tag else p.tag for p in props]
+                assert "no-such-prop" in names, \
+                    f"prop: D:no-such-prop not found in 404 propstat; names={names}"
+
+    def test_propfind_prop_only_unknown_gives_404_propstat(self, scratch_file):
+        """Requesting only unknown properties must still produce a 207 with 404 propstat."""
+        url_path, _ = scratch_file
+        body = (
+            b'<?xml version="1.0" encoding="utf-8"?>'
+            b'<D:propfind xmlns:D="DAV:">'
+            b'  <D:prop>'
+            b'    <D:no-such-prop-a/>'
+            b'    <D:no-such-prop-b/>'
+            b'  </D:prop>'
+            b'</D:propfind>'
+        )
+        root = self._propfind_body(url_path, "0", body)
+        ns = self.NS
+        propstats = root.findall(".//D:propstat", ns)
+        statuses = [ps.findtext("D:status", namespaces=ns) for ps in propstats]
+        assert any("404" in (s or "") for s in statuses), \
+            f"prop: all-unknown should yield 404 propstat; statuses={statuses}"
+
+    def test_propfind_prop_no_body_defaults_to_allprop(self, scratch_file):
+        """No body must still return all known properties (backward compat)."""
+        url_path, content = scratch_file
+        rc, out, err = _curl(
+            "-X", "PROPFIND",
+            "-H", "Depth: 0",
+            f"{BASE_URL}{url_path}",
+        )
+        assert rc == 0
+        root = ET.fromstring(out)
+        ns = self.NS
+        cl_els = root.findall(".//D:getcontentlength", ns)
+        assert cl_els, "no-body PROPFIND: expected D:getcontentlength"
+        assert int(cl_els[0].text) == len(content)
+
+
+# ---------------------------------------------------------------------------
 # Authentication behaviour
 # ---------------------------------------------------------------------------
 
 class TestAuth:
 
-    def test_anonymous_get_succeeds_with_optional_auth(self, scratch_file):
+    def test_anonymous_get_matches_endpoint_auth_policy(self, scratch_file):
         """
-        xrootd_webdav_auth optional: GET without a client cert should still
-        return 200 (the server serves the file but notes auth as absent).
+        The token endpoint is optional-auth; the dedicated GSI endpoint is
+        required-auth and must reject a request without the proxy cert.
         """
         url_path, content = scratch_file
         code = _http_code_no_cert(f"{BASE_URL}{url_path}")
-        assert code == 200, (
-            f"Anonymous GET should succeed with optional auth, got {code}"
-        )
+        if AUTH_MODE == "gsi":
+            assert code == 403, f"Anonymous GET should fail on GSI, got {code}"
+        else:
+            assert code == 200, (
+                f"Anonymous GET should succeed with optional token auth, got {code}"
+            )
 
-    def test_proxy_cert_accepted_for_put(self):
-        """PUT with a valid GSI proxy cert must succeed."""
+    def test_authenticated_put_accepted(self):
+        """PUT with the endpoint's configured HTTPS credential must succeed."""
         name = f"{_PFX}auth_put.txt"
         dst  = _data_path(name)
         try:

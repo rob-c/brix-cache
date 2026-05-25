@@ -2,12 +2,11 @@
 tests/test_https_webdav_status_codes.py
 
 Comprehensive HTTPS status-code and RFC compliance tests for the TLS WebDAV
-endpoint (port 8443, optional x509 proxy-cert auth).
+endpoint (port 8444, required x509 GSI proxy-cert auth).
 
-Mirrors test_http_webdav_status_codes.py but over TLS with an x509 proxy
-certificate.  Additional classes verify authentication behaviour:
-  - optional-auth mode: unauthenticated requests still return data
-  - proxy-cert present: full auth, all operations available
+Targets the dedicated HTTPS+GSI server (port 8444, xrootd_webdav_auth required).
+All requests require a valid GSI proxy certificate; unauthenticated requests
+return 401 Unauthorized.
 
 Tests assert RFC-correct behaviour.  Known compliance gaps are marked
 ``@pytest.mark.xfail`` with the precise RFC citation; they appear as ``x``
@@ -45,7 +44,7 @@ PROXY_PEM  = PROXY_STD
 @pytest.fixture(scope="module", autouse=True)
 def _configure(test_env):
     global BASE, PROXY_PEM
-    BASE      = test_env["webdav_url"]
+    BASE      = test_env["webdav_gsi_tls_url"]
     PROXY_PEM = test_env["proxy_pem"]
 
 
@@ -143,26 +142,29 @@ class TestAuthentication:
         assert r.status_code == 200
         assert r.content == content
 
-    def test_get_without_cert_200_optional_auth(self):
-        """Optional-auth mode: unauthenticated requests are served."""
-        path, content, _ = _existing_file()
+    def test_get_without_cert_403_required_auth(self):
+        """Required-auth mode: unauthenticated requests are rejected with 403."""
+        path, _, _ = _existing_file()
         r = _get(path, session=_sa())
-        assert r.status_code == 200
+        assert r.status_code == 403
 
-    def test_put_without_cert_201_optional_auth(self):
+    def test_put_without_cert_403_required_auth(self):
+        """Required-auth mode: unauthenticated PUT is rejected with 403."""
         path = f"/{_PFX}anon_{_uid()}.txt"
         r = _put(path, b"anon upload", session=_sa())
-        assert r.status_code == 201
+        assert r.status_code == 403
 
-    def test_head_without_cert_200(self):
+    def test_head_without_cert_403(self):
+        """Required-auth mode: unauthenticated HEAD is rejected with 403."""
         path, _, _ = _existing_file()
         r = _head(path, session=_sa())
-        assert r.status_code == 200
+        assert r.status_code == 403
 
-    def test_propfind_without_cert_207(self):
+    def test_propfind_without_cert_403(self):
+        """Required-auth mode: unauthenticated PROPFIND is rejected with 403."""
         path, _, _ = _existing_file()
         r = _propfind(path, depth="0", session=_sa())
-        assert r.status_code == 207
+        assert r.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +184,7 @@ class TestOptions:
             assert method in allow, f"{method} not in Allow: {allow}"
 
     def test_options_no_cors_on_tls_port(self):
-        """CORS is only configured on the HTTP port (8080), not HTTPS (8443)."""
+        """CORS is only configured on the HTTP port (8080), not HTTPS (8444)."""
         r = _s().options(
             _url("/"),
             headers={

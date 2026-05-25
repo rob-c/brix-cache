@@ -16,14 +16,12 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-import server_control
 from settings import (
     CA_CERT,
-    DATA_ROOT,
-    NGINX_BIN,
     PROXY_STD,
     SERVER_CERT,
     SERVER_KEY,
+    TEST_ROOT,
     WEBDAV_AUTH_CACHE_MANUAL_PORT,
     WEBDAV_AUTH_CACHE_NGINX_PORT,
 )
@@ -34,45 +32,27 @@ TEST_FILE = "auth_cache_probe.txt"
 
 @pytest.fixture(scope="session", autouse=True)
 def webdav_auth_cache_nginx():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-
     for path in (CA_CERT, PROXY_PEM, SERVER_CERT, SERVER_KEY):
         if not os.path.exists(path):
             pytest.skip(f"required PKI file not found: {path}")
 
     manual_port = WEBDAV_AUTH_CACHE_MANUAL_PORT
     nginx_port = WEBDAV_AUTH_CACHE_NGINX_PORT
-
-    os.makedirs(DATA_ROOT, exist_ok=True)
-    with open(os.path.join(DATA_ROOT, TEST_FILE), "wb") as fh:
-        fh.write(b"webdav auth cache probe\n")
-
-    info = server_control.start_nginx_instance(
-        port=manual_port,
-        nginx_bin=NGINX_BIN,
-        conf_file="nginx_webdav_auth_cache.conf",
-        template_kwargs={
-            "DATA_DIR": DATA_ROOT,
-            "AUTH_PORT": nginx_port,
-        },
+    data_root = os.path.join(TEST_ROOT, "data-webdav-auth-cache")
+    log_path = os.path.join(
+        TEST_ROOT, "dedicated", "webdav-auth-cache", "logs", "error.log"
     )
 
-    try:
-        # use the configured error log as both startup and runtime log
-        log_path = os.path.join(info["prefix"], "logs", "error.log")
-        yield {
-            "proc": None,
-            "manual_url": f"https://localhost:{manual_port}/{TEST_FILE}",
-            "nginx_url": f"https://localhost:{nginx_port}/{TEST_FILE}",
-            "log": log_path,
-            "startup_log": log_path,
-        }
-    finally:
-        try:
-            info["stop"]()
-        except Exception:
-            pass
+    os.makedirs(data_root, exist_ok=True)
+    with open(os.path.join(data_root, TEST_FILE), "wb") as fh:
+        fh.write(b"webdav auth cache probe\n")
+
+    yield {
+        "manual_url": f"https://localhost:{manual_port}/{TEST_FILE}",
+        "nginx_url": f"https://localhost:{nginx_port}/{TEST_FILE}",
+        "log": log_path,
+        "startup_log": log_path,
+    }
 
 
 def _read_log(path):

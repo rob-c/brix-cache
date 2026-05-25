@@ -5,11 +5,15 @@ enforcement) and the WebDAV module (x509 proxy cert verification).
 
 | File | Exports |
 |------|---------|
-| `pki_load.c` | `xrootd_pki_load_certs_from_path` — load all PEM certs from a directory into a `STACK_OF(X509)` |
-| `pki_load.c` | `xrootd_pki_load_crls_from_path` — load all PEM CRLs from a directory into a `STACK_OF(X509_CRL)` |
-| `pki_check.c` | `xrootd_pki_verify_crls` — verify that every CA cert in a stack has a corresponding non-expired CRL |
-| `pki_check.c` | `xrootd_pki_check_paths` — load configured CA/CRL paths and run the shared consistency check |
-| `pki_check.h` | Public header; uses `UNIT_TEST` guards so the functions can be exercised without nginx types |
+| `pki_load.c` | `xrootd_pki_load_certs_from_path`, `xrootd_pki_load_crls_from_path` — load all PEM certs/CRLs from a directory into STACK_OF(X509) / STACK_OF(X509_CRL) |
+| `pki_build.c` | PKI certificate chain building and host-cert preparation |
+| `pki_check.c` | CA/CRL path consistency check: verify every CA cert has a corresponding non-expired CRL |
+| `gsi_verify.c` | GSI proxy certificate verification: chain validation, expiry, identity extraction |
+| `ocsp.c` | OCSP stapling and online certificate status checking |
+| `pki_build.h` | PKI build types and prototypes |
+| `pki_check.h` | PKI check types and prototypes |
+| `gsi_verify.h` | GSI verify types and prototypes |
+| `ocsp.h` | OCSP helper types and prototypes
 
 `pki_check.c` is designed to be independently unit-tested: when `UNIT_TEST`
 is defined the nginx log/return types are replaced with plain C equivalents.

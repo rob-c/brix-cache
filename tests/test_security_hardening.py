@@ -19,11 +19,11 @@ from XRootD import client
 from XRootD.client.flags import DirListFlags, MkDirFlags
 
 import pytest
-from settings import DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
 
 
 ANON_URL = ""
-ANON_HOST = "127.0.0.1"
+ANON_HOST = SERVER_HOST
 ANON_PORT = 0
 DATA_DIR = DEFAULT_DATA_ROOT
 LOG_DIR = ""
@@ -37,7 +37,7 @@ def _configure(test_env):
     global ANON_URL, ANON_HOST, ANON_PORT, DATA_DIR, LOG_DIR
     global ANON_ACCESS_LOG, ERROR_LOG
     ANON_URL  = test_env["anon_url"]
-    ANON_HOST = "127.0.0.1"
+    ANON_HOST = test_env["server_host"]
     ANON_PORT = test_env["anon_port"]
     DATA_DIR  = test_env["data_dir"]
     LOG_DIR   = test_env["log_dir"]
@@ -271,9 +271,17 @@ def test_rm_rejects_embedded_nul_path_payload():
         _unlink_if_exists(victim)
 
 
-def test_login_username_is_escaped_in_access_log():
-    """Control bytes in usernames must stay inside one sanitized access-log line."""
-    before = _log_size(ANON_ACCESS_LOG)
+def test_login_username_rejects_control_bytes():
+    """Usernames containing non-printable ASCII must be rejected at login (F-04).
+
+    Before F-04 the server accepted the username and relied on sanitisation
+    at log time.  Now the server rejects such logins outright — this is
+    stronger: the raw bytes never reach any log path at all.
+    """
+    access_before = _log_size(ANON_ACCESS_LOG)
+    error_before  = _log_size(ERROR_LOG)
+
+    kXR_ArgInvalid = 4003
 
     with _raw_session() as sock:
         username = b'ev\n" \\\x1bA'
@@ -292,12 +300,16 @@ def test_login_username_is_escaped_in_access_log():
         sock.sendall(req)
         status, body = _read_response(sock)
 
-    assert status == kXR_OK, f"login failed: status={status} body={body!r}"
+    assert status == kXR_ArgInvalid, (
+        f"expected kXR_ArgInvalid (4003) for control-char username, "
+        f"got status={status} body={body!r}"
+    )
 
-    delta = _read_log_delta(ANON_ACCESS_LOG, before)
-    assert b"LOGIN - ev\\x0A\\x22\\x20\\x5C\\x1BA" in delta
-    assert username not in delta
-    assert sum(1 for line in delta.splitlines() if b"LOGIN" in line) == 1
+    # The raw username bytes must not appear in either log.
+    access_delta = _read_log_delta(ANON_ACCESS_LOG, access_before)
+    error_delta  = _read_log_delta(ERROR_LOG, error_before)
+    assert username not in access_delta, "raw username bytes leaked into access log"
+    assert username not in error_delta,  "raw username bytes leaked into error log"
 
 
 def test_malicious_path_is_escaped_in_access_and_error_logs():

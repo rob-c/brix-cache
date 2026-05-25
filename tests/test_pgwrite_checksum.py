@@ -26,7 +26,7 @@ import socket
 
 import pytest
 
-from settings import NGINX_ANON_PORT
+from settings import NGINX_ANON_PORT, SERVER_HOST
 
 
 # ---------------------------------------------------------------------------
@@ -193,11 +193,13 @@ def _send_pgwrite(sock: socket.socket, fhandle: bytes, offset: int, payload: byt
 
 @pytest.fixture(scope="module", autouse=True)
 def _configure(test_env):
-    global _ANON_PORT, _DATA_DIR
+    global _ANON_HOST, _ANON_PORT, _DATA_DIR
+    _ANON_HOST = test_env["server_host"]
     _ANON_PORT = test_env["anon_port"]
     _DATA_DIR  = test_env["data_dir"]
 
 
+_ANON_HOST = SERVER_HOST
 _ANON_PORT = NGINX_ANON_PORT
 _DATA_DIR  = ""
 
@@ -217,7 +219,7 @@ class TestPgWriteChecksumVerification:
     def test_good_checksum_accepted(self):
         """A single-page pgwrite with a correct CRC32c must succeed."""
         data = b"correct checksum payload " * 20   # 500 bytes, fits in one page
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_good_crc.bin")
@@ -233,7 +235,7 @@ class TestPgWriteChecksumVerification:
     def test_bad_checksum_rejected(self):
         """A single-page pgwrite with a corrupted CRC32c must return kXR_ChkSumErr."""
         data = b"bad checksum payload " * 20   # 420 bytes
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_bad_crc.bin")
@@ -254,7 +256,7 @@ class TestPgWriteChecksumVerification:
     def test_multi_page_all_good(self):
         """A two-page pgwrite with all correct CRCs must succeed."""
         data = os.urandom(kXR_pgPageSZ + 512)   # 1 full page + partial second
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_multi_good.bin")
@@ -270,7 +272,7 @@ class TestPgWriteChecksumVerification:
     def test_multi_page_first_page_bad(self):
         """A two-page pgwrite where the first page has a bad CRC must be rejected."""
         data = os.urandom(kXR_pgPageSZ + 512)
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_multi_bad0.bin")
@@ -290,7 +292,7 @@ class TestPgWriteChecksumVerification:
     def test_multi_page_second_page_bad(self):
         """A two-page pgwrite where the second page has a bad CRC must be rejected."""
         data = os.urandom(kXR_pgPageSZ + 512)
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_multi_bad1.bin")
@@ -311,7 +313,7 @@ class TestPgWriteChecksumVerification:
         """After a successful pgwrite, the data must be readable from disk."""
         data = b"persistent payload check " * 40   # 1000 bytes
         remote = "_pgwrite_persist_check.bin"
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, f"/{remote}".encode())
@@ -342,7 +344,7 @@ class TestPgWriteChecksumVerification:
         with open(disk_path, "wb") as f:
             f.write(original)
 
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             # Open for update (O_RDWR) without truncation so original content
@@ -384,7 +386,7 @@ class TestPgWriteChecksumVerification:
     def test_unaligned_start_offset_good_crc(self):
         """pgwrite at a non-zero offset (partial first page) with correct CRC succeeds."""
         data = b"offset payload " * 20   # 300 bytes starting at offset 100
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_unaligned_good.bin")
@@ -400,7 +402,7 @@ class TestPgWriteChecksumVerification:
     def test_unaligned_start_offset_bad_crc(self):
         """pgwrite at offset=100 (partial first page) with a corrupted CRC is rejected."""
         data = b"bad offset crc " * 15   # 225 bytes
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_unaligned_bad.bin")
@@ -419,7 +421,7 @@ class TestPgWriteChecksumVerification:
     def test_three_pages_all_good(self):
         """A three-page pgwrite (>2 full pages) with all correct CRCs succeeds."""
         data = os.urandom(kXR_pgPageSZ * 2 + 512)   # 2 full pages + partial third
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_3page_good.bin")
@@ -435,7 +437,7 @@ class TestPgWriteChecksumVerification:
     def test_three_pages_middle_page_bad(self):
         """A three-page pgwrite with a bad CRC on the second page is rejected."""
         data = os.urandom(kXR_pgPageSZ * 2 + 512)
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_3page_bad1.bin")
@@ -454,7 +456,7 @@ class TestPgWriteChecksumVerification:
     def test_write_at_page_boundary_offset(self):
         """A pgwrite starting at offset=4096 (a page boundary) with correct CRC succeeds."""
         data = b"page boundary write " * 10   # 200 bytes
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_pgboundary.bin")
@@ -470,7 +472,7 @@ class TestPgWriteChecksumVerification:
     def test_full_page_exactly_4096_bytes(self):
         """A pgwrite of exactly 4096 bytes (one complete page) with correct CRC succeeds."""
         data = os.urandom(kXR_pgPageSZ)   # exactly one full page
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_exactpage.bin")
@@ -487,7 +489,7 @@ class TestPgWriteChecksumVerification:
         """Two successive pgwrite calls to the same file handle both succeed."""
         data1 = b"first segment  " * 10   # 150 bytes
         data2 = b"second segment " * 10   # 150 bytes
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_sequential.bin")
@@ -511,7 +513,7 @@ class TestPgWriteChecksumVerification:
         with open(disk_path, "wb") as f:
             f.write(original)
 
-        host, port = "127.0.0.1", _ANON_PORT
+        host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             path   = f"/{remote}".encode()

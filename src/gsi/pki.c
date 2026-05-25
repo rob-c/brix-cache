@@ -1,6 +1,18 @@
 #include "../ngx_xrootd_module.h"
 #include "../crypto/pki_check.h"
 
+/* ---- Function: xrootd_check_pki_consistency_stream() ----
+ *
+ * WHAT: Performs PKI/CRL consistency validation for the stream module (native XRootD protocol). Reads
+ *       the configured trusted CA path and CRL path from stream configuration, then delegates to
+ *       xrootd_pki_check_paths() which loads certificates, verifies cross-signatures between CA certs
+ *       and CRLs, and logs any mismatches as warnings. Returns NGX_OK regardless of issues found —
+ *       the server starts even with broken CRL so operators can fix it without downtime.
+ *
+ * WHY: The stream module needs its own PKI consistency check function because nginx configuration uses
+ *       separate structure types (ngx_stream_xrootd_srv_conf_t vs ngx_http_xrootd_webdav_loc_conf_t) for
+ *       stream and HTTP modules. This wrapper extracts the correct fields from the stream config and
+ *       calls the shared crypto/pki_check.c implementation without requiring module-specific logic. */
 /*
  * Stream module-specific PKI/CRL consistency checks.
  */

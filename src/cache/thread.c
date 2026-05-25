@@ -1,10 +1,18 @@
 #include "cache_internal.h"
 #include "../manager/registry.h"
 
-#if (NGX_THREADS)
 
 #include <netinet/in.h>
 #include <unistd.h>
+
+/* ---- xrootd_cache_fill_thread — thread-pool fill worker ----
+ *
+ * WHAT: Thread-pool worker function that executes the full cache fill lifecycle: ensure parent directory → evict if needed → acquire lock → check file ready → fetch origin.
+ *       Returns immediately (no response) to the event loop after completing the work. */
+
+/* ---- Fill worker sequence ----
+ *
+ * HOW: 1) Ensure parent dir exists → 2) Evict if cache over threshold → 3) Acquire per-file lock → 4) If file already ready, skip → 5) Fetch origin → release lock on exit. */
 
 void
 xrootd_cache_fill_thread(void *data, ngx_log_t *log)
@@ -54,6 +62,15 @@ xrootd_cache_fill_thread(void *data, ngx_log_t *log)
 
     unlink(t->lock_path);
 }
+
+/* ---- xrootd_cache_fill_done — fill completion callback ----
+ *
+ * WHAT: Completion callback invoked by nginx when the thread-pool worker finishes. Restores the original request context, then dispatches based on result:
+ *       NGX_DECLINED → redirect to origin (admission rejected); error → send kXR_error response; success → open cached file and resume AIO. */
+
+/* ---- Done callback flow ----
+ *
+ * HOW: 1) Restore request context via xrootd_aio_restore_request() → 2) Check result code → 3) Handle each case (redirect/error/success) → 4) Resume client with ngx_stream_xrootd_recv(). */
 
 void
 xrootd_cache_fill_done(ngx_event_t *ev)
@@ -144,4 +161,3 @@ xrootd_cache_fill_done(ngx_event_t *ev)
     xrootd_aio_resume(c);
 }
 
-#endif /* NGX_THREADS */

@@ -37,3 +37,10 @@ tools/
 
 .rpmbuild/
 .tmp/
+
+# open-agent-kit: Team
+.oak/ci/
+.oak/config.*.yaml
+
+# open-agent-kit: Issue raw JSON (local debugging only)
+oak

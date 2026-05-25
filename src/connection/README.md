@@ -13,6 +13,13 @@ Core connection machinery that every XRootD request passes through.
 | `event_sched.c` | `xrootd_schedule_read_resume` / `xrootd_schedule_write_resume` — re-arm events after AIO |
 | `chain_helpers.c` | `xrootd_chain_pending_bytes` — count bytes still in a response chain |
 | `write_helpers.c` | `xrootd_queue_response` / `xrootd_queue_response_chain` — append to the pending write chain |
+| `chain_helpers.h` | Chain helper types and prototypes |
+| `disconnect.h` | Disconnect handler types and prototypes |
+| `event_sched.h` | Event scheduler types and prototypes |
+| `fd_table.h` | File descriptor table types and prototypes |
+| `handler.h` | Connection handler types and prototypes |
+| `tls.h` | TLS upgrade types and prototypes |
+| `write_helpers.h` | Write helper types and prototypes |
 
 The `recv.c` state machine cycles through these states (defined in
 `ngx_xrootd_module.h`):

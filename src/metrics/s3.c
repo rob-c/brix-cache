@@ -1,5 +1,18 @@
 #include "metrics_internal.h"
 
+/*
+ * WHAT: Prometheus metrics export for the S3-compatible HTTP endpoint.
+ * WHY: The S3 endpoint receives requests from XrdClS3, aws s3 CLI, and other S3-compatible clients.
+ *      These counters track request volume, response status classes, authentication outcomes (SigV4 vs anonymous),
+ *      data transfer volumes, range handling, PUT body modes, diagnostic events, and ListObjectsV2 pagination stats.
+ * HOW: Seven static string tables map slot indices to low-cardinality label strings per INVARIANT #8; one public function
+ *      iterates all counters via ngx_atomic_fetch_add(..., 0) for eventually-consistent Prometheus snapshots.
+ *      Each metric line includes HELP description and TYPE counter declaration before the actual data line.
+ */
+
+/* ---- static table: S3 HTTP method names ----
+ * WHAT: Label strings for xrootd_s3_requests_total and xrootd_s3_responses_total counters by operation type.
+ * WHY: Prometheus label values must be low-cardinality (INVARIANT #8) — fixed enum prevents bucket-name or request-type explosion. */
 
 static const char *xrootd_s3_method_names[XROOTD_S3_NMETHODS] = {
     "GET",
@@ -11,6 +24,10 @@ static const char *xrootd_s3_method_names[XROOTD_S3_NMETHODS] = {
     "OTHER",
 };
 
+/* ---- static table: HTTP status class names ----
+ * WHAT: Label strings for xrootd_s3_responses_total{status_class} counters.
+ * WHY: Grouping into 1xx/2xx/3xx/4xx/5xx prevents individual status-code label explosion while preserving error visibility. */
+
 static const char *xrootd_s3_status_names[XROOTD_HTTP_NSTATUS] = {
     "1xx",
     "2xx",
@@ -19,6 +36,9 @@ static const char *xrootd_s3_status_names[XROOTD_HTTP_NSTATUS] = {
     "5xx",
     "other",
 };
+
+/* ---- static table: S3 authentication result names ----
+ * WHAT: Label strings for xrootd_s3_auth_total counters. SigV4-specific results (signature_mismatch, bad_access_key) are tracked separately per INVARIANT #6. */
 
 static const char *xrootd_s3_auth_names[XROOTD_S3_NAUTH_RESULTS] = {
     "anonymous",
@@ -31,11 +51,17 @@ static const char *xrootd_s3_auth_names[XROOTD_S3_NAUTH_RESULTS] = {
     "internal_error",
 };
 
+/* ---- static table: S3 range request result names ----
+ * WHAT: Label strings for xrootd_s3_range_requests_total counters. Tracks full vs partial GET responses and unsatisfied Range header conditions. */
+
 static const char *xrootd_s3_range_names[XROOTD_S3_NRANGE_RESULTS] = {
     "full",
     "partial",
     "unsatisfied",
 };
+
+/* ---- static table: S3 PUT body storage mode names ----
+ * WHAT: Label strings for xrootd_s3_put_bodies_total counters. Tracks whether PUT body was stored in memory, spooled to disk, or mixed modes after successful write. */
 
 static const char *xrootd_s3_put_names[XROOTD_S3_NPUT_MODES] = {
     "empty",
@@ -43,6 +69,9 @@ static const char *xrootd_s3_put_names[XROOTD_S3_NPUT_MODES] = {
     "spooled",
     "mixed",
 };
+
+/* ---- static table: S3 diagnostic event names ----
+ * WHAT: Label strings for xrootd_s3_events_total low-cardinality counter. Tracks endpoint-level diagnostics (URI validation failures, access denied, write disabled). */
 
 static const char *xrootd_s3_event_names[XROOTD_S3_NEVENTS] = {
     "invalid_uri",
@@ -55,6 +84,11 @@ static const char *xrootd_s3_event_names[XROOTD_S3_NEVENTS] = {
     "delete_missing",
 };
 
+/* ---- public API: xrootd_export_s3_metrics() ----
+ * WHAT: Export all S3-compatible endpoint Prometheus metrics into the writer buffer chain.
+ * WHY: The HTTP metrics handler reads counters from shm->s3 using ngx_atomic_fetch_add(..., 0) for an eventually-consistent snapshot.
+ *      Each metric line includes HELP description and TYPE counter declaration before the actual data line, following Prometheus text exposition format (0.0.4).
+ * HOW: Iterate seven counter families via static name tables: requests_total, responses_total[method][status_class], auth_total, bytes_rx_tx, range_total, put_body_total, events_total, plus three ListObjectsV2 stats. All counters are unsigned long values cast from ngx_atomic_t fields. */
 
 void
 xrootd_export_s3_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)

@@ -1,0 +1,26 @@
+# xrootd-both.cf — GSI + SciTokens/JWT accepted in parallel
+# Either a valid x509 proxy cert or a valid WLCG JWT grants access.
+# Variables substituted by entrypoint.sh: see xrootd-gsi.cf and xrootd-token.cf.
+
+xrd.port {PORT}
+
+oss.localroot {DATA_DIR}
+all.export /
+
+all.adminpath /var/spool/xrootd/admin
+all.pidpath   /var/run/xrootd
+
+xrd.trace off
+
+# GSI authentication.
+xrootd.seclib /usr/lib64/security/XrdSecgsi.so
+sec.protocol gsi \
+    -certdir:{CA_DIR} \
+    -cert:{SERVER_CERT} \
+    -key:{SERVER_KEY} \
+    -gmapopt:10
+
+acc.authdb {AUTHDB_PATH}
+
+# SciTokens authorization (stacks on top of GSI — the ++ flag makes it additive).
+ofs.authlib ++ libXrdAccSciTokens.so config={SCITOKENS_CFG}

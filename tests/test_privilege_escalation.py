@@ -27,17 +27,17 @@ import tempfile
 import pytest
 
 from backend_matrix import root_endpoint_parts, selected_backend_name
-from settings import DATA_ROOT, NGINX_ANON_PORT, NGINX_BIN, READONLY_PORT as FIXED_READONLY_PORT
+from settings import DATA_ROOT, NGINX_ANON_PORT, READONLY_PORT as FIXED_READONLY_PORT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 CROSS_BACKEND = selected_backend_name()
-ANON_HOST = "127.0.0.1"
+ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
 DATA_DIR  = DATA_ROOT
-READONLY_HOST = "127.0.0.1"
+READONLY_HOST = SERVER_HOST
 READONLY_PORT = FIXED_READONLY_PORT
 
 # XRootD request opcodes
@@ -265,31 +265,20 @@ def _configure(test_env, ref_xrootd):
         ANON_HOST, ANON_PORT = root_endpoint_parts(ref_xrootd["url"])
         DATA_DIR = ref_xrootd["data_dir"]
     else:
-        ANON_HOST = "127.0.0.1"
+        ANON_HOST = test_env["server_host"]
         ANON_PORT = test_env["anon_port"]
         DATA_DIR = test_env["data_dir"]
 
 
 @pytest.fixture(scope="session")
 def readonly_nginx():
-    """Start an isolated anonymous XRootD listener with xrootd_allow_write off."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    import server_control
-
-    info = server_control.start_nginx_instance(
-        port=READONLY_PORT, nginx_bin=NGINX_BIN,
-        conf_file="nginx_readonly.conf",
-        template_kwargs={"DATA_DIR": DATA_DIR},
-    )
-
+    """Verify the dedicated read-only server is reachable."""
     try:
-        yield
-    finally:
-        try:
-            info["stop"]()
-        except Exception:
+        with socket.create_connection((READONLY_HOST, READONLY_PORT), timeout=5):
             pass
+    except OSError:
+        pytest.skip(f"read-only server not reachable at {READONLY_HOST}:{READONLY_PORT}")
+    yield
 
 
 # ===========================================================================
@@ -1444,3 +1433,29 @@ class TestSet:
         with _raw_session() as sock:
             status, body = self._send_set(sock, 0x00, b"early-app\n")
         assert status == kXR_ERROR, f"expected kXR_error before login, got status={status}"
+
+    def test_set_cms_space_returns_ok(self):
+        """kXR_set with cms.space space-report payload returns kXR_ok."""
+        with _raw_session() as sock:
+            _login_anon(sock)
+            # cms.space format: "cms.space <total_bytes> <free_bytes>"
+            status, body = self._send_set(sock, 0x00,
+                                          b"cms.space 1073741824 536870912\n")
+        assert status == kXR_OK, (
+            f"expected kXR_ok for cms.space report, got status={status}")
+
+    def test_set_cms_space_malformed_still_ok(self):
+        """Malformed cms.space payload must still return kXR_ok (advisory; server must accept)."""
+        with _raw_session() as sock:
+            _login_anon(sock)
+            status, body = self._send_set(sock, 0x00, b"cms.space notanumber\n")
+        assert status == kXR_OK, (
+            f"expected kXR_ok even for malformed cms.space, got status={status}")
+
+    def test_set_cms_space_before_login_rejected(self):
+        """cms.space via kXR_set before kXR_login must be rejected (login guard)."""
+        with _raw_session() as sock:
+            status, body = self._send_set(sock, 0x00,
+                                          b"cms.space 1073741824 536870912\n")
+        assert status == kXR_ERROR, (
+            f"expected kXR_error for cms.space before login, got status={status}")

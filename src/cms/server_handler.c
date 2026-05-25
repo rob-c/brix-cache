@@ -1,8 +1,42 @@
 #include "server.h"
-
+/*
+ * server_handler.c — CMS server connection handler
+ *
+ * WHAT: Accepts TCP connections from the XRootD CMS manager and maintains a
+ *       persistent heartbeat session. Each accepted connection is assigned a
+ *       read/write handler pair that exchanges periodic load reports.
+ *
+ * WHY: The CMS manager needs to know which data servers are alive, how much
+ *      free space they have, and their utilisation percentage so it can route
+ *      client requests (kXR_locate / kXR_redirect) to the best server.
+ *
+ * HOW: On accept we allocate a cms_srv_ctx_t on the connection pool, set up
+ *      ping_timer for periodic heartbeats, assign read/write handlers,
+ *      and immediately arm the first read event. The read handler (recv.c)
+ *      dispatches incoming frames; the write handler (send.c) fires load
+ *      reports at conf->interval_ms intervals.
+ */
 
 void
 xrootd_cms_srv_handler(ngx_stream_session_t *s)
+/* ---- Function: xrootd_cms_srv_handler() -----------------------------------
+ *
+ * WHAT: Entry point for CMS server connections accepted by the stream module.
+ *       Allocates context, sets up handlers and timer, arms first read.
+ *
+ * WHY: The CMS manager connects to this port as a data-server client. We need
+ *      a per-connection state object (ctx) that tracks the connection pointer,
+ *      how many bytes remain in the current frame header, the peer host string,
+ *      and the heartbeat timer.
+ *
+ * HOW: 1. pcalloc ctx on c->pool (auto-cleaned on pool destruction).
+ *      2. Initialise ctx fields: c pointer, hdr-in_need = CMS_HDR_LEN,
+ *         host from ngx_sock_ntop, interval_ms from conf.
+ *      3. Set ping_timer log/data, assign c->data = ctx.
+ *      4. Replace default read/write handlers with cms_srv_read/cms_srv_write.
+ *      5. Log debug line and arm first read.
+ */
+
 {
     ngx_connection_t                  *c;
     xrootd_cms_srv_ctx_t              *ctx;

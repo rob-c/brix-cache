@@ -4,7 +4,7 @@ from pathlib import Path
 
 def get_supported_opcodes():
     root = Path(__file__).resolve().parent.parent
-    doc = root / "docs" / "status.md"
+    doc = root / "docs" / "05-operations" / "operation-status.md"
     text = doc.read_text(encoding="utf-8")
     m = re.search(r"### Fully implemented\s*\n(.*?)\n### Not implemented", text, re.S)
     if m:
@@ -12,7 +12,7 @@ def get_supported_opcodes():
     else:
         start = text.find("### Fully implemented")
         if start == -1:
-            raise RuntimeError("Cannot find '### Fully implemented' in docs/status.md")
+            raise RuntimeError("Cannot find '### Fully implemented' in docs/05-operations/operation-status.md")
         rest = text[start:]
         m2 = re.search(r"### Not implemented", rest)
         table_text = rest[: m2.start()] if m2 else rest

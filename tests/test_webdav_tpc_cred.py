@@ -20,19 +20,14 @@ import os
 import shutil
 import subprocess
 import time
-from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 from settings import (
-    NGINX_BIN,
     PKI_DIR as PKI_DIR_STR,
-    WEBDAV_TPC_SOURCE_REQUIRED_PORT,
+    TEST_ROOT,
+    WEBDAV_TPC_SOURCE_OPEN_PORT,
 )
-
-# TPC cred tests use ports 19450-19456 to avoid conflicts with
-# test_webdav_tpc.py which uses 18450-18456.
-WEBDAV_TPC_SOURCE_OPEN_PORT = 19451
 
 PKI_DIR = Path(PKI_DIR_STR)
 CA_PEM = PKI_DIR / "ca" / "ca.pem"
@@ -91,8 +86,6 @@ def _copy_pull(dest_port, dest_path, source_url, *extra_headers, timeout=30):
 
 
 def _require_common_tools():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
     if shutil.which("curl") is None:
         pytest.skip("curl not found")
     for path in (CA_PEM, CLIENT_CERT, CLIENT_KEY, SERVER_CERT, SERVER_KEY):
@@ -105,74 +98,19 @@ def _require_common_tools():
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session", autouse=True)
-def tpc_nginx_server(tmp_path_factory):
-    """Start a dedicated nginx instance for TPC credential tests.
-
-    Uses ports 19450–19456 to avoid conflicts with test_webdav_tpc.py
-    which uses 18450–18456.
-    """
+def tpc_nginx_server():
+    """Use the suite-level WebDAV TPC nginx instance."""
     _require_common_tools()
 
-    workdir = tmp_path_factory.mktemp("webdav-tpc-cred")
-    data_dir = workdir / "source_open"
+    data_dir = Path(TEST_ROOT) / "data-webdav-tpc" / "source_open"
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    # Use different ports than test_webdav_tpc.py (18450-18456)
-    ports = {
-        "source_required": 19450,
-        "source_open": 19451,
-        "dest_cafile": 19452,
-        "dest_cadir": 19453,
-        "dest_no_service_cert": 19454,
-        "dest_disabled": 19455,
-        "dest_readonly": 19456,
-    }
-
-    roots = {
-        "source_required": workdir / "data" / "source_required",
-        "source_open": data_dir,
-        "dest_cafile": workdir / "data" / "dest_cafile",
-        "dest_cadir": workdir / "data" / "dest_cadir",
-        "dest_no_service_cert": workdir / "data" / "dest_no_service_cert",
-        "dest_disabled": workdir / "data" / "dest_disabled",
-        "dest_readonly": workdir / "data" / "dest_readonly",
-    }
-    for root in roots.values():
-        root.mkdir(parents=True, exist_ok=True)
-
-    import server_control
-    info = server_control.start_nginx_instance(
-        port=ports["source_required"], nginx_bin=NGINX_BIN,
-        conf_file="nginx_webdav_tpc.conf",
-        template_kwargs={
-            "SOURCE_REQUIRED_PORT": ports["source_required"],
-            "SOURCE_REQUIRED_ROOT": str(roots["source_required"]),
-            "SOURCE_OPEN_PORT": ports["source_open"],
-            "SOURCE_OPEN_ROOT": str(roots["source_open"]),
-            "DEST_CAFILE_PORT": ports["dest_cafile"],
-            "DEST_CAFILE_ROOT": str(roots["dest_cafile"]),
-            "DEST_CADIR_PORT": ports["dest_cadir"],
-            "DEST_CADIR_ROOT": str(roots["dest_cadir"]),
-            "DEST_NO_SERVICE_CERT_PORT": ports["dest_no_service_cert"],
-            "DEST_NO_SERVICE_CERT_ROOT": str(roots["dest_no_service_cert"]),
-            "DEST_DISABLED_PORT": ports["dest_disabled"],
-            "DEST_DISABLED_ROOT": str(roots["dest_disabled"]),
-            "DEST_READONLY_PORT": ports["dest_readonly"],
-            "DEST_READONLY_ROOT": str(roots["dest_readonly"]),
-            "CA_PEM": str(CA_PEM),
-            "CA_DIR": str(PKI_DIR / "ca"),
-            "CLIENT_CERT": str(CLIENT_CERT),
-            "CLIENT_KEY": str(CLIENT_KEY),
-        },
-    )
-
-    # Wait for the source_open port to respond
     ok = False
     for _ in range(40):
         try:
             result = _curl(
                 "-X", "OPTIONS",
-                f"https://localhost:{ports['source_open']}/",
+                f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/",
                 "-o", "/dev/null",
                 timeout=3,
             )
@@ -184,11 +122,12 @@ def tpc_nginx_server(tmp_path_factory):
             break
         time.sleep(0.2)
     if not ok:
-        info["stop"]()
-        pytest.fail(f"nginx TPC cred fixture did not start on port {ports['source_open']}.")
+        pytest.fail(
+            "suite WebDAV TPC server did not respond on "
+            f"port {WEBDAV_TPC_SOURCE_OPEN_PORT}."
+        )
 
-    yield info
-    info["stop"]()
+    yield {"source_open_root": data_dir}
 
 
 # ---------------------------------------------------------------------------

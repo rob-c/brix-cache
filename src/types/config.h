@@ -1,5 +1,13 @@
 #pragma once
 
+/* ---- File: config.h — Per-server configuration struct + helper type definitions ----
+ *
+ * WHAT: Defines ngx_stream_xrootd_srv_conf_t (per-server configuration block) and five helper types used within it: xrootd_sss_key_t (Simple Shared Secret credential key with id/expiration/opts/key_bytes/name/user/group), xrootd_auth_type_t (enum — user DN, VO name, hostname, or all-match for ACL rules), xrootd_authdb_rule_t (ACL rule with auth type + identity/path + privilege bitmask + resolved path), xrootd_vo_rule_t (VO access rule with path prefix + VOMS VO name + resolved path), xrootd_group_rule_t (group inheritance rule with path prefix + resolved path), xrootd_manager_map_t (CMS manager map entry with policy-style prefix + backend host/port). Main struct fields annotated with directive names in brackets showing which nginx.conf directive populates each field. Includes OpenSSL objects (X509/EVP_PKEY/X509_STORE for GSI cert/key/trust store), timer events (crl_timer/jwks_timer), array types (vo_rules/authdb_rules/group_rules/manager_map/proxy_upstreams/wt_deny_prefixes/wt_allow_prefixes), and compiled regex (cache_include_regex).
+ *
+ * WHY: One srv_conf per `server {}` block — nginx allocates via create_srv_conf, merges parent config into child in merge_srv_conf. This single struct encapsulates all tunables for a server instance: authentication mode (GSI/token/SSS/anonymous), TLS settings (certificate/key/trusted CA/CRL/VOMS dirs), token auth (JWKS file/issuer/audience/macaroon secrets with grace-period rotation), VO ACLs, access log, Prometheus metrics slot, upstream redirector config, TPC SSRF policy + bearer file + OAuth2 delegation endpoints, read-through cache origin + eviction + size limits + include regex, write-through mode (sync/async) origin + deny/allow prefixes + decision callback, CMS manager heartbeat, transparent proxy mode (upstream TLS/auth/login user/audit log/reconnect attempts/multiple upstreams with path rewriting), OCSP stapling. Inline bracket annotations let contributors map each field back to its nginx directive without searching directives.c.
+ *
+ * HOW: Struct layout — helper typedefs first (lines 16-64) → includes tunables.h/shared_conf.h → main struct typedef (line 81) with sectioned fields in order: common shared conf, auth mode, GSI/x509 settings, VO ACL arrays, loaded OpenSSL objects + crl_timer, prepare_command hook, JWT/WLCG token settings + JWKS parsed keys + refresh interval + timer, SSS keytab + keys array, access log fd, Prometheus metrics slot, upstream redirector host/port/addr/tls_ctx/token_file, TPC SSRF flags + TTL + bearer file + OAuth2 endpoints, read-through cache (cache flag/root/origin/host:port/tls/lock timeout/eviction threshold/max size/include regex), write-through enable/mode/sync-async constants/origin/wt prefixes/decision callback, security level, in-protocol TLS flag/tls_ctx, manager_mode/registry_slots, CMS heartbeat fields, ckscan depth/files limits, proxy mode (enable/host/port/upstream_tls/tls_ctx/auth/login user/name/audit log/reconnect attempts/multiple upstreams/path rewrite/connect/read timeouts/keepalive interval), OCSP enable/soft_fail/stapling + staple data. */
+
 /*
  * Module configuration types (ngx_stream_xrootd_srv_conf_t and its helpers).
  *
@@ -70,18 +78,17 @@ typedef struct {
     char       sss_keyname[XROOTD_SSS_NAME_MAX]; /* "" = use first key in conf->sss_keys       */
 } xrootd_proxy_upstream_t;
 
+#include "../cache/writethrough_decision.h"
+#include "../config/shared_conf.h"
+
 /*
  * Per-server configuration block.
  * Directive names in square brackets show which nginx.conf directive
  * populates each field.
  */
 typedef struct {
-    ngx_flag_t  enable;  /* [xrootd on|off] — 0 until xrootd_enable sets it */
-
-    /* ---- export root ---- */
-    ngx_str_t   root;    /* [xrootd_root /data/xrd] — filesystem root for
-                            all path resolution; client paths are restricted
-                            to this subtree by xrootd_resolve_path() */
+    ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
+                                             thread_pool_name, thread_pool */
 
     /* ---- authentication ---- */
     ngx_uint_t  auth;    /* [xrootd_auth none|gsi|token|both] — one of the
@@ -119,9 +126,13 @@ typedef struct {
     /* Timer that fires crl_reload-seconds after init to rebuild gsi_store */
     ngx_event_t *crl_timer;   /* heap-allocated in init_process; NULL if disabled */
 
-    /* ---- write operations ---- */
-    ngx_flag_t   allow_write;  /* [xrootd_allow_write on|off] — gates all mutation
-                                   opcodes; per-op token scope checks still apply */
+    /* ---- tape staging hook ---- */
+    ngx_str_t    prepare_command; /* [xrootd_prepare_command /path/to/stage.sh]
+                                     Shell command invoked fire-and-forget when a
+                                     kXR_prepare request has the kXR_stage flag set.
+                                     argv: cmd  path1  path2  ...  (absolute, NUL-
+                                     terminated resolved paths under xrootd_root).
+                                     Empty = staging hint silently accepted (no-op). */
 
     /* ---- JWT / WLCG bearer-token settings (used when auth = token or both) ---- */
     ngx_str_t   token_jwks;      /* [xrootd_token_jwks /etc/xrd/jwks.json] */
@@ -137,6 +148,11 @@ typedef struct {
     /* JWKS keys parsed at postconfiguration from token_jwks */
     xrootd_jwks_key_t  jwks_keys[XROOTD_MAX_JWKS_KEYS];
     int                 jwks_key_count;  /* 0 if token auth is not configured */
+    time_t              jwks_mtime;      /* st_mtime of token_jwks at last successful load */
+    ngx_msec_t          token_jwks_refresh_interval; /* [xrootd_token_jwks_refresh_interval 60000ms]
+                                                        Polling interval (ms) for mtime-based JWKS
+                                                        hot refresh. NGX_CONF_UNSET_MSEC = disabled. */
+    ngx_event_t        *jwks_timer;     /* per-worker timer event; NULL if not scheduled */
 
     /* ---- Simple Shared Secret settings (used when auth = sss) ---- */
     ngx_str_t    sss_keytab;    /* [xrootd_sss_keytab /etc/xrootd/sss.keytab] */
@@ -154,6 +170,21 @@ typedef struct {
     /* ---- upstream redirector ---- */
     ngx_str_t   upstream_host;  /* [xrootd_upstream host:port] — hostname/IP */
     uint16_t    upstream_port;  /* TCP port of the upstream redirector */
+    ngx_addr_t *upstream_addr;  /* pre-resolved at config time; avoids per-request getaddrinfo */
+
+    /* Upstream redirector outbound TLS (for kXR_gotoTLS mid-stream upgrade). */
+    ngx_flag_t  upstream_tls;      /* [xrootd_upstream_tls on|off] — accept kXR_gotoTLS */
+    ngx_str_t   upstream_tls_ca;   /* [xrootd_upstream_tls_ca /path/ca.pem] — verify upstream cert */
+    ngx_str_t   upstream_tls_name; /* [xrootd_upstream_tls_name host] — SNI override */
+#if (NGX_SSL)
+    ngx_ssl_t  *upstream_tls_ctx;  /* SSL_CTX built at postconfiguration; NULL if tls off */
+#endif
+
+    /* Upstream redirector outbound token auth (for kXR_authmore / ztn). */
+    ngx_str_t   upstream_token_file; /* [xrootd_upstream_token_file /path/token]
+                                        Path to a file containing a WLCG bearer token
+                                        (JWT).  Read synchronously when kXR_authmore
+                                        is received; file may be refreshed externally. */
 
     /* ---- TPC SSRF policy ---- */
     ngx_flag_t  tpc_allow_local;    /* [xrootd_tpc_allow_local on|off] — allow
@@ -218,6 +249,39 @@ typedef struct {
                                              cache_include_regex_set is 1 */
     ngx_flag_t  cache_include_regex_set;  /* 1 after a successful regcomp() */
 
+    /* ---- write-through mode ----
+     *
+     * On a write-mode open, if wt_enable is set the decision callback evaluates
+     * whether writes should be propagated back to an origin XRootD server. The
+     * cached decision (wt_policy) is applied at close time: sync flush blocks
+     * until complete; async flush schedules a background task and returns
+     * immediately to the client.
+     *
+     * Mirrors XrdPfc's two-mode design: full-file prefetch vs block-based mode
+     * is replaced here by sync-close-flush vs async-thread-pool-flush.
+     */
+
+    /* Write-through configuration (mirrors XrdPfcDecision pattern from
+     * /tmp/xrootd-src/src/XrdPfc/XrdPfcDecision.hh). */
+    ngx_flag_t               wt_enable;            /* [xrootd_write_through on|off] */
+    uint8_t                  wt_mode;              /* [xrootd_wt_mode sync|async] — XROOTD_WT_MODE_* */
+#define XROOTD_WT_MODE_SYNC  0
+#define XROOTD_WT_MODE_ASYNC 1
+#define XROOTD_WT_MODE_UNSET 255
+    ngx_str_t                wt_origin_host;       /* [xrootd_wt_origin host:port] — defaults to cache_origin */
+    uint16_t                 wt_origin_port;       /* parsed TCP port for write-back target */
+    ngx_array_t             *wt_deny_prefixes;     /* xrootd_wt_prefix_entry[] paths excluded from WT */
+    ngx_array_t             *wt_allow_prefixes;    /* same, always included in WT regardless of size */
+
+    /* Decision configuration — populated at postconfiguration. The fn pointer
+     * points to the default policy engine (xrootd_wt_default_decide) unless an
+     * external plugin overrides it via a future extension point. */
+    xrootd_wt_decision_cfg_t wt_decision;          /* decision callback + config block */
+
+    /* ---- request signing / security level ---- */
+    ngx_uint_t  security_level;  /* [xrootd_security_level none|compatible|standard|intense|pedantic]
+                                     kXR_secNone=0 .. kXR_secPedantic=4; 0 = no enforcement */
+
     /* ---- in-protocol TLS upgrade (kXR_ableTLS) ---- */
     ngx_flag_t  tls;      /* [xrootd_tls on|off] — advertise kXR_haveTLS */
     ngx_ssl_t  *tls_ctx;  /* SSL_CTX built from certificate/key at postconfiguration */
@@ -241,11 +305,11 @@ typedef struct {
     ngx_xrootd_cms_ctx_t *cms_ctx;       /* runtime connection / timer state (heap) */
     ngx_uint_t            cms_suspended; /* set by kYR_status suspend; cleared by resume */
 
-#if (NGX_THREADS)
-    /* ---- async I/O thread pool ---- */
-    ngx_thread_pool_t  *thread_pool;       /* resolved pool handle */
-    ngx_str_t           thread_pool_name;  /* [xrootd_thread_pool xrd_io] */
-#endif
+    /* ---- bounded recursive query walks ---- */
+    ngx_uint_t  ckscan_max_depth; /* [xrootd_ckscan_depth N] — maximum
+                                      recursive directory depth for kXR_Qckscan */
+    ngx_uint_t  ckscan_max_files; /* [xrootd_ckscan_max_files N] — maximum
+                                      regular files emitted by one kXR_Qckscan */
 
     /* ---- transparent proxy mode ---- */
     ngx_flag_t  proxy_enable;  /* [xrootd_proxy on|off] */
@@ -263,6 +327,13 @@ typedef struct {
 #define XROOTD_PROXY_AUTH_ANONYMOUS  0
 #define XROOTD_PROXY_AUTH_FORWARD    1
 #define XROOTD_PROXY_AUTH_SSS        2
+
+    /* Username placed in the upstream kXR_login frame. */
+    ngx_uint_t  proxy_login_user;      /* [xrootd_proxy_login_user anonymous|passthrough|fixed:<n>] */
+#define XROOTD_PROXY_LOGIN_ANONYMOUS   0   /* default: "xrd" */
+#define XROOTD_PROXY_LOGIN_PASSTHROUGH 1   /* copy client's authenticated username */
+#define XROOTD_PROXY_LOGIN_FIXED       2   /* literal name from proxy_login_user_name */
+    char        proxy_login_user_name[9];  /* NUL-terminated, max 8 chars (kXR_login limit) */
 
     /* One JSON line per closed/abandoned upstream file handle. */
     ngx_str_t   proxy_audit_log;       /* [xrootd_proxy_audit_log <path>|off] */
@@ -287,6 +358,25 @@ typedef struct {
     ngx_str_t   proxy_path_add;
 
     /* Upstream connect and idle-read timeouts. */
-    ngx_msec_t  proxy_connect_timeout;    /* [xrootd_proxy_connect_timeout 10s] */
-    ngx_msec_t  proxy_read_timeout;       /* [xrootd_proxy_read_timeout 60s] */
+    ngx_msec_t  proxy_connect_timeout;      /* [xrootd_proxy_connect_timeout 10s] */
+    ngx_msec_t  proxy_read_timeout;         /* [xrootd_proxy_read_timeout 60s] */
+
+    /* Interval between kXR_ping keepalives on pooled idle connections. */
+    ngx_msec_t  proxy_keepalive_interval;   /* [xrootd_proxy_keepalive_interval 15s] */
+
+    /* ---- OCSP certificate revocation checking (Feature 8e) ---- */
+    ngx_flag_t  ocsp_enable;      /* [xrootd_ocsp_enable on|off]
+                                     Query OCSP responder for each client certificate
+                                     after GSI chain verification.  Default off. */
+    ngx_flag_t  ocsp_soft_fail;   /* [xrootd_ocsp_soft_fail on|off]
+                                     If on (default), network errors and UNKNOWN status
+                                     are treated as GOOD (non-blocking).
+                                     REVOKED always fails regardless. */
+    ngx_flag_t  ocsp_stapling;    /* [xrootd_ocsp_stapling on|off]
+                                     Fetch an OCSP staple for the server certificate
+                                     at init time and serve it via the TLS status_request
+                                     extension (RFC 6066).  Default off. */
+    u_char     *ocsp_staple_data; /* Cached DER-encoded OCSP response for stapling;
+                                     NULL if not yet fetched or stapling is disabled. */
+    size_t      ocsp_staple_len;  /* Byte length of ocsp_staple_data. */
 } ngx_stream_xrootd_srv_conf_t;

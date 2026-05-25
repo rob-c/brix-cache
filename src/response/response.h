@@ -44,4 +44,7 @@ uint32_t xrootd_crc32c(const void *buf, size_t len);
 /* Fused CRC32c + copy: copies src→dst in one pass, returns CRC of the data. */
 uint32_t xrootd_crc32c_copy(const u_char *src, u_char *dst, size_t len);
 
+/* CRC32c of an open file descriptor; returns (uint32_t)-1 on read error. */
+uint32_t xrootd_crc32c_file(int fd, const char *path, ngx_log_t *log);
+
 #endif /* XROOTD_RESPONSE_H */

@@ -65,8 +65,6 @@ ngx_int_t xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
     size_t segment_count, size_t *bytes_read_total, char *error_message,
     size_t error_message_len);
 
-#if (NGX_THREADS)
-
 /*
  * Per-task context structs passed to the nginx thread-pool.
  * Each struct is heap-allocated before ngx_thread_task_post() and freed
@@ -160,6 +158,39 @@ typedef struct {
     int       io_errno;
 } xrootd_pgread_aio_t;
 
+/*
+ * xrootd_dirlist_aio_t — async kXR_dirlist context.
+ *
+ * The main thread allocates a response buffer from c->pool (large block,
+ * freed via ngx_pfree after drain), copies auth-checked path/algo/flags
+ * into the struct, then posts to the thread pool.
+ *
+ * The worker thread opens the directory, iterates entries, calls
+ * xrootd_dirlist_checksum_token() when kXR_dcksm is requested, and builds
+ * the complete wire response (kXR_oksofar chunks + final kXR_ok frame)
+ * directly into response[0..response_len).  No pool access in the thread.
+ *
+ * response_cap is XROOTD_DIRLIST_AIO_RESPONSE_MAX (default 4 MiB).  If the
+ * listing would overflow, io_errno is set to E2BIG and a kXR_IOError is sent.
+ */
+#define XROOTD_DIRLIST_AIO_RESPONSE_MAX  (4 * 1024 * 1024)
+
+typedef struct {
+    ngx_connection_t              *c;
+    xrootd_ctx_t                  *ctx;
+    ngx_stream_xrootd_srv_conf_t  *conf;
+    u_char      streamid[2];
+    char        resolved[PATH_MAX];  /* absolute path, already auth-checked   */
+    char        cksum_algo[32];      /* e.g. "adler32", "sha256"              */
+    ngx_flag_t  want_stat;
+    ngx_flag_t  want_cksum;
+    u_char     *response;            /* ngx_palloc'd; freed after full drain  */
+    size_t      response_cap;        /* = XROOTD_DIRLIST_AIO_RESPONSE_MAX     */
+    size_t      response_len;        /* bytes written by thread               */
+    int         io_errno;            /* 0 = success                           */
+    char        err_msg[64];
+} xrootd_dirlist_aio_t;
+
 /* Resume the nginx event loop after an AIO task completes. */
 ngx_flag_t xrootd_aio_restore_stream(xrootd_ctx_t *ctx,
     const u_char streamid[2]);
@@ -176,6 +207,7 @@ void xrootd_write_aio_done(ngx_event_t *ev);
 void xrootd_writev_write_aio_done(ngx_event_t *ev);
 void xrootd_readv_aio_done(ngx_event_t *ev);
 void xrootd_pgread_aio_done(ngx_event_t *ev);
+void xrootd_dirlist_aio_done(ngx_event_t *ev);
 
 /* Thread-pool worker functions (run on a pool thread). */
 void xrootd_read_aio_thread(void *data, ngx_log_t *log);
@@ -183,7 +215,6 @@ void xrootd_write_aio_thread(void *data, ngx_log_t *log);
 void xrootd_writev_write_aio_thread(void *data, ngx_log_t *log);
 void xrootd_readv_aio_thread(void *data, ngx_log_t *log);
 void xrootd_pgread_aio_thread(void *data, ngx_log_t *log);
-
-#endif /* NGX_THREADS */
+void xrootd_dirlist_aio_thread(void *data, ngx_log_t *log);
 
 #endif /* XROOTD_AIO_H */

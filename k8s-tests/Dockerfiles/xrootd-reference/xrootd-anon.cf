@@ -1,0 +1,12 @@
+# xrootd-anon.cf — anonymous access (no authentication required)
+# Variables substituted by entrypoint.sh: {PORT} {DATA_DIR}
+
+xrd.port {PORT}
+
+oss.localroot {DATA_DIR}
+all.export /
+
+all.adminpath /var/spool/xrootd/admin
+all.pidpath   /var/run/xrootd
+
+xrd.trace off

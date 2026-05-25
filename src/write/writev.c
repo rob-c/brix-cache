@@ -1,6 +1,35 @@
-// xrootd_handle_writev implementation.
-#include "ngx_xrootd_module.h"
+/* ------------------------------------------------------------------ */
+/* WriteV — scatter-gather write from vector of (offset, data) segments   */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements kXR_writev — a single opcode that writes multiple byte ranges to one or more open file handles in a single request. The handler validates segment descriptors by scanning until payload size matches N*SEGSIZE + sum(wlen), validates all fhandles before writing anything, builds segment descriptor array for AIO dispatch or synchronous pwrite loop. Supports optional kXR_wv_doSync flag (fsync on every touched handle after write). Dispatches to AIO thread pool when configured; falls back to synchronous inline pwrite otherwise. */
 
+/* ------------------------------------------------------------------ */
+/* Section: Payload Validation and Segment Discovery                   */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: The payload format is N segment descriptors followed by concatenated data blocks. The handler discovers N by scanning until N*SEGSIZE + sum(wlen) == dlen — this identifies the exact segment count without relying on a separate length field. Payload size mismatch detection catches malformed requests before any writes occur. Max segments capped at XROOTD_WRITEV_MAXSEGS for safety. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Handle Validation Before Write                             */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: All handles are validated BEFORE any pwrite() is issued — checking fd index bounds, negative fd values (closed handle), and writable flag. This prevents writing to stale or unauthorized handles. Each validation failure returns kXR_FileNotOpen or kXR_NotAuthorized immediately without partial writes. */
+
+/* ------------------------------------------------------------------ */
+/* Section: AIO Thread Pool Dispatch                                   */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: When NGX_THREADS is enabled and a thread pool is configured, the writev operation is posted to xrootd_writev_aio_thread via ngx_thread_task_alloc. The async handler performs sequential pwrite(2)s in a worker thread; the main event loop receives completion via xrootd_writev_aio_done. Payload buffer ownership transferred to task context for cleanup in done callback. Falls back to synchronous inline pwrite if task posting fails. */
+
+/* ---- Function: xrootd_handle_writev() ----
+ *
+ * WHAT: Protocol-level kXR_writev handler — discovers segment count by payload size matching (N*SEGSIZE + sum(wlen) == dlen), validates all fhandles before writing, builds segment descriptor array for AIO dispatch or synchronous pwrite loop. Supports optional kXR_wv_doSync flag (fsync on every touched handle). Tracks per-handle bytes_written and session_bytes_written totals on completion. Access-log detail format: "<N>_segs".
+ *
+ * WHY: All-handle validation before any write prevents partial writes to invalid handles — critical for security invariant #3 (write access checks). AIO dispatch transfers payload buffer ownership to task context so the main thread can safely begin reading the next request header. Per-handle byte counter updates enable Prometheus metric aggregation across all writev segments. Optional fsync ensures data durability when requested by client. */
+
+#include "ngx_xrootd_module.h"
+#include "cache/writethrough_metrics.h"
 
 ngx_int_t
 xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -79,14 +108,13 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	/* Data starts immediately after all N segment descriptors. */
 	data_ptr = ctx->payload + n_segs * XROOTD_WRITEV_SEGSIZE;
 
-#if (NGX_THREADS)
 	{
 		ngx_stream_xrootd_srv_conf_t *conf;
 
 		conf = ngx_stream_get_module_srv_conf(
 		    (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
 
-		if (conf->thread_pool != NULL) {
+		if (conf->common.thread_pool != NULL) {
 			ngx_thread_task_t        *task;
 			xrootd_writev_aio_t      *t;
 			xrootd_writev_seg_desc_t *seg_descs;
@@ -133,7 +161,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			task->event.handler = xrootd_writev_write_aio_done;
 			task->event.data    = task;
 
-			(void) xrootd_aio_post_task(ctx, c, conf->thread_pool, task,
+			(void) xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
 			    "xrootd: thread_task_post failed, falling back to sync writev",
 			    &posted);
 			if (posted) {
@@ -144,7 +172,6 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			}
 		}
 	}
-#endif /* NGX_THREADS */
 
 	/* Synchronous fallback: write each segment on the event-loop thread. */
 	for (i = 0; i < n_segs; i++) {
@@ -173,6 +200,10 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		ctx->files[idx].bytes_written  += (size_t) nw;
 		ctx->session_bytes_written     += (size_t) nw;
 		bytes_written_total            += (size_t) nw;
+		if (ctx->files[idx].wt_enabled) {
+			xrootd_wt_mark_dirty(ctx, idx, offset + (int64_t) nw - 1,
+			                      (size_t) nw);
+		}
 		data_ptr                       += wlen;
 	}
 

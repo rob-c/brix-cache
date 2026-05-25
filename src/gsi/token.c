@@ -5,6 +5,37 @@
 /*
  * Bearer-token (JWT/WLCG) authentication for the "ztn" credential type.
  */
+/*
+ * WHAT: xrootd_handle_token_auth() — handles kXR_auth with protocol "ztn"
+ *       (WLCG/SciToken bearer JWT). Extracts token from payload, validates
+ *       signature against JWKS keys + issuer + audience claims.
+ *
+ * WHY: Single-round authentication — no DH exchange needed. The client
+ *      submits a pre-signed JWT and the server verifies it against trusted
+ *      public keys (RSA/ECDSA) configured via xrootd_jwks_keys directive.
+ *
+ * HOW: 1) Extract token from payload; 2) Parse macaroon secret if configured;
+ *      3) Validate JWT signature + claims; 4) Grace-period fallback with old
+ *      secret for key rotation during reload; 5) On success set ctx->auth_done,
+ *      extract DN/groups/scopes from claims, track metrics, register session.
+ *
+ * Grace-period key rotation: if the primary macaroon secret rejects a token
+ * and an old secret is configured, retry validation with the old key.
+ *
+ * WHY: Allows in-flight tokens to survive nginx -s reload during key rotation.
+ *      Without this fallback, tokens signed by the previous secret would be
+ *      rejected immediately after reload, breaking active client sessions.
+ *
+ * Postconditions on success:
+ *
+ * WHY: ctx->auth_done = 1 enables subsequent authenticated operations.
+ *      ctx->bearer_token stores raw token for proxy auth-bridging to upstream.
+ *      DN, vo_list, primary_vo extracted from JWT claims (sub/groups).
+ *      Token scopes stored for per-path scope checks. Unique user and VO
+ *      tracked in shared-memory metrics counters.
+ *
+ * Return values: NGX_OK on successful validation, kXR_NotAuthorized error
+ * on empty payload, signature failure, or issuer/audience mismatch. */
 
 ngx_int_t
 xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,

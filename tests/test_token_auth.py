@@ -29,7 +29,7 @@ import tempfile
 import urllib3
 import pytest
 import requests
-from settings import CA_CERT, DATA_ROOT as DEFAULT_DATA_ROOT, TOKENS_DIR
+from settings import CA_CERT, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST, TOKENS_DIR
 
 # Suppress InsecureRequestWarning for verify=False in WebDAV tests
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -46,7 +46,7 @@ from utils.make_token import TokenIssuer
 
 TOKEN_DIR   = TOKENS_DIR
 TOKEN_URL   = ""
-TOKEN_HOST  = "127.0.0.1"
+TOKEN_HOST  = SERVER_HOST
 TOKEN_PORT  = 0
 WEBDAV_BASE = ""
 DATA_ROOT   = DEFAULT_DATA_ROOT
@@ -86,7 +86,7 @@ def _configure(test_env):
     global WEBDAV_BASE, DATA_ROOT, CA_PEM
     TOKEN_DIR   = test_env["token_dir"]
     TOKEN_URL   = test_env["token_url"]
-    TOKEN_HOST  = "127.0.0.1"
+    TOKEN_HOST  = test_env["server_host"]
     TOKEN_PORT  = test_env["token_port"]
     WEBDAV_BASE = test_env["webdav_url"]
     DATA_ROOT   = test_env["data_dir"]

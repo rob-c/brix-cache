@@ -1,6 +1,8 @@
-/*
- * tpc_config.c - HTTP-TPC location defaults and inheritance.
- */
+/* ---- File: tpc_config.c — HTTP-TPC location defaults and inheritance ----
+ *
+ * WHAT: Configures HTTP third-party copy (TPC) settings for WebDAV locations. This file contains two lifecycle functions: create_loc_conf initializes TPC fields to NGX_CONF_UNSET sentinel values marking them as unset; merge_loc_conf inherits parent config values using ngx_conf_merge_* macros and applies smart defaults for curl path (/usr/bin/curl), timeout (0 = no limit), OAuth2/OIDC token delegation credentials (empty endpoint, storage.read default scope). Also implements cross-field inheritance: if TPC-specific cert/key paths are unset but general WebDAV cafile/cadir exist, copies those values to ensure TPC has certificate access even when not explicitly configured.
+ *
+ * WHY: HTTP-TPC requires curl as the transfer tool and TLS credentials for source authentication — these defaults must be inherited from parent/server configuration so individual locations can override only what they need. OAuth2/OIDC token delegation enables TPC to acquire temporary credentials for accessing remote endpoints without requiring client-side certificate exchange. The smart inheritance logic (cafile/cadir fallback, cert→key copy) reduces configuration burden by providing reasonable defaults when operators don't explicitly set every field. Thread safety: config setup runs once during nginx startup; no concurrent access after initialization. */
 
 #include "webdav.h"
 
@@ -8,8 +10,10 @@ void
 ngx_http_xrootd_webdav_tpc_create_loc_conf(
     ngx_http_xrootd_webdav_loc_conf_t *conf)
 {
-    conf->tpc = NGX_CONF_UNSET;
-    conf->tpc_timeout = NGX_CONF_UNSET_UINT;
+    conf->tpc              = NGX_CONF_UNSET;
+    conf->tpc_timeout      = NGX_CONF_UNSET_UINT;
+    conf->tpc_allow_local   = NGX_CONF_UNSET;
+    conf->tpc_allow_private = NGX_CONF_UNSET;
 }
 
 void
@@ -18,6 +22,10 @@ ngx_http_xrootd_webdav_tpc_merge_loc_conf(
     ngx_http_xrootd_webdav_loc_conf_t *prev)
 {
     ngx_conf_merge_value(conf->tpc, prev->tpc, 0);
+    /* SSRF policy: deny local, allow private by default (HEP federation nodes
+     * commonly reside on private networks, but loopback must stay blocked). */
+    ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
+    ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
     ngx_conf_merge_str_value(conf->tpc_curl, prev->tpc_curl,
                              "/usr/bin/curl");
     ngx_conf_merge_str_value(conf->tpc_cert, prev->tpc_cert, "");

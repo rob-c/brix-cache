@@ -1,0 +1,552 @@
+# Test infrastructure
+
+How the test environment is wired: server startup, PKI fixtures, token fixtures, and the per-test nginx instance lifecycle.
+
+[← Testing overview](testing-runbook.md)
+
+## Session lifecycle
+
+```
+pytest session start
+        │
+        ▼
+conftest.pytest_sessionstart()
+        │
+        ├── clear and recreate data/, pki/
+        │
+        ├── generate test files (test.txt, random.bin, large200.bin)
+        │
+        ├── pki_helpers.blitz_test_pki()  ──────────────────────────────┐
+        │       │                                                         │
+        │       ├── openssl genrsa → ca.key                              │
+        │       ├── openssl req → ca.pem (CA cert, 10 years)             │
+        │       ├── compute hash symlinks (new + old OpenSSL formats)     │
+        │       ├── write .signing_policy files                           │
+        │       ├── openssl genrsa → hostkey.pem                         │
+        │       ├── openssl req / x509 → hostcert.pem (server cert)      │
+        │       ├── openssl genrsa → userkey.pem                         │
+        │       └── openssl req / x509 → usercert.pem (user cert)       │
+        │                                                                 │
+        │   (all via subprocess calling openssl CLI)                      │
+        │                                                                 ◄┘
+        │
+        ├── utils/make_proxy.py  (Python cryptography library)
+        │       │
+        │       ├── load usercert.pem + userkey.pem
+        │       ├── generate ephemeral RSA-2048 proxy key
+        │       ├── build proxy subject: user DN + CN=12346
+        │       ├── DER-encode proxyCertInfo extension (OID 1.3.6.1.5.5.7.1.14)
+        │       │       ProxyCertInfo → ProxyPolicy → id-ppl-inheritAll
+        │       ├── sign proxy cert with user's key (SHA-256)
+        │       └── write proxy_std.pem (proxy cert + user cert + proxy key)
+        │
+        ├── manage_test_servers.sh start
+        │       │
+        │       ├── substitute_config: fill {PORT}, {CA_DIR}, {PKI} etc. into
+        │       │   tests/configs/nginx_shared.conf → /tmp/xrd-test/conf/nginx.conf
+        │       │
+        │       ├── nginx -p /tmp/xrd-test -c conf/nginx.conf
+        │       │   (starts all standard listeners: 11094-11097, 8443, 8444, 9100, ...)
+        │       │
+        │       ├── python3 utils/make_token.py init /tmp/xrd-test/tokens
+        │       │   (generates signing_key.pem + jwks.json if absent)
+        │       │
+        │       └── reference xrootd daemons (ports 11098-11100, if xrootd on PATH)
+        │
+        ├── export X509_CERT_DIR=$PKI/ca
+        └── export X509_USER_PROXY=$PKI/user/proxy_std.pem
+                │
+                ▼
+        tests run
+                │
+                ▼
+conftest.pytest_sessionfinish()
+        └── manage_test_servers.sh stop
+```
+
+### Manual Server Management
+
+During development, it is often useful to start the test servers once and run multiple `pytest` commands against them.
+
+```bash
+# Start the standard test environment
+./tests/manage_test_servers.sh start
+
+# Check status and ports
+./tests/manage_test_servers.sh status
+
+# Run tests without letting pytest manage the servers
+# (pytest detects the running servers and uses them)
+pytest tests/test_file_api.py -v
+
+# Stop everything when finished
+./tests/manage_test_servers.sh stop
+```
+
+The script manages a main nginx instance (port 11094-11097, 8443, 8444, etc.) and reference xrootd servers (if installed). Logs are written to `/tmp/xrd-test/logs/`.
+
+---
+
+VOMS proxies (`proxy_cms.pem`, `proxy_atlas.pem`) are generated lazily by `test_vo_acl.py`'s session fixture, not at global session start.
+
+---
+
+## PKI generation in detail
+
+### What `blitz_test_pki()` does
+
+`tests/pki_helpers.py:blitz_test_pki()` replaces everything under `pki/` with a canonical fresh layout. It uses the `openssl` CLI via `subprocess` and always regenerates — it is not idempotent.
+
+**CA** (`pki/ca/`):
+
+```
+openssl genrsa 4096 → ca.key (0400)
+openssl req -new -x509 -sha256 -days 3650
+    -subj "/DC=test/DC=xrootd/CN=Test XRootD CA"
+    -addext "basicConstraints=critical,CA:TRUE"
+    -addext "keyUsage=critical,keyCertSign,cRLSign"
+    → ca.pem
+```
+
+Two sets of hash symlinks are created immediately after (OpenSSL new-style `subject_hash` and old-style `subject_hash_old`), plus matching `.signing_policy` files. The signing policy restricts the CA to signing subjects under `/DC=test/DC=xrootd/`.
+
+**Server certificate** (`pki/server/`):
+
+```
+openssl genrsa 2048 → hostkey.pem (0400)
+openssl req → host.csr  (-subj "/DC=test/DC=xrootd/CN=localhost")
+openssl x509 -req -CA ca.pem -CAkey ca.key → hostcert.pem (3650 days)
+```
+
+**User certificate** (`pki/user/`):
+
+```
+openssl genrsa 2048 → userkey.pem (0400)
+openssl req → user.csr  (-subj "/DC=test/DC=xrootd/CN=Test User/CN=12345")
+openssl x509 -req -CA ca.pem -CAkey ca.key → usercert.pem (3650 days)
+```
+
+The extra `CN=12345` component simulates the UID integer that real grid user DNs carry.
+
+To skip PKI regeneration (if you have a valid PKI already):
+
+```bash
+TEST_SKIP_PKI_REGEN=1 pytest tests/test_xrootd.py -v
+```
+
+### What `make_proxy.py` does
+
+`utils/make_proxy.py` builds an RFC 3820 proxy certificate entirely in Python using the `cryptography` library. The standard `openssl req -new -x509` command cannot produce the `proxyCertInfo` extension that XRootD's `XrdSecGSI` library requires.
+
+```
+usercert.pem + userkey.pem
+        │
+        ▼
+generate RSA-2048 ephemeral proxy key
+        │
+proxy subject = user DN + CN=12346
+  /DC=test/DC=xrootd/CN=Test User/CN=12345/CN=12346
+        │
+        ▼
+DER-encode proxyCertInfo (OID 1.3.6.1.5.5.7.1.14):
+  ProxyCertInfo SEQUENCE {
+      ProxyPolicy SEQUENCE {
+          policyLanguage OID 1.3.6.1.5.5.7.21.1  -- id-ppl-inheritAll
+      }
+  }
+        │
+        ▼
+CertificateBuilder
+  .subject_name(proxy_subject)
+  .issuer_name(user_cert.subject)
+  .serial_number(12346)
+  .not_valid_before(now - 5min)   ← allow for clock skew
+  .not_valid_after(now + 12h)
+  .add_extension(proxyCertInfo, critical=True)
+  .add_extension(KeyUsage(digital_signature=True, ...), critical=True)
+  .sign(user_key, SHA256)
+        │
+        ▼
+proxy_std.pem:
+  [proxy cert PEM]
+  [user cert PEM]         ← chain for XrdSecGSI to follow
+  [proxy key PEM]
+  (file mode 0400)
+```
+
+The standard GSI proxy file layout (cert + chain + key in that order) is required by `XrdSecGSI`. Tools like `xrdcp` and `xrdfs` read `X509_USER_PROXY` and expect this layout.
+
+### VOMS proxy generation
+
+VOMS proxies are generated by `utils/voms_proxy_fake.py` — a pure-Python replacement for the C++ `voms-proxy-fake` tool from the VOMS project. It does not require a running VOMS server. The test suite uses it automatically; if the Python script is not present, it falls back to the system `voms-proxy-fake` binary.
+
+```
+usercert.pem + userkey.pem  (proxy issuer)
+vomscert.pem + vomskey.pem  (VOMS signing authority)
+        │
+        ▼
+Build VOMS Attribute Certificate (DER, manually encoded):
+  AttributeCertificate SEQUENCE {
+      TBSAttributeCertificate:
+          version INTEGER 1      -- v2
+          holder:
+              baseCertificateID [0] {
+                  issuer GeneralNames = user cert subject
+                  serial = user cert serial
+              }
+          issuer [0] v2Form { issuerName = VOMS cert subject }
+          sigAlg AlgorithmIdentifier  -- SHA256WithRSA
+          serial INTEGER 1
+          validity { notBefore, notAfter }
+          attributes SEQUENCE {
+              Attribute {
+                  attrType OID 1.3.6.1.4.1.8005.100.100.4  -- VOMS FQANs
+                  values SET {
+                      SEQUENCE {
+                          [0] { [6] "cms://voms.test.local:15000" }  -- policy authority
+                          SEQUENCE { OCTET STRING "/cms/Role=NULL/Capability=NULL" }
+                      }
+                  }
+              }
+          }
+          extensions SEQUENCE {
+              -- OID 1.3.6.1.4.1.8005.100.100.10: embed the VOMS signing cert DER
+              -- OID 2.5.29.56: noRevocationAvailable
+              -- OID 2.5.29.35: authorityKeyIdentifier (VOMS cert's SKI)
+          }
+      sigAlg AlgorithmIdentifier
+      signature BIT STRING = VOMS key signs TBS
+  }
+        │
+        ▼
+Build RFC 3820 proxy cert (same as make_proxy.py, but adds two extensions):
+  OID 1.3.6.1.4.1.8005.100.100.5  -- VOMS AC extension  ← the AC DER, wrapped
+  OID 1.3.6.1.5.5.7.1.14          -- proxyCertInfo
+        │
+        ▼
+proxy_cms.pem or proxy_atlas.pem:
+  [proxy cert PEM]   ← contains the VOMS AC in its extension
+  [proxy key PEM]
+  [user cert PEM]
+  (file mode 0400, written atomically via mkstemp + rename)
+```
+
+The VOMS AC holder field uses the user cert's subject DN as `issuer` (VOMS convention — confusingly named). `libvomsapi`'s `VOMS_Retrieve()` function locates the AC by matching this field against the user's identity.
+
+**Generating VOMS infrastructure in tests:**
+
+`test_vo_acl.py` creates the VOMS signing cert and `vomsdir` LSC files on first run. The VOMS signing cert requires a `SubjectKeyIdentifier` extension so that the AC's `AuthorityKeyIdentifier` can reference it. The session fixture caches these on disk; to regenerate, delete the `pki/voms/` directory:
+
+```bash
+rm -rf /tmp/xrd-test/pki/voms/ /tmp/xrd-test/pki/vomsdir/
+pytest tests/test_vo_acl.py -v
+```
+
+**vomsdir LSC file format:**
+
+```
+/DC=test/DC=xrootd/CN=voms.test.local      ← VOMS signing cert subject DN
+/DC=test/DC=xrootd/CN=Test XRootD CA       ← issuer of the VOMS signing cert
+```
+
+Each VO gets a directory under `vomsdir/` named after the VO, containing one `.lsc` file named after the VOMS server hostname.
+
+### CRL generation
+
+`utils/make_crl.py` generates a PEM CRL that revokes the user certificate:
+
+```python
+CertificateRevocationListBuilder()
+    .issuer_name(ca_cert.subject)
+    .last_update(now - 1h)
+    .next_update(now + 30d)
+    .add_revoked_certificate(
+        RevokedCertificateBuilder()
+        .serial_number(user_cert.serial_number)
+        .revocation_date(now - 1h)
+        .build()
+    )
+    .sign(ca_key, SHA256)
+```
+
+Usage:
+
+```bash
+# Revoke user cert, write CRL to pki/ca/test-user.crl.pem
+python3 utils/make_crl.py /tmp/xrd-test/pki
+
+# Revoke a different cert
+python3 utils/make_crl.py /tmp/xrd-test/pki --cert pki/server/hostcert.pem \
+    --out pki/ca/server.crl.pem --days 7
+```
+
+CRL tests spin up their own nginx instances via `server_control.py` and do not affect the main test servers.
+
+---
+
+## Token infrastructure
+
+JWT/WLCG bearer tokens are managed by `utils/make_token.py:TokenIssuer`. Tokens are generated in-process in tests — no CLI call is needed.
+
+### How tokens are initialized
+
+The main nginx config (`nginx_shared.conf`) references `{TOKEN_DIR}/jwks.json`. `manage_test_servers.sh` calls `python3 utils/make_token.py init {TOKEN_DIR}` to generate the RSA-2048 signing keypair and JWKS before starting nginx.
+
+The JWKS:
+
+```json
+{
+  "keys": [{
+    "kty": "RSA",
+    "kid": "test-key-1",
+    "use": "sig",
+    "alg": "RS256",
+    "n": "<base64url(modulus)>",
+    "e": "AQAB"
+  }]
+}
+```
+
+`n` and `e` are the RSA public key parameters. The server verifies every token's RS256 signature against this key.
+
+### Generating tokens in tests
+
+```python
+from utils.make_token import TokenIssuer
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+issuer = TokenIssuer("/tmp/xrd-test/tokens")
+
+# Valid read-only token
+token = issuer.generate(scope="storage.read:/")
+
+# Read-write token for /data
+token = issuer.generate(scope="storage.read:/ storage.write:/data")
+
+# Token with WLCG group claims (maps to VO groups in xrootd_require_vo)
+token = issuer.generate(scope="storage.read:/", groups=["/cms", "/atlas"])
+
+# Custom subject and lifetime
+token = issuer.generate(sub="service-account", scope="storage.read:/", lifetime=86400)
+
+# Negative-test tokens
+expired   = issuer.generate_expired()
+bad_sig   = issuer.generate_bad_signature()
+wrong_iss = issuer.generate_wrong_issuer()
+wrong_aud = issuer.generate_wrong_audience()
+no_scope  = issuer.generate_no_scope()
+```
+
+### Token structure
+
+Every token is a three-part base64url-encoded JWT:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InRlc3Qta2V5LTEifQ
+.
+eyJpc3MiOiJodHRwczovL3Rlc3QuZXhhbXBsZS5jb20iLCJzdWIiOiJ0ZXN0dXNlciIsImF1ZCI...
+.
+<RS256 signature over header.payload>
+```
+
+Header:
+```json
+{ "alg": "RS256", "typ": "JWT", "kid": "test-key-1" }
+```
+
+Payload:
+```json
+{
+  "iss": "https://test.example.com",
+  "sub": "testuser",
+  "aud": "nginx-xrootd",
+  "exp": 1713400000,
+  "iat": 1713396400,
+  "nbf": 1713396400,
+  "scope": "storage.read:/",
+  "wlcg.ver": "1.0"
+}
+```
+
+Inspect any token with:
+
+```bash
+python3 utils/inspect_token.py "$BEARER_TOKEN"
+```
+
+For full token documentation, see [test-tokens.md](../06-authentication/test-token-generation.md).
+
+---
+
+## Per-test nginx instances
+
+Many tests spin up their own nginx process for the duration of the test, using `server_control.start_nginx_instance()`. These instances are isolated from each other and from the main test servers.
+
+### How it works
+
+```python
+# tests/server_control.py
+
+def start_nginx_instance(
+    port=None,           # auto-assigned via _free_port() if None
+    nginx_bin=None,      # defaults to TEST_NGINX_BIN env var
+    conf_file=None,      # path relative to tests/configs/ (optional)
+    conf_text=None,      # inline config string (optional)
+    template_kwargs=None # extra {KEY} → value substitutions
+) -> dict:
+    # Returns: {"port": int, "stop": callable, "conf_path": str, ...}
+```
+
+`{PORT}`, `{LOG_DIR}`, `{TMP_DIR}`, `{DATA_DIR}`, `{SERVER_CERT}`, `{SERVER_KEY}`, `{CA_CERT}` are automatically substituted. Extra placeholders are passed via `template_kwargs`. Use `{{` and `}}` in your config template for literal nginx block braces.
+
+Each instance gets its own isolated directory under `/tmp/xrd-test/instances/nginx-<uuid>/`.
+
+### Writing a per-test fixture
+
+```python
+import pytest
+import server_control
+from settings import NGINX_BIN
+
+@pytest.fixture(scope="module")
+def my_server(tmp_path_factory):
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
+
+    data_dir = tmp_path_factory.mktemp("mytest-data")
+    (data_dir / "hello.txt").write_text("hello world")
+
+    conf = """
+worker_processes 1;
+error_log {LOG_DIR}/error.log debug;
+pid       {LOG_DIR}/nginx.pid;
+events {{ worker_connections 128; }}
+stream {{
+    server {{
+        listen 127.0.0.1:{PORT};
+        xrootd on;
+        xrootd_root {DATA_DIR};
+        xrootd_auth none;
+    }}
+}}
+"""
+    info = server_control.start_nginx_instance(
+        conf_text=conf,
+        template_kwargs={"DATA_DIR": str(data_dir)},
+    )
+    yield info
+    info["stop"]()
+```
+
+### Inline config substitution rules
+
+| Template token | Substituted with |
+|---|---|
+| `{PORT}` | auto-assigned free port |
+| `{LOG_DIR}` | instance log directory |
+| `{TMP_DIR}` | instance tmp directory |
+| `{DATA_DIR}` | instance data directory (or `template_kwargs["DATA_DIR"]`) |
+| `{SERVER_CERT}` | `/tmp/xrd-test/pki/server/hostcert.pem` |
+| `{SERVER_KEY}` | `/tmp/xrd-test/pki/server/hostkey.pem` |
+| `{CA_CERT}` | `/tmp/xrd-test/pki/ca/ca.pem` |
+| `{KEY}` | `template_kwargs["KEY"]` |
+| `{{` / `}}` | literal `{` / `}` (for nginx block braces) |
+
+### Multi-server fixtures
+
+For tests that require two or more nginx processes (e.g., redirector + data server):
+
+```python
+@pytest.fixture(scope="module")
+def cluster(tmp_path_factory):
+    cms_port   = server_control._free_port()
+    redir_port = server_control._free_port()
+    ds_port    = server_control._free_port()
+    data_dir   = tmp_path_factory.mktemp("cluster-data")
+    (data_dir / "test.txt").write_text("hello")
+
+    redir = server_control.start_nginx_instance(
+        port=redir_port,
+        conf_text=REDIRECTOR_CONF,
+        template_kwargs={"CMS_PORT": cms_port},
+    )
+    ds = server_control.start_nginx_instance(
+        port=ds_port,
+        conf_text=DATASERVER_CONF,
+        template_kwargs={"CMS_PORT": cms_port, "DATA_DIR": str(data_dir)},
+    )
+    time.sleep(1.0)   # allow CMS registration to complete
+    yield {"redir_port": redir_port, "ds_port": ds_port, ...}
+    ds["stop"]()
+    redir["stop"]()
+```
+
+---
+
+## Standard server ports
+
+The main shared nginx instance (started once per session) listens on these fixed ports:
+
+| Port | Protocol | Auth | Description |
+|---|---|---|---|
+| 11094 | `root://` | None | Anonymous XRootD data server |
+| 11095 | `root://` | GSI | GSI-authenticated XRootD data server |
+| 11096 | `roots://` | GSI+TLS | GSI + transport TLS (`roots://`) |
+| 11097 | `root://` | Token | Bearer-token XRootD data server |
+| 8443 | `davs://` | GSI + Token | WebDAV over HTTPS (GSI optional) |
+| 8444 | `davs://` | GSI required | WebDAV over HTTPS (GSI required auth, proxy cert mandatory) |
+| 8080 | `http://` | None | HTTP WebDAV (no TLS) |
+| 9100 | HTTP | — | Prometheus metrics endpoint |
+| 9001 | HTTP | — | S3-style endpoint |
+| 11098 | `root://` | None | Reference `xrootd` daemon (anonymous) |
+| 11099 | `root://` | GSI | Reference `xrootd` daemon (GSI) |
+| 11100 | `root://` | GSI | Reference `xrootd` daemon (GSI, shared data) |
+| 11101 | `root://` | — | Manager-mode test port |
+| 11103 | `root://` | GSI | VO ACL test port |
+| 18444–18456 | `davs://` | Various | WebDAV auth-cache and TPC test ports |
+
+Per-test instances use auto-assigned ephemeral ports.
+
+---
+
+## Test categories
+
+| File | What it tests | Credentials |
+|---|---|---|
+| `test_xrootd.py` | Core XRootD opcodes: stat, dirlist, read, write, rm, mkdir | GSI proxy |
+| `test_conformance.py` | Wire-level protocol conformance against reference xrootd | GSI proxy |
+| `test_file_api.py` | `kXR_open`, `kXR_read`, `kXR_write`, `kXR_close` semantics | Anonymous |
+| `test_fs_ops.py` | `kXR_mkdir`, `kXR_rmdir`, `kXR_mv`, `kXR_chmod`, `kXR_stat` | Anonymous |
+| `test_write.py` | `kXR_write`, `kXR_pgwrite`, `kXR_writev`, append, overwrite | Anonymous |
+| `test_readv.py` | `kXR_readv` scatter-gather reads | Anonymous |
+| `test_aio.py` | Async I/O thread pool: concurrent reads, deep concurrency | Anonymous |
+| `test_concurrent.py` | Concurrent multi-session reads | Anonymous |
+| `test_new_opcodes.py` | `kXR_bind`, `kXR_set`, `kXR_prepare`, `kXR_fattr`, `kXR_query` | GSI proxy |
+| `test_opcode_coverage.py` | All 33 opcodes respond with correct status | Anonymous + GSI |
+| `test_gsi_tls.py` | GSI over `roots://` (transport TLS) | GSI proxy |
+| `test_gsi_bridge.py` | nginx-xrootd ↔ reference xrootd GSI interoperability | GSI proxy |
+| `test_vo_acl.py` | `xrootd_require_vo` path-based VO enforcement | VOMS proxy (CMS, ATLAS, plain) |
+| `test_crl.py` | CRL: stream revocation, WebDAV revocation, CRL reload | GSI proxy (revoked user) |
+| `test_sigver_verify.py` | Request signing verification (`kXR_sigver`) | GSI proxy |
+| `test_session_bind.py` | `kXR_bind` parallel streams | Anonymous |
+| `test_token_auth.py` | JWT/WLCG bearer token auth (stream + WebDAV) | Bearer token |
+| `test_webdav.py` | WebDAV: GET, HEAD, PUT, DELETE, MKCOL, PROPFIND, OPTIONS | GSI proxy + token |
+| `test_webdav_auth_cache.py` | Connection and session cert cache | GSI proxy |
+| `test_webdav_tpc.py` | WebDAV HTTP-TPC COPY pull | GSI proxy |
+| `test_webdav_clients.py` | `curl`, `davix-get` interoperability | GSI proxy |
+| `test_http_webdav.py` | HTTP WebDAV (no TLS) | Anonymous |
+| `test_root_tpc.py` | XRootD TPC pull (`kXR_open` with TPC options) | Anonymous + GSI |
+| `test_upstream_redirect.py` | `xrootd_upstream` proxy: redirect, wait, waitresp, error | Anonymous |
+| `test_manager_mode.py` | Static `xrootd_manager_map` + live two-tier cluster | Anonymous |
+| `test_cms.py` | CMS heartbeat protocol (outbound client) | — |
+| `test_metrics.py` | Prometheus `/metrics` endpoint: counters, labels | Anonymous |
+| `test_protocol_edge_cases.py` | Malformed requests, connection reuse, pipelining | Anonymous |
+| `test_security_hardening.py` | Path traversal, injection attempts, privilege checks | Anonymous |
+| `test_query.py` | `kXR_query` subtypes: Qcksum, Qspace, Qconfig, QStats, Qxattr | Anonymous |
+| `test_throughput.py` | Throughput benchmark: large sequential read, write | Anonymous |
+| `test_fattr_query.py` | Extended attributes: get/set/del/list round-trips | Anonymous |
+| `test_s3.py` | S3-style endpoint | Anonymous |
+| `test_prepare_staging.py` | `kXR_prepare` staging requests | Anonymous |
+
+---

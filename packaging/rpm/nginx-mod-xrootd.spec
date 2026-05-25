@@ -16,6 +16,8 @@ BuildRequires:  nginx-mod-devel
 BuildRequires:  openssl-devel
 BuildRequires:  pcre2-devel
 BuildRequires:  zlib-devel
+BuildRequires:  libxml2-devel
+BuildRequires:  jansson-devel
 
 # nginx-mod-stream provides the stream {} core that our modules load into.
 # openssl-libs: directly linked (-lssl -lcrypto) — auto-detected by find-requires
@@ -38,7 +40,7 @@ and Prometheus metrics support.
 %autosetup -n %{upstream_name}-%{version}
 
 %build
-%nginx_modconfigure --with-threads --with-stream=dynamic --with-stream_ssl_module --with-http_ssl_module
+%nginx_modconfigure --with-threads --with-stream=dynamic --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module
 %nginx_modbuild
 
 %install

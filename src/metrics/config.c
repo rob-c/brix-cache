@@ -1,5 +1,15 @@
 #include "../config/config.h"
 
+/*
+ * WHAT: Configure the Prometheus metrics shared-memory zone and assign per-listener slots.
+ * WHY: All server blocks share a single atomic counters region so workers can increment
+ *      counters lock-free via ngx_atomic_t fields. Each listener gets a deterministic slot
+ *      number that becomes a stable Prometheus label source (low-cardinality invariant).
+ * HOW: Add shared memory zone "xrootd_metrics" with sizeof(ngx_xrootd_metrics_t)+one-page
+ *      headroom; register the shm_init callback; iterate cmcf->servers to assign slots 0..N
+ *      to enabled listeners. Returns NGX_OK or NGX_ERROR on allocation failure.
+ */
+
 ngx_int_t
 xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
 {
@@ -36,7 +46,7 @@ xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
     for (i = 0; i < cmcf->servers.nelts; i++) {
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
                                                    ngx_stream_xrootd_module);
-        if (!xcf->enable || slot >= XROOTD_METRICS_MAX_SERVERS) {
+        if (!xcf->common.enable || slot >= XROOTD_METRICS_MAX_SERVERS) {
             continue;
         }
 
@@ -48,8 +58,16 @@ xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
 }
 
 /*
- * ngx_xrootd_metrics_shm_init - shared memory zone init callback.
+ * WHAT: Initialize (or reuse) the shared memory zone containing Prometheus counters.
+ * WHY: nginx reloads preserve existing shared-memory mappings; without this logic every
+ *      config reload would zero live counters, losing historical metrics data. The `data`
+ *      parameter is a sentinel (1 on first setup) that distinguishes fresh allocation from
+ *      reuse-after-reload.
+ * HOW: If `data` is non-NULL we're reusing an existing zone — return it as-is with NGX_OK.
+ *      On first init, zero the freshly mapped region via ngx_memzero and cast its address
+ *      to ngx_xrootd_metrics_t for typed access by request paths.
  */
+
 ngx_int_t
 ngx_xrootd_metrics_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {

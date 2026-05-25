@@ -1,6 +1,5 @@
 #include "cache_internal.h"
 
-#if (NGX_THREADS)
 
 #include <fcntl.h>
 #include <netdb.h>
@@ -10,6 +9,36 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+/* ---- xrootd_cache_origin_close — teardown origin TCP/TLS connection ----
+ *
+ * WHAT: Releases all resources held by an origin connection struct. Frees SSL/SSL_CTX,
+ *       closes the socket fd, and nullifies all pointers to prevent use-after-free.
+ *
+ * WHY: Called on every error path after a failed fetch attempt. Must be symmetric with
+ *      origin_connect — every allocated resource must be freed regardless of success/failure.
+ *      Order matters: SSL shutdown before free, SSL_CTX before fd close, fd last to avoid
+ *      dangling references in the SSL layer. */
+
+/* ---- xrootd_cache_origin_connect_addr — DNS resolve + connect + TLS handshake ----
+ *
+ * WHAT: Resolves host/port via getaddrinfo, iterates addrinfo results trying each socket,
+ *       connects with non-blocking poll timeout (avoids ~2min TCP retransmit stall), sets
+ *       SO_RCVTIMEO/SO_SNDTIMEO, then optionally performs TLS handshake with CA verification.
+ *
+ * WHY: Cache fill runs in a thread-pool worker that blocks. Unlike the event-loop main
+ *      thread which uses epoll, this function must handle connect completion via poll().
+ *      The poll timeout (XROOTD_CACHE_IO_TIMEOUT) prevents unreachable peers from holding
+ *      the thread indefinitely. SO_RCVTIMEO/SO_SNDTIMEO bound all subsequent read/write.
+ *      TLS is optional — if cache_origin_tls is set, creates SSL_CTX with CA verification,
+ *      allocates SSL object, sets SNI hostname, and performs SSL_connect(). */
+
+/* ---- xrootd_cache_origin_connect — thin wrapper for origin connect ----
+ *
+ * WHAT: Convenience function that calls origin_connect_addr using the configured origin
+ *       host/port from conf. Returns 0 on success (connected + TLS if configured), -1 on error.
+ *
+ * WHY: Separates address resolution/connect logic from fill_t configuration access so that
+ *      callers without a full xrootd_cache_fill_t can connect to arbitrary hosts/ports. */
 void
 xrootd_cache_origin_close(xrootd_cache_origin_conn_t *oc)
 {
@@ -89,10 +118,9 @@ cache_connect_with_timeout(int fd, const struct sockaddr *addr,
     return 0;
 }
 
-
 int
-xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc)
+xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t portnum)
 {
     struct addrinfo  hints;
     struct addrinfo *res, *rp;
@@ -105,14 +133,21 @@ xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
     res = NULL;
     rc = -1;
 
-    snprintf(port, sizeof(port), "%u", (unsigned) t->conf->cache_origin_port);
+    if (host == NULL || host->len == 0 || host->data == NULL
+        || portnum == 0)
+    {
+        xrootd_cache_set_error(t, kXR_ServerError, 0,
+                               "cache origin address not configured");
+        return -1;
+    }
+
+    snprintf(port, sizeof(port), "%u", (unsigned) portnum);
 
     ngx_memzero(&hints, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_UNSPEC;
 
-    if (getaddrinfo((char *) t->conf->cache_origin_host.data, port,
-                    &hints, &res) != 0) {
+    if (getaddrinfo((char *) host->data, port, &hints, &res) != 0) {
         xrootd_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin DNS resolution failed");
         return -1;
@@ -179,8 +214,7 @@ xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
             return -1;
         }
 
-        (void) SSL_set_tlsext_host_name(oc->ssl,
-                                        (char *) t->conf->cache_origin_host.data);
+        (void) SSL_set_tlsext_host_name(oc->ssl, (char *) host->data);
         SSL_set_fd(oc->ssl, oc->fd);
 
         if (SSL_connect(oc->ssl) != 1) {
@@ -193,4 +227,12 @@ xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
     return 0;
 }
 
-#endif /* NGX_THREADS */
+int
+xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc)
+{
+    return xrootd_cache_origin_connect_addr(t, oc,
+                                            &t->conf->cache_origin_host,
+                                            t->conf->cache_origin_port);
+}
+

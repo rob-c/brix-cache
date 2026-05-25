@@ -675,10 +675,10 @@ class TestRmdir:
         status, _ = fs.rmdir(f"/{PREFIX}rmdir_full")
         assert not status.ok, "Expected rmdir of non-empty dir to fail"
 
-    def test_rmdir_nonexistent_fails(self):
+    def test_rmdir_nonexistent_is_idempotent(self):
         fs = anon_fs()
         status, _ = fs.rmdir(f"/{PREFIX}rmdir_ghost")
-        assert not status.ok, "Expected rmdir of nonexistent dir to fail"
+        assert status.ok, f"rmdir of nonexistent dir should be idempotent: {status.message}"
 
     def test_rmdir_on_file_fails(self):
         """rmdir on a regular file must fail."""
@@ -713,12 +713,13 @@ class TestRm:
         status, _ = fs.rm(f"/{PREFIX}rm_ghost.txt")
         assert not status.ok, "Expected rm of nonexistent file to fail"
 
-    def test_rm_directory_fails(self):
-        """rm on a directory must fail; use rmdir instead."""
+    def test_rm_empty_directory(self):
+        """Reference XRootD treats rm of an empty directory like rmdir."""
         os.makedirs(disk(f"{PREFIX}rm_dir"), exist_ok=True)
         fs = anon_fs()
         status, _ = fs.rm(f"/{PREFIX}rm_dir")
-        assert not status.ok, "Expected rm on directory to fail"
+        assert status.ok, f"Expected rm on empty directory to succeed: {status.message}"
+        assert not os.path.exists(disk(f"{PREFIX}rm_dir"))
 
     def test_rm_gsi(self):
         p = disk(f"{PREFIX}rm_gsi.txt")

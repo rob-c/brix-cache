@@ -1,9 +1,39 @@
+#include "../ngx_xrootd_module.h"
 #include "stat.h"
 #include <string.h>
 
+/* ------------------------------------------------------------------ */
+/* File Stat — kXR_stat and kXR_statx metadata query handlers            */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: This file implements the kXR_stat opcode — querying file metadata (inode, size, flags, mtime). The handler supports two modes:
+ *      path-based stat (stat(2) syscall on filesystem path) and handle-based stat (fstat(2) syscall on open file descriptor). Both modes
+ *      return identical ASCII-formatted body containing inode number, file size in bytes, permission flags (readable/writable/cachersp),
+ *      and modification time. In VFS mode (kXR_vfs flag), the format expands to include additional filesystem statistics.
+ *
+ * WHY: Stat is one of the most frequently called opcodes — clients query metadata before opening files, during directory listing iterations,
+ *      and for cache-hit validation. Handle-based stat provides fast metadata access without re-resolving paths (uses cached canonical path).
+ *      Cache flag detection helps clients distinguish between local cached content vs origin content for prefetch optimization.
+ *
+ * HOW: Two-mode flow → parse options (kXR_vfs flag) → if dlen > 0: extract/clean/resolve path + authdb/VO ACL/token scope check + stat(2) + cache flag detection,
+ *      else: validate handle + fstat(2) on cached FD + from_cache flag → format body via xrootd_make_stat_body() → return kXR_ok with ASCII body payload. */
+
+/* ------------------------------------------------------------------ */
+/* Section: Cache Flag Detection (kXR_cachersp)                         */
+/* ------------------------------------------------------------------ */
+/*
+ * WHAT: Helper function that checks whether a requested path exists in the local cache (conf->cache_root). Returns kXR_cachersp flag if found, 0 otherwise.
+ *      This flag tells clients the file is served from cache rather than origin — useful for prefetch optimization and caching metrics.
+ *
+ * WHY: Clients can optimize read patterns when they know content is cached locally. The cachersp flag in stat body enables downstream logic to skip origin fetches
+ *      for repeated access patterns, reducing latency across session boundaries. This is particularly valuable for large files accessed by multiple clients.
+ *
+ * HOW: Three-step validation → cache enabled check (skip if disabled or cache_root empty) → build cache_path = conf->cache_root + reqpath → stat(2) on cache path →
+ *      return kXR_cachersp if regular file exists, 0 otherwise. Uses PATH_MAX buffer to prevent overflow. */
+
 /* Return kXR_cachersp if reqpath (client's clean path) exists in cache_root. */
-static int
-stat_cache_flags(const ngx_stream_xrootd_srv_conf_t *conf, const char *reqpath)
+int
+xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf, const char *reqpath)
 {
     char        cache_path[PATH_MAX];
     struct stat cst;
@@ -22,6 +52,22 @@ stat_cache_flags(const ngx_stream_xrootd_srv_conf_t *conf, const char *reqpath)
     return (stat(cache_path, &cst) == 0 && S_ISREG(cst.st_mode))
            ? kXR_cachersp : 0;
 }
+
+/* ---- Function: xrootd_handle_stat() ----
+ *
+ * WHAT: Handles the kXR_stat opcode — queries file metadata in two modes: path-based stat (stat(2) syscall on filesystem path) and handle-based stat (fstat(2)
+ *      syscall on open file descriptor). Returns ASCII-formatted body containing inode number, file size, permission flags (readable/writable/cachersp), and mtime.
+ *      Supports VFS mode expansion via kXR_vfs flag. Both modes require authdb/VO ACL/token scope checks before returning metadata.
+ *
+ * WHY: Stat is one of the most frequently called opcodes — clients query metadata before opening files, during directory listing iterations, and for cache-hit validation. Handle-based stat provides fast metadata access without re-resolving paths (uses cached canonical path). Cache flag detection helps clients distinguish between local cached content vs origin content for prefetch optimization.
+ *
+ * HOW: Two-mode flow → parse options (kXR_vfs flag) — if dlen > 0: extract/clean/resolve path + authdb/VO ACL/token scope check + stat(2) + cache flag detection via xrootd_cache_path_flag(), else: validate handle + fstat(2) on cached FD + from_cache flag → format body via xrootd_make_stat_body() — return kXR_ok with ASCII body payload. Logging uses resolved path for handle-based stats.
+ *
+ * Parameters:
+ *   ctx  - stream session context (payload, hdr_buf, cur_dlen, files[])
+ *   c    - nginx connection (log, ssl state)
+ *   conf - server config (root, cache, vo_rules)
+ */
 
 ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf)
 {
@@ -55,7 +101,7 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
         }
         reqpath = reqpath_buf;
 
-        if (!xrootd_resolve_path(c->log, &conf->root,
+        if (!xrootd_resolve_path(c->log, &conf->common.root,
                                  reqpath, resolved, sizeof(resolved))) {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath, "-",
                               kXR_NotFound, "file not found");
@@ -82,7 +128,7 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                               kXR_NotFound, "file not found");
         }
 
-        extra_flags = stat_cache_flags(conf, reqpath);
+        extra_flags = xrootd_cache_path_flag(conf, reqpath);
 
     } else {
         /* Handle-based stat: fhandle[0] is our slot index. */

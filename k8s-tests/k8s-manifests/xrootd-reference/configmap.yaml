@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: xrootd-reference-config
+  namespace: xrootd-integration
+data:
+  # Set by launch-xrootd-integration.sh using --set-string.
+  auth_mode: "anonymous"
+  token_issuer: "https://test.xrootd.local"
+  token_audience: "xrootd-test"
+  jwks_url: "http://jwks-server:8080/jwks.json"
+
+  # Authorization database — written here so it can be mounted as a file.
+  authdb: |
+    # xrootd acc.authdb
+    # Allow all DNs under /DC=test/ full read+write access.
+    g /DC=test/DC=xrootd/** /
+    u xrootd / / rw /

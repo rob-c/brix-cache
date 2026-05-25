@@ -3,7 +3,24 @@
 #include <errno.h>
 #include <string.h>
 
-#if (NGX_THREADS)
+
+/* ---- xrootd_cache_open_or_fill — cache open-on-hit / schedule-fill entry point ----
+ *
+ * WHAT: Public entry point called when a kXR_open request hits. Decides whether to serve from cached file or schedule a fill worker.
+ *       If cache_path exists and is ready → opens directly from cache (fast path). Otherwise allocates a thread-pool task for origin fetch. */
+
+/* ---- Open decision logic ----
+ *
+ * HOW: Check xrootd_cache_file_ready() return value: 1 = file present and complete → serve immediately; -1 = check failed → error; else → schedule fill. */
+
+/* ---- Task allocation invariant ----
+ *
+ * WHY: Uses ngx_thread_task_alloc (not pool-alloc) because task ctx is accessed by a separate thread-pool worker.
+ *      The task struct contains all context needed for the fetch operation including streamid, options, and both clean_path/cache_path. */
+
+/* ---- Thread posting flow ----
+ *
+ * HOW: Post task to conf->common.thread_pool → set client state to XRD_ST_AIO (AIO phase) → wait for completion callback xrootd_cache_fill_done. */
 
 ngx_int_t
 xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -26,7 +43,7 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_IOError, strerror(errno));
     }
 
-    if (conf->thread_pool == NULL) {
+    if (conf->common.thread_pool == NULL) {
         xrootd_log_access(ctx, c, "OPEN", clean_path, "cache",
                           0, kXR_ServerError, "cache thread pool missing", 0);
         XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
@@ -70,7 +87,7 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
     task->event.handler = xrootd_cache_fill_done;
     task->event.data = task;
 
-    if (ngx_thread_task_post(conf->thread_pool, task) != NGX_OK) {
+    if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
         xrootd_log_access(ctx, c, "OPEN", clean_path, "cache",
                           0, kXR_ServerError, "cache thread post failed", 0);
         XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
@@ -82,23 +99,3 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
-#else
-
-ngx_int_t
-xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const char *clean_path,
-    const char *cache_path, uint16_t options, uint16_t mode_bits)
-{
-    (void) conf;
-    (void) cache_path;
-    (void) options;
-    (void) mode_bits;
-
-    xrootd_log_access(ctx, c, "OPEN", clean_path, "cache",
-                      0, kXR_ServerError, "cache requires thread support", 0);
-    XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-    return xrootd_send_error(ctx, c, kXR_ServerError,
-                             "cache requires thread support");
-}
-
-#endif /* NGX_THREADS */

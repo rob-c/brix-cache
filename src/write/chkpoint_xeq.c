@@ -4,6 +4,12 @@
 #include <string.h>
 #include <unistd.h>
 
+/* ---- Function: ckp_xeq_write() — kXR_ckpXeq sub-op: write under checkpoint ---- */
+/* WHAT: Performs a single pwrite to the checkpointed file at the specified offset. Validates handle matches idx, writes sub_dlen bytes via pwrite(),
+ *      updates byte counters and sends success response. Handles zero-length payloads (no-op).
+ * WHY: ckpXeq write is the atomic transactional write operation — when executed under an active checkpoint, this write becomes "tentative" until commit/rollback.
+ *      The handle mismatch check prevents cross-file corruption during checkpointed operations.
+ * HOW: 1) Validate fhandle[0] == idx. 2) Handle zero-length payload as no-op. 3) pwrite(sub_payload, sub_dlen, offset). 4) Update counters + send_ok. */
 
 static ngx_int_t
 ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -41,6 +47,12 @@ ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
 
+/* ---- Function: ckp_xeq_pgwrite() — kXR_ckpXeq sub-op: pgwrite with CRC32c verification ---- */
+/* WHAT: Performs a page-write under checkpoint protection, decoding the pgwrite payload (per-page CRC32c framing) into flat data,
+ *      then writing in XRD_PGWRITE_PAGESZ-sized chunks. Validates checksum integrity before committing writes.
+ * WHY: kXR_pgwrite uses per-page CRC32c for data integrity verification — critical for large file transfers where partial corruption must be detected.
+ *      Under ckpXeq, the pgwrite becomes tentative until commit; checksum mismatch rejection prevents corrupted data from entering the checkpoint.
+ * HOW: 1) Validate handle + offset + payload size (> XRD_PGWRITE_CKSZ). 2) Decode payload via xrootd_pgwrite_decode_payload (CRC32c verification). 3) Write in PAGE-sized chunks loop. 4) Send pgwrite_status with final offset. */
 
 static ngx_int_t
 ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -133,6 +145,11 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_pgwrite_status(ctx, c, write_offset);
 }
 
+/* ---- Function: ckp_xeq_truncate() — kXR_ckpXeq sub-op: truncate under checkpoint ---- */
+/* WHAT: Truncates the checkpointed file to a specified length via ftruncate(). Always handle-based (path-based not supported in ckpXeq).
+ * WHY: Transactional write semantics allow shrinking files as part of tentative operations; rollback restores original size from checkpoint.
+ *      Handle mismatch check prevents cross-file corruption during truncated operations under checkpoint protection.
+ * HOW: 1) Validate fhandle[0] == idx. 2) Decode offset as truncate length (be64toh). 3) ftruncate() to target length. */
 
 static ngx_int_t
 ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -158,6 +175,12 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
 
+/* ---- Function: ckp_xeq_writev() — kXR_ckpXeq sub-op: vectorized multi-segment write ---- */
+/* WHAT: Performs a vectorized write under checkpoint protection, parsing multiple segments from the payload (each segment = fhandle+offset+wlen header + data),
+ *      validating all segments target the checkpointed handle idx, then pwriting each segment sequentially. Enforces XROOTD_WRITEV_MAXSEGS limit.
+ * WHY: kXR_writev enables efficient multi-offset writes in a single request — critical for sparse file operations and chunked transfers under checkpoint.
+ *      Under ckpXeq all segments must target the same handle (idx); handle mismatch in any segment is rejected to prevent cross-file corruption.
+ * HOW: 1) Parse payload header segments, validate total size matches sub_dlen. 2) Check each fhandle[0] == idx. 3) Skip zero-length segments. 4) pwrite each data chunk sequentially. */
 
 static ngx_int_t
 ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -232,7 +255,6 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
                       "xeq_writev", 1, kXR_ok, NULL, bytes_written_total);
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
-
 
 ngx_int_t
 ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
