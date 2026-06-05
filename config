@@ -109,7 +109,6 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/compat/http_query.h \
                         $ngx_addon_dir/src/compat/http_xml.h \
                         $ngx_addon_dir/src/compat/copy_range.h \
-                        /* error_mapping.h replaces http_errno.h + kxr_errno.h + result_mapper.h */
                         $ngx_addon_dir/src/compat/io.h \
                         $ngx_addon_dir/src/compat/staged_file.h \
                         $ngx_addon_dir/src/compat/tmp_path.h \
