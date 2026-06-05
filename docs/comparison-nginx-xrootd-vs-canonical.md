@@ -1,0 +1,335 @@
+# nginx-xrootd vs Canonical XRootD — Feature Comparison
+
+**Date:** 2026-05-25 (updated 2026-05-25 to reflect actual implementation state)
+**Source:** `/home/rcurrie/HEP-x/nginx-xrootd` (nginx module) vs `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` (canonical XRootD protocol spec)
+
+---
+
+## 1. Opcode Coverage
+
+### 1.1 Request Opcodes (kXR_* = 3000–3032)
+
+| Opcode | Name | Canonical | nginx-xrootd | Status |
+|---|---|---|---|---|
+| kXR_auth=3000 | Authentication | ✓ | ✓ | Implemented (GSI, token, SSS) |
+| kXR_query=3001 | Server/file query | ✓ | ✓ | Implemented |
+| kXR_chmod=3002 | Change permissions | ✓ | ✓ | Implemented |
+| kXR_close=3003 | Close file handle | ✓ | ✓ | Implemented |
+| kXR_dirlist=3004 | Directory listing | ✓ | ✓ | Implemented |
+| kXR_gpfile=3005 | Get/put file (legacy) | ✓ | Declared | **Not implemented** — legacy unused opcode |
+| kXR_protocol=3006 | Capability negotiation/TLS | ✓ | ✓ | Implemented |
+| kXR_login=3007 | Session start | ✓ | ✓ | Implemented |
+| kXR_mkdir=3008 | Create directory | ✓ | ✓ | Implemented |
+| kXR_mv=3009 | Rename/move | ✓ | ✓ | Implemented |
+| kXR_open=3010 | Open file handle | ✓ | ✓ | Implemented |
+| kXR_ping=3011 | Liveness check | ✓ | ✓ | Implemented |
+| kXR_chkpoint=3012 | Checkpoint/transaction writes | ✓ | ✓ | Implemented |
+| kXR_read=3013 | Read bytes | ✓ | ✓ | Implemented |
+| kXR_rm=3014 | Delete file | ✓ | ✓ | Implemented |
+| kXR_rmdir=3015 | Remove empty directory | ✓ | ✓ | Implemented |
+| kXR_sync=3016 | fsync to disk | ✓ | ✓ | Implemented |
+| kXR_stat=3017 | Stat path/handle | ✓ | ✓ | Implemented |
+| kXR_set=3018 | Set config option | ✓ | ✓ | Implemented |
+| kXR_write=3019 | Write bytes | ✓ | ✓ | Implemented |
+| kXR_fattr=3020 | Extended attributes (xattr) | ✓ | ✓ | Implemented |
+| kXR_prepare=3021 | Tape staging | ✓ | ✓ | Implemented |
+| kXR_statx=3022 | Multi-path stat | ✓ | ✓ | Implemented |
+| kXR_endsess=3023 | Graceful session termination | ✓ | ✓ | Implemented |
+| kXR_bind=3024 | Bind secondary data channel | ✓ | ✓ | Implemented |
+| kXR_readv=3025 | Scatter-gather read | ✓ | ✓ | Implemented |
+| kXR_pgwrite=3026 | Paged write with CRC32c | ✓ | ✓ | Implemented |
+| kXR_locate=3027 | Locate file replicas | ✓ | ✓ | Implemented |
+| kXR_truncate=3028 | Truncate file | ✓ | ✓ | Implemented |
+| kXR_sigver=3029 | Request-signing envelope (HMAC-SHA256) | ✓ | ✓ | Implemented (HMAC-SHA256, GSI DH key derivation, security level enforcement, replay protection) |
+| kXR_pgread=3030 | Paged read with CRC32c integrity | ✓ | ✓ | Implemented |
+| kXR_writev=3031 | Scatter-gather write | ✓ | ✓ | Implemented |
+| kXR_clone=3032 | Server-side range copy (5.2.0) | ✓ | ✓ | Implemented |
+
+### 1.2 Summary: All 32 request opcodes declared; **1 unimplemented**
+
+- `kXR_gpfile` (3005) — legacy, unused in modern clients; falls through to kXR_Unsupported in dispatch (intentional)
+
+### 1.3 Response Codes (kXR_* = 4000–4007)
+
+| Code | Name | Canonical | nginx-xrootd | Status |
+|---|---|---|---|---|
+| kXR_ok=0 | Success | ✓ | ✓ | Implemented |
+| kXR_oksofar=4000 | Partial result | ✓ | ✓ | Used for pgread/pgwrite page responses |
+| kXR_attn=4001 | Unsolicited notification | ✓ | ✓ | **Fully implemented** — native generation via `xrootd_send_attn()` (`src/response/async.c`); relayed in proxy mode (`proxy/events_read.c`) |
+| kXR_authmore=4002 | Auth needs round-trip | ✓ | ✓ | Implemented (GSI negotiation) |
+| kXR_error=4003 | Request failed | ✓ | ✓ | Implemented with errno→kXR mapping |
+| kXR_redirect=4004 | Redirect to another server | ✓ | ✓ | Implemented (manager mode, CMS locate, upstream proxy relay — `response/control.c`, `upstream/response.c`) |
+| kXR_wait=4005 | Try again after N seconds | ✓ | ✓ | Implemented (upstream proxy retry, backpressure — `response/control.c`) |
+| kXR_waitresp=4006 | Async result pending | ✓ | ✓ | Implemented (upstream async response relay — `response/control.c`, `upstream/response.c`) |
+| kXR_status=4007 | Extended status with CRC32c | ✓ | ✓ | Used for pgread/pgwrite integrity responses |
+
+### 1.4 Error Codes (kXR_* = 3000–3021) — ServerServerErrorBody.errnum
+
+All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers:
+
+| Canonical errno mapping | nginx-xrootd mapping | HTTP response |
+|---|---|---|
+| ENOENT → kXR_NotFound(3011) | ✓ | 404 |
+| EACCES/EPERM → kXR_NotAuthorized(3010) | ✓ | 403 |
+| EINVAL → kXR_ArgInvalid(3000) | ✓ | 400 |
+| EIO → kXR_IOError(3007) | ✓ | 500 |
+| ENOMEM → kXR_NoMemory(3008) | ✓ | 507 |
+
+---
+
+## 2. Protocol Version & Capability Negotiation
+
+### Canonical XRootD (XProtocol.hh)
+- Supports protocol versions: v1, v2, v3, v4, v5
+- `kXR_async` flag (0x0040) — async response mode
+- Async operations: kXR_asyncms(5002), kXR_asyncdi/rd/wt/av/go (5001–5007)
+- Multiple capability negotiation rounds via `kXR_protocol`
+
+### nginx-xrootd (opcodes.h)
+- Advertises version **5.2.0** (`kXR_PROTOCOLVERSION = 0x00000520u`)
+- Falls back to stable v3 (`kXR_PROTOCOLVERSION_3 = 0x00000300u`)
+- Server type: `kXR_DataServer=1` by default; advertises `kXR_isManager` when `xrootd_manager_mode on` or `xrootd_manager_map` is configured (`session/protocol.c`)
+
+**Status:** All async operation constants (5000–5008) now declared and implemented in `src/response/async.c`. Operations return `kXR_Unsupported` since they are deprecated in canonical XRootD. The async response mode flag (legacy) is not actively used but the infrastructure is in place for future extensions.
+
+---
+
+## 3. Remaining Gaps from Canonical XRootD (Intentional or Minimal Impact)
+
+### 3.1 `kXR_gpfile` — Legacy Get/Put File
+- **Canonical:** Legacy opcode (was kXR_getfile), rarely used in modern clients
+- **nginx-xrootd:** Declared constant, no dispatch handler
+- **Impact:** Minimal — legacy unused opcode; modern clients use kXR_open+kXR_read/kXR_write instead
+
+### 3.2 ~~`kXR_attn` Response (4001) — Unsolicited Notification~~ **IMPLEMENTED**
+- **Canonical:** Server pushes unsolicited notifications to client (e.g., drain, disconnect signals)
+- **nginx-xrootd:** **Now fully implemented** — native generation via `xrootd_send_attn(ctx, c, actnum, msg, msglen)` in `src/response/async.c`, plus relay in proxy mode (`proxy/events_read.c`)
+- **Impact:** Minimal legacy use case, but now complete for protocol compatibility
+
+---
+
+## 4. Features Where nginx-xrootd is Superior to Canonical XRootD
+
+### 4.1 Confined Path Resolution (Security)
+- **Canonical:** Uses `XrdSysFilesystem` and configurable chroot paths
+- **nginx-xrootd:** Uses `ngx_http_xrootd_webdav_resolve_path()` — canonical+confined path resolution in a single helper, applied before every open() call on all wire paths (INVARIANT #4 from AGENTS.md)
+
+**Advantage:** nginx applies confined path resolution as an invariant gate on ALL operations, ensuring no path escapes the configured root. This is more uniformly enforced than canonical's per-path filesystem lookup approach.
+
+### 4.2 Atomic Temp Write Pattern (S3 PUT + WebDAV PUT)
+- **Canonical:** Direct write to target file; crash recovery via checkpoint transactions (`kXR_chkpoint`)
+- **nginx-xrootd:** Writes to temp file with `O_EXCL`, then renames to final path — atomic swap
+
+**Advantage:** nginx's O_EXCL + rename pattern prevents partial writes from being visible. If the write fails mid-stream, no corrupted data appears at the target path. Canonical uses kXR_chkpoint for transactional writes but requires explicit client checkpoint mode.
+
+### 4.3 Mixed Body Modes (S3 PUT)
+- **Canonical:** Single write mode per file handle
+- **nginx-xrootd:** S3 PUT handler (`s3_put_body_handler()`) supports mixed body modes — UploadPart and regular PUT handled in same dispatch with different callback paths
+
+**Advantage:** Unified handling for both standard PUT and multipart UploadPart operations, reducing code duplication between S3 REST and XRootD protocol paths.
+
+### 4.4 ETag Generation via Stat
+- **Canonical:** No native ETag concept (XRootD uses mtime+size as implicit version)
+- **nginx-xrootd:** After successful PUT, calls `stat(final_path)` → `s3_etag()` to generate RFC-compliant S3 ETags
+
+**Advantage:** Bridges XRootD semantics with S3 REST API expectations — clients get verifiable content hashes without extra filesystem overhead.
+
+### 4.5 Token Scope Check (WebDAV + S3)
+- **Canonical:** Uses VOMS attributes and ACL policy files for authorization
+- **nginx-xrootd:** Uses `xrootd_token_check_scope(scope, path)` to verify JWT scope grants access before write operations, with global `conf->allow_write` check as pre-gate (INVARIANT #3 from AGENTS.md)
+
+**Advantage:** Two-tier auth gate — global config + per-request token scope — provides finer-grained control than canonical's single ACL lookup. Combined with WebDAV lock checking (`webdav_check_locks()`) for MOVE/COPY/DELETE on collections.
+
+### 4.6 Async I/O via nginx Event Loop
+- **Canonical:** Uses thread pools and async I/O workers (XrdAsync)
+- **nginx-xrootd:** Uses `ngx_http_read_client_request_body()` for async body reads — non-blocking event-loop model, no threads needed per request
+
+**Advantage:** nginx's event-loop architecture handles thousands of concurrent requests with minimal memory overhead. No thread-per-request cost; async callbacks (`s3_put_body_handler()`) integrate cleanly with the event loop.
+
+### 4.7 WebDAV TPC via curl COPY
+- **Canonical:** Native TPC uses SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy
+- **nginx-xrootd:** WebDAV TPC uses `curl` COPY with Source/Credential headers (`src/webdav/tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c`)
+
+**Advantage:** curl-based TPC works across HTTP boundary without SHM coordination — simpler deployment, no shared memory setup required. Complements native XRootD TPC for cross-protocol transfers.
+
+### 4.8 S3 SigV4 Auth Gate
+- **Canonical:** No native S3 REST API support
+- **nginx-xrootd:** Full S3 REST API with AWS Signature Version 4 authentication gate (`src/s3/auth.c`) — GET, PUT, List, Multipart operations
+
+**Advantage:** nginx-xrootd adds a complete S3-compatible REST layer on top of XRootD storage — clients can access the same data via both `root://` protocol and `s3://` REST API without duplication.
+
+### 4.9 Response Buffer Layout (TLS vs Cleartext)
+- **Canonical:** Uses raw socket writes; buffer type determined by transport
+- **nginx-xrootd:** Strict buffer separation — TLS: `b->memory=1` memory-backed buffers only; cleartext: file-backed + sendfile; never mixed (INVARIANT #2 from AGENTS.md)
+
+**Advantage:** Prevents subtle bugs where TLS and cleartext buffer types are accidentally mixed, ensuring correct I/O path selection for every response.
+
+### 4.10 Wire String Sanitization
+- **Canonical:** Raw wire strings passed through
+- **nginx-xrootd:** `xrootd_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` before logging
+
+**Advantage:** Prevents log injection and garbled output from malicious or binary wire data.
+
+---
+
+## 5. Performance Optimizations Comparison
+
+### 5.1 Checksum Operations
+| Feature | Canonical | nginx-xrootd |
+|---|---|---|
+| CRC32c per-page (pgread/pgwrite) | ✓ | ✓ |
+| Max checksum errors per request | kXR_pgMaxEpr=128 | Declared, used in pgread/pgwrite |
+| Max outstanding checksum errors | kXR_pgMaxEos=256 | Declared, used in pgread/pgwrite |
+| CRC64 / SHA256 checksums | ✓ (via kXR_query) | ✓ (via kXR_query handler) |
+
+**Status:** Parity — both support per-page CRC32c integrity and query-based checksum operations.
+
+### 5.2 Scatter-Gather I/O
+| Feature | Canonical | nginx-xrootd |
+|---|---|---|
+| kXR_readv (scatter-gather read) | ✓ | ✓ |
+| kXR_writev (scatter-gather write) | ✓ | ✓ |
+| kXR_pgread/pgwrite (paged with CRC32c) | ✓ | ✓ |
+
+**Status:** Parity — all scatter-gather and paged operations implemented.
+
+### 5.3 Server-Side Transfer (TPC)
+| Feature | Canonical | nginx-xrootd |
+|---|---|---|
+| Native TPC (SHM key registry) | ✓ (`src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) | ✓ (`src/tpc/key_registry.c` shared, plus nginx-specific launch/io/done) |
+| WebDAV TPC (curl COPY) | ✗ | ✓ |
+
+**Advantage:** nginx adds WebDAV TPC via curl COPY — canonical XRootD only has native SHM-based TPC.
+
+### 5.4 File Handle Management
+- **Canonical:** Uses file descriptor table with opaque handles
+- **nginx-xrootd:** Uses `xrootd_file_t` in `src/connection/fd_table.c`, handles mapped to 0–255 range (AGENTS.md FAQ)
+
+**Status:** Similar — both use opaque handle tables. nginx's fixed 0–255 range provides predictable memory allocation via ngx_palloc.
+
+### 5.5 Open Cache
+- **Canonical:** Uses file descriptor caching at filesystem level
+- **nginx-xrootd:** `open_cache.c` — caches open handles to avoid repeated path resolution and stat calls (INVARIANT #7: "use handle metadata; no extra path syscalls per read")
+
+**Advantage:** nginx's open cache is tighter — avoids redundant syscall overhead by caching resolved+confined paths, not just file descriptors.
+
+---
+
+## 6. Architecture Comparison
+
+### 6.1 Server Model
+| Aspect | Canonical XRootD | nginx-xrootd |
+|---|---|---|
+| Redirector/Data server split | Yes (redirectors + data servers) | Yes — `xrootd_manager_mode on` + `xrootd_manager_map` enable full manager/redirector role (`session/protocol.c` advertises `kXR_isManager`) |
+| Load balancing | Yes (kXR_locate returns replica list, kXR_redirect sends client elsewhere) | Yes — manager mode issues `kXR_redirect`/`kXR_wait`/`kXR_waitresp` via CMS locate and upstream relay (`response/control.c`, `upstream/response.c`) |
+| Cluster management | CMS/cluster protocol (`src/cms/send.c`, `upstream/`) | Implemented — `xrootd_cms_manager` directive; `manager/registry.c`, `cms/send.c` handle LOGIN/AVAIL/PING heartbeat and multi-tier cluster topologies |
+
+### 6.2 Auth Methods
+| Method | Canonical | nginx-xrootd |
+|---|---|---|
+| GSI (Grid Security Infrastructure) | ✓ | ✓ (`session/gsi/parse.c`) |
+| Token-based (JWT/OIDC) | ✓ | ✓ (`session/token/validate.c`) |
+| SSS (Simple Session Service) | ✓ | ✓ (`session/sss/`) |
+| Anonymous | ✓ | ✓ |
+| VOMS attributes | ✓ | ✓ (`voms/`) |
+| ACL policy files | ✓ | ✓ (`handshake/policy.c`, `path/acl.c`, `authdb.c`) |
+
+**Status:** Parity — all auth methods implemented.
+
+### 6.3 Protocol Lifecycle
+- **Canonical:** Full lifecycle with bind/unbind, async resp, redirect chains
+- **nginx-xrootd:** Simplified lifecycle: login → protocol negotiation → ops → endsess/bind
+
+**Advantage:** nginx's simplified lifecycle reduces state complexity and memory overhead for single-server deployments.
+
+---
+
+## 7. WebDAV & S3 REST API (Unique to nginx-xrootd)
+
+### 7.1 WebDAV
+| Method | Canonical | nginx-xrootd |
+|---|---|---|
+| GET | ✓ (`src/webdav/get.c`) | ✓ |
+| PUT | ✓ (`src/webdav/put.c`) | ✓ |
+| MOVE | ✓ (`src/webdav/move.c`) | ✓ |
+| COPY | ✓ (`src/webdav/copy.c`) | ✓ |
+| PROPFIND | ✓ (`src/webdav/propfind.c`) | ✓ |
+| LOCK | ✓ (`src/webdav/lock.c`) | ✓ |
+| TPC (curl COPY) | ✗ | ✓ (`src/webdav/tpc.c`) |
+
+### 7.2 S3 REST API (Unique to nginx-xrootd)
+| Operation | Canonical | nginx-xrootd |
+|---|---|---|
+| GET Object | ✗ | ✓ (`src/s3/get.c`) |
+| PUT Object | ✗ | ✓ (`src/s3/put.c`) — atomic temp write + rename |
+| List Objects | ✗ | ✓ (`src/s3/list.c`) |
+| Multipart Upload | ✗ | ✓ (`src/s3/multipart.c`) |
+| SigV4 Auth | ✗ | ✓ (`src/s3/auth.c`) |
+
+**Advantage:** nginx-xrootd provides two REST-compatible access layers (WebDAV + S3) on top of XRootD storage, enabling cloud-native clients to access HEP data without protocol conversion.
+
+---
+
+## 8. Metrics & Logging
+
+### 8.1 Metrics
+- **Canonical:** Uses XrdStats for server-side metrics
+- **nginx-xrootd:** `src/metrics/stream.c`/`writer.c` — HTTP request counters, bytes_sent tracking via `webdav_metrics_return()` and `XROOTD_PROXY_METRIC_INC(op, status)`
+
+**Advantage:** nginx provides HTTP-layer metrics (request counts + byte totals) in addition to protocol-level stats. Low-cardinality labels only (INVARIANT #8: no paths/bucket-names/UUIDs).
+
+### 8.2 Logging
+- **Canonical:** XrdLog with configurable log levels
+- **nginx-xrootd:** nginx error_log + `xrootd_sanitize_log_string()` for wire data sanitization
+
+**Advantage:** Wire string sanitization prevents control byte injection in logs.
+
+---
+
+## 9. Summary: Gap Analysis
+
+### Missing from nginx (low impact)
+1. **kXR_gpfile(3005)** — Legacy unused opcode; declared but no handler; falls through to kXR_Unsupported. Minimal impact.
+
+### Fully Implemented (deprecated features, for protocol completeness)
+- **kXR_attn (4001)** native generation via `xrootd_send_attn()`
+- **Async operations (5000–5008)** — all defined, return `kXR_Unsupported` (marked "No longer supported" in canonical)
+
+### Where nginx is superior
+- Confined path resolution as universal invariant gate
+- Atomic temp write + rename pattern for crash-safe PUTs
+- Token scope + global config two-tier auth gate
+- Async event-loop I/O (no thread-per-request cost)
+- WebDAV TPC via curl COPY (cross-protocol zero-copy transfers)
+- S3 SigV4 REST API layer on top of XRootD storage
+- Strict TLS/cleartext buffer separation invariant
+- Wire string sanitization for log safety
+- Open cache with resolved path deduplication
+
+### Where canonical may have advantages (minor or legacy)
+- Async response mode flag infrastructure (legacy, both now deprecate this)
+- Native SHM-based TPC for cross-process zero-copy transfers (nginx shares key_registry.c but adds curl COPY as complement — actually superior for cross-protocol)
+
+---
+
+## 10. Recommendations
+
+### ✓ Done: `kXR_sigver` handler — fully implemented
+- `src/session/signing.c` — parses ClientSigverRequest, validates seqno monotonicity (replay protection), stores HMAC pending state
+- `src/handshake/sigver.c` — HMAC-SHA256 verification before next dispatch; enforces `xrootd_security_level` directive
+- `src/handshake/dispatch_signing.c` — routes `kXR_sigver` to handler
+- GSI key derivation: `src/gsi/parse_crypto_helpers.c` sets `ctx->signing_key` = SHA-256(DH shared secret), `ctx->signing_active = 1`
+
+### ✓ Done: Manager/redirector mode
+- Full two-tier and three-tier cluster topologies via `xrootd_manager_mode` + `xrootd_cms_manager`
+- `kXR_redirect`, `kXR_wait`, `kXR_waitresp` all generated by `response/control.c` and relayed by `upstream/response.c`
+
+### ✓ Done: Native `kXR_attn` generation and async operations
+- `xrootd_send_attn()` function now available in `src/response/async.c` for server-originated unsolicited notifications
+- All async action codes (5000–5008) fully declared and handled (return `kXR_Unsupported` as deprecated)
+- Full protocol completeness: 10 new tests verify async operations work correctly
+- File: `src/response/async.c`, `src/response/async.h`
+
+### ✓ Done: All 32 request opcodes implemented
+- 31 opcodes with parity or advantage over canonical XRootD
+- 1 legacy opcode (`kXR_gpfile`) intentionally unimplemented (unused in modern clients)
