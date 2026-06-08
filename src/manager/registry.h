@@ -32,6 +32,8 @@ typedef struct {
     uint32_t    util_pct;                 /* last reported utilisation % */
     ngx_msec_t  last_seen;               /* ngx_current_msec at last update */
     ngx_uint_t  in_use;                  /* 1 = slot occupied */
+    ngx_msec_t  blacklisted_until;       /* 0 = available; future ms = skip */
+    uint32_t    error_count;             /* consecutive CMS disconnect count */
 } xrootd_srv_entry_t;
 
 typedef struct {
@@ -47,6 +49,8 @@ typedef struct {
     uint32_t    free_mb;
     uint32_t    util_pct;
     ngx_msec_t  last_seen;
+    ngx_msec_t  blacklisted_until;
+    uint32_t    error_count;
 } xrootd_srv_snapshot_entry_t;
 
 extern ngx_shm_zone_t *xrootd_srv_shm_zone;
@@ -65,6 +69,14 @@ void xrootd_srv_update_load(const char *host, uint16_t port,
 /* Called when the CMS connection from a data server drops. */
 void xrootd_srv_unregister(const char *host, uint16_t port);
 
+/*
+ * Blacklist a server for duration_ms milliseconds after a CMS disconnect.
+ * xrootd_srv_select() skips blacklisted entries.  xrootd_srv_register()
+ * clears the blacklist when the server successfully reconnects.
+ */
+void xrootd_srv_blacklist(const char *host, uint16_t port,
+    ngx_msec_t duration_ms);
+
 /* Remove a single path token from a slot's colon-delimited path list.
  * Used by cache eviction to deregister a specific file without removing
  * the whole entry.  Thread-safe (spinlock). */
@@ -82,6 +94,17 @@ void xrootd_srv_unregister_path(const char *host, uint16_t port,
  */
 int xrootd_srv_select(const char *path, int for_write,
     char *host_out, size_t host_size, uint16_t *port_out);
+
+/*
+ * Build a kXR_locate response body listing all non-blacklisted servers that
+ * export a prefix covering path.  Format is space-separated "S<r|w>host:port"
+ * entries, NUL-terminated, as required by the XRootD locate wire format.
+ *
+ * Returns the number of bytes written (not counting the terminating NUL), or
+ * 0 if no servers match or the buffer is too small to hold even one entry.
+ */
+int xrootd_srv_locate_all(const char *path, int for_write,
+    char *buf, size_t bufsz);
 
 /*
  * Aggregate space metrics across all occupied registry slots.

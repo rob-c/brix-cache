@@ -52,6 +52,9 @@ void  xrootd_export_webdav_metrics(metrics_writer_t *mw,
 void  xrootd_export_s3_metrics(metrics_writer_t *mw,
     ngx_xrootd_metrics_t *shm);
 
+/* cluster.c — reads registry SHM directly, no shm argument needed */
+void  xrootd_export_cluster_metrics(metrics_writer_t *mw);
+
 /* handler.c */
 ngx_int_t  ngx_http_xrootd_metrics_handler(ngx_http_request_t *r);
 

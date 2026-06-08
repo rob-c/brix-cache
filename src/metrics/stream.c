@@ -350,4 +350,5 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
 
     xrootd_export_webdav_metrics(mw, shm);
     xrootd_export_s3_metrics(mw, shm);
+    xrootd_export_cluster_metrics(mw);
 }

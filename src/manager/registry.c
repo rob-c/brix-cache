@@ -210,13 +210,15 @@ xrootd_srv_register(const char *host, uint16_t port,
             continue;
         }
         if (e->port == port && ngx_strcmp(e->host, host) == 0) {
-            /* Update existing entry. */
+            /* Update existing entry; clear any prior blacklist on reconnect. */
             ngx_cpystrn((u_char *) e->paths,
                         (u_char *) (paths ? paths : ""),
                         sizeof(e->paths));
-            e->free_mb   = free_mb;
-            e->util_pct  = util_pct;
-            e->last_seen = ngx_current_msec;
+            e->free_mb          = free_mb;
+            e->util_pct         = util_pct;
+            e->last_seen        = ngx_current_msec;
+            e->blacklisted_until = 0;
+            e->error_count      = 0;
             found = 1;
             break;
         }
@@ -377,6 +379,11 @@ xrootd_srv_select(const char *path, int for_write,
         if (!e->in_use) {
             continue;
         }
+        if (e->blacklisted_until != 0
+            && e->blacklisted_until > ngx_current_msec)
+        {
+            continue;
+        }
         if (!srv_path_matches(e->paths, path)) {
             continue;
         }
@@ -401,6 +408,130 @@ xrootd_srv_select(const char *path, int for_write,
 
     ngx_shmtx_unlock(&xrootd_srv_mutex);
     return best >= 0;
+}
+
+/* ---- Function: xrootd_srv_blacklist() ------------------------------------- */
+
+/* WHAT
+ * Marks a registered server as temporarily unavailable for selection.
+ * Called from xrootd_cms_srv_close() when a data server's CMS connection
+ * drops.  The server entry stays in the registry so its paths and metrics are
+ * preserved for the reconnect; xrootd_srv_select() and xrootd_srv_locate_all()
+ * both skip entries whose blacklisted_until is in the future.
+ *
+ * WHY
+ * A clean reconnect within the window re-registers and clears the flag,
+ * making the server immediately available again.  A permanently dead server
+ * stays blacklisted until the window expires, at which point its stale metrics
+ * become visible — operators detect this via xrootd_cluster_server_last_seen_seconds.
+ *
+ * HOW
+ * Locks mutex → scans for host+port match → increments error_count →
+ * sets blacklisted_until = ngx_current_msec + duration_ms.  Unlocks.
+ */
+void
+xrootd_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
+{
+    xrootd_srv_table_t *tbl;
+    xrootd_srv_entry_t *e;
+    ngx_uint_t          i;
+
+    tbl = srv_table();
+    if (tbl == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&xrootd_srv_mutex);
+
+    for (i = 0; i < tbl->capacity; i++) {
+        e = &tbl->slots[i];
+        if (!e->in_use || e->port != port
+            || ngx_strcmp(e->host, host) != 0)
+        {
+            continue;
+        }
+        e->error_count++;
+        e->blacklisted_until = ngx_current_msec + duration_ms;
+        break;
+    }
+
+    ngx_shmtx_unlock(&xrootd_srv_mutex);
+}
+
+/* ---- Function: xrootd_srv_locate_all() ------------------------------------ */
+
+/* WHAT
+ * Builds a kXR_locate response body listing all non-blacklisted servers whose
+ * exported path set covers the requested path.  Entries are space-separated
+ * "S<r|w>host:port" strings, NUL-terminated.
+ *
+ * WHY
+ * Returning the full set of matching servers lets the client pick based on
+ * network locality, eliminating the need for chained redirects through the
+ * hierarchy ("lateral redirect").  One kXR_ok response replaces what would
+ * otherwise be a kXR_redirect chain through multiple manager tiers.
+ *
+ * HOW
+ * Locks mutex → scans all in_use, non-blacklisted, path-matching slots →
+ * appends "Sr<host>:<port>" (or "Sw" for writes) to buf with space separator.
+ * Stops early if the next entry would overflow bufsz.  Returns bytes written
+ * (not counting NUL); 0 if no servers match.
+ */
+int
+xrootd_srv_locate_all(const char *path, int for_write,
+    char *buf, size_t bufsz)
+{
+    xrootd_srv_table_t *tbl;
+    xrootd_srv_entry_t *e;
+    ngx_uint_t          i;
+    int                 written, entry_len, first;
+    ngx_msec_t          now;
+    char                entry[300];
+
+    tbl = srv_table();
+    if (tbl == NULL || bufsz < 2) {
+        return 0;
+    }
+
+    now     = ngx_current_msec;
+    written = 0;
+    first   = 1;
+
+    ngx_shmtx_lock(&xrootd_srv_mutex);
+
+    for (i = 0; i < tbl->capacity; i++) {
+        e = &tbl->slots[i];
+
+        if (!e->in_use) {
+            continue;
+        }
+        if (e->blacklisted_until != 0 && e->blacklisted_until > now) {
+            continue;
+        }
+        if (!srv_path_matches(e->paths, path)) {
+            continue;
+        }
+
+        entry_len = snprintf(entry, sizeof(entry), "%sS%c%s:%u",
+                             first ? "" : " ",
+                             for_write ? 'w' : 'r',
+                             e->host, (unsigned int) e->port);
+        if (entry_len <= 0 || written + entry_len + 1 >= (int) bufsz) {
+            break;
+        }
+
+        ngx_memcpy(buf + written, entry, (size_t) entry_len);
+        written += entry_len;
+        first = 0;
+    }
+
+    ngx_shmtx_unlock(&xrootd_srv_mutex);
+
+    if (written > 0) {
+        buf[written] = '\0';
+    }
+
+    return written;
 }
 
 /* ---- Function: xrootd_srv_unregister_path() ------------------------------- */
@@ -567,9 +698,11 @@ xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
         out[n].port = e->port;
         ngx_cpystrn((u_char *) out[n].paths, (u_char *) e->paths,
                     sizeof(out[n].paths));
-        out[n].free_mb = e->free_mb;
-        out[n].util_pct = e->util_pct;
-        out[n].last_seen = e->last_seen;
+        out[n].free_mb          = e->free_mb;
+        out[n].util_pct         = e->util_pct;
+        out[n].last_seen        = e->last_seen;
+        out[n].blacklisted_until = e->blacklisted_until;
+        out[n].error_count      = e->error_count;
         n++;
     }
 

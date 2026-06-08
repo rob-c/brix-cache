@@ -306,7 +306,7 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
                                r->connection->log);
 
     rc = webdav_tpc_post_thread_task(r, conf, 1, 0, 0,
-                                     dest_url, path, NULL, transfer_headers);
+                                     dest_url, path, NULL, transfer_headers, 1);
     if (rc != NGX_DECLINED) {
         if (rc != NGX_DONE) {
             xrootd_dashboard_http_error(r, "webdav TPC push task post failed");
@@ -373,6 +373,7 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
     ngx_table_elt_t *dest_hdr;
     ngx_table_elt_t *credential_hdr;
     ngx_table_elt_t *overwrite_hdr;
+    ngx_table_elt_t *streams_hdr;
     ngx_array_t     *transfer_headers = NULL;
     char            *source_url;
     char             path[WEBDAV_MAX_PATH];
@@ -385,6 +386,7 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
     ngx_str_t        src_scope;
     ngx_str_t        dst_scope;
     uint64_t         transfer_id;
+    ngx_uint_t       n_streams;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
 
@@ -402,6 +404,22 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         /* Both headers present — ambiguous; reject. */
         XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_BAD_REQUEST]);
         return NGX_HTTP_BAD_REQUEST;
+    }
+
+    /* X-Number-Of-Streams: N — negotiate parallel pull streams.
+     * Capped at tpc_max_streams (default 1; multi-stream disabled unless
+     * xrootd_webdav_tpc_max_streams is set to > 1 in the config). */
+    streams_hdr = webdav_tpc_find_header(r, "X-Number-Of-Streams",
+                                         sizeof("X-Number-Of-Streams") - 1);
+    n_streams = 1;
+    if (streams_hdr != NULL && streams_hdr->value.len > 0) {
+        ngx_int_t v = ngx_atoi(streams_hdr->value.data, streams_hdr->value.len);
+        if (v > 1) {
+            n_streams = (ngx_uint_t) v;
+        }
+    }
+    if (n_streams > conf->tpc_max_streams && conf->tpc_max_streams > 0) {
+        n_streams = conf->tpc_max_streams;
     }
 
     if (source_hdr == NULL) {
@@ -558,9 +576,40 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
                                XROOTD_TPC_METRIC_STARTED, 0,
                                r->connection->log);
 
+    /* 202-streaming path: async transfer with Performance-Marker updates. */
+    if (conf->tpc_marker_interval > 0) {
+        transfer_id = webdav_tpc_register_transfer(r, XROOTD_TPC_DIR_PULL,
+                                                   source_url, path, 0);
+        if (transfer_id == 0) {
+            xrootd_dashboard_http_error(r, "webdav TPC registry full");
+            xrootd_dashboard_http_finish(r);
+            xrootd_staged_abort(r->connection->log, conf->common.root_canon,
+                                &staged, 1);
+            return NGX_HTTP_SERVICE_UNAVAILABLE;
+        }
+        rc = webdav_tpc_marker_start(r, conf, n_streams, source_url,
+                                     staged.tmp_path, path,
+                                     1 /* is_pull */, overwrite, existed,
+                                     transfer_headers, transfer_id);
+        if (rc != NGX_DECLINED) {
+            if (rc != NGX_DONE) {
+                (void) xrootd_tpc_registry_remove(transfer_id,
+                                                  r->connection->log);
+                xrootd_dashboard_http_error(r, "webdav TPC marker start failed");
+                xrootd_dashboard_http_finish(r);
+                xrootd_staged_abort(r->connection->log, conf->common.root_canon,
+                                    &staged, 1);
+                return (rc == NGX_ERROR) ? NGX_HTTP_INTERNAL_SERVER_ERROR : rc;
+            }
+            return NGX_DONE;
+        }
+        /* No thread pool — fall through to 201 path. */
+        (void) xrootd_tpc_registry_remove(transfer_id, r->connection->log);
+    }
+
     rc = webdav_tpc_post_thread_task(r, conf, 0, existed, overwrite,
                                      source_url, staged.tmp_path, path,
-                                     transfer_headers);
+                                     transfer_headers, n_streams);
     if (rc != NGX_DECLINED) {
         if (rc != NGX_DONE) {
             xrootd_dashboard_http_error(r, "webdav TPC pull task post failed");
