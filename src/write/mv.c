@@ -116,8 +116,8 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_NotAuthorized, "authdb denied for source");
 	}
 
-	if (xrootd_check_vo_acl(c->log, src_resolved, conf->vo_rules,
-							 ctx->vo_list) != NGX_OK) {
+	if (xrootd_check_vo_acl_identity(c->log, src_resolved, conf->vo_rules,
+							 ctx->identity) != NGX_OK) {
 		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", src_resolved, "-",
 						  kXR_NotAuthorized, "VO not authorized");
 	}
@@ -138,8 +138,8 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_NotAuthorized, "authdb denied for destination");
 	}
 
-	if (xrootd_check_vo_acl(c->log, dst_resolved, conf->vo_rules,
-							 ctx->vo_list) != NGX_OK) {
+	if (xrootd_check_vo_acl_identity(c->log, dst_resolved, conf->vo_rules,
+							 ctx->identity) != NGX_OK) {
 		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", dst_resolved, "-",
 						  kXR_NotAuthorized, "VO not authorized for destination");
 	}

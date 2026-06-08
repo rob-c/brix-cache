@@ -133,8 +133,8 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_NotAuthorized, "not authorized");
     }
 
-    if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-                            ctx->vo_list) != NGX_OK) {
+    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+                                     ctx->identity) != NGX_OK) {
         xrootd_log_access(ctx, c, "DIRLIST", resolved, "-",
                           0, kXR_NotAuthorized, "VO not authorized", 0);
         XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);

@@ -33,8 +33,29 @@ PROXY_PEM = PROXY_STD
 
 LARGE_FILE      = "large200.bin"
 LARGE_FILE_SIZE = 200 * 1024 * 1024
-# MD5 is computed at session startup by conftest._setup_session() — read it from env.
-LARGE_FILE_MD5  = os.environ.get("LARGE_FILE_MD5", "e974166996ffd73416120d15574672d6")
+
+
+def _resolve_large_file_md5() -> str:
+    """Return the MD5 of large200.bin.
+
+    Prefer the env var set by conftest._setup_session(); fall back to computing
+    it from disk so that TEST_SKIP_SERVER_SETUP=1 runs still work.
+    """
+    import hashlib as _hashlib
+    cached = os.environ.get("LARGE_FILE_MD5")
+    if cached:
+        return cached
+    path = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "data", "large200.bin")
+    if not os.path.exists(path):
+        return ""
+    h = _hashlib.md5()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+LARGE_FILE_MD5 = _resolve_large_file_md5()
 
 READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches XROOTD_READ_MAX in module
 

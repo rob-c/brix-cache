@@ -1,5 +1,6 @@
 #include "open.h"
 #include "../manager/registry.h"
+#include "../manager/redir_cache.h"
 #include "../manager/pending.h"
 #include "../session/registry.h"
 #include "../cms/cms_internal.h"
@@ -150,13 +151,26 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					                         "this is a read-only server");
 				}
 
-				if (xrootd_check_token_scope(ctx, tpc_clean, 1) != NGX_OK) {
-					xrootd_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
-					                  0, kXR_NotAuthorized,
-					                  "token scope denied", 0);
-					XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-					return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-					                         "token scope denied");
+				{
+					ngx_str_t tpc_src_scope;
+					ngx_str_t tpc_dst_scope;
+
+					tpc_src_scope.data = (u_char *) tpc.src_path;
+					tpc_src_scope.len = ngx_strlen(tpc.src_path);
+					tpc_dst_scope.data = (u_char *) tpc_clean;
+					tpc_dst_scope.len = ngx_strlen(tpc_clean);
+
+					if (xrootd_tpc_check_authz(ctx->identity, &tpc_src_scope,
+					                           &tpc_dst_scope, c->log)
+					    != NGX_OK)
+					{
+						xrootd_log_access(ctx, c, "OPEN", tpc_clean,
+						                  "tpc-pull", 0, kXR_NotAuthorized,
+						                  "TPC authorization denied", 0);
+						XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
+						return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+						                         "TPC authorization denied");
+					}
 				}
 
 				if (options & kXR_mkpath) {
@@ -186,8 +200,9 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					                         "authdb denied");
 				}
 
-				if (xrootd_check_vo_acl(c->log, tpc_resolved, conf->vo_rules,
-				                         ctx->vo_list) != NGX_OK) {
+				if (xrootd_check_vo_acl_identity(c->log, tpc_resolved,
+				                                 conf->vo_rules,
+				                                 ctx->identity) != NGX_OK) {
 					xrootd_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
 					                  0, kXR_NotAuthorized,
 					                  "VO not authorized", 0);
@@ -271,6 +286,16 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 								 "this is a read-only server");
 	}
 
+	/* metadata_only without a manager_map: serve namespace only, no file I/O. */
+	if (conf->metadata_only && conf->manager_map == NULL) {
+		xrootd_log_access(ctx, c, "OPEN",
+						  ctx->payload ? (char *) ctx->payload : "-",
+						  is_write ? "wr" : "rd",
+						  0, kXR_Unsupported, "metadata-only server", 0);
+		return xrootd_send_error(ctx, c, kXR_Unsupported,
+								 "open not available on metadata-only server");
+	}
+
 	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
 		xrootd_log_access(ctx, c, "OPEN", "-",
 						  is_write ? "wr" : "rd",
@@ -313,8 +338,23 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	if (conf->manager_mode) {
 		char     redir_host[256];
 		uint16_t redir_port;
+
+		/* Collapse-redir cache: serve reads from cache to skip CMS. */
+		if (!is_write && conf->collapse_redir
+		    && xrootd_redir_cache_lookup(clean_path, redir_host,
+		                                 sizeof(redir_host), &redir_port)) {
+			xrootd_log_access(ctx, c, "OPEN", clean_path, "redir-cache",
+			                  1, 0, NULL, 0);
+			XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_RD);
+			return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+		}
+
 		if (xrootd_srv_select(clean_path, is_write, redir_host,
 		                      sizeof(redir_host), &redir_port)) {
+			if (!is_write && conf->collapse_redir) {
+				xrootd_redir_cache_insert(clean_path, redir_host, redir_port,
+				                          conf->collapse_redir_ttl);
+			}
 			xrootd_log_access(ctx, c, "OPEN", clean_path, "registry",
 			                  1, 0, NULL, 0);
 			XROOTD_OP_OK(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
@@ -395,8 +435,8 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 									 "authdb denied");
 		}
 
-		if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-								 ctx->vo_list) != NGX_OK) {
+		if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+								 ctx->identity) != NGX_OK) {
 			xrootd_log_access(ctx, c, "OPEN", resolved, "rd",
 							  0, kXR_NotAuthorized, "VO not authorized", 0);
 			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
@@ -460,8 +500,8 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 									 "authdb denied");
 		}
 
-		if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-								 ctx->vo_list) != NGX_OK) {
+		if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+								 ctx->identity) != NGX_OK) {
 			xrootd_log_access(ctx, c, "OPEN", resolved, "wr",
 							  0, kXR_NotAuthorized, "VO not authorized", 0);
 			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);

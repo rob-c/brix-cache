@@ -9,6 +9,7 @@
  */
 
 #include "webdav.h"
+#include "../tpc/common/registry.h"
 
 ngx_int_t
 ngx_http_xrootd_webdav_postconfiguration(ngx_conf_t *cf)
@@ -93,6 +94,10 @@ ngx_http_xrootd_webdav_postconfiguration(ngx_conf_t *cf)
                     pool_name);
             }
         }
+    }
+
+    if (xrootd_tpc_registry_configure(cf) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     return NGX_OK;

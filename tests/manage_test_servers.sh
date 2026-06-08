@@ -214,6 +214,13 @@ substitute_config() {
     : "${DEST_NO_SERVICE_CERT_ROOT:=${DATA_DIR}/dest_no_service_cert}"
     : "${DEST_DISABLED_ROOT:=${DATA_DIR}/dest_disabled}"
     : "${DEST_READONLY_ROOT:=${DATA_DIR}/dest_readonly}"
+    : "${BIND_HOST:=127.0.0.1}"
+    : "${CMS_PORT:=11161}"
+    : "${CMS_PATHS:=/}"
+    : "${CACHE_DIR:=${DATA_DIR}/cache}"
+    : "${METRICS_PORT:=9100}"
+    : "${META_CMS_PORT:=11186}"
+    : "${SELF_REGISTER_PORT:=11189}"
 
     sed -e "s|{PORT}|$NGINX_PORT|g" \
         -e "s|{ANON_PORT}|${NGINX_ANON_PORT}|g" \
@@ -266,6 +273,14 @@ substitute_config() {
         -e "s|{MAP_B_HOST}|${MAP_B_HOST}|g" \
         -e "s|{MAP_B_PORT}|${MAP_B_PORT}|g" \
         -e "s|{AUTHDB_PATH}|${AUTHDB_PATH}|g" \
+        -e "s|{BIND_HOST}|${BIND_HOST}|g" \
+        -e "s|{CMS_PORT}|${CMS_PORT}|g" \
+        -e "s|{CMS_PATHS}|${CMS_PATHS}|g" \
+        -e "s|{CACHE_DIR}|${CACHE_DIR}|g" \
+        -e "s|{METRICS_PORT}|${METRICS_PORT}|g" \
+        -e "s|{META_CMS_PORT}|${META_CMS_PORT}|g" \
+        -e "s|{SELF_REGISTER_PORT}|${SELF_REGISTER_PORT}|g" \
+        -e "s|{STAGE_CMD}|${STAGE_CMD:-/bin/true}|g" \
         "$src" > "$dest"
 }
 
@@ -401,6 +416,22 @@ force_stop_nginx() {
             pids_on_port 11124
             pids_on_port 11125
             pids_on_port 11126
+            pids_on_port 11160
+            pids_on_port 11161
+            pids_on_port 11162
+            pids_on_port 11163
+            pids_on_port 11164
+            pids_on_port 11165
+            pids_on_port 11166
+            pids_on_port 11167
+            pids_on_port 11168
+            pids_on_port 11180
+            pids_on_port 11181
+            pids_on_port 11182
+            pids_on_port 11183
+            pids_on_port 11184
+            pids_on_port 11191
+            pids_on_port 11192
             pids_on_port 8080
             pids_on_port 8443
             pids_on_port 8444
@@ -415,6 +446,16 @@ force_stop_nginx() {
             pids_on_port 18454
             pids_on_port 18455
             pids_on_port 18456
+            pids_on_port 18457
+            pids_on_port 18458
+            pids_on_port 12500
+            # cluster-slots data servers + CMS ports
+            pids_on_port 12602
+            pids_on_port 12603
+            pids_on_port 12604
+            pids_on_port 12605
+            pids_on_port 12607
+            pids_on_port 12608
             pids_on_port 19450
             pids_on_port 19451
             pids_on_port 19452
@@ -422,6 +463,56 @@ force_stop_nginx() {
             pids_on_port 19454
             pids_on_port 19455
             pids_on_port 19456
+            # proxy mode
+            pids_on_port 11193
+            pids_on_port 11203
+            # authdb dedicated
+            pids_on_port 11114
+            # cluster topologies
+            pids_on_port 11169
+            pids_on_port 11170
+            pids_on_port 11172
+            pids_on_port 11173
+            pids_on_port 11174
+            pids_on_port 11176
+            pids_on_port 11185
+            pids_on_port 11187
+            pids_on_port 11190
+            pids_on_port 11194
+            pids_on_port 11195
+            pids_on_port 11196
+            pids_on_port 11197
+            pids_on_port 11198
+            pids_on_port 11199
+            # cache write-through servers
+            pids_on_port 11200
+            pids_on_port 11201
+            pids_on_port 11202
+            pids_on_port 11204
+            pids_on_port 11205
+            # Phase 2-3 capability-flag role servers
+            pids_on_port 11206
+            pids_on_port 11207
+            pids_on_port 11208
+            pids_on_port 11209
+            # Mock-only upstream nginx (test_a_upstream_redirect.py)
+            pids_on_port 11130
+            pids_on_port 11131
+            pids_on_port 11132
+            pids_on_port 11133
+            pids_on_port 11134
+            pids_on_port 11135
+            pids_on_port 11136
+            # Real-upstream-redirect nginx (test_a_upstream_redirect.py)
+            pids_on_port 11137
+            # Proxy interoperability matrix + credential bridge
+            pids_on_port 11213
+            pids_on_port 11215
+            # Real CMS manager instances (replaced Python mocks)
+            pids_on_port 11177
+            pids_on_port 11178
+            pids_on_port 12399
+            pids_on_port 12400
         } | sort -u
     )"
     kill_pid_list "$pids"
@@ -452,7 +543,8 @@ start_dedicated_nginx() {
         "${data_root}/dest_cadir" \
         "${data_root}/dest_no_service_cert" \
         "${data_root}/dest_disabled" \
-        "${data_root}/dest_readonly"
+        "${data_root}/dest_readonly" \
+        "${data_root}/cache"
     rm -f "${instance_root}/logs"/*.log "${instance_root}/logs"/*.pid
     if [[ ! -f "${data_root}/test.txt" ]]; then
         printf '%s\n' "hello from nginx-xrootd" > "${data_root}/test.txt"
@@ -465,6 +557,7 @@ start_dedicated_nginx() {
         LOG_DIR="${instance_root}/logs"
         TMP_DIR="${instance_root}/tmp"
         DATA_DIR="${data_root}"
+        CACHE_DIR="${data_root}/cache"
         SOURCE_REQUIRED_ROOT="${data_root}/source_required"
         SOURCE_OPEN_ROOT="${data_root}/source_open"
         DEST_CAFILE_ROOT="${data_root}/dest_cafile"
@@ -653,6 +746,59 @@ all.pidpath ${run_dir}
 xrd.port ${port}
 xrd.trace off
 ofs.tpc streams 4 pgm ${xrdcp_bin} --server
+EOF
+
+    "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1 || true
+
+    if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
+        echo "reference xrootd ${label} started on $port"
+    elif wait_ready_xrdfs "root://localhost:$port"; then
+        echo "reference xrootd ${label} started and ready on $port"
+    else
+        echo "WARNING: reference xrootd ${label} started but readiness probe failed on $port" >&2
+    fi
+}
+
+# start_pss_bridge_ref — xrootd PSS (Proxy Storage Service) proxy in front of nginx.
+#
+# Scenario 2 of test_e2e_proxy_matrix.py::TestStorageBridge:
+#   xrdcp → xrootd(PSS, port) → nginx-proxy(upstream_port) → xrootd-data → PROXY_DATA_ROOT
+#
+# Files written through this chain land in PROXY_DATA_ROOT (not DATA_ROOT).
+start_pss_bridge_ref() {
+    local port="${1:-${PROXY_BRIDGE_XROOTD_PORT:-11214}}"
+    local upstream_port="${2:-${PROXY_NGINX_PORT:-11193}}"
+    local label="pss-bridge"
+    local data_dir="${TEST_ROOT}/data-pss-bridge"
+    local admin_dir="${REF_DIR}/${label}-admin-conf"
+    local run_dir="${REF_DIR}/${label}-run-conf"
+    local cfg="${REF_DIR}/${label}-conformance.cfg"
+    local log="${REF_DIR}/${label}-conformance.log"
+
+    if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
+        if pids_on_port "$port" | grep -q .; then
+            echo "reference xrootd ${label} appears to be listening on $port (SKIP_XRDFS_CHECK set)"
+            return 0
+        fi
+    elif wait_ready_xrdfs "root://localhost:$port" 1 0.1; then
+        echo "reference xrootd ${label} already running on $port"
+        return 0
+    fi
+
+    mkdir -p "$admin_dir" "$run_dir" "$data_dir"
+    : > "$log"
+    cat >"$cfg" <<EOF
+all.role server
+all.export /
+oss.localroot ${data_dir}
+all.adminpath ${admin_dir}
+all.pidpath ${run_dir}
+
+xrd.port ${port}
+xrd.trace off
+ofs.osslib libXrdPss.so
+pss.origin localhost:${upstream_port}
+pss.setopt DebugLevel 0
 EOF
 
     "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1 || true
@@ -974,6 +1120,7 @@ force_stop_ref() {
             pids_on_port 12124
             pids_on_port 12125
             pids_on_port 12126
+            pids_on_port 11214
         } | sort -u
     )"
     kill_pid_list "$pids"
@@ -1050,6 +1197,40 @@ start_all_dedicated() {
     start_dedicated_nginx "upstream-auth-nofile" "nginx_upstream_auth_nofile.conf" "${UPSTREAM_AUTH_NOFILE_NGINX_PORT:-11125}" "${UPSTREAM_AUTH_NOFILE_BACKEND_PORT:-12125}"
     start_dedicated_nginx "upstream-gotorls-notls" "nginx_upstream_gotorls_notls.conf" "${UPSTREAM_GOTORLS_NOTLS_NGINX_PORT:-11126}" "${UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT:-12126}"
 
+    # Mock-only upstream nginx instances (test_a_upstream_redirect.py).
+    # Each instance points to a mock-only backend port (13120–13126) where NO
+    # real xrootd server ever runs.  Tests bind a Python MockUpstream to the
+    # backend port for the duration of each test; SO_REUSEADDR lets the next
+    # test reclaim the port without a TIME_WAIT stall.
+    UPSTREAM_PORT="${MOCK_REDIRECT_BACKEND_PORT:-13120}" \
+        start_dedicated_nginx "mock-upstream-redirect" "nginx_upstream_redirect.conf" \
+        "${MOCK_REDIRECT_NGINX_PORT:-11130}"
+    UPSTREAM_PORT="${MOCK_WAIT_BACKEND_PORT:-13121}" \
+        start_dedicated_nginx "mock-upstream-wait" "nginx_upstream_wait.conf" \
+        "${MOCK_WAIT_NGINX_PORT:-11131}"
+    UPSTREAM_PORT="${MOCK_WAITRESP_BACKEND_PORT:-13122}" \
+        start_dedicated_nginx "mock-upstream-waitresp" "nginx_upstream_waitresp.conf" \
+        "${MOCK_WAITRESP_NGINX_PORT:-11132}"
+    UPSTREAM_PORT="${MOCK_ERROR_BACKEND_PORT:-13123}" \
+        start_dedicated_nginx "mock-upstream-error" "nginx_upstream_error.conf" \
+        "${MOCK_ERROR_NGINX_PORT:-11133}"
+    UPSTREAM_PORT="${MOCK_AUTH_BACKEND_PORT:-13124}" \
+        start_dedicated_nginx "mock-upstream-auth" "nginx_mock_upstream_auth.conf" \
+        "${MOCK_AUTH_NGINX_PORT:-11134}"
+    UPSTREAM_PORT="${MOCK_AUTH_NOFILE_BACKEND_PORT:-13125}" \
+        start_dedicated_nginx "mock-upstream-auth-nofile" "nginx_upstream_auth_nofile.conf" \
+        "${MOCK_AUTH_NOFILE_NGINX_PORT:-11135}"
+    UPSTREAM_PORT="${MOCK_GOTORLS_BACKEND_PORT:-13126}" \
+        start_dedicated_nginx "mock-upstream-gotorls" "nginx_upstream_gotorls_notls.conf" \
+        "${MOCK_GOTORLS_NGINX_PORT:-11136}"
+
+    # Real-upstream-redirect: nginx at REAL_REDIRECT_NGINX_PORT proxies to the
+    # cluster-redir so tests can verify kXR_redirect forwarding against a real
+    # XRootD redirector without a Python mock backend.
+    UPSTREAM_PORT="${CLUSTER_REDIR_PORT:-11160}" \
+        start_dedicated_nginx "real-upstream-redirect" "nginx_upstream_redirect.conf" \
+        "${REAL_REDIRECT_NGINX_PORT:-11137}"
+
     start_dedicated_nginx "tpc-ssrf-default" "nginx_tpc_ssrf_default.conf" "${TPC_SSRF_DEFAULT_PORT:-11180}"
     start_dedicated_nginx "tpc-ssrf-allow-local" "nginx_tpc_ssrf_allow_local.conf" "${TPC_SSRF_ALLOW_LOCAL_PORT:-11181}"
     start_dedicated_nginx "tpc-ssrf-deny-private" "nginx_tpc_ssrf_deny_private.conf" "${TPC_SSRF_DENY_PRIVATE_PORT:-11182}"
@@ -1057,6 +1238,174 @@ start_all_dedicated() {
     start_dedicated_nginx "s3-presigned-sts" "nginx_s3_presigned_sts.conf" "${S3_PRESIGNED_STS_PORT:-11184}"
     start_dedicated_nginx "security-level-standard" "nginx_security_level_standard.conf" "${SECURITY_LEVEL_STANDARD_PORT:-11191}"
     start_dedicated_nginx "security-level-pedantic" "nginx_security_level_pedantic.conf" "${SECURITY_LEVEL_PEDANTIC_PORT:-11192}"
+
+    # CMS cluster: redirector listens on CLUSTER_REDIR_PORT; its CMS manager
+    # server listens on port 11161.  The data server connects to that CMS port
+    # and serves files on CLUSTER_DS_PORT.
+    local cluster_cms_port="${CLUSTER_REDIR_CMS_PORT:-11161}"
+    CMS_PORT="${cluster_cms_port}" \
+        start_dedicated_nginx "cluster-redir" "nginx_cluster_redir.conf" "${CLUSTER_REDIR_PORT:-11160}"
+    CMS_PORT="${cluster_cms_port}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-ds" "nginx_cluster_ds.conf" "${CLUSTER_DS_PORT:-11162}"
+
+    start_dedicated_nginx "http-cache" "nginx_http_cache.conf" "${NGINX_HTTP_CACHE_PORT:-18457}"
+    start_dedicated_nginx "webdav-voms" "nginx_webdav_voms.conf" "${NGINX_WEBDAV_VOMS_PORT:-18458}"
+
+    # CMS heartbeat tests: a real nginx CMS manager (cms-test-mgr) listens on
+    # CMS_TEST_CMS_PORT (12400) for data server registrations.  The cms-test nginx
+    # (12500) connects to it with xrootd_cms_interval 2, reconnecting every 2s.
+    CMS_PORT="${CMS_TEST_CMS_PORT:-12400}" \
+        start_dedicated_nginx "cms-test-mgr" "nginx_cluster_redir.conf" "${CMS_TEST_REDIR_PORT:-12399}"
+    CMS_PORT="${CMS_TEST_CMS_PORT:-12400}" \
+        start_dedicated_nginx "cms-test" "nginx_cms_test.conf" "${CMS_TEST_NGINX_PORT:-12500}"
+
+    # Chaos Mesh tier stack: Tier3 storage ← Tier2 cache ← Tier1 proxy
+    start_dedicated_nginx "chaos-tier3" "nginx_chaos_tier3_storage.conf" "${CHAOS_TIER3_PORT:-11163}"
+    UPSTREAM_PORT="${CHAOS_TIER3_PORT:-11163}" \
+        start_dedicated_nginx "chaos-tier2" "nginx_chaos_tier2_cache.conf" "${CHAOS_TIER2_PORT:-11164}"
+    UPSTREAM_PORT="${CHAOS_TIER2_PORT:-11164}" \
+        start_dedicated_nginx "chaos-tier1" "nginx_proxy.conf" "${CHAOS_TIER1_PORT:-11165}"
+
+    # Chaos Mesh discovery cluster: separate redirector + DS for delayed-CMS tests
+    local chaos_cms_port="${CHAOS_DISCOVERY_CMS_PORT:-11167}"
+    CMS_PORT="${chaos_cms_port}" \
+        start_dedicated_nginx "chaos-discovery-redir" "nginx_cluster_redir.conf" "${CHAOS_DISCOVERY_REDIR_PORT:-11166}"
+    CMS_PORT="${chaos_cms_port}" CMS_PATHS="/chaos-discovery" \
+        start_dedicated_nginx "chaos-discovery-ds" "nginx_cluster_ds.conf" "${CHAOS_DISCOVERY_DS_PORT:-11168}"
+
+    # Proxy mode test pair (test_proxy_mode.py)
+    start_extra_ref_anon "proxy-upstream" "${PROXY_UPSTREAM_PORT:-12501}" "${TEST_ROOT}/data-proxy-upstream"
+    UPSTREAM_PORT="${PROXY_UPSTREAM_PORT:-12501}" \
+        start_dedicated_nginx "proxy-nginx" "nginx_proxy_mode.conf" "${PROXY_NGINX_PORT:-11193}"
+    UPSTREAM_PORT="${PROXY_DEAD_UPSTREAM_PORT:-19999}" \
+        start_dedicated_nginx "proxy-dead" "nginx_proxy_dead.conf" "${PROXY_DEAD_NGINX_PORT:-11203}"
+
+    # Proxy interoperability matrix — Scenarios 2 and 3 (test_e2e_proxy_matrix.py)
+    # Scenario 2: xrootd PSS bridge → nginx proxy → xrootd data (PROXY_DATA_ROOT)
+    start_pss_bridge_ref "${PROXY_BRIDGE_XROOTD_PORT:-11214}" "${PROXY_NGINX_PORT:-11193}"
+    # Scenario 3: pure nginx→nginx stack; proxy chains to the existing data nginx
+    UPSTREAM_PORT="${PROXY_NGINX_PORT:-11193}" \
+        start_dedicated_nginx "pure-nginx-proxy" "nginx_pure_nginx_proxy.conf" \
+        "${PROXY_PURE_NGINX_PROXY_PORT:-11213}"
+    # Credential Translation Bridge — Section 4C (test_credential_translation.py)
+    # Accepts GSI proxy cert; injects Bearer token for the token-only backend.
+    UPSTREAM_PORT="${NGINX_TOKEN_PORT:-11097}" \
+        start_dedicated_nginx "credential-bridge" "nginx_credential_bridge.conf" \
+        "${CREDENTIAL_BRIDGE_PORT:-11215}"
+
+    # Authdb: pre-create the data dir so nginx can start; authdb_setup writes real rules.
+    mkdir -p "${TEST_ROOT}/data-authdb"
+    [[ -f "${TEST_ROOT}/data-authdb/authdb" ]] || \
+        printf '# placeholder written by start-all; authdb_setup fixture overwrites\n' \
+        > "${TEST_ROOT}/data-authdb/authdb"
+    start_dedicated_nginx "authdb" "nginx_authdb.conf" "${AUTHDB_PORT:-11114}"
+
+    # Multi-path cluster (TestClusterMultiPath)
+    local mp_cms="${CLUSTER_MP_CMS_PORT:-11171}"
+    CMS_PORT="${mp_cms}" \
+        start_dedicated_nginx "cluster-mp-redir" "nginx_cluster_redir.conf" "${CLUSTER_MP_REDIR_PORT:-11169}"
+    CMS_PORT="${mp_cms}" \
+        start_dedicated_nginx "cluster-mp-ds" "nginx_cluster_ds_multipath.conf" "${CLUSTER_MP_DS_PORT:-11170}"
+
+    # Multi-server cluster (TestClusterMultiServer)
+    local ms_cms="${CLUSTER_MS_CMS_PORT:-11175}"
+    CMS_PORT="${ms_cms}" \
+        start_dedicated_nginx "cluster-ms-redir" "nginx_cluster_redir.conf" "${CLUSTER_MS_REDIR_PORT:-11172}"
+    CMS_PORT="${ms_cms}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-ms-ds1" "nginx_cluster_ds.conf" "${CLUSTER_MS_DS1_PORT:-11173}"
+    CMS_PORT="${ms_cms}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-ms-ds2" "nginx_cluster_ds.conf" "${CLUSTER_MS_DS2_PORT:-11174}"
+
+    # Multi-worker cluster: a real nginx CMS manager (cluster-mw-mgr) accepts
+    # connections from both workers in cluster-mw on CLUSTER_MW_CMS_PORT (11177).
+    CMS_PORT="${CLUSTER_MW_CMS_PORT:-11177}" \
+        start_dedicated_nginx "cluster-mw-mgr" "nginx_cluster_redir.conf" "${CLUSTER_MW_REDIR_PORT:-11178}"
+    CMS_PORT="${CLUSTER_MW_CMS_PORT:-11177}" \
+        start_dedicated_nginx "cluster-mw" "nginx_cluster_multi_worker.conf" "${CLUSTER_MW_PORT:-11176}"
+
+    # Three-tier topology (TestThreeTierTopology)
+    local t3_meta_cms="${CLUSTER_3T_META_CMS_PORT:-11186}"
+    local t3_sub_cms="${CLUSTER_3T_SUB_CMS_PORT:-11188}"
+    CMS_PORT="${t3_meta_cms}" \
+        start_dedicated_nginx "cluster-3t-meta" "nginx_cluster_redir.conf" "${CLUSTER_3T_META_PORT:-11185}"
+    CMS_PORT="${t3_sub_cms}" META_CMS_PORT="${t3_meta_cms}" \
+        SELF_REGISTER_PORT="${CLUSTER_3T_SELF_PORT:-11189}" \
+        start_dedicated_nginx "cluster-3t-sub" "nginx_cluster_sub_manager.conf" "${CLUSTER_3T_SUB_PORT:-11187}"
+    CMS_PORT="${t3_sub_cms}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-3t-leaf" "nginx_cluster_ds.conf" "${CLUSTER_3T_LEAF_PORT:-11190}"
+
+    # Mock-CMS-select cluster: nginx queries Python mock parent CMS on CLUSTER_SELECT_CMS_PORT.
+    CMS_PORT="${CLUSTER_SELECT_CMS_PORT:-12601}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-select" "nginx_cluster_parent_lookup.conf" \
+        "${CLUSTER_SELECT_PORT:-11194}"
+
+    # Full-registry (slots) cluster: 3-slot redirector + 4 data servers → overflow test.
+    local slots_cms="${CLUSTER_SLOTS_CMS_PORT:-12608}"
+    CMS_PORT="${slots_cms}" \
+        METRICS_PORT="${CLUSTER_SLOTS_METRICS_PORT:-11196}" \
+        NGINX_METRICS_PORT="${CLUSTER_SLOTS_METRICS_PORT:-11196}" \
+        start_dedicated_nginx "cluster-slots-redir" "nginx_cluster_slots_redir.conf" \
+        "${CLUSTER_SLOTS_REDIR_PORT:-11195}"
+    CMS_PORT="${slots_cms}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-slots-ds1" "nginx_cluster_ds.conf" "${CLUSTER_SLOTS_DS1_PORT:-12602}"
+    CMS_PORT="${slots_cms}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-slots-ds2" "nginx_cluster_ds.conf" "${CLUSTER_SLOTS_DS2_PORT:-12603}"
+    CMS_PORT="${slots_cms}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-slots-ds3" "nginx_cluster_ds.conf" "${CLUSTER_SLOTS_DS3_PORT:-12604}"
+    CMS_PORT="${slots_cms}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-slots-ds4" "nginx_cluster_ds.conf" "${CLUSTER_SLOTS_DS4_PORT:-12605}"
+
+    # Mock-CMS-try cluster: nginx queries Python mock parent CMS on CLUSTER_TRY_CMS_PORT.
+    CMS_PORT="${CLUSTER_TRY_CMS_PORT:-12606}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-try" "nginx_cluster_parent_lookup.conf" \
+        "${CLUSTER_TRY_PORT:-11197}"
+
+    # Escalation cluster: sub→Python mock parent; leaf is a standalone DS.
+    CMS_PORT="${CLUSTER_ESC_CMS_PORT:-12607}" CMS_PATHS="/" \
+        start_dedicated_nginx "cluster-esc-sub" "nginx_cluster_parent_lookup.conf" \
+        "${CLUSTER_ESC_SUB_PORT:-11198}"
+    start_dedicated_nginx "cluster-esc-leaf" "nginx_cluster_leaf.conf" \
+        "${CLUSTER_ESC_LEAF_PORT:-11199}"
+
+    # Cache and write-through servers.
+    # cache-only: read-through cache backed by the anonymous nginx origin (11094).
+    # wt-sync / wt-async: write-through servers forwarding dirty writes to origin (11094).
+    start_dedicated_nginx "cache-only" "nginx_cache_only.conf" \
+        "${CACHE_ONLY_PORT:-11200}"
+    start_dedicated_nginx "wt-sync" "nginx_wt_sync.conf" \
+        "${WT_SYNC_PORT:-11201}"
+    start_dedicated_nginx "wt-async" "nginx_wt_async.conf" \
+        "${WT_ASYNC_PORT:-11202}"
+
+    # kXR_prepare staging-command test pair.
+    # prepare-command: xrootd_prepare_command configured to a fixed hook script
+    #   that appends staged paths to a log file tests can read.
+    # prepare-nocmd:   same stream server without xrootd_prepare_command.
+    local prep_hook="${TEST_ROOT}/dedicated/prepare-command/stage_hook.sh"
+    local prep_log="${TEST_ROOT}/data-prepare-command/staged.log"
+    mkdir -p "${TEST_ROOT}/dedicated/prepare-command"
+    cat > "$prep_hook" <<EOF
+#!/bin/sh
+printf '%s\n' "\$@" >> ${prep_log}
+EOF
+    chmod +x "$prep_hook"
+    STAGE_CMD="${prep_hook}" \
+        start_dedicated_nginx "prepare-command" "nginx_prepare_command.conf" \
+        "${PREPARE_CMD_PORT:-11204}"
+    start_dedicated_nginx "prepare-nocmd" "nginx_prepare_staging.conf" \
+        "${PREPARE_NOCMD_PORT:-11205}"
+
+    # Phase 2 capability-flag role servers (test_protocol_flags.py).
+    start_dedicated_nginx "meta-only" "nginx_meta_only.conf" \
+        "${META_ONLY_PORT:-11206}"
+    start_dedicated_nginx "supervisor" "nginx_supervisor.conf" \
+        "${SUPERVISOR_PORT:-11207}"
+    # virtual-redir: static manager_map pointing at the anon data server; no CMS.
+    start_dedicated_nginx "virtual-redir" "nginx_virtual_redir.conf" \
+        "${VIRTUAL_REDIR_PORT:-11208}" "${NGINX_ANON_PORT:-11094}"
+    # Phase 3: collapse-redir cache (xrootd_collapse_redir on).
+    start_dedicated_nginx "collapse-redir" "nginx_collapse_redir.conf" \
+        "${COLLAPSE_REDIR_PORT:-11209}" "${NGINX_ANON_PORT:-11094}"
 
     start_xrdhttp
 }
@@ -1119,6 +1468,34 @@ case "$ACTION" in
         ;;
     stop-all)
         stop_all_dedicated
+        ;;
+    start-dedicated)
+        # Restart a single named dedicated nginx instance without a full start-all.
+        case "$TARGET" in
+            cluster-ds)
+                CMS_PORT="${CLUSTER_REDIR_CMS_PORT:-11161}" CMS_PATHS="/" \
+                    start_dedicated_nginx "cluster-ds" "nginx_cluster_ds.conf" \
+                    "${CLUSTER_DS_PORT:-11162}"
+                ;;
+            cluster-3t-meta)
+                CMS_PORT="${CLUSTER_3T_META_CMS_PORT:-11186}" \
+                    start_dedicated_nginx "cluster-3t-meta" "nginx_cluster_redir.conf" \
+                    "${CLUSTER_3T_META_PORT:-11185}"
+                ;;
+            cluster-3t-sub)
+                CMS_PORT="${CLUSTER_3T_SUB_CMS_PORT:-11188}" \
+                META_CMS_PORT="${CLUSTER_3T_META_CMS_PORT:-11186}" \
+                SELF_REGISTER_PORT="${CLUSTER_3T_SELF_PORT:-11189}" \
+                    start_dedicated_nginx "cluster-3t-sub" "nginx_cluster_sub_manager.conf" \
+                    "${CLUSTER_3T_SUB_PORT:-11187}"
+                ;;
+            cluster-3t-leaf)
+                CMS_PORT="${CLUSTER_3T_SUB_CMS_PORT:-11188}" CMS_PATHS="/" \
+                    start_dedicated_nginx "cluster-3t-leaf" "nginx_cluster_ds.conf" \
+                    "${CLUSTER_3T_LEAF_PORT:-11190}"
+                ;;
+            *) echo "start-dedicated: unknown target '${TARGET}'" >&2; exit 1 ;;
+        esac
         ;;
     start)
         case "$TARGET" in

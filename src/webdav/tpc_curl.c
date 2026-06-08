@@ -12,9 +12,45 @@
  */
 
 #include "webdav.h"
+#include "../tpc/common/registry.h"
 
 #include <curl/curl.h>
 #include <sys/stat.h>
+
+typedef struct {
+    uint64_t   transfer_id;
+    ngx_log_t *log;
+    int        is_push;
+    off_t      last_done;
+} webdav_tpc_curl_progress_t;
+
+#ifdef CURLOPT_XFERINFOFUNCTION
+static int
+webdav_tpc_curl_progress(void *clientp, curl_off_t dltotal,
+                         curl_off_t dlnow, curl_off_t ultotal,
+                         curl_off_t ulnow)
+{
+    webdav_tpc_curl_progress_t *progress = clientp;
+    off_t                       done;
+    off_t                       total;
+
+    if (progress == NULL || progress->transfer_id == 0) {
+        return 0;
+    }
+
+    done = progress->is_push ? (off_t) ulnow : (off_t) dlnow;
+    total = progress->is_push ? (off_t) ultotal : (off_t) dltotal;
+
+    if (done != progress->last_done) {
+        progress->last_done = done;
+        (void) xrootd_tpc_progress_emit(progress->transfer_id, done, total,
+                                        XROOTD_TPC_STATE_ACTIVE,
+                                        progress->log);
+    }
+
+    return 0;
+}
+#endif
 
 /*
  * webdav_tpc_run_curl_core — perform a single HTTP transfer using libcurl.
@@ -32,7 +68,8 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
                          int is_push,
                          const char *file_path,
                          const char *url,
-                         const char *log_tag)
+                         const char *log_tag,
+                         uint64_t transfer_id)
 {
     CURL              *curl = NULL;
     struct curl_slist *hdrs = NULL;
@@ -42,6 +79,9 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
     ngx_int_t          rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
     ngx_uint_t         i;
     ngx_str_t         *headers;
+#ifdef CURLOPT_XFERINFOFUNCTION
+    webdav_tpc_curl_progress_t progress;
+#endif
 
     XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_STARTED]);
 
@@ -57,6 +97,19 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+
+#ifdef CURLOPT_XFERINFOFUNCTION
+    if (transfer_id != 0) {
+        ngx_memzero(&progress, sizeof(progress));
+        progress.transfer_id = transfer_id;
+        progress.log = log;
+        progress.is_push = is_push;
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION,
+                         webdav_tpc_curl_progress);
+        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &progress);
+    }
+#endif
 
     /* Restrict to HTTPS only — equivalent to curl --proto =https */
 #ifdef CURLOPT_PROTOCOLS_STR
@@ -164,18 +217,22 @@ ngx_int_t
 webdav_tpc_run_curl_pull(ngx_log_t *log,
                          ngx_http_xrootd_webdav_loc_conf_t *conf,
                          const char *source_url, const char *tmp_path,
-                         ngx_array_t *transfer_headers)
+                         ngx_array_t *transfer_headers,
+                         uint64_t transfer_id)
 {
     return webdav_tpc_run_curl_core(log, conf, transfer_headers,
-                                    0, tmp_path, source_url, "pull");
+                                    0, tmp_path, source_url, "pull",
+                                    transfer_id);
 }
 
 ngx_int_t
 webdav_tpc_run_curl_push(ngx_log_t *log,
                          ngx_http_xrootd_webdav_loc_conf_t *conf,
                          const char *dest_url, const char *local_path,
-                         ngx_array_t *transfer_headers)
+                         ngx_array_t *transfer_headers,
+                         uint64_t transfer_id)
 {
     return webdav_tpc_run_curl_core(log, conf, transfer_headers,
-                                    1, local_path, dest_url, "push");
+                                    1, local_path, dest_url, "push",
+                                    transfer_id);
 }

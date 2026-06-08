@@ -21,6 +21,7 @@ static const char *xrootd_s3_method_names[XROOTD_S3_NMETHODS] = {
     "DELETE",
     "LIST",
     "POST",
+    "OPTIONS",
     "OTHER",
 };
 
@@ -136,6 +137,8 @@ xrootd_export_s3_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
     }
 
     mw_printf(mw,
+        "# DEPRECATED: use xrootd_io_bytes_written{proto=\"s3\"} "
+            "for protocol-neutral write throughput.\n"
         "# HELP xrootd_s3_bytes_rx_total "
             "Bytes accepted into successful S3-compatible PUT writes.\n"
         "# TYPE xrootd_s3_bytes_rx_total counter\n"
@@ -144,12 +147,30 @@ xrootd_export_s3_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
             &shm->s3.bytes_rx_total, 0));
 
     mw_printf(mw,
+        "# DEPRECATED: use xrootd_io_bytes_read{proto=\"s3\"} "
+            "for protocol-neutral read throughput.\n"
         "# HELP xrootd_s3_bytes_tx_total "
             "Bytes emitted by S3-compatible GET, LIST, and XML error responses.\n"
         "# TYPE xrootd_s3_bytes_tx_total counter\n"
         "xrootd_s3_bytes_tx_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(
             &shm->s3.bytes_tx_total, 0));
+
+    mw_printf(mw,
+        "# HELP xrootd_s3_bytes_rx_ipv4_total "
+            "Bytes received from IPv4 clients via S3-compatible PUT.\n"
+        "# TYPE xrootd_s3_bytes_rx_ipv4_total counter\n"
+        "xrootd_s3_bytes_rx_ipv4_total %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(
+            &shm->s3.bytes_rx_ipv4_total, 0));
+
+    mw_printf(mw,
+        "# HELP xrootd_s3_bytes_tx_ipv4_total "
+            "Bytes sent to IPv4 clients via S3-compatible GET.\n"
+        "# TYPE xrootd_s3_bytes_tx_ipv4_total counter\n"
+        "xrootd_s3_bytes_tx_ipv4_total %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(
+            &shm->s3.bytes_tx_ipv4_total, 0));
 
     mw_printf(mw,
         "# HELP xrootd_s3_range_requests_total "

@@ -182,6 +182,8 @@ def tpc_nginx():
         )
     }
     for root in roots.values():
+        if root.exists():
+            shutil.rmtree(root)
         root.mkdir(parents=True, exist_ok=True)
 
     ports = {

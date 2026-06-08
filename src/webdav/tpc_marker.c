@@ -31,6 +31,7 @@
  */
 
 #include "webdav.h"
+#include "../tpc/common/registry.h"
 
 #include <fcntl.h>
 #include <signal.h>
@@ -75,6 +76,8 @@ typedef struct {
 
     /* Size of the local file being pushed (for the final Perf Marker). */
     off_t                push_file_size;
+
+    uint64_t             transfer_id;
 } tpc_marker_ctx_t;
 
 /* -------------------------------------------------------------------------- */
@@ -161,6 +164,10 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
     }
 
     /* Final Performance-Marker with actual bytes. */
+    (void) xrootd_tpc_progress_emit(ctx->transfer_id, final_bytes, final_bytes,
+                                    failed ? XROOTD_TPC_STATE_ERROR
+                                           : XROOTD_TPC_STATE_DONE,
+                                    r->connection->log);
     tpc_marker_send_block(r, now, final_bytes);
 
     /* Commit the temp file (pull only). */
@@ -172,14 +179,14 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
              * curl completing — treat it as a commit failure (can't return
              * 412 after 202, so "failure" in the body is the closest signal).
              */
-            if (xrootd_link_confined_canon(r->connection->log, ctx->common.root_canon,
+            if (xrootd_link_confined_canon(r->connection->log, ctx->root_canon,
                                            ctx->tmp_path,
                                            ctx->final_path) != 0)
             {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
                               "xrootd_webdav: TPC marker link() failed");
                 xrootd_unlink_confined_canon(r->connection->log,
-                                             ctx->common.root_canon,
+                                             ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
                 XROOTD_WEBDAV_METRIC_INC(
@@ -187,20 +194,20 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
                 failed = 1;
             } else {
                 xrootd_unlink_confined_canon(r->connection->log,
-                                             ctx->common.root_canon,
+                                             ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
             }
         } else {
             if (xrootd_rename_confined_canon(r->connection->log,
-                                             ctx->common.root_canon,
+                                             ctx->root_canon,
                                              ctx->tmp_path,
                                              ctx->final_path) != 0)
             {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
                               "xrootd_webdav: TPC marker rename() failed");
                 xrootd_unlink_confined_canon(r->connection->log,
-                                             ctx->common.root_canon,
+                                             ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
                 XROOTD_WEBDAV_METRIC_INC(
@@ -211,7 +218,7 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
             }
         }
     } else if (failed && ctx->is_pull && ctx->tmp_path[0] != '\0') {
-        xrootd_unlink_confined_canon(r->connection->log, ctx->common.root_canon,
+        xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                      ctx->tmp_path, 0);
         ctx->tmp_path[0] = '\0';
     }
@@ -295,6 +302,9 @@ tpc_marker_poll(ngx_event_t *ev)
             }
         }
         tpc_marker_send_block(r, now, bytes);
+        (void) xrootd_tpc_progress_emit(ctx->transfer_id, bytes, 0,
+                                        XROOTD_TPC_STATE_ACTIVE,
+                                        r->connection->log);
         ctx->last_marker_time = now;
     }
 
@@ -392,7 +402,8 @@ webdav_tpc_marker_start(ngx_http_request_t *r,
     ctx->is_pull              = is_pull;
     ctx->overwrite            = overwrite;
     ctx->existed              = existed;
-    ctx->common.root_canon           = conf->common.root_canon;
+    ctx->root_canon           = conf->common.root_canon;
+    ctx->transfer_id          = 0;
     ctx->marker_interval_secs = conf->tpc_marker_interval;
     ctx->last_marker_time     = 0;  /* ensure first marker fires immediately */
     ctx->push_file_size       = push_file_size;
@@ -436,7 +447,7 @@ webdav_tpc_marker_start(ngx_http_request_t *r,
         kill(curl_pid, SIGKILL);
         waitpid(curl_pid, NULL, 0);
         if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
-            xrootd_unlink_confined_canon(r->connection->log, ctx->common.root_canon,
+            xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                          ctx->tmp_path, 0);
             ctx->tmp_path[0] = '\0';
         }

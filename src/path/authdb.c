@@ -293,9 +293,9 @@ xrootd_authdb_host_cidr_match(const char *rule_id, const char *peer_ip)
 /* ---- HOW: Checks rule_id==NULL || peer_ip==NULL || peer_ip[0]=='\0' → returns 0. If strlen(rule_id)>=sizeof(cidr) → returns 0 (buffer overflow protection). Copies rule_id into cidr via ngx_cpystrn. strchr(cidr,'/') — if NULL strcmp(rule_id,peer_ip)==0 exact match check. If slash found: *slash++='\0' splits CIDR into addr/bits. strchr(cidr,':') → AF_INET6 (max_bits=128) else AF_INET (max_bits=32). strtol(slash,&end,10): validates end==slash || *end!='\0' || bits<0 || bits>max_bits → returns 0 on invalid. inet_pton(family,cidr,rule_addr) && inet_pton(family,peer_ip,peer_addr) — if either fails → returns 0. Returns xrootd_authdb_addr_prefix_match(rule_addr, peer_addr, (ngx_uint_t)bits). */
 
 static ngx_flag_t
-xrootd_authdb_host_match(const ngx_str_t *rule_id, xrootd_ctx_t *ctx)
+xrootd_authdb_host_match(const ngx_str_t *rule_id, const char *peer_ip)
 {
-    if (rule_id == NULL || ctx == NULL || ctx->peer_ip[0] == '\0') {
+    if (rule_id == NULL || peer_ip == NULL || peer_ip[0] == '\0') {
         return 0;
     }
 
@@ -304,22 +304,28 @@ xrootd_authdb_host_match(const ngx_str_t *rule_id, xrootd_ctx_t *ctx)
     }
 
     return xrootd_authdb_host_cidr_match((const char *) rule_id->data,
-                                         ctx->peer_ip);
+                                         peer_ip);
 }
-/* ---- HOW: Checks rule_id==NULL || ctx==NULL || ctx->peer_ip[0]=='\0' → returns 0. If rule_id->len==1 && rule_id->data[0]=='*' → returns 1 (wildcard matches all hosts). Otherwise delegates to xrootd_authdb_host_cidr_match((const char*)rule_id->data, ctx->peer_ip) for CIDR or exact IP matching. */
+/* ---- HOW: Checks rule_id==NULL || peer_ip==NULL || peer_ip[0]=='\0' → returns 0. If rule_id->len==1 && rule_id->data[0]=='*' → returns 1 (wildcard matches all hosts). Otherwise delegates to xrootd_authdb_host_cidr_match((const char*)rule_id->data, peer_ip) for CIDR or exact IP matching. */
 
 const xrootd_authdb_rule_t *
-xrootd_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
-                        xrootd_ctx_t *ctx, uint32_t needed_privs)
+xrootd_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
+                        const xrootd_identity_t *identity,
+                        const char *peer_ip, uint32_t needed_privs)
 {
     const xrootd_authdb_rule_t *best = NULL;
     xrootd_authdb_rule_t       *rule;
     size_t                      best_len = 0;
     ngx_uint_t                  i;
+    const char                 *dn;
+    const char                 *vo_list;
 
     if (resolved_path == NULL || rules == NULL) {
         return NULL;
     }
+
+    dn = xrootd_identity_dn_cstr(identity);
+    vo_list = xrootd_identity_vo_csv_cstr(identity);
 
     rule = rules->elts;
     for (i = 0; i < rules->nelts; i++) {
@@ -338,21 +344,21 @@ xrootd_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
         case XROOTD_AUTH_USER:
             if (rule[i].id.len == 1 && rule[i].id.data[0] == '*') {
                 match = 1;
-            } else if (ngx_strcmp(rule[i].id.data, ctx->dn) == 0) {
+            } else if (ngx_strcmp(rule[i].id.data, dn) == 0) {
                 match = 1;
             }
             break;
         case XROOTD_AUTH_GROUP:
             if (rule[i].id.len == 1 && rule[i].id.data[0] == '*') {
                 match = 1;
-            } else if (xrootd_vo_list_contains(ctx->vo_list,
+            } else if (xrootd_vo_list_contains(vo_list,
                                                (const char *) rule[i].id.data))
             {
                 match = 1;
             }
             break;
         case XROOTD_AUTH_HOST:
-            match = xrootd_authdb_host_match(&rule[i].id, ctx);
+            match = xrootd_authdb_host_match(&rule[i].id, peer_ip);
             break;
         default:
             break;
@@ -378,37 +384,94 @@ xrootd_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
 
     return best;
 }
+
+const xrootd_authdb_rule_t *
+xrootd_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
+                        xrootd_ctx_t *ctx, uint32_t needed_privs)
+{
+    xrootd_identity_t fallback;
+
+    if (ctx == NULL) {
+        return NULL;
+    }
+
+    if (ctx->identity != NULL) {
+        return xrootd_find_authdb_rule_identity(resolved_path, rules,
+                                                ctx->identity, ctx->peer_ip,
+                                                needed_privs);
+    }
+
+    ngx_memzero(&fallback, sizeof(fallback));
+    fallback.dn.data = (u_char *) ctx->dn;
+    fallback.dn.len = strlen(ctx->dn);
+    fallback.vo_csv.data = (u_char *) ctx->vo_list;
+    fallback.vo_csv.len = strlen(ctx->vo_list);
+
+    return xrootd_find_authdb_rule_identity(resolved_path, rules,
+                                            &fallback, ctx->peer_ip,
+                                            needed_privs);
+}
 /* ---- HOW: Checks resolved_path==NULL || rules==NULL → returns NULL. Iterates all rules via rule=rules->elts, for i=0..nelts-1: computes rule_len=strlen(rule[i].resolved). xrootd_path_prefix_match(rule[i].resolved, resolved_path) — if 0 (no path prefix match) continues. Identity check switch on rule[i].type: XROOTD_AUTH_ALL→match=1; XROOTD_AUTH_USER→rule_id=='*' or ngx_strcmp(id.data,ctx->dn)==0; XROOTD_AUTH_GROUP→rule_id=='*' or xrootd_vo_list_contains(ctx->vo_list,id.data); XROOTD_AUTH_HOST→xrootd_authdb_host_match(&id, ctx). If !match continues. If rule[i].privs & needed_privs == needed_privs (privs satisfied) AND rule_len >= best_len → updates best=&rule[i], best_len=rule_len (longest prefix wins). Returns best (NULL if no matching rule found). */
+
+ngx_int_t
+xrootd_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
+                    const xrootd_identity_t *identity, const char *peer_ip,
+                    const char *resolved_path, uint32_t needed_privs)
+{
+    const xrootd_authdb_rule_t   *rule;
+    char                          safe_path[512];
+    const char                   *dn;
+    const char                   *vo_list;
+
+    if (rules == NULL || rules->nelts == 0) {
+        return NGX_OK;
+    }
+
+    rule = xrootd_find_authdb_rule_identity(resolved_path, rules, identity,
+                                            peer_ip, needed_privs);
+    if (rule != NULL) {
+        return NGX_OK;
+    }
+
+    dn = xrootd_identity_dn_cstr(identity);
+    vo_list = xrootd_identity_vo_csv_cstr(identity);
+    xrootd_sanitize_log_string(resolved_path, safe_path, sizeof(safe_path));
+
+    ngx_log_error(NGX_LOG_WARN, log, 0,
+                  "xrootd: authdb denied path=\"%s\" privs=0x%02xd "
+                  "dn=\"%s\" vos=\"%s\" peer=\"%s\"",
+                  safe_path, needed_privs, dn,
+                  vo_list[0] ? vo_list : "-",
+                  (peer_ip != NULL && peer_ip[0]) ? peer_ip : "-");
+
+    return NGX_ERROR;
+}
 
 ngx_int_t
 xrootd_check_authdb(xrootd_ctx_t *ctx, const char *resolved_path,
                     uint32_t needed_privs)
 {
     ngx_stream_xrootd_srv_conf_t *conf;
-    const xrootd_authdb_rule_t   *rule;
-    char                          safe_path[512];
+    xrootd_identity_t            fallback;
 
     conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_xrootd_module);
 
-    if (conf->authdb_rules == NULL || conf->authdb_rules->nelts == 0) {
-        return NGX_OK;
+    if (ctx->identity != NULL) {
+        return xrootd_check_authdb_identity(ctx->session->connection->log,
+                                            conf->authdb_rules, ctx->identity,
+                                            ctx->peer_ip, resolved_path,
+                                            needed_privs);
     }
 
-    rule = xrootd_find_authdb_rule(resolved_path, conf->authdb_rules, ctx,
-                                   needed_privs);
-    if (rule != NULL) {
-        return NGX_OK;
-    }
+    ngx_memzero(&fallback, sizeof(fallback));
+    fallback.dn.data = (u_char *) ctx->dn;
+    fallback.dn.len = strlen(ctx->dn);
+    fallback.vo_csv.data = (u_char *) ctx->vo_list;
+    fallback.vo_csv.len = strlen(ctx->vo_list);
 
-    xrootd_sanitize_log_string(resolved_path, safe_path, sizeof(safe_path));
-
-    ngx_log_error(NGX_LOG_WARN, ctx->session->connection->log, 0,
-                  "xrootd: authdb denied path=\"%s\" privs=0x%02xd "
-                  "dn=\"%s\" vos=\"%s\" peer=\"%s\"",
-                  safe_path, needed_privs, ctx->dn,
-                  ctx->vo_list[0] ? ctx->vo_list : "-",
-                  ctx->peer_ip[0] ? ctx->peer_ip : "-");
-
-    return NGX_ERROR;
+    return xrootd_check_authdb_identity(ctx->session->connection->log,
+                                        conf->authdb_rules, &fallback,
+                                        ctx->peer_ip, resolved_path,
+                                        needed_privs);
 }
 /* ---- HOW: Gets srv conf via ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_xrootd_module). Checks conf->authdb_rules==NULL || nelts==0 → returns NGX_OK (no rules = unrestricted). Calls xrootd_find_authdb_rule(resolved_path, conf->authdb_rules, ctx, needed_privs) — if rule!=NULL returns NGX_OK. Otherwise: sanitizes resolved_path into safe_path[512] via xrootd_sanitize_log_string(); logs warn-level error with "authdb denied path=... privs=0x.. dn=... vos=... peer=..." format; returns NGX_ERROR. */

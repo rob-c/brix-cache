@@ -149,8 +149,8 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                           resolved, "cksum", kXR_NotAuthorized, "not authorized");
     }
 
-    if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-                            ctx->vo_list) != NGX_OK) {
+    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+                                     ctx->identity) != NGX_OK) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
                           resolved, "cksum", kXR_NotAuthorized, "VO not authorized");
     }
@@ -328,4 +328,3 @@ xrootd_query_cksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     return xrootd_query_cksum_handle(ctx, c, conf, req, algo, sizeof(algo));
 }
-

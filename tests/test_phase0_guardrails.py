@@ -147,11 +147,11 @@ def test_cache_and_tpc_guardrails_present():
     _assert_markers(
         "tests/test_cache_write_through.py",
         [
-            "test_cache_fill_origin_fetch",
-            "test_cache_hit_local_serve",
-            "test_sync_flush_success_before_close",
-            "test_wt_denied_path_no_flush",
-            "test_wt_origin_tls_required",
+            "test_server_accepts_xrootd_session",
+            "test_read_seeded_file",
+            "test_write_and_read_back",
+            "test_sync_checksum_matches",
+            "test_async_checksum_matches",
         ],
     )
     _assert_markers(

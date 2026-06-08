@@ -113,9 +113,9 @@ class TestXrdHttpStatus:
         assert status_hdr != "" and status_hdr != "0", (
             f"Expected non-zero X-Xrootd-Status on 404, got: {status_hdr!r}"
         )
-        # kXR_NotFound == 3003
-        assert status_hdr == "3003", (
-            f"Expected X-Xrootd-Status: 3003 (kXR_NotFound), got: {status_hdr!r}"
+        # kXR_NotFound == 3011 per XProtocol.hh
+        assert status_hdr == "3011", (
+            f"Expected X-Xrootd-Status: 3011 (kXR_NotFound), got: {status_hdr!r}"
         )
 
     def test_status_zero_on_success(self, xrd_file):

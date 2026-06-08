@@ -5,6 +5,30 @@
 #include "webdav.h"
 #include "../compat/http_headers.h"
 #include "../metrics/http_common.h"
+#include "../metrics/unified.h"
+
+static xrootd_metric_op_t
+webdav_unified_op(ngx_uint_t method)
+{
+    switch (method) {
+    case XROOTD_WEBDAV_METHOD_GET:
+        return XROOTD_METRIC_OP_READ;
+    case XROOTD_WEBDAV_METHOD_HEAD:
+        return XROOTD_METRIC_OP_STAT;
+    case XROOTD_WEBDAV_METHOD_PUT:
+        return XROOTD_METRIC_OP_WRITE;
+    case XROOTD_WEBDAV_METHOD_DELETE:
+        return XROOTD_METRIC_OP_DELETE;
+    case XROOTD_WEBDAV_METHOD_MKCOL:
+        return XROOTD_METRIC_OP_MKDIR;
+    case XROOTD_WEBDAV_METHOD_COPY:
+        return XROOTD_METRIC_OP_TPC;
+    case XROOTD_WEBDAV_METHOD_PROPFIND:
+        return XROOTD_METRIC_OP_DIRLIST;
+    default:
+        return XROOTD_METRIC_OP_STAT;
+    }
+}
 
 /**
  * WHAT: Map nginx HTTP method to the WebDAV metric enum for Prometheus request counting.
@@ -71,6 +95,9 @@ webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc)
     status = xrootd_http_effective_status(r, rc);
     status_class = xrootd_http_status_class(status);
     XROOTD_WEBDAV_METRIC_INC(responses_total[method][status_class]);
+    xrootd_metric_op_done(XROOTD_PROTO_WEBDAV, webdav_unified_op(method),
+                          0, 0,
+                          xrootd_metric_err_from_http_status(status));
 }
 
 /**

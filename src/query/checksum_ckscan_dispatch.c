@@ -246,8 +246,8 @@ xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
                           resolved, "ckscan", kXR_NotAuthorized, "not authorized");
     }
 
-    if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-                            ctx->vo_list) != NGX_OK) {
+    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+                                     ctx->identity) != NGX_OK) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
                           pathbuf, "ckscan", kXR_NotAuthorized, "VO not authorized");
     }

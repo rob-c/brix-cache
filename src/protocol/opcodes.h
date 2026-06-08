@@ -134,6 +134,7 @@
 #define kXR_AuthFailed      3030  /* authentication credentials were rejected */
 #define kXR_Impossible      3031  /* request is logically impossible */
 #define kXR_Conflict        3032  /* conflicting options or state */
+#define kXR_TooManyErrs     3033  /* too many errors — server giving up */
 
 /* ------------------------------------------------------------------ */
 /* kXR_status encoding base                                             */

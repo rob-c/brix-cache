@@ -29,6 +29,8 @@ static ngx_conf_enum_t xrootd_auth_modes[] = {
     { ngx_string("token"), XROOTD_AUTH_TOKEN },
     { ngx_string("both"),  XROOTD_AUTH_BOTH  },
     { ngx_string("sss"),   XROOTD_AUTH_SSS   },
+    { ngx_string("unix"),  XROOTD_AUTH_UNIX  },
+    { ngx_string("krb5"),  XROOTD_AUTH_KRB5  },
     { ngx_null_string,     0                 }
 };
 
@@ -220,6 +222,37 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, sss_keytab),
       NULL },
 
+    /* Kerberos 5 service principal and optional keytab for XrdSeckrb5. */
+    { ngx_string("xrootd_krb5_principal"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, krb5_principal),
+      NULL },
+
+    { ngx_string("xrootd_krb5_keytab"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, krb5_keytab),
+      NULL },
+
+    { ngx_string("xrootd_krb5_ip_check"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, krb5_ip_check),
+      NULL },
+
+    /* Upstream-compatible unix credentials are self-asserted; keep remote
+     * peers disabled unless an operator explicitly trusts the network. */
+    { ngx_string("xrootd_unix_trust_remote"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, unix_trust_remote),
+      NULL },
+
     /* Minimum signing level: none, compatible, standard, intense, pedantic. */
     { ngx_string("xrootd_security_level"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -332,6 +365,50 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, manager_mode),
+      NULL },
+
+    /* Phase 2 capability-flag role directives. */
+    { ngx_string("xrootd_metadata_only"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, metadata_only),
+      NULL },
+
+    { ngx_string("xrootd_supervisor"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, supervisor),
+      NULL },
+
+    { ngx_string("xrootd_virtual_redirector"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, virtual_redirector),
+      NULL },
+
+    /* Phase 3 behavioral capability flag directives. */
+    { ngx_string("xrootd_collapse_redir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, collapse_redir),
+      NULL },
+
+    { ngx_string("xrootd_collapse_redir_ttl"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, collapse_redir_ttl),
+      NULL },
+
+    { ngx_string("xrootd_recover_writes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, recover_writes),
       NULL },
 
     { ngx_string("xrootd_registry_slots"),

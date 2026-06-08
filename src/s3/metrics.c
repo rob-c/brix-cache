@@ -31,6 +31,27 @@
 #include "s3.h"
 #include "../compat/http_headers.h"
 #include "../metrics/http_common.h"
+#include "../metrics/unified.h"
+
+static xrootd_metric_op_t
+s3_unified_op(ngx_uint_t method_slot)
+{
+    switch (method_slot) {
+    case XROOTD_S3_METHOD_GET:
+        return XROOTD_METRIC_OP_READ;
+    case XROOTD_S3_METHOD_HEAD:
+        return XROOTD_METRIC_OP_STAT;
+    case XROOTD_S3_METHOD_PUT:
+    case XROOTD_S3_METHOD_POST:
+        return XROOTD_METRIC_OP_WRITE;
+    case XROOTD_S3_METHOD_DELETE:
+        return XROOTD_METRIC_OP_DELETE;
+    case XROOTD_S3_METHOD_LIST:
+        return XROOTD_METRIC_OP_DIRLIST;
+    default:
+        return XROOTD_METRIC_OP_STAT;
+    }
+}
 
 ngx_uint_t
 s3_metrics_method_slot(ngx_http_request_t *r)
@@ -64,6 +85,9 @@ s3_metrics_response_status(ngx_uint_t method_slot, ngx_uint_t http_status)
 
     status_class = xrootd_http_status_class(http_status);
     XROOTD_S3_METRIC_INC(responses_total[method_slot][status_class]);
+    xrootd_metric_op_done(XROOTD_PROTO_S3, s3_unified_op(method_slot),
+                          0, 0,
+                          xrootd_metric_err_from_http_status(http_status));
 }
 
 void

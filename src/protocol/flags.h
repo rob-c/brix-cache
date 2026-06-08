@@ -64,9 +64,11 @@
 #define kXR_writable    32   /* caller has write permission */
 #define kXR_poscpend    64   /* POSC (persist-on-close) file, not yet closed */
 #define kXR_bkpexist    128  /* a backup copy exists at this site */
-#define kXR_attrCache   256  /* extended attribute metadata is locally cached;
-                               server can satisfy kXR_fattr requests without
-                               a round-trip to the origin (advisory hint). */
+#define kXR_statAttrCache  256  /* per-file stat hint: xattr metadata is cached locally;
+                                    server can satisfy kXR_fattr without a round-trip.
+                                    Local extension — not part of upstream protocol spec.
+                                    Named kXR_statAttrCache to avoid collision with the
+                                    protocol-level kXR_attrCache (0x80) flag below. */
 #define kXR_cachersp    512  /* file is served from a local read-through cache
                                (xcache node); set when conf->cache is on and
                                the file exists in the local cache_root.
@@ -92,14 +94,48 @@
 /*
  * Lower bits identify the server role; upper bits control TLS negotiation.
  */
-#define kXR_isServer    0x00000001u  /* we are a data server (can serve files) */
-#define kXR_isManager   0x00000002u  /* we are a manager / redirector */
-#define kXR_haveTLS     0x80000000u  /* server can accept an in-protocol TLS
-                                        upgrade (kXR_ableTLS) */
-#define kXR_gotoTLS     0x40000000u  /* client must upgrade to TLS immediately
-                                        before any further requests */
-#define kXR_tlsLogin    0x04000000u  /* the kXR_login exchange specifically
-                                        requires TLS protection */
+#define kXR_isServer      0x00000001u  /* we are a data server (can serve files) */
+#define kXR_isManager     0x00000002u  /* we are a manager / redirector */
+#define kXR_attrCache     0x00000080u  /* this node is a read-through cache (XCache);
+                                          set when xrootd_cache_root is configured.
+                                          Distinct from kXR_statAttrCache (stat hint). */
+#define kXR_attrMeta      0x00000100u  /* metadata-only: namespace ops only, no file
+                                          data; kXR_open redirected or rejected.
+                                          Set when xrootd_metadata_only is on. */
+#define kXR_attrProxy     0x00000200u  /* this node is a proxy; all file I/O is
+                                          forwarded to a backend XRootD server.
+                                          Set when xrootd_proxy is on. */
+#define kXR_attrSuper     0x00000400u  /* supervisor role: top-tier manager in a
+                                          three-level CMS hierarchy; implies
+                                          kXR_isManager. Set when xrootd_supervisor. */
+#define kXR_attrVirtRdr   0x00000800u  /* virtual redirector: translates logical paths
+                                          via static map, not CMS protocol.
+                                          Set when xrootd_virtual_redirector is on. */
+#define kXR_recoverWrts   0x00001000u  /* server can recover partial writes; requires
+                                          kXR_attn async notification (Phase 3). */
+#define kXR_collapseRedir 0x00002000u  /* server caches recent redirect targets;
+                                          subsequent identical requests skip CMS.
+                                          Set when xrootd_collapse_redir is on. */
+#define kXR_ecRedir       0x00004000u  /* redirect to erasure-coded storage shards;
+                                          out of scope — requires EC storage backend;
+                                          defined for completeness, never set. */
+#define kXR_supposc       0x00100000u  /* server supports persist-on-successful-close
+                                          (kXR_posc open flag); always set. */
+#define kXR_suppgrw       0x00200000u  /* server supports kXR_pgread and kXR_pgwrite
+                                          with per-page CRC32c integrity; always set. */
+#define kXR_supgpf        0x00400000u  /* server supports Grouped Parallel Fetch
+                                          (kXR_gpfile opcode 3005, retired in v5);
+                                          defined for completeness, never set —
+                                          requires gpfile dispatch + src/query/gpfile.c */
+#define kXR_anongpf       0x00800000u  /* GPF available to anonymous clients;
+                                          defined for completeness, never set —
+                                          requires kXR_supgpf to be implemented first */
+#define kXR_haveTLS       0x80000000u  /* server can accept an in-protocol TLS
+                                          upgrade (kXR_ableTLS) */
+#define kXR_gotoTLS       0x40000000u  /* client must upgrade to TLS immediately
+                                          before any further requests */
+#define kXR_tlsLogin      0x04000000u  /* the kXR_login exchange specifically
+                                          requires TLS protection */
 
 /* ------------------------------------------------------------------ */
 /* Protocol security requirement options                               */

@@ -57,6 +57,8 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int                 want_gsi;
     int                 want_token;
     int                 want_sss;
+    int                 want_unix;
+    int                 want_krb5;
     int                 client_wants_tls;
     int                 offer_tls;
 
@@ -67,6 +69,8 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
     want_token = (conf->auth == XROOTD_AUTH_TOKEN
                   || conf->auth == XROOTD_AUTH_BOTH);
     want_sss = (conf->auth == XROOTD_AUTH_SSS);
+    want_unix = (conf->auth == XROOTD_AUTH_UNIX);
+    want_krb5 = (conf->auth == XROOTD_AUTH_KRB5);
 
     /* kXR_wantTLS: client requires TLS; kXR_ableTLS: client is TLS-capable. */
     client_wants_tls = (client_flags & kXR_wantTLS) ? 1 : 0;
@@ -87,7 +91,8 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
     bodylen = sizeof(body);
     if (client_flags & kXR_secreqs) {
         int sec_count = (want_gsi ? 1 : 0) + (want_token ? 1 : 0)
-                      + (want_sss ? 1 : 0);
+                      + (want_sss ? 1 : 0) + (want_unix ? 1 : 0)
+                      + (want_krb5 ? 1 : 0);
         bodylen += 4;                            /* SecurityInfo header */
         bodylen += (size_t) sec_count * 8;       /* 8 bytes per SecurityProtocol entry */
         bodylen += 6;                            /* ServerResponseReqs_Protocol */
@@ -104,9 +109,28 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
                           (ServerResponseHdr *) buf);
 
     body.pval = htonl(kXR_PROTOCOLVERSION);
-    body.flags = htonl(kXR_isServer
-                       | ((conf->manager_map || conf->manager_mode) ? kXR_isManager : 0)
-                       | (offer_tls ? (kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin) : 0));
+    {
+        uint32_t caps = kXR_isServer
+            | kXR_suppgrw   /* pgread/pgwrite always implemented */
+            | kXR_supposc   /* POSC always implemented */
+            | ((conf->manager_map || conf->manager_mode) ? kXR_isManager : 0)
+            | (conf->supervisor
+                   ? (kXR_isManager | kXR_attrSuper) : 0)
+            | ((conf->virtual_redirector
+                || (conf->manager_map != NULL && conf->cms_addr == NULL))
+                   ? (kXR_isManager | kXR_attrVirtRdr) : 0)
+            | (conf->metadata_only ? kXR_attrMeta : 0)
+            | ((conf->proxy_enable > 0 || conf->proxy_upstreams != NULL)
+                   ? kXR_attrProxy : 0)
+            | ((conf->cache_root.len > 0 || conf->cache_origin_host.len > 0)
+                   ? kXR_attrCache : 0)
+            | (conf->collapse_redir ? kXR_collapseRedir : 0)
+            /* kXR_recoverWrts intentionally absent: requires kXR_attn write
+               journal (not yet implemented) — setting it prematurely would
+               cause clients to double-write on reconnect. */
+            | (offer_tls ? (kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin) : 0);
+        body.flags = htonl(caps);
+    }
 
     /* Fixed 8-byte prefix every protocol reply starts with after the response header. */
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, sizeof(body));
@@ -121,7 +145,8 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
          */
         u_char *si = buf + XRD_RESPONSE_HDR_LEN + sizeof(body);
         int sec_count = (want_gsi ? 1 : 0) + (want_token ? 1 : 0)
-                      + (want_sss ? 1 : 0);
+                      + (want_sss ? 1 : 0) + (want_unix ? 1 : 0)
+                      + (want_krb5 ? 1 : 0);
         si[0] = 0;
         si[1] = sec_count > 0 ? 0x01 : 0x00;
         si[2] = (u_char) sec_count;
@@ -130,6 +155,16 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
             u_char *pe = si + 4;
             if (want_sss) {
                 pe[0] = 's'; pe[1] = 's'; pe[2] = 's'; pe[3] = ' ';
+                pe[4] = 0;   pe[5] = 0;   pe[6] = 0;   pe[7] = 0;
+                pe += 8;
+            }
+            if (want_unix) {
+                pe[0] = 'u'; pe[1] = 'n'; pe[2] = 'i'; pe[3] = 'x';
+                pe[4] = 0;   pe[5] = 0;   pe[6] = 0;   pe[7] = 0;
+                pe += 8;
+            }
+            if (want_krb5) {
+                pe[0] = 'k'; pe[1] = 'r'; pe[2] = 'b'; pe[3] = '5';
                 pe[4] = 0;   pe[5] = 0;   pe[6] = 0;   pe[7] = 0;
                 pe += 8;
             }
@@ -160,6 +195,8 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
                    "bodylen=%uz auth=%s tls=%d)",
                    (int) client_flags, bodylen,
                    want_sss ? "sss" :
+                   want_unix ? "unix" :
+                   want_krb5 ? "krb5" :
                    want_gsi && want_token ? "both" :
                    want_gsi ? "gsi" :
                    want_token ? "token" : "none",

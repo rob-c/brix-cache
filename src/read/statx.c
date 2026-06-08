@@ -154,8 +154,8 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* Resolve and stat the path. */
         if (!xrootd_resolve_path(c->log, &conf->common.root,
                                  reqpath_buf, resolved, sizeof(resolved))
-            || xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-                                    ctx->vo_list) != NGX_OK
+            || xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+                                            ctx->identity) != NGX_OK
             || xrootd_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK
             || stat(resolved, &st) != 0)
         {

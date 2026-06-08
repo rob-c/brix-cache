@@ -56,6 +56,7 @@
 #include "../compat/http_headers.h"
 #include "../compat/log.h"
 #include "../token/token.h"
+#include "../types/identity.h"
 #include "tpc_config.h"
 #include "tpc_cred.h"
 #include "../compat/path.h"
@@ -118,6 +119,14 @@ typedef struct {
 typedef struct {
     ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
                                              thread_pool_name, thread_pool */
+
+    /* --- Optional read-through cache root --- */
+    ngx_str_t   cache_root;               /* [xrootd_webdav_cache_root /path] */
+    char        cache_root_canon[PATH_MAX]; /* realpath-resolved form; "" = disabled */
+
+    /* --- VOMS VO extraction (optional; requires libvomsapi) --- */
+    ngx_str_t   vomsdir;       /* [xrootd_webdav_vomsdir /etc/grid-security/vomsdir] */
+    ngx_str_t   voms_cert_dir; /* [xrootd_webdav_voms_cert_dir /etc/grid-security/certificates] */
 
     /* --- X.509 / GSI authentication --- */
     ngx_str_t      cadir;           /* directory of trusted CA PEM files */
@@ -203,6 +212,7 @@ typedef struct {
     xrdhttp_req_ctx_t  xrdhttp;
 
     int            verified;     /* 1 if auth was accepted, 0 if anonymous */
+    xrootd_identity_t *identity; /* canonical Phase 2 identity object */
     char           dn[1024];     /* Distinguished Name from cert or token sub;
                                   * NUL-terminated; empty string if anonymous */
     const char    *auth_source;  /* "cert", "token", or "anonymous" — static
@@ -354,10 +364,12 @@ ngx_int_t webdav_tpc_collect_transfer_headers(ngx_http_request_t *r,
     ngx_array_t **out);
 ngx_int_t webdav_tpc_run_curl_pull(ngx_log_t *log,
     ngx_http_xrootd_webdav_loc_conf_t *conf, const char *source_url,
-    const char *tmp_path, ngx_array_t *transfer_headers);
+    const char *tmp_path, ngx_array_t *transfer_headers,
+    uint64_t transfer_id);
 ngx_int_t webdav_tpc_run_curl_push(ngx_log_t *log,
     ngx_http_xrootd_webdav_loc_conf_t *conf, const char *dest_url,
-    const char *local_path, ngx_array_t *transfer_headers);
+    const char *local_path, ngx_array_t *transfer_headers,
+    uint64_t transfer_id);
 ngx_int_t webdav_tpc_post_thread_task(ngx_http_request_t *r,
     ngx_http_xrootd_webdav_loc_conf_t *conf,
     int is_push, ngx_flag_t existed, ngx_flag_t overwrite,

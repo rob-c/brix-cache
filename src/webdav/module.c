@@ -3,6 +3,7 @@
  */
 
 #include "webdav.h"
+#include "../compat/http_protocol_vars.h"
 
 #include <curl/curl.h>
 #include <stddef.h>
@@ -180,6 +181,27 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.root),
+      NULL },
+
+    { ngx_string("xrootd_webdav_cache_root"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, cache_root),
+      NULL },
+
+    { ngx_string("xrootd_webdav_vomsdir"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, vomsdir),
+      NULL },
+
+    { ngx_string("xrootd_webdav_voms_cert_dir"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, voms_cert_dir),
       NULL },
 
     { ngx_string("xrootd_webdav_cadir"),
@@ -492,6 +514,10 @@ ngx_http_xrootd_webdav_preconfiguration(ngx_conf_t *cf)
 {
     ngx_str_t  name = ngx_string("xrootd_webdav_lock_registry");
     size_t     size;
+
+    if (xrootd_http_add_protocol_variables(cf) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     size = sizeof(webdav_lock_table_t) + ngx_pagesize;
 

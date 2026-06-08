@@ -27,7 +27,7 @@ import tempfile
 import pytest
 
 from backend_matrix import root_endpoint_parts, selected_backend_name
-from settings import DATA_ROOT, NGINX_ANON_PORT, READONLY_PORT as FIXED_READONLY_PORT, SERVER_HOST
+from settings import DATA_ROOT, NGINX_ANON_PORT, READONLY_DATA_ROOT, READONLY_PORT as FIXED_READONLY_PORT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -296,23 +296,23 @@ class TestReadOnlyServer:
     def _setup_paths(self):
         self.read_name = "_priv_ro_read.txt"
         self.read_remote = f"/{self.read_name}"
-        self.read_disk = os.path.join(DATA_DIR, self.read_name)
+        self.read_disk = os.path.join(READONLY_DATA_ROOT, self.read_name)
         self.read_data = b"read-only listener still serves bytes\n"
 
         self.list_name = "_priv_ro_list"
         self.list_remote = f"/{self.list_name}"
-        self.list_disk = os.path.join(DATA_DIR, self.list_name)
+        self.list_disk = os.path.join(READONLY_DATA_ROOT, self.list_name)
         self.list_child = os.path.join(self.list_disk, "child.txt")
 
-        self.open_write_disk = os.path.join(DATA_DIR, "_priv_ro_open_write.txt")
-        self.truncate_disk = os.path.join(DATA_DIR, "_priv_ro_truncate.txt")
-        self.mkdir_disk = os.path.join(DATA_DIR, "_priv_ro_mkdir")
-        self.rm_disk = os.path.join(DATA_DIR, "_priv_ro_rm.txt")
-        self.rmdir_disk = os.path.join(DATA_DIR, "_priv_ro_rmdir")
+        self.open_write_disk = os.path.join(READONLY_DATA_ROOT, "_priv_ro_open_write.txt")
+        self.truncate_disk = os.path.join(READONLY_DATA_ROOT, "_priv_ro_truncate.txt")
+        self.mkdir_disk = os.path.join(READONLY_DATA_ROOT, "_priv_ro_mkdir")
+        self.rm_disk = os.path.join(READONLY_DATA_ROOT, "_priv_ro_rm.txt")
+        self.rmdir_disk = os.path.join(READONLY_DATA_ROOT, "_priv_ro_rmdir")
         self.rmdir_child = os.path.join(self.rmdir_disk, "keep.txt")
-        self.mv_src_disk = os.path.join(DATA_DIR, "_priv_ro_mv_src.txt")
-        self.mv_dst_disk = os.path.join(DATA_DIR, "_priv_ro_mv_dst.txt")
-        self.chmod_disk = os.path.join(DATA_DIR, "_priv_ro_chmod.txt")
+        self.mv_src_disk = os.path.join(READONLY_DATA_ROOT, "_priv_ro_mv_src.txt")
+        self.mv_dst_disk = os.path.join(READONLY_DATA_ROOT, "_priv_ro_mv_dst.txt")
+        self.chmod_disk = os.path.join(READONLY_DATA_ROOT, "_priv_ro_chmod.txt")
 
         for path in (
             self.open_write_disk,

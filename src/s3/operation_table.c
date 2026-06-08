@@ -3,8 +3,7 @@
  *
  * Lists every HTTP method handled by the S3 module with its metric slot and
  * capability flags.  The shared helpers in compat/protocol_caps.c use this
- * table for future method-slot classification and for the S3 OPTIONS response
- * when it is added.
+ * table for method-slot classification and for the S3 OPTIONS response.
  *
  * Note: S3 is a REST API, not a WebDAV surface.  There is no Allow header
  * requirement, but the table enables consistent metric slot lookup and can
@@ -27,6 +26,8 @@ const xrootd_http_operation_t xrootd_s3_operations[] = {
       XROOTD_PROTO_OP_WRITE },
     { "POST",   NGX_HTTP_POST,   XROOTD_S3_METHOD_POST,   0,
       XROOTD_PROTO_OP_WRITE | XROOTD_PROTO_OP_ASYNC_BODY },
+    { "OPTIONS", NGX_HTTP_OPTIONS, XROOTD_S3_METHOD_OPTIONS, 0,
+      XROOTD_PROTO_OP_READ },
     /* ListObjectsV2 is a GET with ?list-type=2 query param; the handler
      * overrides the metric slot to XROOTD_S3_METHOD_LIST at runtime. */
 };

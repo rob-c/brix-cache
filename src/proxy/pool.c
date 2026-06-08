@@ -107,6 +107,32 @@ xrootd_proxy_up_mark_ok(xrootd_proxy_ctx_t *proxy)
     proxy_up_status[idx].checked = ngx_time();
 }
 
+/* ---- pooled connection read handler ------------------------------------- */
+
+/* Fires when the upstream sends data or closes while its connection is idle
+ * in the pool.  uconn->data has been set to pc (not proxy) by pool_put, so
+ * dereferencing it as a proxy context would be a use-after-free.  Instead,
+ * evict the connection and close it cleanly. */
+static void
+xrootd_proxy_pool_read_handler(ngx_event_t *rev)
+{
+    ngx_connection_t           *c  = rev->data;
+    xrootd_proxy_pooled_conn_t *pc = c->data;
+
+    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                   "xrootd proxy: upstream closed while pooled — evicting");
+
+    if (pc->ping_ev.timer_set) {
+        ngx_del_timer(&pc->ping_ev);
+    }
+
+    ngx_queue_remove(&pc->queue);
+    proxy_pool_count--;
+    ngx_close_connection(c);
+    ngx_free(pc);
+}
+
+
 /* ---- keepalive ping timer ------------------------------------------------ */
 
 static void
@@ -217,6 +243,12 @@ xrootd_proxy_pool_get(xrootd_proxy_ctx_t *proxy,
                         ngx_del_timer(&pc->ping_ev);
                     }
 
+                    /* Restore the upstream read handler before freeing pc.
+                     * pool_put installed xrootd_proxy_pool_read_handler and
+                     * set c->data = pc; the caller (connect_upstream.c) will
+                     * set c->data = proxy immediately after we return. */
+                    c->read->handler = xrootd_proxy_read_handler;
+
                     ngx_free(pc);
                     *idx_out = (int) idx;
 
@@ -284,6 +316,14 @@ xrootd_proxy_pool_put(xrootd_proxy_ctx_t *proxy)
 
     /* Detach connection from the client session. */
     proxy->conn = NULL;
+
+    /* Transfer connection ownership to pc and install a pool-safe read
+     * handler.  xrootd_proxy_read_handler dereferences uconn->data as a
+     * proxy ctx; that ctx lives in the client pool and is freed when the
+     * session ends — so it must not be reached via a pooled connection.
+     * xrootd_proxy_pool_read_handler evicts the entry cleanly instead. */
+    pc->conn->data         = pc;
+    pc->conn->read->handler = xrootd_proxy_pool_read_handler;
 
     /* Configure keepalive ping timer. */
     ngx_memzero(&pc->ping_ev, sizeof(ngx_event_t));

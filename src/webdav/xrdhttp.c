@@ -27,6 +27,7 @@
 
 #include "xrdhttp.h"
 #include "webdav.h"
+#include "../protocol/opcodes.h"
 #include "../compat/integrity_info.h"
 #include "../compat/net_target.h"
 #include "util/logging.h"
@@ -39,26 +40,6 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-
-/* XRootD kXR error codes used in X-Xrootd-Status (subset used here). */
-#define kXR_ok            0
-#define kXR_NotFound      3003
-#define kXR_NotAuthorized 3010
-#define kXR_ArgInvalid    3011
-#define kXR_ArgMissing    3012
-#define kXR_ArgTooLong    3014
-#define kXR_FileLocked    3016
-#define kXR_FileNotOpen   3017
-#define kXR_FSError       3018
-#define kXR_IOError       3019
-#define kXR_NoMemory      3020
-#define kXR_NoSpace       3028
-#define kXR_ServerError   3023
-#define kXR_Unsupported   3024
-#define kXR_badPayload    3025
-#define kXR_TooManyErrs   3026
-#define kXR_NotFile       3027
-#define kXR_isDirectory   3029
 
 /* Our nginx module context tag for the XrdHttp per-request context. */
 extern ngx_module_t ngx_http_xrootd_webdav_module;

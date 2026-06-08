@@ -32,6 +32,7 @@
 #include "config.h"
 #include "../proxy/proxy.h"
 #include "../proxy/proxy_internal.h"
+#include "../write/chkpoint.h"
 
 static void
 xrootd_crl_reload_handler(ngx_event_t *ev)
@@ -119,6 +120,12 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
 
         if (!xcf->common.enable) {
             continue;
+        }
+
+        if (xrootd_chkpoint_recover_root(cycle->log, xcf->common.root_canon)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
         }
 
         if (xcf->cms_addr != NULL) {

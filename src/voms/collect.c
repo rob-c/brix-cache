@@ -18,6 +18,28 @@
  * and primary_vo_sz are sufficient (typically 256 bytes). */
 
 static ngx_flag_t
+xrootd_vo_token_safe(const char *vo, size_t vo_len)
+{
+    size_t i;
+
+    if (vo == NULL || vo_len == 0) {
+        return 0;
+    }
+
+    for (i = 0; i < vo_len; i++) {
+        u_char ch = (u_char) vo[i];
+
+        if (ch <= ' ' || ch >= 0x7f || ch == ',' || ch == '/'
+            || ch == '\\')
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static ngx_flag_t
 xrootd_append_vo_token(char *primary_vo, size_t primary_vo_sz,
     char *vo_list, size_t vo_list_sz, const char *vo)
 {
@@ -28,11 +50,15 @@ xrootd_append_vo_token(char *primary_vo, size_t primary_vo_sz,
         return 1;
     }
 
+    vo_len = strlen(vo);
+    if (!xrootd_vo_token_safe(vo, vo_len)) {
+        return 1;
+    }
+
     if (xrootd_vo_list_contains(vo_list, vo)) {
         return 1;
     }
 
-    vo_len = strlen(vo);
     list_len = strlen(vo_list);
 
     if (list_len == 0) {
@@ -83,7 +109,7 @@ xrootd_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
     }
 
     len = (size_t) (end - start);
-    if (len + 1 > vo_sz) {
+    if (len + 1 > vo_sz || !xrootd_vo_token_safe(start, len)) {
         return 0;
     }
 

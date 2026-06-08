@@ -45,9 +45,15 @@ webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
     ngx_memcpy(uri_path, r->uri.data, ulen);
     uri_path[ulen] = '\0';
 
-    if (xrootd_token_check_write(rctx->token_scopes,
-                                 rctx->token_scope_count,
-                                 uri_path))
+    if (rctx->identity != NULL) {
+        if (xrootd_identity_check_token_scope(rctx->identity, uri_path, 1)
+            == NGX_OK)
+        {
+            return NGX_OK;
+        }
+    } else if (xrootd_token_check_write(rctx->token_scopes,
+                                        rctx->token_scope_count,
+                                        uri_path))
     {
         return NGX_OK;
     }
@@ -98,7 +104,16 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
         if (ctx == NULL) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
+        ctx->identity = xrootd_identity_alloc(r->pool);
+        if (ctx->identity == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
         ngx_http_set_ctx(r, ctx, ngx_http_xrootd_webdav_module);
+    } else if (ctx->identity == NULL) {
+        ctx->identity = xrootd_identity_alloc(r->pool);
+        if (ctx->identity == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
  
     if (ctx->token_auth) {
@@ -165,6 +180,11 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     ctx->verified = 1;
     ctx->token_auth = 1;
     ctx->auth_source = "token";
+    if (xrootd_identity_set_token_claims(ctx->identity, r->pool, &claims)
+        != NGX_OK)
+    {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ngx_cpystrn((u_char *) ctx->dn, (u_char *) claims.sub, sizeof(ctx->dn));
 
     ctx->token_scope_count = claims.scope_count;

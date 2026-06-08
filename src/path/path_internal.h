@@ -3,6 +3,8 @@
 #include "../ngx_xrootd_module.h"
 
 int xrootd_path_component_forbidden(const char *comp, size_t comp_len);
+void xrootd_log_path_warning(ngx_log_t *log, const char *prefix,
+    const char *path);
 /* Confinement helpers used across resolve_confined_*.c fragments. */
 int xrootd_path_within_root(const char *root_canon, const char *path_canon);
 int xrootd_resolved_relative_to_root(ngx_log_t *log, const char *root_canon,

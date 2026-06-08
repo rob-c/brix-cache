@@ -16,6 +16,7 @@
 #include "tpc_cred_internal.h"
 #include "tpc_config.h"
 #include "webdav.h"
+#include "../tpc/common/credential.h"
 
 #include <nginx.h>
 #include <ngx_core.h>
@@ -42,6 +43,25 @@ webdav_tpc_cred_metric_increment(ngx_http_request_t *r,
     XROOTD_WEBDAV_METRIC_INC(tpc_cred_total[idx]);
     (void) r;
     return NGX_OK;
+}
+
+static ngx_int_t
+webdav_tpc_cred_validate_token(ngx_http_request_t *r, ngx_str_t *token)
+{
+    xrootd_tpc_credential_t cred;
+
+    if (token == NULL || token->data == NULL || token->len == 0) {
+        return NGX_ERROR;
+    }
+
+    if (xrootd_tpc_credential_parse(token, XROOTD_TPC_CREDENTIAL_TOKEN,
+                                    &cred, r->pool, r->connection->log)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    return xrootd_tpc_credential_validate(&cred, r->connection->log);
 }
 
 /* Path to the dedicated oidc-agent helper binary. */
@@ -103,10 +123,18 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
         helper_path.len = 10;
     }
 
+    /* Block SIGCHLD before fork so nginx's handler can't reap our child
+     * before we do.  We restore the mask after waitpid(). */
+    sigset_t _old_mask_oidc, _blk_mask_oidc;
+    sigemptyset(&_blk_mask_oidc);
+    sigaddset(&_blk_mask_oidc, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &_blk_mask_oidc, &_old_mask_oidc);
+
     /* Create a pipe for the child's stdout → parent's read end. */
     if (pipe(pipefd) == -1) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
                       "tpc_cred(oidc): pipe() failed");
+        sigprocmask(SIG_SETMASK, &_old_mask_oidc, NULL);
         return NGX_ERROR;
     }
 
@@ -116,6 +144,7 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
                       "tpc_cred(oidc): fork() failed");
         close(pipefd[0]);
         close(pipefd[1]);
+        sigprocmask(SIG_SETMASK, &_old_mask_oidc, NULL);
         return NGX_ERROR;
     }
 
@@ -186,10 +215,12 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
     buf[nread] = '\0';
     close(pipefd[0]);
 
-    /* Wait for child. */
+    /* Wait for child.  SIGCHLD is still blocked so nginx's signal handler
+     * cannot reap this PID out from under us.  Restore mask afterwards. */
     {
         int wstatus;
         waitpid(pid, &wstatus, 0);
+        sigprocmask(SIG_SETMASK, &_old_mask_oidc, NULL);
         if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "tpc_cred(oidc): helper exited with status %d",
@@ -308,11 +339,19 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     curl_argv[argc++] = (char *) token_endpoint;
     curl_argv[argc++] = NULL;
 
+    /* Block SIGCHLD before fork so nginx's handler cannot reap our curl
+     * child before waitpid() does.  Restore mask after waitpid(). */
+    sigset_t _old_mask_rfc, _blk_mask_rfc;
+    sigemptyset(&_blk_mask_rfc);
+    sigaddset(&_blk_mask_rfc, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &_blk_mask_rfc, &_old_mask_rfc);
+
     /* Create pipe. */
     if (pipe(pipefd) == -1) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
                       "tpc_cred(rfc8693): pipe() failed");
         unlink(body_file);
+        sigprocmask(SIG_SETMASK, &_old_mask_rfc, NULL);
         return NGX_ERROR;
     }
 
@@ -323,6 +362,7 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
         unlink(body_file);
         close(pipefd[0]);
         close(pipefd[1]);
+        sigprocmask(SIG_SETMASK, &_old_mask_rfc, NULL);
         return NGX_ERROR;
     }
 
@@ -348,10 +388,11 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     buf[nread] = '\0';
     close(pipefd[0]);
 
-    /* Wait. */
+    /* Wait.  SIGCHLD still blocked; restore mask after child is reaped. */
     {
         int wstatus;
         waitpid(pid, &wstatus, 0);
+        sigprocmask(SIG_SETMASK, &_old_mask_rfc, NULL);
         if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "tpc_cred(rfc8693): curl exited %d: %s",
@@ -417,6 +458,9 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
     case XROOTD_TPC_CRED_OIDC_AGENT:
         rc = tpc_cred_oidc_agent_fetch(r, source_url, scope, token_out);
         if (rc == NGX_OK) {
+            rc = webdav_tpc_cred_validate_token(r, token_out);
+        }
+        if (rc == NGX_OK) {
             webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NSUCCESS);
         } else {
             webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NERROR);
@@ -446,6 +490,9 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
             wconf->tpc_cred.token_client_secret.len > 0 ?
                 (const char *) wconf->tpc_cred.token_client_secret.data : NULL,
             token_out);
+        if (rc == NGX_OK) {
+            rc = webdav_tpc_cred_validate_token(r, token_out);
+        }
         if (rc == NGX_OK) {
             webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NSUCCESS);
         } else {

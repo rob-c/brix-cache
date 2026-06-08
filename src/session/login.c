@@ -102,7 +102,9 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
                    (conf->auth == XROOTD_AUTH_GSI) ? "gsi" :
                    (conf->auth == XROOTD_AUTH_TOKEN) ? "token" :
                    (conf->auth == XROOTD_AUTH_BOTH) ? "both" :
-                   (conf->auth == XROOTD_AUTH_SSS) ? "sss" : "none");
+                   (conf->auth == XROOTD_AUTH_SSS) ? "sss" :
+                   (conf->auth == XROOTD_AUTH_UNIX) ? "unix" :
+                   (conf->auth == XROOTD_AUTH_KRB5) ? "krb5" : "none");
 
     /* Login marks the session as known; auth_done is deferred for GSI mode. */
     ctx->logged_in = 1;
@@ -125,6 +127,9 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         /* Session timing starts at successful login so later disconnect stats have an origin. */
         ctx->session_start = ngx_current_msec;
+        if (ctx->identity != NULL) {
+            ctx->identity->auth_method = XROOTD_AUTHN_NONE;
+        }
         xrootd_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
         xrootd_log_access(ctx, c, "LOGIN", "-", user, 1, 0, NULL, 0);
         xrootd_count_login_ok(ctx);
@@ -154,6 +159,14 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
             parms_len = (size_t) snprintf(parms, sizeof(parms),
                                           "&P=sss,0.+%d:",
                                           (int) conf->sss_lifetime) + 1;
+        } else if (conf->auth == XROOTD_AUTH_UNIX) {
+            parms_len = (size_t) snprintf(parms, sizeof(parms),
+                                          "&P=unix") + 1;
+        } else if (conf->auth == XROOTD_AUTH_KRB5) {
+            parms_len = (size_t) snprintf(parms, sizeof(parms),
+                                          "&P=krb5,%s",
+                                          (const char *) conf->krb5_principal.data)
+                        + 1;
         } else if (conf->auth == XROOTD_AUTH_BOTH) {
             /* Both: token first (preferred), then GSI. */
             parms_len = (size_t) snprintf(parms, sizeof(parms),
@@ -167,6 +180,10 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         /* Include the trailing NUL because clients treat the parameter block as C-string data. */
+        if (parms_len > sizeof(parms)) {
+            return xrootd_send_error(ctx, c, kXR_ServerError,
+                                     "auth parameter block too long");
+        }
 
         total = XRD_RESPONSE_HDR_LEN + XROOTD_SESSION_ID_LEN + parms_len;
         buf = ngx_palloc(c->pool, total);

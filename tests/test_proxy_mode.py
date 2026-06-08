@@ -35,8 +35,13 @@ from pathlib import Path
 
 import pytest
 
-import server_control
-from settings import NGINX_BIN
+from settings import (
+    NGINX_BIN,
+    PROXY_DATA_ROOT,
+    PROXY_DEAD_NGINX_PORT,
+    PROXY_NGINX_PORT,
+    PROXY_UPSTREAM_PORT,
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # XRootD protocol constants (from XProtocol.hh)
@@ -107,47 +112,43 @@ stream {{
 # ──────────────────────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
-def proxy_env(tmp_path_factory):
-    """Start an xrootd daemon and an nginx proxy pointing at it.
+def proxy_env():
+    """Use the pre-launched nginx proxy (PROXY_NGINX_PORT) and xrootd upstream.
 
-    Yields dict: proxy_port, upstream_port, data_dir (Path).
-    Both servers are torn down when the module finishes.
+    Seeds test data into PROXY_DATA_ROOT (the upstream's data directory) and
+    waits for the proxy to accept connections.
     """
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    data_dir = tmp_path_factory.mktemp("proxy-data")
+    data_dir = Path(PROXY_DATA_ROOT)
+    data_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── seed test data ─────────────────────────────────────────────────────
     (data_dir / "hello.txt").write_bytes(b"hello from proxy test\n")
-    (data_dir / "data256.bin").write_bytes(bytes(range(256)) * 4)   # 1024 bytes
+    (data_dir / "data256.bin").write_bytes(bytes(range(256)) * 4)
     (data_dir / "large.bin").write_bytes(bytes(i & 0xFF for i in range(512 * 1024)))
     (data_dir / "alpha.txt").write_bytes(b"AAAABBBBCCCCDDDD")
     (data_dir / "beta.txt").write_bytes(b"1111222233334444")
     (data_dir / "gamma.txt").write_bytes(b"xyzxyzxyzxyzxyz!")
-    (data_dir / "subdir").mkdir()
+    (data_dir / "subdir").mkdir(exist_ok=True)
     (data_dir / "subdir" / "nested.txt").write_bytes(b"nested file\n")
-    (data_dir / "subdir2").mkdir()
+    (data_dir / "subdir2").mkdir(exist_ok=True)
 
-    # ── start upstream xrootd ──────────────────────────────────────────────
-    upstream = server_control.start_xrootd_instance(
-        data_dir=str(data_dir),
-    )
-
-    # ── start nginx proxy ──────────────────────────────────────────────────
-    proxy = server_control.start_nginx_instance(
-        conf_text=_PROXY_CONF,
-        template_kwargs={"UPSTREAM_PORT": upstream["port"]},
-    )
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", PROXY_NGINX_PORT), timeout=1):
+                break
+        except OSError:
+            time.sleep(0.25)
+    else:
+        pytest.skip(f"proxy-nginx not ready on port {PROXY_NGINX_PORT}")
 
     yield {
-        "proxy_port":    proxy["port"],
-        "upstream_port": upstream["port"],
+        "proxy_port":    PROXY_NGINX_PORT,
+        "upstream_port": PROXY_UPSTREAM_PORT,
         "data_dir":      data_dir,
     }
-
-    proxy["stop"]()
-    upstream["stop"]()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1609,55 +1610,42 @@ class TestProxyMultiClient:
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestProxyBackendUnavailable:
-    """Graceful error handling when the upstream is unreachable."""
+    """Graceful error handling when the upstream is unreachable.
 
-    def test_fs_op_returns_error_when_backend_down(self, tmp_path_factory):
+    Uses the pre-launched proxy-dead nginx at PROXY_DEAD_NGINX_PORT which
+    points at PROXY_DEAD_UPSTREAM_PORT (nothing listening there).
+    """
+
+    def test_fs_op_returns_error_when_backend_down(self):
         """First post-login FS opcode returns kXR_error if backend refuses connection."""
         if not os.path.exists(NGINX_BIN):
             pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-        # Point proxy at a port nothing is listening on
-        dead_port = server_control._free_port()
-        proxy = server_control.start_nginx_instance(
-            conf_text=_PROXY_CONF,
-            template_kwargs={"UPSTREAM_PORT": dead_port},
-        )
+        sock = _connect("127.0.0.1", PROXY_DEAD_NGINX_PORT)
         try:
-            sock = _connect("127.0.0.1", proxy["port"])
-            try:
-                # Ping (session opcode) must succeed — it's handled before upstream connect
-                status, _ = _ping(sock)
-                assert status == kXR_ok, "ping should work even with dead backend"
+            # Ping (session opcode) must succeed — it's handled before upstream connect
+            status, _ = _ping(sock)
+            assert status == kXR_ok, "ping should work even with dead backend"
 
-                # First FS opcode should fail gracefully (not crash or hang)
-                sock.settimeout(5)
-                status, body = _stat(sock, "/any_file.txt")
-                assert status == kXR_error, \
-                    f"expected kXR_error with dead backend, got {status}"
-                assert len(body) >= 4
-            finally:
-                sock.close()
+            # First FS opcode should fail gracefully (not crash or hang)
+            sock.settimeout(5)
+            status, body = _stat(sock, "/any_file.txt")
+            assert status == kXR_error, \
+                f"expected kXR_error with dead backend, got {status}"
+            assert len(body) >= 4
         finally:
-            proxy["stop"]()
+            sock.close()
 
-    def test_session_still_clean_after_backend_failure(self, tmp_path_factory):
+    def test_session_still_clean_after_backend_failure(self):
         """After a backend failure, the client gets a clean error (no hang/crash)."""
         if not os.path.exists(NGINX_BIN):
             pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-        dead_port = server_control._free_port()
-        proxy = server_control.start_nginx_instance(
-            conf_text=_PROXY_CONF,
-            template_kwargs={"UPSTREAM_PORT": dead_port},
-        )
-        try:
-            for _ in range(3):
-                sock = _connect("127.0.0.1", proxy["port"])
-                try:
-                    sock.settimeout(5)
-                    status, _ = _stat(sock, "/any_file.txt")
-                    assert status == kXR_error
-                finally:
-                    sock.close()
-        finally:
-            proxy["stop"]()
+        for _ in range(3):
+            sock = _connect("127.0.0.1", PROXY_DEAD_NGINX_PORT)
+            try:
+                sock.settimeout(5)
+                status, _ = _stat(sock, "/any_file.txt")
+                assert status == kXR_error
+            finally:
+                sock.close()

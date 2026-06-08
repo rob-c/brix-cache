@@ -136,6 +136,8 @@ xrootd_export_webdav_metrics(metrics_writer_t *mw,
     }
 
     mw_printf(mw,
+        "# DEPRECATED: use xrootd_io_bytes_written{proto=\"webdav\"} "
+            "for protocol-neutral write throughput.\n"
         "# HELP xrootd_webdav_bytes_rx_total "
             "Bytes received into WebDAV storage writes.\n"
         "# TYPE xrootd_webdav_bytes_rx_total counter\n"
@@ -144,12 +146,46 @@ xrootd_export_webdav_metrics(metrics_writer_t *mw,
             &shm->webdav.bytes_rx_total, 0));
 
     mw_printf(mw,
+        "# DEPRECATED: use xrootd_io_bytes_read{proto=\"webdav\"} "
+            "for protocol-neutral read throughput.\n"
         "# HELP xrootd_webdav_bytes_tx_total "
             "Bytes sent from WebDAV GET and PROPFIND responses.\n"
         "# TYPE xrootd_webdav_bytes_tx_total counter\n"
         "xrootd_webdav_bytes_tx_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(
             &shm->webdav.bytes_tx_total, 0));
+
+    mw_printf(mw,
+        "# HELP xrootd_webdav_bytes_rx_ipv4_total "
+            "Bytes received from IPv4 clients via WebDAV PUT.\n"
+        "# TYPE xrootd_webdav_bytes_rx_ipv4_total counter\n"
+        "xrootd_webdav_bytes_rx_ipv4_total %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(
+            &shm->webdav.bytes_rx_ipv4_total, 0));
+
+    mw_printf(mw,
+        "# HELP xrootd_webdav_bytes_tx_ipv4_total "
+            "Bytes sent to IPv4 clients via WebDAV GET and PROPFIND.\n"
+        "# TYPE xrootd_webdav_bytes_tx_ipv4_total counter\n"
+        "xrootd_webdav_bytes_tx_ipv4_total %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(
+            &shm->webdav.bytes_tx_ipv4_total, 0));
+
+    mw_printf(mw,
+        "# HELP xrootd_webdav_bytes_rx_ipv6_total "
+            "Bytes received from IPv6 clients via WebDAV PUT.\n"
+        "# TYPE xrootd_webdav_bytes_rx_ipv6_total counter\n"
+        "xrootd_webdav_bytes_rx_ipv6_total %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(
+            &shm->webdav.bytes_rx_ipv6_total, 0));
+
+    mw_printf(mw,
+        "# HELP xrootd_webdav_bytes_tx_ipv6_total "
+            "Bytes sent to IPv6 clients via WebDAV GET and PROPFIND.\n"
+        "# TYPE xrootd_webdav_bytes_tx_ipv6_total counter\n"
+        "xrootd_webdav_bytes_tx_ipv6_total %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(
+            &shm->webdav.bytes_tx_ipv6_total, 0));
 
     mw_printf(mw,
         "# HELP xrootd_webdav_range_requests_total "

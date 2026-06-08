@@ -122,6 +122,13 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     ctx->token_auth = 1;
     ctx->auth_done = 1;
+    if (ctx->identity != NULL
+        && xrootd_identity_set_token_claims(ctx->identity, c->pool, &claims)
+           != NGX_OK)
+    {
+        return xrootd_send_error(ctx, c, kXR_NoMemory,
+                                 "identity allocation failed");
+    }
 
     /* Save raw token so proxy auth-bridging can forward it to the upstream. */
     if (token_len > 0 && token_len < sizeof(ctx->bearer_token) - 1) {

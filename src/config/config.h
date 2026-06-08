@@ -172,6 +172,10 @@ void xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
 ngx_int_t xrootd_configure_sss_auth(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf);
 
+/* Validate and prepare Kerberos 5 service principal/keytab state. */
+ngx_int_t xrootd_configure_krb5_auth(ngx_conf_t *cf,
+    ngx_stream_xrootd_srv_conf_t *xcf);
+
 /* Validate and apply VO ACL rules and group-ownership policies. */
 ngx_int_t xrootd_config_finalize_policy(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf);
@@ -191,6 +195,9 @@ ngx_int_t xrootd_pending_configure(ngx_conf_t *cf);
 
 /* Create or attach to the live transfer monitor shared-memory zone. */
 ngx_int_t xrootd_configure_dashboard(ngx_conf_t *cf);
+
+/* Create or attach to the unified TPC transfer registry zone. */
+ngx_int_t xrootd_tpc_registry_configure(ngx_conf_t *cf);
 
 /* Resolve thread-pool names to concrete pool objects for all server blocks. */
 ngx_int_t xrootd_configure_thread_pools(ngx_conf_t *cf,

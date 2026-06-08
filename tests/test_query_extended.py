@@ -41,6 +41,7 @@ kXR_Qopaque  = 16
 
 # Response codes
 kXR_ok       = 0
+kXR_oksofar  = 4000
 kXR_error    = 4003
 kXR_ArgInvalid = 3000
 kXR_NotFound = 3011
@@ -124,7 +125,13 @@ def _dirlist(sock, path, flags=0, streamid=b"\x00\x02"):
     body16 = b"\x00" * 15 + bytes([flags])
     req = struct.pack("!2sH16sI", streamid, kXR_dirlist, body16, len(path_bytes))
     sock.sendall(req + path_bytes)
-    return _read_response(sock)
+    # Drain kXR_oksofar (4000) chunks until final kXR_ok (0)
+    all_body = bytearray()
+    while True:
+        status, body = _read_response(sock)
+        all_body.extend(body)
+        if status != kXR_oksofar:
+            return status, bytes(all_body)
 
 
 def _error_code(body):

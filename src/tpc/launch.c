@@ -142,6 +142,40 @@ tpc_destination_open_flags(uint16_t options)
     return oflags;
 }
 
+static uint64_t
+tpc_register_stream_transfer(ngx_connection_t *c, xrootd_file_t *file)
+{
+    xrootd_tpc_transfer_t transfer;
+    ngx_str_t             src_url;
+    ngx_str_t             dst_path;
+    u_char                src_buf[PATH_MAX + 320];
+    u_char               *last;
+    uint16_t              sport;
+
+    if (file == NULL || file->path == NULL) {
+        return 0;
+    }
+
+    sport = file->tpc_src_port ? file->tpc_src_port : 1094;
+    last = ngx_snprintf(src_buf, sizeof(src_buf), "root://%s:%ui%s",
+                        file->tpc_src_host, (ngx_uint_t) sport,
+                        file->tpc_src_path);
+
+    src_url.data = src_buf;
+    src_url.len = (size_t) (last - src_buf);
+    dst_path.data = (u_char *) file->path;
+    dst_path.len = ngx_strlen(file->path);
+
+    ngx_memzero(&transfer, sizeof(transfer));
+    transfer.protocol = XROOTD_TPC_PROTO_STREAM;
+    transfer.direction = XROOTD_TPC_DIR_PULL;
+    transfer.src_url = src_url;
+    transfer.dst_path = dst_path;
+    transfer.state = XROOTD_TPC_STATE_PENDING;
+
+    return xrootd_tpc_registry_add(&transfer, c->log);
+}
+
 /* WHAT: Derive O_CREAT/O_EXCL/O_TRUNC flags from options bitmask — kXR_new → O_CREAT+O_EXCL, kXR_delete → O_CREAT+O_TRUNC, neither → O_CREAT+O_TRUNC (default create-new). Always includes O_RDWR|O_NOCTTY. Caller: xrootd_tpc_prepare_pull (open flags step). */
 ngx_int_t
 xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -240,6 +274,7 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     file->tpc_started = 0;
     file->tpc_done = 0;
     file->tpc_src_port = tpc->src_port;
+    file->tpc_transfer_id = 0;
 
     if (tpc->key[0] != '\0') {
         ngx_cpystrn((u_char *) file->tpc_key, (u_char *) tpc->key,
@@ -300,8 +335,22 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_wait(ctx, c, 1);
     }
 
+    if (file->tpc_transfer_id == 0) {
+        file->tpc_transfer_id = tpc_register_stream_transfer(c, file);
+        if (file->tpc_transfer_id == 0) {
+            xrootd_log_access(ctx, c, "SYNC", file->path, "tpc-pull",
+                              0, kXR_Overloaded,
+                              "TPC transfer registry full", 0);
+            XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
+            return xrootd_send_error(ctx, c, kXR_Overloaded,
+                                     "TPC transfer registry full");
+        }
+    }
+
     task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_tpc_pull_t));
     if (task == NULL) {
+        (void) xrootd_tpc_registry_remove(file->tpc_transfer_id, c->log);
+        file->tpc_transfer_id = 0;
         return NGX_ERROR;
     }
 
@@ -316,6 +365,7 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     t->fhandle_idx = fhandle_idx;
     t->reply_kind = XROOTD_TPC_REPLY_SYNC;
     t->src_port = file->tpc_src_port;
+    t->transfer_id = file->tpc_transfer_id;
 
     ngx_cpystrn((u_char *) t->src_host, (u_char *) file->tpc_src_host,
                 sizeof(t->src_host));
@@ -342,6 +392,8 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     task->event.data = task;
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
+        (void) xrootd_tpc_registry_remove(file->tpc_transfer_id, c->log);
+        file->tpc_transfer_id = 0;
         xrootd_log_access(ctx, c, "SYNC", file->path, "tpc-pull",
                           0, kXR_ServerError, "thread post failed", 0);
         XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
@@ -363,4 +415,3 @@ xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_tpc_prepare_pull(ctx, c, conf, tpc, dst_path, options,
                                    mode_bits);
 }
-

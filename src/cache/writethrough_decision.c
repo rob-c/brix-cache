@@ -1,4 +1,4 @@
-#include "writethrough_decision.h"
+#include "writethrough.h"
 
 #include <string.h>
 #include <sys/stat.h>
@@ -198,4 +198,36 @@ ngx_int_t xrootd_wt_config_init_prefixes(ngx_conf_t *cf,
                        "wt: configured %ui prefix entries for %s",
                        (*out_array)->nelts, directive_name);
     return NGX_OK;
+}
+
+xrootd_wt_decision_t
+xrootd_cache_should_writethrough(const xrootd_vfs_ctx_t *ctx,
+    off_t offset, size_t length)
+{
+    xrootd_wt_decision_cfg_t *cfg;
+    const char               *path;
+    void                     *user_data;
+
+    (void) offset;
+    (void) length;
+
+    if (ctx == NULL || !ctx->cache_writethrough
+        || ctx->cache_writethrough_cfg == NULL)
+    {
+        return XROOTD_WT_DECISION_DENY;
+    }
+
+    if (ctx->resolved.resolved.data == NULL) {
+        return XROOTD_WT_DECISION_DENY;
+    }
+
+    cfg = ctx->cache_writethrough_cfg;
+    if (cfg->fn == NULL) {
+        return XROOTD_WT_DECISION_DENY;
+    }
+
+    path = (const char *) ctx->resolved.resolved.data;
+    user_data = cfg->user_data != NULL ? cfg->user_data : cfg;
+
+    return cfg->fn(path, 0, user_data);
 }

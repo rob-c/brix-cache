@@ -16,12 +16,10 @@ import os
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
@@ -32,11 +30,11 @@ from settings import (
     DATA_ROOT,
     NGINX_HTTP_WEBDAV_PORT,
     NGINX_METRICS_PORT,
+    TEST_ROOT,
     TOKENS_DIR,
     CA_CERT,
     PROXY_STD,
-    SERVER_CERT,
-    SERVER_KEY,
+    WEBDAV_TPC_SOURCE_OPEN_PORT,
 )
 
 # ---------------------------------------------------------------------------
@@ -122,7 +120,7 @@ def _webdav_url(path: str) -> str:
 
 
 def _uid_path(prefix: str = "wdav_metrics") -> str:
-    return f"/data/{prefix}_{uuid.uuid4().hex[:8]}.bin"
+    return f"/{prefix}_{uuid.uuid4().hex[:8]}.bin"
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +178,7 @@ class TestWebDAVRequestCounters:
         before = _fetch()
         r = _curl("-X", "PROPFIND",
                   "-H", "Depth: 0",
-                  _webdav_url("/data/"))
+                  _webdav_url("/"))
         assert r.returncode == 0
         after = _fetch()
         assert _delta(before, after, "xrootd_webdav_requests_total",
@@ -189,7 +187,7 @@ class TestWebDAVRequestCounters:
 
     def test_propfind_bytes_tx_ipv4_also_increments(self):
         before = _fetch()
-        r = _curl("-X", "PROPFIND", "-H", "Depth: 0", _webdav_url("/data/"))
+        r = _curl("-X", "PROPFIND", "-H", "Depth: 0", _webdav_url("/"))
         assert r.returncode == 0
         after = _fetch()
         delta = _delta(before, after, "xrootd_webdav_bytes_tx_ipv4_total")
@@ -206,14 +204,14 @@ class TestWebDAVRequestCounters:
 
     def test_mkcol_increments_requests(self):
         dirname = f"mkcol_ctr_{uuid.uuid4().hex[:8]}"
-        r = _curl("-X", "MKCOL", _webdav_url(f"/data/{dirname}"))
+        r = _curl("-X", "MKCOL", _webdav_url(f"/{dirname}"))
         assert r.returncode == 0
         assert self._req_delta("MKCOL") >= 1
         # Cleanup.
-        _curl("-X", "DELETE", _webdav_url(f"/data/{dirname}"))
+        _curl("-X", "DELETE", _webdav_url(f"/{dirname}"))
 
     def test_404_increments_responses_4xx(self):
-        path = f"/data/no_such_wdav_{uuid.uuid4().hex}.bin"
+        path = f"/no_such_wdav_{uuid.uuid4().hex}.bin"
         before = _fetch()
         _curl(_webdav_url(path))
         after = _fetch()
@@ -288,32 +286,23 @@ class TestWebDAVTpcCounters:
 
     @pytest.fixture(scope="class")
     def tpc_source_server(self):
-        """Start a minimal HTTPS server to serve as TPC pull source.
-        WebDAV HTTP-TPC requires https:// Source URLs per the spec.
-        Uses the test PKI server cert so nginx can verify it via tpc_cafile.
+        """Use the pre-started open-auth WebDAV TPC source server.
+
+        Writes a fixed payload to data-webdav-tpc/source_open (served by the
+        nginx at WEBDAV_TPC_SOURCE_OPEN_PORT with auth none) and yields the
+        https:// URL and payload bytes for TPC pull tests.
         """
-        import ssl
+        from pathlib import Path
         payload = b"TPC source content " * 100
-
-        class _Handler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                self.send_response(200)
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                self.wfile.write(payload)
-
-            def log_message(self, *args):
-                pass
-
-        server = HTTPServer(("127.0.0.1", 0), _Handler)
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        ctx.load_cert_chain(SERVER_CERT, SERVER_KEY)
-        server.socket = ctx.wrap_socket(server.socket, server_side=True)
-        port = server.server_address[1]
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        yield f"https://127.0.0.1:{port}/tpc_src_file.bin", payload
-        server.shutdown()
+        name = f"tpc_metrics_{uuid.uuid4().hex[:8]}.bin"
+        src_root = Path(TEST_ROOT) / "data-webdav-tpc" / "source_open"
+        src_root.mkdir(parents=True, exist_ok=True)
+        (src_root / name).write_bytes(payload)
+        yield f"https://127.0.0.1:{WEBDAV_TPC_SOURCE_OPEN_PORT}/{name}", payload
+        try:
+            (src_root / name).unlink()
+        except FileNotFoundError:
+            pass
 
     def test_tpc_bad_request_increments_on_copy_without_source(self):
         """WebDAV COPY without Source: header → tpc_total{event="bad_request"} increments."""

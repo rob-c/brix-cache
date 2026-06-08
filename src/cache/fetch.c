@@ -1,10 +1,12 @@
 #include "cache_internal.h"
+#include "meta.h"
 
 
 #include <fcntl.h>
 #include <regex.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 /* ---- xrootd_cache_fetch_origin — origin file fetch and cache fill ----
@@ -138,6 +140,24 @@ xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
         return -1;
     }
 
+    {
+        struct stat          st;
+        xrootd_cache_meta_t  meta;
+        ngx_log_t           *log;
+
+        log = (t->c != NULL) ? t->c->log : NULL;
+        if (stat(t->cache_path, &st) == 0
+            && xrootd_cache_meta_from_stat(&st, NULL, &meta) == NGX_OK)
+        {
+            if (xrootd_cache_meta_write(log, t->cache_path, &meta) != NGX_OK
+                && log != NULL)
+            {
+                ngx_log_error(NGX_LOG_WARN, log, errno,
+                              "xrootd: cache metadata write failed \"%s\"",
+                              t->cache_path);
+            }
+        }
+    }
+
     return 0;
 }
-

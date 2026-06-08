@@ -129,6 +129,26 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
             return xrootd_handle_sss_auth(ctx, c, conf);
         }
 
+        if (credtype[0] == 'u' && credtype[1] == 'n'
+            && credtype[2] == 'i' && credtype[3] == 'x')
+        {
+            if (conf->auth != XROOTD_AUTH_UNIX) {
+                return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                         "unix auth not enabled");
+            }
+            return xrootd_handle_unix_auth(ctx, c, conf);
+        }
+
+        if (credtype[0] == 'k' && credtype[1] == 'r'
+            && credtype[2] == 'b' && credtype[3] == '5')
+        {
+            if (conf->auth != XROOTD_AUTH_KRB5) {
+                return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                         "krb5 auth not enabled");
+            }
+            return xrootd_handle_krb5_auth(ctx, c, conf);
+        }
+
         if (credtype[0] != 'g' || credtype[1] != 's' || credtype[2] != 'i') {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "xrootd: kXR_auth unknown credtype=\"%s\"",
@@ -266,6 +286,16 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
     sk_X509_pop_free(chain, X509_free);
 
     ctx->auth_done = 1;
+    if (ctx->identity != NULL) {
+        if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+                                   XROOTD_AUTHN_GSI) != NGX_OK
+            || xrootd_identity_set_vos_csv(ctx->identity, c->pool,
+                                           ctx->vo_list) != NGX_OK)
+        {
+            return xrootd_send_error(ctx, c, kXR_NoMemory,
+                                     "identity allocation failed");
+        }
+    }
     xrootd_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
 
     /* Track unique user and VO at auth completion. */

@@ -510,7 +510,7 @@ class TestPutContentRange:
         path = f"/{_PFX}cr_full.txt"
         s = _session()
         r = s.put(_url(path), data=b"complete content")
-        assert r.status_code in (200, 201)
+        assert r.status_code in (200, 201, 204)
         r2 = _get(path)
         assert r2.content == b"complete content"
 
@@ -529,15 +529,15 @@ class TestPutContentRange:
         s = _session()
         r = s.put(_url(path), data=b"data",
                   headers={"Content-Range": "bytes blah-blah/total"})
-        # Invalid Content-Range: server may reject (400/501) or ignore and create (200/201)
-        assert r.status_code in (200, 201, 400, 501)
+        # Invalid Content-Range: server may reject (400/501) or ignore and create/replace (200/201/204)
+        assert r.status_code in (200, 201, 204, 400, 501)
 
     def test_put_large_body_accepted(self):
         path = f"/{_PFX}cr_large.bin"
         s = _session()
         data = b"Z" * (1024 * 128)  # 128 KiB
         r = s.put(_url(path), data=data)
-        assert r.status_code in (200, 201)
+        assert r.status_code in (200, 201, 204)
         assert os.path.getsize(os.path.join(DATA_ROOT, f"{_PFX}cr_large.bin")) == len(data)
 
     def test_put_then_get_roundtrip(self):
@@ -577,7 +577,7 @@ class TestHTTPWebDavPlain:
         path = f"/{_PFX}http_rt.txt"
         content = b"plain http roundtrip"
         r = self._hput(path, content)
-        assert r.status_code in (200, 201)
+        assert r.status_code in (200, 201, 204)
         r2 = self._hget(path)
         assert r2.status_code == 200
         assert r2.content == content

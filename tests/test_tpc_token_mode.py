@@ -101,3 +101,16 @@ class TestTpcTokenModeParsing:
         result = parse_tpc_opaque(f"/data/file.txt?tpc.token_mode={long_mode}")
         assert result.has_token_mode
         assert len(result.token_mode) < 128  # field is 32 bytes
+
+
+def test_delegated_token_enables_ztn_auth_path():
+    """A fetched delegated token must be enough to select outbound ZTN auth."""
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "tpc"
+        / "gsi_outbound_finish.c"
+    ).read_text()
+
+    assert "t->delegated_token[0] != '\\0'" in source
+    assert "have_ztn_cred" in source

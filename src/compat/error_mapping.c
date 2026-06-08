@@ -128,28 +128,28 @@ xrootd_http_map_ns_status(xrootd_ns_status_t status)
 {
     switch (status) {
     case XROOTD_NS_OK:
-        return NGX_HTTP_OK;
+        return 200;
 
     case XROOTD_NS_NOT_FOUND:
-        return NGX_HTTP_NOT_FOUND;
+        return 404;
 
     case XROOTD_NS_DENIED:
-        return NGX_HTTP_FORBIDDEN;
+        return 403;
 
     case XROOTD_NS_EXISTS:
     case XROOTD_NS_CONFLICT:
     case XROOTD_NS_NOT_EMPTY:
-        return NGX_HTTP_CONFLICT;
+        return 409;
 
     case XROOTD_NS_TOO_LONG:
-        return NGX_HTTP_REQUEST_URI_TOO_LARGE;
+        return 414;
 
     case XROOTD_NS_NO_SPACE:
-        return NGX_HTTP_INSUFFICIENT_STORAGE;
+        return 507;
 
     case XROOTD_NS_IO_ERROR:
     default:
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return 500;
     }
 }
 

@@ -79,9 +79,21 @@ s3_dashboard_put_op(ngx_http_request_t *r)
 }
 
 static void
-s3_dashboard_identity(ngx_http_s3_loc_conf_t *cf, char *out, size_t outsz)
+s3_dashboard_identity(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+                      char *out, size_t outsz)
 {
+    ngx_http_s3_req_ctx_t *s3ctx;
+    const char            *subject;
+
     if (out == NULL || outsz == 0) {
+        return;
+    }
+
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    subject = s3ctx != NULL
+              ? xrootd_identity_subject_cstr(s3ctx->identity) : "";
+    if (subject[0] != '\0') {
+        ngx_cpystrn((u_char *) out, (u_char *) subject, outsz);
         return;
     }
 
@@ -170,6 +182,12 @@ s3_put_aio_done(ngx_event_t *ev)
 
     xrootd_dashboard_http_add(r, (ngx_atomic_int_t) t->body_bytes);
     XROOTD_S3_METRIC_ADD(bytes_rx_total, t->body_bytes);
+    if (r->connection && r->connection->sockaddr
+        && r->connection->sockaddr->sa_family == AF_INET6) {
+        XROOTD_S3_METRIC_ADD(bytes_rx_ipv6_total, t->body_bytes);
+    } else {
+        XROOTD_S3_METRIC_ADD(bytes_rx_ipv4_total, t->body_bytes);
+    }
     XROOTD_S3_METRIC_INC(put_body_total[t->body_mode]);
     s3_put_finalize_empty_ok(r);
 }
@@ -234,6 +252,12 @@ s3_put_finalize_ok(ngx_http_request_t *r, size_t body_bytes,
 {
     xrootd_dashboard_http_add(r, (ngx_atomic_int_t) body_bytes);
     XROOTD_S3_METRIC_ADD(bytes_rx_total, body_bytes);
+    if (r->connection && r->connection->sockaddr
+        && r->connection->sockaddr->sa_family == AF_INET6) {
+        XROOTD_S3_METRIC_ADD(bytes_rx_ipv6_total, body_bytes);
+    } else {
+        XROOTD_S3_METRIC_ADD(bytes_rx_ipv4_total, body_bytes);
+    }
     XROOTD_S3_METRIC_INC(put_body_total[body_mode]);
     s3_put_finalize_empty_ok(r);
 }
@@ -275,6 +299,7 @@ s3_put_body_handler(ngx_http_request_t *r)
 {
     u_char              *fs_path;
     ngx_http_s3_loc_conf_t *cf;
+    ngx_http_s3_req_ctx_t  *s3ctx;
     int                  fd = -1;
     int                  is_sentinel;
     int                  window_bits = 0;
@@ -285,7 +310,8 @@ s3_put_body_handler(ngx_http_request_t *r)
     char                 identity[128];
 
     cf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
-    fs_path = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    fs_path = s3ctx != NULL ? (u_char *) s3ctx->fs_path : NULL;
 
     if (fs_path == NULL) {
         s3_put_finalize_error(r);
@@ -337,7 +363,7 @@ s3_put_body_handler(ngx_http_request_t *r)
         }
         close(fd);
 
-        s3_dashboard_identity(cf, identity, sizeof(identity));
+        s3_dashboard_identity(r, cf, identity, sizeof(identity));
         (void) xrootd_dashboard_http_start_identity(r, (const char *) fs_path,
             identity, "", XROOTD_XFER_PROTO_S3, XROOTD_XFER_DIR_WRITE,
             "PutObjectSentinel", 0);
@@ -392,7 +418,7 @@ s3_put_body_handler(ngx_http_request_t *r)
 
     body_bytes = body_summary.bytes;
     body_mode = s3_put_body_mode(&body_summary);
-    s3_dashboard_identity(cf, identity, sizeof(identity));
+    s3_dashboard_identity(r, cf, identity, sizeof(identity));
     (void) xrootd_dashboard_http_start_identity(r, (const char *) fs_path,
         identity, "", XROOTD_XFER_PROTO_S3, XROOTD_XFER_DIR_WRITE,
         s3_dashboard_put_op(r), (int64_t) body_bytes);

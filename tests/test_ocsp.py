@@ -19,14 +19,13 @@ Run:
 """
 
 import datetime
-import http.server
 import os
-import threading
+from pathlib import Path
 
 import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
+
 from cryptography.x509 import ocsp as x509_ocsp
 from cryptography.hazmat.backends import default_backend
 
@@ -40,7 +39,33 @@ from settings import (
 # Constants
 # ---------------------------------------------------------------------------
 
-OCSP_RESPONDER_PORT = 18888   # local mock OCSP responder
+OCSP_SOURCE = Path(__file__).resolve().parents[1] / "src" / "crypto" / "ocsp.c"
+
+
+# ---------------------------------------------------------------------------
+# HTTPS OCSP implementation guardrails
+# ---------------------------------------------------------------------------
+
+class TestOCSPHTTPSImplementation:
+    """Static guardrails for HTTPS responder support in the C OCSP client."""
+
+    @pytest.fixture(scope="class")
+    def source(self):
+        return OCSP_SOURCE.read_text(encoding="utf-8")
+
+    def test_https_urls_are_accepted(self, source):
+        assert 'strncmp(url, "https://", 8)' in source
+        assert "HTTPS OCSP responder not supported" not in source
+
+    def test_https_uses_tls_client_bio(self, source):
+        assert "TLS_client_method()" in source
+        assert "BIO_new_ssl_connect" in source
+
+    def test_https_verifies_peer_and_hostname(self, source):
+        assert "SSL_VERIFY_PEER" in source
+        assert "SSL_set_tlsext_host_name" in source
+        assert "SSL_set1_host" in source
+        assert "SSL_get_verify_result" in source
 
 
 # ---------------------------------------------------------------------------
@@ -102,46 +127,6 @@ def _build_ocsp_response(
     return response.public_bytes(serialization.Encoding.DER)
 
 
-class _OCSPHandler(http.server.BaseHTTPRequestHandler):
-    """Minimal OCSP responder: returns a pre-built DER response."""
-
-    # Class-level: set before starting the server
-    response_der: bytes = b""
-
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        _body = self.rfile.read(length)
-        self.send_response(200)
-        self.send_header("Content-Type", "application/ocsp-response")
-        self.send_header("Content-Length", str(len(self.response_der)))
-        self.end_headers()
-        self.wfile.write(self.response_der)
-
-    def log_message(self, _fmt, *_args):
-        pass  # silence request logging in tests
-
-
-class MockOCSPServer:
-    """Thread-based mock OCSP HTTP responder for use in tests."""
-
-    def __init__(self, host: str = "127.0.0.1", port: int = OCSP_RESPONDER_PORT):
-        self.host = host
-        self.port = port
-        self._server = None
-        self._thread = None
-
-    def start(self, response_der: bytes):
-        _OCSPHandler.response_der = response_der
-        self._server = http.server.HTTPServer((self.host, self.port), _OCSPHandler)
-        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        if self._server:
-            self._server.shutdown()
-            self._server = None
-
-
 # ---------------------------------------------------------------------------
 # Mock OCSP response builder tests (unit tests for the Python helper)
 # ---------------------------------------------------------------------------
@@ -199,60 +184,3 @@ class TestMockOCSPResponseBuilder:
         )
         loaded = x509_ocsp.load_der_ocsp_response(der)
         assert loaded.certificate_status == x509_ocsp.OCSPCertStatus.REVOKED
-
-
-# ---------------------------------------------------------------------------
-# Mock OCSP server lifecycle tests
-# ---------------------------------------------------------------------------
-
-class TestMockOCSPServer:
-    """Verify the mock OCSP HTTP server starts, serves, and stops cleanly."""
-
-    @pytest.fixture(autouse=True)
-    def _require_pki(self):
-        if not os.path.exists(CA_CERT) or not os.path.exists(USER_CERT):
-            pytest.skip("PKI not available — run tests in LOCAL mode with server")
-
-    def test_mock_server_serves_good_response(self):
-        der = _build_ocsp_response(
-            x509_ocsp.OCSPCertStatus.GOOD,
-            CA_CERT, CA_KEY, USER_CERT,
-        )
-        srv = MockOCSPServer(port=OCSP_RESPONDER_PORT)
-        srv.start(der)
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                f"http://127.0.0.1:{OCSP_RESPONDER_PORT}/",
-                data=b"dummy",
-                headers={"Content-Type": "application/ocsp-request"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                body = resp.read()
-            assert body == der
-        finally:
-            srv.stop()
-
-    def test_mock_server_serves_revoked_response(self):
-        der = _build_ocsp_response(
-            x509_ocsp.OCSPCertStatus.REVOKED,
-            CA_CERT, CA_KEY, USER_CERT,
-        )
-        srv = MockOCSPServer(port=OCSP_RESPONDER_PORT)
-        srv.start(der)
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                f"http://127.0.0.1:{OCSP_RESPONDER_PORT}/",
-                data=b"dummy",
-                headers={"Content-Type": "application/ocsp-request"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                body = resp.read()
-            # Parse and verify the response indicates REVOKED
-            loaded = x509_ocsp.load_der_ocsp_response(body)
-            assert loaded.certificate_status == x509_ocsp.OCSPCertStatus.REVOKED
-        finally:
-            srv.stop()

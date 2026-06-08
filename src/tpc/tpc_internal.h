@@ -10,6 +10,10 @@
 
 #include "../ngx_xrootd_module.h"
 #include "key_registry.h"
+#include "common/auth.h"
+#include "common/credential.h"
+#include "common/registry.h"
+#include "common/metrics.h"
 
 /* ------------------------------------------------------------------ */
 /* Wire-level constants shared by all TPC source files                  */
@@ -99,6 +103,7 @@ typedef struct {
     int       reply_kind;   /* XROOTD_TPC_REPLY_* controls done callback */
     int       result;       /* NGX_OK on success, NGX_ERROR on failure */
     int       xrd_error;    /* kXR_* error code when result == NGX_ERROR */
+    uint64_t  transfer_id;  /* shared TPC registry entry, 0 if unavailable */
     size_t    bytes_written;/* source bytes copied into dst_fd */
     char      err_msg[512]; /* human-readable error detail for logging */
 } xrootd_tpc_pull_t;
@@ -197,4 +202,3 @@ ngx_int_t xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
     const char *dst_path, uint16_t options, uint16_t mode_bits);
-

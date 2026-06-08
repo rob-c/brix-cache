@@ -146,13 +146,18 @@ srv_path_matches(const char *paths, const char *path)
         }
         tok_len = (size_t)(end - p);
 
-        if (tok_len > 0
-            && path_len >= tok_len
-            && ngx_strncmp(path, p, tok_len) == 0
-            && (p[tok_len - 1] == '/'
-                || path[tok_len] == '/' || path[tok_len] == '\0'))
-        {
-            return 1;
+        if (tok_len > 0) {
+            /* "/" root token matches every path regardless of leading slash. */
+            if (tok_len == 1 && p[0] == '/') {
+                return 1;
+            }
+            if (path_len >= tok_len
+                && ngx_strncmp(path, p, tok_len) == 0
+                && (p[tok_len - 1] == '/'
+                    || path[tok_len] == '/' || path[tok_len] == '\0'))
+            {
+                return 1;
+            }
         }
 
         p = *end ? end + 1 : end;

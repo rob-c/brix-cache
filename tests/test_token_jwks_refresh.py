@@ -172,6 +172,11 @@ def jwks_refresh_server():
     if not os.path.exists(issuer.key_path) or not os.path.exists(issuer.jwks_path):
         pytest.skip("dedicated JWKS refresh token material is not initialized")
 
+    # Re-init keys to flush any stale state from a previous test run's key rotation.
+    # Wait one refresh interval so nginx picks up the restored JWKS before tests run.
+    issuer.init_keys()
+    time.sleep(WAIT_AFTER_TOUCH)
+
     port = NGINX_JWKS_REFRESH_PORT
     if not _wait_for_port("127.0.0.1", port):
         pytest.fail("dedicated jwks_refresh nginx did not start")

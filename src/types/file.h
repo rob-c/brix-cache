@@ -72,6 +72,7 @@ typedef struct {
     uint16_t   tpc_src_port;     /* 0 means default XRootD port */
     char       tpc_src_path[PATH_MAX];
     char       tpc_token_mode[32]; /* OAuth2/OIDC delegation mode for source auth */
+    uint64_t   tpc_transfer_id; /* shared TPC registry entry, 0 if not tracked */
 
     /* ---- write-through state (mirrors XrdPfcFile::m_dirtyOffset, m_bytesWritten) ----
      *

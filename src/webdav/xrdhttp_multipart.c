@@ -253,6 +253,12 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
     }
     snprintf(len_str, sizeof(len_str), "%lld", (long long) data_bytes);
     XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) data_bytes);
+    if (r->connection && r->connection->sockaddr
+        && r->connection->sockaddr->sa_family == AF_INET6) {
+        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total, (size_t) data_bytes);
+    } else {
+        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total, (size_t) data_bytes);
+    }
 
     /* Inject XrdHttp response headers before send. */
     (void) xrdhttp_add_response_headers(r, NGX_HTTP_PARTIAL_CONTENT);

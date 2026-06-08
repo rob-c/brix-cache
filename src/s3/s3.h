@@ -57,6 +57,7 @@
 #include "../compat/time.h"
 #include "../compat/uri.h"
 #include "../compat/xml.h"
+#include "../types/identity.h"
 
 /* -------------------------------------------------------------------------
  * Configuration
@@ -65,6 +66,8 @@
 typedef struct {
     ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
                                              thread_pool_name, thread_pool */
+    ngx_str_t    cache_root;  /* optional read-through cache root path */
+    char         cache_root_canon[PATH_MAX]; /* canonical cache root; "" = disabled */
     ngx_str_t    bucket;      /* bucket name to strip from request path  */
     ngx_str_t    access_key;  /* AWS access key ID (empty → anonymous)   */
     ngx_str_t    secret_key;  /* AWS secret access key                   */
@@ -72,6 +75,11 @@ typedef struct {
     ngx_flag_t   allow_unsigned_session_token; /* accept STS token with static secret */
     ngx_int_t    max_keys;    /* max objects per list page (default 1000)*/
 } ngx_http_s3_loc_conf_t;
+
+typedef struct {
+    char               fs_path[PATH_MAX];
+    xrootd_identity_t *identity;
+} ngx_http_s3_req_ctx_t;
 
 /* Sentinel filename created by XrdClS3 mkdir */
 #define S3_DIR_SENTINEL ".xrdcls3.dirsentinel"
@@ -186,6 +194,9 @@ ngx_int_t s3_handle_delete(ngx_http_request_t *r,
 /* PUT body callback (registered by handler.c) */
 void s3_put_body_handler(ngx_http_request_t *r);
 
+/* POST /bucket/ multipart/form-data browser upload */
+void s3_post_object_body_handler(ngx_http_request_t *r);
+
 /* -------------------------------------------------------------------------
  * Metrics
  * ---------------------------------------------------------------------- */
@@ -210,7 +221,8 @@ void s3_metrics_finalize_request_method(ngx_http_request_t *r,
  * If cf->access_key.len == 0, always returns NGX_OK (anonymous).
  */
 ngx_int_t s3_verify_sigv4(ngx_http_request_t *r,
-                           ngx_http_s3_loc_conf_t *cf);
+                           ngx_http_s3_loc_conf_t *cf,
+                           xrootd_identity_t *identity);
 
 /* -------------------------------------------------------------------------
  * XML helpers

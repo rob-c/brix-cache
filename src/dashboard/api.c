@@ -2,6 +2,7 @@
 
 #include "../compat/fs_usage.h"
 #include "../manager/registry.h"
+#include "../tpc/common/registry.h"
 
 #include <inttypes.h>
 #include <stdarg.h>
@@ -18,6 +19,7 @@
 
 #define JSON_BUF_SIZE        (1024 * 1024)
 #define STALE_GC_MS          600000
+#define TPC_REGISTRY_JSON_LIMIT 64
 
 typedef struct {
     uint64_t  conn_active;
@@ -168,6 +170,49 @@ dashboard_state_name(const ngx_http_xrootd_dashboard_loc_conf_t *conf,
 }
 
 static const char *
+dashboard_tpc_protocol_name(ngx_uint_t protocol)
+{
+    switch (protocol) {
+    case XROOTD_TPC_PROTO_STREAM:
+        return "stream";
+    case XROOTD_TPC_PROTO_WEBDAV:
+        return "webdav";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *
+dashboard_tpc_direction_name(ngx_uint_t direction)
+{
+    switch (direction) {
+    case XROOTD_TPC_DIR_PUSH:
+        return "push";
+    case XROOTD_TPC_DIR_PULL:
+        return "pull";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *
+dashboard_tpc_state_name(ngx_uint_t state)
+{
+    switch (state) {
+    case XROOTD_TPC_STATE_PENDING:
+        return "pending";
+    case XROOTD_TPC_STATE_ACTIVE:
+        return "active";
+    case XROOTD_TPC_STATE_DONE:
+        return "done";
+    case XROOTD_TPC_STATE_ERROR:
+        return "error";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *
 dashboard_event_class_name(uint8_t class_id)
 {
     switch (class_id) {
@@ -306,12 +351,16 @@ dashboard_append_limits(char *p, char *end,
     return json_append(p, end,
         "\"limits\":{"
         "\"max_active_transfers\":%d,"
+        "\"max_tpc_registry_transfers\":%d,"
+        "\"max_tpc_transfer_rows\":%d,"
         "\"max_recent_events\":%d,"
         "\"history_bucket_seconds\":%d,"
         "\"idle_threshold_ms\":%d,"
         "\"stalled_threshold_ms\":%d"
         "}",
         XROOTD_DASHBOARD_MAX_TRANSFERS,
+        XROOTD_TPC_REGISTRY_SLOTS,
+        TPC_REGISTRY_JSON_LIMIT,
         XROOTD_DASHBOARD_MAX_EVENTS,
         XROOTD_DASHBOARD_HISTORY_INTERVAL_MS / 1000,
         (int) conf->idle_threshold_ms,
@@ -504,6 +553,53 @@ dashboard_append_transfer_rows(char *p, char *end, int64_t now_ms,
         first = 0;
         p = dashboard_append_transfer_object(p, end, conf, slot, now_ms,
                                              v1_fields, 0);
+    }
+
+    return json_append(p, end, "]");
+}
+
+static char *
+dashboard_append_tpc_registry(char *p, char *end, ngx_pool_t *pool)
+{
+    xrootd_tpc_transfer_snapshot_t *rows;
+    ngx_uint_t                      n, i;
+
+    p = json_append(p, end, "\"tpc_transfers\":[");
+
+    rows = ngx_pcalloc(pool, sizeof(*rows) * TPC_REGISTRY_JSON_LIMIT);
+    if (rows == NULL) {
+        return json_append(p, end, "]");
+    }
+
+    n = xrootd_tpc_registry_snapshot(rows, TPC_REGISTRY_JSON_LIMIT);
+    for (i = 0; i < n && p < end - 1024; i++) {
+        if (i != 0) {
+            p = json_append(p, end, ",");
+        }
+
+        p = json_append(p, end,
+                        "{\"id\":%" PRIu64
+                        ",\"protocol\":\"%s\""
+                        ",\"direction\":\"%s\""
+                        ",\"state\":\"%s\""
+                        ",\"source\":",
+                        rows[i].id,
+                        dashboard_tpc_protocol_name(rows[i].protocol),
+                        dashboard_tpc_direction_name(rows[i].direction),
+                        dashboard_tpc_state_name(rows[i].state));
+        p = json_append_escaped_str(p, end, rows[i].src_url);
+        p = json_append(p, end, ",\"destination\":");
+        p = json_append_escaped_str(p, end, rows[i].dst_path);
+        p = json_append(p, end,
+                        ",\"bytes_done\":%" PRId64
+                        ",\"bytes_total\":%" PRId64
+                        ",\"started_at\":%" PRId64
+                        ",\"updated_at\":%" PRId64
+                        "}",
+                        (int64_t) rows[i].bytes_done,
+                        (int64_t) rows[i].bytes_total,
+                        (int64_t) rows[i].started_at,
+                        (int64_t) rows[i].updated_at);
     }
 
     return json_append(p, end, "]");
@@ -809,12 +905,15 @@ dashboard_build_compat_transfers(char *p, char *end, int64_t now_ms,
 }
 
 static char *
-dashboard_build_v1_transfers(char *p, char *end, int64_t now_ms,
+dashboard_build_v1_transfers(char *p, char *end, ngx_http_request_t *r,
+    int64_t now_ms,
     const ngx_http_xrootd_dashboard_loc_conf_t *conf,
     const xrootd_dashboard_totals_t *totals)
 {
     p = dashboard_build_v1_prefix(p, end, now_ms, conf);
     p = dashboard_append_transfer_rows(p, end, now_ms, conf, 1);
+    p = json_append(p, end, ",");
+    p = dashboard_append_tpc_registry(p, end, r->pool);
     p = json_append(p, end, ",");
     p = dashboard_append_totals(p, end, totals);
     return json_append(p, end, "}");
@@ -896,6 +995,8 @@ dashboard_build_v1_snapshot(char *p, char *end, ngx_http_request_t *r,
 {
     p = dashboard_build_v1_prefix(p, end, now_ms, conf);
     p = dashboard_append_transfer_rows(p, end, now_ms, conf, 1);
+    p = json_append(p, end, ",");
+    p = dashboard_append_tpc_registry(p, end, r->pool);
     p = json_append(p, end, ",");
     p = dashboard_append_protocols(p, end, now_ms, totals);
     p = json_append(p, end, ",");
@@ -1045,7 +1146,7 @@ ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
         p = dashboard_build_compat_transfers(p, end, now_ms, conf, &totals);
         break;
     case XROOTD_DASHBOARD_API_V1_TRANSFERS:
-        p = dashboard_build_v1_transfers(p, end, now_ms, conf, &totals);
+        p = dashboard_build_v1_transfers(p, end, r, now_ms, conf, &totals);
         break;
     case XROOTD_DASHBOARD_API_V1_TRANSFER_DETAIL:
         p = dashboard_build_v1_transfer_detail(p, end, r, now_ms, conf,

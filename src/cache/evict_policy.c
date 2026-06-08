@@ -1,4 +1,5 @@
 #include "evict_internal.h"
+#include "meta.h"
 
 
 static ngx_int_t
@@ -16,6 +17,16 @@ xrootd_cache_evict_one(xrootd_cache_fill_t *t,
         }
 
         return NGX_OK;
+    }
+
+    {
+        char meta_path[PATH_MAX];
+
+        if (xrootd_cache_meta_path(meta_path, sizeof(meta_path),
+                                   list->elts[idx].path) == 0)
+        {
+            (void) unlink(meta_path);
+        }
     }
 
     list->evicted[idx] = 1;
@@ -217,4 +228,3 @@ xrootd_cache_evict_if_needed(xrootd_cache_fill_t *t, const char *protect_path,
     xrootd_cache_free_candidates(&list);
     xrootd_cache_evict_unlock(lock_path);
 }
-

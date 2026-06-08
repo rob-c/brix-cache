@@ -3,6 +3,7 @@
  */
 
 #include "webdav.h"
+#include "../fs/vfs.h"
 
 #include <errno.h>
 
@@ -41,6 +42,9 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
 {
     ngx_http_xrootd_webdav_loc_conf_t *conf;
     ngx_int_t                          rc;
+    xrootd_vfs_ctx_t                   vctx;
+    xrootd_vfs_stat_t                  vst;
+    ngx_http_xrootd_webdav_req_ctx_t  *wctx;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
 
@@ -50,10 +54,40 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
         return rc;
     }
 
-    if (stat(path, sb) != 0) {
+    if (sb == NULL) {
+        return NGX_OK;
+    }
+
+    ngx_memzero(&vctx, sizeof(vctx));
+    vctx.pool = r->pool;
+    vctx.log = r->connection->log;
+    vctx.metrics_proto = XROOTD_PROTO_WEBDAV;
+    vctx.root_canon = conf->common.root_canon;
+    vctx.allow_write = conf->common.allow_write ? 1 : 0;
+    vctx.resolved.resolved.data = (u_char *) path;
+    vctx.resolved.resolved.len = ngx_strlen(path);
+    vctx.resolved.is_confined = 1;
+
+#if (NGX_HTTP_SSL)
+    vctx.is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    if (wctx != NULL) {
+        vctx.identity = wctx->identity;
+    }
+
+    if (xrootd_vfs_stat(&vctx, &vst) != NGX_OK) {
         return (errno == ENOENT) ? NGX_HTTP_NOT_FOUND
                                  : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+
+    ngx_memzero(sb, sizeof(*sb));
+    sb->st_size = vst.size;
+    sb->st_mtime = vst.mtime;
+    sb->st_ctime = vst.ctime;
+    sb->st_mode = (mode_t) vst.mode;
+    sb->st_ino = vst.ino;
 
     return NGX_OK;
 }
