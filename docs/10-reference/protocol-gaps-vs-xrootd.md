@@ -161,12 +161,12 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_redirect` | ✅ | 302-style |
 | Two-tier hierarchy | ✅ | Manager + data servers |
 | Multi-tier hierarchy | ✅ | Three-tier tested: meta-manager → sub-manager → leaf DS; `nginx_cluster_sub_manager.conf` |
-| Server blacklisting | ❌ | |
-| Per-server performance metrics | ❌ | No load-aware routing |
+| Server blacklisting | ✅ | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; cleared on reconnect |
+| Per-server performance metrics | ✅ | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges in `src/metrics/cluster.c` |
 | Virtual node ID | ❌ | |
 | CMS admin interface | ❌ | No admin socket |
-| Colocation hint | ⚠️ | Flag accepted, not acted on |
-| Lateral 307 redirect | ⚠️ | One level only |
+| Colocation hint | ✅ | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
+| Lateral 307 redirect | ✅ | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining needed |
 
 ---
 
@@ -248,7 +248,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | CORS | XrdHttpCors | ✅ | ✅ |
 | HTTP Range | ✅ | ✅ | ✅ |
 | HTTP TPC pull | XrdHttpTpc | ✅ | ✅ |
-| HTTP TPC multi-stream | XrdHttpTpc PMarkManager | ✅ | ❌ | **Not implemented** |
+| HTTP TPC multi-stream | XrdHttpTpc PMarkManager | ✅ | ✅ | `X-Number-Of-Streams` negotiated; N parallel Range-GETs via `curl_multi`; 202+Perf Markers via `xrootd_webdav_tpc_marker_interval` |
 | S3 REST | — | ✅ | ✅ |
 | S3 multipart | — | ✅ | ✅ |
 | S3 presigned URLs | — | ✅ | ✅ |
@@ -300,7 +300,6 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 
 | Gap | Effort | Impact | Who needs it |
 |-----|--------|--------|-------------|
-| HTTP-TPC multi-stream | High | Medium | FTS high-throughput transfers |
 | Native `kXR_attn` generation | Medium | Medium | Clients using server-push; `kXR_recoverWrts` depends on this |
 
 ### Tier 2 — Significant interoperability improvement
@@ -309,7 +308,6 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 |-----|--------|--------|
 | Macaroons third-party delegation | Medium | Medium |
 | XrdHttp (XRootD-over-HTTP) | High | Medium |
-| Server blacklisting | Medium | Medium |
 
 ### Tier 3 — Nice to have
 
@@ -326,6 +324,10 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | Multi-tier CMS hierarchy | Three-tier (meta → sub-manager → leaf DS) implemented and tested |
 | `kXR_attrMeta` / `kXR_attrSuper` / `kXR_attrVirtRdr` | All three role flags advertised via `xrootd_metadata_only`, `xrootd_supervisor`, `xrootd_virtual_redirector` |
 | `kXR_collapseRedir` | SHM redirect-target cache implemented; advertised via `xrootd_collapse_redir on` |
+| **Server blacklisting** | 30 s temporary blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM registry; cleared on reconnect (`src/manager/registry.c`) |
+| **Per-server cluster metrics** | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges (`src/metrics/cluster.c`) |
+| **Colocation hint** | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
+| **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining needed |
 
 ### Out of scope
 
@@ -361,11 +363,10 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 
 | Gap | Effort | Implementation Notes |
 |-----|--------|---------------------|
-| **HTTP-TPC multi-stream** | High | PMarkManager state machine, multi-stream coordination |
+| **HTTP-TPC multi-stream** | ✅ | `X-Number-Of-Streams` negotiated; `curl_multi` Range-GETs; 202+Perf Markers (`src/webdav/tpc_marker.c`, `tpc_curl.c`) |
 | **Native `kXR_attn` generation** | Medium | Server-push notification channel, async event queue; also unblocks `kXR_recoverWrts` |
 | **Macaroons delegation** | Medium | Macaroon library, caveat parsing, third-party token issuance |
 | **XrdHttp protocol** | High | HTTP envelope encoding, opcode dispatch over HTTP |
-| **Server blacklisting** | Medium | Blacklist data structure, CMS integration |
 | **Throttle** | Low | Per-connection rate limiter |
 | **ZIP serving** | Low | ZIP parser, archive extraction |
 
@@ -380,3 +381,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | **`kXR_attrVirtRdr`** | `xrootd_virtual_redirector on` — path-map redirector without CMS |
 | **`kXR_collapseRedir`** | `xrootd_collapse_redir on` — SHM redirect-target cache (`src/manager/redir_cache.c`) |
 | **`kXR_attn` relay (proxy)** | Proxy mode transparently relays upstream `kXR_attn` frames |
+| **Server blacklisting** | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; clears on reconnect |
+| **Per-server cluster metrics** | `xrootd_cluster_server_{free_megabytes,utilization_percent,last_seen_seconds,blacklisted,disconnect_total}` gauges in `src/metrics/cluster.c` |
+| **Colocation hint** | `kXR_prefname` (0x0100) parsed; locate returns all matching servers for client-side locality selection |
+| **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining |

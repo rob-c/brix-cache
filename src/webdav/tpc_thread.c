@@ -36,6 +36,7 @@ typedef struct {
     ngx_int_t                          http_status;       /* set by thread func */
     off_t                              bytes_transferred;
     uint64_t                           transfer_id;
+    ngx_uint_t                         n_streams;         /* 1 = single-stream pull */
 } tpc_thread_ctx_t;
 
 static uint64_t
@@ -159,8 +160,14 @@ tpc_thread_func(void *data, ngx_log_t *log)
     }
 
     /* pull: run curl, then atomically commit tmp_path → dest_path */
-    rc = webdav_tpc_run_curl_pull(t->log, t->conf, t->url, t->local_path,
-                                  t->transfer_headers, t->transfer_id);
+    if (t->n_streams > 1) {
+        rc = webdav_tpc_run_curl_pull_multi(t->log, t->conf, t->url,
+                                             t->local_path, t->transfer_headers,
+                                             t->n_streams, t->transfer_id, NULL);
+    } else {
+        rc = webdav_tpc_run_curl_pull(t->log, t->conf, t->url, t->local_path,
+                                      t->transfer_headers, t->transfer_id);
+    }
     if (rc != NGX_OK) {
         (void) xrootd_unlink_confined_canon(t->log, t->root_canon,
                                             t->local_path, 0);
@@ -279,7 +286,8 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
                             int is_push, ngx_flag_t existed, ngx_flag_t overwrite,
                             const char *url, const char *local_path,
                             const char *dest_path,
-                            ngx_array_t *transfer_headers)
+                            ngx_array_t *transfer_headers,
+                            ngx_uint_t n_streams)
 {
     ngx_thread_task_t  *task;
     tpc_thread_ctx_t   *t;
@@ -306,6 +314,7 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
     t->overwrite       = overwrite;
     t->url             = url;
     t->transfer_headers = transfer_headers;
+    t->n_streams       = (is_push || n_streams < 1) ? 1 : n_streams;
     t->transfer_id = webdav_tpc_thread_register(r, is_push, url, local_path,
                                                 dest_path);
     if (t->transfer_id == 0) {

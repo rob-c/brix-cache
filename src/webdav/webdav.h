@@ -153,6 +153,8 @@ typedef struct {
     ngx_str_t      tpc_cadir;       /* CA dir for TPC pull verification */
     ngx_str_t      tpc_cafile;      /* CA bundle for TPC pull verification */
     ngx_uint_t     tpc_timeout;     /* curl --max-time in seconds */
+    ngx_uint_t     tpc_marker_interval; /* seconds between Perf Markers; 0 = 201 only */
+    ngx_uint_t     tpc_max_streams;     /* max parallel streams per pull; 0 = single */
 
     /* --- HTTP-TPC OAuth2/OIDC credential delegation --- */
     ngx_http_xrootd_tpc_conf_t tpc_cred;
@@ -335,6 +337,23 @@ ngx_int_t webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len);
 ngx_int_t webdav_copy_spooled_file(ngx_http_request_t *r, ngx_fd_t dst_fd,
     ngx_buf_t *buf, const char *path, u_char **scratch);
 
+/* Max parallel streams for HTTP-TPC multi-stream pull (X-Number-Of-Streams). */
+#define XROOTD_TPC_MAX_STREAMS  16
+
+/*
+ * Progress counters shared between the curl background thread and the
+ * nginx event-loop poll timer during 202-streaming TPC transfers.
+ * Allocated from r->pool before the thread is posted; valid until
+ * ngx_http_finalize_request is called.
+ */
+typedef struct {
+    volatile ngx_atomic_t  bytes_per_stream[XROOTD_TPC_MAX_STREAMS];
+    volatile ngx_atomic_t  completed;  /* 1 when thread is done */
+    ngx_int_t              result;     /* HTTP status; set before completed=1 */
+    ngx_uint_t             n_streams;
+    off_t                  total_size; /* from HEAD; -1 if unknown */
+} tpc_ms_progress_t;
+
 /* HTTP-TPC */
 void ngx_http_xrootd_webdav_tpc_create_loc_conf(
     ngx_http_xrootd_webdav_loc_conf_t *conf);
@@ -374,7 +393,20 @@ ngx_int_t webdav_tpc_post_thread_task(ngx_http_request_t *r,
     ngx_http_xrootd_webdav_loc_conf_t *conf,
     int is_push, ngx_flag_t existed, ngx_flag_t overwrite,
     const char *url, const char *local_path, const char *dest_path,
-    ngx_array_t *transfer_headers);
+    ngx_array_t *transfer_headers, ngx_uint_t n_streams);
+ngx_int_t webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
+    ngx_http_xrootd_webdav_loc_conf_t *conf,
+    const char *source_url, const char *tmp_path,
+    ngx_array_t *transfer_headers, ngx_uint_t n_streams,
+    uint64_t transfer_id, tpc_ms_progress_t *progress);
+/* 202-streaming TPC with Performance-Markers and optional multi-stream.
+ * Returns NGX_DONE (202 sent, poll timer running) or NGX_DECLINED (no thread
+ * pool configured; caller falls back to the 201 path). */
+ngx_int_t webdav_tpc_marker_start(ngx_http_request_t *r,
+    ngx_http_xrootd_webdav_loc_conf_t *conf, ngx_uint_t n_streams,
+    const char *url, const char *tmp_path, const char *final_path,
+    ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed,
+    ngx_array_t *transfer_headers, uint64_t transfer_id);
 ngx_int_t ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r);
 
 /* Upstream HTTP(S) proxy */

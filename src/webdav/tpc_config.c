@@ -14,6 +14,8 @@ ngx_http_xrootd_webdav_tpc_create_loc_conf(
     conf->tpc_timeout      = NGX_CONF_UNSET_UINT;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
+    conf->tpc_marker_interval = NGX_CONF_UNSET_UINT;
+    conf->tpc_max_streams     = NGX_CONF_UNSET_UINT;
 }
 
 void
@@ -33,6 +35,9 @@ ngx_http_xrootd_webdav_tpc_merge_loc_conf(
     ngx_conf_merge_str_value(conf->tpc_cadir, prev->tpc_cadir, "");
     ngx_conf_merge_str_value(conf->tpc_cafile, prev->tpc_cafile, "");
     ngx_conf_merge_uint_value(conf->tpc_timeout, prev->tpc_timeout, 0);
+    ngx_conf_merge_uint_value(conf->tpc_marker_interval,
+                              prev->tpc_marker_interval, 0);
+    ngx_conf_merge_uint_value(conf->tpc_max_streams, prev->tpc_max_streams, 1);
 
     /* Merge OAuth2/OIDC token-delegation config. */
     ngx_conf_merge_str_value(conf->tpc_cred.token_endpoint,

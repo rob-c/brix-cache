@@ -52,15 +52,37 @@ else
     exit 1
 fi
 
+# Kerberos 5 is optional at build time. If unavailable, xrootd_auth krb5
+# remains a config-time error via src/krb5/config.c.
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists krb5; then
+    CFLAGS="$CFLAGS $(pkg-config --cflags krb5) -DXROOTD_HAVE_KRB5=1"
+    CORE_LIBS="$CORE_LIBS $(pkg-config --libs krb5)"
+    echo " + xrootd auth: Kerberos 5 plugin enabled"
+else
+    echo " + xrootd auth: Kerberos 5 plugin disabled (krb5 pkg-config not found)"
+fi
+
 ngx_addon_name=ngx_stream_xrootd_module
 
 ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/config/config.h \
                         $ngx_addon_dir/src/handshake/handshake.h \
                         $ngx_addon_dir/src/cache/cache_internal.h \
+                        $ngx_addon_dir/src/cache/open.h \
+                        $ngx_addon_dir/src/cache/meta.h \
+                        $ngx_addon_dir/src/cache/writethrough.h \
                         $ngx_addon_dir/src/tpc/tpc_internal.h \
                         $ngx_addon_dir/src/tpc/key_registry.h \
+                        $ngx_addon_dir/src/tpc/common/auth.h \
+                        $ngx_addon_dir/src/tpc/common/credential.h \
+                        $ngx_addon_dir/src/tpc/common/metrics.h \
+                        $ngx_addon_dir/src/tpc/common/registry.h \
+                        $ngx_addon_dir/src/tpc/common/transfer.h \
                         $ngx_addon_dir/src/path/path_internal.h \
+                        $ngx_addon_dir/src/path/unified.h \
+                        $ngx_addon_dir/src/types/identity.h \
+                        $ngx_addon_dir/src/fs/vfs.h \
+                        $ngx_addon_dir/src/fs/vfs_internal.h \
                         $ngx_addon_dir/src/path/path.h \
                         $ngx_addon_dir/src/read/clone.h \
                         $ngx_addon_dir/src/read/close.h \
@@ -106,6 +128,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/compat/http_file_response.h \
                         $ngx_addon_dir/src/compat/http_headers.h \
                         $ngx_addon_dir/src/compat/error_mapping.h \
+                        $ngx_addon_dir/src/compat/http_protocol_vars.h \
                         $ngx_addon_dir/src/compat/http_query.h \
                         $ngx_addon_dir/src/compat/http_xml.h \
                         $ngx_addon_dir/src/compat/copy_range.h \
@@ -123,7 +146,6 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/compat/range_vector.h \
                         $ngx_addon_dir/src/compat/integrity_info.h \
                         $ngx_addon_dir/src/compat/async_job.h \
-                        $ngx_addon_dir/src/compat/result_mapper.h \
                         $ngx_addon_dir/src/manager/registry.h \
                         $ngx_addon_dir/src/proxy/proxy.h \
                         $ngx_addon_dir/src/proxy/proxy_internal.h \
@@ -131,6 +153,8 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/cms/frame_io.h \
                         $ngx_addon_dir/src/metrics/metrics.h \
                         $ngx_addon_dir/src/metrics/metrics_macros.h \
+                        $ngx_addon_dir/src/metrics/unified.h \
+                        $ngx_addon_dir/src/metrics/access_log.h \
                         $ngx_addon_dir/src/protocol/protocol.h \
                         $ngx_addon_dir/src/protocol/types.h \
                         $ngx_addon_dir/src/protocol/opcodes.h \
@@ -138,10 +162,18 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/protocol/wire.h \
                         $ngx_addon_dir/src/protocol/gsi.h"
 ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
+                        $ngx_addon_dir/src/fs/vfs.h \
+                        $ngx_addon_dir/src/cache/open.h \
                         $ngx_addon_dir/src/webdav/xrdhttp.h \
                         $ngx_addon_dir/src/compat/time.h \
                         $ngx_addon_dir/src/webdav/proxy_internal.h \
                         $ngx_addon_dir/src/webdav/tpc_cred_internal.h \
+                        $ngx_addon_dir/src/tpc/common/auth.h \
+                        $ngx_addon_dir/src/tpc/common/credential.h \
+                        $ngx_addon_dir/src/tpc/common/metrics.h \
+                        $ngx_addon_dir/src/tpc/common/registry.h \
+                        $ngx_addon_dir/src/tpc/common/transfer.h \
+                        $ngx_addon_dir/src/metrics/unified.h \
                         $ngx_addon_dir/src/webdav/fs/copy_engine.h \
                         $ngx_addon_dir/src/webdav/locks/request.h \
                         $ngx_addon_dir/src/webdav/methods/copy_conditionals.h \
@@ -175,12 +207,11 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/compat/namespace_ops.c \
     $ngx_addon_dir/src/compat/integrity_info.c \
     $ngx_addon_dir/src/compat/async_job.c \
-    $ngx_addon_dir/src/compat/result_mapper.c \
-    $ngx_addon_dir/src/compat/http_errno.c \
+    $ngx_addon_dir/src/compat/error_mapping.c \
+    $ngx_addon_dir/src/compat/http_protocol_vars.c \
     $ngx_addon_dir/src/compat/http_query.c \
     $ngx_addon_dir/src/compat/http_xml.c \
     $ngx_addon_dir/src/compat/copy_range.c \
-    $ngx_addon_dir/src/compat/kxr_errno.c \
     $ngx_addon_dir/src/compat/io.c \
     $ngx_addon_dir/src/compat/staged_file.c \
     $ngx_addon_dir/src/compat/tmp_path.c \
@@ -190,6 +221,17 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/compat/uri.c \
     $ngx_addon_dir/src/compat/xml.c \
     $ngx_addon_dir/src/compat/log.c \
+    $ngx_addon_dir/src/types/identity.c \
+    $ngx_addon_dir/src/fs/vfs_open.c \
+    $ngx_addon_dir/src/fs/vfs_read.c \
+    $ngx_addon_dir/src/fs/vfs_write.c \
+    $ngx_addon_dir/src/fs/vfs_stat.c \
+    $ngx_addon_dir/src/fs/vfs_dir.c \
+    $ngx_addon_dir/src/fs/vfs_unlink.c \
+    $ngx_addon_dir/src/fs/vfs_rename.c \
+    $ngx_addon_dir/src/fs/vfs_mkdir.c \
+    $ngx_addon_dir/src/fs/vfs_sync.c \
+    $ngx_addon_dir/src/fs/fd_cache.c \
     $ngx_addon_dir/src/config/root_prepare.c \
     $ngx_addon_dir/src/config/helpers.c \
     $ngx_addon_dir/src/config/server_conf.c \
@@ -201,8 +243,11 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/session/tls_config.c \
     $ngx_addon_dir/src/token/config.c \
     $ngx_addon_dir/src/sss/config.c \
+    $ngx_addon_dir/src/krb5/config.c \
     $ngx_addon_dir/src/metrics/config.c \
     $ngx_addon_dir/src/metrics/tracking.c \
+    $ngx_addon_dir/src/metrics/unified.c \
+    $ngx_addon_dir/src/metrics/access_log.c \
     $ngx_addon_dir/src/dashboard/config.c \
     $ngx_addon_dir/src/dashboard/transfer_table.c \
     $ngx_addon_dir/src/dashboard/events.c \
@@ -228,8 +273,14 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/session/registry.c \
     $ngx_addon_dir/src/session/handles.c \
     $ngx_addon_dir/src/manager/registry.c \
+    $ngx_addon_dir/src/manager/redir_cache.c \
     $ngx_addon_dir/src/manager/pending.c \
     $ngx_addon_dir/src/tpc/key_registry.c \
+    $ngx_addon_dir/src/tpc/common/credential.c \
+    $ngx_addon_dir/src/tpc/common/auth.c \
+    $ngx_addon_dir/src/tpc/common/registry.c \
+    $ngx_addon_dir/src/tpc/common/progress.c \
+    $ngx_addon_dir/src/tpc/common/metrics.c \
     $ngx_addon_dir/src/tpc/parse.c \
     $ngx_addon_dir/src/tpc/io.c \
     $ngx_addon_dir/src/tpc/connect.c \
@@ -260,6 +311,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/path/helpers.c \
     $ngx_addon_dir/src/path/resolve_confined_helpers.c \
     $ngx_addon_dir/src/path/resolve_confined_ops.c \
+    $ngx_addon_dir/src/path/unified.c \
     $ngx_addon_dir/src/path/resolve_path_variants.c \
     $ngx_addon_dir/src/path/normalize.c \
     $ngx_addon_dir/src/path/merge.c \
@@ -275,6 +327,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/cache/errors.c \
     $ngx_addon_dir/src/cache/io.c \
     $ngx_addon_dir/src/cache/paths.c \
+    $ngx_addon_dir/src/cache/open.c \
+    $ngx_addon_dir/src/cache/meta.c \
     $ngx_addon_dir/src/cache/lock.c \
     $ngx_addon_dir/src/cache/writethrough_decision.c \
     $ngx_addon_dir/src/cache/origin_connection.c \
@@ -313,6 +367,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/gsi/cert_response.c \
     $ngx_addon_dir/src/gsi/token.c \
     $ngx_addon_dir/src/gsi/auth.c \
+    $ngx_addon_dir/src/unix/auth.c \
+    $ngx_addon_dir/src/krb5/auth.c \
     $ngx_addon_dir/src/sss/auth_crypto_helpers.c \
     $ngx_addon_dir/src/sss/auth_identity_challenge.c \
     $ngx_addon_dir/src/sss/auth_proxy_credential.c \
@@ -419,9 +475,11 @@ ngx_module_name=ngx_http_xrootd_metrics_module
                   $ngx_addon_dir/src/metrics/webdav.c \
                   $ngx_addon_dir/src/metrics/s3.c \
                   $ngx_addon_dir/src/metrics/tracking.c \
+                  $ngx_addon_dir/src/metrics/cluster.c \
                   $ngx_addon_dir/src/metrics/handler.c"
 ngx_module_deps="$ngx_addon_dir/src/metrics/metrics.h \
                  $ngx_addon_dir/src/metrics/metrics_macros.h \
+                 $ngx_addon_dir/src/metrics/unified.h \
                  $ngx_addon_dir/src/metrics/metrics_internal.h"
 ngx_module_libs=
 . auto/module
@@ -463,6 +521,7 @@ ngx_module_srcs="$ngx_addon_dir/src/webdav/module.c \
                   $ngx_addon_dir/src/webdav/tpc_headers.c \
                   $ngx_addon_dir/src/webdav/tpc_curl.c \
                   $ngx_addon_dir/src/webdav/tpc_thread.c \
+                  $ngx_addon_dir/src/webdav/tpc_marker.c \
                   $ngx_addon_dir/src/webdav/tpc_cred_parse.c \
                   $ngx_addon_dir/src/webdav/tpc_cred.c \
                   $ngx_addon_dir/src/webdav/tpc.c \
@@ -484,6 +543,7 @@ ngx_module_srcs="$ngx_addon_dir/src/s3/module.c \
                  $ngx_addon_dir/src/s3/metrics.c \
                  $ngx_addon_dir/src/s3/object.c \
                  $ngx_addon_dir/src/s3/put.c \
+                 $ngx_addon_dir/src/s3/post_object.c \
                  $ngx_addon_dir/src/s3/list_walk.c \
                  $ngx_addon_dir/src/s3/list_objects_v2.c \
                  $ngx_addon_dir/src/s3/auth_sigv4_canonical.c \
@@ -502,9 +562,12 @@ ngx_module_srcs="$ngx_addon_dir/src/s3/module.c \
                  $ngx_addon_dir/src/s3/util.c \
                  $ngx_addon_dir/src/s3/operation_table.c"
 ngx_module_deps="$ngx_addon_dir/src/s3/s3.h \
+                 $ngx_addon_dir/src/fs/vfs.h \
+                 $ngx_addon_dir/src/cache/open.h \
                  $ngx_addon_dir/src/compat/hex.h \
                  $ngx_addon_dir/src/compat/time.h \
                  $ngx_addon_dir/src/metrics/metrics.h \
+                 $ngx_addon_dir/src/metrics/unified.h \
                  $ngx_addon_dir/src/metrics/metrics_macros.h"
 ngx_module_libs="-lssl -lcrypto"
 . auto/module
@@ -519,7 +582,9 @@ ngx_module_srcs="$ngx_addon_dir/src/dashboard/module.c \
 ngx_module_deps="$ngx_addon_dir/src/dashboard/dashboard.h \
                  $ngx_addon_dir/src/dashboard/dashboard_http.h \
                  $ngx_addon_dir/src/dashboard/dashboard_tracking.h \
-                 $ngx_addon_dir/src/metrics/metrics.h"
+                 $ngx_addon_dir/src/metrics/metrics.h \
+                 $ngx_addon_dir/src/tpc/common/registry.h \
+                 $ngx_addon_dir/src/tpc/common/transfer.h"
 ngx_module_libs="-lssl -lcrypto -lcrypt"
 . auto/module
 

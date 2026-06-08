@@ -18,9 +18,13 @@ xrootd_cms_srv_close(xrootd_cms_srv_ctx_t *ctx)
     }
 
     if (ctx->logged_in) {
-        xrootd_srv_unregister(ctx->host, ctx->port);
+        /* Blacklist for 30 s so in-flight locate responses don't route to a
+         * server that just went away.  xrootd_srv_register() clears the flag
+         * the moment the server successfully reconnects and re-heartbeats. */
+        xrootd_srv_blacklist(ctx->host, ctx->port, 30000);
         ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
-                      "xrootd: CMS server: data server %s:%d unregistered",
+                      "xrootd: CMS server: data server %s:%d disconnected "
+                      "(blacklisted 30 s)",
                       ctx->host, (int) ctx->port);
     }
 

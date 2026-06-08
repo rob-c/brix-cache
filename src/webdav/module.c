@@ -316,6 +316,20 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc_timeout),
       NULL },
 
+    { ngx_string("xrootd_webdav_tpc_marker_interval"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc_marker_interval),
+      NULL },
+
+    { ngx_string("xrootd_webdav_tpc_max_streams"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc_max_streams),
+      NULL },
+
     { ngx_string("xrootd_webdav_tpc_token_endpoint"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,

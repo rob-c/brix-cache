@@ -1,36 +1,38 @@
 /*
- * tpc_marker.c - 202 Accepted response with WLCG Performance-Marker streaming.
+ * tpc_marker.c — 202 Accepted response with WLCG Performance-Marker streaming.
  *
  * When xrootd_webdav_tpc_marker_interval is non-zero, HTTP-TPC COPY requests
- * receive a "202 Accepted" response immediately and then stream
- * Performance-Marker blocks in the chunked body while the curl subprocess runs.
- * The body ends with "success\r\n" or "failure\r\n" when the transfer
+ * receive a "202 Accepted" response immediately and stream Performance-Marker
+ * blocks in the chunked body while the curl transfer runs in a thread pool
+ * worker.  The body ends with "success\r\n" or "failure\r\n" when the transfer
  * completes.  This matches the XrdHttp wire behaviour expected by FTS and RUCIO.
  *
- * Performance-Marker format (WLCG HTTP-TPC §3.3):
+ * For multi-stream pull (X-Number-Of-Streams: N), N parallel Range-based GET
+ * streams run concurrently via curl_multi.  Each stream's write callback
+ * increments an atomic per-stream byte counter; the poll timer reads these and
+ * emits one Performance-Marker block per stripe per interval:
  *
  *   Perf Marker\r\n
  *   Timestamp: <unix-epoch-seconds>\r\n
- *   Stripe Index: 0\r\n
+ *   Stripe Index: <0..N-1>\r\n
  *   Stripe Bytes Transferred: <bytes>\r\n
- *   Total Stripe Count: 1\r\n
+ *   Total Stripe Count: <N>\r\n
  *   End\r\n
  *
- * Byte counts for pull transfers are obtained from stat(2) on the in-progress
- * temp file at each marker interval.  Push transfers report 0 bytes in interim
- * markers; the final marker carries the full file size.
+ * For single-stream pull, byte counts are read from stat(2) on the in-progress
+ * temp file.  For push, interim markers report 0 bytes; the final marker carries
+ * the full file size.
  *
- * The curl child is polled with waitpid(WNOHANG) on every timer tick.  A
- * Performance-Marker block is emitted whenever the elapsed time since the last
- * marker exceeds tpc_marker_interval seconds.  The poll timer fires every
- * TPC_MARKER_POLL_MSEC milliseconds and does not block the nginx event loop.
- *
- * A pool cleanup callback kills the curl child and removes the temp file if the
- * request is aborted before the transfer completes (client disconnect, worker
- * shutdown).
+ * The poll timer fires every TPC_MARKER_POLL_MSEC and is re-armed until the
+ * thread marks progress->completed = 1.  A pool cleanup callback aborts the
+ * transfer if the request is destroyed before completion.
  */
 
 #include "webdav.h"
+#include "../compat/net_target.h"
+#include "../compat/staged_file.h"
+#include "../dashboard/dashboard_tracking.h"
+#include "../tpc/common/metrics.h"
 #include "../tpc/common/registry.h"
 
 #include <fcntl.h>
@@ -38,62 +40,57 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
-/* Poll the curl child every 200 ms; a marker block is emitted on interval. */
+/* Poll the transfer thread status every 200 ms. */
 #define TPC_MARKER_POLL_MSEC  200u
 
+/* -------------------------------------------------------------------------- */
+/* Types                                                                       */
+/* -------------------------------------------------------------------------- */
+
 /*
- * Per-TPC-transfer state.  Allocated from r->pool; valid until the request
- * pool is destroyed.  Accessed only from the nginx event loop thread.
- *
- * Timer lifetime: ngx_add_timer starts the poll loop; tpc_marker_finish stops
- * it by not re-arming.  If the request is aborted, tpc_marker_cleanup stops it
- * explicitly via ngx_del_timer.
+ * Event-loop side state for a 202-streaming TPC transfer.
+ * Allocated from r->pool; accessed only from the nginx event loop thread.
  */
 typedef struct {
     ngx_http_request_t  *r;
-
-    /* curl child process — set to 0 by tpc_marker_finish after waitpid. */
-    volatile pid_t       curl_pid;
-
+    tpc_ms_progress_t   *progress;         /* shared with transfer thread */
     ngx_event_t          timer;
     time_t               last_marker_time;
     ngx_uint_t           marker_interval_secs;
-
-    /* Pull-mode paths.  tmp_path[0] == '\0' when not applicable. */
-    char                 tmp_path[WEBDAV_MAX_PATH];
-    char                 final_path[WEBDAV_MAX_PATH];
-
-    /* Root used for confined filesystem operations. */
+    char                 tmp_path[WEBDAV_MAX_PATH];   /* pull: in-progress file */
+    char                 final_path[WEBDAV_MAX_PATH]; /* pull: commit target */
     const char          *root_canon;
-
     ngx_flag_t           overwrite;
-    ngx_flag_t           existed;     /* was final_path present before pull? */
-    ngx_flag_t           is_pull;     /* 0 = push */
-
-    /* Size of the local file being pushed (for the final Perf Marker). */
-    off_t                push_file_size;
-
+    ngx_flag_t           existed;
+    ngx_flag_t           is_pull;
+    off_t                push_file_size;   /* push: local file size for final marker */
     uint64_t             transfer_id;
 } tpc_marker_ctx_t;
 
+/*
+ * Thread task context — carries everything the transfer thread needs.
+ * Allocated from r->pool before the task is posted; the thread only reads it.
+ */
+typedef struct {
+    tpc_marker_ctx_t                  *marker_ctx;
+    ngx_log_t                         *log;
+    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    int                                is_push;
+    char                               url[4096];
+    char                               local_path[WEBDAV_MAX_PATH];
+    ngx_array_t                       *transfer_headers;
+} tpc_marker_thread_ctx_t;
+
 /* -------------------------------------------------------------------------- */
-/* Internal helpers                                                            */
+/* Marker block emission                                                       */
 /* -------------------------------------------------------------------------- */
 
-/*
- * tpc_marker_send_block — write one Performance-Marker block to the chunked
- * HTTP response body.
- *
- * Allocates a temporary buffer from r->pool so it is freed when the request
- * completes.  Silently ignores OOM or output-filter errors; the marker is
- * advisory and a dropped block does not fail the transfer.
- */
 static void
-tpc_marker_send_block(ngx_http_request_t *r, time_t ts, off_t bytes_transferred)
+tpc_marker_send_one(ngx_http_request_t *r, time_t ts,
+    ngx_uint_t stripe_index, off_t bytes, ngx_uint_t total_stripes)
 {
     char        block[512];
     int         n;
@@ -103,11 +100,12 @@ tpc_marker_send_block(ngx_http_request_t *r, time_t ts, off_t bytes_transferred)
     n = snprintf(block, sizeof(block),
                  "Perf Marker\r\n"
                  "Timestamp: %ld\r\n"
-                 "Stripe Index: 0\r\n"
+                 "Stripe Index: %u\r\n"
                  "Stripe Bytes Transferred: %lld\r\n"
-                 "Total Stripe Count: 1\r\n"
+                 "Total Stripe Count: %u\r\n"
                  "End\r\n",
-                 (long) ts, (long long) bytes_transferred);
+                 (long) ts, (unsigned) stripe_index,
+                 (long long) bytes, (unsigned) total_stripes);
 
     if (n <= 0 || n >= (int) sizeof(block)) {
         return;
@@ -120,25 +118,42 @@ tpc_marker_send_block(ngx_http_request_t *r, time_t ts, off_t bytes_transferred)
 
     ngx_memcpy(b->pos, block, (size_t) n);
     b->last = b->pos + n;
-
     out.buf  = b;
     out.next = NULL;
-
     (void) ngx_http_output_filter(r, &out);
 }
 
-/*
- * tpc_marker_finish — commit or roll back the transfer and close the response.
- *
- * For pull transfers: on success, renames (or hard-links) the temp file to the
- * final path.  On failure, removes the temp file.
- *
- * Writes a final Performance-Marker and then "success\r\n" or "failure\r\n"
- * before terminating the chunked body.
- *
- * Called from the timer handler when waitpid reports curl has exited, or from
- * tpc_marker_cleanup if the request is aborted.
- */
+static void
+tpc_marker_send_all(ngx_http_request_t *r, time_t ts,
+    tpc_marker_ctx_t *ctx)
+{
+    tpc_ms_progress_t *progress = ctx->progress;
+    ngx_uint_t         n        = progress->n_streams;
+    ngx_uint_t         i;
+
+    if (n > 1) {
+        /* Emit one block per stripe with atomically-read per-stream counts. */
+        for (i = 0; i < n; i++) {
+            off_t stream_bytes = (off_t) progress->bytes_per_stream[i];
+            tpc_marker_send_one(r, ts, i, stream_bytes, n);
+        }
+    } else {
+        /* Single-stream: approximate via stat on the in-progress temp file. */
+        off_t bytes = 0;
+        if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
+            struct stat sb;
+            if (stat(ctx->tmp_path, &sb) == 0) {
+                bytes = sb.st_size;
+            }
+        }
+        tpc_marker_send_one(r, ts, 0, bytes, 1);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Commit / cleanup                                                            */
+/* -------------------------------------------------------------------------- */
+
 static void
 tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
 {
@@ -149,69 +164,52 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
     const char *status_line;
     size_t      status_len;
 
-    ctx->curl_pid = 0;
+    now = time(NULL);
 
-    now         = time(NULL);
-    final_bytes = 0;
-
+    /* Determine final byte count for the last marker. */
     if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
         struct stat sb;
-        if (stat(ctx->tmp_path, &sb) == 0) {
-            final_bytes = sb.st_size;
-        }
-    } else if (!ctx->is_pull) {
-        final_bytes = ctx->push_file_size;
+        final_bytes = (stat(ctx->tmp_path, &sb) == 0) ? sb.st_size : 0;
+    } else {
+        final_bytes = ctx->is_pull ? 0 : ctx->push_file_size;
     }
 
-    /* Final Performance-Marker with actual bytes. */
     (void) xrootd_tpc_progress_emit(ctx->transfer_id, final_bytes, final_bytes,
                                     failed ? XROOTD_TPC_STATE_ERROR
                                            : XROOTD_TPC_STATE_DONE,
                                     r->connection->log);
-    tpc_marker_send_block(r, now, final_bytes);
+    tpc_marker_send_all(r, now, ctx);
 
-    /* Commit the temp file (pull only). */
+    /* Atomically commit the pull temp file. */
     if (!failed && ctx->is_pull && ctx->tmp_path[0] != '\0') {
         if (!ctx->overwrite) {
-            /*
-             * Hard-link the temp file to the final path.  If the link fails
-             * with EEXIST the destination appeared between our pre-check and
-             * curl completing — treat it as a commit failure (can't return
-             * 412 after 202, so "failure" in the body is the closest signal).
-             */
             if (xrootd_link_confined_canon(r->connection->log, ctx->root_canon,
                                            ctx->tmp_path,
                                            ctx->final_path) != 0)
             {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
                               "xrootd_webdav: TPC marker link() failed");
-                xrootd_unlink_confined_canon(r->connection->log,
-                                             ctx->root_canon,
+                xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
-                XROOTD_WEBDAV_METRIC_INC(
-                    tpc_total[XROOTD_WEBDAV_TPC_COMMIT_ERROR]);
+                XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_COMMIT_ERROR]);
                 failed = 1;
             } else {
-                xrootd_unlink_confined_canon(r->connection->log,
-                                             ctx->root_canon,
+                xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
             }
         } else {
-            if (xrootd_rename_confined_canon(r->connection->log,
-                                             ctx->root_canon,
+            if (xrootd_rename_confined_canon(r->connection->log, ctx->root_canon,
                                              ctx->tmp_path,
                                              ctx->final_path) != 0)
             {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
                               "xrootd_webdav: TPC marker rename() failed");
-                xrootd_unlink_confined_canon(r->connection->log,
-                                             ctx->root_canon,
+                xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
                                              ctx->tmp_path, 0);
                 ctx->tmp_path[0] = '\0';
-                XROOTD_WEBDAV_METRIC_INC(
-                    tpc_total[XROOTD_WEBDAV_TPC_COMMIT_ERROR]);
+                XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_COMMIT_ERROR]);
                 failed = 1;
             } else {
                 ctx->tmp_path[0] = '\0';
@@ -223,117 +221,109 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
         ctx->tmp_path[0] = '\0';
     }
 
-    /* Update metrics. */
+    /* Registry + metrics. */
+    (void) xrootd_tpc_registry_remove(ctx->transfer_id, r->connection->log);
+
     if (failed) {
         XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
+        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                   ctx->is_pull ? XROOTD_TPC_DIR_PULL
+                                                : XROOTD_TPC_DIR_PUSH,
+                                   XROOTD_TPC_METRIC_ERROR, 0,
+                                   r->connection->log);
+        xrootd_dashboard_http_error(r, "webdav TPC failed");
         status_line = "failure\r\n";
         status_len  = sizeof("failure\r\n") - 1;
     } else {
         XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
         if (ctx->is_pull) {
-            XROOTD_WEBDAV_METRIC_INC(
-                tpc_total[XROOTD_WEBDAV_TPC_PULL_SUCCESS]);
+            XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PULL_SUCCESS]);
+            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                       XROOTD_TPC_DIR_PULL,
+                                       XROOTD_TPC_METRIC_SUCCESS,
+                                       (size_t) final_bytes,
+                                       r->connection->log);
         } else {
-            XROOTD_WEBDAV_METRIC_INC(
-                tpc_total[XROOTD_WEBDAV_TPC_PUSH_SUCCESS]);
+            XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PUSH_SUCCESS]);
+            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                       XROOTD_TPC_DIR_PUSH,
+                                       XROOTD_TPC_METRIC_SUCCESS,
+                                       (size_t) final_bytes,
+                                       r->connection->log);
+        }
+        if (final_bytes > 0) {
+            xrootd_dashboard_http_add(r, (ngx_atomic_int_t) final_bytes);
         }
         status_line = "success\r\n";
         status_len  = sizeof("success\r\n") - 1;
     }
+    xrootd_dashboard_http_finish(r);
 
-    /* Write final status line. */
     b = ngx_create_temp_buf(r->pool, status_len);
     if (b != NULL) {
         ngx_memcpy(b->pos, status_line, status_len);
-        b->last = b->pos + status_len;
+        b->last  = b->pos + status_len;
         out.buf  = b;
         out.next = NULL;
         (void) ngx_http_output_filter(r, &out);
     }
 
-    /* Terminate the chunked body and release the extra request reference. */
     (void) ngx_http_send_special(r, NGX_HTTP_LAST);
     ngx_http_finalize_request(r, NGX_DONE);
 }
 
 /* -------------------------------------------------------------------------- */
-/* Event and cleanup callbacks                                                 */
+/* Event callbacks                                                             */
 /* -------------------------------------------------------------------------- */
 
-/*
- * tpc_marker_poll — nginx event timer callback, fires every TPC_MARKER_POLL_MSEC.
- *
- * Checks if the curl child has exited via waitpid(WNOHANG).  Emits a
- * Performance-Marker block if the marker interval has elapsed.  Re-arms the
- * timer if curl is still running.
- */
 static void
 tpc_marker_poll(ngx_event_t *ev)
 {
-    tpc_marker_ctx_t   *ctx = ev->data;
-    ngx_http_request_t *r = ctx->r;
-    int                 wstatus;
-    pid_t               ret;
+    tpc_marker_ctx_t  *ctx      = ev->data;
+    ngx_http_request_t *r       = ctx->r;
+    tpc_ms_progress_t  *progress = ctx->progress;
     time_t              now;
-    off_t               bytes;
+    int                 completed;
 
-    ret = waitpid(ctx->curl_pid, &wstatus, WNOHANG);
+    now       = time(NULL);
+    completed = (int) progress->completed;
 
-    if (ret < 0 && errno != EINTR) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
-                      "xrootd_webdav: TPC marker waitpid() error");
-        kill(ctx->curl_pid, SIGKILL);
-        waitpid(ctx->curl_pid, NULL, 0);
-        tpc_marker_finish(r, ctx, 1 /* failed */);
-        return;
-    }
-
-    now = time(NULL);
-
-    /* Emit a Performance-Marker if the configured interval has elapsed. */
     if (ctx->marker_interval_secs > 0
         && (now - ctx->last_marker_time) >= (time_t) ctx->marker_interval_secs)
     {
-        bytes = 0;
-        if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
-            struct stat sb;
-            if (stat(ctx->tmp_path, &sb) == 0) {
-                bytes = sb.st_size;
-            }
-        }
-        tpc_marker_send_block(r, now, bytes);
-        (void) xrootd_tpc_progress_emit(ctx->transfer_id, bytes, 0,
-                                        XROOTD_TPC_STATE_ACTIVE,
-                                        r->connection->log);
+        tpc_marker_send_all(r, now, ctx);
         ctx->last_marker_time = now;
     }
 
-    if (ret == ctx->curl_pid) {
-        int failed = !(WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0);
-
-        if (failed) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                          "xrootd_webdav: TPC curl exited with status %d",
-                          wstatus);
-        }
-
+    if (completed) {
+        int failed = (progress->result != NGX_OK
+                      && progress->result != NGX_HTTP_CREATED
+                      && progress->result != NGX_HTTP_NO_CONTENT);
         tpc_marker_finish(r, ctx, failed);
         return;
     }
 
-    /* curl is still running — re-arm for the next poll tick. */
     ngx_add_timer(ev, TPC_MARKER_POLL_MSEC);
 }
 
 /*
- * tpc_marker_cleanup — request pool cleanup handler.
- *
- * Called when the request pool is destroyed (client disconnect, error path,
- * or normal completion).  Stops the poll timer, kills any still-running curl
- * child, and removes any leftover temp file.  Safe to call after
- * tpc_marker_finish has already cleaned up (both curl_pid and tmp_path are
- * zeroed by finish before cleanup runs).
+ * tpc_marker_thread_done — fires in the event loop when the thread completes.
+ * Re-arms the poll timer with a 1 ms delay so it wakes up immediately to
+ * detect progress->completed without waiting for the next 200 ms tick.
  */
+static void
+tpc_marker_thread_done(ngx_event_t *ev)
+{
+    ngx_thread_task_t       *task = ev->data;
+    tpc_marker_thread_ctx_t *tt   = task->ctx;
+    tpc_marker_ctx_t        *ctx  = tt->marker_ctx;
+
+    if (ctx->timer.timer_set) {
+        ngx_del_timer(&ctx->timer);
+    }
+    ngx_add_timer(&ctx->timer, 1);
+}
+
 static void
 tpc_marker_cleanup(void *data)
 {
@@ -343,12 +333,6 @@ tpc_marker_cleanup(void *data)
         ngx_del_timer(&ctx->timer);
     }
 
-    if (ctx->curl_pid > 0) {
-        kill(ctx->curl_pid, SIGKILL);
-        waitpid(ctx->curl_pid, NULL, 0);
-        ctx->curl_pid = 0;
-    }
-
     if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
         (void) unlink(ctx->tmp_path);
         ctx->tmp_path[0] = '\0';
@@ -356,114 +340,214 @@ tpc_marker_cleanup(void *data)
 }
 
 /* -------------------------------------------------------------------------- */
+/* Thread function                                                             */
+/* -------------------------------------------------------------------------- */
+
+static void
+tpc_marker_thread_func(void *data, ngx_log_t *log)
+{
+    tpc_marker_thread_ctx_t *tt       = data;
+    tpc_ms_progress_t       *progress = tt->marker_ctx->progress;
+    ngx_int_t                rc;
+
+    (void) log;  /* use tt->log for request-level context */
+
+    /* SSRF preflight: resolve the remote URL and reject prohibited ranges. */
+    {
+        xrootd_net_target_t        net_target;
+        xrootd_net_target_policy_t net_policy;
+        ngx_str_t                  url_str;
+        char                       ssrf_err[256];
+
+        url_str.data = (u_char *) tt->url;
+        url_str.len  = ngx_strlen(tt->url);
+
+        ngx_memzero(&net_policy, sizeof(net_policy));
+        net_policy.require_https      = 1;
+        net_policy.allow_root_scheme  = 0;
+        net_policy.allow_local        = tt->conf->tpc_allow_local;
+        net_policy.allow_private      = tt->conf->tpc_allow_private;
+        net_policy.default_https_port = 443;
+
+        if (xrootd_net_target_parse(NULL, &url_str, &net_target,
+                                    ssrf_err, sizeof(ssrf_err)) != NGX_OK
+            || xrootd_net_target_check_dns(&net_target, &net_policy,
+                                           ssrf_err, sizeof(ssrf_err)) != NGX_OK)
+        {
+            ngx_log_error(NGX_LOG_WARN, tt->log, 0,
+                          "xrootd_webdav: HTTP-TPC SSRF blocked: %s", ssrf_err);
+            progress->result = NGX_HTTP_FORBIDDEN;
+            ngx_memory_barrier();
+            progress->completed = 1;
+            return;
+        }
+    }
+
+    if (tt->is_push) {
+        rc = webdav_tpc_run_curl_push(tt->log, tt->conf, tt->url,
+                                      tt->local_path, tt->transfer_headers, 0);
+    } else if (progress->n_streams > 1) {
+        rc = webdav_tpc_run_curl_pull_multi(tt->log, tt->conf, tt->url,
+                                            tt->local_path, tt->transfer_headers,
+                                            progress->n_streams, 0, progress);
+    } else {
+        rc = webdav_tpc_run_curl_pull(tt->log, tt->conf, tt->url,
+                                      tt->local_path, tt->transfer_headers, 0);
+    }
+
+    progress->result = rc;
+    ngx_memory_barrier();
+    progress->completed = 1;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Public entry point                                                          */
 /* -------------------------------------------------------------------------- */
 
 /*
- * webdav_tpc_marker_start — start an asynchronous TPC transfer with
- * Performance-Marker streaming.
+ * webdav_tpc_marker_start — start a 202-streaming TPC transfer.
  *
- * The caller must have already forked the curl child (curl_pid).  This
- * function sends 202 Accepted, registers a poll timer, emits the first
- * Performance-Marker immediately, and returns NGX_DONE.
+ * Sends 202 Accepted immediately, posts the curl work to the thread pool, and
+ * arms a poll timer that emits Performance-Marker blocks while the thread runs.
+ * Returns NGX_DONE (202 sent) on success.
+ * Returns NGX_DECLINED when no thread pool is configured (caller uses 201 path).
+ * Returns an HTTP error code on allocation or header-send failure.
  *
- * For pull transfers: tmp_path is the in-progress write target; final_path is
- *   where it is renamed (or linked) on success.  Both must fit WEBDAV_MAX_PATH.
- * For push transfers: tmp_path and final_path are NULL.  push_file_size carries
- *   the local file size (used in the final Perf Marker).
- *
- * On error (OOM, send-header failure): kills the curl child, removes tmp_path,
- * and returns an HTTP error code.  The caller must return that code to nginx.
+ * For pull transfers: tmp_path is the staging file; final_path is the commit
+ *   target.  Both must fit within WEBDAV_MAX_PATH.
+ * For push transfers: tmp_path is the local source file; final_path is unused.
  */
 ngx_int_t
 webdav_tpc_marker_start(ngx_http_request_t *r,
-                        ngx_http_xrootd_webdav_loc_conf_t *conf,
-                        pid_t curl_pid,
-                        const char *tmp_path,
-                        const char *final_path,
-                        ngx_flag_t is_pull,
-                        ngx_flag_t overwrite,
-                        ngx_flag_t existed,
-                        off_t push_file_size)
+    ngx_http_xrootd_webdav_loc_conf_t *conf, ngx_uint_t n_streams,
+    const char *url, const char *tmp_path, const char *final_path,
+    ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed,
+    ngx_array_t *transfer_headers, uint64_t transfer_id)
 {
-    tpc_marker_ctx_t    *ctx;
-    ngx_pool_cleanup_t  *cln;
-    ngx_int_t            rc;
+    tpc_ms_progress_t       *progress;
+    tpc_marker_ctx_t        *ctx;
+    tpc_marker_thread_ctx_t *tt;
+    ngx_thread_task_t       *task;
+    ngx_pool_cleanup_t      *cln;
+    ngx_table_elt_t         *h;
+    ngx_int_t                rc;
 
-    ctx = ngx_palloc(r->pool, sizeof(*ctx));
-    if (ctx == NULL) {
-        kill(curl_pid, SIGKILL);
-        waitpid(curl_pid, NULL, 0);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (conf->common.thread_pool == NULL) {
+        return NGX_DECLINED;
     }
 
+    if (n_streams == 0) n_streams = 1;
+    if (n_streams > XROOTD_TPC_MAX_STREAMS) n_streams = XROOTD_TPC_MAX_STREAMS;
+
+    /* Shared progress counters (thread writes, event loop reads). */
+    progress = ngx_pcalloc(r->pool, sizeof(*progress));
+    if (progress == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    progress->n_streams  = n_streams;
+    progress->total_size = -1;
+
+    /* Event-loop marker context. */
+    ctx = ngx_pcalloc(r->pool, sizeof(*ctx));
+    if (ctx == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
     ctx->r                    = r;
-    ctx->curl_pid             = curl_pid;
+    ctx->progress             = progress;
     ctx->is_pull              = is_pull;
     ctx->overwrite            = overwrite;
     ctx->existed              = existed;
     ctx->root_canon           = conf->common.root_canon;
-    ctx->transfer_id          = 0;
+    ctx->transfer_id          = transfer_id;
     ctx->marker_interval_secs = conf->tpc_marker_interval;
-    ctx->last_marker_time     = 0;  /* ensure first marker fires immediately */
-    ctx->push_file_size       = push_file_size;
+    ctx->last_marker_time     = 0;
 
     ngx_cpystrn((u_char *) ctx->tmp_path,
-                (u_char *) (tmp_path ? tmp_path : ""),
+                (u_char *) (tmp_path   ? tmp_path   : ""),
                 sizeof(ctx->tmp_path));
     ngx_cpystrn((u_char *) ctx->final_path,
                 (u_char *) (final_path ? final_path : ""),
                 sizeof(ctx->final_path));
 
-    /* Register the cleanup to handle aborted requests. */
+    if (!is_pull && tmp_path != NULL) {
+        struct stat sb;
+        if (stat(tmp_path, &sb) == 0) {
+            ctx->push_file_size = sb.st_size;
+        }
+    }
+
+    /* Thread task. */
+    task = ngx_thread_task_alloc(r->pool, sizeof(tpc_marker_thread_ctx_t));
+    if (task == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    tt                   = task->ctx;
+    tt->marker_ctx        = ctx;
+    tt->log               = r->connection->log;
+    tt->conf              = conf;
+    tt->is_push           = !is_pull;
+    tt->transfer_headers  = transfer_headers;
+    ngx_cpystrn((u_char *) tt->url,
+                (u_char *) (url      ? url      : ""), sizeof(tt->url));
+    ngx_cpystrn((u_char *) tt->local_path,
+                (u_char *) (tmp_path ? tmp_path : ""), sizeof(tt->local_path));
+
+    task->handler       = tpc_marker_thread_func;
+    task->event.handler = tpc_marker_thread_done;
+    task->event.data    = task;
+    task->event.log     = r->connection->log;
+
+    /* Pool cleanup: abort in-progress temp file on request destruction. */
     cln = ngx_pool_cleanup_add(r->pool, 0);
     if (cln == NULL) {
-        kill(curl_pid, SIGKILL);
-        waitpid(curl_pid, NULL, 0);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     cln->handler = tpc_marker_cleanup;
     cln->data    = ctx;
 
-    /* Initialise the timer event struct; handler and data are set below. */
+    /* Poll timer (event-loop side). */
     ngx_memzero(&ctx->timer, sizeof(ctx->timer));
     ctx->timer.handler = tpc_marker_poll;
     ctx->timer.data    = ctx;
     ctx->timer.log     = r->connection->log;
 
-    /*
-     * Send "202 Accepted" with a chunked body.  Setting content_length_n to -1
-     * with no explicit Transfer-Encoding header causes nginx's chunked-encoding
-     * filter to frame the body automatically.
-     */
-    r->headers_out.status              = 202;
-    r->headers_out.content_length_n    = -1;
-    r->headers_out.content_type.data   = (u_char *) "text/plain";
-    r->headers_out.content_type.len    = sizeof("text/plain") - 1;
-    r->headers_out.content_type_len    = sizeof("text/plain") - 1;
+    /* Add X-Number-Of-Streams to response headers before sending 202. */
+    h = ngx_list_push(&r->headers_out.headers);
+    if (h == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    h->hash = 1;
+    ngx_str_set(&h->key, "X-Number-Of-Streams");
+    h->value.data = ngx_pnalloc(r->pool, NGX_INT_T_LEN + 1);
+    if (h->value.data == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    h->value.len = (size_t) (ngx_sprintf(h->value.data, "%ui", n_streams)
+                             - h->value.data);
+
+    /* 202 Accepted with chunked text/plain body. */
+    r->headers_out.status            = 202;
+    r->headers_out.content_length_n  = -1;
+    r->headers_out.content_type.data = (u_char *) "text/plain";
+    r->headers_out.content_type.len  = sizeof("text/plain") - 1;
+    r->headers_out.content_type_len  = sizeof("text/plain") - 1;
 
     rc = ngx_http_send_header(r);
     if (rc == NGX_ERROR || rc > NGX_OK) {
-        kill(curl_pid, SIGKILL);
-        waitpid(curl_pid, NULL, 0);
-        if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
-            xrootd_unlink_confined_canon(r->connection->log, ctx->root_canon,
-                                         ctx->tmp_path, 0);
-            ctx->tmp_path[0] = '\0';
-        }
         return rc != NGX_ERROR ? rc : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /*
-     * Increment the request reference count so nginx does not destroy the
-     * request when the handler returns NGX_DONE.  tpc_marker_finish
-     * decrements it via ngx_http_finalize_request(r, NGX_DONE).
-     */
+    /* Post the thread task. */
+    if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* Prevent request destruction until we call ngx_http_finalize_request. */
     r->main->count++;
 
     /* Emit the first Performance-Marker immediately. */
-    tpc_marker_send_block(r, time(NULL), 0);
     ctx->last_marker_time = time(NULL);
+    tpc_marker_send_all(r, ctx->last_marker_time, ctx);
 
     /* Start the poll timer. */
     ngx_add_timer(&ctx->timer, TPC_MARKER_POLL_MSEC);
