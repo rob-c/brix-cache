@@ -56,6 +56,8 @@ static ngx_conf_enum_t xrootd_auth_modes[] = {
     { ngx_string("token"), XROOTD_AUTH_TOKEN },
     { ngx_string("both"),  XROOTD_AUTH_BOTH  },
     { ngx_string("sss"),   XROOTD_AUTH_SSS   },
+    { ngx_string("unix"),  XROOTD_AUTH_UNIX  },
+    { ngx_string("krb5"),  XROOTD_AUTH_KRB5  },
     { ngx_null_string,     0                 }
 };
 
@@ -272,6 +274,34 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, sss_keytab),
       NULL },
 
+    { ngx_string("xrootd_krb5_principal"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, krb5_principal),
+      NULL },
+
+    { ngx_string("xrootd_krb5_keytab"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, krb5_keytab),
+      NULL },
+
+    { ngx_string("xrootd_krb5_ip_check"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, krb5_ip_check),
+      NULL },
+
+    { ngx_string("xrootd_unix_trust_remote"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, unix_trust_remote),
+      NULL },
+
     /* Minimum signing level: none, compatible, standard, intense, pedantic. */
     { ngx_string("xrootd_security_level"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -386,6 +416,30 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, manager_mode),
       NULL },
 
+    /* Metadata-only: serve namespace ops (stat/dirlist/locate) but reject kXR_open. */
+    { ngx_string("xrootd_metadata_only"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, metadata_only),
+      NULL },
+
+    /* Supervisor role: top-tier manager in a three-level CMS hierarchy. */
+    { ngx_string("xrootd_supervisor"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, supervisor),
+      NULL },
+
+    /* Virtual redirector: static path mapping with no live CMS. */
+    { ngx_string("xrootd_virtual_redirector"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, virtual_redirector),
+      NULL },
+
     { ngx_string("xrootd_registry_slots"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
@@ -400,4 +454,3 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },
-

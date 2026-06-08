@@ -35,10 +35,22 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
 
     if (!xrootd_aio_restore_request(ctx, t->streamid)) {
         /* Connection closed while pull was in-flight — release resources. */
+        (void) xrootd_tpc_registry_update(t->transfer_id,
+                                          (off_t) t->bytes_written,
+                                          XROOTD_TPC_STATE_ERROR,
+                                          c != NULL ? c->log : NULL);
+        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
+                                   XROOTD_TPC_DIR_PULL,
+                                   XROOTD_TPC_METRIC_ERROR,
+                                   t->bytes_written,
+                                   c != NULL ? c->log : NULL);
+        (void) xrootd_tpc_registry_remove(t->transfer_id,
+                                          c != NULL ? c->log : NULL);
         close(t->dst_fd);
         unlink(t->dst_path);
         if (idx >= 0 && idx < XROOTD_MAX_FILES) {
             ctx->files[idx].fd = -1;
+            ctx->files[idx].tpc_transfer_id = 0;
             xrootd_free_fhandle(ctx, idx);
         }
         return;
@@ -54,11 +66,22 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
 
             if (file != NULL) {
                 file->fd = -1;
+                file->tpc_transfer_id = 0;
                 xrootd_free_fhandle(ctx, idx);
             } else {
                 close(t->dst_fd);
             }
             unlink(t->dst_path);
+
+            (void) xrootd_tpc_registry_update(t->transfer_id,
+                                              (off_t) t->bytes_written,
+                                              XROOTD_TPC_STATE_ERROR,
+                                              c->log);
+            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
+                                       XROOTD_TPC_DIR_PULL,
+                                       XROOTD_TPC_METRIC_ERROR,
+                                       t->bytes_written, c->log);
+            (void) xrootd_tpc_registry_remove(t->transfer_id, c->log);
 
             xrootd_log_access(ctx, c, "TPC-PULL", t->dst_path, "error",
                               0, (uint16_t) err,
@@ -76,6 +99,7 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
 
             file->tpc_done = 1;
             file->tpc_started = 0;
+            file->tpc_transfer_id = 0;
             file->bytes_written += t->bytes_written;
 
             if (fstat(file->fd, &st) == 0) {
@@ -89,6 +113,14 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
         xrootd_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok",
                           1, 0, NULL, t->bytes_written);
         XROOTD_OP_OK(ctx, XROOTD_OP_SYNC);
+        (void) xrootd_tpc_registry_update(t->transfer_id,
+                                          (off_t) t->bytes_written,
+                                          XROOTD_TPC_STATE_DONE, c->log);
+        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
+                                   XROOTD_TPC_DIR_PULL,
+                                   XROOTD_TPC_METRIC_SUCCESS,
+                                   t->bytes_written, c->log);
+        (void) xrootd_tpc_registry_remove(t->transfer_id, c->log);
         xrootd_send_ok(ctx, c, NULL, 0);
         xrootd_aio_resume(c);
         return;
@@ -100,7 +132,17 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
         close(t->dst_fd);
         unlink(t->dst_path);
         ctx->files[idx].fd = -1;
+        ctx->files[idx].tpc_transfer_id = 0;
         xrootd_free_fhandle(ctx, idx);
+
+        (void) xrootd_tpc_registry_update(t->transfer_id,
+                                          (off_t) t->bytes_written,
+                                          XROOTD_TPC_STATE_ERROR, c->log);
+        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
+                                   XROOTD_TPC_DIR_PULL,
+                                   XROOTD_TPC_METRIC_ERROR,
+                                   t->bytes_written, c->log);
+        (void) xrootd_tpc_registry_remove(t->transfer_id, c->log);
 
         xrootd_log_access(ctx, c, "TPC-PULL", t->dst_path, "error",
                           0, (uint16_t) err,
@@ -114,6 +156,17 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
 
     xrootd_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok", 1, 0, NULL, 0);
     XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_WR);
+    if (idx >= 0 && idx < XROOTD_MAX_FILES) {
+        ctx->files[idx].tpc_transfer_id = 0;
+    }
+    (void) xrootd_tpc_registry_update(t->transfer_id,
+                                      (off_t) t->bytes_written,
+                                      XROOTD_TPC_STATE_DONE, c->log);
+    xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
+                               XROOTD_TPC_DIR_PULL,
+                               XROOTD_TPC_METRIC_SUCCESS,
+                               t->bytes_written, c->log);
+    (void) xrootd_tpc_registry_remove(t->transfer_id, c->log);
 
     /* Build and send the kXR_open success response. */
     {
@@ -177,4 +230,3 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
 
     xrootd_aio_resume(c);
 }
-

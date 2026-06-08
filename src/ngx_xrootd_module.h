@@ -10,6 +10,7 @@
  *
  * To find a specific type, see the corresponding src/types/ file:
  *   types/tunables.h — XROOTD_* size limits, auth constants, metric macros
+ *   types/identity.h — xrootd_identity_t (verified principal state)
  *   types/state.h    — xrootd_state_t enum, opaque forward decls
  *   types/file.h     — xrootd_file_t (per-open-file bookkeeping)
  *   types/context.h  — xrootd_ctx_t  (per-connection state)
@@ -70,6 +71,10 @@
 
 /* VOMS support is loaded at runtime via dlopen; no compile-time header needed */
 
+#if (XROOTD_HAVE_KRB5)
+#include <krb5.h>
+#endif
+
 #include "protocol/protocol.h"
 #include "metrics/metrics.h"
 #include "dashboard/dashboard.h"
@@ -88,6 +93,7 @@ extern ngx_module_t ngx_stream_xrootd_module;
 /* ------------------------------------------------------------------ */
 
 #include "types/tunables.h"
+#include "types/identity.h"
 #include "types/state.h"
 #include "types/file.h"
 #include "types/context.h"
@@ -253,3 +259,9 @@ ngx_int_t  xrootd_extract_voms_info(ngx_log_t *log, X509 *leaf,
 /* sss/ — SSS credential builder for proxy-mode upstream authentication */
 ngx_int_t xrootd_sss_build_proxy_credential(const xrootd_sss_key_t *key,
     const char *username, u_char *buf, size_t buf_max, size_t *out_len);
+
+/* unix/krb5 stream authentication plugins */
+ngx_int_t xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf);

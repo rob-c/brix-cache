@@ -19,6 +19,7 @@ Run:
 
 import datetime
 import os
+import signal
 import socket
 import subprocess
 import time
@@ -172,6 +173,24 @@ def crl_reload_nginx(crl_file):
     wait for the reload timer to fire, then verify rejection.
     """
     os.makedirs(CRL_RELOAD_CRLS, exist_ok=True)
+
+    # Remove any stale CRL files left by a previous test run so that
+    # test_initially_accepts_revoked_cert sees a clean (CRL-free) state.
+    for fname in os.listdir(CRL_RELOAD_CRLS):
+        try:
+            os.unlink(os.path.join(CRL_RELOAD_CRLS, fname))
+        except OSError:
+            pass
+
+    # Signal nginx to reload config so it drops any in-memory CRL state.
+    pid_file = os.path.join(TEST_ROOT, "dedicated", "crl-reload", "logs", "nginx.pid")
+    if os.path.exists(pid_file):
+        for line in open(pid_file).read().split():
+            try:
+                os.kill(int(line.strip()), signal.SIGHUP)
+            except (OSError, ValueError):
+                pass
+        time.sleep(1.0)
 
     if not _wait_for_port(CRL_HOST, CRL_RELOAD_PORT):
         pytest.fail("CRL reload nginx did not start.")

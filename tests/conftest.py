@@ -87,6 +87,7 @@ def _selected_tests_do_not_need_server(config) -> bool:
         "test_phase0_guardrails.py",
         "test_phase1_commodity_libraries.py",
         "test_plan6_guardrails.py",
+        "test_tpc_token_mode.py",
     }
     saw_test_path = False
 
@@ -225,10 +226,11 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         name = os.path.basename(str(item.fspath))
 
-        if REMOTE_SERVER and item.get_closest_marker("requires_local_server"):
+        if item.get_closest_marker("requires_local_server") and REMOTE_SERVER:
             item.add_marker(
                 pytest.mark.skip(
-                    reason=f"requires_local_server: cannot run against remote server {SERVER_HOST}"
+                    reason=f"requires_local_server: test writes to server filesystem "
+                    f"(remote: {SERVER_HOST})"
                 )
             )
 
@@ -245,7 +247,9 @@ def pytest_sessionfinish(session, exitstatus):
     """Stop local servers when the session ends (no-op in remote mode)."""
     import subprocess
 
-    if REMOTE_SERVER:
+    if (REMOTE_SERVER
+            or os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
+            or _selected_tests_do_not_need_server(session.config)):
         return
 
     try:

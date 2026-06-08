@@ -9,6 +9,7 @@ Uses the pre-started nginx_shared instance (port 9001), anonymous mode.
 import os
 import uuid
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
 
 import pytest
 import requests
@@ -52,6 +53,37 @@ def _parse_list(xml_text):
     truncated = root.findtext(_tag("IsTruncated")) == "true"
     next_token = root.findtext(_tag("NextContinuationToken"))
     return keys, prefixes, truncated, next_token
+
+
+# ---------------------------------------------------------------------------
+# OPTIONS / CORS preflight
+# ---------------------------------------------------------------------------
+
+
+def test_options_allow_methods(s3_url):
+    r = requests.options(f"{s3_url}/{BUCKET}/", timeout=10)
+    assert r.status_code == 200
+    allow = r.headers.get("Allow", "")
+    for method in ("GET", "HEAD", "PUT", "DELETE", "POST", "OPTIONS"):
+        assert method in allow
+
+
+def test_options_cors_preflight(s3_url):
+    r = requests.options(
+        f"{s3_url}/{BUCKET}/",
+        headers={
+            "Origin": "https://client.example.test",
+            "Access-Control-Request-Method": "PUT",
+            "Access-Control-Request-Headers": "authorization,x-amz-date",
+        },
+        timeout=10,
+    )
+    assert r.status_code == 200
+    assert r.headers.get("Access-Control-Allow-Origin") == "*"
+    assert "OPTIONS" in r.headers.get("Access-Control-Allow-Methods", "")
+    assert r.headers.get("Access-Control-Allow-Headers") == (
+        "authorization,x-amz-date"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +373,51 @@ def test_anonymous_access_no_auth_header(s3_url):
 
 
 # ---------------------------------------------------------------------------
+# POST Object (browser form upload)
+# ---------------------------------------------------------------------------
+
+
+def test_post_object_form_upload(s3_url):
+    uid = uuid.uuid4().hex
+    key = f"post_form_{uid}.txt"
+    content = f"browser form upload {uid}".encode()
+
+    r = requests.post(
+        f"{s3_url}/{BUCKET}/",
+        data={"key": key, "success_action_status": "201"},
+        files={"file": ("upload.txt", content, "text/plain")},
+        timeout=10,
+    )
+    assert r.status_code == 201, f"POST Object failed: {r.status_code} {r.text}"
+    assert "PostResponse" in r.text
+
+    r = requests.get(_obj_url(s3_url, key), timeout=10)
+    assert r.status_code == 200
+    assert r.content == content
+
+
+def test_post_object_missing_key_returns_400(s3_url):
+    r = requests.post(
+        f"{s3_url}/{BUCKET}/",
+        files={"file": ("upload.txt", b"missing-key", "text/plain")},
+        timeout=10,
+    )
+    assert r.status_code == 400
+    assert "InvalidArgument" in r.text
+
+
+def test_post_object_path_traversal_rejected(s3_url):
+    r = requests.post(
+        f"{s3_url}/{BUCKET}/",
+        data={"key": f"../../../post_escape_{uuid.uuid4().hex}.txt"},
+        files={"file": ("upload.txt", b"blocked", "text/plain")},
+        timeout=10,
+    )
+    assert r.status_code == 403
+    assert "AccessDenied" in r.text
+
+
+# ---------------------------------------------------------------------------
 # CopyObject (PUT with x-amz-copy-source)
 # ---------------------------------------------------------------------------
 
@@ -405,7 +482,9 @@ def _delete_objects_url(s3_url):
 
 
 def _delete_objects_body(*keys):
-    objects_xml = "".join(f"<Object><Key>{k}</Key></Object>" for k in keys)
+    objects_xml = "".join(
+        f"<Object><Key>{escape(k)}</Key></Object>" for k in keys
+    )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
@@ -435,6 +514,24 @@ def test_delete_objects_success(s3_url):
     for k in keys:
         r2 = requests.get(_obj_url(s3_url, k), timeout=10)
         assert r2.status_code == 404, f"key {k} should be deleted"
+
+
+def test_delete_objects_xml_entity_key(s3_url):
+    uid = uuid.uuid4().hex
+    key = f"del_multi_entity_{uid}_a&b.txt"
+    requests.put(_obj_url(s3_url, key), data=b"x", timeout=10)
+
+    r = requests.post(
+        _delete_objects_url(s3_url),
+        data=_delete_objects_body(key),
+        headers={"Content-Type": "application/xml"},
+        timeout=10,
+    )
+    assert r.status_code == 200, f"DeleteObjects failed: {r.status_code} {r.text}"
+    ET.fromstring(r.text)
+
+    r2 = requests.get(_obj_url(s3_url, key), timeout=10)
+    assert r2.status_code == 404, "XML-escaped key should delete original object"
 
 
 def test_delete_objects_nonexistent_is_ok(s3_url):

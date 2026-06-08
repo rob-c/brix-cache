@@ -153,6 +153,16 @@ xrootd_handle_sss_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ngx_cpystrn((u_char *) ctx->primary_vo, (u_char *) group,
                     sizeof(ctx->primary_vo));
     }
+    if (ctx->identity != NULL) {
+        if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+                                   XROOTD_AUTHN_SSS) != NGX_OK
+            || xrootd_identity_set_vos_csv(ctx->identity, c->pool,
+                                           ctx->vo_list) != NGX_OK)
+        {
+            return xrootd_send_error(ctx, c, kXR_NoMemory,
+                                     "identity allocation failed");
+        }
+    }
 
     /* Track unique user and VO at auth completion. */
     {

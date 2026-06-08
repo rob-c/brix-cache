@@ -98,7 +98,9 @@ class TestDashboardApiFoundation:
         assert data["schema"] == "xrootd-dashboard.v1"
         assert "server_ms" in data
         assert data["limits"]["max_active_transfers"] >= 1
+        assert data["limits"]["max_tpc_registry_transfers"] >= 1
         assert isinstance(data["active_transfers"], list)
+        assert isinstance(data["tpc_transfers"], list)
         assert "totals" in data
 
     def test_v1_transfer_detail_validates_ids(self):
@@ -126,6 +128,7 @@ class TestDashboardApiFoundation:
         for key in (
             "limits",
             "active_transfers",
+            "tpc_transfers",
             "protocols",
             "cache",
             "cluster",

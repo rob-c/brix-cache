@@ -90,8 +90,8 @@ xrootd_write_resolve_existing_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return 0;
     }
 
-    if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-                            ctx->vo_list) != NGX_OK) {
+    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+                                     ctx->identity) != NGX_OK) {
         xrootd_log_access(ctx, c, verb, resolved, "-",
                           0, kXR_NotAuthorized, "VO not authorized", 0);
         XROOTD_OP_ERR(ctx, op);
@@ -158,4 +158,3 @@ xrootd_try_post_write_aio(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 /* ---- WHY: Provides uniform thread-pool dispatch for write syscalls, enabling parallel disk I/O without blocking the main event loop during large file transfers. Detaches payload from ctx->payload_buf so the main thread can safely read next request headers while write happens in worker threads. The posted flag enables callers to distinguish between dispatched and fallback cases — dispatched=1 means completion callback handles response; dispatched=0 means caller must perform synchronous pwrite. ---- */
 
 /* ---- HOW: Sets *posted=0 initially; retrieves conf via ngx_stream_get_module_srv_conf(); returns NGX_OK if thread_pool==NULL (no AIO configured). Allocates task struct with ngx_thread_task_alloc() — if OOM returns NGX_ERROR. Populates t=xrootd_write_aio_t context: c, ctx, conf, fd from files[idx], handle_idx, offset, data, len, req_offset, is_pgwrite, nwritten=-1, io_errno=0, payload_to_free, streamid copy, path copy via ngx_cpystrn(). Sets task->handler=xrootd_write_aio_thread (worker), task->event.handler=xrootd_write_aio_done (main loop callback). Calls xrootd_aio_post_task() which sets posted=1 on success or 0 if queue full. Returns result from post_task call. */
-

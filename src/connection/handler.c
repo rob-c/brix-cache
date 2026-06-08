@@ -39,6 +39,11 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
     ctx->session = s;
     ctx->state = XRD_ST_HANDSHAKE;
     ctx->hdr_pos = 0;
+    ctx->identity = xrootd_identity_alloc(c->pool);
+    if (ctx->identity == NULL) {
+        ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
+        return;
+    }
 
     /* Protocol label and IP version — detected at connection time, immutable. */
     ngx_memcpy(ctx->protocol_label, "root", sizeof("root"));  /* "root\0" */
@@ -113,7 +118,11 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
                                         : mconf->auth == XROOTD_AUTH_TOKEN
                                           ? "token"
                                           : mconf->auth == XROOTD_AUTH_SSS
-                                            ? "sss" : "anon"),
+                                            ? "sss"
+                                            : mconf->auth == XROOTD_AUTH_UNIX
+                                              ? "unix"
+                                              : mconf->auth == XROOTD_AUTH_KRB5
+                                                ? "krb5" : "anon"),
                             sizeof(srv->auth));
 
                 if (c->local_sockaddr) {

@@ -43,6 +43,7 @@
 #include "../ngx_xrootd_module.h"
 #include "../upstream/upstream.h"
 #include "../manager/registry.h"
+#include "../manager/redir_cache.h"
 #include "../manager/pending.h"
 #include "../cms/cms_internal.h"
 
@@ -88,8 +89,23 @@ xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (conf->manager_mode && !is_wildcard) {
         char     redir_host[256];
         uint16_t redir_port;
+
+        /* Collapse-redir cache: skip CMS for recently resolved paths. */
+        if (conf->collapse_redir
+            && xrootd_redir_cache_lookup(reqpath_buf, redir_host,
+                                         sizeof(redir_host), &redir_port)) {
+            xrootd_log_access(ctx, c, "LOCATE", reqpath_buf, "redir-cache",
+                              1, 0, NULL, 0);
+            XROOTD_OP_OK(ctx, XROOTD_OP_LOCATE);
+            return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+        }
+
         if (xrootd_srv_select(reqpath_buf, 0, redir_host,
                               sizeof(redir_host), &redir_port)) {
+            if (conf->collapse_redir) {
+                xrootd_redir_cache_insert(reqpath_buf, redir_host, redir_port,
+                                          conf->collapse_redir_ttl);
+            }
             xrootd_log_access(ctx, c, "LOCATE", reqpath_buf, "registry",
                               1, 0, NULL, 0);
             XROOTD_OP_OK(ctx, XROOTD_OP_LOCATE);
@@ -150,8 +166,8 @@ xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
                               reqpath_buf, "-", kXR_NotFound, "file not found");
         }
 
-        if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-                                ctx->vo_list) != NGX_OK)
+        if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+                                         ctx->identity) != NGX_OK)
         {
             XROOTD_OP_ERR(ctx, XROOTD_OP_LOCATE);
             return xrootd_send_error(ctx, c, kXR_NotAuthorized,

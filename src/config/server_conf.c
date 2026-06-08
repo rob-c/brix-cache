@@ -99,7 +99,13 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->wt_deny_prefixes         = NULL;
     conf->wt_allow_prefixes        = NULL;
     ngx_memzero(&conf->wt_decision, sizeof(conf->wt_decision));
-    conf->manager_mode = NGX_CONF_UNSET;
+    conf->manager_mode       = NGX_CONF_UNSET;
+    conf->metadata_only      = NGX_CONF_UNSET;
+    conf->supervisor         = NGX_CONF_UNSET;
+    conf->virtual_redirector = NGX_CONF_UNSET;
+    conf->collapse_redir     = NGX_CONF_UNSET;
+    conf->collapse_redir_ttl = NGX_CONF_UNSET_MSEC;
+    conf->recover_writes     = NGX_CONF_UNSET;
     conf->registry_slots = NGX_CONF_UNSET_UINT;
     conf->proxy_enable              = NGX_CONF_UNSET;
     conf->proxy_port                = NGX_CONF_UNSET;
@@ -129,6 +135,13 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->jwks_timer                  = NULL;
     conf->sss_lifetime      = NGX_CONF_UNSET;
     conf->sss_keys          = NULL;
+    conf->krb5_ip_check     = NGX_CONF_UNSET;
+#if (XROOTD_HAVE_KRB5)
+    conf->krb5_context       = NULL;
+    conf->krb5_keytab_obj    = NULL;
+    conf->krb5_principal_obj = NULL;
+#endif
+    conf->unix_trust_remote = NGX_CONF_UNSET;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
     conf->tpc_key_ttl_ms    = NGX_CONF_UNSET_MSEC;
@@ -203,6 +216,10 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
                              prev->token_macaroon_secret_old, "");
     ngx_conf_merge_str_value(conf->sss_keytab,      prev->sss_keytab,      "");
     ngx_conf_merge_value(conf->sss_lifetime,        prev->sss_lifetime,    13);
+    ngx_conf_merge_str_value(conf->krb5_principal,  prev->krb5_principal,  "");
+    ngx_conf_merge_str_value(conf->krb5_keytab,     prev->krb5_keytab,     "");
+    ngx_conf_merge_value(conf->krb5_ip_check,       prev->krb5_ip_check,   0);
+    ngx_conf_merge_value(conf->unix_trust_remote,   prev->unix_trust_remote, 0);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
     ngx_conf_merge_value(conf->cache,           prev->cache,           0);
@@ -238,7 +255,13 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->tpc_outbound_scope,
                              prev->tpc_outbound_scope, "storage.read");
 
-    ngx_conf_merge_value(conf->manager_mode,         prev->manager_mode,    0);
+    ngx_conf_merge_value(conf->manager_mode,         prev->manager_mode,         0);
+    ngx_conf_merge_value(conf->metadata_only,        prev->metadata_only,        0);
+    ngx_conf_merge_value(conf->supervisor,           prev->supervisor,           0);
+    ngx_conf_merge_value(conf->virtual_redirector,   prev->virtual_redirector,   0);
+    ngx_conf_merge_value(conf->collapse_redir,       prev->collapse_redir,       0);
+    ngx_conf_merge_msec_value(conf->collapse_redir_ttl, prev->collapse_redir_ttl, 30000);
+    ngx_conf_merge_value(conf->recover_writes,       prev->recover_writes,       0);
     ngx_conf_merge_uint_value(conf->registry_slots,  prev->registry_slots,  128);
     ngx_conf_merge_msec_value(conf->cms_locate_timeout, prev->cms_locate_timeout,
                               5000);

@@ -1,5 +1,8 @@
 #include "../ngx_xrootd_module.h"
 #include "stat.h"
+#include "../manager/registry.h"
+#include "../manager/pending.h"
+#include "../cms/cms_internal.h"
 #include <string.h>
 
 /* ------------------------------------------------------------------ */
@@ -100,6 +103,43 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                               kXR_ArgInvalid, "invalid path payload");
         }
         reqpath = reqpath_buf;
+        /* Manager mode: redirect to a registered data server. */
+        if (conf->manager_mode) {
+            char     redir_host[256];
+            uint16_t redir_port;
+
+            if (xrootd_srv_select(reqpath, 0, redir_host,
+                                  sizeof(redir_host), &redir_port)) {
+                xrootd_log_access(ctx, c, "STAT", reqpath, "registry",
+                                  1, 0, NULL, 0);
+                XROOTD_OP_OK(ctx, XROOTD_OP_STAT);
+                return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+            }
+
+            /* Registry miss — ask CMS parent if configured. */
+            if (conf->cms_ctx != NULL) {
+                uint32_t streamid;
+
+                streamid = ngx_xrootd_cms_next_streamid(conf->cms_ctx);
+                if (xrootd_pending_insert(streamid, ngx_pid, c->fd,
+                                          c->number,
+                                          ctx->cur_streamid,
+                                          conf->cms_locate_timeout) == NGX_OK)
+                {
+                    ctx->cms_wait_streamid = streamid;
+                    ctx->state = XRD_ST_WAITING_CMS;
+                    ngx_add_timer(c->read, conf->cms_locate_timeout);
+                    if (ngx_xrootd_cms_send_locate(conf->cms_ctx, streamid,
+                                                   reqpath) == NGX_OK)
+                    {
+                        return NGX_AGAIN;
+                    }
+                    ngx_del_timer(c->read);
+                    ctx->state = XRD_ST_REQ_HEADER;
+                    xrootd_pending_remove(streamid, ngx_pid);
+                }
+            }
+        }
 
         if (!xrootd_resolve_path(c->log, &conf->common.root,
                                  reqpath, resolved, sizeof(resolved))) {
@@ -112,8 +152,8 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                               kXR_NotAuthorized, "authdb denied");
         }
 
-        if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-                                 ctx->vo_list) != NGX_OK) {
+        if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+                                         ctx->identity) != NGX_OK) {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", resolved, "-",
                               kXR_NotAuthorized, "VO not authorized");
         }

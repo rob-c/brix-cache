@@ -111,6 +111,8 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
     }
 
     mw_printf(mw,
+        "# DEPRECATED: use xrootd_io_bytes_written{proto=\"stream\"} "
+            "for protocol-neutral write throughput.\n"
         "# HELP xrootd_bytes_rx_total "
             "Bytes received from clients (write payloads).\n"
         "# TYPE xrootd_bytes_rx_total counter\n");
@@ -125,6 +127,8 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
     }
 
     mw_printf(mw,
+        "# DEPRECATED: use xrootd_io_bytes_read{proto=\"stream\"} "
+            "for protocol-neutral read throughput.\n"
         "# HELP xrootd_bytes_tx_total "
             "Bytes sent to clients (read data).\n"
         "# TYPE xrootd_bytes_tx_total counter\n");
@@ -140,6 +144,8 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
 
     /* Per-protocol byte counters — native XRootD stream-layer data only. */
     mw_printf(mw,
+        "# DEPRECATED: use xrootd_io_bytes_written{proto=\"stream\"} "
+            "for protocol-neutral write throughput.\n"
         "# HELP xrootd_bytes_root_rx_total "
             "Bytes received from clients via the native XRootD root:// protocol.\n"
         "# TYPE xrootd_bytes_root_rx_total counter\n");
@@ -154,6 +160,8 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
     }
 
     mw_printf(mw,
+        "# DEPRECATED: use xrootd_io_bytes_read{proto=\"stream\"} "
+            "for protocol-neutral read throughput.\n"
         "# HELP xrootd_bytes_root_tx_total "
             "Bytes sent to clients via the native XRootD root:// protocol.\n"
         "# TYPE xrootd_bytes_root_tx_total counter\n");
@@ -334,6 +342,8 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
             }
         }
     }
+
+    xrootd_export_unified_metrics(mw, shm);
 
     xrootd_export_stream_proxy_metrics(mw, shm);
     xrootd_export_stream_tracking_metrics(mw, shm);

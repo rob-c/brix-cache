@@ -27,15 +27,32 @@ xrootd_tpc_pull_thread(void *data, ngx_log_t *log)
     t->xrd_error  = kXR_ServerError;
     t->err_msg[0] = '\0';
 
+    (void) xrootd_tpc_registry_update(t->transfer_id, 0,
+                                      XROOTD_TPC_STATE_ACTIVE,
+                                      t->c != NULL ? t->c->log : log);
+
     fd = tpc_connect(t);
-    if (fd < 0) { return; }
+    if (fd < 0) {
+        (void) xrootd_tpc_registry_update(t->transfer_id,
+                                          (off_t) t->bytes_written,
+                                          XROOTD_TPC_STATE_ERROR,
+                                          t->c != NULL ? t->c->log : log);
+        return;
+    }
 
     if (tpc_bootstrap(t, fd) != 0) {
+        (void) xrootd_tpc_registry_update(t->transfer_id,
+                                          (off_t) t->bytes_written,
+                                          XROOTD_TPC_STATE_ERROR,
+                                          t->c != NULL ? t->c->log : log);
         close(fd);
         return;
     }
 
     (void) tpc_pull_from_source(t, fd);
+    (void) xrootd_tpc_registry_update(
+        t->transfer_id, (off_t) t->bytes_written,
+        t->result == NGX_OK ? XROOTD_TPC_STATE_DONE : XROOTD_TPC_STATE_ERROR,
+        t->c != NULL ? t->c->log : log);
     close(fd);
 }
-

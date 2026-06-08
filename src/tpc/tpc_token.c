@@ -68,6 +68,35 @@ tpc_token_parse_access_token(const char *json, char *out, size_t out_sz)
     return 0;
 }
 
+static int
+tpc_token_validate_delegated(xrootd_tpc_pull_t *t)
+{
+    ngx_str_t                  raw;
+    xrootd_tpc_credential_t    cred;
+
+    if (t->delegated_token[0] == '\0') {
+        return 0;
+    }
+
+    raw.data = (u_char *) t->delegated_token;
+    raw.len = ngx_strlen(t->delegated_token);
+
+    if (xrootd_tpc_credential_parse(&raw, XROOTD_TPC_CREDENTIAL_TOKEN,
+                                    &cred, NULL,
+                                    t->c != NULL ? t->c->log : NULL)
+        != NGX_OK
+        || xrootd_tpc_credential_validate(
+               &cred, t->c != NULL ? t->c->log : NULL) != NGX_OK)
+    {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC token: delegated token validation failed");
+        t->xrd_error = kXR_AuthFailed;
+        return -1;
+    }
+
+    return 0;
+}
+
 /* ---- Function: tpc_token_oidc_agent() — OIDC agent UNIX-socket token fetch ---- */
 /* WHAT: Fetches OAuth2/OIDC access token via fork/exec to local oidc-agent daemon using UNIX-socket JSON IPC. Creates pipe → forks child → dup2 STDOUT → execve dedicated helper binary (nginx-xrootd-tpc-token) with OIDC_SOCK env or fallback /run/user/1000/oidc/oidc_agent.sock → if execve fails falls back to execlp oidc-token -c default → parent reads pipe stdout into buffer → waitpid checks WIFEXITED+WEXITSTATUS==0 → tpc_trim_trailing(buf) → if buf[0]=='{' parses JSON via xrootd_oauth2_parse_access_token else copies plain token with size guard. Returns 0 on success, -1 with err_msg/xrd_error=kXR_AuthFailed on failure.
  * WHY: CMS/Fermilab environments use oidc-agent daemons for OIDC token management. This function provides a robust fallback chain (dedicated helper binary → generic oidc-token CLI) ensuring token fetch works even when the custom binary is absent. JSON parsing handles agent daemon's structured output; plain-token paths handle oidc-token CLI's raw output. Pipe-based IPC avoids TOCTOU race on executable path (execve without access() pre-check).
@@ -331,8 +360,11 @@ tpc_fetch_delegated_token(xrootd_tpc_pull_t *t)
     }
 
     if (ngx_strcmp(t->token_mode, "oidc-agent") == 0) {
-        return tpc_token_oidc_agent(t, t->delegated_token,
-                                    sizeof(t->delegated_token));
+        if (tpc_token_oidc_agent(t, t->delegated_token,
+                                 sizeof(t->delegated_token)) != 0) {
+            return -1;
+        }
+        return tpc_token_validate_delegated(t);
     }
 
     if (ngx_strcmp(t->token_mode, "token-exchange") == 0) {
@@ -343,8 +375,11 @@ tpc_fetch_delegated_token(xrootd_tpc_pull_t *t)
             t->xrd_error = kXR_ArgInvalid;
             return -1;
         }
-        return tpc_token_rfc8693(t, t->delegated_token,
-                                 sizeof(t->delegated_token));
+        if (tpc_token_rfc8693(t, t->delegated_token,
+                              sizeof(t->delegated_token)) != 0) {
+            return -1;
+        }
+        return tpc_token_validate_delegated(t);
     }
 
     snprintf(t->err_msg, sizeof(t->err_msg),
@@ -352,4 +387,3 @@ tpc_fetch_delegated_token(xrootd_tpc_pull_t *t)
     t->xrd_error = kXR_ArgInvalid;
     return -1;
 }
-

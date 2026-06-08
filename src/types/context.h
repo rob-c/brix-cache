@@ -77,6 +77,7 @@ typedef struct {
     char  primary_vo[128];  /* first VO from the VOMS attribute cert, e.g. "cms" */
     char  vo_list[512];     /* space-separated list of all VOs, e.g. "cms atlas" */
     char  peer_ip[64];      /* remote peer address for authdb HOST ('p') rules */
+    xrootd_identity_t *identity; /* canonical Phase 2 identity object */
 
     /* Open file table — array index IS the XRootD file handle (0-based) */
     xrootd_file_t  files[XROOTD_MAX_FILES];

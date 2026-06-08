@@ -114,6 +114,9 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
 
     ngx_conf_merge_value(conf->common.enable, prev->common.enable, 0);
     ngx_conf_merge_str_value(conf->common.root, prev->common.root, "/");
+    ngx_conf_merge_str_value(conf->cache_root, prev->cache_root, "");
+    ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");
+    ngx_conf_merge_str_value(conf->voms_cert_dir, prev->voms_cert_dir, "");
     ngx_conf_merge_str_value(conf->cadir, prev->cadir, "");
     ngx_conf_merge_str_value(conf->cafile, prev->cafile, "");
     ngx_conf_merge_str_value(conf->crl, prev->crl, "");
@@ -158,6 +161,19 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             root_opts.canon_size     = sizeof(conf->common.root_canon);
             if (xrootd_prepare_export_root(cf, &conf->common.root, &root_opts,
                                            conf->common.root_canon) != NGX_CONF_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
+        }
+
+        if (conf->cache_root.len > 0) {
+            xrootd_export_root_opts_t cache_opts;
+            cache_opts.directive_name = "xrootd_webdav_cache_root";
+            cache_opts.allow_write    = 0;
+            cache_opts.required       = 0;
+            cache_opts.canon_size     = sizeof(conf->cache_root_canon);
+            if (xrootd_prepare_export_root(cf, &conf->cache_root, &cache_opts,
+                                           conf->cache_root_canon) != NGX_CONF_OK)
             {
                 return NGX_CONF_ERROR;
             }

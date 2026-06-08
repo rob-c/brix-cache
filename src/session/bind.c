@@ -87,6 +87,26 @@ xrootd_handle_bind(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "bind sessid not recognised");
     }
     ctx->token_auth = (int) token_auth;
+    if (ctx->identity != NULL) {
+        if (token_auth) {
+            if (xrootd_identity_set_subject(ctx->identity, c->pool, ctx->dn,
+                                            XROOTD_AUTHN_TOKEN) != NGX_OK
+                || xrootd_identity_set_cstr(c->pool, &ctx->identity->dn,
+                                            ctx->dn) != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+        } else if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+                                          XROOTD_AUTHN_GSI) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+        if (xrootd_identity_set_vos_csv(ctx->identity, c->pool,
+                                        ctx->vo_list) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
 
     /* Assign a path ID.  Pathid 0 is reserved for the primary; we cycle 1–253. */
     if (++xrootd_next_pathid > 253) {

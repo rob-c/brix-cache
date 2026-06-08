@@ -4,12 +4,13 @@ This document identifies incomplete features, missing corner cases, and areas re
 
 ## 1. XRootD Stream Protocol
 
-### Incomplete Features
-- **Authenticated TPC Sources**: `src/tpc/bootstrap.c` identifies that authenticated source fetch/delegation is not implemented for TPC (Transfer Protocol Client). Currently, only anonymous sources are supported during the handshake frame setup.
-- **Checkpoint sub-opcode implementation**: While the main `kXR_chkpoint` opcode and core sub-opcodes (begin, commit, rollback, query) are implemented and tested, complex transactional scenarios involving multiple concurrent checkpoints or recovery from partially failed checkpoints may need further hardening.
+### Implementation Status
+- **Authenticated TPC Sources**: Destination-side TPC can now use configured bearer-file credentials, GSI credentials, or delegated OAuth2/OIDC tokens (`tpc.token_mode=oidc-agent` / `token-exchange`) during outbound source authentication. The ZTN selection path treats an already-fetched delegated token as a usable credential, so delegation-only configurations do not require a static bearer file.
+- **Checkpoint sub-opcode implementation**: The main `kXR_chkpoint` opcode and core sub-opcodes (begin, commit, rollback, query, and `ckpXeq`) are implemented and tested. Same-file concurrent checkpoints are rejected by exclusive `.ckp` snapshot creation.
+- **Checkpoint Restart Recovery**: Worker startup scans configured export roots for abandoned `<path>.ckp` snapshots under a root-local recovery lock. Stale snapshots are restored to their original path and then removed, preserving rollback semantics for interrupted checkpoint transactions.
 
 ### Missing Corner Cases
-- **Checkpoint Error Paths**: Validation of behavior when a checkpoint is held open across session disconnects or server restarts.
+- No open XRootD Stream Section 1 checkpoint corner cases are currently tracked in this document.
 
 ## 2. WebDAV Protocol
 
@@ -24,35 +25,39 @@ This document identifies incomplete features, missing corner cases, and areas re
 
 ## 3. S3 Protocol
 
-### Incomplete Features
-- **OPTIONS Support**: `src/s3/operation_table.c` notes that `OPTIONS` support is missing. S3 clients sometimes use `OPTIONS` for CORS pre-flight checks.
-- **Batch Operations**: While `DeleteObjects` (multi-object delete) is referenced and a file `src/s3/delete_objects.c` exists, its integration in the main handler needs validation for complex error reporting.
-- **POST Object (Browser Uploads)**: Support for S3 `POST` (form-based uploads) is minimal compared to the `PUT` implementation.
+### Implementation Status
+- **OPTIONS Support**: Implemented for S3, including the operation table, `Allow` response, unauthenticated browser preflight handling, and fixed-method metrics.
+- **Batch Operations**: `DeleteObjects` is integrated in the main handler and parses the XML request body with libxml2, including entity-decoded keys, per-object XML-escaped results, path traversal reporting, and malformed XML errors.
+- **Signature Version 4 (SigV4) Clock Skew**: Implemented for header-auth requests with a 15-minute skew window and for presigned URLs whose request timestamp is too far in the future.
+- **POST Object (Browser Uploads)**: Implemented for browser-style `multipart/form-data` uploads to `POST /<bucket>/`, including key/file extraction, `${filename}` expansion, anonymous writable buckets, SigV4 POST policy verification for configured credentials, policy condition checks, staged confined object writes, and `200`/`201`/`204`/redirect success responses.
 
 ### Missing Corner Cases
-- **Signature Version 4 (SigV4) Clock Skew**: Behavior when the client's clock is significantly skewed from the server's.
+- No open S3 clock-skew, batch-delete, or POST Object corner cases are currently tracked in this document.
 
 ## 4. Security & Infrastructure
 
-### Incomplete Features
-- **HTTPS OCSP Responders**: `src/crypto/ocsp.c` explicitly states that HTTPS responders are not supported in the synchronous path. OCSP checks for certificates using HTTPS-only responders will currently fail (or rely on `soft_fail`).
+### Implementation Status
+- **HTTPS OCSP Responders**: `src/crypto/ocsp.c` supports HTTPS OCSP responder URLs by wrapping the responder connection in an OpenSSL TLS client context, enabling default trust-store verification, SNI, and hostname verification before sending the OCSP request.
+
+### Missing Corner Cases
+- No open Security & Infrastructure Section 4 corner cases are currently tracked in this document.
 
 ---
 
-## Implementation Proposal: S3 OPTIONS Support
+## Completed: S3 OPTIONS Support
 
 ### Goal
 Implement the `OPTIONS` method for the S3 protocol to support CORS pre-flight requests and feature discovery.
 
-### Implementation Strategy
+### Implemented
 1.  **Operation Table**: Add `"OPTIONS"` to the `xrootd_s3_operations` table in `src/s3/operation_table.c`.
 2.  **Handler**: Update `ngx_http_s3_handler` in `src/s3/handler.c` to catch `NGX_HTTP_OPTIONS`.
-3.  **Response**: Implement a standard S3 `OPTIONS` response that returns the `Allow` header and appropriate CORS headers (using `webdav_add_cors_headers` helper if compatible).
+3.  **Response**: Return `200 OK`, `Allow`, and browser preflight CORS headers before SigV4 authentication.
+4.  **Metrics**: Track `OPTIONS` in a fixed low-cardinality S3 method bucket.
 
-### Testing Plan
-- **Test Case**: Send an `OPTIONS` request to an S3 bucket URL.
-- **Verification**: Ensure the response is `200 OK` and contains the `Allow: GET, HEAD, PUT, DELETE, POST, OPTIONS` header.
-- **Tools**: Use `curl -X OPTIONS -i <s3_url>`.
+### Test Coverage
+- **Test Case**: Send `OPTIONS` and CORS preflight requests to an S3 bucket URL.
+- **Verification**: Ensure the response is `200 OK`, includes `Allow: GET, HEAD, PUT, DELETE, POST, OPTIONS`, and echoes safe preflight request headers.
 
 ## Completed: WebDAV Native MKCOL/DELETE Integration
 

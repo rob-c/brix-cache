@@ -194,6 +194,13 @@ xrootd_cache_skip_name(const char *name)
         return 1;
     }
 
+    suffix_len = sizeof(".meta") - 1;
+    if (name_len >= suffix_len
+        && strcmp(name + name_len - suffix_len, ".meta") == 0)
+    {
+        return 1;
+    }
+
     return 0;
 }
 
@@ -411,4 +418,3 @@ xrootd_cache_free_candidates(xrootd_cache_evict_list_t *list)
  *      independent of any HTTP/stream request. Must free all allocations
  *      explicitly to avoid memory leaks across repeated eviction passes.
  */
-

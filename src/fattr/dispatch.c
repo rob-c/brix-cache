@@ -114,8 +114,8 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
             }
         }
 
-        if (xrootd_check_vo_acl(c->log, resolved, conf->vo_rules,
-                                ctx->vo_list) != NGX_OK) {
+        if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+                                         ctx->identity) != NGX_OK) {
             XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
             return xrootd_send_error(ctx, c, kXR_NotAuthorized,
                                      "fattr: VO not authorized");

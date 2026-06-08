@@ -264,6 +264,7 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
      * — contents tracks object count emitted, prefixes tracks CommonPrefixes groups,
      * truncated counts paginated responses, bytes_tx tracks XML payload size. */
 
+    XROOTD_S3_METRIC_ADD(list_contents_total, (size_t) contents);
     XROOTD_S3_METRIC_ADD(list_common_prefixes_total, (size_t) prefixes);
     if (truncated) {
         XROOTD_S3_METRIC_INC(list_truncated_total);

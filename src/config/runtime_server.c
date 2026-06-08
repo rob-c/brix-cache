@@ -33,7 +33,8 @@ ngx_int_t
 xrootd_config_prepare_server(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf)
 {
-    if (!xcf->manager_mode) {
+    if (!xcf->manager_mode && !xcf->supervisor
+        && xcf->manager_map == NULL && !xcf->proxy_enable) {
         xrootd_export_root_opts_t root_opts;
         root_opts.directive_name = "xrootd_root";
         root_opts.allow_write    = xcf->common.allow_write;

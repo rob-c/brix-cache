@@ -953,6 +953,12 @@ propfind_do(ngx_http_request_t *r)
     }
 
     XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) total_len);
+    if (r->connection && r->connection->sockaddr
+        && r->connection->sockaddr->sa_family == AF_INET6) {
+        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total, (size_t) total_len);
+    } else {
+        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total, (size_t) total_len);
+    }
 
     return ngx_http_output_filter(r, head);
 }

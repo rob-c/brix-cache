@@ -10,7 +10,8 @@
  * CRLs, which can be hundreds of megabytes for large CAs.
  *
  * HOW: Uses the OCSP URL embedded in the certificate's Authority Information
- * Access extension.  Makes a synchronous HTTP/1.0 POST using OpenSSL BIO.
+ * Access extension.  Makes a synchronous HTTP/1.0 POST using OpenSSL BIO; for
+ * HTTPS responders it wraps the BIO in a verifying TLS client context with SNI.
  * Acceptable here because the auth path already does blocking crypto work.
  */
 
@@ -100,7 +101,7 @@ parse_ocsp_url(const char *url, char *host, size_t host_sz,
  * The caller must call OCSP_RESPONSE_free() on the returned pointer.
  * Returns NULL on any network or protocol error.
  */
-/* ---- HOW: Parses the OCSP URL via parse_ocsp_url() extracting host/path/port components. Rejects HTTPS responders (not implemented in sync path). Allocates OCSP_REQUEST, adds certificate ID and a nonce for replay protection. Opens a TCP connection via BIO_new_connect(), sends the request using OCSP_sendreq_bio(), then frees request and BIO. Returns NULL on any network/protocol failure. */
+/* ---- HOW: Parses the OCSP URL via parse_ocsp_url() extracting host/path/port components. Allocates OCSP_REQUEST, adds certificate ID and a nonce for replay protection. Opens a TCP connection via BIO_new_connect() for HTTP or BIO_new_ssl_connect() for HTTPS with system trust-store verification and SNI. Sends the request using OCSP_sendreq_bio(), then frees request and BIO. Returns NULL on any network/protocol failure. */
 static OCSP_RESPONSE *
 do_ocsp_request(ngx_log_t *log, const char *url,
     X509 *leaf, X509 *issuer, OCSP_CERTID *id)
@@ -112,21 +113,14 @@ do_ocsp_request(ngx_log_t *log, const char *url,
     OCSP_REQUEST  *req  = NULL;
     OCSP_RESPONSE *resp = NULL;
     BIO           *cbio = NULL;
+    SSL_CTX       *ssl_ctx = NULL;
+    SSL           *ssl = NULL;
 
     if (parse_ocsp_url(url, host, sizeof(host),
                         path, sizeof(path), &port, &use_ssl) != 0)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd_ocsp: cannot parse URL \"%s\"", url);
-        return NULL;
-    }
-
-    /* use_ssl / HTTPS stapling is not implemented in this synchronous path.
-     * For HTTPS responders the caller should rely on soft_fail. */
-    if (use_ssl) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-            "xrootd_ocsp: HTTPS OCSP responder not supported in sync path "
-            "(\"%s\") — caller should use soft_fail", url);
         return NULL;
     }
 
@@ -147,23 +141,91 @@ do_ocsp_request(ngx_log_t *log, const char *url,
     /* Construct "host:port" for BIO */
     snprintf(hostport, sizeof(hostport), "%s:%d", host, port);
 
-    cbio = BIO_new_connect(hostport);
+    if (use_ssl) {
+        ssl_ctx = SSL_CTX_new(TLS_client_method());
+        if (ssl_ctx == NULL) {
+            OCSP_REQUEST_free(req);
+            return NULL;
+        }
+
+        SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
+        if (SSL_CTX_set_default_verify_paths(ssl_ctx) != 1) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "xrootd_ocsp: cannot load default HTTPS trust paths");
+            SSL_CTX_free(ssl_ctx);
+            OCSP_REQUEST_free(req);
+            return NULL;
+        }
+
+        cbio = BIO_new_ssl_connect(ssl_ctx);
+        if (cbio != NULL) {
+            BIO_get_ssl(cbio, &ssl);
+            if (ssl != NULL) {
+                (void) SSL_set_tlsext_host_name(ssl, host);
+                if (SSL_set1_host(ssl, host) != 1) {
+                    ngx_log_error(NGX_LOG_WARN, log, 0,
+                                  "xrootd_ocsp: cannot set HTTPS hostname "
+                                  "verification for \"%s\"", host);
+                    BIO_free_all(cbio);
+                    SSL_CTX_free(ssl_ctx);
+                    OCSP_REQUEST_free(req);
+                    return NULL;
+                }
+            }
+        }
+    } else {
+        cbio = BIO_new_connect(hostport);
+    }
+
     if (cbio == NULL) {
+        if (ssl_ctx != NULL) {
+            SSL_CTX_free(ssl_ctx);
+        }
         OCSP_REQUEST_free(req);
         return NULL;
     }
+
+    BIO_set_conn_hostname(cbio, hostport);
 
     if (BIO_do_connect(cbio) <= 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd_ocsp: connect to \"%s\" failed", hostport);
         BIO_free_all(cbio);
+        if (ssl_ctx != NULL) {
+            SSL_CTX_free(ssl_ctx);
+        }
         OCSP_REQUEST_free(req);
         return NULL;
+    }
+
+    if (use_ssl) {
+        if (BIO_do_handshake(cbio) <= 0) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "xrootd_ocsp: TLS handshake with \"%s\" failed",
+                          hostport);
+            BIO_free_all(cbio);
+            SSL_CTX_free(ssl_ctx);
+            OCSP_REQUEST_free(req);
+            return NULL;
+        }
+
+        if (ssl == NULL || SSL_get_verify_result(ssl) != X509_V_OK) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "xrootd_ocsp: TLS verification for \"%s\" failed",
+                          host);
+            BIO_free_all(cbio);
+            SSL_CTX_free(ssl_ctx);
+            OCSP_REQUEST_free(req);
+            return NULL;
+        }
     }
 
     resp = OCSP_sendreq_bio(cbio, path, req);
 
     BIO_free_all(cbio);
+    if (ssl_ctx != NULL) {
+        SSL_CTX_free(ssl_ctx);
+    }
     OCSP_REQUEST_free(req);
 
     if (resp == NULL) {

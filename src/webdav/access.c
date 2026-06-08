@@ -19,6 +19,7 @@
  */
 
 #include "webdav.h"
+#include "../metrics/unified.h"
 
 /* Returns non-zero if the HTTP method is a mutating (write) operation. */
 static int
@@ -101,15 +102,19 @@ ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r)
             if (auth_rc == NGX_OK) {
                 XROOTD_WEBDAV_METRIC_INC(
                     auth_total[XROOTD_WEBDAV_AUTH_RESULT_TOKEN_OK]);
+                xrootd_metric_auth(XROOTD_PROTO_WEBDAV,
+                                   XROOTD_AUTHN_TOKEN, 1);
             }
         } else {
             XROOTD_WEBDAV_METRIC_INC(
                 auth_total[XROOTD_WEBDAV_AUTH_RESULT_CERT_OK]);
+            xrootd_metric_auth(XROOTD_PROTO_WEBDAV, XROOTD_AUTHN_GSI, 1);
         }
 
         if (auth_rc != NGX_OK && conf->auth == WEBDAV_AUTH_REQUIRED) {
             XROOTD_WEBDAV_METRIC_INC(
                 auth_total[XROOTD_WEBDAV_AUTH_RESULT_REJECTED]);
+            xrootd_metric_auth(XROOTD_PROTO_WEBDAV, XROOTD_AUTHN_NONE, 0);
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                           "xrootd_webdav: unauthenticated request rejected"
                           " (auth=required)");
@@ -119,10 +124,12 @@ ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r)
         if (auth_rc != NGX_OK) {
             XROOTD_WEBDAV_METRIC_INC(
                 auth_total[XROOTD_WEBDAV_AUTH_RESULT_ANONYMOUS]);
+            xrootd_metric_auth(XROOTD_PROTO_WEBDAV, XROOTD_AUTHN_NONE, 1);
         }
     } else {
         XROOTD_WEBDAV_METRIC_INC(
             auth_total[XROOTD_WEBDAV_AUTH_RESULT_NONE]);
+        xrootd_metric_auth(XROOTD_PROTO_WEBDAV, XROOTD_AUTHN_NONE, 1);
     }
 
     /* XrdHttp: extract client identity, UUID, opaque, and ?tpc.* params.

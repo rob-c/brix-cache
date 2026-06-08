@@ -46,6 +46,7 @@ s3_multipart_complete_body_handler(ngx_http_request_t *r)
 {
     char                   *fs_path;
     ngx_http_s3_loc_conf_t *cf;
+    ngx_http_s3_req_ctx_t  *s3ctx;
     char                    upload_id[25];
     char                    mpu_dir[PATH_MAX];
     char                    final_tmp[PATH_MAX];
@@ -63,9 +64,16 @@ s3_multipart_complete_body_handler(ngx_http_request_t *r)
     ngx_uint_t              method_slot;
     u_char                 *p;
 
-    fs_path     = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    s3ctx       = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    fs_path     = s3ctx != NULL ? s3ctx->fs_path : NULL;
     cf          = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
     method_slot = s3_metrics_method_slot(r);
+
+    if (fs_path == NULL || fs_path[0] == '\0') {
+        s3_metrics_finalize_request_method(r, method_slot,
+                                           NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return;
+    }
 
     if (!s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
         s3_metrics_finalize_request_method(r, method_slot,

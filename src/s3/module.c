@@ -75,6 +75,7 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                          prev->allow_unsigned_session_token, 0);
     ngx_conf_merge_value(conf->max_keys,    prev->max_keys,    1000);
     ngx_conf_merge_str_value(conf->common.root,             prev->common.root,             "");
+    ngx_conf_merge_str_value(conf->cache_root,       prev->cache_root,       "");
     ngx_conf_merge_str_value(conf->bucket,           prev->bucket,           "");
     ngx_conf_merge_str_value(conf->access_key,       prev->access_key,       "");
     ngx_conf_merge_str_value(conf->secret_key,       prev->secret_key,       "");
@@ -91,6 +92,19 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                                        conf->common.root_canon) != NGX_CONF_OK)
         {
             return NGX_CONF_ERROR;
+        }
+
+        if (conf->cache_root.len > 0) {
+            xrootd_export_root_opts_t cache_opts;
+            cache_opts.directive_name = "xrootd_s3_cache_root";
+            cache_opts.allow_write    = 0;
+            cache_opts.required       = 0;
+            cache_opts.canon_size     = sizeof(conf->cache_root_canon);
+            if (xrootd_prepare_export_root(cf, &conf->cache_root, &cache_opts,
+                                           conf->cache_root_canon) != NGX_CONF_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
         }
     }
 
@@ -191,6 +205,13 @@ static ngx_command_t ngx_http_s3_commands[] = {
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_s3_loc_conf_t, bucket),
+      NULL },
+
+    { ngx_string("xrootd_s3_cache_root"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, cache_root),
       NULL },
 
     { ngx_string("xrootd_s3_access_key"),

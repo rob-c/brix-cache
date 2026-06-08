@@ -205,6 +205,10 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
                 }
                 got_this_req += dlen;
                 t->bytes_written += dlen;
+                (void) xrootd_tpc_progress_emit(
+                    t->transfer_id, (off_t) t->bytes_written, 0,
+                    XROOTD_TPC_STATE_ACTIVE,
+                    t->c != NULL ? t->c->log : NULL);
             }
 
             free(body);
@@ -259,4 +263,3 @@ close_remote:
 
     return rc;
 }
-

@@ -55,6 +55,7 @@
  * HOW: Five-phase sequence → VOMS library loading (dlopen, graceful continuation if unavailable) → first pass over enabled servers initializing auth subsystems (GSI cert/key, TLS context, token keys, SSS keytab — abort on any failure) → second pass finalizing policy rules (VO ACL with VOMS validation, group inheritance, authDB rules) → shared memory registry creation (session + handle zones, max registry slots across all servers, pending sigver, TPC key registry) → thread pool configuration (conditional NGX_THREADS) → return NGX_OK; NGX_ERROR on failure. */
 
 #include "config.h"
+#include "../manager/redir_cache.h"
 
 ngx_int_t
 ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
@@ -90,7 +91,8 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
             || xrootd_configure_gsi(cf, xcf) != NGX_OK
             || xrootd_configure_tls(cf, xcf) != NGX_OK
             || xrootd_configure_token_auth(cf, xcf) != NGX_OK
-            || xrootd_configure_sss_auth(cf, xcf) != NGX_OK)
+            || xrootd_configure_sss_auth(cf, xcf) != NGX_OK
+            || xrootd_configure_krb5_auth(cf, xcf) != NGX_OK)
         {
             return NGX_ERROR;
         }
@@ -145,6 +147,24 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
         if (xrootd_srv_configure_registry(cf, registry_slots ? registry_slots : 128) != NGX_OK) {
             return NGX_ERROR;
         }
+
+        /* Redirect-collapse cache: init if any server has collapse_redir on. */
+        {
+            ngx_uint_t has_collapse = 0;
+            for (i = 0; i < cmcf->servers.nelts; i++) {
+                xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                           ngx_stream_xrootd_module);
+                if (xcf->common.enable && xcf->collapse_redir) {
+                    has_collapse = 1;
+                    break;
+                }
+            }
+            if (has_collapse) {
+                if (xrootd_redir_cache_configure(cf) != NGX_OK) {
+                    return NGX_ERROR;
+                }
+            }
+        }
     }
 
     if (xrootd_pending_configure(cf) != NGX_OK) {
@@ -152,6 +172,10 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
     }
 
     if (xrootd_tpc_key_configure_registry(cf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (xrootd_tpc_registry_configure(cf) != NGX_OK) {
         return NGX_ERROR;
     }
 

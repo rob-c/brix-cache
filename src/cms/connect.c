@@ -24,12 +24,20 @@ void
 ngx_xrootd_cms_schedule_retry(ngx_xrootd_cms_ctx_t *ctx)
 {
     ngx_msec_t  delay;
+    ngx_msec_t  max_backoff;
+
+    /* Cap max backoff at 10× the heartbeat interval so a short cms_interval
+     * (e.g. 2s for tests) also gives short reconnect windows. */
+    max_backoff = (ngx_msec_t) ctx->conf->cms_interval * 10000;
+    if (max_backoff > NGX_XROOTD_CMS_BACKOFF_MAX) {
+        max_backoff = NGX_XROOTD_CMS_BACKOFF_MAX;
+    }
 
     delay = ctx->backoff;
-    if (ctx->backoff < NGX_XROOTD_CMS_BACKOFF_MAX) {
+    if (ctx->backoff < max_backoff) {
         ctx->backoff *= 2;
-        if (ctx->backoff > NGX_XROOTD_CMS_BACKOFF_MAX) {
-            ctx->backoff = NGX_XROOTD_CMS_BACKOFF_MAX;
+        if (ctx->backoff > max_backoff) {
+            ctx->backoff = max_backoff;
         }
     }
 
@@ -101,7 +109,8 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
         }
 
         ctx->logged_in = 1;
-        ctx->backoff = NGX_XROOTD_CMS_BACKOFF_INITIAL;
+        ctx->backoff = ngx_min((ngx_msec_t) ctx->conf->cms_interval * 1000,
+                               (ngx_msec_t) NGX_XROOTD_CMS_BACKOFF_INITIAL);
 
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "xrootd: CMS login sent to %V",
@@ -219,11 +228,11 @@ ngx_xrootd_cms_timer(ngx_event_t *ev)
 
 /* ---- ngx_xrootd_cms_start — initialize and start CMS heartbeat client ----
  *
- * WHAT: Entry point called from config/process.c at worker init. Allocates the CMS context, sets up timer handler, stores initial backoff delay (6s), then schedules first connection attempt after NGX_XROOTD_CMS_INITIAL_DELAY (1s). Each nginx worker maintains its own independent CMS connection to the parent manager. */
-
-/* ---- ngx_xrootd_cms_start — initialize and start CMS heartbeat client ----
- *
- * WHAT: Entry point called from config/process.c at worker init. Allocates the CMS context, sets up timer handler, stores initial backoff delay (6s), then schedules first connection attempt after NGX_XROOTD_CMS_INITIAL_DELAY (1s). Each nginx worker maintains its own independent CMS connection to the parent manager. */
+ * WHAT: Entry point called from config/process.c at worker init. Allocates the
+ * CMS context, derives the initial reconnect backoff from cms_interval (capped
+ * at NGX_XROOTD_CMS_BACKOFF_INITIAL), then schedules the first connection
+ * attempt after NGX_XROOTD_CMS_INITIAL_DELAY (1s). Each nginx worker maintains
+ * its own independent CMS connection to the parent manager. */
 
 void
 ngx_xrootd_cms_start(ngx_cycle_t *cycle, ngx_stream_xrootd_srv_conf_t *conf)
@@ -243,7 +252,8 @@ ngx_xrootd_cms_start(ngx_cycle_t *cycle, ngx_stream_xrootd_srv_conf_t *conf)
 
     ctx->cycle = cycle;
     ctx->conf = conf;
-    ctx->backoff = NGX_XROOTD_CMS_BACKOFF_INITIAL;
+    ctx->backoff = ngx_min((ngx_msec_t) conf->cms_interval * 1000,
+                           (ngx_msec_t) NGX_XROOTD_CMS_BACKOFF_INITIAL);
     ctx->in_need = NGX_XROOTD_CMS_HDR_LEN;
 
     ctx->timer.handler = ngx_xrootd_cms_timer;

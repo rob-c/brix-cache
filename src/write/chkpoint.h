@@ -25,4 +25,15 @@
 ngx_int_t xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 
+/*
+ * xrootd_chkpoint_recover_root — startup rollback for abandoned .ckp files.
+ *
+ * Scans an export root for stale checkpoint snapshots left behind by worker
+ * crashes or hard restarts.  Each <path>.ckp snapshot is copied back to <path>
+ * and then removed, preserving the transaction rule that uncommitted writes do
+ * not survive recovery.
+ */
+ngx_int_t xrootd_chkpoint_recover_root(ngx_log_t *log,
+    const char *root_canon);
+
 #endif /* XROOTD_CHKPOINT_H */

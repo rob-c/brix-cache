@@ -14,6 +14,8 @@
 #include "webdav.h"
 #include "../compat/net_target.h"
 #include "../dashboard/dashboard_tracking.h"
+#include "../tpc/common/metrics.h"
+#include "../tpc/common/registry.h"
 
 
 #include <errno.h>
@@ -33,7 +35,41 @@ typedef struct {
     ngx_array_t                       *transfer_headers;  /* pool-alloc'd, safe while r lives */
     ngx_int_t                          http_status;       /* set by thread func */
     off_t                              bytes_transferred;
+    uint64_t                           transfer_id;
 } tpc_thread_ctx_t;
+
+static uint64_t
+webdav_tpc_thread_register(ngx_http_request_t *r, int is_push,
+                           const char *url, const char *local_path,
+                           const char *dest_path)
+{
+    xrootd_tpc_transfer_t transfer;
+    ngx_str_t             src;
+    ngx_str_t             dst;
+
+    ngx_memzero(&transfer, sizeof(transfer));
+
+    if (is_push) {
+        src.data = (u_char *) local_path;
+        src.len = ngx_strlen(local_path);
+        dst.data = (u_char *) url;
+        dst.len = ngx_strlen(url);
+        transfer.direction = XROOTD_TPC_DIR_PUSH;
+    } else {
+        src.data = (u_char *) url;
+        src.len = ngx_strlen(url);
+        dst.data = (u_char *) dest_path;
+        dst.len = ngx_strlen(dest_path);
+        transfer.direction = XROOTD_TPC_DIR_PULL;
+    }
+
+    transfer.protocol = XROOTD_TPC_PROTO_WEBDAV;
+    transfer.src_url = src;
+    transfer.dst_path = dst;
+    transfer.state = XROOTD_TPC_STATE_PENDING;
+
+    return xrootd_tpc_registry_add(&transfer, r->connection->log);
+}
 
 static void
 tpc_thread_func(void *data, ngx_log_t *log)
@@ -71,23 +107,52 @@ tpc_thread_func(void *data, ngx_log_t *log)
             ngx_log_error(NGX_LOG_WARN, t->log, 0,
                           "xrootd_webdav: HTTP-TPC SSRF check blocked "
                           "transfer to %s: %s",
-                          t->url, ssrf_err);
+            t->url, ssrf_err);
             t->http_status = NGX_HTTP_FORBIDDEN;
+            (void) xrootd_tpc_registry_update(t->transfer_id,
+                                              t->bytes_transferred,
+                                              XROOTD_TPC_STATE_ERROR,
+                                              t->log);
+            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                       t->is_push ? XROOTD_TPC_DIR_PUSH
+                                                  : XROOTD_TPC_DIR_PULL,
+                                       XROOTD_TPC_METRIC_ERROR,
+                                       t->bytes_transferred, t->log);
             return;
         }
     }
 
+    (void) xrootd_tpc_registry_update(t->transfer_id, 0,
+                                      XROOTD_TPC_STATE_ACTIVE, t->log);
+
     if (t->is_push) {
-        rc = webdav_tpc_run_curl_push(t->log, t->conf, t->url, t->local_path,
-                                      t->transfer_headers);
+        rc = webdav_tpc_run_curl_push(t->log, t->conf, t->url,
+                                      t->local_path, t->transfer_headers,
+                                      t->transfer_id);
         if (rc == NGX_OK) {
             struct stat st;
             if (stat(t->local_path, &st) == 0) {
                 t->bytes_transferred = st.st_size;
             }
+            (void) xrootd_tpc_registry_update(t->transfer_id,
+                                              t->bytes_transferred,
+                                              XROOTD_TPC_STATE_DONE,
+                                              t->log);
+            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                       XROOTD_TPC_DIR_PUSH,
+                                       XROOTD_TPC_METRIC_SUCCESS,
+                                       t->bytes_transferred, t->log);
             XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PUSH_SUCCESS]);
             t->http_status = NGX_HTTP_CREATED;
         } else {
+            (void) xrootd_tpc_registry_update(t->transfer_id,
+                                              t->bytes_transferred,
+                                              XROOTD_TPC_STATE_ERROR,
+                                              t->log);
+            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                       XROOTD_TPC_DIR_PUSH,
+                                       XROOTD_TPC_METRIC_ERROR,
+                                       t->bytes_transferred, t->log);
             t->http_status = rc;
         }
         return;
@@ -95,10 +160,18 @@ tpc_thread_func(void *data, ngx_log_t *log)
 
     /* pull: run curl, then atomically commit tmp_path → dest_path */
     rc = webdav_tpc_run_curl_pull(t->log, t->conf, t->url, t->local_path,
-                                  t->transfer_headers);
+                                  t->transfer_headers, t->transfer_id);
     if (rc != NGX_OK) {
         (void) xrootd_unlink_confined_canon(t->log, t->root_canon,
                                             t->local_path, 0);
+        (void) xrootd_tpc_registry_update(t->transfer_id,
+                                          t->bytes_transferred,
+                                          XROOTD_TPC_STATE_ERROR,
+                                          t->log);
+        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                   XROOTD_TPC_DIR_PULL,
+                                   XROOTD_TPC_METRIC_ERROR,
+                                   t->bytes_transferred, t->log);
         t->http_status = rc;
         return;
     }
@@ -117,6 +190,14 @@ tpc_thread_func(void *data, ngx_log_t *log)
             (void) xrootd_unlink_confined_canon(t->log, t->root_canon,
                                                 t->local_path, 0);
             XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_COMMIT_ERROR]);
+            (void) xrootd_tpc_registry_update(t->transfer_id,
+                                              t->bytes_transferred,
+                                              XROOTD_TPC_STATE_ERROR,
+                                              t->log);
+            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                       XROOTD_TPC_DIR_PULL,
+                                       XROOTD_TPC_METRIC_ERROR,
+                                       t->bytes_transferred, t->log);
             t->http_status = (err == EEXIST) ? NGX_HTTP_PRECONDITION_FAILED
                                              : NGX_HTTP_INTERNAL_SERVER_ERROR;
             return;
@@ -131,10 +212,24 @@ tpc_thread_func(void *data, ngx_log_t *log)
         (void) xrootd_unlink_confined_canon(t->log, t->root_canon,
                                             t->local_path, 0);
         XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_COMMIT_ERROR]);
+        (void) xrootd_tpc_registry_update(t->transfer_id,
+                                          t->bytes_transferred,
+                                          XROOTD_TPC_STATE_ERROR,
+                                          t->log);
+        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                                   XROOTD_TPC_DIR_PULL,
+                                   XROOTD_TPC_METRIC_ERROR,
+                                   t->bytes_transferred, t->log);
         t->http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
         return;
     }
 
+    (void) xrootd_tpc_registry_update(t->transfer_id, t->bytes_transferred,
+                                      XROOTD_TPC_STATE_DONE, t->log);
+    xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV,
+                               XROOTD_TPC_DIR_PULL,
+                               XROOTD_TPC_METRIC_SUCCESS,
+                               t->bytes_transferred, t->log);
     XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PULL_SUCCESS]);
     t->http_status = t->existed ? NGX_HTTP_NO_CONTENT : NGX_HTTP_CREATED;
 }
@@ -146,6 +241,10 @@ tpc_thread_done(ngx_event_t *ev)
     tpc_thread_ctx_t   *t      = task->ctx;
     ngx_http_request_t *r      = t->r;
     ngx_int_t           status = t->http_status;
+
+    (void) xrootd_tpc_registry_remove(t->transfer_id,
+                                      r->connection != NULL
+                                          ? r->connection->log : t->log);
 
     if (status == NGX_HTTP_CREATED || status == NGX_HTTP_NO_CONTENT) {
         if (t->bytes_transferred > 0) {
@@ -189,6 +288,10 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
         return NGX_DECLINED;
     }
 
+    if (url == NULL || local_path == NULL || (!is_push && dest_path == NULL)) {
+        return NGX_ERROR;
+    }
+
     task = ngx_thread_task_alloc(r->pool, sizeof(tpc_thread_ctx_t));
     if (task == NULL) {
         return NGX_ERROR;
@@ -203,6 +306,11 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
     t->overwrite       = overwrite;
     t->url             = url;
     t->transfer_headers = transfer_headers;
+    t->transfer_id = webdav_tpc_thread_register(r, is_push, url, local_path,
+                                                dest_path);
+    if (t->transfer_id == 0) {
+        return NGX_HTTP_SERVICE_UNAVAILABLE;
+    }
 
     ngx_cpystrn((u_char *) t->local_path, (u_char *) local_path,
                 sizeof(t->local_path));
@@ -219,6 +327,8 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
     task->event.log     = r->connection->log;
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
+        (void) xrootd_tpc_registry_remove(t->transfer_id,
+                                          r->connection->log);
         return NGX_ERROR;
     }
 

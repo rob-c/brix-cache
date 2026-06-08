@@ -1,6 +1,6 @@
 # nginx-xrootd vs Canonical XRootD — Feature Comparison
 
-**Date:** 2026-05-25 (updated 2026-05-25 to reflect actual implementation state)
+**Date:** 2026-05-25 (updated 2026-06-05 to correct implementation-state mismatches)
 **Source:** `/home/rcurrie/HEP-x/nginx-xrootd` (nginx module) vs `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` (canonical XRootD protocol spec)
 
 ---
@@ -45,7 +45,7 @@
 | kXR_writev=3031 | Scatter-gather write | ✓ | ✓ | Implemented |
 | kXR_clone=3032 | Server-side range copy (5.2.0) | ✓ | ✓ | Implemented |
 
-### 1.2 Summary: All 32 request opcodes declared; **1 unimplemented**
+### 1.2 Summary: 32 request opcodes declared; **31 implemented, 1 unimplemented**
 
 - `kXR_gpfile` (3005) — legacy, unused in modern clients; falls through to kXR_Unsupported in dispatch (intentional)
 
@@ -55,7 +55,7 @@
 |---|---|---|---|---|
 | kXR_ok=0 | Success | ✓ | ✓ | Implemented |
 | kXR_oksofar=4000 | Partial result | ✓ | ✓ | Used for pgread/pgwrite page responses |
-| kXR_attn=4001 | Unsolicited notification | ✓ | ✓ | **Fully implemented** — native generation via `xrootd_send_attn()` (`src/response/async.c`); relayed in proxy mode (`proxy/events_read.c`) |
+| kXR_attn=4001 | Unsolicited notification | ✓ | Partial | Proxy relay implemented (`proxy/events_read.c`); native server-originated generation is not implemented |
 | kXR_authmore=4002 | Auth needs round-trip | ✓ | ✓ | Implemented (GSI negotiation) |
 | kXR_error=4003 | Request failed | ✓ | ✓ | Implemented with errno→kXR mapping |
 | kXR_redirect=4004 | Redirect to another server | ✓ | ✓ | Implemented (manager mode, CMS locate, upstream proxy relay — `response/control.c`, `upstream/response.c`) |
@@ -90,7 +90,7 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 - Falls back to stable v3 (`kXR_PROTOCOLVERSION_3 = 0x00000300u`)
 - Server type: `kXR_DataServer=1` by default; advertises `kXR_isManager` when `xrootd_manager_mode on` or `xrootd_manager_map` is configured (`session/protocol.c`)
 
-**Status:** All async operation constants (5000–5008) now declared and implemented in `src/response/async.c`. Operations return `kXR_Unsupported` since they are deprecated in canonical XRootD. The async response mode flag (legacy) is not actively used but the infrastructure is in place for future extensions.
+**Status:** Async operation opcodes (5000–5008) are not part of the live dispatcher. `src/response/async.c` contains unused/unbuilt stubs for 5000–5007, but those constants are not declared in `opcodes.h`, the file is not registered in `config`, and no dispatcher routes to those handlers. Unknown async requests therefore fall through to the generic `kXR_Unsupported` path.
 
 ---
 
@@ -101,10 +101,15 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 - **nginx-xrootd:** Declared constant, no dispatch handler
 - **Impact:** Minimal — legacy unused opcode; modern clients use kXR_open+kXR_read/kXR_write instead
 
-### 3.2 ~~`kXR_attn` Response (4001) — Unsolicited Notification~~ **IMPLEMENTED**
+### 3.2 `kXR_attn` Response (4001) — Unsolicited Notification
 - **Canonical:** Server pushes unsolicited notifications to client (e.g., drain, disconnect signals)
-- **nginx-xrootd:** **Now fully implemented** — native generation via `xrootd_send_attn(ctx, c, actnum, msg, msglen)` in `src/response/async.c`, plus relay in proxy mode (`proxy/events_read.c`)
-- **Impact:** Minimal legacy use case, but now complete for protocol compatibility
+- **nginx-xrootd:** Partial — proxy mode relays upstream `kXR_attn` frames (`proxy/events_read.c`), but there is no native `xrootd_send_attn()` implementation for server-originated notifications
+- **Impact:** Minimal legacy use case; proxy compatibility exists, native generation remains a gap
+
+### 3.3 Async Operations (5000–5008) — Deprecated Legacy Actions
+- **Canonical:** Deprecated action codes exist for legacy async response workflows
+- **nginx-xrootd:** Not implemented in the live module — no constants in `opcodes.h`, no dispatch cases, and `src/response/async.c` is not in the module source list
+- **Impact:** Minimal for modern clients; unsupported requests receive the generic `kXR_Unsupported` fallback
 
 ---
 
@@ -180,9 +185,10 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 | CRC32c per-page (pgread/pgwrite) | ✓ | ✓ |
 | Max checksum errors per request | kXR_pgMaxEpr=128 | Declared, used in pgread/pgwrite |
 | Max outstanding checksum errors | kXR_pgMaxEos=256 | Declared, used in pgread/pgwrite |
-| CRC64 / SHA256 checksums | ✓ (via kXR_query) | ✓ (via kXR_query handler) |
+| SHA256 checksums | ✓ (via kXR_query) | ✓ (via kXR_query handler) |
+| CRC64 checksums | ✓ | ✗ (not in checksum parser/dispatch) |
 
-**Status:** Parity — both support per-page CRC32c integrity and query-based checksum operations.
+**Status:** Partial parity — both support per-page CRC32c integrity and SHA256 query checksums; nginx-xrootd does not currently implement CRC64.
 
 ### 5.2 Scatter-Gather I/O
 | Feature | Canonical | nginx-xrootd |
@@ -290,10 +296,9 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ### Missing from nginx (low impact)
 1. **kXR_gpfile(3005)** — Legacy unused opcode; declared but no handler; falls through to kXR_Unsupported. Minimal impact.
-
-### Fully Implemented (deprecated features, for protocol completeness)
-- **kXR_attn (4001)** native generation via `xrootd_send_attn()`
-- **Async operations (5000–5008)** — all defined, return `kXR_Unsupported` (marked "No longer supported" in canonical)
+2. **Native kXR_attn generation (4001)** — Proxy relay exists, but no server-originated `xrootd_send_attn()` implementation is present.
+3. **Async operations (5000–5008)** — Deprecated legacy actions are not declared/routed in the live dispatcher; generic unsupported fallback handles them.
+4. **CRC64 checksums** — SHA256 is implemented, but CRC64 is not currently supported by the checksum parser.
 
 ### Where nginx is superior
 - Confined path resolution as universal invariant gate
@@ -307,7 +312,7 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 - Open cache with resolved path deduplication
 
 ### Where canonical may have advantages (minor or legacy)
-- Async response mode flag infrastructure (legacy, both now deprecate this)
+- Async response/attention infrastructure (legacy; nginx-xrootd relays proxy `kXR_attn` but does not generate native notifications)
 - Native SHM-based TPC for cross-process zero-copy transfers (nginx shares key_registry.c but adds curl COPY as complement — actually superior for cross-protocol)
 
 ---
@@ -324,12 +329,11 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 - Full two-tier and three-tier cluster topologies via `xrootd_manager_mode` + `xrootd_cms_manager`
 - `kXR_redirect`, `kXR_wait`, `kXR_waitresp` all generated by `response/control.c` and relayed by `upstream/response.c`
 
-### ✓ Done: Native `kXR_attn` generation and async operations
-- `xrootd_send_attn()` function now available in `src/response/async.c` for server-originated unsolicited notifications
-- All async action codes (5000–5008) fully declared and handled (return `kXR_Unsupported` as deprecated)
-- Full protocol completeness: 10 new tests verify async operations work correctly
-- File: `src/response/async.c`, `src/response/async.h`
+### Open: Native `kXR_attn` generation and async operations
+- `xrootd_send_attn()` is declared in `src/response/async.h` but has no implementation
+- Async action-code stubs in `src/response/async.c` are not part of the live build and are not dispatched
+- Existing async tests only verify generic `kXR_error` behavior for unsupported opcodes and local Python constants; they do not prove native `kXR_attn` generation
 
-### ✓ Done: All 32 request opcodes implemented
-- 31 opcodes with parity or advantage over canonical XRootD
-- 1 legacy opcode (`kXR_gpfile`) intentionally unimplemented (unused in modern clients)
+### Request opcode coverage
+- 31 request opcodes have parity or advantage over canonical XRootD
+- 1 legacy opcode (`kXR_gpfile`) is intentionally unimplemented (unused in modern clients)

@@ -14,6 +14,8 @@
 #include <stdint.h>
 #include <ngx_core.h>
 
+#include "unified.h"
+
 /* Hard cap on exported stream listeners sharing the metrics zone. */
 #define XROOTD_METRICS_MAX_SERVERS  16
 
@@ -146,8 +148,9 @@
 #define XROOTD_S3_METHOD_DELETE   3
 #define XROOTD_S3_METHOD_LIST     4
 #define XROOTD_S3_METHOD_POST     5
-#define XROOTD_S3_METHOD_OTHER    6
-#define XROOTD_S3_NMETHODS        7
+#define XROOTD_S3_METHOD_OPTIONS  6
+#define XROOTD_S3_METHOD_OTHER    7
+#define XROOTD_S3_NMETHODS        8
 
 #define XROOTD_S3_AUTH_ANONYMOUS       0
 #define XROOTD_S3_AUTH_SIGV4_OK        1
@@ -402,6 +405,40 @@ typedef struct {
 } ngx_xrootd_user_global_t;
 
 /*
+ * Phase 6 unified observability counters.  These counters are intentionally
+ * op-centric and protocol-labeled; legacy per-protocol counters remain
+ * exported until callers can cut over their dashboards.
+ */
+typedef struct {
+    ngx_atomic_t  io_bytes_read[XROOTD_PROTO_COUNT];
+    ngx_atomic_t  io_bytes_written[XROOTD_PROTO_COUNT];
+    ngx_atomic_t  io_ops_total[XROOTD_PROTO_COUNT]
+                                  [XROOTD_METRIC_OP_COUNT]
+                                  [XROOTD_ERR_COUNT];
+    ngx_atomic_t  io_latency_bucket[XROOTD_PROTO_COUNT]
+                                      [XROOTD_METRIC_OP_COUNT]
+                                      [XROOTD_IO_LATENCY_BUCKETS];
+    ngx_atomic_t  io_latency_count[XROOTD_PROTO_COUNT]
+                                      [XROOTD_METRIC_OP_COUNT];
+    ngx_atomic_t  io_latency_sum_usec[XROOTD_PROTO_COUNT]
+                                         [XROOTD_METRIC_OP_COUNT];
+
+    ngx_atomic_t  cache_hits[XROOTD_PROTO_COUNT];
+    ngx_atomic_t  cache_misses[XROOTD_PROTO_COUNT];
+    ngx_atomic_t  cache_bytes_evicted[XROOTD_PROTO_COUNT];
+
+    ngx_atomic_t  auth_total[XROOTD_PROTO_COUNT]
+                            [XROOTD_METRIC_AUTH_COUNT]
+                            [XROOTD_METRIC_AUTH_STATUS_COUNT];
+
+    ngx_atomic_t  tpc_transfers[XROOTD_PROTO_COUNT]
+                               [XROOTD_METRIC_TPC_DIRECTION_COUNT]
+                               [XROOTD_ERR_COUNT];
+    ngx_atomic_t  tpc_bytes[XROOTD_PROTO_COUNT]
+                           [XROOTD_METRIC_TPC_DIRECTION_COUNT];
+} ngx_xrootd_unified_metrics_t;
+
+/*
  * Root shared-memory object stored in ngx_xrootd_shm_zone->data.
  * A fixed-size array keeps indexing simple and avoids extra allocation once
  * workers are running.
@@ -410,6 +447,7 @@ typedef struct {
     ngx_xrootd_srv_metrics_t     servers[XROOTD_METRICS_MAX_SERVERS];
     ngx_xrootd_webdav_metrics_t  webdav;
     ngx_xrootd_s3_metrics_t      s3;
+    ngx_xrootd_unified_metrics_t unified;
 
     /* Server registry diagnostics. */
     ngx_atomic_t  registry_full_total;

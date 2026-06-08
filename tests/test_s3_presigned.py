@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import base64
 import datetime as dt
 import hashlib
 import hmac
+import json
 import os
 from pathlib import Path
 from urllib.parse import quote, urlencode, urlparse
@@ -171,6 +173,54 @@ def _header_auth(base: str, key: str, request_time: dt.datetime,
     return headers
 
 
+def _post_policy_fields(key: str, data_len: int, *,
+                        request_time: dt.datetime,
+                        content_type: str | None = None,
+                        policy_key: str | None = None,
+                        signature_override: str | None = None) -> dict[str, str]:
+    amz_date = request_time.strftime("%Y%m%dT%H%M%SZ")
+    date = request_time.strftime("%Y%m%d")
+    credential = f"{ACCESS_KEY}/{date}/{REGION}/s3/aws4_request"
+    effective_policy_key = policy_key if policy_key is not None else key
+    policy = {
+        "expiration": (
+            request_time + dt.timedelta(hours=1)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "conditions": [
+            {"bucket": BUCKET},
+            ["eq", "$key", effective_policy_key],
+            {"x-amz-algorithm": "AWS4-HMAC-SHA256"},
+            {"x-amz-credential": credential},
+            {"x-amz-date": amz_date},
+            ["content-length-range", 0, data_len + 16],
+        ],
+    }
+    if content_type is not None:
+        policy["conditions"].append(["eq", "$Content-Type", content_type])
+    policy_b64 = base64.b64encode(
+        json.dumps(policy, separators=(",", ":")).encode()
+    ).decode()
+    signature = hmac.new(
+        _signing_key(SECRET_KEY, date, REGION),
+        policy_b64.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    if signature_override is not None:
+        signature = signature_override
+    fields = {
+        "key": key,
+        "policy": policy_b64,
+        "x-amz-algorithm": "AWS4-HMAC-SHA256",
+        "x-amz-credential": credential,
+        "x-amz-date": amz_date,
+        "x-amz-signature": signature,
+        "success_action_status": "201",
+    }
+    if content_type is not None:
+        fields["Content-Type"] = content_type
+    return fields
+
+
 def test_presigned_url_get_succeeds(s3_auth_instance):
     key = "presigned/success.txt"
     content = b"presigned-url-ok"
@@ -197,6 +247,21 @@ def test_presigned_url_expired_returns_403(s3_auth_instance):
     assert r.status_code == 403
 
 
+def test_presigned_url_future_skew_returns_403(s3_auth_instance):
+    key = "presigned/future-skew.txt"
+    _put_object_file(s3_auth_instance, key, b"future-skew")
+
+    future = (
+        dt.datetime.now(dt.UTC).replace(microsecond=0)
+        + dt.timedelta(hours=1)
+    )
+    url = _presigned_get_url(s3_auth_instance["base"], key, request_time=future)
+
+    r = requests.get(url, timeout=10)
+    assert r.status_code == 403
+    assert "RequestTimeTooSkewed" in r.text
+
+
 def test_presigned_url_bad_signature_returns_403(s3_auth_instance):
     key = "presigned/bad-signature.txt"
     _put_object_file(s3_auth_instance, key, b"bad-signature")
@@ -221,6 +286,108 @@ def test_sigv4_header_auth_still_works(s3_auth_instance):
 
     assert r.status_code == 200
     assert r.content == content
+
+
+def test_sigv4_header_auth_future_skew_returns_403(s3_auth_instance):
+    key = "presigned/header-future-skew.txt"
+    _put_object_file(s3_auth_instance, key, b"header-future-skew")
+
+    future = (
+        dt.datetime.now(dt.UTC).replace(microsecond=0)
+        + dt.timedelta(hours=1)
+    )
+    url = f"{s3_auth_instance['base']}/{BUCKET}/{key}"
+    r = requests.get(
+        url,
+        headers=_header_auth(s3_auth_instance["base"], key, future),
+        timeout=10,
+    )
+
+    assert r.status_code == 403
+    assert "RequestTimeTooSkewed" in r.text
+
+
+def test_post_object_signed_policy_succeeds(s3_auth_instance):
+    key = "post-policy/success.txt"
+    content = b"signed-post-policy-ok"
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+
+    r = requests.post(
+        f"{s3_auth_instance['base']}/{BUCKET}/",
+        data=_post_policy_fields(key, len(content), request_time=now),
+        files={"file": ("upload.txt", content, "text/plain")},
+        timeout=10,
+    )
+    assert r.status_code == 201, r.text
+
+    r = requests.get(
+        f"{s3_auth_instance['base']}/{BUCKET}/{key}",
+        headers=_header_auth(s3_auth_instance["base"], key, now),
+        timeout=10,
+    )
+    assert r.status_code == 200
+    assert r.content == content
+
+
+def test_post_object_signed_policy_content_type_field_succeeds(s3_auth_instance):
+    key = "post-policy/content-type.txt"
+    content = b"signed-post-content-type-ok"
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+
+    r = requests.post(
+        f"{s3_auth_instance['base']}/{BUCKET}/",
+        data=_post_policy_fields(
+            key, len(content), request_time=now, content_type="text/plain"
+        ),
+        files={"file": ("upload.bin", content, "application/octet-stream")},
+        timeout=10,
+    )
+    assert r.status_code == 201, r.text
+
+    r = requests.get(
+        f"{s3_auth_instance['base']}/{BUCKET}/{key}",
+        headers=_header_auth(s3_auth_instance["base"], key, now),
+        timeout=10,
+    )
+    assert r.status_code == 200
+    assert r.content == content
+
+
+def test_post_object_signed_policy_bad_signature_rejected(s3_auth_instance):
+    key = "post-policy/bad-signature.txt"
+    content = b"bad-signature"
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+
+    r = requests.post(
+        f"{s3_auth_instance['base']}/{BUCKET}/",
+        data=_post_policy_fields(
+            key, len(content), request_time=now, signature_override="0" * 64
+        ),
+        files={"file": ("upload.txt", content, "text/plain")},
+        timeout=10,
+    )
+    assert r.status_code == 403
+    assert "SignatureDoesNotMatch" in r.text
+
+
+def test_post_object_signed_policy_condition_rejected(s3_auth_instance):
+    key = "post-policy/condition-target.txt"
+    content = b"condition-mismatch"
+    now = dt.datetime.now(dt.UTC).replace(microsecond=0)
+
+    r = requests.post(
+        f"{s3_auth_instance['base']}/{BUCKET}/",
+        data=_post_policy_fields(
+            key,
+            len(content),
+            request_time=now,
+            policy_key="post-policy/other-key.txt",
+        ),
+        files={"file": ("upload.txt", content, "text/plain")},
+        timeout=10,
+    )
+    assert r.status_code == 403
+    assert "AccessDenied" in r.text
 
 
 def test_session_token_rejected_by_default(s3_auth_instance):

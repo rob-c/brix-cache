@@ -70,9 +70,29 @@ xrootd_prepare_invoke_command(ngx_log_t *log,
         return NGX_ERROR;
     }
 
+    if (pid == 0) {
+        /* First child: double-fork so that the grandchild that actually runs
+         * the staging command is reparented to init/PID-1, not to the nginx
+         * worker.  Without the double-fork, when the staging script exits,
+         * SIGCHLD is delivered to the nginx worker, which crashes because
+         * the forked pid is not in nginx's internal process table. */
+        pid_t gpid = fork();
+        if (gpid != 0) {
+            /* First child exits immediately regardless of fork result.
+             * On success: grandchild carries on. On failure: nothing runs,
+             * but at least the worker does not crash. */
+            _exit(0);
+        }
+        /* Grandchild falls through to the fd-closing + execv path below. */
+    }
+
     if (pid > 0) {
-        /* Parent: free the argv array and return immediately.
-         * The child is an orphan: init/systemd reaps it when it exits. */
+        /* Parent (nginx worker): wait for the first child only — it exits
+         * almost immediately, so this waitpid() is nearly instantaneous and
+         * does NOT block the event loop for a meaningful duration.
+         * The grandchild is now an orphan reaped by init. */
+        int wstatus;
+        waitpid(pid, &wstatus, 0);
         ngx_free(argv);
         ngx_log_error(NGX_LOG_INFO, log, 0,
                       "xrootd: prepare_command spawned pid %P for %ui path(s)",
@@ -80,7 +100,7 @@ xrootd_prepare_invoke_command(ngx_log_t *log,
         return NGX_OK;
     }
 
-    /* --- child process --- */
+    /* --- grandchild process --- */
 
     /* Close all inherited file descriptors ≥ 3 so we don't leak nginx
      * listening sockets, log file descriptors, or pipe ends to the external

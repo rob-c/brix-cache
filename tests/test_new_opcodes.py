@@ -15,6 +15,7 @@ import hashlib
 import os
 import struct
 import socket
+from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
@@ -765,6 +766,48 @@ class TestChkpoint:
             self._close(sock, 6, fh)
         finally:
             sock.close()
+
+    def test_chkpoint_same_file_second_handle_rejected(self):
+        """A checkpoint on one handle must block another handle to the same file."""
+        upload(ANON_URL, "ckp_same_file.bin", b"data")
+        sock = self._connect("localhost", ANON_PORT)
+        try:
+            fh1 = self._open(sock, 2, "/ckp_same_file.bin")
+            fh2 = self._open(sock, 3, "/ckp_same_file.bin")
+
+            status, _ = self._chkpoint(sock, 4, fh1, 0)
+            assert status == 0
+
+            status, _ = self._chkpoint(sock, 5, fh2, 0)
+            assert status != 0, "second handle must not replace active checkpoint"
+
+            self._chkpoint(sock, 6, fh1, 1)
+            self._close(sock, 7, fh2)
+            self._close(sock, 8, fh1)
+        finally:
+            sock.close()
+
+    def test_chkpoint_startup_recovery_guardrails(self):
+        """Startup recovery must rollback stale .ckp snapshots under a lock."""
+        src = (
+            Path(__file__).resolve().parents[1]
+            / "src" / "write" / "chkpoint.c"
+        ).read_text(encoding="utf-8")
+        process = (
+            Path(__file__).resolve().parents[1]
+            / "src" / "config" / "process.c"
+        ).read_text(encoding="utf-8")
+
+        assert "xrootd_chkpoint_recover_root" in src
+        assert "flock(lock_fd, LOCK_EX)" in src
+        assert "xrootd_copy_range" in src
+        assert "xrootd_staged_open" in src
+        assert "xrootd_staged_commit" in src
+        assert "xrootd_unlink_confined_canon" in src
+        assert "O_DIRECTORY" in src
+        assert "O_NOFOLLOW" in src
+        assert "fstatat" in src
+        assert "xrootd_chkpoint_recover_root" in process
 
     def test_chkpoint_rollback_without_begin_rejected(self):
         """kXR_ckpRollback without an active checkpoint returns an error."""

@@ -41,6 +41,8 @@ void  xrootd_export_stream_proxy_metrics(metrics_writer_t *mw,
     ngx_xrootd_metrics_t *shm);
 void  xrootd_export_stream_tracking_metrics(metrics_writer_t *mw,
     ngx_xrootd_metrics_t *shm);
+void  xrootd_export_unified_metrics(metrics_writer_t *mw,
+    ngx_xrootd_metrics_t *shm);
 
 /* webdav.c */
 void  xrootd_export_webdav_metrics(metrics_writer_t *mw,

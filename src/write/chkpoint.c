@@ -1,9 +1,13 @@
 #include "ngx_xrootd_module.h"
 #include "chkpoint_xeq.h"
+#include "../compat/log.h"
 #include "../compat/copy_range.h"
+#include "../compat/staged_file.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -87,8 +91,16 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     ngx_memcpy(f->ckp_path, f->path, plen);
     ngx_memcpy(f->ckp_path + plen, ".ckp", 5); /* includes NUL */
 
-    ckp_fd = open(f->ckp_path, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600);
+    ckp_fd = open(f->ckp_path,
+                  O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC | O_NOFOLLOW,
+                  0600);
     if (ckp_fd < 0) {
+        if (errno == EEXIST) {
+            ckp_clear_path(f);
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
+                              f->path, "begin", kXR_inProgress,
+                              "checkpoint already active for file");
+        }
         ckp_clear_path(f);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
                           kXR_IOError, strerror(errno));
@@ -179,7 +191,7 @@ ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
 
     /* Restore file content from checkpoint if there was any. */
     if (f->ckp_size > 0) {
-        ckp_fd = open(f->ckp_path, O_RDONLY | O_CLOEXEC);
+        ckp_fd = open(f->ckp_path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
         if (ckp_fd < 0) {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
                               kXR_IOError, strerror(errno));
@@ -280,4 +292,227 @@ xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
 /* ---- WHY: kXR_chkpoint is a compound opcode with 5 sub-codes (begin/commit/query/rollback/Xeq). The dispatcher extracts the file handle from req->fhandle[0], validates it as an open write handle, then routes to the appropriate handler. ckpXeq is delegated to chkpoint_xeq.c which parses the inner 24-byte sub-header and executes a single write operation under checkpoint protection. ---- */
 
 /* ---- HOW: Extracts idx from req->fhandle[0] as unsigned char; calls xrootd_validate_write_handle() for validation (returns early on failure). switch(req->opcode): kXR_ckpBegin→ckp_begin, kXR_ckpCommit→ckp_commit, kXR_ckpQuery→ckp_query, kXR_ckpRollback→ckp_rollback, kXR_ckpXeq→ckp_xeq. Default case logs debug + returns kXR_ArgInvalid error. */
+}
+
+static ngx_flag_t
+ckp_name_has_suffix(const char *name)
+{
+    size_t len;
+
+    len = strlen(name);
+    return len > 4 && strcmp(name + len - 4, ".ckp") == 0;
+}
+
+static ngx_int_t
+ckp_recover_one(ngx_log_t *log, const char *root_canon,
+    const char *ckp_path)
+{
+    char                 orig_path[PATH_MAX];
+    size_t               len;
+    int                  ckp_fd;
+    xrootd_staged_file_t staged;
+    struct stat          st;
+
+    len = strlen(ckp_path);
+    if (len <= 4 || len >= sizeof(orig_path)) {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(orig_path, ckp_path, len - 4);
+    orig_path[len - 4] = '\0';
+
+    ckp_fd = xrootd_open_confined_canon(log, root_canon, ckp_path,
+                                        O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
+    if (ckp_fd < 0) {
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery cannot open \"%s\"",
+                             ckp_path);
+        return NGX_ERROR;
+    }
+
+    if (fstat(ckp_fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+        ngx_close_file(ckp_fd);
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery invalid snapshot "
+                             "\"%s\"", ckp_path);
+        return NGX_ERROR;
+    }
+
+    if (xrootd_staged_open(log, root_canon, orig_path, O_WRONLY, 0600, 16,
+                           &staged) != NGX_OK)
+    {
+        ngx_close_file(ckp_fd);
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery cannot stage "
+                             "\"%s\"", orig_path);
+        return NGX_ERROR;
+    }
+
+    if (st.st_size > 0
+        && xrootd_copy_range(log, ckp_fd, 0, staged.fd, 0,
+                             (size_t) st.st_size, ckp_path,
+                             staged.tmp_path) != NGX_OK)
+    {
+        xrootd_staged_abort(log, root_canon, &staged, 1);
+        ngx_close_file(ckp_fd);
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery copy failed for "
+                             "\"%s\"", orig_path);
+        return NGX_ERROR;
+    }
+
+    (void) fsync(staged.fd);
+
+    if (xrootd_staged_commit(log, root_canon, &staged, orig_path)
+        != NGX_OK)
+    {
+        ngx_close_file(ckp_fd);
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery commit failed for "
+                             "\"%s\"", orig_path);
+        return NGX_ERROR;
+    }
+
+    ngx_close_file(ckp_fd);
+
+    if (xrootd_unlink_confined_canon(log, root_canon, ckp_path, 0) != 0) {
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery cannot remove "
+                             "\"%s\"", ckp_path);
+        return NGX_ERROR;
+    }
+
+    xrootd_log_safe_path(log, NGX_LOG_NOTICE, 0,
+                         "xrootd: recovered abandoned checkpoint \"%s\"",
+                         ckp_path);
+    return NGX_OK;
+}
+
+static ngx_int_t
+ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
+    ngx_uint_t depth)
+{
+    DIR           *dp;
+    int            dfd;
+    struct dirent *de;
+
+    if (depth > 128) {
+        xrootd_log_safe_path(log, NGX_LOG_ERR, 0,
+                             "xrootd: checkpoint recovery depth exceeded at "
+                             "\"%s\"", dir);
+        return NGX_ERROR;
+    }
+
+    dfd = xrootd_open_confined_canon(log, root_canon, dir,
+                                     O_RDONLY | O_DIRECTORY | O_CLOEXEC
+                                     | O_NOFOLLOW, 0);
+    if (dfd < 0) {
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery cannot scan \"%s\"",
+                             dir);
+        return NGX_ERROR;
+    }
+
+    dp = fdopendir(dfd);
+    if (dp == NULL) {
+        ngx_close_file(dfd);
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery cannot scan \"%s\"",
+                             dir);
+        return NGX_ERROR;
+    }
+
+    while ((de = readdir(dp)) != NULL) {
+        char        path[PATH_MAX];
+        size_t      dlen, nlen;
+        struct stat st;
+
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
+            continue;
+        }
+
+        dlen = strlen(dir);
+        nlen = strlen(de->d_name);
+        if (dlen + 1 + nlen >= sizeof(path)) {
+            closedir(dp);
+            return NGX_ERROR;
+        }
+
+        ngx_memcpy(path, dir, dlen);
+        path[dlen] = '/';
+        ngx_memcpy(path + dlen + 1, de->d_name, nlen + 1);
+
+        if (fstatat(dirfd(dp), de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
+            closedir(dp);
+            xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                                 "xrootd: checkpoint recovery stat failed "
+                                 "for \"%s\"", path);
+            return NGX_ERROR;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            if (ckp_recover_scan(log, root_canon, path, depth + 1) != NGX_OK) {
+                closedir(dp);
+                return NGX_ERROR;
+            }
+            continue;
+        }
+
+        if (S_ISREG(st.st_mode) && ckp_name_has_suffix(de->d_name)) {
+            if (ckp_recover_one(log, root_canon, path) != NGX_OK) {
+                closedir(dp);
+                return NGX_ERROR;
+            }
+        }
+    }
+
+    closedir(dp);
+    return NGX_OK;
+}
+
+ngx_int_t
+xrootd_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
+{
+    char      lock_path[PATH_MAX];
+    size_t    root_len;
+    int       lock_fd;
+    ngx_int_t rc;
+
+    if (root_canon == NULL || root_canon[0] == '\0') {
+        return NGX_OK;
+    }
+
+    root_len = strlen(root_canon);
+    if (root_len + sizeof("/.nginx-xrootd-ckp-recovery.lock")
+        > sizeof(lock_path))
+    {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(lock_path, root_canon, root_len);
+    ngx_memcpy(lock_path + root_len, "/.nginx-xrootd-ckp-recovery.lock",
+               sizeof("/.nginx-xrootd-ckp-recovery.lock"));
+
+    lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
+    if (lock_fd < 0) {
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery lock failed "
+                             "\"%s\"", lock_path);
+        return NGX_ERROR;
+    }
+
+    if (flock(lock_fd, LOCK_EX) != 0) {
+        ngx_close_file(lock_fd);
+        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd: checkpoint recovery cannot lock "
+                             "\"%s\"", lock_path);
+        return NGX_ERROR;
+    }
+
+    rc = ckp_recover_scan(log, root_canon, root_canon, 0);
+
+    (void) flock(lock_fd, LOCK_UN);
+    ngx_close_file(lock_fd);
+
+    return rc;
 }

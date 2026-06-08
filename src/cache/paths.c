@@ -1,4 +1,5 @@
 #include "cache_internal.h"
+#include "meta.h"
 
 
 #include <errno.h>
@@ -27,6 +28,12 @@ xrootd_cache_append_suffix(char *dst, size_t dstsz, const char *path,
 
     n = snprintf(dst, dstsz, "%s%s", path, suffix);
     return (n >= 0 && (size_t) n < dstsz) ? 0 : -1;
+}
+
+int
+xrootd_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
+{
+    return xrootd_cache_append_suffix(dst, dstsz, cache_path, ".meta");
 }
 
 /* ---- xrootd_cache_ensure_parent — create parent directories for a cache file ----
@@ -79,4 +86,3 @@ xrootd_cache_file_ready(const char *path)
 
     return 1;
 }
-

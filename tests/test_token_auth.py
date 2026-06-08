@@ -66,6 +66,7 @@ kXR_ping     = 3011
 
 # XRootD response status codes
 kXR_ok        = 0
+kXR_oksofar   = 4000
 kXR_error     = 4003
 kXR_authmore  = 4002
 
@@ -211,14 +212,19 @@ def _send_stat(sock, path, streamid=b"\x00\x04"):
 
 
 def _send_dirlist(sock, path, streamid=b"\x00\x05"):
-    """Send kXR_dirlist."""
+    """Send kXR_dirlist and drain all kXR_oksofar chunks."""
     path_bytes = path.encode() + b"\x00"
     req = struct.pack("!2sH", streamid, kXR_dirlist)
     req += b"\x00" * 16
     req += struct.pack("!I", len(path_bytes))
     req += path_bytes
     sock.sendall(req)
-    return _read_response(sock)
+    all_body = bytearray()
+    while True:
+        status, body = _read_response(sock)
+        all_body.extend(body)
+        if status != kXR_oksofar:
+            return status, bytes(all_body)
 
 
 def _send_ping(sock, streamid=b"\x00\x06"):

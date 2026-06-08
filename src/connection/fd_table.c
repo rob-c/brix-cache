@@ -261,6 +261,10 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
         ngx_free(file->path);
     }
 
+    if (file->tpc_transfer_id != 0) {
+        (void) xrootd_tpc_registry_remove(file->tpc_transfer_id, NULL);
+    }
+
     xrootd_wt_mark_clean(ctx, handle_index);
 
     file->fd             = -1;
@@ -290,6 +294,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     file->tpc_src_port    = 0;
     file->tpc_src_path[0] = '\0';
     file->tpc_token_mode[0] = '\0';
+    file->tpc_transfer_id = 0;
     file->wt_enabled      = 0;
     file->wt_policy       = 0;
     file->wt_mode_bits    = 0;

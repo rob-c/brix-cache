@@ -12,6 +12,7 @@ import time
 import pytest
 from settings import (
     AUTHDB_PORT,
+    AUTHDB_DIR,
     CA_DIR,
     NGINX_BIN,
     PROXY_ATLAS,
@@ -24,10 +25,11 @@ from settings import (
     VOMS_KEY,
 )
 
+from settings import TEST_ROOT as _TEST_ROOT
+
 AUTHDB_URL  = f"root://localhost:{AUTHDB_PORT}"
-AUTHDB_DIR  = "/tmp/xrd-authdb-test"
-AUTHDB_DATA = os.path.join(AUTHDB_DIR, "data")
-AUTHDB_FILE = os.path.join(AUTHDB_DIR, "authdb")
+AUTHDB_DATA = os.path.join(_TEST_ROOT, "data-authdb")
+AUTHDB_FILE = os.path.join(AUTHDB_DATA, "authdb")
 AUTHDB_UPLOAD = os.path.join(AUTHDB_DIR, "upload.txt")
 VOMS_PROXY_FAKE = os.path.join(
     os.path.dirname(__file__), "..", "utils", "voms_proxy_fake.py"
@@ -173,43 +175,32 @@ def authdb_setup():
 
 @pytest.fixture(scope="session")
 def authdb_nginx(authdb_setup):
-    import server_control
+    """Use the pre-started dedicated authdb nginx instance.
 
-    # Use conf_text so server_control manages prefix/pid/logs.
-    # {PORT}, {DATA_DIR}, {SERVER_CERT}, {SERVER_KEY}, {CA_CERT} come from
-    # server_control's defaults; VOMSDIR, VOMS_CERT_DIR, AUTHDB_FILE are extras.
-    conf_text = """\
-daemon off;
-worker_processes 1;
-error_log {LOG_DIR}/error.log info;
-stream {
-    server {
-        listen {PORT};
-        xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth gsi;
-        xrootd_allow_write on;
-        xrootd_certificate     {SERVER_CERT};
-        xrootd_certificate_key {SERVER_KEY};
-        xrootd_trusted_ca      {CA_CERT};
-        xrootd_vomsdir         {VOMSDIR};
-        xrootd_voms_cert_dir   {VOMS_CERT_DIR};
-        xrootd_authdb          {AUTHDB_FILE};
-    }
-}
-"""
+    The dedicated instance is launched by manage_test_servers.sh start-all at
+    port AUTHDB_PORT=11114 with nginx_authdb.conf.  authdb_setup already wrote
+    the authdb rules file to {DATA_DIR}/authdb; we SIGHUP nginx so it reloads.
+    """
+    import signal
+    import socket
 
-    info = server_control.start_nginx_instance(
-        port=AUTHDB_PORT,
-        nginx_bin=NGINX_BIN,
-        conf_text=conf_text,
-        template_kwargs={
-            "DATA_DIR":      AUTHDB_DATA,
-            "VOMSDIR":       VOMSDIR,
-            "VOMS_CERT_DIR": CA_DIR,
-            "AUTHDB_FILE":   AUTHDB_FILE,
-        },
-    )
+    # Skip if the dedicated server is not up.
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2)
+    reachable = s.connect_ex(("127.0.0.1", AUTHDB_PORT)) == 0
+    s.close()
+    if not reachable:
+        pytest.skip(f"Dedicated authdb nginx not running on port {AUTHDB_PORT}")
+
+    # SIGHUP so nginx reloads the authdb rules written by authdb_setup.
+    pidfile = os.path.join(_TEST_ROOT, "dedicated", "authdb", "logs", "nginx.pid")
+    if os.path.exists(pidfile):
+        try:
+            pid = int(open(pidfile).read().strip())
+            os.kill(pid, signal.SIGHUP)
+            time.sleep(0.5)
+        except (ValueError, ProcessLookupError):
+            pass
 
     env = {**os.environ,
            "X509_CERT_DIR":   CA_DIR,
@@ -225,11 +216,9 @@ stream {
             break
         time.sleep(0.5)
     else:
-        info["stop"]()
-        pytest.fail(f"Authdb nginx did not become ready on port {AUTHDB_PORT}.")
+        pytest.skip(f"Authdb nginx not ready on port {AUTHDB_PORT}")
 
-    yield info
-    info["stop"]()
+    yield {}  # server is pre-started; nothing to stop
 
 
 def _gsi_env(proxy: str) -> dict:

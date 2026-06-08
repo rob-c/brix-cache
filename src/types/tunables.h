@@ -107,6 +107,8 @@
 #define XROOTD_AUTH_TOKEN  2   /* Bearer token (JWT/WLCG) authentication */
 #define XROOTD_AUTH_BOTH   3   /* Accept either GSI or token auth        */
 #define XROOTD_AUTH_SSS    4   /* XRootD Simple Shared Secret auth       */
+#define XROOTD_AUTH_UNIX   5   /* XRootD unix auth (self-asserted local) */
+#define XROOTD_AUTH_KRB5   6   /* XRootD Kerberos 5 auth                 */
 
 /* ---- SSS constants ---- */
 #define XROOTD_SSS_KEY_MAX   128

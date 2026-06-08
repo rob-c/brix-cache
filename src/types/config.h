@@ -159,6 +159,24 @@ typedef struct {
     time_t       sss_lifetime;  /* credential lifetime in seconds; default 13 */
     ngx_array_t *sss_keys;      /* xrootd_sss_key_t[] parsed from sss_keytab */
 
+    /* ---- Kerberos 5 settings (used when auth = krb5) ---- */
+    ngx_str_t    krb5_principal; /* [xrootd_krb5_principal xrootd/host@REALM] */
+    ngx_str_t    krb5_keytab;    /* [xrootd_krb5_keytab FILE:/etc/xrootd.keytab]
+                                    Empty = Kerberos default keytab. */
+    ngx_flag_t   krb5_ip_check;  /* [xrootd_krb5_ip_check on|off]
+                                    Default off, matching upstream XrdSeckrb5. */
+#if (XROOTD_HAVE_KRB5)
+    krb5_context   krb5_context;
+    krb5_keytab    krb5_keytab_obj;
+    krb5_principal krb5_principal_obj;
+#endif
+
+    /* ---- Unix auth settings (used when auth = unix) ---- */
+    ngx_flag_t   unix_trust_remote; /* [xrootd_unix_trust_remote on|off]
+                                       Default off: only loopback peers may use
+                                       upstream-compatible self-asserted unix
+                                       credentials. */
+
     /* ---- access log ---- */
     ngx_str_t   access_log;     /* [xrootd_access_log /var/log/xrootd-access.log] */
     ngx_fd_t    access_log_fd;  /* opened fd; NGX_INVALID_FILE if not configured */
@@ -363,6 +381,36 @@ typedef struct {
 
     /* Interval between kXR_ping keepalives on pooled idle connections. */
     ngx_msec_t  proxy_keepalive_interval;   /* [xrootd_proxy_keepalive_interval 15s] */
+
+    /* ---- node topology role flags (Phase 2 capability flags) ---- */
+    ngx_flag_t  metadata_only;     /* [xrootd_metadata_only on|off]
+                                      Advertise kXR_attrMeta.  kXR_open is rejected
+                                      (kXR_Unsupported) unless a manager_map redirects
+                                      it to a data server.  Stat/dirlist/locate work
+                                      normally from the local root. */
+    ngx_flag_t  supervisor;        /* [xrootd_supervisor on|off]
+                                      Top-tier manager in a three-level CMS hierarchy.
+                                      Advertises kXR_isManager | kXR_attrSuper.
+                                      Requires xrootd_manager_mode on (no local root). */
+    ngx_flag_t  virtual_redirector; /* [xrootd_virtual_redirector on|off]
+                                       Static path-mapping redirector (no live CMS).
+                                       Advertises kXR_isManager | kXR_attrVirtRdr.
+                                       Also auto-set when manager_map != NULL and
+                                       cms_addr == NULL (static-only routing). */
+
+    /* ---- Phase 3 behavioral capability flags ---- */
+    ngx_flag_t  collapse_redir;     /* [xrootd_collapse_redir on|off]
+                                       Cache recent (path→DS) redirect targets so
+                                       repeat requests skip the CMS round-trip.
+                                       Advertises kXR_collapseRedir. Default off. */
+    ngx_msec_t  collapse_redir_ttl; /* [xrootd_collapse_redir_ttl <time>]
+                                       Per-entry TTL for the redirect collapse cache.
+                                       Default 30000 ms (30 s). */
+    ngx_flag_t  recover_writes;     /* [xrootd_recover_writes on|off]
+                                       RESERVED — blocked on kXR_attn write journal.
+                                       Directive accepted to allow forward config
+                                       preparation; kXR_recoverWrts flag is NOT
+                                       advertised until the backend is implemented. */
 
     /* ---- OCSP certificate revocation checking (Feature 8e) ---- */
     ngx_flag_t  ocsp_enable;      /* [xrootd_ocsp_enable on|off]

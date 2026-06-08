@@ -27,6 +27,10 @@ const xrootd_vo_rule_t *xrootd_find_vo_rule(const char *resolved_path,
     ngx_array_t *rules);
 const xrootd_authdb_rule_t *xrootd_find_authdb_rule(const char *resolved_path,
     ngx_array_t *rules, xrootd_ctx_t *ctx, uint32_t needed_privs);
+const xrootd_authdb_rule_t *xrootd_find_authdb_rule_identity(
+    const char *resolved_path, ngx_array_t *rules,
+    const xrootd_identity_t *identity, const char *peer_ip,
+    uint32_t needed_privs);
 const xrootd_group_rule_t *xrootd_find_group_rule(
     const char *resolved_path, ngx_array_t *rules);
 
@@ -37,10 +41,16 @@ ngx_flag_t xrootd_vo_list_contains(const char *vo_list,
 /* Check the VO ACL for a resolved path; returns NGX_OK or NGX_DECLINED. */
 ngx_int_t xrootd_check_vo_acl(ngx_log_t *log, const char *resolved_path,
     ngx_array_t *vo_rules, const char *vo_list);
+ngx_int_t xrootd_check_vo_acl_identity(ngx_log_t *log,
+    const char *resolved_path, ngx_array_t *vo_rules,
+    const xrootd_identity_t *identity);
 
 /* Check the Authdb for a resolved path; returns NGX_OK or NGX_ERROR. */
 ngx_int_t xrootd_check_authdb(xrootd_ctx_t *ctx, const char *resolved_path,
     uint32_t needed_privs);
+ngx_int_t xrootd_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
+    const xrootd_identity_t *identity, const char *peer_ip,
+    const char *resolved_path, uint32_t needed_privs);
 
 /* Parse an XRootD authdb file into rules. */
 ngx_int_t xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename,

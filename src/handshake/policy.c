@@ -23,19 +23,20 @@ xrootd_check_token_scope(xrootd_ctx_t *ctx, const char *logical_path,
         return NGX_OK;
     }
 
-    if (need_write) {
-        if (!xrootd_token_check_write(ctx->token_scopes,
-                                      ctx->token_scope_count, logical_path)) {
-            return NGX_ERROR;
-        }
-    } else {
-        if (!xrootd_token_check_read(ctx->token_scopes,
-                                     ctx->token_scope_count, logical_path)) {
-            return NGX_ERROR;
-        }
+    if (ctx->identity != NULL) {
+        return xrootd_identity_check_token_scope(ctx->identity, logical_path,
+                                                 need_write);
     }
 
-    return NGX_OK;
+    if (need_write) {
+        return xrootd_token_check_write(ctx->token_scopes,
+                                        ctx->token_scope_count, logical_path)
+               ? NGX_OK : NGX_ERROR;
+    }
+
+    return xrootd_token_check_read(ctx->token_scopes,
+                                   ctx->token_scope_count, logical_path)
+           ? NGX_OK : NGX_ERROR;
 }
 
 ngx_int_t

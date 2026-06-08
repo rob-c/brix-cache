@@ -14,78 +14,133 @@ without a PyXRootD dependency.
 """
 
 import os
-import shutil
 import socket
 import struct
+import subprocess
 import time
 from pathlib import Path
 
 import pytest
 
-import server_control
-from settings import MANAGER_PORT, NGINX_BIN
+from settings import (
+    CLUSTER_3T_LEAF_PORT,
+    CLUSTER_3T_META_CMS_PORT,
+    CLUSTER_3T_META_PORT,
+    CLUSTER_3T_SUB_CMS_PORT,
+    CLUSTER_3T_SUB_PORT,
+    CLUSTER_CMS_PORT,
+    CLUSTER_DS_DATA_ROOT,
+    CLUSTER_DS_PORT,
+    CLUSTER_ESC_CMS_PORT,
+    CLUSTER_ESC_LEAF_DATA_ROOT,
+    CLUSTER_ESC_LEAF_PORT,
+    CLUSTER_ESC_SUB_PORT,
+    CLUSTER_GONE_DS_PORT,
+    CLUSTER_GONE_DS_PORT_A,
+    CLUSTER_GONE_DS_PORT_B,
+    CLUSTER_MP_CMS_PORT,
+    CLUSTER_MP_DS_PORT,
+    CLUSTER_MP_REDIR_PORT,
+    CLUSTER_MS_CMS_PORT,
+    CLUSTER_MS_DS1_DATA_ROOT,
+    CLUSTER_MS_DS1_PORT,
+    CLUSTER_MS_DS2_DATA_ROOT,
+    CLUSTER_MS_DS2_PORT,
+    CLUSTER_MS_REDIR_PORT,
+    CLUSTER_MW_CMS_PORT,
+    CLUSTER_MW_PORT,
+    CLUSTER_REDIR_PORT,
+    CLUSTER_SELECT_CMS_PORT,
+    CLUSTER_SELECT_PORT,
+    CLUSTER_SELECT_REDIRECT_PORT,
+    CLUSTER_SLOTS_DS1_DATA_ROOT,
+    CLUSTER_SLOTS_DS1_PORT,
+    CLUSTER_SLOTS_DS2_DATA_ROOT,
+    CLUSTER_SLOTS_DS2_PORT,
+    CLUSTER_SLOTS_DS3_DATA_ROOT,
+    CLUSTER_SLOTS_DS3_PORT,
+    CLUSTER_SLOTS_DS4_DATA_ROOT,
+    CLUSTER_SLOTS_DS4_PORT,
+    CLUSTER_SLOTS_METRICS_PORT,
+    CLUSTER_SLOTS_REDIR_PORT,
+    CLUSTER_TRY_CMS_PORT,
+    CLUSTER_TRY_FIRST_PORT,
+    CLUSTER_TRY_PORT,
+    CLUSTER_TRY_SECOND_PORT,
+    MANAGER_PORT,
+    NGINX_BIN,
+    TEST_ROOT,
+)
 
-WORKDIR = "/tmp/xrd-manager-mode-test"
+
+def _kill_nginx_dedicated(name: str) -> None:
+    """Send SIGTERM to the pre-launched dedicated nginx instance by name."""
+    import signal
+    pidfile = os.path.join(TEST_ROOT, "dedicated", name, "logs", "nginx.pid")
+    if os.path.exists(pidfile):
+        try:
+            pid = int(open(pidfile).read().strip())
+            os.kill(pid, signal.SIGTERM)
+        except (ValueError, ProcessLookupError):
+            pass
+
+
+def _wait_port(port: int, label: str = "", timeout: float = 20.0, host: str = "127.0.0.1"):
+    """Block until host:port accepts a TCP connection or timeout expires."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return
+        except OSError:
+            time.sleep(0.25)
+    pytest.fail(f"Port {port} ({label}) not ready after {timeout}s")
+
+
+def _wait_for_redirect(redir_port: int, path: str, expected_ds_port: int,
+                       timeout: float = 25.0, host: str = "127.0.0.1"):
+    """Connect to redir_port, send kXR_locate for path, retry until we get
+    a kXR_redirect (4004) pointing at expected_ds_port, or timeout."""
+    deadline = time.monotonic() + timeout
+    last_status = None
+    while time.monotonic() < deadline:
+        try:
+            sock = _xrd_handshake_and_login(host, redir_port)
+            try:
+                status, body = _send_locate_and_recv(sock, path)
+                last_status = status
+                if status == 4004 and len(body) >= 4:
+                    redirect_port = struct.unpack(">I", body[:4])[0]
+                    if redirect_port == expected_ds_port:
+                        return
+            finally:
+                sock.close()
+        except OSError:
+            pass
+        time.sleep(0.5)
+    pytest.fail(
+        f"Redirector on {redir_port} never redirected {path!r} to port "
+        f"{expected_ds_port} within {timeout}s (last status={last_status})"
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)
 def manager_nginx():
+    """Use the pre-launched dedicated manager nginx at MANAGER_PORT.
+
+    nginx_manager.conf uses MAP_A defaults of 127.0.0.1:11098 and
+    127.0.0.1:11099 (REF_PORT and REF_PORT+1).
+    """
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
 
-    # Prepare workspace
-    shutil.rmtree(WORKDIR, ignore_errors=True)
-    import server_control
+    _wait_port(MANAGER_PORT, "manager_nginx")
 
-    port = MANAGER_PORT
-
-    # Two mappings to exercise longest-prefix matching
-    map_a_host = "backend.example.org"
-    map_a_port = 54321
-    map_b_host = "backend2.example.org"
-    map_b_port = 12345
-
-    conf_text = f"""\
-worker_processes 1;
-error_log {{LOG_DIR}}/error.log info;
-pid       {{LOG_DIR}}/nginx.pid;
-
-events {{ worker_connections 128; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{port};
-        xrootd on;
-        xrootd_manager_map /maps {map_a_host}:{map_a_port};
-        xrootd_manager_map /maps/prefix {map_b_host}:{map_b_port};
-    }}
-}}
-"""
-
-    info = server_control.start_nginx_instance(
-        port=port, nginx_bin=NGINX_BIN,
-        conf_file="nginx_manager.conf",
-        template_kwargs={
-            "MAP_A_HOST": map_a_host,
-            "MAP_A_PORT": map_a_port,
-            "MAP_B_HOST": map_b_host,
-            "MAP_B_PORT": map_b_port,
-        },
-    )
-
-    try:
-        yield {
-            "proc": None,
-            "port": info["port"],
-            "map_a": (map_a_host, map_a_port),
-            "map_b": (map_b_host, map_b_port),
-            "stop": info["stop"],
-        }
-    finally:
-        try:
-            info["stop"]()
-        except Exception:
-            pass
+    yield {
+        "port":  MANAGER_PORT,
+        "map_a": ("127.0.0.1", 11098),
+        "map_b": ("127.0.0.1", 11099),
+    }
 
 
 def _xrd_handshake_and_login(host: str, port: int):
@@ -301,49 +356,39 @@ stream {{
 
 
 @pytest.fixture(scope="module")
-def cluster(tmp_path_factory):
-    """Two-tier cluster: redirector (manager_mode) + one data server.
+def cluster():
+    """Use the pre-launched cluster-redir + cluster-ds instances.
 
-    Yields a dict with redir_port, ds_port, cms_port, data_dir, and stop
-    callables for each instance.  Tests that stop the data server early
-    (TestClusterUnregister) must run last — they appear last in this file.
+    TestClusterUnregister.test_no_redirect_after_dataserver_stops calls
+    cluster["ds"]["stop"]() to permanently kill the DS; that's intentional
+    and it must run last (it appears last in this file).
     """
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    cms_port   = server_control._free_port()
-    redir_port = server_control._free_port()
-    ds_port    = server_control._free_port()
+    os.makedirs(CLUSTER_DS_DATA_ROOT, exist_ok=True)
+    Path(CLUSTER_DS_DATA_ROOT, "test.txt").write_text("hello from data server")
 
-    data_dir = tmp_path_factory.mktemp("cluster-data")
-    (data_dir / "test.txt").write_text("hello from data server")
-
-    redir = server_control.start_nginx_instance(
-        port=redir_port,
-        conf_text=_REDIRECTOR_CONF,
-        template_kwargs={"CMS_PORT": cms_port},
-    )
-
-    ds = server_control.start_nginx_instance(
-        port=ds_port,
-        conf_text=_DATASERVER_CONF,
-        template_kwargs={"CMS_PORT": cms_port, "DATA_DIR": str(data_dir)},
-    )
-
-    # Give the data server's CMS client time to connect and send LOGIN.
-    time.sleep(3.0)
+    _wait_port(CLUSTER_REDIR_PORT, "cluster-redir")
+    _wait_for_redirect(CLUSTER_REDIR_PORT, "/test.txt", CLUSTER_DS_PORT)
 
     yield {
-        "redir_port": redir_port,
-        "ds_port":    ds_port,
-        "cms_port":   cms_port,
-        "data_dir":   str(data_dir),
-        "redir":      redir,
-        "ds":         ds,
+        "redir_port": CLUSTER_REDIR_PORT,
+        "ds_port":    CLUSTER_DS_PORT,
+        "cms_port":   CLUSTER_CMS_PORT,
+        "data_dir":   CLUSTER_DS_DATA_ROOT,
+        "ds":         {"stop": lambda: _kill_nginx_dedicated("cluster-ds")},
     }
 
-    ds["stop"]()
-    redir["stop"]()
+    # test_no_redirect_after_dataserver_stops permanently kills cluster-ds;
+    # restart it so the next test run finds port 11162 alive.
+    import subprocess
+    _script = os.path.join(os.path.dirname(__file__), "manage_test_servers.sh")
+    subprocess.run(
+        [_script, "start-dedicated", "cluster-ds"],
+        capture_output=True,
+        timeout=30,
+    )
 
 
 class TestClusterProtocol:
@@ -462,50 +507,26 @@ stream {{
 
 
 @pytest.fixture(scope="module")
-def cluster_multi_path(tmp_path_factory):
-    """Redirector + one data server advertising two export path prefixes.
-
-    The data server registers with xrootd_cms_paths /data:/atlas so that
-    srv_path_matches must match both tokens but NOT other paths.
-    """
+def cluster_multi_path():
+    """Use the pre-launched cluster-mp-redir + cluster-mp-ds instances."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    cms_port   = server_control._free_port()
-    redir_port = server_control._free_port()
-    ds_port    = server_control._free_port()
+    mp_data = os.path.join(TEST_ROOT, "data-cluster-mp-ds")
+    os.makedirs(os.path.join(mp_data, "data"), exist_ok=True)
+    os.makedirs(os.path.join(mp_data, "atlas"), exist_ok=True)
+    Path(mp_data, "data", "test.txt").write_text("data area file")
+    Path(mp_data, "atlas", "test.txt").write_text("atlas area file")
 
-    data_dir = tmp_path_factory.mktemp("mp-data")
-    (data_dir / "data").mkdir()
-    (data_dir / "atlas").mkdir()
-    (data_dir / "data" / "test.txt").write_text("data area file")
-    (data_dir / "atlas" / "test.txt").write_text("atlas area file")
-
-    redir = server_control.start_nginx_instance(
-        port=redir_port,
-        conf_text=_REDIRECTOR_CONF,
-        template_kwargs={"CMS_PORT": cms_port},
-    )
-
-    ds = server_control.start_nginx_instance(
-        port=ds_port,
-        conf_text=_MULTIPATH_DATASERVER_CONF,
-        template_kwargs={"CMS_PORT": cms_port, "DATA_DIR": str(data_dir)},
-    )
-
-    time.sleep(3.0)
+    _wait_port(CLUSTER_MP_REDIR_PORT, "cluster-mp-redir")
+    _wait_for_redirect(CLUSTER_MP_REDIR_PORT, "/data/test.txt", CLUSTER_MP_DS_PORT)
 
     yield {
-        "redir_port": redir_port,
-        "ds_port":    ds_port,
-        "cms_port":   cms_port,
-        "data_dir":   str(data_dir),
-        "redir":      redir,
-        "ds":         ds,
+        "redir_port": CLUSTER_MP_REDIR_PORT,
+        "ds_port":    CLUSTER_MP_DS_PORT,
+        "cms_port":   CLUSTER_MP_CMS_PORT,
+        "data_dir":   mp_data,
     }
-
-    ds["stop"]()
-    redir["stop"]()
 
 
 class TestClusterMultiPath:
@@ -583,59 +604,25 @@ class TestClusterMultiPath:
 # ═══════════════════════════════════════════════════════════════════════════
 
 @pytest.fixture(scope="module")
-def cluster_multi_server(tmp_path_factory):
-    """Redirector + two data servers, both registering the same path prefix.
-
-    Exercises xrootd_srv_select: when multiple data servers match the
-    requested path, the redirector must redirect to one of them (not return
-    an error) and the chosen server must be a valid registered member.
-    """
+def cluster_multi_server():
+    """Use the pre-launched cluster-ms-redir + cluster-ms-ds1 + cluster-ms-ds2."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    cms_port    = server_control._free_port()
-    redir_port  = server_control._free_port()
-    ds1_port    = server_control._free_port()
-    ds2_port    = server_control._free_port()
+    os.makedirs(CLUSTER_MS_DS1_DATA_ROOT, exist_ok=True)
+    os.makedirs(CLUSTER_MS_DS2_DATA_ROOT, exist_ok=True)
+    Path(CLUSTER_MS_DS1_DATA_ROOT, "shared.txt").write_text("server 1 copy")
+    Path(CLUSTER_MS_DS2_DATA_ROOT, "shared.txt").write_text("server 2 copy")
 
-    data_dir1 = tmp_path_factory.mktemp("ms-data1")
-    data_dir2 = tmp_path_factory.mktemp("ms-data2")
-    (data_dir1 / "shared.txt").write_text("server 1 copy")
-    (data_dir2 / "shared.txt").write_text("server 2 copy")
-
-    redir = server_control.start_nginx_instance(
-        port=redir_port,
-        conf_text=_REDIRECTOR_CONF,
-        template_kwargs={"CMS_PORT": cms_port},
-    )
-
-    ds1 = server_control.start_nginx_instance(
-        port=ds1_port,
-        conf_text=_DATASERVER_CONF,
-        template_kwargs={"CMS_PORT": cms_port, "DATA_DIR": str(data_dir1)},
-    )
-
-    ds2 = server_control.start_nginx_instance(
-        port=ds2_port,
-        conf_text=_DATASERVER_CONF,
-        template_kwargs={"CMS_PORT": cms_port, "DATA_DIR": str(data_dir2)},
-    )
-
-    time.sleep(4.0)   # both servers need time to connect and send LOGIN
+    _wait_port(CLUSTER_MS_REDIR_PORT, "cluster-ms-redir")
+    _wait_for_redirect(CLUSTER_MS_REDIR_PORT, "/shared.txt", CLUSTER_MS_DS1_PORT)
 
     yield {
-        "redir_port": redir_port,
-        "ds1_port":   ds1_port,
-        "ds2_port":   ds2_port,
-        "cms_port":   cms_port,
-        "redir":      redir,
-        "ds1":        ds1,
-        "ds2":        ds2,
+        "redir_port": CLUSTER_MS_REDIR_PORT,
+        "ds1_port":   CLUSTER_MS_DS1_PORT,
+        "ds2_port":   CLUSTER_MS_DS2_PORT,
+        "cms_port":   CLUSTER_MS_CMS_PORT,
     }
-
-    ds1["stop"]()
-    ds2["stop"]()
-    redir["stop"]()
 
 
 class TestClusterMultiServer:
@@ -727,68 +714,38 @@ stream {{
 
 
 @pytest.fixture(scope="class")
-def cluster_multi_worker(tmp_path_factory):
-    """nginx with 2 workers pointing to a mock CMS listener.
+def cluster_multi_worker():
+    """Verify both nginx workers at CLUSTER_MW_PORT connect to the real CMS manager.
 
-    The mock TCP server accepts connections and tracks the count.  Because
-    each worker's CMS client connects independently after its init delay,
-    the mock must see one connection per worker.
+    The pre-started cluster-mw-mgr nginx at CLUSTER_MW_CMS_PORT acts as the
+    real CMS server.  With worker_processes 2 and xrootd_cms_interval 2, both
+    workers open independent TCP connections to the manager.  We verify by
+    counting ESTABLISHED connections to CLUSTER_MW_CMS_PORT via ss(8).
     """
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    cms_port = server_control._free_port()
-    redir_port = server_control._free_port()
+    def _count_cms_connections():
+        result = subprocess.run(["ss", "-tn"], capture_output=True, text=True)
+        return sum(
+            1 for line in result.stdout.splitlines()
+            if f":{CLUSTER_MW_CMS_PORT}" in line and "ESTAB" in line
+        )
 
-    connection_count = [0]
-    accepted_conns = []
-    count_lock = threading.Lock()
-    stop_event = threading.Event()
-
-    server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_sock.bind(("127.0.0.1", cms_port))
-    server_sock.listen(8)
-    server_sock.settimeout(0.2)
-
-    def _mock_cms_listener():
-        while not stop_event.is_set():
-            try:
-                conn, _ = server_sock.accept()
-                with count_lock:
-                    connection_count[0] += 1
-                    accepted_conns.append(conn)
-            except socket.timeout:
-                continue
-        for c in accepted_conns:
-            try:
-                c.close()
-            except Exception:
-                pass
-        server_sock.close()
-
-    listener_thread = threading.Thread(target=_mock_cms_listener, daemon=True)
-    listener_thread.start()
-
-    redir = server_control.start_nginx_instance(
-        port=redir_port,
-        conf_text=_MULTI_WORKER_CONF,
-        template_kwargs={"CMS_PORT": cms_port},
-    )
-
-    # NGX_XROOTD_CMS_INITIAL_DELAY is 1 s; allow extra slack for both workers.
-    time.sleep(2.5)
+    # Wait up to 30s for both workers to establish their CMS connections.
+    deadline = time.monotonic() + 30.0
+    count = 0
+    while time.monotonic() < deadline:
+        count = _count_cms_connections()
+        if count >= 2:
+            break
+        time.sleep(0.5)
 
     yield {
-        "redir_port": redir_port,
-        "cms_port": cms_port,
-        "connection_count": connection_count,
-        "redir": redir,
+        "redir_port":       CLUSTER_MW_PORT,
+        "cms_port":         CLUSTER_MW_CMS_PORT,
+        "connection_count": [count],
     }
-
-    redir["stop"]()
-    stop_event.set()
-    listener_thread.join(timeout=2.0)
 
 
 class TestPerWorkerCMS:
@@ -912,63 +869,25 @@ stream {{
 
 
 @pytest.fixture(scope="module")
-def three_tier(tmp_path_factory):
-    """Three-tier: meta-manager → sub-manager → leaf data server."""
+def three_tier():
+    """Use the pre-launched cluster-3t-meta + cluster-3t-sub + cluster-3t-leaf."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    meta_cms_port        = server_control._free_port()
-    meta_redir_port      = server_control._free_port()
-    sub_cms_port         = server_control._free_port()
-    sub_redir_port       = server_control._free_port()
-    sub_self_reg_port    = server_control._free_port()  # dummy listener for sub-manager's CMS login port field
-    leaf_ds_port         = server_control._free_port()
+    t3_data = os.path.join(TEST_ROOT, "data-cluster-3t-leaf")
+    os.makedirs(t3_data, exist_ok=True)
+    Path(t3_data, "test.txt").write_text("three-tier test file")
 
-    data_dir = tmp_path_factory.mktemp("three-tier-data")
-    (data_dir / "test.txt").write_text("three-tier test file")
-
-    # Tier 1: meta-manager (plain redirector)
-    meta = server_control.start_nginx_instance(
-        port=meta_redir_port,
-        conf_text=_REDIRECTOR_CONF,
-        template_kwargs={"CMS_PORT": meta_cms_port},
-    )
-
-    # Tier 2: sub-manager (redirector + registers with meta)
-    sub = server_control.start_nginx_instance(
-        port=sub_redir_port,
-        conf_text=_SUB_MANAGER_CONF,
-        template_kwargs={
-            "CMS_PORT":           sub_cms_port,
-            "META_CMS_PORT":      meta_cms_port,
-            "SELF_REGISTER_PORT": sub_self_reg_port,
-        },
-    )
-
-    # Tier 3: leaf data server (registers with sub-manager's CMS)
-    leaf = server_control.start_nginx_instance(
-        port=leaf_ds_port,
-        conf_text=_DATASERVER_CONF,
-        template_kwargs={"CMS_PORT": sub_cms_port, "DATA_DIR": str(data_dir)},
-    )
-
-    # Allow both CMS registration chains to complete.
-    time.sleep(4.0)
+    _wait_port(CLUSTER_3T_META_PORT, "cluster-3t-meta")
+    _wait_for_redirect(CLUSTER_3T_META_PORT, "/test.txt", CLUSTER_3T_SUB_PORT)
 
     yield {
-        "meta_port":      meta_redir_port,
-        "sub_port":       sub_redir_port,
-        "leaf_port":      leaf_ds_port,
-        "meta_cms_port":  meta_cms_port,
-        "sub_cms_port":   sub_cms_port,
-        "meta":           meta,
-        "sub":            sub,
-        "leaf":           leaf,
+        "meta_port":     CLUSTER_3T_META_PORT,
+        "sub_port":      CLUSTER_3T_SUB_PORT,
+        "leaf_port":     CLUSTER_3T_LEAF_PORT,
+        "meta_cms_port": CLUSTER_3T_META_CMS_PORT,
+        "sub_cms_port":  CLUSTER_3T_SUB_CMS_PORT,
     }
-
-    leaf["stop"]()
-    sub["stop"]()
-    meta["stop"]()
 
 
 class TestThreeTierTopology:
@@ -1063,8 +982,9 @@ stream {{
 
 def _run_mock_cms_select_server(cms_port: int, redirect_host: str,
                                 redirect_port: int, stop_event: threading.Event,
-                                locate_paths: list, select_sent: threading.Event):
-    """Accept one nginx CMS connection and serve kYR_login + kYR_locate → kYR_select."""
+                                locate_paths: list, select_sent: threading.Event,
+                                connected: threading.Event = None):
+    """Accept nginx CMS connections and serve kYR_login + kYR_locate → kYR_select."""
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind(("127.0.0.1", cms_port))
@@ -1078,6 +998,8 @@ def _run_mock_cms_select_server(cms_port: int, redirect_host: str,
             except socket.timeout:
                 continue
 
+            if connected is not None:
+                connected.set()
             conn.settimeout(10)
             try:
                 # Read and discard the LOGIN frame from nginx.
@@ -1111,45 +1033,33 @@ def _run_mock_cms_select_server(cms_port: int, redirect_host: str,
 
 
 @pytest.fixture(scope="module")
-def cluster_mock_cms(tmp_path_factory):
-    """nginx manager pointing to a Python mock CMS that returns kYR_select."""
+def cluster_mock_cms():
+    """Python mock CMS on CLUSTER_SELECT_CMS_PORT; pre-launched nginx at CLUSTER_SELECT_PORT."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    cms_port         = server_control._free_port()
-    redir_port       = server_control._free_port()
-    redirect_port    = server_control._free_port()  # the port select will advertise
-
     stop_event   = threading.Event()
     select_sent  = threading.Event()
+    connected    = threading.Event()
     locate_paths = []
 
     mock_thread = threading.Thread(
         target=_run_mock_cms_select_server,
-        args=(cms_port, "127.0.0.1", redirect_port,
-              stop_event, locate_paths, select_sent),
+        args=(CLUSTER_SELECT_CMS_PORT, "127.0.0.1", CLUSTER_SELECT_REDIRECT_PORT,
+              stop_event, locate_paths, select_sent, connected),
         daemon=True,
     )
     mock_thread.start()
-
-    redir = server_control.start_nginx_instance(
-        port=redir_port,
-        conf_text=_MOCK_CMS_MANAGER_CONF,
-        template_kwargs={"CMS_PORT": cms_port},
-    )
-
-    time.sleep(2.5)
+    assert connected.wait(25), "nginx never connected to mock CMS select server"
 
     yield {
-        "redir_port":     redir_port,
-        "redirect_port":  redirect_port,
-        "locate_paths":   locate_paths,
-        "select_sent":    select_sent,
-        "stop_event":     stop_event,
-        "redir":          redir,
+        "redir_port":    CLUSTER_SELECT_PORT,
+        "redirect_port": CLUSTER_SELECT_REDIRECT_PORT,
+        "locate_paths":  locate_paths,
+        "select_sent":   select_sent,
+        "stop_event":    stop_event,
     }
 
-    redir["stop"]()
     stop_event.set()
     mock_thread.join(timeout=3.0)
 
@@ -1227,49 +1137,36 @@ http {{
 
 
 @pytest.fixture(scope="module")
-def cluster_full_registry(tmp_path_factory):
-    """Redirector with 3 registry slots + 4 data servers → overflow on the 4th."""
+def cluster_full_registry():
+    """Use pre-launched cluster-slots-redir + 4 cluster-slots-ds instances."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    cms_port     = server_control._free_port()
-    redir_port   = server_control._free_port()
-    metrics_port = server_control._free_port()
+    ds_data_roots = [
+        CLUSTER_SLOTS_DS1_DATA_ROOT,
+        CLUSTER_SLOTS_DS2_DATA_ROOT,
+        CLUSTER_SLOTS_DS3_DATA_ROOT,
+        CLUSTER_SLOTS_DS4_DATA_ROOT,
+    ]
+    ds_ports = [
+        CLUSTER_SLOTS_DS1_PORT,
+        CLUSTER_SLOTS_DS2_PORT,
+        CLUSTER_SLOTS_DS3_PORT,
+        CLUSTER_SLOTS_DS4_PORT,
+    ]
+    for i, dr in enumerate(ds_data_roots):
+        os.makedirs(dr, exist_ok=True)
+        Path(dr, "file.txt").write_text(f"server {i}")
 
-    redir = server_control.start_nginx_instance(
-        port=redir_port,
-        conf_text=_REDIRECTOR_SLOTS_CONF,
-        template_kwargs={"CMS_PORT": cms_port, "METRICS_PORT": metrics_port},
-    )
-
-    data_servers = []
-    ds_ports = []
-    for i in range(4):
-        ds_port = server_control._free_port()
-        ds_ports.append(ds_port)
-        data_dir = tmp_path_factory.mktemp(f"full-reg-data{i}")
-        (data_dir / "file.txt").write_text(f"server {i}")
-        ds = server_control.start_nginx_instance(
-            port=ds_port,
-            conf_text=_DATASERVER_CONF,
-            template_kwargs={"CMS_PORT": cms_port, "DATA_DIR": str(data_dir)},
-        )
-        data_servers.append(ds)
-
-    # Allow all data servers time to connect and attempt LOGIN.
+    _wait_port(CLUSTER_SLOTS_REDIR_PORT, "cluster-slots-redir")
+    # Give all 4 data servers time to attempt CMS registration.
     time.sleep(5.0)
 
     yield {
-        "redir_port":   redir_port,
-        "metrics_port": metrics_port,
+        "redir_port":   CLUSTER_SLOTS_REDIR_PORT,
+        "metrics_port": CLUSTER_SLOTS_METRICS_PORT,
         "ds_ports":     ds_ports,
-        "redir":        redir,
-        "data_servers": data_servers,
     }
-
-    for ds in data_servers:
-        ds["stop"]()
-    redir["stop"]()
 
 
 class TestRegistryFullCounter:
@@ -1341,7 +1238,7 @@ class TestKyrGone:
 
     def test_path_unregistered_after_gone(self, cluster):
         """After kYR_gone for /gone-test, locate must stop redirecting there."""
-        gone_port = server_control._free_port()
+        gone_port = CLUSTER_GONE_DS_PORT
 
         # Register a mock data server for /gone-test.
         mock_conn = _mock_cms_connect_and_register(
@@ -1385,8 +1282,8 @@ class TestKyrGone:
 
     def test_other_paths_unaffected_by_gone(self, cluster):
         """kYR_gone for /gone-test2 must not remove /gone-other."""
-        port_a = server_control._free_port()
-        port_b = server_control._free_port()
+        port_a = CLUSTER_GONE_DS_PORT_A
+        port_b = CLUSTER_GONE_DS_PORT_B
 
         conn_a = _mock_cms_connect_and_register(cluster["cms_port"], port_a, "/gone-other")
         conn_b = _mock_cms_connect_and_register(cluster["cms_port"], port_b, "/gone-test2")
@@ -1432,13 +1329,9 @@ CMS_RR_TRY = 24  # kYR_try opcode
 
 def _run_mock_cms_try_server(cms_port, first_host, first_port,
                              second_host, second_port,
-                             stop_event, locate_paths, try_sent):
-    """Accept nginx CMS connection; reply to kYR_locate with kYR_try (2 entries).
-
-    Follows the same frame-reading loop as _run_mock_cms_select_server: read
-    LOGIN first, then loop consuming all frames and acting only on LOCATE.
-    PONG and LOAD frames are consumed by the loop and ignored.
-    """
+                             stop_event, locate_paths, try_sent,
+                             connected=None):
+    """Accept nginx CMS connections; reply to kYR_locate with kYR_try (2 entries)."""
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind(("127.0.0.1", cms_port))
@@ -1450,6 +1343,8 @@ def _run_mock_cms_try_server(cms_port, first_host, first_port,
                 conn, _ = srv.accept()
             except socket.timeout:
                 continue
+            if connected is not None:
+                connected.set()
             conn.settimeout(15)
             try:
                 sid, op, _pl = _cms_recv_frame(conn)
@@ -1479,46 +1374,34 @@ def _run_mock_cms_try_server(cms_port, first_host, first_port,
 
 
 @pytest.fixture(scope="module")
-def cluster_cms_try(tmp_path_factory):
-    """nginx manager whose mock CMS parent replies to kYR_locate with kYR_try."""
+def cluster_cms_try():
+    """Python mock CMS on CLUSTER_TRY_CMS_PORT; pre-launched nginx at CLUSTER_TRY_PORT."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    cms_port    = server_control._free_port()
-    redir_port  = server_control._free_port()
-    first_port  = server_control._free_port()   # nginx must redirect here
-    second_port = server_control._free_port()   # must be ignored
-
     stop_event   = threading.Event()
     try_sent     = threading.Event()
+    connected    = threading.Event()
     locate_paths = []
 
     threading.Thread(
         target=_run_mock_cms_try_server,
-        args=(cms_port,
-              "127.0.0.1", first_port,
-              "127.0.0.1", second_port,
-              stop_event, locate_paths, try_sent),
+        args=(CLUSTER_TRY_CMS_PORT,
+              "127.0.0.1", CLUSTER_TRY_FIRST_PORT,
+              "127.0.0.1", CLUSTER_TRY_SECOND_PORT,
+              stop_event, locate_paths, try_sent, connected),
         daemon=True,
     ).start()
-
-    redir = server_control.start_nginx_instance(
-        port=redir_port,
-        conf_text=_MOCK_CMS_MANAGER_CONF,
-        template_kwargs={"CMS_PORT": cms_port},
-    )
-    time.sleep(2.5)
+    assert connected.wait(25), "nginx never connected to mock CMS try server"
 
     yield {
-        "redir_port":   redir_port,
-        "first_port":   first_port,
-        "second_port":  second_port,
+        "redir_port":   CLUSTER_TRY_PORT,
+        "first_port":   CLUSTER_TRY_FIRST_PORT,
+        "second_port":  CLUSTER_TRY_SECOND_PORT,
         "locate_paths": locate_paths,
         "try_sent":     try_sent,
         "stop_event":   stop_event,
-        "redir":        redir,
     }
-    redir["stop"]()
     stop_event.set()
 
 
@@ -1598,55 +1481,36 @@ stream {{
 
 
 @pytest.fixture(scope="module")
-def cluster_cms_escalation(tmp_path_factory):
-    """Sub-manager with an empty registry escalates kYR_locate to a mock parent."""
+def cluster_cms_escalation():
+    """Python mock CMS on CLUSTER_ESC_CMS_PORT; pre-launched sub + leaf instances."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-    cms_port   = server_control._free_port()
-    sub_port   = server_control._free_port()
-    leaf_port  = server_control._free_port()
-    data_dir   = tmp_path_factory.mktemp("cms-escalation-leaf")
-    leaf_file  = data_dir / "escalate" / "file.dat"
+    leaf_file = Path(CLUSTER_ESC_LEAF_DATA_ROOT, "escalate", "file.dat")
     leaf_file.parent.mkdir(parents=True, exist_ok=True)
     leaf_file.write_text("cms escalation target")
 
     stop_event   = threading.Event()
     select_sent  = threading.Event()
+    connected    = threading.Event()
     locate_paths = []
 
     mock_thread = threading.Thread(
         target=_run_mock_cms_select_server,
-        args=(cms_port, "127.0.0.1", leaf_port,
-              stop_event, locate_paths, select_sent),
+        args=(CLUSTER_ESC_CMS_PORT, "127.0.0.1", CLUSTER_ESC_LEAF_PORT,
+              stop_event, locate_paths, select_sent, connected),
         daemon=True,
     )
     mock_thread.start()
-
-    leaf = server_control.start_nginx_instance(
-        port=leaf_port,
-        conf_text=_LEAF_STANDALONE_CONF,
-        template_kwargs={"DATA_DIR": str(data_dir)},
-    )
-    sub = server_control.start_nginx_instance(
-        port=sub_port,
-        conf_text=_MOCK_CMS_MANAGER_CONF,
-        template_kwargs={"CMS_PORT": cms_port},
-    )
-
-    time.sleep(2.5)
+    assert connected.wait(25), "nginx never connected to mock CMS escalation server"
 
     yield {
-        "sub_port": sub_port,
-        "leaf_port": leaf_port,
+        "sub_port":    CLUSTER_ESC_SUB_PORT,
+        "leaf_port":   CLUSTER_ESC_LEAF_PORT,
         "locate_paths": locate_paths,
         "select_sent": select_sent,
-        "leaf": leaf,
-        "sub": sub,
     }
 
-    sub["stop"]()
-    leaf["stop"]()
     stop_event.set()
     mock_thread.join(timeout=3.0)
 

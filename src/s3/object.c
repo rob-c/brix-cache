@@ -1,17 +1,48 @@
 #include "s3.h"
+#include "../cache/open.h"
 #include "../compat/http_file_response.h"
 #include "../compat/range.h"
 #include "../dashboard/dashboard_tracking.h"
+#include "../fs/vfs.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 /* -------------------------------------------------------------------------
  * GET /bucket/key - file download with Range support
  * ---------------------------------------------------------------------- */
+
+static void
+s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+{
+    ngx_http_s3_req_ctx_t *s3ctx;
+
+    ngx_memzero(vctx, sizeof(*vctx));
+    vctx->pool = r->pool;
+    vctx->log = r->connection->log;
+    vctx->metrics_proto = XROOTD_PROTO_S3;
+    vctx->root_canon = cf->common.root_canon;
+    vctx->cache_root_canon = cf->cache_root_canon;
+    vctx->cache_enabled = (cf->cache_root_canon[0] != '\0') ? 1 : 0;
+    vctx->allow_write = cf->common.allow_write ? 1 : 0;
+    vctx->resolved.resolved.data = (u_char *) fs_path;
+    vctx->resolved.resolved.len = strlen(fs_path);
+    vctx->resolved.is_confined = 1;
+
+#if (NGX_HTTP_SSL)
+    vctx->is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    if (s3ctx != NULL) {
+        vctx->identity = s3ctx->identity;
+    }
+}
 
 /* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The handler opens a confined fd, stat's the file to determine size/type, parses any Range header, sets appropriate status/headers (200 OK or 206 Partial Content with Content-Range), then delegates body transfer to xrootd_http_send_file_range(). Three OOM/error paths all increment internal_error metric and return NGX_HTTP_INTERNAL_SERVER_ERROR. */
 
@@ -33,33 +64,40 @@ s3_handle_get(ngx_http_request_t *r,
               const char *fs_path,
               ngx_http_s3_loc_conf_t *cf)
 {
-    struct stat         sb;
-    ngx_fd_t            fd;
+    xrootd_vfs_ctx_t    vctx;
+    xrootd_vfs_file_t  *fh;
+    xrootd_vfs_stat_t   vst;
+    ngx_fd_t            send_fd;
     off_t               range_start = 0, range_end = 0, send_len;
     int                 has_range = 0;
+    int                 vfs_err;
     ngx_int_t           rc;
     char                identity[128];
+    ngx_http_s3_req_ctx_t *s3ctx;
+    const char         *subject;
+    ngx_uint_t          from_cache;
+    const char         *cache_path;
 
-    fd = xrootd_open_confined_canon(r->connection->log, cf->common.root_canon,
-                                    fs_path, O_RDONLY, 0);
-    if (fd == NGX_INVALID_FILE) {
-        if (ngx_errno == NGX_ENOENT || ngx_errno == NGX_ENOTDIR) {
+    s3_vfs_ctx(r, fs_path, cf, &vctx);
+    fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+    if (fh == NULL) {
+        if (vfs_err == ENOENT || vfs_err == ENOTDIR) {
             XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
             return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                      "NoSuchKey", "The specified key does not exist.");
         }
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return (ngx_int_t) xrootd_http_errno_to_status(ngx_errno);
+        return (ngx_int_t) xrootd_http_errno_to_status(vfs_err);
     }
 
-    if (fstat(fd, &sb) != 0) {
-        ngx_close_file(fd);
+    if (xrootd_vfs_file_stat(fh, &vst) != NGX_OK) {
+        xrootd_vfs_close(fh, r->connection->log);
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (S_ISDIR(sb.st_mode)) {
-        ngx_close_file(fd);
+    if (vst.is_directory) {
+        xrootd_vfs_close(fh, r->connection->log);
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchKey", "The specified key does not exist.");
@@ -71,10 +109,10 @@ s3_handle_get(ngx_http_request_t *r,
         xrootd_http_parse_range(
             r->headers_in.range ? r->headers_in.range->value.data : NULL,
             r->headers_in.range ? r->headers_in.range->value.len : 0,
-            sb.st_size, &rng);
+            vst.size, &rng);
 
         if (rng.present && !rng.satisfiable) {
-            ngx_close_file(fd);
+            xrootd_vfs_close(fh, r->connection->log);
             r->headers_out.status = NGX_HTTP_RANGE_NOT_SATISFIABLE;
             r->headers_out.content_length_n = 0;
             XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_UNSATISFIED]);
@@ -84,7 +122,7 @@ s3_handle_get(ngx_http_request_t *r,
 
         range_start = rng.start;
         range_end   = rng.end;
-        send_len    = (sb.st_size > 0) ? (range_end - range_start + 1) : 0;
+        send_len    = (vst.size > 0) ? (range_end - range_start + 1) : 0;
         has_range   = rng.present;
     }
 
@@ -94,17 +132,23 @@ s3_handle_get(ngx_http_request_t *r,
         XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_FULL]);
     }
 
-    if (xrootd_http_set_file_headers(r, sb.st_mtime, sb.st_size, send_len,
+    if (xrootd_http_set_file_headers(r, vst.mtime, vst.size, send_len,
                                      NULL, 0,
                                      has_range, range_start, range_end)
         != NGX_OK)
     {
-        ngx_close_file(fd);
+        xrootd_vfs_close(fh, r->connection->log);
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (cf->access_key.len > 0 && cf->access_key.data != NULL) {
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    subject = s3ctx != NULL ? xrootd_identity_subject_cstr(s3ctx->identity)
+                            : "";
+    if (subject[0] != '\0') {
+        ngx_cpystrn((u_char *) identity, (u_char *) subject,
+                    sizeof(identity));
+    } else if (cf->access_key.len > 0 && cf->access_key.data != NULL) {
         size_t n = cf->access_key.len < sizeof(identity) - 1
                    ? cf->access_key.len
                    : sizeof(identity) - 1;
@@ -119,10 +163,31 @@ s3_handle_get(ngx_http_request_t *r,
         XROOTD_XFER_PROTO_S3, XROOTD_XFER_DIR_READ, "GetObject",
         (int64_t) send_len);
 
-    rc = xrootd_http_send_file_range(r, fd, fs_path, range_start, send_len, 1);
+    from_cache = xrootd_vfs_file_from_cache(fh);
+    cache_path = xrootd_vfs_file_path(fh);
+    send_fd = dup(xrootd_vfs_file_fd(fh));
+    if (send_fd == NGX_INVALID_FILE) {
+        xrootd_vfs_close(fh, r->connection->log);
+        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    xrootd_vfs_close(fh, r->connection->log);
+
+    rc = xrootd_http_send_file_range(r, send_fd, fs_path, range_start,
+                                     send_len, 1);
     if (rc != NGX_ERROR && !r->header_only) {
         xrootd_dashboard_http_add(r, (ngx_atomic_int_t) send_len);
         XROOTD_S3_METRIC_ADD(bytes_tx_total, (size_t) send_len);
+        if (from_cache && rc == NGX_OK && send_len > 0) {
+            (void) xrootd_cache_record_access(cache_path, (size_t) send_len,
+                                              r->connection->log);
+        }
+        if (r->connection && r->connection->sockaddr
+            && r->connection->sockaddr->sa_family == AF_INET6) {
+            XROOTD_S3_METRIC_ADD(bytes_tx_ipv6_total, (size_t) send_len);
+        } else {
+            XROOTD_S3_METRIC_ADD(bytes_tx_ipv4_total, (size_t) send_len);
+        }
     } else if (rc == NGX_ERROR) {
         xrootd_dashboard_http_error(r, "s3 GetObject send failed");
         xrootd_dashboard_http_finish(r);
@@ -141,12 +206,11 @@ s3_handle_head(ngx_http_request_t *r,
                const char *fs_path,
                ngx_http_s3_loc_conf_t *cf)
 {
-    struct stat  sb;
-    int          fd;
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_stat_t vst;
 
-    fd = xrootd_open_confined_canon(r->connection->log, cf->common.root_canon,
-                                    fs_path, O_RDONLY, 0);
-    if (fd < 0) {
+    s3_vfs_ctx(r, fs_path, cf, &vctx);
+    if (xrootd_vfs_stat(&vctx, &vst) != NGX_OK) {
         if (errno == ENOENT || errno == ENOTDIR) {
             XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
             return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
@@ -156,30 +220,21 @@ s3_handle_head(ngx_http_request_t *r,
         return (ngx_int_t) xrootd_http_errno_to_status(errno);
     }
 
-    if (fstat(fd, &sb) != 0) {
-        ngx_close_file(fd);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (S_ISDIR(sb.st_mode)) {
-        ngx_close_file(fd);
+    if (vst.is_directory) {
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchKey", "The specified key does not exist.");
     }
 
-    if (xrootd_http_set_file_headers(r, sb.st_mtime, sb.st_size, sb.st_size,
+    if (xrootd_http_set_file_headers(r, vst.mtime, vst.size, vst.size,
                                      NULL, 0,
                                      0, 0, 0) != NGX_OK)
     {
-        ngx_close_file(fd);
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     ngx_http_send_header(r);
-    ngx_close_file(fd);
     return ngx_http_send_special(r, NGX_HTTP_LAST);
 }
 /*

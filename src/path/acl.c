@@ -137,4 +137,13 @@ xrootd_check_vo_acl(ngx_log_t *log, const char *resolved_path,
 
     return NGX_ERROR;
 }
+
+ngx_int_t
+xrootd_check_vo_acl_identity(ngx_log_t *log, const char *resolved_path,
+                             ngx_array_t *vo_rules,
+                             const xrootd_identity_t *identity)
+{
+    return xrootd_check_vo_acl(log, resolved_path, vo_rules,
+                               xrootd_identity_vo_csv_cstr(identity));
+}
 /* ---- HOW: Checks vo_rules==NULL || vo_rules->nelts==0 → returns NGX_OK (no rules = unrestricted). Calls xrootd_find_vo_rule(resolved_path, vo_rules) — if rule==NULL returns NGX_OK (no matching rule = unrestricted). If rule found checks xrootd_vo_list_contains(vo_list, rule->vo.data) — if returns 1 (client has required VO) returns NGX_OK. Otherwise: sanitizes resolved_path into safe_path[512], rule->vo.data into safe_vo[128] via xrootd_sanitize_log_string(); logs warn-level error with "VO ACL denied path=... required_vo=... client_vos=..." format; returns NGX_ERROR. */

@@ -71,6 +71,12 @@ xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
     } else if (conf->auth == XROOTD_AUTH_SSS) {
         authmethod = "sss";
         identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
+    } else if (conf->auth == XROOTD_AUTH_UNIX) {
+        authmethod = "unix";
+        identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
+    } else if (conf->auth == XROOTD_AUTH_KRB5) {
+        authmethod = "krb5";
+        identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
     } else {
         authmethod = "anon";
         identity = "-";

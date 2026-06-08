@@ -29,6 +29,7 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd)
     u_char          *body = NULL;
     uint16_t         status;
     uint32_t         dlen;
+    int              rc = -1;
 
     if (conf->certificate.len == 0 || conf->certificate_key.len == 0
         || conf->certificate.len >= sizeof(cert_path)
@@ -80,6 +81,24 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd)
         goto done;
     }
 
+    {
+        xrootd_tpc_credential_t cred;
+
+        ngx_memzero(&cred, sizeof(cred));
+        cred.type = XROOTD_TPC_CREDENTIAL_PROXY;
+        cred.proxy_pem.data = cert_path;
+        cred.proxy_pem.len = conf->certificate.len;
+
+        if (xrootd_tpc_credential_validate(
+                &cred, t->c != NULL ? t->c->log : NULL) != NGX_OK)
+        {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC GSI credential validation failed");
+            t->xrd_error = kXR_AuthFailed;
+            goto done;
+        }
+    }
+
     /* ---- round 1: kXGC_certreq ---- */
     {
         size_t crlen = 4 + 4 + 8;
@@ -122,6 +141,8 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd)
         goto done;
     }
 
+    rc = 0;
+
 done:
     /* Cleanup — this label was in the original gsi_outbound.c before splitting. */
     if (cbio) BIO_free(cbio);
@@ -130,5 +151,5 @@ done:
     if (pkey) EVP_PKEY_free(pkey);
     if (certreq) free(certreq);
     if (body) free(body);
-    return NGX_OK;
+    return rc;
 }
