@@ -313,6 +313,10 @@ ngx_int_t webdav_handle_copy(ngx_http_request_t *r);
 void webdav_handle_lock(ngx_http_request_t *r);
 ngx_int_t webdav_handle_unlock(ngx_http_request_t *r);
 
+/* Macaroon token issuance endpoints (macaroon_endpoint.c) */
+ngx_int_t webdav_handle_macaroon_discovery(ngx_http_request_t *r);
+void webdav_handle_macaroon_token(ngx_http_request_t *r);
+
 /* Dead WebDAV properties persisted as filesystem extended attributes. */
 ngx_int_t webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local, const char *xml, size_t xml_len);

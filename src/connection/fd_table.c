@@ -302,6 +302,10 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     file->wt_bytes_written = 0;
     file->wt_flush_task    = NULL;
     file->wt_flush_pending = 0;
+    file->wrts_enabled     = 0;
+    file->wrts_head        = 0;
+    file->wrts_count       = 0;
+    file->wrts_gen         = 0;
 }
 
 /* ---- xrootd_close_all_files — teardown every allocated file handle slot ----

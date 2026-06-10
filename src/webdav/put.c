@@ -64,6 +64,10 @@ webdav_put_aio_done(ngx_event_t *ev)
     ngx_http_request_t *r = t->r;
     ngx_int_t           status;
 
+    /* Balance the r->main->count++ in webdav_handle_put_body that keeps the
+     * request alive across the async thread dispatch. */
+    r->main->count--;
+
     if (t->nwritten < 0 || (size_t) t->nwritten < t->len) {
 
         xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR,

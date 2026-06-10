@@ -1,21 +1,189 @@
 /*
- * src/response/async.c — Async operation handlers (deprecated, for protocol completeness).
+ * src/response/async.c — Native kXR_attn generation and deprecated async handlers.
  *
- * WHAT: Handlers for deprecated async operations (5000–5008). All return
- *       kXR_Unsupported since these operations are marked "No longer supported"
- *       in canonical XRootD v5.2.0. The implementation is minimal but complete.
+ * WHAT: Implements native kXR_attn (4001) server-push frames for two active
+ *       action codes: kXR_asyncms (5002) for unsolicited text notifications and
+ *       kXR_asynresp (5008) for deferred response delivery after kXR_waitresp.
+ *       Also provides a generic xrootd_send_attn() wrapper.
+ *       Deprecated action codes 5000-5007 (except 5002 and 5008) all return
+ *       kXR_Unsupported per the v5.2.0 spec ("No longer supported").
  *
- * WHY: Protocol compliance. While deprecated, proper handling ensures robust
- *      backward compatibility and correct error messages to legacy clients.
+ * WHY: kXR_attn is the XRootD server-push mechanism. The proxy relay path
+ *      already forwards upstream kXR_attn frames transparently (events_read.c).
+ *      This module provides the native generation path so the server itself can
+ *      push notifications — required for kXR_notify on kXR_prepare and as the
+ *      foundation for kXR_recoverWrts write-journal recovery.
  *
- * NOTE: Native kXR_attn (4001) generation is already supported via the proxy
- *       relay mechanism in proxy/events_read.c. This module completes the
- *       protocol by declaring all async operations as unsupported.
+ * Wire layout for kXR_asyncms / kXR_asynresp:
+ *
+ *   [outer ServerResponseHdr: 8B]
+ *       streamid[2]  — {0,0} for asyncms; deferred streamid for asynresp
+ *       status[2]    — kXR_attn (4001)
+ *       dlen[4]      — 4 + 4 + 8 + payload_len = 16 + payload_len
+ *   [actnum: 4B BE]  — kXR_asyncms (5002) or kXR_asynresp (5008)
+ *   [reserved: 4B]   — zeroes
+ *   [inner ServerResponseHdr: 8B]
+ *       streamid[2]  — {0,0} for asyncms; deferred streamid for asynresp
+ *       status[2]    — kXR_ok (asyncms) or actual resp status (asynresp)
+ *       dlen[4]      — payload length
+ *   [payload: variable]
  */
 
 #include "ngx_xrootd_module.h"
+#include "async.h"
 
-/* Async operation handlers — all deprecated, return kXR_Unsupported */
+/* ------------------------------------------------------------------ */
+/* Internal helpers                                                     */
+/* ------------------------------------------------------------------ */
+
+static const u_char kAttnZeroStreamid[2] = {0, 0};
+
+/* Minimum body size shared by asyncms and asynresp:
+ *   actnum[4] + reserved[4] + inner_hdr[8] = 16 bytes */
+#define ATTN_BODY_OVERHEAD  16
+
+/* ------------------------------------------------------------------ */
+/* Frame-size query and buffer builder                                  */
+/* ------------------------------------------------------------------ */
+
+size_t
+xrootd_attn_asyncms_frame_len(size_t msglen)
+{
+    return XRD_RESPONSE_HDR_LEN + ATTN_BODY_OVERHEAD + msglen;
+}
+
+void
+xrootd_build_attn_asyncms_frame(u_char *buf, const char *msg, size_t msglen)
+{
+    uint32_t  outer_bodylen = (uint32_t)(ATTN_BODY_OVERHEAD + msglen);
+    uint32_t  act_be        = htonl((uint32_t) kXR_asyncms);
+    u_char   *p             = buf;
+
+    /* Outer kXR_attn header: streamid={0,0} */
+    xrootd_build_resp_hdr(kAttnZeroStreamid, kXR_attn, outer_bodylen,
+                          (ServerResponseHdr *) p);
+    p += XRD_RESPONSE_HDR_LEN;
+
+    /* actnum = kXR_asyncms */
+    ngx_memcpy(p, &act_be, 4);
+    p += 4;
+
+    /* reserved[4] */
+    ngx_memset(p, 0, 4);
+    p += 4;
+
+    /* Inner ServerResponseHdr: streamid={0,0}, status=kXR_ok, dlen=msglen */
+    xrootd_build_resp_hdr(kAttnZeroStreamid, kXR_ok, (uint32_t) msglen,
+                          (ServerResponseHdr *) p);
+    p += XRD_RESPONSE_HDR_LEN;
+
+    /* Notification text */
+    if (msglen > 0 && msg != NULL) {
+        ngx_memcpy(p, msg, msglen);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Native kXR_attn send functions                                       */
+/* ------------------------------------------------------------------ */
+
+ngx_int_t
+xrootd_send_attn_asyncms(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    const char *msg, size_t msglen)
+{
+    size_t   total;
+    u_char  *buf;
+
+    total = xrootd_attn_asyncms_frame_len(msglen);
+    buf   = ngx_palloc(c->pool, total);
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    xrootd_build_attn_asyncms_frame(buf, msg, msglen);
+
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        "xrootd: sending kXR_attn asyncms (%uz bytes)", msglen);
+
+    return xrootd_queue_response(ctx, c, buf, total);
+}
+
+ngx_int_t
+xrootd_send_attn_asynresp(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    const u_char *deferred_streamid,
+    uint16_t resp_status,
+    const void *body, uint32_t bodylen)
+{
+    uint32_t  outer_bodylen = (uint32_t) ATTN_BODY_OVERHEAD + bodylen;
+    size_t    total         = XRD_RESPONSE_HDR_LEN + outer_bodylen;
+    uint32_t  act_be        = htonl((uint32_t) kXR_asynresp);
+    u_char   *buf, *p;
+
+    buf = ngx_palloc(c->pool, total);
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    p = buf;
+
+    /* Outer kXR_attn header: use the deferred request's stream ID */
+    xrootd_build_resp_hdr(deferred_streamid, kXR_attn, outer_bodylen,
+                          (ServerResponseHdr *) p);
+    p += XRD_RESPONSE_HDR_LEN;
+
+    /* actnum = kXR_asynresp */
+    ngx_memcpy(p, &act_be, 4);
+    p += 4;
+
+    /* reserved[4] */
+    ngx_memset(p, 0, 4);
+    p += 4;
+
+    /* Inner ServerResponseHdr: deferred streamid, actual status, body length */
+    xrootd_build_resp_hdr(deferred_streamid, resp_status, bodylen,
+                          (ServerResponseHdr *) p);
+    p += XRD_RESPONSE_HDR_LEN;
+
+    /* Response body */
+    if (bodylen > 0 && body != NULL) {
+        ngx_memcpy(p, body, bodylen);
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+        "xrootd: sending kXR_attn asynresp status=%d bodylen=%u",
+        (int) resp_status, bodylen);
+
+    return xrootd_queue_response(ctx, c, buf, total);
+}
+
+ngx_int_t
+xrootd_send_attn(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    int actnum, const char *msg, size_t msglen)
+{
+    uint32_t  bodylen = (uint32_t)(4 + msglen);
+    size_t    total   = XRD_RESPONSE_HDR_LEN + bodylen;
+    uint32_t  act_be  = htonl((uint32_t) actnum);
+    u_char   *buf;
+
+    buf = ngx_palloc(c->pool, total);
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_attn, bodylen,
+                          (ServerResponseHdr *) buf);
+
+    ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &act_be, 4);
+    if (msglen > 0 && msg != NULL) {
+        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + 4, msg, msglen);
+    }
+
+    return xrootd_queue_response(ctx, c, buf, total);
+}
+
+/* ------------------------------------------------------------------ */
+/* Deprecated async operation handlers — all retired in v5.2.0         */
+/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_handle_async_ab(xrootd_ctx_t *ctx, ngx_connection_t *c)

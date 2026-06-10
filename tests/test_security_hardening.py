@@ -19,30 +19,15 @@ from XRootD import client
 from XRootD.client.flags import DirListFlags, MkDirFlags
 
 import pytest
-from settings import DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
+from settings import DATA_ROOT, LOG_DIR, NGINX_ANON_PORT, SERVER_HOST
 
 
-ANON_URL = ""
-ANON_HOST = SERVER_HOST
-ANON_PORT = 0
-DATA_DIR = DEFAULT_DATA_ROOT
-LOG_DIR = ""
-ANON_ACCESS_LOG = ""
-ERROR_LOG = ""
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants from the shared test environment."""
-    global ANON_URL, ANON_HOST, ANON_PORT, DATA_DIR, LOG_DIR
-    global ANON_ACCESS_LOG, ERROR_LOG
-    ANON_URL  = test_env["anon_url"]
-    ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
-    DATA_DIR  = test_env["data_dir"]
-    LOG_DIR   = test_env["log_dir"]
-    ANON_ACCESS_LOG = os.path.join(LOG_DIR, "xrootd_access_anon.log")
-    ERROR_LOG = os.path.join(LOG_DIR, "error.log")
+ANON_URL        = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+ANON_HOST       = SERVER_HOST
+ANON_PORT       = NGINX_ANON_PORT
+DATA_DIR        = DATA_ROOT
+ANON_ACCESS_LOG = os.path.join(LOG_DIR, "xrootd_access_anon.log")
+ERROR_LOG       = os.path.join(LOG_DIR, "error.log")
 
 
 kXR_OK = 0

@@ -77,6 +77,7 @@
 
 #include "ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
+#include "wrts_journal.h"
 
 /* ---- Payload decoding helper ----
  *
@@ -200,6 +201,21 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 									  XROOTD_OP_WRITE, &rc)) {
 		return rc;
 	}
+
+	/* ---- kXR_recoverWrts replay detection ----
+	 *
+	 * If the journal already covers this (offset, dlen) range, this is a
+	 * replayed write from a recovering XrdCl client.  Note: pgwrite dlen
+	 * includes CRC overhead, but we only care about the target range.
+	 * The decode loop handles exact byte counts; for replay check we
+	 * use the requested offset and the expected flat size.
+	 */
+	if (ctx->files[idx].wrts_enabled) {
+		/* We don't have flat_sz yet, so we use a conservative estimate or
+		 * check after decode. Checking after decode is safer since we know
+		 * exactly what was recovered. */
+	}
+
 	if (offset < 0 || dlen <= XRD_PGWRITE_CKSZ) {
 		snprintf(write_detail, sizeof(write_detail), "%lld+%zu",
 				 (long long) offset, dlen);
@@ -233,6 +249,17 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 							  write_detail, 0, status, msg, 0);
 			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITE);
 			return xrootd_send_error(ctx, c, status, msg);
+		}
+
+		/* ---- kXR_recoverWrts replay detection (post-decode) ---- */
+		if (ctx->files[idx].wrts_enabled &&
+		    xrootd_wrts_is_replay(&ctx->files[idx], offset, (uint32_t) flat_sz))
+		{
+			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+			    "xrootd: pgwrite recovery replay skip offset=%lld len=%zu",
+			    (long long) offset, flat_sz);
+			XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
+			return xrootd_send_pgwrite_status(ctx, c, offset + (int64_t) flat_sz);
 		}
 
 		{
@@ -300,6 +327,11 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 							  write_detail, 1, 0, NULL, total_written);
 		}
 		XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
+
+		/* Record the committed write in the recovery journal. */
+		if (ctx->files[idx].wrts_enabled) {
+			xrootd_wrts_record(&ctx->files[idx], offset, (uint32_t) nw);
+		}
 
 		return xrootd_send_pgwrite_status(ctx, c, write_offset);
 	}

@@ -17,7 +17,7 @@ import zlib
 
 import pytest
 
-from settings import SERVER_HOST
+from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
 
 def _crc32c(data: bytes) -> int:
@@ -51,17 +51,9 @@ kXR_posc = 0x1000
 
 
 ANON_HOST = SERVER_HOST
-ANON_PORT = 11094
-DATA_DIR = ""
+ANON_PORT = NGINX_ANON_PORT
+DATA_DIR  = DATA_ROOT
 PREFIX = "_opcode_flag_"
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global ANON_HOST, ANON_PORT, DATA_DIR
-    ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
-    DATA_DIR = test_env["data_dir"]
 
 
 @pytest.fixture(autouse=True)

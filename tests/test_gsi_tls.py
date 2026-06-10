@@ -25,54 +25,29 @@ import tempfile
 import pytest
 from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, StatInfoFlags
-from settings import CA_DIR as DEFAULT_CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD
+from settings import (
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    NGINX_GSI_TLS_PORT,
+    PROXY_STD,
+    SERVER_HOST,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-GSI_TLS_URL = ""
-GSI_URL     = ""
-ANON_URL    = ""
-
-DATA_ROOT = DEFAULT_DATA_ROOT
-CA_DIR    = DEFAULT_CA_DIR
-PROXY_PEM = PROXY_STD
+GSI_TLS_URL = f"roots://{SERVER_HOST}:{NGINX_GSI_TLS_PORT}"
+GSI_URL     = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
+ANON_URL    = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+PROXY_PEM   = PROXY_STD
 
 TEST_FILES = {
     "test.txt":   {"size": 24,      "content": b"hello from nginx-xrootd\n"},
     "random.bin": {"size": 5242880, "content": None},
 }
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants and set GSI env vars from the shared test environment."""
-    global GSI_TLS_URL, GSI_URL, ANON_URL, DATA_ROOT, CA_DIR, PROXY_PEM
-    GSI_TLS_URL = test_env["gsi_tls_url"]
-    GSI_URL     = test_env["gsi_url"]
-    ANON_URL    = test_env["anon_url"]
-    DATA_ROOT   = test_env["data_dir"]
-    CA_DIR      = test_env["ca_dir"]
-    PROXY_PEM   = test_env["proxy_pem"]
-    old = {}
-    for k, v in [("X509_CERT_DIR", CA_DIR), ("X509_USER_PROXY", PROXY_PEM),
-                 ("XrdSecPROTOCOL", None)]:
-        old[k] = os.environ.get(k)
-        if v is not None:
-            os.environ[k] = v
-        else:
-            os.environ.pop(k, None)
-    yield
-    for k, v in old.items():
-        if v is None:
-            os.environ.pop(k, None)
-        else:
-            os.environ[k] = v
 
 
 @pytest.fixture(scope="module")

@@ -35,23 +35,8 @@ from settings import (
 
 ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global ANON_URL, ANON_HOST, ANON_PORT, CA_DIR, DATA_ROOT, PROXY_PEM
-    ANON_URL  = test_env["anon_url"]
-    ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
-    CA_DIR    = test_env["ca_dir"]
-    DATA_ROOT = test_env["data_dir"]
-    PROXY_PEM = test_env["proxy_pem"]
-    os.environ["X509_CERT_DIR"]  = CA_DIR
-    os.environ["X509_USER_PROXY"] = PROXY_PEM
+ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+PROXY_PEM = PROXY_STD
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +252,9 @@ class TestAioPgRead:
     def test_pgread_integrity(self):
         """pgread via raw socket must return kXR_status with interleaved CRC32c.
 
+        Wire format per page: [CRC32c(4)][data(page_size)] — digest before data,
+        matching AsyncPageReader::InitIOV() in XrdClAsyncPageReader.hh.
+
         The Python XRootD client does not expose kXR_pgread, so we use a raw
         socket.  The server sends kXR_status (4007) with the response body:
           ServerResponseBody_Status (16 B) | pgRead offset (8 B) |
@@ -318,18 +306,27 @@ class TestAioPgRead:
                + struct.pack(">I", 0))
         sock.sendall(hdr)
 
-        # Response: kXR_status (4007), body = Status(16B) + pgRead offset(8B) + encoded
+        # kXR_status (4007) framing for pgread:
+        #   hdr.dlen  = 24  (sizeof(bdy) + sizeof(pgr) — does NOT include page data)
+        #   bdy.dlen  = total page data size (client reads this many more bytes next)
+        # So _read_response reads the 24-byte status header; page data follows separately.
         st, body = _read_response(sock)
         assert st == kXR_status, f"pgread expected kXR_status (4007), got {st}"
 
-        # Encoded data starts at offset 24 (skip 16B Status + 8B pgRead offset)
-        encoded = body[24:]
+        # bdy.dlen is at offset 12 within body:
+        #   crc32c(4) + streamID(2) + requestid(1) + resptype(1) + reserved(4) + dlen(4)
+        inner_dlen = struct.unpack(">I", body[12:16])[0]
+        encoded = _recv_exact(sock, inner_dlen)
+
+        # Wire format per page: [CRC32c(4)][data(page_size)]
+        # AsyncPageReader reads digest first, then page data.
         actual_data = b""
         pos = 0
         while len(actual_data) < size and pos < len(encoded):
             page_data_len = min(page_size, size - len(actual_data))
+            pos += 4  # skip the 4-byte CRC32c before each page
             actual_data += encoded[pos:pos + page_data_len]
-            pos += page_data_len + 4  # skip the 4-byte CRC32c after each page
+            pos += page_data_len
 
         assert actual_data == content, \
             f"pgread data mismatch: got {len(actual_data)} bytes, expected {len(content)}"

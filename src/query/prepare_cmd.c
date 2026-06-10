@@ -43,7 +43,7 @@
 ngx_int_t
 xrootd_prepare_invoke_command(ngx_log_t *log,
     ngx_stream_xrootd_srv_conf_t *conf,
-    const char **paths, ngx_uint_t count)
+    const char **paths, ngx_uint_t count, ngx_flag_t coloc)
 {
     pid_t   pid;
     char  **argv;
@@ -95,12 +95,16 @@ xrootd_prepare_invoke_command(ngx_log_t *log,
         waitpid(pid, &wstatus, 0);
         ngx_free(argv);
         ngx_log_error(NGX_LOG_INFO, log, 0,
-                      "xrootd: prepare_command spawned pid %P for %ui path(s)",
-                      pid, count);
+                      "xrootd: prepare_command spawned pid %P for %ui path(s)%s",
+                      pid, count, coloc ? " (coloc)" : "");
         return NGX_OK;
     }
 
     /* --- grandchild process --- */
+
+    if (coloc) {
+        setenv("XROOTD_PREPARE_COLOC", "1", 1);
+    }
 
     /* Close all inherited file descriptors ≥ 3 so we don't leak nginx
      * listening sockets, log file descriptors, or pipe ends to the external

@@ -44,3 +44,4 @@ tools/
 
 # open-agent-kit: Issue raw JSON (local debugging only)
 oak
+node_modules

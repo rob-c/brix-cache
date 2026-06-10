@@ -26,7 +26,14 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.make_token import TokenIssuer, b64url_encode
 
-from settings import TOKENS_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
+from settings import (
+    CA_CERT,
+    DATA_ROOT,
+    NGINX_TOKEN_PORT,
+    NGINX_WEBDAV_PORT,
+    SERVER_HOST,
+    TOKENS_DIR,
+)
 
 # ---------------------------------------------------------------------------
 # Module globals
@@ -34,10 +41,9 @@ from settings import TOKENS_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
 
 TOKEN_DIR    = TOKENS_DIR
 TOKEN_HOST   = SERVER_HOST
-TOKEN_PORT   = 0
-WEBDAV_BASE  = ""
-DATA_ROOT    = DEFAULT_DATA_ROOT
-CA_PEM       = ""
+TOKEN_PORT   = NGINX_TOKEN_PORT
+WEBDAV_BASE  = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
+CA_PEM       = CA_CERT
 
 # XRootD opcodes
 kXR_auth     = 3000
@@ -51,20 +57,6 @@ kXR_close    = 3003
 # Response status codes
 kXR_ok       = 0
 kXR_error    = 4003
-
-# ---------------------------------------------------------------------------
-# Module-level configure fixture
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global TOKEN_DIR, TOKEN_HOST, TOKEN_PORT, WEBDAV_BASE, DATA_ROOT, CA_PEM
-    TOKEN_DIR   = test_env["token_dir"]
-    TOKEN_HOST  = test_env["server_host"]
-    TOKEN_PORT  = test_env["token_port"]
-    WEBDAV_BASE = test_env["webdav_url"]
-    DATA_ROOT   = test_env["data_dir"]
-    CA_PEM      = test_env["ca_pem"]
 
 
 @pytest.fixture(scope="module")

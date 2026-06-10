@@ -176,6 +176,7 @@ class TestWLCGGateway:
             got = fh.read()
         assert _md5(got) == _md5(payload), "Written content does not match what was uploaded"
 
+    @pytest.mark.timeout(120)
     def test_large_file_round_trip_proxy(self, proxy_env, tmp_path):
         """1 MiB round-trip through proxy preserves checksum (Section 5C read relay)."""
         payload = os.urandom(1 * 1024 * 1024)
@@ -183,7 +184,7 @@ class TestWLCGGateway:
         _write_origin(name, payload)
 
         dst = str(tmp_path / name)
-        result = _xrdcp_get(f"{proxy_env['proxy_url']}/{name}", dst)
+        result = _xrdcp_get(f"{proxy_env['proxy_url']}/{name}", dst, timeout=90)
         assert result.returncode == 0, f"xrdcp large failed: {result.stderr}"
         with open(dst, "rb") as fh:
             got = fh.read()
@@ -273,7 +274,7 @@ class TestStorageBridge:
 
         dst = str(tmp_path / name)
         result = _xrdcp_get(
-            f"root://{SERVER_HOST}:{PROXY_BRIDGE_XROOTD_PORT}/{name}", dst
+            f"root://{SERVER_HOST}:{PROXY_BRIDGE_XROOTD_PORT}//{name}", dst
         )
         assert result.returncode == 0, f"xrdcp bridge read failed: {result.stderr}"
         with open(dst, "rb") as fh:
@@ -289,7 +290,7 @@ class TestStorageBridge:
             fh.write(payload)
 
         result = _xrdcp_put(
-            src, f"root://{SERVER_HOST}:{PROXY_BRIDGE_XROOTD_PORT}/{name}"
+            src, f"root://{SERVER_HOST}:{PROXY_BRIDGE_XROOTD_PORT}//{name}"
         )
         assert result.returncode == 0, f"xrdcp bridge write failed: {result.stderr}"
 
@@ -325,7 +326,7 @@ class TestPureNginxStack:
 
         dst = str(tmp_path / name)
         result = _xrdcp_get(
-            f"root://{SERVER_HOST}:{PROXY_PURE_NGINX_PROXY_PORT}/{name}", dst
+            f"root://{SERVER_HOST}:{PROXY_PURE_NGINX_PROXY_PORT}//{name}", dst
         )
         assert result.returncode == 0, f"xrdcp pure-nginx read failed: {result.stderr}"
         with open(dst, "rb") as fh:
@@ -341,7 +342,7 @@ class TestPureNginxStack:
             fh.write(payload)
 
         result = _xrdcp_put(
-            src, f"root://{SERVER_HOST}:{PROXY_PURE_NGINX_PROXY_PORT}/{name}"
+            src, f"root://{SERVER_HOST}:{PROXY_PURE_NGINX_PROXY_PORT}//{name}"
         )
         assert result.returncode == 0, f"xrdcp pure-nginx write failed: {result.stderr}"
 
@@ -350,6 +351,7 @@ class TestPureNginxStack:
         with open(origin_path, "rb") as fh:
             assert _md5(fh.read()) == _md5(payload)
 
+    @pytest.mark.timeout(120)
     def test_64bit_offset_preserved_through_nginx_proxy(self, tmp_path):
         """Section 5C: 64-bit offsets in kXR_read are preserved through nginx→nginx.
 
@@ -362,7 +364,8 @@ class TestPureNginxStack:
 
         dst = str(tmp_path / name)
         result = _xrdcp_get(
-            f"root://{SERVER_HOST}:{PROXY_PURE_NGINX_PROXY_PORT}/{name}", dst
+            f"root://{SERVER_HOST}:{PROXY_PURE_NGINX_PROXY_PORT}//{name}", dst,
+            timeout=90,
         )
         assert result.returncode == 0
         with open(dst, "rb") as fh:

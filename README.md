@@ -334,19 +334,18 @@ Every request — XRootD, WebDAV, or S3 — writes a structured access log line 
 The Python test suite is comprehensive by design — `xrdcp` and XRootD Python client behavior, WebDAV, HTTP-TPC interop, auth, ACLs, proxy mode, manager mode, security hardening, cross-backend conformance against reference xrootd, **and XrdHttp/davs:// protocol conformance** between nginx-xrootd and the official xrootd daemon.
 
 ```bash
-# Start test nginx + reference xrootd (native + XrdHttp)
-tests/manage_test_servers.sh start
-
 # Run the full suite
+# Session-level setup handles all required nginx and xrootd instances automatically
 pytest -v
 
 # Run cross-compatible tests against both nginx-xrootd and reference xrootd
 tests/run_cross_compatible_tests.sh
 
-# Target an already-running server
+# Target an already-running server (if desired)
 export TEST_NGINX_URL=https://ci-nginx.example:8443
 pytest -v
 ```
+
 
 ### Cross-Backend Conformance Tests (Native XRootD)
 

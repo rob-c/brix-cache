@@ -98,7 +98,7 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
     if (ctx->cur_dlen > 0 && ctx->payload != NULL) {
         /* Path-based stat */
         if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
-                                 reqpath_buf, sizeof(reqpath_buf), 0)) {
+                                 reqpath_buf, sizeof(reqpath_buf), 1)) {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", "-", "-",
                               kXR_ArgInvalid, "invalid path payload");
         }

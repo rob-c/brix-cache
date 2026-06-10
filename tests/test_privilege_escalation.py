@@ -27,16 +27,28 @@ import tempfile
 import pytest
 
 from backend_matrix import root_endpoint_parts, selected_backend_name
-from settings import DATA_ROOT, NGINX_ANON_PORT, READONLY_DATA_ROOT, READONLY_PORT as FIXED_READONLY_PORT, SERVER_HOST
+from settings import (
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    READONLY_DATA_ROOT,
+    READONLY_PORT as FIXED_READONLY_PORT,
+    REF_XROOTD_PORT,
+    SERVER_HOST,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 CROSS_BACKEND = selected_backend_name()
-ANON_HOST = SERVER_HOST
-ANON_PORT = NGINX_ANON_PORT
-DATA_DIR  = DATA_ROOT
+
+if CROSS_BACKEND == "xrootd":
+    ANON_HOST, ANON_PORT = root_endpoint_parts(f"root://localhost:{REF_XROOTD_PORT}")
+else:
+    ANON_HOST = SERVER_HOST
+    ANON_PORT = NGINX_ANON_PORT
+
+DATA_DIR      = DATA_ROOT
 READONLY_HOST = SERVER_HOST
 READONLY_PORT = FIXED_READONLY_PORT
 
@@ -255,19 +267,6 @@ def _rmdir_if_exists(path: str) -> None:
         os.rmdir(path)
     except FileNotFoundError:
         pass
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env, ref_xrootd):
-    """Bind module constants from the selected shared test environment."""
-    global ANON_HOST, ANON_PORT, DATA_DIR
-    if CROSS_BACKEND == "xrootd":
-        ANON_HOST, ANON_PORT = root_endpoint_parts(ref_xrootd["url"])
-        DATA_DIR = ref_xrootd["data_dir"]
-    else:
-        ANON_HOST = test_env["server_host"]
-        ANON_PORT = test_env["anon_port"]
-        DATA_DIR = test_env["data_dir"]
 
 
 @pytest.fixture(scope="session")

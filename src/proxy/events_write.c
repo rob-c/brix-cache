@@ -20,7 +20,12 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
 {
     ngx_connection_t   *uconn = wev->data;
     xrootd_proxy_ctx_t *proxy = uconn->data;
-    xrootd_ctx_t       *ctx   = proxy->client_ctx;
+    xrootd_ctx_t       *ctx;
+
+    if (proxy == NULL) {
+        return;
+    }
+    ctx = proxy->client_ctx;
 
     if (ctx == NULL || ctx->destroyed) {
         xrootd_proxy_cleanup(proxy);
@@ -110,6 +115,9 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
     }
 
     /* Write complete — arm upstream read */
+    ngx_log_debug(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+                  "xrootd proxy: write done, arming read (state=%d)",
+                  (int) proxy->state);
     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
         xrootd_proxy_abort(proxy, "proxy: read arm failed after write");
     }

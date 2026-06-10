@@ -96,24 +96,40 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
     for (;;) {
         /* ---- upstream fd → pipe[1] ---- */
         if (proxy->splice_upstream < proxy->splice_total) {
-            size_t   want = proxy->splice_total - proxy->splice_upstream;
-            ssize_t  r    = splice(uconn->fd, NULL,
-                                   proxy->splice_pipe[1], NULL,
-                                   want,
-                                   SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
-            if (r > 0) {
-                proxy->splice_upstream += (size_t) r;
-            } else if (r == 0 || (r < 0 && ngx_errno == NGX_EAGAIN)) {
-                /* Upstream not ready yet — arm read and wait. */
-                if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
+            size_t in_pipe_now = proxy->splice_upstream - proxy->splice_downstream;
+            if (in_pipe_now == 0) {
+                /*
+                 * Pipe is empty — safe to fill from upstream.
+                 * When in_pipe_now > 0 the pipe is full; attempting
+                 * splice(upstream→pipe) would return EAGAIN for the wrong
+                 * reason (pipe capacity, not upstream readiness) and we
+                 * would arm the upstream-read event prematurely.  Instead,
+                 * fall through and drain the pipe to the client first.
+                 */
+                size_t   want = proxy->splice_total - proxy->splice_upstream;
+                ssize_t  r    = splice(uconn->fd, NULL,
+                                       proxy->splice_pipe[1], NULL,
+                                       want,
+                                       SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
+                if (r > 0) {
+                    proxy->splice_upstream += (size_t) r;
+                } else if (r < 0 && ngx_errno == NGX_EAGAIN) {
+                    /* Upstream socket empty — arm read and wait. */
+                    if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
+                        xrootd_proxy_abort(proxy,
+                            "proxy: splice read arm failed");
+                    }
+                    return;
+                } else if (r == 0) {
+                    /* Upstream closed during splice (peer sent FIN). */
                     xrootd_proxy_abort(proxy,
-                        "proxy: splice read arm failed");
+                        "proxy: upstream closed during splice");
+                    return;
+                } else {
+                    xrootd_proxy_abort(proxy,
+                        "proxy: splice upstream→pipe failed");
+                    return;
                 }
-                return;
-            } else {
-                xrootd_proxy_abort(proxy,
-                    "proxy: splice upstream→pipe failed");
-                return;
             }
         }
 
@@ -121,7 +137,6 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
         {
             size_t  in_pipe = proxy->splice_upstream - proxy->splice_downstream;
             if (in_pipe == 0) {
-                /* Shouldn't happen here, but guard against it. */
                 if (proxy->splice_downstream >= proxy->splice_total) {
                     break;
                 }
@@ -135,19 +150,20 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
             if (r > 0) {
                 proxy->splice_downstream += (size_t) r;
             } else if (r == 0 || (r < 0 && ngx_errno == NGX_EAGAIN)) {
-                /* Client send buffer full — arm client write and wait.
-                 * Also re-arm upstream read if we still need more data. */
+                /*
+                 * Client send buffer full.  Arm the client-write event and
+                 * wait.  Do NOT arm upstream-read here: any unread upstream
+                 * data sits in the kernel TCP receive buffer and will be
+                 * drained by splice_pump (via splice(upstream→pipe)) once
+                 * the pipe has room — no epoll wakeup required for that.
+                 * Arming upstream-read while the pipe is full just causes
+                 * spurious wakeups that retry a full pipe and deadlock.
+                 */
                 cconn->write->handler = xrootd_proxy_splice_wev;
                 if (ngx_handle_write_event(cconn->write, 0) != NGX_OK) {
                     xrootd_proxy_abort(proxy,
                         "proxy: splice client write arm failed");
                     return;
-                }
-                if (proxy->splice_upstream < proxy->splice_total) {
-                    if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
-                        xrootd_proxy_abort(proxy,
-                            "proxy: splice upstream read arm failed");
-                    }
                 }
                 return;
             } else {

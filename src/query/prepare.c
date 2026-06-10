@@ -316,9 +316,10 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     snprintf(detail, sizeof(detail),
-             "paths=%u missing=%u opts=0x%02x optx=0x%04x",
+             "paths=%u missing=%u opts=0x%02x optx=0x%04x%s",
              (unsigned int) paths, (unsigned int) missing,
-             (unsigned int) req->options, (unsigned int) optionx);
+             (unsigned int) req->options, (unsigned int) optionx,
+             (req->options & kXR_coloc) ? " (coloc)" : "");
 
     xrootd_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
 
@@ -346,7 +347,8 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* Invoke the staging command if configured and paths were collected. */
         if (collect_stage && stage_count > 0) {
             if (xrootd_prepare_invoke_command(c->log, conf,
-                                              stage_paths, stage_count)
+                                              stage_paths, stage_count,
+                                              (req->options & kXR_coloc) != 0)
                 != NGX_OK)
             {
                 ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
@@ -357,6 +359,48 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "xrootd: kXR_stage set but no resolvable paths"
                           " for prepare_command");
+        }
+
+        /* kXR_notify: send kXR_attn + kXR_asyncms notification when all
+         * requested files are already on disk (missing == 0).  The notification
+         * is combined with the kXR_ok response in a single buffer to avoid
+         * a double-queue race on EAGAIN write paths.
+         *
+         * When missing > 0 some files are still being staged by the background
+         * command; we cannot know when they arrive, so the notification is
+         * omitted and a warning is logged.  Future work could add a completion
+         * pipe from the staging command to deliver the notification later. */
+        if (req->options & kXR_notify) {
+            if (missing == 0) {
+                static const char notify_msg[] = "prepare reqid=0 complete";
+                size_t   notify_len  = sizeof(notify_msg) - 1;
+                size_t   ok_len      = XRD_RESPONSE_HDR_LEN + 1; /* "0" */
+                size_t   attn_len    = xrootd_attn_asyncms_frame_len(notify_len);
+                size_t   total       = ok_len + attn_len;
+                u_char  *buf;
+
+                buf = ngx_palloc(c->pool, total);
+                if (buf == NULL) {
+                    return NGX_ERROR;
+                }
+
+                xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, 1,
+                                      (ServerResponseHdr *) buf);
+                buf[XRD_RESPONSE_HDR_LEN] = '0';
+                xrootd_build_attn_asyncms_frame(buf + ok_len,
+                                                notify_msg, notify_len);
+
+                ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                    "xrootd: sending kXR_prepare ok + kXR_attn asyncms notify");
+
+                return xrootd_queue_response(ctx, c, buf, total);
+
+            } else {
+                ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                    "xrootd: kXR_notify requested but %ui path(s) still being "
+                    "staged; async completion notification not supported",
+                    missing);
+            }
         }
 
         return xrootd_send_ok(ctx, c, (u_char *) "0", 1);

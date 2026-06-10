@@ -24,17 +24,31 @@ from XRootD.client.flags import (
     StatInfoFlags,
 )
 from backend_matrix import selected_backend_name
-from settings import CA_DIR as DEFAULT_CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD
+from settings import (
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    PROXY_STD,
+    REF_XROOTD_GSI_SHARED_PORT,
+    REF_XROOTD_PORT,
+    SERVER_HOST,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 CROSS_BACKEND = selected_backend_name()
-ANON_URL  = ""
-GSI_URL   = ""
-DATA_DIR  = DEFAULT_DATA_ROOT
-CA_DIR    = DEFAULT_CA_DIR
+
+if CROSS_BACKEND == "xrootd":
+    ANON_URL = f"root://localhost:{REF_XROOTD_PORT}"
+    GSI_URL  = f"root://localhost:{REF_XROOTD_GSI_SHARED_PORT}"
+else:
+    ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+    GSI_URL  = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
+
+DATA_DIR  = DATA_ROOT
 PROXY_PEM = PROXY_STD
 
 PREFIX = "_api_test_"   # all test files/dirs carry this prefix
@@ -79,26 +93,6 @@ def md5file(path: str) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env, ref_xrootd, ref_xrootd_gsi_shared):
-    """Bind module constants from the selected shared test environment."""
-    global ANON_URL, GSI_URL, DATA_DIR, CA_DIR, PROXY_PEM
-    if CROSS_BACKEND == "xrootd":
-        ANON_URL = ref_xrootd["url"]
-        GSI_URL = ref_xrootd_gsi_shared["url"]
-        DATA_DIR = ref_xrootd["data_dir"]
-    else:
-        ANON_URL = test_env["anon_url"]
-        GSI_URL = test_env["gsi_url"]
-        DATA_DIR = test_env["data_dir"]
-    CA_DIR    = test_env["ca_dir"]
-    PROXY_PEM = test_env["proxy_pem"]
 
 
 @pytest.fixture(autouse=True)

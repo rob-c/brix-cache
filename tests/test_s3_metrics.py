@@ -37,13 +37,6 @@ BUCKET      = "testbucket"
 S3_NS       = "http://s3.amazonaws.com/doc/2006-03-01/"
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global METRICS_URL, S3_BASE
-    METRICS_URL = test_env["metrics_url"]
-    S3_BASE     = f"http://127.0.0.1:{test_env['s3_port']}"
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

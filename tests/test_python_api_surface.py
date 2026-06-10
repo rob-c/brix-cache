@@ -31,7 +31,7 @@ from backend_matrix import selected_backend_name
 BACKEND = selected_backend_name()
 PREFIX = "_api_surface_"
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module")
 def _setup_env(test_env, ref_xrootd, ref_xrootd_gsi_shared):
     global ANON_URL, GSI_URL, DATA_DIR, CA_DIR, PROXY_PEM
     if BACKEND == "xrootd":
@@ -51,7 +51,7 @@ def _setup_env(test_env, ref_xrootd, ref_xrootd_gsi_shared):
     os.environ["X509_USER_PROXY"] = PROXY_PEM
 
 @pytest.fixture(autouse=True)
-def cleanup_files():
+def cleanup_files(_setup_env):
     """Ensure a clean slate for each test."""
     _do_cleanup()
     yield
@@ -293,7 +293,6 @@ class TestFileSystemSurface:
         """Bulk stat."""
         pass
 
-    @pytest.mark.xfail(BACKEND == "nginx", reason="Nginx-xrootd path resolution includes query params")
     def test_url_parameters(self):
         """Test URL parameters (opaque data)."""
         # Ensure server accepts the parameter syntax.

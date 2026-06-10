@@ -55,17 +55,6 @@ S3_BASE     = f"http://127.0.0.1:{NGINX_S3_PORT}"
 LARGE_FILE  = os.path.join(DATA_ROOT, "large200.bin")
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global METRICS_URL, ANON_PORT, ANON_URL, HTTP_WEBDAV, S3_BASE, LARGE_FILE
-    METRICS_URL = test_env["metrics_url"]
-    ANON_PORT   = str(test_env["anon_port"])
-    ANON_URL    = f"root://127.0.0.1:{test_env['anon_port']}"
-    HTTP_WEBDAV = f"http://127.0.0.1:{test_env['http_webdav_port']}"
-    S3_BASE     = f"http://127.0.0.1:{test_env['s3_port']}"
-    LARGE_FILE  = os.path.join(test_env["data_dir"], "large200.bin")
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -213,7 +202,7 @@ def test_webdav_large_put_get_byte_exact():
     _skip_if_missing()
     known_md5 = _known_md5()
 
-    remote_path = f"/data/large_webdav_{uuid.uuid4().hex[:8]}.bin"
+    remote_path = f"/large_webdav_{uuid.uuid4().hex[:8]}.bin"
     url = f"{HTTP_WEBDAV}{remote_path}"
 
     put = subprocess.run(

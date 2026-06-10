@@ -28,6 +28,7 @@ from settings import (
     COLLAPSE_REDIR_PORT,
     META_ONLY_PORT,
     NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
     PROXY_NGINX_PORT,
     SERVER_HOST,
     SUPERVISOR_PORT,
@@ -347,16 +348,25 @@ class TestCollapseRedirFlag:
 
 @pytest.mark.requires_local_server
 class TestRecoverWritesFlag:
-    """kXR_recoverWrts (0x1000) must never be advertised (backend not implemented)."""
+    """kXR_recoverWrts (0x1000) is set when xrootd_recover_writes is on."""
 
-    def test_recover_writes_never_set_on_plain_server(self):
+    def test_recover_writes_set_on_anon_server(self):
+        # nginx_shared.conf enables this for ANON_PORT
         flags = _get_protocol_flags(SERVER_HOST, NGINX_ANON_PORT)
-        assert not (flags & _kXR_recoverWrts), (
-            f"kXR_recoverWrts must not be set until write journal is "
-            f"implemented; flags={flags:#010x}"
+        assert flags & _kXR_recoverWrts, (
+            f"kXR_recoverWrts (0x{_kXR_recoverWrts:08x}) not set on anon server; "
+            f"flags={flags:#010x}"
         )
 
-    def test_recover_writes_never_set_on_manager(self):
+    def test_recover_writes_absent_on_gsi_server(self):
+        # nginx_shared.conf leaves this off for GSI_PORT
+        flags = _get_protocol_flags(SERVER_HOST, NGINX_GSI_PORT)
+        assert not (flags & _kXR_recoverWrts), (
+            f"kXR_recoverWrts must not be set when disabled; "
+            f"flags={flags:#010x}"
+        )
+
+    def test_recover_writes_absent_on_manager(self):
         flags = _get_protocol_flags(SERVER_HOST, SUPERVISOR_PORT)
         assert not (flags & _kXR_recoverWrts), (
             f"kXR_recoverWrts must not be set on a supervisor; "

@@ -46,6 +46,7 @@ NGINX_BIN="${NGINX_BIN:-/tmp/nginx-1.28.3/objs/nginx}"
 
 # Config templates directory
 CONFIGS_DIR="$(cd "$(dirname "$0")" && pwd)/configs"
+TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 usage() {
     cat <<'EOF'
@@ -495,7 +496,10 @@ force_stop_nginx() {
             pids_on_port 11207
             pids_on_port 11208
             pids_on_port 11209
-            # Mock-only upstream nginx (test_a_upstream_redirect.py)
+            # HA nginx instances
+            pids_on_port 11211
+            pids_on_port 11212
+            # Stub-backed upstream nginx (test_a_upstream_redirect.py)
             pids_on_port 11130
             pids_on_port 11131
             pids_on_port 11132
@@ -508,7 +512,7 @@ force_stop_nginx() {
             # Proxy interoperability matrix + credential bridge
             pids_on_port 11213
             pids_on_port 11215
-            # Real CMS manager instances (replaced Python mocks)
+            # CMS cluster manager instances
             pids_on_port 11177
             pids_on_port 11178
             pids_on_port 12399
@@ -574,6 +578,48 @@ start_dedicated_nginx() {
         substitute_config "${CONFIGS_DIR}/${template}" "${conf_path}"
         start_nginx
     )
+}
+
+start_ha_nginx() {
+    local name="$1"
+    local port="$2"
+    # Capture the global DATA_DIR (main shared data root) before entering the
+    # subshell so both HA instances serve files written to DATA_ROOT by tests.
+    local shared_data="${DATA_DIR}"
+
+    local instance_root="${TEST_ROOT}/dedicated/${name}"
+    local conf_rel="conf/nginx.conf"
+    local conf_path="${instance_root}/${conf_rel}"
+
+    mkdir -p "${instance_root}/conf" "${instance_root}/logs" "${instance_root}/tmp"
+    rm -f "${instance_root}/logs"/*.log "${instance_root}/logs"/*.pid
+
+    (
+        NGINX_PREFIX="${instance_root}"
+        NGINX_CONF_REL="${conf_rel}"
+        NGINX_PORT="${port}"
+        LOG_DIR="${instance_root}/logs"
+        TMP_DIR="${instance_root}/tmp"
+        DATA_DIR="${shared_data}"
+        NGINX_CONF_PREGENERATED=1
+        SKIP_XRDFS_CHECK=1
+
+        substitute_config "${CONFIGS_DIR}/nginx_ha_instance.conf" "${conf_path}"
+        start_nginx
+    )
+}
+
+stop_haproxy() {
+    local pidfile="${TEST_ROOT}/haproxy.pid"
+    if [[ -f "${pidfile}" ]]; then
+        local pid
+        pid="$(cat "${pidfile}" 2>/dev/null || true)"
+        if [[ -n "${pid}" ]]; then
+            kill "${pid}" 2>/dev/null || true
+            rm -f "${pidfile}"
+        fi
+    fi
+    kill_pid_list "$(pids_on_port "${HA_HAPROXY_PORT:-11210}")"
 }
 
 write_ref_cfg() {
@@ -1121,6 +1167,16 @@ force_stop_ref() {
             pids_on_port 12125
             pids_on_port 12126
             pids_on_port 11214
+            # Protocol stub backends (upstream_protocol_stubs.py)
+            pids_on_port 13121
+            pids_on_port 13122
+            pids_on_port 13124
+            pids_on_port 13125
+            pids_on_port 13126
+            # CMS parent stub backends (cms_parent_stubs.py)
+            pids_on_port 12601
+            pids_on_port 12606
+            pids_on_port 12607
         } | sort -u
     )"
     kill_pid_list "$pids"
@@ -1141,12 +1197,24 @@ start_all_dedicated() {
     regenerate_pki
 
     mkdir -p "${TEST_ROOT}/tokens"
-    if [[ ! -f "${TEST_ROOT}/tokens/upstream.jwt" ]]; then
-        printf '%s\n' "eyJhbGciOiJSUzI1NiJ9.dedicated-test.sig" > "${TEST_ROOT}/tokens/upstream.jwt"
-    fi
     local jwks_refresh_dir="${TEST_ROOT}/tokens/jwks-refresh"
     mkdir -p "${jwks_refresh_dir}"
     python3 utils/make_token.py init "${jwks_refresh_dir}" >/dev/null
+    # Generate a real signed JWT for upstream token auth (credential bridge, etc.)
+    # Must be signed by the MAIN tokens key (jwks.json), not the jwks-refresh key.
+    local main_tokens_dir="${TEST_ROOT}/tokens"
+    python3 utils/make_token.py gen "${main_tokens_dir}" \
+        --sub "nginx-bridge" \
+        --scope "storage.read:/ storage.modify:/" \
+        --lifetime 86400 \
+        --output "${main_tokens_dir}/upstream.jwt" >/dev/null
+    # WLCG token for identity-shifting tests (Chaos Mesh Step 1).
+    # Placed in PKI_DIR so tests can locate it alongside certificates.
+    python3 utils/make_token.py gen "${main_tokens_dir}" \
+        --sub "chaos-test-user" \
+        --scope "storage.read:/ storage.modify:/" \
+        --lifetime 86400 \
+        --output "${PKI_DIR}/wlcg_token.txt" >/dev/null
 
     local crl_dir="${TEST_ROOT}/crls"
     local crl_reload_dir="${TEST_ROOT}/crl-reload"
@@ -1197,36 +1265,44 @@ start_all_dedicated() {
     start_dedicated_nginx "upstream-auth-nofile" "nginx_upstream_auth_nofile.conf" "${UPSTREAM_AUTH_NOFILE_NGINX_PORT:-11125}" "${UPSTREAM_AUTH_NOFILE_BACKEND_PORT:-12125}"
     start_dedicated_nginx "upstream-gotorls-notls" "nginx_upstream_gotorls_notls.conf" "${UPSTREAM_GOTORLS_NOTLS_NGINX_PORT:-11126}" "${UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT:-12126}"
 
-    # Mock-only upstream nginx instances (test_a_upstream_redirect.py).
-    # Each instance points to a mock-only backend port (13120–13126) where NO
-    # real xrootd server ever runs.  Tests bind a Python MockUpstream to the
-    # backend port for the duration of each test; SO_REUSEADDR lets the next
-    # test reclaim the port without a TIME_WAIT stall.
-    UPSTREAM_PORT="${MOCK_REDIRECT_BACKEND_PORT:-13120}" \
-        start_dedicated_nginx "mock-upstream-redirect" "nginx_upstream_redirect.conf" \
-        "${MOCK_REDIRECT_NGINX_PORT:-11130}"
-    UPSTREAM_PORT="${MOCK_WAIT_BACKEND_PORT:-13121}" \
-        start_dedicated_nginx "mock-upstream-wait" "nginx_upstream_wait.conf" \
-        "${MOCK_WAIT_NGINX_PORT:-11131}"
-    UPSTREAM_PORT="${MOCK_WAITRESP_BACKEND_PORT:-13122}" \
-        start_dedicated_nginx "mock-upstream-waitresp" "nginx_upstream_waitresp.conf" \
-        "${MOCK_WAITRESP_NGINX_PORT:-11132}"
-    UPSTREAM_PORT="${MOCK_ERROR_BACKEND_PORT:-13123}" \
-        start_dedicated_nginx "mock-upstream-error" "nginx_upstream_error.conf" \
-        "${MOCK_ERROR_NGINX_PORT:-11133}"
-    UPSTREAM_PORT="${MOCK_AUTH_BACKEND_PORT:-13124}" \
-        start_dedicated_nginx "mock-upstream-auth" "nginx_mock_upstream_auth.conf" \
-        "${MOCK_AUTH_NGINX_PORT:-11134}"
-    UPSTREAM_PORT="${MOCK_AUTH_NOFILE_BACKEND_PORT:-13125}" \
-        start_dedicated_nginx "mock-upstream-auth-nofile" "nginx_upstream_auth_nofile.conf" \
-        "${MOCK_AUTH_NOFILE_NGINX_PORT:-11135}"
-    UPSTREAM_PORT="${MOCK_GOTORLS_BACKEND_PORT:-13126}" \
-        start_dedicated_nginx "mock-upstream-gotorls" "nginx_upstream_gotorls_notls.conf" \
-        "${MOCK_GOTORLS_NGINX_PORT:-11136}"
+    # Pre-start protocol stub backends for test_a_upstream_redirect.py.
+    # upstream_protocol_stubs.py binds 13121/13122/13124/13125/13126 and
+    # handles XRootD protocol sequences (wait→redirect, waitresp→redirect,
+    # authmore challenge, authmore+close, gotoTLS) that real xrootd never emits.
+    python3 "${TESTS_DIR}/upstream_protocol_stubs.py" \
+        >> "${LOG_DIR}/upstream-stubs.log" 2>&1 &
+    echo $! > "${LOG_DIR}/upstream-stubs.pid"
+    sleep 0.3
+
+    # Stub-backed upstream nginx instances (test_a_upstream_redirect.py).
+    # Each proxies to one port of upstream_protocol_stubs.py, which emits
+    # sequences (kXR_wait, kXR_waitresp, kXR_authmore, kXR_gotoTLS) that
+    # real xrootd never produces, enabling deterministic protocol edge tests.
+    UPSTREAM_PORT="${STUB_REDIRECT_BACKEND_PORT:-13120}" \
+        start_dedicated_nginx "stub-upstream-redirect" "nginx_upstream_redirect.conf" \
+        "${STUB_REDIRECT_NGINX_PORT:-11130}"
+    UPSTREAM_PORT="${STUB_WAIT_BACKEND_PORT:-13121}" \
+        start_dedicated_nginx "stub-upstream-wait" "nginx_upstream_wait.conf" \
+        "${STUB_WAIT_NGINX_PORT:-11131}"
+    UPSTREAM_PORT="${STUB_WAITRESP_BACKEND_PORT:-13122}" \
+        start_dedicated_nginx "stub-upstream-waitresp" "nginx_upstream_waitresp.conf" \
+        "${STUB_WAITRESP_NGINX_PORT:-11132}"
+    UPSTREAM_PORT="${STUB_ERROR_BACKEND_PORT:-13123}" \
+        start_dedicated_nginx "stub-upstream-error" "nginx_upstream_error.conf" \
+        "${STUB_ERROR_NGINX_PORT:-11133}"
+    UPSTREAM_PORT="${STUB_AUTH_BACKEND_PORT:-13124}" \
+        start_dedicated_nginx "stub-upstream-auth" "nginx_stub_upstream_auth.conf" \
+        "${STUB_AUTH_NGINX_PORT:-11134}"
+    UPSTREAM_PORT="${STUB_AUTH_NOFILE_BACKEND_PORT:-13125}" \
+        start_dedicated_nginx "stub-upstream-auth-nofile" "nginx_upstream_auth_nofile.conf" \
+        "${STUB_AUTH_NOFILE_NGINX_PORT:-11135}"
+    UPSTREAM_PORT="${STUB_GOTORLS_BACKEND_PORT:-13126}" \
+        start_dedicated_nginx "stub-upstream-gotorls" "nginx_upstream_gotorls_notls.conf" \
+        "${STUB_GOTORLS_NGINX_PORT:-11136}"
 
     # Real-upstream-redirect: nginx at REAL_REDIRECT_NGINX_PORT proxies to the
-    # cluster-redir so tests can verify kXR_redirect forwarding against a real
-    # XRootD redirector without a Python mock backend.
+    # cluster-redir to verify kXR_redirect forwarding against a real XRootD
+    # redirector, complementing the stub-backed instances above.
     UPSTREAM_PORT="${CLUSTER_REDIR_PORT:-11160}" \
         start_dedicated_nginx "real-upstream-redirect" "nginx_upstream_redirect.conf" \
         "${REAL_REDIRECT_NGINX_PORT:-11137}"
@@ -1334,7 +1410,15 @@ start_all_dedicated() {
     CMS_PORT="${t3_sub_cms}" CMS_PATHS="/" \
         start_dedicated_nginx "cluster-3t-leaf" "nginx_cluster_ds.conf" "${CLUSTER_3T_LEAF_PORT:-11190}"
 
-    # Mock-CMS-select cluster: nginx queries Python mock parent CMS on CLUSTER_SELECT_CMS_PORT.
+    # Pre-start CMS parent stub backends for cluster-select/try/esc tests.
+    # cms_parent_stubs.py binds 12601/12606/12607 and serves kYR_select and
+    # kYR_try responses so the nginx CMS clients find a live parent at startup.
+    python3 "${TESTS_DIR}/cms_parent_stubs.py" \
+        >> "${LOG_DIR}/cms-parent-stubs.log" 2>&1 &
+    echo $! > "${LOG_DIR}/cms-parent-stubs.pid"
+    sleep 0.3
+
+    # CMS-select cluster: nginx queries the pre-started CMS parent stub.
     CMS_PORT="${CLUSTER_SELECT_CMS_PORT:-12601}" CMS_PATHS="/" \
         start_dedicated_nginx "cluster-select" "nginx_cluster_parent_lookup.conf" \
         "${CLUSTER_SELECT_PORT:-11194}"
@@ -1355,12 +1439,12 @@ start_all_dedicated() {
     CMS_PORT="${slots_cms}" CMS_PATHS="/" \
         start_dedicated_nginx "cluster-slots-ds4" "nginx_cluster_ds.conf" "${CLUSTER_SLOTS_DS4_PORT:-12605}"
 
-    # Mock-CMS-try cluster: nginx queries Python mock parent CMS on CLUSTER_TRY_CMS_PORT.
+    # CMS-try cluster: nginx queries the pre-started CMS parent stub.
     CMS_PORT="${CLUSTER_TRY_CMS_PORT:-12606}" CMS_PATHS="/" \
         start_dedicated_nginx "cluster-try" "nginx_cluster_parent_lookup.conf" \
         "${CLUSTER_TRY_PORT:-11197}"
 
-    # Escalation cluster: sub→Python mock parent; leaf is a standalone DS.
+    # Escalation cluster: sub connects to the pre-started CMS parent stub.
     CMS_PORT="${CLUSTER_ESC_CMS_PORT:-12607}" CMS_PATHS="/" \
         start_dedicated_nginx "cluster-esc-sub" "nginx_cluster_parent_lookup.conf" \
         "${CLUSTER_ESC_SUB_PORT:-11198}"
@@ -1386,6 +1470,10 @@ start_all_dedicated() {
     mkdir -p "${TEST_ROOT}/dedicated/prepare-command"
     cat > "$prep_hook" <<EOF
 #!/bin/sh
+# Log XROOTD_PREPARE_COLOC env var if set (for test verification).
+if [ -n "\$XROOTD_PREPARE_COLOC" ]; then
+    printf 'COLOC=%s\n' "\$XROOTD_PREPARE_COLOC" >> ${prep_log}
+fi
 printf '%s\n' "\$@" >> ${prep_log}
 EOF
     chmod +x "$prep_hook"
@@ -1395,7 +1483,22 @@ EOF
     start_dedicated_nginx "prepare-nocmd" "nginx_prepare_staging.conf" \
         "${PREPARE_NOCMD_PORT:-11205}"
 
-    # Phase 2 capability-flag role servers (test_protocol_flags.py).
+    # HA Cluster: two nginx instances and haproxy.
+    # Note: Requires haproxy binary on PATH.
+    if have_cmd haproxy; then
+        start_ha_nginx "ha-nginx1" "${HA_NGINX1_PORT:-11211}"
+        start_ha_nginx "ha-nginx2" "${HA_NGINX2_PORT:-11212}"
+        # Process haproxy config template and start haproxy in the background.
+        sed \
+            -e "s|{PORT}|${HA_HAPROXY_PORT:-11210}|g" \
+            -e "s|{BIND_HOST}|127.0.0.1|g" \
+            -e "s|{MAP_A_HOST}|127.0.0.1|g" \
+            -e "s|{MAP_A_PORT}|${HA_NGINX1_PORT:-11211}|g" \
+            -e "s|{MAP_B_HOST}|127.0.0.1|g" \
+            -e "s|{MAP_B_PORT}|${HA_NGINX2_PORT:-11212}|g" \
+            "${CONFIGS_DIR}/haproxy.cfg" > "${TEST_ROOT}/haproxy.cfg"
+        haproxy -f "${TEST_ROOT}/haproxy.cfg" -D -p "${TEST_ROOT}/haproxy.pid"
+    fi
     start_dedicated_nginx "meta-only" "nginx_meta_only.conf" \
         "${META_ONLY_PORT:-11206}"
     start_dedicated_nginx "supervisor" "nginx_supervisor.conf" \
@@ -1411,6 +1514,7 @@ EOF
 }
 
 stop_all_dedicated() {
+    stop_haproxy
     stop_xrdhttp
     force_stop_ref
     force_stop_nginx

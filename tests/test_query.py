@@ -23,27 +23,26 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags, QueryCode
 from backend_matrix import selected_backend_name
-from settings import CA_DIR as DEFAULT_CA_DIR, PROXY_STD
+from settings import (
+    CA_DIR,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    PROXY_STD,
+    REF_XROOTD_GSI_SHARED_PORT,
+    REF_XROOTD_PORT,
+    SERVER_HOST,
+)
 
 CROSS_BACKEND = selected_backend_name()
-ANON_URL  = ""
-GSI_URL   = ""
-CA_DIR    = DEFAULT_CA_DIR
+
+if CROSS_BACKEND == "xrootd":
+    ANON_URL = f"root://localhost:{REF_XROOTD_PORT}"
+    GSI_URL  = f"root://localhost:{REF_XROOTD_GSI_SHARED_PORT}"
+else:
+    ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+    GSI_URL  = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
+
 PROXY_PEM = PROXY_STD
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env, ref_xrootd, ref_xrootd_gsi_shared):
-    """Bind module constants from the selected shared test environment."""
-    global ANON_URL, GSI_URL, CA_DIR, PROXY_PEM
-    if CROSS_BACKEND == "xrootd":
-        ANON_URL = ref_xrootd["url"]
-        GSI_URL = ref_xrootd_gsi_shared["url"]
-    else:
-        ANON_URL = test_env["anon_url"]
-        GSI_URL = test_env["gsi_url"]
-    CA_DIR    = test_env["ca_dir"]
-    PROXY_PEM = test_env["proxy_pem"]
 
 
 # ---------------------------------------------------------------------------

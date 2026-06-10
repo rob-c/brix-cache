@@ -207,7 +207,7 @@ ngx_int_t xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t xrootd_handle_set(xrootd_ctx_t *ctx, ngx_connection_t *c);
 ngx_int_t xrootd_prepare_invoke_command(ngx_log_t *log,
     ngx_stream_xrootd_srv_conf_t *conf,
-    const char **paths, ngx_uint_t count);
+    const char **paths, ngx_uint_t count, ngx_flag_t coloc);
 
 /* manager map lookup helper (longest-prefix match) */
 const xrootd_manager_map_t *xrootd_find_manager_map(const char *reqpath,
@@ -226,6 +226,7 @@ ngx_int_t xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 /* response/ — response formatting and wire send helpers */
 #include "response/response.h"
+#include "response/async.h"
 
 /* path/ — client path resolution, VO ACL, group policy, access log */
 #include "path/path.h"

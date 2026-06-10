@@ -135,7 +135,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 ## BUILD & TEST
 ```bash
 # Build (full when config/source list changes)
-./configure --with-stream --with-http_ssl_module --with-threads --add-module=$REPO && make -j$(nproc)
+./configure --with-stream --with-http_ssl_module --with-http_dav_module --with-threads --add-module=$REPO && make -j$(nproc)
 make -j$(nproc) # incremental
 /tmp/nginx-1.28.3/objs/nginx -t -c /tmp/xrd-test/conf/nginx.conf # validate
 ```

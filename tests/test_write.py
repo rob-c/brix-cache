@@ -19,24 +19,19 @@ import tempfile
 import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags
-from settings import CA_DIR as DEFAULT_CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD
+from settings import (
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    PROXY_STD,
+    SERVER_HOST,
+)
 
-ANON_URL = ""
-GSI_URL  = ""
-DATA_DIR = DEFAULT_DATA_ROOT
-CA_DIR   = DEFAULT_CA_DIR
+ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+GSI_URL   = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
+DATA_DIR  = DATA_ROOT
 PROXY_PEM = PROXY_STD
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants from the shared test environment."""
-    global ANON_URL, GSI_URL, DATA_DIR, CA_DIR, PROXY_PEM
-    ANON_URL  = test_env["anon_url"]
-    GSI_URL   = test_env["gsi_url"]
-    DATA_DIR  = test_env["data_dir"]
-    CA_DIR    = test_env["ca_dir"]
-    PROXY_PEM = test_env["proxy_pem"]
 
 
 def _md5(path: str) -> str:

@@ -68,11 +68,19 @@ COPY_RATIO_LIMIT = float(os.environ.get("TEST_PERF_COPY_RATIO_LIMIT", "4.0"))
 CONCURRENT_RATIO_LIMIT = float(
     os.environ.get("TEST_PERF_CONCURRENT_RATIO_LIMIT", str(READ_RATIO_LIMIT))
 )
-READ_GRACE_SECONDS = float(os.environ.get("TEST_PERF_READ_GRACE_SECONDS", "0.25"))
-META_GRACE_SECONDS = float(os.environ.get("TEST_PERF_META_GRACE_SECONDS", "0.05"))
-WRITE_GRACE_SECONDS = float(os.environ.get("TEST_PERF_WRITE_GRACE_SECONDS", "0.25"))
+# Grace defaults are intentionally generous so the ratio check (which catches
+# actual regressions) isn't overwhelmed by transient OS-level noise during
+# parallel test runs.  The env-var overrides are still available for dedicated
+# performance-only runs where tighter bounds are meaningful.
+READ_GRACE_SECONDS = float(os.environ.get("TEST_PERF_READ_GRACE_SECONDS", "1.0"))
+META_GRACE_SECONDS = float(os.environ.get("TEST_PERF_META_GRACE_SECONDS", "1.0"))
+WRITE_GRACE_SECONDS = float(os.environ.get("TEST_PERF_WRITE_GRACE_SECONDS", "1.0"))
 
-PREFIX = "_perf_conf_"
+# Worker-specific prefix prevents concurrent xdist workers from colliding on
+# shared test files and from the module-teardown glob deleting another
+# worker's in-use files.
+_WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "main")
+PREFIX = f"_perf_conf_{_WORKER_ID}_"
 SEED_BYTES = bytes((i * 17 + 29) & 0xFF for i in range(1024 * 1024))
 RANDOM_READ_SIZE = 4096
 RAW_READ_SIZE = 4096

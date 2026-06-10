@@ -11,14 +11,9 @@ import re
 import subprocess
 
 import pytest
+from settings import NGINX_WEBDAV_PORT, SERVER_HOST
 
-BASE_URL = ""
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global BASE_URL
-    BASE_URL = test_env["webdav_url"]
+BASE_URL = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
 
 
 def _curl(*args, timeout=10):

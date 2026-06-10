@@ -33,19 +33,12 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from settings import PROXY_STD, CA_CERT
+from settings import NGINX_WEBDAV_GSI_TLS_PORT, PROXY_STD, CA_CERT, SERVER_HOST
 
 _PFX = "htss_"
 
-BASE       = ""
-PROXY_PEM  = PROXY_STD
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global BASE, PROXY_PEM
-    BASE      = test_env["webdav_gsi_tls_url"]
-    PROXY_PEM = test_env["proxy_pem"]
+BASE      = f"https://{SERVER_HOST}:{NGINX_WEBDAV_GSI_TLS_PORT}"
+PROXY_PEM = PROXY_STD
 
 
 def _url(path):

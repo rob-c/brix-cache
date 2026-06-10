@@ -2,6 +2,8 @@
 
 ## Current State
 
+All dedicated instances are managed by `manage_test_servers.sh start-all` at session startup. The test infrastructure now utilizes a persistent session-level lifecycle, ensuring all required instances are launched once and available for the duration of the test run.
+
 ### Permanent shared instance (`nginx_shared.conf`) — always running
 
 | Port | Protocol | Auth | Purpose |
@@ -16,18 +18,14 @@
 | 9001 | S3 REST | anonymous | S3 without SigV4 auth |
 | 9100 | Prometheus metrics | none | `/metrics` endpoint |
 
-### Extra xrootd reference instances — started via `manage_test_servers.sh start-extra-servers`
-
-| Ports | Purpose |
-|---|---|
-| 11098–11113 (16 ports) | Conformance/reference servers (`xrd_server_*`) |
-| 18444–18456 (12 ports) | Extra TPC reference servers |
-
-### Dedicated instance already started
+### Dedicated instance instances (Started via `manage_test_servers.sh start-all`)
 
 | Port | Config | Purpose |
 |---|---|---|
 | 11103 | `vo_acl.conf` | VO ACL enforcement (`cms`, `atlas`) with GSI auth |
+| 11211 | `nginx_ha_instance1.conf` | HA Cluster Nginx 1 |
+| 11212 | `nginx_ha_instance2.conf` | HA Cluster Nginx 2 |
+...
 
 ## Gap Analysis: Config Templates that Exist but are NOT Permanently Started
 

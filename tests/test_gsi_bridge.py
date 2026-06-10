@@ -50,51 +50,30 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags, QueryCode
 from settings import (
-    CA_DIR as DEFAULT_CA_DIR,
-    DATA_ROOT as DEFAULT_DATA_ROOT,
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_GSI_PORT,
     PROXY_STD,
-    SERVER_CERT as SETTINGS_SERVER_CERT,
-    SERVER_KEY as SETTINGS_SERVER_KEY,
+    REF_XROOTD_GSI_PORT,
+    TEST_ROOT,
 )
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-CA_DIR     = DEFAULT_CA_DIR
-PROXY_PEM  = PROXY_STD
-SERVER_CERT = ""
-SERVER_KEY  = ""
-
-NGINX_PORT = 0
-NGINX_URL  = ""
-
-REF_PORT   = 0
-REF_URL    = ""
-
-BRIDGE_DATA = ""
-NGINX_DATA  = DEFAULT_DATA_ROOT
+PROXY_PEM   = PROXY_STD
+NGINX_PORT  = NGINX_GSI_PORT
+NGINX_URL   = f"root://localhost:{NGINX_GSI_PORT}"
+NGINX_DATA  = DATA_ROOT
+REF_PORT    = REF_XROOTD_GSI_PORT
+REF_URL     = f"root://localhost:{REF_XROOTD_GSI_PORT}"
+BRIDGE_DATA = os.path.join(TEST_ROOT, "data-gsi-bridge")
 
 
 @pytest.fixture(scope="module", autouse=True)
-def _configure(test_env, ref_xrootd_gsi):
-    """Bind module constants from the shared test environment."""
-    global CA_DIR, PROXY_PEM, SERVER_CERT, SERVER_KEY
-    global NGINX_PORT, NGINX_URL, REF_PORT, REF_URL
-    global BRIDGE_DATA, NGINX_DATA
-
-    CA_DIR      = test_env["ca_dir"]
-    PROXY_PEM   = test_env["proxy_pem"]
-    SERVER_CERT = SETTINGS_SERVER_CERT
-    SERVER_KEY  = SETTINGS_SERVER_KEY
-    NGINX_PORT  = test_env["gsi_port"]
-    NGINX_URL   = test_env["gsi_url"]
-    NGINX_DATA  = test_env["data_dir"]
-
-    REF_PORT    = ref_xrootd_gsi["port"]
-    REF_URL     = ref_xrootd_gsi["url"]
-    BRIDGE_DATA = ref_xrootd_gsi["data_dir"]
-
+def _save_restore_env():
+    """Save and restore process env vars that test bodies modify directly."""
     _ENV_KEYS = ("X509_CERT_DIR", "X509_USER_PROXY", "XrdSecPROTOCOL",
                  "X509_USER_CERT", "X509_USER_KEY")
     saved = {k: os.environ.get(k) for k in _ENV_KEYS}

@@ -17,7 +17,7 @@ import time
 
 import pytest
 
-from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
+from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Module globals
@@ -25,7 +25,7 @@ from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOS
 
 ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
-DATA_DIR  = DEFAULT_DATA_ROOT
+DATA_DIR  = DATA_ROOT
 
 # XRootD opcodes
 kXR_auth      = 3000
@@ -69,18 +69,6 @@ kXR_Unsupported    = 3013
 kXR_open_read = 0x0010
 kXR_open_updt = 0x0020
 kXR_open_new  = 0x0008
-
-
-# ---------------------------------------------------------------------------
-# Module configure fixture
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global ANON_HOST, ANON_PORT, DATA_DIR
-    ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
-    DATA_DIR  = test_env["data_dir"]
 
 
 # ---------------------------------------------------------------------------

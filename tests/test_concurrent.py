@@ -18,17 +18,23 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pytest
 from XRootD import client
-from settings import CA_DIR as DEFAULT_CA_DIR, PROXY_STD
+from settings import (
+    CA_DIR,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    NGINX_GSI_TLS_PORT,
+    PROXY_STD,
+    SERVER_HOST,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-ANON_URL    = ""
-GSI_URL     = ""
-GSI_TLS_URL = ""
+ANON_URL    = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+GSI_URL     = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
+GSI_TLS_URL = f"roots://{SERVER_HOST}:{NGINX_GSI_TLS_PORT}"
 
-CA_DIR    = DEFAULT_CA_DIR
 PROXY_PEM = PROXY_STD
 
 LARGE_FILE      = "large200.bin"
@@ -63,19 +69,6 @@ READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches XROOTD_READ_MAX in module
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants and set GSI env vars from the shared test environment."""
-    global ANON_URL, GSI_URL, GSI_TLS_URL, CA_DIR, PROXY_PEM
-    ANON_URL    = test_env["anon_url"]
-    GSI_URL     = test_env["gsi_url"]
-    GSI_TLS_URL = test_env["gsi_tls_url"]
-    CA_DIR      = test_env["ca_dir"]
-    PROXY_PEM   = test_env["proxy_pem"]
-    os.environ["X509_CERT_DIR"]  = CA_DIR
-    os.environ["X509_USER_PROXY"] = PROXY_PEM
-
 
 # ---------------------------------------------------------------------------
 # Per-worker transfer function (called from threads)

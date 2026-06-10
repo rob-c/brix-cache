@@ -217,6 +217,10 @@ xrootd_proxy_cleanup(xrootd_proxy_ctx_t *proxy)
         }
 
         if (proxy->conn != NULL) {
+            /* Null the data pointer before closing so any pending event
+             * handlers on the upstream fd see NULL and bail out safely,
+             * preventing use-after-free when the client pool is freed. */
+            proxy->conn->data = NULL;
             ngx_close_connection(proxy->conn);
             proxy->conn = NULL;
         }

@@ -6,6 +6,8 @@ How the test environment is wired: server startup, PKI fixtures, token fixtures,
 
 ## Session lifecycle
 
+As of June 2026, the test environment uses a persistent lifecycle managed at the session level:
+
 ```
 pytest session start
         │
@@ -16,74 +18,25 @@ conftest.pytest_sessionstart()
         │
         ├── generate test files (test.txt, random.bin, large200.bin)
         │
-        ├── pki_helpers.blitz_test_pki()  ──────────────────────────────┐
-        │       │                                                         │
-        │       ├── openssl genrsa → ca.key                              │
-        │       ├── openssl req → ca.pem (CA cert, 10 years)             │
-        │       ├── compute hash symlinks (new + old OpenSSL formats)     │
-        │       ├── write .signing_policy files                           │
-        │       ├── openssl genrsa → hostkey.pem                         │
-        │       ├── openssl req / x509 → hostcert.pem (server cert)      │
-        │       ├── openssl genrsa → userkey.pem                         │
-        │       └── openssl req / x509 → usercert.pem (user cert)       │
-        │                                                                 │
-        │   (all via subprocess calling openssl CLI)                      │
-        │                                                                 ◄┘
+        ├── pki_helpers.blitz_test_pki()  
         │
-        ├── utils/make_proxy.py  (Python cryptography library)
-        │       │
-        │       ├── load usercert.pem + userkey.pem
-        │       ├── generate ephemeral RSA-2048 proxy key
-        │       ├── build proxy subject: user DN + CN=12346
-        │       ├── DER-encode proxyCertInfo extension (OID 1.3.6.1.5.5.7.1.14)
-        │       │       ProxyCertInfo → ProxyPolicy → id-ppl-inheritAll
-        │       ├── sign proxy cert with user's key (SHA-256)
-        │       └── write proxy_std.pem (proxy cert + user cert + proxy key)
+        ├── manage_test_servers.sh start-all
+        │   (launches ALL dedicated nginx and xrootd instances)
         │
-        ├── manage_test_servers.sh start
-        │       │
-        │       ├── substitute_config: fill {PORT}, {CA_DIR}, {PKI} etc. into
-        │       │   tests/configs/nginx_shared.conf → /tmp/xrd-test/conf/nginx.conf
-        │       │
-        │       ├── nginx -p /tmp/xrd-test -c conf/nginx.conf
-        │       │   (starts all standard listeners: 11094-11097, 8443, 8444, 9100, ...)
-        │       │
-        │       ├── python3 utils/make_token.py init /tmp/xrd-test/tokens
-        │       │   (generates signing_key.pem + jwks.json if absent)
-        │       │
-        │       └── reference xrootd daemons (ports 11098-11100, if xrootd on PATH)
-        │
-        ├── export X509_CERT_DIR=$PKI/ca
-        └── export X509_USER_PROXY=$PKI/user/proxy_std.pem
+        └── export environment variables (X509_CERT_DIR, etc.)
                 │
                 ▼
-        tests run
+        tests run (using pre-started servers)
                 │
                 ▼
 conftest.pytest_sessionfinish()
-        └── manage_test_servers.sh stop
+        └── manage_test_servers.sh stop-all
 ```
 
-### Manual Server Management
+### Server Management
 
-During development, it is often useful to start the test servers once and run multiple `pytest` commands against them.
+All required test services (main instance, dedicated instances, and reference servers) are launched exactly once before the test session begins. Tests should assume the environment is already prepared and running. Manual starting/stopping of servers during test execution is discouraged to avoid port conflicts and race conditions.
 
-```bash
-# Start the standard test environment
-./tests/manage_test_servers.sh start
-
-# Check status and ports
-./tests/manage_test_servers.sh status
-
-# Run tests without letting pytest manage the servers
-# (pytest detects the running servers and uses them)
-pytest tests/test_file_api.py -v
-
-# Stop everything when finished
-./tests/manage_test_servers.sh stop
-```
-
-The script manages a main nginx instance (port 11094-11097, 8443, 8444, etc.) and reference xrootd servers (if installed). Logs are written to `/tmp/xrd-test/logs/`.
 
 ---
 

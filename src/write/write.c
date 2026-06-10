@@ -43,6 +43,7 @@
 
 #include "ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
+#include "wrts_journal.h"
 
 /*
  * xrootd_handle_write — handle kXR_write: write the request payload to an
@@ -81,6 +82,22 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 	if (wlen == 0) {
 		/* Zero-length writes are valid no-ops that still count as successful requests. */
+		XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
+		return xrootd_send_ok(ctx, c, NULL, 0);
+	}
+
+	/* ---- kXR_recoverWrts replay detection ----
+	 *
+	 * If the journal already covers this (offset, wlen) range, this is a
+	 * replayed write from a recovering XrdCl client.  The bytes are already
+	 * on disk — skip pwrite() and return kXR_ok so the client can advance.
+	 */
+	if (ctx->files[idx].wrts_enabled &&
+	    xrootd_wrts_is_replay(&ctx->files[idx], offset, (uint32_t) wlen))
+	{
+		ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
+		    "xrootd: write recovery replay skip offset=%L len=%uz",
+		    offset, wlen);
 		XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
 		return xrootd_send_ok(ctx, c, NULL, 0);
 	}
@@ -155,6 +172,11 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		xrootd_wt_mark_dirty(ctx, idx,
 		                      offset + (int64_t) nwritten - 1,
 		                      (size_t) nwritten);
+	}
+
+	/* Record the committed write in the recovery journal. */
+	if (ctx->files[idx].wrts_enabled) {
+		xrootd_wrts_record(&ctx->files[idx], offset, (uint32_t) nwritten);
 	}
 
 	XROOTD_RETURN_OK(ctx, c, XROOTD_OP_WRITE, "WRITE",

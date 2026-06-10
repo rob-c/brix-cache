@@ -53,7 +53,7 @@ xrootd_write_resolve_existing_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
-                             reqpath, reqpathsz, 0)) {
+                             reqpath, reqpathsz, 1)) {
         xrootd_log_access(ctx, c, verb, "-", "-",
                           0, kXR_ArgInvalid, "invalid path payload", 0);
         XROOTD_OP_ERR(ctx, op);

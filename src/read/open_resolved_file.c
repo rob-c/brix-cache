@@ -1,5 +1,8 @@
 #include "open.h"
+#include "ngx_xrootd_module.h"
+#include "../write/wrts_journal.h"
 #include "../compat/tmp_path.h"
+#include "cache/writethrough_metrics.h"
 #include "../manager/registry.h"
 #include "../manager/pending.h"
 #include "../session/registry.h"
@@ -226,6 +229,27 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].wt_bytes_written = 0;
 	ctx->files[idx].wt_flush_task = NULL;
 	ctx->files[idx].wt_flush_pending = 0;
+
+	/* ---- kXR_recoverWrts journal initialisation ----
+	 *
+	 * Arm the write-recovery ring when the handle is opened for writing and
+	 * the recover_writes directive is on.  Read-only handles get the fields
+	 * zeroed (they are zero from xrootd_free_fhandle, but be explicit).
+	 */
+	{
+		ngx_stream_xrootd_srv_conf_t *wrts_conf;
+		wrts_conf = ngx_stream_get_module_srv_conf(
+		    (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+		if (is_write && wrts_conf->recover_writes) {
+			xrootd_wrts_open(&ctx->files[idx]);
+		} else {
+			ctx->files[idx].wrts_enabled = 0;
+			ctx->files[idx].wrts_head    = 0;
+			ctx->files[idx].wrts_count   = 0;
+			ctx->files[idx].wrts_gen     = 0;
+		}
+	}
+
 	ctx->files[idx].dashboard_slot = -1;
 
 	/* Register the open file with the live transfer monitor. */

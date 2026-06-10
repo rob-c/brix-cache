@@ -22,18 +22,13 @@ import xml.etree.ElementTree as ET
 
 import pytest
 import requests
+from settings import NGINX_S3_PORT, SERVER_HOST
 
 BUCKET = "testbucket"
 S3_NS  = "http://s3.amazonaws.com/doc/2006-03-01/"
 _PFX   = "s3sc_"
 
-BASE = ""
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global BASE
-    BASE = test_env["s3_url"]
+BASE = f"http://{SERVER_HOST}:{NGINX_S3_PORT}"
 
 
 def _uid():

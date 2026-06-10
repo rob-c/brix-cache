@@ -536,3 +536,30 @@ class TestPrepareStageCommand:
         time.sleep(0.3)
         assert open(PREPARE_CMD_LOG).read() == "", \
             "prepare_command was wrongly invoked on kXR_cancel request"
+
+    @pytest.mark.requires_local_server
+    def test_coloc_flag_passed_to_command(self):
+        """kXR_prepare with kXR_coloc flag must set XROOTD_PREPARE_COLOC=1 for the command."""
+        self._truncate_log()
+        os.makedirs(PREPARE_CMD_DATA_DIR, exist_ok=True)
+        with open(os.path.join(PREPARE_CMD_DATA_DIR, "coloc_file.dat"), "wb") as f:
+            f.write(b"coloc seed\n")
+
+        sock, streamid = self._session_on(PREPARE_CMD_PORT)
+        # kXR_stage (0x08) | kXR_coloc (0x20) = 0x28
+        status, body = _send_prepare(sock, streamid, 0x28, 0, b"/coloc_file.dat\n")
+        sock.close()
+
+        assert status == kXR_ok
+
+        for _ in range(30):
+            if os.path.getsize(PREPARE_CMD_LOG) > 0:
+                break
+            time.sleep(0.1)
+
+        assert os.path.getsize(PREPARE_CMD_LOG) > 0
+
+        content = open(PREPARE_CMD_LOG).read()
+        assert "COLOC=1" in content, f"COLOC=1 missing from log: {content!r}"
+        assert "/coloc_file.dat" in content
+

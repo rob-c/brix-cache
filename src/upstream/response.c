@@ -92,14 +92,16 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
         up->timer.log = c->log;
         ngx_add_timer(&up->timer, (ngx_msec_t) secs * 1000);
 
-        /* Re-arm the read event: with epoll ET mode a follow-up response
-         * (e.g. kXR_redirect arriving in the same TCP segment as kXR_wait)
-         * is already buffered in the kernel but won't trigger a new edge.
-         * Re-registering ensures nginx reads it without waiting for the
-         * retry timer. */
+        /* Re-arm the read event and post a synthetic event so any follow-up
+         * response (e.g. kXR_redirect arriving in the same TCP segment as
+         * kXR_wait) is drained this event cycle.  In epoll ET mode,
+         * ngx_handle_read_event is a no-op when the fd is already active,
+         * so buffered data would otherwise be missed until the retry timer. */
         if (ngx_handle_read_event(up->conn->read, 0) != NGX_OK) {
             xrootd_upstream_abort(up, "upstream read arm failed after kXR_wait");
+            return;
         }
+        ngx_post_event(up->conn->read, &ngx_posted_events);
         return;
     }
 
@@ -117,6 +119,12 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
             xrootd_upstream_abort(up, "read arm failed after kXR_waitresp");
             return;
         }
+
+        /* Post a synthetic read event so any kXR_redirect bytes already
+         * buffered in the kernel socket are drained this event cycle.
+         * In epoll ET mode, ngx_handle_read_event is a no-op when the fd is
+         * already active, so buffered data would otherwise be missed. */
+        ngx_post_event(up->conn->read, &ngx_posted_events);
 
         xrootd_send_waitresp(ctx, c);
         return;

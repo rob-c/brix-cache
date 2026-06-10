@@ -34,13 +34,6 @@ ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global ANON_HOST, ANON_PORT
-    ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
-
-
 # ---------------------------------------------------------------------------
 # Wire constants
 # ---------------------------------------------------------------------------

@@ -94,13 +94,13 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 	/* Parse each half independently so embedded-NUL and traversal checks apply to both. */
 	if (!xrootd_extract_path(c->log, ctx->payload, (size_t) src_len,
-							 src_buf, sizeof(src_buf), 0)) {
+							 src_buf, sizeof(src_buf), 1)) {
 		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
 								 "invalid source path payload");
 	}
 
 	if (!xrootd_extract_path(c->log, ctx->payload + src_len + 1, dst_len,
-							 dst_buf, sizeof(dst_buf), 0)) {
+							 dst_buf, sizeof(dst_buf), 1)) {
 		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
 								 "invalid destination path payload");
 	}

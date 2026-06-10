@@ -29,7 +29,14 @@ import tempfile
 import urllib3
 import pytest
 import requests
-from settings import CA_CERT, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST, TOKENS_DIR
+from settings import (
+    CA_CERT,
+    DATA_ROOT,
+    NGINX_TOKEN_PORT,
+    NGINX_WEBDAV_PORT,
+    SERVER_HOST,
+    TOKENS_DIR,
+)
 
 # Suppress InsecureRequestWarning for verify=False in WebDAV tests
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -45,11 +52,10 @@ from utils.make_token import TokenIssuer
 # ---------------------------------------------------------------------------
 
 TOKEN_DIR   = TOKENS_DIR
-TOKEN_URL   = ""
+TOKEN_URL   = f"root://{SERVER_HOST}:{NGINX_TOKEN_PORT}"
 TOKEN_HOST  = SERVER_HOST
-TOKEN_PORT  = 0
-WEBDAV_BASE = ""
-DATA_ROOT   = DEFAULT_DATA_ROOT
+TOKEN_PORT  = NGINX_TOKEN_PORT
+WEBDAV_BASE = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
 CA_PEM      = CA_CERT
 
 # XRootD request IDs (host byte order)
@@ -79,20 +85,6 @@ kXR_open_force  = 0x0004  # kXR_delete
 # ---------------------------------------------------------------------------
 # Token issuer fixture
 # ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants from the shared test environment."""
-    global TOKEN_DIR, TOKEN_URL, TOKEN_HOST, TOKEN_PORT
-    global WEBDAV_BASE, DATA_ROOT, CA_PEM
-    TOKEN_DIR   = test_env["token_dir"]
-    TOKEN_URL   = test_env["token_url"]
-    TOKEN_HOST  = test_env["server_host"]
-    TOKEN_PORT  = test_env["token_port"]
-    WEBDAV_BASE = test_env["webdav_url"]
-    DATA_ROOT   = test_env["data_dir"]
-    CA_PEM      = test_env["ca_pem"]
-
 
 @pytest.fixture(scope="module")
 def issuer():

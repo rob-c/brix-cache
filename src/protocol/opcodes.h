@@ -86,7 +86,7 @@
  */
 #define kXR_ok       0     /* request succeeded; body (if any) is the result */
 #define kXR_oksofar  4000  /* partial result — more response frames follow */
-#define kXR_attn     4001  /* unsolicited server notification (not used here) */
+#define kXR_attn     4001  /* unsolicited server push notification */
 #define kXR_authmore 4002  /* authentication needs another round-trip;
                               body contains the next auth challenge */
 #define kXR_error    4003  /* request failed; body = errnum[4] + errmsg (NUL-terminated) */
@@ -94,6 +94,27 @@
                               body = port[4] + host (NUL-terminated) */
 #define kXR_wait     4005  /* try again after N seconds (body carries N as uint32) */
 #define kXR_waitresp 4006  /* async result is coming in a future kXR_attn frame */
+
+/* ------------------------------------------------------------------ */
+/* kXR_attn action codes  (body field actnum, big-endian)              */
+/* ------------------------------------------------------------------ */
+/*
+ * These are carried in the 4-byte actnum field at the start of a kXR_attn
+ * body.  All values 5000-5007 are deprecated ("No longer supported" in the
+ * v5 spec); only kXR_asyncms and kXR_asynresp are still active.
+ *
+ *   kXR_asyncms  — server-push text notification (unsolicited).
+ *                  Body layout: actnum[4] + reserved[4] +
+ *                               ServerResponseHdr[8] + message[dlen].
+ *                  Outer kXR_attn streamid is {0,0}.
+ *
+ *   kXR_asynresp — deferred response to a kXR_waitresp-acknowledged request.
+ *                  Same body layout; inner ServerResponseHdr carries the
+ *                  original request's streamid and actual status.
+ *                  Outer kXR_attn streamid mirrors the deferred streamid.
+ */
+#define kXR_asyncms   5002  /* active: unsolicited server notification message */
+#define kXR_asynresp  5008  /* active: deferred response completion */
 #define kXR_status   4007  /* extended status with CRC32c integrity check;
                               used for kXR_pgwrite and kXR_pgread responses */
 
