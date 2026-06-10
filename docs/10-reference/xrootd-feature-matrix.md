@@ -215,7 +215,7 @@ discovery, health checking, file location, and load balancing. Source:
 | Per-server performance metrics | XrdCmsPerfMon | ❌ | No load-aware routing |
 | Virtual node ID | XrdCmsVnId | ❌ | Not implemented |
 | CMS admin interface | XrdCmsAdmin | ❌ | No admin socket |
-| Colocation hint (kXR_coloc in prepare) | XrdCmsPrepare | ⚠️ | Flag accepted; not acted on |
+| Colocation hint (kXR_coloc in prepare) | XrdCmsPrepare | ✅ | Flag accepted; passed to `xrootd_prepare_command` |
 | kYR_select (CMS internal locate) | XrdCmsProtocol | ⚠️ | Handled as part of CMS wire format |
 | kXR_kYR_redirect | XrdCmsResp | ✅ | Redirect with tried-host list |
 | Lateral 307 redirect | XrdCmsClient | ⚠️ | One level only |
@@ -359,7 +359,7 @@ enforcement is implemented in `src/handshake/sigver.c`.
 | Gap | Effort | Notes |
 |-----|--------|-------|
 | Multi-tier CMS hierarchy | Medium | Two-tier covers most deployments |
-| kXR_coloc in prepare | Low | Hint only; ignored by most servers |
+| kXR_coloc in prepare | ✅ | Hint passed to `xrootd_prepare_command` via `XROOTD_PREPARE_COLOC=1` |
 | kXR_multipr login flag | Low | Single-protocol responses are sufficient |
 
 ### Out of scope — will never be implemented

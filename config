@@ -94,6 +94,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/read/statx.h \
                         $ngx_addon_dir/src/session/session.h \
                         $ngx_addon_dir/src/response/response.h \
+                        $ngx_addon_dir/src/response/async.h \
                         $ngx_addon_dir/src/write/write.h \
                         $ngx_addon_dir/src/write/chkpoint.h \
                         $ngx_addon_dir/src/dirlist/dirlist.h \
@@ -301,6 +302,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/token/signature.c \
     $ngx_addon_dir/src/token/validate.c \
     $ngx_addon_dir/src/token/macaroon.c \
+    $ngx_addon_dir/src/token/macaroon_issue.c \
     $ngx_addon_dir/src/fattr/helpers.c \
     $ngx_addon_dir/src/fattr/dispatch.c \
     $ngx_addon_dir/src/fattr/get.c \
@@ -421,6 +423,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/response/control.c \
     $ngx_addon_dir/src/response/status.c \
     $ngx_addon_dir/src/response/crc32c.c \
+    $ngx_addon_dir/src/response/async.c \
     $ngx_addon_dir/src/read/prefetch.c \
     $ngx_addon_dir/src/read/clone.c \
     $ngx_addon_dir/src/read/open_overview.c \
@@ -448,6 +451,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/write/mkdir.c \
     $ngx_addon_dir/src/write/mv.c \
     $ngx_addon_dir/src/write/pgwrite.c \
+    $ngx_addon_dir/src/write/wrts_journal.c \
     $ngx_addon_dir/src/write/rm.c \
     $ngx_addon_dir/src/write/rmdir.c \
     $ngx_addon_dir/src/write/sync.c \
@@ -531,7 +535,8 @@ ngx_module_srcs="$ngx_addon_dir/src/webdav/module.c \
                   $ngx_addon_dir/src/webdav/proxy.c \
                   $ngx_addon_dir/src/webdav/xrdhttp.c \
                   $ngx_addon_dir/src/webdav/xrdhttp_multipart.c \
-                  $ngx_addon_dir/src/webdav/xrdhttp_stats.c"
+                  $ngx_addon_dir/src/webdav/xrdhttp_stats.c \
+                  $ngx_addon_dir/src/webdav/macaroon_endpoint.c"
 ngx_module_deps="$ngx_xrootd_webdav_deps"
 ngx_module_libs="-lssl -lcrypto"
 . auto/module

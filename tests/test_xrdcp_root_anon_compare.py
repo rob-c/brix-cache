@@ -16,24 +16,15 @@ import time
 import hashlib
 
 import pytest
-from settings import DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import DATA_ROOT, NGINX_ANON_PORT, REF_XROOTD_PORT, SERVER_HOST
 
 # Each xrdcp call has a 20 s subprocess timeout; two calls + overhead = ~50 s.
 # Set the function timeout above that to avoid pytest-timeout firing first.
 pytestmark = pytest.mark.timeout(60)
 
-NGINX_URL = ""
-REF_URL   = ""
-DATA_DIR  = DEFAULT_DATA_ROOT
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env, ref_xrootd):
-    """Bind module constants from the shared test environment."""
-    global NGINX_URL, REF_URL, DATA_DIR
-    NGINX_URL = test_env["anon_url"]
-    REF_URL   = ref_xrootd["url"]
-    DATA_DIR  = test_env["data_dir"]
+NGINX_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+REF_URL   = f"root://localhost:{REF_XROOTD_PORT}"
+DATA_DIR  = DATA_ROOT
 
 
 def _md5(data: bytes) -> str:

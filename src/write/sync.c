@@ -29,6 +29,7 @@
  */
 #include "ngx_xrootd_module.h"
 #include "cache/cache_internal.h"
+#include "wrts_journal.h"
 
 /*
  * xrootd_handle_sync — fsync(2) an open file by handle.
@@ -68,6 +69,11 @@ xrootd_handle_sync(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_SYNC, "SYNC",
 						  ctx->files[idx].path, "-",
 						  kXR_IOError, strerror(errno));
+	}
+
+	/* kXR_sync committed writes to stable storage — flush the journal. */
+	if (ctx->files[idx].wrts_enabled) {
+		xrootd_wrts_flush(&ctx->files[idx]);
 	}
 
 	if (ctx->files[idx].dashboard_slot >= 0 &&

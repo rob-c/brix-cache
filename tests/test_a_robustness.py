@@ -53,24 +53,15 @@ import threading
 import time
 
 import pytest
-from settings import DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
+from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Target
 # ---------------------------------------------------------------------------
 
 ANON_HOST = SERVER_HOST
-ANON_PORT = 0             # nginx-xrootd anonymous endpoint
-DATA_DIR  = DEFAULT_DATA_ROOT
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants from the shared test environment."""
-    global ANON_HOST, ANON_PORT, DATA_DIR
-    ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
-    DATA_DIR  = test_env["data_dir"]
+ANON_PORT = NGINX_ANON_PORT
+DATA_DIR  = DATA_ROOT
 
 # ---------------------------------------------------------------------------
 # XRootD protocol constants

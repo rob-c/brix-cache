@@ -8,6 +8,7 @@
 
 #include "../ngx_xrootd_module.h"
 #include "../aio/aio.h"
+#include "../manager/registry.h"
 #include "dcksm.h"
 
 /*
@@ -116,6 +117,23 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
         return xrootd_send_error(ctx, c, kXR_ArgInvalid,
                                  "invalid path payload");
+    }
+
+    /* Manager mode: redirect dirlist to a registered data server. */
+    if (conf->manager_mode) {
+        char     redir_host[256];
+        uint16_t redir_port;
+
+        if (xrootd_srv_select(reqpath, 0, redir_host,
+                              sizeof(redir_host), &redir_port)) {
+            xrootd_log_access(ctx, c, "DIRLIST", reqpath, "registry",
+                              1, 0, NULL, 0);
+            XROOTD_OP_OK(ctx, XROOTD_OP_DIRLIST);
+            return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+        }
+        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
+        return xrootd_send_error(ctx, c, kXR_Overloaded,
+                                 "no data server available");
     }
 
     if (!xrootd_resolve_path(c->log, &conf->common.root,

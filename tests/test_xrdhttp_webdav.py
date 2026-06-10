@@ -516,7 +516,7 @@ class TestAuthBoundaryErrors:
 # Session-scoped fixture for cleanup
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module")
 def ensure_cleanup():
     """Ensure temporary files are cleaned up after tests."""
     yield None

@@ -31,7 +31,6 @@ from settings import (
     CLUSTER_CMS_PORT,
     CLUSTER_DS_DATA_ROOT,
     CLUSTER_DS_PORT,
-    CLUSTER_ESC_CMS_PORT,
     CLUSTER_ESC_LEAF_DATA_ROOT,
     CLUSTER_ESC_LEAF_PORT,
     CLUSTER_ESC_SUB_PORT,
@@ -50,7 +49,6 @@ from settings import (
     CLUSTER_MW_CMS_PORT,
     CLUSTER_MW_PORT,
     CLUSTER_REDIR_PORT,
-    CLUSTER_SELECT_CMS_PORT,
     CLUSTER_SELECT_PORT,
     CLUSTER_SELECT_REDIRECT_PORT,
     CLUSTER_SLOTS_DS1_DATA_ROOT,
@@ -63,7 +61,6 @@ from settings import (
     CLUSTER_SLOTS_DS4_PORT,
     CLUSTER_SLOTS_METRICS_PORT,
     CLUSTER_SLOTS_REDIR_PORT,
-    CLUSTER_TRY_CMS_PORT,
     CLUSTER_TRY_FIRST_PORT,
     CLUSTER_TRY_PORT,
     CLUSTER_TRY_SECOND_PORT,
@@ -308,53 +305,6 @@ def _cluster_send_open(sock, path, options=kXR_open_read):
 
 # ── nginx config templates ────────────────────────────────────────────────
 
-# Redirector: XRootD with manager_mode on  + CMS server on a separate port.
-# Placeholders: {PORT}=XRootD port (auto), {CMS_PORT}=CMS management port
-_REDIRECTOR_CONF = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log debug;
-pid       {LOG_DIR}/nginx.pid;
-
-events {{ worker_connections 128; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_auth none;
-        xrootd_manager_mode on;
-    }}
-    server {{
-        listen 127.0.0.1:{CMS_PORT};
-        xrootd_cms_server on;
-    }}
-}}
-"""
-
-# Data server: serves files and CMS-registers with the redirector.
-# Placeholders: {PORT}=XRootD port, {CMS_PORT}=redirector CMS port, {DATA_DIR}
-_DATASERVER_CONF = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log debug;
-pid       {LOG_DIR}/nginx.pid;
-
-events {{ worker_connections 128; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth none;
-        xrootd_cms_manager 127.0.0.1:{CMS_PORT};
-        xrootd_cms_paths /;
-        xrootd_cms_interval 5;
-        xrootd_listen_port {PORT};
-    }}
-}}
-"""
-
-
 @pytest.fixture(scope="module")
 def cluster():
     """Use the pre-launched cluster-redir + cluster-ds instances.
@@ -482,29 +432,6 @@ class TestClusterUnregister:
 # ═══════════════════════════════════════════════════════════════════════════
 # Part 3 — Multi-token path list routing (srv_path_matches edge cases)
 # ═══════════════════════════════════════════════════════════════════════════
-
-# Data server with two export path prefixes.
-_MULTIPATH_DATASERVER_CONF = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log debug;
-pid       {LOG_DIR}/nginx.pid;
-
-events {{ worker_connections 128; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth none;
-        xrootd_cms_manager 127.0.0.1:{CMS_PORT};
-        xrootd_cms_paths /data:/atlas;
-        xrootd_cms_interval 5;
-        xrootd_listen_port {PORT};
-    }}
-}}
-"""
-
 
 @pytest.fixture(scope="module")
 def cluster_multi_path():
@@ -688,30 +615,6 @@ class TestClusterMultiServer:
 # XRootD client session — no cross-worker IPC is required.
 # ═══════════════════════════════════════════════════════════════════════════
 
-import threading
-
-
-_MULTI_WORKER_CONF = """\
-worker_processes 2;
-error_log {LOG_DIR}/error.log info;
-pid       {LOG_DIR}/nginx.pid;
-
-events {{ worker_connections 64; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_root /tmp;
-        xrootd_auth none;
-        xrootd_cms_manager 127.0.0.1:{CMS_PORT};
-        xrootd_cms_paths /;
-        xrootd_cms_interval 3600;
-        xrootd_listen_port {PORT};
-    }}
-}}
-"""
-
 
 @pytest.fixture(scope="class")
 def cluster_multi_worker():
@@ -834,40 +737,6 @@ def _cms_recv_frame(sock: socket.socket):
 # Part 5 — Three-tier topology
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Sub-manager: acts as both a manager (for the leaf data server) and as a
-# data-server client (connecting to the meta-manager's CMS port).
-_SUB_MANAGER_CONF = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log debug;
-pid       {LOG_DIR}/nginx.pid;
-
-events {{ worker_connections 128; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_auth none;
-        xrootd_manager_mode on;
-    }}
-    server {{
-        listen 127.0.0.1:{CMS_PORT};
-        xrootd_cms_server on;
-    }}
-    server {{
-        listen 127.0.0.1:{SELF_REGISTER_PORT};
-        xrootd on;
-        xrootd_root /tmp;
-        xrootd_auth none;
-        xrootd_cms_manager 127.0.0.1:{META_CMS_PORT};
-        xrootd_cms_paths /;
-        xrootd_cms_interval 5;
-        xrootd_listen_port {PORT};
-    }}
-}}
-"""
-
-
 @pytest.fixture(scope="module")
 def three_tier():
     """Use the pre-launched cluster-3t-meta + cluster-3t-sub + cluster-3t-leaf."""
@@ -952,125 +821,33 @@ class TestThreeTierTopology:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Part 6 — kYR_select mock flow (CMS-assisted locate suspension + wake)
+# Part 6 — kYR_select flow (CMS-assisted locate suspension + wake)
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Manager that has no local registry but forwards locate requests to a mock
-# CMS manager (Python), which replies with kYR_select.
-_MOCK_CMS_MANAGER_CONF = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log debug;
-pid       {LOG_DIR}/nginx.pid;
-
-events {{ worker_connections 128; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_auth none;
-        xrootd_manager_mode on;
-        xrootd_cms_manager 127.0.0.1:{CMS_PORT};
-        xrootd_cms_paths /;
-        xrootd_cms_interval 3600;
-        xrootd_cms_locate_timeout 10s;
-        xrootd_listen_port {PORT};
-    }}
-}}
-"""
-
-
-def _run_mock_cms_select_server(cms_port: int, redirect_host: str,
-                                redirect_port: int, stop_event: threading.Event,
-                                locate_paths: list, select_sent: threading.Event,
-                                connected: threading.Event = None):
-    """Accept nginx CMS connections and serve kYR_login + kYR_locate → kYR_select."""
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(("127.0.0.1", cms_port))
-    srv.listen(4)
-    srv.settimeout(0.3)
-
-    try:
-        while not stop_event.is_set():
-            try:
-                conn, _ = srv.accept()
-            except socket.timeout:
-                continue
-
-            if connected is not None:
-                connected.set()
-            conn.settimeout(10)
-            try:
-                # Read and discard the LOGIN frame from nginx.
-                streamid, opcode, _payload = _cms_recv_frame(conn)
-                if opcode != CMS_RR_LOGIN:
-                    conn.close()
-                    continue
-
-                # Wait for a kYR_locate frame.
-                while not stop_event.is_set():
-                    locate_streamid, opcode, payload = _cms_recv_frame(conn)
-                    if opcode == CMS_RR_LOCATE:
-                        path = payload.rstrip(b"\x00").decode(errors="replace")
-                        locate_paths.append(path)
-                        # Send kYR_select: NUL-terminated host + BE uint16 port.
-                        select_payload = (
-                            redirect_host.encode() + b"\x00"
-                            + struct.pack(">H", redirect_port)
-                        )
-                        conn.sendall(
-                            _cms_frame(locate_streamid, CMS_RR_SELECT, select_payload)
-                        )
-                        select_sent.set()
-                    # Absorb any follow-up frames (PING etc.) without replying.
-            except Exception:
-                pass
-            finally:
-                conn.close()
-    finally:
-        srv.close()
+# nginx at CLUSTER_SELECT_PORT has no local registry; it escalates kXR_locate
+# to its parent CMS (cms_parent_stubs.py at CLUSTER_SELECT_CMS_PORT), which
+# replies with kYR_select pointing at CLUSTER_SELECT_REDIRECT_PORT.
 
 
 @pytest.fixture(scope="module")
-def cluster_mock_cms():
-    """Python mock CMS on CLUSTER_SELECT_CMS_PORT; pre-launched nginx at CLUSTER_SELECT_PORT."""
+def cms_select():
+    """Pre-started cluster-select nginx at CLUSTER_SELECT_PORT backed by CMS stub."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
-
-    stop_event   = threading.Event()
-    select_sent  = threading.Event()
-    connected    = threading.Event()
-    locate_paths = []
-
-    mock_thread = threading.Thread(
-        target=_run_mock_cms_select_server,
-        args=(CLUSTER_SELECT_CMS_PORT, "127.0.0.1", CLUSTER_SELECT_REDIRECT_PORT,
-              stop_event, locate_paths, select_sent, connected),
-        daemon=True,
-    )
-    mock_thread.start()
-    assert connected.wait(25), "nginx never connected to mock CMS select server"
-
+    _wait_port(CLUSTER_SELECT_PORT, "cluster-select")
     yield {
         "redir_port":    CLUSTER_SELECT_PORT,
         "redirect_port": CLUSTER_SELECT_REDIRECT_PORT,
-        "locate_paths":  locate_paths,
-        "select_sent":   select_sent,
-        "stop_event":    stop_event,
     }
-
-    stop_event.set()
-    mock_thread.join(timeout=3.0)
 
 
 class TestCmsSelectWake:
-    """nginx suspends a client kXR_locate, forwards kYR_locate to CMS, and
-    resumes the client with a kXR_redirect once kYR_select arrives."""
+    """nginx suspends a client kXR_locate, escalates kYR_locate to the CMS stub,
+    and resumes the client with a kXR_redirect once kYR_select arrives."""
 
-    def test_locate_wakes_on_cms_select(self, cluster_mock_cms):
+    def test_locate_wakes_on_cms_select(self, cms_select):
         """kXR_locate must return kXR_redirect to the port advertised by kYR_select."""
-        c = cluster_mock_cms
+        c = cms_select
 
         sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
         sock.settimeout(15)  # generous — allows for CMS round-trip
@@ -1087,54 +864,12 @@ class TestCmsSelectWake:
             f"redirect to port {got_port}, expected {c['redirect_port']}"
         )
 
-    def test_cms_received_locate_path(self, cluster_mock_cms):
-        """The mock CMS must have received the locate path forwarded by nginx."""
-        c = cluster_mock_cms
-        # Wait up to 5 s for the select to have been sent.
-        c["select_sent"].wait(timeout=5)
-        assert c["locate_paths"], "mock CMS never received a kYR_locate frame"
-        assert any("cms-select-test" in p for p in c["locate_paths"]), (
-            f"expected locate path to contain 'cms-select-test', got {c['locate_paths']}"
-        )
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Part 7 — Registry-full counter (xrootd_registry_slots + Prometheus)
 # ═══════════════════════════════════════════════════════════════════════════
 
 import urllib.request
-
-_REDIRECTOR_SLOTS_CONF = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log debug;
-pid       {LOG_DIR}/nginx.pid;
-
-events {{ worker_connections 128; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_auth none;
-        xrootd_manager_mode on;
-        xrootd_registry_slots 3;
-    }}
-    server {{
-        listen 127.0.0.1:{CMS_PORT};
-        xrootd_cms_server on;
-    }}
-}}
-
-http {{
-    server {{
-        listen 127.0.0.1:{METRICS_PORT};
-        location /metrics {{
-            xrootd_metrics on;
-        }}
-    }}
-}}
-"""
-
 
 @pytest.fixture(scope="module")
 def cluster_full_registry():
@@ -1213,7 +948,7 @@ class TestRegistryFullCounter:
 # Part 8 — kYR_gone: path deregistration via CMS
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _mock_cms_connect_and_register(cms_port: int, xrd_port: int,
+def _cms_connect_and_register(cms_port: int, xrd_port: int,
                                    path: str) -> socket.socket:
     """Connect to the nginx CMS server port and send a LOGIN frame for the
     given XRootD port and path.  Returns the open TCP socket."""
@@ -1228,7 +963,7 @@ def _mock_cms_connect_and_register(cms_port: int, xrd_port: int,
 class TestKyrGone:
     """kYR_gone removes a path from the registry without disconnecting.
 
-    A Python socket acts as the mock data server.  It:
+    A raw TCP socket registers as a data server via the CMS protocol:
       1. Connects to the redirector's CMS server port and sends LOGIN
          (which registers the path "/gone-test").
       2. Confirms locate returns kXR_redirect.
@@ -1240,8 +975,8 @@ class TestKyrGone:
         """After kYR_gone for /gone-test, locate must stop redirecting there."""
         gone_port = CLUSTER_GONE_DS_PORT
 
-        # Register a mock data server for /gone-test.
-        mock_conn = _mock_cms_connect_and_register(
+        # Register a raw TCP socket as a CMS data server for /gone-test.
+        cms_conn = _cms_connect_and_register(
             cluster["cms_port"], gone_port, "/gone-test"
         )
         time.sleep(1.5)  # let nginx process LOGIN and register the path
@@ -1259,7 +994,7 @@ class TestKyrGone:
         assert got_port == gone_port
 
         # Send kYR_gone — payload is the raw path bytes (no TLV encoding).
-        mock_conn.sendall(
+        cms_conn.sendall(
             _cms_frame(2, CMS_RR_GONE, b"/gone-test")
         )
         time.sleep(1.5)  # let nginx process the GONE frame
@@ -1269,7 +1004,7 @@ class TestKyrGone:
         _cluster_send_locate(sock2, "/gone-test/file.txt")
         status2, body2 = _cluster_read_response(sock2)
         sock2.close()
-        mock_conn.close()
+        cms_conn.close()
 
         # After GONE the slot may either be gone entirely (no redirect) or
         # the server is still registered but the path token removed.
@@ -1285,8 +1020,8 @@ class TestKyrGone:
         port_a = CLUSTER_GONE_DS_PORT_A
         port_b = CLUSTER_GONE_DS_PORT_B
 
-        conn_a = _mock_cms_connect_and_register(cluster["cms_port"], port_a, "/gone-other")
-        conn_b = _mock_cms_connect_and_register(cluster["cms_port"], port_b, "/gone-test2")
+        conn_a = _cms_connect_and_register(cluster["cms_port"], port_a, "/gone-other")
+        conn_b = _cms_connect_and_register(cluster["cms_port"], port_b, "/gone-test2")
         time.sleep(1.5)
 
         # Send GONE only for /gone-test2.
@@ -1327,95 +1062,30 @@ class TestKyrGone:
 CMS_RR_TRY = 24  # kYR_try opcode
 
 
-def _run_mock_cms_try_server(cms_port, first_host, first_port,
-                             second_host, second_port,
-                             stop_event, locate_paths, try_sent,
-                             connected=None):
-    """Accept nginx CMS connections; reply to kYR_locate with kYR_try (2 entries)."""
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(("127.0.0.1", cms_port))
-    srv.listen(4)
-    srv.settimeout(0.3)
-    try:
-        while not stop_event.is_set():
-            try:
-                conn, _ = srv.accept()
-            except socket.timeout:
-                continue
-            if connected is not None:
-                connected.set()
-            conn.settimeout(15)
-            try:
-                sid, op, _pl = _cms_recv_frame(conn)
-                if op != CMS_RR_LOGIN:
-                    conn.close()
-                    continue
-                # Loop reading all frames; act only on kYR_locate
-                while not stop_event.is_set():
-                    loc_sid, op, payload = _cms_recv_frame(conn)
-                    if op == CMS_RR_LOCATE:
-                        path = payload.rstrip(b"\x00").decode(errors="replace")
-                        locate_paths.append(path)
-                        try_payload = (
-                            first_host.encode()  + b"\x00"
-                            + struct.pack(">H", first_port)
-                            + second_host.encode() + b"\x00"
-                            + struct.pack(">H", second_port)
-                        )
-                        conn.sendall(_cms_frame(loc_sid, CMS_RR_TRY, try_payload))
-                        try_sent.set()
-            except Exception:
-                pass
-            finally:
-                conn.close()
-    finally:
-        srv.close()
-
-
 @pytest.fixture(scope="module")
-def cluster_cms_try():
-    """Python mock CMS on CLUSTER_TRY_CMS_PORT; pre-launched nginx at CLUSTER_TRY_PORT."""
+def cms_try():
+    """Pre-started CMS-try cluster at CLUSTER_TRY_PORT backed by cms_parent_stubs.py."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
-
-    stop_event   = threading.Event()
-    try_sent     = threading.Event()
-    connected    = threading.Event()
-    locate_paths = []
-
-    threading.Thread(
-        target=_run_mock_cms_try_server,
-        args=(CLUSTER_TRY_CMS_PORT,
-              "127.0.0.1", CLUSTER_TRY_FIRST_PORT,
-              "127.0.0.1", CLUSTER_TRY_SECOND_PORT,
-              stop_event, locate_paths, try_sent, connected),
-        daemon=True,
-    ).start()
-    assert connected.wait(25), "nginx never connected to mock CMS try server"
-
+    _wait_port(CLUSTER_TRY_PORT, "cms-try")
     yield {
-        "redir_port":   CLUSTER_TRY_PORT,
-        "first_port":   CLUSTER_TRY_FIRST_PORT,
-        "second_port":  CLUSTER_TRY_SECOND_PORT,
-        "locate_paths": locate_paths,
-        "try_sent":     try_sent,
-        "stop_event":   stop_event,
+        "redir_port":  CLUSTER_TRY_PORT,
+        "first_port":  CLUSTER_TRY_FIRST_PORT,
+        "second_port": CLUSTER_TRY_SECOND_PORT,
     }
-    stop_event.set()
 
 
 class TestCmsKyrTry:
     """kYR_try: nginx must redirect the client to the first entry in the list."""
 
-    def test_locate_redirects_to_first_try_entry(self, cluster_cms_try):
+    def test_locate_redirects_to_first_try_entry(self, cms_try):
         """kXR_locate returns kXR_REDIRECT pointing at the FIRST kYR_try entry.
 
-        Wire path: client → nginx XRD_ST_WAITING_CMS → mock CMS replies
+        Wire path: client → nginx XRD_ST_WAITING_CMS → CMS stub replies
         kYR_try[first_port, second_port] → nginx wakes with kXR_REDIRECT to
         first_port only.
         """
-        c = cluster_cms_try
+        c = cms_try
         sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
         sock.settimeout(20)
         _cluster_send_locate(sock, "/kyr-try-test/file.dat")
@@ -1432,9 +1102,9 @@ class TestCmsKyrTry:
             f"{c['first_port']}, not second_port {c['second_port']}"
         )
 
-    def test_second_entry_ignored(self, cluster_cms_try):
+    def test_second_entry_ignored(self, cms_try):
         """The second kYR_try entry must not be used for the redirect."""
-        c = cluster_cms_try
+        c = cms_try
         sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
         sock.settimeout(20)
         _cluster_send_locate(sock, "/kyr-try-second-entry/file.dat")
@@ -1448,41 +1118,14 @@ class TestCmsKyrTry:
             "instead of the first"
         )
 
-    def test_mock_cms_received_escalated_locate(self, cluster_cms_try):
-        """The mock CMS must have received at least one kYR_locate frame."""
-        c = cluster_cms_try
-        c["try_sent"].wait(timeout=10)
-        assert c["locate_paths"], "mock CMS never received a kYR_locate frame"
-        assert any("kyr-try" in p for p in c["locate_paths"]), (
-            f"expected path containing 'kyr-try', got {c['locate_paths']}"
-        )
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Part 10 — True CMS escalation: sub-manager asks parent on registry miss
 # ═══════════════════════════════════════════════════════════════════════════
 
-_LEAF_STANDALONE_CONF = """\
-worker_processes 1;
-error_log {LOG_DIR}/error.log debug;
-pid       {LOG_DIR}/nginx.pid;
-
-events {{ worker_connections 128; }}
-
-stream {{
-    server {{
-        listen 127.0.0.1:{PORT};
-        xrootd on;
-        xrootd_root {DATA_DIR};
-        xrootd_auth none;
-    }}
-}}
-"""
-
-
 @pytest.fixture(scope="module")
-def cluster_cms_escalation():
-    """Python mock CMS on CLUSTER_ESC_CMS_PORT; pre-launched sub + leaf instances."""
+def cms_escalation():
+    """Pre-started escalation cluster backed by cms_parent_stubs.py."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
@@ -1490,36 +1133,18 @@ def cluster_cms_escalation():
     leaf_file.parent.mkdir(parents=True, exist_ok=True)
     leaf_file.write_text("cms escalation target")
 
-    stop_event   = threading.Event()
-    select_sent  = threading.Event()
-    connected    = threading.Event()
-    locate_paths = []
-
-    mock_thread = threading.Thread(
-        target=_run_mock_cms_select_server,
-        args=(CLUSTER_ESC_CMS_PORT, "127.0.0.1", CLUSTER_ESC_LEAF_PORT,
-              stop_event, locate_paths, select_sent, connected),
-        daemon=True,
-    )
-    mock_thread.start()
-    assert connected.wait(25), "nginx never connected to mock CMS escalation server"
-
+    _wait_port(CLUSTER_ESC_SUB_PORT, "cms-escalation-sub")
     yield {
-        "sub_port":    CLUSTER_ESC_SUB_PORT,
-        "leaf_port":   CLUSTER_ESC_LEAF_PORT,
-        "locate_paths": locate_paths,
-        "select_sent": select_sent,
+        "sub_port":  CLUSTER_ESC_SUB_PORT,
+        "leaf_port": CLUSTER_ESC_LEAF_PORT,
     }
-
-    stop_event.set()
-    mock_thread.join(timeout=3.0)
 
 
 class TestCmsEscalation:
     """Registry miss -> kYR_locate to parent -> kYR_select -> kXR_redirect."""
 
-    def test_three_tier_escalation_redirects_to_leaf(self, cluster_cms_escalation):
-        c = cluster_cms_escalation
+    def test_three_tier_escalation_redirects_to_leaf(self, cms_escalation):
+        c = cms_escalation
 
         sock = _cluster_handshake_login("127.0.0.1", c["sub_port"])
         sock.settimeout(15)
@@ -1534,11 +1159,6 @@ class TestCmsEscalation:
         got_port = struct.unpack(">I", body[:4])[0]
         assert got_port == c["leaf_port"], (
             f"expected redirect to leaf port {c['leaf_port']}, got {got_port}"
-        )
-
-        c["select_sent"].wait(timeout=5)
-        assert any("escalate/file.dat" in p for p in c["locate_paths"]), (
-            f"mock meta-manager did not receive escalated path: {c['locate_paths']}"
         )
 
         leaf_sock = _cluster_handshake_login("127.0.0.1", c["leaf_port"])

@@ -232,7 +232,12 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         proxy->rhdr_pos      = 0;
         proxy->resp_dlen     = 0;
         proxy->resp_body_pos = 0;
-        proxy->state         = XRD_PX_IDLE;
+        /* Stay FORWARDING: events_read loops and reads the next upstream
+         * frame.  If upstream sends kXR_redirect/kXR_error before the timer
+         * fires (common when both frames arrive in the same TCP segment) it is
+         * handled immediately.  If the timer fires first, wait_handler
+         * re-issues the request; wait_retry_req == NULL check there is a no-op
+         * guard for the spontaneous-response case. */
 
         ngx_memzero(&proxy->wait_ev, sizeof(proxy->wait_ev));
         proxy->wait_ev.handler = xrootd_proxy_wait_handler;
@@ -424,18 +429,44 @@ xrootd_skip_redirect:
     }
 
     /* ---- build and send relay buffer ---- */
-    total = XRD_RESPONSE_HDR_LEN + dlen;
-    buf   = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        xrootd_proxy_abort(proxy, "proxy: pool alloc failed in relay");
-        return;
+    /*
+     * kXR_status (pgread/pgwrite): hdr.dlen must remain 24 (the fixed-size
+     * ServerStatusBody+pgRead header), even though we expanded resp_dlen to
+     * 24 + bdy.dlen to buffer the page data.  The client extracts bdy.dlen
+     * from body[12:16] and reads that many more bytes after the 24-byte body.
+     */
+    if (status == kXR_status && dlen > 24) {
+        total = XRD_RESPONSE_HDR_LEN + dlen;   /* 8 + 24 + extra */
+        buf   = ngx_palloc(c->pool, total);
+        if (buf == NULL) {
+            xrootd_proxy_abort(proxy, "proxy: pool alloc failed in relay");
+            return;
+        }
+        /* Header: dlen=24 (the fixed kXR_status body size, not 24+extra) */
+        xrootd_build_resp_hdr(proxy->fwd_streamid, status, 24,
+                              (ServerResponseHdr *)(void *) buf);
+        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
+    } else {
+        total = XRD_RESPONSE_HDR_LEN + dlen;
+        buf   = ngx_palloc(c->pool, total);
+        if (buf == NULL) {
+            xrootd_proxy_abort(proxy, "proxy: pool alloc failed in relay");
+            return;
+        }
+        xrootd_build_resp_hdr(proxy->fwd_streamid, status, dlen,
+                              (ServerResponseHdr *)(void *) buf);
+        if (dlen > 0 && body != NULL) {
+            ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
+        }
     }
 
-    xrootd_build_resp_hdr(proxy->fwd_streamid, status, dlen,
-                          (ServerResponseHdr *)(void *) buf);
-    if (dlen > 0 && body != NULL) {
-        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
-    }
+    /*
+     * Save resptype from kXR_status body[7] before freeing.
+     * kXR_PartialResult (0x01) means upstream will send more kXR_status frames;
+     * we must stay FORWARDING rather than going IDLE after relaying this chunk.
+     */
+    u_char resptype = (status == kXR_status && body != NULL && dlen >= 8)
+                      ? body[7] : 0;
 
     /* Free the heap-allocated body now that we've copied it */
     if (proxy->resp_body != NULL) {
@@ -443,9 +474,10 @@ xrootd_skip_redirect:
         proxy->resp_body = NULL;
     }
 
-    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "xrootd proxy: relay reqid=%d status=%d dlen=%uz",
-                   (int) proxy->fwd_reqid, (int) status, (size_t) dlen);
+    ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                  "xrootd proxy: relay reqid=%d status=%d dlen=%uz resptype=%d",
+                  (int) proxy->fwd_reqid, (int) status, (size_t) dlen,
+                  (int) resptype);
 
     if (status == kXR_oksofar) {
         /* More chunks to come — relay this frame but stay in FORWARDING */
@@ -472,7 +504,33 @@ xrootd_skip_redirect:
         return;
     }
 
-    /* Final response — transition back to client loop */
+    /*
+     * kXR_status partial result (resptype=0x01 kXR_PartialResult): upstream
+     * will send more kXR_status frames for this pgread.  Relay this chunk to
+     * the client but stay FORWARDING so the read handler loops and picks up
+     * the subsequent frames.  Same logic as kXR_oksofar for kXR_read.
+     */
+    if (status == kXR_status && resptype == 0x01 /* kXR_PartialResult */) {
+        proxy->rhdr_pos      = 0;
+        proxy->resp_dlen     = 0;
+        proxy->resp_body     = NULL;
+        proxy->resp_body_pos = 0;
+        xrootd_queue_response(ctx, c, buf, total);
+        /* State stays XRD_PX_FORWARDING; read handler loops to next frame */
+        return;
+    }
+
+    /* Final response — transition back to client loop.
+     * Cancel any pending kXR_wait retry timer: a final response arrived
+     * before the timer fired (spontaneous upstream send).  Free the saved
+     * retry buffer too; wait_handler checks req==NULL as a no-op guard. */
+    if (proxy->wait_ev.timer_set) {
+        ngx_del_timer(&proxy->wait_ev);
+    }
+    if (proxy->wait_retry_req != NULL) {
+        ngx_free(proxy->wait_retry_req);
+        proxy->wait_retry_req = NULL;
+    }
     proxy->state = XRD_PX_IDLE;
     ctx->state   = XRD_ST_REQ_HEADER;
     xrootd_queue_response(ctx, c, buf, total);

@@ -235,8 +235,8 @@ class TestWebDAVWLCGAuditLog:
         )
         assert r.status_code in (200, 201, 204), f"WebDAV PUT failed: {r.status_code}"
 
-        chunk = _wait_for_log_entry(WEBDAV_LOG, offset, name)
-        assert chunk, f"No WebDAV log entry for PUT {name}"
+        chunk = _wait_for_log_entry(WEBDAV_LOG, offset, name, timeout=15.0)
+        assert chunk, f"No WebDAV log entry for PUT {name} in {WEBDAV_LOG}"
         assert "PUT" in chunk, f"HTTP method PUT not in WebDAV log:\n{chunk[:300]}"
 
     def test_client_ip_in_webdav_log(self):

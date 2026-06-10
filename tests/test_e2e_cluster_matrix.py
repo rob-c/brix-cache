@@ -30,7 +30,6 @@ import os
 import socket
 import struct
 import subprocess
-import threading
 import time
 import uuid
 
@@ -41,7 +40,6 @@ from settings import (
     CLUSTER_3T_LEAF_PORT,
     CLUSTER_3T_META_PORT,
     CLUSTER_3T_SUB_PORT,
-    CLUSTER_ESC_CMS_PORT,
     CLUSTER_ESC_LEAF_DATA_ROOT,
     CLUSTER_ESC_LEAF_PORT,
     CLUSTER_ESC_SUB_PORT,
@@ -59,35 +57,6 @@ from settings import (
     XRDCP_BIN,
     XRDFS_BIN,
 )
-
-# ---------------------------------------------------------------------------
-# CMS protocol helpers (subset needed for mock CMS server)
-# ---------------------------------------------------------------------------
-
-_CMS_LOGIN  = 0
-_CMS_LOCATE = 2
-_CMS_SELECT = 10
-
-
-def _cms_recv_exact(sock: socket.socket, n: int) -> bytes:
-    buf = b""
-    while len(buf) < n:
-        chunk = sock.recv(n - len(buf))
-        if not chunk:
-            raise RuntimeError(f"CMS connection closed after {len(buf)}/{n} bytes")
-        buf += chunk
-    return buf
-
-
-def _cms_recv_frame(sock: socket.socket):
-    hdr = _cms_recv_exact(sock, 8)
-    streamid, opcode, _mod, dlen = struct.unpack(">IBBH", hdr)
-    payload = _cms_recv_exact(sock, dlen) if dlen else b""
-    return streamid, opcode, payload
-
-
-def _cms_frame(streamid: int, opcode: int, payload: bytes = b"") -> bytes:
-    return struct.pack(">IBBH", streamid, opcode, 0, len(payload)) + payload
 
 pytestmark = pytest.mark.e2e
 
@@ -288,75 +257,23 @@ class TestNginxManagerMultipleDS:
 # Section 3B.2 — Nginx Data Node: xrootd manager → nginx data
 # ---------------------------------------------------------------------------
 
-def _run_esc_mock_cms(stop_event: threading.Event, connected: threading.Event) -> None:
-    """Mock CMS server for the escalation cluster.
-
-    Listens at CLUSTER_ESC_CMS_PORT. When nginx esc-sub connects and sends
-    a LOCATE query, responds with SELECT → esc-leaf (CLUSTER_ESC_LEAF_PORT).
-    """
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(("127.0.0.1", CLUSTER_ESC_CMS_PORT))
-    srv.listen(4)
-    srv.settimeout(0.3)
-    try:
-        while not stop_event.is_set():
-            try:
-                conn, _ = srv.accept()
-            except socket.timeout:
-                continue
-            connected.set()
-            conn.settimeout(5)
-            try:
-                streamid, opcode, _ = _cms_recv_frame(conn)
-                if opcode != _CMS_LOGIN:
-                    conn.close()
-                    continue
-                while not stop_event.is_set():
-                    streamid, opcode, _ = _cms_recv_frame(conn)
-                    if opcode == _CMS_LOCATE:
-                        select_payload = (
-                            b"127.0.0.1\x00"
-                            + struct.pack(">H", CLUSTER_ESC_LEAF_PORT)
-                        )
-                        conn.sendall(_cms_frame(streamid, _CMS_SELECT, select_payload))
-            except Exception:
-                pass
-            finally:
-                conn.close()
-    finally:
-        srv.close()
-
-
 class TestNginxDataNode:
-    """nginx-xrootd as a data node with a mock CMS manager redirecting to it.
+    """nginx-xrootd as a data node under an xrootd CMS manager.
 
     Covers roadmap Section 3B, Permutation 2.
-    The mock CMS at CLUSTER_ESC_CMS_PORT responds to esc-sub's LOCATE queries
-    with a SELECT pointing to esc-leaf (CLUSTER_ESC_LEAF_PORT).
+    The pre-started cms_parent_stubs.py daemon at CLUSTER_ESC_CMS_PORT responds
+    to esc-sub's LOCATE queries with SELECT → esc-leaf (CLUSTER_ESC_LEAF_PORT).
     """
 
     @pytest.fixture(scope="class", autouse=True)
     def _cluster_ready(self):
-        """Verify ports are up, then start the mock CMS for esc-sub escalation."""
+        """Verify all escalation-cluster ports are up before tests run."""
         for port, label in [
             (CLUSTER_ESC_SUB_PORT, "xrootd sub-manager (escalation)"),
             (CLUSTER_ESC_LEAF_PORT, "nginx data node (escalation leaf)"),
         ]:
             _skip_if_port_closed(port, label)
-
-        stop_event = threading.Event()
-        connected  = threading.Event()
-        t = threading.Thread(
-            target=_run_esc_mock_cms, args=(stop_event, connected), daemon=True
-        )
-        t.start()
-        if not connected.wait(timeout=20):
-            stop_event.set()
-            pytest.skip("esc-sub never connected to mock CMS")
         yield
-        stop_event.set()
-        t.join(timeout=3)
 
     def test_xrootd_manager_redirects_to_nginx_data(self, tmp_path):
         """xrootd CMS manager redirects to nginx data node; xrdcp reads correctly."""

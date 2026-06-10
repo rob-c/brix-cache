@@ -24,17 +24,21 @@ import tempfile
 import pytest
 from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, QueryCode, StatInfoFlags
-from settings import CA_DIR as DEFAULT_CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD
+from settings import (
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    PROXY_STD,
+    SERVER_HOST,
+)
 
 # ---------------------------------------------------------------------------
-# Configuration — populated by the _configure fixture from test_env
+# Configuration
 # ---------------------------------------------------------------------------
 
-ANON_URL  = ""
-GSI_URL   = ""
-
-DATA_ROOT = DEFAULT_DATA_ROOT
-CA_DIR    = DEFAULT_CA_DIR
+ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+GSI_URL   = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
 PROXY_PEM = PROXY_STD
 
 # Known test files (relative to DATA_ROOT / server root "/")
@@ -42,31 +46,6 @@ TEST_FILES = {
     "test.txt":   {"size": 24,      "content": b"hello from nginx-xrootd\n"},
     "random.bin": {"size": 5242880, "content": None},   # content checked via md5
 }
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants and set GSI env vars from the shared test environment."""
-    global ANON_URL, GSI_URL, DATA_ROOT, CA_DIR, PROXY_PEM
-    ANON_URL  = test_env["anon_url"]
-    GSI_URL   = test_env["gsi_url"]
-    DATA_ROOT = test_env["data_dir"]
-    CA_DIR    = test_env["ca_dir"]
-    PROXY_PEM = test_env["proxy_pem"]
-    old = {}
-    for k, v in [("X509_CERT_DIR", CA_DIR), ("X509_USER_PROXY", PROXY_PEM)]:
-        old[k] = os.environ.get(k)
-        os.environ[k] = v
-    yield
-    for k, v in old.items():
-        if v is None:
-            os.environ.pop(k, None)
-        else:
-            os.environ[k] = v
 
 
 @pytest.fixture(scope="module")

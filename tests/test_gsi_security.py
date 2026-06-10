@@ -28,8 +28,9 @@ from XRootD import client as xrd_client
 from XRootD.client.flags import OpenFlags, QueryCode
 
 from settings import (
-    CA_DIR as DEFAULT_CA_DIR,
-    DATA_ROOT as DEFAULT_DATA_ROOT,
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_ANON_PORT,
     NGINX_GSI_PORT,
     NGINX_GSI_TLS_PORT,
     PROXY_STD,
@@ -41,14 +42,12 @@ from settings import (
 # Module-level state
 # ---------------------------------------------------------------------------
 
-GSI_HOST     = SERVER_HOST
-GSI_PORT     = NGINX_GSI_PORT      # plain GSI, port 11095
-GSI_URL      = ""
-GSI_TLS_URL  = ""
-ANON_URL     = ""
-DATA_ROOT    = DEFAULT_DATA_ROOT
-CA_DIR       = DEFAULT_CA_DIR
-PROXY_PEM    = PROXY_STD
+GSI_HOST    = SERVER_HOST
+GSI_PORT    = NGINX_GSI_PORT      # plain GSI, port 11095
+GSI_URL     = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
+GSI_TLS_URL = f"roots://{SERVER_HOST}:{NGINX_GSI_TLS_PORT}"
+ANON_URL    = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+PROXY_PEM   = PROXY_STD
 
 # ---------------------------------------------------------------------------
 # XRootD opcodes (same as wire_protocol_security.py)
@@ -78,31 +77,6 @@ kXR_ok              = 0
 kXR_error           = 4003
 kXR_NOT_AUTHORIZED  = 3010
 kXR_Unsupported     = 3013
-
-
-# ---------------------------------------------------------------------------
-# Session fixture
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global GSI_URL, GSI_TLS_URL, ANON_URL, DATA_ROOT, CA_DIR, PROXY_PEM
-    GSI_URL     = test_env["gsi_url"]
-    GSI_TLS_URL = test_env["gsi_tls_url"]
-    ANON_URL    = test_env["anon_url"]
-    DATA_ROOT   = test_env["data_dir"]
-    CA_DIR      = test_env["ca_dir"]
-    PROXY_PEM   = test_env["proxy_pem"]
-    old = {}
-    for k, v in [("X509_CERT_DIR", CA_DIR), ("X509_USER_PROXY", PROXY_PEM)]:
-        old[k] = os.environ.get(k)
-        os.environ[k] = v
-    yield
-    for k, v in old.items():
-        if v is None:
-            os.environ.pop(k, None)
-        else:
-            os.environ[k] = v
 
 
 # ---------------------------------------------------------------------------

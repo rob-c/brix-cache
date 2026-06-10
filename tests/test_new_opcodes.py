@@ -49,35 +49,22 @@ def _pgwrite_payload(data: bytes, offset: int, corrupt_page: int = -1) -> bytes:
 import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags, StatInfoFlags
-from settings import CA_DIR as DEFAULT_CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD
+from settings import (
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    PROXY_STD,
+    SERVER_HOST,
+)
 
-ANON_URL  = ""
-ANON_PORT = 11094
-GSI_URL   = ""
-CA_DIR    = DEFAULT_CA_DIR
+ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+ANON_PORT = NGINX_ANON_PORT
+GSI_URL   = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
 PROXY_PEM = PROXY_STD
-DATA_ROOT = DEFAULT_DATA_ROOT
 
 PATTERN   = bytes(i & 0xFF for i in range(65536))     # 64 KiB
 LARGE     = bytes((i * 7 + 13) & 0xFF for i in range(512 * 1024))  # 512 KiB
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants and set GSI env vars from the shared test environment."""
-    global ANON_URL, ANON_PORT, GSI_URL, CA_DIR, PROXY_PEM, DATA_ROOT
-    ANON_URL  = test_env["anon_url"]
-    ANON_PORT = test_env["anon_port"]
-    GSI_URL   = test_env["gsi_url"]
-    CA_DIR    = test_env["ca_dir"]
-    PROXY_PEM = test_env["proxy_pem"]
-    DATA_ROOT = test_env["data_dir"]
-    os.environ["X509_CERT_DIR"]  = CA_DIR
-    os.environ["X509_USER_PROXY"] = PROXY_PEM
 
 
 # ---------------------------------------------------------------------------

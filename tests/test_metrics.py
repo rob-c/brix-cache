@@ -20,24 +20,19 @@ import time
 
 import pytest
 import urllib.request
-from settings import CA_DIR as DEFAULT_CA_DIR, PROXY_STD
+from settings import (
+    CA_DIR,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    NGINX_METRICS_PORT,
+    PROXY_STD,
+    SERVER_HOST,
+)
 
-METRICS_URL = ""
-ANON_PORT   = ""
-GSI_PORT    = ""
-CA_DIR      = DEFAULT_CA_DIR
+METRICS_URL = f"http://{SERVER_HOST}:{NGINX_METRICS_PORT}/metrics"
+ANON_PORT   = str(NGINX_ANON_PORT)
+GSI_PORT    = str(NGINX_GSI_PORT)
 PROXY_PEM   = PROXY_STD
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants from the shared test environment."""
-    global METRICS_URL, ANON_PORT, GSI_PORT, CA_DIR, PROXY_PEM
-    METRICS_URL = test_env["metrics_url"]
-    ANON_PORT   = str(test_env["anon_port"])
-    GSI_PORT    = str(test_env["gsi_port"])
-    CA_DIR      = test_env["ca_dir"]
-    PROXY_PEM   = test_env["proxy_pem"]
 
 
 # ---------------------------------------------------------------------------

@@ -61,6 +61,10 @@ def cluster():
     """Wait for the pre-launched cluster and return port constants."""
     _wait_port(SERVER_HOST, CLUSTER_REDIR_PORT, timeout=20)
     _wait_port(SERVER_HOST, CLUSTER_DS_PORT,    timeout=20)
+    os.makedirs(os.path.join(CLUSTER_DS_DATA_ROOT, "uploads"), exist_ok=True)
+    # Allow time for the data server to register with the CMS manager.
+    # xrootd_cms_interval is 5s; 6s ensures at least one heartbeat.
+    time.sleep(6)
     return {
         "redir_port": CLUSTER_REDIR_PORT,
         "ds_port":    CLUSTER_DS_PORT,
@@ -129,6 +133,7 @@ def test_xrdcp_read_through_redirector(cluster):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.requires_local_server
+@pytest.mark.timeout(60)
 def test_xrdcp_write_through_redirector(cluster):
     """xrdcp upload follows redirect; file lands on the data server filesystem."""
     payload  = os.urandom(32768)
@@ -139,8 +144,15 @@ def test_xrdcp_write_through_redirector(cluster):
         src.write(payload)
         local = src.name
 
-    rc = _xrdcp_put(local, _redir_url(cluster["redir_port"], f"//uploads/{name}"))
-    assert rc == 0, "xrdcp upload through redirector failed"
+    dst_url = _redir_url(cluster["redir_port"], f"//uploads/{name}")
+    result = subprocess.run(
+        [XRDCP_BIN, "-f", local, dst_url],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"xrdcp upload through redirector failed (rc={result.returncode}):\n"
+        f"{result.stderr}"
+    )
 
     # Verify the file exists on the DS filesystem.
     upload_path = os.path.join(cluster["data_root"], "uploads", name)

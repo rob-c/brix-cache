@@ -203,6 +203,10 @@ def _setup_session():
 
 
 def pytest_sessionstart(session):
+    # xdist workers inherit the environment from the controller which has already
+    # called start-all.  Running it again from every worker in parallel would race.
+    if hasattr(session.config, "workerinput"):
+        return
     if (os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
             or _selected_tests_do_not_need_server(session.config)):
         return
@@ -244,8 +248,13 @@ def pytest_collection_modifyitems(config, items):
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Stop local servers when the session ends (no-op in remote mode)."""
+    """Stop local servers when the session ends (no-op in remote mode or xdist workers)."""
     import subprocess
+
+    # xdist workers must not call stop-all: the controller owns server lifecycle.
+    # A worker finishing early would kill servers other workers still need.
+    if hasattr(session.config, "workerinput"):
+        return
 
     if (REMOTE_SERVER
             or os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"

@@ -100,9 +100,10 @@ xrootd_upstream_send_token_auth(xrootd_upstream_t *up,
     up->resp_body     = NULL;
     up->resp_body_pos = 0;
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, up->conn->log, 0,
-                   "xrootd: upstream sending ztn token auth (%uz bytes)",
-                   token_len);
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, up->conn->log, 0,
+                   "xrootd: upstream sending ztn token auth (%uz bytes); "
+                   "frame_len=%uz",
+                   token_len, frame_len);
 
     if (xrootd_upstream_flush(up) == NGX_ERROR) {
         return NGX_ERROR;

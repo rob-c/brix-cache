@@ -1,17 +1,72 @@
 /*
- * src/response/async.h — Public interface for async/attn response handlers.
+ * src/response/async.h — Native kXR_attn generation and deprecated async handlers.
  */
 
 #pragma once
 
-#include <nginx.h>
-#include "../types/connection.h"
+#include "../ngx_xrootd_module.h"
 
-/* Send an unsolicited kXR_attn notification to the client */
+/* ------------------------------------------------------------------ */
+/* Native kXR_attn generation                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * xrootd_attn_asyncms_frame_len — size in bytes of a complete kXR_attn +
+ * kXR_asyncms wire frame for a notification message of msglen bytes.
+ *
+ * Use this to pre-calculate buffer sizes when combining a primary response
+ * frame with an asyncms notification in a single allocation.
+ */
+size_t xrootd_attn_asyncms_frame_len(size_t msglen);
+
+/*
+ * xrootd_build_attn_asyncms_frame — write a kXR_attn + kXR_asyncms frame
+ * into buf.  Caller must have allocated at least
+ * xrootd_attn_asyncms_frame_len(msglen) bytes at buf.
+ *
+ * Wire layout:
+ *   [outer ServerResponseHdr: 8B]  streamid={0,0}, status=kXR_attn, dlen=16+msglen
+ *   [actnum: 4B BE]                kXR_asyncms (5002)
+ *   [reserved: 4B]                 zeroes
+ *   [inner ServerResponseHdr: 8B]  streamid={0,0}, status=kXR_ok, dlen=msglen
+ *   [message: msglen bytes]
+ */
+void xrootd_build_attn_asyncms_frame(u_char *buf,
+    const char *msg, size_t msglen);
+
+/*
+ * xrootd_send_attn_asyncms — allocate and send an unsolicited kXR_attn +
+ * kXR_asyncms notification frame.  The outer stream ID is {0,0} (unsolicited).
+ */
+ngx_int_t xrootd_send_attn_asyncms(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    const char *msg, size_t msglen);
+
+/*
+ * xrootd_send_attn_asynresp — send a deferred response via kXR_attn +
+ * kXR_asynresp.  Used when the server previously sent kXR_waitresp to
+ * acknowledge a request and is now delivering the actual response.
+ *
+ * deferred_streamid: the streamid of the original deferred request (2 bytes).
+ * resp_status:       the inner response status (kXR_ok, kXR_error, etc.)
+ * body / bodylen:    the inner response payload (may be NULL/0 for empty body).
+ */
+ngx_int_t xrootd_send_attn_asynresp(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    const u_char *deferred_streamid,
+    uint16_t resp_status,
+    const void *body, uint32_t bodylen);
+
+/*
+ * xrootd_send_attn — generic kXR_attn frame.
+ * outer streamid = ctx->cur_streamid, body = actnum[4] + parms[msglen].
+ * Prefer the structured helpers above for active action codes.
+ */
 ngx_int_t xrootd_send_attn(xrootd_ctx_t *ctx, ngx_connection_t *c,
-                          int actnum, const char *msg, size_t msglen);
+    int actnum, const char *msg, size_t msglen);
 
-/* Async operation handlers (all deprecated, return kXR_Unsupported) */
+/* ------------------------------------------------------------------ */
+/* Deprecated async operation handlers (5000-5007)                     */
+/* ------------------------------------------------------------------ */
+/* All return kXR_Unsupported — these opcodes are retired in v5.       */
 ngx_int_t xrootd_handle_async_ab(xrootd_ctx_t *ctx, ngx_connection_t *c);
 ngx_int_t xrootd_handle_async_di(xrootd_ctx_t *ctx, ngx_connection_t *c);
 ngx_int_t xrootd_handle_async_ms(xrootd_ctx_t *ctx, ngx_connection_t *c);

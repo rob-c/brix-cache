@@ -76,7 +76,7 @@ xrootd_handle_mkdir(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* kXR_mkdirpath changes only namespace creation strategy, not permission handling. */
 
 	if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
-							 reqpath, sizeof(reqpath), 0)) {
+							 reqpath, sizeof(reqpath), 1)) {
 		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", "-", "-",
 						  kXR_ArgInvalid, "invalid path payload");
 	}

@@ -1,5 +1,18 @@
 #pragma once
 
+/* Number of committed-write entries kept per open handle for replay detection. */
+#define XROOTD_WRTS_JOURNAL_SLOTS 64
+
+/*
+ * One entry in the per-handle write-recovery ring buffer.
+ * Tracks the file offset and byte count of a single committed pwrite().
+ */
+typedef struct {
+    int64_t  offset;   /* file byte offset of the write */
+    uint32_t length;   /* byte count (0 = slot unused) */
+    uint32_t gen;      /* monotonically increasing generation counter */
+} xrootd_wrts_entry_t;
+
 /* ---- File: file.h — Per-open-file bookkeeping type (xrootd_file_t) ----
  *
  * WHAT: Defines xrootd_file_t — one slot per open XRootD file handle where array index IS the handle value (0..XROOTD_MAX_FILES-1). Fields: fd (OS descriptor; -1 = free), path (resolved absolute allocated on open), bytes_read/bytes_written cumulative counters, open_time timestamp for throughput log, writable/readable permission flags, from_cache flag drives kXR_cachersp in stat. Immutable over handle lifetime: is_regular S_ISREG at open, device/ino captured at open validates bound reopens, cached_size st_size valid for read-only. Read tracking: read_last_end previous read end offset (-1=none), read_ahead_end WILLNEED hint farthest byte. kXR_chkpoint state: ckp_path checkpoint temp file (NULL=no active checkpoint), ckp_size bytes captured at kXR_ckpBegin. kXR_posc persist-on-successful-close lifecycle: write open with posc → staged to temporary path → clean kXR_close renames temp to posc_final_path → disconnect/error close unlinks temp via path field (set to temp path at open). Native root:// TPC destination state: tpc_destination=1 pending target, tpc_armed first sync acknowledged rendezvous setup, tpc_started pull task posted, tpc_done completed successfully, tpc_key[128] shared rendezvous key, tpc_org[256] origin identity sent to source as tpc.org, tpc_src_host/tpc_src_port/tpc_src_path[PATH_MAX] source address + path, tpc_token_mode[32] OAuth2/OIDC delegation mode for source auth. Write-through state (mirrors XrdPfcFile::m_dirtyOffset/m_bytesWritten): wt_enabled=1 eligible for WT flush on close, wt_policy cached decision at open time (XROOTD_WT_*), wt_mode_bits POSIX mode sent to origin write-open, wt_dirty_offset last dirty write offset (-1=no pending writes), wt_bytes_written cumulative writes since last sync for metrics. Async flush state: wt_flush_task pending async flush task heap allocated before ngx_thread_task_post freed in completion callback after result consumed on main thread, wt_flush_pending=1 flush posted but not confirmed.
@@ -99,6 +112,25 @@ typedef struct {
      * wt_flush_pending = 1 means a flush has been posted but not yet confirmed. */
     ngx_thread_task_t   *wt_flush_task; /* pending async flush task (heap) */
     int                  wt_flush_pending; /* 1 = flush not yet confirmed by origin */
+
+    /* ---- kXR_recoverWrts write-recovery journal -------------------------------
+     *
+     * A fixed-size ring buffer of committed (offset, length) write ranges.
+     * When a client reconnects and replays an in-flight write, the server
+     * checks this ring via xrootd_wrts_is_replay() and short-circuits the
+     * pwrite() when the range is already covered — making the replay idempotent
+     * and preventing data corruption (double-write).
+     *
+     * wrts_enabled  = 1 when the journal is active (writable open + recover_writes on)
+     * wrts_head     = next write slot (mod XROOTD_WRTS_JOURNAL_SLOTS)
+     * wrts_count    = number of valid entries (capped at XROOTD_WRTS_JOURNAL_SLOTS)
+     * wrts_gen      = per-handle write generation counter (incremented per record)
+     */
+    int                  wrts_enabled;
+    uint32_t             wrts_head;
+    uint32_t             wrts_count;
+    uint32_t             wrts_gen;
+    xrootd_wrts_entry_t  wrts_journal[XROOTD_WRTS_JOURNAL_SLOTS];
 
     /* Live transfer monitor slot index — index into xrootd_transfer_table_t.slots[].
      * -1 means this handle is not currently tracked (table full, or dashboard disabled). */

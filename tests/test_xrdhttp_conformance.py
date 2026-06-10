@@ -301,7 +301,7 @@ def _run_xrdhttp_test(backend: str, test_file: str, extra_args=None):
 # Session-scoped fixture for cleanup
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module")
 def ensure_cleanup():
     """Ensure temporary files are cleaned up after tests."""
     yield None

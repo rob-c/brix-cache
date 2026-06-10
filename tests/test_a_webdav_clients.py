@@ -23,10 +23,13 @@ import time
 import pytest
 import requests
 from settings import (
-    CA_CERT,
     CA_DIR,
-    DATA_ROOT as DEFAULT_DATA_ROOT,
+    DATA_ROOT,
+    LOG_DIR,
+    NGINX_WEBDAV_GSI_TLS_PORT,
+    NGINX_WEBDAV_PORT,
     PROXY_STD,
+    SERVER_HOST,
     TOKENS_DIR,
     XRDCP_BIN,
 )
@@ -34,36 +37,23 @@ from settings import (
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer
 
-PROXY_PEM = PROXY_STD
-
-# Filled at module scope by _configure
-WEBDAV_GSI_PORT = 0
-WEBDAV_GSI_URL = ""
-WEBDAV_TOKEN_PORT = 0
-WEBDAV_TOKEN_URL = ""
-DATA_DIR = DEFAULT_DATA_ROOT
-LOG_DIR = ""
-_RW_TOKEN = ""
+PROXY_PEM         = PROXY_STD
+WEBDAV_GSI_PORT   = NGINX_WEBDAV_GSI_TLS_PORT
+WEBDAV_GSI_URL    = f"https://{SERVER_HOST}:{NGINX_WEBDAV_GSI_TLS_PORT}"
+WEBDAV_TOKEN_PORT = NGINX_WEBDAV_PORT
+WEBDAV_TOKEN_URL  = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
+DATA_DIR          = DATA_ROOT
+_rw_token         = ""  # populated by _init_token fixture before first test
 
 
 @pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    """Bind module constants from the shared test environment."""
-    global WEBDAV_GSI_PORT, WEBDAV_GSI_URL, WEBDAV_TOKEN_PORT, WEBDAV_TOKEN_URL
-    global DATA_DIR, LOG_DIR, PROXY_PEM, _RW_TOKEN
-    WEBDAV_GSI_PORT   = test_env["webdav_gsi_tls_port"]
-    WEBDAV_GSI_URL    = test_env["webdav_gsi_tls_url"]
-    WEBDAV_TOKEN_PORT = test_env["webdav_port"]
-    WEBDAV_TOKEN_URL  = test_env["webdav_url"]
-    DATA_DIR          = test_env["data_dir"]
-    LOG_DIR           = test_env["log_dir"]
-    PROXY_PEM         = test_env["proxy_pem"]
-
-    token_dir = test_env.get("token_dir", TOKENS_DIR)
-    issuer = TokenIssuer(token_dir)
+def _init_token():
+    """Generate the read-write bearer token once the PKI dirs are ready."""
+    global _rw_token
+    issuer = TokenIssuer(TOKENS_DIR)
     if not os.path.exists(issuer.key_path):
         issuer.init_keys()
-    _RW_TOKEN = issuer.generate(
+    _rw_token = issuer.generate(
         scope="storage.read:/ storage.write:/",
         lifetime=7200,
     )
@@ -96,9 +86,9 @@ def _webdav_modes():
             "mode": "token",
             "port": WEBDAV_TOKEN_PORT,
             "url": WEBDAV_TOKEN_URL,
-            "curl_auth": ["-H", f"Authorization: Bearer {_RW_TOKEN}"],
+            "curl_auth": ["-H", f"Authorization: Bearer {_rw_token}"],
             "requests_kwargs": {
-                "headers": {"Authorization": f"Bearer {_RW_TOKEN}"},
+                "headers": {"Authorization": f"Bearer {_rw_token}"},
             },
         },
     )

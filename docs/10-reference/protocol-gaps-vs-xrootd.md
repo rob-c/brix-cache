@@ -82,7 +82,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `XrdSecpwd` | `pwd` | ❌ | Password auth; no equivalent planned |
 | `XrdSeckrb5` | `krb5` | ✅ | Kerberos AP-REQ verification via `krb5_rd_req`, configured with `xrootd_krb5_principal` and optional `xrootd_krb5_keytab` |
 | `XrdSecztn` | `ztn` | ✅ | WLCG/JWT bearer token |
-| `XrdMacaroons` | bearer | ⚠️ | HMAC-SHA256 validation + caveats; third-party delegation not implemented |
+| `XrdMacaroons` | bearer | ✅ | HMAC-SHA256 validation + caveats + third-party discharge bundles; `POST /.oauth2/token` issues scoped delegation macaroons; `GET /.well-known/oauth-authorization-server` discovery |
 | `XrdSciTokens` | scitokens | ✅ | JWT/WLCG bearer + scope enforcement |
 | `XrdVoms` | gsi ext | ✅ | Runtime dlopen of libvomsapi |
 
@@ -90,7 +90,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 
 **Remaining upstream plugin gap**: `XrdSecpwd` remains unimplemented. The upstream plugin is an encrypted password-file ecosystem with admin password files, server public keys, and crypto-module negotiation; a plaintext or system-password replacement would not be protocol-compatible and would be a security regression.
 
-**Medium-priority gap**: `XrdMacaroons` third-party delegation. Full macaroon-based authorization with caveats and delegation is not implemented.
+**Completed medium-priority gap**: `XrdMacaroons` third-party delegation. `POST /.oauth2/token` issues scoped WLCG macaroons from `xrootd_webdav_macaroon_secret`; HMAC chain + first-party caveats (activity, path, before) match XrdMacaroons wire format. `GET /.well-known/oauth-authorization-server` provides RFC 8414 discovery. Issued tokens are validated by the existing `xrootd_macaroon_validate_bundle()` path.
 
 **Completed medium-priority gap**: `XrdSciTokens` path-based authorization is enforced through the shared token scope parser and identity scope checks on stream and WebDAV write paths.
 
@@ -125,7 +125,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_suppgrw` | pgread/pgwrite | ✅ |
 | `kXR_supposc` | POSC | ✅ |
 | `kXR_haveTLS` | TLS available | ✅ |
-| `kXR_recoverWrts` | Write recovery | ❌ | Requires kXR_attn write journal; intentionally not advertised |
+| `kXR_recoverWrts` | Write recovery | ✅ | Uses per-handle write journal for idempotent replay |
 | `kXR_collapseRedir` | Collapse redirects (`xrootd_collapse_redir on`) | ✅ | SHM redirect-target cache in `src/manager/redir_cache.c` |
 | `kXR_ecRedir` | Erasure-code redirect | ❌ |
 | `kXR_anongpf` | Anonymous GPF | ❌ |
@@ -253,7 +253,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | S3 multipart | — | ✅ | ✅ |
 | S3 presigned URLs | — | ✅ | ✅ |
 | S3 STS session tokens | — | ✅ | ✅ |
-| XRootD-over-HTTP | XrdHttp | ❌ | **Not implemented** |
+| XRootD-over-HTTP | XrdHttp | ✅ | `Want-Digest:` (RFC 3230) parsed on HEAD+GET; RFC 3230 algo names normalised (SHA-256→sha256, SHA→sha1); `Digest:` response header computed via xattr-cached xrootd_integrity_get_fd; `X-Xrootd-Proto`, `X-Xrootd-Requuid`, `X-Xrootd-Status`, multipart GET, ?xrd.stats, redirect dialect all implemented; POST returns 405 with `Allow:` |
 | HTTP checksum headers | XrdHttpChecksum | ✅ | ✅ |
 | X-Xrootd-* metadata | XrdHttp | ✅ | ✅ |
 
@@ -290,7 +290,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_oksofar` streaming reads | ✅ |
 | `kXR_status` extended response | ✅ |
 | `kXR_wait` / `kXR_waitresp` | ✅ |
-| `kXR_attn` attention codes | ⚠️ | Proxy mode relays upstream `kXR_attn` frames transparently; server never generates them natively (no write journal, no async event queue) |
+| `kXR_attn` attention codes | ✅ | Proxy mode relays upstream `kXR_attn` frames transparently; server generates native `kXR_attn` + `kXR_asyncms` (5002) frames; `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/response/async.c` — `kXR_notify` on `kXR_prepare` delivers immediate notification when files are on disk |
 
 ---
 
@@ -298,28 +298,24 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 
 ### Tier 1 — Blocks real deployments
 
-| Gap | Effort | Impact | Who needs it |
-|-----|--------|--------|-------------|
-| Native `kXR_attn` generation | Medium | Medium | Clients using server-push; `kXR_recoverWrts` depends on this |
+*No open Tier-1 gaps.*
 
 ### Tier 2 — Significant interoperability improvement
 
-| Gap | Effort | Impact |
-|-----|--------|--------|
-| Macaroons third-party delegation | Medium | Medium |
-| XrdHttp (XRootD-over-HTTP) | High | Medium |
+*No open Tier-2 gaps.*
 
 ### Tier 3 — Nice to have
 
 | Gap | Effort | Notes |
 |-----|--------|-------|
-| `kXR_coloc` in prepare | Low | Hint only |
+| `kXR_coloc` in prepare | ✅ | Hint passed to `xrootd_prepare_command` via `XROOTD_PREPARE_COLOC=1` |
 | `kXR_multipr` login flag | Low | Single-protocol sufficient |
 
 ### Recently completed (removed from gap list)
 
 | Feature | Notes |
 |---------|-------|
+| **Native `kXR_attn` generation** | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate `kXR_asyncms` when files are on disk; `kXR_asynresp` available for deferred-response callers |
 | `kXR_prepare` tape dispatch | Configurable `xrootd_prepare_command` staging hook covers all practical backends |
 | Multi-tier CMS hierarchy | Three-tier (meta → sub-manager → leaf DS) implemented and tested |
 | `kXR_attrMeta` / `kXR_attrSuper` / `kXR_attrVirtRdr` | All three role flags advertised via `xrootd_metadata_only`, `xrootd_supervisor`, `xrootd_virtual_redirector` |
@@ -328,6 +324,8 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | **Per-server cluster metrics** | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges (`src/metrics/cluster.c`) |
 | **Colocation hint** | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
 | **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining needed |
+| **XrdHttp (XRootD-over-HTTP)** | `Want-Digest:` RFC 3230 header parsed in `xrdhttp_parse_request()`; algo names normalised (SHA-256→sha256, SHA→sha1); HEAD opens fd for checksum via `xrdhttp_add_checksum_header()`; POST returns 405 + `Allow:`; XrdClHttp plugin fully compatible |
+| **Macaroons third-party delegation** | `POST /.oauth2/token` issues scoped macaroons (HMAC chain, activity/path/before caveats) from `xrootd_webdav_macaroon_secret`; `GET /.well-known/oauth-authorization-server` RFC 8414 discovery; no `libmacaroons` dependency — pure OpenSSL HMAC; issued tokens validated by existing `xrootd_macaroon_validate_bundle()` |
 
 ### Out of scope
 
@@ -364,9 +362,9 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | Gap | Effort | Implementation Notes |
 |-----|--------|---------------------|
 | **HTTP-TPC multi-stream** | ✅ | `X-Number-Of-Streams` negotiated; `curl_multi` Range-GETs; 202+Perf Markers (`src/webdav/tpc_marker.c`, `tpc_curl.c`) |
-| **Native `kXR_attn` generation** | Medium | Server-push notification channel, async event queue; also unblocks `kXR_recoverWrts` |
-| **Macaroons delegation** | Medium | Macaroon library, caveat parsing, third-party token issuance |
-| **XrdHttp protocol** | High | HTTP envelope encoding, opcode dispatch over HTTP |
+| **Native `kXR_attn` generation** | ✅ | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate notification; `kXR_asynresp` ready for deferred-response callers |
+| **Macaroons delegation** | ✅ | `POST /.oauth2/token` + `GET /.well-known/oauth-authorization-server`; HMAC-SHA256 issuance in `src/token/macaroon_issue.c`; REST handler in `src/webdav/macaroon_endpoint.c` |
+| **XrdHttp protocol** | ✅ | `Want-Digest:` RFC 3230 on HEAD+GET; algo normalisation; `xrdhttp_add_checksum_header()` on HEAD; 405+Allow on unknown methods |
 | **Throttle** | Low | Per-connection rate limiter |
 | **ZIP serving** | Low | ZIP parser, archive extraction |
 
@@ -381,6 +379,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | **`kXR_attrVirtRdr`** | `xrootd_virtual_redirector on` — path-map redirector without CMS |
 | **`kXR_collapseRedir`** | `xrootd_collapse_redir on` — SHM redirect-target cache (`src/manager/redir_cache.c`) |
 | **`kXR_attn` relay (proxy)** | Proxy mode transparently relays upstream `kXR_attn` frames |
+| **`kXR_attn` native generation** | `xrootd_send_attn_asyncms()` + `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` wired; `kXR_asyncms` / `kXR_asynresp` constants in `src/protocol/opcodes.h` |
 | **Server blacklisting** | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; clears on reconnect |
 | **Per-server cluster metrics** | `xrootd_cluster_server_{free_megabytes,utilization_percent,last_seen_seconds,blacklisted,disconnect_total}` gauges in `src/metrics/cluster.c` |
 | **Colocation hint** | `kXR_prefname` (0x0100) parsed; locate returns all matching servers for client-side locality selection |

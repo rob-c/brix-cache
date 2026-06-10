@@ -46,17 +46,12 @@ HTTP_WEBDAV   = f"http://127.0.0.1:{NGINX_HTTP_WEBDAV_PORT}"
 DATA_DIR      = DATA_ROOT
 TOKEN_DIR     = TOKENS_DIR
 
-_TOKEN_RW     = ""
+_TOKEN_RW     = ""  # populated by _init_token fixture
 
 
 @pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global METRICS_URL, HTTP_WEBDAV, DATA_DIR, TOKEN_DIR, _TOKEN_RW
-    METRICS_URL = test_env["metrics_url"]
-    HTTP_WEBDAV = f"http://127.0.0.1:{test_env['http_webdav_port']}"
-    DATA_DIR    = test_env["data_dir"]
-    TOKEN_DIR   = test_env.get("token_dir", TOKENS_DIR)
-
+def _init_token():
+    global _TOKEN_RW
     issuer = TokenIssuer(TOKEN_DIR)
     if not os.path.exists(issuer.key_path):
         issuer.init_keys()

@@ -18,8 +18,10 @@
 #include <libxml/tree.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #define WEBDAV_PROPPATCH_BODY_MAX 65536u
 
@@ -125,6 +127,20 @@ webdav_handle_head(ngx_http_request_t *r, int send_body)
                                          XROOTD_ETAG_WEAK, 1);
         if (rc != NGX_OK) {
             return rc;
+        }
+    }
+
+    /* Inject Digest: header for Want-Digest: requests (RFC 3230 / XrdClHttp).
+     * Opens the file only when a checksum was actually requested, uses xattr
+     * cache so repeated HEAD requests for the same file are cheap. */
+    if (!S_ISDIR(sb.st_mode)) {
+        xrdhttp_req_ctx_t *ctx = xrdhttp_get_ctx(r);
+        if (ctx != NULL && ctx->want_cksum[0]) {
+            ngx_fd_t fd = open(path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
+            if (fd != NGX_INVALID_FILE) {
+                (void) xrdhttp_add_checksum_header(r, fd, &sb);
+                close(fd);
+            }
         }
     }
 

@@ -32,24 +32,20 @@ import zlib
 import pytest
 from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, StatInfoFlags
-from settings import DATA_ROOT as DEFAULT_DATA_ROOT
+from settings import (
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    REF_XROOTD_PORT,
+    SERVER_HOST,
+)
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
-NGINX_URL = ""
-REF_URL   = ""
-DATA_DIR  = DEFAULT_DATA_ROOT
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env, ref_xrootd):
-    """Bind module constants from the shared test environment."""
-    global NGINX_URL, REF_URL, DATA_DIR
-    NGINX_URL = test_env["anon_url"]
-    REF_URL   = ref_xrootd["url"]
-    DATA_DIR  = test_env["data_dir"]
+NGINX_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+REF_URL   = f"root://localhost:{REF_XROOTD_PORT}"
+DATA_DIR  = DATA_ROOT
 
 # ---------------------------------------------------------------------------
 # Test-scoped fixture: per-test scratch file

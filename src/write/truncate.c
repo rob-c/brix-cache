@@ -73,7 +73,7 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			return xrootd_send_error(ctx, c, kXR_ArgMissing, "no path given");
 		}
 		if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
-								 reqpath, sizeof(reqpath), 0)) {
+								 reqpath, sizeof(reqpath), 1)) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE", "-",
 							  detail, kXR_ArgInvalid, "invalid path payload");
 		}

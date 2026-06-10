@@ -367,6 +367,10 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
     proxy->wbuf_pos = 0;
     proxy->state    = XRD_PX_CONNECTING;
 
+    ngx_log_debug(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
+                  "xrootd proxy: connect() to %s:%d",
+                  use_host->data, (int) use_port);
+
     rc = connect(fd, (struct sockaddr *)(void *) &chosen_addr,
                  chosen_addrlen);
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {

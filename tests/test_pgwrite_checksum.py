@@ -26,7 +26,7 @@ import socket
 
 import pytest
 
-from settings import NGINX_ANON_PORT, SERVER_HOST
+from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
 
 # ---------------------------------------------------------------------------
@@ -188,20 +188,12 @@ def _send_pgwrite(sock: socket.socket, fhandle: bytes, offset: int, payload: byt
 
 
 # ---------------------------------------------------------------------------
-# Fixture
+# Module globals
 # ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global _ANON_HOST, _ANON_PORT, _DATA_DIR
-    _ANON_HOST = test_env["server_host"]
-    _ANON_PORT = test_env["anon_port"]
-    _DATA_DIR  = test_env["data_dir"]
-
 
 _ANON_HOST = SERVER_HOST
 _ANON_PORT = NGINX_ANON_PORT
-_DATA_DIR  = ""
+_DATA_DIR  = DATA_ROOT
 
 
 # ---------------------------------------------------------------------------

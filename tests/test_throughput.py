@@ -16,7 +16,14 @@ import time
 
 import pytest
 from XRootD import client
-from settings import CA_DIR as DEFAULT_CA_DIR, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD
+from settings import (
+    CA_DIR,
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    NGINX_GSI_PORT,
+    PROXY_STD,
+    SERVER_HOST,
+)
 
 # All tests in this module transfer 200 MB files — give them ample time.
 pytestmark = pytest.mark.timeout(240)
@@ -25,12 +32,9 @@ pytestmark = pytest.mark.timeout(240)
 # Configuration
 # ---------------------------------------------------------------------------
 
-ANON_URL  = ""
-GSI_URL   = ""
-
-DATA_ROOT  = DEFAULT_DATA_ROOT
-CA_DIR     = DEFAULT_CA_DIR
-PROXY_PEM  = PROXY_STD
+ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+GSI_URL   = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
+PROXY_PEM = PROXY_STD
 
 LARGE_FILE      = "large200.bin"
 LARGE_FILE_SIZE = 200 * 1024 * 1024   # 200 MiB
@@ -142,23 +146,6 @@ def _ensure_large_file(path: str) -> str:
 def _check_md5(data: bytes):
     got = hashlib.md5(data).hexdigest()
     assert got == LARGE_FILE_MD5, f"md5 mismatch: got {got}"
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global ANON_URL, GSI_URL, DATA_ROOT, CA_DIR, PROXY_PEM, LARGE_FILE_MD5
-    ANON_URL  = test_env["anon_url"]
-    GSI_URL   = test_env["gsi_url"]
-    DATA_ROOT = test_env["data_dir"]
-    CA_DIR    = test_env["ca_dir"]
-    PROXY_PEM = test_env["proxy_pem"]
-    LARGE_FILE_MD5 = _ensure_large_file(os.path.join(DATA_ROOT, LARGE_FILE))
-    os.environ["LARGE_FILE_MD5"] = LARGE_FILE_MD5
-    _set_gsi_env()
 
 
 # ---------------------------------------------------------------------------

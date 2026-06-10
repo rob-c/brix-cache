@@ -45,6 +45,7 @@ NGINX_WEBDAV_GSI_TLS_PORT = int(
 )
 NGINX_HTTP_WEBDAV_PORT = int(os.environ.get("TEST_NGINX_HTTP_WEBDAV_PORT", "8080"))
 NGINX_S3_PORT = int(os.environ.get("TEST_NGINX_S3_PORT", "9001"))
+S3_BUCKET = os.environ.get("TEST_S3_BUCKET", "testbucket")
 
 MANAGER_PORT = int(os.environ.get("TEST_MANAGER_PORT", "11101"))
 READONLY_PORT = int(os.environ.get("TEST_READONLY_PORT", "11102"))
@@ -257,12 +258,12 @@ CLUSTER_MS_CMS_PORT = int(os.environ.get("TEST_CLUSTER_MS_CMS_PORT", "11175"))
 CLUSTER_MP_CMS_PORT = int(os.environ.get("TEST_CLUSTER_MP_CMS_PORT", "11171"))
 CLUSTER_SLOTS_CMS_PORT = int(os.environ.get("TEST_CLUSTER_SLOTS_CMS_PORT", "12608"))
 
-# Fixed redirect ports advertised by Python mock CMS in select/try responses
+# Fixed redirect ports advertised by cms_parent_stubs.py in select/try responses
 CLUSTER_SELECT_REDIRECT_PORT = int(os.environ.get("TEST_CLUSTER_SELECT_REDIRECT_PORT", "29000"))
 CLUSTER_TRY_FIRST_PORT = int(os.environ.get("TEST_CLUSTER_TRY_FIRST_PORT", "29001"))
 CLUSTER_TRY_SECOND_PORT = int(os.environ.get("TEST_CLUSTER_TRY_SECOND_PORT", "29002"))
 
-# Phantom DS ports for kYR_gone tests — registered with CMS mock but no service listens
+# Phantom DS ports for kYR_gone tests — registered via CMS protocol but no service listens
 CLUSTER_GONE_DS_PORT   = int(os.environ.get("TEST_CLUSTER_GONE_DS_PORT",   "29010"))
 CLUSTER_GONE_DS_PORT_A = int(os.environ.get("TEST_CLUSTER_GONE_DS_PORT_A", "29011"))
 CLUSTER_GONE_DS_PORT_B = int(os.environ.get("TEST_CLUSTER_GONE_DS_PORT_B", "29012"))
@@ -302,29 +303,27 @@ CLUSTER_3T_LEAF_DATA_ROOT = os.path.join(TEST_ROOT, "data-cluster-3t-leaf")
 # Escalation leaf data root
 CLUSTER_ESC_LEAF_DATA_ROOT = os.path.join(TEST_ROOT, "data-cluster-esc-leaf")
 
-# Mock-only backend ports for test_a_upstream_redirect.py
-#
-# No real xrootd server ever runs on these ports.  Each test in
-# test_a_upstream_redirect.py binds a Python MockUpstream to one of these
-# ports, exercises the nginx instance that points at it, then the mock exits.
-# SO_REUSEADDR lets the next test reclaim the same port.
-MOCK_REDIRECT_NGINX_PORT = int(os.environ.get("TEST_MOCK_REDIRECT_NGINX_PORT", "11130"))
-MOCK_REDIRECT_BACKEND_PORT = int(os.environ.get("TEST_MOCK_REDIRECT_BACKEND_PORT", "13120"))
-MOCK_WAIT_NGINX_PORT = int(os.environ.get("TEST_MOCK_WAIT_NGINX_PORT", "11131"))
-MOCK_WAIT_BACKEND_PORT = int(os.environ.get("TEST_MOCK_WAIT_BACKEND_PORT", "13121"))
-MOCK_WAITRESP_NGINX_PORT = int(os.environ.get("TEST_MOCK_WAITRESP_NGINX_PORT", "11132"))
-MOCK_WAITRESP_BACKEND_PORT = int(os.environ.get("TEST_MOCK_WAITRESP_BACKEND_PORT", "13122"))
-MOCK_ERROR_NGINX_PORT = int(os.environ.get("TEST_MOCK_ERROR_NGINX_PORT", "11133"))
-MOCK_ERROR_BACKEND_PORT = int(os.environ.get("TEST_MOCK_ERROR_BACKEND_PORT", "13123"))
-MOCK_AUTH_NGINX_PORT = int(os.environ.get("TEST_MOCK_AUTH_NGINX_PORT", "11134"))
-MOCK_AUTH_BACKEND_PORT = int(os.environ.get("TEST_MOCK_AUTH_BACKEND_PORT", "13124"))
-MOCK_AUTH_NOFILE_NGINX_PORT = int(os.environ.get("TEST_MOCK_AUTH_NOFILE_NGINX_PORT", "11135"))
-MOCK_AUTH_NOFILE_BACKEND_PORT = int(os.environ.get("TEST_MOCK_AUTH_NOFILE_BACKEND_PORT", "13125"))
-MOCK_GOTORLS_NGINX_PORT = int(os.environ.get("TEST_MOCK_GOTORLS_NGINX_PORT", "11136"))
-MOCK_GOTORLS_BACKEND_PORT = int(os.environ.get("TEST_MOCK_GOTORLS_BACKEND_PORT", "13126"))
+# Stub-backed upstream nginx instances (test_a_upstream_redirect.py).
+# Each nginx proxies to one port of upstream_protocol_stubs.py, which emits
+# protocol sequences (kXR_wait, kXR_waitresp, kXR_authmore, kXR_gotoTLS) that
+# a real xrootd server never produces.
+STUB_REDIRECT_NGINX_PORT = int(os.environ.get("TEST_STUB_REDIRECT_NGINX_PORT", "11130"))
+STUB_REDIRECT_BACKEND_PORT = int(os.environ.get("TEST_STUB_REDIRECT_BACKEND_PORT", "13120"))
+STUB_WAIT_NGINX_PORT = int(os.environ.get("TEST_STUB_WAIT_NGINX_PORT", "11131"))
+STUB_WAIT_BACKEND_PORT = int(os.environ.get("TEST_STUB_WAIT_BACKEND_PORT", "13121"))
+STUB_WAITRESP_NGINX_PORT = int(os.environ.get("TEST_STUB_WAITRESP_NGINX_PORT", "11132"))
+STUB_WAITRESP_BACKEND_PORT = int(os.environ.get("TEST_STUB_WAITRESP_BACKEND_PORT", "13122"))
+STUB_ERROR_NGINX_PORT = int(os.environ.get("TEST_STUB_ERROR_NGINX_PORT", "11133"))
+STUB_ERROR_BACKEND_PORT = int(os.environ.get("TEST_STUB_ERROR_BACKEND_PORT", "13123"))
+STUB_AUTH_NGINX_PORT = int(os.environ.get("TEST_STUB_AUTH_NGINX_PORT", "11134"))
+STUB_AUTH_BACKEND_PORT = int(os.environ.get("TEST_STUB_AUTH_BACKEND_PORT", "13124"))
+STUB_AUTH_NOFILE_NGINX_PORT = int(os.environ.get("TEST_STUB_AUTH_NOFILE_NGINX_PORT", "11135"))
+STUB_AUTH_NOFILE_BACKEND_PORT = int(os.environ.get("TEST_STUB_AUTH_NOFILE_BACKEND_PORT", "13125"))
+STUB_GOTORLS_NGINX_PORT = int(os.environ.get("TEST_STUB_GOTORLS_NGINX_PORT", "11136"))
+STUB_GOTORLS_BACKEND_PORT = int(os.environ.get("TEST_STUB_GOTORLS_BACKEND_PORT", "13126"))
 
 # Real-upstream-redirect: nginx at 11137 proxies to cluster-redir (11160) to
-# test kXR_redirect forwarding without a Python mock backend.
+# test kXR_redirect forwarding against a real xrootd redirector.
 REAL_REDIRECT_NGINX_PORT = int(os.environ.get("TEST_REAL_REDIRECT_NGINX_PORT", "11137"))
 
 # Proxy upstream data root
@@ -333,3 +332,8 @@ PROXY_DATA_ROOT = os.path.join(TEST_ROOT, "data-proxy-upstream")
 # Authdb dedicated instance data root
 AUTHDB_DIR = os.path.join(TEST_ROOT, "data-authdb")
 READONLY_DATA_ROOT = os.path.join(TEST_ROOT, "data-readonly")
+
+# HA failover cluster (HAProxy + two nginx instances)
+HA_HAPROXY_PORT = int(os.environ.get("TEST_HA_HAPROXY_PORT", "11210"))
+HA_NGINX1_PORT = int(os.environ.get("TEST_HA_NGINX1_PORT", "11211"))
+HA_NGINX2_PORT = int(os.environ.get("TEST_HA_NGINX2_PORT", "11212"))

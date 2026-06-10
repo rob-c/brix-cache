@@ -1,5 +1,6 @@
 #include "ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
+#include "write/wrts_journal.h"
 
 /* ------------------------------------------------------------------ */
 /* Async Write I/O — Thread-Pool Offload for Large File Writes            */
@@ -164,6 +165,12 @@ xrootd_write_aio_done(ngx_event_t *ev)
             (size_t) t->nwritten);
     }
 
+    /* Record the committed write in the recovery journal. */
+    if (ctx->files[t->handle_idx].wrts_enabled) {
+        xrootd_wrts_record(&ctx->files[t->handle_idx], t->req_offset,
+                           (uint32_t) t->nwritten);
+    }
+
     if (rconf->access_log_fd != NGX_INVALID_FILE) {
         char detail[64];
         snprintf(detail, sizeof(detail), "%lld+%zu",
@@ -293,6 +300,13 @@ xrootd_writev_write_aio_done(ngx_event_t *ev)
             xrootd_file_t *file = &ctx->files[t->segs[i].handle_idx];
 
             file->bytes_written += t->segs[i].wlen;
+
+            /* Record the committed write in the recovery journal. */
+            if (file->wrts_enabled) {
+                xrootd_wrts_record(file, (int64_t) t->segs[i].offset,
+                                   t->segs[i].wlen);
+            }
+
             if (file->wt_enabled) {
                 xrootd_wt_mark_dirty(ctx, t->segs[i].handle_idx,
                     t->segs[i].offset + (off_t) t->segs[i].wlen - 1,

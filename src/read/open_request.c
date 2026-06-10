@@ -277,7 +277,9 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * server's allow_write policy applies and which resolver is used below.
 	 */
 
-	if (is_write && !conf->common.allow_write) {
+	/* In manager_mode writes are forwarded to registered data servers;
+	 * the allow_write check applies only to local file serving. */
+	if (is_write && !conf->common.allow_write && !conf->manager_mode) {
 		xrootd_log_access(ctx, c, "OPEN",
 						  ctx->payload ? (char *) ctx->payload : "-", "wr",
 						  0, kXR_fsReadOnly, "read-only server", 0);

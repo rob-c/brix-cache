@@ -37,6 +37,35 @@ ngx_http_xrootd_webdav_handler(ngx_http_request_t *r)
         return webdav_metrics_return(r, webdav_handle_options(r));
     }
 
+    /* Macaroon token issuance endpoints — handled before proxy mode because
+     * the server issues tokens for itself, not the upstream. */
+    {
+        static const char discovery_path[] = "/.well-known/oauth-authorization-server";
+        static const char token_path[]     = "/.oauth2/token";
+
+        if (r->uri.len >= sizeof(discovery_path) - 1
+            && ngx_memcmp(r->uri.data + r->uri.len - (sizeof(discovery_path) - 1),
+                          discovery_path, sizeof(discovery_path) - 1) == 0)
+        {
+            return webdav_metrics_return(r,
+                webdav_handle_macaroon_discovery(r));
+        }
+
+        if (r->uri.len >= sizeof(token_path) - 1
+            && ngx_memcmp(r->uri.data + r->uri.len - (sizeof(token_path) - 1),
+                          token_path, sizeof(token_path) - 1) == 0)
+        {
+            if (r->method != NGX_HTTP_POST) {
+                return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED);
+            }
+            rc = xrootd_http_read_body(r, webdav_handle_macaroon_token);
+            if (rc != NGX_DONE) {
+                return webdav_metrics_return(r, rc);
+            }
+            return NGX_DONE;
+        }
+    }
+
     /* Upstream proxy mode: access handler ran auth; delegate transport. */
     if (conf->upstream_proxy) {
         return webdav_metrics_return(r, webdav_proxy_handler(r));
@@ -178,5 +207,24 @@ ngx_http_xrootd_webdav_handler(ngx_http_request_t *r)
         return webdav_metrics_return(r, webdav_handle_acl(r));
     }
 
-    return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED);
+    /* Unrecognised method: send 405 with Allow header (RFC 7231 §6.5.5). */
+    r->headers_out.status = NGX_HTTP_NOT_ALLOWED;
+    r->headers_out.content_length_n = 0;
+    {
+        ngx_table_elt_t *h_allow = ngx_list_push(&r->headers_out.headers);
+        if (h_allow != NULL) {
+            h_allow->hash = 1;
+            ngx_str_set(&h_allow->key, "Allow");
+            if (xrootd_http_operation_allow_header(r->pool,
+                    xrootd_webdav_operations, xrootd_webdav_operations_count,
+                    XROOTD_WEBDAV_ALLOW_FLAGS(conf), &h_allow->value) != NGX_OK)
+            {
+                ngx_str_set(&h_allow->value,
+                    "GET, HEAD, OPTIONS, PUT, DELETE, MKCOL,"
+                    " MOVE, COPY, PROPFIND, PROPPATCH, LOCK, UNLOCK");
+            }
+        }
+    }
+    ngx_http_send_header(r);
+    return webdav_metrics_return(r, ngx_http_send_special(r, NGX_HTTP_LAST));
 }

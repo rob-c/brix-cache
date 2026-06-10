@@ -34,12 +34,17 @@ ngx_int_t xrootd_send_waitresp(xrootd_ctx_t *ctx, ngx_connection_t *c);
 ngx_int_t xrootd_send_pgwrite_status(xrootd_ctx_t *ctx,
     ngx_connection_t *c, int64_t write_offset);
 
-/* Build the kXR_status body for a pgread response (header only, no data). */
+/* Build the kXR_status body for a pgread response.
+ * hdr.dlen = sizeof(bdy)+sizeof(pgr) = 24; bdy.dlen = total_with_crcs.
+ * CRC covers bdy.streamID..pgr.offset (20 bytes), not the page data. */
 void xrootd_build_pgread_status(xrootd_ctx_t *ctx, int64_t file_offset,
     uint32_t total_with_crcs, ServerStatusResponse_pgRead *out);
 
 /* CRC32c checksum (software table implementation). */
 uint32_t xrootd_crc32c(const void *buf, size_t len);
+
+/* Extend a running CRC32c checksum with additional data. */
+uint32_t xrootd_crc32c_extend(uint32_t crc, const void *buf, size_t len);
 
 /* Fused CRC32c + copy: copies src→dst in one pass, returns CRC of the data. */
 uint32_t xrootd_crc32c_copy(const u_char *src, u_char *dst, size_t len);

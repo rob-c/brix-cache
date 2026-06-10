@@ -44,21 +44,19 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer
 
-from settings import TOKENS_DIR
+from settings import NGINX_WEBDAV_PORT, SERVER_HOST, TOKENS_DIR
 
 _PFX = "httst_"
 
-BASE      = ""
+BASE      = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
 _ISSUER   = None
-_RW_TOKEN = ""   # storage.read:/ storage.write:/ — used by _s()
+_RW_TOKEN = ""   # storage.read:/ storage.write:/ — populated by _init_token
 
 
 @pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global BASE, _ISSUER, _RW_TOKEN
-    BASE     = test_env["webdav_url"]
-    token_dir = test_env.get("token_dir", TOKENS_DIR)
-    _ISSUER  = TokenIssuer(token_dir)
+def _init_token():
+    global _ISSUER, _RW_TOKEN
+    _ISSUER = TokenIssuer(TOKENS_DIR)
     if not os.path.exists(_ISSUER.key_path):
         _ISSUER.init_keys()
     # lifetime=7200 gives 2 h — enough for the whole test module run.

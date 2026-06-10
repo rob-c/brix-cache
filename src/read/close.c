@@ -1,6 +1,7 @@
 #include "close.h"
 #include "../ngx_xrootd_module.h"
 #include "../cache/cache_internal.h"
+#include "../write/wrts_journal.h"
 
 /* ------------------------------------------------------------------ */
 /* File Handle Close — kXR_close handler                                 */
@@ -193,6 +194,10 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
                                   ctx->files[idx].dashboard_slot);
         ctx->files[idx].dashboard_slot = -1;
     }
+
+    /* Flush the write-recovery journal so future writes with the same
+     * offsets after a reconnect are not mistakenly skipped as replays. */
+    xrootd_wrts_flush(&ctx->files[idx]);
 
     xrootd_free_fhandle(ctx, idx);
     XROOTD_OP_OK(ctx, XROOTD_OP_CLOSE);

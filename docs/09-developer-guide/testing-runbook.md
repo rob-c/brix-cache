@@ -42,18 +42,13 @@ make -j$(nproc)
 # 2. Install Python test dependencies
 pip install pytest xrootd pytest-timeout cryptography requests urllib3
 
-# 3. Run the full suite (session setup is automatic)
+# 3. Run the full suite (persistent session setup is automatic)
 cd /path/to/nginx-xrootd
 pytest tests/ -v
-
-# 4. Run a specific file
-pytest tests/test_xrootd.py -v
-
-# 5. Run a specific test
-pytest tests/test_conformance.py::test_stat -v
 ```
 
-The first `pytest` run generates the PKI from scratch, starts all test servers, and tears them down when the session ends. No manual setup is required.
+The `pytest` session automatically manages the test infrastructure: it generates PKI, launches all required dedicated nginx and xrootd instances at startup, and performs a centralized cleanup only after the final test completes. Manual server setup is no longer required and should be avoided to prevent port conflicts and race conditions.
+
 
 ---
 

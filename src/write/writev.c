@@ -30,6 +30,7 @@
 
 #include "ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
+#include "wrts_journal.h"
 
 ngx_int_t
 xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -129,14 +130,25 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 			for (i = 0; i < n_segs; i++) {
 				uint32_t wlen = (uint32_t) ntohl((uint32_t) wl[i].wlen);
-				seg_descs[i].fd = ctx->files[
-				    (int)(unsigned char) wl[i].fhandle[0]].fd;
-				seg_descs[i].handle_idx =
-				    (int)(unsigned char) wl[i].fhandle[0];
-				seg_descs[i].offset =
-				    (off_t)(int64_t) be64toh((uint64_t) wl[i].offset);
-				seg_descs[i].data = dp;
-				seg_descs[i].wlen = wlen;
+				int      hidx = (int)(unsigned char) wl[i].fhandle[0];
+				int64_t  off  = (int64_t) be64toh((uint64_t) wl[i].offset);
+
+				seg_descs[i].fd         = ctx->files[hidx].fd;
+				seg_descs[i].handle_idx = hidx;
+				seg_descs[i].offset     = (off_t) off;
+				seg_descs[i].data       = dp;
+				seg_descs[i].wlen       = wlen;
+
+				/* Skip replay segments — AIO thread checks wlen == 0 */
+				if (ctx->files[hidx].wrts_enabled &&
+				    xrootd_wrts_is_replay(&ctx->files[hidx], off, wlen))
+				{
+					ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+					    "xrootd: writev AIO recovery replay skip"
+					    " offset=%lld len=%u", (long long) off, wlen);
+					seg_descs[i].wlen = 0;
+				}
+
 				dp += wlen;
 			}
 
@@ -184,6 +196,18 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			continue;
 		}
 
+		/* ---- kXR_recoverWrts replay detection ---- */
+		if (ctx->files[idx].wrts_enabled &&
+		    xrootd_wrts_is_replay(&ctx->files[idx], offset, wlen))
+		{
+			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+			    "xrootd: writev recovery replay skip offset=%lld len=%u",
+			    (long long) offset, wlen);
+			bytes_written_total += (size_t) wlen;
+			data_ptr += wlen;
+			continue;
+		}
+
 		nw = pwrite(ctx->files[idx].fd, data_ptr, (size_t) wlen, (off_t) offset);
 
 		if (nw < 0) {
@@ -203,6 +227,9 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		if (ctx->files[idx].wt_enabled) {
 			xrootd_wt_mark_dirty(ctx, idx, offset + (int64_t) nw - 1,
 			                      (size_t) nw);
+		}
+		if (ctx->files[idx].wrts_enabled) {
+			xrootd_wrts_record(&ctx->files[idx], offset, (uint32_t) nw);
 		}
 		data_ptr                       += wlen;
 	}

@@ -65,14 +65,14 @@ xrootd_pgread_encode_pages(const u_char *src, size_t len, u_char *dst)
 
         page_data = (remaining >= (size_t) kXR_pgPageSZ)
                     ? (size_t) kXR_pgPageSZ : remaining;
-        crc_be = htonl(xrootd_crc32c_copy(p, out, page_data));
 
-        out += page_data;
+        /* XRootD wire format per page: [CRC32c(4)][data(page_size)]
+         * AsyncPageReader::InitIOV() reads digest first, then page data. */
+        crc_be = htonl(xrootd_crc32c_copy(p, out + 4, page_data));
+        ngx_memcpy(out, &crc_be, 4);
+        out += 4 + page_data;
         p += page_data;
         remaining -= page_data;
-
-        ngx_memcpy(out, &crc_be, 4);
-        out += 4;
     }
 
     return (size_t) (out - dst);

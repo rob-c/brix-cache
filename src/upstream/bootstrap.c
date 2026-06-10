@@ -241,5 +241,11 @@ xrootd_upstream_handle_bootstrap_response(xrootd_upstream_t *up)
 
     if (ngx_handle_read_event(up->conn->read, 0) != NGX_OK) {
         xrootd_upstream_abort(up, "upstream: read event arm failed");
+        return;
     }
+    /* In epoll ET mode, if multiple bootstrap responses arrived in the same
+     * TCP segment, the remaining data in the socket buffer won't re-trigger
+     * EPOLLIN.  Post a synthetic read event so the next phase is processed
+     * in the current event-loop cycle rather than waiting for new data. */
+    ngx_post_event(up->conn->read, &ngx_posted_events);
 }

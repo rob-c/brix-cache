@@ -14,7 +14,7 @@ import socket
 
 import pytest
 
-from settings import NGINX_ANON_PORT, DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
+from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
 # ---------------------------------------------------------------------------
 # Protocol constants
@@ -53,15 +53,7 @@ kXR_pgPageSZ  = 4096
 
 ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
-DATA_DIR  = DEFAULT_DATA_ROOT
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env):
-    global ANON_HOST, ANON_PORT, DATA_DIR
-    ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
-    DATA_DIR  = test_env["data_dir"]
+DATA_DIR  = DATA_ROOT
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +87,12 @@ def _read_response(sock):
     hdr = _recv_exact(sock, 8)
     sid, status, dlen = struct.unpack("!2sHI", hdr)
     body = _recv_exact(sock, dlen) if dlen else b""
+    # kXR_status two-phase: header dlen=24 (fixed body), then bdy.dlen more bytes
+    # for page data.  bdy.dlen lives at body[12:16].
+    if status == kXR_status and dlen == 24 and len(body) == 24:
+        extra = struct.unpack("!I", body[12:16])[0]
+        if extra > 0:
+            body = body + _recv_exact(sock, extra)
     return status, body
 
 
@@ -410,8 +408,8 @@ class TestPgreadEdgeCases:
 
     def test_pgread_single_page_crc_correct(self):
         # kXR_status response body: 16B ServerResponseBody_Status + 8B pgRead
-        # header (=24 bytes), then interleaved [page_data][CRC4] pairs.
-        # CRC comes AFTER the page data, not before.
+        # header (=24 bytes), then per-page [CRC32c(4)][page_data] pairs.
+        # CRC comes BEFORE the page data (XRootD wire format).
         data = b"A" * 4096
         _make_file("/pgread_single.bin", data)
         sock, fh = self._pgread_session("/pgread_single.bin")
@@ -419,10 +417,10 @@ class TestPgreadEdgeCases:
         _close(sock, fh)
         sock.close()
         assert status == kXR_status
-        # 24 header + 4096 data + 4 CRC = 4124
-        assert len(body) >= 24 + 4096 + 4
-        page_data = body[24:24 + 4096]
-        resp_crc = struct.unpack("!I", body[24 + 4096:24 + 4096 + 4])[0]
+        # 24 header + 4 CRC + 4096 data = 4124
+        assert len(body) >= 24 + 4 + 4096
+        resp_crc = struct.unpack("!I", body[24:28])[0]
+        page_data = body[28:28 + 4096]
         assert resp_crc == _crc32c(page_data)
 
     def test_pgread_empty_file(self):
@@ -441,9 +439,10 @@ class TestPgreadEdgeCases:
         _close(sock, fh)
         sock.close()
         assert status in (kXR_ok, kXR_status)
-        if status == kXR_status and len(body) >= 24 + 1 + 4:
-            page_byte = body[24:25]
-            resp_crc = struct.unpack("!I", body[25:29])[0]
+        # Per-page layout: [CRC32c(4)][data]. For 1 byte: body[24:28]=CRC, body[28]=data.
+        if status == kXR_status and len(body) >= 24 + 4 + 1:
+            resp_crc = struct.unpack("!I", body[24:28])[0]
+            page_byte = body[28:29]
             assert resp_crc == _crc32c(page_byte)
 
     def test_pgread_exactly_two_pages(self):
@@ -454,10 +453,10 @@ class TestPgreadEdgeCases:
         _close(sock, fh)
         sock.close()
         assert status in (kXR_ok, kXR_status)
-        # Verify first page CRC: [24 hdr][4096 data][4 CRC][4096 data][4 CRC]
-        if len(body) >= 24 + 4096 + 4:
-            page1 = body[24:24 + 4096]
-            crc1 = struct.unpack("!I", body[24 + 4096:24 + 4096 + 4])[0]
+        # Per-page layout: [CRC32c(4)][data]. First page: body[24:28]=CRC, body[28:4124]=data.
+        if len(body) >= 24 + 4 + 4096:
+            crc1 = struct.unpack("!I", body[24:28])[0]
+            page1 = body[28:28 + 4096]
             assert crc1 == _crc32c(page1)
 
     def test_pgread_partial_last_page(self):
@@ -479,9 +478,9 @@ class TestPgreadEdgeCases:
         _close(sock, fh)
         sock.close()
         assert status in (kXR_ok, kXR_status)
-        if status == kXR_status and len(body) >= 24 + 4096 + 4:
-            page = body[24:24 + 4096]
-            crc = struct.unpack("!I", body[24 + 4096:24 + 4096 + 4])[0]
+        if status == kXR_status and len(body) >= 24 + 4 + 4096:
+            crc = struct.unpack("!I", body[24:28])[0]
+            page = body[28:28 + 4096]
             assert crc == _crc32c(page)
 
     def test_pgread_sequential_calls_same_handle(self):
@@ -498,7 +497,9 @@ class TestPgreadEdgeCases:
 
     def test_pgread_all_page_crcs_correct(self):
         # Two pages — verify CRC for each page individually
-        # Layout: [24 hdr][4096 data][4 CRC][512 data][4 CRC]
+        # Per-page layout: [CRC32c(4)][data]. Two pages:
+        # body[24:28]=CRC1, body[28:4124]=page1(4096B),
+        # body[4124:4128]=CRC2, body[4128:4640]=page2(512B)
         page1 = b"F" * 4096
         page2 = b"G" * 512
         data = page1 + page2
@@ -509,14 +510,14 @@ class TestPgreadEdgeCases:
         sock.close()
         assert status in (kXR_ok, kXR_status)
         hdr = 24
-        if status == kXR_status and len(body) >= hdr + 4096 + 4 + 512 + 4:
-            # Page 1: data[hdr:hdr+4096], CRC[hdr+4096:hdr+4100]
-            p1_data = body[hdr:hdr + 4096]
-            p1_crc = struct.unpack("!I", body[hdr + 4096:hdr + 4100])[0]
+        if status == kXR_status and len(body) >= hdr + 4 + 4096 + 4 + 512:
+            # Page 1: CRC[hdr:hdr+4], data[hdr+4:hdr+4100]
+            p1_crc = struct.unpack("!I", body[hdr:hdr + 4])[0]
+            p1_data = body[hdr + 4:hdr + 4100]
             assert p1_crc == _crc32c(p1_data)
-            # Page 2: data[hdr+4100:hdr+4612], CRC[hdr+4612:hdr+4616]
-            p2_data = body[hdr + 4100:hdr + 4100 + 512]
-            p2_crc = struct.unpack("!I", body[hdr + 4100 + 512:hdr + 4100 + 516])[0]
+            # Page 2: CRC[hdr+4100:hdr+4104], data[hdr+4104:hdr+4104+512]
+            p2_crc = struct.unpack("!I", body[hdr + 4100:hdr + 4104])[0]
+            p2_data = body[hdr + 4104:hdr + 4104 + 512]
             assert p2_crc == _crc32c(p2_data)
 
 

@@ -45,15 +45,15 @@ import pytest
 
 from settings import (
     DATA_ROOT,
+    HA_HAPROXY_PORT,
+    HA_NGINX1_PORT,
+    HA_NGINX2_PORT,
+    NGINX_BIN,
     SERVER_HOST,
+    TEST_ROOT,
     XRDCP_BIN,
     XRDFS_BIN,
 )
-
-# HA port constants — may not yet be defined in settings.py.
-HA_HAPROXY_PORT = int(os.environ.get("TEST_HA_HAPROXY_PORT", "11210"))
-HA_NGINX1_PORT = int(os.environ.get("TEST_HA_NGINX1_PORT", "11211"))
-HA_NGINX2_PORT = int(os.environ.get("TEST_HA_NGINX2_PORT", "11212"))
 
 pytestmark = pytest.mark.e2e
 
@@ -123,8 +123,8 @@ def _orphaned_handles() -> int:
         with open("/proc/net/tcp", "r") as fh:
             for line in fh:
                 parts = line.split()
-                if len(parts) < 4:
-                    continue
+                if len(parts) < 4 or ":" not in parts[1]:
+                    continue  # skip header and malformed lines
                 local_hex = parts[1].split(":")[1]
                 state = parts[3]
                 local_port = int(local_hex, 16)
@@ -289,8 +289,8 @@ class TestHAFailover:
                 )
         finally:
             # Restart nginx-1 so subsequent tests are not affected.
-            # This is best-effort; the test suite may need manual restart.
+            nginx_prefix = os.path.join(TEST_ROOT, "dedicated", "ha-nginx1")
             subprocess.run(
-                ["systemctl", "--user", "start", f"nginx-ha1"],
-                capture_output=True, timeout=5,
+                [NGINX_BIN, "-p", nginx_prefix, "-c", "conf/nginx.conf"],
+                capture_output=True, timeout=10,
             )

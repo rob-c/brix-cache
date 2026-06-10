@@ -57,7 +57,7 @@ xrootd_handle_rmdir(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
-							 reqpath, sizeof(reqpath), 0)) {
+							 reqpath, sizeof(reqpath), 1)) {
 		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_RMDIR, "RMDIR", "-", "-",
 						  kXR_ArgInvalid, "invalid path payload");
 	}

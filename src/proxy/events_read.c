@@ -20,8 +20,15 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
 {
     ngx_connection_t   *uconn = rev->data;
     xrootd_proxy_ctx_t *proxy = uconn->data;
-    xrootd_ctx_t       *ctx   = proxy->client_ctx;
+    xrootd_ctx_t       *ctx;
     ssize_t             n;
+
+    /* Guard against use-after-free: if the client pool was freed while a
+     * reconnect was in progress, uconn->data may be NULL or stale. */
+    if (proxy == NULL) {
+        return;
+    }
+    ctx = proxy->client_ctx;
 
     if (ctx == NULL || ctx->destroyed) {
         xrootd_proxy_cleanup(proxy);
@@ -65,12 +72,21 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
                 proxy->resp_dlen   = ntohl(hdr->dlen);
             }
 
+            ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+                          "xrootd proxy: upstream hdr status=%d dlen=%uz state=%d",
+                          (int) proxy->resp_status,
+                          (size_t) proxy->resp_dlen,
+                          (int) proxy->state);
+
             if (proxy->resp_dlen > 0) {
 #ifdef __linux__
                 /* Attempt zero-copy splice for plain-text read responses. */
                 if (proxy->state == XRD_PX_FORWARDING
                     && xrootd_proxy_try_splice(proxy) == NGX_OK)
                 {
+                    ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+                                  "xrootd proxy: splice started dlen=%uz",
+                                  (size_t) proxy->resp_dlen);
                     /* Splice started — pump drives I/O; don't buffer body. */
                     return;
                 }
@@ -84,6 +100,9 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
                     xrootd_proxy_abort(proxy, "proxy: body alloc failed");
                     return;
                 }
+                ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+                              "xrootd proxy: buffering body dlen=%uz",
+                              (size_t) proxy->resp_dlen);
                 proxy->resp_body[proxy->resp_dlen] = '\0';
                 proxy->resp_body_pos = 0;
             }
@@ -103,6 +122,10 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             n = uconn->recv(uconn,
                             proxy->resp_body + proxy->resp_body_pos, need);
             if (n == NGX_AGAIN) {
+                ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+                              "xrootd proxy: body AGAIN pos=%uz dlen=%uz",
+                              (size_t) proxy->resp_body_pos,
+                              (size_t) proxy->resp_dlen);
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
                     xrootd_proxy_abort(proxy, "proxy: read arm failed (body)");
                     return;
@@ -119,6 +142,50 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
 
             proxy->resp_body_pos += (size_t) n;
             if (proxy->resp_body_pos < proxy->resp_dlen) {
+                continue;
+            }
+        }
+
+        /* ---- kXR_status two-phase: expand body to include page data ---- */
+        /*
+         * kXR_status (pgread/pgwrite) has hdr.dlen=24 (fixed header) but
+         * bdy.dlen more bytes of page data follow the standard body.
+         * After reading the 24-byte fixed body, re-allocate to include those
+         * extra bytes so the relay path sees a single contiguous buffer.
+         */
+        if (proxy->resp_status == kXR_status
+            && proxy->resp_dlen == 24
+            && proxy->resp_body_pos == 24)
+        {
+            uint32_t  extra;
+            u_char   *new_body;
+
+            ngx_memcpy(&extra, proxy->resp_body + 12, 4);
+            extra = ntohl(extra);
+
+            ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+                          "xrootd proxy: kXR_status two-phase expand extra=%uz resptype=%d",
+                          (size_t) extra,
+                          (int)(unsigned char) proxy->resp_body[7]);
+
+            if (extra > XROOTD_PROXY_MAX_BODY) {
+                xrootd_proxy_abort(proxy,
+                                   "proxy: kXR_status extra data too large");
+                return;
+            }
+            if (extra > 0) {
+                new_body = ngx_alloc(24 + extra + 1, uconn->log);
+                if (new_body == NULL) {
+                    xrootd_proxy_abort(proxy,
+                                       "proxy: kXR_status extra body alloc failed");
+                    return;
+                }
+                ngx_memcpy(new_body, proxy->resp_body, 24);
+                ngx_free(proxy->resp_body);
+                new_body[24 + extra]  = '\0';
+                proxy->resp_body      = new_body;
+                proxy->resp_dlen     += extra;
+                /* resp_body_pos=24; body loop continues for extra bytes */
                 continue;
             }
         }
@@ -182,6 +249,10 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
         }
 
         if (proxy->state == XRD_PX_FORWARDING) {
+            ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+                          "xrootd proxy: relay_to_client status=%d dlen=%uz",
+                          (int) proxy->resp_status,
+                          (size_t) proxy->resp_dlen);
             xrootd_proxy_relay_to_client(proxy);
             /* relay_to_client resets rhdr_pos and resp_body for the
              * next frame if status was kXR_oksofar; otherwise it
@@ -189,6 +260,13 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             if (proxy->state == XRD_PX_FORWARDING) {
                 /* More kXR_oksofar frames expected — loop to read next */
                 continue;
+            }
+            /* Cancel any pending read timeout — response was fully relayed.
+             * Without this, the timer set during body accumulation (NGX_AGAIN)
+             * fires 60s later, triggering the read handler with a stale IDLE
+             * state and causing "unexpected state" abort + SIGSEGV. */
+            if (rev->timer_set) {
+                ngx_del_timer(rev);
             }
             return;
         }

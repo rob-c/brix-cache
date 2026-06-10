@@ -125,9 +125,7 @@ xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
             | ((conf->cache_root.len > 0 || conf->cache_origin_host.len > 0)
                    ? kXR_attrCache : 0)
             | (conf->collapse_redir ? kXR_collapseRedir : 0)
-            /* kXR_recoverWrts intentionally absent: requires kXR_attn write
-               journal (not yet implemented) — setting it prematurely would
-               cause clients to double-write on reconnect. */
+            | (conf->recover_writes ? kXR_recoverWrts : 0)
             | (offer_tls ? (kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin) : 0);
         body.flags = htonl(caps);
     }

@@ -12,9 +12,19 @@ All tests must be benchmarked against a **Pure XRootD Reference Stack**.
 *   **Zero Mocks:** No Python-based socket simulators, silent stubs, or ad-hoc frame parsers are permitted. Every component in the test must be a real `nginx` or `xrootd` binary.
 *   **Version Pinning:** All reference tests must record the exact version of the `xrootd` binary used to ensure that protocol changes in XRootD itself are accounted for.
 
+## 2. Test Infrastructure Lifecycle
+
+As of June 2026, the test infrastructure lifecycle has been optimized for stability and performance:
+
+*   **Persistent Session-Level Lifecycle**: All required test services (nginx, xrootd reference servers, HA clusters, CMS managers) are launched **exactly once** at the beginning of the `pytest` session using `tests/conftest.py` (`pytest_sessionstart`).
+*   **Centralized Shutdown**: Servers are terminated only once after all tests have finished using `pytest_sessionfinish`. 
+*   **Elimination of Transient Servers**: This replaces the previous module-level fixture approach that frequently created and destroyed server instances, causing race conditions and port conflicts.
+*   **Primary Entry Point**: `tests/manage_test_servers.sh start-all` is the canonical command for launching the full test suite environment, ensuring consistent port allocation and data root preparation for all tests.
+*   **Test Environment**: Tests should no longer attempt to start or stop services manually; they must assume the environment managed by the session fixtures is available.
+
 ---
 
-## 2. Mock Replacement Inventory
+## 3. Mock Replacement Inventory (Updated for Persistent Servers)
 
 | Current Mock | Role | Replacement Strategy | Technical Implementation |
 | :--- | :--- | :--- | :--- |

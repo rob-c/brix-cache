@@ -14,8 +14,9 @@ from xml.sax.saxutils import escape
 import pytest
 import requests
 
+from settings import S3_BUCKET
 
-BUCKET = "testbucket"
+BUCKET = S3_BUCKET
 S3_NS = "http://s3.amazonaws.com/doc/2006-03-01/"
 
 

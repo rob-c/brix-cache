@@ -24,27 +24,22 @@ import zlib
 import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags, StatInfoFlags
-from settings import DATA_ROOT as DEFAULT_DATA_ROOT, SERVER_HOST
+from settings import (
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    REF_XROOTD_PORT,
+    SERVER_HOST,
+)
 
 # ---------------------------------------------------------------------------
 # Module globals
 # ---------------------------------------------------------------------------
 
-NGINX_URL = ""
-REF_URL   = ""
-DATA_DIR  = DEFAULT_DATA_ROOT
+NGINX_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+REF_URL   = f"root://localhost:{REF_XROOTD_PORT}"
+DATA_DIR  = DATA_ROOT
 ANON_HOST = SERVER_HOST
-ANON_PORT = 0
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _configure(test_env, ref_xrootd):
-    global NGINX_URL, REF_URL, DATA_DIR, ANON_HOST, ANON_PORT
-    NGINX_URL = test_env["anon_url"]
-    REF_URL   = ref_xrootd["url"]
-    DATA_DIR  = test_env["data_dir"]
-    ANON_HOST = test_env["server_host"]
-    ANON_PORT = test_env["anon_port"]
+ANON_PORT = NGINX_ANON_PORT
 
 
 # ---------------------------------------------------------------------------

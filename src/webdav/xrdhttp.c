@@ -35,6 +35,7 @@
 #include "../compat/http_headers.h"
 #include "../compat/http_query.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -103,6 +104,45 @@ xrdhttp_args_has_key(const ngx_str_t *args, const char *key, size_t key_len)
     return xrootd_http_query_has(*args, key,
                                  XROOTD_HTTP_QUERY_CASE_INSENSITIVE
                                  | XROOTD_HTTP_QUERY_HAS_VALUE_OK);
+}
+
+/*
+ * Normalize an RFC 3230 algorithm token to the internal name used by
+ * xrootd_checksum_parse().  Extracts the first token from a comma-separated
+ * list (ignoring q-value suffixes), lowercases it, and strips hyphens so that
+ * "SHA-256" → "sha256", "SHA-1" → "sha1", "CRC32c" → "crc32c".  The bare
+ * RFC 3230 name "SHA" (meaning SHA-1) is mapped to "sha1" as a special case.
+ */
+static void
+xrdhttp_normalize_rfc3230_algo(const u_char *value, size_t vlen,
+                                char *dst, size_t dstsz)
+{
+    const u_char *p = value;
+    const u_char *end;
+    size_t        out = 0;
+    size_t        i;
+
+    /* First token only (up to ',' or ';'). */
+    for (end = p; (size_t)(end - p) < vlen && *end != ',' && *end != ';'; end++)
+        ;
+    vlen = (size_t)(end - p);
+
+    /* Trim leading/trailing whitespace. */
+    while (vlen > 0 && (*p == ' ' || *p == '\t')) { p++; vlen--; }
+    while (vlen > 0 && (p[vlen - 1] == ' ' || p[vlen - 1] == '\t')) { vlen--; }
+
+    /* Lowercase, strip hyphens: "sha-256" → "sha256". */
+    for (i = 0; i < vlen && out < dstsz - 1; i++) {
+        if (p[i] != '-') {
+            dst[out++] = (char) tolower((unsigned char) p[i]);
+        }
+    }
+    dst[out] = '\0';
+
+    /* RFC 3230 bare "sha" means SHA-1. */
+    if (strcmp(dst, "sha") == 0 && dstsz >= 5) {
+        ngx_memcpy(dst, "sha1", 5);
+    }
 }
 
 /* ---- request parsing ---- */
@@ -181,6 +221,16 @@ xrdhttp_parse_request(ngx_http_request_t *r)
         xrdhttp_args_get(&r->args, "tpc.key",
                          sizeof("tpc.key") - 1,
                          ctx->tpc_key, sizeof(ctx->tpc_key));
+    }
+
+    /* --- Want-Digest: (RFC 3230) — XrdClHttp sends this on HEAD to request checksums.
+     * Only checked when ?xrd.want.cksum= was not supplied (query param takes priority). */
+    if (!ctx->want_cksum[0]) {
+        h = webdav_tpc_find_header(r, "Want-Digest", sizeof("Want-Digest") - 1);
+        if (h != NULL && h->value.len > 0) {
+            xrdhttp_normalize_rfc3230_algo(h->value.data, h->value.len,
+                                           ctx->want_cksum, sizeof(ctx->want_cksum));
+        }
     }
 
     /* Log client identity at debug level (sanitised). */

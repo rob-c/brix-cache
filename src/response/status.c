@@ -51,16 +51,27 @@ void
 xrootd_build_pgread_status(xrootd_ctx_t *ctx, int64_t file_offset,
     uint32_t total_with_crcs, ServerStatusResponse_pgRead *out)
 {
-    size_t    crc_len;
+    size_t    hdr_crc_len;
     uint32_t  crc;
 
-    crc_len = sizeof(out->bdy) - sizeof(out->bdy.crc32c) + sizeof(out->pgr);
+    /*
+     * Wire format (XRootD kXR_status for pgread):
+     *   hdr.dlen  = sizeof(bdy) + sizeof(pgr)   [24 bytes — does NOT include page data]
+     *   bdy.dlen  = total_with_crcs              [the page data size the client reads next]
+     *
+     * Client reads: first (8 + hdr.dlen = 32) bytes as the status header, then
+     * reads bdy.dlen more bytes for the actual page data.  This matches the
+     * XRootD server srsComplete() implementation in XrdXrootdResponse.cc.
+     *
+     * CRC covers bdy.streamID through pgr.offset (20 bytes) — no data extension.
+     * Client validates: Calc32C(msg+12, hdr.dlen-4) = Calc32C(bdy.streamID, 20).
+     */
+    hdr_crc_len = sizeof(out->bdy) - sizeof(out->bdy.crc32c) + sizeof(out->pgr);
 
     out->hdr.streamid[0] = ctx->cur_streamid[0];
     out->hdr.streamid[1] = ctx->cur_streamid[1];
     out->hdr.status = htons(kXR_status);
-    out->hdr.dlen = htonl((uint32_t) (sizeof(out->bdy) + sizeof(out->pgr)
-                                      + total_with_crcs));
+    out->hdr.dlen = htonl((uint32_t) (sizeof(out->bdy) + sizeof(out->pgr)));
 
     out->bdy.streamID[0] = ctx->cur_streamid[0];
     out->bdy.streamID[1] = ctx->cur_streamid[1];
@@ -71,6 +82,6 @@ xrootd_build_pgread_status(xrootd_ctx_t *ctx, int64_t file_offset,
 
     out->pgr.offset = (kXR_int64) htobe64((uint64_t) file_offset);
 
-    crc = xrootd_crc32c(&out->bdy.streamID[0], crc_len);
+    crc = xrootd_crc32c(&out->bdy.streamID[0], hdr_crc_len);
     out->bdy.crc32c = htonl(crc);
 }

@@ -90,53 +90,36 @@ xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (conf->manager_mode && !is_wildcard) {
-        char locate_buf[4096];
-        int  locate_len;
 
-        /* Collapse-redir cache: fast path — single recently-resolved server.
-         * Format as a one-entry kXR_ok locate list so the response type is
-         * consistent with the multi-server registry path below. */
+        /* Collapse-redir cache: fast path — single recently-resolved server. */
         if (conf->collapse_redir) {
             char     redir_host[256];
             uint16_t redir_port;
             if (xrootd_redir_cache_lookup(reqpath_buf, redir_host,
                                           sizeof(redir_host), &redir_port)) {
-                locate_len = snprintf(locate_buf, sizeof(locate_buf),
-                                      "Sr%s:%u", redir_host,
-                                      (unsigned int) redir_port);
-                if (locate_len > 0 && locate_len < (int) sizeof(locate_buf)) {
-                    xrootd_log_access(ctx, c, "LOCATE", reqpath_buf,
-                                      "redir-cache", 1, 0, NULL, 0);
-                    XROOTD_OP_OK(ctx, XROOTD_OP_LOCATE);
-                    return xrootd_send_ok(ctx, c, locate_buf,
-                                          (uint32_t) (locate_len + 1));
-                }
+                xrootd_log_access(ctx, c, "LOCATE", reqpath_buf,
+                                  "redir-cache", 1, 0, NULL, 0);
+                XROOTD_OP_OK(ctx, XROOTD_OP_LOCATE);
+                return xrootd_send_redirect(ctx, c, redir_host, redir_port);
             }
         }
 
-        /* Registry: return all non-blacklisted matching servers as a kXR_ok
-         * locate list.  The client picks by network locality — no redirect
-         * chaining needed (fixes "lateral redirect one level only" gap). */
-        locate_len = xrootd_srv_locate_all(reqpath_buf, 0,
-                                           locate_buf, sizeof(locate_buf));
-        if (locate_len > 0) {
-            /* Seed the collapse-redir cache with the first server in the list
-             * so future kXR_open requests can fast-path the registry lookup. */
-            if (conf->collapse_redir) {
-                char     seed_host[256];
-                uint16_t seed_port;
-                if (xrootd_srv_select(reqpath_buf, 0, seed_host,
-                                      sizeof(seed_host), &seed_port)) {
-                    xrootd_redir_cache_insert(reqpath_buf, seed_host,
-                                              seed_port,
+        /* Registry: redirect to the best available server for this path. */
+        {
+            char     redir_host[256];
+            uint16_t redir_port;
+            if (xrootd_srv_select(reqpath_buf, 0, redir_host,
+                                  sizeof(redir_host), &redir_port)) {
+                if (conf->collapse_redir) {
+                    xrootd_redir_cache_insert(reqpath_buf, redir_host,
+                                              redir_port,
                                               conf->collapse_redir_ttl);
                 }
+                xrootd_log_access(ctx, c, "LOCATE", reqpath_buf,
+                                  "registry", 1, 0, NULL, 0);
+                XROOTD_OP_OK(ctx, XROOTD_OP_LOCATE);
+                return xrootd_send_redirect(ctx, c, redir_host, redir_port);
             }
-            xrootd_log_access(ctx, c, "LOCATE", reqpath_buf, "registry",
-                              1, 0, NULL, 0);
-            XROOTD_OP_OK(ctx, XROOTD_OP_LOCATE);
-            return xrootd_send_ok(ctx, c, locate_buf,
-                                  (uint32_t) (locate_len + 1));
         }
 
         /* Registry miss — ask the CMS parent via kYR_locate. */
