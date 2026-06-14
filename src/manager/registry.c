@@ -27,6 +27,7 @@
  */
 
 #include "registry.h"
+#include "../compat/net_target.h"   /* xrootd_net_host_chars_valid (W1c) */
 #include <ngx_shmtx.h>
 #include <string.h>
 
@@ -151,6 +152,17 @@ srv_path_matches(const char *paths, const char *path)
             if (tok_len == 1 && p[0] == '/') {
                 return 1;
             }
+            /* Longest-prefix match: the token must align with a directory
+             * boundary so that token "/data" never matches "/database".
+             * After the literal prefix compares equal, accept on any of three
+             * mutually-exclusive boundary conditions:
+             *   (1) token itself ends with '/' (e.g. "/data/" in the registry)
+             *       -- the slash is already the boundary;
+             *   (2) the path has a '/' immediately past the prefix (e.g. path
+             *       "/data/file" against token "/data") -- next char is the
+             *       directory separator;
+             *   (3) exact match -- the path ends right at the token boundary
+             *       (path[tok_len] is the NUL terminator). */
             if (path_len >= tok_len
                 && ngx_strncmp(path, p, tok_len) == 0
                 && (p[tok_len - 1] == '/'
@@ -193,6 +205,21 @@ xrootd_srv_register(const char *host, uint16_t port,
 
     tbl = srv_table();
     if (tbl == NULL) {
+        return;
+    }
+
+    /*
+     * W1c — reject any host string that is not a clean hostname / IP literal
+     * before it can enter the registry.  This is the single store choke point,
+     * so it also protects every redirect-emit path (xrootd_srv_select /
+     * xrootd_srv_locate_all) from control-byte or scheme injection into the
+     * "S<r|w>host:port" string a client parses.  Registry hosts are normally
+     * the peer IP from ngx_sock_ntop, so a rejection here means a poisoned or
+     * malformed registration attempt.
+     */
+    if (host == NULL || !xrootd_net_host_chars_valid(host, ngx_strlen(host))) {
+        ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+                      "xrootd: rejected registration with invalid host string");
         return;
     }
 
@@ -410,6 +437,113 @@ xrootd_srv_select(const char *path, int for_write,
     return best >= 0;
 }
 
+/* ---- Function: xrootd_srv_count_matching() -------------------------------- */
+
+/* WHAT: Count occupied, non-blacklisted servers that export a prefix covering
+ *       path — the number of distinct data servers a client could be redirected
+ *       to for this path.
+ * WHY:  The tried/triedrc retry protocol (see xrootd_manager_tried_exhausted)
+ *       needs to know how many candidates exist so it can tell when the client
+ *       has exhausted them all and the answer is definitively "not found".
+ * HOW:  Same slot scan as xrootd_srv_select (in_use, not blacklisted, prefix
+ *       match) under the registry spinlock, returning the count. */
+int
+xrootd_srv_count_matching(const char *path)
+{
+    xrootd_srv_table_t *tbl;
+    xrootd_srv_entry_t *e;
+    ngx_uint_t          i;
+    int                 n = 0;
+
+    tbl = srv_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&xrootd_srv_mutex);
+    for (i = 0; i < tbl->capacity; i++) {
+        e = &tbl->slots[i];
+        if (!e->in_use) {
+            continue;
+        }
+        if (e->blacklisted_until != 0
+            && e->blacklisted_until > ngx_current_msec)
+        {
+            continue;
+        }
+        if (!srv_path_matches(e->paths, path)) {
+            continue;
+        }
+        n++;
+    }
+    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    return n;
+}
+
+/* ---- Function: xrootd_manager_tried_exhausted() --------------------------- */
+
+/* WHAT: Honour the XRootD client's tried/triedrc retry protocol at a manager.
+ *       When a data server returns an error the client re-issues the request to
+ *       the manager with ?tried=h1,h2&triedrc=rc1,rc2 listing servers it already
+ *       attempted.  Returns 1 when every server exporting this path has already
+ *       been tried — the caller must then answer kXR_NotFound instead of
+ *       redirecting, otherwise the client bounces manager<->data-server until it
+ *       hits its redirect limit (the divergence conformance testing caught).
+ * WHY:  A conformant redirector must converge to "not found" once the client has
+ *       visited every candidate; reference cmsd does this via the tried list.
+ * HOW:  Extract the opaque (everything after '?') from the raw request payload,
+ *       locate "tried=", count its comma-separated hosts, and compare against
+ *       xrootd_srv_count_matching(clean_path).  Conservative: a zero match count
+ *       falls through to the normal CMS-locate path so this does not prematurely
+ *       short-circuit hierarchical (parent-locate) clusters. */
+int
+xrootd_manager_tried_exhausted(const u_char *payload, size_t payload_len,
+    const char *clean_path)
+{
+    char          opaque[1024];
+    const u_char *q;
+    size_t        olen;
+    const char   *t, *p;
+    int           n_tried, n_match;
+
+    if (payload == NULL || payload_len == 0) {
+        return 0;
+    }
+    q = memchr(payload, '?', payload_len);
+    if (q == NULL) {
+        return 0;                 /* no opaque -> client's first attempt */
+    }
+    q++;
+    olen = (size_t) (payload + payload_len - q);
+    if (olen > 0 && q[olen - 1] == '\0') {
+        olen--;                   /* trim trailing NUL some payloads carry */
+    }
+    if (olen == 0 || olen >= sizeof(opaque)) {
+        return 0;                 /* empty or too long to inspect — be safe */
+    }
+    ngx_memcpy(opaque, q, olen);
+    opaque[olen] = '\0';
+
+    t = strstr(opaque, "tried=");
+    if (t == NULL) {
+        return 0;
+    }
+    t += 6;                       /* skip "tried=" */
+    if (*t == '\0' || *t == '&') {
+        return 0;                 /* present but empty */
+    }
+
+    n_tried = 1;
+    for (p = t; *p && *p != '&'; p++) {
+        if (*p == ',') {
+            n_tried++;
+        }
+    }
+
+    n_match = xrootd_srv_count_matching(clean_path);
+    return (n_match > 0 && n_tried >= n_match);
+}
+
 /* ---- Function: xrootd_srv_blacklist() ------------------------------------- */
 
 /* WHAT
@@ -456,6 +590,161 @@ xrootd_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)
     }
 
     ngx_shmtx_unlock(&xrootd_srv_mutex);
+}
+
+/*
+ * Phase 23 — clear a drain/blacklist set on a server (admin "undrain").
+ * Resets blacklisted_until, error_count, and any health-check failure state so
+ * xrootd_srv_select() routes to it again immediately.  Returns 1 if a matching
+ * in-use entry was found, 0 otherwise.
+ */
+int
+xrootd_srv_undrain(const char *host, uint16_t port)
+{
+    xrootd_srv_table_t *tbl;
+    xrootd_srv_entry_t *e;
+    ngx_uint_t          i;
+    int                 found = 0;
+
+    tbl = srv_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&xrootd_srv_mutex);
+
+    for (i = 0; i < tbl->capacity; i++) {
+        e = &tbl->slots[i];
+        if (!e->in_use || e->port != port
+            || ngx_strcmp(e->host, host) != 0)
+        {
+            continue;
+        }
+        e->blacklisted_until = 0;
+        e->error_count       = 0;
+        e->hc_fail_count     = 0;
+        found = 1;
+        break;
+    }
+
+    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    return found;
+}
+
+/* ---- Phase 22: active health-check registry helpers ---------------------- */
+
+int
+xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
+    ngx_msec_t interval_ms)
+{
+    xrootd_srv_table_t *tbl;
+    xrootd_srv_entry_t *e;
+    ngx_uint_t          i;
+    ngx_msec_t          now;
+
+    tbl = srv_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+    now = ngx_current_msec;
+
+    ngx_shmtx_lock(&xrootd_srv_mutex);
+
+    for (i = 0; i < tbl->capacity; i++) {
+        e = &tbl->slots[i];
+
+        if (!e->in_use || e->hc_in_progress) {
+            continue;
+        }
+        if (e->hc_next_check > now) {
+            continue;
+        }
+
+        e->hc_in_progress = 1;
+        e->hc_next_check  = now + interval_ms;
+        ngx_cpystrn((u_char *) host_out, (u_char *) e->host, host_size);
+        *port_out = e->port;
+
+        ngx_shmtx_unlock(&xrootd_srv_mutex);
+        return 1;
+    }
+
+    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    return 0;
+}
+
+void
+xrootd_srv_hc_pass(const char *host, uint16_t port)
+{
+    xrootd_srv_table_t *tbl;
+    xrootd_srv_entry_t *e;
+    ngx_uint_t          i;
+
+    tbl = srv_table();
+    if (tbl == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&xrootd_srv_mutex);
+
+    for (i = 0; i < tbl->capacity; i++) {
+        e = &tbl->slots[i];
+        if (!e->in_use || e->port != port
+            || ngx_strcmp(e->host, host) != 0)
+        {
+            continue;
+        }
+        /* Clear a blacklist only when it was health-check-induced (fail_count
+         * was non-zero); never clear a CMS-disconnect blacklist. */
+        if (e->hc_fail_count > 0) {
+            e->blacklisted_until = 0;
+        }
+        e->hc_fail_count  = 0;
+        e->hc_last_ok     = ngx_current_msec;
+        e->hc_in_progress = 0;
+        break;
+    }
+
+    ngx_shmtx_unlock(&xrootd_srv_mutex);
+}
+
+int
+xrootd_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
+    ngx_msec_t blacklist_ms)
+{
+    xrootd_srv_table_t *tbl;
+    xrootd_srv_entry_t *e;
+    ngx_uint_t          i;
+    int                 newly_blacklisted = 0;
+
+    tbl = srv_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&xrootd_srv_mutex);
+
+    for (i = 0; i < tbl->capacity; i++) {
+        e = &tbl->slots[i];
+        if (!e->in_use || e->port != port
+            || ngx_strcmp(e->host, host) != 0)
+        {
+            continue;
+        }
+        e->hc_in_progress = 0;
+        e->hc_fail_count++;
+        if (threshold > 0 && e->hc_fail_count >= threshold) {
+            ngx_msec_t until = ngx_current_msec + blacklist_ms;
+            if (e->blacklisted_until < until) {
+                e->blacklisted_until = until;
+                newly_blacklisted = 1;
+            }
+        }
+        break;
+    }
+
+    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    return newly_blacklisted;
 }
 
 /* ---- Function: xrootd_srv_locate_all() ------------------------------------ */
@@ -703,6 +992,8 @@ xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
         out[n].last_seen        = e->last_seen;
         out[n].blacklisted_until = e->blacklisted_until;
         out[n].error_count      = e->error_count;
+        out[n].hc_last_ok       = e->hc_last_ok;
+        out[n].hc_fail_count    = e->hc_fail_count;
         n++;
     }
 

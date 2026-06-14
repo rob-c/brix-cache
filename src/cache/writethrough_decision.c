@@ -125,28 +125,28 @@ xrootd_wt_decision_t xrootd_wt_default_decide(const char *path, uint16_t options
      * Files larger than the limit are denied unless they match an include
      * regex (configured via xrootd_cache_include_regex — we reuse it here). */
     if (cfg->max_write_through_bytes > 0) {
-        off_t file_size;
-
-        /* Try to get file size via stat() — this is a local syscall, not a
-         * network round-trip. If the file doesn't exist yet (kXR_new open),
-         * skip the size check and allow creation. */
         struct stat st;
-        if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
-            file_size = st.st_size;
-        } else {
-            /* File doesn't exist yet or not a regular file — allow creation. */
-            goto check_prefixes;
-        }
 
-        if ((off_t)(options & kXR_new) == 0 && file_size > cfg->max_write_through_bytes) {
-            /* Large existing file without include regex match → deny. */
-            if (!cfg->include_regex_set || regexec(&cfg->include_regex, path, 0, NULL, 0) != 0) {
-                return XROOTD_WT_DECISION_DENY;
+        /* Size cap (mirrors cache_max_file_size). Only an existing regular file
+         * is subject to it; a kXR_new creation — or a path that does not stat as
+         * a regular file — skips the check and falls through to the prefix rules
+         * below. stat() is a local syscall, not a network round-trip. */
+        if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            off_t file_size = st.st_size;
+
+            if ((off_t)(options & kXR_new) == 0
+                && file_size > cfg->max_write_through_bytes)
+            {
+                /* Large existing file without include regex match → deny. */
+                if (!cfg->include_regex_set
+                    || regexec(&cfg->include_regex, path, 0, NULL, 0) != 0)
+                {
+                    return XROOTD_WT_DECISION_DENY;
+                }
             }
         }
     }
 
-check_prefixes:
     /* Check 2: Deny prefixes take precedence (blacklist semantics). */
     if (xrootd_wt_path_matches_any_prefix(path, cfg->deny_prefixes)) {
         return XROOTD_WT_DECISION_DENY;

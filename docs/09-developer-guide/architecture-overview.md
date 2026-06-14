@@ -19,6 +19,6 @@ The new overview includes:
 ## Deep Dive
 
 For code-level details (state machines, file handles, backpressure), see the original architecture docs:
-- [Native XRootD stream layer](../10-architecture/stream.md) *(proposed)*
-- [WebDAV request lifecycle](../10-architecture/webdav.md) *(proposed)*
-- [S3 request lifecycle](../10-architecture/s3.md) *(proposed)*
+- [Native XRootD stream layer](../10-architecture/stream.md)
+- [WebDAV request lifecycle](../10-architecture/webdav.md)
+- [S3 request lifecycle](../10-architecture/s3.md)

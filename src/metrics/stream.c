@@ -110,6 +110,50 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
             (unsigned long) ngx_atomic_fetch_add(&srv->connections_active, 0));
     }
 
+    /* Phase 31 W4 — transfer-heap memory budget gauges/counter. */
+    mw_printf(mw,
+        "# HELP xrootd_xfer_heap_bytes "
+            "Bytes currently held in per-connection transfer scratch buffers.\n"
+        "# TYPE xrootd_xfer_heap_bytes gauge\n");
+    for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {
+        srv = &shm->servers[i];
+        if (!srv->in_use) { continue; }
+        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
+        mw_printf(mw,
+            "xrootd_xfer_heap_bytes{port=\"%s\",auth=\"%s\"} %lu\n",
+            port_str, srv->auth,
+            (unsigned long) ngx_atomic_fetch_add(&srv->xfer_heap_in_use, 0));
+    }
+
+    mw_printf(mw,
+        "# HELP xrootd_xfer_heap_high_water_bytes "
+            "Peak transfer-heap bytes observed since start.\n"
+        "# TYPE xrootd_xfer_heap_high_water_bytes gauge\n");
+    for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {
+        srv = &shm->servers[i];
+        if (!srv->in_use) { continue; }
+        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
+        mw_printf(mw,
+            "xrootd_xfer_heap_high_water_bytes{port=\"%s\",auth=\"%s\"} %lu\n",
+            port_str, srv->auth,
+            (unsigned long) ngx_atomic_fetch_add(&srv->xfer_heap_high_water, 0));
+    }
+
+    mw_printf(mw,
+        "# HELP xrootd_budget_waits_total "
+            "Reads deferred with kXR_wait because they would exceed "
+            "xrootd_memory_budget.\n"
+        "# TYPE xrootd_budget_waits_total counter\n");
+    for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {
+        srv = &shm->servers[i];
+        if (!srv->in_use) { continue; }
+        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
+        mw_printf(mw,
+            "xrootd_budget_waits_total{port=\"%s\",auth=\"%s\"} %lu\n",
+            port_str, srv->auth,
+            (unsigned long) ngx_atomic_fetch_add(&srv->budget_waits_total, 0));
+    }
+
     mw_printf(mw,
         "# DEPRECATED: use xrootd_io_bytes_written{proto=\"stream\"} "
             "for protocol-neutral write throughput.\n"
@@ -311,6 +355,19 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
         "xrootd_registry_full_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(&shm->registry_full_total, 0));
 
+    /* Phase 27 F4 — session-registry anti-exhaustion. */
+    mw_printf(mw,
+        "# HELP xrootd_session_registry_full_total "
+            "Logins rejected because the session table was full and nothing was reapable.\n"
+        "# TYPE xrootd_session_registry_full_total counter\n"
+        "xrootd_session_registry_full_total %lu\n"
+        "# HELP xrootd_session_evict_total "
+            "Idle sessions reaped (LRU) to admit a new login under table pressure.\n"
+        "# TYPE xrootd_session_evict_total counter\n"
+        "xrootd_session_evict_total %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(&shm->session_registry_full_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->session_evict_total, 0));
+
     mw_printf(mw,
         "# HELP xrootd_requests_total "
             "XRootD requests completed, by operation and status.\n"
@@ -351,4 +408,33 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
     xrootd_export_webdav_metrics(mw, shm);
     xrootd_export_s3_metrics(mw, shm);
     xrootd_export_cluster_metrics(mw);
+    xrootd_export_ratelimit_metrics(mw, shm);
+
+    /* Phase 24 — traffic-mirror counters (always exported; independent of the
+     * cluster registry, unlike the health-check block in cluster.c). */
+    mw_printf(mw,
+        "# HELP xrootd_mirror_requests_total Mirror requests the shadow answered.\n"
+        "# TYPE xrootd_mirror_requests_total counter\n"
+        "xrootd_mirror_requests_total{surface=\"http\"} %lu\n"
+        "xrootd_mirror_requests_total{surface=\"stream\"} %lu\n"
+        "# HELP xrootd_mirror_errors_total Mirror requests that failed to reach the shadow.\n"
+        "# TYPE xrootd_mirror_errors_total counter\n"
+        "xrootd_mirror_errors_total{surface=\"http\"} %lu\n"
+        "xrootd_mirror_errors_total{surface=\"stream\"} %lu\n"
+        "# HELP xrootd_mirror_dropped_total Requests skipped by the mirror sampling/filter.\n"
+        "# TYPE xrootd_mirror_dropped_total counter\n"
+        "xrootd_mirror_dropped_total{surface=\"http\"} %lu\n"
+        "xrootd_mirror_dropped_total{surface=\"stream\"} %lu\n"
+        "# HELP xrootd_mirror_divergence_total Shadow status differed from the primary.\n"
+        "# TYPE xrootd_mirror_divergence_total counter\n"
+        "xrootd_mirror_divergence_total{surface=\"http\"} %lu\n"
+        "xrootd_mirror_divergence_total{surface=\"stream\"} %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(&shm->mirror_http_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->mirror_stream_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->mirror_http_errors_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->mirror_stream_errors_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->mirror_http_dropped_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->mirror_stream_dropped_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->mirror_http_divergence_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->mirror_stream_divergence_total, 0));
 }

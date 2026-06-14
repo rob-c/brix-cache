@@ -31,35 +31,39 @@
 
 /* ---- Handler: called by the nginx event loop at each refresh interval ---- */
 
+/*
+ * Poll the JWKS file once: reload and swap in a new key set only if the file
+ * exists, its mtime changed since the last poll, and it parses to >=1 key. Any
+ * miss is a no-op that preserves the current keys (a WARN is logged). Does not
+ * touch the refresh timer — the caller always re-arms it afterwards.
+ */
 static void
-xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
+xrootd_token_jwks_try_reload(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
 {
-    ngx_stream_xrootd_srv_conf_t  *conf = ev->data;
-    struct stat                    st;
-    xrootd_jwks_key_t              new_keys[XROOTD_MAX_JWKS_KEYS];
-    int                            new_count;
+    struct stat        st;
+    xrootd_jwks_key_t  new_keys[XROOTD_MAX_JWKS_KEYS];
+    int                new_count;
 
     if (stat((const char *) conf->token_jwks.data, &st) != 0) {
-        ngx_log_error(NGX_LOG_WARN, ev->log, ngx_errno,
+        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
                       "xrootd: JWKS stat failed for \"%s\" — will retry",
                       conf->token_jwks.data);
-        goto reschedule;
+        return;
     }
 
     if (st.st_mtime == conf->jwks_mtime) {
-        /* File unchanged — no reload needed */
-        goto reschedule;
+        return;   /* file unchanged — no reload needed */
     }
 
-    new_count = xrootd_jwks_load(ev->log,
+    new_count = xrootd_jwks_load(log,
                                  (const char *) conf->token_jwks.data,
                                  new_keys, XROOTD_MAX_JWKS_KEYS);
     if (new_count <= 0) {
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+        ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd: JWKS reload from \"%s\" returned %d keys "
                       "— keeping old keys",
                       conf->token_jwks.data, new_count);
-        goto reschedule;
+        return;
     }
 
     /* Swap: free the old keys then install the new set */
@@ -69,11 +73,17 @@ xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
     conf->jwks_key_count = new_count;
     conf->jwks_mtime     = st.st_mtime;
 
-    ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+    ngx_log_error(NGX_LOG_NOTICE, log, 0,
                   "xrootd: JWKS refreshed from \"%s\" — %d key(s) loaded",
                   conf->token_jwks.data, new_count);
+}
 
-reschedule:
+static void
+xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
+{
+    ngx_stream_xrootd_srv_conf_t  *conf = ev->data;
+
+    xrootd_token_jwks_try_reload(conf, ev->log);
     ngx_add_timer(ev, conf->token_jwks_refresh_interval);
 }
 

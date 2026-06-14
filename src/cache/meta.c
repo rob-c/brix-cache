@@ -6,6 +6,37 @@
 #include <string.h>
 #include <unistd.h>
 
+/*
+ * meta.c — read/write of the per-cache-file metadata sidecar.
+ *
+ * WHAT: Persists and loads the xrootd_cache_meta_t record (origin mtime, size,
+ *       and optional etag) that accompanies each cached file. The sidecar path
+ *       is derived from the cache file path by xrootd_cache_meta_path() (see
+ *       paths.c).
+ *
+ * WHY:  A cached copy is only valid while it still matches the origin. The
+ *       sidecar lets open.c (xrootd_cache_validate_meta) detect a stale entry
+ *       by comparing the recorded size/mtime against the live origin stat, so
+ *       changed-at-origin files are not served from cache.
+ *
+ * HOW:  The record is a fixed-size struct written and read verbatim as raw
+ *       bytes through xrootd_cache_meta_rw_all(), a short-read/short-write-safe
+ *       loop. Files are opened with O_NOFOLLOW|O_CLOEXEC (and O_NOCTTY); writes
+ *       use O_CREAT|O_TRUNC and zero-pad the unused etag tail for a stable
+ *       on-disk image. xrootd_cache_meta_from_stat() builds an in-memory record
+ *       from a struct stat plus an optional etag, clamping the etag to
+ *       XROOTD_CACHE_META_ETAG_MAX. NGX_DECLINED distinguishes "no/short/invalid
+ *       meta" (treat as cache miss) from NGX_ERROR (real I/O failure).
+ */
+
+/*
+ * xrootd_cache_meta_rw_all — read or write exactly len bytes on fd.
+ *
+ * Loops over write(2) (write_op != 0) or read(2) until the whole buffer is
+ * transferred, retrying on EINTR. Returns NGX_OK on full transfer, NGX_DECLINED
+ * on premature EOF (read returning 0, i.e. a truncated meta file), or NGX_ERROR
+ * on any other failure.
+ */
 static ngx_int_t
 xrootd_cache_meta_rw_all(int fd, void *buf, size_t len, unsigned write_op)
 {
@@ -39,6 +70,13 @@ xrootd_cache_meta_rw_all(int fd, void *buf, size_t len, unsigned write_op)
     return NGX_OK;
 }
 
+/*
+ * xrootd_cache_meta_from_stat — populate a meta record from a stat + etag.
+ *
+ * Zeroes *meta, then copies st->st_mtime and st->st_size and, if etag is
+ * non-empty, up to XROOTD_CACHE_META_ETAG_MAX bytes of it. Returns NGX_ERROR
+ * (EINVAL) on NULL arguments, otherwise NGX_OK.
+ */
 ngx_int_t
 xrootd_cache_meta_from_stat(const struct stat *st, const char *etag,
     xrootd_cache_meta_t *meta)
@@ -66,6 +104,14 @@ xrootd_cache_meta_from_stat(const struct stat *st, const char *etag,
     return NGX_OK;
 }
 
+/*
+ * xrootd_cache_meta_read — load the sidecar meta for cache_path into *meta.
+ *
+ * Derives the sidecar path, opens it O_RDONLY|O_NOFOLLOW, and reads the full
+ * fixed-size record. Returns NGX_OK on success; NGX_DECLINED when no sidecar
+ * exists (ENOENT), the file is truncated, or etag_len is out of range (treat as
+ * cache miss); NGX_ERROR on any other I/O error.
+ */
 ngx_int_t
 xrootd_cache_meta_read(ngx_log_t *log, const char *cache_path,
     xrootd_cache_meta_t *meta)
@@ -108,6 +154,14 @@ xrootd_cache_meta_read(ngx_log_t *log, const char *cache_path,
     return NGX_OK;
 }
 
+/*
+ * xrootd_cache_meta_write — persist *meta to the sidecar for cache_path.
+ *
+ * Validates etag_len, then writes a local copy with the unused etag tail
+ * zero-padded (stable on-disk image) to the sidecar opened
+ * O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW (mode 0644). Returns NGX_OK on a full
+ * write, NGX_ERROR on bad arguments or any I/O failure.
+ */
 ngx_int_t
 xrootd_cache_meta_write(ngx_log_t *log, const char *cache_path,
     const xrootd_cache_meta_t *meta)

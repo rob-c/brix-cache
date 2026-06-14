@@ -189,10 +189,21 @@ struct xrootd_proxy_ctx_s {
 
 /* connect.c */
 
+/* Select an upstream (redirect > pool > round-robin > single), resolve DNS, open a
+ * non-blocking socket, start the async connect, and arm bootstrap. On a pool hit
+ * dispatches/resumes immediately. Borrows proxy/client_conn/conf (not owned).
+ * Returns NGX_OK once a connect is in flight or completed (TLS/bootstrap continue via
+ * event callbacks); NGX_ERROR after calling xrootd_proxy_cleanup() on hard failure. */
 ngx_int_t xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
     ngx_connection_t *client_conn,
     ngx_stream_xrootd_srv_conf_t *conf);
+/* Handle an upstream error: log, mark the upstream failed. If idle with no open
+ * handles and reconnect budget remains, transparently reconnect (client unaware);
+ * otherwise tear the session down. reason is a borrowed static/log string. */
 void      xrootd_proxy_abort(xrootd_proxy_ctx_t *proxy, const char *reason);
+/* Drain proxy->wbuf to the upstream socket via uconn->send (TLS or plain), advancing
+ * wbuf_pos. NGX_OK when fully sent, NGX_AGAIN on partial send (caller re-arms write),
+ * NGX_ERROR on socket error. Does not free the buffer. */
 ngx_int_t xrootd_proxy_flush(xrootd_proxy_ctx_t *proxy);
 
 #if (NGX_SSL)
@@ -204,14 +215,28 @@ void xrootd_proxy_tls_handshake_done(ngx_connection_t *uconn);
 extern xrootd_proxy_up_status_t *proxy_up_status;
 
 /* Pool management */
+/* Init the worker-local idle-connection queue and counter. Call once at startup. */
 void xrootd_proxy_pool_init(void);
+/* Take a reusable, already-authenticated upstream connection out of the pool, matched
+ * by health-aware round-robin upstream index + auth type (+ bearer-token MD5 in forward
+ * mode). Returns the connection (caller takes ownership, must set c->data) and writes
+ * the chosen upstream index to *idx_out; NULL when no match — caller must connect fresh. */
 ngx_connection_t *xrootd_proxy_pool_get(xrootd_proxy_ctx_t *proxy,
     ngx_stream_xrootd_srv_conf_t *conf, int *idx_out);
+/* Return proxy->conn to the pool for reuse if it is idle and not redirected; detaches it
+ * from the ctx, allocs a pooled-conn record with auth/index/token-hash/keepalive timer,
+ * and evicts the oldest entry when the pool is full. No-op if not poolable. */
 void xrootd_proxy_pool_put(xrootd_proxy_ctx_t *proxy);
 
 /* Health management */
+/* Allocate/zero the worker-local per-upstream health array sized to the configured
+ * upstream count (>=1). Idempotent: reuses the array if already large enough. */
 void xrootd_proxy_up_status_init(ngx_stream_xrootd_srv_conf_t *conf);
+/* Bump the fail counter for proxy's current upstream and stamp the check time; marks the
+ * upstream DOWN once it reaches XROOTD_PROXY_MAX_FAILS. No-op if the status array is unsized. */
 void xrootd_proxy_up_mark_failed(xrootd_proxy_ctx_t *proxy);
+/* Clear DOWN and reset the fail counter for proxy's current upstream (logs the UP
+ * transition). No-op if the status array is unsized. */
 void xrootd_proxy_up_mark_ok(xrootd_proxy_ctx_t *proxy);
 
 /* events.c */
@@ -233,24 +258,56 @@ void xrootd_proxy_read_handler(ngx_event_t *rev);
 void xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy);
 
 /* events_splice.c — zero-copy splice path for plain-text kXR_read responses. */
+/* Pump the in-progress splice: move upstream-fd -> pipe and pipe -> client-fd, updating
+ * splice_upstream/splice_downstream until splice_total bytes are relayed. Re-armable from
+ * both upstream-readable and client-writable events; no-op once either conn is gone. */
 void      xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy);
+/* Try to start a zero-copy splice for the current kXR_read/kXR_pgread response: lazily
+ * creates the kernel pipe, sends the response header, then pumps. NGX_OK if splicing has
+ * started (caller must NOT allocate resp_body or read the body); NGX_DECLINED when not
+ * eligible (TLS on either side, wrong opcode/status, zero dlen, or pipe2 failure) so the
+ * caller falls back to the buffered path. */
 ngx_int_t xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy);
 
 /* forward.c */
+/* Build the upstream request from the client's current frame (ctx->hdr_buf + payload),
+ * applying fhandle translation, path rewriting, audit capture and kXR_wait-retry setup,
+ * then send it. Allocates the request buffer (ngx_alloc, freed on send/cleanup) and may
+ * pre-allocate a local fh for kXR_open. NGX_OK on send/queue; NGX_ERROR after the helper
+ * has already replied to the client with a kXR error. Borrows ctx and c. */
 ngx_int_t xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
     xrootd_ctx_t *ctx, ngx_connection_t *c);
+/* Relay the accumulated upstream response (resp_status/resp_dlen/resp_body) back to the
+ * client, transparently handling lazy-open completion, kXR_wait retry, kXR_redirect
+ * follow-through, upstream->local fhandle translation, path audit and oksofar streaming.
+ * Consumes/frees resp_body as part of relaying. */
 void      xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy);
+/* Return the index of the first free fh_map slot (upstream_fh == FREE), giving the proxy
+ * its own local handle namespace; -1 if all XROOTD_MAX_FILES slots are in use. */
 int       xrootd_proxy_alloc_local_fh(xrootd_proxy_ctx_t *proxy);
 /* Emit a JSON audit record for fh_map[local_fh]; safe to call on any slot. */
 void      proxy_write_audit(xrootd_proxy_ctx_t *proxy, int local_fh);
 
 /* forward_rewrite_helpers.c — path/fh rewriting (called from forward_request.c). */
+/* Apply the proxy_path_strip -> proxy_path_add prefix swap to the single path at
+ * [path_off, path_off+path_len) inside the request buffer req of length total; the new
+ * total is written to *total_out and the request's 4-byte dlen header is fixed up.
+ * Returns req when the prefix does not match (in-place same-length rewrite included), or
+ * a NEW ngx_alloc buffer when the result is longer. NOTE: on the realloc path the original
+ * req is NOT freed here (caller owns/replaces it); on OOM returns req unchanged. */
 u_char *proxy_rewrite_path(ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, u_char *req, size_t total,
     size_t path_off, size_t path_len, size_t *total_out);
+/* Rewrite every newline-separated path in a kXR_prepare payload with the same prefix swap,
+ * fixing up the dlen header; *total_out gets the new length. Returns req if nothing
+ * matched (or OOM), else a NEW buffer — and in that case ngx_free()s the old req itself
+ * (ownership transferred), unlike proxy_rewrite_path. */
 u_char *proxy_rewrite_prepare_payload(ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, u_char *req, size_t total,
     size_t *total_out);
+/* In place, replace the 1-byte local fhandle at buf[offset] with its upstream handle from
+ * fh_map. Returns 0 on success, -1 if the local handle is out of range or maps to a free
+ * slot (caller should reject the request). */
 int proxy_translate_fh(xrootd_proxy_ctx_t *proxy, u_char *buf, size_t offset);
 /*
  * Issue a synthetic kXR_open on the upstream for a handle that was opened

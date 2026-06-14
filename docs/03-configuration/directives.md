@@ -1,6 +1,6 @@
 # Configuration directive reference
 
-Complete reference for every `xrootd_*` directive — name, context, type, default, and what it actually does.
+Reference for the most commonly-used `xrootd_*` directives — name, context, type, default, and what each one actually does. For a single-table summary of the most-used directives, see [quick-reference.md](quick-reference.md). Some advanced features (health checks, traffic mirroring, rate limiting) are not yet covered in detail here.
 
 [← Configuration overview](config-reference.md)
 
@@ -689,3 +689,88 @@ stream {
     }
 }
 ```
+
+---
+
+## Proxy mode directives
+
+These directives configure transparent XRootD proxy mode, in which a stream
+listener forwards `root://` client requests to one or more upstream XRootD data
+servers or redirectors. All proxy directives are `server`-context (stream
+`server {}` block). Defaults below match `src/stream/module.c`.
+
+### `xrootd_proxy on|off`
+
+**Default:** `off`
+
+Enables transparent XRootD proxy mode for this stream server. Requires at least
+one `xrootd_proxy_upstream`.
+
+### `xrootd_proxy_upstream host[:port] [auth]`
+
+Upstream XRootD data server or redirector. May appear multiple times for
+round-robin load balancing. The optional second argument overrides
+`xrootd_proxy_auth` for this upstream only.
+
+### `xrootd_proxy_upstream_tls on|off`
+
+**Default:** `off`
+
+Wraps the outbound upstream connection in TLS from the first byte.
+
+### `xrootd_proxy_upstream_tls_ca <path>`
+
+PEM CA bundle used to verify the upstream TLS certificate (enables peer
+verification).
+
+### `xrootd_proxy_upstream_tls_name <host>`
+
+SNI hostname presented on the upstream TLS connection. Defaults to the
+`xrootd_proxy_upstream` host.
+
+### `xrootd_proxy_auth <mode>`
+
+**Default:** `anonymous`
+
+Auth bridging mode for upstream connections (for example `anonymous`, `forward`,
+or `sss`). `forward` replays the client bearer token; `sss` builds an SSS
+credential from the configured key.
+
+### `xrootd_proxy_login_user <string>`
+
+Overrides the username placed in the upstream `kXR_login` frame.
+
+### `xrootd_proxy_audit_log <path>|off`
+
+**Default:** `off`
+
+Writes one JSON line per closed or abandoned upstream file handle.
+
+### `xrootd_proxy_reconnect_attempts <n>`
+
+**Default:** `0`
+
+Reconnect budget per client session when an idle upstream connection drops with
+no open handles.
+
+### `xrootd_proxy_connect_timeout <ms>`
+
+**Default:** `10000`
+
+Milliseconds allowed for the TCP connect to the upstream. `0` disables the
+limit.
+
+### `xrootd_proxy_read_timeout <ms>`
+
+**Default:** `60000`
+
+Milliseconds allowed between upstream response bytes. `0` disables the limit.
+
+### `xrootd_proxy_keepalive_interval <ms>`
+
+Idle keepalive interval for upstream connections.
+
+### `xrootd_proxy_path_rewrite <strip> <add>`
+
+Strips a leading prefix from open/path requests, then prepends `add` (for
+example `xrootd_proxy_path_rewrite /xrootd /data`).

@@ -132,11 +132,18 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                      "%s/part.%z", mpu_dir, (size_t) part_num);
     *p = '\0';
 
-    /* Copy source file → part file */
-    src_fd = open(src_fs_path, O_RDONLY);
+    /* Copy source file → part file.  Open the source through the confined
+     * resolver (openat2 RESOLVE_BENEATH): this refuses to follow a symlink out
+     * of the export root and rejects any path that escapes it — the same
+     * confinement every other read path uses.  A raw open() here followed a
+     * planted in-bucket symlink straight to a host file (e.g. /etc/passwd),
+     * which the string checks above (strstr/strncmp) do not catch. */
+    src_fd = xrootd_open_confined_canon(r->connection->log,
+                                        cf->common.root_canon, src_fs_path,
+                                        O_RDONLY, 0);
     if (src_fd < 0) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                                 "The specified copy source does not exist.");
     }
 
     dst_fd = open(part_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);

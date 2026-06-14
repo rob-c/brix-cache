@@ -6,8 +6,21 @@
  * The page is self-contained and talks only to the /xrootd/api/v1 endpoints.
  * The legacy
  * /xrootd/transfers endpoint remains for compatibility with older callers.
+ *
+ * WHAT: a single static text/html asset (markup + inline CSS + inline JS),
+ *       served verbatim by ngx_http_xrootd_dashboard_page_handler below.
+ * WHY:  embedding the whole UI in one .rodata string keeps the dashboard a
+ *       zero-dependency, zero-filesystem feature - no asset files to ship,
+ *       package, or path-resolve at runtime, and no static-file disclosure
+ *       surface. All dynamic state arrives over the JSON API at poll time.
+ * HOW:  the literal is built from many adjacent string fragments that the C
+ *       compiler concatenates; the comment lines interleaved below sit
+ *       *between* fragments (legal, additive) and do not alter the bytes.
+ *       Note: every backslash/quote here is C-escaped, so the on-wire HTML
+ *       differs from the source text - count bytes via sizeof()-1, not by eye.
  */
 
+/* ---- static asset: document head, inline stylesheet (theme/layout only) ---- */
 static const char ngx_xrootd_dashboard_html[] =
 "<!DOCTYPE html>\n"
 "<html lang=\"en\">\n"
@@ -27,6 +40,7 @@ static const char ngx_xrootd_dashboard_html[] =
 "@media(max-width:860px){.toolbar,.cards,.panels{grid-template-columns:1fr}.hide-sm{display:none}.path,.identity{max-width:180px}th{top:48px}}\n"
 "@media(prefers-reduced-motion:reduce){#detail-panel{transition:none}}\n"
 "</style></head>\n"
+/* ---- static asset: page chrome (header, toolbar, cards, table, panels) ---- */
 "<body>\n"
 "<header><h1>nginx-xrootd Dashboard</h1><div><button id=\"export-snapshot\" type=\"button\">Export</button> <span id=\"status\" class=\"status bad\" aria-live=\"polite\">connecting</span></div></header>\n"
 "<section class=\"toolbar\" aria-label=\"Transfer filters\">\n"
@@ -45,6 +59,27 @@ static const char ngx_xrootd_dashboard_html[] =
 "</section>\n"
 "<section class=\"panels\" style=\"grid-template-columns:1fr\"><div class=\"panel events\" id=\"events-panel\"><h2>Recent Events</h2><div id=\"events-list\"></div></div></section>\n"
 "<aside id=\"detail-panel\" aria-label=\"Transfer detail\" aria-hidden=\"true\"><div class=\"detail-head\"><h2>Transfer Detail</h2><button id=\"detail-close\" type=\"button\">Close</button></div><pre id=\"detail-body\"></pre></aside>\n"
+/*
+ * ---- static asset: inline client logic (browser-side; not compiled C) ----
+ *
+ * WHAT: the client polls API+'/snapshot' every 2 s and re-renders from the
+ *       latest snapshot; detail rows are fetched lazily from
+ *       API+'/transfers/<id>'.
+ * WHY:  reviewer note - this fragment encodes the dashboard's API contract.
+ *       The field names referenced here (active_transfers, protocols, cache,
+ *       cluster, events, history.buckets, server_ms, avg_bps, idle_ms, ...)
+ *       must stay in lockstep with the JSON emitted by dashboard/api.c.
+ * HOW:  caching/auth control flow that matters on review -
+ *       - API base is hard-pinned to '/xrootd/api/v1' (see var API below).
+ *       - every fetch uses {cache:'no-store'} so the browser never serves a
+ *         stale snapshot; freshness is the poll loop's job, not the HTTP cache.
+ *       - a 401 from the snapshot poll triggers a client-side redirect to
+ *         '/xrootd/login' (session cookie expired) - mirrors the server-side
+ *         redirect in the page handler below.
+ *       - esc() HTML-escapes every server-supplied string before it reaches
+ *         innerHTML; this is the XSS guard for untrusted path/identity/client
+ *         values, so do not bypass it when adding columns.
+ */
 "<script>\n"
 "'use strict';\n"
 "var API='/xrootd/api/v1';var lastSnapshot=null;var selectedDetail=null;\n"
@@ -69,6 +104,18 @@ static const char ngx_xrootd_dashboard_html[] =
 "</script>\n"
 "</body></html>\n";
 
+/*
+ * Content handler for the dashboard page route.
+ *
+ * WHAT: gate on the session cookie, then serve the embedded HTML asset above.
+ * WHY:  the UI is behind the same cookie auth as the JSON API, so an
+ *       unauthenticated GET must be bounced to the login page rather than
+ *       leaking the dashboard shell.
+ * HOW:  flow is (1) auth check -> on failure emit a 302 to
+ *       <cookie_path>/login and return; (2) reject non-GET/HEAD; (3) hand
+ *       back the static literal as a single memory-backed buffer.
+ * Returns an NGX_HTTP_* status on error, or the output-filter result.
+ */
 ngx_int_t
 ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
 {
@@ -80,6 +127,12 @@ ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
 
+    /*
+     * SECURITY: cookie/session gate. Any non-NGX_OK (no/expired/invalid
+     * cookie) means "not logged in" - we do NOT serve the page; we redirect
+     * to login. This is the server-side twin of the JS 401 -> /xrootd/login
+     * handling in the inline script above.
+     */
     rc = ngx_http_xrootd_dashboard_check_auth(r, conf);
     if (rc != NGX_OK) {
         r->headers_out.location = ngx_list_push(&r->headers_out.headers);
@@ -89,6 +142,16 @@ ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
         r->headers_out.location->hash = 1;
         ngx_str_set(&r->headers_out.location->key, "Location");
         {
+            /*
+             * Build the redirect target "<cookie_path>/login" in the request
+             * pool. Byte math: sizeof("/login") == 7 (includes the NUL), so
+             * the alloc reserves room for cookie_path + "/login" + trailing
+             * NUL. The memcpy of "/login" copies all 7 bytes including the
+             * NUL terminator (defensive null-termination of the buffer).
+             * The emitted ngx_str_t .len, however, is cookie_path.len + 7 - 1,
+             * i.e. excludes that NUL - nginx header values are length-counted,
+             * not C strings, so the NUL must not be on the wire.
+             */
             u_char *loc = ngx_pnalloc(r->pool, conf->cookie_path.len
                                                + sizeof("/login"));
             if (loc == NULL) {
@@ -104,16 +167,24 @@ ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
         return NGX_HTTP_MOVED_TEMPORARILY;
     }
 
+    /* Read-only asset: only GET (full body) and HEAD (headers only). */
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
     }
 
+    /* -1 drops the literal's terminating NUL: send the HTML, not the NUL. */
     html_len = sizeof(ngx_xrootd_dashboard_html) - 1;
     b = ngx_pcalloc(r->pool, sizeof(*b));
     if (b == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    /*
+     * Point the buffer straight at the const .rodata literal - no copy. Safe
+     * because the literal outlives the request and is never mutated. b->memory
+     * marks it read-only/in-memory (not file-backed, so no sendfile); b->last_buf
+     * makes this the sole and final buf of the response.
+     */
     b->pos = (u_char *) ngx_xrootd_dashboard_html;
     b->last = b->pos + html_len;
     b->memory = 1;
@@ -126,6 +197,12 @@ ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
     r->headers_out.content_type_len = r->headers_out.content_type.len;
 
     rc = ngx_http_send_header(r);
+    /*
+     * Bail before emitting a body when: send_header failed (NGX_ERROR),
+     * returned a special/error code (rc > NGX_OK), or this is a HEAD request
+     * (r->header_only) where the body must be suppressed. Otherwise fall
+     * through and write the single-buffer chain.
+     */
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
         return rc;
     }

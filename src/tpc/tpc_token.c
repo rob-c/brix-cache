@@ -53,6 +53,12 @@ tpc_trim_trailing(char *s)
     }
 }
 
+/* WHAT: Extract the "access_token" field from an OAuth2 JSON response into out.
+ * WHY: Thin wrapper over the shared oauth2 parser used by both delegation
+ * modes; on failure it overwrites `out` with the parser's error text so the
+ * caller can copy it into t->err_msg (out doubles as the error scratch buffer).
+ * HOW: Delegate to xrootd_oauth2_parse_access_token; on non-NGX_OK copy `err`
+ * into `out` and return -1, else return 0 with the token in `out`. */
 static int
 tpc_token_parse_access_token(const char *json, char *out, size_t out_sz)
 {
@@ -61,6 +67,7 @@ tpc_token_parse_access_token(const char *json, char *out, size_t out_sz)
     if (xrootd_oauth2_parse_access_token(json, out, out_sz, err, sizeof(err))
         != NGX_OK)
     {
+        /* On error, surface the parser message via the same out buffer. */
         snprintf(out, out_sz, "%s", err);
         return -1;
     }
@@ -68,12 +75,22 @@ tpc_token_parse_access_token(const char *json, char *out, size_t out_sz)
     return 0;
 }
 
+/* WHAT: Sanity-check a freshly fetched delegated token before it is used to
+ * authenticate the outbound TPC pull.
+ * WHY: A delegation backend (oidc-agent / token-exchange) can return a string
+ * that is well-formed JSON-wise but not a usable credential; validating here
+ * fails fast with kXR_AuthFailed rather than letting a bad token surface as an
+ * opaque remote-open rejection later. An empty token is treated as "no
+ * delegation requested" and accepted (returns 0).
+ * HOW: Wrap delegated_token in an ngx_str_t, parse+validate it as a
+ * XROOTD_TPC_CREDENTIAL_TOKEN; on any failure set err_msg/xrd_error and -1. */
 static int
 tpc_token_validate_delegated(xrootd_tpc_pull_t *t)
 {
     ngx_str_t                  raw;
     xrootd_tpc_credential_t    cred;
 
+    /* Empty token => caller did not request delegation; nothing to validate. */
     if (t->delegated_token[0] == '\0') {
         return 0;
     }
@@ -133,6 +150,8 @@ tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     }
 
     if (pid == 0) {
+        /* --- child --- : redirect stdout into the write end of the pipe so the
+         * parent can read the helper's token output, then close both raw fds. */
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
@@ -148,10 +167,14 @@ tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         execve(argv[0], argv, NULL);
         /* execve returned — helper not found or not executable; continue */
 
+        /* Fallback: the generic oidc-token CLI from the default profile. */
         execlp("oidc-token", "oidc-token", "-c", "default", (char *) NULL);
-        _exit(127);
+        _exit(127);  /* both execs failed: 127 == "command not found" */
     }
 
+    /* --- parent --- : close the write end so read() sees EOF when the child
+     * exits, then drain all stdout into buf (loop because a single read() may
+     * return short; stop on EOF/error or when buf is full minus the NUL slot). */
     close(pipefd[1]);
 
     nread = 0;
@@ -176,6 +199,12 @@ tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 
     tpc_trim_trailing(buf);
 
+    /*
+     * Output discrimination: a leading '{' means the helper returned a JSON
+     * object (oidc-agent daemon style) → parse out access_token. Anything else
+     * is treated as a bare token string (oidc-token CLI style) and copied
+     * verbatim, with a length guard against the destination buffer.
+     */
     if (buf[0] == '{') {
         if (tpc_token_parse_access_token(buf, token_out, token_out_sz) != 0) {
             t->xrd_error = kXR_AuthFailed;
@@ -231,7 +260,14 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         return -1;
     }
 
-    /* Build the POST body. */
+    /*
+     * RFC 8693 token-exchange request body (form-urlencoded). The subject_token
+     * is our local bearer (the identity we already hold); resource+audience are
+     * both set to the remote origin host so the issued token is scoped to it;
+     * scope carries the configured outbound scope. NOTE: subject_token is not
+     * URL-encoded here — it is a JWT (URL-safe base64, no reserved chars), so
+     * it is form-safe as-is.
+     */
     ngx_snprintf((u_char *) body_buf, sizeof(body_buf),
                  "grant_type=urn:ietf:params:oauth:grant-type:"
                  "token-exchange"
@@ -244,6 +280,13 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
                  t->src_host,
                  t->token_scope);
 
+    /*
+     * Stage the form body in a private temp file (mkstemp => unpredictable
+     * name, exclusive create) instead of building it on curl's command line,
+     * keeping the bearer/subject token out of /proc/PID/cmdline and the
+     * process listing. The path is captured in body_file and unlinked on every
+     * exit path below (success and all error returns).
+     */
     {
         char tmpl[NGX_MAX_PATH];
         ngx_snprintf((u_char *) tmpl, sizeof(tmpl),
@@ -264,7 +307,11 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     }
     close(body_fd);
 
-    /* Build curl argv. */
+    /*
+     * Build curl argv (execvp, no shell — so no quoting/injection risk).
+     *   -s -S : silent but still print errors;  -f : fail (non-zero exit) on
+     *   HTTP >= 400 so the waitpid status check below catches auth failures.
+     */
     curl_argv[argc++] = "curl";
     curl_argv[argc++] = "-s";
     curl_argv[argc++] = "-S";
@@ -274,6 +321,10 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     curl_argv[argc++] = "-H";
     curl_argv[argc++] = "Content-Type: application/x-www-form-urlencoded";
 
+    /* Optional OAuth2 client basic auth: curl -u "id:secret" — only added when
+     * both halves are configured. NOTE: -u takes a single "id:secret" arg, so
+     * these two array slots become two separate argv entries that curl joins
+     * via the -u/value convention. */
     if (t->conf->tpc_outbound_client_id.len > 0
         && t->conf->tpc_outbound_client_secret.len > 0) {
         curl_argv[argc++] = "-u";
@@ -281,8 +332,12 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         curl_argv[argc++] = (char *) t->conf->tpc_outbound_client_secret.data;
     }
 
+    /* -d data: the form body, sourced from the staged temp file path. */
     curl_argv[argc++] = "-d";
     curl_argv[argc++] = body_file;
+    /* W3 — end-of-options terminator so the endpoint URL can never be parsed
+     * as a curl option even if a misconfigured endpoint begins with '-'. */
+    curl_argv[argc++] = "--";
     curl_argv[argc++] = (char *) t->conf->tpc_outbound_token_endpoint.data;
     curl_argv[argc++] = NULL;
 
@@ -306,13 +361,16 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     }
 
     if (pid == 0) {
+        /* --- child --- : route curl's stdout (the token JSON) to the pipe. */
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
         execvp("curl", curl_argv);
-        _exit(127);
+        _exit(127);  /* curl not on PATH */
     }
 
+    /* --- parent --- : close write end (so read() can see EOF), drain the
+     * response into buf (read() may return short — loop until EOF/full). */
     close(pipefd[1]);
 
     nread = 0;
@@ -326,6 +384,8 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     buf[nread] = '\0';
     close(pipefd[0]);
 
+    /* Reap the child and treat any non-zero exit (including curl -f on HTTP
+     * >= 400) as an auth failure. unlink the staged body on this path too. */
     waitpid(pid, &wstatus, 0);
     if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg),
@@ -336,6 +396,7 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         return -1;
     }
 
+    /* Success: body file no longer needed; remove before parsing the reply. */
     unlink(body_file);
 
     if (tpc_token_parse_access_token(buf, token_out, token_out_sz) != 0) {

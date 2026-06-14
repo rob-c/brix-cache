@@ -29,6 +29,8 @@ Controls which branch `recv.c` takes on each read event.  Valid values:
 | `XRD_ST_AIO` | File I/O posted to thread pool; both events idle |
 | `XRD_ST_TLS_HANDSHAKE` | SSL accept in progress |
 | `XRD_ST_UPSTREAM` | Waiting for upstream redirector reply |
+| `XRD_ST_PROXY` | Proxy request forwarded; awaiting upstream response |
+| `XRD_ST_WAITING_CMS` | `kYR_locate` sent to manager; awaiting `kYR_select` |
 
 Handlers must not set `state` directly.  Use the helpers in
 `connection/event_sched.c` and `connection/write_helpers.c`.

@@ -39,6 +39,8 @@ xrootd_kxr_from_errno(int err)
 
     case EACCES:
     case EPERM:
+    case EXDEV:    /* openat2 RESOLVE_BENEATH ".." path-escape */
+    case ELOOP:    /* RESOLVE_BENEATH/NO_MAGICLINKS rejecting an escaping symlink */
         return kXR_NotAuthorized;
 
     case ENOTEMPTY:
@@ -60,6 +62,27 @@ xrootd_kxr_from_errno(int err)
     default:
         return kXR_IOError;
     }
+}
+
+/*
+ * WHAT: Maps an xrootd_ns_status_t to a kXR error code for stream protocol
+ * responses.  XROOTD_NS_IO_ERROR delegates to xrootd_kxr_from_errno(sys_errno).
+ */
+uint16_t
+xrootd_kxr_map_ns_status(xrootd_ns_status_t status, int sys_errno)
+{
+    switch (status) {
+    case XROOTD_NS_OK:        return kXR_ok;
+    case XROOTD_NS_NOT_FOUND: return kXR_NotFound;
+    case XROOTD_NS_DENIED:    return kXR_NotAuthorized;
+    case XROOTD_NS_EXISTS:    return kXR_FSError;
+    case XROOTD_NS_CONFLICT:  return kXR_FSError;
+    case XROOTD_NS_NOT_EMPTY: return kXR_FSError;
+    case XROOTD_NS_NO_SPACE:  return kXR_NoMemory;
+    case XROOTD_NS_TOO_LONG:  return kXR_ArgTooLong;
+    case XROOTD_NS_IO_ERROR:  return xrootd_kxr_from_errno(sys_errno);
+    }
+    return kXR_IOError;
 }
 
 /* --------------------------------------------------------------------------
@@ -91,6 +114,15 @@ xrootd_http_errno_to_status(int err)
     case EACCES:
     case EPERM:
     case EROFS:
+    case EXDEV:    /* openat2 RESOLVE_BENEATH path-escape via ".." out of the
+                    * export root. */
+    case ELOOP:    /* RESOLVE_BENEATH/RESOLVE_NO_MAGICLINKS rejecting a symlink
+                    * (or magic-link) that would escape the export root. */
+        /*
+         * Both reach here now that confinement is enforced by the kernel at the
+         * op instead of by an upstream realpath() that used to fail earlier.  A
+         * blocked traversal is forbidden, not a server fault — never a 500.
+         */
         return 403;
 
     case ENOSPC:

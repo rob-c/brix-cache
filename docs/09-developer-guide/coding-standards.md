@@ -1,8 +1,18 @@
 # Coding Standards for nginx-xrootd
 
-**Location:** `docs/09-developer-guide/coding-standards.md`
+**Status:** AUTHORITATIVE and MANDATORY — this is *the* coding standard for the
+project. Every agent or contributor making changes under `src/` must follow it;
+it is referenced from [`AGENTS.md`](../../AGENTS.md) (auto-loaded as `CLAUDE.md`)
+so it is picked up on every session. Where this document and any older note
+disagree, this document and the code in `src/` win. (`code-style.md` is now a
+short pointer here.)
 **Applies to:** All `.c` and `.h` files under `src/`, plus test files under `tests/`.
-**Reference:** See also [`code-style.md`](code-style.md) for the detailed style rules; this document is the authoritative summary.
+
+**Two project-wide mandates, called out up front:**
+1. **No `goto`** anywhere in `src/` — use early-return and helper decomposition (§4).
+2. **Functional and modular by design** — small single-purpose functions, explicit
+   data flow, pure helpers with side effects at the edges, composition over large
+   stateful procedures (§8).
 
 ---
 
@@ -155,20 +165,90 @@ The three always travel together. No exception.
 |---|---|---|
 | ENOENT | `kXR_NotFound` (3011) | 404 |
 | EACCES/EPERM | `kXR_NotAuthorized` (3010) | 403 |
-| EINVAL | `kXR_ArgInvalid` (3006) | 400 |
-| EIO | `kXR_IOError` (3012) | 500 |
-| ENOMEM | `kXR_NoMemory` (3013) | 507 |
+| EINVAL | `kXR_ArgInvalid` (3000) | 400 |
+| EIO | `kXR_IOError` (3007) | 500 |
+| ENOMEM | `kXR_NoMemory` (3008) | 507 |
 
-### Goto Usage
+### No `goto` — FORBIDDEN (no exceptions)
 
-The code-style guide states "do not use goto." In practice, goto is used in **two allowed contexts**:
+**`goto` must not appear in any `.c` or `.h` file under `src/`.** This is a
+[HARD BLOCK](../../AGENTS.md#hard-blocks-non-negotiable): new code that introduces
+`goto` will not be accepted, and existing `goto` is to be refactored out as files
+are touched. `goto` defeats the functional, modular design this project targets —
+it hides control flow, couples cleanup to call sites, and makes a function
+impossible to reason about (or test) in isolation. Every `goto` idiom has a
+functional replacement; the three that cover essentially all real cases are below.
 
-1. **Cleanup at function exit** — when multiple resources must be freed on failure and early returns would duplicate cleanup code (e.g., `src/cache/writethrough_flush.c`, `src/tpc/gsi_outbound_exchange.c`). Label: `failed` or `done`.
-2. **Loop control in parser state machines** — jumping to the next parsing step within a single function (e.g., `src/s3/auth_sigv4_canonical.c` → `next_param`, `src/compat/range_vector.c` → `next`).
+> **Migration status:** ~100 `goto` sites remain in `tpc/`, `gsi/`, `token/`,
+> `cache/`, `s3/`, `proxy/`, `compat/`, `webdav/`, `fs/`, and `manager/` (modules
+> with complex multi-resource lifetimes or parser loops). The core handler files
+> (`read.c`, `write.c`, `stat.c`, …) are already `goto`-free via early-return.
+> When you edit a file that still uses `goto`, refactor that function as part of
+> the change. Do not add new ones.
 
-**Forbidden:** goto across functions, goto into the middle of a block from outside, goto that bypasses meaningful state changes.
+#### Recipe 1 — single-resource cleanup (`goto done` / `goto cleanup`)
 
-**Total current usage: 89 goto statements across 16 files.** All are in tpc/, gsi/, token/, cache/, s3/, proxy/, and compat/ subdirectories — modules with complex multi-resource lifetimes or parser loops. Core handler files (read.c, write.c, stat.c) use early-return exclusively.
+Acquire one resource, do work, free on every exit. Replace the cleanup label by
+**confining the resource to the smallest scope that owns it** — usually a helper
+that acquires, uses, and releases linearly, returning the computed value:
+
+```c
+/* BEFORE: goto done */                  /* AFTER: linear, single owner */
+ctx = EVP_MD_CTX_new();                  rc = digest_into(out, in, len);   /* helper owns ctx */
+if (!ctx) { rc = NGX_ERROR; goto done; } return rc;
+if (EVP_DigestInit(ctx,...)!=1) goto done;
+...                                      /* helper body: acquire -> use -> free -> return,
+done:                                       with one cleanup before each early return, or a
+    EVP_MD_CTX_free(ctx);                    single owned resource freed once at the end. */
+    return rc;
+```
+
+When a helper genuinely owns exactly one resource and frees it once before
+returning, that is **not** `goto` and is fine — the point is that control flow is
+linear and the resource never escapes the function that frees it.
+
+#### Recipe 2 — multi-resource / multi-step cleanup (`goto round_fail`, two-tier)
+
+A long function that acquires many resources and jumps to a shared cleanup on any
+error (e.g. `src/tpc/gsi_outbound_exchange.c`: 29 `goto round_fail`) is the signal
+to **decompose into sequential single-purpose helpers**. Each helper owns its
+resources, frees them on its own error paths, and returns `NGX_OK`/`NGX_ERROR`;
+the orchestrator is a flat early-return sequence:
+
+```c
+/* AFTER: one function per step; each is independently testable */
+rc = gsi_round1_derive_secret(t, body, dlen, &secret, &secret_len);
+if (rc != NGX_OK) return rc;                       /* round1 freed its own temporaries */
+
+rc = gsi_round1_encrypt_inner(secret, secret_len, chain, &enc, &enc_len);
+if (rc != NGX_OK) { ngx_free(secret); return rc; }
+
+rc = gsi_round2_build_and_send(t, fd, client_kp, enc, enc_len);
+ngx_free(secret); ngx_free(enc);
+return rc;
+```
+
+If a chain of owned buffers makes the caller messy, bundle them in a small
+context struct with one `*_cleanup(ctx)` function and call it once on the single
+return — but prefer decomposition first. For pool-tracked allocations, register
+`ngx_pool_cleanup_add()` so the pool frees them and no manual cleanup is needed.
+
+#### Recipe 3 — parser loop control (`goto next` / `goto next_param`)
+
+Jumping to the next iteration of a parse is just a loop. Use `continue` in a
+`for`/`while`, or extract the per-item body into a helper called in the loop:
+
+```c
+/* BEFORE: goto next */            /* AFTER: continue */
+for (;;) {                         for (i = 0; i < n; i++) {
+    if (skip_this) goto next;          if (skip_this(item[i])) continue;
+    ... handle ...                     handle_one(item[i]);   /* or inline */
+ next: advance();                  }
+}
+```
+
+There is no allowed `goto` case. If you believe a function cannot be expressed
+without `goto`, that function is too large — split it (Recipe 2).
 
 ---
 
@@ -237,7 +317,49 @@ File-backed buffers with sendfile. Never mix memory-backed and file-backed in th
 
 ---
 
-## 8. Modular Design
+## 8. Functional & Modular Design
+
+This project is written in C but is designed to be **as functional and modular as
+possible**. Code is built from small, single-purpose functions with explicit
+inputs and outputs and linear control flow — not large stateful procedures.
+These principles are the reason `goto` is banned (§4) and small focused files are
+required (§1); they are the primary lens for code review.
+
+### Core principles (MANDATORY)
+
+1. **One responsibility per function.** A function does one nameable thing. If you
+   cannot describe it in the summary doc-line without "and", split it. A function
+   that needs `goto` to manage its own complexity is too big — decompose it
+   (§4 Recipe 2).
+2. **Explicit data flow — pass state, don't reach for it.** Take what you need as
+   parameters (`ctx`, `c`, `conf`, the buffer, the length) and return the result
+   or an `ngx_int_t` status. Do not introduce new mutable file-scope/global state;
+   the per-connection `xrootd_ctx_t` is the one shared state object and it is
+   passed explicitly. Never communicate between functions through hidden globals.
+3. **Prefer pure helpers; isolate side effects.** Computation (parse, encode,
+   validate, map errno→kXR) should be in helpers that take inputs and return
+   outputs with no I/O. Keep the side effects (socket send, file I/O, metric
+   increment, logging) at the edges, in the handler/orchestrator. Pure helpers are
+   trivially unit-testable and reusable across protocols.
+4. **Return values over out-of-band control.** Functions return `NGX_OK`/
+   `NGX_ERROR`/`NGX_AGAIN` (or a typed result); callers branch with early-return
+   (§4). No `goto`, no `longjmp`, no error flags smuggled through shared state.
+5. **Compose small functions; orchestrators stay flat.** A handler reads as a
+   short, linear sequence of `rc = step(...); if (rc != NGX_OK) return ...;`. The
+   complexity lives in the named steps, each independently reviewable and testable.
+6. **Table/descriptor-driven over branch ladders.** Express variation as data, not
+   `if/else` chains: the opcode dispatch table, the `op_table` namespace-op
+   descriptors (`src/path/`), the table-driven metric exporter (`src/metrics/`),
+   and the directive tables (`src/stream/module.c`) are the models. New families of
+   similar operations should add a descriptor row, not a new branch.
+7. **Reuse shared helpers; never reimplement.** Path resolution, auth gating,
+   error mapping, response framing, and metrics each have ONE implementation
+   (see the helper table below and the AGENTS.md HELPERS list). Calling the shared
+   helper — not copying its logic — is what keeps the codebase uniform.
+8. **Idempotent, side-effect-honest naming.** A function's name says what it does
+   and whether it mutates: `xrootd_resolve_*`/`*_parse_*`/`*_map_*` compute;
+   `xrootd_send_*`/`*_on_*`/`*_handle_*` act. Don't hide a send or a free inside a
+   function named like a pure query.
 
 ### Helper Functions (MUST USE — NEVER REIMPLEMENT)
 
@@ -381,8 +503,9 @@ These are non-negotiable correctness requirements:
 | Alloc Stream | `ngx_alloc(sz, log)` | AGENTS.md FAQ |
 | ngx_str_t | `.len` + `ngx_memcpy`, no strlen/strcpy | AGENTS.md FAQ |
 | Response | `ngx_chain_t` of `ngx_buf_t` | AGENTS.md FAQ |
-| Error triplet | `log_access()` → `XROOTD_OP_ERR()` → `send_error()` | code-style.md §4 |
-| Goto allowed | cleanup at exit, parser loop control | code-style.md §4 + grep evidence |
+| Error triplet | `log_access()` → `XROOTD_OP_ERR()` → `send_error()` | §4 |
+| `goto` | **FORBIDDEN** — early-return + helper decomposition | §4 (3 recipes) |
+| Functional/modular | one job per function, explicit data flow, pure helpers | §8 |
 | Helpers | never reimplement path/auth/metrics/framing | AGENTS.md HELPERS section |
 | Doc blocks | WHAT/WHY/HOW sections mandatory | this document §3 |
 | Tests | deterministic output, no xfail | this document §10 |

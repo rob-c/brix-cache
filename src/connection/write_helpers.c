@@ -156,8 +156,29 @@ xrootd_queue_response_base(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char *buffer, size_t buffer_len, u_char *owned_base)
 {
     ssize_t bytes_sent;
+    xrootd_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
 
     XROOTD_SRV_METRIC_INC(ctx, response_frames_total);
+
+    /*
+     * Pipelining (Phase 29): if an earlier slot is still draining to the socket
+     * (out_count > 0), we must NOT touch the socket here — response frames cannot
+     * interleave on the wire.  Park this response in its tail slot and commit it
+     * to the ring; xrootd_flush_pending() drains slots strictly head-first.
+     */
+    if (ctx->out_count > 0) {
+        slot->wbuf      = buffer;
+        slot->wbuf_len  = buffer_len;
+        slot->wbuf_pos  = 0;
+        slot->wbuf_base = owned_base;
+        ctx->out_tail   = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_count++;
+        ctx->state      = XRD_ST_SENDING;
+        if (xrootd_schedule_write_resume(c) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
 
     while (buffer_len > 0) {
         bytes_sent = c->send(c, buffer, buffer_len);
@@ -171,11 +192,13 @@ xrootd_queue_response_base(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         if (bytes_sent == NGX_AGAIN) {
             XROOTD_SRV_METRIC_INC(ctx, response_write_stalls_total);
-            ctx->wbuf      = buffer;
-            ctx->wbuf_len  = buffer_len;
-            ctx->wbuf_pos  = 0;
-            ctx->wbuf_base = owned_base;
-            ctx->state     = XRD_ST_SENDING;
+            slot->wbuf      = buffer;
+            slot->wbuf_len  = buffer_len;
+            slot->wbuf_pos  = 0;
+            slot->wbuf_base = owned_base;
+            ctx->out_tail   = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+            ctx->out_count++;
+            ctx->state      = XRD_ST_SENDING;
             if (xrootd_schedule_write_resume(c) != NGX_OK) {
                 return NGX_ERROR;
             }
@@ -220,8 +243,28 @@ xrootd_queue_response_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_uint_t  spin_count = 0;
     off_t       pending, sent_before;
     ngx_flag_t  progressed;
+    xrootd_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
 
     XROOTD_SRV_METRIC_INC(ctx, response_frames_total);
+
+    /*
+     * Pipelining (Phase 29): an earlier slot is still draining — park this whole
+     * chain in its tail slot and commit it to the ring without touching the
+     * socket (frames must not interleave).  flush_pending drains head-first and
+     * will send this chain from the start once it becomes the head slot.
+     */
+    if (ctx->out_count > 0) {
+        slot->wchain         = chain;
+        slot->wchain_pending = (off_t) xrootd_chain_pending_bytes(chain);
+        slot->wchain_base    = owned_base;
+        ctx->out_tail        = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_count++;
+        ctx->state           = XRD_ST_SENDING;
+        if (xrootd_schedule_write_resume(c) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
 
     pending = (off_t) xrootd_chain_pending_bytes(unsent);
 
@@ -240,7 +283,7 @@ xrootd_queue_response_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_tx_total,
                                       (size_t) pending);
             }
-            ctx->wchain_pending = 0;
+            slot->wchain_pending = 0;
             xrootd_tcp_push(c);
             return NGX_OK;
         }
@@ -250,9 +293,11 @@ xrootd_queue_response_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         XROOTD_SRV_METRIC_INC(ctx, response_write_stalls_total);
-        ctx->wchain = unsent;
-        ctx->wchain_pending = pending;
-        ctx->wchain_base = owned_base;
+        slot->wchain = unsent;
+        slot->wchain_pending = pending;
+        slot->wchain_base = owned_base;
+        ctx->out_tail = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_count++;
         ctx->state = XRD_ST_SENDING;
         if (xrootd_schedule_write_resume(c) != NGX_OK) {
             return NGX_ERROR;
@@ -275,81 +320,98 @@ xrootd_flush_pending(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ssize_t      bytes_sent;
     ngx_chain_t *unsent;
 
-    if (ctx->wchain != NULL) {
-        ngx_uint_t spin_count = 0;
-        off_t      pending, sent_before;
-        ngx_flag_t progressed;
+    /*
+     * Pipelining (Phase 29): drain slots strictly head-first.  Each iteration
+     * fully sends one head slot's response (chain or flat buffer), then advances
+     * out_head and decrements out_count so the next-queued response becomes the
+     * new head.  A partial send (NGX_AGAIN) on any slot leaves it as the head and
+     * returns so the next write event resumes exactly there — frames never
+     * interleave on the wire because only the head slot ever touches the socket.
+     */
+    while (ctx->out_count > 0) {
+        xrootd_resp_slot_t *slot = &ctx->out_ring[ctx->out_head];
 
-        pending = ctx->wchain_pending;
-        if (pending <= 0) {
-            pending = (off_t) xrootd_chain_pending_bytes(ctx->wchain);
-        }
+        if (slot->wchain != NULL) {
+            ngx_uint_t spin_count = 0;
+            off_t      pending, sent_before;
+            ngx_flag_t progressed;
 
-        for (;;) {
-            sent_before = c->sent;
-            unsent = c->send_chain(c, ctx->wchain, 0);
-            if (unsent == NGX_CHAIN_ERROR) {
+            pending = slot->wchain_pending;
+            if (pending <= 0) {
+                pending = (off_t) xrootd_chain_pending_bytes(slot->wchain);
+            }
+
+            for (;;) {
+                sent_before = c->sent;
+                unsent = c->send_chain(c, slot->wchain, 0);
+                if (unsent == NGX_CHAIN_ERROR) {
+                    XROOTD_SRV_METRIC_INC(ctx, response_write_errors_total);
+                    return NGX_ERROR;
+                }
+
+                progressed = xrootd_note_chain_progress(ctx, c, unsent,
+                                                        sent_before, &pending);
+                if (unsent == NULL) {
+                    if (pending > 0) {
+                        XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_tx_total,
+                                              (size_t) pending);
+                    }
+                    break;
+                }
+
+                slot->wchain = unsent;
+                slot->wchain_pending = pending;
+                if (progressed && ++spin_count < XROOTD_SEND_CHAIN_SPIN_MAX) {
+                    continue;
+                }
+
+                XROOTD_SRV_METRIC_INC(ctx, response_write_stalls_total);
+                if (xrootd_schedule_write_resume(c) != NGX_OK) {
+                    return NGX_ERROR;
+                }
+                return NGX_AGAIN;
+            }
+
+            xrootd_tcp_push(c);
+            xrootd_release_pending_buffer(ctx, c, &slot->wchain_base);
+            slot->wchain = NULL;
+            slot->wchain_pending = 0;
+
+        } else {
+            while (slot->wbuf_pos < slot->wbuf_len) {
+                bytes_sent = c->send(c, slot->wbuf + slot->wbuf_pos,
+                                     slot->wbuf_len - slot->wbuf_pos);
+                if (bytes_sent > 0) {
+                    XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_tx_total,
+                                          (size_t) bytes_sent);
+                    slot->wbuf_pos += (size_t) bytes_sent;
+                    continue;
+                }
+
+                if (bytes_sent == NGX_AGAIN) {
+                    XROOTD_SRV_METRIC_INC(ctx, response_write_stalls_total);
+                    if (xrootd_schedule_write_resume(c) != NGX_OK) {
+                        return NGX_ERROR;
+                    }
+                    return NGX_AGAIN;
+                }
+
                 XROOTD_SRV_METRIC_INC(ctx, response_write_errors_total);
                 return NGX_ERROR;
             }
 
-            progressed = xrootd_note_chain_progress(ctx, c, unsent, sent_before,
-                                                    &pending);
-            if (unsent == NULL) {
-                if (pending > 0) {
-                    XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_tx_total,
-                                          (size_t) pending);
-                }
-                break;
-            }
-
-            ctx->wchain = unsent;
-            ctx->wchain_pending = pending;
-            if (progressed && ++spin_count < XROOTD_SEND_CHAIN_SPIN_MAX) {
-                continue;
-            }
-
-            XROOTD_SRV_METRIC_INC(ctx, response_write_stalls_total);
-            if (xrootd_schedule_write_resume(c) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            return NGX_AGAIN;
+            xrootd_release_pending_buffer(ctx, c, &slot->wbuf_base);
+            slot->wbuf     = NULL;
+            slot->wbuf_len = 0;
+            slot->wbuf_pos = 0;
         }
 
-        xrootd_tcp_push(c);
-        xrootd_release_pending_buffer(ctx, c, &ctx->wchain_base);
-        ctx->wchain = NULL;
-        ctx->wchain_pending = 0;
-        return NGX_OK;
+        /* Head slot fully drained — retire it and advance to the next. */
+        slot->wchain = NULL;
+        slot->wchain_pending = 0;
+        ctx->out_head = (ctx->out_head + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_count--;
     }
 
-    while (ctx->wbuf_pos < ctx->wbuf_len) {
-        bytes_sent = c->send(c, ctx->wbuf + ctx->wbuf_pos,
-                             ctx->wbuf_len - ctx->wbuf_pos);
-        if (bytes_sent > 0) {
-            XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_tx_total,
-                                  (size_t) bytes_sent);
-            ctx->wbuf_pos += (size_t) bytes_sent;
-            continue;
-        }
-
-        if (bytes_sent == NGX_AGAIN) {
-            XROOTD_SRV_METRIC_INC(ctx, response_write_stalls_total);
-            if (xrootd_schedule_write_resume(c) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            return NGX_AGAIN;
-        }
-
-        XROOTD_SRV_METRIC_INC(ctx, response_write_errors_total);
-        return NGX_ERROR;
-    }
-
-    xrootd_release_pending_buffer(ctx, c, &ctx->wbuf_base);
-    ctx->wbuf     = NULL;
-    ctx->wbuf_len = 0;
-    ctx->wbuf_pos = 0;
-    ctx->wchain   = NULL;
-    ctx->wchain_pending = 0;
     return NGX_OK;
 }

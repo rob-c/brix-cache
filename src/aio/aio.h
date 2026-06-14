@@ -23,24 +23,66 @@
  * callback firing after client disconnect safely discards its work.
  */
 
+#if (NGX_THREADS)
+/*
+ * xrootd_task_bind — wire a thread function and done callback into an
+ * ngx_thread_task_t.  task->event.data must point back to task so the
+ * done callback can recover it from ev->data.
+ */
+static ngx_inline void
+xrootd_task_bind(ngx_thread_task_t *task,
+    void               (*thread_fn)(void *data, ngx_log_t *log),
+    ngx_event_handler_pt done_fn)
+{
+    task->handler       = thread_fn;
+    task->event.handler = done_fn;
+    task->event.data    = task;
+}
+#endif
+
 /* Build a chain of oksofar+ok bufs from a flat data buffer. */
 ngx_chain_t *xrootd_build_chunked_chain(xrootd_ctx_t *ctx,
     ngx_connection_t *c, u_char *databuf, size_t data_total);
+
+/* Build one memory-backed response chunk with an explicit wire status
+ * (kXR_oksofar / kXR_ok) — used by the Phase 31 windowed-read loop. */
+ngx_chain_t *xrootd_build_window_chain(xrootd_ctx_t *ctx,
+    ngx_connection_t *c, u_char *databuf, size_t data_total, uint16_t status);
 
 /* Build a zero-copy sendfile chain (uses ngx_buf_t with in_file=1). */
 ngx_chain_t *xrootd_build_sendfile_chain(xrootd_ctx_t *ctx,
     ngx_connection_t *c, int fd, const char *path, off_t offset,
     size_t data_total, u_char **base_out);
 
-/* Reusable scratch buffers — avoids pool growth on busy sessions. */
-u_char *xrootd_get_read_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    size_t need);
-u_char *xrootd_get_read_header_scratch(xrootd_ctx_t *ctx,
-    ngx_connection_t *c, size_t need);
-u_char *xrootd_get_write_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    size_t need);
+/*
+ * Reusable per-connection scratch buffers — avoid pool growth on busy
+ * sessions.  xrootd_get_pool_scratch() grows a single pool-anchored buffer
+ * slot only when the current allocation is too small; XROOTD_GET_SCRATCH()
+ * is the call-site sugar that names the ctx slot/size fields to use:
+ *
+ *   buf = XROOTD_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size, need);
+ */
+u_char *xrootd_get_pool_scratch(ngx_pool_t *pool, u_char **slot,
+    size_t *slot_size, size_t need);
+
+#define XROOTD_GET_SCRATCH(ctx, c, slot_field, sz_field, need)  \
+    xrootd_get_pool_scratch((c)->pool, &(ctx)->slot_field,      \
+                            &(ctx)->sz_field, (need))
+
+/* Return a response data buffer when a request completes.  NULL is a no-op.
+ * If buf is one of the reusable per-connection scratch slots (read_scratch /
+ * read_hdr_scratch / write_scratch) it is KEPT for reuse; any other buffer is
+ * ngx_pfree'd back to c->pool.  Do not pass a raw-heap buffer not owned by the
+ * pool other than those scratch slots. */
 void xrootd_release_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char *buf);
+
+/*
+ * Shrink per-session transfer scratch buffers back to XROOTD_READ_WINDOW once a
+ * large request has fully drained.  Call only between requests (state
+ * XRD_ST_REQ_HEADER, nothing buffered) — see the recv loop.
+ */
+void xrootd_trim_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
 /*
  * Internal kXR_readv execution plan.
@@ -61,6 +103,15 @@ typedef struct {
     u_char   *payload_ptr;
 } xrootd_readv_seg_desc_t;
 
+/* Execute the I/O for a built readv plan: validate every segment (rejects
+ * negative offsets and offset+length overflow), coalesce adjacent same-fd
+ * segments into grouped preadv() calls (<= 64 iovecs each, EINTR-retried), and
+ * read straight into each descriptor's payload_ptr.  Also rewrites each
+ * segment's wire header_read_length_ptr.  *bytes_read_total accumulates bytes
+ * read.  segment_count must be 1..XROOTD_READV_MAXSEGS.  Returns NGX_OK, or
+ * NGX_ERROR (short read past EOF, bad count, OOM, or I/O error) with a message
+ * written into error_message (caller-owned, error_message_len bytes).
+ * Safe to call off the main thread; touches no nginx pool or ctx state. */
 ngx_int_t xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
     size_t segment_count, size_t *bytes_read_total, char *error_message,
     size_t error_message_len);
@@ -191,30 +242,85 @@ typedef struct {
     char        err_msg[64];
 } xrootd_dirlist_aio_t;
 
-/* Resume the nginx event loop after an AIO task completes. */
+/* --- Resume the nginx event loop after an AIO task completes. --- */
+
+/* Liveness guard for a done callback: copies the saved 2-byte streamid into
+ * ctx->cur_streamid so the response is built for the right request.  Returns 1
+ * if the connection is still alive, 0 if ctx->destroyed (caller must then touch
+ * nothing further — ctx/c may be stale). */
 ngx_flag_t xrootd_aio_restore_stream(xrootd_ctx_t *ctx,
     const u_char streamid[2]);
+
+/* Like xrootd_aio_restore_stream, but also resets state to XRD_ST_REQ_HEADER
+ * (hdr_pos=0) so the recv loop can read the next request.  Use from done
+ * callbacks that complete the request cycle after queuing the response.
+ * Returns 1 if alive, 0 if destroyed. */
 ngx_flag_t xrootd_aio_restore_request(xrootd_ctx_t *ctx,
     const u_char streamid[2]);
+
+/* Post a pre-built task to the thread pool and set ctx->state = XRD_ST_AIO.
+ * Always returns NGX_OK; the outcome is reported via *posted: 1 = queued (AIO
+ * in flight), 0 = NOT queued, so the caller must fall back to synchronous I/O.
+ * *posted is 0 when pool is NULL (no pool configured) or the pool queue is full
+ * (logs fallback_log at WARN).  Never fails the request itself. */
 ngx_int_t xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_thread_pool_t *pool, ngx_thread_task_t *task,
     const char *fallback_log, ngx_flag_t *posted);
+
+/* Schedule the next event-loop step after a done callback has queued its
+ * response: re-arms the write event if state is XRD_ST_SENDING, else the read
+ * event so already-buffered pipelined requests run before the next epoll_wait.
+ * No-op if the connection was destroyed; finalizes the session on schedule
+ * failure. */
 void xrootd_aio_resume(ngx_connection_t *c);
 
-/* Main-thread completion callbacks (post AIO to event loop). */
+/* Phase 31 W2.1 — drive a windowed memory read (fill -> drain -> fill).
+ * Called from the kXR_read handler to start, and from the send-completion
+ * handler (src/connection/send.c) to continue once a window's chunk drains. */
+void xrootd_read_window_pump(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *rconf);
+
+/*
+ * Main-thread completion callbacks (posted to the event loop via ngx_post_event
+ * once the worker finishes).  Each recovers its task from ev->data, restores the
+ * request context (and so must guard against ctx->destroyed), builds/queues the
+ * wire response from the *_aio_t struct, frees that struct, then calls
+ * xrootd_aio_resume.  ev->data is the ngx_thread_task_t whose .ctx is the typed
+ * *_aio_t below.
+ */
+/* kXR_read completion: builds the data chain from xrootd_read_aio_t. */
 void xrootd_read_aio_done(ngx_event_t *ev);
+/* kXR_write completion (xrootd_write_aio_t).  Frees t->payload_to_free
+ * unconditionally (even on the destroyed path) since the worker owns that
+ * detached copy; a short write is reported as a hard kXR_IOError. */
 void xrootd_write_aio_done(ngx_event_t *ev);
+/* kXR_writev/chunked-write completion (xrootd_writev_aio_t); frees payload_buf. */
 void xrootd_writev_write_aio_done(ngx_event_t *ev);
+/* kXR_readv completion: emits the prebuilt response buffer (xrootd_readv_aio_t). */
 void xrootd_readv_aio_done(ngx_event_t *ev);
+/* kXR_pgread completion: builds the interleaved data+CRC chain (xrootd_pgread_aio_t). */
 void xrootd_pgread_aio_done(ngx_event_t *ev);
+/* kXR_dirlist completion: emits the prebuilt listing buffer (xrootd_dirlist_aio_t). */
 void xrootd_dirlist_aio_done(ngx_event_t *ev);
 
-/* Thread-pool worker functions (run on a pool thread). */
+/*
+ * Thread-pool worker functions (run on a pool thread, NOT the main thread).
+ * Each casts data to a ngx_thread_task_t and operates only on its *_aio_t fields
+ * (the blocking pread/pwrite/opendir): they may use raw heap and the log, but
+ * MUST NOT touch the nginx pool, ctx state, or the connection.  Results/errors
+ * are stashed in the struct for the matching *_aio_done callback to consume.
+ */
+/* pread into xrootd_read_aio_t (sets nread / io_errno). */
 void xrootd_read_aio_thread(void *data, ngx_log_t *log);
+/* pwrite from xrootd_write_aio_t (sets nwritten / io_errno). */
 void xrootd_write_aio_thread(void *data, ngx_log_t *log);
+/* Multi-segment writev + optional fsync from xrootd_writev_aio_t. */
 void xrootd_writev_write_aio_thread(void *data, ngx_log_t *log);
+/* Coalesced preadv for all segments of xrootd_readv_aio_t. */
 void xrootd_readv_aio_thread(void *data, ngx_log_t *log);
+/* pread then per-page CRC32c interleave into xrootd_pgread_aio_t scratch. */
 void xrootd_pgread_aio_thread(void *data, ngx_log_t *log);
+/* opendir/iterate + optional checksum, building the full wire reply in-struct. */
 void xrootd_dirlist_aio_thread(void *data, ngx_log_t *log);
 
 #endif /* XROOTD_AIO_H */

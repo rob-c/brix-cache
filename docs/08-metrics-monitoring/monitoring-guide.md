@@ -13,7 +13,7 @@ Every request leaves a trace. This section covers every Prometheus metric nginx-
 | [access-logging.md](access-logging.md) | Access log format, configuration, and interpretation |
 | [metrics-analysis.md](metrics-analysis.md) | Metric analysis guidance, health checks, alerting rules |
 | [dashboard-feature-ideas.md](dashboard-feature-ideas.md) | Roadmap of useful additions for the HTTPS monitoring dashboard |
-| [dashboard-feature-implementation-plan.md](../09-developer-guide/dashboard-feature-implementation-plan.md) | Developer implementation plan for dashboard roadmap features |
+| [dashboard-feature-implementation-plan.md](../_archive/dashboard-feature-implementation-plan.md) | Developer implementation plan for dashboard roadmap features |
 
 ## Overview
 
@@ -121,4 +121,4 @@ xrootd_access_log /var/log/nginx/xrootd_access.log;
 - [Architecture Overview](../10-architecture/overview.md) — Request lifecycle diagrams
 - [WebDAV Methods](../04-protocols/webdav-methods.md) — WebDAV operation details and RFC compliance
 - [Dashboard Feature Ideas](dashboard-feature-ideas.md) — Roadmap of useful additions for the HTTPS monitoring dashboard
-- [Dashboard Feature Implementation Plan](../09-developer-guide/dashboard-feature-implementation-plan.md) — Developer roadmap for implementing dashboard additions
+- [Dashboard Feature Implementation Plan](../_archive/dashboard-feature-implementation-plan.md) — Developer roadmap for implementing dashboard additions

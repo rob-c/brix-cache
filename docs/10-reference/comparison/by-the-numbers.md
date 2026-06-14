@@ -11,11 +11,11 @@ written in C and plugs into nginx's stream and HTTP lifecycles.
 
 | Subsystem | Files | Lines | What it implements |
 |---|---|---|---|
-| `webdav/` | 27 | 5,193 | HTTP WebDAV handler: GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, PROPFIND, OPTIONS, conditional requests, ETag, CORS, TPC pull |
-| `s3/` | 8 | 2,843 | S3-compatible path-style endpoint: PutObject, GetObject, HeadObject, ListObjectsV2, DeleteObject, CreateMultipartUpload, UploadPart, CompleteMultipartUpload, AbortMultipartUpload, SigV4 auth |
-| `read/` | 19 | 2,345 | Native XRootD read path: kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_close, fd cache integration, readahead, prefetch |
+| `webdav/` | 63 | 15,641 | HTTP WebDAV handler: GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, PROPFIND, OPTIONS, conditional requests, ETag, CORS, TPC pull |
+| `s3/` | 26 | 6,862 | S3-compatible path-style endpoint: PutObject, GetObject, HeadObject, ListObjectsV2, DeleteObject, CreateMultipartUpload, UploadPart, CompleteMultipartUpload, AbortMultipartUpload, SigV4 auth |
+| `read/` | 23 | 4,152 | Native XRootD read path: kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_close, fd cache integration, readahead, prefetch |
 | `cache/` | 13 | 2,199 | Per-handle open-file metadata cache, LRU eviction, fd-table management, stat cache |
-| `write/` | 16 | 1,884 | Native XRootD write path: kXR_write, kXR_writev, kXR_pgwrite, kXR_sync, kXR_truncate, kXR_chkpoint |
+| `write/` | 20 | 2,692 | Native XRootD write path: kXR_write, kXR_writev, kXR_pgwrite, kXR_sync, kXR_truncate, kXR_chkpoint |
 | `path/` | 15 | 1,842 | Path resolution and confinement: realpath, prefix checks, directory traversal guards, URL decoding |
 | `connection/` | 16 | 1,585 | TCP connection lifecycle, recv/send state machine, session tracking, TLS upgrade, fd helpers |
 | `metrics/` | 9 | 1,484 | Prometheus counters for native XRootD, WebDAV, S3; bytes, auth, error, cache, and range counters |
@@ -39,7 +39,7 @@ written in C and plugs into nginx's stream and HTTP lifecycles.
 | `voms/` | 4 | 447 | VOMS extension parsing and VO membership extraction |
 | `stream/` | 1 | 414 | nginx stream module entry point and worker context allocation |
 | `manager/` | 2 | 447 | Manager-mode cluster coordination (CMS server role) |
-| **Total** | **260** | **37,647** | |
+| **Total** | **260** | **93,463** | |
 
 The module has no external C dependencies beyond nginx and OpenSSL. No XRootD
 libraries are linked: the XRootD wire protocol is implemented directly.
@@ -48,7 +48,7 @@ libraries are linked: the XRootD wire protocol is implemented directly.
 
 | Metric | Count |
 |---|---|
-| Test files | 51 |
+| Test files | 142 |
 | Total test functions | 1,192 |
 | Test code (Python lines) | 27,236 |
 | Test-to-source ratio | ~0.72 lines of test per line of source |

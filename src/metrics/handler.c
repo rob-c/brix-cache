@@ -45,6 +45,9 @@ ngx_http_xrootd_metrics_handler(ngx_http_request_t *r)
         xrootd_export_prometheus_metrics(&mw, ngx_xrootd_shm_zone->data);
     }
 
+    /* Phase 20: per-zone KV cache / rate-limit counters (module-global). */
+    xrootd_kv_metrics_emit(&mw);
+
     mw_finish(&mw);
 
     r->headers_out.status           = NGX_HTTP_OK;

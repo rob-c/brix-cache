@@ -3,6 +3,34 @@
 
 #include <ngx_shmtx.h>
 
+/*
+ * dashboard/history.c — rolling time-series of activity for the dashboard charts.
+ *
+ * WHAT: Maintains the SHM-backed history ring (xrootd_dashboard_history_t) of
+ *       XROOTD_DASHBOARD_HISTORY_BUCKETS fixed-width
+ *       (XROOTD_DASHBOARD_HISTORY_INTERVAL_MS) buckets recording active transfer
+ *       counts per protocol, cumulative bytes rx/tx, error and auth-failure
+ *       totals.  xrootd_dashboard_history_sample() writes the current bucket;
+ *       xrootd_dashboard_history_snapshot() returns the recent window in
+ *       chronological order; ngx_xrootd_dashboard_history_shm_init() is the SHM
+ *       zone init callback.
+ * WHY:  The dashboard plots trends over time, which needs periodic point-in-time
+ *       samples persisted across workers and reloads — hence shared memory and a
+ *       bounded ring instead of per-worker state.  Sampling derives values from
+ *       the existing dashboard transfer table and the metrics SHM zone rather
+ *       than maintaining a parallel counter set, so the series cannot drift from
+ *       the live numbers.
+ * HOW:  Buckets are addressed by absolute time: index =
+ *       (bucket_start_ms / INTERVAL_MS) % BUCKETS, with bucket_start_ms stored in
+ *       each slot so a reader can tell a current bucket from a stale wrapped one.
+ *       sample() snaps now_ms down to the interval boundary, zero-fills any
+ *       buckets skipped since last_bucket_start_ms (idle gaps), then tallies
+ *       active transfers from ngx_xrootd_dashboard_shm_zone and byte/error/auth
+ *       totals from ngx_xrootd_shm_zone (per-server, WebDAV and S3).  A single
+ *       static ngx_shmtx_t (re-created on reload) guards both sample and
+ *       snapshot.  write_stalls and cache_occupancy_ppm are reserved/unpopulated.
+ */
+
 static ngx_shmtx_t xrootd_dashboard_history_mutex;
 
 static xrootd_dashboard_history_t *

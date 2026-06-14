@@ -3,6 +3,9 @@
 #include "../compat/integrity_info.h"
 #include "../response/response.h"
 #include "../aio/aio.h"
+#include "../manager/registry.h"
+#include "../manager/pending.h"
+#include "../cms/cms_internal.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -98,7 +101,7 @@ static ngx_int_t
 xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, char *algo, size_t algo_sz)
 {
-    char          resolved[PATH_MAX];
+    char          full_path[PATH_MAX];
     char          pathbuf[XROOTD_MAX_PATH + 1];
     char          resp[256];
     int           fd;
@@ -138,27 +141,87 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "invalid path payload");
     }
 
-    if (!xrootd_resolve_path(c->log, &conf->common.root,
-                             pathbuf, resolved, sizeof(resolved))) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
-                          pathbuf, "cksum", kXR_NotFound, "file not found");
+    /*
+     * Manager / redirector mode: a kXR_Qcksum is metadata about one specific
+     * file, and a pure redirector keeps no local copy.  Bounce the query to the
+     * data server that authoritatively holds the path — exactly as kXR_stat and
+     * kXR_open do — so a client behind the redirector still gets a checksum.
+     */
+    if (conf->manager_mode) {
+        char     redir_host[256];
+        uint16_t redir_port;
+
+        /* tried/triedrc: converge to not-found once the client has visited
+         * every server holding this path (avoids the redirect-limit loop). */
+        if (xrootd_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+                                           pathbuf)) {
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY", pathbuf,
+                              "cksum", kXR_NotFound,
+                              "file not found on any data server");
+        }
+
+        if (xrootd_srv_select(pathbuf, 0, redir_host,
+                              sizeof(redir_host), &redir_port)) {
+            XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
+                                pathbuf, "registry", redir_host, redir_port);
+        }
+
+        /* Registry miss — ask the CMS parent via kYR_locate (async). */
+        if (conf->cms_ctx != NULL) {
+            uint32_t streamid;
+
+            streamid = ngx_xrootd_cms_next_streamid(conf->cms_ctx);
+            if (xrootd_pending_insert(streamid, ngx_pid, c->fd, c->number,
+                                      ctx->cur_streamid,
+                                      conf->cms_locate_timeout) == NGX_OK)
+            {
+                ctx->cms_wait_streamid = streamid;
+                ctx->state = XRD_ST_WAITING_CMS;
+                ngx_add_timer(c->read, conf->cms_locate_timeout);
+                if (ngx_xrootd_cms_send_locate(conf->cms_ctx, streamid,
+                                               pathbuf) == NGX_OK)
+                {
+                    return NGX_AGAIN;
+                }
+                ngx_del_timer(c->read);
+                ctx->state = XRD_ST_REQ_HEADER;
+                xrootd_pending_remove(streamid, ngx_pid);
+            }
+        }
+        /* Registry + CMS miss: fall through to the local resolve (404). */
     }
 
-    if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_READ) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
-                          resolved, "cksum", kXR_NotAuthorized, "not authorized");
+    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+                              full_path, sizeof(full_path));
+
+    if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
+                         pathbuf, full_path, conf,
+                         XROOTD_AUTH_READ, 0) != NGX_OK) {
+        return ctx->write_rc;
     }
 
-    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-                                     ctx->identity) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
-                          resolved, "cksum", kXR_NotAuthorized, "VO not authorized");
-    }
-
-    fd = xrootd_open_confined(c->log, &conf->common.root, resolved, O_RDONLY, 0);
+    fd = xrootd_open_beneath(conf->rootfd, pathbuf, O_RDONLY, 0);
     if (fd < 0) {
+        /*
+         * Read-through cache miss: the file has not been pulled from the origin
+         * yet (a cached hit is computed locally above).  The origin holds the
+         * authoritative bytes — identical to anything we would later cache — so
+         * redirect the metadata query there rather than returning "not found".
+         */
+        if (errno == ENOENT && conf->cache_origin_host.len > 0) {
+            char   origin_host[256];
+            size_t hlen = conf->cache_origin_host.len < sizeof(origin_host)
+                          ? conf->cache_origin_host.len : sizeof(origin_host) - 1;
+
+            ngx_memcpy(origin_host, conf->cache_origin_host.data, hlen);
+            origin_host[hlen] = '\0';
+            XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
+                                pathbuf, "cache-origin", origin_host,
+                                conf->cache_origin_port);
+        }
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSUM, "QUERY",
-                          resolved, "cksum", kXR_IOError, strerror(errno));
+                          full_path, "cksum", xrootd_kxr_from_errno(errno),
+                          strerror(errno));
     }
 
     if (conf->common.thread_pool != NULL) {
@@ -181,13 +244,11 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         t->close_fd = 1;
         ngx_memcpy(t->streamid, ctx->cur_streamid, 2);
         ngx_cpystrn((u_char *) t->algo, (u_char *) algo, sizeof(t->algo));
-        ngx_cpystrn((u_char *) t->resolved, (u_char *) resolved,
+        ngx_cpystrn((u_char *) t->resolved, (u_char *) full_path,
                     sizeof(t->resolved));
         t->error_code = 0;
 
-        task->handler       = xrootd_cksum_aio_thread;
-        task->event.handler = xrootd_cksum_aio_done;
-        task->event.data    = task;
+        xrootd_task_bind(task, xrootd_cksum_aio_thread, xrootd_cksum_aio_done);
         task->ctx           = t;
 
         if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
@@ -203,7 +264,7 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    rc = xrootd_query_build_checksum(ctx, c, fd, resolved, algo, resp,
+    rc = xrootd_query_build_checksum(ctx, c, fd, full_path, algo, resp,
                                      sizeof(resp));
     close(fd);
     if (rc == NGX_DONE) {
@@ -213,7 +274,7 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
-    xrootd_log_access(ctx, c, "QUERY", resolved, "cksum", 1, 0, NULL, 0);
+    xrootd_log_access(ctx, c, "QUERY", full_path, "cksum", 1, 0, NULL, 0);
     XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_CKSUM);
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
@@ -280,9 +341,7 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     sizeof(t->resolved));
         t->error_code = 0;
 
-        task->handler       = xrootd_cksum_aio_thread;
-        task->event.handler = xrootd_cksum_aio_done;
-        task->event.data    = task;
+        xrootd_task_bind(task, xrootd_cksum_aio_thread, xrootd_cksum_aio_done);
         task->ctx           = t;
 
         if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
@@ -322,6 +381,15 @@ xrootd_query_cksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     ngx_cpystrn((u_char *) algo, (u_char *) "adler32", sizeof(algo));
 
+    /*
+     * Wire-format routing on the payload's first byte:
+     *   non-zero first byte → payload is a printable "[algo:]path" string, so
+     *     take the path-based variant (full auth chain + confined open).
+     *   zero or empty payload → no path on the wire; use the fhandle index from
+     *     the request header (handle-based variant on an already-open fd).
+     * The default algorithm is adler32 (xrdcp's default) in either variant; a
+     * leading "algo:" prefix in the path payload overrides it downstream.
+     */
     if (ctx->cur_dlen > 0 && ctx->payload != NULL && ctx->payload[0] != 0) {
         return xrootd_query_cksum_path(ctx, c, conf, algo, sizeof(algo));
     }

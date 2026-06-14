@@ -45,25 +45,75 @@ typedef struct {
     unsigned     has_read_scope:1;
 } xrootd_identity_t;
 
+/*
+ * Allocate a zeroed identity on `pool` (auth_method = XROOTD_AUTHN_NONE,
+ * unauthenticated).  Returns NULL on NULL pool or allocation failure; the
+ * result lives for the pool's lifetime and is not separately freed.
+ */
 xrootd_identity_t *xrootd_identity_alloc(ngx_pool_t *pool);
 
+/*
+ * Copy C string `src` into `dst` as a pool-allocated, NUL-terminated ngx_str_t
+ * (so it is safe to pass to C string APIs).  NULL/empty `src` clears `dst` to a
+ * null string and still returns NGX_OK; NGX_ERROR on NULL pool/dst or OOM.
+ */
 ngx_int_t xrootd_identity_set_cstr(ngx_pool_t *pool, ngx_str_t *dst,
     const char *src);
+
+/*
+ * Copy `dn` (GSI cert DN, SSS user, etc.) into id->dn, OR `auth_method` into
+ * id->auth_method, and set is_authenticated.  Bits accumulate across calls (not
+ * replaced).  NGX_OK / NGX_ERROR (NULL id or OOM).
+ */
 ngx_int_t xrootd_identity_set_dn(xrootd_identity_t *id, ngx_pool_t *pool,
     const char *dn, ngx_uint_t auth_method);
+
+/*
+ * Copy `subject` (JWT sub or S3 access key) into id->subject, OR `auth_method`
+ * into id->auth_method, and set is_authenticated.  Bits accumulate (not
+ * replaced).  NGX_OK / NGX_ERROR (NULL id or OOM).
+ */
 ngx_int_t xrootd_identity_set_subject(xrootd_identity_t *id, ngx_pool_t *pool,
     const char *subject, ngx_uint_t auth_method);
+
+/*
+ * Store VO/group membership in both views: copies `vo_csv` to id->vo_csv and
+ * splits it (on commas, empty fields skipped) into id->vo_list.  Does NOT touch
+ * auth_method/is_authenticated.  NGX_OK / NGX_ERROR (NULL id or OOM).
+ */
 ngx_int_t xrootd_identity_set_vos_csv(xrootd_identity_t *id,
     ngx_pool_t *pool, const char *vo_csv);
+
+/*
+ * Populate the identity from verified token `claims` (borrowed, not retained):
+ * sets subject/issuer/scope_raw/vo_list, mirrors sub into dn, splits scope_raw
+ * into id->scopes, caches up to XROOTD_MAX_TOKEN_SCOPES parsed scopes (excess
+ * silently dropped), derives has_read_scope/has_write_scope, and marks the
+ * principal XROOTD_AUTHN_TOKEN authenticated.  NGX_OK / NGX_ERROR (NULL or OOM).
+ */
 ngx_int_t xrootd_identity_set_token_claims(xrootd_identity_t *id,
     ngx_pool_t *pool, const xrootd_token_claims_t *claims);
 
+/* DN as a borrowed C string; "" if `id` or the field is unset (never NULL). */
 const char *xrootd_identity_dn_cstr(const xrootd_identity_t *id);
+/* Subject as a borrowed C string; "" if unset (never NULL). */
 const char *xrootd_identity_subject_cstr(const xrootd_identity_t *id);
+/* VO/group CSV as a borrowed C string; "" if unset (never NULL). */
 const char *xrootd_identity_vo_csv_cstr(const xrootd_identity_t *id);
 
+/*
+ * Authorise `logical_path` against the cached token scopes for read or (when
+ * need_write) write/create.  Non-token principals are allowed unconditionally
+ * (scopes apply only to token auth).  Returns NGX_OK on grant, NGX_ERROR on
+ * denial.
+ */
 ngx_int_t xrootd_identity_check_token_scope(const xrootd_identity_t *id,
     const char *logical_path, int need_write);
 
+/*
+ * Build a pool-allocated "dn=... sub=... method=..." one-liner for audit logs;
+ * method is the strongest set auth bit (or NONE).  Returns a null ngx_str_t
+ * (.data == NULL) on NULL pool or allocation failure.
+ */
 ngx_str_t xrootd_identity_describe(const xrootd_identity_t *id,
     ngx_pool_t *pool);

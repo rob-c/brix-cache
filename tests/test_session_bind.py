@@ -233,6 +233,111 @@ class TestBindValid:
         primary_sock.close()
 
 
+def _bind_secondary(port, sessid, streamid):
+    """Open a secondary TCP connection, handshake, and bind to sessid."""
+    sec_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sec_sock.connect((ANON_HOST, port))
+    handshake = struct.pack(">IIIII", 0, 0, 0, 4, 2012)
+    sec_sock.sendall(handshake)
+    _recv_exact(sec_sock, 16)
+    status, _ = _send_req(sec_sock, streamid, kXR_bind, body=sessid)
+    assert status == kXR_ok, f"bind failed: status={status}"
+    return sec_sock
+
+
+# ---------------------------------------------------------------------------
+# Phase 33 C2 — bound-secondary handle slot cache
+#
+# A bound secondary re-validates its primary-published handle under the handle
+# mutex on EVERY read.  Phase 33 caches the matched SHM slot index on the ctx
+# (xrootd_file_t.shared_handle_slot_hint) so reads 2..N skip the table scan.  The
+# cache must remain correct: repeated reads stay byte-exact, and a primary close
+# (which clears the slot's in_use flag) must still revoke the secondary on its
+# next read rather than serving a stale handle.
+# ---------------------------------------------------------------------------
+
+class TestBindHandleSlotCache:
+
+    def test_wiring_present(self):
+        """The slot-hint cache + hinted lookup must be wired in."""
+        import pathlib
+        root = pathlib.Path(__file__).resolve().parents[1]
+
+        def rd(rel):
+            return (root / rel).read_text(encoding="utf-8")
+
+        assert "shared_handle_slot_hint" in rd("src/types/file.h")
+        assert "shared_handle_slot_hint = -1" in rd("src/connection/handler.c")
+        # Reset on free so a reopened/closed handle drops its stale slot.
+        assert "shared_handle_slot_hint = -1" in rd("src/connection/fd_table.c")
+        # Hinted lookup keeps the full key check (in_use guards revocation).
+        h = rd("src/session/handles.c")
+        assert "xrootd_session_handle_lookup_hint" in h
+        assert "xrootd_shared_handle_same_key" in h
+        # The read path uses the hinted variant.
+        assert "xrootd_session_handle_lookup_hint" in rd("src/connection/fd_table.c")
+
+    def test_repeated_reads_cache_hit_byte_exact(self, bind_nginx):
+        """Reads 2..N on a bound handle (the slot-hint fast path) stay byte-exact."""
+        content = bytes(range(256)) * 8   # 2 KiB, non-trivial pattern
+        _write_data_file("bind-cache.bin", content)
+
+        primary_sock, sessid, pstream = _establish_primary(bind_nginx)
+        primary_fh = _open_read(primary_sock, pstream, "/bind-cache.bin")
+
+        sec_sock = _bind_secondary(bind_nginx, sessid, b"\x00\x31")
+        try:
+            # 12 successive reads exercise the hint cache repeatedly.
+            for _ in range(12):
+                status, data = _read_handle(sec_sock, b"\x00\x31", primary_fh,
+                                            len(content))
+                assert status in (kXR_ok, kXR_oksofar), status
+                assert data == content, "cached-slot read returned wrong bytes"
+        finally:
+            sec_sock.close()
+            primary_sock.close()
+
+    def test_primary_close_revokes_cached_secondary(self, bind_nginx):
+        """After the cache is warm, a primary close must revoke the secondary.
+
+        This is the correctness invariant of the slot-hint cache: the hinted
+        lookup still re-checks in_use under the lock, so unpublishing the handle
+        (primary kXR_close) makes the cached slot fail the key match → the next
+        secondary read is revoked instead of serving a stale handle.
+        """
+        content = b"revoke-after-warm-cache-9876543210\x00"
+        _write_data_file("bind-revoke.bin", content)
+
+        primary_sock, sessid, pstream = _establish_primary(bind_nginx)
+        primary_fh = _open_read(primary_sock, pstream, "/bind-revoke.bin")
+
+        sec_sock = _bind_secondary(bind_nginx, sessid, b"\x00\x32")
+        try:
+            # Warm the slot-hint cache with two good reads.
+            for _ in range(2):
+                status, data = _read_handle(sec_sock, b"\x00\x32", primary_fh,
+                                            len(content))
+                assert status in (kXR_ok, kXR_oksofar), status
+                assert data == content
+
+            # Primary closes the handle → unpublish clears the SHM slot in_use.
+            status, _ = _send_req(primary_sock, pstream, kXR_close,
+                                  body=primary_fh)
+            assert status == kXR_ok, f"primary close failed: {status}"
+
+            # The secondary's cached slot is now stale; its next read MUST be
+            # revoked (not serve the file from the cached slot).
+            status, data = _read_handle(sec_sock, b"\x00\x32", primary_fh,
+                                        len(content))
+            assert status == kXR_error, (
+                f"stale cached handle served after primary close (status={status}, "
+                f"{len(data)} bytes) — revocation invariant violated"
+            )
+        finally:
+            sec_sock.close()
+            primary_sock.close()
+
+
 # ---------------------------------------------------------------------------
 # Pathid cycling — multiple binds cycle through 1–253
 # ---------------------------------------------------------------------------

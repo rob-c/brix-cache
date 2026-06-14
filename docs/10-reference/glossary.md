@@ -116,17 +116,17 @@ A numerical command code sent over the XRootD wire protocol. Each opcode tells t
 
 | Opcode | Number | Description |
 |---|---|---|
-| kXR_protocol | 4001 | Version negotiation (first command) |
-| kXR_login | 4003 | Session authentication |
-| kXR_open | 4005 | Open a file for reading/writing |
-| kXR_read | 4006 | Read data from an open file |
-| kXR_write | 4009 | Write data to a file |
-| kXR_close | 4013 | Close an open file |
-| kXR_stat / statx | 4015/4027 | Get file metadata (like `ls -l`) |
-| kXR_dirlist | 4027 | List directory contents (like `ls`) |
-| kXR_clone | — | Native TPC: copy between servers |
-| kXR_bind | — | Bind secondary connection for parallel I/O |
-| kXR_sigver | 4118 | Request signing for GSI sessions |
+| kXR_protocol | 3006 | Version negotiation (first command) |
+| kXR_login | 3007 | Session authentication |
+| kXR_open | 3010 | Open a file for reading/writing |
+| kXR_read | 3013 | Read data from an open file |
+| kXR_write | 3019 | Write data to a file |
+| kXR_close | 3003 | Close an open file |
+| kXR_stat / statx | 3017/3022 | Get file metadata (like `ls -l`) |
+| kXR_dirlist | 3004 | List directory contents (like `ls`) |
+| kXR_clone | 3032 | Native TPC: copy between servers |
+| kXR_bind | 3024 | Bind secondary connection for parallel I/O |
+| kXR_sigver | 3029 | Request signing for GSI sessions |
 
 **Where you'll encounter it:** AGENTS.md operation-to-file index; `src/protocol/opcodes.h`; test coverage files.
 
@@ -462,12 +462,12 @@ A distributed computing resource that connects regional and institutional comput
 | kXR_opcodes | Protocol | AGENTS.md §4, [Operations status](../05-operations/operation-status.md) |
 | GSI | Authentication | [Auth Overview](../06-authentication/auth-overview.md), [PKI Config](../06-authentication/pki-config.md) |
 | WLCG token | Authentication | [Auth Overview](../06-authentication/auth-overview.md#token--jwt-wlcg-bearer-token-authentication) |
-| VOMS / FQAN | Authorization | [PKI Config](../06-authentication/pki-config.md), [VO ACLs](../test/vo_acl.py) (tests) |
+| VOMS / FQAN | Authorization | [PKI Config](../06-authentication/pki-config.md), [VO ACLs](../../tests/test_vo_acl.py) (tests) |
 | stream {} block | nginx | [Architecture Overview](../10-architecture/overview.md), [XRootD Basics](../02-concepts/xrootd-basics.md) |
 | thread_pool | Performance | [Getting started](../01-getting-started/getting-started-full.md#step-3-write-a-minimal-nginxconf), [Optimizations](../09-developer-guide/optimizations.md) |
 | WebDAV (davs://) | Protocol | [WebDAV Overview](../04-protocols/webdav-overview.md) |
-| HTTP-TPC / Native TPC | Transfer | [HTTP TPC Reference](../04-protocols/http-tpc-reference.md), [Native TPC tests](../test/root_tpc.py) |
-| S3 endpoint | Protocol | [S3 handler](src/s3/handler.c), [S3 tests](../test/test_s3.py) |
+| HTTP-TPC / Native TPC | Transfer | [HTTP TPC Reference](../04-protocols/http-tpc-reference.md), [Native TPC tests](../../tests/test_root_tpc.py) |
+| S3 endpoint | Protocol | [S3 handler](../../src/s3/handler.c), [S3 tests](../../tests/) |
 
 ---
 

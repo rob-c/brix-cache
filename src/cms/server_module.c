@@ -1,4 +1,5 @@
 #include "server.h"
+#include "../config/config.h"   /* xrootd_sss_load_keytab */
 
 /* ------------------------------------------------------------------ */
 /* Config callbacks                                                     */
@@ -19,6 +20,7 @@ xrootd_cms_srv_create_conf(ngx_conf_t *cf)
 
     conf->enable   = NGX_CONF_UNSET;
     conf->interval = NGX_CONF_UNSET;
+    /* allow / sss_keytab / sss_keys are zero-initialised by pcalloc (NULL). */
 
     return conf;
 }
@@ -34,6 +36,15 @@ xrootd_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_value(conf->enable,   prev->enable,   0);
     ngx_conf_merge_value(conf->interval, prev->interval, 60);
+
+    /* Inherit auth config from the parent block when the child omitted it. */
+    if (conf->allow == NULL) {
+        conf->allow = prev->allow;
+    }
+    if (conf->sss_keys == NULL) {
+        conf->sss_keys   = prev->sss_keys;
+        conf->sss_keytab = prev->sss_keytab;
+    }
 
     return NGX_CONF_OK;
 }
@@ -68,6 +79,92 @@ xrootd_cms_srv_set_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 }
 
 /* ------------------------------------------------------------------ */
+/* Directive: xrootd_cms_server_allow <cidr>... (W1b)                  */
+/* ------------------------------------------------------------------ */
+
+/* ---- xrootd_cms_srv_set_allow — parse a CIDR allowlist of permitted
+ * data-node IPs.  Mirrors xrootd_admin_set_allow (dashboard/api_admin.c):
+ * accumulate ngx_cidr_t entries that the accept-time gate matches the peer
+ * address against.  Compatible with vanilla nodes — a node from a trusted
+ * subnet connects unchanged. */
+static char *
+xrootd_cms_srv_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
+{
+    ngx_stream_xrootd_cms_srv_conf_t *conf = conf_ptr;
+    ngx_str_t  *value = cf->args->elts;
+    ngx_uint_t  i;
+
+    (void) cmd;
+
+    if (conf->allow == NULL) {
+        conf->allow = ngx_array_create(cf->pool, cf->args->nelts - 1,
+                                       sizeof(ngx_cidr_t));
+        if (conf->allow == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    for (i = 1; i < cf->args->nelts; i++) {
+        ngx_cidr_t *cidr = ngx_array_push(conf->allow);
+        ngx_int_t   rc;
+        if (cidr == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        rc = ngx_ptocidr(&value[i], cidr);
+        if (rc == NGX_ERROR) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "invalid CIDR \"%V\" in xrootd_cms_server_allow", &value[i]);
+            return NGX_CONF_ERROR;
+        }
+        if (rc == NGX_DONE) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                "low address bits of \"%V\" in xrootd_cms_server_allow "
+                "were ignored", &value[i]);
+        }
+    }
+    return NGX_CONF_OK;
+}
+
+/* ------------------------------------------------------------------ */
+/* Directive: xrootd_cms_server_sss_keytab <path> (W1a)               */
+/* ------------------------------------------------------------------ */
+
+/* ---- xrootd_cms_srv_set_sss_keytab — load the cluster sss keytab at config
+ * time using the shared loader (enforces 0600/0640 private permissions).
+ * When set, a data node must complete the kYR_xauth sss handshake before it
+ * is admitted to the registry (fail-closed).  Reuses the same keytab format
+ * and parser as the main module's xrootd_sss_keytab. */
+static char *
+xrootd_cms_srv_set_sss_keytab(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf_ptr)
+{
+    ngx_stream_xrootd_cms_srv_conf_t *conf = conf_ptr;
+    ngx_str_t  *value = cf->args->elts;
+    ngx_str_t   path  = value[1];
+
+    (void) cmd;
+
+    if (conf->sss_keys != NULL) {
+        return "is duplicate";
+    }
+    if (ngx_conf_full_name(cf->cycle, &path, 1) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+    conf->sss_keytab = path;
+
+    if (xrootd_sss_load_keytab(cf, &conf->sss_keytab, &conf->sss_keys)
+        != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+                       "xrootd: CMS server sss auth configured - keytab=%V "
+                       "keys=%ui", &conf->sss_keytab, conf->sss_keys->nelts);
+    return NGX_CONF_OK;
+}
+
+/* ------------------------------------------------------------------ */
 /* Directive table                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -85,6 +182,20 @@ static ngx_command_t  xrootd_cms_srv_commands[] = {
       ngx_conf_set_sec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_cms_srv_conf_t, interval),
+      NULL },
+
+    { ngx_string("xrootd_cms_server_allow"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
+      xrootd_cms_srv_set_allow,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_cms_server_sss_keytab"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_cms_srv_set_sss_keytab,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
       NULL },
 
     ngx_null_command

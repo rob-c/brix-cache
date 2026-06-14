@@ -74,6 +74,18 @@ xrootd_http_body_pwrite_full(ngx_log_t *log, ngx_fd_t fd, const u_char *data,
     return NGX_OK;
 }
 
+/*
+ * xrootd_http_body_summary - measure the request body without copying it.
+ *
+ * WHAT: walks request_body->bufs once, summing payload bytes and flagging
+ *       whether memory-backed and/or spooled-to-file buffers are present.
+ * WHY:  callers need the exact size up front (to allocate or to bound input)
+ *       and need to know if a file path exists so they can pick copy_range vs
+ *       pwrite, before touching any data.
+ * HOW:  file buffers contribute file_last-file_pos; memory buffers contribute
+ *       last-pos. A malformed file buffer (missing fd, or last<pos) is a hard
+ *       NGX_ERROR rather than a silent skip.
+ */
 ngx_int_t
 xrootd_http_body_summary(ngx_http_request_t *r,
     xrootd_http_body_summary_t *out)
@@ -115,6 +127,18 @@ xrootd_http_body_summary(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+/*
+ * xrootd_http_body_write_buf - write one body buffer to dst_fd at *dst_off.
+ *
+ * WHAT: appends a single ngx_buf_t's payload at *dst_off and advances *dst_off
+ *       by the number of bytes written.
+ * WHY:  the two buffer kinds need different syscalls — a spooled buffer is
+ *       fd-to-fd so it can use the zero-copy copy_range path, while a memory
+ *       buffer must be pushed out with pwrite.
+ * HOW:  in_file -> xrootd_copy_range(src fd@file_pos -> dst_fd@*dst_off);
+ *       memory -> pwrite_full(pos..last). Empty buffers are a no-op success.
+ *       errno is set on the EINVAL guard paths so callers can map it.
+ */
 ngx_int_t
 xrootd_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
     ngx_buf_t *buf, off_t *dst_off, const char *log_path)
@@ -159,6 +183,17 @@ xrootd_http_body_write_buf(ngx_http_request_t *r, ngx_fd_t dst_fd,
                                         dst_off, log_path);
 }
 
+/*
+ * xrootd_http_body_write_to_fd - write the whole request body to dst_fd.
+ *
+ * WHAT: streams every body buffer into dst_fd starting at offset 0, optionally
+ *       returning the body summary to the caller.
+ * WHY:  the common PUT path (WebDAV and S3) materialises the uploaded body to
+ *       an already-open destination fd.
+ * HOW:  summarise first (also validates the chain), then iterate buffers
+ *       through write_buf, threading a running offset so each buffer lands
+ *       contiguously. summary_out may be NULL — a local is used in that case.
+ */
 ngx_int_t
 xrootd_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
     const char *log_path, xrootd_http_body_summary_t *summary_out)
@@ -191,6 +226,19 @@ xrootd_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
     return NGX_OK;
 }
 
+/*
+ * xrootd_http_body_read_all - copy the entire body into one pool buffer.
+ *
+ * WHAT: allocates a single NUL-terminated buffer from r->pool and fills it
+ *       with the whole body; returns it via *out / *out_len.
+ * WHY:  small structured bodies (S3 multi-object delete, lockinfo, etc.) are
+ *       easier to parse as one contiguous string than as a buffer chain.
+ * HOW:  size via summary; refuse bodies larger than max_bytes with
+ *       NGX_DECLINED (the buffer is never allocated in that case); then read
+ *       file buffers via pread (EINTR-retry) and memcpy memory buffers, both
+ *       appending at a running pos. Buffer is pool-owned (no free needed);
+ *       the extra +1 byte holds the trailing '\0' (out_len excludes it).
+ */
 ngx_int_t
 xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
     u_char **out, size_t *out_len)
@@ -268,6 +316,18 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
     return NGX_OK;
 }
 
+/*
+ * xrootd_http_read_body - kick off async body reading and normalise the rc.
+ *
+ * WHAT: thin wrapper over ngx_http_read_client_request_body that maps nginx's
+ *       return convention onto this module's.
+ * WHY:  the body usually is not fully buffered yet; nginx will invoke handler
+ *       later. Callers must propagate the returned rc out of their method
+ *       handler so the request stays suspended until the body arrives.
+ * HOW:  an error rc (>= NGX_HTTP_SPECIAL_RESPONSE) is returned verbatim as the
+ *       response status; otherwise return NGX_DONE so nginx holds the request
+ *       open and re-enters via handler when the body is ready.
+ */
 ngx_int_t
 xrootd_http_read_body(ngx_http_request_t *r,
     ngx_http_client_body_handler_pt handler)
@@ -293,6 +353,9 @@ inflate_feed(z_stream *zs, ngx_log_t *log, ngx_fd_t dst_fd,
     zs->next_in  = (Bytef *) in;
     zs->avail_in = (uInt) in_len;
 
+    /* One inflate() call may not consume the whole input chunk (output buffer
+     * fills first), so loop until zlib has drained avail_in or signalled end
+     * of stream. Reset next_out/avail_out each pass to reuse the same outbuf. */
     do {
         size_t  produced;
 
@@ -300,6 +363,8 @@ inflate_feed(z_stream *zs, ngx_log_t *log, ngx_fd_t dst_fd,
         zs->avail_out = XROOTD_INFLATE_OUT_BUFSZ;
 
         zrc = inflate(zs, Z_NO_FLUSH);
+        /* Treat NEED_DICT as fatal too: we never supply a preset dictionary,
+         * so it can only come from malformed/hostile input. */
         if (zrc == Z_STREAM_ERROR || zrc == Z_DATA_ERROR
             || zrc == Z_MEM_ERROR || zrc == Z_NEED_DICT)
         {
@@ -310,6 +375,7 @@ inflate_feed(z_stream *zs, ngx_log_t *log, ngx_fd_t dst_fd,
             return NGX_ERROR;
         }
 
+        /* Bytes inflate() wrote = capacity minus what it left unused. */
         produced = XROOTD_INFLATE_OUT_BUFSZ - zs->avail_out;
         if (produced > 0) {
             if (xrootd_http_body_pwrite_full(log, dst_fd, outbuf,
@@ -324,58 +390,23 @@ inflate_feed(z_stream *zs, ngx_log_t *log, ngx_fd_t dst_fd,
     return NGX_OK;
 }
 
-ngx_int_t
-xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    const char *log_path, int window_bits,
-    xrootd_http_body_summary_t *summary_out)
+/*
+ * xrootd_http_body_inflate_bufs — feed every request-body buffer through an
+ * already-initialised inflate stream, writing decompressed bytes to dst_fd.
+ *
+ * In-memory buffers feed directly; spooled (in-file) buffers are pread in
+ * XROOTD_INFLATE_IN_BUFSZ chunks into inbuf first. Returns NGX_OK once all
+ * buffers are consumed, NGX_ERROR on a read or inflate failure. The z_stream and
+ * the in/out buffers are owned by the caller (which ends the stream and frees
+ * the buffers), so this worker is a flat goto-free loop with early returns.
+ */
+static ngx_int_t
+xrootd_http_body_inflate_bufs(z_stream *zs, ngx_http_request_t *r,
+    ngx_fd_t dst_fd, const char *log_path, u_char *outbuf, u_char *inbuf,
+    ngx_log_t *log)
 {
-    ngx_chain_t                *cl;
-    z_stream                    zs;
-    off_t                       dst_off = 0;
-    ngx_int_t                   rc = NGX_ERROR;
-    u_char                     *outbuf = NULL;
-    u_char                     *inbuf = NULL;
-    int                         zs_inited = 0;
-    ngx_log_t                  *log;
-    xrootd_http_body_summary_t  summary;
-
-    if (summary_out == NULL) {
-        summary_out = &summary;
-    }
-
-    if (xrootd_http_body_summary(r, summary_out) != NGX_OK) {
-        return NGX_ERROR;
-    }
-
-    if (r == NULL || r->request_body == NULL
-        || r->request_body->bufs == NULL)
-    {
-        return NGX_OK;
-    }
-
-    log = r->connection->log;
-
-    outbuf = ngx_alloc(XROOTD_INFLATE_OUT_BUFSZ, log);
-    if (outbuf == NULL) {
-        goto cleanup;
-    }
-
-    if (summary_out->has_spooled) {
-        inbuf = ngx_alloc(XROOTD_INFLATE_IN_BUFSZ, log);
-        if (inbuf == NULL) {
-            goto cleanup;
-        }
-    }
-
-    ngx_memzero(&zs, sizeof(zs));
-
-    if (inflateInit2(&zs, window_bits) != Z_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_http_body: inflateInit2(%d) failed for %s",
-                      window_bits, log_path ? log_path : "-");
-        goto cleanup;
-    }
-    zs_inited = 1;
+    ngx_chain_t *cl;
+    off_t        dst_off = 0;
 
     for (cl = r->request_body->bufs; cl != NULL; cl = cl->next) {
         ngx_buf_t *b = cl->buf;
@@ -404,15 +435,15 @@ xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
                     ngx_log_error(NGX_LOG_ERR, log, errno,
                                   "xrootd_http_body: inflate pread failed for %s",
                                   log_path ? log_path : "-");
-                    goto cleanup;
+                    return NGX_ERROR;
                 }
 
                 file_off += (off_t) n;
 
-                if (inflate_feed(&zs, log, dst_fd, log_path, &dst_off,
+                if (inflate_feed(zs, log, dst_fd, log_path, &dst_off,
                                  outbuf, inbuf, (size_t) n) != NGX_OK)
                 {
-                    goto cleanup;
+                    return NGX_ERROR;
                 }
             }
 
@@ -421,21 +452,88 @@ xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
                 continue;
             }
 
-            if (inflate_feed(&zs, log, dst_fd, log_path, &dst_off,
+            if (inflate_feed(zs, log, dst_fd, log_path, &dst_off,
                              outbuf, b->pos,
                              (size_t) (b->last - b->pos)) != NGX_OK)
             {
-                goto cleanup;
+                return NGX_ERROR;
             }
         }
     }
 
-    rc = NGX_OK;
+    return NGX_OK;
+}
 
-cleanup:
-    if (zs_inited) {
-        inflateEnd(&zs);
+/*
+ * xrootd_http_body_inflate_to_fd - decompress the request body to dst_fd.
+ *
+ * WHAT: inflates a Content-Encoding gzip/deflate body and writes the plaintext
+ *       to dst_fd; window_bits selects the wrapper (see zlib inflateInit2,
+ *       e.g. 15+16 for gzip, -15 for raw deflate).
+ * WHY:  clients may upload compressed objects; the stored file must be the
+ *       decompressed bytes, streamed so a large body never lands fully in RAM.
+ * HOW:  allocate outbuf (and inbuf only when has_spooled, to avoid a wasted 64K
+ *       for the common in-memory case), init one persistent z_stream, then hand
+ *       the per-buffer feed loop to xrootd_http_body_inflate_bufs. inflateEnd and
+ *       the buffer frees happen here once on return, success or failure — so the
+ *       worker stays a flat early-return loop with no shared cleanup label.
+ */
+ngx_int_t
+xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, int window_bits,
+    xrootd_http_body_summary_t *summary_out)
+{
+    z_stream                    zs;
+    ngx_int_t                   rc;
+    u_char                     *outbuf = NULL;
+    u_char                     *inbuf = NULL;
+    ngx_log_t                  *log;
+    xrootd_http_body_summary_t  summary;
+
+    if (summary_out == NULL) {
+        summary_out = &summary;
     }
+
+    if (xrootd_http_body_summary(r, summary_out) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (r == NULL || r->request_body == NULL
+        || r->request_body->bufs == NULL)
+    {
+        return NGX_OK;
+    }
+
+    log = r->connection->log;
+
+    outbuf = ngx_alloc(XROOTD_INFLATE_OUT_BUFSZ, log);
+    if (outbuf == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (summary_out->has_spooled) {
+        inbuf = ngx_alloc(XROOTD_INFLATE_IN_BUFSZ, log);
+        if (inbuf == NULL) {
+            ngx_free(outbuf);
+            return NGX_ERROR;
+        }
+    }
+
+    ngx_memzero(&zs, sizeof(zs));
+
+    if (inflateInit2(&zs, window_bits) != Z_OK) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "xrootd_http_body: inflateInit2(%d) failed for %s",
+                      window_bits, log_path ? log_path : "-");
+        ngx_free(inbuf);
+        ngx_free(outbuf);
+        return NGX_ERROR;
+    }
+
+    rc = xrootd_http_body_inflate_bufs(&zs, r, dst_fd, log_path,
+                                       outbuf, inbuf, log);
+
+    inflateEnd(&zs);
     ngx_free(inbuf);
     ngx_free(outbuf);
     return rc;

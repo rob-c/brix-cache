@@ -5,6 +5,7 @@
 #include "webdav.h"
 #include "../compat/http_headers.h"
 #include "../token/macaroon.h"
+#include "../token/token_cache.h"
 
 #include <string.h>
 
@@ -137,12 +138,23 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     token = (const char *) bearer.data;
     token_len = bearer.len;
  
-    rc = xrootd_token_validate(r->connection->log, token, token_len,
-                               conf->jwks_keys, conf->jwks_key_count,
-                               (const char *) conf->token_issuer.data,
-                               (const char *) conf->token_audience.data,
-                               slen > 0 ? secret : NULL, (size_t) slen,
-                               &claims);
+    /* Cross-worker JWT cache: short-circuit the signature verification when
+     * this token's fingerprint is already cached. */
+    int cache_hit = 0;
+    if (conf->token_cache_kv != NULL
+        && xrootd_token_cache_lookup(conf->token_cache_kv,
+                                     token, token_len, &claims))
+    {
+        rc = 0;
+        cache_hit = 1;
+    } else {
+        rc = xrootd_token_validate(r->connection->log, token, token_len,
+                                   conf->jwks_keys, conf->jwks_key_count,
+                                   (const char *) conf->token_issuer.data,
+                                   (const char *) conf->token_audience.data,
+                                   slen > 0 ? secret : NULL, (size_t) slen,
+                                   &claims);
+    }
 
     /* Grace-period fallback: if the primary secret rejected a macaroon token
      * and an old secret is configured, try validating with the old key.
@@ -175,6 +187,12 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                       "xrootd_webdav: bearer token validation failed");
         return NGX_HTTP_UNAUTHORIZED;
+    }
+
+    /* Cache the freshly verified claims for subsequent presentations. */
+    if (!cache_hit && conf->token_cache_kv != NULL) {
+        xrootd_token_cache_store(conf->token_cache_kv, token, token_len,
+                                 &claims);
     }
 
     ctx->verified = 1;

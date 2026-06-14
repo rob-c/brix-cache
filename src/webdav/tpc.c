@@ -15,6 +15,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* Display identity for the live-transfer dashboard: the authenticated DN, or
+ * "anonymous" when the request carried no usable identity. */
 static const char *
 webdav_dashboard_identity(ngx_http_request_t *r)
 {
@@ -24,6 +26,8 @@ webdav_dashboard_identity(ngx_http_request_t *r)
     return (wctx != NULL && wctx->dn[0] != '\0') ? wctx->dn : "anonymous";
 }
 
+/* The authenticated identity object (DN/VO/token claims) attached to this
+ * request by the auth phase, or NULL for an unauthenticated request. */
 static xrootd_identity_t *
 webdav_tpc_request_identity(ngx_http_request_t *r)
 {
@@ -33,19 +37,27 @@ webdav_tpc_request_identity(ngx_http_request_t *r)
     return wctx != NULL ? wctx->identity : NULL;
 }
 
+/*
+ * Extract just the path component of a (possibly scheme-qualified) URL for use
+ * as an authorization scope, e.g. "https://host/a/b" -> "/a/b".
+ * `out` points into the caller's `url` buffer (no copy); defaults to "/" when
+ * the URL has no path.  Used to scope-check the remote endpoint of a TPC.
+ */
 static void
 webdav_tpc_url_path(const char *url, ngx_str_t *out)
 {
     const char *scheme;
     const char *path;
 
-    out->data = (u_char *) "/";
+    out->data = (u_char *) "/";   /* default scope when URL has no path */
     out->len = 1;
 
     if (url == NULL) {
         return;
     }
 
+    /* If "://" is present, the path is the first '/' after it; otherwise the
+     * first '/' in the whole string. */
     scheme = strstr(url, "://");
     path = scheme != NULL ? strchr(scheme + 3, '/') : strchr(url, '/');
     if (path == NULL || *path == '\0') {
@@ -56,6 +68,12 @@ webdav_tpc_url_path(const char *url, ngx_str_t *out)
     out->len = ngx_strlen(path);
 }
 
+/*
+ * Authorize a TPC against the request identity: src_path is the read scope,
+ * dst_path the write scope (NULL when the operation only reads, i.e. push).
+ * Returns NGX_OK if permitted, else NGX_HTTP_FORBIDDEN (and bumps the bad-request
+ * metric).  This is the access-control gate before any data movement starts.
+ */
 static ngx_int_t
 webdav_tpc_authorize(ngx_http_request_t *r, const ngx_str_t *src_path,
     const ngx_str_t *dst_path)
@@ -71,6 +89,12 @@ webdav_tpc_authorize(ngx_http_request_t *r, const ngx_str_t *src_path,
     return NGX_OK;
 }
 
+/*
+ * Register a new in-flight transfer in the cross-process TPC registry so it is
+ * visible to /metrics and the dashboard.  Returns a non-zero transfer id used to
+ * update/remove the entry as the transfer progresses; returns 0 if the registry
+ * is full (caller maps that to 503).
+ */
 static uint64_t
 webdav_tpc_register_transfer(ngx_http_request_t *r, ngx_uint_t direction,
     const char *src, const char *dst, off_t bytes_total)
@@ -99,6 +123,14 @@ webdav_tpc_register_transfer(ngx_http_request_t *r, ngx_uint_t direction,
     return xrootd_tpc_registry_add(&transfer, r->connection->log);
 }
 
+/*
+ * Pull the bearer token out of the request's Authorization header for use as the
+ * "subject token" in OAuth2 token-exchange delegation.  A missing/non-bearer
+ * header is not an error: *subject_token stays NULL and NGX_OK is returned
+ * (oidc-agent mode does not need it; token-exchange mode will fail later).
+ * NGX_ERROR only on allocation failure.  The token is copied (NUL-terminated)
+ * into the request pool so it outlives the header table.
+ */
 static ngx_int_t
 webdav_tpc_extract_subject_token(ngx_http_request_t *r,
                                  ngx_table_elt_t *auth_hdr,
@@ -233,7 +265,9 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
             return NGX_HTTP_BAD_GATEWAY;
         }
 
-        /* Inject delegated token as Authorization header into transfer_headers. */
+        /* Build "Authorization: Bearer <token>" as one full header line and push
+         * it onto the outbound transfer-header list curl will send to the remote
+         * destination.  (Mechanical string assembly, NUL-terminated for curl.) */
         {
             size_t total_len = sizeof("Authorization: Bearer ") - 1
                                + delegated_token.len;
@@ -305,6 +339,10 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
                                XROOTD_TPC_METRIC_STARTED, 0,
                                r->connection->log);
 
+    /* Preferred path: hand the push off to the thread pool so the event loop is
+     * never blocked on curl.  NGX_DECLINED means "no thread pool configured" and
+     * we fall through to running curl synchronously below; NGX_DONE means the
+     * task was queued (response finalized later); any other rc is terminal. */
     rc = webdav_tpc_post_thread_task(r, conf, 1, 0, 0,
                                      dest_url, path, NULL, transfer_headers, 1);
     if (rc != NGX_DECLINED) {
@@ -315,6 +353,7 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
         return (rc == NGX_ERROR) ? NGX_HTTP_INTERNAL_SERVER_ERROR : rc;
     }
 
+    /* Synchronous fallback (blocks the worker for the duration of the push). */
     transfer_id = webdav_tpc_register_transfer(r, XROOTD_TPC_DIR_PUSH, path,
                                                dest_url, sb.st_size);
     if (transfer_id == 0) {
@@ -349,10 +388,7 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
     xrootd_dashboard_http_add(r, (ngx_atomic_int_t) sb.st_size);
     xrootd_dashboard_http_finish(r);
     XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PUSH_SUCCESS]);
-    r->headers_out.status           = NGX_HTTP_CREATED;
-    r->headers_out.content_length_n = 0;
-    ngx_http_send_header(r);
-    return ngx_http_send_special(r, NGX_HTTP_LAST);
+    return webdav_send_no_body(r, NGX_HTTP_CREATED);
 }
 
 /**
@@ -550,6 +586,7 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return NGX_HTTP_PRECONDITION_FAILED;
     }
 
+    /* Pull authorization: read scope = remote source path, write scope = our URI. */
     webdav_tpc_url_path(source_url, &src_scope);
     dst_scope = r->uri;
     rc = webdav_tpc_authorize(r, &src_scope, &dst_scope);
@@ -557,6 +594,10 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
+    /* Open a confined temp file (path.nginx-xrootd-tpc.PID.TIME) that curl will
+     * fill; on success it is atomically committed (rename/link) over `path`, on
+     * failure it is unlinked.  We only needed to create/validate it here, so the
+     * fd is closed immediately — curl reopens the temp path by name. */
     if (xrootd_staged_open(r->connection->log, conf->common.root_canon, path,
                            O_WRONLY, 0600, 16, &staged) != NGX_OK)
     {
@@ -576,7 +617,16 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
                                XROOTD_TPC_METRIC_STARTED, 0,
                                r->connection->log);
 
-    /* 202-streaming path: async transfer with Performance-Marker updates. */
+    /*
+     * Pull executes via the first available of three tiers:
+     *  (1) 202-streaming marker path (this block) when tpc_marker_interval > 0:
+     *      async transfer that dribbles Performance-Marker lines to the client.
+     *  (2) thread-pool task (below) when a thread pool is configured.
+     *  (3) synchronous curl (final fallback) that blocks the worker.
+     * Each tier returns NGX_DECLINED to mean "not applicable, try the next".
+     * The staged temp file must be aborted (unlinked) on every error exit so a
+     * failed pull never leaves a partial file behind.
+     */
     if (conf->tpc_marker_interval > 0) {
         transfer_id = webdav_tpc_register_transfer(r, XROOTD_TPC_DIR_PULL,
                                                    source_url, path, 0);
@@ -603,10 +653,12 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
             }
             return NGX_DONE;
         }
-        /* No thread pool — fall through to 201 path. */
+        /* Marker path declined (no thread pool) — drop its registry entry and
+         * fall through to the thread-task / synchronous 201 path below. */
         (void) xrootd_tpc_registry_remove(transfer_id, r->connection->log);
     }
 
+    /* Tier 2: offload to the thread pool (NGX_DECLINED -> synchronous tier 3). */
     rc = webdav_tpc_post_thread_task(r, conf, 0, existed, overwrite,
                                      source_url, staged.tmp_path, path,
                                      transfer_headers, n_streams);
@@ -621,6 +673,7 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return rc;  /* NGX_DONE */
     }
 
+    /* Tier 3: run curl synchronously on the worker. */
     transfer_id = webdav_tpc_register_transfer(r, XROOTD_TPC_DIR_PULL,
                                                source_url, path, 0);
     if (transfer_id == 0) {
@@ -649,6 +702,12 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
+    /* Commit the staged temp file. Two strategies by overwrite policy:
+     *  - no-overwrite (Overwrite: F): link() the temp into place, which fails
+     *    with EEXIST if a file appeared meanwhile -> 412 (atomic create-only).
+     *  - overwrite: rename() the temp over any existing file.
+     * Either way the temp is removed afterward (link leaves the temp; rename
+     * consumes it), and any failure aborts/cleans up and records an error. */
     if (!overwrite) {
         if (xrootd_link_confined_canon(r->connection->log, conf->common.root_canon,
                                        staged.tmp_path, path) != 0) {
@@ -712,10 +771,6 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
     (void) xrootd_tpc_registry_remove(transfer_id, r->connection->log);
     xrootd_dashboard_http_finish(r);
     XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PULL_SUCCESS]);
-    status = existed ? NGX_HTTP_NO_CONTENT : NGX_HTTP_CREATED;
-    r->headers_out.status = status;
-    r->headers_out.content_length_n = 0;
-
-    ngx_http_send_header(r);
-    return ngx_http_send_special(r, NGX_HTTP_LAST);
+    return webdav_send_no_body(r, existed ? NGX_HTTP_NO_CONTENT
+                                          : NGX_HTTP_CREATED);
 }

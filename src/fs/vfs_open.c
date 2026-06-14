@@ -1,6 +1,34 @@
+/*
+ * vfs_open.c — VFS open/close, handle lifecycle, and shared file helpers.
+ *
+ * WHAT: Implements xrootd_vfs_open()/xrootd_vfs_close() and the xrootd_vfs_file_*
+ *       accessors (fd/path/size/mtime/from_cache/file_stat). Also hosts the
+ *       cross-unit helpers declared in vfs_internal.h: xrootd_vfs_fill_stat()
+ *       (struct stat -> xrootd_vfs_stat_t), xrootd_vfs_copy_path() (pool-dup a
+ *       C string), xrootd_vfs_register_fd_cleanup() (close-on-pool-destroy), and
+ *       xrootd_vfs_adopt_fd() (wrap an already-open fd in a handle).
+ *
+ * WHY:  Open is the one place that has to reconcile three concerns at once:
+ *       write permission, the read-through cache, and kernel-enforced
+ *       confinement. Concentrating that decision here keeps every other op file
+ *       able to assume a valid, confined, already-fstat'd handle.
+ *
+ * HOW:  xrootd_vfs_open() re-verifies confinement, gates writes on
+ *       ctx->allow_write, optionally pre-creates the parent dir tree
+ *       (XROOTD_VFS_O_MKDIRPATH), then tries xrootd_cache_open() first. On a
+ *       cache miss it translates flags via xrootd_vfs_open_flags() and walks the
+ *       confinement cascade strongest-first: persistent rootfd +
+ *       xrootd_open_beneath (openat2 RESOLVE_BENEATH), else root_canon +
+ *       xrootd_open_confined_canon, else a raw open() reachable only for
+ *       server-constructed paths with no export root. The resulting fd is
+ *       wrapped by xrootd_vfs_adopt_fd(), which fstat()s it into the handle.
+ */
 #include "vfs_internal.h"
 #include "../cache/open.h"
+#include "../path/beneath.h"
 
+/* Copy a struct stat into the protocol-neutral xrootd_vfs_stat_t (zeroes the
+ * output first; sets is_directory/is_regular from the mode). No-op on NULL. */
 void
 xrootd_vfs_fill_stat(const struct stat *st, xrootd_vfs_stat_t *out)
 {
@@ -41,6 +69,8 @@ xrootd_vfs_copy_path(ngx_pool_t *pool, const char *path)
     return copy;
 }
 
+/* Arm an ngx_pool cleanup that closes fd when the pool is destroyed, so a
+ * dup'd descriptor handed to a sendfile buffer never leaks. */
 ngx_int_t
 xrootd_vfs_register_fd_cleanup(ngx_pool_t *pool, ngx_fd_t fd,
     const char *path, ngx_log_t *log)
@@ -68,6 +98,9 @@ xrootd_vfs_register_fd_cleanup(ngx_pool_t *pool, ngx_fd_t fd,
     return NGX_OK;
 }
 
+/* Wrap an already-open fd in a freshly pcalloc'd xrootd_vfs_file_t: fstat the
+ * fd into the cached metadata, dup the path, and record from_cache/is_tls.
+ * Used by both xrootd_vfs_open() and the cache layer's open path. */
 ngx_int_t
 xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
     unsigned from_cache, xrootd_vfs_file_t **out)
@@ -146,6 +179,8 @@ xrootd_vfs_open_flags(ngx_uint_t flags)
     return oflags;
 }
 
+/* For XROOTD_VFS_O_MKDIRPATH: create the target's parent directory chain
+ * (confined under root_canon, mode 0755) before the file open is attempted. */
 static ngx_int_t
 xrootd_vfs_mkdir_parent_path(xrootd_vfs_ctx_t *ctx, const char *path)
 {
@@ -176,6 +211,9 @@ xrootd_vfs_mkdir_parent_path(xrootd_vfs_ctx_t *ctx, const char *path)
     return NGX_OK;
 }
 
+/* Open the resolved ctx path under the confinement cascade. Returns a handle
+ * or NULL with the syscall errno in *err_out. Cache hits short-circuit; writes
+ * require ctx->allow_write. See the file header for the full open sequence. */
 xrootd_vfs_file_t *
 xrootd_vfs_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
 {
@@ -232,7 +270,25 @@ xrootd_vfs_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
     }
 
     oflags = xrootd_vfs_open_flags(flags);
-    if (ctx->root_canon != NULL) {
+    /*
+     * Confinement cascade, strongest first:
+     *   1. ctx->rootfd >= 0  → xrootd_open_beneath(): persistent per-worker
+     *      O_PATH fd + openat2(RESOLVE_BENEATH).  This is the Phase 8 path and
+     *      the case every real data-server request takes.
+     *   2. root_canon only   → xrootd_open_confined_canon(): same openat2
+     *      RESOLVE_BENEATH semantics but opens the rootfd per call.  Reached only
+     *      by contexts that have a root string but no persistent fd (legacy
+     *      callers being retired); still fully confined.
+     *   3. neither            → raw open().  NOT a confinement bypass: this branch
+     *      is only taken when the VFS ctx carries no root at all (e.g. an
+     *      already-absolute, server-constructed path in a non-export context).
+     *      `path` here is never a raw client path — client requests always set a
+     *      root and therefore take branch 1 or 2.  If a root is present the raw
+     *      open is unreachable.
+     */
+    if (ctx->rootfd >= 0) {
+        fd = xrootd_open_beneath(ctx->rootfd, path, oflags, 0644);
+    } else if (ctx->root_canon != NULL) {
         fd = xrootd_open_confined_canon(ctx->log, ctx->root_canon, path,
                                         oflags, 0644);
     } else {

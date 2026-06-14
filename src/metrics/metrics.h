@@ -68,6 +68,16 @@
 #define XROOTD_NOPS           37
 
 /*
+ * Cache-line alignment for the hottest shared-memory counters.  64 bytes is the
+ * cache-line size on all x86-64 and current aarch64 server parts; over-aligning
+ * on a part with a smaller line is harmless.  Used to stop high-frequency
+ * per-operation counters from false-sharing with neighbouring fields written by
+ * other cores/worker processes.
+ */
+#define XROOTD_METRIC_CACHELINE 64
+#define XROOTD_METRIC_ALIGNED   __attribute__((aligned(XROOTD_METRIC_CACHELINE)))
+
+/*
  * Fixed WebDAV label slots.  These are exported by name in metrics/export.c;
  * keep the order aligned with the string tables there.
  */
@@ -330,9 +340,21 @@ typedef struct {
     ngx_atomic_t  response_write_stalls_total; /* socket send returned AGAIN    */
     ngx_atomic_t  response_write_errors_total; /* socket send/send_chain errors */
 
-    /* Indexed by XROOTD_OP_*; success/error are kept separate for export. */
-    ngx_atomic_t  op_ok [XROOTD_NOPS];    /* successful ops by index         */
-    ngx_atomic_t  op_err[XROOTD_NOPS];    /* failed ops by index             */
+    /*
+     * Indexed by XROOTD_OP_*; success/error are kept separate for export.
+     *
+     * These two arrays are the highest-frequency writes in the struct (every
+     * completed operation bumps one slot).  Cache-line-align each so the hot
+     * op_ok block does not false-share a line with the preceding scalar
+     * counters, and so the hot success array does not bounce against the
+     * mostly-cold op_err array.  The struct lives at a page-aligned SHM base,
+     * so XROOTD_METRIC_CACHELINE alignment lands on a real 64-byte boundary
+     * shared across worker processes.  (Per-slot padding to fully isolate
+     * individual ops is deferred until high-core benchmarks justify the bloat:
+     * 37 slots x 64 B x 2 arrays.)
+     */
+    XROOTD_METRIC_ALIGNED ngx_atomic_t op_ok [XROOTD_NOPS]; /* successful ops */
+    XROOTD_METRIC_ALIGNED ngx_atomic_t op_err[XROOTD_NOPS]; /* failed ops     */
 
     /* Cache eviction counters, non-zero only for cache-enabled listeners. */
     ngx_atomic_t  cache_evictions_total;      /* files unlinked by eviction  */
@@ -369,6 +391,18 @@ typedef struct {
 
     /* Proxy counters — non-zero only for listeners with xrootd_proxy on. */
     ngx_xrootd_proxy_metrics_t  proxy;
+
+    /*
+     * Phase 31 W4 — transfer-heap memory budget (SHM pool, shared across
+     * workers for this server block).  xfer_heap_in_use is the live sum of bytes
+     * held in per-connection transfer scratch buffers (read/write scratch + recv
+     * payload); reconciled idempotently by xrootd_budget_sync() so it cannot
+     * drift negative.  budget_waits_total counts reads deferred with kXR_wait
+     * because they would have pushed in_use past xrootd_memory_budget.
+     */
+    ngx_atomic_t  xfer_heap_in_use;       /* bytes held in transfer scratch buffers */
+    ngx_atomic_t  xfer_heap_high_water;   /* peak xfer_heap_in_use observed          */
+    ngx_atomic_t  budget_waits_total;     /* reads deferred with kXR_wait (over budget) */
 } ngx_xrootd_srv_metrics_t;
 
 /* ---- Per-VO traffic tracking (bounded LRU, low-cardinality) ---- */
@@ -451,6 +485,32 @@ typedef struct {
 
     /* Server registry diagnostics. */
     ngx_atomic_t  registry_full_total;
+
+    /* Phase 22 — active health-check counters (cluster group). */
+    ngx_atomic_t  hc_probes_total;     /* probes started */
+    ngx_atomic_t  hc_pass_total;       /* probes that passed */
+    ngx_atomic_t  hc_fail_total;       /* probes that failed/timed out */
+    ngx_atomic_t  hc_blacklist_total;  /* servers blacklisted via health check */
+
+    /* Phase 24 — traffic-mirror counters (low cardinality, no labels). */
+    ngx_atomic_t  mirror_http_total;             /* shadow HTTP responded */
+    ngx_atomic_t  mirror_http_errors_total;      /* shadow HTTP connect/proto fail */
+    ngx_atomic_t  mirror_http_dropped_total;     /* HTTP sampling/filter skip */
+    ngx_atomic_t  mirror_http_divergence_total;  /* shadow status class != primary */
+    ngx_atomic_t  mirror_stream_total;           /* shadow XRootD responded */
+    ngx_atomic_t  mirror_stream_errors_total;    /* shadow XRootD connect/proto fail */
+    ngx_atomic_t  mirror_stream_dropped_total;   /* stream sampling/filter skip */
+    ngx_atomic_t  mirror_stream_divergence_total;/* shadow status != primary */
+
+    /* Phase 25 — advanced rate limiting / traffic shaping counters. */
+    ngx_atomic_t  rl_throttled_http_total;   /* HTTP/WebDAV requests answered 429   */
+    ngx_atomic_t  rl_throttled_stream_total; /* stream requests answered kXR_wait   */
+    ngx_atomic_t  rl_eviction_total;         /* LRU node evictions from a RL zone   */
+    ngx_atomic_t  rl_zone_full_errors;       /* alloc failures (zone exhausted)     */
+
+    /* Phase 27 F4 — session-registry anti-exhaustion. */
+    ngx_atomic_t  session_registry_full_total; /* logins rejected: table full + nothing reapable */
+    ngx_atomic_t  session_evict_total;         /* idle sessions reaped to admit a new login */
 
     ngx_xrootd_vo_global_t    vo_global;
     ngx_xrootd_user_global_t  user_tracking;

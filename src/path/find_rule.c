@@ -14,21 +14,20 @@
  */
 
 /* ---- static helper: xrootd_path_prefix_match() ----
- * WHAT: Check whether path starts with prefix and the next byte after prefix is either end-of-string or a slash.
+ * WHAT: Check whether path starts with prefix (of the given prefix_len) and the next byte after prefix is either end-of-string or a slash.
  * WHY: Prefix containment must be boundary-aware — `/data/atlas` matches `/data` but `/data-atlas` should NOT match.
  *      The boundary check (path[prefix_len] == '\0' || path[prefix_len] == '/') prevents false-positive prefix overlap.
+ *      prefix_len is supplied by the caller (it already knows the rule's resolved-path length or the ngx_str_t .len),
+ *      so this avoids a redundant strlen of the same rule string on every request in the matching loop.
  * HOW: strncmp comparison up to prefix_len; return 1 if match AND next byte is '\0' or '/'; return 0 otherwise. NULL guards prevent crashes. */
 
 static ngx_flag_t
-xrootd_path_prefix_match(const char *prefix, const char *path)
+xrootd_path_prefix_match(const char *prefix, size_t prefix_len, const char *path)
 {
-    size_t prefix_len;
-
     if (prefix == NULL || path == NULL) {
         return 0;
     }
 
-    prefix_len = strlen(prefix);
     if (strncmp(prefix, path, prefix_len) != 0) {
         return 0;
     }
@@ -58,7 +57,9 @@ xrootd_find_vo_rule(const char *resolved_path, ngx_array_t *rules)
     for (i = 0; i < rules->nelts; i++) {
         size_t rule_len = strlen(rule[i].resolved);
 
-        if (!xrootd_path_prefix_match(rule[i].resolved, resolved_path)) {
+        if (!xrootd_path_prefix_match(rule[i].resolved, rule_len,
+                                      resolved_path))
+        {
             continue;
         }
 
@@ -93,7 +94,9 @@ xrootd_find_group_rule(const char *resolved_path, ngx_array_t *rules)
     for (i = 0; i < rules->nelts; i++) {
         size_t rule_len = strlen(rule[i].resolved);
 
-        if (!xrootd_path_prefix_match(rule[i].resolved, resolved_path)) {
+        if (!xrootd_path_prefix_match(rule[i].resolved, rule_len,
+                                      resolved_path))
+        {
             continue;
         }
 
@@ -129,7 +132,7 @@ xrootd_find_manager_map(const char *reqpath, ngx_array_t *map)
         size_t prefix_len = entry[i].prefix.len;
 
         if (!xrootd_path_prefix_match((const char *) entry[i].prefix.data,
-                                      reqpath))
+                                      prefix_len, reqpath))
         {
             continue;
         }

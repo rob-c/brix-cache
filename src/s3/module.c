@@ -38,6 +38,7 @@
 
 #include "s3.h"
 #include "../config/root_prepare.h"
+#include "../config/http_rootfd.h"
 
 static ngx_int_t ngx_http_s3_postconfiguration(ngx_conf_t *cf);
 
@@ -91,6 +92,12 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
         if (xrootd_prepare_export_root(cf, &conf->common.root, &root_opts,
                                        conf->common.root_canon) != NGX_CONF_OK)
         {
+            return NGX_CONF_ERROR;
+        }
+
+        /* Open the persistent confinement rootfd (kernel openat2
+         * RESOLVE_BENEATH anchor); no-op when no xrootd_s3_root is set. */
+        if (xrootd_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
             return NGX_CONF_ERROR;
         }
 

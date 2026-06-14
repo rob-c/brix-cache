@@ -22,6 +22,12 @@ int json_get_string_array(const char *json, size_t json_len, const char *key,
  * array with per-item 256-byte truncation. Returns count on success, 0 on failure. */
 int json_get_int64(const char *json, size_t json_len, const char *key, int64_t *out);
 /* Extract a single integer value from JSON by key into caller-supplied int64 output pointer. Returns 0 on success, -1 on failure (key missing or non-integer). */
+int json_string_or_array_contains(const char *json, size_t json_len,
+    const char *key, const char *needle);
+/* Returns 1 if json[key] is a STRING equal to needle, OR an ARRAY of strings
+ * containing needle; 0 otherwise. RFC 7519 §4.1.3 allows the JWT "aud" claim to
+ * be either form, so the audience check must accept both. Comparison is exact
+ * (no truncation). */
 /* Return the string name of the active JSON parsing backend ("jansson"). Used
  * for logging, metrics labels, and conditional behaviour across backends. */
 const char *json_backend_name(void);

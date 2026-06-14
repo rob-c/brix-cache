@@ -153,6 +153,14 @@ webdav_handle_head(ngx_http_request_t *r, int send_body)
     return NGX_OK;
 }
 
+/*
+ * Re-serialize a client property element into the canonical XML fragment we
+ * persist as its dead-property value: "<X:local xmlns:X="ns">text</X:local>"
+ * (namespaced) or "<local>text</local>" (no namespace).  Both the namespace URI
+ * and the text content are XML-escaped first, so untrusted property data cannot
+ * inject markup when it is later spliced into a PROPFIND response.
+ * Returns a pool string and its length in *out_len, or NULL on alloc failure.
+ */
 static char *
 webdav_proppatch_serialize_dead_prop(ngx_http_request_t *r, xmlNodePtr prop,
     size_t *out_len)
@@ -185,6 +193,8 @@ webdav_proppatch_serialize_dead_prop(ngx_http_request_t *r, xmlNodePtr prop,
             return NULL;
         }
 
+        /* Buffer sizing: the literal scaffolding + the local name twice (open
+         * and close tag) + the escaped namespace + escaped text + NUL. */
         len = ngx_strlen("<X: xmlns:X=\"\"></X:>")
               + strlen(local) * 2 + strlen(safe_ns) + strlen(safe_text) + 1;
         xml = ngx_pnalloc(r->pool, len);
@@ -207,6 +217,12 @@ webdav_proppatch_serialize_dead_prop(ngx_http_request_t *r, xmlNodePtr prop,
     return xml;
 }
 
+/*
+ * Append one <D:propstat> block reporting the per-property outcome: the empty
+ * property element (name only, via the dead-prop empty serializer) wrapped with
+ * the given HTTP status line.  RFC 4918 §9.2 requires one propstat per property
+ * carrying its individual result.
+ */
 static ngx_int_t
 webdav_proppatch_append_propstat(ngx_http_request_t *r, ngx_chain_t **head,
     ngx_chain_t **tail, const char *ns, const char *local,
@@ -232,6 +248,13 @@ webdav_proppatch_append_propstat(ngx_http_request_t *r, ngx_chain_t **head,
     return NGX_OK;
 }
 
+/*
+ * Apply a PROPPATCH after the body is read: resolve+stat the target, check it
+ * is not locked, parse the DAV:propertyupdate document, then walk its set/remove
+ * actions applying each to the xattr-backed dead-property store and emitting a
+ * per-property 207 multistatus.  Returns the HTTP status / NGX_* code; an empty
+ * or unparseable update is 400.
+ */
 static ngx_int_t
 webdav_proppatch_do(ngx_http_request_t *r)
 {
@@ -310,6 +333,8 @@ webdav_proppatch_do(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    /* Outer loop: each child of <propertyupdate> is a <set> or <remove> action
+     * (anything else is ignored). is_set distinguishes the two. */
     for (action = root->children; action != NULL; action = action->next) {
         ngx_flag_t is_set;
 
@@ -325,6 +350,7 @@ webdav_proppatch_do(ngx_http_request_t *r)
             continue;
         }
 
+        /* Middle loop: locate the single <prop> wrapper inside this action. */
         for (prop_container = action->children; prop_container != NULL;
              prop_container = prop_container->next)
         {
@@ -335,9 +361,10 @@ webdav_proppatch_do(ngx_http_request_t *r)
             }
         }
         if (prop_container == NULL) {
-            continue;
+            continue;   /* malformed action with no <prop>: skip */
         }
 
+        /* Inner loop: apply each property element in this <prop>. */
         for (prop = prop_container->children; prop != NULL; prop = prop->next) {
             const char *local;
             const char *ns;
@@ -351,6 +378,10 @@ webdav_proppatch_do(ngx_http_request_t *r)
             ns = (prop->ns != NULL && prop->ns->href != NULL)
                  ? (const char *) prop->ns->href : "";
 
+            /* Per-property outcome (default 200): a protected DAV: live property
+             * cannot be modified (403); set/remove failures from the xattr store
+             * map to 507 Insufficient Storage. Each result is reported in its own
+             * propstat regardless, so partial success is expressed precisely. */
             if (strcmp(ns, "DAV:") == 0
                 && webdav_dead_prop_is_protected_dav(local))
             {
@@ -423,6 +454,10 @@ webdav_proppatch_do(ngx_http_request_t *r)
     return ngx_http_output_filter(r, head);
 }
 
+/*
+ * Body-ready callback (async re-entry point): runs the PROPPATCH and finalizes
+ * the request with metrics once the request body has been buffered.
+ */
 static void
 webdav_proppatch_body_handler(ngx_http_request_t *r)
 {

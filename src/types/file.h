@@ -52,6 +52,18 @@ typedef struct {
     off_t      read_last_end;    /* end offset of the previous read, or -1 */
     off_t      read_ahead_end;   /* farthest byte covered by WILLNEED hint */
 
+    /*
+     * Phase 26 slice-cache state.  When slice_mode is set this read handle has
+     * NO backing fd (fd == -1); kXR_read is served from per-slice cache files
+     * named off slice_cache_path, filling missing slices from the origin and
+     * answering kXR_wait in the meantime.  slice_clean_path is the client path
+     * sent to the origin for fills; slice_size is the configured slice width.
+     */
+    unsigned   slice_mode:1;
+    char      *slice_cache_path;  /* whole-file cache path (slice naming + meta) */
+    char      *slice_clean_path;  /* origin clean path for slice fills */
+    size_t     slice_size;        /* bytes per slice (from cache_slice_size) */
+
     /* kXR_chkpoint state: non-NULL ckp_path means a checkpoint is active. */
     char      *ckp_path;        /* absolute path to the checkpoint temp file */
     int64_t    ckp_size;        /* file size (bytes) captured at kXR_ckpBegin */
@@ -135,5 +147,15 @@ typedef struct {
     /* Live transfer monitor slot index — index into xrootd_transfer_table_t.slots[].
      * -1 means this handle is not currently tracked (table full, or dashboard disabled). */
     int32_t  dashboard_slot;
+
+    /* Phase 33 C2 — bound-secondary SHM handle-table slot hint.
+     * For a bound stream, xrootd_ensure_read_handle() re-validates the published
+     * handle under xrootd_handle_mutex on EVERY read.  Caching the slot index
+     * matched on the first lookup turns the per-read linear scan of the handle
+     * table into an O(1) direct check (still under the lock, still re-validating
+     * sessid/handle_index/in_use + device/inode, so a primary close/reuse is
+     * detected exactly as before).  -1 = no cached slot (cold or just-freed);
+     * the hinted lookup falls back to a full scan and refreshes the hint. */
+    int      shared_handle_slot_hint;
 
 } xrootd_file_t;

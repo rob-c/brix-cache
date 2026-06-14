@@ -703,25 +703,39 @@ def _cms_put_int(v: int) -> bytes:
     return bytes([CMS_PT_INT]) + struct.pack(">I", v)
 
 
+def _cms_put_string(data: bytes = b"") -> bytes:
+    """An XrdOucPup string: a 2-byte big-endian length (which INCLUDES the
+    trailing NUL) followed by the bytes and a NUL.  An empty string is just a
+    zero length with no bytes.  Matches ngx_xrootd_cms_put_string in cms/wire.c
+    and the reader in cms/server_recv.c (cms_srv_read_string)."""
+    if not data:
+        return struct.pack(">H", 0)
+    return struct.pack(">H", len(data) + 1) + data + b"\x00"
+
+
 def _cms_login_payload(port: int, path: str = "/") -> bytes:
-    """Build the TLV-encoded LOGIN payload matching cms/send.c."""
-    path_bytes = path.encode()
+    """Build the LOGIN payload in the real XrdCms CmsLoginData wire order
+    (XrdOucPup), matching cms/send.c: ten type-tagged scalars (version, mode,
+    holdtime, tSpace, fSpace, mSpace, fsNum, fsUtil, dPort, sPort) followed by
+    four strings (SID, Paths, ifList, envCGI).  Paths is a newline-separated
+    list of "<type> <namespace-path>" entries; server_recv.c strips the leading
+    type token, so "w /gone-test" registers the bare path "/gone-test"."""
+    paths_str = ("w " + path).encode()
     return (
         _cms_put_short(3)            # version
         + _cms_put_int(0x00000008)   # mode = DataServer
-        + _cms_put_int(os.getpid())  # pid
-        + _cms_put_int(0)            # total_gb
-        + _cms_put_int(1024)         # free_mb
-        + _cms_put_int(100)          # min_free_mb
-        + _cms_put_short(1)          # num_cpus
-        + _cms_put_short(0)          # util_pct
-        + _cms_put_short(port)       # ← registered XRootD port
-        + _cms_put_short(0)          # flags1
-        + _cms_put_short(0)          # flags2
-        + _cms_put_short(len(path_bytes))
-        + path_bytes
-        + _cms_put_short(0)          # sentinel
-        + _cms_put_short(0)          # sentinel
+        + _cms_put_int(0)            # holdtime
+        + _cms_put_int(0)            # tSpace (total GB)
+        + _cms_put_int(1024)         # fSpace ← free_mb
+        + _cms_put_int(100)          # mSpace (min free MB)
+        + _cms_put_short(1)          # fsNum
+        + _cms_put_short(0)          # fsUtil ← util_pct
+        + _cms_put_short(port)       # dPort ← registered XRootD port
+        + _cms_put_short(0)          # sPort
+        + _cms_put_string(b"test-ds")  # SID (ignored by the server)
+        + _cms_put_string(paths_str)   # Paths "<type> <path>"
+        + _cms_put_string(b"")         # ifList (empty)
+        + _cms_put_string(b"")         # envCGI (empty)
     )
 
 

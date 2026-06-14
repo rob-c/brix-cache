@@ -609,3 +609,52 @@ class TestHTTPWebDavPlain:
         r = self._hmkcol(path)
         assert r.status_code == 201
         assert os.path.isdir(os.path.join(DATA_ROOT, path.lstrip("/")))
+
+    # --- MOVE/COPY DESTINATION confinement ---------------------------------
+    # The source path of MOVE/COPY is confined like any request URI, but the
+    # DESTINATION arrives in a header and must be confined independently.  A
+    # Destination that escapes the export root (via ".." or encoded "%2e%2e")
+    # must be rejected and must not create/overwrite anything outside the root.
+
+    def _outside_zone(self):
+        return os.path.dirname(DATA_ROOT.rstrip("/"))   # one level above the root
+
+    def _assert_no_escape(self, name):
+        p = os.path.join(self._outside_zone(), name)
+        if os.path.exists(p):
+            try:
+                os.rmdir(p) if os.path.isdir(p) else os.remove(p)
+            except OSError:
+                pass
+            pytest.fail(
+                f"CONFINEMENT BREACH: {p} created outside the export root")
+
+    def test_http_move_destination_traversal_rejected(self):
+        src = f"/{_PFX}http_mvdst_src.txt"
+        _make_file(src, b"keep-me")
+        pwned = f"{_PFX}pwned_mv"
+        for dest in (f"/../{pwned}", f"/%2e%2e/{pwned}"):
+            r = requests.request(
+                "MOVE", HTTP_WEBDAV_BASE + src,
+                headers={"Destination": HTTP_WEBDAV_BASE + dest,
+                         "Overwrite": "T"})
+            assert r.status_code not in (200, 201, 204), \
+                f"MOVE to escaping Destination {dest} succeeded ({r.status_code})"
+        assert os.path.exists(os.path.join(DATA_ROOT, src.lstrip("/"))), \
+            "source file vanished after a rejected MOVE"
+        self._assert_no_escape(pwned)
+        _remove(src)
+
+    def test_http_copy_destination_traversal_rejected(self):
+        src = f"/{_PFX}http_cpdst_src.txt"
+        _make_file(src, b"keep-me")
+        pwned = f"{_PFX}pwned_cp"
+        for dest in (f"/../{pwned}", f"/%2e%2e/{pwned}"):
+            r = requests.request(
+                "COPY", HTTP_WEBDAV_BASE + src,
+                headers={"Destination": HTTP_WEBDAV_BASE + dest,
+                         "Overwrite": "T"})
+            assert r.status_code not in (200, 201, 204), \
+                f"COPY to escaping Destination {dest} succeeded ({r.status_code})"
+        self._assert_no_escape(pwned)
+        _remove(src)

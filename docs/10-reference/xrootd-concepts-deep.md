@@ -136,10 +136,10 @@ Response status codes are not HTTP codes. Notable ones:
 | Status | Value | Meaning |
 |---|---|---|
 | `kXR_ok` | 0 | Success |
-| `kXR_oksofar` | 4003 | Partial response, more to follow on the same streamid |
-| `kXR_attn` | 4004 | Server attention — redirect, wait, or async notification |
-| `kXR_authmore` | 4005 | More auth data needed (multi-step auth exchange) |
-| `kXR_error` | 4006 | Fatal request error; body contains error code + message |
+| `kXR_oksofar` | 4000 | Partial response, more to follow on the same streamid |
+| `kXR_attn` | 4001 | Server attention — redirect, wait, or async notification |
+| `kXR_authmore` | 4002 | More auth data needed (multi-step auth exchange) |
+| `kXR_error` | 4003 | Fatal request error; body contains error code + message |
 | `kXR_status` | 4007 | Used for `kXR_pgread` paged-read responses |
 | `kXR_redirect` | embedded in attn body | Redirect to another host:port |
 

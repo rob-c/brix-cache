@@ -265,15 +265,61 @@ xrootd_checksum_evp_md(xrootd_checksum_alg_t alg)
  *      EVP_DigestUpdate → 5) Finalise via EVP_DigestFinal_ex → 6) Return binary digest + length.
  *      Returns NGX_ERROR on init/final failure or read error (logged via log_read_error). */
 
+/*
+ * Drive an already-initialised EVP_MD_CTX over the whole file: init the digest,
+ * pread it in chunks (EINTR-retried), update per chunk, and finalise into
+ * out/outlen. Returns NGX_OK on success, NGX_ERROR on any OpenSSL or read
+ * failure (read errors are logged). The caller owns ctx and frees it; keeping
+ * ownership at the edge lets this worker use flat early returns.
+ */
+static ngx_int_t
+xrootd_checksum_digest_ctx(EVP_MD_CTX *ctx, const EVP_MD *md, int fd,
+    const char *path, xrootd_checksum_alg_t alg, ngx_log_t *log,
+    unsigned char *out, unsigned int *outlen)
+{
+    u_char   buf[XROOTD_CHECKSUM_BUFSZ];
+    off_t    offset;
+    ssize_t  n;
+
+    if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+        return NGX_ERROR;
+    }
+
+    offset = 0;
+    for (;;) {
+        n = pread(fd, buf, sizeof(buf), offset);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            xrootd_checksum_log_read_error(log, errno,
+                                           xrootd_checksum_name(alg), path);
+            return NGX_ERROR;
+        }
+
+        if (n == 0) {
+            break;
+        }
+
+        offset += (off_t) n;
+        if (EVP_DigestUpdate(ctx, buf, (size_t) n) != 1) {
+            return NGX_ERROR;
+        }
+    }
+
+    if (EVP_DigestFinal_ex(ctx, out, outlen) != 1) {
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
 ngx_int_t
 xrootd_checksum_digest_fd(xrootd_checksum_alg_t alg, int fd, const char *path,
     ngx_log_t *log, unsigned char *out, unsigned int *outlen)
 {
     const EVP_MD *md;
     EVP_MD_CTX   *ctx;
-    u_char        buf[XROOTD_CHECKSUM_BUFSZ];
-    off_t         offset;
-    ssize_t       n;
     ngx_int_t     rc;
 
     md = xrootd_checksum_evp_md(alg);
@@ -286,40 +332,8 @@ xrootd_checksum_digest_fd(xrootd_checksum_alg_t alg, int fd, const char *path,
         return NGX_ERROR;
     }
 
-    rc = NGX_ERROR;
-    if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
-        goto done;
-    }
+    rc = xrootd_checksum_digest_ctx(ctx, md, fd, path, alg, log, out, outlen);
 
-    offset = 0;
-    for (;;) {
-        n = pread(fd, buf, sizeof(buf), offset);
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            xrootd_checksum_log_read_error(log, errno,
-                                           xrootd_checksum_name(alg), path);
-            goto done;
-        }
-
-        if (n == 0) {
-            break;
-        }
-
-        offset += (off_t) n;
-        if (EVP_DigestUpdate(ctx, buf, (size_t) n) != 1) {
-            goto done;
-        }
-    }
-
-    if (EVP_DigestFinal_ex(ctx, out, outlen) != 1) {
-        goto done;
-    }
-
-    rc = NGX_OK;
-
-done:
     EVP_MD_CTX_free(ctx);
     return rc;
 }

@@ -9,9 +9,12 @@ rendezvous key on the destination write-open, and pulls the source file in a
 thread-pool worker.  The source server validates inbound read-opens that carry
 a tpc.key= opaque.
 
-NOTE: These tests are currently skipped because xrdcp --tpc hangs indefinitely
-when used with nginx-xrootd as both source and destination. The TPC implementation
-in src/tpc/ has a pre-existing bug that needs investigation.
+The destination write-open previously failed with kXR_IOError "No such file or
+directory": the Phase 8 beneath-API migration left xrootd_tpc_prepare_pull()
+passing the root_canon-prefixed ABSOLUTE path to xrootd_open_beneath(), which
+re-strips the root and so doubled the prefix (openat2 → ENOENT).  Fixed in
+src/tpc/launch.c by passing the logical export path to the beneath open; these
+tests now exercise the full source→destination rendezvous end to end.
 """
 
 import pytest

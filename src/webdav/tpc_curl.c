@@ -13,9 +13,78 @@
 
 #include "webdav.h"
 #include "../tpc/common/registry.h"
+#include "../compat/net_target.h"
 
 #include <curl/curl.h>
 #include <sys/stat.h>
+
+/*
+ * tpc_curl_secure — enforce TLS verification and pin the SSRF-validated IP.
+ *
+ * Two defenses applied to every outbound curl handle (Phase 28 W2):
+ *  (1) Explicit CURLOPT_SSL_VERIFYPEER/VERIFYHOST — never rely on curl's
+ *      compile-time defaults, which a non-standard build could weaken.
+ *  (2) Resolve the URL host once here (under SSRF policy) and pin the result
+ *      via CURLOPT_RESOLVE.  curl then connects only to that exact address
+ *      rather than performing its own independent DNS lookup, closing the
+ *      DNS-rebind TOCTOU window between the policy check and the connect.
+ *      TLS SNI/cert validation still uses the original hostname, so pinning
+ *      does not weaken certificate checking.
+ *
+ * Runs in the TPC thread pool, so the blocking getaddrinfo() inside
+ * check_dns_pin is safe here.  Returns 0 with *resolve_out set (caller frees
+ * the slist after the transfer) on success; -1 when the host is prohibited or
+ * unresolvable — the transfer MUST abort.
+ */
+static int
+tpc_curl_secure(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf,
+    const char *url, ngx_log_t *log, struct curl_slist **resolve_out)
+{
+    xrootd_net_target_t        tgt;
+    xrootd_net_target_policy_t pol;
+    ngx_str_t                  url_str;
+    char                       pin_ip[128];
+    char                       err[256];
+    char                       entry[256];
+    uint16_t                   port;
+    struct curl_slist         *rs;
+
+    *resolve_out = NULL;
+
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+
+    url_str.data = (u_char *) url;
+    url_str.len  = ngx_strlen(url);
+
+    ngx_memzero(&pol, sizeof(pol));
+    pol.require_https      = 1;
+    pol.allow_local        = conf->tpc_allow_local;
+    pol.allow_private      = conf->tpc_allow_private;
+    pol.default_https_port = 443;
+
+    if (xrootd_net_target_parse(NULL, &url_str, &tgt, err, sizeof(err)) != NGX_OK
+        || xrootd_net_target_check_dns_pin(&tgt, &pol, pin_ip, sizeof(pin_ip),
+                                           err, sizeof(err)) != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd_webdav: TPC egress check blocked \"%s\": %s",
+                      url, err);
+        return -1;
+    }
+
+    port = tgt.has_port ? tgt.port : 443;
+    snprintf(entry, sizeof(entry), "%.*s:%u:%s",
+             (int) tgt.host.len, tgt.host.data, (unsigned) port, pin_ip);
+
+    rs = curl_slist_append(NULL, entry);
+    if (rs == NULL) {
+        return -1;
+    }
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, rs);
+    *resolve_out = rs;
+    return 0;
+}
 
 typedef struct {
     uint64_t   transfer_id;
@@ -40,12 +109,14 @@ typedef struct {
 static int
 tpc_curl_apply_conf(CURL *curl,
     ngx_http_xrootd_webdav_loc_conf_t *conf,
-    const char *url, ngx_array_t *transfer_headers,
-    struct curl_slist **hdrs_out)
+    const char *url, ngx_array_t *transfer_headers, ngx_log_t *log,
+    struct curl_slist **hdrs_out, struct curl_slist **resolve_out)
 {
     ngx_uint_t         i;
     ngx_str_t         *headers;
     struct curl_slist *hdrs = NULL;
+
+    *resolve_out = NULL;
 
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL,    1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
@@ -56,6 +127,11 @@ tpc_curl_apply_conf(CURL *curl,
 #else
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS, (long) CURLPROTO_HTTPS);
 #endif
+
+    /* TLS verification + DNS-rebind pin (W2). */
+    if (tpc_curl_secure(curl, conf, url, log, resolve_out) < 0) {
+        return -1;
+    }
 
     if (conf->tpc_timeout > 0)
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) conf->tpc_timeout);
@@ -104,6 +180,7 @@ tpc_curl_head_size(ngx_log_t *log,
 {
     CURL              *curl;
     struct curl_slist *hdrs = NULL;
+    struct curl_slist *resolve = NULL;
     CURLcode           res;
     off_t              content_length = -1;
 
@@ -114,7 +191,9 @@ tpc_curl_head_size(ngx_log_t *log,
         return -1;
     }
 
-    if (tpc_curl_apply_conf(curl, conf, url, transfer_headers, &hdrs) < 0) {
+    if (tpc_curl_apply_conf(curl, conf, url, transfer_headers, log,
+                            &hdrs, &resolve) < 0) {
+        if (resolve) curl_slist_free_all(resolve);
         curl_easy_cleanup(curl);
         return -1;
     }
@@ -138,6 +217,7 @@ tpc_curl_head_size(ngx_log_t *log,
     }
 
     if (hdrs) curl_slist_free_all(hdrs);
+    if (resolve) curl_slist_free_all(resolve);
     curl_easy_cleanup(curl);
     return content_length;
 }
@@ -200,6 +280,40 @@ webdav_tpc_curl_progress(void *clientp, curl_off_t dltotal,
 #endif
 
 /*
+ * webdav_tpc_curl_finish — release a single-transfer's libcurl resources and
+ * record the success/error metric, returning rc unchanged.
+ *
+ * Called at every exit of webdav_tpc_run_curl_core (success and each early
+ * failure). All handles are NULL-tolerant and start NULL, so invoking this at
+ * any point frees exactly what had been built so far — which lets the core
+ * function exit with a plain `return` instead of a shared goto/label.
+ */
+static ngx_int_t
+webdav_tpc_curl_finish(ngx_int_t rc, CURL *curl, struct curl_slist *hdrs,
+    struct curl_slist *resolve, FILE *fp)
+{
+    if (fp != NULL) {
+        fclose(fp);
+    }
+    if (hdrs != NULL) {
+        curl_slist_free_all(hdrs);
+    }
+    if (resolve != NULL) {
+        curl_slist_free_all(resolve);
+    }
+    if (curl != NULL) {
+        curl_easy_cleanup(curl);
+    }
+
+    if (rc == NGX_OK) {
+        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
+    } else {
+        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
+    }
+    return rc;
+}
+
+/*
  * webdav_tpc_run_curl_core — perform a single HTTP transfer using libcurl.
  *
  * @is_push:   0 = pull (GET remote → write to file_path)
@@ -220,6 +334,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
 {
     CURL              *curl = NULL;
     struct curl_slist *hdrs = NULL;
+    struct curl_slist *resolve = NULL;
     CURLcode           res;
     FILE              *fp = NULL;
     char               errbuf[CURL_ERROR_SIZE];
@@ -237,7 +352,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         ngx_log_error(NGX_LOG_ERR, log, 0,
                       "xrootd_webdav: curl_easy_init() failed for TPC %s",
                       log_tag);
-        goto cleanup;
+        return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
     }
 
     errbuf[0] = '\0';
@@ -266,6 +381,13 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
 #endif
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
+
+    /* TLS verification + DNS-rebind pin (W2).  A prohibited/rebind target or
+     * resolve failure aborts the transfer with 403 rather than connecting. */
+    if (tpc_curl_secure(curl, conf, url, log, &resolve) < 0) {
+        rc = NGX_HTTP_FORBIDDEN;
+        return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
+    }
 
     if (conf->tpc_timeout > 0) {
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) conf->tpc_timeout);
@@ -297,7 +419,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
                 ngx_log_error(NGX_LOG_ERR, log, 0,
                               "xrootd_webdav: curl_slist_append() OOM for TPC %s",
                               log_tag);
-                goto cleanup;
+                return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
             }
             hdrs = next;
         }
@@ -312,7 +434,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                           "xrootd_webdav: TPC push fopen(\"%s\") failed",
                           file_path);
-            goto cleanup;
+            return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
         }
         if (fstat(fileno(fp), &st) == 0) {
             curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
@@ -326,7 +448,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                           "xrootd_webdav: TPC pull fopen(\"%s\") failed",
                           file_path);
-            goto cleanup;
+            return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
         }
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
     }
@@ -341,23 +463,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         rc = NGX_HTTP_BAD_GATEWAY;
     }
 
-cleanup:
-    if (fp != NULL) {
-        fclose(fp);
-    }
-    if (hdrs != NULL) {
-        curl_slist_free_all(hdrs);
-    }
-    if (curl != NULL) {
-        curl_easy_cleanup(curl);
-    }
-
-    if (rc == NGX_OK) {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
-    } else {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-    }
-    return rc;
+    return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
 }
 
 ngx_int_t
@@ -382,6 +488,46 @@ webdav_tpc_run_curl_push(ngx_log_t *log,
     return webdav_tpc_run_curl_core(log, conf, transfer_headers,
                                     1, local_path, dest_url, "push",
                                     transfer_id);
+}
+
+/*
+ * webdav_tpc_run_curl_multi_finish — tear down a curl_multi run and record the
+ * success/error metric, returning rc unchanged.
+ *
+ * Called at every exit of webdav_tpc_run_curl_pull_multi (success and each early
+ * failure). The easy[], hdrs[] and resolve[] arrays start zeroed, so iterating
+ * all n_streams slots frees exactly the handles that were set up before the exit
+ * — letting the driver exit with a plain `return` instead of a shared
+ * goto/label. cm is created before the first failure site, so it is always live.
+ */
+static ngx_int_t
+webdav_tpc_run_curl_multi_finish(ngx_int_t rc, CURLM *cm, CURL **easy,
+    struct curl_slist **hdrs, struct curl_slist **resolve,
+    ngx_uint_t n_streams, int fd)
+{
+    ngx_uint_t i;
+
+    for (i = 0; i < n_streams; i++) {
+        if (easy[i] != NULL) {
+            curl_multi_remove_handle(cm, easy[i]);
+            curl_easy_cleanup(easy[i]);
+        }
+        if (hdrs[i] != NULL) {
+            curl_slist_free_all(hdrs[i]);
+        }
+        if (resolve[i] != NULL) {
+            curl_slist_free_all(resolve[i]);
+        }
+    }
+    curl_multi_cleanup(cm);
+    close(fd);
+
+    if (rc == NGX_OK) {
+        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
+    } else {
+        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
+    }
+    return rc;
 }
 
 /*
@@ -410,6 +556,7 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
     CURLM             *cm = NULL;
     CURL              *easy[XROOTD_TPC_MAX_STREAMS];
     struct curl_slist *hdrs[XROOTD_TPC_MAX_STREAMS];
+    struct curl_slist *resolve[XROOTD_TPC_MAX_STREAMS];
     ms_stream_ctx_t    write_ctx[XROOTD_TPC_MAX_STREAMS];
     int                fd = -1;
     ngx_uint_t         i;
@@ -462,6 +609,7 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
 
     ngx_memzero(easy, sizeof(easy));
     ngx_memzero(hdrs, sizeof(hdrs));
+    ngx_memzero(resolve, sizeof(resolve));
 
     /* Set up N easy handles, each covering a disjoint byte range. */
     for (i = 0; i < n_streams; i++) {
@@ -478,13 +626,16 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
         easy[i] = curl_easy_init();
         if (easy[i] == NULL) {
             rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
-            goto cleanup;
+            return webdav_tpc_run_curl_multi_finish(rc, cm, easy, hdrs,
+                                                    resolve, n_streams, fd);
         }
 
         if (tpc_curl_apply_conf(easy[i], conf, source_url, transfer_headers,
-                                &hdrs[i]) < 0) {
-            rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
-            goto cleanup;
+                                log, &hdrs[i], &resolve[i]) < 0) {
+            /* Egress check failed (prohibited/rebind) or OOM — abort. */
+            rc = NGX_HTTP_FORBIDDEN;
+            return webdav_tpc_run_curl_multi_finish(rc, cm, easy, hdrs,
+                                                    resolve, n_streams, fd);
         }
 
         snprintf(range_buf, sizeof(range_buf), "%lld-%lld",
@@ -509,7 +660,8 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
                           "xrootd_webdav: curl_multi_wait error: %s",
                           curl_multi_strerror(mc));
             rc = NGX_HTTP_BAD_GATEWAY;
-            goto cleanup;
+            return webdav_tpc_run_curl_multi_finish(rc, cm, easy, hdrs,
+                                                    resolve, n_streams, fd);
         }
         curl_multi_perform(cm, &still_running);
     }
@@ -530,23 +682,6 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
         }
     }
 
-cleanup:
-    for (i = 0; i < n_streams; i++) {
-        if (easy[i] != NULL) {
-            curl_multi_remove_handle(cm, easy[i]);
-            curl_easy_cleanup(easy[i]);
-        }
-        if (hdrs[i] != NULL) {
-            curl_slist_free_all(hdrs[i]);
-        }
-    }
-    curl_multi_cleanup(cm);
-    close(fd);
-
-    if (rc == NGX_OK) {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
-    } else {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
-    }
-    return rc;
+    return webdav_tpc_run_curl_multi_finish(rc, cm, easy, hdrs, resolve,
+                                            n_streams, fd);
 }

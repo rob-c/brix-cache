@@ -69,6 +69,17 @@ ngx_stream_xrootd_send(ngx_event_t *wev)
         return;
     }
 
+    /*
+     * Phase 31 W2.1: a windowed read's chunk just finished draining from
+     * read_scratch — read and send the next window before accepting any new
+     * request.  The pump posts the next window (state XRD_ST_AIO) or finishes
+     * and resumes the read side itself.
+     */
+    if (ctx->rd_win_active) {
+        xrootd_read_window_pump(ctx, c, conf);
+        return;
+    }
+
     ctx->state = XRD_ST_REQ_HEADER;
     ctx->hdr_pos = 0;
     ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,

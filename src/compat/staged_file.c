@@ -9,10 +9,21 @@
 #include "staged_file.h"
 #include "tmp_path.h"
 #include "../path/path.h"
+#include "../path/beneath.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+
+/*
+ * Confinement (Phase 8): the temp file and its final destination always live
+ * under root_canon (xrootd_make_tmp_path derives the temp name next to
+ * final_path, which the caller already confined to the export root).  We open a
+ * kernel-confinement rootfd on root_canon and route the temp create / rename /
+ * unlink through the beneath API so the operation is bounded by the kernel
+ * regardless of how the caller derived the path.  A path that does not strip
+ * cleanly under root_canon is refused (EXDEV) rather than touched raw.
+ */
 
 /*
  * WHAT: Open a unique temporary file inside the confined root_canon for atomic write.
@@ -42,7 +53,10 @@ xrootd_staged_open(ngx_log_t *log, const char *root_canon,
     const char *final_path, int open_flags, mode_t mode, ngx_uint_t attempts,
     xrootd_staged_file_t *staged)
 {
-    ngx_uint_t i;
+    ngx_uint_t  i;
+    int         rootfd;
+
+    (void) log;
 
     if (staged == NULL || final_path == NULL) {
         errno = EINVAL;
@@ -56,28 +70,44 @@ xrootd_staged_open(ngx_log_t *log, const char *root_canon,
         attempts = 16;
     }
 
+    rootfd = xrootd_beneath_open_root(root_canon);
+    if (rootfd < 0) {
+        return NGX_ERROR;
+    }
+
     for (i = 0; i < attempts; i++) {
+        const char *rel;
+
         if (xrootd_make_tmp_path(final_path, staged->tmp_path,
                                  sizeof(staged->tmp_path)) != NGX_OK)
         {
             errno = ENAMETOOLONG;
+            close(rootfd);
             return NGX_ERROR;
         }
 
-        staged->fd = xrootd_open_confined_canon(log, root_canon,
-                                                staged->tmp_path,
-                                                open_flags | O_CREAT | O_EXCL,
-                                                mode);
+        rel = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
+        if (rel == NULL) {
+            errno = EXDEV;
+            close(rootfd);
+            return NGX_ERROR;
+        }
+
+        staged->fd = xrootd_open_beneath(rootfd, rel,
+                                         open_flags | O_CREAT | O_EXCL, mode);
         if (staged->fd != NGX_INVALID_FILE) {
             staged->active = 1;
+            close(rootfd);
             return NGX_OK;
         }
 
         if (errno != EEXIST) {
+            close(rootfd);
             return NGX_ERROR;
         }
     }
 
+    close(rootfd);
     errno = EEXIST;
     return NGX_ERROR;
 }
@@ -108,20 +138,38 @@ xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
         return NGX_ERROR;
     }
 
+    int         rootfd;
+    const char *tmp_rel, *final_rel;
+
+    (void) log;
+
     if (staged->fd != NGX_INVALID_FILE) {
         ngx_close_file(staged->fd);
         staged->fd = NGX_INVALID_FILE;
     }
 
-    if (xrootd_rename_confined_canon(log, root_canon, staged->tmp_path,
-                                     final_path) != 0)
-    {
-        (void) xrootd_unlink_confined_canon(log, root_canon,
-                                            staged->tmp_path, 0);
+    rootfd = xrootd_beneath_open_root(root_canon);
+    if (rootfd < 0) {
+        staged->active = 0;
+        return NGX_ERROR;
+    }
+    tmp_rel   = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
+    final_rel = xrootd_beneath_strip_root(root_canon, final_path);
+    if (tmp_rel == NULL || final_rel == NULL) {
+        close(rootfd);
+        staged->active = 0;
+        errno = EXDEV;
+        return NGX_ERROR;
+    }
+
+    if (xrootd_rename_beneath(rootfd, tmp_rel, final_rel) != 0) {
+        (void) xrootd_unlink_beneath(rootfd, tmp_rel, 0);
+        close(rootfd);
         staged->active = 0;
         return NGX_ERROR;
     }
 
+    close(rootfd);
     staged->active = 0;
     staged->tmp_path[0] = '\0';
     return NGX_OK;
@@ -152,14 +200,24 @@ xrootd_staged_abort(ngx_log_t *log, const char *root_canon,
         return;
     }
 
+    (void) log;
+
     if (staged->fd != NGX_INVALID_FILE) {
         ngx_close_file(staged->fd);
         staged->fd = NGX_INVALID_FILE;
     }
 
     if (remove_tmp && staged->active && staged->tmp_path[0] != '\0') {
-        (void) xrootd_unlink_confined_canon(log, root_canon,
-                                            staged->tmp_path, 0);
+        int         rootfd = xrootd_beneath_open_root(root_canon);
+        const char *tmp_rel;
+
+        if (rootfd >= 0) {
+            tmp_rel = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
+            if (tmp_rel != NULL) {
+                (void) xrootd_unlink_beneath(rootfd, tmp_rel, 0);
+            }
+            close(rootfd);
+        }
     }
 
     staged->active = 0;

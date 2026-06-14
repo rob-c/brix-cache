@@ -161,6 +161,54 @@ json_get_int64(const char *json, size_t json_len, const char *key,
     return 0;
 }
 
+int
+json_string_or_array_contains(const char *json, size_t json_len,
+    const char *key, const char *needle)
+/* WHAT: Membership test for a JWT claim that may be a string or an array of
+ * strings (RFC 7519 §4.1.3 "aud"). Returns 1 if json[key] is a string equal to
+ * needle, or an array containing a string equal to needle; 0 otherwise.
+ * WHY: json_get_string() rejects arrays, so using it for the audience check
+ * silently false-denies tokens whose aud is the (spec-legal, common) array form.
+ * HOW: json_loadb() parse; json_object_get(key); if string, strcmp; if array,
+ * json_array_foreach + strcmp each string item; json_decref; return match. */
+{
+    json_error_t  err;
+    json_t       *root;
+    json_t       *value;
+    json_t       *item;
+    size_t        index;
+    int           found = 0;
+
+    if (json == NULL || key == NULL || needle == NULL) {
+        return 0;
+    }
+
+    root = json_loadb(json, json_len, 0, &err);
+    if (root == NULL || !json_is_object(root)) {
+        if (root != NULL) {
+            json_decref(root);
+        }
+        return 0;
+    }
+
+    value = json_object_get(root, key);
+    if (json_is_string(value)) {
+        found = (strcmp(json_string_value(value), needle) == 0);
+    } else if (json_is_array(value)) {
+        json_array_foreach(value, index, item) {
+            if (json_is_string(item)
+                && strcmp(json_string_value(item), needle) == 0)
+            {
+                found = 1;
+                break;
+            }
+        }
+    }
+
+    json_decref(root);
+    return found;
+}
+
 const char *
 json_backend_name(void)
 /* WHAT: Return the string name of the active JSON parsing backend.

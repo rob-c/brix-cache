@@ -4,6 +4,49 @@
 
 #include <string.h>
 
+/*
+ * auth.c — XRootD `unix` (client-asserted UNIX-name) authentication handler
+ *
+ * WHAT: Implements the kXR_auth handler for the XRootD `unix` security
+ *       protocol. The client merely *declares* a user name (and optional
+ *       group) in the credential blob; there is no cryptographic proof.
+ *       xrootd_handle_unix_auth() parses and character-validates those names,
+ *       populates the per-connection identity (ctx->dn, ctx->vo_list,
+ *       ctx->primary_vo, and the canonical ctx->identity), registers the
+ *       session, emits auth metrics, writes a sanitised audit line, and
+ *       replies kXR_ok — or rejects with kXR_NotAuthorized / kXR_NoMemory.
+ *
+ * WHY:  Grid sites need an unauthenticated path for trusted local clients,
+ *       sidecars, and intra-host tooling that should not have to mint a proxy
+ *       cert or token. Because `unix` is unverified, this handler is
+ *       deliberately fail-closed: by default it is honoured only for loopback
+ *       peers (unless conf->unix_trust_remote is set), and it must be
+ *       explicitly selected (conf->auth == XROOTD_AUTH_UNIX) before the GSI
+ *       auth dispatcher (../gsi/auth.c) will ever route a "unix" credtype here.
+ *       Isolating it in one file keeps the "the client names itself" attack
+ *       surface auditable in a single place.
+ *
+ * HOW:  This is the stream / root:// path, downstream of kXR_login and inside
+ *       the kXR_auth dispatcher. xrootd_handle_unix_auth() first gates on
+ *       xrootd_unix_peer_is_loopback() (over the connection sockaddr), then
+ *       validates the leading "unix\0" tag in ctx->payload, splits the
+ *       remaining space/NUL-delimited bytes into user and optional group, runs
+ *       each through xrootd_unix_copy_name() (which enforces an allow-list of
+ *       safe bytes via xrootd_unix_name_byte_ok() and a bounded destination).
+ *       Validated names are copied into the identity fields, the session is
+ *       registered, and VO/unique-user metrics are bumped via
+ *       xrootd_unix_track_identity(). Every exit path increments the
+ *       XROOTD_AUTHN_UNIX auth metric (fail=0 / ok=1) and returns through the
+ *       XROOTD_RETURN_ERR / XROOTD_RETURN_OK framing macros.
+ */
+
+/*
+ * Return non-zero when the peer connection originates from the local host:
+ * an IPv4 127.0.0.0/8 address, the IPv6 ::1 loopback, or any AF_UNIX socket.
+ * This is the default trust gate for `unix` auth (bypassed only when
+ * conf->unix_trust_remote is set), so a NULL connection/sockaddr is treated
+ * as untrusted (returns 0).
+ */
 static ngx_flag_t
 xrootd_unix_peer_is_loopback(ngx_connection_t *c)
 {
@@ -24,6 +67,13 @@ xrootd_unix_peer_is_loopback(ngx_connection_t *c)
     return c->sockaddr->sa_family == AF_UNIX;
 }
 
+/*
+ * Allow-list predicate for a single byte of an asserted user/group name.
+ * Accepts only [A-Za-z0-9] plus a small set of identity-safe punctuation
+ * ('_', '-', '.', '@', '+'). Restricting the alphabet up front keeps the
+ * unverified, attacker-controlled name out of log lines, metric labels, and
+ * downstream ACL comparisons as anything other than plain printable text.
+ */
 static ngx_flag_t
 xrootd_unix_name_byte_ok(u_char ch)
 {
@@ -33,6 +83,14 @@ xrootd_unix_name_byte_ok(u_char ch)
             || ch == '_' || ch == '-' || ch == '.' || ch == '@' || ch == '+');
 }
 
+/*
+ * Validate and NUL-terminate one wire name into a fixed-size buffer.
+ * Rejects (NGX_ERROR) an empty source, a length that would not leave room for
+ * the terminator (len >= dst_len), or any byte failing
+ * xrootd_unix_name_byte_ok(); otherwise copies `len` bytes and appends '\0',
+ * returning NGX_OK. This is the single choke point that bounds and sanitises
+ * both the user and the optional group strings.
+ */
 static ngx_int_t
 xrootd_unix_copy_name(char *dst, size_t dst_len, const u_char *src,
     size_t len)
@@ -56,6 +114,12 @@ xrootd_unix_copy_name(char *dst, size_t dst_len, const u_char *src,
     return NGX_OK;
 }
 
+/*
+ * Record the freshly-authenticated identity in the shared metrics segment:
+ * the primary VO (group) as VO activity and the DN (user) as a unique user.
+ * Silently no-ops when the metrics SHM is unavailable or the corresponding
+ * identity field is empty, so it is safe to call unconditionally on success.
+ */
 static void
 xrootd_unix_track_identity(xrootd_ctx_t *ctx)
 {
@@ -74,6 +138,21 @@ xrootd_unix_track_identity(xrootd_ctx_t *ctx)
     }
 }
 
+/*
+ * Public entry point for the XRootD `unix` auth scheme, called from the GSI
+ * auth dispatcher (../gsi/auth.c) once it has matched the "unix" credtype and
+ * confirmed conf->auth == XROOTD_AUTH_UNIX.
+ *
+ * Enforces the loopback trust gate (unless conf->unix_trust_remote), validates
+ * the "unix\0" tag, parses the space/NUL-delimited user and optional group out
+ * of ctx->payload, and character-validates both via xrootd_unix_copy_name().
+ * On success it marks the session authenticated (ctx->auth_done = 1,
+ * token_auth = 0), fills ctx->dn / ctx->vo_list / ctx->primary_vo and the
+ * canonical ctx->identity, registers the session, bumps metrics, logs a
+ * sanitised audit line, and returns kXR_ok via XROOTD_RETURN_OK. Any failure
+ * increments the failed-auth metric and returns kXR_NotAuthorized (bad peer,
+ * malformed credential, invalid user/group) or kXR_NoMemory (identity alloc).
+ */
 ngx_int_t
 xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
@@ -86,25 +165,19 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     char          safe_group[XROOTD_SSS_GROUP_MAX * 4];
 
     if (!conf->unix_trust_remote && !xrootd_unix_peer_is_loopback(c)) {
-        xrootd_log_access(ctx, c, "AUTH", "-", "unix",
-                          0, kXR_NotAuthorized,
-                          "unix auth is restricted to loopback peers", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
         xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 0);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "unix auth is restricted to loopback peers");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
+                          kXR_NotAuthorized,
+                          "unix auth is restricted to loopback peers");
     }
 
     if (ctx->payload == NULL || ctx->cur_dlen < 6
         || ngx_strncmp(ctx->payload, "unix", 4) != 0
         || ctx->payload[4] != '\0')
     {
-        xrootd_log_access(ctx, c, "AUTH", "-", "unix",
-                          0, kXR_NotAuthorized, "malformed unix credential", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
         xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 0);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "malformed unix credential");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
+                          kXR_NotAuthorized, "malformed unix credential");
     }
 
     p = ctx->payload + 5;
@@ -132,26 +205,18 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
             && xrootd_unix_copy_name(group, sizeof(group), group_start,
                                      group_len) != NGX_OK)
         {
-            xrootd_log_access(ctx, c, "AUTH", "-", "unix",
-                              0, kXR_NotAuthorized,
-                              "invalid unix group", 0);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
             xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 0);
-            return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                     "invalid unix group");
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
+                              kXR_NotAuthorized, "invalid unix group");
         }
     }
 
     if (xrootd_unix_copy_name(user, sizeof(user), user_start, user_len)
         != NGX_OK)
     {
-        xrootd_log_access(ctx, c, "AUTH", "-", "unix",
-                          0, kXR_NotAuthorized,
-                          "invalid unix user", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
         xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 0);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "invalid unix user");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
+                          kXR_NotAuthorized, "invalid unix user");
     }
 
     ctx->auth_done = 1;
@@ -185,9 +250,6 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
                   "xrootd: unix auth OK user=\"%s\" group=\"%s\"",
                   safe_user, safe_group);
 
-    xrootd_log_access(ctx, c, "AUTH", "-", "unix", 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_AUTH);
     xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 1);
-
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix", 0);
 }

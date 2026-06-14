@@ -26,6 +26,20 @@ typedef struct {
     ngx_int_t          http_status;
 } webdav_copy_collection_task_t;
 
+/*
+ * Copy a collection (directory) atomically.
+ * Strategy: build the whole copy in a sibling temp directory, then rename it
+ * into place — so a concurrent reader never sees a half-copied tree.
+ *   1. mkdir temp dir (ENOENT on the parent -> 409 Conflict);
+ *   2. copy dead props + fattrs, then (depth:infinity) recurse the contents;
+ *   3. if the destination already existed as a dir, remove it (rename can't
+ *      replace a non-empty dir);
+ *   4. rename temp -> dst.
+ * Every failure after the temp dir exists removes it, so no orphan is left.
+ * Returns 201/204 on success or an HTTP error status.  May run on a worker
+ * thread (see webdav_copy_collection_thread), so it uses only its parameters
+ * and thread-safe confined-FS helpers — no ngx_http_request_t access.
+ */
 static ngx_int_t
 webdav_copy_collection_execute(ngx_log_t *log, const char *root_canon,
     const char *src_path, const char *dst_path, mode_t src_mode,
@@ -80,6 +94,11 @@ webdav_copy_collection_execute(ngx_log_t *log, const char *root_canon,
     return dst_existed ? NGX_HTTP_NO_CONTENT : NGX_HTTP_CREATED;
 }
 
+/*
+ * Thread-pool worker: runs the (potentially long) recursive collection copy off
+ * the event loop.  Only writes t->http_status; the response is sent later by
+ * webdav_copy_collection_done back on the event loop.
+ */
 static void
 webdav_copy_collection_thread(void *data, ngx_log_t *log)
 {
@@ -95,6 +114,11 @@ webdav_copy_collection_thread(void *data, ngx_log_t *log)
                                                     t->depth_infinity);
 }
 
+/*
+ * Completion handler (event loop): the async re-entry point after the worker
+ * finishes.  Sends 201/204 on success or finalizes with the error status, and
+ * releases the request reference taken in webdav_copy_collection_post_task.
+ */
 static void
 webdav_copy_collection_done(ngx_event_t *ev)
 {
@@ -115,6 +139,13 @@ webdav_copy_collection_done(ngx_event_t *ev)
     webdav_metrics_finalize_request(r, status);
 }
 
+/*
+ * Try to offload a collection COPY to the thread pool.
+ * Returns NGX_DONE if queued (request kept alive via r->main->count++),
+ * NGX_DECLINED if no thread pool is available (caller runs it synchronously),
+ * NGX_ERROR on allocation/post failure.  Stack-buffer paths are copied into the
+ * task context so they remain valid after this returns.
+ */
 static ngx_int_t
 webdav_copy_collection_post_task(ngx_http_request_t *r,
     ngx_http_xrootd_webdav_loc_conf_t *conf, const char *src_path,
@@ -254,11 +285,13 @@ webdav_handle_copy(ngx_http_request_t *r)
 
     dst_existed = (stat(dst_path, &dst_sb) == 0);
 
-    rc = webdav_check_locks(r, dst_path, 1);
+    rc = webdav_check_locks_tree(r, dst_path);
     if (rc != NGX_OK) {
         return rc;
     }
 
+    /* Reject copy-onto-self: same (dev, ino) means source and destination are
+     * the same file, which would corrupt/truncate it. RFC 4918 §9.8.5 -> 403. */
     if (dst_existed
         && src_sb.st_ino == dst_sb.st_ino
         && src_sb.st_dev == dst_sb.st_dev)
@@ -276,6 +309,11 @@ webdav_handle_copy(ngx_http_request_t *r)
     }
 
     if (S_ISDIR(src_sb.st_mode)) {
+        /* Collection copy. For depth:infinity (potentially large), try to
+         * offload to a thread first: NGX_DONE means queued (we are finished
+         * here), NGX_ERROR is fatal, and NGX_DECLINED (no thread pool) falls
+         * through to the synchronous execute below.  Depth:0 always runs
+         * synchronously since it only creates the top directory. */
         if (depth_infinity) {
             rc = webdav_copy_collection_post_task(r, conf, src_path, dst_path,
                                                   src_sb.st_mode, dst_existed,
@@ -288,6 +326,7 @@ webdav_handle_copy(ngx_http_request_t *r)
             if (rc == NGX_ERROR) {
                 return NGX_HTTP_INTERNAL_SERVER_ERROR;
             }
+            /* rc == NGX_DECLINED: no thread pool, fall through to run inline. */
         }
 
         rc = webdav_copy_collection_execute(r->connection->log,
@@ -335,9 +374,6 @@ webdav_handle_copy(ngx_http_request_t *r)
         webdav_dead_props_copy(r->connection->log, src_path, dst_path);
     }
 
-    r->headers_out.status = dst_existed ? NGX_HTTP_NO_CONTENT
-                                        : NGX_HTTP_CREATED;
-    r->headers_out.content_length_n = 0;
-    ngx_http_send_header(r);
-    return ngx_http_send_special(r, NGX_HTTP_LAST);
+    return webdav_send_no_body(r, dst_existed ? NGX_HTTP_NO_CONTENT
+                                              : NGX_HTTP_CREATED);
 }

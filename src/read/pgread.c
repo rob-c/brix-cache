@@ -49,22 +49,36 @@
 #include "../ngx_xrootd_module.h"
 
 size_t
-xrootd_pgread_encode_pages(const u_char *src, size_t len, u_char *dst)
+xrootd_pgread_encode_pages(const u_char *src, size_t len, off_t offset,
+                           u_char *dst)
 {
     const u_char *p;
     u_char       *out;
     size_t        remaining;
+    off_t         cur;
 
     p = src;
     out = dst;
     remaining = len;
+    cur = offset;
 
     while (remaining > 0) {
+        size_t   to_boundary;
         size_t   page_data;
         uint32_t crc_be;
 
-        page_data = (remaining >= (size_t) kXR_pgPageSZ)
-                    ? (size_t) kXR_pgPageSZ : remaining;
+        /*
+         * Pages are aligned to the *file* offset, not the start of this read:
+         * the first fragment is shortened so every later page begins on a
+         * kXR_pgPageSZ multiple.  Official XRootD does the same, and the
+         * pgRetry mechanism plus XrdCl::AsyncPageReader assume each digest
+         * covers an aligned page — a fixed split from the read start would
+         * mis-frame retries on unaligned reads.  kXR_pgPageSZ is a power of
+         * two, so (cur & (kXR_pgPageSZ - 1)) is the in-page offset.
+         */
+        to_boundary = (size_t) kXR_pgPageSZ
+                      - (size_t) (cur & (off_t) (kXR_pgPageSZ - 1));
+        page_data = (remaining < to_boundary) ? remaining : to_boundary;
 
         /* XRootD wire format per page: [CRC32c(4)][data(page_size)]
          * AsyncPageReader::InitIOV() reads digest first, then page data. */
@@ -72,6 +86,7 @@ xrootd_pgread_encode_pages(const u_char *src, size_t len, u_char *dst)
         ngx_memcpy(out, &crc_be, 4);
         out += 4 + page_data;
         p += page_data;
+        cur += page_data;
         remaining -= page_data;
     }
 
@@ -87,7 +102,6 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
     size_t                        rlen;
     int                           fd;
     ssize_t                       nread;
-    size_t                        n_pages;
     u_char                       *flat_buf;
     u_char                       *out_buf;
     size_t                        out_size;
@@ -105,6 +119,18 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
     if (!xrootd_validate_read_handle(ctx, c, idx, "PGREAD",
                                      XROOTD_OP_PGREAD, &validate_rc)) {
         return validate_rc;
+    }
+
+    /*
+     * Phase 26: a slice-mode handle parks its fd on /dev/null, so a raw pread
+     * here would silently return an empty page-mode response instead of the
+     * cached bytes.  Only kXR_read is wired into the slice serving path; reject
+     * paged reads on such handles rather than returning wrong data.
+     */
+    if (ctx->files[idx].slice_mode) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_PGREAD);
+        return xrootd_send_error(ctx, c, kXR_Unsupported,
+                                 "pgread not supported on slice-cached handle");
     }
 
     if (offset < 0) {
@@ -138,13 +164,21 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
         rconf = ngx_stream_get_module_srv_conf(
             (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
 
-        n_pages_max = (rlen + kXR_pgPageSZ - 1) / kXR_pgPageSZ;
+        /*
+         * File-offset alignment can split an otherwise single-page read across
+         * two pages (short first fragment + remainder), so the page count is
+         * derived from the in-page offset, not just rlen — otherwise the
+         * scratch/out region would be one CRC short.
+         */
+        n_pages_max = ((size_t) (offset & (kXR_pgPageSZ - 1)) + rlen
+                       + kXR_pgPageSZ - 1) / kXR_pgPageSZ;
         if (n_pages_max == 0) {
             n_pages_max = 1;
         }
         scratch_size = rlen + n_pages_max * kXR_pgUnitSZ;
 
-        scratch = xrootd_get_read_scratch(ctx, c, scratch_size);
+        scratch = XROOTD_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size,
+                                     scratch_size);
         if (scratch == NULL) {
             return NGX_ERROR;
         }
@@ -154,9 +188,17 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
             xrootd_pgread_aio_t *t;
             ngx_flag_t           posted;
 
-            task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_pgread_aio_t));
+            task = ctx->pgread_aio_task;
             if (task == NULL) {
-                return NGX_ERROR;
+                task = ngx_thread_task_alloc(c->pool,
+                                             sizeof(xrootd_pgread_aio_t));
+                if (task == NULL) {
+                    return NGX_ERROR;
+                }
+                ctx->pgread_aio_task = task;
+            } else {
+                task->next = NULL;
+                task->event.complete = 0;
             }
 
             t = task->ctx;
@@ -171,9 +213,7 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
             t->streamid[0] = ctx->cur_streamid[0];
             t->streamid[1] = ctx->cur_streamid[1];
 
-            task->handler = xrootd_pgread_aio_thread;
-            task->event.handler = xrootd_pgread_aio_done;
-            task->event.data = task;
+            xrootd_task_bind(task, xrootd_pgread_aio_thread, xrootd_pgread_aio_done);
 
             (void) xrootd_aio_post_task(ctx, c, rconf->common.thread_pool, task,
                                         "xrootd: thread_task_post failed, sync pgread fallback",
@@ -198,14 +238,10 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
         flat_buf = scratch;
         rlen     = (size_t) nread;
 
-        n_pages = (rlen + kXR_pgPageSZ - 1) / kXR_pgPageSZ;
-        if (n_pages == 0) {
-            n_pages = 1;
-        }
-
         /* Encoded output placed at scratch[original rlen..] */
         out_buf  = scratch + (scratch_size - n_pages_max * kXR_pgUnitSZ);
-        out_size = xrootd_pgread_encode_pages(flat_buf, rlen, out_buf);
+        out_size = xrootd_pgread_encode_pages(flat_buf, rlen, (off_t) offset,
+                                              out_buf);
     }
 
     hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
@@ -253,6 +289,7 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
     ctx->files[idx].bytes_read += rlen;
     ctx->session_bytes += rlen;
+    xrootd_rl_charge_ctx(ctx, rlen);  /* Phase 25 bandwidth */
 
     if (rconf->access_log_fd != NGX_INVALID_FILE) {
         snprintf(detail, sizeof(detail), "%lld+%zu", (long long) offset, rlen);

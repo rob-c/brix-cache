@@ -106,6 +106,37 @@ The module's `config` script (at the root of this repository) runs automatically
 - Links `-lssl -lcrypto` for OpenSSL/GSI support
 - VOMS support requires no compile-time flags — `libvomsapi.so.1` is loaded at runtime via `dlopen`
 
+### Optional performance profile (opt-in)
+
+By default the module builds with nginx's standard optimisation flags plus the
+hardening flags listed above. For throughput-sensitive deployments you can opt
+into a higher optimisation profile by exporting `XROOTD_OPTIMIZE` **before**
+`./configure`:
+
+```bash
+XROOTD_OPTIMIZE=v2 ./configure --with-stream --with-stream_ssl_module \
+    --with-http_ssl_module --with-http_dav_module --with-threads \
+    --add-module=/opt/nginx-xrootd
+make -j"$(nproc)"
+```
+
+| `XROOTD_OPTIMIZE` | Flags added | When to use |
+|---|---|---|
+| _(unset)_ | none (default) | Portable default; no assumptions about the CPU |
+| `v2` | `-O3 -march=x86-64-v2 -fno-plt` | **Recommended.** Safe on every RHEL 9 host (SSE4.2/POPCNT are part of the x86-64-v2 baseline). Lets the compiler emit SSE4.2 everywhere, not only in the CRC-32c hot path. |
+| `v3` | `-O3 -march=x86-64-v3 -fno-plt` | Fleets where **every** CPU supports AVX2/BMI2 (Haswell+/Zen+). The binary will SIGILL on older CPUs. |
+| `native` | `-O3 -march=native -fno-plt` | Tuned to the build host only. **Do not** redistribute the resulting binary to other hardware. |
+
+The profile is compile-time only and composes with the hardening flags. For
+cross-module **link-time optimisation** (LTO), additionally pass
+`--with-cc-opt="-flto=auto" --with-ld-opt="-flto=auto"` at the top level — LTO
+must be enabled on both the compile and link steps.
+
+> The `-O3` flag is appended after nginx's own `-O`, and the last `-O` on the
+> command line wins, so there is no conflict. Re-run the full test suite after
+> changing the optimisation profile, since `-O3` can expose latent
+> undefined-behaviour bugs that `-O` masks.
+
 ### Verifying VOMS at runtime
 
 After starting nginx, check the error log for the VOMS load message:
@@ -149,6 +180,7 @@ tar xzf nginx-1.28.3.tar.gz
 cd /tmp/nginx-1.28.3
 ./configure \
     --with-stream \
+    --with-stream_ssl_module \
     --with-http_ssl_module \
     --with-threads \
     --add-module=/home/rcurrie/HEP-x/nginx-xrootd
@@ -167,6 +199,7 @@ To ensure the fix doesn't break any code paths that might be disabled by optimiz
 cd /tmp/nginx-1.28.3
 ./configure \
     --with-stream \
+    --with-stream_ssl_module \
     --with-http_ssl_module \
     --with-http_v2_module \
     --with-http_v3_module \
@@ -446,6 +479,7 @@ For development, use nginx's debug logging:
 ```bash
 ./configure \
     --with-stream \
+    --with-stream_ssl_module \
     --with-http_ssl_module \
     --with-threads \
     --with-debug \
@@ -624,3 +658,90 @@ sudo dnf update nginx nginx-mod-devel
 rpmbuild -bb --define "version_override 0.1.0" ~/rpmbuild/SPECS/nginx-mod-xrootd.spec
 sudo dnf install ~/rpmbuild/RPMS/x86_64/nginx-mod-xrootd-*.rpm
 ```
+
+---
+
+## Sanitizer build (Phase 27 W6 — memory-safety CI)
+
+A separate, opt-in build with AddressSanitizer + UndefinedBehaviorSanitizer +
+LeakSanitizer for catching heap overflow / use-after-free / leaks reachable from
+the wire. **Never the default** — it changes timing and memory layout and is
+~3× slower; use it as a CI gate and for local triage.
+
+```bash
+cd /path/to/nginx-src
+export REPO=/path/to/nginx-xrootd
+./configure --with-stream --with-stream_ssl_module --with-http_ssl_module \
+    --with-http_dav_module --with-threads --add-module=$REPO \
+    --with-cc-opt='-fsanitize=address,undefined -fno-omit-frame-pointer -g' \
+    --with-ld-opt='-fsanitize=address,undefined'
+make -j$(nproc)
+```
+
+Requires `libasan` + `libubsan` (e.g. `dnf install libasan libubsan`).
+
+Run the suites under it; LeakSanitizer reports any leak still reachable at
+process exit, ASAN catches overflow/UAF at the moment it happens:
+
+```bash
+ASAN_OPTIONS=detect_leaks=1 PYTHONPATH=tests pytest tests/ -q     # expect 0 leak reports
+ASAN_OPTIONS=detect_leaks=1 PYTHONPATH=tests pytest tests/test_cms_mesh_interop.py -q
+```
+
+fd-leak / still-reachable smoke with valgrind (catches what LSan misses):
+
+```bash
+valgrind --leak-check=full --track-fds=yes objs/nginx -t -c <conf>
+```
+
+**Known benign finding:** UBSan reports `src/core/ngx_string.c:84 … null pointer
+passed as argument 2` — this is nginx **core** (`ngx_memcpy(dst, NULL, 0)`), not
+the module, and build governance forbids editing nginx core. Suppress it with a
+`-fsanitize-ignorelist` entry or `UBSAN_OPTIONS=...` rather than patching core.
+
+After triaging, **reconfigure without the sanitizer flags** to restore the
+production binary.
+
+## Wire-parser fuzzing (Phase 27 W7)
+
+Standalone libFuzzer targets live in `tests/fuzz/` (built with
+`clang -fsanitize=fuzzer,address`); see `tests/fuzz/README.md`. The W1
+overflow-checked size helpers have a runnable target:
+
+```bash
+cd tests/fuzz
+clang -O1 -g -fsanitize=fuzzer,address,undefined -I ../../src/shared \
+    fuzz_safe_size.c -o fuzz_safe_size && ./fuzz_safe_size -max_total_time=120
+```
+
+### Running the test suite under the sanitizer (`SANITIZE=1`)
+
+`tests/manage_test_servers.sh` honours `SANITIZE=1`: it exports
+`ASAN_OPTIONS`/`UBSAN_OPTIONS`/`LSAN_OPTIONS` (with `tests/lsan.supp`) so every
+nginx the fleet launches inherits them, writing per-pid logs to
+`$TEST_ROOT/sanitize/asan.<pid>`. Workflow:
+
+```bash
+make -j$(nproc)                                  # the ASAN binary at objs/nginx
+SANITIZE=1 SKIP_XRDFS_CHECK=1 tests/manage_test_servers.sh start-all
+PYTHONPATH=tests pytest tests/ -q                # exercise the paths
+SANITIZE=1 tests/manage_test_servers.sh stop     # each process leak-checks at exit
+grep -rE 'in (xrootd_|ngx_.*xrootd)|/src/' "$TEST_ROOT"/sanitize/asan.* | grep -v src/core/
+```
+
+**ASAN at runtime works** — buffer-overflow / use-after-free / UBSan are caught
+the moment they happen during the run (the readv/auth/S3/TPC/webdav paths were
+exercised clean: no ASAN aborts).
+
+**LeakSanitizer at-exit reporting is environment-dependent and was NOT firing
+under WSL2 during development.** Root cause: nginx's daemon/worker shutdown path
+does not reliably reach LSan's `atexit` hook (the module installs a best-effort
+`__lsan_do_recoverable_leak_check()` in its `exit_process` hook, but
+`exit_process` itself was observed not to run on SIGTERM/SIGQUIT under WSL2,
+even though a standalone leaking program *is* reported correctly). On a native
+Linux CI host this typically works; if it does not, drive the check another way:
+run nginx with `master_process off` under `valgrind --leak-check=full
+--track-fds=yes` (valgrind does not depend on the atexit path), or add a
+`__lsan_do_leak_check()` call at a point the platform reaches. **Do not assume
+"no asan.* files == leak-free" until you have confirmed LSan fires on this host
+with a deliberately-injected leak (a known-good control).**

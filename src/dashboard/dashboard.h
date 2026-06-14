@@ -189,8 +189,18 @@ ngx_int_t xrootd_configure_dashboard(ngx_conf_t *cf);
  * Called by nginx when the zone is first mapped (or re-attached on reload).
  */
 ngx_int_t ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data);
+/*
+ * SHM zone init callback for the events ring (events.c).
+ * data != NULL on reload (re-creates the mutex over the inherited region);
+ * data == NULL on first start (zeroes the region, then creates the mutex).
+ * Returns NGX_OK or NGX_ERROR.
+ */
 ngx_int_t ngx_xrootd_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone,
     void *data);
+/*
+ * SHM zone init callback for the history ring (history.c).
+ * Same reload/first-start contract as the events init above; NGX_OK/NGX_ERROR.
+ */
 ngx_int_t ngx_xrootd_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone,
     void *data);
 
@@ -211,6 +221,15 @@ int xrootd_transfer_slot_alloc(
     uint8_t                  proto,
     int64_t                  now_ms);
 
+/*
+ * Extended slot allocation — superset of xrootd_transfer_slot_alloc() that also
+ * records vo, op label, and expected_bytes (use -1 if the size is unknown).
+ * All string args are copied into the SHM slot (no ownership taken); NULL
+ * identity becomes "anonymous" and NULL op becomes "transfer".  Acquires the
+ * table mutex for an O(512) free-slot scan.  Returns the slot index (>= 0), or
+ * -1 if the table is full (logs a dashboard event; the transfer runs untracked).
+ * now_ms is epoch/current milliseconds; stored as start_ms.
+ */
 int xrootd_transfer_slot_alloc_ex(
     xrootd_transfer_table_t *t,
     const u_char             sessid[16],
@@ -234,24 +253,47 @@ void xrootd_transfer_slot_update(
     ngx_atomic_int_t         nbytes,
     int64_t                  now_ms);
 
+/*
+ * Add nbytes to the slot's cumulative byte counter (only if nbytes > 0),
+ * force state back to ACTIVE, and stamp last_ms = now_ms.  Lock-free; this is
+ * the underlying implementation that xrootd_transfer_slot_update() forwards to.
+ * No-op if slot_idx is out of range or the slot is not in use.
+ */
 void xrootd_transfer_slot_update_bytes(
     xrootd_transfer_table_t *t,
     int                      slot_idx,
     ngx_atomic_int_t         nbytes,
     int64_t                  now_ms);
 
+/*
+ * Set the slot's display state to one of XROOTD_XFER_STATE_* and stamp both
+ * state_since_ms and last_ms with now_ms.  Lock-free; no-op if slot_idx is out
+ * of range or the slot is not in use.
+ */
 void xrootd_transfer_slot_set_state(
     xrootd_transfer_table_t *t,
     int                      slot_idx,
     uint8_t                  state,
     int64_t                  now_ms);
 
+/*
+ * Copy reason into the slot's last_error field (NULL becomes "error"; string is
+ * copied, not borrowed), set state to XROOTD_XFER_STATE_ERROR, stamp
+ * state_since_ms/last_ms, and emit a dashboard IO event for the activity feed.
+ * Lock-free; no-op if slot_idx is out of range or the slot is not in use.
+ */
 void xrootd_transfer_slot_set_error(
     xrootd_transfer_table_t *t,
     int                      slot_idx,
     const char              *reason,
     int64_t                  now_ms);
 
+/*
+ * Record the remote endpoint of a third-party copy: remote_host and path_hint
+ * are copied into the slot (not borrowed), and remote_status/curl_exit are
+ * stored verbatim for display.  Lock-free; no-op if slot_idx is out of range or
+ * the slot is not in use.
+ */
 void xrootd_transfer_slot_set_tpc_remote(
     xrootd_transfer_table_t *t,
     int                      slot_idx,
@@ -260,6 +302,13 @@ void xrootd_transfer_slot_set_tpc_remote(
     int                      remote_status,
     int                      curl_exit);
 
+/*
+ * Atomically increment one of the slot's per-op counters based on the op label
+ * (case-insensitive): read/GET/GetObject -> read_ops; write/PUT/PutObject/
+ * UploadPart -> write_ops; sync/commit -> sync_ops; close -> close_ops.
+ * Unrecognised labels are ignored.  Lock-free; no-op if slot_idx is out of
+ * range, the slot is not in use, or op is NULL.
+ */
 void xrootd_transfer_slot_count_op(
     xrootd_transfer_table_t *t,
     int                      slot_idx,
@@ -281,12 +330,37 @@ void xrootd_transfer_slot_free_all_for_session(
     xrootd_transfer_table_t *t,
     const u_char             sessid[16]);
 
+/*
+ * Push one entry onto the SHM event ring (overwriting the oldest if full).
+ * class_id is XROOTD_DASH_EVENT_*; message/path_hint are copied and sanitised
+ * (control bytes -> '?'), and path_hint is truncated at the first '?'/'#' to
+ * drop query strings.  Takes the events mutex briefly; silently no-ops if the
+ * events SHM zone is not configured.
+ */
 void xrootd_dashboard_event_add(uint8_t class_id, uint8_t proto,
     uint16_t status, const char *message, const char *path_hint);
+/*
+ * Copy up to max_events of the most recent events into caller-owned out[],
+ * oldest-first.  Takes the events mutex; returns the number actually written
+ * (0 if no events or the zone is unconfigured).  out must hold max_events slots.
+ */
 ngx_uint_t xrootd_dashboard_events_snapshot(xrootd_dashboard_event_t *out,
     ngx_uint_t max_events);
 
+/*
+ * Sample the current history bucket from live state: snaps now_ms down to the
+ * INTERVAL_MS boundary, zero-fills any buckets skipped since the last sample,
+ * then tallies active transfers from the dashboard table and cumulative
+ * byte/error/auth-failure totals from the metrics SHM zone.  Takes the history
+ * mutex; no-op if the history zone is unconfigured.  Call periodically (timer).
+ */
 void xrootd_dashboard_history_sample(int64_t now_ms);
+/*
+ * Copy up to max_buckets recent history buckets into caller-owned out[],
+ * chronological (oldest-first); buckets with no matching start time are skipped
+ * so n may be less than the window.  Takes the history mutex; returns the count
+ * written (0 if no history yet or the zone is unconfigured).
+ */
 ngx_uint_t xrootd_dashboard_history_snapshot(
     xrootd_dashboard_history_bucket_t *out, ngx_uint_t max_buckets);
 

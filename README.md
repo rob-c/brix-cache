@@ -92,7 +92,7 @@ curl -O https://nginx.org/download/nginx-1.28.3.tar.gz
 tar xzf nginx-1.28.3.tar.gz && cd nginx-1.28.3
 
 # 2. Configure with the module
-./configure --with-stream --with-http_ssl_module --with-threads \
+./configure --with-stream --with-stream_ssl_module --with-http_ssl_module --with-threads \
             --add-module=/path/to/nginx-xrootd
 
 # 3. Build and install
@@ -394,7 +394,7 @@ Docs are organized as a learning path — newcomers follow 01 → 02 → … and
 | **06 — Authentication** | Auth setup and PKI | [Auth Overview](docs/06-authentication/auth-overview.md), [PKI Config](docs/06-authentication/pki-config.md), [Test PKI Setup](docs/06-authentication/test-pki-setup.md) |
 | **07 — Security** | Hardening and security model | [Security Hardening Guide](docs/07-security/hardening-guide.md) |
 | **08 — Metrics & Monitoring** | Prometheus metrics, HTTPS dashboard, access logging | [Monitoring Guide](docs/08-metrics-monitoring/monitoring-guide.md), [Dashboard Feature Ideas](docs/08-metrics-monitoring/dashboard-feature-ideas.md) |
-| **09 — Developer Guide** | Contributing, testing, development workflow | [Dev Workflow](docs/09-developer-guide/dev-workflow.md), [Testing Runbook](docs/09-developer-guide/testing-runbook.md), [Dashboard Implementation Plan](docs/09-developer-guide/dashboard-feature-implementation-plan.md), [Contributing](docs/09-developer-guide/contributing.md) |
+| **09 — Developer Guide** | Contributing, testing, development workflow | [Dev Workflow](docs/09-developer-guide/dev-workflow.md), [Testing Runbook](docs/09-developer-guide/testing-runbook.md), [Feature Roadmap](docs/09-developer-guide/feature-roadmap.md), [Contributing](docs/09-developer-guide/contributing.md) |
 | **10 — Reference** | Deep technical reference (advanced) | [XRootD Concepts Deep](docs/10-reference/xrootd-concepts-deep.md), [Protocol Notes](docs/10-reference/protocol-notes.md), [Quirks & Compromises](docs/10-reference/quirks.md) |
 
 Start at [docs/index.md](docs/index.md) for a guided path based on your experience level.

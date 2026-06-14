@@ -1,7 +1,7 @@
 # xrdcp client interactions
 
 What actually happens on the wire when `xrdcp` talks to this server — which opcodes fire in which order, what the server does at each step, and where things can go wrong.
-module over:
+This applies to both transports this module supports:
 
 - native XRootD `root://`
 - WebDAV over HTTPS `davs://`

@@ -51,9 +51,9 @@ File sizes
 Servers
 -------
     nginx-xrootd:
-        XRootD+GSI    root://localhost:11095
-        WebDAV+GSI    davs://localhost:8444
-        WebDAV+token  davs://localhost:8443  (Bearer token in env)
+        XRootD+GSI    root://localhost:12795
+        WebDAV+GSI    davs://localhost:12794
+        WebDAV+token  davs://localhost:12792  (Bearer token in env)
 
     xrootd native:
         XRootD+GSI    root://localhost:12094
@@ -83,14 +83,18 @@ PROXY_PEM  = "/tmp/xrd-test/pki/user/proxy_std.pem"
 TOKEN_DIR  = "/tmp/xrd-test/tokens"
 SERVER_CERT = "/tmp/xrd-test/pki/server/hostcert.pem"
 
-NGINX_XRD_GSI_URL       = "root://localhost:11095"
-NGINX_XRD_TLS_URL       = "roots://localhost:11096"  # stream-level TLS, auth none
-NGINX_XRD_GSI_TLS_URL   = "roots://localhost:11097"  # stream-level TLS, auth gsi
-NGINX_XRD_ANON_URL      = "root://localhost:11093"   # perf config anon port
-NGINX_DAV_GSI_URL       = "davs://localhost:8444"
-NGINX_DAV_GSI_HTTP_URL  = "https://localhost:8444"   # for curl
-NGINX_DAV_TOKEN_URL     = "davs://localhost:8443"
-NGINX_DAV_TOKEN_HTTP_URL = "https://localhost:8443"  # for curl
+NGINX_XRD_GSI_URL       = "root://localhost:12795"
+NGINX_XRD_TLS_URL       = "roots://localhost:12796"  # stream-level TLS, auth none
+NGINX_XRD_GSI_TLS_URL   = "roots://localhost:12797"  # stream-level TLS, auth gsi
+NGINX_XRD_ANON_URL      = "root://localhost:12793"   # perf config anon port
+NGINX_DAV_GSI_URL       = "davs://localhost:12792"
+NGINX_DAV_GSI_HTTP_URL  = "https://localhost:12792"   # for curl (perf WebDAV port)
+NGINX_DAV_TOKEN_URL     = "davs://localhost:12792"
+NGINX_DAV_TOKEN_HTTP_URL = "https://localhost:12792"  # for curl
+
+# S3 REST — anonymous, cleartext HTTP (no native-xrootd S3 counterpart).
+NGINX_S3_HTTP_URL = "http://localhost:12798"
+S3_BUCKET         = "perfbucket"
 
 XROOTD_GSI_URL      = "root://localhost:12094"   # official xrootd GSI instance
 XROOTD_ANON_URL     = "root://localhost:12093"   # official xrootd anon instance
@@ -130,6 +134,18 @@ def _apply_xrootd_gsi_env(env: dict, proxy: Optional[str],
 # Worker functions (must be module-level for multiprocessing pickling)
 # ---------------------------------------------------------------------------
 
+def _safe_run(*args, **kwargs):
+    """subprocess.run that converts a TimeoutExpired (one hung transfer) into a
+    sentinel None instead of raising.  pool.map() re-raises any worker exception
+    and aborts the WHOLE sweep, so an uncaught timeout on a single curl/xrdcp
+    would lose every remaining concurrency level.  Returning None lets the
+    worker record a failed sample and the sweep continues."""
+    try:
+        return subprocess.run(*args, **kwargs)
+    except subprocess.TimeoutExpired:
+        return None
+
+
 def _xrootd_read_worker(args: dict) -> dict:
     """Single-process xrdcp read. One file download."""
     worker_id  = args["id"]
@@ -151,10 +167,13 @@ def _xrootd_read_worker(args: dict) -> dict:
 
     if sink == "devnull":
         t0 = time.perf_counter()
-        proc = subprocess.run(
+        proc = _safe_run(
             ["xrdcp", "-f", url, "/dev/null"],
             env=env, capture_output=True, timeout=600,
         )
+        if proc is None:
+            result["error"] = "timeout"
+            return result
         elapsed = time.perf_counter() - t0
 
         if proc.returncode != 0:
@@ -166,10 +185,13 @@ def _xrootd_read_worker(args: dict) -> dict:
 
     with tempfile.NamedTemporaryFile(delete=True) as dst:
         t0 = time.perf_counter()
-        proc = subprocess.run(
+        proc = _safe_run(
             ["xrdcp", "-f", url, dst.name],
             env=env, capture_output=True, timeout=600,
         )
+        if proc is None:
+            result["error"] = "timeout"
+            return result
         elapsed = time.perf_counter() - t0
 
         if proc.returncode != 0:
@@ -195,10 +217,13 @@ def _xrootd_write_worker(args: dict) -> dict:
     _apply_xrootd_gsi_env(env, proxy, ca_dir)
 
     t0 = time.perf_counter()
-    proc = subprocess.run(
+    proc = _safe_run(
         ["xrdcp", "-f", src, url],
         env=env, capture_output=True, timeout=600,
     )
+    if proc is None:
+        result["error"] = "timeout"
+        return result
     elapsed = time.perf_counter() - t0
 
     if proc.returncode != 0:
@@ -232,7 +257,10 @@ def _webdav_read_worker(args: dict) -> dict:
     cmd.append(url)
 
     t0 = time.perf_counter()
-    proc = subprocess.run(cmd, capture_output=True, timeout=300)
+    proc = _safe_run(cmd, capture_output=True, timeout=300)
+    if proc is None:
+        result["error"] = "timeout"
+        return result
     elapsed = time.perf_counter() - t0
 
     if proc.returncode != 0:
@@ -272,7 +300,10 @@ def _webdav_write_worker(args: dict) -> dict:
     cmd.append(url)
 
     t0 = time.perf_counter()
-    proc = subprocess.run(cmd, capture_output=True, timeout=300)
+    proc = _safe_run(cmd, capture_output=True, timeout=300)
+    if proc is None:
+        result["error"] = "timeout"
+        return result
     elapsed = time.perf_counter() - t0
 
     if proc.returncode != 0:
@@ -447,11 +478,13 @@ def _write_args_dav(base_url: str, src: str, n: int,
 class Suite:
     """One named collection of runs at various concurrency levels."""
 
-    def __init__(self, label: str, worker_fn, arg_fn, concurrency: list[int]):
+    def __init__(self, label: str, worker_fn, arg_fn, concurrency: list[int],
+                 cleanup_fn=None):
         self.label      = label
         self.worker_fn  = worker_fn
         self.arg_fn     = arg_fn        # callable(n) → list[dict]
         self.concurrency = concurrency
+        self.cleanup_fn = cleanup_fn    # called after each level (write suites)
         self.runs: list[RunStats] = []
 
     def run_one(self, n: int) -> RunStats:
@@ -464,6 +497,11 @@ class Suite:
         if stats.errors:
             sample = stats.errors[:3]
             print(f"    errors (sample): {sample}")
+        # Write suites leave large upload targets on the server FS — reclaim
+        # them after every level so peak disk use stays at one level's worth
+        # (concurrency × file size) rather than the whole sweep's.
+        if self.cleanup_fn is not None:
+            self.cleanup_fn()
         return stats
 
     def run(self) -> list[RunStats]:
@@ -534,6 +572,21 @@ def save_json(suites: list[Suite], path: str, target: str):
 # Main
 # ---------------------------------------------------------------------------
 
+def _cleanup_write_files() -> None:
+    """Delete load_write_* upload targets from the server data dir.
+
+    Both nginx (xrootd_root) and native xrootd (oss.localroot) write into
+    DATA_DIR, so the uploaded large files accumulate there.  Called after each
+    write concurrency level to bound peak disk use to one level's worth
+    (concurrency × file size) instead of the whole sweep's."""
+    import glob
+    for p in glob.glob(os.path.join(DATA_DIR, "load_write_*")):
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
 def build_suites(target: str, filename: str, concurrency: list[int],
                  mode: str, suite_filter: str, read_sink: str) -> list[Suite]:
     src_file = os.path.join(DATA_DIR, filename)
@@ -562,10 +615,30 @@ def build_suites(target: str, filename: str, concurrency: list[int],
 
     suites = []
 
+    # suite_filter may be "all" or a comma-separated list (e.g.
+    # "root-gsi,webdav-gsi,s3").  "s3" is nginx-only (no native-xrootd S3), so it
+    # is never included under "all" — it must be named explicitly.
+    _wanted = set(suite_filter.split(","))
+
     def want(name: str) -> bool:
-        return suite_filter == "all" or suite_filter == name
+        if "all" in _wanted:
+            return name != "s3"
+        return name in _wanted
 
     if mode in ("read", "both"):
+        # -- S3 REST anonymous read (nginx only; cleartext HTTP GET). Reuses the
+        #    generic curl read worker with no cert/token.
+        if want("s3") and target == "nginx":
+            suites.append(Suite(
+                label="S3 GET (read, nginx only)",
+                worker_fn=_webdav_read_worker,
+                arg_fn=lambda n: [
+                    {"id": i,
+                     "url": f"{NGINX_S3_HTTP_URL}/{S3_BUCKET}/{filename}"}
+                    for i in range(n)
+                ],
+                concurrency=concurrency,
+            ))
         # -- XRootD anonymous
         if want("root-anon"):
             suites.append(Suite(
@@ -630,6 +703,30 @@ def build_suites(target: str, filename: str, concurrency: list[int],
             ))
 
     if mode in ("write", "both"):
+        # -- S3 REST anonymous write (nginx only; cleartext HTTP PUT). Keys use
+        #    the load_write_ prefix so _cleanup_write_files reclaims them.
+        if want("s3") and target == "nginx":
+            suites.append(Suite(
+                label="S3 PUT (write, nginx only)",
+                worker_fn=_webdav_write_worker,
+                arg_fn=lambda n: [
+                    {"id": i, "src": src_file,
+                     "url": f"{NGINX_S3_HTTP_URL}/{S3_BUCKET}/"
+                            f"load_write_{i}_{os.path.basename(src_file)}"}
+                    for i in range(n)
+                ],
+                concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
+            ))
+        # -- XRootD anonymous write (cleartext; parity with the anon read suite)
+        if want("root-anon"):
+            suites.append(Suite(
+                label="XRootD root:// anon (write)",
+                worker_fn=_xrootd_write_worker,
+                arg_fn=lambda n: _write_args_xrd(xrd_anon_url, src_file, n),
+                concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
+            ))
         # -- XRootD + GSI write
         if want("root-gsi"):
             suites.append(Suite(
@@ -638,6 +735,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
                 arg_fn=lambda n: _write_args_xrd(xrd_gsi_url, src_file, n,
                                                   proxy=PROXY_PEM),
                 concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
             ))
         # -- WebDAV + GSI write
         if want("webdav-gsi"):
@@ -647,6 +745,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
                 arg_fn=lambda n: _write_args_dav(dav_gsi_url, src_file, n,
                                                   proxy=PROXY_PEM),
                 concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
             ))
         # -- WebDAV + token write
         if token and want("webdav-token"):
@@ -656,6 +755,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
                 arg_fn=lambda n, t=token: _write_args_dav(
                     dav_token_url, src_file, n, token=t),
                 concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
             ))
 
     if not suites:
@@ -679,10 +779,11 @@ def main():
                     help="comma-separated list of worker counts")
     ap.add_argument("--mode", choices=["read", "write", "both"], default="read")
     ap.add_argument("--suite",
-                    choices=["all", "root-anon", "root-gsi", "root-tls",
-                             "root-gsi-tls", "webdav-gsi", "webdav-token"],
                     default="all",
-                    help="limit run to one protocol/auth suite")
+                    help="comma-separated protocol/auth suites, or 'all'. "
+                         "Valid: root-anon, root-gsi, root-tls, root-gsi-tls, "
+                         "webdav-gsi, webdav-token, s3 (s3 is nginx-only and "
+                         "must be named explicitly).")
     ap.add_argument("--read-sink", choices=["tempfile", "devnull"],
                     default="tempfile",
                     help="where root:// read workers write downloaded bytes")

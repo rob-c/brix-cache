@@ -1,37 +1,47 @@
 /*
  * path.c — HTTP/S3 URI-to-filesystem path resolver adapter.
  *
- * WebDAV and S3 keep their historical HTTP-style return codes, but the actual
- * path validation, canonicalization, missing-parent handling, and confinement
- * checks now live in src/path/unified.c alongside the stream resolver.
+ * Phase 8: this no longer calls realpath().  WebDAV and S3 use the returned
+ * path only to drive their own confined operations (xrootd_*_confined_canon /
+ * xrootd_*_beneath / the VFS layer), all of which re-resolve under the export
+ * root with openat2(RESOLVE_BENEATH).  So confinement is enforced at the actual
+ * filesystem op, and this adapter only has to (1) reject the same malformed
+ * inputs the old resolver did — depth and "." / ".." components — and
+ * (2) produce the lexical root_canon + decoded_path join for ACL matching and
+ * logging.  It deliberately performs NO existence check: the HTTP semantics
+ * allowed missing parents (PUT/MKCOL create), and the real operation surfaces
+ * ENOENT itself.
  */
 
 #include "path.h"
-#include "../path/unified.h"
+#include "../path/beneath.h"
+#include "../path/op_path.h"
 
 int
 xrootd_http_resolve_path(const char *root_canon, const char *decoded_path,
     char *out, size_t outsz)
 {
-    xrootd_path_opts_t     opts;
-    xrootd_path_status_t   rc;
-
-    opts = (xrootd_path_opts_t) { 0 };
-    opts.allow_missing_parents = 1;
-    opts.allow_root = 1;
-
-    rc = xrootd_path_resolve_cstr(NULL, root_canon, decoded_path, opts,
-                                  out, outsz, NULL);
-    switch (rc) {
-    case XROOTD_PATH_STATUS_OK:
-        return 0;
-    case XROOTD_PATH_STATUS_INVALID:
+    if (decoded_path == NULL || root_canon == NULL) {
         return 403;
-    case XROOTD_PATH_STATUS_NOT_FOUND:
-        return 404;
-    case XROOTD_PATH_STATUS_TOO_LONG:
-        return 414;
-    default:
-        return 500;
     }
+
+    /* Validation equivalent to the retired xrootd_validate_components_cstr():
+     * depth limit + reject any "." / ".." component.  An escaping ".." is also
+     * blocked by RESOLVE_BENEATH at the op, but rejecting it up front keeps the
+     * 403 contract and avoids handing a traversal string to ACL/logging. */
+    if (xrootd_count_path_depth(decoded_path) != NGX_OK
+        || xrootd_op_path_forbidden_component(decoded_path))
+    {
+        return 403;
+    }
+
+    /* Lexical confined join (no symlink resolution here — the kernel does that
+     * under RESOLVE_BENEATH when the op runs). */
+    if (xrootd_beneath_full_path(root_canon, decoded_path, out, outsz)
+        >= (int) outsz)
+    {
+        return 414;
+    }
+
+    return 0;
 }

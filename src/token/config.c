@@ -44,6 +44,13 @@ xrootd_configure_token_auth(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
+    if (xcf->jwks_key_count > 0
+        && xrootd_jwks_register_cleanup(cf->pool, xcf->jwks_keys,
+                                        &xcf->jwks_key_count) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
     {
         /* Record mtime so the refresh timer can detect changes */
         struct stat  st;

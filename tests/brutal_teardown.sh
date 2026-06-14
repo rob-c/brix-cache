@@ -13,6 +13,32 @@ echo "Target: ${TEST_ROOT}"
 echo "[1/4] Stopping all servers..."
 "${SCRIPT_DIR}/manage_test_servers.sh" stop-all 2>/dev/null || true
 
+# stop-all only knows the servers it launched via its own pidfiles.  Test
+# fixtures also spawn nginx/xrootd directly via subprocess on fixed ports
+# (conformance topologies under /tmp/xrd_conf_topo, the mirror under
+# /tmp/xrd-mirror*, perf servers under /tmp/xrd-perf*, handshake probes under
+# /tmp/hsproto_test, reference xrootd under /tmp/xrd-test/ref).  When a pytest
+# run is interrupted those leak and hold ports, which makes the NEXT
+# `start-all` fail to bind (the classic "start-all returned exit 1 ->
+# INTERNALERROR, no tests ran" symptom).  Reap any nginx/xrootd whose command
+# line references a test path so this is a true full reset.  Matched by
+# inspecting each candidate's own cmdline (never a broad `pkill -f`, which would
+# also match this script's shell).
+reap_test_servers() {
+    local sig="$1" p cmd
+    for p in $(pgrep -x nginx 2>/dev/null) $(pgrep -x xrootd 2>/dev/null); do
+        cmd=$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null) || continue
+        case "$cmd" in
+            *"/tmp/xrd"*|*"/tmp/hsproto"*)
+                kill "$sig" "$p" 2>/dev/null || true ;;
+        esac
+    done
+}
+echo "[1b/4] Reaping leaked subprocess/topology test servers..."
+reap_test_servers -TERM
+sleep 1
+reap_test_servers -KILL
+
 # Remove all generated data and state directories
 echo "[2/4] Removing generated directories..."
 for dir in data pki tokens logs tmp; do

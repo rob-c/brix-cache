@@ -1,3 +1,34 @@
+/*
+ * unified.c — the shared realpath()-based path resolver for stream/WebDAV/S3.
+ *
+ * WHAT: Implements xrootd_path_resolve_cstr() (declared in unified.h) and its
+ *       supporting static helpers. Given a canonical export root and a client
+ *       request path, it validates components, builds a candidate filesystem
+ *       path, canonicalises it with realpath(3), enforces export-root
+ *       containment, stats the target for its type, and copies the confined
+ *       result out — populating an optional xrootd_path_result_t. The
+ *       xrootd_path_opts_t flags select per-protocol semantics: allow_root,
+ *       require_directory, allow_missing_tail (write of a new leaf), and
+ *       allow_missing_parents (recursive mkdir / HTTP PUT-style suffix).
+ *
+ * WHY:  This keeps ONE security-critical resolution+confinement implementation
+ *       so stream, WebDAV, and S3 callers cannot drift apart on traversal
+ *       defences. realpath() collapses ".."/symlinks to an authoritative path,
+ *       and xrootd_path_within_root() then guarantees the result (and, for
+ *       not-yet-existing targets, the deepest EXISTING ancestor) stays under the
+ *       export root — defeating "/export" vs "/exportdata" prefix attacks and
+ *       symlink escapes before any operation touches the target.
+ *
+ * HOW:  xrootd_validate_components_cstr() rejects oversized/over-deep paths and
+ *       forbidden "."/".." components; xrootd_build_candidate() joins root+req;
+ *       realpath() canonicalises. If the full path is missing (ENOENT) the
+ *       resolver walks back to the nearest existing parent
+ *       (xrootd_resolve_missing_tail / xrootd_resolve_missing_parents),
+ *       canonicalises THAT, re-checks containment, and rebuilds the absolute
+ *       target. Status flows back as xrootd_path_status_t. NOTE: this is the
+ *       config-time / legacy resolver — hot runtime client paths now use the
+ *       kernel-confined beneath API (beneath.c) instead (see Phase 8 notes).
+ */
 #include "../ngx_xrootd_module.h"
 
 #include <errno.h>
@@ -64,41 +95,6 @@ xrootd_count_components_cstr(const char *path)
     return count;
 }
 
-static ngx_uint_t
-xrootd_count_components_ngx(const ngx_str_t *path)
-{
-    u_char     *p, *last;
-    ngx_uint_t  count;
-
-    if (path == NULL || path->len == 0) {
-        return 0;
-    }
-
-    p = path->data;
-    last = path->data + path->len;
-
-    while (p < last && *p == '/') {
-        p++;
-    }
-
-    count = 0;
-    while (p < last) {
-        while (p < last && *p == '/') {
-            p++;
-        }
-        if (p == last) {
-            break;
-        }
-
-        count++;
-        while (p < last && *p != '/') {
-            p++;
-        }
-    }
-
-    return count;
-}
-
 static xrootd_path_status_t
 xrootd_validate_components_cstr(ngx_log_t *log, const char *path)
 {
@@ -156,58 +152,6 @@ xrootd_has_trailing_slash_cstr(const char *path)
 
     len = strlen(path);
     return (len > 0 && path[len - 1] == '/');
-}
-
-static ngx_int_t
-xrootd_validate_components_ngx(const ngx_str_t *path, ngx_log_t *log)
-{
-    u_char *p, *last, *seg_start;
-    size_t  seg_len;
-
-    if (path == NULL || path->len == 0 || path->len > XROOTD_MAX_PATH) {
-        return NGX_ERROR;
-    }
-
-    if (xrootd_count_components_ngx(path) > XROOTD_MAX_WALK_DEPTH) {
-        if (log != NULL) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: path depth exceeds limit");
-        }
-        return NGX_ERROR;
-    }
-
-    p = path->data;
-    last = path->data + path->len;
-
-    while (p < last) {
-        while (p < last && *p == '/') {
-            p++;
-        }
-        if (p == last) {
-            break;
-        }
-
-        seg_start = p;
-        while (p < last && *p != '/') {
-            if (*p == '\0') {
-                if (log != NULL) {
-                    ngx_log_error(NGX_LOG_WARN, log, 0,
-                                  "xrootd: rejecting path with embedded NUL");
-                }
-                return NGX_ERROR;
-            }
-            p++;
-        }
-
-        seg_len = (size_t) (p - seg_start);
-        if (xrootd_path_component_forbidden((const char *) seg_start,
-                                            seg_len))
-        {
-            return NGX_ERROR;
-        }
-    }
-
-    return NGX_OK;
 }
 
 static xrootd_path_status_t
@@ -522,6 +466,22 @@ xrootd_resolve_missing_parents(ngx_log_t *log, const char *root_canon,
                                   resolved, resolvsz, result, depth);
 }
 
+/*
+ * xrootd_path_resolve_cstr — public entry point: resolve and confine req_path
+ * under the already-canonical root_canon, honouring the opts flags, and write
+ * the confined absolute path into resolved[0..resolvsz). When result != NULL it
+ * is filled with the resolved ngx_str_t, target type, depth, and is_confined.
+ *
+ * Returns an xrootd_path_status_t:
+ *   OK        — resolved and confined (resolved/result populated).
+ *   INVALID   — bad components, traversal attempt, or containment violation.
+ *   NOT_FOUND — target (and required ancestors) do not exist.
+ *   TOO_LONG  — a path/buffer bound was exceeded.
+ *   ERROR     — an unexpected stat()/realpath() failure.
+ *
+ * Flow: validate → build candidate → realpath(); on ENOENT fall back to
+ * missing-parents / missing-tail resolution per opts, otherwise propagate.
+ */
 xrootd_path_status_t
 xrootd_path_resolve_cstr(ngx_log_t *log, const char *root_canon,
                          const char *req_path, xrootd_path_opts_t opts,
@@ -575,89 +535,10 @@ xrootd_path_resolve_cstr(ngx_log_t *log, const char *root_canon,
     return XROOTD_PATH_STATUS_NOT_FOUND;
 }
 
-ngx_int_t
-xrootd_path_resolve(ngx_conf_t *cf, const ngx_str_t *root_canon,
-                    const ngx_str_t *req_path, xrootd_path_opts_t opts,
-                    xrootd_path_result_t *result, ngx_log_t *log)
-{
-    char                    root_buf[PATH_MAX];
-    char                    req_buf[XROOTD_MAX_PATH + 1];
-    char                    resolved_buf[PATH_MAX];
-    size_t                  len;
-    xrootd_path_status_t    rc;
-    xrootd_path_result_t    stack_result;
-
-    if (cf == NULL || root_canon == NULL || req_path == NULL
-        || result == NULL)
-    {
-        return NGX_ERROR;
-    }
-
-    xrootd_path_result_init(result);
-
-    if (root_canon->len == 0 || root_canon->len >= sizeof(root_buf)
-        || req_path->len == 0 || req_path->len >= sizeof(req_buf))
-    {
-        return NGX_DECLINED;
-    }
-
-    if (xrootd_validate_components_ngx(req_path, log) != NGX_OK) {
-        return NGX_DECLINED;
-    }
-
-    ngx_memcpy(root_buf, root_canon->data, root_canon->len);
-    root_buf[root_canon->len] = '\0';
-
-    ngx_memcpy(req_buf, req_path->data, req_path->len);
-    req_buf[req_path->len] = '\0';
-
-    rc = xrootd_path_resolve_cstr(log, root_buf, req_buf, opts,
-                                  resolved_buf, sizeof(resolved_buf),
-                                  &stack_result);
-    if (rc == XROOTD_PATH_STATUS_ERROR) {
-        return NGX_ERROR;
-    }
-    if (rc != XROOTD_PATH_STATUS_OK) {
-        return NGX_DECLINED;
-    }
-
-    len = stack_result.resolved.len;
-    result->resolved.data = ngx_pnalloc(cf->pool, len + 1);
-    if (result->resolved.data == NULL) {
-        return NGX_ERROR;
-    }
-
-    ngx_memcpy(result->resolved.data, resolved_buf, len + 1);
-    result->resolved.len = len;
-    result->type = stack_result.type;
-    result->depth = stack_result.depth;
-    result->is_confined = stack_result.is_confined;
-
-    return NGX_OK;
-}
-
-ngx_int_t
-xrootd_path_validate(const ngx_str_t *root_canon, const ngx_str_t *req_path,
-                     ngx_log_t *log)
-{
-    (void) root_canon;
-
-    return xrootd_validate_components_ngx(req_path, log);
-}
-
-ngx_int_t
-xrootd_path_get_type(const ngx_str_t *resolved_path)
-{
-    char path_buf[PATH_MAX];
-
-    if (resolved_path == NULL || resolved_path->len == 0
-        || resolved_path->len >= sizeof(path_buf))
-    {
-        return NGX_ERROR;
-    }
-
-    ngx_memcpy(path_buf, resolved_path->data, resolved_path->len);
-    path_buf[resolved_path->len] = '\0';
-
-    return xrootd_stat_type_cstr(path_buf);
-}
+/*
+ * Note: the ngx_str_t-based config-time resolution wrappers
+ * (xrootd_path_resolve / xrootd_path_validate / xrootd_path_get_type) were
+ * removed once all callers migrated to the cstr-based API
+ * (xrootd_path_resolve_cstr) and the Phase 3 runtime resolver
+ * (xrootd_resolve_op_path).
+ */

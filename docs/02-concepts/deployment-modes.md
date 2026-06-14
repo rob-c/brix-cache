@@ -241,5 +241,5 @@ http {
 ## Related Reading
 
 - [XRootD Basics](xrootd-basics.md) — Understanding the protocol
-- [Configuration Reference](../../03-configuration/) — All available directives
-- [TLS Configuration](../03-configuration/tls.md) — Setting up encryption
+- [Configuration Reference](../03-configuration/) — All available directives
+- [TLS Configuration](../03-configuration/tls-config.md) — Setting up encryption

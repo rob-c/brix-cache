@@ -204,7 +204,7 @@ and never will — see [Monitoring](../08-metrics-monitoring/monitoring-guide.md
 
 - XrdMon UDP monitoring — deliberately not implemented and will never be added; use Prometheus
 - Legacy `kXR_gpfile`
-- krb5 / host / pwd authentication
+- host / pwd authentication (krb5 is supported via `xrootd_auth krb5`)
 - Remote storage backends (HDFS, EOS, Ceph, etc.)
 
 For a complete opcode-by-opcode breakdown see [status.md](../05-operations/operation-status.md).

@@ -16,7 +16,7 @@
  *
  * WHY: TPC (Third-Party Copy) transfers require the destination server to connect to a remote root:// origin, open the source file, stream all bytes into dst_fd, and close the remote handle. This function encapsulates the entire pull lifecycle — open → read loop → fsync → close — so launch.c/thread.c can delegate it to a thread-pool worker without managing the protocol sequence themselves. Handles peer diversity (minimal vs full ServerOpenBody), oksofar accumulation for large reads, EINTR-safe writes, and best-effort remote cleanup on failure paths.
  *
- * HOW: Build open_buf with ClientOpenRequest header + src_path + opaque "?tpc.key=...&tpc.org=..." → send_all(fd) kXR_open → recv_response fd status/body → check kXR_ok + dlen>=XRD_FHANDLE_LEN → memcpy fhandle → free(body) → offset=0 loop: build ClientReadRequest with streamid[1]=3, kXR_read, fhandle, htobe64(offset), htonl(TPC_CHUNK_SIZE) → send_all → inner for-loop: recv_response accumulating kXR_oksofar/kXR_ok frames → write body bytes to dst_fd (EINTR continue, failure=break) → got_this_req+=dlen → offset+=got_this_req → outer loop exits when done=1(got_this_req==0/EOF) or failed=1 → fsync(dst_fd) → goto close_remote: build ClientCloseRequest with kXR_close + fhandle → send_all + recv_response (best-effort, discard result). */
+ * HOW: Build open_buf with ClientOpenRequest header + src_path + opaque "?tpc.key=...&tpc.org=..." → send_all(fd) kXR_open → recv_response fd status/body → check kXR_ok + dlen>=XRD_FHANDLE_LEN → memcpy fhandle → free(body) → offset=0 loop: build ClientReadRequest with streamid[1]=3, kXR_read, fhandle, htobe64(offset), htonl(TPC_CHUNK_SIZE) → send_all → inner for-loop: recv_response accumulating kXR_oksofar/kXR_ok frames → write body bytes to dst_fd (EINTR continue, failure=break) → got_this_req+=dlen → offset+=got_this_req → outer loop exits when done=1(got_this_req==0/EOF) or failed=1 → fsync(dst_fd) → shared remote-close ladder: build ClientCloseRequest with kXR_close + fhandle → send_all + recv_response (best-effort, discard result). */
 
 /* ------------------------------------------------------------------ */
 /* Remote file open, streaming read loop, and protocol-level close       */
@@ -71,6 +71,13 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
         return -1;
     }
 
+    /*
+     * Wire layout of the kXR_open request: fixed ClientOpenRequest header
+     * immediately followed by the variable-length payload (path + opaque).
+     * dlen counts only the payload bytes, NOT the header. All multi-byte
+     * header fields are network byte order (htons/htonl). streamid[1]=2 is a
+     * private tag we reuse across this socket so replies can be correlated.
+     */
     ngx_memzero(open_buf, send_len);
     opreq = (ClientOpenRequest *) open_buf;
     opreq->streamid[1] = 2;
@@ -78,6 +85,7 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
     opreq->options     = htons(kXR_open_read);
     opreq->dlen        = htonl((kXR_int32)(pathlen + opqlen));
 
+    /* Append payload right after the header: path first, then "?tpc..." opaque. */
     ngx_memcpy(open_buf + sizeof(ClientOpenRequest), t->src_path, pathlen);
     if (opqlen > 0) {
         ngx_memcpy(open_buf + sizeof(ClientOpenRequest) + pathlen,
@@ -100,6 +108,11 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
      * ServerOpenBody (12+ bytes).
      */
     if (status != kXR_ok || body == NULL || dlen < XRD_FHANDLE_LEN) {
+        /*
+         * kXR_error body layout: 4-byte network-order error code followed by a
+         * NUL-terminated message. Surface the remote's code/message verbatim so
+         * the destination's reply mirrors the true origin failure.
+         */
         if (status == kXR_error && body != NULL && dlen >= 4) {
             const char *msg = (const char *) body + 4;
             snprintf(t->err_msg, sizeof(t->err_msg),
@@ -114,6 +127,8 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
         return -1;
     }
 
+    /* fhandle is the first XRD_FHANDLE_LEN bytes regardless of body size
+     * (minimal 4-byte reply vs full ServerOpenBody both lead with it). */
     ngx_memcpy(fhandle, body, XRD_FHANDLE_LEN);
     free(body);
 
@@ -121,6 +136,14 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
     /* Stream source → dst_fd                                             */
     /* ---------------------------------------------------------------- */
 
+    /*
+     * Outer loop: one kXR_read request per TPC_CHUNK_SIZE window, advancing
+     * `offset` by the bytes actually delivered. We never pipeline reads — each
+     * request is fully drained before the next is issued, so `offset` math
+     * stays simple and a short final read cleanly signals EOF.
+     *   done   == 1 → a request returned zero bytes (clean EOF)
+     *   failed == 1 → an unrecoverable send/recv/write error occurred
+     */
     offset = 0;
     done   = 0;
     failed = 0;
@@ -128,6 +151,9 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
     while (!done && !failed) {
         size_t got_this_req = 0;
 
+        /* kXR_read header: 8-byte big-endian offset (htobe64, NOT htonl) and
+         * 4-byte requested length. streamid[1]=3 tags read replies on this
+         * socket distinctly from the open/close tag (2). */
         ngx_memzero(&rdreq, sizeof(rdreq));
         rdreq.streamid[1] = 3;
         rdreq.requestid   = htons(kXR_read);
@@ -143,7 +169,14 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
             break;
         }
 
-        /* Accumulate kXR_oksofar + kXR_ok frames for this read request. */
+        /*
+         * Inner loop: a single kXR_read may be answered by a sequence of
+         * partial frames. The server sends zero or more kXR_oksofar frames
+         * (more data still coming for THIS request) terminated by exactly one
+         * kXR_ok frame (last chunk of this request). We write every frame's
+         * body to dst_fd as it arrives and only break out on the terminal
+         * kXR_ok, an error, or a local write failure.
+         */
         for (;;) {
             body = NULL;
             if (tpc_recv_response(fd, &status, &body, &dlen) != 0) {
@@ -182,6 +215,9 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
             }
 
             if (dlen > 0 && body != NULL) {
+                /* Drain this frame fully to dst_fd: write() may return short,
+                 * so advance wp/wrem until the whole frame is committed. EINTR
+                 * is retried; any other short/zero/negative write is fatal. */
                 const u_char *wp   = body;
                 uint32_t      wrem = dlen;
                 while (wrem > 0) {
@@ -221,6 +257,9 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
             break;
         }
 
+        /* A request that delivered zero bytes means we read past EOF: stop.
+         * Otherwise advance the file offset by exactly what this request
+         * produced and issue the next window. */
         if (got_this_req == 0) {
             done = 1; /* EOF */
         } else {
@@ -228,28 +267,36 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
         }
     }
 
+    /* Decide rc, then fall through to the shared remote-close ladder below so
+     * the origin handle is never leaked — on success or on either error. */
     if (failed) {
+        /* Ensure an error code is always set (some break sites set only the
+         * message). */
         if (t->xrd_error == 0) {
             t->xrd_error = kXR_IOError;
         }
         rc = -1;
-        goto close_remote;
-    }
-
-    if (fsync(t->dst_fd) != 0) {
+    } else if (fsync(t->dst_fd) != 0) {
+        /* fsync before declaring success: TPC durability guarantee — the
+         * client's kXR_open/sync reply must not be sent until bytes are on
+         * stable storage. */
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC dst fsync failed: %s", strerror(errno));
         t->xrd_error = kXR_IOError;
         rc = -1;
-        goto close_remote;
+    } else {
+        t->result    = NGX_OK;
+        t->xrd_error = 0;
+        rc = 0;
     }
 
-    t->result    = NGX_OK;
-    t->xrd_error = 0;
-    rc = 0;
-
-    /* Close the remote file handle (best-effort). */
-close_remote:
+    /*
+     * Shared exit for both success and failure: send kXR_close for the origin
+     * fhandle. This is best-effort — `rc` was already decided above, so the
+     * send/recv result is intentionally discarded; we still drain the reply
+     * (and free its body) to avoid leaving an unread frame on the socket and
+     * leaking the response buffer. streamid[1]=2 reuses the open tag.
+     */
     ngx_memzero(&clreq, sizeof(clreq));
     clreq.streamid[1] = 2;
     clreq.requestid   = htons(kXR_close);

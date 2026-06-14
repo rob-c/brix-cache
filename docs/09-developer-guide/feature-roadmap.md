@@ -177,10 +177,10 @@ authenticate.
 
 ## 5. WebDAV LOCK / UNLOCK ✓ IMPLEMENTED
  
- **Status:** Complete. Exclusive write locks with in-memory storage, Depth header support (0/infinity), and XML owner parsing are fully implemented as of 2026-05-09.
- 
+ **Status:** Complete. Exclusive write locks with xattr-based storage, Depth header support (0/infinity), and XML owner parsing are fully implemented (originally SHM-backed as of 2026-05-09; migrated to the unified xattr prop store).
+
  **What was done:**
- - Added `src/webdav/lock.c` and `src/webdav/lock.h` with a shared-memory lock table.
+ - Added `src/webdav/lock.c` (lock lifecycle) with lock state persisted as the `user.nginx_xrootd.lock` xattr via `src/webdav/prop_xattr.c`; request parsing lives in `src/webdav/locks/request.c`.
  - Integrated LOCK/UNLOCK handlers in `src/webdav/dispatch.c` with client request body parsing.
  - Implemented XML body parsing in `lock.c` for custom `<D:owner>` metadata using safety-first `webdav_strnstr`.
  - Supported `Depth: 0` (shallow) and `Depth: infinity` (recursive) lock scope.
@@ -388,7 +388,7 @@ curl -X COPY https://server:8443//local/path \
 - `kXR_dirlist` — only enforces `xrootd_require_vo` ACL, not authdb `LOOKUP`. Directory listings bypass authdb.
 - `query/` handlers (`kXR_query checksum`, `kXR_query config`, `kXR_prepare`) — use `check_vo_acl` only; authdb is not consulted.
 - `fattr/` handlers (`kXR_getattr`, `kXR_setattr`, `kXR_delattr`) — use `check_vo_acl` only.
-- `kXR_chmod` — uses `XROOTD_AUTH_UPDATE` (not `ADMIN`); full authdb enforcement is present via `xrootd_write_resolve_existing_path()`.
+- `kXR_chmod` — uses `XROOTD_AUTH_UPDATE` (not `ADMIN`); full authdb enforcement is present via the op-descriptor dispatcher (`src/write/op_table.c` → `xrootd_auth_gate()`).
 - Authdb file is read once at `nginx -s reload` / startup (max 4096 bytes); runtime reload requires `nginx -s reload`. Files larger than 4096 bytes are silently truncated.
 
 ---
@@ -502,16 +502,17 @@ what is missing. Items are grouped by feature area.
   LOCK response XML both reflect the actual scope. `supportedlock` now
   advertises both exclusive and shared scopes.
 
-- **Lock table lost on nginx reload:** The lock shared-memory zone is
-  reinitialised on `nginx -s reload`. Any in-flight LOCK held by a long-lived
-  client is silently lost. A client that then issues the matching UNLOCK
-  receives 412 Precondition Failed. Persisting lock tokens across reload
-  (e.g. by flushing to a file) is not implemented.
+- **Locks persist across nginx reload/restart:** As of the unified prop-store
+  migration, lock state is stored as an xattr on each resource rather than in a
+  shared-memory zone, so locks now **survive** `nginx -s reload` and full
+  restarts. This diverges from RFC 4918 §10.1's ephemeral model; enable
+  `xrootd_webdav_lock_startup_sweep` to clear persisted locks at startup if
+  ephemeral semantics are required.
 
-- **Fixed-size lock table:** The number of concurrent locks is bounded at
-  compile time by `WEBDAV_LOCK_TABLE_SIZE`. Sites with many concurrent long-
-  lived locks (e.g. recursive collection locks during bulk ingest) may exhaust
-  the table; attempts to acquire additional locks return 503.
+- **No fixed lock-table capacity:** Lock count is bounded only by filesystem
+  capacity (one xattr per locked resource), so the former compile-time
+  `WEBDAV_LOCK_TABLE_SIZE` limit and its capacity-exhaustion failures no longer
+  apply.
 
 ### WebDAV PROPFIND (items 5, 6)
 
@@ -622,10 +623,10 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
 
 ### Cross-cutting gaps
 
-- ~~**`kXR_chmod` has no access control check**~~ ✓ **CLARIFIED:** `src/write/common.c`
-  calls both `xrootd_check_authdb()` (with `XROOTD_AUTH_UPDATE`) and
-  `xrootd_check_vo_acl()` via `xrootd_write_resolve_existing_path()` before
-  dispatching to `chmod(2)`. The roadmap entry was stale.
+- ~~**`kXR_chmod` has no access control check**~~ ✓ **CLARIFIED:**
+  `src/write/op_table.c`'s `xrootd_dispatch_op()` runs `xrootd_auth_gate()`
+  (authdb `XROOTD_AUTH_UPDATE` + VO ACL + token scope) before dispatching to
+  `chmod(2)` via the `exec_chmod` descriptor. The roadmap entry was stale.
 
 - ~~**POSC not implemented**~~ ✓ **DONE:** `kXR_open` with `kXR_posc` now opens a
   temp file (`.posc.<pid>.<rand>` in the same directory) and stores the final

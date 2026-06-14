@@ -20,7 +20,7 @@
  * one consistent view.  Concurrent access is serialised by a single
  * ngx_shmtx_t spinlock embedded at the start of the shared region.
  *
- * Capacity: XROOTD_SESSION_REGISTRY_SLOTS entries (default 256).  When the
+ * Capacity: XROOTD_SESSION_REGISTRY_SLOTS entries (default 1024).  When the
  * table is full, new inserts fail gracefully — the primary session continues
  * normally and secondaries fall back to single-stream I/O.
  */
@@ -28,12 +28,36 @@
 #include "../ngx_xrootd_module.h"
 
 #define XROOTD_SESSION_REGISTRY_SLOTS  1024
+
+/*
+ * Published-handle table capacity (Phase 31).
+ *
+ * The handle table is the single largest fixed shared-memory allocation in the
+ * module: every slot carries a full path (~4 KB), so sizing it at
+ * registry_slots (1024) x XROOTD_MAX_FILES (16) = 16384 slots cost ~68 MB of
+ * RAM at idle — paid by every deployment regardless of load.
+ *
+ * Handles are published here only so that kXR_bind secondary streams (and proxy
+ * mode) can reach a primary session's open files across worker boundaries; the
+ * common single-stream case never publishes.  We therefore size this table
+ * independently of the per-connection open-file limit (XROOTD_MAX_FILES, which
+ * must stay 16) using a deliberately smaller pair of factors: a modest number of
+ * sessions that use bound streams, each publishing a handful of handles.  When
+ * the table is full, publishing fails gracefully (the primary keeps working;
+ * secondaries fall back to single-stream I/O) — see xrootd_session_handle_*.
+ *
+ * Default 512 x 8 = 4096 slots ~= 17 MB, a ~50 MB saving.  Raise these factors
+ * if a deployment genuinely runs many concurrent multi-file bound-stream
+ * transfers and observes handle-publish failures in the access log.
+ */
+#define XROOTD_SESSION_HANDLE_SESSIONS      512
+#define XROOTD_SESSION_HANDLES_PER_SESSION  8
 #define XROOTD_SESSION_HANDLE_SLOTS \
-    (XROOTD_SESSION_REGISTRY_SLOTS * XROOTD_MAX_FILES)
+    (XROOTD_SESSION_HANDLE_SESSIONS * XROOTD_SESSION_HANDLES_PER_SESSION)
 
 /* ---- Struct: xrootd_session_entry_t ----
  *
- * WHAT: Single entry in the shared-memory session registry mapping sessid → {dn, vo_list, token_auth}. sessid[16] uniquely identifies an XRootD session; dn (distinguished name from GSI certificate) and vo_list (virtual organization authorization list) determine client identity and eligibility for operations. token_auth flag indicates whether JWT bearer token was used instead of GSI certificate. in_use marks slot occupancy — 0 means free, 1 means registered. Capacity: XROOTD_SESSION_REGISTRY_SLOTS entries (default 256).
+ * WHAT: Single entry in the shared-memory session registry mapping sessid → {dn, vo_list, token_auth}. sessid[16] uniquely identifies an XRootD session; dn (distinguished name from GSI certificate) and vo_list (virtual organization authorization list) determine client identity and eligibility for operations. token_auth flag indicates whether JWT bearer token was used instead of GSI certificate. in_use marks slot occupancy — 0 means free, 1 means registered. Capacity: XROOTD_SESSION_REGISTRY_SLOTS entries (default 1024).
  */
 
 typedef struct {
@@ -42,7 +66,15 @@ typedef struct {
     char       vo_list[512];                  /* virtual organization authorization list */
     ngx_uint_t token_auth;                    /* 1 if JWT bearer token used, 0 for GSI */
     ngx_uint_t in_use;                        /* slot occupancy: 0=free, 1=registered */
+    ngx_msec_t last_seen;                     /* Phase 27 F4: register/lookup time (ms);
+                                                 LRU key for reap-on-full anti-exhaustion */
 } xrootd_session_entry_t;
+
+/* Phase 27 F4: a slot that is the global-LRU AND older than this minimum age is
+ * eligible for eviction when the table is full, so a slot-exhaustion attacker
+ * cannot permanently deny new logins.  Sessions younger than this are never
+ * reaped (avoids thrashing freshly-registered legitimate sessions). */
+#define XROOTD_SESSION_REAP_MIN_AGE_MS  60000
 
 /* ---- Struct: xrootd_shared_handle_entry_t ----
  *
@@ -65,12 +97,13 @@ typedef struct {
 
 /* ---- Struct: xrootd_session_table_t ----
  *
- * WHAT: Shared-memory session registry table containing slot array for client session metadata. lock (ngx_shmtx_sh_t) must be first field — required by ngx_shmtx_create() which embeds the spinlock at the start of the shared region. slots array provides XROOTD_SESSION_REGISTRY_SLOTS entries (default 256) for concurrent cross-worker session lookup, registration, and unregistration operations.
+ * WHAT: Shared-memory session registry table containing slot array for client session metadata. lock (ngx_shmtx_sh_t) must be first field — required by ngx_shmtx_create() which embeds the spinlock at the start of the shared region. slots array provides XROOTD_SESSION_REGISTRY_SLOTS entries (default 1024) for concurrent cross-worker session lookup, registration, and unregistration operations.
  */
 
 typedef struct {
     ngx_shmtx_sh_t          lock;           /* must be first — shmtx init req */
-    xrootd_session_entry_t  slots[XROOTD_SESSION_REGISTRY_SLOTS]; /* session registry entries */
+    ngx_uint_t              capacity;       /* usable slot count (xrootd_session_slots) */
+    xrootd_session_entry_t  slots[];        /* session registry entries — `capacity` long */
 } xrootd_session_table_t;
 
 /* ---- Struct: xrootd_shared_handle_table_t ----
@@ -96,7 +129,7 @@ ngx_int_t xrootd_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data);
 
 /* ---- Function: xrootd_configure_session_registry() ----
  * WHAT: Creates two shared memory zones during nginx postconfiguration phase enabling cross-worker session persistence and handle publishing. First zone (xrootd_sessions): session registry for client metadata; second zone (xrootd_session_handles): handle table for published file metadata. Each zone registers init callback ensuring single initialization across all workers via sentinel value detection. Returns NGX_OK if both zones created successfully, NGX_ERROR otherwise. */
-ngx_int_t xrootd_configure_session_registry(ngx_conf_t *cf);
+ngx_int_t xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots);
 
 /* ---- Function: xrootd_session_register() ----
  * WHAT: Stores client session metadata in shared memory registry slot during login completion. Scans all slots finding first free entry — copies sessid[16], dn, vo_list, and token_auth flag into new slot setting e->in_use=1. Protected by zone-specific mutex ensuring thread-safe cross-worker access during concurrent registration attempts. */
@@ -125,6 +158,16 @@ void xrootd_session_handle_publish(
 int xrootd_session_handle_lookup(
     const u_char sessid[XROOTD_SESSION_ID_LEN],
     int handle_index, xrootd_shared_handle_entry_t *out);
+
+/* ---- Function: xrootd_session_handle_lookup_hint() ----
+ * WHAT: As xrootd_session_handle_lookup() but with a caller-owned *inout_slot
+ * cache (Phase 33 C2).  Re-checks the previously matched slot directly under the
+ * lock before scanning, turning the per-read bound-stream lookup into O(1) while
+ * preserving the full key (in_use+sessid+handle_index) revocation check.
+ * *inout_slot is refreshed on a scan match, reset to -1 on miss; may be NULL. */
+int xrootd_session_handle_lookup_hint(
+    const u_char sessid[XROOTD_SESSION_ID_LEN],
+    int handle_index, int *inout_slot, xrootd_shared_handle_entry_t *out);
 
 /* ---- Function: xrootd_session_handle_unpublish() ----
  * WHAT: Removes individual handle entry from shared table during kXR_close — searches slots by sessid+handle_index key matching, memzeros entry clearing all metadata preventing bound stream access to closed primary handles. Called after every file close operation ensuring no stale published references remain. */

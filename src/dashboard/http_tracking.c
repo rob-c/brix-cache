@@ -3,6 +3,32 @@
 
 #include <string.h>
 
+/*
+ * dashboard/http_tracking.c — HTTP-request lifecycle binding for live transfer slots.
+ *
+ * WHAT: Implements the xrootd_dashboard_http_*() API declared in
+ *       dashboard_tracking.h.  Each tracked WebDAV/S3/TPC request gets one
+ *       transfer slot in the dashboard SHM table; this file allocates that slot
+ *       on start, streams byte/state/error updates into it during the request,
+ *       reports redacted TPC remote endpoints, and releases it on finish.  The
+ *       per-request binding is stored as the request's module ctx
+ *       (xrootd_dashboard_http_track_t) so any handler can reach the slot.
+ * WHY:  WebDAV and S3 run in the HTTP module where the unit of work is an
+ *       ngx_http_request_t, not a stream session; this layer adapts the
+ *       protocol-agnostic transfer_table.c slot operations to that lifecycle and
+ *       guarantees the slot is freed even on abnormal teardown via an
+ *       ngx_pool_cleanup handler (dashboard_http_cleanup) tied to r->pool.
+ * HOW:  xrootd_dashboard_http_start_identity() is the workhorse — it validates
+ *       the SHM zone, reserves a slot with xrootd_transfer_slot_alloc_ex(),
+ *       registers the pool cleanup, and parks the binding in module ctx; the
+ *       _start() variant is a thin "anonymous" wrapper.  Updates look up the
+ *       binding via dashboard_http_track() and forward to the slot ops, all
+ *       stamped with ngx_current_msec.  dashboard_http_client() copies the
+ *       non-NUL-terminated addr_text into a bounded buffer, and
+ *       dashboard_redact_url() strips userinfo/query from TPC URLs before they
+ *       are stored, so secrets never reach the dashboard.
+ */
+
 typedef struct {
     int                      slot;
     xrootd_transfer_table_t *table;
@@ -28,18 +54,43 @@ dashboard_http_track(ngx_http_request_t *r)
     return ngx_http_get_module_ctx(r, ngx_http_xrootd_dashboard_module);
 }
 
+/*
+ * Copy the client address into a NUL-terminated, length-bounded buffer.
+ *
+ * r->connection->addr_text is an ngx_str_t whose .data is NOT NUL-terminated
+ * (only .len bytes are valid; the tail of the buffer is uninitialised).  The
+ * dashboard slot copier uses ngx_cpystrn(), which scans for a NUL — handing it
+ * the raw .data reads past .len into uninitialised memory (Phase 27 / Valgrind
+ * finding) and can copy garbage.  Always pass this bounded copy instead.
+ */
 static const char *
-dashboard_http_client(ngx_http_request_t *r)
+dashboard_http_client(ngx_http_request_t *r, char *buf, size_t bufsz)
 {
+    size_t n;
+
     if (r != NULL && r->connection != NULL
-        && r->connection->addr_text.data != NULL)
+        && r->connection->addr_text.data != NULL
+        && r->connection->addr_text.len > 0
+        && bufsz > 0)
     {
-        return (const char *) r->connection->addr_text.data;
+        n = ngx_min(r->connection->addr_text.len, bufsz - 1);
+        ngx_memcpy(buf, r->connection->addr_text.data, n);
+        buf[n] = '\0';
+        return buf;
     }
 
     return "-";
 }
 
+/*
+ * Begin tracking an HTTP request: reserve a transfer slot and bind it to r.
+ *
+ * Returns the slot index (>= 0) on success, or -1 if the dashboard SHM zone is
+ * absent/uninitialised or slot/cleanup allocation fails.  Idempotent — if r is
+ * already bound to a slot the existing index is returned without re-allocating.
+ * The slot is automatically released when r->pool is destroyed (see
+ * dashboard_http_cleanup) even if xrootd_dashboard_http_finish() is never called.
+ */
 int
 xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
     const char *path, const char *identity, const char *vo,
@@ -49,6 +100,7 @@ xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
     xrootd_dashboard_http_track_t *track;
     ngx_pool_cleanup_t            *cln;
     u_char                         sessid[16];
+    char                           ipbuf[NGX_SOCKADDR_STRLEN + 1];
     int                            slot;
 
     if (r == NULL || ngx_xrootd_dashboard_shm_zone == NULL
@@ -65,7 +117,9 @@ xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
 
     ngx_memzero(sessid, sizeof(sessid));
     slot = xrootd_transfer_slot_alloc_ex(ngx_xrootd_dashboard_shm_zone->data,
-                                         sessid, dashboard_http_client(r),
+                                         sessid,
+                                         dashboard_http_client(r, ipbuf,
+                                                               sizeof(ipbuf)),
                                          identity ? identity : "anonymous",
                                          vo ? vo : "", path, op, direction,
                                          proto, expected_bytes,
@@ -143,6 +197,15 @@ xrootd_dashboard_http_error(ngx_http_request_t *r, const char *reason)
                                    (int64_t) ngx_current_msec);
 }
 
+/*
+ * Split a TPC remote URL into a display-safe "scheme://host[:port]" string and a
+ * basename-only path hint, dropping anything sensitive or noisy.
+ *
+ * userinfo ("user:pass@") is stripped from the authority, and the path is
+ * reduced to its final segment with the query ("?") and fragment ("#") removed,
+ * so credentials and full object paths never land in the dashboard event/slot
+ * record.  Both outputs are NUL-terminated and bounded by hostsz / pathsz.
+ */
 static void
 dashboard_redact_url(const char *url, char *host, size_t hostsz,
     char *path_hint, size_t pathsz)

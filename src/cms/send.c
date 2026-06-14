@@ -37,19 +37,68 @@ ngx_xrootd_cms_send_frame(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid,
 ngx_int_t
 ngx_xrootd_cms_send_login(ngx_xrootd_cms_ctx_t *ctx)
 {
-    u_char     payload[1024];
-    u_char    *payload_cursor;
-    ngx_str_t  paths;
-    size_t     path_len;
-    uint32_t   total_gb;
-    uint32_t   free_mb;
-    uint32_t   util_pct;
+    u_char      payload[1024];
+    u_char     *payload_cursor;
+    u_char      sid[256];
+    u_char      pathbuf[640];
+    u_char      hostbuf[200];
+    u_char     *pp;
+    ngx_str_t   paths;
+    size_t      sid_len;
+    size_t      path_len;
+    size_t      i;
+    size_t      seg_start;
+    uint32_t    total_gb;
+    uint32_t    free_mb;
+    uint32_t    util_pct;
+    u_char      ptype;
 
+    /*
+     * Build the exported-path list in the real XrdCms wire format: newline-
+     * separated "<type> <path>" entries, type 'w' if writable else 'r'
+     * (e.g. "all.export / r/w" -> "w /").  xrootd_cms_paths may carry several
+     * colon-separated namespace prefixes ("/data:/atlas").
+     */
     paths = ngx_xrootd_cms_export_paths(ctx->conf);
-    path_len = paths.len;
-    if (path_len > 512) {
-        path_len = 512;
+    ptype = ctx->conf->common.allow_write ? (u_char) 'w' : (u_char) 'r';
+    pp = pathbuf;
+    seg_start = 0;
+    /*
+     * Loop runs to i == paths.len (one past the last byte) so the final
+     * segment is flushed by the same branch that handles a ':' delimiter — no
+     * separate post-loop emit needed.  The "+ 4" slack in the bound check
+     * reserves room for the per-segment framing this iteration may append:
+     * one '\n' separator + the type char + a space (3) plus a margin byte.
+     */
+    for (i = 0; i <= paths.len; i++) {
+        if (i == paths.len || paths.data[i] == ':') {
+            size_t seglen = i - seg_start;
+            if (seglen > 0
+                && (size_t) (pp - pathbuf) + seglen + 4 < sizeof(pathbuf))
+            {
+                if (pp != pathbuf) {
+                    *pp++ = '\n';
+                }
+                *pp++ = ptype;
+                *pp++ = ' ';
+                ngx_memcpy(pp, paths.data + seg_start, seglen);
+                pp += seglen;
+            }
+            seg_start = i + 1;
+        }
     }
+    path_len = (size_t) (pp - pathbuf);
+
+    /*
+     * Server identity "<host>:<dport>" — opaque to the manager but must be
+     * stable and reasonably unique for this node.
+     */
+    if (gethostname((char *) hostbuf, sizeof(hostbuf)) != 0) {
+        ngx_memcpy(hostbuf, "nginx", sizeof("nginx"));
+    }
+    hostbuf[sizeof(hostbuf) - 1] = '\0';
+    sid_len = (size_t) (ngx_snprintf(sid, sizeof(sid), "%s:%d", hostbuf,
+                                     (int) ctx->conf->listen_port) - sid);
 
     total_gb = 0;
     free_mb = 0;
@@ -67,9 +116,12 @@ ngx_xrootd_cms_send_login(ngx_xrootd_cms_ctx_t *ctx)
     }
 
     /*
-     * CMS login uses a packed type/value payload, not a C struct.  Keep writes
-     * in wire order so the field sequence can be checked against the protocol
-     * notes without mentally following pointer arithmetic.
+     * kYR_login payload — XrdOucPup wire order (CmsLoginData):
+     *   Version sh, Mode int, HoldTime int, tSpace int, fSpace int, mSpace int,
+     *   fsNum sh, fsUtil sh, dPort sh, sPort sh, [Fence],
+     *   SID str, Paths str, ifList str, envCGI str.
+     * Scalars carry a 0x80/0xa0 type tag; strings are bare [len][data+NUL].
+     * The frame header datalen (set by send_frame) is the total payload length.
      */
     payload_cursor = payload;
     payload_cursor = ngx_xrootd_cms_put_short(payload_cursor,
@@ -80,33 +132,58 @@ ngx_xrootd_cms_send_login(ngx_xrootd_cms_ctx_t *ctx)
         | (ctx->conf->manager_mode ? CMS_LOGIN_MODE_MANAGER : 0));
     payload_cursor = ngx_xrootd_cms_put_int(payload_cursor,
                                             (uint32_t) getpid());
+    /* tSpace/fSpace: total disk (GB) and free (MB) reported to the manager. */
     payload_cursor = ngx_xrootd_cms_put_int(payload_cursor, total_gb);
     payload_cursor = ngx_xrootd_cms_put_int(payload_cursor, free_mb);
+    /*
+     * mSpace: minimum-free threshold (MB).  Constant, not a live measurement —
+     * it is the policy floor below which the manager should stop selecting us.
+     */
     payload_cursor = ngx_xrootd_cms_put_int(payload_cursor,
                                             NGX_XROOTD_CMS_MIN_FREE_MB);
+    /* fsNum: number of exported filesystems — we present a single namespace. */
     payload_cursor = ngx_xrootd_cms_put_short(payload_cursor, 1);
     payload_cursor = ngx_xrootd_cms_put_short(payload_cursor,
                                               (uint16_t) util_pct);
+    /*
+     * dPort: the data port clients are redirected to (our listen port).
+     * sPort follows as 0 — we run no separate subscriber/admin port, so the
+     * field is present in wire order but advertised as unused.
+     */
     payload_cursor = ngx_xrootd_cms_put_short(
         payload_cursor, (uint16_t) ctx->conf->listen_port);
+    payload_cursor = ngx_xrootd_cms_put_short(payload_cursor, 0); /* sPort */
 
-    /* Reserved protocol fields currently sent as zero. */
-    payload_cursor = ngx_xrootd_cms_put_short(payload_cursor, 0);
-    payload_cursor = ngx_xrootd_cms_put_short(payload_cursor, 0);
-    payload_cursor = ngx_xrootd_cms_put_short(payload_cursor,
-                                              (uint16_t) path_len);
-
-    if (path_len > 0) {
-        ngx_memcpy(payload_cursor, paths.data, path_len);
-        payload_cursor += path_len;
-    }
-
-    /* Empty manager host/port trailer fields. */
-    payload_cursor = ngx_xrootd_cms_put_short(payload_cursor, 0);
-    payload_cursor = ngx_xrootd_cms_put_short(payload_cursor, 0);
+    /*
+     * Trailing Pup strings in wire order: SID, Paths, then ifList and envCGI.
+     * The two NULL/0 puts emit empty (but present) ifList and envCGI strings —
+     * the manager still expects the length-prefixed slots, so they cannot be
+     * omitted even though we have nothing to advertise there.
+     */
+    payload_cursor = ngx_xrootd_cms_put_string(payload_cursor, sid, sid_len);
+    payload_cursor = ngx_xrootd_cms_put_string(payload_cursor, pathbuf,
+                                               path_len);
+    payload_cursor = ngx_xrootd_cms_put_string(payload_cursor, NULL, 0);
+    payload_cursor = ngx_xrootd_cms_put_string(payload_cursor, NULL, 0);
 
     return ngx_xrootd_cms_send_frame(ctx, 0, CMS_RR_LOGIN, 0, payload,
                                      (size_t) (payload_cursor - payload));
+}
+
+/*
+ * ngx_xrootd_cms_send_status — announce traffic state after login.
+ *
+ * WHAT: Sends a header-only kYR_status frame with modifier Resume|noStage so the
+ *      manager marks this disk-only node active and eligible for selection.  A
+ *      real cmsd data server emits this right after login; without it the manager
+ *      keeps the node suspended and never redirects clients to it.
+ */
+
+ngx_int_t
+ngx_xrootd_cms_send_status(ngx_xrootd_cms_ctx_t *ctx)
+{
+    return ngx_xrootd_cms_send_frame(ctx, 0, CMS_RR_STATUS,
+                                     CMS_ST_RESUME | CMS_ST_NOSTAGE, NULL, 0);
 }
 
 /*
@@ -144,10 +221,23 @@ ngx_xrootd_cms_send_load(ngx_xrootd_cms_ctx_t *ctx)
         }
     }
 
+    /*
+     * kYR_load payload (CmsLoadRequest / lodArgs): theLoad is a Pup char-blob
+     * of 6 load bytes (cpu,net,xeq,mem,pag,dsk) — a bare [2-byte len][data] with
+     * NO scalar type tag — followed by dskFree as a tagged int.  Zero load bytes
+     * report an idle node; the manager only uses them for balancing.
+     */
+    /*
+     * Hand-packed (put16 + manual cursor advance) rather than via put_string:
+     * put16 only writes the 2-byte length, so the cursor must be advanced by
+     * hand past both the length and the 6 data bytes before the tagged dskFree
+     * int is appended via put_int.
+     */
     payload_cursor = payload;
-    payload_cursor = ngx_xrootd_cms_put_short(payload_cursor, 6);
-    ngx_memzero(payload_cursor, 6);
-    payload_cursor += 6;
+    ngx_xrootd_cms_put16(payload_cursor, 6);    /* blob length: 6 load bytes */
+    payload_cursor += 2;                          /* skip the 2-byte length */
+    ngx_memzero(payload_cursor, 6);             /* cpu,net,xeq,mem,pag,dsk = 0 */
+    payload_cursor += 6;                          /* advance past the 6 bytes */
     payload_cursor = ngx_xrootd_cms_put_int(payload_cursor, free_mb);
 
     return ngx_xrootd_cms_send_frame(ctx, 0, CMS_RR_LOAD, 0, payload,
@@ -251,4 +341,33 @@ ngx_xrootd_cms_send_locate(ngx_xrootd_cms_ctx_t *ctx,
     ngx_memcpy(payload, path, plen);
     return ngx_xrootd_cms_send_frame(ctx, streamid, CMS_RR_LOCATE, 0,
                                      payload, plen);
+}
+
+/*
+ * ngx_xrootd_cms_send_have — tell the manager this node holds <path>.
+ *
+ * WHAT: Sends a kYR_have frame (modifier RAW|Online) with the raw, NUL-terminated
+ *      path in response to a manager kYR_state query.  WHY: real XrdCms selection
+ *      is on-demand — the manager broadcasts kYR_state to subscribed servers and
+ *      only redirects a client to a node that answers kYR_have for the requested
+ *      path.  The streamid echoes the state request so the manager correlates it.
+ *      The payload is raw (not Pup-encoded), matching the manager's kYR_state.
+ */
+
+ngx_int_t
+ngx_xrootd_cms_send_have(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid,
+    const char *path, size_t path_len)
+{
+    u_char  payload[XROOTD_SRV_MAX_PATHS];
+
+    if (path_len + 1 > sizeof(payload)) {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(payload, path, path_len);
+    payload[path_len] = '\0';
+
+    return ngx_xrootd_cms_send_frame(ctx, streamid, CMS_RR_HAVE,
+                                     CMS_MOD_RAW | CMS_HAVE_ONLINE,
+                                     payload, path_len + 1);
 }

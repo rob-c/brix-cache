@@ -1,4 +1,17 @@
 #include "metrics_internal.h"
+#include "../shm/kv.h"
+
+/*
+ * Shared low-cardinality label tables for both WebDAV and S3 Prometheus export.
+ * Defined once here; extern-declared in metrics_internal.h.
+ */
+const char *xrootd_http_status_names[XROOTD_HTTP_NSTATUS] = {
+    "1xx", "2xx", "3xx", "4xx", "5xx", "other",
+};
+
+const char *xrootd_http_range_result_names[3] = {
+    "full", "partial", "unsatisfied",
+};
 
 /*
  * WHAT: metrics_writer_t buffer-chain writer — alloc, append, printf, and finish for Prometheus exposition output.
@@ -122,6 +135,95 @@ mw_printf(metrics_writer_t *mw, const char *fmt, ...)
     mw->total += formatted_len;
 
     return NGX_OK;
+}
+
+void
+mw_emit_labeled(metrics_writer_t *mw, const char *name, const char *help,
+    const char *label_key, const char * const *names, ngx_uint_t n,
+    ngx_atomic_t *counters)
+{
+    ngx_uint_t  i;
+
+    mw_printf(mw, "# HELP %s %s\n# TYPE %s counter\n", name, help, name);
+    for (i = 0; i < n; i++) {
+        mw_printf(mw, "%s{%s=\"%s\"} %lu\n", name, label_key, names[i],
+                  (unsigned long) ngx_atomic_fetch_add(&counters[i], 0));
+    }
+}
+
+void
+mw_emit_scalar(metrics_writer_t *mw, const char *name, const char *help,
+    ngx_atomic_t *counter)
+{
+    mw_printf(mw, "# HELP %s %s\n# TYPE %s counter\n%s %lu\n",
+              name, help, name,
+              name, (unsigned long) ngx_atomic_fetch_add(counter, 0));
+}
+
+/*
+ * xrootd_kv_metrics_emit — export per-zone counters for every configured KV
+ * zone (token cache, auth cache, rate-limit buckets).  Low cardinality: one
+ * label (`zone`) drawn from the operator-chosen zone name.  Note mw_printf is
+ * vsnprintf-based, so ngx_str_t is rendered with %.*s, not %V.
+ */
+void
+xrootd_kv_metrics_emit(metrics_writer_t *mw)
+{
+    ngx_uint_t         n = xrootd_kv_zone_count();
+    ngx_uint_t         i;
+    xrootd_kv_stats_t  s;
+    xrootd_kv_t       *kv;
+
+    if (n == 0) {
+        return;
+    }
+
+    mw_printf(mw, "# HELP xrootd_kv_hits_total KV cache hits per zone.\n"
+                  "# TYPE xrootd_kv_hits_total counter\n");
+    for (i = 0; i < n; i++) {
+        kv = xrootd_kv_zone_get(i);
+        xrootd_kv_stats(kv, &s);
+        mw_printf(mw, "xrootd_kv_hits_total{zone=\"%.*s\"} %lu\n",
+                  (int) kv->name.len, kv->name.data, (unsigned long) s.hits);
+    }
+
+    mw_printf(mw, "# HELP xrootd_kv_misses_total KV cache misses per zone.\n"
+                  "# TYPE xrootd_kv_misses_total counter\n");
+    for (i = 0; i < n; i++) {
+        kv = xrootd_kv_zone_get(i);
+        xrootd_kv_stats(kv, &s);
+        mw_printf(mw, "xrootd_kv_misses_total{zone=\"%.*s\"} %lu\n",
+                  (int) kv->name.len, kv->name.data, (unsigned long) s.misses);
+    }
+
+    mw_printf(mw, "# HELP xrootd_kv_evictions_total KV cache TTL evictions per zone.\n"
+                  "# TYPE xrootd_kv_evictions_total counter\n");
+    for (i = 0; i < n; i++) {
+        kv = xrootd_kv_zone_get(i);
+        xrootd_kv_stats(kv, &s);
+        mw_printf(mw, "xrootd_kv_evictions_total{zone=\"%.*s\"} %lu\n",
+                  (int) kv->name.len, kv->name.data,
+                  (unsigned long) s.evictions);
+    }
+
+    mw_printf(mw, "# HELP xrootd_kv_entries Live entries per KV zone.\n"
+                  "# TYPE xrootd_kv_entries gauge\n");
+    for (i = 0; i < n; i++) {
+        kv = xrootd_kv_zone_get(i);
+        xrootd_kv_stats(kv, &s);
+        mw_printf(mw, "xrootd_kv_entries{zone=\"%.*s\"} %lu\n",
+                  (int) kv->name.len, kv->name.data, (unsigned long) s.count);
+    }
+
+    mw_printf(mw, "# HELP xrootd_kv_capacity Bucket capacity per KV zone.\n"
+                  "# TYPE xrootd_kv_capacity gauge\n");
+    for (i = 0; i < n; i++) {
+        kv = xrootd_kv_zone_get(i);
+        xrootd_kv_stats(kv, &s);
+        mw_printf(mw, "xrootd_kv_capacity{zone=\"%.*s\"} %lu\n",
+                  (int) kv->name.len, kv->name.data,
+                  (unsigned long) s.capacity);
+    }
 }
 
 void

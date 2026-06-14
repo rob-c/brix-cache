@@ -1,4 +1,5 @@
 #include "gsi_internal.h"
+#include "keypool.h"
 
 /*---- GSI round 1 response function — generate ephemeral DH key + assemble kXGS_cert ----
  *
@@ -46,8 +47,15 @@
 
 /*---- kXGS_cert wire payload assembly ----
  *
- * HOW: Assembles wire payload with headers: gsi\0 (credential type), kXGS_cert (opcode), optional signed_rtag bucket, 
- *      puk_blob bucket (DH public key + PEM parameters), cipher_alg bucket ("aes-256-cbc:aes-128-cbc:bf-cbc"), md_alg bucket. */
+ * HOW: The top-level kXGS_cert response carries five buckets, in order:
+ *      kXRS_puk (puk_blob = DH public key + PEM parameters), kXRS_cipher_alg
+ *      ("aes-256-cbc:aes-128-cbc:bf-cbc"), kXRS_md_alg ("sha256:sha1"),
+ *      kXRS_x509 (server cert PEM), and kXRS_main.
+ *      The optional signed_rtag is NOT a top-level bucket: it lives INSIDE the
+ *      kXRS_main container bucket. kXRS_main is itself a nested bucket list
+ *      ("gsi\0" + kXGS_cert opcode + optional kXRS_signed_rtag bucket +
+ *      kXRS_none terminator) that is then wrapped as the kXRS_main top-level
+ *      bucket — see the kXRS_main assembly at L186-216 and its packing at L277. */
 
 /*---- Cipher algorithm negotiation list ----
  *
@@ -71,7 +79,6 @@ ngx_int_t
 xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
     ngx_stream_xrootd_srv_conf_t *conf;
-    EVP_PKEY_CTX *pctx;
     EVP_PKEY     *dhkey = NULL;
     BIGNUM       *pub_bn = NULL;
     char         *pub_hex = NULL;
@@ -104,23 +111,18 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     cert_pem = conf->gsi_cert_pem;
     cert_len = conf->gsi_cert_pem_len;
 
-    {
-        OSSL_PARAM dh_params[] = {
-            OSSL_PARAM_utf8_string("group", "ffdhe2048", 0),
-            OSSL_PARAM_END
-        };
-
-        pctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
-        if (pctx == NULL) {
+    /*
+     * Phase 33: take a pre-generated ephemeral ffdhe2048 DH key from the
+     * per-worker pool so keygen never runs on the nginx event thread under a
+     * concurrent certreq burst (the head-of-line-blocking wedge).  If the pool is
+     * momentarily empty, fall back to an inline keygen — correct, just not
+     * offloaded.  Ownership transfers to this connection (freed after round 2).
+     */
+    if (!xrootd_gsi_keypool_pop(conf->common.thread_pool, c->log, &dhkey)) {
+        dhkey = xrootd_gsi_dh_keygen();
+        if (dhkey == NULL) {
             return NGX_ERROR;
         }
-        EVP_PKEY_keygen_init(pctx);
-        EVP_PKEY_CTX_set_params(pctx, dh_params);
-        if (EVP_PKEY_keygen(pctx, &dhkey) <= 0) {
-            EVP_PKEY_CTX_free(pctx);
-            return NGX_ERROR;
-        }
-        EVP_PKEY_CTX_free(pctx);
     }
 
     if (!EVP_PKEY_get_bn_param(dhkey, "pub", &pub_bn)) {
@@ -188,6 +190,19 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
         }
     }
 
+    /*
+     * Build the kXRS_main container — a nested bucket list that the kXGS_cert
+     * response carries as a single top-level kXRS_main bucket (packed at L277).
+     * It is NOT a flat field: it re-encapsulates its own protocol header plus
+     * an inner bucket list.  Inner wire layout (network byte order throughout):
+     *   "gsi\0"                      protocol name (4 bytes, NUL-padded)
+     *   kXGS_cert                    opcode (uint32, 4 bytes)
+     *   [ kXRS_signed_rtag bucket ]  optional: type(4) + len(4) + signature
+     *   kXRS_none                    terminator (uint32, 4 bytes)
+     * main_len reserves the fixed 12 bytes (name + opcode + terminator) and,
+     * when the rtag was signed, the 8-byte bucket header plus the signature.
+     * The mp pointer walks main_buf byte-by-byte to emit this layout below.
+     */
     main_len = 4 + 4 + 4;
     if (signed_rtag_len > 0) {
         main_len += 4 + 4 + signed_rtag_len;

@@ -197,8 +197,5 @@ xrootd_handle_sss_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
                       safe_user, safe_group);
     }
 
-    xrootd_log_access(ctx, c, "AUTH", "-", user, 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_AUTH);
-
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", user, 0);
 }

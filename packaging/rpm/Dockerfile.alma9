@@ -30,6 +30,9 @@ RUN dnf install -y epel-release && \
         zlib-devel \
         libxml2-devel \
         jansson-devel \
+        libcurl-devel \
+        krb5-devel \
+        libxcrypt-devel \
     && dnf clean all
 
 ARG VERSION=0.1.0

@@ -1,6 +1,32 @@
+/*
+ * vfs_read.c — VFS read path and the shared full-read primitive.
+ *
+ * WHAT: Implements xrootd_vfs_read(), which serves a byte range from an open
+ *       handle as an ngx_chain_t, and xrootd_vfs_pread_full(), the EINTR-safe
+ *       short-read-tolerant pread loop used throughout the VFS (including by the
+ *       AIO offload bodies). Two private builders back the read:
+ *       xrootd_vfs_make_memory_chain() and xrootd_vfs_make_file_chain().
+ *
+ * WHY:  The wire-buffer shape is not free choice. Under TLS (or when a per-page
+ *       CRC32c is wanted) the bytes must be in memory; in cleartext we prefer a
+ *       file-backed buffer so nginx can sendfile() straight from the fd. Reads
+ *       must also stop cleanly at EOF and feed the read-through cache's access
+ *       accounting. Putting all of that here means every protocol gets identical
+ *       framing, CRC, and cache behaviour.
+ *
+ * HOW:  xrootd_vfs_read() validates the handle/offset, caps the length at the
+ *       cached file size (flagging eof), then branches: TLS/want_pgcrc ->
+ *       make_memory_chain (pread into a pooled buffer, compute crc32c over the
+ *       bytes read); otherwise make_file_chain (dup the fd, register a pool
+ *       cleanup, build an in_file ngx_buf_t for sendfile). On success for a
+ *       cache-sourced handle it records the access, then emits metrics/log via
+ *       xrootd_vfs_observe_file_op().
+ */
 #include "vfs_internal.h"
 #include "../cache/open.h"
 
+/* EINTR-safe, short-read-tolerant pread into buf. Loops until len bytes are
+ * read or EOF; *nread (if non-NULL) reports the byte count even on error. */
 ngx_int_t
 xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
     off_t offset, size_t *nread)
@@ -34,6 +60,9 @@ xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
     return NGX_OK;
 }
 
+/* Memory-backed read: pread into a pooled buffer and emit a single in-memory
+ * ngx_buf_t. Used under TLS or when a per-read CRC32c is requested; fills the
+ * result length/crc32c/eof. */
 static ngx_int_t
 xrootd_vfs_make_memory_chain(xrootd_vfs_file_t *fh, off_t offset,
     size_t length, ngx_chain_t **out, xrootd_vfs_io_result_t *result)
@@ -84,6 +113,9 @@ xrootd_vfs_make_memory_chain(xrootd_vfs_file_t *fh, off_t offset,
     return NGX_OK;
 }
 
+/* File-backed read: dup the handle fd (pool-cleanup registered) and emit an
+ * in_file ngx_buf_t covering [offset, offset+length) so cleartext responses can
+ * sendfile() with no userspace copy. */
 static ngx_int_t
 xrootd_vfs_make_file_chain(xrootd_vfs_file_t *fh, off_t offset,
     size_t length, ngx_chain_t **out)
@@ -143,6 +175,9 @@ xrootd_vfs_make_file_chain(xrootd_vfs_file_t *fh, off_t offset,
     return NGX_OK;
 }
 
+/* Serve a byte range from an open handle as an ngx_chain_t in *out. Caps length
+ * at EOF, picks the memory- vs file-backed builder, records cache access, and
+ * emits metrics/log. Empty/past-EOF reads return NGX_OK with eof set. */
 ngx_int_t
 xrootd_vfs_read(xrootd_vfs_file_t *fh, off_t offset, size_t length,
     ngx_chain_t **out, xrootd_vfs_io_result_t *result)

@@ -34,6 +34,12 @@ typedef struct {
     ngx_uint_t  in_use;                  /* 1 = slot occupied */
     ngx_msec_t  blacklisted_until;       /* 0 = available; future ms = skip */
     uint32_t    error_count;             /* consecutive CMS disconnect count */
+
+    /* Phase 22 — active health checks (off unless xrootd_health_check on). */
+    ngx_msec_t  hc_next_check;           /* ngx_current_msec when next probe is due */
+    ngx_msec_t  hc_last_ok;              /* ngx_current_msec of last passing probe */
+    uint32_t    hc_fail_count;           /* consecutive probe failures */
+    ngx_uint_t  hc_in_progress;          /* 1 = a worker has claimed this slot */
 } xrootd_srv_entry_t;
 
 typedef struct {
@@ -51,11 +57,26 @@ typedef struct {
     ngx_msec_t  last_seen;
     ngx_msec_t  blacklisted_until;
     uint32_t    error_count;
+    ngx_msec_t  hc_last_ok;      /* Phase 22: last passing health probe */
+    uint32_t    hc_fail_count;   /* Phase 22: consecutive probe failures */
 } xrootd_srv_snapshot_entry_t;
 
 extern ngx_shm_zone_t *xrootd_srv_shm_zone;
 
+/*
+ * nginx shm-zone init callback (set as shm_zone->init).  First boot (data==NULL):
+ * casts shm.addr to the table, sets capacity, zero-fills slots[], creates the
+ * spinlock.  Reattach (data!=NULL): adopts the existing table and recreates the
+ * worker-local mutex handle against tbl->lock.  Returns NGX_OK / NGX_ERROR.
+ */
 ngx_int_t xrootd_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data);
+
+/*
+ * Reserve the registry shm zone during config parsing; call once, before
+ * workers start.  slots sizes the table (sizeof(table) + slots*entry + a page);
+ * stores the count globally and registers xrootd_srv_shm_init_zone as the init
+ * callback.  Returns NGX_OK, or NGX_ERROR if ngx_shared_memory_add fails.
+ */
 ngx_int_t xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots);
 
 /* Called by the CMS server handler when a data server logs in. */
@@ -77,6 +98,32 @@ void xrootd_srv_unregister(const char *host, uint16_t port);
 void xrootd_srv_blacklist(const char *host, uint16_t port,
     ngx_msec_t duration_ms);
 
+/* Phase 23 — clear a drain/blacklist (admin "undrain"); 1 if found. */
+int xrootd_srv_undrain(const char *host, uint16_t port);
+
+/*
+ * Phase 22 — active health checks.
+ *
+ * xrootd_srv_hc_claim(): under the registry spinlock, find the first in-use
+ *   slot whose hc_next_check is due and that no other worker is probing.  On
+ *   success sets hc_in_progress=1, advances hc_next_check by interval_ms,
+ *   copies host/port to the out params, and returns 1.  Returns 0 if nothing
+ *   is due — guaranteeing exactly one worker probes each server per interval.
+ *
+ * xrootd_srv_hc_pass(): probe succeeded — clears hc_fail_count, sets
+ *   hc_last_ok, clears hc_in_progress, and clears a blacklist only if it was
+ *   set by health checking (hc_fail_count was > 0), never a CMS-disconnect one.
+ *
+ * xrootd_srv_hc_fail(): probe failed — increments hc_fail_count, clears
+ *   hc_in_progress, and blacklists the server for blacklist_ms once
+ *   hc_fail_count reaches threshold.  Returns 1 if it newly blacklisted.
+ */
+int  xrootd_srv_hc_claim(char *host_out, size_t host_size,
+    uint16_t *port_out, ngx_msec_t interval_ms);
+void xrootd_srv_hc_pass(const char *host, uint16_t port);
+int  xrootd_srv_hc_fail(const char *host, uint16_t port,
+    uint32_t threshold, ngx_msec_t blacklist_ms);
+
 /* Remove a single path token from a slot's colon-delimited path list.
  * Used by cache eviction to deregister a specific file without removing
  * the whole entry.  Thread-safe (spinlock). */
@@ -94,6 +141,22 @@ void xrootd_srv_unregister_path(const char *host, uint16_t port,
  */
 int xrootd_srv_select(const char *path, int for_write,
     char *host_out, size_t host_size, uint16_t *port_out);
+
+/*
+ * Count occupied, non-blacklisted servers exporting a prefix covering path —
+ * how many distinct data servers a client could be redirected to.
+ */
+int xrootd_srv_count_matching(const char *path);
+
+/*
+ * tried/triedrc retry protocol: extracts the opaque CGI from the raw request
+ * payload and returns 1 when its tried= list already covers every server
+ * matching clean_path, meaning the manager must answer kXR_NotFound instead of
+ * redirecting again (prevents the client redirect-limit loop on a path no
+ * server holds).  payload may be NULL.
+ */
+int xrootd_manager_tried_exhausted(const u_char *payload, size_t payload_len,
+    const char *clean_path);
 
 /*
  * Build a kXR_locate response body listing all non-blacklisted servers that
@@ -116,6 +179,12 @@ int xrootd_srv_locate_all(const char *path, int for_write,
 void xrootd_srv_aggregate_space(uint32_t *total_free_mb,
     uint32_t *avg_util_pct);
 
+/*
+ * Take a point-in-time copy of up to max_entries occupied slots into the
+ * caller-owned out[] array (caller allocates; entries are copied by value, no
+ * aliasing of shm).  Holds the spinlock for the copy.  The now argument is
+ * currently ignored.  Returns the number of entries written.
+ */
 ngx_uint_t xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out,
     ngx_uint_t max_entries, ngx_msec_t now);
 

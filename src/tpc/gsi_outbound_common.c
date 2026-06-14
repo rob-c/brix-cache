@@ -20,6 +20,13 @@
 #endif
 
 
+/*
+ * TPC_BEARER_MAX  — stack cap for a single JWT read from the bearer file; 64 KiB
+ *                   is far above any real WLCG token, so it doubles as an upper
+ *                   sanity bound on file size.
+ * TPC_GSI_MAX_BODY — shared upper bound (256 KiB) on a decoded GSI auth body,
+ *                   referenced by the certreq/exchange siblings.
+ */
 #define TPC_BEARER_MAX     65536
 #define TPC_GSI_MAX_BODY   (256 * 1024)
 
@@ -30,6 +37,12 @@ tpc_put_u32(u_char *p, uint32_t v)
 {
     uint32_t be;
 
+    /*
+     * XRootD security buckets carry length/tag fields as network-order
+     * (big-endian) uint32. htonl() normalises from host order, then we copy the
+     * raw 4 bytes — ngx_memcpy (not a *(uint32_t *)p store) so callers can write
+     * to unaligned cursor positions inside a packed wire buffer.
+     */
     be = htonl(v);
     ngx_memcpy(p, &be, sizeof(be));
 }
@@ -43,13 +56,34 @@ tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char stream_seq,
     ClientRequestHdr  hdr;
     u_char            ctype[4];
 
+    /*
+     * Build the fixed 24-byte kXR_auth request header. ClientRequestHdr is the
+     * generic overlay: streamid[2] | requestid (u16) | body[16] | dlen (u32).
+     * For kXR_auth that body region maps to ClientAuthRequest as
+     * reserved[12] | credtype[4], so the credtype lands at body offset 12
+     * (= absolute byte offset 16 in the header).
+     */
     ngx_memzero(&hdr, sizeof(hdr));
+    /* streamid[1] is the low byte; we use it as the handshake sequence number
+     * (streamid[0] stays 0). Matches the seq the server echoes in replies. */
     hdr.streamid[1]    = stream_seq;
-    hdr.requestid      = htons(kXR_auth);
+    hdr.requestid      = htons(kXR_auth);          /* network order on the wire */
+    /*
+     * The credtype field advertises the auth protocol name as the first 4 bytes
+     * of the payload, NUL-padded — "gsi\0", "ztn\0", etc. Mirror those bytes
+     * verbatim into the header's credtype slot; the full name (and its trailing
+     * data) is also sent in the payload below. cred_payload must be >= 4 bytes.
+     */
     ngx_memcpy(ctype, cred_payload, sizeof(ctype));
-    ngx_memcpy(hdr.body + 12, ctype, 4);
-    hdr.dlen           = htonl((kXR_int32) cred_len);
+    ngx_memcpy(hdr.body + 12, ctype, 4);           /* credtype field (offset 16) */
+    hdr.dlen           = htonl((kXR_int32) cred_len); /* payload length, net order */
 
+    /*
+     * Wire order: header first, then the cred_len-byte payload. Both go through
+     * tpc_send_all which loops over partial writes; a short/failed send here
+     * leaves the socket mid-message, so the caller must treat -1 as fatal for
+     * this connection (it does — every caller aborts the pull).
+     */
     if (tpc_send_all(fd, &hdr, sizeof(hdr)) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_auth send hdr failed");
         t->xrd_error = kXR_ServerError;
@@ -110,6 +144,7 @@ tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd)
      * otherwise fall back to reading from the bearer file.
      */
     if (t->delegated_token[0] != '\0') {
+        /* Already populated by an earlier OAuth2/OIDC exchange for this pull. */
         token_len = strlen(t->delegated_token);
     } else {
         u_char token_buf[TPC_BEARER_MAX];
@@ -118,10 +153,20 @@ tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd)
         {
             return -1;
         }
+        /*
+         * Cache the file-sourced token in t->delegated_token so any later auth
+         * round reuses it. token_len + 1 copies the trailing NUL that
+         * tpc_read_bearer_token guarantees; re-derive token_len from the cached
+         * copy so a NUL embedded in the file truncates here, not on the wire.
+         */
         ngx_memcpy(t->delegated_token, token_buf, token_len + 1);
         token_len = strlen(t->delegated_token);
     }
 
+    /*
+     * ztn credential layout: 4-byte protocol tag "ztn\0" followed by the raw
+     * token bytes (no NUL, no length prefix — dlen in the header bounds it).
+     */
     cred_len = (uint32_t) (4 + token_len);
     cred = malloc((size_t) cred_len);
     if (cred == NULL) {
@@ -130,15 +175,26 @@ tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd)
         return -1;
     }
 
-    ngx_memcpy(cred, "ztn\x00", 4);
+    ngx_memcpy(cred, "ztn\x00", 4);                /* protocol tag, slots 0..3 */
     ngx_memcpy(cred + 4, t->delegated_token, token_len);
 
+    /*
+     * seq=3 is the handshake sequence following bootstrap (protocol=1, login=2),
+     * so this is the first authenticated request on the outbound socket. cred is
+     * a malloc()'d temporary owned here — free it on every exit path (the send
+     * helper copies what it needs into the header and writes the body inline).
+     */
     if (tpc_send_kxr_auth(t, fd, 3, cred, cred_len) != 0) {
         free(cred);
         return -1;
     }
     free(cred);
 
+    /*
+     * tpc_recv_response allocates *body for the server reply; we own it from
+     * here. The reply payload is unused for ztn (success is signalled by status
+     * alone), so free it unconditionally before inspecting status.
+     */
     body = NULL;
     if (tpc_recv_response(fd, &status, &body, &dlen) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC ztn auth recv failed");

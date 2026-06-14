@@ -120,6 +120,15 @@ tpc_build_origin_id(xrootd_ctx_t *ctx, ngx_connection_t *c, char *dst,
     }
 }
 
+/* WHAT: Translate the kXR_open options bitmask into POSIX open(2) flags for the
+ * TPC destination file.
+ * WHY: The wire-level create semantics differ from POSIX, so the mapping is
+ * explicit: kXR_new alone => create, fail if it already exists (O_EXCL);
+ * kXR_new + kXR_delete or kXR_delete alone => create-or-truncate; neither flag
+ * (the common "just receive the copy") => create-or-truncate as well. The
+ * O_EXCL is deliberately dropped whenever kXR_delete is present, since delete
+ * means "overwrite is intended". Always O_RDWR (we read back for stat) and
+ * O_NOCTTY (never acquire a controlling terminal). */
 static int
 tpc_destination_open_flags(uint16_t options)
 {
@@ -129,19 +138,28 @@ tpc_destination_open_flags(uint16_t options)
     if (options & kXR_new) {
         oflags |= O_CREAT;
         if (!(options & kXR_delete)) {
-            oflags |= O_EXCL;
+            oflags |= O_EXCL;     /* create-new only: refuse existing target */
         }
     }
     if (options & kXR_delete) {
-        oflags |= O_CREAT | O_TRUNC;
+        oflags |= O_CREAT | O_TRUNC;   /* overwrite intended */
     }
     if (!(options & (kXR_new | kXR_delete))) {
-        oflags |= O_CREAT | O_TRUNC;
+        oflags |= O_CREAT | O_TRUNC;   /* default: create or replace */
     }
 
     return oflags;
 }
 
+/* WHAT: Register this pull in the shared TPC transfer registry and return its
+ * transfer id (0 on failure / registry full).
+ * WHY: Active transfers are tracked centrally for the dashboard, metrics, and
+ * progress reporting; the id is stored on the file handle and later used by the
+ * worker/done callback to update state. Reconstructs a canonical source URL
+ * from the handle's stored host/port/path for display.
+ * HOW: default port to 1094 if unset, format "root://host:port/path" into a
+ * stack buffer, fill an xrootd_tpc_transfer_t (PROTO_STREAM/DIR_PULL/PENDING),
+ * and hand it to xrootd_tpc_registry_add. */
 static uint64_t
 tpc_register_stream_transfer(ngx_connection_t *c, xrootd_file_t *file)
 {
@@ -156,6 +174,8 @@ tpc_register_stream_transfer(ngx_connection_t *c, xrootd_file_t *file)
         return 0;
     }
 
+    /* Reconstruct the display URL; %ui prints the port, no NUL is written so
+     * src_url.len is taken from the returned end pointer. */
     sport = file->tpc_src_port ? file->tpc_src_port : 1094;
     last = ngx_snprintf(src_buf, sizeof(src_buf), "root://%s:%ui%s",
                         file->tpc_src_host, (ngx_uint_t) sport,
@@ -199,14 +219,17 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (tpc->src_host[0] == '\0' || tpc->src_path[0] == '\0') {
-        xrootd_log_access(ctx, c, "OPEN", dst_path, "tpc-pull",
-                          0, kXR_ArgInvalid,
-                          "invalid or incomplete TPC source", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-                                 "invalid or incomplete TPC source");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN", dst_path,
+                          "tpc-pull", kXR_ArgInvalid,
+                          "invalid or incomplete TPC source");
     }
 
+    /*
+     * Source policy gate (SSRF defence): before we ever connect outbound, the
+     * resolved source host/port is checked against the loopback/private-range
+     * allow flags. A destination server must not be coercible into pulling from
+     * internal addresses unless the operator explicitly permits it.
+     */
     {
         char      policy_err[512];
         uint16_t  sport;
@@ -217,34 +240,47 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 policy_err, sizeof(policy_err))
             != 0)
         {
-            xrootd_log_access(ctx, c, "OPEN", dst_path, "tpc-pull",
-                              0, kXR_NotAuthorized, policy_err, 0);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-            return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                     policy_err);
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN", dst_path,
+                              "tpc-pull", kXR_NotAuthorized, policy_err);
         }
     }
 
     idx = xrootd_alloc_fhandle(ctx);
     if (idx < 0) {
-        xrootd_log_access(ctx, c, "OPEN", dst_path, "tpc-pull",
-                          0, kXR_ServerError, "too many open files", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-        return xrootd_send_error(ctx, c, kXR_ServerError,
-                                 "too many open files");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN", dst_path,
+                          "tpc-pull", kXR_ServerError, "too many open files");
     }
 
     create_mode = (mode_bits & 0777) ? (mode_t) (mode_bits & 0777) : 0644;
-    fd = xrootd_open_confined(c->log, &conf->common.root, dst_path,
-                              tpc_destination_open_flags(options),
-                              create_mode);
+
+    /*
+     * xrootd_open_beneath() resolves its path relative to conf->rootfd (it
+     * strips the leading '/' via xrootd_beneath_rel), so it must receive the
+     * LOGICAL export path — not the root_canon-prefixed absolute path that
+     * dst_path carries for authz/logging/fhandle metadata.  Passing the
+     * absolute path here doubles the root prefix and openat2() fails with
+     * ENOENT.  Recover the logical path by stripping the root_canon prefix.
+     */
+    {
+        const char *dst_logical = dst_path;
+        size_t      root_len = ngx_strlen(conf->common.root_canon);
+
+        if (root_len > 1
+            && ngx_strncmp(dst_path, conf->common.root_canon, root_len) == 0
+            && (dst_path[root_len] == '/' || dst_path[root_len] == '\0'))
+        {
+            dst_logical = dst_path + root_len;
+        }
+
+        fd = xrootd_open_beneath(conf->rootfd, dst_logical,
+                                 tpc_destination_open_flags(options),
+                                 create_mode);
+    }
     if (fd < 0) {
         int err = errno;
 
-        xrootd_log_access(ctx, c, "OPEN", dst_path, "tpc-pull",
-                          0, kXR_IOError, strerror(err), 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-        return xrootd_send_error(ctx, c, kXR_IOError, strerror(err));
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN", dst_path,
+                          "tpc-pull", kXR_IOError, strerror(err));
     }
 
     if (fstat(fd, &st) != 0) {
@@ -276,6 +312,8 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     file->tpc_src_port = tpc->src_port;
     file->tpc_transfer_id = 0;
 
+    /* TPC rendezvous key: echo the client-supplied key if present (the source
+     * side already knows it), otherwise mint a fresh random one for this leg. */
     if (tpc->key[0] != '\0') {
         ngx_cpystrn((u_char *) file->tpc_key, (u_char *) tpc->key,
                     sizeof(file->tpc_key));
@@ -325,12 +363,15 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return NGX_ERROR;
     }
 
+    /* The handle must be a live TPC destination opened by prepare_pull. */
     file = &ctx->files[fhandle_idx];
     if (!file->tpc_destination || file->fd < 0) {
         return xrootd_send_error(ctx, c, kXR_FileNotOpen,
                                  "invalid TPC destination handle");
     }
 
+    /* Idempotent re-trigger: a sync arriving while the worker is already
+     * running gets a kXR_wait, not a second thread post. */
     if (file->tpc_started) {
         return xrootd_send_wait(ctx, c, 1);
     }
@@ -338,12 +379,9 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (file->tpc_transfer_id == 0) {
         file->tpc_transfer_id = tpc_register_stream_transfer(c, file);
         if (file->tpc_transfer_id == 0) {
-            xrootd_log_access(ctx, c, "SYNC", file->path, "tpc-pull",
-                              0, kXR_Overloaded,
-                              "TPC transfer registry full", 0);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
-            return xrootd_send_error(ctx, c, kXR_Overloaded,
-                                     "TPC transfer registry full");
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_SYNC, "SYNC", file->path,
+                              "tpc-pull", kXR_Overloaded,
+                              "TPC transfer registry full");
         }
     }
 
@@ -354,6 +392,12 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return NGX_ERROR;
     }
 
+    /*
+     * Snapshot everything the worker thread needs into the task ctx. The worker
+     * runs off-thread and must NOT touch ctx->files or the connection's mutable
+     * state, so all source/dest fields are copied by value here. The streamid
+     * is captured so done.c can re-bind the deferred request when it completes.
+     */
     t = task->ctx;
     ngx_memzero(t, sizeof(*t));
     t->c = c;
@@ -387,9 +431,7 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_cpystrn((u_char *) t->dst_path, (u_char *) file->path,
                 sizeof(t->dst_path));
 
-    task->handler = xrootd_tpc_pull_thread;
-    task->event.handler = xrootd_tpc_pull_done;
-    task->event.data = task;
+    xrootd_task_bind(task, xrootd_tpc_pull_thread, xrootd_tpc_pull_done);
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
         (void) xrootd_tpc_registry_remove(file->tpc_transfer_id, c->log);
@@ -401,6 +443,8 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "TPC pull thread post failed");
     }
 
+    /* Hand-off committed: mark started and park the connection in AIO state so
+     * the event loop defers further request processing until done.c resumes it. */
     file->tpc_started = 1;
     ctx->state = XRD_ST_AIO;
     return NGX_OK;

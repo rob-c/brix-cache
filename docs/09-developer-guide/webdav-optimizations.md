@@ -77,7 +77,7 @@ content is not served after mutation.
 
 Relevant code:
 
-- `src/webdav/fd_cache.c`
+- `src/fs/fd_cache.c`
 - `src/webdav/get.c`
 
 ---
@@ -105,7 +105,7 @@ Expected benefits:
 Relevant code:
 
 - `src/webdav/get.c`
-- `src/webdav/fd_cache.c`
+- `src/fs/fd_cache.c`
 
 ---
 
@@ -137,7 +137,7 @@ through the SSL stack.
 Relevant code:
 
 - `src/webdav/get.c`
-- `src/webdav/fd_cache.c`
+- `src/fs/fd_cache.c`
 
 ---
 

@@ -1,5 +1,6 @@
 #include "open.h"
 #include "ngx_xrootd_module.h"
+#include "../mirror/stream_wmirror.h"
 #include "../write/wrts_journal.h"
 #include "../compat/tmp_path.h"
 #include "cache/writethrough_metrics.h"
@@ -73,22 +74,17 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	if (use_posc) {
 		if (xrootd_make_tmp_path(resolved, posc_temp_path,
 		                         sizeof(posc_temp_path)) != NGX_OK) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, "wr",
-			                  0, kXR_ServerError,
-			                  "POSC temp path too long", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-			return xrootd_send_error(ctx, c, kXR_ServerError,
-			                         "POSC temp path too long");
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_ServerError,
+			                  "POSC temp path too long");
 		}
 	}
 
 	if (!is_write) {
 		if (stat(resolved, &st) == 0 && S_ISDIR(st.st_mode)) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, "rd",
-							  0, kXR_isDirectory, "is a directory", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_isDirectory,
-									 "is a directory");
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+							  resolved, "rd", kXR_isDirectory,
+							  "is a directory");
 		}
 
 		oflags = O_RDONLY | O_NOCTTY;
@@ -126,12 +122,10 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 	idx = xrootd_alloc_fhandle(ctx);
 	if (idx < 0) {
-		xrootd_log_access(ctx, c, "OPEN", resolved,
-						  is_write ? "wr" : "rd",
-						  0, kXR_ServerError, "too many open files", 0);
-		XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-		return xrootd_send_error(ctx, c, kXR_ServerError,
-								 "too many open files");
+		XROOTD_RETURN_ERR(ctx, c,
+						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+						  "OPEN", resolved, is_write ? "wr" : "rd",
+						  kXR_ServerError, "too many open files");
 	}
 
 	{
@@ -149,8 +143,20 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			 * FD leakage into any forked child (e.g. tpc_curl). */
 			fd = open(open_path, effective_oflags | O_CLOEXEC, create_mode);
 		} else {
-			fd = xrootd_open_confined(c->log, &conf->common.root, open_path,
-			                          effective_oflags, create_mode);
+			/* open_path is the absolute resolved path; strip root_canon to
+			 * get the path relative to rootfd for openat2 RESOLVE_BENEATH. */
+			const char *rel = open_path;
+			size_t      root_len = strlen(conf->common.root_canon);
+			if (root_len > 0
+			    && ngx_strncmp((u_char *) open_path,
+			                   (u_char *) conf->common.root_canon,
+			                   root_len) == 0
+			    && open_path[root_len] == '/')
+			{
+			    rel = open_path + root_len;
+			}
+			fd = xrootd_open_beneath(conf->rootfd, rel,
+			                         effective_oflags, create_mode);
 		}
 	}
 	if (fd < 0) {
@@ -158,58 +164,51 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		const char *mode_str = is_write ? "wr" : "rd";
 
 		if (err == ENOENT || err == ENOTDIR) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, mode_str,
-							  0, kXR_NotFound, "file not found", 0);
-			XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_NotFound,
-									 "file not found");
+			XROOTD_RETURN_ERR(ctx, c,
+							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+							  "OPEN", resolved, mode_str,
+							  kXR_NotFound, "file not found");
 		}
 		if (err == EEXIST) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, mode_str,
-							  0, kXR_FileLocked, "file already exists", 0);
-			XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_FileLocked,
-									 "file already exists");
+			XROOTD_RETURN_ERR(ctx, c,
+							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+							  "OPEN", resolved, mode_str,
+							  kXR_FileLocked, "file already exists");
 		}
 		if (err == EACCES) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, mode_str,
-							  0, kXR_NotAuthorized, "permission denied", 0);
-			XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-									 "permission denied");
+			XROOTD_RETURN_ERR(ctx, c,
+							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+							  "OPEN", resolved, mode_str,
+							  kXR_NotAuthorized, "permission denied");
 		}
 		if (err == EISDIR) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, mode_str,
-							  0, kXR_isDirectory, "is a directory", 0);
-			XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_isDirectory,
-									 "is a directory");
+			XROOTD_RETURN_ERR(ctx, c,
+							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+							  "OPEN", resolved, mode_str,
+							  kXR_isDirectory, "is a directory");
 		}
-		xrootd_log_access(ctx, c, "OPEN", resolved, mode_str,
-						  0, kXR_IOError, strerror(err), 0);
-		XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-		return xrootd_send_error(ctx, c, kXR_IOError, strerror(err));
+		XROOTD_RETURN_ERR(ctx, c,
+						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+						  "OPEN", resolved, mode_str,
+						  kXR_IOError, strerror(err));
 	}
 
 	if (fstat(fd, &st) != 0) {
 		int err = errno;
 
 		close(fd);
-		xrootd_log_access(ctx, c, "OPEN", resolved,
-						  is_write ? "wr" : "rd",
-						  0, kXR_IOError, strerror(err), 0);
-		XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-		return xrootd_send_error(ctx, c, kXR_IOError, strerror(err));
+		XROOTD_RETURN_ERR(ctx, c,
+						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+						  "OPEN", resolved, is_write ? "wr" : "rd",
+						  kXR_IOError, strerror(err));
 	}
 
 	if (S_ISDIR(st.st_mode)) {
 		close(fd);
-		xrootd_log_access(ctx, c, "OPEN", resolved,
-						  is_write ? "wr" : "rd",
-						  0, kXR_isDirectory, "is a directory", 0);
-		XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-		return xrootd_send_error(ctx, c, kXR_isDirectory,
-								 "is a directory");
+		XROOTD_RETURN_ERR(ctx, c,
+						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+						  "OPEN", resolved, is_write ? "wr" : "rd",
+						  kXR_isDirectory, "is a directory");
 	}
 
 	ctx->files[idx].fd          = fd;
@@ -429,6 +428,10 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	xrootd_log_access(ctx, c, "OPEN", resolved,
 					  is_write ? "wr" : "rd", 1, 0, NULL, 0);
 	XROOTD_OP_OK(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
+
+	/* Phase 24 W3: begin accumulating this write-open for the data-write mirror.
+	 * No-op unless xrootd_mirror_writes is on and a stream mirror is configured. */
+	xrootd_stream_wmirror_on_open(ctx, c, conf, idx, is_write);
 
 	return xrootd_queue_response(ctx, c, buf, total);
 }

@@ -1,3 +1,26 @@
+/*
+ * metrics_macros.h — lock-free SHM counter-increment macros and accessor.
+ *
+ * WHAT: Provides the one inline accessor xrootd_metrics_shared() that resolves
+ *       the shared-memory metrics block from ngx_xrootd_shm_zone, plus the family
+ *       of XROOTD_*_METRIC_INC / _ADD macros that bump counters for each counter
+ *       group: per-server (SRV), WebDAV, S3, and proxy (aggregate + per-upstream).
+ *       The low-level XROOTD_ATOMIC_INC/DEC/ADD primitives wrap ngx_atomic_fetch_add.
+ * WHY:  Metric updates run on the hot request/IO path and across multiple worker
+ *       processes, so every counter touch must be lock-free and NULL-safe. Funnelling
+ *       all increments through these macros guarantees consistent atomic semantics,
+ *       skips work when the SHM zone is not yet initialised (data == NULL or the
+ *       nginx "==(void*)1" reuse sentinel) or when a ctx/metrics pointer is NULL,
+ *       and keeps call sites terse so handlers never hand-roll atomics.
+ * HOW:  xrootd_metrics_shared() guards the SHM sentinels and returns the typed
+ *       block (or NULL). The webdav/s3 macros dereference that singleton; the SRV
+ *       and PROXY macros instead take a ctx whose ->metrics field may be NULL. ADD
+ *       skips zero/negative amounts. The per-upstream UP_ macros bound-check
+ *       proxy_ptr->upstream_idx against XROOTD_PROXY_MAX_UPSTREAMS before indexing
+ *       the upstreams[] slice, and are meant to be called after the matching
+ *       aggregate XROOTD_PROXY_METRIC_INC/_ADD. Header-only (static inline + macros);
+ *       requires ngx_xrootd_metrics_t / ngx_xrootd_shm_zone to be already in scope.
+ */
 #ifndef NGX_XROOTD_METRICS_MACROS_H
 #define NGX_XROOTD_METRICS_MACROS_H
 

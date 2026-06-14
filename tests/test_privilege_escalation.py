@@ -669,6 +669,131 @@ class TestReadSideSymlinkEscape:
 
 
 # ===========================================================================
+# Write-side symlink escape checks (partner to TestReadSideSymlinkEscape)
+# ===========================================================================
+
+class TestWriteSideSymlinkEscape:
+    """Mutating ops (open-create, mkdir, rm, truncate, mv-destination) must not
+    follow a symlink out of xrootd_root.  This is the write-side partner to
+    TestReadSideSymlinkEscape and a direct regression guard for the openat2
+    RESOLVE_BENEATH parent-confinement that the *at() syscall family
+    (mkdirat/unlinkat/renameat) needs: a symlink in an INTERMEDIATE component
+    (/link_dir -> /outside) is otherwise followed straight out of the root.
+
+    The anon endpoint has xrootd_allow_write on, so a rejection here proves
+    CONFINEMENT (not an auth failure).  Each attack targets a genuinely WRITABLE
+    directory outside the root and then asserts that directory is left pristine —
+    nothing created, the victim file neither overwritten, truncated, nor deleted.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup_symlinks(self):
+        self.outside = tempfile.TemporaryDirectory(prefix="xrd-priv-wescape-")
+        self.victim = os.path.join(self.outside.name, "victim.txt")
+        with open(self.victim, "wb") as fh:
+            fh.write(b"ORIGINAL")
+
+        self.link_file_name = "_priv_wsymlink_file"
+        self.link_dir_name = "_priv_wsymlink_dir"
+        self.link_file = os.path.join(DATA_DIR, self.link_file_name)
+        self.link_dir = os.path.join(DATA_DIR, self.link_dir_name)
+
+        _unlink_if_exists(self.link_file)
+        _unlink_if_exists(self.link_dir)
+        os.symlink(self.victim, self.link_file)        # -> outside file
+        os.symlink(self.outside.name, self.link_dir)   # -> outside writable dir
+
+        yield
+
+        _unlink_if_exists(self.link_file)
+        _unlink_if_exists(self.link_dir)
+        self.outside.cleanup()
+
+    def _assert_outside_pristine(self):
+        assert os.path.exists(self.victim), \
+            "CONFINEMENT BREACH: victim outside the root was deleted"
+        with open(self.victim, "rb") as fh:
+            assert fh.read() == b"ORIGINAL", \
+                "CONFINEMENT BREACH: victim outside the root was overwritten/truncated"
+        leftover = sorted(os.listdir(self.outside.name))
+        assert leftover == ["victim.txt"], \
+            f"CONFINEMENT BREACH: outside dir gained entries {leftover}"
+
+    def test_open_create_through_dir_symlink_rejected(self):
+        with _raw_session() as sock:
+            _login_anon(sock)
+            status, _ = _open_file_raw(
+                sock, f"/{self.link_dir_name}/pwned.txt".encode(),
+                kXR_open_wrto | kXR_new,
+            )
+        assert status == kXR_ERROR
+        self._assert_outside_pristine()
+
+    def test_open_write_through_file_symlink_does_not_truncate(self):
+        with _raw_session() as sock:
+            _login_anon(sock)
+            status, _ = _open_file_raw(
+                sock, f"/{self.link_file_name}".encode(),
+                kXR_open_updt | kXR_new,
+            )
+        assert status == kXR_ERROR
+        self._assert_outside_pristine()
+
+    def test_mkdir_through_dir_symlink_rejected(self):
+        payload = f"/{self.link_dir_name}/pwndir".encode()
+        req = struct.pack("!2sH1s13sHI", b"\x00\x03", kXR_mkdir,
+                          b"\x00", b"\x00" * 13, 0o755, len(payload))
+        with _raw_session() as sock:
+            _login_anon(sock)
+            sock.sendall(req + payload)
+            status, _ = _read_response(sock)
+        assert status == kXR_ERROR
+        self._assert_outside_pristine()
+
+    def test_rm_through_file_symlink_rejected(self):
+        payload = f"/{self.link_file_name}".encode()
+        req = struct.pack("!2sH16sI", b"\x00\x03", kXR_rm,
+                          b"\x00" * 16, len(payload))
+        with _raw_session() as sock:
+            _login_anon(sock)
+            sock.sendall(req + payload)
+            status, _ = _read_response(sock)
+        assert status == kXR_ERROR
+        self._assert_outside_pristine()
+
+    def test_truncate_through_file_symlink_rejected(self):
+        payload = f"/{self.link_file_name}".encode()
+        req = struct.pack("!2sH4sq4sI", b"\x00\x03", kXR_truncate,
+                          b"\x00" * 4, 0, b"\x00" * 4, len(payload))
+        with _raw_session() as sock:
+            _login_anon(sock)
+            sock.sendall(req + payload)
+            status, _ = _read_response(sock)
+        assert status == kXR_ERROR
+        self._assert_outside_pristine()
+
+    def test_mv_destination_through_dir_symlink_rejected(self):
+        src_disk = os.path.join(DATA_DIR, "_priv_wmv_src.txt")
+        with open(src_disk, "wb") as fh:
+            fh.write(b"in-root")
+        try:
+            src = b"/_priv_wmv_src.txt"
+            dst = f"/{self.link_dir_name}/moved.txt".encode()
+            payload = src + b" " + dst
+            req = struct.pack("!2sH14shI", b"\x00\x03", kXR_mv,
+                              b"\x00" * 14, len(src), len(payload))
+            with _raw_session() as sock:
+                _login_anon(sock)
+                sock.sendall(req + payload)
+                status, _ = _read_response(sock)
+            assert status == kXR_ERROR
+            self._assert_outside_pristine()
+            assert os.path.exists(src_disk), "in-root mv source vanished"
+        finally:
+            _unlink_if_exists(src_disk)
+
+
+# ===========================================================================
 # Pre-auth rejection of ALL data opcodes
 # ===========================================================================
 

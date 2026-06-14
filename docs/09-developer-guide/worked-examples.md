@@ -68,7 +68,7 @@ shows the full contribution path concretely.
 
 `src/protocol/opcodes.h`:
 ```c
-#define kXR_ping    3021  /* liveness check — zero payload in, zero payload out */
+#define kXR_ping    3011  /* liveness check — zero payload in, zero payload out */
 ```
 
 ### Step 2 — Wire struct
@@ -90,10 +90,9 @@ bytes: 2-byte stream ID, 2-byte request ID, 16-byte body, 4-byte dlen) with
 `src/session/lifecycle.c` — `xrootd_handle_ping`:
 ```c
 ngx_int_t
-xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_PING, "PING", "-", "", 0);
+    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_PING, "PING", "-", "-", 0);
 }
 ```
 Three lines. `XROOTD_RETURN_OK` handles log + metric + send in one call.
@@ -103,7 +102,7 @@ Three lines. `XROOTD_RETURN_OK` handles log + metric + send in one call.
 `src/handshake/dispatch_session.c`:
 ```c
 case kXR_ping:
-    return xrootd_handle_ping(ctx, c, conf);
+    return xrootd_handle_ping(ctx, c);
 ```
 No auth guard needed — ping is valid before login (used by health checkers).
 

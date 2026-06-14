@@ -30,7 +30,6 @@
 #include "../protocol/opcodes.h"
 #include "../compat/integrity_info.h"
 #include "../compat/net_target.h"
-#include "util/logging.h"
 #include "../compat/checksum.h"
 #include "../compat/http_headers.h"
 #include "../compat/http_query.h"
@@ -38,6 +37,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <zlib.h>   /* adler32() for the streaming Digest body filter */
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -171,6 +171,17 @@ xrdhttp_parse_request(ngx_http_request_t *r)
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "xrdhttp: X-Xrootd-Proto=\"%s\"",
                        ctx->proto_version);
+    }
+
+    /* --- Want-Digest: adler32 (RFC 3230) enables the streaming body digest.
+     * Only meaningful for XrdHttp clients; the body filter folds the response
+     * through adler32 and emits a Digest trailer. --- */
+    h = webdav_tpc_find_header(r, "Want-Digest", sizeof("Want-Digest") - 1);
+    if (ctx->is_xrdhttp && h != NULL && h->value.len > 0
+        && ngx_strcasestrn(h->value.data, "adler32",
+                           sizeof("adler32") - 2) != NULL)
+    {
+        ctx->compute_digest = 1;
     }
 
     /* --- Capture X-Xrootd-Requuid (echo in every response) --- */
@@ -624,18 +635,57 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
     return xrootd_http_set_header(r, "Digest", hdr_value, NULL);
 }
 
-/* ---- (placeholder: filter approach removed) ---- */
-
-/*
- * Note: A nginx header filter approach was attempted but proved unreliable
- * because the webdav module's postconfiguration runs before the built-in
- * ngx_http_header_filter_module, which overwrites ngx_http_top_header_filter
- * with a direct assignment.  XrdHttp headers are instead injected at each
- * call site (get.c before send, error paths before return).
- */
+/* ---- streaming Digest body filter (Phase 21 Step B) ---- */
 
 ngx_int_t
-xrdhttp_register_header_filter(void)
+xrdhttp_digest_body_filter(ngx_http_request_t *r, ngx_chain_t *in,
+    ngx_http_output_body_filter_pt next)
 {
-    return NGX_OK;
+    xrdhttp_req_ctx_t *ctx;
+    ngx_chain_t       *cl;
+    ngx_uint_t         saw_last = 0;
+
+    ctx = (xrdhttp_req_ctx_t *)
+          ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+
+    if (ctx == NULL || !ctx->is_xrdhttp || !ctx->compute_digest) {
+        return next(r, in);          /* pass-through */
+    }
+
+    if (ctx->adler == 0) {
+        ctx->adler = (uint32_t) adler32(0L, Z_NULL, 0);   /* seed = 1 */
+    }
+
+    for (cl = in; cl != NULL; cl = cl->next) {
+        ngx_buf_t *b = cl->buf;
+
+        if (ngx_buf_in_memory(b) && b->last > b->pos) {
+            ctx->adler = (uint32_t) adler32((uLong) ctx->adler, b->pos,
+                                            (uInt) (b->last - b->pos));
+        }
+        if (b->last_buf || b->last_in_chain) {
+            saw_last = 1;
+        }
+    }
+
+    /* On the final buffer, queue the Digest as a response trailer.  nginx only
+     * transmits trailers on chunked HTTP/1.1 and HTTP/2/3 responses; for a
+     * fixed Content-Length GET the fd-based xrdhttp_add_checksum_header() path
+     * supplies the Digest header instead, so this is purely additive. */
+    if (saw_last && !ctx->digest_emitted) {
+        ngx_table_elt_t *h = ngx_list_push(&r->headers_out.trailers);
+        if (h != NULL) {
+            u_char *v = ngx_pnalloc(r->pool, sizeof("adler32=") - 1 + 8 + 1);
+            if (v != NULL) {
+                size_t n = ngx_sprintf(v, "adler32=%08xD", ctx->adler) - v;
+                h->hash = 1;
+                ngx_str_set(&h->key, "Digest");
+                h->value.data = v;
+                h->value.len  = n;
+            }
+        }
+        ctx->digest_emitted = 1;
+    }
+
+    return next(r, in);
 }

@@ -40,6 +40,8 @@
 
 #include "config.h"
 #include "../tpc/key_registry.h"
+#include "../session/registry.h"   /* XROOTD_SESSION_REGISTRY_SLOTS default */
+#include "../manager/health_check.h" /* XROOTD_HC_TYPE_PING default */
 
 /*
  * This function creates a new server-level configuration object for nginx.
@@ -84,15 +86,19 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->group_rules  = NULL;
     conf->access_log_fd = NGX_INVALID_FILE;
     conf->metrics_slot = -1;
+    conf->rootfd       = -1;
     conf->security_level = NGX_CONF_UNSET_UINT;
     conf->tls          = NGX_CONF_UNSET;
+    conf->tls_ktls     = NGX_CONF_UNSET;
     conf->tls_ctx      = NULL;
     conf->cache        = NGX_CONF_UNSET;
     conf->cache_origin_tls = NGX_CONF_UNSET;
     conf->cache_lock_timeout = NGX_CONF_UNSET;
     conf->cache_eviction_threshold = NGX_CONF_UNSET_UINT;
     conf->cache_max_file_size      = NGX_CONF_UNSET;
+    conf->memory_budget            = NGX_CONF_UNSET;
     conf->cache_include_regex_set  = 0;
+    conf->cache_slice_size         = NGX_CONF_UNSET_SIZE;
     conf->wt_enable                = NGX_CONF_UNSET;
     conf->wt_mode                  = XROOTD_WT_MODE_UNSET;
     conf->wt_origin_port           = 0;
@@ -107,6 +113,26 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->collapse_redir_ttl = NGX_CONF_UNSET_MSEC;
     conf->recover_writes     = NGX_CONF_UNSET;
     conf->registry_slots = NGX_CONF_UNSET_UINT;
+    conf->session_slots  = NGX_CONF_UNSET_UINT;
+    conf->redir_cache_slots = NGX_CONF_UNSET_UINT;
+    conf->hc_enabled     = NGX_CONF_UNSET;
+    conf->hc_interval_ms = NGX_CONF_UNSET_MSEC;
+    conf->hc_timeout_ms  = NGX_CONF_UNSET_MSEC;
+    conf->hc_threshold   = NGX_CONF_UNSET_UINT;
+    conf->hc_blacklist_ms = NGX_CONF_UNSET_MSEC;
+    conf->hc_type        = NGX_CONF_UNSET_UINT;
+
+    /* Phase 24: traffic mirror (targets array NULL until a directive adds one). */
+    conf->mirror.enabled     = NGX_CONF_UNSET;
+    conf->mirror.targets     = NULL;
+    conf->mirror.sample_pct  = NGX_CONF_UNSET_UINT;
+    conf->mirror.method_mask = NGX_CONF_UNSET_UINT;
+    conf->mirror.opcode_mask = NGX_CONF_UNSET_UINT;
+    conf->mirror.opcode_exclude_mask = NGX_CONF_UNSET_UINT;
+    conf->mirror.strip_auth  = NGX_CONF_UNSET;
+    conf->mirror.log_diverge = NGX_CONF_UNSET;
+    conf->mirror.timeout_ms  = NGX_CONF_UNSET_MSEC;
+    conf->mirror.mirror_writes = NGX_CONF_UNSET;
     conf->proxy_enable              = NGX_CONF_UNSET;
     conf->proxy_port                = NGX_CONF_UNSET;
     conf->proxy_upstream_tls        = NGX_CONF_UNSET;
@@ -173,6 +199,16 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->ocsp_staple_data = NULL;
     conf->ocsp_staple_len  = 0;
 
+    /* Phase 20 caches/limits: kv == NULL means the feature is disabled.  The
+     * directive setters fill these in; merge inherits the parent block. */
+    conf->token_cache_kv  = NULL;
+    conf->auth_cache.kv   = NULL;
+    conf->auth_cache.ttl_secs = 0;
+    conf->rate_limit.kv   = NULL;
+    conf->rate_limit.rate = 0;
+    conf->rate_limit.burst = 0;
+    conf->rate_limit.key_ip = 0;
+
     return conf;
 }
 
@@ -214,6 +250,18 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
                              prev->token_macaroon_secret,     "");
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
                              prev->token_macaroon_secret_old, "");
+
+    /* Phase 20 caches/limits: inherit the parent's whole config when this
+     * block did not declare its own (kv still NULL). */
+    if (conf->token_cache_kv == NULL) {
+        conf->token_cache_kv = prev->token_cache_kv;
+    }
+    if (conf->auth_cache.kv == NULL) {
+        conf->auth_cache = prev->auth_cache;
+    }
+    if (conf->rate_limit.kv == NULL) {
+        conf->rate_limit = prev->rate_limit;
+    }
     ngx_conf_merge_str_value(conf->sss_keytab,      prev->sss_keytab,      "");
     ngx_conf_merge_value(conf->sss_lifetime,        prev->sss_lifetime,    13);
     ngx_conf_merge_str_value(conf->krb5_principal,  prev->krb5_principal,  "");
@@ -222,6 +270,7 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->unix_trust_remote,   prev->unix_trust_remote, 0);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
+    ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        0);
     ngx_conf_merge_value(conf->cache,           prev->cache,           0);
     ngx_conf_merge_str_value(conf->cache_root,  prev->cache_root,      "");
     ngx_conf_merge_str_value(conf->cache_origin, prev->cache_origin,   "");
@@ -232,6 +281,22 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
                               prev->cache_eviction_threshold, 900000);
     ngx_conf_merge_off_value(conf->cache_max_file_size,
                              prev->cache_max_file_size, 0);
+    ngx_conf_merge_off_value(conf->memory_budget,
+                             prev->memory_budget, 768 * 1024 * 1024);
+    ngx_conf_merge_size_value(conf->cache_slice_size,
+                              prev->cache_slice_size, 0);
+
+    /* Phase 26: slice size must be 0 (off) or a positive multiple of the 1 MiB
+     * origin fetch chunk (so a fill never reads a partial chunk at a slice
+     * boundary). */
+    if (conf->cache_slice_size != 0
+        && (conf->cache_slice_size < (1024 * 1024)
+            || (conf->cache_slice_size % (1024 * 1024)) != 0))
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cache_slice must be a positive multiple of 1m");
+        return NGX_CONF_ERROR;
+    }
 
     /* Inherit compiled regex from parent if the child didn't set one */
     if (!conf->cache_include_regex_set && prev->cache_include_regex_set) {
@@ -263,6 +328,43 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_msec_value(conf->collapse_redir_ttl, prev->collapse_redir_ttl, 30000);
     ngx_conf_merge_value(conf->recover_writes,       prev->recover_writes,       0);
     ngx_conf_merge_uint_value(conf->registry_slots,  prev->registry_slots,  128);
+    ngx_conf_merge_uint_value(conf->session_slots,   prev->session_slots,
+                              XROOTD_SESSION_REGISTRY_SLOTS);
+    /* Left UNSET when unconfigured; postconfiguration treats UNSET as
+     * "use the compile-time default" (XROOTD_REDIR_CACHE_SLOTS). */
+    ngx_conf_merge_uint_value(conf->redir_cache_slots, prev->redir_cache_slots,
+                              NGX_CONF_UNSET_UINT);
+
+    /* Phase 22: active health checks — disabled by default (non-breaking). */
+    ngx_conf_merge_value(conf->hc_enabled,       prev->hc_enabled,       0);
+    ngx_conf_merge_msec_value(conf->hc_interval_ms,  prev->hc_interval_ms,  30000);
+    ngx_conf_merge_msec_value(conf->hc_timeout_ms,   prev->hc_timeout_ms,    5000);
+    ngx_conf_merge_uint_value(conf->hc_threshold,    prev->hc_threshold,        3);
+    ngx_conf_merge_msec_value(conf->hc_blacklist_ms, prev->hc_blacklist_ms, 60000);
+    ngx_conf_merge_uint_value(conf->hc_type, prev->hc_type, XROOTD_HC_TYPE_PING);
+
+    /* Phase 24: traffic mirror — inherit parent targets if none set locally,
+     * then derive `enabled` from the presence of at least one target. */
+    if (conf->mirror.targets == NULL) {
+        conf->mirror.targets = prev->mirror.targets;
+    }
+    ngx_conf_merge_uint_value(conf->mirror.sample_pct,  prev->mirror.sample_pct, 100);
+    /* Default: mirror ALL ops; the operator de-selects with
+     * xrootd_mirror_exclude_opcodes (or restricts with xrootd_mirror_opcodes). */
+    ngx_conf_merge_uint_value(conf->mirror.opcode_mask, prev->mirror.opcode_mask,
+                              XROOTD_MIRROR_OP_ALL);
+    ngx_conf_merge_uint_value(conf->mirror.opcode_exclude_mask,
+                              prev->mirror.opcode_exclude_mask, 0);
+    ngx_conf_merge_uint_value(conf->mirror.method_mask, prev->mirror.method_mask,
+                              XROOTD_MIRROR_M_DEFAULT);
+    ngx_conf_merge_value(conf->mirror.strip_auth,  prev->mirror.strip_auth,  1);
+    ngx_conf_merge_value(conf->mirror.log_diverge, prev->mirror.log_diverge, 1);
+    ngx_conf_merge_msec_value(conf->mirror.timeout_ms, prev->mirror.timeout_ms, 5000);
+    ngx_conf_merge_value(conf->mirror.mirror_writes,
+                         prev->mirror.mirror_writes, 0);
+    conf->mirror.enabled = (conf->mirror.targets != NULL
+                            && conf->mirror.targets->nelts > 0) ? 1 : 0;
+
     ngx_conf_merge_msec_value(conf->cms_locate_timeout, prev->cms_locate_timeout,
                               5000);
     ngx_conf_merge_str_value(conf->cms_paths,       prev->cms_paths,       "");
@@ -343,30 +445,13 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_msec_value(conf->proxy_read_timeout,       prev->proxy_read_timeout,       60000);
     ngx_conf_merge_msec_value(conf->proxy_keepalive_interval, prev->proxy_keepalive_interval, 15000);
 
-    if (conf->proxy_upstreams == NULL && prev->proxy_upstreams != NULL) {
-        conf->proxy_upstreams = prev->proxy_upstreams;
-    }
-
-    if (conf->proxy_host.len == 0 && prev->proxy_host.len > 0) {
-        conf->proxy_host = prev->proxy_host;
-    }
-
-    if (conf->cache_origin_host.len == 0 && prev->cache_origin_host.len > 0) {
-        conf->cache_origin_host = prev->cache_origin_host;
-        conf->cache_origin_port = prev->cache_origin_port;
-    }
+    XROOTD_MERGE_PTR(conf, prev, proxy_upstreams);
+    ngx_conf_merge_str_value(conf->proxy_host, prev->proxy_host, "");
+    XROOTD_MERGE_HOSTPORT(conf, prev, cache_origin_host, cache_origin_port);
 
     ngx_conf_merge_value(conf->wt_enable, prev->wt_enable, 0);
-    if (conf->wt_mode == XROOTD_WT_MODE_UNSET) {
-        conf->wt_mode = (prev->wt_mode == XROOTD_WT_MODE_UNSET)
-                        ? XROOTD_WT_MODE_SYNC
-                        : prev->wt_mode;
-    }
-
-    if (conf->wt_origin_host.len == 0 && prev->wt_origin_host.len > 0) {
-        conf->wt_origin_host = prev->wt_origin_host;
-        conf->wt_origin_port = prev->wt_origin_port;
-    }
+    XROOTD_MERGE_ENUM(conf, prev, wt_mode, XROOTD_WT_MODE_UNSET, XROOTD_WT_MODE_SYNC);
+    XROOTD_MERGE_HOSTPORT(conf, prev, wt_origin_host, wt_origin_port);
     if (conf->wt_origin_host.len == 0 && conf->cache_origin_host.len > 0) {
         conf->wt_origin_host = conf->cache_origin_host;
         conf->wt_origin_port = conf->cache_origin_port;

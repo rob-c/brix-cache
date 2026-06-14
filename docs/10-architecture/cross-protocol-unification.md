@@ -230,7 +230,7 @@ libcurl rather than the key registry — the two TPC mechanisms are not currentl
 | `fs_walk.c` | dot-entry test, path join, dir-empty, confined remove-tree | WebDAV DELETE, S3 MPU cleanup, Qckscan/PROPFIND loops |
 | `fs_usage.c` | `statvfs` arithmetic | kXR_Qspace/QFSinfo, cache metrics, WebDAV quota props |
 | `staged_file.c` | temp-file open/commit/abort lifecycle | S3 PUT/CopyObject, WebDAV COPY/TPC pull |
-| `shm_slots.h` | expiry/free-slot helpers | TPC keys, pending locate, WebDAV lock table |
+| `shm_slots.h` | expiry/free-slot helpers | TPC keys, pending locate |
 | `src/cms/frame_io.c` | send-all loop + CMS frame assembly | CMS client and server send paths |
 
 ---
@@ -323,7 +323,7 @@ HTTP and token-adjacent helpers.
 | Token files | `src/token/file.c` | upstream redirector auth, native TPC outbound auth |
 | OAuth2 token JSON | `src/token/oauth2.c` | native TPC token fetch, WebDAV TPC credential parsing |
 | Filesystem usage | `src/compat/fs_usage.c` | native query, cache metrics, WebDAV quota props |
-| SHM slot bookkeeping | `src/compat/shm_slots.h` | pending locate, TPC key registry, WebDAV locks |
+| SHM slot bookkeeping | `src/compat/shm_slots.h` | pending locate, TPC key registry |
 
 The main deliberate non-goals are still protocol-policy boundaries: S3 SigV4 stays separate
 from WLCG bearer-token validation, native TPC stays separate from curl-based WebDAV TPC, and

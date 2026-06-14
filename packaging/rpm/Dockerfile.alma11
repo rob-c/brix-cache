@@ -36,6 +36,9 @@ RUN dnf install -y epel-release && \
         zlib-devel \
         libxml2-devel \
         jansson-devel \
+        libcurl-devel \
+        krb5-devel \
+        libxcrypt-devel \
     && dnf clean all
 
 # If nginx-mod-devel is not available in EPEL 11, uncomment the block below:

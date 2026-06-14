@@ -10,7 +10,7 @@ operator tool without turning it into a second Prometheus or a risky control
 plane.
 
 For a file-by-file implementation roadmap, see
-[Dashboard Feature Implementation Plan](../09-developer-guide/dashboard-feature-implementation-plan.md).
+[Dashboard Feature Implementation Plan](../_archive/dashboard-feature-implementation-plan.md).
 
 ## Design Principles
 

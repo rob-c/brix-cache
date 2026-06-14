@@ -287,51 +287,50 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
                     if (errno != 0 || endp == colon + 1 || pval < 1 || pval > 65535) {
                         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                                       "xrootd proxy: invalid redirect port, dropping");
-                        goto xrootd_skip_redirect;
+                    } else {
+                        proxy->redirect_port = (uint16_t) pval;
+
+                        proxy->redirect_count++;
+                        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                                      "xrootd proxy: following redirect %d to %s:%d",
+                                      proxy->redirect_count,
+                                      proxy->redirect_host.data,
+                                      (int) proxy->redirect_port);
+
+                        /* Close current upstream, reconnect to redirected target */
+                        if (proxy->conn != NULL) {
+                            ngx_close_connection(proxy->conn);
+                            proxy->conn = NULL;
+                        }
+                        if (proxy->resp_body != NULL) {
+                            ngx_free(proxy->resp_body);
+                            proxy->resp_body = NULL;
+                        }
+                        /* Reuse the wait-retry copy to re-issue the request */
+                        proxy->saved_req      = proxy->wait_retry_req;
+                        proxy->saved_req_len  = proxy->wait_retry_req_len;
+                        proxy->saved_local_fh = proxy->wait_retry_local_fh;
+                        proxy->wait_retry_req     = NULL;
+                        proxy->wait_retry_req_len = 0;
+
+                        proxy->state         = XRD_PX_CONNECTING;
+                        proxy->bs_phase      = XRD_PX_BS_HANDSHAKE;
+                        proxy->rhdr_pos      = 0;
+                        proxy->resp_dlen     = 0;
+                        proxy->resp_body_pos = 0;
+
+                        if (xrootd_proxy_connect(proxy, c, proxy->conf) == NGX_OK) {
+                            return; /* reconnect in progress; dispatches saved_req */
+                        }
+                        /* reconnect failed — fall through to relay redirect */
+                        ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                                      "xrootd proxy: redirect follow failed, relaying");
                     }
-                    proxy->redirect_port = (uint16_t) pval;
                 }
-
-                proxy->redirect_count++;
-                ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                              "xrootd proxy: following redirect %d to %s:%d",
-                              proxy->redirect_count,
-                              proxy->redirect_host.data,
-                              (int) proxy->redirect_port);
-
-                /* Close current upstream and reconnect to redirected target */
-                if (proxy->conn != NULL) {
-                    ngx_close_connection(proxy->conn);
-                    proxy->conn = NULL;
-                }
-                if (proxy->resp_body != NULL) {
-                    ngx_free(proxy->resp_body);
-                    proxy->resp_body = NULL;
-                }
-                /* Use the copy saved for wait-retry to re-issue the request */
-                proxy->saved_req     = proxy->wait_retry_req;
-                proxy->saved_req_len = proxy->wait_retry_req_len;
-                proxy->saved_local_fh = proxy->wait_retry_local_fh;
-                proxy->wait_retry_req     = NULL;
-                proxy->wait_retry_req_len = 0;
-
-                proxy->state         = XRD_PX_CONNECTING;
-                proxy->bs_phase      = XRD_PX_BS_HANDSHAKE;
-                proxy->rhdr_pos      = 0;
-                proxy->resp_dlen     = 0;
-                proxy->resp_body_pos = 0;
-
-                if (xrootd_proxy_connect(proxy, c, proxy->conf) == NGX_OK) {
-                    return; /* reconnect in progress; will dispatch saved_req */
-                }
-                /* reconnect failed — fall through to relay redirect to client */
-                ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                              "xrootd proxy: redirect follow failed, relaying");
             }
         }
     }
 
-xrootd_skip_redirect:
     /* ---- path-op audit: rm, mkdir, rmdir, mv, chmod, truncate ---- */
     if (proxy->fwd_path_audit
         && (status == kXR_ok || status == kXR_error))

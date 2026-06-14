@@ -18,14 +18,17 @@ BuildRequires:  pcre2-devel
 BuildRequires:  zlib-devel
 BuildRequires:  libxml2-devel
 BuildRequires:  jansson-devel
+BuildRequires:  libcurl-devel
+BuildRequires:  krb5-devel
+BuildRequires:  libxcrypt-devel
 
 # nginx-mod-stream provides the stream {} core that our modules load into.
 # openssl-libs: directly linked (-lssl -lcrypto) — auto-detected by find-requires
 # but listed explicitly for clarity.
 # voms-libs: loaded at runtime via dlopen(libvomsapi.so.1); not a link-time dep
 # so find-requires cannot detect it.  Required for VOMS VO/FQAN ACL enforcement.
-# curl: the curl(1) binary is fork/exec'd by the WebDAV HTTP-TPC handler; not
-# a library dependency so find-requires cannot detect it.
+# curl: used to be fork/exec'd, now primarily used via libcurl, but kept for
+# compatibility with site scripts.
 Requires:       nginx-mod-stream%{?_isa}
 Requires:       openssl-libs%{?_isa}
 Requires:       voms-libs%{?_isa}
@@ -50,18 +53,27 @@ install -Dpm0755 %{_vpath_builddir}/ngx_stream_xrootd_cms_srv_module.so \
     %{buildroot}%{nginx_moddir}/ngx_stream_xrootd_cms_srv_module.so
 install -Dpm0755 %{_vpath_builddir}/ngx_http_xrootd_metrics_module.so \
     %{buildroot}%{nginx_moddir}/ngx_http_xrootd_metrics_module.so
+install -Dpm0755 %{_vpath_builddir}/ngx_http_xrootd_srr_module.so \
+    %{buildroot}%{nginx_moddir}/ngx_http_xrootd_srr_module.so
 install -Dpm0755 %{_vpath_builddir}/ngx_http_xrootd_webdav_module.so \
     %{buildroot}%{nginx_moddir}/ngx_http_xrootd_webdav_module.so
+install -Dpm0755 %{_vpath_builddir}/ngx_http_xrootd_xrdhttp_filter_module.so \
+    %{buildroot}%{nginx_moddir}/ngx_http_xrootd_xrdhttp_filter_module.so
 install -Dpm0755 %{_vpath_builddir}/ngx_http_xrootd_s3_module.so \
     %{buildroot}%{nginx_moddir}/ngx_http_xrootd_s3_module.so
+install -Dpm0755 %{_vpath_builddir}/ngx_http_xrootd_dashboard_module.so \
+    %{buildroot}%{nginx_moddir}/ngx_http_xrootd_dashboard_module.so
 
 mkdir -p %{buildroot}%{nginx_modconfdir}
 {
     echo 'load_module "%{nginx_moddir}/ngx_stream_xrootd_module.so";'
-    echo 'load_module "%{nginx_moddir}/ngx_stream_xrootd_cms_srv_module.so";'
     echo 'load_module "%{nginx_moddir}/ngx_http_xrootd_metrics_module.so";'
+    echo 'load_module "%{nginx_moddir}/ngx_http_xrootd_srr_module.so";'
     echo 'load_module "%{nginx_moddir}/ngx_http_xrootd_webdav_module.so";'
+    echo 'load_module "%{nginx_moddir}/ngx_http_xrootd_xrdhttp_filter_module.so";'
     echo 'load_module "%{nginx_moddir}/ngx_http_xrootd_s3_module.so";'
+    echo 'load_module "%{nginx_moddir}/ngx_http_xrootd_dashboard_module.so";'
+    echo 'load_module "%{nginx_moddir}/ngx_stream_xrootd_cms_srv_module.so";'
 } > %{buildroot}%{nginx_modconfdir}/mod-xrootd.conf
 
 %files
@@ -70,10 +82,18 @@ mkdir -p %{buildroot}%{nginx_modconfdir}
 %{nginx_moddir}/ngx_stream_xrootd_module.so
 %{nginx_moddir}/ngx_stream_xrootd_cms_srv_module.so
 %{nginx_moddir}/ngx_http_xrootd_metrics_module.so
+%{nginx_moddir}/ngx_http_xrootd_srr_module.so
 %{nginx_moddir}/ngx_http_xrootd_webdav_module.so
+%{nginx_moddir}/ngx_http_xrootd_xrdhttp_filter_module.so
 %{nginx_moddir}/ngx_http_xrootd_s3_module.so
+%{nginx_moddir}/ngx_http_xrootd_dashboard_module.so
 %{nginx_modconfdir}/mod-xrootd.conf
 
 %changelog
+* Sun Jun 14 2026 nginx-xrootd maintainers <maintainers@example.com> - 0.1.0-2
+- Add SRR, XrdHttp filter, and dashboard modules
+- Add libcurl, krb5, and libxcrypt build dependencies
+- Update module loading order in mod-xrootd.conf
+
 * Tue Apr 21 2026 nginx-xrootd maintainers <maintainers@example.com> - 0.1.0-1
 - Initial nginx dynamic module package

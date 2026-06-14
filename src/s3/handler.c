@@ -496,6 +496,21 @@ ngx_http_s3_handler(ngx_http_request_t *r)
 
             char    mpu_dir[PATH_MAX];
             u_char *p;
+
+            /* UploadPartCopy: the handler re-derives the staging dir from the
+             * DESTINATION KEY fs_path (s3_get_mpu_dir), so it must run BEFORE we
+             * overwrite fs_path with the part-file path below.  Calling it after
+             * the overwrite fed it the part path and made s3_get_mpu_dir compute
+             * the wrong dir — UploadPartCopy always returned NoSuchUpload. */
+            if (xrootd_http_find_header(r, "x-amz-copy-source",
+                                        sizeof("x-amz-copy-source") - 1)
+                != NULL)
+            {
+                return s3_metrics_return_method(r, method_slot,
+                    s3_handle_upload_part_copy(r, fs_path, cf,
+                                               upload_id, (int) part_num));
+            }
+
             s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
             /*
              * nginx's ngx_snprintf (ngx_sprintf) does NOT support the 'l'
@@ -508,17 +523,6 @@ ngx_http_s3_handler(ngx_http_request_t *r)
             /* Sync ctx so the async put body handler sees the part path. */
             ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
                         sizeof(s3ctx->fs_path));
-
-            {
-                if (xrootd_http_find_header(r, "x-amz-copy-source",
-                                            sizeof("x-amz-copy-source") - 1)
-                    != NULL)
-                {
-                    return s3_metrics_return_method(r, method_slot,
-                        s3_handle_upload_part_copy(r, fs_path, cf,
-                                                   upload_id, (int) part_num));
-                }
-            }
         }
 
         /* CopyObject: PUT /bucket/key  +  x-amz-copy-source (no uploadId) */

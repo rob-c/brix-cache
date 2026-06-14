@@ -99,7 +99,7 @@ the same time on the same port.
 | **Total LOC for above** | **~50,000–100,000 C lines** | **~0 C lines** |
 
 That 0 is not an exaggeration. Every item in the table is configuration or a
-single API call in the module code. The module's ~18,000 lines of C are
+single API call in the module code. The module's ~97,000 lines of C are
 exclusively protocol logic (XRootD wire format, GSI handshake, JWT validation,
 VO ACL matching, TPC rendezvous, S3 SigV4) and storage logic (path confinement,
 `pread`/`pwrite` dispatch, cache management).

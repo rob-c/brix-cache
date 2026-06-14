@@ -273,7 +273,7 @@ increase(xrootd_unique_users_total[3600]) - increase(xrootd_user_evictions_total
 ### High IPv6 traffic threshold (warning if >5%):
 ```promql
 (
-  sum(rate(xrootd_bytes_tx_ipv6_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]))
+  sum(rate(xrootd_bytes_tx_ipv6_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])))
 / (
     sum(rate(xrootd_bytes_tx_ipv4_total[5m])) + sum(rate(xrootd_bytes_tx_ipv6_total[5m])))
   + sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])))

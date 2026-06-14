@@ -1,9 +1,9 @@
 #include "s3.h"
 #include "../cache/open.h"
 #include "../compat/http_file_response.h"
-#include "../compat/range.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../fs/vfs.h"
+#include "../shared/file_serve.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -23,6 +23,7 @@ s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     ngx_http_s3_req_ctx_t *s3ctx;
 
     ngx_memzero(vctx, sizeof(*vctx));
+    vctx->rootfd = -1;
     vctx->pool = r->pool;
     vctx->log = r->connection->log;
     vctx->metrics_proto = XROOTD_PROTO_S3;
@@ -44,9 +45,9 @@ s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     }
 }
 
-/* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The handler opens a confined fd, stat's the file to determine size/type, parses any Range header, sets appropriate status/headers (200 OK or 206 Partial Content with Content-Range), then delegates body transfer to xrootd_http_send_file_range(). Three OOM/error paths all increment internal_error metric and return NGX_HTTP_INTERNAL_SERVER_ERROR. */
+/* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The range-parse → headers → body-send pipeline is shared with WebDAV GET via xrootd_http_serve_file_ranged() (src/shared/file_serve.c); this handler keeps only the S3-specific concerns: NoSuchKey XML errors, identity resolution, and S3 range/bytes metrics. */
 
-/* HOW: Phase 1 — open fd via xrootd_open_confined_canon() (O_RDONLY). If invalid fd: ENOENT/ENOTDIR → NoSuchKey 404; other errno → mapped HTTP status code with internal_error metric. Phase 2 — fstat the fd to get size and mode; S_ISDIR → NoSuchKey 404 (S3 keys are objects, not directories). Phase 3 — parse Range header via xrootd_http_parse_range() using file size as upper bound: unsatisfiable range → 416 with metric; satisfiable → compute send_len = end - start + 1. Phase 4 — set status (200/206), content-length, last-modified, Content-Type=octet-stream, ETag from mtime+size via xrootd_http_add_etag_header(). If range present: add Content-Range header. Phase 5 — delegate body transfer to xrootd_http_send_file_range() with fd/fs_path/range parameters; on success increment bytes_tx_total by send_len. FD ownership: opened here, closed either immediately on error or via ngx_pool_cleanup_file registered on r->pool for async paths. */
+/* HOW: Phase 1 — open the object through the VFS layer (xrootd_vfs_open, read-only, cache-aware). If the open fails: ENOENT/ENOTDIR → NoSuchKey 404 XML; other errno → xrootd_http_errno_to_status() with internal_error metric. Phase 2 — xrootd_vfs_file_stat(); a directory target → NoSuchKey 404 (S3 keys are objects, not directories). Phase 3 — resolve the display identity (token subject, else access key, else "anonymous"). Phase 4 — fill xrootd_http_serve_opts_t (xfer_proto=S3, op_name="GetObject", etag_flags=0) and delegate the entire range-parse/header/send pipeline to xrootd_http_serve_file_ranged(), which also takes ownership of the vfs handle. Phase 5 — from the returned result, increment the S3 range_total[FULL/PARTIAL/UNSATISFIED] counter and, on a non-zero body, bytes_tx_total plus the IPv4/IPv6 split. */
 /*
  * s3_handle_get - serve a file as an S3 GetObject response.
  *
@@ -67,16 +68,11 @@ s3_handle_get(ngx_http_request_t *r,
     xrootd_vfs_ctx_t    vctx;
     xrootd_vfs_file_t  *fh;
     xrootd_vfs_stat_t   vst;
-    ngx_fd_t            send_fd;
-    off_t               range_start = 0, range_end = 0, send_len;
-    int                 has_range = 0;
     int                 vfs_err;
     ngx_int_t           rc;
     char                identity[128];
     ngx_http_s3_req_ctx_t *s3ctx;
     const char         *subject;
-    ngx_uint_t          from_cache;
-    const char         *cache_path;
 
     s3_vfs_ctx(r, fs_path, cf, &vctx);
     fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
@@ -103,45 +99,6 @@ s3_handle_get(ngx_http_request_t *r,
                                  "NoSuchKey", "The specified key does not exist.");
     }
 
-    /* Range parsing */
-    {
-        xrootd_http_range_t rng;
-        xrootd_http_parse_range(
-            r->headers_in.range ? r->headers_in.range->value.data : NULL,
-            r->headers_in.range ? r->headers_in.range->value.len : 0,
-            vst.size, &rng);
-
-        if (rng.present && !rng.satisfiable) {
-            xrootd_vfs_close(fh, r->connection->log);
-            r->headers_out.status = NGX_HTTP_RANGE_NOT_SATISFIABLE;
-            r->headers_out.content_length_n = 0;
-            XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_UNSATISFIED]);
-            ngx_http_send_header(r);
-            return ngx_http_send_special(r, NGX_HTTP_LAST);
-        }
-
-        range_start = rng.start;
-        range_end   = rng.end;
-        send_len    = (vst.size > 0) ? (range_end - range_start + 1) : 0;
-        has_range   = rng.present;
-    }
-
-    if (has_range) {
-        XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_PARTIAL]);
-    } else {
-        XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_FULL]);
-    }
-
-    if (xrootd_http_set_file_headers(r, vst.mtime, vst.size, send_len,
-                                     NULL, 0,
-                                     has_range, range_start, range_end)
-        != NGX_OK)
-    {
-        xrootd_vfs_close(fh, r->connection->log);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
     s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
     subject = s3ctx != NULL ? xrootd_identity_subject_cstr(s3ctx->identity)
                             : "";
@@ -159,41 +116,44 @@ s3_handle_get(ngx_http_request_t *r,
                     sizeof(identity));
     }
 
-    (void) xrootd_dashboard_http_start_identity(r, fs_path, identity, "",
-        XROOTD_XFER_PROTO_S3, XROOTD_XFER_DIR_READ, "GetObject",
-        (int64_t) send_len);
+    {
+        xrootd_http_serve_opts_t   opts;
+        xrootd_http_serve_result_t result;
 
-    from_cache = xrootd_vfs_file_from_cache(fh);
-    cache_path = xrootd_vfs_file_path(fh);
-    send_fd = dup(xrootd_vfs_file_fd(fh));
-    if (send_fd == NGX_INVALID_FILE) {
-        xrootd_vfs_close(fh, r->connection->log);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    xrootd_vfs_close(fh, r->connection->log);
+        ngx_memzero(&opts, sizeof(opts));
+        opts.xfer_proto = XROOTD_XFER_PROTO_S3;
+        opts.op_name    = "GetObject";
+        opts.identity   = identity;
+        opts.etag_flags = 0;
 
-    rc = xrootd_http_send_file_range(r, send_fd, fs_path, range_start,
-                                     send_len, 1);
-    if (rc != NGX_ERROR && !r->header_only) {
-        xrootd_dashboard_http_add(r, (ngx_atomic_int_t) send_len);
-        XROOTD_S3_METRIC_ADD(bytes_tx_total, (size_t) send_len);
-        if (from_cache && rc == NGX_OK && send_len > 0) {
-            (void) xrootd_cache_record_access(cache_path, (size_t) send_len,
-                                              r->connection->log);
+        rc = xrootd_http_serve_file_ranged(r, fh, &vst, fs_path, &opts,
+                                           &result);
+
+        if (rc == NGX_HTTP_INTERNAL_SERVER_ERROR) {
+            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         }
-        if (r->connection && r->connection->sockaddr
-            && r->connection->sockaddr->sa_family == AF_INET6) {
-            XROOTD_S3_METRIC_ADD(bytes_tx_ipv6_total, (size_t) send_len);
+
+        if (result.range_result == XROOTD_SERVE_RANGE_UNSATISFIED) {
+            XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_UNSATISFIED]);
+        } else if (result.range_result == XROOTD_SERVE_RANGE_PARTIAL) {
+            XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_PARTIAL]);
         } else {
-            XROOTD_S3_METRIC_ADD(bytes_tx_ipv4_total, (size_t) send_len);
+            XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_FULL]);
         }
-    } else if (rc == NGX_ERROR) {
-        xrootd_dashboard_http_error(r, "s3 GetObject send failed");
-        xrootd_dashboard_http_finish(r);
-    } else if (r->header_only) {
-        xrootd_dashboard_http_finish(r);
+
+        if (result.bytes_sent > 0) {
+            XROOTD_S3_METRIC_ADD(bytes_tx_total, (size_t) result.bytes_sent);
+            if (r->connection && r->connection->sockaddr
+                && r->connection->sockaddr->sa_family == AF_INET6) {
+                XROOTD_S3_METRIC_ADD(bytes_tx_ipv6_total,
+                                     (size_t) result.bytes_sent);
+            } else {
+                XROOTD_S3_METRIC_ADD(bytes_tx_ipv4_total,
+                                     (size_t) result.bytes_sent);
+            }
+        }
     }
+
     return rc;
 }
 
@@ -283,5 +243,5 @@ s3_handle_delete(ngx_http_request_t *r,
 /*
  * WHY: S3 DELETE is idempotent — deleting a non-existent key returns 204 No Content (not 404), matching AWS behavior. This allows clients to safely retry delete operations without checking existence first.
  *
- * HOW: Calls xrootd_unlink_confined_canon() on the fs_path. If ENOENT: returns 204 immediately (idempotent). If EISDIR or EPERM: retries with recursive flag=1 — if that fails with ENOTEMPTY returns 409 BucketNotEmpty; otherwise 500. On success: sends 204 No Content header-only response via ngx_http_send_special(). Uses xrootd_unlink_confined_canon() (not unlink()) to respect the configured root confinement.
+ * HOW: Calls the Layer-3 namespace API xrootd_ns_delete() on fs_path with idempotent_missing=1 (a missing key still returns 204, AWS-style) and require_empty_dir=1. On XROOTD_NS_OK sends a 204 No Content header-only response via ngx_http_send_special() (incrementing DELETE_MISSING when the target did not exist); XROOTD_NS_NOT_EMPTY → 409 BucketNotEmpty; any other status → internal_error metric + 500. The namespace layer enforces root confinement internally.
  */

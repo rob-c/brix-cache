@@ -41,11 +41,10 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 
 | Pattern | Function | Dual-stack? | Where used |
 |---------|----------|-------------|------------|
-| **Broken** | `AF_INET` + `inet_addr()` + `gethostbyname()` | No | `upstream/start.c`, `proxy/connect.c` |
 | **Broken** | Unconditional `(struct sockaddr_in*)` cast | No | `cache/thread.c`, `cache/evict.c` |
 | **Broken** | `ngx_strlchr(..., ':')` for port parsing | No | `proxy/directives.c` |
 | **Broken** | `inet_ntoa()` in multi-threaded context | Race | `read/locate.c` |
-| **Correct** | `getaddrinfo(AF_UNSPEC)` + addrinfo iteration | Yes | `tpc/connect.c`, `cache/origin_connection.c` |
+| **Correct** | `getaddrinfo(AF_UNSPEC)` + addrinfo iteration | Yes | `tpc/connect.c`, `cache/origin_connection.c`, `upstream/start.c`, `proxy/connect_upstream.c` |
 | **Correct** | `ngx_sock_ntop()` | Yes | `cache/thread.c` (addr only), `cms/server_handler.c` |
 | **Correct** | `getnameinfo()` | Yes | `tpc/launch.c` |
 | **Correct** | `ngx_parse_url()` | Yes | `cms/config.c` |
@@ -70,54 +69,34 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 | `src/path/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
 | `src/cms/server_handler.c` (line 23) | Server address logging | `ngx_sock_ntop()` — nginx's dual-stack address formatter |
 
-### 3.2 P0 failures — IPv4-only outbound connections
+### 3.2 Outbound connects — **[RESOLVED]** (formerly P0: IPv4-only)
 
-These are the most impactful gaps because they block manager-mode redirects and
-transparent proxying on IPv6 networks entirely.
+These were the most impactful gaps because they blocked manager-mode redirects and
+transparent proxying on IPv6 networks entirely. Both call sites have since been
+converted to dual-stack and are documented below for historical reference.
 
-#### `src/upstream/start.c` (lines 58–83)
+#### `src/upstream/start.c` — **[RESOLVED]**
 
-```c
-struct sockaddr_in sin;
-sin.sin_family = AF_INET;
-sin.sin_port   = htons(conf->upstream_port);
+This previously hardcoded `AF_INET` + `inet_addr()` + `gethostbyname()`. The current
+code is dual-stack: the fast path (pre-resolved config address) uses
+`conf->upstream_addr->sockaddr` and creates the socket with that address's
+`sa_family`, and the fallback path resolves per-request with
+`getaddrinfo(AF_UNSPEC)` and iterates all returned addrinfo entries. The chosen
+address is stored in a `struct sockaddr_storage`, so IPv6 backends connect
+correctly.
 
-in_addr_t addr = inet_addr((char *) conf->upstream_host.data);
-if (addr != INADDR_NONE) {
-    sin.sin_addr.s_addr = addr;
-} else {
-    struct hostent *he = gethostbyname((char *) conf->upstream_host.data);
-    // ...
-}
-fd = ngx_socket(AF_INET, SOCK_STREAM, 0);
-```
+**Status**: Outbound IPv6 connect from the upstream redirector
+(`kXR_locate` miss → redirect to `xrootd_upstream`) and manager-mode redirects
+to IPv6 backends are supported.
 
-**Problems**:
-1. `AF_INET` hardcoded — never tries IPv6
-2. `inet_addr()` only parses IPv4 dotted-decimal
-3. `gethostbyname()` is deprecated (RFC 2553) and returns only IPv4
-4. `AF_INET` hardcoded in `socket()` call
+#### `src/proxy/connect_upstream.c` — **[RESOLVED]**
 
-**Impact**: Upstream redirector (`kXR_locate` miss → redirect to `xrootd_upstream`)
-cannot connect to IPv6 backends. Manager-mode redirects to IPv6 backends fail.
+The proxy connect path was previously `src/proxy/connect.c` with the identical
+IPv4-only anti-pattern. It is now `src/proxy/connect_upstream.c`, which resolves
+via `getaddrinfo(AF_UNSPEC)`, iterates addrinfo entries, and stores the endpoint
+in a `struct sockaddr_storage`.
 
-#### `src/proxy/connect.c` (lines 88–108)
-
-Identical anti-pattern:
-
-```c
-struct sockaddr_in sin;
-sin.sin_family = AF_INET;
-sin.sin_port   = htons((uint16_t) conf->proxy_port);
-
-in_addr_t addr = inet_addr((const char *) conf->proxy_host.data);
-// ...
-struct hostent *he = gethostbyname((const char *) conf->proxy_host.data);
-// ...
-fd = ngx_socket(AF_INET, SOCK_STREAM, 0);
-```
-
-**Impact**: Transparent proxy mode (`xrootd_proxy on`) cannot connect to IPv6 upstream
+**Status**: Transparent proxy mode (`xrootd_proxy on`) connects to IPv6 upstream
 XRootD daemons.
 
 ### 3.3 P1 failures — IPv4-only address formatting in responses
@@ -283,8 +262,9 @@ across platforms. For deterministic testing, explicitly specify `listen [::]:por
 
 ### 4.4 `gethostbyname()` deprecation
 
-`gethostbyname()` (used in `upstream/start.c` and `proxy/connect.c`) is officially
-deprecated per RFC 2553 §3.1:
+`gethostbyname()` (formerly used in `upstream/start.c` and `proxy/connect.c`, both
+now converted to `getaddrinfo()` — see §3.2) is officially deprecated per
+RFC 2553 §3.1:
 
 > The `gethostbyname()` interface is superseded by `getaddrinfo()`. Applications
 > should use `getaddrinfo()` for both forward and reverse name translations.
@@ -336,7 +316,7 @@ doesn't use `inet_ntop()`.
 | `test_upstream_ipv6_literal` | `xrootd_upstream [::1]:1094;` | Connects to IPv6 literal |
 | `test_upstream_no_ipv6_backend` | IPv6-only backend unreachable | Returns meaningful error, not crash |
 
-#### 5.1.2 Proxy mode (`src/proxy/connect.c`)
+#### 5.1.2 Proxy mode (`src/proxy/connect_upstream.c`)
 
 | Test | Description | Expected |
 |------|-------------|----------|
@@ -581,60 +561,22 @@ Cross-compatibility tests should run against both IPv4 and IPv6 reference instan
 
 ## 7. Implementation Fixes Required Before Testing
 
-### 7.1 P0 — Fix outbound IPv4-only connect code
+### 7.1 P0 — Fix outbound IPv4-only connect code — **[IMPLEMENTED]**
 
-**Files**: `src/upstream/start.c`, `src/proxy/connect.c`
+**Files**: `src/upstream/start.c`, `src/proxy/connect_upstream.c`
 
-Replace the `AF_INET` + `inet_addr()` + `gethostbyname()` pattern with:
+The `AF_INET` + `inet_addr()` + `gethostbyname()` pattern has been replaced with
+`getaddrinfo(AF_UNSPEC)` + addrinfo iteration in both call sites. The fast path in
+`upstream/start.c` uses the pre-resolved config sockaddr (creating the socket with
+its `sa_family`); the fallback path and `proxy/connect_upstream.c` resolve
+per-request with `getaddrinfo(AF_UNSPEC)`, iterate all returned entries, and store
+the chosen endpoint in a `struct sockaddr_storage`.
 
-```c
-struct addrinfo hints, *res, *rp;
-char port_str[16];
-
-memset(&hints, 0, sizeof(hints));
-hints.ai_socktype = SOCK_STREAM;
-hints.ai_family   = AF_UNSPEC;
-
-snprintf(port_str, sizeof(port_str), "%u", (unsigned) port);
-
-if (getaddrinfo(host, port_str, &hints, &res) != 0) {
-    ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                  "connect to %s:%u failed: %s", host, port,
-                  gai_strerror(errno));
-    return NGX_ERROR;
-}
-
-for (rp = res; rp != NULL; rp = rp->ai_next) {
-    int fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    if (fd < 0) continue;
-
-    if (ngx_nonblocking(fd) == NGX_ERROR) {
-        close(fd);
-        continue;
-    }
-
-    if (connect(fd, rp->ai_addr, rp->ai_addrlen) == 0
-        || (ngx_socket_errno == NGX_EINPROGRESS))
-    {
-        // success — use this fd
-        break;
-    }
-
-    close(fd);
-}
-freeaddrinfo(res);
-
-if (rp == NULL) {
-    ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                  "connect to %s:%u failed (no suitable address)",
-                  host, port);
-    return NGX_ERROR;
-}
-```
-
-**Reference implementations already in this codebase**:
-- `src/tpc/connect.c` (lines 194–258) — TPC connect
-- `src/cache/origin_connection.c` (lines 32–130) — cache origin connect
+**Reference implementations in this codebase**:
+- `src/upstream/start.c` — upstream redirector connect (dual-stack)
+- `src/proxy/connect_upstream.c` — proxy upstream connect (dual-stack)
+- `src/tpc/connect.c` — TPC connect
+- `src/cache/origin_connection.c` — cache origin connect
 
 ### 7.2 P1 — Fix kXR_locate IPv6 response
 
@@ -725,7 +667,7 @@ Add `AF_INET6` branch alongside existing `AF_INET` check.
 | Listen on dual-stack | Yes (`IPV6_V6ONLY` configurable) | Depends on nginx default + OS | Documented, testable |
 | `kXR_locate` IPv6 response | Bracketed `[addr]:port` | `"localhost"` for IPv6 | **P1** |
 | `kXR_redirect` IPv6 | Bracketed `[addr]:port` | Depends on config input | OK if config uses brackets |
-| Outbound connect to IPv6 | Yes (`getaddrinfo`) | IPv4 only in upstream/proxy | **P0** |
+| Outbound connect to IPv6 | Yes (`getaddrinfo`) | Yes (`getaddrinfo` in upstream/proxy) | None |
 | Stats query IPv6 port | Correct port | Zero | **P2** |
 | TPC to IPv6 source | Yes | Yes (already dual-stack) | None |
 | SSRF guard IPv6 | Yes | Yes | None |
@@ -738,7 +680,7 @@ Add `AF_INET6` branch alongside existing `AF_INET` check.
 
 | Risk | Likelihood | Impact | Severity |
 |------|-----------|--------|----------|
-| IPv6 clients cannot connect (P0: upstream/proxy) | High | Critical — blocks entire manager/proxy modes | **P0** |
+| IPv6 clients cannot connect (upstream/proxy) | RESOLVED — dual-stack connect implemented | Was critical — blocked entire manager/proxy modes | Done |
 | IPv6 clients get `"localhost"` from locate (P1) | High | High — locate response unusable | **P1** |
 | Cache registration wrong port (P1) | Medium | High — manager routing broken for IPv6 | **P1** |
 | Proxy config IPv6 parse fails (P1) | Medium | Medium — cannot configure IPv6 proxy | **P1** |
@@ -750,9 +692,9 @@ Add `AF_INET6` branch alongside existing `AF_INET` check.
 
 ## 10. Testing Priority Order
 
-1. **P0 — Fix and test outbound IPv6 connects** (`upstream/start.c`, `proxy/connect.c`)
-   These are the most impactful because they block manager-mode and proxy-mode
-   operation on IPv6 networks entirely. Use `tpc/connect.c` as reference.
+1. **[RESOLVED] — Outbound IPv6 connects** (`upstream/start.c`, `proxy/connect_upstream.c`)
+   Both call sites now resolve via `getaddrinfo(AF_UNSPEC)` and connect to IPv6
+   backends. Remaining work is test coverage for these dual-stack paths.
 
 2. **P1 — Fix and test kXR_locate IPv6 response** (`read/locate.c`)
    Without a parseable address in the locate response, IPv6 clients cannot

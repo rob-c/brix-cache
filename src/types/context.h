@@ -20,6 +20,68 @@
  *           token/token.h, metrics/metrics.h, and nginx/OpenSSL headers
  *           before inclusion.
  */
+/*
+ * Output-queue slot (Phase 29 pipelining).
+ *
+ * Each slot owns the full send state for ONE in-flight response: the
+ * flat-buffer tail (small error/ok/status frames) OR the chain tail (read data,
+ * dirlist chunks), plus the reusable header/data/file chain structs that back a
+ * single-chunk read response.  Bundling these per-slot (instead of one set of
+ * singletons on the connection) is what lets more than one response be in flight
+ * without the builders aliasing each other's chain memory.
+ *
+ * Only one of wbuf / wchain is active in a given slot at a time.  wbuf points at
+ * the next unsent byte; wbuf_base is the owned allocation freed once the slot
+ * drains.  wchain holds the remaining chain links; wchain_base (if set) backs a
+ * chain link and is freed after the chain fully drains.  The read_fast_* structs
+ * are the pre-zeroed chain/buf/file objects reused for the common one-chunk read
+ * response so that path allocates nothing from the pool per request.
+ */
+typedef struct {
+    u_char      *wbuf;            /* pointer to the next byte to send */
+    size_t       wbuf_len;        /* total bytes in the buffer */
+    size_t       wbuf_pos;        /* bytes successfully sent so far */
+    u_char      *wbuf_base;       /* allocation base (freed when send completes) */
+
+    ngx_chain_t *wchain;          /* remaining chain links to send */
+    off_t        wchain_pending;  /* unsent bytes in wchain, for cheap resume */
+    u_char      *wchain_base;     /* optional backing buffer, freed after drain */
+
+    ngx_chain_t  read_fast_hdr_chain;
+    ngx_chain_t  read_fast_body_chain;
+    ngx_buf_t    read_fast_hdr_buf;
+    ngx_buf_t    read_fast_body_buf;
+    ngx_file_t   read_fast_file;
+
+    /*
+     * Per-slot response header storage (Phase 29 single-chunk; Phase 32 WS2
+     * widened to XROOTD_SLOT_HDR_MAX so a MULTI-chunk sendfile read also keeps
+     * all its per-chunk ServerResponseHdrs here instead of the shared
+     * read_hdr_scratch).  Owning the headers per-slot is what lets multiple
+     * (single- or multi-chunk) reads pipeline without their headers clobbering
+     * each other while a prior response is still draining.
+     */
+    u_char       hdr_bytes[XROOTD_SLOT_HDR_MAX];
+} xrootd_resp_slot_t;
+
+/*
+ * Phase 32 WS3 — concurrent-AIO read pipeline.
+ *
+ * A pool of per-in-flight-read buffers + thread tasks lets multiple
+ * memory-backed kXR_reads be outstanding at once (pipelined) instead of the
+ * single read_scratch / read_aio_task serial pair.  Each entry is owned by one
+ * in-flight read from dispatch until the response it backs has fully drained
+ * from its out_ring slot, at which point xrootd_release_read_buffer() returns it
+ * to the pool.  Buffers are raw ngx_alloc'd (Phase-31 discipline) and freed on
+ * disconnect.  rd_inflight counts entries currently in use.
+ */
+typedef struct {
+    u_char            *buf;       /* raw-alloc'd data buffer (ngx_alloc/ngx_free) */
+    size_t             size;      /* allocated size of buf */
+    ngx_thread_task_t *task;      /* per-entry thread task (kXR_read AIO) */
+    unsigned           in_use:1;  /* 1 while an in-flight read owns this entry */
+} xrootd_read_slot_t;
+
 typedef struct {
     ngx_stream_session_t  *session;  /* nginx session; gives us c, pool, log */
     xrootd_state_t         state;    /* drives the read/write event callbacks */
@@ -83,29 +145,43 @@ typedef struct {
     xrootd_file_t  files[XROOTD_MAX_FILES];
 
     /*
-     * Pending flat-buffer send path (small responses: error, ok, status).
+     * Output queue (Phase 29 pipelining).
      *
-     * When c->send() returns EAGAIN, the unsent tail is stored here and the
-     * write event is armed.  wbuf points into the allocation; wbuf_base is
-     * the start of the allocation (freed on disconnect or after full drain).
-     * wbuf_len is the total size; wbuf_pos is how many bytes have been sent.
+     * out_ring is a FIFO of response slots.  A response is built into the tail
+     * slot (out_ring[out_tail]) and drained from the head slot
+     * (out_ring[out_head]); out_count is the number of slots currently in use.
+     * Each slot owns its own flat-buffer / chain send state and the reusable
+     * one-chunk read-response chain structs (see xrootd_resp_slot_t), so
+     * multiple responses can be in flight without aliasing each other's memory.
+     *
+     * Phase 1 lands the ring with effective depth 1: the recv loop stays serial
+     * (it suspends on XRD_ST_SENDING), so out_head == out_tail == 0 throughout
+     * and behaviour is identical to the previous single wbuf/wchain singletons.
+     * Phase 2 raises the in-flight bound to XROOTD_PIPELINE_MAX.
      */
-    u_char    *wbuf;        /* pointer to the next byte to send */
-    size_t     wbuf_len;    /* total bytes in the buffer */
-    size_t     wbuf_pos;    /* bytes successfully sent so far */
-    u_char    *wbuf_base;   /* allocation base (freed when send completes) */
+    xrootd_resp_slot_t out_ring[XROOTD_PIPELINE_MAX];
+    ngx_uint_t         out_head;   /* slot being drained to the socket */
+    ngx_uint_t         out_tail;   /* slot currently being built */
+    ngx_uint_t         out_count;  /* number of slots in use (responses queued) */
 
     /*
-     * Pending chain send path (large responses: read data, dirlist chunks).
-     *
-     * xrootd_queue_response_chain() stores the chain here when c->sendfile_chain()
-     * or c->send_chain() returns EAGAIN.  wchain_base (if set) is a heap buffer
-     * that backs some chain link and is freed after the chain is fully drained.
-     * Only one of wbuf or wchain is active at a time.
+     * Phase 29 drain barrier: set when a non-pipelinable request was fully read
+     * while pipelined reads were still in flight.  The request stays parked in
+     * the cur_ header fields and payload buffer and is dispatched by the recv
+     * loop once the output queue has fully drained (out_count==0), preserving
+     * the serial invariant for every
+     * opcode except kXR_read.
      */
-    ngx_chain_t *wchain;       /* remaining chain links to send */
-    off_t        wchain_pending; /* unsent bytes in wchain, for cheap resume */
-    u_char      *wchain_base;  /* optional backing buffer, freed after drain */
+    unsigned           recv_deferred:1;
+
+    /*
+     * Phase 29: set by the single-chunk sendfile read builder, cleared by every
+     * other response builder.  The recv loop only pipelines a kXR_read when this
+     * is set — i.e. the response is a single sendfile span whose 8-byte header
+     * lives in its own slot (slot->hdr_bytes), so queueing the next read cannot
+     * clobber it.  Multi-chunk (>16 MiB) reads and all other opcodes stay serial.
+     */
+    unsigned           resp_pipelinable:1;
 
     /*
      * Reusable response scratch buffers for read-heavy sessions.
@@ -126,6 +202,13 @@ typedef struct {
     size_t    write_scratch_size;     /* current allocated size */
 
     /*
+     * Phase 31 W4 — bytes this connection currently has charged to the global
+     * transfer-heap budget (metrics->xfer_heap_in_use).  Reconciled idempotently
+     * by xrootd_budget_sync(); released to 0 on disconnect.
+     */
+    size_t    budget_charged;
+
+    /*
      * Reusable thread-pool task for memory-backed kXR_read.  TLS/native GSI
      * reads cannot use sendfile, so avoiding per-request task allocation keeps
      * single-stream encrypted reads from growing the connection pool.
@@ -133,15 +216,51 @@ typedef struct {
     ngx_thread_task_t *read_aio_task;
 
     /*
-     * Reusable chain objects for the common one-chunk read response.
-     * xrdcp's default request size fits this path, so keeping the structs in
-     * the connection context avoids per-read pool allocation and pool growth.
+     * Reusable thread-pool tasks for kXR_pgread and kXR_readv, mirroring
+     * read_aio_task above.  The connection is a strictly serial state machine
+     * (one in-flight request at a time), so a single cached task per opcode is
+     * reused across requests instead of allocating a fresh one each time.
+     * Reset task->next and event.complete before each reuse.
      */
-    ngx_chain_t  read_fast_hdr_chain;
-    ngx_chain_t  read_fast_body_chain;
-    ngx_buf_t    read_fast_hdr_buf;
-    ngx_buf_t    read_fast_body_buf;
-    ngx_file_t   read_fast_file;
+    ngx_thread_task_t *pgread_aio_task;
+    ngx_thread_task_t *readv_aio_task;
+
+    /*
+     * Phase 32 WS3 — concurrent-AIO read pipeline state.  rd_pool holds up to
+     * XROOTD_PIPELINE_MAX in-flight memory-read buffers/tasks; rd_inflight is the
+     * count currently in use.  rd_backpressured is set when the recv loop stops
+     * admitting reads because the pool + out_ring are full, and cleared when a
+     * pool entry frees (driving a read-resume).  Single-shot memory reads draw
+     * from this pool so several can be outstanding at once; the legacy
+     * read_scratch/read_aio_task pair still backs windowed reads (serial).
+     */
+    xrootd_read_slot_t rd_pool[XROOTD_PIPELINE_MAX];
+    ngx_uint_t         rd_inflight;
+    unsigned           rd_backpressured:1;
+
+    /*
+     * Phase 31 W2.1 — windowed memory read continuation.  A large memory-backed
+     * kXR_read (TLS / non-regular file) that exceeds XROOTD_READ_WINDOW is served
+     * as a sequence of kXR_oksofar wire chunks ending in kXR_ok, each sourced
+     * from one window-sized disk read into read_scratch.  The next window is
+     * read only after the previous chunk has fully drained from read_scratch
+     * (so the single buffer is never overwritten while still being sent).
+     * rd_win_active marks a windowed read in flight; rd_win_offset is the next
+     * file offset to read; rd_win_remaining is the bytes still to send.
+     */
+    unsigned   rd_win_active:1;
+    int        rd_win_idx;
+    int        rd_win_fd;
+    off_t      rd_win_offset;
+    size_t     rd_win_remaining;
+    u_char     rd_win_streamid[2];
+
+    /*
+     * Reusable chain objects for the common one-chunk read response now live
+     * per-slot in out_ring[] (xrootd_resp_slot_t.read_fast_*), so that a read
+     * response being built does not clobber the chain structs of one still
+     * draining on the wire.
+     */
 
     /*
      * GSI Diffie-Hellman key — generated during kXGS_cert and freed
@@ -267,8 +386,43 @@ typedef struct {
     /* CMS locate suspension (state == XRD_ST_WAITING_CMS) */
     uint32_t    cms_wait_streamid;  /* pending-table key for removal on timeout */
 
+    /* Phase 24 W3: data-write mirror accumulation (xrootd_wmirror_conn_t *).
+     * NULL until a write-open occurs; freed by xrootd_stream_wmirror_cleanup()
+     * on disconnect.  void* keeps the mirror type out of this header. */
+    void       *wmirror;
+
     /* Protocol label and IP version — set at connection time, read-only thereafter. */
     char        protocol_label[8];  /* "root", "dav", or "s3"               */
     u_char      ip_version;         /* AF_INET (2) or AF_INET6 (10)     */
+
+    /* Written by xrootd_auth_gate() on NGX_DONE; the calling handler must
+     * return this value immediately.  Zero-initialised; only meaningful
+     * immediately after an xrootd_auth_gate() call that returned NGX_DONE. */
+    ngx_int_t   write_rc;
+
+    /* Phase 25 — bandwidth charge target set by the rate-limit dispatch gate
+     * for the current request; consumed by read/write completion via
+     * xrootd_rl_charge_ctx().  rl_bw_rule is an xrootd_rl_rule_t* (void to keep
+     * ratelimit.h out of this widely-included header). */
+    void       *rl_bw_rule;
+    char        rl_bw_key[128];
+
+    /* Phase 25 W7 (stream) — per-principal concurrency slot held by THIS
+     * connection.  Acquired once by the rate-limit dispatch gate on the first
+     * matching xrootd_concurrency_limit rule and released exactly once in
+     * xrootd_on_disconnect (the stream plane has no LOG phase), so it caps the
+     * number of concurrent connections per principal.  Non-NULL rl_conc_rule
+     * means a slot is held.  void* to keep ratelimit.h out of this header. */
+    void       *rl_conc_rule;
+    char        rl_conc_key[128];
+
+    /* Phase 33 C4 — per-connection rate-limit key cache.  Identity-stable rules
+     * (VO/ISSUER/IP/DN) yield a connection-constant key, so the stream dispatch
+     * gate caches the first XROOTD_RL_RULE_CACHE_MAX such keys here and reuses
+     * them instead of re-hashing per read.  rl_key_cache_valid is a bitmask:
+     * bit i set ⇒ rl_key_cache[i] holds rule i's key.  VOLUME (path-dependent)
+     * rules are never cached.  Zero-initialised ⇒ cold (recompute on first use). */
+    char        rl_key_cache[XROOTD_RL_RULE_CACHE_MAX][128];
+    uint32_t    rl_key_cache_valid;
 
 } xrootd_ctx_t;

@@ -12,6 +12,39 @@
 #include <time.h>
 #include <unistd.h>
 
+/*
+ * open.c — read-side cache hit path: serve a file from the local cache tree.
+ *
+ * WHAT: The VFS cache-open hook (xrootd_cache_open) plus its helpers: mapping a
+ *       resolved export path to its cache-tree path (xrootd_cache_path_for_resolved),
+ *       validating a hit against the origin (xrootd_cache_validate_meta), and
+ *       bumping the access time for LRU (xrootd_cache_record_access).
+ *
+ * WHY:  When read-through caching is on, reads should be satisfied from the
+ *       local cache whenever a complete, fresh copy exists, avoiding an origin
+ *       round-trip. This file decides "is there a usable cache hit?" and, if so,
+ *       adopts the open fd into the VFS layer.
+ *
+ * HOW:  xrootd_cache_open() declines (NGX_DECLINED) for anything that must not
+ *       be served from cache — caching disabled, XROOTD_VFS_O_NOCACHE, or any
+ *       write/create/trunc/append intent — so callers fall back to the origin.
+ *       Otherwise it derives the cache path under cache_root_canon, checks
+ *       xrootd_cache_file_ready(), opens it O_RDONLY|O_NOFOLLOW|O_CLOEXEC, and
+ *       confirms freshness via the meta sidecar (size + mtime) before handing
+ *       the fd to xrootd_vfs_adopt_fd(). Confinement here is path-construction
+ *       + O_NOFOLLOW rather than RESOLVE_BENEATH (the cache tree is a different
+ *       directory from the export rootfd) — see the in-function comment.
+ */
+
+/*
+ * xrootd_cache_path_for_resolved — map an export path to its cache-tree path.
+ *
+ * Strips root_canon from the resolved export path and re-roots the remaining
+ * suffix under cache_root_canon, writing the result to out (NUL-terminated).
+ * Rejects (NGX_ERROR) NULL/empty args, a resolved path not under root_canon, a
+ * malformed suffix (EINVAL), or a result that would overflow out (ENAMETOOLONG).
+ * Note: this is a pure lexical remap, not a confinement check.
+ */
 ngx_int_t
 xrootd_cache_path_for_resolved(const char *cache_root_canon,
     const char *root_canon, const char *resolved, char *out, size_t outsz)
@@ -64,6 +97,14 @@ xrootd_cache_path_for_resolved(const char *cache_root_canon,
     return NGX_OK;
 }
 
+/*
+ * xrootd_cache_validate_meta — confirm a cache hit still matches the origin.
+ *
+ * Reads the sidecar meta for cache_path and compares its recorded size and
+ * mtime against the live cache file stat (st). Returns NGX_OK if they agree,
+ * NGX_DECLINED otherwise (no meta, or stale: errno set to ESTALE on mismatch),
+ * so the caller falls back to the origin.
+ */
 static ngx_int_t
 xrootd_cache_validate_meta(const char *cache_path, const struct stat *st,
     ngx_log_t *log)
@@ -84,6 +125,15 @@ xrootd_cache_validate_meta(const char *cache_path, const struct stat *st,
     return NGX_OK;
 }
 
+/*
+ * xrootd_cache_open — VFS cache-open hook: serve a read from the cache if able.
+ *
+ * Declines (NGX_DECLINED) when caching is disabled, XROOTD_VFS_O_NOCACHE is
+ * set, or any write/create/trunc/append flag is present, and on a cache miss,
+ * not-ready file, or stale meta. On a validated hit it opens the cache file
+ * read-only and adopts the fd via xrootd_vfs_adopt_fd(), returning *fh_out and
+ * NGX_OK. Returns NGX_ERROR on hard I/O errors (errno set).
+ */
 ngx_int_t
 xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
     xrootd_vfs_file_t **fh_out)
@@ -124,6 +174,21 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
         return NGX_DECLINED;
     }
 
+    /*
+     * NOT an export-root beneath() site.  cache_path lives under
+     * cache_root_canon — a DIFFERENT directory from the export root that the
+     * worker's confinement rootfd (conf->rootfd) anchors.  Using
+     * xrootd_open_beneath(export_rootfd, ...) here would be wrong: the cache
+     * tree is not beneath the export root, so RESOLVE_BENEATH would (correctly)
+     * refuse it.  The cache namespace has its own confinement instead:
+     * xrootd_cache_path_for_resolved() builds cache_path purely from the
+     * server-controlled cache_root_canon + a hash of the resolved path (no raw
+     * client path is appended), and the O_NOFOLLOW above blocks the final
+     * component being a symlink.  A separate persistent cache rootfd +
+     * openat2(RESOLVE_BENEATH) would be the way to extend kernel confinement to
+     * the cache, but that needs its own rootfd plumbed through the cache ctx and
+     * is out of scope for the export-root migration.
+     */
     fd = open(cache_path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
     if (fd == NGX_INVALID_FILE) {
         return (errno == ENOENT || errno == ENOTDIR) ? NGX_DECLINED
@@ -154,6 +219,14 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
     return rc;
 }
 
+/*
+ * xrootd_cache_record_access — refresh a cache file's atime for LRU eviction.
+ *
+ * Touches cache_path's access time (atime only, via utimensat with UTIME_NOW /
+ * UTIME_OMIT) so the eviction pass in evict_policy.c sees it as recently used.
+ * The bytes argument is currently unused. Returns NGX_OK on success or where
+ * UTIME_OMIT is unavailable, NGX_ERROR on bad args or a failed utimensat.
+ */
 ngx_int_t
 xrootd_cache_record_access(const char *cache_path, size_t bytes,
     ngx_log_t *log)

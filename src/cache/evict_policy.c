@@ -1,7 +1,46 @@
 #include "evict_internal.h"
 #include "meta.h"
 
+/*
+ * evict_policy.c — cache eviction policy driver (two-pass LRU by occupancy).
+ *
+ * WHAT: Implements the eviction decision loop that keeps cache filesystem
+ *       occupancy below cache_eviction_threshold. The public entry point
+ *       xrootd_cache_evict_if_needed() and the per-file actor
+ *       xrootd_cache_evict_one() live here; candidate collection, sorting, and
+ *       free-space measurement are delegated to evict_candidates.c.
+ *
+ * WHY:  A read-through cache fills indefinitely as clients request new files.
+ *       Without bounded occupancy the cache disk fills up and fills start
+ *       failing. This file is the policy half of that pressure relief — what to
+ *       remove and when — separated from the mechanics of scanning the tree.
+ *
+ * HOW:  Invoked from the cache-fill thread (thread.c) after each completed
+ *       download. It double-checks occupancy (cheaply, then again after taking
+ *       xrootd_cache_try_evict_lock to avoid worker races), collects the
+ *       candidate set with xrootd_cache_collect_dir(), sorts oldest-first via
+ *       xrootd_cache_candidate_cmp(), then evicts in two passes:
+ *         Pass 1 — files larger than cache_max_file_size (skipped if 0).
+ *         Pass 2 — everything else, oldest first.
+ *       Each pass stops as soon as occupancy drops below the threshold. The
+ *       protect_path (the file currently being filled) is never evicted.
+ *       Runs in a thread-pool thread, not the event loop, so direct filesystem
+ *       syscalls are permitted; metric updates use atomic adds.
+ */
 
+/*
+ * xrootd_cache_evict_one — remove a single cache file and account for it.
+ *
+ * Unlinks list->elts[idx].path (and its sidecar meta file via
+ * xrootd_cache_meta_path), marks the slot evicted, and accumulates the
+ * evicted_files/evicted_bytes counters. In manager_mode it also unregisters
+ * the freed path from the server registry so the manager stops advertising it.
+ * Refreshes *usage with xrootd_cache_fs_usage() so the caller's threshold loop
+ * sees the new occupancy. A missing file (ENOENT) is treated as already gone
+ * (NGX_OK); other unlink errors bump cache_eviction_errors_total but still
+ * return NGX_OK so eviction continues. Returns NGX_ERROR only if the post-unlink
+ * usage re-measurement fails.
+ */
 static ngx_int_t
 xrootd_cache_evict_one(xrootd_cache_fill_t *t,
     xrootd_cache_evict_list_t *list, size_t idx, ngx_log_t *log,

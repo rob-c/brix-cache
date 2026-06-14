@@ -12,6 +12,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* WHAT: Copy the [start, end) substring into dst as a NUL-terminated string.
+ * WHY: Used to lift host/path slices out of the source URL without mutating it;
+ * rejects empty slices and any slice that would not fit (with its NUL) in dst.
+ * HOW: length = end - start; bail on 0 or >= dst_size, else memcpy + NUL. */
 static int
 tpc_copy_component(char *dst, size_t dst_size, const char *start,
     const char *end)
@@ -29,6 +33,13 @@ tpc_copy_component(char *dst, size_t dst_size, const char *start,
     return 0;
 }
 
+/* WHAT: Parse the [port_start, port_end) decimal slice into *port, validating
+ * it is a well-formed integer in the legal range 1..65535.
+ * WHY: TPC source URLs carry an optional ":port"; an out-of-range or non-numeric
+ * port must be rejected (not silently truncated) so a bad spec can't redirect
+ * the pull to an unintended port. Range starts at 1 (0 is reserved/invalid).
+ * HOW: copy slice into a NUL-terminated scratch buffer, strtol with errno and
+ * full-consumption checks, bounds-check 1..65535, then narrow to uint16_t. */
 static int
 tpc_parse_port_range(const char *port_start, const char *port_end,
     uint16_t *port)
@@ -58,6 +69,14 @@ tpc_parse_port_range(const char *port_start, const char *port_end,
     return 0;
 }
 
+/* WHAT: Normalise the source path into `path`: collapse a leading run of '/'
+ * down to a single '/', and guarantee the result starts with exactly one '/'.
+ * WHY: xrootd URLs use "root://host//path" (double slash separates authority
+ * from an absolute path), and clients are inconsistent about leading slashes.
+ * Collapsing leading slashes prevents "//" path-traversal ambiguity downstream;
+ * forcing a single leading '/' yields a canonical absolute path for authz.
+ * HOW: empty/NULL -> "" ; skip leading "//" pairs; size-check accounting for a
+ * possibly-prepended '/'; copy verbatim if already rooted, else prepend '/'. */
 static int
 tpc_copy_src_path(char *path, size_t path_size, const char *path_start)
 {
@@ -68,10 +87,13 @@ tpc_copy_src_path(char *path, size_t path_size, const char *path_start)
         return 0;
     }
 
+    /* Collapse a leading run of slashes ("///x" -> "/x") to defeat the
+     * "root://host//path" double-slash and any "//" traversal ambiguity. */
     while (path_start[0] == '/' && path_start[1] == '/') {
         path_start++;
     }
 
+    /* Reserve one extra byte for a '/' we will prepend when not already rooted. */
     path_len = strlen(path_start);
     if (path_len + (path_start[0] == '/' ? 0 : 1) >= path_size) {
         return -1;
@@ -109,6 +131,9 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
     src_end = src + strlen(src);
     scheme_separator = strstr(src, "://");
     if (scheme_separator != NULL) {
+        /* URL form: authority begins after "://" and runs up to the first '/'
+         * (which also marks where the path begins). No '/' => authority spans
+         * to end and there is no path component. */
         authority_start = scheme_separator + 3;
         authority_end = memchr(authority_start, '/',
                                (size_t) (src_end - authority_start));
@@ -118,6 +143,8 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
             path_start = NULL;
         }
     } else {
+        /* Bare "host[:port]" form: the whole string is the authority; the file
+         * name will be supplied separately via the lfn parameter. */
         authority_start = src;
         authority_end = src_end;
         path_start = NULL;
@@ -128,19 +155,23 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
     }
 
     if (*authority_start == '[') {
+        /* IPv6 literal: "[addr]" or "[addr]:port". The address sits between the
+         * brackets (so it can itself contain ':'); any port follows after ']'. */
         const char *bracket_end;
 
         bracket_end = memchr(authority_start, ']',
                              (size_t) (authority_end - authority_start));
         if (bracket_end == NULL) {
-            return -1;
+            return -1;          /* unterminated bracket */
         }
 
+        /* host = bytes inside the brackets (skip '[' and stop before ']'). */
         if (tpc_copy_component(host, host_size, authority_start + 1,
                                bracket_end) != 0) {
             return -1;
         }
 
+        /* Anything after ']' must be ":port"; otherwise there is no port. */
         if (bracket_end + 1 < authority_end) {
             if (bracket_end[1] != ':'
                 || tpc_parse_port_range(bracket_end + 2, authority_end,
@@ -152,6 +183,7 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
         }
 
     } else {
+        /* IPv4 / hostname: a single ':' (if present) splits host from port. */
         port_separator = memchr(authority_start, ':',
                                 (size_t) (authority_end - authority_start));
         if (port_separator != NULL) {
@@ -175,6 +207,12 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
     return tpc_copy_src_path(path, path_size, path_start);
 }
 
+/* WHAT: Copy a value_len-byte opaque value into dst as a NUL-terminated string,
+ * rejecting any value that does not fit (with its NUL) — the core overflow
+ * guard for every tpc.* parameter parsed by tpc_parse_token().
+ * WHY: Opaque values come straight off the wire; a fixed-size destination must
+ * never be overrun by an attacker-controlled length.
+ * HOW: bounds-check value_len < dst_size, memcpy, terminate. */
 static int
 tpc_copy_value(char *dst, size_t dst_size, const char *value_start,
     size_t value_len)
@@ -269,11 +307,14 @@ tpc_parse_token(const char *token_start, const char *opaque_end,
     key_len = (size_t) (equals - key_start);
     value_len = (size_t) (token_end - value_start);
 
-    /* Only handle "tpc." keys. */
+    /* Only handle "tpc." keys. key_len < 5 means there is no name after the
+     * 4-char prefix, so it cannot be a recognised tpc.* parameter. Unknown
+     * keys are skipped (return next token), giving forward compatibility. */
     if (key_len < 5 || memcmp(key_start, "tpc.", 4) != 0) {
         return (token_end < opaque_end) ? token_end + 1 : NULL;
     }
 
+    /* Advance past "tpc." so the comparisons below match the bare name. */
     key_start += 4;
     key_len -= 4;
 

@@ -332,25 +332,36 @@ xrootd_sss_parse_key_line(ngx_conf_t *cf, ngx_array_t *keys,
 /*      Requires at least one non-expired key — logs NOTICE on         */
 /*      successful configuration with key count.                     */
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* WHAT: Generic SSS keytab loader (path -> parsed key array)           */
+/* WHY:  Shared by the main stream module's SSS auth (kXR_auth) and the */
+/*       CMS server module's cluster authentication (kYR_xauth).  Both  */
+/*       consume the same on-disk keytab format and the same private-   */
+/*       permission policy; keeping a single loader avoids two diverging */
+/*       parsers and one accidentally skipping the 0600/0640 check.     */
+/* HOW:  Validate path is a readable regular file, open O_NOFOLLOW to    */
+/*       defeat symlink/TOCTOU, fstat + permission check, parse each     */
+/*       line into a freshly allocated array, require >=1 usable key.    */
+/*       On success *out_keys points at the populated array.            */
+/* ------------------------------------------------------------------ */
 ngx_int_t
-xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
+xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 {
-    FILE       *fp;
-    struct stat st;
-    char        line[4096];
-    ngx_uint_t  line_no;
+    FILE        *fp;
+    struct stat  st;
+    char         line[4096];
+    ngx_uint_t   line_no;
+    ngx_array_t *keys;
+    int          keytab_fd;
 
-    if (xcf->auth != XROOTD_AUTH_SSS) {
-        return NGX_OK;
-    }
+    *out_keys = NULL;
 
-    if (xcf->sss_keytab.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_auth sss requires xrootd_sss_keytab");
+    if (path == NULL || path->len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "SSS keytab path is empty");
         return NGX_ERROR;
     }
 
-    if (xrootd_validate_path(cf, "xrootd_sss_keytab", &xcf->sss_keytab,
+    if (xrootd_validate_path(cf, "sss keytab", path,
                              XROOTD_PATH_REGULAR_FILE, R_OK)
         != NGX_OK)
     {
@@ -361,48 +372,42 @@ xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
      * Using fstat() on the resulting fd eliminates the stat()/open() TOCTOU
      * race where an attacker could swap the keytab for a symlink between
      * the permission check and the actual open. */
-    {
-        int keytab_fd = open((const char *) xcf->sss_keytab.data,
-                             O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-        if (keytab_fd < 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                               "xrootd: cannot open SSS keytab \"%V\"",
-                               &xcf->sss_keytab);
-            return NGX_ERROR;
-        }
-
-        if (fstat(keytab_fd, &st) != 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                               "xrootd: cannot stat SSS keytab \"%V\"",
-                               &xcf->sss_keytab);
-            close(keytab_fd);
-            return NGX_ERROR;
-        }
-
-        if (xrootd_sss_keytab_mode_ok((const char *) xcf->sss_keytab.data,
-                                      st.st_mode)
-            != NGX_OK)
-        {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "xrootd: SSS keytab \"%V\" is not private enough",
-                               &xcf->sss_keytab);
-            close(keytab_fd);
-            return NGX_ERROR;
-        }
-
-        fp = fdopen(keytab_fd, "r");
-        if (fp == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                               "xrootd: cannot fdopen SSS keytab \"%V\"",
-                               &xcf->sss_keytab);
-            close(keytab_fd);
-            return NGX_ERROR;
-        }
-        /* O_CLOEXEC was set at open() — no separate fcntl needed */
+    keytab_fd = open((const char *) path->data,
+                     O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (keytab_fd < 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                           "xrootd: cannot open SSS keytab \"%V\"", path);
+        return NGX_ERROR;
     }
 
-    xcf->sss_keys = ngx_array_create(cf->pool, 4, sizeof(xrootd_sss_key_t));
-    if (xcf->sss_keys == NULL) {
+    if (fstat(keytab_fd, &st) != 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                           "xrootd: cannot stat SSS keytab \"%V\"", path);
+        close(keytab_fd);
+        return NGX_ERROR;
+    }
+
+    if (xrootd_sss_keytab_mode_ok((const char *) path->data, st.st_mode)
+        != NGX_OK)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "xrootd: SSS keytab \"%V\" is not private enough",
+                           path);
+        close(keytab_fd);
+        return NGX_ERROR;
+    }
+
+    fp = fdopen(keytab_fd, "r");
+    if (fp == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                           "xrootd: cannot fdopen SSS keytab \"%V\"", path);
+        close(keytab_fd);
+        return NGX_ERROR;
+    }
+    /* O_CLOEXEC was set at open() — no separate fcntl needed */
+
+    keys = ngx_array_create(cf->pool, 4, sizeof(xrootd_sss_key_t));
+    if (keys == NULL) {
         fclose(fp);
         return NGX_ERROR;
     }
@@ -410,9 +415,7 @@ xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
     line_no = 0;
     while (fgets(line, sizeof(line), fp) != NULL) {
         line_no++;
-        if (xrootd_sss_parse_key_line(cf, xcf->sss_keys, line, line_no)
-            != NGX_OK)
-        {
+        if (xrootd_sss_parse_key_line(cf, keys, line, line_no) != NGX_OK) {
             fclose(fp);
             return NGX_ERROR;
         }
@@ -420,18 +423,39 @@ xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
 
     if (ferror(fp)) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: cannot read SSS keytab \"%V\"",
-                           &xcf->sss_keytab);
+                           "xrootd: cannot read SSS keytab \"%V\"", path);
         fclose(fp);
         return NGX_ERROR;
     }
 
     fclose(fp);
 
-    if (xcf->sss_keys->nelts == 0) {
+    if (keys->nelts == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd: SSS keytab \"%V\" has no usable keys",
-                           &xcf->sss_keytab);
+                           "xrootd: SSS keytab \"%V\" has no usable keys", path);
+        return NGX_ERROR;
+    }
+
+    *out_keys = keys;
+    return NGX_OK;
+}
+
+ngx_int_t
+xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
+{
+    if (xcf->auth != XROOTD_AUTH_SSS) {
+        return NGX_OK;
+    }
+
+    if (xcf->sss_keytab.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "xrootd_auth sss requires xrootd_sss_keytab");
+        return NGX_ERROR;
+    }
+
+    if (xrootd_sss_load_keytab(cf, &xcf->sss_keytab, &xcf->sss_keys)
+        != NGX_OK)
+    {
         return NGX_ERROR;
     }
 

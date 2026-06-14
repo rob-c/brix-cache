@@ -4,47 +4,34 @@
 
 #include "webdav.h"
 #include "../compat/http_body.h"
-#include "../compat/io.h"
 
+#include <errno.h>
 #include <unistd.h>
 
-/**
- * WHAT: Write all bytes from buffer to file descriptor, retrying on EINTR.
- *
- * Performs a full write loop using sequential write(2) syscalls until len bytes are
- * transferred or an error occurs. Advances the file offset via sequential writes (not
- * pwrite(2)) so this function is suitable for PUT operations where the caller tracks
- * cumulative offsets across multiple chunks. Returns NGX_OK on complete transfer or
- * NGX_ERROR on any non-retryable failure (EINTR is retried).
- *
- * WHY: Sequential writes are used instead of pwrite because WebDAV PUT handlers write
- * to a single destination file in order, advancing the offset naturally. This avoids
- * the overhead of tracking absolute offsets per syscall and matches nginx's streaming
- * write pattern. EINTR retry loop handles signal interruption during long writes —
- * common on servers under high load or when other threads/signals are active. The
- * nwritten == 0 check catches short reads that indicate EOF unexpectedly (should never
- * happen for a write to an open file unless the filesystem is corrupted).
- *
- * HOW: Three-step loop. Step 1: call write(fd, buf, len) with remaining bytes. Step 2:
- * handle result — negative means error (EINTR = retry, other = return NGX_ERROR), zero
- * means unexpected EOF (errno=EIO + NGX_ERROR). Step 3: advance buffer pointer and
- * decrement length by nwritten bytes. Loop continues until len reaches 0 (success) or
- * an unretryable error occurs. No logging on failure — callers add context-specific log
- * messages via xrootd_log_safe_path(). Uses raw write(2) syscall, not
- * nginx's event-loop abstraction, because this is a blocking synchronous operation for
- * PUT body transfer (handled by thread pool or direct execution).
- */
-/*
- * webdav_write_full — thin wrapper around the shared xrootd_write_full().
- *
- * Preserved as a named entry point for WebDAV callers (put.c,
- * fs/copy_engine.c) so their call sites need no change.  The actual
- * EINTR-retry loop lives in src/compat/io.c.
- */
 ngx_int_t
 webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len)
 {
-    return xrootd_write_full(fd, buf, len);
+    while (len > 0) {
+        ssize_t nwritten;
+
+        nwritten = write(fd, buf, len);
+        if (nwritten < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return NGX_ERROR;
+        }
+
+        if (nwritten == 0) {
+            errno = EIO;
+            return NGX_ERROR;
+        }
+
+        buf += (size_t) nwritten;
+        len -= (size_t) nwritten;
+    }
+
+    return NGX_OK;
 }
 
 /**

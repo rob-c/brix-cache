@@ -173,6 +173,36 @@ webdav_proxy_abort_request(ngx_http_request_t *r)
 void
 webdav_proxy_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 {
+    webdav_proxy_ctx_t      *ctx;
+    xrootd_webdav_backend_t *be;
+
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "xrootd_webdav_proxy: finalize request rc=%i", rc);
+
+    /* Phase 21 Step D — passive health: count gateway-class failures against
+     * the selected backend, reset the counter on a clean completion. */
+    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    if (ctx == NULL || ctx->selected_backend == NULL) {
+        return;
+    }
+
+    /* Phase 23 — release the dynamic-pool in_flight reservation taken in
+     * proxy.c when this request selected a pool backend (id 0 = config pool). */
+    if (ctx->proxy_be_id != 0) {
+        xrootd_proxy_pool_dec_in_flight(ctx->proxy_be_id);
+        ctx->proxy_be_id = 0;
+    }
+
+    be = ctx->selected_backend;
+
+    if (rc == NGX_HTTP_BAD_GATEWAY
+        || rc == NGX_HTTP_GATEWAY_TIME_OUT
+        || rc == NGX_HTTP_SERVICE_UNAVAILABLE)
+    {
+        be->fail_count++;
+        be->fail_time = ngx_current_msec;
+    } else if (rc == NGX_OK || (rc >= NGX_HTTP_OK && rc < NGX_HTTP_SPECIAL_RESPONSE)) {
+        be->fail_count = 0;
+        be->fail_time  = 0;
+    }
 }

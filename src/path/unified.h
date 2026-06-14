@@ -40,20 +40,6 @@ typedef enum {
 } xrootd_path_status_t;
 
 /*
- * Pool-allocating resolver matching the Phase 1 API shape.  Runtime protocol
- * adapters below use xrootd_path_resolve_cstr() to keep existing call
- * signatures and fixed output buffers unchanged.
- */
-ngx_int_t xrootd_path_resolve(ngx_conf_t *cf,
-    const ngx_str_t *root_canon, const ngx_str_t *req_path,
-    xrootd_path_opts_t opts, xrootd_path_result_t *result, ngx_log_t *log);
-
-ngx_int_t xrootd_path_validate(const ngx_str_t *root_canon,
-    const ngx_str_t *req_path, ngx_log_t *log);
-
-ngx_int_t xrootd_path_get_type(const ngx_str_t *resolved_path);
-
-/*
  * Fixed-buffer resolver used by existing stream and HTTP adapters.
  * root_canon must already be a canonical absolute filesystem path.
  */

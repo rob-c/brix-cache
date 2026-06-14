@@ -63,6 +63,30 @@ ngx_int_t xrootd_sss_bf32_crypt(int encrypt, const u_char *key, size_t key_len,
 const xrootd_sss_key_t *xrootd_sss_find_key(
     ngx_stream_xrootd_srv_conf_t *conf, int64_t id);
 
+/* Array-based key lookup (same semantics as find_key but without a srv_conf —
+ * used by callers that hold an sss_keys array directly, e.g. the CMS module). */
+const xrootd_sss_key_t *xrootd_sss_find_key_arr(ngx_array_t *keys, int64_t id);
+
+/*
+ * xrootd_sss_verify_blob — validate a self-contained SSS credential against a
+ * keytab, transport-independent (used by both the XRootD kXR_auth path and the
+ * CMS kYR_xauth handshake).
+ *
+ * Performs the full verification chain: outer "sss\0"+BF32 header, key-id
+ * lookup, Blowfish-CFB64 decrypt, CRC32 wrong-key detection, timestamp replay
+ * window (lifetime seconds), and identity TLV parse.  Only the self-contained
+ * USEDATA credential form is accepted; the interactive SNDLID (server-supplies
+ * login-id) form returns NGX_DECLINED so the caller can reject it explicitly.
+ *
+ * Returns NGX_OK with *id_out filled and *key_out set to the matched key on
+ * success; NGX_DECLINED for an unsupported SNDLID credential; NGX_ERROR for any
+ * malformed/forged/expired credential (err filled).  Does not allocate.
+ */
+ngx_int_t xrootd_sss_verify_blob(ngx_array_t *keys, time_t lifetime,
+    const u_char *blob, size_t blob_len,
+    xrootd_sss_identity_t *id_out, const xrootd_sss_key_t **key_out,
+    char *err, size_t errsz);
+
 /* ---- auth_identity_challenge.c ------------------------------------- */
 
 /* Parse TAG-LEN-VALUE identity records from the decrypted cleartext body. */

@@ -2,6 +2,7 @@
 #include "../response/response.h"
 #include "../aio/aio.h"
 #include "../compat/checksum.h"
+#include "../path/beneath.h"
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -34,6 +35,15 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
 {
     xrootd_ckscan_aio_t *t    = data;
     struct stat          st;
+    /*
+     * Growing-buffer triple, passed by reference into ckscan_append/ckscan_walk:
+     *   buf  = heap block (ngx_alloc, NOT pool — this runs on a thread-pool worker
+     *          with no access to the request pool); ownership is transferred to
+     *          t->resp on success so the done callback frees it, otherwise every
+     *          error path below must ngx_free(buf) before returning.
+     *   cap  = current allocation size; append/walk realloc and update it in place.
+     *   used = bytes written so far (excludes the trailing NUL added at the end).
+     */
     size_t               cap  = XROOTD_CKSCAN_INIT_CAP;
     size_t               used = 0;
     u_char              *buf;
@@ -46,7 +56,7 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
         return;
     }
 
-    if (stat(t->scan_resolved, &st) != 0) {
+    if (xrootd_stat_beneath(t->rootfd, t->scan_logical, &st) != 0) {
         ngx_free(buf);
         t->error_code = kXR_NotFound;
         snprintf(t->error_msg, sizeof(t->error_msg), "stat failed: %s",
@@ -59,8 +69,7 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
         uint32_t cksum;
         xrootd_checksum_alg_t alg;
 
-        fd = xrootd_open_confined_canon(log, t->root_resolved,
-                                        t->scan_resolved, O_RDONLY, 0);
+        fd = xrootd_open_beneath(t->rootfd, t->scan_logical, O_RDONLY, 0);
         if (fd < 0) {
             ngx_free(buf);
             t->error_code = kXR_IOError;
@@ -69,9 +78,15 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
             return;
         }
 
+        /*
+         * Collapse "unknown algorithm" and "digest failed" into one sentinel:
+         * (uint32_t)-1 is the canonical ckscan "no checksum" marker. We deliberately
+         * close(fd) before testing it so the fd leaks on neither the success nor the
+         * failure branch below.
+         */
         if (xrootd_checksum_parse(t->algo, strlen(t->algo), &alg, NULL, 0)
                 != NGX_OK
-            || xrootd_checksum_u32_fd(alg, fd, t->scan_resolved, log,
+            || xrootd_checksum_u32_fd(alg, fd, t->scan_logical, log,
                                       &cksum) != NGX_OK)
         {
             cksum = (uint32_t) -1;
@@ -86,6 +101,12 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
         }
 
         {
+            /*
+             * append_rc is a tristate, not a boolean: >0 = appended, 0 = the
+             * formatted "algo hex logical\n" line exceeds the per-line limit
+             * (-> kXR_ArgTooLong), <0 = realloc failed (-> kXR_NoMemory). The two
+             * non-positive cases map to distinct wire error codes, hence the branch.
+             */
             int append_rc;
 
             append_rc = xrootd_ckscan_append(&buf, &cap, &used,
@@ -104,8 +125,8 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
     } else if (S_ISDIR(st.st_mode)) {
         char errmsg[128] = "";
 
-        if (xrootd_ckscan_walk(log, t->root_resolved, t->scan_resolved,
-                               t->scan_logical, t->algo, &buf, &cap, &used,
+        if (xrootd_ckscan_walk(log, t->rootfd, t->scan_logical,
+                               t->algo, &buf, &cap, &used,
                                0, t->max_depth, t->max_files, &nfiles,
                                errmsg, sizeof(errmsg)) < 0)
         {
@@ -121,6 +142,13 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
         return;
     }
 
+    /*
+     * NUL-terminate in the slot at [used]: both ngx_alloc(INIT_CAP) above and every
+     * ckscan_append/walk grow keep cap strictly greater than used, so [used] is always
+     * a valid in-bounds byte and never overwrites response data. resp_len stays = used
+     * (the NUL is excluded); the +1 sent to the client in _done covers the terminator.
+     * Success handoff: buf ownership now belongs to t->resp — do NOT ngx_free here.
+     */
     buf[used] = '\0';
     t->resp     = buf;
     t->resp_len = used;
@@ -140,6 +168,13 @@ xrootd_ckscan_aio_done(ngx_event_t *ev)
     xrootd_ctx_t        *ctx  = t->ctx;
     ngx_connection_t    *c    = t->c;
 
+    /*
+     * Cross-thread race guard. The worker ran detached from the event loop, so the
+     * client connection may have closed (or the session been re-keyed) meanwhile.
+     * aio_restore_request re-binds this op to its original streamid; if it fails the
+     * connection/session is gone — we must NOT touch c or send anything, but we still
+     * own t->resp (transferred from the worker) and must free it here to avoid a leak.
+     */
     if (!xrootd_aio_restore_request(ctx, t->streamid)) {
         if (t->resp) {
             ngx_free(t->resp);
@@ -154,6 +189,8 @@ xrootd_ckscan_aio_done(ngx_event_t *ev)
         XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_CKSCAN);
         xrootd_log_access(ctx, c, "QUERY", t->scan_logical, "ckscan",
                           1, 0, NULL, 0);
+        /* resp_len + 1: include the worker's trailing NUL in the kXR_ok payload,
+         * matching xrdadler32 client expectations for a C-string body. */
         xrootd_send_ok(ctx, c, t->resp, (uint32_t) (t->resp_len + 1));
     }
 

@@ -2,6 +2,7 @@
 #include "../response/response.h"
 #include "../aio/aio.h"
 #include "../compat/checksum.h"
+#include "../path/beneath.h"
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -107,8 +108,8 @@ xrootd_ckscan_select_payload(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 static ngx_int_t
 xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const char *root_resolved,
-    const char *resolved, const char *logical, const char *algo)
+    ngx_stream_xrootd_srv_conf_t *conf, int rootfd,
+    const char *logical, const char *algo)
 {
     struct stat  st;
     u_char      *buf;
@@ -123,7 +124,7 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
     }
 
-    if (stat(resolved, &st) != 0) {
+    if (xrootd_stat_beneath(rootfd, logical, &st) != 0) {
         ngx_free(buf);
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
         return xrootd_send_error(ctx, c, kXR_NotFound, strerror(errno));
@@ -135,8 +136,7 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
         int      append_rc;
         xrootd_checksum_alg_t alg;
 
-        fd = xrootd_open_confined_canon(c->log, root_resolved, resolved,
-                                        O_RDONLY, 0);
+        fd = xrootd_open_beneath(rootfd, logical, O_RDONLY, 0);
         if (fd < 0) {
             ngx_free(buf);
             XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
@@ -145,7 +145,7 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         if (xrootd_checksum_parse(algo, strlen(algo), &alg, NULL, 0)
                 != NGX_OK
-            || xrootd_checksum_u32_fd(alg, fd, resolved, c->log, &cksum)
+            || xrootd_checksum_u32_fd(alg, fd, logical, c->log, &cksum)
                 != NGX_OK)
         {
             cksum = (uint32_t) -1;
@@ -174,7 +174,7 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
     } else if (S_ISDIR(st.st_mode)) {
         char errmsg[128] = "";
 
-        if (xrootd_ckscan_walk(c->log, root_resolved, resolved, logical, algo,
+        if (xrootd_ckscan_walk(c->log, rootfd, logical, algo,
                                &buf, &cap, &used, 0, conf->ckscan_max_depth,
                                conf->ckscan_max_files, &nfiles, errmsg,
                                sizeof(errmsg)) < 0)
@@ -205,10 +205,9 @@ ngx_int_t
 xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    char resolved[PATH_MAX];
-    char root_resolved[PATH_MAX];
-    char pathbuf[XROOTD_MAX_PATH + 1];
-    char algo[32];
+    char         full_path[PATH_MAX];
+    char         pathbuf[XROOTD_MAX_PATH + 1];
+    char         algo[32];
     const u_char *path_payload;
     size_t        path_payload_len;
     ngx_int_t     rc;
@@ -235,33 +234,13 @@ xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
                           "-", "ckscan", kXR_ArgInvalid, "invalid path payload");
     }
 
-    if (!xrootd_resolve_path(c->log, &conf->common.root,
-                             pathbuf, resolved, sizeof(resolved))) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
-                          pathbuf, "ckscan", kXR_NotFound, "path not found");
-    }
+    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+                             full_path, sizeof(full_path));
 
-    if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_READ) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
-                          resolved, "ckscan", kXR_NotAuthorized, "not authorized");
-    }
-
-    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-                                     ctx->identity) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
-                          pathbuf, "ckscan", kXR_NotAuthorized, "VO not authorized");
-    }
-
-    if (xrootd_check_token_scope(ctx, pathbuf, 0) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
-                          pathbuf, "ckscan", kXR_NotAuthorized,
-                          "token scope denied");
-    }
-
-    if (!xrootd_resolve_path(c->log, &conf->common.root, "/", root_resolved,
-                             sizeof(root_resolved))) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
-                          "/", "ckscan", kXR_IOError, "root path not found");
+    if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
+                         pathbuf, full_path, conf,
+                         XROOTD_AUTH_READ, 0) != NGX_OK) {
+        return ctx->write_rc;
     }
 
     if (conf->common.thread_pool != NULL) {
@@ -277,15 +256,12 @@ xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         t = task->ctx;
 
-        t->ctx  = ctx;
-        t->c    = c;
-        t->conf = conf;
+        t->ctx    = ctx;
+        t->c      = c;
+        t->conf   = conf;
+        t->rootfd = conf->rootfd;
         ngx_memcpy(t->streamid, ctx->cur_streamid, 2);
         ngx_cpystrn((u_char *) t->algo, (u_char *) algo, sizeof(t->algo));
-        ngx_cpystrn((u_char *) t->root_resolved, (u_char *) root_resolved,
-                    sizeof(t->root_resolved));
-        ngx_cpystrn((u_char *) t->scan_resolved, (u_char *) resolved,
-                    sizeof(t->scan_resolved));
         ngx_cpystrn((u_char *) t->scan_logical, (u_char *) pathbuf,
                     sizeof(t->scan_logical));
         t->max_depth = conf->ckscan_max_depth;
@@ -294,9 +270,7 @@ xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
         t->resp_len  = 0;
         t->error_code = 0;
 
-        task->handler  = xrootd_ckscan_aio_thread;
-        task->event.handler = xrootd_ckscan_aio_done;
-        task->event.data    = task;
+        xrootd_task_bind(task, xrootd_ckscan_aio_thread, xrootd_ckscan_aio_done);
         task->ctx           = t;
 
         if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
@@ -311,6 +285,5 @@ xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    return xrootd_ckscan_sync(ctx, c, conf, root_resolved, resolved, pathbuf,
-                              algo);
+    return xrootd_ckscan_sync(ctx, c, conf, conf->rootfd, pathbuf, algo);
 }

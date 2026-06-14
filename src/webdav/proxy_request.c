@@ -83,6 +83,19 @@ webdav_proxy_create_request(ngx_http_request_t *r)
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
     u    = r->upstream;
 
+    /* Use the round-robin-selected backend's Host / URL base (falls back to
+     * the legacy single-backend conf fields if no backend was selected). */
+    ngx_str_t  host     = conf->upstream_host;
+    ngx_str_t  url_base = conf->upstream_url_base;
+    {
+        webdav_proxy_ctx_t *pctx =
+            ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+        if (pctx != NULL && pctx->selected_backend != NULL) {
+            host     = pctx->selected_backend->host;
+            url_base = pctx->selected_backend->url_base;
+        }
+    }
+
     /* ---- compute header block size ---- */
 
     /* Request line: "METHOD /uri?args HTTP/1.1\r\n" */
@@ -92,7 +105,7 @@ webdav_proxy_create_request(ngx_http_request_t *r)
         + sizeof(" HTTP/1.1\r\n") - 1;
 
     /* Host: header */
-    len += sizeof("Host: \r\n") - 1 + conf->upstream_host.len;
+    len += sizeof("Host: \r\n") - 1 + host.len;
 
     /* Connection: close */
     len += sizeof("Connection: close\r\n") - 1;
@@ -128,7 +141,7 @@ webdav_proxy_create_request(ngx_http_request_t *r)
         if (ngx_strcasecmp(header[i].key.data,
                            (u_char *) "Destination") == 0) {
             len += sizeof("Destination: \r\n") - 1
-                 + conf->upstream_url_base.len + header[i].value.len;
+                 + url_base.len + header[i].value.len;
             continue;
         }
 
@@ -177,7 +190,7 @@ webdav_proxy_create_request(ngx_http_request_t *r)
 
     /* Host */
     p = ngx_cpymem(p, "Host: ", sizeof("Host: ") - 1);
-    p = ngx_copy(p, conf->upstream_host.data, conf->upstream_host.len);
+    p = ngx_copy(p, host.data, host.len);
     *p++ = '\r'; *p++ = '\n';
 
     /* Connection: close */
@@ -233,7 +246,7 @@ webdav_proxy_create_request(ngx_http_request_t *r)
                            (u_char *) "Destination") == 0) {
             /* Rewrite Destination to point at the upstream URL base */
             ngx_str_t rewritten = webdav_proxy_rewrite_destination(
-                r->pool, &header[i].value, &conf->upstream_url_base);
+                r->pool, &header[i].value, &url_base);
             p = ngx_copy(p, header[i].key.data, header[i].key.len);
             *p++ = ':'; *p++ = ' ';
             p = ngx_copy(p, rewritten.data, rewritten.len);

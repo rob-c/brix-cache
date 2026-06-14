@@ -39,9 +39,12 @@ ngx_int_t xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
 /* ---- Function: xrootd_pgread_encode_pages() ----
  * Encodes page-mode response data — interleaves kXR_status trailer + per-page CRC32c checksums into dst buffer.
- * Input src contains raw file bytes; output dst contains byte-stream with CRC32c appended after each page.
+ * Input src contains raw file bytes read from `offset`; output dst contains byte-stream with CRC32c appended after each page.
+ * `offset` is the absolute file offset of src[0]: pages are aligned to it (short first page when unaligned) so every
+ * later page begins on a kXR_pgPageSZ multiple, matching official XRootD and the pgRetry/AsyncPageReader contract.
  * Returns encoded length (src_len + page_count * sizeof(kXR_pageStatus)). Shared encoding used by pgread.
  */
-size_t xrootd_pgread_encode_pages(const u_char *src, size_t len, u_char *dst);
+size_t xrootd_pgread_encode_pages(const u_char *src, size_t len, off_t offset,
+                                  u_char *dst);
 
 #endif // XROOTD_READ_H

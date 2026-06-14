@@ -9,8 +9,11 @@
  */
 
 #include "webdav.h"
+#include "proxy_internal.h"
+#include "../mirror/http_mirror.h"
 #include "../config/config.h"
 #include "../config/root_prepare.h"
+#include "../config/http_rootfd.h"
 
 #include <openssl/x509.h>
 
@@ -38,6 +41,12 @@ webdav_x509_store_cleanup(void *data)
     }
 }
 
+/*
+ * Reject any configured CORS origin that is empty or contains control bytes.
+ * These strings are later reflected into Access-Control-Allow-Origin response
+ * headers, so a CR/LF in one would enable header injection — validate at config
+ * time so a bad value fails `nginx -t` instead of poisoning responses.
+ */
 static ngx_int_t
 webdav_validate_cors_origins(ngx_conf_t *cf,
                              ngx_http_xrootd_webdav_loc_conf_t *conf)
@@ -64,6 +73,14 @@ webdav_validate_cors_origins(ngx_conf_t *cf,
     return NGX_OK;
 }
 
+/*
+ * Allocate and pre-initialise a WebDAV location config.
+ * pcalloc zeroes the struct, so only fields whose "unset" sentinel differs from
+ * 0 are assigned here (NGX_CONF_UNSET / _UINT / _PTR / _MSEC), letting
+ * merge_loc_conf below distinguish "not configured" from an explicit 0.  Fields
+ * that should default to NULL/0 (e.g. the Phase 20/21/24 kv and target pointers)
+ * are documented inline but rely on the pcalloc zero-fill.
+ */
 void *
 ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
 {
@@ -84,6 +101,7 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->cors_credentials = NGX_CONF_UNSET;
     conf->cors_max_age = NGX_CONF_UNSET_UINT;
     conf->lock_timeout = NGX_CONF_UNSET_UINT;
+    conf->lock_startup_sweep = NGX_CONF_UNSET;
     conf->open_file_cache = NGX_CONF_UNSET_PTR;
     conf->open_file_cache_valid = NGX_CONF_UNSET_UINT;
     conf->open_file_cache_min_uses = NGX_CONF_UNSET_UINT;
@@ -92,25 +110,67 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
     ngx_http_xrootd_webdav_tpc_create_loc_conf(conf);
 
     conf->upstream_proxy    = NGX_CONF_UNSET;
+    conf->proxy_pool_enabled = NGX_CONF_UNSET;
     conf->upstream_auth     = (ngx_uint_t) NGX_CONF_UNSET_UINT;
     conf->upstream_resolved = NULL;
     conf->upstream_conf.connect_timeout = NGX_CONF_UNSET_MSEC;
     conf->upstream_conf.send_timeout    = NGX_CONF_UNSET_MSEC;
     conf->upstream_conf.read_timeout    = NGX_CONF_UNSET_MSEC;
+    /* Required by ngx_http_upstream_hide_headers_hash() (built in merge); an
+     * uninitialised hide_headers_hash makes nginx divide by zero in
+     * ngx_http_upstream_process_headers on the first backend response. */
+    conf->upstream_conf.hide_headers = NGX_CONF_UNSET_PTR;
+    conf->upstream_conf.pass_headers = NGX_CONF_UNSET_PTR;
+
+    /* Phase 21 Step D: multi-backend proxy. */
+    conf->upstream_urls          = NULL;
+    conf->upstream_backends      = NULL;
+    conf->upstream_max_fails     = NGX_CONF_UNSET_UINT;
+    conf->upstream_fail_timeout  = NGX_CONF_UNSET_MSEC;
+
+    /* Phase 20 caches/limits: kv == NULL means disabled (pcalloc zeroed). */
+    conf->token_cache_kv   = NULL;
+    conf->rate_limit.kv    = NULL;
+    conf->rate_limit.rate  = 0;
+    conf->rate_limit.burst = 0;
+    conf->rate_limit.key_ip = 0;
+
+    /* Phase 21 Step C: introspection (loc.len == 0 means disabled). */
+    conf->introspect_ttl       = NGX_CONF_UNSET_UINT;
+    conf->introspect_fail_open = NGX_CONF_UNSET;
+    conf->revoke_kv            = NULL;
+
+    /* Phase 24: traffic mirror (targets NULL until a directive adds one). */
+    conf->mirror.enabled     = NGX_CONF_UNSET;
+    conf->mirror.targets     = NULL;
+    conf->mirror.sample_pct  = NGX_CONF_UNSET_UINT;
+    conf->mirror.method_mask = NGX_CONF_UNSET_UINT;
+    conf->mirror.opcode_mask = NGX_CONF_UNSET_UINT;
+    conf->mirror.strip_auth  = NGX_CONF_UNSET;
+    conf->mirror.log_diverge = NGX_CONF_UNSET;
+    conf->mirror.timeout_ms  = NGX_CONF_UNSET_MSEC;
+    conf->mirror.mirror_writes = NGX_CONF_UNSET;
+    conf->mirror_upstream_conf.hide_headers = NGX_CONF_UNSET_PTR;
+    conf->mirror_upstream_conf.pass_headers = NGX_CONF_UNSET_PTR;
 
     return conf;
 }
 
+/*
+ * Merge parent (server/outer location) config into this location and run all
+ * startup validation.  Three phases: (1) inherit/default every directive via
+ * ngx_conf_merge_*; (2) when WebDAV is enabled, resolve+confine the export root,
+ * validate CA/CRL/JWKS/TPC paths, and build the cached X509 CA store once;
+ * (3) resolve the upstream-proxy and traffic-mirror backends.  Returns
+ * NGX_CONF_ERROR (with an emerg log) on any validation failure so `nginx -t`
+ * rejects the config rather than a worker failing at request time.
+ */
 char *
 ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
                                       void *parent, void *child)
 {
     ngx_http_xrootd_webdav_loc_conf_t *prev = parent;
     ngx_http_xrootd_webdav_loc_conf_t *conf = child;
-
-    extern ngx_shm_zone_t *webdav_lock_shm_zone;
-
-    conf->lock_shm_zone = webdav_lock_shm_zone;
 
     ngx_conf_merge_value(conf->common.enable, prev->common.enable, 0);
     ngx_conf_merge_str_value(conf->common.root, prev->common.root, "/");
@@ -126,12 +186,29 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
     ngx_http_xrootd_webdav_tpc_merge_loc_conf(conf, prev);
-    if (conf->cors_origins == NULL) {
-        conf->cors_origins = prev->cors_origins;
-    }
+    XROOTD_MERGE_PTR(conf, prev, cors_origins);
     ngx_conf_merge_value(conf->cors_credentials, prev->cors_credentials, 0);
     ngx_conf_merge_uint_value(conf->cors_max_age, prev->cors_max_age, 86400);
     ngx_conf_merge_uint_value(conf->lock_timeout, prev->lock_timeout, 600);
+    ngx_conf_merge_value(conf->lock_startup_sweep, prev->lock_startup_sweep, 0);
+
+    /* Phase 20 caches/limits: inherit parent block when not set locally. */
+    if (conf->token_cache_kv == NULL) {
+        conf->token_cache_kv = prev->token_cache_kv;
+    }
+    if (conf->rate_limit.kv == NULL) {
+        conf->rate_limit = prev->rate_limit;
+    }
+
+    /* Phase 21 Step C: introspection inheritance. */
+    ngx_conf_merge_str_value(conf->introspect_url, prev->introspect_url, "");
+    ngx_conf_merge_str_value(conf->introspect_loc, prev->introspect_loc, "");
+    ngx_conf_merge_uint_value(conf->introspect_ttl, prev->introspect_ttl, 30);
+    ngx_conf_merge_value(conf->introspect_fail_open,
+                         prev->introspect_fail_open, 1);
+    if (conf->revoke_kv == NULL) {
+        conf->revoke_kv = prev->revoke_kv;
+    }
 
     ngx_conf_merge_ptr_value(conf->open_file_cache,
                               prev->open_file_cache, NULL);
@@ -164,6 +241,30 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             {
                 return NGX_CONF_ERROR;
             }
+        }
+
+        /* Open the persistent confinement rootfd on the freshly-resolved
+         * export root (kernel openat2 RESOLVE_BENEATH anchor). */
+        if (xrootd_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
+            return NGX_CONF_ERROR;
+        }
+
+        /*
+         * Optional startup lock sweep: when xrootd_webdav_lock_startup_sweep is
+         * on, clear every persisted lock xattr under the freshly-resolved
+         * export root so locks do not survive a restart (ephemeral RFC 4918
+         * §10.1 semantics).  Done here rather than in postconfiguration because
+         * root_canon is resolved per-location at merge time.  Skipped under
+         * `nginx -t` so a config test never mutates the filesystem.
+         */
+        if (conf->lock_startup_sweep && !ngx_test_config
+            && conf->common.root_canon[0] != '\0')
+        {
+            ngx_uint_t removed = webdav_lock_startup_sweep(
+                cf->log, conf->common.root_canon);
+            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+                "xrootd_webdav: lock startup sweep removed %ui persisted "
+                "lock(s) under \"%s\"", removed, conf->common.root_canon);
         }
 
         if (conf->cache_root.len > 0) {
@@ -206,6 +307,9 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             return NGX_CONF_ERROR;
         }
 
+        /* Build the X509 trust store once at config time (not per request) when
+         * cert auth is in play, and tie its lifetime to the conf pool via a
+         * cleanup handler so it is freed exactly once on worker exit. */
         if (conf->auth == WEBDAV_AUTH_OPTIONAL
             || conf->auth == WEBDAV_AUTH_REQUIRED)
         {
@@ -296,6 +400,13 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             return NGX_CONF_ERROR;
         }
         conf->jwks_key_count = rc;
+
+        if (rc > 0
+            && xrootd_jwks_register_cleanup(cf->pool, conf->jwks_keys,
+                                            &conf->jwks_key_count) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
     }
 
     ngx_conf_merge_value(conf->upstream_proxy, prev->upstream_proxy, 0);
@@ -311,16 +422,51 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_msec_value(conf->upstream_conf.read_timeout,
                               prev->upstream_conf.read_timeout, 0);
 
-    if (conf->upstream_proxy && conf->upstream_resolved == NULL) {
-        /* Inherit pre-resolved address from parent if URL is the same */
+    ngx_conf_merge_uint_value(conf->upstream_max_fails,
+                              prev->upstream_max_fails, 3);
+    ngx_conf_merge_msec_value(conf->upstream_fail_timeout,
+                              prev->upstream_fail_timeout, 30000);
+
+    ngx_conf_merge_value(conf->proxy_pool_enabled, prev->proxy_pool_enabled, 0);
+
+    if (conf->upstream_proxy && conf->proxy_pool_enabled) {
+        /* Phase 23 dynamic pool: backends live in shared memory, populated at
+         * runtime via the admin REST API — no static URL / build_backends. */
+        if (webdav_proxy_pool_setup(cf, conf, prev) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
+
+        if (conf->upstream_auth == WEBDAV_PROXY_AUTH_TOKEN
+            && conf->upstream_auth_token.len == 0)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                               "xrootd_webdav_proxy_auth token requires a"
+                               " non-empty token value");
+            return NGX_CONF_ERROR;
+        }
+
+    } else if (conf->upstream_proxy && conf->upstream_backends == NULL) {
+        /* Inherit the configured URL list / built backends from the parent
+         * when this location did not declare its own. */
+        if (conf->upstream_urls == NULL && prev->upstream_urls != NULL) {
+            conf->upstream_urls = prev->upstream_urls;
+        }
         if (conf->upstream_url.len == 0 && prev->upstream_url.len > 0) {
             conf->upstream_url = prev->upstream_url;
         }
-        if (conf->upstream_resolved == NULL && prev->upstream_resolved != NULL
+        /* Reuse the parent's already-built backends only if this location's
+         * effective URL list is identical to the parent's (same array pointer
+         * AND same primary URL bytes).  If they differ we must rebuild below so
+         * we never serve one location through another location's resolved
+         * backends. */
+        if (prev->upstream_backends != NULL
+            && conf->upstream_urls == prev->upstream_urls
             && prev->upstream_url.len == conf->upstream_url.len
-            && ngx_memcmp(prev->upstream_url.data, conf->upstream_url.data,
-                          conf->upstream_url.len) == 0)
+            && (conf->upstream_url.len == 0
+                || ngx_memcmp(prev->upstream_url.data, conf->upstream_url.data,
+                              conf->upstream_url.len) == 0))
         {
+            conf->upstream_backends  = prev->upstream_backends;
             conf->upstream_resolved  = prev->upstream_resolved;
             conf->upstream_host      = prev->upstream_host;
             conf->upstream_url_base  = prev->upstream_url_base;
@@ -331,8 +477,27 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
 #endif
         }
 
-        if (conf->upstream_resolved == NULL) {
-            if (webdav_proxy_parse_upstream_url(cf, conf) != NGX_OK) {
+        if (conf->upstream_backends == NULL) {
+            static ngx_str_t  webdav_proxy_hide_headers[] = {
+                ngx_null_string
+            };
+            ngx_hash_init_t   hh;
+
+            if (webdav_proxy_build_backends(cf, conf) != NGX_OK) {
+                return NGX_CONF_ERROR;
+            }
+
+            /* Build hide_headers_hash so nginx's upstream header processing has
+             * a non-empty hash to probe (otherwise SIGFPE on first response). */
+            hh.max_size     = 512;
+            hh.bucket_size  = ngx_align(64, ngx_cacheline_size);
+            hh.name         = "webdav_proxy_hide_headers_hash";
+            hh.pool         = cf->pool;
+            hh.temp_pool    = NULL;
+            if (ngx_http_upstream_hide_headers_hash(cf, &conf->upstream_conf,
+                    &prev->upstream_conf, webdav_proxy_hide_headers, &hh)
+                != NGX_OK)
+            {
                 return NGX_CONF_ERROR;
             }
         }
@@ -343,6 +508,31 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "xrootd_webdav_proxy_auth token requires a"
                                " non-empty token value");
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    /* Phase 24: traffic mirror — inherit parent targets, derive enabled, and
+     * build the shadow upstream conf (timeouts/TLS/hide-headers) when active. */
+    if (conf->mirror.targets == NULL) {
+        conf->mirror.targets = prev->mirror.targets;
+    }
+    ngx_conf_merge_str_value(conf->mirror.token, prev->mirror.token, "");
+    ngx_conf_merge_uint_value(conf->mirror.sample_pct,  prev->mirror.sample_pct, 100);
+    ngx_conf_merge_uint_value(conf->mirror.method_mask, prev->mirror.method_mask,
+                              XROOTD_MIRROR_M_DEFAULT);
+    ngx_conf_merge_value(conf->mirror.strip_auth,  prev->mirror.strip_auth,  1);
+    ngx_conf_merge_value(conf->mirror.log_diverge, prev->mirror.log_diverge, 1);
+    ngx_conf_merge_msec_value(conf->mirror.timeout_ms, prev->mirror.timeout_ms, 5000);
+    ngx_conf_merge_value(conf->mirror.mirror_writes,
+                         prev->mirror.mirror_writes, 0);
+    conf->mirror.enabled = (conf->mirror.targets != NULL
+                            && conf->mirror.targets->nelts > 0) ? 1 : 0;
+
+    if (conf->mirror.enabled
+        && conf->mirror_upstream_conf.connect_timeout == 0)
+    {
+        if (xrootd_http_mirror_setup(cf, conf, prev) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
     }

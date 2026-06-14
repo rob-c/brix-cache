@@ -153,6 +153,8 @@ See [tls.md](../03-configuration/tls-config.md) for configuration details.
 | Feature | Status | Notes |
 |---|---|---|
 | Prometheus metrics (`/metrics`) | ✅ | Per-port native operation counters, native wire/debug counters, WebDAV counters for methods/status/auth/bytes/CORS/fd cache/Range/PROPFIND/HTTP-TPC, and S3 counters for methods/status/auth/bytes/ranges/PUT body modes/ListObjectsV2 diagnostics. See [metrics-and-logging.md](../08-metrics-monitoring/monitoring-guide.md). |
+| WLCG Storage Resource Reporting (SRR) | ✅ | HTTP/JSON `storageservice` document (schema v4.x) at an operator-chosen URL via `xrootd_srr on;`. Live per-share `statvfs` space + endpoints; harvested directly by CRIC / WLCG storage-space accounting. See [`src/srr/README.md`](../../src/srr/README.md). |
+| XRootD UDP monitoring (f-stream / g-stream) | ❌ (by design) | The binary UDP monitoring/accounting packet stream is intentionally **not** implemented. Storage accounting is served HTTP-native via the SRR endpoint above; transfer/operation counters are on `/metrics` (scrape → MonIT). No `xrootd-monitoring-shoveler` / collector is needed. |
 
 ---
 

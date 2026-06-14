@@ -1,4 +1,5 @@
 #include "dashboard_http.h"
+#include "api_admin.h"   /* Phase 23: xrootd_admin_dispatch + admin directives */
 
 #include <stdio.h>
 #include <string.h>
@@ -42,6 +43,7 @@ static char *ngx_http_xrootd_dashboard_set_cookie_path(ngx_conf_t *cf,
 static char *ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 
+/* Exact URI match (length and bytes). */
 static ngx_int_t
 dashboard_uri_eq(ngx_str_t uri, const char *literal)
 {
@@ -50,6 +52,10 @@ dashboard_uri_eq(ngx_str_t uri, const char *literal)
     return uri.len == len && ngx_memcmp(uri.data, literal, len) == 0;
 }
 
+/* Strict prefix match: uri must be STRICTLY longer than `literal` (uri.len >
+ * len), so a bare collection path does not match its own "<path>/" prefix form —
+ * letting _eq and _prefix routes coexist (e.g. ".../transfers" vs
+ * ".../transfers/<id>"). */
 static ngx_int_t
 dashboard_uri_prefix(ngx_str_t uri, const char *literal)
 {
@@ -71,6 +77,7 @@ ngx_http_xrootd_dashboard_create_loc_conf(ngx_conf_t *cf)
     conf->idle_threshold_ms = NGX_CONF_UNSET_MSEC;
     conf->stalled_threshold_ms = NGX_CONF_UNSET_MSEC;
     conf->cluster_stale_after_ms = NGX_CONF_UNSET_MSEC;
+    conf->admin_require_both = NGX_CONF_UNSET;   /* admin_allow/secret: NULL via pcalloc */
     return conf;
 }
 
@@ -94,6 +101,14 @@ ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
     if (conf->users == NULL) {
         conf->users = prev->users;
     }
+    /* Phase 23 admin API: inherit allow/secret; require_both defaults off. */
+    if (conf->admin_allow == NULL) {
+        conf->admin_allow = prev->admin_allow;
+    }
+    ngx_conf_merge_str_value(conf->admin_secret, prev->admin_secret, "");
+    ngx_conf_merge_value(conf->admin_require_both, prev->admin_require_both, 0);
+    /* Cross-field invariant: a transfer cannot become "stalled" before it is
+     * even "idle", so reject a config that inverts the two thresholds. */
     if (conf->stalled_threshold_ms < conf->idle_threshold_ms) {
         return "xrootd_dashboard_stalled_threshold must be greater than or equal to xrootd_dashboard_idle_threshold";
     }
@@ -129,6 +144,8 @@ ngx_http_xrootd_dashboard_set_password(ngx_conf_t *cf,
     ngx_http_xrootd_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t                            *value;
 
+    /* Single-user (password) and multi-user (users file) modes are mutually
+     * exclusive — see auth.c, which keys off which one is set. */
     if (lcf->password.data != NULL) {
         return "is duplicate";
     }
@@ -159,6 +176,11 @@ ngx_http_xrootd_dashboard_set_session_ttl(ngx_conf_t *cf,
     return NGX_CONF_OK;
 }
 
+/*
+ * Validate a cookie Path attribute. Must be a non-empty absolute path, and must
+ * contain no control bytes or ';' — those would let the value break out of the
+ * Set-Cookie attribute and inject further attributes (header/cookie injection).
+ */
 static ngx_int_t
 dashboard_cookie_path_valid(ngx_str_t *path)
 {
@@ -193,6 +215,15 @@ ngx_http_xrootd_dashboard_set_cookie_path(ngx_conf_t *cf,
     return NGX_CONF_OK;
 }
 
+/*
+ * WHAT: Directive setter for `xrootd_dashboard_users <file>` — load an
+ *       htpasswd-style "username:hash" file into the loc-conf users array.
+ * HOW:  Parse line by line at config time: strip trailing CR/LF in place, skip
+ *       blank and '#'-comment lines, split on the first ':' (username before,
+ *       crypt/plaintext hash after), and copy both halves into pool memory.
+ *       A malformed entry (no ':', empty name, empty hash) aborts config load.
+ * NOTE: Every early return after fopen() closes fp to avoid leaking the FILE*.
+ */
 static char *
 ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
@@ -202,6 +233,7 @@ ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
     FILE                                 *fp;
     char                                  line[2048];
 
+    /* Mutually exclusive with single-user password mode (see auth.c). */
     if (lcf->password.len != 0) {
         return "cannot be used with xrootd_dashboard_password";
     }
@@ -230,6 +262,7 @@ ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
         ngx_http_xrootd_dashboard_user_t *user;
         size_t name_len, hash_len;
 
+        /* Trim trailing CR/LF in place. */
         end = line + strlen(line);
         while (end > line && (end[-1] == '\n' || end[-1] == '\r')) {
             *--end = '\0';
@@ -238,12 +271,15 @@ ngx_http_xrootd_dashboard_set_users(ngx_conf_t *cf,
             continue;
         }
 
+        /* Split on the first ':'. Reject if absent, leading (empty username),
+         * or with nothing after it (empty hash). */
         colon = strchr(line, ':');
         if (colon == NULL || colon == line || colon[1] == '\0') {
             fclose(fp);
             return "contains a malformed user entry";
         }
 
+        /* NUL the ':' so `line` is the username; colon+1 is the hash. */
         *colon = '\0';
         name_len = strlen(line);
         hash_len = strlen(colon + 1);
@@ -328,6 +364,35 @@ static ngx_command_t ngx_http_xrootd_dashboard_commands[] = {
       0,
       NULL },
 
+    /* ---- Phase 23: admin write API auth ---- */
+    { ngx_string("xrootd_admin_allow"),       /* CIDR allowlist */
+      NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
+      xrootd_admin_set_allow,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_admin_secret"),      /* bearer secret file path */
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_admin_set_secret,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_admin_require_both"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, admin_require_both),
+      NULL },
+
+    { ngx_string("xrootd_admin_proxy_allow"), /* W6: dynamic-backend host allowlist */
+      NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
+      xrootd_admin_set_proxy_allow,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
     ngx_null_command
 };
 
@@ -353,6 +418,14 @@ ngx_module_t ngx_http_xrootd_dashboard_module = {
 
 /* ---- Main content handler dispatcher ---- */
 
+/*
+ * WHAT: Content handler installed at the dashboard location; routes the request
+ *       URI to the page, login, compat-JSON, versioned-API, or admin handler.
+ * HOW:  Tests are ordered MOST-SPECIFIC FIRST so exact matches win over prefix
+ *       matches (e.g. ".../transfers" before ".../transfers/<id>", and the
+ *       known v1 endpoints before the catch-all "/api/v1/" 404). Per-endpoint
+ *       auth lives inside the called handlers, not here. Unmatched -> 404.
+ */
 ngx_int_t
 ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
 {
@@ -406,6 +479,21 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
             XROOTD_DASHBOARD_API_V1_CACHE);
     }
 
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/ratelimit")) {   /* Phase 25 */
+        return ngx_http_xrootd_dashboard_api_handler(r,
+            XROOTD_DASHBOARD_API_V1_RATELIMIT);
+    }
+
+    /* Phase 23: admin write API (auth + method routing inside dispatch). */
+    if (uri.len >= sizeof("/xrootd/api/v1/admin/") - 1
+        && ngx_memcmp(uri.data, "/xrootd/api/v1/admin/",
+                      sizeof("/xrootd/api/v1/admin/") - 1) == 0)
+    {
+        return xrootd_admin_dispatch(r);
+    }
+
+    /* Catch-all for unknown /api/v1/ paths: return the API's structured 404
+     * (must come AFTER every concrete v1 route above). */
     if (uri.len > sizeof("/xrootd/api/v1/") - 1
         && ngx_memcmp(uri.data, "/xrootd/api/v1/",
                       sizeof("/xrootd/api/v1/") - 1) == 0)

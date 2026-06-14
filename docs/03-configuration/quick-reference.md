@@ -61,6 +61,14 @@ The most-used directives on one page. Start here when you know what you want to 
 | Directive | Context | Default | Notes |
 |---|---|---|---|
 | `xrootd_metrics on\|off` | `location` (HTTP) | `off` | Activates the Prometheus text exporter for the shared metrics zone |
+| `xrootd_srr on\|off` | `location` (HTTP) | `off` | Serves the WLCG Storage Resource Reporting (SRR) `storageservice` JSON document at this location (point CRIC at this URL) |
+| `xrootd_srr_name <name>` | `location` (HTTP) | — | `storageservice.name` (the SE / site name); also `.id` unless `xrootd_srr_id` is set |
+| `xrootd_srr_quality <level>` | `location` (HTTP) | `production` | `qualitylevel` (development/testing/pre-production/production) |
+| `xrootd_srr_version <ver>` | `location` (HTTP) | `1.0` | `implementationversion` |
+| `xrootd_srr_share <name> <path> [vos]` | `location` (HTTP) | — | Repeatable. One `storageshares[]` entry; `<path>` is `statvfs`'d for total/used bytes; `[vos]` = comma-separated VO list |
+| `xrootd_srr_endpoint <name> <iftype> <url>` | `location` (HTTP) | — | Repeatable. One `storageendpoints[]` entry (e.g. `webdav davs https://se:8443/`) |
+
+See [`src/srr/README.md`](../../src/srr/README.md) for the full document layout and caveats.
 
 ---
 
@@ -98,6 +106,7 @@ The WebDAV module (`ngx_http_xrootd_webdav_module`) handles `davs://` clients in
 | `xrootd_webdav_cors_credentials on\|off` | `location` | `off` | Add credentialed CORS response headers |
 | `xrootd_webdav_cors_max_age <seconds>` | `location` | `86400` | CORS preflight cache duration |
 | `xrootd_webdav_lock_timeout <seconds>` | `location` | `600` | Maximum WebDAV lock duration |
+| `xrootd_webdav_lock_startup_sweep on\|off` | `main`/`server`/`location` | `off` | Clear persisted lock xattrs under the export root at startup (ephemeral locks) |
 | `xrootd_webdav_proxy on\|off` | `location` | `off` | Forward all WebDAV requests (after auth) to an upstream HTTP/HTTPS server |
 | `xrootd_webdav_proxy_upstream <url>` | `location` | — | Required when proxy on; `http://` or `https://` base URL of the backend |
 | `xrootd_webdav_proxy_auth anonymous\|forward\|token <val>` | `location` | `anonymous` | Auth forwarding policy: strip Authorization / pass through / replace with static Bearer token |

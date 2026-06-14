@@ -1,5 +1,6 @@
 #include "cache_internal.h"
 #include "writethrough_metrics.h"
+#include "../aio/aio.h"
 
 
 #include <errno.h>
@@ -173,6 +174,65 @@ xrootd_wt_init_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
+/*
+ * xrootd_wt_copy_body — stream the local file to an already-open origin handle.
+ *
+ * With the origin write handle already open, reads [0, file_size) from fd in
+ * XROOTD_CACHE_FETCH_CHUNK windows (caller-provided buf), writing each chunk to
+ * the origin, then truncates + syncs the origin to file_size. Returns 0 on
+ * success, -1 on any failure with *fill populated (kXR error / errno / message).
+ *
+ * The origin/local handles and buf are owned by the caller and released there;
+ * keeping that cleanup at the edge lets this worker use flat early returns.
+ */
+static int
+xrootd_wt_copy_body(xrootd_cache_fill_t *fill, xrootd_cache_origin_conn_t *oc,
+    int fd, off_t file_size, const u_char *fhandle, u_char *buf)
+{
+    off_t offset = 0;
+
+    while (offset < file_size) {
+        size_t  want;
+        ssize_t nread;
+
+        want = (size_t) (file_size - offset);
+        if (want > XROOTD_CACHE_FETCH_CHUNK) {
+            want = XROOTD_CACHE_FETCH_CHUNK;
+        }
+
+        nread = pread(fd, buf, want, offset);
+        if (nread < 0) {
+            xrootd_cache_set_error(fill, kXR_IOError, errno,
+                                   "write-through local read failed");
+            return -1;
+        }
+        if (nread == 0) {
+            xrootd_cache_set_error(fill, kXR_IOError, 0,
+                                   "write-through local file changed during flush");
+            return -1;
+        }
+
+        if (xrootd_cache_origin_write_chunk(fill, oc, fhandle,
+                                            (uint64_t) offset, buf,
+                                            (size_t) nread)
+            != 0)
+        {
+            return -1;
+        }
+
+        offset += nread;
+    }
+
+    if (xrootd_cache_origin_truncate(fill, oc, fhandle,
+                                     (uint64_t) file_size) != 0
+        || xrootd_cache_origin_sync(fill, oc, fhandle) != 0)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
 /* ---- Complete write-through flush cycle: connect → chunked pread + origin_write → truncate/sync/close ----
 
  * WHAT: Executes the full write-back of dirty cached data to the origin XRootD server.
@@ -189,7 +249,7 @@ xrootd_wt_init_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
  *      3) Connect origin → bootstrap login → open writable handle (mode_bits);
  *      4) Chunked pread loop: read XROOTD_CACHE_FETCH_CHUNK bytes, write_chunk each chunk;
  *      5) Truncate to st.st_size + sync on origin; close all handles;
- *      6) On any failure → goto failed: close handles, copy error into wt.
+ *      6) On any failure → unified cleanup: close handles, copy error into wt.
  */
 static void
 xrootd_wt_run_flush(xrootd_wt_flush_t *wt)
@@ -201,9 +261,9 @@ xrootd_wt_run_flush(xrootd_wt_flush_t *wt)
     u_char                     fhandle[XRD_FHANDLE_LEN];
     u_char                    *buf;
     struct stat                st;
-    off_t                      offset;
     int                        fd;
     int                        opened_origin;
+    int                        rc;
 
     wt->bytes_flushed = 0;
 
@@ -254,79 +314,41 @@ xrootd_wt_run_flush(xrootd_wt_flush_t *wt)
     oc.ssl = NULL;
     opened_origin = 0;
     buf = NULL;
+    rc = -1;
 
-    if (xrootd_cache_origin_connect_addr(&fill, &oc, host, port) != 0
-        || xrootd_cache_origin_bootstrap(&fill, &oc) != 0
-        || xrootd_cache_origin_open_write(&fill, &oc, wt->origin_path,
-                                          wt->mode_bits, fhandle) != 0)
+    if (xrootd_cache_origin_connect_addr(&fill, &oc, host, port) == 0
+        && xrootd_cache_origin_bootstrap(&fill, &oc) == 0
+        && xrootd_cache_origin_open_write(&fill, &oc, wt->origin_path,
+                                          wt->mode_bits, fhandle) == 0)
     {
-        goto failed;
-    }
-    opened_origin = 1;
+        opened_origin = 1;
 
-    buf = malloc(XROOTD_CACHE_FETCH_CHUNK);
-    if (buf == NULL) {
-        xrootd_cache_set_error(&fill, kXR_NoMemory, 0,
-                               "write-through buffer allocation failed");
-        goto failed;
-    }
-
-    offset = 0;
-    while (offset < st.st_size) {
-        size_t  want;
-        ssize_t nread;
-
-        want = (size_t) (st.st_size - offset);
-        if (want > XROOTD_CACHE_FETCH_CHUNK) {
-            want = XROOTD_CACHE_FETCH_CHUNK;
+        buf = malloc(XROOTD_CACHE_FETCH_CHUNK);
+        if (buf == NULL) {
+            xrootd_cache_set_error(&fill, kXR_NoMemory, 0,
+                                   "write-through buffer allocation failed");
+        } else {
+            rc = xrootd_wt_copy_body(&fill, &oc, fd, st.st_size, fhandle, buf);
         }
-
-        nread = pread(fd, buf, want, offset);
-        if (nread < 0) {
-            xrootd_cache_set_error(&fill, kXR_IOError, errno,
-                                   "write-through local read failed");
-            goto failed;
-        }
-        if (nread == 0) {
-            xrootd_cache_set_error(&fill, kXR_IOError, 0,
-                                   "write-through local file changed during flush");
-            goto failed;
-        }
-
-        if (xrootd_cache_origin_write_chunk(&fill, &oc, fhandle,
-                                            (uint64_t) offset, buf,
-                                            (size_t) nread)
-            != 0)
-        {
-            goto failed;
-        }
-
-        offset += nread;
     }
 
-    if (xrootd_cache_origin_truncate(&fill, &oc, fhandle,
-                                     (uint64_t) st.st_size) != 0
-        || xrootd_cache_origin_sync(&fill, &oc, fhandle) != 0)
-    {
-        goto failed;
-    }
-
-    xrootd_cache_origin_close_file(&oc, fhandle);
-    xrootd_cache_origin_close(&oc);
-    free(buf);
-    close(fd);
-    wt->bytes_flushed = (st.st_size > 0) ? (size_t) st.st_size : 0;
-    wt->result = NGX_OK;
-    return;
-
-failed:
+    /* Unified cleanup for success and every failure: close the origin file
+     * (only when it was actually opened), the origin link, the transfer buffer,
+     * and the local fd — then report the outcome. */
     if (opened_origin) {
         xrootd_cache_origin_close_file(&oc, fhandle);
     }
     xrootd_cache_origin_close(&oc);
     free(buf);
     close(fd);
-    xrootd_wt_copy_error(wt, &fill);
+
+    if (rc != 0) {
+        xrootd_wt_copy_error(wt, &fill);
+        return;
+    }
+
+    wt->bytes_flushed = (st.st_size > 0) ? (size_t) st.st_size : 0;
+    wt->result = NGX_OK;
 }
 
 /* ---- Synchronous write-through flush at kXR_sync / kXR_close time ----
@@ -465,9 +487,7 @@ xrootd_wt_flush_on_close(xrootd_ctx_t *ctx, ngx_connection_t *c,
             async_wt = task->ctx;
             ngx_memcpy(async_wt, &wt, sizeof(wt));
 
-            task->handler = xrootd_wt_flush_thread;
-            task->event.handler = xrootd_wt_flush_done;
-            task->event.data = task;
+            xrootd_task_bind(task, xrootd_wt_flush_thread, xrootd_wt_flush_done);
 
             if (ngx_thread_task_post(conf->common.thread_pool, task) == NGX_OK) {
                 ctx->files[idx].wt_flush_pending = 1;

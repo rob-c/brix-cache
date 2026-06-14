@@ -1,10 +1,37 @@
 #!/usr/bin/env bash
 # run_load_test.sh — start servers, run load tests, stop servers
 #
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ WARNING — DO NOT run this concurrently with the pytest functional suite. │
+# └─────────────────────────────────────────────────────────────────────────┘
+# This script `rm -rf /tmp/xrd-test/pki` and ALWAYS regenerates the PKI/CA/CRL
+# (see setup_pki below), and it stops/restarts the shared test fleet.  The pytest
+# suite's conftest fleet serves GSI from that SAME /tmp/xrd-test/pki on the same
+# fixed ports (11094-11097/8443/8444/9001).  Running both at once makes this sweep
+# wipe the certificates out from under the running GSI servers mid-handshake, so
+# the pytest GSI/GSI-TLS tests fail spuriously with "No protocols left to try" /
+# "TLS error: resource temporarily unavailable" (server-side: "tlsv1 alert unknown
+# ca", "kXR_ableTLS handshake failed", "[emerg] hostcert.pem ... No such file").
+# This is an ENVIRONMENT collision, NOT a server bug — it is exactly the
+# "test_concurrent GSI host-load flakiness" (see
+# docs/refactor/phase-33-perf-optimization-post-feature-complete.md).
+# Run the load sweep OR the functional suite, never both against /tmp/xrd-test.
+#
 # Usage:
 #   ./tests/run_load_test.sh [nginx|xrootd|both] [--file load_1g.bin] [--concurrency 1,8,32,64,128,200]
 #   ./tests/run_load_test.sh both --file load_1g.bin --concurrency 128 --suite root-gsi
 #   ./tests/run_load_test.sh both --file load_1g.bin --concurrency 200 --suite root-gsi --read-sink devnull
+#
+#   # read + write together (write suites upload load_write_* and clean up per level):
+#   ./tests/run_load_test.sh both --suite root-gsi --mode both --concurrency 1,8,32 --read-sink devnull
+#   ./tests/run_load_test.sh both --suite root-gsi --mode write --concurrency 1
+#   NOTE: write peak disk = max_concurrency × file_size (e.g. 128 × 1 GiB = 128 GiB);
+#         files land in /tmp/xrd-test/data and are removed after each level.
+#
+#   # fair data-plane comparison — same TLS posture on BOTH servers:
+#   ./tests/run_load_test.sh both --suite root-gsi --data-tls off --concurrency 1  # cleartext (default)
+#   ./tests/run_load_test.sh both --suite root-gsi --data-tls on  --concurrency 1  # TLS both sides
+#   (default off = apples-to-apples; without it the GSI suite ran nginx-TLS vs xrootd-cleartext.)
 #
 # Requires:
 #   • nginx built with nginx-xrootd module (./nginx -v should show the module)
@@ -130,6 +157,53 @@ AUTHDB_FILE="/tmp/xrd-perf-xrd/authdb"
 NGINX_PERF_DIR="/tmp/xrd-perf-test"
 XRD_PERF_DIR="/tmp/xrd-perf-xrd"
 
+# Generated (templated) configs — start the servers from these, not the static
+# sources, so --data-tls can toggle the data-plane TLS posture symmetrically.
+NGINX_GEN_CONF="$NGINX_PERF_DIR/nginx.gen.conf"
+XRD_GEN_CONF="$XRD_PERF_DIR/xrootd.gen.conf"
+
+# --data-tls {on,off}: set the SAME data-stream TLS posture on BOTH servers for a
+# fair data-plane comparison. Default off = cleartext-vs-cleartext (apples-to-
+# apples). The old default compared nginx-TLS (xrootd_tls on) vs xrootd-cleartext,
+# which is not like-for-like. Parsed out of the forwarded args so load_test.py
+# never sees it.
+DATA_TLS="off"
+FWD_ARGS=()
+_ai=0
+while [[ $_ai -lt ${#EXTRA_ARGS[@]} ]]; do
+    case "${EXTRA_ARGS[$_ai]}" in
+        --data-tls)    _ai=$((_ai + 1)); DATA_TLS="${EXTRA_ARGS[$_ai]:-off}" ;;
+        --data-tls=*)  DATA_TLS="${EXTRA_ARGS[$_ai]#*=}" ;;
+        *)             FWD_ARGS+=("${EXTRA_ARGS[$_ai]}") ;;
+    esac
+    _ai=$((_ai + 1))
+done
+case "$DATA_TLS" in on|off) ;; *) log "bad --data-tls '$DATA_TLS' (use on|off)"; exit 2 ;; esac
+
+# Generate the templated configs from the static sources.
+gen_configs() {
+    mkdir -p "$NGINX_PERF_DIR"/{logs,tmp} "$XRD_PERF_DIR"/logs
+    local ntls="off"
+    [[ "$DATA_TLS" == "on" ]] && ntls="on"
+    # nginx: toggle the GSI block's data-stream TLS (the only `xrootd_tls`
+    # directive in the file; the roots:// blocks use nginx-level `ssl`).
+    sed "s/xrootd_tls on;/xrootd_tls ${ntls};/" \
+        "$SCRIPT_DIR/nginx.perf.conf" > "$NGINX_GEN_CONF"
+    # xrootd: cleartext data by default; add data-phase TLS for --data-tls on so
+    # the native side encrypts too (parity with nginx xrootd_tls on).
+    cp "$SCRIPT_DIR/xrootd.perf.conf" "$XRD_GEN_CONF"
+    if [[ "$DATA_TLS" == "on" ]]; then
+        cat >> "$XRD_GEN_CONF" <<EOF
+
+# --data-tls on: require TLS for the root:// data phase (parity with nginx)
+xrd.tls   /tmp/xrd-test/pki/server/hostcert.pem /tmp/xrd-test/pki/server/hostkey.pem
+xrd.tlsca certdir /tmp/xrd-test/pki/ca
+xrootd.tls data
+EOF
+    fi
+    log "data-plane TLS posture: --data-tls=$DATA_TLS (nginx xrootd_tls=$ntls)"
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -157,31 +231,42 @@ start_nginx() {
     log "Starting nginx-xrootd (perf config)..."
     mkdir -p "$NGINX_PERF_DIR"/{logs,tmp}
 
-    # Substitute the template vars into the perf config
-    "$NGINX_BIN" -c "$SCRIPT_DIR/nginx.perf.conf" \
+    # Validate + launch from the generated (TLS-templated) config.
+    "$NGINX_BIN" -c "$NGINX_GEN_CONF" \
                  -p "$NGINX_PERF_DIR" \
                  -t 2>&1 | grep -v "^$" >&2 || {
         log "nginx config test failed — is the module built?"
         return 1
     }
 
-    "$NGINX_BIN" -c "$SCRIPT_DIR/nginx.perf.conf" \
+    "$NGINX_BIN" -c "$NGINX_GEN_CONF" \
                  -p "$NGINX_PERF_DIR"
 
-    wait_port localhost 11095 "nginx XRootD+GSI"
-    wait_port localhost 11096 "nginx XRootD+TLS"
-    wait_port localhost 8443  "nginx WebDAV+GSI"
+    wait_port localhost 12795 "nginx XRootD+GSI"
+    wait_port localhost 12796 "nginx XRootD+TLS"
+    wait_port localhost 12792  "nginx WebDAV+GSI"
     log "nginx-xrootd started (pid: $(cat $NGINX_PERF_DIR/logs/nginx.pid))"
 }
 
 stop_nginx() {
     local pidfile="$NGINX_PERF_DIR/logs/nginx.pid"
-    if [[ -f "$pidfile" ]]; then
-        log "Stopping nginx..."
-        "$NGINX_BIN" -c "$SCRIPT_DIR/nginx.perf.conf" \
-                     -p "$NGINX_PERF_DIR" -s quit
-        sleep 2
+    local pid=""
+    [[ -f "$pidfile" ]] && pid="$(cat "$pidfile" 2>/dev/null)"
+    if [[ -n "$pid" ]]; then
+        log "Stopping nginx (master $pid)..."
+        # Graceful first.
+        "$NGINX_BIN" -c "$NGINX_GEN_CONF" -p "$NGINX_PERF_DIR" -s quit 2>/dev/null || true
+        # Wait up to ~3s for a clean exit.
+        local i
+        for i in $(seq 1 12); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
+        # Reap the master AND its orphan-prone reuseport workers via the process
+        # group. nginx daemonizes with setsid(), so the master is its own
+        # process-group leader (PGID == master pid) and `kill -- -PGID` takes the
+        # workers with it. `-s quit` alone leaves reuseport workers holding the
+        # listen sockets across runs (they accumulate and poison later runs).
+        kill -KILL -- "-${pid}" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
     fi
+    rm -f "$pidfile" 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------
@@ -225,26 +310,33 @@ start_xrootd() {
         ln -sf /tmp/xrd-test/data "$XRD_PERF_DIR/data/xrd-test"
 
     # Minimal authdb: allow authenticated users r/w on /
+    # rwld: read + write(+create) + lookup + delete — write perms are required
+    # for the write/stress suites (load_test.py --mode write|both); the read-only
+    # suites only exercise r/l.
     cat > "$AUTHDB_FILE" <<'AUTHDB'
 all.allow host any
-u * / rl
+u * / rwld
 AUTHDB
 
-    local xrd_cmd=("$XROOTD_BIN" -c "$SCRIPT_DIR/xrootd.perf.conf" -l "$XRD_PERF_DIR/logs/xrootd.log" -n perf -b)
+    local xrd_cmd=("$XROOTD_BIN" -c "$XRD_GEN_CONF" -l "$XRD_PERF_DIR/logs/xrootd.log" -n perf -b)
     log "xrootd launch command: ${xrd_cmd[*]}"
     # Capture stdout/stderr for debug
     "${xrd_cmd[@]}" > "$XRD_PERF_DIR/logs/xrootd.debug.log" 2>&1 &
-    sleep 1
-    if ! ps aux | grep -v grep | grep -q "$XROOTD_BIN"; then
-        log "ERROR: xrootd failed to start. See $XRD_PERF_DIR/logs/xrootd.debug.log for details."
-        cat "$XRD_PERF_DIR/logs/xrootd.debug.log" >&2
+    # xrootd -b double-forks; the parent exits immediately, so a fixed
+    # `sleep 1 && ps | grep` race fails under load even though the daemon is
+    # coming up fine. wait_port (polls the actual listen socket) is the real
+    # readiness authority — use it, and only error if the data port never binds.
+    if ! wait_port localhost 12094 "xrootd GSI"; then
+        log "ERROR: xrootd failed to bind 12094. See xrootd.debug.log / xrootd.log:"
+        cat "$XRD_PERF_DIR/logs/xrootd.debug.log" >&2 2>/dev/null || true
+        cat "$XRD_PERF_DIR/logs/xrootd.log"       >&2 2>/dev/null || true
         exit 1
     fi
-    wait_port localhost 12094 "xrootd GSI"
-    wait_port localhost 12443 "xrootd HTTPS/WebDAV"
+    # XrdHttp (12443) is not needed for the root:// suites — wait best-effort so
+    # a missing/failed XrdHttp plugin does not abort a root-only benchmark.
+    wait_port localhost 12443 "xrootd HTTPS/WebDAV" || \
+        log "note: xrootd 12443 (XrdHttp) not up — fine for root:// suites"
     log "xrootd started"
-    # Extra wait to ensure xrootd is fully ready
-    sleep 2
 }
 
 stop_xrootd() {
@@ -278,8 +370,11 @@ trap cleanup EXIT
 # Setup test data and PKI
 setup_test_data
 
+# Generate the TLS-templated configs (depends on PKI from setup_test_data).
+gen_configs
+
 log "Target: $TARGET"
-log "Extra args: ${EXTRA_ARGS[*]:-none}"
+log "Extra args: ${FWD_ARGS[*]:-none}"
 
 [[ "$TARGET" == nginx || "$TARGET" == both ]]   && start_nginx
 [[ "$TARGET" == xrootd || "$TARGET" == both ]]  && start_xrootd
@@ -288,6 +383,6 @@ log "Running load_test.py ..."
 python3 "$SCRIPT_DIR/load_test.py" \
     --target "$TARGET" \
     --json "/tmp/load_test_results.json" \
-    "${EXTRA_ARGS[@]}"
+    "${FWD_ARGS[@]}"
 
 log "Load test complete. Results at /tmp/load_test_results.json"

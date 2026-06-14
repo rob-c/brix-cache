@@ -48,6 +48,44 @@ NGINX_BIN="${NGINX_BIN:-/tmp/nginx-1.28.3/objs/nginx}"
 CONFIGS_DIR="$(cd "$(dirname "$0")" && pwd)/configs"
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# ---------------------------------------------------------------------------
+# Phase 27 W6 — sanitizer mode.  When SANITIZE=1, every nginx this script
+# launches inherits ASan/UBSan/LSan options via the environment (the binary
+# must have been built with -fsanitize=address,undefined; see build-guide.md).
+# LeakSanitizer reports leaks when each process exits (i.e. at `stop`), so the
+# workflow is:  SANITIZE=1 restart  →  run the suite  →  SANITIZE=1 stop  →
+# inspect ${SANITIZE_LOG_DIR}/asan.* for frames in src/.
+# ---------------------------------------------------------------------------
+if [[ "${SANITIZE:-0}" == "1" ]]; then
+    SANITIZE_LOG_DIR="${SANITIZE_LOG_DIR:-$TEST_ROOT/sanitize}"
+    mkdir -p "$SANITIZE_LOG_DIR"
+    # halt_on_error=0 so one finding does not abort a whole worker mid-suite;
+    # detect_leaks=1 turns on LSan at exit; log_path gives one file per pid.
+    export ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=0:log_path=${SANITIZE_LOG_DIR}/asan:print_legend=0:${ASAN_OPTIONS:-}"
+    export UBSAN_OPTIONS="halt_on_error=0:print_stacktrace=1:${UBSAN_OPTIONS:-}"
+    export LSAN_OPTIONS="suppressions=${TESTS_DIR}/lsan.supp:report_objects=0:${LSAN_OPTIONS:-}"
+    echo "SANITIZE=1: leak/UBSan logs → ${SANITIZE_LOG_DIR}/asan.<pid>" >&2
+fi
+
+# ---------------------------------------------------------------------------
+# Phase 27 W6c — Valgrind mode.  When VALGRIND=1, the MAIN nginx instance is
+# launched under Valgrind Memcheck (LSan does not fire for nginx under WSL2 —
+# see docs/07-security/valgrind-findings.md, so Memcheck is the leak tool here).
+# Memcheck emits a report when each traced process exits, so the workflow is:
+#   VALGRIND=1 restart  →  run the suite  →  VALGRIND=1 stop  →
+#   inspect ${VALGRIND_LOG_DIR}/vg.<workerpid>.log (the worker is the signal; the
+#   master log may carry benign nginx-core shutdown noise).
+# The standalone tests/valgrind/run_valgrind.sh is the primary harness; this mode
+# is for exercising the real generated fleet config under Memcheck.
+# ---------------------------------------------------------------------------
+if [[ "${VALGRIND:-0}" == "1" ]]; then
+    VALGRIND_LOG_DIR="${VALGRIND_LOG_DIR:-$TEST_ROOT/valgrind}"
+    mkdir -p "$VALGRIND_LOG_DIR"
+    VALGRIND_SUPP="${VALGRIND_SUPP:-${TESTS_DIR}/valgrind/valgrind.supp}"
+    : "${VALGRIND_OPTS:=--leak-check=full --show-leak-kinds=definite,indirect --track-fds=yes --trace-children=yes --child-silent-after-fork=no --error-exitcode=0 --num-callers=30}"
+    echo "VALGRIND=1: memcheck logs → ${VALGRIND_LOG_DIR}/vg.<pid>.log" >&2
+fi
+
 usage() {
     cat <<'EOF'
 Usage:
@@ -319,7 +357,23 @@ start_nginx() {
         fi
     fi
 
-    "$NGINX_BIN" -p "$NGINX_PREFIX" -c "$NGINX_CONF_REL"
+    if [[ "${VALGRIND:-0}" == "1" ]]; then
+        # Run under Memcheck, detached and in the foreground-of-its-own-session so
+        # valgrind stays attached to the master+worker (forced `daemon off`).  The
+        # script continues to the readiness probe below; `stop` later triggers the
+        # graceful shutdown that makes each worker flush its report.
+        local supp_arg=""
+        [[ -f "$VALGRIND_SUPP" ]] && supp_arg="--suppressions=$VALGRIND_SUPP"
+        setsid valgrind $VALGRIND_OPTS $supp_arg \
+            --log-file="$VALGRIND_LOG_DIR/vg.%p.log" \
+            "$NGINX_BIN" -p "$NGINX_PREFIX" -c "$NGINX_CONF_REL" -g 'daemon off;' \
+            </dev/null >>"$VALGRIND_LOG_DIR/nginx.stdout" 2>&1 &
+        disown
+        # Memcheck boots ~20x slower; give the worker time to bind before probing.
+        sleep 8
+    else
+        "$NGINX_BIN" -p "$NGINX_PREFIX" -c "$NGINX_CONF_REL"
+    fi
 
     if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
         echo "nginx started (skipping xrdfs readiness because SKIP_XRDFS_CHECK set)"
@@ -378,10 +432,21 @@ force_stop_nginx() {
         kill_pid_list "$pids"
     fi
 
+    # Kill all dedicated-instance nginx PIDs.  start_dedicated_nginx writes each
+    # instance's pid under ${TEST_ROOT}/dedicated/<name>/logs/nginx.pid, which the
+    # ${LOG_DIR}/*.pid loop below does NOT cover.  Without this, migrated
+    # dedicated instances (open-flags-lifecycle, webdav-dellock, s3-mpu,
+    # readonly-http, ...) survive stop-all and block the next start-all with
+    # EADDRINUSE.  Generic glob => covers every present and future migration.
+    for pid_file in "${TEST_ROOT}"/dedicated/*/logs/nginx.pid; do
+        [[ -f "$pid_file" ]] || continue
+        kill_pid_list "$(cat "$pid_file" 2>/dev/null || true)"
+    done
+
     # Kill all nginx instance PIDs
     for pid_file in "${LOG_DIR}"/*.pid; do
         [[ -f "$pid_file" ]] || continue
-        
+
         local pids_instance
         pids_instance="$(cat "$pid_file" 2>/dev/null || true)"
         kill_pid_list "$pids_instance"
@@ -1203,6 +1268,15 @@ start_all_dedicated() {
     # Generate a real signed JWT for upstream token auth (credential bridge, etc.)
     # Must be signed by the MAIN tokens key (jwks.json), not the jwks-refresh key.
     local main_tokens_dir="${TEST_ROOT}/tokens"
+    # Ensure the MAIN signing key + jwks.json exist before signing tokens against
+    # them.  On a fully clean tree (e.g. after brutal_teardown removes tokens/)
+    # the key is absent and the `gen` calls below would crash with
+    # "FileNotFoundError: .../tokens/signing_key.pem", failing start-all (exit 1)
+    # and aborting the whole pytest session (INTERNALERROR).  init creates both;
+    # a pre-existing key is reused so multi-session behaviour is unchanged.
+    if [[ ! -f "${main_tokens_dir}/signing_key.pem" ]]; then
+        python3 utils/make_token.py init "${main_tokens_dir}" >/dev/null
+    fi
     python3 utils/make_token.py gen "${main_tokens_dir}" \
         --sub "nginx-bridge" \
         --scope "storage.read:/ storage.modify:/" \
@@ -1242,6 +1316,16 @@ start_all_dedicated() {
     start_dedicated_nginx "readonly" "nginx_readonly.conf" "${READONLY_PORT:-11102}"
     start_dedicated_nginx "vo-acl" "nginx_vo_acl.conf" "${VO_PORT:-11103}"
     start_dedicated_nginx "manager" "nginx_manager.conf" "${MANAGER_PORT:-11101}"
+
+    # --- Migrated dedicated instances (formerly self-provisioned by the test) ---
+    # Each replaces a test fixture that used to spawn+teardown its own nginx; the
+    # consuming test now just connects + skips if unreachable. Data root is
+    # ${TEST_ROOT}/data-<name> (served by start_dedicated_nginx).
+    start_dedicated_nginx "open-flags-lifecycle" "nginx_open_flags_lifecycle.conf" "${OPEN_FLAGS_LIFECYCLE_NGINX_PORT:-12980}"
+    start_dedicated_nginx "webdav-dellock" "nginx_webdav-dellock.conf" "${WEBDAV_DELLOCK_PORT:-13210}"
+    start_dedicated_nginx "webdav-unlock-ownership" "nginx_webdav-unlock-ownership.conf" "${WEBDAV_UNLOCK_OWNERSHIP_PORT:-22014}"
+    start_dedicated_nginx "s3-mpu" "nginx_s3-mpu.conf" "${S3_MPU_PORT:-22017}"
+    NGINX_S3_PORT="${READONLY_HTTP_S3_PORT:-11217}" start_dedicated_nginx "readonly-http" "nginx_readonly-http.conf" "${READONLY_HTTP_DAV_PORT:-11216}"
     NGINX_WEBDAV_PORT="${WEBDAV_CRL_PORT:-11105}" \
         start_dedicated_nginx "crl" "nginx_crl.conf" "${CRL_PORT:-11104}"
     CRL_PATH="${crl_dir}" NGINX_WEBDAV_PORT="${WEBDAV_DIR_PORT:-11107}" \
@@ -1510,10 +1594,30 @@ EOF
     start_dedicated_nginx "collapse-redir" "nginx_collapse_redir.conf" \
         "${COLLAPSE_REDIR_PORT:-11209}" "${NGINX_ANON_PORT:-11094}"
 
+    start_cms_mesh
+
     start_xrdhttp
 }
 
+# start_cms_mesh — bring up the real-xrootd <-> nginx CMS mesh topologies used by
+# test_cms_mesh_interop.py.  cms_mesh_servers.py launches real xrootd/cmsd (via -b)
+# and nginx (via pid file) on the fixed ports in cms_mesh_lib.PORTS; the daemons
+# detach so the script returns once the managers are listening.  If the required
+# binaries are missing it is a no-op and the mesh tests skip on closed ports.
+start_cms_mesh() {
+    TEST_NGINX_BIN="${NGINX_BIN}" CMS_MESH_DIR="${TEST_ROOT}/cms-mesh" \
+        python3 "${TESTS_DIR}/cms_mesh_servers.py" start \
+        >> "${LOG_DIR}/cms-mesh.log" 2>&1 || true
+}
+
+stop_cms_mesh() {
+    TEST_NGINX_BIN="${NGINX_BIN}" CMS_MESH_DIR="${TEST_ROOT}/cms-mesh" \
+        python3 "${TESTS_DIR}/cms_mesh_servers.py" stop \
+        >> "${LOG_DIR}/cms-mesh.log" 2>&1 || true
+}
+
 stop_all_dedicated() {
+    stop_cms_mesh
     stop_haproxy
     stop_xrdhttp
     force_stop_ref

@@ -113,6 +113,11 @@ ngx_shm_zone_t *xrootd_handle_shm_zone;
 
 static ngx_shmtx_t  xrootd_session_mutex;
 
+/* Runtime slot count for the session registry (xrootd_session_slots);
+ * defaults to the compile-time capacity. */
+static ngx_uint_t   xrootd_session_registry_nslots =
+    XROOTD_SESSION_REGISTRY_SLOTS;
+
 static xrootd_session_table_t *
 session_table(void)
 {
@@ -142,7 +147,10 @@ xrootd_session_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
     }
 
     tbl = (xrootd_session_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl, sizeof(*tbl));
+    ngx_memzero(tbl, sizeof(*tbl)
+                     + (size_t) xrootd_session_registry_nslots
+                       * sizeof(xrootd_session_entry_t));
+    tbl->capacity = xrootd_session_registry_nslots;
 
     if (ngx_shmtx_create(&xrootd_session_mutex, &tbl->lock, NULL) != NGX_OK) {
         return NGX_ERROR;
@@ -153,13 +161,20 @@ xrootd_session_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 }
 
 ngx_int_t
-xrootd_configure_session_registry(ngx_conf_t *cf)
+xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
 {
     ngx_str_t  zone_name = ngx_string("xrootd_sessions");
     ngx_str_t  handle_zone_name = ngx_string("xrootd_session_handles");
     size_t     zone_size;
 
-    zone_size = sizeof(xrootd_session_table_t) + ngx_pagesize;
+    if (slots == 0) {
+        slots = XROOTD_SESSION_REGISTRY_SLOTS;
+    }
+    xrootd_session_registry_nslots = slots;
+
+    zone_size = sizeof(xrootd_session_table_t)
+                + (size_t) slots * sizeof(xrootd_session_entry_t)
+                + ngx_pagesize;
     xrootd_session_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                      zone_size,
                                                      &ngx_stream_xrootd_module);
@@ -190,34 +205,65 @@ xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
 {
     xrootd_session_table_t *tbl;
     xrootd_session_entry_t *e;
-    ngx_uint_t              i, free_slot;
-    int                     found;
+    ngx_uint_t              i, free_slot, lru_slot;
+    ngx_msec_t              now, lru_seen = 0;
+    int                     found, reaped = 0;
+    u_char                  victim[XROOTD_SESSION_ID_LEN];
 
     tbl = session_table();
     if (tbl == NULL) {
         return;
     }
 
+    now = ngx_current_msec;
+
     ngx_shmtx_lock(&xrootd_session_mutex);
 
-    free_slot = XROOTD_SESSION_REGISTRY_SLOTS;
-    found = 0;
+    free_slot = tbl->capacity;
+    lru_slot  = tbl->capacity;
+    found     = 0;
 
-    for (i = 0; i < XROOTD_SESSION_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
-            if (free_slot == XROOTD_SESSION_REGISTRY_SLOTS) {
+            if (free_slot == tbl->capacity) {
                 free_slot = i;
             }
             continue;
         }
         if (ngx_memcmp(e->sessid, sessid, XROOTD_SESSION_ID_LEN) == 0) {
+            e->last_seen = now;        /* refresh activity on re-register */
             found = 1;
             break;
         }
+        /* Track the global-LRU occupied slot for reap-on-full (F4). */
+        if (lru_slot == tbl->capacity || e->last_seen < lru_seen) {
+            lru_slot = i;
+            lru_seen = e->last_seen;
+        }
     }
 
-    if (!found && free_slot < XROOTD_SESSION_REGISTRY_SLOTS) {
+    /* Phase 27 F4: when the table is full, reap the least-recently-seen slot
+     * if it is older than the minimum reap age, so a slot-exhaustion attacker
+     * cannot permanently deny new logins.  Otherwise reject (and count it). */
+    if (!found && free_slot == tbl->capacity) {
+        if (lru_slot < tbl->capacity
+            && (now - lru_seen) >= XROOTD_SESSION_REAP_MIN_AGE_MS)
+        {
+            ngx_memcpy(victim, tbl->slots[lru_slot].sessid,
+                       XROOTD_SESSION_ID_LEN);
+            ngx_memzero(&tbl->slots[lru_slot], sizeof(tbl->slots[lru_slot]));
+            free_slot = lru_slot;
+            reaped = 1;
+        } else {
+            ngx_xrootd_metrics_t *m = xrootd_metrics_shared();
+            if (m != NULL) {
+                (void) ngx_atomic_fetch_add(&m->session_registry_full_total, 1);
+            }
+        }
+    }
+
+    if (!found && free_slot < tbl->capacity) {
         e = &tbl->slots[free_slot];
         ngx_memcpy(e->sessid, sessid, XROOTD_SESSION_ID_LEN);
         ngx_cpystrn((u_char *) e->dn, (u_char *) (dn ? dn : ""),
@@ -226,10 +272,21 @@ xrootd_session_register(const u_char sessid[XROOTD_SESSION_ID_LEN],
                     (u_char *) (vo_list ? vo_list : ""),
                     sizeof(e->vo_list));
         e->token_auth = token_auth;
-        e->in_use = 1;
+        e->last_seen  = now;
+        e->in_use     = 1;
     }
 
     ngx_shmtx_unlock(&xrootd_session_mutex);
+
+    /* Unpublish the reaped victim's handles AFTER releasing the session mutex
+     * (mirrors xrootd_session_unregister's lock order: session then handle). */
+    if (reaped) {
+        ngx_xrootd_metrics_t *m = xrootd_metrics_shared();
+        if (m != NULL) {
+            (void) ngx_atomic_fetch_add(&m->session_evict_total, 1);
+        }
+        xrootd_session_handle_unpublish_all(victim);
+    }
 }
 
 int
@@ -250,7 +307,7 @@ xrootd_session_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
 
     ngx_shmtx_lock(&xrootd_session_mutex);
 
-    for (i = 0; i < XROOTD_SESSION_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
             continue;
@@ -259,6 +316,7 @@ xrootd_session_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
             ngx_cpystrn((u_char *) dn_out, (u_char *) e->dn, dn_size);
             ngx_cpystrn((u_char *) vo_out, (u_char *) e->vo_list, vo_size);
             *token_auth_out = e->token_auth;
+            e->last_seen = ngx_current_msec;  /* F4: activity keeps it off the LRU */
             found = 1;
             break;
         }
@@ -282,7 +340,7 @@ xrootd_session_unregister(const u_char sessid[XROOTD_SESSION_ID_LEN])
 
     ngx_shmtx_lock(&xrootd_session_mutex);
 
-    for (i = 0; i < XROOTD_SESSION_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (e->in_use
             && ngx_memcmp(e->sessid, sessid, XROOTD_SESSION_ID_LEN) == 0)

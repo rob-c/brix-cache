@@ -164,21 +164,6 @@ xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-int
-xrootd_unlink_confined(ngx_log_t *log, const ngx_str_t *root,
-    const char *resolved, int is_dir)
-{
-    char root_canon[PATH_MAX];
-
-    if (!xrootd_get_canonical_root(log, root, root_canon,
-                                   sizeof(root_canon))) {
-        errno = EACCES;
-        return -1;
-    }
-
-    return xrootd_unlink_confined_canon(log, root_canon, resolved, is_dir);
-}
-
 /* ---- Confined directory creation operations — mkdirat under confinement ----
  *
  * WHAT: Creates new directories using mkdirat syscall while enforcing parent directory confinement via openconfined_parent_canon().
@@ -212,21 +197,6 @@ xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     rc = mkdirat(parentfd, base, mode);
     close(parentfd);
     return rc;
-}
-
-int
-xrootd_mkdir_confined(ngx_log_t *log, const ngx_str_t *root,
-    const char *resolved, mode_t mode)
-{
-    char root_canon[PATH_MAX];
-
-    if (!xrootd_get_canonical_root(log, root, root_canon,
-                                   sizeof(root_canon))) {
-        errno = EACCES;
-        return -1;
-    }
-
-    return xrootd_mkdir_confined_canon(log, root_canon, resolved, mode);
 }
 
 /* ---- Confined rename/move operations — renameat under confinement ----
@@ -308,22 +278,6 @@ xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-int
-xrootd_rename_confined(ngx_log_t *log, const ngx_str_t *root,
-    const char *src_resolved, const char *dst_resolved)
-{
-    char root_canon[PATH_MAX];
-
-    if (!xrootd_get_canonical_root(log, root, root_canon,
-                                   sizeof(root_canon))) {
-        errno = EACCES;
-        return -1;
-    }
-
-    return xrootd_rename_confined_canon(log, root_canon,
-                                         src_resolved, dst_resolved);
-}
-
 /* ---- Confined hard link creation operations — linkat under confinement ----
  *
  * WHAT: Creates hard links using linkat syscall while enforcing parent directory confinement for BOTH source and destination.
@@ -365,14 +319,6 @@ xrootd_rename_confined(ngx_log_t *log, const ngx_str_t *root,
  *
  * HOW: 1) Call xrootd_open_confined_parent_canon(log, root_canon, resolved, base, sizeof(base)) to get parent fd and extract base name; 2) If parentfd < 0, return -1; 3) Call unlinkat(parentfd, base, is_dir ? AT_REMOVEDIR : 0); 4) Close parent fd; 5) Return unlinkat result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffer — safe for concurrent use. */
 
-/* ---- Function: xrootd_unlink_confined() ----
- *
- * WHAT: Thin wrapper that converts ngx_str_t root argument to canonical form via xrootd_get_canonical_root(), then delegates to xrootd_unlink_confined_canon(). Provides the non-canonical API variant for callers holding ngx_str_t root configuration.
- *
- * WHY: Many callers (WebDAV dispatch, native XRootD handler) hold root as ngx_str_t from location config. This wrapper bridges between the nginx string type and the canonical char* form required by xrootd_unlink_confined_canon(). Sets errno = EACCES on canonical_root failure.
- *
- * HOW: 1) Call xrootd_get_canonical_root(log, root, root_canon, sizeof(root_canon)); 2) On success, delegate to xrootd_unlink_confined_canon(log, root_canon, resolved, is_dir); 3) Return delegated result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffer — safe for concurrent use. */
-
 /* ---- Function: xrootd_mkdir_confined_canon() ----
  *
  * WHAT: Creates new directories using mkdirat syscall while enforcing parent directory confinement via openconfined_parent_canon(). Takes pre-canonicalized root_canon and resolved path, creates at mode_t permission bits.
@@ -381,13 +327,6 @@ xrootd_rename_confined(ngx_log_t *log, const ngx_str_t *root,
  *
  * HOW: 1) Call xrootd_open_confined_parent_canon(log, root_canon, resolved, base, sizeof(base)) to get parent fd and extract base name; 2) If parentfd < 0, return -1; 3) Call mkdirat(parentfd, base, mode); 4) Close parent fd; 5) Return mkdirat result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffer — safe for concurrent use. */
 
-/* ---- Function: xrootd_mkdir_confined() ----
- *
- * WHAT: Thin wrapper that converts ngx_str_t root argument to canonical form via xrootd_get_canonical_root(), then delegates to xrootd_mkdir_confined_canon(). Provides the non-canonical API variant for callers holding ngx_str_t root configuration.
- *
- * WHY: Many callers (WebDAV dispatch, native XRootD handler) hold root as ngx_str_t from location config. This wrapper bridges between the nginx string type and the canonical char* form required by xrootd_mkdir_confined_canon(). Sets errno = EACCES on canonical_root failure.
- *
- * HOW: 1) Call xrootd_get_canonical_root(log, root, root_canon, sizeof(root_canon)); 2) On success, delegate to xrootd_mkdir_confined_canon(log, root_canon, resolved, mode); 3) Return delegated result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffer — safe for concurrent use. */
 
 /* ---- Function: xrootd_rename_confined_canon() ----
  *
@@ -405,10 +344,3 @@ xrootd_rename_confined(ngx_log_t *log, const ngx_str_t *root,
  *
  * HOW: 1) Call xrootd_open_confined_parent_canon(log, root_canon, src_resolved, src_base, sizeof(src_base)) to get src_parentfd; 2) If src_parentfd < 0, return -1; 3) Call xrootd_open_confined_parent_canon(log, root_canon, dst_resolved, dst_base, sizeof(dst_base)) to get dst_parentfd; 4) If dst_parentfd < 0, close src_parentfd and return -1; 5) Call linkat(src_parentfd, src_base, dst_parentfd, dst_base, 0); 6) Close both fds; 7) Return linkat result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffers — safe for concurrent use. */
 
-/* ---- Function: xrootd_rename_confined() ----
- *
- * WHAT: Thin wrapper that converts ngx_str_t root argument to canonical form via xrootd_get_canonical_root(), then delegates to xrootd_rename_confined_canon(). Provides the non-canonical API variant for callers holding ngx_str_t root configuration.
- *
- * WHY: Many callers (WebDAV dispatch, native XRootD handler) hold root as ngx_str_t from location config. This wrapper bridges between the nginx string type and the canonical char* form required by xrootd_rename_confined_canon(). Sets errno = EACCES on canonical_root failure.
- *
- * HOW: 1) Call xrootd_get_canonical_root(log, root, root_canon, sizeof(root_canon)); 2) On success, delegate to xrootd_rename_confined_canon(log, root_canon, src_resolved, dst_resolved); 3) Return delegated result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffer — safe for concurrent use. */

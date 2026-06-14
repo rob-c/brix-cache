@@ -1,6 +1,28 @@
 #include "dashboard.h"
 #include "dashboard_tracking.h"
 
+/*
+ * dashboard/noop.c — stub implementation of the entire dashboard public API.
+ *
+ * WHAT: Defines the three SHM zone pointers (ngx_xrootd_dashboard_shm_zone,
+ *       _events_shm_zone, _history_shm_zone) and a do-nothing version of every
+ *       symbol that transfer_table.c, events.c, history.c and http_tracking.c
+ *       normally provide — the slot ops, event log, history sampler and HTTP
+ *       request-tracking hooks.  Allocators return -1 / NGX_OK, snapshots return
+ *       0, mutators silently discard their arguments.
+ * WHY:  The live monitor can be compiled out without touching every call site.
+ *       Callers across the stream and HTTP code reference these symbols
+ *       unconditionally; building this file *instead of* the real dashboard
+ *       sources satisfies the linker and turns all tracking into cheap no-ops.
+ *       (It is intentionally NOT listed in the addon `config`, which wires in the
+ *       full implementation; noop.c is the drop-in replacement for a
+ *       dashboard-disabled build.)
+ * HOW:  Each function matches its real prototype exactly, casts every parameter
+ *       to (void) to suppress unused-argument warnings, and returns the neutral
+ *       value the callers treat as "no tracking active".  Keep this file in sync
+ *       with dashboard_tracking.h and dashboard.h whenever the API changes.
+ */
+
 ngx_shm_zone_t *ngx_xrootd_dashboard_shm_zone;
 ngx_shm_zone_t *ngx_xrootd_dashboard_events_shm_zone;
 ngx_shm_zone_t *ngx_xrootd_dashboard_history_shm_zone;

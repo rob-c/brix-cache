@@ -15,9 +15,7 @@
 typedef struct {
     ngx_http_request_t  *r;
     ngx_fd_t             fd;
-    const u_char        *data;
     size_t               len;
-    off_t                offset;
     ssize_t              nwritten;
     int                  io_errno;
     int                  created;
@@ -31,29 +29,27 @@ static void
 webdav_put_aio_thread(void *data, ngx_log_t *log)
 {
     webdav_put_aio_t *t = data;
-    size_t            remaining = t->len;
-    off_t             off = t->offset;
-    const u_char     *p = t->data;
 
     (void) log;
 
-    t->nwritten = 0;
     t->io_errno = 0;
 
-    while (remaining > 0) {
-        ssize_t n = pwrite(t->fd, p, remaining, off);
-
-        if (n < 0) {
-            t->io_errno = errno;
-            t->nwritten = -1;
-            return;
-        }
-
-        p += n;
-        off += n;
-        remaining -= (size_t) n;
-        t->nwritten += n;
+    /*
+     * Phase 31 W2: stream the body straight from nginx's own request buffers
+     * to the destination fd — no full-body contiguous copy.  The body for this
+     * path is all in-memory bufs anchored in r->pool (the caller gates spooled
+     * bodies to the synchronous streaming path), so they are stable for the
+     * lifetime of the request (held alive by r->main->count++).  This helper
+     * only does pwrite(2), so it is safe to run on the thread pool — no nginx
+     * pool allocation or event-loop calls.
+     */
+    if (xrootd_http_body_write_to_fd(t->r, t->fd, t->path, NULL) != NGX_OK) {
+        t->io_errno = errno;
+        t->nwritten = -1;
+        return;
     }
+
+    t->nwritten = (ssize_t) t->len;
 }
 
 static void
@@ -220,9 +216,6 @@ webdav_handle_put_body(ngx_http_request_t *r)
         {
             ngx_thread_task_t *task;
             webdav_put_aio_t  *t;
-            u_char            *wbuf;
-            ngx_buf_t         *buf;
-            ngx_chain_t       *chain;
 
             task = ngx_thread_task_alloc(r->pool, sizeof(webdav_put_aio_t));
             if (task == NULL) {
@@ -237,40 +230,15 @@ webdav_handle_put_body(ngx_http_request_t *r)
             t = task->ctx;
             t->r = r;
             t->fd = fd;
-            t->offset = 0;
             t->len = body_summary.bytes;
             t->created = created;
             ngx_cpystrn((u_char *) t->path, (u_char *) path,
                         sizeof(t->path));
 
-            wbuf = ngx_palloc(r->pool, body_summary.bytes);
-            if (wbuf == NULL) {
-                xrootd_dashboard_http_error(r, "webdav PUT buffer allocation failed");
-                xrootd_dashboard_http_finish(r);
-                ngx_close_file(fd);
-                webdav_metrics_finalize_request(r,
-                                                NGX_HTTP_INTERNAL_SERVER_ERROR);
-                return;
-            }
-
-            {
-                u_char *wp = wbuf;
-
-                for (chain = r->request_body->bufs;
-                     chain != NULL;
-                     chain = chain->next)
-                {
-                    size_t n;
-
-                    buf = chain->buf;
-                    n = (size_t) (buf->last - buf->pos);
-                    if (n > 0) {
-                        ngx_memcpy(wp, buf->pos, n);
-                        wp += n;
-                    }
-                }
-            }
-            t->data = wbuf;
+            /*
+             * Phase 31 W2: no full-body collection — the thread streams the
+             * in-memory body bufs straight to fd (see webdav_put_aio_thread).
+             */
 
             task->handler = webdav_put_aio_thread;
             task->event.handler = webdav_put_aio_done;
@@ -313,6 +281,13 @@ webdav_handle_put_body(ngx_http_request_t *r)
                 xrootd_dashboard_http_error(r, "webdav PUT body write failed");
                 xrootd_dashboard_http_finish(r);
                 ngx_close_file(fd);
+                /* The target was opened O_CREAT|O_TRUNC, so a failed body write
+                 * (e.g. a corrupt Content-Encoding stream that fails to inflate)
+                 * leaves a partial/empty file that a later GET would serve as a
+                 * valid object.  Remove it so a failed PUT never leaves a
+                 * readable object — matching the S3 staged-file abort semantics. */
+                (void) xrootd_unlink_confined_canon(r->connection->log,
+                    conf->common.root_canon, path, 0);
                 webdav_metrics_finalize_request(r,
                     NGX_HTTP_INTERNAL_SERVER_ERROR);
                 return;

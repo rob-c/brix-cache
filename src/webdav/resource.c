@@ -59,6 +59,7 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
     }
 
     ngx_memzero(&vctx, sizeof(vctx));
+    vctx.rootfd = -1;
     vctx.pool = r->pool;
     vctx.log = r->connection->log;
     vctx.metrics_proto = XROOTD_PROTO_WEBDAV;

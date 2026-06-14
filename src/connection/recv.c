@@ -2,6 +2,7 @@
 #include "disconnect.h"
 #include "fd_table.h"
 #include "tls.h"
+#include "budget.h"
 #include "../manager/pending.h"
 
 /* ---- File: recv.c — TCP read-event loop and request framing state machine ----
@@ -134,6 +135,38 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
         size_t  need;
         size_t  avail;
 
+        if (ctx->recv_deferred) {
+            /*
+             * Phase 29 drain barrier: a non-pipelinable request was fully read
+             * (header in cur_*, any payload in payload_buf) while pipelined reads
+             * were still in flight, and the output queue has now drained.
+             * Dispatch it with the connection quiescent — identical handling to
+             * the inline dispatch sites below.
+             */
+            ctx->recv_deferred = 0;
+            XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
+            rx_pending = 0;
+            rc = xrootd_dispatch(ctx, c, conf);
+            if (rc == NGX_ERROR) {
+                break;
+            }
+            if (ctx->state == XRD_ST_AIO) {
+                if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+                    break;
+                }
+                return;
+            }
+            if (ctx->state != XRD_ST_SENDING) {
+                if (ctx->tls_pending) {
+                    xrootd_start_tls(ctx, c, conf);
+                    return;
+                }
+                ctx->state = XRD_ST_REQ_HEADER;
+                ctx->hdr_pos = 0;
+            }
+            continue;
+        }
+
         if (ctx->state == XRD_ST_SENDING) {
             return;
         }
@@ -175,6 +208,42 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             need = XRD_HANDSHAKE_LEN - ctx->hdr_pos;
 
         } else if (ctx->state == XRD_ST_REQ_HEADER) {
+            if (ctx->hdr_pos == 0) {
+                /*
+                 * Phase 29 pipelining backpressure: if XROOTD_PIPELINE_MAX
+                 * read responses are already queued/draining, stop reading new
+                 * requests and suspend.  The write handler re-enters recv once
+                 * the output queue fully drains.  (out_count is 0 here unless a
+                 * prior kXR_read was pipelined, so this is a no-op for the
+                 * common serial case.)
+                 */
+                if (ctx->out_count >= XROOTD_PIPELINE_MAX) {
+                    ctx->state = XRD_ST_SENDING;
+                    XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
+                    return;
+                }
+
+                /*
+                 * Top of a fresh request with the queue empty — the previous
+                 * response is fully sent, so no chain references the scratch
+                 * buffers.
+                 *
+                 * Phase 31: trim any scratch a prior large read/pgwrite grew
+                 * back to the streaming window so an idle session does not pin
+                 * request-max heap.  Gated on out_count==0 so a pipelined read
+                 * still in flight (whose sendfile chain is file-backed, not
+                 * scratch-backed) is never disturbed.  The scratch buffers are
+                 * RAW heap (ngx_alloc/ngx_free, see src/aio/buffers.c), which
+                 * makes the trim safe.
+                 */
+                if (ctx->out_count == 0) {
+                    xrootd_trim_scratch(ctx, c);
+
+                    /* Phase 31 W4: reconcile this connection's transfer-heap
+                     * footprint with the SHM-global budget after the trim. */
+                    xrootd_budget_sync(ctx);
+                }
+            }
             dest = ctx->hdr_buf + ctx->hdr_pos;
             need = XRD_REQUEST_HDR_LEN - ctx->hdr_pos;
 
@@ -248,6 +317,16 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             ClientRequestHdr *hdr = (ClientRequestHdr *) ctx->hdr_buf;
             uint32_t          max_pl;
 
+            /*
+             * Decode the fixed 24-byte ClientRequestHdr now sitting in hdr_buf
+             * (wire layout, see XProtocol.hh: streamid[2] @0, requestid @2,
+             * body[16] @4, dlen @20).  streamid is an opaque client tag echoed
+             * verbatim in the reply — copied byte-for-byte, never byte-swapped.
+             * requestid and dlen are big-endian on the wire, so ntohs/ntohl them
+             * to host order.  cur_body is the raw 16-byte opcode argument block
+             * (its meaning is opcode-specific, e.g. fhandle+offset for kXR_read)
+             * and is handed to dispatch untouched for the handler to interpret.
+             */
             ctx->cur_streamid[0] = hdr->streamid[0];
             ctx->cur_streamid[1] = hdr->streamid[1];
             ctx->cur_reqid = ntohs(hdr->requestid);
@@ -288,6 +367,29 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             }
 
             ctx->payload = NULL;
+
+            /*
+             * Phase 29 drain barrier: only kXR_read pipelines.  Any other opcode
+             * arriving while reads are still draining must run with the
+             * connection quiescent (e.g. a kXR_close could free a handle an
+             * in-flight sendfile chain still references).  Defer it until the
+             * output queue drains; the recv loop re-dispatches it then.
+             */
+            if (ctx->out_count > 0 && ctx->cur_reqid != kXR_read) {
+                ctx->recv_deferred = 1;
+                ctx->state = XRD_ST_SENDING;
+                XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
+                return;
+            }
+
+            /*
+             * Reset the pipelinable marker before dispatch; only the single-chunk
+             * sendfile read builder sets it back to 1.  A read served from the
+             * memory/window path (TLS, non-regular) thus stays non-pipelinable
+             * (its header/data live in the shared scratch buffers).
+             */
+            ctx->resp_pipelinable = 0;
+
             XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
             rx_pending = 0;
             rc = xrootd_dispatch(ctx, c, conf);
@@ -302,6 +404,32 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                 return;
             }
 
+            /*
+             * Phase 29 pipelining: a cleartext sendfile kXR_read parked its
+             * response (state SENDING, not a windowed read) and we are below the
+             * in-flight cap.  Keep reading so the next read's sendfile span
+             * queues behind this one and the link stays full instead of idling
+             * while the prior response drains.
+             *
+             * All four conjuncts must hold.  resp_pipelinable and !rd_win_active
+             * are NOT redundant: resp_pipelinable says the builder emitted a
+             * single self-contained sendfile span (header in its own slot, safe
+             * to queue another behind), while rd_win_active flags a *multi*-window
+             * read still streaming chunks out of the shared read_scratch — that
+             * one must stay serial because the next window would clobber the
+             * buffer mid-send.  out_count < cap is the in-flight backpressure
+             * bound.
+             */
+            if (ctx->state == XRD_ST_SENDING
+                && ctx->cur_reqid == kXR_read
+                && ctx->resp_pipelinable
+                && !ctx->rd_win_active
+                && ctx->out_count < XROOTD_PIPELINE_MAX)
+            {
+                ctx->state = XRD_ST_REQ_HEADER;
+                ctx->hdr_pos = 0;
+            }
+
             if (ctx->state != XRD_ST_SENDING) {
                 if (ctx->tls_pending) {
                     xrootd_start_tls(ctx, c, conf);
@@ -313,14 +441,53 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             }
 
         } else {
+            /*
+             * Phase 29 drain barrier: a kXR_read may carry a payload (read-ahead
+             * list), so payload-bearing requests are NOT always non-pipelinable.
+             * Defer only NON-read opcodes while pipelined reads are still
+             * draining; reads continue through the pipelining path below.
+             */
+            if (ctx->out_count > 0 && ctx->cur_reqid != kXR_read) {
+                ctx->recv_deferred = 1;
+                ctx->state = XRD_ST_SENDING;
+                XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
+                return;
+            }
+
             ctx->state = XRD_ST_REQ_HEADER;
             ctx->hdr_pos = 0;
+
+            /* Only the single-chunk sendfile read builder re-sets this. */
+            ctx->resp_pipelinable = 0;
 
             XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
             rx_pending = 0;
             rc = xrootd_dispatch(ctx, c, conf);
             if (rc == NGX_ERROR) {
                 break;
+            }
+
+            if (ctx->state == XRD_ST_AIO) {
+                if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+                    break;
+                }
+                return;
+            }
+
+            /*
+             * Phase 29 pipelining (payload-bearing kXR_read with a read-ahead
+             * list): identical to the dlen==0 read path — keep reading so the
+             * next read's sendfile span queues behind this one.
+             */
+            if (ctx->state == XRD_ST_SENDING
+                && ctx->cur_reqid == kXR_read
+                && ctx->resp_pipelinable
+                && !ctx->rd_win_active
+                && ctx->out_count < XROOTD_PIPELINE_MAX)
+            {
+                ctx->state = XRD_ST_REQ_HEADER;
+                ctx->hdr_pos = 0;
+                continue;
             }
 
             if (ctx->state == XRD_ST_SENDING) {

@@ -1,5 +1,39 @@
 #include "handshake.h"
 
+/* ---- sigver.c — request signature verification (kXR_sigver HMAC-SHA256) and security-level enforcement ----
+ *
+ * WHAT: Owns the "verify" half of XRootD request signing. Three entry points:
+ *       xrootd_verify_pending_sigver() consumes the sigver state recorded when a
+ *       kXR_sigver request arrived and validates that the immediately-following
+ *       covered request matches the expected opcode and HMAC; the static
+ *       xrootd_verify_sigver_hmac() recomputes the HMAC-SHA256 over the seqno,
+ *       request header, and (unless sigver_nodata) the payload, comparing it in
+ *       constant time against the client-supplied ctx->sigver_hmac; and
+ *       xrootd_signing_enforce_level() rejects opcodes that the configured
+ *       xrootd_security_level requires to be signed but were not.
+ *
+ * WHY:  XRootD signs requests so a passive observer cannot inject or tamper with
+ *       mutating operations once a session is authenticated. This file enforces
+ *       that contract on the server side: a mismatched/absent signature must fail
+ *       closed (kXR_NotAuthorized) rather than silently passing the request to the
+ *       read/write dispatchers. Splitting verify (here) from the kXR_sigver request
+ *       handler (src/session/signing.c, which records the pending state) keeps the
+ *       "record intent" and "check intent against next request" responsibilities
+ *       in separate, single-purpose files.
+ *
+ * HOW:  kXR_sigver records pending state (expected reqid, supplied HMAC, nodata
+ *       flag, seqno) elsewhere; dispatch then calls xrootd_verify_pending_sigver()
+ *       on the next request, which gates on ctx->signing_active, matches
+ *       sigver_expectrid against cur_reqid, and delegates the cryptographic check
+ *       to xrootd_verify_sigver_hmac() using ctx->signing_key via OpenSSL EVP_MAC
+ *       (HMAC/SHA256, MAC + ctx cached on ctx for reuse). On success it sets
+ *       ctx->verified_signing; xrootd_signing_enforce_level() later consults that
+ *       flag plus xrootd_sigver_opcode_requires() (a level 0-4 policy table) to
+ *       decide whether an unsigned opcode is permitted. */
+
+/* Serialise a 64-bit signature sequence number into big-endian (network order)
+ * bytes; the seqno is the first input mixed into the HMAC so replayed signatures
+ * over a different sequence position fail verification. */
 static void
 xrootd_sigver_seqno_be(uint64_t seq, u_char out[8])
 {
@@ -13,6 +47,17 @@ xrootd_sigver_seqno_be(uint64_t seq, u_char out[8])
     out[7] = (u_char) seq;
 }
 
+/*
+ * Recompute and compare the HMAC-SHA256 over the covered request. Lazily fetches
+ * the OpenSSL "HMAC" EVP_MAC and allocates an EVP_MAC_CTX (both cached on ctx for
+ * reuse across requests), keys it with the 32-byte ctx->signing_key, and updates
+ * it with the big-endian seqno, the request header (ctx->hdr_buf,
+ * XRD_REQUEST_HDR_LEN), and — unless ctx->sigver_nodata or there is no payload —
+ * the request payload. The digest is compared against ctx->sigver_hmac with
+ * CRYPTO_memcmp (constant time). Returns XROOTD_DISPATCH_CONTINUE on a match;
+ * otherwise sends kXR_ServerError on a computation failure or kXR_NotAuthorized
+ * on a digest mismatch and returns that send's result.
+ */
 static ngx_int_t
 xrootd_verify_sigver_hmac(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
@@ -131,6 +176,14 @@ xrootd_verify_pending_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
     return XROOTD_DISPATCH_CONTINUE;
 }
 
+/*
+ * Policy table mapping (opcode, security_level) → whether a signature is required.
+ * Levels mirror XRootD's xrootd_security_level: 0=none, 1=compatible (nothing
+ * required), 2=standard (mutations + kXR_open), 3=intense (everything post-login),
+ * 4=pedantic (everything). Session/auth state-machine opcodes (login, protocol,
+ * auth, endsess, ping, sigver, bind) are always exempt. Returns non-zero when the
+ * opcode must be signed at the given level.
+ */
 static int
 xrootd_sigver_opcode_requires(uint16_t opcode, ngx_uint_t level)
 {

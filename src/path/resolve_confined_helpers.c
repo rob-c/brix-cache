@@ -1,3 +1,34 @@
+/*
+ * resolve_confined_helpers.c — building blocks for absolute-path confined opens.
+ *
+ * WHAT: Lower-level helpers used by the resolve-then-confine stack (the callers
+ *       in resolve_confined_ops.c). Covers: sanitized path-violation logging
+ *       (xrootd_log_path_warning), export-root boundary checking
+ *       (xrootd_path_within_root), absolute→root-relative conversion
+ *       (xrootd_resolved_relative_to_root), opening the root anchor fd
+ *       (xrootd_open_root_fd), the openat2(2) confined-open wrapper plus a
+ *       runtime capability probe (xrootd_openat2_runtime_available), the
+ *       O_NOFOLLOW segment-by-segment fallback for pre-5.6 kernels
+ *       (xrootd_open_confined_parent_fallback), parent/base splitting
+ *       (xrootd_split_relative_parent), and the combined confined-parent opener
+ *       (xrootd_open_confined_parent_canon).
+ *
+ * WHY:  This is the legacy confinement path that takes an already-canonical
+ *       absolute 'resolved' string (from realpath-style resolution) and reopens
+ *       it safely under the export root. Unlike the newer beneath.c API — which
+ *       confines a raw client reqpath directly via RESOLVE_BENEATH — these
+ *       helpers must first strip the root prefix and guard against prefix
+ *       attacks ("/export" must never match "/exportdata"), because user-space
+ *       string comparison is the only boundary before the syscall runs.
+ *
+ * HOW:  When the kernel supports openat2(2) (XROOTD_HAVE_OPENAT2 compiled AND
+ *       the runtime probe passes) confinement is kernel-enforced via
+ *       RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS. On older kernels
+ *       (ENOSYS/EINVAL/EOPNOTSUPP) it degrades to walking the parent path one
+ *       component at a time with openat(O_PATH|O_DIRECTORY|O_NOFOLLOW), rejecting
+ *       forbidden ("." / "..") components at each step so no intermediate symlink
+ *       can escape. Per-function WHAT/WHY/HOW docblocks precede each routine.
+ */
 #include "../ngx_xrootd_module.h"
 
 #include <errno.h>
@@ -338,6 +369,22 @@ xrootd_open_confined_parent_fallback(int rootfd, const char *parent)
     return curfd;
 }
 
+/* ---- Function: xrootd_split_relative_parent() ----
+ *
+ * WHAT: Splits a root-relative path `rel` into its parent directory (`parent`)
+ *       and final component (`base`). A path with no '/' (e.g. "file") yields
+ *       parent="." and base="file". Returns 1 on success, 0 on error.
+ *
+ * WHY:  The confined-parent openers operate on a parent fd plus a base name, so
+ *       a relative path produced by xrootd_resolved_relative_to_root() must be
+ *       decomposed before openat2()/fallback can open the parent and then act on
+ *       the leaf name only — the same parent-then-leaf discipline that keeps an
+ *       intermediate symlink from escaping the export root.
+ *
+ * HOW:  Rejects NULL/empty/"." inputs (EINVAL). strrchr() finds the last '/';
+ *       with none, copies "." into parent and the whole string into base. With
+ *       one, copies the prefix into parent and the suffix into base, bounds-
+ *       checking both against parentsz/basesz (ENAMETOOLONG on overflow). */
 int
 xrootd_split_relative_parent(const char *rel, char *parent, size_t parentsz,
     char *base, size_t basesz)

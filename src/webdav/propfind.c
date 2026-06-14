@@ -171,6 +171,15 @@ propfind_parse_request(ngx_http_request_t *r, propfind_req_t *req)
     {
         xmlDocPtr  doc;
         xmlNodePtr root, child, prop;
+        /*
+         * W8/G1 — entity-expansion DoS guard.  These flags are deliberately
+         * the SAFE set: XML_PARSE_NONET blocks network entity fetches and
+         * XML_PARSE_NO_XXE (where available) blocks external entity loading.
+         * Critically we do NOT set XML_PARSE_HUGE, so libxml2 keeps its default
+         * caps on entity-expansion depth/amplification (the "billion laughs"
+         * defense).  Do not add XML_PARSE_HUGE here without a separate explicit
+         * size/време bound — it removes those caps and re-opens the DoS.
+         */
         int        opts = XML_PARSE_NONET | XML_PARSE_NOERROR
                         | XML_PARSE_NOWARNING;
 #if defined(XML_PARSE_NO_XXE)
@@ -227,7 +236,11 @@ propfind_parse_request(ngx_http_request_t *r, propfind_req_t *req)
                     }
 
                     /* Unrecognised property — store XML empty-element for
-                     * the 404 propstat block. */
+                     * the 404 propstat block.  Capture is silently capped at
+                     * PF_UNKNOWN_MAX: a request naming thousands of bogus props
+                     * must not grow the fixed-size propfind_req_t.  We pre-build
+                     * the exact reflected-XML element now (escaped) so the
+                     * response writer only needs to splice the stored string. */
                     if (req->unknown_count < PF_UNKNOWN_MAX) {
                         ngx_uint_t idx = req->unknown_count;
                         const char *ns_href = "";
@@ -280,6 +293,14 @@ propfind_parse_request(ngx_http_request_t *r, propfind_req_t *req)
  * Per-resource D:response generation
  * ---------------------------------------------------------------------- */
 
+/*
+ * Append the RFC 3744 ACL-related DAV: properties selected by `mask`.
+ * These are synthesized from the request's authenticated identity and the
+ * location's allow_write flag rather than from a real ACL store: owner is the
+ * client DN (or "anonymous"), and the privilege/ACL sets advertise read plus
+ * (only when writes are enabled) the write family.  Each clause is gated on its
+ * own mask bit so PROP requests get exactly the properties they asked for.
+ */
 static ngx_int_t
 propfind_append_acl_properties(ngx_http_request_t *r, ngx_chain_t **head,
     ngx_chain_t **tail, unsigned mask)
@@ -423,10 +444,15 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
     char        date_buf[30];
     char       *safe_href;
     ngx_pool_t *pool  = r->pool;
+    /* For an explicit PROP request only the requested bits are emitted; ALLPROP
+     * (and PROPNAME, handled separately below) emits the full PF_ALL set. */
     unsigned    mask  = (req->type == PROPFIND_PROP) ? req->prop_mask : PF_ALL;
+    /* Tracks which of the request's unknown props were actually resolved as
+     * dead properties, so the rest can be reported in the 404 propstat. */
     ngx_flag_t  unknown_found[PF_UNKNOWN_MAX];
     ngx_uint_t  i;
 
+    /* ngx_http_time writes an RFC 1123 date with no NUL; terminate it here. */
     *ngx_http_time((u_char *) date_buf, sb->st_mtime) = '\0';
     ngx_memzero(unknown_found, sizeof(unknown_found));
 
@@ -530,6 +556,8 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
         const char *name = href + strlen(href);
         char       *safe_name;
 
+        /* Display name is the last path segment: scan back from end of href to
+         * the byte after the final '/'. */
         while (name > href && *(name - 1) != '/') {
             name--;
         }
@@ -569,6 +597,8 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
     }
 
     if (mask & PF_SUPPORTEDLOCK) {
+        /* Lock helpers are best-effort here: a failure to emit the optional
+         * supportedlock/lockdiscovery block must not abort the whole response. */
         (void) webdav_lock_append_supported(r, head, tail);
     }
 
@@ -589,6 +619,11 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
         return NGX_ERROR;
     }
 
+    /* Dead (client-defined) properties: ALLPROP dumps them all; an explicit
+     * PROP request instead tries to resolve each unrecognised name against the
+     * dead-property store, recording hits in unknown_found[] so the misses can
+     * go into a 404 propstat afterwards.  DAV:-namespace unknowns are never
+     * looked up here — a DAV: name we don't know is genuinely unsupported. */
     if (req->type == PROPFIND_ALLPROP) {
         if (webdav_dead_props_append_all(r, path, head, tail, 0) != NGX_OK) {
             return NGX_ERROR;
@@ -612,7 +647,9 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
             "</D:propstat>") == NULL)
         return NGX_ERROR;
 
-    /* For explicit PROP requests: emit 404 propstat for unknown properties. */
+    /* For explicit PROP requests: emit 404 propstat for unknown properties.
+     * Skip the whole block if every named unknown turned out to exist as a dead
+     * property (all resolved above) — emitting an empty 404 propstat is invalid. */
     if (req->type == PROPFIND_PROP && req->unknown_count > 0) {
         ngx_flag_t any_missing = 0;
 
@@ -623,31 +660,31 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
             }
         }
 
-        if (!any_missing) {
-            goto close_response;
-        }
-
-        if (xrootd_http_chain_appendf(pool, head, tail,
-                "<D:propstat><D:prop>") == NULL)
-            return NGX_ERROR;
-
-        for (i = 0; i < req->unknown_count; i++) {
-            if (unknown_found[i]) {
-                continue;
-            }
+        /* Emit the 404 propstat only when at least one named property is
+         * genuinely missing — an empty 404 propstat would be invalid, so when
+         * nothing is missing we skip straight to closing the response. */
+        if (any_missing) {
             if (xrootd_http_chain_appendf(pool, head, tail,
-                    "%s", req->unknown[i].xml) == NULL)
+                    "<D:propstat><D:prop>") == NULL)
+                return NGX_ERROR;
+
+            for (i = 0; i < req->unknown_count; i++) {
+                if (unknown_found[i]) {
+                    continue;
+                }
+                if (xrootd_http_chain_appendf(pool, head, tail,
+                        "%s", req->unknown[i].xml) == NULL)
+                    return NGX_ERROR;
+            }
+
+            if (xrootd_http_chain_appendf(pool, head, tail,
+                    "</D:prop>"
+                    "<D:status>HTTP/1.1 404 Not Found</D:status>"
+                    "</D:propstat>") == NULL)
                 return NGX_ERROR;
         }
-
-        if (xrootd_http_chain_appendf(pool, head, tail,
-                "</D:prop>"
-                "<D:status>HTTP/1.1 404 Not Found</D:status>"
-                "</D:propstat>") == NULL)
-            return NGX_ERROR;
     }
 
-close_response:
     if (xrootd_http_chain_appendf(pool, head, tail, "</D:response>") == NULL) {
         return NGX_ERROR;
     }
@@ -659,41 +696,20 @@ close_response:
  * Depth header parsing
  * ---------------------------------------------------------------------- */
 
+/*
+ * Parse the Depth request header into an internal code:
+ *   0  -> "0" or absent (target only)
+ *   1  -> "1" (target + immediate children)
+ *  -1  -> "infinity" (full recursive walk)
+ * Any unrecognised value defaults to 0, the safe/cheapest behaviour.
+ */
 static int
 propfind_parse_depth(ngx_http_request_t *r)
 {
-    ngx_list_part_t *part = &r->headers_in.headers.part;
-    ngx_table_elt_t *hdr  = part->elts;
-    ngx_uint_t       i;
-
-    for (;;) {
-        for (i = 0; i < part->nelts; i++) {
-            if (hdr[i].key.len != 5
-                || ngx_strncasecmp(hdr[i].key.data,
-                                   (u_char *) "Depth", 5) != 0)
-            {
-                continue;
-            }
-
-            if (hdr[i].value.len == 1 && hdr[i].value.data[0] == '1') {
-                return 1;
-            }
-            if (hdr[i].value.len == 8
-                && ngx_strncasecmp(hdr[i].value.data,
-                                   (u_char *) "infinity", 8) == 0)
-            {
-                return -1;
-            }
-            return 0;
-        }
-
-        if (part->next == NULL) {
-            break;
-        }
-        part = part->next;
-        hdr  = part->elts;
-    }
-
+    ngx_str_t val = xrootd_http_get_header(r, "Depth");
+    if (val.len == 0) return 0;
+    if (val.len == 1 && val.data[0] == '1') return 1;
+    if (val.len == 8 && ngx_strncasecmp(val.data, (u_char *) "infinity", 8) == 0) return -1;
     return 0;
 }
 
@@ -701,8 +717,18 @@ propfind_parse_depth(ngx_http_request_t *r)
  * Depth: infinity recursive walk
  * ---------------------------------------------------------------------- */
 
+/* Hard ceiling on entries emitted for a Depth: infinity PROPFIND so a deep or
+ * wide tree cannot generate an unbounded response / runaway recursion. */
 #define PROPFIND_INFINITY_MAX_ENTRIES  10000
 
+/*
+ * Recursively emit D:response elements for every descendant of dir_path
+ * (Depth: infinity).  entry_count is shared across the whole walk and checked
+ * against max_entries before each entry; once the cap is hit the walk stops and
+ * logs a warning (the response is still well-formed, just truncated).  An
+ * unreadable directory is skipped, not fatal.  On any propfind_entry error the
+ * open DIR is closed before returning NGX_ERROR (no fd leak on the error path).
+ */
 static ngx_int_t
 propfind_walk(ngx_http_request_t *r,
               ngx_chain_t **head, ngx_chain_t **tail,
@@ -715,7 +741,7 @@ propfind_walk(ngx_http_request_t *r,
 
     dp = opendir(dir_path);
     if (dp == NULL) {
-        return NGX_OK;
+        return NGX_OK;   /* unreadable subtree: skip, do not fail the request */
     }
 
     while ((de = readdir(dp)) != NULL) {
@@ -723,6 +749,7 @@ propfind_walk(ngx_http_request_t *r,
         char        child_href[WEBDAV_MAX_PATH + 2];
         struct stat csb;
 
+        /* Skip "."/".." and any dotfile (hidden entries are not listed). */
         if (xrootd_fs_is_dot_entry(de->d_name) || de->d_name[0] == '.') {
             continue;
         }
@@ -744,6 +771,10 @@ propfind_walk(ngx_http_request_t *r,
             continue;
         }
 
+        /* Build child href = base_href + name, inserting a single '/' only if
+         * base_href is not already slash-terminated.  snprintf returns the
+         * would-be length; >= buffer size means it was truncated, so skip the
+         * entry rather than emit a corrupted href. */
         {
             size_t blen = strlen(base_href);
             if (blen == 0 || base_href[blen - 1] != '/') {
@@ -767,6 +798,9 @@ propfind_walk(ngx_http_request_t *r,
         }
         (*entry_count)++;
 
+        /* Recurse into subdirectories (with a trailing-slash href). Re-check
+         * the cap first so a balanced tree cannot blow past max_entries via
+         * nested calls before the per-entry check fires. */
         if (S_ISDIR(csb.st_mode) && *entry_count < max_entries) {
             char subdir_href[WEBDAV_MAX_PATH + 3];
             if ((size_t) snprintf(subdir_href, sizeof(subdir_href),
@@ -791,6 +825,13 @@ propfind_walk(ngx_http_request_t *r,
  * Core PROPFIND logic (called from body-ready callback)
  * ---------------------------------------------------------------------- */
 
+/*
+ * Build and send the complete 207 Multi-Status response.
+ * Runs after the request body has been read (see propfind_body_handler), so it
+ * may resolve/stat the target and parse the body synchronously.  Assembles the
+ * XML as an ngx_chain_t, sums the body length for Content-Length, marks the last
+ * buffer, then sends headers + body.  Returns an HTTP status / NGX_* code.
+ */
 static ngx_int_t
 propfind_do(ngx_http_request_t *r)
 {
@@ -828,10 +869,12 @@ propfind_do(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    /* First D:response is always the request target itself (Depth 0/1/inf). */
     {
         char   href[WEBDAV_MAX_PATH + 2];
         size_t uri_len = r->uri.len;
 
+        /* r->uri is not NUL-terminated; copy a bounded, terminated href. */
         if (uri_len >= sizeof(href) - 1) {
             uri_len = sizeof(href) - 2;
         }
@@ -844,6 +887,10 @@ propfind_do(ngx_http_request_t *r)
         entry_count++;
     }
 
+    /* Depth 1 or infinity on a collection: emit each immediate child. For
+     * infinity we additionally recurse into each child directory via
+     * propfind_walk (the top level is unrolled here so the shared entry_count
+     * cap is threaded through). */
     if ((depth == 1 || depth == -1) && S_ISDIR(sb.st_mode)) {
         DIR *dp = opendir(path);
 
@@ -925,11 +972,13 @@ propfind_do(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    /* Mark end-of-response on the final buffer so the output filter flushes. */
     if (tail != NULL) {
         tail->buf->last_buf = 1;
         tail->buf->last_in_chain = 1;
     }
 
+    /* Content-Length = sum of all buffer payloads in the chain. */
     for (lc = head; lc != NULL; lc = lc->next) {
         total_len += lc->buf->last - lc->buf->pos;
     }
@@ -967,12 +1016,23 @@ propfind_do(ngx_http_request_t *r)
  * Public entry point
  * ---------------------------------------------------------------------- */
 
+/*
+ * Body-ready callback: nginx invokes this once the (possibly chunked) request
+ * body is fully buffered.  It runs propfind_do and finalizes the request with
+ * its return code — this is the async re-entry point after webdav_handle_propfind
+ * returned NGX_DONE to the request pipeline.
+ */
 static void
 propfind_body_handler(ngx_http_request_t *r)
 {
     ngx_http_finalize_request(r, propfind_do(r));
 }
 
+/*
+ * PROPFIND entry point.  Defers all work until the request body is read, since
+ * the body selects allprop/propname/prop.  xrootd_http_read_body arranges for
+ * propfind_body_handler to run and typically returns NGX_DONE.
+ */
 ngx_int_t
 webdav_handle_propfind(ngx_http_request_t *r)
 {

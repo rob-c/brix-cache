@@ -26,3 +26,18 @@ xrootd_cms_srv_send_ping(xrootd_cms_srv_ctx_t *ctx)
 {
     return xrootd_cms_srv_send_frame(ctx, 0, CMS_RR_PING, 0, NULL, 0);
 }
+
+/* ---- xrootd_cms_srv_send_xauth — send the security challenge (kYR_xauth) ----
+ * WHAT: Sends a kYR_xauth frame carrying the manager's security parameters to a
+ *       connecting data node, requesting it present a credential.  WHY: This is
+ *       the manager half of the real cmsd login security handshake
+ *       (XrdCmsSecurity::Authenticate) — the node replies with another
+ *       kYR_xauth frame containing its sss credential, which we verify before
+ *       registering it.  HOW: streamid=0, code=CMS_RR_XAUTH, modifier=0,
+ *       payload = the NUL-terminated parms string (e.g. "&P=sss"). */
+ngx_int_t
+xrootd_cms_srv_send_xauth(xrootd_cms_srv_ctx_t *ctx,
+    const u_char *parms, size_t len)
+{
+    return xrootd_cms_srv_send_frame(ctx, 0, CMS_RR_XAUTH, 0, parms, len);
+}

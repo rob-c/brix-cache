@@ -146,6 +146,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 	ctx->files[idx].bytes_written  += (size_t) nwritten;
 	ctx->session_bytes_written     += (size_t) nwritten;
+	xrootd_rl_charge_ctx(ctx, (size_t) nwritten);  /* Phase 25 bandwidth */
 
 	if (ctx->files[idx].dashboard_slot >= 0 &&
 	    ngx_xrootd_dashboard_shm_zone != NULL)

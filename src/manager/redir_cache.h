@@ -19,7 +19,9 @@
 
 #define XROOTD_REDIR_CACHE_SLOTS  512
 
-ngx_int_t xrootd_redir_cache_configure(ngx_conf_t *cf);
+/* slots: runtime ring-buffer capacity (xrootd_redir_cache_slots);
+ * 0 selects the compile-time default XROOTD_REDIR_CACHE_SLOTS. */
+ngx_int_t xrootd_redir_cache_configure(ngx_conf_t *cf, ngx_uint_t slots);
 
 /*
  * Look up path in the cache.  Returns 1 and writes NUL-terminated host and

@@ -1,5 +1,23 @@
+/*
+ * vfs_mkdir.c — VFS directory creation.
+ *
+ * WHAT: Implements xrootd_vfs_mkdir(), which creates the resolved ctx path as a
+ *       directory with the given mode, optionally creating missing parent
+ *       components (`parents`).
+ *
+ * WHY:  kXR_mkdir and WebDAV MKCOL need one write-gated, confined mkdir with the
+ *       same parent-creation semantics and a single metric/access-log emission
+ *       as the other namespace mutators.
+ *
+ * HOW:  Enforces xrootd_vfs_require_write() and a non-NULL root_canon, then
+ *       delegates to xrootd_ns_mkdir() (namespace layer) passing mode and the
+ *       parents flag. The namespace status is mapped back to errno (sys_errno or
+ *       EIO) and observed as XROOTD_METRIC_OP_MKDIR on every path.
+ */
 #include "vfs_internal.h"
 
+/* Create the resolved ctx path as a directory (mode), creating parents when
+ * `parents`. Write-gated and confined; metered as OP_MKDIR. */
 ngx_int_t
 xrootd_vfs_mkdir(xrootd_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
 {

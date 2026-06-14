@@ -113,7 +113,19 @@ typedef struct {
  * All three are called by bootstrap.c and source.c; not directly by callers
  * outside the tpc/ directory.
  */
+/*
+ * Send the whole buffer over a blocking fd, looping on partial writes (retries
+ * on EINTR). buf is borrowed. Returns 0 once all len bytes are sent, -1 on any
+ * other send() error; a -1 leaves the socket mid-message (caller must abort).
+ */
 int tpc_send_all(int fd, const void *buf, size_t len);
+/*
+ * Read one XRootD ServerResponseHdr frame plus its payload from fd.
+ * On success returns 0 and sets *status (host order kXR_* code) and *dlen; *body
+ * is a malloc'd, NUL-terminated copy of the payload that the caller must free()
+ * (NULL when *dlen == 0). dlen is rejected if it exceeds TPC_RESP_MAX_BODY.
+ * Returns -1 on I/O, framing, oversize, or allocation failure (nothing to free).
+ */
 int tpc_recv_response(int fd, uint16_t *status, u_char **body, uint32_t *dlen);
 
 /*
@@ -125,6 +137,10 @@ int tpc_connect(xrootd_tpc_pull_t *t);
 
 /*
  * connect.c — optional SSRF preflight before opening the local TPC destination.
+ * Thin host+port wrapper over xrootd_net_target_check_dns(); port 0 defaults to
+ * 1094. allow_local/allow_private widen the policy to loopback/RFC1918 targets.
+ * Returns 0 if the source is permitted, -1 (with err_msg filled, up to
+ * err_msg_sz) if the host is missing or the resolved address is blocked.
  */
 int xrootd_tpc_check_src_policy(const char *src_host, uint16_t src_port,
     ngx_flag_t allow_local, ngx_flag_t allow_private,
@@ -137,26 +153,58 @@ int xrootd_tpc_check_src_policy(const char *src_host, uint16_t src_port,
  */
 int tpc_bootstrap(xrootd_tpc_pull_t *t, int fd);
 
+/* Store v as a big-endian uint32 at p; ngx_memcpy-based, so p may be unaligned
+ * (used to fill packed XRootD security-bucket length/tag fields). */
 void tpc_put_u32(u_char *p, uint32_t v);
+/*
+ * Build and send a kXR_auth request frame on fd. seq becomes streamid[1] (echoed
+ * by the server's reply); cred is the borrowed payload whose first 4 bytes are
+ * the NUL-padded protocol tag ("gsi\0"/"ztn\0", must be >= 4 bytes) copied into
+ * the header credtype slot. Returns 0, or -1 with t->err_msg and t->xrd_error
+ * set; a -1 leaves the socket mid-message (callers treat it as fatal).
+ */
 int tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char seq,
     const u_char *cred, uint32_t len);
 
 /*
- * Complete kXR_login kXR_authmore using ztn and/or GSI credentials from
- * ngx_stream_xrootd_srv_conf_t (bearer file, certificate paths).
+ * Complete a kXR_login kXR_authmore using ztn and/or GSI credentials from
+ * ngx_stream_xrootd_srv_conf_t (bearer file, certificate paths). login_body is
+ * the borrowed authmore payload (login_dlen bytes); the auth-method list is read
+ * from it after the session id. When the server offers both, ZTN is tried first
+ * and falls through to GSI only if the server also lists gsi and a cert is
+ * configured (so an expired token recovers instead of failing silently).
+ * Returns 0 once authenticated, -1 with t->err_msg/t->xrd_error set on failure.
  */
 int tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
     u_char *login_body, uint32_t login_dlen);
 
+/*
+ * GSI handshake round 1: load the local cert chain + key, send a kXGC_certreq
+ * kXR_auth frame on fd, and require a kXR_authmore reply (>= 16 bytes). All
+ * locally allocated OpenSSL objects are freed before return. Returns 0 when the
+ * server is mid-handshake (caller proceeds to tpc_outbound_gsi_exchange), or -1
+ * with t->err_msg and t->xrd_error set (kXR_AuthFailed on a wrong/short reply).
+ */
 int tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd);
+/*
+ * GSI handshake round 2: perform the DH key exchange, optionally verify the
+ * server leaf cert against conf->gsi_store (proxy certs allowed; absent cert is
+ * not fatal), send the encrypted client cert, and require a kXR_ok reply. body
+ * is the borrowed kXR_authmore payload from round 1 (dlen bytes); x/chain/pkey/
+ * certreq/cbio/kbio are the round-1 cert material it reuses. Returns 0 on
+ * success, -1 with t->err_msg and t->xrd_error set on failure.
+ */
 int tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
     u_char *body, uint32_t dlen,
     X509 *x, STACK_OF(X509) *chain, EVP_PKEY *pkey,
     u_char *certreq, BIO *cbio, BIO *kbio);
 
 /*
- * gsi_outbound_common.c — anonymous (ZTN) token outbound auth.
- * Sends a bearer-token kXR_authmore response to the source server.
+ * gsi_outbound_common.c — WLCG/ZTN bearer-token outbound auth (kXR_auth, seq 3).
+ * Uses t->delegated_token when set, else reads conf->tpc_outbound_bearer_file and
+ * caches it back into t->delegated_token. Sends a "ztn"-tagged credential and
+ * requires a kXR_ok reply. Returns 0 on success, -1 with t->err_msg/t->xrd_error
+ * set (e.g. no token available, send/recv failure, non-ok server status).
  */
 int tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd);
 
@@ -166,9 +214,19 @@ int tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd);
  * tpc_parse_hex_pub       — decode a hex-encoded DH public key blob.
  * tpc_dh_peer_from        — build an EVP_PKEY peer key from local key + BIGNUM.
  */
+/* Write the first ':'-delimited cipher name from the server's (borrowed,
+ * bounds-checked) kXRS_cipher_alg bucket into out (NUL-terminated, truncated to
+ * outsz). Defaults to "aes-256-cbc" when the bucket is absent or empty; never
+ * fails. */
 void tpc_gsi_select_cipher(const u_char *payload, size_t payload_len,
     char *out, size_t outsz);
+/* Parse the hex DH public value framed by ---BPUB---/---EPUB-- in the borrowed
+ * puk_data blob. Returns a newly allocated BIGNUM the caller owns (BN_free), or
+ * NULL if the markers are missing or the hex fails to decode. */
 BIGNUM *tpc_parse_hex_pub(const u_char *puk_data, size_t puk_len);
+/* Build an EVP_PKEY peer public key by merging local_key's DH parameters with
+ * peer_pub_bn. Both inputs are borrowed. Returns a new EVP_PKEY the caller owns
+ * (EVP_PKEY_free), or NULL on failure. */
 EVP_PKEY *tpc_dh_peer_from(EVP_PKEY *local_key, BIGNUM *peer_pub_bn);
 
 /*
@@ -180,25 +238,56 @@ EVP_PKEY *tpc_dh_peer_from(EVP_PKEY *local_key, BIGNUM *peer_pub_bn);
  */
 int tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd);
 
-/* thread.c — thread-pool worker: orchestrates connect/bootstrap/pull. */
+/* thread.c — thread-pool worker (ngx_thread_task) orchestrating connect →
+ * bootstrap → pull → close. data is the xrootd_tpc_pull_t (borrowed; not freed
+ * here). Runs off the event loop and may block. Communicates only via the task
+ * struct: sets t->result/t->xrd_error/t->bytes_written and advances the shared
+ * TPC registry state (ACTIVE→DONE/ERROR); always closes its own source fd. */
 void xrootd_tpc_pull_thread(void *data, ngx_log_t *log);
 
-/* tpc_token.c — OAuth2/OIDC token fetching for TPC source auth. */
+/* tpc_token.c — fetch an OAuth2/OIDC delegated token per t->token_mode and store
+ * it in t->delegated_token. "none"/empty is a no-op. Returns 0 on success (or
+ * no-op), -1 with t->err_msg/t->xrd_error set (unknown mode, token_endpoint
+ * unconfigured for token-exchange, or backend fetch/validation failure). */
 int tpc_fetch_delegated_token(xrootd_tpc_pull_t *t);
 
-/* done.c — main-thread completion callback: sends kXR_open response or error. */
+/* done.c — main-thread completion callback posted by the thread pool (ev->data
+ * is the ngx_thread_task_t; pull state is task->ctx). Restores the deferred
+ * kXR_open/kXR_sync request and sends the kXR_open/kXR_sync response or error,
+ * then resumes the connection. If the client vanished mid-pull it instead
+ * releases everything (source fd, dst fd, partial file via unlink, fhandle slot,
+ * registry entry). The pull task itself is c->pool-allocated, so it is reclaimed
+ * with the connection rather than freed here; runs no blocking I/O. */
 void xrootd_tpc_pull_done(ngx_event_t *ev);
 
 /*
  * launch.c — nginx event-thread entry points.
  */
+/*
+ * Handle the kXR_open leg of a TPC pull: require a configured thread pool,
+ * validate the source, apply the SSRF source-policy gate, allocate an fhandle,
+ * open the confined destination (dst_path is the root_canon-prefixed absolute
+ * path used for authz/logging; it is stripped to the logical path before the
+ * confined open), populate ctx->files[idx] metadata, and send the kXR_open
+ * response. options/mode_bits come from the client's kXR_open. Returns NGX_OK,
+ * or the result of the error response it sends (open is deferred until kXR_sync).
+ */
 ngx_int_t xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
     const char *dst_path, uint16_t options, uint16_t mode_bits);
 
+/*
+ * Handle the kXR_sync leg: snapshot the prepared fhandle into a heap task and
+ * post xrootd_tpc_pull_thread to the thread pool, parking the connection in
+ * XRD_ST_AIO until xrootd_tpc_pull_done resumes it. Idempotent — a sync arriving
+ * while the worker runs returns a kXR_wait instead of posting again. Returns
+ * NGX_OK on a committed hand-off, NGX_ERROR, or a sent error (bad handle, full
+ * transfer registry, or thread-post failure).
+ */
 ngx_int_t xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, int fhandle_idx);
 
+/* Thin wrapper that forwards to xrootd_tpc_prepare_pull unchanged. */
 ngx_int_t xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
     const char *dst_path, uint16_t options, uint16_t mode_bits);

@@ -5,35 +5,6 @@
 #include "../cms/cms_internal.h"
 #include <string.h>
 
-/* ------------------------------------------------------------------ */
-/* File Stat — kXR_stat and kXR_statx metadata query handlers            */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: This file implements the kXR_stat opcode — querying file metadata (inode, size, flags, mtime). The handler supports two modes:
- *      path-based stat (stat(2) syscall on filesystem path) and handle-based stat (fstat(2) syscall on open file descriptor). Both modes
- *      return identical ASCII-formatted body containing inode number, file size in bytes, permission flags (readable/writable/cachersp),
- *      and modification time. In VFS mode (kXR_vfs flag), the format expands to include additional filesystem statistics.
- *
- * WHY: Stat is one of the most frequently called opcodes — clients query metadata before opening files, during directory listing iterations,
- *      and for cache-hit validation. Handle-based stat provides fast metadata access without re-resolving paths (uses cached canonical path).
- *      Cache flag detection helps clients distinguish between local cached content vs origin content for prefetch optimization.
- *
- * HOW: Two-mode flow → parse options (kXR_vfs flag) → if dlen > 0: extract/clean/resolve path + authdb/VO ACL/token scope check + stat(2) + cache flag detection,
- *      else: validate handle + fstat(2) on cached FD + from_cache flag → format body via xrootd_make_stat_body() → return kXR_ok with ASCII body payload. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Cache Flag Detection (kXR_cachersp)                         */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: Helper function that checks whether a requested path exists in the local cache (conf->cache_root). Returns kXR_cachersp flag if found, 0 otherwise.
- *      This flag tells clients the file is served from cache rather than origin — useful for prefetch optimization and caching metrics.
- *
- * WHY: Clients can optimize read patterns when they know content is cached locally. The cachersp flag in stat body enables downstream logic to skip origin fetches
- *      for repeated access patterns, reducing latency across session boundaries. This is particularly valuable for large files accessed by multiple clients.
- *
- * HOW: Three-step validation → cache enabled check (skip if disabled or cache_root empty) → build cache_path = conf->cache_root + reqpath → stat(2) on cache path →
- *      return kXR_cachersp if regular file exists, 0 otherwise. Uses PATH_MAX buffer to prevent overflow. */
-
 /* Return kXR_cachersp if reqpath (client's clean path) exists in cache_root. */
 int
 xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf, const char *reqpath)
@@ -56,27 +27,11 @@ xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf, const char *req
            ? kXR_cachersp : 0;
 }
 
-/* ---- Function: xrootd_handle_stat() ----
- *
- * WHAT: Handles the kXR_stat opcode — queries file metadata in two modes: path-based stat (stat(2) syscall on filesystem path) and handle-based stat (fstat(2)
- *      syscall on open file descriptor). Returns ASCII-formatted body containing inode number, file size, permission flags (readable/writable/cachersp), and mtime.
- *      Supports VFS mode expansion via kXR_vfs flag. Both modes require authdb/VO ACL/token scope checks before returning metadata.
- *
- * WHY: Stat is one of the most frequently called opcodes — clients query metadata before opening files, during directory listing iterations, and for cache-hit validation. Handle-based stat provides fast metadata access without re-resolving paths (uses cached canonical path). Cache flag detection helps clients distinguish between local cached content vs origin content for prefetch optimization.
- *
- * HOW: Two-mode flow → parse options (kXR_vfs flag) — if dlen > 0: extract/clean/resolve path + authdb/VO ACL/token scope check + stat(2) + cache flag detection via xrootd_cache_path_flag(), else: validate handle + fstat(2) on cached FD + from_cache flag → format body via xrootd_make_stat_body() — return kXR_ok with ASCII body payload. Logging uses resolved path for handle-based stats.
- *
- * Parameters:
- *   ctx  - stream session context (payload, hdr_buf, cur_dlen, files[])
- *   c    - nginx connection (log, ssl state)
- *   conf - server config (root, cache, vo_rules)
- */
-
 ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf)
 {
     ClientStatRequest *req = (ClientStatRequest *) ctx->hdr_buf;
     struct stat        st;
-    char               resolved[PATH_MAX];
+    char               full_path[PATH_MAX];
     char               reqpath_buf[XROOTD_MAX_PATH + 1];
     char               body[256];
     ngx_flag_t         is_vfs;
@@ -108,12 +63,21 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             char     redir_host[256];
             uint16_t redir_port;
 
+            /* tried/triedrc: if the client has already visited every server
+             * that holds this path and they returned enoent, stop redirecting
+             * and answer not-found — otherwise the client redirect-loops. */
+            if (xrootd_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+                                               reqpath)) {
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath, "-",
+                                  kXR_NotFound,
+                                  "file not found on any data server");
+            }
+
             if (xrootd_srv_select(reqpath, 0, redir_host,
                                   sizeof(redir_host), &redir_port)) {
-                xrootd_log_access(ctx, c, "STAT", reqpath, "registry",
-                                  1, 0, NULL, 0);
-                XROOTD_OP_OK(ctx, XROOTD_OP_STAT);
-                return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+                XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_STAT, "STAT",
+                                    reqpath, "registry",
+                                    redir_host, redir_port);
             }
 
             /* Registry miss — ask CMS parent if configured. */
@@ -141,31 +105,19 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             }
         }
 
-        if (!xrootd_resolve_path(c->log, &conf->common.root,
-                                 reqpath, resolved, sizeof(resolved))) {
+        xrootd_beneath_full_path(conf->common.root_canon, reqpath,
+                                  full_path, sizeof(full_path));
+
+        if (xrootd_auth_gate(ctx, c, XROOTD_OP_STAT, "STAT",
+                              reqpath, full_path, conf,
+                              XROOTD_AUTH_LOOKUP, 0) != NGX_OK) {
+            return ctx->write_rc;
+        }
+
+        if (xrootd_stat_beneath(conf->rootfd, reqpath, &st) != 0) {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath, "-",
-                              kXR_NotFound, "file not found");
-        }
-
-        if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_LOOKUP) != NGX_OK) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", resolved, "-",
-                              kXR_NotAuthorized, "authdb denied");
-        }
-
-        if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-                                         ctx->identity) != NGX_OK) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", resolved, "-",
-                              kXR_NotAuthorized, "VO not authorized");
-        }
-
-        if (xrootd_check_token_scope(ctx, reqpath, 0) != NGX_OK) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath, "-",
-                              kXR_NotAuthorized, "token scope denied");
-        }
-
-        if (stat(resolved, &st) != 0) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath, "-",
-                              kXR_NotFound, "file not found");
+                              xrootd_kxr_from_errno(errno),
+                              strerror(errno));
         }
 
         extra_flags = xrootd_cache_path_flag(conf, reqpath);
@@ -180,18 +132,31 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             return validate_rc;
         }
 
-        resolved[0] = '\0';
-        ngx_cpystrn((u_char *) resolved,
+        full_path[0] = '\0';
+        ngx_cpystrn((u_char *) full_path,
                     (u_char *) (ctx->files[idx].path != NULL
                                 ? ctx->files[idx].path : "-"),
-                    sizeof(resolved));
+                    sizeof(full_path));
 
-        if (fstat(ctx->files[idx].fd, &st) != 0) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", resolved, "-",
+        if (ctx->files[idx].slice_mode) {
+            /*
+             * Slice-mode handles park their fd on /dev/null (Phase 26), so
+             * fstat() would report size 0.  The real file size was learned
+             * from the origin at open time and stored in cached_size; synthesize
+             * a regular-file stat from it so the client sees the true length.
+             */
+            ngx_memzero(&st, sizeof(st));
+            st.st_mode = S_IFREG | 0644;
+            st.st_size = (off_t) ctx->files[idx].cached_size;
+            st.st_nlink = 1;
+            st.st_mtime = ngx_time();
+        } else if (fstat(ctx->files[idx].fd, &st) != 0) {
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", full_path, "-",
                               kXR_IOError, strerror(errno));
         }
 
-        extra_flags = ctx->files[idx].from_cache ? kXR_cachersp : 0;
+        extra_flags = (ctx->files[idx].from_cache || ctx->files[idx].slice_mode)
+                          ? kXR_cachersp : 0;
     }
 
     /* Convert the host stat struct into the exact ASCII body the client expects. */
@@ -200,9 +165,8 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: kXR_stat ok: %s", body);
 
-    /* Log the stat - use resolved path for handle-based stats */
     xrootd_log_access(ctx, c, "STAT",
-                      (reqpath && reqpath[0]) ? reqpath : resolved,
+                      (reqpath && reqpath[0]) ? reqpath : full_path,
                       is_vfs ? "vfs" : "-",
                       1, 0, NULL, 0);
     XROOTD_OP_OK(ctx, XROOTD_OP_STAT);

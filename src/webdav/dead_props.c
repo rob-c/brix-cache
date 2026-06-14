@@ -8,6 +8,7 @@
 
 #include "webdav.h"
 #include "../compat/http_xml.h"
+#include "../compat/namespace_ops.h"
 
 #include <errno.h>
 #include <string.h>
@@ -17,12 +18,23 @@
 #define ENOATTR ENODATA
 #endif
 
+/*
+ * xattr naming scheme: an xattr key is
+ *   "user.nginx_xrootd.webdav." <hex(namespace-URI)> "." <hex(local-name)>
+ * Both the XML namespace URI and the local element name are lowercase-hex
+ * encoded so that arbitrary URI bytes (':', '/', '.', etc.) survive the
+ * "user." flat keyspace, and the single literal '.' separator is unambiguous
+ * (real dots inside the URI/name become "2e", never a bare '.').
+ * NAME_MAX 255 is the Linux xattr-key limit; VALUE_MAX/LIST_MAX cap how much
+ * we will read back so a hostile filesystem cannot force unbounded allocs.
+ */
 #define WEBDAV_DEAD_PROP_PREFIX      "user.nginx_xrootd.webdav."
 #define WEBDAV_DEAD_PROP_PREFIX_LEN  (sizeof(WEBDAV_DEAD_PROP_PREFIX) - 1)
 #define WEBDAV_DEAD_PROP_NAME_MAX    255
 #define WEBDAV_DEAD_PROP_VALUE_MAX   16384
 #define WEBDAV_DEAD_PROP_LIST_MAX    65536
 
+/* Single hex digit -> nibble, or -1 if not a hex character. */
 static int
 webdav_dead_prop_hexval(char c)
 {
@@ -38,6 +50,13 @@ webdav_dead_prop_hexval(char c)
     return -1;
 }
 
+/*
+ * Validate that a decoded local name is a safe XML element name before it is
+ * spliced back into a PROPFIND response.  This is the injection guard: a name
+ * read from an xattr is attacker-influenced, so we restrict it to the XML
+ * NameStartChar/NameChar subset (ASCII letters, '_', then also digits, '-',
+ * '.') and reject anything else (notably '<', '>', '&', '/', whitespace).
+ */
 static ngx_flag_t
 webdav_dead_prop_xml_name_ok(const char *name)
 {
@@ -66,6 +85,13 @@ webdav_dead_prop_xml_name_ok(const char *name)
     return 1;
 }
 
+/*
+ * Encode (namespace URI, local name) into the flat xattr key documented above:
+ * PREFIX + hex(ns) + '.' + hex(local).  Writes a NUL-terminated string into
+ * out[0..outsz).  Every append is bounds-checked against `left` and returns
+ * NGX_ERROR (caller maps to ENAMETOOLONG) rather than truncating, since a
+ * truncated key would silently collide with a different property.
+ */
 static ngx_int_t
 webdav_dead_prop_attr_name(const char *ns, const char *local,
     char *out, size_t outsz)
@@ -76,6 +102,7 @@ webdav_dead_prop_attr_name(const char *ns, const char *local,
     size_t               left = outsz;
     size_t               n;
 
+    /* Prefix is fixed-length and always written first. */
     n = WEBDAV_DEAD_PROP_PREFIX_LEN;
     if (left <= n) {
         return NGX_ERROR;
@@ -84,6 +111,8 @@ webdav_dead_prop_attr_name(const char *ns, const char *local,
     d += n;
     left -= n;
 
+    /* hex(namespace): two output bytes per source byte; need >2 left so a
+     * trailing '.' and NUL still fit. */
     for (p = (const unsigned char *) ns; p != NULL && *p != '\0'; p++) {
         if (left <= 2) {
             return NGX_ERROR;
@@ -96,9 +125,10 @@ webdav_dead_prop_attr_name(const char *ns, const char *local,
     if (left <= 1) {
         return NGX_ERROR;
     }
-    *d++ = '.';
+    *d++ = '.';   /* the one literal separator; source dots are hex "2e" */
     left--;
 
+    /* hex(local name) */
     for (p = (const unsigned char *) local; p != NULL && *p != '\0'; p++) {
         if (left <= 2) {
             return NGX_ERROR;
@@ -115,13 +145,18 @@ webdav_dead_prop_attr_name(const char *ns, const char *local,
     return NGX_OK;
 }
 
+/*
+ * Inverse of the hex encoder: decode `len` hex chars into len/2 raw bytes plus
+ * a NUL.  Returns NULL on odd length or any non-hex digit (a corrupted/foreign
+ * xattr key), which the caller treats as "not one of ours" rather than fatal.
+ */
 static char *
 webdav_dead_prop_decode_hex(ngx_pool_t *pool, const char *hex, size_t len)
 {
     char   *out;
     size_t  i;
 
-    if ((len & 1) != 0) {
+    if ((len & 1) != 0) {     /* hex always comes in pairs */
         return NULL;
     }
 
@@ -142,6 +177,12 @@ webdav_dead_prop_decode_hex(ngx_pool_t *pool, const char *hex, size_t len)
     return out;
 }
 
+/*
+ * Parse one listxattr entry back into (namespace, local name).
+ * Returns NGX_DECLINED for any key that is not a well-formed dead-property key
+ * (wrong prefix, no '.' separator, bad hex, or a local name that fails the XML
+ * safety check) so the caller can skip foreign xattrs silently.
+ */
 static ngx_int_t
 webdav_dead_prop_decode_attr(ngx_pool_t *pool, const char *attr,
     char **ns_out, char **local_out)
@@ -173,12 +214,28 @@ webdav_dead_prop_decode_attr(ngx_pool_t *pool, const char *attr,
     return NGX_OK;
 }
 
+/*
+ * WHAT: Report whether a DAV:-namespace property is server-managed (protected).
+ * WHY:  PROPPATCH must reject attempts to set/remove live DAV: properties
+ *       (getetag, getcontentlength, ...).  Any property in the DAV: namespace
+ *       is treated as protected here, so the predicate is "is this a DAV: prop"
+ *       and `local != NULL` is just a defensive non-NULL guard — the caller
+ *       only invokes this once it has already matched the DAV: namespace.
+ */
 ngx_flag_t
 webdav_dead_prop_is_protected_dav(const char *local)
 {
     return local != NULL ? 1 : 0;
 }
 
+/*
+ * Emit an empty self-closing element for one property name (used by PROPFIND
+ * propname, which lists names without values).  The serialized form depends on
+ * the namespace: DAV: -> <D:name/>; no namespace -> <name/>; any other URI ->
+ * <X:name xmlns:X="..."/> with the (escaped) URI bound to a local "X" prefix.
+ * The local name is re-validated here so a stored-but-now-suspect key cannot
+ * inject markup; the namespace URI is XML-escaped before interpolation.
+ */
 ngx_int_t
 webdav_dead_prop_append_empty(ngx_http_request_t *r, const char *ns,
     const char *local, ngx_chain_t **head, ngx_chain_t **tail)
@@ -212,6 +269,12 @@ webdav_dead_prop_append_empty(ngx_http_request_t *r, const char *ns,
            ? NGX_ERROR : NGX_OK;
 }
 
+/*
+ * PROPPATCH set: store the property's raw XML value as the xattr value.
+ * The stored bytes are echoed verbatim on read, so the caller is responsible
+ * for having serialized well-formed, already-escaped XML.  Oversized values
+ * are rejected up front (ENAMETOOLONG) to keep read-back bounded.
+ */
 ngx_int_t
 webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local, const char *xml, size_t xml_len)
@@ -234,6 +297,11 @@ webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
     return NGX_OK;
 }
 
+/*
+ * PROPPATCH remove: delete the property's xattr.  Removing a property that does
+ * not exist is success (idempotent) — ENODATA/ENOATTR are swallowed; any other
+ * errno is a real failure.
+ */
 ngx_int_t
 webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local)
@@ -245,6 +313,7 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
+    /* "not present" == already removed, so treat ENODATA/ENOATTR as success. */
     if (removexattr(path, attr) != 0 && errno != ENODATA && errno != ENOATTR) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, errno,
                       "xrootd_webdav: removexattr dead property failed");
@@ -254,6 +323,16 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
     return NGX_OK;
 }
 
+/*
+ * PROPFIND (with values): if the named dead property exists, append its stored
+ * XML fragment to the response chain and set *found.  A missing property is not
+ * an error: *found stays 0 and NGX_OK is returned so the caller can report it as
+ * 404 inside the multistatus.  Returns NGX_ERROR only on a real fault.
+ *
+ * Two getxattr calls are intentional (size probe, then read).  The first gets
+ * the length so we can size the alloc; the value is capped at VALUE_MAX so the
+ * probe cannot drive an unbounded allocation.
+ */
 ngx_int_t
 webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local, ngx_chain_t **head,
@@ -269,6 +348,7 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
         return NGX_OK;
     }
 
+    /* Probe length first (buf=NULL, size=0). */
     len = getxattr(path, attr, NULL, 0);
     if (len < 0) {
         if (errno == ENODATA || errno == ENOATTR) {
@@ -286,6 +366,8 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
+    /* Second read fetches the actual bytes; a concurrent shrink is fine since
+     * we re-read the returned length, a concurrent grow is bounded by the buf. */
     len = getxattr(path, attr, value, (size_t) len);
     if (len < 0) {
         return NGX_ERROR;
@@ -300,6 +382,13 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
     return NGX_OK;
 }
 
+/*
+ * PROPFIND allprop / propname: enumerate every dead property on `path` and
+ * append each one to the response chain.  listxattr returns all xattr keys as a
+ * single NUL-separated blob; we walk it, decode the dead-property keys (skipping
+ * any foreign xattr), and emit either just the name (names_only, for propname)
+ * or the name+value (for allprop).  A node with no xattrs (len<=0) is normal.
+ */
 ngx_int_t
 webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
     ngx_chain_t **head, ngx_chain_t **tail, ngx_flag_t names_only)
@@ -308,6 +397,7 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
     ssize_t  len;
     char    *p;
 
+    /* Probe the size of the NUL-separated key list. */
     len = listxattr(path, NULL, 0);
     if (len <= 0) {
         return NGX_OK;
@@ -327,10 +417,12 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
         return NGX_OK;
     }
 
+    /* Each key is NUL-terminated; advance past the terminator to the next. */
     for (p = list; p < list + len; p += strlen(p) + 1) {
         char *ns = NULL;
         char *local = NULL;
 
+        /* Skip xattrs that are not our dead properties (other "user.*", etc.). */
         if (webdav_dead_prop_decode_attr(r->pool, p, &ns, &local) != NGX_OK) {
             continue;
         }
@@ -354,42 +446,15 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
     return NGX_OK;
 }
 
+/*
+ * Copy all dead properties from src to dst (used by COPY/MOVE so client
+ * properties travel with the resource).  Delegates to the shared xattr copier,
+ * which only transfers keys under our prefix and skips values over VALUE_MAX.
+ */
 void
 webdav_dead_props_copy(ngx_log_t *log, const char *src, const char *dst)
 {
-    char    *list;
-    char    *p;
-    ssize_t  len, vlen;
-    u_char   value[WEBDAV_DEAD_PROP_VALUE_MAX];
-
-    len = listxattr(src, NULL, 0);
-    if (len <= 0 || len > WEBDAV_DEAD_PROP_LIST_MAX) {
-        return;
-    }
-
-    list = ngx_alloc((size_t) len, log);
-    if (list == NULL) {
-        return;
-    }
-
-    len = listxattr(src, list, (size_t) len);
-    if (len <= 0) {
-        ngx_free(list);
-        return;
-    }
-
-    for (p = list; p < list + len; p += strlen(p) + 1) {
-        if (ngx_strncmp(p, WEBDAV_DEAD_PROP_PREFIX,
-                        WEBDAV_DEAD_PROP_PREFIX_LEN) != 0)
-        {
-            continue;
-        }
-
-        vlen = getxattr(src, p, value, sizeof(value));
-        if (vlen > 0) {
-            (void) setxattr(dst, p, value, (size_t) vlen, 0);
-        }
-    }
-
-    ngx_free(list);
+    xrootd_xattr_copy_by_prefix(log, src, dst,
+        WEBDAV_DEAD_PROP_PREFIX, WEBDAV_DEAD_PROP_PREFIX_LEN,
+        WEBDAV_DEAD_PROP_VALUE_MAX);
 }

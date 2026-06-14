@@ -29,7 +29,7 @@ The proxy is valid for 12 hours. It includes the critical `proxyCertInfo` extens
 
 **Requires:** `cryptography` (listed in `requirements.txt`).
 
-See [docs/test-pki.md](../docs/test-pki.md) for the full PKI setup walkthrough.
+See [docs/test-pki.md](../docs/06-authentication/test-pki-setup.md) for the full PKI setup walkthrough.
 
 ---
 
@@ -68,7 +68,7 @@ The `TokenIssuer` class can also be imported directly in Python for programmatic
 
 **Requires:** `cryptography` (listed in `requirements.txt`).
 
-See [docs/test-tokens.md](../docs/test-tokens.md) for the full token setup walkthrough.
+See [docs/test-tokens.md](../docs/06-authentication/test-token-generation.md) for the full token setup walkthrough.
 
 ---
 
@@ -154,7 +154,7 @@ connected to nginx
 [C>S] 24B: ...
 ```
 
-Each line shows direction (`C>S` = client-to-server, `S>C` = server-to-client), byte count, and raw hex. Cross-reference with [docs/protocol-notes.md](../docs/protocol-notes.md) to decode the fields.
+Each line shows direction (`C>S` = client-to-server, `S>C` = server-to-client), byte count, and raw hex. Cross-reference with [docs/protocol-notes.md](../docs/10-reference/protocol-notes.md) to decode the fields.
 
 The proxy accepts one connection and exits. Run it again for the next session.
 

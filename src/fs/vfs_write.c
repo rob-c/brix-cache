@@ -1,6 +1,33 @@
+/*
+ * vfs_write.c — VFS write path and the shared full-write primitive.
+ *
+ * WHAT: Implements xrootd_vfs_write(), which writes an input ngx_chain_t to a
+ *       destination offset in an open handle, and xrootd_vfs_pwrite_full(), the
+ *       EINTR-safe / short-write-safe pwrite loop used across the VFS. Two
+ *       private per-buffer writers handle the two buffer flavours:
+ *       xrootd_vfs_write_file_buf() (in_file bufs, copied chunk-by-chunk via a
+ *       stack staging buffer) and xrootd_vfs_write_memory_buf() (in-memory
+ *       bufs). xrootd_vfs_write_chain_length() pre-totals the payload size.
+ *
+ * WHY:  Incoming payloads arrive as a mix of file- and memory-backed buffers,
+ *       each of which must land at the correct contiguous offset while a single
+ *       CRC32c is extended across the whole write (for pgwrite). The handle's
+ *       cached size has to grow so subsequent reads see the new bytes, and the
+ *       write-through cache decision has to be consulted once per write.
+ *
+ * HOW:  xrootd_vfs_write() validates the handle/offset, computes the planned
+ *       length and queries xrootd_cache_should_writethrough(), enables the CRC
+ *       accumulator when ctx->want_pgcrc, then iterates the chain dispatching
+ *       each buf to the file or memory writer (both advancing dst_off and
+ *       extending the CRC). On success it sets result->length/crc32c, grows
+ *       fh->size past the new high-water mark, and at the `done:` label emits
+ *       metrics/log via xrootd_vfs_observe_file_op().
+ */
 #include "vfs_internal.h"
 #include "../cache/writethrough.h"
 
+/* EINTR-safe, short-write-safe pwrite loop. Writes exactly len bytes at offset
+ * or returns NGX_ERROR; a 0-byte pwrite is treated as EIO. */
 ngx_int_t
 xrootd_vfs_pwrite_full(ngx_fd_t fd, const u_char *buf, size_t len,
     off_t offset)
@@ -28,6 +55,9 @@ xrootd_vfs_pwrite_full(ngx_fd_t fd, const u_char *buf, size_t len,
     return NGX_OK;
 }
 
+/* Write an in_file buffer: stream [file_pos, file_last) through a stack staging
+ * buffer (XROOTD_VFS_COPY_CHUNK at a time), pwrite each chunk to *dst_off,
+ * advance *dst_off, and extend *crc (when non-NULL). */
 static ngx_int_t
 xrootd_vfs_write_file_buf(xrootd_vfs_file_t *fh, ngx_buf_t *b,
     off_t *dst_off, uint32_t *crc)
@@ -76,6 +106,8 @@ xrootd_vfs_write_file_buf(xrootd_vfs_file_t *fh, ngx_buf_t *b,
     return NGX_OK;
 }
 
+/* Write an in-memory buffer: a single pwrite of [pos, last) to *dst_off, then
+ * advance *dst_off and extend *crc (when non-NULL). Empty buffers are a no-op. */
 static ngx_int_t
 xrootd_vfs_write_memory_buf(xrootd_vfs_file_t *fh, ngx_buf_t *b,
     off_t *dst_off, uint32_t *crc)
@@ -104,6 +136,8 @@ xrootd_vfs_write_memory_buf(xrootd_vfs_file_t *fh, ngx_buf_t *b,
     return NGX_OK;
 }
 
+/* Sum the byte count the chain will write (file- and memory-backed bufs alike)
+ * so the write-through cache decision can be made before any I/O. */
 static size_t
 xrootd_vfs_write_chain_length(ngx_chain_t *in)
 {
@@ -128,6 +162,9 @@ xrootd_vfs_write_chain_length(ngx_chain_t *in)
     return total;
 }
 
+/* Write the input chain to [offset, ...) in the open handle. Dispatches each
+ * buf to the file/memory writer, extends a single CRC32c when want_pgcrc, grows
+ * fh->size, fills *result, and emits metrics/log. See the file header. */
 ngx_int_t
 xrootd_vfs_write(xrootd_vfs_file_t *fh, off_t offset, ngx_chain_t *in,
     xrootd_vfs_io_result_t *result)
@@ -182,13 +219,13 @@ xrootd_vfs_write(xrootd_vfs_file_t *fh, off_t offset, ngx_chain_t *in,
             if (xrootd_vfs_write_file_buf(fh, b, &dst_off, crc_p) != NGX_OK) {
                 rc = NGX_ERROR;
                 saved_errno = errno;
-                goto done;
+                break;
             }
         } else if (ngx_buf_in_memory(b)) {
             if (xrootd_vfs_write_memory_buf(fh, b, &dst_off, crc_p) != NGX_OK) {
                 rc = NGX_ERROR;
                 saved_errno = errno;
-                goto done;
+                break;
             }
         }
     }
@@ -202,7 +239,6 @@ xrootd_vfs_write(xrootd_vfs_file_t *fh, off_t offset, ngx_chain_t *in,
         fh->size = dst_off;
     }
 
-done:
     observed = rc == NGX_OK ? (size_t) (dst_off - offset) : 0;
     xrootd_vfs_observe_file_op(fh, XROOTD_METRIC_OP_WRITE, result, observed,
                                rc, saved_errno, start);

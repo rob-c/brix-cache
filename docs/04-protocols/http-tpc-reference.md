@@ -20,11 +20,15 @@ provides a practical roadmap to expand the module to approach parity.
 ## Where to read the implementations
 
 - nginx-xrootd (module):
-  - native TPC: [src/tpc/](src/tpc/)
+  - native TPC: [src/tpc/](../../src/tpc/)
     - `src/tpc/launch.c`, `src/tpc/thread.c`, `src/tpc/source.c`,
       `src/tpc/bootstrap.c`, `src/tpc/connect.c`, `src/tpc/tpc_internal.h`
-  - HTTP/WebDAV TPC glue: [src/webdav/tpc.c](src/webdav/tpc.c),
-    [src/webdav/tpc_curl.c](src/webdav/tpc_curl.c)
+  - HTTP/WebDAV TPC glue: [src/webdav/tpc.c](../../src/webdav/tpc.c),
+    [src/webdav/tpc_curl.c](../../src/webdav/tpc_curl.c),
+    `src/webdav/tpc_cred.c` (OAuth2/OIDC token handling),
+    `src/webdav/tpc_cred_parse.c` (token parsing),
+    `src/webdav/tpc_marker.c` (perf-marker generation),
+    `src/webdav/tpc_thread.c` (async transfer threading)
 
 - official xrootd (reference): key code is in the `XrdHttpTpc` plugin
   (example files under a reference tree used for earlier comparisons):
@@ -68,6 +72,10 @@ TPC deeply into its HTTP stack and avoids external helpers.
     source open query if provided and passed verbatim to the origin.
   - WebDAV TPC rejects credential delegation (requires `Credential: none`)
     and uses `curl` arguments for cert/key when configured server‑side.
+  - IMPLEMENTED: OAuth2/OIDC token delegation for HTTP TPC is now supported
+    via `xrootd_webdav_tpc_token_endpoint`, `xrootd_webdav_tpc_token_client_id`,
+    `xrootd_webdav_tpc_token_client_secret`, and `xrootd_webdav_tpc_token_scope`
+    directives (see `src/webdav/tpc_cred.c` and `tpc_cred_parse.c`).
 - official xrootd:
   - supports TransferHeader and credential forwarding, integrates
     authz→opaque CGI mapping and can include client-supplied authz in the
@@ -106,10 +114,11 @@ scalability requires an integrated multi‑stream, nonblocking HTTP engine.
 
 ### 6) Chunking, perf markers & client experience
 
-- nginx-xrootd: native TPC streams raw XRootD read responses into the file;
-  there is no server→client perf‑marker multipart stream for long-running
-  COPYs. WebDAV TPC (curl) gives no structured perf‑markers back to the
-  client beyond curl's exit status.
+- nginx-xrootd: native TPC streams raw XRootD read responses into the file.
+  IMPLEMENTED: perf‑marker multipart streaming for HTTP/WebDAV TPC COPYs is now
+  implemented in `src/webdav/tpc_marker.c` (202 Accepted + chunked WLCG
+  Performance-Marker blocks, including per-stripe markers for multi-stream
+  pulls).
 - official xrootd: emits periodic "Perf Marker" chunks (see
   `XrdHttpTpcTPC.cc`) to inform clients of progress during long transfers;
   it also supports returning an early 202 + chunked response and continuing

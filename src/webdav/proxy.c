@@ -45,17 +45,119 @@ webdav_proxy_handler(ngx_http_request_t *r)
     u->abort_request    = webdav_proxy_abort_request;
     u->finalize_request = webdav_proxy_finalize_request;
 
-    /* Copy pre-resolved upstream address into the per-request resolved struct */
-    u->resolved = ngx_palloc(r->pool, sizeof(ngx_http_upstream_resolved_t));
-    if (u->resolved == NULL) return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    *u->resolved = *conf->upstream_resolved;
+    /* Phase 23: when the dynamic SHM pool is enabled, select from it (runtime
+     * add/remove/drain); otherwise use the Phase 21 config-pool backend array. */
+    if (conf->proxy_pool_enabled) {
+        xrootd_proxy_be_pick_t  *pick = ngx_palloc(r->pool, sizeof(*pick));
+        xrootd_webdav_backend_t *be;
+        struct sockaddr         *sa;
+
+        if (pick == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (xrootd_proxy_pool_select(pick) != NGX_OK) {
+            return NGX_HTTP_SERVICE_UNAVAILABLE;   /* no live backend */
+        }
+
+        be = ngx_pcalloc(r->pool, sizeof(*be));
+        sa = ngx_palloc(r->pool, pick->socklen);
+        if (be == NULL || sa == NULL) {
+            xrootd_proxy_pool_dec_in_flight(pick->id);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ngx_memcpy(sa, &pick->sockaddr, pick->socklen);
+
+        be->resolved.sockaddr = sa;
+        be->resolved.socklen  = pick->socklen;
+        be->resolved.naddrs   = 1;
+        be->resolved.host.data = (u_char *) pick->host;
+        be->resolved.host.len  = ngx_strlen(pick->host);
+        be->resolved.port      = pick->port;
+        be->host.data     = (u_char *) pick->host;
+        be->host.len      = ngx_strlen(pick->host);
+        be->url_base.data = (u_char *) pick->url_base;
+        be->url_base.len  = ngx_strlen(pick->url_base);
+        be->ssl           = pick->ssl;
+
+        ctx->selected_backend = be;
+        ctx->proxy_be_id      = pick->id;
+
+        u->resolved = ngx_palloc(r->pool, sizeof(ngx_http_upstream_resolved_t));
+        if (u->resolved == NULL) {
+            xrootd_proxy_pool_dec_in_flight(pick->id);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        *u->resolved = be->resolved;
+#if (NGX_HTTP_SSL)
+        if (be->ssl) { r->upstream->ssl = 1; }
+#endif
+
+    } else {
+        /* Round-robin select a healthy backend and copy its pre-resolved
+         * address into the per-request resolved struct (avoids per-request
+         * DNS). */
+        xrootd_webdav_backend_t *be = webdav_proxy_pick_backend(r, conf);
+
+        if (be == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ctx->selected_backend = be;
+
+        u->resolved = ngx_palloc(r->pool, sizeof(ngx_http_upstream_resolved_t));
+        if (u->resolved == NULL) return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        *u->resolved = be->resolved;
 
 #if (NGX_HTTP_SSL)
-    if (conf->upstream_ssl) {
-        r->upstream->ssl = 1;
-    }
+        if (be->ssl) {
+            r->upstream->ssl = 1;
+        }
 #endif
+    }
 
     r->request_body_no_buffering = 0;
     return xrootd_http_read_body(r, ngx_http_upstream_init);
+}
+
+/*
+ * Round-robin backend selection with passive health.  Skips a backend that has
+ * accrued >= max_fails consecutive failures within the last fail_timeout; if
+ * every backend is in its penalty window, falls through to backend[0] so the
+ * request still has a chance rather than failing outright.  The round-robin
+ * cursor and fail counters are per-worker.
+ */
+xrootd_webdav_backend_t *
+webdav_proxy_pick_backend(ngx_http_request_t *r,
+    ngx_http_xrootd_webdav_loc_conf_t *conf)
+{
+    xrootd_webdav_backend_t *be;
+    ngx_uint_t               n, i, idx;
+    ngx_msec_t               now;
+
+    if (conf->upstream_backends == NULL
+        || conf->upstream_backends->nelts == 0)
+    {
+        return NULL;
+    }
+
+    be  = conf->upstream_backends->elts;
+    n   = conf->upstream_backends->nelts;
+    now = ngx_current_msec;
+
+    for (i = 0; i < n; i++) {
+        idx = (ngx_uint_t) (ngx_atomic_fetch_add(&conf->upstream_rr, 1) % n);
+
+        if (conf->upstream_max_fails > 0
+            && be[idx].fail_count >= conf->upstream_max_fails
+            && be[idx].fail_time != 0
+            && (now - be[idx].fail_time) < conf->upstream_fail_timeout)
+        {
+            continue;   /* still in the penalty box */
+        }
+        return &be[idx];
+    }
+
+    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+        "xrootd_webdav_proxy: all %ui backends marked down; using backend[0]",
+        n);
+    return &be[0];
 }

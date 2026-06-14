@@ -1,36 +1,67 @@
 /* ---- File: gsi_outbound_certreq.c — GSI certificate request for native TPC pull ----
  *
- * WHAT: Initiates the outbound GSI authentication handshake on a TPC pull socket. Reads xrootd_certificate and xrootd_certificate_key from config, loads X509 chain + private key via OpenSSL BIO/PEM readers, sends kXGC_certreq wire message (gsi\x00 + opcode + kXR_none), receives kXR_authmore response containing client cert + CA chain. Validates server expects auth continuation before returning NGX_OK or error code.
+ * WHAT: Initiates the outbound GSI authentication handshake on a TPC pull socket. Reads xrootd_certificate and xrootd_certificate_key from config, loads X509 chain + private key via OpenSSL BIO/PEM readers, sends kXGC_certreq wire message (gsi\x00 + opcode + kXRS_none), receives kXR_authmore response containing client cert + CA chain. Validates server expects auth continuation before returning NGX_OK or error code.
  *
  * WHY: Native TPC pull connects directly to an xrootd server on a separate socket; GSI authentication requires the outbound side to present its certificate chain and private key, then receive the server's client certificate + CA chain for mutual verification. This function performs only the first round of that handshake — sending certreq and verifying kXR_authmore response — with subsequent rounds handled by gsi_outbound_common.c functions (tpc_send_kxr_auth continuation).
  *
- * HOW: Validate config has certificate + key paths → ngx_memcpy into local PATH_MAX buffers with NUL termination → BIO_new_file("r") on both cert and key PEM files → sk_X509_new_null() + loop PEM_read_bio_X509(cbio) pushing to chain (x = NULL after each push) → reject if chain empty → PEM_read_bio_PrivateKey(kbio) → malloc(crlen=4+4+8) for wire message → memcpy "gsi\x00" + tpc_put_u32(kXGC_certreq) + tpc_put_u32(kXR_none) + tpc_put_u32(0) → tpc_send_kxr_auth(t, fd, 3, certreq, crlen) → recv response via tpc_recv_response checking status == kXR_authmore with body ≥16 bytes → goto done cleanup: BIO_free(cbio/kbio), sk_X509_free(chain), EVP_PKEY_free(pkey), free(certreq/body). Returns NGX_OK on success or error code. Caller: tpc/bootstrap.c (tpc_pull_start).
+ * HOW: Validate config has certificate + key paths → ngx_memcpy into local PATH_MAX buffers with NUL termination → BIO_new_file("r") on both cert and key PEM files → sk_X509_new_null() + loop PEM_read_bio_X509(cbio) pushing to chain (x = NULL after each push) → reject if chain empty → PEM_read_bio_PrivateKey(kbio) → malloc(crlen=4+4+8) for wire message → memcpy "gsi\x00" + tpc_put_u32(kXGC_certreq) + tpc_put_u32(kXRS_none) + tpc_put_u32(0) → tpc_send_kxr_auth(t, fd, 3, certreq, crlen) → recv response via tpc_recv_response checking status == kXR_authmore with body ≥16 bytes → every exit returns through tpc_outbound_gsi_finish: BIO_free(cbio/kbio), sk_X509_free(chain), EVP_PKEY_free(pkey), free(certreq/body). Returns NGX_OK on success or error code. Caller: tpc/bootstrap.c (tpc_pull_start).
  * ------------------------------------------------------------------ */
 
 #include "tpc_internal.h"
 
-/* Helper functions declared in gsi_outbound_common.c — extern to link them. */
+/* Helper functions declared in gsi_outbound_common.c — extern to link them.
+ * tpc_put_u32 writes a big-endian uint32 (wire byte order); tpc_send_kxr_auth
+ * wraps the payload in a kXR_auth ClientRequestHdr and send_all()s it.
+ * tpc_recv_response reads one server reply, returning the status code plus a
+ * malloc'd body the caller must free(). */
 extern void tpc_put_u32(u_char *p, uint32_t v);
 extern int tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char seq, const u_char *cred, uint32_t len);
 int tpc_recv_response(int fd, uint16_t *status, u_char **body, uint32_t *dlen);
+
+/*
+ * tpc_outbound_gsi_finish — release the certreq round's OpenSSL/wire resources
+ * and return rc unchanged.
+ *
+ * Called at every exit of tpc_outbound_gsi (success and each early failure).
+ * Every handle is NULL-initialised at the top of that function and each guard is
+ * NULL-safe, so invoking this at any point frees exactly what had been built so
+ * far — which lets the caller exit with a plain `return` instead of a shared
+ * goto/label. sk_X509_free frees the stack and every cert it owns.
+ */
+static int
+tpc_outbound_gsi_finish(int rc, BIO *cbio, BIO *kbio, STACK_OF(X509) *chain,
+    EVP_PKEY *pkey, u_char *certreq, u_char *body)
+{
+    if (cbio) BIO_free(cbio);
+    if (kbio) BIO_free(kbio);
+    if (chain) sk_X509_free(chain);
+    if (pkey) EVP_PKEY_free(pkey);
+    if (certreq) free(certreq);
+    if (body) free(body);
+    return rc;
+}
 
 /* WHAT: Initiates GSI auth handshake on TPC pull socket — read cert/key PEM, send kXGC_certreq wire message, verify kXR_authmore response. */
 int
 tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd)
 {
     ngx_stream_xrootd_srv_conf_t *conf = t->conf;
-    u_char           cert_path[PATH_MAX];
-    u_char           key_path[PATH_MAX];
+    u_char           cert_path[PATH_MAX];   /* NUL-terminated copies of the */
+    u_char           key_path[PATH_MAX];    /* ngx_str_t config paths        */
     BIO             *cbio = NULL, *kbio = NULL;  /* pbio unused in this fragment */
-    X509            *x = NULL;
-    STACK_OF(X509)  *chain = NULL;
+    X509            *x = NULL;              /* scratch cert from each PEM read */
+    STACK_OF(X509)  *chain = NULL;          /* owns every cert pushed onto it  */
     EVP_PKEY        *pkey = NULL;
-    u_char          *certreq = NULL;
-    u_char          *body = NULL;
+    u_char          *certreq = NULL;        /* malloc'd wire message (freed at done) */
+    u_char          *body = NULL;           /* malloc'd server reply (freed at done) */
     uint16_t         status;
     uint32_t         dlen;
-    int              rc = -1;
+    int              rc = -1;               /* default = failure; set 0 only on success */
 
+    /* WHY: paths come from config as length-counted ngx_str_t; reject empty
+     * paths and any that would not fit (with room for the NUL) in the local
+     * PATH_MAX buffers before we ngx_memcpy + NUL-terminate them below.
+     * The >= comparison reserves the final byte for the NUL terminator. */
     if (conf->certificate.len == 0 || conf->certificate_key.len == 0
         || conf->certificate.len >= sizeof(cert_path)
         || conf->certificate_key.len >= sizeof(key_path))
@@ -47,30 +78,38 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd)
     ngx_memcpy(key_path, conf->certificate_key.data, conf->certificate_key.len);
     key_path[conf->certificate_key.len] = '\0';
 
+    /* Open read-only PEM streams over the cert and key files. Both BIOs are
+     * unconditionally BIO_free()'d at the done: label, so it is safe to test
+     * them together and bail even when only one allocation succeeded. */
     cbio = BIO_new_file((char *) cert_path, "r");
     kbio = BIO_new_file((char *) key_path, "r");
     if (cbio == NULL || kbio == NULL) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC GSI cannot read certificate or key PEM");
         t->xrd_error = kXR_IOError;
-        goto done;
+        return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
     }
 
     chain = sk_X509_new_null();
     if (chain == NULL) {
-        goto done;
+        return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
     }
 
+    /* Read every certificate in the PEM file into the chain (leaf first,
+     * then intermediates). sk_X509_push transfers ownership of x to the
+     * stack, so we clear x to NULL afterward — otherwise an early loop exit
+     * or error path could double-free a cert that the stack already owns. */
     while ((x = PEM_read_bio_X509(cbio, NULL, NULL, NULL)) != NULL) {
         sk_X509_push(chain, x);
         x = NULL;
     }
 
+    /* A cert file that parsed to zero certs cannot authenticate us. */
     if (sk_X509_num(chain) == 0) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC GSI certificate file has no X.509 certs");
         t->xrd_error = kXR_ArgInvalid;
-        goto done;
+        return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
     }
 
     pkey = PEM_read_bio_PrivateKey(kbio, NULL, NULL, NULL);
@@ -78,9 +117,13 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd)
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC GSI cannot read private key PEM");
         t->xrd_error = kXR_ArgInvalid;
-        goto done;
+        return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
     }
 
+    /* WHY: security gate — before we put our identity on the wire, validate
+     * the proxy PEM (e.g. not-yet-valid / expired / malformed) so a bad local
+     * credential fails fast here with kXR_AuthFailed rather than mid-handshake.
+     * cred wraps the in-memory cert_path buffer; nothing is sent yet. */
     {
         xrootd_tpc_credential_t cred;
 
@@ -95,11 +138,18 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd)
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC GSI credential validation failed");
             t->xrd_error = kXR_AuthFailed;
-            goto done;
+            return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
         }
     }
 
-    /* ---- round 1: kXGC_certreq ---- */
+    /* ---- round 1: kXGC_certreq ----
+     * Build the GSI credential payload that opens the handshake. Layout (16B):
+     *   [0..3]   "gsi\0"                  4-byte protocol tag (NUL-padded)
+     *   [4..7]   kXGC_certreq (=1000)     opcode: client requests server cert
+     *   [8..11]  kXRS_none    (=0)        bucket type 0 = end-of-message marker
+     *   [12..15] 0                        that terminator bucket's length (0)
+     * All multi-byte fields are big-endian via tpc_put_u32. crlen = 4+4+8 so
+     * the second tpc_put_u32 below writes into bytes [12..15] of the buffer. */
     {
         size_t crlen = 4 + 4 + 8;
         u_char *cr;
@@ -108,48 +158,52 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd)
         if (certreq == NULL) {
             snprintf(t->err_msg, sizeof(t->err_msg), "TPC GSI certreq OOM");
             t->xrd_error = kXR_NoMemory;
-            goto done;
+            return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
         }
 
         cr = certreq;
-        ngx_memcpy(cr, "gsi\x00", 4);
+        ngx_memcpy(cr, "gsi\x00", 4);     /* protocol tag */
         cr += 4;
-        tpc_put_u32(cr, (uint32_t) kXGC_certreq);
+        tpc_put_u32(cr, (uint32_t) kXGC_certreq);  /* opcode -> bytes [4..7] */
         cr += 4;
-        tpc_put_u32(cr, (uint32_t) kXRS_none);
+        tpc_put_u32(cr, (uint32_t) kXRS_none);     /* terminator type -> [8..11] */
         cr += 4;
-        tpc_put_u32(cr, 0);
+        tpc_put_u32(cr, 0);                        /* terminator len 0 -> [12..15] */
 
+        /* seq=3: third request on this stream (login=1, protocol probe=2). */
         if (tpc_send_kxr_auth(t, fd, 3, certreq, (uint32_t) crlen) != 0) {
-            goto done;
+            return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);  /* err_msg/xrd_error already set by tpc_send_kxr_auth */
         }
     }
 
+    /* Read the server's reply to certreq. body is malloc'd by the helper and
+     * freed at done:; pre-clearing it keeps that cleanup safe on recv failure. */
     body = NULL;
     if (tpc_recv_response(fd, &status, &body, &dlen) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC GSI kXGS_cert recv failed");
         t->xrd_error = kXR_ServerError;
-        goto done;
+        return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
     }
 
+    /* Security check: the server must answer with kXR_authmore (=4002),
+     * signalling "continue authenticating" — any other status (kXR_ok early,
+     * kXR_error, etc.) means we cannot proceed and is treated as auth failure.
+     * dlen < 16 would be too short to hold the cert + CA bucket the next round
+     * (gsi_outbound_exchange.c) parses, so reject undersized bodies here. */
     if (status != kXR_authmore || body == NULL || dlen < 16) {
         snprintf(t->err_msg, sizeof(t->err_msg),
                  "TPC GSI expected kXR_authmore after certreq (status=%u)",
                  (unsigned) status);
         t->xrd_error = kXR_AuthFailed;
-        goto done;
+        return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
     }
 
+    /* Round 1 complete: server is mid-handshake. Subsequent DH key exchange
+     * and encrypted cert delivery happen in gsi_outbound_exchange.c. */
     rc = 0;
 
-done:
-    /* Cleanup — this label was in the original gsi_outbound.c before splitting. */
-    if (cbio) BIO_free(cbio);
-    if (kbio) BIO_free(kbio);
-    if (chain) sk_X509_free(chain);
-    if (pkey) EVP_PKEY_free(pkey);
-    if (certreq) free(certreq);
-    if (body) free(body);
-    return rc;
+    /* Success exit: tpc_outbound_gsi_finish releases every resource (each guard
+     * is NULL-safe) and returns rc — the same cleanup every error path uses. */
+    return tpc_outbound_gsi_finish(rc, cbio, kbio, chain, pkey, certreq, body);
 }

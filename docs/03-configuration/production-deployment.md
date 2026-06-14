@@ -26,7 +26,7 @@ Choose your cluster type based on use case:
 ```bash
 cd k8s-tests
 bash scripts/setup-cluster.sh 3 4 8192 kind 120s
-export KUBECONFIG="$(kind get kubeconfig-path --name nginx-xrootd-test)"
+export KUBECONFIG="$(kind get kubeconfig --name nginx-xrootd-test)"
 ```
 
 **Minikube (faster local iteration):**
@@ -121,8 +121,9 @@ helm upgrade --install xrootd-servers ./server-helm \
     -f ./server-helm/values.dev.yaml \
     --set auth.mode=token \
     --set server.nodeCount=3 \
-    --set image.pullPolicy=Never \
-    --set nginx.conf.xrootd_token_jwks_url=http://keycloak:8080/realms/wlcg/protocol/openid-connect/certs
+    --set image.pullPolicy=Never
+# The JWKS file is mounted into the pod at /etc/nginx/jwks/jwks.json by test-infra-helm,
+# matching jwtKeys.configPath in server-helm/values.yaml — no Helm override is needed.
 ```
 
 Wait for servers to be ready:

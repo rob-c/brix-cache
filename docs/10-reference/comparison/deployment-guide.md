@@ -167,7 +167,7 @@ topologies. Three-tier deployments are less common.
 | FTS WebDAV pull | Supported |
 | Rucio WebDAV | Supported |
 | GFAL2 WebDAV | Supported |
-| Windows WebDAV (requires LOCK) | Supported — LOCK/UNLOCK with shared-memory lock table |
+| Windows WebDAV (requires LOCK) | Supported — LOCK/UNLOCK with xattr-based lock state |
 | Desktop sync clients (Cyberduck, Nautilus, etc.) | Supported — LOCK-dependent clients work |
 | WebDAV server-side COPY (RFC 4918 §9.8) — copy within same server | Supported — `copy_file_range(2)` + pread/write fallback, atomic rename |
 

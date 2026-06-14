@@ -96,7 +96,7 @@ xrootd_vo_overflow_total > 0
 
 ## Unique User Identity Tracking
 
-Counts distinct authenticated users since process start. Users are identified by hashing their DN (GSI) or token sub claim via **FNV-1a 32-bit hash** before lookup. The table supports up to **512 tracked identities** simultaneously; excess entries evict the oldest slot using LRU policy.
+Counts distinct authenticated users since process start. Users are identified by hashing their DN (GSI) or token sub claim via **FNV-1a 32-bit hash** before lookup. The table supports up to **1024 tracked identities** simultaneously; excess entries evict the oldest slot using LRU policy.
 
 **Metrics:**
 - `xrootd_unique_users_current` — currently tracked unique users (bounded by table size)
@@ -151,7 +151,7 @@ All extended metrics are designed to prevent unbounded cardinality:
 | Metric family | Bounded by | Eviction strategy |
 |---|---|---|
 | Per-VO counters | `XROOTD_VO_MAX_TRACKED` (32 slots) | LRU — oldest slot evicted when full |
-| Unique users | `XROOTD_USERS_MAX_TRACKED` (512 slots) | LRU — oldest slot evicted when full |
+| Unique users | `XROOTD_USERS_MAX_TRACKED` (1024 slots) | LRU — oldest slot evicted when full |
 | IP version | 2 counters per protocol family | Fixed-size, no eviction needed |
 | Protocol label | 3 labels + unknown | Fixed set, no eviction needed |
 

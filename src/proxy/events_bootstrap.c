@@ -48,13 +48,45 @@ proxy_build_auth_ztn(u_char *buf, const char *token, size_t token_len)
 
 /* ---- bootstrap response handling ----------------------------------------- */
 
+/*
+ * WHAT: Advance the upstream login handshake one step, consuming the response
+ *       that the read handler just finished accumulating (proxy->resp_status /
+ *       resp_dlen / resp_body) and, where the next step requires sending,
+ *       arming the write side with the next request frame.
+ * WHY:  Connecting to an upstream XRootD server is a fixed conversation —
+ *       hello -> kXR_protocol -> kXR_login -> (optional kXR_auth) — that must
+ *       complete before any client request can be forwarded. Each leg is a
+ *       separate wire round-trip, so the proxy drives it as a state machine
+ *       (proxy->bs_phase) re-entered once per upstream response rather than
+ *       blocking; the event loop never waits.
+ * HOW:  Switch on bs_phase. Each arm validates the just-received response,
+ *       optionally builds+flushes the next request, and either advances
+ *       bs_phase or returns early (when it issued a send and must wait for the
+ *       reply). The single fallthrough at the bottom frees the response
+ *       accumulator; reaching XRD_PX_BS_DONE flips proxy->state to IDLE and
+ *       releases any request queued during bootstrap.
+ *
+ * RE-ENTRY: this is called by xrootd_proxy_read_handler each time a complete
+ *       upstream frame arrives. Arms that send (AUTH legs) return early and are
+ *       resumed by the next read event; non-sending arms fall through to the
+ *       shared reset/finish tail. The four auth-send arms (FORWARD bearer, SSS,
+ *       FORWARD token-file fallback, login-sec hint) are structurally identical:
+ *       build frame -> free+reset resp accumulator -> set wbuf -> flush -> arm
+ *       write if partial -> return. They differ only in how the credential is
+ *       sourced.
+ */
 void
 xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
 {
+    /* State machine over the upstream login conversation; see bs_phase enum. */
     switch (proxy->bs_phase) {
 
     case XRD_PX_BS_HANDSHAKE:
-        /* Server hello: status field overlaps the zero prefix → always ok=0 */
+        /* Server hello: the 16-byte handshake reply begins with two zero
+         * 32-bit words, and the read handler parsed status from the bytes that
+         * happen to fall in the zero prefix, so resp_status is normally 0 ==
+         * kXR_ok. A non-zero value here means the bytes did not line up as a
+         * valid hello, i.e. this is not an XRootD server speaking. */
         if (proxy->resp_status != kXR_ok) {
             xrootd_proxy_abort(proxy, "bad handshake from upstream");
             return;
@@ -67,6 +99,11 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
             xrootd_proxy_abort(proxy, "upstream kXR_protocol failed");
             return;
         }
+        /* kXR_protocol reply body: [4 bytes pval][4 bytes flags][...]. The
+         * server's capability flags live at body offset 4; kXR_gotoTLS there
+         * means the server wants the connection upgraded to TLS now. We only
+         * reach this code on a cleartext connection (TLS-from-start uses a
+         * different path), so an in-band upgrade request is unsupported. */
         if (proxy->resp_dlen >= 8) {
             uint32_t flags_be;
             ngx_memcpy(&flags_be, proxy->resp_body + 4, sizeof(flags_be));
@@ -94,6 +131,10 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                                                               : XROOTD_PROXY_AUTH_ANONYMOUS;
             const xrootd_sss_key_t        *eff_key    = NULL;
 
+            /* Resolve the effective auth mode (and SSS key) for *this* upstream.
+             * A per-upstream `auth` (>= 0) overrides the global default; for SSS
+             * we additionally pick the named key from the pool, falling back to
+             * the first configured key when the name is unset or not found. */
             if (proxy->upstream_idx >= 0
                 && conf != NULL
                 && conf->proxy_upstreams != NULL
@@ -126,6 +167,9 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                 }
             }
 
+            /* --- auth-send arm 1 of 4: FORWARD using the client's bearer ---
+             * Preferred FORWARD path: the connecting client already presented a
+             * WLCG bearer token, so re-present it verbatim to the upstream. */
             if (eff_auth == XROOTD_PROXY_AUTH_FORWARD
                 && proxy->client_ctx != NULL
                 && proxy->client_ctx->bearer_token[0] != '\0')
@@ -147,6 +191,9 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
 
                 proxy_build_auth_ztn(frame, token, token_len);
 
+                /* Clear the just-consumed response so the accumulator is ready
+                 * for the kXR_auth reply, then install the auth frame as the
+                 * write buffer and advance to BS_AUTH before flushing. */
                 if (proxy->resp_body != NULL) {
                     ngx_free(proxy->resp_body);
                     proxy->resp_body = NULL;
@@ -160,6 +207,9 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                 proxy->wbuf_pos = 0;
                 proxy->bs_phase = XRD_PX_BS_AUTH;
 
+                /* flush() may only partially write under backpressure; if so,
+                 * arm the write event so the rest goes out later. Either way we
+                 * return and wait for the BS_AUTH reply on the next read event. */
                 if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
                     XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
                                             upstream_auth_errors);
@@ -179,6 +229,9 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                 return;
             }
 
+            /* --- auth-send arm 2 of 4: SSS shared-secret credential ---
+             * The credential payload is produced by the SSS helper; here we
+             * only need to wrap it in a kXR_auth request header by hand. */
             if (eff_auth == XROOTD_PROXY_AUTH_SSS
                 && conf != NULL
                 && conf->sss_keys != NULL
@@ -215,7 +268,12 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                     return;
                 }
 
-                /* Build kXR_auth request header */
+                /* Build kXR_auth request header in-place:
+                 *   [0:1]   streamid (zero during bootstrap)
+                 *   [2:3]   request id = kXR_auth (big-endian)
+                 *   [4:19]  reserved/credtype (left zero for SSS)
+                 *   [20:23] dlen = credential length (big-endian)
+                 * then append the SSS credential body after the 24-byte header. */
                 ngx_memzero(frame, XRD_REQUEST_HDR_LEN);
                 frame[2] = (kXR_auth >> 8) & 0xFF;
                 frame[3] =  kXR_auth       & 0xFF;
@@ -257,8 +315,12 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                 return;
             }
 
-            /* FORWARD fallback — client has no bearer token but
-             * xrootd_upstream_token_file is configured (credential bridge). */
+            /* --- auth-send arm 3 of 4: FORWARD token-file fallback ---
+             * FORWARD fallback — client has no bearer token but
+             * xrootd_upstream_token_file is configured (credential bridge).
+             * ftok is function-static (64 KiB) to keep it off the stack; safe
+             * because nginx workers are single-threaded on the event loop and
+             * the token is copied into the heap frame before any yield. */
             if (eff_auth == XROOTD_PROXY_AUTH_FORWARD
                 && conf != NULL
                 && conf->upstream_token_file.len > 0)
@@ -339,11 +401,18 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
          * The client must proactively send kXR_auth (no explicit kXR_authmore).
          * Detect the hint and inject the token from file or client bearer.
          */
+        /* The security hint string follows the fixed 16-byte session id in the
+         * login body, so step past it before scanning. resp_body was NUL-padded
+         * by the read handler (alloc dlen+1), making strstr() safe here. */
         if (proxy->resp_dlen > XROOTD_SESSION_ID_LEN
             && proxy->resp_body != NULL)
         {
             const char *parms =
                 (const char *)(proxy->resp_body + XROOTD_SESSION_ID_LEN);
+            /* --- auth-send arm 4 of 4: proactive ztn on login-sec hint ---
+             * Server advertised "P=ztn" but did not send kXR_authmore, so we
+             * must send kXR_auth unprompted. Source the token from the client
+             * bearer (FORWARD) first, else from the upstream token file. */
             if (strstr(parms, "P=ztn") != NULL) {
                 ngx_stream_xrootd_srv_conf_t *lconf = proxy->conf;
                 const char *ltoken     = NULL;
@@ -435,6 +504,8 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
         return;
     }
 
+    /* Shared tail: reached only by arms that fell through (i.e. did NOT issue a
+     * send and return early). Reset the accumulator for whatever comes next. */
     /* Reset response accumulator for the next bootstrap message or first req */
     if (proxy->resp_body != NULL) {
         ngx_free(proxy->resp_body);

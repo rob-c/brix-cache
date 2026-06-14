@@ -72,6 +72,14 @@ typedef struct {
     /* Wait/retry — populated by handlers that need back-pressure. */
     int        wait_seconds;   /* emit X-Xrootd-Wait: <N> if > 0 */
     int        retry_seconds;  /* emit X-Xrootd-Retry: <N> if > 0 */
+
+    /* Phase 21 Step B — streaming Digest over the response body.  Set by the
+     * GET path when the client sent "Want-Digest: adler32" and the digest was
+     * not already produced from the open fd.  The body filter folds each output
+     * buffer into `adler` and emits "Digest: adler32=<hex>" as a trailer. */
+    unsigned   compute_digest:1;  /* 1 = accumulate adler32 over the body */
+    unsigned   digest_emitted:1;  /* 1 = trailer already queued */
+    uint32_t   adler;             /* running adler32 (seed 1) */
 } xrdhttp_req_ctx_t;
 
 /* ---- context helpers ---- */
@@ -190,16 +198,14 @@ ngx_int_t xrdhttp_add_checksum_header(ngx_http_request_t *r,
  */
 int xrdhttp_http_to_xrd_status(ngx_int_t http_status);
 
-/* ---- nginx header filter registration ---- */
-
 /*
- * Register the XrdHttp output header filter with the nginx filter chain.
- * Must be called from the module's postconfiguration hook.  The filter
- * injects X-Xrootd-* headers into every response (including nginx error
- * pages) for requests that carry X-Xrootd-Proto, so that error codes are
- * always visible to XrdHttp-aware clients regardless of which code path
- * produced the response.
+ * Streaming Digest body filter (Phase 21 Step B).  Folds each output buffer
+ * into ctx->adler when ctx->compute_digest is set; on the final buffer it
+ * queues a "Digest: adler32=<hex>" trailer.  Pass-through (just calls `next`)
+ * for non-XrdHttp requests or when digest accumulation is off.  Invoked by the
+ * aux filter module's body-filter slot.
  */
-ngx_int_t xrdhttp_register_header_filter(void);
+ngx_int_t xrdhttp_digest_body_filter(ngx_http_request_t *r, ngx_chain_t *in,
+    ngx_http_output_body_filter_pt next);
 
 #endif /* XROOTD_WEBDAV_XRDHTTP_H */

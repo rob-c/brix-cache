@@ -238,6 +238,16 @@ def pytest_collection_modifyitems(config, items):
                 )
             )
 
+        # Honor the `serial` marker under pytest-xdist: assign every serial test
+        # to one xdist group so they land on a single worker and never run
+        # concurrently with each other.  Effective only with `--dist loadgroup`
+        # (the project's canonical parallel invocation); a harmless no-op under the
+        # default `--dist load` or serial runs.  Stateful suites (e.g. the chaos
+        # meshes) mark themselves `serial` precisely because parallel co-execution
+        # corrupts their shared mesh/port state.
+        if item.get_closest_marker("serial"):
+            item.add_marker(pytest.mark.xdist_group("serial"))
+
         if name == "test_cms.py":
             cms_items.append(item)
         else:

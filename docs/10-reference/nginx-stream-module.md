@@ -59,19 +59,18 @@ The stream module is the right fit because it exposes:
 - Write-ready and read-ready events so the module can implement its own
   request/response state machine
 
-In `src/stream/module.c`, the module registers two event handlers:
+The module registers a single content handler (`ngx_stream_xrootd_handler`)
+that manages the entire connection lifecycle, from initial handshake through
+request dispatch. It is installed for a server block when `xrootd on;` is set —
+see `src/config/server_conf.c`:
 
 ```c
-static ngx_stream_module_t ngx_stream_xrootd_module_ctx = {
-    …
-    ngx_stream_xrootd_preread_handler,   /* preread — fires first, reads initial bytes */
-    ngx_stream_xrootd_handler,           /* content — main loop after preread */
-    …
-};
+cscf->handler = ngx_stream_xrootd_handler;
 ```
 
-The preread handler grabs the initial handshake bytes. The content handler
-(`handler.c`) drives the state machine for the rest of the session.
+The content handler (`handler.c`) drives the state machine for the whole
+session, reading the initial handshake bytes and then processing every
+subsequent request on the connection.
 
 ### What XRootD implements manually that we get for free
 

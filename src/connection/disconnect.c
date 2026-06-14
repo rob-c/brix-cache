@@ -1,7 +1,10 @@
 #include "disconnect.h"
+#include "budget.h"
 #include "../session/registry.h"
 #include "../upstream/upstream.h"
 #include "../proxy/proxy.h"
+#include "../ratelimit/ratelimit.h"
+#include "../mirror/stream_wmirror.h"
 
 #include <ngx_event.h>
 #include <ngx_stream.h>
@@ -31,6 +34,50 @@ xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
         ctx->prepare_paths = NULL;
         ctx->prepare_paths_len = 0;
     }
+
+    /*
+     * Phase 31: the reusable transfer scratch buffers are raw heap allocations
+     * (ngx_alloc, see src/aio/buffers.c xrootd_get_pool_scratch) — not pool
+     * anchored — so they must be freed explicitly here, like payload_buf above.
+     */
+    if (ctx->read_scratch != NULL) {
+        ngx_free(ctx->read_scratch);
+        ctx->read_scratch = NULL;
+        ctx->read_scratch_size = 0;
+    }
+    if (ctx->read_hdr_scratch != NULL) {
+        ngx_free(ctx->read_hdr_scratch);
+        ctx->read_hdr_scratch = NULL;
+        ctx->read_hdr_scratch_size = 0;
+    }
+    if (ctx->write_scratch != NULL) {
+        ngx_free(ctx->write_scratch);
+        ctx->write_scratch = NULL;
+        ctx->write_scratch_size = 0;
+    }
+
+    /*
+     * Phase 32 WS3: free the concurrent-AIO read-pool buffers (raw ngx_alloc'd,
+     * see src/aio/buffers.c).  An in-flight task's done callback no-ops via the
+     * destroyed guard, so the buffers are safe to release here.
+     */
+    {
+        ngx_uint_t i;
+        for (i = 0; i < XROOTD_PIPELINE_MAX; i++) {
+            if (ctx->rd_pool[i].buf != NULL) {
+                ngx_free(ctx->rd_pool[i].buf);
+                ctx->rd_pool[i].buf = NULL;
+                ctx->rd_pool[i].size = 0;
+                ctx->rd_pool[i].in_use = 0;
+            }
+        }
+        ctx->rd_inflight = 0;
+    }
+
+    /* Phase 24 W3: free per-file data-write-mirror accumulation buffers for any
+     * write-opens that never reached kXR_close (e.g. client dropped mid-write).
+     * Detached replays already in flight own their own copies and are unaffected. */
+    xrootd_stream_wmirror_cleanup(ctx);
 }
 
 /* ---- Crypto state release — GSI/sigver cleanup on disconnect ----
@@ -233,6 +280,16 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
     now = ngx_current_msec;
     ctx->destroyed = 1;
 
+    /* Phase 31 W4: return this connection's charged transfer-heap bytes to the
+     * SHM-global budget before its scratch buffers are freed below. */
+    xrootd_budget_release(ctx);
+
+    /* Phase 25 W7 (stream): release the per-connection concurrency slot reserved
+     * by the dispatch gate.  The stream plane has no per-request LOG phase, so the
+     * in-flight slot is held for the connection's lifetime and freed exactly once
+     * here.  No-op if no concurrency rule matched. */
+    xrootd_rl_release_ctx(ctx);
+
     if (ctx->upstream != NULL) {
         xrootd_upstream_cleanup(ctx->upstream);
     }
@@ -254,6 +311,9 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     if (!ctx->logged_in) {
+        /* Phase 33 C1: make this connection's buffered access-log lines durable
+         * (it may have logged errors before login). */
+        xrootd_access_log_flush();
         return;
     }
 
@@ -272,4 +332,9 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ctx->req_start = ctx->session_start;
     xrootd_log_access(ctx, c, "DISCONNECT", "-", session_detail, 1, 0, NULL,
                       session_total_bytes);
+
+    /* Phase 33 C1: the connection is gone — flush its batched access-log lines
+     * (including the DISCONNECT record above) so they are durable now rather
+     * than waiting for the next buffer-full / timer tick. */
+    xrootd_access_log_flush();
 }

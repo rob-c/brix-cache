@@ -23,6 +23,7 @@
 #include <ngx_event_posted.h>
 #include <ngx_stream.h>
 #include <ngx_event_openssl.h>
+#include <openssl/err.h>
 
 void xrootd_tls_handshake_done(ngx_connection_t *c) {
     ngx_stream_session_t *s   = c->data;
@@ -49,6 +50,14 @@ xrootd_start_tls(xrootd_ctx_t *ctx, ngx_connection_t *c,
 {
     ngx_stream_session_t *s  = c->data;
     ngx_int_t             rc;
+    /*
+     * Phase 33: clear any stale entries left on the per-thread OpenSSL error
+     * queue by earlier GSI/crypto work (the module never calls ERR_clear_error
+     * elsewhere).  A dirty queue makes nginx's clean-close detection misreport a
+     * benign close as "SSL_do_handshake() failed", inflating spurious
+     * kXR_ableTLS/unknown-ca failures on this in-protocol TLS path.
+     */
+    ERR_clear_error();
     ctx->state = XRD_ST_TLS_HANDSHAKE;
     if (ngx_ssl_create_connection(conf->tls_ctx, c, NGX_SSL_BUFFER) != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, c->log, 0, "xrootd: ngx_ssl_create_connection failed");

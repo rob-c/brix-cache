@@ -129,6 +129,7 @@ and different code.
 
 ## Protocol-specific lifecycle docs
 
+- [**Request-lifecycle sequence diagrams**](request-lifecycle-sequences.md) — call-ladder diagrams for all four protocols (root/davs/S3/CMS), each step annotated with the real `function() (file.c:line)`
 - [Native XRootD stream](stream.md) — state machine, file handles, handlers, backpressure, AIO, auth flow, key source files
 - [WebDAV request lifecycle](webdav.md) — HTTP dispatch, auth gate, GET/PUT paths
 - [S3 request lifecycle](s3.md) — SigV4 auth gate, method routing, multipart staging

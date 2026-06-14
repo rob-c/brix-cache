@@ -6,7 +6,10 @@ full hierarchical support.
 
 See [cluster-mode.md](cluster-management.md) for the existing two-tier configuration
 reference and [manager-mode.md](manager-mode.md) for the static
-`xrootd_manager_map` alternative.
+`xrootd_manager_map` alternative. For the byte-by-byte CMS wire protocol —
+framing, the `kYR_*` opcode catalogue, and the field-by-field login / load /
+state→have / select negotiation — see
+[The CMS Cluster Protocol (`cms://`)](../04-protocols/cms-protocol.md).
 
 ---
 

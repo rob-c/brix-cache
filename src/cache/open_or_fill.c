@@ -37,18 +37,13 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                          options, mode_bits, 0);
     }
     if (ready < 0) {
-        xrootd_log_access(ctx, c, "OPEN", cache_path, "cache",
-                          0, kXR_IOError, strerror(errno), 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-        return xrootd_send_error(ctx, c, kXR_IOError, strerror(errno));
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", cache_path,
+                          "cache", kXR_IOError, strerror(errno));
     }
 
     if (conf->common.thread_pool == NULL) {
-        xrootd_log_access(ctx, c, "OPEN", clean_path, "cache",
-                          0, kXR_ServerError, "cache thread pool missing", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-        return xrootd_send_error(ctx, c, kXR_ServerError,
-                                 "cache thread pool missing");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+                          "cache", kXR_ServerError, "cache thread pool missing");
     }
 
     task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_cache_fill_t));
@@ -76,23 +71,15 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
         || xrootd_cache_append_suffix(t->lock_path, sizeof(t->lock_path),
                                       cache_path, XROOTD_CACHE_LOCK_SUFFIX) != 0)
     {
-        xrootd_log_access(ctx, c, "OPEN", clean_path, "cache",
-                          0, kXR_ArgTooLong, "cache path too long", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-        return xrootd_send_error(ctx, c, kXR_ArgTooLong,
-                                 "cache path too long");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+                          "cache", kXR_ArgTooLong, "cache path too long");
     }
 
-    task->handler = xrootd_cache_fill_thread;
-    task->event.handler = xrootd_cache_fill_done;
-    task->event.data = task;
+    xrootd_task_bind(task, xrootd_cache_fill_thread, xrootd_cache_fill_done);
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
-        xrootd_log_access(ctx, c, "OPEN", clean_path, "cache",
-                          0, kXR_ServerError, "cache thread post failed", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-        return xrootd_send_error(ctx, c, kXR_ServerError,
-                                 "cache thread post failed");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+                          "cache", kXR_ServerError, "cache thread post failed");
     }
 
     ctx->state = XRD_ST_AIO;
