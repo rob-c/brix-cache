@@ -18,6 +18,9 @@
  */
 uint32_t xrootd_crc32c_value(const void *buf, size_t len);
 
+/* Contract: CRC-32c (Castagnoli, refin/refout, init 0) of buf[0..len), returned
+ * as the seed-0 case of xrootd_crc32c_extend. buf is read-only and unowned.
+ * buf==NULL with len!=0 is a no-op that returns 0 (the seed); len==0 returns 0. */
 uint32_t xrootd_crc32c_value(const void *buf, size_t len);
 /*
  * xrootd_crc32c_copy_value - compute CRC-32c while copying buffer contents.
@@ -35,6 +38,10 @@ uint32_t xrootd_crc32c_value(const void *buf, size_t len);
 uint32_t xrootd_crc32c_copy_value(const unsigned char *src,
     unsigned char *dst, size_t len);
 
+/* Contract: single-pass copy src[0..len) -> dst[0..len) returning the CRC-32c of
+ * the bytes copied. dst is caller-owned and must hold >= len bytes; buffers must
+ * not overlap. If src or dst is NULL while len!=0 it copies nothing and returns 0
+ * (NOT a valid checksum). len==0 returns 0. */
 uint32_t xrootd_crc32c_copy_value(const unsigned char *src,
     unsigned char *dst, size_t len);
 /*
@@ -53,6 +60,10 @@ uint32_t xrootd_crc32c_copy_value(const unsigned char *src,
  */
 uint32_t xrootd_crc32c_extend(uint32_t crc, const void *buf, size_t len);
 
+/* Contract: rolling CRC-32c update — absorbs buf[0..len) into the running value
+ * crc and returns the new value (seed with 0 for a fresh checksum). buf is
+ * read-only and unowned. buf==NULL with len!=0 returns crc unchanged (no-op);
+ * len==0 returns crc. Picks a 3-way-parallel HW path for buffers >= 3*SHORT. */
 uint32_t xrootd_crc32c_extend(uint32_t crc, const void *buf, size_t len);
 
 #endif /* XROOTD_COMPAT_CRC32C_H */

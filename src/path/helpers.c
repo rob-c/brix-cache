@@ -165,6 +165,15 @@ xrootd_finalize_path_rules(ngx_log_t *log, const ngx_str_t *root,
             continue;
         }
 
+        /*
+         * Config-time only, and deliberately NOT migrated to the beneath API.
+         * This canonicalises a TRUSTED, admin-configured VO/group policy rule
+         * path once at startup (not a client request path), so realpath(3) is
+         * the right tool: it resolves the rule to its absolute form for later
+         * prefix matching against resolved request paths.  There is no rootfd at
+         * config-parse time and no untrusted input here, so openat2
+         * RESOLVE_BENEATH would add nothing.
+         */
         if (!xrootd_resolve_path_noexist(log, root,
                                          (const char *) path->data,
                                          resolved, resolved_size))

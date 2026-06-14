@@ -1,32 +1,223 @@
-# s3 — S3-compatible REST endpoint
+# s3 — S3-compatible REST endpoint over the local export root
 
-Provides an S3-compatible HTTP endpoint for XrdClS3 and `aws s3` CLI clients. Implements GET, HEAD, PUT, DELETE, ListObjectsV2, and multipart upload operations on the same POSIX filesystem visible through root:// and davs:// protocols. SigV4 authentication is separate from WLCG token auth — never shared logic.
+## Overview
+
+This subsystem implements the subset of the AWS S3 REST API that `XrdClS3` (the
+XRootD S3 client plugin), the `aws s3` CLI, and browser POST forms actually use,
+projecting the **same on-disk export root** that `root://` and `davs://` already
+serve. It is a self-contained nginx HTTP module (`ngx_http_xrootd_s3_module`,
+`module.c`): a location with `xrootd_s3 on;` installs `ngx_http_s3_handler`
+(`handler.c`) as its content handler, and every S3 request — GetObject,
+HeadObject, PutObject, DeleteObject, ListObjectsV2, the full multipart-upload
+lifecycle, CopyObject, UploadPartCopy, DeleteObjects, browser POST Object, and
+CORS preflight — flows through that one entry point.
+
+S3 is a **distinct auth domain** from the rest of the gateway: it authenticates
+with AWS Signature Version 4 (HMAC-SHA256), in both header and presigned-URL
+form, and never with WLCG tokens or GSI — the SigV4 code shares no logic with
+`../token/` or `../gsi/`. When no access key is configured the endpoint is
+anonymous (read-only public buckets). The handler is fail-closed on writes:
+`cf->common.allow_write` is checked *before* any request body is read, so a write
+to a read-only endpoint is rejected without consuming client bandwidth.
+
+In the request lifecycle this subsystem sits entirely inside nginx's HTTP
+content phase, parallel to `../webdav/`. It owns URI parsing, SigV4 verification,
+and method dispatch, then delegates the heavy lifting downward: path confinement
+to `../path/` (via `../compat/`), object reads to the cache-aware VFS in `../fs/`
+and the shared range-serving pipeline in `../shared/`, atomic writes to the
+staged-file helper in `../compat/`, and namespace mutations (delete, copy) to the
+Layer-3 `xrootd_ns_*` API. It records its own low-cardinality Prometheus counters
+through `../metrics/` and reports live transfers to `../dashboard/`.
+
+Path-style addressing only (`/<bucket>/<key>`). Directories are represented the
+way `XrdClS3` expects: a zero-byte sentinel object `.xrdcls3.dirsentinel` whose
+PUT creates the real parent directory on disk; sentinels are then hidden from all
+listings. Object ETags are **synthetic** (`"mtime-size"`), not content MD5 —
+stable and cheap, matching `XrdClS3` expectations.
+
+## Files
+
+> Build note: the source list is governed by the top-level `config`
+> (`ngx_module_srcs`), not by any in-tree aggregator. The four
+> `multipart_complete_*.c` fragments are each compiled standalone.
 
 | File | Responsibility |
 |---|---|
-| `auth_sigv4_canonical.c` | Signature V4 canonical request construction: HTTP method, URI, headers, payload hash |
-| `auth_sigv4_headers.c` | SigV4 header parsing and extraction from incoming S3 requests |
-| `auth_sigv4_parse.c` | SigV4 credential string parsing: access key, scope, date, algorithm |
-| `auth_sigv4_verify.c` | Signature verification: HMAC-SHA256 signing chain, signature comparison |
-| `copy.c` | S3 COPY operation: object copy within bucket (PUT with Content-Copy-Source header) |
-| `delete_objects.c` | Batch DELETE (DeleteObjects): multi-object deletion with XML response |
-| `handler.c` | S3 request dispatch: route HTTP method + path to appropriate handler |
-| `list_objects_v2.c` | ListObjectsV2 implementation: bucket listing with pagination, delimiter support |
-| `list_walk.c` | Directory walk for ListObjectsV2: traverse POSIX filesystem for bucket contents |
-| `metrics.c` | S3-specific Prometheus metrics: request counters, bytes sent/received |
-| `module.c` | nginx module registration: location handler, config merge, init/shutdown hooks |
-| `multipart_abort.c` | Multipart abort: terminate incomplete upload, delete all part files |
-| `multipart_complete_body.c` | Multipart complete body parsing: XML ListParts response generation |
-| `multipart_complete.c` | Multipart complete: assemble all parts into final object, XML response |
-| `multipart_complete_list_parts.c` | ListParts within multipart complete: enumerate uploaded parts with sizes/ETags |
-| `multipart_complete_list_uploads.c` | ListMultipartUploads: enumerate incomplete uploads in bucket |
-| `multipart_complete_upload_part_copy.c` | UploadPartCopy within multipart complete: copy part from source object |
-| `multipart_helpers.c` | Shared multipart helpers: part numbering, size validation, temp path generation |
-| `multipart_initiate.c` | Multipart initiate: create upload ID, generate XML response with upload ID |
-| `multipart_internal.h` | Internal multipart types and cross-file prototypes |
-| `object.c` | Object operations: metadata extraction, ETag computation, content-type handling |
-| `operation_table.c` | S3 operation dispatch table: HTTP method → handler mapping |
-| `put.c` | S3 PUT operation: single-object upload, content-length validation, file write |
-| `s3_auth_internal.h` | Internal SigV4 auth types and prototypes |
-| `s3.h` | Public S3 types and cross-file prototypes |
-| `util.c` | Shared S3 utilities: bucket/path parsing, XML escaping, date formatting |
+| `s3.h` | Public header: `ngx_http_s3_loc_conf_t` config, `ngx_http_s3_req_ctx_t` per-request ctx, `s3_entry_t`, the `XML_APPEND`/`XML_APPEND_ELEM` flat-buffer macros, and every cross-file prototype. |
+| `module.c` | nginx module descriptor: directive table (`xrootd_s3*`), create/merge loc-conf, root + optional cache-root canonicalization, persistent confinement rootfd (`xrootd_http_open_rootfd`), thread-pool binding (postconfiguration), and `clcf->handler = ngx_http_s3_handler` install. |
+| `handler.c` | The content handler `ngx_http_s3_handler`: URI parse (`s3_parse_uri`), SigV4 gate, OPTIONS/CORS preflight, list/`?uploads`/`?delete`/POST-form flag detection, key→fs_path resolution, and method dispatch to every sub-handler. The single chokepoint all S3 traffic passes through. |
+| `operation_table.c` | `xrootd_s3_operations[]` descriptor table (method → metric slot + capability flags) consumed by `../compat/protocol_caps.c` for metric-slot lookup and the OPTIONS `Allow` header. |
+| `util.c` | Shared helpers: `s3_resolve_key` (confined key→path via `xrootd_http_resolve_path`), `s3_etag` (synthetic `"mtime-size"`), `s3_send_xml_error`, `s3_set_header`. |
+| `metrics.c` | Per-method request/response accounting: `s3_metrics_method_slot`, `s3_metrics_request_method`, `s3_metrics_return_method`, `s3_metrics_finalize_request_method`, plus the unified-metric op mapping (`s3_unified_op`). NGX_DONE (async body) defers final accounting to the callback. |
+| `object.c` | GetObject / HeadObject / DeleteObject. GET opens via the cache-aware VFS and hands the whole range/header/send pipeline to `xrootd_http_serve_file_ranged`; HEAD stats and sends headers only; DELETE uses idempotent `xrootd_ns_delete`. |
+| `put.c` | PutObject / UploadPart body callback `s3_put_body_handler`: directory-sentinel mkdir, recursive parent mkdir, atomic staged-temp-then-rename write, optional gzip/deflate inflate, and a thread-pool offload path (`s3_put_aio_*`) for in-memory bodies. |
+| `post_object.c` | Browser POST Object: parses `multipart/form-data` (fields + file part) with jansson policy handling; auth material lives in the form policy/signature, not the `Authorization` header. Commits through the same staged-file path as PUT. |
+| `copy.c` | CopyObject (`PUT` + `x-amz-copy-source`, no `uploadId`): server-side `xrootd_ns_local_copy` (copy_file_range with read/write fallback), staged commit, `CopyObjectResult` XML. Source and dest both confined to root. |
+| `delete_objects.c` | Batch DeleteObjects (`POST /<bucket>/?delete`): libxml2-parsed `<Delete>` body (network + XXE disabled), per-key `xrootd_ns_delete`, `<DeleteResult>` XML with per-key `<Deleted>`/`<Error>`. |
+| `list_objects_v2.c` | ListObjectsV2 (`GET /<bucket>/?list-type=2`): query parsing, b64url continuation-token pagination, delimiter common-prefix grouping, and `ListBucketResult` XML emission. |
+| `list_walk.c` | `s3_walk` recursive directory walker + `entry_cmp` comparator used only by ListObjectsV2: builds the `s3_entry_t[]` of objects and common prefixes (sorted later by the caller), applies prefix/delimiter filtering, skips `.xrdcls3.dirsentinel`. |
+| `auth_sigv4_parse.c` | SigV4 component parsing: `parse_authorization` (header form) and `parse_presigned_authorization` (`X-Amz-*` query form) → `sigv4_components_t`; `get_header`; 3-slash credential-scope split (AKID/DATE/REGION). |
+| `auth_sigv4_canonical.c` | `build_canonical_qs`: SigV4 canonical query string — decode, sort by name then value, percent-encode, and (for the signed-header form) exclude `X-Amz-Signature` (self-reference). |
+| `auth_sigv4_verify.c` | The verifier `s3_verify_sigv4`: canonical request → string-to-sign → 4-round signing-key derive (worker-cached per day/region) → constant-time HMAC compare; clock-skew/expiry checks; STS session-token gating; anonymous-mode short-circuit. |
+| `s3_auth_internal.h` | `sigv4_components_t` and the parser/key-derive prototypes shared across the three `auth_sigv4_*.c` fragments. |
+| `multipart_helpers.c` | Multipart shared helpers: `s3_has_query_flag`, `s3_get_query_param`, `s3_get_mpu_dir` (hidden `.<key>.mpu-<id>` staging path), `mpu_validate_upload_id` (hex-only), `mpu_rmdir_recursive` (confined `xrootd_fs_remove_tree_confined`). |
+| `multipart_initiate.c` | InitiateMultipartUpload (`POST ?uploads`): generates an opaque hex upload ID (sec+usec+pid), mkdir 0700 staging dir, `InitiateMultipartUploadResult` XML. |
+| `multipart_abort.c` | AbortMultipartUpload (`DELETE ?uploadId=<id>`): validate id, `lstat` staging dir → `NoSuchUpload` 404 if absent, recursive remove, 204. |
+| `multipart_complete_body.c` | CompleteMultipartUpload async body callback `s3_multipart_complete_body_handler`: concatenates `part.1`…`part.10000` in ascending order into a confined temp file, atomic rename to final, best-effort staging cleanup, `CompleteMultipartUploadResult` XML. |
+| `multipart_complete_list_parts.c` | ListParts (`GET <key>?uploadId=<id>`): enumerate `part.<N>` staging files, sort by part number, paginate (`part-number-marker`/`max-parts`), `ListPartsResult` XML. |
+| `multipart_complete_list_uploads.c` | ListMultipartUploads (`GET /<bucket>/?uploads`): scan bucket root for `.<key>.mpu-<id>` staging dirs, sort by key, paginate (`key-marker`/`max-uploads`, cap 1000), `ListMultipartUploadsResult` XML. |
+| `multipart_complete_upload_part_copy.c` | UploadPartCopy (`PUT ?partNumber=N&uploadId=<id>` + `x-amz-copy-source`): confined source→part-file copy loop, `CopyPartResult` XML. |
+| `multipart_internal.h` | `MPU_MAX_PART_NUMBER` (10000) and the `mpu_validate_upload_id` / `mpu_rmdir_recursive` prototypes shared across the multipart files. |
+| `multipart_complete.c` | **Legacy aggregator, not in the build.** `#include`s the three list/copy fragments into one TU; the build compiles each fragment standalone instead. Safe to ignore / a candidate for removal. |
+
+## Key types & data structures
+
+- **`ngx_http_s3_loc_conf_t`** (`s3.h`) — per-location config. Embeds the shared
+  `ngx_http_xrootd_shared_conf_t common` (enable, `root`, `root_canon`,
+  `allow_write`, thread-pool) and adds S3-specifics: `bucket` (prefix to strip),
+  `access_key`/`secret_key`/`region` (SigV4 credentials; empty key ⇒ anonymous),
+  `allow_unsigned_session_token`, `max_keys`, and an optional read-through
+  `cache_root`/`cache_root_canon`.
+- **`ngx_http_s3_req_ctx_t`** (`s3.h`) — per-request module context: the resolved
+  `fs_path[PATH_MAX]` (set by `handler.c`, read by the async PUT/complete
+  callbacks because the handler's stack is gone by then) and the
+  `xrootd_identity_t *identity` populated by SigV4 (access key subject) or left as
+  `XROOTD_AUTHN_NONE` in anonymous mode.
+- **`sigv4_components_t`** (`s3_auth_internal.h`) — parsed Authorization material:
+  `akid`, `date`, `region`, `amz_date`, `signed_hdrs`, `signature`, plus
+  `presigned`/`amz_expires` for presigned-URL form. The canonical builder and the
+  verifier operate on this identical parsed view.
+- **`s3_entry_t`** (`s3.h`) — one ListObjectsV2 row: `key`, `is_prefix` (1 ⇒ a
+  `<CommonPrefixes>` delimiter entry, not a real file), `size`, `mtime`, `etag`.
+- **`s3_put_aio_t`** (`put.c`) — thread-task context carrying the staged file,
+  byte counts, body mode, and copied `final_path`/`root_canon` for the off-loop
+  PUT write.
+- **`s3_post_form_t`** / **`s3_post_field_t`** (`post_object.c`) — accumulated
+  browser-form fields, policy, signature, and the file part for POST Object.
+- **Metric slot enums** (`../metrics/metrics.h`) — `XROOTD_S3_METHOD_*`,
+  `XROOTD_S3_AUTH_*`, `XROOTD_S3_RANGE_*`, `XROOTD_S3_PUT_*`,
+  `XROOTD_S3_EVENT_*`: all low-cardinality (no bucket names, keys, or DNs).
+
+## Control & data flow
+
+**Entry.** A location with `xrootd_s3 on;` routes its requests to
+`ngx_http_s3_handler` (`handler.c`), installed by `ngx_http_s3_set` in `module.c`.
+The handler allocates `ngx_http_s3_req_ctx_t` (with an `xrootd_identity_t`),
+classifies the method into a metric slot, and runs (in order): OPTIONS/CORS
+preflight → `s3_verify_sigv4` (skipped for POST-Object forms, which carry policy
+auth) → `s3_parse_uri` → list / `?uploads` / `?delete` / POST-form flag checks →
+empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write paths
+(`PUT`, `POST` body, `DeleteObjects`) call `xrootd_http_read_body` and return
+`NGX_DONE`; the body callback finalizes the response and metrics later via
+`s3_metrics_finalize_request_method`.
+
+**Calls out to:**
+
+- `../path/README.md` — kernel `RESOLVE_BENEATH` confinement and canonicalization,
+  reached through `s3_resolve_key` → `xrootd_http_resolve_path` and the
+  `xrootd_*_confined_canon` family (open/mkdir/unlink/rename); the persistent
+  confinement rootfd is opened in `module.c`.
+- `../fs/README.md` — `xrootd_vfs_open`/`_stat`/`_close` for cache-aware GET/HEAD
+  (`object.c`); the VFS also fronts the optional `cache_root` read-through.
+- `../shared/file_serve.h` — `xrootd_http_serve_file_ranged`, the range-parse →
+  header → body-send pipeline shared with WebDAV GET (`object.c`).
+- `../cache/README.md` — read-through fill when `xrootd_s3_cache_root` is set.
+- `../aio/README.md` — the thread pool that the PUT fast path posts to so large
+  in-memory writes never block the event loop.
+- `../compat/` — staged-file atomic write (`staged_file.h`), HTTP body/header/query
+  helpers, XML emit/escape, URL en/decode, `copy_range.h`, `etag.h`, the
+  `xrootd_ns_*` namespace API (`namespace_ops.h`) for delete/copy, and SigV4
+  crypto (`crypto.h`, `hex.h`).
+- `../metrics/README.md` — S3 Prometheus counters and the unified auth/op metrics
+  (`unified.h`, `http_common.h`).
+- `../dashboard/` — live transfer tracking on writes (`xrootd_dashboard_http_*`).
+- `../token/b64url.h` — base64url codec for ListObjectsV2 continuation tokens.
+
+## Invariants, security & gotchas
+
+- **Confinement is non-negotiable.** Every client key reaches the filesystem only
+  through `s3_resolve_key` (returns 0 on escape → `AccessDenied` 403) or a
+  `xrootd_*_confined_canon` wrapper anchored at the per-worker `RESOLVE_BENEATH`
+  rootfd. Bare `lstat`/`stat` appear only on paths *derived from* an
+  already-confined `fs_path` plus a hex-validated `upload_id`
+  (`multipart_abort.c:40`, `multipart_complete_body.c`) — the comments at those
+  sites spell out why they are safe; do not add raw syscalls on raw client input.
+- **Fail-closed writes.** `cf->common.allow_write` is checked before the body is
+  read on PUT, POST, DELETE, DeleteObjects, and POST-Object (`handler.c`), each
+  emitting `XROOTD_S3_EVENT_WRITE_DISABLED` + `AccessDenied`. Never move a write
+  gate after `xrootd_http_read_body`.
+- **SigV4 is its own auth domain.** No shared logic with `../token/` or `../gsi/`.
+  Anonymous mode (`access_key.len == 0`) short-circuits to `NGX_OK`
+  (`auth_sigv4_verify.c:401`). Both header and presigned-URL forms are supported;
+  presigned `X-Amz-Expires` is bounded to ≤ 604800 s. STS session tokens
+  (`x-amz-security-token`) are rejected unless
+  `xrootd_s3_allow_unsigned_session_token` is on, and for the header form the
+  token must itself be in `SignedHeaders`.
+- **No SigV4 timing/message oracle (W5).** `auth_sigv4_verify.c` deliberately does
+  *not* early-return on an unknown access key. The key-match result (`CRYPTO_memcmp`)
+  is folded into a single final decision at line 613 — an unknown key (`!key_ok`)
+  and a bad signature traverse identical HMAC work and return the identical
+  `SignatureDoesNotMatch` 403. Signatures are length-checked to exactly 64 hex
+  chars before compare (line 600). Preserve this property in any refactor.
+- **Signing-key cache is worker-local and date/region keyed**
+  (`s_signing_key_cache`, `auth_sigv4_verify.c:258`): the 4-round HMAC chain is
+  stable for one calendar day per region, cached in one slot to avoid recomputing
+  per request. Clock skew is bounded to ±900 s (header form) / future-only
+  ±900 s (presigned), plus `X-Amz-Expires` enforcement.
+- **Atomic writes only.** PutObject, CopyObject, and CompleteMultipartUpload all
+  write to a temp file then `rename` (`xrootd_staged_*` / `xrootd_ns_local_copy`
+  with `staged_commit=1`); clients never observe a partial object, and a crash
+  orphans only the temp. The PUT thread-pool fast path is gated to in-memory,
+  non-encoded bodies (`!has_spooled && bytes>0 && window_bits==0 && thread_pool`,
+  `put.c:441`); spooled bodies and gzip/deflate take the synchronous path.
+- **Directory model.** `.xrdcls3.dirsentinel` PUT ⇒ create the real parent dir +
+  zero-byte sentinel; `s3_walk` hides sentinels from listings. GET/HEAD on a
+  directory returns `NoSuchKey` 404 (S3 keys are objects, not dirs).
+- **Synthetic ETags.** `s3_etag` emits `"mtime-size"`, never content MD5. Listings,
+  PUT, CopyObject, UploadPartCopy, and multipart results all use this convention
+  consistently.
+- **DELETE is idempotent.** Deleting a missing key returns 204 (not 404), matching
+  AWS, via `xrootd_ns_delete` with `idempotent_missing=1`. Non-empty directories
+  return 409 `BucketNotEmpty`.
+- **DeleteObjects XML parsing is hardened.** `delete_objects.c` uses libxml2 with
+  `XML_PARSE_NONET` (+ `XML_PARSE_NO_XXE` when available); `NOENT`/`DTDLOAD`/`HUGE`
+  are deliberately *not* set, so no file:// XXE and the billion-laughs cap stays
+  on. Body capped at 1 MiB, ≤ 1000 keys.
+- **List bounds.** `s3_walk` is capped at `S3_LIST_MAX_ENTRIES` (65536); the XML
+  buffer sizing in `list_objects_v2.c` assumes a 6× worst-case entity expansion —
+  keep that multiplier if you add escaped fields. Pagination is a b64url
+  continuation token encoding the last key; a malformed token degrades gracefully
+  to "from the beginning". A client `max-keys` only narrows below `cf->max_keys`.
+- **`ngx_snprintf` quirk.** It does not support the `l` length modifier; the upload
+  ID and part paths use `%z`/plain `snprintf` instead (see `handler.c:516-521` and the
+  `multipart_initiate.c` comment). Honor this when formatting widths.
+
+## Entry points / extending
+
+- **Add an S3 operation / sub-handler:** declare it in `s3.h`, implement the
+  handler, and wire a dispatch arm in `ngx_http_s3_handler` (`handler.c`) at the
+  correct point in the method/flag order (flag checks like `?uploads`/`?delete`
+  must precede the empty-key rejection). Write operations must check
+  `cf->common.allow_write` before reading any body. New `.c` files must be added to
+  `ngx_module_srcs` in the top-level `config`.
+- **Add a directive:** add the field to `ngx_http_s3_loc_conf_t` (`s3.h`), a row to
+  `ngx_http_s3_commands[]` (`module.c`), and a `ngx_conf_merge_*` line in
+  `ngx_http_s3_merge_loc_conf`. Pure directive additions do not require a
+  `./configure` re-run; new source files do.
+- **Add a metric:** define the slot in `../metrics/metrics.h`, then increment with
+  `XROOTD_S3_METRIC_INC`/`_ADD` at the callsite. Keep labels low-cardinality (no
+  paths, bucket names, or keys).
+- **Touch SigV4:** changes go in the `auth_sigv4_*.c` trio behind
+  `s3_auth_internal.h`; never break the constant-time single-decision compare in
+  `auth_sigv4_verify.c`.
+
+## See also
+
+- [`../README.md`](../README.md) — master subsystem index
+- [`../webdav/README.md`](../webdav/README.md) — sibling HTTP protocol (WebDAV/HTTPS)
+- [`../path/README.md`](../path/README.md) — confinement & canonical path resolution
+- [`../fs/README.md`](../fs/README.md) — cache-aware VFS (open/read/stat)
+- [`../cache/README.md`](../cache/README.md) — read-through / write-through cache
+- [`../aio/README.md`](../aio/README.md) — thread-pool I/O offload
+- [`../metrics/README.md`](../metrics/README.md) — Prometheus counters & unified metrics
+- [`../compat/README.md`](../compat/README.md) — staged-file, HTTP, XML, crypto, namespace helpers

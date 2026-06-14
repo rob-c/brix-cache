@@ -16,6 +16,7 @@
 
 #include "fs_walk.h"
 #include "../path/path.h"
+#include "../path/beneath.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -257,9 +258,36 @@ xrootd_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
     DIR           *dp;
     struct dirent *de;
     ngx_int_t      rc;
+    int            rootfd;
+    const char    *path_rel;
+
+    /*
+     * The opendir/readdir/lstat iteration below is NOT a beneath site: it walks
+     * by absolute child path built from single, kernel-supplied dirent names
+     * (no client `..`), and lstat does not follow the final component, so a
+     * dangling/outward symlink entry is seen as a symlink and unlinked as one
+     * (its target is never opened or followed).  The actual mutations — every
+     * unlink and the final rmdir — DO go through the beneath API, which is where
+     * the export-root boundary is enforced.  A readdir-relative
+     * openat(dirfd,...) walk would be a defence-in-depth refinement but is not a
+     * confinement gap here.
+     */
+    rootfd = xrootd_beneath_open_root(root_canon);
+    if (rootfd < 0) {
+        ngx_log_error(NGX_LOG_ERR, log, errno,
+                      "xrootd: remove-tree cannot open root for \"%s\"", path);
+        return NGX_ERROR;
+    }
+    path_rel = xrootd_beneath_strip_root(root_canon, path);
+    if (path_rel == NULL) {
+        close(rootfd);
+        errno = EXDEV;
+        return NGX_ERROR;
+    }
 
     dp = opendir(path);
     if (dp == NULL) {
+        close(rootfd);
         if (errno == ENOENT) {
             return NGX_OK;
         }
@@ -302,25 +330,33 @@ xrootd_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
                 rc = NGX_ERROR;
                 break;
             }
-        } else if (xrootd_unlink_confined_canon(log, root_canon, child, 0)
-                   != 0)
-        {
-            ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd: remove-tree unlink failed \"%s\"", child);
-            rc = NGX_ERROR;
-            break;
+        } else {
+            const char *child_rel = xrootd_beneath_strip_root(root_canon,
+                                                              child);
+            if (child_rel == NULL) {
+                errno = EXDEV;
+                rc = NGX_ERROR;
+                break;
+            }
+            if (xrootd_unlink_beneath(rootfd, child_rel, 0) != 0) {
+                ngx_log_error(NGX_LOG_ERR, log, errno,
+                              "xrootd: remove-tree unlink failed \"%s\"", child);
+                rc = NGX_ERROR;
+                break;
+            }
         }
     }
 
     closedir(dp);
 
     if (rc == NGX_OK
-        && xrootd_unlink_confined_canon(log, root_canon, path, 1) != 0)
+        && xrootd_unlink_beneath(rootfd, path_rel, 1) != 0)
     {
         ngx_log_error(NGX_LOG_ERR, log, errno,
                       "xrootd: remove-tree rmdir failed \"%s\"", path);
         rc = NGX_ERROR;
     }
 
+    close(rootfd);
     return rc;
 }

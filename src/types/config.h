@@ -19,6 +19,10 @@
  *           headers before inclusion.
  */
 
+/* Phase 24 — shared mirror config block embedded below (self-contained;
+ * pulls only ngx_core, so safe to include from this header). */
+#include "../mirror/mirror.h"
+
 /* ---- Helper structs used inside ngx_stream_xrootd_srv_conf_t ---- */
 
 typedef struct {
@@ -81,6 +85,13 @@ typedef struct {
 #include "../cache/writethrough_decision.h"
 #include "../config/shared_conf.h"
 
+/* Phase 20 — shared-memory KV consumers (token cache, auth cache, rate limit).
+ * These headers are lightweight (ngx core only) so embedding their config
+ * structs here introduces no include cycle. */
+#include "../shm/kv.h"
+#include "../path/auth_cache.h"
+#include "../shm/rate_limit.h"
+
 /*
  * Per-server configuration block.
  * Directive names in square brackets show which nginx.conf directive
@@ -89,6 +100,9 @@ typedef struct {
 typedef struct {
     ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
                                              thread_pool_name, thread_pool */
+
+    /* ---- worker-process runtime infrastructure ---- */
+    int  rootfd;          /* O_PATH fd on export root; -1 until worker init */
 
     /* ---- authentication ---- */
     ngx_uint_t  auth;    /* [xrootd_auth none|gsi|token|both] — one of the
@@ -153,6 +167,14 @@ typedef struct {
                                                         Polling interval (ms) for mtime-based JWKS
                                                         hot refresh. NGX_CONF_UNSET_MSEC = disabled. */
     ngx_event_t        *jwks_timer;     /* per-worker timer event; NULL if not scheduled */
+
+    /* ---- Phase 20: shared-memory caches & rate limiting ---- */
+    xrootd_kv_t              *token_cache_kv;  /* [xrootd_token_cache zone=]
+                                                  JWT validation cache; NULL = off */
+    xrootd_auth_cache_conf_t  auth_cache;      /* [xrootd_auth_cache zone= ttl=]
+                                                  auth-gate result cache; kv NULL = off */
+    xrootd_rate_limit_conf_t  rate_limit;      /* [xrootd_rate_limit zone= rate= burst= key=]
+                                                  per-DN request throttle; kv NULL = off */
 
     /* ---- Simple Shared Secret settings (used when auth = sss) ---- */
     ngx_str_t    sss_keytab;    /* [xrootd_sss_keytab /etc/xrootd/sss.keytab] */
@@ -259,6 +281,10 @@ typedef struct {
                                              Files larger than this are not admitted
                                              to cache unless their basename matches
                                              cache_include_regex.  0 = no limit. */
+    off_t       memory_budget;            /* [xrootd_memory_budget 768m] Phase 31 W4
+                                             SHM-global cap on transfer-heap bytes;
+                                             a read that would exceed it is deferred
+                                             with kXR_wait.  0 = no cap. */
     ngx_str_t   cache_include_regex_str;  /* [xrootd_cache_include_regex "\.root$"]
                                              POSIX extended regular expression matched
                                              against the path basename; a match always
@@ -266,6 +292,13 @@ typedef struct {
     regex_t     cache_include_regex;      /* compiled POSIX ERE; valid only when
                                              cache_include_regex_set is 1 */
     ngx_flag_t  cache_include_regex_set;  /* 1 after a successful regcomp() */
+
+    /* ---- Phase 26: slice-granular caching (stream plane) ----
+     * cache_slice_size > 0 stores files as fixed-size slices (src/cache/slice.h)
+     * so a partial kXR_read fetches only the slices it touches.  0 = whole-file
+     * mode (historical behaviour).  Requires cache + cache_origin configured. */
+    size_t      cache_slice_size;      /* [xrootd_cache_slice 128m] bytes; 0 = off.
+                                          Multiple of 1 MiB (validated in merge). */
 
     /* ---- write-through mode ----
      *
@@ -302,6 +335,10 @@ typedef struct {
 
     /* ---- in-protocol TLS upgrade (kXR_ableTLS) ---- */
     ngx_flag_t  tls;      /* [xrootd_tls on|off] — advertise kXR_haveTLS */
+    ngx_flag_t  tls_ktls; /* [xrootd_ktls on|off] — SSL_OP_ENABLE_KTLS so TLS reads
+                           * can sendfile (Phase 29). Default off: only a win with
+                           * hardware TLS-offload NICs — software kTLS is SLOWER than
+                           * userspace OpenSSL on AES-NI CPUs (measured 2-5x). */
     ngx_ssl_t  *tls_ctx;  /* SSL_CTX built from certificate/key at postconfiguration */
 
     /* ---- cluster / redirector mode ---- */
@@ -310,6 +347,19 @@ typedef struct {
                                    before attempting local resolution */
     ngx_uint_t  registry_slots; /* [xrootd_registry_slots N] — shared-memory
                                     registry capacity; default 128 */
+    ngx_uint_t  session_slots;  /* [xrootd_session_slots N] — session registry
+                                    capacity; default XROOTD_SESSION_REGISTRY_SLOTS */
+    ngx_uint_t  redir_cache_slots; /* [xrootd_redir_cache_slots N] — manager
+                                    redirect-collapse cache capacity;
+                                    default XROOTD_REDIR_CACHE_SLOTS */
+
+    /* ---- Phase 22: active health checks (off by default) ---- */
+    ngx_flag_t  hc_enabled;      /* [xrootd_health_check on|off] */
+    ngx_msec_t  hc_interval_ms;  /* [xrootd_health_check_interval 30s] */
+    ngx_msec_t  hc_timeout_ms;   /* [xrootd_health_check_timeout 5s] */
+    ngx_uint_t  hc_threshold;    /* [xrootd_health_check_threshold 3] */
+    ngx_msec_t  hc_blacklist_ms; /* [xrootd_health_check_blacklist 60s] */
+    ngx_uint_t  hc_type;         /* [xrootd_health_check_type ping|stat] */
 
     /* ---- CMS manager heartbeat ---- */
     ngx_msec_t            cms_locate_timeout; /* [xrootd_cms_locate_timeout 5s]
@@ -427,4 +477,14 @@ typedef struct {
     u_char     *ocsp_staple_data; /* Cached DER-encoded OCSP response for stapling;
                                      NULL if not yet fetched or stapling is disabled. */
     size_t      ocsp_staple_len;  /* Byte length of ocsp_staple_data. */
+
+    /* ---- Phase 24: traffic mirroring (off by default) ---- */
+    xrootd_mirror_conf_t  mirror;  /* [xrootd_stream_mirror_url, xrootd_mirror_*]
+                                      fire-and-forget read-request replay to a
+                                      shadow XRootD server; enabled == 0 = no-op */
+
+    /* ---- Phase 25: advanced rate limiting (off by default) ---- */
+    ngx_array_t  *rl_rules;        /* xrootd_rl_rule_t[] from
+                                      [xrootd_rate_limit_rule / _bandwidth_limit];
+                                      NULL = no limits */
 } ngx_stream_xrootd_srv_conf_t;

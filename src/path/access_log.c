@@ -27,6 +27,83 @@
 #include <arpa/inet.h>
 #include <time.h>
 
+/*
+ * Phase 33 C1 — per-worker access-log batch buffer.
+ *
+ * Previously every logged request did its own write(2).  Under high op rates
+ * (steady reads) that syscall is the dominant per-request fixed cost when
+ * logging is on.  The nginx stream worker is a single-threaded event loop, so a
+ * single static buffer per worker needs no locking: lines accumulate and are
+ * flushed with one write(2) on buffer-full, a target-fd switch, a 1s timer, and
+ * connection close (xrootd_on_disconnect → xrootd_access_log_flush).  The log fd
+ * is opened O_APPEND (src/config/runtime_server.c), so a batched multi-line
+ * write stays atomic per call and interleaves cleanly with other workers.
+ */
+#define XROOTD_ALOG_BUF_SIZE  (64 * 1024)
+
+static u_char       xrootd_alog_buf[XROOTD_ALOG_BUF_SIZE];
+static size_t       xrootd_alog_len;
+static ngx_fd_t     xrootd_alog_fd = NGX_INVALID_FILE;
+static ngx_event_t  xrootd_alog_timer;
+static ngx_uint_t   xrootd_alog_timer_set;
+
+void
+xrootd_access_log_flush(void)
+{
+    if (xrootd_alog_len > 0 && xrootd_alog_fd != NGX_INVALID_FILE) {
+        (void) ngx_write_fd(xrootd_alog_fd, xrootd_alog_buf, xrootd_alog_len);
+    }
+    xrootd_alog_len = 0;
+}
+
+static void
+xrootd_alog_timer_handler(ngx_event_t *ev)
+{
+    xrootd_alog_timer_set = 0;
+    xrootd_access_log_flush();
+}
+
+/* Append one formatted line to the per-worker buffer, flushing as needed. */
+static void
+xrootd_alog_emit(ngx_fd_t fd, const char *line, size_t n)
+{
+    if (fd == NGX_INVALID_FILE || n == 0) {
+        return;
+    }
+
+    /* Never let lines cross fds: if this line targets a different log than what
+     * is buffered, flush the buffered run first, then adopt the new fd. */
+    if (xrootd_alog_len > 0 && fd != xrootd_alog_fd) {
+        xrootd_access_log_flush();
+    }
+    xrootd_alog_fd = fd;
+
+    /* A line at least as large as the whole buffer can never be batched; flush
+     * any pending run and write it directly so nothing is dropped/truncated. */
+    if (n >= XROOTD_ALOG_BUF_SIZE) {
+        xrootd_access_log_flush();
+        (void) ngx_write_fd(fd, (void *) line, n);
+        return;
+    }
+
+    if (xrootd_alog_len + n > XROOTD_ALOG_BUF_SIZE) {
+        xrootd_access_log_flush();
+    }
+    ngx_memcpy(xrootd_alog_buf + xrootd_alog_len, line, n);
+    xrootd_alog_len += n;
+
+    /* Bound how long a buffered line waits on a low-rate connection.  The timer
+     * fires once (no rearm here); the next append re-arms it.  A flush from any
+     * other path before it fires just makes the eventual fire a no-op. */
+    if (!xrootd_alog_timer_set) {
+        xrootd_alog_timer.handler = xrootd_alog_timer_handler;
+        xrootd_alog_timer.log = ngx_cycle->log;
+        xrootd_alog_timer.data = NULL;
+        ngx_add_timer(&xrootd_alog_timer, 1000);
+        xrootd_alog_timer_set = 1;
+    }
+}
+
 void
 xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
                   const char *verb, const char *path, const char *detail,
@@ -119,6 +196,6 @@ xrootd_log_access(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (n > 0 && (size_t) n < sizeof(line)) {
-        (void) ngx_write_fd(conf->access_log_fd, line, (size_t) n);
+        xrootd_alog_emit(conf->access_log_fd, line, (size_t) n);
     }
 }

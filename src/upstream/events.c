@@ -11,12 +11,20 @@
 
 #include <sys/socket.h>
 
+/*
+ * WHAT: Timer callback fired when a server-issued kXR_wait delay expires.
+ * WHY: When the backend answers an opcode with kXR_wait it is asking us to retry the
+ *      same request after N seconds; this timer is the retry trigger.
+ * HOW: Validate the client session still exists, then resend the saved request via
+ *      send_request(). On failure (with the upstream conn still live) abort the proxy.
+ */
 void
 xrootd_upstream_wait_timer_handler(ngx_event_t *ev)
 {
     xrootd_upstream_t *up = ev->data;
     xrootd_ctx_t      *ctx = up->client_ctx;
 
+    /* Client session may have gone away while we were waiting — drop the upstream. */
     if (ctx == NULL || ctx->destroyed) {
         xrootd_upstream_cleanup(up);
         return;
@@ -30,6 +38,17 @@ xrootd_upstream_wait_timer_handler(ngx_event_t *ev)
     }
 }
 
+/*
+ * WHAT: Writable-event callback for the upstream socket: completes the async TCP connect
+ *      and drains the pending write buffer (bootstrap bytes or a replayed request).
+ * WHY: nginx has no separate connect-completion callback for non-blocking sockets — the
+ *      socket simply becomes writable. So the first write event doubles as the signal
+ *      that connect() finished, which we confirm via SO_ERROR.
+ * HOW: While in CONNECTING, check SO_ERROR (abort on TCP failure) and transition to
+ *      BOOTSTRAP/HANDSHAKE, zeroing the response accumulator. Then if wbuf still has
+ *      unsent bytes, flush() and return (stay armed for the next writable event).
+ *      Only once the buffer is fully drained do we arm the read side for the reply.
+ */
 void
 xrootd_upstream_write_handler(ngx_event_t *wev)
 {
@@ -37,6 +56,7 @@ xrootd_upstream_write_handler(ngx_event_t *wev)
     xrootd_upstream_t *up = uconn->data;
     xrootd_ctx_t      *ctx = up->client_ctx;
 
+    /* Don't act on a socket whose client session has already been torn down. */
     if (ctx == NULL || ctx->destroyed) {
         xrootd_upstream_cleanup(up);
         return;
@@ -51,6 +71,8 @@ xrootd_upstream_write_handler(ngx_event_t *wev)
         int       err = 0;
         socklen_t len = sizeof(err);
 
+        /* SO_ERROR holds the pending connect() result; a getsockopt failure or a
+         * non-zero err means the async connect did not succeed. */
         if (getsockopt(uconn->fd, SOL_SOCKET, SO_ERROR,
                        (char *) &err, &len) == -1 || err)
         {
@@ -64,6 +86,8 @@ xrootd_upstream_write_handler(ngx_event_t *wev)
         ngx_log_debug0(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
                        "xrootd: upstream TCP connected");
 
+        /* Connect succeeded — begin bootstrap and reset the read accumulator so the
+         * first reply (the handshake response) parses from a clean slate. */
         up->state = XRD_UP_BOOTSTRAP;
         up->bs_phase = XRD_UP_BS_HANDSHAKE;
         up->rhdr_pos = 0;
@@ -72,6 +96,8 @@ xrootd_upstream_write_handler(ngx_event_t *wev)
         up->resp_body_pos = 0;
     }
 
+    /* Partial-write drain: flush() advances wbuf_pos. If bytes remain we return and
+     * wait for the next writable event rather than arming the read side prematurely. */
     if (up->wbuf_pos < up->wbuf_len) {
         ngx_int_t rc = xrootd_upstream_flush(up);
 
@@ -81,11 +107,26 @@ xrootd_upstream_write_handler(ngx_event_t *wev)
         return;
     }
 
+    /* Buffer fully sent — now wait for the upstream's reply. */
     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
         xrootd_upstream_abort(up, "upstream read arm failed in write handler");
     }
 }
 
+/*
+ * WHAT: Readable-event callback that accumulates one complete upstream response
+ *      (fixed-size header + variable body) and dispatches it by connection state.
+ * WHY: XRootD replies are framed as an 8-byte ServerResponseHdr followed by `dlen`
+ *      body bytes. Reads can fragment arbitrarily, so we must persist partial progress
+ *      (rhdr_pos / resp_body_pos) across re-entries to this handler. A single response
+ *      is consumed per invocation, after which we hand off and return.
+ * HOW: Two-stage accumulation inside one loop. Stage 1 fills rhdr to XRD_RESPONSE_HDR_LEN
+ *      then parses status/dlen and (if dlen>0) allocates a capped body buffer. Stage 2
+ *      fills the body. Each recv may yield NGX_AGAIN (re-arm and return — re-entry resumes
+ *      at the same offset) or <=0 (peer closed — abort). Once both stages are complete,
+ *      dispatch: BOOTSTRAP responses drive the login state machine; REQUEST/ASYNC
+ *      responses are forwarded to the client; any other state is a logic error.
+ */
 void
 xrootd_upstream_read_handler(ngx_event_t *rev)
 {
@@ -94,6 +135,7 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
     xrootd_ctx_t      *ctx = up->client_ctx;
     ssize_t            n;
 
+    /* Stale event after the client session was destroyed: just clean up. */
     if (ctx == NULL || ctx->destroyed) {
         xrootd_upstream_cleanup(up);
         return;
@@ -105,11 +147,13 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
     }
 
     for (;;) {
+        /* --- Stage 1: accumulate the fixed-length response header --- */
         if (up->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
             size_t need = XRD_RESPONSE_HDR_LEN - up->rhdr_pos;
 
             n = uconn->recv(uconn, up->rhdr + up->rhdr_pos, need);
             if (n == NGX_AGAIN) {
+                /* Socket drained mid-header; re-arm and resume here next event. */
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
                     xrootd_upstream_abort(up, "upstream read arm failed (hdr)");
                 }
@@ -122,9 +166,13 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
 
             up->rhdr_pos += (size_t) n;
             if (up->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
+                /* Short read — loop to pull the rest of the header. */
                 continue;
             }
 
+            /* Header complete: decode wire fields (network byte order) into host
+             * order. status is uint16 at the start of the header; dlen is the uint32
+             * body length that determines how many more bytes to read in stage 2. */
             {
                 ServerResponseHdr *hdr;
 
@@ -134,11 +182,15 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
             }
 
             if (up->resp_dlen > 0) {
+                /* Cap untrusted body size to bound allocation — the largest legitimate
+                 * upstream payload here is a path plus protocol slack. */
                 if (up->resp_dlen > XROOTD_MAX_PATH + 256) {
                     xrootd_upstream_abort(up,
                                           "upstream response body too large");
                     return;
                 }
+                /* +1 byte for a NUL terminator so the body can be treated as a C
+                 * string by downstream parsers; allocated from the connection pool. */
                 up->resp_body = ngx_palloc(uconn->pool, up->resp_dlen + 1);
                 if (up->resp_body == NULL) {
                     xrootd_upstream_abort(up, "upstream pool alloc failed");
@@ -149,11 +201,13 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
             }
         }
 
+        /* --- Stage 2: accumulate the variable-length body (skipped when dlen==0) --- */
         if (up->resp_body_pos < up->resp_dlen) {
             size_t need = up->resp_dlen - up->resp_body_pos;
 
             n = uconn->recv(uconn, up->resp_body + up->resp_body_pos, need);
             if (n == NGX_AGAIN) {
+                /* Body fragmented across reads; re-arm and resume at this offset. */
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
                     xrootd_upstream_abort(up,
                                           "upstream read arm failed (body)");
@@ -167,20 +221,27 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
 
             up->resp_body_pos += (size_t) n;
             if (up->resp_body_pos < up->resp_dlen) {
+                /* More body to come — loop. */
                 continue;
             }
         }
 
+        /* --- Dispatch: a full header+body is now buffered --- */
+
+        /* Bootstrap replies (handshake/protocol/TLS/login) drive the login FSM, which
+         * advances bs_phase and, when DONE, replays the saved client request. */
         if (up->state == XRD_UP_BOOTSTRAP) {
             xrootd_upstream_handle_bootstrap_response(up);
             return;
         }
 
+        /* Live request/async replies are relayed verbatim to the client connection. */
         if (up->state == XRD_UP_REQUEST || up->state == XRD_UP_ASYNC) {
             xrootd_upstream_forward_response(up);
             return;
         }
 
+        /* No other state should ever reach the read handler with a complete frame. */
         xrootd_upstream_abort(up, "upstream: unexpected state in read handler");
         return;
     }

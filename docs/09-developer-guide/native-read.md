@@ -88,10 +88,9 @@ enough that avoiding event-loop blocking is worth the handoff.
 Relevant code:
 
 - `src/aio/resume.c`
-- `src/aio/read.c`
+- `src/aio/reads.c`
 - `src/aio/readv.c`
 - `src/aio/write.c`
-- `src/aio/pgread.c`
 - `src/write/*.c`
 - `src/webdav/put.c`
 

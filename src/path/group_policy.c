@@ -76,11 +76,16 @@ xrootd_apply_parent_group_policy_impl(ngx_log_t *log, int fd,
         return NGX_ERROR;
     }
 
+    /* Derive the parent directory by truncating at the final '/'. slash==parent
+     * means the only slash is at index 0 (a top-level entry like "/foo"), whose
+     * parent is "/" — declined here so policy never reattributes the filesystem
+     * root's gid/mode to a child. slash==NULL means a relative/malformed path. */
     slash = strrchr(parent, '/');
     if (slash == NULL || slash == parent) {
         return NGX_DECLINED;
     }
 
+    /* In-place truncate: turns "/data/atlas/file" into "/data/atlas". */
     *slash = '\0';
     if (stat(parent, &parent_st) != 0) {
         return NGX_ERROR;
@@ -96,13 +101,25 @@ xrootd_apply_parent_group_policy_impl(ngx_log_t *log, int fd,
         }
     }
 
+    /* Clear-then-set: strip the child's existing group bits and any stale setgid
+     * (~(S_IRWXG | S_ISGID)) so the parent-derived bits are authoritative rather
+     * than merged with whatever umask/create-mode left behind. Owner and other
+     * bits are preserved untouched. setgid is re-added below only when warranted,
+     * so it is never inherited onto plain files. */
     desired_mode = (child_st.st_mode & ~(S_IRWXG | S_ISGID))
                  | xrootd_parent_group_mode_bits(&parent_st, &child_st);
 
+    /* Propagate setgid only to subdirectories of a setgid parent, mirroring the
+     * kernel's directory-inheritance semantics so deeper mkdir keeps the group. */
     if (S_ISDIR(child_st.st_mode) && (parent_st.st_mode & S_ISGID)) {
         desired_mode |= S_ISGID;
     }
 
+    /* Apply gid first (uid kept via (uid_t)-1), THEN mode below. A chown can
+     * silently clear setuid/setgid on some kernels, so re-asserting desired_mode
+     * afterwards restores any S_ISGID this policy intends to keep. The gid is
+     * taken from the parent dir, never from the request, so the caller cannot
+     * choose an arbitrary group. */
     if (child_st.st_gid != parent_st.st_gid) {
         if (fd >= 0) {
             if (fchown(fd, (uid_t) -1, parent_st.st_gid) != 0) {
@@ -115,6 +132,9 @@ xrootd_apply_parent_group_policy_impl(ngx_log_t *log, int fd,
         }
     }
 
+    /* Compare and apply only the low 12 permission/special bits (07777 =
+     * setuid|setgid|sticky + rwxrwxrwx); the file-type bits in st_mode are
+     * masked off so chmod is skipped entirely when nothing in those bits moved. */
     if ((child_st.st_mode & 07777) != (desired_mode & 07777)) {
         if (fd >= 0) {
             if (fchmod(fd, desired_mode & 07777) != 0) {

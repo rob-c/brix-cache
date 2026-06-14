@@ -10,6 +10,8 @@
 
 #include "webdav.h"
 #include "../tpc/common/registry.h"
+#include "../mirror/http_mirror.h"
+#include "../ratelimit/ratelimit.h"
 
 ngx_int_t
 ngx_http_xrootd_webdav_postconfiguration(ngx_conf_t *cf)
@@ -35,12 +37,55 @@ ngx_http_xrootd_webdav_postconfiguration(ngx_conf_t *cf)
     }
     *h = ngx_http_xrootd_webdav_access_handler;
 
+    /* Phase 21 Step C: OIDC introspection runs as a second access-phase
+     * handler (after the main auth handler), so its subrequest suspend/resume
+     * re-entry replays only the introspection check — not the whole auth gate. */
+    h = ngx_array_push(&cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+    *h = webdav_introspect_access_handler;
+
+    /* Phase 25: advanced rate limiting runs as a third access-phase handler
+     * (after auth, so the identity is populated) and chains a body filter for
+     * bandwidth accounting. */
+    h = ngx_array_push(&cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+    *h = xrootd_rl_http_access_handler;
+
+    /* Bandwidth is charged in the log phase from the known response size. */
+    h = ngx_array_push(&cmcf->phases[NGX_HTTP_LOG_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+    *h = xrootd_rl_http_log_handler;
+
+    /* Phase 24: traffic mirror.  The precontent handler does both jobs: on the
+     * main request it fires the background shadow subrequests, and on each
+     * mirror subrequest it takes the request over and proxies it to the shadow.
+     * Doing the takeover in the precontent phase avoids any dependence on
+     * content-phase handler ordering. */
+    h = ngx_array_push(&cmcf->phases[NGX_HTTP_PRECONTENT_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+    *h = xrootd_http_mirror_precontent_handler;
+
     /* Content phase: native WebDAV method routing for all implemented methods. */
     h = ngx_array_push(&cmcf->phases[NGX_HTTP_CONTENT_PHASE].handlers);
     if (h == NULL) {
         return NGX_ERROR;
     }
     *h = ngx_http_xrootd_webdav_handler;
+
+    /* Log phase: stamp the primary's final status for the divergence compare. */
+    h = ngx_array_push(&cmcf->phases[NGX_HTTP_LOG_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+    *h = xrootd_http_mirror_log_handler;
 
     cscfp = cmcf->servers.elts;
     for (s = 0; s < cmcf->servers.nelts; s++) {

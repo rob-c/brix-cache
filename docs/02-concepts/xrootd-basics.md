@@ -104,7 +104,7 @@ Unlike HTTP where each request is independent, XRootD uses a **session model**:
 | **JWT bearer token** | JSON Web Token from WLCG identity provider | Modern deployments, cloud-friendly | Medium |
 | **SSS (shared secret)** | Pre-shared cryptographic key | Internal/private setups | Low-Medium |
 
-See also: [Authentication Overview](../../06-authentication/auth-overview.md)
+See also: [Authentication Overview](../06-authentication/auth-overview.md)
 
 ### GSI Certificate — The "Physics Standard"
 
@@ -205,8 +205,8 @@ The rest is configuration detail you'll encounter when you need it.
 
 - [What Is This Project](../01-getting-started/what-is-this.md) — Why nginx-xrootd exists *(5 min)*
 - [Deployment Modes](deployment-modes.md) — Three ways to run this software *(10 min, or skip if you know modes)*
-- [Authentication Overview](../../06-authentication/auth-overview.md) — Setting up access control *(20 min)*
-- **[Security Hardening Guide](../../07-security/hardening-guide.md)** — Verify your deployment is secure *(30 min)*
+- [Authentication Overview](../06-authentication/auth-overview.md) — Setting up access control *(20 min)*
+- **[Security Hardening Guide](../07-security/hardening-guide.md)** — Verify your deployment is secure *(30 min)*
 - [XRootD Concepts (Deep)](../10-reference/xrootd-concepts-deep.md) — Protocol-level details for advanced understanding *(reference, read as needed)*
 
 ---

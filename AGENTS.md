@@ -2,7 +2,8 @@
 
 **Quick lookup:** OP→FILE → HELPERS → INVARIANTS → BUILD/TEST → FAQ
 **Wire spec:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`
-**Core rules:** (1) Use HELPERS — never reimplement path/auth/metrics/framing (2) 3 tests per change: success + error + security-neg
+**Core rules:** (1) Use HELPERS — never reimplement path/auth/metrics/framing (2) 3 tests per change: success + error + security-neg (3) **NO `goto`** + write functional/modular code — small single-purpose functions, explicit data flow, early-return
+**Coding standard (MANDATORY, read before editing `src/`):** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — the authoritative best-practice doc (naming, docs, error handling, allocation, no-goto, functional/modular design, tests).
 
 ---
 
@@ -103,6 +104,8 @@ This file is a **lookup reference**, not memorization material. If your context 
 ---
 
 ## HARD BLOCKS (non-negotiable)
+- **NO `goto`** anywhere in `src/` (`.c`/`.h`) — use early-return + helper decomposition (the 3 recipes in [coding-standards §4](docs/09-developer-guide/coding-standards.md#no-goto--forbidden-no-exceptions)). New `goto` is rejected; refactor existing `goto` out of any function you touch.
+- **Write functional + modular code** — one responsibility per function, pass state explicitly (no new globals), pure helpers with side effects at the edges, composition over large stateful procedures ([coding-standards §8](docs/09-developer-guide/coding-standards.md#8-functional--modular-design)).
 - **NEVER run any git command (stash, reset, checkout, clean, rebase, etc.) without explicit OP instruction** — these destroy uncommitted work and cannot always be recovered
 - **NEVER use `git show HEAD:path` or any other git command to restore linter-corrupted files** — the working tree has uncommitted changes that would be lost; use the Edit tool to surgically remove the corrupted lines instead
 - Never reimplement helpers listed in HELPERS section
@@ -135,7 +138,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 ## BUILD & TEST
 ```bash
 # Build (full when config/source list changes)
-./configure --with-stream --with-http_ssl_module --with-http_dav_module --with-threads --add-module=$REPO && make -j$(nproc)
+./configure --with-stream --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module --with-threads --add-module=$REPO && make -j$(nproc)
 make -j$(nproc) # incremental
 /tmp/nginx-1.28.3/objs/nginx -t -c /tmp/xrd-test/conf/nginx.conf # validate
 ```
@@ -221,7 +224,9 @@ error_log /tmp/xrd-test/logs/debug.log debug; # nginx debug (server block)
 ---
 
 ## CODE STYLE
-Smaller well-documented files with focused responsibilities. Use existing helpers and patterns. New concepts require docs+tests in same PR. Code must compile and pass tests — no placeholders or stubs. Add comments explaining intent; section-level WHAT/WHY/HOW blocks preferred over minimal documentation. Consistent formatting and naming conventions. Avoid clever tricks; prefer clarity.
+**Full standard:** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — authoritative and mandatory; read it before editing `src/`.
+
+Headlines: Smaller well-documented files with focused responsibilities. **No `goto`** — early-return + helper decomposition. **Functional + modular** — one job per function, explicit data flow (pass `ctx`, no new globals), pure helpers with side effects at the edges, table/descriptor-driven dispatch over branch ladders. Use existing helpers and patterns — never reimplement path/auth/metrics/framing. New concepts require docs+tests in same PR. Code must compile and pass tests — no placeholders or stubs. Section-level WHAT/WHY/HOW doc blocks on every function. Consistent formatting and naming. Avoid clever tricks; prefer clarity.
 
 ---
 

@@ -26,6 +26,9 @@ typedef struct {
     char  literal[256];
 } webdav_search_query_t;
 
+/* Return the first direct child element of `parent` with the given local name,
+ * or NULL.  NULL-safe in `parent` so callers can chain lookups without
+ * intermediate NULL checks. */
 static xmlNodePtr
 webdav_search_find_child(xmlNodePtr parent, const char *name)
 {
@@ -42,6 +45,12 @@ webdav_search_find_child(xmlNodePtr parent, const char *name)
     return NULL;
 }
 
+/*
+ * Depth-first search the subtree for the first DAV:literal element and copy its
+ * text content into q->literal (truncated to the fixed buffer).  Stops at the
+ * first match: the supported query subset has only one literal term.  q->literal
+ * being non-empty is the sentinel that unwinds the recursion early.
+ */
 static void
 webdav_search_find_literal(xmlNodePtr n, webdav_search_query_t *q)
 {
@@ -64,6 +73,14 @@ webdav_search_find_literal(xmlNodePtr n, webdav_search_query_t *q)
     }
 }
 
+/*
+ * Parse the SEARCH request body into a query descriptor.
+ * Expects DAV:searchrequest > DAV:basicsearch; extracts the scope depth
+ * (0 / 1 / infinity) and an optional DAV:contains literal.  Returns
+ * NGX_HTTP_BAD_REQUEST for a missing/oversized/malformed body, NGX_OK otherwise.
+ * The libxml2 parse flags are the same hardened set as PROPFIND (no network,
+ * no external entities, no HUGE) to block entity-expansion DoS.
+ */
 static ngx_int_t
 webdav_search_parse(ngx_http_request_t *r, webdav_search_query_t *q)
 {
@@ -124,15 +141,21 @@ webdav_search_parse(ngx_http_request_t *r, webdav_search_query_t *q)
     return NGX_OK;
 }
 
+/*
+ * Predicate: does this href satisfy the query?  An empty literal matches
+ * everything; otherwise the literal must appear as a substring of the last path
+ * segment (displayname), matching the conservative DAV:contains semantics.
+ */
 static ngx_flag_t
 webdav_search_matches(const char *href, const webdav_search_query_t *q)
 {
     const char *name;
 
     if (q->literal[0] == '\0') {
-        return 1;
+        return 1;   /* no WHERE clause → match all */
     }
 
+    /* Reduce href to its final segment (the displayname). */
     name = href + strlen(href);
     while (name > href && *(name - 1) != '/') {
         name--;
@@ -141,6 +164,11 @@ webdav_search_matches(const char *href, const webdav_search_query_t *q)
     return strstr(name, q->literal) != NULL;
 }
 
+/*
+ * Append one <D:response> for `href` to the multistatus chain, but only if it
+ * matches the query (non-matches return NGX_OK without emitting anything).
+ * The href is XML-escaped before interpolation.
+ */
 static ngx_int_t
 webdav_search_append_response(ngx_http_request_t *r, ngx_chain_t **head,
     ngx_chain_t **tail, const char *href, const webdav_search_query_t *q)
@@ -163,6 +191,12 @@ webdav_search_append_response(ngx_http_request_t *r, ngx_chain_t **head,
            ? NGX_ERROR : NGX_OK;
 }
 
+/*
+ * Recursively scan dir_path, appending a response for each matching descendant.
+ * `count` is shared across the recursion and capped at WEBDAV_SEARCH_MAX_ENTRIES
+ * to bound the result set.  Recurses only when depth==infinity.  Unreadable dirs
+ * are skipped; on append error the DIR is closed before returning NGX_ERROR.
+ */
 static ngx_int_t
 webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
     ngx_chain_t **tail, const char *dir_path, const char *base_href,
@@ -173,7 +207,7 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
 
     dp = opendir(dir_path);
     if (dp == NULL) {
-        return NGX_OK;
+        return NGX_OK;   /* unreadable subtree: skip silently */
     }
 
     while ((de = readdir(dp)) != NULL) {
@@ -187,7 +221,7 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
         }
 
         if (*count >= WEBDAV_SEARCH_MAX_ENTRIES) {
-            break;
+            break;   /* result-set cap reached: stop scanning this dir */
         }
 
         if (xrootd_fs_join_path(dir_path, de->d_name, child_path,
@@ -197,6 +231,8 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
             continue;
         }
 
+        /* Compose child href = base_href + name with exactly one separating
+         * '/'; skip the entry if the result would be truncated. */
         blen = strlen(base_href);
         if (blen == 0 || base_href[blen - 1] != '/') {
             if ((size_t) snprintf(child_href, sizeof(child_href), "%s/%s",
@@ -236,6 +272,12 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
     return NGX_OK;
 }
 
+/*
+ * Execute the SEARCH after the body is available: resolve+stat the scope,
+ * parse the query, then build a 207 multistatus listing the scope itself plus
+ * any matching children (depth 1) or descendants (infinity).  Returns an HTTP
+ * status / NGX_* code.
+ */
 static ngx_int_t
 webdav_search_do(ngx_http_request_t *r)
 {
@@ -316,12 +358,20 @@ webdav_search_do(ngx_http_request_t *r)
     return ngx_http_output_filter(r, head);
 }
 
+/*
+ * Body-ready callback (async re-entry point): runs the search and finalizes the
+ * request, also recording WebDAV metrics for the operation.
+ */
 static void
 webdav_search_body_handler(ngx_http_request_t *r)
 {
     webdav_metrics_finalize_request(r, webdav_search_do(r));
 }
 
+/*
+ * SEARCH entry point.  The query lives in the request body, so work is deferred
+ * to webdav_search_body_handler once the body is read.
+ */
 ngx_int_t
 webdav_handle_search(ngx_http_request_t *r)
 {

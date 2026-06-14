@@ -180,6 +180,42 @@ xrootd_jwks_load(ngx_log_t *log, const char *path,
     return count;
 }
 
+/* Pool-cleanup shim: holds the array + a pointer to the live count so the
+ * handler frees whatever set of keys is current when the pool is destroyed
+ * (the refresh path rewrites the array in place and updates the count). */
+typedef struct {
+    xrootd_jwks_key_t *keys;
+    int               *count;
+} xrootd_jwks_cleanup_t;
+
+static void
+xrootd_jwks_pool_cleanup(void *data)
+{
+    xrootd_jwks_cleanup_t *c = data;
+
+    xrootd_jwks_free(c->keys, *c->count);
+}
+
+ngx_int_t
+xrootd_jwks_register_cleanup(ngx_pool_t *pool, xrootd_jwks_key_t *keys,
+    int *count)
+{
+    ngx_pool_cleanup_t    *cln;
+    xrootd_jwks_cleanup_t *c;
+
+    cln = ngx_pool_cleanup_add(pool, sizeof(xrootd_jwks_cleanup_t));
+    if (cln == NULL) {
+        return NGX_ERROR;
+    }
+
+    c = cln->data;
+    c->keys = keys;
+    c->count = count;
+    cln->handler = xrootd_jwks_pool_cleanup;
+
+    return NGX_OK;
+}
+
 void
 xrootd_jwks_free(xrootd_jwks_key_t *keys, int count)
 /* WHAT: Free all EVP_PKEY handles loaded by xrootd_jwks_load() to prevent memory leaks.

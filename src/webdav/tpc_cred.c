@@ -173,11 +173,22 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
 
                 if (host_len >= sizeof(cli_argv[0]))
                     host_len = sizeof(cli_argv[0]) - 1;
-                ngx_snprintf((u_char *) cli_argv[0], sizeof(cli_argv[0]),
-                             "%.*s", (int) host_len, host_start);
+                ngx_memcpy(cli_argv[0], host_start, host_len);
+                cli_argv[0][host_len] = '\0';
             } else {
-                ngx_snprintf((u_char *) cli_argv[0], sizeof(cli_argv[0]),
-                             "default");
+                ngx_memcpy(cli_argv[0], "default", sizeof("default"));
+            }
+
+            /*
+             * W3 — option-injection guard.  cli_argv[0] is the client-derived
+             * host passed as the value of oidc-token's "-c" flag.  oidc-token
+             * parses options with getopt, so a host like "-x" or "--config"
+             * would be misinterpreted as a flag.  A legitimate hostname never
+             * begins with '-' (RFC 952/1123), so reject one that does and fall
+             * back to the safe literal "default".
+             */
+            if (cli_argv[0][0] == '-' || cli_argv[0][0] == '\0') {
+                ngx_memcpy(cli_argv[0], "default", sizeof("default"));
             }
 
             cli_argv[1][0] = '-';
@@ -336,6 +347,9 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     }
     curl_argv[argc++] = (char *) "-d";
     curl_argv[argc++] = (char *) body_file;
+    /* W3 — end-of-options terminator so the endpoint URL can never be parsed
+     * as a curl option, even if a misconfigured token_endpoint begins with '-'. */
+    curl_argv[argc++] = (char *) "--";
     curl_argv[argc++] = (char *) token_endpoint;
     curl_argv[argc++] = NULL;
 

@@ -167,7 +167,7 @@ xrdfs localhost:1094 ls /
 xrdfs localhost:1094 stat /test.txt
 ```
 
-If your local `xrdfs` build does not support `ping`, use `xrdfs ... ls /` as the simplest readiness check. That is the case for the 5.9.2 client packages used in this repository's test environment.
+If your local `xrdfs` build does not support `ping`, use `xrdfs ... ls /` as the simplest readiness check. That is the case for the `xrootd>=6.0.0` client packages used in this repository's test environment (see `requirements.txt`).
 
 If `xrdcp` exits with status 0 and prints no errors, you have a working XRootD server.
 
@@ -479,10 +479,10 @@ Now that you have a working server, choose your path:
 | Goal | Read This |
 |---|---|
 | Understand the concepts better | [XRootD Basics](../02-concepts/xrootd-basics.md) |
-| Set up authentication for production | [Authentication Overview](../../06-authentication/auth-overview.md) + [TLS Configuration](../../03-configuration/tls-config.md) |
-| Run behind a proxy or in a cluster | [Proxy Mode Guide](../../05-operations/proxy-mode-guide.md) |
-| Monitor and observe your server | [Monitoring Guide](../../08-metrics-monitoring/monitoring-guide.md) |
-| Harden security settings | [Security Hardening Guide](../../07-security/hardening-guide.md) |
+| Set up authentication for production | [Authentication Overview](../06-authentication/auth-overview.md) + [TLS Configuration](../03-configuration/tls-config.md) |
+| Run behind a proxy or in a cluster | [Proxy Mode Guide](../05-operations/proxy-mode-guide.md) |
+| Monitor and observe your server | [Monitoring Guide](../08-metrics-monitoring/monitoring-guide.md) |
+| Harden security settings | [Security Hardening Guide](../07-security/hardening-guide.md) |
 
 ---
 

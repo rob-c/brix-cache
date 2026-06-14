@@ -450,6 +450,55 @@ class TestScopePathBoundary:
         code = self._put(token, "/readonly_block.txt", data=b"blocked")
         assert code in (401, 403)
 
+    def test_write_scope_blocks_read(self, issuer):
+        # Inverse direction of test_read_scope_blocks_write: a token scoped to
+        # storage.write ONLY (no storage.read) must be DENIED a read.  WebDAV
+        # permits anonymous reads, so this gate is exercised on the XRootD port
+        # where auth is mandatory — a valid write-only token must not be able to
+        # stat (read the metadata of) an existing file it has no read scope for.
+        with open(os.path.join(DATA_ROOT, "write_only_noread.txt"), "wb") as f:
+            f.write(b"secret")
+        token = issuer.generate(scope="storage.write:/")
+        status = self._xrd_stat(token, "/write_only_noread.txt")
+        assert status == kXR_error, \
+            f"write-only scope must block read (stat), got status={status}"
+
+    # --- MUTUAL cross-identity isolation (token-scope model) ----------------
+    # The HTTP protocols do NOT use VO-ACL (xrootd_require_vo is stream-only); a
+    # client's cross-identity path access is governed by its TOKEN SCOPE.  These
+    # are the token-realm equivalent of test_vo_acl.py's mutual VO isolation: two
+    # differently-scoped identities, each allowed ITS OWN path and denied the
+    # OTHER's, in BOTH directions, across read and write.  WebDAV permits
+    # anonymous reads, so read isolation is exercised on the auth-mandatory
+    # XRootD token port (_xrd_stat) and write isolation over WebDAV (_put).
+
+    def _seed_vo_dirs(self):
+        for vo in ("cms", "atlas"):
+            d = os.path.join(DATA_ROOT, vo)
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, "r.txt"), "wb") as f:
+                f.write(vo.encode())
+
+    def test_cross_identity_cms_token_isolation(self, issuer):
+        self._seed_vo_dirs()
+        tok = issuer.generate(scope="storage.read:/cms storage.write:/cms")
+        # own namespace: read + write allowed
+        assert self._xrd_stat(tok, "/cms/r.txt") == kXR_ok
+        assert self._put(tok, "/cms/cms_own.txt", data=b"mine") in (200, 201, 204)
+        # the OTHER identity's namespace: read + write denied
+        assert self._xrd_stat(tok, "/atlas/r.txt") == kXR_error
+        assert self._put(tok, "/atlas/cms_intruder.txt", data=b"x") in (401, 403)
+
+    def test_cross_identity_atlas_token_isolation(self, issuer):
+        self._seed_vo_dirs()
+        tok = issuer.generate(scope="storage.read:/atlas storage.write:/atlas")
+        # own namespace: read + write allowed
+        assert self._xrd_stat(tok, "/atlas/r.txt") == kXR_ok
+        assert self._put(tok, "/atlas/atlas_own.txt", data=b"mine") in (200, 201, 204)
+        # the OTHER identity's namespace: read + write denied
+        assert self._xrd_stat(tok, "/cms/r.txt") == kXR_error
+        assert self._put(tok, "/cms/atlas_intruder.txt", data=b"x") in (401, 403)
+
     def test_scope_overflow_max_scopes_no_crash(self, issuer):
         # 70 scope entries — server must not crash
         scopes = " ".join(f"storage.read:/path{i}" for i in range(70))

@@ -17,6 +17,7 @@
 
 /* Section 1: errno → kXR */
 uint16_t xrootd_kxr_from_errno(int err);
+uint16_t xrootd_kxr_map_ns_status(xrootd_ns_status_t status, int sys_errno);
 
 /* Section 2: errno → HTTP status codes (plain integer) */
 int xrootd_http_errno_to_status(int err);

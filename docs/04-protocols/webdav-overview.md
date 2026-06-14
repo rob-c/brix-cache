@@ -437,20 +437,27 @@ appended to the response.
 
 ## WebDAV locks
 
-The module implements `LOCK` and `UNLOCK` using a shared-memory lock table
-(1024 slots) that is visible to all nginx worker processes.
+The module implements `LOCK` and `UNLOCK` by storing lock state as an extended
+attribute (`user.nginx_xrootd.lock`) on the locked resource itself — the same
+storage layer as dead properties. There is no shared-memory table or mutex:
+atomic creation is provided by the kernel's `XATTR_CREATE` semantics, and a
+lock check walks from the target path up to the export root (`O(path_depth)`
+xattr reads). The number of concurrent locks is bounded only by filesystem
+capacity.
 
 ```nginx
-xrootd_webdav_lock_timeout 600;   # maximum lock lifetime in seconds (default)
+xrootd_webdav_lock_timeout 600;          # maximum lock lifetime in seconds (default)
+xrootd_webdav_lock_startup_sweep off;    # on = clear persisted locks at startup
 ```
 
-Locks expire automatically after `lock_timeout` seconds. The lock table is
-process-shared via nginx's `ngx_shared_memory` mechanism; no external lock
-server is required.
+Locks expire lazily — an expired lock is removed on the next access to its
+path. No external lock server is required.
 
-> **Limitation:** the lock table is not persistent across nginx restarts. Any
-> active locks are lost on `nginx -s reload`. This is acceptable for most HEP
-> transfer workloads.
+> **Persistence:** because locks live on the filesystem, they **survive an
+> nginx restart**, which diverges from the ephemeral model of RFC 4918 §10.1.
+> Clients that explicitly `UNLOCK` (the correct pattern) are unaffected. To
+> restore the ephemeral, restart-clears-all behaviour, enable
+> `xrootd_webdav_lock_startup_sweep`.
 
 ---
 
@@ -953,8 +960,11 @@ curl -v --cert /etc/grid-security/hostcert.pem \
         https://src.example.org/dav/path/to/file
 ```
 
-### Lock table full
+### Stale locks after a restart
 
-The lock table holds 1024 concurrent locks. If this limit is reached, new LOCK
-requests return HTTP 507 Insufficient Storage. Locks expire automatically after
-`xrootd_webdav_lock_timeout` seconds — reducing that value frees slots sooner.
+Lock state is stored as an xattr on each resource, so locks **persist across an
+nginx restart**. A client that crashed while holding a lock leaves the xattr
+behind; the lock is cleared lazily on the next access to that path, or
+immediately on an explicit `UNLOCK`. There is no fixed lock-table capacity to
+exhaust. To clear all persisted locks at startup (restoring ephemeral
+semantics), enable `xrootd_webdav_lock_startup_sweep`.

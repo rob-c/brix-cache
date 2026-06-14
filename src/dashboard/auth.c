@@ -33,6 +33,11 @@
 
 /* ---- Helpers ---- */
 
+/*
+ * WHAT: Compute HMAC-SHA256(key, msg) and emit it as 64 lowercase hex chars.
+ * HOW:  out_hex must hold HMAC_HEX_LEN + 1 bytes; each of the 32 digest bytes
+ *       becomes two hex chars, then a trailing NUL is written.
+ */
 static void
 hmac_sha256_hex(const u_char *key, size_t key_len,
     const char *msg, size_t msg_len,
@@ -45,6 +50,8 @@ hmac_sha256_hex(const u_char *key, size_t key_len,
     HMAC(EVP_sha256(), key, (int) key_len,
          (const u_char *) msg, msg_len, digest, &digest_len);
 
+    /* Byte i of the digest maps to hex chars [2*i, 2*i+1]; snprintf's size-3
+     * cap covers the two hex digits plus its own NUL (overwritten next loop). */
     for (i = 0; i < 32; i++) {
         snprintf(out_hex + i * 2, 3, "%02x", (unsigned int) digest[i]);
     }
@@ -70,19 +77,25 @@ find_cookie(ngx_http_request_t *r, const char *name, size_t name_len,
     p   = cookie_hdr->value.data;
     end = p + cookie_hdr->value.len;
 
+    /* Walk the "name1=val1; name2=val2" list one pair at a time. p advances
+     * across the whole header; each iteration consumes one ';'-delimited pair. */
     while (p < end) {
         /* skip whitespace */
         while (p < end && (*p == ' ' || *p == '\t')) { p++; }
 
         start = p;
 
-        /* find '=' */
+        /* Scan to the end of this pair (';' or header end), remembering the
+         * first '=' so we can split name from value. Only the FIRST '=' splits;
+         * any later '=' is part of the value (cookie values may contain '='). */
         eq = NULL;
         while (p < end && *p != ';') {
             if (*p == '=' && eq == NULL) { eq = p; }
             p++;
         }
 
+        /* Name must match exactly (length + bytes); value is everything between
+         * the '=' and the pair terminator p. */
         if (eq != NULL && (size_t)(eq - start) == name_len &&
             ngx_memcmp(start, name, name_len) == 0)
         {
@@ -103,6 +116,8 @@ dashboard_users_enabled(const ngx_http_xrootd_dashboard_loc_conf_t *conf)
     return conf->users != NULL && conf->users->nelts > 0;
 }
 
+/* Linear lookup of a configured user by exact username; NULL if absent or the
+ * multi-user mode is not enabled. Used by both login and cookie verification. */
 static ngx_http_xrootd_dashboard_user_t *
 dashboard_find_user(const ngx_http_xrootd_dashboard_loc_conf_t *conf,
     const char *username, size_t username_len)
@@ -126,6 +141,8 @@ dashboard_find_user(const ngx_http_xrootd_dashboard_loc_conf_t *conf,
     return NULL;
 }
 
+/* Copy an ngx_str_t (not NUL-terminated) into a fresh pool-allocated C string.
+ * Needed because crypt()/strlen() require a NUL terminator. */
 static ngx_int_t
 dashboard_copy_str0(ngx_pool_t *pool, ngx_str_t *src, char **out)
 {
@@ -142,6 +159,15 @@ dashboard_copy_str0(ngx_pool_t *pool, ngx_str_t *src, char **out)
     return NGX_OK;
 }
 
+/*
+ * WHAT: Verify a plaintext password against a stored user credential.
+ * WHY:  htpasswd-style files may contain either a crypt(3) hash (modern, leading
+ *       '$id$' marker) or — for legacy/test configs — a literal plaintext value.
+ * HOW:  '$'-prefixed -> run crypt() with the stored hash as the salt and compare
+ *       the re-derived hash; otherwise fall back to a direct byte comparison.
+ *       Both comparisons use CRYPTO_memcmp to avoid leaking length/content via
+ *       timing. Returns NGX_OK / NGX_DECLINED / NGX_ERROR (alloc failure).
+ */
 static ngx_int_t
 dashboard_verify_user_password(ngx_pool_t *pool,
     ngx_http_xrootd_dashboard_user_t *user,
@@ -159,6 +185,7 @@ dashboard_verify_user_password(ngx_pool_t *pool,
         return NGX_ERROR;
     }
 
+    /* crypt() needs a NUL-terminated plaintext copy (the wire password is not). */
     plain = ngx_pnalloc(pool, password_len + 1);
     if (plain == NULL) {
         return NGX_ERROR;
@@ -166,6 +193,8 @@ dashboard_verify_user_password(ngx_pool_t *pool,
     ngx_memcpy(plain, password, password_len);
     plain[password_len] = '\0';
 
+    /* crypt(3) hash: the stored hash doubles as the salt; crypt re-derives the
+     * full hash string, which must match byte-for-byte (incl. length). */
     if (hash[0] == '$') {
         candidate = crypt(plain, hash);
         if (candidate == NULL) {
@@ -179,6 +208,7 @@ dashboard_verify_user_password(ngx_pool_t *pool,
         return NGX_DECLINED;
     }
 
+    /* Legacy plaintext credential: constant-time equality of raw bytes. */
     if (password_len == user->password_hash.len
         && CRYPTO_memcmp(password, user->password_hash.data, password_len) == 0)
     {
@@ -188,6 +218,15 @@ dashboard_verify_user_password(ngx_pool_t *pool,
     return NGX_DECLINED;
 }
 
+/*
+ * WHAT: Extract and URL-decode one field from an application/x-www-form-urlencoded
+ *       request body, writing the decoded value (NUL-terminated, truncated to
+ *       outsz) to `out` and its length to `out_len`.
+ * HOW:  Iterate "key=value" pairs separated by '&'. For each pair, isolate the
+ *       key; on a name match, decode the value applying form rules: '+' -> space,
+ *       "%HH" -> the byte, anything else verbatim. Returns NGX_OK on the first
+ *       match, NGX_DECLINED if the field is absent.
+ */
 static ngx_int_t
 dashboard_form_value(const u_char *body, size_t body_len,
     const char *name, char *out, size_t outsz, size_t *out_len)
@@ -209,10 +248,12 @@ dashboard_form_value(const u_char *body, size_t body_len,
         size_t val_end;
         size_t j, k;
 
+        /* Scan the key up to its '=' (or '&'/end if the pair has no value). */
         while (i < body_len && body[i] != '=' && body[i] != '&') {
             i++;
         }
         key_len = i - key_start;
+        /* No '=' for this token: skip the whole valueless pair and continue. */
         if (i >= body_len || body[i] != '=') {
             while (i < body_len && body[i] != '&') {
                 i++;
@@ -223,6 +264,7 @@ dashboard_form_value(const u_char *body, size_t body_len,
             continue;
         }
 
+        /* Delimit the value: from just after '=' to the next '&' or body end. */
         i++;
         val_start = i;
         while (i < body_len && body[i] != '&') {
@@ -233,6 +275,7 @@ dashboard_form_value(const u_char *body, size_t body_len,
         if (key_len == name_len
             && ngx_memcmp(body + key_start, name, name_len) == 0)
         {
+            /* Decode value into out[]; k+1<outsz reserves space for the NUL. */
             for (j = val_start, k = 0; j < val_end && k + 1 < outsz; j++) {
                 if (body[j] == '+') {
                     out[k++] = ' ';
@@ -240,6 +283,9 @@ dashboard_form_value(const u_char *body, size_t body_len,
                            && isxdigit(body[j + 1])
                            && isxdigit(body[j + 2]))
                 {
+                    /* "%HH" escape: fold each hex nibble (case-insensitive via
+                     * |0x20) into the decoded byte (hi<<4 | lo); skip the 2 hex
+                     * chars consumed. */
                     unsigned int hi, lo;
                     hi = body[j + 1] <= '9' ? body[j + 1] - '0'
                          : (body[j + 1] | 0x20) - 'a' + 10;
@@ -264,6 +310,18 @@ dashboard_form_value(const u_char *body, size_t body_len,
     return NGX_DECLINED;
 }
 
+/*
+ * WHAT: Derive the cookie signature for a session.
+ * WHY:  The signed message MUST be identical at issue (login) and verify time or
+ *       the constant-time compare fails. The two auth modes sign different msgs:
+ *         single-user  -> HMAC(password,        "<ts>")
+ *         multi-user    -> HMAC(user_pw_hash,    "<ts>.<username>")
+ *       Binding the username into the multi-user message prevents a cookie issued
+ *       for one user being replayed as another. `out_hex` must hold
+ *       HMAC_HEX_LEN + 1 bytes.
+ * HOW:  msg[] is sized for "<ts>.<username>" (TIMESTAMP_MAX + '.' + 256 + NUL);
+ *       inputs longer than those caps are rejected to avoid overflow.
+ */
 static ngx_int_t
 dashboard_cookie_hmac(const ngx_str_t *key, const char *ts, size_t ts_len,
     const char *username, size_t username_len,
@@ -272,6 +330,7 @@ dashboard_cookie_hmac(const ngx_str_t *key, const char *ts, size_t ts_len,
     char   msg[TIMESTAMP_MAX + 1 + 256 + 1];
     size_t msg_len;
 
+    /* Single-user mode: sign the bare timestamp only. */
     if (username == NULL) {
         hmac_sha256_hex(key->data, key->len, ts, ts_len, out_hex);
         return NGX_OK;
@@ -281,6 +340,7 @@ dashboard_cookie_hmac(const ngx_str_t *key, const char *ts, size_t ts_len,
         return NGX_DECLINED;
     }
 
+    /* Multi-user mode: sign "<ts>.<username>". */
     ngx_memcpy(msg, ts, ts_len);
     msg[ts_len] = '.';
     ngx_memcpy(msg + ts_len + 1, username, username_len);
@@ -316,6 +376,11 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
         return NGX_OK;
     }
 
+    /* Cookie layout (see file header): "<64-hex HMAC>.<ts>" in single-user mode,
+     * "<64-hex HMAC>.<ts>.<username>" in multi-user mode. The parse below
+     * locates the dot(s), validates each field, then recomputes and compares the
+     * HMAC. Any structural anomaly is treated as unauthorized (fail closed). */
+
     if (find_cookie(r, "xrd_dashboard", 13, &cookie_val, &cookie_val_len)
         != NGX_OK)
     {
@@ -334,6 +399,8 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
         }
     }
 
+    /* The HMAC field must be exactly HMAC_HEX_LEN bytes ending at the first '.'.
+     * Anything else (no dot, leading dot, wrong-length hex) is malformed. */
     if (dot == NULL || dot == cookie_val ||
         (size_t)(dot - cookie_val) != HMAC_HEX_LEN)
     {
@@ -350,6 +417,10 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     ngx_memcpy(given_hex, cookie_val, HMAC_HEX_LEN);
     given_hex[HMAC_HEX_LEN] = '\0';
 
+    /* In multi-user mode a SECOND '.' separates the timestamp from the username:
+     * "<hex>.<ts>.<username>". Locate it and split ts / username around it. The
+     * per-user password hash becomes the HMAC key, so the cookie is verifiable
+     * only against the same user it was issued for. */
     dot2 = NULL;
     if (dashboard_users_enabled(conf)) {
         size_t i;
@@ -385,6 +456,8 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
         }
         key = user->password_hash;
     } else {
+        /* Single-user mode: everything after "<hex>." is the timestamp; the
+         * configured password is the HMAC key. */
         ts_len = cookie_val_len - HMAC_HEX_LEN - 1;
         key = conf->password;
     }
@@ -408,7 +481,9 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
         return NGX_HTTP_UNAUTHORIZED;
     }
 
-    /* Check TTL. */
+    /* Check TTL. Reject cookies older than session_ttl, and also cookies dated
+     * more than 60s in the future (clock skew tolerance) to bound replay of a
+     * forged future timestamp. */
     now = time(NULL);
     if ((long) now - ts > (long) conf->session_ttl || ts > (long) now + 60) {
         xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
@@ -426,6 +501,8 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
         return NGX_HTTP_UNAUTHORIZED;
     }
 
+    /* Constant-time compare: never short-circuit on the first differing byte,
+     * which would leak how much of the signature an attacker has guessed. */
     if (CRYPTO_memcmp(expected_hex, given_hex, HMAC_HEX_LEN) != 0) {
         xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
                                    NGX_HTTP_UNAUTHORIZED,
@@ -497,6 +574,9 @@ static const char login_form_html_error[] =
 
 /* ---- Helpers for sending HTML responses ---- */
 
+/* Emit a complete text/html response from a static string. The buffer is
+ * memory-backed (b->memory) pointing directly at the const literal — safe
+ * because the data outlives the request and is never mutated. */
 static ngx_int_t
 send_html(ngx_http_request_t *r, ngx_int_t status,
     const char *html, size_t html_len)
@@ -532,6 +612,18 @@ typedef struct {
     const ngx_http_xrootd_dashboard_loc_conf_t *conf;
 } ngx_http_dashboard_login_ctx_t;
 
+/*
+ * WHAT: Body callback for a login POST — verifies credentials and, on success,
+ *       issues the session cookie and redirects to the dashboard.
+ * WHY:  This runs only after nginx has fully buffered the request body (set up
+ *       by ngx_http_xrootd_dashboard_login_handler via
+ *       ngx_http_read_client_request_body). It owns finalizing the request:
+ *       every exit path calls ngx_http_finalize_request().
+ * HOW:  Reassemble the (possibly multi-buffer) body, extract username/password,
+ *       verify per the active auth mode, then mint "<hmac>.<ts>[.<user>]" and
+ *       hand it back as Set-Cookie. Failures re-render the login form (200) so
+ *       as not to reveal whether the username or password was wrong.
+ */
 static void
 login_post_body_handler(ngx_http_request_t *r)
 {
@@ -598,6 +690,11 @@ login_post_body_handler(ngx_http_request_t *r)
     (void) dashboard_form_value(body_buf, total, "username", username,
                                 sizeof(username), &username_len);
 
+    /* Two auth modes, mutually exclusive by config (see module.c setters):
+     *   multi-user  -> look up the user, verify against their crypt/plaintext
+     *                  hash; the per-user hash becomes the cookie HMAC key.
+     *   single-user -> constant-time compare against the one configured password,
+     *                  which is itself the HMAC key. */
     if (dashboard_users_enabled(conf)) {
         user = dashboard_find_user(conf, username, username_len);
         if (dashboard_verify_user_password(r->pool, user, password, pw_len)

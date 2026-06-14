@@ -219,17 +219,15 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	if (offset < 0 || dlen <= XRD_PGWRITE_CKSZ) {
 		snprintf(write_detail, sizeof(write_detail), "%lld+%zu",
 				 (long long) offset, dlen);
-		xrootd_log_access(ctx, c, "WRITE", ctx->files[idx].path,
-						  write_detail, 0, kXR_ArgInvalid,
-						  "invalid pgwrite payload", 0);
-		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITE);
-		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-								  "invalid pgwrite payload");
+		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITE, "WRITE",
+						  ctx->files[idx].path, write_detail,
+						  kXR_ArgInvalid, "invalid pgwrite payload");
 	}
 
 	{
 		/* Reusable per-session buffer: avoids a malloc/free per request. */
-		u_char *flat    = xrootd_get_write_scratch(ctx, c, dlen);
+		u_char *flat    = XROOTD_GET_SCRATCH(ctx, c, write_scratch,
+		                                     write_scratch_size, dlen);
 		size_t  flat_sz = 0;
 		int64_t bad_offset = offset;
 
@@ -245,10 +243,9 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 			snprintf(write_detail, sizeof(write_detail), "%lld+%zu",
 					 (long long) bad_offset, dlen);
-			xrootd_log_access(ctx, c, "WRITE", ctx->files[idx].path,
-							  write_detail, 0, status, msg, 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITE);
-			return xrootd_send_error(ctx, c, status, msg);
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITE, "WRITE",
+							  ctx->files[idx].path, write_detail,
+							  status, msg);
 		}
 
 		/* ---- kXR_recoverWrts replay detection (post-decode) ---- */
@@ -286,20 +283,16 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		if (nw < 0) {
 			snprintf(write_detail, sizeof(write_detail), "%lld+%zu",
 					 (long long) offset, flat_sz);
-			xrootd_log_access(ctx, c, "WRITE", ctx->files[idx].path,
-							  write_detail, 0, kXR_IOError, strerror(errno), 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITE);
-			return xrootd_send_error(ctx, c, kXR_IOError, strerror(errno));
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITE, "WRITE",
+							  ctx->files[idx].path, write_detail,
+							  kXR_IOError, strerror(errno));
 		}
 		if ((size_t) nw < flat_sz) {
 			snprintf(write_detail, sizeof(write_detail), "%lld+%zu",
 					 (long long) offset, (size_t) nw);
-			xrootd_log_access(ctx, c, "WRITE", ctx->files[idx].path,
-							  write_detail, 0, kXR_IOError,
-							  "short write (disk full?)", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITE);
-			return xrootd_send_error(ctx, c, kXR_IOError,
-									  "short write (disk full?)");
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITE, "WRITE",
+							  ctx->files[idx].path, write_detail,
+							  kXR_IOError, "short write (disk full?)");
 		}
 
 		total_written  = (size_t) nw;
@@ -307,6 +300,7 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 		ctx->files[idx].bytes_written += total_written;
 		ctx->session_bytes_written    += total_written;
+		xrootd_rl_charge_ctx(ctx, total_written);  /* Phase 25 bandwidth */
 
 		/* ---- write-through dirty state tracking (mirrors XrdPfcFile::m_dirtyOffset) ----
 		 *

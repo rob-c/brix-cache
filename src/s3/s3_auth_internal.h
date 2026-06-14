@@ -39,6 +39,13 @@ typedef struct {
     ngx_uint_t amz_expires; /* X-Amz-Expires seconds for presigned URLs */
 } sigv4_components_t;
 
+/* Derive the SigV4 signing key, caching the last result per worker.
+ * Returns 1 on success, 0 on failure. */
+int s3_sigv4_derive_signing_key_cached(const ngx_str_t *secret_key,
+                                        const char *date,   /* YYYYMMDD */
+                                        const char *region,
+                                        u_char out[32]);
+
 /* Parse the AWS4-HMAC-SHA256 Authorization header into components.
  * Returns NGX_OK on success, NGX_ERROR on parse failure. */
 int parse_authorization(const ngx_str_t *auth, sigv4_components_t *out);

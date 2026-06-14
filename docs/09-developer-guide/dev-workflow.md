@@ -28,7 +28,7 @@
 
 The `tests/` directory covers client interoperability, throughput, bridge transfers, GSI, token (JWT/WLCG), WebDAV, metrics, and security regressions.
 
-The `utils/` directory contains standalone helper scripts used during development and testing. See [`utils/README.md`](../utils/README.md) for full usage details.
+The `utils/` directory contains standalone helper scripts used during development and testing. See [`utils/README.md`](../../utils/README.md) for full usage details.
 
 | Script | Purpose |
 |---|---|

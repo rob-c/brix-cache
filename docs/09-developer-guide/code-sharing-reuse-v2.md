@@ -448,7 +448,7 @@ PYTHONPATH=tests pytest tests/test_s3.py::test_path_traversal_rejected -v
 **Blocked by:** nothing.
 
 **Files to read before starting:**
-- `src/s3/metrics.c` — full file (101 lines); trace `s3_metrics_method_slot → s3_metrics_request_method → s3_metrics_return_method → s3_metrics_finalize_request_method`
+- `src/s3/metrics.c` — full file (125 lines); trace `s3_metrics_method_slot → s3_metrics_request_method → s3_metrics_return_method → s3_metrics_finalize_request_method`
 - `src/s3/handler.c` — lines 185–320; count all `s3_metrics_return_method` callsites (there are ~18)
 - `src/webdav/metrics.c` — full file (104 lines); understand `webdav_metrics_return` signature
 - `src/metrics/metrics_macros.h` — understand `XROOTD_S3_METRIC_INC` vs `XROOTD_WEBDAV_METRIC_INC`
@@ -553,7 +553,7 @@ These tasks depend on Phase 1 outputs. Start only after the relevant Phase 1 tas
 **Goal:** Extract the common "retrieve ctx → validate conf → write via staged file → stat → ETag → metrics → HTTP 200" flow shared by WebDAV PUT and S3 PUT into a single callback in `src/compat/http_put_async.c`.
 
 **Files to read before starting:**
-- `src/webdav/put.c` — full file (418 lines); trace the async body callback from `webdav_handle_put()` through `s3_put_body_handler()`-equivalent
+- `src/webdav/put.c` — full file (317 lines); trace the async body callback from `webdav_handle_put()` through `s3_put_body_handler()`-equivalent
 - `src/s3/put.c` — full file (541 lines); trace `s3_put_body_handler()`
 - `src/compat/staged_file.h` — understand `xrootd_staged_file_t` API (already in use by both)
 - `src/compat/async_job.h` — async job dispatch API used by S3 PUT for thread-pool path

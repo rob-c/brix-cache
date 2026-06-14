@@ -4,6 +4,34 @@
 #include <errno.h>
 #include <string.h>
 
+/*
+ * unified.c — cross-protocol metric recording, classification, and export.
+ *
+ * WHAT: Implements the unified metrics API declared in unified.h. Two halves:
+ *       (1) record-side helpers (xrootd_metric_op_done / _cache_result / _auth /
+ *       _tpc) that protocol handlers call to bump SHM counters using the shared
+ *       proto/op/err vocabulary, plus the name/classification helpers
+ *       (proto/op/err/auth names, errno→err, http-status→err, auth-slot mapper);
+ *       and (2) the Prometheus exporter xrootd_export_unified_metrics() that
+ *       renders the xrootd_io_*, xrootd_cache_*, xrootd_auth_total, and
+ *       xrootd_tpc_* series.
+ * WHY:  One implementation behind one vocabulary keeps the three protocols'
+ *       dashboards directly comparable and keeps labels low-cardinality
+ *       (INVARIANT #8). It also bridges the legacy per-server stream counters
+ *       (servers[].op_ok/op_err/bytes_*) into the new unified series so the
+ *       /metrics output stays continuous across the metrics rework — older
+ *       stream activity still shows up under the unified names.
+ * HOW:  Static name tables map each enum to its label string. Record helpers
+ *       resolve the SHM block via xrootd_metrics_shared(), validate the
+ *       proto/op/err triple, then bump counters with the lock-free
+ *       XROOTD_ATOMIC_* macros. The latency histogram is stored NON-cumulative
+ *       (each sample increments only the single bucket it falls in, bounding the
+ *       hot path to 3 atomics); the exporter cumulates buckets at scrape time so
+ *       Prometheus `le` semantics and +Inf == count still hold. The legacy
+ *       bridge functions sum matching servers[] slots and add them into the
+ *       stream-protocol values during export only.
+ */
+
 static const char *xrootd_unified_proto_names[XROOTD_PROTO_COUNT] = {
     "stream",
     "webdav",
@@ -77,6 +105,11 @@ xrootd_metric_err_name(xrootd_err_class_t err)
     return err < XROOTD_ERR_COUNT ? xrootd_unified_err_names[err] : "other";
 }
 
+/*
+ * xrootd_metric_auth_slot — map an identity auth_method bitmask to one
+ * XROOTD_METRIC_AUTH_* slot. Tested in priority order (GSI, TOKEN, SSS, S3KEY,
+ * UNIX, KRB5); returns XROOTD_METRIC_AUTH_NONE when no known bit is set.
+ */
 ngx_uint_t
 xrootd_metric_auth_slot(ngx_uint_t auth_method)
 {
@@ -108,6 +141,11 @@ xrootd_metric_auth_method_name(ngx_uint_t auth_method)
     return xrootd_unified_auth_names[xrootd_metric_auth_slot(auth_method)];
 }
 
+/*
+ * xrootd_metric_err_from_errno — classify a POSIX errno into an
+ * xrootd_err_class_t bucket (0→NONE, ENOENT/ENOTDIR→NOT_FOUND,
+ * EACCES/EPERM→FORBIDDEN, EIO/ENOMEM/ENOSPC→IO, else OTHER).
+ */
 xrootd_err_class_t
 xrootd_metric_err_from_errno(int sys_errno)
 {
@@ -129,6 +167,11 @@ xrootd_metric_err_from_errno(int sys_errno)
     }
 }
 
+/*
+ * xrootd_metric_err_from_http_status — classify an HTTP status code into an
+ * xrootd_err_class_t bucket (2xx/3xx→NONE, 404→NOT_FOUND, 401/403→FORBIDDEN,
+ * 5xx→IO, else OTHER), so WebDAV/S3 outcomes share the unified error vocabulary.
+ */
 xrootd_err_class_t
 xrootd_metric_err_from_http_status(ngx_uint_t status)
 {
@@ -148,6 +191,12 @@ xrootd_metric_err_from_http_status(ngx_uint_t status)
     return XROOTD_ERR_OTHER;
 }
 
+/*
+ * xrootd_metric_op_done — record one completed I/O operation: bump the
+ * io_ops_total[proto][op][err] counter, add bytes to the read/write totals for
+ * read/write ops, and update the latency histogram (single bucket + count + sum).
+ * Validates the proto/op/err triple and no-ops if the SHM zone is unavailable.
+ */
 void
 xrootd_metric_op_done(xrootd_proto_t proto, xrootd_metric_op_t op,
     size_t bytes, ngx_msec_t latency_usec, xrootd_err_class_t err)
@@ -174,18 +223,31 @@ xrootd_metric_op_done(xrootd_proto_t proto, xrootd_metric_op_t op,
         XROOTD_ATOMIC_ADD(&shm->unified.io_bytes_written[proto], bytes);
     }
 
+    /*
+     * Non-cumulative histogram: increment ONLY the single bucket this sample
+     * falls into, not every bucket whose bound it satisfies.  This bounds the
+     * hot path to a fixed 3 atomics (one bucket + count + sum) instead of up to
+     * XROOTD_IO_LATENCY_BUCKETS atomics per I/O.  The exporter cumulates the
+     * per-bucket counts at scrape time (Prometheus `le` buckets stay cumulative
+     * and +Inf still equals count), so /metrics output is byte-identical.
+     */
     for (i = 0; i < XROOTD_IO_LATENCY_BUCKETS - 1; i++) {
         if (latency_usec <= xrootd_latency_bounds[i]) {
-            XROOTD_ATOMIC_INC(&shm->unified.io_latency_bucket[proto][op][i]);
+            break;
         }
     }
-    XROOTD_ATOMIC_INC(&shm->unified.io_latency_bucket[proto][op]
-                                                  [XROOTD_IO_LATENCY_BUCKETS - 1]);
+    /* i is the matching finite bucket, or BUCKETS-1 (the +Inf bucket). */
+    XROOTD_ATOMIC_INC(&shm->unified.io_latency_bucket[proto][op][i]);
     XROOTD_ATOMIC_INC(&shm->unified.io_latency_count[proto][op]);
     XROOTD_ATOMIC_ADD(&shm->unified.io_latency_sum_usec[proto][op],
                       latency_usec);
 }
 
+/*
+ * xrootd_metric_cache_result — record a cache lookup outcome for proto:
+ * increment cache_hits or cache_misses per hit, and add bytes_evicted to the
+ * per-protocol eviction total.
+ */
 void
 xrootd_metric_cache_result(xrootd_proto_t proto, unsigned int hit,
     size_t bytes_evicted)
@@ -209,6 +271,10 @@ xrootd_metric_cache_result(xrootd_proto_t proto, unsigned int hit,
     XROOTD_ATOMIC_ADD(&shm->unified.cache_bytes_evicted[proto], bytes_evicted);
 }
 
+/*
+ * xrootd_metric_auth — record an authentication attempt: map auth_method to its
+ * slot, then bump auth_total[proto][method][ok|fail] according to success.
+ */
 void
 xrootd_metric_auth(xrootd_proto_t proto, ngx_uint_t auth_method,
     unsigned int success)
@@ -231,6 +297,11 @@ xrootd_metric_auth(xrootd_proto_t proto, ngx_uint_t auth_method,
     XROOTD_ATOMIC_INC(&shm->unified.auth_total[proto][method][status]);
 }
 
+/*
+ * xrootd_metric_tpc — record a third-party-copy transfer outcome: bump
+ * tpc_transfers[proto][pull|push][err], and on success add bytes to
+ * tpc_bytes[proto][direction]. is_push selects push vs pull direction.
+ */
 void
 xrootd_metric_tpc(xrootd_proto_t proto, unsigned int is_push,
     size_t bytes, xrootd_err_class_t err)
@@ -254,12 +325,21 @@ xrootd_metric_tpc(xrootd_proto_t proto, unsigned int is_push,
     }
 }
 
+/* Lock-free read of an atomic counter (fetch-add of 0) as an unsigned long long. */
 static unsigned long long
 xrootd_metric_value(ngx_atomic_t *counter)
 {
     return (unsigned long long) ngx_atomic_fetch_add(counter, 0);
 }
 
+/*
+ * Legacy-bridge helpers (xrootd_unified_legacy_*): the stream protocol predates
+ * the unified counters and still records into the per-server servers[] slots
+ * (op_ok/op_err/bytes_rx/bytes_tx and the auth string). These functions sum the
+ * matching in-use servers[] slots so the exporter can fold legacy stream activity
+ * into the unified stream-protocol values, keeping /metrics output continuous.
+ * They are export-time read-only aggregations — never used on the record path.
+ */
 static unsigned long long
 xrootd_unified_legacy_stream_bytes(ngx_xrootd_metrics_t *shm,
     unsigned int is_write)
@@ -396,6 +476,13 @@ xrootd_unified_legacy_auth(ngx_xrootd_metrics_t *shm, xrootd_proto_t proto,
     return 0;
 }
 
+/*
+ * xrootd_export_unified_metrics — render all unified counter families to the
+ * Prometheus text writer: io bytes read/written, io_ops_total, the io latency
+ * histogram (cumulated from non-cumulative storage), cache hits/misses/evicted,
+ * auth_total, and tpc transfers/bytes — each as HELP/TYPE plus per-label lines.
+ * Legacy per-server stream counters are folded into the stream-protocol values.
+ */
 void
 xrootd_export_unified_metrics(metrics_writer_t *mw,
     ngx_xrootd_metrics_t *shm)
@@ -468,23 +555,33 @@ xrootd_export_unified_metrics(metrics_writer_t *mw,
         "# TYPE xrootd_io_latency_usec histogram\n");
     for (proto = 0; proto < XROOTD_PROTO_COUNT; proto++) {
         for (op = 0; op < XROOTD_METRIC_OP_COUNT; op++) {
+            /*
+             * The write side stores NON-cumulative per-bucket counts (each I/O
+             * increments only the bucket it lands in).  Prometheus histogram
+             * `le` buckets are cumulative, so accumulate as we emit: every
+             * bucket's reported value is the running sum of all lower buckets,
+             * and the +Inf bucket equals the total count.
+             */
+            value = 0;
             for (bucket = 0; bucket < XROOTD_IO_LATENCY_BUCKETS - 1; bucket++) {
+                value += xrootd_metric_value(&shm->unified.io_latency_bucket
+                    [proto][op][bucket]);
                 mw_printf(mw,
                     "xrootd_io_latency_usec_bucket"
                     "{proto=\"%s\",op=\"%s\",le=\"%llu\"} %llu\n",
                     xrootd_metric_proto_name((xrootd_proto_t) proto),
                     xrootd_metric_op_name((xrootd_metric_op_t) op),
                     (unsigned long long) xrootd_latency_bounds[bucket],
-                    xrootd_metric_value(&shm->unified.io_latency_bucket
-                        [proto][op][bucket]));
+                    value);
             }
+            value += xrootd_metric_value(&shm->unified.io_latency_bucket
+                [proto][op][XROOTD_IO_LATENCY_BUCKETS - 1]);
             mw_printf(mw,
                 "xrootd_io_latency_usec_bucket"
                 "{proto=\"%s\",op=\"%s\",le=\"+Inf\"} %llu\n",
                 xrootd_metric_proto_name((xrootd_proto_t) proto),
                 xrootd_metric_op_name((xrootd_metric_op_t) op),
-                xrootd_metric_value(&shm->unified.io_latency_bucket
-                    [proto][op][XROOTD_IO_LATENCY_BUCKETS - 1]));
+                value);
             mw_printf(mw,
                 "xrootd_io_latency_usec_sum{proto=\"%s\",op=\"%s\"} %llu\n",
                 xrootd_metric_proto_name((xrootd_proto_t) proto),

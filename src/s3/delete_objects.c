@@ -250,10 +250,20 @@ s3_delete_objects_body_handler(ngx_http_request_t *r)
         return;
     }
 
-    doc = xmlReadMemory((const char *) body_buf, (int) body_len,
-                        "delete_objects.xml", NULL,
-                        XML_PARSE_NONET | XML_PARSE_NOERROR
-                        | XML_PARSE_NOWARNING);
+    {
+        /* Match the hardened libxml2 posture used by the WebDAV parsers
+         * (propfind/proppatch/search/lockinfo): NONET blocks network entity
+         * fetches; NO_XXE (libxml2 >= 2.13, when available) refuses external
+         * entity loading outright.  NOENT/DTDLOAD are deliberately NOT set, so
+         * external entities are never substituted (no file:// XXE), and HUGE is
+         * omitted so libxml2 keeps its billion-laughs amplification cap. */
+        int opts = XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING;
+#if defined(XML_PARSE_NO_XXE)
+        opts |= XML_PARSE_NO_XXE;
+#endif
+        doc = xmlReadMemory((const char *) body_buf, (int) body_len,
+                            "delete_objects.xml", NULL, opts);
+    }
     if (doc == NULL) {
         s3_metrics_finalize_request_method(r, method_slot,
             s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
@@ -302,7 +312,6 @@ s3_delete_objects_body_handler(ngx_http_request_t *r)
             size_t     key_len;
             char       key_str[S3_MAX_KEY];
             char       fs_path[PATH_MAX];
-            int        del_rc;
 
             if (!s3_delete_xml_name_is(obj, "Object")) {
                 continue;
@@ -374,64 +383,50 @@ s3_delete_objects_body_handler(ngx_http_request_t *r)
                 continue;
             }
 
-            /* Attempt deletion */
-            del_rc = xrootd_unlink_confined_canon(r->connection->log,
-                                                  cf->common.root_canon,
-                                                  fs_path, 0);
-            if (del_rc != 0 && (errno == EISDIR || errno == EPERM)) {
-                del_rc = xrootd_unlink_confined_canon(r->connection->log,
-                                                      cf->common.root_canon,
-                                                      fs_path, 1);
-            }
-/* WHY: unlink() works for regular files but returns EISDIR/EPERM on directories.
- * S3 DeleteObjects should delete both — so we retry with the rmdir flag (1) when
- * unlink fails with those errno values. This provides transparent directory deletion
- * without requiring the client to call Rmdir separately. */
+            {
+                xrootd_ns_delete_opts_t d_opts;
+                xrootd_ns_result_t      d_res;
 
-
-            if (del_rc == 0 || errno == ENOENT) {
-                /* Success (or already gone — S3 is idempotent) */
-/* WHY: S3 DeleteObjects is idempotent — deleting an object that doesn't exist returns
- * <Deleted> (not <Error>). This matches AWS behaviour and prevents pipeline retries
- * from producing error noise. */
-
-                if (s3_delete_xml_append_deleted(
-                        xml_buf, &xml_len, (const u_char *) key_text, key_len)
-                    != NGX_OK)
-                {
-                    xmlFree(key_text);
-                    xmlFreeDoc(doc);
-                    s3_metrics_finalize_request_method(
-                        r, method_slot, NGX_HTTP_INTERNAL_SERVER_ERROR);
-                    return;
-                }
-            } else {
-                const char *code;
-                const char *msg;
-                if (errno == EACCES || errno == EPERM) {
-                    code = "AccessDenied";
-                    msg  = "Access Denied.";
-                } else if (errno == ENOTEMPTY) {
-                    code = "BucketNotEmpty";
-                    msg  = "The directory is not empty.";
+                ngx_memzero(&d_opts, sizeof(d_opts));
+                d_opts.idempotent_missing = 1;
+                d_res = xrootd_ns_delete(r->connection->log,
+                                         cf->common.root_canon,
+                                         fs_path, &d_opts);
+                if (d_res.status == XROOTD_NS_OK) {
+                    if (s3_delete_xml_append_deleted(
+                            xml_buf, &xml_len,
+                            (const u_char *) key_text, key_len) != NGX_OK)
+                    {
+                        xmlFree(key_text);
+                        xmlFreeDoc(doc);
+                        s3_metrics_finalize_request_method(
+                            r, method_slot, NGX_HTTP_INTERNAL_SERVER_ERROR);
+                        return;
+                    }
                 } else {
-                    code = "InternalError";
-                    msg  = "Internal server error.";
-                }
-/* WHY: errno mapping to S3 error codes:
- *   - EACCES/EPERM → AccessDenied (file permissions or ACL deny)
- *   - ENOTEMPTY → BucketNotEmpty (non-empty directory — S3 requires empty dirs)
- *   - anything else → InternalError (fallback for unexpected failures) */
-
-                if (s3_delete_xml_append_error(
-                        xml_buf, &xml_len, (const u_char *) key_text, key_len,
-                        code, msg) != NGX_OK)
-                {
-                    xmlFree(key_text);
-                    xmlFreeDoc(doc);
-                    s3_metrics_finalize_request_method(
-                        r, method_slot, NGX_HTTP_INTERNAL_SERVER_ERROR);
-                    return;
+                    const char *code;
+                    const char *msg;
+                    if (d_res.status == XROOTD_NS_DENIED) {
+                        code = "AccessDenied";
+                        msg  = "Access Denied.";
+                    } else if (d_res.status == XROOTD_NS_NOT_EMPTY) {
+                        code = "BucketNotEmpty";
+                        msg  = "The directory is not empty.";
+                    } else {
+                        code = "InternalError";
+                        msg  = "Internal server error.";
+                    }
+                    if (s3_delete_xml_append_error(
+                            xml_buf, &xml_len,
+                            (const u_char *) key_text, key_len,
+                            code, msg) != NGX_OK)
+                    {
+                        xmlFree(key_text);
+                        xmlFreeDoc(doc);
+                        s3_metrics_finalize_request_method(
+                            r, method_slot, NGX_HTTP_INTERNAL_SERVER_ERROR);
+                        return;
+                    }
                 }
             }
 

@@ -12,10 +12,10 @@ Concrete PromQL queries for common monitoring scenarios. Replace `[1m]`, `[5m]`,
 sum(rate(xrootd_bytes_root_tx_total[5m])) / 1024 / 1024
 
 # WebDAV (davs:// and https://) throughput — combine both IP versions
-sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]) / 1024 / 1024
+sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])) / 1024 / 1024
 
 # S3-compatible throughput — combine both IP versions
-sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total[5m])[5m]) / 1024 / 1024
+sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total[5m])) / 1024 / 1024
 ```
 
 ### Combined protocol throughput (all protocols):
@@ -23,8 +23,8 @@ sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total
 # Total throughput across all protocols in MB/s
 (
   sum(rate(xrootd_bytes_root_tx_total[5m]))
-+ sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]))
-+ sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total[5m])[5m]))
++ sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m]))
++ sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total[5m]))
 ) / 1024 / 1024
 ```
 
@@ -35,8 +35,8 @@ sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total
   sum(rate(xrootd_bytes_root_tx_total[5m]))
 / (
     sum(rate(xrootd_bytes_root_tx_total[5m]))
-  + sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]))
-  + sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total[5m])[5m])))
+  + sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m]))
+  + sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total[5m])))
 ) * 100
 ```
 
@@ -78,7 +78,7 @@ sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total
 ```promql
 # What percentage of traffic is IPv6? (typically low, growing over time)
 (
-  sum(rate(xrootd_bytes_tx_ipv6_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]))
+  sum(rate(xrootd_bytes_tx_ipv6_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m]))
 / (
     sum(rate(xrootd_bytes_tx_ipv4_total[5m])) + sum(rate(xrootd_bytes_tx_ipv6_total[5m])))
   + sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])))
@@ -88,7 +88,7 @@ sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total
 ### Per-port IPv6 breakdown:
 ```promql
 # IPv6 traffic per port (helps identify if specific listeners are seeing IPv6)
-rate(xrootd_bytes_tx_ipv6_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]
+rate(xrootd_bytes_tx_ipv6_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])
 ```
 
 ---
@@ -124,7 +124,7 @@ sum(rate(xrootd_bytes_rx_ipv4_total{port="1094",auth="gsi"}[5m])) + sum(rate(xro
 
 ```promql
 # Estimate: VO share of WebDAV traffic using VO request ratio as proxy
-sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]))
+sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m]))
 * (rate(xrootd_vo_requests_total{vo="cms"}[5m]) / sum by ()(rate(xrootd_vo_requests_total[5m]))) 
 / 1024 / 1024
 ```
@@ -178,7 +178,7 @@ rate(xrootd_bytes_tx_ipv6_total{port="1094",auth="gsi"}[5m]) / 1024 / 1024    # 
 ### High IPv6 traffic threshold (warning if >5%):
 ```promql
 (
-  sum(rate(xrootd_bytes_tx_ipv6_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]))
+  sum(rate(xrootd_bytes_tx_ipv6_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])))
 / (
     sum(rate(xrootd_bytes_tx_ipv4_total[5m])) + sum(rate(xrootd_bytes_tx_ipv6_total[5m])))
   + sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])))
@@ -209,15 +209,15 @@ increase(xrootd_unique_users_total[3600]) - increase(xrootd_user_evictions_total
 | Expression | Label |
 |---|---|
 | `sum(rate(xrootd_bytes_root_tx_total[5m])) / 1024 / 1024` | root:// |
-| `sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]) / 1024 / 1024` | davs:// |
-| `sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total[5m])[5m]) / 1024 / 1024` | s3:// |
+| `sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m]) + rate(xrootd_webdav_bytes_tx_ipv6_total[5m])) / 1024 / 1024` | davs:// |
+| `sum(rate(xrootd_s3_bytes_tx_ipv4_total[5m]) + rate(xrootd_s3_bytes_tx_ipv6_total[5m])) / 1024 / 1024` | s3:// |
 
 ### Panel: IPv4 vs IPv6 Traffic Share
 
 | Expression | Label |
 |---|---|
-| `sum(rate(xrootd_bytes_tx_ipv4_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m])[5m]) / 1024 / 1024` | IPv4 |
-| `sum(rate(xrootd_bytes_tx_ipv6_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])[5m]) / 1024 / 1024` | IPv6 |
+| `sum(rate(xrootd_bytes_tx_ipv4_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv4_total[5m])) / 1024 / 1024` | IPv4 |
+| `sum(rate(xrootd_bytes_tx_ipv6_total[5m])) + sum(rate(xrootd_webdav_bytes_tx_ipv6_total[5m])) / 1024 / 1024` | IPv6 |
 
 ### Panel: Top VOs by Throughput
 ```promql

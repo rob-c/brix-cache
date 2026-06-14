@@ -125,6 +125,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [What Is This Project?](01-getting-started/what-is-this.md) | Plain English: what XRootD is, why nginx module, three deployment modes |
 | [Before You Start](01-getting-started/before-you-start.md) *(new)* | Concepts primer for people unfamiliar with servers, ports, or building from source |
 | [Getting Started (Full)](01-getting-started/getting-started-full.md) | Comprehensive guide — concepts, build, config, and verification in one place |
+| [Quick Start Guide](01-getting-started/quick-start-guide.md) | Condensed build → configure → test path for the impatient |
 | [First Server Verification](01-getting-started/first-server.md) | Checklist to verify all protocols work correctly |
 
 ### The Underlying Concepts
@@ -154,6 +155,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [WebDAV Overview](04-protocols/webdav-overview.md) | WebDAV operations, LOCK/UNLOCK, x509 and bearer token setup |
 | [XRootD Client Interaction](04-protocols/xrootd-client-interaction.md) | How `xrdcp`, `xrdfs`, and Python clients interact with the server |
 | [HTTP TPC Reference](04-protocols/http-tpc-reference.md) | Third-party copy comparison between HTTP-TPC and native XRootD TPC |
+| [CMS Cluster Protocol (`cms://`)](04-protocols/cms-protocol.md) | The cmsd↔cmsd management wire protocol — framing, manager↔server↔client negotiation, and cmsd-compliance gotchas |
 
 ### Authentication & Security
 *Access control from anonymous read to full WLCG grid identity. Pick your auth model, then configure it.*
@@ -189,6 +191,7 @@ graph TD
 | Document | Description |
 |----------|-------------|
 | [Security Hardening Guide](07-security/hardening-guide.md) | Four-layer security model, hardening checklist, production recommendations |
+| [Threat Model & Security Posture](07-security/threat-model.md) | Adversarial threat actors, existing controls, Phase 28 hardening (CMS sss auth, TPC SSRF, side-channels, admin blast radius, concurrency limits), and deferred items |
 
 ### Running in Production
 *Day-to-day operations: opcode support, proxy mode, clusters, and manager configuration.*
@@ -208,6 +211,7 @@ graph TD
 | Document | Description |
 |----------|-------------|
 | [Monitoring Guide](08-metrics-monitoring/monitoring-guide.md) | Prometheus counters, access log format, what to watch for |
+| [Live Transfer Monitor](05-operations/live-transfer-monitor.md) | The real-time active-transfer view in the HTTPS dashboard |
 | [Dashboard Feature Ideas](08-metrics-monitoring/dashboard-feature-ideas.md) | Useful future additions for the HTTPS monitoring dashboard |
 
 ---
@@ -218,7 +222,11 @@ Visual overview of every request path and component relationship. **Start here i
 
 | Document | Description |
 |----------|-------------|
-| **[Architecture Overview](10-architecture/overview.md)** — Mermaid diagram, deployment modes, request flows, file reference index |
+| **[Architecture Overview](10-architecture/overview.md)** | Mermaid diagram, deployment modes, request flows, file reference index |
+| [Logical Pathways (Tier 1 & 2)](10-architecture/logical-pathways.md) | Core data/security pathways vs clustering/advanced features |
+| [Tier 1 Stream Data Paths](10-architecture/tier1-stream-data-paths.md) | Per-opcode walkthrough of the core stream wire operations |
+| [Tier 2 Stream Data Paths](10-architecture/tier2-stream-data-paths.md) | Per-opcode walkthrough of the advanced/clustering stream operations |
+| [Cross-Protocol Unification](10-architecture/cross-protocol-unification.md) | How root/WebDAV/S3 share resolution, identity, VFS, and metrics |
 
 > The architecture overview targets operators and newcomers. For source-level deep dives — state machines, call graphs, buffer lifetimes — go to [Developer Guide → Architecture](09-developer-guide/architecture-overview.md).
 
@@ -231,10 +239,12 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | Document | Description |
 |----------|-------------|
 | [Development Workflow](09-developer-guide/dev-workflow.md) | Source tree layout, utilities, local development setup |
+| [Coding Standards](09-developer-guide/coding-standards.md) | C style, naming, documentation, and review expectations |
 | [Testing Runbook](09-developer-guide/testing-runbook.md) | Running tests, cross-compatible test harness, troubleshooting |
+| [Test ↔ Protocol Mapping](09-developer-guide/test-protocol-mapping.md) | Which test files cover which protocol areas |
 | [Contributing Guide](09-developer-guide/contributing.md) | How to submit changes, code style expectations |
 | [Feature Roadmap](09-developer-guide/feature-roadmap.md) | Planned features and priorities |
-| [Dashboard Feature Implementation Plan](09-developer-guide/dashboard-feature-implementation-plan.md) | File-by-file roadmap for the HTTPS monitoring dashboard additions |
+| [Refactor Series](refactor/00-overview.md) | Design records for the phased refactor work (phase-NN) |
 | [Optimizations](09-developer-guide/optimizations.md) | Performance work and hot paths (read before touching read/WebDAV/auth code) |
 | [Source Reduction Plan](09-developer-guide/source-reduction-plan.md) | External-library and nginx built-in delegation plan with LOC estimates |
 
@@ -254,6 +264,10 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | [Core Types](10-reference/types.md) | Struct definitions used throughout the codebase |
 | [Design Rationale](10-reference/design-rationale.md) | Why nginx-xrootd exists, comparison with official xrootd |
 | [Gaps vs Official XRootD](10-reference/gaps-vs-xrootd.md) | Features in official xrootd not yet implemented |
+| [Protocol Gap Analysis](10-reference/protocol-gaps-vs-xrootd.md) | Per-opcode/plugin gap comparison against reference xrootd v5.2 |
+| [XRootD Feature Matrix](10-reference/xrootd-feature-matrix.md) | Cross-reference of every XRootD feature, plugin, and interop surface |
+| [Feature Gaps](10-reference/feature-gaps.md) | Incomplete features and corner cases across the three protocols |
+| [nginx-xrootd vs Canonical xrootd](10-reference/comparison-nginx-xrootd-vs-canonical.md) | Detailed behavioural comparison with the reference daemon |
 
 ---
 

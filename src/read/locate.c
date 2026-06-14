@@ -1,44 +1,34 @@
-/* ------------------------------------------------------------------ */
-/* Endpoint Locate — kXR_locate handler                                     */
-/* ------------------------------------------------------------------ */
 /*
- * WHAT: This file implements the kXR_locate opcode — querying endpoint location for a path within the export root. Two modes exist based on manager configuration: static map mode (conf->manager_map configured) returns redirect to registered data server via prefix matching; dynamic registry mode (conf->manager_mode enabled) queries CMS parent via upstream locate request with pending timeout tracking; wildcard mode (path='*') handles global endpoint enumeration requests. Wire format uses ClientLocateRequest payload containing logical path or '*' wildcard.
+ * locate.c — kXR_locate (3027) opcode handler: resolve a path to a serving endpoint.
  *
- * WHY: Locate enables clients to discover which data server holds a specific file without requiring network-wide broadcast — critical for distributed HEP storage architectures where files may be spread across multiple servers in different geographical locations. Static map mode provides fast prefix-based redirection without CMS involvement; dynamic registry mode enables real-time server availability tracking via CMS heartbeat mechanism allowing load-balancing based on current server health status. Wildcard mode handles global endpoint enumeration requests for site-wide file discovery scenarios.
+ * WHAT: Implements xrootd_handle_locate(), the protocol handler for kXR_locate.
+ *       For a given client path it answers "which server should you talk to?" by
+ *       returning either a kXR_redirect to another host (manager/CMS modes) or a
+ *       kXR_ok carrying an "Sx<host>:<port>" location token (data-server mode),
+ *       where the leading S marks a server and the access char ('w' if
+ *       conf->common.allow_write, else 'r') advertises read/write capability.
+ *       Also handles the "*" wildcard form (locate the local server itself).
  *
- * HOW: Two-mode locate → parse payload (extract/clean path from ClientLocateRequest) — if wildcard ('*'): handle global enumeration request; if manager_mode enabled + not wildcard: query CMS parent via upstream locate with pending timeout tracking (xrootd_pending_insert); else if static_map configured: prefix-based redirect via xrootd_srv_select() selecting best registered server; return kXR_ok with host:port redirect body payload or kXR_Overloaded error if no available server found. Access-log detail format "registry" for manager mode redirects, "upstream" for CMS query mode. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Static Map Redirect                                             */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_handle_locate() performs static map redirect when conf->manager_map is configured and path does not match wildcard ('*'). Uses xrootd_srv_select() to select best registered data server for the requested path based on prefix matching in manager map configuration. Returns kXR_ok with host:port redirect body payload enabling client to reconnect to the identified data server instead of querying this manager node.
+ * WHY:  kXR_locate underpins XRootD's redirection/clustering model: clients query
+ *       a manager to discover the data server holding a file before opening it.
+ *       This handler centralises that discovery across the module's deployment
+ *       modes (standalone data server, static manager map, dynamic registry,
+ *       and CMS-backed cluster) so callers get a single consistent answer.
  *
- * WHY: Static map provides fast prefix-based redirection without CMS involvement — avoids network round-trip latency when manager nodes have pre-configured prefix-to-server mappings enabling immediate client reconnection to appropriate data server without dynamic availability query overhead. Prefix matching allows hierarchical path organization where subdirectories may be served by different servers than parent directories, enabling geographic distribution of storage assets across multiple sites. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Dynamic Registry Query                                          */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_handle_locate() performs dynamic registry query when conf->manager_mode is enabled and path does not match wildcard ('*'). Queries CMS parent via upstream locate request with pending timeout tracking (xrootd_pending_insert) — client enters waiting state (ctx->state = XRD_ST_WAITING_CMS) while CMS server responds with best available data server. Timeout configured via conf->cms_locate_timeout ensures stale queries don't hang indefinitely when CMS response fails or network partition occurs.
- *
- * WHY: Dynamic registry enables real-time server availability tracking via CMS heartbeat mechanism allowing load-balancing based on current server health status rather than static prefix mappings. When servers go offline or become overloaded, dynamic registry can redistribute requests to healthy nodes without requiring configuration changes — critical for high-availability deployments where server maintenance or failures must be transparent to clients. Pending timeout ensures stale queries don't hang indefinitely when CMS response fails or network partition occurs, preventing client connection exhaustion from failed locate attempts. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Wildcard Global Enumeration                                       */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_handle_locate() handles wildcard ('*') requests for global endpoint enumeration — all manager nodes respond to wildcard queries regardless of whether they have the specific file requested, enabling site-wide file discovery scenarios where clients want to know which servers participate in a distributed storage system. Returns kXR_ok with redirect body payload containing this server's host:port identifying it as part of the managed cluster.
- *
- * WHY: Wildcard enumeration enables clients to discover all participating servers in a distributed HEP storage architecture without requiring individual queries against each node — critical for site-wide file discovery scenarios where clients want to know which servers participate in a distributed storage system before attempting specific locate requests. Manager nodes all respond identically to wildcard queries regardless of whether they have the specific file requested, enabling client-side load-balancing decisions based on available server count and geographic distribution. */
-
-/* ---- Function: xrootd_handle_locate() ----
- *
- * WHAT: Handles the kXR_locate opcode — querying endpoint location for a path within the export root supporting two modes: static map redirect (conf->manager_map configured) returns redirect to registered data server via prefix matching; dynamic registry query (conf->manager_mode enabled + not wildcard) queries CMS parent via upstream locate request with pending timeout tracking; wildcard mode (path='*') handles global endpoint enumeration requests. Wire format uses ClientLocateRequest payload containing logical path or '*' wildcard. Returns kXR_ok with host:port redirect body payload or kXR_Overloaded error if no available server found. Access-log detail format "registry" for manager mode redirects, "upstream" for CMS query mode.
- *
- * WHY: Locate enables clients to discover which data server holds a specific file without requiring network-wide broadcast — critical for distributed HEP storage architectures where files may be spread across multiple servers in different geographical locations. Static map mode provides fast prefix-based redirection without CMS involvement; dynamic registry mode enables real-time server availability tracking via CMS heartbeat mechanism allowing load-balancing based on current server health status. Wildcard mode handles global endpoint enumeration requests for site-wide file discovery scenarios.
- *
- * HOW: Two-mode locate → parse payload (extract/clean path from ClientLocateRequest) — if wildcard ('*'): handle global enumeration request; if manager_mode enabled + not wildcard: query CMS parent via upstream locate with pending timeout tracking (xrootd_pending_insert); else if static_map configured: prefix-based redirect via xrootd_srv_select() selecting best registered server; return kXR_ok with host:port redirect body payload or kXR_Overloaded error if no available server found. Access-log detail format "registry" for manager mode redirects, "upstream" for CMS query mode. */
+ * HOW:  Parse and confine the request path via xrootd_extract_path(), reject
+ *       over-deep paths with xrootd_count_path_depth(). In manager_mode (non-
+ *       wildcard) try, in order: the collapse-redir cache
+ *       (xrootd_redir_cache_lookup), the live server registry (xrootd_srv_select,
+ *       seeding the cache on hit), then an async kYR_locate to the CMS parent —
+ *       which suspends the stream (XRD_ST_WAITING_CMS, pending registry +
+ *       cms_locate_timeout timer) and returns NGX_AGAIN until the reply arrives.
+ *       Falling through, consult the static manager_map (xrootd_find_manager_map),
+ *       then in data-server mode stat the file beneath conf->rootfd
+ *       (xrootd_stat_beneath) — redirecting to an upstream if configured and
+ *       missing, else 404 — and enforce read access via xrootd_auth_gate before
+ *       formatting the local "Sx..." location from c->local_sockaddr (IPv4/IPv6/
+ *       fallback) and replying with xrootd_send_ok.
+ */
 
 #include "../ngx_xrootd_module.h"
 #include "../upstream/upstream.h"
@@ -55,7 +45,6 @@ xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 {
     ClientLocateRequest *req = (ClientLocateRequest *) ctx->hdr_buf;
     char                 reqpath_buf[XROOTD_MAX_PATH + 1];
-    char                 resolved[PATH_MAX];
     struct sockaddr_in  *sin;
     char                 loc_buf[256];
     int                  loc_len;
@@ -162,9 +151,9 @@ xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (!is_wildcard) {
-        if (!xrootd_resolve_path(c->log, &conf->common.root, reqpath_buf,
-                                 resolved, sizeof(resolved)))
-        {
+        struct stat _st;
+
+        if (xrootd_stat_beneath(conf->rootfd, reqpath_buf, &_st) != 0) {
             if (conf->upstream_host.len > 0) {
                 xrootd_log_access(ctx, c, "LOCATE", reqpath_buf,
                                   "upstream", 1, 0, NULL, 0);
@@ -176,18 +165,15 @@ xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
                               reqpath_buf, "-", kXR_NotFound, "file not found");
         }
 
-        if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-                                         ctx->identity) != NGX_OK)
         {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_LOCATE);
-            return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                     "VO not authorized");
-        }
-
-        if (xrootd_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_LOCATE, "LOCATE",
-                              reqpath_buf, "-",
-                              kXR_NotAuthorized, "token scope denied");
+            char full_path[PATH_MAX];
+            xrootd_beneath_full_path(conf->common.root_canon, reqpath_buf,
+                                     full_path, sizeof(full_path));
+            if (xrootd_auth_gate(ctx, c, XROOTD_OP_LOCATE, "LOCATE",
+                                 reqpath_buf, full_path, conf,
+                                 XROOTD_AUTH_READ, 0) != NGX_OK) {
+                return ctx->write_rc;
+            }
         }
     }
 

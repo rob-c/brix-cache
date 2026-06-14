@@ -22,8 +22,40 @@
 
 #include "../ngx_xrootd_module.h"
 
+/*
+ * kXR_open dispatch entry point. Parses ClientOpenRequest from ctx->hdr_buf,
+ * derives read/write mode from option flags, strips CGI/opaque, detects TPC
+ * roles, resolves+confines the path, runs VO ACL + token-scope auth gates, then
+ * either redirects (manager_mode / manager_map / upstream), delegates to the
+ * cache path, or calls xrootd_open_resolved_file(). Always emits exactly one
+ * wire response (open body or error); returns that send's result (NGX_OK on
+ * queued reply, NGX_ERROR on fatal connection error) — on auth/path failures it
+ * returns ctx->write_rc from the queued error frame, never a bare errno.
+ */
 ngx_int_t xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf);
+/*
+ * Perform the POSIX open(2) for an already-resolved absolute path and reply.
+ * resolved: borrowed NUL-terminated absolute path (not owned; safe to free
+ *   after return). is_write: caller's read/write classification — also used as
+ *   the cache-source flag when 0 (callers pass 0 for cache-served reads).
+ * Translates options/mode_bits to oflags+create mode, stages a POSC temp file
+ * when kXR_posc is set on a write, opens confined (non-cache) or O_CLOEXEC
+ * (cache), allocates an fd_table slot (0-255) and seeds per-handle bookkeeping,
+ * then queues the ServerOpenBody (+retstat if kXR_retstat). Returns the wire
+ * send result (NGX_OK / NGX_ERROR); fd-table exhaustion or open failure is
+ * reported as a kXR error frame, not a return code.
+ */
 ngx_int_t xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf, const char *resolved, uint16_t options, uint16_t mode_bits, ngx_flag_t is_write);
+/*
+ * Cache-aware read-open (XCache style). clean_path: borrowed root-relative
+ * logical path (CGI already stripped). Checks the VO ACL against the auth root
+ * first; on cache hit (stat of cache_root path succeeds) serves directly via
+ * xrootd_open_resolved_file(); on miss triggers a background origin fill via
+ * xrootd_cache_open_or_fill(); with slice caching configured delegates to
+ * xrootd_open_slice_handle() instead. Returns the chosen path's result
+ * (NGX_OK / NGX_ERROR); ACL denial and path-length errors become kXR error
+ * frames.
+ */
 ngx_int_t xrootd_open_cached_read(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf, const char *clean_path, uint16_t options, uint16_t mode_bits);
 
 #endif // XROOTD_READ_OPEN_H

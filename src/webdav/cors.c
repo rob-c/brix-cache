@@ -1,20 +1,182 @@
 /*
- * cors.c — WebDAV CORS wrapper around the shared compat helper.
+ * cors.c — WebDAV CORS header emission.
  *
- * webdav_add_cors_headers() is the single entry point for all WebDAV
- * handlers.  It:
- *   1. Fetches the WebDAV loc_conf.
- *   2. Builds the Allow-Methods string from the WebDAV operation table.
- *   3. Populates an xrootd_cors_conf_t and delegates to xrootd_http_add_cors_headers().
- *   4. Maps the return code to WebDAV CORS metrics and nginx return values.
- *
- * Protocol-agnostic origin matching and header emission live in
- * src/compat/cors.c; nothing WebDAV-specific belongs there.
+ * webdav_add_cors_headers() is the single entry point for all WebDAV handlers.
  */
 
 #include "webdav.h"
-#include "../compat/cors.h"
 
+typedef struct {
+    ngx_array_t  *origins;
+    ngx_flag_t    credentials;
+    ngx_uint_t    max_age;
+    ngx_str_t     allow_methods;
+} xrootd_cors_conf_t;
+
+/*
+ * Match the request Origin against the configured allowlist.
+ * Returns 1 if allowed and sets *wildcard when the match was the "*" entry
+ * (which later forces echo-vs-"*" handling against the credentials flag).
+ * An empty/unset allowlist denies everything: CORS is opt-in.
+ */
+static ngx_int_t
+origin_allowed(const xrootd_cors_conf_t *cors,
+               const ngx_str_t *origin, ngx_flag_t *wildcard)
+{
+    ngx_str_t  *origins;
+    ngx_uint_t  i;
+
+    *wildcard = 0;
+
+    if (cors->origins == NULL || cors->origins->nelts == 0) {
+        return 0;
+    }
+
+    origins = cors->origins->elts;
+    for (i = 0; i < cors->origins->nelts; i++) {
+        if (origins[i].len == 1 && origins[i].data[0] == '*') {
+            *wildcard = 1;
+            return 1;
+        }
+        if (origins[i].len == origin->len
+            && ngx_strncmp(origins[i].data, origin->data, origin->len) == 0)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * Emit the Access-Control-* response headers for an allowed cross-origin
+ * request.  Returns NGX_DECLINED (no headers, not an error) when there is no
+ * Origin header or the origin is not allowed; NGX_OK when headers were set;
+ * NGX_ERROR only on allocation/header-set failure.
+ */
+static ngx_int_t
+xrootd_http_add_cors_headers(ngx_http_request_t *r,
+    const xrootd_cors_conf_t *cors)
+{
+    ngx_table_elt_t  *origin_hdr;
+    ngx_table_elt_t  *req_headers;
+    ngx_str_t         origin;
+    ngx_str_t         max_age;
+    u_char           *p;
+    u_char            age_buf[NGX_INT_T_LEN];
+    ngx_flag_t        wildcard;
+
+    origin_hdr = xrootd_http_find_header(r, "Origin", sizeof("Origin") - 1);
+    if (origin_hdr == NULL) {
+        return NGX_DECLINED;
+    }
+
+    origin = origin_hdr->value;
+    if (!origin_allowed(cors, &origin, &wildcard)) {
+        return NGX_DECLINED;
+    }
+
+    /* Access-Control-Allow-Origin: echo origin or "*" for non-credentialed
+     * wildcard.  Security rule (CORS spec): the literal "*" is forbidden with
+     * credentials, so when credentials are on we must echo the concrete origin
+     * even for a "*" allowlist entry — hence the !credentials guard here and
+     * the Vary: Origin below to keep caches from leaking one origin's response
+     * to another. */
+    if (wildcard && !cors->credentials) {
+        if (xrootd_http_set_header(r, "Access-Control-Allow-Origin", "*", NULL)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    } else {
+        if (xrootd_http_set_header_str(r, "Access-Control-Allow-Origin",
+                                       &origin, 0, NULL) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+
+    if (xrootd_http_set_header(r, "Vary", "Origin", NULL) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (cors->allow_methods.len > 0) {
+        if (xrootd_http_set_header_str(r, "Access-Control-Allow-Methods",
+                                       &cors->allow_methods, 0, NULL) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+
+    if (xrootd_http_set_header(r, "Access-Control-Expose-Headers",
+                               "Content-Length, Content-Range, Content-Type, "
+                               "DAV, ETag, Last-Modified, Location, Digest",
+                               NULL) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    if (cors->credentials) {
+        if (xrootd_http_set_header(r, "Access-Control-Allow-Credentials",
+                                   "true", NULL) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+
+    /* Echo Access-Control-Allow-Headers from the preflight request if present
+     * and safe; otherwise fall back to the standard set. */
+    req_headers = xrootd_http_find_header(
+        r, "Access-Control-Request-Headers",
+        sizeof("Access-Control-Request-Headers") - 1);
+    /* Echo the client's requested headers verbatim, but only after rejecting
+     * any control characters (CR/LF etc.) — echoing untrusted header bytes
+     * unchecked would allow response header injection. */
+    if (req_headers != NULL
+        && !xrootd_http_str_has_ctl(req_headers->value.data,
+                                    req_headers->value.len))
+    {
+        if (xrootd_http_set_header_str(r, "Access-Control-Allow-Headers",
+                                       &req_headers->value, 0, NULL) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    } else {
+        if (xrootd_http_set_header(r, "Access-Control-Allow-Headers",
+                                   "Authorization, Content-Type, "
+                                   "Content-Length, Depth, Destination, Source, "
+                                   "Overwrite, Credential, Credentials, "
+                                   "TransferHeaderAuthorization, "
+                                   "TransferHeaderCookie, Want-Digest, Digest, "
+                                   "Range, If-Match, If-None-Match, "
+                                   "If-Modified-Since, If-Unmodified-Since",
+                                   NULL) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+
+    p = ngx_snprintf(age_buf, sizeof(age_buf), "%ui", cors->max_age);
+    max_age.len  = (size_t) (p - age_buf);
+    max_age.data = ngx_pnalloc(r->pool, max_age.len);
+    if (max_age.data == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(max_age.data, age_buf, max_age.len);
+
+    return xrootd_http_set_header_str(r, "Access-Control-Max-Age",
+                                      &max_age, 0, NULL);
+}
+
+/*
+ * WHAT: Sole CORS entry point for every WebDAV handler (see HELPERS).
+ * HOW:  Snapshots the location's CORS config, derives the Allow-Methods list
+ *       from the live operation table (so it matches the actual enabled verbs),
+ *       emits the headers, and records an allowed/denied/no-origin metric.
+ *       NGX_DECLINED from the worker is intentionally folded into NGX_OK: a
+ *       request with no/disallowed Origin is still a valid request, just one
+ *       that gets no CORS headers.
+ */
 ngx_int_t
 webdav_add_cors_headers(ngx_http_request_t *r)
 {

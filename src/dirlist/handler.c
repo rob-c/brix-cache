@@ -59,7 +59,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
 {
     ClientDirlistRequest *req = (ClientDirlistRequest *) ctx->hdr_buf;
     u_char                options;
-    char                  resolved[PATH_MAX];
+    char                  full_path[PATH_MAX];
     char                  reqpath[XROOTD_MAX_PATH + 1];
     DIR                  *dp;
     struct dirent        *de;
@@ -83,10 +83,8 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
     want_stat = (options & (kXR_dstat | kXR_dcksm)) ? 1 : 0;
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-        xrootd_log_access(ctx, c, "DIRLIST", "-", "-",
-                          0, kXR_ArgMissing, "no path given", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_ArgMissing, "no path given");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", "-", "-",
+                          kXR_ArgMissing, "no path given");
     }
 
     if (want_cksum
@@ -99,10 +97,8 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         snprintf(errmsg, sizeof(errmsg), "%s checksum not supported.",
                  bad_algo[0] ? bad_algo : "requested");
-        xrootd_log_access(ctx, c, "DIRLIST", "-", "dcksm",
-                          0, kXR_ServerError, errmsg, 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_ServerError, errmsg);
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", "-", "dcksm",
+                          kXR_ServerError, errmsg);
     }
 
     if (!want_cksum) {
@@ -112,11 +108,8 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
                              reqpath, sizeof(reqpath), 1)) {
-        xrootd_log_access(ctx, c, "DIRLIST", "-", "-",
-                          0, kXR_ArgInvalid, "invalid path payload", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-                                 "invalid path payload");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", "-", "-",
+                          kXR_ArgInvalid, "invalid path payload");
     }
 
     /* Manager mode: redirect dirlist to a registered data server. */
@@ -126,46 +119,21 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         if (xrootd_srv_select(reqpath, 0, redir_host,
                               sizeof(redir_host), &redir_port)) {
-            xrootd_log_access(ctx, c, "DIRLIST", reqpath, "registry",
-                              1, 0, NULL, 0);
-            XROOTD_OP_OK(ctx, XROOTD_OP_DIRLIST);
-            return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+            XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                                "registry", redir_host, redir_port);
         }
         XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
         return xrootd_send_error(ctx, c, kXR_Overloaded,
                                  "no data server available");
     }
 
-    if (!xrootd_resolve_path(c->log, &conf->common.root,
-                             reqpath, resolved, sizeof(resolved))) {
-        xrootd_log_access(ctx, c, "DIRLIST", reqpath, "-",
-                          0, kXR_NotFound, "directory not found", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_NotFound, "directory not found");
-    }
+    xrootd_beneath_full_path(conf->common.root_canon, reqpath,
+                             full_path, sizeof(full_path));
 
-    if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_LOOKUP) != NGX_OK) {
-        xrootd_log_access(ctx, c, "DIRLIST", resolved, "-",
-                          0, kXR_NotAuthorized, "authdb denied", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized, "not authorized");
-    }
-
-    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-                                     ctx->identity) != NGX_OK) {
-        xrootd_log_access(ctx, c, "DIRLIST", resolved, "-",
-                          0, kXR_NotAuthorized, "VO not authorized", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "VO not authorized");
-    }
-
-    if (xrootd_check_token_scope(ctx, reqpath, 0) != NGX_OK) {
-        xrootd_log_access(ctx, c, "DIRLIST", reqpath, "-",
-                          0, kXR_NotAuthorized, "token scope denied", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "token scope denied");
+    if (xrootd_auth_gate(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST",
+                          reqpath, full_path, conf,
+                          XROOTD_AUTH_LOOKUP, 0) != NGX_OK) {
+        return ctx->write_rc;
     }
 
     /*
@@ -210,13 +178,11 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         t->io_errno     = 0;
         t->err_msg[0]   = '\0';
         ngx_cpystrn((u_char *) t->resolved,
-                    (u_char *) resolved, sizeof(t->resolved));
+                    (u_char *) full_path, sizeof(t->resolved));
         ngx_cpystrn((u_char *) t->cksum_algo,
                     (u_char *) cksum_algo, sizeof(t->cksum_algo));
 
-        task->handler         = xrootd_dirlist_aio_thread;
-        task->event.handler   = xrootd_dirlist_aio_done;
-        task->event.data      = task;
+        xrootd_task_bind(task, xrootd_dirlist_aio_thread, xrootd_dirlist_aio_done);
 
         if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
                 "xrootd: dirlist thread pool full, running synchronously",
@@ -236,29 +202,20 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
 /* Section: Directory Open & Iteration                                 */
 /* ------------------------------------------------------------------ */
 
-    dfd = xrootd_open_confined(c->log, &conf->common.root, resolved,
-                               O_RDONLY | O_DIRECTORY, 0);
+    dfd = xrootd_open_beneath(conf->rootfd, reqpath, O_RDONLY | O_DIRECTORY, 0);
     if (dfd < 0) {
         int err = errno;
 
         if (err == ENOTDIR) {
-            xrootd_log_access(ctx, c, "DIRLIST", resolved, "-",
-                              0, kXR_NotFile, "path is not a directory", 0);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-            return xrootd_send_error(ctx, c, kXR_NotFile,
-                                     "path is not a directory");
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                              "-", kXR_NotFile, "path is not a directory");
         }
         if (err == ENOENT) {
-            xrootd_log_access(ctx, c, "DIRLIST", resolved, "-",
-                              0, kXR_NotFound, "directory not found", 0);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-            return xrootd_send_error(ctx, c, kXR_NotFound,
-                                     "directory not found");
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                              "-", kXR_NotFound, "directory not found");
         }
-        xrootd_log_access(ctx, c, "DIRLIST", resolved, "-",
-                          0, kXR_IOError, strerror(err), 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_IOError, strerror(err));
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                          "-", kXR_IOError, strerror(err));
     }
 
     dp = fdopendir(dfd);
@@ -266,10 +223,8 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         int err = errno;
 
         close(dfd);
-        xrootd_log_access(ctx, c, "DIRLIST", resolved, "-",
-                          0, kXR_IOError, strerror(err), 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_DIRLIST);
-        return xrootd_send_error(ctx, c, kXR_IOError, strerror(err));
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                          "-", kXR_IOError, strerror(err));
     }
 
     /* Guard against pool exhaustion from a flood of dirlist calls. */
@@ -357,7 +312,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 int n;
 
                 n = snprintf(entry_path, sizeof(entry_path), "%s/%s",
-                             resolved, name);
+                             full_path, name);
                 if (n < 0 || (size_t) n >= sizeof(entry_path)) {
                     snprintf(cksum_token, sizeof(cksum_token),
                              "%s:none", cksum_algo);
@@ -434,7 +389,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
             ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                            "xrootd: kXR_dirlist final chunk %uz bytes", chunk_pos);
 
-            xrootd_log_access(ctx, c, "DIRLIST", resolved,
+            xrootd_log_access(ctx, c, "DIRLIST", reqpath,
                               want_cksum ? "dcksm" : (want_stat ? "stat" : "-"),
                               1, 0, NULL, 0);
             XROOTD_OP_OK(ctx, XROOTD_OP_DIRLIST);

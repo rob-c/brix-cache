@@ -8,6 +8,10 @@ a fixed path-to-backend mapping useful for small deployments. Cluster mode
 replaces that with a **dynamic server registry** populated at runtime by data
 servers that connect via the standard CMS management protocol.
 
+> **Wire-level detail:** for the byte-by-byte CMS framing, the manager↔server↔client
+> negotiation in both directions, and the cmsd-compliance gotchas, see
+> [The CMS Cluster Protocol (`cms://`)](../04-protocols/cms-protocol.md).
+
 ## Implementation status
 
 All five phases are fully implemented and tested.

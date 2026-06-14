@@ -173,9 +173,23 @@ xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
  * WHY: Bound streams can reopen a primary-published handle in their own worker
  * and validate path identity against the stored device/inode tuple.
  */
+/* ---- Function: xrootd_session_handle_lookup_hint() ----
+ *
+ * WHAT: Same as xrootd_session_handle_lookup() but with a caller-owned slot
+ * hint (Phase 33 C2).  A bound secondary re-validates its published handle on
+ * EVERY read; *inout_slot remembers the slot matched last time so the common
+ * case becomes an O(1) direct check instead of a full table scan.
+ *
+ * WHY: The scan is the per-read cost on parallel bound streams (xrdcp
+ * --sources).  Correctness is unchanged: the lock is still held and the FULL
+ * key (in_use + sessid + handle_index) is re-checked, so a primary close/reuse
+ * (which clears in_use) fails the fast path and falls through to the scan →
+ * revocation, exactly as before.  *inout_slot is refreshed on a scan match and
+ * reset to -1 on a miss (and may be NULL for callers that don't cache).
+ */
 int
-xrootd_session_handle_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
-    int handle_index, xrootd_shared_handle_entry_t *out)
+xrootd_session_handle_lookup_hint(const u_char sessid[XROOTD_SESSION_ID_LEN],
+    int handle_index, int *inout_slot, xrootd_shared_handle_entry_t *out)
 {
     xrootd_shared_handle_table_t *tbl;
     ngx_uint_t                    i;
@@ -192,19 +206,49 @@ xrootd_session_handle_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
 
     ngx_shmtx_lock(&xrootd_handle_mutex);
 
+    /*
+     * Fast path: re-check the slot matched on the previous read directly.  Still
+     * under the lock and still verifying the full key, so this is a pure scan
+     * elimination — never a weaker check.
+     */
+    if (inout_slot != NULL && *inout_slot >= 0
+        && (ngx_uint_t) *inout_slot < XROOTD_SESSION_HANDLE_SLOTS
+        && xrootd_shared_handle_same_key(&tbl->slots[*inout_slot], sessid,
+                                         handle_index))
+    {
+        ngx_memcpy(out, &tbl->slots[*inout_slot], sizeof(*out));
+        out->path[XROOTD_MAX_PATH] = '\0';
+        ngx_shmtx_unlock(&xrootd_handle_mutex);
+        return 1;
+    }
+
     for (i = 0; i < XROOTD_SESSION_HANDLE_SLOTS; i++) {
         if (xrootd_shared_handle_same_key(&tbl->slots[i], sessid,
                                           handle_index))
         {
             ngx_memcpy(out, &tbl->slots[i], sizeof(*out));
             out->path[XROOTD_MAX_PATH] = '\0';
+            if (inout_slot != NULL) {
+                *inout_slot = (int) i;   /* refresh the hint for next read */
+            }
             found = 1;
             break;
         }
     }
 
+    if (!found && inout_slot != NULL) {
+        *inout_slot = -1;   /* drop a now-stale hint so the next read rescans */
+    }
+
     ngx_shmtx_unlock(&xrootd_handle_mutex);
     return found;
+}
+
+int
+xrootd_session_handle_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
+    int handle_index, xrootd_shared_handle_entry_t *out)
+{
+    return xrootd_session_handle_lookup_hint(sessid, handle_index, NULL, out);
 }
 
 /* ---- Function: xrootd_session_handle_unpublish() ----

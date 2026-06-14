@@ -3,6 +3,31 @@
 #include <ngx_shmtx.h>
 #include <string.h>
 
+/*
+ * dashboard/events.c — fixed-size ring buffer of recent dashboard events.
+ *
+ * WHAT: Maintains the SHM-backed event log (xrootd_dashboard_event_table_t)
+ *       that the dashboard UI shows as a scrolling activity feed.  Workers push
+ *       events with xrootd_dashboard_event_add() (errors, auth rejections,
+ *       notable status codes, etc.); the JSON exporter reads the newest entries
+ *       with xrootd_dashboard_events_snapshot().  ngx_xrootd_dashboard_events_-
+ *       shm_init() is the nginx SHM zone init callback for the events zone.
+ * WHY:  Events must survive worker boundaries (any worker may emit; the HTTP
+ *       worker serving /dashboard reads them all) and survive a config reload,
+ *       so the log lives in shared memory rather than per-worker heap.  A bounded
+ *       ring (XROOTD_DASHBOARD_MAX_EVENTS slots) gives O(1) insertion with no
+ *       allocation and self-evicting history.
+ * HOW:  A monotonically increasing next_sequence counter is the source of truth;
+ *       slot index is (seq - 1) % XROOTD_DASHBOARD_MAX_EVENTS, so writes wrap and
+ *       overwrite the oldest entry.  A single static ngx_shmtx_t (re-created on
+ *       reload via the init callback) serialises add and snapshot.  Readers
+ *       reconstruct the valid window [next - MAX + 1 .. next] and copy only slots
+ *       whose stored sequence still matches the expected value (guards against a
+ *       slot overwritten mid-read).  dashboard_event_copy() sanitises strings
+ *       into the fixed fields, replacing control bytes with '?' and optionally
+ *       truncating a path at the first '?'/'#' to keep query strings out.
+ */
+
 static ngx_shmtx_t xrootd_dashboard_events_mutex;
 
 static xrootd_dashboard_event_table_t *

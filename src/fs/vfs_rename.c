@@ -1,5 +1,24 @@
+/*
+ * vfs_rename.c — VFS rename / move.
+ *
+ * WHAT: Implements xrootd_vfs_rename(), which moves the resolved ctx (source)
+ *       path to a caller-supplied, already-resolved destination
+ *       xrootd_path_result_t.
+ *
+ * WHY:  kXR_mv and WebDAV MOVE need a single write-gated, confined rename whose
+ *       destination is verified to be inside the export root before the syscall,
+ *       with one metric/access-log line — not an ad-hoc rename(2) per protocol.
+ *
+ * HOW:  Enforces xrootd_vfs_require_write(), then demands a non-NULL root_canon
+ *       and a destination that is itself is_confined with a non-empty resolved
+ *       path. It delegates the actual move to xrootd_ns_rename() (namespace
+ *       layer), maps the returned status back to errno (sys_errno or EIO), and
+ *       observes the operation as XROOTD_METRIC_OP_RENAME on every path.
+ */
 #include "vfs_internal.h"
 
+/* Move the resolved ctx source path to the confined destination `dst`.
+ * Write-gated; both endpoints must be confined. Metered as OP_RENAME. */
 ngx_int_t
 xrootd_vfs_rename(xrootd_vfs_ctx_t *ctx, const xrootd_path_result_t *dst)
 {

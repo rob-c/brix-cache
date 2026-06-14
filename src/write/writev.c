@@ -58,13 +58,21 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 								 "writev payload too short for one segment");
 	}
 
+	/* The payload is N back-to-back write_list descriptors (16 bytes each)
+	 * followed by the concatenated data for every segment. The wire carries
+	 * no explicit N, so the upper bound is "however many whole descriptors
+	 * could fit in the payload", clamped to the safety cap. */
 	wl       = (write_list *) ctx->payload;
 	max_segs = ctx->cur_dlen / XROOTD_WRITEV_SEGSIZE;
 	if (max_segs > XROOTD_WRITEV_MAXSEGS) {
 		max_segs = XROOTD_WRITEV_MAXSEGS;
 	}
 
-	/* Scan descriptors until n*16 + sum(wlen) == dlen, which identifies n. */
+	/* Recover N by treating leading bytes as descriptors and accumulating
+	 * their declared wlen until the running total descriptors+data exactly
+	 * fills the payload: n*16 + sum(wlen) == dlen pins down N uniquely.
+	 * Reading wl[i].wlen here also implicitly assumes the i-th descriptor is
+	 * in bounds, which holds because i < max_segs (whole descriptors only). */
 	n_segs     = 0;
 	total_wlen = 0;
 
@@ -73,10 +81,14 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		n_segs++;
 		total_wlen += wlen;
 
+		/* Exact fit: this is the real segment count, stop scanning. */
 		if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen == ctx->cur_dlen) {
 			break;
 		}
 
+		/* Overshoot: a declared wlen pushed us past the payload, so the
+		 * descriptors are inconsistent with the byte count — reject before
+		 * any write rather than read past the buffer. */
 		if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen > ctx->cur_dlen) {
 			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
 			return xrootd_send_error(ctx, c, kXR_ArgInvalid,
@@ -84,16 +96,20 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		}
 	}
 
+	/* Hit the segment cap (or undershot) without an exact fit: malformed. */
 	if (n_segs * XROOTD_WRITEV_SEGSIZE + total_wlen != ctx->cur_dlen) {
 		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
 		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
 								 "malformed writev: payload size mismatch");
 	}
 
-	/* Validate all handles before writing anything. */
+	/* INVARIANT: validate every targeted handle up front so a bad handle in a
+	 * later segment can never leave earlier segments already written (all-or-
+	 * nothing admission). Only fhandle[0] is significant — handles are 0..255. */
 	for (i = 0; i < n_segs; i++) {
 		int idx = (int)(unsigned char) wl[i].fhandle[0];
 
+		/* fd < 0 means the slot is closed/never-opened (stale handle). */
 		if (idx < 0 || idx >= XROOTD_MAX_FILES || ctx->files[idx].fd < 0) {
 			XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
 			return xrootd_send_error(ctx, c, kXR_FileNotOpen,
@@ -106,7 +122,8 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		}
 	}
 
-	/* Data starts immediately after all N segment descriptors. */
+	/* All N descriptors occupy the first n_segs*16 bytes; the per-segment data
+	 * blocks follow contiguously in segment order from here. */
 	data_ptr = ctx->payload + n_segs * XROOTD_WRITEV_SEGSIZE;
 
 	{
@@ -122,6 +139,10 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			ngx_flag_t                posted;
 			const u_char             *dp = data_ptr;
 
+			/* Flatten the wire descriptors into a self-contained array the
+			 * worker thread can consume without touching ctx (which the main
+			 * thread may mutate once we return). Decode all big-endian fields
+			 * now, while we are still on the event-loop thread. */
 			seg_descs = ngx_palloc(c->pool,
 			                       n_segs * sizeof(xrootd_writev_seg_desc_t));
 			if (seg_descs == NULL) {
@@ -136,10 +157,14 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 				seg_descs[i].fd         = ctx->files[hidx].fd;
 				seg_descs[i].handle_idx = hidx;
 				seg_descs[i].offset     = (off_t) off;
-				seg_descs[i].data       = dp;
+				seg_descs[i].data       = dp;   /* points into payload_buf */
 				seg_descs[i].wlen       = wlen;
 
-				/* Skip replay segments — AIO thread checks wlen == 0 */
+				/* write-recovery (kXR_recoverWrts): if this byte range was
+				 * already durably written before the connection dropped, it is
+				 * a client replay. Neutralise it to a no-op by zeroing wlen;
+				 * the worker thread treats wlen == 0 as "skip" so the bytes are
+				 * neither rewritten nor double-counted. */
 				if (ctx->files[hidx].wrts_enabled &&
 				    xrootd_wrts_is_replay(&ctx->files[hidx], off, wlen))
 				{
@@ -149,6 +174,8 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 					seg_descs[i].wlen = 0;
 				}
 
+				/* Advance over the (original, un-zeroed) data block so dp stays
+				 * aligned with the wire layout regardless of replay skipping. */
 				dp += wlen;
 			}
 
@@ -169,13 +196,17 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			t->streamid[0] = ctx->cur_streamid[0];
 			t->streamid[1] = ctx->cur_streamid[1];
 
-			task->handler       = xrootd_writev_write_aio_thread;
-			task->event.handler = xrootd_writev_write_aio_done;
-			task->event.data    = task;
+			xrootd_task_bind(task, xrootd_writev_write_aio_thread, xrootd_writev_write_aio_done);
 
 			(void) xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
 			    "xrootd: thread_task_post failed, falling back to sync writev",
 			    &posted);
+			/* posted == 1: ownership of payload_buf now lives on the task and
+			 * the done callback will free it and send the reply. Detach it from
+			 * ctx so the main thread can start the next request without racing
+			 * the worker or double-freeing the buffer. posted == 0: posting
+			 * failed; payload_buf is still ours and we fall through to the
+			 * synchronous path below using the original data_ptr. */
 			if (posted) {
 				ctx->payload         = NULL;
 				ctx->payload_buf     = NULL;
@@ -188,15 +219,21 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	/* Synchronous fallback: write each segment on the event-loop thread. */
 	for (i = 0; i < n_segs; i++) {
 		int      idx    = (int)(unsigned char) wl[i].fhandle[0];
-		int64_t  offset = (int64_t) be64toh((uint64_t) wl[i].offset);
-		uint32_t wlen   = (uint32_t) ntohl((uint32_t) wl[i].wlen);
+		int64_t  offset = (int64_t) be64toh((uint64_t) wl[i].offset);  /* BE64 */
+		uint32_t wlen   = (uint32_t) ntohl((uint32_t) wl[i].wlen);     /* BE32 */
 		ssize_t  nw;
 
+		/* Empty segment carries no data block; nothing to advance over. */
 		if (wlen == 0) {
 			continue;
 		}
 
-		/* ---- kXR_recoverWrts replay detection ---- */
+		/* ---- kXR_recoverWrts replay detection ----
+		 * Same replay handling as the AIO path: a range already written on a
+		 * prior (dropped) connection is acknowledged as success but not
+		 * re-issued to disk. data_ptr must still skip this segment's bytes to
+		 * stay aligned, and we count the bytes toward the client-visible total
+		 * so the reply matches what the client thinks it sent. */
 		if (ctx->files[idx].wrts_enabled &&
 		    xrootd_wrts_is_replay(&ctx->files[idx], offset, wlen))
 		{
@@ -224,17 +261,24 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		ctx->files[idx].bytes_written  += (size_t) nw;
 		ctx->session_bytes_written     += (size_t) nw;
 		bytes_written_total            += (size_t) nw;
+		/* write-through cache: flag the just-written extent dirty so it gets
+		 * flushed to the backing store (end offset is inclusive: off+nw-1). */
 		if (ctx->files[idx].wt_enabled) {
 			xrootd_wt_mark_dirty(ctx, idx, offset + (int64_t) nw - 1,
 			                      (size_t) nw);
 		}
+		/* write-recovery journal: remember this range so a later replay after
+		 * reconnect is recognised by xrootd_wrts_is_replay() above. */
 		if (ctx->files[idx].wrts_enabled) {
 			xrootd_wrts_record(&ctx->files[idx], offset, (uint32_t) nw);
 		}
+		/* Advance by wlen (== nw here, short writes already errored out). */
 		data_ptr                       += wlen;
 	}
 
-	/* Optional fsync on every touched handle. */
+	/* kXR_wv_doSync: flush each handle that actually received data. Re-decode
+	 * wlen from the wire to skip zero-length segments; a handle may appear in
+	 * several segments but fsync is idempotent so duplicates are harmless. */
 	if (do_sync) {
 		for (i = 0; i < n_segs; i++) {
 			int idx = (int)(unsigned char) wl[i].fhandle[0];

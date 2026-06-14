@@ -73,22 +73,81 @@ struct xrootd_upstream_s {
     ngx_uint_t  authmore_count;  /* number of kXR_authmore exchanges so far */
 };
 
+/* Tear down the upstream (frees timer + TCP conn, detaches client ctx) and send a
+ * kXR_ServerError frame to the client at the saved stream ID, then re-arm the client
+ * read so it can retry. `reason` is the error text (borrowed, also logged); `up` must
+ * have a live client_ctx/client_conn. After this call `up` is dead — do not reuse. */
 void xrootd_upstream_abort(xrootd_upstream_t *up, const char *reason);
+
+/* Serialize the full plaintext bootstrap (12-byte handshake + kXR_protocol +
+ * kXR_login frames) into `buf`. Caller owns `buf` and must size it for all three
+ * frames; no validation, never fails. The pre-sent login is discarded by the server
+ * if it answers kXR_gotoTLS (login is then re-sent over TLS). */
 void xrootd_upstream_build_bootstrap(u_char *buf);
+
+/* Fill a single kXR_login frame in caller-provided `req` (used to re-send login over
+ * TLS after a gotoTLS upgrade). Zeroes then populates the struct; never fails. */
 void xrootd_upstream_build_login(ClientLoginRequest *req);
+
+/* Relay one accumulated upstream reply (in up->resp_*) back to the client, re-wrapped
+ * with the client's stream ID. Dispatches by status: redirect/ok forward + cleanup +
+ * resume client read; wait schedules a retry timer; waitresp switches to ASYNC; error
+ * maps to a client error frame; unexpected status aborts. May call xrootd_upstream_abort
+ * (then `up` is dead) on alloc/arm failure or malformed frames. */
 void xrootd_upstream_forward_response(xrootd_upstream_t *up);
+
+/* Advance the bootstrap state machine for one accumulated reply (handshake → protocol
+ * → optional TLS → login → optional ztn auth → done). On reaching DONE, calls
+ * xrootd_upstream_send_request; otherwise resets the response accumulator and re-arms
+ * the read (posting a synthetic event for epoll-ET coalesced replies). Aborts `up` on
+ * any non-ok status or missing TLS/token config required by the server. */
 void xrootd_upstream_handle_bootstrap_response(xrootd_upstream_t *up);
+
+/* nginx readable-event callback (ev->data is the upstream conn): accumulates one full
+ * ServerResponseHdr + body across re-entries (state in rhdr_pos/resp_body_pos), capping
+ * the body alloc, then dispatches by up->state (bootstrap vs request/async). Cleans up
+ * silently if the client session is gone; aborts on timeout/peer-close/oversized body. */
 void xrootd_upstream_read_handler(ngx_event_t *rev);
+
+/* kXR_wait retry-timer callback (ev->data is the upstream): re-sends the saved client
+ * request via send_request. Cleans up if the client session died; aborts on resend
+ * failure (only while up->conn still live). */
 void xrootd_upstream_wait_timer_handler(ngx_event_t *ev);
+
+/* nginx writable-event callback (wev->data is the upstream conn): doubles as connect
+ * completion — on CONNECTING it checks SO_ERROR then transitions to BOOTSTRAP. Drains
+ * any remaining wbuf via flush; once fully sent, arms the read side. Cleans up if the
+ * client session is gone; aborts on connect/write timeout or write error. */
 void xrootd_upstream_write_handler(ngx_event_t *wev);
+
+/* Non-blocking write loop draining up->wbuf[wbuf_pos..wbuf_len) to the upstream.
+ * Returns NGX_OK (fully sent, read event armed), NGX_AGAIN (partial — write event
+ * armed, caller re-enters via write handler), or NGX_ERROR (send/event-arm failure;
+ * caller must abort). Does not free wbuf; the buffer must outlive partial writes. */
 ngx_int_t xrootd_upstream_flush(xrootd_upstream_t *up);
+
+/* Serialize the saved client request (up->req_*) into a fresh pool buffer and flush it,
+ * switching up->state to XRD_UP_REQUEST. Only kXR_locate/kXR_open/kXR_stat are supported.
+ * Returns flush()'s result (NGX_OK/NGX_AGAIN) or NGX_ERROR on unsupported opcode or
+ * alloc failure. Resets the response accumulator. */
 ngx_int_t xrootd_upstream_send_request(xrootd_upstream_t *up);
 
 #if (NGX_SSL)
+/* Wrap the live upstream TCP conn in a client SSL connection (SNI = upstream_tls_name
+ * else upstream_host), install the handshake-done callback, set bs_phase = XRD_UP_BS_TLS,
+ * and start the handshake (completing synchronously if it does not yield NGX_AGAIN).
+ * `conf` must have a non-NULL upstream_tls_ctx. Returns NGX_OK once the handshake is
+ * initiated, NGX_ERROR if the SSL connection cannot be created; login is re-sent over
+ * TLS from the callback, not here. */
 ngx_int_t xrootd_upstream_start_tls(xrootd_upstream_t *up,
     ngx_stream_xrootd_srv_conf_t *conf);
 #endif
 
+/* Read conf->upstream_token_file synchronously (cap 64 KiB) and send a kXR_auth "ztn"
+ * frame to the upstream, echoing the client's stream ID; sets bs_phase = XRD_UP_BS_AUTH
+ * and resets the response accumulator. Returns NGX_OK (frame sent or partial — write/read
+ * events armed for completion) or NGX_ERROR on file-read/alloc/event-arm failure (caller
+ * must abort). Frame is pool-allocated; the token is read into a stack buffer. */
 ngx_int_t xrootd_upstream_send_token_auth(xrootd_upstream_t *up,
     ngx_stream_xrootd_srv_conf_t *conf);
 

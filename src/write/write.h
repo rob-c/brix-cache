@@ -40,22 +40,6 @@ ngx_int_t xrootd_handle_chmod(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
 
 /*
- * xrootd_write_resolve_existing_path — extract and resolve a path from the
- * current payload, checking VO ACLs.
- *
- * Used by write-side opcodes that name a target path in the payload (rm, rmdir,
- * mkdir, mv, chmod, truncate).  Returns 1 on success with resolved filled;
- * returns 0 and sets *rc on any error (error response already queued).
- *
- * not_found_msg: the kXR_NotFound message string to use if resolve fails.
- */
-ngx_flag_t xrootd_write_resolve_existing_path(xrootd_ctx_t *ctx,
-    ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf, const char *verb,
-    ngx_uint_t op, const char *not_found_msg, uint32_t needed_privs,
-    char *reqpath, size_t reqpathsz, char *resolved, size_t resolvedsz,
-    ngx_int_t *rc);
-
-/*
  * xrootd_pgwrite_decode_payload — decode a kXR_pgwrite payload into a flat
  * data buffer by stripping the per-4096-byte CRC records.
  *

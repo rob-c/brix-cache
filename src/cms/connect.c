@@ -115,6 +115,18 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "xrootd: CMS login sent to %V",
                       &ctx->conf->cms_manager);
+
+        /*
+         * Announce traffic state (Resume|noStage) immediately after login so a
+         * real cmsd manager marks this disk-only node active and eligible for
+         * selection; without it the manager keeps us suspended and never
+         * redirects clients here.
+         */
+        if (ngx_xrootd_cms_send_status(ctx) != NGX_OK) {
+            ngx_xrootd_cms_disconnect(ctx);
+            ngx_xrootd_cms_schedule_retry(ctx);
+            return;
+        }
     }
 
     ngx_log_error(NGX_LOG_WARN, ev->log, 0,

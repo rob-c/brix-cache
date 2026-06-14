@@ -115,8 +115,18 @@ xrootd_prepare_invoke_command(ngx_log_t *log,
         DIR *dp = opendir("/proc/self/fd");
         if (dp != NULL) {
             struct dirent *de;
+            /*
+             * dirfd_self captures the fd backing this very directory stream.
+             * It appears as one of the /proc/PID/fd entries we iterate, so we
+             * must skip closing it: closing it out from under readdir would
+             * invalidate the open DIR* mid-scan, and closedir(dp) below is what
+             * properly releases it. Every OTHER fd >= 3 is an inherited nginx
+             * socket/log/pipe and is closed before execv.
+             */
             int            dirfd_self = dirfd(dp);
             while ((de = readdir(dp)) != NULL) {
+                /* entry names are decimal fd numbers; non-numeric ("." "..")
+                 * parse to 0 and are filtered by the fd >= 3 guard. */
                 fd = (int) strtol(de->d_name, NULL, 10);
                 if (fd >= 3 && fd != dirfd_self) {
                     close(fd);

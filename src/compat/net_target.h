@@ -96,4 +96,31 @@ ngx_int_t xrootd_net_target_check_dns(
     const xrootd_net_target_policy_t *policy,
     char *err, size_t errsz);
 
+/*
+ * xrootd_net_target_check_dns_pin — like check_dns, but also returns the first
+ * permitted resolved address as a numeric string in out_ip[0..out_ipsz).
+ *
+ * Closes the DNS-rebind TOCTOU window: the caller validates and resolves once,
+ * then pins out_ip into the transfer agent (e.g. curl CURLOPT_RESOLVE) so the
+ * connection target cannot differ from the address that passed policy.  Same
+ * BLOCKING/thread-only contract as check_dns().  Returns NGX_OK with out_ip
+ * filled, NGX_ERROR otherwise (err filled).
+ */
+ngx_int_t xrootd_net_target_check_dns_pin(
+    const xrootd_net_target_t *target,
+    const xrootd_net_target_policy_t *policy,
+    char *out_ip, size_t out_ipsz,
+    char *err, size_t errsz);
+
+/*
+ * xrootd_net_host_chars_valid — reject host strings that could inject control
+ * bytes or alternate schemes into a redirect/registration string.
+ *
+ * Allows only the characters legal in a hostname or IPv4/IPv6 literal:
+ * [A-Za-z0-9.:-].  Rejects empty, anything with '/', whitespace, NUL, or any
+ * byte outside that set (so "evil\r\nLocation:" or "http://x" never reach a
+ * client that parses a redirect host).  Returns 1 if valid, 0 otherwise.
+ */
+int xrootd_net_host_chars_valid(const char *host, size_t len);
+
 #endif /* XROOTD_NET_TARGET_H */

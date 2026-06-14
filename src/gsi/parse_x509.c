@@ -87,6 +87,13 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return NULL;
     }
 
+    /*
+     * Derive the DH shared secret from OUR private key (ctx->gsi_dh_key, set in
+     * round 1) and the client's public value (peer). set_dh_pad(pkctx, 0) is
+     * deliberate: XRootD/gsi expects the *unpadded* big-endian secret (leading
+     * zero bytes stripped). Pad-mode 1 would left-pad to the prime size and the
+     * subsequent SHA-256 — and thus signing_key — would not match the client's.
+     */
     pkctx = EVP_PKEY_CTX_new(ctx->gsi_dh_key, NULL);
     if (pkctx == NULL
         || EVP_PKEY_derive_init(pkctx) != 1
@@ -98,6 +105,12 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return NULL;
     }
 
+    /*
+     * Two-call EVP_PKEY_derive idiom: the first call (out buffer == NULL) only
+     * reports the required length into secret_len so we can size the allocation;
+     * the second call (below) actually writes the secret. With pad=0 the length
+     * can vary run-to-run, so it MUST be probed rather than assumed == prime size.
+     */
     if (EVP_PKEY_derive(pkctx, NULL, &secret_len) != 1) {
         EVP_PKEY_CTX_free(pkctx);
         EVP_PKEY_free(peer);
@@ -155,12 +168,26 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     {
+        /*
+         * Reconcile the DH secret length with the cipher's key length. The peer
+         * sender used the raw secret as the key, so we must key the decryptor
+         * identically. ltmp = secret clamped to EVP_MAX_KEY_LENGTH (the iv[] /
+         * key buffers cannot exceed that); ldef = the cipher's *default* key
+         * length (e.g. 32 for aes-256-cbc). use_len defaults to ldef.
+         */
         size_t ltmp = (secret_len > (size_t) EVP_MAX_KEY_LENGTH)
                       ? (size_t) EVP_MAX_KEY_LENGTH : secret_len;
         int    ldef = EVP_CIPHER_key_length(evp_cipher);
         size_t use_len = (size_t) ldef;
         unsigned char iv[EVP_MAX_IV_LENGTH];
 
+        /*
+         * When the secret length differs from the cipher default, probe whether
+         * this cipher actually accepts a custom key length using a throwaway
+         * context: set_key_length() can silently no-op for fixed-length ciphers,
+         * so we only adopt ltmp if the readback confirms it stuck. This avoids
+         * keying the real ctx with a length the cipher would reject/ignore.
+         */
         if ((int) ltmp != ldef) {
             EVP_CIPHER_CTX *tctx = EVP_CIPHER_CTX_new();
 
@@ -172,6 +199,7 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
             EVP_CIPHER_CTX_free(tctx);
         }
 
+        /* GSI wire protocol fixes the IV to all-zeros — there is no IV bucket. */
         ngx_memset(iv, 0, sizeof(iv));
 
         dctx = EVP_CIPHER_CTX_new();
@@ -180,15 +208,28 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
             return NULL;
         }
 
+        /*
+         * Two-stage Init is required: the first call binds the cipher so that
+         * set_key_length() is legal; only after the (optional) length override
+         * does the second call (key+iv args) install the actual key material.
+         * Passing key+iv in the first call would lock the key length first.
+         */
         EVP_DecryptInit_ex(dctx, evp_cipher, NULL, NULL, NULL);
         if (use_len != (size_t) ldef) {
             EVP_CIPHER_CTX_set_key_length(dctx, (int) use_len);
         }
         EVP_DecryptInit_ex(dctx, NULL, NULL, secret, iv);
+        /* Key is now copied into dctx; scrub the plaintext secret immediately. */
         OPENSSL_cleanse(secret, secret_len);
     }
 
     {
+        /*
+         * Sizing the plaintext buffer: CBC decryption can emit up to one extra
+         * cipher block beyond the ciphertext length (DecryptUpdate may flush a
+         * buffered block), so reserve main_len + block_size; the trailing +1 is
+         * defensive slack so a NUL-terminator could be appended if ever needed.
+         */
         size_t plain_size = main_len + (size_t) EVP_CIPHER_CTX_block_size(dctx) + 1;
 
         plain = ngx_palloc(c->pool, plain_size);

@@ -1,5 +1,29 @@
 #include "credential.h"
 
+/*
+ * credential.c — parse and validate TPC delegated credentials.
+ *
+ * WHAT: Implements the xrootd_tpc_credential.h interface: sniff a raw
+ *       credential string into a typed xrootd_tpc_credential_t
+ *       (xrootd_tpc_credential_parse), reject empty/expired credentials
+ *       (xrootd_tpc_credential_validate), and name a credential type for logs
+ *       (xrootd_tpc_credential_type_name).
+ *
+ * WHY: The shared TPC core accepts a credential from either transport in a free
+ *      form (a bearer token, optionally "Bearer "-prefixed, or a GSI proxy PEM)
+ *      and must classify it without baking transport-specific assumptions into
+ *      the core. Centralising the sniffing here keeps the format heuristics and
+ *      the expiry check in one auditable place.
+ *
+ * HOW: parse() trims surrounding whitespace/CRLF, treats empty or "none" as
+ *      XROOTD_TPC_CREDENTIAL_NONE, then routes on the caller hint or on the
+ *      "Bearer " / "-----BEGIN" markers, stripping the "Bearer " prefix for
+ *      tokens. The static xrootd_tpc_copy_credential_str() duplicates the value
+ *      into the pool (NUL-terminated) when a pool is supplied, or aliases the
+ *      caller's bytes when pool is NULL. validate() enforces non-empty bodies
+ *      per type and compares expires_at against ngx_time().
+ */
+
 #include <string.h>
 
 static ngx_int_t
@@ -65,6 +89,7 @@ xrootd_tpc_starts_with(const u_char *data, size_t len, const char *prefix)
                               prefix_len) == 0;
 }
 
+/* Map a credential type enum to a stable lowercase string for logs/metrics. */
 const char *
 xrootd_tpc_credential_type_name(xrootd_tpc_credential_type_t type)
 {
@@ -80,6 +105,14 @@ xrootd_tpc_credential_type_name(xrootd_tpc_credential_type_t type)
     }
 }
 
+/*
+ * Sniff raw_credential into a typed *cred. Honours an optional type hint and
+ * the "Bearer "/"-----BEGIN" markers; trims surrounding whitespace and CRLF.
+ * Empty or "none" yields XROOTD_TPC_CREDENTIAL_NONE. When pool is non-NULL the
+ * value is copied (NUL-terminated) into it, otherwise *cred aliases the input.
+ * Returns NGX_OK, NGX_DECLINED for an unrecognised format, or NGX_ERROR on a
+ * NULL cred / allocation failure.
+ */
 ngx_int_t
 xrootd_tpc_credential_parse(const ngx_str_t *raw_credential,
     xrootd_tpc_credential_type_t hint, xrootd_tpc_credential_t *cred,
@@ -152,6 +185,12 @@ xrootd_tpc_credential_parse(const ngx_str_t *raw_credential,
     return NGX_DECLINED;
 }
 
+/*
+ * Validate a parsed credential: PROXY/TOKEN must carry a non-empty body, and a
+ * non-zero expires_at must be in the future relative to ngx_time(). NONE always
+ * passes. Returns NGX_OK, NGX_DECLINED if empty/expired/invalid-type, or
+ * NGX_ERROR on a NULL cred.
+ */
 ngx_int_t
 xrootd_tpc_credential_validate(const xrootd_tpc_credential_t *cred,
     ngx_log_t *log)

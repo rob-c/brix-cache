@@ -111,8 +111,19 @@ xrootd_reopen_bound_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (shared->from_cache) {
         fd = open(shared->path, open_flags);
     } else {
-        fd = xrootd_open_confined(c->log, &conf->common.root, shared->path,
-                                  open_flags, 0);
+        /* shared->path is the absolute path; strip root_canon to get the
+         * path relative to rootfd for openat2 RESOLVE_BENEATH. */
+        const char *rel      = shared->path;
+        size_t      root_len = strlen(conf->common.root_canon);
+        if (root_len > 0
+            && ngx_strncmp((u_char *) shared->path,
+                           (u_char *) conf->common.root_canon,
+                           root_len) == 0
+            && shared->path[root_len] == '/')
+        {
+            rel = shared->path + root_len;
+        }
+        fd = xrootd_open_beneath(conf->rootfd, rel, open_flags, 0);
     }
 
     if (fd < 0) {
@@ -189,8 +200,10 @@ xrootd_ensure_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * Re-check the shared slot on every read request so a primary close, reuse,
      * or session teardown immediately revokes the secondary's local fd.
      */
-    if (!xrootd_session_handle_lookup(ctx->bound_sessid, handle_index,
-                                      &shared))
+    if (!xrootd_session_handle_lookup_hint(ctx->bound_sessid, handle_index,
+                                           &ctx->files[handle_index]
+                                                .shared_handle_slot_hint,
+                                           &shared))
     {
         if (ctx->files[handle_index].fd >= 0) {
             xrootd_free_fhandle(ctx, handle_index);
@@ -268,6 +281,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     xrootd_wt_mark_clean(ctx, handle_index);
 
     file->fd             = -1;
+    file->shared_handle_slot_hint = -1;  /* Phase 33 C2: drop the cached SHM slot */
     file->readable       = 0;
     file->writable       = 0;
     file->from_cache     = 0;
@@ -333,12 +347,8 @@ xrootd_validate_file_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES
         || ctx->files[handle_index].fd < 0)
     {
-        xrootd_log_access(ctx, c, verb, "-", "-",
-                          0, kXR_FileNotOpen, "invalid file handle", 0);
-        XROOTD_OP_ERR(ctx, op);
-        *rc = xrootd_send_error(ctx, c, kXR_FileNotOpen,
-                                "invalid file handle");
-        return 0;
+        XROOTD_BAIL_ERR(ctx, c, op, verb, "-", "-",
+                        kXR_FileNotOpen, "invalid file handle", rc);
     }
 
     return 1;
@@ -357,21 +367,12 @@ xrootd_validate_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ensure_rc = xrootd_ensure_read_handle(ctx, c, handle_index);
     if (ensure_rc != NGX_OK) {
         if (ensure_rc == NGX_ERROR) {
-            xrootd_log_access(ctx, c, verb, "-", "-",
-                              0, kXR_ServerError,
-                              "could not prepare file handle", 0);
-            XROOTD_OP_ERR(ctx, op);
-            *rc = xrootd_send_error(ctx, c, kXR_ServerError,
-                                    "could not prepare file handle");
-            return 0;
+            XROOTD_BAIL_ERR(ctx, c, op, verb, "-", "-", kXR_ServerError,
+                            "could not prepare file handle", rc);
         }
 
-        xrootd_log_access(ctx, c, verb, "-", "-",
-                          0, kXR_FileNotOpen, "invalid file handle", 0);
-        XROOTD_OP_ERR(ctx, op);
-        *rc = xrootd_send_error(ctx, c, kXR_FileNotOpen,
-                                "invalid file handle");
-        return 0;
+        XROOTD_BAIL_ERR(ctx, c, op, verb, "-", "-", kXR_FileNotOpen,
+                        "invalid file handle", rc);
     }
 
     /*
@@ -380,13 +381,8 @@ xrootd_validate_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * the path again on every read.
      */
     if (!ctx->files[handle_index].readable) {
-        xrootd_log_access(ctx, c, verb, ctx->files[handle_index].path, "-",
-                          0, kXR_NotAuthorized,
-                          "file not open for reading", 0);
-        XROOTD_OP_ERR(ctx, op);
-        *rc = xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                "file not open for reading");
-        return 0;
+        XROOTD_BAIL_ERR(ctx, c, op, verb, ctx->files[handle_index].path, "-",
+                        kXR_NotAuthorized, "file not open for reading", rc);
     }
 
     return 1;
@@ -405,13 +401,8 @@ xrootd_validate_write_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (!ctx->files[handle_index].writable) {
-        xrootd_log_access(ctx, c, verb, ctx->files[handle_index].path, "-",
-                          0, kXR_NotAuthorized, "file not open for writing",
-                          0);
-        XROOTD_OP_ERR(ctx, op);
-        *rc = xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                "file not open for writing");
-        return 0;
+        XROOTD_BAIL_ERR(ctx, c, op, verb, ctx->files[handle_index].path, "-",
+                        kXR_NotAuthorized, "file not open for writing", rc);
     }
 
     return 1;

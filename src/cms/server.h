@@ -16,15 +16,33 @@
 #include "cms_internal.h"
 #include "../manager/registry.h"
 
+/* Forward decl — the per-block config (defined below) is referenced by ctx. */
+typedef struct ngx_stream_xrootd_cms_srv_conf_s ngx_stream_xrootd_cms_srv_conf_t;
+
+/*
+ * SSS cluster-authentication handshake state (W1a).  Mirrors the real cmsd
+ * kYR_xauth exchange: after the data node's LOGIN frame arrives we send our
+ * security parms (REQUESTED) and defer registration until the node returns a
+ * valid SSS credential (DONE).  NONE means SSS auth is not required.
+ */
+typedef enum {
+    CMS_AUTH_NONE = 0,    /* no sss keytab configured — auth not required    */
+    CMS_AUTH_REQUESTED,   /* sss required; awaiting the node's LOGIN frame    */
+    CMS_AUTH_CHALLENGED,  /* parms sent, awaiting the node's kYR_xauth cred   */
+    CMS_AUTH_DONE         /* credential verified — registration permitted     */
+} xrootd_cms_auth_state_t;
+
 /* Per-connection state for an accepted CMS data-server connection. */
 typedef struct {
     ngx_connection_t  *c;
+    ngx_stream_xrootd_cms_srv_conf_t *conf;          /* owning srv block       */
     char               host[256];                    /* remote IP (NUL-terminated) */
     uint16_t           port;                         /* XRootD data port from LOGIN */
     char               paths[XROOTD_SRV_MAX_PATHS];  /* colon-delimited export list */
     uint32_t           free_mb;
     uint32_t           util_pct;
     ngx_uint_t         logged_in;
+    xrootd_cms_auth_state_t auth_state;              /* sss handshake state    */
     ngx_event_t        ping_timer;
     ngx_msec_t         interval_ms;                  /* ping interval in ms */
     u_char             inbuf[NGX_XROOTD_CMS_MAX_FRAME];
@@ -33,23 +51,69 @@ typedef struct {
 } xrootd_cms_srv_ctx_t;
 
 /* Per-server-block config for the CMS server module. */
-typedef struct {
-    ngx_flag_t  enable;
-    time_t      interval;   /* ping interval in seconds; default 60 */
-} ngx_stream_xrootd_cms_srv_conf_t;
+struct ngx_stream_xrootd_cms_srv_conf_s {
+    ngx_flag_t   enable;
+    time_t       interval;     /* ping interval in seconds; default 60 */
+    ngx_array_t *allow;        /* ngx_cidr_t[]: permitted data-node IPs (W1b) */
+    ngx_str_t    sss_keytab;   /* path to the cluster sss keytab (W1a)        */
+    ngx_array_t *sss_keys;     /* parsed xrootd_sss_key_t[] from the keytab    */
+};
 
 /* Module descriptor declared in server_module.c. */
 extern ngx_module_t  ngx_stream_xrootd_cms_srv_module;
 
 /* server_handler.c */
+
+/* Stream connection handler for an accepted CMS data-server connection.
+ * Allocates the per-conn ctx on c->pool, runs the W1b CIDR allowlist gate and
+ * arms the W1a sss handshake, installs the read/write handlers, then drives the
+ * first read inline.  Finalizes the session (no ctx leak — pool-cleaned) on
+ * alloc failure or a denied peer; otherwise returns with the conn live. */
 void xrootd_cms_srv_handler(ngx_stream_session_t *s);
 
 /* server_recv.c */
+
+/* Read-event handler: accumulates the fixed header then the dlen-sized payload
+ * into ctx->inbuf, dispatching each complete frame (LOGIN/LOAD/AVAIL/PONG/...).
+ * Closes the connection on peer EOF/error, read timeout, or an oversized frame
+ * (> NGX_XROOTD_CMS_MAX_FRAME).  ctx may be freed on return — do not reuse. */
 void xrootd_cms_srv_read(ngx_event_t *ev);
+
+/* Write-event handler.  All sends are synchronous (see send_ping), so this only
+ * acts as a write-timeout guard: closes the connection if ev->timedout. */
 void xrootd_cms_srv_write(ngx_event_t *ev);
+
+/* Tear down one CMS server connection: cancels the ping timer, and if the node
+ * was logged_in, blacklists host:port for 30 s (so in-flight locates skip a node
+ * that just left) before closing.  Idempotent when ctx->c is already NULL; sets
+ * ctx->c = NULL.  Does not free ctx (it lives on the connection pool). */
 void xrootd_cms_srv_close(xrootd_cms_srv_ctx_t *ctx);
 
 /* server_send.c */
+
+/* Send an empty CMS_RR_PING heartbeat frame to the data node (synchronous).
+ * Returns NGX_OK on success, NGX_ERROR if the connection is closed or the
+ * write fails. */
 ngx_int_t xrootd_cms_srv_send_ping(xrootd_cms_srv_ctx_t *ctx);
+
+/* Send the manager's kYR_xauth security challenge (the parms string, e.g.
+ * "&P=sss", of length len) inviting the node to present its sss credential.
+ * parms is borrowed (copied into the wire frame, not retained).  Returns NGX_OK
+ * on a successful synchronous write, NGX_ERROR otherwise. */
+ngx_int_t xrootd_cms_srv_send_xauth(xrootd_cms_srv_ctx_t *ctx,
+    const u_char *parms, size_t len);
+
+/* server_auth.c — W1 registration authentication (CIDR + sss + host validation) */
+
+/* Accept-time peer check: NGX_OK if the peer is permitted to register.
+ * When no allowlist is configured this returns NGX_OK (back-compat) after a
+ * one-time warning; when an allowlist is set, only matching IPs pass. */
+ngx_int_t xrootd_cms_srv_check_peer(ngx_connection_t *c,
+    ngx_stream_xrootd_cms_srv_conf_t *conf);
+
+/* Verify an SSS credential blob from a kYR_xauth response against the cluster
+ * keytab.  NGX_OK = authenticated; anything else = reject. */
+ngx_int_t xrootd_cms_srv_verify_xauth(xrootd_cms_srv_ctx_t *ctx,
+    const u_char *payload, size_t payload_len);
 
 #endif /* XROOTD_CMS_SERVER_H */

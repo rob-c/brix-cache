@@ -172,6 +172,12 @@ void xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
 ngx_int_t xrootd_configure_sss_auth(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf);
 
+/* Generic SSS keytab loader: parse <path> into a fresh key array (*out_keys).
+ * Enforces the private-permission policy.  Shared by the CMS server module's
+ * cluster authentication.  Returns NGX_OK / NGX_ERROR. */
+ngx_int_t xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path,
+    ngx_array_t **out_keys);
+
 /* Validate and prepare Kerberos 5 service principal/keytab state. */
 ngx_int_t xrootd_configure_krb5_auth(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf);
@@ -184,8 +190,9 @@ ngx_int_t xrootd_config_finalize_policy(ngx_conf_t *cf,
 ngx_int_t xrootd_configure_metrics(ngx_conf_t *cf,
     ngx_stream_core_main_conf_t *cmcf);
 
-/* Create or attach to the shared-memory session registry zone. */
-ngx_int_t xrootd_configure_session_registry(ngx_conf_t *cf);
+/* Create or attach to the shared-memory session registry zone.
+ * slots = registry capacity (xrootd_session_slots); 0 selects the default. */
+ngx_int_t xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots);
 
 /* Create or attach to the shared-memory server registry zone. */
 ngx_int_t xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots);

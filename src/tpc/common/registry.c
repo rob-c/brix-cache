@@ -1,5 +1,31 @@
 #include "registry.h"
 
+/*
+ * registry.c — shared-memory registry of in-flight third-party copies.
+ *
+ * WHAT: Implements the registry.h lifecycle: reserve the shared zone
+ *       (xrootd_tpc_registry_configure), publish/update/remove/find transfers
+ *       by id, and bulk-copy a consistent view out via
+ *       xrootd_tpc_registry_snapshot. Backed by a fixed slot array
+ *       (XROOTD_TPC_REGISTRY_SLOTS) guarded by a single shared mutex.
+ *
+ * WHY: TPC state must be visible across all nginx worker processes (a transfer
+ *      started by one worker may be queried or reported by another, and by the
+ *      dashboard/metrics readers). A shared-memory table with a shmtx gives a
+ *      lock-protected, cross-process source of truth without per-worker state.
+ *
+ * HOW: xrootd_tpc_registry_shm_init() zeroes the table and creates the shmtx on
+ *      first map (and re-attaches it on reload via the data carry-over path).
+ *      Each slot inlines fixed-size src_url/dst_path storage; the registry copies
+ *      caller strings into that storage (xrootd_tpc_registry_copy_str) so the
+ *      published xrootd_tpc_transfer_t never points at caller-owned memory. IDs
+ *      are minted from time<<32 ^ pid<<16 ^ a process-local sequence
+ *      (xrootd_tpc_registry_next_id) to stay unique across workers. All slot
+ *      mutations take xrootd_tpc_registry_mutex; xrootd_tpc_registry_find()
+ *      reads without locking and returns a pointer into shared memory for
+ *      best-effort lookups.
+ */
+
 #include "../../ngx_xrootd_module.h"
 
 #include <string.h>
@@ -58,6 +84,11 @@ xrootd_tpc_registry_shm_init(ngx_shm_zone_t *shm_zone, void *data)
     return NGX_OK;
 }
 
+/*
+ * Reserve the "xrootd_tpc_transfers" shared-memory zone (sized for the slot
+ * table plus a page) and wire up its init callback. Called at config time.
+ * Returns NGX_OK or NGX_ERROR if the zone could not be added.
+ */
 ngx_int_t
 xrootd_tpc_registry_configure(ngx_conf_t *cf)
 {
@@ -119,6 +150,12 @@ xrootd_tpc_registry_copy_str(ngx_str_t *dst, u_char *storage,
     dst->len = copy_len;
 }
 
+/*
+ * Publish a new transfer into a free slot, copying its src_url/dst_path into
+ * slot-owned storage and stamping a fresh id, started/updated time, and a
+ * default PENDING state. Returns the assigned non-zero id, or 0 if the registry
+ * is unavailable or full.
+ */
 uint64_t
 xrootd_tpc_registry_add(const xrootd_tpc_transfer_t *transfer, ngx_log_t *log)
 {
@@ -182,6 +219,11 @@ xrootd_tpc_registry_add(const xrootd_tpc_transfer_t *transfer, ngx_log_t *log)
     return id;
 }
 
+/*
+ * Update the bytes_done (and, if non-zero, the state) of the transfer with the
+ * given id, refreshing updated_at. id == 0 is a no-op returning NGX_OK; returns
+ * NGX_DECLINED if the registry is unavailable or the id is not found.
+ */
 ngx_int_t
 xrootd_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
     ngx_log_t *log)
@@ -223,6 +265,11 @@ xrootd_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
     return NGX_DECLINED;
 }
 
+/*
+ * Free the slot holding the transfer with the given id (zeroing it for reuse).
+ * id == 0 is a no-op returning NGX_OK; returns NGX_DECLINED if the registry is
+ * unavailable or the id is not found.
+ */
 ngx_int_t
 xrootd_tpc_registry_remove(uint64_t id, ngx_log_t *log)
 {
@@ -254,6 +301,11 @@ xrootd_tpc_registry_remove(uint64_t id, ngx_log_t *log)
     return NGX_DECLINED;
 }
 
+/*
+ * Copy up to max_transfers in-use slots into the caller's out[] array as flat
+ * snapshots (src_url/dst_path inlined and NUL-terminated). Taken under the lock
+ * for a consistent view. Returns the number of transfers written.
+ */
 ngx_uint_t
 xrootd_tpc_registry_snapshot(xrootd_tpc_transfer_snapshot_t *out,
     ngx_uint_t max_transfers)
@@ -304,6 +356,11 @@ xrootd_tpc_registry_snapshot(xrootd_tpc_transfer_snapshot_t *out,
     return n;
 }
 
+/*
+ * Best-effort, lock-free lookup of a transfer by id. Returns a pointer into the
+ * shared-memory slot (valid only while that slot stays in use) or NULL if not
+ * found / registry unavailable. Intended for read-only inspection.
+ */
 const xrootd_tpc_transfer_t *
 xrootd_tpc_registry_find(uint64_t id)
 {

@@ -1,6 +1,34 @@
 #include "cache_internal.h"
 #include "writethrough.h"
 
+/*
+ * noop.c — build-time-disabled stub for the read-through / write-through cache.
+ *
+ * WHAT: Provides the complete public symbol set of the cache subsystem
+ *       (xrootd_cache_open_or_fill, the xrootd_wt_* write-through API, and the
+ *       flush thread/event entry points) as inert no-op implementations.
+ *
+ * WHY:  The cache is an optional feature. When it is compiled out, the rest of
+ *       the module still references these symbols at link time (open/close
+ *       handlers call into the write-through hooks unconditionally). This file
+ *       satisfies the linker and guarantees graceful degradation rather than a
+ *       build break or a runtime crash when caching is absent.
+ *
+ * HOW:  Each function discards its arguments via (void) casts and returns the
+ *       "do nothing / not available" sentinel for its contract:
+ *         - xrootd_cache_open_or_fill() answers the client with
+ *           kXR_Unsupported via xrootd_send_error() (the cache cannot serve).
+ *         - xrootd_wt_default_decide() and xrootd_cache_should_writethrough()
+ *           return XROOTD_WT_DECISION_DENY (never write back to origin).
+ *         - xrootd_wt_config_init_prefixes() passes the prefix list through
+ *           unchanged and returns NGX_OK so config parsing still succeeds.
+ *         - xrootd_wt_flush_on_close()/xrootd_wt_flush_sync_handle() return
+ *           NGX_DECLINED so callers fall through to their non-cache path.
+ *         - the flush thread/done callbacks are empty.
+ *       This file is the build-time counterpart to the real implementations in
+ *       open_or_fill.c, writethrough_decision.c, and writethrough_flush.c.
+ */
+
 ngx_int_t
 xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const char *clean_path,

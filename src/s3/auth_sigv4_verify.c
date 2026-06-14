@@ -5,10 +5,10 @@
 #include "../compat/uri.h"
 #include "../metrics/unified.h"
 
+#include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
-#include <stdint.h>
 #include <openssl/crypto.h>
 
 /* Canonical query-string builder — defined in auth_sigv4_canonical.c */
@@ -21,9 +21,6 @@ extern int parse_authorization(const ngx_str_t *auth, sigv4_components_t *out);
 extern int parse_presigned_authorization(ngx_http_request_t *r,
     sigv4_components_t *out);
 
-/* Canonical headers builder — defined in auth_sigv4_headers.c */
-extern size_t build_canonical_headers(ngx_http_request_t *r,
-    const char *signed_hdrs, u_char *out, size_t outsz);
 
 #define S3_SIGV4_MAX_HEADER_SKEW_SEC  900
 #define S3_SIGV4_MAX_FUTURE_SKEW_SEC  900
@@ -140,28 +137,11 @@ s3_parse_4digits(const char *s)
     return a * 1000 + b * 100 + c * 10 + d;
 }
 
-static int64_t
-s3_days_from_civil(int y, unsigned m, unsigned d)
-{
-    int64_t      era;
-    unsigned    yoe, doy, doe;
-    int         mp;
-
-    y -= m <= 2;
-    era = (y >= 0 ? y : y - 399) / 400;
-    yoe = (unsigned) (y - era * 400);
-    mp = (int) m + (m > 2 ? -3 : 9);
-    doy = (153 * (unsigned) mp + 2) / 5 + d - 1;
-    doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-
-    return era * 146097 + (int64_t) doe - 719468;
-}
-
 static ngx_int_t
 s3_parse_amz_datetime(const char *s, time_t *out)
 {
-    int      year, mon, day, hour, min, sec;
-    int64_t  days;
+    struct tm  tm;
+    int        year, mon, day, hour, min, sec;
 
     if (strlen(s) != 16 || s[8] != 'T' || s[15] != 'Z') {
         return NGX_ERROR;
@@ -181,8 +161,14 @@ s3_parse_amz_datetime(const char *s, time_t *out)
         return NGX_ERROR;
     }
 
-    days = s3_days_from_civil(year, (unsigned) mon, (unsigned) day);
-    *out = (time_t) (days * 86400 + hour * 3600 + min * 60 + sec);
+    ngx_memzero(&tm, sizeof(tm));
+    tm.tm_year = year - 1900;
+    tm.tm_mon  = mon  - 1;
+    tm.tm_mday = day;
+    tm.tm_hour = hour;
+    tm.tm_min  = min;
+    tm.tm_sec  = sec;
+    *out = timegm(&tm);
     return NGX_OK;
 }
 
@@ -237,6 +223,128 @@ s3_check_presigned_future_skew(ngx_http_request_t *r, time_t request_time)
 }
 
 /* -------------------------------------------------------------------------
+ * SigV4 signing key derivation
+ *
+ * Four-round HMAC chain:
+ *   k1 = HMAC("AWS4" + secret, date)   k2 = HMAC(k1, region)
+ *   k3 = HMAC(k2, "s3")               k4 = HMAC(k3, "aws4_request")
+ * ---------------------------------------------------------------------- */
+
+static int
+s3_sigv4_derive_signing_key(const ngx_str_t *secret_key,
+                             const char *date, const char *region,
+                             u_char out[32])
+{
+    u_char prefix_key[128];
+    u_char k1[32], k2[32], k3[32];
+    size_t pklen;
+
+    if (secret_key->len + 4 > sizeof(prefix_key)) {
+        return 0;
+    }
+    ngx_memcpy(prefix_key, "AWS4", 4);
+    ngx_memcpy(prefix_key + 4, secret_key->data, secret_key->len);
+    pklen = 4 + secret_key->len;
+
+    return xrootd_hmac_sha256(prefix_key, pklen,
+                              (u_char *) date, strlen(date), k1)
+        && xrootd_hmac_sha256(k1, 32, (u_char *) region, strlen(region), k2)
+        && xrootd_hmac_sha256(k2, 32, (u_char *) "s3", 2, k3)
+        && xrootd_hmac_sha256(k3, 32, (u_char *) "aws4_request", 12, out);
+}
+
+/* Worker-local one-slot cache: signing key is stable for one calendar day per
+ * region, so cache the last key and avoid four HMAC rounds on every request. */
+static struct {
+    char   date[9];    /* YYYYMMDD\0, empty string means invalid */
+    char   region[65];
+    u_char key[32];
+} s_signing_key_cache;
+
+int
+s3_sigv4_derive_signing_key_cached(const ngx_str_t *secret_key,
+                                    const char *date, const char *region,
+                                    u_char out[32])
+{
+    if (s_signing_key_cache.date[0] != '\0'
+        && strcmp(s_signing_key_cache.date, date) == 0
+        && strcmp(s_signing_key_cache.region, region) == 0)
+    {
+        ngx_memcpy(out, s_signing_key_cache.key, 32);
+        return 1;
+    }
+
+    if (!s3_sigv4_derive_signing_key(secret_key, date, region, out)) {
+        return 0;
+    }
+
+    ngx_cpystrn((u_char *) s_signing_key_cache.date,
+                (u_char *) date, sizeof(s_signing_key_cache.date));
+    ngx_cpystrn((u_char *) s_signing_key_cache.region,
+                (u_char *) region, sizeof(s_signing_key_cache.region));
+    ngx_memcpy(s_signing_key_cache.key, out, 32);
+    return 1;
+}
+
+/* -------------------------------------------------------------------------
+ * Canonical signed headers builder (merged from auth_sigv4_headers.c)
+ *
+ * Builds the "header-name:value\n" block required by SigV4.  signed_hdrs is
+ * a semicolon-separated list, e.g. "host;x-amz-content-sha256;x-amz-date".
+ * ---------------------------------------------------------------------- */
+
+static size_t
+build_canonical_headers(ngx_http_request_t *r,
+                        const char *signed_hdrs,
+                        u_char *out, size_t outsz)
+{
+    char   hdrs[256];
+    size_t oi = 0;
+
+    ngx_cpystrn((u_char *) hdrs, (u_char *) signed_hdrs, sizeof(hdrs));
+
+    char *save = NULL;
+    char *tok  = strtok_r(hdrs, ";", &save);
+
+    while (tok) {
+        ngx_str_t val;
+
+        if (strcmp(tok, "host") == 0) {
+            val = r->headers_in.host ? r->headers_in.host->value
+                                     : (ngx_str_t) ngx_null_string;
+        } else {
+            val = get_header(r, tok);
+        }
+
+        size_t nlen = strlen(tok);
+        size_t vlen = val.len;
+
+        if (oi + nlen + 1 + vlen + 2 >= outsz) {
+            break;
+        }
+
+        for (size_t i = 0; i < nlen; i++) {
+            out[oi++] = (u_char) tolower((unsigned char) tok[i]);
+        }
+        out[oi++] = ':';
+
+        const u_char *vs = val.data;
+        const u_char *ve = val.data + vlen;
+        while (vs < ve && (*vs == ' ' || *vs == '\t')) { vs++; }
+        while (ve > vs && (ve[-1] == ' ' || ve[-1] == '\t')) { ve--; }
+
+        ngx_memcpy(out + oi, vs, (size_t)(ve - vs));
+        oi += (size_t)(ve - vs);
+        out[oi++] = '\n';
+
+        tok = strtok_r(NULL, ";", &save);
+    }
+
+    out[oi] = '\0';
+    return oi;
+}
+
+/* -------------------------------------------------------------------------
  * Main verification entry point
  * ---------------------------------------------------------------------- */
 
@@ -277,7 +385,7 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     u_char             string_to_sign[4096];
     u_char             hash_hex[65];
     u_char             cr_hash[32];
-    u_char             k1[32], k2[32], k3[32], k4[32];
+    u_char             k4[32];
     u_char             computed[32];
     char               computed_hex[65];
     size_t             n;
@@ -287,6 +395,7 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     char               header_amz_date[32];
     time_t             request_time;
     int                parse_rc;
+    int                key_ok;        /* W5: deferred access-key match flag */
 
     /* Anonymous mode */
     if (cf->access_key.len == 0) {
@@ -322,18 +431,25 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                                  "Malformed presigned URL");
     }
 
-    /* Verify access key matches */
-    if (cf->access_key.len != strlen(comp.akid)
-        || ngx_strncmp(cf->access_key.data,
-                       (u_char *) comp.akid, cf->access_key.len) != 0)
-    {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "xrootd_s3: unknown access key: %s", comp.akid);
-        s3_record_auth_result(XROOTD_S3_AUTH_BAD_KEY);
-        return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                 "InvalidAccessKeyId",
-                                 "The access key ID does not exist");
-    }
+    /*
+     * Verify the access key — W5: do NOT early-return on mismatch.
+     *
+     * An early exit here (before the signing-key derive + HMAC compute below)
+     * created a timing AND message oracle: an unknown key returned quickly with
+     * "InvalidAccessKeyId", while a known key with a bad signature ran the full
+     * HMAC and returned "SignatureDoesNotMatch".  An attacker could enumerate
+     * valid access keys from the response time and message alone.
+     *
+     * Instead, record the result in key_ok (constant-time compare) and fold it
+     * into the single signature decision at the end, so both an unknown key and
+     * a bad signature traverse the same HMAC work and return the identical
+     * "SignatureDoesNotMatch" error.  The length check short-circuits the
+     * CRYPTO_memcmp only to avoid an out-of-bounds read; the akid length is not
+     * a sensitive secret.
+     */
+    key_ok = (cf->access_key.len == strlen(comp.akid))
+             && CRYPTO_memcmp(cf->access_key.data,
+                              (u_char *) comp.akid, cf->access_key.len) == 0;
 
     if (s3_request_has_session_token(r, comp.presigned)) {
         if (!cf->allow_unsigned_session_token) {
@@ -461,35 +577,12 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         (char *) hash_hex);
 
     /* ----------------------------------------------------------------
-     * 6. Derive signing key
-     *    k1 = HMAC-SHA256("AWS4" + secret, date)
-     *    k2 = HMAC-SHA256(k1, region)
-     *    k3 = HMAC-SHA256(k2, "s3")
-     *    k4 = HMAC-SHA256(k3, "aws4_request")
+     * 6. Derive signing key (cached: stable for one calendar day per region)
      * -------------------------------------------------------------- */
-    {
-        u_char prefix_key[128];
-        size_t pklen;
-
-        if (cf->secret_key.len + 4 > sizeof(prefix_key)) {
-            s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        ngx_memcpy(prefix_key, "AWS4", 4);
-        ngx_memcpy(prefix_key + 4, cf->secret_key.data, cf->secret_key.len);
-        pklen = 4 + cf->secret_key.len;
-
-        if (!xrootd_hmac_sha256(prefix_key, pklen,
-                         (u_char *) comp.date, strlen(comp.date), k1)
-            || !xrootd_hmac_sha256(k1, 32,
-                            (u_char *) comp.region, strlen(comp.region), k2)
-            || !xrootd_hmac_sha256(k2, 32, (u_char *) "s3", 2, k3)
-            || !xrootd_hmac_sha256(k3, 32,
-                            (u_char *) "aws4_request", 12, k4))
-        {
-            s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
+    if (!s3_sigv4_derive_signing_key_cached(&cf->secret_key,
+                                             comp.date, comp.region, k4)) {
+        s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     /* ----------------------------------------------------------------
@@ -511,11 +604,18 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                                  "Signature must be 64 hex characters");
     }
 
-    /* Constant-time comparison prevents timing-oracle attacks on the HMAC value. */
-    if (CRYPTO_memcmp(computed_hex, comp.signature, 64) != 0) {
+    /*
+     * Single constant-time decision (W5): an unknown access key (!key_ok) and a
+     * bad signature take the identical path, status, and message here, having
+     * both run the full HMAC above — no timing or message oracle distinguishes
+     * them.  CRYPTO_memcmp prevents a timing oracle on the HMAC value itself.
+     */
+    if (!key_ok || CRYPTO_memcmp(computed_hex, comp.signature, 64) != 0) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "xrootd_s3: SigV4 mismatch for key=%s", comp.akid);
-        s3_record_auth_result(XROOTD_S3_AUTH_SIG_MISMATCH);
+                      "xrootd_s3: SigV4 auth failed for key=%s (key_ok=%d)",
+                      comp.akid, key_ok);
+        s3_record_auth_result(key_ok ? XROOTD_S3_AUTH_SIG_MISMATCH
+                                     : XROOTD_S3_AUTH_BAD_KEY);
         return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                  "SignatureDoesNotMatch",
                                  "The request signature we calculated does "

@@ -69,26 +69,46 @@ tlv_read_next(const u_char **p, const u_char *end)
     return 0;
 }
 
+/*
+ * Read one XrdOucPup string from *p: a 2-byte big-endian length followed by
+ * <len> raw bytes (the length includes the trailing NUL).  Sets *out / *out_len
+ * to the data span and advances *p.  Returns 1 on success, 0 (and *p=end) on a
+ * short/overrun buffer.  Strings carry NO type tag — the high bit of the first
+ * length byte is clear for any reasonable length, which is how the real Parser
+ * tells a string apart from a PT_short/PT_int scalar.
+ */
+static int
+cms_srv_read_string(const u_char **p, const u_char *end,
+    const u_char **out, size_t *out_len)
+{
+    uint16_t  len;
+
+    if (end - *p < 2) { *p = end; return 0; }
+    len = ngx_xrootd_cms_get16(*p);
+    *p += 2;
+    if ((size_t) (end - *p) < len) { *p = end; return 0; }
+    *out = *p;
+    *out_len = len;
+    *p += len;
+    return 1;
+}
+
 /* --- LOGIN payload parser ------------------------------------------------- */
 
 /*
- * Parse the CMS LOGIN frame payload.  The format (from cms/send.c) is:
+ * Parse the CMS LOGIN frame payload in the real XrdCms CmsLoginData wire format
+ * (XrdOucPup), the same one a real cmsd and our own cms/send.c now emit:
  *
- *   PT_SHORT  version       (3 bytes)
- *   PT_INT    mode          (5 bytes)
- *   PT_INT    pid           (5 bytes)
- *   PT_INT    total_gb      (5 bytes)
- *   PT_INT    free_mb       (5 bytes)  ← extracted
- *   PT_INT    min_free_mb   (5 bytes)
- *   PT_SHORT  num_cpus      (3 bytes)
- *   PT_SHORT  util_pct      (3 bytes)  ← extracted
- *   PT_SHORT  port          (3 bytes)  ← extracted
- *   PT_SHORT  (flags1)      (3 bytes)
- *   PT_SHORT  (flags2)      (3 bytes)
- *   PT_SHORT  path_len      (3 bytes)  ← extracted
- *   <raw path bytes>        (path_len bytes)
- *   PT_SHORT  0             (3 bytes)
- *   PT_SHORT  0             (3 bytes)
+ *   PT_SHORT Version    PT_INT Mode      PT_INT HoldTime
+ *   PT_INT   tSpace     PT_INT fSpace ←free_mb   PT_INT mSpace
+ *   PT_SHORT fsNum      PT_SHORT fsUtil ←util_pct PT_SHORT dPort ←port
+ *   PT_SHORT sPort      [Fence]
+ *   string SID          string Paths     string ifList   string envCGI
+ *
+ * The Paths string is a newline-separated list of "<type> <namespace-path>"
+ * entries (type 'r'/'w', e.g. "w /\nw /atlas").  We strip the type prefix and
+ * store the bare namespace paths colon-delimited ("/:/atlas") — the form the
+ * registry's srv_path_matches() expects.
  */
 static int
 cms_srv_parse_login(xrootd_cms_srv_ctx_t *ctx,
@@ -96,38 +116,102 @@ cms_srv_parse_login(xrootd_cms_srv_ctx_t *ctx,
 {
     const u_char  *p   = payload;
     const u_char  *end = payload + payload_len;
-    uint32_t       path_len;
+    const u_char  *sid;
+    const u_char  *paths;
+    size_t         sid_len;
+    size_t         paths_len;
+    u_char        *dst;
+    u_char        *dst_end;
+    size_t         i;
 
-    /* version */  (void) tlv_read_next(&p, end);
-    /* mode    */  (void) tlv_read_next(&p, end);
-    /* pid     */  (void) tlv_read_next(&p, end);
-    /* total_gb */ (void) tlv_read_next(&p, end);
-    ctx->free_mb   = tlv_read_next(&p, end);
-    /* min_free */ (void) tlv_read_next(&p, end);
-    /* num_cpus */ (void) tlv_read_next(&p, end);
-    ctx->util_pct  = tlv_read_next(&p, end);
-    ctx->port      = (uint16_t) tlv_read_next(&p, end);
-    /* flags1  */ (void) tlv_read_next(&p, end);
-    /* flags2  */ (void) tlv_read_next(&p, end);
-    path_len       = tlv_read_next(&p, end);
+    /* version */   (void) tlv_read_next(&p, end);
+    /* mode    */   (void) tlv_read_next(&p, end);
+    /* holdtime */  (void) tlv_read_next(&p, end);
+    /* tSpace  */   (void) tlv_read_next(&p, end);
+    ctx->free_mb  = tlv_read_next(&p, end);     /* fSpace  */
+    /* mSpace  */   (void) tlv_read_next(&p, end);
+    /* fsNum   */   (void) tlv_read_next(&p, end);
+    ctx->util_pct = tlv_read_next(&p, end);     /* fsUtil  */
+    ctx->port     = (uint16_t) tlv_read_next(&p, end); /* dPort */
+    /* sPort   */   (void) tlv_read_next(&p, end);
 
-    if (p == end && payload_len > 0 && ctx->port == 0) {
-        /* Truncated or malformed payload. */
-        return 0;
+    /* SID (ignored) then Paths (extracted). ifList/envCGI ignored. */
+    (void) cms_srv_read_string(&p, end, &sid, &sid_len);
+    if (!cms_srv_read_string(&p, end, &paths, &paths_len)) {
+        paths = NULL;
+        paths_len = 0;
     }
 
-    if (path_len > 0) {
-        if ((size_t)(end - p) < path_len) {
-            return 0;
+    /*
+     * Convert "<type> <path>\n<type> <path>..." -> colon-delimited bare paths.
+     * Each newline segment is "<type> <path>"; the path follows the first
+     * space.  A segment without a space is taken verbatim as the path.
+     */
+    dst     = (u_char *) ctx->paths;
+    dst_end = dst + sizeof(ctx->paths) - 1;
+    i = 0;
+    while (i < paths_len && dst < dst_end) {
+        const u_char  *tok;
+        size_t         tok_len;
+        size_t         seg_end;
+
+        while (i < paths_len
+               && (paths[i] == '\n' || paths[i] == ' '
+                   || paths[i] == '\t' || paths[i] == '\0'))
+        {
+            i++;
         }
-        size_t copy = path_len < sizeof(ctx->paths) - 1
-                      ? path_len
-                      : sizeof(ctx->paths) - 1;
-        ngx_memcpy(ctx->paths, p, copy);
-        ctx->paths[copy] = '\0';
-    } else {
-        ctx->paths[0] = '\0';
+        if (i >= paths_len) {
+            break;
+        }
+
+        /* find end of this segment (newline / NUL terminated) */
+        seg_end = i;
+        while (seg_end < paths_len
+               && paths[seg_end] != '\n' && paths[seg_end] != '\0')
+        {
+            seg_end++;
+        }
+
+        /* split off the leading "<type> " prefix, if any */
+        tok = paths + i;
+        tok_len = seg_end - i;
+        {
+            size_t sp = 0;
+            while (sp < tok_len && tok[sp] != ' ') {
+                sp++;
+            }
+            if (sp < tok_len) {           /* found a space → path follows it */
+                sp++;
+                while (sp < tok_len && tok[sp] == ' ') {
+                    sp++;
+                }
+                tok += sp;
+                tok_len -= sp;
+            }
+        }
+        while (tok_len > 0
+               && (tok[tok_len - 1] == ' ' || tok[tok_len - 1] == '\t'))
+        {
+            tok_len--;
+        }
+
+        if (tok_len > 0) {
+            size_t cp;
+            if (dst != (u_char *) ctx->paths && dst < dst_end) {
+                *dst++ = ':';
+            }
+            cp = (size_t) (dst_end - dst);
+            if (cp > tok_len) {
+                cp = tok_len;
+            }
+            ngx_memcpy(dst, tok, cp);
+            dst += cp;
+        }
+
+        i = seg_end;
     }
+    *dst = '\0';
 
     /* Default XRootD port if the data server didn't advertise one. */
     if (ctx->port == 0) {
@@ -202,6 +286,32 @@ xrootd_cms_srv_ping_timer(ngx_event_t *ev)
 
 /* --- Frame dispatcher ----------------------------------------------------- */
 
+/*
+ * cms_srv_complete_login — register the data server and arm heartbeats.
+ *
+ * Called once the LOGIN frame has been parsed AND (when sss is configured) the
+ * kYR_xauth credential has been verified.  Splitting this out lets the sss path
+ * defer registration until authentication succeeds without duplicating the
+ * register/log/timer sequence.
+ */
+static void
+cms_srv_complete_login(xrootd_cms_srv_ctx_t *ctx)
+{
+    xrootd_srv_register(ctx->host, ctx->port, ctx->paths,
+                         ctx->free_mb, ctx->util_pct);
+    ctx->logged_in = 1;
+
+    /* Arm the periodic ping now that the data server is logged in. */
+    ctx->ping_timer.handler = xrootd_cms_srv_ping_timer;
+    ngx_add_timer(&ctx->ping_timer, ctx->interval_ms);
+
+    ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+                  "xrootd: CMS server: registered %s:%d paths=[%s] "
+                  "free_mb=%uD util_pct=%uD",
+                  ctx->host, (int) ctx->port, ctx->paths,
+                  ctx->free_mb, ctx->util_pct);
+}
+
 static void
 cms_srv_process_frame(xrootd_cms_srv_ctx_t *ctx, u_char code,
     const u_char *payload, size_t payload_len)
@@ -219,19 +329,42 @@ cms_srv_process_frame(xrootd_cms_srv_ctx_t *ctx, u_char code,
             return;
         }
 
-        xrootd_srv_register(ctx->host, ctx->port, ctx->paths,
-                             ctx->free_mb, ctx->util_pct);
-        ctx->logged_in = 1;
+        /*
+         * W1a — if sss cluster auth is required, do NOT register yet.  Mirror
+         * the real cmsd manager (XrdCmsLogin::Admit): after the LOGIN frame
+         * arrives, send our security parms and wait for the node's kYR_xauth
+         * credential before admitting it into the registry.
+         */
+        if (ctx->auth_state == CMS_AUTH_REQUESTED) {
+            static const u_char sss_parms[] = "&P=sss";
+            if (xrootd_cms_srv_send_xauth(ctx, sss_parms,
+                                          sizeof(sss_parms)) != NGX_OK)
+            {
+                xrootd_cms_srv_close(ctx);
+                return;
+            }
+            ctx->auth_state = CMS_AUTH_CHALLENGED;
+            break;
+        }
 
-        /* Arm the periodic ping now that the data server is logged in. */
-        ctx->ping_timer.handler = xrootd_cms_srv_ping_timer;
-        ngx_add_timer(&ctx->ping_timer, ctx->interval_ms);
+        cms_srv_complete_login(ctx);
+        break;
 
-        ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
-                      "xrootd: CMS server: registered %s:%d paths=[%s] "
-                      "free_mb=%uD util_pct=%uD",
-                      ctx->host, (int) ctx->port, ctx->paths,
-                      ctx->free_mb, ctx->util_pct);
+    case CMS_RR_XAUTH:
+        /* Only meaningful while we are waiting for a credential. */
+        if (ctx->auth_state != CMS_AUTH_CHALLENGED) {
+            ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+                          "xrootd: CMS server: unexpected kYR_xauth from %s",
+                          ctx->host);
+            xrootd_cms_srv_close(ctx);
+            return;
+        }
+        if (xrootd_cms_srv_verify_xauth(ctx, payload, payload_len) != NGX_OK) {
+            xrootd_cms_srv_close(ctx);
+            return;
+        }
+        ctx->auth_state = CMS_AUTH_DONE;
+        cms_srv_complete_login(ctx);
         break;
 
     case CMS_RR_LOAD:

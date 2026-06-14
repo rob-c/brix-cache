@@ -126,6 +126,38 @@ Maximum wall-clock time passed to `curl --max-time` for a single HTTP-TPC pull.
 
 ---
 
+### `xrootd_webdav_tpc_token_endpoint <url>`
+
+**Context:** `location`
+
+HTTPS endpoint URL for OAuth2/OIDC token exchange. When configured with `xrootd_webdav_tpc_token_client_id` and `xrootd_webdav_tpc_token_client_secret`, the module obtains access tokens for remote TPC operations (pull/push) by POST-ing to this endpoint. Tokens are obtained at TPC request time and must be managed securely.
+
+---
+
+### `xrootd_webdav_tpc_token_client_id <string>`
+
+**Context:** `location`
+
+OAuth2 client ID used when requesting access tokens from `xrootd_webdav_tpc_token_endpoint`.
+
+---
+
+### `xrootd_webdav_tpc_token_client_secret <string>`
+
+**Context:** `location`
+
+OAuth2 client secret used for authenticating the token request. Must be kept secure and never exposed in logs or error messages.
+
+---
+
+### `xrootd_webdav_tpc_token_scope <string>`
+
+**Context:** `location`
+
+OAuth2 scope to request in the token grant. Common values: `storage.read`, `storage.write`, or space-separated combinations per the identity provider's policy.
+
+---
+
 ### `xrootd_webdav_proxy_certs on|off`
 
 **Context:** `server` or `location` (HTTP) · **Default:** `off`
@@ -237,13 +269,36 @@ Value used for `Access-Control-Max-Age` on allowed CORS preflight responses.
 
 **Context:** `location` · **Default:** `600`
 
-Maximum duration for a WebDAV lock. When a client requests a lock with a `Timeout:` header, the server bounds the timeout to this value. Stale locks are automatically expired from the in-memory lock table after this duration.
+Maximum duration for a WebDAV lock. When a client requests a lock with a `Timeout:` header, the server bounds the timeout to this value. Expired locks are cleaned up lazily — on the next access to the locked path.
 
-The implementation uses a shared-memory lock table protected by spinlocks, ensuring that locks are visible across all nginx worker processes.
+Lock state is stored as a single extended attribute (`user.nginx_xrootd.lock`) on the locked resource itself, in the same storage layer as dead properties. There is no shared-memory table or mutex: atomic creation is provided by the kernel's `XATTR_CREATE` semantics, and a lock check walks from the target path up to the export root (`O(path_depth)` xattr reads).
 - **Exclusive Write Locks**: Only exclusive write locks are currently supported.
 - **Depth Support**: Supports both `Depth: 0` (shallow) and `Depth: infinity` (recursive) lock scope.
 - **Custom Owner**: Parses the LOCK request body to extract custom `<D:owner>` metadata (including `<D:href>`), ensuring compatibility with desktop clients that identify users via XML.
 - **Recursive Enforcement**: Destructive operations on collections (DELETE, MOVE, COPY with Overwrite) perform a recursive lock check and will fail if any child resource is locked.
+- **Persistence**: Because locks live on the filesystem, they **survive an nginx restart**. This diverges from the ephemeral model of RFC 4918 §10.1; clients that explicitly `UNLOCK` (the correct pattern) are unaffected. To restore ephemeral behaviour, enable `xrootd_webdav_lock_startup_sweep`.
 - **Timeout**: Default timeout is 600 seconds, configurable via `xrootd_webdav_lock_timeout`.
+
+---
+
+### `xrootd_webdav_lock_startup_sweep <on|off>`
+
+**Context:** `main` · `server` · `location` · **Default:** `off`
+
+Controls whether persisted WebDAV lock xattrs under the export root are cleared at startup.
+
+Because lock state is stored as an xattr on each resource (see `xrootd_webdav_lock_timeout`), locks normally persist across an nginx restart. When this directive is `on`, nginx recursively removes every `user.nginx_xrootd.lock` xattr beneath the resolved export root once at startup, restoring the ephemeral, restart-clears-all semantics of RFC 4918 §10.1.
+
+- **Default `off`**: locks persist across restarts (no startup filesystem walk).
+- The sweep runs once per webdav location when its export root is resolved at configuration load. It is **skipped during `nginx -t`** so a config test never mutates the filesystem.
+- The cost is a one-time recursive walk of the export root at startup; leave it `off` for very large trees unless ephemeral lock semantics are required.
+
+```nginx
+location / {
+    xrootd_webdav      on;
+    xrootd_webdav_root /data;
+    xrootd_webdav_lock_startup_sweep on;   # clear stale locks on restart
+}
+```
 
 ---

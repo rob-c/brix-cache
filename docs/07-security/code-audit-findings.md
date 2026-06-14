@@ -440,7 +440,7 @@ to accept the username but sanitize it at log time).
 
 **Test:** `tests/test_security_hardening.py::test_login_username_rejects_control_bytes`
 sends a username containing `\n`, `\x1b`, and `"` control chars and asserts:
-- Response status is `kXR_ArgInvalid` (4003)
+- Response status is `kXR_ArgInvalid` (3000)
 - Raw username bytes are absent from both `xrootd_access_anon.log` and `error.log`
 
 ---

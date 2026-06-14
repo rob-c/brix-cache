@@ -22,36 +22,24 @@ static ngx_int_t
 xrootd_query_arg_missing(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const char *tag, ngx_uint_t op)
 {
-    xrootd_log_access(ctx, c, "QUERY", "-", tag,
-                      0, kXR_ArgMissing,
-                      "Required query argument not present", 0);
-    XROOTD_OP_ERR(ctx, op);
-    return xrootd_send_error(ctx, c, kXR_ArgMissing,
-                             "Required query argument not present");
+    XROOTD_RETURN_ERR(ctx, c, op, "QUERY", "-", tag,
+                      kXR_ArgMissing, "Required query argument not present");
 }
 
 static ngx_int_t
 xrootd_query_fsctl_unsupported(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const char *path, const char *tag, ngx_uint_t op)
 {
-    xrootd_log_access(ctx, c, "QUERY", path ? path : "-", tag,
-                      0, kXR_Unsupported,
-                      "FSctl operation not supported", 0);
-    XROOTD_OP_ERR(ctx, op);
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
-                             "FSctl operation not supported");
+    XROOTD_RETURN_ERR(ctx, c, op, "QUERY", path ? path : "-", tag,
+                      kXR_Unsupported, "FSctl operation not supported");
 }
 
 static ngx_int_t
 xrootd_query_fctl_unsupported(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const char *path, const char *tag, ngx_uint_t op)
 {
-    xrootd_log_access(ctx, c, "QUERY", path ? path : "-", tag,
-                      0, kXR_Unsupported,
-                      "fctl operation not supported", 0);
-    XROOTD_OP_ERR(ctx, op);
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
-                             "fctl operation not supported");
+    XROOTD_RETURN_ERR(ctx, c, op, "QUERY", path ? path : "-", tag,
+                      kXR_Unsupported, "fctl operation not supported");
 }
 
 static ngx_flag_t
@@ -129,7 +117,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
     char        pathbuf[XROOTD_MAX_PATH + 1];
-    char        resolved[PATH_MAX];
+    char        full_path[PATH_MAX];
     char        resp[4096];
     int         pos = 0;
     char        raw_list[4096];
@@ -150,27 +138,19 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
     }
 
-    if (!xrootd_resolve_path(c->log, &conf->common.root, pathbuf,
-                             resolved, sizeof(resolved))) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
-        return xrootd_send_error(ctx, c, kXR_NotFound, "file not found");
+    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+                              full_path, sizeof(full_path));
+
+    if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_XATTR, "QUERY",
+                         pathbuf, full_path, conf,
+                         XROOTD_AUTH_READ, 0) != NGX_OK) {
+        return ctx->write_rc;
     }
 
-    if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_READ) != NGX_OK) {
+    if (xrootd_stat_beneath(conf->rootfd, pathbuf, &st) != 0) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized, "not authorized");
-    }
-
-    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-                                     ctx->identity) != NGX_OK) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "VO not authorized");
-    }
-
-    if (stat(resolved, &st) != 0) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
-        return xrootd_send_error(ctx, c, kXR_IOError, "stat failed");
+        return xrootd_send_error(ctx, c, xrootd_kxr_from_errno(errno),
+                                 strerror(errno));
     }
 
     if (S_ISREG(st.st_mode)) {
@@ -191,7 +171,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                    (long) st.st_mtime, (long) st.st_ctime, (long) st.st_atime,
                    facc);
 
-    list_sz = listxattr(resolved, raw_list, sizeof(raw_list));
+    list_sz = listxattr(full_path, raw_list, sizeof(raw_list));
     if (list_sz > 0) {
         char *lp = raw_list;
         char *lend = raw_list + list_sz;
@@ -203,7 +183,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 char    val[1024];
                 ssize_t vlen;
 
-                vlen = getxattr(resolved, lp, val, sizeof(val) - 1);
+                vlen = getxattr(full_path, lp, val, sizeof(val) - 1);
                 if (vlen >= 0) {
                     val[vlen] = '\0';
                     pos += snprintf(resp + pos, sizeof(resp) - pos - 1,
@@ -279,7 +259,7 @@ xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
     char pathbuf[XROOTD_MAX_PATH + 1];
-    char resolved[PATH_MAX];
+    char full_path[PATH_MAX];
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
         return xrootd_query_arg_missing(ctx, c, "opaquf",
@@ -292,21 +272,13 @@ xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
                           "opaquf", kXR_ArgInvalid, "invalid path");
     }
 
-    if (!xrootd_resolve_path_noexist(c->log, &conf->common.root, pathbuf,
-                                     resolved, sizeof(resolved))) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_OPAQUF, "QUERY", pathbuf,
-                          "opaquf", kXR_NotFound, "invalid path");
-    }
+    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+                              full_path, sizeof(full_path));
 
-    if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_READ) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_OPAQUF, "QUERY", pathbuf,
-                          "opaquf", kXR_NotAuthorized, "not authorized");
-    }
-
-    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-                                     ctx->identity) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_OPAQUF, "QUERY", pathbuf,
-                          "opaquf", kXR_NotAuthorized, "VO not authorized");
+    if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_OPAQUF, "QUERY",
+                         pathbuf, full_path, conf,
+                         XROOTD_AUTH_READ, 0) != NGX_OK) {
+        return ctx->write_rc;
     }
 
     return xrootd_query_fsctl_unsupported(ctx, c, pathbuf, "opaquf",

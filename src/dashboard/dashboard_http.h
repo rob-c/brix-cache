@@ -38,6 +38,15 @@ typedef struct {
     ngx_msec_t  cluster_stale_after_ms;
     ngx_str_t   cookie_path;    /* Set-Cookie Path and post-login redirect base       */
     ngx_array_t *users;         /* ngx_http_xrootd_dashboard_user_t entries           */
+
+    /* ---- Phase 23: admin write API (/xrootd/api/v1/admin/...) ---- */
+    ngx_array_t *admin_allow;     /* ngx_cidr_t[] — [xrootd_admin_allow <cidr...>]      */
+    ngx_str_t   admin_secret;     /* bearer secret read from file at config time;
+                                   * [xrootd_admin_secret /run/secrets/token]          */
+    ngx_flag_t  admin_require_both; /* [xrootd_admin_require_both on] — CIDR AND secret */
+    ngx_array_t *admin_proxy_allow; /* ngx_str_t[] allowed dynamic-proxy backend hosts;
+                                     * [xrootd_admin_proxy_allow <host>...] (W6/E1).
+                                     * NULL = unrestricted (back-compat).               */
 } ngx_http_xrootd_dashboard_loc_conf_t;
 
 typedef enum {
@@ -49,19 +58,56 @@ typedef enum {
     XROOTD_DASHBOARD_API_V1_HISTORY,
     XROOTD_DASHBOARD_API_V1_CLUSTER,
     XROOTD_DASHBOARD_API_V1_CACHE,
+    XROOTD_DASHBOARD_API_V1_RATELIMIT,   /* Phase 25 */
     XROOTD_DASHBOARD_API_V1_NOT_FOUND
 } xrootd_dashboard_api_endpoint_e;
 
 /* HTTP content handlers */
+
+/*
+ * Top-level content handler installed on the dashboard location; routes by
+ * r->uri (longest-match first) to the api/login/page handler or the admin
+ * write API, with per-endpoint auth done downstream (NOT here).
+ * Returns NGX_HTTP_NOT_FOUND when the module is disabled or the URI matches
+ * no route; otherwise the chosen handler's return value (NGX_HTTP_* status,
+ * output-filter result, or NGX_DONE for async bodies).
+ */
 ngx_int_t ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r);
+
+/*
+ * Build and emit one JSON dashboard endpoint selected by endpoint.
+ * Enforces cookie auth FIRST, then allows only GET/HEAD (else
+ * NGX_HTTP_NOT_ALLOWED). Samples the history ring and totals as a side effect.
+ * A NULL builder result degrades to a 507 body and logs a dashboard event;
+ * detail/not-found endpoints may set their own 404. Returns the auth failure
+ * code, NGX_HTTP_NOT_ALLOWED, or the output-filter result.
+ */
 ngx_int_t ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
     xrootd_dashboard_api_endpoint_e endpoint);
+
+/*
+ * Serve the embedded single-page dashboard HTML asset.
+ * On auth failure emits a 302 to "<cookie_path>/login" (allocated in r->pool)
+ * instead of leaking the shell; rejects non-GET/HEAD.
+ * Returns an NGX_HTTP_* status on redirect/error, or the output-filter result.
+ */
 ngx_int_t ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r);
+
+/*
+ * Login route: GET/HEAD serves the login form; POST reads the body
+ * asynchronously and verifies credentials in a body callback, so the POST
+ * path returns NGX_DONE (response finalized later by the callback).
+ * Returns NGX_HTTP_NOT_ALLOWED for other methods, or the form send result.
+ */
 ngx_int_t ngx_http_xrootd_dashboard_login_handler(ngx_http_request_t *r);
 
 /*
- * Check if the request carries a valid xrd_dashboard cookie.
- * Returns NGX_OK if valid, NGX_HTTP_UNAUTHORIZED otherwise.
+ * Validate the request's xrd_dashboard cookie (HMAC + timestamp, optional
+ * username field in multi-user mode); conf is borrowed, not retained.
+ * Fails closed: any missing/malformed/expired/forged cookie yields
+ * NGX_HTTP_UNAUTHORIZED and appends a dashboard AUTH audit event as a side
+ * effect. Returns NGX_OK when valid OR when no password/users are configured
+ * (dashboard is then open and the cookie is not inspected).
  */
 ngx_int_t ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     const ngx_http_xrootd_dashboard_loc_conf_t *conf);

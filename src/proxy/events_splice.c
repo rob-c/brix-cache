@@ -245,6 +245,20 @@ xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy)
                           "xrootd proxy: pipe2 failed, using buffered path");
             return NGX_DECLINED;
         }
+
+        /*
+         * Enlarge the pipe to 1 MiB (default is 64 KiB).  splice() pumps at most
+         * one pipe-buffer per syscall, so a larger pipe cuts the syscall count on
+         * big relayed bodies by ~16x.  Best-effort: F_SETPIPE_SZ can fail if it
+         * exceeds /proc/sys/fs/pipe-max-size for an unprivileged process, in which
+         * case the kernel keeps the default size and splice still works correctly.
+         */
+        if (fcntl(proxy->splice_pipe[1], F_SETPIPE_SZ, 1 << 20) < 0) {
+            ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log,
+                           ngx_errno,
+                           "xrootd proxy: F_SETPIPE_SZ(1MiB) failed (errno=%d), "
+                           "using default pipe size", ngx_errno);
+        }
     }
 
     /* Send the 8-byte response header (with client's stream ID) to the client

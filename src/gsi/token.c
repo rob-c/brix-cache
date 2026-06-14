@@ -1,6 +1,7 @@
 #include "gsi_internal.h"
 #include "../session/registry.h"
 #include "../token/macaroon.h"
+#include "../token/token_cache.h"
 
 /*
  * Bearer-token (JWT/WLCG) authentication for the "ztn" credential type.
@@ -78,12 +79,24 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
             conf->token_macaroon_secret.len, secret, sizeof(secret));
     }
 
-    rc = xrootd_token_validate(c->log, token, token_len,
-                               conf->jwks_keys, conf->jwks_key_count,
-                               (const char *) conf->token_issuer.data,
-                               (const char *) conf->token_audience.data,
-                               slen > 0 ? secret : NULL, (size_t) slen,
-                               &claims);
+    /* Cross-worker JWT cache: a verified fingerprint short-circuits the
+     * RSA/ECDSA signature verification entirely.  Only successfully verified
+     * claims are ever cached (see token_cache.c). */
+    int cache_hit = 0;
+    if (conf->token_cache_kv != NULL
+        && xrootd_token_cache_lookup(conf->token_cache_kv,
+                                     token, token_len, &claims))
+    {
+        rc = 0;
+        cache_hit = 1;
+    } else {
+        rc = xrootd_token_validate(c->log, token, token_len,
+                                   conf->jwks_keys, conf->jwks_key_count,
+                                   (const char *) conf->token_issuer.data,
+                                   (const char *) conf->token_audience.data,
+                                   slen > 0 ? secret : NULL, (size_t) slen,
+                                   &claims);
+    }
 
     /* Grace-period fallback: if the primary secret rejected a macaroon token
      * and an old secret is configured, try validating with the old key.
@@ -118,6 +131,12 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
         return xrootd_send_error(ctx, c, kXR_NotAuthorized,
                                  "bearer token validation failed");
+    }
+
+    /* Cache the freshly verified claims for subsequent presentations. */
+    if (!cache_hit && conf->token_cache_kv != NULL) {
+        xrootd_token_cache_store(conf->token_cache_kv, token, token_len,
+                                 &claims);
     }
 
     ctx->token_auth = 1;
@@ -188,8 +207,5 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
                   "xrootd: token auth ok sub=\"%s\" scopes=%d groups=\"%s\"",
                   claims.sub, claims.scope_count, claims.groups);
 
-    xrootd_log_access(ctx, c, "AUTH", "-", claims.sub, 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_AUTH);
-
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", claims.sub, 0);
 }

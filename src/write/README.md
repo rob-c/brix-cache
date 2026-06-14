@@ -1,76 +1,227 @@
-# write — XRootD write-path handlers
+# write — XRootD mutating-opcode handlers (the stream write path)
 
-Implements all mutating XRootD operations.  Each opcode has its own file;
-shared helpers live in `common.c` and `aio.c`.
+## Overview
 
-| File | XRootD opcode | Operation |
-|------|--------------|-----------|
-| `write.c` | `kXR_write` | Raw write at offset (v3/v4 clients) |
-| `pgwrite.c` | `kXR_pgwrite` | Paged write with CRC32c integrity (xrdcp v5+) |
-| `writev.c` | `kXR_writev` | Scatter-gather write from a vector of (offset, data) segments |
-| `mkdir.c` | `kXR_mkdir` | Create directory; handles `kXR_mkdirpath` for recursive creation |
-| `rm.c` | `kXR_rm` | Remove a file |
-| `rmdir.c` | `kXR_rmdir` | Remove an empty directory |
-| `mv.c` | `kXR_mv` | Rename or move a file or directory |
-| `chmod.c` | `kXR_chmod` | Change permission bits |
-| `sync.c` | `kXR_sync` | fsync an open file handle |
-| `truncate.c` | `kXR_truncate` | Truncate by path or open handle |
-| `aio.c` | — | Thread-pool AIO helpers for write and pgwrite |
-| `chkpoint.c` | `kXR_chkpoint` | Checkpoint lifecycle: begin (snapshot), commit (discard), rollback (restore), query |
-| `chkpoint_xeq.c` | — | `ckpXeq` sub-dispatcher: executes write/pgwrite/truncate/writev under an active checkpoint |
-| `common.c` | — | Shared path resolution for mutating requests and write AIO posting |
-| `write.h` | Public write types and cross-file prototypes |
-| `aiodone.c` | AIO completion callbacks — thread pool worker → event loop response forwarding |
+This subsystem implements every **mutating** XRootD operation that arrives over
+the `root://`/`roots://` stream protocol: data writes (`kXR_write`,
+`kXR_pgwrite`, `kXR_writev`), durability (`kXR_sync`, `kXR_truncate`),
+namespace mutation (`kXR_mkdir`, `kXR_rm`, `kXR_rmdir`, `kXR_mv`, `kXR_chmod`),
+and transactional checkpointing (`kXR_chkpoint` with its `ckpBegin / ckpCommit /
+ckpRollback / ckpQuery / ckpXeq` sub-operations). It is the write-side peer of
+[`../read`](../read/README.md); both are reached from the opcode dispatcher
+after authentication and confinement.
 
-All handlers require `xrootd_allow_write on` in the server block; the
-dispatcher rejects mutating requests with `kXR_NotAuthorized` if writes are
-disabled.
+Execution enters here exclusively from
+[`../handshake/dispatch_write.c`](../handshake/README.md):
+`xrootd_dispatch_write_opcode()` switches on `ctx->cur_reqid` and, for **every**
+write opcode, first calls `xrootd_dispatch_require_write()` — a gate stricter
+than the read path's `require_auth` because it demands both authentication *and*
+the configured `conf->common.allow_write` permission before any handler runs.
+Only then does it `DISPATCH_WR(handler)` into one of the functions declared in
+[`write.h`](write.h). This enforces invariant #5 (fail-closed write authority,
+checked globally before any per-path token scope).
 
-`pgwrite.c` verifies the per-page CRC32c checksums supplied by the client
-before writing; a mismatch returns `kXR_ChkSumErr`.
+The data-carrying opcodes (`write`/`pgwrite`/`writev`) follow a uniform AIO
+fork: when a thread pool is configured they detach the received payload from
+`ctx->payload_buf` and post a `pwrite(2)` task to
+[`../aio`](../aio/README.md) (the worker thread + completion callbacks live in
+`../aio/write.c`, *not* in this directory), letting the event loop read the next
+header while disk I/O proceeds. With no thread pool, or if the task queue is
+full, they fall back to an inline synchronous `pwrite(2)` that rebuilds the same
+response. Namespace opcodes are path-based: they resolve the client path beneath
+the export root, run the auth gate, and perform a single confined syscall via
+[`../compat`](../compat/README.md)'s `namespace_ops` helpers.
 
-## Data flow
+Two reliability features thread through the write path: a per-handle
+**write-recovery journal** (`wrts_journal.*`, backing the `kXR_recoverWrts`
+protocol flag — replayed writes after a client reconnect are detected and
+short-circuited so bytes are never written twice), and **write-through dirty
+tracking** (`wt_*` fields, mirroring `XrdPfcFile`, accumulated for close-time
+origin flush by [`../cache`](../cache/README.md)).
 
-All write opcodes share the same guard sequence in
-`handshake/dispatch_write.c`: require_auth → require_write → handler.
-The AIO fork in `write.c` and `pgwrite.c` mirrors the read path.
+## Files
+
+| File | Responsibility |
+|------|----------------|
+| `write.h` | Public prototypes for all handlers plus `xrootd_pgwrite_decode_payload()` and `xrootd_try_post_write_aio()`. |
+| `write.c` | `kXR_write` — validate writable handle, replay-skip check, AIO-or-sync `pwrite(2)` at offset; updates byte/dashboard/rate-limit counters, marks `wt_` dirty state, records the write in the recovery journal. |
+| `pgwrite.c` | `kXR_pgwrite` (xrdcp v5+) — defines `xrootd_pgwrite_decode_payload()` which verifies the interleaved per-page CRC32c and copies into a flat buffer in one pass (`xrootd_crc32c_copy`); CRC mismatch → `kXR_ChkSumErr`. Response is a `kXR_status` packet carrying the next expected offset, not `kXR_ok`. |
+| `writev.c` | `kXR_writev` — scatter-gather write. Discovers segment count `N` by scanning until `N*SEGSIZE + Σwlen == dlen`, validates **all** `fhandle`s before any `pwrite`, then AIO-or-sync writes each segment; optional `kXR_wv_doSync` fsyncs every touched handle. |
+| `sync.c` | `kXR_sync` — `fsync(2)` the handle, flush the recovery journal, trigger close-time write-through flush; also drives native-TPC destination arm/flush (first sync arms, second triggers `xrootd_tpc_start_pull`). |
+| `truncate.c` | `kXR_truncate` — two modes: handle-based (`dlen==0`, `ftruncate` the open fd) and path-based (`dlen>0`, resolve + auth-gate + `O_WRONLY` open + `ftruncate` + close). |
+| `mkdir.c` | `kXR_mkdir` — single-level or recursive (`kXR_mkdirpath`) via `xrootd_ns_mkdir`; mode masked to `0777` (default `0755`); `EEXIST`/`XROOTD_NS_EXISTS` is success (idempotent); applies parent group policy on fresh single-level create. |
+| `mv.c` | `kXR_mv` — atomic rename. Parses the `src ' ' dst` payload (`arg1len` + mandatory space separator), resolves both halves independently beneath the root, auth-gates each, then `xrootd_ns_rename` (confined `renameat`, closing the realpath/rename TOCTOU). |
+| `chmod.c` / `rm.c` / `rmdir.c` | Thin handlers that delegate to the op-descriptor interpreter: `xrootd_dispatch_op(ctx, c, conf, kXR_<op>)`. |
+| `op_table.h` | Declares `xrootd_op_desc_t` (declarative descriptor: opcode, log verb, metric slot, auth level, write-required, path mode, `exec` callback), `xrootd_op_exec_t`, and `xrootd_dispatch_op()`. |
+| `op_table.c` | The descriptor table + interpreter for "resolve → auth → one syscall → ok/err" ops. Holds `exec_chmod` (`chmod`), `exec_rm` (`xrootd_ns_delete`, retries as recursive dir-delete on `EISDIR`), `exec_rmdir` (`xrootd_ns_delete` with `require_directory`). |
+| `common.c` | `xrootd_try_post_write_aio()` — the shared thread-pool dispatch for `write`/`pgwrite`: allocates an `xrootd_write_aio_t` task, binds `xrootd_write_aio_thread`/`xrootd_write_aio_done` (defined in `../aio/write.c`), posts it; sets `*posted` so callers know whether to fall back to sync. |
+| `chkpoint.h` / `chkpoint.c` | `kXR_chkpoint` dispatcher and the begin/commit/rollback/query sub-handlers, plus `xrootd_chkpoint_recover_root()` — startup scan that rolls back abandoned `<path>.ckp` snapshots left by a crash. |
+| `chkpoint_xeq.h` / `chkpoint_xeq.c` | `ckp_xeq()` — parses the inner 24-byte sub-request header and executes a `write`/`pgwrite`/`truncate`/`writev` **under an active checkpoint** (all segments must target the checkpointed handle). |
+| `wrts_journal.h` / `wrts_journal.c` | Per-handle fixed-size ring journal for `kXR_recoverWrts`: `open` (arm), `record` (append committed write), `is_replay` (exact offset+length match → skip), `flush` (clear on sync/close). |
+
+## Key types & data structures
+
+- **`xrootd_op_desc_t`** (`op_table.h`) — declarative row describing a "simple"
+  namespace op. Fields: `opcode`, log `name`, `op_id` (metric slot),
+  `auth_level` (`XROOTD_AUTH_*`), `need_write`, `path_mode`
+  (`XROOTD_PATH_EXISTING/WRITE/NOEXIST/EITHER`), and an `exec()` syscall
+  callback. The static `_ops[]` table in `op_table.c` is the single source of
+  truth for `chmod`/`rm`/`rmdir`; `xrootd_dispatch_op()` is the interpreter that
+  runs the shared resolve→auth→exec→reply boilerplate.
+- **`xrootd_op_exec_t`** (`op_table.h`) — per-call context handed to each
+  `exec()`: `ctx`, `c`, `conf`, the extracted `reqpath`, and the canonical
+  `resolved` path.
+- **`xrootd_write_aio_t`** (defined under `../aio`) — write AIO task: target
+  `fd`, `handle_idx`, `offset`, `data`/`len`, `req_offset`, `is_pgwrite`,
+  result `nwritten`/`io_errno`, copied `streamid`/`path`, and `payload_to_free`
+  (heap buffer the done callback releases, or `NULL` when the data is a
+  pool-managed scratch buffer).
+- **`xrootd_writev_aio_t` / `xrootd_writev_seg_desc_t`** (`writev.c` builds
+  them) — the segment-descriptor array plus task carrying `payload_buf`
+  ownership and the `do_sync` flag.
+- **Recovery-journal state on `xrootd_file_t`** (`../types/file.h`):
+  `wrts_enabled`, `wrts_journal[XROOTD_WRTS_JOURNAL_SLOTS]`, `wrts_head`,
+  `wrts_count`, `wrts_gen`, each entry an `xrootd_wrts_entry_t {offset, length,
+  gen}`.
+- **Checkpoint state on `xrootd_file_t`**: `ckp_path` (non-NULL ⇒ active
+  checkpoint; the heap-allocated `<open-path>.ckp` sibling) and `ckp_size`
+  (snapshot length, the rollback target). Freed by `xrootd_free_fhandle` on
+  close/disconnect.
+- **`ServerResponseBody_ChkPoint`** — the `kXR_ckpQuery` reply body
+  (`maxCkpSize` = `kXR_ckpMinMax`, `useCkpSize` = current `.ckp` size).
+
+## Control & data flow
 
 ```
-handshake/dispatch_write.c: xrootd_dispatch_write_opcode()
-    │   [every case calls require_auth + require_write first]
-    │
-    ├─ kXR_write   →  write/write.c: xrootd_handle_write()
-    │       write/common.c: xrootd_write_resolve_handle()
-    │       [thread pool] → aio/write.c: xrootd_try_post_write_aio()
-    │                             worker thread: pwrite(2)
-    │                             main loop: xrootd_write_aio_done()
-    │       [no thread pool] → pwrite(2) inline
-    │
-    ├─ kXR_pgwrite →  write/pgwrite.c: xrootd_handle_pgwrite()
-    │       per-page CRC32c verify (client-supplied vs. computed)
-    │       same AIO fork as kXR_write on success
-    │
-    ├─ kXR_writev  →  write/writev.c: xrootd_handle_writev()
-    │       parses iov-style segment list, issues sequential pwrite(2)s
-    │
-    ├─ kXR_sync    →  write/sync.c: xrootd_handle_sync()
-    │       fdatasync(2) on the open handle
-    │
-    ├─ kXR_truncate → write/truncate.c: xrootd_handle_truncate()
-    │       path or handle based ftruncate(2)
-    │
-    ├─ kXR_mkdir   →  write/mkdir.c: xrootd_handle_mkdir()
-    │       mkdir(2); recursive when kXR_mkdirpath flag set
-    │
-    ├─ kXR_rm / kXR_rmdir / kXR_mv / kXR_chmod
-    │       → write/{rm,rmdir,mv,chmod}.c — thin wrappers over the matching syscall
-    │
-    └─ kXR_chkpoint → write/chkpoint.c: xrootd_handle_chkpoint()
-            dispatches on req->opcode subcode:
-            kXR_ckpBegin    → copy original → .ckp sibling file
-            kXR_ckpCommit   → delete .ckp
-            kXR_ckpRollback → restore from .ckp, delete .ckp
-            kXR_ckpQuery    → stat .ckp, return max/current size
-            kXR_ckpXeq      → parse inner 24-byte sub-header, execute
-                               sub-write synchronously (no AIO)
+../handshake/dispatch_write.c : xrootd_dispatch_write_opcode()
+    └─ DISPATCH_WR macro → xrootd_dispatch_require_write()   [auth + allow_write]
+       │
+       ├ kXR_write    → write.c   : xrootd_handle_write()
+       ├ kXR_pgwrite  → pgwrite.c : xrootd_handle_pgwrite()  → decode+CRC → kXR_status
+       ├ kXR_writev   → writev.c  : xrootd_handle_writev()
+       │     (data ops) → common.c:xrootd_try_post_write_aio()
+       │                    ├ thread pool → ../aio/write.c worker pwrite → done cb sends reply
+       │                    └ no pool/queue full → inline pwrite, build reply here
+       ├ kXR_sync     → sync.c    : fsync + journal flush + wt-flush / TPC arm→pull
+       ├ kXR_truncate → truncate.c: handle- or path-based ftruncate
+       ├ kXR_mkdir/mv → mkdir.c/mv.c : resolve→auth_gate→ ../compat namespace_ops
+       ├ kXR_chmod/rm/rmdir → op_table.c : xrootd_dispatch_op() interpreter
+       └ kXR_chkpoint → chkpoint.c : begin/commit/rollback/query
+                              └ ckpXeq → chkpoint_xeq.c : ckp_xeq()
 ```
+
+Calls outward to sibling subsystems:
+
+- **[`../path`](../path/README.md)** — `xrootd_resolve_op_path()`,
+  `xrootd_path_resolve_beneath()`, `xrootd_extract_path()` for confinement, and
+  `xrootd_auth_gate()` for the three-tier (VO ACL / authdb / token-scope) write
+  authorization that the gate enforces for path-based ops.
+- **[`../aio`](../aio/README.md)** — thread-pool task plumbing
+  (`xrootd_aio_post_task`, `xrootd_task_bind`, `XROOTD_GET_SCRATCH`); the
+  `*_aio_thread`/`*_aio_done` callbacks for both `write` and `writev` live in
+  `../aio/write.c`.
+- **[`../compat`](../compat/README.md)** — `xrootd_ns_mkdir` / `xrootd_ns_rename`
+  / `xrootd_ns_delete` (confined namespace syscalls), `xrootd_crc32c_copy`,
+  `xrootd_copy_range`, `xrootd_staged_*`, and the `xrootd_kxr_*` errno→kXR
+  mappers.
+- **[`../cache`](../cache/README.md)** — `xrootd_wt_mark_dirty` /
+  `xrootd_wt_flush_sync_handle` for write-through origin propagation.
+- **[`../tpc`](../tpc/README.md)** — `xrootd_tpc_start_pull` driven by the
+  second `kXR_sync` on a native-TPC destination handle.
+- **`../read`** validation helpers — `xrootd_validate_write_handle` /
+  `xrootd_validate_file_handle` (defined in `../connection/fd_table.c`,
+  also used by `../read/clone.c`).
+- **`../response` / `../metrics`** — `xrootd_send_ok`,
+  `xrootd_send_pgwrite_status`, `xrootd_send_error`, the `XROOTD_RETURN_OK/ERR`
+  + `XROOTD_OP_OK/ERR` macros, and `xrootd_log_access`.
+
+## Invariants, security & gotchas
+
+- **Fail-closed write authority.** The dispatcher's
+  `xrootd_dispatch_require_write()` runs before *every* handler and rejects with
+  `kXR_NotAuthorized` unless authenticated **and** `conf->common.allow_write` is
+  set — checked globally, ahead of per-path token scope (invariant #5).
+- **Kernel confinement is mandatory.** Path-based ops never call a raw
+  `open`/`rename`/`mkdir` on a client path: they go through
+  `xrootd_resolve_op_path` / `xrootd_path_resolve_beneath` (RESOLVE_BENEATH) and
+  the `../compat` `xrootd_ns_*` confined-syscall helpers (invariant #1).
+  `mv.c` deliberately resolves only for the historical "source not found" 404;
+  the *authoritative* confinement is the kernel `renameat` inside
+  `xrootd_ns_rename`, which also closes the realpath→rename TOCTOU
+  (`mv.c:110-117`, `141-148`).
+- **`mv` wire format is space-separated, length-prefixed.** Payload is
+  `src + 0x20 + dst`; `arg1len` (big-endian) gives the source length and the
+  byte at `payload[arg1len]` **must** be a space, else `kXR_ArgInvalid`
+  (`mv.c:80-90`). Both halves are extracted independently so embedded-NUL and
+  traversal checks apply to each.
+- **pgwrite framing & response.** Payload layout is *CRC first*:
+  `[CRC32c 4B][≤4096B data]` per fragment; first/last fragments may be short on
+  unaligned offsets. Decode verifies every CRC before any `pwrite` — mismatch →
+  `kXR_ChkSumErr`, malformed → `kXR_ArgInvalid` (`pgwrite.c:98-167`). The
+  success reply is `kXR_status` with the next expected offset
+  (`xrootd_send_pgwrite_status`), **not** `kXR_ok` (invariant #2 framing).
+- **Replay idempotency is exact-match, not range-coverage.** `wrts_is_replay`
+  only skips a write whose offset *and* length exactly equal a journalled entry;
+  range coverage was rejected on purpose so a legitimate sub-range overwrite is
+  not silently dropped (`wrts_journal.c:84-94`). The journal is flushed on
+  `kXR_sync` and `kXR_close` (a new generation begins).
+- **Payload-ownership / detach discipline.** On a successful AIO post, `write`
+  and `writev` set `ctx->payload = ctx->payload_buf = NULL` and
+  `payload_buf_size = 0` so the next request cannot reuse the in-flight buffer;
+  the done callback frees it. `pgwrite` instead writes from the pool-managed
+  `write_scratch` scratch buffer (`XROOTD_GET_SCRATCH`) and passes
+  `payload_to_free = NULL` so the callback must **not** free it
+  (`pgwrite.c:265-267`). Note: `ctx->write_scratch` is freed explicitly during
+  connection teardown in `disconnect.c`.
+- **Event loop, no blocking.** Async completions run on the single event-loop
+  thread and must rebuild the response identically to the sync path; handlers
+  never sleep or block (invariant #3).
+- **Short-write = disk-full.** Every sync `pwrite` path treats `nwritten < len`
+  as `kXR_IOError "short write (disk full?)"` rather than silently truncating
+  client data (`write.c:141`, `pgwrite.c:290`, `writev.c:216`).
+- **Checkpoint = `.ckp` sibling + crash recovery.** `ckpBegin` rejects files
+  over `kXR_ckpMinMax` (`kXR_overQuota`) and creates the snapshot with
+  `O_CREAT|O_EXCL|O_NOFOLLOW`; `ckpXeq` requires `ckp_path != NULL` and that
+  *every* sub-write target the checkpointed handle (cross-handle →
+  `kXR_InvalidRequest`). `xrootd_chkpoint_recover_root()` runs under an
+  exclusive `flock` on a per-root lockfile, scans (depth-limited, symlink-safe
+  `O_NOFOLLOW`) for stale `*.ckp`, and restores via the atomic
+  `xrootd_staged_*` rename so uncommitted writes never survive a restart
+  (`chkpoint.c:306-518`).
+- **Metric/telemetry consistency.** Error paths must go through
+  `XROOTD_RETURN_ERR` (not bare `xrootd_log_access`) so `XROOTD_OP_*` counters
+  stay correct — a class of bug previously fixed in `chkpoint_xeq.c`. Keep
+  metric labels low-cardinality (no paths/UUIDs) per invariant #5.
+
+## Entry points / extending
+
+**Add a "simple" namespace op (resolve → auth → one syscall → ok/err):**
+1. Write an `exec_<op>(const xrootd_op_exec_t *e, int *out_errno)` in
+   `op_table.c` that performs the single (confined) syscall.
+2. Add a row to the static `_ops[]` table (opcode, log verb, `XROOTD_OP_*`
+   metric slot, `XROOTD_AUTH_*` level, `need_write`, `xrootd_path_mode_t`).
+3. Add a thin `xrootd_handle_<op>()` (like `chmod.c`) that calls
+   `xrootd_dispatch_op(ctx, c, conf, kXR_<op>)`, declare it in `write.h`, and
+   register the case in `../handshake/dispatch_write.c`.
+
+**Add a complex mutating opcode** (non-trivial exec — two-mode, atomic,
+streaming, custom response): write a dedicated `xrootd_handle_<op>()` here
+(model on `truncate.c`/`mv.c`), declare it in `write.h`, register it under the
+`DISPATCH_WR` switch in `../handshake/dispatch_write.c`, and add a new metric
+slot per the project's "New metric" recipe. Always provide 3 tests
+(success + error + security-negative).
+
+**Add a `ckpXeq` sub-operation:** add a `ckp_xeq_<op>()` in `chkpoint_xeq.c`
+and a `case` in `ckp_xeq()`'s `switch (sub_reqid)`.
+
+## See also
+
+- [`../read/README.md`](../read/README.md) — the read-side opcode peer.
+- [`../handshake/README.md`](../handshake/README.md) — the opcode dispatcher and write gate.
+- [`../aio/README.md`](../aio/README.md) — thread-pool offload; the write AIO worker/done callbacks.
+- [`../path/README.md`](../path/README.md) — confinement and the auth gate.
+- [`../compat/README.md`](../compat/README.md) — confined namespace syscalls, CRC32c, errno→kXR mapping.
+- [`../cache/README.md`](../cache/README.md) — write-through dirty tracking and origin flush.
+- [`../tpc/README.md`](../tpc/README.md) — native third-party copy (sync-driven pull).
+- [`../types/README.md`](../types/README.md) — `xrootd_file_t` (journal + checkpoint state).
+- [`../README.md`](../README.md) — subsystem master index.

@@ -16,10 +16,11 @@
  *   xrootd_copy_range — shared zero-copy copy engine with Linux copy_file_range(2)
  *     and pread/pwrite fallback. INVARIANT #5 reference: never mix TLS memory-backed
  *     buffers with file-backed sendfile paths - this function uses pure file I/O.
- *   webdav_copy_xattrs — extended attribute enumeration (listxattr) filtering for
- *     XROOTD_FATTR_XKEY_PFX prefix, get/set xattr transfer per attribute name.
  *   webdav_copy_file — orchestration: confined open via xrootd_open_confined_canon (INVARIANT #4),
- *     copy_fds data transfer, close both fds, conditional xattrs preservation on success.
+ *     copy_fds data transfer, close both fds, then xattr preservation on success by
+ *     delegating to xrootd_ns_copy_fattrs (XRootD fattr prefix) and webdav_dead_props_copy
+ *     (WebDAV dead-property prefix) — both thin wrappers over the shared
+ *     xrootd_xattr_copy_by_prefix helper (compat/namespace_ops.c).
  *   webdav_copy_dir_recursive — traversal: opendir + readdir filtering (. and ..),
  *     lstat classification → mkdir for dirs + recursive call, file copy for regular files.
  */
@@ -98,6 +99,13 @@ webdav_copy_dir_recursive(ngx_log_t *log, const char *root_canon,
     }
 
     while ((de = readdir(dp)) != NULL) {
+        /*
+         * Skip the self/parent dir-entries so the walk does not recurse into
+         * itself or escape upward. d_name is a NUL-terminated C string, so the
+         * test matches "." (d_name[0]=='.' and d_name[1] is the terminator) and
+         * ".." (d_name[0]=='.', d_name[1]=='.', d_name[2] is the terminator)
+         * while leaving dotfiles such as ".htaccess" untouched.
+         */
         if (de->d_name[0] == '.' && (de->d_name[1] == '\0'
             || (de->d_name[1] == '.' && de->d_name[2] == '\0')))
         {

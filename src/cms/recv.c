@@ -1,5 +1,7 @@
 #include "cms_internal.h"
 #include "../manager/pending.h"
+#include "../manager/registry.h"
+#include "../path/beneath.h"
 
 static ngx_connection_t *cms_find_client_connection(int fd);
 
@@ -192,6 +194,91 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
 
         port = ngx_xrootd_cms_get16(payload + host_len + 1);
         return cms_wake_pending_session(ctx, streamid, host, port);
+    }
+
+    case CMS_RR_STATE: {
+        /*
+         * kYR_state (raw): the manager asks "do you hold <path>?" as part of
+         * on-demand selection.  The payload is the raw NUL-terminated namespace
+         * path (no Pup framing).  We answer kYR_have (echoing streamid = path
+         * hash) if we can serve the path, else stay silent so the manager won't
+         * select us — matching real cmsd.
+         *
+         * Two ways to "have" a path:
+         *   - manager_mode (a sub-manager registered UP to a meta-manager):
+         *     forward the query to our own server registry — if any registered
+         *     leaf data node exports a prefix covering the path, we have it (the
+         *     client will be redirected to us and we then redirect down to the
+         *     leaf).  This is what makes a multi-tier meta->nginx->leaf mesh
+         *     resolve.
+         *   - data node: the file exists on our local export filesystem.
+         */
+        const u_char  *payload = ctx->inbuf + NGX_XROOTD_CMS_HDR_LEN;
+        size_t         plen = ctx->in_need - NGX_XROOTD_CMS_HDR_LEN;
+        char           pathz[1024];
+        size_t         pl;
+
+        /* bounded length of the NUL-terminated path */
+        for (pl = 0; pl < plen && payload[pl] != '\0'; pl++) { /* void */ }
+        if (pl == 0 || payload[0] != '/' || pl >= sizeof(pathz)) {
+            return NGX_OK;
+        }
+
+        /* reject path traversal before touching the registry/filesystem */
+        {
+            size_t k;
+            for (k = 0; k + 1 < pl; k++) {
+                if (payload[k] == '.' && payload[k + 1] == '.') {
+                    return NGX_OK;
+                }
+            }
+        }
+
+        ngx_memcpy(pathz, payload, pl);
+        pathz[pl] = '\0';
+
+        if (ctx->conf->manager_mode) {
+            char      host[256];
+            uint16_t  dport;
+            if (xrootd_srv_select(pathz, 0, host, sizeof(host), &dport)) {
+                ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                               "xrootd: CMS state(mgr): registry serves "
+                               "\"%*s\", replying kYR_have", pl, payload);
+                return ngx_xrootd_cms_send_have(ctx, streamid, pathz, pl);
+            }
+            return NGX_OK;
+        }
+
+        {
+            struct stat  st;
+
+            /*
+             * Kernel-confined existence probe.  A malicious manager can ask
+             * "do you hold <path>?" for ANY path; the raw stat() this replaced
+             * followed symlinks, so a symlink planted under the export root
+             * (e.g. /link -> /etc) would make us answer kYR_have for a file
+             * OUTSIDE the root — a cross-root information leak and a
+             * cluster-poisoning vector.  xrootd_stat_beneath() resolves the
+             * path under the persistent export rootfd with openat2
+             * RESOLVE_BENEATH, so any symlink or ".." that escapes the root is
+             * rejected by the kernel and we correctly stay silent.  (The ".."
+             * pre-check above remains as cheap defence-in-depth.)  A node with
+             * no local export root (rootfd < 0) never holds files locally.
+             */
+            if (ctx->conf->rootfd >= 0
+                && xrootd_stat_beneath(ctx->conf->rootfd, pathz, &st) == 0)
+            {
+                ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                               "xrootd: CMS state: have \"%*s\", "
+                               "replying kYR_have", pl, payload);
+                return ngx_xrootd_cms_send_have(ctx, streamid, pathz, pl);
+            }
+        }
+
+        ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                       "xrootd: CMS state: do not have \"%*s\"",
+                       pl, payload);
+        return NGX_OK;
     }
 
     default:

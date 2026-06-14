@@ -51,7 +51,7 @@ webdav_handle_delete(ngx_http_request_t *r)
         return rc;
     }
 
-    rc = webdav_check_locks(r, path, 1);
+    rc = webdav_check_locks_tree(r, path);
     if (rc != NGX_OK) {
         return rc;
     }
@@ -63,10 +63,7 @@ webdav_handle_delete(ngx_http_request_t *r)
     res = xrootd_ns_delete(r->connection->log, conf->common.root_canon, path, &opts);
 
     if (res.status == XROOTD_NS_OK) {
-        r->headers_out.status = NGX_HTTP_NO_CONTENT;
-        r->headers_out.content_length_n = 0;
-        ngx_http_send_header(r);
-        return ngx_http_send_special(r, NGX_HTTP_LAST);
+        return webdav_send_no_body(r, NGX_HTTP_NO_CONTENT);
     }
 
     if (res.status == XROOTD_NS_NOT_EMPTY) {
@@ -107,10 +104,7 @@ webdav_handle_mkcol(ngx_http_request_t *r)
     res = xrootd_ns_mkdir(r->connection->log, conf->common.root_canon, path, 0755, 0);
 
     if (res.status == XROOTD_NS_OK) {
-        r->headers_out.status = NGX_HTTP_CREATED;
-        r->headers_out.content_length_n = 0;
-        ngx_http_send_header(r);
-        return ngx_http_send_special(r, NGX_HTTP_LAST);
+        return webdav_send_no_body(r, NGX_HTTP_CREATED);
     }
 
     if (res.status == XROOTD_NS_EXISTS) {

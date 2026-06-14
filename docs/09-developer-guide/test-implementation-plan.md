@@ -1,6 +1,6 @@
 # Test Implementation Plan
 
-Companion to `missing-tests.md`. Converts the 55-test gap analysis into a phased,
+Companion to `../_archive/missing-tests.md` (archived). Converts the 55-test gap analysis into a phased,
 effort-estimated implementation roadmap with per-task fixture dependencies, file
 assignments, and ordering rationale.
 

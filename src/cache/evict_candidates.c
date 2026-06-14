@@ -1,4 +1,9 @@
 #include "evict_internal.h"
+#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
+
+/* Phase 27 F9: upper bound on the eviction-candidate set so the growth loop
+ * cannot allocate without limit even if the scanned tree is enormous. */
+#define XROOTD_EVICT_MAX_CANDIDATES  (4u * 1024u * 1024u)
 
 #include <errno.h>
 #include <netinet/in.h>
@@ -221,7 +226,19 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
     }
 
     if (list->nelts == list->cap) {
+        size_t elts_sz;
+
         new_cap = list->cap ? list->cap * 2 : 128;
+
+        /* Phase 27 F9/W1: bound the candidate set and use overflow-checked size
+         * math so a pathological scan cannot wrap new_cap*sizeof into a tiny
+         * allocation that the loop then overruns. */
+        if (new_cap > XROOTD_EVICT_MAX_CANDIDATES
+            || xrootd_size_mul(new_cap, sizeof(list->elts[0]), &elts_sz)
+               != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
 
         /*
          * Grow evicted before elts: if elts realloc succeeds but evicted
@@ -234,7 +251,7 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
         }
         list->evicted = evicted;
 
-        elts = realloc(list->elts, new_cap * sizeof(list->elts[0]));
+        elts = realloc(list->elts, elts_sz);
         if (elts == NULL) {
             /* evicted grew but elts didn't; cap stays at old value so the
              * next add call triggers a fresh grow attempt. */

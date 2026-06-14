@@ -2,6 +2,7 @@
 #include "../session/registry.h"
 #include "../crypto/ocsp.h"
 #include "../crypto/gsi_verify.h"
+#include <openssl/err.h>
 
 /* ------------------------------------------------------------------ */
 /* GSI Auth — Credential Routing, DH Key Exchange, Certificate Verification  */
@@ -198,11 +199,8 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     if (chain == NULL) {
-        xrootd_log_access(ctx, c, "AUTH", "-", "gsi",
-                          0, kXR_NotAuthorized, "cannot parse GSI credential", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-                                 "cannot parse GSI credential");
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi",
+                          kXR_NotAuthorized, "cannot parse GSI credential");
     }
 
     leaf = sk_X509_value(chain, 0);
@@ -285,6 +283,18 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
     sk_X509_pop_free(chain, X509_free);
 
+    /* Phase 20: per-identity request rate limit, applied once the DN is known. */
+    if (conf->rate_limit.kv != NULL) {
+        const char *rl_id = conf->rate_limit.key_ip ? ctx->peer_ip : ctx->dn;
+
+        if (xrootd_rate_limit_check(&conf->rate_limit, rl_id,
+                                    ngx_strlen(rl_id)) != NGX_OK)
+        {
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi",
+                              kXR_NotAuthorized, "rate limit exceeded");
+        }
+    }
+
     ctx->auth_done = 1;
     if (ctx->identity != NULL) {
         if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
@@ -328,10 +338,7 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
                       "xrootd: GSI auth OK dn=\"%s\"", dn_log);
     }
 
-    xrootd_log_access(ctx, c, "AUTH", "-", "gsi", 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_AUTH);
-
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi", 0);
 }
 
 /* ---- xrootd_handle_auth — rate-limited public entry point ---- */
@@ -345,6 +352,15 @@ xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ngx_flag_t  was_auth_done;
     ngx_flag_t  is_certreq;
     ngx_int_t   rc;
+
+    /*
+     * Phase 33: start each GSI auth round with a clean per-thread OpenSSL error
+     * queue.  GSI parsing intentionally provokes benign errors ("invalid key
+     * length", PEM "no start line" at EOF) that the module never clears; a dirty
+     * queue later corrupts nginx's TLS clean-close detection on the shared
+     * worker.  Clearing here keeps those benign errors from leaking forward.
+     */
+    ERR_clear_error();
 
     /* Reject after repeated failures — guards against brute-force attempts
      * and CPU-amplification via costly GSI/OpenSSL/VOMS operations. */

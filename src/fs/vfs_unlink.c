@@ -1,5 +1,26 @@
+/*
+ * vfs_unlink.c — VFS delete family (unlink / rmdir).
+ *
+ * WHAT: Implements xrootd_vfs_unlink() (remove a regular file) and
+ *       xrootd_vfs_rmdir() (remove a directory, recursively or only when empty),
+ *       both thin wrappers over the shared xrootd_vfs_delete() helper.
+ *
+ * WHY:  Deletes are write-gated and must be applied through the namespace layer
+ *       (../compat/namespace_ops) so confinement and the recursive / require-
+ *       empty semantics match the rest of the namespace mutators, with one
+ *       metric/access-log emission per call.
+ *
+ * HOW:  xrootd_vfs_delete() enforces xrootd_vfs_require_write() and a non-NULL
+ *       root_canon, builds an xrootd_ns_delete_opts_t (recursive,
+ *       require_empty_dir), and calls xrootd_ns_delete(); the namespace status
+ *       is mapped back to errno (sys_errno or EIO) and observed as
+ *       XROOTD_METRIC_OP_DELETE. rmdir requests require_empty_dir only when not
+ *       recursive.
+ */
 #include "vfs_internal.h"
 
+/* Shared delete body for unlink/rmdir: write-gate, then xrootd_ns_delete with
+ * the given recursive / require_empty_dir options; metered as OP_DELETE. */
 static ngx_int_t
 xrootd_vfs_delete(xrootd_vfs_ctx_t *ctx, unsigned recursive,
     unsigned require_empty_dir)
@@ -47,12 +68,14 @@ xrootd_vfs_delete(xrootd_vfs_ctx_t *ctx, unsigned recursive,
     return NGX_ERROR;
 }
 
+/* Remove a single regular file (non-recursive, no empty-dir requirement). */
 ngx_int_t
 xrootd_vfs_unlink(xrootd_vfs_ctx_t *ctx)
 {
     return xrootd_vfs_delete(ctx, 0, 0);
 }
 
+/* Remove a directory: recursively when `recursive`, otherwise only if empty. */
 ngx_int_t
 xrootd_vfs_rmdir(xrootd_vfs_ctx_t *ctx, unsigned recursive)
 {

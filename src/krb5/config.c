@@ -1,5 +1,31 @@
 #include "../config/config.h"
 
+/*
+ * config.c — configure-time Kerberos 5 (krb5) auth setup for the stream server
+ *
+ * WHAT: Implements xrootd_configure_krb5_auth(), invoked from server-conf
+ *       post-processing to validate and pre-load the Kerberos state a server
+ *       needs before it can accept "krb5" logins: the krb5_context, the parsed
+ *       acceptor principal (krb5_principal_obj) and the keytab handle
+ *       (krb5_keytab_obj). These are consumed at run time by
+ *       xrootd_handle_krb5_auth() in auth.c.
+ *
+ * WHY: Doing this once at config time (rather than per connection) means
+ *      misconfiguration — missing principal, unparseable name, unreadable
+ *      keytab — fails the server fast with a clear ngx_conf_log_error at
+ *      startup instead of denying every client later. It also avoids repeated
+ *      keytab opens on the hot auth path.
+ *
+ * HOW: Returns NGX_OK immediately unless xcf->auth == XROOTD_AUTH_KRB5. It
+ *      requires xrootd_krb5_principal, then krb5_init_context, krb5_parse_name,
+ *      and resolves the keytab (krb5_kt_resolve when xrootd_krb5_keytab is set,
+ *      else krb5_kt_default). It probes the keytab with a start/end seq_get to
+ *      confirm readability and logs the effective principal, keytab name and
+ *      ip_check flag at NOTICE. All krb5 code is gated on XROOTD_HAVE_KRB5; a
+ *      build without it that nonetheless requests krb5 auth fails with EMERG.
+ *      Errors are decoded via xrootd_krb5_error()/xrootd_krb5_free_error().
+ */
+
 #if (XROOTD_HAVE_KRB5)
 static const char *
 xrootd_krb5_error(ngx_stream_xrootd_srv_conf_t *xcf, krb5_error_code rc)
@@ -18,6 +44,22 @@ xrootd_krb5_free_error(ngx_stream_xrootd_srv_conf_t *xcf, const char *msg)
 }
 #endif
 
+/* ---- Function: xrootd_configure_krb5_auth() -------------------------------
+ *
+ * WHAT: Validate krb5 directives and pre-load the krb5_context, acceptor
+ *       principal and keytab into xcf for later use by the auth handler.
+ *
+ * WHY: Surfaces all Kerberos misconfiguration at config time so the server
+ *      either starts ready to authenticate or fails to start with a precise
+ *      diagnostic — clients never see an avoidable auth failure.
+ *
+ * HOW: No-op (NGX_OK) unless xcf->auth == XROOTD_AUTH_KRB5. Otherwise it
+ *      requires xrootd_krb5_principal, inits the context, parses the principal,
+ *      resolves/opens the keytab (configured path or default), confirms the
+ *      keytab is readable, and logs the resolved principal/keytab/ip_check.
+ *      Returns NGX_ERROR on any failure (and EMERG when krb5 was requested in a
+ *      build compiled without Kerberos support).
+ */
 ngx_int_t
 xrootd_configure_krb5_auth(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf)

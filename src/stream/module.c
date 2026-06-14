@@ -8,6 +8,10 @@
 #include "ngx_xrootd_module.h"
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
+#include "token/token_cache.h"   /* xrootd_token_cache_directive */
+#include "manager/health_check.h" /* XROOTD_HC_TYPE_* */
+#include "mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
+#include "ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
 
 /* ------------------------------------------------------------------ */
 /* Module directives                                                    */
@@ -32,6 +36,13 @@ static ngx_conf_enum_t xrootd_auth_modes[] = {
     { ngx_string("unix"),  XROOTD_AUTH_UNIX  },
     { ngx_string("krb5"),  XROOTD_AUTH_KRB5  },
     { ngx_null_string,     0                 }
+};
+
+/* Phase 22 — health-check probe type. */
+static ngx_conf_enum_t xrootd_hc_types[] = {
+    { ngx_string("ping"), XROOTD_HC_TYPE_PING },
+    { ngx_string("stat"), XROOTD_HC_TYPE_STAT },
+    { ngx_null_string,    0                   }
 };
 
 /* ------------------------------------------------------------------ */
@@ -63,6 +74,30 @@ static ngx_conf_enum_t xrootd_security_levels[] = {
 /* HOW: Each entry follows nginx convention: directive name, config     */
 /*      level flag, setter function, offset into srv_conf struct,      */
 /*      optional enum/table reference. Terminator is ngx_null_command.*/
+/*                                                                      */
+/* READER'S MAP — entries appear in feature-group order, demarcated by  */
+/*   inline section comments below:                                      */
+/*     enable+root -> auth (GSI/token/SSS/krb5/unix) -> security/TLS -> */
+/*     TPC -> write/observability -> manager/cluster roles -> health    */
+/*     -> mirroring (Ph.24) -> rate-limit (Ph.25) -> upstream redirector*/
+/*     -> cache/proxy + memory budget -> write-through -> CMS -> proxy   */
+/*     mode -> OCSP -> SHM KV-zones/caches/rate-limit (Ph.20).          */
+/*                                                                      */
+/* CONFIG-LEVEL CONVENTION (the 2nd field of each entry):               */
+/*   - Almost every directive is NGX_STREAM_SRV_CONF: per-listen/server */
+/*     scope, stored via NGX_STREAM_SRV_CONF_OFFSET into the            */
+/*     ngx_stream_xrootd_srv_conf_t member named by offsetof().         */
+/*   - A FEW are NGX_STREAM_MAIN_CONF (process-global, declared once at  */
+/*     stream{} scope, offset 0): the SHM-backed pools, namely          */
+/*     xrootd_rate_limit_zone (Ph.25) and xrootd_kv_zone (Ph.20), which  */
+/*     allocate shared memory that all worker processes attach to.       */
+/* SETTER CONVENTION (the 3rd field):                                    */
+/*   - ngx_conf_set_*_slot = stock nginx setters writing straight into  */
+/*     the offsetof() member (str/flag/num/msec/sec/size/off/enum).     */
+/*   - xrootd_conf_set_* / *_directive = CUSTOM setters used when a      */
+/*     directive needs validation, multi-arg parsing, or a side effect   */
+/*     (e.g. ngx_stream_xrootd_enable also installs the session handler);*/
+/*     these pass offset 0 and own their own storage.                    */
 /* ------------------------------------------------------------------ */
 /* Combined directive table: core + cache/proxy directives. */
 ngx_command_t ngx_stream_xrootd_commands[] = {
@@ -269,6 +304,16 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, tls),
       NULL },
 
+    /* Enable kernel-TLS (SSL_OP_ENABLE_KTLS) so TLS reads can use sendfile.
+     * Default off — only beneficial with hardware TLS-offload NICs; software
+     * kTLS is slower than userspace OpenSSL on AES-NI CPUs (Phase 29). */
+    { ngx_string("xrootd_ktls"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, tls_ktls),
+      NULL },
+
     /* Allow TPC pulls from loopback / link-local addresses (default: off). */
     { ngx_string("xrootd_tpc_allow_local"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
@@ -418,6 +463,155 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, registry_slots),
       NULL },
 
+    /* Phase 20: session registry capacity (xrootd_session_slots). */
+    { ngx_string("xrootd_session_slots"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, session_slots),
+      NULL },
+
+    /* Phase 20: manager redirect-collapse cache capacity
+     * (xrootd_redir_cache_slots). */
+    { ngx_string("xrootd_redir_cache_slots"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, redir_cache_slots),
+      NULL },
+
+    /* ---- Phase 22: active health checks (off by default) ---- */
+    { ngx_string("xrootd_health_check"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, hc_enabled),
+      NULL },
+
+    { ngx_string("xrootd_health_check_interval"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, hc_interval_ms),
+      NULL },
+
+    { ngx_string("xrootd_health_check_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, hc_timeout_ms),
+      NULL },
+
+    { ngx_string("xrootd_health_check_threshold"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, hc_threshold),
+      NULL },
+
+    { ngx_string("xrootd_health_check_blacklist"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, hc_blacklist_ms),
+      NULL },
+
+    { ngx_string("xrootd_health_check_type"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, hc_type),
+      xrootd_hc_types },
+
+    /* ---- Phase 24: traffic mirroring (off by default) ---- */
+    { ngx_string("xrootd_stream_mirror_url"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_stream_mirror_set_url,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_mirror_opcodes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
+      xrootd_stream_mirror_set_opcodes,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_mirror_exclude_opcodes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
+      xrootd_stream_mirror_set_exclude_opcodes,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_mirror_sample"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, mirror.sample_pct),
+      NULL },
+
+    { ngx_string("xrootd_mirror_strip_auth"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, mirror.strip_auth),
+      NULL },
+
+    /* Opt-in gate for replaying WRITE/mutation opcodes to the shadow.  Off by
+     * default; the shadow MUST be an isolated namespace (a separate server/root),
+     * never the primary's backing store. */
+    { ngx_string("xrootd_mirror_writes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, mirror.mirror_writes),
+      NULL },
+
+    { ngx_string("xrootd_mirror_log_diverge"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, mirror.log_diverge),
+      NULL },
+
+    { ngx_string("xrootd_mirror_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, mirror.timeout_ms),
+      NULL },
+
+    /* ---- Phase 25: advanced rate limiting / traffic shaping ---- */
+    { ngx_string("xrootd_rate_limit_zone"),     /* stream main: zone=NAME:SIZE */
+      NGX_STREAM_MAIN_CONF | NGX_CONF_1MORE,
+      xrootd_rl_zone_directive,
+      0,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_rate_limit_rule"),     /* srv: request-rate rule */
+      NGX_STREAM_SRV_CONF | NGX_CONF_2MORE,
+      xrootd_rl_rule_directive,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, rl_rules),
+      NULL },
+
+    { ngx_string("xrootd_bandwidth_limit"),     /* srv: bandwidth rule */
+      NGX_STREAM_SRV_CONF | NGX_CONF_2MORE,
+      xrootd_rl_bw_directive,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, rl_rules),
+      NULL },
+
+    { ngx_string("xrootd_concurrency_limit"),   /* srv: W7 in-flight cap */
+      NGX_STREAM_SRV_CONF | NGX_CONF_2MORE,
+      xrootd_rl_conc_directive,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, rl_rules),
+      NULL },
+
     /* Dynamic upstream XRootD redirector (host:port to query for redirects). */
     { ngx_string("xrootd_upstream"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -514,6 +708,24 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       xrootd_conf_set_cache_max_file_size,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
+      NULL },
+
+    /* Phase 31 W4: SHM-global transfer-heap budget.  A read that would push the
+     * live transfer-buffer total past this is deferred with kXR_wait.  Accepts
+     * bytes with optional k/m/g suffix.  0 = no cap.  Default 768m. */
+    { ngx_string("xrootd_memory_budget"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_off_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, memory_budget),
+      NULL },
+
+    /* Phase 26: slice-granular caching (size 0 = off; multiple of 1 MiB). */
+    { ngx_string("xrootd_cache_slice"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_slice_size),
       NULL },
 
     /* POSIX extended regular expression matched against the path basename.
@@ -740,6 +952,40 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, ocsp_stapling),
+      NULL },
+
+    /* ---- Phase 20: shared-memory KV zones, caches, and rate limiting ---- */
+
+    /* xrootd_kv_zone <name> <size> key=<bytes> val=<bytes>;  (stream main) */
+    { ngx_string("xrootd_kv_zone"),
+      NGX_STREAM_MAIN_CONF | NGX_CONF_2MORE,
+      xrootd_kv_zone_directive,
+      0,
+      0,
+      NULL },
+
+    /* xrootd_token_cache zone=<name>; */
+    { ngx_string("xrootd_token_cache"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_token_cache_directive,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, token_cache_kv),
+      NULL },
+
+    /* xrootd_auth_cache zone=<name> [ttl=<seconds>]; */
+    { ngx_string("xrootd_auth_cache"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE12,
+      xrootd_auth_cache_directive,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, auth_cache),
+      NULL },
+
+    /* xrootd_rate_limit zone=<name> rate=<N>r/s burst=<N> [key=dn|ip]; */
+    { ngx_string("xrootd_rate_limit"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_2MORE,
+      xrootd_rate_limit_directive,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, rate_limit),
       NULL },
 
     /* Required terminator so nginx knows where the directive table ends. */

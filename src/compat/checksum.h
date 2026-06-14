@@ -82,7 +82,8 @@ ngx_int_t xrootd_checksum_u32_fd(xrootd_checksum_alg_t alg, int fd,
  *      compatibility. Common digest path using OpenSSL EVP API.
  *
  * HOW: EVP_MD_CTX_new → EVP_DigestInit_ex → loop pread + EVP_DigestUpdate →
- *      EVP_DigestFinal_ex. Uses goto done for cleanup on failure.
+ *      EVP_DigestFinal_ex. The digest loop runs in a worker that uses flat early
+ *      returns; this wrapper owns the ctx and frees it on every exit.
  */
 
 ngx_int_t xrootd_checksum_digest_fd(xrootd_checksum_alg_t alg, int fd,

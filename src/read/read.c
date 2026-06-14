@@ -41,9 +41,38 @@
  * HOW: Two-phase read → validate read handle (xrootd_validate_read_handle for read-side validation) — parse offset/rlen from wire format (big-endian int64 + uint32_t) — cap rlen at XROOTD_READ_REQUEST_MAX if exceeds limit — perform pread(2) from file using AIO thread-pool or inline fallback (NGX_THREADS compile guard) — build chunked response chain via xrootd_build_chunked_chain() — queue response via xrootd_queue_response_chain() with databuf release callback. Access-log detail format "<offset>+rlen" tracks byte count transferred; throughput calculation uses bytes_read + session_bytes_written counters. */
 
 #include "read.h"
+#include "slice_read.h"
 
 #include "../ngx_xrootd_module.h"
+#include "../connection/budget.h"
 #include "prefetch.h"
+
+#include <sys/uio.h>   /* Phase 32 WS4: preadv2(RWF_NOWAIT) warm-cache probe */
+
+/*
+ * xrootd_ktls_send_active — true when kernel-TLS transmit is active on this
+ * connection (Phase 29 kTLS).
+ *
+ * Without kTLS, a TLS data stream must encrypt in userspace and therefore cannot
+ * use sendfile(2) — the historical reason the read path gates the zero-copy
+ * sendfile branch on !c->ssl.  When the kernel TLS ULP is negotiated for the send
+ * side (OpenSSL SSL_OP_ENABLE_KTLS + a kTLS-offloadable cipher), the kernel does
+ * the record encryption inside sendfile, so a file-backed chain is legal over TLS
+ * and the read inherits the cleartext sendfile fast path (and its Phase-2
+ * pipelining).  Returns 0 whenever kTLS is unavailable or not negotiated, so the
+ * caller transparently falls back to the memory/window path — the relaxation is
+ * always safe.
+ */
+static ngx_flag_t
+xrootd_ktls_send_active(ngx_connection_t *c)
+{
+#ifdef BIO_get_ktls_send
+    if (c->ssl != NULL && c->ssl->connection != NULL) {
+        return BIO_get_ktls_send(SSL_get_wbio(c->ssl->connection)) > 0 ? 1 : 0;
+    }
+#endif
+    return 0;
+}
 
 ngx_int_t
 xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -61,6 +90,14 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
     int                           fd;
     ngx_int_t                     rc;
 
+    /*
+     * ClientReadRequest wire fields are big-endian.  The file handle is a 4-byte
+     * blob but only byte 0 indexes our slot table (XROOTD_MAX_FILES <= 256); the
+     * (unsigned char) cast prevents sign-extension of a high-bit handle byte into
+     * a negative idx.  offset is a signed 64-bit network value (be64toh); rlen is
+     * an unsigned 32-bit count (ntohl) — the explicit (uint32_t) casts keep the
+     * conversions width-exact before widening to size_t on 64-bit hosts.
+     */
     idx = (int) (unsigned char) req->fhandle[0];
     offset = (int64_t) be64toh((uint64_t) req->offset);
     rlen = (size_t) (uint32_t) ntohl((uint32_t) req->rlen);
@@ -90,7 +127,27 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
     rconf = ngx_stream_get_module_srv_conf(
                 (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
 
-    if (ctx->files[idx].is_regular && !c->ssl) {
+    /* Phase 26: slice-mode handles have no backing fd; serve from the slice
+     * cache (filling missing slices from the origin and suspending if needed). */
+    if (ctx->files[idx].slice_mode) {
+        XROOTD_OP_OK(ctx, XROOTD_OP_READ);
+        return xrootd_read_from_slices(ctx, c, rconf, idx,
+                                       (off_t) offset, rlen);
+    }
+
+    /*
+     * Zero-copy sendfile fast path.  Two conditions must both hold:
+     *   - is_regular: sendfile(2) only works against a real file, not a pipe/dir.
+     *   - !c->ssl OR kTLS active: a userspace-TLS stream cannot sendfile because
+     *     nginx must encrypt each record in user memory (INVARIANT: TLS =>
+     *     memory-backed buffers).  kTLS lifts that — the kernel encrypts inside
+     *     sendfile — so a TLS connection with kTLS negotiated rejoins this branch.
+     * Anything that fails the gate (TLS without kTLS, irregular file) drops to the
+     * memory/window path below.
+     */
+    if (ctx->files[idx].is_regular
+        && (!c->ssl || xrootd_ktls_send_active(c)))
+    {
         off_t file_size;
         off_t avail;
 
@@ -112,6 +169,13 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             file_size = st.st_size;
         }
 
+        /*
+         * Clamp the chunk to bytes actually present: sendfile would otherwise be
+         * asked for data past EOF.  offset at/after EOF yields a zero-length OK
+         * (legal short read); otherwise serve min(rlen, remaining-to-EOF).  This
+         * is also why data_total — not the client's requested rlen — drives every
+         * accounting counter below.
+         */
         if ((off_t) offset >= file_size) {
             data_total = 0;
         } else {
@@ -124,6 +188,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
         ctx->files[idx].bytes_read += data_total;
         ctx->session_bytes += data_total;
+        xrootd_rl_charge_ctx(ctx, data_total);  /* Phase 25 bandwidth */
 
         if (ctx->files[idx].dashboard_slot >= 0 &&
             ngx_xrootd_dashboard_shm_zone != NULL)
@@ -167,10 +232,84 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
         }
     }
 
-    databuf = xrootd_get_read_scratch(ctx, c, rlen);
+    /*
+     * Phase 31 W2.1: bound resident heap for large memory-backed reads.  This
+     * is the memory path (TLS / non-regular file) — unlike the cleartext
+     * sendfile branch above it must buffer data in heap.  Clamp the request to
+     * what the file actually holds (read-only handles have a cached size); if
+     * that exceeds one streaming window, serve the read as a sequence of
+     * window-sized kXR_oksofar chunks ending in kXR_ok, holding only ~one window
+     * in read_scratch at a time instead of the whole request.  Writable handles
+     * (size unknown) use rlen and let a short read at EOF terminate early.
+     */
+    {
+        size_t total = rlen;
+
+        if (!ctx->files[idx].writable && ctx->files[idx].cached_size > 0) {
+            off_t avail = ctx->files[idx].cached_size - (off_t) offset;
+            total = (avail <= 0) ? 0
+                  : ((off_t) total > avail ? (size_t) avail : total);
+        }
+
+        if (total > (size_t) XROOTD_READ_WINDOW) {
+            /* Admit one window's worth — a windowed stream holds ~2 MiB, not
+             * the full request, so many more fit under the budget. */
+            if (!xrootd_budget_admit(ctx, rconf->memory_budget,
+                                     (size_t) XROOTD_READ_WINDOW)) {
+                return xrootd_send_wait(ctx, c, 1);
+            }
+
+            /*
+             * Arm the windowed-read state machine: the pump below (and any
+             * resumption after a partial flush) reads from rd_win_* rather than
+             * this request's locals, so it survives across event-loop returns.
+             * cur_streamid is snapshotted into rd_win_streamid because each
+             * kXR_oksofar/kXR_ok chunk must echo the originating request's stream
+             * id, but cur_streamid will be overwritten by the next inbound header
+             * before this stream finishes draining.
+             */
+            ctx->rd_win_active = 1;
+            ctx->rd_win_fd = fd;
+            ctx->rd_win_idx = idx;
+            ctx->rd_win_offset = (off_t) offset;
+            ctx->rd_win_remaining = total;
+            ctx->rd_win_streamid[0] = ctx->cur_streamid[0];
+            ctx->rd_win_streamid[1] = ctx->cur_streamid[1];
+
+            xrootd_prefetch_read_file(c->log, &ctx->files[idx], (off_t) offset,
+                                      total,
+                                      ctx->files[idx].writable
+                                          ? 0 : ctx->files[idx].cached_size);
+
+            if (rconf->access_log_fd != NGX_INVALID_FILE) {
+                char read_detail[64];
+                snprintf(read_detail, sizeof(read_detail), "%lld+%zu",
+                         (long long) offset, rlen);
+                xrootd_log_access(ctx, c, "READ", ctx->files[idx].path,
+                                  read_detail, 1, 0, NULL, total);
+            }
+
+            xrootd_read_window_pump(ctx, c, rconf);
+            return NGX_OK;
+        }
+    }
+
+    /*
+     * Small memory read (<= one window): single-shot.  Admit the full rlen and
+     * buffer it in read_scratch — bounded by the window, so no streaming needed.
+     */
+    if (!xrootd_budget_admit(ctx, rconf->memory_budget, rlen)) {
+        return xrootd_send_wait(ctx, c, 1);
+    }
+
+    databuf = XROOTD_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size, rlen);
     if (databuf == NULL) {
         return NGX_ERROR;
     }
+
+    /* Charge the (possibly grown) scratch footprint to the budget now so a
+     * concurrent connection's admission check sees this allocation promptly. */
+    xrootd_budget_sync(ctx);
 
     if (ctx->files[idx].is_regular) {
         off_t  file_size;
@@ -192,50 +331,96 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
                                   hint_len, file_size);
     }
 
-    if (rconf->common.thread_pool != NULL) {
-        ngx_thread_task_t *task;
-        xrootd_read_aio_t *t;
-        ngx_flag_t         posted;
-
-        task = ctx->read_aio_task;
-        if (task == NULL) {
-            task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_read_aio_t));
-            if (task == NULL) {
-                xrootd_release_read_buffer(ctx, c, databuf);
-                return NGX_ERROR;
-            }
-            ctx->read_aio_task = task;
-        } else {
-            task->next = NULL;
-            task->event.complete = 0;
+    /*
+     * Phase 32 WS4: warm-cache fast path.  Probe the page cache with a
+     * non-blocking preadv2(RWF_NOWAIT).  If the whole request is resident it
+     * returns rlen bytes immediately and we complete inline below — skipping the
+     * thread-pool round-trip (hundreds of µs) that otherwise dominates a
+     * cache-hot read.  A short or EAGAIN result is a (partial) cache miss: fall
+     * through to the AIO thread (or a synchronous pread if no pool), which reads
+     * the full data, blocking off the event loop.  Only attempted for regular
+     * files (RWF_NOWAIT is meaningful against the page cache).
+     */
+    {
+        ssize_t warm = -1;
+#if defined(RWF_NOWAIT)
+        if (rconf->common.thread_pool != NULL && ctx->files[idx].is_regular) {
+            struct iovec iov;
+            iov.iov_base = databuf;
+            iov.iov_len  = rlen;
+            warm = preadv2(fd, &iov, 1, (off_t) offset, RWF_NOWAIT);
         }
+#endif
 
-        t = task->ctx;
-        t->c = c;
-        t->ctx = ctx;
-        t->fd = fd;
-        t->handle_idx = idx;
-        t->offset = (off_t) offset;
-        t->rlen = rlen;
-        t->databuf = databuf;
-        t->streamid[0] = ctx->cur_streamid[0];
-        t->streamid[1] = ctx->cur_streamid[1];
-        t->nread = 0;
-        t->io_errno = 0;
+        /*
+         * Only an exact rlen match counts as a hit: a short warm result means
+         * part of the range was not resident (or EOF), and re-issuing a blocking
+         * read for the missing tail from the event loop would stall it — so any
+         * non-exact result falls through to the thread pool / sync path, which
+         * re-reads the full range from offset (the partial warm bytes are simply
+         * overwritten).
+         */
+        if (warm == (ssize_t) rlen) {
+            nread = warm;   /* full page-cache hit — databuf is filled; complete inline */
 
-        task->handler = xrootd_read_aio_thread;
-        task->event.handler = xrootd_read_aio_done;
-        task->event.data = task;
+        } else if (rconf->common.thread_pool != NULL) {
+            ngx_thread_task_t *task;
+            xrootd_read_aio_t *t;
+            ngx_flag_t         posted;
 
-        (void) xrootd_aio_post_task(ctx, c, rconf->common.thread_pool, task,
-                                    "xrootd: thread_task_post failed, sync read fallback",
-                                    &posted);
-        if (posted) {
-            return NGX_OK;
+            /*
+             * One reusable task per session (ctx->read_aio_task): allocate it the
+             * first time, otherwise reset the two fields ngx reuse requires —
+             * unlink from any prior queue (next) and clear the completion flag so
+             * the event loop will fire the done-callback again.
+             */
+            task = ctx->read_aio_task;
+            if (task == NULL) {
+                task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_read_aio_t));
+                if (task == NULL) {
+                    xrootd_release_read_buffer(ctx, c, databuf);
+                    return NGX_ERROR;
+                }
+                ctx->read_aio_task = task;
+            } else {
+                task->next = NULL;
+                task->event.complete = 0;
+            }
+
+            t = task->ctx;
+            t->c = c;
+            t->ctx = ctx;
+            t->fd = fd;
+            t->handle_idx = idx;
+            t->offset = (off_t) offset;
+            t->rlen = rlen;
+            t->databuf = databuf;
+            t->streamid[0] = ctx->cur_streamid[0];
+            t->streamid[1] = ctx->cur_streamid[1];
+            t->nread = 0;
+            t->io_errno = 0;
+
+            xrootd_task_bind(task, xrootd_read_aio_thread, xrootd_read_aio_done);
+
+            (void) xrootd_aio_post_task(ctx, c, rconf->common.thread_pool, task,
+                                        "xrootd: thread_task_post failed, sync read fallback",
+                                        &posted);
+            /*
+             * Posted: the read now completes off-thread; the done-callback owns
+             * databuf and finishes the response, so return early — nothing more to
+             * do on the event loop.  Not posted (queue full / post error): fall
+             * through to a blocking pread here so the read never silently drops.
+             */
+            if (posted) {
+                return NGX_OK;
+            }
+            nread = pread(fd, databuf, rlen, (off_t) offset);
+
+        } else {
+            /* No thread pool configured: read inline on the event loop. */
+            nread = pread(fd, databuf, rlen, (off_t) offset);
         }
     }
-
-    nread = pread(fd, databuf, rlen, (off_t) offset);
     if (nread < 0) {
         xrootd_release_read_buffer(ctx, c, databuf);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_READ, "READ",

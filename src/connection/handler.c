@@ -71,6 +71,7 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
     /* Sentinel value: fd < 0 means the slot is free. */
     for (i = 0; i < XROOTD_MAX_FILES; i++) {
         ctx->files[i].fd = -1;
+        ctx->files[i].shared_handle_slot_hint = -1;  /* Phase 33 C2: no cache yet */
     }
 
     {

@@ -29,10 +29,18 @@
  *      certificates are removed from the trusted store at regular intervals rather than only during startup. Per-worker timer allocation
  *      prevents cross-worker event loop interference since each worker has its own independent event processing cycle and config copy. ---- */
 
+#include <unistd.h>
 #include "config.h"
 #include "../proxy/proxy.h"
 #include "../proxy/proxy_internal.h"
 #include "../write/chkpoint.h"
+#include "../compat/crypto.h"
+#include "../manager/health_check.h"
+#include "../gsi/keypool.h"
+
+#if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
+#include <sanitizer/lsan_interface.h>
+#endif
 
 static void
 xrootd_crl_reload_handler(ngx_event_t *ev)
@@ -88,6 +96,13 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
     ngx_stream_core_srv_conf_t   **cscfp;
     ngx_stream_xrootd_srv_conf_t  *xcf;
     ngx_uint_t                     i;
+    ngx_uint_t                     gsi_seen = 0;
+
+    if (!xrootd_crypto_init()) {
+        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
+                      "xrootd: failed to initialise OpenSSL crypto primitives");
+        return NGX_ERROR;
+    }
 
     cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
     if (cmcf == NULL) {
@@ -122,6 +137,24 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
             continue;
         }
 
+        if (xcf->auth == XROOTD_AUTH_GSI || xcf->auth == XROOTD_AUTH_BOTH) {
+            gsi_seen = 1;   /* Phase 33: warm the GSI DH key pool below */
+        }
+
+        /* Only open rootfd for data servers with a local export root.
+         * Proxy/manager/supervisor servers leave root_canon empty. */
+        if (xcf->common.root_canon[0] != '\0') {
+            xcf->rootfd = open(xcf->common.root_canon,
+                               O_PATH | O_DIRECTORY | O_CLOEXEC);
+            if (xcf->rootfd < 0) {
+                ngx_log_error(NGX_LOG_EMERG, cycle->log, errno,
+                              "xrootd: cannot open export root \"%s\" for "
+                              "kernel-confined path operations",
+                              xcf->common.root_canon);
+                return NGX_ERROR;
+            }
+        }
+
         if (xrootd_chkpoint_recover_root(cycle->log, xcf->common.root_canon)
             != NGX_OK)
         {
@@ -131,6 +164,9 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         if (xcf->cms_addr != NULL) {
             ngx_xrootd_cms_start(cycle, xcf);
         }
+
+        /* Phase 22: start the active health-check timer (no-op if disabled). */
+        xrootd_hc_manager_start(cycle, xcf);
 
         if ((xcf->auth != XROOTD_AUTH_GSI && xcf->auth != XROOTD_AUTH_BOTH)
             || xcf->crl.len == 0 || xcf->crl_reload == 0)
@@ -160,5 +196,55 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         xrootd_token_jwks_schedule_refresh(cycle, xcf);
     }
 
+    /* Phase 33: warm the per-worker GSI ephemeral-DH key pool so kXGC_certreq
+     * never runs keygen on the event thread under a concurrent handshake burst. */
+    if (gsi_seen) {
+        xrootd_gsi_keypool_init(cycle);
+    }
+
     return NGX_OK;
+}
+
+void
+xrootd_exit_process(ngx_cycle_t *cycle)
+{
+    ngx_stream_core_main_conf_t   *cmcf;
+    ngx_stream_core_srv_conf_t   **cscfp;
+    ngx_stream_xrootd_srv_conf_t  *xcf;
+    ngx_uint_t                     i;
+
+    /*
+     * Phase 27 W6: best-effort explicit LeakSanitizer check at worker exit.
+     * nginx's daemon exit path does not reliably reach LSan's own atexit hook,
+     * so a sanitizer build would otherwise never report leaks.  Placed before
+     * any early return so it runs for http-only configs too.  Compiled out
+     * entirely in normal builds — zero production effect.
+     *
+     * NOTE: whether this actually fires depends on nginx reaching exit_process
+     * at shutdown, which is platform/signal-dependent (it was observed NOT to
+     * run under WSL2 in dev).  See docs/03-configuration/build-guide.md.
+     */
+#if defined(__SANITIZE_ADDRESS__)
+    __lsan_do_recoverable_leak_check();
+#endif
+
+    cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
+    if (cmcf == NULL) {
+        return;
+    }
+
+    cscfp = cmcf->servers.elts;
+    for (i = 0; i < cmcf->servers.nelts; i++) {
+        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                   ngx_stream_xrootd_module);
+        if (!xcf->common.enable) {
+            continue;
+        }
+        if (xcf->rootfd >= 0) {
+            close(xcf->rootfd);
+            xcf->rootfd = -1;
+        }
+    }
+
+    xrootd_crypto_cleanup();
 }

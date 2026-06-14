@@ -295,8 +295,19 @@ xrootd_token_validate(ngx_log_t *log,
                     claims->iss, sizeof(claims->iss));
     json_get_string((char *) pay_json, (size_t) pay_len, "sub",
                     claims->sub, sizeof(claims->sub));
-    json_get_string((char *) pay_json, (size_t) pay_len, "aud",
-                    claims->aud, sizeof(claims->aud));
+    if (json_get_string((char *) pay_json, (size_t) pay_len, "aud",
+                        claims->aud, sizeof(claims->aud)) < 0) {
+        /* RFC 7519 §4.1.3: "aud" MAY be an array of strings (WLCG/OIDC commonly
+         * emit it that way).  json_get_string() only accepts a JSON string, so
+         * record the first array entry for logging/audit; the membership check
+         * below accepts the string OR array form. */
+        char aud_arr[1][256];
+        if (json_get_string_array((char *) pay_json, (size_t) pay_len, "aud",
+                                  aud_arr, 1) > 0) {
+            ngx_cpystrn((u_char *) claims->aud, (u_char *) aud_arr[0],
+                        sizeof(claims->aud));
+        }
+    }
     json_get_string((char *) pay_json, (size_t) pay_len, "scope",
                     claims->scope_raw, sizeof(claims->scope_raw));
 
@@ -323,7 +334,10 @@ xrootd_token_validate(ngx_log_t *log,
     }
 
     if (expected_audience != NULL && expected_audience[0]) {
-        if (strcmp(claims->aud, expected_audience) != 0) {
+        /* Accept the expected audience whether "aud" is a single string or an
+         * array of strings containing it (RFC 7519 §4.1.3). */
+        if (!json_string_or_array_contains((char *) pay_json, (size_t) pay_len,
+                                           "aud", expected_audience)) {
             char safe_aud[512];
             token_sanitize_for_log(claims->aud, safe_aud, sizeof(safe_aud));
             ngx_log_error(NGX_LOG_WARN, log, 0,

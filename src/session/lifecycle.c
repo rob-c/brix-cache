@@ -54,9 +54,7 @@ ngx_int_t
 xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
     /* No state transition here; just account for the request and reply ok. */
-    xrootd_log_access(ctx, c, "PING", "-", "-", 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_PING);
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_PING, "PING", "-", "-", 0);
 }
 
 /* ------------------------------------------------------------------ */

@@ -1,7 +1,7 @@
 """
 Plan 6 source-layer guardrail inventory.
 
-shared-code-plan-6.md (docs/09-developer-guide/) defines seven cross-protocol
+shared-code-plan-6.md (docs/_archive/, after the docs reorg) defines seven cross-protocol
 service-layer refactors.  Before any production code is moved, behavioral
 coverage must already exist for the surfaces that are being extracted.
 
@@ -183,7 +183,7 @@ def test_capability_allow_header_guardrails_present():
 def test_plan6_roadmap_exists():
     """The Plan 6 design document is present in the developer guide."""
     _assert_markers(
-        "docs/09-developer-guide/shared-code-plan-6.md",
+        "docs/_archive/shared-code-plan-6.md",
         [
             "opportunity 1: shared namespace mutation service",
             "opportunity 2: shared byte-range vector planner",
@@ -196,7 +196,7 @@ def test_plan6_roadmap_exists():
         ],
     )
     _assert_markers(
-        "docs/09-developer-guide/shared-code-plan-6.md",
+        "docs/_archive/shared-code-plan-6.md",
         [
             "src/config/root_prepare",
             "src/compat/protocol_caps",

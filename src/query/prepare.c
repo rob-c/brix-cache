@@ -1,4 +1,5 @@
 #include "query_internal.h"
+#include "../path/beneath.h"
 
 #include <errno.h>
 #include <sys/stat.h>
@@ -90,7 +91,7 @@ xrootd_prepare_check_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                              Pass NULL when staging collection is not needed. */
 {
     char         pathbuf[XROOTD_MAX_PATH + 1];
-    char         resolved[PATH_MAX];
+    char         full_path[PATH_MAX];
     struct stat  st;
 
     if (line_len > XROOTD_MAX_PATH) {
@@ -109,35 +110,50 @@ xrootd_prepare_check_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                          "invalid prepare path");
     }
 
-    if (!xrootd_resolve_path(c->log, &conf->common.root, pathbuf, resolved,
-                             sizeof(resolved))) {
-        if (noerrs) {
+    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+                             full_path, sizeof(full_path));
+
+    /*
+     * CONTRACT: the same "file is absent" condition (ENOENT/ENOTDIR from the
+     * confined stat) has two outcomes selected by the kXR_noerrs flag:
+     *   - noerrs set  → not an error. The path is counted in *missing and the
+     *     request still succeeds, so a client can prepare/stage files that do
+     *     not exist on disk yet (tape nearline recall, not-yet-cached objects).
+     *   - noerrs clear → kXR_NotFound, failing the request on the first miss.
+     * EACCES/EPERM and any other errno always fail regardless of noerrs.
+     */
+    if (xrootd_stat_beneath(conf->rootfd, pathbuf, &st) != 0) {
+        if ((errno == ENOENT || errno == ENOTDIR) && noerrs) {
             (*missing)++;
-            /* For staging: try to get the canonical path even if the file
-             * doesn't exist yet (tape nearline / not-yet-created).  Auth
-             * checks are skipped since there is no filesystem object to check
-             * against; the staging command is trusted to enforce its own ACLs. */
+            /* For staging: supply absolute path even if file doesn't exist yet
+             * (tape nearline / not-yet-created).  Auth checks are skipped since
+             * there is no filesystem object to verify against. */
             if (out_resolved != NULL) {
-                if (!xrootd_resolve_path_noexist(c->log, &conf->common.root, pathbuf,
-                                                 out_resolved, PATH_MAX)) {
-                    out_resolved[0] = '\0';
-                }
+                ngx_cpystrn((u_char *) out_resolved, (u_char *) full_path,
+                            PATH_MAX);
             }
             return NGX_OK;
         }
-
-        return xrootd_prepare_check_fail(ctx, c, pathbuf, kXR_NotFound,
-                                         "file not found");
+        if (errno == ENOENT || errno == ENOTDIR) {
+            return xrootd_prepare_check_fail(ctx, c, pathbuf, kXR_NotFound,
+                                             "file not found");
+        }
+        if (errno == EACCES || errno == EPERM) {
+            return xrootd_prepare_check_fail(ctx, c, full_path,
+                                             kXR_NotAuthorized, "not authorized");
+        }
+        return xrootd_prepare_check_fail(ctx, c, full_path, kXR_IOError,
+                                         "prepare stat failed");
     }
 
-    if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_READ) != NGX_OK) {
-        return xrootd_prepare_check_fail(ctx, c, resolved, kXR_NotAuthorized,
+    if (xrootd_check_authdb(ctx, full_path, XROOTD_AUTH_READ) != NGX_OK) {
+        return xrootd_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
                                          "not authorized");
     }
 
-    if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+    if (xrootd_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
                                      ctx->identity) != NGX_OK) {
-        return xrootd_prepare_check_fail(ctx, c, resolved, kXR_NotAuthorized,
+        return xrootd_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
                                          "VO not authorized");
     }
 
@@ -146,30 +162,10 @@ xrootd_prepare_check_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                          "token scope denied");
     }
 
-    /* Copy the canonical resolved path for the staging command.  Done after
-     * auth checks so only authorised paths reach the staging hook. */
+    /* Copy the absolute export path for the staging command; only authorized
+     * paths reach here so the staging hook can trust the value. */
     if (out_resolved != NULL) {
-        ngx_cpystrn((u_char *) out_resolved, (u_char *) resolved, PATH_MAX);
-    }
-
-    if (stat(resolved, &st) != 0) {
-        if ((errno == ENOENT || errno == ENOTDIR) && noerrs) {
-            (*missing)++;
-            return NGX_OK;  /* out_resolved already set above */
-        }
-
-        if (errno == ENOENT || errno == ENOTDIR) {
-            return xrootd_prepare_check_fail(ctx, c, pathbuf, kXR_NotFound,
-                                             "file not found");
-        }
-
-        if (errno == EACCES || errno == EPERM) {
-            return xrootd_prepare_check_fail(ctx, c, resolved, kXR_NotAuthorized,
-                                             "not authorized");
-        }
-
-        return xrootd_prepare_check_fail(ctx, c, resolved, kXR_IOError,
-                                         "prepare stat failed");
+        ngx_cpystrn((u_char *) out_resolved, (u_char *) full_path, PATH_MAX);
     }
 
     if (S_ISDIR(st.st_mode)) {
@@ -177,7 +173,6 @@ xrootd_prepare_check_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
             (*missing)++;
             return NGX_OK;
         }
-
         return xrootd_prepare_check_fail(ctx, c, pathbuf, kXR_isDirectory,
                                          "prepare target is a directory");
     }
@@ -481,7 +476,7 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
         const u_char *line;
         size_t        line_len;
         char          pathbuf[XROOTD_MAX_PATH + 1];
-        char          resolved[PATH_MAX];
+        char          full_path[PATH_MAX];
         struct stat   st;
 
         line = p;
@@ -506,16 +501,15 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
             continue;  /* skip malformed paths */
         }
 
-        /* Check availability: resolve, auth-check, then stat.
-         * Unauthorized or unresolvable paths are silently treated as missing
-         * (consistent with xrootd reference behavior). */
-        if (xrootd_resolve_path(c->log, &conf->common.root, pathbuf,
-                                resolved, sizeof(resolved))
-            && xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_READ) == NGX_OK
-            && xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+        /* Check availability; both non-existent and unauthorized paths are
+         * treated as missing, consistent with xrootd reference behavior. */
+        xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+                                 full_path, sizeof(full_path));
+        if (xrootd_check_authdb(ctx, full_path, XROOTD_AUTH_READ) == NGX_OK
+            && xrootd_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
                                             ctx->identity) == NGX_OK
             && xrootd_check_token_scope(ctx, pathbuf, 0) == NGX_OK
-            && stat(resolved, &st) == 0
+            && xrootd_stat_beneath(conf->rootfd, pathbuf, &st) == 0
             && S_ISREG(st.st_mode))
         {
             *rp++ = 'A';

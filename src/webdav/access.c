@@ -66,6 +66,17 @@ ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r)
         return NGX_DECLINED;
     }
 
+    /* Phase 24: mirror subrequests are internally generated and already
+     * authorized by the parent — skip the auth gate so the shadow request is
+     * not re-checked (and never double-counted in metrics). */
+    {
+        ngx_http_xrootd_webdav_req_ctx_t *mctx =
+            ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+        if (r != r->main && mctx != NULL && mctx->is_mirror) {
+            return NGX_OK;
+        }
+    }
+
     /* CORS headers must appear on every response. */
     if (webdav_add_cors_headers(r) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -78,6 +89,19 @@ ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r)
             XROOTD_WEBDAV_METRIC_INC(bytes_rx_ipv6_total);
         } else {
             XROOTD_WEBDAV_METRIC_INC(bytes_rx_ipv4_total);
+        }
+    }
+
+    /* Phase 20: per-client-IP request rate limit, applied before the auth
+     * burden so a flood of unauthenticated requests is shed cheaply. */
+    if (conf->rate_limit.kv != NULL && r->connection != NULL) {
+        ngx_str_t *ip = &r->connection->addr_text;
+
+        if (xrootd_rate_limit_check(&conf->rate_limit,
+                                    (const char *) ip->data, ip->len)
+            != NGX_OK)
+        {
+            return webdav_metrics_return(r, NGX_HTTP_TOO_MANY_REQUESTS);
         }
     }
 

@@ -42,7 +42,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ClientOpenRequest *req = (ClientOpenRequest *) ctx->hdr_buf;
 	uint16_t           options;
 	uint16_t           mode_bits;
-	char               resolved[PATH_MAX];
+	char               full_path[PATH_MAX];
 	char               clean_path[PATH_MAX];  /* path with CGI query stripped */
 	int                is_write;
 
@@ -96,7 +96,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				 * error) is deferred until the pull completes in the thread
 				 * pool.
 				 */
-				char tpc_resolved[PATH_MAX];
+				char tpc_full_path[PATH_MAX];
 				char tpc_clean[PATH_MAX];
 
 				if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
@@ -109,12 +109,9 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					                         "invalid TPC destination path");
 				}
 				if (xrootd_count_path_depth(tpc_clean) != NGX_OK) {
-					xrootd_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
-					                  0, kXR_ArgInvalid,
-					                  "path exceeds maximum depth", 0);
-					XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-					return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-					                         "path exceeds maximum depth");
+					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+					                  tpc_clean, "tpc-pull", kXR_ArgInvalid,
+					                  "path exceeds maximum depth");
 				}
 
 				/* Manager mode: generate TPC key and redirect to a data server. */
@@ -164,57 +161,34 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					                           &tpc_dst_scope, c->log)
 					    != NGX_OK)
 					{
-						xrootd_log_access(ctx, c, "OPEN", tpc_clean,
-						                  "tpc-pull", 0, kXR_NotAuthorized,
-						                  "TPC authorization denied", 0);
-						XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-						return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-						                         "TPC authorization denied");
+						XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+						                  tpc_clean, "tpc-pull",
+						                  kXR_NotAuthorized,
+						                  "TPC authorization denied");
 					}
 				}
 
-				if (options & kXR_mkpath) {
-					if (!xrootd_resolve_path_noexist(
-					        c->log, &conf->common.root, tpc_clean,
-					        tpc_resolved, sizeof(tpc_resolved))) {
-						XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-						return xrootd_send_error(ctx, c, kXR_NotFound,
-						                         "invalid TPC destination path");
-					}
-				} else {
-					if (!xrootd_resolve_path_write(
-					        c->log, &conf->common.root, tpc_clean,
-					        tpc_resolved, sizeof(tpc_resolved))) {
-						XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-						return xrootd_send_error(ctx, c, kXR_NotFound,
-						                         "invalid TPC destination path");
-					}
+				xrootd_beneath_full_path(conf->common.root_canon, tpc_clean,
+				                          tpc_full_path, sizeof(tpc_full_path));
+
+				if (xrootd_check_authdb(ctx, tpc_full_path, XROOTD_AUTH_UPDATE) != NGX_OK) {
+					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+					                  tpc_clean, "tpc-pull", kXR_NotAuthorized,
+					                  "authdb denied");
 				}
 
-				if (xrootd_check_authdb(ctx, tpc_resolved, XROOTD_AUTH_UPDATE) != NGX_OK) {
-					xrootd_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
-					                  0, kXR_NotAuthorized,
-					                  "authdb denied", 0);
-					XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-					return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-					                         "authdb denied");
-				}
-
-				if (xrootd_check_vo_acl_identity(c->log, tpc_resolved,
+				if (xrootd_check_vo_acl_identity(c->log, tpc_full_path,
 				                                 conf->vo_rules,
 				                                 ctx->identity) != NGX_OK) {
-					xrootd_log_access(ctx, c, "OPEN", tpc_clean, "tpc-pull",
-					                  0, kXR_NotAuthorized,
-					                  "VO not authorized", 0);
-					XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-					return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-					                         "VO not authorized");
+					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+					                  tpc_clean, "tpc-pull", kXR_NotAuthorized,
+					                  "VO not authorized");
 				}
 
 				if (options & kXR_mkpath) {
 					char  parent[PATH_MAX];
 					char *slash;
-					ngx_cpystrn((u_char *) parent, (u_char *) tpc_resolved,
+					ngx_cpystrn((u_char *) parent, (u_char *) tpc_full_path,
 					            sizeof(parent));
 					slash = strrchr(parent, '/');
 					if (slash && slash > parent) {
@@ -225,7 +199,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				}
 
 				return xrootd_tpc_prepare_pull(ctx, c, conf, &tpc,
-				                               tpc_resolved, options, mode_bits);
+				                               tpc_full_path, options, mode_bits);
 
 			} else if (!is_write && (tpc.has_key || tpc.has_dst || tpc.has_org)) {
 				/*
@@ -257,13 +231,10 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						               "xrootd: TPC source key=%s consumed",
 						               tpc.key);
 					} else {
-						xrootd_log_access(ctx, c, "OPEN",
+						XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
 						                  ctx->payload ? (char *) ctx->payload : "-",
-						                  "tpc-source", 0, kXR_NotAuthorized,
-						                  "TPC authorization missing or expired", 0);
-						XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-						return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-						                         "TPC authorization missing or expired");
+						                  "tpc-source", kXR_NotAuthorized,
+						                  "TPC authorization missing or expired");
 					}
 				}
 			}
@@ -299,11 +270,10 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-		xrootd_log_access(ctx, c, "OPEN", "-",
-						  is_write ? "wr" : "rd",
-						  0, kXR_ArgMissing, "no path given", 0);
-		XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-		return xrootd_send_error(ctx, c, kXR_ArgMissing, "no path given");
+		XROOTD_RETURN_ERR(ctx, c,
+						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+						  "OPEN", "-", is_write ? "wr" : "rd",
+						  kXR_ArgMissing, "no path given");
 	}
 
 	/*
@@ -318,22 +288,17 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * of the filesystem path. */
 	if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
 							 clean_path, sizeof(clean_path), 1)) {
-		xrootd_log_access(ctx, c, "OPEN", "-",
-						  is_write ? "wr" : "rd",
-						  0, kXR_ArgInvalid, "invalid path payload", 0);
-		XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-								 "invalid path payload");
+		XROOTD_RETURN_ERR(ctx, c,
+						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+						  "OPEN", "-", is_write ? "wr" : "rd",
+						  kXR_ArgInvalid, "invalid path payload");
 	}
 
 	if (xrootd_count_path_depth(clean_path) != NGX_OK) {
-		xrootd_log_access(ctx, c, "OPEN", clean_path,
-						  is_write ? "wr" : "rd",
-						  0, kXR_ArgInvalid,
-						  "path exceeds maximum depth", 0);
-		XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-								 "path exceeds maximum depth");
+		XROOTD_RETURN_ERR(ctx, c,
+						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+						  "OPEN", clean_path, is_write ? "wr" : "rd",
+						  kXR_ArgInvalid, "path exceeds maximum depth");
 	}
 
 	/* Dynamic manager mode: redirect to best registered server. */
@@ -341,14 +306,25 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		char     redir_host[256];
 		uint16_t redir_port;
 
+		/* tried/triedrc: a read whose client has already visited every server
+		 * holding this path (all returned enoent) must get not-found, not yet
+		 * another redirect — otherwise it loops to the client redirect limit.
+		 * Writes are excluded: they create the file on the selected server. */
+		if (!is_write
+		    && xrootd_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+		                                      clean_path)) {
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+			                  "rd", kXR_NotFound,
+			                  "file not found on any data server");
+		}
+
 		/* Collapse-redir cache: serve reads from cache to skip CMS. */
 		if (!is_write && conf->collapse_redir
 		    && xrootd_redir_cache_lookup(clean_path, redir_host,
 		                                 sizeof(redir_host), &redir_port)) {
-			xrootd_log_access(ctx, c, "OPEN", clean_path, "redir-cache",
-			                  1, 0, NULL, 0);
-			XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_RD);
-			return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+			XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+			                    clean_path, "redir-cache",
+			                    redir_host, redir_port);
 		}
 
 		if (xrootd_srv_select(clean_path, is_write, redir_host,
@@ -357,10 +333,11 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				xrootd_redir_cache_insert(clean_path, redir_host, redir_port,
 				                          conf->collapse_redir_ttl);
 			}
-			xrootd_log_access(ctx, c, "OPEN", clean_path, "registry",
-			                  1, 0, NULL, 0);
-			XROOTD_OP_OK(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-			return xrootd_send_redirect(ctx, c, redir_host, redir_port);
+			XROOTD_RETURN_REDIR(ctx, c,
+			                    is_write ? XROOTD_OP_OPEN_WR
+			                             : XROOTD_OP_OPEN_RD,
+			                    "OPEN", clean_path, "registry",
+			                    redir_host, redir_port);
 		}
 
 		/* Registry miss — ask the CMS parent via kYR_locate. */
@@ -394,11 +371,10 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		const xrootd_manager_map_t *m = xrootd_find_manager_map(clean_path,
 																conf->manager_map);
 		if (m != NULL) {
-			xrootd_log_access(ctx, c, "OPEN", clean_path, "redirect",
-							  1, 0, NULL, 0);
-			XROOTD_OP_OK(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-			return xrootd_send_redirect(ctx, c, (const char *) m->host.data,
-										m->port);
+			XROOTD_RETURN_REDIR(ctx, c,
+							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+							  "OPEN", clean_path, "redirect",
+							  (const char *) m->host.data, m->port);
 		}
 	}
 
@@ -413,117 +389,50 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			                               options, mode_bits);
 		}
 
-		/* Read opens are strict: the final target must already exist and canonicalize. */
-		if (!xrootd_resolve_path(c->log, &conf->common.root,
-								 clean_path, resolved, sizeof(resolved))) {
-				/* No local file - query upstream redirector if configured */
-			if (conf->upstream_host.len > 0) {
-				xrootd_log_access(ctx, c, "OPEN", clean_path,
-								  "upstream", 1, 0, NULL, 0);
-				XROOTD_OP_OK(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-				return xrootd_upstream_start(ctx, c, conf);
-			}
-			xrootd_log_access(ctx, c, "OPEN", clean_path, "rd",
-							  0, kXR_NotFound, "file not found", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_NotFound, "file not found");
-		}
-
-		if (xrootd_check_authdb(ctx, resolved, is_write ? XROOTD_AUTH_UPDATE : XROOTD_AUTH_READ) != NGX_OK) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, is_write ? "wr" : "rd",
-							  0, kXR_NotAuthorized, "authdb denied", 0);
-			XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-									 "authdb denied");
-		}
-
-		if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-								 ctx->identity) != NGX_OK) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, "rd",
-							  0, kXR_NotAuthorized, "VO not authorized", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-									 "VO not authorized");
-		}
-
-		if (xrootd_check_token_scope(ctx, clean_path, 0) != NGX_OK) {
-			xrootd_log_access(ctx, c, "OPEN", clean_path, "rd",
-							  0, kXR_NotAuthorized, "token scope denied", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-									 "token scope denied");
-		}
-
-		/* Reject opening a directory as a file */
+		/* Read opens: verify the file exists within root using kernel confinement,
+		 * then build the absolute path string for auth checks. */
+		xrootd_beneath_full_path(conf->common.root_canon, clean_path,
+		                          full_path, sizeof(full_path));
 		{
-			struct stat st;
-			if (stat(resolved, &st) == 0 && S_ISDIR(st.st_mode)) {
-				xrootd_log_access(ctx, c, "OPEN", clean_path, "rd",
-								  0, kXR_isDirectory, "is a directory", 0);
-				XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-				return xrootd_send_error(ctx, c, kXR_isDirectory,
-										 "is a directory");
+			struct stat _exist_st;
+			if (xrootd_stat_beneath(conf->rootfd, clean_path, &_exist_st) != 0) {
+				if (conf->upstream_host.len > 0) {
+					xrootd_log_access(ctx, c, "OPEN", clean_path,
+									  "upstream", 1, 0, NULL, 0);
+					XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_RD);
+					return xrootd_upstream_start(ctx, c, conf);
+				}
+				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+								  clean_path, "rd", kXR_NotFound,
+								  "file not found");
 			}
+			if (S_ISDIR(_exist_st.st_mode)) {
+				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+								  clean_path, "rd", kXR_isDirectory,
+								  "is a directory");
+			}
+		}
+
+		if (xrootd_auth_gate(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+							  clean_path, full_path, conf,
+							  XROOTD_AUTH_READ, 0) != NGX_OK) {
+			return ctx->write_rc;
 		}
 	} else {
-		int ok;
-		/*
-	 * Write opens are more permissive because the leaf file may be created
-	 * by the open itself (kXR_new), so realpath cannot find it yet.
-	 * The exact resolver depends on whether the client also asked us to
-	 * materialize missing parent directories (kXR_mkpath).
-	 *
-	 * kXR_mkpath → resolve_path_noexist: validate path structure without
-	 * requiring any component to exist on disk.  No mkpath →
-	 * resolve_path_write: leaf must already exist, parents must exist.
-	 */
-		if (options & kXR_mkpath) {
-				/* Parent dirs may not exist yet - validate without realpath */
-			ok = xrootd_resolve_path_noexist(c->log, &conf->common.root,
-											  clean_path, resolved,
-											  sizeof(resolved));
-		} else {
-			ok = xrootd_resolve_path_write(c->log, &conf->common.root,
-										   clean_path, resolved,
-										   sizeof(resolved));
-		}
-		if (!ok) {
-			xrootd_log_access(ctx, c, "OPEN", clean_path, "wr",
-							  0, kXR_NotFound, "invalid path", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-			return xrootd_send_error(ctx, c, kXR_NotFound, "invalid path");
-		}
+		xrootd_beneath_full_path(conf->common.root_canon, clean_path,
+		                          full_path, sizeof(full_path));
 
-		if (xrootd_check_authdb(ctx, resolved, is_write ? XROOTD_AUTH_UPDATE : XROOTD_AUTH_READ) != NGX_OK) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, is_write ? "wr" : "rd",
-							  0, kXR_NotAuthorized, "authdb denied", 0);
-			XROOTD_OP_ERR(ctx, is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD);
-			return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-									 "authdb denied");
-		}
-
-		if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-								 ctx->identity) != NGX_OK) {
-			xrootd_log_access(ctx, c, "OPEN", resolved, "wr",
-							  0, kXR_NotAuthorized, "VO not authorized", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-			return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-									 "VO not authorized");
-		}
-
-		if (xrootd_check_token_scope(ctx, clean_path, 1) != NGX_OK) {
-			xrootd_log_access(ctx, c, "OPEN", clean_path, "wr",
-							  0, kXR_NotAuthorized, "token scope denied", 0);
-			XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-			return xrootd_send_error(ctx, c, kXR_NotAuthorized,
-									 "token scope denied");
+		if (xrootd_auth_gate(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+							  clean_path, full_path, conf,
+							  XROOTD_AUTH_UPDATE, 1) != NGX_OK) {
+			return ctx->write_rc;
 		}
 
 		/* Create parent directories if kXR_mkpath is set */
 		if (options & kXR_mkpath) {
 			char  parent[PATH_MAX];
 			char *slash;
-			ngx_cpystrn((u_char *) parent, (u_char *) resolved, sizeof(parent));
+			ngx_cpystrn((u_char *) parent, (u_char *) full_path, sizeof(parent));
 			slash = strrchr(parent, '/');
 			if (slash && slash > parent) {
 				*slash = '\0';
@@ -534,6 +443,6 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		}
 	}
 
-	return xrootd_open_resolved_file(ctx, c, conf, resolved, options,
+	return xrootd_open_resolved_file(ctx, c, conf, full_path, options,
 									 mode_bits, is_write);
 }

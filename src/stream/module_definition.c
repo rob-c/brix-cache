@@ -40,6 +40,6 @@ ngx_module_t ngx_stream_xrootd_module = {
   /* No master/module init hooks beyond the stream-specific callbacks above. */
     NULL, NULL,
     ngx_stream_xrootd_init_process,         /* init process       */
-    NULL, NULL, NULL, NULL,
+    NULL, NULL, xrootd_exit_process, NULL,
     NGX_MODULE_V1_PADDING
 };

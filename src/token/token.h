@@ -88,6 +88,17 @@ int xrootd_jwks_load(ngx_log_t *log, const char *path,
  */
 void xrootd_jwks_free(xrootd_jwks_key_t *keys, int count);
 
+/*
+ * Register a pool cleanup that frees the EVP_PKEY handles in keys[] when the
+ * pool is destroyed.  The handler reads *count at destroy time, so it works
+ * with the refresh path (which mutates the same array in place).  Without this,
+ * the OpenSSL key objects are leaked on every config reload and at shutdown
+ * (the array lives in the conf pool, but EVP_PKEY_free is never called for it).
+ * Returns NGX_OK or NGX_ERROR.
+ */
+ngx_int_t xrootd_jwks_register_cleanup(ngx_pool_t *pool,
+                                       xrootd_jwks_key_t *keys, int *count);
+
 /* ------------------------------------------------------------------ */
 /* Token validation                                                     */
 /* ------------------------------------------------------------------ */

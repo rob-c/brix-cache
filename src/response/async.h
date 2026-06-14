@@ -67,11 +67,27 @@ ngx_int_t xrootd_send_attn(xrootd_ctx_t *ctx, ngx_connection_t *c,
 /* Deprecated async operation handlers (5000-5007)                     */
 /* ------------------------------------------------------------------ */
 /* All return kXR_Unsupported — these opcodes are retired in v5.       */
+/*
+ * Each handler queues a single kXR_error(kXR_Unsupported) response naming its
+ * own retired opcode and performs no other work. Common to all:
+ *   ctx->cur_streamid is echoed into the error frame; the body is allocated
+ *   from c->pool and queued on ctx via xrootd_send_error.
+ *   Returns NGX_OK once the error frame is queued, NGX_ERROR on alloc failure.
+ */
+
+/* kXR_asyncab (5000) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_ab(xrootd_ctx_t *ctx, ngx_connection_t *c);
+/* kXR_asyncdi (5001) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_di(xrootd_ctx_t *ctx, ngx_connection_t *c);
+/* kXR_asyncms (5002) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_ms(xrootd_ctx_t *ctx, ngx_connection_t *c);
+/* kXR_asyncrd (5003) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_rd(xrootd_ctx_t *ctx, ngx_connection_t *c);
+/* kXR_asyncwt (5004) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_wt(xrootd_ctx_t *ctx, ngx_connection_t *c);
+/* kXR_asyncav (5005) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_av(xrootd_ctx_t *ctx, ngx_connection_t *c);
+/* kXR_asyncunav (5006) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_unav(xrootd_ctx_t *ctx, ngx_connection_t *c);
+/* kXR_asyncgo (5007) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_go(xrootd_ctx_t *ctx, ngx_connection_t *c);

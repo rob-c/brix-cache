@@ -3,6 +3,9 @@ objs/
 *.o
 *.a
 
+# mcp-workspace runtime logs
+logs/
+
 # Python
 __pycache__/
 *.pyc

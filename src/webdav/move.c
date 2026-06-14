@@ -23,6 +23,15 @@ typedef struct {
     int                sys_errno;
 } webdav_move_collection_task_t;
 
+/*
+ * Perform the actual rename and map the namespace result to an HTTP status:
+ *   OK        -> 204 (replaced) / 201 (created)
+ *   EXISTS    -> 412 (Overwrite:F race)
+ *   CONFLICT / NOT_FOUND -> 409 (missing parent / non-empty dst dir)
+ *   anything else -> 500.
+ * The raw errno is reported via *sys_errno for the caller's log.  May run on a
+ * worker thread, so it touches only its parameters and thread-safe FS helpers.
+ */
 static ngx_int_t
 webdav_move_execute(ngx_log_t *log, const char *root_canon,
     const char *src_path, const char *dst_path, ngx_flag_t overwrite,
@@ -51,6 +60,8 @@ webdav_move_execute(ngx_log_t *log, const char *root_canon,
     return NGX_HTTP_INTERNAL_SERVER_ERROR;
 }
 
+/* Thread-pool worker: runs the rename off the event loop and records the result
+ * (status + errno) for webdav_move_collection_done to consume. */
 static void
 webdav_move_collection_thread(void *data, ngx_log_t *log)
 {
@@ -64,6 +75,11 @@ webdav_move_collection_thread(void *data, ngx_log_t *log)
                                          &t->sys_errno);
 }
 
+/*
+ * Completion handler (event loop): async re-entry after the worker finishes.
+ * Sends 201/204 on success, logs the rename errno on 500, finalizes with the
+ * status, and releases the request reference taken in the post function.
+ */
 static void
 webdav_move_collection_done(ngx_event_t *ev)
 {
@@ -90,6 +106,11 @@ webdav_move_collection_done(ngx_event_t *ev)
     webdav_metrics_finalize_request(r, status);
 }
 
+/*
+ * Try to offload a collection MOVE to the thread pool.  Returns NGX_DONE when
+ * queued (request held via r->main->count++), NGX_DECLINED when no pool is
+ * available (caller runs the rename synchronously), NGX_ERROR on failure.
+ */
 static ngx_int_t
 webdav_move_collection_post_task(ngx_http_request_t *r,
     ngx_http_xrootd_webdav_loc_conf_t *conf, const char *src_path,
@@ -221,7 +242,7 @@ webdav_handle_move(ngx_http_request_t *r)
         return NGX_HTTP_NOT_FOUND;
     }
 
-    rc = webdav_check_locks(r, src_path, 1);
+    rc = webdav_check_locks_tree(r, src_path);
     if (rc != NGX_OK) {
         return rc;
     }
@@ -236,7 +257,7 @@ webdav_handle_move(ngx_http_request_t *r)
 
     dst_existed = (stat(dst_path, &dst_sb) == 0);
 
-    rc = webdav_check_locks(r, dst_path, 1);
+    rc = webdav_check_locks_tree(r, dst_path);
     if (rc != NGX_OK) {
         return rc;
     }
@@ -253,6 +274,10 @@ webdav_handle_move(ngx_http_request_t *r)
         return NGX_HTTP_FORBIDDEN;
     }
 
+    /* Directories are offloaded to a thread when one is available (NGX_DONE ends
+     * the request here); NGX_DECLINED (no pool) and all non-directory moves fall
+     * through to the synchronous rename below — rename(2) itself is fast, the
+     * offload mainly isolates the worker from rare slow-fs stalls. */
     if (S_ISDIR(src_sb.st_mode)) {
         rc = webdav_move_collection_post_task(r, conf, src_path, dst_path,
                                               overwrite, dst_existed);
@@ -262,6 +287,7 @@ webdav_handle_move(ngx_http_request_t *r)
         if (rc == NGX_ERROR) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
+        /* NGX_DECLINED: no thread pool, fall through to synchronous rename. */
     }
 
     {
@@ -272,10 +298,7 @@ webdav_handle_move(ngx_http_request_t *r)
                                  &sys_errno);
 
         if (rc == NGX_HTTP_CREATED || rc == NGX_HTTP_NO_CONTENT) {
-            r->headers_out.status = (ngx_uint_t) rc;
-            r->headers_out.content_length_n = 0;
-            ngx_http_send_header(r);
-            return ngx_http_send_special(r, NGX_HTTP_LAST);
+            return webdav_send_no_body(r, (ngx_uint_t) rc);
         }
 
         if (rc == NGX_HTTP_INTERNAL_SERVER_ERROR) {

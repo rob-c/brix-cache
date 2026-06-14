@@ -59,6 +59,7 @@
 #include "statx.h"
 #include "stat.h"
 #include "../ngx_xrootd_module.h"
+#include "../path/beneath.h"
 
 #define XROOTD_STATX_MAX_PATHS  256
 #define XROOTD_STATX_LINE_MAX   256
@@ -121,7 +122,7 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char       *rsp_buf, *rsp_ptr;
     u_char       *rsp_end;
     char          reqpath_buf[XROOTD_MAX_PATH + 1];
-    char          resolved[PATH_MAX];
+    char          full_path[PATH_MAX];
     struct stat   st;
     char          stat_body[XROOTD_STATX_LINE_MAX];
     size_t        stat_len;
@@ -152,12 +153,21 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
         n_paths++;
 
         /* Resolve and stat the path. */
-        if (!xrootd_resolve_path(c->log, &conf->common.root,
-                                 reqpath_buf, resolved, sizeof(resolved))
-            || xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
+        xrootd_beneath_full_path(conf->common.root_canon, reqpath_buf,
+                                 full_path, sizeof(full_path));
+        /*
+         * W4 — apply the SAME authorization gate STAT uses (authdb + VO ACL +
+         * token scope), not just VO ACL + scope.  Previously STATX skipped the
+         * authdb check, so an authdb-denied path could leak real metadata via
+         * the batched stat where the single STAT op would have refused it.
+         * A denial here falls through to the per-path "inaccessible" sentinel,
+         * preserving STATX's partial-result semantics.
+         */
+        if (xrootd_check_authdb(ctx, full_path, XROOTD_AUTH_LOOKUP) != NGX_OK
+            || xrootd_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
                                             ctx->identity) != NGX_OK
             || xrootd_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK
-            || stat(resolved, &st) != 0)
+            || xrootd_stat_beneath(conf->rootfd, reqpath_buf, &st) != 0)
         {
             /* Inaccessible or missing - emit error sentinel. */
             size_t errlen = sizeof(XROOTD_STATX_ERR_LINE) - 1;

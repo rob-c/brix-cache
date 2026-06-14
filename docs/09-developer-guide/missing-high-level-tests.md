@@ -25,7 +25,7 @@ Tests WebDAV-specific metrics: request counters, auth counters, multipart TPC co
 Tests S3-specific metrics: request counters, list counters, IP version bytes, auth counters.
 
 ### `tests/test_large_file_metrics.py`
-Tests large file transfer metrics tracking (13 standalone functions).
+Tests large file transfer metrics tracking (12 standalone functions).
 
 ---
 
@@ -243,7 +243,7 @@ pytest tests/test_cross_backend_metrics.py -v TEST_CROSS_BACKEND=xrootd
 | `tests/test_metrics.py` | Basic counter validation per protocol |
 | `tests/test_webdav_metrics.py` | WebDAV-specific counters |
 | `tests/test_s3_metrics.py` | S3-specific counters |
-| `tests/test_large_file_metrics.py` | Large file transfer metrics (13 functions) |
+| `tests/test_large_file_metrics.py` | Large file transfer metrics (12 functions) |
 
 ### Existing E2E Tests
 | File | Coverage |

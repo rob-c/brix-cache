@@ -1,4 +1,5 @@
 #include "read.h"
+#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 /* ------------------------------------------------------------------ */
 /* ReadV — multi-segment parallel read with contiguous-range coalescing   */
@@ -41,10 +42,11 @@
  *
  * WHY: AIO offload prevents blocking the main event loop during multi-segment reads where disk I/O could take extended periods — enables concurrent request processing while readv proceeds in parallel worker threads. Synchronous fallback ensures reads always succeed even when thread pool is unavailable or queue is full (high contention scenario), preventing read failures due to resource exhaustion rather than falling back gracefully.
  *
- * HOW: Allocate task via ngx_thread_task_alloc(c->pool, sizeof(xrootd_readv_aio_t)) — populate t struct with c, ctx, segment_count, segments, response_buffer, streamid — set task handler = xrootd_readv_aio_thread and event handler = xrootd_readv_aio_done — post via xrootd_aio_post_task() to rconf->common.thread_pool; if posted → return NGX_OK (main loop continues); if not posted → fall through to synchronous preadv inline.
+ * HOW: Allocate task via ngx_thread_task_alloc(c->pool, sizeof(xrootd_readv_aio_t)) — populate t struct with c, ctx, segment_count, segments, response_buffer, streamid — bind the worker + done callbacks via xrootd_task_bind(task, xrootd_readv_aio_thread, xrootd_readv_aio_done) — post via xrootd_aio_post_task() to rconf->common.thread_pool; if posted → return NGX_OK (main loop continues); if not posted → fall through to synchronous preadv inline.
  */
 
 #include "../ngx_xrootd_module.h"
+#include "../connection/budget.h"
 #include "prefetch.h"
 #include "../compat/range_vector.h"
 
@@ -76,7 +78,21 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
 
     *bytes_read_total = 0;
 
-    ranges = malloc(segment_count * sizeof(*ranges));
+    /* Phase 27 W1/F1: defense-in-depth — bound the segment count and use an
+     * overflow-checked multiply for the array size (segment_count is derived
+     * from the wire dlen and capped at recv time, but this guards a bypass). */
+    {
+        size_t ranges_sz;
+        if (segment_count == 0 || segment_count > XROOTD_READV_MAXSEGS
+            || xrootd_size_mul(segment_count, sizeof(*ranges), &ranges_sz)
+               != NGX_OK)
+        {
+            snprintf(error_message, error_message_len,
+                     "readv: segment count out of range");
+            return NGX_ERROR;
+        }
+        ranges = malloc(ranges_sz);
+    }
     if (ranges == NULL) {
         snprintf(error_message, error_message_len, "readv: out of memory");
         return NGX_ERROR;
@@ -203,6 +219,14 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
     wire_segments = (readahead_list *) ctx->payload;
     segment_count = ctx->cur_dlen / XROOTD_READV_SEGSIZE;
 
+    /* Phase 27 W2/F1: explicit segment-count cap at the callsite (defense in
+     * depth over the recv-layer payload cap). */
+    if (segment_count == 0 || segment_count > XROOTD_READV_MAXSEGS) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
+        return xrootd_send_error(ctx, c, kXR_ArgTooLong,
+                                 "readv segment count exceeds server limit");
+    }
+
     /*
      * First pass validates every file handle and computes the upper bound for
      * the single response scratch buffer.  Allocation happens only after the
@@ -224,6 +248,18 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             return validate_rc;
         }
 
+        /*
+         * Phase 26: slice-mode handles park their fd on /dev/null, so preadv
+         * here would read nothing (then trip the "past EOF" guard) instead of
+         * serving cached bytes.  Only kXR_read is wired into slice serving;
+         * reject vector reads on such handles with a clear error.
+         */
+        if (ctx->files[handle_index].slice_mode) {
+            XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
+            return xrootd_send_error(ctx, c, kXR_Unsupported,
+                                     "readv not supported on slice-cached handle");
+        }
+
         if (read_length > XROOTD_READ_MAX) {
             read_length = XROOTD_READ_MAX;
         }
@@ -241,13 +277,29 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
     rconf = ngx_stream_get_module_srv_conf(
         (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
 
-    response_buffer = xrootd_get_read_scratch(ctx, c, max_response_bytes);
+    /*
+     * Phase 31 W4: kXR_readv assembles its whole response (up to
+     * XROOTD_MAX_READV_TOTAL = 256 MiB) in read_scratch.  Admit it against the
+     * SHM-global transfer budget so a burst of large readv requests cannot blow
+     * the memory cap; over budget, defer with kXR_wait and let the client
+     * re-issue.  (readv is not yet windowed like kXR_read — a single large readv
+     * still allocates its full response; the budget bounds the aggregate.)
+     */
+    if (!xrootd_budget_admit(ctx, rconf->memory_budget, max_response_bytes)) {
+        return xrootd_send_wait(ctx, c, 1);
+    }
+
+    response_buffer = XROOTD_GET_SCRATCH(ctx, c, read_scratch,
+                                         read_scratch_size, max_response_bytes);
     if (response_buffer == NULL) {
         return NGX_ERROR;
     }
 
-    segment_descs = ngx_alloc(segment_count * sizeof(xrootd_readv_seg_desc_t),
-                              c->log);
+    /* Charge the assembled-response footprint to the budget promptly. */
+    xrootd_budget_sync(ctx);
+
+    segment_descs = xrootd_alloc_array(c->log, segment_count,
+                                       sizeof(xrootd_readv_seg_desc_t));
     if (segment_descs == NULL) {
         xrootd_release_read_buffer(ctx, c, response_buffer);
         return NGX_ERROR;
@@ -304,11 +356,19 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             xrootd_readv_aio_t      *t;
             ngx_flag_t               posted;
 
-            task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_readv_aio_t));
+            task = ctx->readv_aio_task;
             if (task == NULL) {
-                ngx_free(segment_descs);
-                xrootd_release_read_buffer(ctx, c, response_buffer);
-                return NGX_ERROR;
+                task = ngx_thread_task_alloc(c->pool,
+                                             sizeof(xrootd_readv_aio_t));
+                if (task == NULL) {
+                    ngx_free(segment_descs);
+                    xrootd_release_read_buffer(ctx, c, response_buffer);
+                    return NGX_ERROR;
+                }
+                ctx->readv_aio_task = task;
+            } else {
+                task->next = NULL;
+                task->event.complete = 0;
             }
 
             t = task->ctx;
@@ -323,9 +383,7 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             t->streamid[0] = ctx->cur_streamid[0];
             t->streamid[1] = ctx->cur_streamid[1];
 
-            task->handler = xrootd_readv_aio_thread;
-            task->event.handler = xrootd_readv_aio_done;
-            task->event.data = task;
+            xrootd_task_bind(task, xrootd_readv_aio_thread, xrootd_readv_aio_done);
 
             (void) xrootd_aio_post_task(ctx, c, rconf->common.thread_pool, task,
                                         "xrootd: thread_task_post failed, falling back to sync readv",

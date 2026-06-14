@@ -96,6 +96,25 @@ xrootd_configure_tls(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
         return NGX_ERROR;
     }
 
+    /*
+     * Phase 29 kTLS: enable kernel-TLS so the in-protocol/GSI TLS data stream can
+     * use sendfile(2) — the kernel encrypts the records in-place, letting TLS
+     * reads take the zero-copy sendfile fast path (and its Phase-2 pipelining) in
+     * src/read/read.c instead of the userspace-encrypt memory path.  Runtime-safe:
+     * OpenSSL only uses kTLS when the negotiated cipher AND the running kernel
+     * support the offload, otherwise it transparently falls back to userspace TLS;
+     * the read path independently re-checks BIO_get_ktls_send() per connection
+     * before choosing the file-backed chain.
+     */
+#ifdef SSL_OP_ENABLE_KTLS
+    if (xcf->tls_ktls) {
+        SSL_CTX_set_options(xcf->tls_ctx->ctx, SSL_OP_ENABLE_KTLS);
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "xrootd: kernel-TLS (kTLS) send offload enabled for TLS context "
+            "(xrootd_ktls on) - only beneficial with HW TLS-offload NICs");
+    }
+#endif
+
     /* Register OCSP stapling callback if stapling is configured */
     if (xcf->ocsp_stapling) {
         SSL_CTX_set_tlsext_status_cb(xcf->tls_ctx->ctx, xrootd_ocsp_stapling_cb);

@@ -34,6 +34,10 @@ typedef struct {
     ngx_flag_t          allow_write;        /* write permission flag               */
     ngx_str_t           thread_pool_name;   /* async I/O thread pool name          */
     ngx_thread_pool_t  *thread_pool;        /* resolved pool handle (runtime only) */
+    int                 rootfd;             /* O_PATH fd on root_canon for openat2
+                                             * RESOLVE_BENEATH confinement; -1 until
+                                             * opened per worker at init_process.
+                                             * Runtime only — never merged.        */
 } ngx_http_xrootd_shared_conf_t;
 
 /*
@@ -55,6 +59,7 @@ ngx_http_xrootd_shared_init(ngx_http_xrootd_shared_conf_t *conf)
     conf->thread_pool_name.len  = 0;
     conf->thread_pool_name.data = NULL;
     conf->thread_pool        = NULL;
+    conf->rootfd             = -1;   /* opened per worker at init_process */
     /* root_canon zeroed by ngx_pcalloc — no explicit memset needed */
 }
 

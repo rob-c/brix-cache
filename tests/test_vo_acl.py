@@ -220,11 +220,15 @@ def vo_nginx():
             check=True, capture_output=True,
         )
 
-    # ---- VOMS proxies (recreate if expired or absent)
-    if not _proxy_is_valid(PROXY_CMS):
-        _make_voms_proxy("cms",   "/cms/Role=NULL/Capability=NULL",   PROXY_CMS)
-    if not _proxy_is_valid(PROXY_ATLAS):
-        _make_voms_proxy("atlas", "/atlas/Role=NULL/Capability=NULL", PROXY_ATLAS)
+    # ---- VOMS proxies — ALWAYS regenerate.
+    # conftest wipes pki/ every session and the VOMS signing cert + vomsdir are
+    # recreated above unconditionally, so a date-"valid" proxy cached from a prior
+    # session is signed by a now-wiped authority and gets rejected by the fresh
+    # vomsdir (manifesting as rc 54 / "[3011] No such file" on /cms, /atlas).
+    # An expiry-only `_proxy_is_valid` check cannot detect that signer mismatch —
+    # regenerate to always match the just-regenerated signing cert.
+    _make_voms_proxy("cms",   "/cms/Role=NULL/Capability=NULL",   PROXY_CMS)
+    _make_voms_proxy("atlas", "/atlas/Role=NULL/Capability=NULL", PROXY_ATLAS)
 
     # ---- Test data directories
     for subdir in ("cms", "atlas", "public"):
@@ -459,6 +463,16 @@ class TestPlainProxy:
         """Plain proxy denied read from /atlas/."""
         assert _xrdcp_read("/atlas/seed.txt", PROXY_STD) != 0
 
+    def test_denied_cms_write(self, vo_nginx):
+        """Plain proxy (no VO) must NOT write into /cms/ either."""
+        assert _xrdcp_write(b"no-vo intruder\n", "/cms/novo_intruder.txt",
+                            PROXY_STD) != 0
+
+    def test_denied_atlas_write(self, vo_nginx):
+        """Plain proxy (no VO) must NOT write into /atlas/ either."""
+        assert _xrdcp_write(b"no-vo intruder\n", "/atlas/novo_intruder.txt",
+                            PROXY_STD) != 0
+
     def test_allowed_public_stat(self, vo_nginx):
         """Plain proxy is allowed to stat the unrestricted /public/ directory."""
         assert _xrdfs_stat("/public", PROXY_STD) == 0
@@ -466,6 +480,13 @@ class TestPlainProxy:
     def test_allowed_public_read(self, vo_nginx):
         """Plain proxy can read a file in the unrestricted /public/ directory."""
         assert _xrdcp_read("/public/seed.txt", PROXY_STD) == 0
+
+    def test_allowed_public_write(self, vo_nginx):
+        """Positive partner: plain proxy CAN write to the unrestricted /public/
+        — proving the /cms and /atlas write denials above are VO-ACL, not a
+        read-only endpoint."""
+        assert _xrdcp_write(b"no-vo public write\n", "/public/novo_write.txt",
+                            PROXY_STD) == 0
 
 
 # ---------------------------------------------------------------------------

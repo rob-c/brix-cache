@@ -10,6 +10,82 @@
 #include <string.h>
 
 /*
+ * range_vector_parse_one — parse a single byte-range component [p, comma).
+ *
+ * Splits the component by '-' (suffix "-N", open-ended "A-", or "A-B"),
+ * normalises the offsets against file_size, and on a satisfiable range fills
+ * *out. Returns NGX_OK when a range was stored, NGX_DECLINED to skip a
+ * malformed/unsatisfiable component (when opts->drop_unsatisfiable is set), or
+ * NGX_ERROR for the same conditions when dropping is disabled.
+ */
+static ngx_int_t
+range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
+    const xrootd_range_vector_opts_t *opts, xrootd_byte_range_t *out)
+{
+    const u_char *dash;
+    off_t         start, last;
+
+    /* Find dash within this range component. */
+    dash = ngx_strlchr((u_char *) p, (u_char *) comma, '-');
+    if (dash == NULL) {
+        return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+    }
+
+    /* 1. Parse start offset (if present). */
+    if (p == dash) {
+        /* Suffix range: "-N" means the last N bytes. */
+        if (!opts->allow_suffix) {
+            return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+        }
+
+        start = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
+        if (start <= 0) {
+            return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+        }
+
+        if (start > file_size) {
+            start = file_size;
+        }
+        last  = file_size - 1;
+        start = file_size - start;
+
+    } else {
+        start = (off_t) ngx_atoof((u_char *) p, dash - p);
+        if (start == (off_t) NGX_ERROR || start < 0) {
+            return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+        }
+
+        /* 2. Parse end offset (if present). */
+        if (dash + 1 == comma) {
+            /* Open-ended range: "A-" means from A to EOF. */
+            if (!opts->allow_open_ended) {
+                return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+            }
+            last = file_size - 1;
+        } else {
+            last = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
+            if (last == (off_t) NGX_ERROR || last < 0) {
+                return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+            }
+            if (last >= file_size) {
+                last = file_size - 1;
+            }
+        }
+    }
+
+    /* 3. Validate unsatisfiable ranges. */
+    if (start < 0 || start >= file_size || start > last) {
+        return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+    }
+
+    out->start  = start;
+    out->end    = last;
+    out->fd     = -1;
+    out->handle = 0;
+    return NGX_OK;
+}
+
+/*
  * xrootd_http_parse_range_vector — parse a HTTP byte-ranges header value.
  *
  * WHAT: Parses a comma-separated list of byte ranges (e.g. "0-499, -500, 9500-")
@@ -30,14 +106,15 @@ xrootd_http_parse_range_vector(const u_char *data, size_t len,
     off_t file_size, const xrootd_range_vector_opts_t *opts,
     xrootd_byte_range_t *ranges, ngx_uint_t *nranges)
 {
-    const u_char *p, *end, *comma, *dash;
-    off_t         start, last;
+    const u_char *p, *end, *comma;
     ngx_uint_t    n = 0;
 
     p   = data;
     end = data + len;
 
     while (p < end && n < opts->max_ranges) {
+        ngx_int_t rc;
+
         /* Skip leading whitespace. */
         while (p < end && *p == ' ') p++;
         if (p >= end) break;
@@ -48,73 +125,15 @@ xrootd_http_parse_range_vector(const u_char *data, size_t len,
             comma = end;
         }
 
-        /* Find dash within this range component. */
-        dash = ngx_strlchr((u_char *) p, (u_char *) comma, '-');
-        if (dash == NULL) {
-            if (!opts->drop_unsatisfiable) return NGX_ERROR;
-            goto next;
+        rc = range_vector_parse_one(p, comma, file_size, opts, &ranges[n]);
+        if (rc == NGX_ERROR) {
+            return NGX_ERROR;
         }
-
-        /* 1. Parse start offset (if present). */
-        if (p == dash) {
-            /* Suffix range: "-N" means the last N bytes. */
-            if (!opts->allow_suffix) {
-                if (!opts->drop_unsatisfiable) return NGX_ERROR;
-                goto next;
-            }
-
-            start = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
-            if (start <= 0) {
-                if (!opts->drop_unsatisfiable) return NGX_ERROR;
-                goto next;
-            }
-
-            if (start > file_size) {
-                start = file_size;
-            }
-            last  = file_size - 1;
-            start = file_size - start;
-
-        } else {
-            start = (off_t) ngx_atoof((u_char *) p, dash - p);
-            if (start == (off_t) NGX_ERROR || start < 0) {
-                if (!opts->drop_unsatisfiable) return NGX_ERROR;
-                goto next;
-            }
-
-            /* 2. Parse end offset (if present). */
-            if (dash + 1 == comma) {
-                /* Open-ended range: "A-" means from A to EOF. */
-                if (!opts->allow_open_ended) {
-                    if (!opts->drop_unsatisfiable) return NGX_ERROR;
-                    goto next;
-                }
-                last = file_size - 1;
-            } else {
-                last = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
-                if (last == (off_t) NGX_ERROR || last < 0) {
-                    if (!opts->drop_unsatisfiable) return NGX_ERROR;
-                    goto next;
-                }
-                if (last >= file_size) {
-                    last = file_size - 1;
-                }
-            }
+        if (rc == NGX_OK) {
+            n++;
         }
+        /* NGX_DECLINED → unsatisfiable component dropped; just advance. */
 
-        /* 3. Validate unsatisfiable ranges. */
-        if (start < 0 || start >= file_size || start > last) {
-            if (!opts->drop_unsatisfiable) return NGX_ERROR;
-            goto next;
-        }
-
-        ranges[n].start  = start;
-        ranges[n].end    = last;
-        ranges[n].fd     = -1;
-        ranges[n].handle = 0;
-        n++;
-
-    next:
         p = comma + 1;
     }
 

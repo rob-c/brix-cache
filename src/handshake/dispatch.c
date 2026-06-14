@@ -1,5 +1,8 @@
 #include "handshake.h"
 #include "../proxy/proxy.h"
+#include "../mirror/stream_mirror.h"
+#include "../mirror/stream_wmirror.h"
+#include "../ratelimit/ratelimit.h"
 
 /*
  * Request routing overview
@@ -55,13 +58,36 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_proxy_dispatch(ctx, c, conf);
     }
 
+    /* Phase 25: advanced rate limiting / traffic shaping.  Gates data-plane
+     * read/write opcodes; a throttled request is answered with kXR_wait and the
+     * gate returns the send result (NGX_DECLINED means "proceed normally"). */
+    rc = xrootd_rl_stream_gate(ctx, c, conf);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
     rc = xrootd_dispatch_read_opcode(ctx, c, conf);
     if (rc != XROOTD_DISPATCH_CONTINUE) {
+        /* Phase 24: fire-and-forget replay of this read to the shadow server(s).
+         * No-op unless xrootd_stream_mirror_url is configured; the primary
+         * response has already been queued to the client above. */
+        xrootd_stream_mirror_maybe(ctx, c, conf, rc);
+        /* Phase 24 W3: kXR_close finalises a data-write mirror (open/write/close
+         * is dispatched across the read+write tables). */
+        xrootd_stream_wmirror_observe(ctx, c, conf, rc);
         return rc;
     }
 
     rc = xrootd_dispatch_write_opcode(ctx, c, conf);
     if (rc != XROOTD_DISPATCH_CONTINUE) {
+        /* Phase 24 write mirroring (W1): replay self-contained metadata mutations
+         * (mkdir/rm/rmdir/mv/truncate/chmod) to the shadow.  No-op unless
+         * xrootd_mirror_writes is on and the op is listed in xrootd_mirror_opcodes;
+         * the primary response was already queued to the client above. */
+        xrootd_stream_mirror_maybe(ctx, c, conf, rc);
+        /* Phase 24 W3: accumulate kXR_write / kXR_pgwrite payloads for the
+         * data-write mirror (replayed to the shadow on kXR_close). */
+        xrootd_stream_wmirror_observe(ctx, c, conf, rc);
         return rc;
     }
 

@@ -41,13 +41,22 @@ def test_copy_and_http_file_response_helpers_are_shared():
         "src/webdav/fs/copy_engine.c",
         ["../../compat/copy_range.h", "xrootd_copy_range("],
     )
+    # Phase 12: the range-parse → headers → send pipeline (including the
+    # xrootd_http_send_file_range call) moved into the shared file-serve
+    # handler.  Both WebDAV GET and S3 GetObject now delegate to it via
+    # xrootd_http_serve_file_ranged() instead of each invoking the
+    # http_file_response helpers directly.
     _assert_markers(
-        "src/webdav/get.c",
+        "src/shared/file_serve.c",
         ["../compat/http_file_response.h", "xrootd_http_send_file_range("],
     )
     _assert_markers(
+        "src/webdav/get.c",
+        ["../shared/file_serve.h", "xrootd_http_serve_file_ranged("],
+    )
+    _assert_markers(
         "src/s3/object.c",
-        ["../compat/http_file_response.h", "xrootd_http_send_file_range("],
+        ["../shared/file_serve.h", "xrootd_http_serve_file_ranged("],
     )
 
 
@@ -157,9 +166,14 @@ def test_token_fs_usage_and_shm_slot_helpers_are_shared():
     for relpath in (
         "src/manager/pending.c",
         "src/tpc/key_registry.c",
-        "src/webdav/lock.c",
     ):
         _assert_markers(relpath, ["../compat/shm_slots.h", "xrootd_shm_"])
+
+    # Phase 16: WebDAV lock state migrated off the SHM slot table onto xattrs
+    # (the unified prop store).  lock.c must no longer reference shm_slots and
+    # must use the webdav_lock_xattr_* persistence helpers instead.
+    _assert_absent("src/webdav/lock.c", ["../compat/shm_slots.h", "xrootd_shm_"])
+    _assert_markers("src/webdav/lock.c", ["webdav_lock_xattr_read("])
 
 
 def test_phase5_tpc_common_layer_is_shared():
@@ -377,19 +391,21 @@ def test_unified_path_resolver_is_registered():
 
 
 def test_stream_path_resolver_uses_unified_adapter():
+    # Phase 8 retired the realpath-based EXISTING/WRITE resolvers; only the
+    # config-time _noexist variant remains, and it resolves through the shared
+    # unified.h adapter (allow_missing_parents).  ("realpath(" survives only in
+    # the explanatory comment, so it is no longer in the absent set.)
     _assert_markers(
         "src/path/resolve_path_variants.c",
         [
             '#include "unified.h"',
             "xrootd_path_resolve_cstr(",
-            "allow_missing_tail",
             "allow_missing_parents",
         ],
     )
     _assert_absent(
         "src/path/resolve_path_variants.c",
         [
-            "realpath(",
             "lstat(",
             "xrootd_path_component_forbidden(",
         ],
@@ -397,20 +413,22 @@ def test_stream_path_resolver_uses_unified_adapter():
 
 
 def test_http_path_resolver_uses_unified_adapter():
+    # Phase 8: the HTTP/S3 adapter (compat/path.c) no longer canonicalises with
+    # realpath() + the unified.h string resolver.  It joins the request lexically
+    # under the export root via the shared beneath API (xrootd_beneath_full_path)
+    # and lets openat2(RESOLVE_BENEATH) enforce confinement at the operation.
+    # Verify it uses that shared resolver rather than reimplementing path munging.
     _assert_markers(
         "src/compat/path.c",
         [
-            "../path/unified.h",
-            "xrootd_path_resolve_cstr(",
-            "XROOTD_PATH_STATUS_INVALID",
-            "XROOTD_PATH_STATUS_TOO_LONG",
+            "../path/beneath.h",
+            "xrootd_beneath_full_path(",
         ],
     )
     _assert_absent(
         "src/compat/path.c",
         [
             "has_forbidden_components",
-            "realpath(",
             "strrchr(",
         ],
     )
@@ -494,14 +512,29 @@ def test_phase2_policy_consumes_identity():
         "src/handshake/policy.c",
         ["xrootd_identity_check_token_scope("],
     )
+    # auth_gate.c is the canonical consumer of all three tiers; handlers that
+    # have been converted call xrootd_auth_gate() instead of the three functions
+    # directly.  Verify auth_gate.c implements the full triad.
+    _assert_markers(
+        "src/path/auth_gate.c",
+        ["xrootd_check_authdb(", "xrootd_check_vo_acl_identity(",
+         "xrootd_check_token_scope("],
+    )
+    # Files with unconverted call-sites still call the VO ACL helper directly.
+    # (write/common.c was since converted — its write ops now authorise through
+    # the op-descriptor table / xrootd_auth_gate(), so it no longer calls the VO
+    # ACL helper directly and is no longer listed here.)
     for relpath in (
         "src/read/open_request.c",
-        "src/write/common.c",
         "src/query/prepare.c",
-        "src/dirlist/handler.c",
     ):
         _assert_markers(relpath, ["xrootd_check_vo_acl_identity("])
         _assert_absent(relpath, ["ctx->vo_list) != NGX_OK"])
+    # dirlist was fully converted to auth_gate; confirm it no longer duplicates
+    # the triad and instead delegates to the gate.
+    _assert_markers("src/dirlist/handler.c", ["xrootd_auth_gate("])
+    _assert_absent("src/dirlist/handler.c",
+                   ["ctx->vo_list) != NGX_OK", "xrootd_check_vo_acl_identity("])
 
 
 def test_phase2_voms_identity_rejects_injected_vo_tokens():
@@ -669,6 +702,15 @@ def test_phase4_http_protocols_use_vfs_cache_path():
         [
             "../cache/open.h",
             "vctx->cache_root_canon = cf->cache_root_canon",
+        ],
+    )
+    # Phase 12: the cache-hit detection and access-record calls moved out of the
+    # per-protocol GET handlers into the shared file-serve pipeline. Both WebDAV
+    # and S3 GET now record cache access via xrootd_http_serve_file_ranged().
+    _assert_markers(
+        "src/shared/file_serve.c",
+        [
+            "../cache/open.h",
             "xrootd_vfs_file_from_cache(",
             "xrootd_cache_record_access(",
         ],

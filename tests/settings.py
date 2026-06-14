@@ -337,3 +337,35 @@ READONLY_DATA_ROOT = os.path.join(TEST_ROOT, "data-readonly")
 HA_HAPROXY_PORT = int(os.environ.get("TEST_HA_HAPROXY_PORT", "11210"))
 HA_NGINX1_PORT = int(os.environ.get("TEST_HA_NGINX1_PORT", "11211"))
 HA_NGINX2_PORT = int(os.environ.get("TEST_HA_NGINX2_PORT", "11212"))
+
+# ---------------------------------------------------------------------------
+# Migration: pre-started dedicated instances
+# Tests that used to spawn their own nginx now connect to a dedicated instance
+# launched once by manage_test_servers.sh start-all (via start_dedicated_nginx).
+# Each serves ${TEST_ROOT}/data-<name>; the test skips cleanly if it is not up.
+# ---------------------------------------------------------------------------
+OPEN_FLAGS_LIFECYCLE_NGINX_PORT = int(
+    os.environ.get("TEST_OPEN_FLAGS_LIFECYCLE_NGINX_PORT", "12980")
+)
+OPEN_FLAGS_LIFECYCLE_DATA_ROOT = os.path.join(TEST_ROOT, "data-open-flags-lifecycle")
+
+# Writable WebDAV HTTP — DELETE/lock security suite
+WEBDAV_DELLOCK_PORT = int(os.environ.get("TEST_WDAV_DELLOCK_PORT", "13210"))
+WEBDAV_DELLOCK_DATA_ROOT = os.path.join(TEST_ROOT, "data-webdav-dellock")
+
+# Writable WebDAV HTTP — LOCK/UNLOCK ownership (xattr-backed locks)
+WEBDAV_UNLOCK_OWNERSHIP_PORT = int(
+    os.environ.get("TEST_WEBDAV_UNLOCK_OWNERSHIP_PORT", "22014")
+)
+WEBDAV_UNLOCK_OWNERSHIP_DATA_ROOT = os.path.join(
+    TEST_ROOT, "data-webdav-unlock-ownership"
+)
+
+# Writable S3 — multipart upload-part-copy traversal suite
+S3_MPU_PORT = int(os.environ.get("TEST_S3_MPU_PORT", "22017"))
+S3_MPU_DATA_ROOT = os.path.join(TEST_ROOT, "data-s3-mpu")
+
+# Read-only WebDAV + read-only S3 (two server blocks, one dedicated instance)
+READONLY_HTTP_DAV_PORT = int(os.environ.get("TEST_READONLY_HTTP_DAV_PORT", "11216"))
+READONLY_HTTP_S3_PORT = int(os.environ.get("TEST_READONLY_HTTP_S3_PORT", "11217"))
+READONLY_HTTP_DATA_ROOT = os.path.join(TEST_ROOT, "data-readonly-http")

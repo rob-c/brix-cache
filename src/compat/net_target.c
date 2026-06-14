@@ -93,6 +93,14 @@ net_ipv6_is_prohibited(const uint8_t *addr, ngx_flag_t allow_local,
     return 0;
 }
 
+/*
+ * net_addr_check — dispatch a resolved sockaddr to the family-specific
+ * prohibited-range test. Returns 1 if the address must be blocked.
+ *
+ * WHY: this is the single chokepoint every SSRF decision flows through —
+ * both the literal-address check and each per-result DNS check call it, so
+ * the v4/v6 policy can never diverge between code paths.
+ */
 static int
 net_addr_check(const struct sockaddr *sa, ngx_flag_t allow_local,
     ngx_flag_t allow_private)
@@ -108,7 +116,10 @@ net_addr_check(const struct sockaddr *sa, ngx_flag_t allow_local,
         const struct sockaddr_in6 *sin6 = (const struct sockaddr_in6 *) sa;
 
 #if defined(IN6_IS_ADDR_V4MAPPED)
-        /* ::ffff:x.x.x.x — classify using IPv4 rules */
+        /* ::ffff:x.x.x.x — classify using IPv4 rules.
+         * SECURITY: a v4-mapped literal (e.g. ::ffff:127.0.0.1) would slip
+         * past the v6 tests below, so re-extract the trailing 4 octets
+         * (offset 12 in the 16-byte address) and apply the v4 policy. */
         if (IN6_IS_ADDR_V4MAPPED(&sin6->sin6_addr)) {
             uint32_t v4;
 
@@ -124,6 +135,14 @@ net_addr_check(const struct sockaddr *sa, ngx_flag_t allow_local,
     return 0;
 }
 
+/*
+ * xrootd_net_target_check_addr — SSRF gate for an already-resolved address.
+ *
+ * WHAT: returns NGX_OK if sa is permitted under policy, else NGX_ERROR with a
+ *       human-readable reason written into err.
+ * WHY:  callers that already hold a sockaddr (e.g. a connect target chosen by
+ *       lower layers) validate it here without a DNS round-trip.
+ */
 ngx_int_t
 xrootd_net_target_check_addr(const struct sockaddr *sa,
     const xrootd_net_target_policy_t *policy,
@@ -144,6 +163,19 @@ xrootd_net_target_check_addr(const struct sockaddr *sa,
 /* URL parser                                                          */
 /* ------------------------------------------------------------------ */
 
+/*
+ * xrootd_net_target_parse — split "scheme://host[:port][/path]" into fields.
+ *
+ * WHAT: fills *out with scheme/host/port/path slices for the given URL;
+ *       returns NGX_OK or NGX_ERROR with a reason in err.
+ * WHY:  HTTP-TPC / remote-copy targets arrive as opaque URL strings and must
+ *       be decomposed before the host can be DNS-checked against SSRF policy.
+ * HOW:  zero-copy single forward pass — every out->* ngx_str_t points back
+ *       into url->data (no allocation), so the parsed target's lifetime is
+ *       bound to the caller's url buffer. IPv6 literals in [brackets] are
+ *       handled separately from plain host:port because a bare ':' scan would
+ *       otherwise mistake the address's colons for a port delimiter.
+ */
 ngx_int_t
 xrootd_net_target_parse(ngx_pool_t *pool,
     const ngx_str_t *url, xrootd_net_target_t *out,
@@ -204,10 +236,13 @@ xrootd_net_target_parse(ngx_pool_t *pool,
     out->path.len  = (size_t) (end - host_end);
 
     /* Parse host and optional port.
-     * IPv6 literals: [addr]:port or [addr] */
+     * IPv6 literals: [addr]:port or [addr].
+     * Bracketed form is special-cased first: the address itself contains
+     * colons, so the port (if any) is only the ':NNN' that follows the ']'. */
     if (host_start < host_end && *host_start == '[') {
         const u_char *bracket_end = host_start + 1;
 
+        /* scan for the matching ']' bounding the literal */
         while (bracket_end < host_end && *bracket_end != ']') {
             bracket_end++;
         }
@@ -242,7 +277,11 @@ xrootd_net_target_parse(ngx_pool_t *pool,
             out->has_port = 1;
         }
     } else {
-        /* Plain hostname or IPv4 — find last ":" for port split */
+        /* Plain hostname or IPv4 — find LAST ":" for the port split.
+         * Last (not first) is deliberate: a bare unbracketed IPv6 literal has
+         * multiple colons and there is no port, so taking the final colon
+         * gives a port-parse that then fails the digits-only check below and
+         * is rejected, rather than silently truncating the host. */
         colon = NULL;
         for (const u_char *q = host_start; q < host_end; q++) {
             if (*q == ':') {
@@ -289,6 +328,19 @@ xrootd_net_target_parse(ngx_pool_t *pool,
 /* DNS + address policy check (BLOCKING — call from thread only)      */
 /* ------------------------------------------------------------------ */
 
+/*
+ * xrootd_net_target_check_dns — resolve target->host and reject if ANY
+ * resolved address falls in a prohibited range.
+ *
+ * WHAT: NGX_OK only when every A/AAAA result passes policy; NGX_ERROR (with
+ *       reason in err) on resolution failure or a single prohibited result.
+ * WHY:  primary SSRF defence for hostname targets — checking all results,
+ *       not just the first, stops a multi-A record from hiding a blocked
+ *       address behind a permitted one.
+ * HOW:  BLOCKING getaddrinfo — caller MUST invoke this from a thread-pool
+ *       worker, never the event loop.  Use check_dns_pin instead when the
+ *       validated address must also be handed to the connect step.
+ */
 ngx_int_t
 xrootd_net_target_check_dns(const xrootd_net_target_t *target,
     const xrootd_net_target_policy_t *policy,
@@ -312,6 +364,9 @@ xrootd_net_target_check_dns(const xrootd_net_target_t *target,
     memcpy(host_buf, target->host.data, target->host.len);
     host_buf[target->host.len] = '\0';
 
+    /* Pick a default port when the URL omitted one: scheme "https" (len 5) or
+     * a require_https policy implies the TLS port, otherwise the root:// port.
+     * The policy value wins if set, else fall back to the IANA defaults. */
     port = target->port;
     if (port == 0) {
         if (policy->require_https || target->scheme.len == 5
@@ -334,6 +389,8 @@ xrootd_net_target_check_dns(const xrootd_net_target_t *target,
         return NGX_ERROR;
     }
 
+    /* Reject on the FIRST prohibited result, but only after having scanned up
+     * to it — every address must clear policy, so a single bad one fails all. */
     for (rp = res; rp != NULL; rp = rp->ai_next) {
         if (net_addr_check(rp->ai_addr,
                            policy->allow_local,
@@ -352,4 +409,134 @@ xrootd_net_target_check_dns(const xrootd_net_target_t *target,
 
     freeaddrinfo(res);
     return NGX_OK;
+}
+
+/*
+ * xrootd_net_target_check_dns_pin — like check_dns, but also returns the
+ * numeric IP of the first permitted address so the caller can connect to that
+ * exact address (DNS-rebind defence).
+ *
+ * WHAT: validates every resolved address against policy and writes the first
+ *       permitted one's numeric form into out_ip; NGX_OK / NGX_ERROR.
+ * WHY:  validating a hostname then letting a separate component re-resolve it
+ *       opens a TOCTOU rebind window (DNS answers differently the 2nd time).
+ *       Pinning the validated address closes that window — see loop comment.
+ * HOW:  BLOCKING getaddrinfo + getnameinfo(NI_NUMERICHOST); thread-pool only.
+ */
+ngx_int_t
+xrootd_net_target_check_dns_pin(const xrootd_net_target_t *target,
+    const xrootd_net_target_policy_t *policy,
+    char *out_ip, size_t out_ipsz,
+    char *err, size_t errsz)
+{
+    struct addrinfo  hints, *res, *rp;
+    char             host_buf[256];
+    char             port_str[8];
+    uint16_t         port;
+
+    if (out_ip == NULL || out_ipsz == 0) {
+        snprintf(err, errsz, "no pin buffer");
+        return NGX_ERROR;
+    }
+    out_ip[0] = '\0';
+
+    if (target->host.len == 0 || target->host.len >= sizeof(host_buf)) {
+        snprintf(err, errsz, "target host is empty or too long");
+        return NGX_ERROR;
+    }
+
+    memcpy(host_buf, target->host.data, target->host.len);
+    host_buf[target->host.len] = '\0';
+
+    port = target->port;
+    if (port == 0) {
+        if (policy->require_https || target->scheme.len == 5 /* "https" */) {
+            port = policy->default_https_port ? policy->default_https_port : 443;
+        } else {
+            port = policy->default_root_port ? policy->default_root_port : 1094;
+        }
+    }
+
+    snprintf(port_str, sizeof(port_str), "%u", (unsigned) port);
+
+    ngx_memzero(&hints, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family   = AF_UNSPEC;
+
+    if (getaddrinfo(host_buf, port_str, &hints, &res) != 0) {
+        snprintf(err, errsz, "DNS resolution failed for %s", host_buf);
+        return NGX_ERROR;
+    }
+
+    /*
+     * Validate EVERY resolved address (so a multi-A record can't smuggle a
+     * prohibited address past the check) and pin the FIRST permitted one.
+     * Pinning the exact validated address is what closes the rebind window —
+     * a later independent re-resolution by the transfer agent is bypassed.
+     */
+    for (rp = res; rp != NULL; rp = rp->ai_next) {
+        if (net_addr_check(rp->ai_addr, policy->allow_local,
+                           policy->allow_private))
+        {
+            snprintf(err, errsz,
+                     "host %s resolves to a prohibited address "
+                     "(allow_local=%d allow_private=%d)",
+                     host_buf, (int) policy->allow_local,
+                     (int) policy->allow_private);
+            freeaddrinfo(res);
+            return NGX_ERROR;
+        }
+
+        if (out_ip[0] == '\0') {
+            if (getnameinfo(rp->ai_addr, rp->ai_addrlen, out_ip, out_ipsz,
+                            NULL, 0, NI_NUMERICHOST) != 0)
+            {
+                snprintf(err, errsz, "could not format resolved address for %s",
+                         host_buf);
+                freeaddrinfo(res);
+                return NGX_ERROR;
+            }
+        }
+    }
+
+    freeaddrinfo(res);
+
+    if (out_ip[0] == '\0') {
+        snprintf(err, errsz, "no addresses resolved for %s", host_buf);
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * xrootd_net_host_chars_valid — cheap pre-DNS allowlist on the host string.
+ *
+ * WHAT: returns 1 only if every byte is [A-Za-z0-9.:-] (the chars legal in a
+ *       hostname or IPv4/IPv6 literal); 0 otherwise or for empty input.
+ * WHY:  rejects shell/whitespace/control bytes and embedded URL trickery
+ *       before the host is ever passed to getaddrinfo or a child process.
+ */
+int
+xrootd_net_host_chars_valid(const char *host, size_t len)
+{
+    size_t  i;
+
+    if (host == NULL || len == 0) {
+        return 0;
+    }
+
+    for (i = 0; i < len; i++) {
+        unsigned char ch = (unsigned char) host[i];
+
+        if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')
+            || (ch >= '0' && ch <= '9')
+            || ch == '.' || ch == ':' || ch == '-')
+        {
+            continue;
+        }
+        return 0;
+    }
+
+    return 1;
 }

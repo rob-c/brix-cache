@@ -237,3 +237,94 @@ bash tests/run_load_test.sh nginx \
 - xrootd uses one thread per connection; its aggregate throughput degrades at high concurrency as thread scheduling becomes the bottleneck. nginx uses an event-driven worker model and maintains throughput as connections scale.
 - Single-connection throughput is higher for native xrootd because the `root://` binary protocol has less per-request framing overhead than HTTP/TLS (WebDAV) or the GSI handshake layered on top of XRootD.
 - Re-run the sweep several times and take the median if your machine has background load; the `--json` output includes all per-run stats for post-processing.
+
+## HTTPS throughput tuning — kernel TLS (kTLS / `SSL_sendfile`)
+
+A WebDAV/S3 **GET** response body is served as a file-backed buffer through
+nginx's output filter. On a **cleartext** connection nginx uses `sendfile(2)`
+(zero-copy, page-cache → socket) — this is why cleartext S3 is the fastest path.
+On a **TLS** connection the bytes must be encrypted, which historically forces
+`read()` into userspace → OpenSSL encrypt → `write()`. **Kernel TLS** removes that
+copy: nginx calls `SSL_sendfile()` and the kernel encrypts the file pages in place.
+
+Enable it (Phase 32 WS1 — already set in `tests/configs/nginx_shared.conf` and
+`tests/nginx.perf.conf`):
+
+```nginx
+http {
+    sendfile   on;          # required for SSL_sendfile
+    tcp_nopush on;
+}
+server {                    # each davs:// / HTTPS-S3 server block
+    listen 8443 ssl;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:!aNULL;  # kTLS needs AES-GCM
+    ssl_conf_command Options KTLS;   # turn on kernel TLS for this SSL context
+    ssl_buffer_size  64k;            # bigger TLS records on the non-kTLS fallback
+}
+```
+
+Prerequisites: Linux ≥ 4.13 with the TLS ULP (`modprobe tls`), OpenSSL ≥ 3.0
+built with kTLS, and an **AES-GCM** cipher negotiated. If any is missing nginx
+**falls back automatically** to `read()`+`SSL_write()` — safe to ship on.
+
+Verify it is active:
+
+```bash
+# Per-connection kTLS socket creation: TlsTxSw (software) / TlsTxDevice (NIC offload)
+# increment once per TLS connection that uses kernel TLS.
+cat /proc/net/tls_stat            # before
+for i in $(seq 5); do curl -sk -o /dev/null https://localhost:8443/file.bin; done
+cat /proc/net/tls_stat            # TlsTxSw should be +5
+
+# Confirm the body goes out via sendfile, not write():
+strace -f -e trace=sendfile,write -p <worker-pid>   # expect sendfile on the GET
+```
+
+**Software vs hardware kTLS:** `TlsTxDevice` counts NIC-offloaded crypto; `TlsTxSw`
+counts kernel software crypto. Software kTLS still eliminates the userspace data
+copy (the `SSL_sendfile` win) but performs AES in the kernel, so the gain is
+moderate. On a NIC with TLS offload (`ethtool -k <dev> | grep tls`), `TlsTxDevice`
+engages and encryption moves off the CPU entirely — the largest HTTPS win.
+
+## Throughput tuning bundle (Phase 32 WS5)
+
+Applied in `tests/nginx.perf.conf` (the benchmark config) and the shared test
+template `tests/configs/nginx_shared.conf`:
+
+```nginx
+http {
+    sendfile        on;       # kernel zero-copy (cleartext) / SSL_sendfile (kTLS)
+    tcp_nopush      on;       # coalesce response header + first data segment
+    output_buffers  2 256k;   # larger file-read chunks → fewer pread/sendfile calls
+    # ssl_buffer_size 64k;    # per TLS server block — fewer TLS records (non-kTLS path)
+}
+# top level:
+thread_pool default threads=<≈ num cores> max_queue=131072;   # perf.conf uses 64
+```
+
+Sizing notes:
+- **`thread_pool threads`** — every cold (page-cache-miss) `kXR_read`/`pgread`/
+  `pgwrite`/cache-fill posts here. Under-sizing it (the functional test default is
+  `threads=4`) serialises cold I/O under concurrency. Set to ≈ the core count; the
+  benchmark config uses 64 across `worker_processes auto`.
+- **`output_buffers`** — `2 256k` lets a large GET read the file in 256 KiB chunks
+  instead of the 32 KiB default, cutting syscall count on bulk transfers.
+
+### `directio` — situational, NOT a default
+
+`directio <size>` makes nginx serve files above `<size>` with `O_DIRECT`, bypassing
+the page cache — useful to stop a few huge, read-once files from evicting the
+working set. **Do not enable it globally:** `O_DIRECT` defeats the Phase-32 WS4
+warm-cache fast path (`preadv2(RWF_NOWAIT)`), which relies on data being resident in
+the page cache, and it disables `sendfile`. Use it only on locations that serve
+large files with no re-read locality (e.g. a dedicated archive/staging mount), and
+measure both ways.
+
+### Per-read fixed cost (remaining WS5 follow-ups, not yet implemented)
+
+- **Access-log batching:** the `root://` read path writes the access log
+  synchronously per read (`src/read/read.c`); a per-worker buffered/coalesced log
+  writer would remove that fixed cost when logging is enabled. Tracked, not done.
+- **WebDAV per-request cuts:** reuse the dup'd send-fd across Range requests on a
+  keepalive connection, cache the resolved path per connection, short-circuit
+  re-auth, and early-return CORS when there is no `Origin`. Tracked, not done.

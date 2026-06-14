@@ -1,0 +1,507 @@
+#include "ngx_xrootd_module.h"
+#include "../connection/budget.h"
+
+/*
+ * reads.c — thread-pool offload for the stream kXR_read / kXR_pgread opcodes.
+ *
+ * WHAT: Three read paths share this file. (1) Windowed memory read
+ *       (xrootd_read_window_pump / _emit) streams a large memory-backed
+ *       (TLS / non-regular) read as fill->drain->fill chunks. (2) Plain
+ *       kXR_read AIO (xrootd_read_aio_thread / _done) offloads a single
+ *       pread(2) to a worker thread and returns one chained response.
+ *       (3) pgread AIO (xrootd_pgread_aio_thread / _done) does the same but
+ *       interleaves a per-page CRC32C into the wire output.
+ *
+ * WHY:  pread(2) (and the pgread CRC32C loop) can block; running them on the
+ *       nginx event-loop thread would stall every other connection on this
+ *       worker. The thread pool absorbs the blocking syscall and CPU-bound
+ *       checksum so the event loop stays responsive.
+ *
+ * HOW:  Each path splits into a *_thread half (runs on a worker thread, may
+ *       only touch the task struct — never ctx/connection/pool) and a *_done
+ *       half (runs back on the event loop, owns all protocol/state mutation
+ *       and chain building). The two halves communicate only through the
+ *       xrootd_{read,pgread}_aio_t task struct carried by ngx_thread_task_t.
+ *       Every *_done first re-validates the connection via
+ *       xrootd_aio_restore_stream/_request (the stream may have died while the
+ *       task ran) and ends by calling xrootd_aio_resume() to re-arm events.
+ */
+
+
+/* ------------------------------------------------------------------ */
+/* Phase 31 W2.1 — windowed memory read (fill -> drain -> fill).        */
+/*                                                                      */
+/* A memory-backed kXR_read (TLS / non-regular file) larger than        */
+/* XROOTD_READ_WINDOW is served as a sequence of kXR_oksofar wire chunks */
+/* ending in kXR_ok, each sourced from one window-sized read into        */
+/* read_scratch.  The next window is read only after the previous chunk  */
+/* has fully drained, so the single read_scratch buffer is never         */
+/* overwritten while still being sent — bounding resident heap to        */
+/* ~XROOTD_READ_WINDOW per stream regardless of the request size.        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * xrootd_read_window_emit — build + queue one window's wire chunk from
+ * read_scratch[0..nread), advancing the continuation state.  Status is
+ * kXR_oksofar for every window except the last (or a short read at EOF), which
+ * is kXR_ok.  Returns NGX_ERROR if the read failed or the chain could not be
+ * built (an error response has already been sent); otherwise NGX_OK, with
+ * ctx->state == XRD_ST_SENDING if the chunk is still draining and
+ * ctx->rd_win_active cleared when this was the final window.
+ */
+static ngx_int_t
+xrootd_read_window_emit(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ssize_t nread, int io_errno)
+{
+    ngx_chain_t *chain;
+    uint16_t     status;
+    size_t       got;
+
+    if (nread < 0) {
+        ctx->rd_win_active = 0;
+        ctx->state = XRD_ST_REQ_HEADER;
+        ctx->hdr_pos = 0;
+        XROOTD_OP_ERR(ctx, XROOTD_OP_READ);
+        xrootd_send_error(ctx, c, kXR_IOError,
+                          io_errno ? strerror(io_errno) : "async read error");
+        return NGX_ERROR;
+    }
+
+    got = (size_t) nread;
+    ctx->files[ctx->rd_win_idx].bytes_read += got;
+    ctx->session_bytes += got;
+
+    if (got < ctx->rd_win_remaining) {
+        ctx->rd_win_remaining -= got;
+        ctx->rd_win_offset += (off_t) got;
+    } else {
+        ctx->rd_win_remaining = 0;
+    }
+
+    /* Last planned window, or a short read (EOF), terminates the response. */
+    status = (ctx->rd_win_remaining == 0 || got == 0) ? kXR_ok : kXR_oksofar;
+
+    chain = xrootd_build_window_chain(ctx, c, ctx->read_scratch, got, status);
+    if (chain == NULL) {
+        ctx->rd_win_active = 0;
+        ctx->state = XRD_ST_REQ_HEADER;
+        return NGX_ERROR;
+    }
+
+    if (status == kXR_ok) {
+        ctx->rd_win_active = 0;
+        XROOTD_OP_OK(ctx, XROOTD_OP_READ);
+    }
+
+    ctx->state = XRD_ST_REQ_HEADER;
+    ctx->hdr_pos = 0;
+    xrootd_queue_response_chain(ctx, c, chain, ctx->read_scratch);
+    if (ctx->state != XRD_ST_SENDING) {
+        xrootd_release_read_buffer(ctx, c, ctx->read_scratch);  /* no-op slot */
+    }
+    return NGX_OK;
+}
+
+/*
+ * xrootd_read_window_pump — read the next window into read_scratch and emit it,
+ * looping while sends complete synchronously.  Posts an AIO task when a thread
+ * pool is available (returns with state XRD_ST_AIO; xrootd_read_aio_done resumes
+ * the pump); otherwise reads the window inline (bounded to one window).  When
+ * the windowed read finishes it resumes the event loop for the next request.
+ */
+void
+xrootd_read_window_pump(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *rconf)
+{
+    for ( ;; ) {
+        size_t   want;
+        u_char  *databuf;
+        ssize_t  nread;
+
+        if (!ctx->rd_win_active) {
+            xrootd_aio_resume(c);
+            return;
+        }
+
+        want = ctx->rd_win_remaining < (size_t) XROOTD_READ_WINDOW
+               ? ctx->rd_win_remaining : (size_t) XROOTD_READ_WINDOW;
+
+        databuf = XROOTD_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size,
+                                     want);
+        if (databuf == NULL) {
+            ctx->rd_win_active = 0;
+            ctx->state = XRD_ST_REQ_HEADER;
+            xrootd_send_error(ctx, c, kXR_NoMemory, "read window alloc failed");
+            xrootd_aio_resume(c);
+            return;
+        }
+        xrootd_budget_sync(ctx);
+
+        if (rconf->common.thread_pool != NULL) {
+            ngx_thread_task_t *task = ctx->read_aio_task;
+            xrootd_read_aio_t *t;
+            ngx_flag_t         posted = 0;
+
+            /*
+             * One task struct is allocated once per stream and cached on
+             * ctx->read_aio_task, then reused across every window of this read
+             * (and across later reads) to avoid a pool allocation per window.
+             * On reuse the task is dirty from its last trip through the pool:
+             * task->next must be cleared (the pool threads it onto its run
+             * queue) and event.complete reset to 0 (ngx_post_event set it when
+             * the previous completion fired) or the next post would be ignored.
+             */
+            if (task == NULL) {
+                task = ngx_thread_task_alloc(c->pool,
+                                             sizeof(xrootd_read_aio_t));
+                if (task != NULL) {
+                    ctx->read_aio_task = task;
+                }
+            } else {
+                task->next = NULL;
+                task->event.complete = 0;
+            }
+
+            if (task != NULL) {
+                t = task->ctx;
+                t->c = c;
+                t->ctx = ctx;
+                t->conf = rconf;
+                t->fd = ctx->rd_win_fd;
+                t->handle_idx = ctx->rd_win_idx;
+                t->offset = ctx->rd_win_offset;
+                t->rlen = want;
+                t->databuf = databuf;
+                /*
+                 * Snapshot the 2-word streamid into the task so the completion
+                 * callback can verify it still matches the live ctx — by the
+                 * time the worker finishes, this connection may have been torn
+                 * down and the slot reused by an unrelated stream.
+                 */
+                t->streamid[0] = ctx->rd_win_streamid[0];
+                t->streamid[1] = ctx->rd_win_streamid[1];
+                t->nread = 0;
+                t->io_errno = 0;
+                xrootd_task_bind(task, xrootd_read_aio_thread,
+                                 xrootd_read_aio_done);
+                (void) xrootd_aio_post_task(ctx, c, rconf->common.thread_pool,
+                    task, "xrootd: window task post failed, sync fallback",
+                    &posted);
+                if (posted) {
+                    return;   /* async: done callback resumes the pump */
+                }
+                /* post failed (queue full): fall through to the inline read. */
+            }
+        }
+
+        /*
+         * Inline fallback (no pool configured, or post failed): do the blocking
+         * pread on the event-loop thread for this one window only, then let the
+         * for(;;) loop pick up the next window. Bounded to a single window so a
+         * large read can never monopolise the loop for more than XROOTD_READ_WINDOW.
+         */
+        nread = pread(ctx->rd_win_fd, databuf, want, ctx->rd_win_offset);
+        if (xrootd_read_window_emit(ctx, c, nread, nread < 0 ? errno : 0)
+            == NGX_ERROR)
+        {
+            xrootd_aio_resume(c);
+            return;
+        }
+        if (ctx->state == XRD_ST_SENDING) {
+            return;   /* async send: send.c resumes the pump on drain */
+        }
+        /* sync send complete → loop reads the next window */
+    }
+}
+
+/*
+ * xrootd_read_aio_thread — thread-pool worker for kXR_read.
+ *
+ * Runs on a worker thread; must not touch nginx state, connection pools, or
+ * any field that is not owned by the task struct.  Only the blocking pread(2)
+ * syscall belongs here; all protocol work happens in the done callback on the
+ * main thread.
+ *
+ * t->nread: set to pread return value (< 0 on error, 0 on EOF, > 0 on success).
+ * t->io_errno: saved errno on failure.
+ */
+void
+xrootd_read_aio_thread(void *data, ngx_log_t *log)
+{
+    xrootd_read_aio_t *t = data;
+
+    /*
+     * Worker threads do the blocking syscall only; all protocol state updates
+     * stay on the event-loop side in the completion callback.
+     */
+    t->nread = pread(t->fd, t->databuf, t->rlen, t->offset);
+    if (t->nread < 0) {
+        t->io_errno = errno;
+    }
+}
+
+/*
+ * xrootd_read_aio_done — main-thread completion callback for kXR_read AIO.
+ *
+ * Called by nginx's event loop after the thread pool posts the result via
+ * ngx_post_event.  Responsibilities:
+ *   1. Guard against stale connection (ctx->destroyed check via restore_stream).
+ *   2. On I/O error: send kXR_IOError, release databuf, resume event loop.
+ *   3. On success: build a response chain (chunked if > 16 MiB), update per-
+ *      handle and session byte counters, queue the chain.
+ *   4. Call xrootd_aio_resume() to re-arm the appropriate event (write or read).
+ *
+ * NOTE: if the chain send blocks (XRD_ST_SENDING), databuf is kept alive as
+ * wchain_base and freed by xrootd_release_pending_buffer after full drain.
+ */
+void
+xrootd_read_aio_done(ngx_event_t *ev)
+{
+    ngx_thread_task_t  *task = ev->data;
+    xrootd_read_aio_t  *t = task->ctx;
+    xrootd_ctx_t       *ctx = t->ctx;
+    ngx_connection_t   *c = t->c;
+    ngx_chain_t        *rsp_chain;
+
+    if (!xrootd_aio_restore_stream(ctx, t->streamid)) {
+        return;
+    }
+
+    if (ctx->rd_win_active) {
+        /*
+         * Phase 31 W2.1: this completion belongs to one window of a windowed
+         * read.  Emit its chunk, then continue (next window) or finish.
+         */
+        if (xrootd_read_window_emit(ctx, c, t->nread, t->io_errno)
+            == NGX_ERROR)
+        {
+            xrootd_aio_resume(c);
+            return;
+        }
+        /*
+         * After emit, exactly one of three things is true and each takes a
+         * different path (no fall-through — every branch returns):
+         *   a) chunk is still draining (XRD_ST_SENDING): hand off; send.c will
+         *      re-enter the pump once the socket has flushed this window.
+         *   b) chunk sent synchronously and more windows remain
+         *      (rd_win_active still set): drive the next window now.
+         *   c) windowed read complete (rd_win_active cleared by emit): the read
+         *      is done, so resume the normal request event loop.
+         */
+        if (ctx->state == XRD_ST_SENDING) {
+            return;            /* (a) send.c resumes the pump when the chunk drains */
+        }
+        if (ctx->rd_win_active) {
+            xrootd_read_window_pump(ctx, c, t->conf);   /* (b) sync-sent: next window */
+            return;
+        }
+        xrootd_aio_resume(c);  /* (c) finished */
+        return;
+    }
+
+    if (t->nread < 0) {
+        ctx->state = XRD_ST_REQ_HEADER;
+        ctx->hdr_pos = 0;
+        xrootd_release_read_buffer(ctx, c, t->databuf);
+        XROOTD_OP_ERR(ctx, XROOTD_OP_READ);
+        xrootd_send_error(ctx, c, kXR_IOError,
+                          t->io_errno ? strerror(t->io_errno) : "async read error");
+        xrootd_aio_resume(c);
+        return;
+    }
+
+    ctx->files[t->handle_idx].bytes_read += (size_t) t->nread;
+    ctx->session_bytes += (size_t) t->nread;
+    XROOTD_OP_OK(ctx, XROOTD_OP_READ);
+
+    rsp_chain = xrootd_build_chunked_chain(ctx, c,
+                                           t->databuf, (size_t) t->nread);
+    if (rsp_chain == NULL) {
+        xrootd_release_read_buffer(ctx, c, t->databuf);
+        ctx->state = XRD_ST_REQ_HEADER;
+        xrootd_aio_resume(c);
+        return;
+    }
+
+    ctx->state = XRD_ST_REQ_HEADER;
+    ctx->hdr_pos = 0;
+
+    xrootd_queue_response_chain(ctx, c, rsp_chain, t->databuf);
+    if (ctx->state != XRD_ST_SENDING) {
+        xrootd_release_read_buffer(ctx, c, t->databuf);
+    }
+    xrootd_aio_resume(c);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Section: kXR_pgread async I/O — page-granular read with CRC32C checksum. */
+/* ------------------------------------------------------------------ */
+/*
+ * This section implements the thread-pool offload for pgread, where each
+ * 4096-byte page is read and a CRC32C checksum is computed on it.
+ * The output format is: [CRC32C(4 bytes)][page data (4096 bytes)] × N_pages
+ *
+ * Two functions: the _thread function does the pread + CRC encoding on the
+ * worker thread; the _done callback builds the response chain on the main
+ * event loop.
+ */
+
+
+/*
+ * xrootd_pgread_aio_thread — thread-pool worker for kXR_pgread.
+ *
+ * The scratch buffer is split into two halves:
+ *   scratch[0 .. rlen-1]         — flat data read by pread(2) (Phase 1)
+ *   scratch[rlen .. rlen+out_size-1] — CRC-interleaved wire output (Phase 2)
+ *
+ * Phase 1: pread() fills the flat portion.
+ * Phase 2: xrootd_pgread_encode_pages() reads each 4096-byte page, computes
+ *   CRC32C, and writes [CRC32C(4)][data(page)] into the output region.
+ *
+ * Both phases run on the worker thread so CRC computation does not block the
+ * nginx event loop.  t->out_size is set to the encoded byte count.
+ */
+void
+xrootd_pgread_aio_thread(void *data, ngx_log_t *log)
+{
+    xrootd_pgread_aio_t *t = data;
+    u_char              *out;
+
+    /*
+     * Phase 1: pread into the flat portion of scratch (scratch[0..rlen-1]).
+     * Phase 2: interleave data + CRC32C into scratch[rlen..], page by page.
+     * Both phases run on the worker thread to keep CRC off the event loop.
+     */
+
+    t->nread = pread(t->fd, t->scratch, t->rlen, t->offset);
+    if (t->nread <= 0) {
+        t->io_errno = (t->nread < 0) ? errno : 0;
+        t->out_size = 0;
+        return;
+    }
+
+    out = t->scratch + t->rlen;
+    t->out_size = xrootd_pgread_encode_pages(t->scratch, (size_t) t->nread,
+                                             t->offset, out);
+}
+
+/*
+ * xrootd_pgread_aio_done — response builder for pgread AIO completion.
+ *
+ * pgread wire format ([CRC32C(4)][page data] × N) cannot use
+ * xrootd_build_chunked_chain and requires direct chain construction with a
+ * ServerStatusResponse_pgRead header.
+ */
+void
+xrootd_pgread_aio_done(ngx_event_t *ev)
+{
+    ngx_thread_task_t          *task = ev->data;
+    xrootd_pgread_aio_t        *t = task->ctx;
+    xrootd_ctx_t               *ctx = t->ctx;
+    ngx_connection_t           *c = t->c;
+    ServerStatusResponse_pgRead *hdr_buf;
+    ngx_chain_t                *cl_hdr, *rsp_chain;
+    ngx_stream_xrootd_srv_conf_t *rconf;
+
+    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+        return;
+    }
+
+    if (t->nread < 0) {
+        xrootd_release_read_buffer(ctx, c, t->scratch);
+        XROOTD_OP_ERR(ctx, XROOTD_OP_PGREAD);
+        xrootd_send_error(ctx, c, kXR_IOError,
+                          t->io_errno ? strerror(t->io_errno) : "async pgread error");
+        xrootd_aio_resume(c);
+        return;
+    }
+
+    /*
+     * EOF / empty read: emit a pgRead status header with dlen 0 and no data
+     * buffer at all. The client reads the header, sees zero payload bytes, and
+     * treats it as end-of-data — there are no pages, hence no CRC32C words.
+     */
+    if (t->nread == 0 || t->out_size == 0) {
+        hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
+        if (hdr_buf) {
+            xrootd_build_pgread_status(ctx, t->offset, 0, hdr_buf);
+            XROOTD_OP_OK(ctx, XROOTD_OP_PGREAD);
+            xrootd_queue_response(ctx, c, (u_char *) hdr_buf, sizeof(*hdr_buf));
+        }
+        xrootd_release_read_buffer(ctx, c, t->scratch);
+        xrootd_aio_resume(c);
+        return;
+    }
+
+    hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
+    if (hdr_buf == NULL) {
+        xrootd_release_read_buffer(ctx, c, t->scratch);
+        xrootd_aio_resume(c);
+        return;
+    }
+    xrootd_build_pgread_status(ctx, t->offset, (uint32_t) t->out_size, hdr_buf);
+
+    cl_hdr = ngx_alloc_chain_link(c->pool);
+    if (cl_hdr == NULL) {
+        xrootd_release_read_buffer(ctx, c, t->scratch);
+        xrootd_aio_resume(c);
+        return;
+    }
+    cl_hdr->buf = ngx_calloc_buf(c->pool);
+    if (cl_hdr->buf == NULL) {
+        xrootd_release_read_buffer(ctx, c, t->scratch);
+        xrootd_aio_resume(c);
+        return;
+    }
+    cl_hdr->buf->pos = (u_char *) hdr_buf;
+    cl_hdr->buf->last = cl_hdr->buf->pos + sizeof(*hdr_buf);
+    cl_hdr->buf->memory = 1;
+    cl_hdr->buf->last_buf = 0;
+
+    {
+        ngx_chain_t *cl_data;
+        ngx_buf_t   *bd;
+
+        /* PGREAD: Send encoded page data directly, NOT via xrootd_build_chunked_chain
+         * which adds wrong headers (kXR_ok) for pgread. The encoded data
+         * (t->scratch + t->rlen) has its own per-page CRC32c - just send it.
+         */
+        cl_data = ngx_alloc_chain_link(c->pool);
+        bd = ngx_calloc_buf(c->pool);
+        if (cl_data == NULL || bd == NULL) {
+            xrootd_release_read_buffer(ctx, c, t->scratch);
+            xrootd_aio_resume(c);
+            return;
+        }
+        bd->pos = t->scratch + t->rlen;
+        bd->last = bd->pos + t->out_size;
+        bd->memory = 1;
+        bd->last_buf = 1;
+        cl_data->buf = bd;
+        cl_data->next = NULL;
+
+        cl_hdr->next = cl_data;
+        rsp_chain = cl_hdr;
+    }
+
+    ctx->files[t->handle_idx].bytes_read += (size_t) t->nread;
+    ctx->session_bytes += (size_t) t->nread;
+
+    rconf = ngx_stream_get_module_srv_conf(
+        (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+    if (rconf->access_log_fd != NGX_INVALID_FILE) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%lld+%zu",
+                 (long long) t->offset, (size_t) t->nread);
+        xrootd_log_access(ctx, c, "PGREAD", ctx->files[t->handle_idx].path,
+                          detail, 1, 0, NULL, (size_t) t->nread);
+    }
+    XROOTD_OP_OK(ctx, XROOTD_OP_PGREAD);
+
+    xrootd_queue_response_chain(ctx, c, rsp_chain, t->scratch);
+    if (ctx->state != XRD_ST_SENDING) {
+        xrootd_release_read_buffer(ctx, c, t->scratch);
+    }
+    xrootd_aio_resume(c);
+}

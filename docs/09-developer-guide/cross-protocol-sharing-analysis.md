@@ -144,17 +144,17 @@ These patterns are structurally similar but currently implemented separately. Un
 | Protocol | Function | File | Input Format |
 |---|---|---|---|
 | Stream (XRootD) | `xrootd_resolve_path()` variants | `src/path/resolve_path_variants.c` | Raw wire payload string |
-| WebDAV | `ngx_http_xrootd_webdav_resolve_path()` | `src/webdav/path.c` → URL-decodes then calls `xrootd_resolve_path_input()` | HTTP URI (percent-encoded) |
-| S3 | `s3_resolve_key()` | `src/s3/util.c` → key-strips then calls `xrootd_resolve_path_input()` | S3 object key + bucket prefix stripping |
+| WebDAV | `ngx_http_xrootd_webdav_resolve_path()` | `src/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` | HTTP URI (percent-encoded) |
+| S3 | `s3_resolve_key()` | `src/s3/util.c` → key-strips then calls `xrootd_http_resolve_path()` | S3 object key + bucket prefix stripping |
 
 **Key differences:**
 - Stream: extracts path from wire payload, handles CGI suffix stripping via `xrootd_strip_cgi()`
-- WebDAV: URL-decodes HTTP URI → calls `xrootd_resolve_path_input()` (shared in `src/compat/path.c`)
+- WebDAV: URL-decodes HTTP URI → calls `xrootd_http_resolve_path()` (shared in `src/compat/path.c`)
 - S3: maps `s3://bucket/key` → filesystem path with bucket name as prefix, handles `$folder$` sentinel
 
-**Implemented:** The core logic — canonicalization + confinement check — now lives behind the protocol-neutral `xrootd_resolve_path_input()` entry point in `src/compat/path.c`. Protocol-specific pre-processing (wire extraction, URI decoding, bucket stripping) remains separate, and WebDAV/S3 call the shared resolver once they have a normalized path. The older `xrootd_http_resolve_path()` name is retained as a compatibility wrapper.
+**Implemented:** The core logic — canonicalization + confinement check — now lives behind the protocol-neutral `xrootd_http_resolve_path()` entry point in `src/compat/path.c`. Protocol-specific pre-processing (wire extraction, URI decoding, bucket stripping) remains separate, and WebDAV/S3 call the shared resolver once they have a normalized path.
 
-**Remaining expansion:** Stream still uses its dedicated wire-path resolver variants. A future cleanup can route any already-normalized stream paths through `xrootd_resolve_path_input()` once the stream-specific CGI stripping and protocol error mapping are kept intact.
+**Remaining expansion:** Stream still uses its dedicated wire-path resolver variants. A future cleanup can route any already-normalized stream paths through `xrootd_http_resolve_path()` once the stream-specific CGI stripping and protocol error mapping are kept intact.
 
 ### 2.2 GSI Certificate Verification — Shared Verification Core
 
@@ -479,8 +479,8 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 
 ### Path Resolution (Section 2.1)
 - `src/path/resolve_path_variants.c` — stream resolver variants
-- `src/webdav/path.c` → URL-decodes then calls `xrootd_resolve_path_input()` — webdav wrapper
-- `src/compat/path.c` → `xrootd_resolve_path_input()` — shared core logic
+- `src/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` — webdav wrapper
+- `src/compat/path.c` → `xrootd_http_resolve_path()` — shared core logic
 - `src/s3/util.c` → `s3_resolve_key()` — S3 key-to-path mapper
 
 ### Confined Ops (Section 1.2)

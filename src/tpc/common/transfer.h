@@ -1,6 +1,26 @@
 #ifndef XROOTD_TPC_COMMON_TRANSFER_H
 #define XROOTD_TPC_COMMON_TRANSFER_H
 
+/* ---- Module: TPC Transfer Vocabulary ----
+ *
+ * WHAT: The shared vocabulary for third-party copies — protocol tags
+ *       (STREAM / WEBDAV), direction tags (PULL / PUSH), lifecycle states
+ *       (PENDING / ACTIVE / DONE / ERROR), the registry sizing constants
+ *       (slot count and max URL/path lengths), and the protocol-neutral
+ *       xrootd_tpc_transfer_t describing one in-flight copy.
+ *
+ * WHY: Every other file in tpc/common builds on these definitions, so they live
+ *      in one leaf header with no dependencies beyond nginx core. Keeping the
+ *      state machine and size limits centralised guarantees the stream and
+ *      WebDAV transports, the registry, and the metrics/dashboard readers all
+ *      agree on the same enum values and buffer bounds.
+ *
+ * HOW: Plain #define tags and a POD struct. The xrootd_tpc_transfer_t ngx_str_t
+ *      members (src_url, dst_path) point at storage owned by the registry slot
+ *      that holds the transfer; callers may pass stack/request-pool strings to
+ *      xrootd_tpc_registry_add(), which copies them before publishing.
+ */
+
 #include <ngx_config.h>
 #include <ngx_core.h>
 

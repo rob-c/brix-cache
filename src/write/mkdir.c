@@ -36,6 +36,7 @@
  * mkdir.c â kXR_mkdir opcode handler.
  */
 #include "ngx_xrootd_module.h"
+#include "../compat/error_mapping.h"
 
 /*
  * xrootd_handle_mkdir â create a directory within the export root.
@@ -63,91 +64,44 @@ xrootd_handle_mkdir(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	mode_t   mode;
 	int      recursive;
 
-	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-		return xrootd_send_error(ctx, c, kXR_ArgMissing, "no path given");
-	}
-
 	recursive = (req->options[0] & kXR_mkdirpath) ? 1 : 0;
 	mode      = ntohs(req->mode) & 0777;
 	if (mode == 0) {
 		mode = 0755;
 	}
 
-	/* kXR_mkdirpath changes only namespace creation strategy, not permission handling. */
-
-	if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
-							 reqpath, sizeof(reqpath), 1)) {
-		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", "-", "-",
-						  kXR_ArgInvalid, "invalid path payload");
-	}
-	if (xrootd_count_path_depth(reqpath) != NGX_OK) {
-		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", reqpath, "-",
-						  kXR_ArgInvalid, "path exceeds maximum depth");
-	}
-
-	/*
-	 * Resolve the target path.  For recursive mkdir intermediate directories
-	 * do not exist yet, so we use xrootd_resolve_path_noexist (no realpath).
-	 * For a single-level mkdir the parent must exist, so use the write resolver.
-	 */
-	if (recursive) {
-		if (!xrootd_resolve_path_noexist(c->log, &conf->common.root,
-										  reqpath,
-										  resolved, sizeof(resolved))) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", reqpath, "-",
-							  kXR_NotFound, "invalid path");
-		}
-	} else {
-		if (!xrootd_resolve_path_write(c->log, &conf->common.root,
-									   reqpath,
-									   resolved, sizeof(resolved))) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", reqpath, "-",
-							  kXR_NotFound, "invalid path");
+	{
+		xrootd_path_mode_t pmode = recursive ? XROOTD_PATH_NOEXIST
+		                                     : XROOTD_PATH_WRITE;
+		if (xrootd_resolve_op_path(ctx, c, XROOTD_OP_MKDIR, "MKDIR", conf,
+								   pmode,
+								   reqpath, sizeof(reqpath),
+								   resolved, sizeof(resolved)) != NGX_OK) {
+			return ctx->write_rc;
 		}
 	}
 
-	if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_MKDIR) != NGX_OK) {
-		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
-						  kXR_NotAuthorized, "authdb denied");
+	if (xrootd_auth_gate(ctx, c, XROOTD_OP_MKDIR, "MKDIR",
+						  reqpath, resolved, conf,
+						  XROOTD_AUTH_MKDIR, 1) != NGX_OK) {
+		return ctx->write_rc;
 	}
 
-	if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-							 ctx->identity) != NGX_OK) {
-		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
-						  kXR_NotAuthorized, "VO not authorized");
-	}
+	{
+		xrootd_ns_result_t res;
 
-	if (xrootd_check_token_scope(ctx, reqpath, 1) != NGX_OK) {
-		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", reqpath, "-",
-						  kXR_NotAuthorized, "token scope denied");
-	}
-
-	if (recursive) {
-		if (xrootd_mkdir_recursive_confined(c->log, &conf->common.root,
-											resolved, mode, conf->group_rules) != 0
-			&& errno != EEXIST)
-		{
+		res = xrootd_ns_mkdir(c->log, conf->common.root_canon,
+		                      resolved, mode, recursive);
+		if (res.status != XROOTD_NS_OK && res.status != XROOTD_NS_EXISTS) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
-							  kXR_IOError, strerror(errno));
+			                  xrootd_kxr_map_ns_status(res.status, res.sys_errno),
+			                  res.status == XROOTD_NS_DENIED ? "permission denied"
+			                                                 : strerror(res.sys_errno));
 		}
-	} else {
-		/* Non-recursive mkdir maps directly to one root-confined mkdirat(2). */
-		if (xrootd_mkdir_confined(c->log, &conf->common.root, resolved, mode) != 0) {
-			int err = errno;
-			if (err == EEXIST) {
-				/* Not an error — directory already exists */
-			} else if (err == EACCES) {
-				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
-								  kXR_NotAuthorized, "permission denied");
-			} else {
-				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
-								  kXR_IOError, strerror(err));
-			}
-		}
-		/* Align ownership/group-bits of new directory with parent dir policy. */
-		if (conf->group_rules != NULL) {
+		/* Apply parent group policy after successful single-level mkdir. */
+		if (!recursive && res.created && conf->group_rules != NULL) {
 			xrootd_apply_parent_group_policy_path(c->log, resolved,
-												  conf->group_rules);
+			                                      conf->group_rules);
 		}
 	}
 

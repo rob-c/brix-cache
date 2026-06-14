@@ -124,7 +124,7 @@ xrdfs localhost rmdir /data/publications/test-dir
 You have a working nginx-xrootd server. Before putting it in production, you should:
 
 1. **Add authentication** — See [Authentication Overview](../06-authentication/)
-2. **Enable TLS/HTTPS** — See [TLS Configuration](../03-configuration/tls.md) for `roots://` support
+2. **Enable TLS/HTTPS** — See [TLS Configuration](../03-configuration/tls-config.md) for `roots://` support
 3. **Set up monitoring** — Configure Prometheus to scrape your `/metrics` endpoint
 
 ## If something fails

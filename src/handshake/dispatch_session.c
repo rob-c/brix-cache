@@ -107,7 +107,7 @@
 /* ---- Function: xrootd_dispatch_session_opcode() ----
  *
  * WHAT: Dispatches pre-auth and session lifecycle opcodes from the central dispatcher (src/handshake/dispatch.c). Handles
- *      eight session-level requests: protocol negotiation, login, authentication (GSI/token/SSS), ping/liveness check,
+ *      seven session-level requests: protocol negotiation, login, authentication (GSI/token/SSS), ping/liveness check,
  *      server config set, session termination, and secondary channel binding. Returns XROOTD_DISPATCH_CONTINUE if opcode
  *      is not a session opcode — allowing read/write dispatchers to handle it instead.
  *
@@ -116,7 +116,7 @@
  *      The kXR_bind case is special — it arrives on secondary connections before login and must be dispatched first to ensure
  *      proper binding lifecycle ordering.
  *
- * HOW: Single switch statement matching ctx->cur_reqid (opcode) against eight session opcodes → calls corresponding handler function →
+ * HOW: Single switch statement matching ctx->cur_reqid (opcode) against seven session opcodes → calls corresponding handler function →
  *      returns handler result or XROOTD_DISPATCH_CONTINUE for unhandled cases. kXR_set additionally requires login check before handling. */
 
 ngx_int_t

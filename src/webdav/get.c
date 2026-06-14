@@ -4,13 +4,13 @@
 
 #include "webdav.h"
 #include "xrdhttp.h"
+#include "../compat/error_mapping.h"
 #include "../compat/etag.h"
 #include "../compat/http_conditionals.h"
-#include "../compat/http_file_response.h"
-#include "../compat/range.h"
 #include "../cache/open.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../fs/vfs.h"
+#include "../shared/file_serve.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -45,6 +45,16 @@ webdav_register_send_fd_cleanup(ngx_http_request_t *r, ngx_fd_t fd,
     clnf->log = r->pool->log;
 
     return NGX_OK;
+}
+
+static void
+webdav_get_add_xrdhttp_headers(ngx_http_request_t *r, ngx_fd_t fd,
+    off_t file_size, void *ud)
+{
+    struct stat *sb = ud;
+    webdav_fadvise_willneed(r->connection->log, fd, 0, (size_t) file_size);
+    xrdhttp_add_checksum_header(r, fd, sb);
+    xrdhttp_add_response_headers(r, r->headers_out.status);
 }
 
 /*
@@ -82,10 +92,6 @@ webdav_handle_get(ngx_http_request_t *r)
     ngx_int_t           rc;
     ngx_fd_t            fd;
     ngx_fd_t            send_fd;
-    off_t               range_start = 0;
-    off_t               range_end = 0;
-    off_t               send_len;
-    int                 has_range = 0;
     ngx_http_xrootd_webdav_req_ctx_t *wctx;
     const char         *identity;
     xrootd_vfs_ctx_t    vctx;
@@ -104,6 +110,7 @@ webdav_handle_get(ngx_http_request_t *r)
     }
 
     ngx_memzero(&vctx, sizeof(vctx));
+    vctx.rootfd = -1;
     vctx.pool = r->pool;
     vctx.log = r->connection->log;
     vctx.metrics_proto = XROOTD_PROTO_WEBDAV;
@@ -133,14 +140,20 @@ webdav_handle_get(ngx_http_request_t *r)
             return NGX_HTTP_NOT_FOUND;
         }
 
-        if (vfs_err == EACCES || vfs_err == EPERM) {
+        /* EXDEV (".." escape) / ELOOP (escaping or magic symlink) are the
+         * kernel RESOLVE_BENEATH confinement rejections — forbidden, never a
+         * 500.  EACCES/EPERM map the same way.  Route the whole errno set
+         * through the shared table so the codes stay consistent with S3. */
+        if (vfs_err == EACCES || vfs_err == EPERM
+            || vfs_err == EXDEV || vfs_err == ELOOP)
+        {
             return NGX_HTTP_FORBIDDEN;
         }
 
         ngx_log_error(NGX_LOG_ERR, r->connection->log, vfs_err,
                       ngx_open_file_n " \"%s\" failed", path);
 
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return (ngx_int_t) xrootd_http_errno_to_status(vfs_err);
     }
 
     if (xrootd_vfs_file_stat(fh, &vst) != NGX_OK) {
@@ -200,100 +213,44 @@ webdav_handle_get(ngx_http_request_t *r)
         return rc;
     }
 
-    {
-        xrootd_http_range_t rng;
-        xrootd_http_parse_range(
-            r->headers_in.range ? r->headers_in.range->value.data : NULL,
-            r->headers_in.range ? r->headers_in.range->value.len : 0,
-            sb.st_size, &rng);
-
-        if (rng.present && !rng.satisfiable) {
-            xrootd_vfs_close(fh, r->connection->log);
-            XROOTD_WEBDAV_METRIC_INC(
-                range_total[XROOTD_WEBDAV_RANGE_UNSATISFIED]);
-            r->headers_out.status = NGX_HTTP_RANGE_NOT_SATISFIABLE;
-            r->headers_out.content_length_n = 0;
-            ngx_http_send_header(r);
-            return ngx_http_send_special(r, NGX_HTTP_LAST);
-        }
-
-        range_start = rng.start;
-        range_end   = rng.end;
-        send_len    = (sb.st_size > 0) ? (range_end - range_start + 1) : 0;
-        has_range   = rng.present;
-    }
-
-    if (has_range) {
-        XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_PARTIAL]);
-    } else {
-        XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_FULL]);
-    }
-
-    if (send_len > 0) {
-        webdav_fadvise_willneed(r->connection->log, fd, range_start,
-                                (size_t) send_len);
-    }
-
+    identity = (wctx != NULL && wctx->dn[0] != '\0') ? wctx->dn : "anonymous";
     r->allow_ranges = 1;
 
-    rc = xrootd_http_set_file_headers(r, sb.st_mtime, sb.st_size, send_len,
-                                      NULL,
-                                      XROOTD_ETAG_WEAK,
-                                      has_range, range_start, range_end);
-    if (rc != NGX_OK) {
-        xrootd_vfs_close(fh, r->connection->log);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    {
+        xrootd_http_serve_opts_t   opts;
+        xrootd_http_serve_result_t result;
 
-    /* XrdHttp: add Digest: checksum header if the client requested one via
-     * ?xrd.want.cksum=<algo>.  Computed inline before header flush. */
-    xrdhttp_add_checksum_header(r, fd, &sb);
+        ngx_memzero(&opts, sizeof(opts));
+        opts.xfer_proto      = XROOTD_XFER_PROTO_WEBDAV;
+        opts.op_name         = "GET";
+        opts.identity        = identity;
+        opts.etag_flags      = XROOTD_ETAG_WEAK;
+        opts.pre_header_send = webdav_get_add_xrdhttp_headers;
+        opts.pre_header_ud   = &sb;
 
-    /* XrdHttp: add X-Xrootd-Requuid / X-Xrootd-Status response headers. */
-    xrdhttp_add_response_headers(r, r->headers_out.status);
+        rc = xrootd_http_serve_file_ranged(r, fh, &vst, path, &opts, &result);
 
-    wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
-    identity = (wctx != NULL && wctx->dn[0] != '\0') ? wctx->dn : "anonymous";
-    (void) xrootd_dashboard_http_start_identity(r, path, identity, "",
-        XROOTD_XFER_PROTO_WEBDAV, XROOTD_XFER_DIR_READ, "GET",
-        (int64_t) send_len);
+        if (result.range_result == XROOTD_SERVE_RANGE_UNSATISFIED) {
+            XROOTD_WEBDAV_METRIC_INC(
+                range_total[XROOTD_WEBDAV_RANGE_UNSATISFIED]);
+        } else if (result.range_result == XROOTD_SERVE_RANGE_PARTIAL) {
+            XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_PARTIAL]);
+        } else {
+            XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_FULL]);
+        }
 
-    send_fd = dup(fd);
-    if (send_fd == NGX_INVALID_FILE) {
-        xrootd_vfs_close(fh, r->connection->log);
-        xrootd_dashboard_http_error(r, "webdav GET dup failed");
-        xrootd_dashboard_http_finish(r);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    xrootd_vfs_close(fh, r->connection->log);
-
-    rc = xrootd_http_send_file_range(r, send_fd, path, range_start, send_len, 1);
-    if (rc == NGX_ERROR) {
-        xrootd_dashboard_http_error(r, "webdav GET send failed");
-        xrootd_dashboard_http_finish(r);
-        return rc;
-    }
-    if (r->header_only) {
-        xrootd_dashboard_http_finish(r);
-        return rc;
-    }
-
-    xrootd_dashboard_http_add(r, (ngx_atomic_int_t) send_len);
-    XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) send_len);
-    if (from_cache && send_len > 0) {
-        (void) xrootd_cache_record_access(cache_path, (size_t) send_len,
-                                          r->connection->log);
-    }
-
-    /* Track per-IP-version bytes for this GET body transfer. */
-    if (r->connection && r->connection->sockaddr) {
-        switch (r->connection->sockaddr->sa_family) {
-        case AF_INET6:
-            XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total, (size_t) send_len);
-            break;
-        default:
-            XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total, (size_t) send_len);
-            break;
+        if (result.bytes_sent > 0) {
+            XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total,
+                                     (size_t) result.bytes_sent);
+            if (r->connection && r->connection->sockaddr) {
+                if (r->connection->sockaddr->sa_family == AF_INET6) {
+                    XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total,
+                                             (size_t) result.bytes_sent);
+                } else {
+                    XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total,
+                                             (size_t) result.bytes_sent);
+                }
+            }
         }
     }
 

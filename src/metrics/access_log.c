@@ -1,5 +1,36 @@
 #include "access_log.h"
 
+/*
+ * access_log.c — structured JSON access-log line emitter for VFS operations.
+ *
+ * WHAT: Emits one machine-parsable JSON access record per completed VFS I/O
+ *       operation via xrootd_access_log_emit(). Each line carries timestamp,
+ *       protocol, op name, request path, byte count, offset, latency, error
+ *       status, cache-hit flag, auth method, and the authenticated subject/DN.
+ * WHY:  Prometheus counters are aggregate and low-cardinality (no paths or DNs
+ *       as labels — INVARIANT #8), but operators still need per-request audit
+ *       detail. A JSON log line carries the high-cardinality fields (path,
+ *       subject) that must never become metric labels, while reusing the same
+ *       unified vocabulary (xrootd_metric_proto_name / _op_name / _err_name /
+ *       _auth_method_name) so logs and metrics line up.
+ * HOW:  The line is written with ngx_log_error at NGX_LOG_INFO and prefixed
+ *       "xrootd_access_json: " so a log pipeline can grep and strip the prefix.
+ *       Free-text fields are run through xrootd_access_json_escape() into fixed
+ *       stack buffers before being interpolated, so untrusted wire bytes can
+ *       never break out of the JSON string. Subject is taken from the identity
+ *       (subject, falling back to DN); path/offset/cache come from the
+ *       xrootd_vfs_io_result_t when present.
+ */
+
+/*
+ * xrootd_access_json_escape — copy src into dst as a JSON-string-safe sequence.
+ *
+ * Escapes '"' and '\\' with a backslash and renders any byte outside printable
+ * ASCII (< 0x20 or >= 0x7f) as a \u00NN escape, so control bytes and non-ASCII
+ * from the wire cannot terminate the surrounding JSON string. Always writes a
+ * NUL terminator (unless dstsz == 0) and never exceeds dstsz, truncating cleanly
+ * if an escape sequence would not fit.
+ */
 static void
 xrootd_access_json_escape(const char *src, char *dst, size_t dstsz)
 {
@@ -46,6 +77,14 @@ xrootd_access_json_escape(const char *src, char *dst, size_t dstsz)
     dst[used] = '\0';
 }
 
+/*
+ * xrootd_access_log_emit — write one JSON access-log record for a VFS op.
+ *
+ * Pulls protocol/auth/subject from ctx, path/offset/cache-hit from result (when
+ * non-NULL), escapes the free-text fields, and emits a single NGX_LOG_INFO line.
+ * No-op if ctx or ctx->log is NULL. bytes, err, and latency_usec are supplied by
+ * the caller because they describe the just-finished operation, not the handle.
+ */
 void
 xrootd_access_log_emit(const xrootd_vfs_ctx_t *ctx, const char *path,
     xrootd_metric_op_t op, const xrootd_vfs_io_result_t *result,

@@ -38,7 +38,7 @@ Client                          nginx-xrootd
 
 ### Step 2: Protocol Handshake
 
-The client sends `kXR_protocol` (opcode 1000) with its version number. The server responds with its supported versions. This is like saying "hello, I speak XRootD v5" and the server answering "I support v4 through v6".
+The client sends `kXR_protocol` (opcode 3006) with its version number. The server responds with its supported versions. This is like saying "hello, I speak XRootD v5" and the server answering "I support v4 through v6".
 
 ### Step 3: Login and Authentication
 
@@ -221,4 +221,4 @@ curl http://localhost:9100/metrics | grep xrootd_auth_total
 
 - [XRootD Basics](xrootd-basics.md) — Understanding the protocol concepts
 - [Deployment Modes](deployment-modes.md) — Choosing your setup
-- [Metrics & Monitoring](../../08-metrics-monitoring/) — Observability and alerting
+- [Metrics & Monitoring](../08-metrics-monitoring/) — Observability and alerting

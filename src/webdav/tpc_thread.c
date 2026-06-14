@@ -39,6 +39,12 @@ typedef struct {
     ngx_uint_t                         n_streams;         /* 1 = single-stream pull */
 } tpc_thread_ctx_t;
 
+/*
+ * Add this transfer to the cross-process TPC registry, mapping src/dst by
+ * direction: push reads local_path and writes the remote `url`; pull reads `url`
+ * and writes dest_path.  Returns the non-zero transfer id, or 0 if the registry
+ * is full.
+ */
 static uint64_t
 webdav_tpc_thread_register(ngx_http_request_t *r, int is_push,
                            const char *url, const char *local_path,
@@ -72,6 +78,15 @@ webdav_tpc_thread_register(ngx_http_request_t *r, int is_push,
     return xrootd_tpc_registry_add(&transfer, r->connection->log);
 }
 
+/*
+ * Thread-pool worker body.  RUNS ON A BACKGROUND THREAD, not the nginx event
+ * loop: it MUST NOT touch the event loop, send a response, or call most ngx_http
+ * APIs.  Its only outputs are the t->* result fields (http_status,
+ * bytes_transferred) plus the side-effecting registry/metrics/filesystem calls,
+ * which are thread-safe.  tpc_thread_done (below) consumes the results back on
+ * the event loop.  Performs the SSRF preflight, runs the blocking curl transfer,
+ * and for pull atomically commits the temp file into place.
+ */
 static void
 tpc_thread_func(void *data, ngx_log_t *log)
 {
@@ -190,6 +205,9 @@ tpc_thread_func(void *data, ngx_log_t *log)
         }
     }
 
+    /* Atomic commit, same policy as the synchronous path in tpc.c:
+     * no-overwrite -> link() (EEXIST means a racing create -> 412); overwrite ->
+     * rename().  Every failure unlinks the temp so no partial file is left. */
     if (!t->overwrite) {
         if (xrootd_link_confined_canon(t->log, t->root_canon,
                                        t->local_path, t->dest_path) != 0) {
@@ -241,6 +259,13 @@ tpc_thread_func(void *data, ngx_log_t *log)
     t->http_status = t->existed ? NGX_HTTP_NO_CONTENT : NGX_HTTP_CREATED;
 }
 
+/*
+ * Completion handler — RUNS BACK ON THE EVENT LOOP after tpc_thread_func
+ * finishes.  This is the async re-entry point: it reads the result fields the
+ * worker set, removes the registry entry, and sends the final HTTP response
+ * (201/204 on success, the error status otherwise), then finalizes the request.
+ * Pairs with the r->main->count++ taken in webdav_tpc_post_thread_task.
+ */
 static void
 tpc_thread_done(ngx_event_t *ev)
 {
@@ -341,6 +366,9 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
         return NGX_ERROR;
     }
 
+    /* Hold a reference on the request so nginx does not destroy it while the
+     * transfer runs on the background thread; tpc_thread_done finalizes it,
+     * releasing this count.  Returning NGX_DONE keeps the request alive. */
     r->main->count++;
     return NGX_DONE;
 }

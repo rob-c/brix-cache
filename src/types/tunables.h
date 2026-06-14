@@ -31,6 +31,82 @@
 #define XROOTD_READ_CHUNK_MAX    (16 * 1024 * 1024)
 #define XROOTD_READ_REQUEST_MAX  (64 * 1024 * 1024)
 
+/*
+ * Memory-budget streaming (Phase 31).
+ *
+ * XROOTD_READ_WINDOW caps the *resident heap* a single in-flight read may hold
+ * at once, independently of the logical request size.  A 64 MiB TLS read (which
+ * cannot use sendfile) is served as a sequence of fill -> encrypt -> drain
+ * cycles over a buffer of at most this size, instead of buffering the whole
+ * request in heap.  The wire framing (XROOTD_READ_CHUNK_MAX chunks) is unchanged
+ * — only the in-memory slice shrinks.
+ *
+ * XROOTD_SCRATCH_TRIM_THRESHOLD is the high-water mark above which a per-session
+ * reusable scratch buffer is shrunk back to XROOTD_READ_WINDOW once a request
+ * has fully drained.  Hysteresis (2x window) avoids realloc thrash on sessions
+ * that legitimately oscillate around the window size.
+ *
+ * XROOTD_CONN_XFER_HEAP_MAX bounds the combined size of one connection's
+ * transfer scratch buffers (read_scratch + read_hdr_scratch + write_scratch +
+ * payload_buf).  With the read/write windows in place this ceiling is normally
+ * never reached; it is the per-connection backstop that turns a runaway buffer
+ * into a clean kXR_NoMemory rather than unbounded growth.
+ */
+#define XROOTD_READ_WINDOW             (2 * 1024 * 1024)
+#define XROOTD_SCRATCH_TRIM_THRESHOLD  (2 * XROOTD_READ_WINDOW)
+#define XROOTD_CONN_XFER_HEAP_MAX      (4 * XROOTD_READ_WINDOW)
+
+/*
+ * Output-queue depth (Phase 29 pipelining).
+ *
+ * XROOTD_PIPELINE_MAX is the number of response slots in the per-connection
+ * output ring (xrootd_ctx_t.out_ring).  Each slot owns one in-flight response's
+ * send state (flat-buffer tail, chain tail, and the reusable header/data/file
+ * chain structs), so up to this many pipelinable reads may be outstanding before
+ * the recv loop applies backpressure.  Phase 1 lands the ring with effective
+ * depth 1 (the recv loop stays serial); Phase 2 raises the in-flight bound to
+ * this value for the cleartext sendfile read path.
+ */
+#define XROOTD_PIPELINE_MAX            4
+
+/*
+ * Per-slot wire-header capacity (Phase 32 WS2).  A multi-chunk sendfile read
+ * emits one XRD_RESPONSE_HDR_LEN header per 16 MiB wire chunk; the worst case is
+ * XROOTD_READ_REQUEST_MAX/XROOTD_READ_CHUNK_MAX chunks (= 4 → 32 bytes).  Sizing
+ * the per-slot header buffer to this lets a multi-chunk response keep its headers
+ * in its own slot (not the shared read_hdr_scratch), so multiple multi-chunk
+ * reads can be pipelined without their headers aliasing.
+ */
+#define XROOTD_SLOT_HDR_MAX \
+    (((XROOTD_READ_REQUEST_MAX + XROOTD_READ_CHUNK_MAX - 1) \
+      / XROOTD_READ_CHUNK_MAX) * XRD_RESPONSE_HDR_LEN)
+
+/*
+ * Phase 33 C4 — rate-limit key memoization.
+ *
+ * Number of leading rate-limit rules whose computed key string the stream
+ * dispatch gate caches per connection (xrootd_ctx_t.rl_key_cache).  Identity-
+ * stable rules (VO / ISSUER / IP / DN) produce a connection-constant key, so the
+ * per-read re-hash in xrootd_rl_stream_gate is wasted work; caching the first
+ * few rules' keys removes it from the read hot path.  VOLUME rules are path-
+ * dependent and are never cached; rules at index >= this bound recompute as
+ * before.  8 covers any realistic per-server rule count with negligible ctx cost.
+ */
+#define XROOTD_RL_RULE_CACHE_MAX       8
+
+/*
+ * Phase 33 — GSI ephemeral DH key pool (src/gsi/keypool.c).
+ *
+ * Per-worker warm pool of pre-generated ffdhe2048 keys so kXGC_certreq never runs
+ * keygen on the nginx event thread under a concurrent handshake burst.  SIZE is
+ * the warm/refill ceiling (sized to cover a worst-case concurrent-handshake
+ * burst); when the pool falls to REFILL_LOW an off-thread refill of REFILL_BATCH
+ * keys is scheduled.  Each key is ~1-2 KB → SIZE keys ≈ 100-130 KB per worker.
+ */
+#define XROOTD_GSI_KEYPOOL_SIZE          64
+#define XROOTD_GSI_KEYPOOL_REFILL_LOW    32
+#define XROOTD_GSI_KEYPOOL_REFILL_BATCH  32
+
 /* Maximum simultaneously open files per connection. */
 #define XROOTD_MAX_FILES     16
 
@@ -153,4 +229,30 @@
                           0, (code), (msg), 0);                          \
         XROOTD_OP_ERR((ctx), (op));                                      \
         return xrootd_send_error((ctx), (c), (code), (msg));             \
+    } while (0)
+
+/*
+ * Collapse: log_access + XROOTD_OP_OK + return send_redirect.
+ * Used wherever the outcome is a successful redirect (locate, manager, etc.)
+ */
+#define XROOTD_RETURN_REDIR(ctx, c, op, verb, path, detail, host, port)  \
+    do {                                                                  \
+        xrootd_log_access((ctx), (c), (verb), (path), (detail),         \
+                          1, kXR_ok, NULL, 0);                           \
+        XROOTD_OP_OK((ctx), (op));                                        \
+        return xrootd_send_redirect((ctx), (c), (host), (port));         \
+    } while (0)
+
+/*
+ * Collapse: log_access + XROOTD_OP_ERR + *rc=send_error + return 0.
+ * Used in helper functions (validate_handle, parse_op_path, etc.) that
+ * signal failure to callers via an out-parameter and return int 0.
+ */
+#define XROOTD_BAIL_ERR(ctx, c, op, verb, path, detail, code, msg, rc)   \
+    do {                                                                  \
+        xrootd_log_access((ctx), (c), (verb), (path), (detail),         \
+                          0, (code), (msg), 0);                          \
+        XROOTD_OP_ERR((ctx), (op));                                      \
+        *(rc) = xrootd_send_error((ctx), (c), (code), (msg));            \
+        return 0;                                                         \
     } while (0)

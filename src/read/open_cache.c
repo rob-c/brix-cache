@@ -1,4 +1,6 @@
 #include "open.h"
+#include "slice_read.h"
+#include "../path/beneath.h"
 
 /* ------------------------------------------------------------------ */
 /* Cache-Aware Read-Open — open_cached_read for cached content serving   */
@@ -26,32 +28,42 @@ xrootd_open_cached_read(xrootd_ctx_t *ctx, ngx_connection_t *c,
                         const char *clean_path,
                         uint16_t options, uint16_t mode_bits)
 {
-    char  acl_resolved[PATH_MAX];
-    char  resolved[PATH_MAX];
+    char        acl_path[PATH_MAX];
+    char        resolved[PATH_MAX];
+    struct stat cst;
+    int         n;
 
-    if (!xrootd_resolve_path_noexist(c->log, &conf->common.root,
-                                     clean_path, acl_resolved,
-                                     sizeof(acl_resolved))) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
-                          clean_path, "cache", kXR_ArgInvalid, "invalid path");
-    }
+    xrootd_beneath_full_path(conf->common.root_canon, clean_path,
+                             acl_path, sizeof(acl_path));
 
-    if (xrootd_check_vo_acl_identity(c->log, acl_resolved, conf->vo_rules,
+    if (xrootd_check_vo_acl_identity(c->log, acl_path, conf->vo_rules,
                                      ctx->identity) != NGX_OK) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
                           clean_path, "cache", kXR_NotAuthorized, "VO not authorized");
     }
 
-    if (xrootd_resolve_path(c->log, &conf->cache_root,
-                            clean_path, resolved, sizeof(resolved))) {
-        return xrootd_open_resolved_file(ctx, c, conf, resolved,
-                                         options, mode_bits, 0);
+    /* Build the absolute cache path: cache_root + "/" + rel_clean_path */
+    n = snprintf(resolved, sizeof(resolved), "%s/%s",
+                 (char *) conf->cache_root.data,
+                 xrootd_beneath_rel(clean_path));
+    if (n < 0 || (size_t) n >= sizeof(resolved)) {
+        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+                          clean_path, "cache", kXR_ArgInvalid, "path too long");
     }
 
-    if (!xrootd_resolve_path_noexist(c->log, &conf->cache_root,
-                                     clean_path, resolved, sizeof(resolved))) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
-                          clean_path, "cache", kXR_ArgInvalid, "invalid cache path");
+    /*
+     * Phase 26 slice caching: when enabled and an origin is configured, serve
+     * this read handle from per-slice cache files instead of fetching the whole
+     * file at open.  Falls through to the whole-file path when slicing is off.
+     */
+    if (conf->cache_slice_size > 0 && conf->cache_origin_host.len > 0) {
+        return xrootd_open_slice_handle(ctx, c, conf, clean_path, resolved,
+                                        options);
+    }
+
+    if (stat(resolved, &cst) == 0) {
+        return xrootd_open_resolved_file(ctx, c, conf, resolved,
+                                         options, mode_bits, 0);
     }
 
     return xrootd_cache_open_or_fill(ctx, c, conf, clean_path,

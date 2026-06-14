@@ -123,8 +123,22 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
         return NGX_ERROR;
     }
 
-    if (xrootd_configure_session_registry(cf) != NGX_OK) {
-        return NGX_ERROR;
+    {
+        /* Session registry is a single zone shared by all blocks; size it to
+         * the largest xrootd_session_slots requested by any enabled server. */
+        ngx_uint_t session_slots = 0;
+
+        for (i = 0; i < cmcf->servers.nelts; i++) {
+            xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                       ngx_stream_xrootd_module);
+            if (xcf->common.enable && xcf->session_slots > session_slots) {
+                session_slots = xcf->session_slots;
+            }
+        }
+
+        if (xrootd_configure_session_registry(cf, session_slots) != NGX_OK) {
+            return NGX_ERROR;
+        }
     }
 
     {
@@ -148,19 +162,25 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
             return NGX_ERROR;
         }
 
-        /* Redirect-collapse cache: init if any server has collapse_redir on. */
+        /* Redirect-collapse cache: init if any server has collapse_redir on.
+         * Capacity is the max xrootd_redir_cache_slots across enabled blocks. */
         {
             ngx_uint_t has_collapse = 0;
+            ngx_uint_t redir_slots  = 0;
             for (i = 0; i < cmcf->servers.nelts; i++) {
                 xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
                                                            ngx_stream_xrootd_module);
                 if (xcf->common.enable && xcf->collapse_redir) {
                     has_collapse = 1;
-                    break;
+                    if (xcf->redir_cache_slots != NGX_CONF_UNSET_UINT
+                        && xcf->redir_cache_slots > redir_slots)
+                    {
+                        redir_slots = xcf->redir_cache_slots;
+                    }
                 }
             }
             if (has_collapse) {
-                if (xrootd_redir_cache_configure(cf) != NGX_OK) {
+                if (xrootd_redir_cache_configure(cf, redir_slots) != NGX_OK) {
                     return NGX_ERROR;
                 }
             }

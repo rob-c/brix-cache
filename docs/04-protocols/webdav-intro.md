@@ -46,8 +46,8 @@ method dispatch
   +-- DELETE   -> remove file
   +-- MKCOL    -> create directory
   +-- PROPFIND -> directory or file properties
-  +-- COPY     -> server-side copy or optional HTTP-TPC pull
-  +-- POST     -> HTTP-TPC push
+  +-- COPY     -> server-side copy, or HTTP-TPC pull (Source header)
+  |               or HTTP-TPC push (Destination + Credential header)
   +-- LOCK     -> acquire or refresh an exclusive write lock
   +-- UNLOCK   -> release an exclusive write lock
 ```

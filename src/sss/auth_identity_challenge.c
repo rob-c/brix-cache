@@ -128,10 +128,8 @@ xrootd_sss_parse_identity(const u_char *data, size_t len,
 ngx_int_t
 xrootd_sss_auth_failed(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-    xrootd_log_access(ctx, c, "AUTH", "-", "sss",
-                      0, kXR_NotAuthorized, "SSS auth failed", 0);
-    XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
-    return xrootd_send_error(ctx, c, kXR_NotAuthorized, "SSS auth failed");
+    XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "sss",
+                      kXR_NotAuthorized, "SSS auth failed");
 }
 
 ngx_int_t

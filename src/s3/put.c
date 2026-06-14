@@ -112,7 +112,6 @@ s3_dashboard_identity(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 typedef struct {
     ngx_http_request_t   *r;
     xrootd_staged_file_t  staged;
-    const u_char         *data;
     size_t                len;
     ssize_t               nwritten;
     int                   io_errno;
@@ -126,27 +125,25 @@ static void
 s3_put_aio_thread(void *data, ngx_log_t *log)
 {
     s3_put_aio_t *t = data;
-    size_t        remaining = t->len;
-    off_t         off = 0;
-    const u_char *p = t->data;
 
     (void) log;
 
-    t->nwritten = 0;
     t->io_errno = 0;
 
-    while (remaining > 0) {
-        ssize_t n = pwrite(t->staged.fd, p, remaining, off);
-        if (n < 0) {
-            t->io_errno = errno;
-            t->nwritten = -1;
-            return;
-        }
-        p         += n;
-        off       += n;
-        remaining -= (size_t) n;
-        t->nwritten += n;
+    /*
+     * Phase 31 W2: stream the in-memory body bufs straight to the staged temp
+     * fd — no full-body contiguous copy.  Only pwrite(2), safe on the thread
+     * pool; spooled bodies are gated to the synchronous path by the caller.
+     */
+    if (xrootd_http_body_write_to_fd(t->r, t->staged.fd, t->final_path, NULL)
+        != NGX_OK)
+    {
+        t->io_errno = errno;
+        t->nwritten = -1;
+        return;
     }
+
+    t->nwritten = (ssize_t) t->len;
 }
 
 static void
@@ -446,9 +443,6 @@ s3_put_body_handler(ngx_http_request_t *r)
     {
         ngx_thread_task_t *task;
         s3_put_aio_t      *t;
-        u_char            *wbuf;
-        ngx_buf_t         *buf;
-        ngx_chain_t       *chain;
 
         task = ngx_thread_task_alloc(r->pool, sizeof(s3_put_aio_t));
         if (task == NULL) {
@@ -467,28 +461,10 @@ s3_put_body_handler(ngx_http_request_t *r)
         ngx_cpystrn((u_char *) t->root_canon,
                     (u_char *) cf->common.root_canon, sizeof(t->root_canon));
 
-        wbuf = ngx_palloc(r->pool, body_summary.bytes);
-        if (wbuf == NULL) {
-            xrootd_staged_abort(r->connection->log, cf->common.root_canon, &staged, 1);
-            s3_put_finalize_error(r);
-            return;
-        }
-
-        {
-            u_char *wp = wbuf;
-            for (chain = r->request_body->bufs; chain != NULL;
-                 chain = chain->next)
-            {
-                size_t n;
-                buf = chain->buf;
-                n = (size_t) (buf->last - buf->pos);
-                if (n > 0) {
-                    ngx_memcpy(wp, buf->pos, n);
-                    wp += n;
-                }
-            }
-        }
-        t->data = wbuf;
+        /*
+         * Phase 31 W2: no full-body collection — the thread streams the
+         * in-memory body bufs straight to the staged fd (s3_put_aio_thread).
+         */
 
         task->handler       = s3_put_aio_thread;
         task->event.handler = s3_put_aio_done;

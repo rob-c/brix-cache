@@ -295,7 +295,7 @@ Most grid proxies use `id-ppl-inheritAll` (`1.3.6.1.5.5.7.21.1`) as the policy l
 
 ### 5.3 Generate the proxy with Python
 
-The Python `cryptography` library does not have native RFC 3820 support, so the extension must be DER-encoded manually. The implementation lives in [`utils/make_proxy.py`](../utils/make_proxy.py); run that helper instead of copying Python from this guide:
+The Python `cryptography` library does not have native RFC 3820 support, so the extension must be DER-encoded manually. The implementation lives in [`utils/make_proxy.py`](../../utils/make_proxy.py); run that helper instead of copying Python from this guide:
 
 ```bash
 # From the project root (uses default PKI path /tmp/xrd-test/pki)

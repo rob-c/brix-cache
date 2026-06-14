@@ -2,6 +2,39 @@
 
 #include <string.h>
 
+/*
+ * identity.c — builder/accessors for the protocol-agnostic principal.
+ *
+ * WHAT: Implements xrootd_identity_t lifecycle (alloc) and the setters that
+ *       populate it from the various wire-auth flavours — GSI DN, JWT/token
+ *       claims, SSS user, S3 access key — plus const accessors
+ *       (xrootd_identity_dn_cstr / _subject_cstr / _vo_csv_cstr), a token
+ *       scope check (xrootd_identity_check_token_scope), and a one-line audit
+ *       summary (xrootd_identity_describe).
+ *
+ * WHY:  Each protocol verifies credentials its own way, but policy, ACL, and
+ *       audit code must reason about a single canonical principal shape.  This
+ *       module is the only place that knows how to translate per-protocol
+ *       credential fragments into that shape and to keep the structured arrays
+ *       (vo_list, scopes, token_scopes) consistent with the flat compatibility
+ *       views (vo_csv, scope_raw) that current hot paths still read.
+ *
+ * HOW:  Every string lands in the caller's ngx_pool_t via the internal
+ *       xrootd_identity_set_cstr (NUL-terminated copy so the values can be
+ *       passed to C string APIs).  CSV group lists are tokenised by
+ *       xrootd_identity_split_csv and space-separated OAuth scopes by
+ *       xrootd_identity_split_spaces into ngx_str_t arrays.  Any setter that
+ *       records a credential ORs the matching XROOTD_AUTHN_* bit into
+ *       auth_method and marks is_authenticated; token claims additionally
+ *       cache the parsed scope table and derive has_read_scope /
+ *       has_write_scope for fast policy decisions.
+ */
+
+/*
+ * Append one ngx_str_t copy of [start, start+len) to *array, lazily creating
+ * the array on first use.  Empty/NULL inputs are a successful no-op so callers
+ * can feed raw tokeniser output without pre-filtering.
+ */
 static ngx_int_t
 xrootd_identity_push_str(ngx_pool_t *pool, ngx_array_t **array,
     const char *start, size_t len)
@@ -36,6 +69,10 @@ xrootd_identity_push_str(ngx_pool_t *pool, ngx_array_t **array,
     return NGX_OK;
 }
 
+/*
+ * Split a comma-separated list (e.g. VO/group CSV) into individual ngx_str_t
+ * elements, skipping empty fields and runs of commas.
+ */
 static ngx_int_t
 xrootd_identity_split_csv(ngx_pool_t *pool, ngx_array_t **array,
     const char *csv)
@@ -66,6 +103,10 @@ xrootd_identity_split_csv(ngx_pool_t *pool, ngx_array_t **array,
     return NGX_OK;
 }
 
+/*
+ * Split a space-separated list (the raw OAuth `scope` claim) into individual
+ * ngx_str_t scope tokens, skipping empty fields and runs of spaces.
+ */
 static ngx_int_t
 xrootd_identity_split_spaces(ngx_pool_t *pool, ngx_array_t **array,
     const char *spaces)
@@ -96,6 +137,11 @@ xrootd_identity_split_spaces(ngx_pool_t *pool, ngx_array_t **array,
     return NGX_OK;
 }
 
+/*
+ * Map an auth_method bitmask to a single human-readable label for audit
+ * output.  Methods are tested in priority order; the first set bit wins, so a
+ * principal authenticated by several mechanisms reports its strongest one.
+ */
 static const char *
 xrootd_identity_method_name(ngx_uint_t method)
 {
@@ -120,6 +166,10 @@ xrootd_identity_method_name(ngx_uint_t method)
     return "NONE";
 }
 
+/*
+ * Allocate and zero-initialise a new identity on `pool`, seeding auth_method
+ * to XROOTD_AUTHN_NONE (unauthenticated until a setter records a credential).
+ */
 xrootd_identity_t *
 xrootd_identity_alloc(ngx_pool_t *pool)
 {
@@ -137,6 +187,10 @@ xrootd_identity_alloc(ngx_pool_t *pool)
     return id;
 }
 
+/*
+ * Copy a C string into `dst` as a pool-allocated, NUL-terminated ngx_str_t.
+ * A NULL or empty source clears `dst` to a null string and still succeeds.
+ */
 ngx_int_t
 xrootd_identity_set_cstr(ngx_pool_t *pool, ngx_str_t *dst, const char *src)
 {
@@ -164,6 +218,10 @@ xrootd_identity_set_cstr(ngx_pool_t *pool, ngx_str_t *dst, const char *src)
     return NGX_OK;
 }
 
+/*
+ * Record a distinguished name (GSI cert DN, SSS user, etc.), OR in the given
+ * XROOTD_AUTHN_* method bit, and mark the principal authenticated.
+ */
 ngx_int_t
 xrootd_identity_set_dn(xrootd_identity_t *id, ngx_pool_t *pool,
     const char *dn, ngx_uint_t auth_method)
@@ -181,6 +239,10 @@ xrootd_identity_set_dn(xrootd_identity_t *id, ngx_pool_t *pool,
     return NGX_OK;
 }
 
+/*
+ * Record a subject (JWT `sub` or S3 access key), OR in the given
+ * XROOTD_AUTHN_* method bit, and mark the principal authenticated.
+ */
 ngx_int_t
 xrootd_identity_set_subject(xrootd_identity_t *id, ngx_pool_t *pool,
     const char *subject, ngx_uint_t auth_method)
@@ -198,6 +260,10 @@ xrootd_identity_set_subject(xrootd_identity_t *id, ngx_pool_t *pool,
     return NGX_OK;
 }
 
+/*
+ * Store the VO/group membership both as the flat CSV compatibility view
+ * (vo_csv) and as the structured vo_list array, keeping the two in sync.
+ */
 ngx_int_t
 xrootd_identity_set_vos_csv(xrootd_identity_t *id, ngx_pool_t *pool,
     const char *vo_csv)
@@ -213,6 +279,14 @@ xrootd_identity_set_vos_csv(xrootd_identity_t *id, ngx_pool_t *pool,
     return xrootd_identity_split_csv(pool, &id->vo_list, vo_csv);
 }
 
+/*
+ * Populate the identity from a verified token's claims: sets subject (sub),
+ * issuer (iss), raw scope string, and groups; mirrors `sub` into `dn` when
+ * present; tokenises the raw scope into the scopes array; caches up to
+ * XROOTD_MAX_TOKEN_SCOPES parsed scope entries; and derives has_read_scope /
+ * has_write_scope from their read/write/create flags.  Marks the principal
+ * token-authenticated.
+ */
 ngx_int_t
 xrootd_identity_set_token_claims(xrootd_identity_t *id, ngx_pool_t *pool,
     const xrootd_token_claims_t *claims)
@@ -266,12 +340,14 @@ xrootd_identity_set_token_claims(xrootd_identity_t *id, ngx_pool_t *pool,
     return NGX_OK;
 }
 
+/* Return the DN as a C string, or "" when the identity or field is unset. */
 const char *
 xrootd_identity_dn_cstr(const xrootd_identity_t *id)
 {
     return (id != NULL && id->dn.data != NULL) ? (const char *) id->dn.data : "";
 }
 
+/* Return the subject as a C string, or "" when the identity or field is unset. */
 const char *
 xrootd_identity_subject_cstr(const xrootd_identity_t *id)
 {
@@ -279,6 +355,7 @@ xrootd_identity_subject_cstr(const xrootd_identity_t *id)
            ? (const char *) id->subject.data : "";
 }
 
+/* Return the VO/group CSV as a C string, or "" when unset. */
 const char *
 xrootd_identity_vo_csv_cstr(const xrootd_identity_t *id)
 {
@@ -286,6 +363,12 @@ xrootd_identity_vo_csv_cstr(const xrootd_identity_t *id)
            ? (const char *) id->vo_csv.data : "";
 }
 
+/*
+ * Authorise `logical_path` against the cached token scopes.  Returns NGX_OK
+ * (allow) immediately for non-token principals — scope checks apply only to
+ * token auth; otherwise delegates to xrootd_token_check_write/read depending
+ * on need_write and returns NGX_OK only when the scope grants access.
+ */
 ngx_int_t
 xrootd_identity_check_token_scope(const xrootd_identity_t *id,
     const char *logical_path, int need_write)
@@ -307,6 +390,10 @@ xrootd_identity_check_token_scope(const xrootd_identity_t *id,
            ? NGX_OK : NGX_ERROR;
 }
 
+/*
+ * Build a pool-allocated "dn=... sub=... method=..." summary string suitable
+ * for access/audit logs.  Returns a null ngx_str_t on allocation failure.
+ */
 ngx_str_t
 xrootd_identity_describe(const xrootd_identity_t *id, ngx_pool_t *pool)
 {

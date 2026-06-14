@@ -1,4 +1,26 @@
 #include "cms_internal.h"
+/*
+ * wire.c — CMS frame header and XrdOucPup payload codec
+ *
+ * WHAT: Low-level get/put primitives for the XRootD CMS wire format. Two layers
+ *       live here: (1) raw big-endian scalar I/O for the fixed CMS frame header
+ *       (get16/get32, put16/put32), and (2) the tagged/packed payload codec
+ *       (put_short, put_int, put_string) that serialises the variable-length
+ *       fields of a kYR_login payload.
+ *
+ * WHY: The real XrdCms manager (cmsd) speaks a specific binary dialect. The
+ *      header is plain big-endian; the payload after the Fence is encoded by
+ *      XrdOucPup, which tags scalars with a type byte but writes strings with NO
+ *      tag — the parser tells them apart by the PT_short (0x80) bit of the first
+ *      byte. Getting the byte layout wrong silently breaks interop with cmsd.
+ *
+ * HOW: Scalars are tagged: put_short emits CMS_PT_SHORT (0x80) then a 2-byte BE
+ *      value; put_int emits CMS_PT_INT (0xa0) then a 4-byte BE value. Strings are
+ *      packed as [2B BE length][raw bytes][trailing NUL], where the length field
+ *      counts the NUL (strlen+1) to match XrdOucPup::Pack; an empty/absent string
+ *      is a bare 2-byte zero length with no data and no NUL. Every put_* returns
+ *      the cursor advanced past the bytes it wrote so callers can chain writes.
+ */
 
 /* ---- ngx_xrootd_cms_get16 — read big-endian 16-bit value from wire buffer ----
  *
@@ -56,6 +78,8 @@ ngx_xrootd_cms_put_short(u_char *p, uint16_t value)
 {
     *p++ = CMS_PT_SHORT;
     ngx_xrootd_cms_put16(p, value);
+    /* p already stepped over the tag byte above, so +2 covers only the value;
+     * net 3 bytes (1 tag + 2 BE) consumed from the caller's original cursor. */
     return p + 2;
 }
 
@@ -68,5 +92,34 @@ ngx_xrootd_cms_put_int(u_char *p, uint32_t value)
 {
     *p++ = CMS_PT_INT;
     ngx_xrootd_cms_put32(p, value);
+    /* p already stepped over the tag byte above, so +4 covers only the value;
+     * net 5 bytes (1 tag + 4 BE) consumed from the caller's original cursor. */
     return p + 4;
+}
+
+/* ---- ngx_xrootd_cms_put_string — write an XrdOucPup-style packed string ----
+ *
+ * WHAT: Encodes a string in the real XrdCms wire format used after the Fence in
+ *      a kYR_login payload: a 2-byte big-endian length followed by the raw bytes
+ *      INCLUDING a trailing NUL.  The encoded length counts the NUL (strlen+1),
+ *      matching XrdOucPup::Pack.  A NULL or zero-length string is encoded as a
+ *      bare 2-byte zero length (no data, no NUL) — exactly how XrdOucPup emits an
+ *      empty/absent string.  Unlike put_short/put_int there is NO type tag byte;
+ *      the real Parser distinguishes a string from a scalar by the absence of the
+ *      PT_short (0x80) bit in the first byte. Returns the advanced cursor. */
+
+u_char *
+ngx_xrootd_cms_put_string(u_char *p, const u_char *data, size_t len)
+{
+    if (data == NULL || len == 0) {
+        ngx_xrootd_cms_put16(p, 0);
+        return p + 2;
+    }
+
+    ngx_xrootd_cms_put16(p, (uint16_t) (len + 1));
+    p += 2;
+    ngx_memcpy(p, data, len);
+    p += len;
+    *p++ = '\0';
+    return p;
 }

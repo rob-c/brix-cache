@@ -78,7 +78,7 @@ That is the entire signing authority. Two files.
 
 ### 2.1 Using the helper script (recommended)
 
-The project includes a ready-made script at [`utils/make_token.py`](../utils/make_token.py):
+The project includes a ready-made script at [`utils/make_token.py`](../../utils/make_token.py):
 
 ```bash
 python3 utils/make_token.py init /tmp/xrd-test/tokens
@@ -92,7 +92,7 @@ That is it. Your signing authority is ready.
 
 ### 2.2 What the helper creates
 
-The signing authority is just an RSA keypair. The private key signs tokens; the public key, published as a JWKS, lets the server verify them. The implementation lives in [`utils/make_token.py`](../utils/make_token.py), primarily in `TokenIssuer.init_keys()`.
+The signing authority is just an RSA keypair. The private key signs tokens; the public key, published as a JWKS, lets the server verify them. The implementation lives in [`utils/make_token.py`](../../utils/make_token.py), primarily in `TokenIssuer.init_keys()`.
 
 ```bash
 python3 utils/make_token.py init /tmp/xrd-test/tokens

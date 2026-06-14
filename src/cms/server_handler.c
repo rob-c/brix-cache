@@ -59,7 +59,25 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
     ctx->host[len] = '\0';
 
     conf = ngx_stream_get_module_srv_conf(s, ngx_stream_xrootd_cms_srv_module);
+    ctx->conf        = conf;
     ctx->interval_ms = (ngx_msec_t) conf->interval * 1000;
+
+    /*
+     * W1b — accept-time CIDR allowlist gate.  Reject before installing any
+     * frame handler so an unauthorised peer never reaches the LOGIN/registry
+     * path.  When no allowlist is configured this passes (back-compat).
+     */
+    if (xrootd_cms_srv_check_peer(c, conf) != NGX_OK) {
+        ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
+                      "xrootd: CMS server: registration denied from %s "
+                      "(not in xrootd_cms_server_allow)", ctx->host);
+        ngx_stream_finalize_session(s, NGX_STREAM_FORBIDDEN);
+        return;
+    }
+
+    /* W1a — require the sss handshake before registration iff a keytab is set. */
+    ctx->auth_state = (conf->sss_keys != NULL) ? CMS_AUTH_REQUESTED
+                                               : CMS_AUTH_NONE;
 
     ctx->ping_timer.log  = c->log;
     ctx->ping_timer.data = ctx;

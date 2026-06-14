@@ -1,5 +1,28 @@
+/*
+ * vfs_dir.c — VFS directory enumeration (opendir/readdir/closedir).
+ *
+ * WHAT: Implements xrootd_vfs_opendir(), xrootd_vfs_readdir(), and
+ *       xrootd_vfs_closedir() over the opaque xrootd_vfs_dir_t handle. readdir
+ *       yields one entry per call as a pooled, NUL-terminated ngx_str_t, with an
+ *       optional lstat of the child filled into an xrootd_vfs_stat_t.
+ *
+ * WHY:  Directory listing (XRootD kXR_dirlist, WebDAV PROPFIND, S3 LIST) needs
+ *       confinement, the "." / ".." filter, and a NGX_DONE end-of-stream signal
+ *       to be handled once, the same way, for every protocol — rather than each
+ *       front end driving opendir/readdir itself.
+ *
+ * HOW:  opendir re-verifies confinement, pcalloc's the handle on ctx->pool,
+ *       dups the resolved path, and opens the C-library DIR*; the open itself is
+ *       observed as XROOTD_METRIC_OP_DIRLIST. readdir loops skipping "."/".."
+ *       (and entries are distinguished from a real error via errno-cleared
+ *       readdir, returning NGX_DONE when the stream ends), copies the name into
+ *       the pool, and optionally builds "<dir>/<name>" for an lstat. closedir
+ *       calls closedir(3) and nulls the handle so it is idempotent.
+ */
 #include "vfs_internal.h"
 
+/* Open the resolved ctx directory under confinement. Returns a pooled handle or
+ * NULL with the errno in *err_out; the open is metered as OP_DIRLIST. */
 xrootd_vfs_dir_t *
 xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
 {
@@ -68,6 +91,9 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
     return dh;
 }
 
+/* Return the next entry: name as a pooled NUL-terminated ngx_str_t, plus an
+ * optional lstat of the child. Skips "." and ".."; returns NGX_DONE at
+ * end-of-stream and NGX_ERROR (errno set) on failure. */
 ngx_int_t
 xrootd_vfs_readdir(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
     xrootd_vfs_stat_t *stat_out)
@@ -126,6 +152,8 @@ xrootd_vfs_readdir(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
     return NGX_OK;
 }
 
+/* Close the directory stream and null the handle (idempotent). Logs and returns
+ * NGX_ERROR if closedir(3) fails. */
 ngx_int_t
 xrootd_vfs_closedir(xrootd_vfs_dir_t *dh, ngx_log_t *log)
 {

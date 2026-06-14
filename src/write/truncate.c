@@ -69,44 +69,18 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		/* Path-based truncate */
 		char resolved[PATH_MAX];
 		char reqpath[XROOTD_MAX_PATH + 1];
-		if (ctx->payload == NULL) {
-			return xrootd_send_error(ctx, c, kXR_ArgMissing, "no path given");
+		if (xrootd_resolve_op_path(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE", conf,
+								   XROOTD_PATH_EITHER,
+								   reqpath, sizeof(reqpath),
+								   resolved, sizeof(resolved)) != NGX_OK) {
+			return ctx->write_rc;
 		}
-		if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
-								 reqpath, sizeof(reqpath), 1)) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE", "-",
-							  detail, kXR_ArgInvalid, "invalid path payload");
+		if (xrootd_auth_gate(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
+							  reqpath, resolved, conf,
+							  XROOTD_AUTH_UPDATE, 1) != NGX_OK) {
+			return ctx->write_rc;
 		}
-		if (!xrootd_resolve_path_write(c->log, &conf->common.root,
-									   reqpath,
-									   resolved, sizeof(resolved))) {
-			  /*
-			   * write-style resolution handles the common "target may not exist" case.
-			   * If that fails, fall back to the normal resolver so existing files with
-			   * canonical paths still truncate correctly.
-			   */
-			if (!xrootd_resolve_path(c->log, &conf->common.root,
-									 reqpath,
-									 resolved, sizeof(resolved))) {
-				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
-								  reqpath, detail, kXR_NotFound, "file not found");
-			}
-		}
-		if (xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_UPDATE) != NGX_OK) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
-							  resolved, detail, kXR_NotAuthorized, "authdb denied");
-		}
-
-		if (xrootd_check_vo_acl_identity(c->log, resolved, conf->vo_rules,
-								 ctx->identity) != NGX_OK) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
-							  resolved, detail, kXR_NotAuthorized, "VO not authorized");
-		}
-		if (xrootd_check_token_scope(ctx, reqpath, 1) != NGX_OK) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
-							  reqpath, detail, kXR_NotAuthorized, "token scope denied");
-		}
-		rc = xrootd_open_confined(c->log, &conf->common.root, resolved,
+		rc = xrootd_open_beneath(conf->rootfd, reqpath,
 								  O_WRONLY | O_NOCTTY, 0);
 		if (rc < 0) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",

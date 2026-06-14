@@ -145,14 +145,30 @@ extern ngx_module_t ngx_http_xrootd_s3_module;
 extern const xrootd_http_operation_t xrootd_s3_operations[];
 extern const ngx_uint_t xrootd_s3_operations_count;
 
+/*
+ * Confined filesystem operations (defined in path/resolve_confined_ops.c).
+ * All take a PRE-CANONICALIZED root (root_canon) and an already-resolved
+ * absolute path; they re-enforce root confinement at the kernel layer
+ * (openat2 RESOLVE_BENEATH, with O_NOFOLLOW parent-fd + *at() fallback) so
+ * a symlink swapped in after path resolution cannot escape root.  Each sets
+ * errno on failure.
+ */
+
+/* Open a file under confinement. Returns an fd (NOT pool-managed — caller
+ * must close()) or -1 on error. flags/mode as for open(2). */
 int xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int flags, mode_t mode);
+/* unlinkat() under confinement; is_dir != 0 → AT_REMOVEDIR. 0 ok, -1 error. */
 int xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int is_dir);
+/* mkdirat() under confinement. Returns 0 on success, -1 on error. */
 int xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, mode_t mode);
+/* renameat() with BOTH endpoints confined under the same root. 0 ok, -1 err. */
 int xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
+/* linkat() hard-link with BOTH endpoints confined under the same root.
+ * Returns 0 on success, -1 on error. */
 int xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
 
@@ -160,6 +176,13 @@ int xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
  * Handler entry points (called from module.c)
  * ---------------------------------------------------------------------- */
 
+/*
+ * nginx CONTENT-phase handler for the whole S3 API. Parses URI → bucket+key,
+ * verifies SigV4, then dispatches by method/query (list, get, head, put,
+ * delete, multipart, copy). Returns NGX_DECLINED if S3 is disabled for the
+ * location; otherwise an HTTP status or NGX_DONE (async PUT/POST body read).
+ * Write ops are rejected (403) before body read when allow_write is off.
+ */
 ngx_int_t ngx_http_s3_handler(ngx_http_request_t *r);
 
 /* -------------------------------------------------------------------------
@@ -176,9 +199,20 @@ ngx_int_t s3_handle_list(ngx_http_request_t *r,
                           ngx_http_s3_loc_conf_t *cf);
 
 /* list_walk.c — directory walker and key comparator */
+
+/*
+ * Recursively scan dir_path (filesystem), appending objects/CommonPrefixes
+ * into entries[] starting at *count, never exceeding max_entries. key_prefix
+ * is the key path accumulated so far; filter_prefix/delimiter apply the
+ * ListObjectsV2 prefix/delimiter semantics (NULL = none). Directory sentinels
+ * are omitted. *count is advanced in place; returns the new total *count
+ * (0 if dir_path cannot be opened). Best-effort: unreadable/overlong entries
+ * are silently skipped.
+ */
 int s3_walk(const char *root, const char *dir_path, const char *key_prefix,
     const char *filter_prefix, const char *delimiter, s3_entry_t *entries,
     int max_entries, int *count);
+/* qsort(3) comparator: lexicographic strcmp on s3_entry_t.key. */
 int entry_cmp(const void *a, const void *b);
 
 /* HEAD /bucket/key → metadata */
@@ -201,13 +235,24 @@ void s3_post_object_body_handler(ngx_http_request_t *r);
  * Metrics
  * ---------------------------------------------------------------------- */
 
+/* Resolve the request to its operation-table entry and return that op's
+ * XROOTD_S3_METHOD_* slot, or XROOTD_S3_METHOD_OTHER if unmatched. */
 ngx_uint_t s3_metrics_method_slot(ngx_http_request_t *r);
+/* Increment requests_total[slot] (out-of-range slot clamped to OTHER). */
 void s3_metrics_request_method(ngx_uint_t method_slot);
+/* Increment responses_total[slot][status-class of http_status]; also feeds the
+ * unified per-op metric. http_status is a real HTTP code, not a handler rc. */
 void s3_metrics_response_status(ngx_uint_t method_slot, ngx_uint_t http_status);
+/* Map handler_rc → effective HTTP status, then record the response counter.
+ * No-op when handler_rc == NGX_DONE (async path counts in its own callback). */
 void s3_metrics_response_method(ngx_http_request_t *r,
     ngx_uint_t method_slot, ngx_int_t handler_rc);
+/* As s3_metrics_response_method() but returns handler_rc unchanged (call-site
+ * convenience: `return s3_metrics_return_method(...);`). */
 ngx_int_t s3_metrics_return_method(ngx_http_request_t *r,
     ngx_uint_t method_slot, ngx_int_t handler_rc);
+/* As s3_metrics_response_method() then ngx_http_finalize_request(r, handler_rc).
+ * Use from async body callbacks that own request finalization (no return). */
 void s3_metrics_finalize_request_method(ngx_http_request_t *r,
     ngx_uint_t method_slot, ngx_int_t handler_rc);
 
@@ -252,20 +297,48 @@ ngx_int_t s3_set_header(ngx_http_request_t *r, const char *key,
 int s3_resolve_key(const char *root, const char *key, char *out, size_t outsz);
 
 /* multipart.c */
+
+/* Return 1 if <key> is present as a bare flag (no '=') in r->args, else 0. */
 int s3_has_query_flag(ngx_http_request_t *r, const char *key);
+/* Copy query parameter <key>'s value into out (NUL-terminated, truncated to
+ * outsz). Returns 1 on success, 0 if absent or value empty. */
 int s3_get_query_param(ngx_http_request_t *r, const char *key, char *out, size_t outsz);
+/* Build the hidden MPU staging dir path (".<basename>.mpu-<upload_id>" beside
+ * fs_path) into out_dir; always NUL-terminates within outsz. */
 void s3_get_mpu_dir(const char *fs_path, const char *upload_id, char *out_dir, size_t outsz);
+/* InitiateMultipartUpload: mint an opaque hex upload_id, create the confined
+ * 0700 staging dir, send the XML result. Returns HTTP status (500 on error). */
 ngx_int_t s3_handle_multipart_initiate(ngx_http_request_t *r, const char *fs_path, ngx_http_s3_loc_conf_t *cf, const char *key_str);
+/* AbortMultipartUpload: validate upload_id, recursively remove staging dir.
+ * Returns 204; 400 invalid id, 404 NoSuchUpload, 500 on removal failure. */
 ngx_int_t s3_handle_multipart_abort(ngx_http_request_t *r, const char *fs_path, ngx_http_s3_loc_conf_t *cf, const char *upload_id);
+/* CompleteMultipartUpload async body callback: concatenate part.1..part.N in
+ * ascending order into a temp file, atomically rename to the object, best-effort
+ * clean staging, send CompleteMultipartUploadResult XML. Owns finalization. */
 void s3_multipart_complete_body_handler(ngx_http_request_t *r);
+/* ListParts: enumerate staged "part.<N>" files, sort, paginate (part-number-marker
+ * + max-parts), emit ListPartsResult XML. Returns HTTP status. */
 ngx_int_t s3_handle_list_parts(ngx_http_request_t *r, const char *fs_path, ngx_http_s3_loc_conf_t *cf, const char *key_str);
+/* ListMultipartUploads: scan bucket root for ".<key>.mpu-<id>" staging dirs,
+ * sort by key, paginate, emit ListMultipartUploadsResult XML. Returns status. */
 ngx_int_t s3_handle_list_multipart_uploads(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf);
+/* UploadPartCopy: copy a confined source (x-amz-copy-source) into staged
+ * part.<part_num>, emit CopyPartResult XML. Returns HTTP status (500 unlinks
+ * the partial part). */
 ngx_int_t s3_handle_upload_part_copy(ngx_http_request_t *r, const char *fs_path, ngx_http_s3_loc_conf_t *cf, const char *upload_id, int part_num);
 
 /* copy.c */
+
+/* CopyObject: server-side copy of x-amz-copy-source (confined) to dst_fs_path
+ * via copy_file_range (read/write fallback), staged temp+rename. Emits
+ * CopyObjectResult XML. Returns HTTP status. */
 ngx_int_t s3_handle_copy_object(ngx_http_request_t *r, const char *dst_fs_path, ngx_http_s3_loc_conf_t *cf);
 
 /* delete_objects.c */
+
+/* DeleteObjects (POST ?delete) async body callback: parse the <Delete> XML
+ * (max 1000 keys, 1 MiB body), unlink each (rmdir fallback for dirs), emit a
+ * DeleteResult with per-key Deleted/Error. Owns request finalization. */
 void s3_delete_objects_body_handler(ngx_http_request_t *r);
 
 /*

@@ -1,0 +1,27 @@
+/*
+ * err_strings.h — canonical error message strings for common errnos.
+ *
+ * xrootd_kxr_err_string(err) returns the lowercase message string that
+ * conformance tests assert for each errno.  strerror(EACCES) returns
+ * "Permission denied" (capital P) on Linux; centralising here prevents
+ * any future case or format drift across handlers.
+ */
+#pragma once
+#include <errno.h>
+#include <string.h>
+
+static inline const char *
+xrootd_kxr_err_string(int err)
+{
+    switch (err) {
+    case EACCES: /* fall through */
+    case EPERM:  return "permission denied";
+    case ENOENT: return "file not found";
+    case ENOTDIR:return "not a directory";
+    case EISDIR: return "is a directory";
+    case ENOSPC: return "no space left on device";
+    case EEXIST: return "already exists";
+    case ENOMEM: return "out of memory";
+    default:     return strerror(err);
+    }
+}
