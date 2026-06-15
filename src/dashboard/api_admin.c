@@ -416,7 +416,21 @@ admin_parse_server_uri(ngx_http_request_t *r, char *host_out, size_t host_size,
     if (nseg < 2 || seg[0][0] == '\0' || ngx_strlen(seg[0]) >= host_size) {
         return NGX_ERROR;
     }
-    ngx_cpystrn((u_char *) host_out, (u_char *) seg[0], host_size);
+    /* A literal IPv6 host is sent bracketed in the URI path ("[::1]") because it
+     * contains colons; the cluster registry stores the address bare, so strip
+     * the brackets here or the host would never match a registered entry. */
+    {
+        char  *h  = seg[0];
+        size_t hl = ngx_strlen(h);
+        if (h[0] == '[' && hl >= 2 && h[hl - 1] == ']') {
+            h[hl - 1] = '\0';
+            h++;
+        }
+        if (h[0] == '\0' || ngx_strlen(h) >= host_size) {
+            return NGX_ERROR;
+        }
+        ngx_cpystrn((u_char *) host_out, (u_char *) h, host_size);
+    }
 
     port = ngx_atoi((u_char *) seg[1], ngx_strlen(seg[1]));
     if (port == NGX_ERROR || port <= 0 || port > 65535) {

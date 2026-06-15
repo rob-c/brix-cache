@@ -1,4 +1,5 @@
 #include "gsi_internal.h"
+#include "gsi_core.h"     /* shared DH kernels (single source w/ the client) */
 
 #include <string.h>
 
@@ -145,49 +146,16 @@ BIGNUM *
 xrootd_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
     const u_char *public_key_blob, size_t public_key_blob_len)
 {
-    static const char begin_marker[] = "---BPUB---";
-    static const char end_marker[]   = "---EPUB--";
+    /* The "---BPUB---<hex>---EPUB--" parse now lives in the shared gsi_core.c. */
+    BIGNUM *bn;
 
-    const u_char *hex_start;
-    const u_char *hex_end;
-    u_char       *hex_copy;
-    size_t        hex_len;
-    BIGNUM       *public_key_bn;
-
-    hex_start = memmem((void *) public_key_blob, public_key_blob_len,
-                       begin_marker, sizeof(begin_marker) - 1);
-    hex_end = memmem((void *) public_key_blob, public_key_blob_len,
-                     end_marker, sizeof(end_marker) - 1);
-
-    if (hex_start == NULL || hex_end == NULL
-        || hex_end <= hex_start + sizeof(begin_marker) - 1)
-    {
+    (void) c;
+    bn = xrootd_gsi_dh_pub_decode(public_key_blob, public_key_blob_len);
+    if (bn == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: malformed client DH blob");
-        return NULL;
+                      "xrootd: GSI kXGC_cert: malformed/garbled client DH blob");
     }
-
-    hex_start += sizeof(begin_marker) - 1;
-    hex_len = (size_t) (hex_end - hex_start);
-
-    hex_copy = ngx_pnalloc(c->pool, hex_len + 1);
-    if (hex_copy == NULL) {
-        return NULL;
-    }
-
-    ngx_memcpy(hex_copy, hex_start, hex_len);
-    hex_copy[hex_len] = '\0';
-
-    public_key_bn = NULL;
-    if (BN_hex2bn(&public_key_bn, (char *) hex_copy) == 0
-        || public_key_bn == NULL)
-    {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: BN_hex2bn failed");
-        return NULL;
-    }
-
-    return public_key_bn;
+    return bn;
 }
 
 void
@@ -221,92 +189,17 @@ xrootd_gsi_select_cipher_name(const u_char *payload, size_t payload_len,
     cipher_name[name_len] = '\0';
 }
 
-/*
- * Inner builder for xrootd_gsi_build_peer_dh_key: runs the OpenSSL 3.x param
- * pipeline — export the server's DH parameters, build + finalise the client's
- * public-key params, merge the two, then fromdata() a peer key. Returns the new
- * peer key, or NULL on any step failure (each logged). Every scratch object is
- * handed back through the out-pointers so the caller's single cleanup frees them
- * all whether or not this returns early; that ownership-at-the-edge is what lets
- * this worker stay a flat, goto-free sequence.
- */
-static EVP_PKEY *
-gsi_peer_dh_key_build(ngx_log_t *log, EVP_PKEY *server_dh_key,
-    BIGNUM *client_public_bn, EVP_PKEY_CTX **pkey_ctx,
-    OSSL_PARAM_BLD **param_builder, OSSL_PARAM **server_params,
-    OSSL_PARAM **client_params, OSSL_PARAM **merged_params)
-{
-    EVP_PKEY *peer_key = NULL;
-
-    if (EVP_PKEY_todata(server_dh_key, EVP_PKEY_KEY_PARAMETERS,
-                        server_params)
-        != 1 || *server_params == NULL)
-    {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: cannot export server DH parameters");
-        return NULL;
-    }
-
-    *param_builder = OSSL_PARAM_BLD_new();
-    if (*param_builder == NULL
-        || OSSL_PARAM_BLD_push_BN(*param_builder, OSSL_PKEY_PARAM_PUB_KEY,
-                                  client_public_bn)
-           != 1)
-    {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: cannot build client DH parameters");
-        return NULL;
-    }
-
-    *client_params = OSSL_PARAM_BLD_to_param(*param_builder);
-    if (*client_params == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: cannot finalize client DH parameters");
-        return NULL;
-    }
-
-    *merged_params = OSSL_PARAM_merge(*server_params, *client_params);
-    if (*merged_params == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: cannot merge DH parameters");
-        return NULL;
-    }
-
-    *pkey_ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DH, NULL);
-    if (*pkey_ctx == NULL
-        || EVP_PKEY_fromdata_init(*pkey_ctx) != 1
-        || EVP_PKEY_fromdata(*pkey_ctx, &peer_key, EVP_PKEY_PUBLIC_KEY,
-                             *merged_params) != 1)
-    {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: cannot build client DH peer key");
-        return NULL;
-    }
-
-    return peer_key;
-}
-
 EVP_PKEY *
 xrootd_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_dh_key,
     BIGNUM *client_public_bn)
 {
-    EVP_PKEY_CTX   *pkey_ctx      = NULL;
-    OSSL_PARAM_BLD *param_builder = NULL;
-    OSSL_PARAM     *server_params = NULL;
-    OSSL_PARAM     *client_params = NULL;
-    OSSL_PARAM     *merged_params = NULL;
-    EVP_PKEY       *peer_key;
+    /* The OpenSSL param pipeline now lives in the shared gsi_core.c. */
+    EVP_PKEY *peer = xrootd_gsi_dh_build_peer(server_dh_key, client_public_bn);
 
-    peer_key = gsi_peer_dh_key_build(log, server_dh_key, client_public_bn,
-                                     &pkey_ctx, &param_builder, &server_params,
-                                     &client_params, &merged_params);
-
-    EVP_PKEY_CTX_free(pkey_ctx);
-    OSSL_PARAM_BLD_free(param_builder);
-    OSSL_PARAM_free(server_params);
-    OSSL_PARAM_free(client_params);
-    OSSL_PARAM_free(merged_params);
-
-    return peer_key;
+    if (peer == NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI kXGC_cert: cannot build client DH peer key");
+    }
+    return peer;
 }
 

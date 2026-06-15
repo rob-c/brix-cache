@@ -139,7 +139,18 @@ typedef struct {
     char  primary_vo[128];  /* first VO from the VOMS attribute cert, e.g. "cms" */
     char  vo_list[512];     /* space-separated list of all VOs, e.g. "cms atlas" */
     char  peer_ip[64];      /* remote peer address for authdb HOST ('p') rules */
+    /* XrdAcc reverse-DNS host cache: resolved once per connection (opt-in via
+     * xrootd_acc_resolve_hosts).  acc_host points into c->pool; NULL once
+     * acc_host_done is set means resolution failed → fall back to peer_ip. */
+    const char *acc_host;
+    unsigned    acc_host_done:1;
     xrootd_identity_t *identity; /* canonical Phase 2 identity object */
+
+    /* SciTags packet-marking flow handle (NULL = not marked); begun on the
+     * first file open, ended on disconnect.  See src/pmark/. */
+    struct xrootd_pmark_flow_s *pmark_flow;
+    ngx_event_t  pmark_echo_ev;  /* periodic "ongoing" firefly timer (if echo>0) */
+    ngx_msec_t   pmark_echo_ms;  /* echo interval, for the timer to re-arm itself */
 
     /* Open file table — array index IS the XRootD file handle (0-based) */
     xrootd_file_t  files[XROOTD_MAX_FILES];
@@ -289,9 +300,16 @@ typedef struct {
      * The reqid we issued is stored so we can recognize it in QPrep.
      * The path list (newline-separated, heap-allocated) lets us check disk
      * status when the client queries without re-supplying the paths. */
-    char    prepare_reqid[32];
+    char    prepare_reqid[40];   /* FRM "<seq>.<pid>@<host>" (FRM_REQID_LEN) */
     u_char *prepare_paths;
     size_t  prepare_paths_len;
+
+    /* Phase 35 / Phase 3 — async tape recall (kXR_waitresp → kXR_attn asynresp).
+     * When frm_async_active is set during a replayed open of a just-staged file,
+     * the open-OK emit goes out wrapped in kXR_attn(asynresp) on the saved
+     * frm_async_streamid instead of a normal kXR_ok header. */
+    unsigned  frm_async_active:1;
+    u_char    frm_async_streamid[2];
 
     /* Session-level transfer totals written to the access log at disconnect */
     size_t      session_bytes;          /* total bytes read by client           */
@@ -424,5 +442,26 @@ typedef struct {
      * rules are never cached.  Zero-initialised ⇒ cold (recompute on first use). */
     char        rl_key_cache[XROOTD_RL_RULE_CACHE_MAX][128];
     uint32_t    rl_key_cache_valid;
+
+    /*
+     * Phase 39 — network-fault resilience (steady-state deadlines).
+     *
+     * read_deadline_armed / send_deadline_armed track whether THIS module armed
+     * c->read / c->write's timer, so arm/disarm are idempotent no-ops: under
+     * healthy back-to-back pipelined reads (avail >= need every time) the timer
+     * is never armed, so the Phase-29 keep-reading branches never touch the
+     * worker's timer rbtree.  A deadline is only ever armed on a *genuine*
+     * incompletion / send park, and MUST be disarmed before recv hands off to
+     * AIO/SENDING/UPSTREAM/PROXY/WAITING_* (else rev->timedout could fire and
+     * finalize the session while an in-flight AIO task still references ctx).
+     *
+     * The merged timeouts are cached here at accept so the hot recv/park paths
+     * avoid a srv_conf lookup.  0 = the corresponding deadline is disabled.
+     */
+    unsigned    read_deadline_armed:1;  /* 1 = we armed c->read's timer  */
+    unsigned    send_deadline_armed:1;  /* 1 = we armed c->write's timer */
+    ngx_msec_t  read_timeout_ms;        /* cached xrootd_read_timeout (0 = off)      */
+    ngx_msec_t  handshake_timeout_ms;   /* cached xrootd_handshake_timeout (0 = off) */
+    ngx_msec_t  send_timeout_ms;        /* cached xrootd_send_timeout (0 = off)      */
 
 } xrootd_ctx_t;

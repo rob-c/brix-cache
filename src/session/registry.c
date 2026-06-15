@@ -105,6 +105,7 @@
  * HOW: Two-phase unregister → scan all entries comparing sessid via ngx_memcmp — if match found memzero entry clearing session metadata returning no registry reference for subsequent operations — additionally call xrootd_session_handle_unpublish_all() to clear every published handle for that sessid ensuring coordinated cleanup of both session metadata and associated handles — unlock xrootd_session_mutex after completion. */
 
 #include "registry.h"
+#include "../compat/shm_slots.h"
 #include <ngx_shmtx.h>
 #include <string.h>
 
@@ -133,30 +134,30 @@ session_table(void)
 ngx_int_t
 xrootd_session_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
-    xrootd_session_table_t *tbl;
+    ngx_flag_t               fresh;
+    xrootd_session_table_t  *tbl;
 
-    if (data) {
-        shm_zone->data = data;
-        tbl = (xrootd_session_table_t *) data;
-        if (ngx_shmtx_create(&xrootd_session_mutex, &tbl->lock, NULL)
-            != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
-    }
-
-    tbl = (xrootd_session_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl, sizeof(*tbl)
-                     + (size_t) xrootd_session_registry_nslots
-                       * sizeof(xrootd_session_entry_t));
-    tbl->capacity = xrootd_session_registry_nslots;
-
-    if (ngx_shmtx_create(&xrootd_session_mutex, &tbl->lock, NULL) != NGX_OK) {
+    /*
+     * Allocate the table FROM the slab pool (never lay it over shm.addr) so
+     * nginx's ngx_unlock_mutexes() — which treats every zone's shm.addr as an
+     * ngx_slab_pool_t header on every child death — does not get clobbered and
+     * SIGSEGV the master. The helper handles fresh-alloc, reload (data != NULL),
+     * and re-attach, creates xrootd_session_mutex from the table's leading
+     * ngx_shmtx_sh_t lock, and publishes the table via shm_zone->data.
+     */
+    tbl = xrootd_shm_table_alloc(shm_zone, data,
+                                 sizeof(xrootd_session_table_t)
+                                 + (size_t) xrootd_session_registry_nslots
+                                   * sizeof(xrootd_session_entry_t),
+                                 &xrootd_session_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = tbl;
+    if (fresh) {
+        tbl->capacity = xrootd_session_registry_nslots;
+    }
+
     return NGX_OK;
 }
 
@@ -172,9 +173,8 @@ xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
     }
     xrootd_session_registry_nslots = slots;
 
-    zone_size = sizeof(xrootd_session_table_t)
-                + (size_t) slots * sizeof(xrootd_session_entry_t)
-                + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(sizeof(xrootd_session_table_t)
+                + (size_t) slots * sizeof(xrootd_session_entry_t));
     xrootd_session_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                      zone_size,
                                                      &ngx_stream_xrootd_module);
@@ -185,7 +185,7 @@ xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
     xrootd_session_shm_zone->init = xrootd_session_shm_init_zone;
     xrootd_session_shm_zone->data = (void *) 1;
 
-    zone_size = sizeof(xrootd_shared_handle_table_t) + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(sizeof(xrootd_shared_handle_table_t));
     xrootd_handle_shm_zone = ngx_shared_memory_add(cf, &handle_zone_name,
                                                    zone_size,
                                                    &ngx_stream_xrootd_module);

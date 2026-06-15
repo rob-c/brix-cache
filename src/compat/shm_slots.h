@@ -46,4 +46,33 @@ xrootd_shm_remember_free_slot(ngx_uint_t *free_slot, ngx_uint_t none,
     }
 }
 
+/*
+ * Slab-safe SHM table allocation (shm_slots.c).
+ *
+ * CRITICAL: nginx initialises every shared_memory zone as an ngx_slab_pool_t and
+ * its SIGCHLD handler (ngx_unlock_mutexes, run on EVERY child death) walks all
+ * zones, treating shm.addr as an ngx_slab_pool_t and force-unlocking sp->mutex.
+ * A zone whose init callback lays its own struct directly over shm.addr clobbers
+ * that header → the master SIGSEGVs the moment any child exits (e.g. an FRM stage
+ * copycmd). These helpers allocate the table FROM the slab pool, leaving the
+ * header intact, so any subsystem that forks children is safe.
+ *
+ * Contract: the table's FIRST member must be an ngx_shmtx_sh_t lock (pass `mtx`
+ * to have the process-local handle created from it; pass NULL for lock-less
+ * tables such as the metrics counters).
+ *
+ * xrootd_shm_table_alloc(): handles fresh alloc, reload (data != NULL), and
+ *   re-attach (shm.exists). Publishes the table via shm_zone->data AND the slab
+ *   pool's ->data (so a reload re-attaches). *fresh is set to 1 only when a brand
+ *   new table was allocated (the caller must then initialise its non-lock fields;
+ *   on reuse it must NOT, to preserve live state).
+ *
+ * xrootd_shm_zone_size(): the zone size to request from ngx_shared_memory_add so
+ *   ngx_slab_alloc(table_bytes) always fits alongside the slab overhead.
+ */
+void  *xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data,
+                              size_t table_bytes, ngx_shmtx_t *mtx,
+                              ngx_flag_t *fresh);
+size_t xrootd_shm_zone_size(size_t table_bytes);
+
 #endif /* XROOTD_COMPAT_SHM_SLOTS_H */

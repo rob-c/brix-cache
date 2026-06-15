@@ -1,5 +1,6 @@
 #include "handshake.h"
 #include "../read/clone.h"
+#include "../write/ext_ops.h"   /* vendor readlink (read-side op) */
 
 /* ---- Bound-stream restriction helper — read-only access for secondary connections ----
  *
@@ -91,6 +92,9 @@ xrootd_dispatch_read_opcode(xrootd_ctx_t *ctx, ngx_connection_t *c,
     case kXR_statx:   DISPATCH_RD_BOUND("STATX",   xrootd_handle_statx,   conf);
     case kXR_fattr:   DISPATCH_RD_BOUND("FATTR",   xrootd_handle_fattr,   conf);
     case kXR_clone:   DISPATCH_RD_BOUND("CLONE",   xrootd_handle_clone);
+
+    /* vendor readlink (read-side; capability "xrdfs.ext") */
+    case kXR_readlink: DISPATCH_RD(xrootd_handle_readlink, conf);
 
     default:
         return XROOTD_DISPATCH_CONTINUE;

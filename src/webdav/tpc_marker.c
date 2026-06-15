@@ -329,6 +329,18 @@ tpc_marker_cleanup(void *data)
 {
     tpc_marker_ctx_t *ctx = data;
 
+    /*
+     * Phase 39 (WS5): this pool cleanup fires when the request ends — including
+     * when the client disconnects mid-COPY.  Signal the in-flight curl transfer
+     * (by id) to abort promptly via its progress callback, instead of leaving the
+     * thread-pool worker pulling into an abandoned destination until the
+     * low-speed/transfer-timeout bound or the registry reaper reclaims it.  On a
+     * normal completion the transfer is already gone, so this is a no-op.
+     */
+    if (ctx->transfer_id != 0) {
+        (void) xrootd_tpc_registry_request_cancel(ctx->transfer_id);
+    }
+
     if (ctx->timer.timer_set) {
         ngx_del_timer(&ctx->timer);
     }

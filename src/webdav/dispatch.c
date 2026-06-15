@@ -18,10 +18,36 @@
 
 #include "webdav.h"
 #include "xrdhttp.h"
+#include "tape_rest.h"
 #include "../compat/http_body.h"
+#include "../impersonate/lifecycle.h"
 
+static ngx_int_t webdav_dispatch_inner(ngx_http_request_t *r);
+
+/*
+ * Phase 40 wrapper: bracket the whole synchronous dispatch with the impersonation
+ * principal taken from the authenticated identity (no-op unless map mode).  This
+ * covers every method that completes inline (GET/HEAD/DELETE/MKCOL/COPY/MOVE/
+ * PROPFIND/...).  Methods that read a body asynchronously (PUT/LOCK) return
+ * NGX_DONE here — the principal is cleared on return and re-established inside the
+ * body callback (see webdav_handle_put_body), so it never leaks across the event
+ * loop while a body is pending.
+ */
 ngx_int_t
 ngx_http_xrootd_webdav_handler(ngx_http_request_t *r)
+{
+    ngx_http_xrootd_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_int_t rc;
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    rc = webdav_dispatch_inner(r);
+    xrootd_imp_request_end();
+    return rc;
+}
+
+static ngx_int_t
+webdav_dispatch_inner(ngx_http_request_t *r)
 {
     ngx_http_xrootd_webdav_loc_conf_t *conf;
     ngx_int_t                          rc;
@@ -29,6 +55,39 @@ ngx_http_xrootd_webdav_handler(ngx_http_request_t *r)
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
     if (!conf->common.enable) {
         return NGX_DECLINED;
+    }
+
+    /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
+    xrootd_http_source_offer(r);
+
+    /*
+     * SciTags packet marking (phase-34).  TPC (COPY) is always marked; plain
+     * GET/PUT only when xrootd_pmark_http_plain is on (default off = XRootD
+     * parity).  Begun here post-auth; ended via a request-pool cleanup.
+     */
+    if (conf->common.pmark.enable
+        && (r->method == NGX_HTTP_COPY
+            || (conf->common.pmark.http_plain
+                && (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_PUT))))
+    {
+        ngx_http_xrootd_webdav_req_ctx_t *rx =
+            ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+        const char *vo = "", *us = "";
+        u_char      pth[2048], cgi[512];
+
+        if (rx != NULL && rx->identity != NULL) {
+            vo = xrootd_identity_vo_csv_cstr(rx->identity);
+            us = xrootd_identity_dn_cstr(rx->identity);
+        }
+        ngx_cpystrn(pth, r->uri.data, ngx_min(r->uri.len + 1, sizeof(pth)));
+        if (r->args.len) {
+            ngx_cpystrn(cgi, r->args.data, ngx_min(r->args.len + 1, sizeof(cgi)));
+        } else {
+            cgi[0] = '\0';
+        }
+        xrootd_pmark_http_mark(&conf->common.pmark, r->pool, r->connection,
+            (r->method == NGX_HTTP_PUT || r->method == NGX_HTTP_COPY),
+            vo, us, (const char *) pth, (const char *) cgi);
     }
 
     /* OPTIONS: access handler already added CORS headers and tracked the
@@ -64,6 +123,20 @@ ngx_http_xrootd_webdav_handler(ngx_http_request_t *r)
             }
             return NGX_DONE;
         }
+    }
+
+    /* WLCG HTTP Tape REST API (/api/v1/…) — handled before proxy mode because
+     * the server answers it locally, not the upstream. POST dispatches async
+     * body reading (NGX_DONE); GET/DELETE return inline. */
+    if (conf->tape_rest
+        && r->uri.len >= sizeof("/api/v1/") - 1
+        && ngx_strncmp(r->uri.data, "/api/v1/", sizeof("/api/v1/") - 1) == 0)
+    {
+        ngx_int_t trc = webdav_tape_handle(r);
+        if (trc == NGX_DONE) {
+            return NGX_DONE;
+        }
+        return webdav_metrics_return(r, trc);
     }
 
     /* Upstream proxy mode: access handler ran auth; delegate transport. */

@@ -1,5 +1,6 @@
 #include "open.h"
 #include "ngx_xrootd_module.h"
+#include "../response/async.h"
 #include "../mirror/stream_wmirror.h"
 #include "../write/wrts_journal.h"
 #include "../compat/tmp_path.h"
@@ -432,6 +433,17 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* Phase 24 W3: begin accumulating this write-open for the data-write mirror.
 	 * No-op unless xrootd_mirror_writes is on and a stream mirror is configured. */
 	xrootd_stream_wmirror_on_open(ctx, c, conf, idx, is_write);
+
+	/* Phase 35 / Phase 3: when this open is the async-recall replay for a parked
+	 * client, the answer must travel as kXR_attn(asynresp) on the saved streamid,
+	 * not a plain kXR_ok header. The body bytes (ServerOpenBody [+ stat]) sit at
+	 * buf + header; asynresp wraps them itself. */
+	if (ctx->frm_async_active) {
+		return xrootd_send_attn_asynresp(ctx, c, ctx->frm_async_streamid,
+		                                 (uint16_t) kXR_ok,
+		                                 buf + XRD_RESPONSE_HDR_LEN,
+		                                 (uint32_t) bodylen);
+	}
 
 	return xrootd_queue_response(ctx, c, buf, total);
 }

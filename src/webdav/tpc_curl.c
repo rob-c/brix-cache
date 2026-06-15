@@ -14,9 +14,117 @@
 #include "webdav.h"
 #include "../tpc/common/registry.h"
 #include "../compat/net_target.h"
+#include "../compat/host_format.h"  /* xrootd_format_host — IPv6 bracketing */
 
 #include <curl/curl.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+/*
+ * SciTags packet marking for the OUTBOUND TPC leg (phase-34).
+ *
+ * libcurl owns the gateway→remote connection, so we hook its socket lifecycle:
+ *  - CURLOPT_OPENSOCKETFUNCTION creates the data socket and, while it is still
+ *    UNconnected, leases the IPv6 flow label toward the destination address curl
+ *    is about to connect to (the kernel then stamps every egress packet).
+ *  - CURLOPT_CLOSESOCKETFUNCTION emits a firefly (start+end with TCP_INFO) for
+ *    the connected socket just before closing it.
+ * Codes are resolved once at handle setup from the WebDAV pmark config (path /
+ * default mapping; the per-request identity is not threaded into the TPC worker).
+ * Everything is fail-open.  Requires curl >= 7.21.7 for the close callback.
+ */
+typedef struct {
+    xrootd_pmark_conf_t *pm;
+    ngx_uint_t           exp;
+    ngx_uint_t           act;
+    int                  peer_is_src;   /* pull: remote supplies the data */
+    int                  fd;            /* the data socket we marked, or -1 */
+    char                 app[32];
+    ngx_log_t           *log;
+    unsigned             active:1;
+} webdav_tpc_pmark_rec_t;
+
+#if defined(CURLOPT_OPENSOCKETFUNCTION) && defined(CURLOPT_CLOSESOCKETFUNCTION)
+#define WEBDAV_TPC_PMARK_SOCKCB 1
+
+static curl_socket_t
+webdav_tpc_pmark_opensocket(void *clientp, curlsocktype purpose,
+    struct curl_sockaddr *address)
+{
+    webdav_tpc_pmark_rec_t *rec = clientp;
+    curl_socket_t           fd;
+
+    fd = socket(address->family, address->socktype, address->protocol);
+    if (fd == CURL_SOCKET_BAD) {
+        return CURL_SOCKET_BAD;
+    }
+    /* Only the actual data connection; skip any proxy/other socket types. */
+    if (rec != NULL && rec->active && purpose == CURLSOCKTYPE_IPCXN) {
+        (void) xrootd_pmark_flowlabel_apply_addr((int) fd,
+            (struct sockaddr *) &address->addr, (socklen_t) address->addrlen,
+            rec->exp, rec->act, rec->log);
+        rec->fd = (int) fd;
+    }
+    return fd;
+}
+
+static int
+webdav_tpc_pmark_closesocket(void *clientp, curl_socket_t item)
+{
+    webdav_tpc_pmark_rec_t *rec = clientp;
+
+    if (rec != NULL && rec->active && rec->fd == (int) item) {
+        /* Socket is still connected here — emit the firefly (reads TCP_INFO)
+         * before the close below. */
+        xrootd_pmark_firefly_oneshot(rec->pm, (int) item, rec->exp, rec->act,
+            rec->peer_is_src, rec->app, rec->log);
+        rec->fd = -1;
+    }
+    return close((int) item);
+}
+
+/* Resolve codes + attach the socket callbacks to `curl`.  `rec` is caller-owned
+ * (stack) and must outlive curl_easy_perform().  No-op when pmark is off or the
+ * transfer does not map to an (experiment, activity). */
+static void
+webdav_tpc_pmark_attach(CURL *curl, webdav_tpc_pmark_rec_t *rec,
+    ngx_http_xrootd_webdav_loc_conf_t *conf, int is_push,
+    const char *file_path, ngx_log_t *log)
+{
+    xrootd_pmark_conf_t *pm = &conf->common.pmark;
+    ngx_uint_t           e, a;
+    size_t               n;
+
+    ngx_memzero(rec, sizeof(*rec));
+    rec->fd = -1;
+
+    if (!pm->enable
+        || xrootd_pmark_runtime_ensure(pm, ngx_cycle->pool, log) != NGX_OK
+        || xrootd_pmark_map_codes(pm, "", "", file_path, NULL, &e, &a) != NGX_OK)
+    {
+        return;
+    }
+
+    rec->pm  = pm;
+    rec->exp = e;
+    rec->act = a;
+    rec->peer_is_src = is_push ? 0 : 1;   /* pull (GET) → remote is source */
+    rec->log = log;
+    n = pm->appname.len < sizeof(rec->app) - 1
+      ? pm->appname.len : sizeof(rec->app) - 1;
+    if (n) { ngx_memcpy(rec->app, pm->appname.data, n); }
+    rec->app[n] = '\0';
+    rec->active = 1;
+
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION,
+                     webdav_tpc_pmark_opensocket);
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, rec);
+    curl_easy_setopt(curl, CURLOPT_CLOSESOCKETFUNCTION,
+                     webdav_tpc_pmark_closesocket);
+    curl_easy_setopt(curl, CURLOPT_CLOSESOCKETDATA, rec);
+}
+#endif /* socket callbacks available */
 
 /*
  * tpc_curl_secure — enforce TLS verification and pin the SSRF-validated IP.
@@ -45,7 +153,8 @@ tpc_curl_secure(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf,
     ngx_str_t                  url_str;
     char                       pin_ip[128];
     char                       err[256];
-    char                       entry[256];
+    char                       entry[512];   /* "[host]:port:addr" — room for a
+                                              * bracketed IPv6/long host + addr */
     uint16_t                   port;
     struct curl_slist         *rs;
 
@@ -74,8 +183,19 @@ tpc_curl_secure(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf,
     }
 
     port = tgt.has_port ? tgt.port : 443;
-    snprintf(entry, sizeof(entry), "%.*s:%u:%s",
-             (int) tgt.host.len, tgt.host.data, (unsigned) port, pin_ip);
+    {
+        /* curl's CURLOPT_RESOLVE host field must bracket an IPv6 literal
+         * ("[::1]:443:addr") to match the bracketed host in an IPv6 URL;
+         * tgt.host arrives bare from net_target.  The resolved address (pin_ip)
+         * stays bare — curl accepts a bare IPv6 in the address position. */
+        char   hostz[256], hostb[288];
+        size_t hl = ngx_min(tgt.host.len, sizeof(hostz) - 1);
+        ngx_memcpy(hostz, tgt.host.data, hl);
+        hostz[hl] = '\0';
+        xrootd_format_host(hostz, hostb, sizeof(hostb));
+        snprintf(entry, sizeof(entry), "%s:%u:%s",
+                 hostb, (unsigned) port, pin_ip);
+    }
 
     rs = curl_slist_append(NULL, entry);
     if (rs == NULL) {
@@ -106,6 +226,31 @@ typedef struct {
  * The caller must free *hdrs_out via curl_slist_free_all() after cleanup.
  * Returns 0 on success, -1 on slist OOM.
  */
+/*
+ * Phase 39 (WS4): bound a stalled / black-holed TPC remote.  Always cap connect
+ * time (a connect to a black hole otherwise hangs the thread-pool worker forever)
+ * and enable TCP keepalive; optionally abort a transfer that stays below a
+ * bytes/sec floor (idle / low-speed) WITHOUT killing a slow-but-progressing one.
+ * Pure additive curl configuration — no data-copy cost; the low-speed bound is
+ * off unless the operator sets both knobs.
+ */
+#ifndef XROOTD_TPC_CONNECT_TIMEOUT_SECS
+#define XROOTD_TPC_CONNECT_TIMEOUT_SECS  30L
+#endif
+static void
+tpc_curl_apply_stall_bounds(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf)
+{
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT,
+                     XROOTD_TPC_CONNECT_TIMEOUT_SECS);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+    if (conf->tpc_low_speed_bytes > 0 && conf->tpc_low_speed_secs > 0) {
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT,
+                         (long) conf->tpc_low_speed_bytes);
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME,
+                         (long) conf->tpc_low_speed_secs);
+    }
+}
+
 static int
 tpc_curl_apply_conf(CURL *curl,
     ngx_http_xrootd_webdav_loc_conf_t *conf,
@@ -135,6 +280,7 @@ tpc_curl_apply_conf(CURL *curl,
 
     if (conf->tpc_timeout > 0)
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) conf->tpc_timeout);
+    tpc_curl_apply_stall_bounds(curl, conf);   /* Phase 39 (WS4) */
     if (conf->tpc_cert.len > 0)
         curl_easy_setopt(curl, CURLOPT_SSLCERT,
                          (const char *) conf->tpc_cert.data);
@@ -265,6 +411,21 @@ webdav_tpc_curl_progress(void *clientp, curl_off_t dltotal,
         return 0;
     }
 
+    /*
+     * Phase 39 (WS5): abort promptly if the client that requested this transfer
+     * disconnected (registry_request_cancel set the flag).  Lock-free best-effort
+     * read via registry_find; a missed read just falls back to the WS4
+     * low-speed/transfer-timeout bounds.  A non-zero return is
+     * CURLE_ABORTED_BY_CALLBACK.
+     */
+    {
+        const xrootd_tpc_transfer_t *t =
+            xrootd_tpc_registry_find(progress->transfer_id);
+        if (t != NULL && t->cancelled) {
+            return 1;
+        }
+    }
+
     done = progress->is_push ? (off_t) ulnow : (off_t) dlnow;
     total = progress->is_push ? (off_t) ultotal : (off_t) dltotal;
 
@@ -344,6 +505,9 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
 #ifdef CURLOPT_XFERINFOFUNCTION
     webdav_tpc_curl_progress_t progress;
 #endif
+#ifdef WEBDAV_TPC_PMARK_SOCKCB
+    webdav_tpc_pmark_rec_t pmrec;   /* outlives curl_easy_perform() below */
+#endif
 
     XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_STARTED]);
 
@@ -392,6 +556,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
     if (conf->tpc_timeout > 0) {
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) conf->tpc_timeout);
     }
+    tpc_curl_apply_stall_bounds(curl, conf);   /* Phase 39 (WS4) */
 
     if (conf->tpc_cert.len > 0) {
         curl_easy_setopt(curl, CURLOPT_SSLCERT,
@@ -452,6 +617,12 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         }
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
     }
+
+#ifdef WEBDAV_TPC_PMARK_SOCKCB
+    /* SciTags: mark the outbound data socket (flow label at open, firefly at
+     * close).  pmrec lives until curl_easy_perform() returns. */
+    webdav_tpc_pmark_attach(curl, &pmrec, conf, is_push, file_path, log);
+#endif
 
     res = curl_easy_perform(curl);
     if (res == CURLE_OK) {
@@ -558,6 +729,9 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
     struct curl_slist *hdrs[XROOTD_TPC_MAX_STREAMS];
     struct curl_slist *resolve[XROOTD_TPC_MAX_STREAMS];
     ms_stream_ctx_t    write_ctx[XROOTD_TPC_MAX_STREAMS];
+#ifdef WEBDAV_TPC_PMARK_SOCKCB
+    webdav_tpc_pmark_rec_t pmrec[XROOTD_TPC_MAX_STREAMS];
+#endif
     int                fd = -1;
     ngx_uint_t         i;
     int                still_running;
@@ -643,6 +817,13 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
         curl_easy_setopt(easy[i], CURLOPT_RANGE, range_buf);
         curl_easy_setopt(easy[i], CURLOPT_WRITEFUNCTION, ms_write_cb);
         curl_easy_setopt(easy[i], CURLOPT_WRITEDATA, &write_ctx[i]);
+
+#ifdef WEBDAV_TPC_PMARK_SOCKCB
+        /* SciTags: mark each parallel pull stream's outbound socket. pmrec[]
+         * lives until the curl_multi loop + cleanup below. */
+        webdav_tpc_pmark_attach(easy[i], &pmrec[i], conf, 0 /*pull*/,
+                                tmp_path, log);
+#endif
 
         curl_multi_add_handle(cm, easy[i]);
         num_added++;

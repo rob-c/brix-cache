@@ -28,6 +28,8 @@
 
 #include "registry.h"
 #include "../compat/net_target.h"   /* xrootd_net_host_chars_valid (W1c) */
+#include "../compat/host_format.h"  /* xrootd_format_host_port — IPv6 bracketing */
+#include "../compat/shm_slots.h"    /* slab-safe SHM table alloc (header survives) */
 #include <ngx_shmtx.h>
 #include <string.h>
 
@@ -35,6 +37,24 @@ ngx_shm_zone_t *xrootd_srv_shm_zone;
 
 static ngx_shmtx_t   xrootd_srv_mutex;
 static ngx_uint_t    xrootd_srv_registry_nslots = XROOTD_SRV_REGISTRY_SLOTS;
+
+/*
+ * Phase 39 (WS7): data-server staleness threshold in ms.  A registered server
+ * whose last_seen is older than this has stopped heartbeating (silently dead /
+ * half-open) and xrootd_srv_select() de-prefers it: it picks the freshest live
+ * server when one exists, and only falls back to a stale one if EVERY matching
+ * replica is stale (so a transient all-stale storm degrades to "redirect to the
+ * least-stale server" rather than a false kXR_NotFound for a file that exists).
+ * 0 = disabled (current behaviour).  Set once at config time (before fork) from
+ * xrootd_manager_stale_after.
+ */
+static ngx_msec_t    xrootd_srv_stale_after_ms;
+
+void
+xrootd_srv_set_stale_after(ngx_msec_t ms)
+{
+    xrootd_srv_stale_after_ms = ms;
+}
 
 static xrootd_srv_table_t *
 srv_table(void)
@@ -60,35 +80,35 @@ srv_table(void)
  * existing table structure.
 
  * HOW
- * If data pointer is non-NULL → this worker reattached to an already-
- * initialised zone: copy data into shm_zone->data, create mutex against
- * tbl->lock. Otherwise → first boot: cast shm.addr to table, set capacity,
- * zero-fill slots array, create mutex.
+ * Delegates fresh-alloc / reload / re-attach to xrootd_shm_table_alloc(), which
+ * allocates the table FROM the slab pool so nginx's slab-pool header survives at
+ * shm.addr (ngx_unlock_mutexes() force-unlocks that header on every child death;
+ * laying our own struct over it would SIGSEGV the master). The helper zero-fills
+ * the table and creates the worker-local mutex from tbl->lock (the table's first
+ * member). On a brand-new allocation we set the capacity; on reuse we must not,
+ * to preserve the live table state.
  */
 ngx_int_t
 xrootd_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
     xrootd_srv_table_t *tbl;
+    ngx_flag_t          fresh;
+    size_t              table_bytes;
 
-    if (data) {
-        shm_zone->data = data;
-        tbl = (xrootd_srv_table_t *) data;
-        if (ngx_shmtx_create(&xrootd_srv_mutex, &tbl->lock, NULL) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
-    }
+    table_bytes = sizeof(xrootd_srv_table_t)
+                + (size_t) xrootd_srv_registry_nslots
+                  * sizeof(xrootd_srv_entry_t);
 
-    tbl = (xrootd_srv_table_t *) shm_zone->shm.addr;
-    tbl->capacity = xrootd_srv_registry_nslots;
-    ngx_memzero(tbl->slots,
-                tbl->capacity * sizeof(xrootd_srv_entry_t));
-
-    if (ngx_shmtx_create(&xrootd_srv_mutex, &tbl->lock, NULL) != NGX_OK) {
+    tbl = xrootd_shm_table_alloc(shm_zone, data, table_bytes,
+                                 &xrootd_srv_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = tbl;
+    if (fresh) {
+        tbl->capacity = xrootd_srv_registry_nslots;
+    }
+
     return NGX_OK;
 }
 
@@ -104,8 +124,9 @@ xrootd_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 
  * HOW
  * Sets xrootd_srv_registry_nslots to the requested value, computes zone size
- * as sizeof(table) + slots × entry_size + ngx_pagesize padding, adds the zone
- * via ngx_shared_memory_add(), sets init callback and (void *)1 sentinel data.
+ * via xrootd_shm_zone_size(table_bytes) — the table is allocated FROM the slab
+ * pool, so the zone must hold the table plus slab overhead — adds the zone via
+ * ngx_shared_memory_add(), sets init callback and (void *)1 sentinel data.
  */
 ngx_int_t
 xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
@@ -114,9 +135,9 @@ xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
     size_t     zone_size;
 
     xrootd_srv_registry_nslots = slots;
-    zone_size = sizeof(xrootd_srv_table_t)
-              + (size_t) slots * sizeof(xrootd_srv_entry_t)
-              + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(
+                    sizeof(xrootd_srv_table_t)
+                  + (size_t) slots * sizeof(xrootd_srv_entry_t));
     xrootd_srv_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                   zone_size,
                                                   &ngx_stream_xrootd_module);
@@ -388,20 +409,27 @@ xrootd_srv_select(const char *path, int for_write,
     xrootd_srv_table_t *tbl;
     xrootd_srv_entry_t *e;
     ngx_uint_t          i;
+    int                 best_fresh;     /* best live (non-stale) candidate */
+    int                 best_any;       /* best candidate ignoring staleness */
+    uint32_t            best_fresh_val;
+    uint32_t            best_any_val;
     int                 best;
-    uint32_t            best_val;
 
     tbl = srv_table();
     if (tbl == NULL) {
         return 0;
     }
 
-    best     = -1;
-    best_val = for_write ? 0 : (uint32_t) -1;
+    best_fresh     = -1;
+    best_any       = -1;
+    best_fresh_val = for_write ? 0 : (uint32_t) -1;
+    best_any_val   = for_write ? 0 : (uint32_t) -1;
 
     ngx_shmtx_lock(&xrootd_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
+        ngx_uint_t is_stale;
+
         e = &tbl->slots[i];
         if (!e->in_use) {
             continue;
@@ -414,18 +442,41 @@ xrootd_srv_select(const char *path, int for_write,
         if (!srv_path_matches(e->paths, path)) {
             continue;
         }
+
+        /*
+         * Phase 39 (WS7): a server that has not heartbeated within
+         * stale_after_ms is de-preferred but still tracked as a fallback, so an
+         * all-stale storm degrades to the freshest stale server rather than a
+         * false NotFound.  The signed diff tolerates ngx_current_msec wrap.
+         */
+        is_stale = (xrootd_srv_stale_after_ms > 0
+                    && (ngx_msec_int_t) (ngx_current_msec - e->last_seen)
+                       > (ngx_msec_int_t) xrootd_srv_stale_after_ms);
+
         if (for_write) {
-            if (best == -1 || e->free_mb > best_val) {
-                best     = (int) i;
-                best_val = e->free_mb;
+            if (best_any == -1 || e->free_mb > best_any_val) {
+                best_any     = (int) i;
+                best_any_val = e->free_mb;
+            }
+            if (!is_stale
+                && (best_fresh == -1 || e->free_mb > best_fresh_val)) {
+                best_fresh     = (int) i;
+                best_fresh_val = e->free_mb;
             }
         } else {
-            if (best == -1 || e->util_pct < best_val) {
-                best     = (int) i;
-                best_val = e->util_pct;
+            if (best_any == -1 || e->util_pct < best_any_val) {
+                best_any     = (int) i;
+                best_any_val = e->util_pct;
+            }
+            if (!is_stale
+                && (best_fresh == -1 || e->util_pct < best_fresh_val)) {
+                best_fresh     = (int) i;
+                best_fresh_val = e->util_pct;
             }
         }
     }
+
+    best = (best_fresh >= 0) ? best_fresh : best_any;
 
     if (best >= 0) {
         e = &tbl->slots[best];
@@ -635,12 +686,17 @@ xrootd_srv_undrain(const char *host, uint16_t port)
 
 int
 xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
-    ngx_msec_t interval_ms)
+    ngx_msec_t interval_ms, ngx_msec_t *next_due_ms)
 {
     xrootd_srv_table_t *tbl;
     xrootd_srv_entry_t *e;
     ngx_uint_t          i;
     ngx_msec_t          now;
+    ngx_msec_t          soonest = interval_ms;   /* idle cap when none are due */
+
+    if (next_due_ms != NULL) {
+        *next_due_ms = interval_ms;
+    }
 
     tbl = srv_table();
     if (tbl == NULL) {
@@ -657,6 +713,12 @@ xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
             continue;
         }
         if (e->hc_next_check > now) {
+            /* Not due yet — remember how soon it becomes due so the caller can
+             * sleep to that deadline instead of polling at a fixed floor. */
+            ngx_msec_int_t d = (ngx_msec_int_t) (e->hc_next_check - now);
+            if (d > 0 && (ngx_msec_t) d < soonest) {
+                soonest = (ngx_msec_t) d;
+            }
             continue;
         }
 
@@ -666,10 +728,14 @@ xrootd_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
         *port_out = e->port;
 
         ngx_shmtx_unlock(&xrootd_srv_mutex);
-        return 1;
+        return 1;                            /* claimed; caller spreads the rest */
     }
 
     ngx_shmtx_unlock(&xrootd_srv_mutex);
+
+    if (next_due_ms != NULL) {
+        *next_due_ms = soonest;              /* nothing due: sleep until soonest */
+    }
     return 0;
 }
 
@@ -776,6 +842,7 @@ xrootd_srv_locate_all(const char *path, int for_write,
     int                 written, entry_len, first;
     ngx_msec_t          now;
     char                entry[300];
+    char                hostport[288];   /* host[256] + "[]" + ":65535" + NUL */
 
     tbl = srv_table();
     if (tbl == NULL || bufsz < 2) {
@@ -801,10 +868,13 @@ xrootd_srv_locate_all(const char *path, int for_write,
             continue;
         }
 
-        entry_len = snprintf(entry, sizeof(entry), "%sS%c%s:%u",
+        /* Bracket IPv6 literals so "Sr[::1]:1094" (not the unparseable
+         * "Sr::1:1094") — the host is stored canonically bare; bracket on emit. */
+        xrootd_format_host_port(e->host, e->port, hostport, sizeof(hostport));
+        entry_len = snprintf(entry, sizeof(entry), "%sS%c%s",
                              first ? "" : " ",
                              for_write ? 'w' : 'r',
-                             e->host, (unsigned int) e->port);
+                             hostport);
         if (entry_len <= 0 || written + entry_len + 1 >= (int) bufsz) {
             break;
         }

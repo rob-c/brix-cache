@@ -20,6 +20,85 @@
 
 #include "webdav.h"
 #include "../metrics/unified.h"
+#include "../acc/acc.h"
+
+/* Map a WebDAV HTTP method to the XrdAcc operation it requires. */
+static xrootd_acc_op_t
+webdav_method_aop(ngx_http_request_t *r)
+{
+    switch (r->method) {
+    case NGX_HTTP_GET:
+    case NGX_HTTP_HEAD:      return XROOTD_AOP_READ;
+    case NGX_HTTP_PUT:       return XROOTD_AOP_CREATE;
+    case NGX_HTTP_DELETE:    return XROOTD_AOP_DELETE;
+    case NGX_HTTP_MKCOL:     return XROOTD_AOP_MKDIR;
+    case NGX_HTTP_MOVE:      return XROOTD_AOP_RENAME;
+    case NGX_HTTP_COPY:      return XROOTD_AOP_READ;     /* source read */
+    case NGX_HTTP_PROPFIND:  return XROOTD_AOP_READDIR;
+    case NGX_HTTP_PROPPATCH: return XROOTD_AOP_UPDATE;
+    case NGX_HTTP_LOCK:
+    case NGX_HTTP_UNLOCK:    return XROOTD_AOP_UPDATE;
+    case NGX_HTTP_OPTIONS:   return XROOTD_AOP_ANY;
+    default:                 return XROOTD_AOP_STAT;
+    }
+}
+
+/*
+ * webdav_acc_check — XrdAcc tier for WebDAV (when `xrootd_authdb_format xrdacc`).
+ * Returns NGX_OK (allow / not selected) or NGX_HTTP_FORBIDDEN (deny).
+ */
+static ngx_int_t
+webdav_acc_check(ngx_http_request_t *r,
+                 ngx_http_xrootd_webdav_loc_conf_t *conf)
+{
+    ngx_http_xrootd_webdav_req_ctx_t *mctx;
+    xrootd_identity_t                *id = NULL;
+    const char                       *name = "", *vorg = "", *role = "", *grp = "";
+    char                              host[64], path[1024];
+    ngx_int_t                         rc;
+    size_t                            n;
+
+    if (conf->acc.format != XROOTD_AUTHDB_FORMAT_XRDACC) {
+        return NGX_OK;   /* engine not selected */
+    }
+
+    mctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    if (mctx != NULL && mctx->identity != NULL) {
+        id = mctx->identity;
+        name = xrootd_identity_dn_cstr(id);
+        vorg = xrootd_identity_acc_vorg_cstr(id);
+        role = xrootd_identity_acc_role_cstr(id);
+        grp  = xrootd_identity_acc_group_cstr(id);
+    }
+
+    n = ngx_min(r->connection->addr_text.len, sizeof(host) - 1);
+    ngx_memcpy(host, r->connection->addr_text.data, n);
+    host[n] = '\0';
+
+    /* Opt-in reverse DNS for `h <host>`/`h .domain` rules (per request). */
+    if (conf->acc.resolve_hosts) {
+        char        hbuf[256];
+        const char *h = xrootd_acc_resolve_peer(r->connection->sockaddr,
+                                                r->connection->socklen,
+                                                hbuf, sizeof(hbuf));
+        if (h != NULL) {
+            n = ngx_min(ngx_strlen(h), sizeof(host) - 1);
+            ngx_memcpy(host, h, n);
+            host[n] = '\0';
+        }
+    }
+
+    n = ngx_min(r->uri.len, sizeof(path) - 1);
+    ngx_memcpy(path, r->uri.data, n);
+    path[n] = '\0';
+
+    rc = xrootd_acc_http_authorize(r->pool, r->connection->log,
+                                   &conf->acc, name, host,
+                                   vorg, role, grp,
+                                   webdav_method_aop(r), path);
+
+    return (rc == NGX_ERROR) ? NGX_HTTP_FORBIDDEN : NGX_OK;
+}
 
 /* Returns non-zero if the HTTP method is a mutating (write) operation. */
 static int
@@ -168,6 +247,11 @@ ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r)
 
     /* ---- Write-method gate ---- */
     if (webdav_is_write_method(r) && !conf->common.allow_write) {
+        return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
+    }
+
+    /* ---- XrdAcc engine (when xrootd_authdb_format xrdacc) ---- */
+    if (webdav_acc_check(r, conf) != NGX_OK) {
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }
 

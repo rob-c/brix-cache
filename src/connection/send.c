@@ -17,6 +17,7 @@
 #include "fd_table.h"
 #include "tls.h"
 #include "write_helpers.h"
+#include "deadline.h"
 
 /* ---- ngx_stream_xrootd_send — write event handler for pending response buffers (async flush cycle) ----
  *
@@ -42,6 +43,11 @@ ngx_stream_xrootd_send(ngx_event_t *wev)
     if (wev->timedout) {
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
                       "xrootd: write timed out");
+        /* Phase 39: the response-drain deadline fired — the consumer made no
+         * progress for xrootd_send_timeout (slow / half-open reader).  Attribute
+         * it and tear down via the single disconnect funnel. */
+        ctx->send_deadline_armed = 0;
+        XROOTD_SRV_METRIC_INC(ctx, send_drain_timeouts_total);
         xrootd_on_disconnect(ctx, c);
         xrootd_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_OK);

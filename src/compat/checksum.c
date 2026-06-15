@@ -14,6 +14,7 @@
 */
 
 #include "checksum.h"
+#include "checksum_core.h"   /* shared (ngx-free) fd→checksum compute kernels */
 #include "crc32c.h"
 #include "hex.h"
 
@@ -53,9 +54,29 @@ xrootd_checksum_name(xrootd_checksum_alg_t alg)
         return "sha1";
     case XROOTD_CHECKSUM_SHA256:
         return "sha256";
+    case XROOTD_CHECKSUM_CRC64:
+        return "crc64";
+    case XROOTD_CHECKSUM_CRC64NVME:
+        return "crc64nvme";
     default:
         return NULL;
     }
+}
+
+/*
+ * xrootd_checksum_is_u64 — classify algorithm as a 64-bit CRC.
+ *
+ * WHAT: Returns true for CRC-64/XZ and CRC-64/NVME (uint64_t → 16 hex chars),
+ *      false for everything else. WHY: the hex/compute path has three width
+ *      classes (32-bit, 64-bit, variable digest); callers check is_u32 then
+ *      is_u64 then fall through to the digest path. HOW: equality against the two
+ *      CRC64 enum constants. */
+
+ngx_flag_t
+xrootd_checksum_is_u64(xrootd_checksum_alg_t alg)
+{
+    return alg == XROOTD_CHECKSUM_CRC64
+           || alg == XROOTD_CHECKSUM_CRC64NVME;
 }
 
 /*
@@ -118,6 +139,10 @@ xrootd_checksum_parse(const char *name, size_t len, xrootd_checksum_alg_t *alg,
         parsed = XROOTD_CHECKSUM_SHA1;
     } else if (strcmp(buf, "sha256") == 0) {
         parsed = XROOTD_CHECKSUM_SHA256;
+    } else if (strcmp(buf, "crc64") == 0 || strcmp(buf, "crc64xz") == 0) {
+        parsed = XROOTD_CHECKSUM_CRC64;
+    } else if (strcmp(buf, "crc64nvme") == 0) {
+        parsed = XROOTD_CHECKSUM_CRC64NVME;
     } else {
         return NGX_DECLINED;
     }
@@ -126,8 +151,13 @@ xrootd_checksum_parse(const char *name, size_t len, xrootd_checksum_alg_t *alg,
         *alg = parsed;
     }
 
+    /* Emit the CANONICAL name (not the raw input) so aliases normalize — e.g.
+     * "crc64xz" → "crc64" — keeping xattr cache keys and wire names consistent.
+     * For every non-aliased algorithm the canonical name equals buf, so this is
+     * a no-op there. parsed is always valid here, so name() is never NULL. */
     if (normalized != NULL && normalized_sz > 0) {
-        ngx_cpystrn((u_char *) normalized, (u_char *) buf, normalized_sz);
+        ngx_cpystrn((u_char *) normalized,
+                    (u_char *) xrootd_checksum_name(parsed), normalized_sz);
     }
 
     return NGX_OK;
@@ -173,144 +203,38 @@ ngx_int_t
 xrootd_checksum_u32_fd(xrootd_checksum_alg_t alg, int fd, const char *path,
     ngx_log_t *log, uint32_t *out)
 {
-    u_char   buf[XROOTD_CHECKSUM_BUFSZ];
-    off_t    offset;
-    ssize_t  n;
-    uint32_t crc32c;
-    uLong    zcrc;
-    const char *name;
-
     if (out == NULL || !xrootd_checksum_is_u32(alg)) {
         return NGX_ERROR;
     }
-
-    name = xrootd_checksum_name(alg);
-    offset = 0;
-    crc32c = 0;
-
-    if (alg == XROOTD_CHECKSUM_ADLER32) {
-        zcrc = adler32(0L, Z_NULL, 0);
-    } else if (alg == XROOTD_CHECKSUM_CRC32) {
-        zcrc = crc32(0L, Z_NULL, 0);
-    } else {
-        zcrc = 0;
+    /* Compute via the shared (ngx-free) kernel; errno carries any read error so
+     * we keep the module's specific read-error log line. (alg ordinals match.) */
+    if (xrootd_cksum_u32_fd((int) alg, fd, out) != 0) {
+        xrootd_checksum_log_read_error(log, errno, xrootd_checksum_name(alg), path);
+        return NGX_ERROR;
     }
-
-    for (;;) {
-        n = pread(fd, buf, sizeof(buf), offset);
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            xrootd_checksum_log_read_error(log, errno, name, path);
-            return NGX_ERROR;
-        }
-
-        if (n == 0) {
-            break;
-        }
-
-        offset += (off_t) n;
-
-        if (alg == XROOTD_CHECKSUM_ADLER32) {
-            zcrc = adler32(zcrc, buf, (uInt) n);
-        } else if (alg == XROOTD_CHECKSUM_CRC32) {
-            zcrc = crc32(zcrc, buf, (uInt) n);
-        } else {
-            crc32c = xrootd_crc32c_extend(crc32c, buf, (size_t) n);
-        }
-    }
-
-    *out = (alg == XROOTD_CHECKSUM_CRC32C) ? crc32c : (uint32_t) zcrc;
     return NGX_OK;
 }
 
 /*
- * xrootd_checksum_evp_md - map checksum algorithm enum to OpenSSL EVP_MD pointer.
+ * xrootd_checksum_u64_fd — compute CRC-64/XZ or /NVME on a file descriptor.
  *
- * WHAT: Returns the OpenSSL digest type for MD5, SHA1, or SHA256. Returns NULL for
- *       non-digest algorithms (Adler-32, CRC-32, CRC-32c).
- *
- * WHY: xrootd_checksum_digest_fd() needs an EVP_MD pointer to initialise the digest
- *      context. This switch-case provides the lookup without caller needing OpenSSL
- *      knowledge.
- *
- * HOW: Direct switch-case returning EVP_md5(), EVP_sha1(), EVP_sha256().
- */
+ * WHAT: Streams the whole file at fd and accumulates the 64-bit CRC into *out.
+ * WHY:  S3 crc64nvme, root:// crc64 and WebDAV crc64 Digest all need a whole-file
+ *      64-bit checksum; this is the ngx wrapper over the shared kernel.
+ * HOW:  Validates is_u64(alg), delegates to xrootd_cksum_u64_fd((int)alg, fd, out)
+ *      (alg ordinals match the kind codes), logs a read error on failure. */
 
-static const EVP_MD *
-xrootd_checksum_evp_md(xrootd_checksum_alg_t alg)
+ngx_int_t
+xrootd_checksum_u64_fd(xrootd_checksum_alg_t alg, int fd, const char *path,
+    ngx_log_t *log, uint64_t *out)
 {
-    switch (alg) {
-    case XROOTD_CHECKSUM_MD5:
-        return EVP_md5();
-    case XROOTD_CHECKSUM_SHA1:
-        return EVP_sha1();
-    case XROOTD_CHECKSUM_SHA256:
-        return EVP_sha256();
-    default:
-        return NULL;
-    }
-}
-
-/*
- * xrootd_checksum_digest_fd — compute MD5 / SHA1 / SHA256 on file descriptor.
- *
- * WHAT: Reads an entire file via pread in 64KB chunks, accumulating a cryptographic digest
- *      (MD5, SHA1, or SHA256) using OpenSSL EVP API. WHY: fattr/PROPFIND return hex-encoded
- *      digests for integrity verification; WebDAV/S3 use SHA-256 for object checksums. This
- *      shared function serves all three protocol callers without duplication. HOW: 1) Map alg
- *      to EVP_MD via xrootd_checksum_evp_md() → 2) Create EVP_MD_CTX, init with EVP_DigestInit_ex
- *      → 3) Loop pread(buf, 64KB, offset) with EINTR retry → 4) Update digest per chunk via
- *      EVP_DigestUpdate → 5) Finalise via EVP_DigestFinal_ex → 6) Return binary digest + length.
- *      Returns NGX_ERROR on init/final failure or read error (logged via log_read_error). */
-
-/*
- * Drive an already-initialised EVP_MD_CTX over the whole file: init the digest,
- * pread it in chunks (EINTR-retried), update per chunk, and finalise into
- * out/outlen. Returns NGX_OK on success, NGX_ERROR on any OpenSSL or read
- * failure (read errors are logged). The caller owns ctx and frees it; keeping
- * ownership at the edge lets this worker use flat early returns.
- */
-static ngx_int_t
-xrootd_checksum_digest_ctx(EVP_MD_CTX *ctx, const EVP_MD *md, int fd,
-    const char *path, xrootd_checksum_alg_t alg, ngx_log_t *log,
-    unsigned char *out, unsigned int *outlen)
-{
-    u_char   buf[XROOTD_CHECKSUM_BUFSZ];
-    off_t    offset;
-    ssize_t  n;
-
-    if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+    if (out == NULL || !xrootd_checksum_is_u64(alg)) {
         return NGX_ERROR;
     }
-
-    offset = 0;
-    for (;;) {
-        n = pread(fd, buf, sizeof(buf), offset);
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            xrootd_checksum_log_read_error(log, errno,
-                                           xrootd_checksum_name(alg), path);
-            return NGX_ERROR;
-        }
-
-        if (n == 0) {
-            break;
-        }
-
-        offset += (off_t) n;
-        if (EVP_DigestUpdate(ctx, buf, (size_t) n) != 1) {
-            return NGX_ERROR;
-        }
-    }
-
-    if (EVP_DigestFinal_ex(ctx, out, outlen) != 1) {
+    if (xrootd_cksum_u64_fd((int) alg, fd, out) != 0) {
+        xrootd_checksum_log_read_error(log, errno, xrootd_checksum_name(alg), path);
         return NGX_ERROR;
     }
-
     return NGX_OK;
 }
 
@@ -318,24 +242,18 @@ ngx_int_t
 xrootd_checksum_digest_fd(xrootd_checksum_alg_t alg, int fd, const char *path,
     ngx_log_t *log, unsigned char *out, unsigned int *outlen)
 {
-    const EVP_MD *md;
-    EVP_MD_CTX   *ctx;
-    ngx_int_t     rc;
-
-    md = xrootd_checksum_evp_md(alg);
-    if (md == NULL || out == NULL || outlen == NULL) {
+    /* digest algs = the non-u32, non-u64 ones (md5/sha1/sha256). Compute via the
+     * shared (ngx-free) kernel; errno carries any read error for the module's log. */
+    if (xrootd_checksum_is_u32(alg) || xrootd_checksum_is_u64(alg)
+        || out == NULL || outlen == NULL)
+    {
         return NGX_ERROR;
     }
-
-    ctx = EVP_MD_CTX_new();
-    if (ctx == NULL) {
+    if (xrootd_cksum_digest_fd((int) alg, fd, out, outlen) != 0) {
+        xrootd_checksum_log_read_error(log, errno, xrootd_checksum_name(alg), path);
         return NGX_ERROR;
     }
-
-    rc = xrootd_checksum_digest_ctx(ctx, md, fd, path, alg, log, out, outlen);
-
-    EVP_MD_CTX_free(ctx);
-    return rc;
+    return NGX_OK;
 }
 
 /*
@@ -382,6 +300,21 @@ xrootd_checksum_hex_fd(xrootd_checksum_alg_t alg, int fd, const char *path,
         }
 
         snprintf(hex, hexsz, "%08x", (unsigned int) value);
+        return NGX_OK;
+    }
+
+    if (xrootd_checksum_is_u64(alg)) {
+        uint64_t value;
+
+        if (hexsz < 17) {                       /* 16 hex digits + NUL */
+            return NGX_ERROR;
+        }
+
+        if (xrootd_checksum_u64_fd(alg, fd, path, log, &value) != NGX_OK) {
+            return NGX_ERROR;
+        }
+
+        snprintf(hex, hexsz, "%016llx", (unsigned long long) value);
         return NGX_OK;
     }
 

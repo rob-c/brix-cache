@@ -106,6 +106,9 @@ typedef struct {
     uint64_t  transfer_id;  /* shared TPC registry entry, 0 if unavailable */
     size_t    bytes_written;/* source bytes copied into dst_fd */
     char      err_msg[512]; /* human-readable error detail for logging */
+    ngx_uint_t pmark_exp;   /* SciTags experiment id for the outbound flow,    */
+    ngx_uint_t pmark_act;   /* and activity id; 0 = not marked (resolved on the */
+                            /* event loop in start_pull, applied in connect.c)  */
 } xrootd_tpc_pull_t;
 
 /*

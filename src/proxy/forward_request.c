@@ -342,10 +342,11 @@ xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
     }
 
     /* Queue the request to the upstream write buffer */
-    proxy->wbuf     = req;
-    proxy->wbuf_len = total;
-    proxy->wbuf_pos = 0;
-    proxy->state    = XRD_PX_FORWARDING;
+    proxy->wbuf       = req;
+    proxy->wbuf_len   = total;
+    proxy->wbuf_pos   = 0;
+    proxy->wbuf_owned = 1;   /* Phase 39 (PXY-3): raw heap — free on send-complete */
+    proxy->state      = XRD_PX_FORWARDING;
 
     /* Reset response accumulator */
     proxy->rhdr_pos      = 0;
@@ -358,20 +359,24 @@ xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
 
     ngx_int_t rc = xrootd_proxy_flush(proxy);
     if (rc == NGX_ERROR) {
-        ngx_free(req);
-        proxy->wbuf = NULL;
+        xrootd_proxy_wbuf_release(proxy);
         xrootd_proxy_abort(proxy, "proxy: upstream write error");
         return NGX_ERROR;
     }
 
     if (proxy->wbuf_pos == proxy->wbuf_len) {
         /* Fully sent immediately — free the request buffer and arm upstream read */
-        ngx_free(req);
-        proxy->wbuf = NULL;
+        xrootd_proxy_wbuf_release(proxy);
         if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
             xrootd_proxy_abort(proxy, "proxy: read arm failed");
             return NGX_ERROR;
         }
+    } else if (proxy->conf != NULL && proxy->conf->proxy_write_timeout > 0) {
+        /* Phase 39 (PXY-2): the request is parked for the upstream write event —
+         * bound how long a slow/backpressured upstream may stall it (the write
+         * handler refreshes/clears the timer).  Armed here too in case the write
+         * event never fires. */
+        ngx_add_timer(proxy->conn->write, proxy->conf->proxy_write_timeout);
     }
     /* else: write handler will complete the send and arm the read */
 

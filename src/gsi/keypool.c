@@ -7,6 +7,7 @@
  */
 
 #include "keypool.h"
+#include "gsi_core.h"             /* xrootd_gsi_dh_keygen (shared kernel) */
 #include "../aio/aio.h"            /* xrootd_task_bind */
 #include "../types/tunables.h"     /* XROOTD_GSI_KEYPOOL_* */
 
@@ -30,31 +31,8 @@ typedef struct {
     ngx_uint_t n;
 } xrootd_gsi_refill_t;
 
-
-EVP_PKEY *
-xrootd_gsi_dh_keygen(void)
-{
-    EVP_PKEY_CTX *pctx;
-    EVP_PKEY     *dhkey = NULL;
-    OSSL_PARAM    dh_params[] = {
-        OSSL_PARAM_utf8_string("group", "ffdhe2048", 0),
-        OSSL_PARAM_END
-    };
-
-    pctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
-    if (pctx == NULL) {
-        return NULL;
-    }
-    if (EVP_PKEY_keygen_init(pctx) <= 0
-        || EVP_PKEY_CTX_set_params(pctx, dh_params) <= 0
-        || EVP_PKEY_keygen(pctx, &dhkey) <= 0)
-    {
-        EVP_PKEY_CTX_free(pctx);
-        return NULL;
-    }
-    EVP_PKEY_CTX_free(pctx);
-    return dhkey;
-}
+/* xrootd_gsi_dh_keygen() now lives in the shared gsi_core.c (single source for
+ * both the module and the native client). */
 
 
 /* Worker-thread half of a refill: pure keygen into task-local storage. */

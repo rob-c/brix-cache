@@ -6,18 +6,11 @@
 
 /*
  * xrootd_ns_status_t — neutral status codes for filesystem mutations.
+ * The enum now lives in ns_status.h (ngx-free) so error_mapping's Sections 1-2
+ * can be compiled into the standalone libxrdproto core. namespace_ops keeps the
+ * full ngx-coupled API below; the enum is single-sourced via this include.
  */
-typedef enum {
-    XROOTD_NS_OK = 0,
-    XROOTD_NS_NOT_FOUND,
-    XROOTD_NS_DENIED,
-    XROOTD_NS_EXISTS,
-    XROOTD_NS_CONFLICT,
-    XROOTD_NS_NOT_EMPTY,
-    XROOTD_NS_TOO_LONG,
-    XROOTD_NS_NO_SPACE,
-    XROOTD_NS_IO_ERROR
-} xrootd_ns_status_t;
+#include "ns_status.h"
 
 /*
  * xrootd_ns_result_t — result of a namespace mutation.

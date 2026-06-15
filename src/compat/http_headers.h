@@ -74,6 +74,19 @@ ngx_int_t xrootd_http_set_header(ngx_http_request_t *r, const char *key,
  */
 ngx_int_t xrootd_http_set_header_num(ngx_http_request_t *r,
     const char *key, long value);
+
+/* Canonical source-code location for this software (AGPL-3.0). */
+#ifndef XROOTD_SOURCE_URL
+#define XROOTD_SOURCE_URL  "https://github.com/rob-c/nginx-xrootd"
+#endif
+
+/*
+ * AGPL-3.0 section 13: prominently offer remote users the Corresponding Source.
+ * Adds an "X-Source" response header pointing at XROOTD_SOURCE_URL.  Best-effort
+ * (a header allocation failure is ignored) — call once per HTTP request, early,
+ * from each HTTP-facing handler (WebDAV, S3, dashboard, metrics, SRR).
+ */
+void xrootd_http_source_offer(ngx_http_request_t *r);
 /*
  * Append a header to the REQUEST list (headers_in), used to inject/forward
  * headers (e.g. for proxying/TPC) rather than to respond. The value is copied

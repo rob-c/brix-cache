@@ -12,6 +12,7 @@
  */
 
 #include "proxy_internal.h"
+#include "../compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
 
 /*
  * Resolve one upstream URL and append one backend per resolved address.
@@ -69,14 +70,30 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_xrootd_webdav_loc_conf_t *conf,
         return NGX_ERROR;
     }
 
-    /* Host: header value — "host" or "host:port". */
-    if (u.port == default_port) {
-        host = u.host;
-    } else {
-        p = ngx_pnalloc(cf->pool, u.host.len + 1 + NGX_INT_T_LEN + 1);
+    /* Host: header value — "host" or "host:port", with IPv6 literals bracketed.
+     * ngx_parse_url strips the brackets off "[::1]", so u.host arrives bare and
+     * must be re-bracketed ("[::1]") before it is re-emitted in a Host header. */
+    {
+        char   hostz[256], fmt[288];
+        size_t hn, fn;
+
+        hn = ngx_min(u.host.len, sizeof(hostz) - 1);
+        ngx_memcpy(hostz, u.host.data, hn);
+        hostz[hn] = '\0';
+
+        if (u.port == default_port) {
+            fn = xrootd_format_host(hostz, fmt, sizeof(fmt));
+        } else {
+            fn = xrootd_format_host_port(hostz, (uint16_t) u.port,
+                                         fmt, sizeof(fmt));
+        }
+
+        p = ngx_pnalloc(cf->pool, fn + 1);
         if (p == NULL) return NGX_ERROR;
+        ngx_memcpy(p, fmt, fn);
+        p[fn] = '\0';
         host.data = p;
-        host.len  = ngx_sprintf(p, "%V:%d", &u.host, (int) u.port) - p;
+        host.len  = fn;
     }
 
     /* Request-line base — "scheme://host[:port]". */

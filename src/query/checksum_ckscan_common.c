@@ -21,7 +21,7 @@
 /* Append one "algo hex  logical_path\n" line, growing the buffer if needed. */
 int
 xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
-    const char *algo, uint32_t cksum, const char *logical)
+    const char *algo, const char *hex, const char *logical)
 {
     char    line[XROOTD_MAX_PATH + 64];
     size_t  llen;
@@ -31,12 +31,14 @@ xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
      * snprintf returns the length it WOULD have written, so llen can exceed
      * sizeof(line) on truncation. The >= test below catches that (and the
      * mandatory NUL means equality is already overflow), so `line` is never
-     * read past a valid terminator. cksum is rendered fixed-width %08x to match
-     * xrdadler32's hex column; the two spaces between hex and path are literal,
-     * part of the on-wire line format the client parses.
+     * read past a valid terminator. `hex` is the already-formatted lowercase
+     * checksum — its width is algorithm-dependent (8 chars for adler32/crc32c,
+     * 16 for crc64/crc64nvme), carried in the string so this formatter stays
+     * width-agnostic; the two spaces between hex and path are literal, part of
+     * the on-wire line format the client parses.
      */
-    llen = (size_t) snprintf(line, sizeof(line), "%s %08x  %s\n",
-                             algo, (unsigned int) cksum, logical);
+    llen = (size_t) snprintf(line, sizeof(line), "%s %s  %s\n",
+                             algo, hex, logical);
     if (llen >= sizeof(line)) {
         return 0;  /* path too long: skip */
     }
@@ -187,9 +189,10 @@ xrootd_ckscan_walk(ngx_log_t *log, int rootfd,
                 return -1;
             }
         } else if (S_ISREG(st.st_mode)) {
-            int      fd;
-            uint32_t cksum;
-            xrootd_checksum_alg_t alg;
+            int  fd;
+            /* Hex result: 8 chars (adler32/crc32c), 16 (crc64/crc64nvme), or up
+             * to EVP_MAX_MD_SIZE*2 for any digest — 129 covers every case. */
+            char hex[129];
 
             /*
              * File cap counts every regular file we *reach*, incremented before
@@ -209,23 +212,18 @@ xrootd_ckscan_walk(ngx_log_t *log, int rootfd,
             }
 
             /*
-             * Collapse "unknown algorithm" and "digest read failed" into the
-             * single sentinel (uint32_t)-1 (ckscan's "no checksum" marker). fd is
-             * closed unconditionally before the sentinel test so neither outcome
-             * leaks it; an invalid checksum just drops the file from the output.
+             * Compute the checksum directly as a hex string (parse + compute via
+             * the shared dispatcher, so the width is algorithm-appropriate). An
+             * unknown algorithm or read failure drops the file from the output
+             * rather than aborting the scan; fd is closed on every branch.
              */
-            if (xrootd_checksum_parse(algo, strlen(algo), &alg, NULL, 0)
-                    != NGX_OK
-                || xrootd_checksum_u32_fd(alg, fd, child_logical, log,
-                                          &cksum) != NGX_OK)
+            if (xrootd_checksum_hex_name_fd(algo, fd, child_logical, log,
+                                            hex, sizeof(hex), NULL, 0) != NGX_OK)
             {
-                cksum = (uint32_t) -1;
+                close(fd);
+                continue;  /* skip unreadable / bad-algorithm files */
             }
             close(fd);
-
-            if (cksum == (uint32_t) -1) {
-                continue;  /* skip unreadable files */
-            }
 
             /*
              * Only append's <0 (OOM) is fatal here. A 0 return (line too long)
@@ -233,7 +231,7 @@ xrootd_ckscan_walk(ngx_log_t *log, int rootfd,
              * walk continues. closedir(dh) before the hard-error return.
              */
             if (xrootd_ckscan_append(buf, cap, used,
-                                     algo, cksum, child_logical) < 0) {
+                                     algo, hex, child_logical) < 0) {
                 snprintf(errmsg, errsz, "out of memory");
                 closedir(dh);
                 return -1;

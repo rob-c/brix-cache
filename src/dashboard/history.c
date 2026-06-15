@@ -1,5 +1,6 @@
 #include "dashboard.h"
 #include "../metrics/metrics.h"
+#include "../compat/shm_slots.h"
 
 #include <ngx_shmtx.h>
 
@@ -58,25 +59,28 @@ dashboard_history_bucket_index(int64_t bucket_start_ms)
 ngx_int_t
 ngx_xrootd_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
+    ngx_flag_t                  fresh;
     xrootd_dashboard_history_t *hist;
 
-    if (data) {
-        shm_zone->data = data;
-        hist = data;
-        return ngx_shmtx_create(&xrootd_dashboard_history_mutex, &hist->lock,
-                                NULL);
-    }
-
-    hist = (xrootd_dashboard_history_t *) shm_zone->shm.addr;
-    ngx_memzero(hist, sizeof(*hist));
-
-    if (ngx_shmtx_create(&xrootd_dashboard_history_mutex, &hist->lock, NULL)
-        != NGX_OK)
-    {
+    /*
+     * Allocate the history ring FROM the slab pool so the slab-pool header at
+     * shm.addr (force-unlocked by nginx on every child exit) is left intact.
+     * The helper zeroes a fresh ring and (re-)creates the mutex from the leading
+     * ngx_shmtx_sh_t lock on fresh, reload, and re-attach; on reuse the existing
+     * time-series is preserved across the config reload.
+     */
+    hist = xrootd_shm_table_alloc(shm_zone, data,
+                                  sizeof(xrootd_dashboard_history_t),
+                                  &xrootd_dashboard_history_mutex, &fresh);
+    if (hist == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = hist;
+    /* No fresh-only field inits: the helper's memzero leaves
+     * last_bucket_start_ms = 0 and every bucket empty, which is the entire
+     * first-startup state. */
+    (void) fresh;
+
     return NGX_OK;
 }
 

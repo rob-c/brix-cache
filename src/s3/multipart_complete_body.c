@@ -60,6 +60,7 @@ s3_multipart_complete_body_handler(ngx_http_request_t *r)
     char                    copy_buf[65536];
     struct stat             st;
     char                    etag[64];
+    char                    crc64_xml[128];
     size_t                  xml_len;
     ngx_uint_t              method_slot;
     u_char                 *p;
@@ -210,6 +211,36 @@ s3_multipart_complete_body_handler(ngx_http_request_t *r)
                              " (object committed successfully)", mpu_dir);
     }
 
+    /*
+     * Full-object CRC-64/NVME (AWS x-amz-checksum-crc64nvme). Because the parts
+     * were reassembled into a single object above, the whole-object checksum is
+     * computed directly on the result — the exact FULL_OBJECT value, so no
+     * per-part CRC-combine is needed. Returned both in the result XML and as a
+     * response header; cached in the xattr layer for later GET/HEAD echo.
+     */
+    {
+        char crc64_b64[S3_CRC64NVME_B64_MAX];
+        int  cfd;
+
+        crc64_xml[0] = '\0';
+        cfd = xrootd_open_confined_canon(r->connection->log,
+                                         cf->common.root_canon, fs_path,
+                                         O_RDONLY, 0);
+        if (cfd >= 0) {
+            if (s3_object_crc64nvme_b64(r, cfd, fs_path, 0, crc64_b64,
+                                        sizeof(crc64_b64)) == NGX_OK)
+            {
+                (void) s3_set_header(r, S3_HDR_CHECKSUM_CRC64NVME, crc64_b64);
+                (void) s3_set_header(r, S3_HDR_CHECKSUM_TYPE, "FULL_OBJECT");
+                (void) snprintf(crc64_xml, sizeof(crc64_xml),
+                    "  <ChecksumCRC64NVME>%s</ChecksumCRC64NVME>\n"
+                    "  <ChecksumType>FULL_OBJECT</ChecksumType>\n",
+                    crc64_b64);
+            }
+            close(cfd);
+        }
+    }
+
     /* Build success XML response */
     s3_etag(&st, etag, sizeof(etag));
 
@@ -220,11 +251,12 @@ s3_multipart_complete_body_handler(ngx_http_request_t *r)
         "  <Bucket>%s</Bucket>\n"
         "  <Key>%s</Key>\n"
         "  <ETag>%s</ETag>\n"
+        "%s"
         "</CompleteMultipartUploadResult>\n",
         cf->bucket.data ? (const char *)cf->bucket.data : "default",
         /* key is not available here — extract from fs_path */
         strrchr(fs_path, '/') ? strrchr(fs_path, '/') + 1 : fs_path,
-        etag);
+        etag, crc64_xml);
 
     if (xml_len >= sizeof(xml_buf)) {
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);

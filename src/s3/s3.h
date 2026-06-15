@@ -49,6 +49,7 @@
 #include "../compat/protocol_caps.h"
 #include "../config/shared_conf.h"
 #include "../compat/namespace_ops.h"
+#include "../acc/acc.h"
 #include "../compat/etag.h"
 #include "../compat/error_mapping.h"
 #include "../compat/http_xml.h"
@@ -74,6 +75,14 @@ typedef struct {
     ngx_str_t    region;      /* region for SigV4 scope (default "us-east-1") */
     ngx_flag_t   allow_unsigned_session_token; /* accept STS token with static secret */
     ngx_int_t    max_keys;    /* max objects per list page (default 1000)*/
+    ngx_int_t    mpu_max_age; /* [xrootd_s3_mpu_max_age 0] Phase 39 (WS8): seconds
+                                 a multipart staging dir may be idle before the
+                                 incomplete-MPU reaper (run on InitiateMultipart)
+                                 removes it.  0 = disabled.  Recommended 604800
+                                 (7d, AWS-parity). */
+
+    /* ---- XrdAcc authorization engine (off by default) ---- */
+    xrootd_acc_http_t  acc;    /* settings + per-worker state */
 } ngx_http_s3_loc_conf_t;
 
 typedef struct {
@@ -346,5 +355,21 @@ void s3_delete_objects_body_handler(ngx_http_request_t *r);
  * buf must be at least 40 bytes.
  */
 void s3_etag(const struct stat *st, char *buf, size_t bufsz);
+
+/* AWS S3 full-object checksum headers (this gateway supports CRC-64/NVME). */
+#define S3_HDR_CHECKSUM_CRC64NVME  "x-amz-checksum-crc64nvme"
+#define S3_HDR_CHECKSUM_TYPE       "x-amz-checksum-type"
+/* base64 of 8 bytes = 12 chars + NUL; round up for safety. */
+#define S3_CRC64NVME_B64_MAX       16
+
+/*
+ * Compute (or cache-read) an object's CRC-64/NVME for the open fd and base64-
+ * encode the 8 big-endian bytes into out (>= S3_CRC64NVME_B64_MAX) — the AWS
+ * x-amz-checksum-crc64nvme wire form. cache_only=1 returns NGX_DECLINED on a
+ * cache miss instead of computing (read path). Returns NGX_OK / NGX_DECLINED /
+ * NGX_ERROR.
+ */
+ngx_int_t s3_object_crc64nvme_b64(ngx_http_request_t *r, int fd,
+    const char *path, ngx_flag_t cache_only, char *out, size_t outsz);
 
 #endif /* NGX_HTTP_S3_H */

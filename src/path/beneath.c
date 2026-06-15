@@ -32,6 +32,7 @@
  */
 #include "../ngx_xrootd_module.h"
 #include "beneath.h"
+#include "../impersonate/impersonate.h"
 
 #include <sys/syscall.h>
 #include <linux/openat2.h>
@@ -39,6 +40,20 @@
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
+
+/*
+ * IMPERSONATION SEAM (phase 40).
+ *
+ * When `xrootd_impersonation map` is active and a per-request principal is set,
+ * xrootd_imp_client_active() returns true and the confined helpers below delegate
+ * the open/metadata syscall to the privileged broker, which performs it as the
+ * mapped UNIX user under its OWN rootfd (the kernel enforces RESOLVE_BENEATH
+ * there too).  In that mode the worker's local `rootfd` argument is unused — the
+ * broker is the confinement authority — but the helper signatures are unchanged,
+ * so no caller is touched.  When impersonation is off (the default) or no
+ * principal is set, xrootd_imp_client_active() is false and the original local
+ * openat2 path below runs exactly as before.
+ */
 
 #ifndef RESOLVE_BENEATH
 #error "openat2(2) with RESOLVE_BENEATH required — kernel headers too old (need >= 5.6)"
@@ -95,6 +110,9 @@ do_openat2(int rootfd, const char *rel, int flags, mode_t mode)
 int
 xrootd_open_beneath(int rootfd, const char *reqpath, int flags, mode_t mode)
 {
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_open(reqpath, flags, mode);
+    }
     return do_openat2(rootfd, xrootd_beneath_rel(reqpath), flags, mode);
 }
 
@@ -102,9 +120,31 @@ int
 xrootd_stat_beneath(int rootfd, const char *reqpath, struct stat *st)
 {
     int fd, rc;
+
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_stat(reqpath, st, 0 /* follow */);
+    }
     /* O_PATH without O_NOFOLLOW: follow symlinks, but RESOLVE_BENEATH blocks
      * any attempt to escape the root — escapes return EXDEV. */
     fd = do_openat2(rootfd, xrootd_beneath_rel(reqpath), O_PATH, 0);
+    if (fd < 0) { return -1; }
+    rc = fstat(fd, st);
+    close(fd);
+    return rc;
+}
+
+int
+xrootd_lstat_beneath(int rootfd, const char *reqpath, struct stat *st)
+{
+    int fd, rc;
+
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_stat(reqpath, st, 1 /* nofollow */);
+    }
+    /* O_PATH | O_NOFOLLOW: do NOT follow a trailing symlink, so fstat() reports
+     * the link itself (lstat semantics). RESOLVE_BENEATH still confines the path;
+     * intermediate symlinks are resolved/blocked exactly as in stat_beneath. */
+    fd = do_openat2(rootfd, xrootd_beneath_rel(reqpath), O_PATH | O_NOFOLLOW, 0);
     if (fd < 0) { return -1; }
     rc = fstat(fd, st);
     close(fd);
@@ -158,6 +198,10 @@ xrootd_unlink_beneath(int rootfd, const char *reqpath, int is_dir)
     const char  *base;
     int          pfd, rc, e;
 
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_unlink(reqpath, is_dir);
+    }
+
     pfd = beneath_open_parent(rootfd, reqpath, pbuf, sizeof(pbuf), &base);
     if (pfd < 0) { return -1; }
     if (base[0] == '\0') { close(pfd); errno = EINVAL; return -1; }
@@ -173,6 +217,10 @@ xrootd_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
     const char  *base;
     int          pfd, rc, e;
 
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_mkdir(reqpath, mode);
+    }
+
     pfd = beneath_open_parent(rootfd, reqpath, pbuf, sizeof(pbuf), &base);
     if (pfd < 0) { return -1; }
     if (base[0] == '\0') { close(pfd); errno = EINVAL; return -1; }
@@ -187,6 +235,10 @@ xrootd_rename_beneath(int rootfd, const char *src, const char *dst)
     char         sbuf[PATH_MAX], dbuf[PATH_MAX];
     const char  *sbase, *dbase;
     int          sfd, dfd, rc, e;
+
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_rename(src, dst);
+    }
 
     sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
     if (sfd < 0) { return -1; }
@@ -206,6 +258,10 @@ xrootd_link_beneath(int rootfd, const char *src, const char *dst)
     char         sbuf[PATH_MAX], dbuf[PATH_MAX];
     const char  *sbase, *dbase;
     int          sfd, dfd, rc, e;
+
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_link(src, dst);
+    }
 
     sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
     if (sfd < 0) { return -1; }

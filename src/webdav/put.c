@@ -1,12 +1,21 @@
 /*
  * put.c - WebDAV PUT body handling, including optional thread-pool writes.
+ *
+ * Phase 39 (WS8/HTTP-4): the body is written to a staged temp file and atomically
+ * renamed onto the final path on success (xrootd_staged_open/commit/abort, the
+ * same crash-safe lifecycle S3 PUT uses).  So a client that drops mid-upload, a
+ * crash, or a failed inflate never leaves a partial/truncated object at the final
+ * path, and a concurrent GET only ever observes the old or the new object — never
+ * a half-written one.
  */
 
 #include "webdav.h"
 #include "../compat/etag.h"
 #include "../compat/http_body.h"
 #include "../compat/http_conditionals.h"
+#include "../compat/staged_file.h"
 #include "../dashboard/dashboard_tracking.h"
+#include "../impersonate/lifecycle.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -14,12 +23,13 @@
 
 typedef struct {
     ngx_http_request_t  *r;
-    ngx_fd_t             fd;
+    xrootd_staged_file_t staged;
     size_t               len;
     ssize_t              nwritten;
     int                  io_errno;
     int                  created;
-    char                 path[WEBDAV_MAX_PATH];
+    char                 path[WEBDAV_MAX_PATH];   /* final path (commit target) */
+    char                 root_canon[PATH_MAX];    /* confinement root for commit */
 } webdav_put_aio_t;
 
 static void webdav_put_aio_thread(void *data, ngx_log_t *log);
@@ -36,14 +46,16 @@ webdav_put_aio_thread(void *data, ngx_log_t *log)
 
     /*
      * Phase 31 W2: stream the body straight from nginx's own request buffers
-     * to the destination fd — no full-body contiguous copy.  The body for this
+     * to the staged temp fd — no full-body contiguous copy.  The body for this
      * path is all in-memory bufs anchored in r->pool (the caller gates spooled
      * bodies to the synchronous streaming path), so they are stable for the
      * lifetime of the request (held alive by r->main->count++).  This helper
      * only does pwrite(2), so it is safe to run on the thread pool — no nginx
      * pool allocation or event-loop calls.
      */
-    if (xrootd_http_body_write_to_fd(t->r, t->fd, t->path, NULL) != NGX_OK) {
+    if (xrootd_http_body_write_to_fd(t->r, t->staged.fd, t->path, NULL)
+        != NGX_OK)
+    {
         t->io_errno = errno;
         t->nwritten = -1;
         return;
@@ -72,14 +84,27 @@ webdav_put_aio_done(ngx_event_t *ev)
                              t->path);
         xrootd_dashboard_http_error(r, "webdav PUT async write failed");
         xrootd_dashboard_http_finish(r);
-        ngx_close_file(t->fd);
+        /* Abort the staged temp (close + unlink) — the final path is untouched. */
+        xrootd_staged_abort(r->connection->log, t->root_canon, &t->staged, 1);
+        webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return;
+    }
+
+    /* Atomically publish the completed temp onto the final path. */
+    if (xrootd_staged_commit(r->connection->log, t->root_canon, &t->staged,
+                             t->path) != NGX_OK)
+    {
+        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd_webdav: async staged commit failed for: "
+                             "\"%s\"", t->path);
+        xrootd_dashboard_http_error(r, "webdav PUT staged commit failed");
+        xrootd_dashboard_http_finish(r);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
     xrootd_dashboard_http_add(r, (ngx_atomic_int_t) t->len);
     xrootd_dashboard_http_finish(r);
-    ngx_close_file(t->fd);
 
     status = t->created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
     r->headers_out.status = status;
@@ -97,33 +122,54 @@ webdav_put_aio_done(ngx_event_t *ev)
  * (r->request_body->bufs with in_file=0) or spooled it to a temp file
  * (in_file=1).
  *
+ * The body is always written to a STAGED temp file (xrootd_staged_open) and
+ * atomically committed onto the final path on success (xrootd_staged_commit) or
+ * aborted on any error (xrootd_staged_abort) — so a partial/failed/aborted PUT
+ * never leaves a readable object at the final path (WS8/HTTP-4).
+ *
  * The function chooses one of three write paths in order of preference:
- *   1. Thread-pool async write (NGX_THREADS && memory body only): copies
- *      the body to a single contiguous buffer and dispatches a
- *      webdav_put_aio_t task.  Returns NGX_DONE; webdav_put_aio_done()
- *      sends the response when the write completes.
- *   2. Synchronous spooled-file copy: reads from the nginx temp file in
- *      chunks (webdav_copy_spooled_file).
- *   3. Synchronous in-memory write: pwrite() directly from buf->pos.
+ *   1. Thread-pool async write (NGX_THREADS && memory body only): streams the
+ *      body to the staged fd on the pool and commits in webdav_put_aio_done().
+ *   2. Synchronous spooled-file copy.
+ *   3. Synchronous in-memory write (+ optional inflate).
  *
  * Preconditions: the caller holds a reference count increment on r->main
  *   (done by ngx_http_read_client_request_body) so nginx will not free the
  *   request while this callback is pending.
  *
- * Ownership: fd is opened here and closed before the response is sent
- *   (or in the async completion handler).  It is NOT pool-managed; do not
- *   rely on pool cleanup to close it.
+ * Ownership: the staged temp is opened here.  The async path transfers the
+ *   staged struct into the task (committed/aborted in the done handler); the
+ *   synchronous paths commit or abort before sending the response.
  *
- * Pool allocation lifetime: all ngx_palloc calls here use r->pool
- *   (request lifetime — freed when the response is finalised).
+ * Pool allocation lifetime: all ngx_palloc calls here use r->pool.
+ */
+static void webdav_put_body_inner(ngx_http_request_t *r);
+
+/*
+ * Phase 40: the PUT body is read asynchronously, so the outer dispatch wrapper
+ * has already cleared the impersonation principal by the time this callback runs.
+ * Re-establish it for the duration of the (synchronous) body write — the staged
+ * open (xrootd_staged_open) then routes to the broker and the new file is
+ * owned by the mapped user.  No-op unless map mode is active.
  */
 void
 webdav_handle_put_body(ngx_http_request_t *r)
 {
+    ngx_http_xrootd_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    webdav_put_body_inner(r);
+    xrootd_imp_request_end();
+}
+
+static void
+webdav_put_body_inner(ngx_http_request_t *r)
+{
     ngx_http_xrootd_webdav_loc_conf_t *conf;
     char               path[WEBDAV_MAX_PATH];
     ngx_int_t          rc;
-    ngx_fd_t           fd;
+    xrootd_staged_file_t staged;
     int                created = 0;
     int                window_bits = 0;
     struct stat        sb;
@@ -155,30 +201,31 @@ webdav_handle_put_body(ngx_http_request_t *r)
         return;
     }
 
-    /* Open for write, creating if absent, truncating if present.
-     * ngx_open_file argument order: (name, mode, create, access).
-     * NGX_FILE_DEFAULT_ACCESS is the 0644 permission octal — it goes in
-     * the access (4th) position, NOT the create position.  Passing 0644
-     * as create would set O_EXCL (0200 bit) and break concurrent writes. */
-    fd = xrootd_open_confined_canon(r->connection->log, conf->common.root_canon,
-                                    path, O_WRONLY | O_CREAT | O_TRUNC,
-                                    NGX_FILE_DEFAULT_ACCESS);
-    if (fd == NGX_INVALID_FILE) {
+    /*
+     * Open a staged temp file beside the final path (O_EXCL, unique name, up to
+     * 16 attempts).  The body is written here and atomically renamed onto the
+     * final path only on success — never exposing a partial object.
+     */
+    if (xrootd_staged_open(r->connection->log, conf->common.root_canon, path,
+                           O_WRONLY, NGX_FILE_DEFAULT_ACCESS, 16, &staged)
+        != NGX_OK)
+    {
         if (ngx_errno == NGX_ENOENT || ngx_errno == NGX_ENOTDIR) {
             /* RFC 4918 §9.7.1 — PUT to non-existent parent collection is 409 */
             webdav_metrics_finalize_request(r, NGX_HTTP_CONFLICT);
             return;
         }
         xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd_webdav: open() for write failed for: \"%s\"",
-                             path);
+                             "xrootd_webdav: staged open for write failed for: "
+                             "\"%s\"", path);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
     if (r->request_body != NULL) {
         if (xrootd_http_body_summary(r, &body_summary) != NGX_OK) {
-            ngx_close_file(fd);
+            xrootd_staged_abort(r->connection->log, conf->common.root_canon,
+                                &staged, 1);
             webdav_metrics_finalize_request(r,
                                             NGX_HTTP_INTERNAL_SERVER_ERROR);
             return;
@@ -221,7 +268,8 @@ webdav_handle_put_body(ngx_http_request_t *r)
             if (task == NULL) {
                 xrootd_dashboard_http_error(r, "webdav PUT task allocation failed");
                 xrootd_dashboard_http_finish(r);
-                ngx_close_file(fd);
+                xrootd_staged_abort(r->connection->log, conf->common.root_canon,
+                                    &staged, 1);
                 webdav_metrics_finalize_request(r,
                                                 NGX_HTTP_INTERNAL_SERVER_ERROR);
                 return;
@@ -229,15 +277,18 @@ webdav_handle_put_body(ngx_http_request_t *r)
 
             t = task->ctx;
             t->r = r;
-            t->fd = fd;
+            t->staged = staged;        /* transfer staged ownership to the task */
             t->len = body_summary.bytes;
             t->created = created;
-            ngx_cpystrn((u_char *) t->path, (u_char *) path,
-                        sizeof(t->path));
+            ngx_cpystrn((u_char *) t->path, (u_char *) path, sizeof(t->path));
+            ngx_cpystrn((u_char *) t->root_canon,
+                        (u_char *) conf->common.root_canon,
+                        sizeof(t->root_canon));
 
             /*
              * Phase 31 W2: no full-body collection — the thread streams the
-             * in-memory body bufs straight to fd (see webdav_put_aio_thread).
+             * in-memory body bufs straight to the staged fd (see
+             * webdav_put_aio_thread); the done handler commits/aborts.
              */
 
             task->handler = webdav_put_aio_thread;
@@ -247,7 +298,8 @@ webdav_handle_put_body(ngx_http_request_t *r)
             if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
                 xrootd_dashboard_http_error(r, "webdav PUT task post failed");
                 xrootd_dashboard_http_finish(r);
-                ngx_close_file(fd);
+                xrootd_staged_abort(r->connection->log, conf->common.root_canon,
+                                    &t->staged, 1);
                 webdav_metrics_finalize_request(r,
                                                 NGX_HTTP_INTERNAL_SERVER_ERROR);
                 return;
@@ -270,24 +322,21 @@ webdav_handle_put_body(ngx_http_request_t *r)
             ngx_int_t  wrc;
 
             if (window_bits != 0) {
-                wrc = xrootd_http_body_inflate_to_fd(r, fd, path,
+                wrc = xrootd_http_body_inflate_to_fd(r, staged.fd, path,
                                                       window_bits,
                                                       &body_summary);
             } else {
-                wrc = xrootd_http_body_write_to_fd(r, fd, path,
+                wrc = xrootd_http_body_write_to_fd(r, staged.fd, path,
                                                     &body_summary);
             }
             if (wrc != NGX_OK) {
                 xrootd_dashboard_http_error(r, "webdav PUT body write failed");
                 xrootd_dashboard_http_finish(r);
-                ngx_close_file(fd);
-                /* The target was opened O_CREAT|O_TRUNC, so a failed body write
-                 * (e.g. a corrupt Content-Encoding stream that fails to inflate)
-                 * leaves a partial/empty file that a later GET would serve as a
-                 * valid object.  Remove it so a failed PUT never leaves a
-                 * readable object — matching the S3 staged-file abort semantics. */
-                (void) xrootd_unlink_confined_canon(r->connection->log,
-                    conf->common.root_canon, path, 0);
+                /* Abort the staged temp — the final path is never touched, so a
+                 * failed write (e.g. a corrupt Content-Encoding that fails to
+                 * inflate) can never leave a readable partial object. */
+                xrootd_staged_abort(r->connection->log, conf->common.root_canon,
+                                    &staged, 1);
                 webdav_metrics_finalize_request(r,
                     NGX_HTTP_INTERNAL_SERVER_ERROR);
                 return;
@@ -304,7 +353,18 @@ webdav_handle_put_body(ngx_http_request_t *r)
     }
 
     xrootd_dashboard_http_finish(r);
-    ngx_close_file(fd);
+
+    /* Atomically publish the staged temp onto the final path (an empty PUT
+     * commits an empty file). */
+    if (xrootd_staged_commit(r->connection->log, conf->common.root_canon,
+                             &staged, path) != NGX_OK)
+    {
+        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
+                             "xrootd_webdav: staged commit failed for: \"%s\"",
+                             path);
+        webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return;
+    }
 
     status = created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
     r->headers_out.status = status;

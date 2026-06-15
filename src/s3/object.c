@@ -1,6 +1,8 @@
 #include "s3.h"
 #include "../cache/open.h"
 #include "../compat/http_file_response.h"
+#include "../compat/http_headers.h"
+#include "../frm/frm.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../fs/vfs.h"
 #include "../shared/file_serve.h"
@@ -99,6 +101,24 @@ s3_handle_get(ngx_http_request_t *r,
                                  "NoSuchKey", "The specified key does not exist.");
     }
 
+    /*
+     * Tape residency (phase-35): a GET of a nearline/offline object cannot be
+     * served from disk — S3/Glacier semantics require an explicit restore first
+     * (the WLCG Tape REST API). Report InvalidObjectState rather than blocking or
+     * serving a stub. Absent xattr ⇒ ONLINE, so a plain disk export is unaffected.
+     */
+    {
+        frm_residency_t res;
+        if (frm_residency_probe(r->connection->log, fs_path, &res) == NGX_OK
+            && (res.state == FRM_RES_NEARLINE || res.state == FRM_RES_OFFLINE))
+        {
+            xrootd_vfs_close(fh, r->connection->log);
+            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_ACCESS_DENIED]);
+            return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "InvalidObjectState",
+                "The operation is not valid for the object's storage class.");
+        }
+    }
+
     s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
     subject = s3ctx != NULL ? xrootd_identity_subject_cstr(s3ctx->identity)
                             : "";
@@ -114,6 +134,25 @@ s3_handle_get(ngx_http_request_t *r,
     } else {
         ngx_cpystrn((u_char *) identity, (u_char *) "anonymous",
                     sizeof(identity));
+    }
+
+    /*
+     * AWS full-object checksum echo (x-amz-checksum-crc64nvme). Cache-only: emit
+     * only when the value was stored at upload time, so the read path never pays
+     * a full-file recompute. Set before serve sends the response headers; the
+     * handle's fd stays valid until serve closes it.
+     */
+    {
+        ngx_fd_t cfd = xrootd_vfs_file_fd(fh);
+        char     b64[S3_CRC64NVME_B64_MAX];
+
+        if (cfd != NGX_INVALID_FILE
+            && s3_object_crc64nvme_b64(r, cfd, fs_path, 1, b64, sizeof(b64))
+               == NGX_OK)
+        {
+            (void) s3_set_header(r, S3_HDR_CHECKSUM_CRC64NVME, b64);
+            (void) s3_set_header(r, S3_HDR_CHECKSUM_TYPE, "FULL_OBJECT");
+        }
     }
 
     {
@@ -184,6 +223,47 @@ s3_handle_head(ngx_http_request_t *r,
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchKey", "The specified key does not exist.");
+    }
+
+    /*
+     * Tape residency (phase-35): advertise the GLACIER storage class for a
+     * nearline object so clients learn a restore is required before a GET. HEAD
+     * still returns 200 (metadata only); x-amz-restore reports no active restore
+     * (the restore flow is the WLCG Tape REST API, not S3 GET).
+     */
+    {
+        frm_residency_t res;
+        if (frm_residency_probe(r->connection->log, fs_path, &res) == NGX_OK
+            && (res.state == FRM_RES_NEARLINE || res.state == FRM_RES_OFFLINE))
+        {
+            (void) xrootd_http_set_header(r, "x-amz-storage-class",
+                                          "GLACIER", NULL);
+            (void) xrootd_http_set_header(r, "x-amz-restore",
+                                          "ongoing-request=\"false\"", NULL);
+        }
+    }
+
+    /*
+     * AWS full-object checksum echo (x-amz-checksum-crc64nvme). Cache-only: a
+     * cheap confined open + getxattr (no full-file read) emits the value stored
+     * at upload time; absent ⇒ no header, exactly as AWS behaves when no checksum
+     * was set at upload.
+     */
+    {
+        int cfd = xrootd_open_confined_canon(r->connection->log,
+                                             cf->common.root_canon, fs_path,
+                                             O_RDONLY, 0);
+        if (cfd >= 0) {
+            char b64[S3_CRC64NVME_B64_MAX];
+
+            if (s3_object_crc64nvme_b64(r, cfd, fs_path, 1, b64, sizeof(b64))
+                == NGX_OK)
+            {
+                (void) s3_set_header(r, S3_HDR_CHECKSUM_CRC64NVME, b64);
+                (void) s3_set_header(r, S3_HDR_CHECKSUM_TYPE, "FULL_OBJECT");
+            }
+            close(cfd);
+        }
     }
 
     if (xrootd_http_set_file_headers(r, vst.mtime, vst.size, vst.size,

@@ -16,6 +16,7 @@
  */
 
 #include "registry.h"
+#include "../compat/shm_slots.h"
 #include <ngx_shmtx.h>
 #include <string.h>
 
@@ -36,27 +37,30 @@ handle_table(void)
 ngx_int_t
 xrootd_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
+    ngx_flag_t                    fresh;
     xrootd_shared_handle_table_t *tbl;
 
-    if (data) {
-        shm_zone->data = data;
-        tbl = (xrootd_shared_handle_table_t *) data;
-        if (ngx_shmtx_create(&xrootd_handle_mutex, &tbl->lock, NULL)
-            != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
-    }
-
-    tbl = (xrootd_shared_handle_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl, sizeof(*tbl));
-
-    if (ngx_shmtx_create(&xrootd_handle_mutex, &tbl->lock, NULL) != NGX_OK) {
+    /*
+     * Allocate the table FROM the slab pool (not over shm.addr) so nginx's
+     * ngx_unlock_mutexes() — which treats shm.addr as an ngx_slab_pool_t and
+     * force-unlocks its mutex on every child death — finds an intact slab
+     * header instead of our clobbered struct. xrootd_shm_table_alloc() also
+     * zeroes the table and creates the process-local mutex from the table's
+     * first member (the ngx_shmtx_sh_t lock).
+     */
+    tbl = xrootd_shm_table_alloc(shm_zone, data,
+                                 sizeof(xrootd_shared_handle_table_t),
+                                 &xrootd_handle_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = tbl;
+    /*
+     * The fixed-size slots[] array has no extra fields to initialise beyond the
+     * zeroing the helper already performed on a fresh allocation, so there is
+     * nothing more to do here (live state must be preserved on reuse).
+     */
+    (void) fresh;
     return NGX_OK;
 }
 

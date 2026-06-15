@@ -130,6 +130,17 @@ void  xrootd_export_webdav_metrics(metrics_writer_t *mw,
 void  xrootd_export_s3_metrics(metrics_writer_t *mw,
     ngx_xrootd_metrics_t *shm);
 
+/* stream.c — Phase 34 SciTags packet-marking aggregate counters (flows started/
+ * ended, firefly sent/dropped, flow-label set/failed, unmapped opens). */
+void  xrootd_export_pmark_metrics(metrics_writer_t *mw,
+    ngx_xrootd_metrics_t *shm);
+
+/* frm/metrics.c — phase-35 FRM tape-stage counters (stage requests/dedup/
+ * success/fail-by-reason, in-flight gauge, evict/migrate/purge, async
+ * waitresp/asynresp, and the coarse seconds stage-latency histogram). */
+void  xrootd_export_frm_metrics(metrics_writer_t *mw,
+    ngx_xrootd_metrics_t *shm);
+
 /* cluster.c — reads registry SHM directly, no shm argument needed */
 /* Emit per-server cluster gauges (space/load/heartbeat-age/blacklist) plus
  * health-check counters from a locked snapshot of the registry SHM. Emits

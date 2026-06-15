@@ -76,6 +76,25 @@
 #define kXR_clone     3032  /* server-side range copy (protocol v5.2.0) */
 
 /* ------------------------------------------------------------------ */
+/* Vendor extension opcodes (nginx-xrootd local — NOT standard XRootD)  */
+/* ------------------------------------------------------------------ */
+/*
+ * These opcodes close POSIX gaps the base XRootD protocol has no wire op for
+ * (set-mtime / chown / symlink / hard-link), so a FUSE mount can honour
+ * `cp -p`, `touch -d`, and `ln`/`ln -s`. They are deliberately placed well above
+ * the standard range (max real opcode is kXR_clone=3032) to avoid any future
+ * collision, and are CAPABILITY-NEGOTIATED: the server advertises support via
+ * kXR_Qconfig "xrdfs.ext" and the native client only emits them when advertised,
+ * so a stock XRootD server never receives one. The client-side per-opcode RTT
+ * table (frame.c) bounds-checks reqid-kXR_1stRequest < XRDC_NOP, so these high
+ * ids simply skip RTT accounting — no out-of-bounds access.
+ */
+#define kXR_setattr   3500  /* set times (utimens) and/or owner (chown) on a path */
+#define kXR_symlink   3501  /* create a symbolic link */
+#define kXR_readlink  3502  /* read a symbolic link's target */
+#define kXR_link      3503  /* create a hard link */
+
+/* ------------------------------------------------------------------ */
 /* Response status codes  (ServerResponseHdr.status)                   */
 /* ------------------------------------------------------------------ */
 /*

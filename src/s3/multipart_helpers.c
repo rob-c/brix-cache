@@ -42,6 +42,7 @@
 #include <limits.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 /* -------------------------------------------------------------------------
@@ -141,4 +142,90 @@ mpu_rmdir_recursive(ngx_log_t *log, const char *root_canon, const char *path)
     return xrootd_fs_remove_tree_confined(log, root_canon, path) == NGX_OK
            ? 0
            : -1;
+}
+
+/*
+ * Phase 39 (WS8/HTTP-2): reap abandoned multipart staging directories.
+ *
+ * WHAT: scan the single directory holding final_path for staging dirs named
+ *       ".<obj>.mpu-<uploadid>" (the layout s3_get_mpu_dir produces) whose mtime
+ *       is older than max_age_secs, and remove each via mpu_rmdir_recursive.
+ *       Returns the number reaped; no-op (0) when max_age_secs <= 0.
+ *
+ * WHY:  a client that uploads parts and then never sends Complete or Abort leaks
+ *       its staging dir forever — unbounded disk growth → ENOSPC DoS.  Reaping on
+ *       MPU initiate keeps active directories self-cleaning, mirroring AWS S3's
+ *       incomplete-multipart lifecycle expiry.
+ *
+ * HOW:  one bounded readdir of final_path's parent directory (NOT recursive, not
+ *       a whole-tree walk).  An active upload keeps its staging-dir mtime fresh
+ *       (each new part.<N> bumps it), so only genuinely idle uploads are reaped;
+ *       mpu_rmdir_recursive enforces root_canon confinement on every removal.
+ */
+int
+s3_mpu_reap_stale(ngx_log_t *log, const char *root_canon,
+                  const char *final_path, time_t max_age_secs)
+{
+    char           dir[PATH_MAX];
+    const char    *slash;
+    DIR           *d;
+    struct dirent *de;
+    time_t         now;
+    size_t         dlen;
+    int            reaped = 0;
+
+    if (max_age_secs <= 0 || final_path == NULL) {
+        return 0;
+    }
+
+    slash = strrchr(final_path, '/');
+    if (slash == NULL || slash == final_path) {
+        return 0;   /* no usable parent directory */
+    }
+    dlen = (size_t) (slash - final_path);
+    if (dlen >= sizeof(dir)) {
+        return 0;
+    }
+    ngx_memcpy(dir, final_path, dlen);
+    dir[dlen] = '\0';
+
+    d = opendir(dir);
+    if (d == NULL) {
+        return 0;
+    }
+
+    now = time(NULL);
+
+    while ((de = readdir(d)) != NULL) {
+        char        full[PATH_MAX];
+        struct stat sb;
+
+        /* Match the staging-dir naming ".<objname>.mpu-<uploadid>" only. */
+        if (de->d_name[0] != '.' || strstr(de->d_name, ".mpu-") == NULL) {
+            continue;
+        }
+        if (snprintf(full, sizeof(full), "%s/%s", dir, de->d_name)
+            >= (int) sizeof(full)) {
+            continue;
+        }
+        if (lstat(full, &sb) != 0 || !S_ISDIR(sb.st_mode)) {
+            continue;
+        }
+        if ((now - sb.st_mtime) <= max_age_secs) {
+            continue;   /* recently active — keep */
+        }
+        if (mpu_rmdir_recursive(log, root_canon, full) == 0) {
+            reaped++;
+        }
+    }
+
+    closedir(d);
+
+    if (reaped > 0 && log != NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "s3: reaped %d abandoned multipart staging dir(s) "
+                      "(idle >%T s) under \"%s\"",
+                      reaped, max_age_secs, dir);
+    }
+    return reaped;
 }

@@ -29,37 +29,34 @@ pending_table(void)
 
 /**
  * WHAT: Initialize the pending-locate shared-memory zone.
- * WHY: Called during nginx configuration to allocate and zero-fill a shared
- *      memory region that holds slots for in-flight kXR_locate requests. The
- *      mutex is created here so all workers can safely access the table.
- * HOW: On first call (data==NULL) allocates from shm_zone->shm.addr, zeroes
- *      the slot array, creates the shared mutex via ngx_shmtx_create(), and
- *      sets zone->data to the new table pointer. On subsequent calls (shared
- *      across workers), copies existing data into zone->data and recreates
- *      the mutex from that copy. Returns NGX_OK or NGX_ERROR on failure.
+ * WHY: Called during nginx configuration to allocate the shared memory region
+ *      that holds slots for in-flight kXR_locate requests. The mutex is created
+ *      here so all workers can safely access the table.
+ * HOW: Delegates fresh-alloc / reload / re-attach to xrootd_shm_table_alloc(),
+ *      which allocates the table FROM the slab pool (leaving nginx's
+ *      ngx_slab_pool_t header at shm.addr intact so ngx_unlock_mutexes() does
+ *      not clobber it when a child exits) and publishes it via shm_zone->data.
+ *      The mutex is created from the table's leading ngx_shmtx_sh_t lock. Only a
+ *      brand-new allocation (fresh==1) zeroes the slot array; on reload/re-attach
+ *      the live slot state is preserved. Returns NGX_OK or NGX_ERROR.
  */
 static ngx_int_t
 xrootd_pending_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
-    xrootd_pending_table_t *tbl;
+    ngx_flag_t               fresh;
+    xrootd_pending_table_t  *tbl;
 
-    if (data) {
-        shm_zone->data = data;
-        tbl = (xrootd_pending_table_t *) data;
-        if (ngx_shmtx_create(&xrootd_pending_mutex, &tbl->lock, NULL) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
-    }
-
-    tbl = (xrootd_pending_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl->slots, sizeof(tbl->slots));
-
-    if (ngx_shmtx_create(&xrootd_pending_mutex, &tbl->lock, NULL) != NGX_OK) {
+    tbl = xrootd_shm_table_alloc(shm_zone, data,
+                                 sizeof(xrootd_pending_table_t),
+                                 &xrootd_pending_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = tbl;
+    if (fresh) {
+        ngx_memzero(tbl->slots, sizeof(tbl->slots));
+    }
+
     return NGX_OK;
 }
 
@@ -69,10 +66,12 @@ xrootd_pending_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
  *      up to XROOTD_PENDING_LOCATE_SLOTS (32) in-flight kXR_locate entries. Each
  *      entry tracks a worker's locate request until the CMS manager responds with
  *      a redirect host/port via kXR_select.
- * HOW: Adds a shared memory zone of size sizeof(xrootd_pending_table_t) + one page,
- *      registers xrootd_pending_shm_init_zone as the init callback (called after
- *      allocation), and sets data=(void *) 1 as an initialization sentinel so the
- *      init function knows this is its first invocation. Returns NGX_OK or NGX_ERROR.
+ * HOW: Adds a shared memory zone sized via xrootd_shm_zone_size() so the table
+ *      can be slab-allocated alongside the slab-pool header (see
+ *      xrootd_pending_shm_init_zone), registers xrootd_pending_shm_init_zone as
+ *      the init callback (called after allocation), and sets data=(void *) 1 as
+ *      an initialization sentinel so accessors know the zone is not yet ready.
+ *      Returns NGX_OK or NGX_ERROR.
  */
 ngx_int_t
 xrootd_pending_configure(ngx_conf_t *cf)
@@ -80,7 +79,7 @@ xrootd_pending_configure(ngx_conf_t *cf)
     ngx_str_t  zone_name = ngx_string("xrootd_pending_locate");
     size_t     zone_size;
 
-    zone_size = sizeof(xrootd_pending_table_t) + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(sizeof(xrootd_pending_table_t));
 
     xrootd_pending_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                       zone_size,

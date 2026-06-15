@@ -1,4 +1,5 @@
 #include "ngx_xrootd_module.h"
+#include "../compat/host_format.h"  /* xrootd_format_host — IPv6 bracketing */
 
 /* ------------------------------------------------------------------ */
 /* Control Flow Responses — Redirects and Wait Hints                     */
@@ -76,8 +77,12 @@ xrootd_send_redirect(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uint32_t  bodylen, pbe;
     size_t    total;
     u_char   *buf;
+    char      hostbuf[288];
 
-    hostlen = (host != NULL) ? strlen(host) : 0;
+    /* Bracket an IPv6 literal host ("[::1]" not bare "::1") so the client does
+     * not mis-read the colons; the port is a separate 4-byte field, so the host
+     * string is host-only. IPv4/hostname/already-bracketed pass through. */
+    hostlen = xrootd_format_host(host, hostbuf, sizeof(hostbuf));
     bodylen = (uint32_t) (sizeof(uint32_t) + hostlen);
     total = XRD_RESPONSE_HDR_LEN + bodylen;
 
@@ -92,7 +97,7 @@ xrootd_send_redirect(xrootd_ctx_t *ctx, ngx_connection_t *c,
     pbe = htonl((uint32_t) port);
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &pbe, sizeof(pbe));
     if (hostlen > 0) {
-        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(pbe), host, hostlen);
+        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(pbe), hostbuf, hostlen);
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
@@ -116,12 +121,14 @@ xrootd_send_redirect_tpc(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uint32_t  pbe;
     u_char   *buf, *p;
     char      opaque[160];
+    char      hostbuf[288];
 
     if (tpc_key == NULL || tpc_key[0] == '\0') {
         return xrootd_send_redirect(ctx, c, host, port);
     }
 
-    hostlen   = (host != NULL) ? strlen(host) : 0;
+    /* Bracket an IPv6 literal host before the [host][?tpc.key=…] body. */
+    hostlen   = xrootd_format_host(host, hostbuf, sizeof(hostbuf));
     opaquelen = (size_t) snprintf(opaque, sizeof(opaque), "?tpc.key=%s", tpc_key);
     bodylen   = sizeof(uint32_t) + hostlen + opaquelen;
     total     = XRD_RESPONSE_HDR_LEN + bodylen;
@@ -140,7 +147,7 @@ xrootd_send_redirect_tpc(xrootd_ctx_t *ctx, ngx_connection_t *c,
     p += sizeof(pbe);
 
     if (hostlen > 0) {
-        ngx_memcpy(p, host, hostlen);
+        ngx_memcpy(p, hostbuf, hostlen);
         p += hostlen;
     }
     ngx_memcpy(p, opaque, opaquelen);

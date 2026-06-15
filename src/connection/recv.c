@@ -3,7 +3,9 @@
 #include "fd_table.h"
 #include "tls.h"
 #include "budget.h"
+#include "deadline.h"
 #include "../manager/pending.h"
+#include "../frm/waiter.h"
 
 /* ---- File: recv.c — TCP read-event loop and request framing state machine ----
  *
@@ -120,8 +122,29 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             xrootd_schedule_read_resume(c);
             return;
         }
+        if (ctx->state == XRD_ST_WAITING_FRM) {
+            /* The async recall took longer than stage_ttl — drop the parked
+             * waiter and ask the client to retry (it will re-poll residency:
+             * a hit if staged, or a fresh park otherwise). */
+            rev->timedout = 0;
+            frm_waiter_drop_conn(c->fd, c->number);
+            ctx->state = XRD_ST_REQ_HEADER;
+            xrootd_send_wait(ctx, c, 5);
+            xrootd_schedule_read_resume(c);
+            return;
+        }
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
                       "xrootd: client connection timed out");
+        /* Phase 39: our steady-state read deadline fired — it is the only c->read
+         * timer armed outside the WAITING_CMS/FRM states handled above.  Attribute
+         * it (pre-auth handshake vs in-flight PDU) and tear down via the single
+         * disconnect funnel. */
+        ctx->read_deadline_armed = 0;
+        if (ctx->auth_done) {
+            XROOTD_SRV_METRIC_INC(ctx, read_pdu_timeouts_total);
+        } else {
+            XROOTD_SRV_METRIC_INC(ctx, handshake_timeouts_total);
+        }
         xrootd_on_disconnect(ctx, c);
         xrootd_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_OK);
@@ -192,7 +215,8 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             return;
         }
 
-        if (ctx->state == XRD_ST_WAITING_CMS) {
+        if (ctx->state == XRD_ST_WAITING_CMS
+            || ctx->state == XRD_ST_WAITING_FRM) {
             if (ngx_handle_read_event(rev, 0) != NGX_OK) {
                 break;
             }
@@ -266,6 +290,12 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
                     break;
                 }
+                /* Phase 39: genuine incompletion — we are suspending to wait for
+                 * the rest of this PDU (or the unauth phase to finish).  Arm the
+                 * read deadline once; it is idempotent so repeated partial reads
+                 * of the same PDU do NOT reset it (the deadline bounds time-to-
+                 * complete, defeating a 1-byte-per-readWait slowloris). */
+                xrootd_arm_read_deadline(c, ctx);
                 XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
                 return;
             }
@@ -304,6 +334,14 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                 continue;
             }
         }
+
+        /* Phase 39: a full PDU unit (handshake / header / payload) just arrived,
+         * so the current read obligation is satisfied — disarm the deadline before
+         * any dispatch, which may hand the connection off to AIO/SENDING/UPSTREAM/
+         * PROXY/WAITING_*.  Idempotent: a no-op on the healthy pipelined path where
+         * the timer was never armed.  This is the single point that guarantees the
+         * read timer is never live across a sub-system handoff (the UAF rule). */
+        xrootd_disarm_read_deadline(c, ctx);
 
         if (ctx->state == XRD_ST_HANDSHAKE) {
             rc = xrootd_process_handshake(ctx, c);

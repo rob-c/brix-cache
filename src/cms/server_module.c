@@ -36,6 +36,9 @@ xrootd_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_value(conf->enable,   prev->enable,   0);
     ngx_conf_merge_value(conf->interval, prev->interval, 60);
+    if (conf->interval < 1) {
+        conf->interval = 1;   /* never derive a 0ms self-rearming ping timer */
+    }
 
     /* Inherit auth config from the parent block when the child omitted it. */
     if (conf->allow == NULL) {

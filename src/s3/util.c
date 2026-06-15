@@ -6,6 +6,7 @@
 #include "../compat/etag.h"
 #include "../compat/http_headers.h"
 #include "../compat/http_xml.h"
+#include "../compat/integrity_info.h"
 #include "../compat/path.h"
 #include "../compat/xml.h"
 
@@ -13,6 +14,7 @@
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /* -------------------------------------------------------------------------
  * Response header helper
@@ -104,4 +106,65 @@ s3_send_xml_error(ngx_http_request_t *r,
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
     }
     return rc;
+}
+
+/* -------------------------------------------------------------------------
+ * CRC-64/NVME object checksum (AWS x-amz-checksum-crc64nvme)
+ * ---------------------------------------------------------------------- */
+
+/*
+ * s3_object_crc64nvme_b64 — compute (or cache-read) an object's CRC-64/NVME and
+ * base64-encode it in the AWS x-amz-checksum-crc64nvme wire form.
+ *
+ * WHAT: Produces the 12-char base64 of the 8 big-endian CRC-64/NVME bytes for the
+ *       open fd into out (needs >= 13 bytes). Uses the xattr integrity cache, so
+ *       the value computed at upload time is reused on later reads.
+ * WHY:  AWS S3 clients (SDK/CLI default integrity) send and expect this checksum;
+ *       it is base64-of-bytes, NOT hex like the root:///WebDAV digest forms.
+ * HOW:  xrootd_integrity_get_fd("crc64nvme") returns the 16-hex value (from cache
+ *       or freshly computed); strtoull → uint64 → 8 big-endian bytes →
+ *       ngx_encode_base64. cache_only=1 declines (NGX_DECLINED) on a cache miss
+ *       instead of paying a full-file read — used on the GET/HEAD echo path.
+ * Returns NGX_OK (out filled), NGX_DECLINED (cache_only miss), or NGX_ERROR.
+ */
+ngx_int_t
+s3_object_crc64nvme_b64(ngx_http_request_t *r, int fd, const char *path,
+    ngx_flag_t cache_only, char *out, size_t outsz)
+{
+    xrootd_integrity_info_t info;
+    xrootd_integrity_opts_t iopts;
+    uint64_t                crc;
+    unsigned char           be[8];
+    ngx_str_t               src, dst;
+    ngx_int_t               rc;
+    int                     i;
+
+    if (out == NULL || outsz < (size_t) (ngx_base64_encoded_length(8) + 1)) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(&iopts, sizeof(iopts));
+    iopts.allow_xattr_cache    = 1;
+    iopts.update_xattr_cache   = cache_only ? 0 : 1;
+    iopts.require_regular_file = 1;
+    iopts.no_compute           = cache_only ? 1 : 0;
+
+    rc = xrootd_integrity_get_fd(r->connection->log, fd, path, "crc64nvme",
+                                 &iopts, &info);
+    if (rc != NGX_OK) {
+        return rc;   /* NGX_DECLINED (cache-only miss) or NGX_ERROR */
+    }
+
+    /* info.hex is the 16-char lowercase crc64nvme; convert to the raw u64 and
+     * emit the 8 big-endian bytes base64-encoded (the AWS wire format). */
+    crc = (uint64_t) strtoull(info.hex, NULL, 16);
+    for (i = 0; i < 8; i++) {
+        be[i] = (unsigned char) (crc >> (56 - 8 * i));
+    }
+    src.data = be;
+    src.len  = sizeof(be);
+    dst.data = (u_char *) out;
+    ngx_encode_base64(&dst, &src);
+    out[dst.len] = '\0';
+    return NGX_OK;
 }

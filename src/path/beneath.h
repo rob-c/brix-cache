@@ -35,8 +35,11 @@ int xrootd_beneath_open_root(const char *root_canon);
  * mode:  permission bits; only meaningful when O_CREAT is set. */
 int xrootd_open_beneath(int rootfd, const char *reqpath, int flags, mode_t mode);
 
-/* Stat a file via a temporary O_PATH|O_NOFOLLOW open (no symlink follow). */
+/* Stat a file via a temporary O_PATH open (follows a trailing symlink, confined). */
 int xrootd_stat_beneath(int rootfd, const char *reqpath, struct stat *st);
+/* lstat: O_PATH | O_NOFOLLOW — does NOT follow a trailing symlink, so the result
+ * describes the link itself. Used by kXR_stat with the kXR_statNoFollow option. */
+int xrootd_lstat_beneath(int rootfd, const char *reqpath, struct stat *st);
 
 /* Remove a file (is_dir=0) or empty directory (is_dir=1). */
 int xrootd_unlink_beneath(int rootfd, const char *reqpath, int is_dir);

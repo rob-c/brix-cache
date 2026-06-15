@@ -37,6 +37,7 @@
  */
 
 #include "s3.h"
+#include "../acc/acc.h"            /* XrdAcc engine directives + enum tables */
 #include "../config/root_prepare.h"
 #include "../config/http_rootfd.h"
 
@@ -58,8 +59,11 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
 
     c->common.enable      = NGX_CONF_UNSET;
     c->common.allow_write = NGX_CONF_UNSET;
+    xrootd_pmark_conf_init(&c->common.pmark);  /* SciTags packet marking */
     c->allow_unsigned_session_token = NGX_CONF_UNSET;
     c->max_keys    = NGX_CONF_UNSET;
+    c->mpu_max_age = NGX_CONF_UNSET;
+    xrootd_acc_http_init_conf(&c->acc);   /* XrdAcc engine (off by default) */
 
     return c;
 }
@@ -75,6 +79,8 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->allow_unsigned_session_token,
                          prev->allow_unsigned_session_token, 0);
     ngx_conf_merge_value(conf->max_keys,    prev->max_keys,    1000);
+    ngx_conf_merge_value(conf->mpu_max_age, prev->mpu_max_age, 0);
+    xrootd_acc_http_merge_conf(&conf->acc, &prev->acc);
     ngx_conf_merge_str_value(conf->common.root,             prev->common.root,             "");
     ngx_conf_merge_str_value(conf->cache_root,       prev->cache_root,       "");
     ngx_conf_merge_str_value(conf->bucket,           prev->bucket,           "");
@@ -82,6 +88,11 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->secret_key,       prev->secret_key,       "");
     ngx_conf_merge_str_value(conf->region,           prev->region,           "us-east-1");
     ngx_conf_merge_str_value(conf->common.thread_pool_name, prev->common.thread_pool_name, "");
+    if (xrootd_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
+        != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
 
     if (conf->common.enable) {
         xrootd_export_root_opts_t root_opts;
@@ -200,6 +211,10 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, common.enable),
       NULL },
 
+    /* The XrdAcc directives (xrootd_authdb / _format / _audit) are registered by
+     * the WebDAV module with shared setters that populate the S3 loc-conf too,
+     * so they are intentionally NOT redeclared here (a duplicate would conflict). */
+
     { ngx_string("xrootd_s3_root"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -263,12 +278,71 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, max_keys),
       NULL },
 
+    /* Phase 39 (WS8): incomplete-multipart reaper idle age in seconds (0=off). */
+    { ngx_string("xrootd_s3_mpu_max_age"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, mpu_max_age),
+      NULL },
+
     { ngx_string("xrootd_s3_thread_pool"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_s3_loc_conf_t, common.thread_pool_name),
       NULL },
+
+    /* ---- SciTags packet marking (src/pmark/) — see phase-34 doc ---- */
+    { ngx_string("xrootd_pmark"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.enable), NULL },
+    { ngx_string("xrootd_pmark_firefly"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.firefly), NULL },
+    { ngx_string("xrootd_pmark_flowlabel"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.flowlabel), NULL },
+    { ngx_string("xrootd_pmark_scitag_cgi"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.scitag_cgi), NULL },
+    { ngx_string("xrootd_pmark_firefly_origin"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.firefly_origin), NULL },
+    { ngx_string("xrootd_pmark_http_plain"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.http_plain), NULL },
+    { ngx_string("xrootd_pmark_echo"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_msec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.echo), NULL },
+    { ngx_string("xrootd_pmark_appname"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.appname), NULL },
+    { ngx_string("xrootd_pmark_defsfile"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.pmark.defsfile), NULL },
+    { ngx_string("xrootd_pmark_domain"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, xrootd_pmark_set_domain,
+      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
+    { ngx_string("xrootd_pmark_firefly_dest"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, xrootd_pmark_set_firefly_dest,
+      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
+    { ngx_string("xrootd_pmark_map_experiment"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE23, xrootd_pmark_set_map_experiment,
+      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
+    { ngx_string("xrootd_pmark_map_activity"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE3 | NGX_CONF_TAKE4,
+      xrootd_pmark_set_map_activity,
+      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
 
     ngx_null_command
 };

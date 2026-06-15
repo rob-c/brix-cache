@@ -175,7 +175,10 @@ xrdhttp_parse_request(ngx_http_request_t *r)
 
     /* --- Want-Digest: adler32 (RFC 3230) enables the streaming body digest.
      * Only meaningful for XrdHttp clients; the body filter folds the response
-     * through adler32 and emits a Digest trailer. --- */
+     * through adler32 and emits a Digest trailer. Only adler32 streams here —
+     * other algorithms (crc32c, crc64, crc64nvme, md5, sha*) are computed from
+     * the fd via xrdhttp_add_checksum_header() because they are not folded
+     * incrementally over the response body in this filter. --- */
     h = webdav_tpc_find_header(r, "Want-Digest", sizeof("Want-Digest") - 1);
     if (ctx->is_xrdhttp && h != NULL && h->value.len > 0
         && ngx_strcasestrn(h->value.data, "adler32",

@@ -59,6 +59,11 @@ typedef struct {
     time_t         started_at;
     time_t         updated_at;
     ngx_uint_t     state;
+    ngx_uint_t     cancelled;   /* Phase 39 (WS5): set by-id when the client that
+                                   requested this transfer disconnects; the curl
+                                   progress callback reads it (lock-free best-effort
+                                   via registry_find) and aborts promptly instead
+                                   of waiting for the low-speed/transfer timeout. */
 } xrootd_tpc_transfer_t;
 
 #endif /* XROOTD_TPC_COMMON_TRANSFER_H */

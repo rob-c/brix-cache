@@ -121,6 +121,12 @@ struct xrootd_proxy_ctx_s {
     u_char   *wbuf;
     size_t    wbuf_len;
     size_t    wbuf_pos;
+    /* Phase 39 (PXY-3): 1 = wbuf is raw heap (ngx_alloc) and MUST be ngx_free'd
+     * when the send completes; 0 = wbuf is pool-allocated (bootstrap frames) and
+     * must NOT be freed (the pool owns it).  xrootd_proxy_wbuf_release() honours
+     * this so the deferred-completion path (events_write.c) frees a forwarded
+     * request exactly once instead of leaking it per request. */
+    unsigned  wbuf_owned:1;
 
     /* back-references to client session */
     xrootd_ctx_t     *client_ctx;
@@ -205,6 +211,21 @@ void      xrootd_proxy_abort(xrootd_proxy_ctx_t *proxy, const char *reason);
  * wbuf_pos. NGX_OK when fully sent, NGX_AGAIN on partial send (caller re-arms write),
  * NGX_ERROR on socket error. Does not free the buffer. */
 ngx_int_t xrootd_proxy_flush(xrootd_proxy_ctx_t *proxy);
+
+/* Phase 39 (PXY-3): release the upstream write buffer once its send has fully
+ * completed.  Frees it iff it is heap-owned (a forwarded/relayed request from
+ * ngx_alloc); pool-allocated bootstrap frames are merely detached (the pool owns
+ * them).  Idempotent and NULL-safe.  Call this on EVERY send-complete path so a
+ * deferred (backpressured / slow-consumer) request is not leaked. */
+static ngx_inline void
+xrootd_proxy_wbuf_release(xrootd_proxy_ctx_t *proxy)
+{
+    if (proxy->wbuf_owned && proxy->wbuf != NULL) {
+        ngx_free(proxy->wbuf);
+    }
+    proxy->wbuf       = NULL;
+    proxy->wbuf_owned = 0;
+}
 
 #if (NGX_SSL)
 /* Called by write_handler when TLS is requested after async TCP connect. */

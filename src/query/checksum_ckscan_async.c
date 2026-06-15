@@ -65,9 +65,10 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
     }
 
     if (S_ISREG(st.st_mode)) {
-        int      fd;
-        uint32_t cksum;
-        xrootd_checksum_alg_t alg;
+        int  fd;
+        /* Hex result: 8 chars (adler32/crc32c), 16 (crc64/crc64nvme), or up to
+         * EVP_MAX_MD_SIZE*2 for a digest — 129 covers every case. */
+        char hex[129];
 
         fd = xrootd_open_beneath(t->rootfd, t->scan_logical, O_RDONLY, 0);
         if (fd < 0) {
@@ -79,26 +80,20 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
         }
 
         /*
-         * Collapse "unknown algorithm" and "digest failed" into one sentinel:
-         * (uint32_t)-1 is the canonical ckscan "no checksum" marker. We deliberately
-         * close(fd) before testing it so the fd leaks on neither the success nor the
-         * failure branch below.
+         * Compute the checksum directly as a hex string (parse + compute via the
+         * shared dispatcher, width per algorithm). An unknown algorithm or read
+         * failure is a checksum error. fd is closed on every branch below.
          */
-        if (xrootd_checksum_parse(t->algo, strlen(t->algo), &alg, NULL, 0)
-                != NGX_OK
-            || xrootd_checksum_u32_fd(alg, fd, t->scan_logical, log,
-                                      &cksum) != NGX_OK)
+        if (xrootd_checksum_hex_name_fd(t->algo, fd, t->scan_logical, log,
+                                        hex, sizeof(hex), NULL, 0) != NGX_OK)
         {
-            cksum = (uint32_t) -1;
-        }
-        close(fd);
-
-        if (cksum == (uint32_t) -1) {
+            close(fd);
             ngx_free(buf);
             t->error_code = kXR_IOError;
             snprintf(t->error_msg, sizeof(t->error_msg), "checksum failed");
             return;
         }
+        close(fd);
 
         {
             /*
@@ -110,7 +105,7 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
             int append_rc;
 
             append_rc = xrootd_ckscan_append(&buf, &cap, &used,
-                                             t->algo, cksum,
+                                             t->algo, hex,
                                              t->scan_logical);
             if (append_rc <= 0) {
                 ngx_free(buf);

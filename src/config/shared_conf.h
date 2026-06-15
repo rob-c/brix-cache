@@ -7,6 +7,8 @@
 
 #include <ngx_thread_pool.h>
 
+#include "../pmark/pmark.h"
+
 /*
  * ngx_http_xrootd_shared_conf_t — Common fields embedded at the top of every
  * protocol location/server config struct (stream, WebDAV, S3).
@@ -38,6 +40,9 @@ typedef struct {
                                              * RESOLVE_BENEATH confinement; -1 until
                                              * opened per worker at init_process.
                                              * Runtime only — never merged.        */
+    xrootd_pmark_conf_t pmark;              /* SciTags packet-marking config — see
+                                             * src/pmark/pmark.h. Shared by every
+                                             * protocol; init/merge below.          */
 } ngx_http_xrootd_shared_conf_t;
 
 /*
@@ -61,6 +66,7 @@ ngx_http_xrootd_shared_init(ngx_http_xrootd_shared_conf_t *conf)
     conf->thread_pool        = NULL;
     conf->rootfd             = -1;   /* opened per worker at init_process */
     /* root_canon zeroed by ngx_pcalloc — no explicit memset needed */
+    xrootd_pmark_conf_init(&conf->pmark);
 }
 
 /*
@@ -83,7 +89,7 @@ ngx_http_xrootd_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_str_value(conf->thread_pool_name, prev->thread_pool_name, "");
 
-    return NGX_CONF_OK;
+    return xrootd_pmark_conf_merge(cf, &prev->pmark, &conf->pmark);
 }
 
 #endif /* _NGX_HTTP_XROOTD_SHARED_CONF_H */

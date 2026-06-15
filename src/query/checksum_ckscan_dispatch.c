@@ -41,7 +41,9 @@ xrootd_ckscan_algorithm_supported(const char *algo)
     }
 
     return alg == XROOTD_CHECKSUM_ADLER32
-           || alg == XROOTD_CHECKSUM_CRC32C;
+           || alg == XROOTD_CHECKSUM_CRC32C
+           || alg == XROOTD_CHECKSUM_CRC64
+           || alg == XROOTD_CHECKSUM_CRC64NVME;
 }
 
 /* ---- static helper: ckscan_send_error() — error response wrapper ----
@@ -131,10 +133,11 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (S_ISREG(st.st_mode)) {
-        int      fd;
-        uint32_t cksum;
-        int      append_rc;
-        xrootd_checksum_alg_t alg;
+        int  fd;
+        int  append_rc;
+        /* Hex result: 8 chars (adler32/crc32c), 16 (crc64/crc64nvme), or up to
+         * EVP_MAX_MD_SIZE*2 for a digest — 129 covers every case. */
+        char hex[129];
 
         fd = xrootd_open_beneath(rootfd, logical, O_RDONLY, 0);
         if (fd < 0) {
@@ -143,24 +146,19 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
             return xrootd_send_error(ctx, c, kXR_IOError, strerror(errno));
         }
 
-        if (xrootd_checksum_parse(algo, strlen(algo), &alg, NULL, 0)
-                != NGX_OK
-            || xrootd_checksum_u32_fd(alg, fd, logical, c->log, &cksum)
-                != NGX_OK)
+        if (xrootd_checksum_hex_name_fd(algo, fd, logical, c->log,
+                                        hex, sizeof(hex), NULL, 0) != NGX_OK)
         {
-            cksum = (uint32_t) -1;
-        }
-        close(fd);
-
-        if (cksum == (uint32_t) -1) {
+            close(fd);
             ngx_free(buf);
             XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
             return xrootd_send_error(ctx, c, kXR_IOError,
                                      "checksum computation failed");
         }
+        close(fd);
 
         append_rc = xrootd_ckscan_append(&buf, &cap, &used,
-                                         algo, cksum, logical);
+                                         algo, hex, logical);
         if (append_rc <= 0) {
             ngx_free(buf);
             XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);

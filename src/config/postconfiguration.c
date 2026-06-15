@@ -56,6 +56,8 @@
 
 #include "config.h"
 #include "../manager/redir_cache.h"
+#include "../frm/waiter.h"
+#include "../impersonate/lifecycle.h"
 
 ngx_int_t
 ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
@@ -199,8 +201,84 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
         return NGX_ERROR;
     }
 
+    /*
+     * Phase 35: bind the FRM durable stage queue + its SHM hot-index zone. A
+     * single queue is shared by every frm-enabled server block (Phase 0). The
+     * index zone-init callback reconciles file → index in the master before
+     * fork; workers open their own fds in init_process.
+     */
+    {
+        ngx_str_t   frm_path = ngx_null_string;
+        ngx_uint_t  frm_max  = 64;
+        ngx_uint_t  frm_peak = 0;
+        ngx_uint_t  frm_per_source = 0;
+
+        for (i = 0; i < cmcf->servers.nelts; i++) {
+            xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                      ngx_stream_xrootd_module);
+            if (xcf->common.enable && xcf->frm.enable
+                && xcf->frm.queue_path.len)
+            {
+                frm_path = xcf->frm.queue_path;
+                frm_max  = xcf->frm.max_inflight;
+                if (xcf->frm.max_inflight > frm_peak) {
+                    frm_peak = xcf->frm.max_inflight;
+                }
+                if (xcf->frm.max_per_source > frm_per_source) {
+                    frm_per_source = xcf->frm.max_per_source;
+                }
+            }
+        }
+
+        if (frm_path.len) {
+            frm_queue_t *q = frm_queue_get(cf, &frm_path, frm_max,
+                                           frm_per_source);
+            if (q == NULL) {
+                return NGX_ERROR;
+            }
+            /* Index capacity: several× max_inflight so terminal (ONLINE/FAILED)
+             * records linger for QPrep polling before the reaper expires them. */
+            if (frm_index_configure(cf, &frm_path, frm_peak * 4 + 64) != NGX_OK) {
+                return NGX_ERROR;
+            }
+            /* Phase 3: async-recall waiter table (clients parked on kXR_waitresp).
+             * Sized to a couple× the in-flight bound; harmless when async is off. */
+            if (frm_waiter_configure(cf, frm_peak * 2 + 64) != NGX_OK) {
+                return NGX_ERROR;
+            }
+            for (i = 0; i < cmcf->servers.nelts; i++) {
+                xcf = ngx_stream_conf_get_module_srv_conf(
+                          cscfp[i], ngx_stream_xrootd_module);
+                if (xcf->common.enable && xcf->frm.enable) {
+                    xcf->frm.queue = q;
+                }
+            }
+        }
+    }
+
     if (xrootd_configure_thread_pools(cf, cmcf) != NGX_OK) {
         return NGX_ERROR;
+    }
+
+    /*
+     * Phase 40: validate the impersonation mode and, for `map`, derive the broker
+     * confinement root from the first enabled data server's export root when the
+     * admin did not set xrootd_impersonation_export explicitly.  No-op (returns
+     * NGX_OK immediately) unless an xrootd_impersonation* directive was used.
+     */
+    {
+        const char *derived_root = NULL;
+        for (i = 0; i < cmcf->servers.nelts; i++) {
+            xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                      ngx_stream_xrootd_module);
+            if (xcf->common.enable && xcf->common.root_canon[0] != '\0') {
+                derived_root = xcf->common.root_canon;
+                break;
+            }
+        }
+        if (xrootd_imp_validate(cf, derived_root) != NGX_OK) {
+            return NGX_ERROR;
+        }
     }
 
     return NGX_OK;

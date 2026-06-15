@@ -66,6 +66,15 @@ s3_handle_multipart_initiate(ngx_http_request_t *r,
              (unsigned long)tv.tv_usec,
              (unsigned long)ngx_pid);
 
+    /* Phase 39 (WS8/HTTP-2): before creating this upload's staging dir,
+     * opportunistically reap abandoned staging dirs in the SAME directory whose
+     * mtime is idle past xrootd_s3_mpu_max_age (a client that never sent
+     * Complete/Abort).  Bounded to one readdir; off (0) by default. */
+    if (cf->mpu_max_age > 0) {
+        (void) s3_mpu_reap_stale(r->connection->log, cf->common.root_canon,
+                                 fs_path, (time_t) cf->mpu_max_age);
+    }
+
     s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
 
     if (xrootd_mkdir_confined_canon(r->connection->log, cf->common.root_canon,

@@ -58,6 +58,22 @@
 #define XROOTD_XFER_STATE_STALLED   3
 #define XROOTD_XFER_STATE_CLOSING   4
 #define XROOTD_XFER_STATE_ERROR     5
+/*
+ * THROTTLED is a *derived* display state (never stored in slot->state): the JSON
+ * exporter reports it instead of "stalled" for a transfer that has moved data
+ * overall but is momentarily between client-imposed rate-limit bursts (e.g.
+ * xrdcp --xrate, which sleeps then bursts).  Such a transfer is making forward
+ * progress on a schedule, not stuck, so flagging it "stalled" is misleading.
+ */
+#define XROOTD_XFER_STATE_THROTTLED 6
+
+/*
+ * EWMA sampling window for slot->instant_bps.  The owning worker re-folds the
+ * smoothed rate at most once per this interval inside slot_update_bytes (see
+ * transfer_table.c); the exporter decays the published value by the same window
+ * for read-only display while a transfer is idle between bursts.
+ */
+#define XROOTD_XFER_SAMPLE_MS       1000
 
 #define XROOTD_DASHBOARD_MAX_EVENTS          512
 #define XROOTD_DASHBOARD_EVENT_MSG_LEN       160
@@ -104,8 +120,9 @@ typedef struct {
     uint8_t       state;        /* XROOTD_XFER_STATE_* */
     uint8_t       flags;
     ngx_atomic_t  bytes;        /* bytes transferred so far (atomic increment) */
-    ngx_atomic_t  bytes_last_sample;
-    ngx_atomic_t  instant_bps;
+    ngx_atomic_t  bytes_last_sample;  /* slot->bytes at the last EWMA sample   */
+    ngx_atomic_t  last_sample_ms;     /* epoch ms of the last EWMA sample       */
+    ngx_atomic_t  instant_bps;        /* EWMA-smoothed bytes/sec (owner writes)  */
     int64_t       expected_bytes;
     int64_t       start_ms;     /* epoch ms at transfer start (written once)   */
     ngx_atomic_t  last_ms;      /* epoch ms of last I/O (atomic word write)    */

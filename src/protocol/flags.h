@@ -163,6 +163,12 @@
 /* kXR_stat — options byte */
 #define kXR_vfs  1  /* stat the virtual filesystem (statvfs), not the file;
                        response is "total_space used_space free_space nfs_largefiles" */
+#define kXR_statNoFollow 0x40  /* VENDOR (nginx-xrootd local): lstat — do NOT follow
+                                  a final symlink, so the reply describes the link
+                                  itself (kXR_other flag + target-length size). The
+                                  FUSE getattr sets this so symlinks present as
+                                  S_IFLNK; stock servers ignore the unknown bit and
+                                  follow as before (no interop change). */
 
 /* kXR_dirlist — options byte */
 #define kXR_dstat   0x02  /* include per-entry stat (id, size, flags, mtime)

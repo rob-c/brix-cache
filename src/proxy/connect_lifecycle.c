@@ -173,6 +173,11 @@ xrootd_proxy_cleanup(xrootd_proxy_ctx_t *proxy)
         proxy->resp_body = NULL;
     }
 
+    /* Phase 39 (PXY-3): free a heap-owned in-flight write buffer that was still
+     * pending at teardown/abort (e.g. an aborted forwarded request).  NULL-safe
+     * and owned-gated, so a pool-allocated bootstrap frame is merely detached. */
+    xrootd_proxy_wbuf_release(proxy);
+
     if (proxy->saved_req != NULL) {
         ngx_free(proxy->saved_req);
         proxy->saved_req = NULL;

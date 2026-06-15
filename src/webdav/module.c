@@ -3,6 +3,7 @@
  */
 
 #include "webdav.h"
+#include "../acc/acc.h"            /* XrdAcc engine directives + enum tables */
 #include "../s3/s3.h"
 #include "../shm/kv.h"             /* xrootd_kv_zone_directive */
 #include "../shm/rate_limit.h"     /* xrootd_rate_limit_directive */
@@ -232,6 +233,198 @@ webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  * and the cross-module setters (mirror, rate-limit, KV, token-cache) appear
  * where they are grouped by feature.  Defaults/merge live in config.c.
  */
+/*
+ * The XrdAcc directives are valid in any http location and must configure BOTH
+ * the WebDAV and S3 loc-confs (an S3-only location still needs them), but nginx
+ * applies just one module's setter per directive.  These shared setters fetch
+ * both loc-confs and populate each, so the directive is registered only once.
+ */
+static char *
+xrootd_acc_http_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *wc =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_xrootd_webdav_module);
+    ngx_http_s3_loc_conf_t            *sc =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_xrootd_s3_module);
+    ngx_str_t *value = cf->args->elts;
+    wc->acc.authdb = value[1];
+    sc->acc.authdb = value[1];
+    return NGX_CONF_OK;
+}
+
+static char *
+xrootd_acc_http_set_enum(ngx_conf_t *cf, ngx_conf_enum_t *e, ngx_uint_t *wp,
+    ngx_uint_t *sp)
+{
+    ngx_str_t *value = cf->args->elts;
+    ngx_uint_t i;
+    for (i = 0; e[i].name.len != 0; i++) {
+        if (e[i].name.len == value[1].len
+            && ngx_strcmp(e[i].name.data, value[1].data) == 0)
+        {
+            *wp = *sp = e[i].value;
+            return NGX_CONF_OK;
+        }
+    }
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid value \"%V\"", &value[1]);
+    return NGX_CONF_ERROR;
+}
+
+static char *
+xrootd_acc_http_set_format(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *wc =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_xrootd_webdav_module);
+    ngx_http_s3_loc_conf_t            *sc =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_xrootd_s3_module);
+    return xrootd_acc_http_set_enum(cf, xrootd_acc_format_modes,
+                                    &wc->acc.format, &sc->acc.format);
+}
+
+static char *
+xrootd_acc_http_set_audit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *wc =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_xrootd_webdav_module);
+    ngx_http_s3_loc_conf_t            *sc =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_xrootd_s3_module);
+    return xrootd_acc_http_set_enum(cf, xrootd_acc_audit_modes,
+                                    &wc->acc.audit, &sc->acc.audit);
+}
+
+/*
+ * Shared scalar setters for the XrdAcc HTTP tunables — registered once but
+ * populate BOTH loc-confs (see the authdb setters above for why).  Each grabs
+ * the WebDAV + S3 acc blocks and applies the value to the same field in each.
+ */
+static char *
+xrootd_acc_http_both(ngx_conf_t *cf, xrootd_acc_http_t **wc, xrootd_acc_http_t **sc)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *w =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_xrootd_webdav_module);
+    ngx_http_s3_loc_conf_t            *s =
+        ngx_http_conf_get_module_loc_conf(cf, ngx_http_xrootd_s3_module);
+    *wc = &w->acc;
+    *sc = &s->acc;
+    return NULL;
+}
+
+static char *
+xrootd_acc_http_set_refresh(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    xrootd_acc_http_t *wc, *sc;
+    ngx_str_t         *value = cf->args->elts;
+    ngx_int_t          n;
+
+    (void) xrootd_acc_http_both(cf, &wc, &sc);
+    n = ngx_atoi(value[1].data, value[1].len);
+    if (n == NGX_ERROR) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid number \"%V\"",
+                           &value[1]);
+        return NGX_CONF_ERROR;
+    }
+    wc->refresh = sc->refresh = n;
+    return NGX_CONF_OK;
+}
+
+static char *
+xrootd_acc_http_set_gidlifetime(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    xrootd_acc_http_t *wc, *sc;
+    ngx_str_t         *value = cf->args->elts;
+    ngx_int_t          n;
+
+    (void) xrootd_acc_http_both(cf, &wc, &sc);
+    n = ngx_atoi(value[1].data, value[1].len);
+    if (n == NGX_ERROR) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid number \"%V\"",
+                           &value[1]);
+        return NGX_CONF_ERROR;
+    }
+    wc->gidlifetime = sc->gidlifetime = n;
+    return NGX_CONF_OK;
+}
+
+static char *
+xrootd_acc_http_set_nisdomain(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    xrootd_acc_http_t *wc, *sc;
+    ngx_str_t         *value = cf->args->elts;
+
+    (void) xrootd_acc_http_both(cf, &wc, &sc);
+    wc->nisdomain = sc->nisdomain = value[1];
+    return NGX_CONF_OK;
+}
+
+static char *
+xrootd_acc_http_set_flag(ngx_conf_t *cf, ngx_flag_t *wp, ngx_flag_t *sp,
+    ngx_str_t *val)
+{
+    if (ngx_strcasecmp(val->data, (u_char *) "on") == 0) {
+        *wp = *sp = 1;
+    } else if (ngx_strcasecmp(val->data, (u_char *) "off") == 0) {
+        *wp = *sp = 0;
+    } else {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "invalid value \"%V\" (expected on|off)", val);
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+static char *
+xrootd_acc_http_set_pgo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    xrootd_acc_http_t *wc, *sc;
+    ngx_str_t         *value = cf->args->elts;
+
+    (void) xrootd_acc_http_both(cf, &wc, &sc);
+    return xrootd_acc_http_set_flag(cf, &wc->pgo, &sc->pgo, &value[1]);
+}
+
+static char *
+xrootd_acc_http_set_resolve_hosts(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    xrootd_acc_http_t *wc, *sc;
+    ngx_str_t         *value = cf->args->elts;
+
+    (void) xrootd_acc_http_both(cf, &wc, &sc);
+    return xrootd_acc_http_set_flag(cf, &wc->resolve_hosts, &sc->resolve_hosts,
+                                    &value[1]);
+}
+
+static char *
+xrootd_acc_http_set_spacechar(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    xrootd_acc_http_t *wc, *sc;
+    ngx_str_t         *value = cf->args->elts;
+
+    (void) xrootd_acc_http_both(cf, &wc, &sc);
+    wc->spacechar = sc->spacechar = value[1];
+    return NGX_CONF_OK;
+}
+
+static char *
+xrootd_acc_http_set_encoding(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    xrootd_acc_http_t *wc, *sc;
+    ngx_str_t         *value = cf->args->elts;
+
+    (void) xrootd_acc_http_both(cf, &wc, &sc);
+    return xrootd_acc_http_set_flag(cf, &wc->encoding, &sc->encoding, &value[1]);
+}
+
+static char *
+xrootd_acc_http_set_gidretran(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    xrootd_acc_http_t *wc, *sc;
+    ngx_str_t         *value = cf->args->elts;
+
+    (void) xrootd_acc_http_both(cf, &wc, &sc);
+    wc->gidretran = sc->gidretran = value[1];
+    return NGX_CONF_OK;
+}
+
 static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
 
     { ngx_string("xrootd_webdav"),
@@ -240,6 +433,52 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.enable),
       NULL },
+
+    /* XrdAcc engine — registered once here; the shared setters populate both
+     * the WebDAV and S3 loc-confs (valid in any http location). */
+    { ngx_string("xrootd_authdb"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_authdb, 0, 0, NULL },
+
+    { ngx_string("xrootd_authdb_format"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_format, 0, 0, NULL },
+
+    { ngx_string("xrootd_authdb_audit"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_audit, 0, 0, NULL },
+
+    { ngx_string("xrootd_authdb_refresh"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_refresh, 0, 0, NULL },
+
+    { ngx_string("xrootd_acc_gidlifetime"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_gidlifetime, 0, 0, NULL },
+
+    { ngx_string("xrootd_acc_pgo"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_pgo, 0, 0, NULL },
+
+    { ngx_string("xrootd_acc_nisdomain"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_nisdomain, 0, 0, NULL },
+
+    { ngx_string("xrootd_acc_resolve_hosts"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_resolve_hosts, 0, 0, NULL },
+
+    { ngx_string("xrootd_acc_spacechar"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_spacechar, 0, 0, NULL },
+
+    { ngx_string("xrootd_acc_encoding"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_encoding, 0, 0, NULL },
+
+    { ngx_string("xrootd_acc_gidretran"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      xrootd_acc_http_set_gidretran, 0, 0, NULL },
 
     { ngx_string("xrootd_webdav_root"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -325,6 +564,13 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc),
       NULL },
 
+    { ngx_string("xrootd_webdav_tape_rest"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, tape_rest),
+      NULL },
+
     { ngx_string("xrootd_webdav_tpc_allow_local"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -379,6 +625,21 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc_timeout),
+      NULL },
+
+    /* Phase 39 (WS4): HTTP-TPC low-speed stall abort (both 0 = off). */
+    { ngx_string("xrootd_webdav_tpc_low_speed_bytes"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc_low_speed_bytes),
+      NULL },
+
+    { ngx_string("xrootd_webdav_tpc_low_speed_secs"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, tpc_low_speed_secs),
       NULL },
 
     { ngx_string("xrootd_webdav_tpc_marker_interval"),
@@ -757,6 +1018,57 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
+
+    /* ---- SciTags packet marking (src/pmark/) — see phase-34 doc ---- */
+    { ngx_string("xrootd_pmark"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.enable), NULL },
+    { ngx_string("xrootd_pmark_firefly"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.firefly), NULL },
+    { ngx_string("xrootd_pmark_flowlabel"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.flowlabel), NULL },
+    { ngx_string("xrootd_pmark_scitag_cgi"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.scitag_cgi), NULL },
+    { ngx_string("xrootd_pmark_firefly_origin"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.firefly_origin), NULL },
+    { ngx_string("xrootd_pmark_http_plain"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.http_plain), NULL },
+    { ngx_string("xrootd_pmark_echo"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_msec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.echo), NULL },
+    { ngx_string("xrootd_pmark_appname"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.appname), NULL },
+    { ngx_string("xrootd_pmark_defsfile"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pmark.defsfile), NULL },
+    { ngx_string("xrootd_pmark_domain"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, xrootd_pmark_set_domain,
+      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
+    { ngx_string("xrootd_pmark_firefly_dest"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, xrootd_pmark_set_firefly_dest,
+      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
+    { ngx_string("xrootd_pmark_map_experiment"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE23, xrootd_pmark_set_map_experiment,
+      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
+    { ngx_string("xrootd_pmark_map_activity"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE3 | NGX_CONF_TAKE4,
+      xrootd_pmark_set_map_activity,
+      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
 
     ngx_null_command
 };

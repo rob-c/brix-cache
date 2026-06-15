@@ -211,6 +211,9 @@ xrootd_proxy_splice_wev(ngx_event_t *wev)
  * current read response.  Returns NGX_OK if splice was started (the caller
  * must NOT allocate resp_body or loop for body data).  Returns NGX_DECLINED
  * if the conditions are not met and the caller should use the normal path.
+ * Returns NGX_ERROR if it had to abort the session (PXY-6 partial-header case);
+ * the proxy has been torn down and the caller MUST return immediately without
+ * touching `proxy`.
  */
 ngx_int_t
 xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy)
@@ -269,13 +272,48 @@ xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy)
                            proxy->resp_dlen,
                            (ServerResponseHdr *)(void *) hdr);
 
-    sent = proxy->client_conn->send(proxy->client_conn, hdr,
-                                    XRD_RESPONSE_HDR_LEN);
-    if (sent != XRD_RESPONSE_HDR_LEN) {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
-                       "xrootd proxy: splice header send incomplete (%z), "
-                       "using buffered path", sent);
-        return NGX_DECLINED;
+    /*
+     * Phase 39 (PXY-6): send the full 8-byte header before splicing the body.
+     * We must NOT fall back to the buffered relay path once ANY header byte is on
+     * the wire — that path rebuilds and re-sends the WHOLE header, duplicating the
+     * already-sent bytes and corrupting the client's frame stream.  Therefore:
+     *   - nothing sent yet (NGX_AGAIN at off==0): decline → the buffered path
+     *     safely sends the whole header;
+     *   - a partial send: complete the (<=7-byte) remainder here — the loop is
+     *     bounded because every positive send advances off (capped at 8);
+     *   - a socket error, or the buffer filling mid-remainder: abort cleanly
+     *     (returns NGX_ERROR) rather than corrupt the stream.  This is
+     *     astronomically rare for an 8-byte header.
+     */
+    {
+        size_t off = 0;
+
+        for ( ;; ) {
+            sent = proxy->client_conn->send(proxy->client_conn,
+                                            hdr + off,
+                                            XRD_RESPONSE_HDR_LEN - off);
+            if (sent > 0) {
+                off += (size_t) sent;
+                if (off == XRD_RESPONSE_HDR_LEN) {
+                    break;                 /* fully sent — proceed to splice */
+                }
+                continue;                  /* partial — send the remainder */
+            }
+            if (sent == NGX_AGAIN && off == 0) {
+                ngx_log_debug0(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+                               "xrootd proxy: splice header would block, "
+                               "using buffered path");
+                return NGX_DECLINED;
+            }
+            /* NGX_AGAIN after a partial header, or a socket error: cannot fall
+             * back without duplicating on-wire bytes, and the splice path has no
+             * deferred-header state.  Abort rather than corrupt. */
+            ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+                           "xrootd proxy: splice header send incomplete (%z), "
+                           "aborting to avoid frame corruption", sent);
+            xrootd_proxy_abort(proxy, "proxy: splice header send incomplete");
+            return NGX_ERROR;
+        }
     }
 
     proxy->splice_active     = 1;

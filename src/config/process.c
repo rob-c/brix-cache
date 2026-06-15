@@ -37,6 +37,7 @@
 #include "../compat/crypto.h"
 #include "../manager/health_check.h"
 #include "../gsi/keypool.h"
+#include "../impersonate/lifecycle.h"
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
 #include <sanitizer/lsan_interface.h>
@@ -137,6 +138,21 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
             continue;
         }
 
+        /* Phase 35: open this worker's own fds onto the FRM queue file (the
+         * master reconciled file → SHM index before fork; workers lock/IO with
+         * independent fds), then arm the per-worker stage scheduler. */
+        if (xcf->frm.enable && xcf->frm.queue != NULL) {
+            if (frm_queue_init(xcf->frm.queue, cycle->log) != NGX_OK) {
+                return NGX_ERROR;
+            }
+            frm_stage_scheduler_register(cycle, &xcf->frm,
+                                         xcf->common.thread_pool,
+                                         xcf->manager_mode,
+                                         (uint16_t) xcf->listen_port);
+            /* Phase 4 F6: worker-0 Category-2 purge-watermark monitor (stub). */
+            frm_migrate_purge_register(cycle, &xcf->frm);
+        }
+
         if (xcf->auth == XROOTD_AUTH_GSI || xcf->auth == XROOTD_AUTH_BOTH) {
             gsi_seen = 1;   /* Phase 33: warm the GSI DH key pool below */
         }
@@ -158,6 +174,12 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         if (xrootd_chkpoint_recover_root(cycle->log, xcf->common.root_canon)
             != NGX_OK)
         {
+            return NGX_ERROR;
+        }
+
+        /* Build the per-worker XrdAcc tables + hot-reload timer (no-op unless
+         * this server uses `xrootd_authdb_format xrdacc`). */
+        if (xrootd_acc_init_server(xcf, cycle) != NGX_OK) {
             return NGX_ERROR;
         }
 
@@ -201,6 +223,13 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
     if (gsi_seen) {
         xrootd_gsi_keypool_init(cycle);
     }
+
+    /* Phase 35: arm the FRM expiry reaper (worker 0 only; no-op when disabled). */
+    frm_reaper_register(cycle);
+
+    /* Phase 40: connect this worker to the identity broker (no-op unless
+     * xrootd_impersonation=map; lazily reconnects if the broker isn't up yet). */
+    xrootd_imp_init_worker(cycle);
 
     return NGX_OK;
 }
