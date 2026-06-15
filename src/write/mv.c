@@ -116,9 +116,10 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_NotFound, "source not found");
 	}
 
-	if (xrootd_auth_gate(ctx, c, XROOTD_OP_MV, "MV",
+	/* XrdAcc: the move SOURCE requires Rename; the destination requires Insert. */
+	if (xrootd_auth_gate_op(ctx, c, XROOTD_OP_MV, "MV",
 						  src_buf, src_resolved, conf,
-						  XROOTD_AUTH_DELETE, 1) != NGX_OK) {
+						  XROOTD_AUTH_DELETE, 1, XROOTD_AOP_RENAME) != NGX_OK) {
 		return ctx->write_rc;
 	}
 
@@ -129,9 +130,9 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_NotFound, "invalid destination path");
 	}
 
-	if (xrootd_auth_gate(ctx, c, XROOTD_OP_MV, "MV",
+	if (xrootd_auth_gate_op(ctx, c, XROOTD_OP_MV, "MV",
 						  dst_buf, dst_resolved, conf,
-						  XROOTD_AUTH_UPDATE, 1) != NGX_OK) {
+						  XROOTD_AUTH_UPDATE, 1, XROOTD_AOP_INSERT) != NGX_OK) {
 		return ctx->write_rc;
 	}
 

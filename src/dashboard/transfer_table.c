@@ -1,4 +1,5 @@
 #include "dashboard.h"
+#include "../compat/shm_slots.h"
 #include <ngx_shmtx.h>
 #include <string.h>
 
@@ -30,35 +31,27 @@ static ngx_shmtx_t xrootd_dashboard_mutex;
 ngx_int_t
 ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
+    ngx_flag_t               fresh;
     xrootd_transfer_table_t *tbl;
 
-    if (data) {
-        /*
-         * Reload path: nginx handed us the same physical pages as before.
-         * Re-create the mutex so the new generation of workers can lock it;
-         * preserve every slot — transfers in flight survive the reload.
-         */
-        shm_zone->data = data;
-
-        tbl = (xrootd_transfer_table_t *) shm_zone->shm.addr;
-        if (ngx_shmtx_create(&xrootd_dashboard_mutex, &tbl->lock, NULL)
-            != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-
-        return NGX_OK;
-    }
-
-    /* First startup: zero the region and initialise the mutex. */
-    tbl = (xrootd_transfer_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl, sizeof(*tbl));
-
-    if (ngx_shmtx_create(&xrootd_dashboard_mutex, &tbl->lock, NULL) != NGX_OK) {
+    /*
+     * Allocate the table FROM the slab pool (never over shm.addr) so nginx's
+     * slab-pool header — which ngx_unlock_mutexes() dereferences on every child
+     * death — survives.  The helper zeroes a fresh table and (re-)creates the
+     * mutex from the leading ngx_shmtx_sh_t lock on fresh, reload, and re-attach.
+     * On reuse the live slots are preserved; transfers in flight survive reload.
+     */
+    tbl = xrootd_shm_table_alloc(shm_zone, data,
+                                 sizeof(xrootd_transfer_table_t),
+                                 &xrootd_dashboard_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = tbl;
+    /* No fresh-only field inits: the helper's memzero leaves next_serial = 0
+     * and every slot free, which is the entire first-startup state. */
+    (void) fresh;
+
     return NGX_OK;
 }
 
@@ -168,6 +161,39 @@ xrootd_transfer_slot_update_bytes(xrootd_transfer_table_t *t,
     }
     slot->state = XROOTD_XFER_STATE_ACTIVE;
     slot->last_ms = (ngx_atomic_t) now_ms;  /* 64-bit aligned write; atomic on x86_64 */
+
+    /*
+     * EWMA-smoothed instantaneous rate.  Only the owning worker writes these
+     * three fields (the exporter is read-only), so a plain read-modify-write is
+     * race-free under the existing concurrency model.  We fold a new sample at
+     * most once per XROOTD_XFER_SAMPLE_MS: rate over the elapsed window, blended
+     * into the previous value with alpha = 1/4 (new = raw/4 + prev*3/4).  This
+     * turns a bursty client (e.g. xrdcp --xrate: idle, then an 8 MiB burst) into
+     * a steady published rate instead of a 0↔line-rate sawtooth.  Decay toward
+     * zero during the idle gap is applied read-only by the exporter (api.c).
+     */
+    {
+        int64_t sample_ms = (int64_t) slot->last_sample_ms;
+
+        if (sample_ms == 0) {
+            /* First update — seed the window without emitting a rate. */
+            slot->last_sample_ms   = (ngx_atomic_t) now_ms;
+            slot->bytes_last_sample = slot->bytes;
+        } else {
+            int64_t dt = now_ms - sample_ms;
+
+            if (dt >= XROOTD_XFER_SAMPLE_MS) {
+                int64_t  db   = (int64_t) slot->bytes
+                                - (int64_t) slot->bytes_last_sample;
+                uint64_t raw  = (db > 0) ? (uint64_t) (db * 1000 / dt) : 0;
+                uint64_t prev = (uint64_t) slot->instant_bps;
+
+                slot->instant_bps      = (ngx_atomic_t) ((raw + prev * 3) / 4);
+                slot->bytes_last_sample = slot->bytes;
+                slot->last_sample_ms   = (ngx_atomic_t) now_ms;
+            }
+        }
+    }
 }
 
 void

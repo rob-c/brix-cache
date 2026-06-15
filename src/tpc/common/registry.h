@@ -87,4 +87,20 @@ ngx_uint_t xrootd_tpc_registry_snapshot(xrootd_tpc_transfer_snapshot_t *out,
 ngx_int_t xrootd_tpc_progress_emit(uint64_t id, off_t bytes_done,
     off_t bytes_total, ngx_uint_t state, ngx_log_t *log);
 
+/* Phase 39 (WS5): set the abandoned-slot reaper max age (seconds); 0 = disabled.
+ * Call once per server block at config time (before fork) from
+ * xrootd_tpc_transfer_max_age.  Guards on value > 0 so a 0-default block does not
+ * clobber an enabling one. */
+void xrootd_tpc_registry_set_max_age(time_t secs);
+
+/* Phase 39 (WS5): mark transfer `id` cancelled so the curl progress callback
+ * aborts it promptly (read lock-free via registry_find).  No-op if id not found. */
+ngx_int_t xrootd_tpc_registry_request_cancel(uint64_t id);
+
+/* Reclaim in-use slots with no progress for > max_age (abandoned transfers),
+ * preventing permanent "registry full" 503 starvation.  Takes the lock; returns
+ * the number reclaimed (0 if disabled/unavailable).  Also driven inline when a
+ * registry_add hits a full table. */
+ngx_uint_t xrootd_tpc_registry_reap_stale(ngx_log_t *log);
+
 #endif /* XROOTD_TPC_COMMON_REGISTRY_H */

@@ -93,11 +93,49 @@ xrootd_metrics_shared(void)
         }                                                                    \
     } while (0)
 
+/* SciTags packet-marking counters (phase-34) — global, low-cardinality.  Safe
+ * from any context (firefly/flowlabel emit; open/dispatch call sites); no-op when
+ * the metrics SHM is not yet mapped. */
+#define XROOTD_PMARK_METRIC_INC(field)                                        \
+    do {                                                                     \
+        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
+        if (_xrootd_metrics != NULL) {                                       \
+            XROOTD_ATOMIC_INC(&_xrootd_metrics->field);                      \
+        }                                                                    \
+    } while (0)
+
 #define XROOTD_S3_METRIC_ADD(field, amount)                                  \
     do {                                                                     \
         ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
         if (_xrootd_metrics != NULL) {                                       \
             XROOTD_ATOMIC_ADD(&_xrootd_metrics->s3.field, (amount));         \
+        }                                                                    \
+    } while (0)
+
+/* FRM tape-stage counters (phase-35) — global, low-cardinality.  Safe from the
+ * stage scheduler/agent-reply path and the open/prepare/Tape-REST call sites;
+ * no-op until the metrics SHM is mapped.  INC/DEC drive the in_flight gauge. */
+#define XROOTD_FRM_METRIC_INC(field)                                          \
+    do {                                                                     \
+        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
+        if (_xrootd_metrics != NULL) {                                       \
+            XROOTD_ATOMIC_INC(&_xrootd_metrics->frm.field);                  \
+        }                                                                    \
+    } while (0)
+
+#define XROOTD_FRM_METRIC_DEC(field)                                          \
+    do {                                                                     \
+        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
+        if (_xrootd_metrics != NULL) {                                       \
+            XROOTD_ATOMIC_DEC(&_xrootd_metrics->frm.field);                  \
+        }                                                                    \
+    } while (0)
+
+#define XROOTD_FRM_METRIC_ADD(field, amount)                                  \
+    do {                                                                     \
+        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
+        if (_xrootd_metrics != NULL) {                                       \
+            XROOTD_ATOMIC_ADD(&_xrootd_metrics->frm.field, (amount));        \
         }                                                                    \
     } while (0)
 

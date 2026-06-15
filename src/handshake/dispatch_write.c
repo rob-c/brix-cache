@@ -1,5 +1,6 @@
 #include "handshake.h"
 #include "../write/chkpoint.h"
+#include "../write/ext_ops.h"   /* vendor setattr/symlink/link */
 
 /* ---- Write phase dispatcher — mutating filesystem operations ----
  *
@@ -73,6 +74,11 @@ xrootd_dispatch_write_opcode(xrootd_ctx_t *ctx, ngx_connection_t *c,
     case kXR_mv:       DISPATCH_WR(xrootd_handle_mv,       conf);
     case kXR_chmod:    DISPATCH_WR(xrootd_handle_chmod,    conf);
     case kXR_chkpoint: DISPATCH_WR(xrootd_handle_chkpoint, conf);
+
+    /* vendor POSIX-completeness extensions (capability "xrdfs.ext") */
+    case kXR_setattr:  DISPATCH_WR(xrootd_handle_setattr,  conf);
+    case kXR_symlink:  DISPATCH_WR(xrootd_handle_symlink,  conf);
+    case kXR_link:     DISPATCH_WR(xrootd_handle_link,     conf);
 
     default:
         return XROOTD_DISPATCH_CONTINUE;

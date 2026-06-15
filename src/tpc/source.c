@@ -148,8 +148,29 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
     done   = 0;
     failed = 0;
 
+    /*
+     * Phase 39 (WS4): wall-clock cap on the whole pull, sampled once per 1 MiB
+     * chunk (NOT per frame) so it adds no per-frame syscall cost.  Bounds a
+     * slow-drip remote that keeps resetting the per-recv SO_RCVTIMEO idle timer.
+     * 0 = no cap (current behaviour).  The per-recv idle timeout still applies.
+     */
+    {
+    time_t pull_start = time(NULL);
+    time_t pull_max   = (t->conf != NULL)
+                        ? (time_t) t->conf->tpc_max_transfer_secs : 0;
+
     while (!done && !failed) {
         size_t got_this_req = 0;
+
+        if (pull_max > 0 && (time(NULL) - pull_start) > pull_max) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC pull exceeded xrootd_tpc_max_transfer_secs (%lds) "
+                     "at offset %llu", (long) pull_max,
+                     (unsigned long long) offset);
+            t->xrd_error = kXR_IOError;
+            failed = 1;
+            break;
+        }
 
         /* kXR_read header: 8-byte big-endian offset (htobe64, NOT htonl) and
          * 4-byte requested length. streamid[1]=3 tags read replies on this
@@ -266,6 +287,7 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
             offset += got_this_req;
         }
     }
+    }  /* Phase 39 (WS4) wall-clock-deadline scope */
 
     /* Decide rc, then fall through to the shared remote-close ladder below so
      * the origin handle is never leaked — on success or on either error. */

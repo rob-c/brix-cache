@@ -1,5 +1,6 @@
 #include "dashboard_http.h"
 #include "api_admin.h"   /* Phase 23: xrootd_admin_dispatch + admin directives */
+#include "../compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
 
 #include <stdio.h>
 #include <string.h>
@@ -73,6 +74,7 @@ ngx_http_xrootd_dashboard_create_loc_conf(ngx_conf_t *cf)
     if (conf == NULL) { return NULL; }
 
     conf->enable      = NGX_CONF_UNSET;
+    conf->anonymous   = NGX_CONF_UNSET;
     conf->session_ttl = NGX_CONF_UNSET_UINT;
     conf->idle_threshold_ms = NGX_CONF_UNSET_MSEC;
     conf->stalled_threshold_ms = NGX_CONF_UNSET_MSEC;
@@ -89,6 +91,7 @@ ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
     ngx_http_xrootd_dashboard_loc_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
+    ngx_conf_merge_value(conf->anonymous, prev->anonymous, 0);
     ngx_conf_merge_uint_value(conf->session_ttl, prev->session_ttl, 28800);
     ngx_conf_merge_msec_value(conf->idle_threshold_ms,
                               prev->idle_threshold_ms, 5000);
@@ -315,6 +318,14 @@ static ngx_command_t ngx_http_xrootd_dashboard_commands[] = {
       offsetof(ngx_http_xrootd_dashboard_loc_conf_t, enable),
       NULL },
 
+    /* Anonymous (no-login) read-only tier: stats with PII/secrets redacted. */
+    { ngx_string("xrootd_dashboard_anonymous"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, anonymous),
+      NULL },
+
     { ngx_string("xrootd_dashboard_password"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_http_xrootd_dashboard_set_password,
@@ -437,6 +448,9 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
         return NGX_HTTP_NOT_FOUND;
     }
 
+    /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
+    xrootd_http_source_offer(r);
+
     uri = r->uri;
 
     if (dashboard_uri_eq(uri, "/xrootd/transfers")) {
@@ -482,6 +496,12 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/ratelimit")) {   /* Phase 25 */
         return ngx_http_xrootd_dashboard_api_handler(r,
             XROOTD_DASHBOARD_API_V1_RATELIMIT);
+    }
+
+    /* Config download — own handler (text/plain attachment); ALWAYS auth-only,
+     * never anonymous.  Must precede the generic /api/v1/ catch-all below. */
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/config")) {
+        return ngx_http_xrootd_dashboard_config_download_handler(r);
     }
 
     /* Phase 23: admin write API (auth + method routing inside dispatch). */

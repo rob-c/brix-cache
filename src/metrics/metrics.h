@@ -194,6 +194,22 @@
 #define XROOTD_S3_NEVENTS                   8
 
 /*
+ * FRM tape-stage counters (phase-35).  Low-cardinality only — stage outcomes by
+ * coarse reason and a seconds-scale latency histogram; never a path/DN/reqid as a
+ * label (INVARIANT #8).
+ */
+#define XROOTD_FRM_FAIL_COPYCMD   0   /* copycmd exited non-zero            */
+#define XROOTD_FRM_FAIL_DISPATCH  1   /* stage agent gone / broken pipe     */
+#define XROOTD_FRM_FAIL_TIMEOUT   2   /* copy_timeout exceeded              */
+#define XROOTD_FRM_FAIL_VERIFY    3   /* size/checksum mismatch (Phase 4 F5)*/
+#define XROOTD_FRM_FAIL_OTHER     4
+#define XROOTD_FRM_NFAIL          5
+
+/* Stage-latency histogram upper bounds in SECONDS (recall = seconds..hours):
+ * 1, 10, 30, 60, 300, 1800, 3600, +Inf — 8 buckets. */
+#define XROOTD_FRM_LATENCY_BUCKETS  8
+
+/*
  * Per-process WebDAV metrics.  All fields are ngx_atomic_t so they are safe to
  * increment from any worker without a mutex.  Indexed arrays use the
  * XROOTD_WEBDAV_METHOD_*, XROOTD_HTTP_STATUS_*, XROOTD_WEBDAV_AUTH_RESULT_*,
@@ -250,6 +266,32 @@ typedef struct {
     ngx_atomic_t  list_common_prefixes_total;  /* common-prefix groups returned */
     ngx_atomic_t  list_truncated_total;        /* ListObjects responses truncated */
 } ngx_xrootd_s3_metrics_t;
+
+/*
+ * Per-process FRM tape-stage metrics (phase-35).  All ngx_atomic_t, lock-free.
+ * The whole block is process-global (one tape queue per node), so it lives
+ * directly in the root metrics object rather than per-listener.  All fields are
+ * declared up front (across Phases 1-4) so the SHM struct ABI grows only once.
+ */
+typedef struct {
+    ngx_atomic_t  requests_total;       /* stage requests admitted (new records)  */
+    ngx_atomic_t  dedup_hits_total;     /* opens collapsed onto an in-flight stage */
+    ngx_atomic_t  reject_inflight_total;/* admissions refused: queue at capacity   */
+    ngx_atomic_t  stage_success_total;  /* recalls that completed ONLINE           */
+    ngx_atomic_t  stage_fail_total[XROOTD_FRM_NFAIL]; /* failed recalls by reason  */
+    ngx_atomic_t  in_flight;            /* gauge: requests QUEUED+STAGING right now */
+    ngx_atomic_t  evict_total;          /* kXR_evict / Tape-REST release marks      */
+    ngx_atomic_t  waitresp_total;       /* Phase 3: kXR_waitresp parks issued       */
+    ngx_atomic_t  asynresp_total;       /* Phase 3: kXR_attn asynresp deliveries    */
+    ngx_atomic_t  cmsd_have_total;      /* Phase 4 F1: now-resident paths registered*/
+    ngx_atomic_t  migrate_total;        /* Phase 4 F6: migrate-out attempts (stub)  */
+    ngx_atomic_t  purge_total;          /* Phase 4 F6: purge decisions logged (stub)*/
+    /* Coarse seconds-scale latency histogram, stored NON-cumulative in SHM and
+     * cumulated into Prometheus le-buckets at scrape time. */
+    ngx_atomic_t  stage_latency_bucket[XROOTD_FRM_LATENCY_BUCKETS];
+    ngx_atomic_t  stage_latency_count;
+    ngx_atomic_t  stage_latency_sum_sec;
+} ngx_xrootd_frm_metrics_t;
 
 /* Maximum upstream endpoints tracked per listener for per-upstream labels. */
 #define XROOTD_PROXY_MAX_UPSTREAMS       16
@@ -403,6 +445,17 @@ typedef struct {
     ngx_atomic_t  xfer_heap_in_use;       /* bytes held in transfer scratch buffers */
     ngx_atomic_t  xfer_heap_high_water;   /* peak xfer_heap_in_use observed          */
     ngx_atomic_t  budget_waits_total;     /* reads deferred with kXR_wait (over budget) */
+
+    /*
+     * Phase 39 — network-fault resilience timeout counters (low-cardinality,
+     * no path/UUID labels).  Each counts connections the steady-state deadline
+     * machinery reaped; all stay 0 unless the operator enables the matching
+     * directive (xrootd_handshake_timeout / xrootd_read_timeout / xrootd_send_timeout).
+     */
+    ngx_atomic_t  handshake_timeouts_total; /* pre-auth handshake deadline fired   */
+    ngx_atomic_t  read_pdu_timeouts_total;  /* steady-state read deadline fired    */
+    ngx_atomic_t  send_drain_timeouts_total;/* response-drain deadline fired       */
+    ngx_atomic_t  connections_rejected_total; /* refused at xrootd_max_connections */
 } ngx_xrootd_srv_metrics_t;
 
 /* ---- Per-VO traffic tracking (bounded LRU, low-cardinality) ---- */
@@ -482,6 +535,7 @@ typedef struct {
     ngx_xrootd_webdav_metrics_t  webdav;
     ngx_xrootd_s3_metrics_t      s3;
     ngx_xrootd_unified_metrics_t unified;
+    ngx_xrootd_frm_metrics_t     frm;
 
     /* Server registry diagnostics. */
     ngx_atomic_t  registry_full_total;
@@ -511,6 +565,15 @@ typedef struct {
     /* Phase 27 F4 — session-registry anti-exhaustion. */
     ngx_atomic_t  session_registry_full_total; /* logins rejected: table full + nothing reapable */
     ngx_atomic_t  session_evict_total;         /* idle sessions reaped to admit a new login */
+
+    /* Phase 34 — SciTags packet marking (low cardinality, no labels). */
+    ngx_atomic_t  pmark_flows_started_total;   /* flows that mapped + were marked      */
+    ngx_atomic_t  pmark_flows_ended_total;     /* flows that emitted an end firefly    */
+    ngx_atomic_t  pmark_firefly_sent_total;    /* firefly datagrams sent OK            */
+    ngx_atomic_t  pmark_firefly_dropped_total; /* firefly sendto failures (fail-open)  */
+    ngx_atomic_t  pmark_flowlabel_set_total;   /* IPv6 flow labels stamped             */
+    ngx_atomic_t  pmark_flowlabel_failed_total;/* flow-label setsockopt refusals       */
+    ngx_atomic_t  pmark_map_unresolved_total;  /* opens with no (exp,act) mapping      */
 
     ngx_xrootd_vo_global_t    vo_global;
     ngx_xrootd_user_global_t  user_tracking;

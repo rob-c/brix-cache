@@ -317,6 +317,20 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
         "Native XRootD response send or send_chain failures.",
         response_write_errors_total);
 
+    /* Phase 39: network-fault resilience timeout reaps (0 unless directives set). */
+    XROOTD_EXPORT_SRV_COUNTER("xrootd_stream_handshake_timeouts_total",
+        "Connections dropped because the pre-auth handshake stalled past xrootd_handshake_timeout.",
+        handshake_timeouts_total);
+    XROOTD_EXPORT_SRV_COUNTER("xrootd_stream_read_pdu_timeouts_total",
+        "Connections dropped because an incomplete request PDU stalled past xrootd_read_timeout.",
+        read_pdu_timeouts_total);
+    XROOTD_EXPORT_SRV_COUNTER("xrootd_stream_send_drain_timeouts_total",
+        "Connections dropped because the response drain stalled past xrootd_send_timeout.",
+        send_drain_timeouts_total);
+    XROOTD_EXPORT_SRV_COUNTER("xrootd_stream_connections_rejected_total",
+        "Connections refused at accept because the listener was at xrootd_max_connections.",
+        connections_rejected_total);
+
 #undef XROOTD_EXPORT_SRV_COUNTER
 
     xrootd_export_stream_cache_metrics(mw, shm);
@@ -409,6 +423,8 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
     xrootd_export_s3_metrics(mw, shm);
     xrootd_export_cluster_metrics(mw);
     xrootd_export_ratelimit_metrics(mw, shm);
+    xrootd_export_pmark_metrics(mw, shm);
+    xrootd_export_frm_metrics(mw, shm);
 
     /* Phase 24 — traffic-mirror counters (always exported; independent of the
      * cluster registry, unlike the health-check block in cluster.c). */
@@ -437,4 +453,35 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
         (unsigned long) ngx_atomic_fetch_add(&shm->mirror_stream_dropped_total, 0),
         (unsigned long) ngx_atomic_fetch_add(&shm->mirror_http_divergence_total, 0),
         (unsigned long) ngx_atomic_fetch_add(&shm->mirror_stream_divergence_total, 0));
+}
+
+
+/* ---- public API: xrootd_export_pmark_metrics() ----
+ *
+ * Phase 34 SciTags packet-marking aggregate counters.  All low-cardinality
+ * scalars (no per-flow/exp/VO labels — INVARIANT #8); always exported. */
+void
+xrootd_export_pmark_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
+{
+    mw_emit_scalar(mw, "xrootd_pmark_flows_started_total",
+        "SciTags flows that mapped to (experiment,activity) and were marked.",
+        &shm->pmark_flows_started_total);
+    mw_emit_scalar(mw, "xrootd_pmark_flows_ended_total",
+        "SciTags flows that emitted an end firefly.",
+        &shm->pmark_flows_ended_total);
+    mw_emit_scalar(mw, "xrootd_pmark_firefly_sent_total",
+        "Firefly UDP datagrams sent successfully.",
+        &shm->pmark_firefly_sent_total);
+    mw_emit_scalar(mw, "xrootd_pmark_firefly_dropped_total",
+        "Firefly UDP datagrams dropped on sendto error (fail-open).",
+        &shm->pmark_firefly_dropped_total);
+    mw_emit_scalar(mw, "xrootd_pmark_flowlabel_set_total",
+        "IPv6 flow labels stamped on connections.",
+        &shm->pmark_flowlabel_set_total);
+    mw_emit_scalar(mw, "xrootd_pmark_flowlabel_failed_total",
+        "IPv6 flow-label setsockopt refusals (kernel/permission; fail-open).",
+        &shm->pmark_flowlabel_failed_total);
+    mw_emit_scalar(mw, "xrootd_pmark_map_unresolved_total",
+        "Opens with packet marking enabled but no (experiment,activity) mapping.",
+        &shm->pmark_map_unresolved_total);
 }

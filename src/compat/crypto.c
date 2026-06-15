@@ -36,9 +36,9 @@ xrootd_crypto_cleanup(void)
 }
 
 int
-xrootd_hmac_sha256(const u_char *key, size_t keylen,
-                   const u_char *data, size_t datalen,
-                   u_char out[32])
+xrootd_hmac_sha256(const uint8_t *key, size_t keylen,
+                   const uint8_t *data, size_t datalen,
+                   uint8_t out[32])
 {
     EVP_MAC_CTX *ctx;
     OSSL_PARAM   params[2];
@@ -64,7 +64,7 @@ xrootd_hmac_sha256(const u_char *key, size_t keylen,
 }
 
 int
-xrootd_sha256(const u_char *data, size_t len, u_char out[32])
+xrootd_sha256(const uint8_t *data, size_t len, uint8_t out[32])
 {
     EVP_MD_CTX  *ctx;
     unsigned int outlen = 32;

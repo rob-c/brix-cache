@@ -37,6 +37,71 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../acc/acc.h"
+
+/* Map an S3 request method to the XrdAcc operation it requires. */
+static xrootd_acc_op_t
+s3_method_aop(ngx_http_request_t *r)
+{
+    switch (r->method) {
+    case NGX_HTTP_GET:    return XROOTD_AOP_READ;    /* GetObject / ListObjects */
+    case NGX_HTTP_HEAD:   return XROOTD_AOP_STAT;
+    case NGX_HTTP_PUT:    return XROOTD_AOP_CREATE;
+    case NGX_HTTP_POST:   return XROOTD_AOP_CREATE;  /* multipart upload */
+    case NGX_HTTP_DELETE: return XROOTD_AOP_DELETE;
+    default:              return XROOTD_AOP_STAT;
+    }
+}
+
+/*
+ * s3_acc_check — XrdAcc tier for S3 (when `xrootd_authdb_format xrdacc`).
+ * Returns NGX_OK (allow / not selected) or NGX_HTTP_FORBIDDEN (deny).
+ */
+static ngx_int_t
+s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+             xrootd_identity_t *id)
+{
+    const char *name = "", *vorg = "", *role = "", *grp = "";
+    char        host[64], path[1024];
+    size_t      n;
+    ngx_int_t   rc;
+
+    if (cf->acc.format != XROOTD_AUTHDB_FORMAT_XRDACC) {
+        return NGX_OK;
+    }
+    if (id != NULL) {
+        name = xrootd_identity_dn_cstr(id);     /* S3 access key (or subject) */
+        vorg = xrootd_identity_acc_vorg_cstr(id);
+        role = xrootd_identity_acc_role_cstr(id);
+        grp  = xrootd_identity_acc_group_cstr(id);
+    }
+    n = ngx_min(r->connection->addr_text.len, sizeof(host) - 1);
+    ngx_memcpy(host, r->connection->addr_text.data, n);
+    host[n] = '\0';
+
+    /* Opt-in reverse DNS for `h <host>`/`h .domain` rules (per request). */
+    if (cf->acc.resolve_hosts) {
+        char        hbuf[256];
+        const char *h = xrootd_acc_resolve_peer(r->connection->sockaddr,
+                                                r->connection->socklen,
+                                                hbuf, sizeof(hbuf));
+        if (h != NULL) {
+            n = ngx_min(ngx_strlen(h), sizeof(host) - 1);
+            ngx_memcpy(host, h, n);
+            host[n] = '\0';
+        }
+    }
+
+    n = ngx_min(r->uri.len, sizeof(path) - 1);
+    ngx_memcpy(path, r->uri.data, n);
+    path[n] = '\0';
+
+    rc = xrootd_acc_http_authorize(r->pool, r->connection->log,
+                                   &cf->acc, name, host, vorg, role, grp,
+                                   s3_method_aop(r), path);
+    return (rc == NGX_ERROR) ? NGX_HTTP_FORBIDDEN : NGX_OK;
+}
+
 /* ---- Function: s3_parse_uri() ----
  *
  * WHAT: Parses the S3 request URI into bucket name and object key components. Supports
@@ -208,6 +273,9 @@ s3_add_preflight_headers(ngx_http_request_t *r, const ngx_str_t *allow)
                                       "Content-Length, Content-MD5, "
                                       "x-amz-content-sha256, x-amz-date, "
                                       "x-amz-security-token, x-amz-copy-source, "
+                                      "x-amz-checksum-crc64nvme, "
+                                      "x-amz-checksum-algorithm, "
+                                      "x-amz-sdk-checksum-algorithm, "
                                       "Range",
                                       NULL) != NGX_OK)
     {
@@ -299,6 +367,9 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         return NGX_DECLINED;
     }
 
+    /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
+    xrootd_http_source_offer(r);
+
     s3ctx = ngx_pcalloc(r->pool, sizeof(*s3ctx));
     if (s3ctx == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -330,6 +401,34 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         if (rc != NGX_OK) {
             return s3_metrics_return_method(r, method_slot, rc);
         }
+    }
+
+    /* ---- XrdAcc engine (when xrootd_authdb_format xrdacc) ---- */
+    rc = s3_acc_check(r, cf, s3ctx->identity);
+    if (rc != NGX_OK) {
+        return s3_metrics_return_method(r, method_slot, rc);
+    }
+
+    /*
+     * SciTags packet marking (phase-34).  S3 has no TPC, so only plain
+     * GET/PUT are marked, and only when xrootd_pmark_http_plain is on.
+     * Begun here post-SigV4; ended via a request-pool cleanup.
+     */
+    if (cf->common.pmark.enable && cf->common.pmark.http_plain
+        && (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_PUT))
+    {
+        u_char pth[2048], cgi[512];
+        ngx_cpystrn(pth, r->uri.data, ngx_min(r->uri.len + 1, sizeof(pth)));
+        if (r->args.len) {
+            ngx_cpystrn(cgi, r->args.data, ngx_min(r->args.len + 1, sizeof(cgi)));
+        } else {
+            cgi[0] = '\0';
+        }
+        xrootd_pmark_http_mark(&cf->common.pmark, r->pool, r->connection,
+            (r->method == NGX_HTTP_PUT),
+            xrootd_identity_vo_csv_cstr(s3ctx->identity),
+            xrootd_identity_dn_cstr(s3ctx->identity),
+            (const char *) pth, (const char *) cgi);
     }
 
     {

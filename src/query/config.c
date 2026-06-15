@@ -115,9 +115,11 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
     while (xrootd_qconfig_next_token(&p, key, sizeof(key))) {
 
         if (strcmp(key, "chksum") == 0) {
-            /* adler32 first — xrdcp default; list all supported algorithms */
+            /* adler32 first — xrdcp default; list all supported algorithms.
+             * crc64 = CRC-64/XZ, crc64nvme = CRC-64/NVME (this gateway's de-facto
+             * convention; stock XRootD ships no crc64 calculator). */
             if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
-                                       "chksum=adler32,crc32c,md5,sha1,sha256\n")) {
+                                       "chksum=adler32,crc32c,crc64,crc64nvme,md5,sha1,sha256\n")) {
                 break;
             }
 
@@ -142,6 +144,16 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
         } else if (strcmp(key, "tpcdlg") == 0) {
             if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
                                        "tpcdlg\n")) {
+                break;
+            }
+
+        } else if (strcmp(key, "xrdfs.ext") == 0) {
+            /* nginx-xrootd vendor POSIX-completeness extensions this server
+             * implements (src/write/ext_ops.c). The native FUSE client queries
+             * this to decide whether to emit kXR_setattr/symlink/readlink/link
+             * rather than falling back to no-op utimens / ENOTSUP. */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                                       "xrdfs.ext=setattr,symlink,readlink,link\n")) {
                 break;
             }
 

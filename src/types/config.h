@@ -23,6 +23,10 @@
  * pulls only ngx_core, so safe to include from this header). */
 #include "../mirror/mirror.h"
 
+/* Phase 35 — FRM tape-staging config block (xrootd_frm_conf_t). Like mirror.h,
+ * frm.h pulls only ngx_core, so it is safe to include from this header. */
+#include "../frm/frm.h"
+
 /* ---- Helper structs used inside ngx_stream_xrootd_srv_conf_t ---- */
 
 typedef struct {
@@ -49,6 +53,10 @@ typedef enum {
 #define XROOTD_AUTH_DELETE  0x08  /* 'd' */
 #define XROOTD_AUTH_MKDIR   0x10  /* 'm' */
 #define XROOTD_AUTH_ADMIN   0x20  /* 'k' */
+
+/* The XrdAcc engine selector + audit constants live in src/acc/privs.h (pure,
+ * shared by the stream / WebDAV / S3 modules); pulled in via the include below. */
+#include "../acc/privs.h"
 
 typedef struct {
     xrootd_auth_type_t type;
@@ -125,7 +133,21 @@ typedef struct {
     /* ---- VO access-control lists ---- */
     ngx_array_t  *vo_rules;     /* xrootd_vo_rule_t[] from xrootd_require_vo */
     ngx_str_t     authdb;       /* [xrootd_authdb /etc/xrootd/authdb] */
-    ngx_array_t  *authdb_rules; /* xrootd_authdb_rule_t[] parsed from authdb */
+    ngx_array_t  *authdb_rules; /* xrootd_authdb_rule_t[] parsed from authdb (native) */
+
+    /* ---- XrdAcc engine (selected by `xrootd_authdb_format xrdacc`) ---- */
+    ngx_uint_t    acc_format;        /* 0=native (default), 1=xrdacc */
+    ngx_uint_t    acc_audit;         /* 0=none 1=deny 2=grant 3=all */
+    ngx_int_t     acc_refresh;       /* authdb hot-reload interval, s; 0=off */
+    ngx_int_t     acc_gidlifetime;   /* Unix group cache TTL, s */
+    ngx_flag_t    acc_pgo;           /* resolve primary Unix group only */
+    ngx_str_t     acc_nisdomain;     /* NIS domain for netgroup lookups */
+    ngx_flag_t    acc_resolve_hosts; /* reverse-DNS peer for 'h' host rules */
+    ngx_str_t     acc_spacechar;     /* legacy: char substituted for spaces in ids */
+    ngx_flag_t    acc_encoding;      /* legacy: URI-decode authdb path tokens */
+    ngx_str_t     acc_gidretran;     /* legacy: gids to skip in group resolution */
+    struct xrootd_acc_tables_s *acc_tables; /* per-worker tables (init_process) */
+    ngx_event_t  *acc_timer;         /* per-worker authdb refresh timer */
     ngx_array_t  *group_rules;  /* xrootd_group_rule_t[] from xrootd_inherit_parent_group */
     ngx_array_t  *manager_map;  /* xrootd_manager_map_t[] from xrootd_manager_map */
 
@@ -147,6 +169,12 @@ typedef struct {
                                      argv: cmd  path1  path2  ...  (absolute, NUL-
                                      terminated resolved paths under xrootd_root).
                                      Empty = staging hint silently accepted (no-op). */
+
+    /* ---- Phase 35: FRM durable tape-staging (off by default) ---- */
+    xrootd_frm_conf_t  frm;       /* [xrootd_frm, xrootd_frm_queue_path, ...]
+                                     durable stage-request queue + residency;
+                                     frm.enable == 0 = no-op (legacy
+                                     prepare_command path still fires). */
 
     /* ---- JWT / WLCG bearer-token settings (used when auth = token or both) ---- */
     ngx_str_t   token_jwks;      /* [xrootd_token_jwks /etc/xrd/jwks.json] */
@@ -240,6 +268,20 @@ typedef struct {
     ngx_msec_t  tpc_key_ttl_ms;     /* [xrootd_tpc_key_ttl 60s] — lifetime of
                                        in-flight TPC rendezvous keys in the shared
                                        registry (source-side register / consume). */
+    ngx_uint_t  tpc_max_transfer_secs; /* [xrootd_tpc_max_transfer_secs 0]
+                                       Phase 39 (WS4): wall-clock cap on a native
+                                       root:// TPC pull, sampled per 1 MiB chunk
+                                       (no per-frame syscall).  Bounds a slow-drip
+                                       remote that keeps resetting the per-recv
+                                       SO_RCVTIMEO idle timer.  0 = no cap. */
+    ngx_int_t   tpc_transfer_max_age;  /* [xrootd_tpc_transfer_max_age 0]
+                                       Phase 39 (WS5): seconds with no progress
+                                       after which an in-flight TPC registry slot
+                                       is reclaimed (abandoned-transfer reaper),
+                                       preventing permanent "registry full" 503
+                                       starvation.  Applied to the shared registry
+                                       via xrootd_tpc_registry_set_max_age().
+                                       0 = disabled.  Recommended 3600. */
     ngx_str_t   tpc_outbound_bearer_file; /* [xrootd_tpc_outbound_bearer_file path]
                                             JWT for outbound TPC kXR_auth ztn when
                                             the remote source advertises token auth. */
@@ -428,6 +470,11 @@ typedef struct {
     /* Upstream connect and idle-read timeouts. */
     ngx_msec_t  proxy_connect_timeout;      /* [xrootd_proxy_connect_timeout 10s] */
     ngx_msec_t  proxy_read_timeout;         /* [xrootd_proxy_read_timeout 60s] */
+    ngx_msec_t  proxy_write_timeout;        /* [xrootd_proxy_write_timeout 0]
+                                               Phase 39 (PXY-2): upstream write-stall
+                                               deadline — bounds a backpressured /
+                                               slow upstream that stops accepting the
+                                               forwarded request.  0 = off. */
 
     /* Interval between kXR_ping keepalives on pooled idle connections. */
     ngx_msec_t  proxy_keepalive_interval;   /* [xrootd_proxy_keepalive_interval 15s] */
@@ -487,4 +534,54 @@ typedef struct {
     ngx_array_t  *rl_rules;        /* xrootd_rl_rule_t[] from
                                       [xrootd_rate_limit_rule / _bandwidth_limit];
                                       NULL = no limits */
+
+    /* ---- Phase 39: network-fault resilience (all OFF by default) ----
+     * Steady-state per-connection deadlines on root:// — armed/disarmed only at
+     * PDU/drain boundaries (src/connection/recv.c, send.c), never per-byte and
+     * never inside the Phase-29 pipelining keep-reading branches.  0 = disabled
+     * (byte-for-byte current behaviour); a half-open / slowloris / silently-
+     * stalled peer is otherwise never timed out on the steady-state path.
+     * Exceeds official XRootD, which arms no steady-state read/write deadline. */
+    ngx_msec_t  read_timeout;       /* [xrootd_read_timeout 0] per-incomplete-PDU
+                                       receive deadline (also bounds a slow write/
+                                       auth/prepare payload drain). 0 = off. */
+    ngx_msec_t  handshake_timeout;  /* [xrootd_handshake_timeout 0] tighter pre-auth
+                                       deadline so an unauthenticated stall cannot
+                                       squat a connection slot. 0 = off. */
+    ngx_msec_t  send_timeout;       /* [xrootd_send_timeout 0] response-drain
+                                       deadline: sheds a slow/half-open consumer
+                                       holding parked out_ring slots. 0 = off. */
+    ngx_msec_t  tcp_user_timeout;   /* [xrootd_tcp_user_timeout 0] setsockopt
+                                       TCP_USER_TIMEOUT (ms) at accept — kernel
+                                       reaps a silently-dropped peer with unacked
+                                       in-flight data even during a parked
+                                       AIO/SENDING window.  MUST be >> send_timeout.
+                                       0 = leave the kernel default. */
+    ngx_flag_t  tcp_keepalive;      /* [xrootd_tcp_keepalive off] SO_KEEPALIVE +
+                                       tight TCP_KEEPIDLE/INTVL/CNT at accept for
+                                       seconds-scale dead-peer detection.  off =
+                                       leave the kernel default (2h first probe). */
+    ngx_msec_t  manager_stale_after; /* [xrootd_manager_stale_after 0] WS7: ms with
+                                       no heartbeat after which a registered data
+                                       server is de-preferred in cluster selection
+                                       (xrootd_srv_select falls back to it only if
+                                       every replica is stale).  Applied to the
+                                       shared registry via xrootd_srv_set_stale_after.
+                                       0 = disabled.  Recommended ~3x cms_interval. */
+    ngx_uint_t  max_connections;    /* [xrootd_max_connections 0] WS9: pre-identity
+                                       admission cap checked at accept against the
+                                       per-listener connections_active gauge.  Over
+                                       the cap the connection is refused with a plain
+                                       TCP close (no streamid exists pre-login for a
+                                       framed kXR_wait).  0 = unlimited (no change).
+                                       Requires the metrics zone (where the gauge
+                                       lives). */
 } ngx_stream_xrootd_srv_conf_t;
+
+/*
+ * Per-worker init of the xrdacc authorization engine for one server: parses the
+ * authdb into xcf->acc_tables and arms the hot-reload timer.  No-op unless the
+ * server uses `xrootd_authdb_format xrdacc`.  Implemented in src/acc/config.c.
+ */
+ngx_int_t xrootd_acc_init_server(ngx_stream_xrootd_srv_conf_t *xcf,
+    ngx_cycle_t *cycle);

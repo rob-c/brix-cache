@@ -17,8 +17,9 @@ Two invariants make this directory load-bearing for security: (1) every namespac
 | File | Responsibility |
 |---|---|
 | `crc32c.c` / `crc32c.h` | CRC-32c (Castagnoli) engine: SSE4.2 hardware (`_mm_crc32_u64`), a 3-way-parallel hardware path for large buffers (≥768 B, Mark-Adler GF(2) recombination), and a bit-by-bit software fallback. `xrootd_crc32c_extend/_value/_copy_value`. Backs pgread/pgwrite per-page CRC (Invariant #1) and TPC copy-with-checksum. |
-| `checksum.c` / `checksum.h` | Multi-algorithm file checksum: `xrootd_checksum_alg_t` (adler32/crc32/crc32c via zlib+crc32c; md5/sha1/sha256 via OpenSSL EVP). Parse names, classify u32-vs-digest, compute from an fd (64 KB `pread` loop, EINTR-safe), emit hex. Entry point `xrootd_checksum_hex_name_fd`. |
-| `integrity_info.c` / `integrity_info.h` | Checksum **cache + policy** layer over `checksum.c`: reads/writes a `user.XrdCks.<alg>` xattr keyed by mtime+size (stale on change), formats RFC-3230 HTTP `Digest` values, invalidates by fd or path after writes. Shared by kXR_Qcksum, XrdHttp Want-Digest, dirlist dcksm, S3 ETag. |
+| `crc64.c` / `crc64.h` | CRC-64 engine for two variants: **XZ** (`crc64` — poly 0x42F0E1EBA9EA3693) and **NVME** (`crc64nvme` — AWS `x-amz-checksum-crc64nvme`, poly 0xAD93D23594C93659); both reflected, init/xorout all-FF. 256-entry reflected table per variant (load-time constructor), `xrootd_crc64_extend/_value`, plus `xrootd_crc64_combine` (zlib-style GF(2) combine) for S3 multipart FULL_OBJECT. ngx-free; built into libxrdproto for the client. No hardware path (x86 baseline has no CRC64 instruction). |
+| `checksum.c` / `checksum.h` | Multi-algorithm file checksum: `xrootd_checksum_alg_t` (adler32/crc32/crc32c via zlib+crc32c; crc64/crc64nvme via crc64.c; md5/sha1/sha256 via OpenSSL EVP). Parse names (incl. the `crc64xz` alias → `crc64`), classify u32 / u64 / digest width, compute from an fd (64 KB `pread` loop, EINTR-safe), emit hex (8 / 16 / digest chars). Entry point `xrootd_checksum_hex_name_fd`. |
+| `integrity_info.c` / `integrity_info.h` | Checksum **cache + policy** layer over `checksum.c`: reads/writes a `user.XrdCks.<alg>` xattr keyed by mtime+size (stale on change), formats RFC-3230 HTTP `Digest` values, invalidates by fd or path after writes; a `no_compute` (cache-only) opt declines on a miss for latency-sensitive read paths (S3 GET/HEAD echo). Shared by kXR_Qcksum, XrdHttp Want-Digest, dirlist dcksm, S3 ETag + crc64nvme. |
 | `hex.c` / `hex.h` | Nibble↔char and byte-array→hex string. NOTE: `xrootd_hex_encode` emits **lowercase** hex; `xrootd_hex_nibble` emits **uppercase** (used by `xml.c` `%XX` control-escaping). |
 | `crypto.c` / `crypto.h` | Worker-lifecycle OpenSSL HMAC-SHA256 + SHA-256 singletons. `EVP_MAC`/`EVP_MD` fetched once at `init_process`, freed at `exit_process`; per-call cost is just a CTX alloc. Used by GSI `kXR_sigver` and S3 SigV4. |
 
@@ -66,7 +67,7 @@ Two invariants make this directory load-bearing for security: (1) every namespac
 
 ## Key types & data structures
 
-- **`xrootd_checksum_alg_t`** (`checksum.h`) — adler32 / crc32 / crc32c / md5 / sha1 / sha256; classified u32 vs digest to pick the fast path and the hex width.
+- **`xrootd_checksum_alg_t`** (`checksum.h`) — adler32 / crc32 / crc32c / crc64 / crc64nvme / md5 / sha1 / sha256; classified u32 (8 hex) vs u64 (16 hex) vs digest to pick the compute path and the hex width.
 - **`xrootd_integrity_info_t` / `xrootd_integrity_opts_t`** (`integrity_info.h`) — checksum result (alg, name, hex, `from_cache`) and cache policy (allow/update xattr cache, require regular file).
 - **`xrootd_ns_result_t` / `xrootd_ns_status_t`** (`namespace_ops.h`) — protocol-neutral mutation outcome (`existed`/`created`/`was_dir` + `sys_errno`) and its status enum, mapped to kXR or HTTP by `error_mapping.c`. Plus `xrootd_ns_delete_opts_t` / `_copy_opts_t`.
 - **`xrootd_staged_file_t`** (`staged_file.h`) — fd + `active` flag + `tmp_path` for the atomic open→commit/abort lifecycle.

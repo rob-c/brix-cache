@@ -27,6 +27,7 @@
  */
 
 #include "../../ngx_xrootd_module.h"
+#include "../../compat/shm_slots.h"
 
 #include <string.h>
 
@@ -46,6 +47,23 @@ static ngx_shm_zone_t *xrootd_tpc_registry_shm_zone;
 static ngx_shmtx_t     xrootd_tpc_registry_mutex;
 static uint64_t        xrootd_tpc_registry_sequence;
 
+/*
+ * Phase 39 (WS5): max age (seconds since updated_at) after which an in-flight
+ * registry slot is considered abandoned and may be reclaimed.  0 = disabled (no
+ * reaping; current behaviour).  Set once at config time from
+ * xrootd_tpc_transfer_max_age (carried into workers by fork).  Healthy transfers
+ * refresh updated_at via xrootd_tpc_registry_update() on every progress emit
+ * (native source.c per 1 MiB chunk; curl per progress callback), so a slot older
+ * than max_age has made no progress at all and is genuinely stuck.
+ *
+ * Reclaim is safe without a separate generation counter: every mutation matches
+ * on the unique 64-bit transfer id under this mutex, so a stale worker that later
+ * calls update/remove for a reaped (or reused-with-a-new-id) slot simply fails to
+ * find its id and no-ops — there is no raw-pointer retention (registry_find is
+ * read-only and unused).
+ */
+static time_t          xrootd_tpc_registry_max_age;
+
 static xrootd_tpc_registry_table_t *
 xrootd_tpc_registry_table(void)
 {
@@ -62,25 +80,31 @@ xrootd_tpc_registry_table(void)
 static ngx_int_t
 xrootd_tpc_registry_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
+    ngx_flag_t                   fresh;
     xrootd_tpc_registry_table_t *tbl;
 
-    if (data != NULL) {
-        shm_zone->data = data;
-        tbl = data;
-        return ngx_shmtx_create(&xrootd_tpc_registry_mutex, &tbl->lock,
-                                NULL);
-    }
-
-    tbl = (xrootd_tpc_registry_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl, sizeof(*tbl));
-
-    if (ngx_shmtx_create(&xrootd_tpc_registry_mutex, &tbl->lock, NULL)
-        != NGX_OK)
-    {
+    /*
+     * Allocate the slot table FROM the slab pool (never over shm.addr) so the
+     * ngx_slab_pool_t header survives; nginx's ngx_unlock_mutexes() force-unlocks
+     * that header's mutex on every child death and would SIGSEGV the master if it
+     * were clobbered. The helper zeroes the table and creates the process-local
+     * mutex from its first member (the ngx_shmtx_sh_t lock).
+     */
+    tbl = xrootd_shm_table_alloc(shm_zone, data,
+                                 sizeof(xrootd_tpc_registry_table_t),
+                                 &xrootd_tpc_registry_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = tbl;
+    /*
+     * No fresh-only field inits are required: every slot is reset by the
+     * helper's memzero on first allocation, and the slot capacity is the
+     * compile-time constant XROOTD_TPC_REGISTRY_SLOTS. On reuse (fresh == 0) the
+     * live slot contents are deliberately preserved.
+     */
+    (void) fresh;
+
     return NGX_OK;
 }
 
@@ -95,7 +119,7 @@ xrootd_tpc_registry_configure(ngx_conf_t *cf)
     ngx_str_t zone_name = ngx_string("xrootd_tpc_transfers");
     size_t    zone_size;
 
-    zone_size = sizeof(xrootd_tpc_registry_table_t) + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(sizeof(xrootd_tpc_registry_table_t));
     xrootd_tpc_registry_shm_zone = ngx_shared_memory_add(
         cf, &zone_name, zone_size, &ngx_stream_xrootd_module);
 
@@ -151,6 +175,81 @@ xrootd_tpc_registry_copy_str(ngx_str_t *dst, u_char *storage,
 }
 
 /*
+ * Phase 39 (WS5): set the abandoned-slot max age (seconds).  Called once per
+ * server block at config time (before fork) from xrootd_tpc_transfer_max_age;
+ * 0 = disabled.  Last enabling block wins (callers guard on value > 0).
+ */
+void
+xrootd_tpc_registry_set_max_age(time_t secs)
+{
+    xrootd_tpc_registry_max_age = secs;
+}
+
+/*
+ * Reclaim every in-use slot whose updated_at is older than max_age (no progress
+ * for that long ⇒ abandoned).  MUST be called with the registry mutex held.
+ * Returns the number of slots reclaimed.  No-op (returns 0) when reaping is
+ * disabled.  Reclaim is by memzero, identical to a normal remove — safe because
+ * all other access is by unique id under this same lock (see the max_age note).
+ */
+static ngx_uint_t
+xrootd_tpc_registry_reap_locked(xrootd_tpc_registry_table_t *tbl, time_t now)
+{
+    ngx_uint_t i;
+    ngx_uint_t reaped = 0;
+
+    if (xrootd_tpc_registry_max_age <= 0) {
+        return 0;
+    }
+
+    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+        if (tbl->slots[i].in_use
+            && (now - tbl->slots[i].transfer.updated_at)
+               > xrootd_tpc_registry_max_age)
+        {
+            ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
+            reaped++;
+        }
+    }
+
+    return reaped;
+}
+
+/*
+ * Public periodic-reaper entry point: reclaim abandoned slots under the lock.
+ * Returns the number reclaimed (0 if disabled / unavailable).  Safe to call from
+ * any worker; intended for a coarse timer but also driven inline on a full add.
+ */
+ngx_uint_t
+xrootd_tpc_registry_reap_stale(ngx_log_t *log)
+{
+    xrootd_tpc_registry_table_t *tbl;
+    ngx_uint_t                   reaped;
+
+    if (xrootd_tpc_registry_max_age <= 0) {
+        return 0;
+    }
+
+    tbl = xrootd_tpc_registry_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&xrootd_tpc_registry_mutex);
+    reaped = xrootd_tpc_registry_reap_locked(tbl, ngx_time());
+    ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+
+    if (reaped > 0 && log != NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd_tpc: reaped %ui abandoned transfer slot(s) "
+                      "(no progress for >%T s)",
+                      reaped, xrootd_tpc_registry_max_age);
+    }
+
+    return reaped;
+}
+
+/*
  * Publish a new transfer into a free slot, copying its src_url/dst_path into
  * slot-owned storage and stamping a fresh id, started/updated time, and a
  * default PENDING state. Returns the assigned non-zero id, or 0 if the registry
@@ -183,6 +282,23 @@ xrootd_tpc_registry_add(const xrootd_tpc_transfer_t *transfer, ngx_log_t *log)
         if (!tbl->slots[i].in_use) {
             free_slot = i;
             break;
+        }
+    }
+
+    if (free_slot == XROOTD_TPC_REGISTRY_SLOTS) {
+        /*
+         * Phase 39 (WS5): registry full — reclaim abandoned slots (no progress
+         * for > xrootd_tpc_transfer_max_age) and retry once, so a flood of stalled
+         * transfers self-heals instead of permanently 503-ing every new TPC.
+         * No-op when reaping is disabled.  Runs under the lock already held.
+         */
+        if (xrootd_tpc_registry_reap_locked(tbl, now) > 0) {
+            for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+                if (!tbl->slots[i].in_use) {
+                    free_slot = i;
+                    break;
+                }
+            }
         }
     }
 
@@ -262,6 +378,37 @@ xrootd_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
                        "xrootd_tpc: transfer id %uL not found for update",
                        id);
     }
+    return NGX_DECLINED;
+}
+
+/*
+ * Phase 39 (WS5): mark the transfer with the given id as cancelled (by-id under
+ * the lock).  The curl progress callback reads transfer.cancelled lock-free via
+ * registry_find and aborts promptly.  id == 0 / not found is a no-op.
+ */
+ngx_int_t
+xrootd_tpc_registry_request_cancel(uint64_t id)
+{
+    xrootd_tpc_registry_table_t *tbl;
+    ngx_uint_t                   i;
+
+    if (id == 0) {
+        return NGX_DECLINED;
+    }
+    tbl = xrootd_tpc_registry_table();
+    if (tbl == NULL) {
+        return NGX_DECLINED;
+    }
+
+    ngx_shmtx_lock(&xrootd_tpc_registry_mutex);
+    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+        if (tbl->slots[i].in_use && tbl->slots[i].transfer.id == id) {
+            tbl->slots[i].transfer.cancelled = 1;
+            ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+            return NGX_OK;
+        }
+    }
+    ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
     return NGX_DECLINED;
 }
 

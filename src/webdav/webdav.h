@@ -57,6 +57,7 @@
 #include "../compat/log.h"
 #include "../token/token.h"
 #include "../types/identity.h"
+#include "../acc/acc.h"
 #include "tpc_config.h"
 #include "tpc_cred.h"
 #include "../compat/path.h"
@@ -137,6 +138,7 @@ typedef struct {
 
     /* --- Write permissions / TPC --- */
     ngx_flag_t     tpc;             /* 1 to allow HTTP-TPC (third-party copy) */
+    ngx_flag_t     tape_rest;       /* 1 to serve the WLCG /api/v1 Tape REST API */
 
     /* --- HTTP-TPC SSRF policy --- */
     ngx_flag_t     tpc_allow_local;   /* 0: reject loopback+link-local targets */
@@ -149,6 +151,14 @@ typedef struct {
     ngx_str_t      tpc_cadir;       /* CA dir for TPC pull verification */
     ngx_str_t      tpc_cafile;      /* CA bundle for TPC pull verification */
     ngx_uint_t     tpc_timeout;     /* curl --max-time in seconds */
+    /* Phase 39 (WS4): HTTP-TPC stall bounding for a slow/black-holed remote.
+     * Both default 0 (off) = current behaviour.  When both > 0 they map to
+     * CURLOPT_LOW_SPEED_LIMIT/TIME: abort a transfer that stays below
+     * tpc_low_speed_bytes B/s for tpc_low_speed_secs, WITHOUT killing a
+     * slow-but-progressing one.  (A fixed CURLOPT_CONNECTTIMEOUT + TCP keepalive
+     * are always applied — see tpc_curl_apply_stall_bounds.) */
+    ngx_uint_t     tpc_low_speed_bytes; /* CURLOPT_LOW_SPEED_LIMIT (B/s); 0 = off */
+    ngx_uint_t     tpc_low_speed_secs;  /* CURLOPT_LOW_SPEED_TIME (s);   0 = off */
     ngx_uint_t     tpc_marker_interval; /* seconds between Perf Markers; 0 = 201 only */
     ngx_uint_t     tpc_max_streams;     /* max parallel streams per pull; 0 = single */
 
@@ -234,6 +244,9 @@ typedef struct {
     ngx_array_t              *rl_rules;          /* xrootd_rl_rule_t[] from
                                                   [xrootd_rate_limit_rule /
                                                    _bandwidth_limit]; NULL = off */
+
+    /* ---- XrdAcc authorization engine (off by default) ---- */
+    xrootd_acc_http_t         acc;               /* settings + per-worker state */
 } ngx_http_xrootd_webdav_loc_conf_t;
 
 /*

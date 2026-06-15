@@ -81,14 +81,21 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             if (proxy->resp_dlen > 0) {
 #ifdef __linux__
                 /* Attempt zero-copy splice for plain-text read responses. */
-                if (proxy->state == XRD_PX_FORWARDING
-                    && xrootd_proxy_try_splice(proxy) == NGX_OK)
-                {
-                    ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
-                                  "xrootd proxy: splice started dlen=%uz",
-                                  (size_t) proxy->resp_dlen);
-                    /* Splice started — pump drives I/O; don't buffer body. */
-                    return;
+                if (proxy->state == XRD_PX_FORWARDING) {
+                    ngx_int_t srt = xrootd_proxy_try_splice(proxy);
+                    if (srt == NGX_OK) {
+                        ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
+                                      "xrootd proxy: splice started dlen=%uz",
+                                      (size_t) proxy->resp_dlen);
+                        /* Splice started — pump drives I/O; don't buffer body. */
+                        return;
+                    }
+                    if (srt == NGX_ERROR) {
+                        /* PXY-6: try_splice aborted the session to avoid frame
+                         * corruption — proxy is gone, do not touch it. */
+                        return;
+                    }
+                    /* NGX_DECLINED — fall through to the buffered body path. */
                 }
 #endif
                 if (proxy->resp_dlen > XROOTD_PROXY_MAX_BODY) {

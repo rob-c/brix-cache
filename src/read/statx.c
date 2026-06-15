@@ -184,6 +184,16 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
             int extra;
 
             extra = xrootd_cache_path_flag(conf, reqpath_buf);
+            /* Phase 35: mark nearline files offline (must match kXR_stat). */
+            if (conf->frm.enable) {
+                frm_residency_t _res;
+                if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
+                    && (_res.state == FRM_RES_NEARLINE
+                        || _res.state == FRM_RES_OFFLINE))
+                {
+                    extra |= kXR_offline | kXR_bkpexist;
+                }
+            }
             xrootd_make_stat_body(&st, 0, extra, stat_body, sizeof(stat_body));
         }
 

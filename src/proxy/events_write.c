@@ -110,9 +110,27 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
             return;
         }
         if (rc == NGX_AGAIN) {
+            /* Phase 39 (PXY-2): still draining to a slow/backpressured upstream.
+             * Arm/refresh the write-stall deadline (reset each write event, so it
+             * fires only after proxy_write_timeout with no progress).  wev->timedout
+             * above aborts cleanly.  Off (0) leaves the legacy behaviour. */
+            if (proxy->conf != NULL && proxy->conf->proxy_write_timeout > 0) {
+                ngx_add_timer(uconn->write, proxy->conf->proxy_write_timeout);
+            }
             return;
         }
     }
+
+    /* Upstream write fully drained — clear any write-stall deadline. */
+    if (uconn->write->timer_set) {
+        ngx_del_timer(uconn->write);
+    }
+
+    /* Phase 39 (PXY-3): the deferred send has fully completed — release the write
+     * buffer here exactly as the immediate-completion path in forward_request.c
+     * does.  Without this a backpressured (slow-consumer) request leaked its raw
+     * heap buffer on EVERY request.  No-op / pool-detach for bootstrap frames. */
+    xrootd_proxy_wbuf_release(proxy);
 
     /* Write complete — arm upstream read */
     ngx_log_debug(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,

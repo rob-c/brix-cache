@@ -1,5 +1,6 @@
 #include "../ngx_xrootd_module.h"
 #include "path_internal.h"
+#include "../impersonate/impersonate.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -11,6 +12,7 @@
 #include <sys/syscall.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 #include <linux/openat2.h>
 
@@ -68,6 +70,18 @@ xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
                                           rel, sizeof(rel)))
     {
         return -1;
+    }
+
+    /*
+     * Phase 40: when per-request impersonation is active (map mode + a principal
+     * set for this request), delegate the open to the privileged broker, which
+     * performs it as the mapped UNIX user under its own rootfd.  `rel` is already
+     * the export-root-relative path the broker expects.  This is the HTTP/S3
+     * (legacy confined-open) counterpart to the seam in beneath.c; off-path it is
+     * an inert flag check.
+     */
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_open(rel, flags, mode);
     }
 
     rootfd = xrootd_open_root_fd(log, root_canon);
@@ -153,6 +167,17 @@ xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     int  parentfd;
     int  rc;
 
+    /* Phase 40: route through the broker (as the mapped user) when active. */
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_unlink(rel, is_dir);
+    }
+
     parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
                                                  base, sizeof(base));
     if (parentfd < 0) {
@@ -187,6 +212,17 @@ xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     char base[NAME_MAX + 1];
     int  parentfd;
     int  rc;
+
+    /* Phase 40: route through the broker (as the mapped user) when active. */
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_mkdir(rel, mode);
+    }
 
     parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
                                                  base, sizeof(base));
@@ -226,6 +262,19 @@ xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
     int  dst_parentfd;
     int  rc;
 
+    /* Phase 40: route through the broker (as the mapped user) when active. */
+    if (xrootd_imp_client_active()) {
+        char rsrc[PATH_MAX], rdst[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, src_resolved,
+                                              rsrc, sizeof(rsrc))
+            || !xrootd_resolved_relative_to_root(log, root_canon, dst_resolved,
+                                                 rdst, sizeof(rdst)))
+        {
+            return -1;
+        }
+        return xrootd_imp_rename(rsrc, rdst);
+    }
+
     src_parentfd = xrootd_open_confined_parent_canon(log, root_canon,
                                                      src_resolved, src_base,
                                                      sizeof(src_base));
@@ -257,6 +306,19 @@ xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     int  dst_parentfd;
     int  rc;
 
+    /* Phase 40: route through the broker (as the mapped user) when active. */
+    if (xrootd_imp_client_active()) {
+        char rsrc[PATH_MAX], rdst[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, src_resolved,
+                                              rsrc, sizeof(rsrc))
+            || !xrootd_resolved_relative_to_root(log, root_canon, dst_resolved,
+                                                 rdst, sizeof(rdst)))
+        {
+            return -1;
+        }
+        return xrootd_imp_link(rsrc, rdst);
+    }
+
     src_parentfd = xrootd_open_confined_parent_canon(log, root_canon,
                                                      src_resolved, src_base,
                                                      sizeof(src_base));
@@ -276,6 +338,135 @@ xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     close(src_parentfd);
     close(dst_parentfd);
     return rc;
+}
+
+/* ---- Confined setattr — utimensat + fchownat under parent confinement ----
+ *
+ * WHAT: Apply timestamps (set_times → utimensat) and/or owner (set_owner →
+ *       fchownat) to <resolved>, both *at() syscalls anchored at the confined
+ *       parent fd so a symlink/parent swap cannot redirect the change outside the
+ *       root. AT_SYMLINK_NOFOLLOW is used so the operation never follows a final
+ *       symlink. uid/gid of (uid_t)-1 / (gid_t)-1 leave that id unchanged.
+ *       kXR_chmod already covers mode, so mode is intentionally not handled here.
+ *       Returns 0 on success, -1 with errno set.
+ */
+int
+xrootd_setattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, int set_times, const struct timespec times[2],
+    int set_owner, uid_t uid, gid_t gid)
+{
+    char base[NAME_MAX + 1];
+    int  parentfd;
+    int  rc = 0;
+    int  saved_errno;
+
+    /* Phase 40: route through the broker (as the mapped user) when active. */
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_setattr(rel, set_times, times, set_owner, uid, gid);
+    }
+
+    parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
+                                                 base, sizeof(base));
+    if (parentfd < 0) {
+        return -1;
+    }
+    if (set_times && utimensat(parentfd, base, times, AT_SYMLINK_NOFOLLOW) != 0) {
+        rc = -1;
+    }
+    if (rc == 0 && set_owner
+        && fchownat(parentfd, base, uid, gid, AT_SYMLINK_NOFOLLOW) != 0) {
+        rc = -1;
+    }
+    saved_errno = errno;
+    close(parentfd);
+    errno = saved_errno;
+    return rc;
+}
+
+/* ---- Confined symlink creation — symlinkat under parent confinement ----
+ *
+ * WHAT: Create a symlink at <link_resolved> with literal contents <target>. Only
+ *       the LINK location is confined (symlinkat anchored at the confined parent);
+ *       the target string is stored verbatim — traversal safety for any later
+ *       access THROUGH the link is enforced by the confined-open (RESOLVE_BENEATH),
+ *       so a target that points outside the root simply cannot be followed.
+ *       Returns 0 on success, -1 with errno set.
+ */
+int
+xrootd_symlink_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *target, const char *link_resolved)
+{
+    char base[NAME_MAX + 1];
+    int  parentfd;
+    int  rc;
+    int  saved_errno;
+
+    /* Phase 40: route through the broker (as the mapped user) when active. */
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, link_resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_symlink(target, rel);
+    }
+
+    parentfd = xrootd_open_confined_parent_canon(log, root_canon, link_resolved,
+                                                 base, sizeof(base));
+    if (parentfd < 0) {
+        return -1;
+    }
+    rc = symlinkat(target, parentfd, base);
+    saved_errno = errno;
+    close(parentfd);
+    errno = saved_errno;
+    return rc;
+}
+
+/* ---- Confined readlink — readlinkat under parent confinement ----
+ *
+ * WHAT: Read the target of the symlink at <resolved> into <buf> (NOT
+ *       NUL-terminated by readlinkat — the caller terminates). The parent is
+ *       opened under confinement and readlinkat does not follow the final symlink.
+ *       Returns the number of bytes placed in buf, or -1 with errno set.
+ */
+ssize_t
+xrootd_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, char *buf, size_t bufsz)
+{
+    char    base[NAME_MAX + 1];
+    int     parentfd;
+    ssize_t n;
+    int     saved_errno;
+
+    /* Phase 40: route through the broker (as the mapped user) when active. */
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_readlink(rel, buf, bufsz);
+    }
+
+    parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
+                                                 base, sizeof(base));
+    if (parentfd < 0) {
+        return -1;
+    }
+    n = readlinkat(parentfd, base, buf, bufsz);
+    saved_errno = errno;
+    close(parentfd);
+    errno = saved_errno;
+    return n;
 }
 
 /* ---- Confined hard link creation operations — linkat under confinement ----

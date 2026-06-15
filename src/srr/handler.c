@@ -16,6 +16,7 @@
  */
 
 #include "srr.h"
+#include "../compat/http_headers.h"
 
 
 ngx_int_t
@@ -32,6 +33,9 @@ ngx_http_xrootd_srr_handler(ngx_http_request_t *r)
     if (!lcf->enable) {
         return NGX_DECLINED;
     }
+
+    /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
+    xrootd_http_source_offer(r);
 
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;

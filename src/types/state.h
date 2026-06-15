@@ -30,6 +30,7 @@ typedef enum {
     XRD_ST_UPSTREAM,      /* upstream redirector query in progress  */
     XRD_ST_PROXY,         /* proxy request forwarded, awaiting response */
     XRD_ST_WAITING_CMS,   /* kYR_locate sent to manager; awaiting kYR_select */
+    XRD_ST_WAITING_FRM,   /* kXR_waitresp sent; awaiting async stage completion */
 } xrootd_state_t;
 
 /* Opaque upstream context — defined in src/upstream/ */

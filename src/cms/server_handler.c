@@ -61,6 +61,11 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
     conf = ngx_stream_get_module_srv_conf(s, ngx_stream_xrootd_cms_srv_module);
     ctx->conf        = conf;
     ctx->interval_ms = (ngx_msec_t) conf->interval * 1000;
+    if (ctx->interval_ms < 1000) {
+        /* Never arm a 0/sub-1s self-rearming ping timer: interval 0 → 0ms timer
+         * → epoll_wait(timeout=0) busy-loop pinning the worker. Floor at 1s. */
+        ctx->interval_ms = 1000;
+    }
 
     /*
      * W1b — accept-time CIDR allowlist gate.  Reject before installing any

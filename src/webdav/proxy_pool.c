@@ -9,6 +9,8 @@
  */
 #include "ngx_xrootd_module.h"
 #include "webdav/proxy_pool.h"
+#include "../compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
+#include "../compat/shm_slots.h"    /* slab-safe SHM table alloc (preserves slab header) */
 
 static ngx_shm_zone_t *xrootd_proxy_pool_zone;
 static ngx_shmtx_t     xrootd_proxy_pool_mutex;
@@ -35,44 +37,43 @@ pool_table(void)
 
 /*
  * SHM zone init callback (run by nginx on startup and reload).
- * On reload `data` is the previous cycle's table — we keep its contents (backends
- * configured at runtime must survive a config reload) and only re-create the
- * worker-local mutex handle over the existing in-SHM lock.  On a fresh start we
- * zero the whole table+slots, set capacity/next_id, and create the lock.
+ * The table is allocated FROM the slab pool (via xrootd_shm_table_alloc) so the
+ * ngx_slab_pool_t header at shm.addr survives — nginx's ngx_unlock_mutexes()
+ * force-unlocks that header's mutex on every child death, so a zone that laid its
+ * own struct over shm.addr would crash the master.  On reload/re-attach the helper
+ * returns the existing table (backends configured at runtime survive a config
+ * reload) and re-creates the worker-local mutex handle over the in-SHM lock; only
+ * a brand-new allocation (*fresh) gets its capacity/next_id initialised.
  */
 static ngx_int_t
 xrootd_proxy_pool_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
+    ngx_flag_t               fresh;
     xrootd_proxy_be_table_t *tbl;
 
-    if (data) {                          /* reload: reuse existing segment */
-        shm_zone->data = data;
-        tbl = data;
-        return ngx_shmtx_create(&xrootd_proxy_pool_mutex, &tbl->lock, NULL);
-    }
-
-    tbl = (xrootd_proxy_be_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl, sizeof(*tbl)
-                     + (size_t) XROOTD_PROXY_POOL_SLOTS
-                       * sizeof(xrootd_proxy_be_entry_t));
-    tbl->capacity = XROOTD_PROXY_POOL_SLOTS;
-    tbl->next_id  = 1;
-
-    if (ngx_shmtx_create(&xrootd_proxy_pool_mutex, &tbl->lock, NULL)
-        != NGX_OK)
-    {
+    tbl = xrootd_shm_table_alloc(shm_zone, data,
+              sizeof(xrootd_proxy_be_table_t)
+              + (size_t) XROOTD_PROXY_POOL_SLOTS
+                * sizeof(xrootd_proxy_be_entry_t),
+              &xrootd_proxy_pool_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
-    shm_zone->data = tbl;
+    if (fresh) {
+        tbl->capacity = XROOTD_PROXY_POOL_SLOTS;
+        tbl->next_id  = 1;
+    }
     return NGX_OK;
 }
 
 /*
  * Declare the shared-memory zone at config time (called once from postconfig per
  * worker tree).  Idempotent: the single zone is shared by every location that
- * enables the dynamic pool.  Size = table header + fixed slot array + one page of
- * slack for the SHM slab allocator's bookkeeping.  The (void *) 1 sentinel marks
- * the zone as "declared but not yet initialised" until init_zone runs.
+ * enables the dynamic pool.  Size = the table bytes (header + fixed slot array)
+ * grown by xrootd_shm_zone_size() to cover the slab allocator's own bookkeeping,
+ * since the table is slab-allocated rather than overlaid on shm.addr.  The
+ * (void *) 1 sentinel marks the zone as "declared but not yet initialised" until
+ * init_zone runs.
  */
 ngx_int_t
 xrootd_proxy_pool_configure(ngx_conf_t *cf)
@@ -84,9 +85,10 @@ xrootd_proxy_pool_configure(ngx_conf_t *cf)
         return NGX_OK;                   /* idempotent: shared across locations */
     }
 
-    size = sizeof(xrootd_proxy_be_table_t)
-         + (size_t) XROOTD_PROXY_POOL_SLOTS * sizeof(xrootd_proxy_be_entry_t)
-         + ngx_pagesize;
+    size = xrootd_shm_zone_size(
+               sizeof(xrootd_proxy_be_table_t)
+               + (size_t) XROOTD_PROXY_POOL_SLOTS
+                 * sizeof(xrootd_proxy_be_entry_t));
 
     xrootd_proxy_pool_zone = ngx_shared_memory_add(cf, &name, size,
                                                    &ngx_http_xrootd_webdav_module);
@@ -158,14 +160,20 @@ proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
     out->ssl     = ssl;
 
     /* host[:port] for the Host: header — omit the port when it is the scheme
-     * default so the Host header matches what a normal client would send. */
-    if (u.port == default_port) {
-        n = ngx_min(u.host.len, sizeof(out->host) - 1);
-        ngx_memcpy(out->host, u.host.data, n);
-        out->host[n] = '\0';
-    } else {
-        ngx_snprintf((u_char *) out->host, sizeof(out->host), "%V:%d%Z",
-                     &u.host, (int) u.port);
+     * default so the Host header matches what a normal client would send.
+     * ngx_parse_url strips the brackets off "[::1]", so u.host arrives as a bare
+     * IPv6 literal and must be re-bracketed on emit ("[::1]" not "::1"). */
+    {
+        char hostz[256];
+        n = ngx_min(u.host.len, sizeof(hostz) - 1);
+        ngx_memcpy(hostz, u.host.data, n);
+        hostz[n] = '\0';
+        if (u.port == default_port) {
+            xrootd_format_host(hostz, out->host, sizeof(out->host));
+        } else {
+            xrootd_format_host_port(hostz, (uint16_t) u.port,
+                                    out->host, sizeof(out->host));
+        }
     }
     /* scheme://host[:port] for the request line / Destination rewrite. */
     ngx_snprintf((u_char *) out->url_base, sizeof(out->url_base), "%*s%s%Z",

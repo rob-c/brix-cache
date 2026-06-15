@@ -3,6 +3,7 @@
 #include "../mirror/stream_mirror.h"
 #include "../mirror/stream_wmirror.h"
 #include "../ratelimit/ratelimit.h"
+#include "../impersonate/lifecycle.h"
 
 /*
  * Request routing overview
@@ -66,7 +67,18 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
+    /*
+     * Phase 40: bracket the confined-FS dispatchers with the impersonation
+     * principal taken from the authenticated identity.  begin()/end() are no-ops
+     * unless xrootd_impersonation=map; when active they make the beneath helpers
+     * (open/stat/mkdir/...) route to the broker as the mapped UNIX user for the
+     * duration of this synchronous dispatch, then restore the worker identity.
+     * The data plane (kXR_read/write on the already-open fd) and the mirror/RL
+     * paths run unbracketed — they need no impersonation.
+     */
+    xrootd_imp_request_begin(ctx->identity);
     rc = xrootd_dispatch_read_opcode(ctx, c, conf);
+    xrootd_imp_request_end();
     if (rc != XROOTD_DISPATCH_CONTINUE) {
         /* Phase 24: fire-and-forget replay of this read to the shadow server(s).
          * No-op unless xrootd_stream_mirror_url is configured; the primary
@@ -78,7 +90,9 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
+    xrootd_imp_request_begin(ctx->identity);
     rc = xrootd_dispatch_write_opcode(ctx, c, conf);
+    xrootd_imp_request_end();
     if (rc != XROOTD_DISPATCH_CONTINUE) {
         /* Phase 24 write mirroring (W1): replay self-contained metadata mutations
          * (mkdir/rm/rmdir/mv/truncate/chmod) to the shadow.  No-op unless

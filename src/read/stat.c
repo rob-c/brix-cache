@@ -114,13 +114,33 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             return ctx->write_rc;
         }
 
-        if (xrootd_stat_beneath(conf->rootfd, reqpath, &st) != 0) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath, "-",
-                              xrootd_kxr_from_errno(errno),
-                              strerror(errno));
+        {
+            /* kXR_statNoFollow (vendor): lstat the final component so a symlink
+             * reports as itself (kXR_other + target-length size) for FUSE getattr;
+             * default follows symlinks exactly as before. */
+            int src = (req->options & kXR_statNoFollow)
+                      ? xrootd_lstat_beneath(conf->rootfd, reqpath, &st)
+                      : xrootd_stat_beneath(conf->rootfd, reqpath, &st);
+            if (src != 0) {
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath, "-",
+                                  xrootd_kxr_from_errno(errno),
+                                  strerror(errno));
+            }
         }
 
         extra_flags = xrootd_cache_path_flag(conf, reqpath);
+
+        /* Phase 35: a nearline file (on the backend, not on disk) is reported
+         * offline so the client knows to issue a prepare/stage before reading. */
+        if (conf->frm.enable) {
+            frm_residency_t _res;
+            if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
+                && (_res.state == FRM_RES_NEARLINE
+                    || _res.state == FRM_RES_OFFLINE))
+            {
+                extra_flags |= kXR_offline | kXR_bkpexist;
+            }
+        }
 
     } else {
         /* Handle-based stat: fhandle[0] is our slot index. */

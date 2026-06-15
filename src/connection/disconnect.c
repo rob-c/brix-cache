@@ -280,6 +280,34 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
     now = ngx_current_msec;
     ctx->destroyed = 1;
 
+    /*
+     * Phase 39: disarm any steady-state read/write deadline this connection armed.
+     * nginx's connection finalize also tears c->read/c->write timers down, but
+     * clearing them here keeps the armed-bit bookkeeping consistent and is
+     * defensive against an AIO completion racing teardown.  Guarded on our armed
+     * bit so it never touches the CMS/FRM WAITING timers that share c->read.
+     */
+    if (ctx->read_deadline_armed && c->read->timer_set) {
+        ngx_del_timer(c->read);
+    }
+    ctx->read_deadline_armed = 0;
+    if (ctx->send_deadline_armed && c->write->timer_set) {
+        ngx_del_timer(c->write);
+    }
+    ctx->send_deadline_armed = 0;
+
+    /* SciTags packet marking (phase-34): cancel the echo timer (its ngx_event_t
+     * lives in this ctx, freed with the pool below), then emit the firefly "end"
+     * report while the socket fd is still open (TCP_INFO byte/rtt read here).
+     * No-op if the connection was never marked. */
+    if (ctx->pmark_echo_ev.timer_set) {
+        ngx_del_timer(&ctx->pmark_echo_ev);
+    }
+    if (ctx->pmark_flow != NULL) {
+        xrootd_pmark_flow_end(ctx->pmark_flow, c->log);
+        ctx->pmark_flow = NULL;
+    }
+
     /* Phase 31 W4: return this connection's charged transfer-heap bytes to the
      * SHM-global budget before its scratch buffers are freed below. */
     xrootd_budget_release(ctx);

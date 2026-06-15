@@ -34,6 +34,17 @@ typedef struct {
      * sync with the structured arrays above so Phase 2 can be incremental.
      */
     ngx_str_t    vo_csv;        /* comma-separated VO/group list */
+
+    /*
+     * XrdAcc-engine attribute views, derived from vo_csv by parsing each VOMS
+     * FQAN / token group into (vorg, role, group).  The three CSVs are kept
+     * index-aligned (empty fields preserved) so the engine can pair them
+     * positionally.  Populated by xrootd_identity_set_vos_csv().
+     */
+    ngx_str_t    acc_vorg_csv;  /* VO names      (e.g. "cms,atlas") */
+    ngx_str_t    acc_role_csv;  /* VOMS/token roles (Role=...) */
+    ngx_str_t    acc_group_csv; /* group paths   (e.g. "/cms,/atlas") */
+
     ngx_str_t    scope_raw;     /* raw OAuth scope claim */
     int          token_scope_count;
     xrootd_token_scope_t token_scopes[XROOTD_MAX_TOKEN_SCOPES];
@@ -100,6 +111,11 @@ const char *xrootd_identity_dn_cstr(const xrootd_identity_t *id);
 const char *xrootd_identity_subject_cstr(const xrootd_identity_t *id);
 /* VO/group CSV as a borrowed C string; "" if unset (never NULL). */
 const char *xrootd_identity_vo_csv_cstr(const xrootd_identity_t *id);
+
+/* XrdAcc attribute views (derived from the FQANs); "" if unset (never NULL). */
+const char *xrootd_identity_acc_vorg_cstr(const xrootd_identity_t *id);
+const char *xrootd_identity_acc_role_cstr(const xrootd_identity_t *id);
+const char *xrootd_identity_acc_group_cstr(const xrootd_identity_t *id);
 
 /*
  * Authorise `logical_path` against the cached token scopes for read or (when

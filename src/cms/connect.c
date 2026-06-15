@@ -41,6 +41,16 @@ ngx_xrootd_cms_schedule_retry(ngx_xrootd_cms_ctx_t *ctx)
         }
     }
 
+    /*
+     * Phase 39 (WS7): add up to +25% random jitter so many workers/nodes that lost
+     * the manager at the same instant do not reconnect in lockstep (a thundering
+     * herd that would re-overload a recovering manager).  ngx_random() is nginx's
+     * PRNG; jitter only ever lengthens the delay, never shortens it.
+     */
+    if (delay > 0) {
+        delay += (ngx_msec_t) (ngx_random() % (delay / 4 + 1));
+    }
+
     ngx_xrootd_cms_schedule(ctx, delay);
 }
 

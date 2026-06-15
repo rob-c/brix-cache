@@ -69,7 +69,22 @@ find_cookie(ngx_http_request_t *r, const char *name, size_t name_len,
     ngx_table_elt_t  *cookie_hdr;
     u_char           *p, *end, *eq, *start;
 
+    /*
+     * Locate the first Cookie: request header.  nginx 1.23.0 replaced the
+     * `headers_in.cookies` array (of ngx_table_elt_t *) with a single
+     * `headers_in.cookie` linked-list head, so read whichever the build's
+     * nginx provides — keeping the module buildable on EL stock nginx (1.20.x)
+     * as well as current releases.  Either way we take the first Cookie header;
+     * find_cookie() then walks the ';'-separated pairs inside its value.
+     */
+#if (nginx_version >= 1023000)
     cookie_hdr = r->headers_in.cookie;
+#else
+    cookie_hdr = NULL;
+    if (r->headers_in.cookies.nelts > 0) {
+        cookie_hdr = ((ngx_table_elt_t **) r->headers_in.cookies.elts)[0];
+    }
+#endif
     if (cookie_hdr == NULL) {
         return NGX_DECLINED;
     }
@@ -353,7 +368,8 @@ dashboard_cookie_hmac(const ngx_str_t *key, const char *ts, size_t ts_len,
 
 ngx_int_t
 ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    ngx_uint_t suppress_missing_cookie)
 {
     u_char                             *cookie_val;
     size_t                              cookie_val_len;
@@ -384,9 +400,17 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     if (find_cookie(r, "xrd_dashboard", 13, &cookie_val, &cookie_val_len)
         != NGX_OK)
     {
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
-                                   NGX_HTTP_UNAUTHORIZED,
-                                   "dashboard auth missing cookie", NULL);
+        /* A missing cookie is the normal case for an anonymous viewer; the
+         * read-API caller passes suppress_missing_cookie=1 so anonymous polls do
+         * not spam the audit ring. The config-download and other sensitive
+         * callers pass 0, so unauthenticated attempts there are always audited.
+         * Present-but-invalid cookies (malformed/expired/forged, below) are
+         * always logged regardless. */
+        if (!suppress_missing_cookie) {
+            xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+                                       NGX_HTTP_UNAUTHORIZED,
+                                       "dashboard auth missing cookie", NULL);
+        }
         return NGX_HTTP_UNAUTHORIZED;
     }
 

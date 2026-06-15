@@ -361,11 +361,12 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
     uconn->read->log           = client_conn->log;
     uconn->write->log          = client_conn->log;
 
-    proxy->conn     = uconn;
-    proxy->wbuf     = bsbuf;
-    proxy->wbuf_len = bslen;
-    proxy->wbuf_pos = 0;
-    proxy->state    = XRD_PX_CONNECTING;
+    proxy->conn       = uconn;
+    proxy->wbuf       = bsbuf;
+    proxy->wbuf_len   = bslen;
+    proxy->wbuf_pos   = 0;
+    proxy->wbuf_owned = 0;   /* Phase 39: bsbuf is pool-allocated — pool owns it */
+    proxy->state      = XRD_PX_CONNECTING;
 
     ngx_log_debug(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
                   "xrootd proxy: connect() to %s:%d",

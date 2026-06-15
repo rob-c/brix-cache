@@ -1,4 +1,5 @@
 #include "dashboard.h"
+#include "../compat/shm_slots.h"
 
 #include <ngx_shmtx.h>
 #include <string.h>
@@ -80,25 +81,27 @@ dashboard_event_copy(char *dst, size_t dstsz, const char *src,
 ngx_int_t
 ngx_xrootd_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
+    ngx_flag_t                      fresh;
     xrootd_dashboard_event_table_t *tbl;
 
-    if (data) {
-        shm_zone->data = data;
-        tbl = data;
-        return ngx_shmtx_create(&xrootd_dashboard_events_mutex, &tbl->lock,
-                                NULL);
-    }
-
-    tbl = (xrootd_dashboard_event_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl, sizeof(*tbl));
-
-    if (ngx_shmtx_create(&xrootd_dashboard_events_mutex, &tbl->lock, NULL)
-        != NGX_OK)
-    {
+    /*
+     * Allocate the event ring FROM the slab pool so the slab-pool header at
+     * shm.addr (force-unlocked by nginx on every child exit) is left intact.
+     * The helper zeroes a fresh table and (re-)creates the mutex from the
+     * leading ngx_shmtx_sh_t lock on fresh, reload, and re-attach; on reuse the
+     * existing ring is preserved across the config reload.
+     */
+    tbl = xrootd_shm_table_alloc(shm_zone, data,
+                                 sizeof(xrootd_dashboard_event_table_t),
+                                 &xrootd_dashboard_events_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = tbl;
+    /* No fresh-only field inits: the helper's memzero leaves next_sequence = 0
+     * and every event slot empty, which is the entire first-startup state. */
+    (void) fresh;
+
     return NGX_OK;
 }
 

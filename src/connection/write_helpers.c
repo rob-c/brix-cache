@@ -21,6 +21,7 @@
 
 #include "write_helpers.h"
 #include "chain_helpers.h"
+#include "deadline.h"
 #include <ngx_event.h>
 #include <ngx_event_posted.h>
 #include <ngx_stream.h>
@@ -412,6 +413,11 @@ xrootd_flush_pending(xrootd_ctx_t *ctx, ngx_connection_t *c)
         ctx->out_head = (ctx->out_head + 1) % XROOTD_PIPELINE_MAX;
         ctx->out_count--;
     }
+
+    /* Phase 39: the output queue fully drained (reached only on the NGX_OK exit;
+     * the NGX_AGAIN re-park paths above leave the deadline armed/refreshed via
+     * xrootd_schedule_write_resume).  Disarm the response-drain deadline. */
+    xrootd_disarm_send_deadline(c, ctx);
 
     return NGX_OK;
 }

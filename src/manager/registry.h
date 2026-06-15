@@ -109,6 +109,9 @@ int xrootd_srv_undrain(const char *host, uint16_t port);
  *   success sets hc_in_progress=1, advances hc_next_check by interval_ms,
  *   copies host/port to the out params, and returns 1.  Returns 0 if nothing
  *   is due — guaranteeing exactly one worker probes each server per interval.
+ *   When nothing is due, *next_due_ms (if non-NULL) is set to the delay until
+ *   the soonest server becomes due (clamped to interval_ms when none/empty), so
+ *   the caller can sleep to that deadline instead of polling at a fixed floor.
  *
  * xrootd_srv_hc_pass(): probe succeeded — clears hc_fail_count, sets
  *   hc_last_ok, clears hc_in_progress, and clears a blacklist only if it was
@@ -119,7 +122,7 @@ int xrootd_srv_undrain(const char *host, uint16_t port);
  *   hc_fail_count reaches threshold.  Returns 1 if it newly blacklisted.
  */
 int  xrootd_srv_hc_claim(char *host_out, size_t host_size,
-    uint16_t *port_out, ngx_msec_t interval_ms);
+    uint16_t *port_out, ngx_msec_t interval_ms, ngx_msec_t *next_due_ms);
 void xrootd_srv_hc_pass(const char *host, uint16_t port);
 int  xrootd_srv_hc_fail(const char *host, uint16_t port,
     uint32_t threshold, ngx_msec_t blacklist_ms);
@@ -147,6 +150,12 @@ int xrootd_srv_select(const char *path, int for_write,
  * how many distinct data servers a client could be redirected to.
  */
 int xrootd_srv_count_matching(const char *path);
+
+/* Phase 39 (WS7): set the data-server staleness threshold (ms); 0 = disabled.
+ * xrootd_srv_select() then de-prefers servers with no heartbeat for longer than
+ * this (falling back to the freshest stale one only if every replica is stale).
+ * Set once at config time (before fork) from xrootd_manager_stale_after. */
+void xrootd_srv_set_stale_after(ngx_msec_t ms);
 
 /*
  * tried/triedrc retry protocol: extracts the opaque CGI from the raw request

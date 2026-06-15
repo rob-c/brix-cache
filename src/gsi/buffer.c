@@ -1,4 +1,5 @@
 #include "gsi_internal.h"
+#include "gsi_core.h"
 
 /* ---- Function: gsi_find_bucket() ----
  * WHAT: Binary XrdSutBuffer parser — scans payload for a bucket of specified type by iterating over big-endian [type: uint32, len: uint32, data: len bytes] entries terminated by kXRS_none. Validates minimum frame size (8 bytes), uses ngx_strnlen() safety guard on protocol name null-termination to prevent out-of-frame reads from missing terminator, skips past protocol+step fields, iterates buckets reading type+len then checking match against target_type before advancing cursor by bucket_len.
@@ -31,59 +32,8 @@ int
 gsi_find_bucket(const u_char *payload, size_t plen, uint32_t target_type,
     const u_char **data_out, size_t *len_out)
 {
-    const u_char *cursor;
-    const u_char *payload_end;
-    size_t        protocol_name_len;
-
-    if (plen < 8) {
-        return -1;
-    }
-
-    cursor = payload;
-    payload_end = payload + plen;
-
-    /*
-     * The protocol string is NUL-terminated but arrives inside an untrusted
-     * binary frame.  ngx_strnlen() keeps a missing terminator from turning the
-     * scan into an out-of-frame read.
-     */
-    protocol_name_len = ngx_strnlen((u_char *) cursor, plen) + 1;
-    if (protocol_name_len >= plen) {
-        return -1;
-    }
-    cursor += protocol_name_len;
-
-    if (cursor + 4 > payload_end) {
-        return -1;
-    }
-    cursor += 4;
-
-    while (cursor + 8 <= payload_end) {
-        uint32_t bucket_type;
-        uint32_t bucket_len;
-
-        ngx_memcpy(&bucket_type, cursor, 4);
-        bucket_type = ntohl(bucket_type);
-        ngx_memcpy(&bucket_len, cursor + 4, 4);
-        bucket_len = ntohl(bucket_len);
-        cursor += 8;
-
-        if (bucket_type == (uint32_t) kXRS_none) {
-            break;
-        }
-
-        if ((size_t) (payload_end - cursor) < bucket_len) {
-            return -1;
-        }
-
-        if (bucket_type == target_type) {
-            *data_out = cursor;
-            *len_out = bucket_len;
-            return 0;
-        }
-
-        cursor += bucket_len;
-    }
-
-    return -1;
+    /* The scan now lives in the shared gsi_core.c (single source for both the
+     * module and the native client). u_char and uint8_t are the same type. */
+    return xrootd_gsi_find_bucket(payload, plen, target_type,
+                                  data_out, len_out);
 }

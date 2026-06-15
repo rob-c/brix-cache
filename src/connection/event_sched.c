@@ -32,6 +32,8 @@
 
 #include "event_sched.h"
 #include <ngx_event.h>
+#include "../ngx_xrootd_module.h"
+#include "deadline.h"
 
 /* ---- xrootd_schedule_read_resume — re-arm and post read event to nginx queue ----
  *
@@ -79,7 +81,23 @@ ngx_int_t xrootd_schedule_read_resume(ngx_connection_t *c) {
 ngx_int_t
 xrootd_schedule_write_resume(ngx_connection_t *c)
 {
-    ngx_event_t *wev = c->write;
+    ngx_event_t          *wev = c->write;
+    ngx_stream_session_t *s   = c->data;
+    xrootd_ctx_t         *ctx = ngx_stream_get_module_ctx(s,
+                                    ngx_stream_xrootd_module);
+
+    /*
+     * Phase 39: a response was just parked / re-parked for the write event.  This
+     * is the single chokepoint for every client write park, so arm/refresh the
+     * response-drain deadline here — it resets on each park (one per write-event
+     * drain cycle), firing only after xrootd_send_timeout with no progress (a
+     * stuck/half-open consumer).  No-op when the directive is unset.  ctx is the
+     * client stream ctx (write resume is never called on a non-client connection).
+     */
+    if (ctx != NULL) {
+        xrootd_arm_send_deadline(c, ctx);
+    }
+
     if (ngx_handle_write_event(wev, 0) != NGX_OK) {
         return NGX_ERROR;
     }

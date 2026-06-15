@@ -12,7 +12,9 @@ typedef enum {
     XROOTD_CHECKSUM_CRC32C,
     XROOTD_CHECKSUM_MD5,
     XROOTD_CHECKSUM_SHA1,
-    XROOTD_CHECKSUM_SHA256
+    XROOTD_CHECKSUM_SHA256,
+    XROOTD_CHECKSUM_CRC64,      /* CRC-64/XZ   — canonical "crc64" (alias "crc64xz") */
+    XROOTD_CHECKSUM_CRC64NVME   /* CRC-64/NVME — "crc64nvme" (AWS S3 x-amz-checksum) */
 } xrootd_checksum_alg_t;
 
 /*
@@ -56,6 +58,19 @@ const char *xrootd_checksum_name(xrootd_checksum_alg_t alg);
  */
 
 ngx_flag_t xrootd_checksum_is_u32(xrootd_checksum_alg_t alg);
+/*
+ * xrootd_checksum_is_u64 - check whether an algorithm produces a 64-bit result.
+ *
+ * WHAT: Returns NGX_TRUE for the CRC64 family (CRC-64/XZ, CRC-64/NVME), which
+ *       yield a uint64_t rendered as 16 hex chars; NGX_FALSE for everything else.
+ *
+ * WHY:  The hex/compute paths have three width classes — 32-bit (8 hex), 64-bit
+ *       (16 hex), and variable-length EVP digests. Callers branch on is_u32 then
+ *       is_u64 then fall through to the digest path.
+ *
+ * HOW:  Equality check against the two CRC64 enum constants.
+ */
+ngx_flag_t xrootd_checksum_is_u64(xrootd_checksum_alg_t alg);
 
 /*
  * xrootd_checksum_u32_fd - compute 32-bit checksum (Adler-32/CRC-32/CRC-32c) from fd.
@@ -72,6 +87,22 @@ ngx_flag_t xrootd_checksum_is_u32(xrootd_checksum_alg_t alg);
 
 ngx_int_t xrootd_checksum_u32_fd(xrootd_checksum_alg_t alg, int fd,
     const char *path, ngx_log_t *log, uint32_t *out);
+/*
+ * xrootd_checksum_u64_fd - compute 64-bit checksum (CRC-64/XZ or /NVME) from fd.
+ *
+ * WHAT: Streams the whole file at fd and accumulates the selected CRC64 variant
+ *       into *out. Rejects non-CRC64 algorithms (NGX_ERROR).
+ *
+ * WHY:  S3 x-amz-checksum-crc64nvme, root:// kXR_Qcksum crc64, and WebDAV Digest
+ *       crc64 all need a whole-file 64-bit checksum; this is the ngx wrapper over
+ *       the shared kernel, mirroring xrootd_checksum_u32_fd.
+ *
+ * HOW:  Validates is_u64(alg), delegates to xrootd_cksum_u64_fd((int)alg, fd, out)
+ *       (alg ordinals match the kind codes); logs a read error via the shared
+ *       read-error helper on failure.
+ */
+ngx_int_t xrootd_checksum_u64_fd(xrootd_checksum_alg_t alg, int fd,
+    const char *path, ngx_log_t *log, uint64_t *out);
 /*
  * xrootd_checksum_digest_fd - compute variable-length digest (MD5/SHA1/SHA256) from fd.
  *

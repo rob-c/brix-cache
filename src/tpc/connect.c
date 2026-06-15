@@ -9,6 +9,7 @@
 
 #include "tpc_internal.h"
 #include "../compat/net_target.h"
+#include "../pmark/pmark.h"
 
 
 #include <netdb.h>
@@ -137,6 +138,16 @@ tpc_connect(xrootd_tpc_pull_t *t)
         tv.tv_usec = 0;
         (void) setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         (void) setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+        /*
+         * SciTags (phase-34): stamp the IPv6 flow label on the OUTBOUND pull
+         * socket before connecting (codes resolved on the event loop in
+         * start_pull).  No-op on IPv4 / when not marked; fail-open.
+         */
+        if (t->pmark_exp != 0) {
+            (void) xrootd_pmark_flowlabel_apply_addr(fd, rp->ai_addr,
+                rp->ai_addrlen, t->pmark_exp, t->pmark_act, ngx_cycle->log);
+        }
 
         if (tpc_connect_addr_with_timeout(fd, rp->ai_addr, rp->ai_addrlen)
             == 0)

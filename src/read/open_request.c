@@ -2,6 +2,7 @@
 #include "../manager/registry.h"
 #include "../manager/redir_cache.h"
 #include "../manager/pending.h"
+#include "../frm/waiter.h"
 #include "../session/registry.h"
 #include "../cms/cms_internal.h"
 
@@ -10,6 +11,23 @@
 
 /* Opaque extraction helper — defined in open_overview.c */
 extern int open_extract_opaque(const u_char *payload, size_t payload_len, char *out, size_t out_size);
+
+/* SciTags echo timer (phase-34): periodically emit an "ongoing" firefly for a
+ * long-lived marked connection.  ev->data is the xrootd_ctx_t; re-arms itself
+ * until the connection is torn down (the timer is cancelled in on_disconnect). */
+static void
+xrootd_pmark_echo_timer(ngx_event_t *ev)
+{
+    xrootd_ctx_t *ctx = ev->data;
+
+    if (ctx == NULL || ctx->destroyed || ctx->pmark_flow == NULL) {
+        return;
+    }
+    xrootd_pmark_flow_echo(ctx->pmark_flow, ev->log);
+    if (ctx->pmark_echo_ms > 0) {
+        ngx_add_timer(ev, ctx->pmark_echo_ms);
+    }
+}
 
 /* ---- Function: xrootd_handle_open() ----
  *
@@ -171,7 +189,11 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				xrootd_beneath_full_path(conf->common.root_canon, tpc_clean,
 				                          tpc_full_path, sizeof(tpc_full_path));
 
-				if (xrootd_check_authdb(ctx, tpc_full_path, XROOTD_AUTH_UPDATE) != NGX_OK) {
+				/* Format-aware authz (xrdacc engine or native authdb); the TPC
+				 * pull creates the dest file (AOP_Create). */
+				if (xrootd_authz_check(ctx, c, conf, tpc_clean, tpc_full_path,
+				                       "OPEN", XROOTD_AUTH_UPDATE,
+				                       XROOTD_AOP_CREATE) != NGX_OK) {
 					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
 					                  tpc_clean, "tpc-pull", kXR_NotAuthorized,
 					                  "authdb denied");
@@ -418,13 +440,72 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 							  XROOTD_AUTH_READ, 0) != NGX_OK) {
 			return ctx->write_rc;
 		}
+
+		/* Phase 35: residency gate. A nearline file (on the backend, not on
+		 * disk) is recalled and the client stalled with kXR_wait-and-retry.
+		 * Runs AFTER auth so an unauthorized caller never learns residency. */
+		if (conf->frm.enable && conf->frm.queue != NULL) {
+			frm_residency_t _res;
+			if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
+			    && _res.state == FRM_RES_OFFLINE)
+			{
+				/* A failed/unretrievable recall — do not spin; surface an
+				 * error so the client re-prepares or gives up. */
+				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+				                  clean_path, "rd", kXR_FSError,
+				                  "file is offline (recall failed)");
+			}
+			if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
+			    && _res.state == FRM_RES_NEARLINE)
+			{
+				frm_req_view_t _v;
+				char           _rq[FRM_REQID_LEN];
+				ngx_memzero(&_v, sizeof(_v));
+				_v.lfn        = full_path;
+				_v.options    = FRM_OPT_STAGE;
+				_v.selector   = "stage";      /* F4/F2: activity class       */
+				_v.queue      = 0;            /* stgQ (XRootD numQ default)   */
+				_v.requester_dn = (ctx->dn[0] != '\0') ? ctx->dn : NULL;
+				_v.tod_expire = (int64_t) ngx_time()
+				              + (int64_t) (conf->frm.stage_ttl / 1000);
+				(void) frm_request_add(conf->frm.queue, &_v, _rq,
+				                       sizeof(_rq), c->log);
+				frm_stage_kick();
+
+				/* Phase 3: when async recall is on, park the open with
+				 * kXR_waitresp and wake it in place via kXR_attn(asynresp) on
+				 * completion. Falls back to the Phase-1 kXR_wait poll model if
+				 * async is off or the waiter table is full. */
+				if (conf->frm.async_recall
+				    && frm_waiter_add(_rq, options, ctx->cur_streamid,
+				                      c->fd, c->number, ngx_pid,
+				                      conf->frm.stage_ttl) == NGX_OK)
+				{
+					XROOTD_FRM_METRIC_INC(waitresp_total);
+					xrootd_log_access(ctx, c, "OPEN", clean_path,
+					                  "staging-async", 1, 0, NULL, 0);
+					(void) xrootd_send_waitresp(ctx, c);
+					ctx->state = XRD_ST_WAITING_FRM;
+					ngx_add_timer(c->read, conf->frm.stage_ttl);
+					return NGX_AGAIN;
+				}
+
+				xrootd_log_access(ctx, c, "OPEN", clean_path, "staging",
+				                  1, kXR_wait, NULL, 0);
+				return xrootd_send_wait(ctx, c, conf->frm.stage_wait);
+			}
+		}
 	} else {
 		xrootd_beneath_full_path(conf->common.root_canon, clean_path,
 		                          full_path, sizeof(full_path));
 
-		if (xrootd_auth_gate(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+		/* XrdAcc distinguishes creating a NEW file (needs Insert) from
+		 * updating an existing one; kXR_new is the create intent. */
+		if (xrootd_auth_gate_op(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
 							  clean_path, full_path, conf,
-							  XROOTD_AUTH_UPDATE, 1) != NGX_OK) {
+							  XROOTD_AUTH_UPDATE, 1,
+							  (options & kXR_new) ? XROOTD_AOP_CREATE
+							                      : XROOTD_AOP_UPDATE) != NGX_OK) {
 			return ctx->write_rc;
 		}
 
@@ -440,6 +521,40 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				xrootd_mkdir_recursive_policy(parent, 0755, c->log,
 											  conf->group_rules);
 			}
+		}
+	}
+
+	/*
+	 * SciTags packet marking (phase-34): begin a flow on the FIRST local data
+	 * open of this connection (like XRootD, which begins on open and reuses the
+	 * handle for all I/O).  Redirect/manager/cached paths returned earlier and
+	 * are intentionally not marked here.  Fail-open: a NULL result just means the
+	 * flow is not marked.  The client may override codes via a scitag.flow opaque.
+	 */
+	if (ctx->pmark_flow == NULL && conf->common.pmark.enable) {
+		char        opq[XROOTD_MAX_PATH + 1];
+		const char *cgi = NULL;
+		if (ctx->payload != NULL && ctx->cur_dlen > 0
+		    && open_extract_opaque(ctx->payload, ctx->cur_dlen, opq, sizeof(opq)))
+		{
+			cgi = opq;
+		}
+		ctx->pmark_flow = xrootd_pmark_flow_begin(&conf->common.pmark, c->pool, c,
+			is_write,
+			ctx->identity ? xrootd_identity_vo_csv_cstr(ctx->identity) : "",
+			ctx->identity ? xrootd_identity_dn_cstr(ctx->identity) : "",
+			clean_path, cgi, c->log);
+
+		/* Arm the periodic "ongoing" firefly echo for this connection's flow
+		 * (phase-34), if configured.  Cancelled in xrootd_on_disconnect. */
+		if (ctx->pmark_flow != NULL && conf->common.pmark.echo > 0
+		    && !ctx->pmark_echo_ev.timer_set)
+		{
+			ctx->pmark_echo_ms          = conf->common.pmark.echo;
+			ctx->pmark_echo_ev.handler  = xrootd_pmark_echo_timer;
+			ctx->pmark_echo_ev.data     = ctx;
+			ctx->pmark_echo_ev.log      = c->log;
+			ngx_add_timer(&ctx->pmark_echo_ev, ctx->pmark_echo_ms);
 		}
 	}
 

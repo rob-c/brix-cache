@@ -34,8 +34,9 @@
 /*
  * Process-local handle to a shared zone.  Allocated from the configuration
  * pool by the xrootd_kv_zone directive and pointed at by consumer conf fields
- * (token_cache_kv, auth_cache_kv, rate-limit kv).  The shared state lives in
- * kv->zone->shm.addr; mutex is a per-process handle to the shared spinlock.
+ * (token_cache_kv, auth_cache_kv, rate-limit kv).  The shared table is
+ * slab-allocated and published via kv->zone->data (NOT at shm.addr, which holds
+ * nginx's slab-pool header); mutex is a per-process handle to the shared spinlock.
  */
 typedef struct {
     ngx_str_t        name;      /* zone name — used for Prometheus labels */
@@ -44,6 +45,8 @@ typedef struct {
     size_t           size;      /* configured zone size in bytes */
     size_t           key_max;   /* max key length per entry */
     size_t           val_max;   /* max value length per entry */
+    uint32_t         capacity;  /* bucket count (power of two), computed at configure */
+    size_t           table_bytes; /* header + capacity*stride, slab-allocated at init */
 } xrootd_kv_t;
 
 /* Snapshot of a zone's counters for Prometheus export. */

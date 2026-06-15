@@ -5,12 +5,29 @@
 This subsystem is the single source of truth for the **XRootD binary wire
 protocol** (`root://` / `roots://`). It is a **header-only library**: every file
 is pure `#define` constants and `#pragma pack(1)` `typedef struct` declarations —
-**no `.c` code, no functions, no allocation, no runtime state**. It mirrors the
-canonical upstream header `xrootd/xrootd src/XProtocol/XProtocol.hh`
-(cross-checked against the `dcache/xrootd4j` Java and `go-hep/hep` Go reference
-implementations and the XRootD Protocol Specification v5.2.0) so that the rest of
-the module frames and parses the wire **byte-for-byte identically** to a real
-XRootD server.
+**no `.c` code, no functions, no allocation, no runtime state**. It is an
+**independent reimplementation** of the XRootD wire protocol, written from the
+published **XRootD Protocol Specification v5.2.0** and cross-checked against the
+upstream `xrootd/xrootd src/XProtocol/XProtocol.hh` header and the
+`dcache/xrootd4j` (Java) and `go-hep/hep` (Go) reference implementations, so that
+the rest of the module frames and parses the wire **byte-for-byte identically**
+to a real XRootD server.
+
+### Provenance & licensing
+
+These definitions are **wire-protocol facts** — opcode numbers, status/error
+codes, option bitmasks, field names, and packed byte layouts that any
+interoperable implementation must reproduce. They are expressed here in this
+project's own code and comments; **no XRootD source code is copied, linked, or
+distributed** by this module. Such interface facts are what every independent
+client/server (xrootd4j, go-hep, etc.) re-states, and reproducing them is what
+makes interoperability possible.
+
+XRootD itself is independent software distributed by its authors under the
+**LGPL-3.0** (see <https://github.com/xrootd/xrootd>); LGPL-3.0 is compatible with
+this project's **AGPL-3.0** license. The XRootD relationship and the licenses of
+all third-party components linked into the built binary are recorded in the
+repo-root [`THIRD-PARTY-NOTICES`](../../THIRD-PARTY-NOTICES) file.
 
 It exists so that opcodes, status/error codes, option bitmasks, and on-the-wire
 byte layouts are declared **once** and shared by every consumer instead of being

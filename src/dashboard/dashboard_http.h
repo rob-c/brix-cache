@@ -31,6 +31,9 @@ typedef struct {
 
 typedef struct {
     ngx_flag_t  enable;
+    ngx_flag_t  anonymous;      /* [xrootd_dashboard_anonymous on] — serve read-only,
+                                 * PII/secret-redacted stats WITHOUT login. Config
+                                 * download, transfer-detail and admin stay auth-only. */
     ngx_str_t   password;       /* plaintext from xrootd_dashboard_password directive */
     ngx_uint_t  session_ttl;    /* cookie lifetime in seconds; default 28800 (8 h)    */
     ngx_msec_t  idle_threshold_ms;
@@ -94,6 +97,18 @@ ngx_int_t ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
 ngx_int_t ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r);
 
 /*
+ * Config-download route (GET/HEAD /xrootd/api/v1/config). Serves the running
+ * nginx config (ngx_cycle->conf_file) as a text/plain attachment with ALL
+ * secrets redacted by a fail-closed filter (values are masked unless the
+ * directive is on a curated safe allowlist; `include` targets are not inlined).
+ * ALWAYS requires auth — never served anonymously even when xrootd_dashboard_
+ * anonymous is on. Returns the auth-failure code, NGX_HTTP_NOT_ALLOWED for
+ * non-GET/HEAD, a 5xx with no body on read failure, or the output-filter result.
+ */
+ngx_int_t ngx_http_xrootd_dashboard_config_download_handler(
+    ngx_http_request_t *r);
+
+/*
  * Login route: GET/HEAD serves the login form; POST reads the body
  * asynchronously and verifies credentials in a body callback, so the POST
  * path returns NGX_DONE (response finalized later by the callback).
@@ -110,6 +125,7 @@ ngx_int_t ngx_http_xrootd_dashboard_login_handler(ngx_http_request_t *r);
  * (dashboard is then open and the cookie is not inspected).
  */
 ngx_int_t ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf);
+    const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    ngx_uint_t suppress_missing_cookie);
 
 #endif /* XROOTD_DASHBOARD_HTTP_H */

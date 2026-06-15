@@ -75,14 +75,12 @@ xrootd_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     value = cf->args->elts;
 
-    if (xcf->auth != XROOTD_AUTH_GSI && xcf->auth != XROOTD_AUTH_TOKEN
-        && xcf->auth != (XROOTD_AUTH_GSI | XROOTD_AUTH_TOKEN))
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_authdb requires xrootd_auth gsi, token or both");
-        return NGX_CONF_ERROR;
-    }
-
+    /*
+     * The auth-mode requirement (authdb needs gsi/token for the native engine)
+     * is validated at merge time, where `xrootd_authdb_format` is final — the
+     * xrdacc engine also authorizes anonymous `u *` rules, so it is exempt.
+     * (Directive order means xcf->auth / acc_format are not yet settled here.)
+     */
     xcf->authdb = value[1];
 
     if (xcf->authdb_rules == NULL) {

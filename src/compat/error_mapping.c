@@ -145,7 +145,11 @@ xrootd_http_errno_to_status(int err)
 
 /* --------------------------------------------------------------------------
  * Section 3: namespace status → HTTP status codes
+ *
+ * ngx-only: returns ngx_int_t for NGX_HTTP_* comparisons. Excluded from the
+ * standalone libxrdproto core (-DXRDPROTO_NO_NGX); Sections 1-2 above are pure.
  * -------------------------------------------------------------------------- */
+#ifndef XRDPROTO_NO_NGX
 
 /*
  * WHAT: Maps XRootD namespace service result codes to HTTP status.
@@ -198,3 +202,5 @@ xrootd_http_map_errno(int err)
 {
     return (ngx_int_t) xrootd_http_errno_to_status(err);
 }
+
+#endif /* !XRDPROTO_NO_NGX */

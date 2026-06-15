@@ -94,8 +94,11 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->common.enable       = NGX_CONF_UNSET;
     conf->verify_depth = NGX_CONF_UNSET_UINT;
     conf->auth         = NGX_CONF_UNSET_UINT;
+    xrootd_acc_http_init_conf(&conf->acc);   /* XrdAcc engine (off by default) */
     conf->proxy_certs  = NGX_CONF_UNSET;
+    conf->tape_rest    = NGX_CONF_UNSET;
     conf->common.allow_write  = NGX_CONF_UNSET;
+    xrootd_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
     conf->ca_store     = NULL;
     conf->cors_origins = NULL;
     conf->cors_credentials = NGX_CONF_UNSET;
@@ -183,8 +186,15 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_uint_value(conf->verify_depth, prev->verify_depth, 10);
     ngx_conf_merge_uint_value(conf->auth, prev->auth,
                               WEBDAV_AUTH_OPTIONAL);
+    xrootd_acc_http_merge_conf(&conf->acc, &prev->acc);
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
+    ngx_conf_merge_value(conf->tape_rest, prev->tape_rest, 0);
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
+    if (xrootd_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
+        != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
     ngx_http_xrootd_webdav_tpc_merge_loc_conf(conf, prev);
     XROOTD_MERGE_PTR(conf, prev, cors_origins);
     ngx_conf_merge_value(conf->cors_credentials, prev->cors_credentials, 0);

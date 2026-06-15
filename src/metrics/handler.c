@@ -1,4 +1,5 @@
 #include "metrics_internal.h"
+#include "../compat/http_headers.h"
 
 /* ---- File: metrics handler — Prometheus-format endpoint for nginx-xrootd ----
  *
@@ -27,6 +28,9 @@ ngx_http_xrootd_metrics_handler(ngx_http_request_t *r)
     if (!lcf->enable) {
         return NGX_DECLINED;
     }
+
+    /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
+    xrootd_http_source_offer(r);
 
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;

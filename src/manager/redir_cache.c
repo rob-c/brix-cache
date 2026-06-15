@@ -28,6 +28,7 @@
  */
 
 #include "redir_cache.h"
+#include "../compat/shm_slots.h"
 #include <ngx_shmtx.h>
 #include <string.h>
 
@@ -100,24 +101,30 @@ static ngx_int_t
 redir_cache_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     xrootd_redir_cache_t *c;
+    ngx_flag_t            fresh;
+    size_t                table_bytes;
 
-    if (data) {
-        shm_zone->data = data;
-        c = (xrootd_redir_cache_t *) data;
-        return ngx_shmtx_create(&xrootd_redir_mutex, &c->lock, NULL);
-    }
+    /*
+     * Allocate the table FROM the slab pool so nginx's slab-pool header (and the
+     * mutex ngx_unlock_mutexes() force-unlocks on every child death) survives at
+     * shm.addr.  The helper handles fresh alloc, reload (data != NULL), and
+     * re-attach, zeroes the table, creates the process-local mutex from the
+     * table's leading ngx_shmtx_sh_t lock, and publishes it via shm_zone->data.
+     */
+    table_bytes = sizeof(xrootd_redir_cache_t)
+                  + (size_t) xrootd_redir_cache_nslots
+                    * sizeof(xrootd_redir_cache_entry_t);
 
-    c = (xrootd_redir_cache_t *) shm_zone->shm.addr;
-    ngx_memzero(c, sizeof(*c)
-                   + (size_t) xrootd_redir_cache_nslots
-                     * sizeof(xrootd_redir_cache_entry_t));
-    c->capacity = xrootd_redir_cache_nslots;
-
-    if (ngx_shmtx_create(&xrootd_redir_mutex, &c->lock, NULL) != NGX_OK) {
+    c = xrootd_shm_table_alloc(shm_zone, data, table_bytes,
+                               &xrootd_redir_mutex, &fresh);
+    if (c == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = c;
+    if (fresh) {
+        c->capacity = xrootd_redir_cache_nslots;
+    }
+
     return NGX_OK;
 }
 
@@ -136,9 +143,9 @@ xrootd_redir_cache_configure(ngx_conf_t *cf, ngx_uint_t slots)
     }
     xrootd_redir_cache_nslots = slots;
 
-    size = sizeof(xrootd_redir_cache_t)
-           + (size_t) slots * sizeof(xrootd_redir_cache_entry_t)
-           + ngx_pagesize;
+    size = xrootd_shm_zone_size(sizeof(xrootd_redir_cache_t)
+                                + (size_t) slots
+                                  * sizeof(xrootd_redir_cache_entry_t));
 
     xrootd_redir_shm_zone = ngx_shared_memory_add(cf, &name, size,
                                                     &ngx_stream_xrootd_module);

@@ -1,4 +1,5 @@
 #include "../config/config.h"
+#include "../compat/shm_slots.h"
 
 /*
  * dashboard/config.c — SHM zone registration for the live transfer monitor.
@@ -27,7 +28,7 @@ xrootd_configure_dashboard(ngx_conf_t *cf)
     ngx_str_t  history_name = ngx_string("xrootd_dashboard_history");
     size_t     zone_size;
 
-    zone_size = sizeof(xrootd_transfer_table_t) + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(sizeof(xrootd_transfer_table_t));
 
     ngx_xrootd_dashboard_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                            zone_size,
@@ -40,7 +41,7 @@ xrootd_configure_dashboard(ngx_conf_t *cf)
     /* Non-NULL sentinel lets the init callback detect first-startup vs reload. */
     ngx_xrootd_dashboard_shm_zone->data = (void *) 1;
 
-    zone_size = sizeof(xrootd_dashboard_event_table_t) + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(sizeof(xrootd_dashboard_event_table_t));
     ngx_xrootd_dashboard_events_shm_zone =
         ngx_shared_memory_add(cf, &events_name, zone_size,
                               &ngx_stream_xrootd_module);
@@ -52,7 +53,7 @@ xrootd_configure_dashboard(ngx_conf_t *cf)
         ngx_xrootd_dashboard_events_shm_init;
     ngx_xrootd_dashboard_events_shm_zone->data = (void *) 1;
 
-    zone_size = sizeof(xrootd_dashboard_history_t) + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(sizeof(xrootd_dashboard_history_t));
     ngx_xrootd_dashboard_history_shm_zone =
         ngx_shared_memory_add(cf, &history_name, zone_size,
                               &ngx_stream_xrootd_module);

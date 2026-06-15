@@ -73,11 +73,23 @@ dashboard_proto_name(uint8_t proto)
 
 static const char *
 dashboard_state_name(const ngx_http_xrootd_dashboard_loc_conf_t *conf,
-    uint8_t state, int64_t idle_ms)
+    uint8_t state, int64_t idle_ms, int moving)
 {
     if (state == XROOTD_XFER_STATE_ERROR)   { return "error"; }
     if (state == XROOTD_XFER_STATE_CLOSING) { return "closing"; }
-    if (idle_ms >= (int64_t) conf->stalled_threshold_ms) { return "stalled"; }
+    /*
+     * A transfer idle past the stalled threshold is normally "stalled".  But a
+     * transfer that has moved data overall (moving != 0) and is merely between
+     * client-imposed rate-limit bursts — xrdcp --xrate sleeps ~84 s then bursts
+     * 8 MiB at 100 kB/s — is making scheduled forward progress, not stuck.  Show
+     * it as "throttled" so a paced transfer reads as a steady slow row instead
+     * of flapping into the red "stalled" state every inter-burst gap.  The
+     * "idle" band (shorter pauses) is unchanged so ordinary transfers that just
+     * paused briefly are not mislabelled.
+     */
+    if (idle_ms >= (int64_t) conf->stalled_threshold_ms) {
+        return moving ? "throttled" : "stalled";
+    }
     if (idle_ms >= (int64_t) conf->idle_threshold_ms)    { return "idle"; }
     return "active";
 }
@@ -323,7 +335,7 @@ static json_t *
 dashboard_build_transfer_object(
     const ngx_http_xrootd_dashboard_loc_conf_t *conf,
     const xrootd_transfer_slot_t *slot, int64_t now_ms,
-    ngx_uint_t v1_fields, ngx_uint_t detail_fields)
+    ngx_uint_t v1_fields, ngx_uint_t detail_fields, ngx_uint_t redact)
 {
     int64_t  last_ms;
     int64_t  bytes;
@@ -350,7 +362,25 @@ dashboard_build_transfer_object(
     start_ms    = slot->start_ms;
     idle_ms     = (last_ms > 0 && now_ms >= last_ms) ? now_ms - last_ms : 0;
     avg_bps     = dashboard_avg_bps(bytes, start_ms, now_ms);
+
+    /*
+     * Published EWMA rate, decayed read-only for display.  The owning worker
+     * only re-folds slot->instant_bps while bytes flow (transfer_table.c), so a
+     * transfer sitting in an inter-burst gap would otherwise show its last burst
+     * rate frozen.  Fold in the zero-rate sample intervals elapsed since the
+     * last worker sample (same alpha = 1/4) so the shown rate eases toward zero
+     * during the gap.  Purely local — never writes the SHM slot.  The loop is
+     * bounded: instant_bps reaches 0 within ~log_{4/3} iterations.
+     */
     instant_bps = (uint64_t) slot->instant_bps;
+    {
+        int64_t sample_ms = (int64_t) slot->last_sample_ms;
+        int64_t missed    = (sample_ms > 0 && now_ms > sample_ms)
+                            ? (now_ms - sample_ms) / XROOTD_XFER_SAMPLE_MS : 0;
+        while (missed-- > 0 && instant_bps > 0) {
+            instant_bps = (instant_bps * 3) / 4;   /* EWMA fold with raw = 0 */
+        }
+    }
 
     ngx_memcpy(client_ip,   slot->client_ip,            sizeof(client_ip));
     ngx_memcpy(identity,    slot->identity,             sizeof(identity));
@@ -373,9 +403,11 @@ dashboard_build_transfer_object(
     if (!obj) { return NULL; }
 
     json_object_set_new(obj, "id",        json_integer((json_int_t) slot->serial));
-    json_object_set_new(obj, "client",    json_string(client_ip));
-    json_object_set_new(obj, "identity",  json_string(identity));
-    json_object_set_new(obj, "path",      json_string(path));
+    /* redact==1 (anonymous viewer): scrub PII — IP, identity/DN, and path. Keys
+     * stay so the table layout is stable; the most-identifying ones go empty. */
+    json_object_set_new(obj, "client",    json_string(redact ? "[redacted]" : client_ip));
+    json_object_set_new(obj, "identity",  json_string(redact ? "" : identity));
+    json_object_set_new(obj, "path",      json_string(redact ? "[redacted]" : path));
     json_object_set_new(obj, "direction", json_string(dashboard_direction_name(slot->direction)));
     json_object_set_new(obj, "protocol",  json_string(dashboard_proto_name(slot->proto)));
     json_object_set_new(obj, "bytes",     json_integer((json_int_t) bytes));
@@ -385,16 +417,19 @@ dashboard_build_transfer_object(
     /* Compat (/xrootd/transfers) shape stops here; v1 adds the fields below. */
     if (!v1_fields) { return obj; }
 
-    json_object_set_new(obj, "worker_pid",    json_integer((json_int_t) slot->worker_pid));
-    json_object_set_new(obj, "vo",            json_string(vo));
+    if (!redact) {   /* worker_pid is a host fingerprint — omit for anonymous */
+        json_object_set_new(obj, "worker_pid", json_integer((json_int_t) slot->worker_pid));
+    }
+    json_object_set_new(obj, "vo",            json_string(redact ? "" : vo));
     json_object_set_new(obj, "op",            json_string(op));
-    json_object_set_new(obj, "state",         json_string(dashboard_state_name(conf, slot->state, idle_ms)));
+    json_object_set_new(obj, "state",         json_string(dashboard_state_name(conf, slot->state, idle_ms, avg_bps > 0)));
     json_object_set_new(obj, "expected_bytes",json_integer((json_int_t) slot->expected_bytes));
     json_object_set_new(obj, "instant_bps",   json_integer((json_int_t) instant_bps));
     json_object_set_new(obj, "avg_bps",       json_integer((json_int_t) avg_bps));
     json_object_set_new(obj, "idle_ms",       json_integer((json_int_t) idle_ms));
     json_object_set_new(obj, "state_since_ms",json_integer((json_int_t) slot->state_since_ms));
-    json_object_set_new(obj, "last_error",    json_string(last_error));
+    /* last_error routinely embeds paths/hosts/DNs — omit it for anonymous. */
+    json_object_set_new(obj, "last_error",    json_string(redact ? "" : last_error));
 
     /* Emit the nested "tpc" object only when this row actually involves a remote
      * peer: either it is a TPC transfer, or a remote host/path hint was recorded
@@ -404,8 +439,8 @@ dashboard_build_transfer_object(
     {
         json_t *tpc = json_object();
         if (tpc) {
-            json_object_set_new(tpc, "remote_host",   json_string(remote_host));
-            json_object_set_new(tpc, "path_hint",     json_string(remote_path));
+            json_object_set_new(tpc, "remote_host",   json_string(redact ? "[redacted]" : remote_host));
+            json_object_set_new(tpc, "path_hint",     json_string(redact ? "" : remote_path));
             json_object_set_new(tpc, "remote_status", json_integer(slot->tpc_remote_status));
             json_object_set_new(tpc, "curl_exit",     json_integer(slot->tpc_curl_exit));
             json_object_set_new(obj, "tpc", tpc);
@@ -432,7 +467,8 @@ dashboard_build_transfer_object(
 
 static json_t *
 dashboard_build_transfer_rows(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t v1_fields)
+    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t v1_fields,
+    ngx_uint_t redact)
 {
     xrootd_transfer_table_t *tbl;
     json_t                  *arr;
@@ -470,14 +506,14 @@ dashboard_build_transfer_rows(int64_t now_ms,
             continue;
         }
 
-        obj = dashboard_build_transfer_object(conf, slot, now_ms, v1_fields, 0);
+        obj = dashboard_build_transfer_object(conf, slot, now_ms, v1_fields, 0, redact);
         if (obj) { json_array_append_new(arr, obj); }
     }
     return arr;
 }
 
 static json_t *
-dashboard_build_tpc_registry(ngx_pool_t *pool)
+dashboard_build_tpc_registry(ngx_pool_t *pool, ngx_uint_t redact)
 {
     xrootd_tpc_transfer_snapshot_t *rows;
     ngx_uint_t                      n, i;
@@ -497,8 +533,8 @@ dashboard_build_tpc_registry(ngx_pool_t *pool)
         json_object_set_new(entry, "protocol",    json_string(dashboard_tpc_protocol_name(rows[i].protocol)));
         json_object_set_new(entry, "direction",   json_string(dashboard_tpc_direction_name(rows[i].direction)));
         json_object_set_new(entry, "state",       json_string(dashboard_tpc_state_name(rows[i].state)));
-        json_object_set_new(entry, "source",      json_string(rows[i].src_url));
-        json_object_set_new(entry, "destination", json_string(rows[i].dst_path));
+        json_object_set_new(entry, "source",      json_string(redact ? "[redacted]" : rows[i].src_url));
+        json_object_set_new(entry, "destination", json_string(redact ? "" : rows[i].dst_path));
         json_object_set_new(entry, "bytes_done",  json_integer((json_int_t) rows[i].bytes_done));
         json_object_set_new(entry, "bytes_total", json_integer((json_int_t) rows[i].bytes_total));
         json_object_set_new(entry, "started_at",  json_integer((json_int_t) rows[i].started_at));
@@ -552,7 +588,7 @@ dashboard_build_protocols(int64_t now_ms,
 }
 
 static json_t *
-dashboard_build_events(ngx_pool_t *pool)
+dashboard_build_events(ngx_pool_t *pool, ngx_uint_t redact)
 {
     xrootd_dashboard_event_t *events;
     ngx_uint_t                n, i;
@@ -573,8 +609,9 @@ dashboard_build_events(ngx_pool_t *pool)
         json_object_set_new(ev, "class",     json_string(dashboard_event_class_name(events[i].class_id)));
         json_object_set_new(ev, "protocol",  json_string(dashboard_proto_name(events[i].proto)));
         json_object_set_new(ev, "status",    json_integer((json_int_t) events[i].status));
-        json_object_set_new(ev, "message",   json_string(events[i].message));
-        json_object_set_new(ev, "path_hint", json_string(events[i].path_hint));
+        /* message/path_hint can embed paths/identities — empty for anonymous. */
+        json_object_set_new(ev, "message",   json_string(redact ? "" : events[i].message));
+        json_object_set_new(ev, "path_hint", json_string(redact ? "" : events[i].path_hint));
         json_array_append_new(arr, ev);
     }
     return arr;
@@ -630,7 +667,7 @@ dashboard_fill_history(json_t *target, ngx_pool_t *pool)
  * and with target=sub-object for snapshot (nested under "cache").
  */
 static void
-dashboard_fill_cache(json_t *target)
+dashboard_fill_cache(json_t *target, ngx_uint_t redact)
 {
     ngx_xrootd_metrics_t *met;
     ngx_uint_t            i;
@@ -679,7 +716,9 @@ dashboard_fill_cache(json_t *target)
 
             entry = json_object();
             if (!entry) { continue; }
-            json_object_set_new(entry, "port", json_integer((json_int_t) srv->port));
+            if (!redact) {   /* listen port is infra detail — omit for anonymous */
+                json_object_set_new(entry, "port", json_integer((json_int_t) srv->port));
+            }
             json_object_set_new(entry, "auth", json_string(srv->auth));
             /* Ratios are stored in SHM as parts-per-million integers (so the
              * counters stay lock-free); divide by 1e6 to expose a 0..1 float. */
@@ -733,7 +772,7 @@ dashboard_fill_cache(json_t *target)
  */
 static void
 dashboard_fill_cluster(json_t *target, ngx_pool_t *pool, int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
     xrootd_srv_snapshot_entry_t *entries;
     ngx_uint_t                   n, i;
@@ -756,9 +795,11 @@ dashboard_fill_cluster(json_t *target, ngx_pool_t *pool, int64_t now_ms,
                       ? now_ms - (int64_t) entries[i].last_seen : 0;
         json_t *srv = json_object();
         if (!srv) { continue; }
-        json_object_set_new(srv, "host",              json_string(entries[i].host));
-        json_object_set_new(srv, "port",              json_integer((json_int_t) entries[i].port));
-        json_object_set_new(srv, "paths",             json_string(entries[i].paths));
+        json_object_set_new(srv, "host", json_string(redact ? "[redacted]" : entries[i].host));
+        if (!redact) {   /* port + exported paths are infra detail for anonymous */
+            json_object_set_new(srv, "port",  json_integer((json_int_t) entries[i].port));
+            json_object_set_new(srv, "paths", json_string(entries[i].paths));
+        }
         json_object_set_new(srv, "free_mb",           json_integer((json_int_t) entries[i].free_mb));
         json_object_set_new(srv, "util_pct",          json_integer((json_int_t) entries[i].util_pct));
         json_object_set_new(srv, "last_seen",         json_integer((json_int_t) entries[i].last_seen));
@@ -792,12 +833,13 @@ dashboard_new_v1_root(int64_t now_ms,
 static json_t *
 dashboard_build_compat_transfers(int64_t now_ms,
     const ngx_http_xrootd_dashboard_loc_conf_t *conf,
-    const xrootd_dashboard_totals_t *totals)
+    const xrootd_dashboard_totals_t *totals, ngx_uint_t redact)
 {
     json_t *root = json_object();
     if (!root) { return NULL; }
     json_object_set_new(root, "server_ms",        json_integer((json_int_t) now_ms));
-    json_object_set_new(root, "active_transfers",  dashboard_build_transfer_rows(now_ms, conf, 0));
+    json_object_set_new(root, "anonymous",         redact ? json_true() : json_false());
+    json_object_set_new(root, "active_transfers",  dashboard_build_transfer_rows(now_ms, conf, 0, redact));
     json_object_set_new(root, "totals",            dashboard_build_totals(totals));
     return root;
 }
@@ -805,12 +847,13 @@ dashboard_build_compat_transfers(int64_t now_ms,
 static json_t *
 dashboard_build_v1_transfers(ngx_http_request_t *r,
     int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
-    const xrootd_dashboard_totals_t *totals)
+    const xrootd_dashboard_totals_t *totals, ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
-    json_object_set_new(root, "active_transfers", dashboard_build_transfer_rows(now_ms, conf, 1));
-    json_object_set_new(root, "tpc_transfers",    dashboard_build_tpc_registry(r->pool));
+    json_object_set_new(root, "anonymous",        redact ? json_true() : json_false());
+    json_object_set_new(root, "active_transfers", dashboard_build_transfer_rows(now_ms, conf, 1, redact));
+    json_object_set_new(root, "tpc_transfers",    dashboard_build_tpc_registry(r->pool, redact));
     json_object_set_new(root, "totals",           dashboard_build_totals(totals));
     return root;
 }
@@ -880,7 +923,7 @@ dashboard_build_v1_transfer_detail(ngx_http_request_t *r,
         if (slot->in_use && slot->serial == id) {
             *status = NGX_HTTP_OK;
             json_object_set_new(root, "transfer",
-                dashboard_build_transfer_object(conf, slot, now_ms, 1, 1));
+                dashboard_build_transfer_object(conf, slot, now_ms, 1, 1, 0));
             return root;
         }
     }
@@ -892,30 +935,33 @@ dashboard_build_v1_transfer_detail(ngx_http_request_t *r,
 static json_t *
 dashboard_build_v1_snapshot(ngx_http_request_t *r,
     int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
-    const xrootd_dashboard_totals_t *totals)
+    const xrootd_dashboard_totals_t *totals, ngx_uint_t redact)
 {
     json_t *root, *history, *cache, *cluster;
 
     root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
 
-    json_object_set_new(root, "active_transfers", dashboard_build_transfer_rows(now_ms, conf, 1));
-    json_object_set_new(root, "tpc_transfers",    dashboard_build_tpc_registry(r->pool));
+    /* The page JS keys off this flag to render the anonymous banner + hide the
+     * (now-redacted) PII columns. */
+    json_object_set_new(root, "anonymous",        redact ? json_true() : json_false());
+    json_object_set_new(root, "active_transfers", dashboard_build_transfer_rows(now_ms, conf, 1, redact));
+    json_object_set_new(root, "tpc_transfers",    dashboard_build_tpc_registry(r->pool, redact));
     json_object_set_new(root, "protocols",        dashboard_build_protocols(now_ms, totals));
 
     cache = json_object();
     if (cache) {
-        dashboard_fill_cache(cache);
+        dashboard_fill_cache(cache, redact);
         json_object_set_new(root, "cache", cache);
     }
 
     cluster = json_object();
     if (cluster) {
-        dashboard_fill_cluster(cluster, r->pool, now_ms, conf);
+        dashboard_fill_cluster(cluster, r->pool, now_ms, conf, redact);
         json_object_set_new(root, "cluster", cluster);
     }
 
-    json_object_set_new(root, "events", dashboard_build_events(r->pool));
+    json_object_set_new(root, "events", dashboard_build_events(r->pool, redact));
 
     history = json_object();
     if (history) {
@@ -929,48 +975,55 @@ dashboard_build_v1_snapshot(ngx_http_request_t *r,
 
 static json_t *
 dashboard_build_v1_events(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
-    json_object_set_new(root, "events", dashboard_build_events(r->pool));
+    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
+    json_object_set_new(root, "events", dashboard_build_events(r->pool, redact));
     return root;
 }
 
 static json_t *
 dashboard_build_v1_history(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
-    dashboard_fill_history(root, r->pool);
+    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
+    dashboard_fill_history(root, r->pool);   /* history carries no PII */
     return root;
 }
 
 static json_t *
 dashboard_build_v1_cluster(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
-    dashboard_fill_cluster(root, r->pool, now_ms, conf);
+    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
+    dashboard_fill_cluster(root, r->pool, now_ms, conf, redact);
     return root;
 }
 
 static json_t *
 dashboard_build_v1_cache(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
-    dashboard_fill_cache(root);
+    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
+    dashboard_fill_cache(root, redact);
     return root;
 }
 
 /* Phase 25 — advanced rate-limit zone snapshot. */
 static json_t *
 dashboard_build_v1_ratelimit(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
     json_t            *root = dashboard_new_v1_root(now_ms, conf);
     json_t            *zones_arr;
@@ -978,6 +1031,7 @@ dashboard_build_v1_ratelimit(int64_t now_ms,
     ngx_uint_t         nz, zi;
 
     if (!root) { return NULL; }
+    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
     zones_arr = json_array();
     if (zones_arr == NULL) { json_decref(root); return NULL; }
 
@@ -1009,7 +1063,10 @@ dashboard_build_v1_ratelimit(int64_t now_ms,
         for (i = 0; i < count; i++) {
             json_t *p = json_object();
             if (p == NULL) { continue; }
-            json_object_set_new(p, "key", json_string(snap[i].key_str));
+            /* key_str is the rate-limit principal (DN/VO/IP/path) — drop for anon. */
+            if (!redact) {
+                json_object_set_new(p, "key", json_string(snap[i].key_str));
+            }
             json_object_set_new(p, "req_total",
                 json_integer((json_int_t) snap[i].req_total));
             json_object_set_new(p, "bytes_total",
@@ -1032,10 +1089,11 @@ dashboard_build_v1_ratelimit(int64_t now_ms,
 
 static json_t *
 dashboard_build_v1_not_found(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
+    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
     json_object_set_new(root, "error", json_string("not_found"));
     return root;
 }
@@ -1121,6 +1179,32 @@ dashboard_send_json(ngx_http_request_t *r, ngx_int_t status, json_t *root)
  *       we degrade to a 507 "truncated" body and log a dashboard event rather
  *       than emitting a partial document.
  */
+/*
+ * Read-only endpoints that may be served to an unauthenticated viewer (with all
+ * PII/secrets redacted) when xrootd_dashboard_anonymous is on. Transfer-detail
+ * (session hash + per-op counters) is deliberately NOT here — it stays
+ * auth-only; config download and the admin API are separate handlers entirely.
+ */
+static ngx_uint_t
+dashboard_endpoint_is_anon_allowed(xrootd_dashboard_api_endpoint_e e)
+{
+    switch (e) {
+    case XROOTD_DASHBOARD_API_COMPAT_TRANSFERS:
+    case XROOTD_DASHBOARD_API_V1_TRANSFERS:
+    case XROOTD_DASHBOARD_API_V1_SNAPSHOT:
+    case XROOTD_DASHBOARD_API_V1_EVENTS:
+    case XROOTD_DASHBOARD_API_V1_HISTORY:
+    case XROOTD_DASHBOARD_API_V1_CLUSTER:
+    case XROOTD_DASHBOARD_API_V1_CACHE:
+    case XROOTD_DASHBOARD_API_V1_RATELIMIT:
+    case XROOTD_DASHBOARD_API_V1_NOT_FOUND:
+        return 1;
+    case XROOTD_DASHBOARD_API_V1_TRANSFER_DETAIL:
+    default:
+        return 0;
+    }
+}
+
 ngx_int_t
 ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
     xrootd_dashboard_api_endpoint_e endpoint)
@@ -1130,12 +1214,26 @@ ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
     json_t                               *root = NULL;
     int64_t                               now_ms;
     ngx_int_t                             status = NGX_HTTP_OK;
+    ngx_uint_t                            redact = 0;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
 
+    /* Three-way auth gate. Authenticated -> full payload. Unauthenticated but
+     * xrootd_dashboard_anonymous is on AND this is an anon-allowed read endpoint
+     * -> serve a PII/secret-redacted payload (redact=1). Otherwise -> 401.
+     * (check_auth suppresses its "missing cookie" event when anonymous is on,
+     * so anonymous polls do not spam the event ring.) */
     {
-        ngx_int_t auth_rc = ngx_http_xrootd_dashboard_check_auth(r, conf);
-        if (auth_rc != NGX_OK) { return auth_rc; }
+        ngx_int_t auth_rc = ngx_http_xrootd_dashboard_check_auth(r, conf,
+                                                                 conf->anonymous);
+        if (auth_rc == NGX_OK) {
+            redact = 0;
+        } else if (conf->anonymous
+                   && dashboard_endpoint_is_anon_allowed(endpoint)) {
+            redact = 1;
+        } else {
+            return auth_rc;
+        }
     }
 
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
@@ -1148,36 +1246,36 @@ ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
 
     switch (endpoint) {
     case XROOTD_DASHBOARD_API_COMPAT_TRANSFERS:
-        root = dashboard_build_compat_transfers(now_ms, conf, &totals);
+        root = dashboard_build_compat_transfers(now_ms, conf, &totals, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_TRANSFERS:
-        root = dashboard_build_v1_transfers(r, now_ms, conf, &totals);
+        root = dashboard_build_v1_transfers(r, now_ms, conf, &totals, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_TRANSFER_DETAIL:
         root = dashboard_build_v1_transfer_detail(r, now_ms, conf, &status);
         break;
     case XROOTD_DASHBOARD_API_V1_SNAPSHOT:
-        root = dashboard_build_v1_snapshot(r, now_ms, conf, &totals);
+        root = dashboard_build_v1_snapshot(r, now_ms, conf, &totals, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_EVENTS:
-        root = dashboard_build_v1_events(r, now_ms, conf);
+        root = dashboard_build_v1_events(r, now_ms, conf, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_HISTORY:
-        root = dashboard_build_v1_history(r, now_ms, conf);
+        root = dashboard_build_v1_history(r, now_ms, conf, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_CLUSTER:
-        root = dashboard_build_v1_cluster(r, now_ms, conf);
+        root = dashboard_build_v1_cluster(r, now_ms, conf, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_CACHE:
-        root = dashboard_build_v1_cache(now_ms, conf);
+        root = dashboard_build_v1_cache(now_ms, conf, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_RATELIMIT:
-        root = dashboard_build_v1_ratelimit(now_ms, conf);
+        root = dashboard_build_v1_ratelimit(now_ms, conf, redact);
         break;
     case XROOTD_DASHBOARD_API_V1_NOT_FOUND:
     default:
         status = NGX_HTTP_NOT_FOUND;
-        root = dashboard_build_v1_not_found(now_ms, conf);
+        root = dashboard_build_v1_not_found(now_ms, conf, redact);
         break;
     }
 

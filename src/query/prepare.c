@@ -1,8 +1,24 @@
 #include "query_internal.h"
 #include "../path/beneath.h"
+#include "../frm/frm.h"
 
 #include <errno.h>
 #include <sys/stat.h>
+#include <time.h>
+
+/* Phase 35: map a durable queue status to the QPrep per-path status letter.
+ * 'A' available/online, 'q' queued, 's' staging, 'f' failed, 'M' missing. */
+static char
+xrootd_prepare_status_char(frm_status_t s)
+{
+    switch (s) {
+    case FRM_ST_QUEUED:  return 'q';
+    case FRM_ST_STAGING: return 's';
+    case FRM_ST_ONLINE:  return 'A';
+    case FRM_ST_FAILED:  return 'f';
+    default:             return 'M';
+    }
+}
 
 /*
  * WHAT: kXR_prepare / kXR_QPrep — local-storage staging hint and status query.
@@ -146,7 +162,8 @@ xrootd_prepare_check_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                          "prepare stat failed");
     }
 
-    if (xrootd_check_authdb(ctx, full_path, XROOTD_AUTH_READ) != NGX_OK) {
+    if (xrootd_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
+                           XROOTD_AUTH_READ, XROOTD_AOP_STAGE) != NGX_OK) {
         return xrootd_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
                                          "not authorized");
     }
@@ -180,6 +197,52 @@ xrootd_prepare_check_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
+/* Phase 35: kXR_prepare + kXR_cancel — delete the named request from the durable
+ * queue. The reqid is the first payload line. Idempotent: an unknown reqid still
+ * returns kXR_ok (no enumeration oracle). */
+static ngx_int_t
+xrootd_prepare_handle_cancel(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf)
+{
+    char          reqid[FRM_REQID_LEN];
+    const u_char *p, *end;
+    size_t        n;
+
+    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+        return xrootd_prepare_send_fail(ctx, c, "-", kXR_ArgMissing,
+                                        "prepare requestid not specified");
+    }
+    p   = ctx->payload;
+    end = ctx->payload + ctx->cur_dlen;
+    while (p < end && *p != '\n' && *p != '\r' && *p != '\0') {
+        p++;
+    }
+    n = (size_t) (p - ctx->payload);
+    if (n == 0 || n >= sizeof(reqid)) {
+        return xrootd_prepare_send_fail(ctx, c, "-", kXR_ArgMissing,
+                                        "prepare requestid not specified");
+    }
+    ngx_memcpy(reqid, ctx->payload, n);
+    reqid[n] = '\0';
+
+    /* FRM-1: a request may only be cancelled by the principal that created it.
+     * Fail-open for anonymous callers / owner-less records keeps single-trust-
+     * domain deployments working; a concrete cross-principal mismatch is denied. */
+    if (frm_request_owner_check(conf->frm.queue, reqid,
+                                xrootd_identity_dn_cstr(ctx->identity),
+                                c->log) != NGX_OK)
+    {
+        xrootd_log_access(ctx, c, "PREPARE", reqid, "cancel-denied", 0,
+                          kXR_NotAuthorized, NULL, 0);
+        return xrootd_prepare_send_fail(ctx, c, reqid, kXR_NotAuthorized,
+                                        "not the owner of this request");
+    }
+
+    (void) frm_request_delete(conf->frm.queue, reqid, c->log);   /* idempotent */
+    xrootd_log_access(ctx, c, "PREPARE", reqid, "cancel", 1, kXR_ok, NULL, 0);
+    return xrootd_send_ok(ctx, c, NULL, 0);
+}
+
 /* ---- public API: xrootd_handle_prepare() — kXR_prepare staging hint handler ----
  * WHAT: Main handler for prepare requests. Parses ClientPrepareRequest, validates newline-separated path list against auth/ACLs/filesystem existence,
  *       optionally invokes configured staging command via xrootd_prepare_invoke_command(), stores request ID + paths in ctx->prepare_paths for QPrep queries.
@@ -204,23 +267,48 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* Staging command path collection.  Only allocated when kXR_stage is set
      * and xrootd_prepare_command is configured. */
     ngx_flag_t   collect_stage;
+    ngx_flag_t   do_enqueue;        /* Phase 35: enqueue into the durable queue */
+    ngx_flag_t   need_resolved;     /* fill out_resolved (legacy OR enqueue)     */
     const char **stage_paths = NULL;
     char        *stage_bufs  = NULL;
     ngx_uint_t   stage_count = 0;
     ngx_uint_t   stage_max   = 0;
+    char         group_reqid[FRM_REQID_LEN];
 
     req = (ClientPrepareRequest *) ctx->hdr_buf;
     optionx = ntohs(req->optionX);
 
     collect_stage = (req->options & kXR_stage) && conf->prepare_command.len > 0;
+    do_enqueue    = (req->options & kXR_stage) && conf->frm.enable
+                    && conf->frm.queue != NULL;
+    need_resolved = collect_stage || do_enqueue;
+    group_reqid[0] = '\0';
 
     if ((req->options & kXR_wmode) && !conf->common.allow_write) {
         return xrootd_prepare_send_fail(ctx, c, "-", kXR_fsReadOnly,
                                         "this is a read-only server");
     }
 
-    if ((req->options & kXR_cancel) || (optionx & kXR_evict)) {
-        snprintf(detail, sizeof(detail), "noop opts=0x%02x optx=0x%04x",
+    if (req->options & kXR_cancel) {
+        /* Phase 35: real cancel against the durable queue when FRM is on. */
+        if (conf->frm.enable && conf->frm.queue != NULL) {
+            return xrootd_prepare_handle_cancel(ctx, c, conf);
+        }
+        snprintf(detail, sizeof(detail), "noop cancel opts=0x%02x optx=0x%04x",
+                 (unsigned int) req->options, (unsigned int) optionx);
+        xrootd_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
+        return xrootd_send_ok(ctx, c, NULL, 0);
+    }
+
+    if (optionx & kXR_evict) {
+        /* Evict releases the disk pin: the staged copy may be purged. The actual
+         * disk reclamation is delegated to the MSS (Category-2, Phase 4); here we
+         * record the release intent. The authoritative per-path release path with
+         * full resolve+scope is the WLCG Tape REST /release endpoint. */
+        if (conf->frm.enable && conf->frm.queue != NULL) {
+            XROOTD_FRM_METRIC_INC(evict_total);
+        }
+        snprintf(detail, sizeof(detail), "evict opts=0x%02x optx=0x%04x",
                  (unsigned int) req->options, (unsigned int) optionx);
         xrootd_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
         return xrootd_send_ok(ctx, c, NULL, 0);
@@ -233,7 +321,7 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /* Pre-allocate staging collection arrays.  Cap at XROOTD_PREPARE_CMD_MAX_PATHS
      * (typically payload / 2 paths, but bounded to avoid excessive allocation). */
-    if (collect_stage) {
+    if (need_resolved) {
         stage_max = ctx->cur_dlen / 2 + 1;
         if (stage_max > XROOTD_PREPARE_CMD_MAX_PATHS) {
             stage_max = XROOTD_PREPARE_CMD_MAX_PATHS;
@@ -280,9 +368,10 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         paths++;
 
-        /* Point out_resolved at the next slot in the staging buffer (if
-         * collecting) so xrootd_prepare_check_path fills it in-place. */
-        if (collect_stage && stage_count < stage_max) {
+        /* Point out_resolved at the next slot in the staging buffer (when the
+         * legacy command OR the durable queue needs the resolved path) so
+         * xrootd_prepare_check_path fills it in-place. */
+        if (need_resolved && stage_count < stage_max) {
             out_resolved = stage_bufs + stage_count * PATH_MAX;
             out_resolved[0] = '\0';
         } else {
@@ -299,9 +388,50 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
             return rc;
         }
 
-        /* Accept the resolved path into the staging argv if non-empty. */
+        /* Accept the resolved path: enqueue it durably (FRM) and/or collect it
+         * for the legacy staging command. */
         if (out_resolved != NULL && out_resolved[0] != '\0') {
-            stage_paths[stage_count++] = out_resolved;
+            if (do_enqueue) {
+                frm_req_view_t v;
+                char           rq[FRM_REQID_LEN];
+                ngx_int_t      arc;
+                /* Record the canonical identity DN (== ctx->dn for GSI; the token
+                 * "sub" for bearer auth) so F4 quota AND the FRM-1 cancel-owner
+                 * check work for both auth modes. */
+                const char    *rdn = xrootd_identity_dn_cstr(ctx->identity);
+
+                ngx_memzero(&v, sizeof(v));
+                v.lfn        = out_resolved;
+                v.options    = FRM_OPT_STAGE
+                             | ((req->options & kXR_coloc) ? FRM_OPT_COLOC : 0);
+                v.selector   = "prepare";    /* F2: activity class           */
+                v.requester_dn = (rdn[0] != '\0') ? rdn : NULL;  /* F4 + FRM-1 */
+                v.tod_expire = (int64_t) time(NULL)
+                             + (int64_t) (conf->frm.stage_ttl / 1000);
+
+                arc = frm_request_add(conf->frm.queue, &v, rq, sizeof(rq),
+                                      c->log);
+                if (arc == NGX_ERROR) {
+                    ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                                  "xrootd: frm_request_add failed for \"%s\"",
+                                  out_resolved);
+                } else if (group_reqid[0] == '\0') {
+                    /* The first request id is the handle returned to the client
+                     * (NGX_OK = new, NGX_DECLINED = dedup → existing id). */
+                    ngx_cpystrn((u_char *) group_reqid, (u_char *) rq,
+                                sizeof(group_reqid));
+                }
+                if (arc == NGX_OK) {
+                    /* A new recall was queued — wake the stage scheduler now
+                     * (the open/TPC paths already kick; without this a prepare
+                     * recall would wait for the scheduler's slow idle tick). */
+                    frm_stage_kick();
+                }
+            }
+            if (collect_stage) {
+                stage_paths[stage_count] = out_resolved;
+            }
+            stage_count++;
         }
     }
 
@@ -321,7 +451,14 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* kXR_stage: save the path list for kXR_QPrep status queries, return
      * request ID "0", and optionally invoke the configured staging command. */
     if (req->options & kXR_stage) {
-        u_char *saved;
+        u_char     *saved;
+        const char *resp_reqid;
+        size_t      resp_reqid_len;
+
+        /* The request handle: the durable reqid when enqueued, else legacy "0". */
+        resp_reqid     = (do_enqueue && group_reqid[0] != '\0')
+                       ? group_reqid : "0";
+        resp_reqid_len = ngx_strlen(resp_reqid);
 
         saved = ngx_alloc((size_t) ctx->cur_dlen + 1, c->log);
         if (saved == NULL) {
@@ -335,7 +472,8 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
             ngx_free(ctx->prepare_paths);
         }
 
-        ngx_memcpy(ctx->prepare_reqid, "0", 2);  /* reqid "0", NUL-terminated */
+        ngx_cpystrn((u_char *) ctx->prepare_reqid, (u_char *) resp_reqid,
+                    sizeof(ctx->prepare_reqid));
         ctx->prepare_paths     = saved;
         ctx->prepare_paths_len = ctx->cur_dlen;
 
@@ -367,21 +505,31 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * pipe from the staging command to deliver the notification later. */
         if (req->options & kXR_notify) {
             if (missing == 0) {
-                static const char notify_msg[] = "prepare reqid=0 complete";
-                size_t   notify_len  = sizeof(notify_msg) - 1;
-                size_t   ok_len      = XRD_RESPONSE_HDR_LEN + 1; /* "0" */
-                size_t   attn_len    = xrootd_attn_asyncms_frame_len(notify_len);
-                size_t   total       = ok_len + attn_len;
+                char     notify_msg[96];
+                size_t   notify_len;
+                size_t   ok_len      = XRD_RESPONSE_HDR_LEN + resp_reqid_len;
+                size_t   attn_len;
+                size_t   total;
                 u_char  *buf;
+
+                notify_len = (size_t) snprintf(notify_msg, sizeof(notify_msg),
+                                 "prepare reqid=%s complete", resp_reqid);
+                if (notify_len >= sizeof(notify_msg)) {
+                    notify_len = sizeof(notify_msg) - 1;
+                }
+                attn_len = xrootd_attn_asyncms_frame_len(notify_len);
+                total    = ok_len + attn_len;
 
                 buf = ngx_palloc(c->pool, total);
                 if (buf == NULL) {
                     return NGX_ERROR;
                 }
 
-                xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, 1,
+                xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+                                      (uint32_t) resp_reqid_len,
                                       (ServerResponseHdr *) buf);
-                buf[XRD_RESPONSE_HDR_LEN] = '0';
+                ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, resp_reqid,
+                           resp_reqid_len);
                 xrootd_build_attn_asyncms_frame(buf + ok_len,
                                                 notify_msg, notify_len);
 
@@ -398,7 +546,8 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
             }
         }
 
-        return xrootd_send_ok(ctx, c, (u_char *) "0", 1);
+        return xrootd_send_ok(ctx, c, (u_char *) resp_reqid,
+                              (uint32_t) resp_reqid_len);
     }
 
     return xrootd_send_ok(ctx, c, NULL, 0);
@@ -502,19 +651,37 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         /* Check availability; both non-existent and unauthorized paths are
-         * treated as missing, consistent with xrootd reference behavior. */
+         * treated as missing, consistent with xrootd reference behavior.
+         * Phase 35: when FRM is enabled, a file that is not yet resident but
+         * has a live queue record reports its queue state (q/s/f) instead of M,
+         * so a client polls a real recall to completion across reconnects. */
         xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
                                  full_path, sizeof(full_path));
-        if (xrootd_check_authdb(ctx, full_path, XROOTD_AUTH_READ) == NGX_OK
-            && xrootd_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
-                                            ctx->identity) == NGX_OK
-            && xrootd_check_token_scope(ctx, pathbuf, 0) == NGX_OK
-            && xrootd_stat_beneath(conf->rootfd, pathbuf, &st) == 0
-            && S_ISREG(st.st_mode))
         {
-            *rp++ = 'A';
-        } else {
-            *rp++ = 'M';
+            char status_ch = 'M';
+
+            if (xrootd_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
+                                   XROOTD_AUTH_READ, XROOTD_AOP_STAGE) == NGX_OK
+                && xrootd_check_vo_acl_identity(c->log, full_path,
+                                                conf->vo_rules,
+                                                ctx->identity) == NGX_OK
+                && xrootd_check_token_scope(ctx, pathbuf, 0) == NGX_OK)
+            {
+                if (xrootd_stat_beneath(conf->rootfd, pathbuf, &st) == 0
+                    && S_ISREG(st.st_mode))
+                {
+                    status_ch = 'A';                /* resident on disk */
+                } else if (conf->frm.enable && conf->frm.queue != NULL) {
+                    frm_record_t qrec;
+                    if (frm_request_find_by_path(conf->frm.queue, full_path,
+                                                 &qrec, c->log) == NGX_OK)
+                    {
+                        status_ch = xrootd_prepare_status_char(
+                                        (frm_status_t) qrec.status);
+                    }
+                }
+            }
+            *rp++ = (u_char) status_ch;
         }
         *rp++ = ' ';
 

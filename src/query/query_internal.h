@@ -74,11 +74,13 @@ void xrootd_cksum_aio_done(ngx_event_t *ev);
 /* Checksum scan helpers shared across checksum_ckscan_*.c fragments. */
 /* Append one "algo hex  logical\n" line to the heap buffer *buf, growing it
  * (ngx_alloc, exponential) and updating *cap and *used in place. Runs on a worker
- * thread, so the buffer is raw heap not pool-backed. Returns 1 on success,
- * 0 if the line is too long to format (skipped), -1 on OOM (caller still owns
- * and must free *buf). */
+ * thread, so the buffer is raw heap not pool-backed. `hex` is the already-computed
+ * lowercase checksum (8 chars for adler32/crc32c, 16 for crc64/crc64nvme) — width
+ * is carried in the string so the line format stays algorithm-agnostic. Returns 1
+ * on success, 0 if the line is too long to format (skipped), -1 on OOM (caller
+ * still owns and must free *buf). */
 int xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
-    const char *algo, uint32_t cksum, const char *logical);
+    const char *algo, const char *hex, const char *logical);
 /* Recursively scan logical_dir under rootfd (export-jailed via open_beneath),
  * appending a checksum line per regular file via xrootd_ckscan_append. depth
  * counts from 0; max_depth==0 means this dir only. *nfiles is the running count,

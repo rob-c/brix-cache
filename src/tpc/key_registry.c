@@ -52,24 +52,33 @@ static ngx_int_t
 xrootd_tpc_key_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
     xrootd_tpc_key_table_t *tbl;
+    ngx_flag_t              fresh;
 
-    if (data) {
-        shm_zone->data = data;
-        tbl = (xrootd_tpc_key_table_t *) data;
-        if (ngx_shmtx_create(&xrootd_tpc_key_mutex, &tbl->lock, NULL) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
-    }
-
-    tbl = (xrootd_tpc_key_table_t *) shm_zone->shm.addr;
-    ngx_memzero(tbl, sizeof(*tbl));
-
-    if (ngx_shmtx_create(&xrootd_tpc_key_mutex, &tbl->lock, NULL) != NGX_OK) {
+    /*
+     * Allocate the table FROM the slab pool so the ngx_slab_pool_t header at
+     * shm.addr survives. nginx's ngx_unlock_mutexes() (run on every child
+     * death) force-unlocks that header's mutex; laying our own struct over
+     * shm.addr would clobber it and SIGSEGV the master when any child exits.
+     * The helper also creates xrootd_tpc_key_mutex from the table's first
+     * member (the ngx_shmtx_sh_t lock) and zeroes the table on fresh alloc.
+     */
+    tbl = xrootd_shm_table_alloc(shm_zone, data,
+                                 sizeof(xrootd_tpc_key_table_t),
+                                 &xrootd_tpc_key_mutex, &fresh);
+    if (tbl == NULL) {
         return NGX_ERROR;
     }
 
-    shm_zone->data = tbl;
+    /*
+     * The table is a fixed array of slots that begins entirely zeroed (in_use
+     * == 0 everywhere), which the helper guarantees on fresh allocation. There
+     * are no live counters to seed, so nothing extra is required here; on reuse
+     * we must NOT touch the table to preserve in-flight key state.
+     */
+    if (fresh) {
+        /* No additional fresh-only field initialisation required. */
+    }
+
     return NGX_OK;
 }
 
@@ -91,7 +100,7 @@ xrootd_tpc_key_configure_registry(ngx_conf_t *cf)
     ngx_str_t  zone_name = ngx_string("xrootd_tpc_keys");
     size_t     zone_size;
 
-    zone_size = sizeof(xrootd_tpc_key_table_t) + ngx_pagesize;
+    zone_size = xrootd_shm_zone_size(sizeof(xrootd_tpc_key_table_t));
     xrootd_tpc_key_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                       zone_size,
                                                       &ngx_stream_xrootd_module);

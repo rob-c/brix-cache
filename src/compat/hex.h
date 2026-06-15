@@ -1,8 +1,12 @@
 #ifndef XROOTD_COMPAT_HEX_H
 #define XROOTD_COMPAT_HEX_H
 
-#include <ngx_config.h>
-#include <ngx_core.h>
+/*
+ * ngx-free: uses uint8_t (== unsigned char, identical to nginx's u_char) so this
+ * header compiles into both the nginx module and the standalone libxrdproto core.
+ */
+#include <stddef.h>
+#include <stdint.h>
 
 /*
  * xrootd_hex_nibble — convert nibble value to uppercase ASCII hex character.
@@ -10,7 +14,7 @@
  * WHAT: Returns '0'-'9' for values 0-9, 'A'-'F' for values 10-15. WHY: Produces individual hex
  *      output characters from 4-bit input during byte-array encoding. */
 
-u_char xrootd_hex_nibble(u_char v);
+uint8_t xrootd_hex_nibble(uint8_t v);
 
 /*
  * xrootd_hex_from_char — parse ASCII hex character to nibble value, case-insensitive.
@@ -27,6 +31,6 @@ int xrootd_hex_from_char(unsigned char c);
  *      Checksum computation results, ETag generation, metadata display need hex representation
  *      of arbitrary binary data. Caller must allocate 2*len+1 bytes for output buffer. */
 
-void xrootd_hex_encode(const u_char *in, size_t len, char *out);
+void xrootd_hex_encode(const uint8_t *in, size_t len, char *out);
 
 #endif /* XROOTD_COMPAT_HEX_H */

@@ -1,9 +1,13 @@
 /*
  * kv.c — generic cross-worker key/value store in nginx shared memory.
  *
- * Layout of a zone's shared segment:
+ * The table is allocated FROM the zone's slab pool (via xrootd_shm_table_alloc)
+ * and published through shm_zone->data — it does NOT overlay shm.addr, which
+ * holds nginx's ngx_slab_pool_t header. That header must stay intact because
+ * ngx_unlock_mutexes() (run on every child death) force-unlocks the slab mutex
+ * at shm.addr; clobbering it SIGSEGVs the master. Layout of the slab block:
  *
- *   +----------------------+  offset 0
+ *   +----------------------+  table base (shm_zone->data)
  *   | xrootd_kv_header_t   |  (lock must be first — ngx_shmtx_create target)
  *   +----------------------+  offset sizeof(header)
  *   | entry[0]             |  stride = sizeof(entry) + key_max + val_max
@@ -12,11 +16,14 @@
  *   | entry[capacity-1]    |
  *   +----------------------+
  *
- * capacity is the largest power of two that fits in the configured zone size,
- * so (hash & (capacity-1)) selects the home bucket without a modulo.
+ * capacity is the largest power of two that fits the configured zone size
+ * (computed at configure time), so (hash & (capacity-1)) selects the home
+ * bucket without a modulo. The requested zone is padded by
+ * xrootd_shm_zone_size() to cover the slab-pool overhead.
  */
 #include "ngx_xrootd_module.h"   /* full ngx core + stream (NGX_STREAM_MAIN_CONF) */
 #include "shm/kv.h"
+#include "../compat/shm_slots.h"
 
 /* The directive may appear in either module's main block; both tags are
  * resolved at link time into the single combined binary. */
@@ -88,10 +95,20 @@ xrootd_kv_floor_pow2(size_t n)
 static xrootd_kv_header_t *
 xrootd_kv_hdr(xrootd_kv_t *kv)
 {
-    if (kv == NULL || kv->zone == NULL || kv->zone->shm.addr == NULL) {
+    /*
+     * The table (header + entry array) is slab-allocated and published via
+     * shm_zone->data by xrootd_shm_table_alloc() — it does NOT sit at
+     * shm.addr (that holds nginx's ngx_slab_pool_t header, which must stay
+     * intact so ngx_unlock_mutexes() can force-unlock the slab mutex on child
+     * death). Until init runs, zone->data still holds the (void*)1 pending
+     * sentinel or the kv handle, so guard against a non-table pointer.
+     */
+    if (kv == NULL || kv->zone == NULL || kv->zone->data == NULL
+        || kv->zone->data == kv || kv->zone->data == (void *) 1)
+    {
         return NULL;
     }
-    return (xrootd_kv_header_t *) kv->zone->shm.addr;
+    return (xrootd_kv_header_t *) kv->zone->data;
 }
 
 static xrootd_kv_entry_t *
@@ -153,35 +170,32 @@ xrootd_kv_remove_at(xrootd_kv_header_t *h, size_t stride, uint32_t mask,
 static ngx_int_t
 xrootd_kv_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
-    xrootd_kv_t        *okv = data;                 /* previous (on reload) */
-    xrootd_kv_t        *kv  = shm_zone->data;
-    xrootd_kv_header_t *h   = (xrootd_kv_header_t *) shm_zone->shm.addr;
-    size_t              avail, stride, cap;
+    xrootd_kv_t        *kv = shm_zone->data;        /* set by configure */
+    xrootd_kv_header_t *h;
+    ngx_flag_t          fresh;
 
-    /* Reload or attach-to-existing: the segment is already laid out; just
-     * re-create this process's handle to the shared spinlock. */
-    if (okv != NULL || shm_zone->shm.exists) {
-        return ngx_shmtx_create(&kv->mutex, &h->lock, NULL);
-    }
-
-    ngx_memzero(h, sizeof(*h));
-    if (ngx_shmtx_create(&kv->mutex, &h->lock, NULL) != NGX_OK) {
+    /*
+     * Allocate the table FROM the slab pool (not over shm.addr), so nginx's
+     * ngx_slab_pool_t header survives ngx_unlock_mutexes() on child death.
+     * The helper handles fresh-alloc, reload (data != NULL), and re-attach
+     * (shm.exists), publishes the table via shm_zone->data, and creates the
+     * process-local mutex handle from the table's first member (the lock).
+     */
+    h = xrootd_shm_table_alloc(shm_zone, data, kv->table_bytes,
+                               &kv->mutex, &fresh);
+    if (h == NULL) {
         return NGX_ERROR;
     }
 
-    avail  = shm_zone->shm.size - sizeof(xrootd_kv_header_t);
-    stride = sizeof(xrootd_kv_entry_t) + kv->key_max + kv->val_max;
-    cap    = xrootd_kv_floor_pow2(avail / stride);
-    if (cap < 1) {
-        ngx_log_error(NGX_LOG_EMERG, shm_zone->shm.log, 0,
-                      "xrootd_kv_zone \"%V\": size too small for one entry",
-                      &kv->name);
-        return NGX_ERROR;
+    if (fresh) {
+        /* Brand-new table: initialise the layout fields. The helper already
+         * zeroed the region and created the mutex, so live counters
+         * (count/hits/misses/evictions) start at 0 and must NOT be reset on
+         * reuse. */
+        h->capacity = kv->capacity;
+        h->key_max  = (uint32_t) kv->key_max;
+        h->val_max  = (uint32_t) kv->val_max;
     }
-
-    h->capacity = (uint32_t) cap;
-    h->key_max  = (uint32_t) kv->key_max;
-    h->val_max  = (uint32_t) kv->val_max;
     return NGX_OK;
 }
 
@@ -189,6 +203,9 @@ ngx_int_t
 xrootd_kv_configure(ngx_conf_t *cf, xrootd_kv_t *kv, ngx_str_t *name,
     size_t size, size_t key_max, size_t val_max, void *module)
 {
+    size_t  avail, stride, table_bytes, zone_size;
+    uint32_t cap;
+
     if (xrootd_kv_nzones >= XROOTD_KV_MAX_ZONES) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "too many xrootd_kv zones (max %d)",
@@ -199,12 +216,33 @@ xrootd_kv_configure(ngx_conf_t *cf, xrootd_kv_t *kv, ngx_str_t *name,
         size = XROOTD_KV_MIN_SIZE;
     }
 
-    kv->name    = *name;
-    kv->size    = size;
-    kv->key_max = key_max;
-    kv->val_max = val_max;
+    /*
+     * Derive the bucket count from the requested size exactly as before
+     * (size buys capacity), then size the slab-backed table region from it.
+     * The table now lives in slab memory, so the zone we actually request is
+     * padded by xrootd_shm_zone_size() to cover the ngx_slab_pool_t header,
+     * the page-management array, and slab rounding.
+     */
+    stride      = sizeof(xrootd_kv_entry_t) + key_max + val_max;
+    avail       = size - sizeof(xrootd_kv_header_t);
+    cap         = xrootd_kv_floor_pow2(avail / stride);
+    if (cap < 1) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "xrootd_kv_zone \"%V\": size too small for one entry",
+                           name);
+        return NGX_ERROR;
+    }
+    table_bytes = sizeof(xrootd_kv_header_t) + (size_t) cap * stride;
+    zone_size   = xrootd_shm_zone_size(table_bytes);
 
-    kv->zone = ngx_shared_memory_add(cf, name, size, module);
+    kv->name        = *name;
+    kv->size        = size;
+    kv->key_max     = key_max;
+    kv->val_max     = val_max;
+    kv->capacity    = cap;
+    kv->table_bytes = table_bytes;
+
+    kv->zone = ngx_shared_memory_add(cf, name, zone_size, module);
     if (kv->zone == NULL) {
         return NGX_ERROR;
     }

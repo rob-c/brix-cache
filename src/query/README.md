@@ -44,11 +44,11 @@ nginx-xrootd does not embed the `XrdOfs` plugin layer.
 | `checksum_qcksum_async.c` | Thread-pool worker + completion for `kXR_Qcksum`: `xrootd_cksum_aio_thread` computes off-loop via `xrootd_integrity_get_fd`; `xrootd_cksum_aio_done` closes any path-opened fd, sends the result, and resumes the connection. |
 | `checksum_ckscan_dispatch.c` | `kXR_Qckscan` entry (`xrootd_query_ckscan`): parses an optional `algo:`/`algo ` prefix, confines the path, runs the auth gate, then posts a thread task or runs the synchronous `xrootd_ckscan_sync` fallback. |
 | `checksum_ckscan_async.c` | Thread-pool worker + completion for `kXR_Qckscan`: `xrootd_ckscan_aio_thread` stats the target and walks it into a grown buffer; `xrootd_ckscan_aio_done` sends the buffer and frees it. |
-| `checksum_ckscan_common.c` | Shared scan helpers: `xrootd_ckscan_append` (grow the `"algo %08x  logical\n"` buffer), `xrootd_ckscan_join_logical` (parent+child logical-path join with `/`-root special case), `xrootd_ckscan_walk` (recursive, depth/file-capped tree walk skipping dot-entries and unreadable files). |
+| `checksum_ckscan_common.c` | Shared scan helpers: `xrootd_ckscan_append` (grow the `"algo <hex>  logical\n"` buffer — `<hex>` is the precomputed checksum, 8 chars for adler32/crc32c, 16 for crc64/crc64nvme, so the line format is width-agnostic), `xrootd_ckscan_join_logical` (parent+child logical-path join with `/`-root special case), `xrootd_ckscan_walk` (recursive, depth/file-capped tree walk skipping dot-entries and unreadable files). |
 | `space.c` | `kXR_Qspace` (`xrootd_query_space`, `oss.*` key/value capacity report) and `kXR_QFSinfo` (`xrootd_query_fsinfo`, compact `wVal freeMB util sVal freeMB util` form used by client redirect logic), both via `xrootd_fs_usage_stat` / `statvfs`. |
 | `config.c` | `kXR_Qconfig` (`xrootd_query_config`) — best-effort capability query; answers `chksum`, `readv`, `tpc`, `tpcdlg`; unknown keys as `key=0`; `tpc` emits a bare digit for `XrdCl` compatibility. Empty query → `send_ok(NULL, 0)`. |
 | `metadata.c` | `kXR_QStats` (`xrootd_query_stats`, XML server stats), `kXR_Qxattr` (`xrootd_query_xattr`, `oss.*` attrs + `user.U.*` xattrs), `kXR_QFinfo` (`xrootd_query_finfo`, placeholder `"0"`), and the `Qvisa`/`Qopaque`/`Qopaquf`/`Qopaqug` FSctl/fctl hooks that validate then return reference-compatible "unsupported". |
-| `prepare.c` | `kXR_prepare` (`xrootd_handle_prepare`) staging-hint handler and `kXR_QPrep` (`xrootd_query_prep_status`) per-path availability query (`A <path>` / `M <path>` lines); includes the `..`/`.` pre-check `xrootd_prepare_has_forbidden_component`. |
+| `prepare.c` | `kXR_prepare` (`xrootd_handle_prepare`) staging-hint handler and `kXR_QPrep` (`xrootd_query_prep_status`) per-path availability query. FRM-off mode returns legacy `A <path>` / `M <path>` lines and request id `"0"`; FRM-enabled mode delegates durable queue state and request ids to `../frm/`. Includes the `..`/`.` pre-check `xrootd_prepare_has_forbidden_component`. |
 | `prepare_cmd.c` | `xrootd_prepare_invoke_command` — fire-and-forget **double-fork** + `execv` of the configured `xrootd_prepare_command` with confined, auth-checked absolute paths; closes all inherited fds ≥ 3 in the grandchild. |
 | `set.c` | `kXR_set` (`xrootd_handle_set`) — accepts advisory hints; parses/logs `appid` `"cms.space <total> <free>"` capacity reports and `clttl` TTL hints; always replies `kXR_ok`. (Includes `ngx_xrootd_module.h` directly, not `query_internal.h`.) |
 | `util.c` | Standalone file/fd checksum helpers (`xrootd_query_adler32_{fd,file}`, `xrootd_query_crc32_{fd,file}`, `xrootd_query_digest_{fd,file}`) wrapping `../compat/checksum`; the `_file` variants use `xrootd_open_confined` + `xrootd_sanitize_log_string`. |
@@ -72,16 +72,20 @@ nginx-xrootd does not embed the `XrdOfs` plugin layer.
   `algo`, the `max_depth`/`max_files` caps, and a heap-allocated `resp`/`resp_len`
   the worker grows and `_done` frees.
 - **`ctx->prepare_paths` / `prepare_paths_len` / `prepare_reqid[32]`**
-  (`../types/context.h`): per-session staging state set by a `kXR_stage` prepare
-  so a later `kXR_QPrep` with no inline paths can report status against the
-  original list. `prepare_paths` is `ngx_alloc`-d and freed/replaced on each new
-  stage; `prepare_reqid` is always `"0"` (this server is disk-only).
+  (`../types/context.h`): legacy FRM-off per-session staging state set by a
+  `kXR_stage` prepare so a later `kXR_QPrep` with no inline paths can report
+  status against the original list. `prepare_paths` is `ngx_alloc`-d and
+  freed/replaced on each new stage; in this fallback mode `prepare_reqid` is
+  `"0"`. With `xrootd_frm on`, durable request records and real reqids live in
+  `../frm/` and survive disconnect/restart.
 - **Response wire shapes** worth remembering: Qcksum = `"algo hexvalue"`;
-  Qckscan = newline-delimited `"algo %08x  logical_path"` lines; Qspace =
+  Qckscan = newline-delimited `"algo <hex>  logical_path"` lines (hex width per
+  algorithm: 8 for adler32/crc32c, 16 for crc64/crc64nvme); Qspace =
   `oss.cgroup=default&oss.space=…&oss.free=…&oss.maxf=…&oss.used=…&oss.quota=-1`;
   QFSinfo = `"wVal freeMB util sVal freeMB util"` (both halves identical, `wVal`/
   `sVal` = `1`); QStats = an `<statistics>…</statistics>` XML document; QPrep =
-  `"A <path>"` / `"M <path>"` lines.
+  FRM-off `"A <path>"` / `"M <path>"` lines or FRM-backed queued/staging/failed/
+  available status lines.
 
 ## Control & data flow
 
@@ -145,9 +149,11 @@ subsystem the handlers call out to:
   files and dot-entries are silently skipped, not errored. `xrootd_ckscan_append`
   returns `0` (skip) when one output line would overflow its `snprintf` buffer.
 - **Algorithm rules differ per op.** Qcksum accepts adler32 / crc32 / crc32c /
-  md5 / sha1 / sha256 (default adler32); Qckscan only accepts adler32 / crc32c
-  (`xrootd_ckscan_algorithm_supported`) for `xrdadler32` line-format
-  compatibility, also defaulting to adler32. The Qckscan algo prefix is only
+  crc64 / crc64nvme / md5 / sha1 / sha256 (default adler32); Qckscan accepts
+  adler32 / crc32c / crc64 / crc64nvme (`xrootd_ckscan_algorithm_supported`),
+  also defaulting to adler32. (`crc64` = CRC-64/XZ, `crc64nvme` = CRC-64/NVME;
+  stock XRootD ships no crc64 calculator, so these are this gateway's de-facto
+  convention — 16 lowercase hex over the wire.) The Qckscan algo prefix is only
   parsed up to the first `/` so that paths containing `:` are not misread.
 - **`kXR_Qconfig tpc` must be a bare digit.** `XrdCl::Utils::CheckTPCLite` parses
   the first response line with `isdigit()` + `atoi()`; a `tpc=` prefix would make
@@ -161,14 +167,17 @@ subsystem the handlers call out to:
   else `kXR_fsReadOnly`) and **fail-soft on missing files only under `kXR_noerrs`**
   (a not-yet-staged file is counted in `missing`, not errored; without `noerrs` a
   missing file is `kXR_NotFound` and a directory target is `kXR_isDirectory`).
-  `kXR_cancel` / `kXR_evict` are accepted as no-ops.
+  In FRM-off mode `kXR_cancel` / `kXR_evict` are accepted as no-ops; with
+  `xrootd_frm on`, `kXR_cancel` removes queued records and `kXR_evict` is treated
+  as backend-delegated. See `../frm/README.md`.
 - **`kXR_QPrep` treats unauthorized as missing.** Both non-existent and
   auth-denied paths are reported as `M`, matching reference behavior — the auth
   triple and the `S_ISREG` stat must all pass for an `A`.
-- **`kXR_prepare kXR_notify` only fires when nothing is missing.** When
-  `missing == 0` the handler sends a combined `kXR_ok` + `kXR_attn`/`kXR_asyncms`
-  buffer in one write (avoiding an EAGAIN double-queue race); when files are still
-  staging it logs a warning and omits the notification (no completion pipe yet).
+- **`kXR_prepare kXR_notify` has two modes.** In FRM-off mode it only fires when
+  nothing is missing: the handler sends a combined `kXR_ok` +
+  `kXR_attn`/`kXR_asyncms` buffer in one write, and omits notification for
+  still-missing files. With FRM enabled, durable queue state is the authority for
+  completion/progress behavior.
 - **Staging exec is double-forked.** `prepare_cmd.c` forks twice so the grandchild
   reparents to init — without this the staging script's `SIGCHLD` would reach the
   nginx worker (whose process table doesn't know the pid) and crash it. The parent

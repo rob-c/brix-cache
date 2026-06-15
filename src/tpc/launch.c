@@ -1,4 +1,5 @@
 #include "tpc_internal.h"
+#include "../compat/host_format.h"  /* xrootd_format_host_port — IPv6 bracketing */
 /* ---- File: launch.c — TPC pull entry point and destination-side preparation for native root:// third-party copy ----
  *
  * WHAT: Six functions implement the TPC pull launch pipeline on the event thread. tpc_send_open_response builds kXR_ok open response body (fhandle + optional statbuf) → xrootd_queue_response; tpc_build_origin_id constructs origin ID string from ctx->login_user+ngx_pid+getnameinfo host via snprintf+cpystrn; tpc_destination_open_flags derives O_CREAT/O_EXCL/O_TRUNC flags from options bitmask for POSIX open; xrootd_tpc_prepare_pull validates thread_pool + TPC source host/path → checks src policy (allow_local/allow_private) → alloc fhandle idx → xrootd_open_confined(canonical path) → set file metadata (writable=1, tpc_destination=1) → generate+register key if empty → store token_mode → send open response; xrootd_tpc_start_pull validates fhandle_idx + tpc_destination flag → alloc ngx_thread_task → populate xrootd_tpc_pull_t struct from file fields → set handler=xrootd_tpc_pull_thread, event.handler=xrootd_tpc_pull_done → post to thread pool; xrootd_tpc_launch_pull is wrapper for prepare_pull. Non-NGX_THREADS stubs return kXR_ServerError "TPC pull requires NGX_THREADS support". Caller: dispatch.c (kXR_open TPC opaque param path).
@@ -174,12 +175,18 @@ tpc_register_stream_transfer(ngx_connection_t *c, xrootd_file_t *file)
         return 0;
     }
 
-    /* Reconstruct the display URL; %ui prints the port, no NUL is written so
-     * src_url.len is taken from the returned end pointer. */
+    /* Reconstruct the transfer URL.  Bracket an IPv6 literal source host —
+     * tpc_src_host is stored bare (parse.c strips the brackets off "[::1]"), so
+     * "root://[::1]:1094/path" must be re-bracketed here or the URL is
+     * unparseable.  No NUL is written; src_url.len is the returned end pointer. */
     sport = file->tpc_src_port ? file->tpc_src_port : 1094;
-    last = ngx_snprintf(src_buf, sizeof(src_buf), "root://%s:%ui%s",
-                        file->tpc_src_host, (ngx_uint_t) sport,
-                        file->tpc_src_path);
+    {
+        char hostport[288];
+        xrootd_format_host_port(file->tpc_src_host, sport,
+                                hostport, sizeof(hostport));
+        last = ngx_snprintf(src_buf, sizeof(src_buf), "root://%s%s",
+                            hostport, file->tpc_src_path);
+    }
 
     src_url.data = src_buf;
     src_url.len = (size_t) (last - src_buf);
@@ -430,6 +437,30 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
     ngx_cpystrn((u_char *) t->dst_path, (u_char *) file->path,
                 sizeof(t->dst_path));
+
+    /*
+     * SciTags packet marking (phase-34): resolve the (experiment, activity) for
+     * this pull HERE on the event loop — where identity + path are available and
+     * pmark runtime init is single-threaded — and stash on the task.  The thread
+     * (connect.c) only reads the codes and stamps the outbound socket's IPv6 flow
+     * label.  Fail-open: 0/0 means the outbound socket is not labelled.
+     */
+    t->pmark_exp = 0;
+    t->pmark_act = 0;
+    if (conf->common.pmark.enable && conf->common.pmark.flowlabel
+        && xrootd_pmark_runtime_ensure(&conf->common.pmark, ngx_cycle->pool,
+                                       c->log) == NGX_OK)
+    {
+        ngx_uint_t e, a;
+        if (xrootd_pmark_map_codes(&conf->common.pmark,
+                ctx->identity ? xrootd_identity_vo_csv_cstr(ctx->identity) : "",
+                ctx->identity ? xrootd_identity_dn_cstr(ctx->identity) : "",
+                t->dst_path, NULL, &e, &a) == NGX_OK)
+        {
+            t->pmark_exp = e;
+            t->pmark_act = a;
+        }
+    }
 
     xrootd_task_bind(task, xrootd_tpc_pull_thread, xrootd_tpc_pull_done);
 

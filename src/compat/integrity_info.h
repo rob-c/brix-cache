@@ -26,11 +26,15 @@ typedef struct {
  *   allow_xattr_cache    1 → try reading a cached checksum from xattr first
  *   update_xattr_cache   1 → write computed checksum back to xattr on cache miss
  *   require_regular_file 1 → fail with NGX_DECLINED if fd is not a regular file
+ *   no_compute           1 → cache-only: return NGX_DECLINED on a cache miss
+ *                            instead of computing (avoids a full-file read on a
+ *                            latency-sensitive path, e.g. S3 GET/HEAD echo)
  */
 typedef struct {
     ngx_flag_t allow_xattr_cache;
     ngx_flag_t update_xattr_cache;
     ngx_flag_t require_regular_file;
+    ngx_flag_t no_compute;
 } xrootd_integrity_opts_t;
 
 /*

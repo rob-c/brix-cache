@@ -1,4 +1,5 @@
 #include "handshake.h"
+#include "../gsi/gsi_core.h"   /* xrootd_gsi_sigver_required (shared policy) */
 
 /* ---- sigver.c — request signature verification (kXR_sigver HMAC-SHA256) and security-level enforcement ----
  *
@@ -187,35 +188,9 @@ xrootd_verify_pending_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
 static int
 xrootd_sigver_opcode_requires(uint16_t opcode, ngx_uint_t level)
 {
-    /* Level 0: none, Level 1: compatible -> nothing requires signing */
-    if (level <= 1) {
-        return 0;
-    }
-
-    /* These are always allowed unsigned as they are part of the auth/session state machine. */
-    if (opcode == kXR_login || opcode == kXR_protocol || opcode == kXR_auth
-        || opcode == kXR_endsess || opcode == kXR_ping || opcode == kXR_sigver
-        || opcode == kXR_bind)
-    {
-        return 0;
-    }
-
-    /* Level 2: standard -> require for mutations and handle open */
-    if (level == 2) {
-        return (opcode == kXR_open || opcode == kXR_write || opcode == kXR_pgwrite
-                || opcode == kXR_writev || opcode == kXR_truncate || opcode == kXR_mkdir
-                || opcode == kXR_rm || opcode == kXR_rmdir || opcode == kXR_mv
-                || opcode == kXR_chmod || opcode == kXR_fattr || opcode == kXR_chkpoint
-                || opcode == kXR_clone);
-    }
-
-    /* Level 3: intense -> require for everything post-login */
-    if (level == 3) {
-        return 1;
-    }
-
-    /* Level 4: pedantic -> require for everything (except session ops handled above) */
-    return 1;
+    /* Policy table now lives in the shared gsi_core.c (single source with the
+     * native client's signer). Level 4 (pedantic) folds into "everything". */
+    return xrootd_gsi_sigver_required(opcode, (int) level);
 }
 
 /*

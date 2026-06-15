@@ -27,7 +27,8 @@
 
 /* Supported algorithm names used for bulk xattr invalidation. */
 static const char *const s_algorithms[] = {
-    "adler32", "crc32", "crc32c", "md5", "sha1", "sha256", NULL
+    "adler32", "crc32", "crc32c", "md5", "sha1", "sha256",
+    "crc64", "crc64nvme", NULL
 };
 
 static const char *
@@ -166,6 +167,12 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
     /* Check the xattr cache first when allowed. */
     if (o->allow_xattr_cache && integrity_xattr_read(fd, out->alg_name, out)) {
         return NGX_OK;
+    }
+
+    /* Cache-only callers (e.g. S3 GET/HEAD echo) decline on a miss rather than
+     * pay a full-file read on a latency-sensitive path. */
+    if (o->no_compute) {
+        return NGX_DECLINED;
     }
 
     /* Compute the checksum. */

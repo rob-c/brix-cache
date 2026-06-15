@@ -621,18 +621,37 @@ xrootd_hc_timer_handler(ngx_event_t *ev)
 {
     xrootd_hc_mgr_t              *mgr  = ev->data;
     ngx_stream_xrootd_srv_conf_t *conf = mgr->conf;
-    char      host[256];
-    uint16_t  port;
-
-    ngx_add_timer(ev, mgr->scan_interval_ms);   /* re-arm before doing work */
+    char        host[256];
+    uint16_t    port;
+    ngx_msec_t  next_due = conf->hc_interval_ms;
+    ngx_msec_t  delay;
 
     /* Claim is atomic under the registry spinlock and self-rate-limits via
      * hc_next_check, so concurrent workers never double-probe one server. */
     if (xrootd_srv_hc_claim(host, sizeof(host), &port,
-                            conf->hc_interval_ms))
+                            conf->hc_interval_ms, &next_due))
     {
         xrootd_hc_start(mgr->cycle, conf, host, port);
+        /* More servers may be due now — spread the remaining probes at the
+         * per-slot cadence rather than firing them all this tick. */
+        delay = mgr->scan_interval_ms;
+    } else {
+        /* Nothing due: sleep until the soonest server becomes due instead of
+         * waking at the sub-second floor to find nothing (the old idle drain).
+         * Floored by the spread cadence (burst guard) and capped by the probe
+         * interval (so a freshly-registered server is probed within one). */
+        delay = next_due;
+        if (delay < mgr->scan_interval_ms) {
+            delay = mgr->scan_interval_ms;
+        }
+        if (delay > conf->hc_interval_ms) {
+            delay = conf->hc_interval_ms;
+        }
     }
+
+    /* Always re-arm (bounded to [scan_interval, hc_interval]) — a probe-launch
+     * failure or empty registry can never stop future scans. */
+    ngx_add_timer(ev, delay);
 }
 
 void

@@ -138,6 +138,20 @@ int xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
 /* Confined linkat (hard link); both parents confined as above. 0 / -1 (errno). */
 int xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
+/* Confined utimensat (+ fchownat) on <resolved> (vendor kXR_setattr). set_times
+ * applies times[2] (AT_SYMLINK_NOFOLLOW); set_owner applies uid/gid (-1 = keep).
+ * mode is intentionally NOT handled (kXR_chmod covers it). 0 / -1 (errno). */
+int xrootd_setattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, int set_times, const struct timespec times[2],
+    int set_owner, uid_t uid, gid_t gid);
+/* Confined symlinkat: create a symlink at <link_resolved> with literal contents
+ * <target> (target stored verbatim; only the link location is confined). 0 / -1. */
+int xrootd_symlink_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *target, const char *link_resolved);
+/* Confined readlinkat of <resolved> into buf[bufsz] (NOT NUL-terminated by the
+ * syscall). Returns bytes read or -1 (errno set). */
+ssize_t xrootd_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, char *buf, size_t bufsz);
 
 /*
  * xrootd_openat2_runtime_available — returns 1 if openat2(2) works on the

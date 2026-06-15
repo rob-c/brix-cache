@@ -53,6 +53,7 @@
 #include "../compat/staged_file.h"
 #include "../path/path.h"
 #include "../dashboard/dashboard_tracking.h"
+#include "../impersonate/lifecycle.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -62,6 +63,9 @@
 
 static void s3_put_finalize_error(ngx_http_request_t *r);
 static void s3_put_finalize_empty_ok(ngx_http_request_t *r);
+static ngx_int_t s3_put_crc64nvme_apply(ngx_http_request_t *r,
+    const char *fs_path, const char *root_canon);
+static void s3_put_finalize_bad_digest(ngx_http_request_t *r);
 
 static const char *
 s3_dashboard_put_op(ngx_http_request_t *r)
@@ -177,6 +181,12 @@ s3_put_aio_done(ngx_event_t *ev)
         return;
     }
 
+    /* CRC-64/NVME verify (client-supplied) + echo; mismatch removes the object. */
+    if (s3_put_crc64nvme_apply(r, t->final_path, t->root_canon) == NGX_DECLINED) {
+        s3_put_finalize_bad_digest(r);
+        return;
+    }
+
     xrootd_dashboard_http_add(r, (ngx_atomic_int_t) t->body_bytes);
     XROOTD_S3_METRIC_ADD(bytes_rx_total, t->body_bytes);
     if (r->connection && r->connection->sockaddr
@@ -260,6 +270,80 @@ s3_put_finalize_ok(ngx_http_request_t *r, size_t body_bytes,
 }
 
 /*
+ * s3_put_crc64nvme_apply — verify a client-supplied CRC-64/NVME and echo it.
+ *
+ * WHAT: After the object is committed at fs_path, computes its CRC-64/NVME (and
+ *       caches it in the xattr layer). If the client sent x-amz-checksum-crc64nvme
+ *       it is verified by exact base64 match; on mismatch the just-stored object
+ *       is removed (AWS does not keep an object that fails its checksum). On match
+ *       or when no client checksum was sent, the x-amz-checksum-crc64nvme +
+ *       x-amz-checksum-type:FULL_OBJECT echo headers are set.
+ * WHY:  AWS SDK/CLI enable CRC64NVME integrity by default and expect the server to
+ *       verify on upload and echo on success.
+ * Returns NGX_OK (verified / no client checksum — echo set), NGX_DECLINED (client
+ *       checksum MISMATCH — object removed; caller must 400 BadDigest), or
+ *       NGX_ERROR (our own compute failed — caller proceeds without the header).
+ *
+ * NOTE: the streaming aws-chunked trailer form (x-amz-trailer) is not parsed here;
+ *       only a checksum supplied as a normal request header is verified.
+ */
+static ngx_int_t
+s3_put_crc64nvme_apply(ngx_http_request_t *r, const char *fs_path,
+    const char *root_canon)
+{
+    ngx_table_elt_t *h;
+    int              fd;
+    char             b64[S3_CRC64NVME_B64_MAX];
+    ngx_int_t        rc;
+
+    fd = xrootd_open_confined_canon(r->connection->log, root_canon, fs_path,
+                                    O_RDONLY, 0);
+    if (fd < 0) {
+        return NGX_ERROR;
+    }
+    rc = s3_object_crc64nvme_b64(r, fd, fs_path, 0 /* compute + cache */,
+                                 b64, sizeof(b64));
+    close(fd);
+    if (rc != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    h = xrootd_http_find_header(r, S3_HDR_CHECKSUM_CRC64NVME,
+                                sizeof(S3_HDR_CHECKSUM_CRC64NVME) - 1);
+    if (h != NULL && h->value.len > 0) {
+        size_t blen = ngx_strlen(b64);
+
+        if (h->value.len != blen
+            || ngx_strncmp(h->value.data, (u_char *) b64, blen) != 0)
+        {
+            (void) xrootd_unlink_confined_canon(r->connection->log, root_canon,
+                                                fs_path, 0);
+            return NGX_DECLINED;
+        }
+    }
+
+    (void) s3_set_header(r, S3_HDR_CHECKSUM_CRC64NVME, b64);
+    (void) s3_set_header(r, S3_HDR_CHECKSUM_TYPE, "FULL_OBJECT");
+    return NGX_OK;
+}
+
+/*
+ * s3_put_finalize_bad_digest — reject a PUT whose client checksum mismatched.
+ * The object was already removed by s3_put_crc64nvme_apply; send 400 BadDigest
+ * and finalize the dashboard/metrics for the request.
+ */
+static void
+s3_put_finalize_bad_digest(ngx_http_request_t *r)
+{
+    xrootd_dashboard_http_error(r, "s3 checksum mismatch");
+    xrootd_dashboard_http_finish(r);
+    (void) s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "BadDigest",
+        "The CRC64NVME checksum you specified did not match what was received.");
+    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
+                                       NGX_HTTP_BAD_REQUEST);
+}
+
+/*
  * s3_put_finalize_ok — send 200 with ETag header and update metrics.
  *
  * Parameters:
@@ -291,8 +375,28 @@ s3_put_finalize_ok(ngx_http_request_t *r, size_t body_bytes,
  *   return NGX_DONE (the caller already incremented r->main->count via
  *   ngx_http_read_client_request_body).
  */
+static void s3_put_body_inner(ngx_http_request_t *r);
+
+/*
+ * Phase 40: the S3 PUT body is read asynchronously (after inline SigV4 auth has
+ * already populated s3ctx->identity), so this callback re-establishes the
+ * impersonation principal for the duration of the object write.  The create
+ * (xrootd_open_confined_canon) then routes to the broker and the new object is
+ * owned by the mapped user.  No-op unless map mode is active.
+ */
 void
 s3_put_body_handler(ngx_http_request_t *r)
+{
+    ngx_http_s3_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    s3_put_body_inner(r);
+    xrootd_imp_request_end();
+}
+
+static void
+s3_put_body_inner(ngx_http_request_t *r)
 {
     u_char              *fs_path;
     ngx_http_s3_loc_conf_t *cf;
@@ -519,6 +623,14 @@ s3_put_body_handler(ngx_http_request_t *r)
             s3_etag(&final_sb, etag_buf, sizeof(etag_buf));
             (void) s3_set_header(r, "ETag", etag_buf);
         }
+    }
+
+    /* CRC-64/NVME verify (client-supplied) + echo; mismatch removes the object. */
+    if (s3_put_crc64nvme_apply(r, (const char *) fs_path,
+                               cf->common.root_canon) == NGX_DECLINED)
+    {
+        s3_put_finalize_bad_digest(r);
+        return;
     }
 
     s3_put_finalize_ok(r, body_bytes, body_mode);

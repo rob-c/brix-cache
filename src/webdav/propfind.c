@@ -14,6 +14,7 @@
  */
 
 #include "webdav.h"
+#include "../frm/frm.h"
 #include "../compat/etag.h"
 #include "../compat/fs_walk.h"
 #include "../compat/fs_usage.h"
@@ -61,6 +62,11 @@ typedef enum {
 #define PF_ACL_RESTRICTIONS    (1u << 17)
 #define PF_PRINCIPAL_SET       (1u << 18)
 #define PF_ALL                 ((1u << 19) - 1)
+/* xrd:locality (phase-35 tape residency) is DELIBERATELY excluded from PF_ALL:
+ * it must be probed (stat+getxattr per file) only when a client names it
+ * explicitly, so ordinary allprop PROPFINDs (incl. Depth: infinity sweeps) cost
+ * nothing extra. */
+#define PF_LOCALITY            (1u << 19)
 
 /* Maximum number of unrecognised properties tracked for 404 propstat. */
 #define PF_UNKNOWN_MAX     16
@@ -113,6 +119,7 @@ propfind_name_to_bit(const char *name)
         { "acl",                   PF_ACL              },
         { "acl-restrictions",      PF_ACL_RESTRICTIONS },
         { "principal-collection-set", PF_PRINCIPAL_SET },
+        { "locality",              PF_LOCALITY         },
     };
     size_t i;
 
@@ -491,7 +498,8 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
                 "<D:supported-privilege-set/>"
                 "<D:acl/>"
                 "<D:acl-restrictions/>"
-                "<D:principal-collection-set/>") == NULL
+                "<D:principal-collection-set/>"
+                "<xrd:locality/>") == NULL
             || webdav_dead_props_append_all(r, path, head, tail, 1)
                != NGX_OK
             || xrootd_http_chain_appendf(pool, head, tail,
@@ -612,6 +620,38 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
                          : "application/octet-stream";
         if (xrootd_http_chain_appendf(pool, head, tail,
                 "<D:getcontenttype>%s</D:getcontenttype>", ct) == NULL)
+            return NGX_ERROR;
+    }
+
+    /*
+     * xrd:locality — tape residency (phase-35). Probed (stat+getxattr) only when
+     * the client explicitly names the prop (PF_LOCALITY is not in PF_ALL), and
+     * only for regular files. Absent xattr ⇒ ONLINE, so a plain disk export needs
+     * no migration. Values follow the WLCG locality vocabulary.
+     */
+    if ((mask & PF_LOCALITY) && !S_ISDIR(sb->st_mode)) {
+        frm_residency_t res;
+        const char     *loc = "ONLINE";
+
+        if (frm_residency_probe(r->connection->log, path, &res) == NGX_OK) {
+            switch (res.state) {
+            case FRM_RES_ONLINE:
+                loc = res.backend_exists ? "ONLINE_AND_NEARLINE" : "ONLINE";
+                break;
+            case FRM_RES_NEARLINE:
+            case FRM_RES_OFFLINE:
+                loc = "NEARLINE";
+                break;
+            case FRM_RES_LOST:
+                loc = "LOST";
+                break;
+            default:
+                loc = "ONLINE";
+                break;
+            }
+        }
+        if (xrootd_http_chain_appendf(pool, head, tail,
+                "<xrd:locality>%s</xrd:locality>", loc) == NULL)
             return NGX_ERROR;
     }
 
@@ -864,7 +904,8 @@ propfind_do(ngx_http_request_t *r)
 
     if (xrootd_http_chain_appendf(r->pool, &head, &tail,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            "<D:multistatus xmlns:D=\"DAV:\">") == NULL)
+            "<D:multistatus xmlns:D=\"DAV:\""
+            " xmlns:xrd=\"http://xrootd.org/2010/ns/dav\">") == NULL)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

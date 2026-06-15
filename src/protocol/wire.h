@@ -8,3 +8,4 @@
 
 #include "wire_core_requests.h"
 #include "wire_write_extended_requests.h"
+#include "wire_vendor_ext.h"   /* nginx-xrootd vendor ops: setattr/symlink/readlink/link */

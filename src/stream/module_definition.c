@@ -1,6 +1,7 @@
 #include "ngx_xrootd_module.h"
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
+#include "impersonate/lifecycle.h"
 
 extern ngx_command_t ngx_stream_xrootd_commands[];
 
@@ -37,8 +38,10 @@ ngx_module_t ngx_stream_xrootd_module = {
   &ngx_stream_xrootd_module_ctx,
   ngx_stream_xrootd_commands,
   NGX_STREAM_MODULE,
-  /* No master/module init hooks beyond the stream-specific callbacks above. */
-    NULL, NULL,
+  /* init_master: none.  init_module (master, once per load): spawn the phase-40
+   * identity broker when xrootd_impersonation=map; a no-op otherwise. */
+    NULL,                                   /* init master        */
+    xrootd_imp_init_module,                 /* init module        */
     ngx_stream_xrootd_init_process,         /* init process       */
     NULL, NULL, xrootd_exit_process, NULL,
     NGX_MODULE_V1_PADDING

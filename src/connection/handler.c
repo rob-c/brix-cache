@@ -17,6 +17,7 @@
 /* ---- WHY: This handler is the critical entry point that transitions nginx from stream core default behavior to XRootD protocol processing — without it, incoming TCP connections would be processed as raw stream data rather than routed through XRootD session lifecycle (handshake → login → auth → read/write). Four-phase initialization ensures all resources are ready before any wire protocol exchange begins. Metrics slot assignment enables per-server tracking of connection counts and cache configuration across all worker processes using shared memory zones. ---- */
 
 #include "../ngx_xrootd_module.h"
+#include <netinet/tcp.h>   /* Phase 39: TCP_USER_TIMEOUT / TCP_KEEPIDLE etc. */
 
 /* ---- ngx_stream_xrootd_handler — stream-module connection entry point (per-connection init) ----
  *
@@ -92,6 +93,47 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
         ngx_stream_xrootd_srv_conf_t *mconf;
 
         mconf = ngx_stream_get_module_srv_conf(s, ngx_stream_xrootd_module);
+
+        /* Phase 39: cache the merged network-fault deadlines so the hot
+         * recv/park paths never do a srv_conf lookup.  All default 0 = off. */
+        ctx->read_timeout_ms      = mconf->read_timeout;
+        ctx->handshake_timeout_ms = mconf->handshake_timeout;
+        ctx->send_timeout_ms      = mconf->send_timeout;
+
+        /*
+         * Phase 39 (WS3): OS-level dead-peer reaping, applied once at accept on
+         * the control path.  Both default off (leave the kernel defaults), so a
+         * stock deployment is byte-for-byte unchanged.  setsockopt failures are
+         * deliberately non-fatal — a missing option must never abort a connection.
+         */
+        if (mconf->tcp_keepalive) {
+            int on = 1;
+            (void) setsockopt(c->fd, SOL_SOCKET, SO_KEEPALIVE,
+                              (const void *) &on, sizeof(on));
+#if defined(TCP_KEEPIDLE)
+            { int v = 30;
+              (void) setsockopt(c->fd, IPPROTO_TCP, TCP_KEEPIDLE,
+                                (const void *) &v, sizeof(v)); }
+#endif
+#if defined(TCP_KEEPINTVL)
+            { int v = 10;
+              (void) setsockopt(c->fd, IPPROTO_TCP, TCP_KEEPINTVL,
+                                (const void *) &v, sizeof(v)); }
+#endif
+#if defined(TCP_KEEPCNT)
+            { int v = 3;
+              (void) setsockopt(c->fd, IPPROTO_TCP, TCP_KEEPCNT,
+                                (const void *) &v, sizeof(v)); }
+#endif
+        }
+#if defined(TCP_USER_TIMEOUT)
+        if (mconf->tcp_user_timeout > 0) {
+            unsigned int ms = (unsigned int) mconf->tcp_user_timeout;
+            (void) setsockopt(c->fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
+                              (const void *) &ms, sizeof(ms));
+        }
+#endif
+
         if (mconf->metrics_slot >= 0 && ngx_xrootd_shm_zone != NULL
             && ngx_xrootd_shm_zone->data != NULL
             && ngx_xrootd_shm_zone->data != (void *) 1)
@@ -158,6 +200,27 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
                             &ups[ui].host, (ngx_uint_t) ups[ui].port);
                     }
                 }
+            }
+
+            /*
+             * Phase 39 (WS9): pre-identity admission cap.  Once the listener's
+             * active-connection gauge is at xrootd_max_connections, refuse with a
+             * plain TCP close — there is no streamid pre-login for a framed
+             * kXR_wait, and combined with xrootd_handshake_timeout this bounds a
+             * half-open / reconnect-storm flood.  Checked BEFORE the active++ so
+             * a refused connection never perturbs the gauge.  0 = unlimited.
+             */
+            if (mconf->max_connections > 0
+                && (ngx_uint_t) ngx_atomic_fetch_add(&srv->connections_active, 0)
+                   >= mconf->max_connections)
+            {
+                ngx_atomic_fetch_add(&srv->connections_rejected_total, 1);
+                ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                              "xrootd: connection refused — listener at "
+                              "xrootd_max_connections (%ui)",
+                              mconf->max_connections);
+                ngx_stream_finalize_session(s, NGX_STREAM_OK);
+                return;
             }
 
             ngx_atomic_fetch_add(&srv->connections_total, 1);

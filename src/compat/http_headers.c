@@ -373,6 +373,17 @@ xrootd_http_set_header_num(ngx_http_request_t *r, const char *key, long value)
     return xrootd_http_set_header_str(r, key, &v, 1, NULL);
 }
 
+void
+xrootd_http_source_offer(ngx_http_request_t *r)
+{
+    /* AGPL-3.0 sec.13: prominently offer remote users the Corresponding Source.
+     * Best-effort — a header allocation failure must never fail the request. */
+    static const ngx_str_t  src =
+        ngx_string(XROOTD_SOURCE_URL " (nginx-xrootd, AGPL-3.0)");
+
+    (void) xrootd_http_set_header_str(r, "X-Source", &src, 0, NULL);
+}
+
 ngx_int_t
 xrootd_http_request_header_add(ngx_http_request_t *r, const char *key,
     const char *value, ngx_table_elt_t **out)

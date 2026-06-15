@@ -17,11 +17,11 @@
  * WHAT: Returns '0'-'9' for values 0-9, 'A'-'F' for values 10-15. WHY: Used by encoding
  *      functions to produce hex output characters from individual nibbles. */
 
-u_char
-xrootd_hex_nibble(u_char v)
+uint8_t
+xrootd_hex_nibble(uint8_t v)
 {
-    return (v < 10) ? (u_char) ('0' + v)
-                    : (u_char) ('A' + (v - 10));
+    return (v < 10) ? (uint8_t) ('0' + v)
+                    : (uint8_t) ('A' + (v - 10));
 }
 
 /*
@@ -56,7 +56,7 @@ xrootd_hex_from_char(unsigned char c)
  *      representation of arbitrary binary data. */
 
 void
-xrootd_hex_encode(const u_char *in, size_t len, char *out)
+xrootd_hex_encode(const uint8_t *in, size_t len, char *out)
 {
     static const char hex[] = "0123456789abcdef";
     size_t            i;
