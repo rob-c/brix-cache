@@ -1,6 +1,6 @@
 # Configuration directive reference
 
-Reference for the most commonly-used `xrootd_*` directives — name, context, type, default, and what each one actually does. For a single-table summary of the most-used directives, see [quick-reference.md](quick-reference.md). Some advanced features (health checks, traffic mirroring, rate limiting) are not yet covered in detail here.
+Reference for the most commonly-used `xrootd_*` directives — name, context, type, default, and what each one actually does. For a single-table summary of the most-used directives, see [quick-reference.md](quick-reference.md). Some advanced features are summarized in their subsystem docs first; for example, health checks live in [`src/upstream/README.md`](../../src/upstream/README.md), traffic mirroring in [`src/mirror/README.md`](../../src/mirror/README.md), and advanced rate/bandwidth/concurrency limits in [`src/ratelimit/README.md`](../../src/ratelimit/README.md).
 
 [← Configuration overview](config-reference.md)
 
@@ -488,9 +488,23 @@ Cache mode is currently direct-mode and defaults to read-only:
 - A working nginx thread pool is required.
 - The origin fetch is anonymous; authenticated origin fetches are not implemented.
 - The origin should be a data server. Redirect-following is not implemented for cache fills.
-- Files are cached as whole files. Partial-file/range caching is not implemented.
+- By default files are cached as whole files. Set `xrootd_cache_slice` to enable fixed-size partial/range slice caching.
 - Cache eviction is best-effort and runs during cache fills when filesystem occupancy is above `xrootd_cache_eviction_threshold`.
 - **Write-through mode** (optional): When enabled via `xrootd_write_through on`, dirty write handles are mirrored to an origin data server on `kXR_sync` or `kXR_close`.
+
+### `xrootd_cache_slice <size>|off`
+
+**Default:** `off`
+
+Enables fixed-size slice caching for cache reads when `xrootd_cache on` is also
+enabled. A read that touches a missing slice schedules a bounded origin fetch for
+that slice and asks the client to retry with `kXR_wait`; later reads can serve
+ready slices without fetching the whole origin object. The size must be `off`/`0`
+or a positive multiple of 1 MiB.
+
+```nginx
+xrootd_cache_slice 128m;
+```
 
 ### `xrootd_write_through on|off`
 

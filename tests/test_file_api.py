@@ -27,6 +27,7 @@ from backend_matrix import selected_backend_name
 from settings import (
     CA_DIR,
     DATA_ROOT,
+    HOST,
     NGINX_ANON_PORT,
     NGINX_GSI_PORT,
     PROXY_STD,
@@ -42,8 +43,8 @@ from settings import (
 CROSS_BACKEND = selected_backend_name()
 
 if CROSS_BACKEND == "xrootd":
-    ANON_URL = f"root://localhost:{REF_XROOTD_PORT}"
-    GSI_URL  = f"root://localhost:{REF_XROOTD_GSI_SHARED_PORT}"
+    ANON_URL = f"root://{HOST}:{REF_XROOTD_PORT}"
+    GSI_URL  = f"root://{HOST}:{REF_XROOTD_GSI_SHARED_PORT}"
 else:
     ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
     GSI_URL  = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"

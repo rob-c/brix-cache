@@ -200,6 +200,10 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
 ngx_int_t
 xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
+    /* phase-42 W4 invariant: readv is ALWAYS plaintext — it never consults
+     * read_codec.  Inline read compression applies only to single-segment
+     * kXR_read; readv's interleaved per-segment framing (and its pgread-style
+     * integrity expectations) stay byte-for-byte intact. */
     ngx_stream_xrootd_srv_conf_t *rconf;
     readahead_list                 *wire_segments;
     size_t                          segment_count;

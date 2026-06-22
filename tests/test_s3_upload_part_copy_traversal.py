@@ -31,9 +31,8 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import S3_MPU_DATA_ROOT, S3_MPU_PORT
+from settings import HOST, S3_MPU_DATA_ROOT, S3_MPU_PORT
 
-HOST = "127.0.0.1"
 PORT = S3_MPU_PORT
 BUCKET = "testbucket"
 S3_NS = "http://s3.amazonaws.com/doc/2006-03-01/"

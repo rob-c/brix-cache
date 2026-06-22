@@ -5,6 +5,8 @@
 #include "webdav.h"
 #include "../compat/namespace_ops.h"
 #include "../compat/http_conditionals.h"
+#include "../impersonate/impersonate.h"
+#include "../path/path.h"
 
 #include <limits.h>
 #include <string.h>
@@ -119,6 +121,16 @@ webdav_move_collection_post_task(ngx_http_request_t *r,
     ngx_thread_task_t             *task;
     webdav_move_collection_task_t *t;
     ngx_thread_pool_t             *pool;
+
+    /*
+     * Under impersonation the per-worker broker socket is a single fd used by
+     * the event-loop thread; a thread-pool task issuing confined ops would race
+     * it and corrupt the broker framing (and lacks the per-worker principal).
+     * Force the synchronous rename path (NGX_DECLINED).  See copy.c for detail.
+     */
+    if (xrootd_imp_enabled()) {
+        return NGX_DECLINED;
+    }
 
     /* postconfig only visits server-level loc_conf; resolve lazily for nested
      * location blocks where conf->common.thread_pool may still be NULL. */
@@ -238,7 +250,8 @@ webdav_handle_move(ngx_http_request_t *r)
         return rc;
     }
 
-    if (stat(src_path, &src_sb) != 0) {
+    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
+                                    src_path, &src_sb, 0) != 0) {
         return NGX_HTTP_NOT_FOUND;
     }
 
@@ -255,7 +268,8 @@ webdav_handle_move(ngx_http_request_t *r)
         return rc;
     }
 
-    dst_existed = (stat(dst_path, &dst_sb) == 0);
+    dst_existed = (xrootd_lstat_confined_canon(r->connection->log,
+                       conf->common.root_canon, dst_path, &dst_sb, 0) == 0);
 
     rc = webdav_check_locks_tree(r, dst_path);
     if (rc != NGX_OK) {

@@ -32,15 +32,17 @@ import uuid
 
 import pytest
 
-from settings import WEBDAV_DELLOCK_DATA_ROOT, WEBDAV_DELLOCK_PORT
+from settings import HOST, WEBDAV_DELLOCK_DATA_ROOT, WEBDAV_DELLOCK_PORT
 
 # ---------------------------------------------------------------------------
 # The write-enabled, no-auth HTTP WebDAV server is now a dedicated instance
 # pre-started by manage_test_servers.sh start-all ("webdav-dellock" on port
 # 13210, serving data-webdav-dellock); the webdav_server fixture just connects
 # to it.  Override via TEST_WDAV_DELLOCK_PORT if it ever clashes locally.
+# This file only ever CONNECTS to that pre-started instance (it never binds),
+# so the client host comes from settings.HOST (TEST_HOST; loopback default).
 # ---------------------------------------------------------------------------
-H = "127.0.0.1"
+H = HOST
 WEBDAV_PORT = WEBDAV_DELLOCK_PORT
 
 _DATA = None         # dedicated data root (set by the module fixture)

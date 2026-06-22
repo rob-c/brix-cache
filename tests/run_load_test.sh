@@ -224,12 +224,82 @@ wait_port() {
 }
 
 # ---------------------------------------------------------------------------
+# Pre-flight: clear stale/orphan perf nginx before a run so a previous crashed
+# or incompletely-stopped run cannot poison this one.  nginx uses SO_REUSEPORT,
+# so an ungraceful exit can leave worker processes alive still holding the listen
+# sockets on the perf ports.  Each orphan keeps running every module timer (the
+# FRM stage drain, the health-check scan, CMS/keepalive heartbeats), stealing CPU
+# and scheduler time and skewing the benchmark's tail latency.  Both checks are
+# scoped to the perf port range and the perf master's own children, so they never
+# touch the shared dev test fleet running on other ports.
+# ---------------------------------------------------------------------------
+
+PERF_PORT_LO=12790
+PERF_PORT_HI=12799
+
+reap_perf_orphans() {
+    # 1. Normal stop via the pidfile + process group (handles the common case).
+    stop_nginx
+    # 2. Hunt anything still bound to the perf ports — reuseport orphans whose
+    #    master is already gone, so the pidfile/group reap above cannot find them.
+    local pids
+    pids="$(ss -tlnHp "sport >= $PERF_PORT_LO and sport <= $PERF_PORT_HI" 2>/dev/null \
+            | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u | tr '\n' ' ')"
+    if [[ -n "${pids// /}" ]]; then
+        log "pre-flight: reaping stale process(es) on perf ports" \
+            "$PERF_PORT_LO-$PERF_PORT_HI: $pids"
+        # shellcheck disable=SC2086
+        kill -KILL $pids 2>/dev/null || true
+        sleep 0.5
+    fi
+    # 3. Refuse to start if the ports are still held — the run would be invalid.
+    local n
+    n="$(ss -tlnH "sport >= $PERF_PORT_LO and sport <= $PERF_PORT_HI" 2>/dev/null | wc -l)"
+    if [[ "$n" -gt 0 ]]; then
+        log "ERROR: perf ports $PERF_PORT_LO-$PERF_PORT_HI still in use after the" \
+            "orphan reap; a stale process is holding them and the benchmark would" \
+            "be poisoned. Investigate:  ss -tlnp | grep -E ':1279'"
+        return 1
+    fi
+    return 0
+}
+
+# Post-start sanity: the freshly-started perf master must own exactly the
+# configured number of workers.  A mismatch means orphan workers survived (each
+# runs every module timer) — surfaced as a WARN so the operator can discard the
+# run rather than silently trust skewed numbers.
+verify_worker_count() {
+    local pidfile="$NGINX_PERF_DIR/logs/nginx.pid"
+    [[ -f "$pidfile" ]] || { log "WARN: no perf nginx pidfile — cannot verify workers"; return 0; }
+    local master expect actual
+    master="$(cat "$pidfile" 2>/dev/null)"
+    [[ -n "$master" ]] || return 0
+    # `|| true`: with `worker_processes auto` the grep finds no digits and exits
+    # non-zero, which under `set -euo pipefail` would abort the whole sweep. The
+    # next line already falls back to nproc when expect is empty.
+    expect="$(grep -oE '^[[:space:]]*worker_processes[[:space:]]+[0-9]+' \
+              "$NGINX_GEN_CONF" 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)"
+    [[ -n "$expect" ]] || expect="$(nproc 2>/dev/null || echo 1)"   # 'auto' → all cores
+    actual="$(pgrep -P "$master" 2>/dev/null | wc -l | tr -d ' ')"
+    if [[ "$actual" -ne "$expect" ]]; then
+        log "WARN: perf nginx has $actual worker(s) but expected $expect" \
+            "(worker_processes) — possible orphan contamination; benchmark" \
+            "numbers may be skewed."
+    else
+        log "pre-flight OK: perf worker count == expected ($expect)"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # nginx-xrootd
 # ---------------------------------------------------------------------------
 
 start_nginx() {
     log "Starting nginx-xrootd (perf config)..."
     mkdir -p "$NGINX_PERF_DIR"/{logs,tmp}
+
+    # Pre-flight: clear any orphaned perf nginx left by a prior crashed run.
+    reap_perf_orphans || return 1
 
     # Validate + launch from the generated (TLS-templated) config.
     "$NGINX_BIN" -c "$NGINX_GEN_CONF" \
@@ -246,6 +316,7 @@ start_nginx() {
     wait_port localhost 12796 "nginx XRootD+TLS"
     wait_port localhost 12792  "nginx WebDAV+GSI"
     log "nginx-xrootd started (pid: $(cat $NGINX_PERF_DIR/logs/nginx.pid))"
+    verify_worker_count   # assert no orphan workers contaminate the run
 }
 
 stop_nginx() {

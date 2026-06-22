@@ -230,7 +230,11 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
             xrootd_proxy_upstream_t *ups = conf->proxy_upstreams->elts;
             ngx_atomic_uint_t        idx, i;
 
-            /* Select a healthy upstream. */
+            /* Select a healthy upstream.  If EVERY upstream is currently marked
+             * down (and none has aged past the retry window) do NOT fall through
+             * to a known-dead endpoint — fail the connect so the caller returns a
+             * clean error instead of hammering a dead upstream in a tight loop. */
+            int found = 0;
             idx = ngx_atomic_fetch_add(&proxy_upstream_rr, 1) % conf->proxy_upstreams->nelts;
             for (i = 0; i < conf->proxy_upstreams->nelts; i++) {
                 ngx_uint_t cur = (idx + i) % conf->proxy_upstreams->nelts;
@@ -238,8 +242,17 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
                     ngx_time() - proxy_up_status[cur].checked >= XROOTD_PROXY_FAIL_TIMEOUT)
                 {
                     idx = cur;
+                    found = 1;
                     break;
                 }
+            }
+
+            if (!found) {
+                ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
+                              "xrootd proxy: all %ui upstream(s) down — "
+                              "failing request",
+                              (ngx_uint_t) conf->proxy_upstreams->nelts);
+                return NGX_ERROR;
             }
 
             use_host = &ups[idx].host;

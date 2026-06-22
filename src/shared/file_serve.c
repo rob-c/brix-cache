@@ -37,6 +37,7 @@
  */
 #include "file_serve.h"
 #include "../compat/http_file_response.h"
+#include "../compat/http_compress.h"
 #include "../compat/range.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../cache/open.h"
@@ -78,6 +79,59 @@ xrootd_http_serve_file_ranged(ngx_http_request_t *r,
     send_len             = (vst->size > 0) ? (range_end - range_start + 1) : 0;
     result->range_result = rng.present ? XROOTD_SERVE_RANGE_PARTIAL
                                        : XROOTD_SERVE_RANGE_FULL;
+
+    /* Phase 1b (phase-42): outbound compression. Opt-in per location; only a
+     * whole-object, non-HEAD GET of a compressible type whose Accept-Encoding
+     * names a codec we have takes this path. It bypasses sendfile (read ->
+     * codec -> chunked output filter), so the uncompressed fast path below is
+     * untouched for every other request. */
+    if (opts->compress) {
+        xrootd_codec_id_t enc;
+        /* Resolve the response content-type from the URI extension BEFORE
+         * negotiating: the negotiator's incompressible-MIME deny list reads
+         * r->headers_out.content_type, which nginx does NOT populate on request
+         * entry (it is otherwise set later, inside set_file_headers). Without
+         * this, content_type is empty at negotiate time and the deny list is dead
+         * code, so already-compressed types (image, video, .gz, ...) get
+         * wastefully re-compressed. Idempotent: set_file_headers' later call
+         * early-returns once it is set. */
+        (void) ngx_http_set_content_type(r);
+        enc = xrootd_http_compress_negotiate(r, vst->size, rng.present);
+        if (enc != XROOTD_CODEC_IDENTITY) {
+            ngx_fd_t cfd, csend;
+            off_t    bytes_out = 0;
+
+            cfd        = xrootd_vfs_file_fd(fh);
+            from_cache = xrootd_vfs_file_from_cache(fh);
+            cache_path = xrootd_vfs_file_path(fh);
+            csend = dup(cfd);
+            if (csend == NGX_INVALID_FILE) {
+                xrootd_vfs_close(fh, r->connection->log);
+                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            }
+            (void) xrootd_dashboard_http_start_identity(r, fs_path,
+                opts->identity, "", opts->xfer_proto, XROOTD_XFER_DIR_READ,
+                opts->op_name, (int64_t) vst->size);
+            xrootd_vfs_close(fh, r->connection->log);
+
+            rc = xrootd_http_send_file_compressed(r, csend, fs_path, vst->size,
+                                                  enc, vst->mtime,
+                                                  opts->etag_flags, &bytes_out);
+            if (rc == NGX_ERROR || rc >= NGX_HTTP_SPECIAL_RESPONSE) {
+                xrootd_dashboard_http_error(r, "serve_file_ranged: compress send failed");
+                xrootd_dashboard_http_finish(r);
+                return rc;
+            }
+            result->range_result = XROOTD_SERVE_RANGE_FULL;
+            result->bytes_sent   = bytes_out;          /* compressed bytes on wire */
+            xrootd_dashboard_http_add(r, (ngx_atomic_int_t) bytes_out);
+            if (from_cache && vst->size > 0) {
+                (void) xrootd_cache_record_access(cache_path, (size_t) vst->size,
+                                                  r->connection->log);
+            }
+            return rc;
+        }
+    }
 
     /* Phase 2: response headers */
     if (xrootd_http_set_file_headers(r, vst->mtime, vst->size, send_len,

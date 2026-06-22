@@ -145,6 +145,7 @@ xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
     fh->mode = st.st_mode;
     fh->from_cache = from_cache ? 1 : 0;
     fh->is_tls = ctx->is_tls;
+    fh->stat_current = 1;   /* cached metadata is fresh from the fstat above */
 
     *out = fh;
     return NGX_OK;
@@ -372,6 +373,25 @@ xrootd_vfs_file_stat(const xrootd_vfs_file_t *fh, xrootd_vfs_stat_t *stat_out)
     if (fh == NULL || fh->fd == NGX_INVALID_FILE || stat_out == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
+    }
+
+    /*
+     * phase-45 W2/R1: when the metadata cached at adopt time is still current
+     * (no write on this handle since the open-time fstat), answer from it and
+     * skip a redundant fstat(2).  This is the common read path (S3/WebDAV GET
+     * open the fd then immediately stat it).  xrootd_vfs_write() clears
+     * stat_current, so a write-then-stat caller still gets a live fstat.
+     */
+    if (fh->stat_current) {
+        ngx_memzero(stat_out, sizeof(*stat_out));
+        stat_out->size = fh->size;
+        stat_out->mtime = fh->mtime;
+        stat_out->ctime = fh->ctime;
+        stat_out->mode = (ngx_uint_t) fh->mode;
+        stat_out->ino = fh->ino;
+        stat_out->is_directory = S_ISDIR(fh->mode) ? 1 : 0;
+        stat_out->is_regular = S_ISREG(fh->mode) ? 1 : 0;
+        return NGX_OK;
     }
 
     if (fstat(fh->fd, &st) != 0) {

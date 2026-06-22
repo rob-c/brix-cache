@@ -98,6 +98,7 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->proxy_certs  = NGX_CONF_UNSET;
     conf->tape_rest    = NGX_CONF_UNSET;
     conf->common.allow_write  = NGX_CONF_UNSET;
+    conf->common.compress     = NGX_CONF_UNSET;
     xrootd_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
     conf->ca_store     = NULL;
     conf->cors_origins = NULL;
@@ -190,6 +191,7 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
     ngx_conf_merge_value(conf->tape_rest, prev->tape_rest, 0);
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
+    ngx_conf_merge_value(conf->common.compress, prev->common.compress, 0);
     if (xrootd_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
         != NGX_CONF_OK)
     {

@@ -1,0 +1,70 @@
+# .clangd — code-analysis configuration for the nginx-xrootd C project.
+#
+# WHY THIS FILE EXISTS
+#   This repo is an out-of-tree nginx module (src/) plus native CLI/FUSE clients
+#   (client/). nginx generates its real build flags via ./configure into an
+#   external build tree (see AGENTS.md: /tmp/nginx-1.28.3). Without those -I paths
+#   clangd cannot find ngx_*.h or the project's own headers, so it floods every
+#   file with false "file not found" / "unknown type" errors and no real analysis
+#   happens. The flags below let clangd resolve every header for BOTH src/ and
+#   client/ — including newly-added files that are not yet in compile_commands.json
+#   (clangd applies these on top of any per-file command from the compile DB).
+#
+# IF THE NGINX BUILD TREE MOVES
+#   Update the /tmp/nginx-1.28.3 paths below (and re-run the compile-DB generator,
+#   tools/clangd/gen_compile_commands.py, if you use clang-tidy).
+#
+# REGENERATE THE OPTIONAL PER-FILE COMPILE DB (for clang-tidy / exact flags):
+#   python3 tools/clangd/gen_compile_commands.py
+
+CompileFlags:
+  Add:
+    - -xc
+    - -std=gnu11
+    # --- nginx core build tree (out-of-tree; see AGENTS.md) ---
+    - -I/tmp/nginx-1.28.3/src/core
+    - -I/tmp/nginx-1.28.3/src/event
+    - -I/tmp/nginx-1.28.3/src/event/modules
+    - -I/tmp/nginx-1.28.3/src/event/quic
+    - -I/tmp/nginx-1.28.3/src/os/unix
+    - -I/tmp/nginx-1.28.3/objs
+    - -I/tmp/nginx-1.28.3/src/http
+    - -I/tmp/nginx-1.28.3/src/http/modules
+    - -I/tmp/nginx-1.28.3/src/stream
+    # --- this repo (module sources, client lib, shared protocol core) ---
+    - -I/home/rcurrie/HEP-x/nginx-xrootd/src
+    - -I/home/rcurrie/HEP-x/nginx-xrootd/client/lib
+    - -I/home/rcurrie/HEP-x/nginx-xrootd/shared/xrdproto
+    # --- optional system deps used behind XROOTD_HAVE_* / client Makefile ---
+    - -I/usr/include/libxml2
+    - -I/usr/include/fuse3
+    # --- feature macros (mirror ./configure CFLAGS + client/Makefile) ---
+    - -D_GNU_SOURCE
+    - -DXROOTD_HAVE_LIBXML2=1
+    - -DXROOTD_HAVE_JANSSON=1
+    - -DXROOTD_HAVE_KRB5=1
+    - -DXROOTD_HAVE_ZLIB=1
+    - -DXROOTD_HAVE_ZSTD=1
+    - -DXROOTD_HAVE_LZMA=1
+    - -DXROOTD_HAVE_BROTLI=1
+    - -DXROOTD_HAVE_BZIP2=1
+    - -DXROOTD_HAVE_LZ4=1
+  Remove:
+    # Strip flags pulled from the real compile DB that clangd should not enforce:
+    # -Werror* would promote analyzer-only diagnostics to hard errors; the rest
+    # are GCC build/codegen knobs irrelevant to static analysis.
+    - -Werror*
+    - -fprofile*
+    - -fcf-protection*
+    - -fstack-clash-protection
+    - --param*
+
+# Index the whole project in the background so cross-file navigation works.
+Index:
+  Background: Build
+
+Diagnostics:
+  # Unused-include detection is noisy and unreliable for C projects that rely on
+  # transitive includes (nginx + the split wire.h fragment headers); silence it.
+  UnusedIncludes: None
+  MissingIncludes: None

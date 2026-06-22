@@ -18,6 +18,7 @@
 
 #include "s3.h"
 #include "../compat/http_body.h"
+#include "../impersonate/lifecycle.h"
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -210,8 +211,27 @@ s3_delete_objects_finish(ngx_http_request_t *r,
  *   - Key length: < S3_MAX_KEY — reports InvalidArgument per offending object
  */
 
+static void s3_delete_objects_body_handler_inner(ngx_http_request_t *r);
+
+/*
+ * Phase 40: the DeleteObjects body is read asynchronously, so the dispatch
+ * wrapper already cleared the impersonation principal.  Re-establish it (mirrors
+ * s3_put_body_handler) so each unlink/rmdir runs under the mapped user's DAC via
+ * the broker rather than the unprivileged worker.  No-op unless map mode.
+ */
 void
 s3_delete_objects_body_handler(ngx_http_request_t *r)
+{
+    ngx_http_s3_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    s3_delete_objects_body_handler_inner(r);
+    xrootd_imp_request_end();
+}
+
+static void
+s3_delete_objects_body_handler_inner(ngx_http_request_t *r)
 {
     ngx_http_s3_loc_conf_t  *cf;
     ngx_uint_t               method_slot;

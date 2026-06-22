@@ -191,9 +191,10 @@ typedef struct {
 /*
  * xrootd_pgread_aio_t — async kXR_pgread context.
  *
- * scratch layout: [0 .. rlen-1] = flat file data read by thread;
- *                 [rlen .. rlen+out_size-1] = interleaved data+CRC written by thread.
- * The completion callback builds the chain from scratch + rlen.
+ * scratch holds the final interleaved [CRC32c(4)][data] wire output starting at
+ * offset 0: the worker reads file data straight into the data gaps (no flat copy
+ * region) and CRCs each page in place, so out_size <= rlen + pages*4. The
+ * completion callback builds the data chain from scratch[0 .. out_size-1].
  */
 typedef struct {
     ngx_connection_t              *c;

@@ -27,6 +27,7 @@ import pytest
 
 from settings import (
     CA_CERT,
+    HOST,
     NGINX_WEBDAV_GSI_TLS_PORT,
     PKI_DIR as PKI_DIR_STR,
     SERVER_CERT,
@@ -34,6 +35,7 @@ from settings import (
     XRDHTTP_HTTP_PORT,
     XRDHTTP_ROOT_PORT,
     XROOTD_BIN,
+    url_host,
 )
 
 pytestmark = pytest.mark.timeout(120)
@@ -55,17 +57,17 @@ def _require_curl():
 @dataclass(frozen=True)
 class NginxWebDAVBackend:
     """nginx-xrootd WebDAV/davs:// endpoint."""
-    host: str = "localhost"
+    host: str = HOST
     port: int = NGINX_WEBDAV_GSI_TLS_PORT
-    url_base: str = f"https://{host}:{port}"
+    url_base: str = f"https://{url_host(host)}:{port}"
 
 
 @dataclass(frozen=True)
 class XrdHttpBackend:
     """Reference xrootd XrdHttp HTTPS endpoint."""
-    host: str = "localhost"
+    host: str = HOST
     port: int = 11113
-    url_base: str = f"https://{host}:{port}"
+    url_base: str = f"https://{url_host(host)}:{port}"
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +155,7 @@ def _get_backend_url():
     backend = os.environ.get("TEST_CROSS_BACKEND", "default")
 
     if backend == "xrootd":
-        return f"https://localhost:{XRDHTTP_HTTP_PORT}"
+        return f"https://{url_host(HOST)}:{XRDHTTP_HTTP_PORT}"
 
     # Default or 'nginx' → use nginx-xrootd WebDAV endpoint
     ext_url = os.environ.get("TEST_NGINX_URL") or os.environ.get("EXTERNAL_NGINX_URL")
@@ -161,7 +163,7 @@ def _get_backend_url():
         parsed = str(ext_url)
         return parsed
 
-    return f"https://localhost:{NGINX_WEBDAV_GSI_TLS_PORT}"
+    return f"https://{url_host(HOST)}:{NGINX_WEBDAV_GSI_TLS_PORT}"
 
 
 def _get_xrdhttp_port():
@@ -189,12 +191,12 @@ def xrdhttp_backend():
     _require_curl()
     http_port = _get_xrdhttp_port()
     result = subprocess.run(
-        ["curl", "-skf", f"https://localhost:{http_port}/"],
+        ["curl", "-skf", f"https://{url_host(HOST)}:{http_port}/"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
     )
     if result.returncode != 0:
         pytest.skip(f"XrdHttp server not reachable at port {http_port}")
-    yield XrdHttpBackend(port=http_port, url_base=f"https://localhost:{http_port}")
+    yield XrdHttpBackend(port=http_port, url_base=f"https://{url_host(HOST)}:{http_port}")
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +254,7 @@ class TestHTTPMethodsCommon:
         filename = "xrdhttp-put-new.txt"
         content = b"content created via PUT operation\n"
 
-        tmpfile = Path("/tmp/xrdhttp_put_test.dat")
+        tmpfile = Path(os.path.join(os.environ["TMPDIR"], "xrdhttp_put_test.dat"))
         tmpfile.write_bytes(content)
 
         url = f"{xrdhttp_backend.url_base}/{filename}"
@@ -277,7 +279,7 @@ class TestHTTPMethodsCommon:
 
         self._setup_file(xrdhttp_backend.url_base, filename, original)
 
-        tmpfile = Path("/tmp/xrdhttp_put_overwrite.dat")
+        tmpfile = Path(os.path.join(os.environ["TMPDIR"], "xrdhttp_put_overwrite.dat"))
         tmpfile.write_bytes(updated)
 
         url = f"{xrdhttp_backend.url_base}/{filename}"
@@ -355,7 +357,7 @@ class TestSSRFPolicy:
     def test_xrdhttp_rejects_loopback_source(self):
         """XrdHttp should not allow accessing internal loopback resources via TPC."""
         port = _get_xrdhttp_port()
-        url = f"https://localhost:{port}/should-not-accept.txt"
+        url = f"https://{url_host(HOST)}:{port}/should-not-accept.txt"
 
         # Try to make the xrootd server pull from an internal source — this tests
         # whether the backend has SSRF protection. Note: XrdHttp has limited TPC
@@ -364,7 +366,7 @@ class TestSSRFPolicy:
 
         result = _curl_no_cert(
             "-X", "COPY",
-            f"https://localhost:{port}/should-not-accept.txt",
+            f"https://{url_host(HOST)}:{port}/should-not-accept.txt",
             "-H", "Source: https://127.0.0.1:443/internal-secret",
             "-H", "Credential: none",
             "-o", "/dev/null", "-w", "%{http_code}",
@@ -392,7 +394,7 @@ class TestPathConfinement:
             status_code = _get_http_code(url)
             # Should NOT return 200 — traversal attempts must be blocked
             if status_code == 200:
-                pytest.xfail(
+                pytest.fail(
                     f"XrdHttp allowed path traversal attempt: {attempt}"
                 )
 
@@ -441,7 +443,7 @@ class TestLargeFileTransfer:
         size = 512 * 1024
         content = bytes((i % 256) for i in range(size))
 
-        tmpfile = Path("/tmp/xrdhttp_large_test.dat")
+        tmpfile = Path(os.path.join(os.environ["TMPDIR"], "xrdhttp_large_test.dat"))
         tmpfile.write_bytes(content)
 
         url = f"{xrdhttp_backend.url_base}/{filename}"
@@ -490,7 +492,7 @@ class TestAuthBoundaryErrors:
     def test_missing_tls_credentials_to_https(self):
         """HTTPS endpoint without client certs should still serve public resources."""
         port = _get_xrdhttp_port()
-        url = f"https://localhost:{port}/"
+        url = f"https://{url_host(HOST)}:{port}/"
 
         # Request without TLS client credentials — should work for anonymous access
         result = _curl_no_cert("-s", "-o", "/dev/null", "-w", "%{http_code}", url)
@@ -499,7 +501,7 @@ class TestAuthBoundaryErrors:
     def test_invalid_tls_certificate_handling(self):
         """HTTPS endpoint should handle invalid certificate gracefully."""
         port = _get_xrdhttp_port()
-        url = f"https://localhost:{port}/"
+        url = f"https://{url_host(HOST)}:{port}/"
 
         # Request with a fake/expired cert — XrdHttp may reject or accept depending on config
         result = _curl_no_cert(
@@ -522,7 +524,7 @@ def ensure_cleanup():
     yield None
     # Clean up any leftover test files
     import glob as _glob
-    for pattern in ["/tmp/xrdhttp_*.dat"]:
+    for pattern in [os.path.join(os.environ["TMPDIR"], "xrdhttp_*.dat")]:
         for f in _glob.glob(pattern):
             try:
                 os.unlink(f)

@@ -40,7 +40,7 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, HOST, BIND_HOST
 
 # ---- wire constants (XProtocol; mirror tests/test_a_robustness.py) ----
 kXR_dirlist  = 3004
@@ -53,7 +53,6 @@ kXR_wait     = 4005
 RATE    = int(os.environ.get("METADATA_STRESS_RATE", "100"))
 SECS    = float(os.environ.get("METADATA_STRESS_SECS", "6"))
 WORKERS = int(os.environ.get("METADATA_STRESS_WORKERS", "16"))
-HOST    = "127.0.0.1"
 
 
 @pytest.fixture(autouse=True)
@@ -123,7 +122,7 @@ def _stream_conf(tmp_path, data, port, rl_rule=""):
     stream {{
         {extra}
         server {{
-            listen {HOST}:{port};
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_root {data};
             xrootd_auth none;
@@ -143,7 +142,7 @@ def _http_conf(tmp_path, data, port, rl_rule=""):
         scgi_temp_path {tmp_path}/t; access_log off;
         {extra}
         server {{
-            listen {HOST}:{port};
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -161,7 +160,7 @@ def _mesh_redirector_conf(tmp_path, port, ds_port, rl_rule=""):
     stream {{
         {extra}
         server {{
-            listen {HOST}:{port};
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_manager_map /dir {HOST}:{ds_port};
             xrootd_manager_map / {HOST}:{ds_port};

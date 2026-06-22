@@ -10,6 +10,7 @@
  * O(path_depth) xattr reads rather than O(1024) SHM slot scans.
  */
 #include "webdav.h"
+#include "../impersonate/lifecycle.h"
 #include "locks/request.h"
 #include "../compat/http_xml.h"
 #include "../compat/fs_walk.h"
@@ -130,7 +131,7 @@ webdav_lock_xml_response(ngx_http_request_t *r, webdav_lock_xattr_t *e)
         "<D:depth>%s</D:depth>"
         "<D:owner>%s</D:owner>"
         "<D:timeout>%s</D:timeout>"
-        "<D:locktoken><D:href>opaquelocktoken:%s</D:href></D:locktoken>"
+        "<D:locktoken><D:href>%s</D:href></D:locktoken>"
         "</D:activelock>"
         "</D:lockdiscovery>"
         "</D:prop>",
@@ -199,7 +200,7 @@ webdav_check_locks(ngx_http_request_t *r, const char *path, int need_write)
     for (;;) {
         check_len = strlen(check);
 
-        rc = webdav_lock_xattr_read(r->connection->log, check, &e);
+        rc = webdav_lock_xattr_read(r, check, &e);
         if (rc == NGX_ERROR) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
@@ -216,7 +217,7 @@ webdav_check_locks(ngx_http_request_t *r, const char *path, int need_write)
                     return NGX_HTTP_LOCKED;
                 }
             } else {
-                (void) webdav_lock_xattr_delete(r->connection->log, check);
+                (void) webdav_lock_xattr_delete(r, check);
             }
         }
 
@@ -286,7 +287,7 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
         snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
 
         /* Check lock xattr directly on this child. */
-        xrc = webdav_lock_xattr_read(r->connection->log, child, &e);
+        xrc = webdav_lock_xattr_read(r, child, &e);
         if (xrc == NGX_ERROR) {
             rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
             break;
@@ -299,7 +300,7 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
                     break;
                 }
             } else {
-                (void) webdav_lock_xattr_delete(r->connection->log, child);
+                (void) webdav_lock_xattr_delete(r, child);
             }
         }
         /* xrc == NGX_DECLINED: no lock xattr on this child — OK */
@@ -340,8 +341,29 @@ webdav_check_locks_tree(ngx_http_request_t *r, const char *path)
     return rc;
 }
 
+static void webdav_handle_lock_inner(ngx_http_request_t *r);
+
+/*
+ * LOCK body-ready callback.  Phase 40: the lockinfo body is read asynchronously,
+ * so the dispatch wrapper already cleared the impersonation principal.
+ * Re-establish it (mirrors PUT/PROPFIND/PROPPATCH) so the lock xattr AND any
+ * zero-byte resource creation happen AS THE MAPPED USER via the broker; without
+ * it the worker (svc) cannot setxattr the user-owned lock target (EACCES) and
+ * LOCK fails 500.  No-op unless map mode is active.
+ */
 void
 webdav_handle_lock(ngx_http_request_t *r)
+{
+    ngx_http_xrootd_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    webdav_handle_lock_inner(r);
+    xrootd_imp_request_end();
+}
+
+static void
+webdav_handle_lock_inner(ngx_http_request_t *r)
 {
     ngx_http_xrootd_webdav_loc_conf_t *conf;
     char                               path[WEBDAV_MAX_PATH];
@@ -389,7 +411,7 @@ webdav_handle_lock(ngx_http_request_t *r)
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
 
-    rc = webdav_lock_xattr_read(r->connection->log, path, &e);
+    rc = webdav_lock_xattr_read(r, path, &e);
     if (rc == NGX_ERROR) {
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
@@ -397,7 +419,7 @@ webdav_handle_lock(ngx_http_request_t *r)
 
     /* Treat expired lock as absent. */
     if (rc == NGX_OK && e.expires <= ngx_current_msec) {
-        (void) webdav_lock_xattr_delete(r->connection->log, path);
+        (void) webdav_lock_xattr_delete(r, path);
         rc = NGX_DECLINED;
     }
 
@@ -408,7 +430,7 @@ webdav_handle_lock(ngx_http_request_t *r)
             return;
         }
         e.expires = webdav_lock_parse_timeout(r, conf);
-        if (webdav_lock_xattr_write(r->connection->log, path, &e,
+        if (webdav_lock_xattr_write(r, path, &e,
                                     XATTR_REPLACE) != NGX_OK) {
             webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
             return;
@@ -433,7 +455,7 @@ webdav_handle_lock(ngx_http_request_t *r)
         e.depth_infinity = depth_infinity;
         e.expires        = webdav_lock_parse_timeout(r, conf);
 
-        rc = webdav_lock_xattr_write(r->connection->log, path, &e, XATTR_CREATE);
+        rc = webdav_lock_xattr_write(r, path, &e, XATTR_CREATE);
         if (rc == NGX_DECLINED) {
             /* Another worker created the lock between our read and write. */
             webdav_metrics_finalize_request(r, NGX_HTTP_LOCKED);
@@ -474,14 +496,14 @@ webdav_handle_unlock(ngx_http_request_t *r)
         return rc;
     }
 
-    rc = webdav_lock_xattr_read(r->connection->log, path, &e);
+    rc = webdav_lock_xattr_read(r, path, &e);
     if (rc == NGX_ERROR) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     if (rc == NGX_DECLINED || e.expires <= ngx_current_msec) {
         /* No active lock on this path. */
         if (rc == NGX_OK) {
-            (void) webdav_lock_xattr_delete(r->connection->log, path);
+            (void) webdav_lock_xattr_delete(r, path);
         }
         return NGX_HTTP_CONFLICT;
     }
@@ -504,7 +526,18 @@ webdav_handle_unlock(ngx_http_request_t *r)
         return NGX_HTTP_CONFLICT;   /* token mismatch — not our lock */
     }
 
-    (void) webdav_lock_xattr_delete(r->connection->log, path);
+    /*
+     * Remove the lock xattr and HONOUR the result.  Under impersonation the
+     * removexattr runs (via the broker) as the requester's mapped user, so a
+     * NON-OWNER who presents a valid (e.g. stolen/leaked) lock token cannot
+     * actually clear the lock on another user's file — the broker returns EACCES.
+     * Returning 204 unconditionally would falsely report success for that denied
+     * removal; surface it as 403 instead so the lock state and the response agree.
+     * (ENODATA/ENOENT collapse to NGX_OK inside the helper — idempotent unlock.)
+     */
+    if (webdav_lock_xattr_delete(r, path) != NGX_OK) {
+        return NGX_HTTP_FORBIDDEN;
+    }
 
     return webdav_send_no_body(r, NGX_HTTP_NO_CONTENT);
 }
@@ -555,7 +588,7 @@ webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
-    rc = webdav_lock_xattr_read(r->connection->log, path, &e);
+    rc = webdav_lock_xattr_read(r, path, &e);
     if (rc == NGX_ERROR) {
         return NGX_ERROR;
     }
@@ -578,7 +611,7 @@ webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
                 "<D:owner>%s</D:owner>"
                 "<D:timeout>Second-%ui</D:timeout>"
                 "<D:locktoken>"
-                "<D:href>opaquelocktoken:%s</D:href>"
+                "<D:href>%s</D:href>"
                 "</D:locktoken>"
                 "</D:activelock>",
                 e.exclusive ? "<D:exclusive/>" : "<D:shared/>",
@@ -589,7 +622,7 @@ webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
         }
     } else if (rc == NGX_OK) {
         /* Expired lock — clean up lazily. */
-        (void) webdav_lock_xattr_delete(r->connection->log, path);
+        (void) webdav_lock_xattr_delete(r, path);
     }
 
     if (xrootd_http_chain_appendf(r->pool, head, tail,

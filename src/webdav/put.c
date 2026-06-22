@@ -16,6 +16,7 @@
 #include "../compat/staged_file.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../impersonate/lifecycle.h"
+#include "../path/path.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -171,7 +172,7 @@ webdav_put_body_inner(ngx_http_request_t *r)
     ngx_int_t          rc;
     xrootd_staged_file_t staged;
     int                created = 0;
-    int                window_bits = 0;
+    xrootd_codec_id_t  put_codec = XROOTD_CODEC_IDENTITY;
     struct stat        sb;
     ngx_int_t          status;
     xrootd_http_body_summary_t body_summary;
@@ -192,7 +193,8 @@ webdav_put_body_inner(ngx_http_request_t *r)
         return;
     }
 
-    created = (stat(path, &sb) != 0);
+    created = (xrootd_lstat_confined_canon(r->connection->log,
+                   conf->common.root_canon, path, &sb, 0) != 0);
 
     rc = xrootd_http_check_etag_preconditions(
         r, !created, &sb, XROOTD_ETAG_WEAK, XROOTD_HTTP_COND_WEAK_EQUIV);
@@ -210,15 +212,29 @@ webdav_put_body_inner(ngx_http_request_t *r)
                            O_WRONLY, NGX_FILE_DEFAULT_ACCESS, 16, &staged)
         != NGX_OK)
     {
-        if (ngx_errno == NGX_ENOENT || ngx_errno == NGX_ENOTDIR) {
+        /* Capture errno before any logging call clobbers it. */
+        int open_errno = ngx_errno;
+
+        if (open_errno == NGX_ENOENT || open_errno == NGX_ENOTDIR) {
             /* RFC 4918 §9.7.1 — PUT to non-existent parent collection is 409 */
             webdav_metrics_finalize_request(r, NGX_HTTP_CONFLICT);
             return;
         }
-        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
+        /*
+         * A DAC-denied staged-temp create (e.g. the accessor lacks write on the
+         * parent collection → EACCES/EPERM, EXDEV/ELOOP on a confinement-blocked
+         * traversal) is a forbidden, bounded request — surface it as a clean 4xx
+         * via the shared errno map (EACCES/EPERM → 403, ENOSPC → 507, …), not a
+         * blanket 500.  Only an errno with no clean 4xx contract (e.g. EIO) keeps
+         * the internal-error path.  This mirrors S3 PUT's s3_put_finalize_fs_error.
+         */
+        status = xrootd_http_map_errno(open_errno);
+        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR,
+                             (ngx_uint_t) open_errno,
                              "xrootd_webdav: staged open for write failed for: "
                              "\"%s\"", path);
-        webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        webdav_metrics_finalize_request(
+            r, status >= 500 ? NGX_HTTP_INTERNAL_SERVER_ERROR : status);
         return;
     }
 
@@ -243,23 +259,28 @@ webdav_put_body_inner(ngx_http_request_t *r)
         {
             ngx_table_elt_t  *ce = xrootd_http_find_header(
                 r, "Content-Encoding", sizeof("Content-Encoding") - 1);
-            if (ce != NULL) {
-                if (ce->value.len == 4
-                    && ngx_strncasecmp(ce->value.data,
-                                       (u_char *) "gzip", 4) == 0)
-                {
-                    window_bits = 15 + 16;
-                } else if (ce->value.len == 7
-                           && ngx_strncasecmp(ce->value.data,
-                                              (u_char *) "deflate", 7) == 0)
-                {
-                    window_bits = 15;
+            if (ce != NULL && ce->value.len > 0) {
+                const xrootd_codec_desc_t *d = xrootd_codec_by_http_token(
+                    (const char *) ce->value.data, ce->value.len);
+                if (d == NULL || !d->available) {
+                    /* Unknown or not-compiled-in Content-Encoding: never store the
+                     * undecoded bytes (would silently corrupt the object). 415. */
+                    xrootd_dashboard_http_error(r,
+                        "webdav PUT unsupported Content-Encoding");
+                    xrootd_dashboard_http_finish(r);
+                    xrootd_staged_abort(r->connection->log,
+                        conf->common.root_canon, &staged, 1);
+                    webdav_metrics_finalize_request(r,
+                        NGX_HTTP_UNSUPPORTED_MEDIA_TYPE);
+                    return;
                 }
+                put_codec = d->id;
             }
         }
 
         if (!body_summary.has_spooled && body_summary.bytes > 0
-            && window_bits == 0 && conf->common.thread_pool != NULL)
+            && put_codec == XROOTD_CODEC_IDENTITY
+            && conf->common.thread_pool != NULL)
         {
             ngx_thread_task_t *task;
             webdav_put_aio_t  *t;
@@ -320,11 +341,14 @@ webdav_put_body_inner(ngx_http_request_t *r)
 
         {
             ngx_int_t  wrc;
+            ngx_int_t  decode_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
-            if (window_bits != 0) {
-                wrc = xrootd_http_body_inflate_to_fd(r, staged.fd, path,
-                                                      window_bits,
-                                                      &body_summary);
+            if (put_codec != XROOTD_CODEC_IDENTITY) {
+                wrc = xrootd_http_body_decode_to_fd(r, staged.fd, path,
+                                                    put_codec,
+                                                    XROOTD_DECODE_MAX_OUTPUT,
+                                                    &body_summary,
+                                                    &decode_status);
             } else {
                 wrc = xrootd_http_body_write_to_fd(r, staged.fd, path,
                                                     &body_summary);
@@ -333,12 +357,12 @@ webdav_put_body_inner(ngx_http_request_t *r)
                 xrootd_dashboard_http_error(r, "webdav PUT body write failed");
                 xrootd_dashboard_http_finish(r);
                 /* Abort the staged temp — the final path is never touched, so a
-                 * failed write (e.g. a corrupt Content-Encoding that fails to
-                 * inflate) can never leave a readable partial object. */
+                 * failed write (e.g. a corrupt/over-large Content-Encoding that
+                 * fails to decode) can never leave a readable partial object. The
+                 * decode path reports the precise status (413 bomb / 400 corrupt). */
                 xrootd_staged_abort(r->connection->log, conf->common.root_canon,
                                     &staged, 1);
-                webdav_metrics_finalize_request(r,
-                    NGX_HTTP_INTERNAL_SERVER_ERROR);
+                webdav_metrics_finalize_request(r, decode_status);
                 return;
             }
         }

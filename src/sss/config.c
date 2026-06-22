@@ -440,16 +440,48 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     return NGX_OK;
 }
 
+/* Does this server need the SSS keytab loaded for UPSTREAM proxy auth?  A proxy
+ * authenticates to an SSS upstream using conf->sss_keys even when its own client
+ * auth is not SSS (e.g. xrootd_auth none + xrootd_proxy_auth sss, or a
+ * per-upstream "sss" policy).  Without this the keys are never parsed and the
+ * upstream SSS handshake silently fails NotAuthorized. */
+static int
+xrootd_sss_upstream_needed(ngx_stream_xrootd_srv_conf_t *xcf)
+{
+    ngx_uint_t i;
+
+    if (!xcf->proxy_enable) {
+        return 0;
+    }
+    if (xcf->proxy_auth == XROOTD_PROXY_AUTH_SSS) {
+        return 1;
+    }
+    if (xcf->proxy_upstreams != NULL) {
+        xrootd_proxy_upstream_t *ups = xcf->proxy_upstreams->elts;
+        for (i = 0; i < xcf->proxy_upstreams->nelts; i++) {
+            if (ups[i].auth == (ngx_int_t) XROOTD_PROXY_AUTH_SSS) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 ngx_int_t
 xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
 {
-    if (xcf->auth != XROOTD_AUTH_SSS) {
+    int need_client   = (xcf->auth == XROOTD_AUTH_SSS);
+    int need_upstream = xrootd_sss_upstream_needed(xcf);
+
+    if (!need_client && !need_upstream) {
         return NGX_OK;
     }
 
     if (xcf->sss_keytab.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_auth sss requires xrootd_sss_keytab");
+            need_client
+                ? "xrootd_auth sss requires xrootd_sss_keytab"
+                : "SSS proxy upstream auth requires xrootd_sss_keytab");
         return NGX_ERROR;
     }
 
@@ -460,8 +492,11 @@ xrootd_configure_sss_auth(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                       "xrootd: SSS auth configured - keytab=%V keys=%ui",
-                       &xcf->sss_keytab, xcf->sss_keys->nelts);
+                       "xrootd: SSS keytab loaded - keytab=%V keys=%ui (%s)",
+                       &xcf->sss_keytab, xcf->sss_keys->nelts,
+                       need_client ? (need_upstream ? "client+upstream"
+                                                    : "client")
+                                   : "upstream");
 
     return NGX_OK;
 }

@@ -26,6 +26,7 @@ import requests
 
 from settings import (
     DATA_ROOT,
+    HOST,
     NGINX_ANON_PORT,
     NGINX_HTTP_WEBDAV_PORT,
     NGINX_METRICS_PORT,
@@ -47,11 +48,11 @@ BUCKET = "testbucket"
 # Module-level constants (overwritten by autouse fixture)
 # ---------------------------------------------------------------------------
 
-METRICS_URL = f"http://localhost:{NGINX_METRICS_PORT}/metrics"
+METRICS_URL = f"http://{HOST}:{NGINX_METRICS_PORT}/metrics"
 ANON_PORT   = str(NGINX_ANON_PORT)
-ANON_URL    = f"root://127.0.0.1:{NGINX_ANON_PORT}"
-HTTP_WEBDAV = f"http://127.0.0.1:{NGINX_HTTP_WEBDAV_PORT}"
-S3_BASE     = f"http://127.0.0.1:{NGINX_S3_PORT}"
+ANON_URL    = f"root://{HOST}:{NGINX_ANON_PORT}"
+HTTP_WEBDAV = f"http://{HOST}:{NGINX_HTTP_WEBDAV_PORT}"
+S3_BASE     = f"http://{HOST}:{NGINX_S3_PORT}"
 LARGE_FILE  = os.path.join(DATA_ROOT, "large200.bin")
 
 

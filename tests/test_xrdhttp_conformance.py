@@ -21,6 +21,7 @@ import pytest
 
 from settings import (
     CA_CERT,
+    HOST,
     NGINX_WEBDAV_GSI_TLS_PORT,
     PKI_DIR as PKI_DIR_STR,
     SERVER_CERT,
@@ -28,6 +29,7 @@ from settings import (
     XRDHTTP_HTTP_PORT,
     XRDHTTP_ROOT_PORT,
     XROOTD_BIN,
+    url_host,
 )
 
 pytestmark = pytest.mark.timeout(180)
@@ -86,11 +88,11 @@ def _write_file(path: Path | str, content: bytes):
 def _get_backend_url():
     backend = os.environ.get("TEST_CROSS_BACKEND", "default")
     if backend == "xrootd":
-        return f"https://localhost:{XRDHTTP_HTTP_PORT}"
+        return f"https://{url_host(HOST)}:{XRDHTTP_HTTP_PORT}"
     ext_url = os.environ.get("TEST_NGINX_URL") or os.environ.get("EXTERNAL_NGINX_URL")
     if ext_url:
         return str(ext_url)
-    return f"https://localhost:{NGINX_WEBDAV_GSI_TLS_PORT}"
+    return f"https://{url_host(HOST)}:{NGINX_WEBDAV_GSI_TLS_PORT}"
 
 
 def _get_xrdhttp_port():
@@ -106,14 +108,14 @@ def xrdhttp_backend():
     """Use the suite-level XrdHttp reference server."""
     http_port = _get_xrdhttp_port()
     result = subprocess.run(
-        ["curl", "-skf", f"https://localhost:{http_port}/"],
+        ["curl", "-skf", f"https://{url_host(HOST)}:{http_port}/"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
     )
     if result.returncode != 0:
         pytest.skip(f"XrdHttp server not reachable at port {http_port}")
 
     class Backend:
-        url_base = f"https://localhost:{http_port}"
+        url_base = f"https://{url_host(HOST)}:{http_port}"
     yield Backend()
 
 
@@ -306,7 +308,7 @@ def ensure_cleanup():
     """Ensure temporary files are cleaned up after tests."""
     yield None
     import glob as _glob
-    for pattern in ["/tmp/xrdhttp_*.dat"]:
+    for pattern in [os.path.join(os.environ["TMPDIR"], "xrdhttp_*.dat")]:
         for f in _glob.glob(pattern):
             try:
                 os.unlink(f)

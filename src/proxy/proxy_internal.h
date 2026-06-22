@@ -47,6 +47,13 @@
 #define XROOTD_PROXY_MAX_FAILS       3
 #define XROOTD_PROXY_FAIL_TIMEOUT    10
 
+/* Max consecutive upstream-bootstrap failures tolerated on a single client
+ * connection before the proxy stops retrying and fails the request.  Bounds the
+ * reconnect loop a permanently-rejecting upstream would otherwise drive (see
+ * xrootd_ctx_t.proxy_fail_count).  Comfortably above proxy_reconnect_attempts so
+ * legitimate transient retries are never cut short. */
+#define XROOTD_PROXY_MAX_CONN_FAILS  8
+
 /*
  * Per-handle entry in the file handle map.
  */

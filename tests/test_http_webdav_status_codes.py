@@ -4,10 +4,7 @@ tests/test_http_webdav_status_codes.py
 Comprehensive HTTP status-code and RFC compliance tests for the plain-HTTP
 WebDAV endpoint (port 8080, anonymous access, no TLS).
 
-Tests assert RFC-correct behaviour.  Known compliance gaps are marked
-``@pytest.mark.xfail`` with the precise RFC citation; they appear as ``x``
-(expected failure) in the output and will flip to ``X`` (unexpected pass)
-once the gap is resolved.
+Tests assert RFC-correct behaviour directly; regressions must fail normally.
 
 RFC compliance: all tested behaviours are now compliant.
 

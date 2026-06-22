@@ -72,7 +72,11 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
         return NULL;
     }
 
-    dh->dir = opendir(path);
+    /* Open the directory AS THE MAPPED USER under impersonation (broker fdopendir)
+     * so a 0700 user-owned / 0770 group-restricted dir the unprivileged worker
+     * cannot itself open is enumerable by its legitimate owner/group-member; off
+     * impersonation this is a bare opendir(). */
+    dh->dir = xrootd_opendir_confined_canon(ctx->log, ctx->root_canon, path);
     if (dh->dir == NULL) {
         saved_errno = errno;
         if (err_out != NULL) {
@@ -85,6 +89,7 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
 
     dh->pool = ctx->pool;
     dh->log = ctx->log;
+    dh->root_canon = ctx->root_canon;
 
     xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL, 0,
                               NGX_OK, 0, start);
@@ -142,7 +147,10 @@ xrootd_vfs_readdir(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
             return NGX_ERROR;
         }
 
-        if (lstat(child, &st) != 0) {
+        /* lstat the child AS THE MAPPED USER (broker-routed) so enumerating a
+         * group-restricted dir does not EACCES per child as the worker. */
+        if (xrootd_lstat_confined_canon(dh->log, dh->root_canon, child,
+                                        &st, 1) != 0) {
             return NGX_ERROR;
         }
 

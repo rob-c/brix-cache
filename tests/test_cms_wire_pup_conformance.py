@@ -34,17 +34,17 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, SERVER_HOST
+from settings import HOST, NGINX_BIN, SERVER_HOST, free_port
 
 H = SERVER_HOST
-_DIR = "/tmp/xrd_cms_wire_pup"
+_DIR = os.path.join(os.environ["TMPDIR"], "xrd_cms_wire_pup")
 
-# Dedicated high ports unique to this file (>=12950) to avoid fleet collisions.
-# 12993-12995: above test_proxy_protocol_edges' reserved 12950-12972 block so
-# the full P0 suite runs collision-free in one pytest invocation.
-NODE_DATA_PORT   = int(os.environ.get("TEST_CWP_NODE_DATA_PORT",   "12993"))  # node's root:// listen
-MGR_PEER_PORT    = int(os.environ.get("TEST_CWP_MGR_PEER_PORT",    "12994"))  # Python manager peer
-CMS_SRV_PORT     = int(os.environ.get("TEST_CWP_CMS_SRV_PORT",     "12995"))  # nginx xrootd_cms_server
+# Dedicated free OS ports unique to this file to avoid fleet collisions.
+# Each is allocated dynamically (or honours its env override) so the full P0
+# suite runs collision-free in one pytest invocation regardless of run order.
+NODE_DATA_PORT   = int(os.environ.get("TEST_CWP_NODE_DATA_PORT") or free_port())  # node's root:// listen
+MGR_PEER_PORT    = int(os.environ.get("TEST_CWP_MGR_PEER_PORT")  or free_port())  # Python manager peer
+CMS_SRV_PORT     = int(os.environ.get("TEST_CWP_CMS_SRV_PORT")   or free_port())  # nginx xrootd_cms_server
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +376,7 @@ def _node_conf(name, listen_port, mgr_port, data_dir, allow_write=True):
             f"        xrootd on; xrootd_root {data_dir}; xrootd_auth none;\n"
             f"{write_line}"
             f"        xrootd_listen_port {listen_port};\n"
-            f"        xrootd_cms_manager 127.0.0.1:{mgr_port};\n"
+            f"        xrootd_cms_manager {HOST}:{mgr_port};\n"
             f"        xrootd_cms_paths /;\n"
             f"        xrootd_cms_interval 2;\n"
             f"    }}\n"

@@ -8,29 +8,7 @@
 #pragma once
 
 #include "../ngx_xrootd_module.h"
-
-/* Total byte length of the outer SSS packet header (magic + version + options
- * + padding + 8-byte key-id).  Must match XrdSsi/XrdSsiSecurity.cc. */
-#define XROOTD_SSS_HDR_LEN       16
-
-/* Byte length of the fixed-layout region at the start of the decrypted
- * cleartext: 32 bytes random nonce + 4 bytes gen_time + 4 bytes reserved. */
-#define XROOTD_SSS_DATA_HDR_LEN  40
-
-/* SSS timestamps are seconds since 2008-09-23T13:51:20Z.  This epoch
- * prevents year-2038 overflow on 32-bit time fields in the cleartext header
- * while still fitting a uint32_t through 2144. */
-#define XROOTD_SSS_BASE_TIME     1222183880
-
-#define XROOTD_SSS_ENC_BF32      '0'
-#define XROOTD_SSS_OPT_USEDATA   0x00
-#define XROOTD_SSS_OPT_SNDLID    0x01
-
-#define XROOTD_SSS_TYPE_NAME     0x01
-#define XROOTD_SSS_TYPE_GRPS     0x04
-#define XROOTD_SSS_TYPE_RAND     0x07
-#define XROOTD_SSS_TYPE_LGID     0x10
-#define XROOTD_SSS_TYPE_HOST     0x20
+#include "../protocol/sss.h"   /* shared SSS wire constants (single source of truth) */
 
 /*
  * xrootd_sss_identity_t — decoded identity fields from an SSS cleartext

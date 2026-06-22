@@ -30,7 +30,7 @@ and stream frameworks.
 | zero-copy vs TLS | file-backed send paths are easiest on cleartext sockets | cleartext native reads use sendfile-style chains; TLS paths fall back to memory-backed reads when needed |
 | session model vs request model | native XRootD is session-oriented; WebDAV is HTTP request-oriented | stream keeps session state; WebDAV re-evaluates requests and uses caches to recover some session-like efficiency |
 | token scopes | stream and WebDAV were implemented at different stages | stream enforces scopes on path-resolving operations; handle I/O inherits the open-time decision; WebDAV enforces scopes for bearer-token writes |
-| third-party copy | root TPC and HTTP-TPC are different protocols | native root TPC has a narrow destination-side pull path; WebDAV HTTP-TPC is implemented separately with a helper process |
+| third-party copy | root TPC and HTTP-TPC are different protocols | native root TPC has source/destination rendezvous with limited credential edge cases; WebDAV HTTP-TPC is implemented separately with helper/subprocess paths |
 | nginx body handling | HTTP request bodies may be in memory or temp files | WebDAV `PUT` has separate fast paths for in-memory and spooled bodies |
 | nginx connection context | HTTP module has fewer natural per-connection hooks than stream | WebDAV stores fd-cache state in SSL `ex_data` |
 | real clients vs spec text | `xrdcp` behavior often differs from the nominal protocol docs | implementation follows working client behavior first |
@@ -180,14 +180,17 @@ The module has separate implementations with different limits:
   `tpc.src=root://...` (and optional `tpc.key=`); the pull runs in the thread pool
 - on the source, read-opens with `tpc.dst` + `tpc.key` register the rendezvous key;
   read-opens with `tpc.org` + `tpc.key` consume it before serving bytes
-- the outbound pull client still uses anonymous `kXR_login` to the source;
-  GSI/token on the outbound hop is not implemented (see `docs/status.md`)
+- the outbound pull client can complete ztn or GSI after `kXR_authmore` when
+  configured; TLS-upgraded origins and multihop delegation remain deployment
+  validation points
 - WebDAV HTTP-TPC is handled in a dedicated helper path
 
 The WebDAV TPC implementation is intentionally pragmatic:
 
-- it shells out to `curl`
-- it does not implement GridSite or OIDC delegation endpoints
+- it uses curl/helper paths rather than embedding a full HTTP/OAuth2 stack in
+  the nginx event loop
+- it implements OAuth2/OIDC delegation modes, but the credential exchange still
+  has subprocess/helper operational behavior
 
 That is not as feature-rich as a full XRootD daemon, but it keeps the scope of
 the nginx module manageable and makes the HTTP behavior predictable.
@@ -346,14 +349,15 @@ Across both the stream and WebDAV code, a repeated design choice is:
 
 Examples:
 
-- native root TPC is destination-pull oriented and does not implement the full
-  upstream delegation/rendezvous surface
-- WebDAV TPC is implemented separately and narrowly
+- native root TPC has destination-pull and source rendezvous paths, while TLS
+  upgrade and multihop delegation remain narrower than upstream
+- WebDAV TPC is implemented separately and uses helper/subprocess paths for the
+  most complex HTTP/OAuth2 interactions
 - token authorization is checked at protocol-appropriate points rather than in
   one shared abstraction
 - remote storage backends are out of scope
-- read-through cache mode has a narrow anonymous origin client, not a general
-  remote backend abstraction layer
+- read-through cache mode has a narrow origin client, not a general remote
+  backend abstraction layer
 
 This keeps the module understandable and maintainable inside nginx, even though
 it means some advanced XRootD-daemon features are intentionally out of scope.
@@ -473,6 +477,164 @@ alternative would be embedding a full OAuth2 client library in C, which adds
 significant maintenance surface for a rarely-invoked code path.
 
 ---
+
+## `xrd` BusyBox-style POSIX verbs (phase 41)
+
+The unified `xrd` front-end grows POSIX file utilities (`head`, `tail -n/-f`, `df`,
+`touch`, `ln`, `readlink`, `chmod -R`, `mount` listing). A few non-obvious choices:
+
+- **`head -c` beats `-n`.** GNU `head` lets the last-given option win; `xrd head`
+  always prefers `-c` (byte mode) when both are present, because byte mode is exact
+  and cheap on a remote file while line mode must scan. Pass only one to avoid surprise.
+- **`tail -f` polls, it does not watch.** A remote XRootD namespace has no inotify
+  equivalent, so follow mode `stat`s the file on an interval (`--interval`, default 1 s)
+  and streams any growth, resyncing to the new EOF on truncation. It is SIGINT-clean
+  (single connection, no detached threads), but latency is the poll interval, not instant.
+- **`chmod` is octal-only; symbolic modes (`u+x`) are not supported.** Symbolic modes
+  must be applied relative to the file's *current* permission bits, but the XRootD wire
+  stat does not return the POSIX mode — `xrdc_statinfo` carries only
+  `kXR_readable`/`kXR_writable`/`kXR_isDir` flags. Without the current mode there is no
+  correct base to apply `+`/`-`/`=` against, so `xrd chmod` accepts only absolute octal
+  modes (`chmod [-R] <path> <octal>`). `-R` recursion and octal work everywhere.
+- **`ln -s` targets are stored verbatim and not confined.** Only the *link path* is
+  resolved under the export root; the symlink *target* is opaque link content (matching
+  real `ln -s` and `xrootd_handle_symlink`). The server still confines every path it
+  *resolves through* the link, so this is not a confinement gap.
+- **`touch` and the link/`readlink` verbs need `xrdfs.ext`.** `kXR_setattr`/`symlink`/
+  `readlink`/`link` are capability-negotiated (advertised via
+  `kXR_Qconfig "xrdfs.ext"`). This module advertises them unconditionally, but against a
+  server without the extension these verbs fail cleanly with the server's
+  `kXR_Unsupported` message (nonzero exit), rather than silently no-opping. `touch`'s
+  create step and `chmod` use the always-present `kXR_open`/`kXR_chmod` opcodes.
+- **No `chown`/`chgrp`.** `xrd` intentionally exposes no ownership-mutating verb; every
+  `xrd touch` calls `xrdc_setattr` with `set_owner = 0`. Ownership changes are a
+  DAC/impersonation surface and are out of scope (see the impersonation design).
+- **`df` reads `kXR_Qspace`, not `statvfs`.** The module's `kXR_vfs` stat returns block
+  count + flags (not free space), so `xrd df` uses the `oss.*` Qspace record
+  (`oss.space`/`oss.free`/`oss.used`/`oss.maxf`) and falls back to printing the raw
+  reply verbatim if the shape is unrecognized. Cluster-wide per-holder aggregation is
+  `xrdmapc`'s job, not `xrd df`'s.
+- **`xrd mount` with no positional args lists mounts** (like `mount(8)`), parsing
+  `/proc/self/mountinfo`; with `<endpoint> <mountpoint>` it mounts. `xrd mounts` is an
+  unambiguous spelling for scripts. Listing is Linux-only (procfs).
+
+A second batch (the "inspect & verify" tools) adds `cksum`, `wc`, `cmp`, `xattr`,
+`grep`, `hexdump`, `stage`/`evict`, `ping`, `replicas`, and `sync`:
+
+- **`cmp` prefers checksums over bytes.** It first asks the server for an `adler32`
+  checksum of each operand (cheap, no bulk transfer) and compares those; only if a
+  checksum is unavailable does it fall back to streaming both files for a byte-exact
+  compare. So a `cmp` "match" on a checksum-capable server means *checksums* matched,
+  reported as such. Both operands must be on the same endpoint (like `mv`/`ln`).
+- **`xattr` names round-trip; the namespace tag is hidden.** The server stores managed
+  user attributes under the host `user.U.<name>` key and returns them from a list as
+  `U.<name>` (a one-letter namespace tag + `.`). `xattr ls` strips that tag so the
+  printed names feed straight back into `xattr get`/`set`. Only the user namespace is
+  exposed. Read-only checksum attrs surface as `user.XrdCks.<algo>` via the FUSE driver,
+  not here.
+- **`grep`/`wc -l`/`wc -w`/`cmp`-fallback read the whole file.** There is no server-side
+  search or line-count, so these stream the full object (line state is reassembled
+  across read chunks). `wc -c` is the exception — it's answered from `stat`. Mind the
+  cost on large remote files.
+- **`stage`/`evict` are `prepare` with fixed flags.** `stage` = `kXR_prepare`+`kXR_stage`,
+  `evict` = `kXR_prepare`+`kXR_evict`. `stage --wait` polls the file's residency
+  (`kXR_offline` flag via `stat`) once a second until it clears or the timeout (default
+  300 s) — polling, like `tail -f`.
+- **`ping` measures stat-RTT, not ICMP.** It opens one session, then times N `stat /`
+  round-trips (application-level latency including any TLS), reporting min/avg/max. For
+  deeper network diagnostics use `xrd diag` (→ `xrddiag`).
+- **`replicas` and `sync` are thin front-ends.** `replicas` execs `xrdmapc` (cluster
+  holder + space map); `sync` execs `xrdcp -r --sync` (recursive mirror, skip same-size).
+  They inherit those tools' behavior and flags verbatim.
+
+The `dd`/`upload`/`download` trio adds windowed + **rate-limited** block I/O:
+
+- **Rate limiting is client-side token-bucket pacing, not a network shaper.** Each
+  verb (`dd`, `upload`, `download`) takes `rate=<bytes/s>` (K/M/G suffix). After each
+  block it sleeps off any surplus so the running average stays at/below the cap. Because
+  XRootD I/O is synchronous request/response, slowing the client's reads/writes
+  back-pressures TCP flow control and effectively throttles the server side too — but
+  it's *not* a precise `tc`/QoS shaper: granularity is one block (`bs=`, default 1 MiB;
+  smaller `bs` = smoother), and it can't pace below a single round-trip. Good for "be
+  polite on a shared link," "don't saturate a mount," or "simulate a slow client."
+- **Three overlapping read/write tools, by destination.** `dd` reads a *window*
+  (`skip=`/`count=` blocks) to *stdout*; `download` reads a whole file to a *local file*
+  (defaults to the remote basename, like `get`); `upload` writes a *local file/stdin* to
+  a remote path. `get`/`put` (→`xrdcp`) remain the non-throttled, feature-rich
+  transfers; `dd`/`upload`/`download` are the native, rate-capable ones.
+- **Overwrite semantics differ by side.** `upload` without `-f` uses `kXR_new` (fails if
+  the *remote* exists, surfaced as `FileLocked`); `download` without `-f` uses local
+  `O_EXCL` (fails if the *local* file exists). `-f` truncates/overwrites in both. `bs=`
+  is capped at 256 MiB (a single block buffer is allocated).
+
+The endpoint-diagnostic verbs (`certinfo`, `clockskew`, `whoami`, `caps`, and the
+`doctor` that folds them in) have a few subtleties:
+
+- **`certinfo` connects without authenticating and without verifying the chain.** It is
+  an *inspection* tool, so it must see expired/self-signed/untrusted certs. It uses a
+  dedicated no-login bring-up (`xrdc_connect_no_login`) — handshake + TLS upgrade but no
+  `kXR_login` — and an `insecure_tls` opt that skips chain + host verification. That opt
+  is **off by default for every other code path** (zero-initialized `xrdc_opts`); only
+  `certinfo` (and `doctor`'s cert probe) set it, and never for data transfer. A cleartext
+  `root://` endpoint legitimately has no peer cert and reports "no certificate".
+- **`clockskew` resolution is ~1 second and it is not NTP.** The HTTP `Date` header is
+  second-granular, and the `root://` create+stat path reads a second-granular mtime; both
+  are RTT-compensated by halving the measured round-trip. It detects the
+  minutes-to-hours skew that breaks token/GSI time checks, not sub-second drift. The
+  `root://` path needs write access (it creates and removes a `/.xrd_clockskew_<pid>`
+  temp file); read-only exports fall back to "not measured — need an HTTP endpoint or
+  write access".
+- **`whoami` shows what you *present*, not a server-side mapping.** XRootD's login does
+  not return the mapped username, so `whoami` reports the negotiated auth protocol
+  (`chosen_auth`), the server's offered `&P=` sec list, and your local token subject /
+  proxy DN — which is what you need to debug "I have a token but get 403".
+- **`caps` `=0` is ambiguous.** This module answers `chksum`/`readv`/`tpc`/`tpcdlg`/
+  `xrdfs.ext` meaningfully and echoes `<key>=0` for any *other* probed key, so
+  `version=0`/`role=0`/`sitename=0` against this module means "not answered" rather than
+  a real zero; against stock XRootD those keys return real values. Role is taken from the
+  protocol `server_flags`, not from Qconfig.
+- **`doctor` makes two connections per endpoint.** One authenticated (liveness, auth,
+  TLS posture, caps) and one no-login insecure probe (server cert) — so it can show cert
+  expiry even when the main session is cleartext or the cert is untrusted. `doctor --json`
+  emits one object (hand-rolled, dependency-free) covering connect/role/auth/tls/cert/
+  clock/capabilities/credentials; `doctor` (human) additionally runs the local-credential
+  diagnosis and will exit nonzero on a stray expired proxy/token even for an anon endpoint.
+
+`doctor` also runs a **functional method battery** per endpoint (`--rw` for the write
+cycle, `--also <url>` for extra protocol faces), reported in the `tests` array of the
+JSON. A few things to know:
+
+- **`--rw` mutates the namespace under a temp dir** (`/.xrd_doctor_<pid>` for root://,
+  `/.xrd_doctor_<pid>/` collection for WebDAV, `/.xrd_doctor_<pid>.bin` object for S3)
+  and cleans up after itself. It is **off by default** precisely because it writes; the
+  read-only battery (stat/dirlist/statvfs/query/path-confinement) always runs.
+- **`rm`/delete operate on the final component itself (POSIX unlink semantics).** The
+  existence gate (`op_path_existence_gate`) and the delete probe (`xrootd_ns_delete`)
+  both use **lstat**, not stat, so a symlink — including a dangling one — is removed as
+  the link, never dereferenced (a regression of an earlier bug where `rm <symlink>`
+  followed the link's stored absolute target, hit `RESOLVE_BENEATH`, and returned
+  `NotFound`, leaving the link un-removable). The confined `*_beneath` unlink remains the
+  security boundary; lstat in the ACL/logging gate weakens nothing. The doctor `--rw`
+  battery still carries a defensive `rmdir` SKIP path for servers that genuinely cannot
+  unlink symlinks, but this module passes the full `symlink+readlink` (create/readlink/
+  unlink) and `rmdir` cycle.
+- **`checksum-verify` compares server vs locally-computed adler32** of the exact bytes
+  written (via a host tmpfile), so it catches silent corruption, not just "a checksum
+  came back".
+- **WebDAV/S3 batteries reuse the transfer primitives.** WebDAV drives `xrdc_http_req`
+  + `xrdc_http_upload`/`download` (any method, TLS via the scheme); S3 signs each
+  PUT/GET/DELETE with `xrdc_s3_sign_v4` and streams the body. A cleartext request to a
+  TLS-only WebDAV port returns **HTTP 400** — this is nginx's standard "The plain HTTP
+  request was sent to HTTPS port" `error_page`, a property of nginx's TLS-terminating
+  listener, *not* the XRootD module. It does **not** match vanilla XRootD: stock
+  `XrdHttp` on a TLS port rejects cleartext at the TLS handshake (the connection is
+  reset / errors out with no HTTP response at all). The nginx 400 is benign and
+  arguably friendlier — a readable diagnosis instead of a bare connection drop — and
+  per build governance we do not patch nginx core to change it. Either way, use
+  `https://`/`davs://` (not `http://`) for a TLS endpoint.
+- **`--insecure` is for the probes only.** It disables TLS chain/host verification so
+  doctor can test a self-signed/expired endpoint; it never relaxes verification for a
+  real data transfer path.
 
 ## Related docs
 

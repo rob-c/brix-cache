@@ -1,7 +1,15 @@
 # Server Capability Flags — Implementation Plan
 
-**Status**: Draft  
-**Scope**: All `ServerProtocolBody.flags` capability bits not yet advertised by nginx-xrootd  
+**Status**: Historical implementation plan — no longer current as a missing-feature list  
+**Current source**: `src/session/protocol.c` advertises the implemented capability
+bits, and `tests/test_protocol_flags.py` verifies `kXR_supposc`,
+`kXR_suppgrw`, `kXR_attrMeta`, `kXR_attrSuper`, `kXR_attrVirtRdr`,
+`kXR_recoverWrts`, and `kXR_collapseRedir` behavior. See
+`docs/10-reference/xrootd-feature-matrix.md` for the current reviewer-facing
+matrix.
+
+**Scope**: Original plan for `ServerProtocolBody.flags` capability bits that were
+not yet advertised when this document was written  
 **Wire spec**: `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` lines 1198–1217  
 **Primary files**: `src/protocol/flags.h`, `src/session/protocol.c`
 

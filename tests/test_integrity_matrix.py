@@ -51,6 +51,7 @@ from settings import (
     CHAOS_TIER1_PORT,
     CLUSTER_REDIR_PORT,
     DATA_ROOT,
+    HOST,
     MANAGER_PORT,
     NGINX_ANON_PORT,
     NGINX_HTTP_WEBDAV_PORT,
@@ -62,6 +63,7 @@ from settings import (
     SERVER_HOST,
     VIRTUAL_REDIR_PORT,
     WT_SYNC_PORT,
+    free_port,
 )
 
 import requests
@@ -381,9 +383,9 @@ def _driver(proto):
 # The client reads/writes the front; integrity must be unaffected by mirroring.
 # ===========================================================================
 
-MIRROR_FRONT_PORT = int(os.environ.get("TEST_MIRROR_FRONT_PORT", "12810"))
-MIRROR_SINK_PORT  = int(os.environ.get("TEST_MIRROR_SINK_PORT", "12811"))
-_MIRROR_DIR = "/tmp/xrd_mirror_rt"
+MIRROR_FRONT_PORT = int(os.environ.get("TEST_MIRROR_FRONT_PORT") or free_port())
+MIRROR_SINK_PORT  = int(os.environ.get("TEST_MIRROR_SINK_PORT") or free_port())
+_MIRROR_DIR = os.path.join(os.environ["TMPDIR"], "xrd_mirror_rt")
 
 
 @pytest.fixture(scope="session")
@@ -595,10 +597,10 @@ class TestMirrorTopology:
 # checksums), proving that the transparent proxy forwards byte-exact data AND
 # every user query — checksum included — through one and two proxy hops.
 
-PROXY_STORAGE_PORT = int(os.environ.get("TEST_IM_PROXY_STORAGE_PORT", "12830"))
-PROXY_HOP1_PORT    = int(os.environ.get("TEST_IM_PROXY_HOP1_PORT", "12831"))
-PROXY_HOP2_PORT    = int(os.environ.get("TEST_IM_PROXY_HOP2_PORT", "12832"))
-_PROXY_DIR = "/tmp/xrd_proxychain_rt"
+PROXY_STORAGE_PORT = int(os.environ.get("TEST_IM_PROXY_STORAGE_PORT") or free_port())
+PROXY_HOP1_PORT    = int(os.environ.get("TEST_IM_PROXY_HOP1_PORT") or free_port())
+PROXY_HOP2_PORT    = int(os.environ.get("TEST_IM_PROXY_HOP2_PORT") or free_port())
+_PROXY_DIR = os.path.join(os.environ["TMPDIR"], "xrd_proxychain_rt")
 
 
 @pytest.fixture(scope="session")
@@ -614,10 +616,10 @@ def proxy_chain():
         xrootd_allow_write on;"""),
         "hop1": (PROXY_HOP1_PORT, f"""\
         xrootd on; xrootd_auth none;
-        xrootd_proxy on; xrootd_proxy_upstream 127.0.0.1:{PROXY_STORAGE_PORT};"""),
+        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{PROXY_STORAGE_PORT};"""),
         "hop2": (PROXY_HOP2_PORT, f"""\
         xrootd on; xrootd_auth none;
-        xrootd_proxy on; xrootd_proxy_upstream 127.0.0.1:{PROXY_HOP1_PORT};"""),
+        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{PROXY_HOP1_PORT};"""),
     }
     os.makedirs(data, exist_ok=True)
     started = []

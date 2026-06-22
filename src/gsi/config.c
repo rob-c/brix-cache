@@ -17,10 +17,21 @@ xrootd_rebuild_gsi_store(ngx_stream_xrootd_srv_conf_t *xcf, ngx_log_t *log)
     X509_STORE *store;
     X509_STORE *old_store;
     int         crl_count = 0;
+    struct stat ca_st;
+    int         ca_is_dir;
+
+    /* xrootd_trusted_ca may name a single CA bundle file OR a hashed CA
+     * directory (e.g. /etc/grid-security/certificates).  A directory is loaded
+     * as an OpenSSL CApath so on-demand hash lookup verifies real grid proxy
+     * chains (any CA under the dir), which a single-file bundle cannot cover. */
+    ca_is_dir = (stat((char *) xcf->trusted_ca.data, &ca_st) == 0
+                 && S_ISDIR(ca_st.st_mode));
 
     store = xrootd_build_ca_store(log,
-                                   NULL,
-                                   (char *) xcf->trusted_ca.data,
+                                   ca_is_dir ? (char *) xcf->trusted_ca.data
+                                             : NULL,
+                                   ca_is_dir ? NULL
+                                             : (char *) xcf->trusted_ca.data,
                                    xcf->crl.len > 0
                                        ? (char *) xcf->crl.data : NULL,
                                    X509_V_FLAG_ALLOW_PROXY_CERTS,
@@ -72,7 +83,7 @@ xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
                                 &xcf->certificate_key,
                                 XROOTD_PATH_REGULAR_FILE, R_OK) != NGX_OK
         || xrootd_validate_path(cf, "xrootd_trusted_ca", &xcf->trusted_ca,
-                                XROOTD_PATH_REGULAR_FILE, R_OK) != NGX_OK
+                                XROOTD_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK
         || xrootd_validate_path(cf, "xrootd_crl", &xcf->crl,
                                 XROOTD_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
     {

@@ -171,7 +171,13 @@ xrootd_ns_delete(ngx_log_t *log, const char *root_canon, const char *path,
         return res;
     }
 
-    if (xrootd_stat_beneath(rootfd, rel, &sb) != 0) {
+    /* LSTAT, not stat: delete must operate on the final component itself and must
+     * never dereference a trailing symlink (POSIX unlink/rm semantics). Following it
+     * would (a) misclassify a symlink-to-dir as a directory and (b) fail outright when
+     * the link's stored target is an absolute logical path, which RESOLVE_BENEATH
+     * rejects — leaving the link un-removable. xrootd_unlink_beneath() likewise unlinks
+     * the name in its parent without following it, so the two agree. */
+    if (xrootd_lstat_beneath(rootfd, rel, &sb) != 0) {
         if (errno == ENOENT && opts->idempotent_missing) {
             res.status = XROOTD_NS_OK;
             close(rootfd);
@@ -184,7 +190,7 @@ xrootd_ns_delete(ngx_log_t *log, const char *root_canon, const char *path,
     }
 
     res.existed = 1;
-    res.was_dir = S_ISDIR(sb.st_mode) ? 1 : 0;
+    res.was_dir = S_ISDIR(sb.st_mode) ? 1 : 0;   /* a symlink is never a dir → unlink */
 
     /* kXR_rmdir is directory-only: reject regular files with ENOTDIR rather
      * than silently unlinking them (matches rmdir(2) semantics). */

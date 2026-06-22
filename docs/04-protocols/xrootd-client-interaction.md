@@ -26,12 +26,13 @@ client build emits the exact same packet sequence.
 
 ## Two different transports
 
-`xrdcp` can reach the same storage through two very different client stacks:
+`xrdcp` can reach the same storage through different client stacks:
 
 | URL | Client-side stack | Server-side module |
 |---|---|---|
-| `root://host//path` | XRootD native client | nginx stream XRootD module |
-| `davs://host/path` with `--allow-http` | XrdClHttp / libcurl | nginx HTTP WebDAV module |
+| `root://host//path` | Native XRootD client (`libXrdCl` or in-tree `libxrdc`) | nginx stream XRootD module |
+| `davs://host/path` with official `xrdcp --allow-http` | XrdClHttp / libcurl | nginx HTTP WebDAV module |
+| `davs://host/path` with in-tree `client/xrdcp` | `libxrdc` HTTP/WebDAV helper path | nginx HTTP WebDAV module |
 
 That distinction matters:
 
@@ -42,6 +43,11 @@ That distinction matters:
 
 The same user action, "copy file A to file B", therefore looks very different
 to the server depending on the URL scheme.
+
+This page describes server-side interaction patterns and applies to both the
+official XRootD clients and this repository's clean-room native clients. For the
+current in-tree CLI/library surface, see
+[Native Client Tools](native-client-tools.md).
 
 ```text
 xrdcp source destination
@@ -54,10 +60,18 @@ xrdcp source destination
         |       v
         |   handshake -> protocol -> login/auth -> open -> read/write -> close
         |
-        +-- URL contains davs:// and --allow-http is set
+        +-- URL contains davs:// and official --allow-http is set
                 |
                 v
             XrdClHttp / libcurl
+                |
+                v
+            TLS -> HTTP/WebDAV method sequence -> close/keepalive
+
+        +-- URL contains davs:// and in-tree client/xrdcp is used
+                |
+                v
+            libxrdc HTTP/WebDAV helper
                 |
                 v
             TLS -> HTTP/WebDAV method sequence -> close/keepalive
@@ -91,16 +105,19 @@ Typical user commands:
 ```bash
 xrdcp --allow-http /tmp/local.root davs://host:8443/store/local.root
 xrdcp --allow-http davs://host:8443/store/remote.root /tmp/remote.root
+client/xrdcp /tmp/local.root davs://host:8443/store/local.root
 ```
 
-The `--allow-http` flag is what tells `xrdcp` to load the HTTP/WebDAV client
-plugin instead of using the native XRootD transport.
+For the official XRootD client, the `--allow-http` flag tells `xrdcp` to load the
+HTTP/WebDAV client plugin instead of using the native XRootD transport. The
+in-tree `client/xrdcp` has its own WebDAV/HTTP path and accepts `davs://`,
+`dav://`, `https://`, and `http://` URLs directly.
 
 Common auth inputs:
 
 - x509 proxy presented during the TLS handshake
-- or `Authorization: Bearer ...` via the plugin's HTTP path when bearer tokens
-  are in use
+- or `Authorization: Bearer ...` via the plugin/native HTTP path when bearer
+  tokens are in use
 
 ---
 
@@ -367,8 +384,10 @@ It is worth calling out one special case because users often expect `xrdcp` to
 hide it:
 
 - native root TPC uses a shared key registry and source register/consume
-  semantics; destination pull runs in the thread pool with anonymous outbound
-  `kXR_login` to `tpc.src` (see `src/tpc/` and `docs/status.md`)
+  semantics; destination pull runs in the thread pool and can complete ztn or
+  GSI after `kXR_authmore` when configured, while TLS-upgraded origins and
+  multihop delegation remain deployment caveats (see `src/tpc/` and
+  `docs/05-operations/operation-status.md`)
 - WebDAV HTTP-TPC is implemented separately as WebDAV `COPY` pull/push
 
 So:

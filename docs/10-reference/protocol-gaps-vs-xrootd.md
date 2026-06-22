@@ -32,7 +32,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_set` (3018) | ✅ | appid, clttl |
 | `kXR_write` (3019) | ✅ | |
 | `kXR_fattr` (3020) | ✅ | get/set/del/list via xattrs |
-| `kXR_prepare` (3021) | ✅ | Path validation + configurable `xrootd_prepare_command` staging hook; no native tape protocol (ARC/Castor API) |
+| `kXR_prepare` (3021) | ✅ | FRM-off legacy mode does path validation + optional `xrootd_prepare_command`; with `xrootd_frm on`, durable queue records and real request IDs are handled by `src/frm/`. Full upstream XrdFrm/MSS parity remains partial. |
 | `kXR_statx` (3022) | ✅ | |
 | `kXR_endsess` (3023) | ✅ | |
 | `kXR_bind` (3024) | ✅ | Parallel streams |
@@ -55,7 +55,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | Subtype | Code | Status | Notes |
 |---------|------|--------|-------|
 | `kXR_QStats` | 1 | ✅ | Abbreviated counters (format differs from upstream XML) |
-| `kXR_QPrep` | 2 | ✅ | `A`/`M` path status |
+| `kXR_QPrep` | 2 | ✅ | FRM-off `A`/`M` path status; FRM-on queued/staging/failed/available queue status with durable request IDs |
 | `kXR_Qcksum` | 3 | ✅ | adler32, crc32, crc32c, md5, sha1, sha256 |
 | `kXR_Qxattr` | 4 | ✅ | oss.* + user.* |
 | `kXR_Qspace` | 5 | ✅ | statvfs-based |
@@ -181,7 +181,9 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | sha256 | ✅ | N/A | ✅ | ✅ |
 | sha1 | ✅ | N/A | ✅ | ✅ |
 
-**Note**: dstat xattr cache stores checksums in `user.XrdCks.<algo>` xattrs but is not mtime-invalidated — callers writing new data should evict xattr on close (future work).
+**Note**: checksum xattr caching is mediated through the shared integrity layer,
+which validates cached values against file metadata and invalidates on write
+paths where required.
 
 ---
 
@@ -202,27 +204,27 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `XrdNet` | Networking | `src/connection/` |
 | `XrdOfs` | Object file system | `src/fs/` |
 | `XrdOss` | Object storage | `src/fs/` (POSIX-backed) |
-| `XrdPss` | Parallel storage | ❌ Out of scope |
+| `XrdPss` | Parallel storage | ❌ Full upstream PSS is out of scope |
 | `XrdFss` | File system | `src/fs/` (POSIX) |
 
 ### Not implemented (out of scope — remote storage)
 
 | Module | Description | Reason |
 |--------|-------------|--------|
-| `XrdOssArc` | Tape/archive integration | POSIX-backed only |
+| `XrdOssArc` | Tape/archive integration | Partial via FRM/Tape REST gateway; not the full upstream archive backend |
 | `XrdOssCsi` | Erasure coding | No storage layer |
 | `XrdOssStats` | OSS statistics | Prometheus covers monitoring |
 | `XrdOssSpace` | Space management | Basic `statvfs` implemented |
 | `XrdOssTrace` | Tracing | Debug via nginx logs |
 | `XrdOssReloc` | File relocation | `kXR_mv` for same-filesystem |
 | `XrdOssAt` | Archive transfer | POSIX-backed only |
-| `XrdOssMSS` | Mass storage | POSIX-backed only |
+| `XrdOssMSS` | Mass storage | Partial control-plane integration only; no in-process MSS driver stack |
 | `XrdOssMio` | Memory-backed I/O | TLS memory buffers suffice |
 | `XrdCeph` | Ceph storage | POSIX-backed only |
-| `XrdFrm` | Distributed replication | Out of scope |
-| `XrdPfc` | Policy file cache | Basic cache eviction works |
-| `XrdBwm` | Bandwidth management | Nice-to-have |
-| `XrdThrottle` | Rate limiting | Nice-to-have |
+| `XrdFrm` | Distributed replication / file residency | Partial FRM queue and Tape REST gateway; not full upstream XrdFrm daemon ecosystem |
+| `XrdPfc` | Policy file cache | Partial: read-through, slice cache, eviction, and write-through helpers; not full upstream PFC |
+| `XrdBwm` | Bandwidth management | Built-in identity-aware bandwidth limits exist; not upstream XrdBwm plugin parity |
+| `XrdThrottle` | Rate limiting | Built-in request-rate/concurrency limits exist; not upstream XrdThrottle plugin parity |
 | `XrdZip` | ZIP archive serving | Nice-to-have |
 | `XrdDig` | Diagnostics | Nice-to-have |
 | `XrdEc` | Event data catalog | Nice-to-have |
@@ -316,7 +318,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | Feature | Notes |
 |---------|-------|
 | **Native `kXR_attn` generation** | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate `kXR_asyncms` when files are on disk; `kXR_asynresp` available for deferred-response callers |
-| `kXR_prepare` tape dispatch | Configurable `xrootd_prepare_command` staging hook covers all practical backends |
+| `kXR_prepare` FRM/Tape REST support | Durable FRM queue + Tape REST gateway exists; full upstream XrdFrm/MSS parity is still partial |
 | Multi-tier CMS hierarchy | Three-tier (meta → sub-manager → leaf DS) implemented and tested |
 | `kXR_attrMeta` / `kXR_attrSuper` / `kXR_attrVirtRdr` | All three role flags advertised via `xrootd_metadata_only`, `xrootd_supervisor`, `xrootd_virtual_redirector` |
 | `kXR_collapseRedir` | SHM redirect-target cache implemented; advertised via `xrootd_collapse_redir on` |
@@ -332,10 +334,9 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | Feature | Reason |
 |---------|--------|
 | `xrd.monitor` UDP stream | Fire-and-forget, fragile, no standard consumer |
-| Tape/archive backends (ARC, PSS, Ceph, HDFS) | POSIX-backed only |
-| Distributed replication (Frm) | Out of scope |
-| Bandwidth management (BWM) | Nice-to-have |
-| Rate limiting (Throttle) | Nice-to-have |
+| Full tape/archive backend ecosystem (ARC, PSS, Ceph, HDFS, MSS drivers) | Narrower POSIX-backed module with FRM/Tape REST control-plane integration |
+| Full distributed replication / XrdFrm daemon ecosystem | Partial FRM queue only |
+| Upstream BWM/Throttle plugin parity | Built-in bandwidth/rate/concurrency policy exists, but not as those upstream plugins |
 | ZIP archive serving | Nice-to-have |
 | Erasure coding (CSI) | No storage layer |
 | Audit logging | Access logging sufficient |

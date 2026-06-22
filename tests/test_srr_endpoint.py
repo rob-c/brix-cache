@@ -34,10 +34,9 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
-HOST = "127.0.0.1"
-PORT = 22020
+PORT = int(os.environ.get("TEST_SRR_PORT") or free_port())
 SRR_PATH = "/.well-known/wlcg-storage-resource-reporting"
 URL = f"http://{HOST}:{PORT}{SRR_PATH}"
 
@@ -75,7 +74,7 @@ http {{
     client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
     uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
     server {{
-        listen {HOST}:{PORT};
+        listen {BIND_HOST}:{PORT};
         location = {SRR_PATH} {{
             xrootd_srr on;
             xrootd_srr_name "TEST-SE";

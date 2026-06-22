@@ -375,3 +375,20 @@ If you only need the short version:
   `kXR_protocol`
 - `roots://` uses nginx stream SSL from the first byte
 - `davs://` uses nginx HTTP SSL plus the WebDAV module's proxy-cert handling
+
+## Authorization
+
+Once a principal is authenticated, *authorization* (which paths it may access,
+with which privileges) is handled by an authdb. Two engines are available: the
+default `native` engine and a faithful XRootD **XrdAcc** engine usable across
+root://, WebDAV and S3 — see
+[authorization-xrdacc.md](authorization-xrdacc.md).
+
+## Identity → local UNIX user & group mapping
+
+How an X.509/VOMS/VO or token/SSS/Kerberos identity is turned into authorization
+decisions and **local UNIX user/group** ownership — and how an admin can
+**force, override, or adjust** a given mapping — is documented in detail in
+[**identity-mapping.md**](identity-mapping.md). Start there if you need to map
+grid/VO identities to local UNIX groups, pin a service account, control created-
+file ownership, or override the default mapping for a specific principal.

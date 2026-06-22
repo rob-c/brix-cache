@@ -20,6 +20,7 @@
 #include "ngx_xrootd_module.h"
 #include "ext_ops.h"
 #include "../compat/error_mapping.h"
+#include "../compat/vendor_ext.h"   /* shared kXR_setattr prefix codec (libxrdproto) */
 #include "../path/op_path.h"
 #include "../path/auth_gate.h"
 #include "../path/path.h"
@@ -29,23 +30,6 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
-
-/* Unaligned big-endian reads from the payload (the setattr prefix is not aligned). */
-static int64_t
-ext_rd_be64(const u_char *p)
-{
-    uint64_t v;
-    memcpy(&v, p, sizeof(v));
-    return (int64_t) be64toh(v);
-}
-
-static int32_t
-ext_rd_be32(const u_char *p)
-{
-    uint32_t v;
-    memcpy(&v, p, sizeof(v));
-    return (int32_t) ntohl(v);
-}
 
 /*
  * kXR_setattr — set timestamps (utimens) and/or owner (chown) on a path.
@@ -69,13 +53,19 @@ xrootd_handle_setattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     p = ctx->payload;
-    flags             = ext_rd_be32(p + 0);
-    times[0].tv_sec   = (time_t) ext_rd_be64(p + 4);
-    times[0].tv_nsec  = (long)   ext_rd_be64(p + 12);
-    times[1].tv_sec   = (time_t) ext_rd_be64(p + 20);
-    times[1].tv_nsec  = (long)   ext_rd_be64(p + 28);
-    uid               = ext_rd_be32(p + 36);
-    gid               = ext_rd_be32(p + 40);
+    {
+        /* Shared 44-byte attribute-prefix codec (libxrdproto) — same offsets the
+         * client encodes with, so the two cannot drift. */
+        xrdp_setattr_t a;
+        xrdp_setattr_prefix_unpack(p, &a);
+        flags            = (int32_t) a.flags;
+        times[0].tv_sec  = (time_t)  a.atime_sec;
+        times[0].tv_nsec = (long)    a.atime_nsec;
+        times[1].tv_sec  = (time_t)  a.mtime_sec;
+        times[1].tv_nsec = (long)    a.mtime_nsec;
+        uid              = a.uid;
+        gid              = a.gid;
+    }
 
     if (!xrootd_extract_path(c->log, p + XROOTD_SETATTR_PREFIX_LEN,
                              ctx->cur_dlen - XROOTD_SETATTR_PREFIX_LEN,

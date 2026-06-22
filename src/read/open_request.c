@@ -5,12 +5,86 @@
 #include "../frm/waiter.h"
 #include "../session/registry.h"
 #include "../cms/cms_internal.h"
+#include "../compat/codec_core.h"
 
 #include <string.h>
 #include <unistd.h>
 
 /* Opaque extraction helper — defined in open_overview.c */
 extern int open_extract_opaque(const u_char *payload, size_t payload_len, char *out, size_t out_size);
+
+/* ---- Function: open_negotiate_compress_codec() ----
+ *
+ * WHAT: Phase-42 W4/W5 — negotiate an inline-compression codec from the kXR_open
+ *       opaque.  Returns the codec ordinal (xrootd_codec_id_t) to use for this
+ *       handle, or XROOTD_CODEC_IDENTITY (0) when compression is disabled for the
+ *       direction, no "?xrootd.compress=" opaque is present, or the requested
+ *       codec is unknown/unavailable.  Direction is chosen by is_write: a READ
+ *       open gates on xrootd_read_compress (W4, compress kXR_read responses); a
+ *       WRITE open gates on xrootd_write_compress (W5, decompress kXR_write
+ *       payloads on ingest).
+ *
+ * WHY:  Inline compression must be strictly opt-in and invisible to stock peers.
+ *       The negotiation rides the existing path?opaque carrier (stock servers
+ *       ignore unknown CGI keys; stock clients never send them), gated behind the
+ *       direction's directive (both off by default).  Fail-soft: an unknown or
+ *       unbuilt codec degrades to plaintext rather than failing the open.
+ *
+ * HOW:  Extract the opaque, scan the '&'-separated CGI list for the
+ *       "xrootd.compress=" key on a token boundary, look the value up by
+ *       canonical name (then HTTP token, so "br" works) and require it built in.
+ */
+static uint8_t
+open_negotiate_compress_codec(xrootd_ctx_t *ctx,
+                              ngx_stream_xrootd_srv_conf_t *conf,
+                              ngx_flag_t is_write)
+{
+	char                       opaque[XROOTD_MAX_PATH + 1];
+	const char                *p, *val, *end;
+	size_t                     vlen;
+	ngx_flag_t                 enabled;
+	const xrootd_codec_desc_t *d;
+
+	enabled = is_write ? conf->write_compress : conf->read_compress;
+	if (!enabled || ctx->payload == NULL || ctx->cur_dlen == 0)
+	{
+		return XROOTD_CODEC_IDENTITY;
+	}
+
+	if (!open_extract_opaque(ctx->payload, ctx->cur_dlen,
+	                         opaque, sizeof(opaque)))
+	{
+		return XROOTD_CODEC_IDENTITY;
+	}
+
+	p = strstr(opaque, "xrootd.compress=");
+	if (p == NULL) {
+		return XROOTD_CODEC_IDENTITY;
+	}
+	/* Require a key boundary before the token (start, '&' or '?'). */
+	if (p != opaque && p[-1] != '&' && p[-1] != '?') {
+		return XROOTD_CODEC_IDENTITY;
+	}
+
+	val = p + (sizeof("xrootd.compress=") - 1);
+	end = val;
+	while (*end != '\0' && *end != '&') {
+		end++;
+	}
+	vlen = (size_t) (end - val);
+	if (vlen == 0) {
+		return XROOTD_CODEC_IDENTITY;
+	}
+
+	d = xrootd_codec_by_name(val, vlen);
+	if (d == NULL) {
+		d = xrootd_codec_by_http_token(val, vlen);
+	}
+	if (d == NULL || !d->available || d->id == XROOTD_CODEC_IDENTITY) {
+		return XROOTD_CODEC_IDENTITY;
+	}
+	return (uint8_t) d->id;
+}
 
 /* SciTags echo timer (phase-34): periodically emit an "ongoing" firefly for a
  * long-lived marked connection.  ev->data is the xrootd_ctx_t; re-arms itself
@@ -559,5 +633,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	return xrootd_open_resolved_file(ctx, c, conf, full_path, options,
-									 mode_bits, is_write);
+									 mode_bits, is_write,
+									 open_negotiate_compress_codec(ctx, conf,
+									                               is_write));
 }

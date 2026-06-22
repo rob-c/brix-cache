@@ -96,6 +96,9 @@ This document maps the testing suite in `tests/` to the XRootD protocol specific
 | `test_cross_protocol_access_logging.py` | Logging | Access logging | Nginx-Specific |
 | `test_dashboard.py` | Metrics | Dashboard metrics | Nginx-Specific |
 | `test_e2e_redirector_xrdcp.py` | Redirection | Redirector/xrdcp E2E | Nginx-Specific |
+| `test_evil_actor.py` | Security/Adversarial | Worker-crash hunt over hostile XRootD wire frames + disconnect-mid-AIO ([guide](adversarial-testing.md)) | Nginx-Specific |
+| `test_evil_actor_v2.py` | Security/Adversarial | Deeper race hunt: cross-connection bind handles + cross-protocol, LD_PRELOAD-deterministic ([guide](adversarial-testing.md)) | Nginx-Specific |
+| `race_shim.c` | Security/Helper | LD_PRELOAD worker-gated syscall slower that makes worker-vs-event-loop races deterministic | Nginx-Specific |
 | `test_gsi_bridge.py` | Security/GSI | GSI security bridge | Nginx-Specific |
 | `test_http_cache_hit.py` | Cache | HTTP cache hits | Nginx-Specific |
 | `test_http_webdav_lock.py` | WebDAV/Lock | WebDAV locking | Nginx-Specific |

@@ -8,6 +8,7 @@
 #include "../manager/registry.h"
 #include "../manager/pending.h"
 #include "../session/registry.h"
+#include "../compat/codec_core.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -38,7 +39,8 @@ ngx_int_t
 xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  ngx_stream_xrootd_srv_conf_t *conf,
 						  const char *resolved, uint16_t options,
-						  uint16_t mode_bits, ngx_flag_t is_write)
+						  uint16_t mode_bits, ngx_flag_t is_write,
+						  uint8_t codec)
 {
 	int                idx, fd, oflags;
 	int                is_readable;
@@ -222,6 +224,18 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].cached_size = (off_t) st.st_size;
 	ctx->files[idx].read_last_end  = -1;
 	ctx->files[idx].read_ahead_end = 0;
+
+	/*
+	 * Phase-42 W4/W5 — inline compression.  `codec` is the codec negotiated from
+	 * the open opaque (0 = none).  Honour it only for a regular file, and store it
+	 * in the direction-appropriate slot: read_codec for a read open (W4, compress
+	 * kXR_read responses), write_codec for a write open (W5, decompress kXR_write
+	 * payloads).  The default (codec==0) leaves both slots 0 / byte-identical.
+	 */
+	ctx->files[idx].read_codec  = (!is_write && S_ISREG(st.st_mode)
+	    && codec != XROOTD_CODEC_IDENTITY) ? codec : (uint8_t) XROOTD_CODEC_IDENTITY;
+	ctx->files[idx].write_codec = (is_write && S_ISREG(st.st_mode)
+	    && codec != XROOTD_CODEC_IDENTITY) ? codec : (uint8_t) XROOTD_CODEC_IDENTITY;
 	ctx->files[idx].wt_enabled = 0;
 	ctx->files[idx].wt_policy = XROOTD_WT_DECISION_DENY;
 	ctx->files[idx].wt_mode_bits = create_mode;
@@ -410,6 +424,25 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ngx_memzero(&body, sizeof(body));
 	body.fhandle[0] = (u_char) idx;
 	body.cpsize     = 0;
+	/*
+	 * Phase-42 W4 — signal inline read compression back to the client via the
+	 * (otherwise vestigial) cpsize/cptype fields.  Only set when a codec was
+	 * actually negotiated for this read handle, so stock clients (which never
+	 * send the opaque) still see cpsize==0 and the byte-identical reply.
+	 */
+	{
+		/* Signal the negotiated codec for whichever direction this handle uses
+		 * (read_codec for W4 reads, write_codec for W5 writes — at most one is
+		 * set).  cpsize is a kXR_int32 wire field, big-endian per the XRootD wire
+		 * convention (the client keys off cptype[0], a byte, so cpsize endianness
+		 * is not load-bearing, but emit it conformantly). */
+		uint8_t sig_codec = ctx->files[idx].read_codec
+		    ? ctx->files[idx].read_codec : ctx->files[idx].write_codec;
+		if (sig_codec != XROOTD_CODEC_IDENTITY) {
+			body.cpsize    = (kXR_int32) htonl(XROOTD_INLINE_CMP_MAGIC);
+			body.cptype[0] = sig_codec;
+		}
+	}
 	ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, sizeof(body));
 
 	if (want_stat) {

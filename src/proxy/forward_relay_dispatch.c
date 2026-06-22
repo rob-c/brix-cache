@@ -101,6 +101,24 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /* --- lazy initialisation: connect to upstream on first dispatch --- */
     if (ctx->proxy == NULL) {
+
+        /*
+         * Loop guard: a permanently-rejecting upstream (bad credential, all
+         * upstreams down) would otherwise make every re-dispatch allocate a
+         * fresh proxy ctx on c->pool and reconnect, spinning the worker at
+         * event-loop rate and growing the connection pool without bound.  Once
+         * this connection has burned through its failure budget, stop retrying
+         * and return a hard error instead of spawning another proxy.
+         */
+        if (ctx->proxy_fail_count >= XROOTD_PROXY_MAX_CONN_FAILS) {
+            ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                          "xrootd proxy: %ui consecutive upstream failures on "
+                          "this connection — failing request, not retrying",
+                          ctx->proxy_fail_count);
+            return xrootd_send_error(ctx, c, kXR_IOError,
+                                     "proxy: upstream unavailable");
+        }
+
         proxy = ngx_pcalloc(c->pool, sizeof(xrootd_proxy_ctx_t));
         if (proxy == NULL) {
             return xrootd_send_error(ctx, c, kXR_IOError,
@@ -121,6 +139,10 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         if (xrootd_proxy_connect(proxy, c, conf) != NGX_OK) {
             ctx->proxy = NULL;
+            /* Count synchronous connect/selection failures too (e.g. all
+             * upstreams down) so they are bounded by the same per-connection
+             * budget as async bootstrap aborts. */
+            ctx->proxy_fail_count++;
             return xrootd_send_error(ctx, c, kXR_IOError,
                                      "proxy: upstream connect failed");
         }

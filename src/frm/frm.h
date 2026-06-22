@@ -200,6 +200,17 @@ typedef struct {
 } frm_residency_t;
 
 /*
+ * phase-46 W2b: process-global "FRM was configured on this process" flag, set
+ * once at postconfiguration (master, pre-fork) when any frm-enabled server block
+ * exists.  When unset, no object can carry a residency marker, so
+ * frm_residency_probe() short-circuits to ONLINE and skips its stat+getxattr —
+ * eliminating that per-request cost on plain (no-tape) S3/WebDAV exports, the
+ * same way the native stat/open paths already gate on conf->frm.enable.
+ */
+void frm_mark_configured(void);
+int  frm_is_configured(void);
+
+/*
  * Probe a file's residency by its absolute export path. xattr-based: a present
  * file whose user.frm.residency xattr is "nearline"/"offline" is non-resident;
  * absent xattr or "online" means resident (so existing exports need no

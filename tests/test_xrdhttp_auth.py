@@ -17,10 +17,12 @@ import pytest
 from settings import (
     CA_CERT,
     DATA_ROOT as DEFAULT_DATA_ROOT,
+    HOST,
     NGINX_WEBDAV_GSI_TLS_PORT,
     NGINX_WEBDAV_PORT,
     PROXY_STD,
     XRDHTTP_HTTPS_PORT,
+    url_host,
 )
 
 pytestmark = pytest.mark.timeout(120)
@@ -31,14 +33,14 @@ pytestmark = pytest.mark.timeout(120)
 
 NGINX_GSI_URL = os.environ.get(
     "TEST_NGINX_WEBDAV_GSI_URL",
-    f"https://localhost:{NGINX_WEBDAV_GSI_TLS_PORT}/",
+    f"https://{url_host(HOST)}:{NGINX_WEBDAV_GSI_TLS_PORT}/",
 )
 NGINX_TOKEN_URL = os.environ.get(
     "TEST_NGINX_WEBDAV_URL",
-    f"https://localhost:{NGINX_WEBDAV_PORT}/",
+    f"https://{url_host(HOST)}:{NGINX_WEBDAV_PORT}/",
 )
 REF_URL    = os.environ.get(
-    "TEST_XRDHTTP_DAVS_URL", f"https://localhost:{XRDHTTP_HTTPS_PORT}/dav/"
+    "TEST_XRDHTTP_DAVS_URL", f"https://{url_host(HOST)}:{XRDHTTP_HTTPS_PORT}/dav/"
 )
 
 DATA_ROOT  = DEFAULT_DATA_ROOT

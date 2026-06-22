@@ -134,6 +134,12 @@ xrootd_proxy_abort(xrootd_proxy_ctx_t *proxy, const char *reason)
 
     xrootd_proxy_up_mark_failed(proxy);
 
+    /* Count this failure against the per-connection budget so a permanently
+     * failing upstream cannot drive an unbounded reconnect loop (the dispatch
+     * path stops spawning new proxies once XROOTD_PROXY_MAX_CONN_FAILS is hit).
+     * A successful bootstrap resets the counter. */
+    ctx->proxy_fail_count++;
+
     ctx->state = XRD_ST_REQ_HEADER;
     xrootd_proxy_cleanup(proxy);
     ctx->proxy = NULL;

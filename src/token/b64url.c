@@ -7,6 +7,37 @@
 #include "b64url.h"
 
 #include <openssl/evp.h>
+#include <string.h>
+
+/* ---- Function: xrdjwt_split() — split a compact JWS into its 3 segments ----
+ * WHAT: locate the two '.' separators of "header.payload.signature" and return
+ *       each segment as a (pointer,len) slice into the input — no copy/decode.
+ * WHY:  both the module's token validate path and the client's token-introspection
+ *       reimplemented this two-dot scan; one shared splitter keeps them in step.
+ * HOW:  memchr for the first dot, then the second after it; signature is the rest
+ *       (a JWS signature is base64url and carries no dot, so we don't reject more). */
+int
+xrdjwt_split(const char *tok, size_t len, xrdjwt_seg seg[3])
+{
+    const char *dot1, *dot2, *end;
+
+    if (tok == NULL || seg == NULL) {
+        return -1;
+    }
+    end  = tok + len;
+    dot1 = (const char *) memchr(tok, '.', len);
+    if (dot1 == NULL) {
+        return -1;
+    }
+    dot2 = (const char *) memchr(dot1 + 1, '.', (size_t) (end - (dot1 + 1)));
+    if (dot2 == NULL) {
+        return -1;
+    }
+    seg[0].p = tok;       seg[0].n = (size_t) (dot1 - tok);
+    seg[1].p = dot1 + 1;  seg[1].n = (size_t) (dot2 - (dot1 + 1));
+    seg[2].p = dot2 + 1;  seg[2].n = (size_t) (end - (dot2 + 1));
+    return 0;
+}
 
 ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_max) {
     size_t padded_len = in_len + (4 - in_len % 4) % 4;

@@ -1,0 +1,169 @@
+# ============================================================================
+# nginx-xrootd — example server configuration
+# ============================================================================
+#
+# This file is shipped as a *reference* (installed as xrootd.conf.example so it
+# never auto-activates).  To use it:
+#
+#   1. The module's load_module lines are installed separately by the RPM as
+#      /etc/nginx/conf.d/mod-xrootd.conf (loaded before this file).  Confirm
+#      with:  nginx -t
+#
+#   2. Copy this file to an ACTIVE name and edit the paths/secrets:
+#        cp /etc/nginx/conf.d/xrootd.conf.example /etc/nginx/conf.d/xrootd.conf
+#
+#   3. The server blocks BELOW are HTTP-context (davs:// WebDAV + S3 + /metrics
+#      + /healthz + dashboard) and load from conf.d as-is, because nginx's
+#      stock nginx.conf does `include /etc/nginx/conf.d/*.conf;` INSIDE http{}.
+#
+#   4. The root:// XRootD protocol runs in the top-level stream{} context, which
+#      conf.d cannot hold.  Paste the STREAM EXAMPLE block (commented at the very
+#      bottom of this file) into your main /etc/nginx/nginx.conf, and make sure
+#      that nginx.conf has `thread_pool default threads=4 max_queue=65536;` at
+#      the top level (the async data-plane uses it).
+#
+# Replace every /etc/grid-security/... and /var/lib/nginx-xrootd/... path and
+# every secret/issuer/audience with your site's real values before serving.
+# ============================================================================
+
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics + health probes (plain HTTP, bind to localhost or a
+# scrape-only network — these expose operational state, not file data).
+# ---------------------------------------------------------------------------
+server {
+    listen 9100;
+    server_name _;
+
+    # Prometheus scrape target (see contrib/grafana-dashboard.json +
+    # contrib/prometheus-alerts.yml).
+    location /metrics {
+        xrootd_metrics on;
+    }
+
+    # Liveness/readiness probe for a load balancer or Kubernetes.
+    #   GET /healthz          -> 200 {"status":"ok",...}   (liveness)
+    #   GET /healthz?verbose  -> 200 + readiness checks     (shm mapped, pid, ver)
+    location = /healthz {
+        xrootd_health on;
+    }
+}
+
+
+# ---------------------------------------------------------------------------
+# WebDAV over HTTPS (davs://) — token (WLCG/JWT) AND x509 proxy-cert auth.
+# This is the modern WLCG gateway endpoint.
+# ---------------------------------------------------------------------------
+server {
+    listen 8443 ssl;
+    server_name storage.example.org;
+
+    ssl_certificate     /etc/grid-security/hostcert.pem;
+    ssl_certificate_key /etc/grid-security/hostkey.pem;
+
+    # Accept (but do not require at the TLS layer) a client proxy cert; the
+    # module validates it against the trusted CA dir below.
+    ssl_verify_client   optional_no_ca;
+    ssl_verify_depth    10;
+
+    # Zero-copy encrypted GET via kernel TLS (OpenSSL 3 + AES-GCM); nginx falls
+    # back to read()+SSL_write automatically when kTLS is unavailable.
+    ssl_conf_command Options KTLS;
+    ssl_buffer_size  64k;
+
+    client_max_body_size 0;          # allow arbitrarily large PUT/uploads
+    xrootd_webdav_proxy_certs on;    # enable x509 proxy-cert validation
+
+    access_log /var/log/nginx/xrootd_webdav_access.log;
+
+    # Web dashboard (operational UI) — password-protected, TLS-only.
+    location /xrootd/ {
+        xrootd_dashboard on;
+        xrootd_dashboard_password "CHANGE-ME";
+    }
+
+    location / {
+        root               /var/lib/nginx-xrootd/data;
+        dav_methods        DELETE MKCOL;
+
+        xrootd_webdav      on;
+        xrootd_webdav_root /var/lib/nginx-xrootd/data;
+
+        # Authentication: `optional` accepts anonymous + authenticated; use
+        # `required` to reject unauthenticated requests.
+        xrootd_webdav_auth        optional;
+        xrootd_webdav_allow_write on;
+
+        # x509 / VOMS proxy validation against the IGTF CA dir.
+        xrootd_webdav_cadir /etc/grid-security/certificates;
+
+        # WLCG bearer-token (JWT) validation — JWKS is hot-reloaded on mtime.
+        xrootd_webdav_token_jwks     /etc/nginx-xrootd/jwks.json;
+        xrootd_webdav_token_issuer   "https://wlcg.example.org/";
+        xrootd_webdav_token_audience "https://storage.example.org";
+
+        # Third-party copy (TPC) — WebDAV COPY with delegated credentials.
+        # tpc_cafile is a CA *bundle file* used to verify the remote TPC peer
+        # (distinct from cadir above, which is the IGTF CA *directory*).
+        xrootd_webdav_tpc on;
+        xrootd_webdav_tpc_cafile /etc/pki/tls/certs/ca-bundle.crt;
+    }
+}
+
+
+# ---------------------------------------------------------------------------
+# S3 REST endpoint (SigV4) — plain HTTP here; front with TLS (terminate at this
+# server with `listen 9001 ssl;` + ssl_certificate, or at an upstream LB).
+# ---------------------------------------------------------------------------
+server {
+    listen 9001;
+    server_name s3.example.org;
+
+    client_max_body_size 0;
+    access_log /var/log/nginx/xrootd_s3_access.log;
+
+    location / {
+        xrootd_s3            on;
+        xrootd_s3_root       /var/lib/nginx-xrootd/data;
+        xrootd_s3_bucket     mybucket;
+        xrootd_s3_allow_write on;
+        xrootd_s3_max_keys   1000;
+        # SigV4 access/secret keys are configured per your credential source;
+        # see docs/04-protocols/ for the S3 auth model.
+    }
+}
+
+
+# ============================================================================
+# STREAM EXAMPLE — paste into the TOP LEVEL of /etc/nginx/nginx.conf (NOT here;
+# conf.d is included inside http{} and cannot contain a stream{} block).
+# ============================================================================
+#
+# stream {
+#     # root:// with WLCG token auth (modern default).
+#     server {
+#         listen 1094;
+#         xrootd            on;
+#         xrootd_root       /var/lib/nginx-xrootd/data;
+#         xrootd_auth       token;
+#         xrootd_allow_write on;
+#         xrootd_token_jwks     /etc/nginx-xrootd/jwks.json;
+#         xrootd_token_issuer   "https://wlcg.example.org/";
+#         xrootd_token_audience "https://storage.example.org";
+#         xrootd_access_log /var/log/nginx/xrootd_access.log;
+#     }
+#
+#     # roots:// with GSI/x509 + in-protocol TLS.
+#     server {
+#         listen 1095;
+#         xrootd            on;
+#         xrootd_root       /var/lib/nginx-xrootd/data;
+#         xrootd_auth       gsi;
+#         xrootd_tls        on;
+#         xrootd_allow_write on;
+#         xrootd_certificate     /etc/grid-security/hostcert.pem;
+#         xrootd_certificate_key /etc/grid-security/hostkey.pem;
+#         xrootd_trusted_ca      /etc/grid-security/certificates/ca.pem;
+#         xrootd_access_log /var/log/nginx/xrootd_gsi_access.log;
+#     }
+# }

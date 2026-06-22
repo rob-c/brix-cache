@@ -89,9 +89,11 @@ Flush behavior:
 - The write-back strategy is whole-file replacement, not per-write
   dual-dispatch. This is simpler and robust for ingest-style workflows, but it
   is not ideal for very large random-write workloads.
-- Origin authentication follows the existing cache/upstream origin machinery.
-  TLS and ztn token outbound auth are implemented elsewhere; outbound GSI auth
-  remains a missing feature.
+- Origin authentication follows the cache-origin machinery, not the native TPC
+  client. Cache/write-through origins may use configured origin TLS, but login
+  is still anonymous and `kXR_authmore` is not completed. Do not confuse this
+  with native root:// TPC, which has its own ztn/GSI outbound auth path under
+  `src/tpc/gsi_outbound_*`.
 - There is no dynamic STS-style credential forwarding directive yet.
 
 ## Verification

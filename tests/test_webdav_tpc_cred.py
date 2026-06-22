@@ -24,9 +24,11 @@ from pathlib import Path
 
 import pytest
 from settings import (
+    HOST,
     PKI_DIR as PKI_DIR_STR,
     TEST_ROOT,
     WEBDAV_TPC_SOURCE_OPEN_PORT,
+    url_host,
 )
 
 PKI_DIR = Path(PKI_DIR_STR)
@@ -69,7 +71,7 @@ def _copy_pull(dest_port, dest_path, source_url, *extra_headers, timeout=30):
     )
     args = [
         "-X", "COPY",
-        f"https://localhost:{dest_port}{dest_path}",
+        f"https://{url_host(HOST)}:{dest_port}{dest_path}",
         "-H", f"Source: {source_url}",
     ]
     if has_cred:
@@ -110,7 +112,7 @@ def tpc_nginx_server():
         try:
             result = _curl(
                 "-X", "OPTIONS",
-                f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/",
+                f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/",
                 "-o", "/dev/null",
                 timeout=3,
             )
@@ -142,7 +144,7 @@ class TestCredHeaderParsing:
         code = _copy_pull(
             WEBDAV_TPC_SOURCE_OPEN_PORT,
             "/nonexistent",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
             "Credential: none",
         )
         # Source file doesn't exist, so we expect 502 (curl can't fetch it)
@@ -162,8 +164,8 @@ class TestCredHeaderParsing:
             "--key", str(CLIENT_KEY),
             "--cacert", str(CA_PEM),
             "-X", "COPY",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/nonexistent",
-            "-H", f"Source: https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/nonexistent",
+            "-H", f"Source: https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
             "-H", "Credential: oidc-agent",
             "-w", "%{http_code}", "-o", "/dev/null",
         ]
@@ -182,7 +184,7 @@ class TestCredHeaderParsing:
         code = _copy_pull(
             WEBDAV_TPC_SOURCE_OPEN_PORT,
             "/nonexistent",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
             "Credential: token-exchange",
         )
         # Token acquisition fails (no endpoint configured), but mode is valid.
@@ -193,7 +195,7 @@ class TestCredHeaderParsing:
         code = _copy_pull(
             WEBDAV_TPC_SOURCE_OPEN_PORT,
             "/nonexistent",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
             "Credential: invalid-mode",
         )
         assert code == 400, f"Expected 400 for invalid mode, got {code}"
@@ -203,7 +205,7 @@ class TestCredHeaderParsing:
         code = _copy_pull(
             WEBDAV_TPC_SOURCE_OPEN_PORT,
             "/nonexistent",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
             "Credential: ",
         )
         # Empty value is not a known mode; server should return 400.
@@ -218,7 +220,7 @@ class TestCredHeaderParsing:
         code = _copy_pull(
             WEBDAV_TPC_SOURCE_OPEN_PORT,
             "/nonexistent",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
             "Credential: OIDC-AGENT",
         )
         assert code == 400, f"Expected 400 for uppercase 'OIDC-AGENT', got {code}"
@@ -230,7 +232,7 @@ class TestCredHeaderParsing:
         code = _copy_pull(
             WEBDAV_TPC_SOURCE_OPEN_PORT,
             "/nonexistent",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/also-nonexistent",
             "Credentials: none",
         )
         assert code != 400, f"Expected non-400 for 'Credentials: none', got {code}"
@@ -248,9 +250,9 @@ class TestPushCredDelegation:
         cmd = [
             "curl", "-sk",
             "-X", "COPY",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/nonexistent",
             "-H", "Credential: none",
-            "-H", f"Destination: https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/dest",
+            "-H", f"Destination: https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/dest",
             "-w", "%{http_code}", "-o", "/dev/null",
         ]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
@@ -264,9 +266,9 @@ class TestPushCredDelegation:
         cmd = [
             "curl", "-sk",
             "-X", "COPY",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/nonexistent",
             "-H", "Credential: bogus-mode",
-            "-H", f"Destination: https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/dest",
+            "-H", f"Destination: https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/dest",
             "-w", "%{http_code}", "-o", "/dev/null",
         ]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
@@ -279,9 +281,9 @@ class TestPushCredDelegation:
         cmd = [
             "curl", "-sk",
             "-X", "COPY",
-            f"https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/nonexistent",
+            f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/nonexistent",
             "-H", "Credential: oidc-agent",
-            "-H", f"Destination: https://localhost:{WEBDAV_TPC_SOURCE_OPEN_PORT}/dest",
+            "-H", f"Destination: https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/dest",
             "-w", "%{http_code}", "-o", "/dev/null",
         ]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
@@ -302,7 +304,7 @@ class TestCredMetrics:
         # Use the metrics port (9100) to scrape.
         cmd = [
             "curl", "-s",
-            "http://localhost:9100/metrics",
+            f"http://{url_host(HOST)}:9100/metrics",
         ]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
         assert result.returncode == 0, "Metrics endpoint unreachable"

@@ -176,7 +176,7 @@ class TestCredentialTranslationBridge:
 
         name = f"bridge_log_{uuid.uuid4().hex[:8]}.bin"
         _write_origin(name, os.urandom(1024))
-        tmp = f"/tmp/bridge_log_{name}"
+        tmp = os.path.join(os.environ["TMPDIR"], f"bridge_log_{name}")
 
         result = _xrdcp_gsi(
             f"root://{SERVER_HOST}:{CREDENTIAL_BRIDGE_PORT}/{name}", tmp

@@ -7,6 +7,8 @@
  */
 
 #include "webdav.h"
+#include "../impersonate/lifecycle.h"
+#include "../path/path.h"
 #include "../compat/fs_walk.h"
 #include "../compat/http_body.h"
 #include "../compat/http_xml.h"
@@ -204,8 +206,24 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
 {
     DIR           *dp;
     struct dirent *de;
+    ngx_http_xrootd_webdav_loc_conf_t *wdcf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
 
-    dp = opendir(dir_path);
+    /*
+     * Phase 40 confidentiality gate (mirrors propfind): under impersonation the
+     * worker uid may be able to readdir() a directory the *mapped* user cannot.
+     * Ask the broker to open it as the mapped user first; on denial skip this
+     * subtree silently rather than enumerate it with the worker's credentials.
+     * No-op (returns NGX_OK) when impersonation is off.
+     */
+    if (xrootd_dirlist_access_ok(r->connection->log, wdcf->common.root_canon,
+                                 dir_path) != NGX_OK)
+    {
+        return NGX_OK;   /* mapped user may not list this dir — no leak */
+    }
+
+    dp = xrootd_opendir_confined_canon(r->connection->log,
+                                       wdcf->common.root_canon, dir_path);
     if (dp == NULL) {
         return NGX_OK;   /* unreadable subtree: skip silently */
     }
@@ -224,9 +242,12 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
             break;   /* result-set cap reached: stop scanning this dir */
         }
 
+        /* lstat (not stat): never follow a symlink during the walk, so a symlink
+         * out of the export is not recursed into (it is S_ISLNK -> not S_ISDIR). */
         if (xrootd_fs_join_path(dir_path, de->d_name, child_path,
                                 sizeof(child_path)) != NGX_OK
-            || stat(child_path, &csb) != 0)
+            || xrootd_lstat_confined_canon(r->connection->log,
+                   wdcf->common.root_canon, child_path, &csb, 1) != 0)
         {
             continue;
         }
@@ -361,11 +382,27 @@ webdav_search_do(ngx_http_request_t *r)
 /*
  * Body-ready callback (async re-entry point): runs the search and finalizes the
  * request, also recording WebDAV metrics for the operation.
+ *
+ * Phase 40: SEARCH walks the namespace exactly like PROPFIND, so it is read
+ * asynchronously and the outer dispatch wrapper has already cleared the
+ * impersonation principal by the time this callback fires.  Re-establish it for
+ * the (synchronous) walk so the directory stat/opendir and confidentiality
+ * checks run as the mapped user — otherwise SEARCH would enumerate as the
+ * unprivileged worker and could leak entries the mapped user cannot read.
+ * No-op unless map mode is active.
  */
 static void
 webdav_search_body_handler(ngx_http_request_t *r)
 {
-    webdav_metrics_finalize_request(r, webdav_search_do(r));
+    ngx_http_xrootd_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_int_t rc;
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    rc = webdav_search_do(r);
+    xrootd_imp_request_end();
+
+    webdav_metrics_finalize_request(r, rc);
 }
 
 /*

@@ -41,6 +41,11 @@
 #include <limits.h>
 #include <string.h>
 
+#ifndef RENAME_NOREPLACE
+#define RENAME_NOREPLACE (1u << 0)   /* <linux/fs.h>; defined here to avoid the
+                                      * header's struct collisions */
+#endif
+
 /*
  * IMPERSONATION SEAM (phase 40).
  *
@@ -248,6 +253,50 @@ xrootd_rename_beneath(int rootfd, const char *src, const char *dst)
         close(sfd); close(dfd); errno = EINVAL; return -1;
     }
     rc = renameat(sfd, sbase, dfd, dbase);
+    e = errno; close(sfd); close(dfd); errno = e;
+    return rc;
+}
+
+/*
+ * Atomic create-if-absent rename: renameat2(RENAME_NOREPLACE) on the final
+ * components, confined under rootfd exactly like xrootd_rename_beneath().  On a
+ * kernel/filesystem without RENAME_NOREPLACE (ENOSYS/EINVAL) it falls back to a
+ * plain renameat — logged once — so behaviour degrades to the legacy
+ * last-writer-wins rather than spuriously failing (callers still ran their
+ * stat-based precondition, so this is no worse than before W6b on such hosts).
+ * Returns 0; or -1 with errno (EEXIST when the destination already exists).
+ */
+int
+xrootd_rename_beneath_excl(int rootfd, const char *src, const char *dst)
+{
+    char         sbuf[PATH_MAX], dbuf[PATH_MAX];
+    const char  *sbase, *dbase;
+    int          sfd, dfd, rc, e;
+
+    if (xrootd_imp_client_active()) {
+        return xrootd_imp_rename_noreplace(src, dst);
+    }
+
+    sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
+    if (sfd < 0) { return -1; }
+    dfd = beneath_open_parent(rootfd, dst, dbuf, sizeof(dbuf), &dbase);
+    if (dfd < 0) { e = errno; close(sfd); errno = e; return -1; }
+    if (sbase[0] == '\0' || dbase[0] == '\0') {
+        close(sfd); close(dfd); errno = EINVAL; return -1;
+    }
+
+    rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
+                       (unsigned int) RENAME_NOREPLACE);
+    if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
+        static int warned = 0;
+        if (!warned) {
+            warned = 1;
+            ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, errno,
+                          "xrootd: renameat2(RENAME_NOREPLACE) unsupported; "
+                          "create-if-absent falls back to non-atomic rename");
+        }
+        rc = renameat(sfd, sbase, dfd, dbase);
+    }
     e = errno; close(sfd); close(dfd); errno = e;
     return rc;
 }

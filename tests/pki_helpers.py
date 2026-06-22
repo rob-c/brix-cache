@@ -116,6 +116,16 @@ def blitz_test_pki() -> None:
             SERVER_SUBJECT,
         ]
     )
+    # Sign the server cert WITH a subjectAltName covering every address a client
+    # reaches it by — name (localhost), IPv4 loopback (127.0.0.1) and IPv6
+    # loopback (::1).  Without a SAN the cert only carries CN=localhost, so a
+    # client connecting to https://127.0.0.1 fails TLS hostname verification
+    # (curl exit 60) even though the cert chain is valid.  The reference XrdHttp
+    # server and several tests address the server by literal 127.0.0.1.
+    san_ext = server_dir / "san.ext"
+    san_ext.write_text(
+        "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1\n"
+    )
     _run(
         [
             "openssl",
@@ -133,6 +143,8 @@ def blitz_test_pki() -> None:
             "-days",
             "3650",
             "-sha256",
+            "-extfile",
+            str(san_ext),
         ]
     )
     _symlink("hostkey.pem", server_dir / "host.key")

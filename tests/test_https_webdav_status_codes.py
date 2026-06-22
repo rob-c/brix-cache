@@ -8,10 +8,7 @@ Targets the dedicated HTTPS+GSI server (port 8444, xrootd_webdav_auth required).
 All requests require a valid GSI proxy certificate; unauthenticated requests
 return 401 Unauthorized.
 
-Tests assert RFC-correct behaviour.  Known compliance gaps are marked
-``@pytest.mark.xfail`` with the precise RFC citation; they appear as ``x``
-(expected failure) in the output and will flip to ``X`` (unexpected pass)
-once the gap is resolved.
+Tests assert RFC-correct behaviour directly; regressions must fail normally.
 
 RFC compliance: all tested behaviours are now compliant.
 

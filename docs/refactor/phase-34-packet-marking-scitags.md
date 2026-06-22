@@ -1,7 +1,7 @@
 # Phase 34 — Packet Marking / SciTags (network flow tagging)
 
-**Status:** PLAN (not yet implemented)
-**Author:** design doc for future implementation
+**Status:** ✅ Implemented / as-built reference (source: `src/pmark/`)
+**Author:** design doc retained as implementation rationale and upstream-source audit
 **Scope:** add XRootD-compatible *packet marking* (the SciTags initiative) to nginx-xrootd,
 configurable from `nginx.conf` in the same spirit as XRootD's `pmark` directive. **Both** SciTags
 techniques are REQUIRED deliverables: (a) the **Firefly UDP** reporting path (for byte-for-byte
@@ -10,6 +10,13 @@ TODO stub XRootD never finished* (see §1 and the full spec in §6.4). Flow-labe
 mandatory, not an optional add-on.
 **Reference implementation studied:** `/tmp/xrootd-src/src/XrdNet/XrdNetPMark*.{cc,hh}` and
 `/tmp/xrootd-src/src/XrdHttpTpc/XrdHttpTpcPMarkManager.{cc,hh}` (read in full for this plan).
+
+**Current implementation note (2026-06-14):** the plan has landed under
+`src/pmark/`. `firefly.c` emits start/ongoing/end lifecycle datagrams,
+`flowlabel.c` applies Linux IPv6 flow labels with a fail-open capability probe,
+and `config.c`/`mapping.c` implement the nginx directives and SciTags mapping
+rules. Keep the sections below as the source-verified rationale, not as a
+future TODO list.
 
 ---
 

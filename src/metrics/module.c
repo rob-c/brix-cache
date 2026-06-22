@@ -26,6 +26,7 @@ ngx_http_xrootd_metrics_create_loc_conf(ngx_conf_t *cf)
     conf = ngx_pcalloc(cf->pool, sizeof(*conf));
     if (conf == NULL) { return NULL; }
     conf->enable = NGX_CONF_UNSET;
+    conf->health = NGX_CONF_UNSET;
     return conf;
 }
 
@@ -45,6 +46,7 @@ ngx_http_xrootd_metrics_merge_loc_conf(ngx_conf_t *cf,
     ngx_http_xrootd_metrics_loc_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
+    ngx_conf_merge_value(conf->health, prev->health, 0);
     return NGX_CONF_OK;
 }
 
@@ -71,6 +73,30 @@ ngx_http_xrootd_metrics_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 /*
+ * WHAT: Parse the `xrootd_health` flag and bind the /healthz content handler.
+ * WHY: phase-47 W2 — give load balancers and Kubernetes liveness/readiness
+ *      probes a cheap HTTP endpoint.  Co-located in the metrics module so it
+ *      needs no new .so and reuses the same loc-conf lifecycle.
+ * HOW: ngx_conf_set_flag_slot stores conf->health; then point this location's
+ *      core handler at ngx_http_xrootd_health_handler so GET /healthz is served
+ *      here instead of nginx's static-file default.
+ */
+
+static char *
+ngx_http_xrootd_health_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_core_loc_conf_t *clcf;
+    char *rv;
+
+    rv = ngx_conf_set_flag_slot(cf, cmd, conf);
+    if (rv != NGX_CONF_OK) { return rv; }
+
+    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
+    clcf->handler = ngx_http_xrootd_health_handler;
+    return NGX_CONF_OK;
+}
+
+/*
  * WHAT: Define the `xrootd_metrics` nginx directive for location-level configuration.
  * WHY: One flag-based directive enables or disables the Prometheus metrics endpoint per location.
  *      No additional parameters needed — just "on" or "off".
@@ -85,6 +111,13 @@ static ngx_command_t ngx_http_xrootd_metrics_commands[] = {
       ngx_http_xrootd_metrics_set,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_metrics_loc_conf_t, enable),
+      NULL },
+
+    { ngx_string("xrootd_health"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_http_xrootd_health_set,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_metrics_loc_conf_t, health),
       NULL },
 
     ngx_null_command

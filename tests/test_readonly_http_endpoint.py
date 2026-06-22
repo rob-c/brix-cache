@@ -76,7 +76,7 @@ def readonly_http():
 
 
 def _req(port, method, path, body=None, headers=None):
-    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=8)
+    conn = http.client.HTTPConnection(SERVER_HOST, port, timeout=8)
     try:
         conn.putrequest(method, path, skip_host=False, skip_accept_encoding=True)
         for k, v in (headers or {}).items():

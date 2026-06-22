@@ -1,3 +1,9 @@
+/* These wire structs must match the on-the-wire byte layout exactly, so this
+ * fragment owns its own pack(push,1)/pop pair rather than relying on the
+ * sibling fragment included before it by wire.h. Self-balancing each fragment
+ * keeps clang's -Wpragma-pack quiet and makes the include order irrelevant. */
+#pragma pack(push, 1)
+
 /* ------------------------------------------------------------------ */
 /* kXR_pgwrite (3026) — paged write with per-page CRC32 checksums      */
 /* ------------------------------------------------------------------ */

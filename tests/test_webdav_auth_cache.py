@@ -18,12 +18,14 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from settings import (
     CA_CERT,
+    HOST,
     PROXY_STD,
     SERVER_CERT,
     SERVER_KEY,
     TEST_ROOT,
     WEBDAV_AUTH_CACHE_MANUAL_PORT,
     WEBDAV_AUTH_CACHE_NGINX_PORT,
+    url_host,
 )
 
 PROXY_PEM = PROXY_STD
@@ -48,8 +50,8 @@ def webdav_auth_cache_nginx():
         fh.write(b"webdav auth cache probe\n")
 
     yield {
-        "manual_url": f"https://localhost:{manual_port}/{TEST_FILE}",
-        "nginx_url": f"https://localhost:{nginx_port}/{TEST_FILE}",
+        "manual_url": f"https://{url_host(HOST)}:{manual_port}/{TEST_FILE}",
+        "nginx_url": f"https://{url_host(HOST)}:{nginx_port}/{TEST_FILE}",
         "log": log_path,
         "startup_log": log_path,
     }

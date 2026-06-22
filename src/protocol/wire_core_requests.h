@@ -468,3 +468,9 @@ typedef struct {
  * they are raw newline-delimited data that the client accumulates.
  */
 
+/* Restore the caller's struct alignment. This fragment is self-balanced:
+ * it owns both the pack(push,1) at the top and this matching pop, so it no
+ * longer leaks a modified #pragma pack state into the sibling fragments that
+ * wire.h includes after it (clang -Wpragma-pack flags such cross-file leaks). */
+#pragma pack(pop)
+

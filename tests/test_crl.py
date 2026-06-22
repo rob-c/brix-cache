@@ -40,12 +40,14 @@ from settings import (
     CRL_DIR_PORT,
     CRL_PORT,
     CRL_RELOAD_PORT,
+    HOST,
     PKI_DIR,
     PROXY_STD,
     TEST_ROOT,
     USER_CERT,
     WEBDAV_CRL_PORT,
     WEBDAV_DIR_PORT,
+    url_host,
 )
 
 # Suppress InsecureRequestWarning — test certs have no SAN
@@ -60,7 +62,7 @@ PROXY_PEM  = PROXY_STD
 CRL_DIR    = os.path.join(TEST_ROOT, "generated-crl")
 CRL_PEM    = os.path.join(CRL_DIR, "crl.pem")
 
-CRL_HOST   = "127.0.0.1"
+CRL_HOST   = HOST
 
 # Directory-mode test paths
 CRL_DIR_TEST      = os.path.join(TEST_ROOT, "crls")
@@ -137,7 +139,7 @@ def crl_file():
 @pytest.fixture(scope="session", autouse=True)
 def crl_nginx(crl_file):
     """Use the suite-level nginx with CRL checking enabled."""
-    if not _wait_for_port("127.0.0.1", WEBDAV_CRL_PORT):
+    if not _wait_for_port(HOST, WEBDAV_CRL_PORT):
         pytest.fail("CRL nginx did not start (HTTPS port not reachable)")
 
     yield {
@@ -153,8 +155,8 @@ def crl_dir_nginx(crl_file):
     import shutil
     shutil.copy2(crl_file, os.path.join(CRL_DIR_CRLS, "ca.r0"))
 
-    ok_stream = _wait_for_port("127.0.0.1", CRL_DIR_PORT)
-    ok_https = _wait_for_port("127.0.0.1", WEBDAV_DIR_PORT)
+    ok_stream = _wait_for_port(HOST, CRL_DIR_PORT)
+    ok_https = _wait_for_port(HOST, WEBDAV_DIR_PORT)
 
     if not ok_stream or not ok_https:
         pytest.fail(f"CRL dir nginx did not start. stream={ok_stream} https={ok_https}")
@@ -253,7 +255,7 @@ class TestCRLStreamRejection:
         env["XrdSecGSISRVNAMES"] = "*"
 
         result = subprocess.run(
-            ["xrdfs", f"root://localhost:{CRL_PORT}", "stat", "/test.txt"],
+            ["xrdfs", f"root://{url_host(HOST)}:{CRL_PORT}", "stat", "/test.txt"],
             capture_output=True, text=True, timeout=10, env=env,
         )
         assert result.returncode != 0, (
@@ -270,7 +272,7 @@ class TestCRLWebDAVRejection:
         # requests uses cert= for client certs.
         # The proxy_std.pem has cert+key+chain in one file.
         resp = requests.get(
-            f"https://localhost:{WEBDAV_CRL_PORT}/test.txt",
+            f"https://{url_host(HOST)}:{WEBDAV_CRL_PORT}/test.txt",
             cert=PROXY_PEM,
             verify=False,
         )
@@ -313,7 +315,7 @@ class TestCRLDirectoryMode:
         env["XrdSecGSISRVNAMES"] = "*"
 
         result = subprocess.run(
-            ["xrdfs", f"root://localhost:{CRL_DIR_PORT}", "stat", "/test.txt"],
+            ["xrdfs", f"root://{url_host(HOST)}:{CRL_DIR_PORT}", "stat", "/test.txt"],
             capture_output=True, text=True, timeout=10, env=env,
         )
         assert result.returncode != 0, (
@@ -323,7 +325,7 @@ class TestCRLDirectoryMode:
     def test_revoked_cert_rejected_webdav(self, crl_dir_nginx):
         """WebDAV: revoked cert should fail via directory-loaded CRL."""
         resp = requests.get(
-            f"https://localhost:{WEBDAV_DIR_PORT}/test.txt",
+            f"https://{url_host(HOST)}:{WEBDAV_DIR_PORT}/test.txt",
             cert=PROXY_PEM,
             verify=False,
         )
@@ -361,7 +363,7 @@ class TestCRLReload:
         env["XrdSecGSISRVNAMES"] = "*"
 
         result = subprocess.run(
-            ["xrdfs", f"root://localhost:{CRL_RELOAD_PORT}", "stat",
+            ["xrdfs", f"root://{url_host(HOST)}:{CRL_RELOAD_PORT}", "stat",
              "/test.txt"],
             capture_output=True, text=True, timeout=10, env=env,
         )
@@ -388,7 +390,7 @@ class TestCRLReload:
         env["XrdSecGSISRVNAMES"] = "*"
 
         result = subprocess.run(
-            ["xrdfs", f"root://localhost:{CRL_RELOAD_PORT}", "stat",
+            ["xrdfs", f"root://{url_host(HOST)}:{CRL_RELOAD_PORT}", "stat",
              "/test.txt"],
             capture_output=True, text=True, timeout=10, env=env,
         )

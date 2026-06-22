@@ -225,6 +225,7 @@ webdav_handle_get(ngx_http_request_t *r)
         opts.op_name         = "GET";
         opts.identity        = identity;
         opts.etag_flags      = XROOTD_ETAG_WEAK;
+        opts.compress        = conf->common.compress;
         opts.pre_header_send = webdav_get_add_xrdhttp_headers;
         opts.pre_header_ud   = &sb;
 

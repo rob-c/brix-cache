@@ -351,39 +351,21 @@ xrootd_read_aio_done(ngx_event_t *ev)
 /*
  * xrootd_pgread_aio_thread — thread-pool worker for kXR_pgread.
  *
- * The scratch buffer is split into two halves:
- *   scratch[0 .. rlen-1]         — flat data read by pread(2) (Phase 1)
- *   scratch[rlen .. rlen+out_size-1] — CRC-interleaved wire output (Phase 2)
- *
- * Phase 1: pread() fills the flat portion.
- * Phase 2: xrootd_pgread_encode_pages() reads each 4096-byte page, computes
- *   CRC32C, and writes [CRC32C(4)][data(page)] into the output region.
- *
- * Both phases run on the worker thread so CRC computation does not block the
- * nginx event loop.  t->out_size is set to the encoded byte count.
+ * Reads file data DIRECTLY into the final interleaved [CRC32C(4)][data] wire
+ * buffer (t->scratch, starting at offset 0) and computes each page CRC32C in
+ * place — no separate flat-data copy pass. This runs on the worker thread so
+ * both the (batched preadv) I/O and the CRC stay off the nginx event loop.
+ * t->out_size is the encoded byte count; t->nread the file bytes read (<0 = I/O
+ * error, t->io_errno set). See xrootd_pgread_read_encode_inplace().
  */
 void
 xrootd_pgread_aio_thread(void *data, ngx_log_t *log)
 {
     xrootd_pgread_aio_t *t = data;
-    u_char              *out;
 
-    /*
-     * Phase 1: pread into the flat portion of scratch (scratch[0..rlen-1]).
-     * Phase 2: interleave data + CRC32C into scratch[rlen..], page by page.
-     * Both phases run on the worker thread to keep CRC off the event loop.
-     */
-
-    t->nread = pread(t->fd, t->scratch, t->rlen, t->offset);
-    if (t->nread <= 0) {
-        t->io_errno = (t->nread < 0) ? errno : 0;
-        t->out_size = 0;
-        return;
-    }
-
-    out = t->scratch + t->rlen;
-    t->out_size = xrootd_pgread_encode_pages(t->scratch, (size_t) t->nread,
-                                             t->offset, out);
+    t->out_size = xrootd_pgread_read_encode_inplace(t->fd, t->offset, t->rlen,
+                                                    t->scratch, &t->nread,
+                                                    &t->io_errno);
 }
 
 /*
@@ -464,8 +446,9 @@ xrootd_pgread_aio_done(ngx_event_t *ev)
         ngx_buf_t   *bd;
 
         /* PGREAD: Send encoded page data directly, NOT via xrootd_build_chunked_chain
-         * which adds wrong headers (kXR_ok) for pgread. The encoded data
-         * (t->scratch + t->rlen) has its own per-page CRC32c - just send it.
+         * which adds wrong headers (kXR_ok) for pgread. The encoded wire output
+         * occupies t->scratch from offset 0 (data was read straight into it) and
+         * carries its own per-page CRC32c - just send it.
          */
         cl_data = ngx_alloc_chain_link(c->pool);
         bd = ngx_calloc_buf(c->pool);
@@ -474,7 +457,7 @@ xrootd_pgread_aio_done(ngx_event_t *ev)
             xrootd_aio_resume(c);
             return;
         }
-        bd->pos = t->scratch + t->rlen;
+        bd->pos = t->scratch;
         bd->last = bd->pos + t->out_size;
         bd->memory = 1;
         bd->last_buf = 1;

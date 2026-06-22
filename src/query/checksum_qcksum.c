@@ -134,6 +134,40 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         path_payload_len = payload_len - (alg_len + 1);
     }
 
+    /*
+     * Standard XRootD also requests the algorithm as a "?cks.type=<algo>" CGI on
+     * the path (what stock clients and EOS send; xrootd_extract_path strips the
+     * ?cgi suffix below). Honor it — overriding any legacy "algo path" prefix — so
+     * `xrdfs ... cksum -a <algo>` selects the algorithm here too, not just via the
+     * non-standard prefix form.
+     */
+    {
+        const u_char *qmark = memchr(path_payload, '?', path_payload_len);
+        if (qmark != NULL) {
+            static const char key[] = "cks.type=";
+            const u_char     *p   = qmark + 1;
+            const u_char     *end = path_payload + path_payload_len;
+            while (p < end) {
+                const u_char *amp  = memchr(p, '&', (size_t) (end - p));
+                size_t        flen = amp ? (size_t) (amp - p) : (size_t) (end - p);
+                if (flen > sizeof(key) - 1
+                    && ngx_strncmp(p, key, sizeof(key) - 1) == 0) {
+                    if (!xrootd_query_parse_algorithm(p + sizeof(key) - 1,
+                            flen - (sizeof(key) - 1), algo, algo_sz)) {
+                        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
+                        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                                 "unknown checksum algorithm");
+                    }
+                    break;
+                }
+                if (amp == NULL) {
+                    break;
+                }
+                p = amp + 1;
+            }
+        }
+    }
+
     if (!xrootd_extract_path(c->log, path_payload, path_payload_len,
                              pathbuf, sizeof(pathbuf), 1)) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);

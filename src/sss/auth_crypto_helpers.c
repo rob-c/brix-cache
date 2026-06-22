@@ -1,6 +1,8 @@
 #include "sss_internal.h"
 #include "../gsi/gsi_internal.h"
 #include "../session/registry.h"
+#include "../compat/crc32_ieee.h"   /* shared CRC-32/IEEE (libxrdproto) */
+#include "../compat/sss_bf.h"       /* shared Blowfish-CFB64 (libxrdproto) */
 
 #include <errno.h>
 #include <openssl/crypto.h>
@@ -62,97 +64,26 @@ xrootd_sss_write_be32(u_char *p, uint32_t v)
  * WHAT: Writes a uint32_t as 4 bytes in big-endian order into wire protocol buffer. Used by SSS auth challenge generation to encode timestamps and key IDs into server-to-client credential payloads.
  */
 
+/* Forwards to the shared CRC-32/IEEE kernel (libxrdproto) — one source of truth
+ * with the native client's SSS mint path. */
 uint32_t
 xrootd_sss_crc32(const u_char *p, size_t len)
 {
-    uint32_t crc = 0xffffffffu;
-
-    while (len--) {
-        int i;
-
-        crc ^= *p++;
-        for (i = 0; i < 8; i++) {
-            crc = (crc >> 1) ^ (0xedb88320u & (uint32_t) -(int32_t) (crc & 1));
-        }
-    }
-
-    return crc ^ 0xffffffffu;
+    return xrootd_crc32_ieee(p, len);
 }
 /* ---- Function: xrootd_sss_crc32() ----
  * WHAT: Computes CRC32 checksum using standard polynomial 0xedb88320u (reflected form). Used by SSS authentication for integrity verification — CRC32 is appended to plaintext before Blowfish encryption, then verified after decryption via direct uint32_t comparison.
  */
 
-static void
-xrootd_sss_load_legacy_provider(void)
-{
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    static int done;
-
-    if (!done) {
-        EVP_MD *md;
-
-        md = EVP_MD_fetch(NULL, "SHA2-256", NULL);
-        if (md) {
-            EVP_MD_free(md);
-        }
-        (void) OSSL_PROVIDER_load(NULL, "legacy");
-        done = 1;
-    }
-#endif
-}
-/* ---- Function: xrootd_sss_load_legacy_provider() ----
- * WHAT: Loads OpenSSL 3.x "legacy" provider ensuring SHA-256 digest availability for SSS authentication. Uses static guard preventing duplicate loads across worker processes.
- */
-
+/* Forwards to the shared Blowfish-CFB64 kernel (libxrdproto), which owns the
+ * OpenSSL-3 legacy-provider load — one source of truth with the client's SSS mint. */
 ngx_int_t
 xrootd_sss_bf32_crypt(int encrypt, const u_char *key, size_t key_len,
     const u_char *src, size_t src_len, u_char *dst, size_t dst_len,
     size_t *out_len)
 {
-    EVP_CIPHER_CTX *evp;
-    u_char          iv[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-    int             len1, len2;
-
-    if (key_len == 0 || key_len > INT_MAX || src_len > INT_MAX
-        || dst_len > INT_MAX)
-    {
-        return NGX_ERROR;
-    }
-
-    xrootd_sss_load_legacy_provider();
-
-    evp = EVP_CIPHER_CTX_new();
-    if (evp == NULL) {
-        return NGX_ERROR;
-    }
-
-    if (encrypt) {
-        if (EVP_EncryptInit_ex(evp, EVP_bf_cfb64(), NULL, NULL, NULL) != 1
-            || EVP_CIPHER_CTX_set_padding(evp, 0) != 1
-            || EVP_CIPHER_CTX_set_key_length(evp, (int) key_len) != 1
-            || EVP_EncryptInit_ex(evp, NULL, NULL, key, iv) != 1
-            || EVP_EncryptUpdate(evp, dst, &len1, src, (int) src_len) != 1
-            || EVP_EncryptFinal_ex(evp, dst + len1, &len2) != 1)
-        {
-            EVP_CIPHER_CTX_free(evp);
-            return NGX_ERROR;
-        }
-    } else {
-        if (EVP_DecryptInit_ex(evp, EVP_bf_cfb64(), NULL, NULL, NULL) != 1
-            || EVP_CIPHER_CTX_set_padding(evp, 0) != 1
-            || EVP_CIPHER_CTX_set_key_length(evp, (int) key_len) != 1
-            || EVP_DecryptInit_ex(evp, NULL, NULL, key, iv) != 1
-            || EVP_DecryptUpdate(evp, dst, &len1, src, (int) src_len) != 1
-            || EVP_DecryptFinal_ex(evp, dst + len1, &len2) != 1)
-        {
-            EVP_CIPHER_CTX_free(evp);
-            return NGX_ERROR;
-        }
-    }
-
-    EVP_CIPHER_CTX_free(evp);
-    *out_len = (size_t) (len1 + len2);
-    return NGX_OK;
+    return xrootd_sss_bf_crypt(encrypt, key, key_len, src, src_len,
+                               dst, dst_len, out_len) == 0 ? NGX_OK : NGX_ERROR;
 }
 /* ---- Function: xrootd_sss_bf32_crypt() ----
  * WHAT: Blowfish-CFB symmetric encryption/decryption for SSS challenge-response authentication. Uses EVP_CIPHER_CTX with zero IV and no padding. Encrypt mode: EVP_EncryptInit → set_padding(0) → set_key_length(key_len) → init with key+iv → update → final. Decrypt mode mirrors encrypt flow using EVP_Decrypt*. Returns NGX_OK on success with out_len populated, NGX_ERROR on cipher operation failure or invalid parameters (key_len==0 or >INT_MAX). Key length is variable — SSS keys may be shorter than standard 56-byte Blowfish key.

@@ -285,7 +285,11 @@ xrootd_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
         return NGX_ERROR;
     }
 
-    dp = opendir(path);
+    /* Open the dir AS THE MAPPED USER under impersonation (broker fd + fdopendir):
+     * a multipart staging dir is owned 0700 by the mapped user, so a raw worker
+     * opendir() here fails EACCES and breaks AbortMultipartUpload / the cleanup.
+     * Off impersonation this is a plain opendir(). */
+    dp = xrootd_opendir_confined_canon(log, root_canon, path);
     if (dp == NULL) {
         close(rootfd);
         if (errno == ENOENT) {
@@ -301,6 +305,7 @@ xrootd_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
     while ((de = readdir(dp)) != NULL) {
         char        child[PATH_MAX];
         struct stat st;
+        const char *child_rel;
 
         if (xrootd_fs_is_dot_entry(de->d_name)) {
             continue;
@@ -313,7 +318,17 @@ xrootd_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
             break;
         }
 
-        if (lstat(child, &st) != 0) {
+        child_rel = xrootd_beneath_strip_root(root_canon, child);
+        if (child_rel == NULL) {
+            errno = EXDEV;
+            rc = NGX_ERROR;
+            break;
+        }
+
+        /* lstat via the beneath helper so it runs AS THE MAPPED USER under
+         * impersonation (the raw lstat would fail EACCES inside a 0700 user-owned
+         * staging dir); off impersonation it is the same local lstat. */
+        if (xrootd_lstat_beneath(rootfd, child_rel, &st) != 0) {
             if (errno == ENOENT) {
                 continue;
             }
@@ -331,13 +346,6 @@ xrootd_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
                 break;
             }
         } else {
-            const char *child_rel = xrootd_beneath_strip_root(root_canon,
-                                                              child);
-            if (child_rel == NULL) {
-                errno = EXDEV;
-                rc = NGX_ERROR;
-                break;
-            }
             if (xrootd_unlink_beneath(rootfd, child_rel, 0) != 0) {
                 ngx_log_error(NGX_LOG_ERR, log, errno,
                               "xrootd: remove-tree unlink failed \"%s\"", child);

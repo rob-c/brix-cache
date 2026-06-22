@@ -30,7 +30,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer
-from settings import NGINX_JWKS_REFRESH_PORT, TEST_ROOT
+from settings import NGINX_JWKS_REFRESH_PORT, TEST_ROOT, HOST
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -178,11 +178,11 @@ def jwks_refresh_server():
     time.sleep(WAIT_AFTER_TOUCH)
 
     port = NGINX_JWKS_REFRESH_PORT
-    if not _wait_for_port("127.0.0.1", port):
+    if not _wait_for_port(HOST, port):
         pytest.fail("dedicated jwks_refresh nginx did not start")
 
     yield {
-        "host":      "127.0.0.1",
+        "host":      HOST,
         "port":      port,
         "data_dir":  data_dir,
         "log_dir":   os.path.join(workdir, "logs"),

@@ -15,6 +15,8 @@
 
 #include "webdav.h"
 #include "../frm/frm.h"
+#include "../path/path.h"
+#include "../impersonate/lifecycle.h"
 #include "../compat/etag.h"
 #include "../compat/fs_walk.h"
 #include "../compat/fs_usage.h"
@@ -778,8 +780,27 @@ propfind_walk(ngx_http_request_t *r,
 {
     DIR           *dp;
     struct dirent *de;
+    ngx_http_xrootd_webdav_loc_conf_t *wdcf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    const char    *root_canon = wdcf->common.root_canon;
 
-    dp = opendir(dir_path);
+    /*
+     * Impersonation: before exposing the entries, verify the MAPPED user may
+     * actually READ this directory (the broker opens it O_RDONLY as that user) —
+     * otherwise a user would be shown the contents of a directory the worker can
+     * read but they cannot.  When impersonation is off this is a no-op.  A denied
+     * dir is treated exactly like an unreadable subtree: skipped, request not failed.
+     */
+    if (xrootd_dirlist_access_ok(r->connection->log, root_canon, dir_path)
+        != NGX_OK)
+    {
+        return NGX_OK;
+    }
+
+    /* Enumerate AS THE MAPPED USER under impersonation (broker fdopendir) so a
+     * 0700 user-owned / 0770 group-restricted dir the unprivileged worker cannot
+     * itself open is still listable by its legitimate owner/group-member. */
+    dp = xrootd_opendir_confined_canon(r->connection->log, root_canon, dir_path);
     if (dp == NULL) {
         return NGX_OK;   /* unreadable subtree: skip, do not fail the request */
     }
@@ -807,7 +828,14 @@ propfind_walk(ngx_http_request_t *r,
             continue;
         }
 
-        if (stat(child_path, &csb) != 0) {
+        /* lstat (not stat): do not follow a symlink during the walk — a symlink in
+         * the export pointing outside it must not be recursed into (it would
+         * enumerate the target tree, e.g. /etc).  Under impersonation the dirlist
+         * gate already blocks this via RESOLVE_BENEATH; lstat hardens the
+         * non-impersonated path too.  A symlink is S_ISLNK -> not S_ISDIR -> listed
+         * as a plain resource, never recursed. */
+        if (xrootd_lstat_confined_canon(r->connection->log,
+                root_canon, child_path, &csb, 1) != 0) {
             continue;
         }
 
@@ -933,7 +961,22 @@ propfind_do(ngx_http_request_t *r)
      * propfind_walk (the top level is unrolled here so the shared entry_count
      * cap is threaded through). */
     if ((depth == 1 || depth == -1) && S_ISDIR(sb.st_mode)) {
-        DIR *dp = opendir(path);
+        ngx_http_xrootd_webdav_loc_conf_t *wdcf =
+            ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+        DIR *dp;
+
+        /* Impersonation: only list children the MAPPED user may read (the broker
+         * opens the dir O_RDONLY as that user); a worker-side readdir would
+         * otherwise leak entries the user has no UNIX permission to see.  No-op
+         * when impersonation is off. */
+        if (xrootd_dirlist_access_ok(r->connection->log,
+                                     wdcf->common.root_canon, path) != NGX_OK)
+        {
+            dp = NULL;
+        } else {
+            dp = xrootd_opendir_confined_canon(r->connection->log,
+                                               wdcf->common.root_canon, path);
+        }
 
         if (dp != NULL) {
             struct dirent *de;
@@ -957,8 +1000,9 @@ propfind_do(ngx_http_request_t *r)
                     continue;
                 }
 
-                if (stat(child_path, &csb) != 0) {
-                    continue;
+                if (xrootd_lstat_confined_canon(r->connection->log,
+                        wdcf->common.root_canon, child_path, &csb, 1) != 0) {
+                    continue;   /* do not follow symlinks */
                 }
 
                 base = (const char *) r->uri.data;
@@ -1062,11 +1106,27 @@ propfind_do(ngx_http_request_t *r)
  * body is fully buffered.  It runs propfind_do and finalizes the request with
  * its return code — this is the async re-entry point after webdav_handle_propfind
  * returned NGX_DONE to the request pipeline.
+ *
+ * Phase 40: the PROPFIND body is read asynchronously, so the outer dispatch
+ * wrapper (webdav_dispatch.c) has already cleared the impersonation principal by
+ * the time this callback runs.  Re-establish it for the duration of the listing
+ * exactly as webdav_handle_put_body does — without it the directory-stat/opendir
+ * and the xrootd_dirlist_access_ok confidentiality check run as the unprivileged
+ * worker instead of the mapped user, which would both mis-own metadata and leak
+ * entries of a directory the mapped user cannot read.  No-op unless map mode.
  */
 static void
 propfind_body_handler(ngx_http_request_t *r)
 {
-    ngx_http_finalize_request(r, propfind_do(r));
+    ngx_http_xrootd_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_int_t rc;
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    rc = propfind_do(r);
+    xrootd_imp_request_end();
+
+    ngx_http_finalize_request(r, rc);
 }
 
 /*

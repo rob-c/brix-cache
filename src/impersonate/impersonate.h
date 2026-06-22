@@ -234,6 +234,25 @@ ngx_int_t xrootd_imp_client_connect(const char *path, ngx_log_t *log);
 int xrootd_imp_client_active(void);
 
 /*
+ * True when impersonation MAP mode is active in this worker (the broker client
+ * is wired up), regardless of whether a per-request principal is currently set.
+ * Confidentiality gates use this to distinguish "impersonation off entirely"
+ * (fall through to the existing non-impersonated gate) from "map mode but no
+ * principal yet" (must fail closed — we cannot determine the mapped user's DAC).
+ */
+int xrootd_imp_enabled(void);
+
+/*
+ * Mark the worker as being inside / outside a per-request impersonation bracket.
+ * Set on by xrootd_imp_request_begin and off by xrootd_imp_request_end.  It makes
+ * xrootd_imp_client_active() route to the broker (which then DENIES) even when the
+ * request's identity yielded no mappable principal — so an unmappable/empty-subject
+ * request fails closed instead of running as the worker.  Off-request (housekeeping)
+ * the flag is clear, so those ops correctly run locally as the worker.
+ */
+void xrootd_imp_mark_in_request(int on);
+
+/*
  * Set / clear the principal (DN / token sub / sss-user) the broker should
  * impersonate for subsequent ops on this worker.  Set it immediately before
  * dispatching an authenticated op and clear it afterwards.  `principal` is copied
@@ -257,6 +276,9 @@ int xrootd_imp_mkdir(const char *reqpath, mode_t mode);
 int xrootd_imp_unlink(const char *reqpath, int is_dir);
 int xrootd_imp_rmdir(const char *reqpath);
 int xrootd_imp_rename(const char *src, const char *dst);
+/* renameat2(RENAME_NOREPLACE) as the mapped user: atomic create-if-absent.
+ * Returns -1 with errno==EEXIST when dst already exists. */
+int xrootd_imp_rename_noreplace(const char *src, const char *dst);
 int xrootd_imp_link(const char *src, const char *dst);
 int xrootd_imp_truncate(const char *reqpath, off_t length);
 int xrootd_imp_chmod(const char *reqpath, mode_t mode);
@@ -276,5 +298,24 @@ int xrootd_imp_setattr(const char *reqpath, int set_times,
                        int set_owner, uid_t uid, gid_t gid);
 int xrootd_imp_symlink(const char *target, const char *linkpath);
 ssize_t xrootd_imp_readlink(const char *reqpath, char *buf, size_t bufsz);
+
+/*
+ * Extended-attribute ops as the mapped user (broker f{get,set,remove,list}xattr
+ * on a RESOLVE_BENEATH-confined fd; restricted to the `user.` namespace).  These
+ * mirror the POSIX *xattr contract:
+ *   getxattr  — into `buf`; bufsz==0 returns the value size (probe), bufsz too
+ *               small returns -1/ERANGE; else returns the byte count.
+ *   setxattr  — write `value` (`len` bytes, <= IMP_XATTR_MAX) with `flags`
+ *               (XATTR_CREATE/XATTR_REPLACE/0); returns 0 or -1.
+ *   removexattr — delete `name`; returns 0 or -1.
+ *   listxattr — NUL-separated names into `buf` (same probe/ERANGE rules as get).
+ * `name` is the full attribute name (e.g. "user.nginx_xrootd.lock").
+ */
+ssize_t xrootd_imp_getxattr(const char *reqpath, const char *name,
+                            void *buf, size_t bufsz);
+int     xrootd_imp_setxattr(const char *reqpath, const char *name,
+                            const void *value, size_t len, int flags);
+int     xrootd_imp_removexattr(const char *reqpath, const char *name);
+ssize_t xrootd_imp_listxattr(const char *reqpath, void *buf, size_t bufsz);
 
 #endif /* XROOTD_IMPERSONATE_H */

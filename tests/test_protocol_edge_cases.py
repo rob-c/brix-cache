@@ -27,6 +27,7 @@ from XRootD.client.flags import OpenFlags, QueryCode
 from backend_matrix import root_endpoint_parts, selected_backend_name
 from settings import (
     DATA_ROOT,
+    HOST,
     NGINX_ANON_PORT,
     REF_XROOTD_PORT,
     SERVER_HOST,
@@ -39,7 +40,7 @@ from settings import (
 CROSS_BACKEND = selected_backend_name()
 
 if CROSS_BACKEND == "xrootd":
-    ANON_URL = f"root://localhost:{REF_XROOTD_PORT}"
+    ANON_URL = f"root://{HOST}:{REF_XROOTD_PORT}"
 else:
     ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 
@@ -121,6 +122,7 @@ def _login_anon(sock, streamid=b"\x00\x01"):
     sock.sendall(req)
     status, body = _read_response(sock)
     assert status == kXR_OK
+    return body
 
 
 def _open_file_raw(sock, path, options, streamid=b"\x00\x02"):
@@ -276,7 +278,9 @@ class TestEndSession:
     def test_endsess_closes_session(self):
         """After endsess, subsequent requests should fail."""
         with _raw_session() as sock:
-            _login_anon(sock)
+            login_body = _login_anon(sock)
+            sessid = login_body[:16]
+            assert len(sessid) == 16
 
             # Verify the session works
             req = struct.pack("!2sH16sI", b"\x00\x02", kXR_ping, b"\x00" * 16, 0)
@@ -285,7 +289,7 @@ class TestEndSession:
             assert status == kXR_OK
 
             # Send endsess
-            req = struct.pack("!2sH16sI", b"\x00\x03", kXR_endsess, b"\x00" * 16, 0)
+            req = struct.pack("!2sH16sI", b"\x00\x03", kXR_endsess, sessid, 0)
             sock.sendall(req)
             status, _ = _read_response(sock)
             assert status == kXR_OK

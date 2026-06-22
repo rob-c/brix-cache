@@ -17,6 +17,7 @@
 #include "tpc_config.h"
 #include "webdav.h"
 #include "../tpc/common/credential.h"
+#include "../compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
 
 #include <nginx.h>
 #include <ngx_core.h>
@@ -292,10 +293,7 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
                           const char *client_secret,
                           ngx_str_t *token_out)
 {
-    ngx_pid_t pid;
-    int pipefd[2];
     char buf[TPC_CRED_MAX_TOKEN_LEN + 256];
-    ssize_t nread;
     char *curl_argv[16];
     int argc = 0;
     char body_buf[2048];
@@ -353,65 +351,28 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     curl_argv[argc++] = (char *) token_endpoint;
     curl_argv[argc++] = NULL;
 
-    /* Block SIGCHLD before fork so nginx's handler cannot reap our curl
-     * child before waitpid() does.  Restore mask after waitpid(). */
-    sigset_t _old_mask_rfc, _blk_mask_rfc;
-    sigemptyset(&_blk_mask_rfc);
-    sigaddset(&_blk_mask_rfc, SIGCHLD);
-    sigprocmask(SIG_BLOCK, &_blk_mask_rfc, &_old_mask_rfc);
-
-    /* Create pipe. */
-    if (pipe(pipefd) == -1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
-                      "tpc_cred(rfc8693): pipe() failed");
-        unlink(body_file);
-        sigprocmask(SIG_SETMASK, &_old_mask_rfc, NULL);
-        return NGX_ERROR;
-    }
-
-    pid = fork();
-    if (pid == -1) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
-                      "tpc_cred(rfc8693): fork() failed");
-        unlink(body_file);
-        close(pipefd[0]);
-        close(pipefd[1]);
-        sigprocmask(SIG_SETMASK, &_old_mask_rfc, NULL);
-        return NGX_ERROR;
-    }
-
-    if (pid == 0) {
-        /* Child. */
-        close(pipefd[0]);
-        dup2(pipefd[1], STDOUT_FILENO);
-        close(pipefd[1]);
-        execvp("curl", curl_argv);
-        _exit(127);
-    }
-
-    /* Parent: read response. */
-    close(pipefd[1]);
-
-    nread = 0;
-    while (nread < (ssize_t) sizeof(buf) - 1) {
-        ssize_t nr = read(pipefd[0], buf + nread, sizeof(buf) - 1 - (size_t) nread);
-        if (nr <= 0)
-            break;
-        nread += nr;
-    }
-    buf[nread] = '\0';
-    close(pipefd[0]);
-
-    /* Wait.  SIGCHLD still blocked; restore mask after child is reaped. */
+    /*
+     * Run curl synchronously and capture its stdout via the shared SIGCHLD-safe
+     * fork/exec helper (src/compat/subprocess.c) — it blocks SIGCHLD across the
+     * fork/waitpid internally so nginx's handler can't reap the child first. A
+     * non-zero rc = pipe/fork failure or signal-kill; a non-zero child exit
+     * (incl. curl -f on HTTP >= 400) is a credential-fetch failure.
+     */
     {
-        int wstatus;
-        waitpid(pid, &wstatus, 0);
-        sigprocmask(SIG_SETMASK, &_old_mask_rfc, NULL);
-        if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
+        int ec = -1;
+
+        if (xrootd_subprocess_capture(curl_argv, buf, sizeof(buf), NULL, &ec)
+            != 0)
+        {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
+                          "tpc_cred(rfc8693): curl subprocess failed "
+                          "(pipe/fork or signal)");
+            unlink(body_file);
+            return NGX_ERROR;
+        }
+        if (ec != 0) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                          "tpc_cred(rfc8693): curl exited %d: %s",
-                          WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1,
-                          buf);
+                          "tpc_cred(rfc8693): curl exited %d: %s", ec, buf);
             unlink(body_file);
             return NGX_ERROR;
         }

@@ -114,16 +114,21 @@ The `xrootd_webdav_tpc_token_scope` directive sets the scope string requested
 during token exchange (default: `storage.read`).
 
 Native `root://` third-party copy is not the same protocol. The stream module
-has a narrow destination-side pull path for write opens carrying
-`tpc.src=root://...` opaque parameters, with anonymous source fetches through the
-configured thread pool. It does not implement the full upstream
-rendezvous/delegation surface.
+has a destination-side pull path for write opens carrying `tpc.src=root://...`
+opaque parameters. The pull worker runs through the configured thread pool and
+can complete ztn or GSI outbound auth after `kXR_authmore` when configured
+(`xrootd_tpc_outbound_bearer_file`, or the server certificate/key for GSI).
+Remaining native TPC caveats are source-side `kXR_gotoTLS` and multihop
+delegation, which are still narrower than the full upstream rendezvous surface.
 
 ---
 
 ## Testing with xrdcp
 
-The `davs://` URL scheme requires the `XrdClHttp` plugin (`libXrdClHttp-5.so`), which ships with full xrootd builds but may be absent from client-only packages:
+With the official XRootD client, the `davs://` URL scheme requires the
+`XrdClHttp` plugin (`libXrdClHttp-5.so`), which ships with full xrootd builds but
+may be absent from client-only packages. The in-tree `client/xrdcp` has a direct
+WebDAV/HTTP path and does not use this plugin:
 
 ```bash
 # Check whether the plugin is available
@@ -137,6 +142,9 @@ X509_USER_PROXY=/path/to/proxy_cert.pem \
 # Download
 X509_USER_PROXY=/path/to/proxy_cert.pem \
   xrdcp --allow-http davs://host:8443//file.txt /local/copy.txt
+
+# Same endpoint with the in-tree native client
+client/xrdcp /local/file.txt davs://host:8443//file.txt
 ```
 
 Set `X509_CERT_DIR` to your CA hash directory if the proxy's issuer CA is not in the system default location.

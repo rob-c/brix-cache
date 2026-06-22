@@ -119,6 +119,19 @@ s3_handle_get(ngx_http_request_t *r,
         }
     }
 
+    /*
+     * Conditional GET (If-Match / If-None-Match / If-(Un)Modified-Since).  On a
+     * 304/412 short-circuit we must release the handle we opened above; on
+     * NGX_DECLINED we fall through to serve the object.
+     */
+    {
+        ngx_int_t crc = s3_handle_conditional(r, vst.mtime, vst.size);
+        if (crc != NGX_DECLINED) {
+            xrootd_vfs_close(fh, r->connection->log);
+            return crc;
+        }
+    }
+
     s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
     subject = s3ctx != NULL ? xrootd_identity_subject_cstr(s3ctx->identity)
                             : "";
@@ -144,14 +157,9 @@ s3_handle_get(ngx_http_request_t *r,
      */
     {
         ngx_fd_t cfd = xrootd_vfs_file_fd(fh);
-        char     b64[S3_CRC64NVME_B64_MAX];
 
-        if (cfd != NGX_INVALID_FILE
-            && s3_object_crc64nvme_b64(r, cfd, fs_path, 1, b64, sizeof(b64))
-               == NGX_OK)
-        {
-            (void) s3_set_header(r, S3_HDR_CHECKSUM_CRC64NVME, b64);
-            (void) s3_set_header(r, S3_HDR_CHECKSUM_TYPE, "FULL_OBJECT");
+        if (cfd != NGX_INVALID_FILE) {
+            s3_echo_object_checksums(r, cfd, fs_path);
         }
     }
 
@@ -164,6 +172,9 @@ s3_handle_get(ngx_http_request_t *r,
         opts.op_name    = "GetObject";
         opts.identity   = identity;
         opts.etag_flags = 0;
+        opts.compress   = cf->common.compress;
+        /* phase-43 W3: apply response-* query overrides just before send. */
+        opts.pre_header_send = s3_get_pre_header;
 
         rc = xrootd_http_serve_file_ranged(r, fh, &vst, fs_path, &opts,
                                            &result);
@@ -243,6 +254,14 @@ s3_handle_head(ngx_http_request_t *r,
         }
     }
 
+    /* Conditional HEAD (If-Match / If-None-Match / If-(Un)Modified-Since). */
+    {
+        ngx_int_t crc = s3_handle_conditional(r, vst.mtime, vst.size);
+        if (crc != NGX_DECLINED) {
+            return crc;
+        }
+    }
+
     /*
      * AWS full-object checksum echo (x-amz-checksum-crc64nvme). Cache-only: a
      * cheap confined open + getxattr (no full-file read) emits the value stored
@@ -254,14 +273,7 @@ s3_handle_head(ngx_http_request_t *r,
                                              cf->common.root_canon, fs_path,
                                              O_RDONLY, 0);
         if (cfd >= 0) {
-            char b64[S3_CRC64NVME_B64_MAX];
-
-            if (s3_object_crc64nvme_b64(r, cfd, fs_path, 1, b64, sizeof(b64))
-                == NGX_OK)
-            {
-                (void) s3_set_header(r, S3_HDR_CHECKSUM_CRC64NVME, b64);
-                (void) s3_set_header(r, S3_HDR_CHECKSUM_TYPE, "FULL_OBJECT");
-            }
+            s3_echo_object_checksums(r, cfd, fs_path);
             close(cfd);
         }
     }
@@ -282,6 +294,115 @@ s3_handle_head(ngx_http_request_t *r,
  *
  * HOW: Mirrors s3_handle_get's opening/fstat path but skips range parsing entirely. Sets status=200, content-length from st_size, last-modified from st_mtime, Content-Type and ETag headers. Sends header only via ngx_http_send_header() + ngx_http_send_special(r, NGX_HTTP_LAST), closes the fd immediately after (no body transfer). Does NOT register pool cleanup since the fd is closed synchronously.
  */
+
+/* -------------------------------------------------------------------------
+ * HEAD /bucket  -> HeadBucket
+ * ---------------------------------------------------------------------- */
+
+/*
+ * s3_handle_head_bucket — answer a HEAD on the bucket root.
+ *
+ * WHAT: AWS SDKs (boto3, rclone, s5cmd, mc) issue HEAD /<bucket> at session
+ *   start to confirm the bucket exists and learn its region before any object
+ *   operation.  Returns 200 + x-amz-bucket-region when the configured export
+ *   root is a directory, else 404 NoSuchBucket.
+ * WHY:  Without this the empty-key guard answered 400 InvalidURI and an
+ *   unmodified SDK client aborted the whole session.
+ * HOW:  stat() the already-canonical, confinement-anchored export root (it is
+ *   the bucket); no key is involved, so no per-request path resolution is
+ *   needed.  Header-only response.
+ */
+ngx_int_t
+s3_handle_head_bucket(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
+{
+    struct stat st;
+
+    if (cf->common.root_canon[0] == '\0'
+        || stat(cf->common.root_canon, &st) != 0
+        || !S_ISDIR(st.st_mode))
+    {
+        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INVALID_URI]);
+        r->headers_out.status           = NGX_HTTP_NOT_FOUND;
+        r->headers_out.content_length_n = 0;
+        ngx_http_send_header(r);
+        return ngx_http_send_special(r, NGX_HTTP_LAST);
+    }
+
+    if (cf->region.len > 0) {
+        char   region[64];
+        size_t n = cf->region.len < sizeof(region) - 1
+                   ? cf->region.len : sizeof(region) - 1;
+        ngx_memcpy(region, cf->region.data, n);
+        region[n] = '\0';
+        (void) s3_set_header(r, "x-amz-bucket-region", region);
+    }
+
+    r->headers_out.status           = NGX_HTTP_OK;
+    r->headers_out.content_length_n = 0;
+    ngx_http_send_header(r);
+    return ngx_http_send_special(r, NGX_HTTP_LAST);
+}
+
+/* -------------------------------------------------------------------------
+ * GET /bucket?location  -> GetBucketLocation
+ * ---------------------------------------------------------------------- */
+
+/*
+ * s3_handle_get_bucket_location — answer GET /<bucket>?location.
+ *
+ * WHAT: Region-discovery probe.  Many SDKs call this to decide which endpoint
+ *   to sign against; a failure aborts the client.  Emits the LocationConstraint
+ *   document carrying the configured region (empty element for "us-east-1",
+ *   matching AWS, since us-east-1 has no explicit constraint).
+ * WHY:  Cheap probe-satisfier; pairs with HeadBucket so unmodified SDK clients
+ *   complete their pre-flight.
+ * HOW:  The region is config-supplied (trusted, no XML metacharacters), so it
+ *   is appended directly into the element body.
+ */
+ngx_int_t
+s3_handle_get_bucket_location(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
+{
+    u_char    *xml;
+    size_t     xml_len = 0;
+    size_t     xml_capacity = 256 + cf->region.len;
+    ngx_buf_t *response_buf;
+    int        is_default;
+
+    is_default = (cf->region.len == 0
+                  || (cf->region.len == sizeof("us-east-1") - 1
+                      && ngx_strncmp(cf->region.data,
+                                     (u_char *) "us-east-1",
+                                     cf->region.len) == 0));
+
+    xml = ngx_palloc(r->pool, xml_capacity);
+    if (xml == NULL) {
+        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    XML_APPEND("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    if (is_default) {
+        XML_APPEND("<LocationConstraint "
+                   "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"/>");
+    } else {
+        XML_APPEND("<LocationConstraint "
+                   "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">%.*s"
+                   "</LocationConstraint>",
+                   (int) cf->region.len, (const char *) cf->region.data);
+    }
+
+    response_buf = ngx_create_temp_buf(r->pool, xml_len + 4);
+    if (response_buf == NULL) {
+        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    response_buf->last = ngx_cpymem(response_buf->last, xml, xml_len);
+    response_buf->last_buf = 1;
+
+    XROOTD_S3_METRIC_ADD(bytes_tx_total, xml_len);
+    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+        (ngx_str_t) ngx_string("application/xml"), response_buf);
+}
 
 /* -------------------------------------------------------------------------
  * DELETE /bucket/key

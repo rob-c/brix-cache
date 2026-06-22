@@ -1,9 +1,8 @@
 # Implementation status
 
-How nginx-xrootd stacks up against the official `xrootd` data-server surface, operation by operation. Use this before reporting a missing feature or planning a migration.
-reference. It is the authoritative reference for contributors deciding what to
-work on next and for operators evaluating whether this module meets their site
-requirements.
+How nginx-xrootd stacks up against the official `xrootd` data-server surface,
+operation by operation. Use this before reporting a missing feature, planning a
+migration, or deciding what to work on next.
 
 ---
 
@@ -47,7 +46,7 @@ explicitly rejected with `kXR_Unsupported`.
 | `kXR_set` | 3018 | `appid` and `clttl` modifiers; unknown modifiers accepted as no-op |
 | `kXR_write` | 3019 | Async via nginx thread pool |
 | `kXR_fattr` | 3020 | get / set / del / list; backed by Linux xattrs (`user.U.*` namespace) |
-| `kXR_prepare` | 3021 | Path validation + existence check; `kXR_cancel` and `kXR_evict` no-ops |
+| `kXR_prepare` | 3021 | Path validation + existence check. With `xrootd_frm on` (Phase 35): durable stage-request queue — real host-qualified reqid, `kXR_cancel` deletes the request, records survive disconnect + restart (`src/frm/`). `kXR_evict` accepted as a no-op (backend-delegated). Default (FRM off): legacy fire-and-forget `prepare_command`. |
 | `kXR_statx` | 3022 | Multi-path stat (path list in payload) |
 | `kXR_endsess` | 3023 | Graceful session termination |
 | `kXR_bind` | 3024 | Secondary streams, pathid 1–253; inherits primary auth state |
@@ -99,7 +98,7 @@ treated as supported opcodes by this module.
 | JWT / WLCG bearer tokens (`ztn`) | ✅ | JWKS validation, scope and group parsing |
 | Mixed (`both`) | ✅ | Accepts either GSI or token on the same listener |
 | SSS (Simple Shared Secrets) | ✅ | `xrootd_auth sss` + `xrootd_sss_keytab`; keytab uses the standard XRootD BF32-encrypted format; identity fields (user, group, name) extracted and logged |
-| krb5 | ❌ | Effectively unused at CERN/SLAC/FNAL. Not planned. |
+| krb5 | ✅ | Optional build-time Kerberos 5 support in `src/krb5`; availability depends on build dependencies/configuration. |
 | host / pwd | ❌ | Legacy. Not planned. |
 
 **Token scope enforcement**
@@ -133,7 +132,7 @@ See [tls.md](../03-configuration/tls-config.md) for configuration details.
 | Subtype | Value | Status |
 |---|---|---|
 | `kXR_QStats` | 1 | ✅ Server-wide operation counters |
-| `kXR_QPrep` | 2 | ✅ Per-file availability status; `A <path>` (on disk) or `M <path>` (missing/unauthorized) per line. `kXR_prepare` with `kXR_stage` returns request ID `"0"` and stores the path list for subsequent polls. |
+| `kXR_QPrep` | 2 | ✅ Per-file availability status; `A <path>` (on disk) or `M <path>` (missing/unauthorized) per line. With `xrootd_frm on`, a not-yet-resident file with a live queue record reports `q`/`s`/`f` (queued/staging/failed) and the request id is durable (not `"0"`); FRM off keeps the legacy `"0"` reqid + stat-only `A`/`M`. |
 | `kXR_Qcksum` | 3 | ✅ adler32, crc32c, md5, sha1, sha256 |
 | `kXR_Qxattr` | 4 | ✅ Extended attributes (legacy path; prefer `kXR_fattr`) |
 | `kXR_Qspace` | 5 | ✅ Filesystem free/total via `statvfs` |
@@ -256,18 +255,18 @@ analysis.
 
 | Gap | Affected site types | Workaround |
 |---|---|---|
-| **kXR_prepare / kXR_stage** — path validation + existence check only; no tape dispatch | Sites with tape backends (CASTOR, EOS tape, dCache tape) where FTS or physics frameworks issue stage requests before data access | Not replaceable for tape-backed deployments without external staging integration |
+| **Full XrdFrm/MSS/tape-driver ecosystem** — FRM queue and Tape REST gateway support exist, but this is not the complete upstream XrdFrm/MSS stack | Sites with tape backends where FTS or physics frameworks depend on exact stage, migrate, purge, space, and recall semantics | Run site-specific prepare/qprep/cancel/evict tests against the real tape backend; keep official XRootD where full MSS behavior is required |
 
 ### Soft gaps — reduce feature parity but do not block disk-only POSIX deployments
 
 | Gap | Notes |
 |---|---|
-| **Native root:// TPC outbound auth polish** — After `kXR_authmore`, the pull client can complete **ztn** (JWT file via `xrootd_tpc_outbound_bearer_file`) or **GSI** (same PEM as `xrootd_certificate` / `xrootd_certificate_key`, with optional server verification via `xrootd_trusted_ca`). TLS-upgraded origins (`kXR_gotoTLS`) and multi-hop delegation beyond this exchange are not implemented (same class of limitation as cache fill). |
-| **Remote storage backends** — no PSS, HDFS, EOS, CASTOR, tape driver abstraction | By design: module serves local POSIX storage only |
+| **Native root:// TPC outbound auth polish** — After `kXR_authmore`, the pull client can complete **ztn** (JWT file via `xrootd_tpc_outbound_bearer_file`) or **GSI** (same PEM as `xrootd_certificate` / `xrootd_certificate_key`, with optional server verification via `xrootd_trusted_ca`). Native TPC source-side `kXR_gotoTLS` and multi-hop delegation beyond this exchange are not implemented. Transparent upstream/proxy connections have their own `kXR_gotoTLS` path; cache/write-through origins keep the separate direct-origin limitations documented in `src/cache/README.md`. |
+| **Remote storage backends** — no full PSS, PFC, HDFS, EOS, CASTOR, Ceph, Zip, or upstream OSS-plugin abstraction | By design: module primarily serves confined local POSIX storage; FRM/Tape REST integration is a control-plane bridge, not the full upstream storage plugin ecosystem |
 | **Hierarchical CMS gateway/proxy mode** — stream `kYR_select` / `kYR_try` sub-manager redirects are implemented and covered by three-tier tests; a select-then-proxy gateway mode is not implemented | Use standard XRootD client redirects for multi-tier deployments |
 | **~~HTTP-TPC OAuth2/OIDC delegation~~ — implemented in `src/webdav/tpc_cred.c`** | ✅ Implemented — `oidc-agent` UNIX-socket delegation and RFC 8693 token exchange are both supported. Configure with `xrootd_webdav_tpc_token_endpoint`. See `src/webdav/tpc_cred.c` and `tests/test_webdav_tpc_cred.py`. |
-| **krb5 authentication** | Effectively unused at CERN/SLAC/FNAL; legacy institutional Kerberos sites cannot use this module |
-| **VO authorization database (authdb) rules** | Module supports `xrootd_require_vo` path prefix ACLs; does not implement the full XRootD authorization database with VO/role/capability rules |
+| **Full XrdAcc / VO authorization database semantics** | Module supports VOMS extraction, `xrootd_require_vo`, authdb, ACLs, and token-scope checks; it does not reproduce every upstream `XrdAcc` privilege/plugin behavior |
+| **Native root:// TPC credential edge cases** | Basic source/destination rendezvous works; TLS-upgraded origins, multihop delegation, and site-specific credential forwarding still need deployment validation |
 
 ### Intentionally not implemented
 
@@ -275,4 +274,4 @@ analysis.
 |---|---|
 | `kXR_gpfile` (opcode 3005) | Deprecated since protocol v3; no known live client uses; returns `kXR_Unsupported` |
 | `host` / `pwd` authentication | Legacy modes with no modern deployments |
-| PSS / PFC / FRM storage layers | Remote storage backends are out of scope for a POSIX-backed module |
+| PSS / full PFC / full XrdFrm storage layers | Remote storage backends are out of scope for a POSIX-backed module; FRM queue/Tape REST support is intentionally narrower than upstream XrdFrm/MSS |

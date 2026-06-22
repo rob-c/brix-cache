@@ -53,6 +53,28 @@ typedef struct {
     off_t      read_ahead_end;   /* farthest byte covered by WILLNEED hint */
 
     /*
+     * Phase-42 W4 — root:// inline read compression.  Holds the negotiated
+     * codec ordinal (xrootd_codec_id_t) when the client opened this read handle
+     * with "?xrootd.compress=<codec>" AND the server has xrootd_read_compress
+     * on.  0 (XROOTD_CODEC_IDENTITY) means no compression — the default, byte-
+     * identical hot read path.  kXR_read responses for a non-zero codec are
+     * codec-framed; pgread/readv ignore this field and always serve plaintext
+     * (preserving the pgread kXR_status + per-page CRC32c invariant).  Stored as
+     * a plain uint8_t so file.h needs no codec_core.h dependency.
+     */
+    uint8_t    read_codec;
+
+    /*
+     * Phase-42 W5 — root:// inline write decompression.  Negotiated codec ordinal
+     * (xrootd_codec_id_t) when a WRITE handle was opened with "?xrootd.compress="
+     * AND xrootd_write_compress is on.  0 = no compression (the default, byte-
+     * identical write path).  Each kXR_write payload on such a handle is a
+     * self-contained codec frame the server decompresses (bomb-guarded) before
+     * storing plaintext; pgwrite ignores this field and stays plaintext.
+     */
+    uint8_t    write_codec;
+
+    /*
      * Phase 26 slice-cache state.  When slice_mode is set this read handle has
      * NO backing fd (fd == -1); kXR_read is served from per-slice cache files
      * named off slice_cache_path, filling missing slices from the origin and

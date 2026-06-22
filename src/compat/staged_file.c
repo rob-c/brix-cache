@@ -129,9 +129,9 @@ xrootd_staged_open(ngx_log_t *log, const char *root_canon,
  *   staged — the staged file struct (must be active)
  *   final_path — destination path to rename into
  */
-ngx_int_t
-xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, const char *final_path)
+static ngx_int_t
+staged_commit_internal(ngx_log_t *log, const char *root_canon,
+    xrootd_staged_file_t *staged, const char *final_path, int exclusive)
 {
     if (staged == NULL || !staged->active) {
         errno = EINVAL;
@@ -139,6 +139,7 @@ xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
     }
 
     int         rootfd;
+    int         rc;
     const char *tmp_rel, *final_rel;
 
     (void) log;
@@ -162,10 +163,14 @@ xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
         return NGX_ERROR;
     }
 
-    if (xrootd_rename_beneath(rootfd, tmp_rel, final_rel) != 0) {
+    rc = exclusive ? xrootd_rename_beneath_excl(rootfd, tmp_rel, final_rel)
+                   : xrootd_rename_beneath(rootfd, tmp_rel, final_rel);
+    if (rc != 0) {
+        int e = errno;                       /* preserve EEXIST for the caller */
         (void) xrootd_unlink_beneath(rootfd, tmp_rel, 0);
         close(rootfd);
         staged->active = 0;
+        errno = e;
         return NGX_ERROR;
     }
 
@@ -173,6 +178,20 @@ xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
     staged->active = 0;
     staged->tmp_path[0] = '\0';
     return NGX_OK;
+}
+
+ngx_int_t
+xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
+    xrootd_staged_file_t *staged, const char *final_path)
+{
+    return staged_commit_internal(log, root_canon, staged, final_path, 0);
+}
+
+ngx_int_t
+xrootd_staged_commit_excl(ngx_log_t *log, const char *root_canon,
+    xrootd_staged_file_t *staged, const char *final_path)
+{
+    return staged_commit_internal(log, root_canon, staged, final_path, 1);
 }
 
 /*

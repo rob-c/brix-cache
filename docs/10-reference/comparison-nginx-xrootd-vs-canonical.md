@@ -1,7 +1,12 @@
 # nginx-xrootd vs Canonical XRootD — Feature Comparison
 
-**Date:** 2026-05-25 (updated 2026-06-05 to correct implementation-state mismatches)
-**Source:** `/home/rcurrie/HEP-x/nginx-xrootd` (nginx module) vs `/tmp/xrootd-src/src/XProtocol/XProtocol.hh` (canonical XRootD protocol spec)
+**Date:** 2026-05-25 (updated 2026-06-14 to correct source-verified implementation-state mismatches)
+**Source:** `/home/rcurrie/HEP-x/nginx-xrootd` (nginx module) vs `/tmp/xrootd-src` (official XRootD source)
+
+> **Current reviewer note:** this is a compact comparison. For the authoritative
+> source-verified matrix, including file-level evidence and stale-claim
+> corrections, use
+> [source-verified-xrootd-comparison.md](source-verified-xrootd-comparison.md).
 
 ---
 
@@ -152,10 +157,12 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 **Advantage:** nginx's event-loop architecture handles thousands of concurrent requests with minimal memory overhead. No thread-per-request cost; async callbacks (`s3_put_body_handler()`) integrate cleanly with the event loop.
 
 ### 4.7 WebDAV TPC via curl COPY
-- **Canonical:** Native TPC uses SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy
-- **nginx-xrootd:** WebDAV TPC uses `curl` COPY with Source/Credential headers (`src/webdav/tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c`)
+- **Official XRootD:** HTTP-TPC is implemented by `src/XrdHttpTpc`; native root TPC is implemented separately in the XRootD stack.
+- **nginx-xrootd:** WebDAV TPC uses libcurl/helper paths with Source/Credential headers (`src/webdav/tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c`)
 
-**Advantage:** curl-based TPC works across HTTP boundary without SHM coordination — simpler deployment, no shared memory setup required. Complements native XRootD TPC for cross-protocol transfers.
+**Difference:** nginx-xrootd's WebDAV TPC is operationally tied to nginx/WebDAV
+and includes module-specific hardening; it should not be presented as a feature
+missing from upstream XRootD.
 
 ### 4.8 S3 SigV4 Auth Gate
 - **Canonical:** No native S3 REST API support
@@ -186,9 +193,12 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 | Max checksum errors per request | kXR_pgMaxEpr=128 | Declared, used in pgread/pgwrite |
 | Max outstanding checksum errors | kXR_pgMaxEos=256 | Declared, used in pgread/pgwrite |
 | SHA256 checksums | ✓ (via kXR_query) | ✓ (via kXR_query handler) |
-| CRC64 checksums | ✓ | ✗ (not in checksum parser/dispatch) |
+| CRC64 checksums | Stock XRootD declares the name/length convention but ships no calculator | ✓ `crc64` / `crc64nvme` via `src/compat/crc64.c`; S3 CRC64NVME headers supported |
 
-**Status:** Partial parity — both support per-page CRC32c integrity and SHA256 query checksums; nginx-xrootd does not currently implement CRC64.
+**Status:** nginx-xrootd is stronger here: both support per-page CRC32c
+integrity and SHA256 query checksums, while nginx-xrootd additionally implements
+CRC-64/XZ and CRC-64/NVME across root://, WebDAV/XrdHttp, S3, and the native
+client (`docs/10-reference/crc64-checksums.md`).
 
 ### 5.2 Scatter-Gather I/O
 | Feature | Canonical | nginx-xrootd |
@@ -202,10 +212,11 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 ### 5.3 Server-Side Transfer (TPC)
 | Feature | Canonical | nginx-xrootd |
 |---|---|---|
-| Native TPC (SHM key registry) | ✓ (`src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) | ✓ (`src/tpc/key_registry.c` shared, plus nginx-specific launch/io/done) |
-| WebDAV TPC (curl COPY) | ✗ | ✓ |
+| Native root TPC | ✓ (official XRootD TPC handling in `src/XrdOfs` / `src/XrdXrootd`) | ✓ (`src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) |
+| HTTP/WebDAV TPC | ✓ (`src/XrdHttpTpc`) | ✓ (`src/webdav/tpc.c`, `tpc_curl.c`, `tpc_marker.c`, `tpc_cred.c`) |
 
-**Advantage:** nginx adds WebDAV TPC via curl COPY — canonical XRootD only has native SHM-based TPC.
+**Status:** Both projects implement HTTP/WebDAV TPC, but with different
+integration models and operational controls.
 
 ### 5.4 File Handle Management
 - **Canonical:** Uses file descriptor table with opaque handles
@@ -250,18 +261,18 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ---
 
-## 7. WebDAV & S3 REST API (Unique to nginx-xrootd)
+## 7. WebDAV & S3 REST API
 
 ### 7.1 WebDAV
 | Method | Canonical | nginx-xrootd |
 |---|---|---|
-| GET | ✓ (`src/webdav/get.c`) | ✓ |
-| PUT | ✓ (`src/webdav/put.c`) | ✓ |
-| MOVE | ✓ (`src/webdav/move.c`) | ✓ |
-| COPY | ✓ (`src/webdav/copy.c`) | ✓ |
-| PROPFIND | ✓ (`src/webdav/propfind.c`) | ✓ |
-| LOCK | ✓ (`src/webdav/lock.c`) | ✓ |
-| TPC (curl COPY) | ✗ | ✓ (`src/webdav/tpc.c`) |
+| GET | ✓ (`src/XrdHttp`) | ✓ |
+| PUT | ✓ (`src/XrdHttp`) | ✓ |
+| MOVE | ✓ (`src/XrdHttp`) | ✓ |
+| COPY | ✓ (`src/XrdHttp`) | ✓ |
+| PROPFIND | ✓ (`src/XrdHttp`) | ✓ |
+| LOCK | Site/plugin dependent | ✓ (`src/webdav/lock.c`) |
+| HTTP/WebDAV TPC | ✓ (`src/XrdHttpTpc`) | ✓ (`src/webdav/tpc.c`) |
 
 ### 7.2 S3 REST API (Unique to nginx-xrootd)
 | Operation | Canonical | nginx-xrootd |
@@ -272,7 +283,9 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 | Multipart Upload | ✗ | ✓ (`src/s3/multipart.c`) |
 | SigV4 Auth | ✗ | ✓ (`src/s3/auth.c`) |
 
-**Advantage:** nginx-xrootd provides two REST-compatible access layers (WebDAV + S3) on top of XRootD storage, enabling cloud-native clients to access HEP data without protocol conversion.
+**Advantage:** nginx-xrootd provides an S3-compatible REST layer in addition to
+native/WebDAV storage access, enabling cloud-native clients to access HEP data
+without protocol conversion.
 
 ---
 
@@ -294,23 +307,29 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ## 9. Summary: Gap Analysis
 
-### Missing from nginx (low impact)
+### Missing or narrower in nginx
 1. **kXR_gpfile(3005)** — Legacy unused opcode; declared but no handler; falls through to kXR_Unsupported. Minimal impact.
-2. **CRC64 checksums** — SHA256 is implemented, but CRC64 is not currently supported by the checksum parser.
+2. **host/pwd auth and full security plugin ecosystem** — legacy or
+   site-specific upstream behaviors are not reproduced.
+3. **PSS/PFC/Ceph/OssCsi/Zip/full XrdFrm-MSS ecosystem** — upstream remains
+   broader for deployments built around those plugins.
 
 ### Where nginx is superior
 - Confined path resolution as universal invariant gate
 - Atomic temp write + rename pattern for crash-safe PUTs
 - Token scope + global config two-tier auth gate
 - Async event-loop I/O (no thread-per-request cost)
-- WebDAV TPC via curl COPY (cross-protocol zero-copy transfers)
+- WebDAV TPC with nginx-specific hardening and operational controls
 - S3 SigV4 REST API layer on top of XRootD storage
 - Strict TLS/cleartext buffer separation invariant
 - Wire string sanitization for log safety
 - Open cache with resolved path deduplication
 
-### Where canonical may have advantages (minor or legacy)
-- Native SHM-based TPC for cross-process zero-copy transfers (nginx shares key_registry.c but adds curl COPY as complement — actually superior for cross-protocol)
+### Where official XRootD may have advantages
+- Full PSS/PFC/XrdFrm/MSS and OSS plugin ecosystem
+- Broader historical auth/security plugin surface
+- More mature XrdHttpTpc monitoring and deployment history
+- Native client libraries and federation tooling outside this server module
 
 ---
 
@@ -331,5 +350,6 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 - Active action codes `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are declared in `opcodes.h`; native generation is used by `kXR_notify` on `kXR_prepare` (`src/query/prepare.c`). Deprecated codes 5000–5007 (except 5002) return `kXR_Unsupported` per the v5 spec
 
 ### Request opcode coverage
-- 31 request opcodes have parity or advantage over canonical XRootD
-- 1 legacy opcode (`kXR_gpfile`) is intentionally unimplemented (unused in modern clients)
+- 32 active request opcodes have parity or module-specific behavior.
+- 1 legacy opcode (`kXR_gpfile`) is intentionally unimplemented and upstream
+  default data-server behavior is also unsupported for this obsolete path.

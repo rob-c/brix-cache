@@ -23,14 +23,15 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port
 
 LOCK_KEY = "user.nginx_xrootd.lock"
 LOCK_VAL = (b"token=opaquelocktoken:11111111-2222-3333-4444-555555555555|"
             b"owner=cn=test|expires=9999999999999|scope=exclusive|depth=infinity")
 
-# A free-ish port unlikely to collide with the shared test servers.
-SWEEP_PORT = 18399
+# A free OS port (env override honored) so the dedicated nginx instance never
+# collides with the shared test fleet or another self-contained test.
+SWEEP_PORT = int(os.environ.get("TEST_SWEEP_PORT") or free_port())
 
 
 def _xattr_supported(path):

@@ -2,7 +2,9 @@
 
 **Date:** 2026-06-12
 **Author:** performance audit (whole-`src/` sweep)
-**Status:** PLAN — not yet begun
+**Status:** Historical audit / roadmap. Several entries were later implemented,
+dropped, or corrected by Phase 32 and Phase 33; use those phase docs and current
+source for final status before quoting an item as open.
 **Scope:** Every protocol plane the module speaks — `root://`/`roots://` (stream),
 `davs://`/`http://` (WebDAV), S3 REST, native TPC, cache, proxy/manager, and the
 cross-cutting instrumentation (metrics, rate-limit, logging, TLS, SHM).
@@ -51,8 +53,8 @@ prerequisite, not an afterthought.
 | # | Lever | Plane | Effort | Expected gain | Confidence |
 |---|---|---|---|---|---|
 | **P0-1** | Remove duplicate bandwidth charge (`read.c:136-137`) | stream read | trivial | Correctness + un-throttles rate-limited reads 2× | **VERIFIED** |
-| **P0-2** | PCLMULQDQ-folded CRC32c (replace serial `_mm_crc32_u64`) | pgread/pgwrite/TPC/cksum | small | 5–8× CRC throughput; unblocks pgread at 10–25 GB/s | **VERIFIED** |
-| **P0-3** | Build flags: `-O3 -march=x86-64-v2 -flto` via `--with-cc-opt` | whole module | trivial | 3–10% across the board, free | **VERIFIED** (flags absent today) |
+| **P0-2** | PCLMULQDQ-folded CRC32c (replace serial `_mm_crc32_u64`) | pgread/pgwrite/TPC/cksum | small | Potential CRC throughput lift | **Superseded:** Phase 32 verified current CRC32C is hardware-accelerated and not the active bottleneck; profile before revisiting. |
+| **P0-3** | Build flags: `-O3 -march=x86-64-v2 -flto` via `--with-cc-opt` | whole module | trivial | 3–10% across the board | **Superseded:** Phase 33 set `XROOTD_OPTIMIZE` defaults to `-O3 -march=x86-64-v2 -fno-plt`; LTO remains optional/experimental. |
 | **P0-4** | Cumulative latency histogram → single-bucket increment | every request | small | Removes up to 8 atomics/request | **VERIFIED** |
 | **P0-5** | `F_SETPIPE_SZ` 1 MiB on splice pipes | proxy relay | trivial | ~16× fewer `splice(2)` syscalls on large bodies | **VERIFIED** |
 | **P1-1** | Request pipelining + TLS data-plane fix (Phase 29) | stream read | large | Close the 0.49–0.59× single-stream gap | see Phase 29 |
@@ -472,11 +474,11 @@ otherwise.
 
 ## 7. Pillar F — Build & compiler (free, global wins)
 
-The `./configure` line in `CLAUDE.md` passes **no** `--with-cc-opt` optimization
-flags; nginx defaults to `-O` with no `-march`. These are the cheapest wins in the
-whole document and apply to all 105 K LoC at once.
+Phase 33 superseded the original build-flag finding: `XROOTD_OPTIMIZE` now
+defaults to `-O3 -march=x86-64-v2 -fno-plt` with profile escapes. The original
+proposal below is retained only for LTO / fleet-specific tuning experiments.
 
-### F.1 `[VERIFIED]` Add an optimized cc-opt profile — **P0-3**
+### F.1 `[SUPERSEDED]` Add an optimized cc-opt profile — **P0-3**
 
 ```
 ./configure --with-stream --with-stream_ssl_module --with-http_ssl_module \
@@ -499,7 +501,11 @@ whole document and apply to all 105 K LoC at once.
   becomes dead on supported hardware (keep it for portability builds).
 - **Validation:** rebuild, full test suite green, A/B throughput on the §8 harness.
 
-### F.2 `[VERIFIED]` Replace serial CRC32c with PCLMULQDQ-folded CRC — **P0-2**
+### F.2 `[PROFILE-FIRST]` Replace serial CRC32c with PCLMULQDQ-folded CRC — **P0-2**
+
+Phase 32 verified the current CRC32C path is already hardware-accelerated and
+not the active data-plane bottleneck. Keep the rationale below as an optional
+future tuning idea, not as a current P0.
 
 `src/compat/crc32c.c:140-170` (`hw_extend`) processes 8 bytes/iteration with a
 **serial dependency** on `state` through `_mm_crc32_u64` (latency ~3 cycles,

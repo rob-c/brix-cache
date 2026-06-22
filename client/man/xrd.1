@@ -1,0 +1,273 @@
+.TH XRD 1 "2026" "nginx-xrootd" "User Commands"
+.SH NAME
+xrd \- unified git-style front-end for the native XRootD/WLCG toolkit
+.SH SYNOPSIS
+.B xrd
+.I command
+[\fIargs\fR]
+.SH DESCRIPTION
+.B xrd
+dispatches a single command to the right native tool so users learn one entry
+point. Transfer verbs map to
+.BR xrdcp ,
+filesystem verbs to
+.BR xrdfs ,
+diagnostics to
+.BR xrddiag ;
+\fImount\fR drives the FUSE3 driver, and \fIdoctor\fR/\fIlogin\fR compose
+credential helpers in-process. \fI~/.xrdrc\fR aliases are resolved everywhere.
+.PP
+Filesystem verbs accept either a bare endpoint plus a path, or a full
+\fIroot://host[:port]//path\fR URL (or an alias resolving to one), which is split
+into the connect endpoint and the path. Multi-path verbs (\fBmv\fR, \fBln\fR)
+require every path to be on the same endpoint. Flags may precede the endpoint
+(e.g. \fBxrd df -h root://h//\fR, \fBxrd ln -s root://h//t root://h//l\fR).
+.SH TRANSFER
+.TP
+.B xrd cp \fR[opts] \fIsrc\fR... \fIdst\fR
+Copy (\fB-> xrdcp\fR; supports \fB-r -j --sync --from\fR ...).
+.TP
+.B xrd get \fIurl\fR \fR[\fIlocaldst\fR]
+Download a file (default destination: current directory).
+.TP
+.B xrd put \fIlocalfile\fR \fIurl\fR
+Upload a file.
+.TP
+.B xrd upload \fR[\fBbs=\fIN\fR] [\fBrate=\fIR\fR] [\fB-f\fR] \fIlocalfile\fR|\fB-\fR \fIurl\fR
+Write a local file (or stdin) to a remote path, optionally rate-limited
+(\fBrate=\fR accepts a K/M/G suffix; token-bucket pacing). \fB-f\fR overwrites.
+.TP
+.B xrd download \fR[\fBbs=\fIN\fR] [\fBrate=\fIR\fR] [\fB-f\fR] \fIurl\fR [\fIlocaldst\fR|\fB-\fR]
+Read a remote file to a local file (or stdout), optionally rate-limited. The
+destination defaults to the remote basename in the current directory; \fB-f\fR
+overwrites. The throttled counterpart to \fBget\fR.
+.TP
+.B xrd sync \fIsrcdir\fR \fIdstdir\fR
+Recursively mirror a tree, skipping same-size files (\fB-> xrdcp -r --sync\fR).
+Extra flags after the operands pass through to \fBxrdcp\fR.
+.SH FILESYSTEM
+.TP
+.B xrd ls \fR[\fB-l\fR] [\fB-R\fR] [\fB-h\fR] [\fIpath\fR]
+List a directory; \fB-l\fR long form, \fB-R\fR recursive, \fB-h\fR human sizes.
+.TP
+.B xrd stat \fIpath\fR
+Show id, size, mtime, and flags.
+.TP
+.B xrd du \fR[\fB-h\fR] \fIpath\fR...
+Recursive size and file/dir counts.
+.TP
+.B xrd df \fR[\fB-h\fR] [\fIpath\fR]
+Friendly disk-space report (Size/Used/Avail/Use%/Largest) from the server's
+\fIkXR_Qspace\fR \fIoss.*\fR record. \fB-h\fR humanizes the byte columns. An
+unrecognized reply is printed verbatim. For cluster-wide per-holder space use
+.BR xrdmapc .
+.TP
+.B xrd tree \fR[\fB-d\fR] [\fB-L\fR \fIN\fR] [\fIpath\fR]
+Visual directory tree.
+.TP
+.B xrd find \fIpath\fR \fR[\fB-name\fR \fIGLOB\fR] [\fB-type\fR f|d] [\fB-size\fR +N|-N]
+Recursive predicate search.
+.TP
+.B xrd mkdir \fR[\fB-p\fR] [\fB-m\fR \fImode\fR] \fIpath\fR
+.TQ
+.B xrd rm \fIpath\fR
+.TQ
+.B xrd rmdir \fIpath\fR
+.TQ
+.B xrd mv \fIsrc\fR \fIdst\fR
+.TQ
+.B xrd truncate \fIpath\fR \fIsize\fR
+Namespace mutations.
+.TP
+.B xrd chmod \fR[\fB-R\fR] \fIpath\fR \fIoctal-mode\fR
+Change permissions (octal modes only; \fB-R\fR recurses). Symbolic modes
+(\fIu+x\fR) are not supported: the XRootD wire stat does not expose the current
+permission bits, so there is no base for relative changes.
+.TP
+.B xrd touch \fR[\fB-c\fR] [\fB-a\fR] [\fB-m\fR] [\fB-t\fR \fISTAMP\fR] \fIpath\fR
+Create the file if absent (unless \fB-c\fR) and set its access/modification
+times (default: both to now). \fB-a\fR/\fB-m\fR restrict to atime/mtime;
+\fB-t\fR sets an explicit \fI[[CC]YY]MMDDhhmm[.ss]\fR time. Never changes
+ownership.
+.TP
+.B xrd ln \fR[\fB-s\fR] [\fB-f\fR] \fItarget\fR \fIlinkpath\fR
+Create a hard link, or a symbolic link with \fB-s\fR (GNU order: target first).
+\fB-f\fR removes an existing \fIlinkpath\fR first. A symlink target is stored
+verbatim (link content); only \fIlinkpath\fR is confined.
+.TP
+.B xrd readlink \fIpath\fR
+Print a symlink's target.
+.TP
+.B xrd cat \fIpath\fR
+.TQ
+.B xrd head \fR[\fB-c\fR \fIBYTES\fR] [\fB-n\fR \fILINES\fR] \fIpath\fR
+Print the start of a file; \fB-c\fR (bytes) takes precedence over \fB-n\fR
+(lines, default 10).
+.TQ
+.B xrd tail \fR[\fB-c\fR \fIBYTES\fR] [\fB-n\fR \fILINES\fR] [\fB-f\fR] [\fB--interval\fR \fIS\fR] \fIpath\fR
+Print the end of a file. \fB-f\fR follows by polling every \fIS\fR seconds
+(default 1; SIGINT to stop). Polling, not inotify.
+.TP
+.B xrd wc \fR[\fB-c\fR] [\fB-l\fR] [\fB-w\fR] \fIpath\fR
+Count bytes/lines/words (no flag = all three). \fB-c\fR alone is answered from
+\fBstat\fR without reading the file.
+.TP
+.B xrd grep \fR[\fB-i\fR] [\fB-n\fR] \fIPATTERN\fR \fIpath\fR
+POSIX-regex line match over a streamed file (\fB-i\fR case-insensitive,
+\fB-n\fR line numbers). Reads the whole file. Exit 0 if any line matched, 1 if none.
+.TP
+.B xrd hexdump \fR[\fB-n\fR \fIBYTES\fR] \fIpath\fR
+xxd-style hex + ASCII dump; \fB-n\fR caps the bytes shown.
+.TP
+.B xrd dd \fR[\fBif=\fR]\fIpath\fR [\fBbs=\fIN\fR] [\fBskip=\fIN\fR] [\fBcount=\fIN\fR] [\fBrate=\fIR\fR]
+Read a windowed, optionally rate-limited slice of a remote file to stdout. The
+window starts at \fIskip\fR*\fIbs\fR and is \fIcount\fR*\fIbs\fR bytes (\fIbs\fR
+default 1 MiB; \fIcount\fR omitted = to EOF). \fBrate=\fR throttles via token-bucket
+pacing of the read loop (this back-pressures the server through TCP flow control;
+it is not a hardware shaper). For a download-to-file see \fBdownload\fR.
+.TP
+.B xrd cmp \fIpath1\fR \fIpath2\fR
+Compare two files on the same endpoint. Fast path: server checksums (no bulk
+transfer); byte-exact fallback otherwise. Quiet + exit 0 if identical, exit 1 if not.
+.TP
+.B xrd cksum \fR[\fB-a\fR \fIalgo\fR] \fIpath\fR
+Print the server-side checksum (\fIadler32\fR default; \fIcrc32c\fR/\fIcrc64\fR/
+\fIcrc64nvme\fR/\fImd5\fR). Output: \fIalgo hex path\fR.
+.TP
+.B xrd xattr \fBls\fR|\fBget\fR|\fBset\fR|\fBrm\fR \fIpath\fR [\fIname\fR] [\fIvalue\fR]
+Extended attributes (\fIkXR_fattr\fR). \fBls\fR lists names, \fBget\fR prints a
+value, \fBset\fR stores one, \fBrm\fR deletes one. Names round-trip between
+\fBls\fR and \fBget\fR/\fBset\fR.
+.TP
+.B xrd stage \fR[\fB--wait\fR[=\fISECS\fR]] \fIpath\fR...
+Request tape/disk staging (\fIkXR_prepare\fR+\fIkXR_stage\fR); \fB--wait\fR polls
+residency until online (default timeout 300 s).
+.TP
+.B xrd evict \fIpath\fR...
+Request eviction from disk cache (\fIkXR_prepare\fR+\fIkXR_evict\fR).
+.TP
+.B xrd locate \fR| \fBquery\fR | \fBstatvfs\fR | \fBprepare\fR | \fBexplain\fR
+Lower-level XRootD operations (passed through to \fBxrdfs\fR).
+.SH DIAGNOSTICS
+.TP
+.B xrd diag \fIsubcommand\fR \fR[args]
+Run a diagnostic (\fB-> xrddiag\fR: check/bench/watch/srr/tape/...).
+.TP
+.B xrd ping \fR[\fB-c\fR \fICOUNT\fR] \fIendpoint\fR
+Connect once, then time \fICOUNT\fR (default 4) stat round-trips to / and report
+min/avg/max RTT.
+.TP
+.B xrd certinfo \fIendpoint\fR
+Report the server's host certificate: subject/issuer/SAN, validity window,
+days-until-expiry, and hostname match. Connects over TLS (per the scheme) without
+authenticating and without rejecting an untrusted/expired cert, so it can inspect
+any cert; a cleartext \fBroot://\fR endpoint reports "no certificate". Exit nonzero
+if the cert is expired or not yet valid.
+.TP
+.B xrd clockskew \fIendpoint\fR
+Report the client<->server clock offset and round-trip time. Uses the HTTP
+\fBDate\fR header for \fBhttp(s)\fR/\fBdav(s)\fR endpoints (read-only) and a
+create+stat probe for \fBroot://\fR (needs write). Warns past 60 s of skew (where
+bearer-token \fIexp\fR/\fInbf\fR and GSI/proxy validity start failing) and exits
+nonzero past 5 min. ~1 s resolution.
+.TP
+.B xrd whoami \fIendpoint\fR
+Show the negotiated authentication protocol and the identity you are presenting
+(local bearer-token subject / GSI proxy DN). For debugging authz.
+.TP
+.B xrd caps \fIendpoint\fR
+Server role plus the \fIkXR_Qconfig\fR capability matrix (checksum types, readv,
+tpc/tpcdlg, xrdfs.ext, …); \fI0\fR means unset/unsupported.
+.TP
+.B xrd replicas \fIurl\fR
+Cluster holder + free-space map for a path (\fB-> xrdmapc\fR).
+.TP
+.B xrd doctor \fR[\fIendpoint\fR] [\fB--rw\fR] [\fB--also\fR \fIurl\fR]... [\fB--insecure\fR] [\fB--json\fR]
+One-stop endpoint health. For each endpoint it reports the connect/auth/TLS posture,
+server host-cert validity (\fBcertinfo\fR), clock skew (\fBclockskew\fR), and the
+capability matrix (\fBcaps\fR), plus local credential presence/validity, AND runs a
+functional method battery:
+.RS
+.IP \(bu 3
+read-only by default — stat, dirlist, statvfs, query-config, and a path-confinement
+negative check;
+.IP \(bu 3
+with \fB--rw\fR, a full write cycle — mkdir, write, read-back+byte-verify, readv,
+server-vs-local checksum, setattr-times, xattr get/set/del, symlink+readlink, rename,
+truncate, rm, rmdir — under a temp dir that is cleaned up.
+.RE
+.IP
+\fB--also\fR \fIurl\fR (repeatable) adds another protocol face so one run covers
+\fBroot://\fR, \fBdavs://\fR/\fBhttps://\fR (WebDAV: OPTIONS/PROPFIND + rw
+MKCOL/PUT/GET-verify/MOVE/DELETE) and \fBs3://\fR (ListObjectsV2 + rw signed
+PUT/GET-verify/DELETE). \fB--insecure\fR skips TLS chain/host verification for the
+probes. \fB--json\fR emits the entire report — cert, clock, caps, credentials, and a
+\fItests\fR array of per-protocol per-method results — as one JSON object. WebDAV
+bearer creds come from the discovered token; S3 from \fBAWS_ACCESS_KEY_ID\fR/
+\fBAWS_SECRET_ACCESS_KEY\fR/\fBAWS_DEFAULT_REGION\fR. Exit nonzero on a fatal local
+cred problem, a failed connect, an expired server cert, clock skew over 5 min, or any
+failed functional check.
+.TP
+.B xrd login \fR[\fB--oidc-account\fR \fIN\fR] [\fB--read\fR]
+Acquire/refresh a bearer token and/or GSI proxy.
+.SH FUSE MOUNTS
+.TP
+.B xrd mount \fR[\fB--legacy\fR] \fIendpoint\fR \fImountpoint\fR \fR[fuse-opts]
+Mount an XRootD export via the resilient
+.B xrootdfs
+driver (\fB--legacy\fR selects its synchronous fallback mode).
+.TP
+.B xrd mount \fR| \fBxrd mounts\fR | \fBxrd mount -l\fR
+List active XRootD FUSE mounts (endpoint, mountpoint, driver), parsed from
+\fI/proc/self/mountinfo\fR. Linux-only.
+.TP
+.B xrd unmount \fR[\fB-z\fR] \fImountpoint\fR
+Unmount (prefers \fBfusermount3\fR, then \fBfusermount\fR, then \fBumount\fR;
+\fB-z\fR lazy-detach).
+.SH ENVIRONMENT
+Variables tagged \fB(EXPANDED)\fR are extensions specific to this project's
+native clients; they do not exist in, and have no effect on, a vanilla upstream
+XRootD client \(em do not rely on them elsewhere.
+.TP
+.BR XRD_MOUNTINFO_PATH " (EXPANDED)"
+Override the mountinfo file parsed by \fBxrd mount\fR listing (used by tests).
+.TP
+.B BEARER_TOKEN\fR, \fBOIDC_ACCOUNT
+Consumed by the credential helpers behind \fBdoctor\fR/\fBlogin\fR.
+.TP
+.BR XRDC_NO_IPV6_FALLBACK " (EXPANDED)"
+By default, on a dual-stack host whose IPv6 path is broken but whose IPv4 backend
+works, every native tool (this driver, \fBxrdcp\fR, \fBxrdfs\fR, the \fBxrootdfs\fR
+mounts, \fBxrddiag\fR \(em all libxrdc clients) downgrades the whole run to
+IPv4-only and logs it once to standard error. It triggers either when an IPv6
+connect fails where IPv4 then succeeds, or when a connection that came up over
+IPv6 fails over the wire; thereafter IPv6 is skipped on every connection. Set
+this variable to \fB1\fR to disable the downgrade and keep attempting IPv6 on
+every connection \(em wanted on an IPv6-only deployment or when debugging the
+IPv6 path. The downgrade is self-healing (it reverts if IPv4 turns out not to
+work), so an IPv6-only host never stays downgraded and a healthy IPv6 host never
+trips it.
+.TP
+.BR XRDC_CONNECT_TIMEOUT_MS " (EXPANDED)"
+Cap in milliseconds on the connect + handshake + login phase (default 15000),
+separate from the steady-state I/O timeout. Lower it to fail fast against a
+misbehaving firewall that completes the TCP connect then hangs the protocol
+handshake; the client then reconnects (with backoff) rather than hanging.
+.TP
+.BR XRDC_IO_TIMEOUT_MS " (EXPANDED)"
+Cap in milliseconds on each steady-state read/write once a session is established
+(default 30000).
+.SH EXIT STATUS
+0 on success; the underlying XRootD shell code on a protocol error; 50 on a
+usage error; 51 on out of memory.
+.SH NOTES
+\fBchown\fR/\fBchgrp\fR are intentionally absent \(em \fBxrd\fR never mutates
+ownership. The link, \fBreadlink\fR, and \fBtouch\fR-time verbs require the
+server to advertise \fIxrdfs.ext\fR; otherwise they fail cleanly with
+\fIkXR_Unsupported\fR.
+.SH SEE ALSO
+.BR xrdcp (1),
+.BR xrdfs (1),
+.BR xrddiag (1),
+.BR xrdmapc (1),
+.BR xrootdfs (1)

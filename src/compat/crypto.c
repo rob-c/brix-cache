@@ -84,3 +84,45 @@ xrootd_sha256(const uint8_t *data, size_t len, uint8_t out[32])
     EVP_MD_CTX_free(ctx);
     return ok;
 }
+
+/* The opaque streaming handle is simply the EVP_MD_CTX itself. */
+void *
+xrootd_sha256_stream_new(void)
+{
+    EVP_MD_CTX *ctx;
+
+    if (s_sha256_md == NULL) { return NULL; }
+    ctx = EVP_MD_CTX_new();
+    if (ctx == NULL) { return NULL; }
+    if (EVP_DigestInit_ex(ctx, s_sha256_md, NULL) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+int
+xrootd_sha256_stream_update(void *s, const uint8_t *data, size_t len)
+{
+    return s != NULL && EVP_DigestUpdate((EVP_MD_CTX *) s, data, len) == 1;
+}
+
+int
+xrootd_sha256_stream_final(void *s, uint8_t out[32])
+{
+    unsigned int outlen = 32;
+
+    if (s == NULL
+        || EVP_DigestFinal_ex((EVP_MD_CTX *) s, out, &outlen) != 1)
+    {
+        return 0;
+    }
+    /* Re-initialise so the same handle can hash the next chunk. */
+    return EVP_DigestInit_ex((EVP_MD_CTX *) s, s_sha256_md, NULL) == 1;
+}
+
+void
+xrootd_sha256_stream_free(void *s)
+{
+    EVP_MD_CTX_free((EVP_MD_CTX *) s);
+}

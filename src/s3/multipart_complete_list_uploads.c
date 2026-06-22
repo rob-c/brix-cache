@@ -23,6 +23,7 @@
  */
 #include "s3.h"
 #include "multipart_internal.h"
+#include "../path/path.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -55,6 +56,12 @@ typedef struct {
  */
 #define MPU_MAX_LISTED_UPLOADS  1000
 
+/*
+ * Recursion-depth cap for the bucket-tree scan — a runaway guard, generous
+ * enough for realistically-nested object keys ("a/b/c/.../obj").
+ */
+#define MPU_LIST_MAX_DEPTH      16
+
 static int
 mpu_upload_entry_cmp(const void *a, const void *b)
 {
@@ -62,12 +69,114 @@ mpu_upload_entry_cmp(const void *a, const void *b)
                   ((const mpu_upload_entry_t *) b)->key);
 }
 
+/*
+ * mpu_collect — recursively gather in-progress multipart staging dirs under
+ * dir_path, reconstructing each upload's full object key from key_prefix.
+ *
+ * WHAT: Walks the bucket tree (impersonation-confined) collecting staging dirs
+ *       named ".<segment>.mpu-<upload_id>".  The reported key is
+ *       key_prefix + segment, so a path-keyed upload "alice/foo" staged at
+ *       <root>/alice/.foo.mpu-<id> is listed with Key "alice/foo".  Plain
+ *       subdirectories are recursed into as key-prefix components; a staging dir
+ *       is recorded as a leaf and never descended.
+ * WHY:  The original flat single-level opendir(root) only saw bucket-root-keyed
+ *       uploads, and used a bare worker opendir.  Under `xrootd_impersonation
+ *       map` a path-keyed upload lives in the mapped user's 0700 subdir, which
+ *       the flat bare scan can neither reach (wrong scope) nor — as the
+ *       unprivileged worker — open (EACCES).  Mirrors s3_walk()'s confined
+ *       recursive enumeration in list_walk.c.
+ * HOW:  Each directory is opened via xrootd_opendir_confined_canon (broker-opened
+ *       as the mapped user off impersonation it is a plain opendir).  A directory
+ *       the mapped user cannot traverse (e.g. another tenant's 0700) yields NULL
+ *       and is simply skipped, so cross-tenant uploads are never enumerated.
+ *       Bounded by *n < max and MPU_LIST_MAX_DEPTH; symlinks are skipped (lstat).
+ */
+static void
+mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+            const char *dir_path, const char *key_prefix,
+            mpu_upload_entry_t *uploads, int max, int *n, int depth)
+{
+    DIR           *dp;
+    struct dirent *de;
+
+    if (*n >= max || depth > MPU_LIST_MAX_DEPTH) {
+        return;
+    }
+
+    dp = xrootd_opendir_confined_canon(r->connection->log,
+                                       cf->common.root_canon, dir_path);
+    if (dp == NULL) {
+        return;   /* unreadable as the mapped user (e.g. another tenant's 0700) */
+    }
+
+    while ((de = readdir(dp)) != NULL && *n < max) {
+        if (de->d_name[0] == '\0'
+            || (de->d_name[0] == '.' && de->d_name[1] == '\0')
+            || (de->d_name[0] == '.' && de->d_name[1] == '.'
+                && de->d_name[2] == '\0'))
+        {
+            continue;   /* "." or ".." */
+        }
+
+        char child_path[PATH_MAX];
+        if ((size_t) snprintf(child_path, sizeof(child_path), "%s/%s",
+                              dir_path, de->d_name) >= sizeof(child_path)) {
+            continue;
+        }
+
+        struct stat sb;
+        if (xrootd_lstat_confined_canon(r->connection->log,
+                                        cf->common.root_canon,
+                                        child_path, &sb, 1) != 0
+            || !S_ISDIR(sb.st_mode))
+        {
+            continue;   /* not a directory (lstat also rejects symlinks) */
+        }
+
+        /* A staging dir is hidden and carries the ".mpu-" marker. */
+        const char *mpu_marker = (de->d_name[0] == '.')
+                               ? strstr(de->d_name + 1, ".mpu-") : NULL;
+        if (mpu_marker != NULL) {
+            size_t      seg_len = (size_t) (mpu_marker - (de->d_name + 1));
+            const char *uid     = mpu_marker + 5;   /* skip ".mpu-" */
+            char        keybuf[NAME_MAX + 1];
+            int         kl;
+
+            if (seg_len == 0 || uid[0] == '\0') {
+                continue;
+            }
+            kl = snprintf(keybuf, sizeof(keybuf), "%s%.*s",
+                          key_prefix, (int) seg_len, de->d_name + 1);
+            if (kl < 0 || (size_t) kl >= sizeof(keybuf)
+                || strlen(uid) >= sizeof(uploads[*n].upload_id))
+            {
+                continue;   /* key / upload-id too long — skip (bounds-consistent) */
+            }
+            memcpy(uploads[*n].key, keybuf, (size_t) kl + 1);
+            ngx_cpystrn((u_char *) uploads[*n].upload_id, (u_char *) uid,
+                        sizeof(uploads[*n].upload_id));
+            uploads[*n].mtime = sb.st_mtime;
+            (*n)++;
+            continue;   /* never descend INTO a staging dir */
+        }
+
+        /* A plain key-prefix directory (e.g. "alice/"): recurse with the prefix
+         * extended by this segment + '/'. */
+        char next_prefix[PATH_MAX];
+        if ((size_t) snprintf(next_prefix, sizeof(next_prefix), "%s%s/",
+                              key_prefix, de->d_name) >= sizeof(next_prefix)) {
+            continue;
+        }
+        mpu_collect(r, cf, child_path, next_prefix, uploads, max, n, depth + 1);
+    }
+
+    closedir(dp);
+}
+
 ngx_int_t
 s3_handle_list_multipart_uploads(ngx_http_request_t *r,
                                   ngx_http_s3_loc_conf_t *cf)
 {
-    DIR                *dp;
-    struct dirent      *de;
     mpu_upload_entry_t *uploads;
     int                 nuploads = 0;
     int                 i;
@@ -111,72 +220,16 @@ s3_handle_list_multipart_uploads(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    dp = opendir((const char *) cf->common.root.data);
-    if (dp == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    while ((de = readdir(dp)) != NULL && nuploads < MPU_MAX_LISTED_UPLOADS) {
-        /*
-         * We are looking for hidden directories (name starts with '.') that
-         * contain ".mpu-" — pattern: .<key>.mpu-<upload_id>
-         */
-        if (de->d_name[0] != '.') {
-            continue;
-        }
-        if (de->d_name[1] == '\0'
-            || (de->d_name[1] == '.' && de->d_name[2] == '\0'))
-        {
-            continue;   /* "." or ".." */
-        }
-
-        /* Find ".mpu-" marker — must appear after the key portion */
-        const char *mpu_marker = strstr(de->d_name + 1, ".mpu-");
-        if (mpu_marker == NULL) {
-            continue;
-        }
-
-        /* child_path is cf->common.root + "/" + de->d_name (readdir result from the
-         * export root). Confinement: de->d_name is a server-generated staging
-         * dir name from s3_get_mpu_dir(); bare lstat is safe. */
-        char child_path[PATH_MAX];
-        if ((size_t) snprintf(child_path, sizeof(child_path), "%s/%s",
-                              (const char *) cf->common.root.data,
-                              de->d_name) >= sizeof(child_path)) {
-            continue;
-        }
-        struct stat sb;
-        if (lstat(child_path, &sb) != 0 || !S_ISDIR(sb.st_mode)) {
-            continue;
-        }
-
-        /*
-         * Name format: ".<key>.mpu-<upload_id>"
-         * key  = de->d_name[1 .. mpu_marker-1]
-         * upload_id = mpu_marker + 5   (skip ".mpu-")
-         */
-        size_t key_len = (size_t) (mpu_marker - (de->d_name + 1));
-        const char *uid = mpu_marker + 5;
-
-        if (key_len == 0 || uid[0] == '\0') {
-            continue;
-        }
-        if (key_len >= sizeof(uploads[nuploads].key)
-            || strlen(uid) >= sizeof(uploads[nuploads].upload_id)) {
-            continue;
-        }
-
-        ngx_memcpy(uploads[nuploads].key, de->d_name + 1, key_len);
-        uploads[nuploads].key[key_len] = '\0';
-        ngx_cpystrn((u_char *) uploads[nuploads].upload_id,
-                    (u_char *) uid,
-                    sizeof(uploads[nuploads].upload_id));
-        uploads[nuploads].mtime = sb.st_mtime;
-        nuploads++;
-    }
-
-    closedir(dp);
+    /*
+     * Recursively enumerate staging dirs across the whole bucket tree, opened
+     * impersonation-confined as the mapped user.  Replaces the original flat
+     * single-level bare-opendir(root) scan, which (a) only saw bucket-root-keyed
+     * uploads and (b) under `xrootd_impersonation map` could not open the mapped
+     * user's own 0700 key subdirs as the unprivileged worker.  A dir the mapped
+     * user cannot traverse is skipped, so no cross-tenant upload is enumerated.
+     */
+    mpu_collect(r, cf, (const char *) cf->common.root_canon, "",
+                uploads, MPU_MAX_LISTED_UPLOADS, &nuploads, 0);
 
     /* Sort by key for deterministic pagination */
     if (nuploads > 1) {

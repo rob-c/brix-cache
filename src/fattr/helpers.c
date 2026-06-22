@@ -7,6 +7,7 @@
  * WHY: Multiple fattr sub-code handlers (get, set, del) share common patterns — errno→kXR mapping, rc encoding in network byte order, nvec parsing. Centralizing these helpers avoids duplication and ensures consistent error code translation across all fattr operations. ---- */
 #include "fattr/ngx_xrootd_fattr.h"
 #include "../compat/error_mapping.h"
+#include "../compat/fattr_codec.h"   /* shared nvec entry parser (libxrdproto) */
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -50,7 +51,6 @@ fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
     int numattr, xrootd_fattr_entry_t *attrs)
 {
     u_char *cursor;
-    u_char *end;
     int     attr_index;
 
     /*
@@ -64,37 +64,25 @@ fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
 
 /* ---- HOW: Initializes cursor = nvec_copy, end = nvec_copy + buflen. Loop over numattr entries: checks cursor+2 <= end (truncation guard), sets attrs[i].rc_ptr=cursor, errcode=0, value=NULL, vlen=0; advances cursor by 2. Scans for NUL terminator to find name length — if cursor >= end logs "name not null-terminated" and returns -1. Validates name_len > 0 && <= kXR_faMaxNlen — otherwise logs invalid length and returns -1. Sets attrs[i].name=name_start, nlen=name_len; snprintf xkey with XROOTD_FATTR_XKEY_PFX prefix + %.*s format. Advances cursor past NUL. Returns (ssize_t)(cursor - nvec_copy) = bytes consumed. */
     cursor = nvec_copy;
-    end = nvec_copy + buflen;
 
     for (attr_index = 0; attr_index < numattr; attr_index++) {
-        u_char *name_start;
-        size_t  name_len;
+        const uint8_t *name_p;
+        size_t         name_len, off, next;
 
-        if (cursor + 2 > end) {
+        /* Shared read-only scan of one [int16 rc][name\0] entry (libxrdproto).
+         * The rc slot lives at cursor; we hold that pointer ourselves so the
+         * set/del handlers can rewrite it in place (fattr_set_rc) — the shared
+         * parser never touches the buffer. */
+        off = (size_t) (cursor - nvec_copy);
+        if (xrdp_fattr_nvec_parse(nvec_copy, buflen, off, NULL,
+                                  &name_p, &name_len, &next) != 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: fattr nvec truncated at entry %d",
+                          "xrootd: fattr nvec truncated/unterminated at entry %d",
                           attr_index);
             return -1;
         }
 
-        attrs[attr_index].rc_ptr = cursor;
-        attrs[attr_index].errcode = 0;
-        attrs[attr_index].value = NULL;
-        attrs[attr_index].vlen = 0;
-        cursor += 2;
-
-        name_start = cursor;
-        while (cursor < end && *cursor) {
-            cursor++;
-        }
-
-        if (cursor >= end) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: fattr name not null-terminated");
-            return -1;
-        }
-
-        name_len = (size_t) (cursor - name_start);
+        /* Name-length policy is server-side (the wire parser is policy-free). */
         if (name_len == 0 || name_len > kXR_faMaxNlen) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
                           "xrootd: fattr name length %uz invalid",
@@ -102,12 +90,16 @@ fattr_parse_nvec(ngx_log_t *log, u_char *nvec_copy, size_t buflen,
             return -1;
         }
 
-        attrs[attr_index].name = (char *) name_start;
+        attrs[attr_index].rc_ptr = cursor;        /* the 2-byte rc slot */
+        attrs[attr_index].errcode = 0;
+        attrs[attr_index].value = NULL;
+        attrs[attr_index].vlen = 0;
+        attrs[attr_index].name = (char *) name_p;
         attrs[attr_index].nlen = name_len;
         snprintf(attrs[attr_index].xkey, sizeof(attrs[attr_index].xkey),
-                 XROOTD_FATTR_XKEY_PFX "%.*s", (int) name_len, name_start);
+                 XROOTD_FATTR_XKEY_PFX "%.*s", (int) name_len, name_p);
 
-        cursor++;
+        cursor = nvec_copy + next;
     }
 
     return (ssize_t) (cursor - nvec_copy);

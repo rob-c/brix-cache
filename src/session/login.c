@@ -143,12 +143,19 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * security plugin to load.
      */
     {
-        char   parms[256];
-        size_t parms_len;
+        char     parms[256];
+        size_t   parms_len;
+        unsigned gsi_ver;
 
         /* Re-fetch the live merged srv_conf in case login inherited settings. */
         conf = ngx_stream_get_module_srv_conf(ctx->session,
                                               ngx_stream_xrootd_module);
+
+        /* Advertised GSI version drives the client's signed-DH decision:
+         * >=XROOTD_GSI_VERS_DHSIGNED (10400) lets capable clients use the
+         * RSA-signed-DH variant.  Default 10000 (unsigned, universally
+         * compatible) unless the xrootd_gsi_signed_dh policy opts in. */
+        gsi_ver = (conf->gsi_signed_dh != XROOTD_GSI_SDH_OFF) ? 10600u : 10000u;
 
         if (conf->auth == XROOTD_AUTH_TOKEN) {
             /* Token-only: advertise ztn, no CA hash needed. */
@@ -170,12 +177,17 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
         } else if (conf->auth == XROOTD_AUTH_BOTH) {
             /* Both: token first (preferred), then GSI. */
             parms_len = (size_t) snprintf(parms, sizeof(parms),
-                                          "&P=ztn,v:10000&P=gsi,v:10000,c:ssl,ca:%08x",
+                                          "&P=ztn,v:10000&P=gsi,v:%u,c:ssl,ca:%08x",
+                                          gsi_ver,
                                           (unsigned) conf->gsi_ca_hash) + 1;
         } else {
-            /* GSI-only */
+            /* GSI-only.  The advertised version drives the client's signed-DH
+             * decision: >=10400 makes capable clients use the RSA-signed-DH
+             * variant.  Defaults to 10000 (unsigned, universal) unless the
+             * xrootd_gsi_signed_dh policy opts in. */
             parms_len = (size_t) snprintf(parms, sizeof(parms),
-                                          "&P=gsi,v:10000,c:ssl,ca:%08x",
+                                          "&P=gsi,v:%u,c:ssl,ca:%08x",
+                                          gsi_ver,
                                           (unsigned) conf->gsi_ca_hash) + 1;
         }
 

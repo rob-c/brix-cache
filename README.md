@@ -233,6 +233,20 @@ The same POSIX tree — one set of files, one set of permissions — is visible 
 
 ---
 
+## Native client tools
+
+The repository also ships a clean-room client suite in `client/`: `xrdcp`,
+`xrdfs`, diagnostics (`xrddiag`, capture/replay, remote-doctor), checksum tools,
+GSI/SSS helpers, the `xrootdfs` FUSE mount (with a `--legacy` synchronous mode), a POSIX preload shim,
+and the public C library `libxrdc`. These clients are built on the same in-tree
+protocol vocabulary as the module and do not depend on upstream `libXrdCl` or
+`libXrdSec*`.
+
+See [Native Client Tools](docs/04-protocols/native-client-tools.md) for the
+source-verified tool matrix, examples, and current limitations.
+
+---
+
 ## Authentication
 
 | Method | Native `root://` | WebDAV `davs://` | S3 |
@@ -259,6 +273,8 @@ All 32 active opcodes are implemented — `open`, `read`, `pgread`, `readv`, `wr
 - **WebDAV:** OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, PROPFIND, COPY, MOVE,
   LOCK, UNLOCK, HTTP-TPC COPY pull
 - **S3-compatible:** GET, HEAD, PUT, DELETE, ListObjectsV2, multipart upload
+- **Native client tools:** clean-room `xrdcp`, `xrdfs`, `xrddiag`, checksum
+  utilities, GSI/SSS helpers, FUSE mounts, POSIX preload, and `libxrdc`
 - **Auth:** anonymous, GSI/x509 proxy certs with `kXR_sigver` signing,
   WLCG/JWT bearer tokens (scope enforcement), SSS shared secret
 - **TLS:** in-protocol `root://` upgrade (`kXR_wantTLS`/`kXR_ableTLS`),
@@ -389,7 +405,7 @@ Docs are organized as a learning path — newcomers follow 01 → 02 → … and
 | **01 — Getting Started** | Installation, setup, verification | [Quick Install](docs/01-getting-started/quick-install.md), [What Is This Project](docs/01-getting-started/what-is-this.md) |
 | **02 — Concepts** | Domain knowledge for newcomers | [XRootD Basics](docs/02-concepts/xrootd-basics.md), [Deployment Modes](docs/02-concepts/deployment-modes.md) |
 | **03 — Configuration** | Build, config reference, TLS | [Config Reference](docs/03-configuration/config-reference.md), [TLS Config](docs/03-configuration/tls-config.md), [Build Guide](docs/03-configuration/build-guide.md) |
-| **04 — Protocols** | Protocol-specific guides | [WebDAV Overview](docs/04-protocols/webdav-overview.md), [XRootD Client Interaction](docs/04-protocols/xrootd-client-interaction.md) |
+| **04 — Protocols** | Protocol-specific guides | [WebDAV Overview](docs/04-protocols/webdav-overview.md), [XRootD Client Interaction](docs/04-protocols/xrootd-client-interaction.md), [Native Client Tools](docs/04-protocols/native-client-tools.md) |
 | **05 — Operations** | Production operations, proxy mode, clusters | [Operations Guide](docs/05-operations/operations-guide.md), [Proxy Mode Guide](docs/05-operations/proxy-mode-guide.md), [Cluster Management](docs/05-operations/cluster-management.md) |
 | **06 — Authentication** | Auth setup and PKI | [Auth Overview](docs/06-authentication/auth-overview.md), [PKI Config](docs/06-authentication/pki-config.md), [Test PKI Setup](docs/06-authentication/test-pki-setup.md) |
 | **07 — Security** | Hardening and security model | [Security Hardening Guide](docs/07-security/hardening-guide.md) |

@@ -33,7 +33,10 @@ These documents are detailed and intended for experienced developers who need pr
 | Document | Description |
 |---|---|
 | [Design Rationale](design-rationale.md) | Why nginx-xrootd exists, comparison with official xrootd |
-| [Gaps vs Official XRootD](gaps-vs-xrootd.md) | Features in official xrootd not yet implemented |
+| [Deployment Configuration Reference](comparison/deployment-reference.md) | Side-by-side nginx-xrootd and vanilla XRootD configs for root, HTTP, token, GSI, packet marking, user mapping, HTTPS, cache, TPC, monitoring, mirroring, staging, and traffic-control roles |
+| [Source-Verified XRootD Comparison](source-verified-xrootd-comparison.md) | Current feature/gap comparison checked against this source tree and `/tmp/xrootd-src` |
+| [XRootD Feature Matrix](xrootd-feature-matrix.md) | High-level current matrix derived from the source-verified comparison |
+| [Gaps vs Official XRootD](gaps-vs-xrootd.md) | Remaining narrower or missing upstream features |
 | [XrdHttp Parity Roadmap](xrdhttp-parity-roadmap.md) | Planned features and priorities |
 
 ---

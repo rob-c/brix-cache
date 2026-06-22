@@ -32,10 +32,9 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
-HOST = "127.0.0.1"
-PORT = 22015
+PORT = int(os.environ.get("TEST_S3_ORACLE_PORT") or free_port())
 BUCKET = "testbucket"
 REGION = "us-east-1"
 ACCESS_KEY = "test-access-key"
@@ -76,7 +75,7 @@ http {{
     client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
     uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
     server {{
-        listen {HOST}:{PORT};
+        listen {BIND_HOST}:{PORT};
         location / {{
             xrootd_s3 on;
             xrootd_s3_root {data};

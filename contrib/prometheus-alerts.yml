@@ -1,0 +1,107 @@
+# Prometheus alerting rules for nginx-xrootd.
+#
+# Load via your prometheus.yml:
+#   rule_files:
+#     - /usr/share/nginx-xrootd/prometheus-alerts.yml
+#
+# Validate with:  promtool check rules prometheus-alerts.yml
+#
+# All expressions use the metric families exported on /metrics
+# (see contrib/grafana-dashboard.json + docs/08-metrics-monitoring/).
+# Tune thresholds and `for:` durations to your site's SLOs before enabling.
+groups:
+  - name: nginx-xrootd.availability
+    rules:
+      - alert: XrootdScrapeDown
+        expr: up{job=~".*xrootd.*"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "nginx-xrootd /metrics scrape is down ({{ $labels.instance }})"
+          description: "Prometheus has not scraped {{ $labels.instance }} for 5m. The gateway may be down or /metrics unreachable."
+
+  - name: nginx-xrootd.errors
+    rules:
+      - alert: XrootdHighWebDAV5xxRatio
+        expr: |
+          sum(rate(xrootd_webdav_responses_total{status_class="5xx"}[5m]))
+            / clamp_min(sum(rate(xrootd_webdav_responses_total[5m])), 1)
+            > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WebDAV 5xx ratio above 5%"
+          description: "More than 5% of WebDAV responses have been 5xx for 10m. Check disk/backend health and error.log."
+
+      - alert: XrootdHighS35xxRatio
+        expr: |
+          sum(rate(xrootd_s3_responses_total{status_class="5xx"}[5m]))
+            / clamp_min(sum(rate(xrootd_s3_responses_total[5m])), 1)
+            > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "S3 5xx ratio above 5%"
+          description: "More than 5% of S3 responses have been 5xx for 10m. Check disk/backend health and s3 access log."
+
+  - name: nginx-xrootd.auth
+    rules:
+      - alert: XrootdAuthRejectionSpike
+        expr: |
+          sum(rate(xrootd_webdav_auth_total{result="rejected"}[5m]))
+            + sum(rate(xrootd_s3_auth_total{result="rejected"}[5m]))
+            > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated authentication rejections"
+          description: "More than 5 auth rejections/s sustained for 10m. Possible expired token/CRL, JWKS misconfig, or credential-stuffing."
+
+  - name: nginx-xrootd.cache
+    rules:
+      - alert: XrootdCacheMissSurge
+        expr: |
+          sum(rate(xrootd_cache_hits_total[10m]))
+            / clamp_min(sum(rate(xrootd_cache_hits_total[10m])) + sum(rate(xrootd_cache_misses_total[10m])), 1)
+            < 0.5
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Cache hit ratio below 50%"
+          description: "Cache hit ratio has been under 50% for 30m. Working set may exceed cache size or eviction is too aggressive."
+
+  - name: nginx-xrootd.saturation
+    rules:
+      - alert: XrootdRateLimitThrottling
+        expr: sum(rate(xrootd_rate_limit_throttled_total[5m])) > 1
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Sustained rate-limit throttling"
+          description: "Requests are being throttled for 15m. Clients may be hitting a VO/issuer/IP rate limit; review xrootd rate-limit zones."
+
+      - alert: XrootdFRMStageBacklog
+        expr: sum(xrootd_frm_in_flight) > 100
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FRM tape-stage backlog"
+          description: "More than 100 FRM stage requests have been in-flight for 30m. Tape/back-end recall may be slow or stuck."
+
+  - name: nginx-xrootd.cluster
+    rules:
+      - alert: XrootdClusterServerBlacklisted
+        expr: sum(xrootd_cluster_server_blacklisted) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cluster server(s) blacklisted"
+          description: "{{ $value }} backend server(s) have failed health checks and are blacklisted for 10m."

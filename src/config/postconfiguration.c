@@ -219,6 +219,10 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
             if (xcf->common.enable && xcf->frm.enable
                 && xcf->frm.queue_path.len)
             {
+                /* phase-46 W2b: FRM is configured on this process — let the
+                 * shared residency probe do its stat+getxattr (it short-circuits
+                 * to ONLINE when this is never called). */
+                frm_mark_configured();
                 frm_path = xcf->frm.queue_path;
                 frm_max  = xcf->frm.max_inflight;
                 if (xcf->frm.max_inflight > frm_peak) {

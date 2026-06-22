@@ -55,6 +55,11 @@ xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
         ctx->write_scratch = NULL;
         ctx->write_scratch_size = 0;
     }
+    if (ctx->cmp_scratch != NULL) {           /* phase-42 W4 codec output */
+        ngx_free(ctx->cmp_scratch);
+        ctx->cmp_scratch = NULL;
+        ctx->cmp_scratch_size = 0;
+    }
 
     /*
      * Phase 32 WS3: free the concurrent-AIO read-pool buffers (raw ngx_alloc'd,

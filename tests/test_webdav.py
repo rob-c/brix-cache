@@ -1047,7 +1047,7 @@ class TestWebdavTraversal:
 
     def test_put_dot_dot_escape(self):
         """PUT /../escape.txt must not create a file outside the root."""
-        escaped = "/tmp/_webdav_escaped_file.txt"
+        escaped = os.path.join(os.environ["TMPDIR"], "_webdav_escaped_file.txt")
         try:
             code = _http_code(
                 "--path-as-is",

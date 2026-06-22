@@ -17,10 +17,19 @@ from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, HOST, BIND_HOST, free_port, free_ports
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = "/tmp/xrd-test/data"
+
+# Listen ports for the `nginx -t` config-validation tests. These are written
+# into a conf and parsed (never bound, since `nginx -t` only tests config), but
+# allocating free ports keeps them collision-proof under `pytest -n`.
+_CFG_LISTEN_1, _CFG_LISTEN_2 = free_ports(2)
+# Upstream targets referenced by the config-validation tests. No server is
+# started behind these — they exist purely so the proxy directive parses — but
+# they are kept distinct so the rendered config is internally consistent.
+_CFG_UPSTREAM_1, _CFG_UPSTREAM_2 = free_ports(2)
 
 HEADER = (
     "error_log {logs}/error.log info;\n"
@@ -96,14 +105,14 @@ def test_multi_url_proxy_directive_parses(tmp_path):
     (tmp_path / "t").mkdir(exist_ok=True)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21610;
+            listen {BIND_HOST}:{_CFG_LISTEN_1};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {DATA_DIR};
                 xrootd_webdav_auth none;
                 xrootd_webdav_proxy on;
-                xrootd_webdav_proxy_upstream http://127.0.0.1:21651
-                                             http://127.0.0.1:21652;
+                xrootd_webdav_proxy_upstream http://{HOST}:{_CFG_UPSTREAM_1}
+                                             http://{HOST}:{_CFG_UPSTREAM_2};
                 xrootd_webdav_proxy_max_fails 2;
                 xrootd_webdav_proxy_fail_timeout 5s;
             }}
@@ -117,13 +126,13 @@ def test_bad_scheme_rejected(tmp_path):
     (tmp_path / "t").mkdir(exist_ok=True)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21611;
+            listen {BIND_HOST}:{_CFG_LISTEN_2};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {DATA_DIR};
                 xrootd_webdav_auth none;
                 xrootd_webdav_proxy on;
-                xrootd_webdav_proxy_upstream ftp://127.0.0.1:21651;
+                xrootd_webdav_proxy_upstream ftp://{HOST}:{_CFG_UPSTREAM_1};
             }}
         }}
     """, tmp_path)
@@ -151,7 +160,7 @@ class _Origin(http.server.BaseHTTPRequestHandler):
 
 def _start_origin(port, tag):
     handler = type(f"O{port}", (_Origin,), {"tag": tag})
-    srv = http.server.HTTPServer(("127.0.0.1", port), handler)
+    srv = http.server.HTTPServer((BIND_HOST, port), handler)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
     return srv
@@ -161,7 +170,7 @@ def _wait_port(port, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -169,21 +178,18 @@ def _wait_port(port, timeout=10):
 
 
 def _free_port():
-    """Allocate an ephemeral loopback port.
+    """Allocate an ephemeral loopback port via the shared settings helper.
 
     Fixed ports collide under `pytest -n` (xdist workers) and with orphaned
     servers left by a hard-killed run, surfacing as 'Address already in use' at
-    fixture setup or a connection-reset against a dying previous instance.
-    Binding to port 0 hands each fixture a private port instead.
+    fixture setup or a connection-reset against a dying previous instance. The
+    shared `free_port()` hands each fixture a private port instead.
     """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    return free_port()
 
 
 def _get_body(port, path="/x"):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall(f"GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
                   .encode())
         data = b""
@@ -206,15 +212,15 @@ def proxy_with_two_origins(tmp_path):
     (tmp_path / "logs").mkdir(exist_ok=True)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:{proxy_port};
+            listen {BIND_HOST}:{proxy_port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {DATA_DIR};
                 xrootd_webdav_auth none;
                 xrootd_webdav_proxy on;
                 xrootd_webdav_proxy_auth anonymous;
-                xrootd_webdav_proxy_upstream http://127.0.0.1:{be1_port}
-                                             http://127.0.0.1:{be2_port};
+                xrootd_webdav_proxy_upstream http://{HOST}:{be1_port}
+                                             http://{HOST}:{be2_port};
             }}
         }}
     """, tmp_path)
@@ -263,7 +269,7 @@ def test_aux_filter_module_registered():
 
 
 def _headers(port, path, extra=""):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall(
             (f"GET {path} HTTP/1.1\r\nHost: x\r\n{extra}Connection: close\r\n\r\n")
             .encode())
@@ -293,7 +299,7 @@ def webdav_server(tmp_path):
     (tmp_path / "logs").mkdir(exist_ok=True)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:{port};
+            listen {BIND_HOST}:{port};
             location / {{
                 root {data};
                 xrootd_webdav on;
@@ -385,7 +391,7 @@ class _IdP(http.server.BaseHTTPRequestHandler):
 def introspect_server(tmp_path):
     introspect_port = _free_port()
     idp_port = _free_port()
-    idp = http.server.HTTPServer(("127.0.0.1", idp_port), _IdP)
+    idp = http.server.HTTPServer((BIND_HOST, idp_port), _IdP)
     threading.Thread(target=idp.serve_forever, daemon=True).start()
 
     data = tmp_path / "data"
@@ -395,13 +401,13 @@ def introspect_server(tmp_path):
     (tmp_path / "logs").mkdir(exist_ok=True)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:{introspect_port};
+            listen {BIND_HOST}:{introspect_port};
             location = /_introspect {{
                 internal;
                 proxy_method      POST;
                 proxy_set_header  Content-Type application/x-www-form-urlencoded;
                 proxy_set_body    "token=$arg_token";
-                proxy_pass        http://127.0.0.1:{idp_port}/introspect;
+                proxy_pass        http://{HOST}:{idp_port}/introspect;
             }}
             location / {{
                 root {data};

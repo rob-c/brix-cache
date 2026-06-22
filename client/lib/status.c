@@ -1,0 +1,153 @@
+/*
+ * status.c — error carrier + kXR name lookup + shell exit-code mapping.
+ *
+ * WHAT: Format a human message into xrdc_status, name a kXR_* code, and derive a
+ *       process exit code the way scripts expect.
+ * WHY:  xrdcp/xrdfs print a useful diagnostic and exit non-zero in a stable way;
+ *       callers branch on $? so the codes must be predictable.
+ * HOW:  Local/socket faults map to 51, usage to 50, any server error to 54
+ *       (mirrors XrdCl's GetShellCode bucketing closely enough for scripting; the
+ *       exhaustive per-code table is deferred to the M9/M10 conformance work).
+ */
+#include "xrdc.h"
+#include "compat/kxr_names.h"   /* shared kXR error-name table (libxrdproto) */
+
+#include <errno.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+
+void
+xrdc_status_clear(xrdc_status *st)
+{
+    if (st != NULL) {
+        st->kxr = 0;
+        st->sys_errno = 0;
+        st->msg[0] = '\0';
+    }
+}
+
+void
+xrdc_status_set(xrdc_status *st, int kxr, int sys_errno, const char *fmt, ...)
+{
+    va_list ap;
+
+    if (st == NULL) {
+        return;
+    }
+    st->kxr = kxr;
+    st->sys_errno = sys_errno;
+
+    va_start(ap, fmt);
+    vsnprintf(st->msg, sizeof(st->msg), fmt, ap);
+    va_end(ap);
+}
+
+/* kXR error code -> short name. Forwards to the shared table (libxrdproto's
+ * kxr_names.c) so the module and client never drift. */
+const char *
+xrdc_kxr_name(int kxr)
+{
+    return xrootd_kxr_error_name(kxr);
+}
+
+/*
+ * Classify a failed status as RETRYABLE (transient — a reconnect + re-issue, or a
+ * later attempt, may succeed) vs FATAL (re-issuing cannot help). The async
+ * resilience layer (aio.c) uses this to decide whether to transparently reconnect
+ * and re-drive a request rather than surface the error. Returns 1 = retryable.
+ *
+ * Retryable: transport faults (socket/connect/timeout/reset → XRDC_ESOCK), a frame
+ * desync that a fresh session heals (XRDC_EPROTO), and the server's own "try again"
+ * family (Overloaded / inProgress / noserver / ServerError). Everything else —
+ * auth, not-found, bad-arg, exists, no-space, checksum, unsupported, local missing
+ * feature support, … — is fatal: the request is well-formed but the answer is
+ * "no", and retrying just amplifies load.
+ */
+int
+xrdc_status_retryable(const xrdc_status *st)
+{
+    if (st == NULL || st->kxr == 0) {
+        return 0;
+    }
+    switch (st->kxr) {
+    case XRDC_ESOCK:        /* transport: connect/timeout/reset/peer-closed */
+    case XRDC_EPROTO:       /* desync — a clean reconnect re-syncs framing */
+    case kXR_Overloaded:    /* server explicitly busy */
+    case kXR_inProgress:    /* operation transiently in progress elsewhere */
+    case kXR_noserver:      /* cluster: no server right now, maybe shortly */
+    case kXR_ServerError:   /* generic server-side fault, often transient */
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+int
+xrdc_shellcode(const xrdc_status *st)
+{
+    if (st == NULL || st->kxr == 0) {
+        return 0;
+    }
+    switch (st->kxr) {
+    case XRDC_ESOCK:   return 51;   /* socket/connect/timeout */
+    case XRDC_EPROTO:  return 52;   /* malformed server frame */
+    case XRDC_EUSAGE:  return 50;   /* CLI / argument error */
+    case XRDC_EAUTH:   return 53;   /* auth needed/failed */
+    case XRDC_EINTEGRITY: return 51;/* data corruption → I/O-error class */
+    case XRDC_EUNSUPPORTED: return 54; /* local feature unsupported */
+    default:           return 54;   /* a server kXR_error response */
+    }
+}
+
+/*
+ * Map a failed status to a NEGATIVE errno, for the POSIX layers (FUSE / preload)
+ * that must hand the kernel a -errno. Server kXR_* codes translate per the
+ * project's canonical errno↔kXR table (CLAUDE.md); the local XRDC_E* sentinels
+ * fall back to st->sys_errno when set, else a sensible default. A clean status
+ * (kxr == 0) maps to 0 (success).
+ */
+int
+xrdc_kxr_to_errno(const xrdc_status *st)
+{
+    if (st == NULL || st->kxr == 0) {
+        return 0;
+    }
+    switch (st->kxr) {
+    case kXR_NotFound:       return -ENOENT;
+    case kXR_NotAuthorized:  return -EACCES;
+    case kXR_AuthFailed:     return -EACCES;
+    case kXR_isDirectory:    return -EISDIR;
+    case kXR_NotFile:        return -EISDIR;
+    case kXR_FSError:        return -EEXIST;
+    case kXR_ItExists:       return -EEXIST;
+    case kXR_Conflict:       return -EEXIST;
+    case kXR_NoSpace:        return -ENOSPC;
+    case kXR_overQuota:      return -EDQUOT;
+    case kXR_Unsupported:    return -ENOSYS;
+    case kXR_fsReadOnly:     return -EROFS;
+    case kXR_FileLocked:     return -EAGAIN;
+    case kXR_inProgress:     return -EINPROGRESS;
+    case kXR_ArgInvalid:     return -EINVAL;
+    case kXR_ArgMissing:     return -EINVAL;
+    case kXR_ArgTooLong:     return -ENAMETOOLONG;
+    case kXR_InvalidRequest: return -EINVAL;
+    case kXR_FileNotOpen:    return -EBADF;
+    case kXR_NoMemory:       return -ENOMEM;
+    case kXR_ChkSumErr:      return -EIO;
+    case kXR_IOError:        return -EIO;
+    case kXR_AttrNotFound:   return -ENODATA;
+    case kXR_TLSRequired:    return -EACCES;
+    case kXR_Overloaded:     return -EBUSY;
+    case kXR_noserver:       return -EHOSTUNREACH;
+
+    /* Local-side sentinels: prefer the captured sys_errno, else a default. */
+    case XRDC_ESOCK:   return st->sys_errno ? -st->sys_errno : -EIO;
+    case XRDC_EPROTO:  return -EPROTO;
+    case XRDC_EUSAGE:  return -EINVAL;
+    case XRDC_EAUTH:   return -EACCES;
+    case XRDC_EINTEGRITY: return -EIO;   /* data corruption surfaces as EIO */
+    case XRDC_EUNSUPPORTED: return -ENOTSUP;
+    default:           return st->sys_errno ? -st->sys_errno : -EIO;
+    }
+}

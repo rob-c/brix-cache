@@ -42,6 +42,7 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
     ngx_stream_xrootd_srv_conf_t *conf;
     int idx = (int)(unsigned char) req->fhandle[0];
     ngx_int_t rc;
+    ngx_int_t wt_close_rc = NGX_OK;
     const char *wt_local_path;
 
     if (!xrootd_validate_file_handle(ctx, c, idx, "CLOSE",
@@ -115,7 +116,12 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
     }
 
     if (conf != NULL && ctx->files[idx].wt_enabled) {
-        (void) xrootd_wt_flush_on_close(ctx, c, conf, idx, wt_local_path);
+        /* A SYNC write-through flush mirrors the file to the origin now; if that
+         * fails the client MUST learn the data did not reach the origin, so the
+         * close itself fails with kXR_error (async mode is fire-and-forget and
+         * always returns NGX_OK here). The wire response is sent below, once,
+         * after the handle is released — mirroring the POSC-rename error path. */
+        wt_close_rc = xrootd_wt_flush_on_close(ctx, c, conf, idx, wt_local_path);
     }
 
     /* Clear posc_final_path so xrootd_free_fhandle() does not unlink the
@@ -142,6 +148,15 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
     xrootd_wrts_flush(&ctx->files[idx]);
 
     xrootd_free_fhandle(ctx, idx);
+
+    /* A failed SYNC write-through flush means the file did not reach the origin;
+     * report the close as an error so the client does not assume durability. */
+    if (wt_close_rc != NGX_OK) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CLOSE);
+        return xrootd_send_error(ctx, c, kXR_IOError,
+                                 "write-through flush to origin failed");
+    }
+
     XROOTD_OP_OK(ctx, XROOTD_OP_CLOSE);
 
     return xrootd_send_ok(ctx, c, NULL, 0);

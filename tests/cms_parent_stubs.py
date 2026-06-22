@@ -23,6 +23,8 @@ import struct
 import sys
 import threading
 
+from settings import HOST, BIND_HOST
+
 # ------------------------------------------------------------------ #
 # CMS wire constants                                                    #
 # ------------------------------------------------------------------ #
@@ -49,15 +51,15 @@ SELECT_PORT       = int(os.environ.get("TEST_CLUSTER_SELECT_CMS_PORT",    "12601
 TRY_PORT          = int(os.environ.get("TEST_CLUSTER_TRY_CMS_PORT",       "12606"))
 ESC_PORT          = int(os.environ.get("TEST_CLUSTER_ESC_CMS_PORT",       "12607"))
 
-SELECT_REDIR_HOST = os.environ.get("TEST_CLUSTER_SELECT_REDIR_HOST",      "127.0.0.1")
+SELECT_REDIR_HOST = os.environ.get("TEST_CLUSTER_SELECT_REDIR_HOST",      HOST)
 SELECT_REDIR_PORT = int(os.environ.get("TEST_CLUSTER_SELECT_REDIRECT_PORT","29000"))
 
-TRY_FIRST_HOST  = os.environ.get("TEST_CLUSTER_TRY_FIRST_HOST",           "127.0.0.1")
+TRY_FIRST_HOST  = os.environ.get("TEST_CLUSTER_TRY_FIRST_HOST",           HOST)
 TRY_FIRST_PORT  = int(os.environ.get("TEST_CLUSTER_TRY_FIRST_PORT",       "29001"))
-TRY_SECOND_HOST = os.environ.get("TEST_CLUSTER_TRY_SECOND_HOST",          "127.0.0.1")
+TRY_SECOND_HOST = os.environ.get("TEST_CLUSTER_TRY_SECOND_HOST",          HOST)
 TRY_SECOND_PORT = int(os.environ.get("TEST_CLUSTER_TRY_SECOND_PORT",      "29002"))
 
-ESC_REDIR_HOST  = os.environ.get("TEST_CLUSTER_ESC_REDIR_HOST",           "127.0.0.1")
+ESC_REDIR_HOST  = os.environ.get("TEST_CLUSTER_ESC_REDIR_HOST",           HOST)
 ESC_REDIR_PORT  = int(os.environ.get("TEST_CLUSTER_ESC_LEAF_PORT",        "11199"))
 
 # ------------------------------------------------------------------ #
@@ -135,7 +137,7 @@ def _handle_connection(conn, locate_response_fn):
 def _stub_loop(port, locate_response_fn, label):
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(("127.0.0.1", port))
+    srv.bind((BIND_HOST, port))
     srv.listen(8)
     while True:
         try:

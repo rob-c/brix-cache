@@ -37,6 +37,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/xattr.h>
 #include <linux/openat2.h>
 #include <linux/capability.h>
 #include <sys/prctl.h>
@@ -349,7 +350,16 @@ imp_openat2(int rootfd, const char *rel, uint32_t flags, uint32_t mode)
 
     ngx_memzero(&how, sizeof(how));
     how.flags   = flags | O_CLOEXEC;
-    how.mode    = (flags & O_CREAT) ? mode : 0;
+    /*
+     * openat2() is stricter than open()/openat(): it rejects (EINVAL) any
+     * how.mode bit outside 07777.  Callers legitimately pass a full struct
+     * stat st_mode (e.g. staged_file copying a source's permissions during a
+     * WebDAV/S3 COPY), which carries the S_IFMT type bits.  Mask to the
+     * permission bits, exactly as the worker-local do_openat2() in
+     * src/path/beneath.c does, so a struct-stat mode is accepted instead of
+     * failing the whole impersonated COPY with EINVAL.
+     */
+    how.mode    = (flags & O_CREAT) ? (mode & 07777) : 0;
     how.resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS;
 
     fd = syscall(SYS_openat2, rootfd, rel, &how, sizeof(how));
@@ -415,14 +425,108 @@ imp_fill_stat(imp_stat_t *o, const struct stat *s)
 /* ------------------------------------------------------------------ */
 
 /*
+ * imp_xattr_open — open the xattr target file beneath rootfd as the (already
+ * impersonated) mapped user for an f*xattr op.  O_RDONLY|O_NONBLOCK is enough:
+ * f{get,set,remove,list}xattr check inode permission against the caller's
+ * (impersonated) creds at the call, independent of the fd's open mode, while the
+ * RESOLVE_BENEATH open both confines the path and enforces the mapped user's DAC
+ * to even reach the file.  O_NONBLOCK avoids blocking on a FIFO.  Returns fd or
+ * -errno.  (Rare write-only files — mode 0200 — cannot be opened O_RDONLY; such
+ * a SETXATTR fails EACCES, an acceptable corner the path-based fallback avoided.)
+ */
+static int
+imp_xattr_open(int rootfd, const char *rel)
+{
+    return imp_openat2(rootfd, rel, O_RDONLY | O_NONBLOCK, 0);
+}
+
+/*
+ * imp_xattr_name_ok — the broker only services the `user.` xattr namespace (all
+ * the module's xattr users live there: locks, dead properties, checksum cache).
+ * Refusing every other namespace is defence-in-depth: it denies any attempt to
+ * drive the broker into setting security.* / system.* / trusted.* attributes,
+ * independent of what the (unprivileged) mapped user's own creds would allow.
+ */
+static int
+imp_xattr_name_ok(const char *name)
+{
+    return ngx_strncmp(name, "user.", 5) == 0;
+}
+
+/*
+ * imp_xattr_filter_user — restrict a flistxattr(2) result (NUL-separated attribute
+ * names, total `len` bytes including terminators) to the `user.` namespace,
+ * repacking the kept names densely in place and returning the new length.  Without
+ * this the broker would hand the worker the NAMES of every attribute on the file,
+ * including system.* / security.* / trusted.* set by root — an information leak
+ * (the worker cannot read their VALUES, but it learns they exist).  Matches the
+ * same user.-only policy the per-name ops enforce via imp_xattr_name_ok().
+ */
+static size_t
+imp_xattr_filter_user(char *list, size_t len)
+{
+    size_t in = 0, out = 0;
+
+    while (in < len) {
+        size_t entry = 0;
+        while (in + entry < len && list[in + entry] != '\0') {
+            entry++;
+        }
+        if (in + entry >= len) {
+            break;                       /* no NUL terminator: malformed tail */
+        }
+        entry++;                         /* include the NUL */
+        if (imp_xattr_name_ok(list + in)) {
+            if (out != in) {
+                ngx_memmove(list + out, list + in, entry);
+            }
+            out += entry;
+        }
+        in += entry;
+    }
+    return out;
+}
+
+#ifndef RENAME_NOREPLACE
+#define RENAME_NOREPLACE (1u << 0)
+#endif
+
+/*
+ * renameat, optionally with RENAME_NOREPLACE (atomic create-if-absent).  When
+ * `noreplace` is set and the kernel/filesystem lacks RENAME_NOREPLACE
+ * (ENOSYS/EINVAL) it falls back to a plain renameat so behaviour degrades to the
+ * legacy last-writer-wins rather than spuriously failing; on a modern kernel
+ * (>=3.15) the exclusive path is taken and a pre-existing dst yields EEXIST.
+ * Returns 0 on success, -1 with errno set.
+ */
+static int
+imp_do_rename(int sfd, const char *sbase, int dfd, const char *dbase,
+              int noreplace)
+{
+    if (!noreplace) {
+        return renameat(sfd, sbase, dfd, dbase);
+    }
+    if (syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
+                (unsigned int) RENAME_NOREPLACE) == 0) {
+        return 0;
+    }
+    if (errno == ENOSYS || errno == EINVAL) {
+        return renameat(sfd, sbase, dfd, dbase);
+    }
+    return -1;
+}
+
+/*
  * Perform the requested op while impersonated.  Returns 0 and may set *out_fd
  * (>=0, ownership transferred to the caller) and/or rep->st; or returns -errno.
- * `data_out` (size `data_max`) receives a trailing reply payload for READLINK;
- * rep->data_len + IMP_REP_HAS_DATA are set in that case.
+ * `data_out` (size `data_max`) receives a trailing reply payload for READLINK /
+ * GETXATTR / LISTXATTR; rep->data_len + IMP_REP_HAS_DATA are set in that case.
+ * `data_in` (size `data_in_len`) is the inbound payload for SETXATTR (the value).
  */
 static int
 imp_do_op(int rootfd, const imp_req_t *req, imp_rep_t *rep, int *out_fd,
-          char *data_out, size_t data_max)
+          char *data_out, size_t data_max,
+          const char *data_in, size_t data_in_len)
 {
     const char *rel  = imp_rel(req->path);
     const char *rel2;
@@ -446,14 +550,54 @@ imp_do_op(int rootfd, const imp_req_t *req, imp_rep_t *rep, int *out_fd,
 
     switch (req->op) {
 
-    case IMP_OP_OPEN:
-        fd = imp_openat2(rootfd, rel, req->open_flags, req->mode);
+    case IMP_OP_OPEN: {
+        int fl;
+
+        /*
+         * Force O_NONBLOCK for the open(2) itself.  WHY: a FIFO opened O_RDONLY
+         * blocks until a writer arrives, and a device node can block in its
+         * open method — either would wedge this single broker process, denying
+         * service to *every* worker/tenant (a cross-tenant DoS) since one bad
+         * path in the export hangs the whole impersonation channel.  With
+         * O_NONBLOCK the open returns immediately for every file type, then we
+         * inspect what we actually got and only hand back regular files and
+         * directories — the only types the gateway data plane ever serves.
+         */
+        fd = imp_openat2(rootfd, rel, req->open_flags | O_NONBLOCK, req->mode);
         if (fd < 0) {
             return fd;
+        }
+        if (fstat(fd, &st) != 0) {
+            rc = -errno;
+            close(fd);
+            return rc;
+        }
+        /*
+         * Reject FIFOs, sockets, and character/block devices: the gateway only
+         * reads/writes regular files and enumerates directories.  Handing the
+         * worker a device or pipe fd would both leak a non-file capability and
+         * (for the data plane's blocking pread/pwrite/sendfile) reintroduce the
+         * very stall we just avoided.  Fail closed with EOPNOTSUPP.
+         */
+        if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
+            close(fd);
+            return -EOPNOTSUPP;
+        }
+        /*
+         * Restore blocking semantics for the returned fd: O_NONBLOCK was only
+         * needed to survive the open(2); the worker's data plane expects a
+         * blocking regular-file/dir fd (it has no EAGAIN retry path).  On a
+         * regular file/dir O_NONBLOCK is otherwise a no-op, so clearing it is
+         * always safe.
+         */
+        fl = fcntl(fd, F_GETFL);
+        if (fl != -1) {
+            (void) fcntl(fd, F_SETFL, fl & ~O_NONBLOCK);
         }
         *out_fd = fd;
         rep->rep_flags |= IMP_REP_HAS_FD;
         return 0;
+    }
 
     case IMP_OP_STAT:
     case IMP_OP_LSTAT:
@@ -521,6 +665,7 @@ imp_do_op(int rootfd, const imp_req_t *req, imp_rep_t *rep, int *out_fd,
         return rc;
 
     case IMP_OP_RENAME:
+    case IMP_OP_RENAME_NOREPLACE:
     case IMP_OP_LINK:
         rel2 = imp_rel(req->path2);
         pfd  = imp_open_parent(rootfd, rel,  scratch,  &base);
@@ -532,10 +677,12 @@ imp_do_op(int rootfd, const imp_req_t *req, imp_rep_t *rep, int *out_fd,
             close(pfd);
             return pfd2;
         }
-        if (req->op == IMP_OP_RENAME) {
-            rc = renameat(pfd, base, pfd2, base2) == 0 ? 0 : -errno;
-        } else {
+        if (req->op == IMP_OP_LINK) {
             rc = linkat(pfd, base, pfd2, base2, 0) == 0 ? 0 : -errno;
+        } else {
+            rc = imp_do_rename(pfd, base, pfd2, base2,
+                               req->op == IMP_OP_RENAME_NOREPLACE) == 0
+                 ? 0 : -errno;
         }
         close(pfd);
         close(pfd2);
@@ -599,6 +746,60 @@ imp_do_op(int rootfd, const imp_req_t *req, imp_rep_t *rep, int *out_fd,
         rep->rep_flags |= IMP_REP_HAS_DATA;
         return 0;
     }
+
+    case IMP_OP_GETXATTR:
+    case IMP_OP_LISTXATTR: {
+        ssize_t n;
+        if (req->op == IMP_OP_GETXATTR && !imp_xattr_name_ok(req->path2)) {
+            return -EPERM;
+        }
+        fd = imp_xattr_open(rootfd, rel);
+        if (fd < 0) {
+            return fd;
+        }
+        if (req->op == IMP_OP_GETXATTR) {
+            n = fgetxattr(fd, req->path2, data_out, data_max);
+        } else {
+            n = flistxattr(fd, data_out, data_max);
+        }
+        close(fd);
+        if (n < 0) {
+            return -errno;                  /* ENODATA / ERANGE / EACCES ... */
+        }
+        if (req->op == IMP_OP_LISTXATTR) {
+            /* Withhold non-user.* attribute NAMES from the worker (the per-name
+             * GET/SET/REMOVE ops are already user.-only). */
+            n = (ssize_t) imp_xattr_filter_user(data_out, (size_t) n);
+        }
+        rep->data_len   = (uint32_t) n;     /* value / name list -> reply payload */
+        rep->rep_flags |= IMP_REP_HAS_DATA;
+        return 0;
+    }
+
+    case IMP_OP_SETXATTR:
+        if (!imp_xattr_name_ok(req->path2)) {
+            return -EPERM;
+        }
+        fd = imp_xattr_open(rootfd, rel);
+        if (fd < 0) {
+            return fd;
+        }
+        rc = fsetxattr(fd, req->path2, data_in, data_in_len,
+                       (int) req->mode) == 0 ? 0 : -errno;
+        close(fd);
+        return rc;
+
+    case IMP_OP_REMOVEXATTR:
+        if (!imp_xattr_name_ok(req->path2)) {
+            return -EPERM;
+        }
+        fd = imp_xattr_open(rootfd, rel);
+        if (fd < 0) {
+            return fd;
+        }
+        rc = fremovexattr(fd, req->path2) == 0 ? 0 : -errno;
+        close(fd);
+        return rc;
 
     default:
         return -ENOSYS;
@@ -682,10 +883,20 @@ imp_send_reply(int conn_fd, const imp_rep_t *rep, int fd,
 static int
 imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
 {
+    /*
+     * Outbound (READLINK/GETXATTR/LISTXATTR) and inbound (SETXATTR value)
+     * trailing-payload scratch.  `static` rather than stack: the broker serve
+     * loop is strictly single-threaded and non-reentrant, so two 64 KiB frames
+     * on the stack per request would be wasteful; each request fully overwrites
+     * the bytes it sends (only rep.data_len of data_buf is ever transmitted), so
+     * nothing stale leaks across requests.
+     */
+    static char          data_buf[IMP_XATTR_MAX]; /* outbound reply payload */
+    static char          data_in[IMP_XATTR_MAX];  /* inbound SETXATTR value */
     imp_req_t            req;
     imp_rep_t            rep;
     xrootd_idmap_creds_t creds;
-    char                 data_buf[IMP_PATH_MAX]; /* READLINK trailing payload */
+    size_t               in_len = 0;
     int                  rc, fd = -1;
 
     rc = imp_read_full(conn_fd, &req, sizeof(req));
@@ -703,6 +914,27 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
         rep.status = IMP_STATUS_BADREQ;
         return imp_send_reply(conn_fd, &rep, -1, NULL, 0) == 0 ? 1 : 0;
     }
+
+    /*
+     * SETXATTR carries an inbound value payload after the fixed frame.  It MUST
+     * be drained from the SOCK_STREAM before any deny/early-return path, or the
+     * leftover bytes would be mis-read as the next request frame (desync).  An
+     * over-large declared length is rejected and the connection dropped (we
+     * cannot trust the stream position).  Only SETXATTR consumes inbound data;
+     * every other op leaves req_data_len == 0.
+     */
+    if (req.op == IMP_OP_SETXATTR) {
+        if (req.req_data_len > IMP_XATTR_MAX) {
+            rep.status = IMP_STATUS_BADREQ;
+            (void) imp_send_reply(conn_fd, &rep, -1, NULL, 0);
+            return 0;                    /* close: stream position untrustworthy */
+        }
+        in_len = req.req_data_len;
+        if (in_len > 0 && imp_read_full(conn_fd, data_in, in_len) <= 0) {
+            return 0;                    /* EOF/error mid-payload -> drop */
+        }
+    }
+
     if (req.op == IMP_OP_PING) {
         rep.status = IMP_STATUS_OK;
         return imp_send_reply(conn_fd, &rep, -1, NULL, 0) == 0 ? 1 : 0;
@@ -754,7 +986,8 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
                                (int) creds.uid);
         return imp_send_reply(conn_fd, &rep, -1, NULL, 0) == 0 ? 1 : 0;
     }
-    rc = imp_do_op(rootfd, &req, &rep, &fd, data_buf, sizeof(data_buf));
+    rc = imp_do_op(rootfd, &req, &rep, &fd, data_buf, sizeof(data_buf),
+                   data_in, in_len);
     imp_restore();
 
     rep.status = rc;                     /* 0 or -errno */

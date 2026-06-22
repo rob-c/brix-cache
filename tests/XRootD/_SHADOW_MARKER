@@ -1,0 +1,1 @@
+shadow package — see tests/_xrdcl_proxy.py. Worker excludes any sys.path dir containing this marker.

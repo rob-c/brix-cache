@@ -1,0 +1,228 @@
+.TH XROOTDFS 1 "2026" "nginx-xrootd" "User Commands"
+.SH NAME
+xrootdfs \- network-resilient XRootD FUSE mount over root:// or http(s) (async core)
+.SH SYNOPSIS
+.B xrootdfs
+[\fB--legacy\fR] [\fIconn-opts\fR] [\fIresilience-opts\fR] [\fIcache-opts\fR]
+.IR root[s]|http|https|dav|davs://host[:port][/base] " " mountpoint
+[\fIfuse-opts\fR]
+.SH DESCRIPTION
+.B xrootdfs
+mounts a remote XRootD namespace through
+.BR libfuse3 .
+It is a clean-room driver on the project's native
+.B libxrdc
+client (no
+.BR libXrdCl / XrdFfs )
+and is built for poor networks ("bad wifi from a laptop abroad").
+.PP
+The binary contains two drivers. By default it runs the async, network-resilient
+driver (described here). With
+.B \-\-legacy
+it instead runs a simple synchronous driver \(em a minimal blocking,
+one-request-in-flight fallback (root:// only; no http(s) transport, no reconnect/
+resumption). The mount then reports its filesystem type as
+.B fuse.xrootdfs_legacy
+so listings can tell the two apart.
+.PP
+File I/O rides an asynchronous, multi-in-flight transport: many requests pipeline
+over a small pool of connections, which hides round-trip latency. Every request has
+an adaptive deadline (derived from a smoothed RTT estimate), and a
+.B kXR_ping
+heartbeat detects a silently-dead link. Most importantly, an open file
+.B survives a connection drop or a server restart transparently:
+the file is reopened (a fresh handle, never re-truncating) and the read or write is
+re-issued at the same offset \(em which is idempotent \(em so a mid-transfer
+.BR cat / dd / cp
+completes byte-exact with no
+.B EIO
+reaching the application. Metadata operations are retried across a transient drop.
+.SH HTTP/WEBDAV TRANSPORT
+When the endpoint scheme is
+.BR http ", " https ", " dav ", or " davs
+the same namespace is mounted
+.B read-only
+over HTTP/WebDAV instead of the binary root:// protocol:
+.B getattr
+and
+.B readdir
+use
+.B PROPFIND
+(Depth 0 and 1), and reads use HTTP
+.B Range
+.B GET
+over a persistent keep-alive connection. The XML is parsed namespace-prefix- and
+attribute-tolerantly, so it works against this server and a standard
+.B XrdHttp
+endpoint alike (XrdHttp advertises
+.I Connection: Close
+yet keeps the socket open, so responses are framed by
+.IR Content-Length ,
+not by end-of-stream). Write operations return
+.BR EROFS .
+Authenticate with
+.B \-\-token
+(or
+.IR $BEARER_TOKEN );
+use
+.B \-\-noverifyhost
+for the self-signed certificates common in test beds. This lets one driver compare
+root:// and https against the same data \(em see
+.B bench_fuse_protocols.py
+for a throughput comparison harness.
+.PP
+A
+.I /base
+path component in the URL roots the mount at that subtree for either transport, e.g.
+.I root://host/data
+or
+.IR https://host/data .
+.SH CONNECTION OPTIONS
+.TP
+.B \-\-tls
+Require in-protocol TLS (implied by a
+.B roots://
+URL).
+.TP
+.B \-\-notlsok
+Permit cleartext if the server offers no TLS (ignored for
+.BR roots:// ).
+.TP
+.B \-\-noverifyhost
+Do not verify the server certificate host name.
+.TP
+.BI \-\-auth " gsi|ztn|unix"
+Force a specific authentication protocol. (Note: GSI request signing forces the
+synchronous path for that session.)
+.TP
+.BI \-\-max\-conns " N"
+Metadata connection pool size (default 8).
+.SH RESILIENCE OPTIONS
+.TP
+.BI \-\-streams " N"
+Number of asynchronous data connections open files pipeline over (default 4).
+.TP
+.BI \-\-max\-stall " MS"
+How long to keep trying to recover a dropped link before failing an operation
+(default 60000). 0 disables reconnect (a drop fails immediately).
+.TP
+.BI \-\-keepalive " MS"
+Send a heartbeat after this much idle time to detect a dead link (default 15000;
+0 disables).
+.TP
+.BI \-\-max\-retries " N"
+Transient-error retries for metadata and for re-issuing a file operation after a
+reconnect (default 5). Retries use exponential backoff with jitter.
+.TP
+.BI \-\-connect\-timeout " MS"
+Cap on the connect + handshake + login (bring-up) phase (default 15000). Lower it
+to fail fast against a firewall that completes the TCP connect then hangs the
+protocol handshake. Also set by
+.BR XRDC_CONNECT_TIMEOUT_MS " (EXPANDED)" .
+.TP
+.BI \-\-io\-timeout " MS"
+Steady-state per-operation read/write cap once the session is up (default 30000).
+Also set by
+.BR XRDC_IO_TIMEOUT_MS " (EXPANDED)" .
+.SH CACHE OPTIONS
+.TP
+.BI \-\-attr\-timeout " S"
+Seconds the kernel may cache file attributes (default 1.0).
+.TP
+.BI \-\-entry\-timeout " S"
+Seconds the kernel may cache directory lookups (default 1.0).
+.TP
+.B \-\-kernel\-cache
+Cache file data across opens (best for read-mostly mounts).
+.TP
+.BI \-\-readahead " N"
+Per-open-file read-ahead buffer in bytes (default 1048576; 0 disables).
+.TP
+.BI \-\-writeback " N"
+Per-open-file write-back buffer in bytes (default 1048576; 0 disables).
+.TP
+.B \-\-xattr
+Enable extended attributes (kXR_fattr) on
+.B user.*
+names, plus a read-only virtual
+.B user.XrdCks.<algo>
+checksum attribute.
+.SH FUSE OPTIONS
+Standard libfuse options are forwarded, e.g.
+.BR \-f " (foreground), " \-d " (debug), and"
+.BI \-o " opt"
+such as
+.BR "\-o ro" " or " "\-o allow_other" .
+.SH POSIX EXTENSIONS
+The base XRootD protocol has no wire operation for set-mtime, chown, or links.
+This gateway adds capability-negotiated vendor opcodes (advertised via
+.B kXR_Qconfig
+.IR xrdfs.ext )
+that
+.B xrootdfs
+uses when the server supports them, so
+.BR utimens " (" "cp -p" ", " "touch -d" "), " chown ", " "symbolic links" " (" ln \-s ),
+and
+.B hard links
+.RB ( ln )
+all work. The negotiated capabilities are printed in the mount banner
+.RI ( "ext: setattr=… symlink=… …" ).
+Against a server that does not advertise them,
+.BR utimens / chown
+fall back to accepted no-ops (so
+.B cp \-p
+still succeeds) and
+.BR symlink / link
+return
+.BR ENOTSUP .
+.SH EXAMPLES
+Mount over an unreliable link and copy a large file out; the copy survives a
+mid-transfer disconnect:
+.PP
+.RS
+.nf
+xrootdfs \-\-max\-stall 120000 root://store.example:1094/ /mnt/xrd \-f &
+cp /mnt/xrd/data/run42.root .
+fusermount3 \-u /mnt/xrd
+.fi
+.RE
+.SH NETWORK
+On a dual-stack (IPv4 + IPv6) host whose IPv6 path is broken but whose IPv4
+backend works, the mount downgrades to IPv4 automatically. Two things trip the
+downgrade:
+.IP \(bu 3
+at connect time, when an IPv6 attempt fails and the following IPv4 attempt
+succeeds (a broken-from-the-start v6 path); and
+.IP \(bu 3
+over the wire, when a connection that came up over IPv6 then fails mid-session
+(reset, timeout, or truncated transfer) \(em the case where v6 goes bad after the
+mount is already running.
+.PP
+On either trigger the whole mount session is pinned to IPv4-only for the rest of
+its life, so no later connection (data stream, metadata pool slot, or reconnect)
+pays the IPv6 connect timeout again; the reconnect simply comes back over IPv4
+and the application sees no error. The data path is unaffected \(em transfers
+keep working \(em and the downgrade is logged once to standard error:
+.PP
+.RS
+.nf
+xrootd: IPv6 connect to <host> failed but IPv4 succeeded; downgrading this
+        session to IPv4-only for all further connections
+.fi
+.RE
+.PP
+Set
+.BR XRDC_NO_IPV6_FALLBACK=1 " (EXPANDED \(em a client extension, not a vanilla XRootD variable)"
+to disable the downgrade and keep attempting IPv6 on every connection \(em wanted
+on an IPv6-only deployment or when debugging the IPv6 path itself. A non-final
+connect attempt is also bounded (about 5\ seconds) so a black-holed address
+yields promptly to the next. The downgrade is self-healing: if IPv4 then turns
+out not to work after all (for example a wire error briefly tripped the downgrade
+on a host that is really IPv6-only), the next connect reverts to dual-stack so
+the mount still comes back up. An IPv6-only host therefore never stays
+downgraded, and a healthy IPv6 host never trips it.
+.SH SEE ALSO
+.BR xrd (1),
+.BR xrdcp (1),
+.BR xrdfs (1),
+.BR fusermount3 (1)

@@ -4,10 +4,7 @@ tests/test_s3_status_codes.py
 Comprehensive HTTP status-code and S3 API compliance tests for the S3-compatible
 object storage endpoint (port 9001, anonymous access).
 
-Tests assert S3-API-correct behaviour.  Known compliance gaps are marked
-``@pytest.mark.xfail`` with the API citation; they appear as ``x``
-(expected failure) in the output and will flip to ``X`` (unexpected pass)
-once the gap is resolved.
+Tests assert S3-API-correct behaviour directly; regressions must fail normally.
 
 S3 API compliance: all tested behaviours are now compliant.
 

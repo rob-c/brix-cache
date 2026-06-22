@@ -38,7 +38,16 @@ xrootd_vfs_stat(xrootd_vfs_ctx_t *ctx, xrootd_vfs_stat_t *stat_out)
         return NGX_ERROR;
     }
 
-    if (lstat(path, &st) != 0) {
+    /*
+     * Stat AS THE MAPPED USER under impersonation (broker-routed) — otherwise a
+     * metadata op (WebDAV HEAD/DELETE/PROPFIND-on-file, kXR_stat/statx, S3 HEAD)
+     * whose target sits inside a directory the unprivileged worker cannot
+     * traverse (a 0700 user-owned subdir, or a group-restricted 0770 dir the
+     * mapped user reaches only via a supplementary group) would EACCES on a bare
+     * lstat and fail (500) for the legitimate owner/group-member.  nofollow=1
+     * keeps lstat semantics (report symlinks, never follow).  Off impersonation
+     * this is the same bare lstat. */
+    if (xrootd_lstat_confined_canon(ctx->log, ctx->root_canon, path, &st, 1) != 0) {
         saved_errno = errno;
         xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_STAT, NULL, 0,
                                   NGX_ERROR, saved_errno, start);

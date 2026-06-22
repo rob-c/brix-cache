@@ -428,6 +428,128 @@ xrootd_crc32c_hw3_extend(uint32_t crc, const unsigned char *p, size_t len)
     return (uint32_t) crc0 ^ 0xFFFFFFFFu;
 }
 
+__attribute__((target("sse4.2")))
+/*
+ * xrootd_crc32c_copy_hw3 - SSE4.2 3-way-parallel copy + CRC-32c, single pass.
+ *
+ * WHAT: Copies src[0..len) into dst[0..len) and returns the CRC-32c of those
+ *       bytes, computing the checksum with three independent _mm_crc32_u64
+ *       accumulators recombined over GF(2). The copy+checksum analogue of
+ *       xrootd_crc32c_hw3_extend.
+ *
+ * WHY: The serial xrootd_crc32c_copy_hw loop is latency-bound (~one 8-byte word
+ *      per 3 cycles — the _mm_crc32_u64 dependency chain), so the pgread/pgwrite
+ *      data plane, which fuses CRC with the copy on every 4 KiB page, spent a
+ *      large share of CPU there (flame-graph profiling, docs/09-developer-guide).
+ *      Three interleaved streams hide that latency behind the instruction's
+ *      1/cycle throughput (~3x on the CRC compute). Pure scheduling win: returned
+ *      checksum and copied bytes are bit-identical to the serial path
+ *      (Invariant #1), so the wire value never changes.
+ *
+ * HOW: Identical block structure to xrootd_crc32c_hw3_extend (byte-align
+ *      prologue, LONG then SHORT parallel triples, 8-byte then 1-byte serial
+ *      tail) but a dst cursor advances in lockstep with src and every loaded word
+ *      is written through to dst at its matching offset. dst alignment is
+ *      irrelevant (unaligned word stores via memcpy). Buffers must not overlap;
+ *      a fresh CRC is started (no incoming crc) to match xrootd_crc32c_copy_hw.
+ */
+static uint32_t
+xrootd_crc32c_copy_hw3(const unsigned char *src, unsigned char *dst, size_t len)
+{
+    uint64_t crc0, crc1, crc2;
+
+    crc0 = (uint64_t) 0xFFFFFFFFu;
+
+    /* Byte-by-byte until `src` is 8-byte aligned (aligned 64-bit loads below). */
+    while (len != 0 && ((uintptr_t) src & 7u) != 0) {
+        unsigned char b;
+
+        b = *src++;
+        *dst++ = b;
+        crc0 = _mm_crc32_u8((uint32_t) crc0, b);
+        len--;
+    }
+
+    /* LONG blocks: three 8192-byte streams copied + checksummed in parallel. */
+    while (len >= XROOTD_CRC32C_LONG * 3) {
+        const unsigned char *end = src + XROOTD_CRC32C_LONG;
+        uint64_t             v0, v1, v2;
+
+        crc1 = 0;
+        crc2 = 0;
+        do {
+            memcpy(&v0, src, 8);
+            memcpy(&v1, src + XROOTD_CRC32C_LONG, 8);
+            memcpy(&v2, src + XROOTD_CRC32C_LONG * 2, 8);
+            crc0 = _mm_crc32_u64(crc0, v0);
+            crc1 = _mm_crc32_u64(crc1, v1);
+            crc2 = _mm_crc32_u64(crc2, v2);
+            memcpy(dst, &v0, 8);
+            memcpy(dst + XROOTD_CRC32C_LONG, &v1, 8);
+            memcpy(dst + XROOTD_CRC32C_LONG * 2, &v2, 8);
+            src += 8;
+            dst += 8;
+        } while (src < end);
+
+        crc0 = xrootd_crc32c_shift(xrootd_crc32c_long_tab, (uint32_t) crc0) ^ crc1;
+        crc0 = xrootd_crc32c_shift(xrootd_crc32c_long_tab, (uint32_t) crc0) ^ crc2;
+        src += XROOTD_CRC32C_LONG * 2;
+        dst += XROOTD_CRC32C_LONG * 2;
+        len -= XROOTD_CRC32C_LONG * 3;
+    }
+
+    /* SHORT blocks: three 256-byte streams copied + checksummed in parallel. */
+    while (len >= XROOTD_CRC32C_SHORT * 3) {
+        const unsigned char *end = src + XROOTD_CRC32C_SHORT;
+        uint64_t             v0, v1, v2;
+
+        crc1 = 0;
+        crc2 = 0;
+        do {
+            memcpy(&v0, src, 8);
+            memcpy(&v1, src + XROOTD_CRC32C_SHORT, 8);
+            memcpy(&v2, src + XROOTD_CRC32C_SHORT * 2, 8);
+            crc0 = _mm_crc32_u64(crc0, v0);
+            crc1 = _mm_crc32_u64(crc1, v1);
+            crc2 = _mm_crc32_u64(crc2, v2);
+            memcpy(dst, &v0, 8);
+            memcpy(dst + XROOTD_CRC32C_SHORT, &v1, 8);
+            memcpy(dst + XROOTD_CRC32C_SHORT * 2, &v2, 8);
+            src += 8;
+            dst += 8;
+        } while (src < end);
+
+        crc0 = xrootd_crc32c_shift(xrootd_crc32c_short_tab, (uint32_t) crc0) ^ crc1;
+        crc0 = xrootd_crc32c_shift(xrootd_crc32c_short_tab, (uint32_t) crc0) ^ crc2;
+        src += XROOTD_CRC32C_SHORT * 2;
+        dst += XROOTD_CRC32C_SHORT * 2;
+        len -= XROOTD_CRC32C_SHORT * 3;
+    }
+
+    /* Serial 8-byte tail. */
+    while (len >= 8) {
+        uint64_t v;
+
+        memcpy(&v, src, 8);
+        crc0 = _mm_crc32_u64(crc0, v);
+        memcpy(dst, &v, 8);
+        src += 8;
+        dst += 8;
+        len -= 8;
+    }
+
+    /* Serial single-byte tail. */
+    while (len--) {
+        unsigned char b;
+
+        b = *src++;
+        *dst++ = b;
+        crc0 = _mm_crc32_u8((uint32_t) crc0, b);
+    }
+
+    return (uint32_t) crc0 ^ 0xFFFFFFFFu;
+}
+
 #endif
 
 uint32_t
@@ -475,6 +597,15 @@ xrootd_crc32c_copy_value(const unsigned char *src, unsigned char *dst,
 
 #ifdef __x86_64__
     if (xrootd_crc32c_sse42_available()) {
+        /*
+         * Mirror xrootd_crc32c_extend's dispatch: the 3-way parallel copy only
+         * pays off once a SHORT-block triple fits (>= 768 bytes); below that its
+         * recombine prologue is pure overhead. The 4 KiB pgread/pgwrite page is
+         * well above the threshold, so the data plane takes the fast path.
+         */
+        if (len >= XROOTD_CRC32C_SHORT * 3) {
+            return xrootd_crc32c_copy_hw3(src, dst, len);
+        }
         return xrootd_crc32c_copy_hw(src, dst, len);
     }
 #endif

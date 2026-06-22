@@ -224,12 +224,22 @@ status, result = fs.get_xattr("/store/mc/sample.root", ["checksum"])
 `kXR_prepare` is accepted as a local-storage staging hint. The module parses
 the official newline-separated path payload, validates each path under
 `xrootd_root`, applies authdb, VO ACL, and token-scope checks, and returns
-success when all requested files are already online. `kXR_prepare` with
-`kXR_stage` returns request id `"0"` and stores the path list for subsequent
-`kXR_QPrep` polling. `kXR_QPrep` returns `A <path>` for regular files present
-on disk and `M <path>` for missing or unauthorized paths; if no paths are known,
-it returns an empty `kXR_ok` body. `kXR_cancel` and `kXR_evict` are acknowledged
-as no-ops; they do not trigger origin fills or evict read-through cache entries.
+success when all requested files are already online.
+
+With `xrootd_frm on`, `kXR_prepare` creates a durable FRM stage request and
+returns a real host-qualified request id instead of the legacy `"0"` id. The
+queue survives client disconnects and worker restarts, `kXR_QPrep` reports
+queued/staging/failed/available states for known requests, and `kXR_cancel`
+removes matching queued work. `kXR_evict` is accepted as a backend-delegated
+operation; deployments that require exact tape purge or MSS behavior must test
+against their storage manager.
+
+With FRM disabled, the legacy local-storage behavior remains: `kXR_prepare`
+performs path validation/existence checks, may invoke `prepare_command` as a
+fire-and-forget hook, returns request id `"0"` for stage requests, and
+`kXR_QPrep` reports only `A <path>` for present regular files or `M <path>` for
+missing/unauthorized paths. In this mode `kXR_cancel` and `kXR_evict` are
+acknowledged no-ops.
 
 ---
 

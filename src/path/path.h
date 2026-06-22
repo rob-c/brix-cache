@@ -2,6 +2,7 @@
 #define XROOTD_PATH_H
 
 #include "../ngx_xrootd_module.h"
+#include <dirent.h>   /* for the DIR* return of xrootd_opendir_confined_canon */
 
 /* Sanitize a path string for safe logging (replaces control chars). */
 size_t xrootd_sanitize_log_string(const char *in, char *out, size_t outsz);
@@ -135,6 +136,11 @@ int xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
  * (no cross-root moves). Returns 0 or -1 with errno set. */
 int xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
+/* Confined create-if-absent rename: renameat2(RENAME_NOREPLACE).  Returns -1
+ * with errno==EEXIST when the destination already exists; falls back to a
+ * non-atomic rename (logged once) where RENAME_NOREPLACE is unsupported. */
+int xrootd_rename_confined_canon_excl(ngx_log_t *log, const char *root_canon,
+    const char *src_resolved, const char *dst_resolved);
 /* Confined linkat (hard link); both parents confined as above. 0 / -1 (errno). */
 int xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
@@ -152,6 +158,67 @@ int xrootd_symlink_confined_canon(ngx_log_t *log, const char *root_canon,
  * syscall). Returns bytes read or -1 (errno set). */
 ssize_t xrootd_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, char *buf, size_t bufsz);
+
+/* Confined chmod of <resolved> to <mode> (low 12 bits).  Under impersonation
+ * routes through the broker so the chmod runs as the mapped user (the worker is
+ * not the file's owner and would EPERM); else fchmodat anchored at the confined
+ * parent fd.  Returns 0 on success, -1 (errno set). */
+int xrootd_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, mode_t mode);
+
+/*
+ * Confined extended-attribute ops on <resolved> (a path already lexically
+ * confined to root_canon).  Under `xrootd_impersonation map` they route to the
+ * broker, which re-confines (openat2 RESOLVE_BENEATH) and performs the f*xattr as
+ * the mapped user (restricted to the `user.` namespace); when impersonation is
+ * off they fall back to the raw path-based syscall (identical prior behaviour).
+ * get/list return the byte count (or the value size when bufsz==0; -1/ERANGE on a
+ * too-small buffer); set/remove return 0 or -1 (errno set).  `name` is the full
+ * attribute name (e.g. "user.nginx_xrootd.lock").
+ */
+int xrootd_setxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *name, const void *value, size_t len,
+    int flags);
+ssize_t xrootd_getxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *name, void *buf, size_t bufsz);
+int xrootd_removexattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *name);
+ssize_t xrootd_listxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, void *buf, size_t bufsz);
+
+/*
+ * xrootd_dirlist_access_ok — directory-LISTING authorization for impersonation.
+ *
+ * A directory listing (PROPFIND / dirlist) is performed with a worker-side
+ * readdir(); under `xrootd_impersonation map` that would expose entries the
+ * MAPPED user has no UNIX permission to read (readdir requires read on the dir).
+ * Call this before listing: when impersonation is active it asks the broker to
+ * open <resolved> O_RDONLY|O_DIRECTORY AS THE MAPPED USER, so the user's own DAC
+ * is enforced; returns NGX_OK if the user may read (list) the directory, NGX_ERROR
+ * (errno EACCES/...) otherwise.  When impersonation is OFF it is a no-op that
+ * returns NGX_OK (the existing confined open already gated access).
+ */
+ngx_int_t xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
+    const char *resolved);
+
+/*
+ * Open <resolved> as a directory stream that, under impersonation, is opened BY
+ * THE BROKER as the mapped user (so readdir works on a user-private dir the worker
+ * itself cannot open — e.g. a 0700 multipart staging dir).  Off impersonation it
+ * is a plain opendir().  Returns a DIR* (caller closedir()s it) or NULL.
+ */
+DIR *xrootd_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved);
+
+/*
+ * xrootd_lstat_confined_canon — lstat()/stat() <resolved> as the mapped user
+ * under impersonation (else a bare lstat/stat).  Lets recursive walks that
+ * enumerate children of a user-private directory stat those children with the
+ * mapped user's DAC.  nofollow!=0 → lstat semantics (do not follow a trailing
+ * symlink).  Returns 0 on success, -1 on error (errno set).
+ */
+int xrootd_lstat_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, struct stat *st, int nofollow);
 
 /*
  * xrootd_openat2_runtime_available — returns 1 if openat2(2) works on the

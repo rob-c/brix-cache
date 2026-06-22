@@ -73,6 +73,8 @@ import time
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
+from settings import HOST, url_host
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -83,22 +85,24 @@ PROXY_PEM  = "/tmp/xrd-test/pki/user/proxy_std.pem"
 TOKEN_DIR  = "/tmp/xrd-test/tokens"
 SERVER_CERT = "/tmp/xrd-test/pki/server/hostcert.pem"
 
-NGINX_XRD_GSI_URL       = "root://localhost:12795"
-NGINX_XRD_TLS_URL       = "roots://localhost:12796"  # stream-level TLS, auth none
-NGINX_XRD_GSI_TLS_URL   = "roots://localhost:12797"  # stream-level TLS, auth gsi
-NGINX_XRD_ANON_URL      = "root://localhost:12793"   # perf config anon port
-NGINX_DAV_GSI_URL       = "davs://localhost:12792"
-NGINX_DAV_GSI_HTTP_URL  = "https://localhost:12792"   # for curl (perf WebDAV port)
-NGINX_DAV_TOKEN_URL     = "davs://localhost:12792"
-NGINX_DAV_TOKEN_HTTP_URL = "https://localhost:12792"  # for curl
+_H = url_host(HOST)   # client connect host (bracketed if IPv6)
+
+NGINX_XRD_GSI_URL       = f"root://{_H}:12795"
+NGINX_XRD_TLS_URL       = f"roots://{_H}:12796"  # stream-level TLS, auth none
+NGINX_XRD_GSI_TLS_URL   = f"roots://{_H}:12797"  # stream-level TLS, auth gsi
+NGINX_XRD_ANON_URL      = f"root://{_H}:12793"   # perf config anon port
+NGINX_DAV_GSI_URL       = f"davs://{_H}:12792"
+NGINX_DAV_GSI_HTTP_URL  = f"https://{_H}:12792"   # for curl (perf WebDAV port)
+NGINX_DAV_TOKEN_URL     = f"davs://{_H}:12792"
+NGINX_DAV_TOKEN_HTTP_URL = f"https://{_H}:12792"  # for curl
 
 # S3 REST — anonymous, cleartext HTTP (no native-xrootd S3 counterpart).
-NGINX_S3_HTTP_URL = "http://localhost:12798"
+NGINX_S3_HTTP_URL = f"http://{_H}:12798"
 S3_BUCKET         = "perfbucket"
 
-XROOTD_GSI_URL      = "root://localhost:12094"   # official xrootd GSI instance
-XROOTD_ANON_URL     = "root://localhost:12093"   # official xrootd anon instance
-XROOTD_DAV_HTTP_URL = "https://localhost:12443"  # not available in this config
+XROOTD_GSI_URL      = f"root://{_H}:12094"   # official xrootd GSI instance
+XROOTD_ANON_URL     = f"root://{_H}:12093"   # official xrootd anon instance
+XROOTD_DAV_HTTP_URL = f"https://{_H}:12443"  # not available in this config
 
 DEFAULT_FILE    = "load_1g.bin"
 DEFAULT_WORKERS = [1, 8, 32, 64, 128, 200]

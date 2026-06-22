@@ -74,6 +74,13 @@ typedef struct {
     ngx_str_t    secret_key;  /* AWS secret access key                   */
     ngx_str_t    region;      /* region for SigV4 scope (default "us-east-1") */
     ngx_flag_t   allow_unsigned_session_token; /* accept STS token with static secret */
+    ngx_flag_t   verify_chunk_signatures; /* W6a: cryptographically verify the
+                                           * per-chunk SigV4 signature on
+                                           * aws-chunked streaming uploads
+                                           * (default off; reject ⇒ 403) */
+    ngx_flag_t   list_cache;     /* W6c: cache sorted ListObjects results per
+                                  * worker (default off) */
+    ngx_msec_t   list_cache_ttl; /* W6c: staleness bound for a cached listing */
     ngx_int_t    max_keys;    /* max objects per list page (default 1000)*/
     ngx_int_t    mpu_max_age; /* [xrootd_s3_mpu_max_age 0] Phase 39 (WS8): seconds
                                  a multipart staging dir may be idle before the
@@ -88,6 +95,19 @@ typedef struct {
 typedef struct {
     char               fs_path[PATH_MAX];
     xrootd_identity_t *identity;
+    /* W6b: PutObject with `If-None-Match: *` — commit must be atomic
+     * create-if-absent (renameat2 RENAME_NOREPLACE); EEXIST → 412. */
+    unsigned           exclusive_create:1;
+    /* W6a: SigV4 material retained from auth so the aws-chunked decoder can
+     * verify each chunk's signature.  Set only when a signed request was
+     * authenticated (have_sigv4=1); the streaming verifier needs the seed
+     * signature + signing key + scope/date that auth computed and would
+     * otherwise discard. */
+    unsigned           have_sigv4:1;
+    u_char             sigv4_signing_key[32];
+    char               sigv4_seed_signature[65]; /* hex, 64 chars + NUL  */
+    char               sigv4_amz_date[32];        /* YYYYMMDDTHHMMSSZ     */
+    char               sigv4_scope[96];           /* date/region/s3/aws4_request */
 } ngx_http_s3_req_ctx_t;
 
 /* Sentinel filename created by XrdClS3 mkdir */
@@ -102,16 +122,24 @@ typedef struct {
 /* Max entries collected by s3_walk before sorting/pagination */
 #define S3_LIST_MAX_ENTRIES  65536
 
-/* One entry in a ListObjectsV2 response */
+/*
+ * s3_entry_t — one object or CommonPrefix returned by ListObjects (V1/V2).
+ * is_prefix == 1 means this entry represents a directory delimiter
+ * (e.g. "photos/" when delimiter="/"), not an actual file.
+ *
+ * phase-45 W1: `key` is a pool-allocated, right-sized string — NOT an inline
+ * 4 KiB buffer — so a growable array of these costs O(actual key bytes), not a
+ * fixed 273 MB.  `size`/`mtime`/`etag` are filled LAZILY (s3_entry_fill_stat),
+ * only for the entries actually emitted on the requested page, never for the
+ * whole walked subtree.
+ */
 typedef struct {
-    char    key[S3_MAX_KEY];
-    int     is_prefix;
-    off_t   size;
-    time_t  mtime;
-    char    etag[48];
+    char    *key;
+    unsigned is_prefix;
+    off_t    size;
+    time_t   mtime;
+    char     etag[48];
 } s3_entry_t;
-
-/* s3_entry_t — one object or prefix returned by ListObjectsV2. is_prefix == 1 means this entry represents a directory delimiter (e.g. "photos/" when delimiter="/"), not an actual file. */
 
 /*
  * XML_APPEND / XML_APPEND_ELEM — flat-buffer XML building macros.
@@ -207,27 +235,90 @@ ngx_int_t s3_handle_get(ngx_http_request_t *r,
 ngx_int_t s3_handle_list(ngx_http_request_t *r,
                           ngx_http_s3_loc_conf_t *cf);
 
+/* GET /bucket (no list-type) → ListObjects V1 (list_objects_v1.c). Shares the
+ * s3_walk()/entry_cmp() walker with V2; differs only in marker pagination and
+ * the V1 XML element names (Marker/NextMarker, no KeyCount/continuation token). */
+ngx_int_t s3_handle_list_v1(ngx_http_request_t *r,
+                          ngx_http_s3_loc_conf_t *cf);
+
+/* HEAD /bucket → HeadBucket: 200 + x-amz-bucket-region, else 404 (object.c). */
+ngx_int_t s3_handle_head_bucket(ngx_http_request_t *r,
+                          ngx_http_s3_loc_conf_t *cf);
+
+/* GET /bucket?location → GetBucketLocation XML for the configured region. */
+ngx_int_t s3_handle_get_bucket_location(ngx_http_request_t *r,
+                          ngx_http_s3_loc_conf_t *cf);
+
 /* list_walk.c — directory walker and key comparator */
 
 /*
- * Recursively scan dir_path (filesystem), appending objects/CommonPrefixes
- * into entries[] starting at *count, never exceeding max_entries. key_prefix
- * is the key path accumulated so far; filter_prefix/delimiter apply the
- * ListObjectsV2 prefix/delimiter semantics (NULL = none). Directory sentinels
- * are omitted. *count is advanced in place; returns the new total *count
- * (0 if dir_path cannot be opened). Best-effort: unreadable/overlong entries
- * are silently skipped.
+ * Recursively scan dir_path (filesystem), appending object/CommonPrefix entries
+ * into the growable `entries` array (elements are s3_entry_t) until it reaches
+ * max_entries. key_prefix is the key path accumulated so far; filter_prefix/
+ * delimiter apply the ListObjects prefix/delimiter semantics (NULL/"" = none).
+ *
+ * phase-45 W1: classification uses readdir d_type (an lstat fallback only on
+ * DT_UNKNOWN), and NO size/mtime/etag stat is done here — those are filled
+ * lazily by s3_entry_fill_stat() for the emitted page only.  Key strings are
+ * pooled from entries->pool at their true length.  Directory sentinels are
+ * omitted; symlinks are never listed or traversed.  Returns entries->nelts.
  */
-int s3_walk(const char *root, const char *dir_path, const char *key_prefix,
-    const char *filter_prefix, const char *delimiter, s3_entry_t *entries,
-    int max_entries, int *count);
-/* qsort(3) comparator: lexicographic strcmp on s3_entry_t.key. */
+int s3_walk(ngx_log_t *log, const char *root, const char *dir_path,
+    const char *key_prefix, const char *filter_prefix, const char *delimiter,
+    ngx_array_t *entries, int max_entries);
+/* qsort(3) comparator: lexicographic strcmp on s3_entry_t.key (a char *). */
 int entry_cmp(const void *a, const void *b);
+/*
+ * phase-45 W1: lazily fill size/mtime/etag for one emitted OBJECT entry by
+ * lstat'ing (confined) root + "/" + e->key.  No-op for CommonPrefixes.  Returns
+ * NGX_OK (filled) or NGX_DECLINED (entry vanished or is no longer a regular
+ * file — the caller skips it, matching the eager walker's stat-failure skip).
+ */
+ngx_int_t s3_entry_fill_stat(ngx_log_t *log, const char *root, s3_entry_t *e);
 
 /* HEAD /bucket/key → metadata */
 ngx_int_t s3_handle_head(ngx_http_request_t *r,
                           const char *fs_path,
                           ngx_http_s3_loc_conf_t *cf);
+
+/* -------------------------------------------------------------------------
+ * Conditional requests + response-header overrides (conditional.c, phase-43 W3)
+ * ---------------------------------------------------------------------- */
+
+/*
+ * Evaluate If-Match / If-None-Match / If-Modified-Since / If-Unmodified-Since
+ * against the object's synthetic ETag (mtime+size) and mtime, with S3 semantics.
+ * Returns NGX_DECLINED when the caller should proceed to serve (no conditional
+ * headers, or all passed); otherwise a 304/412 response has already been sent
+ * and the returned rc must be propagated by the caller.
+ */
+ngx_int_t s3_handle_conditional(ngx_http_request_t *r, time_t mtime, off_t size);
+
+/* Low-level precondition verdict: NGX_OK (proceed), NGX_HTTP_NOT_MODIFIED, or
+ * NGX_HTTP_PRECONDITION_FAILED.  etag includes its surrounding quotes. */
+ngx_int_t s3_eval_preconditions(ngx_http_request_t *r, const char *etag,
+                          time_t mtime);
+
+/*
+ * Evaluate If-None-Match / If-Match on a PutObject before the body is read
+ * (create-if-absent / overwrite-if-match).  Returns NGX_DECLINED to proceed, or
+ * a 412 rc already sent to the client.
+ */
+ngx_int_t s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
+                          const char *fs_path);
+
+/* True when a PutObject carries `If-None-Match: *` (atomic create-if-absent).
+ * W6b: the commit then uses renameat2(RENAME_NOREPLACE) and maps EEXIST → 412. */
+int s3_put_is_exclusive_create(ngx_http_request_t *r);
+
+/* Apply response-content-type/-disposition/-encoding/-language/-cache-control/
+ * -expires query overrides into headers_out (control bytes rejected). */
+void s3_apply_response_overrides(ngx_http_request_t *r);
+
+/* Serve pre-header hook (xrootd_http_pre_header_fn) that applies the response-*
+ * overrides just before the GET response headers are sent. */
+void s3_get_pre_header(ngx_http_request_t *r, ngx_fd_t fd, off_t file_size,
+                          void *userdata);
 
 /* DELETE /bucket/key */
 ngx_int_t s3_handle_delete(ngx_http_request_t *r,
@@ -236,6 +327,15 @@ ngx_int_t s3_handle_delete(ngx_http_request_t *r,
 
 /* PUT body callback (registered by handler.c) */
 void s3_put_body_handler(ngx_http_request_t *r);
+
+/*
+ * Resolve (and cache into the loc-conf) the async-I/O thread pool for this
+ * location, mirroring the WebDAV COPY/MOVE lazy-resolution pattern (the S3
+ * postconfiguration only resolves it for server-level confs, not location
+ * blocks).  Returns NULL when no pool is available — callers then run the
+ * blocking work synchronously on the event loop. (put.c)
+ */
+ngx_thread_pool_t *s3_thread_pool(ngx_http_s3_loc_conf_t *cf);
 
 /* POST /bucket/ multipart/form-data browser upload */
 void s3_post_object_body_handler(ngx_http_request_t *r);
@@ -371,5 +471,44 @@ void s3_etag(const struct stat *st, char *buf, size_t bufsz);
  */
 ngx_int_t s3_object_crc64nvme_b64(ngx_http_request_t *r, int fd,
     const char *path, ngx_flag_t cache_only, char *out, size_t outsz);
+
+/* -------------------------------------------------------------------------
+ * Multi-algorithm full-object checksums (checksum.c, phase-43 W1)
+ * ---------------------------------------------------------------------- */
+
+/* Declared request/echo headers for the additional AWS checksum algorithms. */
+#define S3_HDR_SDK_CHECKSUM_ALGO  "x-amz-sdk-checksum-algorithm"
+#define S3_HDR_CHECKSUM_MODE      "x-amz-checksum-mode"
+/* base64(sha256)=44 chars + NUL; covers every supported algorithm. */
+#define S3_CHECKSUM_B64_MAX       48
+
+/* Outcome of s3_put_checksum_apply. */
+typedef enum {
+    S3_CKSUM_OK = 0,    /* verified or echoed                                  */
+    S3_CKSUM_MISMATCH,  /* supplied value mismatched — object removed; 400     */
+    S3_CKSUM_CONFLICT,  /* ambiguous / unsupported algorithm selection — 400   */
+    S3_CKSUM_ERROR      /* our own compute failed — proceed without the header */
+} s3_cksum_result_t;
+
+/* Compute (or cache-read) alg_name for fd and base64-encode the raw digest into
+ * out (>= S3_CHECKSUM_B64_MAX) — the AWS x-amz-checksum-* wire form.  Works for
+ * crc32/crc32c/sha1/sha256/crc64nvme.  cache_only=1 → NGX_DECLINED on a miss. */
+ngx_int_t s3_checksum_b64(ngx_http_request_t *r, int fd, const char *path,
+    const char *alg_name, ngx_flag_t cache_only, char *out, size_t outsz);
+
+/* Verify the client-selected full-object checksum (any supported algorithm) for
+ * the just-committed object and echo it; see checksum.c for the result codes. */
+s3_cksum_result_t s3_put_checksum_apply(ngx_http_request_t *r,
+    const char *fs_path, const char *root_canon);
+
+/* Verify+echo a checksum carried in an aws-chunked trailer (phase-43 W0); same
+ * result contract as s3_put_checksum_apply. */
+s3_cksum_result_t s3_put_trailer_checksum_apply(ngx_http_request_t *r,
+    const char *fs_path, const char *root_canon, const char *algo_token,
+    const char *value);
+
+/* GET/HEAD echo: always emits a cached crc64nvme; with x-amz-checksum-mode:
+ * ENABLED also emits every other cached algorithm. */
+void s3_echo_object_checksums(ngx_http_request_t *r, int fd, const char *path);
 
 #endif /* NGX_HTTP_S3_H */

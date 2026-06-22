@@ -31,23 +31,38 @@
 #define IMP_PRINC_MAX       512
 #define IMP_PATH_MAX        4096
 
+/*
+ * Max extended-attribute value / name-list size in EITHER direction (the
+ * SETXATTR inbound value payload, and the GETXATTR/LISTXATTR outbound payload).
+ * Comfortably above the module's xattr users (WebDAV dead-property values are
+ * capped at 16 KiB, lock tokens are < 1 KiB); a value larger than this is
+ * refused with ERANGE at the broker rather than silently truncated.
+ */
+#define IMP_XATTR_MAX       65536
+
 /* Request operations. */
 enum {
-    IMP_OP_PING     = 0,   /* liveness / version handshake */
-    IMP_OP_OPEN     = 1,   /* openat2 -> returns an fd via SCM_RIGHTS */
-    IMP_OP_STAT     = 2,   /* fstatat (follow symlinks) -> imp_stat_t */
-    IMP_OP_LSTAT    = 3,   /* fstatat (AT_SYMLINK_NOFOLLOW) -> imp_stat_t */
-    IMP_OP_MKDIR    = 4,   /* mkdirat */
-    IMP_OP_UNLINK   = 5,   /* unlinkat (file) */
-    IMP_OP_RMDIR    = 6,   /* unlinkat (AT_REMOVEDIR) */
-    IMP_OP_RENAME   = 7,   /* renameat (path -> path2) */
-    IMP_OP_LINK     = 8,   /* linkat (path -> path2) */
-    IMP_OP_CHMOD    = 9,   /* fchmodat */
-    IMP_OP_CHOWN    = 10,  /* fchownat (gid only; uid kept) */
-    IMP_OP_TRUNCATE = 11,  /* open+ftruncate to `length` */
-    IMP_OP_SETATTR  = 12,  /* utimensat (+ optional fchownat) — POSIX kXR_setattr */
-    IMP_OP_SYMLINK  = 13,  /* symlinkat (path=link, path2=target) */
-    IMP_OP_READLINK = 14   /* readlinkat -> target via trailing reply payload */
+    IMP_OP_PING       = 0,  /* liveness / version handshake */
+    IMP_OP_OPEN       = 1,  /* openat2 -> returns an fd via SCM_RIGHTS */
+    IMP_OP_STAT       = 2,  /* fstatat (follow symlinks) -> imp_stat_t */
+    IMP_OP_LSTAT      = 3,  /* fstatat (AT_SYMLINK_NOFOLLOW) -> imp_stat_t */
+    IMP_OP_MKDIR      = 4,  /* mkdirat */
+    IMP_OP_UNLINK     = 5,  /* unlinkat (file) */
+    IMP_OP_RMDIR      = 6,  /* unlinkat (AT_REMOVEDIR) */
+    IMP_OP_RENAME     = 7,  /* renameat (path -> path2) */
+    IMP_OP_LINK       = 8,  /* linkat (path -> path2) */
+    IMP_OP_CHMOD      = 9,  /* fchmodat */
+    IMP_OP_CHOWN      = 10, /* fchownat (gid only; uid kept) */
+    IMP_OP_TRUNCATE   = 11, /* open+ftruncate to `length` */
+    IMP_OP_SETATTR    = 12, /* utimensat (+ optional fchownat) — POSIX kXR_setattr */
+    IMP_OP_SYMLINK    = 13, /* symlinkat (path=link, path2=target) */
+    IMP_OP_READLINK   = 14, /* readlinkat -> target via trailing reply payload */
+    IMP_OP_GETXATTR   = 15, /* fgetxattr(path2=name)  -> value via reply payload */
+    IMP_OP_SETXATTR   = 16, /* fsetxattr(path2=name)  <- value via REQUEST payload */
+    IMP_OP_REMOVEXATTR= 17, /* fremovexattr(path2=name) */
+    IMP_OP_LISTXATTR  = 18, /* flistxattr -> NUL-separated names via reply payload */
+    IMP_OP_RENAME_NOREPLACE = 19 /* renameat2(RENAME_NOREPLACE): create-if-absent;
+                                  * EEXIST when dest exists (S3 If-None-Match:*) */
 };
 
 /* SETATTR (imp_req_t.attr_flags): which attributes to apply. */
@@ -66,7 +81,8 @@ enum {
 /* imp_rep_t.rep_flags */
 #define IMP_REP_HAS_FD       0x1 /* an fd follows via SCM_RIGHTS */
 #define IMP_REP_HAS_STAT     0x2 /* st is valid */
-#define IMP_REP_HAS_DATA     0x4 /* data_len trailing bytes follow (READLINK) */
+#define IMP_REP_HAS_DATA     0x4 /* data_len trailing bytes follow (READLINK target,
+                                  * GETXATTR value, or LISTXATTR name list) */
 
 /* Portable stat subset (architecture-stable layout for the local socket). */
 typedef struct {
@@ -99,10 +115,14 @@ typedef struct {
     uint32_t set_uid;                 /* SETATTR owner; (uint32_t)-1 = unchanged */
     uint32_t set_gid;                 /* SETATTR group; (uint32_t)-1 = unchanged */
     uint32_t attr_flags;              /* IMP_ATTR_TIMES | IMP_ATTR_OWNER */
-    uint32_t reserved;                /* keep 8-byte alignment / future use */
+    uint32_t req_data_len;            /* SETXATTR: inbound value payload byte count
+                                       * that follows this frame (0 for all other
+                                       * ops); bounded by IMP_XATTR_MAX */
     char     principal[IMP_PRINC_MAX];/* NUL-terminated DN / sub / sss-user */
-    char     path[IMP_PATH_MAX];      /* root-relative path (SYMLINK: the link) */
-    char     path2[IMP_PATH_MAX];     /* RENAME/LINK dest; SYMLINK: verbatim target */
+    char     path[IMP_PATH_MAX];      /* root-relative path (SYMLINK: the link;
+                                       * xattr ops: the target file) */
+    char     path2[IMP_PATH_MAX];     /* RENAME/LINK dest; SYMLINK: verbatim target;
+                                       * GET/SET/REMOVEXATTR: the xattr name */
 } imp_req_t;
 
 /* Fixed-size reply frame.  For READLINK, `data_len` bytes (the link target) follow

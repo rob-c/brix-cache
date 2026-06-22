@@ -31,18 +31,20 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, SERVER_HOST
+from settings import NGINX_BIN, SERVER_HOST, free_ports
 
 XROOTD_BIN = os.environ.get("TEST_XROOTD_BIN", "/usr/bin/xrootd")
 H = SERVER_HOST
 
-# Dedicated workspace + ports for this file (>= 12950, unique to this module).
-_DIR = "/tmp/xrd_dropin_bfb"
-# 12990/12991: above test_proxy_protocol_edges' reserved 12950-12972 block
-# (which previously overlapped 12958/12959) so the full P0 suite runs
-# collision-free in one pytest invocation.
-NGINX_PORT  = int(os.environ.get("TEST_DROPIN_NGINX_PORT", "12990"))
-XROOTD_PORT = int(os.environ.get("TEST_DROPIN_XROOTD_PORT", "12991"))
+# Dedicated workspace for this file.
+_DIR = os.path.join(os.environ["TMPDIR"], "xrd_dropin_bfb")
+# Ports the fixture BINDS (nginx listen + official xrootd xrd.port): allocate
+# distinct free OS ports so they never collide with the managed fleet or with
+# another self-contained test running in the same pytest invocation.  Any
+# explicit env override is still honoured.
+_NGINX_FREE, _XROOTD_FREE = free_ports(2)
+NGINX_PORT  = int(os.environ.get("TEST_DROPIN_NGINX_PORT") or _NGINX_FREE)
+XROOTD_PORT = int(os.environ.get("TEST_DROPIN_XROOTD_PORT") or _XROOTD_FREE)
 
 
 # ---------------------------------------------------------------------------

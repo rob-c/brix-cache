@@ -34,6 +34,9 @@ typedef struct {
     ngx_str_t           root;               /* filesystem export root path         */
     char                root_canon[PATH_MAX]; /* canonicalized/confined root        */
     ngx_flag_t          allow_write;        /* write permission flag               */
+    ngx_flag_t          compress;           /* phase-42: outbound GET compression
+                                             * (Accept-Encoding negotiated). Off by
+                                             * default; bypasses sendfile when used. */
     ngx_str_t           thread_pool_name;   /* async I/O thread pool name          */
     ngx_thread_pool_t  *thread_pool;        /* resolved pool handle (runtime only) */
     int                 rootfd;             /* O_PATH fd on root_canon for openat2

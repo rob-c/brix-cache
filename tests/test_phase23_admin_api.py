@@ -24,10 +24,16 @@ from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port, HOST, BIND_HOST, url_host
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET = "phase23-admin-secret-token-value"
+
+# Distinct free OS ports for the config-validation listens (each test binds its
+# own one-server nginx -t check, so no cross-references between them).
+_P_PARSE = int(os.environ.get("TEST_PHASE23_PARSE_PORT") or free_port())
+_P_DYNAMIC = int(os.environ.get("TEST_PHASE23_DYNAMIC_PORT") or free_port())
+_P_BADSECRET = int(os.environ.get("TEST_PHASE23_BADSECRET_PORT") or free_port())
 
 
 @pytest.fixture(autouse=True)
@@ -137,7 +143,7 @@ def test_admin_directives_parse(tmp_path):
     secret.write_text(SECRET + "\n")
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21910;
+            listen {BIND_HOST}:{_P_PARSE};
             location /xrootd/ {{
                 xrootd_dashboard on;
                 xrootd_dashboard_password "pw";
@@ -156,7 +162,7 @@ def test_proxy_dynamic_directive_parses(tmp_path):
     data.mkdir()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21911;
+            listen {BIND_HOST}:{_P_DYNAMIC};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -174,7 +180,7 @@ def test_proxy_dynamic_directive_parses(tmp_path):
 def test_bad_admin_secret_path_rejected(tmp_path):
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21912;
+            listen {BIND_HOST}:{_P_BADSECRET};
             location /xrootd/ {{
                 xrootd_dashboard on;
                 xrootd_dashboard_password "pw";
@@ -205,7 +211,7 @@ class _Origin(http.server.BaseHTTPRequestHandler):
 
 
 def _start_origin(port):
-    srv = http.server.HTTPServer(("127.0.0.1", port), _Origin)
+    srv = http.server.HTTPServer((BIND_HOST, port), _Origin)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -214,7 +220,7 @@ def _wait_port(port, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -245,7 +251,8 @@ def admin_server(tmp_path):
     """A self-contained nginx with the dashboard admin API (bearer-secret only,
     so authorization depends purely on the token) and a dynamic WebDAV proxy
     pool, plus one live origin backend."""
-    port, be_port = 21900, 21901
+    port = int(os.environ.get("TEST_PHASE23_PORT") or free_port())
+    be_port = int(os.environ.get("TEST_PHASE23_BE_PORT") or free_port())
     secret = tmp_path / "admin.secret"
     secret.write_text(SECRET + "\n")
     data = tmp_path / "data"
@@ -255,7 +262,7 @@ def admin_server(tmp_path):
     origin = _start_origin(be_port)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:{port};
+            listen {BIND_HOST}:{port};
             location /dav/ {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -293,7 +300,7 @@ def admin_server(tmp_path):
 
 
 def _base(port):
-    return f"http://127.0.0.1:{port}/xrootd/api/v1/admin"
+    return f"http://{url_host(HOST)}:{port}/xrootd/api/v1/admin"
 
 
 # --------------------------------------------------------------------------- #
@@ -346,7 +353,7 @@ def test_proxy_pool_lifecycle(admin_server):
 
     # Add the live origin to the pool.
     status, body = _admin("POST", backends, token=SECRET,
-                          data=json.dumps({"url": f"http://127.0.0.1:{be_port}",
+                          data=json.dumps({"url": f"http://{url_host(HOST)}:{be_port}",
                                            "weight": 1}))
     assert status == 201, body
     bid = json.loads(body)["id"]
@@ -359,7 +366,7 @@ def test_proxy_pool_lifecycle(admin_server):
     assert any(b["id"] == bid and b["state"] == "active" for b in rows), rows
 
     # A request to the proxy location is served by the pooled origin.
-    status, text = _curl(f"http://127.0.0.1:{port}/dav/x.txt")
+    status, text = _curl(f"http://{url_host(HOST)}:{port}/dav/x.txt")
     assert status == 200, text
     assert "ORIGIN-OK" in text, text
 

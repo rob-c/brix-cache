@@ -41,6 +41,22 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
     }
 
     for (;;) {
+        /*
+         * Teardown guard (UAF + busy-loop): a handler invoked in a previous
+         * iteration (handle_bootstrap, relay_to_client, …) may have called
+         * xrootd_proxy_abort(), which tears the proxy down and clears
+         * ctx->proxy *without* changing proxy->state.  The per-state branches
+         * below key off proxy->state, so without this check the loop would
+         * `continue` straight back into the same handler and re-process the
+         * still-buffered upstream frame on a dead proxy forever (observed: a
+         * bad-credential upstream spinning a worker at 100% CPU, re-aborting
+         * ~500K times/sec and leaking until OOM).  Once the proxy is no longer
+         * the connection's live proxy, stop immediately.
+         */
+        if (ctx->proxy != proxy) {
+            return;
+        }
+
         /* ---- accumulate response header (8 bytes) ---- */
         if (proxy->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
             size_t need = XRD_RESPONSE_HDR_LEN - proxy->rhdr_pos;

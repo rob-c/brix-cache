@@ -17,9 +17,16 @@ from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port, free_ports, HOST, BIND_HOST
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# All ports below are bound by this file's own nginx instances, so allocate
+# free OS ports to avoid colliding with the managed fleet or other tests.
+_P_DIRECTIVES = free_port()   # test_all_directives_parse listener
+_P_BADTYPE = free_port()      # test_bad_type_rejected listener
+_P_DISABLED = free_port()     # test_disabled_by_default_no_timer_log listen+connect
+_P_ENABLED = free_port()      # test_enabled_starts_manager listen+connect
 
 
 @pytest.fixture(autouse=True)
@@ -93,10 +100,10 @@ def _nginx_check(conf_text, tmp_path):
 
 
 def test_all_directives_parse(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + """
-    stream {
-        server {
-            listen 127.0.0.1:21810;
+    conf = HEADER.format(logs=tmp_path / "logs") + f"""
+    stream {{
+        server {{
+            listen {BIND_HOST}:{_P_DIRECTIVES};
             xrootd on;
             xrootd_root /tmp/xrd-test/data;
             xrootd_auth none;
@@ -106,24 +113,24 @@ def test_all_directives_parse(tmp_path):
             xrootd_health_check_threshold 2;
             xrootd_health_check_blacklist 45s;
             xrootd_health_check_type stat;
-        }
-    }
+        }}
+    }}
     """
     rc, out = _nginx_check(conf, tmp_path)
     assert rc == 0, out
 
 
 def test_bad_type_rejected(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + """
-    stream {
-        server {
-            listen 127.0.0.1:21811;
+    conf = HEADER.format(logs=tmp_path / "logs") + f"""
+    stream {{
+        server {{
+            listen {BIND_HOST}:{_P_BADTYPE};
             xrootd on;
             xrootd_root /tmp/xrd-test/data;
             xrootd_auth none;
             xrootd_health_check_type bogus;
-        }
-    }
+        }}
+    }}
     """
     rc, out = _nginx_check(conf, tmp_path)
     assert rc != 0
@@ -139,7 +146,7 @@ def test_disabled_by_default_no_timer_log(tmp_path):
     conf = HEADER.format(logs=logs) + f"""
     stream {{
         server {{
-            listen 127.0.0.1:21812;
+            listen {BIND_HOST}:{_P_DISABLED};
             xrootd on;
             xrootd_root /tmp/xrd-test/data;
             xrootd_auth none;
@@ -156,7 +163,7 @@ def test_disabled_by_default_no_timer_log(tmp_path):
         up = False
         while time.time() < deadline:
             try:
-                with socket.create_connection(("127.0.0.1", 21812), timeout=0.5):
+                with socket.create_connection((HOST, _P_DISABLED), timeout=0.5):
                     up = True
                     break
             except OSError:
@@ -180,17 +187,17 @@ def test_enabled_starts_manager(tmp_path):
     # logs a startup notice — proving the init_process wiring fires.
     logs = tmp_path / "logs"
     logs.mkdir()
-    conf = HEADER.format(logs=logs) + """
-    stream {
-        server {
-            listen 127.0.0.1:21813;
+    conf = HEADER.format(logs=logs) + f"""
+    stream {{
+        server {{
+            listen {BIND_HOST}:{_P_ENABLED};
             xrootd on;
             xrootd_root /tmp/xrd-test/data;
             xrootd_auth none;
             xrootd_health_check on;
             xrootd_health_check_interval 5s;
-        }
-    }
+        }}
+    }}
     """
     conf_path = tmp_path / "nginx.conf"
     conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
@@ -201,7 +208,7 @@ def test_enabled_starts_manager(tmp_path):
         up = False
         while time.time() < deadline:
             try:
-                with socket.create_connection(("127.0.0.1", 21813), timeout=0.5):
+                with socket.create_connection((HOST, _P_ENABLED), timeout=0.5):
                     up = True
                     break
             except OSError:
@@ -224,14 +231,14 @@ def test_enabled_starts_manager(tmp_path):
 # 3. Functional: manager health-probes a live registered data server          #
 # --------------------------------------------------------------------------- #
 
-MGR_PORT, CMS_PORT, DS_PORT, METRICS_PORT = 21820, 21821, 21822, 21823
+MGR_PORT, CMS_PORT, DS_PORT, METRICS_PORT = free_ports(4)
 
 
 def _wait_port(port, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -239,7 +246,7 @@ def _wait_port(port, timeout=10):
 
 
 def _metrics(port):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall(b"GET /metrics HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
         data = b""
         while True:
@@ -272,7 +279,7 @@ def hc_cluster(tmp_path):
     stream {{
         # Manager (redirector) with active health checks enabled.
         server {{
-            listen 127.0.0.1:{MGR_PORT};
+            listen {BIND_HOST}:{MGR_PORT};
             xrootd on;
             xrootd_auth none;
             xrootd_manager_mode on;
@@ -282,16 +289,16 @@ def hc_cluster(tmp_path):
         }}
         # CMS server endpoint data servers register with.
         server {{
-            listen 127.0.0.1:{CMS_PORT};
+            listen {BIND_HOST}:{CMS_PORT};
             xrootd_cms_server on;
         }}
         # Live data server that registers itself via loopback CMS.
         server {{
-            listen 127.0.0.1:{DS_PORT};
+            listen {BIND_HOST}:{DS_PORT};
             xrootd on;
             xrootd_auth none;
             xrootd_root {data};
-            xrootd_cms_manager 127.0.0.1:{CMS_PORT};
+            xrootd_cms_manager {HOST}:{CMS_PORT};
             xrootd_cms_paths /data;
             xrootd_cms_interval 2;
             xrootd_listen_port {DS_PORT};
@@ -302,7 +309,7 @@ def hc_cluster(tmp_path):
         fastcgi_temp_path {tmp_path}/t; uwsgi_temp_path {tmp_path}/t;
         scgi_temp_path {tmp_path}/t; access_log off;
         server {{
-            listen 127.0.0.1:{METRICS_PORT};
+            listen {BIND_HOST}:{METRICS_PORT};
             location /metrics {{ xrootd_metrics on; }}
         }}
     }}

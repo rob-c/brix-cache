@@ -20,7 +20,7 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, HOST, BIND_HOST
 from test_phase25_ratelimit import (
     HEADER, _spawn, _stop, _xrd_login, _xrd_open, _xrd_read, KXR_OK,
 )
@@ -36,7 +36,7 @@ def _alog_conf(tmp_path, port, data, logfile):
     return HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         server {{
-            listen 127.0.0.1:{port};
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_root {data};
             xrootd_auth none;
@@ -72,7 +72,7 @@ def test_batched_lines_durable_after_close(tmp_path):
     port = 21980
     proc = _spawn(_alog_conf(tmp_path, port, data, logfile), tmp_path, port)
     try:
-        s = _xrd_login("127.0.0.1", port)
+        s = _xrd_login(HOST, port)
         st, body = _xrd_open(s, "/f.txt")
         assert st == KXR_OK, st
         fh = body[:4]
@@ -98,7 +98,7 @@ def test_no_loss_interleaved_connections(tmp_path):
     try:
         conns = []
         for _ in range(2):
-            s = _xrd_login("127.0.0.1", port)
+            s = _xrd_login(HOST, port)
             st, body = _xrd_open(s, "/f.txt")
             assert st == KXR_OK, st
             conns.append((s, body[:4]))
@@ -125,7 +125,7 @@ def test_control_bytes_in_path_are_escaped(tmp_path):
     port = 21982
     proc = _spawn(_alog_conf(tmp_path, port, data, logfile), tmp_path, port)
     try:
-        s = _xrd_login("127.0.0.1", port)
+        s = _xrd_login(HOST, port)
         # Open a nonexistent path with an embedded newline + injection marker.
         _xrd_open(s, "/evil\nINJECTED_LINE GET /x")
         s.close()

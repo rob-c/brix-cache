@@ -14,10 +14,7 @@ Additional classes verify authentication behaviour:
   - bearer token present: full auth, all operations available
   - read-only token: write operations rejected (403)
 
-Tests assert RFC-correct behaviour.  Known compliance gaps are marked
-``@pytest.mark.xfail`` with the precise RFC citation; they appear as ``x``
-(expected failure) in the output and will flip to ``X`` (unexpected pass)
-once the gap is resolved.
+Tests assert RFC-correct behaviour directly; regressions must fail normally.
 
 RFC compliance: all tested behaviours are now compliant.
 

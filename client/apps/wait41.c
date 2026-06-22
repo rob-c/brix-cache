@@ -1,0 +1,75 @@
+/*
+ * wait41.c — block until an XRootD server accepts connections.
+ *
+ * WHAT: `wait41 [--timeout S] [--full] host[:port]` — poll until the server is
+ *       reachable (TCP connect; with --full, a complete handshake+login). Exits 0
+ *       when ready, non-zero on timeout. The readiness helper the harness wants.
+ * WHY:  A tiny front-end over the client transport/session layer. libXrdCl-free.
+ * HOW:  Loop xrdc_tcp_connect (or xrdc_connect with --full) until a deadline,
+ *       sleeping 1s between attempts.
+ */
+#include "xrdc.h"
+#include "compat/crypto.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+
+int
+main(int argc, char **argv)
+{
+    xrdc_url    u;
+    xrdc_status st;
+    const char *endpoint = NULL;
+    int         timeout_s = 60, full = 0, i;
+    time_t      deadline;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--timeout") == 0 && i + 1 < argc) {
+            timeout_s = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--full") == 0) {
+            full = 1;
+        } else {
+            endpoint = argv[i];
+        }
+    }
+    if (endpoint == NULL) {
+        fprintf(stderr, "usage: %s [--timeout S] [--full] host[:port]\n", argv[0]);
+        return 50;
+    }
+
+    xrootd_crypto_init();
+    xrdc_status_clear(&st);
+    if (xrdc_endpoint_parse(endpoint, &u, &st) != 0) {
+        fprintf(stderr, "%s: %s\n", argv[0], st.msg);
+        return 50;
+    }
+
+    deadline = time(NULL) + timeout_s;
+    for (;;) {
+        xrdc_status_clear(&st);
+        if (full) {
+            xrdc_conn c;
+            if (xrdc_connect(&c, &u, NULL, &st) == 0) {
+                xrdc_close(&c);
+                printf("%s:%d ready\n", u.host, u.port);
+                return 0;
+            }
+        } else {
+            int fd = xrdc_tcp_connect(u.host, u.port, 1000, &st);
+            if (fd >= 0) {
+                close(fd);
+                printf("%s:%d ready\n", u.host, u.port);
+                return 0;
+            }
+        }
+        if (time(NULL) >= deadline) {
+            fprintf(stderr, "%s: %s:%d not ready after %ds\n",
+                    argv[0], u.host, u.port, timeout_s);
+            return 1;
+        }
+        sleep(1);
+    }
+}

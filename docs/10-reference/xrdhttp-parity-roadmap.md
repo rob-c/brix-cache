@@ -1,6 +1,8 @@
 # XrdHttp Parity Roadmap
 
-The strategic work required to bring nginx-xrootd to full feature parity with the official `XrdHttp` protocol — specialized HEP data-transfer extensions, advanced TPC observability, and hierarchical cluster management.
+Strategic parity work for nginx-xrootd's XrdHttp/WebDAV surface: what has
+landed, what remains open, and where nginx-xrootd intentionally differs from
+the official `XrdHttp` implementation.
 
 ---
 
@@ -16,26 +18,39 @@ Official `XrdHttp` (and FTS) relies on periodic progress reporting for long-live
 ## Phase 2: Advanced Authentication & Delegation
 `XrdHttp` supports complex grid delegation patterns that are currently simplified in this module.
 
-*   **Multi-hop GSI Delegation:** Implement the ability to receive a delegated proxy from a client and use it to authenticate outbound TPC connections to a third server.
-*   **Token Refresh & Lifecycle:** Add a background worker or event-timer to refresh delegated OIDC tokens via `oidc-agent` or `token-exchange` endpoints during multi-hour transfers.
+*   **Multi-hop GSI Delegation:** Native root TPC can authenticate outbound with
+    ztn or GSI when configured. HTTP multi-hop proxy delegation remains narrower
+    than the full upstream deployment ecosystem.
+*   **Token Refresh & Lifecycle:** One-shot OIDC/token-exchange delegation is
+    implemented for HTTP-TPC and native TPC. Mid-transfer delegated-token renewal
+    for multi-hour transfers remains open.
 *   **S3 Advanced Auth:**
     *   ~~**Presigned URLs:** Support `X-Amz-Signature` query-string authentication for S3.~~ Implemented for static access-key SigV4.
     *   ~~**STS Tokens:** Parse `X-Amz-Security-Token` header/query forms.~~ Static-secret compatibility is implemented via `xrootd_s3_allow_unsigned_session_token`; dynamic temporary credential stores remain out of scope.
-*   **Expanded Auth Protocols:** Evaluate the necessity of specialized modes like `krb5` or `host/pwd` for specific site requirements.
+*   **Expanded Auth Protocols:** Kerberos 5 is implemented as optional build-time
+    support. `host` and `pwd` remain unimplemented legacy/security-plugin modes.
 
 ## Phase 3: Cluster Topology & Hierarchical Redirection
 Official XRootD's `XrdHttp` is fully aware of `cmsd` cluster states.
 
-*   **Hierarchical Redirection:** Implement `kYR_select`, `kYR_try`, and `kYR_redirect` logic for the HTTP layer. This allows a top-level Nginx redirector to coordinate with sub-managers and leaf nodes in a multi-tier hierarchy.
+*   **Hierarchical Redirection:** Native stream `kYR_select` / `kYR_try`
+    escalation is implemented and tested. HTTP-layer hierarchical redirect/proxy
+    parity is still pending.
 *   **Lateral Redirects:** Support for `307 Temporary Redirect` logic that accounts for XRootD's internal load-balancing and "tried hosts" lists.
-*   **Upstream Auth-More:** Handle upstream servers that require multi-round authentication (`kXR_authmore`) during read-through cache-fill or TPC pull operations.
+*   **Upstream Auth-More:** Transparent upstream bootstrap handles ztn token
+    auth; native TPC handles ztn/GSI through its own path. Transparent-upstream
+    GSI and credentialed cache/write-through origin auth remain open.
 
 ## Phase 4: Protocol Edge Cases & Performance
 Fine-tuning the "look and feel" of the HTTP service to match `xrdcp davs://` expectations.
 
 *   **XRootD-Specific Headers:** Support the full set of `X-Xrootd-*` and `TransferHeader-*` metadata headers used for server-side hints (e.g., `oss.asize`, `xrdcl.requuid`).
-*   **Outbound `kXR_gotoTLS`:** Enable the outbound TPC client to handle in-protocol TLS upgrades when connecting to modern native XRootD sources.
-*   **Asynchronous Staging (`kXR_prepare`):** Move beyond path-validation and implement a real staging queue that can return "staging in progress" status to HTTP clients, matching the behavior of tape-backed `XrdHttp` sites.
+*   **Outbound `kXR_gotoTLS`:** Transparent upstream connections support
+    `kXR_gotoTLS`; native TPC source connections remain plain TCP and still need
+    TLS-upgrade support.
+*   **Asynchronous Staging (`kXR_prepare`):** FRM durable queue and Tape REST
+    gateway support are implemented. Full upstream XrdFrm/MSS semantics remain
+    deployment-specific parity work.
 
 ---
 
@@ -45,8 +60,8 @@ Fine-tuning the "look and feel" of the HTTP service to match `xrdcp davs://` exp
 | :--- | :--- | :--- |
 | **Performance Markers** | High | **Implemented** (`xrootd_webdav_tpc_marker_interval`) |
 | **Async TPC** | High | **Implemented** (timer-based `waitpid` poll, no blocking thread) |
-| **Token Refresh** | Medium | Missing (Critical for long transfers) |
-| **Multi-tier Manager** | Medium | Stream redirects implemented; HTTP hierarchical redirect/proxy parity still pending |
+| **Token Refresh** | Medium | One-shot delegation implemented; mid-transfer renewal remains open |
+| **Multi-tier Manager** | Medium | Native stream hierarchy implemented; HTTP hierarchical redirect/proxy parity still pending |
 | **S3 Presigned URLs** | Medium | **Implemented** for static access-key SigV4 |
-| **Tape Staging** | Low | No-op (Path validation only) |
-| **krb5 Auth** | Low | Not planned |
+| **Tape Staging** | Low | FRM/Tape REST implemented; full XrdFrm/MSS parity partial |
+| **krb5 Auth** | Low | Optional build-time support implemented; `host`/`pwd` remain absent |

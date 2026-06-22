@@ -9,11 +9,20 @@ JSON and unknown v1 API paths do not fall through to the HTML dashboard.
 import json
 import re
 import subprocess
+import time
 
 import pytest
-from settings import NGINX_WEBDAV_PORT, SERVER_HOST
+from settings import NGINX_ANON_PORT, NGINX_WEBDAV_PORT, SERVER_HOST
 
 BASE_URL = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
+ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+
+try:
+    from XRootD import client as _xrd_client
+    from XRootD.client.flags import OpenFlags as _OpenFlags
+    _HAVE_XROOTD = True
+except Exception:  # pragma: no cover - pyxrootd optional in some environments
+    _HAVE_XROOTD = False
 
 
 def _curl(*args, timeout=10):
@@ -203,3 +212,100 @@ class TestDashboardApiFoundation:
             and "login failed" in event["message"]
             for event in data["events"]
         )
+
+
+# Valid transfer-state vocabulary, including the derived "throttled" label that
+# the exporter substitutes for "stalled" on rate-limited (but progressing)
+# transfers.  See src/dashboard/api.c:dashboard_state_name.
+_VALID_STATES = {"active", "idle", "throttled", "stalled", "closing", "error"}
+
+
+def _snapshot(cookie):
+    status, body = _get("/xrootd/api/v1/snapshot", cookie)
+    assert status == 200, f"snapshot returned {status}"
+    return json.loads(body.decode())
+
+
+def _rows_for_path(snap, needle):
+    return [
+        r for r in snap.get("active_transfers", [])
+        if needle in (r.get("path") or "")
+    ]
+
+
+def _wait_for_state(cookie, needle, predicate, timeout=20.0):
+    """Poll the snapshot until a row matching `needle` and `predicate` is seen
+    with idle_ms past the (short, test-config) stalled threshold; return its
+    state string, or None on timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        rows = _rows_for_path(_snapshot(cookie), needle)
+        hits = [r for r in rows if predicate(r) and r.get("idle_ms", 0) >= 3000]
+        if hits:
+            return hits[0]["state"]
+        time.sleep(0.5)
+    return None
+
+
+class TestDashboardThrottledState:
+    """Option B: paced transfers read as a steady 'throttled' row with a smoothed
+    rate, instead of flapping into the red 'stalled' state every inter-burst gap.
+
+    The test dashboard location uses short idle/stalled thresholds (1s/3s) so the
+    transition is observable in seconds rather than the 60s production default.
+    """
+
+    def test_dashboard_page_exposes_throttled_control(self):
+        """The HTML dashboard offers a 'throttled' filter option and a distinct
+        colour class so paced transfers are visually separable from stalled."""
+        cookie = _dashboard_cookie()
+        status, body = _get("/xrootd/", cookie)
+
+        assert status == 200
+        html = body.decode("utf-8")
+        assert ">throttled<" in html           # state-filter <option>
+        assert "state-throttled" in html       # CSS colour class
+
+    def test_snapshot_state_vocabulary_and_rate_fields(self):
+        """Every active transfer reports a known state and carries the smoothed
+        instant_bps plus avg_bps integer rate fields (schema regression)."""
+        cookie = _dashboard_cookie()
+        snap = _snapshot(cookie)
+        assert isinstance(snap.get("active_transfers"), list)
+        for row in snap["active_transfers"]:
+            assert row["state"] in _VALID_STATES, row["state"]
+            assert isinstance(row["instant_bps"], int) and row["instant_bps"] >= 0
+            assert isinstance(row["avg_bps"], int) and row["avg_bps"] >= 0
+
+    @pytest.mark.skipif(not _HAVE_XROOTD, reason="pyxrootd not available")
+    def test_paced_transfer_shows_throttled_not_stalled(self):
+        """A transfer that moved data and is then idle past the stalled threshold
+        is reported as 'throttled' (making scheduled progress), not 'stalled'."""
+        cookie = _dashboard_cookie()
+        f = _xrd_client.File()
+        st, _ = f.open(f"{ANON_URL}//large200.bin", _OpenFlags.READ)
+        assert st.ok, f"open failed: {st.message}"
+        try:
+            st, data = f.read(0, 65536)   # bytes > 0 => avg_bps > 0 => "moving"
+            assert st.ok and len(data) > 0, f"read failed: {st.message}"
+            state = _wait_for_state(
+                cookie, "large200.bin", lambda r: r.get("avg_bps", 0) > 0)
+            assert state == "throttled", f"expected throttled, got {state!r}"
+        finally:
+            f.close()
+
+    @pytest.mark.skipif(not _HAVE_XROOTD, reason="pyxrootd not available")
+    def test_idle_no_progress_transfer_still_shows_stalled(self):
+        """Negative guard: the throttled relabel must NOT mask a genuinely stuck
+        transfer.  A handle opened but never read (avg_bps == 0) past the stalled
+        threshold is still reported as 'stalled', not 'throttled'."""
+        cookie = _dashboard_cookie()
+        f = _xrd_client.File()
+        st, _ = f.open(f"{ANON_URL}//random.bin", _OpenFlags.READ)
+        assert st.ok, f"open failed: {st.message}"
+        try:
+            state = _wait_for_state(
+                cookie, "random.bin", lambda r: r.get("avg_bps", 0) == 0)
+            assert state == "stalled", f"expected stalled, got {state!r}"
+        finally:
+            f.close()

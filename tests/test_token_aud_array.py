@@ -33,10 +33,9 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN                   # noqa: E402
+from settings import NGINX_BIN, free_port, HOST, BIND_HOST         # noqa: E402
 
-HOST = "127.0.0.1"
-PORT = 22010
+PORT = int(os.environ.get("TEST_TOKEN_AUD_PORT") or free_port())
 AUDIENCE = "nginx-xrootd"
 
 
@@ -77,7 +76,7 @@ http {{
     client_body_temp_path {d}/t; proxy_temp_path {d}/t; fastcgi_temp_path {d}/t;
     uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
     server {{
-        listen {HOST}:{PORT};
+        listen {BIND_HOST}:{PORT};
         location / {{
             xrootd_webdav on;
             xrootd_webdav_root {data};

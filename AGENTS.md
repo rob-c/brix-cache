@@ -3,7 +3,7 @@
 **Quick lookup:** OP→FILE → HELPERS → INVARIANTS → BUILD/TEST → FAQ
 **Wire spec:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`
 **Core rules:** (1) Use HELPERS — never reimplement path/auth/metrics/framing (2) 3 tests per change: success + error + security-neg (3) **NO `goto`** + write functional/modular code — small single-purpose functions, explicit data flow, early-return
-**Coding standard (MANDATORY, read before editing `src/`):** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — the authoritative best-practice doc (naming, docs, error handling, allocation, no-goto, functional/modular design, tests).
+**Coding standard (MANDATORY, read before editing `src/` or `client/`):** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — the authoritative best-practice doc (naming, docs, error handling, allocation, no-goto, functional/modular design, tests).
 
 ---
 
@@ -96,6 +96,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 6. S3 SigV4 ≠ WLCG token — never share auth logic
 7. Stat: use handle metadata; no extra path syscalls per read
 8. Metric labels: low-cardinality only (no paths/bucket-names/UUIDs)
+9. CRC64: `crc64`=CRC-64/XZ, `crc64nvme`=CRC-64/NVME — DIFFERENT polys, not interchangeable. Engine `src/compat/crc64.c`; root://+WebDAV emit 16-hex, S3 `x-amz-checksum-crc64nvme` emits base64-of-8-big-endian-bytes (encode at the edge, never in the kernel). See [docs/10-reference/crc64-checksums.md](docs/10-reference/crc64-checksums.md)
 
 **Architecture:**
 9. Native TPC = SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy
@@ -104,7 +105,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 ---
 
 ## HARD BLOCKS (non-negotiable)
-- **NO `goto`** anywhere in `src/` (`.c`/`.h`) — use early-return + helper decomposition (the 3 recipes in [coding-standards §4](docs/09-developer-guide/coding-standards.md#no-goto--forbidden-no-exceptions)). New `goto` is rejected; refactor existing `goto` out of any function you touch.
+- **NO `goto`** anywhere in `src/` or `client/` (`.c`/`.h`) — use early-return + helper decomposition (the 3 recipes in [coding-standards §4](docs/09-developer-guide/coding-standards.md#no-goto--forbidden-no-exceptions)). New `goto` is rejected; refactor existing `goto` out of any function you touch. (`src/` is `goto`-free; `client/` carries a ~70-site refactor-on-touch backlog — OpenSSL/socket cleanup ladders in `client/lib/copy.c`, `proxy.c`, `sec/`, `http.c`, `aio.c`.)
 - **Write functional + modular code** — one responsibility per function, pass state explicitly (no new globals), pure helpers with side effects at the edges, composition over large stateful procedures ([coding-standards §8](docs/09-developer-guide/coding-standards.md#8-functional--modular-design)).
 - **NEVER run any git command (stash, reset, checkout, clean, rebase, etc.) without explicit OP instruction** — these destroy uncommitted work and cannot always be recovered
 - **NEVER use `git show HEAD:path` or any other git command to restore linter-corrupted files** — the working tree has uncommitted changes that would be lost; use the Edit tool to surgically remove the corrupted lines instead
@@ -224,7 +225,7 @@ error_log /tmp/xrd-test/logs/debug.log debug; # nginx debug (server block)
 ---
 
 ## CODE STYLE
-**Full standard:** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — authoritative and mandatory; read it before editing `src/`.
+**Full standard:** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — authoritative and mandatory; read it before editing `src/` or `client/`.
 
 Headlines: Smaller well-documented files with focused responsibilities. **No `goto`** — early-return + helper decomposition. **Functional + modular** — one job per function, explicit data flow (pass `ctx`, no new globals), pure helpers with side effects at the edges, table/descriptor-driven dispatch over branch ladders. Use existing helpers and patterns — never reimplement path/auth/metrics/framing. New concepts require docs+tests in same PR. Code must compile and pass tests — no placeholders or stubs. Section-level WHAT/WHY/HOW doc blocks on every function. Consistent formatting and naming. Avoid clever tricks; prefer clarity.
 
