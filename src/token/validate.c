@@ -311,8 +311,14 @@ xrootd_token_validate(ngx_log_t *log,
     json_get_string((char *) pay_json, (size_t) pay_len, "scope",
                     claims->scope_raw, sizeof(claims->scope_raw));
 
-    json_get_int64((char *) pay_json, (size_t) pay_len, "exp",
-                   &claims->exp);
+    if (json_get_int64((char *) pay_json, (size_t) pay_len, "exp",
+                       &claims->exp) != 0
+        || claims->exp <= 0)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd_token: token missing valid positive exp");
+        return -1;
+    }
     json_get_int64((char *) pay_json, (size_t) pay_len, "nbf",
                    &claims->nbf);
     json_get_int64((char *) pay_json, (size_t) pay_len, "iat",
@@ -353,8 +359,7 @@ xrootd_token_validate(ngx_log_t *log,
     /* Apply a clock-skew window so that tokens from systems whose clock differs
      * from ours by a few seconds are not spuriously rejected.  The skew widens
      * the acceptance window on both sides without permanently extending validity. */
-    if (claims->exp > 0
-        && now > (time_t) claims->exp + XROOTD_TOKEN_CLOCK_SKEW_SECS)
+    if (now > (time_t) claims->exp + XROOTD_TOKEN_CLOCK_SKEW_SECS)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd_token: token expired at %L (now=%L skew=%d)",

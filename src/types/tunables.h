@@ -186,6 +186,15 @@
 #define XROOTD_AUTH_UNIX   5   /* XRootD unix auth (self-asserted local) */
 #define XROOTD_AUTH_KRB5   6   /* XRootD Kerberos 5 auth                 */
 
+/* ---- GSI signed-DH policy (phase-48; xrootd_gsi_signed_dh directive) ---- */
+#define XROOTD_GSI_SDH_OFF      0  /* always unsigned DH (default, universal)  */
+#define XROOTD_GSI_SDH_AUTO     1  /* signed DH for clients advertising >=10400 */
+#define XROOTD_GSI_SDH_REQUIRE  2  /* signed DH only; reject <10400 clients     */
+
+/* XrdSecgsi version at/after which the RSA-signed-DH wire variant applies
+ * (XrdSecgsiVersDHsigned in the reference implementation). */
+#define XROOTD_GSI_VERS_DHSIGNED 10400
+
 /* ---- SSS constants ---- */
 #define XROOTD_SSS_KEY_MAX   128
 #define XROOTD_SSS_NAME_MAX  192

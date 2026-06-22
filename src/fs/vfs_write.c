@@ -230,6 +230,11 @@ xrootd_vfs_write(xrootd_vfs_file_t *fh, off_t offset, ngx_chain_t *in,
         }
     }
 
+    /* phase-45 W2/R1: a write changes mtime/ctime (and possibly size), so the
+     * metadata cached at open time is no longer authoritative — force the next
+     * xrootd_vfs_file_stat() to issue a live fstat. */
+    fh->stat_current = 0;
+
     if (result != NULL && rc == NGX_OK) {
         result->length = (size_t) (dst_off - offset);
         result->crc32c = crc;

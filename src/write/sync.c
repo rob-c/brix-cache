@@ -93,7 +93,11 @@ xrootd_handle_sync(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		                                  ctx->files[idx].path,
 		                                  kXR_IOError);
 		if (rc != NGX_OK) {
-			return rc;
+			/* Flush failed: the helper only reports status, so send the
+			 * single kXR_error wire response here. */
+			XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
+			return xrootd_send_error(ctx, c, kXR_IOError,
+			                          "write-through flush to origin failed");
 		}
 	}
 

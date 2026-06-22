@@ -24,6 +24,7 @@ typedef struct {
     const char                *op_name;       /* "GET" / "GetObject"            */
     const char                *identity;      /* caller-resolved display string  */
     unsigned                   etag_flags;    /* XROOTD_ETAG_WEAK or 0           */
+    ngx_flag_t                 compress;      /* phase-42: allow outbound codec  */
     xrootd_http_pre_header_fn  pre_header_send;
     void                      *pre_header_ud;
 } xrootd_http_serve_opts_t;

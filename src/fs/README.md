@@ -159,10 +159,13 @@ per-op data-plane metrics.
    registers `ngx_pool_cleanup_file`, so the request pool closes the *duplicate*
    independently of `xrootd_vfs_close()`. Don't close the handle out from under
    an in-flight sendfile buf.
-8. **`stat` uses `lstat`** (no symlink follow) and `readdir` filters `.`/`..`;
-   `xrootd_vfs_file_stat()` answers from the live fd via `fstat`, while
-   read/write bound I/O against the *cached* `fh->size` for speed — a file grown
-   by another writer won't be seen until reopen.
+8. **`stat` uses `lstat`** (no symlink follow) and `readdir` filters `.`/`..`.
+   `xrootd_vfs_file_stat()` answers from the metadata cached at open time when the
+   handle's `stat_current` bit is set (phase-45 W2/R1 — `adopt_fd` already
+   `fstat`'d the fd, and reads don't change it), avoiding a redundant `fstat` on
+   the GET hot path; `xrootd_vfs_write()` clears the bit so a write-then-stat
+   still issues a live `fstat`. read/write bound I/O against the *cached*
+   `fh->size` for speed — a file grown by another writer won't be seen until reopen.
 9. **`errno` discipline.** Helpers set `errno` on failure and the observers
    restore the caller's `errno` after logging; rely on the documented `errno`,
    not on globals surviving the metrics call.

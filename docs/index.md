@@ -146,6 +146,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [Configuration Reference](03-configuration/config-reference.md) | All directives with defaults (complete reference) |
 | [TLS Configuration](03-configuration/tls-config.md) | `root://` upgrade, `roots://`, HTTPS setup |
 | [Production Deployment](03-configuration/production-deployment.md) | Production deployment patterns and best practices |
+| [Deployment Configuration Reference](10-reference/comparison/deployment-reference.md) | Side-by-side nginx-xrootd and vanilla XRootD snippets for root, HTTP, token, GSI, packet marking, user mapping, cache, TPC, monitoring, mirroring, staging, and traffic-control deployments |
 
 ### Protocols & Clients
 *What actually happens on the wire — how each protocol and client type behaves.*
@@ -154,6 +155,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 |----------|-------------|
 | [WebDAV Overview](04-protocols/webdav-overview.md) | WebDAV operations, LOCK/UNLOCK, x509 and bearer token setup |
 | [XRootD Client Interaction](04-protocols/xrootd-client-interaction.md) | How `xrdcp`, `xrdfs`, and Python clients interact with the server |
+| [Native Client Tools](04-protocols/native-client-tools.md) | Clean-room `xrdcp`, `xrdfs`, diagnostics, checksum tools, FUSE mounts, POSIX preload, and `libxrdc` |
 | [HTTP TPC Reference](04-protocols/http-tpc-reference.md) | Third-party copy comparison between HTTP-TPC and native XRootD TPC |
 | [CMS Cluster Protocol (`cms://`)](04-protocols/cms-protocol.md) | The cmsd↔cmsd management wire protocol — framing, manager↔server↔client negotiation, and cmsd-compliance gotchas |
 
@@ -181,6 +183,10 @@ graph TD
 | Document | Description |
 |----------|-------------|
 | [Authentication Overview](06-authentication/auth-overview.md) | Anonymous, GSI/x509, WLCG/JWT, SSS setup and comparison |
+| [Identity → UNIX mapping](06-authentication/identity-mapping.md) | How X.509/VOMS/VO or token/SSS identities map to local UNIX user & group, and how admins force/override a mapping |
+| [Per-request impersonation](06-authentication/impersonation.md) | Optional (off by default): run open/metadata ops as the mapped local UNIX user via a privileged broker, so files are owned by — and DAC is enforced for — the real user |
+| [Authorization (native authdb)](06-authentication/authorization.md) | The default `native` authdb engine (`u/g/p/a` records) |
+| [Authorization (XrdAcc)](06-authentication/authorization-xrdacc.md) | The XrdAcc-compatible engine + full authdb grammar |
 | [PKI Configuration](06-authentication/pki-config.md) | Grid/WLCG/OSG security model overview — what you need to know about certificates |
 | [Test PKI Setup](06-authentication/test-pki-setup.md) | Generate test CA, certs, proxies, VOMS for development |
 | [Test Token Generation](06-authentication/test-token-generation.md) | Generate local WLCG/JWT signing keys and tokens for testing |
@@ -204,6 +210,10 @@ graph TD
 | [Cluster Management](05-operations/cluster-management.md) | CMS heartbeat, dynamic registry, redirect semantics |
 | [Hierarchical Cluster](05-operations/hierarchical-cluster.md) | Multi-level cluster topology patterns |
 | [Manager Mode](05-operations/manager-mode.md) | Manager node configuration and operation |
+| [Troubleshooting](05-operations/troubleshooting.md) | Symptom-first decision tree: won't-start, auth, 5xx, saturation, cluster/TPC |
+| [Capacity Planning](05-operations/capacity-planning.md) | Sizing workers/connections/FDs, thread pool, SHM zones, transfer budget |
+| [Certificate & Token Rotation](05-operations/certificate-rotation.md) | Hot-reload of JWKS/CRL/authdb + graceful host-cert roll without dropping requests |
+| [Upgrade Procedure](05-operations/upgrade-procedure.md) | RPM upgrade/rollback, the 2-`.so` module-load order, libbz2 SONAME caveat |
 
 ### Observability & Monitoring
 *Every request lands in a counter. Here's how to read them.*
@@ -240,8 +250,10 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 |----------|-------------|
 | [Development Workflow](09-developer-guide/dev-workflow.md) | Source tree layout, utilities, local development setup |
 | [Coding Standards](09-developer-guide/coding-standards.md) | C style, naming, documentation, and review expectations |
+| [XrdSecgsi Handshake](09-developer-guide/xrdsecgsi-handshake.md) | The real GSI handshake (client & server) — protocol, exact wire formats, and every gotcha; how `./client/xrdfs` authenticates to stock EOS |
 | [Testing Runbook](09-developer-guide/testing-runbook.md) | Running tests, cross-compatible test harness, troubleshooting |
 | [Test ↔ Protocol Mapping](09-developer-guide/test-protocol-mapping.md) | Which test files cover which protocol areas |
+| [Adversarial Hardening Tests](09-developer-guide/adversarial-testing.md) | Evil-actor suites (worker-crash hunt, race detection, hostile wire parsing) — what they attack and how the codebase defends |
 | [Contributing Guide](09-developer-guide/contributing.md) | How to submit changes, code style expectations |
 | [Feature Roadmap](09-developer-guide/feature-roadmap.md) | Planned features and priorities |
 | [Refactor Series](refactor/00-overview.md) | Design records for the phased refactor work (phase-NN) |

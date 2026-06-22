@@ -95,6 +95,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->gsi_cert_pem = NULL;
     conf->gsi_cert_pem_len = 0;
     conf->gsi_ca_hash  = 0;
+    conf->gsi_signed_dh = NGX_CONF_UNSET_UINT;
     conf->vo_rules     = NULL;
     conf->group_rules  = NULL;
     conf->access_log_fd = NGX_INVALID_FILE;
@@ -103,6 +104,8 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->security_level = NGX_CONF_UNSET_UINT;
     conf->tls          = NGX_CONF_UNSET;
     conf->tls_ktls     = NGX_CONF_UNSET;
+    conf->read_compress = NGX_CONF_UNSET;
+    conf->write_compress = NGX_CONF_UNSET;
     conf->tls_ctx      = NULL;
     conf->cache        = NGX_CONF_UNSET;
     conf->cache_origin_tls = NGX_CONF_UNSET;
@@ -255,6 +258,8 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->common.enable,      prev->common.enable,      0);
     ngx_conf_merge_str_value(conf->common.root,    prev->common.root,        "/");
     ngx_conf_merge_uint_value(conf->auth,   prev->auth,        XROOTD_AUTH_NONE);
+    ngx_conf_merge_uint_value(conf->gsi_signed_dh, prev->gsi_signed_dh,
+                              XROOTD_GSI_SDH_OFF);
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
 
     /* XrdAcc engine: default native, audit off, refresh off, 12h gid cache. */
@@ -337,9 +342,15 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
     ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        0);
+    ngx_conf_merge_value(conf->read_compress,   prev->read_compress,   0);
+    ngx_conf_merge_value(conf->write_compress,  prev->write_compress,  0);
     ngx_conf_merge_value(conf->cache,           prev->cache,           0);
     ngx_conf_merge_str_value(conf->cache_root,  prev->cache_root,      "");
     ngx_conf_merge_str_value(conf->cache_origin, prev->cache_origin,   "");
+    ngx_conf_merge_str_value(conf->cache_origin_proxy,  prev->cache_origin_proxy,  "");
+    ngx_conf_merge_str_value(conf->cache_origin_cadir,  prev->cache_origin_cadir,
+                             "/etc/grid-security/certificates");
+    ngx_conf_merge_str_value(conf->cache_origin_client, prev->cache_origin_client, "xrdcp");
     ngx_conf_merge_value(conf->cache_origin_tls, prev->cache_origin_tls, 0);
     ngx_conf_merge_value(conf->cache_lock_timeout,
                          prev->cache_lock_timeout, 300);

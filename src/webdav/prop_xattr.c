@@ -9,12 +9,29 @@
  * succeeds and the other gets EEXIST → NGX_DECLINED → 423 Locked.
  */
 #include "webdav.h"
+#include "../path/path.h"
 
 #include <sys/xattr.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+
+/*
+ * Phase 40: lock xattrs must be written/read/removed AS THE MAPPED USER under
+ * impersonation, else the worker (svc) cannot setxattr on the user-owned lock
+ * file (EACCES) and LOCK/UNLOCK break.  These helpers take the request so they
+ * can resolve the export root and route through xrootd_*xattr_confined_canon,
+ * which delegates to the broker when map mode is active and falls back to the
+ * raw path-based syscall otherwise (unchanged when impersonation is off).
+ */
+static const char *
+webdav_lock_root_canon(ngx_http_request_t *r)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    return conf->common.root_canon;
+}
 
 #ifndef ENOATTR
 #define ENOATTR ENODATA
@@ -83,10 +100,12 @@ webdav_lock_xattr_decode(const char *raw, size_t rawlen, webdav_lock_xattr_t *e)
 }
 
 ngx_int_t
-webdav_lock_xattr_write(ngx_log_t *log, const char *path,
+webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
     const webdav_lock_xattr_t *e, int flags)
 {
-    char buf[WEBDAV_LOCK_XATTR_MAXLEN];
+    ngx_log_t  *log = r->connection->log;
+    const char *root_canon = webdav_lock_root_canon(r);
+    char        buf[WEBDAV_LOCK_XATTR_MAXLEN];
 
     if (webdav_lock_xattr_encode(e, buf, sizeof(buf)) != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
@@ -94,7 +113,9 @@ webdav_lock_xattr_write(ngx_log_t *log, const char *path,
         return NGX_ERROR;
     }
 
-    if (setxattr(path, WEBDAV_LOCK_XATTR_KEY, buf, strlen(buf), flags) != 0) {
+    if (xrootd_setxattr_confined_canon(log, root_canon, path,
+            WEBDAV_LOCK_XATTR_KEY, buf, strlen(buf), flags) != 0)
+    {
         if (errno == EEXIST) {
             return NGX_DECLINED;   /* XATTR_CREATE race — another worker won */
         }
@@ -107,12 +128,16 @@ webdav_lock_xattr_write(ngx_log_t *log, const char *path,
 }
 
 ngx_int_t
-webdav_lock_xattr_read(ngx_log_t *log, const char *path, webdav_lock_xattr_t *e)
+webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
+    webdav_lock_xattr_t *e)
 {
-    char    buf[WEBDAV_LOCK_XATTR_MAXLEN];
-    ssize_t n;
+    ngx_log_t  *log = r->connection->log;
+    const char *root_canon = webdav_lock_root_canon(r);
+    char        buf[WEBDAV_LOCK_XATTR_MAXLEN];
+    ssize_t     n;
 
-    n = getxattr(path, WEBDAV_LOCK_XATTR_KEY, buf, sizeof(buf) - 1);
+    n = xrootd_getxattr_confined_canon(log, root_canon, path,
+            WEBDAV_LOCK_XATTR_KEY, buf, sizeof(buf) - 1);
     if (n < 0) {
         if (errno == ENODATA || errno == ENOATTR || errno == ENOENT) {
             return NGX_DECLINED;
@@ -126,9 +151,14 @@ webdav_lock_xattr_read(ngx_log_t *log, const char *path, webdav_lock_xattr_t *e)
 }
 
 ngx_int_t
-webdav_lock_xattr_delete(ngx_log_t *log, const char *path)
+webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path)
 {
-    if (removexattr(path, WEBDAV_LOCK_XATTR_KEY) != 0) {
+    ngx_log_t  *log = r->connection->log;
+    const char *root_canon = webdav_lock_root_canon(r);
+
+    if (xrootd_removexattr_confined_canon(log, root_canon, path,
+            WEBDAV_LOCK_XATTR_KEY) != 0)
+    {
         if (errno == ENODATA || errno == ENOATTR || errno == ENOENT) {
             return NGX_OK;   /* idempotent */
         }

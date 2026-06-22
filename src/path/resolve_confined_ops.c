@@ -9,9 +9,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/xattr.h>
 #include <time.h>
 #include <unistd.h>
 #include <linux/openat2.h>
@@ -54,6 +56,46 @@ extern int xrootd_open_confined_parent_canon(ngx_log_t *log, const char *root_ca
  * HOW: xrootd_open_confined_canon(..., flags, mode). flags = O_RDONLY/O_WRONLY/O_RDWR/O_CREAT/O_TRUNC etc.; 
  *      mode = 0644 permission bits (used only when O_CREAT is set). CRITICAL: Do NOT pass permission bits in flags position —
  *      0644 has the O_EXCL bit (0200) and would cause unexpected exclusive-create semantics. */
+
+ngx_int_t
+xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
+    const char *resolved)
+{
+    char rel[PATH_MAX];
+    int  fd;
+
+    if (!xrootd_imp_enabled()) {
+        return NGX_OK;                   /* impersonation off — existing gate holds */
+    }
+    if (!xrootd_imp_client_active()) {
+        /*
+         * Map mode is active but this request carries no per-request principal
+         * (e.g. the principal was cleared by an async body read and not yet
+         * re-established, or an anonymous request reached here).  We cannot
+         * determine the mapped user's DAC, so FAIL CLOSED — refuse to enumerate
+         * the directory rather than list it with the privileged worker's
+         * credentials (which leaked entries of dirs the mapped user cannot read).
+         */
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "impersonate: dirlist access check with no principal set"
+                      " — refusing to enumerate \"%s\" (fail closed)", resolved);
+        return NGX_ERROR;
+    }
+    if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                          rel, sizeof(rel)))
+    {
+        return NGX_ERROR;
+    }
+    /* Ask the broker to open the dir for READING as the mapped user.  readdir
+     * needs read permission on the directory, so a successful O_RDONLY|O_DIRECTORY
+     * open means the user is entitled to list it; EACCES means they are not. */
+    fd = xrootd_imp_open(rel, O_RDONLY | O_DIRECTORY, 0);
+    if (fd < 0) {
+        return NGX_ERROR;
+    }
+    close(fd);
+    return NGX_OK;
+}
 
 int
 xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
@@ -252,9 +294,16 @@ xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
  * WHY: RENAME/MOVE operations MUST happen under confinement on BOTH source AND destination to prevent moving files into/out of export root.
  *      Even if src/dst paths appear correct, confinement ensures move happens within the confined location boundaries. */
 
-int
-xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *src_resolved, const char *dst_resolved)
+#ifndef RENAME_NOREPLACE
+#define RENAME_NOREPLACE (1u << 0)
+#endif
+
+/* Shared body for the plain and create-if-absent confined renames.  When
+ * `noreplace` is set, uses renameat2(RENAME_NOREPLACE) and falls back to a plain
+ * renameat (logged once) on kernels/filesystems without the flag. */
+static int
+rename_confined_canon_impl(ngx_log_t *log, const char *root_canon,
+    const char *src_resolved, const char *dst_resolved, int noreplace)
 {
     char src_base[NAME_MAX + 1];
     char dst_base[NAME_MAX + 1];
@@ -272,7 +321,8 @@ xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
         {
             return -1;
         }
-        return xrootd_imp_rename(rsrc, rdst);
+        return noreplace ? xrootd_imp_rename_noreplace(rsrc, rdst)
+                         : xrootd_imp_rename(rsrc, rdst);
     }
 
     src_parentfd = xrootd_open_confined_parent_canon(log, root_canon,
@@ -290,10 +340,46 @@ xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
         return -1;
     }
 
-    rc = renameat(src_parentfd, src_base, dst_parentfd, dst_base);
-    close(src_parentfd);
-    close(dst_parentfd);
+    if (noreplace) {
+        rc = (int) syscall(SYS_renameat2, src_parentfd, src_base,
+                           dst_parentfd, dst_base,
+                           (unsigned int) RENAME_NOREPLACE);
+        if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
+            static int warned = 0;
+            if (!warned) {
+                warned = 1;
+                ngx_log_error(NGX_LOG_WARN, log, errno,
+                              "xrootd: renameat2(RENAME_NOREPLACE) unsupported; "
+                              "create-if-absent falls back to non-atomic rename");
+            }
+            rc = renameat(src_parentfd, src_base, dst_parentfd, dst_base);
+        }
+    } else {
+        rc = renameat(src_parentfd, src_base, dst_parentfd, dst_base);
+    }
+    {
+        int e = errno;
+        close(src_parentfd);
+        close(dst_parentfd);
+        errno = e;
+    }
     return rc;
+}
+
+int
+xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *src_resolved, const char *dst_resolved)
+{
+    return rename_confined_canon_impl(log, root_canon, src_resolved,
+                                      dst_resolved, 0);
+}
+
+int
+xrootd_rename_confined_canon_excl(ngx_log_t *log, const char *root_canon,
+    const char *src_resolved, const char *dst_resolved)
+{
+    return rename_confined_canon_impl(log, root_canon, src_resolved,
+                                      dst_resolved, 1);
 }
 
 int
@@ -383,6 +469,48 @@ xrootd_setattr_confined_canon(ngx_log_t *log, const char *root_canon,
         && fchownat(parentfd, base, uid, gid, AT_SYMLINK_NOFOLLOW) != 0) {
         rc = -1;
     }
+    saved_errno = errno;
+    close(parentfd);
+    errno = saved_errno;
+    return rc;
+}
+
+/* ---- Confined chmod — broker-routed under impersonation ----
+ *
+ * WHAT: Apply <mode> (low 12 bits) to <resolved>.  Under impersonation routes
+ *       through the broker so the chmod runs AS THE MAPPED USER (a chmod requires
+ *       being the file's owner; the unprivileged worker is not, so a worker-local
+ *       chmod of a user-owned file would EPERM — even for the file's real owner).
+ *       Off impersonation, fchmodat anchored at the confined parent fd (so a
+ *       symlink/parent swap cannot redirect the change outside the root).
+ *       Returns 0 on success, -1 with errno set.
+ */
+int
+xrootd_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, mode_t mode)
+{
+    char base[NAME_MAX + 1];
+    int  parentfd;
+    int  rc;
+    int  saved_errno;
+
+    /* Phase 40: route through the broker (as the mapped user) when active. */
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_chmod(rel, mode & 07777);
+    }
+
+    parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
+                                                 base, sizeof(base));
+    if (parentfd < 0) {
+        return -1;
+    }
+    rc = fchmodat(parentfd, base, mode & 07777, 0) == 0 ? 0 : -1;
     saved_errno = errno;
     close(parentfd);
     errno = saved_errno;
@@ -535,3 +663,156 @@ xrootd_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
  *
  * HOW: 1) Call xrootd_open_confined_parent_canon(log, root_canon, src_resolved, src_base, sizeof(src_base)) to get src_parentfd; 2) If src_parentfd < 0, return -1; 3) Call xrootd_open_confined_parent_canon(log, root_canon, dst_resolved, dst_base, sizeof(dst_base)) to get dst_parentfd; 4) If dst_parentfd < 0, close src_parentfd and return -1; 5) Call linkat(src_parentfd, src_base, dst_parentfd, dst_base, 0); 6) Close both fds; 7) Return linkat result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffers — safe for concurrent use. */
 
+
+/* ---- Confined extended-attribute ops — broker-routed under impersonation ----
+ *
+ * WHAT: set/get/remove/list extended attributes on a resolved (already
+ *       lexically-confined) path.  When impersonation map mode is active the op
+ *       is routed to the privileged broker, which re-confines under its own
+ *       export rootfd (openat2 RESOLVE_BENEATH) and performs the f*xattr as the
+ *       mapped user — so the lock/dead-property xattr lands with, and is
+ *       DAC-checked for, the real user (not the unprivileged worker).  When
+ *       impersonation is off the behaviour is byte-for-byte the prior raw
+ *       path-based syscall, so the non-impersonated path is unchanged.
+ *
+ * WHY: WebDAV LOCK tokens and PROPPATCH dead-properties are stored as `user.*`
+ *       xattrs on the resource.  Without broker routing the worker (svc) would
+ *       attempt setxattr on a file owned 0644 by the mapped user and fail EACCES
+ *       — i.e. LOCK/PROPPATCH were broken under impersonation.  Routing fixes
+ *       that and keeps the on-disk metadata owned by the right identity.
+ *
+ * Return values mirror the POSIX *xattr contract (get/list: byte count, or the
+ * size when bufsz==0; -1/ERANGE when the caller buffer is too small).
+ */
+int
+xrootd_setxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *name, const void *value, size_t len,
+    int flags)
+{
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_setxattr(rel, name, value, len, flags);
+    }
+    return setxattr(resolved, name, value, len, flags);
+}
+
+ssize_t
+xrootd_getxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *name, void *buf, size_t bufsz)
+{
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_getxattr(rel, name, buf, bufsz);
+    }
+    return getxattr(resolved, name, buf, bufsz);
+}
+
+int
+xrootd_removexattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, const char *name)
+{
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_removexattr(rel, name);
+    }
+    return removexattr(resolved, name);
+}
+
+ssize_t
+xrootd_listxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, void *buf, size_t bufsz)
+{
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_listxattr(rel, buf, bufsz);
+    }
+    return listxattr(resolved, buf, bufsz);
+}
+
+/* ---- Confined directory open — broker-routed fd + fdopendir under impersonation
+ *
+ * WHAT: open <resolved> as a directory stream that, under impersonation map mode,
+ *       is opened BY THE BROKER as the mapped user (O_RDONLY|O_DIRECTORY via
+ *       RESOLVE_BENEATH) and handed back as an fd that we fdopendir().  readdir on
+ *       that stream then enumerates the directory with the mapped user's read
+ *       permission — so a worker that cannot itself opendir a user-private dir
+ *       (e.g. a 0700 multipart staging dir owned by the mapped user) can still
+ *       list it on the user's behalf.  Off impersonation it is a plain opendir().
+ *
+ * WHY: S3 multipart ListParts / AbortMultipartUpload (and the staging-dir cleanup)
+ *      enumerate a staging directory created+owned by the mapped user.  Done as a
+ *      raw worker-side opendir() they fail EACCES under impersonation; routing the
+ *      open through the broker fixes that while keeping per-entry removal on the
+ *      already-brokered xrootd_unlink_confined_canon path.  Returns a DIR* (caller
+ *      closedir()s it) or NULL (errno set). */
+DIR *
+xrootd_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved)
+{
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+        int  fd;
+        DIR *d;
+
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return NULL;
+        }
+        fd = xrootd_imp_open(rel, O_RDONLY | O_DIRECTORY, 0);  /* as mapped user */
+        if (fd < 0) {
+            return NULL;
+        }
+        d = fdopendir(fd);
+        if (d == NULL) {
+            close(fd);
+        }
+        return d;                          /* closedir() closes the fd */
+    }
+    return opendir(resolved);
+}
+
+/* xrootd_lstat_confined_canon — lstat()/stat() a path *as the mapped user* under
+ * impersonation, else a bare lstat/stat.  WHY: recursive walks (COPY/MOVE
+ * collections, S3 multipart, remove-tree) lstat children of a directory owned
+ * 0700 by the mapped user; a raw worker lstat would EACCES on the parent's
+ * search bit.  Routes through the broker (which stat()s as the mapped user) so
+ * the walk sees what that user can see.  nofollow!=0 → lstat semantics (do not
+ * follow a trailing symlink — confinement: never resolve a link out of the
+ * export).  Returns 0 on success, -1 on error (errno set). */
+int
+xrootd_lstat_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, struct stat *st, int nofollow)
+{
+    if (xrootd_imp_client_active()) {
+        char rel[PATH_MAX];
+
+        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                              rel, sizeof(rel)))
+        {
+            return -1;
+        }
+        return xrootd_imp_stat(rel, st, nofollow);    /* as mapped user */
+    }
+    return nofollow ? lstat(resolved, st) : stat(resolved, st);
+}

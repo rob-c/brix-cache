@@ -23,6 +23,7 @@ import time
 import pytest
 
 from settings import (
+    HOST,
     TPC_SSRF_DEFAULT_PORT,
     TPC_SSRF_ALLOW_LOCAL_PORT,
     TPC_SSRF_DENY_PRIVATE_PORT,
@@ -141,7 +142,7 @@ def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
 def nginx_default():
     """Verify the default SSRF-policy dedicated server is reachable."""
     try:
-        with socket.create_connection(("127.0.0.1", TPC_SSRF_DEFAULT_PORT), timeout=5):
+        with socket.create_connection((HOST, TPC_SSRF_DEFAULT_PORT), timeout=5):
             pass
     except OSError:
         pytest.skip(f"TPC SSRF default server not reachable at port {TPC_SSRF_DEFAULT_PORT}")
@@ -152,7 +153,7 @@ def nginx_default():
 def nginx_allow_local():
     """Verify the allow-local SSRF-policy dedicated server is reachable."""
     try:
-        with socket.create_connection(("127.0.0.1", TPC_SSRF_ALLOW_LOCAL_PORT), timeout=5):
+        with socket.create_connection((HOST, TPC_SSRF_ALLOW_LOCAL_PORT), timeout=5):
             pass
     except OSError:
         pytest.skip(f"TPC SSRF allow-local server not reachable at port {TPC_SSRF_ALLOW_LOCAL_PORT}")
@@ -163,7 +164,7 @@ def nginx_allow_local():
 def nginx_deny_private():
     """Verify the deny-private SSRF-policy dedicated server is reachable."""
     try:
-        with socket.create_connection(("127.0.0.1", TPC_SSRF_DENY_PRIVATE_PORT), timeout=5):
+        with socket.create_connection((HOST, TPC_SSRF_DENY_PRIVATE_PORT), timeout=5):
             pass
     except OSError:
         pytest.skip(f"TPC SSRF deny-private server not reachable at port {TPC_SSRF_DENY_PRIVATE_PORT}")
@@ -175,7 +176,7 @@ def nginx_deny_private():
 # ---------------------------------------------------------------------------
 
 def _tpc_attempt(port, src_url, dst_filename="/tpc_dst_test.dat"):
-    sock, hs_status = _raw_session("127.0.0.1", port)
+    sock, hs_status = _raw_session(HOST, port)
     assert hs_status == kXR_OK, "handshake failed: %d" % hs_status
     login_status = _login(sock)
     assert login_status == kXR_OK, "login failed: %d" % login_status

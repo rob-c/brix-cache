@@ -42,7 +42,7 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, SERVER_HOST
+from settings import NGINX_BIN, SERVER_HOST, HOST, BIND_HOST, free_ports
 
 H = SERVER_HOST
 
@@ -51,16 +51,20 @@ H = SERVER_HOST
 # shared fleet and the other self-provisioned suites (mirror uses 12910-12929).
 # ---------------------------------------------------------------------------
 
-_DIR = "/tmp/xrd_cms_state_have_select"
+_DIR = os.path.join(os.environ["TMPDIR"], "xrd_cms_state_have_select")
+
+# All three are bound by this suite's own servers (nginx CMS-client listen,
+# python manager-peer bind, nginx CMS-server listen), so each gets a free OS
+# port to avoid colliding with the managed fleet or other self-contained
+# suites.  Env overrides are preserved.  free_ports(3) guarantees distinctness.
+_FREE_CLIENT, _FREE_MGR, _FREE_SRV = free_ports(3)
 
 # CMS-client nginx: nginx dials OUT to MGR_PORT; we play the manager there.
-# 12996-12998: above test_proxy_protocol_edges' reserved 12950-12972 block so
-# the full P0 suite runs collision-free in one pytest invocation.
-CLIENT_NGINX_PORT = int(os.environ.get("TEST_CMSSHS_CLIENT_PORT", "12996"))
-MGR_PORT          = int(os.environ.get("TEST_CMSSHS_MGR_PORT",    "12997"))
+CLIENT_NGINX_PORT = int(os.environ.get("TEST_CMSSHS_CLIENT_PORT") or _FREE_CLIENT)
+MGR_PORT          = int(os.environ.get("TEST_CMSSHS_MGR_PORT")    or _FREE_MGR)
 
 # CMS-server nginx: nginx LISTENS as a manager; we play a data node dialing IN.
-SRV_NGINX_PORT    = int(os.environ.get("TEST_CMSSHS_SRV_PORT",    "12998"))
+SRV_NGINX_PORT    = int(os.environ.get("TEST_CMSSHS_SRV_PORT")    or _FREE_SRV)
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +182,7 @@ class _ManagerPeer:
     def start(self):
         self._srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind(("127.0.0.1", self.port))
+        self._srv.bind((BIND_HOST, self.port))
         self._srv.listen(4)
         self._srv.settimeout(40)
         self._thread = threading.Thread(target=self._accept_one, daemon=True)
@@ -261,7 +265,7 @@ def _client_conf(name, port, data_dir, mgr_port):
             f"        xrootd_root {data_dir};\n"
             f"        xrootd_auth none;\n"
             f"        xrootd_allow_write on;\n"
-            f"        xrootd_cms_manager 127.0.0.1:{mgr_port};\n"
+            f"        xrootd_cms_manager {HOST}:{mgr_port};\n"
             f"        xrootd_cms_paths /;\n"
             f"        xrootd_cms_interval 2;\n"
             f"        xrootd_listen_port {port};\n"
@@ -571,7 +575,7 @@ class TestSelectTryParsing:
         (no waiting client) is silently ignored (pending==NULL -> NGX_OK).
         The connection must not be torn down."""
         conn = client_stack["conn"]
-        payload = _select_payload("127.0.0.1", 1094)
+        payload = _select_payload(HOST, 1094)
         _send_frame(conn, 0xDEADBEEF, CMS_RR_SELECT, payload=payload)
         _ping_sanity(conn)
 

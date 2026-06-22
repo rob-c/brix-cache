@@ -33,11 +33,13 @@ from pathlib import Path
 
 import pytest
 from settings import (
+    HOST,
     ROOT_TPC_NGINX_PORT,
     ROOT_TPC_REF_PORT,
     TEST_ROOT,
     XRDCP_BIN,
     XRDFS_BIN,
+    url_host,
 )
 
 @dataclass(frozen=True)
@@ -154,7 +156,7 @@ def nginx_root():
     data_root.mkdir(parents=True, exist_ok=True)
 
     port = ROOT_TPC_NGINX_PORT
-    url = f"root://localhost:{port}"
+    url = f"root://{url_host(HOST)}:{port}"
 
     ready = False
     last_result = None
@@ -196,7 +198,7 @@ def reference_root_tpc():
     data_root.mkdir(parents=True, exist_ok=True)
 
     port = ROOT_TPC_REF_PORT
-    url = f"root://localhost:{port}"
+    url = f"root://{url_host(HOST)}:{port}"
 
     ready = False
     for _ in range(30):

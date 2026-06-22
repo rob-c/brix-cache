@@ -35,18 +35,20 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, QueryCode
 
-from settings import SERVER_HOST
+from settings import SERVER_HOST, HOST, free_port
 
 NGINX_BIN  = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 XROOTD_BIN = os.environ.get("TEST_XROOTD_BIN", "/usr/bin/xrootd")
 H = SERVER_HOST
-_DIR = "/tmp/xrd_mirror_upstream"
+_DIR = os.path.join(os.environ["TMPDIR"], "xrd_mirror_upstream")
 
-# Dedicated ports for this test's self-provisioned stack.
-UP_CKS_PORT   = int(os.environ.get("TEST_MU_UP_CKS_PORT", "12910"))   # checksum upstream
-UP_BARE_PORT  = int(os.environ.get("TEST_MU_UP_BARE_PORT", "12911"))  # no-checksum upstream
-FRONT_PORT    = int(os.environ.get("TEST_MU_FRONT_PORT", "12912"))    # mirror -> UP_CKS
-FRONT_BARE_PORT = int(os.environ.get("TEST_MU_FRONT_BARE_PORT", "12913"))  # mirror -> UP_BARE
+# Dedicated ports for this test's self-provisioned stack.  Each is a free OS
+# port unless explicitly overridden via env, so this stack never collides with
+# the managed fleet or with another self-contained test.
+UP_CKS_PORT   = int(os.environ.get("TEST_MU_UP_CKS_PORT")   or free_port())  # checksum upstream
+UP_BARE_PORT  = int(os.environ.get("TEST_MU_UP_BARE_PORT")  or free_port())  # no-checksum upstream
+FRONT_PORT    = int(os.environ.get("TEST_MU_FRONT_PORT")    or free_port())  # mirror -> UP_CKS
+FRONT_BARE_PORT = int(os.environ.get("TEST_MU_FRONT_BARE_PORT") or free_port())  # mirror -> UP_BARE
 
 _COMMON = b"common-file-bytes-" * 512          # present on front AND upstream
 _FRONTONLY = b"front-only-bytes-" * 256        # present on the front ONLY
@@ -124,7 +126,7 @@ def _front_conf(name, port, data_dir, upstream_port, opcode_line=""):
             f"        listen 0.0.0.0:{port};\n"
             f"        xrootd on; xrootd_root {data_dir}; xrootd_auth none;\n"
             f"        xrootd_allow_write on;\n"
-            f"        xrootd_stream_mirror_url 127.0.0.1:{upstream_port};\n"
+            f"        xrootd_stream_mirror_url {HOST}:{upstream_port};\n"
             f"{extra}"
             f"        xrootd_mirror_log_diverge on;\n"
             f"    }}\n"
@@ -370,8 +372,11 @@ _OP_DIRLIST = 3004
 _OP_STAT    = 3017
 _OP_STATX   = 3022
 
-# Per-test front ports (one fresh front per opcode-config under test).
-_SEL_PORT_BASE = int(os.environ.get("TEST_MU_SEL_PORT_BASE", "12920"))
+# Per-test front ports (one fresh front per opcode-config under test).  When the
+# env override is set we keep the contiguous base+offset idiom; otherwise each
+# front grabs a fresh free OS port at spawn time.
+_SEL_PORT_BASE = int(os.environ["TEST_MU_SEL_PORT_BASE"]) \
+    if os.environ.get("TEST_MU_SEL_PORT_BASE") else None
 
 
 @pytest.fixture
@@ -382,7 +387,7 @@ def front_factory(stack):
     state = {"n": 0}
 
     def make(opcode_line):
-        port = _SEL_PORT_BASE + state["n"]
+        port = (_SEL_PORT_BASE + state["n"]) if _SEL_PORT_BASE else free_port()
         name = f"sel_{state['n']}"
         state["n"] += 1
         conf = _front_conf(name, port, stack["front_data"], UP_CKS_PORT,

@@ -3,6 +3,7 @@
 #include "../compat/hex.h"
 #include "../compat/crypto.h"
 #include "../compat/uri.h"
+#include "../compat/sigv4.h"   /* shared SigV4 signing-key derive (libxrdproto) */
 #include "../metrics/unified.h"
 
 #include <ctype.h>
@@ -230,29 +231,6 @@ s3_check_presigned_future_skew(ngx_http_request_t *r, time_t request_time)
  *   k3 = HMAC(k2, "s3")               k4 = HMAC(k3, "aws4_request")
  * ---------------------------------------------------------------------- */
 
-static int
-s3_sigv4_derive_signing_key(const ngx_str_t *secret_key,
-                             const char *date, const char *region,
-                             u_char out[32])
-{
-    u_char prefix_key[128];
-    u_char k1[32], k2[32], k3[32];
-    size_t pklen;
-
-    if (secret_key->len + 4 > sizeof(prefix_key)) {
-        return 0;
-    }
-    ngx_memcpy(prefix_key, "AWS4", 4);
-    ngx_memcpy(prefix_key + 4, secret_key->data, secret_key->len);
-    pklen = 4 + secret_key->len;
-
-    return xrootd_hmac_sha256(prefix_key, pklen,
-                              (u_char *) date, strlen(date), k1)
-        && xrootd_hmac_sha256(k1, 32, (u_char *) region, strlen(region), k2)
-        && xrootd_hmac_sha256(k2, 32, (u_char *) "s3", 2, k3)
-        && xrootd_hmac_sha256(k3, 32, (u_char *) "aws4_request", 12, out);
-}
-
 /* Worker-local one-slot cache: signing key is stable for one calendar day per
  * region, so cache the last key and avoid four HMAC rounds on every request. */
 static struct {
@@ -274,7 +252,10 @@ s3_sigv4_derive_signing_key_cached(const ngx_str_t *secret_key,
         return 1;
     }
 
-    if (!s3_sigv4_derive_signing_key(secret_key, date, region, out)) {
+    /* Shared 4-round HMAC chain (libxrdproto) — byte-identical to the client's
+     * sign path so client-signs == server-verifies by construction. */
+    if (!xrootd_sigv4_signing_key((const uint8_t *) secret_key->data,
+                                  secret_key->len, date, region, "s3", out)) {
         return 0;
     }
 
@@ -630,5 +611,33 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+
+    /*
+     * W6a: when per-chunk signature verification is enabled, retain the SigV4
+     * material the streaming decoder needs (seed signature, signing key, scope,
+     * timestamp) — it is otherwise local to this function and discarded.  Only
+     * the signed (non-presigned) header path produces a seed signature usable as
+     * the first chunk's previous-signature.
+     */
+    if (cf->verify_chunk_signatures && !comp.presigned) {
+        ngx_http_s3_req_ctx_t *rx =
+            ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+        if (rx != NULL) {
+            u_char *e;
+            ngx_memcpy(rx->sigv4_signing_key, k4, 32);
+            ngx_cpystrn((u_char *) rx->sigv4_seed_signature,
+                        (u_char *) comp.signature,
+                        sizeof(rx->sigv4_seed_signature));
+            ngx_cpystrn((u_char *) rx->sigv4_amz_date,
+                        (u_char *) amz_date,   /* full timestamp (header path) */
+                        sizeof(rx->sigv4_amz_date));
+            e = ngx_snprintf((u_char *) rx->sigv4_scope,
+                             sizeof(rx->sigv4_scope) - 1,
+                             "%s/%s/s3/aws4_request", comp.date, comp.region);
+            *e = '\0';
+            rx->have_sigv4 = 1;
+        }
+    }
+
     return NGX_OK;
 }

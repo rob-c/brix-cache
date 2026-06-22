@@ -26,10 +26,16 @@ echo "[1/4] Stopping all servers..."
 # also match this script's shell).
 reap_test_servers() {
     local sig="$1" p cmd
-    for p in $(pgrep -x nginx 2>/dev/null) $(pgrep -x xrootd 2>/dev/null); do
+    # Also reap a leaked test KDC: the krb5 tier launches a self-daemonising
+    # krb5kdc (and one-shot kadmin.local, never a kadmind daemon) whose argv
+    # carries the test pidfile path under ${TEST_ROOT}; an interrupted run can
+    # orphan it past stop_krb5_tier's pidfile-based stop.  Match it the same
+    # cmdline-scoped way as nginx/xrootd (never a broad pkill).
+    for p in $(pgrep -x nginx 2>/dev/null) $(pgrep -x xrootd 2>/dev/null) \
+             $(pgrep -x krb5kdc 2>/dev/null) $(pgrep -x kadmind 2>/dev/null); do
         cmd=$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null) || continue
         case "$cmd" in
-            *"/tmp/xrd"*|*"/tmp/hsproto"*)
+            *"/tmp/xrd"*|*"/tmp/hsproto"*|*"${TEST_ROOT}"*)
                 kill "$sig" "$p" 2>/dev/null || true ;;
         esac
     done
@@ -41,7 +47,7 @@ reap_test_servers -KILL
 
 # Remove all generated data and state directories
 echo "[2/4] Removing generated directories..."
-for dir in data pki tokens logs tmp; do
+for dir in data pki tokens logs tmp krb5; do
     if [[ -d "${TEST_ROOT}/${dir}" ]]; then
         rm -rf "${TEST_ROOT:?}/${dir}"
         echo "  Removed ${TEST_ROOT}/${dir}/"

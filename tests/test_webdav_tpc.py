@@ -29,6 +29,7 @@ from pathlib import Path
 
 import pytest
 from settings import (
+    HOST,
     PKI_DIR as PKI_DIR_STR,
     WEBDAV_TPC_DEST_CADIR_PORT,
     WEBDAV_TPC_DEST_CAFILE_PORT,
@@ -110,7 +111,7 @@ def _copy_push(source_port: int, source_path: str, dest_url: str, *headers, time
     args = [
         "-X",
         "COPY",
-        f"https://localhost:{source_port}{source_path}",
+        f"https://{HOST}:{source_port}{source_path}",
         "-H",
         "Credential: none",
         "-H",
@@ -131,7 +132,7 @@ def _copy_pull(dest_port: int, dest_path: str, source_url: str, *headers, timeou
     args = [
         "-X",
         "COPY",
-        f"https://localhost:{dest_port}{dest_path}",
+        f"https://{HOST}:{dest_port}{dest_path}",
         "-H",
         "Credential: none",
         "-H",
@@ -203,7 +204,7 @@ def tpc_nginx():
                 result = _curl(
                     "-X",
                     "OPTIONS",
-                    f"https://localhost:{port}/",
+                    f"https://{HOST}:{port}/",
                     "-o",
                     "/dev/null",
                     timeout=3,
@@ -253,7 +254,7 @@ def reference_xrd_http():
     probe_path.write_text("xrootd http probe\n")
     for _ in range(40):
         result = _curl(
-            f"https://localhost:{http_port}/probe.txt",
+            f"https://{HOST}:{http_port}/probe.txt",
             "-o",
             "/dev/null",
             timeout=3,
@@ -279,7 +280,7 @@ class TestNginxPluginToPluginTPC:
         _write(tpc_nginx.source_required_root / "required-source.txt", content)
 
         source = (
-            f"https://localhost:{tpc_nginx.source_required_port}"
+            f"https://{HOST}:{tpc_nginx.source_required_port}"
             "/required-source.txt"
         )
         code = _copy_code(
@@ -296,7 +297,7 @@ class TestNginxPluginToPluginTPC:
         content = b"nginx plugin open source, destination trusts a CA directory\n"
         _write(tpc_nginx.source_open_root / "open-source.txt", content)
 
-        source = f"https://localhost:{tpc_nginx.source_open_port}/open-source.txt"
+        source = f"https://{HOST}:{tpc_nginx.source_open_port}/open-source.txt"
         code = _copy_code(tpc_nginx.dest_cadir_port, "/copied-via-cadir.txt", source)
 
         assert code == 201
@@ -307,7 +308,7 @@ class TestNginxPluginToPluginTPC:
         existing = tpc_nginx.dest_cafile_root / "overwrite-target.txt"
         _write(existing, b"existing content\n")
 
-        source = f"https://localhost:{tpc_nginx.source_open_port}/overwrite-source.txt"
+        source = f"https://{HOST}:{tpc_nginx.source_open_port}/overwrite-source.txt"
         code = _copy_code(
             tpc_nginx.dest_cafile_port,
             "/overwrite-target.txt",
@@ -321,7 +322,7 @@ class TestNginxPluginToPluginTPC:
     def test_tpc_disabled_destination_rejects_copy(self, tpc_nginx):
         _write(tpc_nginx.source_open_root / "disabled-source.txt", b"disabled dest\n")
 
-        source = f"https://localhost:{tpc_nginx.source_open_port}/disabled-source.txt"
+        source = f"https://{HOST}:{tpc_nginx.source_open_port}/disabled-source.txt"
         code = _copy_code(tpc_nginx.dest_disabled_port, "/should-not-copy.txt", source)
 
         assert code == 405
@@ -330,7 +331,7 @@ class TestNginxPluginToPluginTPC:
     def test_readonly_destination_rejects_copy_before_pull(self, tpc_nginx):
         _write(tpc_nginx.source_open_root / "readonly-source.txt", b"readonly dest\n")
 
-        source = f"https://localhost:{tpc_nginx.source_open_port}/readonly-source.txt"
+        source = f"https://{HOST}:{tpc_nginx.source_open_port}/readonly-source.txt"
         code = _copy_code(tpc_nginx.dest_readonly_port, "/should-not-copy.txt", source)
 
         assert code == 403
@@ -340,7 +341,7 @@ class TestNginxPluginToPluginTPC:
         content = b"requires outbound client cert\n"
         _write(tpc_nginx.source_required_root / "needs-cert.txt", content)
 
-        source = f"https://localhost:{tpc_nginx.source_required_port}/needs-cert.txt"
+        source = f"https://{HOST}:{tpc_nginx.source_required_port}/needs-cert.txt"
         code = _copy_code(
             tpc_nginx.dest_no_service_cert_port,
             "/missing-service-cert.txt",
@@ -356,7 +357,7 @@ class TestXrootdHttpInteropTPC:
         content = b"xrootd http source pulled into nginx plugin destination\n"
         _write(reference_xrd_http.data_root / "xrd-source.txt", content)
 
-        source = f"https://localhost:{reference_xrd_http.http_port}/xrd-source.txt"
+        source = f"https://{HOST}:{reference_xrd_http.http_port}/xrd-source.txt"
         code = _copy_code(tpc_nginx.dest_cafile_port, "/from-xrootd-http.txt", source)
 
         assert code == 201
@@ -366,11 +367,11 @@ class TestXrootdHttpInteropTPC:
         content = b"nginx plugin source pulled into xrootd http destination\n"
         _write(tpc_nginx.source_open_root / "nginx-source-for-xrd.txt", content)
 
-        source = f"https://localhost:{tpc_nginx.source_open_port}/nginx-source-for-xrd.txt"
+        source = f"https://{HOST}:{tpc_nginx.source_open_port}/nginx-source-for-xrd.txt"
         result = _curl(
             "-X",
             "COPY",
-            f"https://localhost:{reference_xrd_http.http_port}/from-nginx-plugin.txt",
+            f"https://{HOST}:{reference_xrd_http.http_port}/from-nginx-plugin.txt",
             "-H",
             "Credential: none",
             "-H",
@@ -399,7 +400,7 @@ class TestHTTPTPCPush:
         _write(tpc_nginx.source_open_root / "push-source.txt", content)
 
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-basic-dest.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-basic-dest.txt"
         )
         code = _copy_push_code(
             tpc_nginx.source_open_port, "/push-source.txt", dest_url
@@ -413,7 +414,7 @@ class TestHTTPTPCPush:
         _write(tpc_nginx.source_required_root / "push-required-source.txt", content)
 
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-from-required.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-from-required.txt"
         )
         code = _copy_push_code(
             tpc_nginx.source_required_port,
@@ -429,7 +430,7 @@ class TestHTTPTPCPush:
         _write(tpc_nginx.source_open_root / "push-cadir-source.txt", content)
 
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cadir_port}/push-via-cadir.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cadir_port}/push-via-cadir.txt"
         )
         code = _copy_push_code(
             tpc_nginx.source_open_port, "/push-cadir-source.txt", dest_url
@@ -440,7 +441,7 @@ class TestHTTPTPCPush:
 
     def test_push_nonexistent_source_returns_404(self, tpc_nginx):
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-should-not-exist.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-should-not-exist.txt"
         )
         code = _copy_push_code(
             tpc_nginx.source_open_port, "/no-such-file.txt", dest_url
@@ -453,7 +454,7 @@ class TestHTTPTPCPush:
         (tpc_nginx.source_open_root / "push-dir").mkdir(exist_ok=True)
 
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-dir-dest.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-dir-dest.txt"
         )
         code = _copy_push_code(
             tpc_nginx.source_open_port, "/push-dir", dest_url
@@ -466,7 +467,7 @@ class TestHTTPTPCPush:
         _write(tpc_nginx.dest_disabled_root / "push-disabled-src.txt", b"x\n")
 
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-disabled.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-disabled.txt"
         )
         code = _copy_push_code(
             tpc_nginx.dest_disabled_port, "/push-disabled-src.txt", dest_url
@@ -479,7 +480,7 @@ class TestHTTPTPCPush:
         _write(tpc_nginx.dest_no_service_cert_root / "push-no-cert-src.txt", b"data\n")
 
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-no-cert-dest.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-no-cert-dest.txt"
         )
         code = _copy_push_code(
             tpc_nginx.dest_no_service_cert_port,
@@ -496,7 +497,7 @@ class TestHTTPTPCPush:
         code = _copy_push_code(
             tpc_nginx.source_open_port,
             "/push-http-dest-src.txt",
-            "http://localhost:9999/should-be-rejected",
+            f"http://{HOST}:9999/should-be-rejected",
         )
 
         assert code == 400
@@ -506,7 +507,7 @@ class TestHTTPTPCPush:
         _write(tpc_nginx.source_open_root / "push-xfer-hdr-src.txt", content)
 
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-xfer-hdr-dest.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-xfer-hdr-dest.txt"
         )
         code = _copy_push_code(
             tpc_nginx.source_open_port,
@@ -525,7 +526,7 @@ class TestHTTPTPCPush:
         dest_file = tpc_nginx.dest_cafile_root / "push-ovr-dest.txt"
         _write(dest_file, b"old\n")
 
-        dest_url = f"https://localhost:{tpc_nginx.dest_cafile_port}/push-ovr-dest.txt"
+        dest_url = f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-ovr-dest.txt"
         
         # When Overwrite: F is forwarded, the destination returns 412.
         # Since we use curl --fail, it exits with an error and we return 502.
@@ -544,15 +545,15 @@ class TestHTTPTPCPush:
         _write(tpc_nginx.source_open_root / "push-both-hdrs.txt", b"data\n")
 
         source_url = (
-            f"https://localhost:{tpc_nginx.source_open_port}/push-both-hdrs.txt"
+            f"https://{HOST}:{tpc_nginx.source_open_port}/push-both-hdrs.txt"
         )
         dest_url = (
-            f"https://localhost:{tpc_nginx.dest_cafile_port}/push-both-hdrs-dest.txt"
+            f"https://{HOST}:{tpc_nginx.dest_cafile_port}/push-both-hdrs-dest.txt"
         )
         result = _curl(
             "-X",
             "COPY",
-            f"https://localhost:{tpc_nginx.source_open_port}/push-both-hdrs.txt",
+            f"https://{HOST}:{tpc_nginx.source_open_port}/push-both-hdrs.txt",
             "-H",
             "Credential: none",
             "-H",

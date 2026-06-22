@@ -15,11 +15,15 @@ import os
 import shutil
 import random
 import socket
+import tempfile
 
 import pytest
 from settings import (
     CA_CERT,
     CA_DIR,
+    HOST,
+    BIND_HOST6,
+    CWD_DIR,
     DATA_ROOT,
     LOG_DIR,
     NGINX_ANON_PORT,
@@ -27,7 +31,9 @@ from settings import (
     NGINX_GSI_TLS_PORT,
     NGINX_METRICS_PORT,
     NGINX_JWKS_REFRESH_PORT,
+    NGINX_KRB5_PORT,
     NGINX_TOKEN_PORT,
+    KRB5_CCACHE,
     NGINX_WEBDAV_PORT,
     NGINX_WEBDAV_GSI_TLS_PORT,
     NGINX_HTTP_WEBDAV_PORT,
@@ -69,6 +75,20 @@ from settings import (
     WEBDAV_TPC_SOURCE_REQUIRED_PORT,
 )
 
+# Repo cwd captured at import (pytest's rootdir).  The session chdir()s into
+# CWD_DIR for the run and restores this at teardown before wiping the tree.
+_ORIG_CWD = os.getcwd()
+# Guards the destructive full-tree wipe so it runs at most once per process
+# (defensive — _setup_session is normally called only from pytest_sessionstart).
+_test_tree_wiped = False
+
+
+def _chdir_scratch():
+    """Run the session from a scratch CWD inside the temp tree (mandatory in
+    local mode) so no cwd-relative artifact can ever land in the repo."""
+    os.makedirs(CWD_DIR, exist_ok=True)
+    os.chdir(CWD_DIR)
+
 
 def _check_server_reachable(host: str, port: int, timeout: float = 5.0) -> bool:
     """Return True if the server is accepting TCP connections."""
@@ -79,11 +99,66 @@ def _check_server_reachable(host: str, port: int, timeout: float = 5.0) -> bool:
         return False
 
 
+# ---------------------------------------------------------------------------
+# IPv6 test support (phase-36).  Tests targeting the [::1] dedicated instances
+# gate on this fixture so the whole IPv6 suite is a clean no-op on hosts without
+# usable IPv6 loopback (IPv6-disabled kernels, some containers/CI).
+# ---------------------------------------------------------------------------
+def _ipv6_loopback_available() -> bool:
+    """True if this host can bind the IPv6 loopback ::1."""
+    try:
+        s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        try:
+            s.bind((BIND_HOST6, 0))
+            return True
+        finally:
+            s.close()
+    except OSError:
+        return False
+
+
+_HAVE_IPV6_LOOPBACK = _ipv6_loopback_available()
+
+
+@pytest.fixture(scope="session")
+def requires_ipv6_loopback():
+    """Skip the test cleanly when the host has no usable IPv6 loopback ::1."""
+    if not _HAVE_IPV6_LOOPBACK:
+        pytest.skip("IPv6 loopback ::1 not available on this host")
+
+
+@pytest.fixture(scope="session")
+def requires_krb5():
+    """Skip krb5 tests unless the krb5 tier is actually up on this host.
+
+    The tier self-disables when the MIT KDC tooling (krb5-server) is missing or
+    the nginx binary was built without Kerberos, so probe for the live result
+    rather than for the tooling: the dedicated nginx port must accept AND a
+    client credential cache must have been minted by ``kdc_helpers.up``.  This is
+    re-checked each session (not cached at import) because the tier is started by
+    ``manage_test_servers.sh start-all`` after this module is imported.
+    """
+    if REMOTE_SERVER:
+        pytest.skip("krb5 tier is local-only (KDC + keytab live on the test host)")
+    if not _check_server_reachable(SERVER_HOST, NGINX_KRB5_PORT):
+        pytest.skip(
+            f"krb5 nginx tier not up on {SERVER_HOST}:{NGINX_KRB5_PORT} "
+            "(needs krb5-server installed + an nginx binary built with krb5)"
+        )
+    if not os.path.exists(KRB5_CCACHE):
+        pytest.skip(f"no krb5 client credential cache at {KRB5_CCACHE}")
+
+
 def _selected_tests_do_not_need_server(config) -> bool:
     """Return True when the requested pytest target is static-only."""
     raw_args = getattr(config, "args", ()) or ()
     no_server_files = {
         "test_cross_protocol_shared_helpers.py",
+        "test_ipv6_fallback.py",
+        "test_loss_sweep_gsi.py",
+        "test_tools_resilience.py",
+        "test_net_resilience.py",
+        "test_official_xrootd_resilience.py",
         "test_phase0_guardrails.py",
         "test_phase1_commodity_libraries.py",
         "test_plan6_guardrails.py",
@@ -130,6 +205,18 @@ def _setup_session():
         return
 
     # ---- LOCAL mode ----
+
+    # MANDATED CLEAN SLATE: destroy the entire temp tree so every run regenerates
+    # all artifacts (data, PKI, tokens, server configs) from scratch — no stale
+    # files are ever carried between runs.  Then chdir into a scratch dir inside
+    # the (recreated) tree so the whole session — including every server the
+    # harness spawns below — runs with a CWD under /tmp, never the repo.
+    global _test_tree_wiped
+    if not _test_tree_wiped:
+        shutil.rmtree(TEST_ROOT, ignore_errors=True)
+        _test_tree_wiped = True
+    os.makedirs(TEST_ROOT, exist_ok=True)
+    _chdir_scratch()
 
     # Clear data and pki folders before each test session
     if os.path.exists(DATA_ROOT):
@@ -203,18 +290,36 @@ def _setup_session():
 
 
 def pytest_sessionstart(session):
+    skip = (os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
+            or _selected_tests_do_not_need_server(session.config))
     # xdist workers inherit the environment from the controller which has already
-    # called start-all.  Running it again from every worker in parallel would race.
+    # called start-all (and wiped the tree).  Running it again from every worker
+    # in parallel would race — but each worker still chdir()s into the shared
+    # scratch CWD so its own spawns can't pollute the repo either.
     if hasattr(session.config, "workerinput"):
+        if not REMOTE_SERVER and not skip:
+            _chdir_scratch()
         return
-    if (os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
-            or _selected_tests_do_not_need_server(session.config)):
+    if skip:
         return
     _setup_session()
 
 
 def pytest_configure(config):
-    """Register custom markers."""
+    """Register custom markers and confine all scratch under TEST_ROOT.
+
+    Many tests (and the servers/clients they spawn) create scratch via
+    ``tempfile.mkdtemp/mkstemp/TemporaryDirectory`` or a ``TMPDIR``-honoring
+    subprocess.  Left at the default they litter bare ``/tmp`` (e.g.
+    ``/tmp/xrd-jwks-test-*``).  Point Python's tempdir AND the inherited
+    ``$TMPDIR`` at ``TEST_ROOT/tmp`` so every such artifact lands under the one
+    test tree that the session wipes and recreates — nothing leaks into /tmp.
+    Runs on the controller and on every xdist worker, before any test executes.
+    """
+    os.makedirs(TMP_DIR, exist_ok=True)
+    os.environ["TMPDIR"] = TMP_DIR
+    tempfile.tempdir = TMP_DIR
+
     config.addinivalue_line(
         "markers",
         "requires_local_server: test writes directly to the server filesystem "
@@ -283,6 +388,17 @@ def pytest_sessionfinish(session, exitstatus):
     except Exception:
         pass  # best-effort cleanup
 
+    # MANDATED CLEANUP: leave nothing behind.  Restore the original CWD first
+    # (we are currently inside CWD_DIR, which is about to be deleted), then
+    # destroy the whole temp tree so the next run starts from a clean slate and
+    # regenerates every file.  Only reached on the controller in local mode
+    # (remote/skip/no-server returned above).
+    try:
+        os.chdir(_ORIG_CWD)
+    except OSError:
+        pass
+    shutil.rmtree(TEST_ROOT, ignore_errors=True)
+
 
 @pytest.fixture(scope="session")
 def _test_session_setup():
@@ -318,6 +434,7 @@ def test_env():
         "gsi_port": NGINX_GSI_PORT,
         "gsi_tls_port": NGINX_GSI_TLS_PORT,
         "token_port": NGINX_TOKEN_PORT,
+        "krb5_port": NGINX_KRB5_PORT,
         "metrics_port": NGINX_METRICS_PORT,
         "webdav_port": NGINX_WEBDAV_PORT,
         "webdav_gsi_tls_port": NGINX_WEBDAV_GSI_TLS_PORT,
@@ -358,6 +475,7 @@ def test_env():
         "gsi_url": f"root://{h}:{ports['gsi_port']}",
         "gsi_tls_url": f"roots://{h}:{ports['gsi_tls_port']}",
         "token_url": f"root://{h}:{ports['token_port']}",
+        "krb5_url": f"root://{h}:{ports['krb5_port']}",
         "metrics_url": f"http://{h}:{ports['metrics_port']}/metrics",
         "webdav_url": f"https://{h}:{ports['webdav_port']}",
         "webdav_gsi_tls_url": f"https://{h}:{ports['webdav_gsi_tls_port']}",
@@ -375,7 +493,7 @@ def test_env():
 @pytest.fixture(scope="session")
 def ref_xrootd(test_env):
     return {
-        "url": f"root://localhost:{REF_XROOTD_PORT}",
+        "url": f"root://{HOST}:{REF_XROOTD_PORT}",
         "port": REF_XROOTD_PORT,
         "data_dir": test_env["data_dir"],
     }
@@ -384,7 +502,7 @@ def ref_xrootd(test_env):
 @pytest.fixture(scope="session")
 def ref_xrootd_gsi(test_env):
     return {
-        "url": f"root://localhost:{REF_XROOTD_GSI_PORT}",
+        "url": f"root://{HOST}:{REF_XROOTD_GSI_PORT}",
         "port": REF_XROOTD_GSI_PORT,
         "data_dir": os.path.join(TEST_ROOT, "data-gsi-bridge"),
     }
@@ -393,7 +511,7 @@ def ref_xrootd_gsi(test_env):
 @pytest.fixture(scope="session")
 def ref_xrootd_gsi_shared(test_env):
     return {
-        "url": f"root://localhost:{REF_XROOTD_GSI_SHARED_PORT}",
+        "url": f"root://{HOST}:{REF_XROOTD_GSI_SHARED_PORT}",
         "port": REF_XROOTD_GSI_SHARED_PORT,
         "data_dir": test_env["data_dir"],
     }

@@ -1,4 +1,5 @@
 #include "upstream_internal.h"
+#include "../protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
 
 /*
  * WHAT: Translate upstream XRootD responses back to the client — kXR_redirect, kXR_wait, kXR_ok, and
@@ -66,17 +67,9 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
     }
 
     case kXR_wait: {
-        uint32_t secs = 5;
-
-        if (dlen >= 4) {
-            uint32_t sbe;
-
-            ngx_memcpy(&sbe, body, sizeof(sbe));
-            secs = ntohl(sbe);
-        }
-        if (secs > XROOTD_UP_WAIT_MAX) {
-            secs = XROOTD_UP_WAIT_MAX;
-        }
+        /* shared decode+clamp (libxrdproto): default 5s, ceiling XROOTD_UP_WAIT_MAX. */
+        uint32_t secs = xrd_wait_secs_parse((const uint8_t *) body, dlen, 5,
+                                            XROOTD_UP_WAIT_MAX);
 
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
                       "xrootd: upstream kXR_wait %u s; scheduling retry",

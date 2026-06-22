@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -135,9 +135,10 @@ def _http_block(body, tmp_path, http_extra=""):
 
 def test_http_directives_parse(tmp_path):
     data = tmp_path / "data"; data.mkdir()
+    port = free_port()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21960;
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -155,9 +156,10 @@ def test_http_directives_parse(tmp_path):
 
 def test_bad_rate_rejected(tmp_path):
     data = tmp_path / "data"; data.mkdir()
+    port = free_port()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21961;
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -173,9 +175,10 @@ def test_bad_rate_rejected(tmp_path):
 
 def test_unknown_zone_rejected(tmp_path):
     data = tmp_path / "data"; data.mkdir()
+    port = free_port()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21962;
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -192,9 +195,10 @@ def test_unknown_zone_rejected(tmp_path):
 def test_coexists_with_phase20_rate_limit(tmp_path):
     # The new directives and the Phase 20 xrootd_rate_limit must not collide.
     data = tmp_path / "data"; data.mkdir()
+    port = free_port()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21963;
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -217,7 +221,7 @@ def _wait_port(port, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -247,7 +251,7 @@ def _stop(proc):
 
 
 def _get(port, path, headers=""):
-    with socket.create_connection(("127.0.0.1", port), timeout=4) as s:
+    with socket.create_connection((HOST, port), timeout=4) as s:
         s.sendall((f"GET {path} HTTP/1.1\r\nHost: x\r\n{headers}"
                    "Connection: close\r\n\r\n").encode())
         s.settimeout(4)
@@ -274,9 +278,10 @@ def _get(port, path, headers=""):
 def test_http_429_after_burst(tmp_path):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
+    port = free_port()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21964;
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -285,13 +290,13 @@ def test_http_429_after_burst(tmp_path):
             }}
         }}
     """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
-    proc = _spawn(conf, tmp_path, 21964)
+    proc = _spawn(conf, tmp_path, port)
     try:
-        codes = [_get(21964, "/f.txt")[0] for _ in range(6)]
+        codes = [_get(port, "/f.txt")[0] for _ in range(6)]
         assert codes[:2] == [200, 200], codes
         assert 429 in codes, codes
         # The throttled (non-nodelay) response carries Retry-After.
-        st, hdrs = _get(21964, "/f.txt")
+        st, hdrs = _get(port, "/f.txt")
         if st == 429:
             assert "retry-after" in hdrs, hdrs
     finally:
@@ -301,9 +306,10 @@ def test_http_429_after_burst(tmp_path):
 def test_http_nodelay_immediate(tmp_path):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
+    port = free_port()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21965;
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -312,14 +318,14 @@ def test_http_nodelay_immediate(tmp_path):
             }}
         }}
     """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
-    proc = _spawn(conf, tmp_path, 21965)
+    proc = _spawn(conf, tmp_path, port)
     try:
-        codes = [_get(21965, "/f.txt")[0] for _ in range(4)]
+        codes = [_get(port, "/f.txt")[0] for _ in range(4)]
         assert codes[0] == 200
         assert 429 in codes[1:], codes
         # nodelay → no Retry-After header.
         for _ in range(4):
-            st, hdrs = _get(21965, "/f.txt")
+            st, hdrs = _get(port, "/f.txt")
             if st == 429:
                 assert "retry-after" not in hdrs, hdrs
                 break
@@ -332,9 +338,10 @@ def test_http_bandwidth_throttled(tmp_path):
     # overflows and subsequent GETs are throttled (429).
     data = tmp_path / "data"; data.mkdir()
     (data / "big.bin").write_bytes(b"x" * 100000)
+    port = free_port()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21966;
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -343,9 +350,9 @@ def test_http_bandwidth_throttled(tmp_path):
             }}
         }}
     """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
-    proc = _spawn(conf, tmp_path, 21966)
+    proc = _spawn(conf, tmp_path, port)
     try:
-        codes = [_get(21966, "/big.bin")[0] for _ in range(5)]
+        codes = [_get(port, "/big.bin")[0] for _ in range(5)]
         assert codes[0] == 200, codes          # first within burst
         assert 429 in codes, codes             # bucket overflows after charge
     finally:
@@ -355,7 +362,7 @@ def test_http_bandwidth_throttled(tmp_path):
 def _curl_cookie(port):
     out = subprocess.run(
         ["curl", "-si", "-X", "POST", "--data", "password=pw",
-         f"http://127.0.0.1:{port}/xrootd/login"],
+         f"http://{HOST}:{port}/xrootd/login"],
         capture_output=True, text=True, timeout=8).stdout
     m = re.search(r"(?im)^Set-Cookie:\s*(xrd_dashboard=[^;]+)", out)
     return m.group(1) if m else None
@@ -364,7 +371,7 @@ def _curl_cookie(port):
 def _curl_ratelimit(port, cookie):
     out = subprocess.run(
         ["curl", "-s", "-H", f"Cookie: {cookie}",
-         f"http://127.0.0.1:{port}/xrootd/api/v1/ratelimit"],
+         f"http://{HOST}:{port}/xrootd/api/v1/ratelimit"],
         capture_output=True, text=True, timeout=8).stdout
     return json.loads(out)
 
@@ -372,9 +379,10 @@ def _curl_ratelimit(port, cookie):
 def test_dashboard_shows_throttle_count(tmp_path):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
+    port = free_port()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21969;
+            listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
@@ -387,14 +395,14 @@ def test_dashboard_shows_throttle_count(tmp_path):
             }}
         }}
     """, tmp_path, http_extra="xrootd_rate_limit_zone zone=rl:1m;")
-    proc = _spawn(conf, tmp_path, 21969)
+    proc = _spawn(conf, tmp_path, port)
     try:
         # Drive throttling on the ip:127.0.0.1 principal.
         for _ in range(8):
-            _get(21969, "/f.txt")
-        cookie = _curl_cookie(21969)
+            _get(port, "/f.txt")
+        cookie = _curl_cookie(port)
         assert cookie, "dashboard login did not set a cookie"
-        doc = _curl_ratelimit(21969, cookie)
+        doc = _curl_ratelimit(port, cookie)
         principals = [p for z in doc.get("zones", []) for p in z["principals"]]
         assert principals, doc
         throttled = [p for p in principals if p["throttle_count"] > 0]
@@ -475,11 +483,12 @@ KXR_OK = 0
 def test_stream_kxr_wait_after_burst(tmp_path):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
+    port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         xrootd_rate_limit_zone zone=rls:1m;
         server {{
-            listen 127.0.0.1:21967;
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_root {data};
             xrootd_auth none;
@@ -487,9 +496,9 @@ def test_stream_kxr_wait_after_burst(tmp_path):
         }}
     }}
     """
-    proc = _spawn(conf, tmp_path, 21967)
+    proc = _spawn(conf, tmp_path, port)
     try:
-        s = _xrd_login("127.0.0.1", 21967)
+        s = _xrd_login(HOST, port)
         # kXR_open is rate-limited; burst=2 then kXR_wait.
         statuses = []
         for _ in range(6):
@@ -504,11 +513,12 @@ def test_stream_kxr_wait_after_burst(tmp_path):
 def test_stream_stat_never_throttled(tmp_path):
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
+    port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         xrootd_rate_limit_zone zone=rls:1m;
         server {{
-            listen 127.0.0.1:21968;
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_root {data};
             xrootd_auth none;
@@ -516,9 +526,9 @@ def test_stream_stat_never_throttled(tmp_path):
         }}
     }}
     """
-    proc = _spawn(conf, tmp_path, 21968)
+    proc = _spawn(conf, tmp_path, port)
     try:
-        s = _xrd_login("127.0.0.1", 21968)
+        s = _xrd_login(HOST, port)
         # Many stats in a row — never kXR_wait (stat is exempt).
         for _ in range(8):
             st, _b = _xrd_stat(s, "/f.txt")
@@ -561,7 +571,7 @@ def _conc_stream_conf(tmp_path, port, data, limit):
     stream {{
         xrootd_rate_limit_zone zone=rlc:1m;
         server {{
-            listen 127.0.0.1:{port};
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_root {data};
             xrootd_auth none;
@@ -575,7 +585,7 @@ def test_stream_concurrency_directive_parses(tmp_path):
     # Regression: xrootd_concurrency_limit used to be HTTP-only and would be
     # rejected in a stream{} server block. It must now parse there.
     data = tmp_path / "data"; data.mkdir()
-    rc, out = _nginx_check(_conc_stream_conf(tmp_path, 21971, data, 4), tmp_path)
+    rc, out = _nginx_check(_conc_stream_conf(tmp_path, free_port(), data, 4), tmp_path)
     assert rc == 0, out
 
 
@@ -583,11 +593,12 @@ def test_stream_concurrency_bad_limit_rejected(tmp_path):
     # limit= must be a positive integer (security/neg: a 0 or garbage cap is a
     # silent no-cap footgun, so the parser must reject it).
     data = tmp_path / "data"; data.mkdir()
+    port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         xrootd_rate_limit_zone zone=rlc:1m;
         server {{
-            listen 127.0.0.1:21972;
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_root {data};
             xrootd_auth none;
@@ -606,19 +617,19 @@ def test_stream_concurrency_cap_and_release(tmp_path):
     # Closing a holder frees its slot for a fresh connection (release path).
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
-    port = 21973
+    port = free_port()
     proc = _spawn(_conc_stream_conf(tmp_path, port, data, 2), tmp_path, port)
     holders = []
     try:
         # Two concurrent connections each acquire a slot — neither waits.
         for _ in range(2):
-            s = _xrd_login("127.0.0.1", port)
+            s = _xrd_login(HOST, port)
             st, _b = _xrd_open(s, "/f.txt")
             assert st != KXR_WAIT, ("holder should acquire a slot", st)
             holders.append(s)
 
         # Third concurrent connection exceeds the cap → kXR_wait, no slot held.
-        s3 = _xrd_login("127.0.0.1", port)
+        s3 = _xrd_login(HOST, port)
         st3, _b = _xrd_open(s3, "/f.txt")
         assert st3 == KXR_WAIT, ("over-cap connection must wait", st3)
         s3.close()
@@ -631,7 +642,7 @@ def test_stream_concurrency_cap_and_release(tmp_path):
         acquired = False
         deadline = time.time() + 5
         while time.time() < deadline:
-            s4 = _xrd_login("127.0.0.1", port)
+            s4 = _xrd_login(HOST, port)
             st4, _b = _xrd_open(s4, "/f.txt")
             if st4 != KXR_WAIT:
                 acquired = True
@@ -655,12 +666,12 @@ def test_stream_concurrency_high_limit_no_throttle(tmp_path):
     # several connections at once.
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello\n")
-    port = 21974
+    port = free_port()
     proc = _spawn(_conc_stream_conf(tmp_path, port, data, 16), tmp_path, port)
     holders = []
     try:
         for _ in range(4):
-            s = _xrd_login("127.0.0.1", port)
+            s = _xrd_login(HOST, port)
             st, _b = _xrd_open(s, "/f.txt")
             assert st != KXR_WAIT, ("under cap must not throttle", st)
             holders.append(s)
@@ -699,12 +710,12 @@ def test_keycache_read_path_still_throttles(tmp_path):
     # and return kXR_wait.
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("hello world\n")
-    port = 21975
+    port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         xrootd_rate_limit_zone zone=rlk:1m;
         server {{
-            listen 127.0.0.1:{port};
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_root {data};
             xrootd_auth none;
@@ -714,7 +725,7 @@ def test_keycache_read_path_still_throttles(tmp_path):
     """
     proc = _spawn(conf, tmp_path, port)
     try:
-        s = _xrd_login("127.0.0.1", port)
+        s = _xrd_login(HOST, port)
         st, body = _xrd_open(s, "/f.txt")          # op 1 (within burst)
         assert st == KXR_OK, ("open should succeed within burst", st)
         fh = body[:4]
@@ -734,12 +745,12 @@ def test_keycache_volume_not_collapsed(tmp_path):
     (data / "hot").mkdir(); (data / "cold").mkdir()
     (data / "hot" / "a.txt").write_text("hot\n")
     (data / "cold" / "b.txt").write_text("cold\n")
-    port = 21976
+    port = free_port()
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         xrootd_rate_limit_zone zone=rlv:1m;
         server {{
-            listen 127.0.0.1:{port};
+            listen {BIND_HOST}:{port};
             xrootd on;
             xrootd_root {data};
             xrootd_auth none;
@@ -749,7 +760,7 @@ def test_keycache_volume_not_collapsed(tmp_path):
     """
     proc = _spawn(conf, tmp_path, port)
     try:
-        s = _xrd_login("127.0.0.1", port)
+        s = _xrd_login(HOST, port)
         st1, _ = _xrd_open(s, "/hot/a.txt")        # matches /hot, burst spent
         assert st1 == KXR_OK, ("first /hot open within burst", st1)
         st2, _ = _xrd_open(s, "/hot/a.txt")        # /hot bucket overflow → wait

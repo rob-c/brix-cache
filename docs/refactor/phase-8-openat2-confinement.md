@@ -8,11 +8,16 @@
 
 ---
 
-## ⏳ Status: PARTIAL — Step A done, Step B ~half, Step C blocked (audited 2026-06-12)
+## ✅ Status: Implemented for runtime client paths — historical migration notes below (audited 2026-06-14)
 
-Unlike Phases 5/6, this phase is **genuinely incomplete** — the new
-kernel-confinement API coexists with the old userspace resolve/confine stack,
-and the old stack is still **load-bearing**. Nothing here is safe to delete yet.
+This phase has moved beyond the partial state described in the original
+2026-06-12 audit. Runtime client paths now use the kernel-backed
+`openat2(RESOLVE_BENEATH)` flow documented in `src/path/README.md`: stream
+handlers enter through `xrootd_resolve_op_path()` / `xrootd_path_resolve_beneath`,
+HTTP/S3 have `conf->common.rootfd`, and `realpath(3)` is retained only for
+trusted config-time policy canonicalisation. The older call-site map below is
+kept as migration history and should not be quoted as current status without
+rechecking `src/path/README.md` and the live callers.
 
 **Step A — persistent rootfd + `beneath` API: ✅ DONE (stream + HTTP).**
 `src/path/beneath.{c,h}` exist (`xrootd_open_beneath`, `xrootd_stat_beneath`,
@@ -42,7 +47,7 @@ migration" below is unblocked.
 |---|---|
 | Stream — migrated (use `beneath`) | `read/statx.c`, `read/open_cache.c`, `read/open_resolved_file.c`, `connection/fd_table.c`, `fs/vfs_open.c` (with fallback), `read/truncate`… `write/truncate.c`, `query/prepare.c`, `tpc/launch.c`, `query/checksum_ckscan_common.c` |
 | Stream — still OLD-only | `read/pgread.c`, `read/read.c`, `read/open_overview.c`, `aio/dirlist.c`, `write/chkpoint.c`, `write/mv.c` (12 old refs), `write/mkdir.c` |
-| **HTTP (WebDAV + S3)** | **Not started — zero `beneath` usage; no `rootfd` in `ngx_http_xrootd_shared_conf_t`.** All WebDAV/S3 file ops use the old `*_confined_canon` API. |
+| **HTTP (WebDAV + S3)** | **Superseded:** `ngx_http_xrootd_shared_conf_t` now carries `common.rootfd`; HTTP/S3 reach the beneath/confined primitives through the shared compat layer. See `src/path/README.md` for current status. |
 
 **Step C — delete old stack: ❌ BLOCKED (correctly).** The old API is still called
 from ~30+ sites: `xrootd_resolve_path` (9 callers), `xrootd_open_confined_canon`

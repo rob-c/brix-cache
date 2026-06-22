@@ -17,10 +17,10 @@
 
 #include "http_body.h"
 #include "copy_range.h"
+#include "codec_core.h"
 
 #include <errno.h>
 #include <unistd.h>
-#include <zlib.h>
 
 #define XROOTD_INFLATE_OUT_BUFSZ  (64 * 1024)
 #define XROOTD_INFLATE_IN_BUFSZ   (64 * 1024)
@@ -341,72 +341,71 @@ xrootd_http_read_body(ngx_http_request_t *r,
     return NGX_DONE;
 }
 
-/* Feed one input chunk through inflate, writing all output to dst_fd.
- * Caller sets zs->next_in and zs->avail_in before calling. */
+/* Feed one input chunk through the codec stream, writing all produced output to
+ * dst_fd. finish!=0 marks the final input. *ended is set when the codec reports
+ * end-of-stream. *worst_rc captures the first negative codec rc (for the caller's
+ * HTTP-status mapping: ERR_BOMB -> 413, ERR_DATA -> 400). Returns NGX_OK/ERROR. */
 static ngx_int_t
-inflate_feed(z_stream *zs, ngx_log_t *log, ngx_fd_t dst_fd,
+codec_feed(xrootd_codec_stream_t *s, ngx_log_t *log, ngx_fd_t dst_fd,
     const char *log_path, off_t *dst_off, u_char *outbuf,
-    const u_char *in, size_t in_len)
+    const u_char *in, size_t in_len, int finish, int *ended,
+    xrootd_codec_rc_t *worst_rc)
 {
-    int  zrc;
+    size_t  ip = 0;
 
-    zs->next_in  = (Bytef *) in;
-    zs->avail_in = (uInt) in_len;
+    for (;;) {
+        size_t             op = 0;
+        xrootd_codec_rc_t  rc;
 
-    /* One inflate() call may not consume the whole input chunk (output buffer
-     * fills first), so loop until zlib has drained avail_in or signalled end
-     * of stream. Reset next_out/avail_out each pass to reuse the same outbuf. */
-    do {
-        size_t  produced;
-
-        zs->next_out  = (Bytef *) outbuf;
-        zs->avail_out = XROOTD_INFLATE_OUT_BUFSZ;
-
-        zrc = inflate(zs, Z_NO_FLUSH);
-        /* Treat NEED_DICT as fatal too: we never supply a preset dictionary,
-         * so it can only come from malformed/hostile input. */
-        if (zrc == Z_STREAM_ERROR || zrc == Z_DATA_ERROR
-            || zrc == Z_MEM_ERROR || zrc == Z_NEED_DICT)
-        {
+        rc = xrootd_codec_step(s, (const uint8_t *) in, in_len, &ip,
+                               (uint8_t *) outbuf, XROOTD_INFLATE_OUT_BUFSZ,
+                               &op, finish);
+        if (rc < 0) {
+            *worst_rc = rc;
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                          "xrootd_http_body: inflate error %d (%s) for %s",
-                          zrc, zs->msg ? zs->msg : "",
-                          log_path ? log_path : "-");
+                          "xrootd_http_body: decode error %d for %s",
+                          (int) rc, log_path ? log_path : "-");
             return NGX_ERROR;
         }
-
-        /* Bytes inflate() wrote = capacity minus what it left unused. */
-        produced = XROOTD_INFLATE_OUT_BUFSZ - zs->avail_out;
-        if (produced > 0) {
-            if (xrootd_http_body_pwrite_full(log, dst_fd, outbuf,
-                                              produced, dst_off, log_path)
-                != NGX_OK)
+        if (op > 0) {
+            if (xrootd_http_body_pwrite_full(log, dst_fd, outbuf, op,
+                                             dst_off, log_path) != NGX_OK)
             {
                 return NGX_ERROR;
             }
         }
-    } while (zs->avail_in > 0 && zrc != Z_STREAM_END);
-
-    return NGX_OK;
+        if (rc == XROOTD_CODEC_END) {
+            *ended = 1;
+            return NGX_OK;
+        }
+        if (op == XROOTD_INFLATE_OUT_BUFSZ) {
+            continue;                 /* output buffer was full: drain more */
+        }
+        if (ip < in_len) {
+            continue;                 /* input remains in this chunk */
+        }
+        return NGX_OK;                /* chunk consumed, output drained */
+    }
 }
 
 /*
- * xrootd_http_body_inflate_bufs — feed every request-body buffer through an
- * already-initialised inflate stream, writing decompressed bytes to dst_fd.
+ * codec_decode_bufs — feed every request-body buffer through an open codec
+ * stream, writing decompressed bytes to dst_fd, then finalise.
  *
- * In-memory buffers feed directly; spooled (in-file) buffers are pread in
- * XROOTD_INFLATE_IN_BUFSZ chunks into inbuf first. Returns NGX_OK once all
- * buffers are consumed, NGX_ERROR on a read or inflate failure. The z_stream and
- * the in/out buffers are owned by the caller (which ends the stream and frees
- * the buffers), so this worker is a flat goto-free loop with early returns.
+ * In-memory buffers feed directly; spooled buffers are pread in
+ * XROOTD_INFLATE_IN_BUFSZ chunks into inbuf first. After the last buffer a final
+ * flush (empty input, finish=1) drains any tail; if the codec never reports
+ * end-of-stream the input was truncated/corrupt (ERR_DATA -> caller maps 400).
+ * Flat, early-return cleanup; the stream + buffers are owned by the caller.
  */
 static ngx_int_t
-xrootd_http_body_inflate_bufs(z_stream *zs, ngx_http_request_t *r,
+codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
     ngx_fd_t dst_fd, const char *log_path, u_char *outbuf, u_char *inbuf,
-    ngx_log_t *log)
+    ngx_log_t *log, xrootd_codec_rc_t *worst_rc)
 {
     ngx_chain_t *cl;
     off_t        dst_off = 0;
+    int          ended = 0;
 
     for (cl = r->request_body->bufs; cl != NULL; cl = cl->next) {
         ngx_buf_t *b = cl->buf;
@@ -426,64 +425,91 @@ xrootd_http_body_inflate_bufs(z_stream *zs, ngx_http_request_t *r,
                 if (want > XROOTD_INFLATE_IN_BUFSZ) {
                     want = XROOTD_INFLATE_IN_BUFSZ;
                 }
-
                 do {
                     n = pread(b->file->fd, inbuf, want, file_off);
                 } while (n < 0 && errno == EINTR);
-
                 if (n <= 0) {
                     ngx_log_error(NGX_LOG_ERR, log, errno,
-                                  "xrootd_http_body: inflate pread failed for %s",
+                                  "xrootd_http_body: decode pread failed for %s",
                                   log_path ? log_path : "-");
                     return NGX_ERROR;
                 }
-
                 file_off += (off_t) n;
-
-                if (inflate_feed(zs, log, dst_fd, log_path, &dst_off,
-                                 outbuf, inbuf, (size_t) n) != NGX_OK)
+                if (codec_feed(s, log, dst_fd, log_path, &dst_off, outbuf,
+                               inbuf, (size_t) n, 0, &ended, worst_rc) != NGX_OK)
                 {
                     return NGX_ERROR;
                 }
             }
 
-        } else {
-            if (b->pos >= b->last) {
-                continue;
-            }
-
-            if (inflate_feed(zs, log, dst_fd, log_path, &dst_off,
-                             outbuf, b->pos,
-                             (size_t) (b->last - b->pos)) != NGX_OK)
+        } else if (b->pos < b->last) {
+            if (codec_feed(s, log, dst_fd, log_path, &dst_off, outbuf,
+                           b->pos, (size_t) (b->last - b->pos), 0, &ended,
+                           worst_rc) != NGX_OK)
             {
                 return NGX_ERROR;
             }
         }
     }
 
+    /* Final flush: signal end-of-input and drain the codec's tail. */
+    if (!ended) {
+        if (codec_feed(s, log, dst_fd, log_path, &dst_off, outbuf,
+                       (const u_char *) "", 0, 1, &ended, worst_rc) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+    if (!ended) {
+        /* All input consumed + finish, but no end-of-stream: truncated input. */
+        *worst_rc = XROOTD_CODEC_ERR_DATA;
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "xrootd_http_body: truncated compressed body for %s",
+                      log_path ? log_path : "-");
+        return NGX_ERROR;
+    }
     return NGX_OK;
 }
 
 /*
- * xrootd_http_body_inflate_to_fd - decompress the request body to dst_fd.
+ * xrootd_http_body_decode_ratio - choose the untrusted decode ratio ceiling.
  *
- * WHAT: inflates a Content-Encoding gzip/deflate body and writes the plaintext
- *       to dst_fd; window_bits selects the wrapper (see zlib inflateInit2,
- *       e.g. 15+16 for gzip, -15 for raw deflate).
- * WHY:  clients may upload compressed objects; the stored file must be the
- *       decompressed bytes, streamed so a large body never lands fully in RAM.
- * HOW:  allocate outbuf (and inbuf only when has_spooled, to avoid a wasted 64K
- *       for the common in-memory case), init one persistent z_stream, then hand
- *       the per-buffer feed loop to xrootd_http_body_inflate_bufs. inflateEnd and
- *       the buffer frees happen here once on return, success or failure — so the
- *       worker stays a flat early-return loop with no shared cleanup label.
+ * WHAT: Returns the maximum permitted output:input expansion ratio for the given
+ *       Content-Encoding codec on HTTP request-body decode.
+ * WHY:  The generic 1000:1 ceiling catches classic bombs for most codecs, but LZ4
+ *       frames cap zero-heavy compression below that; a lower LZ4-specific limit
+ *       keeps PUT bomb protection effective without changing trusted decode paths.
+ * HOW:  Select the codec-specific constant for LZ4, otherwise use the shared
+ *       default consumed by the central codec guard.
+ */
+static uint32_t
+xrootd_http_body_decode_ratio(xrootd_codec_id_t codec)
+{
+    if (codec == XROOTD_CODEC_LZ4) {
+        return XROOTD_DECODE_LZ4_MAX_RATIO;
+    }
+    return XROOTD_DECODE_MAX_RATIO;
+}
+
+/*
+ * xrootd_http_body_decode_to_fd - decompress the request body to dst_fd.
+ *
+ * WHAT: streams the Content-Encoding-selected codec over the request body chain,
+ *       writing plaintext to dst_fd. Bounds output via the bomb guard (out_cap =
+ *       max_output, ratio default) so a hostile highly-compressible upload cannot
+ *       exhaust disk; on any failure sets *http_status_out (413 bomb / 400 bad
+ *       data / 500 I-O) and returns NGX_ERROR. On success returns NGX_OK.
+ * HOW:  open one xrootd_codec stream, hand the per-buffer feed loop to
+ *       codec_decode_bufs, close once on return. Buffers freed here on all paths.
  */
 ngx_int_t
-xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    const char *log_path, int window_bits,
-    xrootd_http_body_summary_t *summary_out)
+xrootd_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, xrootd_codec_id_t codec, uint64_t max_output,
+    xrootd_http_body_summary_t *summary_out, ngx_int_t *http_status_out)
 {
-    z_stream                    zs;
+    xrootd_codec_stream_t      *s;
+    xrootd_codec_guard_t        guard;
+    xrootd_codec_rc_t           worst_rc = XROOTD_CODEC_OK;
     ngx_int_t                   rc;
     u_char                     *outbuf = NULL;
     u_char                     *inbuf = NULL;
@@ -493,11 +519,10 @@ xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
     if (summary_out == NULL) {
         summary_out = &summary;
     }
-
     if (xrootd_http_body_summary(r, summary_out) != NGX_OK) {
+        if (http_status_out) { *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR; }
         return NGX_ERROR;
     }
-
     if (r == NULL || r->request_body == NULL
         || r->request_body->bufs == NULL)
     {
@@ -506,35 +531,71 @@ xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
 
     log = r->connection->log;
 
-    outbuf = ngx_alloc(XROOTD_INFLATE_OUT_BUFSZ, log);
-    if (outbuf == NULL) {
+    ngx_memzero(&guard, sizeof(guard));
+    guard.out_cap   = max_output;          /* 0 = unbounded */
+    guard.max_ratio = xrootd_http_body_decode_ratio(codec);
+
+    s = xrootd_codec_open(codec, XROOTD_CODEC_DIR_DECOMPRESS, -1, &guard);
+    if (s == NULL) {
+        if (http_status_out) {
+            *http_status_out = NGX_HTTP_UNSUPPORTED_MEDIA_TYPE;
+        }
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "xrootd_http_body: codec %d unavailable for %s",
+                      (int) codec, log_path ? log_path : "-");
         return NGX_ERROR;
     }
 
+    outbuf = ngx_alloc(XROOTD_INFLATE_OUT_BUFSZ, log);
+    if (outbuf == NULL) {
+        xrootd_codec_close(s);
+        if (http_status_out) { *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR; }
+        return NGX_ERROR;
+    }
     if (summary_out->has_spooled) {
         inbuf = ngx_alloc(XROOTD_INFLATE_IN_BUFSZ, log);
         if (inbuf == NULL) {
             ngx_free(outbuf);
+            xrootd_codec_close(s);
+            if (http_status_out) { *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR; }
             return NGX_ERROR;
         }
     }
 
-    ngx_memzero(&zs, sizeof(zs));
+    rc = codec_decode_bufs(s, r, dst_fd, log_path, outbuf, inbuf, log, &worst_rc);
 
-    if (inflateInit2(&zs, window_bits) != Z_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_http_body: inflateInit2(%d) failed for %s",
-                      window_bits, log_path ? log_path : "-");
-        ngx_free(inbuf);
-        ngx_free(outbuf);
-        return NGX_ERROR;
-    }
-
-    rc = xrootd_http_body_inflate_bufs(&zs, r, dst_fd, log_path,
-                                       outbuf, inbuf, log);
-
-    inflateEnd(&zs);
     ngx_free(inbuf);
     ngx_free(outbuf);
+    xrootd_codec_close(s);
+
+    if (rc != NGX_OK && http_status_out) {
+        if (worst_rc == XROOTD_CODEC_ERR_BOMB) {
+            *http_status_out = NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;   /* 413 */
+        } else if (worst_rc == XROOTD_CODEC_ERR_DATA) {
+            *http_status_out = NGX_HTTP_BAD_REQUEST;                /* 400 */
+        } else {
+            *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR;      /* 500 */
+        }
+    }
     return rc;
+}
+
+/*
+ * xrootd_http_body_inflate_to_fd - compatibility wrapper (zlib window_bits).
+ *
+ * Maps the legacy window_bits selector (15+16 = gzip, 15 = deflate) onto the
+ * codec abstraction and delegates to xrootd_http_body_decode_to_fd with no output
+ * cap. Retained so existing callers keep working; new code should call
+ * xrootd_http_body_decode_to_fd directly with a codec id + bomb cap.
+ */
+ngx_int_t
+xrootd_http_body_inflate_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, int window_bits,
+    xrootd_http_body_summary_t *summary_out)
+{
+    xrootd_codec_id_t codec = (window_bits >= 16)
+                              ? XROOTD_CODEC_GZIP : XROOTD_CODEC_DEFLATE;
+
+    return xrootd_http_body_decode_to_fd(r, dst_fd, log_path, codec, 0,
+                                         summary_out, NULL);
 }

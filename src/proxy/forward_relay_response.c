@@ -1,11 +1,12 @@
 #include "proxy_internal.h"
 #include "../session/registry.h"
+#include "../protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
 
 /*
  * WHAT: Relay upstream XRootD responses to the client, handling special cases:
  *       bound-secondary lazy-open (synthetic kXR_open), kXR_wait retry,
  *       kXR_redirect follow-through, fhandle translation, path audit,
- *       and streaming kXR_oksofar.
+ *       and streaming kXR_oksofar / mid-stream kXR_wait.
  *
  * WHY:  The transparent proxy must translate upstream file handles to local
  *       handles, absorb transient kXR_wait responses with timed retries,
@@ -204,18 +205,13 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
 
     /* ---- kXR_wait: absorb upstream "busy, try later" ---- */
     if (status == kXR_wait
+        && !proxy->fwd_streaming
         && proxy->wait_retry_req != NULL
         && proxy->wait_retry_count < XROOTD_PROXY_MAX_WAIT_RETRIES)
     {
-        uint32_t wait_be = 0;
-        uint32_t wait_secs;
-
-        if (body != NULL && dlen >= 4) {
-            ngx_memcpy(&wait_be, body, 4);
-        }
-        wait_secs = ntohl(wait_be);
-        if (wait_secs < 1)                         { wait_secs = 1; }
-        if (wait_secs > XROOTD_PROXY_MAX_WAIT_SECS) { wait_secs = XROOTD_PROXY_MAX_WAIT_SECS; }
+        /* shared decode+clamp (libxrdproto): floor 1s, ceiling MAX. */
+        uint32_t wait_secs = xrd_wait_secs_parse((const uint8_t *) body, dlen, 1,
+                                                 XROOTD_PROXY_MAX_WAIT_SECS);
 
         proxy->wait_retry_count++;
         XROOTD_PROXY_METRIC_INC(ctx, wait_responses_total);
@@ -487,6 +483,22 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         proxy->resp_body_pos = 0;
         xrootd_queue_response(ctx, c, buf, total);
         /* State stays XRD_ST_PROXY; read handler loops */
+        return;
+    }
+
+    if (status == kXR_wait && proxy->fwd_streaming) {
+        /*
+         * A wait after oksofar bytes have already been relayed cannot be
+         * absorbed: replaying the original request would duplicate or reorder
+         * the stream. Relay the control frame and keep reading for the terminal
+         * response so the upstream read handler never sees follow-on frames
+         * while the proxy is IDLE.
+         */
+        proxy->rhdr_pos      = 0;
+        proxy->resp_dlen     = 0;
+        proxy->resp_body     = NULL;
+        proxy->resp_body_pos = 0;
+        xrootd_queue_response(ctx, c, buf, total);
         return;
     }
 

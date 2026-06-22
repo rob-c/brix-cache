@@ -1,5 +1,7 @@
 #include "gsi_internal.h"
+#include "gsi_core.h"
 #include <string.h>
+#include <stdlib.h>
 
 /* Crypto helper declarations — defined in parse_crypto_helpers.c */
 extern BIGNUM *xrootd_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
@@ -8,6 +10,213 @@ extern void xrootd_gsi_select_cipher_name(const u_char *payload, size_t payload_
     char *cipher_name, size_t cipher_name_size);
 extern EVP_PKEY *xrootd_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_dh_key,
     BIGNUM *client_public_bn);
+
+/*
+ * gsi_chain_from_plaintext — extract the client proxy chain from a decrypted
+ * kXRS_main plaintext (shared by the unsigned and signed-DH round-2 paths).
+ * The plaintext is itself an XrdSutBuffer carrying a kXRS_x509 bucket whose
+ * data is the PEM-concatenated proxy chain.  Returns a non-empty
+ * STACK_OF(X509) (caller sk_X509_pop_free) or NULL.
+ */
+static STACK_OF(X509) *
+gsi_chain_from_plaintext(const u_char *plain, int plain_len, ngx_log_t *log)
+{
+    const u_char   *x509_data = NULL;
+    size_t          x509_len = 0;
+    BIO            *bio;
+    X509           *cert;
+    STACK_OF(X509) *chain;
+
+    if (gsi_find_bucket(plain, (size_t) plain_len, (uint32_t) kXRS_x509,
+                        &x509_data, &x509_len) != 0) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI kXGC_cert: kXRS_x509 not found "
+                      "in decrypted inner buffer");
+        return NULL;
+    }
+
+    bio = BIO_new_mem_buf(x509_data, (int) x509_len);
+    chain = sk_X509_new_null();
+    if (!bio || !chain) {
+        BIO_free(bio);
+        sk_X509_free(chain);
+        return NULL;
+    }
+    while ((cert = PEM_read_bio_X509(bio, NULL, NULL, NULL)) != NULL) {
+        sk_X509_push(chain, cert);
+    }
+    BIO_free(bio);
+
+    if (sk_X509_num(chain) == 0) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI kXGC_cert: kXRS_x509 contained no certs");
+        sk_X509_pop_free(chain, X509_free);
+        return NULL;
+    }
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, 0,
+                   "xrootd: GSI parsed %d cert(s) from kXRS_x509 after decrypt",
+                   sk_X509_num(chain));
+    return chain;
+}
+
+/*
+ * gsi_recover_peer_signed — recover the client's DH public (peer key) from the
+ * signed-DH round 2.  The client sends kXRS_cipher = its Public() blob signed
+ * with the proxy private key (RSA EncryptPrivate) plus kXRS_puk = the proxy
+ * public key (PEM).  We verify/recover the blob with DecryptPublic against that
+ * public key, then parse it as a DH peer.  Returns the peer EVP_PKEY (caller
+ * frees) or NULL.  This authenticates that the sender holds the proxy key.
+ */
+static EVP_PKEY *
+gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
+{
+    const u_char *cipher = NULL, *puk = NULL;
+    size_t        cipherlen = 0, puklen = 0;
+    BIO          *pbio;
+    EVP_PKEY     *proxy_pub, *peer;
+    u_char       *blob;
+    size_t        bloblen;
+
+    if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_cipher,
+                        &cipher, &cipherlen) != 0
+        || gsi_find_bucket(payload, plen, (uint32_t) kXRS_puk,
+                           &puk, &puklen) != 0)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI signed-DH: kXRS_cipher/kXRS_puk missing");
+        return NULL;
+    }
+
+    pbio = BIO_new_mem_buf(puk, (int) puklen);
+    proxy_pub = pbio ? PEM_read_bio_PUBKEY(pbio, NULL, NULL, NULL) : NULL;
+    BIO_free(pbio);
+    if (proxy_pub == NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI signed-DH: cannot read proxy public key");
+        return NULL;
+    }
+
+    bloblen = cipherlen + 2 * (size_t) EVP_PKEY_size(proxy_pub) + 64;
+    blob = malloc(bloblen);
+    bloblen = blob ? xrootd_gsi_rsa_decrypt_public(proxy_pub, cipher, cipherlen,
+                                                   blob, bloblen) : 0;
+    EVP_PKEY_free(proxy_pub);
+    if (bloblen == 0) {
+        free(blob);
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI signed-DH: signature verification failed");
+        return NULL;
+    }
+    peer = xrootd_gsi_cipher_parse_peer(blob, bloblen);
+    free(blob);
+    return peer;
+}
+
+/*
+ * xrootd_gsi_parse_x509_signed — round-2 handler for the signed-DH variant
+ * (mirrors the client's signed path in client/lib/sec/sec_gsi.c).  Recovers the
+ * peer DH public from the RSA-signed kXRS_cipher, agrees the padded (HasPad=1)
+ * DH secret, decrypts the IV-prepended kXRS_main, and returns the proxy chain.
+ * Sets ctx->signing_key = SHA-256(secret) / signing_active for symmetry with
+ * the unsigned path.  Returns STACK_OF(X509) * or NULL.
+ */
+static STACK_OF(X509) *
+xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
+{
+    const u_char   *payload = ctx->payload;
+    size_t          plen = ctx->cur_dlen;
+    ngx_log_t      *log = c->log;
+    const u_char   *main_data = NULL;
+    size_t          main_len = 0;
+    EVP_PKEY       *peer;
+    EVP_PKEY_CTX   *pkctx;
+    unsigned char  *secret = NULL;
+    size_t          secret_len = 0;
+    uint8_t         aeskey[16];
+    uint8_t        *plain;
+    size_t          plain_len = 0;
+    STACK_OF(X509) *chain;
+
+    if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_main,
+                        &main_data, &main_len) != 0) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI signed-DH: kXRS_main missing");
+        return NULL;
+    }
+
+    peer = gsi_recover_peer_signed(payload, plen, log);
+    if (peer == NULL) {
+        return NULL;
+    }
+
+    /*
+     * Padded (HasPad=1) DH secret: the signed-DH AES-128 key is the first 16
+     * bytes of the prime-sized secret, so derive with set_dh_pad(1) (unlike the
+     * unsigned path's pad=0).  signing_key = SHA-256(secret) mirrors the
+     * unsigned path; sigver is off by default whenever signed-DH is selected.
+     */
+    pkctx = EVP_PKEY_CTX_new(ctx->gsi_dh_key, NULL);
+    if (pkctx == NULL
+        || EVP_PKEY_derive_init(pkctx) != 1
+        || EVP_PKEY_CTX_set_dh_pad(pkctx, 1) != 1
+        || EVP_PKEY_derive_set_peer(pkctx, peer) != 1
+        || EVP_PKEY_derive(pkctx, NULL, &secret_len) != 1
+        || (secret = ngx_palloc(c->pool, secret_len)) == NULL
+        || EVP_PKEY_derive(pkctx, secret, &secret_len) != 1)
+    {
+        EVP_PKEY_CTX_free(pkctx);
+        EVP_PKEY_free(peer);
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI signed-DH: DH derive failed");
+        return NULL;
+    }
+    EVP_PKEY_CTX_free(pkctx);
+    EVP_PKEY_free(peer);
+
+    if (secret_len < 16) {
+        OPENSSL_cleanse(secret, secret_len);
+        return NULL;
+    }
+    ngx_memcpy(aeskey, secret, 16);
+
+    {
+        EVP_MD_CTX   *mdctx = EVP_MD_CTX_new();
+        unsigned int  dlen = 32;
+        u_char        digest[32];
+
+        if (mdctx
+            && EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL) == 1
+            && EVP_DigestUpdate(mdctx, secret, secret_len) == 1
+            && EVP_DigestFinal_ex(mdctx, digest, &dlen) == 1)
+        {
+            ngx_memcpy(ctx->signing_key, digest, 32);
+            ctx->signing_active = 1;
+        }
+        if (mdctx) {
+            EVP_MD_CTX_free(mdctx);
+        }
+    }
+    OPENSSL_cleanse(secret, secret_len);
+
+    /* aes-128-cbc with a prepended random IV (use_iv=1), per the >=10400 wire.
+     * The cipher is fixed to aes-128-cbc because the server advertises it first
+     * in kXRS_cipher_alg (cert_response.c), and clients select the server's
+     * first supported entry — so every peer keys a 16-byte aes-128 session. */
+    plain = xrootd_gsi_cipher_decrypt(aeskey, main_data, main_len, 1, &plain_len);
+    OPENSSL_cleanse(aeskey, sizeof(aeskey));
+    if (plain == NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd: GSI signed-DH: main decrypt failed");
+        return NULL;
+    }
+
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, 0,
+                   "xrootd: GSI signed-DH decrypted kXRS_main: %uz bytes",
+                   plain_len);
+    chain = gsi_chain_from_plaintext(plain, (int) plain_len, log);
+    free(plain);
+    return chain;
+}
 
 /*
  * xrootd_gsi_parse_x509 — top-level kXGC_cert handler.
@@ -53,6 +262,12 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd: GSI kXGC_cert: no server DH key (kXGC_certreq skipped?)");
         return NULL;
+    }
+
+    /* Signed-DH (>=10400) was selected in round 1 — take the signed path that
+     * verifies the RSA-signed kXRS_cipher and decrypts the IV-prepended main. */
+    if (ctx->gsi_signed_dh) {
+        return xrootd_gsi_parse_x509_signed(ctx, c);
     }
 
     if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_puk,

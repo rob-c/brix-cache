@@ -55,10 +55,19 @@ if [ "$USE_THREADS" != YES ]; then
     exit 1
 fi
 
-# libxml2 is required for WebDAV PROPFIND XML parsing
+# libxml2 is required for WebDAV PROPFIND XML parsing.
+#
+# The external-library flags below are captured into XROOTD_*_LIBS and added to
+# each module's ngx_module_libs (see the ". auto/module" blocks), NOT only to
+# CORE_LIBS.  CORE_LIBS links the nginx *binary*; for a DYNAMIC module build
+# (--with-stream=dynamic, as the RPM uses) the per-module .so is linked with
+# ngx_module_libs, so libs that live only in CORE_LIBS would be missing from the
+# .so and the module would fail to dlopen() with "undefined symbol: ..." on a
+# stock nginx that does not itself link xml2/jansson/curl/krb5.
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libxml-2.0; then
     CFLAGS="$CFLAGS $(pkg-config --cflags libxml-2.0) -DXROOTD_HAVE_LIBXML2=1"
-    CORE_LIBS="$CORE_LIBS $(pkg-config --libs libxml-2.0)"
+    XROOTD_XML2_LIBS="$(pkg-config --libs libxml-2.0)"
+    CORE_LIBS="$CORE_LIBS $XROOTD_XML2_LIBS"
 else
     echo "ERROR: libxml2 is required for WebDAV PROPFIND XML parsing." \
          "Install libxml2-devel (RHEL/CentOS) or libxml2-dev (Debian/Ubuntu)." >&2
@@ -69,7 +78,8 @@ echo " + xrootd WebDAV: native MKCOL/DELETE handlers enabled"
 
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists jansson; then
     CFLAGS="$CFLAGS $(pkg-config --cflags jansson) -DXROOTD_HAVE_JANSSON=1"
-    CORE_LIBS="$CORE_LIBS $(pkg-config --libs jansson)"
+    XROOTD_JANSSON_LIBS="$(pkg-config --libs jansson)"
+    CORE_LIBS="$CORE_LIBS $XROOTD_JANSSON_LIBS"
 else
     echo "ERROR: jansson library is required but was not found." \
          "Install jansson-devel (RHEL/CentOS) or libjansson-dev (Debian/Ubuntu)." >&2
@@ -79,7 +89,8 @@ fi
 # libcurl is required for WebDAV HTTP-TPC COPY operations
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libcurl; then
     CFLAGS="$CFLAGS $(pkg-config --cflags libcurl)"
-    CORE_LIBS="$CORE_LIBS $(pkg-config --libs libcurl)"
+    XROOTD_CURL_LIBS="$(pkg-config --libs libcurl)"
+    CORE_LIBS="$CORE_LIBS $XROOTD_CURL_LIBS"
 else
     echo "ERROR: libcurl is required for WebDAV HTTP-TPC COPY operations." \
          "Install libcurl-devel (RHEL/CentOS) or libcurl4-openssl-dev (Debian/Ubuntu)." >&2
@@ -88,17 +99,155 @@ fi
 
 # Kerberos 5 is optional at build time. If unavailable, xrootd_auth krb5
 # remains a config-time error via src/krb5/config.c.
+#   Detection order: pkg-config (preferred) then krb5-config.  Some hosts ship
+#   the MIT krb5 'krb5-config' tool + headers but no 'krb5.pc' pkg-config file
+#   (a historical Debian split where headers came via krb5-multidev); the
+#   krb5-config fallback keeps Kerberos enabled on those hosts instead of
+#   silently disabling it.  Both emit the same flags: -lkrb5 -lk5crypto -lcom_err
+#   (raw MIT libkrb5; the module never links GSS-API).
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists krb5; then
     CFLAGS="$CFLAGS $(pkg-config --cflags krb5) -DXROOTD_HAVE_KRB5=1"
-    CORE_LIBS="$CORE_LIBS $(pkg-config --libs krb5)"
-    echo " + xrootd auth: Kerberos 5 plugin enabled"
+    XROOTD_KRB5_LIBS="$(pkg-config --libs krb5)"
+    CORE_LIBS="$CORE_LIBS $XROOTD_KRB5_LIBS"
+    echo " + xrootd auth: Kerberos 5 plugin enabled (pkg-config)"
+elif command -v krb5-config >/dev/null 2>&1; then
+    CFLAGS="$CFLAGS $(krb5-config --cflags) -DXROOTD_HAVE_KRB5=1"
+    XROOTD_KRB5_LIBS="$(krb5-config --libs)"
+    CORE_LIBS="$CORE_LIBS $XROOTD_KRB5_LIBS"
+    echo " + xrootd auth: Kerberos 5 plugin enabled (krb5-config)"
 else
-    echo " + xrootd auth: Kerberos 5 plugin disabled (krb5 pkg-config not found)"
+    echo " + xrootd auth: Kerberos 5 plugin disabled" \
+         "(neither 'krb5.pc' nor 'krb5-config' found; install krb5-devel" \
+         "[RHEL] or libkrb5-dev [Debian] to enable xrootd_auth krb5)"
+fi
+
+# Compression codecs (phase-42). The shared codec abstraction (src/compat/codec_*.c)
+# is one ngx-free kernel used by the module here and by libxrdc (client). Each
+# codec is compile-time-gated like krb5/fuse3: when its dev lib is present we add
+# -DXROOTD_HAVE_<C> + its link flags; otherwise the backend compiles to an
+# "unavailable" descriptor and the codec degrades gracefully. zlib (gzip/deflate)
+# is effectively mandatory (nginx already links it); the rest are optional.
+# XROOTD_CODEC_LIBS accumulates the per-.so link flags (added to ngx_module_libs
+# below, NOT only CORE_LIBS — required for the DYNAMIC module build to resolve).
+XROOTD_CODEC_LIBS=""
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists zlib; then
+    CFLAGS="$CFLAGS $(pkg-config --cflags zlib) -DXROOTD_HAVE_ZLIB=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs zlib)"
+else
+    CFLAGS="$CFLAGS -DXROOTD_HAVE_ZLIB=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS -lz"
+fi
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libzstd; then
+    CFLAGS="$CFLAGS $(pkg-config --cflags libzstd) -DXROOTD_HAVE_ZSTD=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs libzstd)"
+    echo " + xrootd compression: zstd enabled"
+else
+    echo " + xrootd compression: zstd disabled (install libzstd-devel to enable)"
+fi
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists liblzma; then
+    CFLAGS="$CFLAGS $(pkg-config --cflags liblzma) -DXROOTD_HAVE_LZMA=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs liblzma)"
+    echo " + xrootd compression: xz/lzma enabled"
+else
+    echo " + xrootd compression: xz/lzma disabled (install xz-devel to enable)"
+fi
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libbrotlienc libbrotlidec; then
+    CFLAGS="$CFLAGS $(pkg-config --cflags libbrotlienc) -DXROOTD_HAVE_BROTLI=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs libbrotlienc libbrotlidec)"
+    echo " + xrootd compression: brotli enabled"
+else
+    echo " + xrootd compression: brotli disabled (install libbrotli-devel to enable)"
+fi
+# bzip2 commonly ships no .pc file: probe the header/lib directly (krb5-config style).
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists bzip2; then
+    CFLAGS="$CFLAGS $(pkg-config --cflags bzip2) -DXROOTD_HAVE_BZIP2=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs bzip2)"
+    echo " + xrootd compression: bzip2 enabled (pkg-config)"
+elif printf '#include <bzlib.h>\nint main(void){return !BZ2_bzlibVersion;}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
+     && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lbz2 >/dev/null 2>&1; then
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
+    CFLAGS="$CFLAGS -DXROOTD_HAVE_BZIP2=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS -lbz2"
+    echo " + xrootd compression: bzip2 enabled (-lbz2)"
+else
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
+    echo " + xrootd compression: bzip2 disabled (install bzip2-devel to enable)"
+fi
+
+# lz4 (phase-42 extension): prefer pkg-config liblz4; else probe lz4frame.h + -llz4
+# (header/lib directly, like bzip2).  Honours PKG_CONFIG_PATH so a non-system
+# (e.g. conda) liblz4 is found; the runtime soname (liblz4.so.1) resolves from the
+# default loader path.
+if [ -n "${XROOTD_LZ4_CFLAGS:-}${XROOTD_LZ4_LIBS:-}" ]; then
+    # Explicit env hint (for a non-system liblz4, e.g. conda): supply the header
+    # -I via XROOTD_LZ4_CFLAGS and the link via XROOTD_LZ4_LIBS (default the bare
+    # soname from the default loader path).  This avoids putting a non-system
+    # prefix on PKG_CONFIG_PATH, which would flip OTHER codecs to that prefix's
+    # sonames (not on the runtime path).
+    CFLAGS="$CFLAGS ${XROOTD_LZ4_CFLAGS:-} -DXROOTD_HAVE_LZ4=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS ${XROOTD_LZ4_LIBS:--l:liblz4.so.1}"
+    echo " + xrootd compression: lz4 enabled (env hint)"
+elif command -v pkg-config >/dev/null 2>&1 && pkg-config --exists liblz4; then
+    CFLAGS="$CFLAGS $(pkg-config --cflags liblz4) -DXROOTD_HAVE_LZ4=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs liblz4)"
+    echo " + xrootd compression: lz4 enabled (pkg-config)"
+elif printf '#include <lz4frame.h>\nint main(void){return !LZ4F_isError(0);}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
+     && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -llz4 >/dev/null 2>&1; then
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
+    CFLAGS="$CFLAGS -DXROOTD_HAVE_LZ4=1"
+    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS -llz4"
+    echo " + xrootd compression: lz4 enabled (-llz4)"
+else
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
+    echo " + xrootd compression: lz4 disabled (install liblz4-dev to enable)"
+fi
+
+# OpenSSL >= 3.0.0 is REQUIRED.
+#   Licensing: OpenSSL 3.x is Apache-2.0, which is compatible with this project's
+#   AGPL-3.0 license.  OpenSSL <= 1.1.1 ships under the legacy OpenSSL/SSLeay dual
+#   license, whose advertising clause is INCOMPATIBLE with the GPL/AGPL.
+#   Technical: the module also relies on OpenSSL 3.x EVP_MAC / provider APIs.
+# Best-effort version gate: hard-error when a sub-3.0 OpenSSL is detected; warn
+# (do not block) when the version cannot be determined here, e.g. a custom
+# --with-openssl=<dir> build the add-on config cannot inspect.
+_xrd_ssl_verified=""
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists openssl; then
+    if pkg-config --atleast-version=3.0.0 openssl; then
+        _xrd_ssl_verified=yes
+        echo " + xrootd: OpenSSL $(pkg-config --modversion openssl) (>= 3.0.0, Apache-2.0) OK"
+    else
+        echo "ERROR: nginx-xrootd requires OpenSSL >= 3.0.0 (found" \
+             "$(pkg-config --modversion openssl)). OpenSSL <= 1.1.1 uses the" \
+             "OpenSSL/SSLeay license, which is incompatible with this project's" \
+             "AGPL-3.0 license, and lacks the OpenSSL 3.x APIs this module uses." >&2
+        exit 1
+    fi
+elif command -v openssl >/dev/null 2>&1; then
+    _xrd_ssl_ver=$(openssl version 2>/dev/null | awk '{print $2}')
+    case "$_xrd_ssl_ver" in
+        3.*|[4-9].*|[1-9][0-9].*)
+            _xrd_ssl_verified=yes
+            echo " + xrootd: OpenSSL $_xrd_ssl_ver (>= 3.0.0, Apache-2.0) OK" ;;
+        *)
+            echo "ERROR: nginx-xrootd requires OpenSSL >= 3.0.0 (found" \
+                 "${_xrd_ssl_ver:-unknown}). OpenSSL <= 1.1.1 uses the" \
+                 "OpenSSL/SSLeay license, incompatible with AGPL-3.0, and lacks" \
+                 "the OpenSSL 3.x APIs this module uses." >&2
+            exit 1 ;;
+    esac
+fi
+if [ -z "$_xrd_ssl_verified" ]; then
+    echo "WARNING: could not verify the OpenSSL version (no pkg-config 'openssl'" \
+         "module and no 'openssl' CLI). nginx-xrootd REQUIRES OpenSSL >= 3.0.0" \
+         "(Apache-2.0); building against OpenSSL <= 1.1.1 is unsupported and" \
+         "AGPL-incompatible." >&2
 fi
 
 ngx_addon_name=ngx_stream_xrootd_module
 
 ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
+                        $ngx_addon_dir/src/acc/privs.h \
+                        $ngx_addon_dir/src/acc/acc.h \
                         $ngx_addon_dir/src/mirror/mirror.h \
                         $ngx_addon_dir/src/mirror/stream_mirror.h \
                         $ngx_addon_dir/src/ratelimit/ratelimit.h \
@@ -122,6 +271,10 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/types/identity.h \
                         $ngx_addon_dir/src/fs/vfs.h \
                         $ngx_addon_dir/src/fs/vfs_internal.h \
+                        $ngx_addon_dir/src/frm/frm.h \
+                        $ngx_addon_dir/src/frm/frm_format.h \
+                        $ngx_addon_dir/src/frm/frm_internal.h \
+                        $ngx_addon_dir/src/frm/waiter.h \
                         $ngx_addon_dir/src/path/path.h \
                         $ngx_addon_dir/src/read/clone.h \
                         $ngx_addon_dir/src/read/close.h \
@@ -157,6 +310,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/token/scopes.h \
                         $ngx_addon_dir/src/token/token.h \
                         $ngx_addon_dir/src/compat/checksum.h \
+                        $ngx_addon_dir/src/compat/codec_core.h \
                         $ngx_addon_dir/src/compat/crc32c.h \
                         $ngx_addon_dir/src/compat/etag.h \
                         $ngx_addon_dir/src/compat/crypto.h \
@@ -185,6 +339,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/compat/range_vector.h \
                         $ngx_addon_dir/src/compat/integrity_info.h \
                         $ngx_addon_dir/src/compat/async_job.h \
+                        $ngx_addon_dir/src/pmark/pmark.h \
                         $ngx_addon_dir/src/manager/registry.h \
                         $ngx_addon_dir/src/proxy/proxy.h \
                         $ngx_addon_dir/src/proxy/proxy_internal.h \
@@ -200,12 +355,17 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/protocol/flags.h \
                         $ngx_addon_dir/src/protocol/wire.h \
                         $ngx_addon_dir/src/protocol/gsi.h \
+                        $ngx_addon_dir/src/protocol/sss.h \
+                        $ngx_addon_dir/src/protocol/frame_hdr.h \
                         $ngx_addon_dir/src/gsi/keypool.h \
+                        $ngx_addon_dir/src/gsi/gsi_core.h \
                         $ngx_addon_dir/src/shm/kv.h \
                         $ngx_addon_dir/src/shm/rate_limit.h \
                         $ngx_addon_dir/src/path/auth_cache.h \
                         $ngx_addon_dir/src/token/token_cache.h"
 ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
+                        $ngx_addon_dir/src/webdav/tape_rest.h \
+                        $ngx_addon_dir/src/frm/frm.h \
                         $ngx_addon_dir/src/mirror/mirror.h \
                         $ngx_addon_dir/src/mirror/http_mirror.h \
                         $ngx_addon_dir/src/fs/vfs.h \
@@ -228,6 +388,28 @@ ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
                         $ngx_addon_dir/src/webdav/util/uri.h \
                         $ngx_addon_dir/src/webdav/util/xml.h"
 
+# ---------------------------------------------------------------------------
+# phase-47 W1: emit non-filter modules so the DYNAMIC build produces ONE
+# combined .so.  A cross-.so RTLD_NOW symbol cycle
+# (dashboard <-> webdav <-> metrics <-> stream) cannot dlopen as separate .so
+# files, so for --add-dynamic-module we accumulate every non-filter block's
+# srcs/deps/libs and emit a single combined module at the end of this file (the
+# HTTP AUX filter stays its own .so).  For the static --add-module build nothing
+# changes: xrd_emit_module just runs `. auto/module` per block, preserving each
+# module's own type so STREAM modules land in STREAM_MODULES (not HTTP_MODULES).
+xrd_dyn_srcs=""
+xrd_dyn_deps=""
+xrd_dyn_libs=""
+xrd_emit_module() {
+    if [ "$ngx_module_link" = DYNAMIC ]; then
+        xrd_dyn_srcs="$xrd_dyn_srcs $ngx_module_srcs"
+        xrd_dyn_deps="$xrd_dyn_deps $ngx_module_deps"
+        xrd_dyn_libs="$xrd_dyn_libs $ngx_module_libs"
+    else
+        . auto/module
+    fi
+}
+
 # Build both the stream module and the companion HTTP metrics module
 ngx_module_type=STREAM
 ngx_module_name=ngx_stream_xrootd_module
@@ -236,19 +418,34 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/stream/module.c \
     $ngx_addon_dir/src/stream/module_definition.c \
     $ngx_addon_dir/src/compat/checksum.c \
+    $ngx_addon_dir/src/compat/checksum_core.c \
     $ngx_addon_dir/src/compat/crc32c.c \
+    $ngx_addon_dir/src/compat/crc64.c \
+    $ngx_addon_dir/src/compat/crc32_ieee.c \
+    $ngx_addon_dir/src/compat/codec_core.c \
+    $ngx_addon_dir/src/compat/codec_zlib.c \
+    $ngx_addon_dir/src/compat/codec_zstd.c \
+    $ngx_addon_dir/src/compat/codec_lzma.c \
+    $ngx_addon_dir/src/compat/codec_brotli.c \
+    $ngx_addon_dir/src/compat/codec_bzip2.c \
+    $ngx_addon_dir/src/compat/codec_lz4.c \
     $ngx_addon_dir/src/compat/etag.c \
     $ngx_addon_dir/src/compat/crypto.c \
     $ngx_addon_dir/src/compat/hex.c \
     $ngx_addon_dir/src/compat/fs_walk.c \
     $ngx_addon_dir/src/compat/fs_usage.c \
+    $ngx_addon_dir/src/compat/shm_slots.c \
     $ngx_addon_dir/src/compat/http_body.c \
     $ngx_addon_dir/src/compat/http_conditionals.c \
     $ngx_addon_dir/src/shared/file_serve.c \
     $ngx_addon_dir/src/compat/http_file_response.c \
+    $ngx_addon_dir/src/compat/http_compress.c \
     $ngx_addon_dir/src/compat/http_headers.c \
     $ngx_addon_dir/src/compat/protocol_caps.c \
     $ngx_addon_dir/src/compat/net_target.c \
+    $ngx_addon_dir/src/compat/host_format.c \
+    $ngx_addon_dir/src/compat/host_split.c \
+    $ngx_addon_dir/src/compat/subprocess.c \
     $ngx_addon_dir/src/compat/range_vector.c \
     $ngx_addon_dir/src/compat/namespace_ops.c \
     $ngx_addon_dir/src/compat/integrity_info.c \
@@ -263,8 +460,20 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/compat/path.c \
     $ngx_addon_dir/src/compat/range.c \
     $ngx_addon_dir/src/compat/uri.c \
+    $ngx_addon_dir/src/compat/sigv4.c \
+    $ngx_addon_dir/src/compat/pgio.c \
+    $ngx_addon_dir/src/compat/vendor_ext.c \
+    $ngx_addon_dir/src/compat/sss_bf.c \
+    $ngx_addon_dir/src/compat/fattr_codec.c \
     $ngx_addon_dir/src/compat/xml.c \
     $ngx_addon_dir/src/compat/log.c \
+    $ngx_addon_dir/src/pmark/scitag.c \
+    $ngx_addon_dir/src/pmark/config.c \
+    $ngx_addon_dir/src/pmark/sockstats.c \
+    $ngx_addon_dir/src/pmark/defsfile.c \
+    $ngx_addon_dir/src/pmark/mapping.c \
+    $ngx_addon_dir/src/pmark/firefly.c \
+    $ngx_addon_dir/src/pmark/flowlabel.c \
     $ngx_addon_dir/src/types/identity.c \
     $ngx_addon_dir/src/fs/vfs_open.c \
     $ngx_addon_dir/src/fs/vfs_read.c \
@@ -374,6 +583,20 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/path/canonical.c \
     $ngx_addon_dir/src/path/authdb.c \
     $ngx_addon_dir/src/path/auth_gate.c \
+    $ngx_addon_dir/src/acc/privs.c \
+    $ngx_addon_dir/src/acc/capability.c \
+    $ngx_addon_dir/src/acc/tables.c \
+    $ngx_addon_dir/src/acc/authfile.c \
+    $ngx_addon_dir/src/acc/entity.c \
+    $ngx_addon_dir/src/acc/access.c \
+    $ngx_addon_dir/src/acc/groups.c \
+    $ngx_addon_dir/src/acc/audit.c \
+    $ngx_addon_dir/src/acc/resolve.c \
+    $ngx_addon_dir/src/acc/config.c \
+    $ngx_addon_dir/src/impersonate/idmap.c \
+    $ngx_addon_dir/src/impersonate/broker.c \
+    $ngx_addon_dir/src/impersonate/client.c \
+    $ngx_addon_dir/src/impersonate/lifecycle.c \
     $ngx_addon_dir/src/path/op_path.c \
     $ngx_addon_dir/src/path/beneath.c \
     $ngx_addon_dir/src/cache/errors.c \
@@ -415,6 +638,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/voms/loader.c \
     $ngx_addon_dir/src/voms/collect.c \
     $ngx_addon_dir/src/voms/extract.c \
+    $ngx_addon_dir/src/gsi/gsi_core.c \
     $ngx_addon_dir/src/gsi/buffer.c \
     $ngx_addon_dir/src/gsi/parse_crypto_helpers.c \
     $ngx_addon_dir/src/gsi/parse_x509.c \
@@ -439,6 +663,18 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/query/metadata.c \
     $ngx_addon_dir/src/query/prepare.c \
     $ngx_addon_dir/src/query/prepare_cmd.c \
+    $ngx_addon_dir/src/frm/reqfile.c \
+    $ngx_addon_dir/src/frm/reqid.c \
+    $ngx_addon_dir/src/frm/index.c \
+    $ngx_addon_dir/src/frm/reconcile.c \
+    $ngx_addon_dir/src/frm/compact.c \
+    $ngx_addon_dir/src/frm/queue.c \
+    $ngx_addon_dir/src/frm/reaper.c \
+    $ngx_addon_dir/src/frm/directives.c \
+    $ngx_addon_dir/src/frm/residency.c \
+    $ngx_addon_dir/src/frm/stage.c \
+    $ngx_addon_dir/src/frm/waiter.c \
+    $ngx_addon_dir/src/frm/migrate_purge.c \
     $ngx_addon_dir/src/query/set.c \
     $ngx_addon_dir/src/query/dispatch.c \
     $ngx_addon_dir/src/upstream/lifecycle.c \
@@ -484,6 +720,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/read/open_request.c \
     $ngx_addon_dir/src/read/open_cache.c \
     $ngx_addon_dir/src/read/read.c \
+    $ngx_addon_dir/src/read/read_compress.c \
     $ngx_addon_dir/src/read/slice_read.c \
     $ngx_addon_dir/src/read/readv.c \
     $ngx_addon_dir/src/read/pgread.c \
@@ -502,6 +739,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/write/op_table.c \
     $ngx_addon_dir/src/write/chmod.c \
     $ngx_addon_dir/src/write/common.c \
+    $ngx_addon_dir/src/write/ext_ops.c \
     $ngx_addon_dir/src/write/mkdir.c \
     $ngx_addon_dir/src/write/mv.c \
     $ngx_addon_dir/src/write/pgwrite.c \
@@ -511,6 +749,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/write/sync.c \
     $ngx_addon_dir/src/write/truncate.c \
     $ngx_addon_dir/src/write/write.c \
+    $ngx_addon_dir/src/write/write_compress.c \
     $ngx_addon_dir/src/write/writev.c \
     $ngx_addon_dir/src/dirlist/handler.c \
     $ngx_addon_dir/src/dirlist/dcksm.c \
@@ -527,9 +766,13 @@ ngx_module_srcs="\
 
 ngx_module_deps="$ngx_xrootd_stream_deps \
                  $ngx_addon_dir/src/dashboard/dashboard.h"
-ngx_module_libs="-lssl -lcrypto"
+# Stream module .so links: OpenSSL + the external libs its own objects call —
+# jansson (token/JWT JSON), libxml2 (compat XML helpers), krb5 (krb5 auth).
+# Loaded first (RTLD_GLOBAL) per mod-xrootd.conf, so its symbols also back the
+# thin HTTP modules that share this code.
+ngx_module_libs="-lssl -lcrypto $XROOTD_JANSSON_LIBS $XROOTD_XML2_LIBS $XROOTD_KRB5_LIBS $XROOTD_CODEC_LIBS"
 CORE_LIBS="$CORE_LIBS -lssl -lcrypto"
-. auto/module
+xrd_emit_module
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_metrics_module
@@ -544,13 +787,15 @@ ngx_module_name=ngx_http_xrootd_metrics_module
                   $ngx_addon_dir/src/metrics/tracking.c \
                   $ngx_addon_dir/src/metrics/cluster.c \
                   $ngx_addon_dir/src/metrics/ratelimit.c \
-                  $ngx_addon_dir/src/metrics/handler.c"
+                  $ngx_addon_dir/src/frm/metrics.c \
+                  $ngx_addon_dir/src/metrics/handler.c \
+                  $ngx_addon_dir/src/metrics/health.c"
 ngx_module_deps="$ngx_addon_dir/src/metrics/metrics.h \
                  $ngx_addon_dir/src/metrics/metrics_macros.h \
                  $ngx_addon_dir/src/metrics/unified.h \
                  $ngx_addon_dir/src/metrics/metrics_internal.h"
 ngx_module_libs=
-. auto/module
+xrd_emit_module
 
 # WLCG Storage Resource Reporting (SRR) — HTTP/JSON storageservice endpoint.
 # Deliberately replaces the XRootD UDP f/g-stream monitoring stack with an
@@ -564,8 +809,9 @@ ngx_module_srcs="$ngx_addon_dir/src/srr/module.c \
                  $ngx_addon_dir/src/srr/handler.c"
 ngx_module_deps="$ngx_addon_dir/src/srr/srr.h \
                  $ngx_addon_dir/src/compat/fs_usage.h"
-ngx_module_libs=
-. auto/module
+# SRR builder.c serialises the storageservice document with jansson.
+ngx_module_libs="$XROOTD_JANSSON_LIBS"
+xrd_emit_module
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_webdav_module
@@ -618,10 +864,13 @@ ngx_module_srcs="$ngx_addon_dir/src/webdav/module.c \
                   $ngx_addon_dir/src/webdav/xrdhttp.c \
                   $ngx_addon_dir/src/webdav/xrdhttp_multipart.c \
                   $ngx_addon_dir/src/webdav/xrdhttp_stats.c \
-                  $ngx_addon_dir/src/webdav/macaroon_endpoint.c"
+                  $ngx_addon_dir/src/webdav/macaroon_endpoint.c \
+                  $ngx_addon_dir/src/webdav/tape_rest.c"
 ngx_module_deps="$ngx_xrootd_webdav_deps"
-ngx_module_libs="-lssl -lcrypto"
-. auto/module
+# WebDAV module .so links: OpenSSL + libcurl (HTTP-TPC COPY), libxml2 (PROPFIND
+# parsing / XML builders), jansson (Tape REST + macaroon JSON).
+ngx_module_libs="-lssl -lcrypto $XROOTD_CURL_LIBS $XROOTD_XML2_LIBS $XROOTD_JANSSON_LIBS"
+xrd_emit_module
 
 # Phase 21 Step A/B — XrdHttp output filter.  Declared HTTP_AUX_FILTER so
 # auto/modules orders it AFTER ngx_http_header_filter_module: its filter_init
@@ -632,6 +881,10 @@ ngx_module_type=HTTP_AUX_FILTER
 ngx_module_name=ngx_http_xrootd_xrdhttp_filter_module
 ngx_module_srcs="$ngx_addon_dir/src/webdav/xrdhttp_filter.c"
 ngx_module_deps="$ngx_xrootd_webdav_deps"
+# Set explicitly (do not inherit the previous module's ngx_module_libs); the
+# filter only needs OpenSSL, with shared xrootd_* symbols resolved at load time
+# against the stream module (RTLD_GLOBAL, loaded first).
+ngx_module_libs="-lssl -lcrypto"
 . auto/module
 
 ngx_module_type=HTTP
@@ -644,6 +897,12 @@ ngx_module_srcs="$ngx_addon_dir/src/s3/module.c \
                  $ngx_addon_dir/src/s3/post_object.c \
                  $ngx_addon_dir/src/s3/list_walk.c \
                  $ngx_addon_dir/src/s3/list_objects_v2.c \
+                 $ngx_addon_dir/src/s3/list_objects_v1.c \
+                 $ngx_addon_dir/src/s3/list_cache.c \
+                 $ngx_addon_dir/src/s3/conditional.c \
+                 $ngx_addon_dir/src/s3/checksum.c \
+                 $ngx_addon_dir/src/s3/aws_chunked.c \
+                 $ngx_addon_dir/src/s3/tagging.c \
                  $ngx_addon_dir/src/s3/auth_sigv4_canonical.c \
                  $ngx_addon_dir/src/s3/auth_sigv4_parse.c \
                  $ngx_addon_dir/src/s3/auth_sigv4_verify.c \
@@ -659,6 +918,8 @@ ngx_module_srcs="$ngx_addon_dir/src/s3/module.c \
                  $ngx_addon_dir/src/s3/util.c \
                  $ngx_addon_dir/src/s3/operation_table.c"
 ngx_module_deps="$ngx_addon_dir/src/s3/s3.h \
+                 $ngx_addon_dir/src/s3/aws_chunked.h \
+                 $ngx_addon_dir/src/s3/tagging.h \
                  $ngx_addon_dir/src/fs/vfs.h \
                  $ngx_addon_dir/src/cache/open.h \
                  $ngx_addon_dir/src/compat/hex.h \
@@ -666,8 +927,10 @@ ngx_module_deps="$ngx_addon_dir/src/s3/s3.h \
                  $ngx_addon_dir/src/metrics/metrics.h \
                  $ngx_addon_dir/src/metrics/unified.h \
                  $ngx_addon_dir/src/metrics/metrics_macros.h"
-ngx_module_libs="-lssl -lcrypto"
-. auto/module
+# S3 module .so links: OpenSSL (SigV4 HMAC) + libxml2 (DeleteObjects request /
+# list-result XML) + jansson.
+ngx_module_libs="-lssl -lcrypto $XROOTD_XML2_LIBS $XROOTD_JANSSON_LIBS"
+xrd_emit_module
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_dashboard_module
@@ -676,6 +939,7 @@ ngx_module_srcs="$ngx_addon_dir/src/dashboard/module.c \
                  $ngx_addon_dir/src/dashboard/api.c \
                  $ngx_addon_dir/src/dashboard/api_admin.c \
                  $ngx_addon_dir/src/dashboard/http_tracking.c \
+                 $ngx_addon_dir/src/dashboard/config_download.c \
                  $ngx_addon_dir/src/dashboard/page.c"
 ngx_module_deps="$ngx_addon_dir/src/dashboard/dashboard.h \
                  $ngx_addon_dir/src/dashboard/dashboard_http.h \
@@ -685,8 +949,10 @@ ngx_module_deps="$ngx_addon_dir/src/dashboard/dashboard.h \
                  $ngx_addon_dir/src/metrics/metrics.h \
                  $ngx_addon_dir/src/tpc/common/registry.h \
                  $ngx_addon_dir/src/tpc/common/transfer.h"
-ngx_module_libs="-lssl -lcrypto -lcrypt"
-. auto/module
+# Dashboard module .so links: OpenSSL + libcrypt (session-cookie HMAC/crypt) +
+# jansson (api.c JSON responses).
+ngx_module_libs="-lssl -lcrypto -lcrypt $XROOTD_JANSSON_LIBS"
+xrd_emit_module
 
 ngx_module_type=STREAM
 ngx_module_name=ngx_stream_xrootd_cms_srv_module
@@ -697,4 +963,36 @@ ngx_module_srcs="$ngx_addon_dir/src/cms/server_handler.c \
                  $ngx_addon_dir/src/cms/server_module.c"
 ngx_module_deps="$ngx_addon_dir/src/cms/server.h"
 ngx_module_libs=
-. auto/module
+xrd_emit_module
+
+# ---------------------------------------------------------------------------
+# phase-47 W1: for the DYNAMIC build, emit ONE combined .so containing every
+# non-filter module accumulated above.  ngx_module_type is cosmetic here — each
+# module's real type (STREAM/HTTP) comes from its own ngx_module_t struct at
+# load, so the stream + http modules coexist in a single .so and register into
+# the correct module slot.  Deduplicate srcs (metrics/tracking.c is listed by
+# both the stream and metrics blocks) so nothing compiles/links twice.  The .so
+# is named after the first module (ngx_stream_xrootd_module.so) and must be the
+# first load_module line so its symbols back the HTTP modules via RTLD_GLOBAL.
+if [ "$ngx_module_link" = DYNAMIC ]; then
+    xrd_comb_srcs=""
+    for _xrd_s in $xrd_dyn_srcs; do
+        case " $xrd_comb_srcs " in
+            *" $_xrd_s "*) ;;
+            *) xrd_comb_srcs="$xrd_comb_srcs $_xrd_s" ;;
+        esac
+    done
+    ngx_module_type=HTTP
+    ngx_module_name="ngx_stream_xrootd_module \
+                     ngx_http_xrootd_metrics_module \
+                     ngx_http_xrootd_srr_module \
+                     ngx_http_xrootd_webdav_module \
+                     ngx_http_xrootd_s3_module \
+                     ngx_http_xrootd_dashboard_module \
+                     ngx_stream_xrootd_cms_srv_module"
+    ngx_module_incs="$ngx_addon_dir/src"
+    ngx_module_srcs="$xrd_comb_srcs"
+    ngx_module_deps="$xrd_dyn_deps"
+    ngx_module_libs="$xrd_dyn_libs"
+    . auto/module
+fi

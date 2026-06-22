@@ -22,6 +22,19 @@
  */
 ngx_int_t xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
+/* ---- Function: xrootd_read_compressed() ----
+ * Phase-42 W4 — inline read-compression path for kXR_read.  Invoked from
+ * xrootd_handle_read() ONLY when ctx->files[idx].read_codec != IDENTITY (an
+ * opt-in handle opened with "?xrootd.compress=").  Synchronously reads a bounded
+ * plaintext window, compresses it as one self-contained codec frame, and queues
+ * the compressed bytes as a single kXR_read response (the client inflates).
+ * pgread/readv never reach here, preserving their plaintext + CRC32c invariant.
+ * `offset`/`rlen` are the already-parsed, already-clamped request fields.
+ */
+ngx_int_t xrootd_read_compressed(xrootd_ctx_t *ctx, ngx_connection_t *c,
+                                 ngx_stream_xrootd_srv_conf_t *rconf,
+                                 int idx, off_t offset, size_t rlen);
+
 /* ---- Function: xrootd_handle_readv() ----
  * Handles kXR_readv opcode — multi-segment scatter-gather read returning interleaved data chunks.
  * Validates segment list (count <= XROOTD_READV_MAX_SEGS), validates each handle, caps per-segment rlen,
@@ -46,5 +59,18 @@ ngx_int_t xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c);
  */
 size_t xrootd_pgread_encode_pages(const u_char *src, size_t len, off_t offset,
                                   u_char *dst);
+
+/* ---- Function: xrootd_pgread_read_encode_inplace() ----
+ * Zero-copy paged read: reads file data DIRECTLY into the final kXR page-mode
+ * wire buffer `out` ([CRC32c(4)][data] per page, file-offset aligned) via batched
+ * preadv and computes each page CRC32c in place — no flat-buffer copy. `out` must
+ * hold rlen + ceil-pages * 4 bytes. Returns encoded byte count; sets *nread_out to
+ * bytes read (-1 on I/O error, *io_errno_out = errno). Output is byte-identical to
+ * xrootd_pgread_encode_pages over the same bytes. Safe to call on a worker thread
+ * (pure I/O + CRC; touches no ctx/connection/pool).
+ */
+size_t xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
+                                         u_char *out, ssize_t *nread_out,
+                                         int *io_errno_out);
 
 #endif // XROOTD_READ_H

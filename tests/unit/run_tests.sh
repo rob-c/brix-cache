@@ -30,6 +30,7 @@ for test in test_*.c; do
     case $test in
         test_b64url.c) impl="../../src/token/b64url.c" ;;
         test_crc32c.c) impl="../../src/compat/crc32c.c" ;;
+        test_crc64.c) impl="../../src/compat/crc64.c" ;;
         test_json.c) impl="../../src/token/json.c" ;;
         test_scopes.c) impl="../../src/token/scopes.c" ;;
         test_xml_compat.c) impl="../../src/compat/xml.c" ;;

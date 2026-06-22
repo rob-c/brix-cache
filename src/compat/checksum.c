@@ -58,6 +58,8 @@ xrootd_checksum_name(xrootd_checksum_alg_t alg)
         return "crc64";
     case XROOTD_CHECKSUM_CRC64NVME:
         return "crc64nvme";
+    case XROOTD_CHECKSUM_ZCRC32:
+        return "zcrc32";
     default:
         return NULL;
     }
@@ -93,7 +95,8 @@ xrootd_checksum_is_u32(xrootd_checksum_alg_t alg)
 {
     return alg == XROOTD_CHECKSUM_ADLER32
            || alg == XROOTD_CHECKSUM_CRC32
-           || alg == XROOTD_CHECKSUM_CRC32C;
+           || alg == XROOTD_CHECKSUM_CRC32C
+           || alg == XROOTD_CHECKSUM_ZCRC32;
 }
 
 /*
@@ -143,6 +146,8 @@ xrootd_checksum_parse(const char *name, size_t len, xrootd_checksum_alg_t *alg,
         parsed = XROOTD_CHECKSUM_CRC64;
     } else if (strcmp(buf, "crc64nvme") == 0) {
         parsed = XROOTD_CHECKSUM_CRC64NVME;
+    } else if (strcmp(buf, "zcrc32") == 0) {
+        parsed = XROOTD_CHECKSUM_ZCRC32;   /* XRootD zlib-CRC32 name */
     } else {
         return NGX_DECLINED;
     }

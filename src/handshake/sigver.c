@@ -32,22 +32,6 @@
  *       flag plus xrootd_sigver_opcode_requires() (a level 0-4 policy table) to
  *       decide whether an unsigned opcode is permitted. */
 
-/* Serialise a 64-bit signature sequence number into big-endian (network order)
- * bytes; the seqno is the first input mixed into the HMAC so replayed signatures
- * over a different sequence position fail verification. */
-static void
-xrootd_sigver_seqno_be(uint64_t seq, u_char out[8])
-{
-    out[0] = (u_char) (seq >> 56);
-    out[1] = (u_char) (seq >> 48);
-    out[2] = (u_char) (seq >> 40);
-    out[3] = (u_char) (seq >> 32);
-    out[4] = (u_char) (seq >> 24);
-    out[5] = (u_char) (seq >> 16);
-    out[6] = (u_char) (seq >> 8);
-    out[7] = (u_char) seq;
-}
-
 /*
  * Recompute and compare the HMAC-SHA256 over the covered request. Lazily fetches
  * the OpenSSL "HMAC" EVP_MAC and allocates an EVP_MAC_CTX (both cached on ctx for
@@ -62,57 +46,15 @@ xrootd_sigver_seqno_be(uint64_t seq, u_char out[8])
 static ngx_int_t
 xrootd_verify_sigver_hmac(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-    u_char        seqno_be[8];
-    u_char        computed[32];
-    OSSL_PARAM    params[2];
-    size_t        clen;
-    int           ok;
+    u_char computed[32];
 
-    xrootd_sigver_seqno_be(ctx->sigver_seqno, seqno_be);
-
-    if (ctx->sigver_mac == NULL) {
-        ctx->sigver_mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
-        if (ctx->sigver_mac == NULL) {
-            ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                          "xrootd: sigver HMAC provider unavailable");
-            return xrootd_send_error(ctx, c, kXR_ServerError,
-                                     "signature verification unavailable");
-        }
-    }
-
-    if (ctx->sigver_mac_ctx == NULL) {
-        ctx->sigver_mac_ctx = EVP_MAC_CTX_new(ctx->sigver_mac);
-        if (ctx->sigver_mac_ctx == NULL) {
-            ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                          "xrootd: sigver HMAC context allocation failed");
-            return xrootd_send_error(ctx, c, kXR_ServerError,
-                                     "signature verification unavailable");
-        }
-    }
-
-    clen = sizeof(computed);
-    ok = 0;
-
-    params[0] = OSSL_PARAM_construct_utf8_string("digest", "SHA256", 0);
-    params[1] = OSSL_PARAM_construct_end();
-
-    if (EVP_MAC_init(ctx->sigver_mac_ctx, ctx->signing_key, 32, params) == 1
-        && EVP_MAC_update(ctx->sigver_mac_ctx, seqno_be, 8) == 1
-        && EVP_MAC_update(ctx->sigver_mac_ctx, ctx->hdr_buf,
-                          XRD_REQUEST_HDR_LEN) == 1)
+    /* Shared HMAC (libxrdproto gsi_core) — recomputes over the SAME covered bytes
+     * the client signs: seqno_be(8) || request header(24) || (payload unless the
+     * nodata flag). Single source of the covered-byte layout. */
+    if (!xrootd_gsi_sigver_hmac(ctx->signing_key, ctx->sigver_seqno,
+                                ctx->hdr_buf, ctx->payload, ctx->cur_dlen,
+                                ctx->sigver_nodata, computed))
     {
-        if (ctx->sigver_nodata
-            || ctx->payload == NULL
-            || ctx->cur_dlen == 0
-            || EVP_MAC_update(ctx->sigver_mac_ctx, ctx->payload,
-                              ctx->cur_dlen) == 1)
-        {
-            ok = (EVP_MAC_final(ctx->sigver_mac_ctx, computed, &clen,
-                                sizeof(computed)) == 1);
-        }
-    }
-
-    if (!ok || clen != sizeof(computed)) {
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
                       "xrootd: sigver HMAC calculation failed for reqid=%d",
                       (int) ctx->cur_reqid);

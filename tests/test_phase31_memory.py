@@ -117,7 +117,7 @@ def test_readv_read_scratch_trim_cycle_integrity():
 def test_tls_large_read_trim_cycle_integrity():
     """Whole-file TLS read in >threshold chunks (read_scratch trim under TLS).
 
-    Previously xfail: consecutive large TLS reads returned kXR_IOError ("Bad
+    Previous defect: consecutive large TLS reads returned kXR_IOError ("Bad
     address", pread EFAULT) on the 2nd read.  That was the same root cause as the
     trim corruption — read_scratch being nginx-pool-backed; the Phase 31 raw-alloc
     fix (ngx_alloc/ngx_free) resolved both, so this now passes: each 8 MiB read

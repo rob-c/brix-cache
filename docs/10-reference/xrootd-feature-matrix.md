@@ -1,386 +1,119 @@
-# XRootD Feature Matrix & Interoperability Reference
-
-Cross-reference of every XRootD protocol feature, security plugin, and server
-component (from `/tmp/xrootd-src`, v5.2.0) against its implementation in
-nginx-xrootd. Intended for assessing interoperability and prioritising
-development work.
-
-**Companion documents**:
-- [gaps-vs-xrootd.md](gaps-vs-xrootd.md) — OSS/storage plugin gaps (tape,
-  CSI, PSS, Ceph, Frm, PFC, …)
-- [xrdhttp-parity-roadmap.md](xrdhttp-parity-roadmap.md) — HTTP/WebDAV TPC
-  and cluster-topology roadmap
-
-**Legend**: ✅ implemented · ⚠️ partial · ❌ not implemented · N/A not applicable
-
----
-
-## 1. Protocol Opcodes
-
-XRootD v5.2.0 defines 33 active request codes (3000–3032) in
-`XProtocol/XProtocol.hh`. The legacy `kXR_gpfile` (3005) was retired before
-v3 and is omitted.
-
-| Opcode | Code | nginx-xrootd source | Status | Interop test |
-|--------|------|---------------------|--------|--------------|
-| kXR_auth | 3000 | src/session/login.c, src/gsi/, src/token/, src/sss/ | ✅ | test_gsi_security.py, test_token_auth.py |
-| kXR_query | 3001 | src/query/dispatch.c | ✅ | test_query.py, test_interop_query.py |
-| kXR_chmod | 3002 | src/write/chmod.c | ✅ | test_fs_ops.py, test_interop_namespace.py |
-| kXR_close | 3003 | src/read/close.c | ✅ | test_conformance.py |
-| kXR_dirlist | 3004 | src/dirlist/handler.c | ✅ | test_conformance.py |
-| kXR_protocol | 3006 | src/session/protocol.c | ✅ | test_protocol_edge_cases.py, test_interop_protocol.py |
-| kXR_login | 3007 | src/session/login.c | ✅ | test_protocol_edge_cases.py |
-| kXR_mkdir | 3008 | src/write/mkdir.c | ✅ | test_fs_ops.py, test_interop_namespace.py |
-| kXR_mv | 3009 | src/write/mv.c | ✅ | test_fs_ops.py, test_interop_namespace.py |
-| kXR_open | 3010 | src/read/open.c, src/write/ | ✅ | test_conformance.py, test_interop_namespace.py |
-| kXR_ping | 3011 | src/session/lifecycle.c | ✅ | test_conformance.py |
-| kXR_chkpoint | 3012 | src/write/chkpoint.c | ✅ | test_write.py |
-| kXR_read | 3013 | src/read/read.c | ✅ | test_conformance.py |
-| kXR_rm | 3014 | src/write/rm.c | ✅ | test_fs_ops.py, test_interop_namespace.py |
-| kXR_rmdir | 3015 | src/write/rmdir.c | ✅ | test_fs_ops.py, test_interop_namespace.py |
-| kXR_sync | 3016 | src/write/sync.c | ✅ | test_interop_io.py |
-| kXR_stat | 3017 | src/read/stat.c | ✅ | test_conformance.py |
-| kXR_set | 3018 | src/query/set.c | ✅ | test_query.py |
-| kXR_write | 3019 | src/write/write.c | ✅ | test_conformance.py, test_write.py |
-| kXR_fattr | 3020 | src/fattr/ | ✅ | test_fattr_query.py, test_interop_namespace.py |
-| kXR_prepare | 3021 | src/query/prepare.c | ✅ | test_prepare_staging.py, test_interop_query.py |
-| kXR_statx | 3022 | src/read/statx.c | ✅ | test_interop_namespace.py |
-| kXR_endsess | 3023 | src/session/lifecycle.c | ✅ | test_interop_protocol.py |
-| kXR_bind | 3024 | src/session/bind.c | ✅ | test_session_bind.py |
-| kXR_readv | 3025 | src/read/readv.c | ✅ | test_readv.py, test_interop_io.py |
-| kXR_pgwrite | 3026 | src/write/pgwrite.c | ✅ | test_pgwrite_checksum.py, test_interop_io.py |
-| kXR_locate | 3027 | src/read/locate.c | ✅ | test_interop_io.py |
-| kXR_truncate | 3028 | src/write/truncate.c | ✅ | test_interop_namespace.py |
-| kXR_sigver | 3029 | src/session/signing.c | ✅ | test_sigver_verify.py |
-| kXR_pgread | 3030 | src/read/pgread.c | ✅ | test_interop_io.py |
-| kXR_writev | 3031 | src/write/writev.c | ✅ | test_interop_io.py |
-| kXR_clone | 3032 | src/read/ | ✅ | test_new_opcodes.py, test_interop_io.py |
-
-**Note**: kXR_gpfile (3005) is a retired opcode from XRootD v1–v2 (renamed
-kXR_getfile). No current client sends it; nginx-xrootd returns `kXR_Unsupported`.
-
----
-
-## 2. kXR_query Subtypes
-
-`XProtocol.hh` defines 13 named query codes. Source:
-`XrdXrootd/XrdXrootdXeq.cc`.
-
-| Subtype | Code | XRootD source | nginx-xrootd | Notes |
-|---------|------|---------------|--------------|-------|
-| kXR_QStats | 1 | XrdXrootdStats.cc | ✅ src/query/metadata.c | Format differs: nginx returns abbreviated counters; XRootD returns XML monitoring blob |
-| kXR_QPrep | 2 | XrdXrootdPrepare.cc | ✅ src/query/prepare.c | Disk-local staging status; returns `A <path>` or `M <path>` per requested file |
-| kXR_Qcksum | 3 | XrdXrootdXeq.cc | ✅ src/query/checksum_qcksum.c | adler32, crc32, crc32c, md5, sha1, sha256 supported |
-| kXR_Qxattr | 4 | XrdXrootdXeqFAttr.cc | ✅ src/query/metadata.c | Returns standard metadata (oss.*) plus user extended attributes (U.*) |
-| kXR_Qspace | 5 | XrdOssSpace.cc | ✅ src/query/space.c | statvfs-based; same `oss.space` format |
-| kXR_Qckscan | 6 | XrdXrootdXeq.cc | ✅ src/query/checksum_ckscan_dispatch.c | Batch checksum scan of a directory tree; adler32 default, crc32c prefix supported |
-| kXR_Qconfig | 7 | XrdXrootdConfig.cc | ✅ src/query/config.c | Key-value queries; supports tpc, chksum, readv, etc. |
-| kXR_Qvisa | 8 | XrdXrootdXeq.cc | ✅ src/query/metadata.c | Returns auth identity; format matches convention |
-| kXR_QFinfo | 9 | XrdXrootdXeq.cc | ✅ src/query/metadata.c | Returns file metadata (size, type) |
-| kXR_QFSinfo | 10 | XrdXrootdXeq.cc | ✅ src/query/space.c | Standard 6-number space report format (NodesRW FreeMB Util NodesStaging FreeMB Util) |
-| kXR_Qopaque | 16 | plugin hook | ✅ (pass-through) | Returns unsupported in non-plugin mode |
-| kXR_Qopaquf | 32 | plugin hook | ✅ (pass-through) | File-scoped opaque query |
-| kXR_Qopaqug | 64 | plugin hook | ✅ (pass-through) | Group-scoped opaque query |
-
----
-
-## 3. Authentication Plugins (XrdSec\*)
-
-XRootD ships six authentication protocol plugins plus macaroon and SciToken
-integrations. Source: `src/XrdSec*/`, `src/XrdMacaroons/`, `src/XrdSciTokens/`.
-
-| XRootD plugin | Protocol tag | nginx-xrootd equivalent | Status | Notes |
-|---------------|--------------|------------------------|--------|-------|
-| XrdSecgsi | `gsi` | src/gsi/ | ✅ | X.509 proxy + CRL; full VOMS attribute extraction via src/voms/ |
-| XrdSecsss | `sss` | src/sss/ | ✅ | Keytab-based shared secret |
-| XrdSecunix | `unix` | — | ❌ | UID/GID from OS credentials; no equivalent planned |
-| XrdSecpwd | `pwd` | — | ❌ | Password authentication; no equivalent planned |
-| XrdSeckrb5 | `krb5` | — | ❌ | Kerberos 5 GSSAPI; no equivalent planned |
-| XrdSecztn | `ztn` | src/token/validate.c | ✅ | WLCG/JWT bearer token authentication |
-| XrdMacaroons | bearer token | src/token/macaroon.c | ⚠️ | HMAC-SHA256 validation and caveat checking implemented; third-party delegation not implemented |
-| XrdSciTokens | scitokens | src/token/validate.c | ✅ | JWT/WLCG bearer token validation and path-scope authorization implemented |
-| XrdVoms | (gsi extension) | src/voms/ | ✅ | Runtime dlopen of libvomsapi; VO ACL via xrootd_require_vo |
-
-**High-priority gap**: `krb5` is required at CERN, BNL, and Fermilab Kerberos
-sites. Adding inbound krb5 support would unblock those deployments without
-changing any downstream client configuration.
-
----
-
-## 4. Security & TLS Capabilities
-
-XRootD v5 introduced structured TLS capability flags in the `kXR_protocol`
-handshake. Source: `XrdXrootd/XrdXrootdProtocol.cc`, `XrdTls/`.
-
-| Feature | XRootD constant | nginx-xrootd | Notes |
-|---------|-----------------|--------------|-------|
-| In-protocol TLS upgrade | kXR_ableTLS / kXR_gotoTLS | ✅ src/connection/tls.c | Server advertises kXR_haveTLS; client requests upgrade via kXR_ableTLS |
-| TLS at login | kXR_tlsLogin | ✅ | Enforced when xrootd_tls on |
-| TLS for data channel | kXR_tlsData | ⚠️ | Negotiated but not independently enforced post-login |
-| TLS for full session | kXR_tlsSess | ⚠️ | Follows login TLS; no separate directive |
-| TLS for TPC | kXR_tlsTPC | ✅ | TPC over TLS works; kXR_tlsTPC capability flag advertised |
-| GPF TLS | kXR_tlsGPF / kXR_tlsGPFA | ❌ | Batch file operations over TLS; not implemented |
-| Request signing | kXR_sigver | ✅ src/session/signing.c | HMAC-SHA256 envelope; enforced when GSI security policy requires it |
-| Security level: none | kXR_secNone | ✅ | Default |
-| Security level: compatible | kXR_secCompatible | ✅ src/handshake/sigver.c | Mirrors XRootD request-protection table; conditional `open`/`set` handling |
-| Security level: standard | kXR_secStandard | ✅ src/handshake/sigver.c | Enforces signed `open` and signed mutating namespace/metadata ops |
-| Security level: intense | kXR_secIntense | ✅ src/handshake/sigver.c | Expands signed operation set using XRootD defaults |
-| Security level: pedantic | kXR_secPedantic | ✅ src/handshake/sigver.c | Advertises `kXR_secOData`; rejects `kXR_nodata` on payload-bearing signed requests |
-
----
-
-## 5. Server Capability Flags
-
-Flags advertised in the `kXR_protocol` response body. Source:
-`XProtocol/XProtocol.hh` (kXR_is* / kXR_attr* family).
-
-| Flag | Meaning | nginx-xrootd | Condition |
-|------|---------|--------------|-----------|
-| kXR_isServer | Data-serving node | ✅ | Default mode |
-| kXR_isManager | Redirector node | ✅ | xrootd_manager_mode on |
-| kXR_attrProxy | Proxy mode | ⚠️ | xrootd_proxy on; flag not always set |
-| kXR_attrCache | Cache-capable | ⚠️ | xrootd_cache on; flag not always set |
-| kXR_attrMeta | Metadata-only | ❌ | Not applicable |
-| kXR_attrVirtRdr | Virtual redirector | ❌ | Not implemented |
-| kXR_attrSuper | Supervisor role | ❌ | Not implemented |
-| kXR_suppgrw | pgread/pgwrite supported | ✅ | Always advertised |
-| kXR_supposc | POSC (persist-on-close) | ✅ | Always advertised |
-| kXR_haveTLS | TLS available | ✅ | xrootd_tls on |
-| kXR_recoverWrts | Write recovery | ❌ | Not implemented |
-| kXR_collapseRedir | Collapse redirects | ❌ | Not implemented |
-| kXR_ecRedir | Erasure-code redirect | ❌ | Not implemented |
-| kXR_anongpf | Anonymous GPF | ❌ | Not implemented |
-| kXR_supgpf | GPF (grouped parallel fetch) | ❌ | Not implemented |
-
----
-
-## 6. Client Capability Flags (kXR_login request)
-
-Flags that clients send in the `kXR_login` request body that the server must
-handle or ignore gracefully.
-
-| Flag | Meaning | nginx-xrootd | Notes |
-|------|---------|--------------|-------|
-| kXR_fullurl | Client wants full URL in responses | ✅ | Full redirect URLs returned |
-| kXR_multipr | Client supports multiple protocols | ❌ | Ignored; single-protocol responses only |
-| kXR_readrdok | Client accepts read redirects | ✅ | Used for locate/redirect responses |
-| kXR_hasipv64 | Client has IPv4+IPv6 dual-stack | ⚠️ | Accepted; IPv6 handling depends on nginx bind config |
-| kXR_onlyprv4 | Client is IPv4-only | ⚠️ | Accepted; nginx filters addresses at OS level |
-| kXR_onlyprv6 | Client is IPv6-only | ⚠️ | Accepted |
-| kXR_lclfile | Client wants local-file fast path | ❌ | Ignored |
-| kXR_redirflags | Client understands redirect flags | ✅ | Used in kXR_redirect responses |
-| kXR_ecredir | Client understands EC redirects | ❌ | Ignored |
-
----
-
-## 7. Checksum Support
-
-XRootD implements checksums at two layers: (a) file-level via `kXR_Qcksum` /
-`kXR_dirlist` dstat, and (b) page-level via pgread/pgwrite wire protocol.
-Source: `src/XrdCks/`.
-
-| Algorithm | File-level (kXR_Qcksum) | pgread/pgwrite wire | kXR_dirlist dstat | HTTP Digest (GET) | XRootD default |
-|-----------|------------------------|---------------------|-------------------|-------------------|----------------|
-| adler32 | ✅ | N/A | ✅ xattr-cached | ✅ `?xrd.want.cksum=adler32` | Yes (recommended) |
-| crc32c | ✅ | ✅ wire-only | ✅ xattr-cached | ✅ `?xrd.want.cksum=crc32c` | No |
-| crc32 | ✅ | N/A | ✅ xattr-cached | ✅ `?xrd.want.cksum=crc32` | No |
-| md5 | ✅ | N/A | ✅ xattr-cached | ✅ `?xrd.want.cksum=md5` | Optional |
-| sha256 | ✅ | N/A | ✅ xattr-cached | ✅ `?xrd.want.cksum=sha256` | No |
-| sha1 | ✅ | N/A | ✅ xattr-cached | ✅ `?xrd.want.cksum=sha1` | No |
-
-**dstat xattr cache:** All algorithms store computed checksums in `user.XrdCks.<algo>` extended attributes (via `fsetxattr`).
-Subsequent listings for the same file pay only an O(1) `fgetxattr` syscall instead of re-reading the file.
-Requires the filesystem to be mounted with `user_xattr` support (ext4, XFS, tmpfs all support this by default).
-The cache is not mtime-invalidated — callers writing new data should evict the xattr on close (future work).
-
----
-
-## 8. CMS / Cluster Features
-
-XRootD's Cluster Management System (XrdCms) provides hierarchical server
-discovery, health checking, file location, and load balancing. Source:
-`src/XrdCms/`.
-
-| Feature | XrdCms component | nginx-xrootd | Notes |
-|---------|-----------------|--------------|-------|
-| Server→manager heartbeat | XrdCmsClient | ✅ src/cms/send.c | Periodic heartbeat + free-space reporting |
-| Manager registration | XrdCmsLogin | ✅ src/cms/ | Registers paths on startup |
-| Static prefix routing | (config) | ✅ xrootd_manager_map | Longest-prefix match |
-| Dynamic server registry | XrdCmsCluster | ✅ src/manager/registry.c | Hash-table with configurable slots |
-| kXR_locate file lookup | XrdCmsFinder | ✅ src/read/locate.c | Returns host:port list |
-| kXR_redirect | XrdCmsResp | ✅ | 302-style redirect in open/locate |
-| Two-tier hierarchy (data + manager) | XrdCmsManager | ✅ | Manager + N data servers |
-| Multi-tier hierarchy (manager + sub-manager) | XrdCmsSupervisor | ⚠️ | Two tiers supported; deeper hierarchies untested |
-| Server blacklisting | XrdCmsBlackList | ❌ | Not implemented |
-| Per-server performance metrics | XrdCmsPerfMon | ❌ | No load-aware routing |
-| Virtual node ID | XrdCmsVnId | ❌ | Not implemented |
-| CMS admin interface | XrdCmsAdmin | ❌ | No admin socket |
-| Colocation hint (kXR_coloc in prepare) | XrdCmsPrepare | ✅ | Flag accepted; passed to `xrootd_prepare_command` |
-| kYR_select (CMS internal locate) | XrdCmsProtocol | ⚠️ | Handled as part of CMS wire format |
-| kXR_kYR_redirect | XrdCmsResp | ✅ | Redirect with tried-host list |
-| Lateral 307 redirect | XrdCmsClient | ⚠️ | One level only |
-
----
-
-## 9. HTTP Layer
-
-XRootD's HTTP support lives in `src/XrdHttp/` (XRootD-over-HTTP) and
-`src/XrdHttpTpc/` (HTTP third-party copy). nginx-xrootd provides a
-separate WebDAV/S3 gateway.
-
-| Feature | XrdHttp / XrdHttpTpc | nginx-xrootd | Status |
-|---------|----------------------|--------------|--------|
-| HTTP GET / HEAD | ✅ | ✅ src/webdav/ | ✅ |
-| HTTP PUT | ✅ | ✅ src/webdav/put.c | ✅ |
-| HTTP DELETE | ✅ | ✅ src/webdav/ | ✅ |
-| WebDAV PROPFIND | ✅ | ✅ src/webdav/ | ✅ |
-| WebDAV MKCOL | ✅ | ✅ src/webdav/ | ✅ |
-| WebDAV MOVE / COPY | ✅ | ✅ src/webdav/ | ✅ |
-| WebDAV LOCK / UNLOCK | ✅ | ✅ src/webdav/lock.c | ✅ |
-| CORS support | XrdHttpCors | ✅ src/webdav/cors.c | ✅ |
-| HTTP Range requests | ✅ | ✅ | ✅ |
-| HTTP TPC pull (COPY with Credential) | XrdHttpTpc | ✅ src/webdav/tpc.c | ✅ |
-| HTTP TPC perf markers (202 streaming) | XrdHttpTpc PMarkManager | ✅ | ✅ |
-| HTTP TPC multi-stream | XrdHttpTpc | ❌ | Missing |
-| S3 REST GET / PUT / DELETE / HEAD | — | ✅ src/s3/ | ✅ |
-| S3 multipart upload | — | ✅ src/s3/multipart.c | ✅ |
-| S3 presigned URLs (X-Amz-Signature) | — | ✅ src/s3/auth_sigv4_*.c | Query-string SigV4 with expiry enforcement |
-| S3 STS session token compatibility | — | ✅ src/s3/auth_sigv4_verify.c | Static-secret compatibility via `xrootd_s3_allow_unsigned_session_token`; no dynamic STS credential store |
-| XRootD-over-HTTP (XrdHttp protocol) | XrdHttp | ❌ | Not implemented; WebDAV/S3 serve HTTP clients |
-| HTTP checksum headers (Digest:) | XrdHttpChecksum | ✅ | `?xrd.want.cksum=adler32|crc32|crc32c|md5|sha1|sha256`; emitted on GET |
-| X-Xrootd-* metadata headers | XrdHttp | ✅ | Status, Requuid, Wait, Retry emitted; Proto version parsed |
-
----
-
-## 10. Monitoring & Observability
-
-nginx-xrootd exports Prometheus metrics. The `xrd.monitor` UDP protocol from
-the official xrootd daemon is **deliberately not implemented and will never be
-added**. It is a fire-and-forget UDP binary stream with no reliability
-guarantees, a fragile undocumented wire format, and no standard consumer
-ecosystem outside the legacy XRootD collector toolchain. Sites requiring WLCG
-MonIT or Rucio accounting must scrape the Prometheus endpoint and adapt as
-needed; that is a solved problem. The UDP protocol is not.
-
-| Monitoring feature | XRootD (xrd.monitor) | nginx-xrootd | Notes |
-|--------------------|----------------------|--------------|-------|
-| Per-opcode counters | XROOTD_MON_ALL | ✅ Prometheus | |
-| Per-file I/O events | XROOTD_MON_FILE | N/A | Part of UDP protocol — out of scope |
-| Per-user activity | XROOTD_MON_USER | N/A | Part of UDP protocol — out of scope |
-| Auth event recording | XROOTD_MON_AUTH | N/A | Part of UDP protocol — out of scope |
-| Redirect events | XROOTD_MON_REDR | N/A | Part of UDP protocol — out of scope |
-| Vector I/O events | XROOTD_MON_IOV | N/A | Part of UDP protocol — out of scope |
-| TPC events | XROOTD_MON_TPC | N/A | Part of UDP protocol — out of scope |
-| TCP connection events | XROOTD_MON_TCPMO | N/A | Part of UDP protocol — out of scope |
-| Cache events | XROOTD_MON_PFC | N/A | Part of UDP protocol — out of scope |
-| UDP stream (`xrd.monitor dest`) | xrd.monitor | **Never** | See above |
-| Access logging (text) | xrootd.trace | ✅ xrootd_access_log | nginx access log format |
-| Latency histograms | — | ✅ Prometheus | nginx-specific extension |
-
----
-
-## 11. Protocol Version & Wire Compatibility
-
-| Feature | XRootD v5.2.0 | nginx-xrootd | Notes |
-|---------|--------------|--------------|-------|
-| Protocol handshake magic (ROOTD_PQ=2012) | ✅ | ✅ src/protocol/wire.h | Both check magic |
-| Protocol version reported | kXR_PROTOCOLVERSION=0x00000520 | ✅ | Reports 5.2.0 |
-| v3 client compatibility | ✅ | ✅ | Legacy clients work |
-| v4 client compatibility | ✅ | ✅ | Tested |
-| v5 features (pgread/pgwrite, fattr, clone) | ✅ | ✅ | Full v5 |
-| Big-endian wire encoding | ✅ | ✅ | Enforced throughout |
-| kXR_oksofar streaming reads | ✅ | ✅ src/read/read.c | Chunked large reads |
-| kXR_status extended response (CRC32c) | ✅ | ✅ | Used in pgwrite response |
-| kXR_wait / kXR_waitresp | ✅ | ✅ | Used in CMS locate |
-| kXR_attn attention codes | ✅ | ⚠️ | Partially handled (async notify not implemented) |
-
----
-
-## 12. Conformance Test Coverage Map
-
-| Operation category | Existing unit tests | nginx vs ref-XRootD conformance | Gap |
-|--------------------|--------------------|---------------------------------|-----|
-| Read (open/read/close) | test_file_api.py | test_conformance.py | None |
-| Vector read (readv) | test_readv.py | — | **test_interop_io.py** |
-| Pgread / pgwrite | test_pgwrite_checksum.py | — | **test_interop_io.py** |
-| Stat (path + handle) | test_file_api.py | test_conformance.py | None |
-| Statx (multi-path) | — | — | **test_interop_namespace.py** |
-| Write + round-trip | test_write.py | test_conformance.py | None |
-| Vector write (writev) | test_write.py | — | **test_interop_io.py** |
-| Sync | — | — | **test_interop_io.py** |
-| Truncate (path + handle) | test_write.py | — | **test_interop_namespace.py** |
-| Mkdir / rmdir | test_fs_ops.py | — | **test_interop_namespace.py** |
-| Rm | test_fs_ops.py | — | **test_interop_namespace.py** |
-| Mv | test_fs_ops.py | — | **test_interop_namespace.py** |
-| Chmod | test_fs_ops.py | — | **test_interop_namespace.py** |
-| Fattr (xattr) | test_fattr_query.py | — | **test_interop_namespace.py** |
-| Locate | test_interop_io.py | — | None |
-| Clone | test_new_opcodes.py | — | **test_interop_io.py** |
-| Checkpoint | test_write.py | — | — |
-| Prepare | test_prepare_staging.py | — | **test_interop_query.py** |
-| Query: QPrep | test_prepare_staging.py | — | None |
-| Query: Qcksum | test_conformance.py | test_conformance.py | None |
-| Query: Qspace | test_query.py | — | **test_interop_query.py** |
-| Query: Qstats | test_query.py | — | **test_interop_query.py** |
-| Query: Qconfig | test_query.py | — | **test_interop_query.py** |
-| Query: Qvisa | test_query.py | — | **test_interop_query.py** |
-| Query: Qckscan | test_query_extended.py | — | None |
-| Protocol negotiation | test_protocol_edge_cases.py | — | **test_interop_protocol.py** |
-| Error code families | test_protocol_edge_cases.py | — | **test_interop_protocol.py** |
-| Endsess | — | — | **test_interop_protocol.py** |
-| Open flags (retstat, new, mkpath) | test_file_api.py | — | **test_interop_protocol.py** |
-| Dirlist with dstat | test_conformance.py | test_conformance.py | None |
-| GSI authentication | test_gsi_security.py, test_gsi_bridge.py | — | — |
-| Token authentication | test_token_auth.py | — | — |
-| TLS upgrade | test_gsi_tls.py | — | — |
-
----
-
-## 13. Priority Assessment
-
-Ranked by impact on production deployments and required development effort,
-drawing on the above gaps.
-
-### Tier 1 — Blocks real deployments
-
-No open Tier 1 XRootD protocol gaps remain in this matrix. Security level
-enforcement is implemented in `src/handshake/sigver.c`.
-
-### Tier 2 — Significant interoperability improvement
-
-| Gap | Effort | Impact | Who needs it |
-|-----|--------|--------|--------------|
-| **krb5 inbound auth** | High | High | CERN, BNL, Fermilab Kerberos sites |
-| **kXR_attn async notification** | Medium | Medium | Clients relying on server-push notifications |
-| **HTTP multi-stream TPC** | High | Medium | FTS high-throughput transfers |
-
-### Tier 3 — Nice to have / niche use cases
-
-| Gap | Effort | Notes |
-|-----|--------|-------|
-| Multi-tier CMS hierarchy | Medium | Two-tier covers most deployments |
-| kXR_coloc in prepare | ✅ | Hint passed to `xrootd_prepare_command` via `XROOTD_PREPARE_COLOC=1` |
-| kXR_multipr login flag | Low | Single-protocol responses are sufficient |
-
-### Out of scope — will never be implemented
-
-| Feature | Reason |
-|---------|--------|
-| **xrd.monitor UDP stream** | Fire-and-forget UDP with no reliability, undocumented binary wire format, and no standard consumer ecosystem. Defective by design. Use Prometheus. |
-
-Features marked out of scope in [gaps-vs-xrootd.md](gaps-vs-xrootd.md)
-also remain out of scope here: tape/archive backends, Ceph, HDFS, PSS, XrdFrm,
-XrdBwm, XrdPfc advanced policies.
-
----
-
-## References
-
-- `XProtocol/XProtocol.hh` — Opcode and flag definitions (v5.2.0)
-- `src/XrdXrootd/XrdXrootdXeq.cc` — Official server opcode dispatch
-- `src/XrdSec*/` — Security protocol plugin implementations
-- `src/XrdCms/` — Cluster management system
-- `src/XrdCks/` — Checksum framework
-- [gaps-vs-xrootd.md](gaps-vs-xrootd.md) — OSS/storage layer gaps
-- [xrdhttp-parity-roadmap.md](xrdhttp-parity-roadmap.md) — HTTP/TPC roadmap
-- [operation-status.md](../05-operations/operation-status.md) — Implemented feature summary
+# XRootD Feature Matrix
+
+Last verified: 2026-06-14
+
+This is the current high-level matrix for nginx-xrootd versus the official
+XRootD source tree under `/tmp/xrootd-src`. It intentionally excludes the
+official UDP stream monitoring stack: this project has rejected that subsystem
+and uses Prometheus/SRR/dashboard/access-log reporting instead.
+
+For file-by-file evidence, reviewer cautions, and the exact upstream source
+paths checked, see
+[Source-Verified XRootD Comparison](source-verified-xrootd-comparison.md).
+
+## Legend
+
+| Mark | Meaning |
+|---|---|
+| Yes | Implemented in source and documented as current behavior |
+| Partial | Implemented for the common path, but missing upstream breadth or site-specific integrations |
+| No | Not implemented |
+| N/A | Intentionally not applicable to that implementation |
+| nginx+ | Implemented here and not present as an equivalent upstream XRootD server feature |
+
+## Native XRootD Protocol
+
+| Feature | Official XRootD | nginx-xrootd | Reviewer notes |
+|---|---:|---:|---|
+| Protocol 5.2 framing and login lifecycle | Yes | Yes | nginx-xrootd implements the stream lifecycle in `src/handshake`, `src/session`, and `src/protocol`. |
+| Active request opcodes | Yes | Yes | All active wire opcodes reviewed are implemented or intentionally return the same class of unsupported response where upstream defaults do. |
+| Legacy `kXR_gpfile` | No/default unsupported | No/default unsupported | Upstream default path returns `kXR_Unsupported`; this is not a practical parity blocker. |
+| Vector, page, and signed reads | Yes | Yes | Includes readv, pgread CRC32c framing, and signature verification paths. |
+| Writes, page writes, sync, truncate | Yes | Yes | Includes pgwrite CRC32c validation and sync paths. |
+| Directory and namespace mutations | Yes | Yes | Includes dirlist, mkdir, rmdir, rm, mv, chmod, truncate, and fattr coverage. |
+| Locate, query, prepare, evict | Yes | Partial | Core query/locate coverage exists. nginx-xrootd has FRM/Tape REST gateway support, but not the full upstream XrdFrm/MSS ecosystem. |
+| Bind/session recovery | Yes | Yes | Implemented in `src/session/bind.c` and registry helpers. |
+| Async attention packets | Yes | Partial | Operational paths exist around queue/wait behavior, but broad upstream attention semantics should be reviewed for each deployment mode. |
+| Protocol flags | Yes | Yes | Current flag set includes async, sendfile, attrMeta, attrVirtRdr, attrSuper, recoverWrites, collapseRedirect, and TLS advertisement. |
+| GPF/extended collection flags | Yes | No | Not advertised by nginx-xrootd; leaving this unimplemented is intentional unless a site depends on those upstream behaviors. |
+
+## Authentication and Authorization
+
+| Feature | Official XRootD | nginx-xrootd | Reviewer notes |
+|---|---:|---:|---|
+| Anonymous auth | Yes | Yes | Supported for native stream and HTTP/WebDAV surfaces where enabled. |
+| GSI/X.509 | Yes | Yes | Native stream and WebDAV support are present. |
+| Token auth / WLCG bearer tokens | Yes | Yes | Includes native and HTTP/WebDAV handling. |
+| SSS shared-secret auth | Yes | Yes | Implemented in `src/sss`. |
+| UNIX credential auth | Yes | Yes | Implemented in `src/unixauth`. |
+| Kerberos 5 auth | Yes | Yes | Optional build-time support in `src/krb5`; older docs that call this missing are stale. |
+| Macaroons | Yes | Yes | Includes token mint/verify and WebDAV delegation flows. |
+| VOMS and ACL policy | Yes | Yes | Implemented through policy, ACL, authdb, and VOMS helpers. |
+| `host` and `pwd` auth protocols | Yes | No | Still missing from nginx-xrootd and should remain visible in reviews. |
+| Full upstream `XrdAcc` semantics | Yes | Partial | nginx-xrootd has ACL/authdb/VOMS/scope checks but not every upstream `XrdAcc` privilege model and plugin behavior. |
+| External security plugin ecosystem | Yes | Partial | nginx-xrootd implements selected native mechanisms directly rather than loading the full upstream sec plugin matrix. |
+
+## HTTP, WebDAV, and Transfer Protocols
+
+| Feature | Official XRootD | nginx-xrootd | Reviewer notes |
+|---|---:|---:|---|
+| XrdHttp basic GET/PUT/HEAD/DELETE | Yes | Yes | Both projects implement HTTP data access surfaces. |
+| WebDAV namespace methods | Yes | Yes | nginx-xrootd implements GET, PUT, DELETE, MOVE, COPY, MKCOL, PROPFIND, OPTIONS, LOCK/UNLOCK, and related helpers. |
+| HTTP third-party-copy | Yes | Yes | Upstream has `XrdHttpTpc`; nginx-xrootd has WebDAV TPC with hardened curl/libcurl helper paths. Old claims that upstream lacks HTTP-TPC are wrong. |
+| HTTP-TPC performance markers/chunked progress | Yes | Yes | nginx-xrootd docs and source include marker/progress handling. |
+| HTTP-TPC multistream/range transfer | Yes | Yes | nginx-xrootd implements multi-stream/range transfer paths; integration differs from upstream. |
+| OAuth2/OIDC credential delegation | Yes | Yes | nginx-xrootd includes delegation/token-exchange helpers; older docs saying this is rejected are stale. |
+| Native root TPC | Yes | Partial | Source/destination rendezvous exists. Site review is still needed for TLS-upgraded origins, multihop delegation, and non-default credential paths. |
+| XrdCl client library | Yes | No | nginx-xrootd is a server module and does not attempt to replace the upstream client library. |
+| S3 REST server | No | nginx+ | Implemented under `src/s3` with SigV4/anonymous auth modes. |
+| WLCG Tape REST gateway | No equivalent | nginx+ | Implemented as a gateway/control-plane surface; it is not a full replacement for upstream XrdFrm/MSS. |
+
+## Storage and Backend Ecosystem
+
+| Feature | Official XRootD | nginx-xrootd | Reviewer notes |
+|---|---:|---:|---|
+| POSIX filesystem backend | Yes | Yes | Primary supported data plane in nginx-xrootd. |
+| Confined canonical path handling | Plugin/config dependent | Yes | nginx-xrootd centralizes canonical confinement helpers and treats them as invariants. |
+| Open-file cache and sendfile-style reads | Yes | Yes | Implemented with nginx-aware sendfile/TLS buffer separation. |
+| Full PSS proxy storage | Yes | No | Not implemented; upstream remains stronger for PSS/PFC deployments. |
+| Full proxy file cache (PFC) | Yes | Partial/No | nginx-xrootd has open/cache and local data-plane helpers, not the full upstream PFC subsystem. |
+| Ceph/Rados, CSI, Zip, HDFS-style OSS plugins | Yes | No | Not implemented as upstream-compatible plugin stacks. |
+| Checksum plugin ecosystem | Yes | Partial | nginx-xrootd supports checksum query paths plus CRC-64/XZ and CRC-64/NVME, but not the full upstream checksum plugin matrix. |
+| XrdFrm/MSS/tape staging ecosystem | Yes | Partial | nginx-xrootd has FRM queue/Tape REST integration; full upstream migration, purge, space, and MSS driver behavior needs site review. |
+
+## Operations, Observability, and Policy
+
+| Feature | Official XRootD | nginx-xrootd | Reviewer notes |
+|---|---:|---:|---|
+| UDP XrdMon monitoring | Yes | N/A | Explicitly refused for this project. Do not count this as a missing target. |
+| Prometheus metrics endpoint | Limited/eos-site dependent | nginx+ | Implemented as a first-class `/metrics` surface. |
+| Storage Resource Reporting (SRR) | Limited/eos-site dependent | nginx+ | Implemented in project docs and source. |
+| Built-in operations dashboard | No equivalent | nginx+ | Implemented under dashboard/ops docs and module surfaces. |
+| Per-identity rate, bandwidth, and concurrency limits | Plugin/config dependent | nginx+ | Implemented through shared-memory policy helpers. |
+| Dynamic upstream health/management | Plugin/config dependent | nginx+ | Implemented for this module's nginx deployment model; not a drop-in CMS replacement. |
+| Traffic mirroring/shadow replay | No equivalent | nginx+ | HTTP/WebDAV and stream mirror support exists, including opt-in write/data-write mirroring gated by `xrootd_mirror_writes`. |
+
+## Current Review Hotspots
+
+| Area | Status | Why reviewers should care |
+|---|---|---|
+| Full XrdFrm/MSS parity | Partial | Sites with tape-backed data services must validate prepare/evict/cancel semantics against their real tape workflow. |
+| `host`/`pwd` auth | Missing | Rare in modern WLCG-style deployments but still part of the upstream security surface. |
+| Full `XrdAcc` and security plugin ecosystem | Partial | nginx-xrootd implements practical ACL/token/VOMS controls, not every upstream plugin contract. |
+| PSS/PFC/Ceph/OssCsi/Zip backends | Missing/partial | Upstream XRootD remains the better fit for deployments built around those backend plugins. |
+| Native TPC credential edge cases | Partial | Source/destination TPC works, but TLS-upgraded origins and multihop delegation need deployment-specific verification. |
+| CRC64 and checksum plugin breadth | Partial | CRC64/CRC64NVME are implemented; the upstream checksum plugin catalog is still broader. |
+| CMS manager/admin feature breadth | Partial | nginx-xrootd has manager/upstream controls, but not every upstream CMS admin command or redirection mode. |
+
+## Claims Removed From Older Versions
+
+These statements appeared in older docs and are no longer accurate:
+
+| Old claim | Current source-verified status |
+|---|---|
+| "Kerberos is not implemented." | Kerberos 5 support exists behind optional build-time support in `src/krb5`. |
+| "Official XRootD does not have HTTP-TPC." | Upstream has `src/XrdHttpTpc`; this project should not claim exclusivity for HTTP-TPC. |
+| "nginx-xrootd lacks HTTP-TPC multistream/performance markers." | Current WebDAV TPC paths implement multistream/range transfer and progress/marker behavior. |
+| "Prepare always returns request id 0." | That is only the FRM-off legacy behavior; FRM-enabled operation returns durable request ids. |
+| "Write mirroring is out of scope." | Current source has opt-in HTTP/WebDAV write mirroring and stream data-write replay gated by `xrootd_mirror_writes`. |
+| "S3 auth is planned." | S3 SigV4/anonymous auth is implemented under `src/s3`. |

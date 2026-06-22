@@ -14,7 +14,10 @@ typedef enum {
     XROOTD_CHECKSUM_SHA1,
     XROOTD_CHECKSUM_SHA256,
     XROOTD_CHECKSUM_CRC64,      /* CRC-64/XZ   — canonical "crc64" (alias "crc64xz") */
-    XROOTD_CHECKSUM_CRC64NVME   /* CRC-64/NVME — "crc64nvme" (AWS S3 x-amz-checksum) */
+    XROOTD_CHECKSUM_CRC64NVME,  /* CRC-64/NVME — "crc64nvme" (AWS S3 x-amz-checksum) */
+    XROOTD_CHECKSUM_ZCRC32      /* zlib CRC-32 — XRootD "zcrc32" (== crc32 algorithm,
+                                 * distinct registered name; ordinal matches the
+                                 * kernel's XROOTD_CK_ZCRC32) */
 } xrootd_checksum_alg_t;
 
 /*

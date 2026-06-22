@@ -63,7 +63,7 @@ try:
 except Exception:  # pragma: no cover - requests is a hard dep of the suite
     requests = None
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
 
 # ---------------------------------------------------------------------------
@@ -72,9 +72,8 @@ from settings import NGINX_BIN
 # suite runs collision-free in one pytest invocation.
 # ---------------------------------------------------------------------------
 
-HTTP_PORT = int(os.environ.get("TEST_XHW_HTTP_PORT", "12988"))
-H = "127.0.0.1"
-_DIR = "/tmp/xrd_xrdhttp_wait_retry_digest_range"
+HTTP_PORT = int(os.environ.get("TEST_XHW_HTTP_PORT") or free_port())
+_DIR = os.path.join(os.environ["TMPDIR"], "xrd_xrdhttp_wait_retry_digest_range")
 
 # A non-trivial, non-page-aligned file so ranges exercise a short final window
 # and the checksums are interesting.
@@ -90,7 +89,7 @@ MD5_HEX = hashlib.md5(DATA_BYTES).hexdigest()
 
 def _reachable(port, timeout=0.5):
     try:
-        socket.create_connection((H, port), timeout=timeout).close()
+        socket.create_connection((HOST, port), timeout=timeout).close()
         return True
     except OSError:
         return False
@@ -158,7 +157,7 @@ def _write_conf(data_dir):
             "    client_max_body_size 64m;\n"
             "    xrootd_rate_limit_zone zone=xhw:4m;\n"
             "    server {\n"
-            f"        listen {H}:{HTTP_PORT};\n"
+            f"        listen {BIND_HOST}:{HTTP_PORT};\n"
             "        location / {\n"
             "            xrootd_webdav on;\n"
             f"            xrootd_webdav_root {data_dir};\n"
@@ -200,7 +199,7 @@ def _stop():
 
 
 def _base_url():
-    return f"http://{H}:{HTTP_PORT}"
+    return f"http://{HOST}:{HTTP_PORT}"
 
 
 def _url(name=DATA_NAME):

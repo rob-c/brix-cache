@@ -25,9 +25,12 @@
 
 #include "metrics.h"
 
-/* Location config — one boolean per location (the `xrootd_metrics on;` flag). */
+/* Location config — the `xrootd_metrics on;` flag plus the `xrootd_health on;`
+ * flag (phase-47 W2: a tiny liveness/readiness endpoint co-located in this
+ * module so it needs no new .so).  Both default off (NGX_CONF_UNSET). */
 typedef struct {
-    ngx_flag_t  enable;
+    ngx_flag_t  enable;   /* xrootd_metrics — Prometheus exporter   */
+    ngx_flag_t  health;   /* xrootd_health  — /healthz JSON probe   */
 } ngx_http_xrootd_metrics_loc_conf_t;
 
 extern ngx_module_t ngx_http_xrootd_metrics_module;
@@ -162,6 +165,13 @@ void  xrootd_export_ratelimit_metrics(metrics_writer_t *mw,
  * pool and returns ngx_http_output_filter()'s rc. Reads SHM only (no mutation);
  * emits an informational comment body when no stream zone is configured. */
 ngx_int_t  ngx_http_xrootd_metrics_handler(ngx_http_request_t *r);
+
+/* health.c — content handler for `xrootd_health on;` (phase-47 W2).  Serves
+ * GET/HEAD /healthz as a small JSON liveness document (always 200 while the
+ * worker is accepting connections); `?verbose` adds cheap, non-secret
+ * readiness signals (metrics SHM mapped, worker pid, nginx version).  Reads
+ * only process/global state — never the request body and never any secret. */
+ngx_int_t  ngx_http_xrootd_health_handler(ngx_http_request_t *r);
 
 /* tracking.c — per-VO traffic and unique user identity counting. */
 /* Atomically add `bytes_tx`/`bytes_rx` and a request to the SHM slot for

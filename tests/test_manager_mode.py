@@ -64,9 +64,11 @@ from settings import (
     CLUSTER_TRY_FIRST_PORT,
     CLUSTER_TRY_PORT,
     CLUSTER_TRY_SECOND_PORT,
+    HOST,
     MANAGER_PORT,
     NGINX_BIN,
     TEST_ROOT,
+    url_host,
 )
 
 
@@ -82,7 +84,7 @@ def _kill_nginx_dedicated(name: str) -> None:
             pass
 
 
-def _wait_port(port: int, label: str = "", timeout: float = 20.0, host: str = "127.0.0.1"):
+def _wait_port(port: int, label: str = "", timeout: float = 20.0, host: str = HOST):
     """Block until host:port accepts a TCP connection or timeout expires."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -95,7 +97,7 @@ def _wait_port(port: int, label: str = "", timeout: float = 20.0, host: str = "1
 
 
 def _wait_for_redirect(redir_port: int, path: str, expected_ds_port: int,
-                       timeout: float = 25.0, host: str = "127.0.0.1"):
+                       timeout: float = 25.0, host: str = HOST):
     """Connect to redir_port, send kXR_locate for path, retry until we get
     a kXR_redirect (4004) pointing at expected_ds_port, or timeout."""
     deadline = time.monotonic() + timeout
@@ -135,8 +137,8 @@ def manager_nginx():
 
     yield {
         "port":  MANAGER_PORT,
-        "map_a": ("127.0.0.1", 11098),
-        "map_b": ("127.0.0.1", 11099),
+        "map_a": (HOST, 11098),
+        "map_b": (HOST, 11099),
     }
 
 
@@ -209,7 +211,7 @@ def _send_locate_and_recv(sock: socket.socket, path: str):
 
 def test_locate_redirect_basic(manager_nginx):
     info = manager_nginx
-    host = "127.0.0.1"
+    host = HOST
     port = info["port"]
 
     sock = _xrd_handshake_and_login(host, port)
@@ -347,7 +349,7 @@ class TestClusterProtocol:
     def test_protocol_flags_include_is_manager(self, cluster):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
-        sock.connect(("127.0.0.1", cluster["redir_port"]))
+        sock.connect((HOST, cluster["redir_port"]))
         sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
         sock.sendall(struct.pack(">BB H I BB 10x I",
                                  0, 1, 3006, 0x00000520, 0x02, 0x03, 0))
@@ -367,7 +369,7 @@ class TestClusterLocate:
     """kXR_locate on the redirector returns kXR_redirect to the registered data server."""
 
     def test_locate_returns_redirect(self, cluster):
-        sock = _cluster_handshake_login("127.0.0.1", cluster["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_locate(sock, "/test.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -382,21 +384,21 @@ class TestClusterLocate:
         )
 
     def test_locate_redirect_host_is_loopback(self, cluster):
-        sock = _cluster_handshake_login("127.0.0.1", cluster["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_locate(sock, "/test.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
 
         assert status == kXR_redirect
         host = body[4:].rstrip(b"\x00").decode(errors="replace")
-        assert host == "127.0.0.1", f"unexpected redirect host: {host!r}"
+        assert host == HOST, f"unexpected redirect host: {host!r}"
 
 
 class TestClusterOpen:
     """kXR_open (read) on the redirector returns kXR_redirect to the data server."""
 
     def test_open_read_returns_redirect(self, cluster):
-        sock = _cluster_handshake_login("127.0.0.1", cluster["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_open(sock, "/test.txt", kXR_open_read)
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -419,7 +421,7 @@ class TestClusterUnregister:
         cluster["ds"]["stop"]()
         time.sleep(2.0)   # let nginx detect the dropped CMS connection
 
-        sock = _cluster_handshake_login("127.0.0.1", cluster["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_locate(sock, "/test.txt")
         status, _body = _cluster_read_response(sock)
         sock.close()
@@ -466,7 +468,7 @@ class TestClusterMultiPath:
 
     def test_locate_first_prefix_redirects(self, cluster_multi_path):
         """locate /data/test.txt must return kXR_redirect."""
-        sock = _cluster_handshake_login("127.0.0.1", cluster_multi_path["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
         _cluster_send_locate(sock, "/data/test.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -481,7 +483,7 @@ class TestClusterMultiPath:
 
     def test_locate_second_prefix_redirects(self, cluster_multi_path):
         """locate /atlas/test.txt must also return kXR_redirect."""
-        sock = _cluster_handshake_login("127.0.0.1", cluster_multi_path["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
         _cluster_send_locate(sock, "/atlas/test.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -494,7 +496,7 @@ class TestClusterMultiPath:
 
     def test_locate_exact_prefix_token_redirects(self, cluster_multi_path):
         """locate /data (exactly the token without trailing slash) must redirect."""
-        sock = _cluster_handshake_login("127.0.0.1", cluster_multi_path["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
         _cluster_send_locate(sock, "/data")
         status, _ = _cluster_read_response(sock)
         sock.close()
@@ -505,7 +507,7 @@ class TestClusterMultiPath:
 
     def test_locate_unregistered_path_no_redirect(self, cluster_multi_path):
         """locate /physics/test.txt must NOT redirect (path not in /data:/atlas)."""
-        sock = _cluster_handshake_login("127.0.0.1", cluster_multi_path["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
         _cluster_send_locate(sock, "/physics/test.txt")
         status, _ = _cluster_read_response(sock)
         sock.close()
@@ -516,7 +518,7 @@ class TestClusterMultiPath:
 
     def test_locate_prefix_partial_match_not_redirected(self, cluster_multi_path):
         """/dataextended must NOT match the /data prefix (boundary check)."""
-        sock = _cluster_handshake_login("127.0.0.1", cluster_multi_path["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster_multi_path["redir_port"])
         _cluster_send_locate(sock, "/dataextended/file.txt")
         status, _ = _cluster_read_response(sock)
         sock.close()
@@ -558,7 +560,7 @@ class TestClusterMultiServer:
     def test_locate_returns_valid_server(self, cluster_multi_server):
         """locate /shared.txt must redirect to one of the two data servers."""
         c = cluster_multi_server
-        sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
+        sock = _cluster_handshake_login(HOST, c["redir_port"])
         _cluster_send_locate(sock, "/shared.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -579,7 +581,7 @@ class TestClusterMultiServer:
         valid_ports = {c["ds1_port"], c["ds2_port"]}
 
         for _ in range(5):
-            sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
+            sock = _cluster_handshake_login(HOST, c["redir_port"])
             _cluster_send_locate(sock, "/shared.txt")
             status, body = _cluster_read_response(sock)
             sock.close()
@@ -593,7 +595,7 @@ class TestClusterMultiServer:
     def test_open_redirects_to_valid_server(self, cluster_multi_server):
         """kXR_open on the redirector with two servers must also redirect correctly."""
         c = cluster_multi_server
-        sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
+        sock = _cluster_handshake_login(HOST, c["redir_port"])
         _cluster_send_open(sock, "/shared.txt", kXR_open_read)
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -779,7 +781,7 @@ class TestThreeTierTopology:
     def test_locate_follows_redirect_chain_to_sub(self, three_tier):
         """First locate at meta-manager must redirect to the sub-manager."""
         tt = three_tier
-        sock = _cluster_handshake_login("127.0.0.1", tt["meta_port"])
+        sock = _cluster_handshake_login(HOST, tt["meta_port"])
         _cluster_send_locate(sock, "/test.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -796,7 +798,7 @@ class TestThreeTierTopology:
     def test_locate_follows_redirect_chain_to_leaf(self, three_tier):
         """Second locate at sub-manager must redirect to the leaf data server."""
         tt = three_tier
-        sock = _cluster_handshake_login("127.0.0.1", tt["sub_port"])
+        sock = _cluster_handshake_login(HOST, tt["sub_port"])
         _cluster_send_locate(sock, "/test.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -815,7 +817,7 @@ class TestThreeTierTopology:
         tt = three_tier
 
         # Hop 1: meta → sub
-        sock = _cluster_handshake_login("127.0.0.1", tt["meta_port"])
+        sock = _cluster_handshake_login(HOST, tt["meta_port"])
         _cluster_send_locate(sock, "/test.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -823,7 +825,7 @@ class TestThreeTierTopology:
         hop1_port = struct.unpack(">I", body[:4])[0]
 
         # Hop 2: sub → leaf
-        sock2 = _cluster_handshake_login("127.0.0.1", hop1_port)
+        sock2 = _cluster_handshake_login(HOST, hop1_port)
         _cluster_send_locate(sock2, "/test.txt")
         status2, body2 = _cluster_read_response(sock2)
         sock2.close()
@@ -863,7 +865,7 @@ class TestCmsSelectWake:
         """kXR_locate must return kXR_redirect to the port advertised by kYR_select."""
         c = cms_select
 
-        sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
+        sock = _cluster_handshake_login(HOST, c["redir_port"])
         sock.settimeout(15)  # generous — allows for CMS round-trip
         _cluster_send_locate(sock, "/cms-select-test/file.dat")
         status, body = _cluster_read_response(sock)
@@ -924,7 +926,7 @@ class TestRegistryFullCounter:
     def test_registry_full_counter_nonzero(self, cluster_full_registry):
         """Prometheus metrics must show registry_full_total > 0 after overflow."""
         c = cluster_full_registry
-        url = f"http://127.0.0.1:{c['metrics_port']}/metrics"
+        url = f"http://{url_host(HOST)}:{c['metrics_port']}/metrics"
         try:
             with urllib.request.urlopen(url, timeout=5) as resp:
                 body = resp.read().decode()
@@ -948,7 +950,7 @@ class TestRegistryFullCounter:
     def test_registry_accepts_up_to_slot_limit(self, cluster_full_registry):
         """At most 3 slots filled → at least one server's locate succeeds."""
         c = cluster_full_registry
-        sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
+        sock = _cluster_handshake_login(HOST, c["redir_port"])
         _cluster_send_locate(sock, "/file.txt")
         status, _ = _cluster_read_response(sock)
         sock.close()
@@ -968,7 +970,7 @@ def _cms_connect_and_register(cms_port: int, xrd_port: int,
     given XRootD port and path.  Returns the open TCP socket."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(5)
-    sock.connect(("127.0.0.1", cms_port))
+    sock.connect((HOST, cms_port))
     payload = _cms_login_payload(xrd_port, path)
     sock.sendall(_cms_frame(1, CMS_RR_LOGIN, payload))
     return sock
@@ -996,7 +998,7 @@ class TestKyrGone:
         time.sleep(1.5)  # let nginx process LOGIN and register the path
 
         # Verify the path is reachable.
-        sock = _cluster_handshake_login("127.0.0.1", cluster["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_locate(sock, "/gone-test/file.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -1014,7 +1016,7 @@ class TestKyrGone:
         time.sleep(1.5)  # let nginx process the GONE frame
 
         # The path must no longer redirect to gone_port.
-        sock2 = _cluster_handshake_login("127.0.0.1", cluster["redir_port"])
+        sock2 = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_locate(sock2, "/gone-test/file.txt")
         status2, body2 = _cluster_read_response(sock2)
         sock2.close()
@@ -1043,7 +1045,7 @@ class TestKyrGone:
         time.sleep(1.5)
 
         # /gone-other must still redirect.
-        sock = _cluster_handshake_login("127.0.0.1", cluster["redir_port"])
+        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
         _cluster_send_locate(sock, "/gone-other/x.txt")
         status, body = _cluster_read_response(sock)
         sock.close()
@@ -1100,7 +1102,7 @@ class TestCmsKyrTry:
         first_port only.
         """
         c = cms_try
-        sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
+        sock = _cluster_handshake_login(HOST, c["redir_port"])
         sock.settimeout(20)
         _cluster_send_locate(sock, "/kyr-try-test/file.dat")
         status, body = _cluster_read_response(sock)
@@ -1119,7 +1121,7 @@ class TestCmsKyrTry:
     def test_second_entry_ignored(self, cms_try):
         """The second kYR_try entry must not be used for the redirect."""
         c = cms_try
-        sock = _cluster_handshake_login("127.0.0.1", c["redir_port"])
+        sock = _cluster_handshake_login(HOST, c["redir_port"])
         sock.settimeout(20)
         _cluster_send_locate(sock, "/kyr-try-second-entry/file.dat")
         status, body = _cluster_read_response(sock)
@@ -1160,7 +1162,7 @@ class TestCmsEscalation:
     def test_three_tier_escalation_redirects_to_leaf(self, cms_escalation):
         c = cms_escalation
 
-        sock = _cluster_handshake_login("127.0.0.1", c["sub_port"])
+        sock = _cluster_handshake_login(HOST, c["sub_port"])
         sock.settimeout(15)
         _cluster_send_locate(sock, "/escalate/file.dat")
         status, body = _cluster_read_response(sock)
@@ -1175,7 +1177,7 @@ class TestCmsEscalation:
             f"expected redirect to leaf port {c['leaf_port']}, got {got_port}"
         )
 
-        leaf_sock = _cluster_handshake_login("127.0.0.1", c["leaf_port"])
+        leaf_sock = _cluster_handshake_login(HOST, c["leaf_port"])
         leaf_sock.settimeout(10)
         _cluster_send_open(leaf_sock, "/escalate/file.dat", kXR_open_read)
         open_status, _open_body = _cluster_read_response(leaf_sock)

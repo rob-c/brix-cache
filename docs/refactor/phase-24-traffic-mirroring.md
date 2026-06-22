@@ -7,14 +7,15 @@
 
 ---
 
-## Implementation status (as-built — reconciled 2026-06-13)
+## Implementation status (as-built — reconciled 2026-06-14)
 
-Audited against the code under `src/`. **Both surfaces shipped and are off by
-default**: the HTTP/WebDAV mirror (PRECONTENT-phase background subrequest) and the
-XRootD stream mirror (request replay to a shadow server after the primary
-responds). All five source files exist and are registered. Read-only scope is
-honored — writes are not mirrored. The main divergences are the stream bootstrap
-state names and the Prometheus metric naming.
+Audited against the code under `src/`. **The mirror surfaces shipped and are off
+by default**: the HTTP/WebDAV mirror (PRECONTENT-phase background subrequest),
+the XRootD stream stateless mirror (request replay to a shadow server after the
+primary responds), and opt-in write/data-write mirroring gated by
+`xrootd_mirror_writes`. The main divergences from the original plan are the
+stream bootstrap state names, the Prometheus metric naming, and the later write
+mirroring expansion.
 
 | Step | Capability | Status | Evidence / divergence |
 |------|-----------|--------|-----------------------|
@@ -24,6 +25,7 @@ state names and the Prometheus metric naming.
 | **D** | Memory-safety invariant | ✅ **Done** | Stream mirror ctx is allocated off a process-lifetime pool (not the client connection pool) so it outlives the client; matches the Step-D requirement. |
 | **E** | Multi-target | ✅ **Done** | Up to `XROOTD_MIRROR_MAX_TARGETS` (4); HTTP fans out one background subrequest per target, stream loops over targets. |
 | **F** | Metrics | ✅ **Done — different metric names** | The 8 counter fields exist (`metrics.h:496-503`: `mirror_http_*` + `mirror_stream_*`). **Exported with a shared name + `surface="http"\|"stream"` label** (`xrootd_mirror_requests_total{surface=...}`, `xrootd_mirror_dropped_total{...}`, `xrootd_mirror_divergence_total{...}`, from `src/metrics/stream.c:416+`), **not** the plan's separate `xrootd_webdav_mirror_*` / `xrootd_stream_mirror_*` metric names. (`surface` is a 2-value label — low cardinality, honoring Invariant 8.) |
+| **G** | Opt-in write/data-write mirroring | ✅ **Done — added after original scope** | HTTP/WebDAV write methods are gated by `mirror_writes`; stream metadata mutations are replayed by `stream_mirror.c`; sequential `open(write) -> write -> close` data writes are buffered and replayed by `src/mirror/stream_wmirror.c`. `kXR_pgwrite`, non-sequential offsets, and over-cap payloads abort the data-write mirror safely. |
 
 ### As-built divergences (not defects)
 
@@ -32,12 +34,12 @@ state names and the Prometheus metric naming.
    the plan's single `BOOTSTRAP` state.
 2. **Mirror metrics use a `surface` label** on shared counter names instead of
    per-surface metric names — fewer distinct metric strings, same data.
+3. **Write mirroring exists even though the original plan scoped it out.** It is
+   deliberately double-gated by method/opcode selection and `xrootd_mirror_writes`
+   because the shadow namespace must be isolated from the primary.
 
 ### Pending / not done
 
-- **Write mirroring** (PUT / kXR_write / kXR_pgwrite): intentionally **out of scope**
-  (per *Scope and Constraints*) and not implemented — the opcode/method masks exclude
-  writes. A `DELETE`/`MKCOL` method bit exists but writes remain gated.
 - **Response-body / checksum diffing:** out of scope; only status-class divergence is
   compared, as designed.
 - The shared `xrootd_bootstrap_ctx_t` base type (suggested under *Interaction with
@@ -81,12 +83,12 @@ Use cases:
 - Divergence counter: shadow status code differs from primary status code
 - Optional divergence log line at `NGX_LOG_NOTICE`
 
-**Out of scope (separate phase):**
+**Originally out of scope in this plan:**
 
-- **Write mirroring** (PUT, kXR_write, kXR_pgwrite): buffering write payloads would
-  require copying multi-gigabyte request bodies and risks namespace corruption on
-  shared filesystems. Write mirroring requires a dedicated design phase covering
-  shadow namespace isolation and idempotency.
+- **Write mirroring** (PUT, kXR_write, kXR_pgwrite): the original plan excluded it
+  because buffering write payloads risks namespace corruption on shared
+  filesystems. Current source has a later implementation behind
+  `xrootd_mirror_writes`; it must only target isolated shadow storage.
 - **Response body comparison** (checksum diffing): comparing GET response bodies
   requires streaming the entire file from both endpoints, doubling egress. Out of scope.
 - **XrdHttp stats query mirroring**: internal stats requests are not user traffic.
@@ -645,7 +647,8 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
-    /* write opcodes are not mirrored (out of scope) */
+    /* Current source also observes/replays selected write paths behind
+     * xrootd_mirror_writes; this original sketch predates that expansion. */
     rc = xrootd_dispatch_write_opcode(ctx, c, conf);
     if (rc != XROOTD_DISPATCH_CONTINUE) {
         return rc;

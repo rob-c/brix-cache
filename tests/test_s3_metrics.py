@@ -22,17 +22,19 @@ import pytest
 import requests
 
 from settings import (
+    HOST,
     NGINX_METRICS_PORT,
     NGINX_S3_PORT,
     S3_PRESIGNED_PORT,
+    url_host,
 )
 
 # ---------------------------------------------------------------------------
 # Module-level constants
 # ---------------------------------------------------------------------------
 
-METRICS_URL = f"http://localhost:{NGINX_METRICS_PORT}/metrics"
-S3_BASE     = f"http://127.0.0.1:{NGINX_S3_PORT}"
+METRICS_URL = f"http://{url_host(HOST)}:{NGINX_METRICS_PORT}/metrics"
+S3_BASE     = f"http://{url_host(HOST)}:{NGINX_S3_PORT}"
 BUCKET      = "testbucket"
 S3_NS       = "http://s3.amazonaws.com/doc/2006-03-01/"
 

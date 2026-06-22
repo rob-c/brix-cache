@@ -1,6 +1,8 @@
 #include "query_internal.h"
+#include "../compat/codec_core.h"
 
 #include <stdarg.h>
+#include <stdio.h>
 
 /*
  * WHAT: kXR_Qconfig — best-effort server capability query returning known feature flags as key=value lines.
@@ -115,11 +117,13 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
     while (xrootd_qconfig_next_token(&p, key, sizeof(key))) {
 
         if (strcmp(key, "chksum") == 0) {
-            /* adler32 first — xrdcp default; list all supported algorithms.
-             * crc64 = CRC-64/XZ, crc64nvme = CRC-64/NVME (this gateway's de-facto
-             * convention; stock XRootD ships no crc64 calculator). */
+            /* adler32 first — xrdcp default; list ALL algorithms the Qcksum path
+             * answers.  crc32 = zlib CRC-32 (stock XRootD's standard name; must be
+             * advertised so peers intersecting preference lists can negotiate it),
+             * zcrc32 = its alias; crc64 = CRC-64/XZ, crc64nvme = CRC-64/NVME (this
+             * gateway's de-facto convention; stock XRootD ships no crc64 calculator). */
             if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
-                                       "chksum=adler32,crc32c,crc64,crc64nvme,md5,sha1,sha256\n")) {
+                                       "chksum=adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256\n")) {
                 break;
             }
 
@@ -145,6 +149,78 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
             if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
                                        "tpcdlg\n")) {
                 break;
+            }
+
+        } else if (strcmp(key, "cmpread") == 0) {
+            /* phase-42 W4: inline read compression.  Advertise the codecs this
+             * server can compress kXR_read responses with (only those actually
+             * built in) when xrootd_read_compress is on, else "cmpread=0" so a
+             * willing client knows not to send "?xrootd.compress=".  Invisible
+             * to stock clients, which never query this key. */
+            if (conf->read_compress) {
+                char              list[160];
+                size_t            lp = 0;
+                xrootd_codec_id_t cid;
+
+                list[0] = '\0';
+                for (cid = (xrootd_codec_id_t) 1; cid < XROOTD_CODEC_MAX; cid++) {
+                    const xrootd_codec_desc_t *d = xrootd_codec_by_id(cid);
+                    int n;
+
+                    if (d == NULL || !d->available) {
+                        continue;
+                    }
+                    n = snprintf(list + lp, sizeof(list) - lp, "%s%s",
+                                 lp ? "," : "", d->name);
+                    if (n < 0 || (size_t) n >= sizeof(list) - lp) {
+                        break;
+                    }
+                    lp += (size_t) n;
+                }
+                if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                                           "cmpread=%s\n", list)) {
+                    break;
+                }
+            } else {
+                if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                                           "cmpread=0\n")) {
+                    break;
+                }
+            }
+
+        } else if (strcmp(key, "cmpwrite") == 0) {
+            /* phase-42 W5: inline write decompression — symmetric to cmpread.
+             * Advertise the codecs the server will decompress kXR_write payloads
+             * with when xrootd_write_compress is on, else "cmpwrite=0". */
+            if (conf->write_compress) {
+                char              list[160];
+                size_t            lp = 0;
+                xrootd_codec_id_t cid;
+
+                list[0] = '\0';
+                for (cid = (xrootd_codec_id_t) 1; cid < XROOTD_CODEC_MAX; cid++) {
+                    const xrootd_codec_desc_t *d = xrootd_codec_by_id(cid);
+                    int n;
+
+                    if (d == NULL || !d->available) {
+                        continue;
+                    }
+                    n = snprintf(list + lp, sizeof(list) - lp, "%s%s",
+                                 lp ? "," : "", d->name);
+                    if (n < 0 || (size_t) n >= sizeof(list) - lp) {
+                        break;
+                    }
+                    lp += (size_t) n;
+                }
+                if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                                           "cmpwrite=%s\n", list)) {
+                    break;
+                }
+            } else {
+                if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                                           "cmpwrite=0\n")) {
+                    break;
+                }
             }
 
         } else if (strcmp(key, "xrdfs.ext") == 0) {

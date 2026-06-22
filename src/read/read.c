@@ -136,6 +136,18 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     /*
+     * Phase-42 W4: inline read compression (opt-in, off by default).  Routed to
+     * its own isolated synchronous handler so EVERYTHING below — the sendfile
+     * fast path, windowed streaming and AIO pipeline — stays byte-identical for
+     * the default (read_codec == 0 / XROOTD_CODEC_IDENTITY) case.  pgread/readv
+     * have their own handlers and never reach here, so their plaintext + CRC32c
+     * invariant is preserved.
+     */
+    if (ctx->files[idx].read_codec != 0) {
+        return xrootd_read_compressed(ctx, c, rconf, idx, (off_t) offset, rlen);
+    }
+
+    /*
      * Zero-copy sendfile fast path.  Two conditions must both hold:
      *   - is_regular: sendfile(2) only works against a real file, not a pipe/dir.
      *   - !c->ssl OR kTLS active: a userspace-TLS stream cannot sendfile because

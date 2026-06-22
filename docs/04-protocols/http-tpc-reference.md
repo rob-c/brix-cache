@@ -1,21 +1,24 @@
 # TPC: nginx-xrootd vs official xrootd
 
-A concrete side-by-side of where nginx-xrootd's third-party copy support matches the official XRootD implementation, where it diverges, and why. Read this before writing TPC-related tests or integrating with WLCG FTS.
-provides a practical roadmap to expand the module to approach parity.
+A concrete side-by-side of where nginx-xrootd's third-party copy support
+matches the official XRootD implementation, where it diverges, and why. Read
+this before writing TPC-related tests or integrating with WLCG FTS.
 
 ## Executive summary
 
 - nginx-xrootd implements two practical TPC paths:
-  - native destination‑side XRootD pull implemented in `src/tpc/` (root:// sources).
-  - HTTP/WebDAV TPC implemented in `src/webdav/tpc*.c` — implemented as a curl
-    helper (`fork`/`exec`) that downloads into a temp file.
+  - native destination-side XRootD pull and source rendezvous implemented in
+    `src/tpc/` (root:// sources).
+  - HTTP/WebDAV TPC implemented in `src/webdav/tpc*.c` with libcurl-based
+    pull/push, TransferHeader handling, OAuth2/OIDC delegation, performance
+    markers, and optional multi-stream Range GET.
 - Official xrootd (`XrdHttpTpc`) provides a full-featured HTTP(S) TPC handler
   built on libcurl multi/pipelining with perf markers, monitoring, CA/CRL
   integration, multi‑stream transfers, and richer auth/delegation wiring.
-- Key gaps in nginx‑xrootd vs official xrootd: integrated libcurl multi, perf
-  markers and chunked responses, multi‑stream parallelism, credential
-  delegation support, richer timeout/retry semantics, and production TPC
-  monitoring hooks.
+- Key remaining gaps in nginx-xrootd vs official xrootd: upstream-style
+  in-server TPC integration, richer timeout/retry semantics, production TPC
+  monitoring hooks, more configurable SSRF policy, and native root TPC edge
+  cases such as TLS-upgraded origins and multihop delegation.
 
 ## Where to read the implementations
 
@@ -48,8 +51,10 @@ module source links above point into this repository.
     allocates a local temp file, posts a worker task to an nginx thread pool,
     then performs synchronous XRootD opcode exchanges over a TCP socket
     implemented in `src/tpc/`.
-  - HTTP/WebDAV COPY (client→server) uses `webdav` module `tpc.c` and when
-    performing an HTTPS pull it calls an external `curl` binary (`tpc_curl.c`).
+  - HTTP/WebDAV COPY uses the WebDAV module's `tpc.c` and libcurl transfer
+    helper code in `tpc_curl.c`. Long transfers run off the event loop, and
+    marker mode streams a 202 response while a thread-pool task performs the
+    transfer.
 - official xrootd:
   - supports the full HTTP TPC lifecycle: redirection to disk servers, disk
     server multistream pulls/pushes, and both push/pull flows implemented
@@ -67,23 +72,20 @@ TPC deeply into its HTTP stack and avoids external helpers.
 ### 3) Authentication & delegation
 
 - nginx-xrootd:
-  - native TPC bootstraps with an anonymous `kXR_login` in `bootstrap.c` and
-    fails if source requires authentication. `tpc.key` is appended to the
-    source open query if provided and passed verbatim to the origin.
-  - WebDAV TPC rejects credential delegation (requires `Credential: none`)
-    and uses `curl` arguments for cert/key when configured server‑side.
-  - IMPLEMENTED: OAuth2/OIDC token delegation for HTTP TPC is now supported
-    via `xrootd_webdav_tpc_token_endpoint`, `xrootd_webdav_tpc_token_client_id`,
-    `xrootd_webdav_tpc_token_client_secret`, and `xrootd_webdav_tpc_token_scope`
-    directives (see `src/webdav/tpc_cred.c` and `tpc_cred_parse.c`).
+  - native TPC supports the source/destination rendezvous key flow and can
+    complete ztn or GSI after `kXR_authmore` when configured. TLS-upgraded
+    origins and multihop delegation remain narrower than upstream.
+  - WebDAV TPC collects `TransferHeader*`, can use configured cert/key/CA
+    material, and supports `Credential: oidc-agent` and
+    `Credential: token-exchange` via `src/webdav/tpc_cred.c` and
+    `src/webdav/tpc_cred_parse.c`.
 - official xrootd:
   - supports TransferHeader and credential forwarding, integrates
     authz→opaque CGI mapping and can include client-supplied authz in the
     remote PUT/GET when requested. Also includes CA/CRL handling callbacks.
 
-To reach parity: implement controlled credential forwarding for HTTP TPC
-and enable non‑anonymous bootstrap paths (native and HTTP), ensuring secure
-validation and policy checks (see parity tasks below).
+To reach fuller parity: expand native TPC credential edge cases and keep
+credential forwarding locked behind explicit policy checks.
 
 ### 4) SSRF / address policy
 
@@ -101,16 +103,19 @@ policies — adding similar config flags in nginx-xrootd is advised.
 - nginx-xrootd:
   - native TPC uses blocking sockets inside an nginx thread‑pool task. That
     is simple and robust but incurs task dispatch and blocking overhead.
-  - WebDAV TPC uses `fork` + external `curl`, blocking the parent until
-    child exits.
+  - WebDAV TPC uses libcurl from worker/helper paths. Multi-stream pull uses
+    `curl_multi` with Range GET and `pwrite`, but it is still not integrated
+    into nginx's event loop the way upstream XrdHttpTpc is integrated into the
+    XRootD HTTP stack. Some credential exchange modes use subprocess helpers.
 - official xrootd:
   - HTTP TPC uses libcurl multi APIs with a multi‑handle, multi‑stream
     scheduling layer (`XrdHttpTpcMultistream.cc`), pipelining, and careful
     buffer management to drive parallel transfers without blocking server
     threads.
 
-This is one of the largest practical gaps: matching official throughput and
-scalability requires an integrated multi‑stream, nonblocking HTTP engine.
+This is one of the largest practical differences: nginx-xrootd has practical
+multi-stream support, but official xrootd's TPC engine is more deeply integrated
+with its HTTP/TPC scheduler and monitoring model.
 
 ### 6) Chunking, perf markers & client experience
 
@@ -156,28 +161,25 @@ Below are prioritized tasks to bring nginx-xrootd's TPC feature set closer
 to the official xrootd behaviour. Each item contains a short implementation
 note and an estimated effort (Small / Medium / Large).
 
-1) Integrate HTTP TPC directly using libcurl multi (Large)
-   - Replace the external `curl` helper (`src/webdav/tpc_curl.c`) with an
-     internal libcurl multi-based implementation similar to
-     `XrdHttpTpcMultistream.cc`.
-   - Implement opensocket and closesocket callbacks to reuse the module's
-     SSRF and packet-marking logic.
-   - Add a multi-stream scheduler, block-size and pipelining multiplier
-     config (e.g. `xrootd_tpc_block_size`, `xrootd_tpc_streams`).
-   - Benefit: parallel, nonblocking transfers with much higher throughput.
+1) Tighten HTTP TPC integration and scheduling (Large)
+   - Reduce remaining helper/thread/process dependencies where practical.
+   - Align multi-stream scheduling, block sizing, and pipelining controls more
+     closely with `XrdHttpTpcMultistream.cc`.
+   - Keep the existing opensocket/closesocket callbacks for SSRF pinning and
+     packet marking.
+   - Benefit: better throughput predictability and easier operational tuning.
 
-2) Add perf-marker and chunked early response support (Medium)
-   - Implement server-side 202 + chunked multipart behavior to send periodic
-     performance markers to the client while the transfer proceeds.
-   - Mirror `SendPerfMarker()` semantics from official code to support
-     monitoring clients.
+2) Expand perf-marker compatibility and tests (Small to Medium)
+   - 202 + chunked WLCG Performance-Marker streaming is implemented in
+     `src/webdav/tpc_marker.c`; add compatibility tests against clients that
+     depend on upstream marker timing and final-marker details.
 
-3) Credential delegation & TransferHeader support (Medium)
-   - Implement `TransferHeader*` mapping in WebDAV TPC and allow controlled
-     forwarding of client `Authorization` or explicit transfer headers.
-   - For native `root://` pulls, add a secure path to perform non-anonymous
-     `kXR_login` when the module is configured to forward credentials or when
-     a validated `tpc.key` is present.
+3) Credential delegation hardening (Small to Medium)
+   - WebDAV `TransferHeader*`, `Credential: oidc-agent`, and
+     `Credential: token-exchange` support exist. Continue hardening explicit
+     policy checks, logging, and failure modes.
+   - For native `root://` pulls, expand tests around ztn/GSI after
+     `kXR_authmore`, TLS-upgraded origins, and multihop delegation.
 
 4) Make SSRF policy configurable (Small)
    - Add nginx directives to permit/deny private or local IPs per-site.
@@ -193,7 +195,7 @@ note and an estimated effort (Small / Medium / Large).
 
 7) Tests and CI (Small)
    - Add integration tests under `tests/`:
-     - authenticated source pull (expect failure until delegation implemented),
+     - authenticated source pull for native ztn/GSI and WebDAV OIDC modes,
      - SSRF attempts (loopback, link-local) should be rejected,
      - multi-stream throughput test (compare single vs multi stream),
      - perf-marker observation tests for chunked responses.
@@ -207,8 +209,8 @@ Add a small set of `xrootd_webdav_tpc_*` directives to make behavior tunable:
 
 - `xrootd_webdav_tpc_enable on|off` — enable internal HTTP TPC.
 - `xrootd_webdav_tpc_block_size <bytes>` — block size for multi-stream pulls.
-- `xrootd_webdav_tpc_streams <N>` — streams per transfer.
-- `xrootd_webdav_tpc_marker_period <sec>` — perf marker interval.
+- `xrootd_webdav_tpc_max_streams <N>` — cap streams per transfer.
+- `xrootd_webdav_tpc_marker_interval <sec>` — perf marker interval.
 - `xrootd_webdav_tpc_allow_local on|off` — control loopback/link-local.
 - `xrootd_webdav_tpc_allow_private on|off` — allow RFC1918 private ranges.
 - `xrootd_webdav_tpc_cacert <path>` / `xrootd_webdav_tpc_cert` / `tpc_key` — CA/cred options.
@@ -217,8 +219,8 @@ These map directly to the knobs used in the official `XrdHttpTpc` module.
 
 ## Tests to validate parity
 
-- Auth-required origin test: start an origin requiring XRootD login, attempt
-  an nginx-xrootd native TPC pull (should fail until delegation is added).
+- Auth-required origin test: start origins requiring XRootD ztn/GSI and WebDAV
+  OIDC/token-exchange credentials, then verify successful and negative paths.
 - SSRF negative tests: try `tpc.src=root://127.0.0.1//...` and link-local
   addresses — module should reject these as in `connect.c`.
 - Multi-stream throughput test: compare current single-threaded pull vs the
@@ -234,15 +236,15 @@ These map directly to the knobs used in the official `XrdHttpTpc` module.
   HTTP/WebDAV semantics (multi‑stream, chunked responses). Consider keeping
   both codepaths but sharing helper abstractions (config, metrics, SSRF
   policy) to reduce duplication.
-- Security: credential delegation is a significant security surface. Any
-  delegation design must be locked behind explicit configuration and
+- Security: credential delegation is a significant security surface. Existing
+  delegation paths must remain locked behind explicit configuration and
   validated against policy (allowed hosts, token expiry, scope checks).
 
 ## Next steps
 
-1. Review this doc and pick an initial target (e.g., internal libcurl multi
-   TPC or SSRF configurability). 2. I can implement the chosen item and add
-   tests and CI. 3. Iterate on hardening (CRL, perf markers, monitoring).
-
-If you want, I can start by implementing the internal libcurl multi HTTP TPC
-or add SSRF flags and the small tests first — which would you prefer?
+1. Prioritize the remaining gaps: monitoring, retry/error semantics, SSRF
+   configurability, and native TPC credential edge cases.
+2. Add compatibility tests against official `XrdHttpTpc` behavior for markers,
+   multistream, delegation, and error propagation.
+3. Iterate on hardening, especially CRL/CA policy, token expiry, and transfer
+   observability.

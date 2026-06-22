@@ -21,6 +21,8 @@ import textwrap
 
 import pytest
 
+from settings import HOST
+
 _HERE = os.path.dirname(__file__)
 _RUNNER = os.path.join(_HERE, "c", "run_slice_tests.sh")
 _OBJS = os.environ.get("TEST_NGINX_OBJS", "/tmp/nginx-1.28.3/objs")
@@ -68,7 +70,7 @@ class TestSliceConfig:
                     xrootd_auth none;
                     xrootd_cache on;
                     xrootd_cache_root {cache};
-                    xrootd_cache_origin 127.0.0.1:1095;
+                    xrootd_cache_origin {HOST}:1095;
                     xrootd_cache_slice {slice_value};
                 }}
             }}

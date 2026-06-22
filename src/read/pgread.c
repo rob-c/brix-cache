@@ -47,61 +47,149 @@
 #include "read.h"
 
 #include "../ngx_xrootd_module.h"
+#include "../compat/pgio.h"     /* shared kXR page-mode encode (libxrdproto) */
+#include "../compat/crc32c.h"   /* xrootd_crc32c_value — in-place per-page CRC  */
 
+#include <sys/uio.h>            /* preadv / struct iovec                        */
+
+/* CRC32c word size per page unit ([CRC32c(4)][data]); == kXR_pgUnitSZ - page. */
+#define XROOTD_PG_CKSZ        ((size_t) (kXR_pgUnitSZ - kXR_pgPageSZ))
+/* preadv scatter cap per syscall — mirrors kXR_readv (XROOTD_READV_PREADV_MAXIOV). */
+#define XROOTD_PGREAD_MAXIOV  64
+
+/*
+ * xrootd_pgread_read_encode_inplace - zero-copy paged read + in-place CRC.
+ *
+ * WHAT: Reads up to `rlen` bytes from `fd` at `offset` DIRECTLY into the final
+ *       kXR page-mode wire buffer `out` (laid out as [CRC32c(4)][data] per page,
+ *       file-offset aligned) and computes each page's CRC32c in place, writing
+ *       the 4-byte big-endian checksum into the gap that precedes its data.
+ *       Returns the encoded byte count; sets *nread_out to bytes read (-1 on I/O
+ *       error, with *io_errno_out = errno).
+ *
+ * WHY: The previous path pread() the data into a flat buffer and then ran
+ *      xrdp_pg_encode to COPY it into the interleaved wire buffer while
+ *      checksumming. Flame-graph profiling showed that copy (a full extra pass
+ *      over every byte — the dst-write memory stream) dominating read CPU, and a
+ *      copy is memory-bandwidth-bound so the 3-way CRC barely helps it. Reading
+ *      straight into the gapped wire buffer removes the copy entirely; the CRC
+ *      then runs read-only (xrootd_crc32c_value, the latency-hiding 3-way path)
+ *      over the data already in place. This mirrors the zero-copy preadv-into-
+ *      final-buffer pattern kXR_readv already uses. Output is byte-identical to
+ *      xrdp_pg_encode (Invariant #1): same page splitting, same CRC, same layout.
+ *
+ * HOW: Lay out one batch of <= XROOTD_PGREAD_MAXIOV pages (data after each 4-byte
+ *      CRC gap), preadv the batch's contiguous file region into those gapped
+ *      positions, then fuse the per-page CRC over exactly the bytes the batch
+ *      delivered — a short page or short batch means EOF, so stop. Page lengths
+ *      use the in-page offset so the first fragment shortens on an unaligned
+ *      read, exactly as xrdp_pg_encode does.
+ */
+size_t
+xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
+    u_char *out, ssize_t *nread_out, int *io_errno_out)
+{
+    u_char  *o = out;            /* write cursor in the gapped wire buffer */
+    size_t   remaining = rlen;   /* file bytes not yet laid out into a batch */
+    size_t   out_size = 0;       /* encoded bytes produced so far */
+    ssize_t  total = 0;          /* file bytes actually read */
+    int      eof = 0;
+
+    *nread_out = 0;
+    *io_errno_out = 0;
+
+    while (remaining > 0 && !eof) {
+        struct iovec iov[XROOTD_PGREAD_MAXIOV];
+        u_char      *data[XROOTD_PGREAD_MAXIOV];
+        size_t       dlen[XROOTD_PGREAD_MAXIOV];
+        off_t        batch_off = offset + (off_t) (rlen - remaining);
+        size_t       batch_bytes = 0;
+        ssize_t      n;
+        size_t       got;
+        int          k = 0;
+        int          i;
+
+        /* Lay out a batch of pages: data lands after each 4-byte CRC gap. */
+        while (k < XROOTD_PGREAD_MAXIOV && remaining > 0) {
+            off_t  cur = offset + (off_t) (rlen - remaining);
+            size_t in_off = (size_t) (cur & (off_t) (kXR_pgPageSZ - 1));
+            size_t len = (size_t) kXR_pgPageSZ - in_off;
+
+            if (len > remaining) {
+                len = remaining;
+            }
+            data[k] = o + XROOTD_PG_CKSZ;
+            dlen[k] = len;
+            iov[k].iov_base = data[k];
+            iov[k].iov_len  = len;
+            o           += XROOTD_PG_CKSZ + len;
+            batch_bytes += len;
+            remaining   -= len;
+            k++;
+        }
+
+        n = preadv(fd, iov, k, batch_off);
+        if (n < 0) {
+            *nread_out = -1;
+            *io_errno_out = errno;
+            return 0;
+        }
+        total += n;
+
+        /* Fuse the per-page CRC over exactly the bytes this batch delivered. */
+        got = (size_t) n;
+        for (i = 0; i < k; i++) {
+            size_t   al = (got < dlen[i]) ? got : dlen[i];
+            uint32_t crc_be;
+
+            if (al == 0) {
+                break;
+            }
+            crc_be = htonl(xrootd_crc32c_value(data[i], al));
+            memcpy(data[i] - XROOTD_PG_CKSZ, &crc_be, XROOTD_PG_CKSZ);
+            out_size += XROOTD_PG_CKSZ + al;
+            got      -= al;
+            if (al < dlen[i]) {
+                eof = 1;   /* short page => short read; no more data follows */
+                break;
+            }
+        }
+
+        if ((size_t) n < batch_bytes) {
+            eof = 1;       /* short batch overall => EOF */
+        }
+    }
+
+    *nread_out = total;
+    return out_size;
+}
+
+/*
+ * Encode raw file data into kXR page-mode [CRC32c(4)][data] units, file-offset
+ * aligned (short first fragment on an unaligned read). Thin wrapper over the
+ * shared page-mode encoder (libxrdproto) so the module and the native client
+ * frame pages byte-identically.
+ */
 size_t
 xrootd_pgread_encode_pages(const u_char *src, size_t len, off_t offset,
                            u_char *dst)
 {
-    const u_char *p;
-    u_char       *out;
-    size_t        remaining;
-    off_t         cur;
-
-    p = src;
-    out = dst;
-    remaining = len;
-    cur = offset;
-
-    while (remaining > 0) {
-        size_t   to_boundary;
-        size_t   page_data;
-        uint32_t crc_be;
-
-        /*
-         * Pages are aligned to the *file* offset, not the start of this read:
-         * the first fragment is shortened so every later page begins on a
-         * kXR_pgPageSZ multiple.  Official XRootD does the same, and the
-         * pgRetry mechanism plus XrdCl::AsyncPageReader assume each digest
-         * covers an aligned page — a fixed split from the read start would
-         * mis-frame retries on unaligned reads.  kXR_pgPageSZ is a power of
-         * two, so (cur & (kXR_pgPageSZ - 1)) is the in-page offset.
-         */
-        to_boundary = (size_t) kXR_pgPageSZ
-                      - (size_t) (cur & (off_t) (kXR_pgPageSZ - 1));
-        page_data = (remaining < to_boundary) ? remaining : to_boundary;
-
-        /* XRootD wire format per page: [CRC32c(4)][data(page_size)]
-         * AsyncPageReader::InitIOV() reads digest first, then page data. */
-        crc_be = htonl(xrootd_crc32c_copy(p, out + 4, page_data));
-        ngx_memcpy(out, &crc_be, 4);
-        out += 4 + page_data;
-        p += page_data;
-        cur += page_data;
-        remaining -= page_data;
-    }
-
-    return (size_t) (out - dst);
+    return xrdp_pg_encode((const uint8_t *) src, len, (int64_t) offset,
+                          (uint8_t *) dst);
 }
 
 ngx_int_t
 xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
+    /* phase-42 W4 invariant: pgread is ALWAYS plaintext — it never consults
+     * ctx->files[idx].read_codec.  Inline read compression is a kXR_read-only
+     * handle property; pgread's kXR_status(4007) framing + per-page CRC32c must
+     * stay byte-for-byte intact, so compression is deliberately not applied here. */
     ClientPgReadRequest          *req = (ClientPgReadRequest *) ctx->hdr_buf;
     int                           idx;
     int64_t                       offset;
     size_t                        rlen;
     int                           fd;
-    ssize_t                       nread;
     u_char                       *flat_buf;
     u_char                       *out_buf;
     size_t                        out_size;
@@ -175,7 +263,12 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
         if (n_pages_max == 0) {
             n_pages_max = 1;
         }
-        scratch_size = rlen + n_pages_max * kXR_pgUnitSZ;
+        /*
+         * Single buffer holding the final interleaved [CRC32c(4)][data] wire
+         * output (data is read straight into it — no separate flat copy region),
+         * so it needs only the data bytes plus one 4-byte CRC per page.
+         */
+        scratch_size = rlen + n_pages_max * XROOTD_PG_CKSZ;
 
         scratch = XROOTD_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size,
                                      scratch_size);
@@ -224,24 +317,26 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
         }
 
         /*
-         * Sync fallback: pread into scratch[0..rlen-1], encode into
-         * scratch[rlen..], matching the AIO scratch layout so the same single
-         * allocation is reused on subsequent requests.
+         * Sync fallback: read directly into the gapped wire buffer and CRC each
+         * page in place (no flat-buffer copy). Same code path as the AIO worker.
          */
-        nread = pread(fd, scratch, rlen, (off_t) offset);
-        if (nread < 0) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_PGREAD, "PGREAD",
-                              ctx->files[idx].path, "-",
-                              kXR_IOError, strerror(errno));
+        {
+            ssize_t nread_v;
+            int     io_errno_v = 0;
+
+            out_size = xrootd_pgread_read_encode_inplace(fd, (off_t) offset, rlen,
+                                                         scratch, &nread_v,
+                                                         &io_errno_v);
+            if (nread_v < 0) {
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_PGREAD, "PGREAD",
+                                  ctx->files[idx].path, "-",
+                                  kXR_IOError, strerror(io_errno_v));
+            }
+
+            flat_buf = scratch;
+            out_buf  = scratch;            /* output starts at offset 0 now */
+            rlen     = (size_t) nread_v;   /* actual bytes read (accounting) */
         }
-
-        flat_buf = scratch;
-        rlen     = (size_t) nread;
-
-        /* Encoded output placed at scratch[original rlen..] */
-        out_buf  = scratch + (scratch_size - n_pages_max * kXR_pgUnitSZ);
-        out_size = xrootd_pgread_encode_pages(flat_buf, rlen, (off_t) offset,
-                                              out_buf);
     }
 
     hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));

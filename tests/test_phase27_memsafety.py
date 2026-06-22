@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, HOST, BIND_HOST
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -171,7 +171,7 @@ def _wait_port(port, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -186,7 +186,7 @@ def _spawn_stream(tmp_path, port):
             f"pid {tmp_path}/logs/nginx.pid;\n"
             "events { worker_connections 64; }\n"
             "stream {\n"
-            f"  server {{ listen 127.0.0.1:{port}; xrootd on;"
+            f"  server {{ listen {BIND_HOST}:{port}; xrootd on;"
             f" xrootd_root {data}; xrootd_auth none; }}\n"
             "}\ndaemon off;\nmaster_process off;\n")
     cp = tmp_path / "nginx.conf"
@@ -200,7 +200,7 @@ def _spawn_stream(tmp_path, port):
 
 
 def _login(port):
-    s = socket.socket(); s.settimeout(5); s.connect(("127.0.0.1", port))
+    s = socket.socket(); s.settimeout(5); s.connect((HOST, port))
     s.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
     s.sendall(struct.pack(">BB H I BB 10x I", 0, 1, 3006, 0x520, 2, 3, 0))
     s.recv(16)

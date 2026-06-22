@@ -25,6 +25,14 @@ tar \
     --exclude='./*.pyc' \
     --exclude='./davs:*' \
     --exclude='./tests/davs:*' \
+    --exclude='./tests/nginx-bin' \
+    --exclude='./tests/__pycache__' \
+    --exclude='*.o' \
+    --exclude='*.a' \
+    --exclude='*.d' \
+    --exclude='*.so' \
+    --exclude='*.pc' \
+    --exclude='./shared/xrdproto/build' \
     --exclude='./tools' \
     --exclude='./*.rpm' \
     --exclude='./*.src.rpm' \

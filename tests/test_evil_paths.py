@@ -48,6 +48,9 @@ from settings import (
     DATA_ROOT,
     TEST_ROOT,
     SERVER_HOST,
+    HOST,
+    BIND_HOST,
+    url_host,
     NGINX_ANON_PORT,
     NGINX_HTTP_WEBDAV_PORT,
     NGINX_WEBDAV_PORT,        # https webdav (8443)
@@ -603,7 +606,7 @@ class TestCmsStateEvil:
         # mock manager listening socket
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind(("127.0.0.1", 0))
+        srv.bind((BIND_HOST, 0))
         mgr_port = srv.getsockname()[1]
         srv.listen(4)
         srv.settimeout(20)
@@ -624,7 +627,7 @@ stream {{
         xrootd on;
         xrootd_root {DATA_ROOT};
         xrootd_allow_write on;
-        xrootd_cms_manager 127.0.0.1:{mgr_port};
+        xrootd_cms_manager {url_host(HOST)}:{mgr_port};
         xrootd_cms_interval 2;
     }}
 }}
@@ -701,7 +704,7 @@ stream {{
 
 def _free_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("127.0.0.1", 0))
+    s.bind((BIND_HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -900,7 +903,10 @@ class TestRootEvilWrites:
             targets += [
                 (kXR_open, f"/{sf}", kXR_new | kXR_open_updt),   # create/trunc victim
                 (kXR_truncate, f"/{sf}", None),
-                (kXR_rm, f"/{sf}", None),
+                # NOTE: kXR_rm of the symlink itself is NOT an escape — unlink operates
+                # on the in-root link (lstat/POSIX semantics), never the external target.
+                # It legitimately succeeds; checked separately below, and
+                # _assert_zone_pristine proves the victim survived.
             ]
         # pure "../" escapes into the writable zone
         targets += [
@@ -912,6 +918,12 @@ class TestRootEvilWrites:
         for opcode, path, opts in targets:
             st, s = self._op(s, opcode, path, open_opts=opts)
             assert st != kXR_ok, f"root write {path!r} (op {opcode}) succeeded — escape!"
+
+        # rm of the in-root symlink-to-victim must SUCCEED (removes the link only) and
+        # must NOT delete the external victim — that is the real confinement property.
+        if sf:
+            st, s = self._op(s, kXR_rm, f"/{sf}")
+            assert st == kXR_ok, f"rm of in-root symlink /{sf} should remove the link"
 
         # kXR_mv: move an in-root file OUT (src in root, dst escaping)
         for dst in ([f"/{sd}/moved"] if sd else []) + [f"/../{zb}/moved"]:

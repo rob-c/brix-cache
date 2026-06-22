@@ -9,6 +9,7 @@
  */
 
 #include "webdav.h"
+#include "../impersonate/lifecycle.h"
 #include "../compat/etag.h"
 #include "../compat/http_body.h"
 #include "../compat/http_file_response.h"
@@ -457,11 +458,25 @@ webdav_proppatch_do(ngx_http_request_t *r)
 /*
  * Body-ready callback (async re-entry point): runs the PROPPATCH and finalizes
  * the request with metrics once the request body has been buffered.
+ *
+ * Phase 40: the PROPPATCH body is read asynchronously, so the dispatch wrapper
+ * has already cleared the impersonation principal.  Re-establish it for the
+ * duration (mirrors PUT/PROPFIND) so the dead-property xattr is written AS THE
+ * MAPPED USER via the broker; without this the worker (svc) attempts setxattr on
+ * the user-owned resource and fails EACCES.  No-op unless map mode is active.
  */
 static void
 webdav_proppatch_body_handler(ngx_http_request_t *r)
 {
-    webdav_metrics_finalize_request(r, webdav_proppatch_do(r));
+    ngx_http_xrootd_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ngx_int_t rc;
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    rc = webdav_proppatch_do(r);
+    xrootd_imp_request_end();
+
+    webdav_metrics_finalize_request(r, rc);
 }
 
 /*

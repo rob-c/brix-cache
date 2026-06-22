@@ -40,6 +40,7 @@ static int       imp_conn_fd = -1;                  /* -1 = not connected */
 static char      imp_sock_path[108];                /* sun_path bound */
 static ngx_log_t *imp_log;                          /* may be NULL */
 static char      imp_principal[IMP_PRINC_MAX];      /* "" = none set */
+static int       imp_in_request;                    /* inside a per-request bracket */
 
 /* ------------------------------------------------------------------ */
 /* Connection management                                               */
@@ -123,7 +124,30 @@ xrootd_imp_client_connect(const char *path, ngx_log_t *log)
 int
 xrootd_imp_client_active(void)
 {
-    return imp_enabled && imp_principal[0] != '\0';
+    /*
+     * Route the confined FS op to the broker when map mode is active AND we are
+     * either (a) inside a request that resolved to a real principal, or (b)
+     * inside a request whose authenticated identity yielded NO mappable principal
+     * (empty subject / no DN) — case (b) still goes to the broker, which denies
+     * the empty principal (idmap can't map "") so the op FAILS CLOSED instead of
+     * silently falling back to the unprivileged WORKER (which owns the export and
+     * can read svc-only files — a real fail-open).  Outside any request bracket
+     * (housekeeping: checkpoint recovery, FRM) there is no principal AND no active
+     * request, so we run locally as the worker, as intended.
+     */
+    return imp_enabled && (imp_principal[0] != '\0' || imp_in_request);
+}
+
+int
+xrootd_imp_enabled(void)
+{
+    return imp_enabled;
+}
+
+void
+xrootd_imp_mark_in_request(int on)
+{
+    imp_in_request = on ? 1 : 0;
 }
 
 void
@@ -197,9 +221,13 @@ imp_recv_reply(int fd, imp_rep_t *rep, int *out_fd, char *data_buf,
     iov[0].iov_len  = sizeof(*rep);
     msg.msg_iov     = iov;
     msg.msg_iovlen  = 1;
-    /* A second iovec receives any trailing payload (READLINK target) IN THE SAME
-     * message; data_buf must be >= the broker's max (IMP_PATH_MAX) so the trailing
-     * bytes are never left in the socket (which would desync the next op). */
+    /* A second iovec receives any trailing payload (READLINK target / GETXATTR
+     * value / LISTXATTR names) IN THE SAME message.  data_buf must be large enough
+     * for the op's reply payload: a READLINK target is bounded by PATH_MAX, while
+     * GET/LISTXATTR replies are bounded by IMP_XATTR_MAX (imp_get_or_list sizes its
+     * buffer accordingly).  recvmsg never writes past iov_len, and the data_len
+     * cross-check below fails closed on any mismatch, so an over-long reply is
+     * rejected rather than overflowing or desyncing. */
     if (data_buf != NULL && data_bufsz > 0) {
         iov[1].iov_base = data_buf;
         iov[1].iov_len  = data_bufsz;
@@ -214,6 +242,11 @@ imp_recv_reply(int fd, imp_rep_t *rep, int *out_fd, char *data_buf,
 
     if (n < (ssize_t) sizeof(*rep)) {
         return -1;                       /* short read / EOF / error */
+    }
+    /* A reply that declares trailing data we gave nowhere to receive (no iov[1])
+     * cannot be consumed without desyncing — reject explicitly and fail closed. */
+    if (rep->data_len > 0 && (data_buf == NULL || data_bufsz == 0)) {
+        return -1;
     }
     /* The frame declares its trailing length; if what we received does not match,
      * the stream is desynced — fail so the caller drops + reconnects. */
@@ -274,10 +307,18 @@ imp_status_errno(int status)
  * returns 0 and fills *rep / *out_fd; on a transport failure returns -1
  * (errno=EIO).  The op is retried exactly once across a dropped connection
  * (broker respawn), never more — a persistently dead broker fails closed.
+ *
+ * `data_in` (length `data_in_len`) is an optional inbound payload written
+ * immediately after the fixed frame (SETXATTR value); the broker reads exactly
+ * req->req_data_len trailing bytes.  `data_buf`/`data_bufsz` receive an optional
+ * outbound reply payload (READLINK/GETXATTR/LISTXATTR).  A retry re-sends the
+ * whole [frame][data_in] on a fresh connection, so a half-written payload on a
+ * dying connection never desyncs the broker.
  */
 static int
 imp_exchange(const imp_req_t *req, imp_rep_t *rep, int *out_fd,
-             char *data_buf, size_t data_bufsz)
+             char *data_buf, size_t data_bufsz,
+             const void *data_in, size_t data_in_len)
 {
     int attempt;
 
@@ -287,6 +328,8 @@ imp_exchange(const imp_req_t *req, imp_rep_t *rep, int *out_fd,
             continue;                    /* could not dial; retry once */
         }
         if (imp_write_full(fd, req, sizeof(*req)) != 0
+            || (data_in_len > 0
+                && imp_write_full(fd, data_in, data_in_len) != 0)
             || imp_recv_reply(fd, rep, out_fd, data_buf, data_bufsz) != 0)
         {
             imp_drop_conn();             /* transport broke — reconnect & retry */
@@ -317,7 +360,7 @@ imp_call_status(uint32_t op, const char *path, const char *path2,
     int       fd = -1;
 
     imp_build_req(&req, op, path, path2, 0, mode, length);
-    if (imp_exchange(&req, &rep, &fd, NULL, 0) != 0) {
+    if (imp_exchange(&req, &rep, &fd, NULL, 0, NULL, 0) != 0) {
         return -1;                       /* errno=EIO set by imp_exchange */
     }
     if (fd >= 0) {
@@ -343,7 +386,7 @@ xrootd_imp_open(const char *reqpath, int flags, mode_t mode)
 
     imp_build_req(&req, IMP_OP_OPEN, reqpath, NULL,
                   (uint32_t) flags, (uint32_t) mode, 0);
-    if (imp_exchange(&req, &rep, &fd, NULL, 0) != 0) {
+    if (imp_exchange(&req, &rep, &fd, NULL, 0, NULL, 0) != 0) {
         return -1;
     }
     if (rep.status == 0 && (rep.rep_flags & IMP_REP_HAS_FD) && fd >= 0) {
@@ -386,7 +429,7 @@ xrootd_imp_stat(const char *reqpath, struct stat *st, int nofollow)
 
     imp_build_req(&req, nofollow ? IMP_OP_LSTAT : IMP_OP_STAT,
                   reqpath, NULL, 0, 0, 0);
-    if (imp_exchange(&req, &rep, &fd, NULL, 0) != 0) {
+    if (imp_exchange(&req, &rep, &fd, NULL, 0, NULL, 0) != 0) {
         return -1;
     }
     if (fd >= 0) {
@@ -425,6 +468,12 @@ int
 xrootd_imp_rename(const char *src, const char *dst)
 {
     return imp_call_status(IMP_OP_RENAME, src, dst, 0, 0);
+}
+
+int
+xrootd_imp_rename_noreplace(const char *src, const char *dst)
+{
+    return imp_call_status(IMP_OP_RENAME_NOREPLACE, src, dst, 0, 0);
 }
 
 int
@@ -473,7 +522,7 @@ xrootd_imp_setattr(const char *reqpath, int set_times,
     req.set_uid = (uid == (uid_t) -1) ? (uint32_t) -1 : (uint32_t) uid;
     req.set_gid = (gid == (gid_t) -1) ? (uint32_t) -1 : (uint32_t) gid;
 
-    if (imp_exchange(&req, &rep, &fd, NULL, 0) != 0) {
+    if (imp_exchange(&req, &rep, &fd, NULL, 0, NULL, 0) != 0) {
         return -1;
     }
     if (fd >= 0) { close(fd); }
@@ -501,7 +550,7 @@ xrootd_imp_readlink(const char *reqpath, char *buf, size_t bufsz)
     size_t    n;
 
     imp_build_req(&req, IMP_OP_READLINK, reqpath, NULL, 0, 0, 0);
-    if (imp_exchange(&req, &rep, &fd, linkbuf, sizeof(linkbuf)) != 0) {
+    if (imp_exchange(&req, &rep, &fd, linkbuf, sizeof(linkbuf), NULL, 0) != 0) {
         return -1;
     }
     if (fd >= 0) { close(fd); }
@@ -514,5 +563,104 @@ xrootd_imp_readlink(const char *reqpath, char *buf, size_t bufsz)
     errno = (rep.status < 0) ? -rep.status
                              : imp_status_errno(rep.status ? rep.status
                                                            : IMP_STATUS_INTERNAL);
+    return -1;
+}
+
+/*
+ * imp_get_or_list — shared body for getxattr/listxattr (both return a
+ * variable-length payload via the reply-side trailing data).  The broker fills
+ * its own IMP_XATTR_MAX buffer; we receive it into a process-private buffer and
+ * then honour the POSIX f*xattr contract against the caller's buffer: bufsz==0
+ * is a size probe (return the length, copy nothing); bufsz < length is ERANGE;
+ * otherwise copy and return the length.  `xbuf` is static — the worker event
+ * loop is single-threaded and the broker round-trip is fully synchronous, so the
+ * call never overlaps itself; this keeps a 64 KiB buffer off the request stack.
+ */
+static ssize_t
+imp_get_or_list(uint32_t op, const char *reqpath, const char *name,
+                void *buf, size_t bufsz)
+{
+    static char xbuf[IMP_XATTR_MAX];
+    imp_req_t   req;
+    imp_rep_t   rep;
+    int         fd = -1;
+    size_t      n;
+
+    imp_build_req(&req, op, reqpath, name, 0, 0, 0);
+    if (imp_exchange(&req, &rep, &fd, xbuf, sizeof(xbuf), NULL, 0) != 0) {
+        return -1;
+    }
+    if (fd >= 0) { close(fd); }
+    if (rep.status != 0) {
+        errno = (rep.status < 0) ? -rep.status : imp_status_errno(rep.status);
+        return -1;
+    }
+    n = (rep.rep_flags & IMP_REP_HAS_DATA) ? rep.data_len : 0;
+    if (bufsz == 0) {
+        return (ssize_t) n;              /* size probe */
+    }
+    if (n > bufsz) {
+        errno = ERANGE;
+        return -1;
+    }
+    ngx_memcpy(buf, xbuf, n);
+    return (ssize_t) n;
+}
+
+ssize_t
+xrootd_imp_getxattr(const char *reqpath, const char *name,
+                    void *buf, size_t bufsz)
+{
+    return imp_get_or_list(IMP_OP_GETXATTR, reqpath, name, buf, bufsz);
+}
+
+ssize_t
+xrootd_imp_listxattr(const char *reqpath, void *buf, size_t bufsz)
+{
+    return imp_get_or_list(IMP_OP_LISTXATTR, reqpath, NULL, buf, bufsz);
+}
+
+int
+xrootd_imp_setxattr(const char *reqpath, const char *name,
+                    const void *value, size_t len, int flags)
+{
+    imp_req_t req;
+    imp_rep_t rep;
+    int       fd = -1;
+
+    if (len > IMP_XATTR_MAX) {
+        errno = E2BIG;                   /* broker bounds the inbound payload */
+        return -1;
+    }
+    /* xattr flags (XATTR_CREATE/XATTR_REPLACE/0) ride in the mode field. */
+    imp_build_req(&req, IMP_OP_SETXATTR, reqpath, name, 0, (uint32_t) flags, 0);
+    req.req_data_len = (uint32_t) len;
+    if (imp_exchange(&req, &rep, &fd, NULL, 0, value, len) != 0) {
+        return -1;
+    }
+    if (fd >= 0) { close(fd); }
+    if (rep.status == 0) {
+        return 0;
+    }
+    errno = (rep.status < 0) ? -rep.status : imp_status_errno(rep.status);
+    return -1;
+}
+
+int
+xrootd_imp_removexattr(const char *reqpath, const char *name)
+{
+    imp_req_t req;
+    imp_rep_t rep;
+    int       fd = -1;
+
+    imp_build_req(&req, IMP_OP_REMOVEXATTR, reqpath, name, 0, 0, 0);
+    if (imp_exchange(&req, &rep, &fd, NULL, 0, NULL, 0) != 0) {
+        return -1;
+    }
+    if (fd >= 0) { close(fd); }
+    if (rep.status == 0) {
+        return 0;
+    }
+    errno = (rep.status < 0) ? -rep.status : imp_status_errno(rep.status);
     return -1;
 }

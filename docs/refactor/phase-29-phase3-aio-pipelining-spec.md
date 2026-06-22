@@ -1,8 +1,11 @@
 # Phase 29 — Phase 3: AIO read pipelining (implementation spec)
 
-**Status:** SPEC ONLY (not implemented). Phases 1, 2, 4 are landed + validated;
-the tree is green. This file is the precise, file-by-file plan so Phase 3 can be
-done in a focused session with the right validation harness.
+**Status:** Superseded/partially landed. Phases 1, 2, and 4 are landed; the
+Phase 32 WS3 foundation added the concurrent AIO read-buffer/task pool
+(`rd_pool`, `rd_inflight`) and documented the architecture. The remaining
+recv-state-machine flip for fully concurrent memory-backed AIO reads is deferred
+to a benchmark-backed session. Keep this file as the original Phase 3 design
+spec, not as a current statement that no AIO-pipeline work exists.
 
 ## Why it was deferred (2026-06-13)
 

@@ -48,10 +48,13 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
     }
 
     if (xcf->cache) {
-        if (xcf->common.allow_write) {
+        /* The read-through cache is read-only UNLESS write-through is enabled,
+         * in which case write handles are accepted and mirrored to the origin
+         * at kXR_sync/kXR_close (see src/cache/writethrough_flush.c). */
+        if (xcf->common.allow_write && !xcf->wt_enable) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "xrootd_cache is read-only and requires "
-                "xrootd_allow_write off");
+                "xrootd_allow_write off (or enable xrootd_write_through)");
             return NGX_ERROR;
         }
 

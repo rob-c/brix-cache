@@ -535,6 +535,10 @@ xrootd_imp_request_begin(const xrootd_identity_t *id)
     if (imp_settings.mode != XROOTD_IMP_MAP) {
         return;
     }
+    /* Mark the request active BEFORE setting the principal: even if the identity
+     * yields no mappable principal (empty subject), confined ops must route to the
+     * broker (which denies) rather than fall back to the worker. */
+    xrootd_imp_mark_in_request(1);
     xrootd_imp_set_principal(id != NULL ? imp_principal_of(id) : NULL);
 }
 
@@ -545,4 +549,5 @@ xrootd_imp_request_end(void)
         return;
     }
     xrootd_imp_clear_principal();
+    xrootd_imp_mark_in_request(0);
 }

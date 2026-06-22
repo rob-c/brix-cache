@@ -264,7 +264,16 @@ xrootd_token_check_write(const xrootd_token_scope_t *scopes, int scope_count,
     int scope_index;
 
     for (scope_index = 0; scope_index < scope_count; scope_index++) {
-        if ((scopes[scope_index].write || scopes[scope_index].create)
+        /*
+         * "modify" is a write-like WLCG capability (overwrite/modify/delete of an
+         * existing object); it was parsed into the scope (scopes.h) and produced by
+         * the macaroon parser (MANAGE -> storage.modify) but consulted by NO authz
+         * decision — so any JWT/macaroon presenting storage.modify was wrongly
+         * denied every write.  Honor it alongside write/create (the codebase already
+         * conflates create-new with overwrite in this coarse write gate).
+         */
+        if ((scopes[scope_index].write || scopes[scope_index].create
+             || scopes[scope_index].modify)
             && scope_path_matches(scopes[scope_index].path, path))
         {
             return 1;

@@ -30,12 +30,14 @@ from settings import (
     CLUSTER_DS_DATA_ROOT,
     CLUSTER_DS_PORT,
     CLUSTER_REDIR_PORT,
+    HOST,
     NGINX_ANON_PORT,
     NGINX_GSI_PORT,
     PROXY_STD,
     SERVER_HOST,
     XRDCP_BIN,
     XRDFS_BIN,
+    url_host,
 )
 
 pytestmark = pytest.mark.e2e
@@ -333,7 +335,7 @@ def test_redirector_metrics_update_after_transfer(cluster, test_env):
     # Use anon port as fallback if the redir port doesn't support writes.
     subprocess.run(
         [XRDCP_BIN, "-f", local,
-         f"root://localhost:{redir_port}//metrics_probe_{uuid.uuid4().hex[:8]}.txt"],
+         f"root://{url_host(HOST)}:{redir_port}//metrics_probe_{uuid.uuid4().hex[:8]}.txt"],
         capture_output=True, timeout=30,
     )
 
@@ -353,7 +355,7 @@ def test_xrdcp_cross_server_copy_through_redirector(cluster):
     dst_name = f"tpc_dst_{uuid.uuid4().hex[:8]}.bin"
     _write_file(os.path.join(cluster["data_root"], src_name), payload)
 
-    dst_url = f"root://localhost:{NGINX_ANON_PORT}//{dst_name}"
+    dst_url = f"root://{url_host(HOST)}:{NGINX_ANON_PORT}//{dst_name}"
     src_url = _redir_url(cluster["redir_port"], f"//{src_name}")
 
     rc = subprocess.run(

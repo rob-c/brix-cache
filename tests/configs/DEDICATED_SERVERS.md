@@ -23,6 +23,7 @@ All dedicated instances are managed by `manage_test_servers.sh start-all` at ses
 | Port | Config | Purpose |
 |---|---|---|
 | 11103 | `vo_acl.conf` | VO ACL enforcement (`cms`, `atlas`) with GSI auth |
+| 11116 | `nginx_krb5.conf` | XRootD stream Kerberos 5 (`xrootd_auth krb5`). **Conditional** — `start_krb5_tier` starts it only when the MIT KDC tooling (`krb5-server`) is installed *and* the nginx binary is linked against libkrb5; otherwise skipped cleanly. The realm/keytab/client-ccache are provisioned under `TEST_ROOT/krb5` by `kdc_helpers.py` (throwaway KDC on 11117). Drives `tests/test_krb5_auth.py`, gated by the `requires_krb5` fixture. |
 | 11211 | `nginx_ha_instance1.conf` | HA Cluster Nginx 1 |
 | 11212 | `nginx_ha_instance2.conf` | HA Cluster Nginx 2 |
 ...

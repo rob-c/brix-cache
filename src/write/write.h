@@ -6,6 +6,15 @@
 /* kXR_write — write bytes from payload to an open file at a given offset. */
 ngx_int_t xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
+/* Phase-42 W5 — inline write decompression for kXR_write.  Invoked from
+ * xrootd_handle_write() ONLY when ctx->files[idx].write_codec != IDENTITY (an
+ * opt-in handle opened for write with "?xrootd.compress=").  Decompresses the
+ * payload — a self-contained codec frame — under a bomb guard and streams the
+ * plaintext to pwrite at `offset`.  pgwrite never reaches here (stays plaintext).
+ * `offset` is the PLAINTEXT file offset; `wlen` is the compressed payload length. */
+ngx_int_t xrootd_write_compressed(xrootd_ctx_t *ctx, ngx_connection_t *c,
+                                  int idx, int64_t offset, size_t wlen);
+
 /* kXR_pgwrite — page-aligned write with per-4096-byte CRC validation. */
 ngx_int_t xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c);
 

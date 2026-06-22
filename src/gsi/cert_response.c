@@ -1,4 +1,5 @@
 #include "gsi_internal.h"
+#include "gsi_core.h"
 #include "keypool.h"
 
 /*---- GSI round 1 response function — generate ephemeral DH key + assemble kXGS_cert ----
@@ -72,6 +73,54 @@
  * WHAT: Called from src/gsi/auth.c as part of kXGC_certreq handling after credential type verification. Returns ngx_int_t result. */
 
 /*
+ * gsi_certreq_version — best-effort read of the client's advertised XrdSecgsi
+ * version from the certreq's kXRS_version bucket (a 4-byte int).  Encoders
+ * differ on byte order (our client emits big-endian; stock XrdSut writes the
+ * host-order int), so accept whichever interpretation lands in the plausible
+ * XrdSecgsi range; 0 when absent/implausible (caller then treats as legacy).
+ */
+static uint32_t
+gsi_certreq_version(const u_char *payload, size_t plen)
+{
+    const u_char *vb = NULL;
+    size_t        vlen = 0;
+    uint32_t      raw, be;
+
+    if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_version, &vb, &vlen) != 0
+        || vlen < 4)
+    {
+        return 0;
+    }
+    ngx_memcpy(&raw, vb, 4);            /* host-order as written by stock XrdSut */
+    be = ntohl(raw);                   /* big-endian as written by our client   */
+    if (be >= 10000 && be <= 99999) {
+        return be;
+    }
+    if (raw >= 10000 && raw <= 99999) {
+        return raw;
+    }
+    return 0;
+}
+
+/*
+ * gsi_use_signed_dh — resolve the signed-DH decision for this handshake from
+ * the operator policy (conf->gsi_signed_dh) and the client's advertised
+ * version.  REQUIRE always signs; AUTO signs only modern (>=10400) clients;
+ * OFF never signs.  An unknown client version (0) is treated as legacy.
+ */
+static int
+gsi_use_signed_dh(ngx_uint_t policy, uint32_t client_version)
+{
+    if (policy == XROOTD_GSI_SDH_REQUIRE) {
+        return 1;
+    }
+    if (policy == XROOTD_GSI_SDH_AUTO) {
+        return client_version >= XROOTD_GSI_VERS_DHSIGNED;
+    }
+    return 0;
+}
+
+/*
  * Respond to kXGC_certreq with kXGS_cert.
  */
 
@@ -97,10 +146,14 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     size_t        signed_rtag_len = 0;
     size_t        main_len;
     u_char       *main_buf;
-    const char   *cipher_alg = "aes-256-cbc:aes-128-cbc:bf-cbc";
+    const char   *cipher_alg = "aes-128-cbc:aes-256-cbc:bf-cbc";
     const char   *md_alg = "sha256:sha1";
     size_t        calg_len = strlen(cipher_alg);
     size_t        malg_len = strlen(md_alg);
+    int           signed_dh;
+    uint32_t      pub_type;          /* kXRS_puk (unsigned) or kXRS_cipher */
+    u_char       *pub_data;          /* the DH-public bucket payload to emit */
+    size_t        pub_len;
 
     conf = ngx_stream_get_module_srv_conf(ctx->session,
                                           ngx_stream_xrootd_module);
@@ -110,6 +163,20 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
     cert_pem = conf->gsi_cert_pem;
     cert_len = conf->gsi_cert_pem_len;
+
+    /*
+     * Resolve the signed-DH variant for this handshake from the operator policy
+     * and the client's advertised version, and record it on the connection so
+     * round 2 (parse_x509.c) agrees on the padding/IV.  A REQUIRE policy with no
+     * server key cannot sign — degrade to unsigned rather than fail the auth.
+     */
+    signed_dh = gsi_use_signed_dh(conf->gsi_signed_dh,
+                                  gsi_certreq_version(ctx->payload,
+                                                      ctx->cur_dlen));
+    if (signed_dh && conf->gsi_key == NULL) {
+        signed_dh = 0;
+    }
+    ctx->gsi_signed_dh = signed_dh;
 
     /*
      * Phase 33: take a pre-generated ephemeral ffdhe2048 DH key from the
@@ -162,6 +229,32 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return NGX_ERROR;
     }
     ngx_memcpy(puk_blob, puk_buf, puk_len);
+
+    /*
+     * Choose the DH-public bucket.  Unsigned (default): the bare Public() blob
+     * as kXRS_puk.  Signed-DH (>=10400): the SAME Public() blob RSA-signed with
+     * the server key (XrdCryptosslRSA::EncryptPrivate) as kXRS_cipher — the
+     * client recovers it with DecryptPublic against the kXRS_x509 server cert we
+     * also send, authenticating the DH parameters in transit.
+     */
+    if (signed_dh) {
+        size_t  cap = puk_len + 2 * (size_t) EVP_PKEY_size(conf->gsi_key) + 64;
+        u_char *sig = ngx_palloc(c->pool, cap);
+
+        pub_len = sig ? xrootd_gsi_rsa_encrypt_private(conf->gsi_key, puk_blob,
+                                                       puk_len, sig, cap) : 0;
+        if (pub_len == 0) {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                          "xrootd: GSI signed-DH: failed to sign DH public");
+            return NGX_ERROR;
+        }
+        pub_data = sig;
+        pub_type = (uint32_t) kXRS_cipher;
+    } else {
+        pub_data = puk_blob;
+        pub_len  = puk_len;
+        pub_type = (uint32_t) kXRS_puk;
+    }
 
     if (gsi_find_bucket(ctx->payload, ctx->cur_dlen,
                         (uint32_t) kXRS_main, &main_data, &main_dlen) == 0) {
@@ -240,7 +333,7 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
                    signed_rtag_len, main_len);
 
     body_len = 4 + 4
-             + 4 + 4 + puk_len
+             + 4 + 4 + pub_len
              + 4 + 4 + calg_len
              + 4 + 4 + malg_len
              + 4 + 4 + cert_len
@@ -266,12 +359,12 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     *(uint32_t *) p = htonl(kXGS_cert);
     p += 4;
 
-    *(uint32_t *) p = htonl(kXRS_puk);
+    *(uint32_t *) p = htonl(pub_type);
     p += 4;
-    *(uint32_t *) p = htonl((uint32_t) puk_len);
+    *(uint32_t *) p = htonl((uint32_t) pub_len);
     p += 4;
-    ngx_memcpy(p, puk_blob, puk_len);
-    p += puk_len;
+    ngx_memcpy(p, pub_data, pub_len);
+    p += pub_len;
 
     *(uint32_t *) p = htonl(kXRS_cipher_alg);
     p += 4;

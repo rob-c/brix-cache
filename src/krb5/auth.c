@@ -232,8 +232,25 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    inbuf.length = (unsigned int) (ctx->cur_dlen - 4);
-    inbuf.data = (char *) (ctx->payload + 4);
+    /*
+     * Strip the "krb5" protocol-name prefix to expose the AP-REQ.  The official
+     * XrdSeckrb5 client emits the name NUL-terminated ("krb5\0" + AP-REQ — the
+     * standard XrdSec credential convention) whereas the native client emits a
+     * bare "krb5" + AP-REQ.  Skip the optional trailing NUL so krb5_rd_req()
+     * receives the AP-REQ itself; otherwise the leading 0x00 makes it fail with
+     * "Invalid message type".  A real Kerberos AP-REQ always begins with its
+     * ASN.1 APPLICATION tag (0x6e / 0x7e), never 0x00, so this is unambiguous and
+     * cannot truncate a genuine token.
+     */
+    {
+        size_t krb5_off = 4;
+
+        if (ctx->cur_dlen > 5 && ctx->payload[4] == '\0') {
+            krb5_off = 5;
+        }
+        inbuf.length = (unsigned int) (ctx->cur_dlen - krb5_off);
+        inbuf.data = (char *) (ctx->payload + krb5_off);
+    }
 
     rc = krb5_rd_req(conf->krb5_context, &auth_ctx, &inbuf,
                      conf->krb5_principal_obj, conf->krb5_keytab_obj,

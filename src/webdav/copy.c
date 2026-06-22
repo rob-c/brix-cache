@@ -8,6 +8,8 @@
 #include "../compat/http_conditionals.h"
 #include "../compat/namespace_ops.h"
 #include "../compat/tmp_path.h"
+#include "../impersonate/impersonate.h"
+#include "../path/path.h"
 
 #include <errno.h>
 #include <sys/stat.h>
@@ -156,6 +158,19 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
     webdav_copy_collection_task_t *t;
     ngx_thread_pool_t             *pool;
 
+    /*
+     * Under impersonation the per-worker broker socket is a single fd shared by
+     * the event-loop thread; a thread-pool task issuing confined ops would use
+     * it concurrently and corrupt the request/reply framing, wedging the whole
+     * worker's broker channel.  The thread also lacks the per-worker principal.
+     * Force the synchronous (NGX_DECLINED) path so the recursive copy runs on
+     * the event-loop thread where the principal is set and the broker socket
+     * has exactly one user.
+     */
+    if (xrootd_imp_enabled()) {
+        return NGX_DECLINED;
+    }
+
     /* postconfig only visits server-level loc_conf; resolve lazily for nested
      * location blocks where conf->common.thread_pool may still be NULL. */
     pool = conf->common.thread_pool;
@@ -271,7 +286,8 @@ webdav_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
-    if (stat(src_path, &src_sb) != 0) {
+    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
+                                    src_path, &src_sb, 0) != 0) {
         return (errno == ENOENT) ? NGX_HTTP_NOT_FOUND
                                  : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -283,7 +299,8 @@ webdav_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
-    dst_existed = (stat(dst_path, &dst_sb) == 0);
+    dst_existed = (xrootd_lstat_confined_canon(r->connection->log,
+                       conf->common.root_canon, dst_path, &dst_sb, 0) == 0);
 
     rc = webdav_check_locks_tree(r, dst_path);
     if (rc != NGX_OK) {
@@ -359,16 +376,21 @@ webdav_handle_copy(ngx_http_request_t *r)
         ns_res = xrootd_ns_local_copy(r->connection->log, conf->common.root_canon,
                                       src_path, dst_path, &copy_opts);
         if (ns_res.status != XROOTD_NS_OK) {
+            /* COPY-specific RFC 4918 semantics that differ from the generic
+             * namespace→HTTP mapping: an existing dst with Overwrite:F is a
+             * precondition failure (412, not 409), and a missing destination
+             * parent is a Conflict (409, not 404). */
             if (ns_res.status == XROOTD_NS_EXISTS) {
                 return NGX_HTTP_PRECONDITION_FAILED;
             }
             if (ns_res.status == XROOTD_NS_NOT_FOUND) {
                 return NGX_HTTP_CONFLICT;
             }
-            if (ns_res.status == XROOTD_NS_TOO_LONG) {
-                return NGX_HTTP_REQUEST_URI_TOO_LARGE;
-            }
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            /* Everything else (DENIED→403, TOO_LONG→414, NO_SPACE→507,
+             * IO_ERROR→500) goes through the canonical mapper so a DAC denial
+             * — e.g. an impersonated cross-tenant copy into a 0700 dir — is a
+             * clean 403, not a blanket 500. */
+            return xrootd_http_map_ns_status(ns_res.status);
         }
 
         webdav_dead_props_copy(r->connection->log, src_path, dst_path);

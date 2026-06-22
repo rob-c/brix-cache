@@ -159,6 +159,20 @@ typedef struct {
     size_t       gsi_cert_pem_len;
     uint32_t     gsi_ca_hash;  /* subject name hash of our CA cert (sent to clients) */
 
+    /*
+     * GSI signed-DH policy [xrootd_gsi_signed_dh off|auto|require] (phase-48).
+     * Controls whether the server uses the modern RSA-signed-DH wire variant
+     * (>=XrdSecgsiVersDHsigned/10400) instead of the universally-interoperable
+     * unsigned-DH default.  Stored as XROOTD_GSI_SDH_* (see context.h dispatch):
+     *   OFF (0, default) — always emit unsigned kXRS_puk (today's behaviour;
+     *                      interoperates with every official client).
+     *   AUTO (1)         — emit signed kXRS_cipher when the client advertises
+     *                      version >= 10400, else fall back to unsigned.
+     *   REQUIRE (2)      — signed only; reject clients that advertise < 10400.
+     * NGX_CONF_UNSET until merged.
+     */
+    ngx_uint_t   gsi_signed_dh;
+
     /* Timer that fires crl_reload-seconds after init to rebuild gsi_store */
     ngx_event_t *crl_timer;   /* heap-allocated in init_process; NULL if disabled */
 
@@ -315,6 +329,14 @@ typedef struct {
     ngx_str_t   cache_origin_host;  /* parsed hostname / IP */
     uint16_t    cache_origin_port;  /* parsed TCP port */
     ngx_flag_t  cache_origin_tls;   /* [xrootd_cache_origin_tls on] — TLS to origin */
+    /* GSI/X.509-proxy auth to the origin (e.g. EOS). When cache_origin_proxy is
+     * set, cache fills are performed by fork/exec'ing the native client
+     * (cache_origin_client, default "xrdcp") with X509_USER_PROXY/X509_CERT_DIR
+     * pointed at these — so the cache authenticates to a GSI origin that rejects
+     * the built-in anonymous login. Empty = anonymous (the legacy path). */
+    ngx_str_t   cache_origin_proxy; /* [xrootd_cache_origin_proxy /tmp/x509up_uNNNN] */
+    ngx_str_t   cache_origin_cadir; /* [xrootd_cache_origin_cadir /etc/grid-security/certificates] */
+    ngx_str_t   cache_origin_client;/* [xrootd_cache_origin_client /path/to/xrdcp] */
     time_t      cache_lock_timeout; /* [xrootd_cache_lock_timeout 30] — how long to
                                        wait for another worker's fill before giving up */
     ngx_uint_t  cache_eviction_threshold; /* [xrootd_cache_eviction_threshold 0.9]
@@ -382,6 +404,25 @@ typedef struct {
                            * hardware TLS-offload NICs — software kTLS is SLOWER than
                            * userspace OpenSSL on AES-NI CPUs (measured 2-5x). */
     ngx_ssl_t  *tls_ctx;  /* SSL_CTX built from certificate/key at postconfiguration */
+
+    /* ---- root:// inline read compression (phase-42 W4) ----
+     * [xrootd_read_compress on|off] — opt-in, off by default and invisible to
+     * stock XRootD peers.  When on, the server advertises available codecs via
+     * kXR_Qconfig "cmpread" and honours a client open opaque
+     * "?xrootd.compress=<codec>" by compressing each kXR_read response with that
+     * codec (pgread/readv stay plaintext — the CRC32c invariant is preserved).
+     * A stock client never sends the opaque, so the uncompressed path is
+     * byte-identical. */
+    ngx_flag_t  read_compress;
+
+    /* ---- root:// inline write decompression (phase-42 W5) ----
+     * [xrootd_write_compress on|off] — opt-in, off by default and invisible to
+     * stock peers.  When on, the server advertises codecs via kXR_Qconfig
+     * "cmpwrite" and honours a client WRITE open opaque "?xrootd.compress=<codec>"
+     * by decompressing each kXR_write payload (bomb-guarded) before storing it
+     * plaintext on disk.  pgwrite stays plaintext.  A stock client never sends the
+     * opaque, so the uncompressed write path is byte-identical. */
+    ngx_flag_t  write_compress;
 
     /* ---- cluster / redirector mode ---- */
     ngx_flag_t  manager_mode;  /* [xrootd_manager_mode on|off] — query the

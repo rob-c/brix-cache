@@ -27,13 +27,12 @@ import socket
 import subprocess
 import time
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, HOST, BIND_HOST
 
 # --------------------------------------------------------------------------- #
 # Binaries / constants
 # --------------------------------------------------------------------------- #
 
-HOST = "127.0.0.1"
 XROOTD_BIN = shutil.which(os.environ.get("TEST_XROOTD_BIN", "xrootd"))
 CMSD_BIN = shutil.which(os.environ.get("TEST_CMSD_BIN", "cmsd"))
 XRDFS_BIN = shutil.which(os.environ.get("TEST_XRDFS_BIN", "xrdfs"))
@@ -277,10 +276,14 @@ class Mesh:
         xlog = os.path.join(self.root, "logs", f"{label}-xrootd.log")
         # start_new_session detaches the daemons from the launcher's session so
         # they survive it (and any HUP when a transient launching shell exits).
+        # cwd=self.root: xrootd/cmsd with `-n <name>` create a bare "<name>/"
+        # instance directory in their CWD (independent of all.adminpath); without
+        # this they would litter the pytest CWD (the repo root) with one empty
+        # dir per node.  Pin it under the mesh's /tmp working tree instead.
         subprocess.run([CMSD_BIN, "-c", cfg, "-n", label, "-l", clog, "-b"],
-                       check=False, start_new_session=True)
+                       check=False, start_new_session=True, cwd=self.root)
         subprocess.run([XROOTD_BIN, "-c", cfg, "-n", label, "-l", xlog, "-b"],
-                       check=False, start_new_session=True)
+                       check=False, start_new_session=True, cwd=self.root)
 
     def nginx(self, label, conf_text):
         pid = os.path.join(self.root, "run", f"{label}.pid")
@@ -289,8 +292,10 @@ class Mesh:
             os.remove(pid)                       # stale pid blocks a clean start
         conf_text = conf_text.replace("{PID}", pid).replace("{ERR}", err)
         conf = self.write(f"{label}.conf", conf_text)
+        # cwd=self.root for parity with the daemons — keep any relative artifact
+        # inside the mesh's /tmp tree rather than the pytest CWD.
         subprocess.run([NGINX_BIN, "-c", conf], check=False,
-                       start_new_session=True)
+                       start_new_session=True, cwd=self.root)
 
 
 # --------------------------------------------------------------------------- #
@@ -303,9 +308,9 @@ def cfg_manager(data_port, cms_port):
         "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
         "events { worker_connections 128; }\n"
         "stream {\n"
-        f"    server {{ listen {HOST}:{data_port}; xrootd on; xrootd_auth none;"
+        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; xrootd_auth none;"
         f" xrootd_manager_mode on; }}\n"
-        f"    server {{ listen {HOST}:{cms_port}; xrootd_cms_server on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; xrootd_cms_server on; }}\n"
         "}\n"
     )
 
@@ -337,9 +342,9 @@ def cfg_manager_sss(data_port, cms_port, keytab):
         "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
         "events { worker_connections 128; }\n"
         "stream {\n"
-        f"    server {{ listen {HOST}:{data_port}; xrootd on; xrootd_auth none;"
+        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; xrootd_auth none;"
         f" xrootd_manager_mode on; }}\n"
-        f"    server {{ listen {HOST}:{cms_port}; xrootd_cms_server on;"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; xrootd_cms_server on;"
         f" xrootd_cms_server_sss_keytab {keytab}; }}\n"
         "}\n"
     )
@@ -351,7 +356,7 @@ def cfg_datanode(data_port, root, cms_mgr, paths):
         "events { worker_connections 128; }\n"
         "stream {\n"
         f"    server {{\n"
-        f"        listen {HOST}:{data_port};\n"
+        f"        listen {BIND_HOST}:{data_port};\n"
         f"        xrootd on; xrootd_root {root}; xrootd_auth none;\n"
         f"        xrootd_allow_write on;\n"
         f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
@@ -367,13 +372,13 @@ def cfg_submanager(data_port, cms_port, root, parent_cms):
         "events { worker_connections 128; }\n"
         "stream {\n"
         f"    server {{\n"
-        f"        listen {HOST}:{data_port};\n"
+        f"        listen {BIND_HOST}:{data_port};\n"
         f"        xrootd on; xrootd_root {root}; xrootd_auth none;\n"
         f"        xrootd_manager_mode on;\n"
         f"        xrootd_cms_manager {parent_cms}; xrootd_cms_paths /;\n"
         f"        xrootd_cms_interval 2; xrootd_listen_port {data_port};\n"
         f"    }}\n"
-        f"    server {{ listen {HOST}:{cms_port}; xrootd_cms_server on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; xrootd_cms_server on; }}\n"
         "}\n"
     )
 
@@ -384,7 +389,7 @@ def cfg_dual(root_port, https_port, root, cms_mgr, paths, cert, key, tmpbase):
         "events { worker_connections 128; }\n"
         "stream {\n"
         f"    server {{\n"
-        f"        listen {HOST}:{root_port};\n"
+        f"        listen {BIND_HOST}:{root_port};\n"
         f"        xrootd on; xrootd_root {root}; xrootd_auth none;\n"
         f"        xrootd_allow_write on;\n"
         f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
@@ -398,7 +403,7 @@ def cfg_dual(root_port, https_port, root, cms_mgr, paths, cert, key, tmpbase):
         f"    uwsgi_temp_path {tmpbase}/ut;\n"
         f"    scgi_temp_path {tmpbase}/st;\n"
         f"    server {{\n"
-        f"        listen {HOST}:{https_port} ssl;\n        server_name localhost;\n"
+        f"        listen {BIND_HOST}:{https_port} ssl;\n        server_name localhost;\n"
         f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
         f"        location / {{ xrootd_webdav on; xrootd_webdav_root {root};"
         f" xrootd_webdav_auth none; xrootd_webdav_allow_write on; }}\n"

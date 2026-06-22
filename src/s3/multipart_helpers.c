@@ -35,6 +35,7 @@
 #include "s3.h"
 #include "multipart_internal.h"
 #include "../compat/fs_walk.h"
+#include "../path/path.h"
 #include "../compat/http_query.h"
 
 #include <dirent.h>
@@ -189,7 +190,9 @@ s3_mpu_reap_stale(ngx_log_t *log, const char *root_canon,
     ngx_memcpy(dir, final_path, dlen);
     dir[dlen] = '\0';
 
-    d = opendir(dir);
+    /* Scan the staging dir AS THE MAPPED USER under impersonation (0700, owned by
+     * that user) — a bare worker opendir would EACCES. */
+    d = xrootd_opendir_confined_canon(log, root_canon, dir);
     if (d == NULL) {
         return 0;
     }

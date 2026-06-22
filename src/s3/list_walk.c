@@ -1,41 +1,37 @@
 /*
- * list_walk.c — S3 ListObjectsV2 filesystem walker and comparator.
+ * list_walk.c — S3 ListObjects filesystem walker, comparator, and lazy stat.
  *
- * WHAT: Two functions used exclusively by s3_handle_list() in
- *   list_objects_v2.c:
+ * WHAT: Three functions used by the V1/V2 list emitters
+ *   (list_objects_v2.c / list_objects_v1.c):
+ *   - s3_walk(): recursive directory walker that appends object (is_prefix=0)
+ *     and CommonPrefix (is_prefix=1) entries into a growable array, respecting
+ *     prefix, delimiter, and sentinel filters.
  *   - entry_cmp(): qsort comparator for lexicographic key ordering.
- *   - s3_walk(): recursive directory walker that populates entries[]
- *     with objects (is_prefix=0) and common prefixes (is_prefix=1),
- *     respecting prefix, delimiter, and sentinel filters.
+ *   - s3_entry_fill_stat(): lazily fill size/mtime/ETag for ONE emitted object.
  *
- * WHY: S3 ListObjectsV2 requires deterministic pagination — the
- *   continuation-token linear scan depends on entries being sorted.
- *   The walker must distinguish objects from directory-like common
- *   prefixes using the delimiter parameter (typically "/"), skip
- *   .xrdcls3.dirsentinel files, and apply prefix filtering at both
- *   the key level and the filesystem path level to avoid unnecessary
- *   recursion into non-matching subdirectories.
+ * WHY (phase-45 W1): the previous walker `lstat`'d EVERY entry in the whole
+ *   prefix subtree and stored them in a fixed `s3_entry_t[65536]` (~273 MB per
+ *   request, key[4096] inline) — both costs grew with the bucket, not the page.
+ *   ListObjects requires a globally-sorted key set to paginate, so the *names*
+ *   must still be walked; but `size`/`mtime`/`ETag` are only needed for the
+ *   ≤max-keys objects actually emitted. So this walker:
+ *     1. classifies dir/file/symlink from readdir's `d_type` with NO stat
+ *        (an `lstat` fallback only on `DT_UNKNOWN`, e.g. some NFS mounts), and
+ *     2. collects only a pooled, right-sized key + the is_prefix flag,
+ *   and the caller `lstat`s just the emitted page slice via s3_entry_fill_stat().
+ *   → `lstat` count drops from O(objects in subtree) to O(page); the entry
+ *   store drops from a fixed 273 MB to O(actual key bytes).
  *
- * HOW:
- *   entry_cmp(): strcmp on s3_entry_t->key fields — standard qsort
- *     comparator producing ascending lexicographic order.
- *   s3_walk(): opendir(dir_path) → readdir loop, for each entry:
- *     1. Skip . and .. entries (xrootd_fs_is_dot_entry).
- *     2. Build child_path and child_key relative to root.
- *     3. stat() the child — skip on failure.
- *     4. If directory: with delimiter, emit as CommonPrefix if
- *        prefix_entry matches filter_prefix; recurse only if
- *        filter_prefix starts with prefix_entry (avoid wasted traversal).
- *        Without delimiter: recurse unconditionally.
- *     5. If regular file: skip .xrdcls3.dirsentinel, apply prefix
- *        filter, skip entries containing delimiter after prefix
- *        (they belong under a CommonPrefix). Emit object with size,
- *        mtime, and etag.
+ * The symlink-skip security property is preserved: a `DT_LNK` entry is skipped
+ * outright, and a `DT_UNKNOWN` entry is `lstat`'d and skipped if `S_ISLNK` — a
+ * symlink is never listed as an object nor recursed into (it could otherwise
+ * leak another tenant's tree or the host filesystem).
  */
 
 
 #include "s3.h"
 #include "../compat/fs_walk.h"
+#include "../path/path.h"
 #include <errno.h>
 #include <stdlib.h>
 
@@ -58,34 +54,111 @@ entry_cmp(const void *a, const void *b)
 }
 
 /* -------------------------------------------------------------------------
- * Recursive directory walker — fills entries[], returns count
+ * Push a (pooled, right-sized) key into the growable entry array
+ * ---------------------------------------------------------------------- */
+
+static int
+s3_walk_push(ngx_array_t *entries, const char *key, unsigned is_prefix)
+{
+    size_t       len = strlen(key);
+    char        *kdup;
+    s3_entry_t  *e;
+
+    kdup = ngx_pnalloc(entries->pool, len + 1);
+    if (kdup == NULL) {
+        return -1;
+    }
+    ngx_memcpy(kdup, key, len + 1);
+
+    e = ngx_array_push(entries);
+    if (e == NULL) {
+        return -1;
+    }
+    e->key       = kdup;
+    e->is_prefix = is_prefix;
+    e->size      = 0;
+    e->mtime     = 0;
+    e->etag[0]   = '\0';
+    return 0;
+}
+
+/* -------------------------------------------------------------------------
+ * Classify a directory entry: 1 = dir, 2 = regular file, 0 = skip.
+ * Uses readdir d_type (no syscall); falls back to a confined lstat only on
+ * DT_UNKNOWN.  Symlinks (and FIFO/SOCK/CHR/BLK) are skipped.
+ * ---------------------------------------------------------------------- */
+
+static int
+s3_walk_classify(ngx_log_t *log, const char *root, const char *child_path,
+    unsigned char d_type)
+{
+    struct stat sb;
+
+    switch (d_type) {
+    case DT_DIR:
+        return 1;
+    case DT_REG:
+        return 2;
+    case DT_LNK:
+        return 0;   /* never list or traverse a symlink */
+    case DT_UNKNOWN:
+        if (xrootd_lstat_confined_canon(log, root, child_path, &sb, 1) != 0) {
+            return 0;
+        }
+        if (S_ISDIR(sb.st_mode)) {
+            return 1;
+        }
+        if (S_ISREG(sb.st_mode)) {
+            return 2;
+        }
+        return 0;   /* symlink / special → skip */
+    default:
+        return 0;   /* FIFO/SOCK/CHR/BLK → skip */
+    }
+}
+
+/* -------------------------------------------------------------------------
+ * Recursive directory walker — appends entries, returns the running total
  * ---------------------------------------------------------------------- */
 
 int
-s3_walk(const char *root,          /* filesystem root            */
+s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
+        const char *root,          /* filesystem root (== root_canon)     */
         const char *dir_path,      /* filesystem path to scan    */
         const char *key_prefix,    /* key prefix so far          */
-        const char *filter_prefix, /* ListObjectsV2 prefix param */
+        const char *filter_prefix, /* ListObjects prefix param   */
         const char *delimiter,     /* hierarchy delimiter        */
-        s3_entry_t *entries,       /* output array               */
-        int         max_entries,   /* size of entries[]          */
-        int        *count)         /* current fill index         */
+        ngx_array_t *entries,      /* growable output array      */
+        int         max_entries)   /* hard cap on entries        */
 {
     DIR            *dh;
     struct dirent  *de;
-    struct stat     sb;
     char            child_path[PATH_MAX];
     char            child_key[S3_MAX_KEY];
     /* Cache lengths once — avoids repeated strlen() in the readdir loop. */
     size_t          fp_len  = filter_prefix ? strlen(filter_prefix) : 0;
     size_t          del_len = delimiter     ? strlen(delimiter)      : 0;
 
-    dh = opendir(dir_path);
-    if (dh == NULL) {
-        return 0;
+    /*
+     * Phase 40 confidentiality gate: under impersonation the worker uid may be
+     * able to readdir() a directory the MAPPED user cannot.  Ask the broker to
+     * open it as the mapped user first; on denial skip the whole subtree rather
+     * than enumerate it with the worker's credentials.  No-op when off.
+     */
+    if (xrootd_dirlist_access_ok(log, root, dir_path) != NGX_OK) {
+        return (int) entries->nelts;
     }
 
-    while ((de = readdir(dh)) != NULL && *count < max_entries) {
+    /* Enumerate AS THE MAPPED USER under impersonation (broker fdopendir); off
+     * impersonation this is a bare opendir(). */
+    dh = xrootd_opendir_confined_canon(log, root, dir_path);
+    if (dh == NULL) {
+        return (int) entries->nelts;
+    }
+
+    while ((de = readdir(dh)) != NULL && (int) entries->nelts < max_entries) {
+        int kind;
+
         if (xrootd_fs_is_dot_entry(de->d_name)) {
             continue; /* skip . and .. */
         }
@@ -109,11 +182,17 @@ s3_walk(const char *root,          /* filesystem root            */
             memcpy(child_key, de->d_name, strlen(de->d_name) + 1);
         }
 
-        if (stat(child_path, &sb) != 0) {
+        /*
+         * phase-45 W1: classify from readdir d_type (no stat); lstat only on
+         * DT_UNKNOWN.  Symlinks are skipped here (kind==0) — the same outcome
+         * the old eager lstat produced via S_ISLNK matching neither branch.
+         */
+        kind = s3_walk_classify(log, root, child_path, de->d_type);
+        if (kind == 0) {
             continue;
         }
 
-        if (S_ISDIR(sb.st_mode)) {
+        if (kind == 1) {   /* directory */
             if (del_len > 0) {
                 /* Build "dir_key/" to check against filter_prefix */
                 char prefix_entry[S3_MAX_KEY];
@@ -123,22 +202,14 @@ s3_walk(const char *root,          /* filesystem root            */
                 }
                 size_t pe_len = strlen(prefix_entry);
 
-                /* Two-phase prefix check:
-                 * Phase 1 (line 130): recurse into this dir only if filter_prefix
-                 *   starts with prefix_entry — avoids walking subdirs that can't match.
-                 * Phase 2 (line 138): emit as CommonPrefix if prefix_entry starts with
-                 *   filter_prefix — this is the S3 <CommonPrefixes> response element. */
-
-
                 /*
                  * Recurse if filter_prefix starts with this dir (i.e. the
                  * user-supplied prefix descends into this directory).
-                 * Example: dir="dlist_x", prefix="dlist_x/" → recurse.
                  */
                 if (fp_len > 0 && fp_len >= pe_len
                     && strncmp(filter_prefix, prefix_entry, pe_len) == 0) {
-                    s3_walk(root, child_path, child_key,
-                            filter_prefix, delimiter, entries, max_entries, count);
+                    s3_walk(log, root, child_path, child_key,
+                            filter_prefix, delimiter, entries, max_entries);
                     continue;
                 }
 
@@ -147,28 +218,17 @@ s3_walk(const char *root,          /* filesystem root            */
                     && strncmp(prefix_entry, filter_prefix, fp_len) != 0) {
                     continue;
                 }
-                s3_entry_t *e = &entries[*count];
-                ngx_cpystrn((u_char *) e->key, (u_char *) prefix_entry,
-                            sizeof(e->key));
-                e->is_prefix = 1;
-                e->size      = 0;
-                e->mtime     = sb.st_mtime;
-
-                /* CommonPrefix has no size/mtime/etag — S3 spec requires empty values. */
-
-                e->etag[0]   = '\0';
-                (*count)++;
+                /* CommonPrefix carries no size/mtime/etag (S3 spec) — no stat. */
+                if (s3_walk_push(entries, prefix_entry, 1) != 0) {
+                    break;
+                }
             } else {
                 /* No delimiter: recurse unconditionally */
-                s3_walk(root, child_path, child_key,
-                        filter_prefix, delimiter, entries, max_entries, count);
+                s3_walk(log, root, child_path, child_key,
+                        filter_prefix, delimiter, entries, max_entries);
             }
-        } else if (S_ISREG(sb.st_mode)) {
+        } else {           /* kind == 2: regular file */
             /* Skip directory sentinel */
-
-                /* .xrdcls3.dirsentinel files mark directories as S3 objects — omit them
-                 * from listings since the CommonPrefix already represents that hierarchy. */
-
             if (strcmp(de->d_name, S3_DIR_SENTINEL) == 0) {
                 continue;
             }
@@ -176,34 +236,58 @@ s3_walk(const char *root,          /* filesystem root            */
             if (fp_len > 0 && strncmp(child_key, filter_prefix, fp_len) != 0) {
                 continue;
             }
-            /* With delimiter, skip entries that have delimiter after prefix */
+            /* With delimiter, skip entries that have a delimiter after prefix
+             * (they belong under a CommonPrefix subtree, not at this level). */
             if (del_len > 0) {
                 const char *after_prefix = child_key + fp_len;
                 if (strstr(after_prefix, delimiter) != NULL) {
-
-                    /* The key contains a '/' after the prefix — this object lives under
-                     * a CommonPrefix subtree, not at the current level. Skip it; it will
-                     * appear as a <CommonPrefixes> element instead. */
-
-                    /* belongs under a CommonPrefix — skip */
                     continue;
                 }
             }
 
-            s3_entry_t *e = &entries[*count];
-            ngx_cpystrn((u_char *) e->key, (u_char *) child_key,
-                        sizeof(e->key));
-            e->is_prefix = 0;
-            e->size      = sb.st_size;
-            e->mtime     = sb.st_mtime;
-
-            struct stat *stp = &sb;
-            s3_etag(stp, e->etag, sizeof(e->etag));
-            (*count)++;
+            /* phase-45 W1: collect the key only; size/mtime/etag are filled
+             * lazily for the emitted page via s3_entry_fill_stat(). */
+            if (s3_walk_push(entries, child_key, 0) != 0) {
+                break;
+            }
         }
     }
 
     closedir(dh);
-    return *count;
+    return (int) entries->nelts;
 }
 
+/* -------------------------------------------------------------------------
+ * Lazy per-object stat — called only for the entries actually emitted
+ * ---------------------------------------------------------------------- */
+
+ngx_int_t
+s3_entry_fill_stat(ngx_log_t *log, const char *root, s3_entry_t *e)
+{
+    char        fs_path[PATH_MAX];
+    struct stat sb;
+
+    if (e->is_prefix) {
+        return NGX_OK;   /* CommonPrefix: no size/mtime/etag */
+    }
+
+    /* The walk built keys relative to root, so the filesystem path of an object
+     * is always root + "/" + key (see s3_walk's child_path/child_key). */
+    if ((size_t) snprintf(fs_path, sizeof(fs_path), "%s/%s", root, e->key)
+        >= sizeof(fs_path)) {
+        return NGX_DECLINED;
+    }
+
+    /* nofollow lstat (confined): if the entry vanished or is no longer a
+     * regular file (e.g. swapped for a symlink after the walk), skip it —
+     * matching the eager walker's stat-failure / symlink skip. */
+    if (xrootd_lstat_confined_canon(log, root, fs_path, &sb, 1) != 0
+        || !S_ISREG(sb.st_mode)) {
+        return NGX_DECLINED;
+    }
+
+    e->size  = sb.st_size;
+    e->mtime = sb.st_mtime;
+    s3_etag(&sb, e->etag, sizeof(e->etag));
+    return NGX_OK;
+}

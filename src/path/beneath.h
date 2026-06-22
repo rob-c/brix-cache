@@ -50,6 +50,11 @@ int xrootd_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode);
 /* Rename src to dst within the same root. */
 int xrootd_rename_beneath(int rootfd, const char *src, const char *dst);
 
+/* Atomic create-if-absent rename: renameat2(RENAME_NOREPLACE).  Returns -1 with
+ * errno==EEXIST when dst already exists; falls back to a non-atomic rename
+ * (logged once) on kernels/filesystems lacking RENAME_NOREPLACE. */
+int xrootd_rename_beneath_excl(int rootfd, const char *src, const char *dst);
+
 /* Hard-link src to dst within the same root. */
 int xrootd_link_beneath(int rootfd, const char *src, const char *dst);
 

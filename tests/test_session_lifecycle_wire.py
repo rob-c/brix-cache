@@ -18,8 +18,10 @@ The documented behaviour under test (anon endpoint, where a successful login
 implies auth_done):
   * kXR_set requires login            -> kXR_NotAuthorized before login, ok after
   * kXR_set accepts any modifier       -> ok even for an unknown modifier byte
-  * kXR_endsess never errors           -> always ok, idempotent, and clears
-                                          logged_in so later file ops are gated
+  * kXR_endsess never errors           -> always ok; the named sessid is ended.
+                                          Naming the current session clears
+                                          logged_in so later file ops are gated;
+                                          naming another id is advisory cleanup.
   * kXR_bind needs a known sessid      -> kXR_NotAuthorized for random/absent ids
   * pre-login file ops                 -> kXR_NotAuthorized (open/read/write/stat/
                                           chmod/mkdir/rm/dirlist/sync/truncate)
@@ -368,9 +370,9 @@ class TestSetOpcode:
 # ===========================================================================
 
 class TestEndsessOpcode:
-    """kXR_endsess always returns ok and clears logged_in/auth_done so the
-    connection can no longer perform file operations (src/session/lifecycle.c
-    xrootd_handle_endsess)."""
+    """kXR_endsess always returns ok. It terminates the session named in the
+    request body; only the current session id clears this connection's
+    logged_in/auth_done state (src/session/lifecycle.c xrootd_handle_endsess)."""
 
     def test_endsess_without_login_ok(self, pre_login):
         """kXR_endsess on a never-logged-in connection is a harmless no-op ok.
@@ -385,19 +387,26 @@ class TestEndsessOpcode:
         assert _ping(sock)[1] == kXR_ok
 
     def test_endsess_wrong_sessid_ok(self, logged_in):
-        """The endsess sessid field is advisory — the handler tears down THIS
-        connection regardless, so a 'wrong' sessid still returns ok (it is the
-        connection, not the named id, that is ended)."""
+        """A non-current sessid is advisory cleanup for another session id.
+
+        It returns ok but must not de-authorize the current connection; official
+        clients use this recovery pattern after reconnecting from a stale session.
+        """
         sock, _ = logged_in
         _, status, _ = _endsess(sock, sessid=b"\xab" * 16)
         assert status == kXR_ok
+        _, ostatus, obody = _open(sock, "/definitely-missing-endsess-probe",
+                                  kXR_open_read)
+        assert ostatus == kXR_error
+        assert _error_code(obody) == kXR_NotFound
 
     def test_endsess_idempotent_second_call(self, logged_in):
         """A second kXR_endsess on the same connection is still ok (idempotent)."""
-        sock, _ = logged_in
-        _, s1, _ = _endsess(sock)
+        sock, login_body = logged_in
+        sessid = login_body[:16]
+        _, s1, _ = _endsess(sock, sessid=sessid)
         assert s1 == kXR_ok
-        _, s2, _ = _endsess(sock)
+        _, s2, _ = _endsess(sock, sessid=sessid)
         assert s2 == kXR_ok
 
     def test_request_after_endsess_rejected(self, logged_in):
@@ -409,8 +418,9 @@ class TestEndsessOpcode:
         (e.g. after the GSI proxy certificate that triggered the endsess has
         expired).
         """
-        sock, _ = logged_in
-        _, status, _ = _endsess(sock)
+        sock, login_body = logged_in
+        sessid = login_body[:16]
+        _, status, _ = _endsess(sock, sessid=sessid)
         assert status == kXR_ok
         # open now hits the pre-auth gate (require_auth) -> NotAuthorized.
         _, ostatus, obody = _open(sock, "/nonexistent.bin", kXR_open_read)
@@ -465,7 +475,7 @@ class TestBindOpcode:
         _primary, login_body = logged_in
         sessid = login_body[:16]
         if len(sessid) < 16 or sessid == b"\x00" * 16:
-            pytest.skip("anon login did not return a usable 16-byte sessid")
+            pytest.fail("anon login did not return a usable 16-byte sessid")
 
         secondary = _safe_handshake_only()
         try:
@@ -498,15 +508,15 @@ class TestBindOpcode:
         _primary, login_body = logged_in
         sessid = login_body[:16]
         if len(sessid) < 16 or sessid == b"\x00" * 16:
-            pytest.skip("anon login did not return a usable 16-byte sessid")
+            pytest.fail("anon login did not return a usable 16-byte sessid")
 
         secondary = _safe_handshake_only()
         try:
             _, status, body = _bind(secondary, sessid=sessid)
             if status != kXR_ok:
-                pytest.skip(
-                    "anon sessions are not registered for cross-connection "
-                    "bind in this deployment; pathid invariant not observable")
+                assert status == kXR_error
+                assert _error_code(body) == kXR_NotAuthorized
+                return
             assert len(body) >= 1
             assert body[0] != 0, "pathid 0 is reserved for the primary"
         finally:

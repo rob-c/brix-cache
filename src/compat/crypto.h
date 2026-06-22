@@ -27,4 +27,14 @@ int xrootd_hmac_sha256(const uint8_t *key, size_t keylen,
  * Returns 1 on success, 0 on failure. */
 int xrootd_sha256(const uint8_t *data, size_t len, uint8_t out[32]);
 
+/* Incremental (streaming) SHA-256 — for data that arrives in pieces (e.g. the
+ * payload of each aws-chunked chunk, which may span many read windows).  The
+ * handle is an opaque pointer (one EVP_MD_CTX); the API is OpenSSL-free so this
+ * header still compiles into libxrdproto.  Usage: new() → update()* → final()
+ * (which re-initialises the handle so it can hash the next chunk) → free(). */
+void *xrootd_sha256_stream_new(void);                    /* NULL on failure   */
+int   xrootd_sha256_stream_update(void *s, const uint8_t *data, size_t len);
+int   xrootd_sha256_stream_final(void *s, uint8_t out[32]); /* re-inits on ok  */
+void  xrootd_sha256_stream_free(void *s);
+
 #endif /* XROOTD_COMPAT_CRYPTO_H */

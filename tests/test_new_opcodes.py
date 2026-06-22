@@ -52,6 +52,7 @@ from XRootD.client.flags import OpenFlags, StatInfoFlags
 from settings import (
     CA_DIR,
     DATA_ROOT,
+    HOST,
     NGINX_ANON_PORT,
     NGINX_GSI_PORT,
     PROXY_STD,
@@ -377,7 +378,7 @@ class TestSigver:
 
     def test_sigver_accepted_returns_ok(self):
         """A kXR_sigver packet followed by kXR_ping is accepted on the wire."""
-        sock = self._xrd_connect_and_login("localhost", ANON_PORT)
+        sock = self._xrd_connect_and_login(HOST, ANON_PORT)
 
         try:
             # kXR_sigver (3029): 24-byte header + signature payload
@@ -410,7 +411,7 @@ class TestSigver:
 
     def test_sigver_session_continues_after_accept(self):
         """After sigver is accepted the session remains fully functional."""
-        sock = self._xrd_connect_and_login("localhost", ANON_PORT)
+        sock = self._xrd_connect_and_login(HOST, ANON_PORT)
 
         try:
             # Send sigver
@@ -509,7 +510,7 @@ class TestStatx:
         # Upload a known file
         upload(ANON_URL, "statx_single.bin", b"x" * 1234)
 
-        status, body = self._send_statx("localhost", ANON_PORT, ["/statx_single.bin"])
+        status, body = self._send_statx(HOST, ANON_PORT, ["/statx_single.bin"])
 
         assert status == 0, f"statx returned error status {status}"
         # Body is NUL-terminated ASCII; split on whitespace
@@ -524,7 +525,7 @@ class TestStatx:
         for i in range(3):
             upload(ANON_URL, f"statx_multi_{i}.bin", b"y" * (100 * (i + 1)))
 
-        status, body = self._send_statx("localhost", ANON_PORT,
+        status, body = self._send_statx(HOST, ANON_PORT,
                                         [f"/statx_multi_{i}.bin" for i in range(3)])
 
         assert status == 0
@@ -539,7 +540,7 @@ class TestStatx:
 
     def test_statx_missing_path_returns_sentinel(self):
         """statx for a non-existent path returns the error sentinel '0 0 0 0'."""
-        status, body = self._send_statx("localhost", ANON_PORT,
+        status, body = self._send_statx(HOST, ANON_PORT,
                                         ["/no_such_file_statx.bin"])
 
         assert status == 0, f"statx returned error status {status}"
@@ -550,7 +551,7 @@ class TestStatx:
         """statx with a mix of existing and missing paths handles both correctly."""
         upload(ANON_URL, "statx_mixed_ok.bin", b"z" * 500)
 
-        status, body = self._send_statx("localhost", ANON_PORT,
+        status, body = self._send_statx(HOST, ANON_PORT,
                                         ["/statx_mixed_ok.bin",
                                          "/no_such_statx_xyz.bin"])
 
@@ -568,7 +569,7 @@ class TestStatx:
 
     def test_statx_directory(self):
         """statx returns directory flag for a directory path."""
-        status, body = self._send_statx("localhost", ANON_PORT, ["/"])
+        status, body = self._send_statx(HOST, ANON_PORT, ["/"])
 
         assert status == 0
         text  = body.rstrip(b"\x00\n").decode().strip()
@@ -675,7 +676,7 @@ class TestChkpoint:
     def test_chkpoint_begin_commit(self):
         """begin + write + commit: modified content is made permanent."""
         upload(ANON_URL, "ckp_commit.bin", b"original")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ckp_commit.bin")
             status, _ = self._chkpoint(sock, 3, fh, 0)   # kXR_ckpBegin
@@ -692,7 +693,7 @@ class TestChkpoint:
     def test_chkpoint_begin_rollback(self):
         """begin + write + rollback: file reverts to the pre-checkpoint content."""
         upload(ANON_URL, "ckp_rollback.bin", b"before!!")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ckp_rollback.bin")
             status, _ = self._chkpoint(sock, 3, fh, 0)   # begin
@@ -709,7 +710,7 @@ class TestChkpoint:
     def test_chkpoint_query(self):
         """kXR_ckpQuery returns a nonzero max capacity and zero initial usage."""
         upload(ANON_URL, "ckp_query.bin", b"querytest")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ckp_query.bin")
             status, body = self._chkpoint(sock, 3, fh, 2)   # kXR_ckpQuery
@@ -725,7 +726,7 @@ class TestChkpoint:
     def test_chkpoint_ckpXeq_write(self):
         """kXR_ckpXeq dispatches a kXR_write sub-request under an active checkpoint."""
         upload(ANON_URL, "ckp_xeq.bin", b"aaaaaaaaa")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ckp_xeq.bin")
             status, _ = self._chkpoint(sock, 3, fh, 0)   # begin
@@ -742,7 +743,7 @@ class TestChkpoint:
     def test_chkpoint_double_begin_rejected(self):
         """A second kXR_ckpBegin while a checkpoint is active returns an error."""
         upload(ANON_URL, "ckp_double.bin", b"data")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ckp_double.bin")
             status, _ = self._chkpoint(sock, 3, fh, 0)   # first begin — ok
@@ -757,7 +758,7 @@ class TestChkpoint:
     def test_chkpoint_same_file_second_handle_rejected(self):
         """A checkpoint on one handle must block another handle to the same file."""
         upload(ANON_URL, "ckp_same_file.bin", b"data")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh1 = self._open(sock, 2, "/ckp_same_file.bin")
             fh2 = self._open(sock, 3, "/ckp_same_file.bin")
@@ -799,7 +800,7 @@ class TestChkpoint:
     def test_chkpoint_rollback_without_begin_rejected(self):
         """kXR_ckpRollback without an active checkpoint returns an error."""
         upload(ANON_URL, "ckp_nobegin.bin", b"data")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ckp_nobegin.bin")
             status, _ = self._chkpoint(sock, 3, fh, 3)   # rollback without begin
@@ -890,7 +891,7 @@ class TestClone:
         upload(ANON_URL, "clone_full_src.bin", src_data)
         upload(ANON_URL, "clone_full_dst.bin", b"\x00" * len(src_data))
 
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             src_fh = self._open(sock, 2, "/clone_full_src.bin", options=0x0010)  # read
             dst_fh = self._open(sock, 3, "/clone_full_dst.bin", options=0x0020)  # r/w
@@ -912,7 +913,7 @@ class TestClone:
         upload(ANON_URL, "clone_range_src.bin", src_data)
         upload(ANON_URL, "clone_range_dst.bin", b"\x00" * 100)
 
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             src_fh = self._open(sock, 2, "/clone_range_src.bin", options=0x0010)
             dst_fh = self._open(sock, 3, "/clone_range_dst.bin", options=0x0020)
@@ -934,7 +935,7 @@ class TestClone:
         upload(ANON_URL, "clone_ro_src.bin", b"x" * 50)
         upload(ANON_URL, "clone_ro_dst.bin", b"y" * 50)
 
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             src_fh = self._open(sock, 2, "/clone_ro_src.bin", options=0x0010)
             ro_fh  = self._open(sock, 3, "/clone_ro_dst.bin", options=0x0010)
@@ -1071,7 +1072,7 @@ class TestChkpointXeq:
     def test_ckpxeq_pgwrite_good_crc(self):
         """ckpXeq pgwrite with correct CRC32c is accepted."""
         upload(ANON_URL, "xeq_pgw_good.bin", b"original!" * 10)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_pgw_good.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin
@@ -1090,7 +1091,7 @@ class TestChkpointXeq:
     def test_ckpxeq_pgwrite_bad_crc_rejected(self):
         """ckpXeq pgwrite with a corrupted CRC32c returns kXR_ChkSumErr."""
         upload(ANON_URL, "xeq_pgw_bad.bin", b"safecontent")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_pgw_bad.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin
@@ -1115,7 +1116,7 @@ class TestChkpointXeq:
         """ckpXeq pgwrite under checkpoint rolls back cleanly."""
         original = b"keepme!!" * 4
         upload(ANON_URL, "xeq_pgw_rb.bin", original)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_pgw_rb.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin
@@ -1131,7 +1132,7 @@ class TestChkpointXeq:
         """ckpXeq pgwrite spanning two 4096-byte pages succeeds."""
         two_pages = os.urandom(4096 + 512)
         upload(ANON_URL, "xeq_pgw_mp.bin", bytes(len(two_pages)))
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_pgw_mp.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1147,7 +1148,7 @@ class TestChkpointXeq:
     def test_ckpxeq_truncate_reduces_file(self):
         """ckpXeq truncate shortens the file to the requested length."""
         upload(ANON_URL, "xeq_trunc.bin", b"abcdefghij")   # 10 bytes
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_trunc.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin
@@ -1165,7 +1166,7 @@ class TestChkpointXeq:
         """ckpXeq truncate under checkpoint is reversed by rollback."""
         original = b"abcdefghij"
         upload(ANON_URL, "xeq_trunc_rb.bin", original)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_trunc_rb.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1180,7 +1181,7 @@ class TestChkpointXeq:
     def test_ckpxeq_writev_two_segments(self):
         """ckpXeq writev with two non-overlapping segments writes both correctly."""
         upload(ANON_URL, "xeq_writev.bin", b"\x00" * 20)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_writev.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1199,7 +1200,7 @@ class TestChkpointXeq:
         """ckpXeq writev under checkpoint is reversed by rollback."""
         original = b"AAAAAAAAAA" * 2
         upload(ANON_URL, "xeq_writev_rb.bin", original)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_writev_rb.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1215,7 +1216,7 @@ class TestChkpointXeq:
     def test_ckpxeq_unknown_subop_rejected(self):
         """ckpXeq with an unrecognised sub-opcode must return an error."""
         upload(ANON_URL, "xeq_unknown.bin", b"data")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_unknown.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin
@@ -1232,7 +1233,7 @@ class TestChkpointXeq:
     def test_ckpxeq_write_at_nonzero_offset(self):
         """ckpXeq write sub-op at a non-zero offset lands in the right place."""
         upload(ANON_URL, "xeq_wr_off.bin", b"\x00" * 20)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_wr_off.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin
@@ -1249,7 +1250,7 @@ class TestChkpointXeq:
         """ckpXeq pgwrite at offset=100 (partial first page) writes to the right location."""
         upload(ANON_URL, "xeq_pgw_off.bin", b"\x00" * 200)
         data = b"mid-page data" * 3
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_pgw_off.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1266,7 +1267,7 @@ class TestChkpointXeq:
         """ckpXeq pgwrite of exactly 4096 bytes (one complete page) succeeds."""
         upload(ANON_URL, "xeq_pgw_fp.bin", bytes(4096))
         data = os.urandom(4096)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_pgw_fp.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1281,7 +1282,7 @@ class TestChkpointXeq:
     def test_ckpxeq_write_zero_bytes(self):
         """ckpXeq write with dlen=0 (empty payload) succeeds without modifying the file."""
         upload(ANON_URL, "xeq_wr_zero.bin", b"untouched")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_wr_zero.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1296,7 +1297,7 @@ class TestChkpointXeq:
     def test_ckpxeq_truncate_extend_file(self):
         """ckpXeq truncate to a length larger than the current file extends it with zeros."""
         upload(ANON_URL, "xeq_trunc_ext.bin", b"short")   # 5 bytes
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_trunc_ext.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1313,7 +1314,7 @@ class TestChkpointXeq:
     def test_ckpxeq_writev_single_segment(self):
         """ckpXeq writev with exactly one segment writes the data correctly."""
         upload(ANON_URL, "xeq_wv_one.bin", b"\x00" * 10)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_wv_one.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1329,7 +1330,7 @@ class TestChkpointXeq:
     def test_ckpxeq_writev_three_segments(self):
         """ckpXeq writev with three non-overlapping segments writes all three correctly."""
         upload(ANON_URL, "xeq_wv_three.bin", b"\x00" * 30)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_wv_three.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1348,7 +1349,7 @@ class TestChkpointXeq:
     def test_ckpxeq_writev_skips_zero_length_segment(self):
         """ckpXeq writev with a zero-length segment succeeds; only non-empty segments write."""
         upload(ANON_URL, "xeq_wv_zero_seg.bin", b"\x00" * 10)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/xeq_wv_zero_seg.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1456,7 +1457,7 @@ class TestChkpointExtended:
     def test_query_after_begin_shows_nonzero_usage(self):
         """After kXR_ckpBegin the query response must show useCkpSize > 0."""
         upload(ANON_URL, "ext_query_begin.bin", b"some content")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ext_query_begin.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin — snapshot taken
@@ -1475,7 +1476,7 @@ class TestChkpointExtended:
     def test_multiple_xeq_then_commit_persists_all(self):
         """Multiple ckpXeq writes under one checkpoint all persist after commit."""
         upload(ANON_URL, "ext_multi_commit.bin", b"\x00" * 30)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ext_multi_commit.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin
@@ -1494,7 +1495,7 @@ class TestChkpointExtended:
         """Multiple ckpXeq writes under one checkpoint are all undone by rollback."""
         original = b"XXXXXXXXXX" * 3
         upload(ANON_URL, "ext_multi_rb.bin", original)
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ext_multi_rb.bin")
             self._chkpoint(sock, 3, fh, 0)
@@ -1513,7 +1514,7 @@ class TestChkpointExtended:
     def test_xeq_without_active_checkpoint_fails(self):
         """ckpXeq before kXR_ckpBegin must return an error (no snapshot file)."""
         upload(ANON_URL, "ext_xeq_nobegin.bin", b"intact")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ext_xeq_nobegin.bin")
             # No begin — ckpXeq must fail.
@@ -1526,7 +1527,7 @@ class TestChkpointExtended:
     def test_query_after_commit_shows_zero_usage(self):
         """After kXR_ckpCommit the query response must show useCkpSize == 0."""
         upload(ANON_URL, "ext_query_commit.bin", b"committed content")
-        sock = self._connect("localhost", ANON_PORT)
+        sock = self._connect(HOST, ANON_PORT)
         try:
             fh = self._open(sock, 2, "/ext_query_commit.bin")
             self._chkpoint(sock, 3, fh, 0)   # begin

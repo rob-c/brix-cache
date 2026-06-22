@@ -82,6 +82,15 @@ static ngx_conf_enum_t xrootd_security_levels[] = {
     { ngx_null_string,          0 }
 };
 
+/* GSI signed-DH policy [xrootd_gsi_signed_dh off|auto|require] (phase-48);
+ * see the gsi_signed_dh field in src/types/config.h. */
+static ngx_conf_enum_t xrootd_signed_dh_modes[] = {
+    { ngx_string("off"),     XROOTD_GSI_SDH_OFF     },
+    { ngx_string("auto"),    XROOTD_GSI_SDH_AUTO    },
+    { ngx_string("require"), XROOTD_GSI_SDH_REQUIRE },
+    { ngx_null_string,       0                      }
+};
+
 /* ------------------------------------------------------------------ */
 /* WHAT: Complete nginx stream module directive configuration table     */
 /* WHY: Consolidates all XRootD configuration options into a single    */
@@ -255,6 +264,15 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, trusted_ca),
       NULL },
+
+    /* GSI signed-DH policy: off (default) | auto | require.  Consulted only
+     * when xrootd_auth=gsi; selects the RSA-signed-DH wire variant (phase-48). */
+    { ngx_string("xrootd_gsi_signed_dh"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, gsi_signed_dh),
+      xrootd_signed_dh_modes },
 
     { ngx_string("xrootd_vomsdir"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -485,6 +503,28 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, tls_ktls),
+      NULL },
+
+    /* Enable root:// inline read compression (phase-42 W4). Opt-in, off by
+     * default and invisible to stock peers: advertises codecs via Qconfig
+     * "cmpread" and compresses kXR_read responses for clients that open with
+     * "?xrootd.compress=<codec>".  pgread/readv remain plaintext. */
+    { ngx_string("xrootd_read_compress"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, read_compress),
+      NULL },
+
+    /* Enable root:// inline write decompression (phase-42 W5). Opt-in, off by
+     * default and invisible to stock peers: advertises codecs via Qconfig
+     * "cmpwrite" and decompresses kXR_write payloads for clients that open for
+     * write with "?xrootd.compress=<codec>".  pgwrite remains plaintext. */
+    { ngx_string("xrootd_write_compress"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, write_compress),
       NULL },
 
     /* Allow TPC pulls from loopback / link-local addresses (default: off). */
@@ -984,6 +1024,30 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_tls),
+      NULL },
+
+    /* X.509-proxy (GSI) auth to the origin: when set, cache fills fork/exec the
+     * native client with these credentials so the cache can authenticate to a GSI
+     * origin (e.g. EOS) that rejects the built-in anonymous login. */
+    { ngx_string("xrootd_cache_origin_proxy"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_proxy),
+      NULL },
+
+    { ngx_string("xrootd_cache_origin_cadir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_cadir),
+      NULL },
+
+    { ngx_string("xrootd_cache_origin_client"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_client),
       NULL },
 
     { ngx_string("xrootd_cache_lock_timeout"),

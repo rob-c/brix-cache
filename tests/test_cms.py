@@ -42,7 +42,7 @@ import time
 
 import pytest
 
-from settings import CMS_TEST_NGINX_PORT, CMS_TEST_CMS_PORT
+from settings import CMS_TEST_NGINX_PORT, CMS_TEST_CMS_PORT, HOST
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ def _assert_xrootd_ping(port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(10)
     try:
-        sock.connect(("127.0.0.1", port))
+        sock.connect((HOST, port))
         sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
         assert _recv_exact(sock, 16) is not None
 

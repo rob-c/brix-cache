@@ -33,7 +33,14 @@ import time
 
 import pytest
 
-from settings import DATA_ROOT, NGINX_ANON_PORT, REF_XROOTD_PORT, SERVER_HOST
+from settings import (
+    DATA_ROOT,
+    HOST,
+    NGINX_ANON_PORT,
+    REF_XROOTD_PORT,
+    SERVER_HOST,
+    free_port,
+)
 
 # These tests provision multi-server topologies and run the FULL conformance suite
 # as a nested pytest subprocess (minutes), so the global 30s per-test timeout
@@ -47,17 +54,19 @@ pytestmark = pytest.mark.timeout(420)
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 H = SERVER_HOST
 ANON = NGINX_ANON_PORT          # fleet nginx serving DATA_ROOT (the storage backend)
-_DIR = "/tmp/xrd_conf_topo"
+_DIR = os.path.join(os.environ["TMPDIR"], "xrd_conf_topo")
 
-# Dedicated port block for the provisioned fronts (avoid fleet collisions).
-PROXY_PORT     = int(os.environ.get("TEST_CT_PROXY_PORT", "12840"))
-MESH_HOP1_PORT = int(os.environ.get("TEST_CT_MESH_HOP1_PORT", "12841"))
-MESH_HOP2_PORT = int(os.environ.get("TEST_CT_MESH_HOP2_PORT", "12842"))
-CLU_REDIR_PORT = int(os.environ.get("TEST_CT_CLU_REDIR_PORT", "12843"))
-CLU_CMS_PORT   = int(os.environ.get("TEST_CT_CLU_CMS_PORT", "12844"))
-CLU_DS_PORT    = int(os.environ.get("TEST_CT_CLU_DS_PORT", "12845"))
-MIRROR_PORT    = int(os.environ.get("TEST_CT_MIRROR_PORT", "12846"))
-MIRROR_RW_PORT = int(os.environ.get("TEST_CT_MIRROR_RW_PORT", "12847"))
+# Dedicated port block for the provisioned fronts: each front binds its OWN
+# listener, so every port below must be a free OS port (env override honored)
+# to avoid colliding with the managed fleet or other self-contained tests.
+PROXY_PORT     = int(os.environ.get("TEST_CT_PROXY_PORT") or free_port())
+MESH_HOP1_PORT = int(os.environ.get("TEST_CT_MESH_HOP1_PORT") or free_port())
+MESH_HOP2_PORT = int(os.environ.get("TEST_CT_MESH_HOP2_PORT") or free_port())
+CLU_REDIR_PORT = int(os.environ.get("TEST_CT_CLU_REDIR_PORT") or free_port())
+CLU_CMS_PORT   = int(os.environ.get("TEST_CT_CLU_CMS_PORT") or free_port())
+CLU_DS_PORT    = int(os.environ.get("TEST_CT_CLU_DS_PORT") or free_port())
+MIRROR_PORT    = int(os.environ.get("TEST_CT_MIRROR_PORT") or free_port())
+MIRROR_RW_PORT = int(os.environ.get("TEST_CT_MIRROR_RW_PORT") or free_port())
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +119,7 @@ def _build_proxy():
     """One transparent proxy hop in front of the DATA_ROOT nginx (ANON)."""
     conf = _write_conf("proxy", _stream(PROXY_PORT,
         f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_proxy on; xrootd_proxy_upstream 127.0.0.1:{ANON};"))
+        f"        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{ANON};"))
     _start(conf)
     return f"root://{H}:{PROXY_PORT}", [conf]
 
@@ -119,10 +128,10 @@ def _build_mesh():
     """Two stacked proxy hops: hop2 -> hop1 -> ANON (nginx->nginx->nginx)."""
     c1 = _write_conf("mesh1", _stream(MESH_HOP1_PORT,
         f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_proxy on; xrootd_proxy_upstream 127.0.0.1:{ANON};"))
+        f"        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{ANON};"))
     c2 = _write_conf("mesh2", _stream(MESH_HOP2_PORT,
         f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_proxy on; xrootd_proxy_upstream 127.0.0.1:{MESH_HOP1_PORT};"))
+        f"        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{MESH_HOP1_PORT};"))
     _start(c1)
     _start(c2)
     return f"root://{H}:{MESH_HOP2_PORT}", [c2, c1]
@@ -140,7 +149,7 @@ def _build_cluster():
     ds = _write_conf("clu_ds", _stream(CLU_DS_PORT,
         f"        xrootd on; xrootd_root {DATA_ROOT}; xrootd_auth none;\n"
         f"        xrootd_allow_write on;\n"
-        f"        xrootd_cms_manager 127.0.0.1:{CLU_CMS_PORT};\n"
+        f"        xrootd_cms_manager {HOST}:{CLU_CMS_PORT};\n"
         f"        xrootd_cms_paths /;\n"
         f"        xrootd_cms_interval 2;\n"
         f"        xrootd_listen_port {CLU_DS_PORT};"))
@@ -162,7 +171,7 @@ def _build_mirror(port=MIRROR_PORT, name="mirror"):
     conf = _write_conf(name, _stream(port,
         f"        xrootd on; xrootd_root {DATA_ROOT}; xrootd_auth none;\n"
         f"        xrootd_allow_write on;\n"
-        f"        xrootd_stream_mirror_url 127.0.0.1:{REF_XROOTD_PORT};\n"
+        f"        xrootd_stream_mirror_url {HOST}:{REF_XROOTD_PORT};\n"
         # Mirror the full read-path opcode set INCLUDING query/Qcksum.  The
         # mirror only actually replays self-contained requests (read-only opens,
         # path-based stat/statx, locate, dirlist, query) and treats a shadow

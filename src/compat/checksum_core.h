@@ -28,6 +28,8 @@
 #define XROOTD_CK_SHA256    5
 #define XROOTD_CK_CRC64     6   /* CRC-64/XZ   */
 #define XROOTD_CK_CRC64NVME 7   /* CRC-64/NVME */
+#define XROOTD_CK_ZCRC32    8   /* zlib CRC-32 — XRootD "zcrc32" (same algorithm
+                                 * as CRC32/ISO-HDLC; a distinct registered name) */
 
 /* Whole-file (pread from offset 0) 32-bit checksum for ADLER32/CRC32/CRC32C into
  * *out. Returns 0 / -1 (errno set on a read failure). */

@@ -127,7 +127,7 @@ def test_xrdcp_upload_and_download():
     content = b"hello-xrdcp-" + os.urandom(1024)
     local = _write_temp_file(content)
     remote_name = "xrdcp-upload.bin"
-    remote_url = f"davs://localhost:{port}//{remote_name}"
+    remote_url = f"davs://{SERVER_HOST}:{port}//{remote_name}"
 
     env = os.environ.copy()
     env["X509_USER_PROXY"] = PROXY_PEM
@@ -149,7 +149,7 @@ def test_xrdcp_upload_and_download():
         assert seed.returncode == 0, (seed.returncode, seed.stderr.decode(errors="replace"))
 
         out_local = local + ".from_xrdcp"
-        r2 = _run([XRDCP_BIN, "--allow-http", "--verbose", f"davs://localhost:{port}//{remote_name}", out_local],
+        r2 = _run([XRDCP_BIN, "--allow-http", "--verbose", f"davs://{SERVER_HOST}:{port}//{remote_name}", out_local],
                   env=env, cwd=xrdcp_cwd)
         if r2.returncode != 0:
             # Collect diagnostics for debugging failures
@@ -232,7 +232,7 @@ def test_xrdcp_large_upload_and_download():
     content = os.urandom((2 * 1024 * 1024) + 137)
     local = _write_temp_file(content)
     remote_name = "xrdcp-large.bin"
-    remote_url = f"davs://localhost:{port}//{remote_name}"
+    remote_url = f"davs://{SERVER_HOST}:{port}//{remote_name}"
 
     env = os.environ.copy()
     env["X509_USER_PROXY"] = PROXY_PEM
@@ -249,7 +249,7 @@ def test_xrdcp_large_upload_and_download():
         assert seed.returncode == 0, (seed.returncode, seed.stderr.decode(errors="replace"))
 
         out_local = local + ".from_xrdcp"
-        r2 = _run([XRDCP_BIN, "--allow-http", "--verbose", f"davs://localhost:{port}//{remote_name}", out_local],
+        r2 = _run([XRDCP_BIN, "--allow-http", "--verbose", f"davs://{SERVER_HOST}:{port}//{remote_name}", out_local],
                   env=env, cwd=xrdcp_cwd)
         assert r2.returncode == 0, (r2.returncode, r2.stderr.decode(errors="replace"))
         with open(out_local, "rb") as fh:

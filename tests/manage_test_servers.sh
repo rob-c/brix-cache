@@ -254,12 +254,15 @@ substitute_config() {
     : "${DEST_DISABLED_ROOT:=${DATA_DIR}/dest_disabled}"
     : "${DEST_READONLY_ROOT:=${DATA_DIR}/dest_readonly}"
     : "${BIND_HOST:=127.0.0.1}"
+    : "${BIND6_HOST:=[::1]}"   # IPv6 loopback for phase-36 IPv6 dedicated instances
     : "${CMS_PORT:=11161}"
     : "${CMS_PATHS:=/}"
     : "${CACHE_DIR:=${DATA_DIR}/cache}"
     : "${METRICS_PORT:=9100}"
     : "${META_CMS_PORT:=11186}"
     : "${SELF_REGISTER_PORT:=11189}"
+    : "${KRB5_PRINCIPAL:=xrootd/localhost@NGINX.TEST}"
+    : "${KRB5_KEYTAB:=${TEST_ROOT}/krb5/xrootd.keytab}"
 
     sed -e "s|{PORT}|$NGINX_PORT|g" \
         -e "s|{ANON_PORT}|${NGINX_ANON_PORT}|g" \
@@ -313,6 +316,7 @@ substitute_config() {
         -e "s|{MAP_B_PORT}|${MAP_B_PORT}|g" \
         -e "s|{AUTHDB_PATH}|${AUTHDB_PATH}|g" \
         -e "s|{BIND_HOST}|${BIND_HOST}|g" \
+        -e "s|{BIND6_HOST}|${BIND6_HOST}|g" \
         -e "s|{CMS_PORT}|${CMS_PORT}|g" \
         -e "s|{CMS_PATHS}|${CMS_PATHS}|g" \
         -e "s|{CACHE_DIR}|${CACHE_DIR}|g" \
@@ -320,6 +324,8 @@ substitute_config() {
         -e "s|{META_CMS_PORT}|${META_CMS_PORT}|g" \
         -e "s|{SELF_REGISTER_PORT}|${SELF_REGISTER_PORT}|g" \
         -e "s|{STAGE_CMD}|${STAGE_CMD:-/bin/true}|g" \
+        -e "s|{KRB5_PRINCIPAL}|${KRB5_PRINCIPAL}|g" \
+        -e "s|{KRB5_KEYTAB}|${KRB5_KEYTAB}|g" \
         "$src" > "$dest"
 }
 
@@ -475,6 +481,8 @@ force_stop_nginx() {
             pids_on_port 11113
             pids_on_port 11114
             pids_on_port 11115
+            pids_on_port 11116
+            pids_on_port 11117
             pids_on_port 11120
             pids_on_port 11121
             pids_on_port 11122
@@ -561,6 +569,20 @@ force_stop_nginx() {
             pids_on_port 11207
             pids_on_port 11208
             pids_on_port 11209
+            # Migrated dedicated fixtures
+            pids_on_port 11216
+            pids_on_port 11217
+            pids_on_port 12980
+            pids_on_port 13210
+            pids_on_port 22014
+            pids_on_port 22017
+            # IPv6 dedicated fixtures
+            pids_on_port 11240
+            pids_on_port 11241
+            pids_on_port 11243
+            pids_on_port 11244
+            pids_on_port 11245
+            pids_on_port 11246
             # HA nginx instances
             pids_on_port 11211
             pids_on_port 11212
@@ -1078,6 +1100,14 @@ http.desthttps yes
 http.selfhttps2http no
 http.exthandler xrdtpc ${tpc_lib}
 tpc.timeout 10
+# The whole test fleet runs on loopback (127.0.0.1 / localhost), so XrdHttpTPC's
+# default SSRF guard ("connection to local/private addresses is forbidden")
+# rejects every interop pull with HTTP 403.  The guard has two independent flags
+# (allow_local for loopback/127.0.0.1, allow_private for RFC1918) and a 127.0.0.1
+# source trips the LOCAL check — so permit BOTH for this local reference instance
+# so the nginx<->XrdHttp TPC interop tests work.
+tpc.allow local
+tpc.allow private
 EOF
 
     # Start xrootd with HTTP module
@@ -1231,10 +1261,13 @@ force_stop_ref() {
             pids_on_port 12124
             pids_on_port 12125
             pids_on_port 12126
+            pids_on_port 12501
             pids_on_port 11214
             # Protocol stub backends (upstream_protocol_stubs.py)
+            pids_on_port 13120
             pids_on_port 13121
             pids_on_port 13122
+            pids_on_port 13123
             pids_on_port 13124
             pids_on_port 13125
             pids_on_port 13126
@@ -1254,6 +1287,38 @@ force_stop_ref() {
 
     rm -f "$REF_PID_FILE"
     echo "reference xrootd force-stopped"
+}
+
+# Kerberos 5 (krb5) edge tier — a DEDICATED nginx instance so a bad keytab or a
+# krb5-less binary can only break this tier, never the shared anon/gsi/token
+# instance.  Gated like the haproxy tier: skip cleanly unless (1) the nginx
+# binary is linked against libkrb5 and (2) the MIT KDC tooling is installed.
+start_krb5_tier() {
+    # (1) binary check first — cheapest, and avoids spinning a KDC for nothing.
+    if ! ldd "$NGINX_BIN" 2>/dev/null | grep -q 'libkrb5\.so'; then
+        echo "  krb5 tier: skipped (nginx not built with Kerberos;" \
+             "rebuild with krb5-devel present)"
+        return 0
+    fi
+    # (2) provision the realm + keytab + krb5.conf and start the KDC.  Exit 3 =
+    # KDC tooling absent (kdc_helpers already explained); any other non-zero is a
+    # real provisioning failure — in every case we skip the tier, never abort.
+    local kdc_helper="${CONFIGS_DIR%/configs}/kdc_helpers.py"
+    python3 "$kdc_helper" up
+    local rc=$?
+    if [[ $rc -eq 3 ]]; then
+        return 0
+    fi
+    if [[ $rc -ne 0 ]]; then
+        echo "  krb5 tier: skipped (KDC provisioning failed, rc=$rc)" >&2
+        return 0
+    fi
+    # The nginx krb5 acceptor needs KRB5_CONFIG (realm + auth_to_local) in its
+    # process environment; principal + keytab feed substitute_config.
+    KRB5_CONFIG="${TEST_ROOT}/krb5/krb5.conf" \
+    KRB5_PRINCIPAL="xrootd/localhost@NGINX.TEST" \
+    KRB5_KEYTAB="${TEST_ROOT}/krb5/xrootd.keytab" \
+        start_dedicated_nginx "krb5" "nginx_krb5.conf" "${NGINX_KRB5_PORT:-11116}"
 }
 
 start_all_dedicated() {
@@ -1326,6 +1391,17 @@ start_all_dedicated() {
     start_dedicated_nginx "webdav-unlock-ownership" "nginx_webdav-unlock-ownership.conf" "${WEBDAV_UNLOCK_OWNERSHIP_PORT:-22014}"
     start_dedicated_nginx "s3-mpu" "nginx_s3-mpu.conf" "${S3_MPU_PORT:-22017}"
     NGINX_S3_PORT="${READONLY_HTTP_S3_PORT:-11217}" start_dedicated_nginx "readonly-http" "nginx_readonly-http.conf" "${READONLY_HTTP_DAV_PORT:-11216}"
+
+    # --- Phase 36: IPv6 dedicated instances (all listen on [::1]) ---
+    # Consumed by tests/test_ipv6_*.py; each gates on requires_ipv6_loopback and
+    # skips if its instance is down. Secondary ports (CMS/HTTP/upstream) are
+    # hardcoded in each config since they are fixed per dedicated instance.
+    start_dedicated_nginx "ipv6-stream" "nginx_ipv6_stream.conf" "${IPV6_STREAM_PORT:-11240}"
+    start_dedicated_nginx "ipv6-mgr" "nginx_ipv6_mgr.conf" "${IPV6_MGR_PORT:-11241}"
+    start_dedicated_nginx "ipv6-webdav" "nginx_ipv6_webdav.conf" "${IPV6_WEBDAV_PORT:-11243}"
+    start_dedicated_nginx "ipv6-s3" "nginx_ipv6_s3.conf" "${IPV6_S3_PORT:-11244}"
+    start_dedicated_nginx "ipv6-upstream" "nginx_ipv6_upstream.conf" "${IPV6_UPSTREAM_PORT:-11245}"
+    start_dedicated_nginx "ipv6-proxy" "nginx_ipv6_proxy.conf" "${IPV6_PROXY_PORT:-11246}"
     NGINX_WEBDAV_PORT="${WEBDAV_CRL_PORT:-11105}" \
         start_dedicated_nginx "crl" "nginx_crl.conf" "${CRL_PORT:-11104}"
     CRL_PATH="${crl_dir}" NGINX_WEBDAV_PORT="${WEBDAV_DIR_PORT:-11107}" \
@@ -1459,6 +1535,7 @@ start_all_dedicated() {
         printf '# placeholder written by start-all; authdb_setup fixture overwrites\n' \
         > "${TEST_ROOT}/data-authdb/authdb"
     start_dedicated_nginx "authdb" "nginx_authdb.conf" "${AUTHDB_PORT:-11114}"
+    start_krb5_tier
 
     # Multi-path cluster (TestClusterMultiPath)
     local mp_cms="${CLUSTER_MP_CMS_PORT:-11171}"
@@ -1616,10 +1693,20 @@ stop_cms_mesh() {
         >> "${LOG_DIR}/cms-mesh.log" 2>&1 || true
 }
 
+stop_krb5_tier() {
+    # Stop the test KDC (best-effort) before the session-wide TEST_ROOT wipe so
+    # the krb5kdc daemon is never orphaned.  No-op if the tier was never started.
+    local kdc_helper="${CONFIGS_DIR%/configs}/kdc_helpers.py"
+    if [[ -f "$kdc_helper" ]]; then
+        python3 "$kdc_helper" down >/dev/null 2>&1 || true
+    fi
+}
+
 stop_all_dedicated() {
     stop_cms_mesh
     stop_haproxy
     stop_xrdhttp
+    stop_krb5_tier
     force_stop_ref
     force_stop_nginx
 }
@@ -1680,6 +1767,11 @@ case "$ACTION" in
     start-dedicated)
         # Restart a single named dedicated nginx instance without a full start-all.
         case "$TARGET" in
+            cluster-redir)
+                CMS_PORT="${CLUSTER_REDIR_CMS_PORT:-11161}" \
+                    start_dedicated_nginx "cluster-redir" "nginx_cluster_redir.conf" \
+                    "${CLUSTER_REDIR_PORT:-11160}"
+                ;;
             cluster-ds)
                 CMS_PORT="${CLUSTER_REDIR_CMS_PORT:-11161}" CMS_PATHS="/" \
                     start_dedicated_nginx "cluster-ds" "nginx_cluster_ds.conf" \

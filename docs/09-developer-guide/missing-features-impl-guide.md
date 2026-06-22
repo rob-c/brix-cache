@@ -1,18 +1,19 @@
-# Missing Features — Implementation Guide
+# Missing Features — Historical Implementation Guide
 
-Priority-ordered implementation guide for every gap between this module and a
-full drop-in replacement for the official XRootD server. Each entry names
-the exact files to touch, the key code changes needed, and required tests.
+Historical implementation guide for gaps that were tracked while moving this
+module toward drop-in XRootD server coverage. For current reviewer-facing gaps,
+prefer [`../10-reference/gaps-vs-xrootd.md`](../10-reference/gaps-vs-xrootd.md)
+and [`../10-reference/source-verified-xrootd-comparison.md`](../10-reference/source-verified-xrootd-comparison.md).
 
-Items are ordered by deployment impact. Implement in order unless a specific
-site need overrides.
+Items below preserve the implementation notes for completed work and remaining
+edge cases.
 
-## Implementation Snapshot (2026-05-20)
+## Implementation Snapshot (updated 2026-06-14)
 
 | Item | Status | Notes |
 |---|---|---|
-| 1. Outbound upstream auth | ✅ Partial complete | TLS upgrade and ztn token `kXR_authmore` are implemented; outbound GSI auth remains. |
-| 2. Prepare/stage tape dispatch | ✅ Implemented | `xrootd_prepare_command` hook and `kXR_QPrep` disk status. |
+| 1. Outbound upstream auth | ✅ Partial complete | Transparent upstream bootstrap supports TLS upgrade and ztn token `kXR_authmore`; cache/write-through origin supports optional TLS but still uses anonymous login and fails on `kXR_authmore`. Transparent-upstream GSI and credentialed cache-origin auth remain. Native TPC outbound ztn/GSI is implemented separately in `src/tpc/gsi_outbound_*`. |
+| 2. Prepare/stage tape dispatch | ✅ Implemented / partial parity | FRM durable queue, real request IDs, cancel/QPrep state, and Tape REST gateway exist; full upstream XrdFrm/MSS parity remains site-specific. Legacy `xrootd_prepare_command` fallback remains for FRM-off mode. |
 | 3. JWKS hot refresh | ✅ Implemented | File mtime polling via `xrootd_token_jwks_refresh_interval`. |
 | 4. PROPFIND `Depth: infinity` | ✅ Implemented | Recursive walk with a 10,000-entry cap. |
 | 5. CMS escalation tests | ✅ Implemented | `kYR_try` and true three-tier escalation coverage. |
@@ -30,10 +31,12 @@ site need overrides.
 
 ## 1. Outbound upstream authentication (`kXR_authmore` + `kXR_gotoTLS`)
 
-**Status:** ✅ IMPLEMENTED (Phase 1 + Phase 2)  
-**Impact:** Critical — blocks native TPC and read-through cache against every
-production XRootD server in WLCG. Every real server requires at least one of
-these two handshake extensions.  
+**Status:** ✅ IMPLEMENTED for transparent-upstream TLS + ztn auth; native TPC
+ztn/GSI is implemented separately; transparent-upstream GSI and credentialed
+cache-origin auth remain follow-ups.
+**Impact:** Important for transparent upstream redirector and cache-origin access.
+Native TPC is no longer blocked on this path because it has its own credentialed
+outbound implementation in `src/tpc/`.
 **Effort:** 2–3 weeks
 
 ### Problem
@@ -61,9 +64,9 @@ if (up->resp_status == kXR_authmore) {
 }
 ```
 
-Those stubs are now replaced for upstream TLS and ztn token auth. Cache-origin
-integration still needs dedicated coverage before treating write-through cache
-origin access as production-complete.
+Those stubs are now replaced for upstream TLS and ztn token auth. Native TPC
+uses separate ztn/GSI paths in `src/tpc/gsi_outbound_*`; do not infer native TPC
+credential gaps from the transparent-upstream bootstrap code.
 
 ### Phase 1 — Outbound TLS upgrade (`kXR_gotoTLS`) ✅ IMPLEMENTED
 
@@ -141,9 +144,13 @@ supported and triggers an abort.
 - `test_upstream_gotorls_no_tls_configured_aborts` — `kXR_gotoTLS` but
   `xrootd_upstream_tls` is off → `kXR_error` to client (security negative).
 
-### Phase 3 — Outbound GSI auth (`kXR_authmore` with GSI)
+### Phase 3 — Transparent-upstream / cache-origin credentialed auth
 
-Harder; requires an outbound X.509 credential. Reuse `src/tpc/gsi_outbound_certreq.c` / `gsi_outbound_common.c` which already implement the DH + X.509 exchange for TPC pull. Wire the same path into the upstream bootstrap by extracting the shared DH helpers into `src/gsi/outbound_common.c` and calling them from `src/upstream/bootstrap.c`.
+Still open for transparent-upstream GSI and for credentialed cache/write-through
+origin bootstrap. Native TPC already uses `src/tpc/gsi_outbound_certreq.c`,
+`gsi_outbound_common.c`, and `gsi_outbound_exchange.c` for the DH + X.509
+exchange. A future upstream/cache implementation should reuse or extract those
+helpers instead of reimplementing GSI.
 
 ### Tests (for Phase 1 & 2 — ✅ WRITTEN)
 
@@ -165,22 +172,24 @@ Remaining tests to add (Phase 3 and cache integration):
 
 ## 2. `kXR_prepare` / `kXR_stage` tape backend dispatch
 
-**Status:** ✅ IMPLEMENTED — fire-and-forget script-hook via `xrootd_prepare_command`  
-**Impact:** High — blocks all tape-backed sites (CASTOR, EOS tape, dCache tape)  
-**Effort:** 1–2 weeks for a script-hook interface; longer for a native plugin API
+**Status:** ✅ IMPLEMENTED for the module's FRM/Tape REST design; partial versus
+the full upstream XrdFrm/MSS ecosystem.
+**Impact:** Tape-backed sites must validate real stage/cancel/evict/purge/recall
+semantics against their storage manager.
 
 ### Problem
 
-`src/query/prepare.c` validates paths, checks auth and VO ACLs, then returns
-`kXR_ok` with a response listing which files are present or missing. The
-`kXR_stage` flag inside the request (`kXR_stage = 0x08` in the options byte)
-was not acted on — no recall was triggered.
+Before the FRM work, `src/query/prepare.c` validated paths, checked auth and VO
+ACLs, then returned `kXR_ok` with a disk-only present/missing response. With
+`xrootd_frm on`, `src/frm/` now owns durable queue records, host-qualified
+request IDs, cancel handling, and queue-backed `kXR_QPrep` state. FRM-off mode
+keeps the legacy disk-only behavior.
 
 ### Implementation
 
-A **script-hook interface** (same pattern as `exec` in FTS agent scripts) was
-implemented. A configurable shell command is invoked as a subprocess for each
-`kXR_prepare` request that has the `kXR_stage` flag set.
+A **script-hook interface** remains available as the FRM-off fallback. FRM-on
+deployments use the durable queue and Tape REST gateway described in
+[`../../src/frm/README.md`](../../src/frm/README.md).
 
 **New directive:** `xrootd_prepare_command /usr/local/bin/xrootd-stage.sh;`
 
@@ -212,10 +221,9 @@ ngx_str_t  prepare_command;   /* shell command for kXR_stage recall */
   NULL },
 ```
 
-**`kXR_QPrep` status query** (`kXR_query` subtype 3): the existing response in
-`src/query/prepare.c` returns `A <path>` (on disk) or `M <path>` (missing)
-per file. Add a side-channel file flag (e.g., a `.staging` xattr or a configurable
-staging-dir presence check) to return `U` for in-progress recalls in future work.
+**`kXR_QPrep` status query**: FRM-off returns `A <path>` (on disk) or `M <path>`
+(missing/unauthorized). FRM-on can report queued/staging/failed/available state
+from durable records and uses real request IDs instead of the legacy `"0"`.
 
 ### Tests
 
@@ -651,9 +659,10 @@ close remains fail-open while logging WT errors.
 
 **Remaining limitations:** the origin path must resolve under `xrootd_root` or
 `xrootd_cache_root`, the origin must be a direct data server (redirect-following
-is not implemented in the cache origin client), and origin authentication is
-limited by Feature 1. TLS and ztn token outbound auth exist for upstream
-connections; outbound GSI auth is still open.
+is not implemented in the cache origin client), and cache/write-through origin
+authentication is narrower than the native TPC outbound path. Cache-origin TLS
+can be configured, but cache/write-through origin login is still anonymous and
+does not complete ztn/GSI `kXR_authmore`.
 
 ---
 
@@ -851,6 +860,7 @@ Priority  Feature                              Unblocks
 8g        fattr recurse                        ✅ done — local ext bit 0x20; <relpath>:<U.name>\0
 ```
 
-All features are complete. The one remaining item outside this guide's scope is
-Phase 3 outbound GSI auth (requires DH+X.509 reuse from TPC code; tracked
-separately in `src/tpc/gsi_outbound_certreq.c`).
+The implementation-guide items are largely complete. Remaining reviewer-facing
+gaps are transparent-upstream GSI auth, credentialed cache/write-through origin
+auth, and full upstream XrdFrm/MSS parity; native TPC outbound ztn/GSI is
+implemented in `src/tpc/`.

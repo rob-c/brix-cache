@@ -30,6 +30,12 @@ xrootd_cksum_u32_fd(int kind, int fd, uint32_t *out)
     uint32_t      crc32c = 0;
     uLong         zcrc;
 
+    /* "zcrc32" is XRootD's name for the zlib CRC-32 (== CRC32/ISO-HDLC); fold it
+     * onto the CRC32 kernel path so there is one implementation. */
+    if (kind == XROOTD_CK_ZCRC32) {
+        kind = XROOTD_CK_CRC32;
+    }
+
     if (out == NULL
         || (kind != XROOTD_CK_ADLER32 && kind != XROOTD_CK_CRC32
             && kind != XROOTD_CK_CRC32C)) {

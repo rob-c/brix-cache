@@ -245,10 +245,16 @@ def _handshake_and_protocol(s: socket.socket) -> tuple[int, int]:
 
 def _full_anon_login(s: socket.socket) -> tuple[int, int, int]:
     """Handshake + protocol + anonymous login. Returns (hs, proto, login) statuses."""
+    hs_st, pr_st, lg_st, _ = _full_anon_login_body(s)
+    return hs_st, pr_st, lg_st
+
+
+def _full_anon_login_body(s: socket.socket) -> tuple[int, int, int, bytes]:
+    """Handshake + protocol + anonymous login. Includes the login response body."""
     hs_st, pr_st = _handshake_and_protocol(s)
     s.sendall(make_login_req())
-    lg_st, _ = _recv_response(s)
-    return hs_st, pr_st, lg_st
+    lg_st, body = _recv_response(s)
+    return hs_st, pr_st, lg_st, body
 
 
 def _errcode(body: bytes) -> int:
@@ -961,7 +967,10 @@ class TestStateMachineAttacks:
             f.write(b'ENDSESS DATA ' * 80)
 
         s = _connect()
-        _full_anon_login(s)
+        _, _, login_st, login_body = _full_anon_login_body(s)
+        assert login_st == kXR_ok, "Could not log in before endsess test"
+        sessid = login_body[:16]
+        assert len(sessid) == 16, "Login did not return a session id"
 
         # Open a file — must succeed
         s.sendall(make_open_req(b'/robustness_endsess.bin', streamid=b'\x00\x60'))
@@ -975,7 +984,7 @@ class TestStateMachineAttacks:
         assert read_st == kXR_ok, "Pre-endsess read must succeed"
 
         # End session
-        s.sendall(make_request(b'\x00\x62', 3023))  # kXR_endsess
+        s.sendall(make_request(b'\x00\x62', 3023, body=sessid))  # kXR_endsess
         try:
             _recv_response(s)
         except (socket.timeout, ConnectionError):

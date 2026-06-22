@@ -5,11 +5,16 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <spawn.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
+
+extern char **environ;
 
 /* ---- Origin path derivation from local filesystem path ----
 
@@ -251,6 +256,136 @@ xrootd_wt_copy_body(xrootd_cache_fill_t *fill, xrootd_cache_origin_conn_t *oc,
  *      5) Truncate to st.st_size + sync on origin; close all handles;
  *      6) On any failure → unified cleanup: close handles, copy error into wt.
  */
+/* ---- xrootd_wt_run_flush_exec — GSI/X.509-proxy write-back to origin ----
+ *
+ * WHAT: Mirror the authoritative local file to a GSI origin (e.g. EOS) by
+ *       fork/exec'ing the native client (cache_origin_client, default "xrdcp")
+ *       to upload local_path → root[s]://host:port//origin_path, authenticating
+ *       with X509_USER_PROXY=cache_origin_proxy + X509_CERT_DIR=cache_origin_cadir.
+ * WHY:  The built-in write-back (xrootd_wt_run_flush) only does an anonymous
+ *       kXR_login, which a GSI origin rejects. This is the write-side mirror of
+ *       the read-fetch GSI exec path — reusing the native client as the PSS.
+ * HOW:  Build the upload URL + an env overriding the two X509_* vars; on a clean
+ *       exit(0) record bytes_flushed from the local size. Runs in the flush
+ *       worker (sync or thread-pool), so posix_spawn + waitpid is fine. */
+static void
+xrootd_wt_run_flush_exec(xrootd_wt_flush_t *wt)
+{
+    ngx_stream_xrootd_srv_conf_t *conf = wt->conf;
+    const ngx_str_t *host;
+    uint16_t         port;
+    char        url[XROOTD_MAX_PATH + 320];
+    char        proxy_env[XROOTD_MAX_PATH + 32];
+    char        cadir_env[XROOTD_MAX_PATH + 32];
+    const char *client;
+    char      **envp;
+    char       *argv[6];
+    struct stat st;
+    int         n, rc, wstatus, ai;
+    size_t      envn, ei;
+    pid_t       pid;
+
+    host = conf->wt_origin_host.len > 0 ? &conf->wt_origin_host
+                                        : &conf->cache_origin_host;
+    port = conf->wt_origin_host.len > 0 ? conf->wt_origin_port
+                                        : conf->cache_origin_port;
+
+    if (host->len == 0 || port == 0) {
+        wt->result = NGX_ERROR;
+        wt->xrd_error = kXR_ServerError;
+        ngx_cpystrn((u_char *) wt->err_msg,
+                    (u_char *) "write-through origin not configured",
+                    sizeof(wt->err_msg));
+        return;
+    }
+
+    if (stat(wt->local_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+        wt->result = NGX_ERROR;
+        wt->sys_errno = errno;
+        wt->xrd_error = kXR_IOError;
+        ngx_cpystrn((u_char *) wt->err_msg,
+                    (u_char *) "write-through local file invalid",
+                    sizeof(wt->err_msg));
+        return;
+    }
+
+    /* root[s]://host:port//<origin_path>  (origin_path carries its leading '/') */
+    n = snprintf(url, sizeof(url), "%s://%s:%u/%s",
+                 conf->cache_origin_tls ? "roots" : "root",
+                 (char *) host->data, (unsigned) port, wt->origin_path);
+    if (n < 0 || (size_t) n >= sizeof(url)) {
+        wt->result = NGX_ERROR;
+        wt->xrd_error = kXR_ArgInvalid;
+        ngx_cpystrn((u_char *) wt->err_msg,
+                    (u_char *) "write-through origin URL too long",
+                    sizeof(wt->err_msg));
+        return;
+    }
+
+    snprintf(proxy_env, sizeof(proxy_env), "X509_USER_PROXY=%s",
+             (char *) conf->cache_origin_proxy.data);
+    snprintf(cadir_env, sizeof(cadir_env), "X509_CERT_DIR=%s",
+             (char *) conf->cache_origin_cadir.data);
+
+    client = conf->cache_origin_client.len
+             ? (char *) conf->cache_origin_client.data : "xrdcp";
+
+    for (envn = 0; environ[envn] != NULL; envn++) { /* count */ }
+    envp = malloc((envn + 3) * sizeof(char *));
+    if (envp == NULL) {
+        wt->result = NGX_ERROR;
+        wt->xrd_error = kXR_NoMemory;
+        ngx_cpystrn((u_char *) wt->err_msg,
+                    (u_char *) "write-through envp alloc failed",
+                    sizeof(wt->err_msg));
+        return;
+    }
+    ei = 0;
+    for (n = 0; (size_t) n < envn; n++) {
+        if (strncmp(environ[n], "X509_USER_PROXY=", 16) == 0
+            || strncmp(environ[n], "X509_CERT_DIR=", 14) == 0) {
+            continue;
+        }
+        envp[ei++] = environ[n];
+    }
+    envp[ei++] = proxy_env;
+    envp[ei++] = cadir_env;
+    envp[ei]   = NULL;
+
+    ai = 0;
+    argv[ai++] = (char *) client;
+    argv[ai++] = (char *) "-f";          /* overwrite the origin object */
+    argv[ai++] = wt->local_path;
+    argv[ai++] = url;
+    argv[ai]   = NULL;
+
+    rc = posix_spawnp(&pid, client, NULL, NULL, argv, envp);
+    free(envp);
+    if (rc != 0) {
+        wt->result = NGX_ERROR;
+        wt->sys_errno = rc;
+        wt->xrd_error = kXR_ServerError;
+        ngx_cpystrn((u_char *) wt->err_msg,
+                    (u_char *) "write-through origin client spawn failed",
+                    sizeof(wt->err_msg));
+        return;
+    }
+
+    while (waitpid(pid, &wstatus, 0) < 0 && errno == EINTR) { /* retry */ }
+
+    if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
+        wt->result = NGX_ERROR;
+        wt->xrd_error = kXR_AuthFailed;
+        snprintf(wt->err_msg, sizeof(wt->err_msg),
+                 "origin GSI write-back via %s failed (exit %d)",
+                 client, WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1);
+        return;
+    }
+
+    wt->bytes_flushed = (st.st_size > 0) ? (size_t) st.st_size : 0;
+    wt->result = NGX_OK;
+}
+
 static void
 xrootd_wt_run_flush(xrootd_wt_flush_t *wt)
 {
@@ -266,6 +401,14 @@ xrootd_wt_run_flush(xrootd_wt_flush_t *wt)
     int                        rc;
 
     wt->bytes_flushed = 0;
+
+    /* GSI/X.509 origin (e.g. EOS): the built-in write-back only does an
+     * anonymous login, which such an origin rejects. Delegate to the native
+     * client with the configured proxy (write-side mirror of the read fetch). */
+    if (wt->conf->cache_origin_proxy.len > 0) {
+        xrootd_wt_run_flush_exec(wt);
+        return;
+    }
 
     ngx_memzero(&fill, sizeof(fill));
     fill.conf = wt->conf;
@@ -352,22 +495,20 @@ xrootd_wt_run_flush(xrootd_wt_flush_t *wt)
 }
 
 /* ---- Synchronous write-through flush at kXR_sync / kXR_close time ----
-
- * WHAT: Initializes a flush task, runs it synchronously via xrootd_wt_run_flush,
- *       and reports the result. On success clears wt_dirty_offset/wt_bytes_written.
- *       On failure logs error + access log line; optionally sends a kXR_status wire
- *       response with fail_status if non-zero.
-
- * WHY: Called on kXR_sync (explicit sync opcode) or kXR_close when dirty data exists.
- *       This is the synchronous flush path — blocks until origin write-back completes,
- *       then returns NGX_OK (flush succeeded or no-op due to NGX_DECLINED).
-
- * HOW: 1) Init task via xrootd_wt_init_task;
- *      2) If NGX_DECLINED → no dirty data, return NGX_OK;
- *      3) If NGX_ERROR → log error; send fail_status wire response if configured;
- *      4) Run flush synchronously (xrootd_wt_run_flush);
- *      5) On success: clear dirty offset/bytes, log access line; on failure: log + access.
- */
+ *
+ * WHAT: Initialise a flush task and run it synchronously via xrootd_wt_run_flush,
+ *       reporting only a STATUS — it never writes to the wire. On success it clears
+ *       the handle's dirty marker; on failure it logs + records metrics/dashboard.
+ * WHY:  This is a pure status helper so the *caller* (kXR_sync handler or kXR_close)
+ *       owns the single wire response. That avoids double-responding for one
+ *       streamid: a sync flush failure must surface to the client exactly once, as
+ *       a kXR_error, and the caller is the one positioned to send it after its own
+ *       cleanup. `fail_status` only selects the dashboard event's error label.
+ * RETURNS: NGX_OK     — flush succeeded, or there was no dirty data (no-op);
+ *          NGX_ERROR  — init or origin write-back failed; caller must send an error.
+ * HOW:  1) Init task; NGX_DECLINED (no dirty data) → NGX_OK;
+ *       2) init error → metrics/log → NGX_ERROR;
+ *       3) run flush; success → mark clean → NGX_OK; failure → metrics/log → NGX_ERROR. */
 ngx_int_t
 xrootd_wt_flush_sync_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, int idx, const char *local_path,
@@ -387,16 +528,10 @@ xrootd_wt_flush_sync_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                    wt.err_msg[0] ? wt.err_msg
                                                  : "write-through flush init failed",
                                    local_path ? local_path : "-");
-        if (fail_status != 0) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
-            return xrootd_send_error(ctx, c, fail_status,
-                                     wt.err_msg[0] ? wt.err_msg
-                                                   : "write-through flush failed");
-        }
         ngx_log_error(NGX_LOG_ERR, c->log, 0, "wt: %s",
                       wt.err_msg[0] ? wt.err_msg
                                     : "write-through flush init failed");
-        return NGX_OK;
+        return NGX_ERROR;
     }
 
     xrootd_wt_run_flush(&wt);
@@ -410,7 +545,9 @@ xrootd_wt_flush_sync_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     xrootd_wt_metric_flush_error(wt.metrics);
     xrootd_dashboard_event_add(XROOTD_DASH_EVENT_IO, XROOTD_XFER_PROTO_ROOT,
-                               wt.xrd_error ? wt.xrd_error : kXR_ServerError,
+                               fail_status ? fail_status
+                                           : (wt.xrd_error ? wt.xrd_error
+                                                           : kXR_ServerError),
                                wt.err_msg[0] ? wt.err_msg
                                              : "write-through flush failed",
                                wt.origin_path[0] ? wt.origin_path
@@ -425,14 +562,7 @@ xrootd_wt_flush_sync_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
                       wt.err_msg[0] ? wt.err_msg : "write-through flush failed",
                       0);
 
-    if (fail_status != 0) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
-        return xrootd_send_error(ctx, c, fail_status,
-                                 wt.err_msg[0] ? wt.err_msg
-                                               : "write-through flush failed");
-    }
-
-    return NGX_OK;
+    return NGX_ERROR;
 }
 
 /* ---- Write-through flush entry point at kXR_close — async or sync mode selection ----
@@ -474,7 +604,9 @@ xrootd_wt_flush_on_close(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ngx_log_error(NGX_LOG_ERR, c->log, 0, "wt: %s",
                       wt.err_msg[0] ? wt.err_msg
                                     : "write-through flush init failed");
-        return NGX_OK;
+        /* Sync mode must surface the failure to the client's close; async is
+         * fire-and-forget and returns OK (the failure is logged + metered). */
+        return (conf->wt_mode == XROOTD_WT_MODE_ASYNC) ? NGX_OK : NGX_ERROR;
     }
 
     if (conf->wt_mode == XROOTD_WT_MODE_ASYNC && conf->common.thread_pool != NULL) {

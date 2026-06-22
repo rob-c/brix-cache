@@ -19,6 +19,7 @@
 #include "tpc_internal.h"
 #include "../token/file.h"
 #include "../token/oauth2.h"
+#include "../compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
 
 
 #include <stdio.h>
@@ -231,11 +232,7 @@ tpc_token_oidc_agent(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 static int
 tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 {
-    int pipefd[2];
-    pid_t pid;
     char buf[TPC_TOKEN_MAX_LEN + 256];
-    ssize_t nread;
-    int wstatus;
     char *curl_argv[20];
     int argc = 0;
     char body_buf[4096];
@@ -341,59 +338,34 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     curl_argv[argc++] = (char *) t->conf->tpc_outbound_token_endpoint.data;
     curl_argv[argc++] = NULL;
 
-    if (pipe(pipefd) == -1) {
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC token: pipe() failed: %s", strerror(errno));
-        unlink(body_file);
-        t->xrd_error = kXR_ServerError;
-        return -1;
-    }
+    /*
+     * Run curl synchronously and capture its stdout (the token JSON) via the
+     * shared SIGCHLD-safe fork/exec helper (src/compat/subprocess.c) — the same
+     * pipe->fork->dup2->drain->waitpid skeleton used by the native client and
+     * the oidc-agent path. A non-zero rc means pipe/fork failed or curl was
+     * signal-killed; a non-zero child exit (including curl -f on HTTP >= 400) is
+     * an auth failure. The staged body file is unlinked on every exit path.
+     */
+    {
+        int ec = -1;
 
-    pid = fork();
-    if (pid == -1) {
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC token: fork() failed: %s", strerror(errno));
-        close(pipefd[0]);
-        close(pipefd[1]);
-        unlink(body_file);
-        t->xrd_error = kXR_ServerError;
-        return -1;
-    }
-
-    if (pid == 0) {
-        /* --- child --- : route curl's stdout (the token JSON) to the pipe. */
-        close(pipefd[0]);
-        dup2(pipefd[1], STDOUT_FILENO);
-        close(pipefd[1]);
-        execvp("curl", curl_argv);
-        _exit(127);  /* curl not on PATH */
-    }
-
-    /* --- parent --- : close write end (so read() can see EOF), drain the
-     * response into buf (read() may return short — loop until EOF/full). */
-    close(pipefd[1]);
-
-    nread = 0;
-    while ((ssize_t) nread < (ssize_t) sizeof(buf) - 1) {
-        ssize_t nr = read(pipefd[0], buf + nread, sizeof(buf) - 1 - nread);
-        if (nr <= 0) {
-            break;
+        if (xrootd_subprocess_capture(curl_argv, buf, sizeof(buf), NULL, &ec)
+            != 0)
+        {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: token-exchange subprocess failed "
+                     "(pipe/fork or signal)");
+            unlink(body_file);
+            t->xrd_error = kXR_ServerError;
+            return -1;
         }
-        nread += nr;
-    }
-    buf[nread] = '\0';
-    close(pipefd[0]);
-
-    /* Reap the child and treat any non-zero exit (including curl -f on HTTP
-     * >= 400) as an auth failure. unlink the staged body on this path too. */
-    waitpid(pid, &wstatus, 0);
-    if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC token: token exchange failed (curl exit %d)",
-                 WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1);
-        unlink(body_file);
-        t->xrd_error = kXR_AuthFailed;
-        return -1;
+        if (ec != 0) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: token exchange failed (curl exit %d)", ec);
+            unlink(body_file);
+            t->xrd_error = kXR_AuthFailed;
+            return -1;
+        }
     }
 
     /* Success: body file no longer needed; remove before parsing the reply. */

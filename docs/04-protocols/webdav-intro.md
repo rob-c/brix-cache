@@ -5,13 +5,20 @@ The `ngx_http_xrootd_webdav_module` adds a WebDAV content handler to nginx's HTT
 For the full TLS implementation details across both WebDAV and native XRootD,
 see [tls.md](../03-configuration/tls-config.md). For the WebDAV fast paths and syscall-reduction work, see
 [optimizations.md](../09-developer-guide/optimizations.md). For the usual `xrdcp --allow-http`
-request flow, see [xrdcp-interactions.md](xrootd-client-interaction.md).
+request flow, see [xrdcp-interactions.md](xrootd-client-interaction.md). For the
+in-tree native client suite, including its direct WebDAV/HTTP path, see
+[Native Client Tools](native-client-tools.md).
 
 ---
 
 ## How it works
 
-`xrdcp --allow-http davs://host:8443/path` is handled by the `XrdClHttp` plugin, which speaks WebDAV (HTTP methods OPTIONS, GET with Range, HEAD, PUT, DELETE, MKCOL, PROPFIND) over TLS. Authentication can come from RFC 3820 proxy certificates or from an `Authorization: Bearer <JWT>` header.
+With the official XRootD client, `xrdcp --allow-http davs://host:8443/path` is
+handled by the `XrdClHttp` plugin, which speaks WebDAV (HTTP methods OPTIONS, GET
+with Range, HEAD, PUT, DELETE, MKCOL, PROPFIND) over TLS. The in-tree
+`client/xrdcp` has its own WebDAV/HTTP helper path and accepts `davs://`,
+`dav://`, `https://`, and `http://` URLs directly. Authentication can come from
+RFC 3820 proxy certificates or from an `Authorization: Bearer <JWT>` header.
 
 nginx's built-in SSL stack does not accept RFC 3820 proxy certificates by default. This module patches the `SSL_CTX` in postconfiguration to set `X509_V_FLAG_ALLOW_PROXY_CERTS`, enabling proxy chains issued by your test CA. Per-request certificate verification is then performed using the configured CA directory or CA file. Bearer tokens are verified against a local JWKS file without a network call to an identity provider.
 

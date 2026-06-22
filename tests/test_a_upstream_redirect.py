@@ -23,6 +23,7 @@ import time
 import pytest
 
 from settings import (
+    HOST,
     CLUSTER_DS_PORT,
     REAL_REDIRECT_NGINX_PORT,
     STUB_AUTH_NGINX_PORT,
@@ -115,7 +116,7 @@ def _require_nginx(port: int, label: str) -> dict:
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
+            with socket.create_connection((HOST, port), timeout=1):
                 return {"port": port}
         except OSError:
             time.sleep(0.1)
@@ -182,7 +183,7 @@ class TestUpstreamRedirect:
         deadline = time.monotonic() + 20.0
         status, body = None, b""
         while time.monotonic() < deadline:
-            sock = _xrd_handshake_login("127.0.0.1", real_redirect_nginx["port"])
+            sock = _xrd_handshake_login(HOST, real_redirect_nginx["port"])
             _send_locate(sock, "/data/file.root")
             status, body = _read_response(sock)
             sock.close()
@@ -200,7 +201,7 @@ class TestUpstreamRedirect:
         """Upstream returns kXR_wait(1) then kXR_redirect on the same
         connection; nginx keeps the upstream read event armed during the wait
         so it picks up the redirect without the client retrying."""
-        sock = _xrd_handshake_login("127.0.0.1", upstream_wait_nginx["port"])
+        sock = _xrd_handshake_login(HOST, upstream_wait_nginx["port"])
         _send_locate(sock, "/data/file.root")
         sock.settimeout(15)
         status, body = _read_response(sock)
@@ -214,7 +215,7 @@ class TestUpstreamRedirect:
     def test_locate_waitresp_then_redirect(self, upstream_waitresp_nginx):
         """Upstream returns kXR_waitresp (async hold) then kXR_redirect;
         client receives both frames in order."""
-        sock = _xrd_handshake_login("127.0.0.1", upstream_waitresp_nginx["port"])
+        sock = _xrd_handshake_login(HOST, upstream_waitresp_nginx["port"])
         _send_locate(sock, "/data/file.root")
         sock.settimeout(5)
         status1, _    = _read_response(sock)
@@ -235,7 +236,7 @@ class TestUpstreamRedirect:
         anonymous xrootd.  Requesting a non-existent path causes the xrootd to
         return kXR_error, which nginx must forward to the client.
         """
-        sock = _xrd_handshake_login("127.0.0.1", upstream_error_nginx["port"])
+        sock = _xrd_handshake_login(HOST, upstream_error_nginx["port"])
         _send_locate(sock, "/nonexistent/missing.root")
         status, body = _read_response(sock)
         sock.close()
@@ -267,7 +268,7 @@ class TestUpstreamAuth:
         except FileNotFoundError:
             pass
 
-        sock = _xrd_handshake_login("127.0.0.1", upstream_auth_nginx["port"])
+        sock = _xrd_handshake_login(HOST, upstream_auth_nginx["port"])
         _send_locate(sock, "/data/file.root")
         status, body = _read_response(sock)
         sock.close()
@@ -291,7 +292,7 @@ class TestUpstreamAuth:
     def test_upstream_token_auth_no_file_aborts(self, upstream_auth_nofile_nginx):
         """Upstream issues kXR_authmore but nginx has no token file
         configured; nginx must abort and return kXR_error to the client."""
-        sock = _xrd_handshake_login("127.0.0.1", upstream_auth_nofile_nginx["port"])
+        sock = _xrd_handshake_login(HOST, upstream_auth_nofile_nginx["port"])
         _send_locate(sock, "/data/file.root")
         sock.settimeout(5)
         status, _ = _read_response(sock)
@@ -303,7 +304,7 @@ class TestUpstreamAuth:
     def test_upstream_gotorls_no_tls_configured_aborts(self, upstream_gotorls_nginx):
         """Upstream signals kXR_gotoTLS but nginx has xrootd_upstream_tls off;
         nginx must abort — no credentials may travel over a cleartext channel."""
-        sock = _xrd_handshake_login("127.0.0.1", upstream_gotorls_nginx["port"])
+        sock = _xrd_handshake_login(HOST, upstream_gotorls_nginx["port"])
         _send_locate(sock, "/data/file.root")
         sock.settimeout(5)
         status, _ = _read_response(sock)

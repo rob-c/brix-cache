@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port, free_ports, HOST, BIND_HOST
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = "/tmp/xrd-test/data"
@@ -113,7 +113,7 @@ def test_kv_directives_parse(tmp_path):
         xrootd_kv_zone ac   4m key=32  val=8;
         xrootd_kv_zone rl   2m key=256 val=16;
         server {{
-            listen 127.0.0.1:21501;
+            listen {BIND_HOST}:{free_port()};
             xrootd on;
             xrootd_root {DATA_DIR};
             xrootd_auth none;
@@ -134,7 +134,7 @@ def test_token_cache_rejects_undersized_zone(tmp_path):
     stream {{
         xrootd_kv_zone tkn 1m key=32 val=16;
         server {{
-            listen 127.0.0.1:21502;
+            listen {BIND_HOST}:{free_port()};
             xrootd on;
             xrootd_root {DATA_DIR};
             xrootd_auth none;
@@ -151,7 +151,7 @@ def test_unknown_zone_is_rejected(tmp_path):
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         server {{
-            listen 127.0.0.1:21503;
+            listen {BIND_HOST}:{free_port()};
             xrootd on;
             xrootd_root {DATA_DIR};
             xrootd_auth none;
@@ -169,7 +169,7 @@ def test_rate_limit_requires_rate_and_burst(tmp_path):
     stream {{
         xrootd_kv_zone rl 2m key=256 val=16;
         server {{
-            listen 127.0.0.1:21504;
+            listen {BIND_HOST}:{free_port()};
             xrootd on;
             xrootd_root {DATA_DIR};
             xrootd_auth none;
@@ -186,15 +186,20 @@ def test_rate_limit_requires_rate_and_burst(tmp_path):
 # 3. Functional: HTTP IP rate limit + KV Prometheus metrics                    #
 # --------------------------------------------------------------------------- #
 
-WEBDAV_PORT = 21510
-METRICS_PORT = 21511
+_WEBDAV_PORT_ENV = os.environ.get("TEST_PHASE20_WEBDAV_PORT")
+_METRICS_PORT_ENV = os.environ.get("TEST_PHASE20_METRICS_PORT")
+if _WEBDAV_PORT_ENV is None and _METRICS_PORT_ENV is None:
+    WEBDAV_PORT, METRICS_PORT = free_ports(2)
+else:
+    WEBDAV_PORT = int(_WEBDAV_PORT_ENV) if _WEBDAV_PORT_ENV else free_port()
+    METRICS_PORT = int(_METRICS_PORT_ENV) if _METRICS_PORT_ENV else free_port()
 
 
 def _wait_port(port, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -218,7 +223,7 @@ def rate_limited_server(tmp_path):
         xrootd_kv_zone h_rl 2m key=256 val=16;
 
         server {{
-            listen 127.0.0.1:{WEBDAV_PORT};
+            listen {BIND_HOST}:{WEBDAV_PORT};
             location / {{
                 xrootd_webdav      on;
                 xrootd_webdav_root {DATA_DIR};
@@ -227,7 +232,7 @@ def rate_limited_server(tmp_path):
             }}
         }}
         server {{
-            listen 127.0.0.1:{METRICS_PORT};
+            listen {BIND_HOST}:{METRICS_PORT};
             location /metrics {{ xrootd_metrics on; }}
         }}
     }}
@@ -252,7 +257,7 @@ def rate_limited_server(tmp_path):
             proc.kill()
 
 
-def _http_get(port, path, host="127.0.0.1"):
+def _http_get(port, path, host=HOST):
     with socket.create_connection((host, port), timeout=3) as s:
         s.sendall(
             f"GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
@@ -291,7 +296,7 @@ def test_kv_metrics_exported(rate_limited_server):
     assert 'zone="h_rl"' in body
 
 
-def _http_get_body(port, path, host="127.0.0.1"):
+def _http_get_body(port, path, host=HOST):
     with socket.create_connection((host, port), timeout=3) as s:
         s.sendall(
             f"GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"

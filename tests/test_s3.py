@@ -230,22 +230,30 @@ def test_list_basic(s3_url):
     assert not truncated
 
 
+# A GET on the bucket root that is NOT an exact `list-type=2` must not be
+# mis-detected as ListObjectsV2.  Since phase-43 (W2) such a request is a valid
+# ListObjects *V1* (200), so these tests assert it is handled as V1 — the V1
+# response carries <Marker> and never the V2-only <KeyCount> element.
+def _assert_v1_listing(r):
+    assert r.status_code == 200
+    assert "ListBucketResult" in r.text
+    assert "<KeyCount>" not in r.text   # KeyCount is ListObjectsV2-only
+    assert "<Marker>" in r.text          # Marker is the V1 pagination element
+
+
 def test_list_type_detection_requires_exact_key(s3_url):
     r = requests.get(f"{s3_url}/{BUCKET}/?not-list-type=2", timeout=10)
-    assert r.status_code == 400
-    assert "InvalidURI" in r.text
+    _assert_v1_listing(r)
 
 
 def test_list_type_detection_rejects_wrong_value(s3_url):
     r = requests.get(f"{s3_url}/{BUCKET}/?list-type=12", timeout=10)
-    assert r.status_code == 400
-    assert "InvalidURI" in r.text
+    _assert_v1_listing(r)
 
 
 def test_list_type_detection_not_substring_in_value(s3_url):
     r = requests.get(f"{s3_url}/{BUCKET}/?prefix=list-type=2", timeout=10)
-    assert r.status_code == 400
-    assert "InvalidURI" in r.text
+    _assert_v1_listing(r)
 
 
 def test_list_prefix_filter(s3_url):

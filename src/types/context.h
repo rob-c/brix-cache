@@ -213,6 +213,17 @@ typedef struct {
     size_t    write_scratch_size;     /* current allocated size */
 
     /*
+     * Phase-42 W4 — inline read compression output buffer.  When a read handle
+     * was opened with "?xrootd.compress=", kXR_read compresses the plaintext
+     * (staged in read_scratch) into cmp_scratch and sends that.  Like the other
+     * scratch slots it is a raw ngx_alloc kept for the session lifetime (grown
+     * on demand, freed on disconnect), so xrootd_release_read_buffer() must
+     * recognise it as a keep-slot.  Only used on the opt-in compressed path.
+     */
+    u_char   *cmp_scratch;            /* reusable codec output buffer */
+    size_t    cmp_scratch_size;       /* current allocated size */
+
+    /*
      * Phase 31 W4 — bytes this connection currently has charged to the global
      * transfer-heap budget (metrics->xfer_heap_in_use).  Reconciled idempotently
      * by xrootd_budget_sync(); released to 0 on disconnect.
@@ -281,6 +292,17 @@ typedef struct {
     EVP_PKEY  *gsi_dh_key;
 
     /*
+     * GSI signed-DH variant selector for this handshake (phase-48).
+     * 0 = unsigned DH (pre-DHsigned <10400 wire form: bare kXRS_puk Public()
+     *     blob, dh_pad=0, zero IV) — the universally-interoperable default.
+     * 1 = signed DH (>=10400: server RSA-signs its DH Public() into kXRS_cipher,
+     *     dh_pad=1, IV-prepended main).  Chosen in round 1 (cert_response.c) from
+     *     the client's advertised kXRS_version and conf->gsi_signed_dh, and read
+     *     back in round 2 (parse_x509.c) so both rounds agree on padding/IV.
+     */
+    int        gsi_signed_dh;
+
+    /*
      * Bearer-token auth state.
      *
      * token_auth=1 means this session was authenticated via a WLCG/SciToken
@@ -345,6 +367,19 @@ typedef struct {
 
     /* Proxy forwarding context (NULL when proxy not active for this session) */
     xrootd_proxy_ctx_t *proxy;
+
+    /*
+     * Consecutive upstream-bootstrap failures on THIS client connection.
+     * Each lazy proxy (re)connect that aborts before the upstream accepted the
+     * forwarded credential increments this; a successful bootstrap resets it to
+     * 0.  When it reaches XROOTD_PROXY_MAX_CONN_FAILS the dispatch path stops
+     * spawning fresh proxy contexts and fails the request instead — without this
+     * bound a permanently-rejecting upstream (e.g. a bad SSS keytab) drives an
+     * unbounded reconnect loop that re-allocates a proxy ctx on c->pool every
+     * event-loop tick (CPU spin + multi-GB pool growth that never frees until
+     * the connection closes).
+     */
+    ngx_uint_t proxy_fail_count;
 
     /*
      * Raw bearer token saved during kXR_auth token validation so the proxy can

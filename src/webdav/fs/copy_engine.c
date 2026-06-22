@@ -28,6 +28,7 @@
 #include "copy_engine.h"
 #include "../../compat/copy_range.h"
 #include "../../compat/namespace_ops.h"
+#include "../../path/path.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -46,7 +47,9 @@ webdav_copy_file(ngx_log_t *log, const char *root_canon,
     struct stat  sb;
     ngx_int_t    rc;
 
-    if (stat(src, &sb) != 0) {
+    /* stat as the mapped user under impersonation (src may be a 0600 file the
+     * worker itself cannot stat through a 0700 parent); follow semantics. */
+    if (xrootd_lstat_confined_canon(log, root_canon, src, &sb, 0) != 0) {
         return NGX_ERROR;
     }
 
@@ -91,7 +94,9 @@ webdav_copy_dir_recursive(ngx_log_t *log, const char *root_canon,
     ngx_int_t       rc;
 
     rc = NGX_OK;
-    dp = opendir(src);
+    /* Enumerate as the mapped user under impersonation — a worker opendir() of a
+     * 0700 user-private collection would EACCES. */
+    dp = xrootd_opendir_confined_canon(log, root_canon, src);
     if (dp == NULL) {
         xrootd_log_safe_path(log, NGX_LOG_ERR, errno,
             "xrootd_webdav COPY: opendir failed for: \"%s\"", src);
@@ -121,7 +126,11 @@ webdav_copy_dir_recursive(ngx_log_t *log, const char *root_canon,
             break;
         }
 
-        if (lstat(src_child, &sb) != 0) {
+        /* lstat as the mapped user (nofollow: never resolve a symlink out of
+         * the export — confinement). */
+        if (xrootd_lstat_confined_canon(log, root_canon, src_child, &sb, 1)
+            != 0)
+        {
             continue;
         }
 

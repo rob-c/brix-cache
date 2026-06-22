@@ -92,7 +92,7 @@ graph TB
 | **Transport** | Raw TCP (or `roots://` TLS) | HTTPS | HTTP/HTTPS |
 | **Port** | 1094 (default) | 8443 (default) | Configurable |
 | **Client tools** | `xrdcp`, `xrdfs`, Python XRootD | `xrdcp --allow-http`, curl, rucio | `aws s3 cp` |
-| **Auth methods** | GSI cert, JWT token, SSS, anonymous | Proxy cert, bearer token, anonymous | — (planned) |
+| **Auth methods** | GSI cert, JWT token, SSS, anonymous | Proxy cert, bearer token, anonymous | SigV4 or anonymous |
 | **Best for** | High-throughput bulk transfers | Browser access, secure perimeter | Cloud-native tools, S3 SDKs |
 
 ---

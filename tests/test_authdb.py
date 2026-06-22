@@ -14,6 +14,7 @@ from settings import (
     AUTHDB_PORT,
     AUTHDB_DIR,
     CA_DIR,
+    HOST,
     NGINX_BIN,
     PROXY_ATLAS,
     PROXY_CMS,
@@ -23,11 +24,12 @@ from settings import (
     VOMS_CERT,
     VOMSDIR,
     VOMS_KEY,
+    url_host,
 )
 
 from settings import TEST_ROOT as _TEST_ROOT
 
-AUTHDB_URL  = f"root://localhost:{AUTHDB_PORT}"
+AUTHDB_URL  = f"root://{url_host(HOST)}:{AUTHDB_PORT}"
 AUTHDB_DATA = os.path.join(_TEST_ROOT, "data-authdb")
 AUTHDB_FILE = os.path.join(AUTHDB_DATA, "authdb")
 AUTHDB_UPLOAD = os.path.join(AUTHDB_DIR, "upload.txt")
@@ -187,7 +189,7 @@ def authdb_nginx(authdb_setup):
     # Skip if the dedicated server is not up.
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(2)
-    reachable = s.connect_ex(("127.0.0.1", AUTHDB_PORT)) == 0
+    reachable = s.connect_ex((HOST, AUTHDB_PORT)) == 0
     s.close()
     if not reachable:
         pytest.skip(f"Dedicated authdb nginx not running on port {AUTHDB_PORT}")

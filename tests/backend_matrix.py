@@ -3,6 +3,8 @@
 import os
 from urllib.parse import urlparse
 
+from settings import HOST
+
 
 def selected_backend_name() -> str:
     """Return the backend selected for the current pytest process."""
@@ -18,4 +20,4 @@ def selected_backend_name() -> str:
 def root_endpoint_parts(url: str, default_port: int = 1094) -> tuple[str, int]:
     """Parse a root:// style URL into host/port parts for raw-socket tests."""
     parsed = urlparse(url if "://" in url else f"root://{url}")
-    return parsed.hostname or "127.0.0.1", parsed.port or default_port
+    return parsed.hostname or HOST, parsed.port or default_port

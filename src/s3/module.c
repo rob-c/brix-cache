@@ -59,8 +59,12 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
 
     c->common.enable      = NGX_CONF_UNSET;
     c->common.allow_write = NGX_CONF_UNSET;
+    c->common.compress    = NGX_CONF_UNSET;   /* phase-42 W2 outbound GET */
     xrootd_pmark_conf_init(&c->common.pmark);  /* SciTags packet marking */
     c->allow_unsigned_session_token = NGX_CONF_UNSET;
+    c->verify_chunk_signatures      = NGX_CONF_UNSET;
+    c->list_cache                   = NGX_CONF_UNSET;
+    c->list_cache_ttl               = NGX_CONF_UNSET_MSEC;
     c->max_keys    = NGX_CONF_UNSET;
     c->mpu_max_age = NGX_CONF_UNSET;
     xrootd_acc_http_init_conf(&c->acc);   /* XrdAcc engine (off by default) */
@@ -76,8 +80,14 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_value(conf->common.enable,      prev->common.enable,      0);
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
+    ngx_conf_merge_value(conf->common.compress,    prev->common.compress,    0);
     ngx_conf_merge_value(conf->allow_unsigned_session_token,
                          prev->allow_unsigned_session_token, 0);
+    ngx_conf_merge_value(conf->verify_chunk_signatures,
+                         prev->verify_chunk_signatures, 0);
+    ngx_conf_merge_value(conf->list_cache, prev->list_cache, 0);
+    ngx_conf_merge_msec_value(conf->list_cache_ttl, prev->list_cache_ttl,
+                              10000);   /* 10s default staleness bound */
     ngx_conf_merge_value(conf->max_keys,    prev->max_keys,    1000);
     ngx_conf_merge_value(conf->mpu_max_age, prev->mpu_max_age, 0);
     xrootd_acc_http_merge_conf(&conf->acc, &prev->acc);
@@ -211,6 +221,15 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, common.enable),
       NULL },
 
+    /* phase-42 W2: opt-in outbound GetObject compression (Accept-Encoding
+     * negotiated, off by default).  Plain flag — no export-root side effects. */
+    { ngx_string("xrootd_s3_compress"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.compress),
+      NULL },
+
     /* The XrdAcc directives (xrootd_authdb / _format / _audit) are registered by
      * the WebDAV module with shared setters that populate the S3 loc-conf too,
      * so they are intentionally NOT redeclared here (a duplicate would conflict). */
@@ -269,6 +288,27 @@ static ngx_command_t ngx_http_s3_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_s3_loc_conf_t, allow_unsigned_session_token),
+      NULL },
+
+    { ngx_string("xrootd_s3_verify_chunk_signatures"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, verify_chunk_signatures),
+      NULL },
+
+    { ngx_string("xrootd_s3_list_cache"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, list_cache),
+      NULL },
+
+    { ngx_string("xrootd_s3_list_cache_ttl"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, list_cache_ttl),
       NULL },
 
     { ngx_string("xrootd_s3_max_keys"),

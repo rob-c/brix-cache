@@ -77,6 +77,16 @@ static ngx_conf_enum_t xrootd_security_levels[] = {
     { ngx_null_string,          0 }
 };
 
+/* Values for xrootd_signed_dh — the GSI signed-DH policy (phase-48). See the
+ * gsi_signed_dh field in src/types/config.h.  off=universally-compatible
+ * unsigned DH (default); auto=signed for >=10400 clients; require=signed-only. */
+static ngx_conf_enum_t xrootd_signed_dh_modes[] = {
+    { ngx_string("off"),     XROOTD_GSI_SDH_OFF     },
+    { ngx_string("auto"),    XROOTD_GSI_SDH_AUTO    },
+    { ngx_string("require"), XROOTD_GSI_SDH_REQUIRE },
+    { ngx_null_string,       0                      }
+};
+
 /*
  * Directive table for the stream module.
  *
@@ -145,6 +155,15 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, trusted_ca),
       NULL },
+
+    /* GSI signed-DH policy: off (default) | auto | require.  Only consulted
+     * when xrootd_auth=gsi; selects the modern RSA-signed-DH wire variant. */
+    { ngx_string("xrootd_gsi_signed_dh"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, gsi_signed_dh),
+      xrootd_signed_dh_modes },
 
     { ngx_string("xrootd_vomsdir"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,

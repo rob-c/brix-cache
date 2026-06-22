@@ -46,6 +46,132 @@ proxy_build_auth_ztn(u_char *buf, const char *token, size_t token_len)
     return 28 + token_len;
 }
 
+/* ---- upstream auth resolution -------------------------------------------- *
+ * WHAT: Resolve the effective upstream auth policy and (for SSS) the key to use
+ *       for THIS upstream: a per-upstream `auth`/`sss:<keyname>` override wins,
+ *       else the global xrootd_proxy_auth + first configured key.
+ * WHY:  Both the kXR_authmore branch and the kXR_ok login-sec-hint branch need
+ *       the same decision; factoring it keeps them in lock-step.
+ * HOW:  Writes *eff_auth (XROOTD_PROXY_AUTH_*) and *eff_key (NULL unless an SSS
+ *       key was selected). */
+static void
+proxy_resolve_upstream_auth(xrootd_proxy_ctx_t *proxy, ngx_uint_t *eff_auth,
+    const xrootd_sss_key_t **eff_key)
+{
+    ngx_stream_xrootd_srv_conf_t *conf = proxy->conf;
+
+    *eff_auth = conf ? conf->proxy_auth : XROOTD_PROXY_AUTH_ANONYMOUS;
+    *eff_key  = NULL;
+
+    if (proxy->upstream_idx >= 0
+        && conf != NULL
+        && conf->proxy_upstreams != NULL
+        && proxy->upstream_idx < (int) conf->proxy_upstreams->nelts)
+    {
+        xrootd_proxy_upstream_t *u =
+            (xrootd_proxy_upstream_t *) conf->proxy_upstreams->elts
+            + proxy->upstream_idx;
+
+        if (u->auth >= 0) {
+            *eff_auth = (ngx_uint_t) u->auth;
+        }
+        if (*eff_auth == XROOTD_PROXY_AUTH_SSS
+            && conf->sss_keys != NULL
+            && conf->sss_keys->nelts > 0)
+        {
+            xrootd_sss_key_t *keys = conf->sss_keys->elts;
+            ngx_uint_t        ki;
+            if (u->sss_keyname[0] != '\0') {
+                for (ki = 0; ki < conf->sss_keys->nelts; ki++) {
+                    if (ngx_strcmp(keys[ki].name, u->sss_keyname) == 0) {
+                        *eff_key = &keys[ki];
+                        break;
+                    }
+                }
+            }
+            if (*eff_key == NULL) {
+                *eff_key = keys; /* fall back to first key */
+            }
+        }
+    }
+}
+
+/* ---- send an SSS kXR_auth credential to the upstream --------------------- *
+ * WHAT: Build an SSS credential from `key`, wrap it in a kXR_auth request, and
+ *       arm the write side; advance bs_phase to BS_AUTH.
+ * WHY:  Used by BOTH the kXR_authmore path and the kXR_ok login-sec-hint path
+ *       (our own server advertises SSS via the latter), so the logic lives once.
+ * HOW:  Returns NGX_OK once the frame is queued (caller must return), or
+ *       NGX_ERROR after aborting the proxy on any failure. */
+static ngx_int_t
+proxy_send_sss_auth(xrootd_proxy_ctx_t *proxy, const xrootd_sss_key_t *key)
+{
+    u_char  cred[512];
+    size_t  cred_len;
+    u_char *frame;
+    size_t  frame_len;
+
+    if (xrootd_sss_build_proxy_credential(key, key->user,
+            cred, sizeof(cred), &cred_len) != NGX_OK)
+    {
+        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+        xrootd_proxy_abort(proxy, "proxy: SSS credential build failed");
+        return NGX_ERROR;
+    }
+
+    frame_len = XRD_REQUEST_HDR_LEN + cred_len;
+    frame = ngx_palloc(proxy->conn->pool, frame_len);
+    if (frame == NULL) {
+        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+        xrootd_proxy_abort(proxy, "proxy: OOM for SSS frame");
+        return NGX_ERROR;
+    }
+
+    /* kXR_auth request header: reqid at [2:3], credtype "sss\0" at [16:19]
+     * (the server routes on this field — leaving it zero yields "unknown
+     * credtype"), dlen at [20:23], SSS credential body after the 24-byte hdr. */
+    ngx_memzero(frame, XRD_REQUEST_HDR_LEN);
+    frame[2] = (kXR_auth >> 8) & 0xFF;
+    frame[3] =  kXR_auth       & 0xFF;
+    frame[16] = 's'; frame[17] = 's'; frame[18] = 's'; frame[19] = '\0';
+    {
+        uint32_t dlen_be = htonl((uint32_t) cred_len);
+        ngx_memcpy(frame + 20, &dlen_be, 4);
+    }
+    ngx_memcpy(frame + XRD_REQUEST_HDR_LEN, cred, cred_len);
+
+    if (proxy->resp_body != NULL) {
+        ngx_free(proxy->resp_body);
+        proxy->resp_body = NULL;
+    }
+    proxy->rhdr_pos      = 0;
+    proxy->resp_dlen     = 0;
+    proxy->resp_body_pos = 0;
+
+    proxy->wbuf     = frame;
+    proxy->wbuf_len = frame_len;
+    proxy->wbuf_pos = 0;
+    proxy->bs_phase = XRD_PX_BS_AUTH;
+
+    if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
+        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+        xrootd_proxy_abort(proxy, "proxy: SSS frame send failed");
+        return NGX_ERROR;
+    }
+    if (proxy->wbuf_pos < proxy->wbuf_len) {
+        if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
+            XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+            XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+            xrootd_proxy_abort(proxy, "proxy: write arm for SSS failed");
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
 /* ---- bootstrap response handling ----------------------------------------- */
 
 /*
@@ -127,45 +253,10 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
             /* Upstream requests authentication — handle by configured policy.
              * Effective policy: per-upstream override if set, else global conf->proxy_auth. */
             ngx_stream_xrootd_srv_conf_t  *conf      = proxy->conf;
-            ngx_uint_t                     eff_auth   = conf ? conf->proxy_auth
-                                                              : XROOTD_PROXY_AUTH_ANONYMOUS;
-            const xrootd_sss_key_t        *eff_key    = NULL;
+            ngx_uint_t                     eff_auth;
+            const xrootd_sss_key_t        *eff_key;
 
-            /* Resolve the effective auth mode (and SSS key) for *this* upstream.
-             * A per-upstream `auth` (>= 0) overrides the global default; for SSS
-             * we additionally pick the named key from the pool, falling back to
-             * the first configured key when the name is unset or not found. */
-            if (proxy->upstream_idx >= 0
-                && conf != NULL
-                && conf->proxy_upstreams != NULL
-                && proxy->upstream_idx < (int) conf->proxy_upstreams->nelts)
-            {
-                xrootd_proxy_upstream_t *u =
-                    (xrootd_proxy_upstream_t *) conf->proxy_upstreams->elts
-                    + proxy->upstream_idx;
-
-                if (u->auth >= 0) {
-                    eff_auth = (ngx_uint_t) u->auth;
-                }
-                if (eff_auth == XROOTD_PROXY_AUTH_SSS
-                    && conf->sss_keys != NULL
-                    && conf->sss_keys->nelts > 0)
-                {
-                    xrootd_sss_key_t *keys = conf->sss_keys->elts;
-                    ngx_uint_t        ki;
-                    if (u->sss_keyname[0] != '\0') {
-                        for (ki = 0; ki < conf->sss_keys->nelts; ki++) {
-                            if (ngx_strcmp(keys[ki].name, u->sss_keyname) == 0) {
-                                eff_key = &keys[ki];
-                                break;
-                            }
-                        }
-                    }
-                    if (eff_key == NULL) {
-                        eff_key = keys; /* fall back to first key */
-                    }
-                }
-            }
+            proxy_resolve_upstream_auth(proxy, &eff_auth, &eff_key);
 
             /* --- auth-send arm 1 of 4: FORWARD using the client's bearer ---
              * Preferred FORWARD path: the connecting client already presented a
@@ -229,90 +320,10 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
                 return;
             }
 
-            /* --- auth-send arm 2 of 4: SSS shared-secret credential ---
-             * The credential payload is produced by the SSS helper; here we
-             * only need to wrap it in a kXR_auth request header by hand. */
-            if (eff_auth == XROOTD_PROXY_AUTH_SSS
-                && conf != NULL
-                && conf->sss_keys != NULL
-                && conf->sss_keys->nelts > 0)
-            {
-                /* Build SSS credential from the resolved key (per-upstream or global first key) */
-                const xrootd_sss_key_t *key;
-                u_char                  cred[512];
-                size_t                  cred_len;
-                u_char                 *frame;
-                size_t                  frame_len;
-
-                key = (eff_key != NULL) ? eff_key
-                                       : (const xrootd_sss_key_t *) conf->sss_keys->elts;
-
-                if (xrootd_sss_build_proxy_credential(key, key->user,
-                        cred, sizeof(cred), &cred_len) != NGX_OK)
-                {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                            upstream_auth_errors);
-                    XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                    xrootd_proxy_abort(proxy,
-                        "proxy: SSS credential build failed");
-                    return;
-                }
-
-                frame_len = XRD_REQUEST_HDR_LEN + cred_len;
-                frame = ngx_palloc(proxy->conn->pool, frame_len);
-                if (frame == NULL) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                            upstream_auth_errors);
-                    XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                    xrootd_proxy_abort(proxy, "proxy: OOM for SSS frame");
-                    return;
-                }
-
-                /* Build kXR_auth request header in-place:
-                 *   [0:1]   streamid (zero during bootstrap)
-                 *   [2:3]   request id = kXR_auth (big-endian)
-                 *   [4:19]  reserved/credtype (left zero for SSS)
-                 *   [20:23] dlen = credential length (big-endian)
-                 * then append the SSS credential body after the 24-byte header. */
-                ngx_memzero(frame, XRD_REQUEST_HDR_LEN);
-                frame[2] = (kXR_auth >> 8) & 0xFF;
-                frame[3] =  kXR_auth       & 0xFF;
-                {
-                    uint32_t dlen_be = htonl((uint32_t) cred_len);
-                    ngx_memcpy(frame + 20, &dlen_be, 4);
-                }
-                ngx_memcpy(frame + XRD_REQUEST_HDR_LEN, cred, cred_len);
-
-                if (proxy->resp_body != NULL) {
-                    ngx_free(proxy->resp_body);
-                    proxy->resp_body = NULL;
-                }
-                proxy->rhdr_pos      = 0;
-                proxy->resp_dlen     = 0;
-                proxy->resp_body_pos = 0;
-
-                proxy->wbuf     = frame;
-                proxy->wbuf_len = frame_len;
-                proxy->wbuf_pos = 0;
-                proxy->bs_phase = XRD_PX_BS_AUTH;
-
-                if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                            upstream_auth_errors);
-                    XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                    xrootd_proxy_abort(proxy, "proxy: SSS frame send failed");
-                    return;
-                }
-                if (proxy->wbuf_pos < proxy->wbuf_len) {
-                    if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
-                        XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                                upstream_auth_errors);
-                        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                        xrootd_proxy_abort(proxy,
-                            "proxy: write arm for SSS failed");
-                    }
-                }
-                return;
+            /* --- auth-send arm 2 of 4: SSS shared-secret credential --- */
+            if (eff_auth == XROOTD_PROXY_AUTH_SSS && eff_key != NULL) {
+                (void) proxy_send_sss_auth(proxy, eff_key);
+                return;   /* frame queued, or proxy aborted on failure */
             }
 
             /* --- auth-send arm 3 of 4: FORWARD token-file fallback ---
@@ -409,7 +420,25 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
         {
             const char *parms =
                 (const char *)(proxy->resp_body + XROOTD_SESSION_ID_LEN);
-            /* --- auth-send arm 4 of 4: proactive ztn on login-sec hint ---
+
+            /* --- auth-send arm 5 of 5: proactive SSS on login-sec hint ---
+             * The nginx-xrootd server (and stock xrootd) advertise SSS via the
+             * kXR_ok login response sec hint ("&P=sss,..."), NOT via kXR_authmore.
+             * If this upstream's effective policy is SSS, build and send the SSS
+             * credential unprompted — without this, SSS upstream auth silently
+             * never happens and the forwarded open is rejected NotAuthorized. */
+            if (strstr(parms, "P=sss") != NULL) {
+                ngx_uint_t              sss_auth;
+                const xrootd_sss_key_t *sss_key;
+
+                proxy_resolve_upstream_auth(proxy, &sss_auth, &sss_key);
+                if (sss_auth == XROOTD_PROXY_AUTH_SSS && sss_key != NULL) {
+                    (void) proxy_send_sss_auth(proxy, sss_key);
+                    return;   /* frame queued, or proxy aborted on failure */
+                }
+            }
+
+            /* --- auth-send arm 4 of 5: proactive ztn on login-sec hint ---
              * Server advertised "P=ztn" but did not send kXR_authmore, so we
              * must send kXR_auth unprompted. Source the token from the client
              * bearer (FORWARD) first, else from the upstream token file. */
@@ -524,6 +553,12 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
     xrootd_proxy_up_mark_ok(proxy);
     XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connects_total);
     XROOTD_PROXY_UP_INC(proxy, upstream_connects_total);
+
+    /* The upstream accepted the forwarded credential — this connection is
+     * healthy again, so clear the consecutive-failure budget. */
+    if (proxy->client_ctx != NULL) {
+        proxy->client_ctx->proxy_fail_count = 0;
+    }
 
     /* Restore the full reconnect budget on every successful bootstrap */
     if (proxy->conf != NULL) {

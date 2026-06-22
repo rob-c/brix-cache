@@ -3,21 +3,56 @@
 This directory contains RPM packaging for AlmaLinux 9 / EPEL 9 and
 AlmaLinux 10 / EPEL 10 style nginx dynamic module builds.
 
-The package builds against the distribution nginx source exposed by
+A single spec (`nginx-mod-xrootd.spec`) builds **three** packages from one
+source tree:
+
+| Package | Arch | Contents |
+|---|---|---|
+| `nginx-mod-xrootd` | arch | The 8 nginx dynamic modules (stream/webdav/s3/metrics/srr/cms/dashboard/xrdhttp-filter) + the `mod-xrootd.conf` loader |
+| `nginx-xrootd-client` | arch | The clean-room native CLI tools (`xrdcp`, `xrdfs`, …), the `xrootdfs` FUSE mount (default + `--legacy` mode), the `libxrdposix_preload.so` POSIX shim, and their man pages |
+| `nginx-xrootd-tests` | noarch | The full pytest integration/conformance suite under `%{_datadir}/nginx-xrootd`, pulling in the python packages it needs |
+
+The module package builds against the distribution nginx source exposed by
 `nginx-mod-devel`, installs the module `.so` files under the nginx module
 directory, and drops a loader snippet into the nginx module configuration
-directory.
+directory.  The client tools are built by the in-tree `client/Makefile` (no
+`libXrdCl` / `libXrdSec` — clean-room, asserted with `ldd`).
 
 ## Runtime dependencies
 
-The following runtime requirements are declared in the spec but cannot be
-auto-detected by `rpmbuild`'s `find-requires` script:
+Most shared-library dependencies are auto-detected from the ELF link records by
+`rpmbuild`'s `find-requires` (openssl-libs, krb5-libs, libcom_err, zlib,
+libxml2, jansson, libcurl, libxcrypt, fuse3-libs, …).  The following cannot be
+auto-detected and are therefore declared explicitly.
+
+**`nginx-mod-xrootd` (modules):**
 
 | Package | Why explicit |
 |---|---|
+| `nginx-mod-stream` | Provides the `stream {}` core the modules load into |
 | `voms-libs` | Loaded at runtime via `dlopen(libvomsapi.so.1)` for VOMS VO/FQAN ACL enforcement; no ELF dependency |
 | `curl` | The `curl(1)` binary is `fork/exec`'d by the WebDAV HTTP-TPC handler; not a library dependency |
 | `openssl-libs` | Directly linked (`-lssl -lcrypto`) and auto-detected, but listed explicitly for clarity |
+
+**`nginx-xrootd-client` (tools):**
+
+| Package | Why explicit |
+|---|---|
+| `fuse3` | `xrootdfs` `fork/exec`s the `fusermount3(1)` helper at mount/unmount; the libraries (`libfuse3`, OpenSSL, krb5, …) are auto-detected from the ELF |
+
+**`nginx-xrootd-tests` (suite, noarch):** depends on the system under test
+(`nginx-mod-xrootd`, `nginx-xrootd-client`, `nginx`) plus the python packages
+the suite drives pytest with: `python3-pytest`, `python3-pytest-timeout`,
+`python3-pytest-xdist`, `python3-cryptography`, `python3-requests`,
+`python3-urllib3`.  `python3-xrootd` (the official XRootD python bindings, from
+EPEL/WLCG) is a *weak* dependency (`Recommends`) — it is only needed by the
+cross-backend / reference-daemon comparison tests, so the package still installs
+where the WLCG repo is not enabled.
+
+The build additionally needs `fuse3-devel`, `libcom_err-devel`, and `pkgconfig`
+at build time for the client tools (`pkg-config` gates the FUSE/krb5 features;
+`libcom_err-devel` resolves the `-lcom_err` pulled in by `pkg-config --libs
+krb5`).
 
 `voms-libs` comes from the WLCG repository.  On the target host, enable it
 before installing this RPM:
@@ -36,8 +71,10 @@ Install the local build prerequisites:
 
 ```bash
 sudo dnf install -y epel-release
-sudo dnf install -y gcc make rpm-build rpmdevtools redhat-rpm-config \
-    nginx-mod-devel openssl-devel pcre2-devel zlib-devel
+sudo dnf install -y gcc make pkgconfig rpm-build rpmdevtools redhat-rpm-config \
+    nginx-mod-devel openssl-devel pcre2-devel zlib-devel libxml2-devel \
+    jansson-devel libcurl-devel krb5-devel libcom_err-devel libxcrypt-devel \
+    fuse3-devel
 ```
 
 Build from the current checkout:

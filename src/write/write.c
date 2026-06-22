@@ -86,6 +86,17 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		return xrootd_send_ok(ctx, c, NULL, 0);
 	}
 
+	/*
+	 * Phase-42 W5: inline write decompression (opt-in, off by default).  Routed
+	 * to its own isolated synchronous handler so EVERYTHING below — the AIO write
+	 * fast path and the write-recovery journal — stays byte-identical for the
+	 * default (write_codec == 0) case.  pgwrite/writev have their own handlers and
+	 * never reach here, so their plaintext + per-page CRC32c invariant is kept.
+	 */
+	if (ctx->files[idx].write_codec != 0) {
+		return xrootd_write_compressed(ctx, c, idx, offset, wlen);
+	}
+
 	/* ---- kXR_recoverWrts replay detection ----
 	 *
 	 * If the journal already covers this (offset, wlen) range, this is a

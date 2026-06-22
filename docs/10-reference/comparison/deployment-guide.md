@@ -75,12 +75,16 @@ ordered from most to least likely to be site-specific blockers.
 ### Step 1 — Does your site have tape storage?
 
 If `kXR_prepare` with `kXR_stage` is used to stage files from tape (CASTOR,
-EOS tape, dCache tape, Enstore, etc.) before reading them, this module **cannot
-replace xrootd today**. The `kXR_prepare` handler validates paths and returns
-a staging request ID of `"0"` but does not forward to any tape subsystem.
+EOS tape, dCache tape, Enstore, etc.) before reading them, treat replacement as
+a site-validation project rather than an automatic yes/no. With `xrootd_frm on`,
+the module has a durable FRM queue, real request IDs, `kXR_cancel` handling, and
+WLCG Tape REST gateway integration. It still is not the complete upstream
+XrdFrm/MSS ecosystem with every migration, purge, space, and tape-driver
+behavior.
 
-> **Verdict:** Tape-backed sites must keep `xrootd` on the tape-facing data
-> servers. Disk-cache nodes in front of tape can still use `nginx-xrootd`.
+> **Verdict:** Tape-backed sites must run real prepare/qprep/cancel/evict tests
+> against their storage manager. Disk-cache nodes in front of tape remain the
+> lowest-risk replacement target.
 
 ---
 
@@ -101,8 +105,10 @@ configured per-server block with `xrootd_webdav_tpc_cert`,
 For native `root://` TPC: the module implements destination pull with
 `tpc.src=` / `tpc.key=`, source-side rendezvous (`tpc.dst` + `tpc.key` register,
 `tpc.org` + `tpc.key` consume), manager redirect with `?tpc.key=`, and a
-shared-memory key registry (`xrootd_tpc_key_ttl`). The embedded pull client
-still logs in anonymously to the source; see `docs/status.md`.
+shared-memory key registry (`xrootd_tpc_key_ttl`). The embedded pull client can
+complete ztn or GSI after `kXR_authmore` when configured, but TLS-upgraded
+origins and multihop delegation still need deployment validation; see
+[`operation-status.md`](../../05-operations/operation-status.md).
 
 > **Verdict:** Both FTS WebDAV pull and push modes are supported.
 
@@ -135,11 +141,11 @@ Raw file descriptors are not shared across worker processes; paths are.
 | WLCG JWT / SciTokens | Supported |
 | SSS (shared-secret) | Supported |
 | Macaroon tokens | Supported — HMAC-SHA256 signature chaining and caveat validation |
-| krb5 | **Not supported** |
+| krb5 | Supported when optional Kerberos support is built and configured |
 | `host` / `pwd` | **Not supported** |
 
 > **Verdict:** Sites using GSI + WLCG JWT + Macaroon tokens are all supported.
-> krb5 sites cannot use this module.
+> krb5 sites must confirm that their build includes the optional krb5 module.
 
 ---
 
@@ -198,12 +204,12 @@ Site profile                                    Can replace xrootd?
 ──────────────────────────────────────────────────────────────────
 Disk-only POSIX, GSI+JWT, FTS pull-mode         Yes — full replacement
 Disk-only POSIX, GSI+JWT, FTS push-mode         Yes — full replacement
-Tape-backed data server                         No — keep xrootd on tape nodes
+Tape-backed data server                         Partial — validate FRM/Tape REST behavior site-by-site
 Tape-adjacent disk cache                        Yes — cache tier replacement
 Uses xrdcp -S N for throughput on single file   Yes — kXR_bind parallel streams fully implemented
 Uses Macaroon tokens                            Yes — Macaroon HMAC-SHA256 validation supported
 Needs LOCK/UNLOCK (Windows or desktop WebDAV)   Yes — LOCK/UNLOCK fully implemented
-Multi-tier sub-manager cluster topology         Partial — top tier needs work
+Multi-tier sub-manager cluster topology         Partial — redirects work; select-then-proxy gateways need review
 ```
 
 ---
@@ -215,8 +221,8 @@ choose official XRootD when they need:
 
 - the full, battle-tested XRootD federation and plugin ecosystem
 - non-POSIX backend integrations such as site-specific storage plugins
-- mature PSS/PFC/FRM patterns exactly as deployed at existing sites
-- tape-backed data servers where `kXR_stage` must dispatch to a real tape system
+- mature PSS/PFC/full XrdFrm patterns exactly as deployed at existing sites
+- tape-backed data servers where exact upstream MSS migration/purge/recall behavior is required
 - every historical authentication mechanism or site-specific security plugin
 - an operational team already standardized on XRootD rather than nginx
 - exact upstream behavior for obscure protocol corners not used by this module's
@@ -322,8 +328,8 @@ External upstream references:
 Project-local references:
 
 - `README.md`
-- `docs/architecture.md`
-- `docs/operations.md`
-- `docs/optimizations.md`
-- `docs/benchmarks.md`
-- `docs/status.md`
+- `docs/10-architecture/overview.md`
+- `docs/05-operations/operations-guide.md`
+- `docs/05-operations/operation-status.md`
+- `docs/09-developer-guide/optimizations.md`
+- `docs/10-reference/source-verified-xrootd-comparison.md`

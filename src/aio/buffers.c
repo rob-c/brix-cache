@@ -80,7 +80,7 @@ xrootd_release_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
     }
 
     if (buf == ctx->read_scratch || buf == ctx->read_hdr_scratch
-        || buf == ctx->write_scratch)
+        || buf == ctx->write_scratch || buf == ctx->cmp_scratch)
     {
         return;
     }

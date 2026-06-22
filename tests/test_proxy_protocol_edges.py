@@ -43,42 +43,53 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, SERVER_HOST
+from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST, free_ports
 
 pytestmark = pytest.mark.timeout(90)
 
 H = SERVER_HOST
-_BIND = "127.0.0.1"
-_DIR = "/tmp/xrd_proxy_proto_edges"
+_DIR = os.path.join(os.environ["TMPDIR"], "xrd_proxy_proto_edges")
 
 # ---------------------------------------------------------------------------
 # Dedicated high ports (>= 12950, unique to this file to avoid collisions).
 # Each scenario gets its own stub-backend port + nginx-front port so the
 # fixtures stay independent and a wedged stub cannot poison another test.
 # ---------------------------------------------------------------------------
-SAT_FRONT_PORT      = int(os.environ.get("TEST_PPE_SAT_FRONT_PORT",      "12950"))
-SAT_BACKEND_PORT    = int(os.environ.get("TEST_PPE_SAT_BACKEND_PORT",    "12951"))
-REUSE_FRONT_PORT    = int(os.environ.get("TEST_PPE_REUSE_FRONT_PORT",    "12952"))
-REUSE_BACKEND_PORT  = int(os.environ.get("TEST_PPE_REUSE_BACKEND_PORT",  "12953"))
-WAITX_FRONT_PORT    = int(os.environ.get("TEST_PPE_WAITX_FRONT_PORT",    "12954"))
-WAITX_BACKEND_PORT  = int(os.environ.get("TEST_PPE_WAITX_BACKEND_PORT",  "12955"))
-WAITBIG_FRONT_PORT  = int(os.environ.get("TEST_PPE_WAITBIG_FRONT_PORT",  "12956"))
-WAITBIG_BACKEND_PORT= int(os.environ.get("TEST_PPE_WAITBIG_BACKEND_PORT","12957"))
-HOP_FRONT_PORT      = int(os.environ.get("TEST_PPE_HOP_FRONT_PORT",      "12958"))
-HOP_BACKEND_PORT    = int(os.environ.get("TEST_PPE_HOP_BACKEND_PORT",    "12959"))
-REDIR_FRONT_PORT    = int(os.environ.get("TEST_PPE_REDIR_FRONT_PORT",    "12960"))
-REDIR_BACKEND_PORT  = int(os.environ.get("TEST_PPE_REDIR_BACKEND_PORT",  "12961"))
-REDIR_TARGET_PORT   = int(os.environ.get("TEST_PPE_REDIR_TARGET_PORT",   "12962"))
-OKS_FRONT_PORT      = int(os.environ.get("TEST_PPE_OKS_FRONT_PORT",      "12963"))
-OKS_BACKEND_PORT    = int(os.environ.get("TEST_PPE_OKS_BACKEND_PORT",    "12964"))
-OKSW_FRONT_PORT     = int(os.environ.get("TEST_PPE_OKSW_FRONT_PORT",     "12965"))
-OKSW_BACKEND_PORT   = int(os.environ.get("TEST_PPE_OKSW_BACKEND_PORT",   "12966"))
-CHMOD_FRONT_PORT    = int(os.environ.get("TEST_PPE_CHMOD_FRONT_PORT",    "12967"))
-CHMOD_BACKEND_PORT  = int(os.environ.get("TEST_PPE_CHMOD_BACKEND_PORT",  "12968"))
-ENDSESS_FRONT_PORT  = int(os.environ.get("TEST_PPE_ENDSESS_FRONT_PORT",  "12969"))
-ENDSESS_BACKEND_PORT= int(os.environ.get("TEST_PPE_ENDSESS_BACKEND_PORT","12970"))
-PRW_FRONT_PORT      = int(os.environ.get("TEST_PPE_PRW_FRONT_PORT",      "12971"))
-PRW_BACKEND_PORT    = int(os.environ.get("TEST_PPE_PRW_BACKEND_PORT",    "12972"))
+# Every port below is BOUND by this file's own fixtures (each nginx proxy front
+# listens on a FRONT port; the in-process stub server listens on each BACKEND /
+# TARGET port).  None are fleet/remote ports.  Allocate them all as DISTINCT
+# free OS ports in one shot so this self-contained suite never collides with the
+# managed fleet or another test, while keeping any explicit env override.
+(_p_sat_front, _p_sat_backend, _p_reuse_front, _p_reuse_backend,
+ _p_waitx_front, _p_waitx_backend, _p_waitbig_front, _p_waitbig_backend,
+ _p_hop_front, _p_hop_backend, _p_redir_front, _p_redir_backend,
+ _p_redir_target, _p_oks_front, _p_oks_backend, _p_oksw_front,
+ _p_oksw_backend, _p_chmod_front, _p_chmod_backend, _p_endsess_front,
+ _p_endsess_backend, _p_prw_front, _p_prw_backend) = free_ports(23)
+
+SAT_FRONT_PORT      = int(os.environ.get("TEST_PPE_SAT_FRONT_PORT")      or _p_sat_front)
+SAT_BACKEND_PORT    = int(os.environ.get("TEST_PPE_SAT_BACKEND_PORT")    or _p_sat_backend)
+REUSE_FRONT_PORT    = int(os.environ.get("TEST_PPE_REUSE_FRONT_PORT")    or _p_reuse_front)
+REUSE_BACKEND_PORT  = int(os.environ.get("TEST_PPE_REUSE_BACKEND_PORT")  or _p_reuse_backend)
+WAITX_FRONT_PORT    = int(os.environ.get("TEST_PPE_WAITX_FRONT_PORT")    or _p_waitx_front)
+WAITX_BACKEND_PORT  = int(os.environ.get("TEST_PPE_WAITX_BACKEND_PORT")  or _p_waitx_backend)
+WAITBIG_FRONT_PORT  = int(os.environ.get("TEST_PPE_WAITBIG_FRONT_PORT")  or _p_waitbig_front)
+WAITBIG_BACKEND_PORT= int(os.environ.get("TEST_PPE_WAITBIG_BACKEND_PORT")or _p_waitbig_backend)
+HOP_FRONT_PORT      = int(os.environ.get("TEST_PPE_HOP_FRONT_PORT")      or _p_hop_front)
+HOP_BACKEND_PORT    = int(os.environ.get("TEST_PPE_HOP_BACKEND_PORT")    or _p_hop_backend)
+REDIR_FRONT_PORT    = int(os.environ.get("TEST_PPE_REDIR_FRONT_PORT")    or _p_redir_front)
+REDIR_BACKEND_PORT  = int(os.environ.get("TEST_PPE_REDIR_BACKEND_PORT")  or _p_redir_backend)
+REDIR_TARGET_PORT   = int(os.environ.get("TEST_PPE_REDIR_TARGET_PORT")   or _p_redir_target)
+OKS_FRONT_PORT      = int(os.environ.get("TEST_PPE_OKS_FRONT_PORT")      or _p_oks_front)
+OKS_BACKEND_PORT    = int(os.environ.get("TEST_PPE_OKS_BACKEND_PORT")    or _p_oks_backend)
+OKSW_FRONT_PORT     = int(os.environ.get("TEST_PPE_OKSW_FRONT_PORT")     or _p_oksw_front)
+OKSW_BACKEND_PORT   = int(os.environ.get("TEST_PPE_OKSW_BACKEND_PORT")   or _p_oksw_backend)
+CHMOD_FRONT_PORT    = int(os.environ.get("TEST_PPE_CHMOD_FRONT_PORT")    or _p_chmod_front)
+CHMOD_BACKEND_PORT  = int(os.environ.get("TEST_PPE_CHMOD_BACKEND_PORT")  or _p_chmod_backend)
+ENDSESS_FRONT_PORT  = int(os.environ.get("TEST_PPE_ENDSESS_FRONT_PORT")  or _p_endsess_front)
+ENDSESS_BACKEND_PORT= int(os.environ.get("TEST_PPE_ENDSESS_BACKEND_PORT")or _p_endsess_backend)
+PRW_FRONT_PORT      = int(os.environ.get("TEST_PPE_PRW_FRONT_PORT")      or _p_prw_front)
+PRW_BACKEND_PORT    = int(os.environ.get("TEST_PPE_PRW_BACKEND_PORT")    or _p_prw_backend)
 
 # ---------------------------------------------------------------------------
 # XRootD wire constants (authoritative: src/XProtocol/XProtocol.hh).
@@ -359,7 +370,7 @@ def _h_hop_chain(conn):
     client."""
     _stub_bootstrap(conn)
     sid, _reqid, _payload = _read_request(conn)
-    body = _redirect_body("127.0.0.1", HOP_BACKEND_PORT)
+    body = _redirect_body(HOST, HOP_BACKEND_PORT)
     conn.sendall(_hdr(sid, kXR_redirect, len(body)))
     conn.sendall(body)
 
@@ -370,7 +381,7 @@ def _h_redirect_then_open(conn):
     handle map state."""
     _stub_bootstrap(conn)
     sid, _reqid, _payload = _read_request(conn)
-    body = _redirect_body("127.0.0.1", REDIR_TARGET_PORT)
+    body = _redirect_body(HOST, REDIR_TARGET_PORT)
     conn.sendall(_hdr(sid, kXR_redirect, len(body)))
     conn.sendall(body)
 
@@ -520,7 +531,7 @@ class _StubServer:
             except (AttributeError, OSError):
                 pass
             try:
-                srv.bind((_BIND, port))
+                srv.bind((BIND_HOST, port))
                 srv.listen(16)
                 return srv
             except OSError as exc:
@@ -574,7 +585,7 @@ class _StubServer:
 
 def _reachable(port, timeout=1.0):
     try:
-        socket.create_connection((_BIND, port), timeout=timeout).close()
+        socket.create_connection((HOST, port), timeout=timeout).close()
         return True
     except OSError:
         return False
@@ -602,11 +613,11 @@ def _front_conf(name, front_port, upstream_port, extra=""):
             f"events {{ worker_connections 256; }}\n"
             f"stream {{\n"
             f"    server {{\n"
-            f"        listen {_BIND}:{front_port};\n"
+            f"        listen {BIND_HOST}:{front_port};\n"
             f"        xrootd on;\n"
             f"        xrootd_auth none;\n"
             f"        xrootd_proxy on;\n"
-            f"        xrootd_proxy_upstream {_BIND}:{upstream_port};\n"
+            f"        xrootd_proxy_upstream {HOST}:{upstream_port};\n"
             f"{extra_line}"
             f"    }}\n"
             f"}}\n")
@@ -960,7 +971,7 @@ def test_redirect_hop_limit_honored(hop_stack):
         f"expected the capped hop to relay kXR_redirect, got {status}"
     # Relayed verbatim: the proxy parses 'host:port' but re-emits the original
     # upstream body, which is our 'host:port\\0' text.
-    assert b"127.0.0.1:%d" % HOP_BACKEND_PORT in body
+    assert ("%s:%d" % (HOST, HOP_BACKEND_PORT)).encode() in body
 
 
 def test_redirect_invalidates_handles_on_new_upstream(redirect_stack):
@@ -1038,23 +1049,14 @@ def test_oksofar_streaming_dirlist_reassembled(oksofar_stack):
         sock.close()
 
 
-@pytest.mark.xfail(
-    reason="KNOWN DEFECT: a kXR_wait injected mid-oksofar-stream drives the "
-           "proxy into 'unexpected state in read handler' and crashes the "
-           "worker (SIGSEGV).  The data-integrity portion below is a real "
-           "assertion that passes; the worker-survival check is the failing "
-           "conformance expectation and is recorded here as xfail rather than "
-           "hard-failing the suite on an unhandled edge.",
-    strict=False, raises=(ConnectionError, OSError, AssertionError))
 def test_oksofar_interrupted_by_wait_midstream(oksofar_wait_stack):
     """A kXR_wait injected in the MIDDLE of an in-progress kXR_oksofar stream is
     an illegal upstream sequence (a real xrootd never interleaves a wait into a
     streamed response).  The conformance expectation: relay the chunks streamed
     so far byte-exact + in order, terminate cleanly, and KEEP THE WORKER ALIVE.
 
-    Observed: the proxy relays the in-progress chunks and the wait, then emits a
-    kXR_error and the worker crashes — so the worker-survival assertion fails.
-    The pre-wait data-integrity checks are still verified as a real assertion.
+    Regression expectation: the proxy relays the in-progress chunks and the
+    wait, then keeps reading until a clean terminal response without crashing.
     """
     port = oksofar_wait_stack
     sock = _connect_login(H, port)
@@ -1088,9 +1090,8 @@ def test_oksofar_interrupted_by_wait_midstream(oksofar_wait_stack):
     finally:
         sock.close()
 
-    # Conformance expectation (currently FAILS -> drives the xfail): the proxy
-    # worker must survive the illegal mid-stream sequence so a brand-new session
-    # through the same front still works.
+    # Conformance expectation: the proxy worker must survive the illegal
+    # mid-stream sequence so a brand-new session through the same front works.
     survivor = _connect_login(H, port)
     try:
         assert _ping(survivor)[1] == kXR_ok, \

@@ -23,6 +23,8 @@ import sys
 import threading
 import time
 
+from settings import BIND_HOST
+
 # ------------------------------------------------------------------ #
 # Wire constants                                                        #
 # ------------------------------------------------------------------ #
@@ -218,7 +220,7 @@ def _handle_gotorls(conn):
 def _stub_loop(port, handler):
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(("127.0.0.1", port))
+    srv.bind((BIND_HOST, port))
     srv.listen(8)
     while True:
         try:

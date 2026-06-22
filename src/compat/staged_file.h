@@ -38,6 +38,11 @@ ngx_int_t xrootd_staged_open(ngx_log_t *log, const char *root_canon,
 /* xrootd_staged_commit() — See staged_file.c for WHAT/WHY/HOW. */
 ngx_int_t xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
     xrootd_staged_file_t *staged, const char *final_path);
+/* xrootd_staged_commit_excl() — atomic create-if-absent commit via
+ * renameat2(RENAME_NOREPLACE).  Returns NGX_ERROR with errno==EEXIST when the
+ * final path already exists (caller maps to 412). See staged_file.c. */
+ngx_int_t xrootd_staged_commit_excl(ngx_log_t *log, const char *root_canon,
+    xrootd_staged_file_t *staged, const char *final_path);
 /* xrootd_staged_abort() — See staged_file.c for WHAT/WHY/HOW. */
 void xrootd_staged_abort(ngx_log_t *log, const char *root_canon,
     xrootd_staged_file_t *staged, ngx_flag_t remove_tmp);

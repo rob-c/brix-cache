@@ -15,7 +15,7 @@ import pytest
 import requests
 
 from pathlib import Path
-from settings import S3_PRESIGNED_PORT, S3_PRESIGNED_STS_PORT, TEST_ROOT
+from settings import HOST, S3_PRESIGNED_PORT, S3_PRESIGNED_STS_PORT, TEST_ROOT
 
 
 BUCKET = "testbucket"
@@ -29,14 +29,14 @@ def s3_auth_instance():
     """Use the dedicated S3 presigned URL server."""
     import socket as _sock
     try:
-        with _sock.create_connection(("127.0.0.1", S3_PRESIGNED_PORT), timeout=5):
+        with _sock.create_connection((HOST, S3_PRESIGNED_PORT), timeout=5):
             pass
     except OSError:
         pytest.skip(f"S3 presigned server not reachable at port {S3_PRESIGNED_PORT}")
     data_dir = Path(TEST_ROOT) / "data-s3-presigned"
     data_dir.mkdir(parents=True, exist_ok=True)
     yield {
-        "base": f"http://127.0.0.1:{S3_PRESIGNED_PORT}",
+        "base": f"http://{HOST}:{S3_PRESIGNED_PORT}",
         "data_dir": data_dir,
     }
 
@@ -46,14 +46,14 @@ def s3_auth_sts_instance():
     """Use the dedicated S3 presigned URL + STS server."""
     import socket as _sock
     try:
-        with _sock.create_connection(("127.0.0.1", S3_PRESIGNED_STS_PORT), timeout=5):
+        with _sock.create_connection((HOST, S3_PRESIGNED_STS_PORT), timeout=5):
             pass
     except OSError:
         pytest.skip(f"S3 presigned STS server not reachable at port {S3_PRESIGNED_STS_PORT}")
     data_dir = Path(TEST_ROOT) / "data-s3-presigned-sts"
     data_dir.mkdir(parents=True, exist_ok=True)
     yield {
-        "base": f"http://127.0.0.1:{S3_PRESIGNED_STS_PORT}",
+        "base": f"http://{HOST}:{S3_PRESIGNED_STS_PORT}",
         "data_dir": data_dir,
     }
 

@@ -1,15 +1,16 @@
 # Coding Standards for nginx-xrootd
 
 **Status:** AUTHORITATIVE and MANDATORY — this is *the* coding standard for the
-project. Every agent or contributor making changes under `src/` must follow it;
-it is referenced from [`AGENTS.md`](../../AGENTS.md) (auto-loaded as `CLAUDE.md`)
-so it is picked up on every session. Where this document and any older note
-disagree, this document and the code in `src/` win. (`code-style.md` is now a
-short pointer here.)
-**Applies to:** All `.c` and `.h` files under `src/`, plus test files under `tests/`.
+project. Every agent or contributor making changes under `src/` or `client/`
+must follow it; it is referenced from [`AGENTS.md`](../../AGENTS.md) (auto-loaded
+as `CLAUDE.md`) so it is picked up on every session. Where this document and any
+older note disagree, this document and the code in `src/` / `client/` win.
+(`code-style.md` is now a short pointer here.)
+**Applies to:** All `.c` and `.h` files under `src/` and `client/`, plus test
+files under `tests/`.
 
 **Two project-wide mandates, called out up front:**
-1. **No `goto`** anywhere in `src/` — use early-return and helper decomposition (§4).
+1. **No `goto`** anywhere in `src/` or `client/` — use early-return and helper decomposition (§4).
 2. **Functional and modular by design** — small single-purpose functions, explicit
    data flow, pure helpers with side effects at the edges, composition over large
    stateful procedures (§8).
@@ -171,20 +172,23 @@ The three always travel together. No exception.
 
 ### No `goto` — FORBIDDEN (no exceptions)
 
-**`goto` must not appear in any `.c` or `.h` file under `src/`.** This is a
-[HARD BLOCK](../../AGENTS.md#hard-blocks-non-negotiable): new code that introduces
-`goto` will not be accepted, and existing `goto` is to be refactored out as files
-are touched. `goto` defeats the functional, modular design this project targets —
+**`goto` must not appear in any `.c` or `.h` file under `src/` or `client/`.**
+This is a [HARD BLOCK](../../AGENTS.md#hard-blocks-non-negotiable): new code that
+introduces `goto` will not be accepted, and existing `goto` is to be refactored
+out as files are touched. `goto` defeats the functional, modular design this project targets —
 it hides control flow, couples cleanup to call sites, and makes a function
 impossible to reason about (or test) in isolation. Every `goto` idiom has a
 functional replacement; the three that cover essentially all real cases are below.
 
-> **Migration status:** ~100 `goto` sites remain in `tpc/`, `gsi/`, `token/`,
-> `cache/`, `s3/`, `proxy/`, `compat/`, `webdav/`, `fs/`, and `manager/` (modules
-> with complex multi-resource lifetimes or parser loops). The core handler files
-> (`read.c`, `write.c`, `stat.c`, …) are already `goto`-free via early-return.
-> When you edit a file that still uses `goto`, refactor that function as part of
-> the change. Do not add new ones.
+> **Migration status:** `src/` is now `goto`-free (verified). The standard now
+> also covers `client/` (the clean-room native client + `libxrdc`), which still
+> carries ~70 `goto` sites — OpenSSL/socket single-exit cleanup ladders —
+> concentrated in `client/lib/copy.c`, `proxy.c`, `sec/sec_gsi.c`, `http.c`,
+> `sec/sec_krb5.c`, `aio.c`, and `ops_file.c`. These are a **refactor-on-touch**
+> backlog: when you edit one of those functions, convert it to early-return +
+> helper decomposition per Recipe 1/2 (the OpenSSL-cleanup-without-`goto` pattern
+> lives in `src/crypto/scoped.h`). Do not add new `goto` anywhere under `src/` or
+> `client/`.
 
 #### Recipe 1 — single-resource cleanup (`goto done` / `goto cleanup`)
 
@@ -210,8 +214,8 @@ linear and the resource never escapes the function that frees it.
 #### Recipe 2 — multi-resource / multi-step cleanup (`goto round_fail`, two-tier)
 
 A long function that acquires many resources and jumps to a shared cleanup on any
-error (e.g. `src/tpc/gsi_outbound_exchange.c`: 29 `goto round_fail`) is the signal
-to **decompose into sequential single-purpose helpers**. Each helper owns its
+error (e.g. `client/lib/copy.c`'s 25 `goto close_remote`/`done`/`finish` sites) is
+the signal to **decompose into sequential single-purpose helpers**. Each helper owns its
 resources, frees them on its own error paths, and returns `NGX_OK`/`NGX_ERROR`;
 the orchestrator is a flat early-return sequence:
 
@@ -273,6 +277,16 @@ without `goto`, that function is too large — split it (Recipe 2).
 ### AIO Completion Guard
 
 In AIO completion callbacks (`_done`), always check `ctx->destroyed` before touching any connection-owned memory. The connection may have been torn down while the thread was running.
+
+### Shared-Memory Zones (MANDATORY)
+
+nginx initialises **every** `shared_memory` zone as an `ngx_slab_pool_t`, and its SIGCHLD handler runs `ngx_unlock_mutexes()` on **every child death** — that routine walks `ngx_cycle->shared_memory` *unconditionally* and dereferences `((ngx_slab_pool_t *) zone.shm.addr)->mutex` for each zone. A zone whose `init` callback lays its own struct directly over `shm.addr` clobbers that slab header, so the **master SIGSEGVs the instant any worker exits** (this was a real codebase-wide bug).
+
+- **Never** cast `shm_zone->shm.addr` to anything but `ngx_slab_pool_t`, and **never** `ngx_memzero(shm.addr, …)`. The slab header lives there and must survive.
+- Allocate the table **from** the slab pool via `xrootd_shm_table_alloc()` (`src/compat/shm_slots.h`), and size the zone with `xrootd_shm_zone_size()`. The helper handles fresh-alloc / reload / re-attach, builds the process-local mutex from the table's first member (an `ngx_shmtx_sh_t lock`; pass `NULL` for lock-less atomic-only tables), and publishes the table via `shm_zone->data`. Initialise non-lock fields only when `*fresh` is set.
+- The reference pattern is `src/ratelimit/ratelimit_zone.c` (view the slab pool, then `ngx_slab_alloc`).
+
+This contract is enforced two ways: `tests/test_shm_slab_safety_lint.py` (static — fails CI if any zone clobbers `shm.addr` or skips the slab-safe allocator) and `tests/test_shm_fork_safety.py` (runtime — SIGKILLs workers across every protocol's zones and asserts the master survives).
 
 ---
 

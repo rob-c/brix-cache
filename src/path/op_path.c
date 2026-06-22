@@ -73,8 +73,13 @@ op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf,
     }
 
     if (want_dir == 0) {
-        /* EXISTING: target must resolve, confined, to something present. */
-        return xrootd_stat_beneath(conf->rootfd, reqpath, &st) == 0
+        /* EXISTING: the target name must resolve, confined, to something present.
+         * LSTAT (not stat) so a symlink — including a dangling one — counts as
+         * present: rm/chmod/mv operate on the name itself, and rm of a symlink must
+         * succeed (it never dereferences the final component). This gate is only the
+         * ACL/logging existence check; the confined *_beneath ops remain the security
+         * boundary, so not following the final link here weakens nothing. */
+        return xrootd_lstat_beneath(conf->rootfd, reqpath, &st) == 0
                ? NGX_OK : NGX_DECLINED;
     }
 

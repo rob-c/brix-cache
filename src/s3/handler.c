@@ -29,6 +29,8 @@
 
 
 #include "s3.h"
+#include "tagging.h"
+#include "../impersonate/lifecycle.h"
 #include "../compat/http_body.h"
 #include "../compat/http_headers.h"
 #include "../compat/http_query.h"
@@ -350,12 +352,15 @@ s3_handle_options(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
  *
  * HOW: Gets location config, returns NGX_DECLINED if disabled. Determines method_slot (list vs object). Tracks per-IP-version bytes_rx metric. Verifies SigV4 signature — fails with appropriate XML error if invalid. Parses URI into bucket+key via s3_parse_uri() — rejects mismatched bucket (-1) or malformed URI (0). Checks list-type=2, uploads flag, delete flag before empty-key rejection. Resolves key to fs_path via s3_resolve_key(). Dispatches by HTTP method: GET→list_parts/get; HEAD→head; PUT→upload_part_copy/copy_object/put_body; DELETE→multipart_abort/delete; POST→multipart_initiate/complete. Unknown methods → 405.
  */
+static ngx_int_t s3_dispatch_after_auth(ngx_http_request_t *r,
+    ngx_http_s3_loc_conf_t *cf, ngx_http_s3_req_ctx_t *s3ctx,
+    ngx_uint_t method_slot, int is_list_request,
+    ngx_flag_t is_post_object_form);
+
 ngx_int_t
 ngx_http_s3_handler(ngx_http_request_t *r)
 {
     ngx_http_s3_loc_conf_t *cf;
-    u_char                  key[S3_MAX_KEY];
-    char                    fs_path[PATH_MAX];
     ngx_int_t               rc;
     int                     is_list_request;
     ngx_flag_t              is_post_object_form;
@@ -430,6 +435,36 @@ ngx_http_s3_handler(ngx_http_request_t *r)
             xrootd_identity_dn_cstr(s3ctx->identity),
             (const char *) pth, (const char *) cgi);
     }
+
+    /*
+     * Phase 40: bracket the whole post-auth dispatch with the impersonation
+     * principal (now that auth has populated s3ctx->identity).  This covers the
+     * SYNCHRONOUS ops (GET/HEAD/DELETE/list/multipart-initiate) — which open /
+     * stat / unlink as the mapped user, so e.g. a GetObject cannot read a file
+     * the mapped user has no UNIX permission for (a cross-tenant leak when run as
+     * the worker).  The async body handlers (PUT/POST/multipart-complete/
+     * delete-objects) return NGX_DONE and re-establish the principal in their own
+     * callbacks, so clearing it here on return is correct.  No-op unless map mode.
+     */
+    xrootd_imp_request_begin(s3ctx->identity);
+    rc = s3_dispatch_after_auth(r, cf, s3ctx, method_slot,
+                                is_list_request, is_post_object_form);
+    xrootd_imp_request_end();
+    return rc;
+}
+
+/*
+ * Post-auth S3 op dispatch (parse URI -> route by method).  Runs inside the
+ * caller's impersonation bracket; see ngx_http_s3_handler.
+ */
+static ngx_int_t
+s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot,
+    int is_list_request, ngx_flag_t is_post_object_form)
+{
+    u_char    key[S3_MAX_KEY];
+    char      fs_path[PATH_MAX];
+    ngx_int_t rc;
 
     {
         int parse_rc = s3_parse_uri(r, cf, key, sizeof(key));
@@ -514,6 +549,42 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         return NGX_DONE;
     }
 
+    /*
+     * HeadBucket: HEAD /<bucket> (empty key).  SDK clients probe this at session
+     * start; answer 200 + region rather than the empty-key InvalidURI below.
+     */
+    if (r->method == NGX_HTTP_HEAD && key[0] == '\0') {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_head_bucket(r, cf));
+    }
+
+    /*
+     * Bucket-level GET (empty key).  ListObjectsV2 (list-type=2) and
+     * ListMultipartUploads (?uploads) were already routed above; here we route
+     * the GetBucketLocation subresource probe and otherwise fall back to the
+     * original ListObjects (V1), which older tooling and Rucio still use.
+     */
+    if (r->method == NGX_HTTP_GET && key[0] == '\0') {
+        if (s3_has_query_flag(r, "location")) {
+            return s3_metrics_return_method(
+                r, method_slot, s3_handle_get_bucket_location(r, cf));
+        }
+        if (s3_has_query_flag(r, "versioning")) {
+            return s3_metrics_return_method(
+                r, method_slot, s3_handle_get_bucket_versioning(r));
+        }
+        if (s3_has_query_flag(r, "acl")) {
+            return s3_metrics_return_method(
+                r, method_slot, s3_handle_get_acl(r, cf));
+        }
+        if (s3_has_query_flag(r, "cors")) {
+            return s3_metrics_return_method(
+                r, method_slot, s3_handle_get_cors(r));
+        }
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_list_v1(r, cf));
+    }
+
     if (key[0] == '\0') {
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INVALID_URI]);
         return s3_metrics_return_method(
@@ -536,6 +607,15 @@ ngx_http_s3_handler(ngx_http_request_t *r)
 
     if (r->method == NGX_HTTP_GET) {
         char list_parts_upload_id[128];
+
+        if (s3_has_query_flag(r, "tagging")) {
+            return s3_metrics_return_method(r, method_slot,
+                s3_handle_get_object_tagging(r, fs_path, cf));
+        }
+        if (s3_has_query_flag(r, "acl")) {
+            return s3_metrics_return_method(r, method_slot,
+                s3_handle_get_acl(r, cf));
+        }
         if (s3_get_query_param(r, "uploadId",
                                list_parts_upload_id,
                                sizeof(list_parts_upload_id)))
@@ -562,6 +642,22 @@ ngx_http_s3_handler(ngx_http_request_t *r)
                 s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                   "AccessDenied",
                                   "Write access is disabled."));
+        }
+
+        /* PutObjectTagging: PUT /key?tagging (XML body). */
+        if (s3_has_query_flag(r, "tagging")) {
+            r->request_body_in_single_buf = 1;
+            rc = xrootd_http_read_body(r, s3_put_object_tagging_body_handler);
+            if (rc != NGX_DONE) {
+                return s3_metrics_return_method(r, method_slot, rc);
+            }
+            return NGX_DONE;
+        }
+        /* Per-object ACL writes are not supported (authz is XrdAcc/tokens). */
+        if (s3_has_query_flag(r, "acl")) {
+            return s3_metrics_return_method(r, method_slot,
+                s3_send_xml_error(r, NGX_HTTP_NOT_IMPLEMENTED, "NotImplemented",
+                    "Per-object ACLs are not supported by this gateway."));
         }
 
         /* Check for multipart UploadPart: PUT /key?partNumber=N&uploadId=ID */
@@ -633,6 +729,28 @@ ngx_http_s3_handler(ngx_http_request_t *r)
                                                                   cf));
         }
 
+        /*
+         * Conditional PutObject (If-None-Match: * create-if-absent / If-Match
+         * overwrite-if-match), evaluated before the body is read.  Skipped for
+         * UploadPart (conditional writes apply to whole objects only).
+         */
+        {
+            char part_probe[8];
+            if (!s3_get_query_param(r, "uploadId", part_probe,
+                                    sizeof(part_probe)))
+            {
+                ngx_int_t prc = s3_put_precondition(r, cf->common.root_canon,
+                                                    fs_path);
+                if (prc != NGX_DECLINED) {
+                    return s3_metrics_return_method(r, method_slot, prc);
+                }
+                /* W6b: If-None-Match:* asks for atomic create-if-absent — the
+                 * commit (any of the 3 PUT body paths) uses an exclusive rename
+                 * and maps a concurrent winner (EEXIST) to 412. */
+                s3ctx->exclusive_create = s3_put_is_exclusive_create(r) ? 1 : 0;
+            }
+        }
+
         r->request_body_in_single_buf = 1;
 
         rc = xrootd_http_read_body(r, s3_put_body_handler);
@@ -651,6 +769,11 @@ ngx_http_s3_handler(ngx_http_request_t *r)
                 s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                   "AccessDenied",
                                   "Write access is disabled."));
+        }
+
+        if (s3_has_query_flag(r, "tagging")) {
+            return s3_metrics_return_method(r, method_slot,
+                s3_handle_delete_object_tagging(r, fs_path, cf));
         }
 
         char upload_id[128];

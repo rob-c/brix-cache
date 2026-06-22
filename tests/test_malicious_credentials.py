@@ -219,11 +219,8 @@ class TestMaliciousJwtClaims:
         token = _sign_raw(issuer, self.HDR, payload_bytes_or_obj)
         return _get(token)
 
-    # NOTE — these assert only the GUARANTEED-safe invariants (no crash, no
-    # leak).  They deliberately do NOT assert rejection, because the gateway
-    # currently treats a malformed/non-positive `exp` as non-expiring (see the
-    # xfail test below).  The claims are signature-protected, so this is a
-    # defense-in-depth / WLCG-profile gap, not a remotely-forgeable bypass.
+    # NOTE — these assert only the guaranteed-safe invariants (no crash, no
+    # leak). The rejection path is asserted directly below.
     def test_exp_as_string_no_crash_no_leak(self, issuer):
         p = _valid_payload(); p["exp"] = "9999999999"
         st, b = self._send_payload(issuer, p)
@@ -234,13 +231,6 @@ class TestMaliciousJwtClaims:
         st, b = self._send_payload(issuer, p)
         assert st < 500 and HOST_SECRET not in b, f"exp-as-array (status={st})"
 
-    @pytest.mark.xfail(strict=False, reason=(
-        "FINDING-EXP-1: src/token/validate.c enforces expiry only when "
-        "claims->exp > 0, so a token with a non-positive / wrong-typed / absent "
-        "exp is treated as NON-EXPIRING. The WLCG profile requires exp; a "
-        "compliant RP should reject a token lacking a valid positive expiry. "
-        "Not externally exploitable (exp is signed) but a hardening gap — flip "
-        "to pass once validate.c requires exp > 0."))
     def test_nonpositive_or_malformed_exp_is_rejected(self, issuer):
         for bad_exp in (-1, 0, "9999999999", [1]):
             p = _valid_payload(); p["exp"] = bad_exp

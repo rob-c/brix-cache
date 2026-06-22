@@ -50,6 +50,7 @@ from XRootD.client.flags import OpenFlags, StatInfoFlags
 from settings import (
     CA_DIR,
     DATA_ROOT,
+    HOST,
     PKI_DIR,
     PROXY_ATLAS,
     PROXY_CMS,
@@ -62,13 +63,14 @@ from settings import (
     VOMS_CERT,
     VOMSDIR,
     VOMS_KEY,
+    url_host,
 )
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
-VO_URL      = f"root://localhost:{VO_PORT}"
+VO_URL      = f"root://{url_host(HOST)}:{VO_PORT}"
 
 
 # Resolve voms-proxy-fake: prefer Python script in utils/, fall back to system binary
@@ -231,8 +233,14 @@ def vo_nginx():
     _make_voms_proxy("atlas", "/atlas/Role=NULL/Capability=NULL", PROXY_ATLAS)
 
     # ---- Test data directories
+    # The VO ACL server is a DEDICATED instance whose xrootd_root is
+    # ${TEST_ROOT}/data-vo-acl (start_dedicated_nginx names it data-<instance>),
+    # NOT the shared DATA_ROOT.  Seed the per-VO dirs in the server's actual root
+    # so `stat /cms` finds them — otherwise it returns kXR_NotFound (rc 54) even
+    # though VOMS extraction correctly identifies the VO.
+    vo_data_root = os.path.join(os.path.dirname(DATA_ROOT), "data-vo-acl")
     for subdir in ("cms", "atlas", "public"):
-        path = os.path.join(DATA_ROOT, subdir)
+        path = os.path.join(vo_data_root, subdir)
         os.makedirs(path, exist_ok=True)
         seed = os.path.join(path, "seed.txt")
         if not os.path.exists(seed):

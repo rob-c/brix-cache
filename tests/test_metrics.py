@@ -22,6 +22,7 @@ import pytest
 import urllib.request
 from settings import (
     CA_DIR,
+    HOST,
     NGINX_ANON_PORT,
     NGINX_GSI_PORT,
     NGINX_METRICS_PORT,
@@ -148,7 +149,7 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as f:
             f.write(b"metrics test data")
             f.flush()
-            rc = xrdcp_put(f.name, f"root://localhost:{ANON_PORT}//metrics_write_test.txt")
+            rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_write_test.txt")
         assert rc == 0
         delta = self._delta("xrootd_connections_total", {"port": ANON_PORT, "auth": "anon"})
         assert delta >= 1
@@ -158,7 +159,7 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as f:
             f.write(payload)
             f.flush()
-            rc = xrdcp_put(f.name, f"root://localhost:{ANON_PORT}//metrics_bytes_rx.bin")
+            rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_bytes_rx.bin")
         assert rc == 0
         delta = self._delta("xrootd_bytes_rx_total", {"port": ANON_PORT, "auth": "anon"})
         assert delta >= len(payload)
@@ -168,11 +169,11 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as f:
             f.write(payload)
             f.flush()
-            rc = xrdcp_put(f.name, f"root://localhost:{ANON_PORT}//metrics_bytes_tx.bin")
+            rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_bytes_tx.bin")
         assert rc == 0
         self.before = fetch_metrics()  # reset baseline after write
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as out:
-            rc = xrdcp_get(f"root://localhost:{ANON_PORT}//metrics_bytes_tx.bin", out.name)
+            rc = xrdcp_get(f"root://{HOST}:{ANON_PORT}//metrics_bytes_tx.bin", out.name)
         assert rc == 0
         delta = self._delta("xrootd_bytes_tx_total", {"port": ANON_PORT, "auth": "anon"})
         assert delta >= len(payload)
@@ -181,7 +182,7 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"open_wr test")
             f.flush()
-            rc = xrdcp_put(f.name, f"root://localhost:{ANON_PORT}//metrics_open_wr.txt")
+            rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_open_wr.txt")
         assert rc == 0
         delta = self._delta(
             "xrootd_requests_total",
@@ -194,10 +195,10 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"open_rd test")
             f.flush()
-            xrdcp_put(f.name, f"root://localhost:{ANON_PORT}//metrics_open_rd.txt")
+            xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_open_rd.txt")
         self.before = fetch_metrics()
         with tempfile.NamedTemporaryFile(delete=False) as out:
-            rc = xrdcp_get(f"root://localhost:{ANON_PORT}//metrics_open_rd.txt", out.name)
+            rc = xrdcp_get(f"root://{HOST}:{ANON_PORT}//metrics_open_rd.txt", out.name)
         assert rc == 0
         delta = self._delta(
             "xrootd_requests_total",
@@ -211,11 +212,11 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"login counter test 1")
             f.flush()
-            xrdcp_put(f.name, f"root://localhost:{ANON_PORT}//metrics_login1.txt")
+            xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_login1.txt")
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"login counter test 2")
             f.flush()
-            xrdcp_put(f.name, f"root://localhost:{ANON_PORT}//metrics_login2.txt")
+            xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_login2.txt")
         after_text = fetch_metrics()
         v_before = parse_metric(before_text, "xrootd_requests_total",
                                 {"port": ANON_PORT, "auth": "anon", "op": "login", "status": "ok"})
@@ -237,7 +238,7 @@ class TestAnonCounters:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"active connections test")
             f.flush()
-            rc = xrdcp_put(f.name, f"root://localhost:{ANON_PORT}//metrics_active.txt")
+            rc = xrdcp_put(f.name, f"root://{HOST}:{ANON_PORT}//metrics_active.txt")
         assert rc == 0
         time.sleep(0.2)   # let the connection fully close
         after_text = fetch_metrics()
@@ -269,7 +270,7 @@ class TestGSICounters:
             f.flush()
             rc = xrdcp_put(
                 f.name,
-                f"root://localhost:{GSI_PORT}//metrics_gsi_test.txt",
+                f"root://{HOST}:{GSI_PORT}//metrics_gsi_test.txt",
                 env=self.GSI_ENV,
             )
         assert rc == 0
@@ -284,7 +285,7 @@ class TestGSICounters:
             f.flush()
             rc = xrdcp_put(
                 f.name,
-                f"root://localhost:{GSI_PORT}//metrics_gsi_conn.txt",
+                f"root://{HOST}:{GSI_PORT}//metrics_gsi_conn.txt",
                 env=self.GSI_ENV,
             )
         assert rc == 0
@@ -304,7 +305,7 @@ class TestGSICounters:
             f.flush()
             rc = xrdcp_put(
                 f.name,
-                f"root://localhost:{GSI_PORT}//metrics_gsi_login.txt",
+                f"root://{HOST}:{GSI_PORT}//metrics_gsi_login.txt",
                 env=self.GSI_ENV,
             )
         assert rc == 0

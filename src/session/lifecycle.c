@@ -1,6 +1,7 @@
 #include "../ngx_xrootd_module.h"
 #include "../proxy/proxy.h"
 #include "../proxy/proxy_internal.h"
+#include "registry.h"   /* xrootd_session_unregister: targeted session teardown */
 
 /* ------------------------------------------------------------------ */
 /* Session Lifecycle — kXR_ping and kXR_endsess handlers              */
@@ -96,8 +97,34 @@ xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c)
 ngx_int_t
 xrootd_handle_endsess(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
+    ClientEndsessRequest *req = (ClientEndsessRequest *) ctx->hdr_buf;
+
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: kXR_endsess received");
+
+    /*
+     * kXR_endsess names the session to terminate (req->sessid) — which is NOT
+     * necessarily the session of the connection it arrives on. The official
+     * client's reconnect recovery, after a dropped link, opens a NEW connection,
+     * logs in afresh, and THEN sends kXR_endsess for its PREVIOUS (now-dead)
+     * session to release it. Per the protocol we must terminate only the NAMED
+     * session; tearing down or de-authenticating THIS freshly-authenticated
+     * connection would make the client's very next request (its recovery
+     * kXR_open) fail with kXR_NotAuthorized — which is exactly what broke
+     * official-client transfer recovery against this server on a lossy link.
+     *
+     * So: if the request names a DIFFERENT session, just unregister that session
+     * (idempotent cross-worker cleanup) and leave this connection's auth state
+     * and open handles untouched. Only an endsess for THIS connection's own
+     * session performs the full teardown + auth clear below.
+     */
+    if (ngx_memcmp(req->sessid, ctx->sessid, XROOTD_SESSION_ID_LEN) != 0) {
+        xrootd_session_unregister(req->sessid);
+        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                       "xrootd: kXR_endsess for a different session — "
+                       "released it, this connection stays authenticated");
+        return xrootd_send_ok(ctx, c, NULL, 0);
+    }
 
     /*
      * Proxy mode: fire-and-forget kXR_endsess to the upstream before tearing

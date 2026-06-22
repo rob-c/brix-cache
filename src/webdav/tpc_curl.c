@@ -736,7 +736,6 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
     ngx_uint_t         i;
     int                still_running;
     ngx_int_t          rc = NGX_OK;
-    int                num_added = 0;
 
     if (n_streams <= 1) {
         return webdav_tpc_run_curl_pull(log, conf, source_url, tmp_path,
@@ -826,7 +825,6 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
 #endif
 
         curl_multi_add_handle(cm, easy[i]);
-        num_added++;
     }
 
     XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_STARTED]);

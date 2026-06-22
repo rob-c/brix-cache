@@ -8,6 +8,7 @@
  */
 
 #include "s3.h"
+#include "../impersonate/lifecycle.h"
 #include "s3_auth_internal.h"
 #include "../compat/crypto.h"
 #include "../compat/hex.h"
@@ -1293,8 +1294,27 @@ s3_post_send_success(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
  *       path resolution happens before the (potentially expensive) crypto since
  *       a bad key is a cheap reject; the object is only written post-verify.
  */
+static void s3_post_object_body_handler_inner(ngx_http_request_t *r);
+
+/*
+ * Phase 40: the POST (form-upload) body is read asynchronously, so the dispatch
+ * wrapper already cleared the impersonation principal.  Re-establish it (mirrors
+ * s3_put_body_handler) so the written object is owned by the mapped user via the
+ * broker rather than the unprivileged worker.  No-op unless map mode.
+ */
 void
 s3_post_object_body_handler(ngx_http_request_t *r)
+{
+    ngx_http_s3_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+
+    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    s3_post_object_body_handler_inner(r);
+    xrootd_imp_request_end();
+}
+
+static void
+s3_post_object_body_handler_inner(ngx_http_request_t *r)
 {
     ngx_http_s3_loc_conf_t *cf;
     u_char                 *body;
@@ -1366,9 +1386,29 @@ s3_post_object_body_handler(ngx_http_request_t *r)
     if (s3_post_write_object(r, cf, &form, fs_path, etag, sizeof(etag))
         != NGX_OK)
     {
+        /*
+         * A confined create that fails with EACCES/EPERM/EXDEV is a forbidden
+         * write, not a server fault, and must surface as 403 AccessDenied (the
+         * same contract the shared errno table gives every other handler).
+         * Under impersonation (`xrootd_impersonation map`) the create is brokered
+         * as the mapped user, so a missing/unmappable principal or a DAC-denied
+         * target dir lands here — a clean 403, never a 500.  Genuine I/O faults
+         * (EIO/ENOSPC/...) keep their 5xx mapping.  The staged-file pattern
+         * leaves no orphan object behind on any of these paths.
+         */
+        int werrno = errno;
+
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_POST,
-                                           NGX_HTTP_INTERNAL_SERVER_ERROR);
+        if (xrootd_http_map_errno(werrno) == NGX_HTTP_FORBIDDEN) {
+            s3_metrics_finalize_request_method(
+                r, XROOTD_S3_METHOD_POST,
+                s3_post_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                              "Access Denied."));
+        } else {
+            s3_metrics_finalize_request_method(
+                r, XROOTD_S3_METHOD_POST,
+                (ngx_int_t) xrootd_http_map_errno(werrno));
+        }
         return;
     }
 

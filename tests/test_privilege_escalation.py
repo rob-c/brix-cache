@@ -29,11 +29,13 @@ import pytest
 from backend_matrix import root_endpoint_parts, selected_backend_name
 from settings import (
     DATA_ROOT,
+    HOST,
     NGINX_ANON_PORT,
     READONLY_DATA_ROOT,
     READONLY_PORT as FIXED_READONLY_PORT,
     REF_XROOTD_PORT,
     SERVER_HOST,
+    url_host,
 )
 
 # ---------------------------------------------------------------------------
@@ -43,7 +45,8 @@ from settings import (
 CROSS_BACKEND = selected_backend_name()
 
 if CROSS_BACKEND == "xrootd":
-    ANON_HOST, ANON_PORT = root_endpoint_parts(f"root://localhost:{REF_XROOTD_PORT}")
+    ANON_HOST, ANON_PORT = root_endpoint_parts(
+        f"root://{url_host(HOST)}:{REF_XROOTD_PORT}")
 else:
     ANON_HOST = SERVER_HOST
     ANON_PORT = NGINX_ANON_PORT
@@ -750,7 +753,16 @@ class TestWriteSideSymlinkEscape:
         assert status == kXR_ERROR
         self._assert_outside_pristine()
 
-    def test_rm_through_file_symlink_rejected(self):
+    def test_rm_through_file_symlink_removes_link_not_target(self):
+        """kXR_rm of an in-root symlink pointing OUTSIDE the export removes the
+        LINK ITSELF, not the victim it targets — unlinkat() never follows the
+        final symlink (POSIX/lstat semantics).  This is NOT a confinement escape,
+        so it SUCCEEDS (kXR_ok); the security invariant is that the outside victim
+        stays untouched.  Matches the documented project policy in test_evil_paths
+        ("rm of the in-root symlink-to-victim must SUCCEED — removes the link
+        only") and test_xrd_busybox::test_rm_symlink_removes_link_not_target.
+        Contrast truncate/mv below, which WRITE *through* the symlink and so DO
+        escape and must be rejected."""
         payload = f"/{self.link_file_name}".encode()
         req = struct.pack("!2sH16sI", b"\x00\x03", kXR_rm,
                           b"\x00" * 16, len(payload))
@@ -758,8 +770,13 @@ class TestWriteSideSymlinkEscape:
             _login_anon(sock)
             sock.sendall(req + payload)
             status, _ = _read_response(sock)
-        assert status == kXR_ERROR
+        assert status == kXR_OK, \
+            f"rm of in-root symlink should remove the link itself (status={status})"
+        # The actual confinement guarantee: the victim OUTSIDE the root is
+        # untouched (the link was removed, never followed).
         self._assert_outside_pristine()
+        assert not os.path.lexists(self.link_file), \
+            "rm should have removed the in-root symlink itself"
 
     def test_truncate_through_file_symlink_rejected(self):
         payload = f"/{self.link_file_name}".encode()

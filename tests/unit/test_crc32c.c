@@ -117,6 +117,65 @@ sweep_equivalence(void)
     return failed;
 }
 
+/*
+ * Negative / contract cases for the copy path (now routed through the 3-way
+ * xrootd_crc32c_copy_hw3 for len >= 768):
+ *   - NULL guard: a NULL src/dst with len != 0 must copy nothing and return 0
+ *     (the documented "not a valid checksum" sentinel), never deref or scribble.
+ *   - Corruption detection: flipping a single byte anywhere in a large buffer
+ *     must change the checksum, proving every byte feeds the parallel streams
+ *     (a recombine bug that dropped a stream could otherwise pass the value
+ *     sweep yet silently miss corruption — Invariant #1).
+ */
+static int
+copy_negative_cases(void)
+{
+    static unsigned char src[4096];
+    static unsigned char dst[4096];
+    uint32_t             base, flipped;
+    size_t               i;
+    int                  failed = 0;
+    int                  guard = 0xAB;
+
+    for (i = 0; i < sizeof(src); i++) {
+        src[i] = (unsigned char) (i * 31u + 7u);
+    }
+
+    /* NULL guard: must return 0 and touch nothing. */
+    memset(dst, guard, sizeof(dst));
+    if (xrootd_crc32c_copy_value(NULL, dst, sizeof(dst)) != 0) {
+        printf("null-src copy did not return 0\n");
+        failed = 1;
+    }
+    for (i = 0; i < sizeof(dst); i++) {
+        if (dst[i] != (unsigned char) guard) {
+            printf("null-src copy scribbled dst at %zu\n", i);
+            failed = 1;
+            break;
+        }
+    }
+    if (xrootd_crc32c_copy_value(src, NULL, sizeof(src)) != 0) {
+        printf("null-dst copy did not return 0\n");
+        failed = 1;
+    }
+
+    /* Corruption detection across the 3-way path (len 4096 >= 768). */
+    base = xrootd_crc32c_copy_value(src, dst, sizeof(src));
+    for (i = 0; i < sizeof(src); i += 257) {
+        unsigned char saved = src[i];
+
+        src[i] ^= 0x01;
+        flipped = xrootd_crc32c_copy_value(src, dst, sizeof(src));
+        src[i] = saved;
+        if (flipped == base) {
+            printf("flipping byte %zu did not change copy crc\n", i);
+            failed = 1;
+        }
+    }
+
+    return failed;
+}
+
 int
 main(void)
 {
@@ -146,6 +205,7 @@ main(void)
                          xrootd_crc32c_value(payload, sizeof(payload) - 1));
 
     failed |= sweep_equivalence();
+    failed |= copy_negative_cases();
 
     if (failed) {
         return 1;

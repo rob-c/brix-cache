@@ -35,14 +35,16 @@ from settings import (
     CA_CERT,
     PROXY_STD,
     WEBDAV_TPC_SOURCE_OPEN_PORT,
+    HOST,
+    url_host,
 )
 
 # ---------------------------------------------------------------------------
 # Module-level constants (filled by autouse fixture)
 # ---------------------------------------------------------------------------
 
-METRICS_URL   = f"http://localhost:{NGINX_METRICS_PORT}/metrics"
-HTTP_WEBDAV   = f"http://127.0.0.1:{NGINX_HTTP_WEBDAV_PORT}"
+METRICS_URL   = f"http://{url_host(HOST)}:{NGINX_METRICS_PORT}/metrics"
+HTTP_WEBDAV   = f"http://{url_host(HOST)}:{NGINX_HTTP_WEBDAV_PORT}"
 DATA_DIR      = DATA_ROOT
 TOKEN_DIR     = TOKENS_DIR
 
@@ -293,7 +295,7 @@ class TestWebDAVTpcCounters:
         src_root = Path(TEST_ROOT) / "data-webdav-tpc" / "source_open"
         src_root.mkdir(parents=True, exist_ok=True)
         (src_root / name).write_bytes(payload)
-        yield f"https://127.0.0.1:{WEBDAV_TPC_SOURCE_OPEN_PORT}/{name}", payload
+        yield f"https://{url_host(HOST)}:{WEBDAV_TPC_SOURCE_OPEN_PORT}/{name}", payload
         try:
             (src_root / name).unlink()
         except FileNotFoundError:

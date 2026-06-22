@@ -35,11 +35,10 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
-HOST = "127.0.0.1"
-WEBDAV_PORT = 22012
-S3_PORT = 22013
+WEBDAV_PORT = int(os.environ.get("TEST_CE_WEBDAV_PORT") or free_port())
+S3_PORT = int(os.environ.get("TEST_CE_S3_PORT") or free_port())
 BUCKET = "testbucket"
 
 ORIGINAL = (b"the quick brown fox jumps over the lazy dog 0123456789\n" * 2000)
@@ -80,7 +79,7 @@ http {{
     uwsgi_temp_path {d}/t; scgi_temp_path {d}/t; access_log off;
     client_max_body_size 64m;
     server {{
-        listen {HOST}:{WEBDAV_PORT};
+        listen {BIND_HOST}:{WEBDAV_PORT};
         location / {{
             xrootd_webdav on;
             xrootd_webdav_root {wroot};
@@ -89,7 +88,7 @@ http {{
         }}
     }}
     server {{
-        listen {HOST}:{S3_PORT};
+        listen {BIND_HOST}:{S3_PORT};
         location / {{
             xrootd_s3 on;
             xrootd_s3_root {sroot};

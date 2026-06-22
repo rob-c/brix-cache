@@ -36,6 +36,8 @@ from pathlib import Path
 import pytest
 
 from settings import (
+    BIND_HOST,
+    HOST,
     NGINX_BIN,
     PROXY_DATA_ROOT,
     PROXY_DEAD_NGINX_PORT,
@@ -89,7 +91,8 @@ kXR_writable = 32
 # nginx proxy config template
 # ──────────────────────────────────────────────────────────────────────────────
 
-_PROXY_CONF = """\
+_PROXY_CONF = (
+    """\
 worker_processes 1;
 error_log {LOG_DIR}/error.log debug;
 pid       {LOG_DIR}/nginx.pid;
@@ -98,14 +101,19 @@ events {{ worker_connections 256; }}
 
 stream {{
     server {{
-        listen 127.0.0.1:{PORT};
+        listen """
+    + BIND_HOST
+    + """:{PORT};
         xrootd on;
         xrootd_auth none;
         xrootd_proxy on;
-        xrootd_proxy_upstream 127.0.0.1:{UPSTREAM_PORT};
+        xrootd_proxy_upstream """
+    + HOST
+    + """:{UPSTREAM_PORT};
     }}
 }}
 """
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Module fixture: one xrootd backend + one nginx proxy in front of it
@@ -137,7 +145,7 @@ def proxy_env():
     deadline = time.monotonic() + 15.0
     while time.monotonic() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", PROXY_NGINX_PORT), timeout=1):
+            with socket.create_connection((HOST, PROXY_NGINX_PORT), timeout=1):
                 break
         except OSError:
             time.sleep(0.25)
@@ -375,12 +383,12 @@ class TestProxyBootstrap:
 
     def test_client_can_connect_and_login(self, proxy_env):
         """A fresh connection through the proxy completes login successfully."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         sock.close()
 
     def test_ping_handled_without_touching_upstream(self, proxy_env):
         """kXR_ping is a session opcode — proxy handles it before the lazy connect."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, _ = _ping(sock)
             assert status == kXR_ok, f"ping failed: status={status}"
@@ -389,7 +397,7 @@ class TestProxyBootstrap:
 
     def test_multiple_pings_before_first_fs_op(self, proxy_env):
         """Session opcodes work many times without triggering upstream connect."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             for i in range(5):
                 sid = bytes([0, i + 1])
@@ -402,7 +410,7 @@ class TestProxyBootstrap:
 
     def test_first_fs_op_triggers_lazy_connect(self, proxy_env):
         """First post-login opcode (stat) triggers upstream bootstrap; response is correct."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _stat(sock, "/hello.txt")
             assert status == kXR_ok, f"stat failed: status={status}, body={body!r}"
@@ -413,7 +421,7 @@ class TestProxyBootstrap:
 
     def test_session_opcodes_still_work_after_fs_op(self, proxy_env):
         """kXR_ping continues to work after the upstream has been bootstrapped."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             _stat(sock, "/hello.txt")
             status, _ = _ping(sock)
@@ -423,7 +431,7 @@ class TestProxyBootstrap:
 
     def test_multiple_connections_independent_proxies(self, proxy_env):
         """Each client connection gets its own upstream proxy context."""
-        socks = [_connect("127.0.0.1", proxy_env["proxy_port"]) for _ in range(4)]
+        socks = [_connect(HOST, proxy_env["proxy_port"]) for _ in range(4)]
         try:
             for i, sock in enumerate(socks):
                 status, body = _stat(sock, "/hello.txt")
@@ -436,7 +444,7 @@ class TestProxyBootstrap:
 
     def test_endsess_terminates_cleanly(self, proxy_env):
         """kXR_endsess through the proxy is acknowledged and connection closes."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             _stat(sock, "/hello.txt")   # trigger upstream connect
             req = struct.pack(">2sH16sI", b"\x00\x02", kXR_endsess,
@@ -457,7 +465,7 @@ class TestProxyStat:
 
     def test_stat_existing_file(self, proxy_env):
         """Stat an existing file; size and flags come from upstream correctly."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _stat(sock, "/hello.txt")
             assert status == kXR_ok
@@ -470,7 +478,7 @@ class TestProxyStat:
 
     def test_stat_directory(self, proxy_env):
         """Stat a directory returns directory flag."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _stat(sock, "/subdir")
             assert status == kXR_ok
@@ -481,7 +489,7 @@ class TestProxyStat:
 
     def test_stat_nonexistent_file_returns_error(self, proxy_env):
         """Stat on a nonexistent path returns kXR_error (not a crash)."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _stat(sock, "/does_not_exist_xyz.txt")
             assert status == kXR_error, f"expected error, got status={status}"
@@ -491,7 +499,7 @@ class TestProxyStat:
 
     def test_stat_binary_file(self, proxy_env):
         """Stat binary file returns correct size."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _stat(sock, "/data256.bin")
             assert status == kXR_ok
@@ -502,7 +510,7 @@ class TestProxyStat:
 
     def test_stat_nested_file(self, proxy_env):
         """Stat a file in a subdirectory."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _stat(sock, "/subdir/nested.txt")
             assert status == kXR_ok
@@ -513,7 +521,7 @@ class TestProxyStat:
 
     def test_stat_large_file(self, proxy_env):
         """Stat large file returns correct size."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _stat(sock, "/large.bin")
             assert status == kXR_ok
@@ -532,7 +540,7 @@ class TestProxyDirlist:
 
     def test_dirlist_root(self, proxy_env):
         """Listing / returns the seeded files and directories."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _dirlist(sock, "/")
             assert status == kXR_ok, f"dirlist failed: {status}"
@@ -545,7 +553,7 @@ class TestProxyDirlist:
 
     def test_dirlist_subdirectory(self, proxy_env):
         """Listing a subdirectory returns only files in that directory."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _dirlist(sock, "/subdir")
             assert status == kXR_ok
@@ -558,7 +566,7 @@ class TestProxyDirlist:
 
     def test_dirlist_nonexistent_directory(self, proxy_env):
         """Listing a nonexistent directory returns kXR_error."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, _ = _dirlist(sock, "/no_such_dir_xyz")
             assert status == kXR_error
@@ -567,7 +575,7 @@ class TestProxyDirlist:
 
     def test_dirlist_empty_directory(self, proxy_env):
         """Listing an empty directory returns kXR_ok with empty body."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, _ = _dirlist(sock, "/subdir2")
             assert status == kXR_ok
@@ -584,7 +592,7 @@ class TestProxyOpenReadClose:
 
     def test_read_full_small_file(self, proxy_env):
         """Read entire small file; content matches what was written to disk."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/hello.txt", kXR_open_read)
             assert status == kXR_ok, f"open failed: {status}"
@@ -601,7 +609,7 @@ class TestProxyOpenReadClose:
 
     def test_read_partial_offset(self, proxy_env):
         """Read a range starting at a non-zero offset."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/data256.bin", kXR_open_read)
             assert status == kXR_ok
@@ -619,7 +627,7 @@ class TestProxyOpenReadClose:
 
     def test_read_past_eof_returns_available(self, proxy_env):
         """Reading past EOF returns the bytes available, not an error."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/hello.txt", kXR_open_read)
             assert status == kXR_ok
@@ -636,7 +644,7 @@ class TestProxyOpenReadClose:
 
     def test_read_exactly_at_eof(self, proxy_env):
         """Reading from exactly EOF returns empty or kXR_ok."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/hello.txt", kXR_open_read)
             assert status == kXR_ok
@@ -652,7 +660,7 @@ class TestProxyOpenReadClose:
 
     def test_read_binary_data_integrity(self, proxy_env):
         """Binary file content is relayed byte-for-byte through the proxy."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/data256.bin", kXR_open_read)
             assert status == kXR_ok
@@ -669,7 +677,7 @@ class TestProxyOpenReadClose:
 
     def test_multiple_reads_same_handle(self, proxy_env):
         """Multiple consecutive reads on one handle return sequential file data."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/data256.bin", kXR_open_read)
             assert status == kXR_ok
@@ -688,7 +696,7 @@ class TestProxyOpenReadClose:
 
     def test_open_nonexistent_returns_error(self, proxy_env):
         """Opening a nonexistent file returns kXR_error from the backend."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/no_such_file.txt", kXR_open_read)
             assert status == kXR_error, f"expected kXR_error, got {status}"
@@ -698,7 +706,7 @@ class TestProxyOpenReadClose:
 
     def test_open_read_nested_file(self, proxy_env):
         """Read a file in a subdirectory."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/subdir/nested.txt", kXR_open_read)
             assert status == kXR_ok
@@ -722,7 +730,7 @@ class TestProxyOpenWriteClose:
 
     def test_write_new_file_and_read_back(self, proxy_env):
         """Create a new file via proxy write, then read it back."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             fname = f"/proxy_write_{uuid.uuid4().hex[:8]}.txt"
             payload = b"proxy write test data\n"
@@ -756,7 +764,7 @@ class TestProxyOpenWriteClose:
 
     def test_write_at_offset(self, proxy_env):
         """Write data at a non-zero offset; verify with a targeted read."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             fname = f"/proxy_offset_{uuid.uuid4().hex[:8]}.bin"
 
@@ -783,7 +791,7 @@ class TestProxyOpenWriteClose:
 
     def test_overwrite_existing_file(self, proxy_env):
         """Open existing file in write mode and overwrite beginning."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             fname = f"/proxy_overwrite_{uuid.uuid4().hex[:8]}.txt"
 
@@ -816,7 +824,7 @@ class TestProxyOpenWriteClose:
 
     def test_write_large_chunk(self, proxy_env):
         """Write a 256 KiB chunk through the proxy."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             fname = f"/proxy_large_write_{uuid.uuid4().hex[:8]}.bin"
             payload = bytes(i & 0xFF for i in range(256 * 1024))
@@ -852,7 +860,7 @@ class TestProxyHandleTranslation:
 
     def test_two_files_open_simultaneously(self, proxy_env):
         """Two files open at once; reads from each handle return correct data."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s1, b1 = _open(sock, "/alpha.txt", kXR_open_read, sid=b"\x00\x01")
             assert s1 == kXR_ok
@@ -879,7 +887,7 @@ class TestProxyHandleTranslation:
 
     def test_three_files_interleaved_reads(self, proxy_env):
         """Three files open; interleaved reads all return correct data."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             _, b1 = _open(sock, "/alpha.txt", kXR_open_read, sid=b"\x00\x01")
             _, b2 = _open(sock, "/beta.txt",  kXR_open_read, sid=b"\x00\x02")
@@ -905,7 +913,7 @@ class TestProxyHandleTranslation:
 
     def test_handle_reuse_after_close(self, proxy_env):
         """After closing a handle, a new open can reuse the same local slot."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, b = _open(sock, "/alpha.txt", kXR_open_read, sid=b"\x00\x01")
             assert s == kXR_ok
@@ -928,7 +936,7 @@ class TestProxyHandleTranslation:
 
     def test_read_from_closed_handle_returns_error(self, proxy_env):
         """Reading from a handle after close returns kXR_error (invalid handle)."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, b = _open(sock, "/alpha.txt", kXR_open_read)
             assert s == kXR_ok
@@ -950,7 +958,7 @@ class TestProxyHandleTranslation:
             "gamma.txt": b"xyzxyzxyzxyzxyz!",
             "hello.txt": b"hello from proxy",  # first 16 bytes
         }
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             handles = {}
             for i, fname in enumerate(files):
@@ -980,7 +988,7 @@ class TestProxyReadV:
 
     def test_readv_single_segment(self, proxy_env):
         """Single-segment readv works and returns correct data."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, b = _open(sock, "/alpha.txt", kXR_open_read)
             assert s == kXR_ok
@@ -998,7 +1006,7 @@ class TestProxyReadV:
 
     def test_readv_two_segments_same_handle(self, proxy_env):
         """Two non-overlapping segments on one handle return correct slices."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, b = _open(sock, "/data256.bin", kXR_open_read)
             assert s == kXR_ok
@@ -1016,7 +1024,7 @@ class TestProxyReadV:
 
     def test_readv_two_different_handles(self, proxy_env):
         """Readv with two different handles in one request translates both."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, b1 = _open(sock, "/alpha.txt", kXR_open_read, sid=b"\x00\x01")
             assert s == kXR_ok
@@ -1039,7 +1047,7 @@ class TestProxyReadV:
 
     def test_readv_many_segments(self, proxy_env):
         """Many segments on one file all arrive and have correct total data size."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, b = _open(sock, "/data256.bin", kXR_open_read)
             assert s == kXR_ok
@@ -1058,7 +1066,7 @@ class TestProxyReadV:
 
     def test_readv_after_other_operations(self, proxy_env):
         """Readv works correctly after a regular read on the same handle."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, b = _open(sock, "/data256.bin", kXR_open_read)
             assert s == kXR_ok
@@ -1089,7 +1097,7 @@ class TestProxyLocate:
 
     def test_locate_existing_file(self, proxy_env):
         """Locate an existing file returns kXR_ok with location info."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _locate(sock, "/hello.txt")
             # The upstream may return ok or redirect; both are valid responses
@@ -1101,7 +1109,7 @@ class TestProxyLocate:
 
     def test_locate_nonexistent_returns_error(self, proxy_env):
         """Locate a nonexistent file returns kXR_error."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, _ = _locate(sock, "/definitely_does_not_exist_abcde.txt")
             assert status == kXR_error
@@ -1118,7 +1126,7 @@ class TestProxyFsOps:
 
     def test_mkdir_and_stat(self, proxy_env):
         """Create a directory through the proxy, then stat it."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             dname = f"/proxy_mkdir_{uuid.uuid4().hex[:8]}"
             status, _ = _mkdir(sock, dname)
@@ -1133,7 +1141,7 @@ class TestProxyFsOps:
 
     def test_mkdir_nested_path(self, proxy_env):
         """mkdir with mkpath flag creates parent directories."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             dname = f"/proxy_nest_{uuid.uuid4().hex[:8]}/a/b"
             status, _ = _mkdir(sock, dname, mkpath=True)
@@ -1146,7 +1154,7 @@ class TestProxyFsOps:
 
     def test_rm_file(self, proxy_env):
         """Create a file, rm it, stat returns error."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             fname = f"/proxy_rm_{uuid.uuid4().hex[:8]}.txt"
 
@@ -1168,7 +1176,7 @@ class TestProxyFsOps:
 
     def test_rmdir_empty_directory(self, proxy_env):
         """Create and remove an empty directory."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             dname = f"/proxy_rmdir_{uuid.uuid4().hex[:8]}"
             s, _ = _mkdir(sock, dname)
@@ -1184,7 +1192,7 @@ class TestProxyFsOps:
 
     def test_mv_rename_file(self, proxy_env):
         """Rename a file through the proxy; old name disappears, new name works."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             src = f"/proxy_mv_src_{uuid.uuid4().hex[:8]}.txt"
             dst = f"/proxy_mv_dst_{uuid.uuid4().hex[:8]}.txt"
@@ -1207,7 +1215,7 @@ class TestProxyFsOps:
 
     def test_truncate_file_via_path(self, proxy_env):
         """Truncate a file to a smaller size through the proxy."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             fname = f"/proxy_trunc_{uuid.uuid4().hex[:8]}.bin"
 
@@ -1228,7 +1236,7 @@ class TestProxyFsOps:
 
     def test_create_file_write_stat_rm(self, proxy_env):
         """Full lifecycle: create → write → stat → rm, all through the proxy."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             fname = f"/lifecycle_{uuid.uuid4().hex[:8]}.txt"
             content = b"lifecycle test payload 42\n"
@@ -1264,7 +1272,7 @@ class TestProxyErrorPropagation:
 
     def test_stat_missing_propagates_error(self, proxy_env):
         """kXR_error from backend on nonexistent stat reaches the client."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _stat(sock, "/this_file_does_not_exist_abc.txt")
             assert status == kXR_error
@@ -1274,7 +1282,7 @@ class TestProxyErrorPropagation:
 
     def test_open_missing_propagates_error(self, proxy_env):
         """kXR_error from backend on open(nonexistent) reaches the client."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, body = _open(sock, "/no_such.txt", kXR_open_read)
             assert status == kXR_error
@@ -1284,7 +1292,7 @@ class TestProxyErrorPropagation:
 
     def test_error_does_not_break_connection(self, proxy_env):
         """After a backend error, the connection is still usable."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             # Trigger an error
             status, _ = _stat(sock, "/nonexistent_xyz.txt")
@@ -1300,7 +1308,7 @@ class TestProxyErrorPropagation:
 
     def test_multiple_errors_in_sequence(self, proxy_env):
         """Multiple sequential backend errors don't corrupt the connection."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             for i in range(5):
                 sid = bytes([0, i + 1])
@@ -1319,7 +1327,7 @@ class TestProxyErrorPropagation:
 
     def test_rm_nonexistent_error(self, proxy_env):
         """rm on a nonexistent file propagates kXR_error."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             status, _ = _rm(sock, "/ghost_file_xyz.txt")
             assert status == kXR_error
@@ -1328,7 +1336,7 @@ class TestProxyErrorPropagation:
 
     def test_rmdir_nonempty_error(self, proxy_env):
         """rmdir on a non-empty directory propagates kXR_error."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             # /subdir has nested.txt in it
             status, _ = _rmdir(sock, "/subdir")
@@ -1346,7 +1354,7 @@ class TestProxySequential:
 
     def test_fifty_stats_in_sequence(self, proxy_env):
         """50 stat requests on one connection all succeed."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             for i in range(50):
                 sid = bytes([i >> 8, i & 0xFF])
@@ -1361,7 +1369,7 @@ class TestProxySequential:
 
     def test_alternating_stat_and_ping(self, proxy_env):
         """Alternating stat (proxy'd) and ping (local) stay in sync."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             for i in range(20):
                 # stat — goes to upstream
@@ -1375,7 +1383,7 @@ class TestProxySequential:
 
     def test_open_read_close_cycle_repeated(self, proxy_env):
         """Open/read/close cycle repeated 20 times on same connection."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             for i in range(20):
                 s, b = _open(sock, "/alpha.txt", kXR_open_read)
@@ -1390,7 +1398,7 @@ class TestProxySequential:
 
     def test_write_read_delete_cycle_repeated(self, proxy_env):
         """Write/read/delete cycle 10 times — file content consistent each time."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             for i in range(10):
                 fname = f"/seq_{i}_{uuid.uuid4().hex[:6]}.txt"
@@ -1416,7 +1424,7 @@ class TestProxySequential:
 
     def test_mixed_opcodes_sequence(self, proxy_env):
         """A realistic mixed workload: stat, open, read, close, dirlist, mkdir, rm."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, _ = _stat(sock, "/hello.txt")
             assert s == kXR_ok
@@ -1452,7 +1460,7 @@ class TestProxyLargeRead:
 
     def test_read_512kb_file_in_one_request(self, proxy_env):
         """Read entire 512 KiB file in one request; content must match exactly."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         sock.settimeout(30)
         try:
             s, b = _open(sock, "/large.bin", kXR_open_read)
@@ -1471,7 +1479,7 @@ class TestProxyLargeRead:
 
     def test_read_512kb_file_in_chunks(self, proxy_env):
         """Read a 512 KiB file in 64 KiB chunks; each chunk has expected content."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         sock.settimeout(30)
         try:
             s, b = _open(sock, "/large.bin", kXR_open_read)
@@ -1492,7 +1500,7 @@ class TestProxyLargeRead:
 
     def test_write_and_read_256kb(self, proxy_env):
         """Write 256 KiB through proxy, then read it back; content must match."""
-        sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock = _connect(HOST, proxy_env["proxy_port"])
         sock.settimeout(30)
         try:
             fname = f"/large_write_{uuid.uuid4().hex[:8]}.bin"
@@ -1531,8 +1539,8 @@ class TestProxyMultiClient:
 
     def test_two_clients_independent_file_access(self, proxy_env):
         """Two simultaneous clients read different files; each sees its own data."""
-        sock1 = _connect("127.0.0.1", proxy_env["proxy_port"])
-        sock2 = _connect("127.0.0.1", proxy_env["proxy_port"])
+        sock1 = _connect(HOST, proxy_env["proxy_port"])
+        sock2 = _connect(HOST, proxy_env["proxy_port"])
         try:
             s, b1 = _open(sock1, "/alpha.txt", kXR_open_read)
             assert s == kXR_ok
@@ -1558,7 +1566,7 @@ class TestProxyMultiClient:
 
     def test_four_clients_stat_same_file(self, proxy_env):
         """Four clients stat the same file; all get the same result."""
-        socks = [_connect("127.0.0.1", proxy_env["proxy_port"]) for _ in range(4)]
+        socks = [_connect(HOST, proxy_env["proxy_port"]) for _ in range(4)]
         try:
             for i, sock in enumerate(socks):
                 s, body = _stat(sock, "/data256.bin")
@@ -1571,7 +1579,7 @@ class TestProxyMultiClient:
 
     def test_clients_write_to_separate_files_no_interference(self, proxy_env):
         """Multiple clients write different files; content is not interleaved."""
-        socks = [_connect("127.0.0.1", proxy_env["proxy_port"]) for _ in range(3)]
+        socks = [_connect(HOST, proxy_env["proxy_port"]) for _ in range(3)]
         fnames = [f"/mc_write_{uuid.uuid4().hex[:6]}.txt" for _ in range(3)]
         payloads = [f"client {i} content".encode() for i in range(3)]
         try:
@@ -1588,7 +1596,7 @@ class TestProxyMultiClient:
                 _close(sock, fh)
 
             # Verify each file has the right content using a fresh connection
-            verify_sock = _connect("127.0.0.1", proxy_env["proxy_port"])
+            verify_sock = _connect(HOST, proxy_env["proxy_port"])
             try:
                 for fname, payload in zip(fnames, payloads):
                     s, b = _open(verify_sock, fname, kXR_open_read)
@@ -1621,7 +1629,7 @@ class TestProxyBackendUnavailable:
         if not os.path.exists(NGINX_BIN):
             pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
-        sock = _connect("127.0.0.1", PROXY_DEAD_NGINX_PORT)
+        sock = _connect(HOST, PROXY_DEAD_NGINX_PORT)
         try:
             # Ping (session opcode) must succeed — it's handled before upstream connect
             status, _ = _ping(sock)
@@ -1642,7 +1650,7 @@ class TestProxyBackendUnavailable:
             pytest.skip(f"nginx binary not found: {NGINX_BIN}")
 
         for _ in range(3):
-            sock = _connect("127.0.0.1", PROXY_DEAD_NGINX_PORT)
+            sock = _connect(HOST, PROXY_DEAD_NGINX_PORT)
             try:
                 sock.settimeout(5)
                 status, _ = _stat(sock, "/any_file.txt")

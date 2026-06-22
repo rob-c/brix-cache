@@ -1,7 +1,9 @@
 #include "s3.h"
+#include "list_cache.h"
 #include "../token/b64url.h"
 #include "../compat/http_query.h"
 #include <string.h>
+#include <sys/stat.h>
 
 /* S3 list params: URL-decode, + → space, reject NUL, allow empty delimiter. */
 #define S3_LIST_QUERY_FLAGS \
@@ -56,8 +58,11 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     int             max_keys;
     int             fetch_owner  = 0;
     int             url_encode   = 0;
-    s3_entry_t     *entries;
+    ngx_array_t    *entries;
+    s3_entry_t     *items = NULL;
     int             total = 0;
+    int             cached = 0;
+    time_t          dir_mtime = 0;
     int             start_idx = 0;
     int             end_idx;
     int             truncated;
@@ -120,27 +125,54 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
         }
     }
 
-    /* Allocate entry array on r->pool — lifetime survives until async callback completes. S3_LIST_MAX_ENTRIES
-     * caps the walk to prevent unbounded memory growth on large buckets. */
+    /* phase-45 W1: growable entry array (pool-backed). Starts small and grows to
+     * the S3_LIST_MAX_ENTRIES cap, so memory scales with the actual key count —
+     * not a fixed 273 MB.  The walk stores only key + is_prefix; size/mtime/etag
+     * are filled lazily for the emitted page slice (s3_entry_fill_stat). */
 
-    entries = ngx_palloc(r->pool, sizeof(s3_entry_t) * S3_LIST_MAX_ENTRIES);
-    if (entries == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    /* W6c: a per-worker cache of the sorted (key+is_prefix) listing, keyed by
+     * (root, prefix, delimiter) and validated by the bucket-root mtime + TTL,
+     * lets page N+1 skip re-walking + re-sorting the whole subtree. */
+    if (cf->list_cache) {
+        struct stat rst;
+        if (stat((const char *) cf->common.root.data, &rst) == 0) {
+            dir_mtime = rst.st_mtime;
+        }
+        cached = s3_list_cache_get(r, (const char *) cf->common.root.data,
+                                   (const char *) prefix_buf,
+                                   (const char *) delimiter_buf,
+                                   dir_mtime, cf->list_cache_ttl,
+                                   &items, &total);
     }
 
-    /* Walk filesystem under root, collecting entries matching prefix+delimiter filter.
-     * s3_walk populates the entries array with is_prefix flags distinguishing objects
-     * from directory-like common prefixes. total counts all matched entries (before pagination). */
+    if (!cached) {
+        entries = ngx_array_create(r->pool, 256, sizeof(s3_entry_t));
+        if (entries == NULL) {
+            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-    s3_walk((const char *) cf->common.root.data,
-            (const char *) cf->common.root.data,
-            "",
-            (const char *) prefix_buf,
-            (const char *) delimiter_buf,
-            entries, S3_LIST_MAX_ENTRIES, &total);
+        s3_walk(r->connection->log,
+                (const char *) cf->common.root.data,
+                (const char *) cf->common.root.data,
+                "",
+                (const char *) prefix_buf,
+                (const char *) delimiter_buf,
+                entries, S3_LIST_MAX_ENTRIES);
 
-    qsort(entries, (size_t) total, sizeof(s3_entry_t), entry_cmp);
+        total = (int) entries->nelts;
+        items = entries->elts;
+
+        qsort(items, (size_t) total, sizeof(s3_entry_t), entry_cmp);
+
+        if (cf->list_cache) {
+            s3_list_cache_put(r->connection->log,
+                              (const char *) cf->common.root.data,
+                              (const char *) prefix_buf,
+                              (const char *) delimiter_buf,
+                              dir_mtime, items, total);
+        }
+    }
 
     /* Pagination offset: linear scan through sorted entries to find the first key
      * strictly greater than start_after. All entries <= start_after were returned on
@@ -149,7 +181,7 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 
     if (start_after[0] != '\0') {
         for (start_idx = 0; start_idx < total; start_idx++) {
-            if (strcmp(entries[start_idx].key, start_after) > 0) {
+            if (strcmp(items[start_idx].key, start_after) > 0) {
                 break;
             }
         }
@@ -167,8 +199,8 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 
     next_token[0] = '\0';
     if (truncated && end_idx > 0) {
-        b64url_encode(entries[end_idx - 1].key,
-                      strlen(entries[end_idx - 1].key),
+        b64url_encode(items[end_idx - 1].key,
+                      strlen(items[end_idx - 1].key),
                       next_token, sizeof(next_token));
     }
 
@@ -214,7 +246,7 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 
     /* Emit Contents and CommonPrefixes */
     for (int entry_index = start_idx; entry_index < end_idx; entry_index++) {
-        s3_entry_t *entry = &entries[entry_index];
+        s3_entry_t *entry = &items[entry_index];
 
         if (entry->is_prefix) {
             prefixes++;
@@ -223,6 +255,15 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
             XML_APPEND("</CommonPrefixes>");
         } else {
             char encoded_key[S3_MAX_KEY * 3 + 1];
+
+            /* phase-45 W1: stat is done HERE, only for the emitted page.  If the
+             * object vanished or is no longer a regular file, skip it (matches
+             * the eager walker's stat-failure skip). */
+            if (s3_entry_fill_stat(r->connection->log,
+                                   (const char *) cf->common.root.data,
+                                   entry) != NGX_OK) {
+                continue;
+            }
 
             contents++;
             xrootd_format_iso8601(entry->mtime, iso_buf, sizeof(iso_buf));

@@ -57,6 +57,10 @@ struct xrootd_vfs_file_s {
     unsigned          from_cache:1;
     unsigned          is_tls:1;
     unsigned          cleanup_registered:1;
+    /* phase-45 W2/R1: the cached size/mtime/ctime/mode/ino above are current
+     * (set by adopt_fd's fstat, no write since), so xrootd_vfs_file_stat() can
+     * answer from them without a second fstat.  Cleared by xrootd_vfs_write(). */
+    unsigned          stat_current:1;
 };
 
 struct xrootd_vfs_dir_s {
@@ -64,6 +68,7 @@ struct xrootd_vfs_dir_s {
     ngx_pool_t *pool;
     ngx_log_t  *log;
     char       *path;
+    const char *root_canon;   /* for broker-routed per-child lstat (impersonation) */
 };
 
 /* Borrow the ctx's resolved confined path as a NUL-terminated C string.

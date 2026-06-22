@@ -6,6 +6,8 @@
 #include <sys/stat.h>
 #include <time.h>
 
+#define XROOTD_PREPARE_OWNER_KEY_MAX  64
+
 /* Phase 35: map a durable queue status to the QPrep per-path status letter.
  * 'A' available/online, 'q' queued, 's' staging, 'f' failed, 'M' missing. */
 static char
@@ -71,6 +73,49 @@ xrootd_prepare_has_forbidden_component(const char *path)
 /* ---- WHY: kXR_prepare rejects paths containing dot (.) or double-dot (..) components to prevent directory traversal into parent exports. Used as a fast pre-check before full path resolution — avoids expensive resolve_path() calls on obviously invalid paths. ---- */
 
 /* ---- HOW: Scans path character-by-character, skipping leading '/' separators; extracts each segment between slashes via seg→p pointer arithmetic. For each segment checks len==1 && seg[0]=='.' or len==2 && seg[0]=='.' && seg[1]=='.' — if match returns 1 (forbidden). Returns 0 if no forbidden components found after full scan. Static helper used exclusively by xrootd_prepare_check_path(). */
+
+/* ---- Function: xrootd_prepare_owner_key() ---------------------------------
+ * WHAT: Return the stable owner string used for FRM stream prepare records and
+ * cancel checks. Authenticated callers use their canonical identity DN/token
+ * subject; anonymous callers get a per-login owner key derived from sessid.
+ * WHY: FRM cancel authorization compares stored requester strings. Leaving
+ * anonymous records owner-less lets any later anonymous session cancel another
+ * session's stage request by guessing its reqid.
+ * HOW: Borrow the identity string when present. Otherwise render
+ * "anon-session:" plus the 16-byte session id as lowercase hex into caller
+ * storage and return that buffer. */
+static const char *
+xrootd_prepare_owner_key(xrootd_ctx_t *ctx, char *anon_key, size_t anon_key_sz)
+{
+    static const char hex[] = "0123456789abcdef";
+    static const char prefix[] = "anon-session:";
+    const char       *dn;
+    size_t            pos;
+    ngx_uint_t        i;
+
+    if (ctx == NULL) {
+        return NULL;
+    }
+
+    dn = xrootd_identity_dn_cstr(ctx->identity);
+    if (dn != NULL && dn[0] != '\0') {
+        return dn;
+    }
+
+    if (anon_key == NULL || anon_key_sz < sizeof(prefix) + 32) {
+        return NULL;
+    }
+
+    ngx_memcpy(anon_key, prefix, sizeof(prefix) - 1);
+    pos = sizeof(prefix) - 1;
+    for (i = 0; i < 16; i++) {
+        u_char b = ctx->sessid[i];
+        anon_key[pos++] = hex[b >> 4];
+        anon_key[pos++] = hex[b & 0x0f];
+    }
+    anon_key[pos] = '\0';
+    return anon_key;
+}
 
 static ngx_int_t
 xrootd_prepare_send_fail(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -205,6 +250,7 @@ xrootd_prepare_handle_cancel(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
     char          reqid[FRM_REQID_LEN];
+    char          owner_key[XROOTD_PREPARE_OWNER_KEY_MAX];
     const u_char *p, *end;
     size_t        n;
 
@@ -225,11 +271,12 @@ xrootd_prepare_handle_cancel(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_memcpy(reqid, ctx->payload, n);
     reqid[n] = '\0';
 
-    /* FRM-1: a request may only be cancelled by the principal that created it.
-     * Fail-open for anonymous callers / owner-less records keeps single-trust-
-     * domain deployments working; a concrete cross-principal mismatch is denied. */
+    /* FRM-1: a request may only be cancelled by the owner that created it.
+     * Anonymous stream callers are scoped to their login session id, so another
+     * anonymous session cannot cancel by guessing a durable reqid. */
     if (frm_request_owner_check(conf->frm.queue, reqid,
-                                xrootd_identity_dn_cstr(ctx->identity),
+                                xrootd_prepare_owner_key(ctx, owner_key,
+                                                         sizeof(owner_key)),
                                 c->log) != NGX_OK)
     {
         xrootd_log_access(ctx, c, "PREPARE", reqid, "cancel-denied", 0,
@@ -395,17 +442,19 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 frm_req_view_t v;
                 char           rq[FRM_REQID_LEN];
                 ngx_int_t      arc;
-                /* Record the canonical identity DN (== ctx->dn for GSI; the token
-                 * "sub" for bearer auth) so F4 quota AND the FRM-1 cancel-owner
-                 * check work for both auth modes. */
-                const char    *rdn = xrootd_identity_dn_cstr(ctx->identity);
+                /* Record the canonical identity DN/token subject, or a scoped
+                 * anonymous-session key, so F4 quota and FRM-1 cancel-owner
+                 * checks have the same owner string. */
+                char           owner_key[XROOTD_PREPARE_OWNER_KEY_MAX];
+                const char    *rdn = xrootd_prepare_owner_key(ctx, owner_key,
+                                                              sizeof(owner_key));
 
                 ngx_memzero(&v, sizeof(v));
                 v.lfn        = out_resolved;
                 v.options    = FRM_OPT_STAGE
                              | ((req->options & kXR_coloc) ? FRM_OPT_COLOC : 0);
                 v.selector   = "prepare";    /* F2: activity class           */
-                v.requester_dn = (rdn[0] != '\0') ? rdn : NULL;  /* F4 + FRM-1 */
+                v.requester_dn = (rdn != NULL && rdn[0] != '\0') ? rdn : NULL;
                 v.tod_expire = (int64_t) time(NULL)
                              + (int64_t) (conf->frm.stage_ttl / 1000);
 

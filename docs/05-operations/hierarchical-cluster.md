@@ -1,8 +1,8 @@
 # Full Hierarchical CMS Cluster
 
-The XRootD CMS cluster protocol from first principles: what it is, where it appears in HEP deployments, what nginx-xrootd already implements, and what remains.
-what the remaining gap is, and a detailed implementation plan for completing
-full hierarchical support.
+The XRootD CMS cluster protocol from first principles: what it is, where it
+appears in HEP deployments, what nginx-xrootd implements today, and which
+gateway/proxy extensions remain outside the completed native redirect path.
 
 See [cluster-mode.md](cluster-management.md) for the existing two-tier configuration
 reference and [manager-mode.md](manager-mode.md) for the static
@@ -78,26 +78,27 @@ storage infrastructure:
 
 A client running `xrdcp` to fetch a file contacts the closest sub-manager. If
 the file is locally available the sub-manager redirects immediately. If not, it
-must escalate the query to its parent — this is the `kYR_locate` → `kYR_select`
-exchange that the current implementation is missing.
+escalates the query to its parent through the implemented `kYR_locate` →
+`kYR_select` / `kYR_try` exchange.
 
 ### XCache / StashCache / OSDF
 
 The Open Science Data Federation (OSDF) uses a global redirector at the top,
 regional sub-managers at each resource provider, and per-site XCache instances
 at the leaves. A cache miss at a regional sub-manager must be escalated upward
-to ask the global redirector where the file's authoritative copy is. Without
-the escalation mechanism, a cache miss terminates in a `kXR_notFound` rather
-than a redirect to the origin.
+to ask the global redirector where the file's authoritative copy is. The
+implemented escalation mechanism prevents a cache miss at the regional layer
+from terminating prematurely as `kXR_notFound` when the parent can identify an
+origin.
 
 ### OSG / DOMA federations
 
 The Open Science Grid (DOMA storage task force) federates over 100 sites under
 a common namespace. No single redirector can hold registry entries for every
 storage node at every site — the hierarchy is essential for scale. Sites running
-nginx-xrootd as a sub-manager today rely on the static `xrootd_manager_map`
-fallback, which means redirect decisions are pre-configured at deploy time
-rather than derived from live availability data.
+nginx-xrootd as a sub-manager can use live CMS escalation for native redirect
+workflows; static `xrootd_manager_map` remains available for simple fixed-prefix
+routing.
 
 ### Rucio + XRootD storage element lookup
 
@@ -221,17 +222,16 @@ Key files: `src/cache/thread.c`, `src/cache/evict.c`.
 
 ---
 
-## What is missing — the M6 gap
+## What M6 completed
 
-The current implementation works correctly for two-tier deployments (one
-redirector, any number of data servers up to 128). The gap is entirely in the
-sub-manager path: a sub-manager that receives a `kXR_locate` or `kXR_open` for
-a path not in its local registry has no way to escalate the query to its parent
-and relay the parent's answer back to the client.
+The current implementation works correctly for two-tier deployments and for the
+native three-tier redirect path. A sub-manager that receives a `kXR_locate` or
+`kXR_open` for a path not in its local registry can escalate the query to its
+parent and relay the parent's answer back to the client.
 
-### Missing CMS opcodes
+### CMS opcodes added by M6
 
-The following opcodes appear in the XRootD CMS wire protocol but are not yet
+The following opcodes appear in the XRootD CMS wire protocol and are now
 handled. Values are verified against `YProtocol.hh` in the XRootD reference
 source tree at `/tmp/xrootd-src/src/XProtocol/YProtocol.hh`.
 
@@ -243,27 +243,27 @@ source tree at `/tmp/xrootd-src/src/XProtocol/YProtocol.hh`.
 
 `kYR_gone` (value 14, data server → manager) is **implemented** — see Step 1a below.
 
-### The pending-locate bridge problem
+### The pending-locate bridge
 
-The fundamental architectural challenge is that a `kXR_locate` client request
+The fundamental architectural challenge was that a `kXR_locate` client request
 arrives on an XRootD data channel connection (managed by any nginx worker) and
 the parent manager's `kYR_select` reply arrives on the CMS management channel
-(currently worker 0 only). There is no mechanism to hold the XRootD session
-open while the CMS exchange completes, and no way to route the CMS response
-back to the correct worker and connection.
+(historically worker 0 only). The M6 pending-locate table and session-suspension
+state now hold the XRootD session open while the CMS exchange completes and
+route the CMS response back to the correct worker and connection.
 
 ### Registry capacity
 
 The registry capacity defaults to 128 slots and is now configurable via
 `xrootd_registry_slots N` (Step 1b — implemented). When the table is full,
 new registrations are dropped with a `WARN`-level log message and a
-`xrootd_registry_full_total` Prometheus counter increment. Without hierarchical
-fanout, a single redirector still cannot serve sites at CERN scale regardless
-of the slot count.
+`xrootd_registry_full_total` Prometheus counter increment. For CERN-scale
+deployments, hierarchical fanout is still the expected design rather than simply
+increasing one redirector's slot count.
 
 ---
 
-## Implementation plan — M6
+## Implementation notes — M6
 
 Each step below is independently reviewable. Steps 1a and 1b are independent of
 each other and can proceed in any order. Step 3 depends on 1b. Steps 4 and 5
@@ -548,10 +548,10 @@ stream {
 Client flow: `xrdcp` contacts the meta-manager on port 2094. The meta-manager
 queries its registry and redirects the client to the sub-manager on port 1094.
 The client contacts the sub-manager, which queries its local registry. On a
-miss (after M6 is implemented), the sub-manager sends `kYR_locate` upward to
-the meta-manager, which responds with `kYR_select` naming a specific leaf. The
-sub-manager issues `kXR_redirect` to the client naming that leaf, and the
-client connects directly to the leaf for the data transfer.
+miss, the sub-manager sends `kYR_locate` upward to the meta-manager, which
+responds with `kYR_select` naming a specific leaf. The sub-manager issues
+`kXR_redirect` to the client naming that leaf, and the client connects directly
+to the leaf for the data transfer.
 
 ---
 
@@ -566,14 +566,14 @@ client connects directly to the leaf for the data transfer.
 | 4 | `ngx_xrootd_cms_send_locate()` + streamid counter | 2 | ✅ Done |
 | 5 | `XRD_ST_WAITING_CMS` + session suspension in `locate.c` / `open.c` | 3, 4 | ✅ Done |
 | 6 | `kYR_select` / `kYR_try` in `recv.c` + session wake | 3, 4, 5 | ✅ Done |
-| 7 | Three-tier integration tests (Parts 5–8) | 2–6 | Not started |
+| 7 | Three-tier integration tests (Parts 5–8) | 2–6 | ✅ Done |
 
 ---
 
 ## Tests
 
-Add to `tests/test_manager_mode.py`. All tests must be deterministic — no
-timing-dependent assertions. Use the mock CMS fixture pattern from
+Tests live in `tests/test_manager_mode.py`. All tests should stay deterministic
+— no timing-dependent assertions. Use the mock CMS fixture pattern from
 `tests/test_cms.py` wherever a real manager response would introduce timing
 uncertainty.
 
@@ -641,10 +641,11 @@ redirects to that server.
 
 ---
 
-## Remaining work
+## Validation Status
 
-The following items are needed before the hierarchical CMS implementation can
-be considered production-complete.
+The native hierarchical CMS redirect path is implemented and covered by the
+tests below. The remaining design extension is proxy/gateway integration, where
+nginx would proxy to the CMS-selected backend instead of redirecting the client.
 
 ### R1 — `kYR_try` test coverage
 
@@ -711,7 +712,7 @@ This test is the most important one for production confidence because it is the
 only test that exercises the full `kYR_locate` → suspend → `kYR_select` → wake
 → `kXR_redirect` pipeline under realistic conditions.
 
-**Files:** add to `tests/test_manager_mode.py` as `TestCmsEscalation`.
+**Files:** implemented in `tests/test_manager_mode.py` as `TestCmsEscalation`.
 
 ---
 

@@ -407,6 +407,22 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
                                      O_RDONLY | O_DIRECTORY | O_CLOEXEC
                                      | O_NOFOLLOW, 0);
     if (dfd < 0) {
+        /*
+         * A SUBDIRECTORY we cannot enter must NOT abort recovery: under per-request
+         * impersonation the export legitimately contains per-user PRIVATE dirs
+         * (e.g. 0700) the worker uid cannot read, and a dir can be removed mid-scan.
+         * Skip those (recovery only concerns this server's own .ckp temp files,
+         * which live in dirs the worker can reach).  Only an inaccessible EXPORT
+         * ROOT (depth 0) or an unexpected errno is fatal.
+         */
+        if (depth > 0 && (ngx_errno == EACCES || ngx_errno == ENOENT
+                          || ngx_errno == ENOTDIR || ngx_errno == ELOOP))
+        {
+            xrootd_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
+                                 "xrootd: checkpoint recovery skipping "
+                                 "inaccessible dir \"%s\"", dir);
+            return NGX_OK;
+        }
         xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery cannot scan \"%s\"",
                              dir);
@@ -443,11 +459,12 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
         ngx_memcpy(path + dlen + 1, de->d_name, nlen + 1);
 
         if (fstatat(dirfd(dp), de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
-            closedir(dp);
-            xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                                 "xrootd: checkpoint recovery stat failed "
-                                 "for \"%s\"", path);
-            return NGX_ERROR;
+            /* A transiently-removed or inaccessible entry: skip it, don't abort
+             * the whole recovery (and thus the worker). */
+            xrootd_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
+                                 "xrootd: checkpoint recovery skipping entry "
+                                 "\"%s\"", path);
+            continue;
         }
 
         if (S_ISDIR(st.st_mode)) {

@@ -88,11 +88,12 @@ nginx↔nginx and nginx↔reference xrootd transfers.
 - Configurable TTL: `xrootd_tpc_key_ttl` (default 60s), merged in
   `src/config/server_conf.c`.
 
-**Remaining gap (parity, not protocol):** The outbound pull client still uses
-anonymous `kXR_login` to the source (`src/tpc/bootstrap.c`), the same class of
-limitation as read-through cache fill. Sites that require GSI or token on the
-source for every session may need source-side policy compatible with that or
-HTTP-TPC. See `docs/status.md` (soft gap: native TPC outbound auth).
+**Remaining gap (parity, not protocol):** The outbound pull client can complete
+ztn or GSI after `kXR_authmore` when configured, but TLS-upgraded origins and
+multihop delegation remain narrower than upstream. Sites with strict source-side
+credential requirements should test native TPC with their production auth flow or
+use HTTP-TPC. See `docs/05-operations/operation-status.md` (native TPC outbound
+auth caveat).
 
 **Protocol sketch (reference):**
 
@@ -205,11 +206,18 @@ authenticate.
  
  ---
  
- ## 7. kXR_prepare / kXR_stage (Tape Dispatch)
- 
- **Status:** Not implemented (path validation and existence check only).
- 
- **Why it matters:** Sites with tape backends (CASTOR, EOS tape, dCache tape) rely on FTS or physics frameworks issuing stage requests before data access. Without dispatching these requests to the tape backend, this module cannot be used as a full replacement at tape-backed deployments.
+## 7. kXR_prepare / kXR_stage (Tape Dispatch) ✓ PARTIAL
+
+**Status:** Implemented for local staging hints, durable FRM queueing, `kXR_QPrep`
+state, cancel, async open wait/attention, and the WLCG HTTP Tape REST gateway
+when `xrootd_frm on` is configured. FRM-off mode intentionally keeps the legacy
+disk-only behavior: path validation/existence checks, optional
+`xrootd_prepare_command`, and request id `"0"`.
+
+**Why it matters:** Sites with tape backends (CASTOR, EOS tape, dCache tape)
+rely on FTS or physics frameworks issuing stage requests before data access. The
+module now has a functional FRM/Tape REST control-plane bridge, but it is still
+not a complete clone of the upstream XrdFrm/MSS daemon and policy ecosystem.
  
  ---
  
@@ -244,9 +252,11 @@ full lifecycle, abort, negative cases, and security invariants.
 
 ---
  
- ## 9. Native root:// TPC outbound auth polish
+## 9. Native root:// TPC outbound auth polish
  
- **Status:** Partially implemented (basic auth works).
+**Status:** Partially implemented. Direct native TPC pull can complete ztn
+(WLCG/JWT) or GSI after `kXR_authmore` when configured. Multi-hop delegation and
+native TPC source-side `kXR_gotoTLS` remain open.
  
  **Why it matters:** While the pull client can complete basic **ztn** or **GSI** exchanges after `kXR_authmore`, multi-hop delegation and TLS-upgraded origins (`kXR_gotoTLS`) beyond the initial exchange are not yet supported. This limits complex delegation scenarios.
  
@@ -333,7 +343,11 @@ curl -X COPY https://server:8443//local/path \
  
 ## 11. Full hierarchical CMS cluster
 
-**Status:** Core implementation complete; test coverage partially done. See [hierarchical-cluster.md](../05-operations/hierarchical-cluster.md) for the full M6 plan and per-step status.
+**Status:** Native redirect implementation complete; `kYR_try` and true
+three-tier escalation tests are in place. A select-then-proxy gateway mode
+remains a possible extension. See
+[hierarchical-cluster.md](../05-operations/hierarchical-cluster.md) for the
+full M6 plan and per-step status.
 
 **What is implemented (M6 steps 1–6):**
 
@@ -345,17 +359,23 @@ curl -X COPY https://server:8443//local/path \
 - `XRD_ST_WAITING_CMS` state — XRootD session suspension while awaiting `kYR_select`; `xrootd_cms_locate_timeout` fires `kXR_wait` to the client on expiry
 - `kYR_select` and `kYR_try` handling in `src/cms/recv.c` — wakes the suspended session and issues `kXR_redirect`
 
-**What remains:**
+**Validation status and remaining extension:**
 
-- Integration test for `kYR_try` multi-alternative selection (no test exists; see hierarchical-cluster.md §Remaining work)
-- Integration test for true CMS-escalation three-tier (sub-manager asks parent via `kYR_locate` when its local registry misses; current three-tier test uses static CMS registration and does not exercise the escalation path)
-- Proxy/gateway integration plan — using the CMS infrastructure to power dynamic-backend proxy mode (see hierarchical-cluster.md §Proxy/gateway integration)
+- `kYR_try` multi-alternative selection is covered by `TestCmsKyrTry` in
+  `tests/test_manager_mode.py`.
+- True CMS escalation (sub-manager miss → parent `kYR_locate` → `kYR_select` →
+  suspended client wakeup) is covered by `TestCmsEscalation` in
+  `tests/test_manager_mode.py`.
+- Proxy/gateway integration remains an extension: using the CMS infrastructure
+  to select a backend and proxy on the client's behalf instead of redirecting
+  the client (see hierarchical-cluster.md §Proxy/gateway integration).
 
 ---
  
 ## 12. VO Authorization Database (authdb) rules ✓ IMPLEMENTED
 
-**Status:** Core implementation complete. Minor coverage gaps documented below.
+**Status:** Core implementation complete for user, group, host, and all-identity
+rules. Operational caveats are documented below.
 
 **What is implemented** (`src/path/authdb.c`, `src/config/policy.c`):
 
@@ -380,16 +400,23 @@ curl -X COPY https://server:8443//local/path \
 | `kXR_mv` (source) | `DELETE` |
 | `kXR_mv` (destination) | `UPDATE` |
 
-**Test coverage** (`tests/test_authdb.py`): 6 integration tests covering public read, public write denied, CMS VO read, ATLAS VO denied for CMS path, user DN private write, and unlisted-path deny.
+Directory listings, query/prepare/checksum handlers, and fattr handlers are
+also guarded by authdb before VO ACL/token scope. Host (`p`) rules match the
+peer IP captured in `ctx->peer_ip`, including exact IPs, CIDR, and `*`.
 
-**Known limitations / not yet implemented:**
+**Test coverage** (`tests/test_authdb.py`): integration coverage for public
+read, public write denied, CMS VO read, ATLAS VO denied for CMS path, user DN
+private write, and unlisted-path deny; additional coverage is spread across
+dirlist/query/fattr tests.
 
-- `HOST` type (`p` rules) — parsed but silently never matches; peer IP is not exposed in `ctx`. Host-based rules in an authdb file are ignored.
-- `kXR_dirlist` — only enforces `xrootd_require_vo` ACL, not authdb `LOOKUP`. Directory listings bypass authdb.
-- `query/` handlers (`kXR_query checksum`, `kXR_query config`, `kXR_prepare`) — use `check_vo_acl` only; authdb is not consulted.
-- `fattr/` handlers (`kXR_getattr`, `kXR_setattr`, `kXR_delattr`) — use `check_vo_acl` only.
-- `kXR_chmod` — uses `XROOTD_AUTH_UPDATE` (not `ADMIN`); full authdb enforcement is present via the op-descriptor dispatcher (`src/write/op_table.c` → `xrootd_auth_gate()`).
-- Authdb file is read once at `nginx -s reload` / startup (max 4096 bytes); runtime reload requires `nginx -s reload`. Files larger than 4096 bytes are silently truncated.
+**Known limitations / operational notes:**
+
+- Authdb is loaded at startup/reload. Runtime policy refresh requires
+  `nginx -s reload`; files larger than 1 MiB are rejected at config time.
+- `kXR_chmod` uses `XROOTD_AUTH_UPDATE`, not `ADMIN`, via the op-descriptor
+  dispatcher (`src/write/op_table.c` → `xrootd_auth_gate()`).
+- Empty rule arrays mean allow-all; once rules are loaded, no matching grant
+  means deny.
 
 ---
 
@@ -404,11 +431,11 @@ If the goal is maximum deployment coverage fastest:
 4. [DONE] Macaroon tokens            3–5 days    enables dCache/Rucio Macaroon sites
 5. [DONE] kXR_bind parallel streams  1–2 weeks   full xrdcp -S N performance
 6. [DONE] Native TPC full rendezvous
-7. kXR_prepare / kXR_stage           2–3 weeks   critical for tape-backed sites
+7. [DONE/PARTIAL] kXR_prepare / kXR_stage FRM queue + Tape REST; full MSS parity still site-specific
 8. [DONE] S3 Multipart Upload         1–2 weeks   required for >5GiB S3 uploads
 9. Native TPC outbound auth polish   1–2 weeks   for complex delegation scenarios
 10. [DONE] HTTP-TPC OAuth2/OIDC delegation  1–2 weeks  for modern FTS OIDC flows
-11. [DONE M6 steps 1–6] Hierarchical CMS cluster  tests + gateway plan remaining
+11. [DONE native redirects] Hierarchical CMS cluster  proxy/gateway extension remaining
 12. [DONE] VO authdb rules           u/g/a identity + all core ops covered
 ```
 
@@ -447,19 +474,19 @@ what is missing. Items are grouped by feature area.
   exhausted under heavy concurrency; `xrootd_webdav_thread_pool` sizing must
   account for this.
 
-### Native root:// TPC rendezvous (item 2) and upstream connections
+### Native root:// TPC rendezvous (item 2), cache origin, and upstream connections
 
-- **Outbound `kXR_gotoTLS` not implemented:** `src/upstream/bootstrap.c:100` —
-  if the source server's `kXR_protocol` response has the `kXR_gotoTLS` flag
-  set, the connection is aborted with `"upstream requires TLS (not supported
-  on outbound)"`. Affects cache-fill paths and native TPC source connections
-  to any server that mandates in-protocol TLS upgrade.
+- **Transparent upstream `kXR_gotoTLS` implemented; native TPC source TLS still
+  open:** `src/upstream/bootstrap.c` / `src/upstream/tls.c` handle protocol-time
+  TLS upgrade for transparent upstream connections. Native TPC source
+  connections still do not upgrade after `kXR_gotoTLS`, and cache/write-through
+  origins require their own cache-origin TLS setting.
 
-- **Upstream `kXR_authmore` not implemented:** `src/upstream/bootstrap.c:115`
-  — if the upstream server requires authentication after `kXR_login`, the
-  connection is aborted. Both the TPC outbound pull and the read-through cache
-  fill share this limitation. Only servers that accept anonymous `kXR_login`
-  are usable as upstream sources.
+- **Read-through cache upstream `kXR_authmore` not implemented:** the cache
+  origin client still uses anonymous upstream login. If the origin requires
+  authentication after `kXR_login`, cache fill is limited to origins that accept
+  anonymous or compatible policy. Native TPC has separate ztn/GSI handling after
+  `kXR_authmore` when configured.
 
 - **No multi-hop GSI delegation for TPC:** `src/tpc/bootstrap.c` — when the
   source server requires GSI (completes `kXR_authmore` successfully), the
@@ -483,9 +510,10 @@ what is missing. Items are grouped by feature area.
   if the paths are disjoint all permission bits for that scope are revoked.
   Multiple `path:` caveats are applied in sequence (up to 8 per token).
 
-- **Third-party / discharge macaroons not implemented:** `vid` packets (third-
-  party caveat discharge) are not parsed. Macaroons that require a third-party
-  discharge from a separate service cannot be validated.
+- **Former third-party / discharge macaroon gap** ✓ **DONE:**
+  `src/token/macaroon.c` validates space-separated root/discharge bundles,
+  decrypts `vid` with AES-256-CBC, and intersects discharge caveats with the
+  root token constraints. See `tests/test_macaroon_discharge.py`.
 
 - ~~**Static secret only — no key rotation**~~ ✓ **DONE:** `xrootd_macaroon_secret_old`
   grace-period directive added to both stream (`src/stream/module.c`) and WebDAV
@@ -524,7 +552,7 @@ what is missing. Items are grouped by feature area.
   - `supported-report-set` — needed for clients that probe for CalDAV/CardDAV
     collision
 
-- ~~**PROPPATCH not implemented**~~ ✓ **DONE:** `src/webdav/methods_basic.c` now
+- **Former PROPPATCH gap** ✓ **DONE:** `src/webdav/methods_basic.c` now
   implements `webdav_handle_proppatch()` per RFC 4918 §9.2: drains the request
   body and returns 207 Multi-Status with `200 OK` per property. Dead properties
   are not stored (acceptable per the RFC). Unblocks Cyberduck and rucio upload
@@ -541,30 +569,30 @@ what is missing. Items are grouped by feature area.
 
 ### S3 multipart upload (item 8)
 
-- ~~**`ListParts` not implemented**~~ ✓ **DONE:** `GET /<bucket>/<key>?uploadId=<id>`
+- **Former `ListParts` gap** ✓ **DONE:** `GET /<bucket>/<key>?uploadId=<id>`
   is now handled by `s3_handle_list_parts()` in `src/s3/multipart.c`. Scans the
   MPU staging directory for `part.<N>` files, sorts by part number, and emits a
   valid `ListPartsResult` XML response.
 
-- ~~**`UploadPartCopy` not implemented**~~ ✓ **DONE:** `src/s3/multipart.c` now
+- **Former `UploadPartCopy` gap** ✓ **DONE:** `src/s3/multipart.c` now
   implements `s3_handle_upload_part_copy()`. When `PUT /<bucket>/<key>?partNumber=N&uploadId=<id>`
   carries an `x-amz-copy-source:` header, `src/s3/handler.c` dispatches to this
   handler instead of starting the body reader. Validates the copy-source path
   against `root_canon` to prevent traversal, copies via a 64 KiB read/write loop,
   and returns `<CopyPartResult>` XML with ETag and LastModified.
 
-- ~~**`ListMultipartUploads` not implemented**~~ ✓ **DONE:** `GET /<bucket>/?uploads`
+- **Former `ListMultipartUploads` gap** ✓ **DONE:** `GET /<bucket>/?uploads`
   is now handled by `s3_handle_list_multipart_uploads()` in `src/s3/multipart.c`.
   Scans the bucket root for `.*.mpu-*` hidden directories, parses key and
   upload-id from each name, and emits a `ListMultipartUploadsResult` XML response
   (capped at 1000 entries per page, matching the AWS S3 default).
 
-- ~~**Presigned URL authentication not implemented**~~ ✓ **DONE:**
+- **Former presigned URL authentication gap** ✓ **DONE:**
   `src/s3/auth_sigv4_parse.c`, `src/s3/auth_sigv4_canonical.c`, and
   `src/s3/auth_sigv4_verify.c` now accept SigV4 query-string authentication
   (`X-Amz-Signature`) and enforce `X-Amz-Expires`.
 
-- ~~**STS session token not supported**~~ ✓ **STATIC-SECRET COMPAT ADDED:**
+- **Former STS-shaped session-token compatibility gap** ✓ **STATIC-SECRET COMPAT ADDED:**
   `xrootd_s3_allow_unsigned_session_token on` accepts signed
   `X-Amz-Security-Token` header/query forms while still verifying SigV4 with
   the configured static `xrootd_s3_secret_key`. A dynamic temporary-credential
@@ -587,30 +615,30 @@ what is missing. Items are grouped by feature area.
   stage is a read-like capability for tape-recall workflows. `openid` / `profile`
   scopes are still parsed but grant no storage privileges (correct behavior).
 
-### kXR_prepare / kXR_stage (item 7 — local status implemented; tape recall missing)
+### kXR_prepare / kXR_stage (item 7 — FRM/Tape REST implemented; full MSS parity partial)
 
-- **No tape backend dispatch:** `src/query/prepare.c` validates path existence
-  and authorization, but does not dispatch to any tape backend. `kXR_stage`
-  flag is recognized in the opcode but treated identically to a regular
-  `kXR_prepare`; no recall is triggered. Sites with CASTOR, EOS tape, or
-  dCache tape cannot use this module as a full replacement until tape dispatch
-  is wired in.
+- ~~**Former tape-dispatch gap**~~ ✓ **UPDATED:** `src/frm/` now provides a
+  durable FRM-style stage queue, host-qualified request ids, cancel handling,
+  and queue-backed `kXR_QPrep` states when `xrootd_frm on` is configured.
+  WebDAV Tape REST gateway support also exists. This is still narrower than the
+  full upstream XrdFrm/MSS ecosystem, so tape-backed sites must validate their
+  actual stage, cancel, evict, purge, and recall workflows.
 
-- **No tape-recall async state:** The XRootD `kXR_QPrep` query subtype returns
-  per-path staging status. The current implementation returns `A <path>` (on
-  disk) or `M <path>` (missing or unauthorized), which is correct for disk-only
-  sites but cannot represent tape recalls in progress.
+- ~~**Former tape-recall state gap**~~ ✓ **UPDATED:** FRM-enabled operation can
+  report queued/staging/failed/available state from durable records. FRM-off mode
+  intentionally keeps the legacy disk-only `A <path>` / `M <path>` behavior and
+  request id `"0"`.
 
 ### Full hierarchical CMS cluster (item 11 — core done; tests + gateway plan remaining)
 
 `kYR_select`, `kYR_try`, and the `XRD_ST_WAITING_CMS` session-suspension
 mechanism are all implemented (M6 steps 1–6). Remaining gaps:
 
-- ~~**`kYR_try` integration test missing**~~ ✓ **DONE:** `TestCmsKyrTry` in
+- **Former `kYR_try` integration-test gap** ✓ **DONE:** `TestCmsKyrTry` in
   `tests/test_manager_mode.py` exercises a parent CMS `kYR_try` response with
   multiple alternatives and verifies nginx redirects to the first entry.
 
-- ~~**True CMS-escalation three-tier test missing**~~ ✓ **DONE:**
+- **Former true CMS-escalation three-tier test gap** ✓ **DONE:**
   `TestCmsEscalation` in `tests/test_manager_mode.py` covers a sub-manager
   registry miss, parent `kYR_locate`, parent `kYR_select`, client wakeup, and
   leaf open.
@@ -628,23 +656,24 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
   (authdb `XROOTD_AUTH_UPDATE` + VO ACL + token scope) before dispatching to
   `chmod(2)` via the `exec_chmod` descriptor. The roadmap entry was stale.
 
-- ~~**POSC not implemented**~~ ✓ **DONE:** `kXR_open` with `kXR_posc` now opens a
+- **Former POSC gap** ✓ **DONE:** `kXR_open` with `kXR_posc` now opens a
   temp file (`.posc.<pid>.<rand>` in the same directory) and stores the final
   target in `xrootd_file_t.posc_final_path`. On `kXR_close` the temp is
   `fsync`d then atomically renamed to the final path. On disconnect or error the
   temp is unlinked by `xrootd_free_fhandle()`. See `src/read/open.c`,
   `src/read/close.c`, `src/connection/fd_table.c`.
 
-- ~~**CRL delta updates not supported**~~ ✓ **DONE:**
+- **Former CRL delta-update gap** ✓ **DONE:**
   stream GSI and WebDAV X.509 stores enable `X509_V_FLAG_USE_DELTAS` alongside
   full-chain CRL checking when CRLs are configured.
 
-- **No OCSP support:** Certificate revocation is checked against loaded CRL
-  files only. OCSP stapling and OCSP responder queries are not implemented.
+- **Former OCSP gap** ✓ **DONE:** `src/crypto/ocsp.c` implements client-cert
+  OCSP responder queries and server-cert staple fetching; `src/session/tls_config.c`
+  attaches cached staples during TLS handshakes. See `tests/test_ocsp.py`.
 
-- ~~**WebDAV `PROPPATCH` returns 501**~~ ✓ **DONE:** See WebDAV PROPFIND section above.
+- **Former WebDAV `PROPPATCH` 501 gap** ✓ **DONE:** See WebDAV PROPFIND section above.
 
-- ~~**Authdb `kXR_dirlist` bypass**~~ ✓ **DONE:** `src/dirlist/handler.c` now
+- **Former authdb `kXR_dirlist` bypass** ✓ **DONE:** `src/dirlist/handler.c` now
   calls `xrootd_check_authdb(ctx, resolved, XROOTD_AUTH_LOOKUP)` before
   `xrootd_check_vo_acl()`.
 
@@ -688,8 +717,9 @@ instruments or jobs.
   flush integration.
 
 **Caveat:** This is whole-file replacement at sync/close, not a persistent
-per-write dual-dispatch path. Outbound GSI auth for origins remains a separate
-missing feature.
+per-write dual-dispatch path. Origin authentication follows the cache-origin
+client, not the native TPC client: cache/write-through origins may use configured
+origin TLS, but login is still anonymous and `kXR_authmore` is not completed.
 
 This section outlines the requirements for developing automated tests for features marked as DONE in the roadmap but currently lacking validation in the `tests/` directory.
 

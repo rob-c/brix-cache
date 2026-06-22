@@ -3,6 +3,14 @@ objs/
 *.o
 *.a
 
+# C build artifacts (client + shared + test harnesses)
+*.d
+*.so
+*.pc
+
+# Compiled native-client binaries + test harnesses all land under client/bin/
+client/bin/
+
 # mcp-workspace runtime logs
 logs/
 
@@ -14,6 +22,13 @@ __pycache__/
 # editor
 *.swp
 .DS_Store
+
+# clangd / clang-tidy: the per-file compile DB is machine-specific (absolute
+# paths into /tmp/nginx-1.28.3) and regenerable via
+# tools/clangd/gen_compile_commands.py; .cache/ is clangd's local index. The
+# committed .clangd file carries the portable fallback include/define flags.
+/compile_commands.json
+.cache/
 
 # local scratch output
 .tmp/

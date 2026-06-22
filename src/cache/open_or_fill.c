@@ -34,7 +34,7 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ready = xrootd_cache_file_ready(cache_path);
     if (ready == 1) {
         return xrootd_open_resolved_file(ctx, c, conf, cache_path,
-                                         options, mode_bits, 0);
+                                         options, mode_bits, 0, 0);
     }
     if (ready < 0) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", cache_path,

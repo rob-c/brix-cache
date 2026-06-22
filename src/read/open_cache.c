@@ -62,8 +62,10 @@ xrootd_open_cached_read(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (stat(resolved, &cst) == 0) {
+        /* Cache-served reads stay plaintext (read_codec=0); inline read
+         * compression (phase-42 W4) is only negotiated on the direct path. */
         return xrootd_open_resolved_file(ctx, c, conf, resolved,
-                                         options, mode_bits, 0);
+                                         options, mode_bits, 0, 0);
     }
 
     return xrootd_cache_open_or_fill(ctx, c, conf, clean_path,

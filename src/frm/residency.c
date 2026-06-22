@@ -28,6 +28,27 @@
 
 #define FRM_RES_XATTR  "user.frm.residency"
 
+/*
+ * phase-46 W2b: process-global "FRM configured" flag.  Set once at
+ * postconfiguration in the master before any worker forks (so every worker
+ * inherits the value — no atomics needed, write-once then read-only).  When it
+ * stays 0, FRM was never enabled, no object carries a residency marker, and
+ * frm_residency_probe() short-circuits to ONLINE without a stat+getxattr.
+ */
+static int frm_g_configured = 0;
+
+void
+frm_mark_configured(void)
+{
+    frm_g_configured = 1;
+}
+
+int
+frm_is_configured(void)
+{
+    return frm_g_configured;
+}
+
 
 static frm_residency_state_t
 frm_res_parse(const char *s)
@@ -66,6 +87,20 @@ frm_residency_probe(ngx_log_t *log, const char *full_path, frm_residency_t *out)
     if (full_path == NULL) {
         return NGX_ERROR;
     }
+
+    /*
+     * phase-46 W2b: FRM was never configured on this process → no object can
+     * carry a residency marker, so every file is ONLINE.  Skip the stat+getxattr
+     * the rest of this function would do.  Callers that need existence (S3
+     * GET/HEAD, WebDAV PROPFIND) have already opened/stat'd the object, so the
+     * LOST-on-missing branch below is not needed here — matching how the native
+     * stat/open paths simply don't call this probe when conf->frm.enable is off.
+     */
+    if (!frm_g_configured) {
+        out->state = FRM_RES_ONLINE;
+        return NGX_OK;
+    }
+
     if (stat(full_path, &st) != 0) {
         out->state = FRM_RES_LOST;         /* not on disk at all */
         return NGX_OK;

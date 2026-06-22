@@ -32,11 +32,11 @@ except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
 from settings import (
+    HOST,
     WEBDAV_UNLOCK_OWNERSHIP_DATA_ROOT,
     WEBDAV_UNLOCK_OWNERSHIP_PORT,
 )
 
-HOST = "127.0.0.1"
 PORT = WEBDAV_UNLOCK_OWNERSHIP_PORT
 
 LOCK_BODY = ('<?xml version="1.0" encoding="utf-8" ?>'

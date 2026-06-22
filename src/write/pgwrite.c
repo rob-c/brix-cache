@@ -78,6 +78,7 @@
 #include "ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
 #include "wrts_journal.h"
+#include "../compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */
 
 /* ---- Payload decoding helper ----
  *
@@ -99,11 +100,7 @@ ngx_int_t
 xrootd_pgwrite_decode_payload(const u_char *payload, size_t payload_len,
     int64_t offset, u_char *flat, size_t *flat_len, int64_t *bad_offset)
 {
-	const u_char *src;
-	u_char       *dst;
-	size_t        rem;
-	size_t        flat_sz;
-	int64_t       page_offset;
+	ssize_t n;
 
 	if (flat_len == NULL || bad_offset == NULL || offset < 0) {
 		return NGX_ERROR;
@@ -116,53 +113,20 @@ xrootd_pgwrite_decode_payload(const u_char *payload, size_t payload_len,
 		return NGX_ERROR;
 	}
 
-	src = payload;
-	dst = flat;
-	rem = payload_len;
-	flat_sz = 0;
-	page_offset = offset;
-
-	while (rem > 0) {
-		uint32_t expected;
-		uint32_t actual;
-		size_t   page_off;
-		size_t   page_room;
-		size_t   page_data;
-
-		if (rem <= XRD_PGWRITE_CKSZ) {
-			*bad_offset = page_offset;
-			return NGX_ERROR;
-		}
-
-		ngx_memcpy(&expected, src, sizeof(expected));
-		expected = ntohl(expected);
-		src += XRD_PGWRITE_CKSZ;
-		rem -= XRD_PGWRITE_CKSZ;
-
-		page_off = (size_t) (page_offset % XRD_PGWRITE_PAGESZ);
-		page_room = XRD_PGWRITE_PAGESZ - page_off;
-		page_data = (rem >= page_room) ? page_room : rem;
-
-		/* Copy src→dst and compute CRC in one pass (single read of each byte). */
-		actual = xrootd_crc32c_copy(src, dst, page_data);
-		if (actual != expected) {
-			*bad_offset = page_offset;
-			return NGX_DECLINED;
-		}
-
-		if (page_offset > INT64_MAX - (int64_t) page_data) {
-			*bad_offset = page_offset;
-			return NGX_ERROR;
-		}
-
-		dst += page_data;
-		src += page_data;
-		rem -= page_data;
-		flat_sz += page_data;
-		page_offset += (int64_t) page_data;
+	/* Shared single-pass decode (libxrdproto): verify each page's CRC32c while
+	 * copying into the flat pwrite buffer — byte-identical to what the native
+	 * client encodes. -1 = a page's CRC mismatched (→ kXR_ChkSumErr); -2 =
+	 * malformed framing / offset overflow. dstcap = payload_len is a safe upper
+	 * bound (decoded data is always < payload by at least one CRC). */
+	n = xrdp_pg_decode(payload, payload_len, offset, flat, payload_len,
+	                   bad_offset);
+	if (n == -1) {
+		return NGX_DECLINED;
 	}
-
-	*flat_len = flat_sz;
+	if (n < 0) {
+		return NGX_ERROR;
+	}
+	*flat_len = (size_t) n;
 	return NGX_OK;
 }
 

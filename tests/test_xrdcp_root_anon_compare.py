@@ -16,14 +16,14 @@ import time
 import hashlib
 
 import pytest
-from settings import DATA_ROOT, NGINX_ANON_PORT, REF_XROOTD_PORT, SERVER_HOST
+from settings import DATA_ROOT, HOST, NGINX_ANON_PORT, REF_XROOTD_PORT, SERVER_HOST
 
 # Each xrdcp call has a 20 s subprocess timeout; two calls + overhead = ~50 s.
 # Set the function timeout above that to avoid pytest-timeout firing first.
 pytestmark = pytest.mark.timeout(60)
 
 NGINX_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
-REF_URL   = f"root://localhost:{REF_XROOTD_PORT}"
+REF_URL   = f"root://{HOST}:{REF_XROOTD_PORT}"
 DATA_DIR  = DATA_ROOT
 
 

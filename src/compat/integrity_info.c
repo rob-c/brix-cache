@@ -28,7 +28,7 @@
 /* Supported algorithm names used for bulk xattr invalidation. */
 static const char *const s_algorithms[] = {
     "adler32", "crc32", "crc32c", "md5", "sha1", "sha256",
-    "crc64", "crc64nvme", NULL
+    "crc64", "crc64nvme", "zcrc32", NULL
 };
 
 static const char *

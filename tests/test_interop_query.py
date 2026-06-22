@@ -29,6 +29,7 @@ from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, QueryCode
 from settings import (
     DATA_ROOT,
+    HOST,
     NGINX_ANON_PORT,
     REF_XROOTD_PORT,
     SERVER_HOST,
@@ -39,7 +40,7 @@ from settings import (
 # ---------------------------------------------------------------------------
 
 NGINX_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
-REF_URL   = f"root://localhost:{REF_XROOTD_PORT}"
+REF_URL   = f"root://{HOST}:{REF_XROOTD_PORT}"
 DATA_DIR  = DATA_ROOT
 
 

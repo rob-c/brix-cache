@@ -53,6 +53,30 @@
       offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_tls),
       NULL },
 
+    /* X.509-proxy (GSI) auth to the origin: when set, cache fills fork/exec the
+     * native client with these credentials so the cache can authenticate to a GSI
+     * origin (e.g. EOS) that rejects the built-in anonymous login. */
+    { ngx_string("xrootd_cache_origin_proxy"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_proxy),
+      NULL },
+
+    { ngx_string("xrootd_cache_origin_cadir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_cadir),
+      NULL },
+
+    { ngx_string("xrootd_cache_origin_client"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_client),
+      NULL },
+
     { ngx_string("xrootd_cache_lock_timeout"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,

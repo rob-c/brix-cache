@@ -45,7 +45,16 @@ ngx_int_t xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
  * send result (NGX_OK / NGX_ERROR); fd-table exhaustion or open failure is
  * reported as a kXR error frame, not a return code.
  */
-ngx_int_t xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf, const char *resolved, uint16_t options, uint16_t mode_bits, ngx_flag_t is_write);
+/*
+ * codec (phase-42 W4/W5): negotiated inline-compression codec ordinal
+ * (xrootd_codec_id_t cast to uint8_t).  0 = no compression (the default, byte-
+ * identical path).  Non-zero is honoured only for a regular file and stored in
+ * the direction-appropriate handle slot — read_codec on a read open (W4, compress
+ * kXR_read responses), write_codec on a write open (W5, decompress kXR_write
+ * payloads) — and signalled to the client via the kXR_open reply cpsize/cptype.
+ * Cache-served reads pass 0.
+ */
+ngx_int_t xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf, const char *resolved, uint16_t options, uint16_t mode_bits, ngx_flag_t is_write, uint8_t codec);
 /*
  * Cache-aware read-open (XCache style). clean_path: borrowed root-relative
  * logical path (CGI already stripped). Checks the VO ACL against the auth root

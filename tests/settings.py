@@ -1,8 +1,45 @@
 """Centralized test settings shared across test modules."""
 
 import os
+import socket
 
 TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
+
+
+# ---------------------------------------------------------------------------
+# Free-port allocation for SELF-CONTAINED fixtures.
+#
+# A test that starts its OWN nginx/xrootd must NOT bind a fixed port: it would
+# collide with the managed fleet (whose ports below are already bound) or with
+# another self-contained test running in the same session. Such fixtures should
+# bind ports from free_port()/free_ports() instead of a literal. The fleet ports
+# further down stay fixed — tests CONNECT to those, they do not re-bind them.
+# ---------------------------------------------------------------------------
+def free_port(host="127.0.0.1"):
+    """Return one OS-assigned free TCP port (bind :0, read it, release)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind((host, 0))
+        return s.getsockname()[1]
+    finally:
+        s.close()
+
+
+def free_ports(n, host="127.0.0.1"):
+    """Return n DISTINCT free TCP ports. All sockets are held open during
+    allocation so the OS hands out different ports (multi-server fixtures)."""
+    socks = []
+    try:
+        for _ in range(n):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((host, 0))
+            socks.append(s)
+        return [s.getsockname()[1] for s in socks]
+    finally:
+        for s in socks:
+            s.close()
 
 # ---------------------------------------------------------------------------
 # Remote server target
@@ -18,11 +55,53 @@ TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
 _server_host_env = os.environ.get("TEST_SERVER_HOST")
 SERVER_HOST   = _server_host_env if _server_host_env else "localhost"
 REMOTE_SERVER = _server_host_env is not None   # True → skip local lifecycle
+
+# ---------------------------------------------------------------------------
+# Host parameterization — split clients (tests) and servers onto different
+# nodes (e.g. a k8s cluster). Defaults stay on loopback so a local run is
+# byte-identical to before; set the env vars to point elsewhere.
+#
+#   HOST       — IPv4 address a CLIENT uses to reach a server it (or the
+#                fixture) started/targets.            env: TEST_HOST
+#   BIND_HOST  — IPv4 address a SELF-STARTED server LISTENs on (defaults to
+#                HOST; set to 0.0.0.0 to expose it).  env: TEST_BIND_HOST
+#   HOST6 / BIND_HOST6 — IPv6 equivalents for the dedicated [::1] tier.
+#                                          env: TEST_HOST6 / TEST_BIND_HOST6
+#
+# url_host() brackets a bare IPv6 literal for a URL/authority (host:port).
+# ---------------------------------------------------------------------------
+HOST       = os.environ.get("TEST_HOST", "127.0.0.1")
+BIND_HOST  = os.environ.get("TEST_BIND_HOST") or HOST
+HOST6      = os.environ.get("TEST_HOST6", "::1")
+BIND_HOST6 = os.environ.get("TEST_BIND_HOST6") or HOST6
+
+
+def url_host(h):
+    """Bracket a bare IPv6 literal for use in a URL authority (host:port)."""
+    return "[%s]" % h if (":" in h and not h.startswith("[")) else h
+
+
 PKI_DIR = os.path.join(TEST_ROOT, "pki")
 DATA_ROOT = os.path.join(TEST_ROOT, "data")
 TOKENS_DIR = os.path.join(TEST_ROOT, "tokens")
 LOG_DIR = os.path.join(TEST_ROOT, "logs")
 TMP_DIR = os.path.join(TEST_ROOT, "tmp")
+# Scratch working directory the whole test session chdir()s into, so any
+# cwd-relative artifact a spawned process makes (e.g. an xrootd `-n` instance
+# dir) lands inside the temp tree and never in the repo.
+CWD_DIR = os.path.join(TEST_ROOT, "cwd")
+
+# Confine ALL scratch under TEST_ROOT instead of bare /tmp.  settings is imported
+# (via conftest) before any test module loads, so pointing Python's tempdir and
+# the inherited $TMPDIR here makes every tempfile.mkdtemp/mkstemp/TemporaryDirectory
+# and every TMPDIR-honoring subprocess land under the one test tree the session
+# wipes and recreates.  Test modules also root their explicit scratch paths at
+# os.environ["TMPDIR"], which this guarantees is set.  The directory itself is
+# (re)created by conftest at session start; setting tempfile.tempdir before it
+# exists is fine — mkdtemp only needs it to exist when called, at test runtime.
+import tempfile as _tempfile
+os.environ["TMPDIR"] = TMP_DIR
+_tempfile.tempdir = TMP_DIR
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 XROOTD_BIN = os.environ.get("TEST_XROOTD_BIN", "xrootd")
@@ -33,6 +112,28 @@ NGINX_ANON_PORT = int(os.environ.get("TEST_NGINX_ANON_PORT", "11094"))
 NGINX_GSI_PORT = int(os.environ.get("TEST_NGINX_GSI_PORT", "11095"))
 NGINX_GSI_TLS_PORT = int(os.environ.get("TEST_NGINX_GSI_TLS_PORT", "11096"))
 NGINX_TOKEN_PORT = int(os.environ.get("TEST_NGINX_TOKEN_PORT", "11097"))
+
+# Kerberos 5 (krb5) auth tier — a DEDICATED nginx instance (not part of the
+# shared instance) so an invalid keytab/principal or a krb5-less binary can only
+# break this tier, never the anon/gsi/token blocks.  Provisioned + gated by
+# tests/kdc_helpers.py (skips cleanly when the MIT KDC tooling or a krb5-linked
+# nginx binary is absent).  The KDC listens on KRB5_KDC_PORT; everything lives
+# under TEST_ROOT/krb5; the served data root is data-krb5 (the start_dedicated
+# convention).  See the [[krb5-testing-deps]] notes for the install/setup story.
+NGINX_KRB5_PORT = int(os.environ.get("TEST_NGINX_KRB5_PORT", "11116"))
+KRB5_KDC_PORT = int(os.environ.get("TEST_KRB5_KDC_PORT", "11117"))
+KRB5_REALM = os.environ.get("TEST_KRB5_REALM", "NGINX.TEST")
+KRB5_DIR = os.path.join(TEST_ROOT, "krb5")
+KRB5_CONF = os.path.join(KRB5_DIR, "krb5.conf")
+KRB5_KEYTAB = os.path.join(KRB5_DIR, "xrootd.keytab")
+KRB5_CCACHE = os.path.join(KRB5_DIR, "ccache")
+KRB5_SERVICE_PRINCIPAL = os.environ.get(
+    "TEST_KRB5_PRINCIPAL", "xrootd/localhost@" + KRB5_REALM
+)
+KRB5_CLIENT_PRINCIPAL = "alice@" + KRB5_REALM
+KRB5_CLIENT_KEYTAB = os.path.join(KRB5_DIR, "client.keytab")
+KRB5_DATA_ROOT = os.path.join(TEST_ROOT, "data-krb5")
+
 REF_XROOTD_PORT = int(os.environ.get("TEST_REF_XROOTD_PORT", "11098"))
 REF_XROOTD_GSI_PORT = int(os.environ.get("TEST_REF_XROOTD_GSI_PORT", "11099"))
 REF_XROOTD_GSI_SHARED_PORT = int(
@@ -369,3 +470,24 @@ S3_MPU_DATA_ROOT = os.path.join(TEST_ROOT, "data-s3-mpu")
 READONLY_HTTP_DAV_PORT = int(os.environ.get("TEST_READONLY_HTTP_DAV_PORT", "11216"))
 READONLY_HTTP_S3_PORT = int(os.environ.get("TEST_READONLY_HTTP_S3_PORT", "11217"))
 READONLY_HTTP_DATA_ROOT = os.path.join(TEST_ROOT, "data-readonly-http")
+
+# ---------------------------------------------------------------------------
+# Phase 36: IPv6 dedicated instances (all listen on [::1]).
+# See docs/refactor/phase-36-ipv6-completion.md §7. Tests gate on the
+# requires_ipv6_loopback fixture (conftest.py) and skip if the instance is down.
+# ---------------------------------------------------------------------------
+IPV6_STREAM_PORT = int(os.environ.get("TEST_IPV6_STREAM_PORT", "11240"))
+IPV6_STREAM_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-stream")
+# manager-mode redirector + CMS + dashboard/admin/metrics, all on [::1]
+IPV6_MGR_PORT = int(os.environ.get("TEST_IPV6_MGR_PORT", "11241"))       # stream manager
+IPV6_MGR_CMS_PORT = int(os.environ.get("TEST_IPV6_MGR_CMS_PORT", "11242"))
+IPV6_MGR_HTTP_PORT = int(os.environ.get("TEST_IPV6_MGR_HTTP_PORT", "11247"))  # dashboard/admin/metrics
+IPV6_MGR_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-mgr")
+IPV6_WEBDAV_PORT = int(os.environ.get("TEST_IPV6_WEBDAV_PORT", "11243"))
+IPV6_WEBDAV_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-webdav")
+IPV6_S3_PORT = int(os.environ.get("TEST_IPV6_S3_PORT", "11244"))
+IPV6_S3_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-s3")
+IPV6_UPSTREAM_PORT = int(os.environ.get("TEST_IPV6_UPSTREAM_PORT", "11245"))  # webdav backend origin
+IPV6_UPSTREAM_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-upstream")
+IPV6_PROXY_PORT = int(os.environ.get("TEST_IPV6_PROXY_PORT", "11246"))        # webdav proxy -> [::1] upstream
+IPV6_PROXY_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-proxy")

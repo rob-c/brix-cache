@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import NGINX_BIN, free_ports, HOST, BIND_HOST
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -132,13 +132,13 @@ def test_http_mirror_directives_parse(tmp_path):
     data = tmp_path / "data"; data.mkdir()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21940;
+            listen {BIND_HOST}:21940;
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
                 xrootd_webdav_auth none;
-                xrootd_mirror_url     http://127.0.0.1:21999;
-                xrootd_mirror_url     https://127.0.0.1:21998;
+                xrootd_mirror_url     http://{HOST}:21999;
+                xrootd_mirror_url     https://{HOST}:21998;
                 xrootd_mirror_methods GET HEAD PROPFIND;
                 xrootd_mirror_sample  25;
                 xrootd_mirror_strip_auth on;
@@ -155,12 +155,12 @@ def test_http_mirror_bad_scheme_rejected(tmp_path):
     data = tmp_path / "data"; data.mkdir()
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:21941;
+            listen {BIND_HOST}:21941;
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
                 xrootd_webdav_auth none;
-                xrootd_mirror_url ftp://127.0.0.1:21999;
+                xrootd_mirror_url ftp://{HOST}:21999;
             }}
         }}
     """, tmp_path)
@@ -170,37 +170,37 @@ def test_http_mirror_bad_scheme_rejected(tmp_path):
 
 
 def test_stream_mirror_directives_parse(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + """
-    stream {
-        server {
-            listen 127.0.0.1:21942;
+    conf = HEADER.format(logs=tmp_path / "logs") + f"""
+    stream {{
+        server {{
+            listen {BIND_HOST}:21942;
             xrootd on;
             xrootd_root /tmp/xrd-test/data;
             xrootd_auth none;
-            xrootd_stream_mirror_url 127.0.0.1:21943;
+            xrootd_stream_mirror_url {HOST}:21943;
             xrootd_mirror_opcodes stat locate dirlist;
             xrootd_mirror_sample 50;
             xrootd_mirror_log_diverge on;
             xrootd_mirror_timeout 3s;
-        }
-    }
+        }}
+    }}
     """
     rc, out = _nginx_check(conf, tmp_path)
     assert rc == 0, out
 
 
 def test_stream_mirror_bad_opcode_rejected(tmp_path):
-    conf = HEADER.format(logs=tmp_path / "logs") + """
-    stream {
-        server {
-            listen 127.0.0.1:21944;
+    conf = HEADER.format(logs=tmp_path / "logs") + f"""
+    stream {{
+        server {{
+            listen {BIND_HOST}:21944;
             xrootd on;
             xrootd_root /tmp/xrd-test/data;
             xrootd_auth none;
-            xrootd_stream_mirror_url 127.0.0.1:21943;
+            xrootd_stream_mirror_url {HOST}:21943;
             xrootd_mirror_opcodes bogus;
-        }
-    }
+        }}
+    }}
     """
     rc, out = _nginx_check(conf, tmp_path)
     assert rc != 0
@@ -213,18 +213,18 @@ def test_stream_mirror_bad_opcode_rejected(tmp_path):
 
 def test_stream_mirror_write_opcodes_and_gate_parse(tmp_path):
     """The write opcodes + xrootd_mirror_writes gate parse on the stream side."""
-    conf = HEADER.format(logs=tmp_path / "logs") + """
-    stream {
-        server {
-            listen 127.0.0.1:21945;
+    conf = HEADER.format(logs=tmp_path / "logs") + f"""
+    stream {{
+        server {{
+            listen {BIND_HOST}:21945;
             xrootd on;
             xrootd_root /tmp/xrd-test/data;
             xrootd_auth none;
-            xrootd_stream_mirror_url 127.0.0.1:21943;
+            xrootd_stream_mirror_url {HOST}:21943;
             xrootd_mirror_writes on;
             xrootd_mirror_opcodes mkdir rm rmdir mv truncate chmod;
-        }
-    }
+        }}
+    }}
     """
     rc, out = _nginx_check(conf, tmp_path)
     assert rc == 0, out
@@ -299,7 +299,7 @@ def _start_shadow(port):
     _ShadowHandler.received = []
     _ShadowHandler.bodies = {}
     _ShadowHandler.methods = []
-    srv = http.server.HTTPServer(("127.0.0.1", port), _ShadowHandler)
+    srv = http.server.HTTPServer((BIND_HOST, port), _ShadowHandler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -308,7 +308,7 @@ def _wait_port(port, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -343,14 +343,14 @@ def _read_status_and_body(s):
 
 
 def _http_get(port, path, extra_headers=""):
-    with socket.create_connection(("127.0.0.1", port), timeout=4) as s:
+    with socket.create_connection((HOST, port), timeout=4) as s:
         s.sendall((f"GET {path} HTTP/1.1\r\nHost: x\r\n{extra_headers}"
                    "Connection: close\r\n\r\n").encode())
         return _read_status_and_body(s)
 
 
 def _put(port, path, body):
-    with socket.create_connection(("127.0.0.1", port), timeout=4) as s:
+    with socket.create_connection((HOST, port), timeout=4) as s:
         s.sendall((f"PUT {path} HTTP/1.1\r\nHost: x\r\nContent-Length: "
                    f"{len(body)}\r\nConnection: close\r\n\r\n").encode() + body)
         return _read_status_and_body(s)
@@ -372,18 +372,18 @@ def _wait_shadow(path, timeout=6):
 
 @pytest.fixture
 def http_mirror_server(tmp_path):
-    primary_port, shadow_port = 21930, 21931
+    primary_port, shadow_port = free_ports(2)
     data = tmp_path / "data"; data.mkdir()
     (data / "hello.txt").write_text("hello mirror\n")
     shadow = _start_shadow(shadow_port)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:{primary_port};
+            listen {BIND_HOST}:{primary_port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
                 xrootd_webdav_auth none;
-                xrootd_mirror_url     http://127.0.0.1:{shadow_port};
+                xrootd_mirror_url     http://{HOST}:{shadow_port};
                 xrootd_mirror_methods GET HEAD;
                 xrootd_mirror_sample  100;
                 xrootd_mirror_strip_auth on;
@@ -435,17 +435,17 @@ def test_auth_stripped_from_shadow(http_mirror_server):
 def test_shadow_failure_transparent(tmp_path):
     # Shadow port has nothing listening → mirror connect fails, but the primary
     # GET must still succeed (the client never sees the shadow path).
-    primary_port, dead_shadow = 21932, 21933
+    primary_port, dead_shadow = free_ports(2)
     data = tmp_path / "data"; data.mkdir()
     (data / "f.txt").write_text("body\n")
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:{primary_port};
+            listen {BIND_HOST}:{primary_port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
                 xrootd_webdav_auth none;
-                xrootd_mirror_url     http://127.0.0.1:{dead_shadow};
+                xrootd_mirror_url     http://{HOST}:{dead_shadow};
                 xrootd_mirror_methods GET;
                 xrootd_mirror_sample  100;
                 xrootd_mirror_timeout 1s;
@@ -481,18 +481,18 @@ def test_write_not_mirrored(http_mirror_server):
 
 
 def test_sample_zero_mirrors_nothing(tmp_path):
-    primary_port, shadow_port = 21934, 21935
+    primary_port, shadow_port = free_ports(2)
     data = tmp_path / "data"; data.mkdir()
     (data / "z.txt").write_text("z\n")
     shadow = _start_shadow(shadow_port)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:{primary_port};
+            listen {BIND_HOST}:{primary_port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
                 xrootd_webdav_auth none;
-                xrootd_mirror_url     http://127.0.0.1:{shadow_port};
+                xrootd_mirror_url     http://{HOST}:{shadow_port};
                 xrootd_mirror_methods GET;
                 xrootd_mirror_sample  0;
             }}
@@ -569,7 +569,7 @@ def _xrd_stat(host, port, path):
 def _scrape_metric(metrics_port, name, surface):
     try:
         with urllib.request.urlopen(
-                f"http://127.0.0.1:{metrics_port}/metrics", timeout=4) as r:
+                f"http://{HOST}:{metrics_port}/metrics", timeout=4) as r:
             text = r.read().decode()
     except OSError:
         return None
@@ -601,17 +601,17 @@ def _start_stream_pair(tmp_path, primary_port, shadow_port, metrics_port,
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         server {{
-            listen 127.0.0.1:{shadow_port};
+            listen {BIND_HOST}:{shadow_port};
             xrootd on;
             xrootd_root {sdata};
             xrootd_auth none;
         }}
         server {{
-            listen 127.0.0.1:{primary_port};
+            listen {BIND_HOST}:{primary_port};
             xrootd on;
             xrootd_root {pdata};
             xrootd_auth none;
-            xrootd_stream_mirror_url 127.0.0.1:{shadow_port};
+            xrootd_stream_mirror_url {HOST}:{shadow_port};
             xrootd_mirror_opcodes stat;
             xrootd_mirror_sample 100;
             xrootd_mirror_log_diverge on;
@@ -621,7 +621,7 @@ def _start_stream_pair(tmp_path, primary_port, shadow_port, metrics_port,
     http {{
         access_log off;
         server {{
-            listen 127.0.0.1:{metrics_port};
+            listen {BIND_HOST}:{metrics_port};
             location /metrics {{ xrootd_metrics on; }}
         }}
     }}
@@ -644,12 +644,12 @@ def _start_stream_pair(tmp_path, primary_port, shadow_port, metrics_port,
 # --------------------------------------------------------------------------- #
 
 def test_stat_mirrored_to_shadow(tmp_path):
-    primary, shadow, metrics = 21950, 21951, 21952
+    primary, shadow, metrics = free_ports(3)
     proc = _start_stream_pair(tmp_path, primary, shadow, metrics,
                               primary_files=["present.txt"],
                               shadow_files=["present.txt"])
     try:
-        _xrd_stat("127.0.0.1", primary, "/present.txt")
+        _xrd_stat(HOST, primary, "/present.txt")
         got = _wait_metric(metrics, "xrootd_mirror_requests_total", "stream", 1)
         assert got is not None and got >= 1, \
             f"stream mirror request not counted (got {got})"
@@ -663,12 +663,12 @@ def test_stat_mirrored_to_shadow(tmp_path):
 
 def test_divergence_counted(tmp_path):
     # Primary HAS the file (stat ok); shadow does NOT (kXR_NotFound) → divergence.
-    primary, shadow, metrics = 21953, 21954, 21955
+    primary, shadow, metrics = free_ports(3)
     proc = _start_stream_pair(tmp_path, primary, shadow, metrics,
                               primary_files=["only-here.txt"],
                               shadow_files=[])
     try:
-        _xrd_stat("127.0.0.1", primary, "/only-here.txt")
+        _xrd_stat(HOST, primary, "/only-here.txt")
         got = _wait_metric(metrics, "xrootd_mirror_divergence_total", "stream", 1)
         assert got is not None and got >= 1, \
             f"divergence not counted (got {got})"
@@ -692,7 +692,7 @@ def _http_req(port, method, path, body=b"", extra=""):
     framing (and the deferred close while a background mirror subrequest drains)
     must not hang the test.  Any read timeout/short-read returns status 0."""
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=4) as s:
+        with socket.create_connection((HOST, port), timeout=4) as s:
             head = (f"{method} {path} HTTP/1.1\r\nHost: x\r\n{extra}"
                     f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n")
             s.sendall(head.encode() + body)
@@ -736,13 +736,13 @@ def _start_http_writes_primary(tmp_path, primary_port, shadow_port,
     data = tmp_path / "data"; data.mkdir(exist_ok=True)
     conf = _http_block(f"""
         server {{
-            listen 127.0.0.1:{primary_port};
+            listen {BIND_HOST}:{primary_port};
             location / {{
                 xrootd_webdav on;
                 xrootd_webdav_root {data};
                 xrootd_webdav_auth none;
                 xrootd_webdav_allow_write on;
-                xrootd_mirror_url     http://127.0.0.1:{shadow_port};
+                xrootd_mirror_url     http://{HOST}:{shadow_port};
                 xrootd_mirror_methods {methods};
                 xrootd_mirror_writes  {writes};
                 xrootd_mirror_sample  100;
@@ -763,7 +763,7 @@ def _start_http_writes_primary(tmp_path, primary_port, shadow_port,
 
 @pytest.fixture
 def http_mirror_writes_server(tmp_path):
-    primary_port, shadow_port = 21932, 21933
+    primary_port, shadow_port = free_ports(2)
     shadow = _start_shadow(shadow_port)
     try:
         proc = _start_http_writes_primary(tmp_path, primary_port, shadow_port)
@@ -800,7 +800,7 @@ def test_delete_mirrored_to_shadow(http_mirror_writes_server):
 
 def test_writes_off_not_mirrored(tmp_path):
     """With xrootd_mirror_writes off, a PUT is NOT replayed to the shadow."""
-    primary_port, shadow_port = 21934, 21935
+    primary_port, shadow_port = free_ports(2)
     shadow = _start_shadow(shadow_port)
     proc = _start_http_writes_primary(tmp_path, primary_port, shadow_port,
                                       writes="off")

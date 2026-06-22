@@ -29,7 +29,8 @@ xrootd_budget_ctx_footprint(xrootd_ctx_t *ctx)
     ngx_uint_t  i;
 
     total = ctx->read_scratch_size + ctx->read_hdr_scratch_size
-          + ctx->write_scratch_size + ctx->payload_buf_size;
+          + ctx->write_scratch_size + ctx->payload_buf_size
+          + ctx->cmp_scratch_size;   /* phase-42 W4 inline-read codec output buf */
 
     /* Phase 32 WS3: include the concurrent-AIO read-pool buffers (several may be
      * in flight at once once read pipelining is enabled). */

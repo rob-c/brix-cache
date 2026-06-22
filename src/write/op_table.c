@@ -9,6 +9,7 @@
 #include "write/op_table.h"
 #include "compat/namespace_ops.h"
 #include "compat/error_mapping.h"
+#include "path/path.h"
 
 /* ---- exec functions (one per op) ---------------------------------------- */
 
@@ -21,7 +22,12 @@ exec_chmod(const xrootd_op_exec_t *e, int *out_errno)
     if (mode == 0) {
         mode = 0644;
     }
-    if (chmod(e->resolved, mode) == 0) {
+    /* Route through the confined helper so that under impersonation the chmod is
+     * performed BY THE BROKER as the mapped user (the unprivileged worker is not
+     * the file's owner and a worker-local chmod() would EPERM — even for the
+     * file's real owner).  Off impersonation this is a confined fchmodat. */
+    if (xrootd_chmod_confined_canon(e->c->log, e->conf->common.root_canon,
+                                    e->resolved, mode) == 0) {
         return NGX_OK;
     }
     *out_errno = errno;
