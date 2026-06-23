@@ -162,6 +162,27 @@ xrootd_queue_response_base(xrootd_ctx_t *ctx, ngx_connection_t *c,
     XROOTD_SRV_METRIC_INC(ctx, response_frames_total);
 
     /*
+     * Write pipelining (async ack): the pipelined kXR_write completion callback
+     * sets resp_async while the recv loop may be mid-receiving the next request.
+     * Park the ack in the out_ring and arm the write event WITHOUT touching the
+     * socket or ctx->state — the ack drains head-first on the write event while
+     * recv continues uninterrupted.  out_count + wr_inflight < XROOTD_PIPELINE_MAX
+     * is enforced at the recv boundary, so the ring always has a free slot here.
+     */
+    if (ctx->resp_async) {
+        slot->wbuf      = buffer;
+        slot->wbuf_len  = buffer_len;
+        slot->wbuf_pos  = 0;
+        slot->wbuf_base = owned_base;
+        ctx->out_tail   = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_count++;
+        if (xrootd_schedule_write_resume(c) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
+
+    /*
      * Pipelining (Phase 29): if an earlier slot is still draining to the socket
      * (out_count > 0), we must NOT touch the socket here — response frames cannot
      * interleave on the wire.  Park this response in its tail slot and commit it

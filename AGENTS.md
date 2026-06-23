@@ -97,6 +97,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 7. Stat: use handle metadata; no extra path syscalls per read
 8. Metric labels: low-cardinality only (no paths/bucket-names/UUIDs)
 9. CRC64: `crc64`=CRC-64/XZ, `crc64nvme`=CRC-64/NVME — DIFFERENT polys, not interchangeable. Engine `src/compat/crc64.c`; root://+WebDAV emit 16-hex, S3 `x-amz-checksum-crc64nvme` emits base64-of-8-big-endian-bytes (encode at the edge, never in the kernel). See [docs/10-reference/crc64-checksums.md](docs/10-reference/crc64-checksums.md)
+10. **SHM mutexes = spin+yield, NEVER the POSIX-semaphore mode.** Every module shared-memory table mutex MUST be created via `xrootd_shm_table_alloc()` / `xrootd_shm_table_mutex_create()` (`src/compat/shm_slots.c`), which clears `mtx->semaphore` after `ngx_shmtx_create()`. Stock `ngx_shmtx_create(…, NULL)` silently enables a POSIX semaphore whose wakeup path is **lost-wakeup-prone under high cross-worker contention**: a worker blocks in `sem_wait` forever with the lock already free (`*lock==0, *wait==0`), freezing the whole worker (it stops running its event loop) and stalling every connection pinned to it. This hit the hot `kXR_open` path (`xrootd_handle_mutex`) and caused 60–450s multi-worker connection stalls. Our critical sections are µs-held fixed-slot scans, so spin+yield is correct and cheaper. See [docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md](docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md).
 
 **Architecture:**
 9. Native TPC = SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy
@@ -221,6 +222,8 @@ error_log /tmp/xrd-test/logs/debug.log debug; # nginx debug (server block)
 | Connection refused | Port listening? | `ss -tlnp \| grep 1094` |
 | Auth failure | Cert/token valid? | `openssl x509 -in cert.pem -noout -dates` |
 | Permission denied | ACL logic | `src/path/acl.c` |
+| Conn stalls under concurrency (multi-worker only) | read-side vs write-side, then idle vs **blocked** | `ss -tn 'sport = :PORT'` (Recv-Q>0=read-side); `cat /proc/PID/wchan` (`do_epoll_wait`=idle/lost-notify vs `futex_do_wait`=**blocked on a lock**) |
+| Worker frozen / armed nginx timer never fires | worker is blocked in a syscall, not looping → GDB it | `gdb -p WORKER -batch -ex "thread apply all bt"`; for a stuck `ngx_shmtx`: `print *(int*)MUTEX.lock` + `*(int*)MUTEX.wait` (0/0 + thread in `sem_wait` = lost semaphore wakeup → see postmortem-shmtx-semaphore-stall.md) |
 
 ---
 

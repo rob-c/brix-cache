@@ -1,6 +1,8 @@
 #include "ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
 #include "write/wrts_journal.h"
+#include "connection/disconnect.h"     /* deferred-teardown guards */
+#include "connection/event_sched.h"    /* xrootd_schedule_read_resume */
 
 /*
  * xrootd_write_aio_thread — thread-pool worker for kXR_write / kXR_pgwrite.
@@ -36,6 +38,7 @@ xrootd_write_aio_done(ngx_event_t *ev)
     ngx_connection_t             *c = t->c;
     ngx_stream_xrootd_srv_conf_t *rconf;
     ngx_int_t                     op = XROOTD_OP_WRITE;
+    ngx_flag_t                    pipelined = !t->is_pgwrite;
 
     /*
      * Free the detached payload first, before the restore guard can bail out.
@@ -50,18 +53,106 @@ xrootd_write_aio_done(ngx_event_t *ev)
     }
 
     /*
-     * Re-entry / liveness guard.  This callback was posted from a worker thread
-     * and may fire after the client disconnected (ctx torn down) or after the
-     * stream was reassigned.  restore_request validates streamid still maps to
-     * this request and re-arms the request context; if it returns false the
-     * connection is gone and we must touch nothing further (ctx/c are stale).
+     * Write pipelining: a plain kXR_write is no longer in flight.  Decrement
+     * BEFORE the liveness check so a deferred teardown (client disconnected while
+     * writes were still running) fires on the LAST completion, once no pwrite
+     * references ctx/fds.
      */
-    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+    if (pipelined && ctx->wr_inflight > 0) {
+        ctx->wr_inflight--;
+    }
+
+    if (ctx->destroyed) {
+        /*
+         * Connection torn down — or a disconnect/timeout was deferred because
+         * writes were in flight.  Touch nothing further except, on the last
+         * pipelined completion, running the teardown that was held off.
+         */
+        if (pipelined && ctx->finalize_pending && ctx->wr_inflight == 0) {
+            xrootd_run_deferred_teardown(ctx, c);   /* frees ctx — return now */
+        }
         return;
     }
 
     rconf = ngx_stream_get_module_srv_conf(
         (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+
+    if (pipelined) {
+        /*
+         * Pipelined plain-write completion.  The recv loop has continued
+         * receiving (and possibly posting) further writes while this one ran, so
+         * we must NOT reset its state/hdr_pos: restore only the streamid (for
+         * this ack's frame) and queue the reply asynchronously (resp_async →
+         * parked in the out_ring, drained by the write event, recv untouched).
+         * Then nudge the read side in case recv throttled on out_count +
+         * wr_inflight reaching XROOTD_PIPELINE_MAX.
+         */
+        const char *errmsg = NULL;
+
+        if (!xrootd_aio_restore_stream(ctx, t->streamid)) {
+            if (ctx->finalize_pending && ctx->wr_inflight == 0) {
+                xrootd_run_deferred_teardown(ctx, c);
+            }
+            return;
+        }
+
+        if (t->nwritten < 0) {
+            errmsg = t->io_errno ? strerror(t->io_errno) : "async write error";
+        } else if ((size_t) t->nwritten < t->len) {
+            errmsg = "short write (disk full?)";
+        }
+
+        if (errmsg != NULL) {
+            if (rconf->access_log_fd != NGX_INVALID_FILE) {
+                char detail[64];
+                snprintf(detail, sizeof(detail), "%lld+%zu",
+                         (long long) t->req_offset, t->len);
+                xrootd_log_access(ctx, c, "WRITE", t->path, detail,
+                                  0, kXR_IOError, errmsg, 0);
+            }
+            XROOTD_OP_ERR(ctx, op);
+            ctx->resp_async = 1;
+            (void) xrootd_send_error(ctx, c, kXR_IOError, errmsg);
+            ctx->resp_async = 0;
+            (void) xrootd_schedule_read_resume(c);
+            return;
+        }
+
+        ctx->files[t->handle_idx].bytes_written += (size_t) t->nwritten;
+        ctx->session_bytes_written += (size_t) t->nwritten;
+        if (ctx->files[t->handle_idx].wt_enabled) {
+            xrootd_wt_mark_dirty(ctx, t->handle_idx,
+                t->req_offset + (int64_t) t->nwritten - 1,
+                (size_t) t->nwritten);
+        }
+        if (ctx->files[t->handle_idx].wrts_enabled) {
+            xrootd_wrts_record(&ctx->files[t->handle_idx], t->req_offset,
+                               (uint32_t) t->nwritten);
+        }
+        if (rconf->access_log_fd != NGX_INVALID_FILE) {
+            char detail[64];
+            snprintf(detail, sizeof(detail), "%lld+%zu",
+                     (long long) t->req_offset, t->len);
+            xrootd_log_access(ctx, c, "WRITE", t->path, detail,
+                              1, 0, NULL, (size_t) t->nwritten);
+        }
+        XROOTD_OP_OK(ctx, op);
+
+        ctx->resp_async = 1;
+        (void) xrootd_send_ok(ctx, c, NULL, 0);
+        ctx->resp_async = 0;
+        (void) xrootd_schedule_read_resume(c);
+        return;
+    }
+
+    /*
+     * pgwrite: serial path (unchanged).  pgwrite is not pipelined, so the recv
+     * loop is suspended in XRD_ST_AIO and it is safe to restore the full request
+     * context (state + hdr_pos) and drive the response + resume synchronously.
+     */
+    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+        return;
+    }
 
     if (t->nwritten < 0) {
         if (rconf->access_log_fd != NGX_INVALID_FILE) {
