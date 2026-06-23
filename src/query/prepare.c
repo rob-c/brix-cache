@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <time.h>
+#include "../compat/alloc_guard.h"
 
 #define XROOTD_PREPARE_OWNER_KEY_MAX  64
 
@@ -569,10 +570,7 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 attn_len = xrootd_attn_asyncms_frame_len(notify_len);
                 total    = ok_len + attn_len;
 
-                buf = ngx_palloc(c->pool, total);
-                if (buf == NULL) {
-                    return NGX_ERROR;
-                }
+                XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
                 xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok,
                                       (uint32_t) resp_reqid_len,
@@ -661,10 +659,7 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /* Allocate response buffer: worst case "A " + path + "\n" per line. */
     resp_cap = src_len * 2 + 64;
-    resp = ngx_palloc(c->pool, resp_cap);
-    if (resp == NULL) {
-        return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
-    }
+    XROOTD_PALLOC_OR_RETURN(resp, c->pool, resp_cap, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
     rp = resp;
 
     p   = src;

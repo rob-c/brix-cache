@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/xattr.h>
 #include <arpa/inet.h>
+#include "../compat/alloc_guard.h"
 
 /* ---- Function: fattr_read_value_size() — query POSIX xattr value length ----
  *
@@ -128,10 +129,7 @@ fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
         response_size += 4 + fattr_value_len_for_response(attr);
     }
 
-    response = ngx_palloc(pool, response_size);
-    if (response == NULL) {
-        return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
-    }
+    XROOTD_PALLOC_OR_RETURN(response, pool, response_size, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
 
     error_count = 0;
     for (int attr_index = 0; attr_index < numattr; attr_index++) {

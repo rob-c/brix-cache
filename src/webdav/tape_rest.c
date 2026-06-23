@@ -34,6 +34,7 @@
 #include <jansson.h>
 #include <openssl/rand.h>
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 #define TAPE_API_PREFIX     "/api/v1/"
 #define TAPE_BODY_MAX       (1u << 20)     /* 1 MiB of request JSON           */
@@ -59,18 +60,12 @@ tape_send_json(ngx_http_request_t *r, ngx_int_t status, const char *json)
     u_char      *buf;
     size_t       len = json ? ngx_strlen(json) : 0;
 
-    buf = ngx_pnalloc(r->pool, len ? len : 1);
-    if (buf == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(buf, r->pool, len ? len : 1, NGX_HTTP_INTERNAL_SERVER_ERROR);
     if (len) {
         ngx_memcpy(buf, json, len);
     }
 
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
     b->pos = buf;
     b->last = buf + len;
     b->memory = 1;
@@ -296,10 +291,7 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
             return tape_error(r, NGX_HTTP_BAD_REQUEST,
                               "each file needs a string \"path\"");
         }
-        buf = ngx_pnalloc(r->pool, NGX_XROOTD_FRM_PATH_MAX);
-        if (buf == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
+        XROOTD_PNALLOC_OR_RETURN(buf, r->pool, NGX_XROOTD_FRM_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
         rc = tape_authz_path(r, conf, ctx, lp, 1, buf, NGX_XROOTD_FRM_PATH_MAX);
         if (rc != NGX_OK) {
             return tape_error(r, rc, "path not permitted");
@@ -505,10 +497,7 @@ tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
                           "body must contain a \"paths\" array");
     }
     n = json_array_size(paths);
-    abs = ngx_pnalloc(r->pool, NGX_XROOTD_FRM_PATH_MAX);
-    if (abs == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(abs, r->pool, NGX_XROOTD_FRM_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /* authorise all paths first (no partial side effects) */
     for (i = 0; i < n; i++) {
@@ -561,10 +550,7 @@ tape_archiveinfo(ngx_http_request_t *r,
                           "body must contain a non-empty \"paths\" array");
     }
     n = json_array_size(paths);
-    abs = ngx_pnalloc(r->pool, NGX_XROOTD_FRM_PATH_MAX);
-    if (abs == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(abs, r->pool, NGX_XROOTD_FRM_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /* read scope for all paths first (no partial disclosure on a later 403) */
     for (i = 0; i < n; i++) {

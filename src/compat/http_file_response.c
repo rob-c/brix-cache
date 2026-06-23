@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "alloc_guard.h"
 
 /*
  * xrootd_http_chain_append_file_range - append one file-backed ngx_buf_t to a chain.
@@ -33,10 +34,7 @@ xrootd_http_chain_append_file_range(ngx_http_request_t *r,
     ngx_pool_cleanup_file_t *clnf;
     size_t                   path_len;
 
-    b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-    if (b == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(ngx_buf_t), NGX_ERROR);
     b->file = ngx_pcalloc(r->pool, sizeof(ngx_file_t));
     if (b->file == NULL) {
         return NGX_ERROR;

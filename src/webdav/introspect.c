@@ -39,6 +39,7 @@
 #include "../compat/crypto.h"
 
 #include <jansson.h>
+#include "../compat/alloc_guard.h"
 
 /* State carried from the subrequest fire to its completion callback. */
 typedef struct {
@@ -204,10 +205,7 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
      * struct layout matches xrdhttp_get_ctx(), so a later call there reuses it. */
     ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
     if (ctx == NULL) {
-        ctx = ngx_pcalloc(r->pool, sizeof(*ctx));
-        if (ctx == NULL) {
-            return NGX_ERROR;
-        }
+        XROOTD_PCALLOC_OR_RETURN(ctx, r->pool, sizeof(*ctx), NGX_ERROR);
         ngx_http_set_ctx(r, ctx, ngx_http_xrootd_webdav_module);
     }
 

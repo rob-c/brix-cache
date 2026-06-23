@@ -4,6 +4,7 @@
 
 #include <openssl/rand.h>
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 /* ------------------------------------------------------------------ */
 /* SSS Auth Identity — Challenge Generation, TLV Parsing                 */
@@ -177,10 +178,7 @@ xrootd_sss_send_authmore(xrootd_ctx_t *ctx, ngx_connection_t *c,
     cipher_len = out_len;
 
     total = XRD_RESPONSE_HDR_LEN + hdr_len + cipher_len;
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_authmore,
                           (uint32_t) (hdr_len + cipher_len),

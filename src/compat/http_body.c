@@ -21,6 +21,7 @@
 
 #include <errno.h>
 #include <unistd.h>
+#include "alloc_guard.h"
 
 #define XROOTD_INFLATE_OUT_BUFSZ  (64 * 1024)
 #define XROOTD_INFLATE_IN_BUFSZ   (64 * 1024)
@@ -263,10 +264,7 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
         return NGX_DECLINED;
     }
 
-    buf = ngx_pnalloc(r->pool, summary.bytes + 1);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(buf, r->pool, summary.bytes + 1, NGX_ERROR);
 
     pos = 0;
     if (r->request_body != NULL) {

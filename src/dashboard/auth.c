@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <crypt.h>
 #include <ctype.h>
+#include "../compat/alloc_guard.h"
 
 /*
  * dashboard/auth.c — single-admin-user authentication for the live monitor.
@@ -163,10 +164,7 @@ dashboard_copy_str0(ngx_pool_t *pool, ngx_str_t *src, char **out)
 {
     char *dst;
 
-    dst = ngx_pnalloc(pool, src->len + 1);
-    if (dst == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(dst, pool, src->len + 1, NGX_ERROR);
 
     ngx_memcpy(dst, src->data, src->len);
     dst[src->len] = '\0';
@@ -201,10 +199,7 @@ dashboard_verify_user_password(ngx_pool_t *pool,
     }
 
     /* crypt() needs a NUL-terminated plaintext copy (the wire password is not). */
-    plain = ngx_pnalloc(pool, password_len + 1);
-    if (plain == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(plain, pool, password_len + 1, NGX_ERROR);
     ngx_memcpy(plain, password, password_len);
     plain[password_len] = '\0';
 

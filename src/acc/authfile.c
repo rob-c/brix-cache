@@ -21,6 +21,7 @@
 #include "acc.h"
 
 #include <limits.h>
+#include "../compat/alloc_guard.h"
 
 #define XROOTD_ACC_AUTHDB_MAX  (1024 * 1024)
 
@@ -192,10 +193,7 @@ acc_cap_path(ngx_pool_t *pool, const char *path, const char *privs,
         return NULL;
     }
 
-    cap = ngx_pcalloc(pool, sizeof(*cap));
-    if (cap == NULL) {
-        return NULL;
-    }
+    XROOTD_PCALLOC_OR_RETURN(cap, pool, sizeof(*cap), NULL);
     cap->path = (char *) path;
     cap->plen = (int) ngx_strlen(path);
     cap->caps = pc;
@@ -248,10 +246,7 @@ acc_build_caps(ngx_pool_t *pool, xrootd_acc_tables_t *tabs,
                               "xrootd authdb: missing template \"%s\"", path);
                 return NGX_ERROR;
             }
-            cap = ngx_pcalloc(pool, sizeof(*cap));
-            if (cap == NULL) {
-                return NGX_ERROR;
-            }
+            XROOTD_PCALLOC_OR_RETURN(cap, pool, sizeof(*cap), NGX_ERROR);
             cap->tmpl = tcaps;
         } else {
             if (i >= n) {
@@ -339,10 +334,7 @@ acc_record_iddef(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
         }
     }
 
-    id = ngx_pcalloc(tabs->pool, sizeof(*id));
-    if (id == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(id, tabs->pool, sizeof(*id), NGX_ERROR);
     id->name = w[1];
     id->rule = INT_MIN;   /* "no x/s rule attached yet" */
 

@@ -9,6 +9,7 @@
 #include "fattr/ngx_xrootd_fattr.h"
 
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 /* ---- Function: xrootd_handle_fattr() — top-level kXR_fattr request handler ----
  *
@@ -199,10 +200,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* Copy the args region so fattr_parse_nvec can record rc_ptr slots that
          * point into a buffer we own (the wire payload is overwritten in place
          * with status codes when building the response). */
-        nvec_copy = ngx_palloc(c->pool, args_len);
-        if (nvec_copy == NULL) {
-            return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
-        }
+        XROOTD_PALLOC_OR_RETURN(nvec_copy, c->pool, args_len, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
         ngx_memcpy(nvec_copy, args_buf, args_len);
 
         /* Parse the name vector; returns the byte count it consumed. */

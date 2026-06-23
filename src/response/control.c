@@ -1,5 +1,6 @@
 #include "ngx_xrootd_module.h"
 #include "../compat/host_format.h"  /* xrootd_format_host — IPv6 bracketing */
+#include "../compat/alloc_guard.h"
 
 /* ------------------------------------------------------------------ */
 /* Control Flow Responses — Redirects and Wait Hints                     */
@@ -86,10 +87,7 @@ xrootd_send_redirect(xrootd_ctx_t *ctx, ngx_connection_t *c,
     bodylen = (uint32_t) (sizeof(uint32_t) + hostlen);
     total = XRD_RESPONSE_HDR_LEN + bodylen;
 
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_redirect, bodylen,
         (ServerResponseHdr *) buf);
@@ -133,10 +131,7 @@ xrootd_send_redirect_tpc(xrootd_ctx_t *ctx, ngx_connection_t *c,
     bodylen   = sizeof(uint32_t) + hostlen + opaquelen;
     total     = XRD_RESPONSE_HDR_LEN + bodylen;
 
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_redirect, (uint32_t) bodylen,
         (ServerResponseHdr *) buf);
@@ -190,10 +185,7 @@ xrootd_send_waitresp(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
     u_char *buf;
 
-    buf = ngx_palloc(c->pool, XRD_RESPONSE_HDR_LEN);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, XRD_RESPONSE_HDR_LEN, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_waitresp, 0,
         (ServerResponseHdr *) buf);

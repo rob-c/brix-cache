@@ -14,6 +14,7 @@
  */
 #include "ratelimit/ratelimit.h"
 #include "metrics/metrics_macros.h"
+#include "../compat/alloc_guard.h"
 
 #define XROOTD_RL_MAX_ZONES   16
 #define XROOTD_RL_MIN_SIZE    (64 * 1024)
@@ -177,10 +178,7 @@ xrootd_rl_zone_add(ngx_conf_t *cf, ngx_str_t *name, size_t size,
         size = XROOTD_RL_MIN_SIZE;
     }
 
-    zone = ngx_pcalloc(cf->pool, sizeof(*zone));
-    if (zone == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(zone, cf->pool, sizeof(*zone), NGX_ERROR);
     zone->name = *name;
     zone->size = size;
 

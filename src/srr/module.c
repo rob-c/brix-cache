@@ -26,6 +26,7 @@
  */
 
 #include "srr.h"
+#include "../compat/alloc_guard.h"
 
 
 static void *ngx_http_xrootd_srr_create_loc_conf(ngx_conf_t *cf);
@@ -121,10 +122,7 @@ ngx_http_xrootd_srr_create_loc_conf(ngx_conf_t *cf)
 {
     ngx_http_xrootd_srr_loc_conf_t *conf;
 
-    conf = ngx_pcalloc(cf->pool, sizeof(*conf));
-    if (conf == NULL) {
-        return NULL;
-    }
+    XROOTD_PCALLOC_OR_RETURN(conf, cf->pool, sizeof(*conf), NULL);
 
     /* str fields: zero-initialised (len 0) → treated as "unset" by merge.
      * arrays: NULL → inherit from parent in merge.                        */

@@ -24,6 +24,7 @@
 #include "ngx_xrootd_module.h"   /* full ngx core + stream (NGX_STREAM_MAIN_CONF) */
 #include "shm/kv.h"
 #include "../compat/shm_slots.h"
+#include "../compat/alloc_guard.h"
 
 /* The directive may appear in either module's main block; both tags are
  * resolved at link time into the single combined binary. */
@@ -532,10 +533,7 @@ xrootd_kv_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    kv = ngx_pcalloc(cf->pool, sizeof(xrootd_kv_t));
-    if (kv == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(kv, cf->pool, sizeof(xrootd_kv_t), NGX_CONF_ERROR);
 
     module = (cf->cmd_type & NGX_STREAM_MAIN_CONF)
              ? (void *) &ngx_stream_xrootd_module

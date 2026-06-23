@@ -16,6 +16,7 @@
 #include <fcntl.h>
 
 #include <netdb.h>
+#include "../compat/alloc_guard.h"
 
 /* WHAT: Build kXR_ok open response body (fhandle + optional statbuf from fstat) → xrootd_build_resp_hdr → xrootd_queue_response. Returns NGX_OK or NGX_ERROR on alloc failure. Caller: xrootd_tpc_prepare_pull (end of pull prep pipeline). */
 static ngx_int_t
@@ -53,10 +54,7 @@ tpc_send_open_response(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     }
 
     total = XRD_RESPONSE_HDR_LEN + bodylen;
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) bodylen,
                           (ServerResponseHdr *) buf);

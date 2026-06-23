@@ -12,6 +12,7 @@
 /*       5) Store resolved sockaddr + name in srv_conf->cms_addr                                        */
 
 #include "../config/config.h"
+#include "../compat/alloc_guard.h"
 
 char *
 xrootd_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -64,10 +65,7 @@ xrootd_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    addr = ngx_pcalloc(cf->pool, sizeof(ngx_addr_t));
-    if (addr == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(addr, cf->pool, sizeof(ngx_addr_t), NGX_CONF_ERROR);
 
     addr->sockaddr = ngx_pnalloc(cf->pool, url.addrs[0].socklen);
     if (addr->sockaddr == NULL) {

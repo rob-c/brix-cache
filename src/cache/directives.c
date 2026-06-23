@@ -9,6 +9,7 @@
 #include <regex.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 /* ---- Cache origin directive — parse host:port address ----
  *
@@ -62,10 +63,7 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
     }
 
-    addr_copy = ngx_pnalloc(cf->pool, addr_len + 1);
-    if (addr_copy == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(addr_copy, cf->pool, addr_len + 1, NGX_CONF_ERROR);
     ngx_memcpy(addr_copy, addr_data, addr_len);
     addr_copy[addr_len] = '\0';
 
@@ -137,10 +135,7 @@ xrootd_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
         return "is duplicate";
     }
 
-    copy = ngx_pnalloc(cf->pool, value[1].len + 1);
-    if (copy == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
 
     ngx_memcpy(copy, value[1].data, value[1].len);
     copy[value[1].len] = '\0';
@@ -281,10 +276,7 @@ xrootd_conf_set_cache_include_regex(ngx_conf_t *cf, ngx_command_t *cmd,
     }
 
     /* Copy to NUL-terminated buffer for regcomp */
-    pattern = ngx_pnalloc(cf->pool, value[1].len + 1);
-    if (pattern == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(pattern, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
     ngx_memcpy(pattern, value[1].data, value[1].len);
     pattern[value[1].len] = '\0';
 
@@ -408,10 +400,7 @@ xrootd_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         addr_len  -= sizeof("root://") - 1;
     }
 
-    addr_copy = ngx_pnalloc(cf->pool, addr_len + 1);
-    if (addr_copy == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(addr_copy, cf->pool, addr_len + 1, NGX_CONF_ERROR);
     ngx_memcpy(addr_copy, addr_data, addr_len);
     addr_copy[addr_len] = '\0';
 

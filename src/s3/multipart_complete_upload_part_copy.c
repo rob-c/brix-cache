@@ -21,6 +21,7 @@
 #include "../compat/http_headers.h"
 
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 /* -------------------------------------------------------------------------
  * PUT /bucket/key?partNumber=N&uploadId=<id>  +  x-amz-copy-source header
@@ -39,10 +40,7 @@ s3_find_request_header_value(ngx_http_request_t *r, const char *name,
         return NULL;
     }
 
-    value = ngx_pnalloc(r->pool, h->value.len + 1);
-    if (value == NULL) {
-        return NULL;
-    }
+    XROOTD_PNALLOC_OR_RETURN(value, r->pool, h->value.len + 1, NULL);
 
     ngx_memcpy(value, h->value.data, h->value.len);
     value[h->value.len] = '\0';

@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <limits.h>
+#include "../compat/alloc_guard.h"
 
 static const char *
 s3_copy_find_header(ngx_http_request_t *r, const char *name, size_t nlen)
@@ -38,10 +39,7 @@ s3_copy_find_header(ngx_http_request_t *r, const char *name, size_t nlen)
         return NULL;
     }
 
-    value = ngx_pnalloc(r->pool, h->value.len + 1);
-    if (value == NULL) {
-        return NULL;
-    }
+    XROOTD_PNALLOC_OR_RETURN(value, r->pool, h->value.len + 1, NULL);
 
     ngx_memcpy(value, h->value.data, h->value.len);
     value[h->value.len] = '\0';

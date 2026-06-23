@@ -18,6 +18,7 @@
  */
 
 #include "acc.h"
+#include "../compat/alloc_guard.h"
 
 /*
  * Split a comma-separated string into an array of tokens (pool-owned).  Empty
@@ -98,10 +99,7 @@ xrootd_acc_entity_build(ngx_pool_t *pool, const char *name, const char *host,
     ngx_array_t         *vorgs, *roles, *grps;
     ngx_uint_t           n, i;
 
-    ent = ngx_pcalloc(pool, sizeof(*ent));
-    if (ent == NULL) {
-        return NULL;
-    }
+    XROOTD_PCALLOC_OR_RETURN(ent, pool, sizeof(*ent), NULL);
     ent->pool   = pool;
     ent->name   = (name != NULL && *name != '\0') ? name : "*";
     ent->host   = (host != NULL && *host != '\0') ? host : "?";

@@ -34,6 +34,7 @@
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
+#include "../compat/alloc_guard.h"
 
 #define S3_TAG_XATTR    "user.s3.tagging"
 #define S3_TAG_MAX      4096   /* AWS: <=10 tags, key<=128, value<=256 */
@@ -416,10 +417,7 @@ s3_handle_get_acl(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     }
     owner[n] = '\0';
 
-    xml = ngx_palloc(r->pool, xml_capacity);
-    if (xml == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(xml, r->pool, xml_capacity, NGX_HTTP_INTERNAL_SERVER_ERROR);
     XML_APPEND("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     XML_APPEND("<AccessControlPolicy "
                "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Owner>");

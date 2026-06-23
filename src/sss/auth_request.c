@@ -5,6 +5,7 @@
 
 #include <openssl/crypto.h>
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 /* ------------------------------------------------------------------ */
 /* SSS Auth — Simple Shared Secret authentication via Blowfish-CFB64     */
@@ -81,10 +82,7 @@ xrootd_handle_sss_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_sss_auth_failed(ctx, c);
     }
 
-    clear = ngx_palloc(c->pool, cipher_len);
-    if (clear == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(clear, c->pool, cipher_len, NGX_ERROR);
 
     if (xrootd_sss_bf32_crypt(0, key->key, key->key_len,
                               cipher, cipher_len, clear, cipher_len, &out_len)

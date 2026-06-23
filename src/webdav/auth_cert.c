@@ -12,6 +12,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
+#include "../compat/alloc_guard.h"
 
 /*
  * Per-TLS-connection auth result cache.
@@ -222,10 +223,7 @@ webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
 
     cache = SSL_get_ex_data(ssl, webdav_ssl_auth_cache_index);
     if (!webdav_cache_matches(cache, conf)) {
-        cache = ngx_pcalloc(r->connection->pool, sizeof(*cache));
-        if (cache == NULL) {
-            return NGX_ERROR;
-        }
+        XROOTD_PCALLOC_OR_RETURN(cache, r->connection->pool, sizeof(*cache), NGX_ERROR);
 
         cache->conf = conf;
         cache->store = conf->ca_store;
@@ -431,10 +429,7 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
         return ctx->verified ? NGX_OK : NGX_HTTP_FORBIDDEN;
     }
 
-    ctx = ngx_pcalloc(r->pool, sizeof(*ctx));
-    if (ctx == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(ctx, r->pool, sizeof(*ctx), NGX_HTTP_INTERNAL_SERVER_ERROR);
     ngx_http_set_ctx(r, ctx, ngx_http_xrootd_webdav_module);
 
     if (r->connection->ssl == NULL) {

@@ -17,6 +17,7 @@
 
 #include "srr.h"
 #include "../compat/http_headers.h"
+#include "../compat/alloc_guard.h"
 
 
 ngx_int_t
@@ -65,10 +66,7 @@ ngx_http_xrootd_srr_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
     b->pos      = b->start = buf;
     b->last     = b->end   = buf + len;
     b->memory   = 1;

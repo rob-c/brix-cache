@@ -6,6 +6,7 @@
 #include <sys/xattr.h>
 #include <arpa/inet.h>
 #include <dirent.h>
+#include "../compat/alloc_guard.h"
 
 /* ---- kXR_fa_recurse support ---- */
 
@@ -165,10 +166,7 @@ fattr_list_recurse(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path)
     fattr_recurse_ctx_t rctx;
     u_char             *buf;
 
-    buf = ngx_palloc(c->pool, FATTR_RECURSE_RESP_CAP);
-    if (buf == NULL) {
-        return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, FATTR_RECURSE_RESP_CAP, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
 
     rctx.buf      = buf;
     rctx.cap      = FATTR_RECURSE_RESP_CAP;

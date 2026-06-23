@@ -1,4 +1,5 @@
 #include "ngx_xrootd_module.h"
+#include "../compat/alloc_guard.h"
 
 /* ---- Function: xrootd_send_pgwrite_status() — send pgwrite completion status with CRC32c ----
  *
@@ -22,10 +23,7 @@ xrootd_send_pgwrite_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     crc_len = sizeof(rsp->bdy) - sizeof(rsp->bdy.crc32c) + sizeof(rsp->pgw);
 
-    rsp = ngx_palloc(c->pool, sizeof(*rsp));
-    if (rsp == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(rsp, c->pool, sizeof(*rsp), NGX_ERROR);
 
     rsp->hdr.streamid[0] = ctx->cur_streamid[0];
     rsp->hdr.streamid[1] = ctx->cur_streamid[1];

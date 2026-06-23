@@ -1,4 +1,5 @@
 #include "dashboard_http.h"
+#include "../compat/alloc_guard.h"
 
 /*
  * dashboard/page.c - embedded dashboard UI.
@@ -183,10 +184,7 @@ ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
 
     /* -1 drops the literal's terminating NUL: send the HTML, not the NUL. */
     html_len = sizeof(ngx_xrootd_dashboard_html) - 1;
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /*
      * Point the buffer straight at the const .rodata literal - no copy. Safe

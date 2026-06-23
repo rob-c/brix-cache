@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/xattr.h>
+#include "../compat/alloc_guard.h"
 
 /*
  * Phase 40: dead-property xattrs (user.nginx_xrootd.webdav.*) must be set / read /
@@ -176,10 +177,7 @@ webdav_dead_prop_decode_hex(ngx_pool_t *pool, const char *hex, size_t len)
         return NULL;
     }
 
-    out = ngx_pnalloc(pool, len / 2 + 1);
-    if (out == NULL) {
-        return NULL;
-    }
+    XROOTD_PNALLOC_OR_RETURN(out, pool, len / 2 + 1, NULL);
 
     for (i = 0; i < len; i += 2) {
         int hi = webdav_dead_prop_hexval(hex[i]);
@@ -384,10 +382,7 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
-    value = ngx_pnalloc(r->pool, (size_t) len + 1);
-    if (value == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(value, r->pool, (size_t) len + 1, NGX_ERROR);
 
     /* Second read fetches the actual bytes; a concurrent shrink is fine since
      * we re-read the returned length, a concurrent grow is bounded by the buf. */
@@ -433,10 +428,7 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
         return NGX_OK;
     }
 
-    list = ngx_pnalloc(r->pool, (size_t) len);
-    if (list == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(list, r->pool, (size_t) len, NGX_ERROR);
 
     len = xrootd_listxattr_confined_canon(r->connection->log, root_canon, path,
                                           list, (size_t) len);

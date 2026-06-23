@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 /* ---- Function: xrootd_conf_set_upstream() — parse and validate upstream address string ----
  *
@@ -20,10 +21,7 @@ xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;
     (void) cmd;
 
-    addr_copy = ngx_pnalloc(cf->pool, value[1].len + 1);
-    if (addr_copy == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
     ngx_memcpy(addr_copy, value[1].data, value[1].len);
     addr_copy[value[1].len] = '\0';
 

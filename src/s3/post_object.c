@@ -25,6 +25,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include "../compat/alloc_guard.h"
 
 #define S3_POST_MAX_BODY    (128 * 1024 * 1024)
 #define S3_POST_MAX_FIELD   4096
@@ -1181,10 +1182,7 @@ s3_post_send_created(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_str_t     host;
     char          location[S3_MAX_KEY + 512];
 
-    xml = ngx_pnalloc(r->pool, xml_capacity);
-    if (xml == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(xml, r->pool, xml_capacity, NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /* Absolute URL when a Host header is available; otherwise a bare path. */
     host = r->headers_in.host ? r->headers_in.host->value

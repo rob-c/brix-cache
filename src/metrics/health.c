@@ -24,6 +24,7 @@
 
 #include "metrics_internal.h"
 #include "../compat/http_headers.h"
+#include "../compat/alloc_guard.h"
 
 
 /* True when the request's query string contains the bare `verbose` flag. */
@@ -50,10 +51,7 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
     u_char              *p;
     const char          *shm_state;
 
-    buf = ngx_pnalloc(r->pool, cap);
-    if (buf == NULL) {
-        return NULL;
-    }
+    XROOTD_PNALLOC_OR_RETURN(buf, r->pool, cap, NULL);
 
     if (!verbose) {
         p = ngx_snprintf(buf, cap,
@@ -127,10 +125,7 @@ ngx_http_xrootd_health_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
     b->pos      = b->start = buf;
     b->last     = b->end   = buf + len;
     b->memory   = 1;

@@ -1,4 +1,5 @@
 #include "handshake.h"
+#include "../compat/alloc_guard.h"
 
 /* ------------------------------------------------------------------ */
 /* Initial Handshake — TCP Connection Entry Point                        */
@@ -71,10 +72,7 @@ xrootd_process_handshake(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     total = XRD_RESPONSE_HDR_LEN + BODY_LEN;
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     /* The initial reply uses streamid={0,0} because no request header exists yet. */
     hdr = (ServerResponseHdr *) buf;

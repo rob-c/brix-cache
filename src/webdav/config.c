@@ -20,6 +20,7 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "../compat/alloc_guard.h"
 
 #define webdav_validate_path          xrootd_validate_path
 #define WEBDAV_PATH_REGULAR_FILE      XROOTD_PATH_REGULAR_FILE
@@ -86,10 +87,7 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
 {
     ngx_http_xrootd_webdav_loc_conf_t *conf;
 
-    conf = ngx_pcalloc(cf->pool, sizeof(*conf));
-    if (conf == NULL) {
-        return NULL;
-    }
+    XROOTD_PCALLOC_OR_RETURN(conf, cf->pool, sizeof(*conf), NULL);
 
     conf->common.enable       = NGX_CONF_UNSET;
     conf->verify_depth = NGX_CONF_UNSET_UINT;

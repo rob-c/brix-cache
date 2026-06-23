@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include "../compat/alloc_guard.h"
 
 #define WEBDAV_PROPPATCH_BODY_MAX 65536u
 
@@ -198,19 +199,13 @@ webdav_proppatch_serialize_dead_prop(ngx_http_request_t *r, xmlNodePtr prop,
          * and close tag) + the escaped namespace + escaped text + NUL. */
         len = ngx_strlen("<X: xmlns:X=\"\"></X:>")
               + strlen(local) * 2 + strlen(safe_ns) + strlen(safe_text) + 1;
-        xml = ngx_pnalloc(r->pool, len);
-        if (xml == NULL) {
-            return NULL;
-        }
+        XROOTD_PNALLOC_OR_RETURN(xml, r->pool, len, NULL);
         snprintf(xml, len, "<X:%s xmlns:X=\"%s\">%s</X:%s>",
                  local, safe_ns, safe_text, local);
 
     } else {
         len = ngx_strlen("<></>") + strlen(local) * 2 + strlen(safe_text) + 1;
-        xml = ngx_pnalloc(r->pool, len);
-        if (xml == NULL) {
-            return NULL;
-        }
+        XROOTD_PNALLOC_OR_RETURN(xml, r->pool, len, NULL);
         snprintf(xml, len, "<%s>%s</%s>", local, safe_text, local);
     }
 
