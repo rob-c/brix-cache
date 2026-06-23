@@ -144,6 +144,9 @@ typedef struct {
      * acc_host_done is set means resolution failed → fall back to peer_ip. */
     const char *acc_host;
     unsigned    acc_host_done:1;
+    unsigned    gsi_counted:1;   /* Phase 51 (E4): this conn holds a GSI in-flight
+                                  * handshake slot (released exactly once at auth
+                                  * completion or disconnect) */
     xrootd_identity_t *identity; /* canonical Phase 2 identity object */
 
     /* SciTags packet-marking flow handle (NULL = not marked); begun on the
@@ -193,6 +196,50 @@ typedef struct {
      * clobber it.  Multi-chunk (>16 MiB) reads and all other opcodes stay serial.
      */
     unsigned           resp_pipelinable:1;
+
+    /*
+     * Write pipelining (mirrors the Phase-29 read pipelining above, for the
+     * plain kXR_write path).  Without this, each kXR_write posts its pwrite to
+     * the thread pool, transitions to XRD_ST_AIO, and SUSPENDS the recv loop
+     * until the write completes — so network-receive of the next chunk and the
+     * disk-write of the current one never overlap, and at most one pwrite is in
+     * flight per connection.  With it, after posting a write the recv loop keeps
+     * receiving (and posting) further writes, and the completion callback queues
+     * the kXR_ok ack into the out_ring WITHOUT suspending recv (resp_async).
+     *
+     * wr_inflight counts plain-write pwrites posted to the pool and not yet
+     * acked.  The recv loop only keeps reading while out_count + wr_inflight <
+     * XROOTD_PIPELINE_MAX, which bounds BOTH the in-flight pwrites (thread-pool
+     * fairness) AND the queued acks (out_ring has XROOTD_PIPELINE_MAX slots) so
+     * the ring can never overflow.  Non-pipelinable opcodes (close, sync,
+     * pgwrite, …) still drain to wr_inflight == 0 before dispatch, preserving
+     * the serial invariant (e.g. a close cannot retire a handle a pwrite is
+     * still writing through).
+     *
+     * resp_async: while set (only around the pipelined-write ack send in the
+     * completion callback), xrootd_queue_response_base parks the response in the
+     * out_ring and arms the write event but leaves ctx->state untouched, so the
+     * ack drains independently of — and never disturbs — the recv loop that may
+     * be mid-receiving the next request.
+     */
+    ngx_uint_t         wr_inflight;
+    unsigned           resp_async:1;
+
+    /*
+     * Deferred teardown for in-flight pipelined writes.  Because the recv loop
+     * may be active (REQ_HEADER/REQ_PAYLOAD) while wr_inflight > 0, a client
+     * disconnect / read deadline / send error must NOT finalize the session
+     * immediately — that would free ctx and close the fds out from under the
+     * pwrites still running in worker threads (use-after-free / wrong-fd write).
+     * Instead every data-plane teardown site routes through
+     * xrootd_defer_teardown_if_writing(): if wr_inflight > 0 it records the
+     * pending finalize (and sets destroyed so recv stops and completion callbacks
+     * skip their ack), and the LAST write completion runs the real teardown
+     * (on_disconnect + close_all_files + finalize) once no pwrite references the
+     * connection.  finalize_status carries the ngx_stream status to finalize with.
+     */
+    unsigned           finalize_pending:1;
+    ngx_int_t          finalize_status;
 
     /*
      * Reusable response scratch buffers for read-heavy sessions.

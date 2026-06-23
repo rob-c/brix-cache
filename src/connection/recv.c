@@ -145,6 +145,9 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
         } else {
             XROOTD_SRV_METRIC_INC(ctx, handshake_timeouts_total);
         }
+        if (xrootd_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
+            return;
+        }
         xrootd_on_disconnect(ctx, c);
         xrootd_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_OK);
@@ -162,10 +165,20 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             /*
              * Phase 29 drain barrier: a non-pipelinable request was fully read
              * (header in cur_*, any payload in payload_buf) while pipelined reads
-             * were still in flight, and the output queue has now drained.
-             * Dispatch it with the connection quiescent — identical handling to
-             * the inline dispatch sites below.
+             * OR writes were still in flight.  It must run with the connection
+             * quiescent, so keep it parked until BOTH the ack/response queue
+             * (out_count) and the in-flight pwrites (wr_inflight) have drained — a
+             * write completion (schedule_read_resume) or the send-side drain
+             * re-enters recv to re-check.  This is what lets a kXR_close safely
+             * follow a burst of pipelined writes: every pwrite has landed before
+             * the handle is retired.
              */
+            if (ctx->out_count > 0 || ctx->wr_inflight > 0) {
+                if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+                    break;
+                }
+                return;
+            }
             ctx->recv_deferred = 0;
             XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
             rx_pending = 0;
@@ -235,13 +248,18 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             if (ctx->hdr_pos == 0) {
                 /*
                  * Phase 29 pipelining backpressure: if XROOTD_PIPELINE_MAX
-                 * read responses are already queued/draining, stop reading new
-                 * requests and suspend.  The write handler re-enters recv once
-                 * the output queue fully drains.  (out_count is 0 here unless a
-                 * prior kXR_read was pipelined, so this is a no-op for the
-                 * common serial case.)
+                 * responses are already queued/draining (out_count) OR pwrites
+                 * are still in flight (wr_inflight, write pipelining), stop
+                 * reading new requests and suspend with state=SENDING.  The write
+                 * event re-enters recv once the output queue drains; a write
+                 * completion queues its ack (which schedules that write event) and
+                 * also nudges the read side.  Bounding out_count + wr_inflight at
+                 * XROOTD_PIPELINE_MAX caps BOTH the in-flight pwrites and the
+                 * queued acks, so the out_ring (XROOTD_PIPELINE_MAX slots) can
+                 * never overflow.  (Both counters are 0 here for the common serial
+                 * read/write case, so this is a no-op there.)
                  */
-                if (ctx->out_count >= XROOTD_PIPELINE_MAX) {
+                if (ctx->out_count + ctx->wr_inflight >= XROOTD_PIPELINE_MAX) {
                     ctx->state = XRD_ST_SENDING;
                     XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
                     return;
@@ -260,7 +278,7 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                  * RAW heap (ngx_alloc/ngx_free, see src/aio/buffers.c), which
                  * makes the trim safe.
                  */
-                if (ctx->out_count == 0) {
+                if (ctx->out_count == 0 && ctx->wr_inflight == 0) {
                     xrootd_trim_scratch(ctx, c);
 
                     /* Phase 31 W4: reconcile this connection's transfer-heap
@@ -303,6 +321,9 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             if (n == NGX_ERROR || n == 0) {
                 ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
                                "xrootd: client disconnected");
+                if (xrootd_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
+                    return;
+                }
                 xrootd_on_disconnect(ctx, c);
                 xrootd_close_all_files(ctx);
                 ngx_stream_finalize_session(s, NGX_STREAM_OK);
@@ -407,13 +428,17 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             ctx->payload = NULL;
 
             /*
-             * Phase 29 drain barrier: only kXR_read pipelines.  Any other opcode
-             * arriving while reads are still draining must run with the
-             * connection quiescent (e.g. a kXR_close could free a handle an
-             * in-flight sendfile chain still references).  Defer it until the
-             * output queue drains; the recv loop re-dispatches it then.
+             * Phase 29 drain barrier (extended for write pipelining): kXR_read
+             * and kXR_write both pipeline.  Any other opcode arriving while reads
+             * or writes are still in flight must run with the connection quiescent
+             * (e.g. a kXR_close could free a handle an in-flight sendfile chain or
+             * pwrite still references).  Defer it until both out_count and
+             * wr_inflight drain; the recv loop re-dispatches it then.
              */
-            if (ctx->out_count > 0 && ctx->cur_reqid != kXR_read) {
+            if ((ctx->out_count > 0 || ctx->wr_inflight > 0)
+                && ctx->cur_reqid != kXR_read
+                && ctx->cur_reqid != kXR_write)
+            {
                 ctx->recv_deferred = 1;
                 ctx->state = XRD_ST_SENDING;
                 XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
@@ -480,12 +505,17 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
 
         } else {
             /*
-             * Phase 29 drain barrier: a kXR_read may carry a payload (read-ahead
-             * list), so payload-bearing requests are NOT always non-pipelinable.
-             * Defer only NON-read opcodes while pipelined reads are still
-             * draining; reads continue through the pipelining path below.
+             * Phase 29 drain barrier (extended for write pipelining): kXR_read
+             * and kXR_write both pipeline, so they are NOT deferred.  Every other
+             * opcode (close, sync, pgwrite, …) must run with the connection
+             * quiescent, so defer it until BOTH the response/ack queue (out_count)
+             * and the in-flight pwrites (wr_inflight) have drained — e.g. a
+             * kXR_close must not retire a handle a pwrite is still writing.
              */
-            if (ctx->out_count > 0 && ctx->cur_reqid != kXR_read) {
+            if ((ctx->out_count > 0 || ctx->wr_inflight > 0)
+                && ctx->cur_reqid != kXR_read
+                && ctx->cur_reqid != kXR_write)
+            {
                 ctx->recv_deferred = 1;
                 ctx->state = XRD_ST_SENDING;
                 XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
@@ -506,6 +536,21 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
             }
 
             if (ctx->state == XRD_ST_AIO) {
+                /*
+                 * Write pipelining: a plain kXR_write just posted its pwrite to
+                 * the thread pool (wr_inflight bumped in xrootd_handle_write).
+                 * Instead of suspending until it completes — which would serialize
+                 * the next chunk's network receive behind this chunk's disk write
+                 * — keep receiving.  The backpressure boundary (out_count +
+                 * wr_inflight >= XROOTD_PIPELINE_MAX) caps the depth, and the
+                 * completion callback queues the ack asynchronously and nudges the
+                 * read side.  Every other AIO op (read, pgwrite, …) still suspends.
+                 */
+                if (ctx->cur_reqid == kXR_write && ctx->wr_inflight > 0) {
+                    ctx->state = XRD_ST_REQ_HEADER;
+                    ctx->hdr_pos = 0;
+                    continue;
+                }
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
                     break;
                 }
@@ -534,6 +579,10 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
         }
     }
 
+    if (xrootd_defer_teardown_if_writing(ctx, c,
+                                         NGX_STREAM_INTERNAL_SERVER_ERROR)) {
+        return;
+    }
     xrootd_on_disconnect(ctx, c);
     xrootd_close_all_files(ctx);
     ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);

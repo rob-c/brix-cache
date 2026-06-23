@@ -24,4 +24,15 @@
  */
 void xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
+/*
+ * Write-pipelining teardown guards (see disconnect.c).  Every data-plane finalize
+ * site calls xrootd_defer_teardown_if_writing() first: it returns 1 (and the
+ * caller must return without finalizing) when a pipelined pwrite is still in
+ * flight, deferring the real teardown to the last write completion, which calls
+ * xrootd_run_deferred_teardown().
+ */
+ngx_flag_t xrootd_defer_teardown_if_writing(xrootd_ctx_t *ctx,
+    ngx_connection_t *c, ngx_int_t status);
+void xrootd_run_deferred_teardown(xrootd_ctx_t *ctx, ngx_connection_t *c);
+
 #endif /* XROOTD_CONN_DISCONNECT_H */

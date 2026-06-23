@@ -128,7 +128,14 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		ctx->payload = NULL;
 		ctx->payload_buf = NULL;
 		ctx->payload_buf_size = 0;
-		/* Completion callback will restore streamid/state and send the final reply. */
+		/*
+		 * Write pipelining: account this pwrite as in-flight.  The recv loop
+		 * (which sees state == XRD_ST_AIO on return) keeps receiving the next
+		 * write while this one runs, bounded by out_count + wr_inflight <
+		 * XROOTD_PIPELINE_MAX.  xrootd_write_aio_done decrements wr_inflight and
+		 * queues the ack asynchronously (no recv suspend).
+		 */
+		ctx->wr_inflight++;
 		return NGX_OK;
 	}
 	} /* end NGX_THREADS block */

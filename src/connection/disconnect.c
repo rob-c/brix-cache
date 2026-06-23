@@ -1,5 +1,7 @@
 #include "disconnect.h"
+#include "fd_table.h"   /* xrootd_close_all_files (deferred teardown) */
 #include "budget.h"
+#include "../session/session.h"   /* Phase 51 (E4): xrootd_gsi_inflight_release */
 #include "../session/registry.h"
 #include "../upstream/upstream.h"
 #include "../proxy/proxy.h"
@@ -323,6 +325,12 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * here.  No-op if no concurrency rule matched. */
     xrootd_rl_release_ctx(ctx);
 
+    /* Phase 51 (E4): release this connection's in-flight GSI-handshake slot if it
+     * still holds one (handshake aborted before completion).  Leak-proof: this
+     * funnel always runs on close, and the release is gated by ctx->gsi_counted
+     * so a completed handshake (already released) is a no-op. */
+    xrootd_gsi_inflight_release(ctx);
+
     if (ctx->upstream != NULL) {
         xrootd_upstream_cleanup(ctx->upstream);
     }
@@ -370,4 +378,66 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * (including the DISCONNECT record above) so they are durable now rather
      * than waiting for the next buffer-full / timer tick. */
     xrootd_access_log_flush();
+}
+
+/* ---- xrootd_defer_teardown_if_writing — hold off teardown while pwrites run ----
+ *
+ * WHAT: Called at every data-plane finalize site (recv EOF/timeout/error, send
+ *   error/timeout).  If a pipelined kXR_write is still in flight (wr_inflight > 0)
+ *   the connection MUST NOT be finalized yet — ctx and the open fds are still
+ *   referenced by pwrites running in worker threads.  Records the pending finalize
+ *   (status), marks the connection destroyed so the recv loop stops and write
+ *   completion callbacks skip their ack, disarms our deadline timers so no stale
+ *   timer re-fires, and returns 1 (caller must return without tearing down).  The
+ *   last write completion (xrootd_write_aio_done) then runs the real teardown via
+ *   xrootd_run_deferred_teardown().  Returns 0 when there are no in-flight writes,
+ *   i.e. teardown may proceed normally.
+ *
+ * WHY: Pipelined writes break the old "exactly one AIO in flight, recv suspended"
+ *   invariant that made teardown trivially safe.  This is the single chokepoint
+ *   that restores the guarantee: no finalize while any pwrite references ctx/fds. */
+ngx_flag_t
+xrootd_defer_teardown_if_writing(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_int_t status)
+{
+    if (ctx->wr_inflight == 0) {
+        return 0;
+    }
+
+    if (!ctx->finalize_pending) {
+        ctx->finalize_pending = 1;
+        ctx->finalize_status  = status;
+        ctx->destroyed        = 1;
+
+        if (ctx->read_deadline_armed && c->read->timer_set) {
+            ngx_del_timer(c->read);
+        }
+        ctx->read_deadline_armed = 0;
+        if (ctx->send_deadline_armed && c->write->timer_set) {
+            ngx_del_timer(c->write);
+        }
+        ctx->send_deadline_armed = 0;
+    }
+
+    return 1;
+}
+
+/* ---- xrootd_run_deferred_teardown — finalize once the last pwrite has landed ----
+ *
+ * WHAT: Invoked from xrootd_write_aio_done when wr_inflight reaches 0 and a
+ *   teardown was deferred.  Runs the full teardown that was held off — on_disconnect
+ *   (metrics/log/registry, idempotent re: the already-set destroyed flag), then
+ *   close_all_files (now safe: no pwrite references any fd), then finalize the
+ *   stream session with the recorded status.  After this returns the ctx/pool are
+ *   gone, so the caller must touch nothing further. */
+void
+xrootd_run_deferred_teardown(xrootd_ctx_t *ctx, ngx_connection_t *c)
+{
+    ngx_stream_session_t *s = c->data;
+    ngx_int_t             status = ctx->finalize_status;
+
+    ctx->finalize_pending = 0;
+    xrootd_on_disconnect(ctx, c);
+    xrootd_close_all_files(ctx);
+    ngx_stream_finalize_session(s, status);
 }

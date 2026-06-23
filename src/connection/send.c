@@ -48,6 +48,9 @@ ngx_stream_xrootd_send(ngx_event_t *wev)
          * it and tear down via the single disconnect funnel. */
         ctx->send_deadline_armed = 0;
         XROOTD_SRV_METRIC_INC(ctx, send_drain_timeouts_total);
+        if (xrootd_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
+            return;
+        }
         xrootd_on_disconnect(ctx, c);
         xrootd_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_OK);
@@ -56,6 +59,10 @@ ngx_stream_xrootd_send(ngx_event_t *wev)
 
     rc = xrootd_flush_pending(ctx, c);
     if (rc == NGX_ERROR) {
+        if (xrootd_defer_teardown_if_writing(ctx, c,
+                                             NGX_STREAM_INTERNAL_SERVER_ERROR)) {
+            return;
+        }
         xrootd_on_disconnect(ctx, c);
         xrootd_close_all_files(ctx);
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
@@ -67,11 +74,6 @@ ngx_stream_xrootd_send(ngx_event_t *wev)
     }
 
     if (ctx->state != XRD_ST_SENDING) {
-        ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                      "xrootd: send_done (state=%d, no recv) avail=%d ready=%d active=%d",
-                      (int) ctx->state,
-                      c->read->available, (int) c->read->ready,
-                      (int) c->read->active);
         return;
     }
 

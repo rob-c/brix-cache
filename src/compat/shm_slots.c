@@ -11,6 +11,36 @@
 #include "shm_slots.h"
 
 
+/*
+ * xrootd_shm_table_mutex_create — create the table's process-local mutex in
+ * spin+yield-only mode (POSIX semaphore disabled).
+ *
+ * WHY: ngx_shmtx's POSIX-semaphore wakeup path is lost-wakeup-prone under heavy
+ * cross-worker contention (and the underlying sem_wait/sem_post is unreliable on
+ * some kernels, notably WSL2): a worker can block in sem_wait indefinitely with
+ * the lock ALREADY free — observed as lock==0, wait==0, yet a thread parked in
+ * __futex_abstimed_wait_common — because no subsequent unlock ever posts the
+ * semaphore (the unlock's wakeup only posts when wait>0).  That hangs the whole
+ * worker (it stops running its event loop), stalling every connection pinned to
+ * it.  These tables are tiny fixed-slot scans held for microseconds, so spinning
+ * with sched_yield on contention is both correct and cheaper than a syscall —
+ * and immune to the lost wakeup.  ngx_shmtx_create() initialises the semaphore
+ * unconditionally when NGX_HAVE_POSIX_SEM is set, so we clear ->semaphore right
+ * after; the lock then uses the spin-then-ngx_sched_yield path exclusively.
+ */
+static ngx_int_t
+xrootd_shm_table_mutex_create(ngx_shmtx_t *mtx, ngx_shmtx_sh_t *addr)
+{
+    if (ngx_shmtx_create(mtx, addr, NULL) != NGX_OK) {
+        return NGX_ERROR;
+    }
+#if (NGX_HAVE_POSIX_SEM)
+    mtx->semaphore = 0;
+#endif
+    return NGX_OK;
+}
+
+
 void *
 xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
                        ngx_shmtx_t *mtx, ngx_flag_t *fresh)
@@ -26,7 +56,8 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
     if (data) {
         shm_zone->data = data;
         if (mtx
-            && ngx_shmtx_create(mtx, (ngx_shmtx_sh_t *) data, NULL) != NGX_OK)
+            && xrootd_shm_table_mutex_create(mtx, (ngx_shmtx_sh_t *) data)
+               != NGX_OK)
         {
             return NULL;
         }
@@ -40,7 +71,8 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
         tbl = sp->data;
         shm_zone->data = tbl;
         if (mtx
-            && ngx_shmtx_create(mtx, (ngx_shmtx_sh_t *) tbl, NULL) != NGX_OK)
+            && xrootd_shm_table_mutex_create(mtx, (ngx_shmtx_sh_t *) tbl)
+               != NGX_OK)
         {
             return NULL;
         }
@@ -57,7 +89,7 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
     shm_zone->data = tbl;
 
     if (mtx
-        && ngx_shmtx_create(mtx, (ngx_shmtx_sh_t *) tbl, NULL) != NGX_OK)
+        && xrootd_shm_table_mutex_create(mtx, (ngx_shmtx_sh_t *) tbl) != NGX_OK)
     {
         return NULL;
     }
