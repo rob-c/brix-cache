@@ -13,6 +13,7 @@
 
 #include <spawn.h>
 #include <sys/wait.h>
+#include "../compat/alloc_guard.h"
 
 extern char **environ;
 
@@ -377,10 +378,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ngx_flag_t            posted;
         u_char               *response_buf;
 
-        response_buf = ngx_palloc(c->pool, XROOTD_DIRLIST_AIO_RESPONSE_MAX);
-        if (response_buf == NULL) {
-            return NGX_ERROR;
-        }
+        XROOTD_PALLOC_OR_RETURN(response_buf, c->pool, XROOTD_DIRLIST_AIO_RESPONSE_MAX, NGX_ERROR);
 
         task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_dirlist_aio_t));
         if (task == NULL) {

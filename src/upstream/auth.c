@@ -25,6 +25,7 @@
 
 #include "upstream_internal.h"
 #include "../token/file.h"
+#include "../compat/alloc_guard.h"
 
 #define UPSTREAM_BEARER_MAX  65536   /* max token file size (bytes) */
 
@@ -72,10 +73,7 @@ xrootd_upstream_send_token_auth(xrootd_upstream_t *up,
     cred_len  = 4 + token_len;
     frame_len = sizeof(ClientAuthRequest) + cred_len;
 
-    frame = ngx_palloc(up->conn->pool, frame_len);
-    if (frame == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(frame, up->conn->pool, frame_len, NGX_ERROR);
 
     hdr = (ClientAuthRequest *)(void *) frame;
     ngx_memzero(hdr, sizeof(*hdr));

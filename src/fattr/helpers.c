@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <sys/xattr.h>
 #include <arpa/inet.h>
+#include "../compat/alloc_guard.h"
 
 uint16_t
 fattr_errno_to_xrd(int err)
@@ -126,10 +127,7 @@ fattr_send_vector_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     response_size = 2 + nvec_len;
-    response = ngx_palloc(pool, response_size);
-    if (response == NULL) {
-        return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
-    }
+    XROOTD_PALLOC_OR_RETURN(response, pool, response_size, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
 
     response[0] = (u_char) error_count;
     response[1] = (u_char) numattr;

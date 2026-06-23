@@ -28,6 +28,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 /*
  * Parse "host[:port]" from addr_copy into *host_out / *port_out.
@@ -119,10 +120,7 @@ xrootd_conf_set_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_pt
 
     value = cf->args->elts;
 
-    addr_copy = ngx_pnalloc(cf->pool, value[1].len + 1);
-    if (addr_copy == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
     ngx_memcpy(addr_copy, value[1].data, value[1].len);
     addr_copy[value[1].len] = '\0';
 

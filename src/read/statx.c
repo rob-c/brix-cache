@@ -60,6 +60,7 @@
 #include "stat.h"
 #include "../ngx_xrootd_module.h"
 #include "../path/beneath.h"
+#include "../compat/alloc_guard.h"
 
 #define XROOTD_STATX_MAX_PATHS  256
 #define XROOTD_STATX_LINE_MAX   256
@@ -133,10 +134,7 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_ArgMissing, "no paths given");
     }
 
-    rsp_buf = ngx_palloc(c->pool, XROOTD_STATX_BUF_MAX);
-    if (rsp_buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(rsp_buf, c->pool, XROOTD_STATX_BUF_MAX, NGX_ERROR);
 
     rsp_ptr = rsp_buf;
     rsp_end = rsp_buf + XROOTD_STATX_BUF_MAX;

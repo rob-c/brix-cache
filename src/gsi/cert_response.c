@@ -1,6 +1,7 @@
 #include "gsi_internal.h"
 #include "gsi_core.h"
 #include "keypool.h"
+#include "../compat/alloc_guard.h"
 
 /*---- GSI round 1 response function — generate ephemeral DH key + assemble kXGS_cert ----
  *
@@ -224,10 +225,7 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
     puk_len = (size_t) puk_written;
 
-    puk_blob = ngx_palloc(c->pool, puk_len);
-    if (puk_blob == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(puk_blob, c->pool, puk_len, NGX_ERROR);
     ngx_memcpy(puk_blob, puk_buf, puk_len);
 
     /*
@@ -301,10 +299,7 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
         main_len += 4 + 4 + signed_rtag_len;
     }
 
-    main_buf = ngx_palloc(c->pool, main_len);
-    if (main_buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(main_buf, c->pool, main_len, NGX_ERROR);
 
     {
         u_char *mp = main_buf;
@@ -341,10 +336,7 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
              + 4;
 
     total = XRD_RESPONSE_HDR_LEN + body_len;
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_authmore,
                           (uint32_t) body_len, (ServerResponseHdr *) buf);

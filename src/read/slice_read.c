@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include "../compat/alloc_guard.h"
 
 
 /*
@@ -122,10 +123,7 @@ slice_send_open_response(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
     total = XRD_RESPONSE_HDR_LEN + bodylen;
 
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) bodylen,
                           (ServerResponseHdr *) buf);

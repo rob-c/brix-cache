@@ -36,6 +36,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 char *
 xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -73,10 +74,7 @@ xrootd_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     /* Copy the host:port argument into a NUL-terminated buffer for parsing. */
-    addr_copy = ngx_pnalloc(cf->pool, value[2].len + 1);
-    if (addr_copy == NULL) {
-        return NGX_CONF_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[2].len + 1, NGX_CONF_ERROR);
     ngx_memcpy(addr_copy, value[2].data, value[2].len);
     addr_copy[value[2].len] = '\0';
 

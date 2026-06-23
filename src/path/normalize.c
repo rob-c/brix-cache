@@ -1,6 +1,7 @@
 #include "../ngx_xrootd_module.h"
 
 #include "path_internal.h"
+#include "../compat/alloc_guard.h"
 
 /*
  * WHAT: Normalize a policy path from wire format into canonical form — collapses multiple slashes,
@@ -26,10 +27,7 @@ xrootd_normalize_policy_path(ngx_pool_t *pool, const ngx_str_t *src,
         return NGX_ERROR;
     }
 
-    out = ngx_pnalloc(pool, src->len + 2);
-    if (out == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PNALLOC_OR_RETURN(out, pool, src->len + 2, NGX_ERROR);
 
     i = 0;
     written = 0;

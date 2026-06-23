@@ -31,6 +31,7 @@
 
 #include "ngx_xrootd_module.h"
 #include "async.h"
+#include "../compat/alloc_guard.h"
 
 /* ------------------------------------------------------------------ */
 /* Internal helpers                                                     */
@@ -95,10 +96,7 @@ xrootd_send_attn_asyncms(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char  *buf;
 
     total = xrootd_attn_asyncms_frame_len(msglen);
-    buf   = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_attn_asyncms_frame(buf, msg, msglen);
 
@@ -119,10 +117,7 @@ xrootd_send_attn_asynresp(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uint32_t  act_be        = htonl((uint32_t) kXR_asynresp);
     u_char   *buf, *p;
 
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     p = buf;
 
@@ -165,10 +160,7 @@ xrootd_send_attn(xrootd_ctx_t *ctx, ngx_connection_t *c,
     uint32_t  act_be  = htonl((uint32_t) actnum);
     u_char   *buf;
 
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_attn, bodylen,
                           (ServerResponseHdr *) buf);

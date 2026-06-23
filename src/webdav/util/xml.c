@@ -38,6 +38,7 @@
 #include "../../compat/xml.h"
 
 #include <string.h>
+#include "../../compat/alloc_guard.h"
 
 /**
  * WHAT: Escape a string for safe inclusion in XML text response bodies.
@@ -65,10 +66,7 @@ webdav_escape_xml_text(ngx_pool_t *pool, const char *src)
     src_len = strlen(src);
     escaped_len = xrootd_xml_escaped_len((const u_char *) src, src_len,
                                          XROOTD_XML_ESCAPE_CONTROL_PERCENT);
-    escaped = ngx_pnalloc(pool, escaped_len + 1);
-    if (escaped == NULL) {
-        return NULL;
-    }
+    XROOTD_PNALLOC_OR_RETURN(escaped, pool, escaped_len + 1, NULL);
 
     if (xrootd_xml_escape((const u_char *) src, src_len,
                           XROOTD_XML_ESCAPE_CONTROL_PERCENT,

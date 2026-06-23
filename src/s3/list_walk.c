@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <time.h>
+#include "../compat/alloc_guard.h"
 
 /* -------------------------------------------------------------------------
  * qsort comparator — lexicographic key order
@@ -64,10 +65,7 @@ s3_walk_push(ngx_array_t *entries, const char *key, unsigned is_prefix)
     char        *kdup;
     s3_entry_t  *e;
 
-    kdup = ngx_pnalloc(entries->pool, len + 1);
-    if (kdup == NULL) {
-        return -1;
-    }
+    XROOTD_PNALLOC_OR_RETURN(kdup, entries->pool, len + 1, -1);
     ngx_memcpy(kdup, key, len + 1);
 
     e = ngx_array_push(entries);

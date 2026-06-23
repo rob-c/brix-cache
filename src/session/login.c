@@ -1,5 +1,6 @@
 #include "../ngx_xrootd_module.h"
 #include "registry.h"
+#include "../compat/alloc_guard.h"
 
 /* ------------------------------------------------------------------ */
 /* Session Login — kXR_login opcode handler                              */
@@ -114,10 +115,7 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ctx->auth_done = 1;
 
         total = XRD_RESPONSE_HDR_LEN + XROOTD_SESSION_ID_LEN;
-        buf = ngx_palloc(c->pool, total);
-        if (buf == NULL) {
-            return NGX_ERROR;
-        }
+        XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
         xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok,
                               XROOTD_SESSION_ID_LEN,
@@ -198,10 +196,7 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         total = XRD_RESPONSE_HDR_LEN + XROOTD_SESSION_ID_LEN + parms_len;
-        buf = ngx_palloc(c->pool, total);
-        if (buf == NULL) {
-            return NGX_ERROR;
-        }
+        XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
         xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok,
                               (uint32_t)(XROOTD_SESSION_ID_LEN + parms_len),

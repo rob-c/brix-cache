@@ -40,6 +40,7 @@
 #include <string.h>
 
 #include "../acc/acc.h"
+#include "../compat/alloc_guard.h"
 
 /* Map an S3 request method to the XrdAcc operation it requires. */
 static xrootd_acc_op_t
@@ -375,10 +376,7 @@ ngx_http_s3_handler(ngx_http_request_t *r)
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
     xrootd_http_source_offer(r);
 
-    s3ctx = ngx_pcalloc(r->pool, sizeof(*s3ctx));
-    if (s3ctx == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(s3ctx, r->pool, sizeof(*s3ctx), NGX_HTTP_INTERNAL_SERVER_ERROR);
     s3ctx->identity = xrootd_identity_alloc(r->pool);
     if (s3ctx->identity == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;

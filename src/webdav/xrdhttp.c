@@ -41,6 +41,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include "../compat/alloc_guard.h"
 
 /* Our nginx module context tag for the XrdHttp per-request context. */
 extern ngx_module_t ngx_http_xrootd_webdav_module;
@@ -61,10 +62,7 @@ xrdhttp_get_ctx(ngx_http_request_t *r)
     /* Allocate the full webdav context (xrdhttp fields zero-initialised by pcalloc).
      * This path is hit on unauthenticated requests where auth_cert.c / auth_token.c
      * never allocated the context themselves. */
-    webdav_ctx = ngx_pcalloc(r->pool, sizeof(ngx_http_xrootd_webdav_req_ctx_t));
-    if (webdav_ctx == NULL) {
-        return NULL;
-    }
+    XROOTD_PCALLOC_OR_RETURN(webdav_ctx, r->pool, sizeof(ngx_http_xrootd_webdav_req_ctx_t), NULL);
     ngx_http_set_ctx(r, webdav_ctx, ngx_http_xrootd_webdav_module);
     return &webdav_ctx->xrdhttp;
 }

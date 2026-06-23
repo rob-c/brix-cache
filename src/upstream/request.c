@@ -23,6 +23,7 @@
 #include "upstream_internal.h"
 
 #include <string.h>
+#include "../compat/alloc_guard.h"
 
 ngx_int_t
 xrootd_upstream_send_request(xrootd_upstream_t *up)
@@ -33,10 +34,7 @@ xrootd_upstream_send_request(xrootd_upstream_t *up)
     size_t      total = hdrlen + pathlen;
     u_char     *buf;
 
-    buf = ngx_palloc(pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, pool, total, NGX_ERROR);
     ngx_memzero(buf, total);
 
     switch (up->req_opcode) {

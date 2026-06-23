@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "../compat/alloc_guard.h"
 
 #define XRDHTTP_BOUNDARY  "xrdhttp_boundary_42"
 
@@ -55,10 +56,7 @@ chain_append_text(ngx_http_request_t *r,
     ngx_chain_t *link;
     size_t       len = ngx_strlen(text);
 
-    b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-    if (b == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(ngx_buf_t), NGX_ERROR);
     b->pos  = b->start = ngx_pnalloc(r->pool, len);
     if (b->pos == NULL) {
         return NGX_ERROR;

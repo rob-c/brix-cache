@@ -1,4 +1,5 @@
 #include "ngx_xrootd_module.h"
+#include "../compat/alloc_guard.h"
 
 /* ---- Function: xrootd_build_resp_hdr() — build wire response header structure ----
  *
@@ -78,10 +79,7 @@ xrootd_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
     bodylen = sizeof(kXR_int32) + msglen;
     total = XRD_RESPONSE_HDR_LEN + bodylen;
 
-    buf = ngx_palloc(c->pool, total);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_error, (uint32_t) bodylen,
         (ServerResponseHdr *) buf);

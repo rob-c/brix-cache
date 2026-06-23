@@ -8,6 +8,7 @@
  */
 
 #include "protocol_caps.h"
+#include "alloc_guard.h"
 
 const xrootd_http_operation_t *
 xrootd_http_operation_find(ngx_http_request_t *r,
@@ -54,10 +55,7 @@ xrootd_http_operation_allow_header(ngx_pool_t *pool,
     }
 
     /* Second pass: write the string. */
-    p = ngx_palloc(pool, total + 1);
-    if (p == NULL) {
-        return NGX_ERROR;
-    }
+    XROOTD_PALLOC_OR_RETURN(p, pool, total + 1, NGX_ERROR);
 
     out->data = p;
     first = 1;

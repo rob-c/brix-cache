@@ -40,6 +40,7 @@
 #include "../acc/acc.h"            /* XrdAcc engine directives + enum tables */
 #include "../config/root_prepare.h"
 #include "../config/http_rootfd.h"
+#include "../compat/alloc_guard.h"
 
 static ngx_int_t ngx_http_s3_postconfiguration(ngx_conf_t *cf);
 
@@ -52,10 +53,7 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
 {
     ngx_http_s3_loc_conf_t *c;
 
-    c = ngx_pcalloc(cf->pool, sizeof(*c));
-    if (c == NULL) {
-        return NULL;
-    }
+    XROOTD_PCALLOC_OR_RETURN(c, cf->pool, sizeof(*c), NULL);
 
     c->common.enable      = NGX_CONF_UNSET;
     c->common.allow_write = NGX_CONF_UNSET;
