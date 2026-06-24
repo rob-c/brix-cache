@@ -91,12 +91,19 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 							  resolved, detail,
 							  xrootd_kxr_from_errno(err), strerror(err));
 		}
-		if (ftruncate(rc, (off_t) length) != 0) {
-			int err = errno;
-			close(rc);
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
-							  resolved, detail,
-							  xrootd_kxr_from_errno(err), strerror(err));
+		{
+			xrootd_vfs_job_t job;
+
+			xrootd_vfs_job_truncate_init(&job, rc, (off_t) length);
+			xrootd_vfs_io_execute(&job);
+			if (job.io_errno != 0) {
+				int err = job.io_errno;
+
+				close(rc);
+				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
+								  resolved, detail,
+								  xrootd_kxr_from_errno(err), strerror(err));
+			}
 		}
 		close(rc);
 		xrootd_log_access(ctx, c, "TRUNCATE", resolved, detail,
@@ -105,16 +112,19 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		/* Handle-based truncate bypasses path resolution and uses the already-open fd. */
 		int idx = (int)(unsigned char) req->fhandle[0];
 		ngx_int_t validate_rc;
+		xrootd_vfs_job_t job;
 
 		if (!xrootd_validate_file_handle(ctx, c, idx, "TRUNCATE",
 										 XROOTD_OP_TRUNCATE, &validate_rc)) {
 			return validate_rc;
 		}
-		rc = ftruncate(ctx->files[idx].fd, (off_t) length);
-		if (rc != 0) {
+		xrootd_vfs_job_truncate_init(&job, ctx->files[idx].fd,
+									  (off_t) length);
+		xrootd_vfs_io_execute(&job);
+		if (job.io_errno != 0) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
 							  ctx->files[idx].path, detail,
-							  kXR_IOError, strerror(errno));
+							  kXR_IOError, strerror(job.io_errno));
 		}
 		if (ctx->files[idx].wt_enabled) {
 			xrootd_wt_mark_dirty(ctx, idx,

@@ -329,21 +329,23 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
          * page in place (no flat-buffer copy). Same code path as the AIO worker.
          */
         {
-            ssize_t nread_v;
-            int     io_errno_v = 0;
+            xrootd_vfs_job_t job;
 
-            out_size = xrootd_pgread_read_encode_inplace(fd, (off_t) offset, rlen,
-                                                         scratch, &nread_v,
-                                                         &io_errno_v);
-            if (nread_v < 0) {
+            xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
+                                      scratch, rlen, 0);
+            job.op = XROOTD_VFS_IO_PGREAD;
+            xrootd_vfs_io_execute(&job);
+
+            if (job.io_errno != 0) {
                 XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_PGREAD, "PGREAD",
                                   ctx->files[idx].path, "-",
-                                  kXR_IOError, strerror(io_errno_v));
+                                  kXR_IOError, strerror(job.io_errno));
             }
 
+            out_size = job.out_size;
             flat_buf = scratch;
             out_buf  = scratch;            /* output starts at offset 0 now */
-            rlen     = (size_t) nread_v;   /* actual bytes read (accounting) */
+            rlen     = (size_t) job.nio;   /* actual bytes read (accounting) */
         }
     }
 

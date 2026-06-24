@@ -139,7 +139,7 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
  * WHY: Transactional write semantics provide "undo" capability — if writes under ckpXeq should be rejected,
  *      rollback restores the exact original content and length. This is essential for atomic operations where
  *      partial failures must not leave the file in inconsistent state.
- * HOW: 1) Verify f->ckp_path != NULL. 2) ftruncate() to checkpointed size (may shrink). 3) Copy .ckp→original via xrootd_copy_range(). 4) unlink + clear_path. */
+ * HOW: 1) Verify f->ckp_path != NULL. 2) Run a VFS TRUNCATE job to checkpointed size (may shrink). 3) Copy .ckp→original via xrootd_copy_range(). 4) unlink + clear_path. */
 
 /* ---- Function: ckp_query() — kXR_ckpQuery: report checkpoint capacity / current usage ---- */
 /* WHAT: Returns ServerResponseBody_ChkPoint with maxCkpSize (kXR_ckpMinMax) and useCkpSize
@@ -177,6 +177,7 @@ ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
 {
     xrootd_file_t *f = &ctx->files[idx];
     int            ckp_fd;
+    xrootd_vfs_job_t job;
 
     if (f->ckp_path == NULL) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
@@ -184,9 +185,11 @@ ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     }
 
     /* Truncate original to its checkpointed length first. */
-    if (ftruncate(f->fd, (off_t) f->ckp_size) != 0) {
+    xrootd_vfs_job_truncate_init(&job, f->fd, (off_t) f->ckp_size);
+    xrootd_vfs_io_execute(&job);
+    if (job.io_errno != 0) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback",
-                          kXR_IOError, strerror(errno));
+                          kXR_IOError, strerror(job.io_errno));
     }
 
     /* Restore file content from checkpoint if there was any. */
@@ -361,7 +364,12 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
         return NGX_ERROR;
     }
 
-    (void) fsync(staged.fd);
+    {
+        xrootd_vfs_job_t job;
+
+        xrootd_vfs_job_sync_init(&job, staged.fd);
+        xrootd_vfs_io_execute(&job);
+    }
 
     if (xrootd_staged_commit(log, root_canon, &staged, orig_path)
         != NGX_OK)

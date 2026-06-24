@@ -6,7 +6,7 @@
  *
  * WHY: File synchronization ensures write durability — critical for staging uploads, checkpoint transactions, and TPC transfers where data integrity guarantees are required. Without fsync(2), pending writes could be lost if the system crashes or power fails before completion. In TPC mode, sync serves dual purpose: first call arms transfer (flags ctx->tpc_armed=1), subsequent call triggers actual pull from source server — enabling atomic TPC commit semantics where client explicitly requests data synchronization after staging completes.
  *
- * HOW: Two-phase sync → validate file handle (xrootd_validate_file_handle) — check TPC destination state (if tpc_destination && !tpc_done): first call arms TPC (ctx->tpc_armed=1, return kXR_ok "tpc-arm"), subsequent call triggers pull via xrootd_tpc_start_pull()) — perform fsync(2) on file descriptor — return kXR_ok with access-log detail "-" and byte count 0. */
+ * HOW: Two-phase sync → validate file handle (xrootd_validate_file_handle) — check TPC destination state (if tpc_destination && !tpc_done): first call arms TPC (ctx->tpc_armed=1, return kXR_ok "tpc-arm"), subsequent call triggers pull via xrootd_tpc_start_pull()) — perform the durable flush through the VFS I/O core — return kXR_ok with access-log detail "-" and byte count 0. */
 
 /* ------------------------------------------------------------------ */
 /* Section: TPC Arm/Flush Semantics                                         */
@@ -18,11 +18,11 @@
 
 /* ---- Function: xrootd_handle_sync() ----
  *
- * WHAT: Handles the kXR_sync opcode — forces fsync(2) on an open file handle flushing all pending writes to stable storage. Additionally supports TPC destination arm/flush semantics: first sync call arms transfer (ctx->tpc_armed=1, returns kXR_ok "tpc-arm"), subsequent sync call triggers actual pull from source server via xrootd_tpc_start_pull(). Validates file handle via xrootd_validate_file_handle, performs fsync(2) syscall on file descriptor, returns kXR_ok with access-log detail "-" and byte count 0. TPC arm/flush enables atomic commit semantics where client explicitly controls when staging data is synchronized to final destination location.
+ * WHAT: Handles the kXR_sync opcode — forces a VFS-core sync on an open file handle flushing all pending writes to stable storage. Additionally supports TPC destination arm/flush semantics: first sync call arms transfer (ctx->tpc_armed=1, returns kXR_ok "tpc-arm"), subsequent sync call triggers actual pull from source server via xrootd_tpc_start_pull(). Validates file handle via xrootd_validate_file_handle, performs the durable flush through the VFS I/O core, returns kXR_ok with access-log detail "-" and byte count 0. TPC arm/flush enables atomic commit semantics where client explicitly controls when staging data is synchronized to final destination location.
  *
  * WHY: Ensures write durability — critical for staging uploads, checkpoint transactions, and TPC transfers where data integrity guarantees are required. Without fsync(2), pending writes could be lost if system crashes or power fails before completion. In TPC mode provides atomic commit semantics: first sync arms transfer (flags readiness), subsequent sync triggers actual pull from source server — enabling clients to stage files locally then explicitly request synchronization only after verifying staging completeness.
  *
- * HOW: Two-phase sync → validate file handle (xrootd_validate_file_handle) — check TPC destination state (if tpc_destination && !tpc_done): first call arms TPC (ctx->tpc_armed=1, return kXR_ok "tpc-arm"), subsequent call triggers pull via xrootd_tpc_start_pull()) — perform fsync(2) on file descriptor — return kXR_ok with access-log detail "-" and byte count 0. */
+ * HOW: Two-phase sync → validate file handle (xrootd_validate_file_handle) — check TPC destination state (if tpc_destination && !tpc_done): first call arms TPC (ctx->tpc_armed=1, return kXR_ok "tpc-arm"), subsequent call triggers pull via xrootd_tpc_start_pull()) — run a VFS-core SYNC job for the file descriptor — return kXR_ok with access-log detail "-" and byte count 0. */
 
 /*
  * sync.c — kXR_sync opcode handler.
@@ -32,7 +32,7 @@
 #include "wrts_journal.h"
 
 /*
- * xrootd_handle_sync — fsync(2) an open file by handle.
+ * xrootd_handle_sync — sync an open file by handle through the VFS core.
  *
  * Wire format (ClientSyncRequest): fhandle[4] identifies the open slot.
  * No payload is expected.  On success, all pending writes on the file
@@ -65,10 +65,16 @@ xrootd_handle_sync(xrootd_ctx_t *ctx, ngx_connection_t *c)
 									 idx);
 	}
 
-	if (fsync(ctx->files[idx].fd) != 0) {
-		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_SYNC, "SYNC",
-						  ctx->files[idx].path, "-",
-						  kXR_IOError, strerror(errno));
+	{
+		xrootd_vfs_job_t job;
+
+		xrootd_vfs_job_sync_init(&job, ctx->files[idx].fd);
+		xrootd_vfs_io_execute(&job);
+		if (job.io_errno != 0) {
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_SYNC, "SYNC",
+							  ctx->files[idx].path, "-",
+							  kXR_IOError, strerror(job.io_errno));
+		}
 	}
 
 	/* kXR_sync committed writes to stable storage — flush the journal. */

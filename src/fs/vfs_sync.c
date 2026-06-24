@@ -9,25 +9,31 @@
  *       they live with the file-handle ops; truncate must also keep the handle's
  *       cached size in step with the file.
  *
- * HOW:  truncate validates the handle/fd and a non-negative length, calls
- *       ftruncate(2), and on success updates fh->size so later reads see the new
- *       length. sync validates the handle and calls fsync(2). Both are direct,
- *       unmetered handle operations (the surrounding write op records the
- *       metric) returning NGX_OK / NGX_ERROR with errno set.
+ * HOW:  truncate validates the handle/fd and a non-negative length, runs a VFS
+ *       I/O-core TRUNCATE job, and on success updates fh->size so later reads
+ *       see the new length. sync validates the handle and runs a VFS I/O-core
+ *       SYNC job. Both are unmetered handle operations (the surrounding write
+ *       op records the metric) returning NGX_OK / NGX_ERROR with errno set.
  */
 #include "vfs_internal.h"
+#include "vfs_io_core.h"
 
 /* Resize the open handle to `length` (ftruncate) and update the cached
  * fh->size. NGX_ERROR with errno set on a bad handle or negative length. */
 ngx_int_t
 xrootd_vfs_truncate(xrootd_vfs_file_t *fh, off_t length)
 {
+    xrootd_vfs_job_t job;
+
     if (fh == NULL || fh->fd == NGX_INVALID_FILE || length < 0) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    if (ftruncate(fh->fd, length) != 0) {
+    xrootd_vfs_job_truncate_init(&job, fh->fd, length);
+    xrootd_vfs_io_execute(&job);
+    if (job.io_errno != 0) {
+        errno = job.io_errno;
         return NGX_ERROR;
     }
 
@@ -40,10 +46,19 @@ xrootd_vfs_truncate(xrootd_vfs_file_t *fh, off_t length)
 ngx_int_t
 xrootd_vfs_sync(xrootd_vfs_file_t *fh)
 {
+    xrootd_vfs_job_t job;
+
     if (fh == NULL || fh->fd == NGX_INVALID_FILE) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    return fsync(fh->fd) == 0 ? NGX_OK : NGX_ERROR;
+    xrootd_vfs_job_sync_init(&job, fh->fd);
+    xrootd_vfs_io_execute(&job);
+    if (job.io_errno != 0) {
+        errno = job.io_errno;
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
 }

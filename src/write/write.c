@@ -142,9 +142,18 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 
 	/* Synchronous fallback writes the request payload directly from the recv buffer. */
-	nwritten = pwrite(ctx->files[idx].fd,
-					  ctx->payload ? ctx->payload : (u_char *) "",
-					  wlen, (off_t) offset);
+	{
+		xrootd_vfs_job_t job;
+
+		xrootd_vfs_job_write_init(&job, ctx->files[idx].fd, (off_t) offset,
+								  ctx->payload ? ctx->payload : (u_char *) "",
+								  wlen);
+		xrootd_vfs_io_execute(&job);
+		nwritten = job.nio;
+		if (job.io_errno != 0) {
+			errno = job.io_errno;
+		}
+	}
 
 	/* Access log detail format for writes is "<offset>+<requested-bytes>". */
 	snprintf(write_detail, sizeof(write_detail), "%lld+%zu",

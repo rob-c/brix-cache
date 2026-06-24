@@ -4,12 +4,62 @@
 #include <string.h>
 #include <unistd.h>
 
+/* ---- Function: ckp_xeq_vfs_write_full() — write checkpoint payload via VFS ---- */
+/* WHAT: Writes one checkpoint payload range through the VFS I/O core and reports
+ *      the byte count, errno, and short-write state to the caller.
+ * WHY: ckpXeq sub-ops mutate the exported file, so they must share the same
+ *      raw-I/O chokepoint as normal write/pgwrite/writev handlers.
+ * HOW: Initialize a WRITE job, execute it inline, then normalize hard errors
+ *      and partial writes into a single NGX_ERROR result. */
+
+static ngx_int_t
+ckp_xeq_vfs_write_full(ngx_fd_t fd, const u_char *data, size_t len,
+    off_t offset, ssize_t *written, int *io_errno, ngx_flag_t *short_io)
+{
+    xrootd_vfs_job_t job;
+
+    xrootd_vfs_job_write_init(&job, fd, offset, data, len);
+    xrootd_vfs_io_execute(&job);
+
+    if (written != NULL) {
+        *written = job.nio;
+    }
+    if (io_errno != NULL) {
+        *io_errno = 0;
+    }
+    if (short_io != NULL) {
+        *short_io = 0;
+    }
+
+    if (job.io_errno != 0 || job.nio < 0) {
+        if (io_errno != NULL) {
+            *io_errno = job.io_errno != 0 ? job.io_errno : EIO;
+        }
+        if (short_io != NULL && job.short_io) {
+            *short_io = 1;
+        }
+        return NGX_ERROR;
+    }
+
+    if ((size_t) job.nio < len) {
+        if (io_errno != NULL) {
+            *io_errno = EIO;
+        }
+        if (short_io != NULL) {
+            *short_io = 1;
+        }
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
 /* ---- Function: ckp_xeq_write() — kXR_ckpXeq sub-op: write under checkpoint ---- */
-/* WHAT: Performs a single pwrite to the checkpointed file at the specified offset. Validates handle matches idx, writes sub_dlen bytes via pwrite(),
+/* WHAT: Performs a single VFS-core write to the checkpointed file at the specified offset. Validates handle matches idx, writes sub_dlen bytes,
  *      updates byte counters and sends success response. Handles zero-length payloads (no-op).
  * WHY: ckpXeq write is the atomic transactional write operation — when executed under an active checkpoint, this write becomes "tentative" until commit/rollback.
  *      The handle mismatch check prevents cross-file corruption during checkpointed operations.
- * HOW: 1) Validate fhandle[0] == idx. 2) Handle zero-length payload as no-op. 3) pwrite(sub_payload, sub_dlen, offset). 4) Update counters + send_ok. */
+ * HOW: 1) Validate fhandle[0] == idx. 2) Handle zero-length payload as no-op. 3) Run a VFS WRITE job. 4) Update counters + send_ok. */
 
 static ngx_int_t
 ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -19,6 +69,8 @@ ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     int64_t             offset;
     ssize_t             nw;
     char                detail[64];
+    int                 err;
+    ngx_flag_t          short_io;
 
     /* The sub-request names its own handle; it MUST be the one the checkpoint
      * was opened on (idx). Refusing a mismatch keeps a checkpointed op from
@@ -33,16 +85,22 @@ ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
         return xrootd_send_ok(ctx, c, NULL, 0);  /* zero-length write: no-op */
     }
 
-    nw = pwrite(ctx->files[idx].fd, sub_payload, (size_t) sub_dlen,
-                (off_t) offset);
-    snprintf(detail, sizeof(detail), "xeq_write %lld+%u",
-             (long long) offset, (unsigned) sub_dlen);
+    if (ckp_xeq_vfs_write_full(ctx->files[idx].fd, sub_payload,
+                               (size_t) sub_dlen, (off_t) offset, &nw, &err,
+                               &short_io)
+        != NGX_OK)
+    {
+        const char *msg = short_io ? "short write (disk full?)"
+                                   : strerror(err);
 
-    if (nw < 0 || (uint32_t) nw < sub_dlen) {
-        const char *msg = nw < 0 ? strerror(errno) : "short write (disk full?)";
+        snprintf(detail, sizeof(detail), "xeq_write %lld+%u",
+                 (long long) offset, (unsigned) sub_dlen);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
                           ctx->files[idx].path, detail, kXR_IOError, msg);
     }
+
+    snprintf(detail, sizeof(detail), "xeq_write %lld+%u",
+             (long long) offset, (unsigned) sub_dlen);
 
     ctx->files[idx].bytes_written += (size_t) nw;
     ctx->session_bytes_written    += (size_t) nw;
@@ -54,7 +112,7 @@ ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
  *      then writing in XRD_PGWRITE_PAGESZ-sized chunks. Validates checksum integrity before committing writes.
  * WHY: kXR_pgwrite uses per-page CRC32c for data integrity verification — critical for large file transfers where partial corruption must be detected.
  *      Under ckpXeq, the pgwrite becomes tentative until commit; checksum mismatch rejection prevents corrupted data from entering the checkpoint.
- * HOW: 1) Validate handle + offset + payload size (> XRD_PGWRITE_CKSZ). 2) Decode payload via xrootd_pgwrite_decode_payload (CRC32c verification). 3) Write in PAGE-sized chunks loop. 4) Send pgwrite_status with final offset. */
+ * HOW: 1) Validate handle + offset + payload size (> XRD_PGWRITE_CKSZ). 2) Decode payload via xrootd_pgwrite_decode_payload (CRC32c verification). 3) Write in PAGE-sized chunks through the VFS core. 4) Send pgwrite_status with final offset. */
 
 static ngx_int_t
 ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -122,23 +180,27 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
     /* Drain the verified data to disk one page at a time, advancing the file
      * offset, source pointer, and remaining counter in lockstep. Writing in
-     * page units (not one big pwrite) keeps offsets page-aligned and bounds the
-     * amount that can be lost/retried on a short write. */
+     * page units keeps offsets page-aligned and bounds the amount that can be
+     * lost/retried on a short write. */
     write_offset = offset;
     src          = flat;
     rem          = flat_sz;
 
     while (rem > 0) {
         ssize_t nw;
+        int err;
+        ngx_flag_t short_io;
 
         /* Final chunk may be a partial page. */
         page_data = (rem >= XRD_PGWRITE_PAGESZ) ? XRD_PGWRITE_PAGESZ : rem;
 
-        nw = pwrite(ctx->files[idx].fd, src, page_data, (off_t) write_offset);
-        /* A short write here is fatal (treated as disk-full): bail with the
-         * bytes done so far so the operator can see how far it got. */
-        if (nw < 0 || (size_t) nw < page_data) {
-            const char *msg = nw < 0 ? strerror(errno) : "short write (disk full?)";
+        if (ckp_xeq_vfs_write_full(ctx->files[idx].fd, src, page_data,
+                                   (off_t) write_offset, &nw, &err, &short_io)
+            != NGX_OK)
+        {
+            const char *msg = short_io ? "short write (disk full?)"
+                                       : strerror(err);
+
             snprintf(detail, sizeof(detail), "xeq_pgwrite %lld+%zu",
                      (long long) offset, total_written);
             xrootd_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path, detail,
@@ -147,6 +209,7 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
             ngx_free(flat);
             return xrootd_send_error(ctx, c, kXR_IOError, msg);
         }
+
         total_written += (size_t) nw;
         write_offset  += (int64_t) nw;
         src           += page_data;
@@ -167,10 +230,10 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 }
 
 /* ---- Function: ckp_xeq_truncate() — kXR_ckpXeq sub-op: truncate under checkpoint ---- */
-/* WHAT: Truncates the checkpointed file to a specified length via ftruncate(). Always handle-based (path-based not supported in ckpXeq).
+/* WHAT: Truncates the checkpointed file to a specified length via the VFS I/O core. Always handle-based (path-based not supported in ckpXeq).
  * WHY: Transactional write semantics allow shrinking files as part of tentative operations; rollback restores original size from checkpoint.
  *      Handle mismatch check prevents cross-file corruption during truncated operations under checkpoint protection.
- * HOW: 1) Validate fhandle[0] == idx. 2) Decode offset as truncate length (be64toh). 3) ftruncate() to target length. */
+ * HOW: 1) Validate fhandle[0] == idx. 2) Decode offset as truncate length (be64toh). 3) Run a VFS TRUNCATE job. */
 
 static ngx_int_t
 ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -178,6 +241,7 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 {
     ClientTruncateRequest *treq = (ClientTruncateRequest *) sub_hdr;
     int64_t                length;
+    xrootd_vfs_job_t       job;
 
     if ((int)(unsigned char) treq->fhandle[0] != idx) {
         return xrootd_send_error(ctx, c, kXR_InvalidRequest,
@@ -188,10 +252,12 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
      * The wire reuses the request's offset field to carry the target length. */
     length = (int64_t) be64toh((uint64_t) treq->offset);
 
-    if (ftruncate(ctx->files[idx].fd, (off_t) length) != 0) {
+    xrootd_vfs_job_truncate_init(&job, ctx->files[idx].fd, (off_t) length);
+    xrootd_vfs_io_execute(&job);
+    if (job.io_errno != 0) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
                           ctx->files[idx].path, "xeq_truncate",
-                          kXR_IOError, strerror(errno));
+                          kXR_IOError, strerror(job.io_errno));
     }
 
     return xrootd_send_ok(ctx, c, NULL, 0);
@@ -199,10 +265,10 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
 /* ---- Function: ckp_xeq_writev() — kXR_ckpXeq sub-op: vectorized multi-segment write ---- */
 /* WHAT: Performs a vectorized write under checkpoint protection, parsing multiple segments from the payload (each segment = fhandle+offset+wlen header + data),
- *      validating all segments target the checkpointed handle idx, then pwriting each segment sequentially. Enforces XROOTD_WRITEV_MAXSEGS limit.
+ *      validating all segments target the checkpointed handle idx, then writing each segment sequentially through the VFS core. Enforces XROOTD_WRITEV_MAXSEGS limit.
  * WHY: kXR_writev enables efficient multi-offset writes in a single request — critical for sparse file operations and chunked transfers under checkpoint.
  *      Under ckpXeq all segments must target the same handle (idx); handle mismatch in any segment is rejected to prevent cross-file corruption.
- * HOW: 1) Parse payload header segments, validate total size matches sub_dlen. 2) Check each fhandle[0] == idx. 3) Skip zero-length segments. 4) pwrite each data chunk sequentially. */
+ * HOW: 1) Parse payload header segments, validate total size matches sub_dlen. 2) Check each fhandle[0] == idx. 3) Skip zero-length segments. 4) Run one VFS WRITE job per data chunk. */
 
 static ngx_int_t
 ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
@@ -264,14 +330,21 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
         int64_t  offset = (int64_t) be64toh((uint64_t) wl[i].offset);
         uint32_t wlen   = (uint32_t) ntohl((uint32_t) wl[i].wlen);
         ssize_t  nw;
+        int      err;
+        ngx_flag_t short_io;
 
         if (wlen == 0) {
             continue;
         }
 
-        nw = pwrite(ctx->files[idx].fd, data_ptr, (size_t) wlen, (off_t) offset);
-        if (nw < 0 || (uint32_t) nw < wlen) {
-            const char *msg = nw < 0 ? strerror(errno) : "short write (disk full?)";
+        if (ckp_xeq_vfs_write_full(ctx->files[idx].fd, data_ptr,
+                                   (size_t) wlen, (off_t) offset, &nw, &err,
+                                   &short_io)
+            != NGX_OK)
+        {
+            const char *msg = short_io ? "short write (disk full?)"
+                                       : strerror(err);
+
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
                               ctx->files[idx].path, "xeq_writev",
                               kXR_IOError, msg);

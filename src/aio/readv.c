@@ -5,7 +5,7 @@
  *
  * This file implements the thread-pool offload for xrdcp's segmented read mode,
  * where a single request is split into multiple segments and each segment is
- * fetched by pread(2) on a worker thread. The response is assembled as:
+ * fetched by the VFS I/O core on a worker thread. The response is assembled as:
  *   [segment header][segment payload] × N_segments
  *
  * Two functions: the _thread function does the blocking I/O; the _done callback
@@ -18,7 +18,7 @@
  *
  * The main nginx thread has already allocated the response buffer and computed
  * the segment layout (header + payload pointers per segment).  This worker
- * only calls pread() to fill each segment's payload region and records totals.
+ * only executes the VFS READV job to fill each segment's payload region and records totals.
  *
  * The response layout is:
  *   For each segment i:
@@ -34,6 +34,7 @@ void
 xrootd_readv_aio_thread(void *data, ngx_log_t *log)
 {
     xrootd_readv_aio_t *t = data;
+    xrootd_vfs_job_t    job;
 
     t->bytes_read_total = 0;
     t->io_error = 0;
@@ -45,10 +46,16 @@ xrootd_readv_aio_thread(void *data, ngx_log_t *log)
      * only fills payload pointers and records totals; it must not touch the
      * connection or request parser state.
      */
-    if (xrootd_readv_read_segments(t->segments, t->segment_count,
-                                   &t->bytes_read_total,
-                                   t->err_msg, sizeof(t->err_msg)) != NGX_OK)
-    {
+    ngx_memzero(&job, sizeof(job));
+    job.op = XROOTD_VFS_IO_READV;
+    job.segs = t->segments;
+    job.nsegs = t->segment_count;
+    job.err_msg = t->err_msg;
+    job.err_msg_cap = sizeof(t->err_msg);
+
+    xrootd_vfs_io_execute(&job);
+
+    if (job.io_errno != 0) {
         t->io_error = 1;
         if (t->err_msg[0] == '\0') {
             snprintf(t->err_msg, sizeof(t->err_msg), "readv I/O error");
@@ -56,8 +63,8 @@ xrootd_readv_aio_thread(void *data, ngx_log_t *log)
         return;
     }
 
-    t->response_bytes = t->segment_count * XROOTD_READV_SEGSIZE
-                        + t->bytes_read_total;
+    t->bytes_read_total = (size_t) job.nio;
+    t->response_bytes = job.out_size;
 }
 
 /*
@@ -129,4 +136,3 @@ xrootd_readv_aio_done(ngx_event_t *ev)
     }
     xrootd_aio_resume(c);
 }
-

@@ -245,7 +245,17 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			continue;
 		}
 
-		nw = pwrite(ctx->files[idx].fd, data_ptr, (size_t) wlen, (off_t) offset);
+		{
+			xrootd_vfs_job_t job;
+
+			xrootd_vfs_job_write_init(&job, ctx->files[idx].fd,
+									  (off_t) offset, data_ptr, (size_t) wlen);
+			xrootd_vfs_io_execute(&job);
+			nw = job.nio;
+			if (job.io_errno != 0) {
+				errno = job.io_errno;
+			}
+		}
 
 		if (nw < 0) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITEV, "WRITEV",
@@ -283,7 +293,10 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		for (i = 0; i < n_segs; i++) {
 			int idx = (int)(unsigned char) wl[i].fhandle[0];
 			if (ntohl((uint32_t) wl[i].wlen) > 0) {
-				(void) fsync(ctx->files[idx].fd);
+				xrootd_vfs_job_t job;
+
+				xrootd_vfs_job_sync_init(&job, ctx->files[idx].fd);
+				xrootd_vfs_io_execute(&job);
 			}
 		}
 	}

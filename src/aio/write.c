@@ -14,16 +14,18 @@ void
 xrootd_write_aio_thread(void *data, ngx_log_t *log)
 {
     xrootd_write_aio_t *t = data;
+    xrootd_vfs_job_t    job;
 
     /*
      * Off-loop blocking write.  Capture errno into the task struct immediately:
      * errno is thread-local and would be clobbered before the done callback runs
      * on the main thread.  No nginx state may be touched from here.
      */
-    t->nwritten = pwrite(t->fd, t->data, t->len, t->offset);
-    if (t->nwritten < 0) {
-        t->io_errno = errno;
-    }
+    xrootd_vfs_job_write_init(&job, t->fd, t->offset, t->data, t->len);
+    xrootd_vfs_io_execute(&job);
+
+    t->nwritten = job.nio;
+    t->io_errno = job.io_errno;
 }
 
 /*
@@ -258,10 +260,11 @@ void
 xrootd_writev_write_aio_thread(void *data, ngx_log_t *log)
 {
     xrootd_writev_aio_t *t = data;
-    size_t               i;
+    xrootd_vfs_job_t     job;
 
     t->bytes_total = 0;
     t->io_error = 0;
+    t->err_msg[0] = '\0';
 
     /*
      * Write each segment to its own (fd, offset).  On the first failing segment
@@ -270,44 +273,22 @@ xrootd_writev_write_aio_thread(void *data, ngx_log_t *log)
      * to roll back or continue. io_error encodes the failure kind for the done
      * callback: 1 = hard pwrite error, 2 = short write.
      */
-    for (i = 0; i < t->n_segs; i++) {
-        xrootd_writev_seg_desc_t *seg = &t->segs[i];
-        ssize_t                   nw;
+    ngx_memzero(&job, sizeof(job));
+    job.op = XROOTD_VFS_IO_WRITEV;
+    job.segs = t->segs;
+    job.nsegs = t->n_segs;
+    job.do_sync = t->do_sync ? 1 : 0;
+    job.err_msg = t->err_msg;
+    job.err_msg_cap = sizeof(t->err_msg);
 
-        if (seg->wlen == 0) {
-            continue;
-        }
+    xrootd_vfs_io_execute(&job);
 
-        nw = pwrite(seg->fd, seg->data, (size_t) seg->wlen, seg->offset);
-        if (nw < 0) {
-            t->io_error = 1;
+    t->bytes_total = job.out_size;
+    if (job.io_errno != 0) {
+        t->io_error = job.short_io ? 2 : 1;
+        if (t->err_msg[0] == '\0') {
             snprintf(t->err_msg, sizeof(t->err_msg),
-                     "writev I/O error at seg %d: %s", (int) i, strerror(errno));
-            return;
-        }
-        if ((uint32_t) nw < seg->wlen) {
-            t->io_error = 2;
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "writev short write at seg %d", (int) i);
-            return;
-        }
-
-        t->bytes_total += (size_t) nw;
-    }
-
-    /*
-     * Optional durability barrier (kXR_writev with the sync flag).  Reached only
-     * after every segment wrote successfully — the error paths above returned
-     * early, so a failed writev never fsyncs partial data.  fsync is called once
-     * per segment fd; if multiple segments share an fd this issues redundant but
-     * harmless syncs, and the return value is intentionally ignored (best-effort
-     * flush; a hard sync failure would surface on the next op).
-     */
-    if (t->do_sync) {
-        for (i = 0; i < t->n_segs; i++) {
-            if (t->segs[i].wlen > 0) {
-                (void) fsync(t->segs[i].fd);
-            }
+                     "writev I/O error: %s", strerror(job.io_errno));
         }
     }
 }
