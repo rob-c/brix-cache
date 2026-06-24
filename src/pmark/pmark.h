@@ -39,12 +39,27 @@
 
 #define XROOTD_PMARK_FF_PORT     10514    /* default firefly collector UDP port */
 
-/* IPv6 flow-label encoding (flowlabel.c).  glibc does not export
- * IPV6_FLOWLABEL_MASK, so define the 20-bit mask ourselves.  The version nibble
- * marks the flow as SciTags-tagged; pin the exact layout to the deployed SciTags
- * Flow Label spec version here and nowhere else. */
-#define XROOTD_PMARK_FL_MASK     0x000FFFFFu
-#define XROOTD_PMARK_FL_VERSION  0x1u
+/* IPv6 Flow Label encoding (flowlabel.c).  glibc does not export
+ * IPV6_FLOWLABEL_MASK, so define the 20-bit mask ourselves.
+ *
+ * Layout is the WLCG SciTags spec, draft-cc-v6ops-wlcg-flow-label-marking,
+ * which numbers the 20 bits 1..20 with bit 1 the MOST significant:
+ *
+ *   pos: 01 02|03 04 05 06 07 08 09 10 11|12|13 14 15 16 17 18|19 20
+ *        E  E | C  C  C  C  C  C  C  C  C| E| A  A  A  A  A  A | E  E
+ *
+ *   A (activity, 6 bits)  = positions 13..18  -> host-order bits 2..7
+ *   C (community, 9 bits) = positions 3..11   -> host-order bits 9..17,
+ *                           **encoded in reversed bit order** per the spec
+ *   E (entropy, 5 bits)   = positions 1,2,12,19,20 -> host-order bits 0,1,8,18,19
+ *                           set at random ONCE per flow (ECMP spread; ignored on
+ *                           decode).  See xrootd_pmark_flowlabel_encode().
+ *
+ * Worked check (CMS): scitag.flow=206 -> exp=3, act=14 ->
+ *   (reverse9(3)=384)<<9 | 14<<2 = 0x30000 | 0x38 = 196664, i.e. the value CMS
+ *   reads off the wire (cms-sw/cmssw c2797da). */
+#define XROOTD_PMARK_FL_MASK          0x000FFFFFu   /* 20-bit field             */
+#define XROOTD_PMARK_FL_ENTROPY_MASK  0x000C0103u   /* E bits 0,1,8,18,19       */
 
 /* `xrootd_pmark_domain` enum (which address class is marked). */
 enum {
@@ -206,12 +221,35 @@ xrootd_pmark_flow_split(ngx_uint_t flow, ngx_uint_t *exp, ngx_uint_t *act)
     return NGX_OK;
 }
 
-/* Encode a SciTags flow-id into a 20-bit IPv6 flow label value (host order). */
+/* Reverse the low 9 bits of `v` (the SciTags community field is "used in reversed
+ * order" — draft-cc-v6ops-wlcg-flow-label-marking §4). */
+static ngx_inline uint32_t
+xrootd_pmark_reverse9(ngx_uint_t v)
+{
+    uint32_t  r = 0;
+    int       i;
+
+    v &= 0x1FF;
+    for (i = 0; i < 9; i++) {
+        r = (r << 1) | (uint32_t) (v & 1u);
+        v >>= 1;
+    }
+    return r;
+}
+
+/* Encode a SciTags (experiment, activity) pair into the 20-bit IPv6 Flow Label
+ * value (host order) per draft-cc-v6ops-wlcg-flow-label-marking.  This is the
+ * STRUCTURAL value only (entropy bits zero) so it is deterministic and decodable;
+ * the caller ORs in random entropy (XROOTD_PMARK_FL_ENTROPY_MASK) once per flow.
+ * `act` is the 6-bit activity (bits 2..7); `exp` is the 9-bit community placed in
+ * reversed order at bits 9..17. */
 static ngx_inline uint32_t
 xrootd_pmark_flowlabel_encode(ngx_uint_t exp, ngx_uint_t act)
 {
-    uint32_t flowid = (uint32_t) xrootd_pmark_flowid(exp, act);
-    return ((XROOTD_PMARK_FL_VERSION << 16) | flowid) & XROOTD_PMARK_FL_MASK;
+    uint32_t  community = xrootd_pmark_reverse9(exp);
+    uint32_t  activity  = (uint32_t) (act & XROOTD_PMARK_ACT_MASK);
+
+    return ((community << 9) | (activity << 2)) & XROOTD_PMARK_FL_MASK;
 }
 
 /* Parse a `scitag.flow=<N>` token out of an opaque/CGI query string (root://

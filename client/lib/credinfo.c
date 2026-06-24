@@ -20,6 +20,7 @@
 #include "xrdc.h"
 #include "token/b64url.h"   /* shared base64url decode + JWS splitter (libxrdproto) */
 #include "token/scopes.h"   /* shared WLCG scope parser (libxrdproto) */
+#include "compat/json_min.h" /* shared dependency-free JSON value extractor */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,41 +58,16 @@ decode_payload_json(const char *jwt, char *out, size_t outsz)
     return n;
 }
 
-/* Copy the string value of "key":"value" from json into out[outsz]; 1 if found. */
+/*
+ * Copy the value of top-level claim `key` from `json` into out[outsz]; 1 if found.
+ * Thin wrapper over the SHARED dependency-free extractor (libxrdproto) — the same
+ * string-aware scanner is the single source of truth, so this no longer mis-parses
+ * escaped quotes or matches a key buried inside another value.
+ */
 static int
 json_str(const char *json, const char *key, char *out, size_t outsz)
 {
-    char    pat[64];
-    const char *p, *v, *e;
-    snprintf(pat, sizeof(pat), "\"%s\"", key);
-    p = strstr(json, pat);
-    if (p == NULL) {
-        return 0;
-    }
-    p = strchr(p + strlen(pat), ':');
-    if (p == NULL) {
-        return 0;
-    }
-    p++;
-    while (*p == ' ' || *p == '\t') { p++; }
-    if (*p == '"') {
-        v = p + 1;
-        e = strchr(v, '"');
-    } else {
-        v = p;                         /* number / array: copy the raw token */
-        e = v;
-        while (*e && *e != ',' && *e != '}' && *e != ']') { e++; }
-    }
-    if (e == NULL) {
-        return 0;
-    }
-    {
-        size_t n = (size_t) (e - v);
-        if (n >= outsz) { n = outsz - 1; }
-        memcpy(out, v, n);
-        out[n] = '\0';
-    }
-    return 1;
+    return xrootd_json_get_str(json, strlen(json), key, out, outsz);
 }
 
 void

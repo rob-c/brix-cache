@@ -7,19 +7,20 @@
  * kXR_fattr — XRootD file-attribute (extended attribute) operations.
  *
  * XRootD file attributes are mapped to POSIX extended attributes under the
- * "user." namespace.  The XRootD wire name (e.g. "mykey") is stored as the
- * xattr key "user.U.mykey" on the filesystem.  On retrieval the prefix is
- * stripped back to "U.mykey" for the wire response (XROOTD_FATTR_RESP_PFX).
+ * "user." namespace, with 'U' as an internal sub-namespace marker (mirroring the
+ * reference's FATTR_NAMESPACE='U').  The XRootD wire name (e.g. "mykey") is
+ * stored as the xattr key "user.U.mykey" on the filesystem.  On retrieval the
+ * ENTIRE internal prefix is stripped so the client sees the VERBATIM name it set
+ * ("mykey") — matching the reference XeqFALsd, which keeps 'U' internal only.
  *
  * Key prefixes:
  *   XROOTD_FATTR_XKEY_PFX     "user.U." — filesystem xattr key prefix
- *   XROOTD_FATTR_XKEY_PFX_LEN 7         — byte length of that prefix
- *   XROOTD_FATTR_RESP_PFX     "U."      — client-visible key prefix
+ *   XROOTD_FATTR_XKEY_PFX_LEN 7         — byte length stripped to recover the
+ *                                         bare client-visible name
  *   XROOTD_FATTR_MAX_VBUF     65536     — maximum xattr value buffer
  */
 #define XROOTD_FATTR_XKEY_PFX   "user.U."
 #define XROOTD_FATTR_XKEY_PFX_LEN  7
-#define XROOTD_FATTR_RESP_PFX   "U."
 #define XROOTD_FATTR_MAX_VBUF   65536
 
 /*

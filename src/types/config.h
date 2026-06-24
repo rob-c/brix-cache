@@ -43,7 +43,8 @@ typedef struct {
 typedef enum {
     XROOTD_AUTH_USER  = 'u',
     XROOTD_AUTH_GROUP = 'g',
-    XROOTD_AUTH_HOST  = 'p',
+    XROOTD_AUTHDB_HOST = 'p',   /* authdb rule type; distinct from the
+                                 * XROOTD_AUTH_HOST auth-mode macro (tunables.h) */
     XROOTD_AUTH_ALL   = 'a'
 } xrootd_auth_type_t;
 
@@ -129,6 +130,11 @@ typedef struct {
                                      PEM CRL file or directory; reloaded on crl_timer */
     time_t      crl_reload;       /* [xrootd_crl_reload 3600] — seconds between CRL
                                      re-scans; 0 = never reload */
+    time_t      crl_mtime;        /* Phase 51 (E5): st_mtime of `crl` at last
+                                     successful store rebuild; the reload timer
+                                     skips the (possibly large/slow) CRL re-parse
+                                     when an unchanged regular-file CRL would just
+                                     reproduce the same store. 0 = not yet loaded */
 
     /* ---- VO access-control lists ---- */
     ngx_array_t  *vo_rules;     /* xrootd_vo_rule_t[] from xrootd_require_vo */
@@ -173,6 +179,20 @@ typedef struct {
      */
     ngx_uint_t   gsi_signed_dh;
 
+    /* Phase 51 (E4): per-worker cap on concurrently in-flight GSI handshakes.
+     * A GSI handshake is multi-round-trip and CPU-heavy; under a flood of
+     * simultaneous handshakes this sheds the excess (kXR_wait) so the event loop
+     * is not buried.  Default 256 (far above normal load — only a genuine flood
+     * trips it); 0 = unlimited. [xrootd_gsi_max_inflight_handshakes] */
+    ngx_int_t    gsi_max_inflight;
+
+    /* Phase 52 (WS-A): [xrootd_gsi_ciphers "aes-256-cbc:aes-128-cbc:..."] the GSI
+     * session-cipher preference list the server advertises (kXRS_cipher_alg).
+     * Empty = the built-in default (aes-128-cbc first → unchanged behaviour).
+     * The advertised list is filtered to ciphers this build can actually key, so
+     * a client never selects one the server cannot decrypt. */
+    ngx_str_t    gsi_ciphers;
+
     /* Timer that fires crl_reload-seconds after init to rebuild gsi_store */
     ngx_event_t *crl_timer;   /* heap-allocated in init_process; NULL if disabled */
 
@@ -212,9 +232,19 @@ typedef struct {
 
     /* ---- Phase 20: shared-memory caches & rate limiting ---- */
     xrootd_kv_t              *token_cache_kv;  /* [xrootd_token_cache zone=]
-                                                  JWT validation cache; NULL = off */
+                                                  JWT validation cache (L2/SHM); NULL = off */
+    /* Phase 50: always-on per-worker L1 token-validation cache (lockless),
+     * lazily created on first token auth.  Collapses repeated token validation
+     * (crypto + JSON parse, and the L2 spinlock) to an O(1) probe so token auth
+     * does not stall the event loop under load.  See token/worker_cache.h. */
+    struct xrootd_token_l1_s *token_l1;
     xrootd_auth_cache_conf_t  auth_cache;      /* [xrootd_auth_cache zone= ttl=]
-                                                  auth-gate result cache; kv NULL = off */
+                                                  auth-gate result cache (L2/SHM); kv NULL = off */
+    /* Phase 51 (E2): per-worker L1 in front of auth_cache.kv, lazily created when
+     * the auth cache is enabled.  An L1 hit returns the verdict without the SHM
+     * spinlock — removes the cross-worker contention GSI-heavy load hits hardest.
+     * See path/auth_gate_l1.h. */
+    struct xrootd_auth_l1_s  *auth_l1;
     xrootd_rate_limit_conf_t  rate_limit;      /* [xrootd_rate_limit zone= rate= burst= key=]
                                                   per-DN request throttle; kv NULL = off */
 
@@ -241,9 +271,25 @@ typedef struct {
                                        upstream-compatible self-asserted unix
                                        credentials. */
 
+    /* ---- Host auth settings (used when auth = host) — Phase 52 WS-C ---- */
+    ngx_array_t *host_allow;        /* [xrootd_host_allow <pattern>...] ngx_str_t[]
+                                       of exact hostnames or ".suffix" domain
+                                       suffixes; the reverse-resolved peer host
+                                       must match one.  NULL/empty = deny all. */
+
+    /* ---- Pwd auth settings (used when auth = pwd) — Phase 52 WS-B ---- */
+    ngx_str_t    pwd_file;          /* [xrootd_pwd_file <path>] password database:
+                                       one "user:salthex:hashhex" line per user,
+                                       hash = PBKDF2-HMAC-SHA1(pw,salt,10000,24B).
+                                       Empty = pwd auth disabled (deny all). */
+
     /* ---- access log ---- */
     ngx_str_t   access_log;     /* [xrootd_access_log /var/log/xrootd-access.log] */
-    ngx_fd_t    access_log_fd;  /* opened fd; NGX_INVALID_FILE if not configured */
+    ngx_fd_t    access_log_fd;  /* opened fd; NGX_INVALID_FILE if not configured.
+                                   Captured per-worker from access_log_file->fd. */
+    ngx_open_file_t *access_log_file;  /* nginx-managed handle (cycle->open_files):
+                                          opened by the master, reopened on USR1, and
+                                          closed cleanly across reload. NULL if off. */
 
     /* ---- Prometheus metrics ---- */
     ngx_int_t   metrics_slot;  /* index into the shared-memory metrics array;
@@ -349,6 +395,12 @@ typedef struct {
                                              SHM-global cap on transfer-heap bytes;
                                              a read that would exceed it is deferred
                                              with kXR_wait.  0 = no cap. */
+    size_t      readv_segment_size;       /* [xrootd_readv_segment_size 2097136]
+                                             max bytes served per kXR_readv element
+                                             (the official "maxReadv_ior"); a segment
+                                             requesting more is capped to this and the
+                                             client re-reads the tail. Default matches
+                                             stock XRootD: maxBuffsz(2MiB) - 16. */
     ngx_str_t   cache_include_regex_str;  /* [xrootd_cache_include_regex "\.root$"]
                                              POSIX extended regular expression matched
                                              against the path basename; a match always
@@ -428,6 +480,13 @@ typedef struct {
     ngx_flag_t  manager_mode;  /* [xrootd_manager_mode on|off] — query the
                                    server registry in kXR_open and kXR_locate
                                    before attempting local resolution */
+    ngx_uint_t  pipeline_depth; /* [xrootd_pipeline_depth N] — per-connection
+                                    in-flight response/read window (out_ring +
+                                    rd_pool slots).  A deeper pipeline absorbs more
+                                    wire latency/jitter (packet reordering, high-BDP
+                                    links) at a per-slot memory cost.  Default
+                                    XROOTD_PIPELINE_DEPTH_DEFAULT; clamped to
+                                    [MIN, MAX]. */
     ngx_uint_t  registry_slots; /* [xrootd_registry_slots N] — shared-memory
                                     registry capacity; default 128 */
     ngx_uint_t  session_slots;  /* [xrootd_session_slots N] — session registry
@@ -455,6 +514,25 @@ typedef struct {
     ngx_int_t             listen_port;   /* [xrootd_listen_port 1094] — port advertised to CMS manager */
     ngx_xrootd_cms_ctx_t *cms_ctx;       /* runtime connection / timer state (heap) */
     ngx_uint_t            cms_suspended; /* set by kYR_status suspend; cleared by resume */
+
+    /* ---- Phase 50: CMS client (node->manager) network-fault resilience ----
+     * The CMS heartbeat client never armed a steady-state read/send deadline, so a
+     * black-holed / half-open manager was never detected and the node never failed
+     * over.  These bound that.  Unset auto-derives a generous default ON (safe with
+     * real cmsd, which pings within its interval); an explicit 0 disables.  All
+     * resolved at merge time from cms_interval and cached on the ctx at start. */
+    ngx_msec_t            cms_read_timeout;     /* [xrootd_cms_read_timeout] manager
+                                                   inactivity deadline; unset =>
+                                                   max(3*cms_interval, 90s). 0 = off. */
+    ngx_msec_t            cms_send_timeout;     /* [xrootd_cms_send_timeout] heartbeat
+                                                   send-stall deadline; unset => 10s.
+                                                   0 = off. */
+    ngx_flag_t            cms_tcp_keepalive;    /* [xrootd_cms_tcp_keepalive on]
+                                                   SO_KEEPALIVE + tight probes on the
+                                                   manager socket. */
+    ngx_msec_t            cms_tcp_user_timeout; /* [xrootd_cms_tcp_user_timeout]
+                                                   TCP_USER_TIMEOUT (ms); unset =>
+                                                   read-timeout backstop. 0 = off. */
 
     /* ---- bounded recursive query walks ---- */
     ngx_uint_t  ckscan_max_depth; /* [xrootd_ckscan_depth N] — maximum
@@ -488,7 +566,9 @@ typedef struct {
 
     /* One JSON line per closed/abandoned upstream file handle. */
     ngx_str_t   proxy_audit_log;       /* [xrootd_proxy_audit_log <path>|off] */
-    ngx_fd_t    proxy_audit_log_fd;    /* opened fd; NGX_INVALID_FILE if off */
+    ngx_fd_t    proxy_audit_log_fd;    /* opened fd; NGX_INVALID_FILE if off.
+                                          Captured per-worker from proxy_audit_log_file->fd. */
+    ngx_open_file_t *proxy_audit_log_file;  /* nginx-managed handle; see access_log_file. */
 
     /* Upstream TLS certificate verification (requires proxy_upstream_tls on). */
     ngx_str_t   proxy_upstream_tls_ca;    /* [xrootd_proxy_upstream_tls_ca /etc/pki/ca.pem]
@@ -549,6 +629,19 @@ typedef struct {
                                        Directive accepted to allow forward config
                                        preparation; kXR_recoverWrts flag is NOT
                                        advertised until the backend is implemented. */
+    ngx_str_t   upload_stage_dir;   /* [xrootd_stage_dir <path>] optional fast-cache
+                                       staging device; empty = stage adjacent to the
+                                       destination.  Canonicalized into
+                                       upload_stage_dir_canon at config time. */
+    char        upload_stage_dir_canon[PATH_MAX];
+    ngx_flag_t  upload_resume;      /* [xrootd_upload_resume on|off] default ON.
+                                       When on, writable opens stage to a
+                                       DETERMINISTIC identity-keyed partial that
+                                       survives a disconnect/restart, so a
+                                       reconnecting client resumes the upload from
+                                       its offset; commit (rename->final) happens
+                                       only on a clean kXR_close.  See
+                                       src/compat/tmp_path.c xrootd_make_resume_path. */
 
     /* ---- OCSP certificate revocation checking (Feature 8e) ---- */
     ngx_flag_t  ocsp_enable;      /* [xrootd_ocsp_enable on|off]
@@ -602,6 +695,12 @@ typedef struct {
                                        tight TCP_KEEPIDLE/INTVL/CNT at accept for
                                        seconds-scale dead-peer detection.  off =
                                        leave the kernel default (2h first probe). */
+    ngx_str_t   tcp_congestion;     /* [xrootd_tcp_congestion ""] setsockopt
+                                       TCP_CONGESTION at accept (e.g. "bbr") — the
+                                       sender's congestion control governs download
+                                       throughput, and BBR ignores the spurious
+                                       loss signals packet reordering induces.
+                                       Empty = leave the kernel default. */
     ngx_msec_t  manager_stale_after; /* [xrootd_manager_stale_after 0] WS7: ms with
                                        no heartbeat after which a registered data
                                        server is de-preferred in cluster selection
@@ -617,6 +716,27 @@ typedef struct {
                                        framed kXR_wait).  0 = unlimited (no change).
                                        Requires the metrics zone (where the gauge
                                        lives). */
+
+    /* ---- Phase 44: optional io_uring disk-I/O backend ----
+     * All off by default.  The data path is byte-for-byte identical to the
+     * thread-pool tier; only the syscall location differs.  See src/aio/uring.c
+     * and docs/refactor/phase-44-io-uring-backend.md. */
+    ngx_uint_t  io_uring;            /* [xrootd_io_uring auto] enum: OFF/ON/AUTO.
+                                        ON makes startup fail (nginx -t error,
+                                        master exits non-zero) if io_uring is not
+                                        compiled in or the runtime probe fails. */
+    ngx_int_t   io_uring_queue_depth;/* [xrootd_io_uring_queue_depth 256] per-worker
+                                        ring SQ/CQ entries = max in-flight SQEs. */
+    ngx_str_t   io_uring_panic_file; /* [xrootd_io_uring_panic_file ""] kill switch:
+                                        when this file exists every worker treats
+                                        io_uring as disabled and falls back on the
+                                        next op (polled, no reload). "" = unset. */
+    ngx_flag_t  io_uring_admin;      /* [xrootd_io_uring_admin off] expose
+                                        POST /xrootd/api/v1/admin/io_uring to flip
+                                        the cross-worker SHM disable flag. */
+    ngx_flag_t  io_uring_restrict;   /* [xrootd_io_uring_restrict on] lock each ring
+                                        to fd-only data opcodes via
+                                        io_uring_register_restrictions() (>=5.10). */
 } ngx_stream_xrootd_srv_conf_t;
 
 /*

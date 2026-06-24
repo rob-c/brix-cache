@@ -168,9 +168,7 @@ webdav_move_collection_post_task(ngx_http_request_t *r,
     ngx_cpystrn((u_char *) t->dst_path, (u_char *) dst_path,
                 sizeof(t->dst_path));
 
-    task->handler = webdav_move_collection_thread;
-    task->event.handler = webdav_move_collection_done;
-    task->event.data = task;
+    xrootd_task_bind(task, webdav_move_collection_thread, webdav_move_collection_done);
     task->event.log = r->connection->log;
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {

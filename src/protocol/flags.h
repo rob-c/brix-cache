@@ -88,6 +88,12 @@
                                server may respond with kXR_gotoTLS */
 #define kXR_wantTLS  0x04u  /* client requires TLS — abort if unavailable */
 
+/* ClientProtocolRequest.expect — what the client will send next. The only value
+ * used in practice is kXR_ExpLogin, which tells the server a kXR_login follows the
+ * protocol negotiation. Single source of truth so both the module's bootstrap
+ * packers and the native client reference the name, not a bare 0x03. */
+#define kXR_ExpLogin 0x03
+
 /* ------------------------------------------------------------------ */
 /* Protocol response flags  (ServerProtocolBody.flags, uint32)         */
 /* ------------------------------------------------------------------ */
@@ -155,6 +161,13 @@
 #define kXR_vermask  0x3F  /* mask to extract the version bits */
 #define kXR_ver003   3     /* XRootD v3 client — base feature set */
 #define kXR_ver005   5     /* XRootD v5 client — TLS and kXR_sigver capable */
+
+/* ServerResponseBody_Status.resptype — whether a kXR_status frame is the last for
+ * its request (Final) or one of several (Partial, more follow). Single source of
+ * truth so the module's pgread/pgwrite framing and the native client reference the
+ * names, not bare 0/1. */
+#define kXR_FinalResult   0
+#define kXR_PartialResult 1
 
 /* ------------------------------------------------------------------ */
 /* Per-request option flags                                             */
@@ -244,6 +257,13 @@
 #define kXR_pgUnitSZ  (kXR_pgPageSZ + 4)           /* 4100 bytes          */
 #define kXR_pgRetry   0x01                          /* retry bad pages     */
 #define kXR_AnyPath   0xff                          /* let server choose   */
+
+/* CSE (checksum-error) retransmit caps — mirror stock XProtocol limits.
+ * kXR_pgMaxEpr: max corrupt pages reportable in ONE pgwrite request (over →
+ *   kXR_TooManyErrs). kXR_pgMaxEos: max uncorrected pages outstanding per open
+ *   file (the Fob capacity; over → kXR_TooManyErrs). */
+#define kXR_pgMaxEpr  128                           /* max errs per request */
+#define kXR_pgMaxEos  256                           /* max errs outstanding */
 
 /* ------------------------------------------------------------------ */
 /* kXR_sigver — request signing (HMAC-SHA256)                          */

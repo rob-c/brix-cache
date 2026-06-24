@@ -118,7 +118,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 	rc = xrootd_try_post_write_aio(ctx, c, idx, (off_t) offset,
 								   ctx->payload ? ctx->payload : (u_char *) "",
-								   wlen, offset, 0, ctx->payload,
+								   wlen, offset, 0, ctx->payload, NULL, 0,
 								   "xrootd: thread_task_post failed, falling back to sync write",
 								   &posted);
 	if (rc != NGX_OK) {
@@ -132,7 +132,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		 * Write pipelining: account this pwrite as in-flight.  The recv loop
 		 * (which sees state == XRD_ST_AIO on return) keeps receiving the next
 		 * write while this one runs, bounded by out_count + wr_inflight <
-		 * XROOTD_PIPELINE_MAX.  xrootd_write_aio_done decrements wr_inflight and
+		 * ctx->pipeline_depth.  xrootd_write_aio_done decrements wr_inflight and
 		 * queues the ack asynchronously (no recv suspend).
 		 */
 		ctx->wr_inflight++;

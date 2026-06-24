@@ -63,3 +63,6 @@ tools/
 # open-agent-kit: Issue raw JSON (local debugging only)
 oak
 node_modules
+
+# Doxygen generated API docs (run tools/gen-docs.sh)
+docs/doxygen/

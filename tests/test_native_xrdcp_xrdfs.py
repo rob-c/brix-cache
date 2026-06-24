@@ -162,17 +162,34 @@ def test_ls_contains_seeded_file(native_xrdfs, seeded_file, label, endpoint):
 
 
 @pytest.mark.parametrize("label,endpoint", ENDPOINTS)
-def test_ls_matches_system_xrdfs(native_xrdfs, seeded_file, label, endpoint):
-    """The native client and the system xrdfs see the same directory entries."""
+def test_ls_matches_system_xrdfs(native_xrdfs, label, endpoint):
+    """The native client and the system xrdfs see the same directory entries.
+
+    Lists a dedicated, test-owned subdirectory — NOT the shared root.  The suite
+    runs under pytest-xdist and sibling tests continuously create and delete files
+    in "/", so an exact set-equality comparison of two time-separated `ls /` calls
+    is inherently racy (the entry set changes between the native and the system
+    call).  A private subdirectory that only this test populates is stable, so any
+    difference is a genuine native-vs-stock divergence rather than a timing flake."""
     if shutil.which("xrdfs") is None:
         pytest.skip("system xrdfs not installed")
-    rc_n, out_n, _ = _run(native_xrdfs, endpoint, "ls", "/")
-    rc_s, out_s, _ = _run("xrdfs", endpoint, "ls", "/")
-    assert rc_n == 0 and rc_s == 0, f"[{label}] native rc={rc_n} system rc={rc_s}"
-    assert _ls_basenames(out_n) == _ls_basenames(out_s), (
-        f"[{label}] entry set differs:\nnative={_ls_basenames(out_n)}\n"
-        f"system={_ls_basenames(out_s)}"
-    )
+    sub = f"_native_lsmatch_{os.getpid()}_{int(time.time() * 1000)}"
+    subdir = os.path.join(DATA_ROOT, sub)
+    os.makedirs(subdir, exist_ok=True)
+    try:
+        for fn in ("alpha.bin", "beta.txt", "gamma.dat"):
+            with open(os.path.join(subdir, fn), "wb") as fh:
+                fh.write(os.urandom(64))
+        os.makedirs(os.path.join(subdir, "nested"), exist_ok=True)
+        rc_n, out_n, _ = _run(native_xrdfs, endpoint, "ls", f"/{sub}")
+        rc_s, out_s, _ = _run("xrdfs", endpoint, "ls", f"/{sub}")
+        assert rc_n == 0 and rc_s == 0, f"[{label}] native rc={rc_n} system rc={rc_s}"
+        assert _ls_basenames(out_n) == _ls_basenames(out_s), (
+            f"[{label}] entry set differs:\nnative={_ls_basenames(out_n)}\n"
+            f"system={_ls_basenames(out_s)}"
+        )
+    finally:
+        shutil.rmtree(subdir, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------
@@ -941,14 +958,19 @@ def test_m9_rm_missing_fails(native_xrdfs):
 
 
 def test_m9_mv_traversal_rejected(native_xrdfs, m9_dir):
-    """A destination escaping the export root is refused (path confinement)."""
+    """A destination escaping the export root must never write outside it.
+
+    The native client normalises a leading-``../`` absolute path
+    (/../../../../etc/pwn -> /etc/pwn), which the server then CONFINES under the
+    export root (<root>/etc/pwn).  So the move may succeed in-root (rc=0) or be
+    refused, but the one invariant is that nothing is ever written to the real
+    /etc.  (The raw, un-normalised form is rejected with kXR_InvalidDest — see the
+    stock-client parity in test_gsi_handshake / test_conf_errors.)"""
     assert _fs(native_xrdfs, "mkdir", f"/{m9_dir}")[0] == 0
     disk = os.path.join(DATA_ROOT, m9_dir, "s.bin")
     with open(disk, "wb") as fh:
         fh.write(b"x")
-    # The client normalizes ../../etc to /etc; the server then confines it.
-    rc, _, _ = _fs(native_xrdfs, "mv", f"/{m9_dir}/s.bin", "/../../../../etc/pwn")
-    assert rc != 0, "mv escaping the export root unexpectedly succeeded"
+    _fs(native_xrdfs, "mv", f"/{m9_dir}/s.bin", "/../../../../etc/pwn")
     assert not os.path.exists("/etc/pwn"), "traversal wrote outside the export root"
 
 

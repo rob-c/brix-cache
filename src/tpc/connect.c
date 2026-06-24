@@ -10,6 +10,7 @@
 #include "tpc_internal.h"
 #include "../compat/net_target.h"
 #include "../pmark/pmark.h"
+#include "../connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 
 
 #include <netdb.h>
@@ -22,68 +23,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-/* WHAT: Wait for non-blocking TCP connect to complete using poll(POLLOUT) + getsockopt(SO_ERROR). */
-static int
-tpc_wait_for_connect(int fd)
-{
-    struct pollfd pfd;
-    int           rc;
-    int           socket_error = 0;
-    socklen_t     socket_error_len = sizeof(socket_error);
-
-    pfd.fd = fd;
-    pfd.events = POLLOUT;
-    pfd.revents = 0;
-
-    rc = poll(&pfd, 1, TPC_CONNECT_TIMEOUT_SEC * 1000);
-    if (rc <= 0) {
-        return -1;
-    }
-
-    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &socket_error,
-                   &socket_error_len) != 0)
-    {
-        return -1;
-    }
-
-    return socket_error == 0 ? 0 : -1;
-}
-
-/* WHAT: Connect socket with timeout — set O_NONBLOCK, call connect(), if EINPROGRESS then poll-based wait via tpc_wait_for_connect. */
-static int
-tpc_connect_addr_with_timeout(int fd, const struct sockaddr *addr,
-    socklen_t addrlen)
-{
-    int original_flags;
-    int rc;
-
-    original_flags = fcntl(fd, F_GETFL, 0);
-    if (original_flags < 0) {
-        return -1;
-    }
-
-    if (fcntl(fd, F_SETFL, original_flags | O_NONBLOCK) != 0) {
-        return -1;
-    }
-
-    rc = connect(fd, addr, addrlen);
-    if (rc == 0) {
-        (void) fcntl(fd, F_SETFL, original_flags);
-        return 0;
-    }
-
-    if (errno != EINPROGRESS) {
-        return -1;
-    }
-
-    if (tpc_wait_for_connect(fd) != 0) {
-        return -1;
-    }
-
-    (void) fcntl(fd, F_SETFL, original_flags);
-    return 0;
-}
-
 /* ------------------------------------------------------------------ */
 /* DNS resolution and TCP connect to TPC source server                   */
 /* ------------------------------------------------------------------ */
@@ -93,7 +32,6 @@ int
 tpc_connect(xrootd_tpc_pull_t *t)
 {
     struct addrinfo  hints, *res, *rp;
-    struct timeval   tv;
     char             port_str[16];
     int              fd = -1;
     uint16_t         src_port;
@@ -134,10 +72,7 @@ tpc_connect(xrootd_tpc_pull_t *t)
             continue;
         }
 
-        tv.tv_sec  = TPC_IO_TIMEOUT_SEC;
-        tv.tv_usec = 0;
-        (void) setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-        (void) setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+        xrootd_apply_socket_io_timeouts(fd, TPC_IO_TIMEOUT_SEC);
 
         /*
          * SciTags (phase-34): stamp the IPv6 flow label on the OUTBOUND pull
@@ -149,8 +84,8 @@ tpc_connect(xrootd_tpc_pull_t *t)
                 rp->ai_addrlen, t->pmark_exp, t->pmark_act, ngx_cycle->log);
         }
 
-        if (tpc_connect_addr_with_timeout(fd, rp->ai_addr, rp->ai_addrlen)
-            == 0)
+        if (xrootd_connect_fd_deadline(fd, rp->ai_addr, rp->ai_addrlen,
+                                       TPC_CONNECT_TIMEOUT_SEC * 1000) == 0)
         {
             break;
         }

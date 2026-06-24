@@ -10,6 +10,7 @@
  * O(path_depth) xattr reads rather than O(1024) SHM slot scans.
  */
 #include "webdav.h"
+#include "../path/path.h"
 #include "../impersonate/lifecycle.h"
 #include "locks/request.h"
 #include "../compat/http_xml.h"
@@ -255,6 +256,7 @@ webdav_check_locks(ngx_http_request_t *r, const char *path, int need_write)
 static ngx_int_t
 check_locks_descendants(ngx_http_request_t *r, const char *dir)
 {
+    ngx_http_xrootd_webdav_loc_conf_t *conf;
     DIR                *dp;
     struct dirent      *de;
     struct stat         sb;
@@ -263,7 +265,12 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
     webdav_lock_xattr_t e;
     ngx_int_t           rc;
 
-    dp = opendir(dir);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+
+    /* Confined opendir (openat2 RESOLVE_BENEATH) so a planted in-export symlink
+     * cannot redirect the recursive lock scan out of the export root. */
+    dp = xrootd_opendir_confined_canon(r->connection->log,
+                                       conf->common.root_canon, dir);
     if (dp == NULL) {
         return NGX_OK;
     }
@@ -305,8 +312,12 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
         }
         /* xrc == NGX_DECLINED: no lock xattr on this child — OK */
 
-        /* Recurse into subdirectories. */
-        if (stat(child, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+        /* Recurse into subdirectories (confined, no-follow). */
+        if (xrootd_lstat_confined_canon(r->connection->log,
+                                        conf->common.root_canon, child, &sb, 1)
+                == 0
+            && S_ISDIR(sb.st_mode))
+        {
             rc = check_locks_descendants(r, child);
             if (rc != NGX_OK) {
                 break;
@@ -326,6 +337,7 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
 ngx_int_t
 webdav_check_locks_tree(ngx_http_request_t *r, const char *path)
 {
+    ngx_http_xrootd_webdav_loc_conf_t *conf;
     struct stat sb;
     ngx_int_t   rc;
 
@@ -334,7 +346,12 @@ webdav_check_locks_tree(ngx_http_request_t *r, const char *path)
         return rc;
     }
 
-    if (stat(path, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+
+    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
+                                    path, &sb, 1) == 0
+        && S_ISDIR(sb.st_mode))
+    {
         rc = check_locks_descendants(r, path);
     }
 
@@ -394,7 +411,11 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
     /* RFC 4918 §9.10.1: LOCK on non-existent resource MUST create zero-byte resource. */
     {
         struct stat sb;
-        if (stat(path, &sb) != 0 && errno == ENOENT) {
+        if (xrootd_lstat_confined_canon(r->connection->log,
+                                        conf->common.root_canon, path, &sb, 1)
+                != 0
+            && errno == ENOENT)
+        {
             int fd = xrootd_open_confined_canon(r->connection->log,
                                                 conf->common.root_canon, path,
                                                 O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC,

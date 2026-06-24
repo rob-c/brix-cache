@@ -79,6 +79,28 @@ def _send_req(sock, streamid, reqid, body=b"", payload=b""):
     return status, body_data
 
 
+def _send_sigver(sock, streamid, body=b"", payload=b""):
+    """Send a bare kXR_sigver and DO NOT wait for a response.
+
+    kXR_sigver is a request PREFIX, not a standalone request: on a VALID envelope
+    the server arms pending-signature state and stays silent — the response is for
+    the signed request that follows (reference ProcSig returns 0 without Send; cf.
+    src/session/signing.c).  An INVALID envelope (bad HMAC length, seqno replay)
+    DOES draw an immediate kXR_error — read that with _recv_resp() instead.
+    """
+    hdr = struct.pack(">2sH", streamid, kXR_sigver) + body.ljust(16, b"\x00") + struct.pack(">I", len(payload))
+    sock.sendall(hdr + payload)
+
+
+def _recv_resp(sock):
+    """Read one response header+body (for an envelope expected to draw an error)."""
+    rsp_hdr = _recv_exact(sock, 8)
+    assert rsp_hdr is not None, "no response received"
+    status = struct.unpack(">H", rsp_hdr[2:4])[0]
+    dlen = struct.unpack(">I", rsp_hdr[4:8])[0]
+    return status, (_recv_exact(sock, dlen) if dlen > 0 else b"")
+
+
 def _establish_gsi_session(url_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ANON_HOST, url_port))
@@ -135,18 +157,18 @@ class TestSigverExpectRidMismatch:
         """
         sock, streamid = _establish_gsi_session(gsi_tls_port)
 
-        # Send sigver expecting ping (expectrid=3011) with 32-byte HMAC body
+        # NOTE: _establish_gsi_session() logs in anonymously and does NOT complete
+        # the GSI Diffie-Hellman handshake, so signing_active=0 and sigver is a
+        # silent no-op (no pending state armed, expectrid never checked).  We
+        # therefore assert the no-op behaviour and that it does not desync the
+        # session.  Active-path expectrid enforcement (kXR_InvalidRequest in
+        # xrootd_verify_pending_sigver) requires a live DH key — covered by the
+        # signing-active suite in test_sigver_wire_conformance.
         sigver_body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 50) + b"\x00\x00\x00\x00"
-        hmac_body = os.urandom(32)
+        _send_sigver(sock, streamid, body=sigver_body, payload=os.urandom(32))
 
-        status, _ = _send_req(sock, streamid, kXR_sigver, body=sigver_body, payload=hmac_body)
-        assert status == kXR_ok, f"sigver should be accepted (pending state set), got {status}"
-
-        # Follow with kXR_read (3013) — expectrid was 3011 (ping), mismatch → error
-        status2, _ = _send_req(sock, streamid, kXR_open)
-        assert status2 == kXR_error or status2 == kXR_notauth, \
-            f"expected expectrid mismatch rejection, got {status2}"
-
+        # No signing key → no enforcement → the session stays usable.
+        assert _send_req(sock, streamid, kXR_ping)[0] == kXR_ok
         sock.close()
 
 
@@ -156,29 +178,29 @@ class TestSigverExpectRidMismatch:
 
 class TestSigverReplay:
 
+    # _establish_gsi_session() logs in anonymously (no GSI DH handshake), so
+    # signing_active=0 and sigver is a silent no-op: replay detection (which needs
+    # a live signing key) is inactive.  These assert the no-op survival; the
+    # active-path replay rejection is covered in test_sigver_wire_conformance.
+
     def test_replay_same_seqno(self, gsi_tls_port):
         sock, streamid = _establish_gsi_session(gsi_tls_port)
 
-        sigver_body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 1) + b"\x00\x00\x00\x00"
-        status, _ = _send_req(sock, streamid, kXR_sigver, body=sigver_body)
-        status1 = status
-
-        sigver_body2 = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 1) + b"\x00\x00\x00\x00"
-        status2, _ = _send_req(sock, streamid, kXR_sigver, body=sigver_body2)
-        assert status1 == kXR_ok, f"first sigver failed: {status1}"
-        assert status2 == kXR_ok, f"current test infrastructure does not complete GSI auth, got {status2}"
+        body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 1) + b"\x00\x00\x00\x00"
+        _send_sigver(sock, streamid, body=body)           # silent no-op
+        _send_sigver(sock, streamid, body=body)           # "replay" — also no-op
+        # Without a signing key there is no replay rejection; session survives.
+        assert _send_req(sock, streamid, kXR_ping)[0] == kXR_ok
         sock.close()
 
     def test_replay_decreasing_seqno(self, gsi_tls_port):
         sock, streamid = _establish_gsi_session(gsi_tls_port)
 
-        sigver_body_5 = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 5) + b"\x00\x00\x00\x00"
-        status, _ = _send_req(sock, streamid, kXR_sigver, body=sigver_body_5)
-
-        sigver_body_3 = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 3) + b"\x00\x00\x00\x00"
-        status2, _ = _send_req(sock, streamid, kXR_sigver, body=sigver_body_3)
-        assert status == kXR_ok, f"first sigver failed: {status}"
-        assert status2 == kXR_ok, f"current test infrastructure does not complete GSI auth, got {status2}"
+        body5 = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 5) + b"\x00\x00\x00\x00"
+        body3 = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 3) + b"\x00\x00\x00\x00"
+        _send_sigver(sock, streamid, body=body5)
+        _send_sigver(sock, streamid, body=body3)          # decreasing seqno — no-op
+        assert _send_req(sock, streamid, kXR_ping)[0] == kXR_ok
         sock.close()
 
 
@@ -191,11 +213,12 @@ class TestSigverBodyTooShort:
     def test_sigver_body_16_bytes(self, gsi_tls_port):
         sock, streamid = _establish_gsi_session(gsi_tls_port)
 
+        # signing_active=0 (anonymous login): the body length is never inspected,
+        # so a 16-byte HMAC is a silent no-op.  Active-path "sigver body too short"
+        # (kXR_ArgInvalid) needs a live signing key — see the wire-conformance suite.
         sigver_hdr_body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 10) + bytes([0x01]) + b"\x00\x00\x00"
-        short_hmac = os.urandom(16)
-
-        status, _ = _send_req(sock, streamid, kXR_sigver, body=sigver_hdr_body, payload=short_hmac)
-        assert status == kXR_ok, f"current test infrastructure does not check body length, got {status}"
+        _send_sigver(sock, streamid, body=sigver_hdr_body, payload=os.urandom(16))
+        assert _send_req(sock, streamid, kXR_ping)[0] == kXR_ok
         sock.close()
 
 
@@ -226,14 +249,16 @@ class TestSigverNoVerification:
         status, _ = _send_req(sock, b"\x00\x01", kXR_login, payload=login_payload)
         assert status == kXR_ok
 
-        # kXR_sigver — should be accepted without verification (signing_active=0)
+        # kXR_sigver expecting ping — a valid envelope draws NO response (it is a
+        # prefix to the request that follows), so send it without waiting.
         sigver_body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 1) + b"\x00\x00\x00\x00"
-        status, _ = _send_req(sock, b"\x00\x01", kXR_sigver, body=sigver_body)
-        assert status == kXR_ok, f"anonymous session should accept sigver without verification, got {status}"
+        _send_sigver(sock, b"\x00\x01", body=sigver_body)
 
-        # The next request (ping) should also succeed — no HMAC check was done
+        # The following ping must succeed: on an anonymous session signing is not
+        # active, so the pending sigver is accepted without an HMAC check.
         status2, _ = _send_req(sock, b"\x00\x01", kXR_ping)
-        assert status2 == kXR_ok
+        assert status2 == kXR_ok, \
+            f"anon sigver+ping should succeed without verification, got {status2}"
 
         sock.close()
 
@@ -251,15 +276,15 @@ class TestSigverRsaPath:
         """
         sock, streamid = _establish_gsi_session(gsi_tls_port)
 
-        # sigver with RSA key flag (crypto = kXR_rsaKey_sig)
-        # The module accepts RSA-signed requests without checking the signature
+        # sigver with the RSA key flag (crypto = kXR_rsaKey_sig): RSA-signed
+        # envelopes are accepted without asymmetric verification.  A valid sigver
+        # is a silent prefix (no response), so send it without waiting and confirm
+        # the following request still works.
         rsa_crypto = 0x02  # kXR_rsaKey_sig flag
         sigver_body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 20) + bytes([rsa_crypto]) + b"\x00\x00\x00"
 
-        status, _ = _send_req(sock, streamid, kXR_sigver, body=sigver_body)
-        # RSA path is accepted without verification — returns kXR_ok
-        assert status == kXR_ok or status == kXR_error, \
-            f"RSA sigver should be accepted (not verified), got {status}"
+        _send_sigver(sock, streamid, body=sigver_body)
+        assert _send_req(sock, streamid, kXR_ping)[0] == kXR_ok
 
         sock.close()
 
@@ -288,12 +313,12 @@ class TestSigverCorrectRequestAnonymous:
         status, _ = _send_req(sock, b"\x00\x01", kXR_login, payload=login_payload)
         assert status == kXR_ok
 
-        # sigver expecting ping
+        # sigver expecting ping — valid envelope draws no response (prefix).
         sigver_body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 100) + b"\x00\x00\x00\x00"
-        status, _ = _send_req(sock, b"\x00\x01", kXR_sigver, body=sigver_body)
-        assert status == kXR_ok
+        _send_sigver(sock, b"\x00\x01", body=sigver_body)
 
-        # ping — should succeed (no HMAC check on anonymous session)
+        # ping — the pending sigver's expectrid matches, and on an anonymous
+        # session signing is not active, so the ping succeeds.
         status2, _ = _send_req(sock, b"\x00\x01", kXR_ping)
         assert status2 == kXR_ok
 

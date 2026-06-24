@@ -21,6 +21,13 @@
 #define NGX_XROOTD_CMS_CONNECT_TIMEOUT 5000
 #define NGX_XROOTD_CMS_HDR_LEN         8
 #define NGX_XROOTD_CMS_MAX_FRAME       4096
+/*
+ * Phase 51 (A2): max complete frames processed per read-event wakeup before the
+ * handler yields (re-posts its read event) so one peer flooding frames on a
+ * single connection cannot monopolise the worker event loop.  Generous — a
+ * conformant manager/node never sends this many frames back-to-back.
+ */
+#define NGX_XROOTD_CMS_MAX_FRAMES_PER_WAKEUP  64
 #define NGX_XROOTD_CMS_MIN_FREE_MB     100
 
 /*
@@ -195,5 +202,12 @@ void  ngx_xrootd_cms_schedule(ngx_xrootd_cms_ctx_t *ctx, ngx_msec_t delay);
 /* Schedule a reconnect using the current backoff, then double the backoff toward
  * the cap (min of 10x cms_interval and BACKOFF_MAX=60s). Call after a failure. */
 void  ngx_xrootd_cms_schedule_retry(ngx_xrootd_cms_ctx_t *ctx);
+
+/* Phase 50 (WS1): (re)arm the manager-inactivity read deadline on the live CMS
+ * socket.  Measures bounded silence since the last manager activity / our last
+ * heartbeat; on expiry recv.c's ev->timedout path disconnects and reconnects with
+ * backoff, so a black-holed/half-open manager is detected and failed over.  No-op
+ * when disconnected or when conf->cms_read_timeout is 0 (disabled). */
+void  ngx_xrootd_cms_arm_read_deadline(ngx_xrootd_cms_ctx_t *ctx);
 
 #endif /* NGX_XROOTD_CMS_INTERNAL_H */

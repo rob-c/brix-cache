@@ -14,7 +14,7 @@
 #include "../compat/hex.h"
 #include "../compat/http_body.h"
 #include "../compat/http_headers.h"
-#include "../compat/staged_file.h"
+#include "../fs/vfs.h"
 #include "../path/path.h"
 
 #include <jansson.h>
@@ -62,6 +62,31 @@ s3_post_error(ngx_http_request_t *r, ngx_uint_t status, const char *code,
     const char *message)
 {
     return s3_send_xml_error(r, status, code, message);
+}
+
+/*
+ * s3_post_vfs_ctx — build a transient VFS request descriptor for an already-
+ * resolved confined object path.  Replicates the reference helper in object.c
+ * (s3_vfs_ctx) so the staged-write and mkdir lifecycle of POST Object funnels
+ * through the VFS layer (metrics + access-log + write gate) instead of the bare
+ * confined-canon helpers, while delegating the same syscalls underneath.
+ */
+static void
+s3_post_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+{
+    ngx_http_s3_req_ctx_t *s3ctx;
+    int                    is_tls = 0;
+
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 }
 
 /*
@@ -1057,13 +1082,14 @@ s3_post_verify_policy(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
 /*
  * WHAT: Commit the uploaded file bytes to `fs_path` and compute its ETag.
- * WHY:  Uses the confined staged-file pattern (write to a temp, atomically
- *       rename on success) so a partial/failed upload never leaves a corrupt
- *       object visible — the same durability contract as PUT. All filesystem
- *       access is confined to root_canon to prevent escaping the bucket root.
- * HOW:  ensure the parent directory exists, open a staged fd, pwrite the whole
- *       buffer, commit (atomic rename), then stat the result for the ETag.
- * Cleanup: any write error calls xrootd_staged_abort (discard temp) before
+ * WHY:  Uses the VFS staged-write lifecycle (write to a temp, atomically rename
+ *       on success) so a partial/failed upload never leaves a corrupt object
+ *       visible — the same durability contract as PUT. The VFS layer keeps every
+ *       op confined to root_canon and meters the publish (OP_WRITE) + access log.
+ * HOW:  ensure the parent directory exists (xrootd_vfs_mkdir, parents=1), open a
+ *       staged handle (xrootd_vfs_staged_open), pwrite the whole buffer to its
+ *       fd, commit (atomic rename), then stat the result for the ETag.
+ * Cleanup: any write error calls xrootd_vfs_staged_abort (discard temp) before
  *       returning NGX_ERROR, so no orphan temp file is left behind.
  * Returns NGX_OK (object committed, etag set) or NGX_ERROR.
  */
@@ -1072,14 +1098,18 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const s3_post_form_t *form, const char *fs_path, char *etag,
     size_t etag_sz)
 {
-    xrootd_staged_file_t staged;
+    xrootd_vfs_ctx_t     vctx;
+    xrootd_vfs_staged_t *st;
+    int                  vfs_err;
     off_t                off = 0;
     size_t               remaining;
     u_char              *p;
+    ngx_fd_t             stfd;
     struct stat          sb;
 
-    /* Create the key's parent directories (S3 keys may embed '/'). EEXIST is
-     * benign; any other mkdir failure aborts the write. */
+    /* Create the key's parent directories (S3 keys may embed '/') through the
+     * VFS mkdir (parents=1).  EEXIST is benign; any other mkdir failure aborts
+     * the write. */
     {
         char   parent[PATH_MAX];
         char  *last_slash;
@@ -1090,10 +1120,11 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             last_slash = strrchr(parent, '/');
             /* Skip if the slash is the root itself (last_slash == parent). */
             if (last_slash && last_slash != parent) {
+                xrootd_vfs_ctx_t pctx;
+
                 *last_slash = '\0';
-                if (xrootd_mkdir_recursive_confined_canon(
-                        r->connection->log, cf->common.root_canon,
-                        parent, 0755, NULL) != 0
+                s3_post_vfs_ctx(r, parent, cf, &pctx);
+                if (xrootd_vfs_mkdir(&pctx, 0755, 1 /* parents */) != NGX_OK
                     && errno != EEXIST)
                 {
                     return NGX_ERROR;
@@ -1102,31 +1133,31 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
     }
 
-    if (xrootd_staged_open(r->connection->log, cf->common.root_canon,
-                           fs_path, O_WRONLY, 0600, 16, &staged) != NGX_OK)
-    {
+    s3_post_vfs_ctx(r, fs_path, cf, &vctx);
+    st = xrootd_vfs_staged_open(&vctx, 0600, 16, &vfs_err);
+    if (st == NULL) {
+        errno = vfs_err;
         return NGX_ERROR;
     }
 
     /* Write the full in-memory file part; pwrite may short-write, so loop until
      * `remaining` is drained, advancing both the buffer pointer and offset. */
+    stfd = xrootd_vfs_staged_fd(st);
     remaining = form->file_len;
     p = form->file_data;
     while (remaining > 0) {
-        ssize_t n = pwrite(staged.fd, p, remaining, off);
+        ssize_t n = pwrite(stfd, p, remaining, off);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;               /* interrupted syscall: retry */
             }
-            xrootd_staged_abort(r->connection->log, cf->common.root_canon,
-                                &staged, 1);
+            xrootd_vfs_staged_abort(st, 1);
             return NGX_ERROR;
         }
         if (n == 0) {
             /* Zero progress with bytes left is unexpected: treat as I/O error. */
             errno = EIO;
-            xrootd_staged_abort(r->connection->log, cf->common.root_canon,
-                                &staged, 1);
+            xrootd_vfs_staged_abort(st, 1);
             return NGX_ERROR;
         }
 
@@ -1136,14 +1167,14 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     /* Atomically publish the staged temp as the final object. */
-    if (xrootd_staged_commit(r->connection->log, cf->common.root_canon,
-                             &staged, fs_path) != NGX_OK)
-    {
+    if (xrootd_vfs_staged_commit(st, 0 /* not exclusive */) != NGX_OK) {
         return NGX_ERROR;
     }
 
-    /* Best-effort ETag: a stat failure here is non-fatal (empty ETag). */
-    if (stat(fs_path, &sb) == 0) {
+    /* Best-effort ETag: a stat failure here is non-fatal (empty ETag).
+     * Confined (no-follow) so a symlink at the final name is not followed. */
+    if (xrootd_lstat_confined_canon(r->connection->log, cf->common.root_canon,
+                                    fs_path, &sb, 1) == 0) {
         s3_etag(&sb, etag, etag_sz);
         (void) s3_set_header(r, "ETag", etag);
     } else {

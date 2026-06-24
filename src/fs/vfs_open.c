@@ -27,6 +27,43 @@
 #include "../cache/open.h"
 #include "../path/beneath.h"
 
+/* Populate a per-request xrootd_vfs_ctx_t with the fields the HTTP front ends
+ * (WebDAV, S3) set identically: a transient (rootfd = -1) confined open of an
+ * already-resolved canonical path. Zeroes the ctx first, then fills pool/log,
+ * the metrics proto, the export + cache roots (deriving cache_enabled), the
+ * write gate, the TLS flag, the identity, and the resolved path (is_confined).
+ * Callers may still adjust individual fields afterwards (e.g. cache_writethrough
+ * config). Kept HTTP-agnostic on purpose so the header stays stream-includable —
+ * callers pass pool/log/is_tls extracted from their own request object. */
+void
+xrootd_vfs_ctx_init(xrootd_vfs_ctx_t *vctx, ngx_pool_t *pool, ngx_log_t *log,
+    xrootd_proto_t proto, const char *root_canon, const char *cache_root_canon,
+    int allow_write, int is_tls, xrootd_identity_t *identity,
+    const char *resolved_path)
+{
+    if (vctx == NULL) {
+        return;
+    }
+
+    ngx_memzero(vctx, sizeof(*vctx));
+    vctx->rootfd = -1;
+    vctx->pool = pool;
+    vctx->log = log;
+    vctx->metrics_proto = proto;
+    vctx->root_canon = root_canon;
+    vctx->cache_root_canon = cache_root_canon;
+    vctx->cache_enabled =
+        (cache_root_canon != NULL && cache_root_canon[0] != '\0') ? 1 : 0;
+    vctx->allow_write = allow_write ? 1 : 0;
+    vctx->is_tls = is_tls ? 1 : 0;
+    vctx->identity = identity;
+    if (resolved_path != NULL) {
+        vctx->resolved.resolved.data = (u_char *) resolved_path;
+        vctx->resolved.resolved.len = ngx_strlen(resolved_path);
+        vctx->resolved.is_confined = 1;
+    }
+}
+
 /* Copy a struct stat into the protocol-neutral xrootd_vfs_stat_t (zeroes the
  * output first; sets is_directory/is_regular from the mode). No-op on NULL. */
 void

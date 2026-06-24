@@ -84,7 +84,9 @@ kXR_open_new  = 0x0008
 # Handler limits (src/protocol/flags.h, src/types/tunables.h)
 READV_SEGSIZE = 16
 READV_MAXSEGS = 1024
-READ_MAX      = 4 * 1024 * 1024          # per-segment readv cap
+# Per-segment readv cap = the server's default xrootd_readv_segment_size, which
+# matches stock XRootD's maxReadv_ior = maxBuffsz(2 MiB) - sizeof(readahead_list).
+READ_MAX      = 2 * 1024 * 1024 - READV_SEGSIZE
 MAX_READV_TOTAL = 256 * 1024 * 1024      # whole-request readv cap
 PG_PAGESZ     = 4096
 
@@ -432,12 +434,13 @@ class TestReadvOOBRaw:
     def test_total_response_size_cap(self, rd_handle):
         """Requested total over 256 MiB is rejected before any I/O.
 
-        65 segments × 4 MiB requested = 260 MiB > MAX_READV_TOTAL, so the
-        two-phase validator must reject up front (the data file is tiny, so
-        this proves the size check happens BEFORE the read, not after EOF).
+        (MAX_READV_TOTAL // READ_MAX) + 1 segments each requesting the per-segment
+        cap sums to just over MAX_READV_TOTAL, so the two-phase validator must
+        reject up front (the data file is tiny, so this proves the size check
+        happens BEFORE the read, not after EOF).
         """
         sock, fh = rd_handle
-        n_segs = (MAX_READV_TOTAL // READ_MAX) + 1   # 65
+        n_segs = (MAX_READV_TOTAL // READ_MAX) + 1
         segs = [_seg(fh, READ_MAX, 0) for _ in range(n_segs)]
         try:
             _, status, body = _readv(sock, segs)
@@ -557,19 +560,25 @@ class TestPgwriteSecurity:
                 pass
             sock.close()
 
-    def test_bad_crc_rejected(self, wr_handle):
-        """A page whose CRC32c does not match its data must be rejected with
-        kXR_ChkSumErr and must NOT be written to disk."""
+    def test_bad_crc_reported_via_cse(self, wr_handle):
+        """A page whose CRC32c does not match its data is accepted-and-reported
+        via a CSE retransmit list (success kXR_status), not silently accepted.
+        The corrupt bytes land on disk (accept-then-correct) and the page is
+        flagged for retransmission; the close gate (covered elsewhere) refuses
+        to commit until corrected."""
         sock, fh, full = wr_handle
         data = b"CORRUPTME" + b"x" * 1000
         bad_payload = struct.pack("!I", 0xDEADBEEF) + data  # wrong CRC
         _, status, body = _pgwrite(sock, fh, 0, bad_payload)
-        assert status == kXR_error
-        assert _error_code(body) == kXR_ChkSumErr
-        # File must be untouched (still zeros).
-        with open(full, "rb") as f:
-            on_disk = f.read(len(data))
-        assert on_disk != data, "corrupt page must not have been written"
+        assert status == kXR_status, f"expected CSE kXR_status, got {status}"
+        # Drain the CSE trailer (bdy.dlen bytes, not in hdr.dlen) so the socket
+        # stays aligned for the ping below; it must list page offset 0.
+        cse_len = struct.unpack("!i", body[12:16])[0]
+        assert cse_len >= 8, "CSE trailer must be present for a bad page"
+        cse = _recv_exact(sock, cse_len)
+        offs = list(struct.unpack("!" + "q" * ((cse_len - 8) // 8), cse[8:]))
+        assert offs == [0], f"CSE must flag the corrupt page offset: {offs}"
+        # The page is reported, not silently dropped; the connection stays sane.
         assert _ping(sock)[1] == kXR_ok
 
     @pytest.mark.skipif(not _CRC32C_OK, reason="local CRC32c self-test failed")

@@ -100,9 +100,12 @@ def test_readv_read_scratch_trim_cycle_integrity():
     status, _ = f.open(f"{ANON_URL}//{remote.lstrip('/')}", OpenFlags.READ)
     assert status.ok, f"open for read failed: {status.message}"
 
-    # Each readv totals ~5 MiB -> read_scratch grows past the 4 MiB threshold;
+    # Each readv totals ~6 MiB -> read_scratch grows past the 4 MiB threshold;
     # the recv loop trims it back to the window before the next readv regrows it.
-    chunks = [(0, 2_500_000), (4_000_000, 2_500_000)]
+    # Each element stays <= readv_ior_max (~2 MiB): the server rejects a single
+    # element larger than that (matching stock do_ReadV), so use more, smaller
+    # elements rather than fewer oversized ones.
+    chunks = [(0, 2_000_000), (3_000_000, 2_000_000), (6_000_000, 2_000_000)]
     for it in range(6):
         status, result = f.vector_read(chunks)
         assert status.ok, f"vector_read {it} failed: {status.message}"
@@ -269,7 +272,10 @@ def test_budget_gauges_exported_and_release():
     f = client.File()
     s, _ = f.open(f"{ANON_URL}//{remote.lstrip('/')}", OpenFlags.READ)
     assert s.ok
-    s, res = f.vector_read([(0, 3_000_000), (4_000_000, 3_000_000)])
+    # Elements stay <= readv_ior_max (~2 MiB); a single larger element is
+    # rejected by the server (matching stock do_ReadV), so use several.
+    s, res = f.vector_read([(0, 2_000_000), (3_000_000, 2_000_000),
+                            (6_000_000, 2_000_000)])
     assert s.ok, s.message
     f.close()
 

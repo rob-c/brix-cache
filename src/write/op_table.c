@@ -41,6 +41,12 @@ exec_rm(const xrootd_op_exec_t *e, int *out_errno)
     xrootd_ns_result_t      res;
 
     ngx_memzero(&opts, sizeof(opts));
+    /* kXR_rm mirrors the reference osFS->rem (XrdOssSys::Unlink): unlink a file,
+     * rmdir a directory — NON-recursively. xrootd_ns_delete already does exactly
+     * that (xrootd_unlink_beneath dispatches rmdir when the target is a dir), so
+     * an empty dir is removed and a NON-EMPTY dir fails with ENOTEMPTY ("directory
+     * not empty"), matching stock. It must NEVER recurse: a recursive retry here
+     * silently deleted whole non-empty subtrees on a plain `rm` (data loss). */
     res = xrootd_ns_delete(e->c->log, e->conf->common.root_canon,
                            e->resolved, &opts);
 
@@ -48,17 +54,7 @@ exec_rm(const xrootd_op_exec_t *e, int *out_errno)
         return NGX_OK;
     }
 
-    /* Native kXR_rm retries as rmdir if unlink failed with EISDIR. */
-    if (res.was_dir) {
-        opts.recursive = 1;
-        res = xrootd_ns_delete(e->c->log, e->conf->common.root_canon,
-                               e->resolved, &opts);
-        if (res.status == XROOTD_NS_OK) {
-            return NGX_OK;
-        }
-    }
-
-    *out_errno = res.sys_errno;
+    *out_errno = res.sys_errno ? res.sys_errno : EISDIR;
     return NGX_ERROR;
 }
 

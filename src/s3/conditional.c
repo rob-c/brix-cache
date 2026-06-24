@@ -32,6 +32,7 @@
 #include "s3.h"
 #include "../compat/http_headers.h"
 #include "../compat/http_query.h"
+#include "../fs/vfs.h"
 
 #include <fcntl.h>
 #include <string.h>
@@ -227,25 +228,39 @@ ngx_int_t
 s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
     const char *fs_path)
 {
-    ngx_table_elt_t *if_none = r->headers_in.if_none_match;
-    ngx_table_elt_t *if_match = r->headers_in.if_match;
-    int              exists = 0;
-    char             etag[48];
-    int              fd;
+    ngx_table_elt_t  *if_none = r->headers_in.if_none_match;
+    ngx_table_elt_t  *if_match = r->headers_in.if_match;
+    int               exists = 0;
+    char              etag[48];
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_stat_t vst;
+    ngx_http_s3_req_ctx_t *s3ctx;
+    ngx_http_s3_loc_conf_t *cf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+    int               is_tls = 0;
 
     if (if_none == NULL && if_match == NULL) {
         return NGX_DECLINED;          /* unconditional PUT — fast path */
     }
 
-    fd = xrootd_open_confined_canon(r->connection->log, root_canon, fs_path,
-                                    O_RDONLY, 0);
-    if (fd >= 0) {
-        struct stat st;
-        if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode)) {
-            exists = 1;
-            xrootd_http_etag_str(etag, sizeof(etag), st.st_mtime, st.st_size, 0);
-        }
-        close(fd);
+    /*
+     * Existence + synthetic-etag probe via the VFS metadata surface (OP_STAT,
+     * metered + access-logged), delegating to the same confined no-follow
+     * lstat underneath.  An object is only "exists" when it is a regular file;
+     * a symlink at the key reports as non-regular and is treated as absent,
+     * matching the S3 object model (the lister never emits symlinks).
+     */
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
+        (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+
+    if (xrootd_vfs_stat(&vctx, &vst) == NGX_OK && vst.is_regular) {
+        exists = 1;
+        xrootd_http_etag_str(etag, sizeof(etag), vst.mtime, vst.size, 0);
     }
 
     /* If-None-Match fails (→412) when the named representation is present. */

@@ -57,6 +57,26 @@ webdav_dispatch_inner(ngx_http_request_t *r)
         return NGX_DECLINED;
     }
 
+    /*
+     * Fast teardown: the worker is draining (graceful reload/quit).  Reject a
+     * freshly-arrived request with 503 + Retry-After and force the connection
+     * closed, rather than starting a transfer this worker is about to abandon.
+     * The client's resilient layer retries against the new worker and resumes
+     * a download from its last byte via a Range GET.  Requests already mid-flight
+     * are untouched (their handler has long since returned); ngx_close_idle_
+     * connections() drops idle keepalive connections for us.
+     */
+    if (ngx_exiting) {
+        ngx_table_elt_t *h = ngx_list_push(&r->headers_out.headers);
+        if (h != NULL) {
+            h->hash = 1;
+            ngx_str_set(&h->key, "Retry-After");
+            ngx_str_set(&h->value, "1");
+        }
+        r->keepalive = 0;
+        return webdav_metrics_return(r, NGX_HTTP_SERVICE_UNAVAILABLE);
+    }
+
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
     xrootd_http_source_offer(r);
 

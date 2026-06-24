@@ -30,6 +30,7 @@
 
 #include "../compat/crc32c.h"
 #include "../compat/namespace_ops.h"
+#include "../compat/staged_file.h"
 #include "../metrics/access_log.h"
 #include "../path/path.h"
 
@@ -69,6 +70,13 @@ struct xrootd_vfs_dir_s {
     ngx_log_t  *log;
     char       *path;
     const char *root_canon;   /* for broker-routed per-child lstat (impersonation) */
+};
+
+struct xrootd_vfs_staged_s {
+    xrootd_staged_file_t  staged;   /* the compat temp-file primitive */
+    xrootd_vfs_ctx_t     *ctx;      /* carries root_canon + final (resolved) path */
+    ngx_pool_t           *pool;
+    ngx_log_t            *log;
 };
 
 /* Borrow the ctx's resolved confined path as a NUL-terminated C string.
@@ -118,6 +126,30 @@ xrootd_vfs_require_write(const xrootd_vfs_ctx_t *ctx)
     }
 
     return NGX_OK;
+}
+
+/* Translate a namespace status into a faithful POSIX errno. The namespace layer
+ * sets res.sys_errno for syscall failures but leaves it 0 for the conditions it
+ * derives itself (notably XROOTD_NS_NOT_EMPTY from its own emptiness probe), so
+ * callers that collapse a failed xrootd_ns_* result to errno must use this for
+ * the sys_errno==0 case rather than a blanket EIO — otherwise a non-empty rmdir
+ * surfaces as EIO/500 instead of ENOTEMPTY/409. */
+static ngx_inline int
+xrootd_vfs_ns_status_errno(xrootd_ns_status_t status)
+{
+    switch (status) {
+    case XROOTD_NS_OK:        return 0;
+    case XROOTD_NS_NOT_FOUND: return ENOENT;
+    case XROOTD_NS_DENIED:    return EACCES;
+    case XROOTD_NS_EXISTS:    return EEXIST;
+    case XROOTD_NS_CONFLICT:  return ENOTDIR;
+    case XROOTD_NS_NOT_EMPTY: return ENOTEMPTY;
+    case XROOTD_NS_TOO_LONG:  return ENAMETOOLONG;
+    case XROOTD_NS_NO_SPACE:  return ENOSPC;
+    case XROOTD_NS_IO_ERROR:  return EIO;
+    }
+
+    return EIO;
 }
 
 /* Pick the protocol label for this ctx's metrics, defaulting to

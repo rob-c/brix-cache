@@ -57,17 +57,57 @@
 #define XROOTD_CONN_XFER_HEAP_MAX      (4 * XROOTD_READ_WINDOW)
 
 /*
- * Output-queue depth (Phase 29 pipelining).
+ * Optional io_uring disk-I/O backend (Phase 44).
  *
- * XROOTD_PIPELINE_MAX is the number of response slots in the per-connection
- * output ring (xrootd_ctx_t.out_ring).  Each slot owns one in-flight response's
- * send state (flat-buffer tail, chain tail, and the reusable header/data/file
- * chain structs), so up to this many pipelinable reads may be outstanding before
- * the recv loop applies backpressure.  Phase 1 lands the ring with effective
- * depth 1 (the recv loop stays serial); Phase 2 raises the in-flight bound to
- * this value for the cleartext sendfile read path.
+ * The backend is a third AIO dispatch tier (io_uring -> thread pool -> inline
+ * sync) selected per server block by `xrootd_io_uring on|off|auto`.  These are
+ * compile-time, header-only constants; the runtime verdict is decided by the
+ * authoritative opcode probe in src/aio/uring.c, never by parsing `uname`.
+ *
+ * Mode enum (stored in ngx_stream_xrootd_srv_conf_t.io_uring, set via an
+ * ngx_conf_enum_t slot):
+ *   OFF  = never use io_uring (thread pool / inline only)
+ *   ON   = require io_uring — startup FAILS if it is not compiled in or the
+ *          runtime probe fails (see §32 fail-fast; xrootd_uring_validate_conf)
+ *   AUTO = enable iff the probe passes this process, else silent fallback
+ *
+ * QUEUE_DEPTH is the per-worker ring's SQ/CQ entry count = the ceiling on
+ * concurrent in-flight SQEs.  Each read submits one SQE (windowed reads stream
+ * as one contiguous IORING_OP_READ per wire chunk), so depth tracks connection
+ * concurrency, not request size; get_sqe -> NULL simply falls back to the pool.
+ *
+ * The MIN_KERNEL_* values are a fast pre-filter only (5.6 = reliable
+ * register_eventfd for the completion bridge); RESTRICT_KERNEL_MINOR (5.10) is
+ * where io_uring_register_restrictions() becomes available (best-effort).
  */
-#define XROOTD_PIPELINE_MAX            4
+#define XROOTD_IO_URING_OFF                   0
+#define XROOTD_IO_URING_ON                    1
+#define XROOTD_IO_URING_AUTO                  2
+
+#define XROOTD_IO_URING_QUEUE_DEPTH           256
+#define XROOTD_IO_URING_MIN_KERNEL_MAJOR      5
+#define XROOTD_IO_URING_MIN_KERNEL_MINOR      6
+#define XROOTD_IO_URING_RESTRICT_KERNEL_MINOR 10
+
+/*
+ * Output-queue depth (Phase 29 pipelining; runtime-configurable).
+ *
+ * The per-connection output ring (xrootd_ctx_t.out_ring) and read-buffer pool
+ * (rd_pool) are heap-allocated at connection time to ctx->pipeline_depth — the
+ * number of in-flight responses that may be outstanding before the recv loop
+ * applies backpressure.  Each slot owns one in-flight response's send state
+ * (flat-buffer tail, chain tail, reusable header/data/file chain structs), so a
+ * DEEPER pipeline absorbs more wire latency/jitter (packet reordering, high-BDP
+ * links) — a momentarily-slow drain no longer empties the in-flight window and
+ * stalls the recv->process->send loop — at a per-slot memory cost.
+ *
+ * Set via `xrootd_pipeline_depth N`; merged/clamped to [MIN, MAX].  Sizing the
+ * rings to the configured depth keeps a small default cheap while leaving a large
+ * value available for lossy/jittery WANs.  Was a fixed #define of 4 (Phase 29/32).
+ */
+#define XROOTD_PIPELINE_DEPTH_DEFAULT  8
+#define XROOTD_PIPELINE_DEPTH_MIN      1
+#define XROOTD_PIPELINE_DEPTH_MAX      64
 
 /*
  * Per-slot wire-header capacity (Phase 32 WS2).  A multi-chunk sendfile read
@@ -185,6 +225,8 @@
 #define XROOTD_AUTH_SSS    4   /* XRootD Simple Shared Secret auth       */
 #define XROOTD_AUTH_UNIX   5   /* XRootD unix auth (self-asserted local) */
 #define XROOTD_AUTH_KRB5   6   /* XRootD Kerberos 5 auth                 */
+#define XROOTD_AUTH_HOST   7   /* XRootD host auth (reverse-DNS allowlist) */
+#define XROOTD_AUTH_PWD    8   /* XRootD pwd auth (XrdSecpwd password, opt-in) */
 
 /* ---- GSI signed-DH policy (phase-48; xrootd_gsi_signed_dh directive) ---- */
 #define XROOTD_GSI_SDH_OFF      0  /* always unsigned DH (default, universal)  */

@@ -35,6 +35,36 @@ typedef struct {
 ngx_int_t xrootd_staged_open(ngx_log_t *log, const char *root_canon,
     const char *final_path, int open_flags, mode_t mode, ngx_uint_t attempts,
     xrootd_staged_file_t *staged);
+/* xrootd_staged_open_resume() — open the DETERMINISTIC identity-keyed upload-
+ * resume partial (create-or-resume, preserves bytes, no O_EXCL/O_TRUNC), and
+ * report its current size in *cur_size.  For WebDAV Content-Range PUT resume.
+ * See staged_file.c. */
+ngx_int_t xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
+    const char *final_path, const char *principal, const char *stage_dir,
+    mode_t mode, xrootd_staged_file_t *staged, off_t *cur_size);
+/* xrootd_commit_staged() — atomically publish a staged file onto its final path,
+ * across filesystems (rename fast-path; copy+rename on EXDEV for a fast-cache
+ * stage dir on a different device than the storage).  fd = open staged fd (for
+ * the durability fsync) or NGX_INVALID_FILE.  See staged_file.c. */
+ngx_int_t xrootd_commit_staged(ngx_fd_t fd, const char *stage_path,
+    const char *final_path, ngx_log_t *log);
+/* --- upload stage-out tracking (durable pending-commit markers + reaper) --- */
+
+/* Register a (canonicalized) stage dir so the reaper sweeps it.  Called at config
+ * time from each server/location that sets a stage dir; deduped. */
+void xrootd_stage_dir_register(const char *canon);
+/* Number of registered stage dirs (>0 => arm the reaper). */
+ngx_uint_t xrootd_stage_dir_count(void);
+/* Write/remove the durable "<stage_partial>.commit" marker (content = final path)
+ * that records a COMPLETE staged file pending its move to storage. */
+ngx_int_t xrootd_stage_mark_pending(const char *stage_partial,
+    const char *final_path, ngx_log_t *log);
+void xrootd_stage_unmark_pending(const char *stage_partial);
+/* Finish every pending stage-out in one dir / all registered dirs.  Idempotent;
+ * returns the number of commits completed.  See staged_file.c. */
+ngx_uint_t xrootd_stage_reap_dir(const char *stage_dir, ngx_log_t *log);
+ngx_uint_t xrootd_stage_reap_all(ngx_log_t *log);
+
 /* xrootd_staged_commit() — See staged_file.c for WHAT/WHY/HOW. */
 ngx_int_t xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
     xrootd_staged_file_t *staged, const char *final_path);

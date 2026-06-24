@@ -512,9 +512,27 @@ macaroon_parse_core(ngx_log_t *log,
         return -1;
     }
 
-    /* Check expiry before accepting claims */
+    /*
+     * Expiry handling (fail-closed).  A macaroon is a bearer credential: a root
+     * with no before: caveat leaves claims->exp == 0 and would otherwise be valid
+     * forever, so a single leak would never lapse.  We therefore REQUIRE an
+     * expiry on the root/standalone macaroon (tp_arr != NULL identifies that
+     * context; discharges are validated with tp_arr == NULL).  dCache/WLCG
+     * macaroons always carry a before: caveat on the root, so this rejects only
+     * malformed or deliberately-unbounded tokens.  Discharge macaroons may
+     * legitimately omit before: — their lifetime is governed by the root and
+     * intersected by the caller — so we only enforce "not already expired" for
+     * them.  claims->exp is the earliest before: caveat seen in the packet loop
+     * above (macaroons only narrow, never widen).
+     */
     {
         time_t now = time(NULL);
+        if (tp_arr != NULL && claims->exp <= 0) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "xrootd_macaroon: rejected — no before: (expiry) caveat; "
+                          "non-expiring macaroons are not accepted");
+            return -1;
+        }
         if (claims->exp > 0 && now > (time_t)claims->exp) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
                           "xrootd_macaroon: token expired at %L (now=%L)",

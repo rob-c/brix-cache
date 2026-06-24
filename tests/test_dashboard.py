@@ -78,9 +78,23 @@ def _get(path, cookie=None):
 
 
 class TestDashboardApiFoundation:
-    def test_v1_snapshot_requires_auth(self):
-        status, _ = _get("/xrootd/api/v1/snapshot")
-        assert status == 401
+    def test_v1_snapshot_anonymous_is_pii_free(self):
+        """With `xrootd_dashboard_anonymous on` (the test fleet config) the read
+        API is reachable WITHOUT a login cookie and returns 200 — but the data is
+        PII-redacted for anonymous viewers (IPs/identities/paths scrubbed,
+        worker_pid omitted; src/dashboard/api.c redact path).  The config-download
+        endpoint, by contrast, is always auth-gated (config_download.c) — that is
+        the endpoint that must 401 anonymously, not the redacted read snapshot."""
+        status, body = _get("/xrootd/api/v1/snapshot")
+        assert status == 200, "anonymous read API must be reachable (anonymous tier on)"
+        data = json.loads(body.decode())
+        assert data["schema"] == "xrootd-dashboard.v1"
+        # Anonymous snapshot must not leak host fingerprints / PII at the top level.
+        assert "worker_pid" not in data
+        for t in data.get("active_transfers", []):
+            assert t.get("client") in ("[redacted]", None)
+            assert t.get("identity", "") == ""
+            assert t.get("path") in ("[redacted]", None)
 
     def test_legacy_transfers_shape_is_unchanged(self):
         cookie = _dashboard_cookie()

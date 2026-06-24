@@ -52,10 +52,21 @@ typedef struct {
  * wire path parsing or token/ACL checks; protocol handlers do those first.
  *
  * INVARIANT: All protocol handlers implementing user-visible namespace
- * mutations (delete, mkdir, rename) MUST route through these functions.
- * Direct calls to xrootd_*_confined*() from protocol handler files
- * (src/write/, src/s3/, src/webdav/ dispatch paths) are a defect.
- * Internal staging code (TPC, multipart, copy engine, checksum) is exempt.
+ * mutations (delete, mkdir, rename) MUST route through the VFS layer
+ * (src/fs/vfs.h: xrootd_vfs_unlink/rmdir/mkdir/rename/copy and the staged-write
+ * family), which calls these functions underneath while adding the metrics +
+ * access-log layer. These xrootd_ns_*() entry points remain the seam the VFS
+ * delegates to; calling them directly from an EVENT-LOOP handler path is now a
+ * second choice (it loses the OP metric/log) and direct xrootd_*_confined*()
+ * calls from such paths are a defect.
+ *
+ * EXEMPT — code running on a THREAD-POOL worker (off the event loop): native
+ * TPC pull, async/multipart S3 PUT assembly, the collection copy/move engines.
+ * The VFS allocates from an nginx pool and emits metrics/log lines, none of
+ * which are thread-safe, so worker-thread code stays on this xrootd_ns_*() /
+ * confined-helper / staged_file tier. Confinement is identical (RESOLVE_BENEATH);
+ * only the VFS metering is skipped. See src/fs/README.md "Event-loop-only
+ * boundary".
  */
 
 /*

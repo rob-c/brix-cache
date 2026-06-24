@@ -1,4 +1,5 @@
 #include "cache_internal.h"
+#include "../connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 
 
 #include <fcntl.h>
@@ -59,65 +60,6 @@ xrootd_cache_origin_close(xrootd_cache_origin_conn_t *oc)
     }
 }
 
-/*
- * Non-blocking connect with an explicit poll timeout so that an unreachable
- * IPv6 (or IPv4) peer cannot stall the thread for a full TCP retransmit
- * interval (up to ~2 minutes).  SO_SNDTIMEO does not reliably bound
- * connect(2) on Linux.
- */
-static int
-cache_connect_with_timeout(int fd, const struct sockaddr *addr,
-    socklen_t addrlen)
-{
-    struct pollfd  pfd;
-    int            original_flags;
-    int            rc;
-    int            socket_error     = 0;
-    socklen_t      socket_error_len = sizeof(socket_error);
-
-    original_flags = fcntl(fd, F_GETFL, 0);
-    if (original_flags < 0) {
-        return -1;
-    }
-
-    if (fcntl(fd, F_SETFL, original_flags | O_NONBLOCK) != 0) {
-        return -1;
-    }
-
-    rc = connect(fd, addr, addrlen);
-    if (rc == 0) {
-        (void) fcntl(fd, F_SETFL, original_flags);
-        return 0;
-    }
-
-    if (errno != EINPROGRESS) {
-        return -1;
-    }
-
-    pfd.fd      = fd;
-    pfd.events  = POLLOUT;
-    pfd.revents = 0;
-
-    rc = poll(&pfd, 1, XROOTD_CACHE_IO_TIMEOUT * 1000);
-    if (rc <= 0) {
-        return -1;
-    }
-
-    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &socket_error,
-                   &socket_error_len) != 0)
-    {
-        return -1;
-    }
-
-    if (socket_error != 0) {
-        errno = socket_error;
-        return -1;
-    }
-
-    (void) fcntl(fd, F_SETFL, original_flags);
-    return 0;
-}
-
 int
 xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t portnum)
@@ -154,7 +96,6 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     }
 
     for (rp = res; rp != NULL; rp = rp->ai_next) {
-        struct timeval tv;
         int            fd;
 
         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -162,13 +103,10 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
             continue;
         }
 
-        tv.tv_sec  = XROOTD_CACHE_IO_TIMEOUT;
-        tv.tv_usec = 0;
-        (void) setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-        (void) setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+        xrootd_apply_socket_io_timeouts(fd, XROOTD_CACHE_IO_TIMEOUT);
 
-        if (cache_connect_with_timeout(fd, rp->ai_addr, rp->ai_addrlen)
-            == 0)
+        if (xrootd_connect_fd_deadline(fd, rp->ai_addr, rp->ai_addrlen,
+                                       XROOTD_CACHE_IO_TIMEOUT * 1000) == 0)
         {
             oc->fd = fd;
             rc = 0;

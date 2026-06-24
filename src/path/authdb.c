@@ -425,7 +425,7 @@ xrootd_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
                 match = 1;
             }
             break;
-        case XROOTD_AUTH_HOST:
+        case XROOTD_AUTHDB_HOST:
             match = xrootd_authdb_host_match(&rule[i].id, peer_ip);
             break;
         default:

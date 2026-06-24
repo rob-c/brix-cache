@@ -11,38 +11,13 @@
  *       are capped to defend against a server that never finishes.
  */
 #include "sec/sec.h"
+#include "protocol/sec_protocol.h"   /* shared "&P=" security-list parser */
 
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define XRDC_AUTH_MAX_ROUNDS 8
-
-/* Is "&P=<name>" advertised? If so copy its args (after the comma) into parms. */
-static int
-proto_advertised(const char *seclist, const char *name, char *parms, size_t psz)
-{
-    size_t      nlen = strlen(name);
-    const char *p = seclist;
-
-    while ((p = strstr(p, "&P=")) != NULL) {
-        const char *n = p + 3;
-        if (strncmp(n, name, nlen) == 0
-            && (n[nlen] == ',' || n[nlen] == '&' || n[nlen] == '\0')) {
-            const char *args = (n[nlen] == ',') ? n + nlen + 1 : "";
-            const char *end = strstr(args, "&P=");
-            size_t      alen = end ? (size_t) (end - args) : strlen(args);
-            if (alen >= psz) {
-                alen = psz - 1;
-            }
-            memcpy(parms, args, alen);
-            parms[alen] = '\0';
-            return 1;
-        }
-        p = n;
-    }
-    return 0;
-}
 
 static int
 send_auth(xrdc_conn *c, const char credtype[4], const uint8_t *payload,
@@ -127,7 +102,7 @@ int
 xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
                   xrdc_status *st)
 {
-    const xrdc_sec_module *mods[5];
+    const xrdc_sec_module *mods[7];
     int                    nmods = 0;
     int                    i;
     int                    tried = 0;
@@ -139,7 +114,8 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
         return 0;
     }
 
-    /* Preference order: gsi > ztn > krb5 > sss > unix. (NULL modules skipped.) */
+    /* Preference order: gsi > ztn > krb5 > sss > unix > host > pwd.
+     * (NULL skipped; each is tried only if the server advertised it.) */
     if (xrdc_sec_gsi() != NULL) {
         mods[nmods++] = xrdc_sec_gsi();
     }
@@ -147,6 +123,8 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
     mods[nmods++] = xrdc_sec_krb5();
     mods[nmods++] = xrdc_sec_sss();
     mods[nmods++] = xrdc_sec_unix();
+    mods[nmods++] = xrdc_sec_host();
+    mods[nmods++] = xrdc_sec_pwd();
 
     for (i = 0; i < nmods; i++) {
         const xrdc_sec_module *m = mods[i];
@@ -159,7 +137,7 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
             && strcmp(o->auth_force, m->name) != 0) {
             continue;
         }
-        if (!proto_advertised(seclist, m->name, parms, sizeof(parms))) {
+        if (!xrootd_sec_proto_advertised(seclist, m->name, parms, sizeof(parms))) {
             continue;
         }
         if (m->have_creds != NULL && !m->have_creds()) {
@@ -197,7 +175,7 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
 void
 xrdc_auth_explain(xrdc_conn *c, const xrdc_opts *o, FILE *out)
 {
-    const xrdc_sec_module *mods[5];
+    const xrdc_sec_module *mods[7];
     int                    nmods = 0, i, picked = 0;
     char                   parms[256];
 
@@ -208,6 +186,8 @@ xrdc_auth_explain(xrdc_conn *c, const xrdc_opts *o, FILE *out)
     mods[nmods++] = xrdc_sec_krb5();
     mods[nmods++] = xrdc_sec_sss();
     mods[nmods++] = xrdc_sec_unix();
+    mods[nmods++] = xrdc_sec_host();
+    mods[nmods++] = xrdc_sec_pwd();
 
     fprintf(out, "  sec list: %s\n",
             c->sec_list[0] ? c->sec_list : "(none — anonymous)");
@@ -225,7 +205,7 @@ xrdc_auth_explain(xrdc_conn *c, const xrdc_opts *o, FILE *out)
         if (o != NULL && o->auth_force != NULL
             && strcmp(o->auth_force, m->name) != 0) {
             why = "skipped (--auth filter)";
-        } else if (!proto_advertised(c->sec_list, m->name, parms, sizeof(parms))) {
+        } else if (!xrootd_sec_proto_advertised(c->sec_list, m->name, parms, sizeof(parms))) {
             why = "not offered by server";
         } else if (m->have_creds != NULL && !m->have_creds()) {
             why = "offered, but no local credentials";

@@ -1,6 +1,7 @@
 #include "tpc_internal.h"
 #include "../session/session.h"
 #include "../protocol/gsi.h"
+#include "../protocol/sec_protocol.h"   /* shared anchored "&P=" security-list parser */
 
 #include <stdio.h>
 #include <ctype.h>
@@ -42,8 +43,11 @@ tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
 
     parms = (char *) login_body + XROOTD_SESSION_ID_LEN;
 
-    want_ztn = (strstr(parms, "ztn") != NULL);
-    want_gsi = (strstr(parms, "gsi") != NULL);
+    /* Anchored "&P=<name>" match (shared with the native client), not a bare
+     * substring scan: a protocol name inside another entry's args or a trailing
+     * host must not select the wrong outbound credential. */
+    want_ztn = xrootd_sec_proto_advertised(parms, "ztn", NULL, 0);
+    want_gsi = xrootd_sec_proto_advertised(parms, "gsi", NULL, 0);
 
     have_ztn_cred = (t->delegated_token[0] != '\0'
                      || t->conf->tpc_outbound_bearer_file.len > 0) ? 1 : 0;

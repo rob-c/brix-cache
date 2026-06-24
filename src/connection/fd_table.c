@@ -1,6 +1,7 @@
 #include "fd_table.h"
 #include "../session/registry.h"
 #include "../cache/writethrough_metrics.h"
+#include "../write/pgw_fob.h"
 
 #include <errno.h>
 #include <string.h>
@@ -262,9 +263,15 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
      * POSC cleanup: if posc_final_path is still set here the session ended
      * without a clean kXR_close (disconnect, error, or abandon).  Unlink the
      * temp staging file so partial writes are not left on disk.
+     *
+     * EXCEPTION — upload resume (is_resume): the partial is deterministic and
+     * identity-keyed, so it is PRESERVED on a non-clean close.  That is the
+     * whole mechanism: the same client reconnecting re-opens it in place (no
+     * truncate) and resumes from its offset.  Abandoned partials are reclaimed
+     * by an operator glob-clean ("*.xrdresume.*.part") rather than here.
      */
     if (file->posc_final_path != NULL) {
-        if (file->path != NULL) {
+        if (file->path != NULL && !file->is_resume) {
             (void) unlink(file->path);
         }
         ngx_free(file->posc_final_path);
@@ -298,6 +305,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     file->ckp_path       = NULL;
     file->ckp_size       = 0;
     file->posc_final_path = NULL;
+    file->is_resume       = 0;
     file->tpc_destination = 0;
     file->tpc_armed       = 0;
     file->tpc_started     = 0;
@@ -320,6 +328,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     file->wrts_head        = 0;
     file->wrts_count       = 0;
     file->wrts_gen         = 0;
+    xrootd_pgw_fob_reset(file);
 }
 
 /* ---- xrootd_close_all_files — teardown every allocated file handle slot ----

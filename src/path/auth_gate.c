@@ -9,8 +9,10 @@
 #include "ngx_xrootd_module.h"
 #include "path/auth_gate.h"
 #include "path/auth_cache.h"
+#include "path/auth_gate_l1.h"
 #include "compat/crypto.h"
 #include "acc/acc.h"
+#include "metrics/metrics_macros.h"   /* Phase 51 (E6): auth-gate L1 counters */
 
 /*
  * xrootd_acc_gate_engine — tier-1 authorization via the faithful XrdAcc engine
@@ -202,6 +204,9 @@ xrootd_auth_gate_cache_put(ngx_stream_xrootd_srv_conf_t *conf,
     cv.pad        = 0;
     (void) xrootd_kv_set(conf->auth_cache.kv, key, 32, &cv, sizeof(cv),
                          (ngx_msec_t) conf->auth_cache.ttl_secs * 1000);
+    /* E2: also populate the per-worker L1 so the next hit skips the SHM lock. */
+    xrootd_auth_l1_store(conf->auth_l1, key, &cv,
+                         (ngx_msec_t) conf->auth_cache.ttl_secs * 1000);
 }
 
 ngx_int_t
@@ -223,18 +228,37 @@ xrootd_auth_gate_op(xrootd_ctx_t *ctx, ngx_connection_t *c,
     xrootd_acc_op_t  key_aop  = is_xrdacc ? aop : XROOTD_AOP_ANY;
     const char      *key_host = is_xrdacc ? ctx->peer_ip : "";
 
-    /* ---- auth-result cache: fast path ---- */
+    /* ---- auth-result cache: fast path (E2: lockless L1, then SHM L2) ---- */
     if (conf->auth_cache.kv != NULL) {
         ac_have_key = xrootd_auth_gate_cache_key(ac_key, auth_level,
                                                  need_write, key_aop, key_host,
                                                  reqpath, resolved, ctx);
         if (ac_have_key) {
             xrootd_auth_cache_val_t cv;
-            size_t                  cl = sizeof(cv);
+            int                     got = 0;
 
-            if (xrootd_kv_get(conf->auth_cache.kv, ac_key, sizeof(ac_key),
-                              &cv, &cl) == 1 && cl == sizeof(cv))
-            {
+            /* Lazily create the per-worker L1 (COW-private per worker). */
+            if (conf->auth_l1 == NULL) {
+                conf->auth_l1 = xrootd_auth_l1_create(ngx_cycle->pool, 0);
+            }
+
+            if (xrootd_auth_l1_lookup(conf->auth_l1, ac_key, &cv)) {
+                got = 1;                       /* L1 hit — no SHM spinlock */
+                XROOTD_RESIL_METRIC_INC(auth_l1_hits_total);
+            } else {
+                XROOTD_RESIL_METRIC_INC(auth_l1_misses_total);
+                size_t cl = sizeof(cv);
+                if (xrootd_kv_get(conf->auth_cache.kv, ac_key, sizeof(ac_key),
+                                  &cv, &cl) == 1 && cl == sizeof(cv))
+                {
+                    got = 1;
+                    /* Promote the L2 hit into L1 for the next presentation. */
+                    xrootd_auth_l1_store(conf->auth_l1, ac_key, &cv,
+                        (ngx_msec_t) conf->auth_cache.ttl_secs * 1000);
+                }
+            }
+
+            if (got) {
                 if (!cv.allowed) {
                     xrootd_log_access(ctx, c, op_name, resolved, "-",
                                       0, kXR_NotAuthorized,

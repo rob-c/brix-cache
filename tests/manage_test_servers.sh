@@ -1502,12 +1502,22 @@ start_all_dedicated() {
     UPSTREAM_PORT="${CHAOS_TIER2_PORT:-11164}" \
         start_dedicated_nginx "chaos-tier1" "nginx_proxy.conf" "${CHAOS_TIER1_PORT:-11165}"
 
-    # Chaos Mesh discovery cluster: separate redirector + DS for delayed-CMS tests
+    # Chaos Mesh discovery cluster: separate redirector + DS for delayed-CMS tests.
+    # Start the DATA SERVER first, while its CMS manager (the redirector) is still
+    # DOWN, so the DS logs a failed CMS login and then registers successfully once
+    # the redirector comes up.  That is the exact delayed-start sequence asserted by
+    # test_chaos_mesh::test_delayed_cms_start_registers_data_server; starting the
+    # redirector first let the DS connect immediately, so the "failed then
+    # successful" evidence never appeared.
     local chaos_cms_port="${CHAOS_DISCOVERY_CMS_PORT:-11167}"
-    CMS_PORT="${chaos_cms_port}" \
-        start_dedicated_nginx "chaos-discovery-redir" "nginx_cluster_redir.conf" "${CHAOS_DISCOVERY_REDIR_PORT:-11166}"
     CMS_PORT="${chaos_cms_port}" CMS_PATHS="/chaos-discovery" \
         start_dedicated_nginx "chaos-discovery-ds" "nginx_cluster_ds.conf" "${CHAOS_DISCOVERY_DS_PORT:-11168}"
+    # Give the DS time to fire (and FAIL) at least one CMS login while its manager
+    # is still down — this is the failure window the delayed-start test looks for.
+    # The CMS heartbeat connects within ~1 s of startup, so a few seconds suffices.
+    sleep 4
+    CMS_PORT="${chaos_cms_port}" \
+        start_dedicated_nginx "chaos-discovery-redir" "nginx_cluster_redir.conf" "${CHAOS_DISCOVERY_REDIR_PORT:-11166}"
 
     # Proxy mode test pair (test_proxy_mode.py)
     start_extra_ref_anon "proxy-upstream" "${PROXY_UPSTREAM_PORT:-12501}" "${TEST_ROOT}/data-proxy-upstream"

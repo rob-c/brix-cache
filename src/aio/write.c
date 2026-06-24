@@ -85,7 +85,7 @@ xrootd_write_aio_done(ngx_event_t *ev)
          * this ack's frame) and queue the reply asynchronously (resp_async →
          * parked in the out_ring, drained by the write event, recv untouched).
          * Then nudge the read side in case recv throttled on out_count +
-         * wr_inflight reaching XROOTD_PIPELINE_MAX.
+         * wr_inflight reaching ctx->pipeline_depth.
          */
         const char *errmsg = NULL;
 
@@ -226,11 +226,20 @@ xrootd_write_aio_done(ngx_event_t *ev)
 
     /*
      * Reply framing differs by opcode: kXR_pgwrite expects a kXR_status response
-     * carrying the next expected offset (offset just past the bytes committed),
-     * whereas plain kXR_write expects a bare kXR_ok with no body.
+     * whose "info" offset echoes the REQUEST offset (where the data landed,
+     * matching the reference do_pgWrite — not offset+len, which diverged from
+     * stock in test_conf_pgio), whereas plain kXR_write expects a bare kXR_ok.
      */
     if (t->is_pgwrite) {
-        xrootd_send_pgwrite_status(ctx, c, t->req_offset + (int64_t) t->nwritten);
+        /* CSE: one or more pages failed CRC32c. The data is already on disk
+         * (accept-then-correct); reply with the retransmit list so the client
+         * resends those pages with kXR_pgRetry. */
+        if (t->bad_page_count > 0) {
+            xrootd_send_pgwrite_cse(ctx, c, t->req_offset,
+                                    t->bad_pages, t->bad_page_count);
+        } else {
+            xrootd_send_pgwrite_status(ctx, c, t->req_offset);
+        }
     } else {
         xrootd_send_ok(ctx, c, NULL, 0);
     }

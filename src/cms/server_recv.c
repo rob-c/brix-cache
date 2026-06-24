@@ -1,4 +1,5 @@
 #include "server.h"
+#include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
 /* ---- xrootd_cms_srv_close — tear down CMS server-side connection and unregister data server ----
  * WHAT: Closes the TCP connection to a CMS data-server client, removes ping timer, and unregisters from the server registry if logged_in. WHY: When a data server disconnects, it must be removed from the CMS manager's registry so locate queries don't route clients to dead servers. HOW: 1) If ping_timer set → remove timer → 2) If logged_in → unregister host/port from registry → 3) Set ctx->c = NULL → 4) Close TCP connection. */
@@ -15,6 +16,18 @@ xrootd_cms_srv_close(xrootd_cms_srv_ctx_t *ctx)
 
     if (ctx->ping_timer.timer_set) {
         ngx_del_timer(&ctx->ping_timer);
+    }
+
+    /* WS3: cancel the login/idle read deadline before tearing the socket down. */
+    if (c->read->timer_set) {
+        ngx_del_timer(c->read);
+    }
+
+    /* WS4 + A3: release the admission-cap slots (global + per-IP) exactly once. */
+    if (ctx->counted) {
+        xrootd_cms_srv_conn_dec();
+        xrootd_cms_srv_ip_dec(ctx->host);
+        ctx->counted = 0;
     }
 
     if (ctx->logged_in) {
@@ -305,6 +318,19 @@ cms_srv_complete_login(xrootd_cms_srv_ctx_t *ctx)
     ctx->ping_timer.handler = xrootd_cms_srv_ping_timer;
     ngx_add_timer(&ctx->ping_timer, ctx->interval_ms);
 
+    /*
+     * WS3: switch the read deadline from the LOGIN handshake bound to the
+     * post-login idle watchdog.  Re-armed on every received frame in
+     * xrootd_cms_srv_read; if the node goes silent for idle_timeout_ms it is
+     * closed + unregistered + blacklisted (reaps a black-holed node the ping
+     * send cannot detect).  0 = disabled.
+     */
+    if (ctx->idle_timeout_ms > 0 && ctx->c != NULL) {
+        ngx_add_timer(ctx->c->read, ctx->idle_timeout_ms);
+    } else if (ctx->c != NULL && ctx->c->read->timer_set) {
+        ngx_del_timer(ctx->c->read);   /* idle watchdog disabled — drop login timer */
+    }
+
     ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                   "xrootd: CMS server: registered %s:%d paths=[%s] "
                   "free_mb=%uD util_pct=%uD",
@@ -444,11 +470,19 @@ xrootd_cms_srv_read(ngx_event_t *ev)
     ssize_t                n;
     uint16_t               dlen;
     u_char                 code;
+    ngx_uint_t             processed = 0;
 
     c   = ev->data;
     ctx = c->data;
 
     if (ev->timedout) {
+        /* A1: distinguish the LOGIN-handshake deadline from the post-login idle
+         * watchdog (both fire this handler via the c->read timer). */
+        if (ctx->logged_in) {
+            XROOTD_RESIL_METRIC_INC(cms_idle_closes_total);
+        } else {
+            XROOTD_RESIL_METRIC_INC(cms_login_timeouts_total);
+        }
         xrootd_cms_srv_close(ctx);
         return;
     }
@@ -505,6 +539,28 @@ xrootd_cms_srv_read(ngx_event_t *ev)
 
         ctx->in_pos  = 0;
         ctx->in_need = NGX_XROOTD_CMS_HDR_LEN;
+
+        /*
+         * WS3: a complete frame proves the node is alive — reset the post-login
+         * idle watchdog.  Pre-login the absolute LOGIN deadline armed at accept is
+         * deliberately NOT reset here, so a slowloris that completes one frame
+         * cannot extend its handshake window.
+         */
+        if (ctx->logged_in && ctx->idle_timeout_ms > 0) {
+            ngx_add_timer(ctx->c->read, ctx->idle_timeout_ms);
+        }
+
+        /* A2: fairness — yield after a bounded number of frames and resume via a
+         * posted read event, so a flooding data node cannot monopolise the loop. */
+        if (++processed >= NGX_XROOTD_CMS_MAX_FRAMES_PER_WAKEUP) {
+            if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
+                xrootd_cms_srv_close(ctx);
+                return;
+            }
+            XROOTD_RESIL_METRIC_INC(cms_frame_yields_total);
+            ngx_post_event(c->read, &ngx_posted_events);
+            return;
+        }
     }
 
     if (ngx_handle_read_event(c->read, 0) != NGX_OK) {

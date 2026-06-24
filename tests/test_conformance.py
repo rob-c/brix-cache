@@ -325,14 +325,20 @@ class TestReadConformance:
 _BASELINE_FILES = {"test.txt", "random.bin", "large200.bin"}
 
 
-def _dirlist_retry(fs, path, flags=DirListFlags.STAT, attempts=6, delay=0.25):
-    """dirlist with a small retry.  The reference OFFICIAL xrootd transiently
-    returns '[ERROR] Invalid response' to a dirlist issued while it is under
-    concurrent dirlist load (an xrootd-client quirk, not an nginx behaviour);
-    retrying smooths it so the conformance comparison stays deterministic."""
+def _dirlist_retry(fs, path, flags=DirListFlags.STAT, attempts=10, delay=0.3):
+    """dirlist with a retry.  The reference OFFICIAL xrootd transiently returns
+    '[ERROR] Invalid response' to a dirlist issued while it is under concurrent
+    dirlist load (an xrootd-client framing quirk, not an nginx behaviour).
+
+    That error corrupts the pooled client connection, so retrying on the SAME
+    FileSystem can keep hitting it under sustained full-suite load.  When the
+    caller passes a URL string we therefore reconnect on a FRESH FileSystem each
+    attempt (a new connection sidesteps the poisoned one); a FileSystem object is
+    still accepted for callers that already hold one."""
     st = listing = None
     for _ in range(attempts):
-        st, listing = fs.dirlist(path, flags)
+        this_fs = _fs(fs) if isinstance(fs, str) else fs
+        st, listing = this_fs.dirlist(path, flags)
         if st.ok:
             return st, listing
         time.sleep(delay)
@@ -342,7 +348,8 @@ def _dirlist_retry(fs, path, flags=DirListFlags.STAT, attempts=6, delay=0.25):
 class TestDirlistConformance:
 
     def _entry_names(self, url: str, path: str) -> set[str]:
-        st, listing = _dirlist_retry(_fs(url), path)
+        # Pass the URL (not a FileSystem) so each retry reconnects fresh.
+        st, listing = _dirlist_retry(url, path)
         assert st.ok, f"dirlist({url}{path}) failed: {st.message}"
         return {e.name for e in listing}
 
@@ -363,8 +370,8 @@ class TestDirlistConformance:
         """Both servers should agree on file sizes in a STAT dirlist."""
         path, content = scratch
         # list the parent dir (root) and find our file
-        n_st, n_listing = _dirlist_retry(_fs(NGINX_URL), "//")
-        r_st, r_listing = _dirlist_retry(_fs(REF_URL  ), "//")
+        n_st, n_listing = _dirlist_retry(NGINX_URL, "//")
+        r_st, r_listing = _dirlist_retry(REF_URL, "//")
         assert n_st.ok and r_st.ok
 
         fname = os.path.basename(path)

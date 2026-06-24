@@ -28,6 +28,7 @@
 
 #include "config.h"
 #include "root_prepare.h"
+#include "../compat/staged_file.h"
 
 ngx_int_t
 xrootd_config_prepare_server(ngx_conf_t *cf,
@@ -44,6 +45,25 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                                        xcf->common.root_canon) != NGX_CONF_OK)
         {
             return NGX_ERROR;
+        }
+
+        /* Optional fast-cache upload staging device.  Canonicalize once here; an
+         * unset/empty value leaves upload_stage_dir_canon empty (stage adjacent
+         * to the destination).  A configured-but-bad path fails config loudly. */
+        if (xcf->upload_stage_dir.len > 0) {
+            xrootd_export_root_opts_t stage_opts;
+            stage_opts.directive_name = "xrootd_stage_dir";
+            stage_opts.allow_write    = 1;
+            stage_opts.required       = 0;
+            stage_opts.canon_size     = sizeof(xcf->upload_stage_dir_canon);
+            if (xrootd_prepare_export_root(cf, &xcf->upload_stage_dir,
+                    &stage_opts, xcf->upload_stage_dir_canon) != NGX_CONF_OK)
+            {
+                return NGX_ERROR;
+            }
+            /* Track for the stage-out reaper (finishes interrupted cache->storage
+             * commits across restarts). */
+            xrootd_stage_dir_register(xcf->upload_stage_dir_canon);
         }
     }
 
@@ -106,42 +126,45 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
     if (xcf->access_log.len > 0
         && ngx_strcmp(xcf->access_log.data, (u_char *) "off") != 0)
     {
-        xcf->access_log_fd = ngx_open_file(xcf->access_log.data,
-            NGX_FILE_WRONLY,
-            NGX_FILE_CREATE_OR_OPEN | NGX_FILE_APPEND,
-            NGX_FILE_DEFAULT_ACCESS);
-
-        if (xcf->access_log_fd == NGX_INVALID_FILE) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "xrootd: cannot open access log \"%s\"",
-                xcf->access_log.data);
+        /*
+         * Register the log with nginx (cycle->open_files) rather than opening a
+         * raw fd here.  The master opens it during ngx_init_cycle, reopens it on
+         * USR1 (dup2 onto the same fd number), and closes it cleanly when the
+         * cycle is torn down — so log rotation and `nginx -s reload` no longer
+         * leak fds or keep writing to a rotated inode.  Each worker captures
+         * file->fd into access_log_fd in init_process (the fd is not yet open at
+         * this config-time point).
+         */
+        xcf->access_log_file = ngx_conf_open_file(cf->cycle, &xcf->access_log);
+        if (xcf->access_log_file == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd: cannot register access log \"%V\"",
+                &xcf->access_log);
             return NGX_ERROR;
         }
 
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd: access log \"%s\" opened",
-            xcf->access_log.data);
+            "xrootd: access log \"%V\" registered",
+            &xcf->access_log);
     }
 
     if (xcf->proxy_enable
         && xcf->proxy_audit_log.len > 0
         && ngx_strcmp(xcf->proxy_audit_log.data, (u_char *) "off") != 0)
     {
-        xcf->proxy_audit_log_fd = ngx_open_file(xcf->proxy_audit_log.data,
-            NGX_FILE_WRONLY,
-            NGX_FILE_CREATE_OR_OPEN | NGX_FILE_APPEND,
-            NGX_FILE_DEFAULT_ACCESS);
-
-        if (xcf->proxy_audit_log_fd == NGX_INVALID_FILE) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "xrootd: cannot open proxy audit log \"%s\"",
-                xcf->proxy_audit_log.data);
+        /* nginx-managed handle; see the access-log note above. */
+        xcf->proxy_audit_log_file = ngx_conf_open_file(cf->cycle,
+                                                       &xcf->proxy_audit_log);
+        if (xcf->proxy_audit_log_file == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd: cannot register proxy audit log \"%V\"",
+                &xcf->proxy_audit_log);
             return NGX_ERROR;
         }
 
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "xrootd: proxy audit log \"%s\" opened",
-            xcf->proxy_audit_log.data);
+            "xrootd: proxy audit log \"%V\" registered",
+            &xcf->proxy_audit_log);
     }
 
 #if (NGX_SSL)

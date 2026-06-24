@@ -25,6 +25,7 @@
 #include "../compat/http_query.h"
 #include "../compat/uri.h"
 #include "../compat/xml.h"
+#include "../fs/vfs.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -42,23 +43,50 @@
 
 /* ---- xattr-backed tag store --------------------------------------------- */
 
+/*
+ * s3_tag_vfs_ctx — build a transient VFS request descriptor for the (already
+ * resolved, confined) object path.  Replicates the reference helper in object.c
+ * (s3_vfs_ctx) so the tag xattr ops route through the VFS xattr surface
+ * (metrics + access-log) while delegating the same brokered confined-xattr
+ * syscalls underneath.
+ */
+static void
+s3_tag_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+{
+    ngx_http_s3_req_ctx_t *s3ctx;
+    int                    is_tls = 0;
+
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+}
+
 /* Read the stored tag blob into out (NUL-terminated). Returns length, 0 if
  * none, -1 on error. */
 static ssize_t
 s3_tag_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *fs_path, char *out, size_t outsz)
 {
-    ssize_t n;
+    xrootd_vfs_ctx_t vctx;
+    ssize_t          n;
 
     /*
-     * Impersonation: read the tag xattr AS THE MAPPED USER via the brokered
-     * confined-xattr helper — NOT a worker-side fgetxattr on a broker-opened fd,
-     * which would evaluate the xattr-read DAC as the unprivileged worker (svc).
-     * Mirrors the WebDAV LOCK/PROPPATCH path (webdav/prop_xattr.c).  Off
-     * impersonation the helper is a plain path-based getxattr.
+     * Impersonation: read the tag xattr AS THE MAPPED USER via the VFS xattr
+     * surface, which delegates to the brokered confined-xattr helper — NOT a
+     * worker-side fgetxattr on a broker-opened fd, which would evaluate the
+     * xattr-read DAC as the unprivileged worker (svc).  Mirrors the WebDAV
+     * LOCK/PROPPATCH path (webdav/prop_xattr.c).  Off impersonation the helper
+     * is a plain path-based getxattr.
      */
-    n = xrootd_getxattr_confined_canon(r->connection->log, cf->common.root_canon,
-                                       fs_path, S3_TAG_XATTR, out, outsz - 1);
+    s3_tag_vfs_ctx(r, fs_path, cf, &vctx);
+    n = xrootd_vfs_getxattr(&vctx, S3_TAG_XATTR, out, outsz - 1);
     if (n < 0) {
         if (errno == ENODATA || errno == ENOTSUP || errno == EOPNOTSUPP) {
             return 0;   /* object readable, just carries no tags */
@@ -74,7 +102,7 @@ static ngx_int_t
 s3_tag_store(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *fs_path, const char *blob, size_t blob_len, int remove_it)
 {
-    int rc;
+    xrootd_vfs_ctx_t vctx;
 
     /*
      * Impersonation (the bug this fixes): the old path opened O_RDONLY via the
@@ -83,20 +111,24 @@ s3_tag_store(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * mapped user.  Effect: (a) the legitimate owner's PutObjectTagging failed
      * (svc is "other" on the owner's file), and (b) on a permissive backing FS a
      * requester who could merely READ another tenant's object could mutate/remove
-     * its tags.  Route the MUTATION through the brokered confined-xattr helper
-     * (broker setfsuid -> f{set,remove}xattr as the mapped user, user.* namespace
-     * filter), exactly like WebDAV LOCK/PROPPATCH.  Off impersonation it is a plain
-     * path-based syscall (unchanged behaviour).
+     * its tags.  Route the MUTATION through the VFS xattr surface, which delegates
+     * to the brokered confined-xattr helper (broker setfsuid -> f{set,remove}xattr
+     * as the mapped user, user.* namespace filter), exactly like WebDAV
+     * LOCK/PROPPATCH.  Off impersonation it is a plain path-based syscall
+     * (unchanged behaviour).  Note: VFS set/remove xattr are intentionally NOT
+     * allow_write-gated, matching the prior direct-helper behaviour.
      */
+    s3_tag_vfs_ctx(r, fs_path, cf, &vctx);
+
     if (remove_it) {
-        rc = xrootd_removexattr_confined_canon(r->connection->log,
-                 cf->common.root_canon, fs_path, S3_TAG_XATTR);
-        return (rc == 0 || errno == ENODATA) ? NGX_OK : NGX_ERROR;
+        if (xrootd_vfs_removexattr(&vctx, S3_TAG_XATTR) == NGX_OK) {
+            return NGX_OK;
+        }
+        return (errno == ENODATA) ? NGX_OK : NGX_ERROR;
     }
 
-    rc = xrootd_setxattr_confined_canon(r->connection->log, cf->common.root_canon,
-             fs_path, S3_TAG_XATTR, blob, blob_len, 0);
-    return (rc == 0) ? NGX_OK : NGX_ERROR;
+    return xrootd_vfs_setxattr(&vctx, S3_TAG_XATTR, blob, blob_len, 0) == NGX_OK
+           ? NGX_OK : NGX_ERROR;
 }
 
 /* ---- validation --------------------------------------------------------- */

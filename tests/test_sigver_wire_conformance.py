@@ -194,7 +194,11 @@ def _sigver(sock, expectrid, seqno, hmac=None, *,
                       crypto & 0xFF, b"\x00\x00\x00",
                       dlen)
     sock.sendall(req + hmac)
-    return _read_response(sock)
+    # kXR_sigver is a request PREFIX — it draws NO response on the no-op
+    # (signing_active=0) path or on a valid signing-active envelope; the single
+    # reply belongs to the covered request that follows.  So we do NOT read here.
+    # (A signing-active *rejection* — replay / bad-length — would draw a
+    # kXR_error, but those paths require a live DH key and are skipped below.)
 
 
 # ---------------------------------------------------------------------------
@@ -279,83 +283,66 @@ class TestSigverAnonNoOp:
     """kXR_sigver on a no-signing-key session: accepted, never verified."""
 
     def test_seqno_boundary_0_and_1(self, sess):
-        """seqno 0 then 1 — both accepted on the no-op path (no monotonic
-        rejection because no signing key is active)."""
+        """seqno 0 then 1 — both silently accepted on the no-op path (no signing
+        key, so no monotonic rejection); each covered ping must still succeed."""
         sock = sess
-        _, st0, b0 = _sigver(sock, expectrid=kXR_ping, seqno=0,
-                             streamid=b"\x00\x30")
-        assert st0 == kXR_ok, _error_code(b0)
-        # The covered ping must still work despite a 0-seqno sigver.
+        _sigver(sock, expectrid=kXR_ping, seqno=0, streamid=b"\x00\x30")
+        # The covered ping must still work despite a 0-seqno sigver prefix.
         assert _ping(sock, streamid=b"\x00\x31")[1] == kXR_ok
-        _, st1, b1 = _sigver(sock, expectrid=kXR_ping, seqno=1,
-                             streamid=b"\x00\x32")
-        assert st1 == kXR_ok, _error_code(b1)
+        _sigver(sock, expectrid=kXR_ping, seqno=1, streamid=b"\x00\x32")
         assert _ping(sock, streamid=b"\x00\x33")[1] == kXR_ok
 
     def test_seqno_uint64_max_no_overflow_bypass(self, sess):
-        """seqno = 2**64-1 must parse as an unsigned 64-bit value and not wrap
-        to a negative/zero that bypasses the (inactive) replay guard; on the
-        no-op path it is simply accepted and the session stays usable."""
+        """seqno = 2**64-1 must parse as an unsigned 64-bit value (not wrap to a
+        value that would bypass a replay guard); on the no-op path it is silently
+        accepted and a following smaller-seqno sigver must not desync the
+        session."""
         sock = sess
-        _, st, body = _sigver(sock, expectrid=kXR_ping, seqno=UINT64_MAX,
-                              streamid=b"\x00\x34")
-        assert st == kXR_ok, _error_code(body)
-        # A following sigver with a *smaller* seqno must not crash the worker.
-        _, st2, _ = _sigver(sock, expectrid=kXR_ping, seqno=5,
-                            streamid=b"\x00\x35")
-        assert st2 == kXR_ok
+        _sigver(sock, expectrid=kXR_ping, seqno=UINT64_MAX, streamid=b"\x00\x34")
+        _sigver(sock, expectrid=kXR_ping, seqno=5, streamid=b"\x00\x35")
         assert _ping(sock, streamid=b"\x00\x36")[1] == kXR_ok
 
     def test_exact_replay_same_seqno_hmac(self, sess):
         """Identical seqno+hmac sent twice.  On a signing-active session the
-        second is a replay (kXR_NotAuthorized); on the no-op anon path both
-        are accepted — assert the actual no-op behaviour and survival."""
+        second is a replay (kXR_NotAuthorized); on the no-op anon path both are
+        silent no-ops — assert the session survives."""
         sock = sess
         hmac = bytes(range(32))
-        _, st1, _ = _sigver(sock, expectrid=kXR_ping, seqno=42, hmac=hmac,
-                            streamid=b"\x00\x37")
-        _, st2, b2 = _sigver(sock, expectrid=kXR_ping, seqno=42, hmac=hmac,
-                             streamid=b"\x00\x38")
-        assert st1 == kXR_ok
-        # No signing key => replay detection inactive => accepted again.
-        assert st2 == kXR_ok, _error_code(b2)
+        _sigver(sock, expectrid=kXR_ping, seqno=42, hmac=hmac, streamid=b"\x00\x37")
+        _sigver(sock, expectrid=kXR_ping, seqno=42, hmac=hmac, streamid=b"\x00\x38")
         assert _ping(sock, streamid=b"\x00\x39")[1] == kXR_ok
 
     def test_large_seqno_jump_accepted(self, sess):
-        """A huge forward jump in seqno is legal (monotonic-increasing only);
-        it must be accepted on both active and no-op paths."""
+        """A huge forward jump in seqno is legal (monotonic-increasing only) and
+        a silent no-op here; the session stays usable."""
         sock = sess
-        _, st1, _ = _sigver(sock, expectrid=kXR_ping, seqno=1,
-                            streamid=b"\x00\x3a")
-        _, st2, body = _sigver(sock, expectrid=kXR_ping, seqno=1 << 50,
-                              streamid=b"\x00\x3b")
-        assert st1 == kXR_ok
-        assert st2 == kXR_ok, _error_code(body)
+        _sigver(sock, expectrid=kXR_ping, seqno=1, streamid=b"\x00\x3a")
+        _sigver(sock, expectrid=kXR_ping, seqno=1 << 50, streamid=b"\x00\x3b")
         assert _ping(sock, streamid=b"\x00\x3c")[1] == kXR_ok
 
     def test_interleaved_sigver_and_non_sigver(self, data_file):
         """Interleave sigver with ordinary opcodes: sigver, ping, sigver,
-        open+close, sigver, stat.  The pending-state machine must not bleed
-        across unrelated requests on the no-op path."""
+        open+close, sigver, stat.  The (no-op) pending-state machine must not
+        bleed across unrelated requests."""
         sock = _session()
         try:
-            assert _sigver(sock, kXR_ping, 1, streamid=b"\x00\x3d")[1] == kXR_ok
+            _sigver(sock, kXR_ping, 1, streamid=b"\x00\x3d")
             assert _ping(sock, streamid=b"\x00\x3e")[1] == kXR_ok
-            assert _sigver(sock, kXR_open, 2, streamid=b"\x00\x3f")[1] == kXR_ok
+            _sigver(sock, kXR_open, 2, streamid=b"\x00\x3f")
             _, ost, ob = _open(sock, data_file, kXR_open_read,
                                streamid=b"\x00\x40")
             assert ost == kXR_ok, _error_code(ob)
             fh = ob[:4]
             assert _close(sock, fh, streamid=b"\x00\x41")[1] == kXR_ok
-            assert _sigver(sock, kXR_stat, 3, streamid=b"\x00\x42")[1] == kXR_ok
+            _sigver(sock, kXR_stat, 3, streamid=b"\x00\x42")
             _, sst, _ = _stat(sock, data_file, streamid=b"\x00\x43")
             assert sst == kXR_ok
         finally:
             sock.close()
 
     def test_sigver_on_token_auth_no_signing_key_no_crash(self):
-        """sigver against the token endpoint (signing_active=0): handler takes
-        the no-op branch, must return kXR_ok and not crash the worker.
+        """sigver against the token endpoint (signing_active=0): the handler
+        takes the silent no-op branch and the following ping still works.
 
         Skips cleanly if the token endpoint is unreachable."""
         try:
@@ -363,25 +350,21 @@ class TestSigverAnonNoOp:
         except (OSError, AssertionError) as exc:
             pytest.skip(f"token endpoint {NGINX_TOKEN_PORT} unusable: {exc}")
         try:
-            _, st, body = _sigver(sock, expectrid=kXR_ping, seqno=7,
-                                  streamid=b"\x00\x44")
-            # No-op path: accepted without verification (no signing key).
-            assert st == kXR_ok, _error_code(body)
+            _sigver(sock, expectrid=kXR_ping, seqno=7, streamid=b"\x00\x44")
             assert _ping(sock, streamid=b"\x00\x45")[1] == kXR_ok
         finally:
             sock.close()
 
     def test_sigver_anonymous_accepted_but_not_verified(self, data_file):
-        """On anon: a sigver naming a *wrong* expectrid + bogus HMAC is still
-        accepted (kXR_ok), and the subsequent (mismatched) open succeeds —
-        proving no verification is enforced without a signing key."""
+        """On anon: a sigver naming a *wrong* expectrid + bogus HMAC is a no-op
+        (no verification without a signing key), so the subsequent (mismatched)
+        open still succeeds."""
         sock = _session()
         try:
             # Claim the next op is a write, then actually do a read-open: with
             # no signing key the expectrid is never checked.
-            _, st, body = _sigver(sock, expectrid=3019, seqno=11,
-                                  hmac=b"\xab" * 32, streamid=b"\x00\x46")
-            assert st == kXR_ok, _error_code(body)
+            _sigver(sock, expectrid=3019, seqno=11, hmac=b"\xab" * 32,
+                    streamid=b"\x00\x46")
             _, ost, ob = _open(sock, data_file, kXR_open_read,
                                streamid=b"\x00\x47")
             assert ost == kXR_ok, "covered op must succeed unverified on anon"
@@ -391,30 +374,23 @@ class TestSigverAnonNoOp:
 
     def test_nodata_sig_flag_with_large_payload(self, sess):
         """The kXR_nodata flag claims the payload was not hashed.  Send it with
-        a full HMAC body; on the no-op path it is accepted, and a following
-        request with a real payload (open with a path) must still work — the
-        nodata flag must not corrupt body framing."""
+        a full HMAC body; on the no-op path it is a silent accept, and a
+        following request must still work — the nodata flag must not corrupt
+        body framing."""
         sock = sess
-        _, st, body = _sigver(sock, expectrid=kXR_open, seqno=21,
-                              hmac=bytes(range(32)),
-                              flags=kXR_nodata, streamid=b"\x00\x49")
-        assert st == kXR_ok, _error_code(body)
-        # Sanity op that itself carries a payload (the path string).
+        _sigver(sock, expectrid=kXR_open, seqno=21, hmac=bytes(range(32)),
+                flags=kXR_nodata, streamid=b"\x00\x49")
         assert _ping(sock, streamid=b"\x00\x4a")[1] == kXR_ok
 
     def test_short_body_on_active_else_noop(self, sess):
-        """A sigver with a <32-byte HMAC body.  On a signing-active session
-        this is kXR_ArgInvalid ("sigver body too short"); on the no-op anon
-        path the body length is never inspected, so it is accepted.  Assert
-        the anon behaviour and prove survival either way."""
+        """A sigver with a <32-byte HMAC body.  On a signing-active session this
+        is kXR_ArgInvalid ("sigver body too short"); on the no-op anon path the
+        body length is never inspected, so it is a silent no-op — prove the
+        session survives."""
         sock = sess
         # dlen advertises 8 bytes only.
-        _, st, body = _sigver(sock, expectrid=kXR_ping, seqno=31,
-                              hmac=b"\x00" * 8, streamid=b"\x00\x4b")
-        # Anon no-op: accepted. (Active path would be kXR_ArgInvalid.)
-        assert st in (kXR_ok, kXR_error)
-        if st == kXR_error:
-            assert _error_code(body) == kXR_ArgInvalid
+        _sigver(sock, expectrid=kXR_ping, seqno=31, hmac=b"\x00" * 8,
+                streamid=b"\x00\x4b")
         assert _ping(sock, streamid=b"\x00\x4c")[1] == kXR_ok
 
 

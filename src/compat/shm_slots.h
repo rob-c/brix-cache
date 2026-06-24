@@ -75,4 +75,16 @@ void  *xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data,
                               ngx_flag_t *fresh);
 size_t xrootd_shm_zone_size(size_t table_bytes);
 
+/*
+ * xrootd_shm_zone_warn_on_resize(): emit a config-time WARN when `zn` is being
+ * declared at a different size than the same-named zone in the currently running
+ * cycle (i.e. an operator changed a slot-count directive and reloaded). nginx
+ * cannot resize a live zone, so it allocates a fresh one and the table's contents
+ * are dropped for new connections. `directive` names the offending directive in
+ * the message. A no-op on first start (no prior cycle). Call right after the
+ * matching ngx_shared_memory_add().
+ */
+void   xrootd_shm_zone_warn_on_resize(ngx_conf_t *cf, ngx_shm_zone_t *zn,
+                                      const char *directive);
+
 #endif /* XROOTD_COMPAT_SHM_SLOTS_H */

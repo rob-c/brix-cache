@@ -18,6 +18,7 @@
 
 #include "../ngx_xrootd_module.h"
 #include <netinet/tcp.h>   /* Phase 39: TCP_USER_TIMEOUT / TCP_KEEPIDLE etc. */
+#include "netopt.h"        /* Phase 50: shared dead-peer setsockopt helper */
 
 /* ---- ngx_stream_xrootd_handler — stream-module connection entry point (per-connection init) ----
  *
@@ -101,38 +102,40 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
         ctx->send_timeout_ms      = mconf->send_timeout;
 
         /*
+         * Allocate the per-connection pipeline rings sized to the configured
+         * depth (xrootd_pipeline_depth; merge-clamped to [MIN,MAX]).  A deeper
+         * window absorbs more wire latency/jitter — a momentarily-slow drain no
+         * longer empties the in-flight window and stalls the recv->send loop.
+         * ctx->pipeline_depth is set LAST, so it stays 0 (and the teardown loops
+         * that iterate to pipeline_depth are no-ops) until both rings exist.
+         */
+        {
+            ngx_uint_t depth = mconf->pipeline_depth;
+
+            ctx->out_ring = ngx_pcalloc(c->pool,
+                                        depth * sizeof(xrootd_resp_slot_t));
+            ctx->rd_pool  = ngx_pcalloc(c->pool,
+                                        depth * sizeof(xrootd_read_slot_t));
+            if (ctx->out_ring == NULL || ctx->rd_pool == NULL) {
+                ngx_stream_finalize_session(s,
+                    NGX_STREAM_INTERNAL_SERVER_ERROR);
+                return;
+            }
+            ctx->pipeline_depth = depth;
+        }
+
+        /*
          * Phase 39 (WS3): OS-level dead-peer reaping, applied once at accept on
          * the control path.  Both default off (leave the kernel defaults), so a
          * stock deployment is byte-for-byte unchanged.  setsockopt failures are
          * deliberately non-fatal — a missing option must never abort a connection.
          */
-        if (mconf->tcp_keepalive) {
-            int on = 1;
-            (void) setsockopt(c->fd, SOL_SOCKET, SO_KEEPALIVE,
-                              (const void *) &on, sizeof(on));
-#if defined(TCP_KEEPIDLE)
-            { int v = 30;
-              (void) setsockopt(c->fd, IPPROTO_TCP, TCP_KEEPIDLE,
-                                (const void *) &v, sizeof(v)); }
-#endif
-#if defined(TCP_KEEPINTVL)
-            { int v = 10;
-              (void) setsockopt(c->fd, IPPROTO_TCP, TCP_KEEPINTVL,
-                                (const void *) &v, sizeof(v)); }
-#endif
-#if defined(TCP_KEEPCNT)
-            { int v = 3;
-              (void) setsockopt(c->fd, IPPROTO_TCP, TCP_KEEPCNT,
-                                (const void *) &v, sizeof(v)); }
-#endif
-        }
-#if defined(TCP_USER_TIMEOUT)
-        if (mconf->tcp_user_timeout > 0) {
-            unsigned int ms = (unsigned int) mconf->tcp_user_timeout;
-            (void) setsockopt(c->fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
-                              (const void *) &ms, sizeof(ms));
-        }
-#endif
+        xrootd_apply_tcp_deadpeer_opts(c->fd, mconf->tcp_keepalive,
+                                       mconf->tcp_user_timeout);
+
+        /* Per-socket congestion control (e.g. "bbr"); empty = kernel default.
+         * Best-effort — a missing algorithm leaves the default, never aborts. */
+        xrootd_apply_tcp_congestion(c->fd, mconf->tcp_congestion);
 
         if (mconf->metrics_slot >= 0 && ngx_xrootd_shm_zone != NULL
             && ngx_xrootd_shm_zone->data != NULL

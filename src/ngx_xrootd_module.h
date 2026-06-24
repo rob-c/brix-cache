@@ -385,6 +385,18 @@ ngx_int_t xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * denies when built without krb5. NGX_OK on success; error response on fail. */
 ngx_int_t xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf);
+/* kXR_auth "host" handler (Phase 52 WS-C): reverse-resolve the peer host and
+ * authenticate it against xrootd_host_allow.  NGX_OK on kXR_ok; error response
+ * (kXR_NotAuthorized) on no-match / resolution failure / malformed credential. */
+ngx_int_t xrootd_handle_host_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf);
+/* kXR_auth "pwd" handler (Phase 52 WS-B): XrdSecpwd password handshake.  Round 1
+ * exchanges DH publics + the asserted user; round 2 decrypts the credential with
+ * the DH session cipher and verifies it (PBKDF2-HMAC-SHA1) against xrootd_pwd_file.
+ * Returns NGX_OK on kXR_authmore (round 1) or kXR_ok (round 2 success); an error
+ * response (kXR_NotAuthorized) on bad credential / disabled / malformed input. */
+ngx_int_t xrootd_handle_pwd_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_xrootd_srv_conf_t *conf);
 
 /* Phase 25: charge nbytes against the bandwidth bucket the rate-limit dispatch
  * gate selected for the current request (no-op when none).  Declared here so

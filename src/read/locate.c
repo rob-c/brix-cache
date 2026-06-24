@@ -32,6 +32,7 @@
 
 #include "../ngx_xrootd_module.h"
 #include "../upstream/upstream.h"
+#include "../path/op_path.h"
 #include "../manager/registry.h"
 #include "../manager/redir_cache.h"
 #include "../manager/pending.h"
@@ -71,6 +72,15 @@ xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     is_wildcard = (reqpath_buf[0] == '*' && reqpath_buf[1] == '\0');
+
+    /* Reject any ".." component (the reference does not normalize ".."); locate
+     * resolves through the kernel RESOLVE_BENEATH which would collapse it.
+     * The "*" wildcard locate carries no path to traverse. */
+    if (!is_wildcard
+        && xrootd_reject_dotdot_path(ctx, c, XROOTD_OP_LOCATE, "LOCATE",
+                                     reqpath_buf)) {
+        return ctx->write_rc;
+    }
 
     if (!is_wildcard && xrootd_count_path_depth(reqpath_buf) != NGX_OK) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_LOCATE);

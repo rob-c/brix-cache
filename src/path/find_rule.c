@@ -32,6 +32,18 @@ xrootd_path_prefix_match(const char *prefix, size_t prefix_len, const char *path
         return 0;
     }
 
+    /*
+     * The match must land on a path-component boundary so "/foo" does not match
+     * "/foobar". A prefix that itself ends in '/' is already at a separator — the
+     * root prefix "/" (which cannot be stripped) and any explicit "/dir/" prefix
+     * therefore match everything beneath them. Without this, a manager_map / VO /
+     * authdb rule on "/" matched only the literal "/" and not "/file" (e.g. a
+     * static-map redirector failed to redirect a stat of "/blob.bin").
+     */
+    if (prefix_len > 0 && prefix[prefix_len - 1] == '/') {
+        return 1;
+    }
+
     return path[prefix_len] == '\0' || path[prefix_len] == '/';
 }
 

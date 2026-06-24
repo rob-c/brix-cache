@@ -20,6 +20,8 @@
 #define XROOTD_AUTHN_S3KEY    0x08
 #define XROOTD_AUTHN_UNIX     0x10
 #define XROOTD_AUTHN_KRB5     0x20
+#define XROOTD_AUTHN_HOST     0x40
+#define XROOTD_AUTHN_PWD      0x80
 
 typedef struct {
     ngx_str_t    dn;            /* GSI DN, SSS user, or empty */

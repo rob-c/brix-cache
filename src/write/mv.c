@@ -78,13 +78,27 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * The separator between source and destination is a single space (0x20).
 	 */
 	src_len = (int16_t) ntohs((uint16_t) req->arg1len);
-	if (src_len <= 0 || (uint32_t)(src_len + 1) >= ctx->cur_dlen) {
+	if (src_len < 0 || (uint32_t) src_len >= ctx->cur_dlen) {
 		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
 								 "invalid arg1len for mv");
 	}
 
-	/* Separator byte at src_len must be a space */
-	if (ctx->payload[src_len] != ' ') {
+	/* arg1len == 0: the reference do_Mv (XrdXrootdXeq.cc) splits the buffer on
+	 * the FIRST space itself ("old new") rather than rejecting.  Reproduce that
+	 * autosplit so a well-formed space-separated buffer with arg1len=0 works. */
+	if (src_len == 0) {
+		u_char *sp = memchr(ctx->payload, ' ', (size_t) ctx->cur_dlen);
+		if (sp == NULL || sp == ctx->payload
+			|| (size_t)(sp - ctx->payload) > 0x7fff) {
+			return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+									 "invalid path specification");
+		}
+		src_len = (int16_t)(sp - ctx->payload);
+	}
+
+	/* Separator byte at src_len must be a space, with a non-empty dst after it. */
+	if ((uint32_t)(src_len + 1) >= ctx->cur_dlen
+		|| ctx->payload[src_len] != ' ') {
 		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
 								 "mv payload separator not a space");
 	}
@@ -113,7 +127,7 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	if (xrootd_path_resolve_beneath(conf, src_buf, XROOTD_PATH_EXISTING,
 									src_resolved, sizeof(src_resolved)) != NGX_OK) {
 		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", src_buf, "-",
-						  kXR_NotFound, "source not found");
+						  kXR_NotFound, "no such file or directory");
 	}
 
 	/* XrdAcc: the move SOURCE requires Rename; the destination requires Insert. */
@@ -121,6 +135,48 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  src_buf, src_resolved, conf,
 						  XROOTD_AUTH_DELETE, 1, XROOTD_AOP_RENAME) != NGX_OK) {
 		return ctx->write_rc;
+	}
+
+	/* POSIX trailing-slash on the destination, matching stock do_Mv/rename(2):
+	 * rename(X, "Y/") requires X to be a directory.  A FILE source with a
+	 * "/"-terminated dest is ENOENT; a DIRECTORY source renames to the stripped
+	 * name.  (Without this our parent-creation below would create "Y" as a dir
+	 * and the rename would then report kXR_isDirectory — diverging from stock.) */
+	{
+		size_t      dl = ngx_strlen(dst_buf);
+		struct stat sst;
+		if (dl > 1 && dst_buf[dl - 1] == '/') {
+			if (xrootd_lstat_beneath(conf->rootfd, src_buf, &sst) == 0
+				&& !S_ISDIR(sst.st_mode)) {
+				/* rename(file, "dst/") → ENOTDIR (a "/"-terminated target must be
+				 * a directory).  Stock reports the "not a directory" category. */
+				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", src_buf, "-",
+								  xrootd_kxr_from_errno(ENOTDIR),
+								  strerror(ENOTDIR));
+			}
+			while (dl > 1 && dst_buf[dl - 1] == '/') {
+				dst_buf[--dl] = '\0';
+			}
+		}
+	}
+
+	/* Create the destination parent chain if missing, matching the reference
+	 * rename (XrdOss makes the target path) — verified against stock xrdfs, which
+	 * lands a move into a not-yet-existing directory. Confined beneath the export
+	 * root by xrootd_mkdir_recursive_policy; the source RENAME auth above has
+	 * already gated the operation. A component that is an existing non-dir fails
+	 * here and the WRITE resolve below then reports the error. */
+	{
+		char  dst_full[PATH_MAX];
+		char *slash;
+		xrootd_beneath_full_path(conf->common.root_canon, dst_buf,
+								 dst_full, sizeof(dst_full));
+		slash = strrchr(dst_full, '/');
+		if (slash && slash > dst_full) {
+			*slash = '\0';
+			xrootd_mkdir_recursive_policy(dst_full, 0755, c->log,
+										  conf->group_rules);
+		}
 	}
 
 	/* Destination parent must exist; the tail may not (WRITE). */
@@ -142,10 +198,27 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		res = xrootd_ns_rename(c->log, conf->common.root_canon,
 		                       src_resolved, dst_resolved, 0);
 		if (res.status != XROOTD_NS_OK) {
+			int         kxr;
+			const char *msg;
+
+			/* NS_EXISTS (rename onto an existing target) and NS_DENIED carry no
+			 * errno, so strerror(res.sys_errno) would print "Success" on an error
+			 * response. Map each status to a meaningful kXR code + message; an
+			 * existing-directory destination mirrors stock's kXR_isDirectory
+			 * "is a directory". */
+			if (res.status == XROOTD_NS_DENIED) {
+				kxr = kXR_NotAuthorized;
+				msg = "permission denied";
+			} else if (res.status == XROOTD_NS_EXISTS) {
+				kxr = res.was_dir ? kXR_isDirectory : kXR_ItExists;
+				msg = res.was_dir ? "destination is a directory"
+				                  : "destination already exists";
+			} else {
+				kxr = xrootd_kxr_map_ns_status(res.status, res.sys_errno);
+				msg = res.sys_errno ? strerror(res.sys_errno) : "rename failed";
+			}
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", src_resolved, "-",
-			                  xrootd_kxr_map_ns_status(res.status, res.sys_errno),
-			                  res.status == XROOTD_NS_DENIED ? "permission denied"
-			                                                 : strerror(res.sys_errno));
+			                  kxr, msg);
 		}
 	}
 

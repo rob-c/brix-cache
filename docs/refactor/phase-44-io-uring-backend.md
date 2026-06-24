@@ -1,6 +1,24 @@
 # Phase 44 — Optional Linux io_uring I/O backend (server module + native client)
 
-**Status:** PLAN ONLY (not implemented). Authored 2026-06-21.
+**Status:** IMPLEMENTED 2026-06-22 (server backend + client disk ring + security
+hardening). Authored 2026-06-21.
+
+**Implementation status by workstream:**
+
+| WS | State | Notes |
+|---|---|---|
+| SB-W1 build/gate/directives/§32 fail-fast | ✅ done + verified | `config` double-gate; `nginx -t` fails for `on` on a stub build (verified) / passes on a liburing build; `auto`/`off` always start. |
+| SB-W2 ring lifecycle + eventfd bridge + reaper + slot table | ✅ done + verified | NOP self-test gate; `register_eventfd` ordered BEFORE `register_restrictions`+`enable_rings` (real EINVAL bug fixed); UAF-safe generation-guarded slots; posts to `ngx_posted_events`. |
+| SB-W3 READ/WRITE submit + CQE→OUT + selector | ✅ done + verified | Byte-exact 5 MiB read and 3 MiB write/read-back through the ring. |
+| SB-W4 READV + WRITEV(+linked FSYNC) + gating | ✅ done; readv verified | Single-contiguous-group only (multi-fd/gap → pool). readv byte-exact via pyxrootd `vector_read` (and gapped → pool, byte-exact). **writev is build+logic-verified but runtime-unexercised** — pyxrootd exposes no `vector_write`; covered by the parity matrix when a writev-issuing client is available. |
+| SB-W5 fallback + SB-W5b security/ops | ✅ done + verified | SHM kill-switch atomic (hot-path lock-free read in the selector); panic-file watcher (verified: drop file → DISABLED + pool, byte-exact; remove → re-enabled); `POST /xrootd/api/v1/admin/io_uring` (built + wired; HTTP runtime test pending); `register_restrictions` to fd-only opcodes. |
+| CB-W1 client build/detect/probe + `--io-uring`/env + opts | ✅ done + verified | `HAVE_LIBURING` Makefile gate; `lib/uring.{c,h}` (stub + full both `-Werror`-clean); `xrdc_copy_opts.io_uring` + `--io-uring=auto\|on\|off` + `XRDC_IO_URING`. |
+| CB-W2 `copy.c` disk-ring adapters (Option A) | ✅ done + verified | Write-behind (download) + read-ahead (upload) overlap ring; byte-exact xrdcp over off/on/auto × {0,1 B,1 MiB,8 MiB,20 MB} download + 1 B/8 MiB/20 MB upload. **O_DIRECT and registered-buffers are deferred** (need the fd opened O_DIRECT by copy.c; buffered overlap is the main win). |
+| CB-W3 FUSE-local disk ring | ✅ n/a by architecture | The FUSE driver has no client-side local-disk fd (its data path is remote `xrdc_mfile`→server). The disk ring is an xrdcp/`copy.c` construct; FUSE gains io_uring via the server side and (when enabled) the CB-W4 socket engine. Nothing to wire. |
+| CB-W4 `aio.c` loop engine swap (POLL_ADD multishot) | ✅ done + verified | Engine seam in `client/lib/aio.c` with the epoll path byte-preserved (default) and a multishot `IORING_OP_POLL_ADD` engine, default OFF (`XRDC_IO_URING_LOOP=on` + runtime probe; best-effort fallback to epoll). UAF-safe generation-guarded poll-slot table; reconnect cancels the old poll (`poll_remove`) + bumps the slot generation + re-arms the new fd. **Verified:** strace shows `io_uring_enter`/no `epoll_wait` when on; `aio_smoke` PASS (async demux + 400 concurrent MT calls); **`aio_resil` M2 PASS** (200 reqs survive a server bounce) and **`aio_mfile` M3 PASS** (read + write across a mid-transfer bounce, byte-exact) under the io_uring engine; the epoll default path is regression-free (both harnesses also pass with loop OFF). TLS-safe (loop still runs `aconn_do_read`/`aconn_do_write`). Cleartext `RECV/SEND` multishot + provided buffers remains a documented follow-on. |
+| Metrics exposition (`/metrics` gauges/counters) | ✅ done + verified | `xrootd_stream_io_uring_active` (gauge), `xrootd_stream_io_uring_ops_total` / `_fallback_total` (counters), per-listener `{port,auth}`. **Verified:** a write and a `vector_read` each increment `ops_total` and set `active=1` (counter-confirmed via `/metrics`), byte-exact. Plus the existing observability: the "backend active" NOTICE + an audited NOTICE on every kill-switch flip. |
+
+Original plan status line (historical): PLAN ONLY (not implemented). Authored 2026-06-21.
 **Scope:** add an **optional, runtime-selectable, fallback-safe** Linux `io_uring`
 I/O backend to **both** halves of the project — the nginx **server module**
 (`src/`, disk I/O only) and the native **client suite** (`client/`: `libxrdc`,

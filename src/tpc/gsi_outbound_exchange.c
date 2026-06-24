@@ -1,6 +1,7 @@
 #include "tpc_internal.h"
 #include "../session/session.h"
 #include "../protocol/gsi.h"
+#include "../gsi/gsi_core.h"   /* shared XrdSecgsi DH/cipher kernel (EOS-proven) */
 
 #include <stdio.h>
 #include <ctype.h>
@@ -21,6 +22,11 @@
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
+
+/* The session cipher this outbound (plain-DH) path keys and echoes back to the
+ * server in kXRS_cipher_alg.  Kept in lock-step with the xrootd_gsi_cipher_lookup
+ * call below; aes-128-cbc is the universally-supported XrdSecgsi default. */
+#define XRDC_TPC_CIPHER_ALG  "aes-128-cbc"
 
 #if defined(__linux__)
 #include <endian.h>
@@ -128,27 +134,19 @@ tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
 
     /* ---- Parse server kXRS_puk, generate client DH, derive secret ---- */
     {
-        EVP_PKEY              *dh_params = NULL;
+        EVP_PKEY              *peer = NULL;
         const u_char *puk_blob;
         size_t        puk_blob_len;
-        const u_char *bp_marker;
-        BIO           *pbio_mem;
         BUF_MEM       *bptr;
-        EVP_PKEY_CTX  *kgctx = NULL;
-        BIGNUM                *srv_pub_bn = NULL;
-        EVP_PKEY              *srv_peer = NULL;
-        unsigned char         *secret = NULL;
-        size_t                 secret_len = 0;
-        EVP_PKEY_CTX          *dkctx = NULL;
-        char                   cipher_name[64];
-        const EVP_CIPHER      *evp_cipher;
-        EVP_CIPHER_CTX        *ectx = NULL;
+        uint8_t                aeskey[XROOTD_GSI_MAX_KEY];
+        xrootd_gsi_cipher_t    cipher;
         u_char                *inner_plain = NULL;
         int                    ilen = 0;
         u_char                *inner_cursor;
         BIO                   *mbio_chain;
         u_char                *enc_out = NULL;
-        int                    enc_len = 0, enc_flen = 0;
+        int                    enc_len = 0;
+        size_t                 enc_out_len = 0;
         size_t                 pem_chain_len = 0;
         u_char                *puk_client = NULL;
         size_t                 puk_client_len;
@@ -156,6 +154,9 @@ tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
         size_t                 outer_len;
         u_char                *wp;
         int                    ci;
+        char                   md_alg[32];        /* digest echoed to the server  */
+        size_t                 md_alg_len;
+        size_t                 cipher_alg_len;    /* len of XRDC_TPC_CIPHER_ALG    */
 
         if (gsi_find_bucket(body, dlen, (uint32_t) kXRS_puk,
                             &puk_blob, &puk_blob_len)
@@ -168,148 +169,36 @@ tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
         }
 
         /*
-         * The server kXRS_puk blob is a concatenation:
-         *   <PEM DH parameters> ---BPUB--- <server pubkey hex> ---EPUB--
-         * Everything before the "---BPUB---" marker is the PEM-encoded DH group
-         * parameters; the hex public key sits between the BPUB/EPUB markers.
-         * We split here: PEM portion -> dh_params, hex portion -> srv_pub_bn.
+         * Agree the AES-128 session key via the shared gsi_core kernel — the exact
+         * DH-parse + keygen + secret-derive + key-derivation the native client uses
+         * (proven wire-compatible vs real EOS + stock XrdSecgsi). parse_peer reads
+         * the server's "<PEM params>---BPUB---<hex>---EPUB--" kXRS_puk blob;
+         * keygen_from mints OUR key in the same DH group (kept in client_kp for the
+         * round-2 puk + freed at the end); session_key derives the 16-byte key.
+         * This is the plain-DH (kXRS_puk, unsigned) path → padded = 0. Replaces
+         * ~135 lines of raw-OpenSSL DH params/keygen/peer/derive + cipher select.
          */
-        bp_marker = memmem(puk_blob, puk_blob_len, "---BPUB---",
-                           sizeof("---BPUB---") - 1);
-        if (bp_marker == NULL) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI malformed server DH puk");
-            t->xrd_error = kXR_NotAuthorized;
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        /* Parse only the [start .. ---BPUB---) slice as PEM DH parameters. */
-        pbio_mem = BIO_new_mem_buf(puk_blob, (int) (bp_marker - puk_blob));
-        if (pbio_mem == NULL) {
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        dh_params = PEM_read_bio_Parameters_ex(pbio_mem, NULL, NULL, NULL);
-        BIO_free(pbio_mem);
-
-        if (dh_params == NULL) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI cannot parse server DH PEM parameters");
-            t->xrd_error = kXR_NotAuthorized;
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        /* Generate OUR DH keypair in the server-supplied group (dh_params). The
-         * private half stays in client_kp; its public half is sent back to the
-         * server in round 2. dh_params is freed once keygen succeeds — the group
-         * is now embedded in client_kp. */
-        kgctx = EVP_PKEY_CTX_new(dh_params, NULL);
-        if (kgctx == NULL
-            || EVP_PKEY_keygen_init(kgctx) <= 0
-            || EVP_PKEY_keygen(kgctx, &client_kp) <= 0
-            || client_kp == NULL)
+        /* Phase 52: TPC outbound keys aes-128-cbc (the universal default every
+         * conformant TPC-source server advertises); resolve its descriptor. */
+        peer = xrootd_gsi_cipher_parse_peer(puk_blob, puk_blob_len);
+        client_kp = (peer != NULL) ? xrootd_gsi_cipher_keygen_from(peer) : NULL;
+        if (peer == NULL || client_kp == NULL
+            || !xrootd_gsi_cipher_lookup("aes-128-cbc", &cipher)
+            || !xrootd_gsi_cipher_session_key(client_kp, peer, 0, aeskey,
+                                              cipher.key_len))
         {
             snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI client DH keygen failed");
-            t->xrd_error = kXR_ServerError;
-            EVP_PKEY_CTX_free(kgctx);
-            kgctx = NULL;
-            EVP_PKEY_free(dh_params);
-            dh_params = NULL;
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-        EVP_PKEY_CTX_free(kgctx);
-        kgctx = NULL;
-        EVP_PKEY_free(dh_params);
-        dh_params = NULL;
-
-        /* Build the peer (server) DH key: parse the hex public value between the
-         * BPUB/EPUB markers, then graft it onto our group params to form a full
-         * peer key suitable for EVP_PKEY_derive_set_peer. */
-        srv_pub_bn = tpc_parse_hex_pub(puk_blob, puk_blob_len);
-        if (srv_pub_bn == NULL) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI cannot parse server DH public hex");
+                     "TPC GSI DH session-key agreement failed");
             t->xrd_error = kXR_NotAuthorized;
+            EVP_PKEY_free(peer);
             return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
         }
-
-        srv_peer = tpc_dh_peer_from(client_kp, srv_pub_bn);
-        BN_free(srv_pub_bn);
-        srv_pub_bn = NULL;
-
-        if (srv_peer == NULL) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI cannot build server DH peer key");
-            t->xrd_error = kXR_ServerError;
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        /*
-         * Derive the shared DH secret = (server_pub ^ our_priv) mod p.
-         * set_dh_pad(0) selects the legacy unpadded representation that the
-         * xrootd GSI peer expects (a padded secret would not match the server's
-         * key derivation). The derive is done in two calls: first with NULL out
-         * to size the buffer, then again to fill it.
-         */
-        dkctx = EVP_PKEY_CTX_new(client_kp, NULL);
-        if (dkctx == NULL
-            || EVP_PKEY_derive_init(dkctx) != 1
-            || EVP_PKEY_CTX_set_dh_pad(dkctx, 0) != 1
-            || EVP_PKEY_derive_set_peer(dkctx, srv_peer) != 1)
-        {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI DH derive init failed");
-            t->xrd_error = kXR_ServerError;
-            EVP_PKEY_free(srv_peer);
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        if (EVP_PKEY_derive(dkctx, NULL, &secret_len) != 1) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI DH derive size failed");
-            t->xrd_error = kXR_ServerError;
-            EVP_PKEY_CTX_free(dkctx);
-            dkctx = NULL;
-            EVP_PKEY_free(srv_peer);
-            srv_peer = NULL;
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        secret = OPENSSL_malloc(secret_len);
-        if (secret == NULL
-            || EVP_PKEY_derive(dkctx, secret, &secret_len) != 1)
-        {
-            snprintf(t->err_msg, sizeof(t->err_msg), "TPC GSI DH derive failed");
-            t->xrd_error = kXR_ServerError;
-            OPENSSL_free(secret);
-            secret = NULL;
-            EVP_PKEY_CTX_free(dkctx);
-            EVP_PKEY_free(srv_peer);
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-        EVP_PKEY_CTX_free(dkctx);
-        dkctx = NULL;
-        EVP_PKEY_free(srv_peer);
-        srv_peer = NULL;
-
-        tpc_gsi_select_cipher(body, dlen, cipher_name, sizeof(cipher_name));
-
-        evp_cipher = EVP_get_cipherbyname(cipher_name);
-        if (evp_cipher == NULL) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI unknown cipher from server: %s", cipher_name);
-            t->xrd_error = kXR_NotAuthorized;
-            OPENSSL_free(secret);
-            secret = NULL;
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
+        EVP_PKEY_free(peer);
+        peer = NULL;
 
         /* Inner buffer: gsi + step + kXRS_x509(certs PEM) + none */
         mbio_chain = BIO_new(BIO_s_mem());
         if (mbio_chain == NULL) {
-            OPENSSL_free(secret);
-            secret = NULL;
             return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
         }
 
@@ -324,15 +213,11 @@ tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
         /* Overflow guard: the 256+...+64 alloc below must not wrap size_t. */
         if (pem_chain_len > (size_t)-1 - 320) {
             BIO_free(mbio_chain);
-            OPENSSL_free(secret);
-            secret = NULL;
             return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
         }
         inner_plain = malloc(256 + pem_chain_len + 64);
         if (inner_plain == NULL) {
             BIO_free(mbio_chain);
-            OPENSSL_free(secret);
-            secret = NULL;
             return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
         }
 
@@ -370,164 +255,41 @@ tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
         ilen = (int) (inner_cursor - inner_plain);
         BIO_free(mbio_chain);
 
-        ectx = EVP_CIPHER_CTX_new();
-        if (ectx == NULL) {
-            free(inner_plain);
-            OPENSSL_free(secret);
-            secret = NULL;
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
         /*
-         * Key-length reconciliation. The DH secret length (secret_len) rarely
-         * equals the cipher's default key length (ldef). We must use as much of
-         * the secret as the cipher will accept as a key, matching what the
-         * xrootd peer does, otherwise both sides derive different keys.
-         *
-         *   ltmp    = secret bytes available, clamped to EVP_MAX_KEY_LENGTH
-         *   ldef    = cipher's natural key length
-         *   use_len = key length we will actually set
-         *
-         * If ltmp != ldef we probe with a THROWAWAY ctx (tctx): try to set the
-         * key length to ltmp and check it took. Only if the cipher accepts ltmp
-         * do we adopt it; otherwise we fall back to ldef. The real ctx (ectx)
-         * is then initialised in two steps — cipher first, key length override,
-         * then key+IV — because the key length must be fixed before the key is
-         * installed. The IV is all-zero (this GSI mode keys per handshake).
+         * Encrypt the inner (kXRS_main) under the AES-128 session key via the
+         * shared kernel — use_iv = 0 (zero IV, nothing prepended) for the plain-DH
+         * path, exactly as the native client does. Replaces ~90 lines of raw EVP
+         * cipher-context setup + DH-secret key-length reconciliation.
          */
-        {
-            size_t ltmp = (secret_len > (size_t) EVP_MAX_KEY_LENGTH)
-                          ? (size_t) EVP_MAX_KEY_LENGTH : secret_len;
-            int    ldef = EVP_CIPHER_key_length(evp_cipher);
-            size_t use_len = (size_t) ldef;
-            unsigned char iv[EVP_MAX_IV_LENGTH];
-
-            if ((int) ltmp != ldef) {
-                EVP_CIPHER_CTX *tctx = EVP_CIPHER_CTX_new();
-
-                /* Probe: does this cipher accept a key of length ltmp? */
-                EVP_CipherInit_ex(tctx, evp_cipher, NULL, NULL, NULL, 1);
-                EVP_CIPHER_CTX_set_key_length(tctx, (int) ltmp);
-                if (EVP_CIPHER_CTX_key_length(tctx) == (int) ltmp) {
-                    use_len = ltmp;
-                }
-                EVP_CIPHER_CTX_free(tctx);
-            }
-
-            ngx_memset(iv, 0, sizeof(iv));
-
-            /* Two-phase init: set cipher, then (if non-default) key length,
-             * then bind the key+IV. Order matters — key length is locked once
-             * the key is supplied. */
-            EVP_EncryptInit_ex(ectx, evp_cipher, NULL, NULL, NULL);
-            if (use_len != (size_t) ldef) {
-                EVP_CIPHER_CTX_set_key_length(ectx, (int) use_len);
-            }
-            EVP_EncryptInit_ex(ectx, NULL, NULL, secret, iv);
-            OPENSSL_free(secret);  /* key now copied into ectx */
-            secret = NULL;
-        }
-
-        /* Ciphertext can grow by up to one block (PKCS padding from Final),
-         * so size enc_out as plaintext + one cipher block. */
-        enc_out = malloc((size_t) ilen + (size_t) EVP_CIPHER_block_size(evp_cipher));
-        if (enc_out == NULL) {
-            free(inner_plain);
-            EVP_CIPHER_CTX_free(ectx);
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        if (EVP_EncryptUpdate(ectx, enc_out, &enc_len,
-                              inner_plain, ilen)
-            != 1)
-        {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI encrypt update failed");
-            free(inner_plain);
-            free(enc_out);
-            EVP_CIPHER_CTX_free(ectx);
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        if (EVP_EncryptFinal_ex(ectx, enc_out + enc_len, &enc_flen) != 1) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC GSI encrypt final failed");
-            free(inner_plain);
-            free(enc_out);
-            EVP_CIPHER_CTX_free(ectx);
-            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-        }
-
-        EVP_CIPHER_CTX_free(ectx);
+        enc_out = xrootd_gsi_cipher_encrypt(&cipher, aeskey, inner_plain,
+                                            (size_t) ilen, 0, &enc_out_len);
         free(inner_plain);
-
-        /* Total ciphertext = Update output + Final (padding) output. */
-        enc_len += enc_flen;
-
-        /*
-         * Now build OUR kXRS_puk blob to send the server, mirroring the format
-         * it sent us: PEM DH params, then "---BPUB---" <our pubkey hex>
-         * "---EPUB--". pbio holds the PEM params; pub_hex holds the hex pubkey.
-         */
-        /* Client kXRS_puk public blob (PEM params + BPUB hex) */
-        pbio = BIO_new(BIO_s_mem());
-        if (pbio == NULL) {
-            free(enc_out);
+        inner_plain = NULL;
+        if (enc_out == NULL) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC GSI main encrypt failed");
+            t->xrd_error = kXR_ServerError;
             return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
         }
+        enc_len = (int) enc_out_len;
 
-        PEM_write_bio_Parameters(pbio, client_kp);
-        BIO_get_mem_ptr(pbio, &bptr);
-
-        {
-            BIGNUM *pub_bn = NULL;
-            char   *pub_hex = NULL;
-            int     wlen;
-
-            if (!EVP_PKEY_get_bn_param(client_kp, OSSL_PKEY_PARAM_PUB_KEY,
-                                       &pub_bn))
-            {
-                snprintf(t->err_msg, sizeof(t->err_msg),
-                         "TPC GSI cannot export client DH public key");
-                free(enc_out);
-                BIO_free(pbio);
-                pbio = NULL;
-                return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-            }
-
-            pub_hex = BN_bn2hex(pub_bn);
-            BN_free(pub_bn);
-            if (pub_hex == NULL) {
-                free(enc_out);
-                BIO_free(pbio);
-                pbio = NULL;
-                return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-            }
-
-            puk_client_len = (size_t) bptr->length + strlen(pub_hex) + 64;
-            puk_client = malloc(puk_client_len);
-            if (puk_client == NULL) {
-                OPENSSL_free(pub_hex);
-                free(enc_out);
-                BIO_free(pbio);
-                pbio = NULL;
-                return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-            }
-
-            wlen = snprintf((char *) puk_client, puk_client_len,
-                            "%.*s---BPUB---%s---EPUB--",
-                            (int) bptr->length, bptr->data, pub_hex);
-            OPENSSL_free(pub_hex);
-            BIO_free(pbio);
-            pbio = NULL;
-
-            if (wlen <= 0 || (size_t) wlen >= puk_client_len) {
-                free(enc_out);
-                free(puk_client);
-                return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
-            }
-
-            puk_client_len = (size_t) wlen;
+        /*
+         * OUR kXRS_puk blob (PEM DH params + "---BPUB---"<hex>"---EPUB---") built
+         * by the shared gsi_core encoder — the exact one the native client uses,
+         * proven wire-compatible against real EOS + stock XrdSecgsi. Replaces ~55
+         * lines of duplicated raw-OpenSSL PEM-params + BN_bn2hex + snprintf. (The
+         * encoder emits a 3-dash "---EPUB---" terminator vs the legacy 2-dash
+         * "---EPUB--"; XrdSecgsi delimits the hex on the marker prefix, so both
+         * are accepted — verified by tests/test_tpc_gsi_outbound.py.)
+         */
+        puk_client = (u_char *) xrootd_gsi_cipher_public(client_kp,
+                                                         &puk_client_len);
+        if (puk_client == NULL) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC GSI cannot encode client DH public key");
+            t->xrd_error = kXR_ServerError;
+            free(enc_out);
+            return tpc_gsi_exchange_round_fail(rc, client_kp, body, pbio);
         }
 
         /*
@@ -538,8 +300,51 @@ tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
          *   8 + enc_len             kXRS_main bucket (encrypted cert chain)
          *   8                       kXRS_none terminator (zero-length payload)
          */
+        /*
+         * Echo the cipher we keyed (bare name — use_iv=0 on this plain-DH path,
+         * so no "#ivlen" suffix) and a digest chosen from the server's
+         * kXRS_md_alg offer (prefer sha256, else its first token, default
+         * sha256).  dCache's GSI plugin reads kXRS_cipher_alg and kXRS_md_alg as
+         * MANDATORY StringBuckets and throws a server-side NPE when either is
+         * absent ("digestBucket is null"); stock XRootD/EOS accept them as the
+         * normal client echo.  This is the outbound (TPC) twin of the native
+         * client's md_alg fix — see
+         * docs/10-reference/comparison/xrootd-implementations.md §5 and
+         * tests/test_gsi_interop_guards.py. */
+        {
+            const u_char *mlist = NULL;
+            size_t        mlen = 0, i;
+
+            md_alg_len = 0;
+            if (gsi_find_bucket(body, dlen, (uint32_t) kXRS_md_alg,
+                                &mlist, &mlen) == 0 && mlen > 0) {
+                for (i = 0; i + 6 <= mlen; i++) {
+                    if (ngx_memcmp(mlist + i, "sha256", 6) == 0) {
+                        ngx_memcpy(md_alg, "sha256", 6);
+                        md_alg_len = 6;
+                        break;
+                    }
+                }
+                if (md_alg_len == 0) {              /* echo the server's first token */
+                    while (md_alg_len < mlen && md_alg_len + 1 < sizeof(md_alg)
+                           && mlist[md_alg_len] != ':') {
+                        md_alg[md_alg_len] = (char) mlist[md_alg_len];
+                        md_alg_len++;
+                    }
+                }
+            }
+            if (md_alg_len == 0) {                  /* server offered none → default */
+                ngx_memcpy(md_alg, "sha256", 6);
+                md_alg_len = 6;
+            }
+            md_alg[md_alg_len] = '\0';
+        }
+        cipher_alg_len = ngx_strlen(XRDC_TPC_CIPHER_ALG);
+
         outer_len = 4 + 4;
         outer_len += 8 + puk_client_len;
+        outer_len += 8 + cipher_alg_len;            /* kXRS_cipher_alg */
+        outer_len += 8 + md_alg_len;                /* kXRS_md_alg */
         outer_len += 8 + (size_t) enc_len;
         outer_len += 8;
 
@@ -575,6 +380,20 @@ tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
         ngx_memcpy(wp, puk_client, puk_client_len);
         wp += puk_client_len;
         free(puk_client);
+
+        tpc_put_u32(wp, (uint32_t) kXRS_cipher_alg);   /* bucket: chosen cipher */
+        wp += 4;
+        tpc_put_u32(wp, (uint32_t) cipher_alg_len);
+        wp += 4;
+        ngx_memcpy(wp, XRDC_TPC_CIPHER_ALG, cipher_alg_len);
+        wp += cipher_alg_len;
+
+        tpc_put_u32(wp, (uint32_t) kXRS_md_alg);       /* bucket: chosen digest */
+        wp += 4;
+        tpc_put_u32(wp, (uint32_t) md_alg_len);
+        wp += 4;
+        ngx_memcpy(wp, md_alg, md_alg_len);
+        wp += md_alg_len;
 
         tpc_put_u32(wp, (uint32_t) kXRS_main);         /* bucket: ciphertext */
         wp += 4;

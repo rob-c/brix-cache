@@ -14,6 +14,8 @@
  * wire: XProtocol.hh kXR_dirlist dstat — ".\n0 0 0 0" prefix, then name\nstat\n pairs.
  */
 #include "xrdc.h"
+#include "protocol/stat_line.h"    /* shared stat-line grammar (decode side) */
+#include "protocol/dirlist_fmt.h"  /* shared dstat lead-in sentinel */
 
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -23,42 +25,23 @@
 static int
 parse_statinfo(const char *s, xrdc_statinfo *out)
 {
-    unsigned long long id = 0;
-    long long          size = 0;
-    int                flags = 0;
-    long               mtime = 0;
-    long               ctime = 0, atime = 0;
-    char               modebuf[32] = {0}, owner[64] = {0}, group[64] = {0};
-    int                nf;
+    xrootd_statline_ext ext;
 
-    /* Mandatory wire form: "<id> <size> <flags> <mtime>".  Some servers (EOS)
-     * append an extended tail "<ctime> <atime> <mode> <owner> <group>"; parse
-     * it opportunistically and record have_ext so callers can print it. */
-    nf = sscanf(s, "%llu %lld %d %ld %ld %ld %31s %63s %63s",
-                &id, &size, &flags, &mtime,
-                &ctime, &atime, modebuf, owner, group);
-    if (nf < 4) {
+    /* The stat-line grammar (mandatory "<id> <size> <flags> <mtime>" + optional
+     * EOS "<ctime> <atime> <mode> <owner> <group>" tail) is owned by the shared
+     * protocol/stat_line.h so this decoder stays in lockstep with the server's
+     * encoder. */
+    if (xrootd_statline_parse(s, &out->id, &out->size, &out->flags, &out->mtime,
+                              &ext) != 0) {
         return -1;
     }
-    out->id       = (uint64_t) id;
-    out->size     = (int64_t) size;
-    out->flags    = flags;
-    out->mtime    = mtime;
-    out->have_ext = 0;
-    out->ctime    = 0;
-    out->atime    = 0;
-    out->mode     = 0;
-    out->owner[0] = '\0';
-    out->group[0] = '\0';
 
-    if (nf >= 9) {
-        out->have_ext = 1;
-        out->ctime    = ctime;
-        out->atime    = atime;
-        out->mode     = (unsigned) strtoul(modebuf, NULL, 8);   /* octal on wire */
-        snprintf(out->owner, sizeof(out->owner), "%s", owner);
-        snprintf(out->group, sizeof(out->group), "%s", group);
-    }
+    out->have_ext = ext.have_ext;
+    out->ctime    = ext.ctime;
+    out->atime    = ext.atime;
+    out->mode     = ext.mode;
+    snprintf(out->owner, sizeof(out->owner), "%s", ext.owner);
+    snprintf(out->group, sizeof(out->group), "%s", ext.group);
     return 0;
 }
 
@@ -230,9 +213,11 @@ dirlist_once(xrdc_conn *c, const char *path, int want_stat,
         }
     }
 
-    /* Skip the dstat lead-in prefix ".\n0 0 0 0" up to and including its '\n'. */
+    /* Skip the dstat lead-in prefix ".\n0 0 0 0" up to and including its '\n'.
+     * The sentinel + match length are shared with the server (dirlist_fmt.h). */
     i = 0;
-    if (want_stat && acclen >= 9 && memcmp(acc, ".\n0 0 0 0", 9) == 0) {
+    if (want_stat && acclen >= XROOTD_DSTAT_PREFIX_LEN
+        && memcmp(acc, XROOTD_DSTAT_LEADIN, XROOTD_DSTAT_PREFIX_LEN) == 0) {
         while (i < acclen && acc[i] != '\n') { i++; }   /* ".\n..." first \n */
         if (i < acclen) { i++; }                        /* now at "0 0 0 0\n" */
         while (i < acclen && acc[i] != '\n') { i++; }   /* end of "0 0 0 0" */

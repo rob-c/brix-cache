@@ -45,10 +45,17 @@ xrootd_kxr_from_errno(int err)
 
     case ENOTEMPTY:
     case EEXIST:
-        return kXR_FSError;
+        /* Reference mapError() returns kXR_ItExists for BOTH EEXIST and
+         * ENOTEMPTY (XProtocol.hh: a non-empty directory removal reports
+         * kXR_ItExists "until the next major release", not a generic FS error).
+         * Stock `xrdfs rm/rmdir` of a populated directory returns 3018 — match. */
+        return kXR_ItExists;
 
     case ENOTDIR:
-        return kXR_NotFile;
+        /* A non-directory in a path prefix (e.g. stat "/file/under/it") — the
+         * reference maps ENOTDIR to kXR_FSError ("Unable to locate ...; not a
+         * directory"), NOT kXR_NotFile.  Match it for stat/statx/rmdir parity. */
+        return kXR_FSError;
 
     case ENOMEM:
         return kXR_NoMemory;
@@ -65,6 +72,53 @@ xrootd_kxr_from_errno(int err)
 }
 
 /*
+ * WHAT: Maps a kXR wire error code back to a POSIX errno — the inverse of
+ *   xrootd_kxr_from_errno(), co-located so the project's canonical errno↔kXR
+ *   table (CLAUDE.md invariant) lives in ONE shared, ngx-free place rather than
+ *   the forward direction here and the reverse direction in the native client.
+ *   Returns a POSITIVE errno, or 0 when the code is not a recognised kXR error
+ *   (the caller chooses the fallback — e.g. the client's POSIX layers negate the
+ *   result for the kernel and substitute a captured sys_errno on 0).
+ *
+ * WHY: the native client's FUSE/preload layers must hand the kernel a -errno for
+ *   a server kXR_error; keeping this beside errno→kXR prevents the two directions
+ *   drifting out of sync as error codes are added.
+ */
+int
+xrootd_errno_from_kxr(uint16_t kxr)
+{
+    switch (kxr) {
+    case kXR_NotFound:       return ENOENT;
+    case kXR_NotAuthorized:  return EACCES;
+    case kXR_AuthFailed:     return EACCES;
+    case kXR_isDirectory:    return EISDIR;
+    case kXR_NotFile:        return EISDIR;
+    case kXR_FSError:        return EEXIST;
+    case kXR_ItExists:       return EEXIST;
+    case kXR_Conflict:       return EEXIST;
+    case kXR_NoSpace:        return ENOSPC;
+    case kXR_overQuota:      return EDQUOT;
+    case kXR_Unsupported:    return ENOSYS;
+    case kXR_fsReadOnly:     return EROFS;
+    case kXR_FileLocked:     return EAGAIN;
+    case kXR_inProgress:     return EINPROGRESS;
+    case kXR_ArgInvalid:     return EINVAL;
+    case kXR_ArgMissing:     return EINVAL;
+    case kXR_ArgTooLong:     return ENAMETOOLONG;
+    case kXR_InvalidRequest: return EINVAL;
+    case kXR_FileNotOpen:    return EBADF;
+    case kXR_NoMemory:       return ENOMEM;
+    case kXR_ChkSumErr:      return EIO;
+    case kXR_IOError:        return EIO;
+    case kXR_AttrNotFound:   return ENODATA;
+    case kXR_TLSRequired:    return EACCES;
+    case kXR_Overloaded:     return EBUSY;
+    case kXR_noserver:       return EHOSTUNREACH;
+    default:                 return 0;   /* not a recognised kXR error code */
+    }
+}
+
+/*
  * WHAT: Maps an xrootd_ns_status_t to a kXR error code for stream protocol
  * responses.  XROOTD_NS_IO_ERROR delegates to xrootd_kxr_from_errno(sys_errno).
  */
@@ -77,8 +131,8 @@ xrootd_kxr_map_ns_status(xrootd_ns_status_t status, int sys_errno)
     case XROOTD_NS_DENIED:    return kXR_NotAuthorized;
     case XROOTD_NS_EXISTS:    return kXR_FSError;
     case XROOTD_NS_CONFLICT:  return kXR_FSError;
-    case XROOTD_NS_NOT_EMPTY: return kXR_FSError;
-    case XROOTD_NS_NO_SPACE:  return kXR_NoMemory;
+    case XROOTD_NS_NOT_EMPTY: return kXR_ItExists;   /* ENOTEMPTY → 3018 (mapError) */
+    case XROOTD_NS_NO_SPACE:  return kXR_NoSpace;    /* ENOSPC → 3017, not NoMemory */
     case XROOTD_NS_TOO_LONG:  return kXR_ArgTooLong;
     case XROOTD_NS_IO_ERROR:  return xrootd_kxr_from_errno(sys_errno);
     }

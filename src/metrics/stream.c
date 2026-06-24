@@ -46,8 +46,11 @@ static const char *xrootd_op_names[XROOTD_NOPS] = {
     "chmod",        /* XROOTD_OP_CHMOD        */
     "truncate",     /* XROOTD_OP_TRUNCATE     */
     "ping",         /* XROOTD_OP_PING         */
-    "query_cksum",  /* XROOTD_OP_QUERY_CKSUM  */
-    "query_space",  /* XROOTD_OP_QUERY_SPACE  */
+    "query_cksum",  /* XROOTD_OP_QUERY_CKSUM (== QUERY_SPACE: both share op slot
+                     * 17, so this one series covers QChecksum + QSpace).  Do NOT
+                     * add a separate "query_space" entry here — a second slot
+                     * shifts every op from readv(18) down by one and mislabels
+                     * the whole tail of the table (phase-44 metrics fix). */
     "readv",        /* XROOTD_OP_READV        */
     "pgread",       /* XROOTD_OP_PGREAD       */
     "writev",       /* XROOTD_OP_WRITEV       */
@@ -81,6 +84,18 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
      * snapshot: each counter is read atomically, but different lines may observe
      * slightly different moments in time while workers continue serving traffic.
      */
+
+    /*
+     * Config-reload signal: steps by one on every `nginx -s reload` (published by
+     * the master in init_module).  Graph it to correlate behaviour changes with
+     * config reloads, or alert when it moves unexpectedly.
+     */
+    mw_printf(mw,
+        "# HELP xrootd_config_generation "
+            "Config loads since master start (steps on each reload).\n"
+        "# TYPE xrootd_config_generation gauge\n"
+        "xrootd_config_generation %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(&shm->config_generation, 0));
 
     mw_printf(mw,
         "# HELP xrootd_connections_total "
@@ -331,7 +346,31 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
         "Connections refused at accept because the listener was at xrootd_max_connections.",
         connections_rejected_total);
 
+    /* Phase 44: optional io_uring disk-I/O backend (0 unless enabled). */
+    XROOTD_EXPORT_SRV_COUNTER("xrootd_stream_io_uring_ops_total",
+        "Mapped disk ops (read/write/single-group readv/writev) submitted via the io_uring backend.",
+        io_uring_ops_total);
+    XROOTD_EXPORT_SRV_COUNTER("xrootd_stream_io_uring_fallback_total",
+        "Mapped disk ops that fell back to the thread pool because io_uring was full or runtime-disabled.",
+        io_uring_fallback_total);
+
 #undef XROOTD_EXPORT_SRV_COUNTER
+
+    /* Phase 44: io_uring active gauge (1 = a worker fronting this listener used
+     * the ring; flips to 0 fleet-wide effect is observable via the ops/fallback
+     * ratio after a kill-switch flip). */
+    mw_printf(mw, "# HELP xrootd_stream_io_uring_active "
+                  "1 if a worker fronting this listener has used the io_uring backend.\n"
+                  "# TYPE xrootd_stream_io_uring_active gauge\n");
+    for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {
+        srv = &shm->servers[i];
+        if (!srv->in_use) { continue; }
+        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
+        mw_printf(mw,
+                  "xrootd_stream_io_uring_active{port=\"%s\",auth=\"%s\"} %lu\n",
+                  port_str, srv->auth,
+                  (unsigned long) ngx_atomic_fetch_add(&srv->io_uring_active, 0));
+    }
 
     xrootd_export_stream_cache_metrics(mw, shm);
 
@@ -387,6 +426,9 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
             "XRootD requests completed, by operation and status.\n"
         "# TYPE xrootd_requests_total counter\n");
     for (op = 0; op < XROOTD_NOPS; op++) {
+        if (xrootd_op_names[op] == NULL) {
+            continue;   /* unused trailing slot (NOPS > distinct op count) */
+        }
         for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {
             srv = &shm->servers[i];
             if (!srv->in_use) { continue; }
@@ -425,6 +467,7 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
     xrootd_export_ratelimit_metrics(mw, shm);
     xrootd_export_pmark_metrics(mw, shm);
     xrootd_export_frm_metrics(mw, shm);
+    xrootd_export_resilience_metrics(mw, shm);
 
     /* Phase 24 — traffic-mirror counters (always exported; independent of the
      * cluster registry, unlike the health-check block in cluster.c). */
@@ -484,4 +527,43 @@ xrootd_export_pmark_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
     mw_emit_scalar(mw, "xrootd_pmark_map_unresolved_total",
         "Opens with packet marking enabled but no (experiment,activity) mapping.",
         &shm->pmark_map_unresolved_total);
+}
+
+/* ---- public API: xrootd_export_resilience_metrics() ----
+ *
+ * Phase 51 cross-protocol resilience counters.  All low-cardinality scalars
+ * (no per-host/path/identity labels — INVARIANT #8); always exported. */
+void
+xrootd_export_resilience_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
+{
+    mw_emit_scalar(mw, "xrootd_cms_read_timeouts_total",
+        "CMS client reconnects after the manager went silent past the read timeout.",
+        &shm->cms_read_timeouts_total);
+    mw_emit_scalar(mw, "xrootd_cms_login_timeouts_total",
+        "CMS server connections closed for not completing LOGIN before the deadline.",
+        &shm->cms_login_timeouts_total);
+    mw_emit_scalar(mw, "xrootd_cms_idle_closes_total",
+        "CMS server connections reaped by the post-login idle watchdog.",
+        &shm->cms_idle_closes_total);
+    mw_emit_scalar(mw, "xrootd_cms_cap_rejections_total",
+        "CMS server connections refused by the global or per-IP admission cap.",
+        &shm->cms_cap_rejections_total);
+    mw_emit_scalar(mw, "xrootd_cms_frame_yields_total",
+        "CMS read loops that yielded the worker after the per-wakeup frame cap.",
+        &shm->cms_frame_yields_total);
+    mw_emit_scalar(mw, "xrootd_ocsp_timeouts_total",
+        "OCSP fetches that hit the socket deadline (connect/handshake/read).",
+        &shm->ocsp_timeouts_total);
+    mw_emit_scalar(mw, "xrootd_auth_l1_hits_total",
+        "Auth-gate verdicts served from the per-worker L1 cache (no SHM lock).",
+        &shm->auth_l1_hits_total);
+    mw_emit_scalar(mw, "xrootd_auth_l1_misses_total",
+        "Auth-gate L1 misses that fell through to the SHM L2 or full evaluation.",
+        &shm->auth_l1_misses_total);
+    mw_emit_scalar(mw, "xrootd_acc_nss_breaker_open_total",
+        "Times the XrdAcc NSS group-lookup circuit breaker tripped open.",
+        &shm->acc_nss_breaker_open_total);
+    mw_emit_scalar(mw, "xrootd_acc_dns_breaker_open_total",
+        "Times the XrdAcc reverse-DNS circuit breaker tripped open.",
+        &shm->acc_dns_breaker_open_total);
 }

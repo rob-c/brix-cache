@@ -17,7 +17,8 @@
  * wire: XProtocol.hh ServerLoginBody — sessid[16] [+ "&P=..." security list].
  */
 #include "xrdc.h"
-#include "protocol/frame_hdr.h"   /* shared resp-hdr codec (libxrdproto) */
+#include "protocol/frame_hdr.h"      /* shared resp-hdr codec (libxrdproto) */
+#include "protocol/bootstrap_pack.h" /* shared handshake/protocol/login packers */
 #include "compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
 #include "compat/crypto.h"        /* xrootd_crypto_init (SHA/HMAC arming)     */
 
@@ -33,16 +34,52 @@
 
 #define XRDC_DEFAULT_TIMEOUT_MS  30000
 
+/* Well-known IGTF/grid CA trust directory shipped by fetch-crl / ca-policy RPMs.
+ * Grid server certs (dCache, EOS, ...) chain to these CAs, which are NOT in the
+ * OpenSSL system bundle, so falling back to it gives "unable to get local issuer
+ * certificate". */
+#define XRDC_GRID_CA_DIR  "/etc/grid-security/certificates"
+
+/*
+ * Resolve the CA trust directory for TLS peer verification using the same search
+ * order as the stock xrootd/globus tooling, so the client trusts grid CAs out of
+ * the box:
+ *   1. explicit caller value (e.g. --ca-dir)   2. $X509_CERT_DIR
+ *   3. /etc/grid-security/certificates (if present and readable)
+ *   4. NULL  ⇒ caller falls back to OpenSSL system defaults
+ * Returns a borrowed string (env/literal/argument); never allocates.
+ */
+const char *
+xrdc_resolve_ca_dir(const char *opt_ca_dir)
+{
+    const char *env;
+
+    if (opt_ca_dir != NULL && opt_ca_dir[0] != '\0') {
+        return opt_ca_dir;
+    }
+
+    env = getenv("X509_CERT_DIR");
+    if (env != NULL && env[0] != '\0') {
+        return env;
+    }
+
+    if (access(XRDC_GRID_CA_DIR, R_OK | X_OK) == 0) {
+        return XRDC_GRID_CA_DIR;
+    }
+
+    return NULL;
+}
+
 static void
-fill_username(char out[8])
+fill_username(char out[9])
 {
     struct passwd *pw = getpwuid(geteuid());
     const char    *name = (pw != NULL && pw->pw_name != NULL) ? pw->pw_name : "nobody";
     size_t         n = strlen(name);
 
-    memset(out, 0, 8);
-    if (n > 8) { n = 8; }
-    memcpy(out, name, n);   /* NUL-padded, not NUL-terminated if exactly 8 */
+    if (n > 8) { n = 8; }       /* the wire field is 8 bytes; truncate */
+    memcpy(out, name, n);
+    out[n] = '\0';              /* NUL-terminated for xrd_pack_login_request */
 }
 
 /* Read one response frame raw (header + body), bypassing streamid checks; used
@@ -86,21 +123,18 @@ do_handshake(xrdc_conn *c, uint16_t proto_sid, int want_tls, xrdc_status *st)
     int                  saw_proto = 0;
     int                  rounds;
 
-    memset(&hs, 0, sizeof(hs));
-    hs.fourth = htonl(4);
-    hs.fifth  = htonl(ROOTD_PQ);
+    xrd_pack_handshake(&hs);
 
-    memset(&pr, 0, sizeof(pr));
-    pr.streamid[0] = (uint8_t) (proto_sid >> 8);
-    pr.streamid[1] = (uint8_t) (proto_sid & 0xff);
-    pr.requestid   = htons(kXR_protocol);
-    pr.clientpv    = htonl(kXR_PROTOCOLVERSION);
-    /* Ask for the security-requirements trailer (to learn the signing level) and
-     * advertise TLS capability; require TLS for roots:// / --tls. */
-    pr.flags       = (kXR_char) (kXR_secreqs | kXR_ableTLS |
-                                 (want_tls ? kXR_wantTLS : 0));
-    pr.expect      = kXR_ExpLogin;
-    pr.dlen        = 0;
+    /* The client owns its protocol streamid; ask for the security-requirements
+     * trailer (to learn the signing level) and advertise TLS capability,
+     * requiring TLS for roots:// / --tls. */
+    {
+        const uint8_t sid[2] = { (uint8_t) (proto_sid >> 8),
+                                 (uint8_t) (proto_sid & 0xff) };
+        uint8_t flags = (uint8_t) (kXR_secreqs | kXR_ableTLS |
+                                   (want_tls ? kXR_wantTLS : 0));
+        xrd_pack_protocol_request(&pr, sid, flags);
+    }
 
     memcpy(seg, &hs, XRD_HANDSHAKE_LEN);
     memcpy(seg + XRD_HANDSHAKE_LEN, &pr, XRD_REQUEST_HDR_LEN);
@@ -120,7 +154,13 @@ do_handshake(xrdc_conn *c, uint16_t proto_sid, int want_tls, xrdc_status *st)
             return -1;
         }
         if (status != kXR_ok) {
-            xrdc_status_set(st, XRDC_EPROTO, 0,
+            /* The server completed the framing and EXPLICITLY rejected the
+             * handshake (e.g. kXR_error because we asked for TLS on a non-TLS
+             * port).  That is a permanent decision: classify it by the server's
+             * own status code (not the retryable XRDC_EPROTO framing-desync
+             * code) so the resilient loop fails fast instead of re-handshaking
+             * the same rejection until its stall window expires. */
+            xrdc_status_set(st, (int) status, 0,
                             "handshake: server status %u", status);
             return -1;
         }
@@ -164,15 +204,16 @@ do_login(xrdc_conn *c, const xrdc_opts *o, xrdc_status *st)
     uint8_t           *body = NULL;
     uint32_t           blen = 0;
 
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_login);
-    req.pid       = htonl((kXR_int32) getpid());
-    fill_username((char *) req.username);
-    req.ability2  = 0;
-    req.ability   = 0;
-    req.capver    = (kXR_char) (kXR_ver005 | kXR_asyncap);
-    req.reserved  = 0;
-    req.dlen      = 0;   /* anonymous: no credential/CGI payload */
+    /* streamid {0,0}: xrdc_send stamps the real streamid (and dlen) after
+     * packing. The username is the OS identity; advertise async-response
+     * capability. dlen=0 → anonymous (no credential/CGI payload). */
+    {
+        static const uint8_t sid0[2] = { 0, 0 };
+        char uname[9];
+        fill_username(uname);
+        xrd_pack_login_request(&req, sid0, (int32_t) getpid(), uname,
+                               (uint8_t) (kXR_ver005 | kXR_asyncap));
+    }
 
     if (xrdc_send(c, &req, NULL, 0, &sid, st) != 0) {
         return -1;
@@ -257,8 +298,7 @@ xrdc_bringup_ex(xrdc_conn *c, int want_login, xrdc_status *st)
         int have_tls = (c->server_flags & kXR_haveTLS) != 0;
         int goto_tls = (c->server_flags & kXR_gotoTLS) != 0;
         if (goto_tls || (c->want_tls && have_tls)) {
-            const char *ca = (c->opts.ca_dir != NULL && c->opts.ca_dir[0] != '\0')
-                             ? c->opts.ca_dir : getenv("X509_CERT_DIR");
+            const char *ca = xrdc_resolve_ca_dir(c->opts.ca_dir);
             if (xrdc_tls_upgrade(c, !c->opts.insecure_tls, c->opts.verify_host, ca, st) != 0) {
                 xrdc_close(c);
                 return -1;

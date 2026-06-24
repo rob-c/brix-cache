@@ -314,12 +314,19 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return xrootd_send_wait(ctx, c, 1);
     }
 
-    databuf = XROOTD_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size, rlen);
+    /*
+     * Per-in-flight read buffer (read pipelining): each outstanding memory read
+     * gets its OWN buffer from rd_pool rather than the single shared read_scratch,
+     * so this response can keep draining the (possibly jittered) socket while the
+     * recv loop already issues the next read into a different buffer.  Released
+     * back to the pool when this response's out_ring slot drains.
+     */
+    databuf = xrootd_acquire_read_buffer(ctx, c, rlen);
     if (databuf == NULL) {
         return NGX_ERROR;
     }
 
-    /* Charge the (possibly grown) scratch footprint to the budget now so a
+    /* Charge the (possibly grown) read-pool footprint to the budget now so a
      * concurrent connection's admission check sees this allocation promptly. */
     xrootd_budget_sync(ctx);
 
@@ -477,6 +484,15 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
         if (rc != NGX_OK || ctx->state != XRD_ST_SENDING) {
             xrootd_release_read_buffer(ctx, c, databuf);
+        } else {
+            /*
+             * Parked and draining: per-in-flight buffer + per-slot header make
+             * this memory-backed (TLS) read safe to pipeline, so let the recv loop
+             * queue the next read behind it instead of idling while it drains a
+             * jittered socket.  (A single-chunk response only: the non-windowed
+             * path is bounded by XROOTD_READ_WINDOW < XROOTD_READ_CHUNK_MAX.)
+             */
+            ctx->resp_pipelinable = 1;
         }
         return rc;
     }

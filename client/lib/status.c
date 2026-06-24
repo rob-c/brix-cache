@@ -10,7 +10,8 @@
  *       exhaustive per-code table is deferred to the M9/M10 conformance work).
  */
 #include "xrdc.h"
-#include "compat/kxr_names.h"   /* shared kXR error-name table (libxrdproto) */
+#include "compat/kxr_names.h"      /* shared kXR error-name table (libxrdproto) */
+#include "compat/error_mapping.h"  /* shared kXR↔errno canonical table (libxrdproto) */
 
 #include <errno.h>
 #include <stdio.h>
@@ -91,6 +92,8 @@ xrdc_shellcode(const xrdc_status *st)
     }
     switch (st->kxr) {
     case XRDC_ESOCK:   return 51;   /* socket/connect/timeout */
+    case XRDC_ERESOLVE: return 51;  /* permanent name-resolution failure */
+    case XRDC_EREDIRECT: return 52; /* redirect loop / budget exhausted */
     case XRDC_EPROTO:  return 52;   /* malformed server frame */
     case XRDC_EUSAGE:  return 50;   /* CLI / argument error */
     case XRDC_EAUTH:   return 53;   /* auth needed/failed */
@@ -110,37 +113,22 @@ xrdc_shellcode(const xrdc_status *st)
 int
 xrdc_kxr_to_errno(const xrdc_status *st)
 {
+    int e;
+
     if (st == NULL || st->kxr == 0) {
         return 0;
     }
-    switch (st->kxr) {
-    case kXR_NotFound:       return -ENOENT;
-    case kXR_NotAuthorized:  return -EACCES;
-    case kXR_AuthFailed:     return -EACCES;
-    case kXR_isDirectory:    return -EISDIR;
-    case kXR_NotFile:        return -EISDIR;
-    case kXR_FSError:        return -EEXIST;
-    case kXR_ItExists:       return -EEXIST;
-    case kXR_Conflict:       return -EEXIST;
-    case kXR_NoSpace:        return -ENOSPC;
-    case kXR_overQuota:      return -EDQUOT;
-    case kXR_Unsupported:    return -ENOSYS;
-    case kXR_fsReadOnly:     return -EROFS;
-    case kXR_FileLocked:     return -EAGAIN;
-    case kXR_inProgress:     return -EINPROGRESS;
-    case kXR_ArgInvalid:     return -EINVAL;
-    case kXR_ArgMissing:     return -EINVAL;
-    case kXR_ArgTooLong:     return -ENAMETOOLONG;
-    case kXR_InvalidRequest: return -EINVAL;
-    case kXR_FileNotOpen:    return -EBADF;
-    case kXR_NoMemory:       return -ENOMEM;
-    case kXR_ChkSumErr:      return -EIO;
-    case kXR_IOError:        return -EIO;
-    case kXR_AttrNotFound:   return -ENODATA;
-    case kXR_TLSRequired:    return -EACCES;
-    case kXR_Overloaded:     return -EBUSY;
-    case kXR_noserver:       return -EHOSTUNREACH;
 
+    /* Server kXR_* wire codes go through the shared canonical kXR↔errno table
+     * (libxrdproto), so the two directions stay in sync with the module's
+     * errno→kXR. A 0 return means "not a kXR wire error" — fall through to the
+     * client-only XRDC_E* sentinel handling below. */
+    e = xrootd_errno_from_kxr((uint16_t) st->kxr);
+    if (e != 0) {
+        return -e;
+    }
+
+    switch (st->kxr) {
     /* Local-side sentinels: prefer the captured sys_errno, else a default. */
     case XRDC_ESOCK:   return st->sys_errno ? -st->sys_errno : -EIO;
     case XRDC_EPROTO:  return -EPROTO;

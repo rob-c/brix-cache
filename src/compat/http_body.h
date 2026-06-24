@@ -89,6 +89,14 @@ ngx_int_t xrootd_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
     const char *log_path, xrootd_http_body_summary_t *summary_out);
 
 /*
+ * xrootd_http_body_write_to_fd_at - write the request body starting at absolute
+ * offset base_off (for resumable Content-Range PUT).  Same as the _to_fd form
+ * but seeds the running destination offset with base_off.
+ */
+ngx_int_t xrootd_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, xrootd_http_body_summary_t *summary_out, off_t base_off);
+
+/*
  * xrootd_http_body_read_all - read entire request body into a single allocated buffer.
  *
  * WHAT: Summarizes the request body, allocates a pool buffer of summary.bytes + 1,

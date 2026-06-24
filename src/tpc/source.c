@@ -1,4 +1,5 @@
 #include "tpc_internal.h"
+#include "../protocol/frame_hdr.h"   /* xrd_error_body_decode (shared kXR_error codec) */
 
 
 #include <stdlib.h>
@@ -109,15 +110,19 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
      */
     if (status != kXR_ok || body == NULL || dlen < XRD_FHANDLE_LEN) {
         /*
-         * kXR_error body layout: 4-byte network-order error code followed by a
-         * NUL-terminated message. Surface the remote's code/message verbatim so
-         * the destination's reply mirrors the true origin failure.
+         * kXR_error body = [int32 BE errnum][message]. Surface the remote's
+         * code/message verbatim so the destination's reply mirrors the true
+         * origin failure; the shared decoder bounds the (non-NUL) message slice.
          */
-        if (status == kXR_error && body != NULL && dlen >= 4) {
-            const char *msg = (const char *) body + 4;
+        int          rerr;
+        const char  *rmsg;
+        size_t       rmsglen;
+
+        if (status == kXR_error
+            && xrd_error_body_decode(body, dlen, &rerr, &rmsg, &rmsglen) == 0) {
             snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC source open failed: %s", msg);
-            t->xrd_error = (int) ntohl(*(uint32_t *) body);
+                     "TPC source open failed: %.*s", (int) rmsglen, rmsg);
+            t->xrd_error = rerr;
         } else {
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC kXR_open rejected (status=%u dlen=%u)",

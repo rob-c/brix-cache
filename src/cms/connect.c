@@ -1,6 +1,27 @@
 #include "cms_internal.h"
+#include "../connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
 
 #include <ngx_event_connect.h>
+
+/* ---- ngx_xrootd_cms_arm_read_deadline — bound manager silence (WS1) ----
+ *
+ * WHAT: (re)arm c->read with conf->cms_read_timeout so a manager that stops
+ * responding (black-holed / half-open) is detected.  ngx_add_timer replaces any
+ * pending read timer, so each call measures time-to-next-manager-activity from
+ * now.  On expiry the recv handler's ev->timedout branch disconnects + retries. */
+
+void
+ngx_xrootd_cms_arm_read_deadline(ngx_xrootd_cms_ctx_t *ctx)
+{
+    ngx_connection_t  *c;
+
+    c = ctx->connection;
+    if (c == NULL || ctx->conf->cms_read_timeout == 0 || ngx_exiting) {
+        return;
+    }
+
+    ngx_add_timer(c->read, ctx->conf->cms_read_timeout);
+}
 
 /* ---- ngx_xrootd_cms_schedule — set or replace the CMS timer with given delay ----
  *
@@ -25,6 +46,13 @@ ngx_xrootd_cms_schedule_retry(ngx_xrootd_cms_ctx_t *ctx)
 {
     ngx_msec_t  delay;
     ngx_msec_t  max_backoff;
+
+    /* Never schedule a reconnect once the worker is draining — a pending retry
+     * timer would otherwise keep the exiting worker alive to the shutdown
+     * timeout for no purpose. */
+    if (ngx_exiting) {
+        return;
+    }
 
     /* Cap max backoff at 10× the heartbeat interval so a short cms_interval
      * (e.g. 2s for tests) also gives short reconnect windows. */
@@ -93,11 +121,11 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
     c = ev->data;
     ctx = c->data;
 
-    ngx_log_error(NGX_LOG_WARN, c->write->log, 0,
-                  "xrootd: CMS write handler called timedout=%d "
-                  "c=%p ctx=%p logged_in=%d",
-                  (int) ev->timedout, c, ctx,
-                  ctx ? (int) ctx->logged_in : -1);
+    ngx_log_debug3(NGX_LOG_DEBUG_EVENT, c->write->log, 0,
+                   "xrootd: CMS write handler called timedout=%d "
+                   "logged_in=%d c=%p",
+                   (int) ev->timedout,
+                   ctx ? (int) ctx->logged_in : -1, c);
 
     if (ev->timedout) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
@@ -137,10 +165,17 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
             ngx_xrootd_cms_schedule_retry(ctx);
             return;
         }
-    }
 
-    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                  "xrootd: CMS write handler: calling send_load");
+        /*
+         * WS1: arm the manager-silence deadline ONCE, at the login transition.
+         * It is deliberately NOT re-armed on our own heartbeat sends (that would
+         * let our outbound traffic mask a manager that has gone silent); recv.c
+         * resets it only when a frame actually arrives FROM the manager.  So it
+         * measures time since the last manager activity and, on expiry, the recv
+         * handler reconnects us to a healthy manager.
+         */
+        ngx_xrootd_cms_arm_read_deadline(ctx);
+    }
 
     if (ngx_xrootd_cms_send_load(ctx) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
@@ -150,25 +185,16 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
         return;
     }
 
-    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                  "xrootd: CMS write handler: send_load OK, calling handle_read_event");
-
     if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                      "xrootd: CMS write handler: handle_read_event failed");
         ngx_xrootd_cms_disconnect(ctx);
         ngx_xrootd_cms_schedule_retry(ctx);
         return;
     }
 
-    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                  "xrootd: CMS write handler: scheduling next heartbeat interval=%T",
-                  ctx->conf->cms_interval);
-
     ngx_xrootd_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms_interval * 1000);
 
-    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                  "xrootd: CMS write handler: complete");
+    ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+                   "xrootd: CMS write handler: heartbeat sent");
 }
 
 /* ---- ngx_xrootd_cms_connect — establish TCP connection to CMS manager ----
@@ -208,8 +234,25 @@ ngx_xrootd_cms_connect(ngx_xrootd_cms_ctx_t *ctx)
     c->read->handler = ngx_xrootd_cms_read_handler;
     c->write->handler = ngx_xrootd_cms_write_handler;
 
+    /*
+     * WS5: OS-level dead-peer reaping on the manager socket, so a silently-
+     * dropped manager is torn down by the kernel even between event-loop
+     * deadlines.  Best-effort; failures are non-fatal.
+     */
+    xrootd_apply_tcp_deadpeer_opts(c->fd, ctx->conf->cms_tcp_keepalive,
+                                   ctx->conf->cms_tcp_user_timeout);
+
     if (rc == NGX_AGAIN) {
-        ngx_add_timer(c->write, NGX_XROOTD_CMS_CONNECT_TIMEOUT);
+        /*
+         * WS2: bound the connect + first-write readiness window with
+         * cms_send_timeout (operator-tunable); the write handler's ev->timedout
+         * path reconnects with backoff.  Falls back to the fixed connect timeout
+         * if the knob is disabled (0).
+         */
+        ngx_msec_t connect_tmo = ctx->conf->cms_send_timeout > 0
+                                 ? ctx->conf->cms_send_timeout
+                                 : NGX_XROOTD_CMS_CONNECT_TIMEOUT;
+        ngx_add_timer(c->write, connect_tmo);
         return;
     }
 
@@ -227,10 +270,17 @@ ngx_xrootd_cms_timer(ngx_event_t *ev)
 
     ctx = ev->data;
 
-    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                  "xrootd: CMS timer fired connection=%p logged_in=%d",
-                  ctx->connection,
-                  ctx->connection ? (int) ctx->logged_in : -1);
+    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+                   "xrootd: CMS timer fired connection=%p logged_in=%d",
+                   ctx->connection,
+                   ctx->connection ? (int) ctx->logged_in : -1);
+
+    /* Worker shutting down: drop the manager link immediately (so the manager
+     * sees us leave at once) and do not reschedule the heartbeat. */
+    if (ngx_exiting) {
+        ngx_xrootd_cms_disconnect(ctx);
+        return;
+    }
 
     if (ctx->connection == NULL) {
         ngx_xrootd_cms_connect(ctx);
@@ -281,6 +331,15 @@ ngx_xrootd_cms_start(ngx_cycle_t *cycle, ngx_stream_xrootd_srv_conf_t *conf)
     ctx->timer.handler = ngx_xrootd_cms_timer;
     ctx->timer.data = ctx;
     ctx->timer.log = cycle->log;
+    /*
+     * The heartbeat re-arms itself every cms_interval (connect.c:194,298).  Mark
+     * it cancelable so a draining worker (ngx_exiting after `nginx -s reload`)
+     * exits as soon as its connections close, instead of being held alive to the
+     * shutdown timeout by the next pending heartbeat.  The cluster keepalive is
+     * best-effort; dropping a final tick at teardown is harmless (the reconnect
+     * path is already ngx_exiting-guarded).  Matches the io_uring panic timer.
+     */
+    ctx->timer.cancelable = 1;
 
     conf->cms_ctx = ctx;
 

@@ -34,7 +34,7 @@ xrootd_budget_ctx_footprint(xrootd_ctx_t *ctx)
 
     /* Phase 32 WS3: include the concurrent-AIO read-pool buffers (several may be
      * in flight at once once read pipelining is enabled). */
-    for (i = 0; i < XROOTD_PIPELINE_MAX; i++) {
+    for (i = 0; i < ctx->pipeline_depth; i++) {
         total += ctx->rd_pool[i].size;
     }
 

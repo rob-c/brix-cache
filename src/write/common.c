@@ -19,7 +19,8 @@
 ngx_int_t
 xrootd_try_post_write_aio(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     off_t offset, const u_char *data, size_t len, int64_t req_offset,
-    ngx_uint_t is_pgwrite, u_char *payload_to_free, const char *fallback_log,
+    ngx_uint_t is_pgwrite, u_char *payload_to_free,
+    const xrdp_pg_bad_t *bad, size_t bad_count, const char *fallback_log,
     ngx_flag_t *posted)
 {
     ngx_stream_xrootd_srv_conf_t *conf;
@@ -53,6 +54,12 @@ xrootd_try_post_write_aio(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     t->nwritten        = -1;
     t->io_errno        = 0;
     t->payload_to_free = payload_to_free;
+    t->bad_page_count  = (bad != NULL && bad_count > kXR_pgMaxEpr)
+                         ? kXR_pgMaxEpr : bad_count;
+    if (bad != NULL && t->bad_page_count > 0) {
+        ngx_memcpy(t->bad_pages, bad,
+                   t->bad_page_count * sizeof(xrdp_pg_bad_t));
+    }
     t->streamid[0]     = ctx->cur_streamid[0];
     t->streamid[1]     = ctx->cur_streamid[1];
     ngx_cpystrn((u_char *) t->path,

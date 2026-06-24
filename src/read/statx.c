@@ -62,10 +62,16 @@
 #include "../path/beneath.h"
 #include "../compat/alloc_guard.h"
 
+#include <stdlib.h>   /* realpath */
+
 #define XROOTD_STATX_MAX_PATHS  256
-#define XROOTD_STATX_LINE_MAX   256
-#define XROOTD_STATX_BUF_MAX    (XROOTD_STATX_MAX_PATHS * XROOTD_STATX_LINE_MAX)
-#define XROOTD_STATX_ERR_LINE   "0 0 0 0\n"
+/* kXR_statx returns exactly ONE flag byte per requested path — a packed byte
+ * array, no separators, no NUL (reference XrdXrootdXeq.cc:3194-3203):
+ * kXR_file(0) / kXR_isDir(2) / kXR_other(4) / kXR_offline(8). An inaccessible or
+ * missing path yields kXR_offline. (We previously emitted a full "id size flags
+ * mtime" text line per path — a kXR_stat body — which no standard statx parser
+ * could read.) */
+#define XROOTD_STATX_BUF_MAX    XROOTD_STATX_MAX_PATHS
 
 static ngx_flag_t
 xrootd_statx_next_path(const u_char **cursor, const u_char *end,
@@ -74,14 +80,18 @@ xrootd_statx_next_path(const u_char **cursor, const u_char *end,
     const u_char *path_start;
     size_t        path_len;
 
+    /* kXR_statx paths are NEWLINE-separated in the request (reference do_Statx
+     * tokenizes a '\n' list); the final path may lack a trailing newline. (We
+     * previously split on '\0', so a standard client's newline list was read as
+     * one giant path.) */
     path_start = *cursor;
-    while (*cursor < end && **cursor != '\0') {
+    while (*cursor < end && **cursor != '\n') {
         (*cursor)++;
     }
 
     path_len = (size_t) (*cursor - path_start);
     if (*cursor < end) {
-        (*cursor)++;
+        (*cursor)++;   /* skip the '\n' separator */
     }
 
     if (path_len == 0 || path_len >= path_size) {
@@ -94,27 +104,6 @@ xrootd_statx_next_path(const u_char **cursor, const u_char *end,
     return 1;
 }
 
-static ngx_int_t
-xrootd_statx_append_line(u_char **response_cursor, u_char *response_end,
-    const char *line, size_t line_len, ngx_flag_t append_newline)
-{
-    size_t required;
-
-    required = line_len + (append_newline ? 1 : 0);
-    if (*response_cursor + required >= response_end) {
-        return NGX_ERROR;
-    }
-
-    ngx_memcpy(*response_cursor, line, line_len);
-    *response_cursor += line_len;
-
-    if (append_newline) {
-        *(*response_cursor)++ = '\n';
-    }
-
-    return NGX_OK;
-}
-
 ngx_int_t
 xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
@@ -125,8 +114,6 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
     char          reqpath_buf[XROOTD_MAX_PATH + 1];
     char          full_path[PATH_MAX];
     struct stat   st;
-    char          stat_body[XROOTD_STATX_LINE_MAX];
-    size_t        stat_len;
     int           n_paths = 0;
 
     if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
@@ -161,53 +148,71 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * A denial here falls through to the per-path "inaccessible" sentinel,
          * preserving STATX's partial-result semantics.
          */
+        if (rsp_ptr >= rsp_end) {
+            break;
+        }
+
+        /* The reference do_Statx returns an ERROR (fsError) on the FIRST path
+         * whose stat fails — it does NOT emit a per-path sentinel and continue.
+         * kXR_offline is reserved for a path that stat()s OK but reports mode==-1
+         * (a tape-staged file), handled via the FRM probe below. A missing or
+         * authz-denied path therefore terminates the batch with a kXR_error,
+         * matching XrdXrootdXeq.cc:do_Statx and every standard statx parser. */
         if (xrootd_check_authdb(ctx, full_path, XROOTD_AUTH_LOOKUP) != NGX_OK
             || xrootd_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
                                             ctx->identity) != NGX_OK
-            || xrootd_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK
-            || xrootd_stat_beneath(conf->rootfd, reqpath_buf, &st) != 0)
+            || xrootd_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK)
         {
-            /* Inaccessible or missing - emit error sentinel. */
-            size_t errlen = sizeof(XROOTD_STATX_ERR_LINE) - 1;
-            if (xrootd_statx_append_line(&rsp_ptr, rsp_end,
-                                         XROOTD_STATX_ERR_LINE,
-                                         errlen, 0) != NGX_OK)
-            {
-                break;
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STATX, "STATX", reqpath_buf,
+                              "-", kXR_NotAuthorized, "permission denied");
+        }
+        if (xrootd_stat_beneath(conf->rootfd, reqpath_buf, &st) != 0) {
+            /* Follow fallback for an in-export symlink with a host-ABSOLUTE
+             * target (RESOLVE_IN_ROOT chroots it to ENOENT; stock follows on the
+             * real fs).  Match stock, confined via realpath within the export. */
+            int       ok = 0;
+            if (errno == ENOENT && conf->common.root_canon[0] != '\0') {
+                char   real[PATH_MAX];
+                size_t rl = ngx_strlen(conf->common.root_canon);
+                if (realpath(full_path, real) != NULL
+                    && ngx_strncmp(real, conf->common.root_canon, rl) == 0
+                    && (real[rl] == '/' || real[rl] == '\0')
+                    && stat(real, &st) == 0)
+                {
+                    ok = 1;
+                }
             }
-            continue;
+            if (!ok) {
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STATX, "STATX", reqpath_buf,
+                                  "-", xrootd_kxr_from_errno(errno),
+                                  strerror(errno));
+            }
         }
 
         {
-            int extra;
+            /* One flag byte per path. The reference do_Statx emits ONLY
+             * kXR_isDir or kXR_file (plus kXR_offline for a tape-staged file via
+             * the FRM probe below) — there is NO kXR_other in statx, so a FIFO /
+             * socket / device stats as kXR_file(0), exactly as stock. (Plain
+             * kXR_stat does use kXR_other; statx deliberately does not.) */
+            u_char flag;
 
-            extra = xrootd_cache_path_flag(conf, reqpath_buf);
-            /* Phase 35: mark nearline files offline (must match kXR_stat). */
+            if (S_ISDIR(st.st_mode)) {
+                flag = (u_char) kXR_isDir;
+            } else {
+                flag = (u_char) kXR_file;          /* 0 — incl. non-regular */
+            }
             if (conf->frm.enable) {
                 frm_residency_t _res;
                 if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
                     && (_res.state == FRM_RES_NEARLINE
                         || _res.state == FRM_RES_OFFLINE))
                 {
-                    extra |= kXR_offline | kXR_bkpexist;
+                    flag |= (u_char) kXR_offline;
                 }
             }
-            xrootd_make_stat_body(&st, 0, extra, stat_body, sizeof(stat_body));
+            *rsp_ptr++ = flag;
         }
-
-        stat_len = strlen(stat_body);
-        if (xrootd_statx_append_line(&rsp_ptr, rsp_end, stat_body,
-                                     stat_len, 1) != NGX_OK)
-        {
-            break;
-        }
-    }
-
-    /* Replace the last '\n' with '\0' per the XRootD stat wire protocol. */
-    if (rsp_ptr > rsp_buf && *(rsp_ptr - 1) == '\n') {
-        *(rsp_ptr - 1) = '\0';
-    } else {
-        *rsp_ptr++ = '\0';
     }
 
     {

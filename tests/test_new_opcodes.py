@@ -395,11 +395,11 @@ class TestSigver:
                                      len(fake_sig))
             sock.sendall(sigver_hdr + fake_sig)
 
-            status, body = self._recv_response(sock)
-            # Server must accept sigver with kXR_ok (status=0)
-            assert status == 0, f"sigver returned non-ok status {status}"
-
-            # Now send kXR_ping to verify the session is still live
+            # kXR_sigver is a request PREFIX — a valid (or no-op) envelope draws
+            # NO response (the reply belongs to the request that follows); see
+            # src/session/signing.c.  So do NOT read here.  Send the covered ping
+            # and confirm it succeeds — proving the sigver was accepted and the
+            # session is still live.
             ping_hdr = struct.pack(">BB H 16x I", 0, 3, 3011, 0)
             sock.sendall(ping_hdr)
 
@@ -425,10 +425,8 @@ class TestSigver:
                                      0x01,
                                      len(fake_sig))
             sock.sendall(sigver_hdr + fake_sig)
-            status, _ = self._recv_response(sock)
-            assert status == 0, "sigver rejected"
-
-            # Confirm session still works with a ping
+            # sigver is a silent request PREFIX (no response on the accept/no-op
+            # path) — confirm acceptance + liveness via the covered ping instead.
             ping_hdr = struct.pack(">BB H 16x I", 0, 5, 3011, 0)
             sock.sendall(ping_hdr)
             status, _ = self._recv_response(sock)
@@ -492,8 +490,10 @@ class TestStatx:
         # Consume login response fully (variable dlen)
         self._recv_response(sock)
 
-        # 4. kXR_statx (3022) — NUL-separated paths
-        payload = b"\x00".join(p.encode() for p in paths) + b"\x00"
+        # 4. kXR_statx (3022) — NEWLINE-separated paths (the reference do_Statx
+        # tokenizes a '\n' list via XrdOucTokenizer; a NUL list is read as one
+        # giant path that C-string-truncates at the first NUL).
+        payload = b"\n".join(p.encode() for p in paths) + b"\n"
         statx_hdr = struct.pack(">BB H B 11x 4x I",
                                  0, 2,
                                  3022,   # kXR_statx
@@ -505,23 +505,25 @@ class TestStatx:
         sock.close()
         return status, body
 
+    # kXR_statx returns ONE flag byte per path (NOT a stat line) — exactly like
+    # the reference do_Statx (XrdXrootdXeq.cc): *respinfo = kXR_isDir / kXR_file /
+    # kXR_offline.  A path whose stat fails terminates the batch with an error
+    # response (no per-path sentinel).  Flag bits: kXR_file=0, kXR_isDir=2,
+    # kXR_other=4, kXR_offline=8.
+    _kXR_isDir = 0x02
+
     def test_statx_single_path(self):
-        """statx for one path returns one stat line."""
-        # Upload a known file
+        """statx for one regular file returns one flag byte (kXR_file == 0)."""
         upload(ANON_URL, "statx_single.bin", b"x" * 1234)
 
         status, body = self._send_statx(HOST, ANON_PORT, ["/statx_single.bin"])
 
         assert status == 0, f"statx returned error status {status}"
-        # Body is NUL-terminated ASCII; split on whitespace
-        text = body.rstrip(b"\x00\n").decode()
-        parts = text.split()
-        assert len(parts) == 4, f"expected 4 fields, got: {text!r}"
-        # Field 1 = size
-        assert int(parts[1]) == 1234, f"size mismatch: {parts[1]}"
+        assert len(body) == 1, f"expected one flag byte, got {body!r}"
+        assert not (body[0] & self._kXR_isDir), f"file flagged as dir: {body[0]:#x}"
 
     def test_statx_multiple_paths(self):
-        """statx for three paths returns three stat lines."""
+        """statx for three regular files returns three flag bytes."""
         for i in range(3):
             upload(ANON_URL, f"statx_multi_{i}.bin", b"y" * (100 * (i + 1)))
 
@@ -529,54 +531,36 @@ class TestStatx:
                                         [f"/statx_multi_{i}.bin" for i in range(3)])
 
         assert status == 0
-        text = body.rstrip(b"\x00").decode()
-        lines = [l for l in text.split("\n") if l.strip()]
-        assert len(lines) == 3, f"expected 3 lines, got {len(lines)}: {text!r}"
+        assert len(body) == 3, f"expected three flag bytes, got {body!r}"
+        for i, flag in enumerate(body):
+            assert not (flag & self._kXR_isDir), f"path {i} flagged as dir"
 
-        for i, line in enumerate(lines):
-            parts = line.split()
-            assert int(parts[1]) == 100 * (i + 1), \
-                f"line {i} size mismatch: {line!r}"
-
-    def test_statx_missing_path_returns_sentinel(self):
-        """statx for a non-existent path returns the error sentinel '0 0 0 0'."""
-        status, body = self._send_statx(HOST, ANON_PORT,
-                                        ["/no_such_file_statx.bin"])
-
-        assert status == 0, f"statx returned error status {status}"
-        text = body.rstrip(b"\x00\n").decode().strip()
-        assert text == "0 0 0 0", f"expected sentinel, got: {text!r}"
+    def test_statx_missing_path_errors(self):
+        """statx for a non-existent path terminates the batch with an error
+        (the reference do_Statx fsErrors on the first failing path — it does NOT
+        emit a per-path sentinel and continue)."""
+        status, _ = self._send_statx(HOST, ANON_PORT,
+                                     ["/no_such_file_statx.bin"])
+        assert status != 0, "statx of a missing path must be an error"
 
     def test_statx_mixed_existing_and_missing(self):
-        """statx with a mix of existing and missing paths handles both correctly."""
+        """A missing path anywhere in the batch makes the whole statx an error,
+        matching the reference (error on first failure, batch aborted)."""
         upload(ANON_URL, "statx_mixed_ok.bin", b"z" * 500)
 
-        status, body = self._send_statx(HOST, ANON_PORT,
-                                        ["/statx_mixed_ok.bin",
-                                         "/no_such_statx_xyz.bin"])
-
-        assert status == 0
-        text  = body.rstrip(b"\x00").decode()
-        lines = [l for l in text.split("\n") if l.strip()]
-        assert len(lines) == 2, f"expected 2 lines, got {len(lines)}"
-
-        # First line: the real file
-        parts = lines[0].split()
-        assert int(parts[1]) == 500
-
-        # Second line: the sentinel
-        assert lines[1].strip() == "0 0 0 0"
+        status, _ = self._send_statx(HOST, ANON_PORT,
+                                     ["/statx_mixed_ok.bin",
+                                      "/no_such_statx_xyz.bin"])
+        assert status != 0, "statx batch with a missing path must be an error"
 
     def test_statx_directory(self):
-        """statx returns directory flag for a directory path."""
+        """statx of a directory sets the kXR_isDir flag bit in its flag byte."""
         status, body = self._send_statx(HOST, ANON_PORT, ["/"])
 
         assert status == 0
-        text  = body.rstrip(b"\x00\n").decode().strip()
-        parts = text.split()
-        assert len(parts) == 4
-        flags = int(parts[2])
-        assert flags & 2, f"expected kXR_isDir flag set, got flags={flags}"
+        assert len(body) == 1, f"expected one flag byte, got {body!r}"
+        assert body[0] & self._kXR_isDir, \
+            f"expected kXR_isDir flag set, got {body[0]:#x}"
 
 
 # ---------------------------------------------------------------------------

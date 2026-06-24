@@ -43,8 +43,19 @@
 #define XROOTD_VFS_O_MKDIRPATH   0x40
 #define XROOTD_VFS_O_NOCACHE     0x80
 
-typedef struct xrootd_vfs_file_s xrootd_vfs_file_t;
-typedef struct xrootd_vfs_dir_s  xrootd_vfs_dir_t;
+typedef struct xrootd_vfs_file_s   xrootd_vfs_file_t;
+typedef struct xrootd_vfs_dir_s    xrootd_vfs_dir_t;
+typedef struct xrootd_vfs_staged_s xrootd_vfs_staged_t;
+
+/* Options for xrootd_vfs_copy() — mirrors xrootd_ns_copy_opts_t without pulling
+ * the namespace_ops header into this public surface. */
+typedef struct {
+    unsigned recursive:1;
+    unsigned overwrite:1;
+    unsigned overwrite_dirs:1;
+    unsigned preserve_xattrs:1;
+    unsigned staged_commit:1;
+} xrootd_vfs_copy_opts_t;
 
 typedef struct {
     off_t        size;
@@ -80,6 +91,16 @@ typedef struct {
     unsigned             cache_enabled:1;
     unsigned             cache_writethrough:1;
 } xrootd_vfs_ctx_t;
+
+/* Populate *vctx for a transient (rootfd = -1) confined open of an
+ * already-resolved canonical path, filling the fields the HTTP front ends set
+ * identically (pool/log/proto, export+cache roots, cache_enabled, allow_write,
+ * is_tls, identity, resolved path). HTTP-agnostic: callers pass pool/log/is_tls
+ * from their own request. Callers may tweak individual fields afterwards. */
+void xrootd_vfs_ctx_init(xrootd_vfs_ctx_t *vctx, ngx_pool_t *pool,
+    ngx_log_t *log, xrootd_proto_t proto, const char *root_canon,
+    const char *cache_root_canon, int allow_write, int is_tls,
+    xrootd_identity_t *identity, const char *resolved_path);
 
 /* Open ctx->resolved under the confinement cascade with the given
  * XROOTD_VFS_O_* flags (translated to O_* internally). XROOTD_VFS_O_WRITE
@@ -172,5 +193,44 @@ ngx_int_t xrootd_vfs_truncate(xrootd_vfs_file_t *fh, off_t length);
 /* fsync the open handle to stable storage. Unmetered (the enclosing write op
  * records the metric). NGX_ERROR with errno set on a bad handle or fsync error. */
 ngx_int_t xrootd_vfs_sync(xrootd_vfs_file_t *fh);
+
+/* --- extended attributes (src/fs/vfs_xattr.c) ------------------------------
+ * Confined `user.`-namespace xattr ops on ctx->resolved, each metered as
+ * OP_XATTR. get/list return the byte count (bufsz==0 asks the required size;
+ * -1/ERANGE when a value does not fit); set/remove return NGX_OK / NGX_ERROR
+ * with errno set. set/remove are intentionally NOT allow_write-gated — the lock
+ * database writes on otherwise read-only requests and the protocol layer has
+ * already authorized — matching the prior direct confined-helper behaviour. */
+ssize_t xrootd_vfs_getxattr(xrootd_vfs_ctx_t *ctx, const char *name,
+    void *buf, size_t bufsz);
+ssize_t xrootd_vfs_listxattr(xrootd_vfs_ctx_t *ctx, void *buf, size_t bufsz);
+ngx_int_t xrootd_vfs_setxattr(xrootd_vfs_ctx_t *ctx, const char *name,
+    const void *value, size_t len, int flags);
+ngx_int_t xrootd_vfs_removexattr(xrootd_vfs_ctx_t *ctx, const char *name);
+
+/* --- single-file copy (src/fs/vfs_copy.c) ---------------------------------
+ * Copy the resolved ctx (source) regular file to dst_resolved within the same
+ * export root via copy_file_range (read/write fallback). Write-gated; metered
+ * as OP_COPY. NGX_ERROR with errno set (EEXIST when dst exists and !overwrite,
+ * EXDEV on a confinement escape). */
+ngx_int_t xrootd_vfs_copy(xrootd_vfs_ctx_t *ctx, const char *dst_resolved,
+    const xrootd_vfs_copy_opts_t *opts);
+
+/* --- atomic staged write (src/fs/vfs_staged.c) ----------------------------
+ * Crash-safe upload lifecycle: open a unique O_EXCL temp inside the export root
+ * (final path = resolved ctx), write its fd, then commit (atomic publish onto
+ * the final path) or abort (close + unlink). Write-gated at open. */
+xrootd_vfs_staged_t *xrootd_vfs_staged_open(xrootd_vfs_ctx_t *ctx, mode_t mode,
+    ngx_uint_t attempts, int *err_out);
+/* The staged temp fd to write to, or NGX_INVALID_FILE for a NULL handle. */
+ngx_fd_t xrootd_vfs_staged_fd(const xrootd_vfs_staged_t *st);
+/* The staged temp path (borrowed; "" when st is NULL). */
+const char *xrootd_vfs_staged_tmp_path(const xrootd_vfs_staged_t *st);
+/* Atomically publish the temp onto the final path; `excl` uses RENAME_NOREPLACE
+ * (errno==EEXIST if the final exists). Metered as OP_WRITE (committed size).
+ * NGX_OK / NGX_ERROR with errno set. */
+ngx_int_t xrootd_vfs_staged_commit(xrootd_vfs_staged_t *st, unsigned excl);
+/* Close and (when remove_tmp) unlink the temp. Idempotent; NULL-safe. */
+void xrootd_vfs_staged_abort(xrootd_vfs_staged_t *st, unsigned remove_tmp);
 
 #endif /* XROOTD_VFS_H */

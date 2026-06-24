@@ -16,6 +16,7 @@
  */
 #include "sec.h"
 #include "../sss_keytab.h"
+#include "compat/sss_bf.h"   /* xrootd_sss_build_credential — shared with the server */
 
 #include <arpa/inet.h>
 #include <pwd.h>
@@ -70,13 +71,11 @@ sss_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
           xrdc_status *st)
 {
     xrdc_sss_key key;
-    uint8_t      clear[XRDC_SSS_DATA_HDR_LEN + 3 + 64 + 1];
-    uint8_t      plain[sizeof(clear) + 4];
-    uint8_t     *blob, *cursor;
+    uint8_t      nonce[32];
+    uint8_t     *blob;
     const char  *user;
-    size_t       ulen, clear_len, cipher_len, blob_len, crypt_out;
-    uint32_t     gen_time, crc;
-    uint64_t     id_be;
+    uint32_t     gen_time;
+    size_t       blob_len;
 
     (void) c;
     (void) parms;
@@ -85,70 +84,31 @@ sss_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
         return -1;
     }
 
-    /* 40-byte data header: 32 random + gen_time(BE) + USEDATA opt byte. */
-    memset(clear, 0, sizeof(clear));
-    if (RAND_bytes(clear, 32) != 1) {
+    /* RNG + clock at the edge; the credential byte assembly lives in the shared
+     * kernel (xrootd_sss_build_credential, libxrdproto) so the client and the
+     * server mint the identical SSS wire format from one audited implementation. */
+    if (RAND_bytes(nonce, sizeof(nonce)) != 1) {
         xrdc_status_set(st, XRDC_EAUTH, 0, "sss: RAND_bytes failed");
         return -1;
     }
     gen_time = (uint32_t) (time(NULL) - XRDC_SSS_BASE_TIME);
-    clear[32] = (uint8_t) (gen_time >> 24);
-    clear[33] = (uint8_t) (gen_time >> 16);
-    clear[34] = (uint8_t) (gen_time >> 8);
-    clear[35] = (uint8_t) gen_time;
-    clear[39] = XRDC_SSS_OPT_USEDATA;
-
-    /* NAME TLV: [type][0][len][username NUL-terminated]; len includes the NUL.
-     * The login name identifies us; an anyuser/anybody server key accepts it. */
     user = local_user();
-    ulen = strlen(user) + 1;
-    if (ulen > 64) {
-        ulen = 64;
-    }
-    cursor = clear + XRDC_SSS_DATA_HDR_LEN;
-    *cursor++ = XRDC_SSS_TYPE_NAME;
-    *cursor++ = 0;
-    *cursor++ = (uint8_t) ulen;
-    memcpy(cursor, user, ulen - 1);
-    cursor[ulen - 1] = '\0';
-    cursor += ulen;
-    clear_len = (size_t) (cursor - clear);
 
-    /* plain = cleartext + IEEE-CRC32 (big-endian). */
-    memcpy(plain, clear, clear_len);
-    crc = htonl(xrdc_sss_crc32(plain, clear_len));
-    memcpy(plain + clear_len, &crc, sizeof(crc));
-
-    /* blob = 16-byte header + BF32(plain). */
-    blob = (uint8_t *) malloc(XRDC_SSS_HDR_LEN + clear_len + 4);
+    /* 256 bytes always covers HDR + 40-byte data hdr + TLV(<=67) + CRC. */
+    blob = (uint8_t *) malloc(256);
     if (blob == NULL) {
         xrdc_status_set(st, XRDC_EAUTH, 0, "sss: out of memory");
         return -1;
     }
-    if (xrdc_sss_bf32_encrypt(key.key, key.key_len, plain, clear_len + 4,
-                              blob + XRDC_SSS_HDR_LEN, clear_len + 4,
-                              &crypt_out, st) != 0) {
+    if (xrootd_sss_build_credential(key.key, key.key_len, (uint64_t) key.id,
+                                    user, nonce, gen_time, blob, 256,
+                                    &blob_len) != 0) {
         free(blob);
+        xrdc_status_set(st, XRDC_EAUTH, 0,
+                        "sss: credential build failed (legacy provider?)");
         return -1;
     }
-    cipher_len = crypt_out;
 
-    blob[0] = 's'; blob[1] = 's'; blob[2] = 's'; blob[3] = '\0';
-    blob[4] = 1;                    /* version */
-    blob[5] = 0;                    /* spare */
-    blob[6] = 0;                    /* kn_size: no named key */
-    blob[7] = XRDC_SSS_ENC_BF32;
-    id_be = (uint64_t) key.id;
-    blob[ 8] = (uint8_t) (id_be >> 56);
-    blob[ 9] = (uint8_t) (id_be >> 48);
-    blob[10] = (uint8_t) (id_be >> 40);
-    blob[11] = (uint8_t) (id_be >> 32);
-    blob[12] = (uint8_t) (id_be >> 24);
-    blob[13] = (uint8_t) (id_be >> 16);
-    blob[14] = (uint8_t) (id_be >>  8);
-    blob[15] = (uint8_t)  id_be;
-
-    blob_len = XRDC_SSS_HDR_LEN + cipher_len;
     *payload = blob;
     *plen = (uint32_t) blob_len;
     return 0;

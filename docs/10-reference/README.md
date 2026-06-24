@@ -32,6 +32,7 @@ These documents are detailed and intended for experienced developers who need pr
 
 | Document | Description |
 |---|---|
+| **[XRootD vs nginx-xrootd — comparison set](comparison/xrootd-vs-nginx/README.md)** | **Authoritative hyper-detailed set**: 11 source-grounded docs comparing official XRootD against this module across architecture, protocol, auth, data plane, HTTP/WebDAV/S3, clustering/TPC, storage/cache/tape, operations, clients, security, and gaps — with codebase-internals *and* admin/end-user views. Consolidates the docs below. |
 | [Design Rationale](design-rationale.md) | Why nginx-xrootd exists, comparison with official xrootd |
 | [Deployment Configuration Reference](comparison/deployment-reference.md) | Side-by-side nginx-xrootd and vanilla XRootD configs for root, HTTP, token, GSI, packet marking, user mapping, HTTPS, cache, TPC, monitoring, mirroring, staging, and traffic-control roles |
 | [Source-Verified XRootD Comparison](source-verified-xrootd-comparison.md) | Current feature/gap comparison checked against this source tree and `/tmp/xrootd-src` |

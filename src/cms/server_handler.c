@@ -1,4 +1,121 @@
 #include "server.h"
+#include "../connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
+#include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
+
+/*
+ * Phase 50 (WS4): per-worker live gauge of accepted CMS data-server connections.
+ * One process-global counter encapsulated behind accessors; incremented once a
+ * connection is admitted (handler) and decremented when it closes (server_recv.c
+ * xrootd_cms_srv_close), gated by ctx->counted so it can never double-count or
+ * underflow.  Enforces xrootd_cms_server_max_connections so a peer inside the
+ * (often unset) CIDR allowlist cannot exhaust memory/fds with idle connections.
+ */
+static ngx_uint_t  xrootd_cms_srv_conns;
+
+ngx_uint_t
+xrootd_cms_srv_conn_count(void)
+{
+    return xrootd_cms_srv_conns;
+}
+
+void
+xrootd_cms_srv_conn_inc(void)
+{
+    xrootd_cms_srv_conns++;
+}
+
+void
+xrootd_cms_srv_conn_dec(void)
+{
+    if (xrootd_cms_srv_conns > 0) {
+        xrootd_cms_srv_conns--;
+    }
+}
+
+/*
+ * Phase 51 (A3): per-source-IP connection accounting (per-worker), so one peer
+ * cannot consume every slot of the global cap.  A small open-addressing table
+ * keyed by the peer IP string; linear-probe.  If the table is full (an abusive
+ * fan-out of distinct IPs — itself bounded by the global cap) we fail OPEN: the
+ * global cap still bounds the total, we just stop enforcing per-IP for the
+ * overflow.  Lock-free: per-worker, event-loop only.
+ */
+#define XROOTD_CMS_IP_SLOTS  4096
+
+typedef struct {
+    char        ip[64];     /* peer IP string; '\0' = free slot */
+    ngx_uint_t  count;      /* live connections from this IP in this worker */
+} xrootd_cms_ip_slot_t;
+
+static xrootd_cms_ip_slot_t  xrootd_cms_ip_table[XROOTD_CMS_IP_SLOTS];
+
+static ngx_uint_t
+xrootd_cms_ip_hash(const char *ip)
+{
+    ngx_uint_t  h = 5381;
+    const u_char *p = (const u_char *) ip;
+
+    while (*p) {
+        h = ((h << 5) + h) ^ (ngx_uint_t) *p++;   /* djb2-xor */
+    }
+    return h % XROOTD_CMS_IP_SLOTS;
+}
+
+/* Find the slot for ip; if create, claim a free slot when absent.  Returns NULL
+ * when absent and (not create OR table full). Probes a bounded window. */
+static xrootd_cms_ip_slot_t *
+xrootd_cms_ip_find(const char *ip, int create)
+{
+    ngx_uint_t  start = xrootd_cms_ip_hash(ip);
+    ngx_uint_t  i;
+
+    for (i = 0; i < XROOTD_CMS_IP_SLOTS; i++) {
+        xrootd_cms_ip_slot_t *slot =
+            &xrootd_cms_ip_table[(start + i) % XROOTD_CMS_IP_SLOTS];
+
+        if (slot->ip[0] == '\0') {
+            if (!create) {
+                return NULL;            /* absent */
+            }
+            ngx_cpystrn((u_char *) slot->ip, (u_char *) ip, sizeof(slot->ip));
+            slot->count = 0;
+            return slot;
+        }
+        if (ngx_strcmp(slot->ip, ip) == 0) {
+            return slot;                /* found */
+        }
+    }
+    return NULL;                        /* table full */
+}
+
+ngx_uint_t
+xrootd_cms_srv_ip_count(const char *ip)
+{
+    xrootd_cms_ip_slot_t *slot = xrootd_cms_ip_find(ip, 0);
+    return slot ? slot->count : 0;
+}
+
+void
+xrootd_cms_srv_ip_inc(const char *ip)
+{
+    xrootd_cms_ip_slot_t *slot = xrootd_cms_ip_find(ip, 1);
+    if (slot != NULL) {
+        slot->count++;
+    }
+}
+
+void
+xrootd_cms_srv_ip_dec(const char *ip)
+{
+    xrootd_cms_ip_slot_t *slot = xrootd_cms_ip_find(ip, 0);
+    if (slot != NULL && slot->count > 0) {
+        slot->count--;
+        if (slot->count == 0) {
+            slot->ip[0] = '\0';         /* free the slot */
+        }
+    }
+}
+
 /*
  * server_handler.c — CMS server connection handler
  *
@@ -66,6 +183,42 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
          * → epoll_wait(timeout=0) busy-loop pinning the worker. Floor at 1s. */
         ctx->interval_ms = 1000;
     }
+    ctx->login_timeout_ms = conf->login_timeout;   /* WS3 */
+    ctx->idle_timeout_ms  = conf->idle_timeout;    /* WS3 */
+
+    /*
+     * WS4 — admission cap.  Reject before installing any frame handler so an
+     * abusive peer (inside the often-unset CIDR allowlist) cannot exhaust
+     * memory/fds with idle connections.  0 = unlimited (back-compat).
+     */
+    if (conf->max_connections > 0
+        && xrootd_cms_srv_conn_count() >= (ngx_uint_t) conf->max_connections)
+    {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                      "xrootd: CMS server: connection from %s refused — "
+                      "max_connections (%i) reached",
+                      ctx->host, conf->max_connections);
+        XROOTD_RESIL_METRIC_INC(cms_cap_rejections_total);
+        ngx_stream_finalize_session(s, NGX_STREAM_FORBIDDEN);
+        return;
+    }
+
+    /*
+     * A3 — per-source-IP admission cap, so one peer cannot consume every slot of
+     * the global cap above.  0 = disabled (back-compat).
+     */
+    if (conf->max_connections_per_ip > 0
+        && xrootd_cms_srv_ip_count(ctx->host)
+           >= (ngx_uint_t) conf->max_connections_per_ip)
+    {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                      "xrootd: CMS server: connection from %s refused — "
+                      "max_connections_per_ip (%i) reached",
+                      ctx->host, conf->max_connections_per_ip);
+        XROOTD_RESIL_METRIC_INC(cms_cap_rejections_total);
+        ngx_stream_finalize_session(s, NGX_STREAM_FORBIDDEN);
+        return;
+    }
 
     /*
      * W1b — accept-time CIDR allowlist gate.  Reject before installing any
@@ -87,9 +240,33 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
     ctx->ping_timer.log  = c->log;
     ctx->ping_timer.data = ctx;
 
+    /* WS4 + A3: admitted — count it globally and per-IP (decremented in
+     * xrootd_cms_srv_close). */
+    xrootd_cms_srv_conn_inc();
+    xrootd_cms_srv_ip_inc(ctx->host);
+    ctx->counted = 1;
+
     c->data = ctx;
     c->read->handler  = xrootd_cms_srv_read;
     c->write->handler = xrootd_cms_srv_write;
+
+    /*
+     * WS5: OS-level dead-peer reaping on the accepted socket, so a silently-
+     * dropped data node is torn down by the kernel.  Best-effort, non-fatal.
+     */
+    xrootd_apply_tcp_deadpeer_opts(c->fd, conf->tcp_keepalive,
+                                   conf->tcp_user_timeout);
+
+    /*
+     * WS3: arm the LOGIN handshake deadline (absolute, from accept).  A peer that
+     * never completes LOGIN (+sss xauth) — or trickles a partial header — is
+     * closed by the read handler's ev->timedout path instead of squatting a ctx +
+     * fd forever (slowloris).  Replaced by the post-login idle watchdog in
+     * cms_srv_complete_login.  0 = disabled.
+     */
+    if (ctx->login_timeout_ms > 0) {
+        ngx_add_timer(c->read, ctx->login_timeout_ms);
+    }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: CMS server accepted from %s", ctx->host);

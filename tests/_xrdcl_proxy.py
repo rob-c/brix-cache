@@ -22,6 +22,8 @@ Design
 
 import atexit
 import base64
+import builtins
+import collections
 import json
 import os
 import subprocess
@@ -59,6 +61,13 @@ class _Worker:
         self._slots = {}                       # id -> [event, result]
         self._slots_lock = threading.Lock()
         self._next_id = 1
+        self._env_sig = None                    # last os.environ synced to child
+        # Handles whose proxies were garbage-collected.  Finalizers (__del__)
+        # MUST NOT take self._lock — GC can fire while another thread holds it,
+        # and the lock is non-reentrant, which self-deadlocks the interpreter.
+        # deque.append is atomic and lock-free; the releases are flushed lazily
+        # at the start of the next call().
+        self._pending_releases = collections.deque()
         self._alive = True
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
@@ -94,9 +103,27 @@ class _Worker:
         ev = threading.Event()
         slot = [ev, None]
         with self._lock:
+            # Flush finalizer-queued handle releases (fire-and-forget; the
+            # worker tags the reply id=None which the reader simply drops).
+            while self._pending_releases:
+                h = self._pending_releases.popleft()
+                try:
+                    self._proc.stdin.write(
+                        json.dumps({"op": "release", "h": h}) + "\n")
+                except Exception:
+                    break
             rid = self._next_id
             self._next_id += 1
             req["id"] = rid
+            # Keep the child's os.environ in lock-step with the parent's so that
+            # credential vars (X509_USER_PROXY, BEARER_TOKEN, XrdSec*, XRD_*, …)
+            # a test sets right before connecting reach the real bindings.  Only
+            # resend when something changed; the worker applies it in request
+            # order, before dispatching the op.
+            sig = hash(tuple(sorted(os.environ.items())))
+            if sig != self._env_sig:
+                req["env"] = dict(os.environ)
+                self._env_sig = sig
             with self._slots_lock:
                 self._slots[rid] = slot
             try:
@@ -119,6 +146,15 @@ class _Worker:
             raise XrdClWorkerError("XrdCl worker died during op %s"
                                    % req.get("op"))
         if not msg.get("ok"):
+            # Re-raise the binding's native exception type when it was a plain
+            # builtin (ValueError, TypeError, …) so test ``except`` clauses that
+            # target the real pyxrootd behaviour still match.  Anything else
+            # surfaces as XrdClWorkerError.
+            etype = msg.get("etype")
+            cls = getattr(builtins, etype, None) if etype else None
+            if isinstance(cls, type) and issubclass(cls, Exception) \
+                    and cls not in (Exception, BaseException):
+                raise cls(msg.get("emsg", ""))
             raise XrdClWorkerError(msg.get("error", "unknown worker error"))
         return msg
 
@@ -265,6 +301,16 @@ class VectorReadInfo:
         self.size = d.get("size", 0)
         self.chunks = [_Chunk(c) for c in d.get("chunks", [])]
 
+    # Real pyxrootd VectorReadInfo iterates its chunks.
+    def __iter__(self):
+        return iter(self.chunks)
+
+    def __len__(self):
+        return len(self.chunks)
+
+    def __getitem__(self, i):
+        return self.chunks[i]
+
 
 class _Generic:
     """Fallback wrapper for response types without a dedicated class."""
@@ -272,9 +318,7 @@ class _Generic:
         for k, v in d.items():
             if k == "__type__":
                 continue
-            if isinstance(v, dict) and "__bytes__" in v:
-                v = base64.b64decode(v["__bytes__"])
-            setattr(self, k, v)
+            setattr(self, k, _decode_response(v))
 
 
 _RESP_TYPES = {
@@ -287,16 +331,36 @@ _RESP_TYPES = {
 
 
 def _decode_response(payload):
+    """Inverse of the worker's _encode_response.
+
+    Markers: __bytes__ (binary), __status__ (an XRootDStatus), __list__ (a
+    list), __dict__ (a plain dict, e.g. a copy-job result), __type__ (a typed
+    response object).  Bare lists/dicts are decoded element-wise too.
+    """
     if payload is None:
         return None
+    if isinstance(payload, list):
+        return [_decode_response(x) for x in payload]
     if isinstance(payload, dict):
         if "__bytes__" in payload:
             return base64.b64decode(payload["__bytes__"])
+        if "__status__" in payload:
+            return Status(payload["__status__"])
+        if "__list__" in payload:
+            return [_decode_response(x) for x in payload["__list__"]]
+        if "__tuple__" in payload:
+            return tuple(_decode_response(x) for x in payload["__tuple__"])
+        if "__dict__" in payload:
+            return {k: _decode_response(v)
+                    for k, v in payload["__dict__"].items()}
         t = payload.get("__type__")
-        cls = _RESP_TYPES.get(t)
-        if cls is not None:
-            return cls(payload)
-        return _Generic(payload)
+        if t is not None:
+            cls = _RESP_TYPES.get(t)
+            if cls is not None:
+                return cls(payload)
+            return _Generic(payload)
+        # Plain dict with no marker — decode values.
+        return {k: _decode_response(v) for k, v in payload.items()}
     return payload
 
 
@@ -323,7 +387,8 @@ class _RemoteObject:
     def __init__(self, *ctor_args, **ctor_kwargs):
         req = {"op": self._NEW_OP}
         self._init_request(req, ctor_args, ctor_kwargs)
-        self._h = _worker().call(req)["h"]
+        self._w = _worker()
+        self._h = self._w.call(req)["h"]
 
     def _init_request(self, req, args, kwargs):
         pass
@@ -337,6 +402,10 @@ class _RemoteObject:
             {"op": self._CALL_OP, "h": self._h,
              "method": method, "args": enc_args, "kwargs": enc_kwargs},
             timeout=wait)
+        # A plain-value method (e.g. File.is_open() -> bool) returns the value
+        # directly; status-returning methods return the (status, response) pair.
+        if "value" in msg:
+            return _decode_response(msg["value"])
         status = Status(msg.get("status"))
         resp = _decode_response(msg.get("response"))
         return status, resp
@@ -351,10 +420,13 @@ class _RemoteObject:
         return _method
 
     def __del__(self):
+        # Finalizer: queue the handle for release WITHOUT any blocking call or
+        # lock acquisition (see _Worker._pending_releases).  deque.append is
+        # atomic; the release is flushed on the next call().
         try:
-            w = _worker_singleton
+            w = self._w
             if w is not None and w._alive:
-                w.call({"op": "release", "h": self._h}, timeout=5)
+                w._pending_releases.append(self._h)
         except Exception:
             pass
 

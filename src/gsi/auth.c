@@ -4,6 +4,44 @@
 #include "../crypto/gsi_verify.h"
 #include <openssl/err.h>
 
+/*
+ * Phase 51 (E4): per-worker in-flight GSI-handshake gauge.  A GSI handshake is
+ * multi-round-trip (certreq → cert), so many can be parked in progress at once,
+ * each holding ephemeral-DH + chain-verify CPU state.  Under a flood of
+ * simultaneous handshakes that buries the single-threaded event loop, this caps
+ * the number admitted concurrently per worker and sheds the excess with kXR_wait
+ * (the client waits and retries).  Cache hits / already-authed sessions never
+ * touch this.  Released EXACTLY ONCE — at auth completion OR at disconnect (the
+ * guaranteed funnel) — gated by ctx->gsi_counted, so the gauge can never leak and
+ * wedge auth.  Lock-free: per-worker, event-loop only.
+ */
+static ngx_uint_t  xrootd_gsi_inflight;
+
+ngx_int_t
+xrootd_gsi_inflight_admit(xrootd_ctx_t *ctx, ngx_int_t cap)
+{
+    if (ctx->gsi_counted) {
+        return 1;                  /* already counted this handshake */
+    }
+    if (cap > 0 && xrootd_gsi_inflight >= (ngx_uint_t) cap) {
+        return 0;                  /* over the cap — shed */
+    }
+    xrootd_gsi_inflight++;
+    ctx->gsi_counted = 1;
+    return 1;
+}
+
+void
+xrootd_gsi_inflight_release(xrootd_ctx_t *ctx)
+{
+    if (ctx->gsi_counted) {
+        if (xrootd_gsi_inflight > 0) {
+            xrootd_gsi_inflight--;
+        }
+        ctx->gsi_counted = 0;
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /* GSI Auth — Credential Routing, DH Key Exchange, Certificate Verification  */
 /* ------------------------------------------------------------------ */
@@ -150,6 +188,26 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
             return xrootd_handle_krb5_auth(ctx, c, conf);
         }
 
+        if (credtype[0] == 'h' && credtype[1] == 'o'
+            && credtype[2] == 's' && credtype[3] == 't')
+        {
+            if (conf->auth != XROOTD_AUTH_HOST) {
+                return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                         "host auth not enabled");
+            }
+            return xrootd_handle_host_auth(ctx, c, conf);
+        }
+
+        if (credtype[0] == 'p' && credtype[1] == 'w'
+            && credtype[2] == 'd' && credtype[3] == 0)
+        {
+            if (conf->auth != XROOTD_AUTH_PWD) {
+                return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                         "pwd auth not enabled");
+            }
+            return xrootd_handle_pwd_auth(ctx, c, conf);
+        }
+
         if (credtype[0] != 'g' || credtype[1] != 's' || credtype[2] != 'i') {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "xrootd: kXR_auth unknown credtype=\"%s\"",
@@ -181,6 +239,15 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
                    "xrootd: GSI kXR_auth step=%ud", (unsigned) gsi_step);
 
     if (gsi_step == (uint32_t) kXGC_certreq) {
+        /* E4: admit this new handshake under the per-worker in-flight cap; shed
+         * the excess with kXR_wait so a handshake flood cannot bury the loop. */
+        if (!xrootd_gsi_inflight_admit(ctx, conf->gsi_max_inflight)) {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                          "xrootd: GSI handshake shed — %i concurrent in-flight "
+                          "(cap reached); asking client to retry",
+                          conf->gsi_max_inflight);
+            return xrootd_send_wait(ctx, c, 3);
+        }
         return xrootd_gsi_send_cert(ctx, c);
     }
 
@@ -296,6 +363,7 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     ctx->auth_done = 1;
+    xrootd_gsi_inflight_release(ctx);   /* E4: handshake done — free the slot */
     if (ctx->identity != NULL) {
         if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
                                    XROOTD_AUTHN_GSI) != NGX_OK
@@ -373,9 +441,9 @@ xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     /*
-     * GSI round 1 (kXGC_certreq): the server responds with kXR_authmore
-     * carrying its certificate — this is not a credential failure and must
-     * not count toward the limit.
+     * GSI round 1 (kXGC_certreq) and pwd round 1: the server responds with
+     * kXR_authmore (its certificate / its DH public) — a protocol continuation,
+     * not a credential failure, so it must not count toward the attempt limit.
      */
     is_certreq = 0;
     if (ctx->cur_dlen >= 8 && ctx->payload != NULL) {
@@ -384,6 +452,10 @@ xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
             uint32_t step;
             ngx_memcpy(&step, ctx->payload + 4, 4);
             is_certreq = (ntohl(step) == (uint32_t) kXGC_certreq);
+        } else if (ctype[0] == 'p' && ctype[1] == 'w' && ctype[2] == 'd'
+                   && ctype[3] == 0) {
+            /* pwd round 1 is the puk-exchange (ctx->pwd_round still 0). */
+            is_certreq = (ctx->pwd_round == 0);
         }
     }
 

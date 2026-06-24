@@ -73,6 +73,18 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "server suspended by manager");
     }
 
+    /* The reference do_Login rejects a SECOND kXR_login on an already-logged-in
+     * connection ("if (Status) return Response.Send(kXR_InvalidRequest,
+     * \"duplicate login; already logged in\")", XrdXrootdXeq.cc:1095).  Match the
+     * reference code and message verbatim.  (Note: installed stock v5.9.5 happens
+     * to surface kXR_ArgMissing here, but the current reference source — and the
+     * correct semantics for a malformed-in-context request — is kXR_InvalidRequest;
+     * either way a live session cannot re-login.) */
+    if (ctx->logged_in) {
+        return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+                                 "duplicate login; already logged in");
+    }
+
     req = (ClientLoginRequest *) ctx->hdr_buf;
 
     /* Username is an 8-byte fixed field on the wire, so copy and terminate it locally. */
@@ -172,6 +184,14 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                           "&P=krb5,%s",
                                           (const char *) conf->krb5_principal.data)
                         + 1;
+        } else if (conf->auth == XROOTD_AUTH_HOST) {
+            /* Phase 52 WS-C: host auth asserts no credential — bare protocol id. */
+            parms_len = (size_t) snprintf(parms, sizeof(parms),
+                                          "&P=host") + 1;
+        } else if (conf->auth == XROOTD_AUTH_PWD) {
+            /* Phase 52 WS-B: XrdSecpwd password protocol (v:10100, ssl crypto). */
+            parms_len = (size_t) snprintf(parms, sizeof(parms),
+                                          "&P=pwd,v:10100,c:ssl") + 1;
         } else if (conf->auth == XROOTD_AUTH_BOTH) {
             /* Both: token first (preferred), then GSI. */
             parms_len = (size_t) snprintf(parms, sizeof(parms),

@@ -84,7 +84,12 @@ xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
     ngx_stream_xrootd_srv_conf_t  *conf = ev->data;
 
     xrootd_token_jwks_try_reload(conf, ev->log);
-    ngx_add_timer(ev, conf->token_jwks_refresh_interval);
+
+    /* Stop re-arming once the worker is shutting down so the poll timer can
+     * never keep a draining worker alive (mirrors the FRM reaper pattern). */
+    if (!ngx_exiting) {
+        ngx_add_timer(ev, conf->token_jwks_refresh_interval);
+    }
 }
 
 /* ---- Public: schedule the refresh timer for one server block ---- */

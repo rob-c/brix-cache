@@ -88,7 +88,7 @@ xrootd_acc_refresh_handler(ngx_event_t *ev)
         }
     }
 
-    if (xcf->acc_refresh > 0) {
+    if (xcf->acc_refresh > 0 && !ngx_exiting) {
         ngx_add_timer(ev, (ngx_msec_t) xcf->acc_refresh * 1000);
     }
 }
@@ -138,7 +138,7 @@ xrootd_acc_http_refresh_handler(ngx_event_t *ev)
         }
     }
 
-    if (acc->refresh > 0) {
+    if (acc->refresh > 0 && !ngx_exiting) {
         ngx_add_timer(ev, (ngx_msec_t) acc->refresh * 1000);
     }
 }

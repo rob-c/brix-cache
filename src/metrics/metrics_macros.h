@@ -112,6 +112,17 @@ xrootd_metrics_shared(void)
         }                                                                    \
     } while (0)
 
+/* Phase 51 cross-protocol resilience counters — global, low-cardinality.  Safe
+ * from any context (CMS recv/accept, auth gate, OCSP, XrdAcc breakers); a no-op
+ * until the metrics SHM is mapped. */
+#define XROOTD_RESIL_METRIC_INC(field)                                        \
+    do {                                                                     \
+        ngx_xrootd_metrics_t *_xrootd_metrics = xrootd_metrics_shared();     \
+        if (_xrootd_metrics != NULL) {                                       \
+            XROOTD_ATOMIC_INC(&_xrootd_metrics->field);                      \
+        }                                                                    \
+    } while (0)
+
 /* FRM tape-stage counters (phase-35) — global, low-cardinality.  Safe from the
  * stage scheduler/agent-reply path and the open/prepare/Tape-REST call sites;
  * no-op until the metrics SHM is mapped.  INC/DEC drive the in_flight gauge. */

@@ -132,7 +132,9 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
     EVP_PKEY_CTX   *pkctx;
     unsigned char  *secret = NULL;
     size_t          secret_len = 0;
-    uint8_t         aeskey[16];
+    uint8_t         aeskey[XROOTD_GSI_MAX_KEY];
+    char            cipher_name[64];
+    xrootd_gsi_cipher_t cipher;
     uint8_t        *plain;
     size_t          plain_len = 0;
     STACK_OF(X509) *chain;
@@ -173,11 +175,18 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
     EVP_PKEY_CTX_free(pkctx);
     EVP_PKEY_free(peer);
 
-    if (secret_len < 16) {
+    /* Phase 52 (WS-A): honour the cipher the client selected (kXRS_cipher_alg);
+     * fall back to aes-128-cbc, the default every conformant client offers. */
+    xrootd_gsi_select_cipher_name(payload, plen, cipher_name, sizeof(cipher_name));
+    if (!xrootd_gsi_cipher_lookup(cipher_name, &cipher)) {
+        (void) xrootd_gsi_cipher_lookup("aes-128-cbc", &cipher);
+    }
+
+    if (secret_len < (size_t) cipher.key_len) {
         OPENSSL_cleanse(secret, secret_len);
         return NULL;
     }
-    ngx_memcpy(aeskey, secret, 16);
+    ngx_memcpy(aeskey, secret, (size_t) cipher.key_len);
 
     {
         EVP_MD_CTX   *mdctx = EVP_MD_CTX_new();
@@ -198,11 +207,17 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
     OPENSSL_cleanse(secret, secret_len);
 
-    /* aes-128-cbc with a prepended random IV (use_iv=1), per the >=10400 wire.
-     * The cipher is fixed to aes-128-cbc because the server advertises it first
-     * in kXRS_cipher_alg (cert_response.c), and clients select the server's
-     * first supported entry — so every peer keys a 16-byte aes-128 session. */
-    plain = xrootd_gsi_cipher_decrypt(aeskey, main_data, main_len, 1, &plain_len);
+    /* The negotiated session cipher (above).  This is the SIGNED-DH path, which
+     * a peer only enters when its version >= XrdSecgsiVersDHsigned (10400) — and
+     * that is exactly the condition under which stock XrdSecgsi sets useIV=true
+     * (XrdSecProtocolgsi.cc: `useIV = (RemVers >= XrdSecgsiVersDHsigned)`).  So
+     * the encrypted main always carries a leading IV of the cipher's own length
+     * (sessionKey->MaxIVLength()); we strip it unconditionally here.  The IV is
+     * NOT signalled by a name suffix — the cipher name on the wire is bare, and
+     * select_cipher_name() resolves it.  Default aes-128-cbc; the client's cipher
+     * choice is honoured. */
+    plain = xrootd_gsi_cipher_decrypt(&cipher, aeskey, main_data, main_len,
+                                      1, &plain_len);
     OPENSSL_cleanse(aeskey, sizeof(aeskey));
     if (plain == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,

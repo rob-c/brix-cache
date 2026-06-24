@@ -2,20 +2,16 @@
 # run_load_test.sh — start servers, run load tests, stop servers
 #
 # ┌─────────────────────────────────────────────────────────────────────────┐
-# │ WARNING — DO NOT run this concurrently with the pytest functional suite. │
+# │ Isolated under /tmp/xrd-load — does NOT collide with the pytest suite.   │
 # └─────────────────────────────────────────────────────────────────────────┘
-# This script `rm -rf /tmp/xrd-test/pki` and ALWAYS regenerates the PKI/CA/CRL
-# (see setup_pki below), and it stops/restarts the shared test fleet.  The pytest
-# suite's conftest fleet serves GSI from that SAME /tmp/xrd-test/pki on the same
-# fixed ports (11094-11097/8443/8444/9001).  Running both at once makes this sweep
-# wipe the certificates out from under the running GSI servers mid-handshake, so
-# the pytest GSI/GSI-TLS tests fail spuriously with "No protocols left to try" /
-# "TLS error: resource temporarily unavailable" (server-side: "tlsv1 alert unknown
-# ca", "kXR_ableTLS handshake failed", "[emerg] hostcert.pem ... No such file").
-# This is an ENVIRONMENT collision, NOT a server bug — it is exactly the
-# "test_concurrent GSI host-load flakiness" (see
-# docs/refactor/phase-33-perf-optimization-post-feature-complete.md).
-# Run the load sweep OR the functional suite, never both against /tmp/xrd-test.
+# This sweep is fully self-contained under /tmp/xrd-load: it generates its own
+# PKI/CA/CRL, JWKS, and test data there, and runs its perf servers on a distinct
+# port range (12093/12094/12793/...).  The pytest functional suite lives entirely
+# under a SEPARATE root (/tmp/xrd-test) on its own fixed ports
+# (11094-11097/8443/8444/9001).  The two no longer share certificates, data, or
+# ports, so this load sweep and the functional suite can coexist on the box.
+# (Historically both used /tmp/xrd-test, so a load run would `rm -rf` the PKI out
+# from under the running GSI fleet mid-handshake — that collision is now gone.)
 #
 # Usage:
 #   ./tests/run_load_test.sh [nginx|xrootd|both] [--file load_1g.bin] [--concurrency 1,8,32,64,128,200]
@@ -26,7 +22,7 @@
 #   ./tests/run_load_test.sh both --suite root-gsi --mode both --concurrency 1,8,32 --read-sink devnull
 #   ./tests/run_load_test.sh both --suite root-gsi --mode write --concurrency 1
 #   NOTE: write peak disk = max_concurrency × file_size (e.g. 128 × 1 GiB = 128 GiB);
-#         files land in /tmp/xrd-test/data and are removed after each level.
+#         files land in /tmp/xrd-load/data and are removed after each level.
 #
 #   # fair data-plane comparison — same TLS posture on BOTH servers:
 #   ./tests/run_load_test.sh both --suite root-gsi --data-tls off --concurrency 1  # cleartext (default)
@@ -36,7 +32,7 @@
 # Requires:
 #   • nginx built with nginx-xrootd module (./nginx -v should show the module)
 #   • xrootd 5.x installed (/usr/bin/xrootd)
-#   • Test PKI already generated under /tmp/xrd-test/pki/
+#   • Test PKI already generated under /tmp/xrd-load/pki/
 #   • Python 3 with XRootD python bindings (from xrootd package)
 #
 # The script:
@@ -52,12 +48,12 @@
 set -euo pipefail
 set -x
 setup_pki() {
-    log "Generating test PKI under /tmp/xrd-test/pki ..."
-    local CADIR=/tmp/xrd-test/pki/ca
-    local SERVERDIR=/tmp/xrd-test/pki/server
-    local USERDIR=/tmp/xrd-test/pki/user
+    log "Generating test PKI under /tmp/xrd-load/pki ..."
+    local CADIR=/tmp/xrd-load/pki/ca
+    local SERVERDIR=/tmp/xrd-load/pki/server
+    local USERDIR=/tmp/xrd-load/pki/user
     # Wipe any existing test PKI to ensure a fresh, self-contained run.
-    rm -rf /tmp/xrd-test/pki || true
+    rm -rf /tmp/xrd-load/pki || true
     mkdir -p "$CADIR" "$SERVERDIR" "$USERDIR"
 
     # CA key/cert (fresh)
@@ -113,7 +109,7 @@ EOF
     # Generate a CRL that revokes the test user cert so CRL-based tests can run.
     if command -v python3 >/dev/null 2>&1 && [[ -f "$ROOT_DIR/utils/make_crl.py" ]]; then
         log "Generating CRL via utils/make_crl.py"
-        python3 "$ROOT_DIR/utils/make_crl.py" "/tmp/xrd-test/pki" || log "make_crl.py failed"
+        python3 "$ROOT_DIR/utils/make_crl.py" "/tmp/xrd-load/pki" || log "make_crl.py failed"
     else
         log "utils/make_crl.py not found or python3 missing; skipping CRL generation"
     fi
@@ -121,17 +117,17 @@ EOF
 
 setup_test_data() {
     # Create data and PKI directories
-    mkdir -p /tmp/xrd-test/data
-    mkdir -p /tmp/xrd-test/pki
-    mkdir -p /tmp/xrd-test/pki/ca
-    mkdir -p /tmp/xrd-test/pki/user
-    mkdir -p /tmp/xrd-test/pki/server
-    mkdir -p /tmp/xrd-test/tokens
+    mkdir -p /tmp/xrd-load/data
+    mkdir -p /tmp/xrd-load/pki
+    mkdir -p /tmp/xrd-load/pki/ca
+    mkdir -p /tmp/xrd-load/pki/user
+    mkdir -p /tmp/xrd-load/pki/server
+    mkdir -p /tmp/xrd-load/tokens
 
     # Generate 1GB test file if missing
-    if [[ ! -f /tmp/xrd-test/data/load_1g.bin ]]; then
-        log "Generating 1GB test file at /tmp/xrd-test/data/load_1g.bin ..."
-        dd if=/dev/urandom of=/tmp/xrd-test/data/load_1g.bin bs=1M count=1024 status=progress
+    if [[ ! -f /tmp/xrd-load/data/load_1g.bin ]]; then
+        log "Generating 1GB test file at /tmp/xrd-load/data/load_1g.bin ..."
+        dd if=/dev/urandom of=/tmp/xrd-load/data/load_1g.bin bs=1M count=1024 status=progress
     else
         log "1GB test file already exists."
     fi
@@ -139,6 +135,16 @@ setup_test_data() {
     # Always regenerate PKI/CA/CRL to keep the test run self-contained
     log "Regenerating test PKI and CRL for a clean test run..."
     setup_pki
+
+    # Self-contained JWKS: nginx.perf.conf declares a token block that requires
+    # /tmp/xrd-load/tokens/jwks.json to exist for `nginx -t` to pass, even though
+    # the root:// suites never present a token.  Generate it here so the sweep
+    # does not depend on the pytest suite having populated a shared tokens dir.
+    if [[ ! -f /tmp/xrd-load/tokens/jwks.json ]]; then
+        log "Generating token JWKS at /tmp/xrd-load/tokens ..."
+        python3 "$ROOT_DIR/utils/make_token.py" init /tmp/xrd-load/tokens \
+            >/dev/null 2>&1 || log "make_token.py init failed (token suites will skip)"
+    fi
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -161,6 +167,13 @@ XRD_PERF_DIR="/tmp/xrd-perf-xrd"
 # sources, so --data-tls can toggle the data-plane TLS posture symmetrically.
 NGINX_GEN_CONF="$NGINX_PERF_DIR/nginx.gen.conf"
 XRD_GEN_CONF="$XRD_PERF_DIR/xrootd.gen.conf"
+
+# Second official-xrootd instance: anonymous root:// on 12093 (no GSI), so the
+# anon read/write suites have a real xrootd peer to compare against (the primary
+# perf.conf only serves GSI on 12094).  Separate admin/pid paths so the two
+# daemons do not collide.
+XRD_ANON_PERF_DIR="/tmp/xrd-perf-xrd-anon"
+XRD_ANON_GEN_CONF="$XRD_ANON_PERF_DIR/xrootd.anon.gen.conf"
 
 # --data-tls {on,off}: set the SAME data-stream TLS posture on BOTH servers for a
 # fair data-plane comparison. Default off = cleartext-vs-cleartext (apples-to-
@@ -196,8 +209,31 @@ gen_configs() {
         cat >> "$XRD_GEN_CONF" <<EOF
 
 # --data-tls on: require TLS for the root:// data phase (parity with nginx)
-xrd.tls   /tmp/xrd-test/pki/server/hostcert.pem /tmp/xrd-test/pki/server/hostkey.pem
-xrd.tlsca certdir /tmp/xrd-test/pki/ca
+xrd.tls   /tmp/xrd-load/pki/server/hostcert.pem /tmp/xrd-load/pki/server/hostkey.pem
+xrd.tlsca certdir /tmp/xrd-load/pki/ca
+xrootd.tls data
+EOF
+    fi
+
+    # Anonymous xrootd on 12093 — no security layer, no authz (matches nginx
+    # `xrootd_auth none`).  Same namespace as the GSI instance so
+    # root://host//load_1g.bin resolves identically.
+    mkdir -p "$XRD_ANON_PERF_DIR"/{logs,admin,run}
+    cat > "$XRD_ANON_GEN_CONF" <<EOF
+# Generated by run_load_test.sh — official xrootd anonymous instance.
+all.adminpath $XRD_ANON_PERF_DIR/admin
+all.pidpath   $XRD_ANON_PERF_DIR/run
+oss.localroot /tmp/xrd-load/data
+all.export /
+xrd.port 12093
+xrd.network nodnr
+xrd.allow host *
+xrd.sched mint 8 avlt 16 maxt 256 idle 780
+EOF
+    if [[ "$DATA_TLS" == "on" ]]; then
+        cat >> "$XRD_ANON_GEN_CONF" <<EOF
+xrd.tls   /tmp/xrd-load/pki/server/hostcert.pem /tmp/xrd-load/pki/server/hostkey.pem
+xrd.tlsca certdir /tmp/xrd-load/pki/ca
 xrootd.tls data
 EOF
     fi
@@ -356,29 +392,29 @@ start_xrootd() {
         exit 1
     fi
     mkdir -p "$XRD_PERF_DIR"/{logs,data,admin,run}
-    if [[ ! -d /tmp/xrd-test/data ]]; then
-        log "ERROR: Test data directory /tmp/xrd-test/data missing"
+    if [[ ! -d /tmp/xrd-load/data ]]; then
+        log "ERROR: Test data directory /tmp/xrd-load/data missing"
         exit 1
     fi
-    if [[ ! -d /tmp/xrd-test/pki/ca ]]; then
-        log "ERROR: CA directory /tmp/xrd-test/pki/ca missing"
+    if [[ ! -d /tmp/xrd-load/pki/ca ]]; then
+        log "ERROR: CA directory /tmp/xrd-load/pki/ca missing"
         exit 1
     fi
-    if [[ ! -f /tmp/xrd-test/pki/ca/ca.pem ]]; then
-        log "ERROR: CA certificate /tmp/xrd-test/pki/ca/ca.pem missing"
+    if [[ ! -f /tmp/xrd-load/pki/ca/ca.pem ]]; then
+        log "ERROR: CA certificate /tmp/xrd-load/pki/ca/ca.pem missing"
         exit 1
     fi
-    if [[ ! -f /tmp/xrd-test/pki/user/usercert.pem ]]; then
-        log "ERROR: User certificate /tmp/xrd-test/pki/user/usercert.pem missing"
+    if [[ ! -f /tmp/xrd-load/pki/user/usercert.pem ]]; then
+        log "ERROR: User certificate /tmp/xrd-load/pki/user/usercert.pem missing"
         exit 1
     fi
-    if [[ ! -f /tmp/xrd-test/pki/user/user.key ]]; then
-        log "ERROR: User key /tmp/xrd-test/pki/user/user.key missing"
+    if [[ ! -f /tmp/xrd-load/pki/user/user.key ]]; then
+        log "ERROR: User key /tmp/xrd-load/pki/user/user.key missing"
         exit 1
     fi
     # Symlink the test data into the xrootd data dir
     [[ -d "$XRD_PERF_DIR/data/xrd-test" ]] || \
-        ln -sf /tmp/xrd-test/data "$XRD_PERF_DIR/data/xrd-test"
+        ln -sf /tmp/xrd-load/data "$XRD_PERF_DIR/data/xrd-test"
 
     # Minimal authdb: allow authenticated users r/w on /
     # rwld: read + write(+create) + lookup + delete — write perms are required
@@ -407,6 +443,19 @@ AUTHDB
     # a missing/failed XrdHttp plugin does not abort a root-only benchmark.
     wait_port localhost 12443 "xrootd HTTPS/WebDAV" || \
         log "note: xrootd 12443 (XrdHttp) not up — fine for root:// suites"
+
+    # Second instance: anonymous xrootd on 12093 for the root-anon suites.
+    log "Starting official xrootd (anon, port 12093)..."
+    local xrd_anon_cmd=("$XROOTD_BIN" -c "$XRD_ANON_GEN_CONF" \
+        -l "$XRD_ANON_PERF_DIR/logs/xrootd.log" -n perfanon -b)
+    log "xrootd anon launch command: ${xrd_anon_cmd[*]}"
+    "${xrd_anon_cmd[@]}" > "$XRD_ANON_PERF_DIR/logs/xrootd.debug.log" 2>&1 &
+    if ! wait_port localhost 12093 "xrootd anon"; then
+        log "ERROR: xrootd anon failed to bind 12093. See logs:"
+        cat "$XRD_ANON_PERF_DIR/logs/xrootd.debug.log" >&2 2>/dev/null || true
+        cat "$XRD_ANON_PERF_DIR/logs/xrootd.log"       >&2 2>/dev/null || true
+        exit 1
+    fi
     log "xrootd started"
 }
 
@@ -418,9 +467,10 @@ stop_xrootd() {
         log "Stopping xrootd (pid $pid)..."
         kill "$pid" 2>/dev/null || true
         sleep 2
-    else
-        pkill -f "xrootd.*perf" 2>/dev/null || true
     fi
+    # Both the GSI (-n perf) and anon (-n perfanon) instances match this; the
+    # fallback also covers a missing/stale pidfile.
+    pkill -f "xrootd.*-n perf" 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------

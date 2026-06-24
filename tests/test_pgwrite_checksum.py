@@ -2,15 +2,18 @@
 Raw-protocol tests for kXR_pgwrite CRC32c checksum verification.
 
 The XRootD kXR_pgwrite opcode (3026) embeds a 4-byte big-endian CRC32c
-before each page of data.  nginx-xrootd verifies each page's checksum in
-xrootd_pgwrite_decode_payload (src/write/pgwrite.c) and must:
+before each page of data.  nginx-xrootd verifies each page's checksum and now
+follows the stock "accept-then-correct" (CSE) protocol:
 
-  - Accept the write and return kXR_status (4007) when every CRC is correct.
-  - Reject with kXR_error (4003) / kXR_ChkSumErr (3019) when any CRC is bad.
+  - Every correct CRC → kXR_status (4007) with no trailer.
+  - A bad CRC is NOT hard-failed: the page is still written and reported in a
+    SUCCESS kXR_status frame carrying a CSE retransmit list; kXR_close then
+    returns kXR_ChkSumErr (3019) until the page is corrected via kXR_pgRetry.
 
-The standard write tests (test_write.py) use xrdcp, which always computes
-correct checksums, so the mismatch path is never exercised there.  These
-tests craft pgwrite payloads manually so the error path can be reached.
+The full CSE machine (trailer parsing, retry, close gate) is exercised in
+test_pgwrite_cse.py.  This file keeps the framing/regression coverage: good
+writes succeed and reach disk, and a bad page is reported (not silently
+accepted) and gates the close.
 
 kXR_pgwrite payload layout (one entry per 4096-byte page):
     [4 bytes CRC32c big-endian][up to 4096 bytes page data]
@@ -224,23 +227,18 @@ class TestPgWriteChecksumVerification:
         finally:
             sock.close()
 
-    def test_bad_checksum_rejected(self):
-        """A single-page pgwrite with a corrupted CRC32c must return kXR_ChkSumErr."""
+    def test_bad_checksum_reported_via_cse(self):
+        """A single-page pgwrite with a corrupted CRC32c is accepted-and-reported
+        (success kXR_status + CSE trailer), not hard-failed."""
         data = b"bad checksum payload " * 20   # 420 bytes
         host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_bad_crc.bin")
             payload = _build_pgwrite_payload(data, offset=0, corrupt_page=0)
-            status, body = _send_pgwrite(sock, fhandle, 0, payload)
-
-            assert status == kXR_error, (
-                f"expected kXR_error ({kXR_error}) for bad CRC, got {status}"
-            )
-            assert len(body) >= 4, "error response body too short"
-            err_code = struct.unpack("!I", body[:4])[0]
-            assert err_code == kXR_ChkSumErr, (
-                f"expected kXR_ChkSumErr ({kXR_ChkSumErr}), got {err_code}"
+            status, _body = _send_pgwrite(sock, fhandle, 0, payload)
+            assert status == kXR_status, (
+                f"expected kXR_status ({kXR_status}) CSE reply, got {status}"
             )
         finally:
             sock.close()
@@ -262,41 +260,31 @@ class TestPgWriteChecksumVerification:
             sock.close()
 
     def test_multi_page_first_page_bad(self):
-        """A two-page pgwrite where the first page has a bad CRC must be rejected."""
+        """A two-page pgwrite where the first page has a bad CRC → CSE report."""
         data = os.urandom(kXR_pgPageSZ + 512)
         host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_multi_bad0.bin")
             payload = _build_pgwrite_payload(data, offset=0, corrupt_page=0)
-            status, body = _send_pgwrite(sock, fhandle, 0, payload)
-
-            assert status == kXR_error, (
-                f"expected kXR_error for bad first-page CRC, got {status}"
-            )
-            err_code = struct.unpack("!I", body[:4])[0]
-            assert err_code == kXR_ChkSumErr, (
-                f"expected kXR_ChkSumErr ({kXR_ChkSumErr}), got {err_code}"
+            status, _body = _send_pgwrite(sock, fhandle, 0, payload)
+            assert status == kXR_status, (
+                f"expected kXR_status CSE reply for bad first page, got {status}"
             )
         finally:
             sock.close()
 
     def test_multi_page_second_page_bad(self):
-        """A two-page pgwrite where the second page has a bad CRC must be rejected."""
+        """A two-page pgwrite where the second page has a bad CRC → CSE report."""
         data = os.urandom(kXR_pgPageSZ + 512)
         host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_multi_bad1.bin")
             payload = _build_pgwrite_payload(data, offset=0, corrupt_page=1)
-            status, body = _send_pgwrite(sock, fhandle, 0, payload)
-
-            assert status == kXR_error, (
-                f"expected kXR_error for bad second-page CRC, got {status}"
-            )
-            err_code = struct.unpack("!I", body[:4])[0]
-            assert err_code == kXR_ChkSumErr, (
-                f"expected kXR_ChkSumErr ({kXR_ChkSumErr}), got {err_code}"
+            status, _body = _send_pgwrite(sock, fhandle, 0, payload)
+            assert status == kXR_status, (
+                f"expected kXR_status CSE reply for bad second page, got {status}"
             )
         finally:
             sock.close()
@@ -321,59 +309,39 @@ class TestPgWriteChecksumVerification:
         assert open(disk_path, "rb").read() == data, "data on disk does not match written payload"
         os.unlink(disk_path)
 
-    def test_bad_write_does_not_corrupt_existing_file(self):
-        """After a rejected pgwrite (bad CRC), the original file content is preserved.
-
-        xrootd_pgwrite_decode_payload validates every page checksum before any
-        pwrite() syscall is issued, so a rejection must leave the on-disk file
-        completely unchanged.
-        """
-        original = b"original content must survive a failed pgwrite\n"
-        remote = "_pgwrite_no_corrupt.bin"
+    def test_bad_write_gates_close(self):
+        """A bad-CRC pgwrite is accepted-and-reported (CSE), and the close is then
+        gated with kXR_ChkSumErr until the page is corrected — this close gate is
+        what prevents a committed file from holding known-corrupt bytes."""
+        remote = "_pgwrite_close_gate.bin"
         disk_path = os.path.join(_DATA_DIR, remote)
-
-        # Place the file with known content directly on disk.
-        with open(disk_path, "wb") as f:
-            f.write(original)
-
         host, port = _ANON_HOST, _ANON_PORT
         sock = _handshake_login(host, port)
         try:
-            # Open for update (O_RDWR) without truncation so original content
-            # survives even if the server did mistakenly write something.
-            path = f"/{remote}".encode()
-            flags = kXR_open_updt
-            sock.sendall(
-                struct.pack("!2sHHH2s6s4sI",
-                            b"\x00\x02", kXR_open,
-                            0o644, flags,
-                            b"\x00\x00", b"\x00" * 6, b"\x00" * 4,
-                            len(path))
-                + path
-            )
-            status, body = _read_response(sock)
-            assert status == kXR_ok, f"open for update failed: {status}"
-            fhandle = body[:4]
-
-            # Send a pgwrite with a deliberately bad CRC — must be rejected.
+            fhandle = _open_for_write(sock, f"/{remote}".encode())
             data = b"overwrite attempt " * 3
             payload = _build_pgwrite_payload(data, offset=0, corrupt_page=0)
-            status, _ = _send_pgwrite(sock, fhandle, 0, payload)
-            assert status == kXR_error, "bad CRC pgwrite should have been rejected"
+            status, sbody = _send_pgwrite(sock, fhandle, 0, payload)
+            assert status == kXR_status, "bad page should be reported via CSE"
+            # Drain the CSE trailer (not counted in hdr.dlen) so the socket stays
+            # aligned for the close response that follows.
+            cse_len = struct.unpack("!i", sbody[12:16])[0]
+            if cse_len > 0:
+                _recv_exact(sock, cse_len)
 
-            # Connection remains open; close the handle gracefully.
-            try:
-                _close(sock, fhandle)
-            except OSError:
-                pass
+            # The close must fail while the page is uncorrected.
+            sock.sendall(struct.pack("!2sH4s12sI",
+                                     b"\x00\x09", kXR_close, fhandle, b"\x00" * 12, 0))
+            cstatus, cbody = _read_response(sock)
+            assert cstatus == kXR_error, "close must be gated on uncorrected pages"
+            err_code = struct.unpack("!I", cbody[:4])[0]
+            assert err_code == kXR_ChkSumErr, (
+                f"expected kXR_ChkSumErr ({kXR_ChkSumErr}) at close, got {err_code}"
+            )
         finally:
             sock.close()
-
-        # The original content must still be intact on disk.
-        assert open(disk_path, "rb").read() == original, (
-            "file content was corrupted despite checksum rejection"
-        )
-        os.unlink(disk_path)
+        if os.path.exists(disk_path):
+            os.unlink(disk_path)
 
     def test_unaligned_start_offset_good_crc(self):
         """pgwrite at a non-zero offset (partial first page) with correct CRC succeeds."""
@@ -399,13 +367,9 @@ class TestPgWriteChecksumVerification:
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_unaligned_bad.bin")
             payload = _build_pgwrite_payload(data, offset=100, corrupt_page=0)
-            status, body = _send_pgwrite(sock, fhandle, 100, payload)
-            assert status == kXR_error, (
-                f"expected kXR_error for unaligned-start bad CRC, got {status}"
-            )
-            err_code = struct.unpack("!I", body[:4])[0]
-            assert err_code == kXR_ChkSumErr, (
-                f"expected kXR_ChkSumErr ({kXR_ChkSumErr}), got {err_code}"
+            status, _body = _send_pgwrite(sock, fhandle, 100, payload)
+            assert status == kXR_status, (
+                f"expected kXR_status CSE reply for unaligned bad CRC, got {status}"
             )
         finally:
             sock.close()
@@ -434,13 +398,9 @@ class TestPgWriteChecksumVerification:
         try:
             fhandle = _open_for_write(sock, b"/_pgwrite_3page_bad1.bin")
             payload = _build_pgwrite_payload(data, offset=0, corrupt_page=1)
-            status, body = _send_pgwrite(sock, fhandle, 0, payload)
-            assert status == kXR_error, (
-                f"expected kXR_error for 3-page middle-bad CRC, got {status}"
-            )
-            err_code = struct.unpack("!I", body[:4])[0]
-            assert err_code == kXR_ChkSumErr, (
-                f"expected kXR_ChkSumErr ({kXR_ChkSumErr}), got {err_code}"
+            status, _body = _send_pgwrite(sock, fhandle, 0, payload)
+            assert status == kXR_status, (
+                f"expected kXR_status CSE reply for 3-page middle-bad, got {status}"
             )
         finally:
             sock.close()

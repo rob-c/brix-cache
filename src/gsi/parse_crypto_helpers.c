@@ -166,7 +166,10 @@ xrootd_gsi_select_cipher_name(const u_char *payload, size_t payload_len,
     size_t        cipher_bucket_len;
     size_t        name_len;
 
-    ngx_cpystrn((u_char *) cipher_name, (u_char *) "aes-256-cbc",
+    /* Phase 52: default to aes-128-cbc (the universal XrdSecgsi default that a
+     * conformant peer omitting the bucket would have keyed with) rather than
+     * aes-256-cbc, so a no-bucket peer is decrypted with the right key length. */
+    ngx_cpystrn((u_char *) cipher_name, (u_char *) "aes-128-cbc",
                 cipher_name_size);
 
     if (gsi_find_bucket(payload, payload_len, (uint32_t) kXRS_cipher_alg,
@@ -180,8 +183,8 @@ xrootd_gsi_select_cipher_name(const u_char *payload, size_t payload_len,
          name_len < cipher_bucket_len && name_len < cipher_name_size - 1;
          name_len++)
     {
-        if (cipher_bucket[name_len] == ':') {
-            break;
+        if (cipher_bucket[name_len] == ':' || cipher_bucket[name_len] == '#') {
+            break;     /* ':' = next offered cipher, '#' = IV-length suffix */
         }
         cipher_name[name_len] = cipher_bucket[name_len];
     }

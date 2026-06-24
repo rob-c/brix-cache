@@ -18,6 +18,7 @@
  */
 #include "s3.h"
 #include "multipart_internal.h"
+#include "../path/path.h"
 #include "../compat/http_headers.h"
 
 #include <string.h>
@@ -103,9 +104,14 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                                  "Invalid copy source path.");
     }
 
-    /* Confinement: src_fs_path is constructed from cf->common.root_canon + src_key and
-     * validated against root_canon above (strncmp + strstr checks). Safe. */
-    if (stat(src_fs_path, &src_sb) != 0 || !S_ISREG(src_sb.st_mode)) {
+    /* Confinement: stat the source through the confined resolver (openat2
+     * RESOLVE_BENEATH, no-follow) — the strstr/strncmp checks above do NOT stop
+     * a planted in-bucket symlink, so a raw stat() here would follow it out of
+     * the export root (the same hole the open() below was hardened against). */
+    if (xrootd_lstat_confined_canon(r->connection->log, cf->common.root_canon,
+                                    src_fs_path, &src_sb, 1) != 0
+        || !S_ISREG(src_sb.st_mode))
+    {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchKey",
                                  "The specified copy source does not exist.");

@@ -25,4 +25,27 @@ int xrootd_sss_bf_crypt(int encrypt, const uint8_t *key, size_t key_len,
                         const uint8_t *src, size_t src_len,
                         uint8_t *dst, size_t dst_max, size_t *out_len);
 
+/*
+ * xrootd_sss_build_credential — assemble a complete SSS kXR_auth credential blob
+ * (the SSS *client* side: what a native client, or the module acting as an SSS
+ * client to an upstream, sends after a server requests SSS via kXR_authmore).
+ *
+ * THE single source of truth for the SSS credential wire format. Output:
+ *   [16B outer header: "sss\0" ver(1) spare(0) kn(0) enc(BF32) key_id(8B BE)]
+ *   [BF32( 40B data header [nonce32 | gen_time BE | USEDATA] + NAME TLV + CRC32 )]
+ * using the shared IEEE-CRC32 and Blowfish-CFB64 kernels.
+ *
+ * Pure and ngx-free by construction: the caller supplies the 32-byte random nonce
+ * and gen_time (seconds since XROOTD_SSS_BASE_TIME) so the RNG and clock stay at
+ * the edges. username NULL/empty defaults to "xrd" (NAME TLV capped at 64 bytes).
+ *
+ * out_max must be >= XROOTD_SSS_HDR_LEN + XROOTD_SSS_DATA_HDR_LEN + 3 + 64 + 1 + 4
+ * (256 bytes is always sufficient). Returns 0 on success with *out_len set to the
+ * total blob length, or -1 on a bad argument, too-small buffer, or cipher failure.
+ */
+int xrootd_sss_build_credential(const uint8_t *key, size_t key_len,
+                                uint64_t key_id, const char *username,
+                                const uint8_t nonce32[32], uint32_t gen_time,
+                                uint8_t *out, size_t out_max, size_t *out_len);
+
 #endif /* XROOTD_COMPAT_SSS_BF_H */

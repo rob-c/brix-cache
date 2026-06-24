@@ -1,4 +1,5 @@
 #include "open.h"
+#include "../path/op_path.h"
 #include "../manager/registry.h"
 #include "../manager/redir_cache.h"
 #include "../manager/pending.h"
@@ -6,6 +7,7 @@
 #include "../session/registry.h"
 #include "../cms/cms_internal.h"
 #include "../compat/codec_core.h"
+#include "../protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
 
 #include <string.h>
 #include <unistd.h>
@@ -149,9 +151,8 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * subsequent opcodes (read, pgread, readv, write, close) reuse.
 	 */
 
-	/* Determine whether this is a write-mode open */
-	is_write = (options & (kXR_new | kXR_delete | kXR_open_updt |
-						   kXR_open_wrto | kXR_open_apnd)) ? 1 : 0;
+	/* Determine whether this is a write-mode open (shared write-bit set). */
+	is_write = xrootd_open_options_is_write(options);
 
 	/*
 	 * TPC (Third-Party Copy) detection.
@@ -390,6 +391,15 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_ArgInvalid, "invalid path payload");
 	}
 
+	/* Reject any ".." component (the reference does not normalize ".."); the
+	 * open resolves through the kernel RESOLVE_BENEATH which would otherwise
+	 * collapse an in-tree "..".  Same op id selection as the surrounding errors. */
+	if (xrootd_reject_dotdot_path(ctx, c,
+			is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			"OPEN", clean_path)) {
+		return ctx->write_rc;
+	}
+
 	if (xrootd_count_path_depth(clean_path) != NGX_OK) {
 		XROOTD_RETURN_ERR(ctx, c,
 						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
@@ -423,7 +433,13 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			                    redir_host, redir_port);
 		}
 
-		if (xrootd_srv_select(clean_path, is_write, redir_host,
+		/* Open may redirect to a server whose CMS heartbeat just dropped (a
+		 * transient blip under load blacklists it for 30 s though its data plane
+		 * is still serving) — better than a false NotFound for a file that
+		 * exists.  kXR_locate stays strict.  A truly dead target just makes the
+		 * client's connect fail and the tried/triedrc retry converges to
+		 * NotFound. */
+		if (xrootd_srv_select_or_blacklisted(clean_path, is_write, redir_host,
 		                      sizeof(redir_host), &redir_port)) {
 			if (!is_write && conf->collapse_redir) {
 				xrootd_redir_cache_insert(clean_path, redir_host, redir_port,
@@ -583,8 +599,15 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			return ctx->write_rc;
 		}
 
-		/* Create parent directories if kXR_mkpath is set */
-		if (options & kXR_mkpath) {
+		/* Create the parent directory chain when the client set kXR_mkpath OR
+		 * kXR_async — the EXACT condition the reference do_Open uses to add
+		 * SFS_O_MKPTH (XrdXrootdXeq.cc:1544: `opts & (kXR_mkpath | kXR_async)`).
+		 * xrdcp sends kXR_async (not mkpath) on every upload, so this is what
+		 * makes uploads to a missing parent succeed; a create-open with NEITHER
+		 * flag that names a missing parent must fail NotFound, matching stock
+		 * (verified by raw-wire differential). Confined beneath the export root
+		 * by xrootd_mkdir_recursive_policy. */
+		if (options & (kXR_mkpath | kXR_async)) {
 			char  parent[PATH_MAX];
 			char *slash;
 			ngx_cpystrn((u_char *) parent, (u_char *) full_path, sizeof(parent));

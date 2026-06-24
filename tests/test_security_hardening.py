@@ -325,7 +325,10 @@ def test_qconfig_long_payload_is_truncated_without_stack_leak():
     """Long Qconfig queries must stop at the fixed buffer boundary cleanly."""
     key = b"A" * 120
     payload = b"\n".join([key] * 20)
-    expected = (key + b"=0\n") * 4
+    # Unknown Qconfig keys echo the bare key + '\n' (reference do_Qconf default
+    # branch), NOT the legacy "key=0\n"; the 512-byte response buffer fits four
+    # 121-byte entries and stops cleanly at the boundary.
+    expected = (key + b"\n") * 4
 
     with _raw_session() as sock:
         _login_anon(sock, streamid=b"\x00\x09")

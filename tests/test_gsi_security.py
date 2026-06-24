@@ -216,14 +216,16 @@ class TestGSIPreAuthRejection:
         sock.close()
         assert status != kXR_ok
 
-    def test_ping_before_login_ok(self):
+    def test_ping_before_login_rejected(self):
+        """A pre-login kXR_ping is rejected with kXR_error, matching stock xrootd
+        (ping is routed through the pre-login auth gate, not answered ok)."""
         sock = _raw_conn()
         _handshake(sock)
         req = struct.pack("!2sH16sI", b"\x00\x02", kXR_ping, b"\x00" * 16, 0)
         sock.sendall(req)
         status, _ = _read_response(sock)
         sock.close()
-        assert status == kXR_ok
+        assert status == kXR_error
 
     def test_dirlist_before_login_rejected(self):
         sock = _raw_conn()

@@ -6,6 +6,11 @@
  * "..", else 0. Borrows comp (need not be NUL-terminated); O(1), no alloc. */
 int xrootd_path_component_forbidden(const char *comp, size_t comp_len);
 
+/* Traversal guard for extract-based ops: returns 1 iff some '/'-delimited
+ * component of the NUL-terminated path is exactly ".." (a lone "." is not a
+ * match). Borrows path (may be NULL → 0). See xrootd_reject_dotdot_path. */
+int xrootd_path_has_dotdot(const char *path);
+
 /* Emits an NGX_LOG_WARN "<prefix>: <path>" line with path run through
  * xrootd_sanitize_log_string() (control/non-ASCII bytes hex-escaped) to block
  * log injection from wire-supplied paths. path may be NULL (logged as "-").

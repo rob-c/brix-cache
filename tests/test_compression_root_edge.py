@@ -172,10 +172,15 @@ def _read(sock, fhandle, offset, rlen, streamid=b"\x00\x06"):
 
 
 def _parse_open_body(body):
-    """ServerResponseBody_Open: fhandle[4] cpsize(int32 BE) cptype[4] ...
-    Returns (fhandle, cpsize, cptype)."""
-    assert len(body) >= 12, f"open reply too short for ServerOpenBody: {len(body)}"
+    """ServerResponseBody_Open: fhandle[4] then OPTIONAL cpsize(int32 BE) cptype[4].
+    A stock/plain kXR_open (no compression, no kXR_retstat) replies with JUST the
+    4-byte fhandle — which is precisely 'no compression signal' (cpsize == 0,
+    cptype all-zero).  The compression fields appear only when the server actually
+    negotiated a codec.  Returns (fhandle, cpsize, cptype)."""
+    assert len(body) >= 4, f"open reply too short for an fhandle: {len(body)}"
     fhandle = body[:4]
+    if len(body) < 12:
+        return fhandle, 0, b"\x00\x00\x00\x00"
     cpsize = struct.unpack("!i", body[4:8])[0]
     cptype = body[8:12]
     return fhandle, cpsize, cptype

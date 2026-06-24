@@ -102,6 +102,7 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const char *p;
     char        key[128];
     int         tpc_capable;
+    int         ntokens = 0;
 
     /* TPC pull is available on writable data servers with a thread pool. */
     tpc_capable = (conf->common.allow_write && conf->common.thread_pool != NULL) ? 1 : 0;
@@ -115,6 +116,7 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
      *   tpcdlg → literal "tpcdlg" when HTTP-TPC delegation is unavailable
      */
     while (xrootd_qconfig_next_token(&p, key, sizeof(key))) {
+        ntokens++;
 
         if (strcmp(key, "chksum") == 0) {
             /* adler32 first — xrdcp default; list ALL algorithms the Qcksum path
@@ -122,14 +124,34 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
              * advertised so peers intersecting preference lists can negotiate it),
              * zcrc32 = its alias; crc64 = CRC-64/XZ, crc64nvme = CRC-64/NVME (this
              * gateway's de-facto convention; stock XRootD ships no crc64 calculator). */
+            /* Value only (no "chksum=" prefix) — the reference do_Qconf returns
+             * the bare cslist, and xrdcp/XrdCl parse the value line directly. */
             if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
-                                       "chksum=adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256\n")) {
+                                       "adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256\n")) {
                 break;
             }
 
         } else if (strcmp(key, "readv") == 0) {
             if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
                                        "readv=1\n")) {
+                break;
+            }
+
+        } else if (strcmp(key, "readv_ior_max") == 0) {
+            /* Max bytes per readv element (the official "maxReadv_ior"). Reported
+             * as a bare integer (no key= prefix), matching reference XRootD, so
+             * XrdCl sizes each VectorRead element to our configured
+             * xrootd_readv_segment_size and never overshoots the per-element cap. */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                                       "%lu\n",
+                                       (unsigned long) conf->readv_segment_size)) {
+                break;
+            }
+
+        } else if (strcmp(key, "readv_iov_max") == 0) {
+            /* Max number of elements per readv request (the official "maxRvecsz"). */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
+                                       "%d\n", XROOTD_READV_MAXSEGS)) {
                 break;
             }
 
@@ -233,12 +255,69 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 break;
             }
 
+        } else if (strcmp(key, "version") == 0) {
+            /* Server software version.  The reference do_Qconf returns the bare
+             * xrootd version string (e.g. "v5.9.5"); clients parse it for
+             * feature/quirk detection, so it must contain digits and carry NO
+             * "version=" prefix.  Report the protocol-compatible version this
+             * gateway already advertises elsewhere (webdav/xrdhttp_stats.c
+             * ver="v5.0.0"). */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "v5.0.0\n")) {
+                break;
+            }
+
+        } else if (strcmp(key, "bind_max") == 0) {
+            /* Max parallel data streams a client may bind (reference: a bare
+             * integer + newline; stock default is maxStreams-1 = 15). */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "%d\n", 15)) {
+                break;
+            }
+
+        } else if (strcmp(key, "pio_max") == 0) {
+            /* Max parallel-I/O streams per request. The reference do_Qconf
+             * returns a bare integer (maxPio+1; stock default 5); XrdCl parses it
+             * with atoi(), so a "pio_max=" prefix would break it. */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "%d\n", 5)) {
+                break;
+            }
+
+        } else if (strcmp(key, "role") == 0) {
+            /* Reference do_Qconf returns the bare $XRDROLE (XrdOfsConfig exports
+             * it from the configured role).  A standalone data server reports
+             * "server"; in manager/redirector mode it reports "manager". */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "%s\n",
+                                       conf->manager_mode ? "manager"
+                                                          : "server")) {
+                break;
+            }
+
+        } else if (strcmp(key, "fattr") == 0) {
+            /* Reference do_Qconf returns usxParms — the OSS extended-attribute
+             * limits "<maxNameLen> <maxValueLen>".  On Linux user.* xattrs the
+             * name cap is 248 (255 − len("user.")) and the value cap 65536
+             * (64 KiB), which is what stock reports on ext4/xfs; we support
+             * fattr (src/fattr/), so advertise the same. */
+            if (!xrootd_qconfig_append(resp, sizeof(resp), &pos, "248 65536\n")) {
+                break;
+            }
+
         } else {
+            /* Unknown config key: the reference echoes the key name + newline
+             * (do_Qconf default branch), NOT "key=value". A bare value-line is
+             * what every standard config consumer parses. */
             if (!xrootd_qconfig_append(resp, sizeof(resp), &pos,
-                                       "%s=0\n", key)) {
+                                       "%s\n", key)) {
                 break;
             }
         }
+    }
+
+    /* No argument at all (empty/whitespace-only payload) is an error: the
+     * reference do_Qconf returns kXR_ArgMissing "query config argument not
+     * specified."  A token that simply produced no output still succeeds. */
+    if (ntokens == 0) {
+        return xrootd_send_error(ctx, c, kXR_ArgMissing,
+                                 "query config argument not specified.");
     }
 
     if (pos == 0) {

@@ -3,6 +3,7 @@
  */
 
 #include "webdav.h"
+#include "../path/path.h"
 #include "../compat/http_headers.h"
 #include "../compat/staged_file.h"
 #include "../dashboard/dashboard_tracking.h"
@@ -578,7 +579,9 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
-    existed = (stat(path, &sb) == 0) ? 1 : 0;
+    existed = (xrootd_lstat_confined_canon(r->connection->log,
+                                           conf->common.root_canon, path, &sb,
+                                           1) == 0) ? 1 : 0;
     if (existed && S_ISDIR(sb.st_mode)) {
         return NGX_HTTP_CONFLICT;
     }
@@ -749,7 +752,8 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (stat(path, &sb) == 0) {
+    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
+                                    path, &sb, 1) == 0) {
         xrootd_dashboard_http_add(r, (ngx_atomic_int_t) sb.st_size);
         (void) xrootd_tpc_registry_update(transfer_id, sb.st_size,
                                           XROOTD_TPC_STATE_DONE,

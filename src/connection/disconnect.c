@@ -70,7 +70,7 @@ xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
      */
     {
         ngx_uint_t i;
-        for (i = 0; i < XROOTD_PIPELINE_MAX; i++) {
+        for (i = 0; i < ctx->pipeline_depth; i++) {
             if (ctx->rd_pool[i].buf != NULL) {
                 ngx_free(ctx->rd_pool[i].buf);
                 ctx->rd_pool[i].buf = NULL;

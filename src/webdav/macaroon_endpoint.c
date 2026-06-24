@@ -408,8 +408,20 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
         identifier[sizeof(identifier) - 1] = '\0';
     }
 
-    /* Build location string from Host: header */
+    /*
+     * Build the macaroon "location".  When an issuer is configured
+     * (xrootd_webdav_token_issuer), stamp THAT as the location: validation pins a
+     * macaroon's location to the configured issuer (issuer-pinning, fail-closed —
+     * src/token/validate.c), so a Host-derived location would make our own issued
+     * macaroon fail re-validation on this very server.  Fall back to the Host
+     * header only when no issuer is pinned.
+     */
+    if (conf->token_issuer.len > 0
+        && conf->token_issuer.len < sizeof(location))
     {
+        ngx_memcpy(location, conf->token_issuer.data, conf->token_issuer.len);
+        location[conf->token_issuer.len] = '\0';
+    } else {
         const char *scheme = (r->connection->ssl != NULL) ? "https" : "http";
         u_char     *p;
 

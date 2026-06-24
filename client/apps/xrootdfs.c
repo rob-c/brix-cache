@@ -41,6 +41,7 @@
 #include "iobuf.h"           /* shared read-ahead / write-back engine */
 #include "fuse_ops.h"        /* shared pooled meta-op runner + op thunks */
 #include "compat/crypto.h"   /* xrootd_crypto_init (libxrdproto SHA/HMAC kernels) */
+#include "protocol/open_flags.h" /* shared POSIX-flags -> open `force` tri-state */
 
 #include <fuse3/fuse.h>
 
@@ -562,10 +563,8 @@ xfs_open(const char *path, struct fuse_file_info *fi)
     if (acc == O_RDONLY) {
         return afh_open(path, 0, 0, fi);
     }
-    if (fi->flags & O_TRUNC) {
-        return afh_open(path, 1, 1 /*truncate*/, fi);
-    }
-    return afh_open(path, 1, 2 /*update in place*/, fi);
+    /* O_TRUNC -> overwrite (force 1), else update in place (force 2). */
+    return afh_open(path, 1, xrootd_open_force_for_open(fi->flags), fi);
 }
 
 static int
@@ -573,7 +572,7 @@ xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     (void) mode;
     /* O_EXCL → create-new (force=0, fail if exists); else truncate-create. */
-    return afh_open(path, 1, (fi->flags & O_EXCL) ? 0 : 1, fi);
+    return afh_open(path, 1, xrootd_open_force_for_create(fi->flags), fi);
 }
 
 static int
@@ -1035,8 +1034,7 @@ xrootdfs_aio_main(int argc, char **argv)
             g_bearer = getenv("BEARER_TOKEN");
         }
         g_web_verify = g_opts.verify_host;
-        g_web_ca = (g_opts.ca_dir != NULL && g_opts.ca_dir[0] != '\0')
-                   ? g_opts.ca_dir : getenv("X509_CERT_DIR");
+        g_web_ca = xrdc_resolve_ca_dir(g_opts.ca_dir);
         /* export base = the URL path, trailing '/' trimmed; "/" → "" (verbatim). */
         snprintf(g_base, sizeof(g_base), "%s", g_weburl.path);
         bl = strlen(g_base);

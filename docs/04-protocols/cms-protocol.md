@@ -494,6 +494,26 @@ real interop failure against a real `cmsd`:
 | `xrootd_registry_slots N` | stream server | 128 | server-registry capacity |
 | `xrootd_cms_locate_timeout time` | stream server | 5s | how long to hold a client while escalating via CMS (§7.1) |
 
+### 9.1 Network-fault resilience (phase-50)
+
+These deadlines/caps harden the CMS connection against timeouts, packet loss,
+half-open/slowloris peers, and hostile managers/nodes **with no wire change**.
+Defaults are ON but generous (derived from the heartbeat interval), so a
+conformant cmsd/data-node is never tripped; set a timeout/cap to `0` to disable.
+See [docs/refactor/phase-50-cms-protocol-hardening.md](../refactor/phase-50-cms-protocol-hardening.md).
+
+| Directive | Block | Default | Purpose |
+|---|---|---|---|
+| `xrootd_cms_read_timeout time` | stream server (client) | `max(3×interval, 90s)` | reconnect if the manager goes silent this long (detects black-holed/half-open managers) |
+| `xrootd_cms_send_timeout time` | stream server (client) | 10s | connect + first-write readiness window for the manager socket |
+| `xrootd_cms_tcp_keepalive on\|off` | stream server (client) | on | `SO_KEEPALIVE` + tight probes on the manager socket |
+| `xrootd_cms_tcp_user_timeout time` | stream server (client) | = read timeout | `TCP_USER_TIMEOUT` kernel backstop on the manager socket |
+| `xrootd_cms_server_login_timeout time` | stream server (manager) | 10s | close a peer that never completes LOGIN (+sss xauth) — anti-slowloris |
+| `xrootd_cms_server_idle_timeout time` | stream server (manager) | `max(3×interval, 90s)` | close + unregister a logged-in node that goes silent this long |
+| `xrootd_cms_server_max_connections N` | stream server (manager) | 4096 | per-worker cap on accepted CMS connections (`0` = unlimited) |
+| `xrootd_cms_server_tcp_keepalive on\|off` | stream server (manager) | on | `SO_KEEPALIVE` + tight probes on accepted sockets |
+| `xrootd_cms_server_tcp_user_timeout time` | stream server (manager) | = idle timeout | `TCP_USER_TIMEOUT` kernel backstop on accepted sockets |
+
 A **leaf data server** sets `xrootd_cms_manager` (+ optional `xrootd_cms_paths`).
 A **manager** sets `xrootd_cms_server on` + `xrootd_manager_mode on`. A
 **sub-manager** sets all of the above. See

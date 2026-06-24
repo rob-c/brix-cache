@@ -112,6 +112,33 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
     ctx = ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module);
     conf = ngx_stream_get_module_srv_conf(s, ngx_stream_xrootd_module);
 
+    /*
+     * Fast teardown: we are about to service this connection, so clear the
+     * idle marker for the duration of this handler run.  It is re-set at the
+     * request boundary below whenever we park waiting for the next request, so
+     * that a graceful quit's ngx_close_idle_connections() can drop a parked
+     * keepalive connection at once instead of holding it until worker exit.
+     */
+    c->idle = 0;
+
+    /*
+     * Graceful shutdown signal: ngx_close_idle_connections() set c->close on a
+     * connection we had marked idle.  Tear it down through the normal disconnect
+     * funnel — a clean FIN is the correct retry signal: the client's resilient
+     * layer treats it as a transport sever and reconnects to the new worker,
+     * resuming the transfer from its last offset.  (kXR_wait would stall the
+     * client ≥1s on the dying worker; a self-redirect trips its loop guard.)
+     */
+    if (c->close) {
+        if (xrootd_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
+            return;
+        }
+        xrootd_on_disconnect(ctx, c);
+        xrootd_close_all_files(ctx);
+        ngx_stream_finalize_session(s, NGX_STREAM_OK);
+        return;
+    }
+
     if (rev->timedout) {
         if (ctx->state == XRD_ST_WAITING_CMS) {
             /* kYR_select did not arrive in time - tell client to retry. */
@@ -247,19 +274,19 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
         } else if (ctx->state == XRD_ST_REQ_HEADER) {
             if (ctx->hdr_pos == 0) {
                 /*
-                 * Phase 29 pipelining backpressure: if XROOTD_PIPELINE_MAX
+                 * Phase 29 pipelining backpressure: if pipeline_depth
                  * responses are already queued/draining (out_count) OR pwrites
                  * are still in flight (wr_inflight, write pipelining), stop
                  * reading new requests and suspend with state=SENDING.  The write
                  * event re-enters recv once the output queue drains; a write
                  * completion queues its ack (which schedules that write event) and
                  * also nudges the read side.  Bounding out_count + wr_inflight at
-                 * XROOTD_PIPELINE_MAX caps BOTH the in-flight pwrites and the
-                 * queued acks, so the out_ring (XROOTD_PIPELINE_MAX slots) can
+                 * ctx->pipeline_depth caps BOTH the in-flight pwrites and the
+                 * queued acks, so the out_ring (pipeline_depth slots) can
                  * never overflow.  (Both counters are 0 here for the common serial
                  * read/write case, so this is a no-op there.)
                  */
-                if (ctx->out_count + ctx->wr_inflight >= XROOTD_PIPELINE_MAX) {
+                if (ctx->out_count + ctx->wr_inflight >= ctx->pipeline_depth) {
                     ctx->state = XRD_ST_SENDING;
                     XROOTD_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
                     return;
@@ -284,6 +311,31 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                     /* Phase 31 W4: reconcile this connection's transfer-heap
                      * footprint with the SHM-global budget after the trim. */
                     xrootd_budget_sync(ctx);
+
+                    /*
+                     * Fast teardown: the worker is draining and this connection
+                     * is quiescent at a fresh request boundary (no queued
+                     * response, no in-flight pwrite — so teardown is safe).
+                     * Close it now rather than parking on the next request; the
+                     * client reconnects to the new worker and resumes.  This
+                     * also catches a connection that finished its current op
+                     * *after* the quit began (which ngx_close_idle_connections,
+                     * a one-shot at quit, would have missed).
+                     */
+                    if (ngx_exiting) {
+                        xrootd_on_disconnect(ctx, c);
+                        xrootd_close_all_files(ctx);
+                        ngx_stream_finalize_session(s, NGX_STREAM_OK);
+                        return;
+                    }
+
+                    /*
+                     * Mark idle so a graceful quit's ngx_close_idle_connections()
+                     * drops this parked keepalive connection immediately instead
+                     * of leaving it open until the worker finally exits.  Cleared
+                     * at the top of this handler the moment we service it again.
+                     */
+                    c->idle = 1;
                 }
             }
             dest = ctx->hdr_buf + ctx->hdr_pos;
@@ -487,7 +539,7 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                 && ctx->cur_reqid == kXR_read
                 && ctx->resp_pipelinable
                 && !ctx->rd_win_active
-                && ctx->out_count < XROOTD_PIPELINE_MAX)
+                && ctx->out_count < ctx->pipeline_depth)
             {
                 ctx->state = XRD_ST_REQ_HEADER;
                 ctx->hdr_pos = 0;
@@ -542,7 +594,7 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                  * Instead of suspending until it completes — which would serialize
                  * the next chunk's network receive behind this chunk's disk write
                  * — keep receiving.  The backpressure boundary (out_count +
-                 * wr_inflight >= XROOTD_PIPELINE_MAX) caps the depth, and the
+                 * wr_inflight >= pipeline_depth) caps the depth, and the
                  * completion callback queues the ack asynchronously and nudges the
                  * read side.  Every other AIO op (read, pgwrite, …) still suspends.
                  */
@@ -566,7 +618,7 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                 && ctx->cur_reqid == kXR_read
                 && ctx->resp_pipelinable
                 && !ctx->rd_win_active
-                && ctx->out_count < XROOTD_PIPELINE_MAX)
+                && ctx->out_count < ctx->pipeline_depth)
             {
                 ctx->state = XRD_ST_REQ_HEADER;
                 ctx->hdr_pos = 0;

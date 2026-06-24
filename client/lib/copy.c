@@ -13,6 +13,7 @@
  *       each open follows its own cluster redirect. Server-side TPC is out of scope.
  */
 #include "xrdc.h"
+#include "uring.h"                /* phase-44: optional local-disk overlap ring */
 #include "zip.h"                  /* phase-42 W3: ?xrdcl.unzip= member extraction */
 #include "compat/host_format.h"  /* xrootd_format_host_port (IPv6-bracketed Host) */
 #include "compat/hex.h"          /* shared hex encoder (libxrdproto) */
@@ -194,10 +195,11 @@ typedef struct {
     int         pgrw;
     /* resilient download source only (zero for upload sink / non-resilient): */
     int         resilient;
-    const char *path;        /* source path, for reopen */
+    const char *path;        /* source/dest path, for reopen */
     const char *opaque;      /* compress opaque or NULL */
     int         max_stall_ms;
     size_t      cur_chunk;   /* adaptive read size (shrinks on loss) */
+    int         posc;        /* resilient upload sink only: posc flag for reopen */
 } pump_remote_t;
 
 /* Reconnect the session (to the original endpoint, re-selecting a data server)
@@ -254,13 +256,55 @@ pump_src_remote(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *s
     }
 }
 
+/* Reconnect + reopen the destination IN PLACE (kXR_open_updt, no truncate) so a
+ * resilient upload resumes onto the same (server-preserved) partial. 0 / -1. */
+static int
+pump_sink_reopen(pump_remote_t *r, xrdc_status *st)
+{
+    const char *host = (r->c->home_host[0] != '\0') ? r->c->home_host : r->c->host;
+    int         port = (r->c->home_port != 0) ? r->c->home_port : r->c->port;
+    if (xrdc_reconnect(r->c, host, port, st) != 0) {
+        return -1;
+    }
+    xrdc_file nf;
+    if (xrdc_file_open_update(r->c, r->path, r->posc, &nf, st) != 0) {
+        return -1;
+    }
+    *r->f = nf;
+    return 0;
+}
+
 static int
 pump_sink_remote(void *ctx, const uint8_t *buf, int64_t off, size_t n,
                  xrdc_status *st)
 {
     pump_remote_t *r = (pump_remote_t *) ctx;
-    return r->pgrw ? xrdc_file_pgwrite(r->c, r->f, off, buf, n, st)
-                   : xrdc_file_write(r->c, r->f, off, buf, n, st);
+
+    if (!r->resilient) {
+        return r->pgrw ? xrdc_file_pgwrite(r->c, r->f, off, buf, n, st)
+                       : xrdc_file_write(r->c, r->f, off, buf, n, st);
+    }
+
+    /* Resilient upload (server has xrootd_upload_resume on): on a transport
+     * fault, reconnect + reopen-in-place and re-issue THIS buffer at the same
+     * absolute offset.  The bytes below `off` were already acked, so the server
+     * has them on the preserved partial — re-writing the current span is either
+     * filling the gap or an idempotent overwrite, so there is never a hole. */
+    uint64_t deadline = xrdc_mono_ns() + (uint64_t) r->max_stall_ms * 1000000ULL;
+    unsigned attempt = 0;
+    for (;;) {
+        int rc = r->pgrw ? xrdc_file_pgwrite(r->c, r->f, off, buf, n, st)
+                         : xrdc_file_write(r->c, r->f, off, buf, n, st);
+        if (rc == 0) {
+            return 0;
+        }
+        if (!xrdc_status_retryable(st) || xrdc_copy_quit_requested()
+            || xrdc_mono_ns() >= deadline) {
+            return -1;
+        }
+        xrdc_backoff_sleep_fast(attempt++);
+        (void) pump_sink_reopen(r, st);   /* best-effort; loop re-tries */
+    }
 }
 
 /* Local source/sink over a plain fd (ctx is &fd). The read EINTR-retries; the
@@ -289,6 +333,75 @@ pump_sink_local(void *ctx, const uint8_t *buf, int64_t off, size_t n,
 {
     (void) off;
     return write_all(*(int *) ctx, buf, n, st);
+}
+
+/* ---- Phase 44: optional io_uring local-disk overlap (Option A) ----
+ *
+ * The uring adapters present the same synchronous one-chunk face as the local
+ * adapters above, but route through xrdc_disk_ring so disk I/O overlaps the
+ * network side.  transfer_pump and the remote adapters are untouched; the only
+ * change is which (fn, ctx) pair a local fd is driven by, chosen per
+ * xrdc_copy_opts.io_uring.  See copy_run_download / copy_run_upload below. */
+
+typedef struct {
+    int             fd;
+    xrdc_disk_ring *ring;
+} pump_local_t;
+
+static ssize_t
+pump_src_local_uring(void *ctx, uint8_t *buf, int64_t off, size_t cap,
+                     xrdc_status *st)
+{
+    pump_local_t *lc = ctx;
+    return xrdc_disk_ring_pread(lc->ring, off, buf, cap, st);
+}
+
+static int
+pump_sink_local_uring(void *ctx, const uint8_t *buf, int64_t off, size_t n,
+                      xrdc_status *st)
+{
+    pump_local_t *lc = ctx;
+    return xrdc_disk_ring_pwrite(lc->ring, off, buf, n, st);
+}
+
+/*
+ * local_ring_select — decide whether to engage the overlap ring for a local fd.
+ * Sets *ring (NULL = use the classic adapter).  off  -> never; on  -> required,
+ * a clean error if io_uring is unavailable (client fail-fast); auto -> use it
+ * iff available, silently falling back otherwise.  o == NULL (recursive helper
+ * sub-transfers) is treated as auto.  Returns 0, or -1 (with *st) for on+absent.
+ */
+static int
+local_ring_select(int fd, const xrdc_copy_opts *o, xrdc_disk_ring **ring,
+                  xrdc_status *st)
+{
+    int mode = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
+
+    *ring = NULL;
+    if (mode == XRDC_IO_URING_OFF) {
+        return 0;
+    }
+    if (!xrdc_uring_available()) {
+        if (mode == XRDC_IO_URING_ON) {
+            xrdc_status_set(st, XRDC_EUNSUPPORTED, 0,
+                "--io-uring=on but io_uring is unavailable on this host "
+                "(kernel/seccomp) or this build lacks liburing");
+            return -1;
+        }
+        return 0;   /* auto: classic path */
+    }
+    {
+        xrdc_status tmp;
+        xrdc_status_clear(&tmp);
+        /* A 4-deep window of pump-sized buffers overlaps disk and network. */
+        *ring = xrdc_disk_ring_create(fd, 4, XRDC_COPY_CHUNK, 0, &tmp);
+        if (*ring == NULL && mode == XRDC_IO_URING_ON) {
+            if (st != NULL) { *st = tmp; }
+            return -1;
+        }
+        /* auto: a create failure just leaves *ring NULL -> classic path */
+    }
+    return 0;
 }
 
 /*
@@ -370,6 +483,73 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
 }
 
 /*
+ * copy_run_download — run the pump for a remote source into a local fd, routing
+ * the local writes through the io_uring overlap ring when selected.  On the
+ * ring path the pump's write-behind leaves writes in flight, so the ring is
+ * flushed (committing every queued pwrite) before it is destroyed; a flush
+ * error fails the transfer.  The classic path is byte-identical to before.
+ */
+static int
+copy_run_download(pump_src_fn rsrc, void *rsctx, int outfd, int64_t expected,
+                  const xrdc_copy_opts *o, int64_t ptotal, xrdc_status *st)
+{
+    xrdc_disk_ring *ring = NULL;
+    int             rc;
+
+    if (local_ring_select(outfd, o, &ring, st) != 0) {
+        return -1;
+    }
+    if (ring == NULL) {
+        return transfer_pump(rsrc, rsctx, pump_sink_local, &outfd,
+                             expected, o, ptotal, st);
+    }
+
+    {
+        pump_local_t lc;
+        lc.fd   = outfd;
+        lc.ring = ring;
+        rc = transfer_pump(rsrc, rsctx, pump_sink_local_uring, &lc,
+                           expected, o, ptotal, st);
+        if (rc == 0) {
+            rc = xrdc_disk_ring_flush(ring, st);
+        }
+        xrdc_disk_ring_destroy(ring);
+    }
+    return rc;
+}
+
+/*
+ * copy_run_upload — run the pump for a local fd into a remote sink, routing the
+ * local reads through the io_uring read-ahead ring when selected.  Reads need
+ * no flush (destroy drains any speculative reads).
+ */
+static int
+copy_run_upload(int infd, pump_sink_fn rsink, void *rsctx, int64_t expected,
+                const xrdc_copy_opts *o, int64_t ptotal, xrdc_status *st)
+{
+    xrdc_disk_ring *ring = NULL;
+    int             rc;
+
+    if (local_ring_select(infd, o, &ring, st) != 0) {
+        return -1;
+    }
+    if (ring == NULL) {
+        return transfer_pump(pump_src_local, &infd, rsink, rsctx,
+                             expected, o, ptotal, st);
+    }
+
+    {
+        pump_local_t lc;
+        lc.fd   = infd;
+        lc.ring = ring;
+        rc = transfer_pump(pump_src_local_uring, &lc, rsink, rsctx,
+                           expected, o, ptotal, st);
+        xrdc_disk_ring_destroy(ring);
+    }
+    return rc;
+}
+
+/*
  * WHAT: Open the source for read, stream the known-size body to `outfd`, then
  *       close the remote handle — the whole "remote file is open" lifetime.
  * WHY:  Confining the open-read handle (and its secondary streams + scratch buf)
@@ -441,8 +621,8 @@ download_stream_body(xrdc_conn *c, const xrdc_url *su, const xrdc_statinfo *si,
     src.opaque = opaque;
     src.max_stall_ms = (o->max_stall_ms > 0) ? o->max_stall_ms : 60000;
     src.cur_chunk = XRDC_COPY_CHUNK;
-    rc = transfer_pump(pump_src_remote, &src, pump_sink_local, &outfd,
-                       si->size, o, si->size, st);
+    rc = copy_run_download(pump_src_remote, &src, outfd,
+                           si->size, o, si->size, st);
 
     {
         xrdc_status throwaway;
@@ -621,7 +801,7 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
             total = (int64_t) usb.st_size;
         }
     }
-    if (xrdc_connect(&c, du, co, st) != 0) {
+    if (xrdc_connect_resilient(&c, du, co, st) != 0) {
         return -1;
     }
     /* phase-42 W5: request inline write compression when --compress was given —
@@ -630,17 +810,41 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
      * doesn't support it returns plaintext (write_codec stays 0), so this is safe.
      * Streams are disabled under write compression (the secondaries would carry
      * raw payloads the server can't frame). */
-    if (o->compress != NULL && o->compress[0] != '\0') {
-        char opq[80];
-        snprintf(opq, sizeof(opq), "xrootd.compress=%s", o->compress);
-        if (xrdc_file_open_opaque(&c, du->path, opq, 1, o->force, o->posc,
-                                  &f, st) != 0) {
-            xrdc_close(&c);
-            return -1;
+    {
+        char        opq[80];
+        const char *copq = NULL;
+        if (o->compress != NULL && o->compress[0] != '\0') {
+            snprintf(opq, sizeof(opq), "xrootd.compress=%s", o->compress);
+            copq = opq;
         }
-    } else if (xrdc_file_open_write(&c, du->path, o->force, o->posc, &f, st) != 0) {
-        xrdc_close(&c);
-        return -1;
+        /* Resilient INITIAL open: a restart can hit during connect/open, before
+         * the write loop's resilient sink is reached.  Retry the open with
+         * reconnect within the stall window — nothing is written yet, so a fresh
+         * create/truncate retry is safe (matches download_stream_body and
+         * xrdc_rfile_open_write).  Subsequent reopens (pump_sink_reopen) switch
+         * to in-place update so resumed bytes are never re-truncated. */
+        int      stall = (o->max_stall_ms > 0) ? o->max_stall_ms : 60000;
+        uint64_t deadline = xrdc_mono_ns() + (uint64_t) stall * 1000000ULL;
+        unsigned attempt = 0;
+        for (;;) {
+            int orc = (copq != NULL)
+                      ? xrdc_file_open_opaque(&c, du->path, opq, 1, o->force,
+                                              o->posc, &f, st)
+                      : xrdc_file_open_write(&c, du->path, o->force, o->posc,
+                                             &f, st);
+            if (orc == 0) {
+                break;
+            }
+            if (!xrdc_status_retryable(st) || xrdc_copy_quit_requested()
+                || xrdc_mono_ns() >= deadline) {
+                xrdc_close(&c);
+                return -1;
+            }
+            xrdc_backoff_sleep_fast(attempt++);
+            const char *h = (c.home_host[0] != '\0') ? c.home_host : c.host;
+            int         p = (c.home_port != 0) ? c.home_port : c.port;
+            (void) xrdc_reconnect(&c, h, p, st);
+        }
     }
 
     /* M8: attach N-1 bound secondary streams to the (post-redirect) session.
@@ -649,19 +853,67 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
         xrdc_streams_open(&ss, &c, o->streams, st);
     }
 
-    /* local infd → remote (EOF-driven), with progress (total = file size or -1). */
+    /* local infd → remote (EOF-driven), with progress (total = file size or -1).
+     * The sink is resilient: a transport sever mid-upload reconnects, reopens the
+     * destination IN PLACE (no truncate) and re-issues from the same offset, so an
+     * upload survives an nginx restart and resumes from where it left off.  This
+     * needs the bytes below the offset to still be on the server: true for a
+     * direct-to-final write (default, posc off) and for a server with
+     * xrootd_upload_resume on (deterministic preserved partial).  Re-issuing the
+     * same buffer at the same offset is idempotent. */
     sink.c = &c;
     sink.f = &f;
     sink.pgrw = o->pgrw;
-    rc = transfer_pump(pump_src_local, &infd, pump_sink_remote, &sink,
-                       -1, o, total, st);
+    sink.resilient = 1;
+    sink.path = du->path;
+    sink.posc = o->posc;
+    sink.max_stall_ms = (o->max_stall_ms > 0) ? o->max_stall_ms : 60000;
+    rc = copy_run_upload(infd, pump_sink_remote, &sink, -1, o, total, st);
 
     /* Only close the remote file cleanly on success: with POSC, abandoning the
      * handle (connection teardown without close) makes the server discard the
-     * partial upload, which is exactly the atomicity we want on error. */
+     * partial upload, which is exactly the atomicity we want on error.
+     *
+     * The close is the COMMIT (it renames the staged partial to the destination),
+     * so it must be resilient too: a restart landing on the final close would
+     * otherwise leave a fully-written-but-uncommitted partial.  Retry the close
+     * within the stall window, reconnecting + reopening IN PLACE between attempts
+     * — the bytes are all there, so reopen+close simply commits. */
     if (rc == 0) {
-        if (xrdc_file_close(&c, &f, st) != 0) {
-            rc = -1;
+        uint64_t deadline = xrdc_mono_ns()
+                          + (uint64_t) sink.max_stall_ms * 1000000ULL;
+        unsigned attempt = 0;
+        for (;;) {
+            if (xrdc_file_close(&c, &f, st) == 0) {
+                break;
+            }
+            if (xrdc_copy_quit_requested() || xrdc_mono_ns() >= deadline) {
+                rc = -1;
+                break;
+            }
+            xrdc_backoff_sleep_fast(attempt++);
+            if (pump_sink_reopen(&sink, st) == 0) {
+                continue;   /* reopened the partial in place — loop re-commits */
+            }
+            /*
+             * Reopen-in-place failed.  A PRIOR close may have already committed
+             * (renamed the staged partial onto the destination) with its ack lost
+             * to the sever — so the partial is gone and reopen-update NotFounds.
+             * Confirm the commit by the destination's size and treat as success.
+             * (total < 0 = stdin: no known size, so fall back to retryability.)
+             */
+            if (total >= 0) {
+                xrdc_statinfo si;
+                if (xrdc_stat(&c, du->path, &si, st) == 0 && si.size == total) {
+                    xrdc_status_clear(st);
+                    rc = 0;
+                    break;
+                }
+            }
+            if (!xrdc_status_retryable(st) || xrdc_mono_ns() >= deadline) {
+                rc = -1;
+                break;
+            }
         }
     }
     /* The file is persisted after close — verify its checksum now (connection
@@ -1094,8 +1346,8 @@ copy_one_r2l(xrdc_conn *c, const char *rpath, const char *lpath,
     src.c = c;
     src.f = &f;
     src.pgrw = 0;
-    rc = transfer_pump(pump_src_remote, &src, pump_sink_local, &fd,
-                       expected_size, NULL, expected_size, st);
+    rc = copy_run_download(pump_src_remote, &src, fd,
+                           expected_size, NULL, expected_size, st);
 
     close(fd);
     xrdc_file_close(c, &f, st);
@@ -1128,7 +1380,7 @@ copy_one_l2r(xrdc_conn *c, const char *lpath, const char *rpath,
     sink.c = c;
     sink.f = &f;
     sink.pgrw = 0;
-    rc = transfer_pump(pump_src_local, &fd, pump_sink_remote, &sink, -1, NULL, 0, st);
+    rc = copy_run_upload(fd, pump_sink_remote, &sink, -1, NULL, 0, st);
 
     close(fd);
     if (rc != 0) {
@@ -1398,10 +1650,18 @@ copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts 
         close(infd);
         return -1;
     }
-    rc = xrdc_http_upload(du->host, du->port, du->tls, du->path,
+    {
+        /* Resilient by default: Content-Range PUT chunks that reconnect + resume
+         * from the server's durable offset, so the upload survives an nginx
+         * restart (server xrootd_webdav_upload_resume).  A plain server commits on
+         * the first whole-range chunk, so a single-shot upload still works. */
+        int stall = (o && o->max_stall_ms > 0) ? o->max_stall_ms
+                                               : XRDC_DEFAULT_MAX_STALL_MS;
+        rc = xrdc_http_upload_resumable(du->host, du->port, du->tls, du->path,
                           hdrs[0] ? hdrs : NULL, infd, (long long) sb.st_size,
                           co ? co->verify_host : 1, co ? co->ca_dir : NULL,
-                          XRDC_WEB_TIMEOUT_MS, &status, st);
+                          XRDC_WEB_TIMEOUT_MS, stall, &status, st);
+    }
     close(infd);
     if (rc == 0 && o && !o->silent) {
         fprintf(stderr, "xrdcp: uploaded %lld bytes (HTTP %d)\n",

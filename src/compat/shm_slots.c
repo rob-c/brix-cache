@@ -100,6 +100,70 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
 }
 
 
+void
+xrootd_shm_zone_warn_on_resize(ngx_conf_t *cf, ngx_shm_zone_t *zn,
+                               const char *directive)
+{
+    ngx_cycle_t      *oc;
+    ngx_list_part_t  *part;
+    ngx_shm_zone_t   *old;
+    ngx_uint_t        i;
+
+    /*
+     * During `nginx -s reload` the new cycle is built while the global ngx_cycle
+     * still points at the running cycle, so its shared_memory list carries the
+     * sizes the live workers are using.  If the operator changed a slot-count
+     * directive, nginx cannot grow an existing zone — it allocates a brand-new
+     * one and the old table's contents vanish.  Surface that as a WARN so the
+     * reset is not silent.  On the very first start ngx_cycle is the bootstrap
+     * cycle with an empty list, so this is a no-op (no false positives).
+     */
+    if (zn == NULL || ngx_cycle == NULL) {
+        return;
+    }
+
+    oc   = (ngx_cycle_t *) ngx_cycle;   /* drop the global's volatile qualifier */
+    part = &oc->shared_memory.part;
+    old  = part->elts;
+
+    for (i = 0; /* void */ ; i++) {
+        if (i >= part->nelts) {
+            if (part->next == NULL) {
+                break;
+            }
+            part = part->next;
+            old  = part->elts;
+            i = 0;
+        }
+
+        if (old[i].shm.name.len != zn->shm.name.len
+            || ngx_strncmp(old[i].shm.name.data, zn->shm.name.data,
+                           zn->shm.name.len) != 0)
+        {
+            continue;
+        }
+
+        /* nginx keys zone identity on (name, tag); a different tag is a
+         * different zone that merely shares a name. */
+        if (old[i].tag != zn->tag) {
+            continue;
+        }
+
+        if (old[i].shm.size != zn->shm.size) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                "xrootd: %s changed across reload (shared zone \"%V\" "
+                "%uz -> %uz bytes): nginx allocates a fresh zone, so entries "
+                "live in this table are dropped for new connections "
+                "(in-flight ones drain on the old workers). A full restart "
+                "avoids the transient reset.",
+                directive, &zn->shm.name,
+                old[i].shm.size, zn->shm.size);
+        }
+        return;
+    }
+}
+
+
 size_t
 xrootd_shm_zone_size(size_t table_bytes)
 {

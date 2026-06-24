@@ -134,8 +134,14 @@ xrootd_dispatch_session_opcode(xrootd_ctx_t *ctx, ngx_connection_t *c,
     case kXR_auth:
         return xrootd_handle_auth(ctx, c);
 
-    case kXR_ping:
+    case kXR_ping: {
+        /* The reference auth gate rejects EVERY non-auth request before login,
+         * kXR_ping included (a pre-login ping is not a liveness probe a stock
+         * server answers).  Match that — ping requires a completed login. */
+        ngx_int_t rc = xrootd_dispatch_require_login(ctx, c);
+        if (rc != XROOTD_DISPATCH_CONTINUE) { return rc; }
         return xrootd_handle_ping(ctx, c);
+    }
 
     case kXR_set: {
         ngx_int_t rc = xrootd_dispatch_require_login(ctx, c);

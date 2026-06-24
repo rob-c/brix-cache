@@ -46,32 +46,51 @@ health_verbose_requested(ngx_http_request_t *r)
 static u_char *
 health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
 {
-    static const size_t  cap = 512;
-    u_char              *buf;
-    u_char              *p;
-    const char          *shm_state;
+    static const size_t   cap = 512;
+    u_char               *buf;
+    u_char               *p;
+    const char           *shm_state;
+    ngx_xrootd_metrics_t *m;
+    ngx_uint_t            generation = 0;
+    uint64_t             config_hash = 0;
 
     XROOTD_PNALLOC_OR_RETURN(buf, r->pool, cap, NULL);
 
+    /* The metrics SHM zone is created at config time (metrics/config.c) and is
+     * the module's shared state — "mapped" once a stream server block exists.
+     * When mapped it also carries the config/reload fingerprint published by the
+     * master in init_module (xrootd_config_version_publish). */
+    m = (ngx_xrootd_shm_zone != NULL) ? ngx_xrootd_shm_zone->data : NULL;
+    if (m != NULL) {
+        generation  = (ngx_uint_t) m->config_generation;
+        config_hash = m->config_hash;
+    }
+
     if (!verbose) {
+        /* config_generation/config_version are cheap and reload-relevant, so
+         * they ride on the default (non-verbose) document: a probe can confirm a
+         * reload took effect without opting into the heavier readiness block. */
         p = ngx_snprintf(buf, cap,
-                         "{\"status\":\"ok\",\"service\":\"nginx-xrootd\"}\n");
+                         "{\"status\":\"ok\",\"service\":\"nginx-xrootd\","
+                         "\"config_generation\":%ui,"
+                         "\"config_version\":\"%016xL\"}\n",
+                         generation, config_hash);
         *len = (size_t) (p - buf);
         return buf;
     }
 
-    /* The metrics SHM zone is created at config time (metrics/config.c) and is
-     * the module's shared state — "mapped" once a stream server block exists. */
-    shm_state = (ngx_xrootd_shm_zone != NULL
-                 && ngx_xrootd_shm_zone->data != NULL) ? "mapped" : "unmapped";
+    shm_state = (m != NULL) ? "mapped" : "unmapped";
 
     p = ngx_snprintf(buf, cap,
                      "{\"status\":\"ok\",\"service\":\"nginx-xrootd\","
+                     "\"config_generation\":%ui,"
+                     "\"config_version\":\"%016xL\","
                      "\"checks\":{"
                      "\"metrics_shm\":\"%s\","
                      "\"worker_pid\":%P,"
                      "\"nginx_version\":\"%s\""
                      "}}\n",
+                     generation, config_hash,
                      shm_state, ngx_pid, NGINX_VERSION);
     *len = (size_t) (p - buf);
     return buf;

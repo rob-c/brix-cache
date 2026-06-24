@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define XRDC_HTTP_MAX (1u << 20)   /* 1 MiB response ceiling */
@@ -708,7 +709,9 @@ httpx_download_body(xrdc_io *io, char *hdr, size_t total, size_t body_off,
     } else {
         rc = stream_eof(&src, out_fd, &written, st);
     }
-    if (rc == 0 && body_len != NULL) { *body_len = written; }
+    /* Report bytes written even on FAILURE: the resilient download wrapper uses
+     * it as the resume offset (the next Range GET picks up from there). */
+    if (body_len != NULL) { *body_len = written; }
     return rc;
 }
 
@@ -717,21 +720,29 @@ httpx_download_body(xrdc_io *io, char *hdr, size_t total, size_t body_off,
  * every path) so the orchestrator's transport teardown stays linear. 0 / -1. */
 static int
 httpx_download_exchange(xrdc_io *io, const char *host, int port,
-                        const char *path, const char *extra_headers, int out_fd,
+                        const char *path, const char *extra_headers,
+                        long long start_off, int out_fd,
                         int timeout_ms, int *http_status, long long *body_len,
                         xrdc_status *st)
 {
     char    *hdr;
     char     req[2048];
+    char     rangeh[64];
     size_t   total = 0, body_off = 0;
     int      status = 0, rlen, rc;
 
     char hp[300];
     xrootd_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
+    /* Resume from start_off via an open-ended byte range (the server replies 206
+     * with the remaining bytes); empty for a fresh download. */
+    rangeh[0] = '\0';
+    if (start_off > 0) {
+        snprintf(rangeh, sizeof(rangeh), "Range: bytes=%lld-\r\n", start_off);
+    }
     rlen = snprintf(req, sizeof(req),
                     "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrdcp\r\n"
-                    "Accept: */*\r\nConnection: close\r\n%s\r\n",
-                    path[0] ? path : "/", hp,
+                    "Accept: */*\r\nConnection: close\r\n%s%s\r\n",
+                    path[0] ? path : "/", hp, rangeh,
                     extra_headers ? extra_headers : "");
     if (rlen < 0 || (size_t) rlen >= sizeof(req)) {
         xrdc_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
@@ -754,8 +765,17 @@ httpx_download_exchange(xrdc_io *io, const char *host, int port,
     /* Only stream the body for a success status (2xx). For anything else the
      * caller decides; we still drain nothing (Connection: close ends it). */
     if (status >= 200 && status < 300) {
-        rc = httpx_download_body(io, hdr, total, body_off, out_fd, timeout_ms,
-                                 body_len, st);
+        if (start_off > 0 && status != 206) {
+            /* We asked to resume from start_off but the server ignored Range and
+             * is streaming the whole object from 0 — appending it at the resume
+             * offset would corrupt the file, so refuse rather than overwrite. */
+            xrdc_status_set(st, XRDC_EPROTO, 0,
+                            "http: resume Range ignored (status %d)", status);
+            rc = -1;
+        } else {
+            rc = httpx_download_body(io, hdr, total, body_off, out_fd, timeout_ms,
+                                     body_len, st);
+        }
     } else {
         xrdc_status_set(st, XRDC_EPROTO, 0, "http: server returned status %d", status);
         rc = -1;
@@ -764,29 +784,86 @@ httpx_download_exchange(xrdc_io *io, const char *host, int port,
     return rc;
 }
 
+/* Resilience window (ms) for HTTP downloads: $XRDC_MAX_STALL_MS when set (>0
+ * widens, <=0 disables = fail fast), else the library default — the SAME window
+ * the root:// data path uses. */
+static int
+httpx_window_ms(void)
+{
+    const char *e = getenv("XRDC_MAX_STALL_MS");
+    if (e != NULL && *e != '\0') {
+        int v = atoi(e);
+        return (v > 0) ? v : 0;
+    }
+    return XRDC_DEFAULT_MAX_STALL_MS;
+}
+
 int
 xrdc_http_download(const char *host, int port, int tls, const char *path,
                    const char *extra_headers, int verify, const char *ca_dir,
                    int out_fd, int timeout_ms, int *http_status,
                    long long *body_len, xrdc_status *st)
 {
-    xrdc_io  io;
-    void    *tls_ctx = NULL;
-    int      rc;
+    long long    total_got = 0;
+    int          window_ms = httpx_window_ms();
+    unsigned     attempt = 0;
+    uint64_t     deadline;
+    int          seekable;
+    struct stat  stt;
 
     if (http_status != NULL) { *http_status = 0; }
     if (body_len != NULL)    { *body_len = 0; }
-    if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
-                      &tls_ctx, st) != 0) {
-        return -1;
+
+    /* Resume requires a seekable destination (a regular file); a pipe/stdout
+     * cannot be rewound, so there we fall back to a single attempt. */
+    seekable = (fstat(out_fd, &stt) == 0 && S_ISREG(stt.st_mode));
+    deadline = xrdc_mono_ns() + (uint64_t) window_ms * 1000000ULL;
+
+    /*
+     * Deadline-bounded resume (mirrors the root:// resilience window).  On a
+     * transport sever mid-download, reconnect and re-issue the GET with
+     * Range: bytes=<bytes-already-written>- (server replies 206), appending the
+     * remainder — so an HTTP download rides out packet loss instead of dying on
+     * the first reset.  The deadline measures time-since-progress (it resets when
+     * bytes are written), so a steadily-advancing transfer never times out.
+     * window<=0 ($XRDC_MAX_STALL_MS=0) or a non-seekable dst ⇒ a single attempt.
+     */
+    for (;;) {
+        xrdc_io    io;
+        void      *tls_ctx = NULL;
+        long long  body_this = 0;
+        int        rc = -1;
+
+        if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
+                          &tls_ctx, st) == 0) {
+            if (total_got > 0) {
+                (void) lseek(out_fd, (off_t) total_got, SEEK_SET);
+            }
+            rc = httpx_download_exchange(&io, host, port, path, extra_headers,
+                                         total_got, out_fd, timeout_ms,
+                                         /* report the ORIGINAL status only */
+                                         total_got == 0 ? http_status : NULL,
+                                         &body_this, st);
+            if (tls) { xrdc_tls_client_free(&io, tls_ctx); }
+            if (io.fd >= 0) { close(io.fd); }
+            total_got += body_this;
+            if (rc == 0) {
+                if (body_len != NULL) { *body_len = total_got; }
+                return 0;
+            }
+        }
+
+        /* Connect or transfer fault.  Retry only if we can resume (seekable),
+         * the fault is transient, and the patience window has not elapsed. */
+        if (!seekable || window_ms <= 0 || !xrdc_status_retryable(st)
+            || xrdc_mono_ns() >= deadline) {
+            return -1;
+        }
+        if (body_this > 0) {
+            deadline = xrdc_mono_ns() + (uint64_t) window_ms * 1000000ULL;
+        }
+        xrdc_backoff_sleep_fast(attempt++);
     }
-
-    rc = httpx_download_exchange(&io, host, port, path, extra_headers, out_fd,
-                                 timeout_ms, http_status, body_len, st);
-
-    if (tls) { xrdc_tls_client_free(&io, tls_ctx); }
-    if (io.fd >= 0) { close(io.fd); }
-    return rc;
 }
 
 /* Stream `clen` bytes from in_fd to the connected io as the PUT body. The source
@@ -875,6 +952,166 @@ httpx_upload_exchange(xrdc_io *io, const char *host, int port, const char *path,
     if (xrdc_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
     if (httpx_upload_body(io, in_fd, clen, st) != 0) { return -1; }
     return httpx_upload_response(io, timeout_ms, http_status, st);
+}
+
+/* Case-insensitively scan a header block [hdr, hdr+len) for "X-Upload-Offset"
+ * and return its value, or -1 if absent/unparsable. */
+static long long
+httpx_parse_upload_offset(const char *hdr, size_t len)
+{
+    static const char key[] = "x-upload-offset:";
+    size_t klen = sizeof(key) - 1;
+    size_t i;
+
+    for (i = 0; i + klen <= len; i++) {
+        size_t j;
+        for (j = 0; j < klen; j++) {
+            char c = hdr[i + j];
+            if (c >= 'A' && c <= 'Z') { c = (char) (c + 32); }
+            if (c != key[j]) { break; }
+        }
+        if (j == klen) {
+            const char *p = hdr + i + klen;
+            const char *e = hdr + len;
+            long long   v = 0;
+            int         any = 0;
+            while (p < e && (*p == ' ' || *p == '\t')) { p++; }
+            while (p < e && *p >= '0' && *p <= '9') {
+                v = v * 10 + (*p - '0'); p++; any = 1;
+            }
+            return any ? v : -1;
+        }
+    }
+    return -1;
+}
+
+/* Send one Content-Range PUT chunk [off, off+chunk_len) of a `total`-byte upload
+ * over an already-connected io; report the HTTP status and any X-Upload-Offset. */
+static int
+httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
+                   const char *extra_headers, int in_fd, long long off,
+                   long long chunk_len, long long total, int timeout_ms,
+                   int *status_out, long long *srv_off_out, xrdc_status *st)
+{
+    char  req[2048];
+    char  hp[300];
+    int   rlen;
+    char *hdr;
+    size_t hdrtotal = 0, body_off = 0;
+    int   status = 0;
+
+    *srv_off_out = -1;
+    if (lseek(in_fd, (off_t) off, SEEK_SET) == (off_t) -1) {
+        xrdc_status_set(st, XRDC_ESOCK, errno, "lseek: %s", strerror(errno));
+        return -1;
+    }
+    xrootd_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
+    rlen = snprintf(req, sizeof(req),
+                    "PUT %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrdcp\r\n"
+                    "Connection: close\r\nContent-Length: %lld\r\n"
+                    "Content-Range: bytes %lld-%lld/%lld\r\n%s\r\n",
+                    path[0] ? path : "/", hp, chunk_len,
+                    off, off + chunk_len - 1, total,
+                    extra_headers ? extra_headers : "");
+    if (rlen < 0 || (size_t) rlen >= sizeof(req)) {
+        xrdc_status_set(st, XRDC_EUSAGE, 0, "http: request too long");
+        return -1;
+    }
+    if (xrdc_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
+    if (httpx_upload_body(io, in_fd, chunk_len, st) != 0) { return -1; }
+
+    hdr = (char *) malloc(XRDC_HDR_CAP);
+    if (hdr == NULL) {
+        xrdc_status_set(st, XRDC_EPROTO, 0, "http: out of memory");
+        return -1;
+    }
+    if (read_resp_headers(io, hdr, XRDC_HDR_CAP, timeout_ms, &status,
+                          &hdrtotal, &body_off, st) != 0) {
+        free(hdr);
+        return -1;
+    }
+    *srv_off_out = httpx_parse_upload_offset(hdr, hdrtotal);
+    free(hdr);
+    *status_out = status;
+    return 0;
+}
+
+/*
+ * Resumable upload: stream the source as a sequence of Content-Range PUT chunks,
+ * each on a fresh connection, so an nginx restart mid-upload is survived — on a
+ * transport sever or a 409 (offset-correction) the loop reconnects and continues
+ * from the server's durable offset, within a bounded stall window.  Requires the
+ * server's xrootd_webdav_upload_resume; against a server without it the first
+ * Content-Range PUT is treated as a whole-body write (commit) and this still
+ * works for a single-shot upload.  0 / -1 (st set).
+ */
+int
+xrdc_http_upload_resumable(const char *host, int port, int tls, const char *path,
+                           const char *extra_headers, int in_fd, long long clen,
+                           int verify, const char *ca_dir, int timeout_ms,
+                           int max_stall_ms, int *http_status, xrdc_status *st)
+{
+    long long off = 0;
+    unsigned  attempt = 0;
+    uint64_t  deadline = xrdc_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
+    const long long CHUNK = 8LL * 1024 * 1024;
+
+    if (http_status != NULL) { *http_status = 0; }
+
+    while (off < clen) {
+        xrdc_io   io;
+        void     *tls_ctx = NULL;
+        long long chunk = (clen - off < CHUNK) ? (clen - off) : CHUNK;
+        int       status = 0;
+        long long srv_off = -1;
+        int       rc;
+
+        if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
+                          &tls_ctx, st) != 0) {
+            if (max_stall_ms <= 0 || !xrdc_status_retryable(st)
+                || xrdc_mono_ns() >= deadline) {
+                return -1;
+            }
+            xrdc_backoff_sleep_fast(attempt++);
+            continue;
+        }
+
+        rc = httpx_upload_chunk(&io, host, port, path, extra_headers, in_fd,
+                                off, chunk, clen, timeout_ms,
+                                &status, &srv_off, st);
+        if (tls) { xrdc_tls_client_free(&io, tls_ctx); }
+        if (io.fd >= 0) { close(io.fd); }
+
+        if (rc != 0) {
+            /* transport sever: reconnect and resume from the same offset */
+            if (max_stall_ms <= 0 || !xrdc_status_retryable(st)
+                || xrdc_mono_ns() >= deadline) {
+                return -1;
+            }
+            xrdc_backoff_sleep_fast(attempt++);
+            continue;
+        }
+
+        if (http_status != NULL) { *http_status = status; }
+        deadline = xrdc_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL;
+        attempt = 0;
+
+        if (status == 409 && srv_off >= 0) {
+            off = srv_off;                 /* server told us the real offset */
+            continue;
+        }
+        if (status == 201 || status == 204) {
+            return 0;                      /* committed (final chunk) */
+        }
+        if (status >= 200 && status < 300) {
+            off += chunk;                  /* intermediate chunk accepted */
+            continue;
+        }
+        xrdc_status_set(st, XRDC_EPROTO, 0,
+                        "upload: server returned status %d", status);
+        return -1;
+    }
+    return 0;
 }
 
 int

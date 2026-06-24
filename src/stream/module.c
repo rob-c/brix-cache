@@ -36,6 +36,8 @@ static ngx_conf_enum_t xrootd_auth_modes[] = {
     { ngx_string("sss"),   XROOTD_AUTH_SSS   },
     { ngx_string("unix"),  XROOTD_AUTH_UNIX  },
     { ngx_string("krb5"),  XROOTD_AUTH_KRB5  },
+    { ngx_string("host"),  XROOTD_AUTH_HOST  },
+    { ngx_string("pwd"),   XROOTD_AUTH_PWD   },
     { ngx_null_string,     0                 }
 };
 
@@ -89,6 +91,16 @@ static ngx_conf_enum_t xrootd_signed_dh_modes[] = {
     { ngx_string("auto"),    XROOTD_GSI_SDH_AUTO    },
     { ngx_string("require"), XROOTD_GSI_SDH_REQUIRE },
     { ngx_null_string,       0                      }
+};
+
+/* Phase 44: io_uring backend tier selection.  `on` is a hard requirement —
+ * startup fails if io_uring cannot be provided (see xrootd_uring_validate_conf
+ * in src/config/postconfiguration.c). */
+static ngx_conf_enum_t xrootd_io_uring_modes[] = {
+    { ngx_string("off"),  XROOTD_IO_URING_OFF  },
+    { ngx_string("on"),   XROOTD_IO_URING_ON   },
+    { ngx_string("auto"), XROOTD_IO_URING_AUTO },
+    { ngx_null_string,    0                    }
 };
 
 /* ------------------------------------------------------------------ */
@@ -273,6 +285,22 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, gsi_signed_dh),
       xrootd_signed_dh_modes },
+
+    /* Phase 51 (E4): per-worker concurrent in-flight GSI-handshake cap. */
+    { ngx_string("xrootd_gsi_max_inflight_handshakes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, gsi_max_inflight),
+      NULL },
+
+    /* Phase 52 (WS-A): GSI session-cipher advertise preference list. */
+    { ngx_string("xrootd_gsi_ciphers"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, gsi_ciphers),
+      NULL },
 
     { ngx_string("xrootd_vomsdir"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -472,6 +500,22 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
 
     /* Upstream-compatible unix credentials are self-asserted; keep remote
      * peers disabled unless an operator explicitly trusts the network. */
+    /* Phase 52 (WS-C): host-auth reverse-DNS allowlist (exact or ".suffix"). */
+    { ngx_string("xrootd_host_allow"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
+      ngx_conf_set_str_array_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, host_allow),
+      NULL },
+
+    /* Phase 52 (WS-B): XrdSecpwd password database (opt-in; deny if unset). */
+    { ngx_string("xrootd_pwd_file"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, pwd_file),
+      NULL },
+
     { ngx_string("xrootd_unix_trust_remote"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -685,11 +729,35 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, recover_writes),
       NULL },
 
+    { ngx_string("xrootd_upload_resume"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, upload_resume),
+      NULL },
+
+    { ngx_string("xrootd_stage_dir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, upload_stage_dir),
+      NULL },
+
     { ngx_string("xrootd_registry_slots"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, registry_slots),
+      NULL },
+
+    /* Per-connection in-flight pipeline window (out_ring + rd_pool slots).  A
+     * deeper pipeline absorbs more wire latency/jitter (packet reordering,
+     * high-BDP links) at a per-slot memory cost.  Clamped to [MIN,MAX] at merge. */
+    { ngx_string("xrootd_pipeline_depth"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, pipeline_depth),
       NULL },
 
     /* Phase 20: session registry capacity (xrootd_session_slots). */
@@ -1083,6 +1151,55 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, memory_budget),
       NULL },
 
+    /* Max bytes served per kXR_readv element (the official "maxReadv_ior"). A
+     * segment requesting more is capped to this and the client re-reads the tail.
+     * Accepts bytes with optional k/m/g suffix. Default 2097136 (stock XRootD:
+     * maxBuffsz 2 MiB - 16-byte readahead_list). */
+    { ngx_string("xrootd_readv_segment_size"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, readv_segment_size),
+      NULL },
+
+    /* Phase 44: optional io_uring disk-I/O backend (off/auto/on; default auto).
+     * `on` requires the backend — startup fails if it is not compiled in or the
+     * runtime probe fails (xrootd_uring_validate_conf, §32 fail-fast). */
+    { ngx_string("xrootd_io_uring"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, io_uring),
+      &xrootd_io_uring_modes },
+
+    { ngx_string("xrootd_io_uring_queue_depth"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, io_uring_queue_depth),
+      NULL },
+
+    { ngx_string("xrootd_io_uring_panic_file"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, io_uring_panic_file),
+      NULL },
+
+    { ngx_string("xrootd_io_uring_admin"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, io_uring_admin),
+      NULL },
+
+    { ngx_string("xrootd_io_uring_restrict"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, io_uring_restrict),
+      NULL },
+
     /* Phase 26: slice-granular caching (size 0 = off; multiple of 1 MiB). */
     { ngx_string("xrootd_cache_slice"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -1167,6 +1284,35 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_msec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, cms_locate_timeout),
+      NULL },
+
+    /* Phase 50: CMS client (node->manager) resilience deadlines. */
+    { ngx_string("xrootd_cms_read_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cms_read_timeout),
+      NULL },
+
+    { ngx_string("xrootd_cms_send_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cms_send_timeout),
+      NULL },
+
+    { ngx_string("xrootd_cms_tcp_keepalive"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cms_tcp_keepalive),
+      NULL },
+
+    { ngx_string("xrootd_cms_tcp_user_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cms_tcp_user_timeout),
       NULL },
 
     { ngx_string("xrootd_listen_port"),
@@ -1322,6 +1468,15 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_msec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, tcp_user_timeout),
+      NULL },
+
+    /* Per-socket TCP congestion control at accept (e.g. "bbr") — the sender's CC
+     * governs download throughput; BBR ignores reordering's spurious loss signals. */
+    { ngx_string("xrootd_tcp_congestion"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, tcp_congestion),
       NULL },
 
     { ngx_string("xrootd_tcp_keepalive"),

@@ -150,6 +150,18 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
             while (p < end) {
                 const u_char *amp  = memchr(p, '&', (size_t) (end - p));
                 size_t        flen = amp ? (size_t) (amp - p) : (size_t) (end - p);
+                /* The raw query payload still carries the wire NUL terminator;
+                 * when "cks.type=<algo>" is the LAST CGI field (no trailing '&')
+                 * that NUL (and any stray CR/LF) lands inside flen and corrupts
+                 * the algorithm value ("adler32\0" -> unknown algorithm), which
+                 * broke every explicit algo + `xrdcp --cksum` (XrdCl appends
+                 * exactly "?cks.type=<algo>"). Trim trailing NUL/CR/LF so the
+                 * last-field form parses identically to "...&cks.type=algo&". */
+                while (flen > 0 && (p[flen - 1] == '\0'
+                                    || p[flen - 1] == '\r'
+                                    || p[flen - 1] == '\n')) {
+                    flen--;
+                }
                 if (flen > sizeof(key) - 1
                     && ngx_strncmp(p, key, sizeof(key) - 1) == 0) {
                     if (!xrootd_query_parse_algorithm(p + sizeof(key) - 1,

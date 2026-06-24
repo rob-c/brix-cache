@@ -151,6 +151,21 @@ int xrootd_srv_select(const char *path, int for_write,
  */
 int xrootd_srv_count_matching(const char *path);
 
+/*
+ * Like xrootd_srv_select(), but when no live (non-blacklisted) server matches it
+ * falls back to a currently-blacklisted one as a LAST RESORT.  A CMS heartbeat
+ * drop blacklists a data server for 30 s even though its data plane is almost
+ * always still serving; the kXR_open / kXR_stat handlers use this so a transient
+ * heartbeat blip under load redirects to the (live) data node instead of a false
+ * kXR_NotFound.  kXR_locate keeps the strict xrootd_srv_select() — it reports
+ * only live servers, so a genuinely dead node is still answered "not found"
+ * there.  If the fallback target is in fact dead the client's connect fails and
+ * the tried/triedrc retry converges to NotFound (count_matching counts the
+ * blacklisted slot, so the client is not bounced to it twice).
+ */
+int xrootd_srv_select_or_blacklisted(const char *path, int for_write,
+    char *host_out, size_t host_size, uint16_t *port_out);
+
 /* Phase 39 (WS7): set the data-server staleness threshold (ms); 0 = disabled.
  * xrootd_srv_select() then de-prefers servers with no heartbeat for longer than
  * this (falling back to the freshest stale one only if every replica is stale).

@@ -683,13 +683,19 @@ def test_phase4_vfs_cache_hooks_are_present():
 
 
 def test_phase4_http_protocols_use_vfs_cache_path():
+    # The per-request VFS-ctx setup (incl. cache_root_canon wiring) was factored
+    # into the shared xrootd_vfs_ctx_init() helper (fs/vfs_open.c); WebDAV and S3
+    # GET now pass cache_root_canon into that one helper rather than assigning the
+    # field inline. Assert each GET handler routes through the helper + still opens
+    # read-only through the VFS and records cache access.
     _assert_markers(
         "src/webdav/get.c",
         [
             "../cache/open.h",
             "../fs/vfs.h",
             "xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ",
-            "vctx.cache_root_canon = conf->cache_root_canon",
+            "xrootd_vfs_ctx_init(",
+            "conf->cache_root_canon",
             "xrootd_cache_record_access(",
         ],
     )
@@ -701,8 +707,15 @@ def test_phase4_http_protocols_use_vfs_cache_path():
         "src/s3/object.c",
         [
             "../cache/open.h",
-            "vctx->cache_root_canon = cf->cache_root_canon",
+            "xrootd_vfs_ctx_init(",
+            "cf->cache_root_canon",
         ],
+    )
+    # The single wiring point: xrootd_vfs_ctx_init() sets cache_root_canon (and
+    # derives cache_enabled) for every HTTP caller.
+    _assert_markers(
+        "src/fs/vfs_open.c",
+        ["vctx->cache_root_canon = cache_root_canon"],
     )
     # Phase 12: the cache-hit detection and access-record calls moved out of the
     # per-protocol GET handlers into the shared file-serve pipeline. Both WebDAV

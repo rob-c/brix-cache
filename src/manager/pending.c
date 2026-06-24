@@ -191,6 +191,32 @@ xrootd_pending_unlock(void)
     ngx_shmtx_unlock(&xrootd_pending_mutex);
 }
 
+ngx_uint_t
+xrootd_pending_reap_expired(void)
+{
+    xrootd_pending_table_t   *tbl;
+    xrootd_pending_locate_t  *slot;
+    ngx_uint_t                i, reaped = 0;
+
+    tbl = pending_table();
+    if (tbl == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&xrootd_pending_mutex);
+    for (i = 0; i < XROOTD_PENDING_LOCATE_SLOTS; i++) {
+        slot = &tbl->slots[i];
+        if (slot->in_use
+            && xrootd_shm_slot_expired(ngx_current_msec, slot->expires))
+        {
+            slot->in_use = 0;          /* A4: reclaim an abandoned locate slot */
+            reaped++;
+        }
+    }
+    ngx_shmtx_unlock(&xrootd_pending_mutex);
+    return reaped;
+}
+
 void
 xrootd_pending_remove(uint32_t streamid, ngx_pid_t worker_pid)
 {

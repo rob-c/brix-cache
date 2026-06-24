@@ -70,10 +70,13 @@ LIB   := libxrdproto.a
 # hex: encode/display; crypto: HMAC-SHA256/SHA-256 for GSI sigver; error_mapping:
 # errno/ns -> kXR; uri: RFC-3986 percent encode/decode (SigV4 canonical URI +
 # WebDAV href decode); host_format: IPv6-aware host:port formatting; kxr_names:
-# kXR opcode/status/error name tables.)
+# kXR opcode/status/error name tables; json_min: dependency-free JSON value
+# extractor for client JWT-claim display — NO jansson, the safe replacement for
+# the old strstr() hack.  The module keeps its jansson src/token/json.c for the
+# security-critical JWKS path; this is the lightweight diagnostic core only.)
 NAMES := crc32c crc64 crc32_ieee hex crypto error_mapping checksum_core uri \
          host_format host_split kxr_names sigv4 pgio vendor_ext sss_bf fattr_codec \
-         subprocess \
+         subprocess json_min \
          codec_core codec_zlib codec_zstd codec_lzma codec_brotli codec_bzip2 \
          codec_lz4
 COMPAT_OBJS := $(addprefix $(BUILD)/,$(addsuffix .o,$(NAMES)))
@@ -109,9 +112,11 @@ $(BUILD)/b64url.o: $(TOKEN)/b64url.c | $(BUILD)
 $(BUILD):
 	mkdir -p $(BUILD)
 
-# Enforce the ngx-free invariant on the built archive.
+# Enforce the ngx-free invariant on the built archive, and that no pure logic is
+# stranded in the module (every ngx-free src/compat/*.c is shared or allowlisted).
 check: $(LIB)
 	./check-ngx-free.sh $(LIB)
+	./check-shared-coverage.sh $(LIB)
 
 clean:
 	rm -rf $(BUILD) $(LIB)

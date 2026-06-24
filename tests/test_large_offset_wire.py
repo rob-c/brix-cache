@@ -684,24 +684,15 @@ class TestStatSizeAbove4GiB:
         sock = _session()
         try:
             _, status, body = _statx(sock, [name])
-            if status == kXR_error:
-                code = _error_code(body)
-                if code == kXR_Unsupported:
-                    pytest.skip("kXR_statx not implemented on this server")
-                # statx multi-path body framing is server-variant; a non-fatal
-                # error here is not a 64-bit-offset regression, so skip rather
-                # than hard-fail.
-                pytest.skip(f"statx returned error {code}; "
-                            f"not an offset-width regression")
+            if status == kXR_error and _error_code(body) == kXR_Unsupported:
+                pytest.skip("kXR_statx not implemented on this server")
             assert status == kXR_ok, _error_code(body)
-            # statx body carries one stat sub-body per requested path; the size
-            # is the 2nd whitespace field of the first entry.
-            reported = _stat_size(body)
-            if reported != size and reported <= 0xFFFFFFFF:
-                pytest.skip("server reports statx in VFS/block mode "
-                            f"(field={reported}); logical-size check N/A")
-            assert reported == size, (
-                f"statx size {reported} != actual {size}")
+            # kXR_statx returns ONE flag byte per path (kXR_file=0 / kXR_isDir=2 /
+            # ...) — it carries NO size, so the 64-bit length is verified via
+            # kXR_stat (see test_stat_reports_full_size).  Here we only confirm the
+            # >4 GiB file is classified as a regular file and the session is healthy.
+            assert len(body) == 1, f"statx must be one flag byte, got {body!r}"
+            assert not (body[0] & 0x02), "regular file flagged as a directory"
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()

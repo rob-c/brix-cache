@@ -160,8 +160,38 @@ xrootd_proxy_pool_ping_handler(ngx_event_t *ev)
     /* Re-arm the idle-timeout timer without sending a ping.
      * Sending pings and not reading their responses leaves stale kXR_ok
      * frames in the socket buffer, which the next reused connection reads
-     * as an unexpected response to its first real request. */
-    ngx_add_timer(ev, pc->keepalive_interval);
+     * as an unexpected response to its first real request.
+     * Skip the re-arm while the worker is shutting down — the pool is drained
+     * by xrootd_proxy_pool_shutdown() and the timer must not keep us alive. */
+    if (!ngx_exiting) {
+        ngx_add_timer(ev, pc->keepalive_interval);
+    }
+}
+
+/* ---- public API: xrootd_proxy_pool_shutdown() — drain the idle pool at exit ----
+ * WHAT: Close and free every idle pooled upstream connection so a draining worker
+ *       does not hold authenticated upstream sockets (and their keepalive timers)
+ *       open until worker_shutdown_timeout.  Called from the shutdown sweeper once
+ *       ngx_exiting is set.  Uses the same eviction sequence as the pool read
+ *       handler / idle-timeout path so the queue and counter stay consistent. */
+void
+xrootd_proxy_pool_shutdown(void)
+{
+    while (!ngx_queue_empty(&proxy_pool)) {
+        ngx_queue_t                *q  = ngx_queue_head(&proxy_pool);
+        xrootd_proxy_pooled_conn_t *pc =
+            ngx_queue_data(q, xrootd_proxy_pooled_conn_t, queue);
+
+        if (pc->ping_ev.timer_set) {
+            ngx_del_timer(&pc->ping_ev);
+        }
+        ngx_queue_remove(&pc->queue);
+        proxy_pool_count--;
+        if (pc->conn != NULL) {
+            ngx_close_connection(pc->conn);
+        }
+        ngx_free(pc);
+    }
 }
 
 /* ---- public API: xrootd_proxy_pool_init() — initialize upstream connection pool ----

@@ -6,14 +6,50 @@
 #include "fs/copy_engine.h"
 #include "methods/copy_conditionals.h"
 #include "../compat/http_conditionals.h"
+#include "../compat/error_mapping.h"
 #include "../compat/namespace_ops.h"
 #include "../compat/tmp_path.h"
+#include "../fs/vfs.h"
 #include "../impersonate/impersonate.h"
 #include "../path/path.h"
 
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+/*
+ * Map a VFS single-file-copy errno to the same HTTP status the prior
+ * xrootd_ns_local_copy → status mapping produced.  xrootd_vfs_copy() returns
+ * NGX_ERROR with errno set (the namespace sys_errno), so reconstruct the
+ * namespace status the same way namespace_ops' errno_to_ns_status does and feed
+ * it to xrootd_http_map_ns_status — guaranteeing byte-for-byte parity with the
+ * old code (including DENIED→403, TOO_LONG→414, NO_SPACE→507, CONFLICT→409,
+ * IO_ERROR→500).  The two COPY-specific overrides (EXISTS→412, NOT_FOUND→409)
+ * are applied by the caller before this helper is reached.
+ */
+static ngx_int_t
+webdav_copy_errno_to_status(int err)
+{
+    xrootd_ns_status_t status;
+
+    switch (err) {
+    case 0:            status = XROOTD_NS_OK;        break;
+    case ENOENT:       status = XROOTD_NS_NOT_FOUND; break;
+    case EACCES:
+    case EPERM:
+    case EXDEV:
+    case ELOOP:        status = XROOTD_NS_DENIED;    break;
+    case EEXIST:       status = XROOTD_NS_EXISTS;    break;
+    case ENOTEMPTY:    status = XROOTD_NS_NOT_EMPTY; break;
+    case ENAMETOOLONG: status = XROOTD_NS_TOO_LONG;  break;
+    case ENOSPC:       status = XROOTD_NS_NO_SPACE;  break;
+    case EBUSY:
+    case EINVAL:       status = XROOTD_NS_CONFLICT;  break;
+    default:           status = XROOTD_NS_IO_ERROR;  break;
+    }
+
+    return xrootd_http_map_ns_status(status);
+}
 
 typedef struct {
     ngx_http_request_t *r;
@@ -208,9 +244,7 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
     ngx_cpystrn((u_char *) t->dst_path, (u_char *) dst_path,
                 sizeof(t->dst_path));
 
-    task->handler = webdav_copy_collection_thread;
-    task->event.handler = webdav_copy_collection_done;
-    task->event.data = task;
+    xrootd_task_bind(task, webdav_copy_collection_thread, webdav_copy_collection_done);
     task->event.log = r->connection->log;
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
@@ -357,40 +391,54 @@ webdav_handle_copy(ngx_http_request_t *r)
             return rc;
         }
     } else {
-        /* File COPY: delegate to shared namespace_ops local-copy service.
+        /* File COPY: route the data move through the metered VFS copy surface
+         * (delegates to the same namespace_ops local-copy service underneath).
          * Pre-delete destination directory if overwrite is enabled; rename(2)
          * cannot atomically replace a directory with a file. */
-        xrootd_ns_copy_opts_t copy_opts;
-        xrootd_ns_result_t    ns_res;
+        xrootd_vfs_copy_opts_t copy_opts;
+        xrootd_vfs_ctx_t       vctx;
 
         if (dst_existed && S_ISDIR(dst_sb.st_mode)) {
             (void) webdav_delete_path_recursive(r->connection->log,
                                                 conf->common.root_canon, dst_path);
         }
 
-        ngx_memzero(&copy_opts, sizeof(copy_opts));
-        copy_opts.overwrite     = overwrite;
-        copy_opts.preserve_xattrs = 1;
-        copy_opts.staged_commit = 1;
+        {
+            ngx_http_xrootd_webdav_req_ctx_t *wctx =
+                ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+            int is_tls = 0;
+#if (NGX_HTTP_SSL)
+            is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+            xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+                XROOTD_PROTO_WEBDAV, conf->common.root_canon,
+                conf->cache_root_canon, conf->common.allow_write, is_tls,
+                (wctx != NULL) ? wctx->identity : NULL, src_path);
+        }
 
-        ns_res = xrootd_ns_local_copy(r->connection->log, conf->common.root_canon,
-                                      src_path, dst_path, &copy_opts);
-        if (ns_res.status != XROOTD_NS_OK) {
+        ngx_memzero(&copy_opts, sizeof(copy_opts));
+        copy_opts.overwrite       = overwrite ? 1 : 0;
+        copy_opts.preserve_xattrs = 1;
+        copy_opts.staged_commit   = 1;
+
+        if (xrootd_vfs_copy(&vctx, dst_path, &copy_opts) != NGX_OK) {
             /* COPY-specific RFC 4918 semantics that differ from the generic
              * namespace→HTTP mapping: an existing dst with Overwrite:F is a
              * precondition failure (412, not 409), and a missing destination
-             * parent is a Conflict (409, not 404). */
-            if (ns_res.status == XROOTD_NS_EXISTS) {
+             * parent is a Conflict (409, not 404).  xrootd_vfs_copy reports the
+             * namespace failure via errno. */
+            int err = errno;
+            if (err == EEXIST) {
                 return NGX_HTTP_PRECONDITION_FAILED;
             }
-            if (ns_res.status == XROOTD_NS_NOT_FOUND) {
+            if (err == ENOENT) {
                 return NGX_HTTP_CONFLICT;
             }
             /* Everything else (DENIED→403, TOO_LONG→414, NO_SPACE→507,
              * IO_ERROR→500) goes through the canonical mapper so a DAC denial
              * — e.g. an impersonated cross-tenant copy into a 0700 dir — is a
              * clean 403, not a blanket 500. */
-            return xrootd_http_map_ns_status(ns_res.status);
+            return webdav_copy_errno_to_status(err);
         }
 
         webdav_dead_props_copy(r->connection->log, src_path, dst_path);

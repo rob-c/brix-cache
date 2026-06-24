@@ -39,8 +39,8 @@ test_dh_agreement(void)
     b_peer = xrootd_gsi_cipher_parse_peer((uint8_t *) pb, lb);
     CHECK(a_peer && b_peer, "cipher_parse_peer");
 
-    CHECK(xrootd_gsi_cipher_session_key(b, a_peer, 0, k1), "session_key b·A");
-    CHECK(xrootd_gsi_cipher_session_key(a, b_peer, 0, k2), "session_key a·B");
+    CHECK(xrootd_gsi_cipher_session_key(b, a_peer, 0, k1, 16), "session_key b·A");
+    CHECK(xrootd_gsi_cipher_session_key(a, b_peer, 0, k2, 16), "session_key a·B");
     CHECK(memcmp(k1, k2, 16) == 0, "DH agreement (shared AES key matches)");
 
     free(pa); free(pb);
@@ -48,28 +48,44 @@ test_dh_agreement(void)
     EVP_PKEY_free(a_peer); EVP_PKEY_free(b_peer);
 }
 
-/* AES-128-CBC encrypt/decrypt with the prepended random IV round-trips. */
+/* Negotiated-cipher encrypt/decrypt with the prepended random IV round-trips,
+ * for every cipher the build can resolve (phase-52 WS-A). */
 static void
 test_encrypt_roundtrip(void)
 {
-    uint8_t key[16];
-    size_t  i, ctl = 0, ptl = 0;
+    static const char *names[] = {
+        "aes-128-cbc", "aes-256-cbc", "bf-cbc", "des-ede3-cbc"
+    };
+    size_t  n, i, ctl = 0, ptl = 0;
     uint8_t *ct, *pt;
     /* a multi-block, non-block-aligned payload (exercises PKCS#7 padding) */
     const char *msg = "gsi main: signed_rtag + rtag, 62 bytes of plaintext here!!";
 
-    for (i = 0; i < 16; i++) { key[i] = (uint8_t) (i * 7 + 1); }
+    for (n = 0; n < sizeof(names) / sizeof(names[0]); n++) {
+        xrootd_gsi_cipher_t c;
+        uint8_t             key[XROOTD_GSI_MAX_KEY];
 
-    ct = xrootd_gsi_cipher_encrypt(key, (const uint8_t *) msg, strlen(msg), 1, &ctl);
-    CHECK(ct != NULL, "encrypt");
-    CHECK(ctl >= 16 + strlen(msg), "ciphertext carries IV + padded block");
+        if (!xrootd_gsi_cipher_lookup(names[n], &c)) {
+            /* bf-cbc / des-ede3-cbc need the OpenSSL legacy provider; skip when
+             * the build/runtime cannot resolve them. */
+            printf("SKIP: %s (provider unavailable)\n", names[n]);
+            continue;
+        }
+        for (i = 0; i < (size_t) c.key_len; i++) { key[i] = (uint8_t) (i * 7 + 1); }
 
-    pt = xrootd_gsi_cipher_decrypt(key, ct, ctl, 1, &ptl);
-    CHECK(pt != NULL, "decrypt");
-    CHECK(ptl == strlen(msg) && pt && memcmp(pt, msg, ptl) == 0,
-          "encrypt/decrypt round-trip");
+        ct = xrootd_gsi_cipher_encrypt(&c, key, (const uint8_t *) msg,
+                                       strlen(msg), 1, &ctl);
+        CHECK(ct != NULL, names[n]);
+        CHECK(ct == NULL || ctl >= (size_t) c.iv_len + strlen(msg),
+              "ciphertext carries IV + padded block");
 
-    free(ct); free(pt);
+        pt = xrootd_gsi_cipher_decrypt(&c, key, ct, ctl, 1, &ptl);
+        CHECK(pt != NULL, "decrypt");
+        CHECK(ptl == strlen(msg) && pt && memcmp(pt, msg, ptl) == 0,
+              "encrypt/decrypt round-trip");
+
+        free(ct); free(pt);
+    }
 }
 
 /* The standard round-1 certreq carries the required buckets + a nested main. */

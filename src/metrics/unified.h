@@ -41,7 +41,9 @@ typedef enum {
     XROOTD_METRIC_OP_RENAME  = 5,
     XROOTD_METRIC_OP_DIRLIST = 6,
     XROOTD_METRIC_OP_TPC     = 7,
-    XROOTD_METRIC_OP_COUNT   = 8
+    XROOTD_METRIC_OP_XATTR   = 8,
+    XROOTD_METRIC_OP_COPY    = 9,
+    XROOTD_METRIC_OP_COUNT   = 10
 } xrootd_metric_op_t;
 
 typedef enum {
@@ -60,7 +62,9 @@ typedef enum {
 #define XROOTD_METRIC_AUTH_S3KEY   4
 #define XROOTD_METRIC_AUTH_UNIX    5
 #define XROOTD_METRIC_AUTH_KRB5    6
-#define XROOTD_METRIC_AUTH_COUNT   7
+#define XROOTD_METRIC_AUTH_HOST    7
+#define XROOTD_METRIC_AUTH_PWD     8
+#define XROOTD_METRIC_AUTH_COUNT   9
 
 #define XROOTD_METRIC_AUTH_FAIL    0
 #define XROOTD_METRIC_AUTH_OK      1

@@ -19,6 +19,7 @@
  */
 
 #include "proxy_internal.h"
+#include "../connection/netconnect.h"   /* shared outbound resolve/connect helper */
 
 #include <netdb.h>
 #include <sys/socket.h>
@@ -266,48 +267,26 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
     }
 
     {
-        struct addrinfo  hints_ai, *res_ai, *rp_ai;
-        char             port_str[16];
+        xrootd_resolve_status_t rstatus;
 
-        ngx_memzero(&hints_ai, sizeof(hints_ai));
-        hints_ai.ai_socktype = SOCK_STREAM;
-        hints_ai.ai_family   = AF_UNSPEC;
-        snprintf(port_str, sizeof(port_str), "%u", (unsigned) use_port);
-
-        if (getaddrinfo((const char *) use_host->data,
-                        port_str, &hints_ai, &res_ai) != 0) {
+        fd = xrootd_resolve_connect_socket((const char *) use_host->data,
+                                           (unsigned) use_port,
+                                           &chosen_addr, &chosen_addrlen,
+                                           &rstatus);
+        if (fd == (int) NGX_INVALID_FILE) {
+            if (rstatus == XROOTD_RESOLVE_ERR_DNS) {
+                ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
+                              "xrootd proxy: cannot resolve \"%s\"",
+                              use_host->data);
+                return NGX_ERROR;
+            }
             ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
-                          "xrootd proxy: cannot resolve \"%s\"",
+                          "xrootd proxy: no usable address for \"%s\"",
                           use_host->data);
+            XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
+            XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
             return NGX_ERROR;
         }
-
-        fd = (int) NGX_INVALID_FILE;
-        for (rp_ai = res_ai; rp_ai != NULL; rp_ai = rp_ai->ai_next) {
-            fd = ngx_socket(rp_ai->ai_family, rp_ai->ai_socktype,
-                            rp_ai->ai_protocol);
-            if (fd == (int) NGX_INVALID_FILE) {
-                continue;
-            }
-            if (ngx_nonblocking(fd) == NGX_ERROR) {
-                ngx_close_socket(fd);
-                fd = (int) NGX_INVALID_FILE;
-                continue;
-            }
-            ngx_memcpy(&chosen_addr, rp_ai->ai_addr, rp_ai->ai_addrlen);
-            chosen_addrlen = rp_ai->ai_addrlen;
-            break;
-        }
-        freeaddrinfo(res_ai);
-    }
-
-    if (fd == (int) NGX_INVALID_FILE) {
-        ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
-                      "xrootd proxy: no usable address for \"%s\"",
-                      use_host->data);
-        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
-        XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
-        return NGX_ERROR;
     }
 
     uconn = ngx_get_connection(fd, client_conn->log);

@@ -42,6 +42,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -64,8 +65,13 @@ TOKEN_DIR  = TOKENS_DIR
 AUTH_MODE  = "gsi"
 TOKEN      = ""
 
-# Unique prefix for test artefacts so parallel runs don't collide
-_PFX = "wdav_"
+# Unique prefix for test artefacts so parallel runs don't collide.  Each pytest-
+# xdist worker gets its own prefix: the same test runs once per auth variant
+# (anon/token/gsi) and xdist scatters those variants across workers, all sharing
+# ONE server data directory.  With a constant prefix two variants race on the same
+# fixed path (one's teardown rmtree's the dir another is mid-MKCOL on → 201 not
+# 405); a per-worker prefix keeps each variant's artefacts disjoint.
+_PFX = "wdav_%s_" % os.environ.get("PYTEST_XDIST_WORKER", "main")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -198,12 +204,17 @@ def scratch_file(tmp_path):
     Yield (url_path, content) for a file that has been PUT to the server.
     Cleaned up from the data directory after the test.
     """
-    name    = f"{_PFX}scratch.txt"
+    # Unique per invocation: the suite runs under pytest-xdist where every worker
+    # shares one server data directory.  A fixed name (wdav_scratch.txt) makes
+    # concurrent tests PUT the SAME path, so the loser overwrites (HTTP 204) and a
+    # teardown unlink can yank the file mid-test.  A uuid keeps each test isolated.
+    name    = f"{_PFX}scratch_{uuid.uuid4().hex}.txt"
     content = b"scratch file content for WebDAV tests\n"
     url_path = f"/{name}"
 
+    # 201 Created (new) or, defensively, 200/204 (overwrite) are all PUT successes.
     code = _put(url_path, content)
-    assert code in (200, 201), f"Fixture PUT failed with HTTP {code}"
+    assert code in (200, 201, 204), f"Fixture PUT failed with HTTP {code}"
 
     yield url_path, content
 

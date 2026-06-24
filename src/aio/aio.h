@@ -2,6 +2,7 @@
 #define XROOTD_AIO_H
 
 #include "../ngx_xrootd_module.h"
+#include "../compat/pgio.h"   /* xrdp_pg_bad_t — pgwrite CSE bad-page list */
 
 /*
  * AIO — async file I/O via the nginx thread pool, plus response builders.
@@ -54,6 +55,12 @@ ngx_chain_t *xrootd_build_sendfile_chain(xrootd_ctx_t *ctx,
     ngx_connection_t *c, int fd, const char *path, off_t offset,
     size_t data_total, u_char **base_out);
 
+/* Build the kXR_pgread response chain ([pgRead status header][encoded page
+ * data]); shared by the synchronous pgread handler and the AIO completion.
+ * Returns the chain head, or NULL on allocation failure (caller cleans up). */
+ngx_chain_t *xrootd_build_pgread_chain(xrootd_ctx_t *ctx,
+    ngx_connection_t *c, int64_t offset, u_char *data, uint32_t out_size);
+
 /*
  * Reusable per-connection scratch buffers — avoid pool growth on busy
  * sessions.  xrootd_get_pool_scratch() grows a single pool-anchored buffer
@@ -76,6 +83,14 @@ u_char *xrootd_get_pool_scratch(ngx_pool_t *pool, u_char **slot,
  * pool other than those scratch slots. */
 void xrootd_release_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char *buf);
+
+/* Borrow a per-in-flight data buffer from the connection read pool (rd_pool),
+ * grown to >= need bytes — see xrootd_acquire_read_buffer in buffers.c.  Gives a
+ * memory-backed read its own buffer so the read path can pipeline; returned to
+ * the pool by xrootd_release_read_buffer when the response drains.  NULL on OOM
+ * (or if the pool is unexpectedly exhausted). */
+u_char *xrootd_acquire_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    size_t need);
 
 /*
  * Shrink per-session transfer scratch buffers back to XROOTD_READ_WINDOW once a
@@ -152,6 +167,10 @@ typedef struct {
     ssize_t        nwritten;
     int            io_errno;
     u_char        *payload_to_free;
+    /* pgwrite CSE: pages that failed CRC32c in this request. When non-empty the
+     * done callback sends a CSE retransmit frame instead of a plain status. */
+    size_t         bad_page_count;
+    xrdp_pg_bad_t  bad_pages[kXR_pgMaxEpr];
 } xrootd_write_aio_t;
 
 typedef struct {

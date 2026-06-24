@@ -2,6 +2,9 @@
 #include "../manager/pending.h"
 #include "../manager/registry.h"
 #include "../path/beneath.h"
+#include "../path/path.h"           /* xrootd_sanitize_log_string (WS6) */
+#include "../compat/net_target.h"   /* xrootd_net_host_chars_valid (WS6) */
+#include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
 static ngx_connection_t *cms_find_client_connection(int fd);
 
@@ -49,6 +52,26 @@ cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
 
     xrd_ctx = ngx_stream_get_module_ctx(session, ngx_stream_xrootd_module);
     if (xrd_ctx == NULL || xrd_ctx->state != XRD_ST_WAITING_CMS) {
+        return NGX_OK;
+    }
+
+    /*
+     * WS6: the redirect host comes straight from the manager's kYR_select /
+     * kYR_try payload and is copied verbatim into the "Shost:port" redirect the
+     * client parses.  A compromised/hostile manager could inject control bytes or
+     * an alternate scheme here, so validate it with the same character allowlist
+     * the registry uses as its store choke point (xrootd_net_host_chars_valid).
+     * On reject, drop the redirect and leave the client in XRD_ST_WAITING_CMS to
+     * hit its own cms_locate_timeout — we never emit a poisoned host.
+     */
+    if (host == NULL
+        || !xrootd_net_host_chars_valid(host, ngx_strlen(host)))
+    {
+        char  safe[256];
+        xrootd_sanitize_log_string(host, safe, sizeof(safe));
+        ngx_log_error(NGX_LOG_WARN, cms_ctx->cycle->log, 0,
+                      "xrootd: CMS select: rejected redirect to invalid host "
+                      "\"%s\" for fd=%d", safe, conn_fd);
         return NGX_OK;
     }
 
@@ -299,6 +322,7 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
     ngx_xrootd_cms_ctx_t  *ctx;
     ssize_t                n;
     uint16_t               dlen;
+    ngx_uint_t             processed = 0;
 
     c = ev->data;
     ctx = c->data;
@@ -307,34 +331,36 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
         return;
     }
 
-    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                  "xrootd: CMS READ handler called timedout=%d in_pos=%uz in_need=%uz",
-                  (int) ev->timedout, ctx->in_pos, ctx->in_need);
+    ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+                   "xrootd: CMS read handler timedout=%d in_pos=%uz in_need=%uz",
+                   (int) ev->timedout, ctx->in_pos, ctx->in_need);
 
     if (ev->timedout) {
+        /*
+         * WS1: the manager went silent past cms_read_timeout (black-holed /
+         * half-open).  Tear down and reconnect with backoff so we fail over
+         * instead of heartbeating into a dead socket forever.
+         */
+        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+                      "xrootd: CMS manager silent past read timeout — "
+                      "reconnecting");
+        XROOTD_RESIL_METRIC_INC(cms_read_timeouts_total);
         ngx_xrootd_cms_disconnect(ctx);
         ngx_xrootd_cms_schedule_retry(ctx);
         return;
     }
 
-    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                  "xrootd: CMS read: c=%p ctx=%p fd=%d",
-                  c, ctx, c->fd);
-
     for ( ;; ) {
         n = c->recv(c, ctx->inbuf + ctx->in_pos,
                     ctx->in_need - ctx->in_pos);
-
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                      "xrootd: CMS recv returned n=%z", n);
 
         if (n == NGX_AGAIN) {
             break;
         }
 
         if (n == NGX_ERROR || n == 0) {
-            ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                          "xrootd: CMS recv: EOF/error, disconnecting");
+            ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+                           "xrootd: CMS recv EOF/error, disconnecting");
             ngx_xrootd_cms_disconnect(ctx);
             ngx_xrootd_cms_schedule_retry(ctx);
             return;
@@ -348,10 +374,6 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
 
         if (ctx->in_need == NGX_XROOTD_CMS_HDR_LEN) {
             dlen = ngx_xrootd_cms_get16(ctx->inbuf + 6);
-
-            ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                          "xrootd: CMS header complete dlen=%ui code=%ui",
-                          (ngx_uint_t) dlen, (ngx_uint_t) ctx->inbuf[4]);
 
             if ((size_t) dlen + NGX_XROOTD_CMS_HDR_LEN
                 > NGX_XROOTD_CMS_MAX_FRAME)
@@ -370,9 +392,9 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
             }
         }
 
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                      "xrootd: CMS process_frame code=%ui",
-                      (ngx_uint_t) ctx->inbuf[4]);
+        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+                       "xrootd: CMS process_frame code=%ui",
+                       (ngx_uint_t) ctx->inbuf[4]);
 
         if (ngx_xrootd_cms_process_frame(ctx) != NGX_OK) {
             ngx_xrootd_cms_disconnect(ctx);
@@ -382,11 +404,25 @@ ngx_xrootd_cms_read_handler(ngx_event_t *ev)
 
         ctx->in_pos = 0;
         ctx->in_need = NGX_XROOTD_CMS_HDR_LEN;
-    }
 
-    ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                  "xrootd: CMS read: loop done, ctx->connection=%p",
-                  ctx->connection);
+        /* WS1: a frame from the manager proves it is alive — reset the silence
+         * deadline so a responsive manager is never reconnected. */
+        ngx_xrootd_cms_arm_read_deadline(ctx);
+
+        /* A2: fairness — after a bounded number of frames, yield the worker to
+         * other connections and resume via a posted read event, so a flooding
+         * manager cannot monopolise the event loop. */
+        if (++processed >= NGX_XROOTD_CMS_MAX_FRAMES_PER_WAKEUP) {
+            if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
+                ngx_xrootd_cms_disconnect(ctx);
+                ngx_xrootd_cms_schedule_retry(ctx);
+                return;
+            }
+            XROOTD_RESIL_METRIC_INC(cms_frame_yields_total);
+            ngx_post_event(c->read, &ngx_posted_events);
+            return;
+        }
+    }
 
     if (ctx->connection != NULL
         && ngx_handle_read_event(c->read, 0) != NGX_OK)

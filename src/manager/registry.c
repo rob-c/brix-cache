@@ -145,6 +145,9 @@ xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
         return NGX_ERROR;
     }
 
+    xrootd_shm_zone_warn_on_resize(cf, xrootd_srv_shm_zone,
+                                   "xrootd_registry_slots");
+
     xrootd_srv_shm_zone->init = xrootd_srv_shm_init_zone;
     xrootd_srv_shm_zone->data = (void *) 1;
 
@@ -386,7 +389,7 @@ xrootd_srv_unregister(const char *host, uint16_t port)
     ngx_shmtx_unlock(&xrootd_srv_mutex);
 }
 
-/* ---- Function: xrootd_srv_select() ---------------------------------------- */
+/* ---- Function: srv_select_core() ------------------------------------------ */
 
 /* WHAT
  * Selects the best data server for a given path from the registry table.
@@ -396,23 +399,33 @@ xrootd_srv_unregister(const char *host, uint16_t port)
  * Selection policy: reads → lowest util_pct (least loaded); writes → highest
  * free_mb (most available space). Path matching uses longest-prefix over colon-
  * delimited tokens in each entry's paths field.
+ *
+ * allow_blacklisted gives the open/stat handlers a LAST-RESORT tier: when no
+ * live server matches, fall back to a currently-blacklisted one rather than a
+ * false NotFound.  A CMS heartbeat drop blacklists a server for 30 s even though
+ * its data plane is almost always still serving, so under load a transient blip
+ * should still redirect to the (live) node.  kXR_locate passes 0 — it must
+ * report only live servers, so a genuinely dead node is still "not found" there.
 
  * HOW
  * Locks mutex → scans all occupied slots → filters by srv_path_matches() →
- * picks best based on for_write flag (free_mb max for writes, util_pct min
- * for reads). Writes host+port to output buffers. Unlocks and returns 1/0.
+ * picks best by for_write (free_mb max for writes, util_pct min for reads),
+ * preferring fresh→stale→(blacklisted, only if allow_blacklisted).  Writes
+ * host+port to output buffers. Unlocks and returns 1/0.
  */
-int
-xrootd_srv_select(const char *path, int for_write,
+static int
+srv_select_core(const char *path, int for_write, int allow_blacklisted,
     char *host_out, size_t host_size, uint16_t *port_out)
 {
     xrootd_srv_table_t *tbl;
     xrootd_srv_entry_t *e;
     ngx_uint_t          i;
-    int                 best_fresh;     /* best live (non-stale) candidate */
-    int                 best_any;       /* best candidate ignoring staleness */
+    int                 best_fresh;     /* live: not stale AND not blacklisted */
+    int                 best_any;       /* not blacklisted, any staleness */
+    int                 best_black;     /* blacklisted last-resort candidate */
     uint32_t            best_fresh_val;
     uint32_t            best_any_val;
+    uint32_t            best_black_val;
     int                 best;
 
     tbl = srv_table();
@@ -422,25 +435,31 @@ xrootd_srv_select(const char *path, int for_write,
 
     best_fresh     = -1;
     best_any       = -1;
+    best_black     = -1;
     best_fresh_val = for_write ? 0 : (uint32_t) -1;
     best_any_val   = for_write ? 0 : (uint32_t) -1;
+    best_black_val = for_write ? 0 : (uint32_t) -1;
 
     ngx_shmtx_lock(&xrootd_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         ngx_uint_t is_stale;
+        ngx_uint_t is_black;
+        uint32_t   metric;
 
         e = &tbl->slots[i];
         if (!e->in_use) {
             continue;
         }
-        if (e->blacklisted_until != 0
-            && e->blacklisted_until > ngx_current_msec)
-        {
-            continue;
-        }
         if (!srv_path_matches(e->paths, path)) {
             continue;
+        }
+
+        is_black = (e->blacklisted_until != 0
+                    && e->blacklisted_until > ngx_current_msec);
+
+        if (is_black && !allow_blacklisted) {
+            continue;           /* strict callers (e.g. locate) skip blacklisted */
         }
 
         /*
@@ -453,30 +472,39 @@ xrootd_srv_select(const char *path, int for_write,
                     && (ngx_msec_int_t) (ngx_current_msec - e->last_seen)
                        > (ngx_msec_int_t) xrootd_srv_stale_after_ms);
 
-        if (for_write) {
-            if (best_any == -1 || e->free_mb > best_any_val) {
-                best_any     = (int) i;
-                best_any_val = e->free_mb;
+        metric = for_write ? e->free_mb : e->util_pct;
+
+        if (is_black) {
+            /* allow_blacklisted only — a last-resort tier below live servers. */
+            if (best_black == -1
+                || (for_write ? (metric > best_black_val)
+                              : (metric < best_black_val)))
+            {
+                best_black     = (int) i;
+                best_black_val = metric;
             }
-            if (!is_stale
-                && (best_fresh == -1 || e->free_mb > best_fresh_val)) {
-                best_fresh     = (int) i;
-                best_fresh_val = e->free_mb;
-            }
-        } else {
-            if (best_any == -1 || e->util_pct < best_any_val) {
-                best_any     = (int) i;
-                best_any_val = e->util_pct;
-            }
-            if (!is_stale
-                && (best_fresh == -1 || e->util_pct < best_fresh_val)) {
-                best_fresh     = (int) i;
-                best_fresh_val = e->util_pct;
-            }
+            continue;
+        }
+
+        if (best_any == -1
+            || (for_write ? (metric > best_any_val) : (metric < best_any_val)))
+        {
+            best_any     = (int) i;
+            best_any_val = metric;
+        }
+        if (!is_stale
+            && (best_fresh == -1
+                || (for_write ? (metric > best_fresh_val)
+                              : (metric < best_fresh_val))))
+        {
+            best_fresh     = (int) i;
+            best_fresh_val = metric;
         }
     }
 
-    best = (best_fresh >= 0) ? best_fresh : best_any;
+    best = (best_fresh >= 0) ? best_fresh
+         : (best_any   >= 0) ? best_any
+         :                     best_black;
 
     if (best >= 0) {
         e = &tbl->slots[best];
@@ -488,16 +516,44 @@ xrootd_srv_select(const char *path, int for_write,
     return best >= 0;
 }
 
+/* ---- Function: xrootd_srv_select() ---------------------------------------- */
+
+/* Strict selection: live (non-blacklisted) servers only.  This is what
+ * kXR_locate and every non-open caller use. */
+int
+xrootd_srv_select(const char *path, int for_write,
+    char *host_out, size_t host_size, uint16_t *port_out)
+{
+    return srv_select_core(path, for_write, 0 /*allow_blacklisted*/,
+                           host_out, host_size, port_out);
+}
+
+/* ---- Function: xrootd_srv_select_or_blacklisted() ------------------------- */
+
+/* Selection with a blacklisted last-resort tier — see the header. */
+int
+xrootd_srv_select_or_blacklisted(const char *path, int for_write,
+    char *host_out, size_t host_size, uint16_t *port_out)
+{
+    return srv_select_core(path, for_write, 1 /*allow_blacklisted*/,
+                           host_out, host_size, port_out);
+}
+
 /* ---- Function: xrootd_srv_count_matching() -------------------------------- */
 
-/* WHAT: Count occupied, non-blacklisted servers that export a prefix covering
- *       path — the number of distinct data servers a client could be redirected
- *       to for this path.
+/* WHAT: Count occupied servers that export a prefix covering path — the number
+ *       of distinct data servers a client could be redirected to for this path.
  * WHY:  The tried/triedrc retry protocol (see xrootd_manager_tried_exhausted)
  *       needs to know how many candidates exist so it can tell when the client
  *       has exhausted them all and the answer is definitively "not found".
- * HOW:  Same slot scan as xrootd_srv_select (in_use, not blacklisted, prefix
- *       match) under the registry spinlock, returning the count. */
+ * HOW:  Same path scan as srv_select_core (in_use, prefix match) under the
+ *       registry spinlock, returning the count.  Blacklisted slots ARE counted:
+ *       the open/stat path (xrootd_srv_select_or_blacklisted) can redirect to a
+ *       blacklisted server as a last resort, so it IS a candidate the client may
+ *       be sent to.  Counting it keeps tried-exhausted consistent — a client
+ *       that already tried that one server then converges to NotFound instead of
+ *       being bounced back to it.  (A server that left the cluster is
+ *       unregistered → in_use == 0 → not counted.) */
 int
 xrootd_srv_count_matching(const char *path)
 {
@@ -515,11 +571,6 @@ xrootd_srv_count_matching(const char *path)
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
-            continue;
-        }
-        if (e->blacklisted_until != 0
-            && e->blacklisted_until > ngx_current_msec)
-        {
             continue;
         }
         if (!srv_path_matches(e->paths, path)) {

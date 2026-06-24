@@ -24,31 +24,19 @@
 
 #include "protocol/protocol.h"   /* wire structs + kXR_* constants (-I src) */
 
-/* Public-API fixed sizes (wire facts: kXR_open fhandle = 4, login sessid = 16).
- * Defined locally so the few struct fields below don't hard-depend on the wire
- * header's macro names — keeps libxrdc's public surface stable. */
+/* Public-API fixed sizes. Kept under their stable libxrdc-public XRDC_* names, but
+ * the VALUE is now single-sourced from the shared wire header (protocol/opcodes.h
+ * via protocol/protocol.h above) rather than re-spelled as 4 / 16 here. */
 #ifndef XRDC_FHANDLE_LEN
-#define XRDC_FHANDLE_LEN 4
+#define XRDC_FHANDLE_LEN XRD_FHANDLE_LEN
 #endif
 #ifndef XRDC_SESSION_ID_LEN
-#define XRDC_SESSION_ID_LEN 16
+#define XRDC_SESSION_ID_LEN XROOTD_SESSION_ID_LEN
 #endif
 
-/* wire: XProtocol.hh ClientProtocolRequest.expect — 0x03 asks the server to
- * expect a kXR_login next (only documented as a comment in wire_core_requests.h). */
-#ifndef kXR_ExpLogin
-#define kXR_ExpLogin 0x03
-#endif
-
-/* wire: ServerResponseBody_Status.resptype — Final (this is the last frame) vs
- * Partial (more kXR_status frames follow for this request). Only documented as a
- * comment in wire_core_requests.h, so define them here. */
-#ifndef kXR_FinalResult
-#define kXR_FinalResult   0
-#endif
-#ifndef kXR_PartialResult
-#define kXR_PartialResult 1
-#endif
+/* kXR_ExpLogin (ClientProtocolRequest.expect) and kXR_FinalResult/kXR_PartialResult
+ * (ServerResponseBody_Status.resptype) are real #defines in the shared
+ * protocol/flags.h — reached via protocol/protocol.h above. No local copy. */
 
 #define XRDC_MSG_MAX   512
 #define XRDC_PATH_MAX  2048
@@ -72,6 +60,17 @@ typedef struct {
                              * the resilient loop MUST fail fast, not spin. */
 #define XRDC_EUNSUPPORTED (-6) /* valid protocol feature this client build lacks;
                                 * fatal, because reconnecting cannot add support. */
+#define XRDC_ERESOLVE (-7)  /* permanent name-resolution failure (NXDOMAIN / no
+                             * address) — NOT retryable: the name will not
+                             * resolve on a retry, so the resilient loop must
+                             * fail fast instead of burning its stall window.
+                             * A *transient* resolver failure (EAI_AGAIN) keeps
+                             * XRDC_ESOCK so it is still retried. */
+#define XRDC_EREDIRECT (-8) /* redirect loop / budget exhausted (self-redirect,
+                             * bounce to an already-tried target, too many hops)
+                             * — NOT retryable: re-issuing the op just walks into
+                             * the same loop, so the resilient wrapper must fail
+                             * fast rather than chase it for the whole window. */
 
 typedef enum {
     XRDC_SCHEME_ROOT = 0,   /* root:// / xroot:// */
@@ -298,6 +297,13 @@ void xrdc_backoff_sleep_fast(unsigned attempt);
 int  xrdc_tls_upgrade(xrdc_conn *c, int verify_peer, int verify_host,
                       const char *ca_dir, xrdc_status *st);
 void xrdc_tls_free(xrdc_conn *c);
+
+/* ---- conn.c ---- */
+/* Resolve the CA trust dir for TLS verification: explicit arg → $X509_CERT_DIR →
+ * /etc/grid-security/certificates → NULL (OpenSSL system defaults). Borrowed
+ * string; never allocates. Use everywhere a ca_dir is needed so the client
+ * trusts grid (IGTF) CAs without requiring $X509_CERT_DIR to be set. */
+const char *xrdc_resolve_ca_dir(const char *opt_ca_dir);
 /* Transparent TLS transfer used by sock.c when io->ssl != NULL (0 / -1). */
 int xrdc_tls_read(xrdc_io *io, void *buf, size_t n, xrdc_status *st);
 int xrdc_tls_write(xrdc_io *io, const void *buf, size_t n, xrdc_status *st);
@@ -379,6 +385,17 @@ int  xrdc_http_upload(const char *host, int port, int tls, const char *path,
                       const char *extra_headers, int in_fd, long long clen,
                       int verify, const char *ca_dir, int timeout_ms,
                       int *http_status, xrdc_status *st);
+
+/* Resumable upload: streams the source as Content-Range PUT chunks, each on a
+ * fresh connection, reconnecting + resuming from the server's durable offset on
+ * a transport sever or 409 within max_stall_ms — so a davs:// upload survives an
+ * nginx restart.  Needs server xrootd_webdav_upload_resume for true resume; a
+ * plain server commits on the first (whole-range) chunk. 0 / -1 (st set). */
+int  xrdc_http_upload_resumable(const char *host, int port, int tls,
+                      const char *path, const char *extra_headers, int in_fd,
+                      long long clen, int verify, const char *ca_dir,
+                      int timeout_ms, int max_stall_ms, int *http_status,
+                      xrdc_status *st);
 
 /* ---- s3.c — AWS Signature Version 4 (path-style), lifted to the lib so both
  * xrdcp transfers and xrddiag probes share one signer. ---- */
@@ -1057,7 +1074,16 @@ typedef struct {
                                 * survive loss; see pump_src_remote. */
     xrdc_progress_cb progress;  /* periodic transfer progress, or NULL */
     void            *progress_arg;
+    int         io_uring;  /* phase-44 --io-uring: 0=auto, 1=on, 2=off. Selects
+                            * the local-disk io_uring overlap ring in copy.c.
+                            * auto = use it iff xrdc_uring_available(); on with no
+                            * liburing = clean CLI error; off = classic read/write. */
 } xrdc_copy_opts;
+
+/* xrdc_copy_opts.io_uring tri-state values (match the server enum spelling). */
+#define XRDC_IO_URING_AUTO  0
+#define XRDC_IO_URING_ON    1
+#define XRDC_IO_URING_OFF   2
 
 /* --tpc mode values for xrdc_copy_opts.tpc_mode. */
 #define XRDC_TPC_OFF      0

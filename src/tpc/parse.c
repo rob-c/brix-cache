@@ -1,73 +1,16 @@
 /* ---- File: parse.c — TPC opaque parameter parsing and source URL decomposition ----
  *
- * WHAT: Six functions parse the TPC opaque query string from a kXR_open request into structured xrootd_tpc_params_t fields. tpc_parse_opaque (public entry) zero-initializes out → iterates key=value tokens via tpc_parse_token → validates at least one recognized key present → delegates src parsing to tpc_parse_src_fields; tpc_parse_token extracts key/value pairs from '&' delimited opaque string, matching only "tpc." prefixed keys (src/dst/key/lfn/org/stage/token_mode) and setting has_* flags; tpc_parse_src_fields calls tpc_parse_src_spec() for URL/host/port/path decomposition, clears all fields on failure to prevent partial-parse security bypass, then normalizes src_path via LFN if applicable; tpc_fill_src_path_from_lfn converts lfn into src_path with leading '/' normalization when src_path is empty and has_lfn=true; tpc_parse_src_spec decomposes root://host//path or xroot://host/path URLs (or bare host[:port]) into host/port/path, supports IPv6 bracket notation; tpc_copy_component copies substring with size guard; tpc_parse_port_range strtol-validates port 1-65535; tpc_copy_src_path strips leading double-slashes and ensures single '/' prefix.
+ * WHAT: Six functions parse the TPC opaque query string from a kXR_open request into structured xrootd_tpc_params_t fields. tpc_parse_opaque (public entry) zero-initializes out → iterates key=value tokens via tpc_parse_token → validates at least one recognized key present → delegates src parsing to tpc_parse_src_fields; tpc_parse_token extracts key/value pairs from '&' delimited opaque string, matching only "tpc." prefixed keys (src/dst/key/lfn/org/stage/token_mode) and setting has_* flags; tpc_parse_src_fields calls tpc_parse_src_spec() for URL/host/port/path decomposition, clears all fields on failure to prevent partial-parse security bypass, then normalizes src_path via LFN if applicable; tpc_fill_src_path_from_lfn converts lfn into src_path with leading '/' normalization when src_path is empty and has_lfn=true; tpc_parse_src_spec decomposes root://host//path or xroot://host/path URLs (or bare host[:port]) into host/port/path, delegating the authority host:port split (IPv6 brackets + 1-65535 port validation) to the shared xrootd_split_host_port() that the native client (url.c) also uses; tpc_copy_src_path strips leading double-slashes and ensures single '/' prefix.
  *
  * WHY: TPC (Third-Party Copy) requests carry source endpoint information in opaque query parameters appended to the kXR_open path field. Clients may send full URLs (root://host//path), bare host[:port] with lfn carrying the file name, or IPv6 addresses in bracket notation. Parsing must be robust against malformed inputs — partial parse failures must clear all fields to prevent security bypass where a partially-parsed source could reach downstream validation. LFN normalization ensures consistent path format regardless of client convention.
  *
  * HOW: Parse_opaque → memset(out,0) → iterate tokens via tpc_parse_token(&-delimited) → check at least one has_* flag set → call tpc_parse_src_fields if has_src=true; parse_token → find '&' or end-of-string as token boundary → locate '=' separator → verify "tpc." prefix (4 bytes) → match remaining key length against known keys (src=3, dst=3, key=3, lfn=3, org=3, stage=5, token_mode=10) → copy value into corresponding buffer with size guard; parse_src_fields → call tpc_parse_src_spec() for URL decomposition → on error clear src_host/\\0, src_path/\\0, src_port=0 → delegate to tpc_fill_src_path_from_lfn for LFN normalization; parse_src_spec → find "://" scheme separator → extract authority (host[:port]) between scheme and '/' → handle IPv6 brackets [...] → strtol validate port range 1-65535 → copy path component after '/'; fill_src_path_from_lfn → if src_path already set or has_lfn=false, return; if lfn starts with '/', copy directly; else prepend '/' then copy remaining chars.
  * ------------------------------------------------------------------ */
 #include "tpc_internal.h"
+#include "../compat/host_split.h"   /* shared bracketed-IPv6 host:port split (libxrdproto) */
 
-#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
-
-/* WHAT: Copy the [start, end) substring into dst as a NUL-terminated string.
- * WHY: Used to lift host/path slices out of the source URL without mutating it;
- * rejects empty slices and any slice that would not fit (with its NUL) in dst.
- * HOW: length = end - start; bail on 0 or >= dst_size, else memcpy + NUL. */
-static int
-tpc_copy_component(char *dst, size_t dst_size, const char *start,
-    const char *end)
-{
-    size_t length;
-
-    length = (size_t) (end - start);
-    if (length == 0 || length >= dst_size) {
-        return -1;
-    }
-
-    memcpy(dst, start, length);
-    dst[length] = '\0';
-
-    return 0;
-}
-
-/* WHAT: Parse the [port_start, port_end) decimal slice into *port, validating
- * it is a well-formed integer in the legal range 1..65535.
- * WHY: TPC source URLs carry an optional ":port"; an out-of-range or non-numeric
- * port must be rejected (not silently truncated) so a bad spec can't redirect
- * the pull to an unintended port. Range starts at 1 (0 is reserved/invalid).
- * HOW: copy slice into a NUL-terminated scratch buffer, strtol with errno and
- * full-consumption checks, bounds-check 1..65535, then narrow to uint16_t. */
-static int
-tpc_parse_port_range(const char *port_start, const char *port_end,
-    uint16_t *port)
-{
-    char   port_text[16];
-    char  *parse_end;
-    long   parsed_port;
-    size_t port_len;
-
-    port_len = (size_t) (port_end - port_start);
-    if (port_len == 0 || port_len >= sizeof(port_text)) {
-        return -1;
-    }
-
-    memcpy(port_text, port_start, port_len);
-    port_text[port_len] = '\0';
-
-    errno = 0;
-    parsed_port = strtol(port_text, &parse_end, 10);
-    if (errno != 0 || parse_end == port_text
-        || parsed_port < 1 || parsed_port > 65535)
-    {
-        return -1;
-    }
-
-    *port = (uint16_t) parsed_port;
-    return 0;
-}
 
 /* WHAT: Normalise the source path into `path`: collapse a leading run of '/'
  * down to a single '/', and guarantee the result starts with exactly one '/'.
@@ -119,10 +62,12 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
 {
     const char *authority_start;
     const char *authority_end;
-    const char *port_separator;
     const char *path_start;
     const char *scheme_separator;
     const char *src_end;
+    char        authority[320];
+    size_t      authority_len;
+    int         parsed_port = 0;
 
     if (src == NULL || *src == '\0') {
         return -1;
@@ -154,55 +99,24 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
         return -1;
     }
 
-    if (*authority_start == '[') {
-        /* IPv6 literal: "[addr]" or "[addr]:port". The address sits between the
-         * brackets (so it can itself contain ':'); any port follows after ']'. */
-        const char *bracket_end;
-
-        bracket_end = memchr(authority_start, ']',
-                             (size_t) (authority_end - authority_start));
-        if (bracket_end == NULL) {
-            return -1;          /* unterminated bracket */
-        }
-
-        /* host = bytes inside the brackets (skip '[' and stop before ']'). */
-        if (tpc_copy_component(host, host_size, authority_start + 1,
-                               bracket_end) != 0) {
-            return -1;
-        }
-
-        /* Anything after ']' must be ":port"; otherwise there is no port. */
-        if (bracket_end + 1 < authority_end) {
-            if (bracket_end[1] != ':'
-                || tpc_parse_port_range(bracket_end + 2, authority_end,
-                                        port) != 0) {
-                return -1;
-            }
-        } else {
-            *port = 0;
-        }
-
-    } else {
-        /* IPv4 / hostname: a single ':' (if present) splits host from port. */
-        port_separator = memchr(authority_start, ':',
-                                (size_t) (authority_end - authority_start));
-        if (port_separator != NULL) {
-            if (tpc_copy_component(host, host_size, authority_start,
-                                   port_separator) != 0) {
-                return -1;
-            }
-            if (tpc_parse_port_range(port_separator + 1, authority_end,
-                                     port) != 0) {
-                return -1;
-            }
-        } else {
-            if (tpc_copy_component(host, host_size, authority_start,
-                                   authority_end) != 0) {
-                return -1;
-            }
-            *port = 0;
-        }
+    /* Lift the authority slice into a NUL-terminated scratch buffer and split it
+     * with the shared bracketed-IPv6-aware host:port parser — the same leaf the
+     * native client (url.c) uses, so both validate the authority identically.
+     * default_port 0 keeps this caller's "no explicit port -> 0 sentinel"
+     * contract (the launch path applies the real default later); an explicit
+     * port is validated to 1..65535. */
+    authority_len = (size_t) (authority_end - authority_start);
+    if (authority_len >= sizeof(authority)) {
+        return -1;
     }
+    memcpy(authority, authority_start, authority_len);
+    authority[authority_len] = '\0';
+
+    if (xrootd_split_host_port(authority, host, host_size, &parsed_port, 0)
+        != 0) {
+        return -1;
+    }
+    *port = (uint16_t) parsed_port;
 
     return tpc_copy_src_path(path, path_size, path_start);
 }

@@ -13,12 +13,29 @@
  *                         gap, which is what exercises a per-PDU read deadline and
  *                         a low-speed/idle abort (Phase 39).
  *         lossy <pct>   — with probability <pct>% per chunk, sever the connection
- *                         (an application-visible proxy for packet loss = resets)
+ *                         (an application-visible proxy for packet loss = resets).
+ *                         <pct> is a float with parts-per-million resolution, so
+ *                         sub-percent rates (e.g. 0.0001) are honoured down to
+ *                         1 ppm (0.0001%).
+ *         jitter <ms>   — delay every forwarded chunk by a uniform-random 0..<ms>
+ *                         milliseconds (variable, per-chunk).  Combined with NODELAY
+ *                         (and optionally `chunk`) each segment is delivered after an
+ *                         independent random gap, so inter-segment arrival times vary
+ *                         — the faithful application-layer signature of out-of-order
+ *                         IP-packet delivery on a TCP stream (see NOTE).
+ *         reorder <pct> [ms] — with probability <pct>% per chunk (a float with
+ *                         parts-per-million resolution, floor 0.0001%), hold that chunk
+ *                         back by <ms> milliseconds (default 50) before forwarding,
+ *                         while the chunks after it go straight through — so a
+ *                         <pct>% fraction arrives late relative to its neighbours.
+ *                         This is the application-layer analog of `tc netem
+ *                         reorder <pct>% delay <ms>`: a percentage of segments
+ *                         delivered out of order (as added latency — see NOTE).
  *         drop          — forcibly close all live proxied connections now
  *                         (simulate a connection reset / wifi blip)
  *         block         — drop live conns AND refuse new ones (an outage window)
  *         unblock       — resume accepting
- *         clear         — reset all levers (latency/chunk/drip/lossy=0, unblock)
+ *         clear         — reset all levers (latency/chunk/drip/lossy/jitter/reorder=0, unblock)
  *         status        — report current state
  * WHY:  The async client's resilience (reconnect + file-handle resumption) needs a
  *       way to inject the exact conditions of "bad wifi from a laptop abroad"
@@ -32,6 +49,17 @@
  *       ACKed TCP stream corrupts it rather than emulating loss (which lives below
  *       TCP). Latency + disconnect + outage are the faithfully-simulatable faults,
  *       and they are exactly the ones the resilience layer must survive.
+ *
+ *       For the same reason, out-of-order PACKET delivery is not (and cannot be)
+ *       emulated by re-ordering bytes here: TCP reassembles the segments in order
+ *       below us, so the peer's socket only ever yields the in-order byte stream.
+ *       Re-ordering bytes at this layer would be stream corruption the client could
+ *       never observe on a real network — not reordering. What IP-packet reordering
+ *       actually does to a TCP application is add *variable latency* (early/late
+ *       segments, dup-ACKs, the occasional fast-retransmit); that jitter is exactly
+ *       what the `jitter <ms>` lever injects, faithfully and without root. (True
+ *       packet reordering would require `tc qdisc ... netem reorder`, i.e.
+ *       CAP_NET_ADMIN, which this root-free proxy deliberately avoids.)
  *
  * Usage: fault_proxy <listen_port> <target_host> <target_port> <control_port>
  */
@@ -62,7 +90,10 @@ static volatile unsigned g_drop_epoch = 0;
 static volatile int g_chunk_bytes = 0;   /* split each forwarded write into <=N-byte segments */
 static volatile int g_drip_bytes  = 0;   /* drip: forward N bytes then sleep g_drip_ms */
 static volatile int g_drip_ms     = 0;
-static volatile int g_lossy_pct   = 0;   /* per-chunk probability (%) of severing the connection */
+static volatile int g_lossy_ppm   = 0;   /* per-chunk sever probability in parts-per-million (1% = 10000 ppm) */
+static volatile int g_jitter_ms   = 0;   /* per-chunk uniform-random delay in [0, jitter] ms */
+static volatile int g_reorder_ppm = 0;   /* per-chunk hold-back probability in ppm (1% = 10000 ppm) */
+static volatile int g_reorder_ms  = 50;  /* the hold-back delay applied to a reordered chunk */
 
 /* Blocking connect to host:port (best-effort, first address that works). */
 static int
@@ -122,19 +153,28 @@ write_all(int fd, const char *buf, ssize_t n)
 static int
 forward_faulted(int to, const char *buf, ssize_t n, unsigned epoch)
 {
-    int     chunk = g_chunk_bytes;
-    int     drip  = g_drip_bytes;
-    int     dms   = g_drip_ms;
-    int     lossy = g_lossy_pct;
-    ssize_t off   = 0;
-    int     piece = (drip > 0) ? drip : chunk;
+    int     chunk   = g_chunk_bytes;
+    int     drip    = g_drip_bytes;
+    int     dms     = g_drip_ms;
+    int     lossy   = g_lossy_ppm;
+    int     jitter  = g_jitter_ms;
+    int     reorder = g_reorder_ppm;
+    int     rdelay  = g_reorder_ms;
+    ssize_t off     = 0;
+    int     piece   = (drip > 0) ? drip : chunk;
 
     if (g_latency_ms > 0) {
         usleep((useconds_t) g_latency_ms * 1000);
     }
 
     if (piece <= 0) {
-        if (lossy > 0 && (rand() % 100) < lossy) {
+        if (jitter > 0) {
+            usleep((useconds_t) (rand() % (jitter + 1)) * 1000);
+        }
+        if (reorder > 0 && (rand() % 1000000) < reorder) {
+            usleep((useconds_t) rdelay * 1000);
+        }
+        if (lossy > 0 && (rand() % 1000000) < lossy) {
             return -1;   /* application-visible "loss" = sever the stream */
         }
         return write_all(to, buf, n);
@@ -145,7 +185,13 @@ forward_faulted(int to, const char *buf, ssize_t n, unsigned epoch)
         if (seg > piece) {
             seg = piece;
         }
-        if (lossy > 0 && (rand() % 100) < lossy) {
+        if (jitter > 0) {
+            usleep((useconds_t) (rand() % (jitter + 1)) * 1000);
+        }
+        if (reorder > 0 && (rand() % 1000000) < reorder) {
+            usleep((useconds_t) rdelay * 1000);
+        }
+        if (lossy > 0 && (rand() % 1000000) < lossy) {
             return -1;
         }
         if (g_blocked || g_drop_epoch != epoch) {
@@ -258,7 +304,18 @@ control_thread(void *arg)
                 g_drip_bytes = b;
                 g_drip_ms    = m;
             } else if (strncmp(line, "lossy", 5) == 0) {
-                g_lossy_pct = atoi(line + 5);
+                /* float percent → parts-per-million (1% = 10000 ppm). */
+                g_lossy_ppm = (int) (strtod(line + 5, NULL) * 10000.0 + 0.5);
+            } else if (strncmp(line, "jitter", 6) == 0) {
+                g_jitter_ms = atoi(line + 6);
+            } else if (strncmp(line, "reorder", 7) == 0) {
+                double p = 0;
+                int    m = -1;
+                sscanf(line + 7, "%lf %d", &p, &m);
+                g_reorder_ppm = (int) (p * 10000.0 + 0.5);   /* float % → ppm */
+                if (m >= 0) {
+                    g_reorder_ms = m;
+                }
             } else if (strncmp(line, "drop", 4) == 0) {
                 __atomic_add_fetch(&g_drop_epoch, 1, __ATOMIC_SEQ_CST);
             } else if (strncmp(line, "block", 5) == 0) {
@@ -272,13 +329,16 @@ control_thread(void *arg)
                 g_chunk_bytes = 0;
                 g_drip_bytes  = 0;
                 g_drip_ms     = 0;
-                g_lossy_pct   = 0;
+                g_lossy_ppm   = 0;
+                g_jitter_ms   = 0;
+                g_reorder_ppm = 0;
             } else if (strncmp(line, "status", 6) == 0) {
                 snprintf(reply, sizeof(reply),
-                         "latency=%d chunk=%d drip=%d/%dms lossy=%d%% "
-                         "blocked=%d epoch=%u\n",
+                         "latency=%d chunk=%d drip=%d/%dms lossy=%.4f%% jitter=%dms "
+                         "reorder=%.4f%%/%dms blocked=%d epoch=%u\n",
                          g_latency_ms, g_chunk_bytes, g_drip_bytes, g_drip_ms,
-                         g_lossy_pct, g_blocked, g_drop_epoch);
+                         g_lossy_ppm / 10000.0, g_jitter_ms, g_reorder_ppm / 10000.0,
+                         g_reorder_ms, g_blocked, g_drop_epoch);
             } else {
                 snprintf(reply, sizeof(reply), "err: unknown command\n");
             }

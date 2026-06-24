@@ -624,9 +624,9 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char       *resp;
     u_char       *rp;
     size_t        resp_cap;
-    int           has_inline_paths = 0;
+    char          reqid[FRM_REQID_LEN];
+    size_t        reqid_len = 0;
 
-    /* Parse the first line of the payload as the request ID (ignored). */
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
         return xrootd_send_ok(ctx, c, NULL, 0);
     }
@@ -634,9 +634,25 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     p   = ctx->payload;
     end = ctx->payload + ctx->cur_dlen;
 
-    /* Skip the reqid line. */
-    while (p < end && *p != '\n') {
-        p++;
+    /* The first payload line is the prepare request-id.  Capture it (trimmed of
+     * trailing CR/NUL) so an id we have no record of can be rejected the way the
+     * reference do_Prepare(isQuery) does. */
+    {
+        const u_char *rid = p;
+        while (p < end && *p != '\n') {
+            p++;
+        }
+        reqid_len = (size_t) (p - rid);
+        while (reqid_len > 0
+               && (rid[reqid_len - 1] == '\r' || rid[reqid_len - 1] == '\0')) {
+            reqid_len--;
+        }
+        if (reqid_len > 0 && reqid_len < sizeof(reqid)) {
+            ngx_memcpy(reqid, rid, reqid_len);
+            reqid[reqid_len] = '\0';
+        } else {
+            reqid[0] = '\0';
+        }
     }
     if (p < end) {
         p++;  /* consume '\n' */
@@ -646,14 +662,28 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (p < end) {
         src     = p;
         src_len = (size_t) (end - p);
-        has_inline_paths = 1;
-    } else if (!has_inline_paths
-               && ctx->prepare_paths != NULL
+    } else if (ctx->prepare_paths != NULL
                && ctx->prepare_paths_len > 0) {
         src     = ctx->prepare_paths;
         src_len = ctx->prepare_paths_len;
     } else {
-        /* No paths available — return empty ok (not a string literal). */
+        /* No inline paths and nothing stored for this session.  If the client
+         * named a request-id we have no record of — FRM disabled, or the durable
+         * queue has no such record — reject it exactly like the reference
+         * do_Prepare(isQuery): "Prepare requestid owned by an unknown server".
+         * Resilience polling is unaffected: it carries inline paths (handled
+         * above), and an id we issued resolves via stored paths or an FRM
+         * record. */
+        if (reqid[0] != '\0') {
+            frm_record_t rec;
+            int known = (conf->frm.enable && conf->frm.queue != NULL
+                         && frm_request_get(conf->frm.queue, reqid, &rec,
+                                            c->log) == NGX_OK);
+            if (!known) {
+                return xrootd_prepare_send_fail(ctx, c, reqid, kXR_ArgInvalid,
+                    "Prepare requestid owned by an unknown server");
+            }
+        }
         return xrootd_send_ok(ctx, c, NULL, 0);
     }
 
