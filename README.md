@@ -29,6 +29,111 @@ New to XRootD or grid security? [What Is This Project](docs/01-getting-started/w
 
 ---
 
+## Architecture at a glance
+
+### Where the module plugs into nginx
+
+Three protocol families enter through nginx's battle-tested event loop, fan out to
+the right module, and converge on **one shared module core** before touching a file:
+
+```text
+        root:// roots://             davs:// https://              s3://  http(s)
+   xrdcp · xrdfs · pyxrootd        curl · rucio · browser        aws-cli · boto3
+            │                              │                            │
+            │ raw TCP / TLS                │ HTTPS                      │ HTTP/S
+            ▼                              ▼                            ▼
+ ╔═══════════════════════════════════════════════════════════════════════════════╗
+ ║                       n g i n x   e v e n t   l o o p                           ║
+ ║                epoll · non-blocking · 1 master + N worker procs                 ║
+ ║                                                                                 ║
+ ║   ┌──────────────────────────────┐   ┌───────────────────────────────────────┐ ║
+ ║   │          stream { }          │   │                http { }               │ ║
+ ║   │  ngx_stream_xrootd_module    │   │  webdav · s3 · metrics · dashboard    │ ║
+ ║   │  ngx_stream_..._cms_srv      │   │  · srr · xrdhttp_filter modules       │ ║
+ ║   │  native root:// / roots://   │   │  davs:// · S3 REST · /metrics · /xrootd│ ║
+ ║   └───────────────┬──────────────┘   └──────────────────┬────────────────────┘ ║
+ ║                   │                                      │                      ║
+ ║                   └──────────────┬───────────────────────┘                     ║
+ ║                                  ▼                                              ║
+ ║         ┌──────────────  shared module core (src/)  ──────────────┐            ║
+ ║         │  auth · path-confine · async-IO · metrics · cache · cms │            ║
+ ║         └────────────────────────────┬────────────────────────────┘           ║
+ ╚══════════════════════════════════════╪═════════════════════════════════════════╝
+                                         ▼
+                ┌────────────────────────────────────────────────┐
+                │   /data POSIX tree   │   root:// backend        │
+                │   (standalone)       │   (transparent proxy /   │
+                │                      │    read-through cache)    │
+                └────────────────────────────────────────────────┘
+```
+
+### Inside the module — `src/` by plane
+
+Every subsystem lives in its own folder. They group into four planes: who-are-you
+(control), move-the-bytes (data), scale-out (cluster), and the nginx plumbing
+everything rides on (foundation):
+
+```text
+ ┌── CONTROL PLANE · auth & policy ───┐   ┌── DATA PLANE · move the bytes ─────┐
+ │ handshake/  session/   path/       │   │ read/    write/    aio/            │
+ │ gsi/  token/  sss/  pwd/  krb5/    │   │ dirlist/ fattr/    query/          │
+ │ voms/ acc/    ratelimit/           │   │ response/ compat/  fs/             │
+ └────────────────────────────────────┘   └────────────────────────────────────┘
+ ┌── CLUSTER & EXTENSIONS · scale-out ┐   ┌── FOUNDATION · nginx plumbing ─────┐
+ │ manager/ cms/    proxy/  upstream/ │   │ connection/ protocol/  config/     │
+ │ mirror/  cache/  tpc/    frm/      │   │ metrics/    shm/       crypto/     │
+ │ s3/      srr/    pmark/  impersonate│  │ host/  types/  stream/  dashboard/ │
+ └────────────────────────────────────┘   └────────────────────────────────────┘
+
+   control → "may you?"     data → "here are the bytes"
+   cluster → "ask another node"     foundation → "how nginx holds it all"
+```
+
+### A `root://` download, wire step by wire step
+
+The native protocol is a request/response conversation over one TCP connection.
+Auth happens once; then `open` → `read`-loop → `close`. Path confinement and
+checksums are non-negotiable on every byte:
+
+```text
+  client                       nginx-xrootd                        disk / backend
+    │                               │                                    │
+    │── handshake (4×0, "root") ───►│                                    │
+    │◄──── protocol + TLS hint ─────│  kXR_wantTLS / kXR_ableTLS         │
+    │── kXR_login (user, pid) ─────►│                                    │
+    │◄──── login resp + sec menu ───│                                    │
+    │── kXR_auth (GSI│token│SSS) ──►│  verify cert / JWT / shared secret │
+    │◄──── auth ok ─────────────────│  kXR_sigver session armed          │
+    │── kXR_open "/data/f.root" ───►│  resolve_path → openat2 confine ──►│ open()
+    │◄──── filehandle (fh) ─────────│                                    │
+    │═ kXR_read / pgread(fh,off) ══►│  thread-pool preadv ──────────────►│ pread()
+    │◄═══ data  (+ per-page CRC32c)═│  event loop stays free to serve    │
+    │      … pipelined read loop …  │      other connections             │
+    │── kXR_close (fh) ────────────►│  access-log line + metrics ++      │
+    │◄──── ok ──────────────────────│                                    │
+```
+
+### Why one blocking `read` can't stall 10,000 connections
+
+nginx workers must never block. Every disk syscall is handed to a thread pool;
+the worker keeps framing protocol and servicing other sockets while the read is
+in flight, then picks up the completion as just another event:
+
+```text
+   epoll worker  (never blocks)              thread pool  (blocking syscalls)
+   ┌─────────────────────────────┐          ┌────────────────────────────────┐
+   │ parse kXR_read frame        │          │  thr-1   preadv()  ──► disk     │
+   │ enqueue read task ──────────┼────────► │  thr-2   pwrite()  ──► disk     │
+   │ … serve other conns …       │          │  thr-3   CRC32c  (SSE4.2)       │
+   │ ◄── completion event ───────┼──────────┤  thr-4   …                      │
+   │ frame reply, sendfile / TLS │          └────────────────────────────────┘
+   └─────────────────────────────┘           thread_pool default=4, max_queue
+        one worker per CPU core               cleartext → file-backed sendfile
+                                              TLS       → memory-backed buffers
+```
+
+---
+
 ## Three ways to deploy
 
 ```text
@@ -297,6 +402,61 @@ All 32 active opcodes are implemented — `open`, `read`, `pgread`, `readv`, `wr
   directories cause `nginx -t` to fail with explicit `emerg` errors before any
   traffic is accepted
 - **License:** AGPL-3.0-only
+
+---
+
+## Performance & resilience
+
+`nginx-xrootd` aims for **parity with reference XRootD on a healthy network** and to
+**degrade gracefully when the network is not**. The figures below come from the
+in-repo fault-injection harness (`tests/resilience/` — an in-process TCP fault proxy
+plus an ASAN+TLS read harness). They are **same-machine (loopback) numbers —
+*relative* comparisons, not absolute hardware benchmarks** (loopback throughput is
+memory-bandwidth-bound; treat the ratios, not the GB/s).
+
+### Clean network — parity with the reference `xrootd` daemon
+
+Serving a 64 MiB file, `nginx-xrootd` matches the reference XRootD server within
+run-to-run noise on every transport:
+
+| transport (64 MiB read) | nginx-xrootd | reference XRootD |
+|---|---|---|
+| `root://` | ~1.0–1.2 GB/s | ~1.0–1.2 GB/s |
+| HTTP GET (WebDAV vs XrdHttp) | ~1.9–2.2 GB/s | ~1.9–2.2 GB/s |
+
+### Less-than-ideal networking — where the stack holds up
+
+Real links reorder packets, drop them, and reset connections — "bad WiFi from a
+laptop abroad", a flaky transatlantic path, a saturated edge. Two cases:
+
+**Packet reordering** is, on TCP, a pure *latency* tax (the kernel reassembles in
+order before any byte reaches the application). Every client × server combination
+converges to the same curve (~118 MB/s at 1% reorder) and stays **byte-exact** —
+`nginx-xrootd` and reference XRootD are indistinguishable here.
+
+**Packet loss** (modeled as connection severs — harsher than `netem` drop, which TCP
+would merely retransmit) is where *client* resilience decides the outcome, and the
+native client + module stack stays correct where the stock stack does not:
+
+| 64 MiB download, 1% loss | nginx-xrootd + native `xrdcp` | reference XRootD + `xrdcp` |
+|---|---|---|
+| `root://` | ✅ **8/8 byte-exact**, bounded (~107 MB/s; ~660 tuned) | ⚠️ completes but 15–45 s stalls (~2.2 MB/s) |
+| HTTP | ✅ **8/8 byte-exact** (HTTP `Range`-resume) | ❌ `xrdcp` cannot copy `http://` at all |
+
+The native `xrdcp` rides out a lossy link the way `xrootdfs` does — reconnect,
+re-authenticate, reopen the handle, and **resume at the byte offset** — over
+`root://` (graceful to ~10% sever-loss) and, as of recent work, over HTTP via
+`Range` requests (now correct to ≥1% loss, a **~1000× jump in loss tolerance**:
+plain HTTP downloads previously failed above ~0.001%). Integrity is never traded for
+speed: transfers that complete are always byte-exact md5; under heavy loss they slow
+down, they don't corrupt or silently truncate.
+
+> **In short:** on a good network you get reference-XRootD throughput; on a bad one,
+> transfers still **finish, byte-exact**, instead of failing. Full methodology,
+> per-level tables, the resilience knobs (`xrootd_pipeline_depth`,
+> `xrootd_tcp_congestion`, `XRDC_MAX_STALL_MS`/`XRDC_BACKOFF_BASE_MS`), and the honest
+> caveats are in [phase-53: reordering & packet-loss resilience](docs/refactor/phase-53-reordering-loss-resilience.md)
+> and [`tests/resilience/`](tests/resilience/).
 
 ---
 

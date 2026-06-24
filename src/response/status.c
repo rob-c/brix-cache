@@ -1,5 +1,6 @@
 #include "ngx_xrootd_module.h"
 #include "../compat/alloc_guard.h"
+#include "../compat/pgio.h"   /* xrdp_pg_bad_t — CSE bad-page descriptor */
 
 /* ---- Function: xrootd_send_pgwrite_status() — send pgwrite completion status with CRC32c ----
  *
@@ -33,7 +34,7 @@ xrootd_send_pgwrite_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     rsp->bdy.streamID[0] = ctx->cur_streamid[0];
     rsp->bdy.streamID[1] = ctx->cur_streamid[1];
     rsp->bdy.requestid = (kXR_char) (kXR_pgwrite - kXR_1stRequest);
-    rsp->bdy.resptype = 0;
+    rsp->bdy.resptype = kXR_FinalResult;
     ngx_memzero(rsp->bdy.reserved, sizeof(rsp->bdy.reserved));
     rsp->bdy.dlen = htonl(0);
 
@@ -43,6 +44,90 @@ xrootd_send_pgwrite_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     rsp->bdy.crc32c = htonl(crc);
 
     return xrootd_queue_response(ctx, c, (u_char *) rsp, sizeof(*rsp));
+}
+
+/* ---- Function: xrootd_send_pgwrite_cse() — pgwrite SUCCESS frame with a
+ *               checksum-error (CSE) retransmit list ----
+ *
+ * WHAT: Sends the "accept-then-correct" kXR_status reply when one or more pages
+ *       failed CRC32c verification. Unlike xrootd_send_pgwrite_status (the
+ *       no-error 32-byte frame), this appends a ServerResponseBody_pgWrCSE
+ *       trailer plus a big-endian vector of the corrupt pages' file offsets, so
+ *       the client knows exactly which pages to resend with kXR_pgRetry. The
+ *       status is SUCCESS (kXR_status / kXR_FinalResult), not kXR_error — the
+ *       data has already been written; the client must correct it.
+ *
+ * WHY: Stock XRootD (XrdXrootdPgwBadCS::boInfo) reports checksum failures via
+ *      this in-band list rather than a hard error so a single corrupt page does
+ *      not abort a multi-GB transfer. The two CRC32c covers (body crc32c over
+ *      streamID..end, cseCRC over dlFirst..bof end) let the client validate the
+ *      frame and the list independently.
+ *
+ * HOW: One pool buffer holds [hdr|bdy|pgw|cse|bof[n]]. bdy.dlen = sizeof(cse) +
+ *      n*8 (the trailer the client reads after the 32-byte head); hdr.dlen adds
+ *      the same to the base 24. dlFirst/dlLast carry the first/last bad pages'
+ *      fragment lengths (short for unaligned first/last pages). Falls back to
+ *      xrootd_send_pgwrite_status when n == 0. */
+ngx_int_t
+xrootd_send_pgwrite_cse(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    int64_t write_offset, const xrdp_pg_bad_t *bad, size_t n)
+{
+    ServerStatusResponse_pgWrite *rsp;
+    ServerResponseBody_pgWrCSE   *cse;
+    kXR_int64                    *bof;
+    u_char   *buf;
+    size_t    cse_len, total, body_crc_len, cse_crc_len, i;
+    uint32_t  crc;
+
+    if (n == 0 || bad == NULL) {
+        return xrootd_send_pgwrite_status(ctx, c, write_offset);
+    }
+
+    cse_len = sizeof(*cse) + n * sizeof(kXR_int64);
+    total   = sizeof(*rsp) + cse_len;
+
+    XROOTD_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+
+    rsp = (ServerStatusResponse_pgWrite *) buf;
+    cse = (ServerResponseBody_pgWrCSE *) (buf + sizeof(*rsp));
+    bof = (kXR_int64 *) (buf + sizeof(*rsp) + sizeof(*cse));
+
+    /* Stock srsComplete convention: hdr.dlen counts ONLY the fixed status body
+     * (bdy + pgw offset = 24).  The CSE trailer follows as separate `data` whose
+     * length is advertised in bdy.dlen — exactly like pgread page data — and
+     * carries its own cseCRC.  The body crc32c therefore covers only the 20-byte
+     * fixed head, never the variable trailer. */
+    rsp->hdr.streamid[0] = ctx->cur_streamid[0];
+    rsp->hdr.streamid[1] = ctx->cur_streamid[1];
+    rsp->hdr.status = htons(kXR_status);
+    rsp->hdr.dlen   = htonl((uint32_t) (sizeof(rsp->bdy) + sizeof(rsp->pgw)));
+
+    rsp->bdy.streamID[0] = ctx->cur_streamid[0];
+    rsp->bdy.streamID[1] = ctx->cur_streamid[1];
+    rsp->bdy.requestid = (kXR_char) (kXR_pgwrite - kXR_1stRequest);
+    rsp->bdy.resptype  = kXR_FinalResult;
+    ngx_memzero(rsp->bdy.reserved, sizeof(rsp->bdy.reserved));
+    rsp->bdy.dlen = htonl((uint32_t) cse_len);
+
+    rsp->pgw.offset = (kXR_int64) htobe64((uint64_t) write_offset);
+
+    cse->dlFirst = (kXR_int16) htons((uint16_t) bad[0].dlen);
+    cse->dlLast  = (kXR_int16) htons((uint16_t) bad[n - 1].dlen);
+    for (i = 0; i < n; i++) {
+        bof[i] = (kXR_int64) htobe64((uint64_t) bad[i].off);
+    }
+
+    /* cseCRC covers everything after itself: dlFirst..end of bof[]. */
+    cse_crc_len = cse_len - sizeof(cse->cseCRC);
+    cse->cseCRC = htonl(xrootd_crc32c((u_char *) cse + sizeof(cse->cseCRC),
+                                      cse_crc_len));
+
+    /* body crc32c covers the 20-byte fixed head only (streamID..pgw.offset). */
+    body_crc_len = sizeof(rsp->bdy) - sizeof(rsp->bdy.crc32c) + sizeof(rsp->pgw);
+    crc = xrootd_crc32c(&rsp->bdy.streamID[0], body_crc_len);
+    rsp->bdy.crc32c = htonl(crc);
+
+    return xrootd_queue_response(ctx, c, buf, total);
 }
 
 void
@@ -74,7 +159,7 @@ xrootd_build_pgread_status(xrootd_ctx_t *ctx, int64_t file_offset,
     out->bdy.streamID[0] = ctx->cur_streamid[0];
     out->bdy.streamID[1] = ctx->cur_streamid[1];
     out->bdy.requestid = (kXR_char) (kXR_pgread - kXR_1stRequest);
-    out->bdy.resptype = 0;
+    out->bdy.resptype = kXR_FinalResult;
     ngx_memzero(out->bdy.reserved, sizeof(out->bdy.reserved));
     out->bdy.dlen = htonl(total_with_crcs);
 

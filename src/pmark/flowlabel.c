@@ -81,7 +81,10 @@ xrootd_pmark_flowlabel_usable(ngx_log_t *log)
      * refuses (EPERM / sysctl off), specific-label marking is not possible. */
     ngx_memzero(&fl, sizeof(fl));
     fl.flr_dst   = in6addr_loopback;
-    fl.flr_label = htonl(XROOTD_PMARK_FL_VERSION << 16);   /* arbitrary test */
+    /* A representative in-range structural label (exp/act minima) just to learn
+     * whether the kernel will lease a SPECIFIC label on this host at all. */
+    fl.flr_label = htonl(xrootd_pmark_flowlabel_encode(XROOTD_PMARK_EXP_MIN,
+                                                       XROOTD_PMARK_ACT_MIN));
     fl.flr_action = PMARK_FL_A_GET;
     fl.flr_flags  = PMARK_FL_F_CREATE;
     fl.flr_share  = PMARK_FL_S_EXCL;
@@ -111,7 +114,10 @@ pmark_flowlabel_lease(int fd, const struct in6_addr *dst6, ngx_uint_t exp,
     uint32_t                   label;
     int                        on = 1;
 
-    label = xrootd_pmark_flowlabel_encode(exp, act);
+    /* Structural bits (community + activity) plus 5 random entropy bits, set once
+     * here per flow so same-(exp,act) flows hash differently for ECMP (spec §4). */
+    label = xrootd_pmark_flowlabel_encode(exp, act)
+            | ((uint32_t) ngx_random() & XROOTD_PMARK_FL_ENTROPY_MASK);
 
     ngx_memzero(&fl, sizeof(fl));
     fl.flr_dst    = *dst6;

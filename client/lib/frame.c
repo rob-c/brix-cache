@@ -504,16 +504,29 @@ roundtrip_loop(xrdc_conn *c, void *hdr24, const void *payload, uint32_t plen,
                     fprintf(stderr, "redirect: budget exhausted (>%d hops)\n",
                             XRDC_REDIR_MAX);
                 }
-                xrdc_status_set(st, XRDC_EPROTO, 0,
+                xrdc_status_set(st, XRDC_EREDIRECT, 0,
                                 "too many redirects (>%d)", XRDC_REDIR_MAX);
                 return -1;
             }
             xrootd_format_host_port(rhost, (uint16_t) rport, hp, sizeof(hp));
+            /* Immediate self-redirect: the server we are talking to right now
+             * bounced us straight back to itself.  That is an unambiguous loop;
+             * fail fast here rather than reconnecting to it (which would chase
+             * the loop until the connect timeout — up to 15s per hop). */
+            if (rport == c->port && strcmp(rhost, c->host) == 0) {
+                if (c->diag.redir_trace) {
+                    fprintf(stderr, "redirect: self-loop to %s\n", hp);
+                }
+                xrdc_status_set(st, XRDC_EREDIRECT, 0,
+                                "redirect loop: server redirected to itself (%s)",
+                                hp);
+                return -1;
+            }
             if (tried_seen(c, hp)) {
                 if (c->diag.redir_trace) {
                     fprintf(stderr, "redirect: LOOP to already-tried %s\n", hp);
                 }
-                xrdc_status_set(st, XRDC_EPROTO, 0,
+                xrdc_status_set(st, XRDC_EREDIRECT, 0,
                                 "redirect loop to already-tried %s", hp);
                 return -1;
             }

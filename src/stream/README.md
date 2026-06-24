@@ -103,7 +103,7 @@ ones a reviewer must know:
 | Health checks (Phase 22) | `xrootd_health_check`(`_interval`/`_timeout`/`_threshold`/`_blacklist`/`_type`) |
 | Traffic mirror (Phase 24) | `xrootd_stream_mirror_url`, `xrootd_mirror_opcodes`/`_exclude_opcodes`/`_sample`/`_strip_auth`/`_writes`/`_log_diverge`/`_timeout` |
 | KV / cache / rate-limit (Phase 20/25) | `xrootd_kv_zone`, `xrootd_token_cache`, `xrootd_auth_cache`, `xrootd_rate_limit`(+`_zone`/`_rule`), `xrootd_bandwidth_limit`, `xrootd_concurrency_limit` |
-| Tuning / misc | `xrootd_thread_pool`, `xrootd_memory_budget`, `xrootd_ckscan_depth`/`_max_files`, `xrootd_prepare_command` |
+| Tuning / misc | `xrootd_thread_pool`, `xrootd_memory_budget`, `xrootd_readv_segment_size` (per-`kXR_readv`-element cap = official `maxReadv_ior`; default 2 MiB−16, advertised via Qconfig `readv_ior_max`), `xrootd_ckscan_depth`/`_max_files`, `xrootd_prepare_command` |
 
 ## Control & data flow
 

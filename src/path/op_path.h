@@ -69,6 +69,21 @@ ngx_int_t xrootd_resolve_op_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
 int xrootd_op_path_forbidden_component(const char *reqpath);
 
 /*
+ * xrootd_reject_dotdot_path — for the EXTRACT-based ops (stat/open/dirlist/
+ * locate) that resolve straight through the kernel RESOLVE_BENEATH and so do
+ * NOT pass through xrootd_path_resolve_beneath's "."/".." rejection. If `reqpath`
+ * contains a ".." component, this logs the traversal warning + access line and
+ * sends a kXR_ArgInvalid error (exactly as xrootd_resolve_op_path does for the
+ * op-table ops), then returns 1; the caller must `return ctx->write_rc`. Returns
+ * 0 (and does nothing) when the path is clean. Only ".." is rejected — a lone
+ * "." is collapsed by the kernel and accepted, matching the reference for these
+ * read/metadata ops.
+ */
+int xrootd_reject_dotdot_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
+                              ngx_uint_t op_id, const char *op_name,
+                              const char *reqpath);
+
+/*
  * xrootd_path_resolve_beneath — realpath-free path validation + per-mode
  * existence gate, filling `resolved` with the confined root_canon+reqpath join.
  * The shared core of xrootd_resolve_op_path(); also called directly by kXR_mv

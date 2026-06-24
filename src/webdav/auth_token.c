@@ -6,6 +6,7 @@
 #include "../compat/http_headers.h"
 #include "../token/macaroon.h"
 #include "../token/token_cache.h"
+#include "../token/worker_cache.h"
 
 #include <string.h>
 
@@ -138,15 +139,32 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     token = (const char *) bearer.data;
     token_len = bearer.len;
  
-    /* Cross-worker JWT cache: short-circuit the signature verification when
-     * this token's fingerprint is already cached. */
+    /*
+     * Token-validation caches, consulted cheapest-first so token auth does not
+     * re-run crypto + JSON parsing on the event loop under load:
+     *   L1 — always-on, per-worker, lockless (lazily created here).  A hit skips
+     *        BOTH the signature verification AND the L2 spinlock.
+     *   L2 — the optional cross-worker SHM cache.  An L2 hit is promoted into L1
+     *        so the next presentation to this worker is an L1 hit.
+     * Only successfully validated claims are ever cached.
+     */
     int cache_hit = 0;
-    if (conf->token_cache_kv != NULL
-        && xrootd_token_cache_lookup(conf->token_cache_kv,
-                                     token, token_len, &claims))
+
+    if (conf->token_l1 == NULL) {
+        conf->token_l1 = xrootd_token_l1_create(ngx_cycle->pool,
+                                                XROOTD_TOKEN_L1_SLOTS);
+    }
+
+    if (xrootd_token_l1_lookup(conf->token_l1, token, token_len, &claims)) {
+        rc = 0;
+        cache_hit = 1;
+    } else if (conf->token_cache_kv != NULL
+               && xrootd_token_cache_lookup(conf->token_cache_kv,
+                                            token, token_len, &claims))
     {
         rc = 0;
         cache_hit = 1;
+        xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
     } else {
         rc = xrootd_token_validate(r->connection->log, token, token_len,
                                    conf->jwks_keys, conf->jwks_key_count,
@@ -189,10 +207,14 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
         return NGX_HTTP_UNAUTHORIZED;
     }
 
-    /* Cache the freshly verified claims for subsequent presentations. */
-    if (!cache_hit && conf->token_cache_kv != NULL) {
-        xrootd_token_cache_store(conf->token_cache_kv, token, token_len,
-                                 &claims);
+    /* Cache the freshly verified claims for subsequent presentations (L1 always,
+     * L2 when a SHM zone is configured). */
+    if (!cache_hit) {
+        xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
+        if (conf->token_cache_kv != NULL) {
+            xrootd_token_cache_store(conf->token_cache_kv, token, token_len,
+                                     &claims);
+        }
     }
 
     ctx->verified = 1;

@@ -41,7 +41,9 @@
 #define kXRS_rtag        3006       /* random challenge tag              */
 #define kXRS_signed_rtag 3007       /* signed random tag                 */
 #define kXRS_user        3008       /* username string                   */
+#define kXRS_creds       3010       /* credential bytes (XrdSecpwd)      */
 #define kXRS_version     3014       /* protocol version (int32)          */
+#define kXRS_status      3015       /* pwdStatus_t word (XrdSecpwd)      */
 #define kXRS_clnt_opts   3019       /* client option flags (int32)       */
 #define kXRS_x509        3022       /* X.509 certificate (PEM text)      */
 #define kXRS_issuer_hash 3023       /* CA subject name hash (uint32)     */

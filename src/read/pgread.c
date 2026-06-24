@@ -194,7 +194,6 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
     u_char                       *out_buf;
     size_t                        out_size;
     ServerStatusResponse_pgRead  *hdr_buf;
-    ngx_chain_t                  *cl_hdr;
     ngx_chain_t                  *rsp_chain;
     ngx_stream_xrootd_srv_conf_t *rconf;
     char                          detail[64];
@@ -225,6 +224,15 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
         XROOTD_OP_ERR(ctx, XROOTD_OP_PGREAD);
         return xrootd_send_error(ctx, c, kXR_IOError,
                                  "negative read offset");
+    }
+
+    /* The wire rlen is a signed 32-bit field; a negative request length is
+     * invalid.  Read unsigned it would turn -1 into ~4 GiB (then capped),
+     * silently succeeding where the reference rejects with kXR_ArgInvalid. */
+    if ((int32_t) ntohl((uint32_t) req->rlen) < 0) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_PGREAD);
+        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                 "negative read length");
     }
 
     if (rlen == 0) {
@@ -339,47 +347,11 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
         }
     }
 
-    hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
-    if (hdr_buf == NULL) {
+    rsp_chain = xrootd_build_pgread_chain(ctx, c, offset, out_buf,
+                                          (uint32_t) out_size);
+    if (rsp_chain == NULL) {
         xrootd_release_read_buffer(ctx, c, flat_buf);
         return NGX_ERROR;
-    }
-    xrootd_build_pgread_status(ctx, offset, (uint32_t) out_size, hdr_buf);
-
-    cl_hdr = ngx_alloc_chain_link(c->pool);
-    if (cl_hdr == NULL) {
-        xrootd_release_read_buffer(ctx, c, flat_buf);
-        return NGX_ERROR;
-    }
-    cl_hdr->buf = ngx_calloc_buf(c->pool);
-    if (cl_hdr->buf == NULL) {
-        xrootd_release_read_buffer(ctx, c, flat_buf);
-        return NGX_ERROR;
-    }
-    cl_hdr->buf->pos = (u_char *) hdr_buf;
-    cl_hdr->buf->last = cl_hdr->buf->pos + sizeof(*hdr_buf);
-    cl_hdr->buf->memory = 1;
-    cl_hdr->buf->last_buf = 0;
-
-    {
-        ngx_chain_t *cl_data;
-        ngx_buf_t   *bd;
-
-        cl_data = ngx_alloc_chain_link(c->pool);
-        bd = ngx_calloc_buf(c->pool);
-        if (cl_data == NULL || bd == NULL) {
-            xrootd_release_read_buffer(ctx, c, flat_buf);
-            return NGX_ERROR;
-        }
-        bd->pos = out_buf;
-        bd->last = out_buf + out_size;
-        bd->memory = 1;
-        bd->last_buf = 1;
-        cl_data->buf = bd;
-        cl_data->next = NULL;
-
-        cl_hdr->next = cl_data;
-        rsp_chain = cl_hdr;
     }
 
     ctx->files[idx].bytes_read += rlen;

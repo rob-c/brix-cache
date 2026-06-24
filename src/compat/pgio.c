@@ -91,3 +91,59 @@ xrdp_pg_decode(const uint8_t *pg, size_t pglen, int64_t file_off,
     }
     return (ssize_t) out;
 }
+
+ssize_t
+xrdp_pg_decode_collect(const uint8_t *pg, size_t pglen, int64_t file_off,
+                       uint8_t *dst, size_t dstcap,
+                       xrdp_pg_bad_t *bad_out, size_t max_bad,
+                       size_t *bad_count)
+{
+    size_t  i   = 0;
+    size_t  out = 0;
+    int64_t cur = file_off;
+
+    *bad_count = 0;
+    if (file_off < 0) {
+        return -2;
+    }
+    while (i < pglen) {
+        uint32_t want, actual;
+        size_t   to_boundary, data_n;
+
+        /* A lone/short trailing CRC (≤ 4 bytes with no full page) is malformed. */
+        if (pglen - i <= XRDP_PG_CKSZ) {
+            return -2;
+        }
+        memcpy(&want, pg + i, XRDP_PG_CKSZ);   /* unaligned-safe BE read */
+        want = ntohl(want);
+        i   += XRDP_PG_CKSZ;
+
+        to_boundary = (size_t) kXR_pgPageSZ
+                      - (size_t) (cur & (int64_t) (kXR_pgPageSZ - 1));
+        data_n = (pglen - i < to_boundary) ? (pglen - i) : to_boundary;
+
+        if (out + data_n > dstcap) {
+            return -2;
+        }
+        if (cur > INT64_MAX - (int64_t) data_n) {
+            return -2;
+        }
+
+        /* Always copy (good or bad) so the caller writes every byte — stock
+         * "accept-then-correct". A mismatch is recorded, not fatal. */
+        actual = xrootd_crc32c_copy_value(pg + i, dst + out, data_n);
+        if (actual != want) {
+            if (*bad_count >= max_bad) {
+                *bad_count = max_bad;
+                return -3;
+            }
+            bad_out[*bad_count].off  = cur;
+            bad_out[*bad_count].dlen = (uint32_t) data_n;
+            (*bad_count)++;
+        }
+        out += data_n;
+        i   += data_n;
+        cur += data_n;
+    }
+    return (ssize_t) out;
+}

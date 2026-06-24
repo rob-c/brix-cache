@@ -14,6 +14,7 @@
 #include "lifecycle.h"
 #include "impersonate.h"
 #include "impersonate_proto.h"
+#include "../metrics/metrics.h"   /* xrootd_config_version_publish() */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -338,6 +339,16 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
     uid_t              wuid;
     int                lfd, rootfd;
     pid_t              inter;
+
+    /*
+     * Publish the config/reload fingerprint on every real config load (this is
+     * the module's single init_module hook, so it runs once per cycle in the
+     * master regardless of impersonation mode).  Skipped under `nginx -t`, which
+     * only validates the config and must not bump the live generation counter.
+     */
+    if (!ngx_test_config) {
+        xrootd_config_version_publish(cycle);
+    }
 
     if (imp_settings.mode != XROOTD_IMP_MAP || ngx_test_config) {
         return NGX_OK;

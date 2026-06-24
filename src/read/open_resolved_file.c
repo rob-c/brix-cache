@@ -9,6 +9,7 @@
 #include "../manager/pending.h"
 #include "../session/registry.h"
 #include "../compat/codec_core.h"
+#include "../protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
 
 #include <string.h>
 #include <unistd.h>
@@ -60,7 +61,17 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * filesystem target for the open(2) call below.
 	 */
 	char               posc_temp_path[PATH_MAX];
-	ngx_flag_t         use_posc = (is_write && (options & kXR_posc)) ? 1 : 0;
+	ngx_flag_t         use_posc   = (is_write && (options & kXR_posc)) ? 1 : 0;
+	/*
+	 * Upload resume (xrootd_upload_resume on): stage EVERY writable open to a
+	 * deterministic identity-keyed partial that survives a disconnect, so a
+	 * reconnecting client resumes in place.  This is a superset of POSC staging
+	 * (same temp-then-rename commit), so `stage` drives the open + commit and
+	 * use_resume only changes (a) the temp path is deterministic, not random,
+	 * and (b) the partial is preserved — not unlinked — on a non-clean close.
+	 */
+	ngx_flag_t         use_resume = (is_write && conf->upload_resume) ? 1 : 0;
+	ngx_flag_t         stage      = use_posc || use_resume;
 
 	want_stat = (options & kXR_retstat) ? 1 : 0;
 	from_cache = (conf->cache
@@ -74,12 +85,68 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * with a ".posc.<pid>.<random>" suffix appended.  This keeps the temp
 	 * file on the same filesystem as the destination so rename(2) is atomic.
 	 */
-	if (use_posc) {
+	/* When staging is active the kXR_new exclusive-create check must run against
+	 * the FINAL path, not the staging temp (which is what actually gets O_EXCL):
+	 * staging never opens the final, so without this an exclusive create over an
+	 * existing object would wrongly succeed and overwrite it on commit. */
+	if (stage && (options & kXR_new)) {
+		struct stat fst;
+		if (stat(resolved, &fst) == 0) {
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_ItExists,
+			                  "file already exists");
+		}
+	}
+
+	if (use_resume) {
+		/* Deterministic, identity-keyed: a reconnecting client re-opening the
+		 * same final path lands on the SAME partial and resumes from its
+		 * offset.  Anonymous (empty dn) shares per-path (no per-user isolation
+		 * on such an endpoint anyway).  When xrootd_stage_dir is set the partial
+		 * lives on that fast device and the close-time commit moves it to the
+		 * destination (cross-device copy). */
+		const char *principal = ctx->dn[0] ? ctx->dn : NULL;
+		const char *stage_dir = conf->upload_stage_dir_canon[0]
+		                        ? conf->upload_stage_dir_canon : NULL;
+		if (xrootd_make_resume_path(resolved, principal, stage_dir,
+		                            posc_temp_path, sizeof(posc_temp_path))
+		    != NGX_OK) {
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_ServerError,
+			                  "resume temp path too long");
+		}
+	} else if (use_posc) {
 		if (xrootd_make_tmp_path(resolved, posc_temp_path,
 		                         sizeof(posc_temp_path)) != NGX_OK) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_ServerError,
 			                  "POSC temp path too long");
+		}
+	}
+
+	/*
+	 * In-place update vs upload: resume staging assumes a writable open is an
+	 * UPLOAD — it starts from an empty partial and commits it over the final path
+	 * with a rename.  But a pure update-in-place open (kXR_open_updt, neither
+	 * kXR_delete/truncate nor kXR_new/create) on an ALREADY-COMMITTED file is a
+	 * read-modify-write that must preserve the bytes the client does not rewrite.
+	 * Staged through an empty partial, those bytes are silently lost on the commit
+	 * rename (e.g. a 100-byte write at offset 100 of a 200-byte file zero-fills
+	 * [0,100)) — a data-integrity bug, and a divergence from stock xrootd which
+	 * always edits such a file in place.
+	 *
+	 * Only stage such an open when a resume partial ALREADY exists — that is a
+	 * genuine reconnect continuing an interrupted upload (the partial holds the
+	 * bytes received so far).  When no partial exists and the final file is a real
+	 * committed regular file, fall through to opening it directly, in place.
+	 */
+	if (use_resume && !(options & kXR_delete) && !(options & kXR_new)) {
+		struct stat pst, fst;
+
+		if (stat(posc_temp_path, &pst) != 0
+		    && stat(resolved, &fst) == 0 && S_ISREG(fst.st_mode)) {
+			use_resume = 0;
+			stage = use_posc;
 		}
 	}
 
@@ -89,33 +156,11 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 							  resolved, "rd", kXR_isDirectory,
 							  "is a directory");
 		}
-
-		oflags = O_RDONLY | O_NOCTTY;
-		is_readable = 1;
-	} else {
-		if (options & kXR_open_updt) {
-			oflags = O_RDWR;
-			is_readable = 1;
-		} else if (options & kXR_open_apnd) {
-			oflags = O_WRONLY | O_APPEND;
-			is_readable = 0;
-		} else {
-			oflags = O_WRONLY;
-			is_readable = 0;
-		}
-
-		if (options & kXR_new) {
-			oflags |= O_CREAT;
-			if (!(options & kXR_delete)) {
-				oflags |= O_EXCL;
-			}
-		}
-		if (options & kXR_delete) {
-			oflags |= O_CREAT | O_TRUNC;
-		}
-
-		oflags |= O_NOCTTY;
 	}
+
+	/* The kXR_open option-bit -> POSIX open(2) mapping is the single-sourced
+	 * inverse of the client's request builder (protocol/open_flags.h). */
+	xrootd_open_options_to_posix(options, is_write, &oflags, &is_readable);
 
 	/* Convert XRootD mode bits (Unix permission bits in low 9 bits). */
 	mode_t create_mode = (mode_bits & 0777);
@@ -136,12 +181,26 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * final path.  The O_CREAT flag is forced so the temp file is
 		 * always created fresh; O_EXCL is intentionally omitted so that a
 		 * previous crash leaving a stale temp file does not block a retry. */
-		const char *open_path = use_posc ? posc_temp_path : resolved;
+		const char *open_path = stage ? posc_temp_path : resolved;
 
-		/* POSC always needs O_CREAT on the staging temp path. */
-		int effective_oflags = oflags | (use_posc ? O_CREAT : 0);
+		/* Staged opens (POSC or resume) always need O_CREAT on the temp path.
+		 * O_TRUNC is inherited from `oflags`: a fresh create/truncate open
+		 * starts the partial empty; a resume re-open (kXR_open_updt, no trunc)
+		 * preserves the already-written bytes. */
+		int effective_oflags = oflags | (stage ? O_CREAT : 0);
 
-		if (from_cache) {
+		/* Resume staging on a configured fast device: the partial lives OUTSIDE
+		 * root_canon, so it cannot go through the RESOLVE_BENEATH open.  Its
+		 * basename is a server-generated hash (no client-controlled component)
+		 * inside the operator-trusted, canonicalized stage dir, so a direct open
+		 * with O_NOFOLLOW on the final component is safe. */
+		ngx_flag_t stage_external = use_resume
+		    && conf->upload_stage_dir_canon[0] != '\0';
+
+		if (stage_external) {
+			fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,
+			          create_mode);
+		} else if (from_cache) {
 			/* cache_root files are pre-validated; use O_CLOEXEC to prevent
 			 * FD leakage into any forked child (e.g. tpc_curl). */
 			fd = open(open_path, effective_oflags | O_CLOEXEC, create_mode);
@@ -173,10 +232,13 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 							  kXR_NotFound, "file not found");
 		}
 		if (err == EEXIST) {
+			/* O_EXCL (kXR_new without kXR_delete) on an existing file → EEXIST,
+			 * which the reference maps to kXR_ItExists (the code raised by the
+			 * kXR_new flag), NOT kXR_FileLocked. */
 			XROOTD_RETURN_ERR(ctx, c,
 							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
 							  "OPEN", resolved, mode_str,
-							  kXR_FileLocked, "file already exists");
+							  kXR_ItExists, "file already exists");
 		}
 		if (err == EACCES) {
 			XROOTD_RETURN_ERR(ctx, c,
@@ -284,7 +346,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * upload.  Store the final target in posc_final_path; xrootd_handle_close
 	 * will rename() on clean close and then clear this field before freeing.
 	 */
-	if (use_posc) {
+	if (stage) {
 		if (xrootd_set_fhandle_path(ctx, c, idx, posc_temp_path) != NGX_OK) {
 			xrootd_free_fhandle(ctx, idx);
 			return NGX_ERROR;
@@ -297,6 +359,9 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		}
 		ngx_cpystrn((u_char *) ctx->files[idx].posc_final_path,
 		            (u_char *) resolved, strlen(resolved) + 1);
+		/* Resume staging: keep the partial on a non-clean close (the difference
+		 * from plain POSC, which discards it).  See xrootd_free_fhandle. */
+		ctx->files[idx].is_resume = use_resume ? 1 : 0;
 	} else {
 		if (xrootd_set_fhandle_path(ctx, c, idx, resolved) != NGX_OK) {
 			xrootd_free_fhandle(ctx, idx);
@@ -405,50 +470,58 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		}
 	}
 
-	bodylen = sizeof(ServerOpenBody);
-	if (want_stat) {
-		bodylen += strlen(statbuf) + 1;
-	}
-
-	total = XRD_RESPONSE_HDR_LEN + bodylen;
-	buf   = ngx_palloc(c->pool, total);
-	if (buf == NULL) {
-		xrootd_free_fhandle(ctx, idx);
-		return NGX_ERROR;
-	}
-
-	xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok,
-						  (uint32_t) bodylen,
-						  (ServerResponseHdr *) buf);
-
-	ngx_memzero(&body, sizeof(body));
-	body.fhandle[0] = (u_char) idx;
-	body.cpsize     = 0;
 	/*
-	 * Phase-42 W4 — signal inline read compression back to the client via the
-	 * (otherwise vestigial) cpsize/cptype fields.  Only set when a codec was
-	 * actually negotiated for this read handle, so stock clients (which never
-	 * send the opaque) still see cpsize==0 and the byte-identical reply.
+	 * Build the open response body.  The reference (XrdXrootdXeq.cc:1501) returns
+	 * ONLY the 4-byte file handle by default; the cpsize/cptype tail (→ the full
+	 * 12-byte ServerOpenBody) is appended ONLY when the client requested it via
+	 * kXR_retstat (want_stat) or kXR_compress — here also when this gateway has a
+	 * negotiated inline codec to signal.  Always emitting 12 bytes diverged from
+	 * every stock client.
+	 *
+	 * Phase-42 W4/W5: signal the negotiated inline read/write codec via the
+	 * (otherwise vestigial) cpsize/cptype fields — at most one of read_codec /
+	 * write_codec is set; cpsize is big-endian per the wire convention (the
+	 * client keys off cptype[0]).
 	 */
 	{
-		/* Signal the negotiated codec for whichever direction this handle uses
-		 * (read_codec for W4 reads, write_codec for W5 writes — at most one is
-		 * set).  cpsize is a kXR_int32 wire field, big-endian per the XRootD wire
-		 * convention (the client keys off cptype[0], a byte, so cpsize endianness
-		 * is not load-bearing, but emit it conformantly). */
-		uint8_t sig_codec = ctx->files[idx].read_codec
+		uint8_t    sig_codec = ctx->files[idx].read_codec
 		    ? ctx->files[idx].read_codec : ctx->files[idx].write_codec;
-		if (sig_codec != XROOTD_CODEC_IDENTITY) {
+		ngx_flag_t have_codec = (sig_codec != XROOTD_CODEC_IDENTITY);
+		ngx_flag_t full_body  = want_stat || have_codec;
+		size_t     hbytes     = full_body ? sizeof(ServerOpenBody)
+		                                   : sizeof(body.fhandle);  /* 4 */
+
+		ngx_memzero(&body, sizeof(body));
+		body.fhandle[0] = (u_char) idx;
+		body.cpsize     = 0;
+		if (have_codec) {
 			body.cpsize    = (kXR_int32) htonl(XROOTD_INLINE_CMP_MAGIC);
 			body.cptype[0] = sig_codec;
 		}
-	}
-	ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, sizeof(body));
 
-	if (want_stat) {
-		size_t slen = strlen(statbuf) + 1;
-		ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ServerOpenBody),
-				   statbuf, slen);
+		bodylen = hbytes;
+		if (want_stat) {
+			bodylen += strlen(statbuf) + 1;
+		}
+
+		total = XRD_RESPONSE_HDR_LEN + bodylen;
+		buf   = ngx_palloc(c->pool, total);
+		if (buf == NULL) {
+			xrootd_free_fhandle(ctx, idx);
+			return NGX_ERROR;
+		}
+
+		xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+							  (uint32_t) bodylen,
+							  (ServerResponseHdr *) buf);
+
+		ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, hbytes);
+
+		if (want_stat) {
+			size_t slen = strlen(statbuf) + 1;
+			ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ServerOpenBody),
+					   statbuf, slen);
+		}
 	}
 
 	ctx->files[idx].bytes_read    = 0;

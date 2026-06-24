@@ -65,4 +65,15 @@ void xrootd_pending_unlock(void);
  */
 void xrootd_pending_remove(uint32_t streamid, ngx_pid_t worker_pid);
 
+/*
+ * Phase 51 (A4): sweep the table and free every expired slot, returning the
+ * count reaped.  The insert path already reaps opportunistically; this lets a
+ * periodic timer reclaim abandoned locates (a manager that never answered)
+ * promptly even when no new locates arrive.  Safe no-op when the zone is absent.
+ */
+ngx_uint_t xrootd_pending_reap_expired(void);
+
+/* A4: how often the worker-0 reaper sweeps (ms). */
+#define XROOTD_PENDING_REAP_INTERVAL_MS  5000
+
 #endif /* XROOTD_MANAGER_PENDING_H */

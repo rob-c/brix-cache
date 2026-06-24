@@ -983,10 +983,12 @@ class TestPreAuthRejection:
 class TestPreAuthAllowed:
     """Protocol, ping, and login should work before auth."""
 
-    def test_preauth_ping_ok(self):
-        """kXR_ping should succeed before login."""
-        if CROSS_BACKEND == "xrootd":
-            pytest.skip("reference xrootd rejects pre-auth ping")
+    def test_preauth_ping_rejected(self):
+        """kXR_ping before login is rejected, matching stock xrootd.
+
+        Stock answers a pre-auth ping with kXR_error ("user not logged in"); our
+        server routes kXR_ping through the same pre-login auth gate, so both
+        backends reject it identically (no cross-backend skip needed)."""
         with _raw_session() as sock:
             req = struct.pack(
                 "!2sH16sI",
@@ -996,7 +998,7 @@ class TestPreAuthAllowed:
             sock.sendall(req)
             status, _body = _read_response(sock)
 
-        assert status == kXR_OK
+        assert status == kXR_ERROR, "pre-auth ping must be rejected (stock parity)"
 
     def test_preauth_protocol_ok(self):
         """kXR_protocol should succeed before login."""
@@ -1038,7 +1040,7 @@ class TestUnknownOpcode:
             status, body = _read_response(sock)
 
         assert status == kXR_ERROR
-        assert _error_code(body) == kXR_Unsupported
+        assert _error_code(body) == kXR_InvalidRequest
 
     def test_unknown_opcode_before_login(self):
         """A bogus request ID before login should also be rejected."""

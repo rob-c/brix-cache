@@ -1,4 +1,5 @@
 #include "ngx_xrootd_module.h"
+#include "aio/uring.h"
 
 
 /*
@@ -71,8 +72,42 @@ xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
 {
     *posted = 0;
 
+    /*
+     * Phase 44 tier 1: io_uring.  Compiled out entirely in a stub build (no
+     * liburing), so this is exactly the historical thread-pool path there.  The
+     * ring is selected only when it is up for this worker, not killed at
+     * runtime, the op is mapped, and the ring is not full; any prep/submit
+     * failure leaves *posted = 0 and falls through to the thread pool below.
+     */
+#if (XROOTD_HAVE_LIBURING)
+    {
+        xrootd_uring_t   *u  = xrootd_uring_worker();
+        xrootd_uring_op_e op = xrootd_uring_op_for(task);
+
+        if (u != NULL && u->enabled && op != XRD_URING_OP_NONE) {
+            if (!xrootd_uring_disabled(u) && u->inflight < u->queue_depth
+                && xrootd_uring_submit(ctx, c, task, op, posted) == NGX_OK
+                && *posted)
+            {
+                /* metrics: a mapped op that the ring accepted. */
+                XROOTD_SRV_METRIC_INC(ctx, io_uring_ops_total);
+                if (ctx->metrics != NULL && ctx->metrics->io_uring_active == 0) {
+                    ctx->metrics->io_uring_active = 1;
+                }
+                ctx->state = XRD_ST_AIO;
+                return NGX_OK;
+            }
+            /* metrics: a mapped op the ring could not take (killed / full /
+             * submit failed) — it falls through to the pool below. */
+            XROOTD_SRV_METRIC_INC(ctx, io_uring_fallback_total);
+        }
+    }
+#endif
+
+    /* Tier 2: thread pool (always built; the fallback for an unmapped op, a
+     * full ring, or a stub build). */
     if (pool == NULL) {
-        return NGX_OK;
+        return NGX_OK;             /* tier 3: caller does inline sync I/O */
     }
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {

@@ -32,6 +32,7 @@
 #include "../compat/net_target.h"
 #include "../compat/staged_file.h"
 #include "../dashboard/dashboard_tracking.h"
+#include "../aio/aio.h"          /* xrootd_task_bind */
 #include "../tpc/common/metrics.h"
 #include "../tpc/common/registry.h"
 
@@ -504,9 +505,7 @@ webdav_tpc_marker_start(ngx_http_request_t *r,
     ngx_cpystrn((u_char *) tt->local_path,
                 (u_char *) (tmp_path ? tmp_path : ""), sizeof(tt->local_path));
 
-    task->handler       = tpc_marker_thread_func;
-    task->event.handler = tpc_marker_thread_done;
-    task->event.data    = task;
+    xrootd_task_bind(task, tpc_marker_thread_func, tpc_marker_thread_done);
     task->event.log     = r->connection->log;
 
     /* Pool cleanup: abort in-progress temp file on request destruction. */

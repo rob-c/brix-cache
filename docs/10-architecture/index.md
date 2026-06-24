@@ -135,3 +135,9 @@ and different code.
 - [S3 request lifecycle](s3.md) — SigV4 auth gate, method routing, multipart staging
 
 ---
+
+## Design rationale
+
+- [**Reliability under load**](reliability-under-load.md) — load-induced failure modes observed in the official XRootD stack (XrdCl sync-call deadlock, dirlist framing corruption, CMS-heartbeat-drop false NotFound, per-request token-crypto stalls) and the module's event-loop / caching / availability-biased-selection mitigations for each
+
+---

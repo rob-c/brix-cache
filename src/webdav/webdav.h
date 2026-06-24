@@ -139,6 +139,17 @@ typedef struct {
     /* --- Write permissions / TPC --- */
     ngx_flag_t     tpc;             /* 1 to allow HTTP-TPC (third-party copy) */
     ngx_flag_t     tape_rest;       /* 1 to serve the WLCG /api/v1 Tape REST API */
+    ngx_flag_t     upload_resume;   /* [xrootd_webdav_upload_resume on|off] default
+                                     * ON.  When on, a Content-Range PUT writes its
+                                     * chunk to a persistent identity-keyed partial
+                                     * at the given offset and commits only when the
+                                     * upload is complete; a 409 reports X-Upload-
+                                     * Offset.  Lets a davs:// upload resume across
+                                     * an nginx restart.  See src/webdav/put.c. */
+    ngx_str_t      upload_stage_dir;      /* [xrootd_webdav_stage_dir <path>] optional
+                                     * fast-cache staging device; empty = stage
+                                     * adjacent to the destination. */
+    char           upload_stage_dir_canon[PATH_MAX];
 
     /* --- HTTP-TPC SSRF policy --- */
     ngx_flag_t     tpc_allow_local;   /* 0: reject loopback+link-local targets */
@@ -222,7 +233,10 @@ typedef struct {
 
     /* ---- Phase 20: shared-memory caches & rate limiting ---- */
     xrootd_kv_t                  *token_cache_kv; /* [xrootd_token_cache zone=]
-                                                     JWT validation cache; NULL = off */
+                                                     JWT validation cache (L2/SHM); NULL = off */
+    /* Phase 50: always-on per-worker L1 token-validation cache (lockless),
+     * lazily created on first token auth — see token/worker_cache.h. */
+    struct xrootd_token_l1_s     *token_l1;
     xrootd_rate_limit_conf_t      rate_limit;     /* [xrootd_rate_limit zone= rate= burst= key=]
                                                      per-IP request throttle; kv NULL = off */
 
@@ -247,6 +261,12 @@ typedef struct {
 
     /* ---- XrdAcc authorization engine (off by default) ---- */
     xrootd_acc_http_t         acc;               /* settings + per-worker state */
+
+    /* Per-socket TCP congestion control (e.g. "bbr") applied to the HTTP
+     * connection before the GET body is served; empty = kernel default.  The
+     * sender's CC governs download throughput, and BBR ignores the spurious loss
+     * signals packet reordering induces. [xrootd_tcp_congestion] */
+    ngx_str_t                 tcp_congestion;
 } ngx_http_xrootd_webdav_loc_conf_t;
 
 /*

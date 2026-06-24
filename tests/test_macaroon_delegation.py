@@ -104,6 +104,10 @@ def parse_iso8601(s: str) -> float:
 
 MACAROON_SECRET_HEX = "deadbeef" * 8
 MACAROON_SECRET     = bytes.fromhex(MACAROON_SECRET_HEX)
+# Must match xrootd_webdav_token_issuer in the test config: the server pins a
+# macaroon's "location" to the configured issuer (issuer-pinning, fail-closed),
+# so a macaroon presented for auth must carry this exact location.
+TOKEN_ISSUER        = "https://test.example.com"
 
 
 @pytest.fixture(scope="module")
@@ -128,6 +132,7 @@ def auth_token():
         MACAROON_SECRET,
         "test-delegation-subject",
         ["activity:DOWNLOAD", "before:2030-01-01T00:00:00Z"],
+        location=TOKEN_ISSUER,
     )
 
 

@@ -649,9 +649,12 @@ xrootd_hc_timer_handler(ngx_event_t *ev)
         }
     }
 
-    /* Always re-arm (bounded to [scan_interval, hc_interval]) — a probe-launch
-     * failure or empty registry can never stop future scans. */
-    ngx_add_timer(ev, delay);
+    /* Re-arm (bounded to [scan_interval, hc_interval]) — a probe-launch
+     * failure or empty registry can never stop future scans.  Suppressed once
+     * the worker is exiting so the scan loop releases the draining worker. */
+    if (!ngx_exiting) {
+        ngx_add_timer(ev, delay);
+    }
 }
 
 void

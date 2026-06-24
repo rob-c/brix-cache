@@ -33,7 +33,9 @@
 #include "close.h"
 #include "../ngx_xrootd_module.h"
 #include "../cache/cache_internal.h"
+#include "../compat/staged_file.h"
 #include "../write/wrts_journal.h"
+#include "../write/pgw_fob.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -52,6 +54,25 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: kXR_close handle=%d", idx);
+
+    /* ---- pgwrite CSE close gate ----
+     * Refuse to close while any page written via kXR_pgwrite failed CRC32c and
+     * was never corrected by a kXR_pgRetry.  Otherwise the POSC rename / write-
+     * through flush below would commit known-corrupt bytes.  The handle is left
+     * OPEN (no free) so the client can resend the bad pages and close again —
+     * matching stock do_PgClose, which returns before FTab->Del(). */
+    if (ctx->files[idx].pgw_fob_enabled) {
+        uint32_t left = xrootd_pgw_fob_count(&ctx->files[idx]);
+
+        if (left > 0) {
+            char emsg[64];
+
+            snprintf(emsg, sizeof(emsg), "%u uncorrected checksum error%s",
+                     left, left == 1 ? "" : "s");
+            XROOTD_OP_ERR(ctx, XROOTD_OP_CLOSE);
+            return xrootd_send_error(ctx, c, kXR_ChkSumErr, emsg);
+        }
+    }
 
     conf = ngx_stream_get_module_srv_conf(ctx->session,
                                           ngx_stream_xrootd_module);
@@ -93,23 +114,40 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
         const char *temp_path  = ctx->files[idx].path;
         const char *final_path = ctx->files[idx].posc_final_path;
 
-        /* fsync before rename to ensure durability. */
-        (void) fsync(ctx->files[idx].fd);
+        /* When the partial lives on a separate stage device, record a durable
+         * "complete, pending stage-out" marker BEFORE the cross-device move so a
+         * worker death mid-move is recoverable: the reaper finishes the move on
+         * the next startup/sweep.  Removed once the commit succeeds. */
+        ngx_flag_t stage_tracked = (conf != NULL
+            && conf->upload_stage_dir_canon[0] != '\0'
+            && ctx->files[idx].is_resume);
+        if (stage_tracked) {
+            (void) xrootd_stage_mark_pending(temp_path, final_path, c->log);
+        }
 
-        if (rename(temp_path, final_path) != 0) {
+        /* Commit the staged temp onto the final path: fsync + atomic rename on
+         * the same filesystem, or copy-then-rename when the staging device
+         * (xrootd_stage_dir) differs from the storage (cross-device EXDEV). */
+        if (xrootd_commit_staged(ctx->files[idx].fd, temp_path, final_path,
+                                 c->log) != NGX_OK) {
             int err = errno;
             ngx_log_error(NGX_LOG_ERR, c->log, err,
-                          "xrootd: POSC rename \"%s\" -> \"%s\" failed",
+                          "xrootd: staged commit \"%s\" -> \"%s\" failed",
                           temp_path, final_path);
-            /* Discard the temp file and return an I/O error to the client. */
+            /* Keep the staged partial (resume) — only the publish failed; the
+             * client can retry the close.  Surface an I/O error. */
             xrootd_free_fhandle(ctx, idx);
             XROOTD_OP_ERR(ctx, XROOTD_OP_CLOSE);
             return xrootd_send_error(ctx, c, kXR_IOError,
-                                     "POSC rename failed");
+                                     "staged commit failed");
+        }
+
+        if (stage_tracked) {
+            xrootd_stage_unmark_pending(temp_path);
         }
 
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd: POSC rename \"%s\" -> \"%s\" ok",
+                       "xrootd: staged commit \"%s\" -> \"%s\" ok",
                        temp_path, final_path);
 
         wt_local_path = final_path;

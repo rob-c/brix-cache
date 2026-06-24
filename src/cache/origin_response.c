@@ -1,4 +1,5 @@
 #include "cache_internal.h"
+#include "../protocol/frame_hdr.h"   /* xrd_error_body_decode (shared kXR_error codec) */
 
 
 #include <errno.h>
@@ -80,28 +81,21 @@ void
 xrootd_cache_set_origin_error(xrootd_cache_fill_t *t, u_char *body,
     uint32_t dlen, const char *fallback)
 {
-    int  errcode;
-    char msg[256];
+    int          errcode = kXR_ServerError;
+    const char  *wmsg;
+    size_t       wlen;
+    char         msg[256];
 
-    errcode = kXR_ServerError;
-
-    if (body != NULL && dlen >= 4) {
-        uint32_t ebe;
-        size_t   mlen;
-
-        ngx_memcpy(&ebe, body, sizeof(ebe));
-        errcode = (int) ntohl(ebe);
-
-        mlen = dlen - 4;
-        if (mlen > sizeof(msg) - 1) {
-            mlen = sizeof(msg) - 1;
+    /* [int32 BE errnum][message] — decode bounds the (non-NUL) message slice. */
+    if (xrd_error_body_decode(body, dlen, &errcode, &wmsg, &wlen) == 0
+        && wlen > 0) {
+        if (wlen > sizeof(msg) - 1) {
+            wlen = sizeof(msg) - 1;
         }
-        if (mlen > 0) {
-            ngx_memcpy(msg, body + 4, mlen);
-            msg[mlen] = '\0';
-            xrootd_cache_set_error(t, errcode, 0, msg);
-            return;
-        }
+        ngx_memcpy(msg, wmsg, wlen);
+        msg[wlen] = '\0';
+        xrootd_cache_set_error(t, errcode, 0, msg);
+        return;
     }
 
     xrootd_cache_set_error(t, errcode, 0, fallback);

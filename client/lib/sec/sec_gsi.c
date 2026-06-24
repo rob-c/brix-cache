@@ -272,6 +272,49 @@ gsi_more_fail(gsi_more_ctx *x)
  * an encrypted main carrying the proxy chain + the signed tag + a fresh tag.
  * HasPad/useIV follow the variant (1/1 signed, 0/0 unsigned).
  */
+/*
+ * Choose the kXRS_md_alg (handshake digest) to echo back to the server.  The
+ * server advertises a ':'-separated preference list in its round-1 kXGS_cert;
+ * the client MUST reply with one of those names or the server rejects the
+ * handshake (dCache: "all sender digests are unsupported: [..]").  We prefer
+ * "sha256" when offered (it matches our SHA256(secret) session-key derivation),
+ * otherwise fall back to the server's first listed digest, and to "sha256" if
+ * the server advertised none.  Writes a NUL-terminated name into out[outcap] and
+ * returns its length.
+ */
+static size_t
+gsi_pick_md_alg(const uint8_t *sbody, uint32_t slen, char *out, size_t outcap)
+{
+    const uint8_t *list = NULL;
+    size_t         listlen = 0, n = 0;
+
+    if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_md_alg,
+                               &list, &listlen) == 0 && listlen > 0) {
+        /* Prefer sha256 if it appears anywhere in the offered list. */
+        if (listlen >= 6) {
+            for (size_t i = 0; i + 6 <= listlen; i++) {
+                if (memcmp(list + i, "sha256", 6) == 0) {
+                    memcpy(out, "sha256", 6);
+                    out[6] = '\0';
+                    return 6;
+                }
+            }
+        }
+        /* Else copy the server's first ':'-separated token verbatim. */
+        while (n < listlen && n + 1 < outcap && list[n] != ':') {
+            out[n] = (char) list[n];
+            n++;
+        }
+    }
+
+    if (n == 0) {                       /* server offered none → our default */
+        memcpy(out, "sha256", 6);
+        n = 6;
+    }
+    out[n] = '\0';
+    return n;
+}
+
 static int
 gsi_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
          uint32_t *plen, xrdc_status *st)
@@ -282,8 +325,14 @@ gsi_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     const uint8_t *peerpub = NULL;
     size_t         peerpublen = 0;
     int            signed_dh;
-    uint8_t        aeskey[16];
+    uint8_t        aeskey[XROOTD_GSI_MAX_KEY];
+    xrootd_gsi_cipher_t sesscipher;
+    char           chosen_cipher[24];
+    char           cipher_field[40];
+    int            use_iv;
     uint8_t        newrtag[8];
+    char           md_alg[32];
+    size_t         md_alg_len;
     gsi_more_ctx   x;
 
     (void) c;
@@ -323,13 +372,66 @@ gsi_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
         return gsi_more_fail(&x);
     }
 
-    /* 2. Agree the AES-128 session key (HasPad follows the variant). */
-    x.peer = xrootd_gsi_cipher_parse_peer(peerpub, peerpublen);
-    x.mine = x.peer ? xrootd_gsi_cipher_keygen_from(x.peer) : NULL;
-    if (x.peer == NULL || x.mine == NULL
-        || !xrootd_gsi_cipher_session_key(x.mine, x.peer, signed_dh, aeskey)) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: session-key agreement failed");
-        return gsi_more_fail(&x);
+    /* Phase 52 (WS-A): choose the session cipher from the server's advertised
+     * kXRS_cipher_alg list.  aes-128-cbc is the universally-supported, proven-
+     * interop choice, so we PREFER it whenever the server offers it (every stock
+     * XRootD server does) — this keeps our round-2 byte-identical to the legacy
+     * path against stock.  Only when the server omits aes-128-cbc entirely do we
+     * negotiate the first other cipher we support. */
+    {
+        const uint8_t *ca = NULL; size_t cal = 0;
+        char           offered[128];
+
+        snprintf(chosen_cipher, sizeof(chosen_cipher), "aes-128-cbc");
+        if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher_alg,
+                                   &ca, &cal) == 0 && cal > 0
+            && cal < sizeof(offered)) {
+            memcpy(offered, ca, cal);
+            offered[cal] = '\0';
+            if (memmem(offered, cal, "aes-128-cbc", 11) == NULL) {
+                (void) xrootd_gsi_cipher_pick(offered, &sesscipher, chosen_cipher);
+            }
+        }
+        if (!xrootd_gsi_cipher_lookup(chosen_cipher, &sesscipher)) {
+            (void) xrootd_gsi_cipher_lookup("aes-128-cbc", &sesscipher);
+            snprintf(chosen_cipher, sizeof(chosen_cipher), "aes-128-cbc");
+        }
+    }
+
+    /* 2. Agree the session key (HasPad follows the variant). */
+    {
+        const uint8_t *cm = NULL; size_t cml = 0;
+        int peer_nopad = (xrootd_gsi_find_bucket(sbody, slen,
+                              (uint32_t) kXRS_cryptomod, &cm, &cml) == 0
+                          && cml >= 5
+                          && memmem(cm, cml, "nopad", 5) != NULL);
+        int dh_pad = signed_dh && !peer_nopad;          /* HasPad negotiation */
+
+        x.peer = xrootd_gsi_cipher_parse_peer(peerpub, peerpublen);
+        x.mine = x.peer ? xrootd_gsi_cipher_keygen_from(x.peer) : NULL;
+        if (x.peer == NULL || x.mine == NULL
+            || !xrootd_gsi_cipher_session_key(x.mine, x.peer, dh_pad, aeskey,
+                                              sesscipher.key_len)) {
+            xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: session-key agreement failed");
+            return gsi_more_fail(&x);
+        }
+
+        if (getenv("XRDC_GSI_DEBUG") != NULL) {
+            const uint8_t *ca = NULL, *ma = NULL; size_t cal = 0, mal = 0;
+            xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher_alg, &ca, &cal);
+            xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_md_alg, &ma, &mal);
+            fprintf(stderr, "[gsi-dbg] variant=%s peer_nopad=%d dh_pad=%d peerpublen=%zu "
+                    "cryptomod=\"%.*s\" cipher_alg=\"%.*s\" md_alg=\"%.*s\"\n",
+                    signed_dh ? "signed-DH" : "unsigned", peer_nopad, dh_pad, peerpublen,
+                    (int) cml, cm ? (const char *) cm : "",
+                    (int) cal, ca ? (const char *) ca : "",
+                    (int) mal, ma ? (const char *) ma : "");
+            fprintf(stderr, "[gsi-dbg] cipher=%s aeskey=", chosen_cipher);
+            for (int i = 0; i < sesscipher.key_len; i++) {
+                fprintf(stderr, "%02x", aeskey[i]);
+            }
+            fprintf(stderr, "\n");
+        }
     }
 
     /* 3. The server has no session key yet (it needs the public we send below),
@@ -364,8 +466,12 @@ gsi_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     }
 
     /* 4. Build + encrypt the response main: proxy chain + signed tag + new tag.
-     *    Length-delimited — NO kXRS_none terminator (the encrypted bucket length
-     *    bounds it; a terminator is mis-read as a malformed bucket). */
+     *    The inner bucket list ends with a kXRS_none terminator (xrootd_gbuf_end):
+     *    a standards-compliant server (stock XrdSecgsi, dCache/xrootd4j) parses
+     *    buckets until that terminator, and without it walks off the end of the
+     *    decrypted buffer ("readerIndex exceeds writerIndex").  Our own server
+     *    locates buckets by type (gsi_find_bucket), so the trailing terminator is
+     *    harmless there. */
     x.proxy = load_proxy_pem(&proxylen);
     if (x.proxy == NULL || !xrootd_gsi_rand(newrtag, sizeof(newrtag))) {
         OPENSSL_cleanse(aeskey, sizeof(aeskey));
@@ -379,9 +485,24 @@ gsi_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
                            x.signed_rtag, x.signed_rtag_len);
     }
     xrootd_gbuf_bucket(&x.inner, (uint32_t) kXRS_rtag, newrtag, sizeof(newrtag));
+    xrootd_gbuf_end(&x.inner);                 /* kXRS_none terminator (see above) */
+    /*
+     * IV usage (XrdSecgsi): the encrypted main carries a leading IV of the
+     * cipher's own length exactly when the negotiated version >= 10400 — stock
+     * keys this off the peer version (`useIV = RemVers >= XrdSecgsiVersDHsigned`),
+     * NOT off any cipher-name suffix.  We advertise version 10600, so the server
+     * independently sets useIV=true and strips MaxIVLength() bytes; the cipher
+     * name we send (below) is bare.  signed_dh tracks the same >=10400 condition.
+     * The unsigned (<10400) path carries no IV.  XRDC_GSI_USEIV overrides for
+     * interop debugging. */
+    use_iv = signed_dh;
+    {
+        const char *ivov = getenv("XRDC_GSI_USEIV");
+        if (ivov != NULL) { use_iv = atoi(ivov); }
+    }
     if (!x.inner.err) {
-        x.enc = xrootd_gsi_cipher_encrypt(aeskey, x.inner.p, x.inner.len,
-                                          signed_dh, &enclen);
+        x.enc = xrootd_gsi_cipher_encrypt(&sesscipher, aeskey, x.inner.p,
+                                          x.inner.len, use_iv, &enclen);
     }
     OPENSSL_cleanse(aeskey, sizeof(aeskey));
     if (x.inner.err || x.enc == NULL) {
@@ -425,7 +546,32 @@ gsi_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     } else {
         xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_puk, x.cpub, cpublen);
     }
-    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_cipher_alg, "aes-128-cbc", 11);
+    /* Echo the cipher we keyed, with the "#<ivlen>" suffix when we prepended an
+     * IV.  Modern stock XRootD/EOS derive useIV from the negotiated version
+     * (>=10400) and tolerate a bare name, but dCache (xrootd4j) learns the IV is
+     * present ONLY from this suffix — a bare name + prepended IV makes it read
+     * ivlen=0 and fail ("Could not decrypt encrypted client message").  Emitting
+     * the suffix whenever use_iv keeps both EOS and dCache working.  See
+     * docs/10-reference/comparison/xrootd-implementations.md §5.2 and
+     * tests/test_gsi_interop_guards.py. */
+    if (use_iv) {
+        snprintf(cipher_field, sizeof(cipher_field), "%s#%d",
+                 chosen_cipher, sesscipher.iv_len);
+    } else {
+        snprintf(cipher_field, sizeof(cipher_field), "%s", chosen_cipher);
+    }
+    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_cipher_alg, cipher_field,
+                       strlen(cipher_field));
+    /* Digest-algorithm negotiation bucket.  dCache's GSI plugin reads kXRS_md_alg
+     * as a StringBucket to select the handshake hash; omitting it makes
+     * digestBucket null server-side and throws an NPE ("Cannot invoke
+     * StringBucket.getContent() because digestBucket is null"), failing the whole
+     * handshake.  sha256 matches our key derivation (SHA256(secret)) and is
+     * supported by every modern GSI server (EOS/XRootD treat it as optional, so
+     * adding it is interop-safe in both directions).  The exact name is chosen
+     * from the server's own offered list so it can never be "unsupported". */
+    md_alg_len = gsi_pick_md_alg(sbody, slen, md_alg, sizeof(md_alg));
+    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_md_alg, md_alg, md_alg_len);
     xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_main, x.enc, enclen);
     xrootd_gbuf_end(&x.outer);
     if (x.outer.err) {

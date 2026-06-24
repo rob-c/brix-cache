@@ -39,5 +39,7 @@ const xrdc_sec_module *xrdc_sec_unix(void);
 const xrdc_sec_module *xrdc_sec_sss(void);   /* shared-secret (sss_keytab.c) */
 const xrdc_sec_module *xrdc_sec_krb5(void);  /* Kerberos 5; NULL unless XROOTD_HAVE_KRB5 */
 const xrdc_sec_module *xrdc_sec_gsi(void);   /* NULL until Step 5 (sec_gsi.c) */
+const xrdc_sec_module *xrdc_sec_host(void);  /* host-based; weakest, tried last */
+const xrdc_sec_module *xrdc_sec_pwd(void);   /* XrdSecpwd password; opt-in, last */
 
 #endif /* XRDC_SEC_H */

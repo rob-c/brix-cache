@@ -157,7 +157,9 @@ class TestQconfigKnownKeys:
         status, body = _query(sock, kXR_Qconfig, b"chksum")
         sock.close()
         assert status == kXR_ok
-        assert b"chksum=adler32" in body
+        # Reference do_Qconf returns the bare checksum cslist (no "chksum=" prefix);
+        # adler32 leads (xrdcp default).  Cf. test_qconfig_key_without_newline.
+        assert b"adler32" in body
 
     def test_qconfig_readv_returns_1(self):
         sock = _session()
@@ -171,7 +173,8 @@ class TestQconfigKnownKeys:
         status, body = _query(sock, kXR_Qconfig, b"nosuchfeature")
         sock.close()
         assert status == kXR_ok
-        assert b"nosuchfeature=0" in body
+        # Reference do_Qconf echoes an unrecognised key name verbatim (no "=0").
+        assert b"nosuchfeature" in body
 
     def test_qconfig_multiple_keys_single_req(self):
         sock = _session()
@@ -179,15 +182,18 @@ class TestQconfigKnownKeys:
         status, body = _query(sock, kXR_Qconfig, payload)
         sock.close()
         assert status == kXR_ok
-        assert b"chksum=adler32" in body
+        assert b"adler32" in body
         assert b"readv=1" in body
-        assert b"nosuch=0" in body
+        assert b"nosuch" in body
 
-    def test_qconfig_empty_payload(self):
+    def test_qconfig_empty_payload_rejected(self):
+        # An empty kXR_Qconfig payload (no keys requested) is rejected by both our
+        # server and stock xrootd (kXR_error "Required argument not present").
+        # Verified differentially against stock.
         sock = _session()
         status, body = _query(sock, kXR_Qconfig, b"")
         sock.close()
-        assert status == kXR_ok
+        assert status == kXR_error
 
     def test_qconfig_key_without_newline(self):
         sock = _session()
@@ -567,15 +573,18 @@ class TestQueryConsistency:
             assert b1 != b2, "checksum must differ after content change"
 
     def test_qspace_returns_ok(self):
+        # kXR_Qspace requires a path: both our server and stock reject an empty/
+        # absent path (kXR_error "relative path '' disallowed"); a valid path like
+        # "/" returns the space metrics.  Verified differentially against stock.
         sock = _session()
-        status, body = _query(sock, kXR_Qspace)
+        status, body = _query(sock, kXR_Qspace, b"/")
         sock.close()
         assert status == kXR_ok
         assert len(body) > 0
 
     def test_qspace_has_oss_fields(self):
         sock = _session()
-        status, body = _query(sock, kXR_Qspace)
+        status, body = _query(sock, kXR_Qspace, b"/")
         sock.close()
         assert status == kXR_ok
         # Response should contain space metrics
@@ -591,7 +600,7 @@ class TestQueryConsistency:
     def test_qconfig_then_qspace_consistent(self):
         sock = _session()
         s1, b1 = _query(sock, kXR_Qconfig, b"chksum", streamid=b"\x00\x10")
-        s2, b2 = _query(sock, kXR_Qspace, streamid=b"\x00\x11")
+        s2, b2 = _query(sock, kXR_Qspace, b"/", streamid=b"\x00\x11")
         sock.close()
         assert s1 == kXR_ok
         assert s2 == kXR_ok

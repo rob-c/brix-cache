@@ -25,4 +25,23 @@
  */
 ngx_int_t xrootd_make_tmp_path(const char *base_path, char *out, size_t out_sz);
 
+/*
+ * xrootd_make_resume_path — build the DETERMINISTIC upload-resume staging path.
+ *
+ * With stage_dir empty/NULL: writes
+ *   "<base_path>.xrdresume.<hex16(SHA-256(principal "\0" base_path))>.part"
+ * (adjacent to the destination → atomic rename commit).  With stage_dir set:
+ *   "<stage_dir>/<hex16(...)>.xrdresume.part"
+ * (the partial lives on a fast cache device; commit moves it to storage).
+ * Either way the name is a pure function of (principal, base_path), so a
+ * reconnecting client's re-open of the same final path by the same identity
+ * lands on the same staging file and resumes from its offset.  principal ""/NULL
+ * => "anonymous".  Stale partials glob-clean with "*.xrdresume*.part".
+ *
+ * Returns NGX_OK, or NGX_ERROR on hash failure / truncation.
+ */
+ngx_int_t xrootd_make_resume_path(const char *base_path, const char *principal,
+                                  const char *stage_dir, char *out,
+                                  size_t out_sz);
+
 #endif /* XROOTD_COMPAT_TMP_PATH_H */

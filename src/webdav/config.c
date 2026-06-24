@@ -14,6 +14,7 @@
 #include "../config/config.h"
 #include "../config/root_prepare.h"
 #include "../config/http_rootfd.h"
+#include "../compat/staged_file.h"
 
 #include <openssl/x509.h>
 
@@ -95,6 +96,7 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
     xrootd_acc_http_init_conf(&conf->acc);   /* XrdAcc engine (off by default) */
     conf->proxy_certs  = NGX_CONF_UNSET;
     conf->tape_rest    = NGX_CONF_UNSET;
+    conf->upload_resume = NGX_CONF_UNSET;
     conf->common.allow_write  = NGX_CONF_UNSET;
     conf->common.compress     = NGX_CONF_UNSET;
     xrootd_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
@@ -178,6 +180,7 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->common.root, prev->common.root, "/");
     ngx_conf_merge_str_value(conf->cache_root, prev->cache_root, "");
     ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");
+    ngx_conf_merge_str_value(conf->tcp_congestion, prev->tcp_congestion, "");
     ngx_conf_merge_str_value(conf->voms_cert_dir, prev->voms_cert_dir, "");
     ngx_conf_merge_str_value(conf->cadir, prev->cadir, "");
     ngx_conf_merge_str_value(conf->cafile, prev->cafile, "");
@@ -188,6 +191,10 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     xrootd_acc_http_merge_conf(&conf->acc, &prev->acc);
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
     ngx_conf_merge_value(conf->tape_rest, prev->tape_rest, 0);
+    /* Uploads staged + resumable by DEFAULT.  Set xrootd_webdav_upload_resume
+     * off to opt out. */
+    ngx_conf_merge_value(conf->upload_resume, prev->upload_resume, 1);
+    ngx_conf_merge_str_value(conf->upload_stage_dir, prev->upload_stage_dir, "");
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
     ngx_conf_merge_value(conf->common.compress, prev->common.compress, 0);
     if (xrootd_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
@@ -257,6 +264,21 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
          * export root (kernel openat2 RESOLVE_BENEATH anchor). */
         if (xrootd_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
             return NGX_CONF_ERROR;
+        }
+
+        /* Optional fast-cache upload staging device (cross-device commit). */
+        if (conf->upload_stage_dir.len > 0) {
+            xrootd_export_root_opts_t stage_opts;
+            stage_opts.directive_name = "xrootd_webdav_stage_dir";
+            stage_opts.allow_write    = 1;
+            stage_opts.required       = 0;
+            stage_opts.canon_size     = sizeof(conf->upload_stage_dir_canon);
+            if (xrootd_prepare_export_root(cf, &conf->upload_stage_dir,
+                    &stage_opts, conf->upload_stage_dir_canon) != NGX_CONF_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
+            xrootd_stage_dir_register(conf->upload_stage_dir_canon);
         }
 
         /*

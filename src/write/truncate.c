@@ -83,14 +83,20 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		rc = xrootd_open_beneath(conf->rootfd, reqpath,
 								  O_WRONLY | O_NOCTTY, 0);
 		if (rc < 0) {
+			/* Map the real errno (ENOENT→kXR_NotFound, EACCES→kXR_NotAuthorized,
+			 * …) instead of a blanket kXR_IOError: stock truncate of a missing
+			 * path returns 3011 (NotFound), and XrdCl/gfal branch on the code. */
+			int err = errno;
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
-							  resolved, detail, kXR_IOError, strerror(errno));
+							  resolved, detail,
+							  xrootd_kxr_from_errno(err), strerror(err));
 		}
 		if (ftruncate(rc, (off_t) length) != 0) {
 			int err = errno;
 			close(rc);
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
-							  resolved, detail, kXR_IOError, strerror(err));
+							  resolved, detail,
+							  xrootd_kxr_from_errno(err), strerror(err));
 		}
 		close(rc);
 		xrootd_log_access(ctx, c, "TRUNCATE", resolved, detail,

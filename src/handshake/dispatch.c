@@ -54,8 +54,21 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
-    /* Proxy mode: all post-login file-system opcodes go to the upstream */
-    if (conf->proxy_enable && ctx->logged_in) {
+    /*
+     * Proxy mode: all post-login file-system opcodes go to the upstream.
+     *
+     * SECURITY (fail-closed): gate on ctx->auth_done, NOT merely ctx->logged_in.
+     * kXR_login only sets logged_in; for any configured auth (gsi/token/sss/...)
+     * auth_done stays 0 until kXR_auth completes (login.c).  The session opcodes
+     * (login/auth/bind/...) are already handled above, so anything reaching here
+     * is a file-system opcode that MUST be authenticated before we forward it to
+     * the upstream under the proxy's own bridged credentials.  Gating on
+     * logged_in alone let a client send kXR_login then skip kXR_auth and still
+     * reach upstream resources.  Anonymous mode (auth=none) sets auth_done=1 at
+     * login, so this remains a no-op gate there.  This mirrors the require_auth
+     * gate enforced on the direct (non-proxy) read/write dispatchers.
+     */
+    if (conf->proxy_enable && ctx->auth_done) {
         return xrootd_proxy_dispatch(ctx, c, conf);
     }
 
@@ -113,6 +126,9 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: unsupported request %d",
                    (int) ctx->cur_reqid);
-    return xrootd_send_error(ctx, c, kXR_Unsupported,
-                             "request not supported");
+    /* An unrecognized opcode is kXR_InvalidRequest ("Invalid request code"),
+     * matching the reference (XrdXrootdProtocol.cc:608); kXR_Unsupported is
+     * reserved for a recognized op the backend cannot perform (ENOTSUP). */
+    return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+                             "Invalid request code");
 }

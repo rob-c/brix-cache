@@ -75,6 +75,8 @@ xrootd_get_pool_scratch(ngx_pool_t *pool, u_char **slot, size_t *slot_size,
 void
 xrootd_release_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
 {
+    ngx_uint_t i;
+
     if (buf == NULL) {
         return;
     }
@@ -85,7 +87,72 @@ xrootd_release_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
         return;
     }
 
+    /*
+     * Per-in-flight read-pool buffer (read pipelining): return the slot to the
+     * pool rather than freeing it — the buffer is reused for the next read and
+     * freed once at disconnect.  Idempotent: a slot already marked free is a
+     * no-op, so the queued-then-error double-release path cannot underflow
+     * rd_inflight.
+     */
+    for (i = 0; i < ctx->pipeline_depth; i++) {
+        if (ctx->rd_pool[i].buf == buf) {
+            if (ctx->rd_pool[i].in_use) {
+                ctx->rd_pool[i].in_use = 0;
+                if (ctx->rd_inflight > 0) {
+                    ctx->rd_inflight--;
+                }
+            }
+            return;
+        }
+    }
+
     (void) ngx_pfree(c->pool, buf);
+}
+
+/*
+ * xrootd_acquire_read_buffer — borrow a per-in-flight data buffer from the
+ * connection's read pool (rd_pool), growing the chosen slot to >= need bytes.
+ *
+ * Unlike the single shared read_scratch, each in-flight read gets its OWN buffer,
+ * so a memory-backed (userspace-TLS) read response can stay queued in the out_ring
+ * and drain while the recv loop already issues the NEXT read into a different
+ * buffer — i.e. memory reads can pipeline.  The slot is returned to the pool by
+ * xrootd_release_read_buffer() when its out_ring response drains; the buffer is
+ * freed once at disconnect (raw heap, Phase-31 discipline).
+ *
+ * The recv loop bounds in-flight reads at pipeline_depth (== rd_pool slot count),
+ * so a free slot always exists on the hot path; NULL is returned only on OOM.
+ */
+u_char *
+xrootd_acquire_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, size_t need)
+{
+    ngx_uint_t i;
+
+    if (need == 0) {
+        need = 1;
+    }
+
+    for (i = 0; i < ctx->pipeline_depth; i++) {
+        if (ctx->rd_pool[i].in_use) {
+            continue;
+        }
+        if (ctx->rd_pool[i].size < need) {
+            u_char *p = ngx_alloc(need, c->log);
+            if (p == NULL) {
+                return NULL;
+            }
+            if (ctx->rd_pool[i].buf != NULL) {
+                ngx_free(ctx->rd_pool[i].buf);
+            }
+            ctx->rd_pool[i].buf  = p;
+            ctx->rd_pool[i].size = need;
+        }
+        ctx->rd_pool[i].in_use = 1;
+        ctx->rd_inflight++;
+        return ctx->rd_pool[i].buf;
+    }
+
+    return NULL;   /* pool exhausted — should not happen given the recv bound */
 }
 
 /*
@@ -171,14 +238,16 @@ xrootd_build_single_memory_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char *databuf, size_t data_total)
 {
     xrootd_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
-    u_char *hdrbuf;
+    /*
+     * Header lives in THIS slot's private buffer (not the shared
+     * read_hdr_scratch), so pipelining the next memory read into another slot
+     * cannot overwrite a still-draining response's 8-byte header.  This is what
+     * makes the memory (userspace-TLS) read path safe to pipeline; the body
+     * buffer is made per-in-flight by xrootd_acquire_read_buffer() in read.c.
+     */
+    u_char *hdrbuf = slot->hdr_bytes;
 
-    hdrbuf = XROOTD_GET_SCRATCH(ctx, c, read_hdr_scratch, read_hdr_scratch_size,
-                                XRD_RESPONSE_HDR_LEN);
-    if (hdrbuf == NULL) {
-        return NULL;
-    }
-
+    (void) c;
     xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) data_total,
                           (ServerResponseHdr *) hdrbuf);
 
@@ -657,4 +726,60 @@ xrootd_build_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     return head;
+}
+
+/*
+ * xrootd_build_pgread_chain — assemble the kXR_pgread response chain:
+ *   [ServerStatusResponse_pgRead header] -> [encoded page data].
+ *
+ * `data` points at out_size bytes of already-CRC-encoded page-mode wire output
+ * (the gapped [CRC32c][page]+ layout produced by the in-place encoder), and
+ * carries its own per-page checksums — so it is sent verbatim, never through
+ * xrootd_build_chunked_chain (which would prepend a kXR_ok framing wrong for
+ * pgread). Both the synchronous handler (src/read/pgread.c) and the thread-pool
+ * AIO completion (xrootd_pgread_aio_done) build exactly this chain, so it lives
+ * here once. Returns the chain head, or NULL on a pool allocation failure — the
+ * caller owns its scratch buffer and handles its own error/cleanup path.
+ */
+ngx_chain_t *
+xrootd_build_pgread_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    int64_t offset, u_char *data, uint32_t out_size)
+{
+    ServerStatusResponse_pgRead *hdr_buf;
+    ngx_chain_t                 *cl_hdr, *cl_data;
+    ngx_buf_t                   *bd;
+
+    hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
+    if (hdr_buf == NULL) {
+        return NULL;
+    }
+    xrootd_build_pgread_status(ctx, offset, out_size, hdr_buf);
+
+    cl_hdr = ngx_alloc_chain_link(c->pool);
+    if (cl_hdr == NULL) {
+        return NULL;
+    }
+    cl_hdr->buf = ngx_calloc_buf(c->pool);
+    if (cl_hdr->buf == NULL) {
+        return NULL;
+    }
+    cl_hdr->buf->pos = (u_char *) hdr_buf;
+    cl_hdr->buf->last = cl_hdr->buf->pos + sizeof(*hdr_buf);
+    cl_hdr->buf->memory = 1;
+    cl_hdr->buf->last_buf = 0;
+
+    cl_data = ngx_alloc_chain_link(c->pool);
+    bd = ngx_calloc_buf(c->pool);
+    if (cl_data == NULL || bd == NULL) {
+        return NULL;
+    }
+    bd->pos = data;
+    bd->last = data + out_size;
+    bd->memory = 1;
+    bd->last_buf = 1;
+    cl_data->buf = bd;
+    cl_data->next = NULL;
+
+    cl_hdr->next = cl_data;
+    return cl_hdr;
 }

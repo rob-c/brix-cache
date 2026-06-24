@@ -11,8 +11,12 @@
 #include "../path/path.h"
 #include "../path/beneath.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 /*
@@ -113,6 +117,355 @@ xrootd_staged_open(ngx_log_t *log, const char *root_canon,
 }
 
 /*
+ * WHAT: Open the DETERMINISTIC, identity-keyed upload-resume partial for a final
+ *       path (confined inside root_canon), creating it if absent and PRESERVING
+ *       any existing bytes (no O_TRUNC, no O_EXCL).  Reports the current partial
+ *       size in *cur_size so the caller / client can resume at that offset.
+ *
+ * WHY:  WebDAV resumable PUT (Content-Range) needs a chunk to land at an absolute
+ *       offset on a partial that survives across separate PUT requests and a
+ *       server restart, then commit (rename) only when complete — the HTTP
+ *       analogue of the root:// resume staging.  Reuses the same name scheme
+ *       (xrootd_make_resume_path) and confinement (xrootd_open_beneath) as the
+ *       random staged_open so security and glob-clean are identical.
+ *
+ * Returns NGX_OK with staged->active=1, or NGX_ERROR (errno set).
+ */
+ngx_int_t
+xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
+    const char *final_path, const char *principal, const char *stage_dir,
+    mode_t mode, xrootd_staged_file_t *staged, off_t *cur_size)
+{
+    int          rootfd, fd;
+    const char  *rel;
+    struct stat  sb;
+
+    (void) log;
+
+    if (staged == NULL || final_path == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    ngx_memzero(staged, sizeof(*staged));
+    staged->fd = NGX_INVALID_FILE;
+    if (cur_size != NULL) {
+        *cur_size = 0;
+    }
+
+    if (xrootd_make_resume_path(final_path, principal, stage_dir,
+                                staged->tmp_path, sizeof(staged->tmp_path))
+        != NGX_OK)
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+
+    if (stage_dir != NULL && stage_dir[0] != '\0') {
+        /* Partial lives on the configured fast device (outside root_canon).  The
+         * basename is a server-generated hash inside the operator-trusted stage
+         * dir, so a direct O_NOFOLLOW open is safe; commit moves it to storage. */
+        fd = open(staged->tmp_path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC,
+                  mode);
+        if (fd == NGX_INVALID_FILE) {
+            return NGX_ERROR;
+        }
+    } else {
+        rootfd = xrootd_beneath_open_root(root_canon);
+        if (rootfd < 0) {
+            return NGX_ERROR;
+        }
+        rel = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
+        if (rel == NULL) {
+            close(rootfd);
+            errno = EXDEV;
+            return NGX_ERROR;
+        }
+        /* O_CREAT but NOT O_EXCL / O_TRUNC: create-or-resume, preserving bytes. */
+        fd = xrootd_open_beneath(rootfd, rel, O_RDWR | O_CREAT, mode);
+        close(rootfd);
+        if (fd == NGX_INVALID_FILE) {
+            return NGX_ERROR;
+        }
+    }
+
+    if (cur_size != NULL && fstat(fd, &sb) == 0) {
+        *cur_size = sb.st_size;
+    }
+    staged->fd = fd;
+    staged->active = 1;
+    return NGX_OK;
+}
+
+/* Copy the whole of src_fd (from offset 0) into dst_fd. Portable read/write loop
+ * (works cross-filesystem, unlike copy_file_range on some FS). 0 / NGX_ERROR. */
+static ngx_int_t
+stage_copy_fd(int src_fd, int dst_fd)
+{
+    static const size_t CHUNK = 256 * 1024;
+    char *buf = malloc(CHUNK);
+    if (buf == NULL) { errno = ENOMEM; return NGX_ERROR; }
+    if (lseek(src_fd, 0, SEEK_SET) == (off_t) -1) { free(buf); return NGX_ERROR; }
+    for (;;) {
+        ssize_t n = read(src_fd, buf, CHUNK);
+        if (n < 0) { if (errno == EINTR) { continue; } free(buf); return NGX_ERROR; }
+        if (n == 0) { break; }
+        ssize_t off = 0;
+        while (off < n) {
+            ssize_t w = write(dst_fd, buf + off, (size_t) (n - off));
+            if (w < 0) { if (errno == EINTR) { continue; } free(buf); return NGX_ERROR; }
+            off += w;
+        }
+    }
+    free(buf);
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Commit a staged file onto its final path — atomically and across
+ *       filesystems.  Tries rename(2) first (atomic, same-FS, the fast path); on
+ *       EXDEV (the staged file is on a configured fast-cache device different from
+ *       the storage, e.g. CEPHFS) it copies the data to a temp ON THE FINAL
+ *       filesystem, fsync()s, atomically renames that temp onto the final path,
+ *       and unlinks the staged copy.  Either way a concurrent reader sees only the
+ *       old object or the complete new one — never a partial.
+ *
+ * WHY:  Upload staging on a fast device + final storage on a POSIX mount means the
+ *       commit can be a cross-device move, which rename(2) cannot do.  Centralising
+ *       this lets both root:// (close) and WebDAV (PUT) commit identically.
+ *
+ * fd: the open staged-file descriptor (for the durability fsync before commit), or
+ *     NGX_INVALID_FILE if already closed.  Returns NGX_OK / NGX_ERROR (errno set).
+ */
+ngx_int_t
+xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
+                     ngx_log_t *log)
+{
+    char         tmp[PATH_MAX];
+    int          rfd, dfd, e;
+    struct stat  sb;
+
+    (void) log;
+
+    if (fd != NGX_INVALID_FILE) {
+        if (fsync(fd) != 0) {
+            return NGX_ERROR;   /* not durable — do not publish */
+        }
+    }
+
+    if (rename(stage_path, final_path) == 0) {
+        return NGX_OK;          /* same filesystem: atomic, zero-copy */
+    }
+    if (errno != EXDEV) {
+        return NGX_ERROR;
+    }
+
+    /* Cross-device commit: copy the staged data to a temp adjacent to (and on the
+     * same filesystem as) the final path, then atomically rename it into place. */
+    if (xrootd_make_tmp_path(final_path, tmp, sizeof(tmp)) != NGX_OK) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    rfd = open(stage_path, O_RDONLY | O_CLOEXEC);
+    if (rfd < 0) {
+        return NGX_ERROR;
+    }
+    /* Preserve the staged file's mode on the committed object. */
+    mode_t mode = (fstat(rfd, &sb) == 0) ? (sb.st_mode & 07777) : 0644;
+    dfd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode);
+    if (dfd < 0) {
+        e = errno; close(rfd); errno = e; return NGX_ERROR;
+    }
+    if (stage_copy_fd(rfd, dfd) != NGX_OK || fsync(dfd) != 0) {
+        e = errno; close(rfd); close(dfd); (void) unlink(tmp); errno = e;
+        return NGX_ERROR;
+    }
+    close(rfd);
+    if (close(dfd) != 0) {
+        e = errno; (void) unlink(tmp); errno = e; return NGX_ERROR;
+    }
+    if (rename(tmp, final_path) != 0) {
+        e = errno; (void) unlink(tmp); errno = e; return NGX_ERROR;
+    }
+    (void) unlink(stage_path);   /* drop the cache copy; commit succeeded */
+    return NGX_OK;
+}
+
+/* ====================================================================== */
+/* Upload stage-out tracking — durable "pending commit" markers + reaper.   */
+/* ====================================================================== */
+/*
+ * When an upload completes, the (complete) staged file must be moved from the
+ * stage device to the final storage.  With a synchronous commit the client waits
+ * for that move, but if the worker dies mid-move the COMPLETE file is left in the
+ * cache with nothing recording where it should go.  A marker file
+ * "<stage_partial>.commit" (content = the final absolute path) is written +
+ * fsync'd just before the move and removed after it; if the move is interrupted
+ * the marker survives, and xrootd_stage_reap_dir() finishes the move on the next
+ * worker startup / periodic sweep — so complete-but-uncommitted files are tracked
+ * across restarts and always reach storage.
+ */
+#define XROOTD_STAGE_COMMIT_SUFFIX ".commit"
+#define XROOTD_STAGE_MAX_DIRS 32
+
+static char       s_stage_dirs[XROOTD_STAGE_MAX_DIRS][PATH_MAX];
+static ngx_uint_t s_stage_dir_count;
+
+void
+xrootd_stage_dir_register(const char *canon)
+{
+    ngx_uint_t i;
+
+    if (canon == NULL || canon[0] == '\0' || strlen(canon) >= PATH_MAX) {
+        return;
+    }
+    for (i = 0; i < s_stage_dir_count; i++) {
+        if (strcmp(s_stage_dirs[i], canon) == 0) {
+            return;   /* already registered (dedup across server blocks) */
+        }
+    }
+    if (s_stage_dir_count >= XROOTD_STAGE_MAX_DIRS) {
+        return;
+    }
+    ngx_memcpy(s_stage_dirs[s_stage_dir_count], canon, strlen(canon) + 1);
+    s_stage_dir_count++;
+}
+
+ngx_uint_t
+xrootd_stage_dir_count(void)
+{
+    return s_stage_dir_count;
+}
+
+ngx_int_t
+xrootd_stage_mark_pending(const char *stage_partial, const char *final_path,
+                          ngx_log_t *log)
+{
+    char    marker[PATH_MAX];
+    int     fd, n;
+    size_t  flen;
+
+    (void) log;
+    n = snprintf(marker, sizeof(marker), "%s%s", stage_partial,
+                 XROOTD_STAGE_COMMIT_SUFFIX);
+    if (n < 0 || (size_t) n >= sizeof(marker)) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    fd = open(marker, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        return NGX_ERROR;
+    }
+    flen = strlen(final_path);
+    if ((size_t) write(fd, final_path, flen) != flen || fsync(fd) != 0) {
+        int e = errno; close(fd); (void) unlink(marker); errno = e;
+        return NGX_ERROR;
+    }
+    close(fd);
+    return NGX_OK;
+}
+
+void
+xrootd_stage_unmark_pending(const char *stage_partial)
+{
+    char marker[PATH_MAX];
+    int  n = snprintf(marker, sizeof(marker), "%s%s", stage_partial,
+                      XROOTD_STAGE_COMMIT_SUFFIX);
+    if (n > 0 && (size_t) n < sizeof(marker)) {
+        (void) unlink(marker);
+    }
+}
+
+/* Finish every pending stage-out recorded in stage_dir.  Returns the count of
+ * commits completed this pass.  Idempotent and crash-safe: a marker whose partial
+ * is already gone (committed by a racing pass / a client retry) is just dropped. */
+ngx_uint_t
+xrootd_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
+{
+    DIR           *d;
+    struct dirent *de;
+    ngx_uint_t     done = 0;
+    size_t         slen = sizeof(XROOTD_STAGE_COMMIT_SUFFIX) - 1;
+    /* Snapshot marker basenames first — we unlink while iterating, which would
+     * otherwise make readdir skip entries. */
+    char           names[256][256];
+    ngx_uint_t     ncount = 0, i;
+
+    if (stage_dir == NULL || stage_dir[0] == '\0') {
+        return 0;
+    }
+    d = opendir(stage_dir);
+    if (d == NULL) {
+        return 0;
+    }
+    while ((de = readdir(d)) != NULL && ncount < 256) {
+        size_t nlen = strlen(de->d_name);
+        if (nlen > slen && nlen < sizeof(names[0])
+            && strcmp(de->d_name + nlen - slen, XROOTD_STAGE_COMMIT_SUFFIX) == 0)
+        {
+            ngx_memcpy(names[ncount], de->d_name, nlen + 1);
+            ncount++;
+        }
+    }
+    closedir(d);
+
+    for (i = 0; i < ncount; i++) {
+        char        marker[PATH_MAX], partial[PATH_MAX], final[PATH_MAX];
+        size_t      nlen = strlen(names[i]);
+        int         mfd, n;
+        ssize_t     r;
+        struct stat sb;
+
+        n = snprintf(marker, sizeof(marker), "%s/%s", stage_dir, names[i]);
+        if (n < 0 || (size_t) n >= sizeof(marker)) { continue; }
+        n = snprintf(partial, sizeof(partial), "%s/%.*s", stage_dir,
+                     (int) (nlen - slen), names[i]);
+        if (n < 0 || (size_t) n >= sizeof(partial)) { continue; }
+
+        mfd = open(marker, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+        if (mfd < 0) { continue; }
+        r = read(mfd, final, sizeof(final) - 1);
+        close(mfd);
+        if (r <= 0) { (void) unlink(marker); continue; }
+        final[r] = '\0';
+        while (r > 0 && (final[r - 1] == '\n' || final[r - 1] == '\r'
+                         || final[r - 1] == ' ')) {
+            final[--r] = '\0';
+        }
+        if (final[0] != '/') { (void) unlink(marker); continue; }  /* sanity */
+
+        if (stat(partial, &sb) != 0) {
+            /* Partial already gone (committed elsewhere) — drop the marker. */
+            (void) unlink(marker);
+            continue;
+        }
+        if (xrootd_commit_staged(NGX_INVALID_FILE, partial, final, log)
+            == NGX_OK)
+        {
+            (void) unlink(marker);
+            done++;
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "xrootd: completed pending stage-out \"%s\" -> \"%s\"",
+                partial, final);
+        } else {
+            ngx_log_error(NGX_LOG_WARN, log, errno,
+                "xrootd: pending stage-out \"%s\" -> \"%s\" failed; will retry",
+                partial, final);
+        }
+    }
+    return done;
+}
+
+ngx_uint_t
+xrootd_stage_reap_all(ngx_log_t *log)
+{
+    ngx_uint_t total = 0, i;
+    for (i = 0; i < s_stage_dir_count; i++) {
+        total += xrootd_stage_reap_dir(s_stage_dirs[i], log);
+    }
+    return total;
+}
+
+/*
  * WHAT: Atomically rename the temp file to its final path and clean up.
  *
  * WHY: After all data has been written to the staged temp file, commit makes it visible at
@@ -142,25 +495,53 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
     int         rc;
     const char *tmp_rel, *final_rel;
 
-    (void) log;
-
-    if (staged->fd != NGX_INVALID_FILE) {
-        ngx_close_file(staged->fd);
-        staged->fd = NGX_INVALID_FILE;
-    }
-
+    /* Open the confinement root first so the fsync-failure cleanup path (C1) can
+     * unlink the temp without re-opening it. */
     rootfd = xrootd_beneath_open_root(root_canon);
     if (rootfd < 0) {
+        if (staged->fd != NGX_INVALID_FILE) {
+            ngx_close_file(staged->fd);
+            staged->fd = NGX_INVALID_FILE;
+        }
         staged->active = 0;
         return NGX_ERROR;
     }
     tmp_rel   = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
     final_rel = xrootd_beneath_strip_root(root_canon, final_path);
     if (tmp_rel == NULL || final_rel == NULL) {
+        if (staged->fd != NGX_INVALID_FILE) {
+            ngx_close_file(staged->fd);
+            staged->fd = NGX_INVALID_FILE;
+        }
         close(rootfd);
         staged->active = 0;
         errno = EXDEV;
         return NGX_ERROR;
+    }
+
+    /*
+     * Phase 51 (C1): flush the staged data to stable storage BEFORE the rename
+     * publishes it, so a crash / power loss / ENOSPC mid-write cannot expose a
+     * torn object.  A failed fsync means the data is NOT durable — fail the
+     * commit (unlink the temp, leave the final path untouched) rather than
+     * publish possibly-incomplete data.  (close() alone does not flush.)
+     */
+    if (staged->fd != NGX_INVALID_FILE) {
+        if (fsync(staged->fd) != 0) {
+            int e = errno;
+            ngx_log_error(NGX_LOG_ERR, log, e,
+                          "xrootd: staged commit fsync failed — not publishing "
+                          "\"%s\"", final_path);
+            ngx_close_file(staged->fd);
+            staged->fd = NGX_INVALID_FILE;
+            (void) xrootd_unlink_beneath(rootfd, tmp_rel, 0);
+            close(rootfd);
+            staged->active = 0;
+            errno = e;
+            return NGX_ERROR;
+        }
+        ngx_close_file(staged->fd);
+        staged->fd = NGX_INVALID_FILE;
     }
 
     rc = exclusive ? xrootd_rename_beneath_excl(rootfd, tmp_rel, final_rel)
@@ -173,6 +554,10 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
         errno = e;
         return NGX_ERROR;
     }
+
+    /* C1: persist the directory entry so the rename itself survives a crash
+     * (best-effort — the data is already durable above). */
+    (void) fsync(rootfd);
 
     close(rootfd);
     staged->active = 0;

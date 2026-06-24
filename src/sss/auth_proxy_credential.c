@@ -1,4 +1,5 @@
 #include "sss_internal.h"
+#include "../compat/sss_bf.h"   /* xrootd_sss_build_credential — shared with the client */
 
 #include <openssl/rand.h>
 #include <string.h>
@@ -31,87 +32,27 @@ ngx_int_t
 xrootd_sss_build_proxy_credential(const xrootd_sss_key_t *key,
     const char *username, u_char *buf, size_t buf_max, size_t *out_len)
 {
-    u_char   clear[XROOTD_SSS_DATA_HDR_LEN + 3 + 64 + 1]; /* hdr + TLV + username + NUL */
-    u_char   plain[sizeof(clear) + 4];
-    u_char  *cipher;
-    u_char  *clear_cursor;
-    size_t   clear_len, cipher_len, total, crypt_out;
-    uint32_t crc, gen_time;
-    uint64_t key_id_be;
+    u_char   nonce[32];
+    uint32_t gen_time;
 
-    if (key == NULL || buf == NULL || buf_max < XROOTD_SSS_HDR_LEN + 64) {
+    if (key == NULL) {
         return NGX_ERROR;
     }
 
-    if (username == NULL || *username == '\0') {
-        username = "xrd";
+    /* RNG + clock at the edge; the byte assembly lives in the shared kernel
+     * (xrootd_sss_build_credential) so client and server mint the identical
+     * SSS credential wire format from one audited implementation. */
+    if (RAND_bytes(nonce, sizeof(nonce)) != 1) {
+        return NGX_ERROR;
     }
-
-    /* Build cleartext: 40-byte fixed header + TLV NAME block */
-    ngx_memzero(clear, sizeof(clear));
-    RAND_bytes(clear, 32);
     gen_time = (uint32_t) (ngx_time() - XROOTD_SSS_BASE_TIME);
-    xrootd_sss_write_be32(clear + 32, gen_time);
-    clear[39] = XROOTD_SSS_OPT_USEDATA;   /* include identity TLV */
 
-    clear_cursor = clear + XROOTD_SSS_DATA_HDR_LEN;
-
-    /* TLV: NAME = username (NUL-terminated, NUL included in len) */
-    {
-        size_t ulen = ngx_strlen(username) + 1; /* +1 for NUL */
-        if (ulen > 64) {
-            ulen = 64;
-        }
-        *clear_cursor++ = XROOTD_SSS_TYPE_NAME;
-        *clear_cursor++ = 0;
-        *clear_cursor++ = (u_char) ulen;
-        ngx_memcpy(clear_cursor, username, ulen - 1);
-        clear_cursor[ulen - 1] = '\0';
-        clear_cursor += ulen;
-    }
-
-    clear_len = (size_t) (clear_cursor - clear);
-
-    /* plain = cleartext + CRC32 */
-    ngx_memcpy(plain, clear, clear_len);
-    crc = htonl(xrootd_sss_crc32(plain, clear_len));
-    ngx_memcpy(plain + clear_len, &crc, sizeof(crc));
-
-    /* Encrypt */
-    cipher      = buf + XROOTD_SSS_HDR_LEN;
-    cipher_len  = clear_len + 4;  /* BF-CFB64 has no padding */
-    total       = XROOTD_SSS_HDR_LEN + cipher_len;
-    if (total > buf_max) {
-        return NGX_ERROR;
-    }
-
-    if (xrootd_sss_bf32_crypt(1, key->key, key->key_len,
-                               plain, clear_len + 4,
-                               cipher, buf_max - XROOTD_SSS_HDR_LEN,
-                               &crypt_out)
-        != NGX_OK)
+    if (xrootd_sss_build_credential(key->key, key->key_len, (uint64_t) key->id,
+                                    username, nonce, gen_time,
+                                    buf, buf_max, out_len) != 0)
     {
         return NGX_ERROR;
     }
-
-    /* Build the outer header in buf[0..15] */
-    buf[0] = 's'; buf[1] = 's'; buf[2] = 's'; buf[3] = '\0';
-    buf[4] = 1;       /* version */
-    buf[5] = 0;       /* spare */
-    buf[6] = 0;       /* kn_size: no named key */
-    buf[7] = XROOTD_SSS_ENC_BF32;
-    key_id_be = (uint64_t) key->id;
-    /* Write as 8-byte BE */
-    buf[ 8] = (u_char) (key_id_be >> 56);
-    buf[ 9] = (u_char) (key_id_be >> 48);
-    buf[10] = (u_char) (key_id_be >> 40);
-    buf[11] = (u_char) (key_id_be >> 32);
-    buf[12] = (u_char) (key_id_be >> 24);
-    buf[13] = (u_char) (key_id_be >> 16);
-    buf[14] = (u_char) (key_id_be >>  8);
-    buf[15] = (u_char)  key_id_be;
-
-    *out_len = XROOTD_SSS_HDR_LEN + crypt_out;
     return NGX_OK;
 }
 

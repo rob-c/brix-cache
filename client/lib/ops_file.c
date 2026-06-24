@@ -19,6 +19,8 @@
 #include "compat/pgio.h"     /* shared kXR page-mode encode/decode (libxrdproto) */
 #include "compat/codec_core.h" /* phase-42 W4 inline read decompression */
 #include "protocol/frame_hdr.h" /* shared resp-hdr / error codecs (libxrdproto) */
+#include "protocol/open_flags.h" /* shared kXR_open option-bit semantics */
+#include "protocol/readv_seg.h"  /* shared kXR_readv segment-header codec */
 
 #include <arpa/inet.h>
 #include <endian.h>
@@ -324,22 +326,20 @@ xrdc_file_readv(xrdc_conn *c, xrdc_file *f, xrdc_readv_seg *segs,
         xrdc_status_set(st, XRDC_EUSAGE, 0, "readv: bad segment count");
         return -1;
     }
-    payload = (uint8_t *) malloc(nseg * 16);
+    payload = (uint8_t *) malloc(nseg * XROOTD_READV_SEGSIZE);
     if (payload == NULL) {
         xrdc_status_set(st, XRDC_EPROTO, 0, "readv: out of memory");
         return -1;
     }
     for (i = 0; i < nseg; i++) {
-        uint8_t *e  = payload + i * 16;
-        uint32_t rl = htonl((uint32_t) segs[i].len);
-        uint64_t of = htobe64((uint64_t) segs[i].offset);
-        memcpy(e, f->fhandle, XRD_FHANDLE_LEN);
-        memcpy(e + 4, &rl, 4);
-        memcpy(e + 8, &of, 8);
+        /* Shared segment-header codec — same layout the server packs/parses. */
+        xrootd_readv_seg_pack(payload + i * XROOTD_READV_SEGSIZE, f->fhandle,
+                              (uint32_t) segs[i].len, (uint64_t) segs[i].offset);
     }
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_readv);
-    if (xrdc_send(c, &req, payload, (uint32_t) (nseg * 16), &sid, st) != 0) {
+    if (xrdc_send(c, &req, payload, (uint32_t) (nseg * XROOTD_READV_SEGSIZE),
+                  &sid, st) != 0) {
         free(payload);
         return -1;
     }
@@ -383,14 +383,13 @@ xrdc_file_readv(xrdc_conn *c, xrdc_file *f, xrdc_readv_seg *segs,
     for (i = 0; i < nseg; i++) {         /* [readahead_list 16B][data rlen] per seg */
         uint32_t rl;
         size_t   cp;
-        if (cursor + 16 > acc_len) {
+        if (cursor + XROOTD_READV_SEGSIZE > acc_len) {
             free(acc);
             xrdc_status_set(st, XRDC_EPROTO, 0, "readv: truncated segment header");
             return -1;
         }
-        memcpy(&rl, acc + cursor + 4, 4);
-        rl = ntohl(rl);
-        cursor += 16;
+        rl = xrootd_readv_seg_rlen(acc + cursor);   /* shared segment codec */
+        cursor += XROOTD_READV_SEGSIZE;
         if (cursor + rl > acc_len) {
             free(acc);
             xrdc_status_set(st, XRDC_EPROTO, 0, "readv: truncated segment data");
@@ -509,22 +508,11 @@ xrdc_file_open_opaque(xrdc_conn *c, const char *path, const char *opaque,
     size_t            need;
     int               plen;
 
-    if (write) {
-        /* force tri-state: 1 = truncate/overwrite (kXR_delete), 0 = create-new
-         * (kXR_new, fail if exists), 2 = update an existing file in place (neither
-         * — random writes over existing content). */
-        options = kXR_open_updt | kXR_mkpath;
-        if (force == 1) {
-            options |= kXR_delete;
-        } else if (force == 0) {
-            options |= kXR_new;
-        } /* force == 2: in-place update, no delete/new */
-        if (posc) {
-            options |= kXR_posc;
-        }
-    } else {
-        options = kXR_open_read;
-    }
+    /* kXR_open option bits come from the shared builder (protocol/open_flags.h)
+     * so this request and the server's POSIX-flag decode share one definition of
+     * the create/truncate/in-place (`force`) semantics. Writes always make parent
+     * dirs (mkpath). */
+    options = xrootd_open_options_build(write, force, posc, /*mkpath=*/1);
 
     /* The server splits "<path>?<opaque>" — open_extract_opaque (src/read).
      * Heap-size to the actual lengths; no opaque ⇒ bare path (open_read/write). */
@@ -795,6 +783,62 @@ xrdc_file_pgread(xrdc_conn *c, xrdc_file *f, int64_t offset, void *buf,
     return (ssize_t) total;
 }
 
+/* Max kXR_pgRetry attempts per corrupt page before giving up (fast-fail). */
+#define XRDC_PGW_MAX_RETRY 3
+
+/* Resend one page (kXR_pgRetry) from the original buffer and report the server's
+ * verdict.  pgoff is the page's file offset; the page data is sliced out of buf
+ * at (pgoff - base).  Returns 0 = corrected, 1 = still bad, -1 = error (st set). */
+static int
+pgwrite_retry_one(xrdc_conn *c, xrdc_file *f, const uint8_t *buf, int64_t base,
+                  size_t len, int64_t pgoff, xrdc_status *st)
+{
+    ClientPgWriteRequest req;
+    uint16_t  sid;
+    uint64_t  off_be = htobe64((uint64_t) pgoff);
+    uint8_t   rp[kXR_pgPageSZ + 4];
+    size_t    doff = (size_t) (pgoff - base);
+    size_t    to_boundary = (size_t) kXR_pgPageSZ
+                            - (size_t) (pgoff & (int64_t) (kXR_pgPageSZ - 1));
+    size_t    remaining, page_len, rplen;
+    uint8_t   resptype = 0;
+    uint32_t  pgdlen = 0;
+    int64_t   foff = 0;
+
+    if (pgoff < base || doff >= len) {
+        xrdc_status_set(st, XRDC_EPROTO, 0,
+                        "pgwrite CSE offset %lld out of range", (long long) pgoff);
+        return -1;
+    }
+    remaining = len - doff;
+    page_len  = remaining < to_boundary ? remaining : to_boundary;
+    rplen     = xrdp_pg_encode(buf + doff, page_len, pgoff, rp);
+
+    memset(&req, 0, sizeof(req));
+    req.requestid = htons(kXR_pgwrite);
+    memcpy(req.fhandle, f->fhandle, XRD_FHANDLE_LEN);
+    memcpy(&req.offset, &off_be, 8);
+    req.pathid   = 0;
+    req.reqflags = kXR_pgRetry;
+
+    if (xrdc_send(c, &req, rp, (uint32_t) rplen, &sid, st) != 0) {
+        return -1;
+    }
+    if (read_status_frame(c, sid, &resptype, &pgdlen, &foff, st) != 0) {
+        return -1;
+    }
+    if (pgdlen != 0) {
+        /* Still bad — drain and discard the CSE trailer, report not-yet-clean. */
+        uint8_t *cse = (uint8_t *) malloc(pgdlen);
+        if (cse != NULL) {
+            (void) xrdc_read_full(&c->io, cse, pgdlen, st);
+            free(cse);
+        }
+        return 1;
+    }
+    return 0;
+}
+
 int
 xrdc_file_pgwrite(xrdc_conn *c, xrdc_file *f, int64_t offset, const void *buf,
                   size_t len, xrdc_status *st)
@@ -836,17 +880,61 @@ xrdc_file_pgwrite(xrdc_conn *c, xrdc_file *f, int64_t offset, const void *buf,
         return -1;
     }
     if (pgdlen != 0) {
-        /* A non-empty bad-page list means the server rejected some pages. */
-        uint8_t *bad = (uint8_t *) malloc(pgdlen);
-        if (bad != NULL) {
-            (void) xrdc_read_full(&c->io, bad, pgdlen, st);
-            free(bad);
+        /* CSE: the server wrote the data but reported pages that failed CRC32c
+         * (typically wire corruption — our encode is always correct).  Read the
+         * retransmit list and resend each page with kXR_pgRetry until the server
+         * accepts it or we exhaust the bounded attempts. */
+        uint8_t *cse = (uint8_t *) malloc(pgdlen);
+        size_t   nbad, i;
+        int      rc_ret = 0;
+
+        if (cse == NULL || xrdc_read_full(&c->io, cse, pgdlen, st) != 0) {
+            free(cse);
+            free(payload);
+            if (cse == NULL) {
+                xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (%u)", pgdlen);
+            }
+            return -1;
         }
-        /* The server rejected pages on a CRC check — deterministic corruption,
-         * not a transient frame error; non-retryable like the pgread CRC path. */
-        xrdc_status_set(st, XRDC_EINTEGRITY, 0, "pgwrite reported bad pages");
+
+        /* Trailer: cseCRC(4) dlFirst(2) dlLast(2) then int64 bof[n]. */
+        if (pgdlen < 8 || ((pgdlen - 8) % 8) != 0) {
+            free(cse);
+            free(payload);
+            xrdc_status_set(st, XRDC_EPROTO, 0,
+                            "malformed pgwrite CSE trailer (%u bytes)", pgdlen);
+            return -1;
+        }
+        nbad = (size_t) (pgdlen - 8) / 8;
+
+        for (i = 0; i < nbad && rc_ret == 0; i++) {
+            uint64_t bo_be;
+            int64_t  bo;
+            int      attempt, verdict = 1;
+
+            memcpy(&bo_be, cse + 8 + i * 8, 8);
+            bo = (int64_t) be64toh(bo_be);
+
+            for (attempt = 0; attempt < XRDC_PGW_MAX_RETRY; attempt++) {
+                verdict = pgwrite_retry_one(c, f, (const uint8_t *) buf, offset,
+                                            len, bo, st);
+                if (verdict <= 0) {
+                    break;   /* 0 = corrected, -1 = error */
+                }
+            }
+            if (verdict > 0) {
+                xrdc_status_set(st, XRDC_EINTEGRITY, 0,
+                    "pgwrite page %lld uncorrectable after %d retries",
+                    (long long) bo, XRDC_PGW_MAX_RETRY);
+                rc_ret = -1;
+            } else if (verdict < 0) {
+                rc_ret = -1;
+            }
+        }
+
+        free(cse);
         free(payload);
-        return -1;
+        return rc_ret;
     }
     free(payload);
     return 0;

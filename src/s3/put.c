@@ -53,6 +53,7 @@
 #include "../compat/http_body.h"
 #include "../compat/http_headers.h"
 #include "../compat/staged_file.h"
+#include "../fs/vfs.h"
 #include "../path/path.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../impersonate/lifecycle.h"
@@ -130,6 +131,33 @@ typedef struct {
     char                  final_path[PATH_MAX];
     char                  root_canon[PATH_MAX];
 } s3_put_aio_t;
+
+/*
+ * s3_put_vfs_ctx — build a transient VFS request descriptor for an already-
+ * resolved confined path.  Replicates the reference helper in object.c
+ * (s3_vfs_ctx) so the event-loop directory creation of PUT funnels through the
+ * VFS mkdir (metrics + access-log + write gate) while delegating the same
+ * confined syscalls underneath.  The staged object write itself stays on the
+ * flat xrootd_staged_file_t because it is moved by value into the thread-pool
+ * task (s3_put_aio_t / s3_chunk_aio_t) and finished on a worker thread.
+ */
+static void
+s3_put_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+{
+    ngx_http_s3_req_ctx_t *s3ctx;
+    int                    is_tls = 0;
+
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+}
 
 /*
  * s3_thread_pool — resolve (and cache) the async-I/O thread pool for this
@@ -269,7 +297,8 @@ s3_put_aio_done(ngx_event_t *ev)
     {
         struct stat final_sb;
         char        etag_buf[48];
-        if (stat(t->final_path, &final_sb) == 0) {
+        if (xrootd_lstat_confined_canon(log, t->root_canon, t->final_path,
+                                        &final_sb, 1) == 0) {
             s3_etag(&final_sb, etag_buf, sizeof(etag_buf));
             (void) s3_set_header(r, "ETag", etag_buf);
         }
@@ -596,7 +625,8 @@ s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
     {
         struct stat sb;
         char        etag_buf[48];
-        if (stat(fs_path, &sb) == 0) {
+        if (xrootd_lstat_confined_canon(r->connection->log, root_canon, fs_path,
+                                        &sb, 1) == 0) {
             s3_etag(&sb, etag_buf, sizeof(etag_buf));
             (void) s3_set_header(r, "ETag", etag_buf);
         }
@@ -781,9 +811,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                     sizeof(t->fs_path));
         ngx_cpystrn((u_char *) t->root_canon, (u_char *) root_canon,
                     sizeof(t->root_canon));
-        task->handler       = s3_chunk_aio_thread;
-        task->event.handler = s3_chunk_aio_done;
-        task->event.data    = task;
+        xrootd_task_bind(task, s3_chunk_aio_thread, s3_chunk_aio_done);
 
         if (ngx_thread_task_post(pool, task) != NGX_OK) {
             xrootd_staged_abort(r->connection->log, root_canon, staged, 1);
@@ -877,15 +905,19 @@ s3_put_body_inner(ngx_http_request_t *r)
         if (slash != NULL) {
             *slash = '\0';
         }
-        if (xrootd_mkdir_confined_canon(r->connection->log, cf->common.root_canon,
-                                        parent, 0755) != 0
-            && errno != EEXIST)
         {
-            int mk_errno = errno;  /* capture before logging clobbers it */
-            xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, mk_errno,
-                                 "s3: mkdir(\"%s\") failed", parent);
-            s3_put_finalize_fs_error(r, mk_errno);
-            return;
+            xrootd_vfs_ctx_t pctx;
+
+            s3_put_vfs_ctx(r, parent, cf, &pctx);
+            if (xrootd_vfs_mkdir(&pctx, 0755, 0 /* no parents */) != NGX_OK
+                && errno != EEXIST)
+            {
+                int mk_errno = errno;  /* capture before logging clobbers it */
+                xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, mk_errno,
+                                     "s3: mkdir(\"%s\") failed", parent);
+                s3_put_finalize_fs_error(r, mk_errno);
+                return;
+            }
         }
 
         /* Write the zero-byte sentinel */
@@ -939,18 +971,21 @@ s3_put_body_inner(ngx_http_request_t *r)
                     && S_ISDIR(pdir.st_mode))
                 {
                     /* parent prefix already exists — nothing to create */
-                } else if (xrootd_mkdir_recursive_confined_canon(
-                               r->connection->log, cf->common.root_canon,
-                               parent, 0755, NULL) != 0
-                           && errno != EEXIST) {
-                    int mk_errno = errno;  /* capture before logging clobbers it */
-                    xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR,
-                                         mk_errno,
-                                         "s3: mkdirs_for(\"%s\") failed",
-                                         (const char *) fs_path);
-                    /* DAC-denied create of a parent dir → 403, not 500. */
-                    s3_put_finalize_fs_error(r, mk_errno);
-                    return;
+                } else {
+                    xrootd_vfs_ctx_t pvctx;
+
+                    s3_put_vfs_ctx(r, parent, cf, &pvctx);
+                    if (xrootd_vfs_mkdir(&pvctx, 0755, 1 /* parents */) != NGX_OK
+                        && errno != EEXIST) {
+                        int mk_errno = errno;  /* capture before logging clobbers it */
+                        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR,
+                                             mk_errno,
+                                             "s3: mkdirs_for(\"%s\") failed",
+                                             (const char *) fs_path);
+                        /* DAC-denied create of a parent dir → 403, not 500. */
+                        s3_put_finalize_fs_error(r, mk_errno);
+                        return;
+                    }
                 }
             }
         }
@@ -1061,9 +1096,7 @@ s3_put_body_inner(ngx_http_request_t *r)
          * in-memory body bufs straight to the staged fd (s3_put_aio_thread).
          */
 
-        task->handler       = s3_put_aio_thread;
-        task->event.handler = s3_put_aio_done;
-        task->event.data    = task;
+        xrootd_task_bind(task, s3_put_aio_thread, s3_put_aio_done);
 
         if (ngx_thread_task_post(cf->common.thread_pool, task) != NGX_OK) {
             xrootd_staged_abort(r->connection->log, cf->common.root_canon, &staged, 1);
@@ -1130,7 +1163,10 @@ s3_put_body_inner(ngx_http_request_t *r)
         struct stat  final_sb;
         char         etag_buf[48];
 
-        if (stat((const char *) fs_path, &final_sb) == 0) {
+        if (xrootd_lstat_confined_canon(r->connection->log,
+                                        cf->common.root_canon,
+                                        (const char *) fs_path, &final_sb, 1)
+            == 0) {
             s3_etag(&final_sb, etag_buf, sizeof(etag_buf));
             (void) s3_set_header(r, "ETag", etag_buf);
         }

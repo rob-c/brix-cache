@@ -15,6 +15,13 @@
 #define ADMIN_SECRET_MAX  4096
 #define ADMIN_SECRET_MIN  16     /* W6: reject trivially short admin secrets */
 
+/* Phase 44: the io_uring runtime kill switch lives in the stream module (loaded
+ * RTLD_GLOBAL, so its symbols back this HTTP module).  Declared here to drive it
+ * without pulling in liburing/uring.h. */
+ngx_int_t xrootd_uring_killswitch_set(ngx_uint_t disabled);
+ngx_int_t xrootd_uring_killswitch_get(void);
+ngx_int_t xrootd_uring_admin_enabled(void);
+
 
 /* ------------------------------------------------------------------ */
 /* JSON response helpers                                               */
@@ -894,6 +901,55 @@ admin_uri_has_action(ngx_http_request_t *r, const char *action)
  *       routes go through xrootd_admin_read_body (async); the rest run inline.
  *       Unknown resource -> 404, wrong method on a known resource -> 405.
  */
+/* POST body handler: flip the io_uring runtime kill switch.  Body {"enabled":
+ * bool} — false disables io_uring fleet-wide on every worker's next op (the
+ * no-reload CVE-response switch); true re-enables it.  404 if io_uring was not
+ * enabled in the config (no SHM flag to flip). */
+static ngx_int_t
+admin_io_uring_set(ngx_http_request_t *r, json_t *body)
+{
+    json_t *en = json_object_get(body, "enabled");
+    int     enabled;
+
+    if (!json_is_boolean(en)) {
+        admin_audit(r, "io_uring", NULL, "bad_request");
+        return admin_send_error(r, NGX_HTTP_BAD_REQUEST, "missing_field");
+    }
+    enabled = json_is_true(en);
+
+    if (xrootd_uring_killswitch_set(enabled ? 0 : 1) != NGX_OK) {
+        admin_audit(r, "io_uring", NULL, "not_enabled");
+        return admin_send_error(r, NGX_HTTP_NOT_FOUND, "io_uring_not_enabled");
+    }
+
+    admin_audit(r, "io_uring", enabled ? "enable" : "disable", "ok");
+    {
+        json_t *root = json_object();
+        if (root == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
+        json_object_set_new(root, "result",
+                            json_string(enabled ? "enabled" : "disabled"));
+        return admin_send_json(r, NGX_HTTP_OK, root);
+    }
+}
+
+/* GET /admin/io_uring: report whether the kill switch currently disables it. */
+static ngx_int_t
+admin_io_uring_get(ngx_http_request_t *r)
+{
+    json_t *root = json_object();
+
+    if (root == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
+    json_object_set_new(root, "disabled",
+                        json_boolean(xrootd_uring_killswitch_get() != 0));
+    return admin_send_json(r, NGX_HTTP_OK, root);
+}
+
 ngx_int_t
 xrootd_admin_dispatch(ngx_http_request_t *r)
 {
@@ -904,6 +960,20 @@ xrootd_admin_dispatch(ngx_http_request_t *r)
     if (xrootd_admin_check_auth(r, conf) != XROOTD_ADMIN_AUTH_OK) {
         admin_audit(r, "auth", NULL, "forbidden");
         return admin_send_error(r, NGX_HTTP_FORBIDDEN, "forbidden");
+    }
+
+    /* ---- Phase 44: io_uring runtime kill switch (only when enabled) ---- */
+    if (admin_uri_eq(r, ADMIN_PREFIX "io_uring")) {
+        if (!xrootd_uring_admin_enabled()) {
+            return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
+        }
+        if (r->method == NGX_HTTP_POST) {
+            return xrootd_admin_read_body(r, admin_io_uring_set);
+        }
+        if (r->method == NGX_HTTP_GET) {
+            return admin_io_uring_get(r);
+        }
+        return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
     }
 
     /* ---- cluster registry ---- */

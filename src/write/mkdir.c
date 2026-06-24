@@ -92,6 +92,16 @@ xrootd_handle_mkdir(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 		res = xrootd_ns_mkdir(c->log, conf->common.root_canon,
 		                      resolved, mode, recursive);
+		/* Idempotency follows the reference do_Mkdir: only kXR_mkdirpath
+		 * (mkdir -p) tolerates an existing target. A plain mkdir of a path that
+		 * already exists must fail with kXR_ItExists — stock xrdfs reports
+		 * "Unable to mkdir <p>; file exists". Our recursive helper never returns
+		 * EXISTS (mkpath is inherently idempotent), so EXISTS only arises here on
+		 * the single-level path. */
+		if (res.status == XROOTD_NS_EXISTS && !recursive) {
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
+			                  kXR_ItExists, "file exists");
+		}
 		if (res.status != XROOTD_NS_OK && res.status != XROOTD_NS_EXISTS) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
 			                  xrootd_kxr_map_ns_status(res.status, res.sys_errno),

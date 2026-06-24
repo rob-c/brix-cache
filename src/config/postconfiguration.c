@@ -58,6 +58,7 @@
 #include "../manager/redir_cache.h"
 #include "../frm/waiter.h"
 #include "../impersonate/lifecycle.h"
+#include "../aio/uring.h"
 
 ngx_int_t
 ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
@@ -263,6 +264,49 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
     if (xrootd_configure_thread_pools(cf, cmcf) != NGX_OK) {
         return NGX_ERROR;
     }
+
+    /*
+     * Phase 44: io_uring fail-fast.  `xrootd_io_uring on` is a hard requirement —
+     * if it cannot be satisfied (not compiled in, or the runtime probe fails on
+     * this host) refuse to start so the operator is not silently downgraded.
+     * The runtime probe is consulted here (per-process, seccomp-accurate), not
+     * at parse time.  `off`/`auto` always pass.
+     */
+    if (xrootd_uring_validate_conf(cf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+#if (XROOTD_HAVE_LIBURING)
+    /*
+     * Phase 44 SB-W5b: register the cross-worker kill-switch SHM zone when any
+     * enabled block wants io_uring (on/auto), and record whether the no-reload
+     * admin endpoint was enabled.  Skipped entirely in a stub build.
+     */
+    {
+        ngx_uint_t want_uring = 0, admin_on = 0;
+
+        for (i = 0; i < cmcf->servers.nelts; i++) {
+            xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                      ngx_stream_xrootd_module);
+            if (!xcf->common.enable
+                || xcf->io_uring == XROOTD_IO_URING_OFF)
+            {
+                continue;
+            }
+            want_uring = 1;
+            if (xcf->io_uring_admin == 1) {
+                admin_on = 1;
+            }
+        }
+
+        if (want_uring) {
+            if (xrootd_uring_killswitch_configure(cf) != NGX_OK) {
+                return NGX_ERROR;
+            }
+            xrootd_uring_admin_set_enabled(admin_on);
+        }
+    }
+#endif
 
     /*
      * Phase 40: validate the impersonation mode and, for `map`, derive the broker

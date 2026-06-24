@@ -45,6 +45,9 @@ typedef struct {
     xrootd_cms_auth_state_t auth_state;              /* sss handshake state    */
     ngx_event_t        ping_timer;
     ngx_msec_t         interval_ms;                  /* ping interval in ms */
+    ngx_msec_t         login_timeout_ms;             /* WS3: LOGIN handshake deadline */
+    ngx_msec_t         idle_timeout_ms;              /* WS3: post-login inbound silence */
+    unsigned           counted:1;                    /* WS4: this conn is in the cap count */
     u_char             inbuf[NGX_XROOTD_CMS_MAX_FRAME];
     size_t             in_pos;
     size_t             in_need;
@@ -57,10 +60,43 @@ struct ngx_stream_xrootd_cms_srv_conf_s {
     ngx_array_t *allow;        /* ngx_cidr_t[]: permitted data-node IPs (W1b) */
     ngx_str_t    sss_keytab;   /* path to the cluster sss keytab (W1a)        */
     ngx_array_t *sss_keys;     /* parsed xrootd_sss_key_t[] from the keytab    */
+
+    /* ---- Phase 50: accept-side network-fault resilience (the untrusted face) ----
+     * The manager arms no timer until AFTER a node logs in, so a peer that never
+     * completes LOGIN (or trickles a partial header) squats a ctx + fd forever,
+     * and a silently-dead post-login node is only reaped when a ping *send* fails
+     * (which a black-holed peer never does).  These close both holes.  Unset
+     * auto-derives a generous ON default; an explicit 0 disables. */
+    ngx_msec_t   login_timeout;   /* [xrootd_cms_server_login_timeout] deadline to
+                                     complete LOGIN (+sss xauth); unset => 10s. */
+    ngx_msec_t   idle_timeout;    /* [xrootd_cms_server_idle_timeout] post-login
+                                     inbound-silence deadline; unset =>
+                                     max(3*interval, 90s). 0 = off. */
+    ngx_int_t    max_connections; /* [xrootd_cms_server_max_connections] per-worker
+                                     cap on accepted CMS connections; unset => 4096.
+                                     0 = unlimited. */
+    ngx_int_t    max_connections_per_ip; /* [xrootd_cms_server_max_connections_per_ip]
+                                     A3: per-source-IP cap; unset => 256. 0 = off. */
+    ngx_flag_t   tcp_keepalive;   /* [xrootd_cms_server_tcp_keepalive on] */
+    ngx_msec_t   tcp_user_timeout;/* [xrootd_cms_server_tcp_user_timeout] ms; unset
+                                     => idle-timeout backstop. 0 = off. */
 };
 
 /* Module descriptor declared in server_module.c. */
 extern ngx_module_t  ngx_stream_xrootd_cms_srv_module;
+
+/* server_handler.c — per-worker accepted-CMS-connection counter (WS4).
+ * A live gauge of accepted CMS data-server connections in this worker, used to
+ * enforce xrootd_cms_server_max_connections.  Encapsulated behind accessors so
+ * the single process-global counter has exactly one definition. */
+ngx_uint_t xrootd_cms_srv_conn_count(void);
+void       xrootd_cms_srv_conn_inc(void);
+void       xrootd_cms_srv_conn_dec(void);
+
+/* A3: per-source-IP connection accounting (per-worker). */
+ngx_uint_t xrootd_cms_srv_ip_count(const char *ip);
+void       xrootd_cms_srv_ip_inc(const char *ip);
+void       xrootd_cms_srv_ip_dec(const char *ip);
 
 /* server_handler.c */
 

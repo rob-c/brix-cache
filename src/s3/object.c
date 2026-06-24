@@ -23,28 +23,17 @@ s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
 {
     ngx_http_s3_req_ctx_t *s3ctx;
-
-    ngx_memzero(vctx, sizeof(*vctx));
-    vctx->rootfd = -1;
-    vctx->pool = r->pool;
-    vctx->log = r->connection->log;
-    vctx->metrics_proto = XROOTD_PROTO_S3;
-    vctx->root_canon = cf->common.root_canon;
-    vctx->cache_root_canon = cf->cache_root_canon;
-    vctx->cache_enabled = (cf->cache_root_canon[0] != '\0') ? 1 : 0;
-    vctx->allow_write = cf->common.allow_write ? 1 : 0;
-    vctx->resolved.resolved.data = (u_char *) fs_path;
-    vctx->resolved.resolved.len = strlen(fs_path);
-    vctx->resolved.is_confined = 1;
-
-#if (NGX_HTTP_SSL)
-    vctx->is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int                    is_tls = 0;
 
     s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-    if (s3ctx != NULL) {
-        vctx->identity = s3ctx->identity;
-    }
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 }
 
 /* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The range-parse → headers → body-send pipeline is shared with WebDAV GET via xrootd_http_serve_file_ranged() (src/shared/file_serve.c); this handler keeps only the S3-specific concerns: NoSuchKey XML errors, identity resolution, and S3 range/bytes metrics. */

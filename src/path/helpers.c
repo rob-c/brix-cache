@@ -63,6 +63,46 @@ xrootd_path_component_forbidden(const char *comp, size_t comp_len)
 }
 /* ---- HOW: comp_len==1&&comp[0]=='.' || comp_len==2&&comp[0]=='.'&&comp[1]=='.'. Single comparison — O(1) constant-time check. */
 
+/* ---- Function: xrootd_path_has_dotdot() ----
+ *
+ * WHAT: Returns 1 iff some '/'-delimited component of the NUL-terminated path is
+ *       exactly "..". A filename that merely contains the two characters
+ *       (e.g. "a..b", "..foo") is NOT a match — only a whole ".." component.
+ * WHY:  The extract-based ops (stat/open/dirlist/locate) resolve through the
+ *       kernel RESOLVE_BENEATH, which silently collapses an in-tree ".." instead
+ *       of rejecting it. The reference XRootD server (rpCheck) rejects any ".."
+ *       path outright rather than normalizing; op-table ops already reject it in
+ *       xrootd_path_resolve_beneath(). This shared detector lets the extract-
+ *       based ops match that contract. (Escaping ".." is independently confined
+ *       by RESOLVE_BENEATH; this is a protocol-conformance guard, not a new
+ *       security boundary.) */
+int
+xrootd_path_has_dotdot(const char *path)
+{
+    const char *p = path;
+
+    if (path == NULL) {
+        return 0;
+    }
+    while (*p != '\0') {
+        const char *seg;
+        size_t      seg_len;
+
+        while (*p == '/') {
+            p++;
+        }
+        seg = p;
+        while (*p != '\0' && *p != '/') {
+            p++;
+        }
+        seg_len = (size_t) (p - seg);
+        if (seg_len == 2 && seg[0] == '.' && seg[1] == '.') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 size_t
 xrootd_sanitize_log_string(const char *in, char *out, size_t outsz)
 {

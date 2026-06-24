@@ -166,7 +166,7 @@ xrootd_queue_response_base(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * sets resp_async while the recv loop may be mid-receiving the next request.
      * Park the ack in the out_ring and arm the write event WITHOUT touching the
      * socket or ctx->state — the ack drains head-first on the write event while
-     * recv continues uninterrupted.  out_count + wr_inflight < XROOTD_PIPELINE_MAX
+     * recv continues uninterrupted.  out_count + wr_inflight < ctx->pipeline_depth
      * is enforced at the recv boundary, so the ring always has a free slot here.
      */
     if (ctx->resp_async) {
@@ -174,7 +174,7 @@ xrootd_queue_response_base(xrootd_ctx_t *ctx, ngx_connection_t *c,
         slot->wbuf_len  = buffer_len;
         slot->wbuf_pos  = 0;
         slot->wbuf_base = owned_base;
-        ctx->out_tail   = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_tail   = (ctx->out_tail + 1) % ctx->pipeline_depth;
         ctx->out_count++;
         if (xrootd_schedule_write_resume(c) != NGX_OK) {
             return NGX_ERROR;
@@ -193,7 +193,7 @@ xrootd_queue_response_base(xrootd_ctx_t *ctx, ngx_connection_t *c,
         slot->wbuf_len  = buffer_len;
         slot->wbuf_pos  = 0;
         slot->wbuf_base = owned_base;
-        ctx->out_tail   = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_tail   = (ctx->out_tail + 1) % ctx->pipeline_depth;
         ctx->out_count++;
         ctx->state      = XRD_ST_SENDING;
         if (xrootd_schedule_write_resume(c) != NGX_OK) {
@@ -218,7 +218,7 @@ xrootd_queue_response_base(xrootd_ctx_t *ctx, ngx_connection_t *c,
             slot->wbuf_len  = buffer_len;
             slot->wbuf_pos  = 0;
             slot->wbuf_base = owned_base;
-            ctx->out_tail   = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+            ctx->out_tail   = (ctx->out_tail + 1) % ctx->pipeline_depth;
             ctx->out_count++;
             ctx->state      = XRD_ST_SENDING;
             if (xrootd_schedule_write_resume(c) != NGX_OK) {
@@ -279,7 +279,7 @@ xrootd_queue_response_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
         slot->wchain         = chain;
         slot->wchain_pending = (off_t) xrootd_chain_pending_bytes(chain);
         slot->wchain_base    = owned_base;
-        ctx->out_tail        = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_tail        = (ctx->out_tail + 1) % ctx->pipeline_depth;
         ctx->out_count++;
         ctx->state           = XRD_ST_SENDING;
         if (xrootd_schedule_write_resume(c) != NGX_OK) {
@@ -318,7 +318,7 @@ xrootd_queue_response_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
         slot->wchain = unsent;
         slot->wchain_pending = pending;
         slot->wchain_base = owned_base;
-        ctx->out_tail = (ctx->out_tail + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_tail = (ctx->out_tail + 1) % ctx->pipeline_depth;
         ctx->out_count++;
         ctx->state = XRD_ST_SENDING;
         if (xrootd_schedule_write_resume(c) != NGX_OK) {
@@ -431,7 +431,7 @@ xrootd_flush_pending(xrootd_ctx_t *ctx, ngx_connection_t *c)
         /* Head slot fully drained — retire it and advance to the next. */
         slot->wchain = NULL;
         slot->wchain_pending = 0;
-        ctx->out_head = (ctx->out_head + 1) % XROOTD_PIPELINE_MAX;
+        ctx->out_head = (ctx->out_head + 1) % ctx->pipeline_depth;
         ctx->out_count--;
     }
 

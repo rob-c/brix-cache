@@ -16,6 +16,8 @@
  * being visible to concurrent readers. */
 
 #include "s3.h"
+#include "../fs/vfs.h"
+#include "../path/path.h"
 #include "../compat/copy_range.h"
 #include "../compat/http_headers.h"
 #include "../compat/staged_file.h"
@@ -46,17 +48,36 @@ s3_copy_find_header(ngx_http_request_t *r, const char *name, size_t nlen)
     return (const char *) value;
 }
 
+/* Build a transient VFS ctx for a confined S3 op on `fs_path` (mirrors the
+ * canonical s3_vfs_ctx in object.c). */
+static void
+s3_copy_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+{
+    ngx_http_s3_req_ctx_t *s3ctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    int is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+}
+
 ngx_int_t
 s3_handle_copy_object(ngx_http_request_t *r,
                       const char *dst_fs_path,
                       ngx_http_s3_loc_conf_t *cf)
 {
-    const char           *copy_src_hdr;
-    const char           *src_key;
-    char                  src_fs_path[PATH_MAX];
-    struct stat           dst_sb;
-    xrootd_ns_result_t    res;
-    xrootd_ns_copy_opts_t opts;
+    const char            *copy_src_hdr;
+    const char            *src_key;
+    char                   src_fs_path[PATH_MAX];
+    struct stat            dst_sb;
+    xrootd_vfs_ctx_t       vctx;
+    xrootd_vfs_copy_opts_t copy_opts;
     char                  etag_buf[48];
     char                  iso_buf[32];
     char                  xml_buf[512];
@@ -98,15 +119,15 @@ s3_handle_copy_object(ngx_http_request_t *r,
                                  "Copy source path is not accessible.");
     }
 
-    ngx_memzero(&opts, sizeof(opts));
-    opts.overwrite     = 1;
-    opts.staged_commit = 1;
+    /* Route the single-file copy through the metered VFS surface (OP_COPY).
+     * src = ctx path, dst passed explicitly; both confined under root_canon. */
+    s3_copy_vfs_ctx(r, src_fs_path, cf, &vctx);
+    ngx_memzero(&copy_opts, sizeof(copy_opts));
+    copy_opts.overwrite     = 1;
+    copy_opts.staged_commit = 1;
 
-    res = xrootd_ns_local_copy(r->connection->log, cf->common.root_canon,
-                               src_fs_path, dst_fs_path, &opts);
-
-    if (res.status != XROOTD_NS_OK) {
-        if (res.status == XROOTD_NS_NOT_FOUND) {
+    if (xrootd_vfs_copy(&vctx, dst_fs_path, &copy_opts) != NGX_OK) {
+        if (errno == ENOENT) {
             XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
             return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                      "NoSuchKey",
@@ -116,7 +137,10 @@ s3_handle_copy_object(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (stat(dst_fs_path, &dst_sb) != 0) {
+    /* Confined (no-follow) stat of the freshly-copied destination for the ETag —
+     * dst_fs_path is under root_canon but a raw stat() would follow a symlink. */
+    if (xrootd_lstat_confined_canon(r->connection->log, cf->common.root_canon,
+                                    dst_fs_path, &dst_sb, 1) != 0) {
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

@@ -79,11 +79,11 @@ from settings import HOST, url_host
 # Configuration
 # ---------------------------------------------------------------------------
 
-DATA_DIR   = "/tmp/xrd-test/data"
-CA_DIR     = "/tmp/xrd-test/pki/ca"
-PROXY_PEM  = "/tmp/xrd-test/pki/user/proxy_std.pem"
-TOKEN_DIR  = "/tmp/xrd-test/tokens"
-SERVER_CERT = "/tmp/xrd-test/pki/server/hostcert.pem"
+DATA_DIR   = "/tmp/xrd-load/data"
+CA_DIR     = "/tmp/xrd-load/pki/ca"
+PROXY_PEM  = "/tmp/xrd-load/pki/user/proxy_std.pem"
+TOKEN_DIR  = "/tmp/xrd-load/tokens"
+SERVER_CERT = "/tmp/xrd-load/pki/server/hostcert.pem"
 
 _H = url_host(HOST)   # client connect host (bracketed if IPv6)
 

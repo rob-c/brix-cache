@@ -61,7 +61,8 @@ xrootd_vfs_delete(xrootd_vfs_ctx_t *ctx, unsigned recursive,
         return NGX_OK;
     }
 
-    errno = res.sys_errno != 0 ? res.sys_errno : EIO;
+    errno = res.sys_errno != 0 ? res.sys_errno
+                               : xrootd_vfs_ns_status_errno(res.status);
     saved_errno = errno;
     xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DELETE, NULL, 0,
                               NGX_ERROR, saved_errno, start);

@@ -16,6 +16,9 @@
  */
 
 #include "ocsp.h"
+#include "../metrics/metrics.h"          /* ngx_xrootd_metrics_t */
+#include "../metrics/metrics_macros.h"   /* Phase 51 (E6): ocsp_timeouts_total */
+#include "../connection/netconnect.h"    /* shared SO_RCVTIMEO/SO_SNDTIMEO helper */
 
 #include <openssl/ocsp.h>
 #include <openssl/x509.h>
@@ -26,12 +29,84 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <poll.h>
+#include <time.h>
 
 /*
  * Maximum number of bytes accepted in an OCSP HTTP response body.
  * OCSP responses are small (a few KB at most); guard against runaways.
  */
 #define OCSP_MAX_RESPONSE_BYTES  (64 * 1024)
+
+/*
+ * Phase 51 (E1): hard wall-clock bound (seconds) on every network phase of an
+ * OCSP fetch — TCP connect, TLS handshake, and request/response.  Without this a
+ * black-holed/slow responder blocks the single-threaded worker event loop for the
+ * kernel TCP timeout (~60-120 s), freezing ALL connections.  The connect phase is
+ * bounded with a non-blocking connect + poll() (SO_SNDTIMEO does not bound
+ * connect()); the read/write phases with SO_RCVTIMEO/SO_SNDTIMEO.  On timeout the
+ * fetch returns NULL and the caller applies its ocsp_soft_fail policy.
+ */
+#define XROOTD_OCSP_TIMEOUT_SECS  5
+
+/* Apply SO_RCVTIMEO/SO_SNDTIMEO to the BIO's socket fd (best-effort). */
+static void
+ocsp_set_io_timeouts(BIO *cbio, int secs)
+{
+    int fd = -1;
+
+    if (BIO_get_fd(cbio, &fd) <= 0 || fd < 0) {
+        return;
+    }
+    xrootd_apply_socket_io_timeouts(fd, secs);
+}
+
+/*
+ * Drive BIO_do_connect to completion under a `secs` deadline using non-blocking
+ * mode + poll().  Returns 0 on connect, -1 on hard failure, -2 on TIMEOUT.  Leaves
+ * the BIO in blocking mode on success so the subsequent handshake/sendreq (bounded
+ * by SO_*TIMEO) behave normally.
+ */
+#define OCSP_CONNECT_OK       0
+#define OCSP_CONNECT_FAIL    (-1)
+#define OCSP_CONNECT_TIMEOUT (-2)
+
+static int
+ocsp_connect_deadline(BIO *cbio, int secs)
+{
+    time_t  deadline = time(NULL) + secs;
+
+    BIO_set_nbio(cbio, 1);
+
+    for ( ;; ) {
+        struct pollfd  pfd;
+        int            fd = -1;
+        int            remaining_ms;
+
+        if (BIO_do_connect(cbio) > 0) {
+            BIO_set_nbio(cbio, 0);     /* back to blocking for SO_*TIMEO phase */
+            return OCSP_CONNECT_OK;
+        }
+        if (!BIO_should_retry(cbio)) {
+            return OCSP_CONNECT_FAIL;  /* hard failure */
+        }
+        if (BIO_get_fd(cbio, &fd) <= 0 || fd < 0) {
+            return OCSP_CONNECT_FAIL;
+        }
+        remaining_ms = (int) ((deadline - time(NULL)) * 1000);
+        if (remaining_ms <= 0) {
+            return OCSP_CONNECT_TIMEOUT;   /* connect deadline exceeded */
+        }
+        pfd.fd      = fd;
+        pfd.events  = POLLOUT | POLLIN;
+        pfd.revents = 0;
+        if (poll(&pfd, 1, remaining_ms) <= 0) {
+            return OCSP_CONNECT_TIMEOUT;   /* poll timeout / error */
+        }
+    }
+}
 
 /* ------------------------------------------------------------------ */
 /* Internal helpers                                                     */
@@ -187,16 +262,29 @@ do_ocsp_request(ngx_log_t *log, const char *url,
 
     BIO_set_conn_hostname(cbio, hostport);
 
-    if (BIO_do_connect(cbio) <= 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: connect to \"%s\" failed", hostport);
-        BIO_free_all(cbio);
-        if (ssl_ctx != NULL) {
-            SSL_CTX_free(ssl_ctx);
+    /* E1: bound the connect with a deadline (a black-holed responder must not
+     * freeze the worker for the kernel TCP timeout). */
+    {
+        int crc = ocsp_connect_deadline(cbio, XROOTD_OCSP_TIMEOUT_SECS);
+        if (crc != OCSP_CONNECT_OK) {
+            if (crc == OCSP_CONNECT_TIMEOUT) {
+                XROOTD_RESIL_METRIC_INC(ocsp_timeouts_total);
+            }
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "xrootd_ocsp: connect to \"%s\" %s (%ds)", hostport,
+                          crc == OCSP_CONNECT_TIMEOUT ? "timed out" : "failed",
+                          XROOTD_OCSP_TIMEOUT_SECS);
+            BIO_free_all(cbio);
+            if (ssl_ctx != NULL) {
+                SSL_CTX_free(ssl_ctx);
+            }
+            OCSP_REQUEST_free(req);
+            return NULL;
         }
-        OCSP_REQUEST_free(req);
-        return NULL;
     }
+
+    /* E1: bound the TLS handshake + request/response read/write phases. */
+    ocsp_set_io_timeouts(cbio, XROOTD_OCSP_TIMEOUT_SECS);
 
     if (use_ssl) {
         if (BIO_do_handshake(cbio) <= 0) {

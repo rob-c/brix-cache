@@ -33,8 +33,23 @@ completion.
 
 Callers today: [`../read/`](../read/README.md) and [`../write/`](../write/README.md)
 (XRootD opcodes), [`../shared/file_serve.c`](../shared/README.md),
-[`../webdav/`](../webdav/README.md) (`get.c`, `resource.c`),
-[`../s3/`](../s3/README.md) (`object.c`), and [`../dirlist/`](../dirlist/README.md).
+[`../webdav/`](../webdav/README.md) (`get.c`, `resource.c`; plus the metered
+xattr/copy/staged/delete paths in `prop_xattr.c`, `dead_props.c`, `copy.c`,
+`put.c`, `namespace.c`), [`../s3/`](../s3/README.md) (`object.c`,
+`post_object.c`, `put.c`, `tagging.c`, `checksum.c`, `conditional.c`), and
+[`../dirlist/`](../dirlist/README.md).
+
+> **Event-loop-only boundary.** The VFS entry points allocate from an nginx
+> request `pool` and emit Prometheus metrics + access-log lines, none of which
+> are thread-safe. They therefore run **only on the event loop**. Code that
+> mutates the export namespace from a **thread-pool worker** — native TPC pull
+> (`../tpc/source.c`), async/multipart S3 PUT assembly, and the collection
+> COPY/MOVE engines — deliberately stays on the lower confined-helper /
+> `xrootd_ns_*` / `compat/staged_file` tier instead. Those helpers provide the
+> same `RESOLVE_BENEATH` confinement; only the VFS's metering/cache layer is
+> skipped. Lifting that boundary would require giving each worker a private pool
+> and deferring all metric/log emission back to the completion handler — a
+> separate, larger change.
 
 ## Files
 
@@ -51,6 +66,9 @@ Callers today: [`../read/`](../read/README.md) and [`../write/`](../write/README
 | `vfs_rename.c` | `xrootd_vfs_rename()` — delegates to `xrootd_ns_rename`; requires a confined destination `xrootd_path_result_t`; write-gated. |
 | `vfs_unlink.c` | Delete family: shared `xrootd_vfs_delete()` → `xrootd_ns_delete`; `xrootd_vfs_unlink()` (file) and `xrootd_vfs_rmdir()` (recursive or require-empty). Write-gated. |
 | `vfs_sync.c` | `xrootd_vfs_truncate()` (`ftruncate` + handle-size update) and `xrootd_vfs_sync()` (`fsync`). |
+| `vfs_xattr.c` | Extended-attribute family: `xrootd_vfs_getxattr/listxattr/setxattr/removexattr` over the `user.` namespace (S3 tagging, WebDAV dead-properties, the lock database). Delegates to `xrootd_*xattr_confined_canon`; metered as `OP_XATTR`. set/remove are **not** `allow_write`-gated (the lock DB writes on read-only requests; the protocol layer authorizes). |
+| `vfs_copy.c` | `xrootd_vfs_copy()` — single regular-file server-side copy (`copy_file_range`) behind WebDAV COPY / S3 CopyObject. Delegates to `xrootd_ns_local_copy`; write-gated; metered as `OP_COPY` (byte count from the post-copy destination size). |
+| `vfs_staged.c` | Atomic staged-write lifecycle (`xrootd_vfs_staged_open` → write the fd → `xrootd_vfs_staged_commit`/`abort`) behind crash-safe S3 PutObject / WebDAV PUT. Wraps `compat/staged_file`; write-gated at open; the commit (atomic publish onto the final path) is metered as `OP_WRITE`. |
 | `fd_cache.c` | Reserved slot for future fd-cache unification; currently only a header include + design note. No live code. |
 
 ## Key types & data structures

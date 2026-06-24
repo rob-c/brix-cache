@@ -121,5 +121,16 @@ xrootd_handle_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     xrootd_log_access(ctx, c, "SIGVER", "-", "-", 1, 0, NULL, 0);
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    /*
+     * kXR_sigver is a request PREFIX, not a standalone request: per the XRootD
+     * protocol (XrdXrootdProtocol::ProcSig) the server sends NO response on
+     * success — the single response belongs to the signed request that follows,
+     * which xrootd_verify_pending_sigver() validates at the top of its dispatch.
+     * Returning NGX_OK without queuing a frame lets the recv loop read that next
+     * request. Emitting a kXR_ok here desynchronised every stock-protocol client
+     * (go-hep, official XrdCl): they read the ack as the signed request's reply
+     * (e.g. go-hep stat → statinfo "" parse error). The error paths above still
+     * reply, since a sigver failure aborts the exchange.
+     */
+    return NGX_OK;
 }

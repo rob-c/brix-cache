@@ -171,7 +171,13 @@ connect_resolved(const char *host, int port, int timeout_ms, int family,
 
     gai = getaddrinfo(host, portstr, &hints, &res);
     if (gai != 0) {
-        xrdc_status_set(st, XRDC_ESOCK, 0, "resolve %s:%d: %s",
+        /* EAI_AGAIN is a transient resolver hiccup (keep it retryable as a
+         * transport fault); every other failure means the name has no address
+         * and never will on a retry, so mark it permanent (XRDC_ERESOLVE) and
+         * let the resilient loop fail fast instead of spinning the stall window
+         * on a dead endpoint. */
+        int code = (gai == EAI_AGAIN) ? XRDC_ESOCK : XRDC_ERESOLVE;
+        xrdc_status_set(st, code, 0, "resolve %s:%d: %s",
                         host, port, gai_strerror(gai));
         return -1;
     }

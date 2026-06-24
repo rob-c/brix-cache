@@ -75,9 +75,14 @@ teardown (firefly `end` reads the final TCP_INFO before the fd closes):
 - Untrusted `scitag.flow` is range-checked (`scitag.c`); out-of-range/malformed is
   ignored, and only parsed integers + numeric IPs are ever emitted (no client
   bytes in the firefly JSON).
-- The flow-label **bit layout** (version nibble) is pinned in the single
-  `xrootd_pmark_flowlabel_encode()` — match it to the deployed SciTags spec
-  version before declaring interop.
+- The flow-label **bit layout** is the WLCG SciTags spec
+  (`draft-cc-v6ops-wlcg-flow-label-marking`): activity at bits 2–7, community
+  (experiment) at bits 9–17 **in reversed bit order**, 5 random entropy bits at
+  0,1,8,18,19. It is pinned in the single `xrootd_pmark_flowlabel_encode()` (+ the
+  entropy OR in `flowlabel.c`). A CMS client's `scitag.flow=206` (exp 3, act 14)
+  therefore appears on the wire as flow label `196664` — the value cms-sw/cmssw
+  `c2797da` reads back. Match this layout to the deployed spec version before
+  declaring interop.
 - TCP_INFO byte fields are read by fixed kernel-ABI offset because glibc's
   `<netinet/tcp.h>` `struct tcp_info` omits them and `<linux/tcp.h>` conflicts with
   it; rtt is always available, byte counts where the kernel provides them.

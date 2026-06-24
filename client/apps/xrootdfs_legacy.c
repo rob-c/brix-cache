@@ -39,6 +39,7 @@
 #include "iobuf.h"           /* shared read-ahead / write-back engine */
 #include "fuse_ops.h"        /* shared pooled meta-op runner + op thunks */
 #include "compat/crypto.h"   /* xrootd_crypto_init (libxrdproto SHA/HMAC kernels) */
+#include "protocol/open_flags.h" /* shared POSIX-flags -> open `force` tri-state */
 
 #include <fuse3/fuse.h>
 
@@ -247,15 +248,13 @@ xfs_open(const char *path, struct fuse_file_info *fi)
     xrdc_status_clear(&st);
     if (acc == O_RDONLY) {
         rc = xrdc_rfile_open_read(&h->conn, path, NULL, 0, -1, &h->f, &st);
-    } else if (fi->flags & O_TRUNC) {
-        /* Explicit truncate-on-open → overwrite from empty (force=1). */
-        rc = xrdc_rfile_open_write(&h->conn, path, 1, 0, 0, -1, &h->f, &st);
-        h->writable = 1;
     } else {
-        /* Writable open of an existing file WITHOUT O_TRUNC → in-place update
-         * (force=2), so partial edits (sed -i, random writes) preserve unwritten
-         * content. */
-        rc = xrdc_rfile_open_write(&h->conn, path, 2, 0, 0, -1, &h->f, &st);
+        /* Writable open: O_TRUNC → overwrite from empty (force 1); otherwise
+         * in-place update (force 2), so partial edits (sed -i, random writes)
+         * preserve unwritten content. */
+        rc = xrdc_rfile_open_write(&h->conn, path,
+                                   xrootd_open_force_for_open(fi->flags),
+                                   0, 0, -1, &h->f, &st);
         h->writable = 1;
     }
     if (rc != 0) {
@@ -282,7 +281,8 @@ xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     }
     xrdc_status_clear(&st);
     /* O_EXCL → create-new (force=0, fail if exists); otherwise truncate-create. */
-    rc = xrdc_rfile_open_write(&h->conn, path, (fi->flags & O_EXCL) ? 0 : 1, 0,
+    rc = xrdc_rfile_open_write(&h->conn, path,
+                               xrootd_open_force_for_create(fi->flags), 0,
                                0, -1, &h->f, &st);
     if (rc != 0) {
         xfs_handle_free(h);

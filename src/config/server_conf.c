@@ -96,6 +96,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->gsi_cert_pem_len = 0;
     conf->gsi_ca_hash  = 0;
     conf->gsi_signed_dh = NGX_CONF_UNSET_UINT;
+    conf->gsi_max_inflight = NGX_CONF_UNSET;
     conf->vo_rules     = NULL;
     conf->group_rules  = NULL;
     conf->access_log_fd = NGX_INVALID_FILE;
@@ -113,6 +114,11 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cache_eviction_threshold = NGX_CONF_UNSET_UINT;
     conf->cache_max_file_size      = NGX_CONF_UNSET;
     conf->memory_budget            = NGX_CONF_UNSET;
+    conf->readv_segment_size       = NGX_CONF_UNSET_SIZE;
+    conf->io_uring                 = NGX_CONF_UNSET_UINT;
+    conf->io_uring_queue_depth     = NGX_CONF_UNSET;
+    conf->io_uring_admin           = NGX_CONF_UNSET;
+    conf->io_uring_restrict        = NGX_CONF_UNSET;
     conf->cache_include_regex_set  = 0;
     conf->cache_slice_size         = NGX_CONF_UNSET_SIZE;
     conf->wt_enable                = NGX_CONF_UNSET;
@@ -128,6 +134,9 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->collapse_redir     = NGX_CONF_UNSET;
     conf->collapse_redir_ttl = NGX_CONF_UNSET_MSEC;
     conf->recover_writes     = NGX_CONF_UNSET;
+    conf->upload_resume      = NGX_CONF_UNSET;
+    /* upload_stage_dir: ngx_str_t left zeroed by pcalloc (handled by merge_str). */
+    conf->pipeline_depth = NGX_CONF_UNSET_UINT;
     conf->registry_slots = NGX_CONF_UNSET_UINT;
     conf->session_slots  = NGX_CONF_UNSET_UINT;
     conf->redir_cache_slots = NGX_CONF_UNSET_UINT;
@@ -169,6 +178,10 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cms_addr     = NULL;
     conf->upstream_addr = NULL;
     conf->cms_interval = NGX_CONF_UNSET;
+    conf->cms_read_timeout     = NGX_CONF_UNSET_MSEC;
+    conf->cms_send_timeout     = NGX_CONF_UNSET_MSEC;
+    conf->cms_tcp_keepalive    = NGX_CONF_UNSET;
+    conf->cms_tcp_user_timeout = NGX_CONF_UNSET_MSEC;
     conf->listen_port  = NGX_CONF_UNSET;
     conf->cms_ctx      = NULL;
     conf->ckscan_max_depth = NGX_CONF_UNSET_UINT;
@@ -185,6 +198,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->krb5_principal_obj = NULL;
 #endif
     conf->unix_trust_remote = NGX_CONF_UNSET;
+    conf->host_allow        = NGX_CONF_UNSET_PTR;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
     conf->tpc_key_ttl_ms    = NGX_CONF_UNSET_MSEC;
@@ -260,6 +274,9 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_uint_value(conf->auth,   prev->auth,        XROOTD_AUTH_NONE);
     ngx_conf_merge_uint_value(conf->gsi_signed_dh, prev->gsi_signed_dh,
                               XROOTD_GSI_SDH_OFF);
+    ngx_conf_merge_value(conf->gsi_max_inflight, prev->gsi_max_inflight, 256);
+    ngx_conf_merge_str_value(conf->gsi_ciphers, prev->gsi_ciphers, "");
+    ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
 
     /* XrdAcc engine: default native, audit off, refresh off, 12h gid cache. */
@@ -339,6 +356,7 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->krb5_keytab,     prev->krb5_keytab,     "");
     ngx_conf_merge_value(conf->krb5_ip_check,       prev->krb5_ip_check,   0);
     ngx_conf_merge_value(conf->unix_trust_remote,   prev->unix_trust_remote, 0);
+    ngx_conf_merge_ptr_value(conf->host_allow,      prev->host_allow,      NULL);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
     ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        0);
@@ -360,6 +378,24 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
                              prev->cache_max_file_size, 0);
     ngx_conf_merge_off_value(conf->memory_budget,
                              prev->memory_budget, 768 * 1024 * 1024);
+    /* Default = stock XRootD maxReadv_ior = maxBuffsz(2 MiB) - sizeof(readahead_list). */
+    ngx_conf_merge_size_value(conf->readv_segment_size,
+                              prev->readv_segment_size,
+                              (size_t) (2 * 1024 * 1024) - XROOTD_READV_SEGSIZE);
+
+    /* Phase 44: optional io_uring backend.  Default mode AUTO (enable iff the
+     * runtime probe passes, else silent thread-pool fallback); restrictions on;
+     * admin endpoint off; panic-file unset. */
+    ngx_conf_merge_uint_value(conf->io_uring,
+                              prev->io_uring, XROOTD_IO_URING_AUTO);
+    ngx_conf_merge_value(conf->io_uring_queue_depth,
+                         prev->io_uring_queue_depth,
+                         XROOTD_IO_URING_QUEUE_DEPTH);
+    ngx_conf_merge_str_value(conf->io_uring_panic_file,
+                             prev->io_uring_panic_file, "");
+    ngx_conf_merge_value(conf->io_uring_admin, prev->io_uring_admin, 0);
+    ngx_conf_merge_value(conf->io_uring_restrict, prev->io_uring_restrict, 1);
+
     ngx_conf_merge_size_value(conf->cache_slice_size,
                               prev->cache_slice_size, 0);
 
@@ -386,8 +422,13 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
     ngx_conf_merge_msec_value(conf->tpc_key_ttl_ms, prev->tpc_key_ttl_ms,
                               XROOTD_TPC_KEY_TTL_MS);
+    /* Phase 51 (B2): default native-TPC absolute wall-clock cap to a generous
+     * 24h so a wedged transfer cannot pin a thread-pool worker forever; 0 still
+     * means unlimited (back-compat).  Progress-based stall detection (the curl
+     * low-speed bounds, webdav/tpc_config.c) is the primary guard — this is only
+     * the absolute backstop, large enough never to clip a real transfer. */
     ngx_conf_merge_uint_value(conf->tpc_max_transfer_secs,
-                              prev->tpc_max_transfer_secs, 0);
+                              prev->tpc_max_transfer_secs, 86400);
     ngx_conf_merge_value(conf->tpc_transfer_max_age,
                          prev->tpc_transfer_max_age, 0);
     /* Phase 39 (WS5): publish the abandoned-slot reaper age to the shared TPC
@@ -414,6 +455,20 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->collapse_redir,       prev->collapse_redir,       0);
     ngx_conf_merge_msec_value(conf->collapse_redir_ttl, prev->collapse_redir_ttl, 30000);
     ngx_conf_merge_value(conf->recover_writes,       prev->recover_writes,       0);
+    /* Uploads are staged + resumable by DEFAULT (atomic commit-on-close, resume
+     * across a restart).  Set xrootd_upload_resume off to opt out. */
+    ngx_conf_merge_value(conf->upload_resume,        prev->upload_resume,        1);
+    ngx_conf_merge_str_value(conf->upload_stage_dir, prev->upload_stage_dir,     "");
+    ngx_conf_merge_uint_value(conf->pipeline_depth,  prev->pipeline_depth,
+                              XROOTD_PIPELINE_DEPTH_DEFAULT);
+    /* Clamp the in-flight pipeline window to a sane range: >=1 (the recv loop and
+     * ring arithmetic require a positive modulus) and <=MAX (bounds per-connection
+     * out_ring/rd_pool memory). */
+    if (conf->pipeline_depth < XROOTD_PIPELINE_DEPTH_MIN) {
+        conf->pipeline_depth = XROOTD_PIPELINE_DEPTH_MIN;
+    } else if (conf->pipeline_depth > XROOTD_PIPELINE_DEPTH_MAX) {
+        conf->pipeline_depth = XROOTD_PIPELINE_DEPTH_MAX;
+    }
     ngx_conf_merge_uint_value(conf->registry_slots,  prev->registry_slots,  128);
     ngx_conf_merge_uint_value(conf->session_slots,   prev->session_slots,
                               XROOTD_SESSION_REGISTRY_SLOTS);
@@ -461,6 +516,34 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
          * (connect.c) — both busy-loops. Floor the heartbeat at 1s. */
         conf->cms_interval = 1;
     }
+
+    /*
+     * Phase 50: CMS client resilience deadlines.  Resolve here (after
+     * cms_interval is merged) so an unset directive auto-derives a generous
+     * ON-by-default value from the heartbeat interval; an explicit 0 disables.
+     *   - read timeout: max(3 x interval, 90s) — a healthy real cmsd pings well
+     *     within its interval, so this never trips a conformant manager.
+     *   - send timeout: 10s — bounds a manager that stops draining our writes.
+     *   - tcp_user_timeout: defaults to the read-timeout as a kernel backstop.
+     */
+    if (conf->cms_read_timeout == NGX_CONF_UNSET_MSEC) {
+        if (prev->cms_read_timeout != NGX_CONF_UNSET_MSEC) {
+            conf->cms_read_timeout = prev->cms_read_timeout;
+        } else {
+            ngx_msec_t d = (ngx_msec_t) conf->cms_interval * 3 * 1000;
+            conf->cms_read_timeout = (d > 90000) ? d : 90000;
+        }
+    }
+    ngx_conf_merge_msec_value(conf->cms_send_timeout, prev->cms_send_timeout,
+                              10000);
+    ngx_conf_merge_value(conf->cms_tcp_keepalive, prev->cms_tcp_keepalive, 1);
+    if (conf->cms_tcp_user_timeout == NGX_CONF_UNSET_MSEC) {
+        conf->cms_tcp_user_timeout =
+            (prev->cms_tcp_user_timeout != NGX_CONF_UNSET_MSEC)
+                ? prev->cms_tcp_user_timeout
+                : conf->cms_read_timeout;
+    }
+
     ngx_conf_merge_value(conf->listen_port,         prev->listen_port,     XROOTD_DEFAULT_PORT);
     ngx_conf_merge_uint_value(conf->ckscan_max_depth,
                               prev->ckscan_max_depth, 32);
@@ -535,7 +618,10 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->proxy_path_add,   prev->proxy_path_add,   "");
     ngx_conf_merge_msec_value(conf->proxy_connect_timeout,    prev->proxy_connect_timeout,    10000);
     ngx_conf_merge_msec_value(conf->proxy_read_timeout,       prev->proxy_read_timeout,       60000);
-    ngx_conf_merge_msec_value(conf->proxy_write_timeout,      prev->proxy_write_timeout,      0);
+    /* Phase 51 (B1): default the upstream write-stall deadline ON (60s) so a
+     * slow/backpressured upstream that stops draining our writes can no longer
+     * pin the client connection indefinitely.  0 still disables (back-compat). */
+    ngx_conf_merge_msec_value(conf->proxy_write_timeout,      prev->proxy_write_timeout,      60000);
     ngx_conf_merge_msec_value(conf->proxy_keepalive_interval, prev->proxy_keepalive_interval, 15000);
 
     XROOTD_MERGE_PTR(conf, prev, proxy_upstreams);
@@ -591,6 +677,7 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_msec_value(conf->send_timeout,      prev->send_timeout,      0);
     ngx_conf_merge_msec_value(conf->tcp_user_timeout,  prev->tcp_user_timeout,  0);
     ngx_conf_merge_value(conf->tcp_keepalive,          prev->tcp_keepalive,     0);
+    ngx_conf_merge_str_value(conf->tcp_congestion,     prev->tcp_congestion,    "");
     ngx_conf_merge_uint_value(conf->max_connections,   prev->max_connections,   0);
     ngx_conf_merge_msec_value(conf->manager_stale_after,
                               prev->manager_stale_after, 0);

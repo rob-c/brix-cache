@@ -137,9 +137,10 @@ xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf,
                             const char *reqpath, xrootd_path_mode_t mode,
                             char *resolved, size_t resolved_sz)
 {
-    int want_dir;
-    int reject_trailing_slash;
-    int ok;
+    int  want_dir;
+    int  strip_trailing_slash;
+    int  ok;
+    char norm[XROOTD_MAX_PATH + 1];
 
     if (xrootd_count_path_depth(reqpath) != NGX_OK
         || xrootd_op_path_forbidden_component(reqpath))
@@ -148,17 +149,29 @@ xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf,
     }
 
     switch (mode) {
-    case XROOTD_PATH_EXISTING: want_dir = 0;  reject_trailing_slash = 0; break;
-    case XROOTD_PATH_WRITE:    want_dir = 1;  reject_trailing_slash = 1; break;
-    case XROOTD_PATH_NOEXIST:  want_dir = -1; reject_trailing_slash = 0; break;
-    case XROOTD_PATH_EITHER:   want_dir = 1;  reject_trailing_slash = 0; break;
-    default:                   want_dir = 0;  reject_trailing_slash = 0; break;
+    case XROOTD_PATH_EXISTING: want_dir = 0;  strip_trailing_slash = 0; break;
+    case XROOTD_PATH_WRITE:    want_dir = 1;  strip_trailing_slash = 1; break;
+    case XROOTD_PATH_NOEXIST:  want_dir = -1; strip_trailing_slash = 0; break;
+    case XROOTD_PATH_EITHER:   want_dir = 1;  strip_trailing_slash = 0; break;
+    default:                   want_dir = 0;  strip_trailing_slash = 0; break;
     }
 
-    if (reject_trailing_slash) {
+    /* A write/create target with a trailing slash is NORMALIZED, not rejected,
+     * exactly as the reference's Squash collapses it: "mkdir /d/" -> /d and
+     * "open /f/" -> /f. (We previously returned ArgInvalid, so `mkdir /d/` —
+     * which stock accepts — failed.) Scoped to the create modes so a stat/cat of
+     * "/file/" keeps its existing file-vs-dir error behavior. */
+    if (strip_trailing_slash) {
         size_t rl = ngx_strlen(reqpath);
         if (rl > 1 && reqpath[rl - 1] == '/') {
-            return NGX_ERROR;
+            if (rl >= sizeof(norm)) {
+                return NGX_ERROR;
+            }
+            ngx_memcpy(norm, reqpath, rl + 1);
+            while (rl > 1 && norm[rl - 1] == '/') {
+                norm[--rl] = '\0';
+            }
+            reqpath = norm;
         }
     }
 
@@ -177,6 +190,22 @@ xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf,
     }
 
     return NGX_OK;
+}
+
+int
+xrootd_reject_dotdot_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
+                          ngx_uint_t op_id, const char *op_name,
+                          const char *reqpath)
+{
+    if (!xrootd_path_has_dotdot(reqpath)) {
+        return 0;
+    }
+    xrootd_log_path_warning(c->log, "xrootd: path traversal attempt", reqpath);
+    xrootd_log_access(ctx, c, op_name, reqpath, "-",
+                      0, kXR_ArgInvalid, "invalid path", 0);
+    XROOTD_OP_ERR(ctx, op_id);
+    ctx->write_rc = xrootd_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
+    return 1;
 }
 
 ngx_int_t

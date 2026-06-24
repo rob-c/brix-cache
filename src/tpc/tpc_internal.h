@@ -211,26 +211,9 @@ int tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
  */
 int tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd);
 
-/*
- * gsi_outbound_dh_helpers.c — DH key-exchange helpers for GSI outbound auth.
- * tpc_gsi_select_cipher   — pick a cipher from a server-advertised list.
- * tpc_parse_hex_pub       — decode a hex-encoded DH public key blob.
- * tpc_dh_peer_from        — build an EVP_PKEY peer key from local key + BIGNUM.
- */
-/* Write the first ':'-delimited cipher name from the server's (borrowed,
- * bounds-checked) kXRS_cipher_alg bucket into out (NUL-terminated, truncated to
- * outsz). Defaults to "aes-256-cbc" when the bucket is absent or empty; never
- * fails. */
-void tpc_gsi_select_cipher(const u_char *payload, size_t payload_len,
-    char *out, size_t outsz);
-/* Parse the hex DH public value framed by ---BPUB---/---EPUB-- in the borrowed
- * puk_data blob. Returns a newly allocated BIGNUM the caller owns (BN_free), or
- * NULL if the markers are missing or the hex fails to decode. */
-BIGNUM *tpc_parse_hex_pub(const u_char *puk_data, size_t puk_len);
-/* Build an EVP_PKEY peer public key by merging local_key's DH parameters with
- * peer_pub_bn. Both inputs are borrowed. Returns a new EVP_PKEY the caller owns
- * (EVP_PKEY_free), or NULL on failure. */
-EVP_PKEY *tpc_dh_peer_from(EVP_PKEY *local_key, BIGNUM *peer_pub_bn);
+/* (The former gsi_outbound_dh_helpers.c — raw-OpenSSL DH/cipher helpers
+ * tpc_gsi_select_cipher / tpc_parse_hex_pub / tpc_dh_peer_from — was removed when
+ * tpc_outbound_gsi_exchange migrated onto the shared gsi_core kernel.) */
 
 /*
  * source.c — remote file open, streaming read loop, and close.

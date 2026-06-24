@@ -43,6 +43,18 @@ ifeq ($(HAVE_KRB5),yes)
   KRB5_LIBS   := $(shell pkg-config --libs krb5 2>/dev/null)
 endif
 
+# io_uring (phase-44): lib/uring.c is ALWAYS in LIB_SRCS and stubs out under
+# #ifndef XROOTD_HAVE_LIBURING (the always-compiled-stub model, like sec_krb5.c),
+# so the library API is stable regardless of build config. When liburing-dev is
+# present, arm -DXROOTD_HAVE_LIBURING + its cflags/libs; otherwise the disk ring
+# and loop engine compile to inert stubs and the epoll/pread path is the only one
+# in the binary (no -luring dependency). Kept ngx-free (client-only).
+HAVE_LIBURING := $(shell pkg-config --exists liburing 2>/dev/null && echo yes)
+ifeq ($(HAVE_LIBURING),yes)
+  URING_CFLAGS := -DXROOTD_HAVE_LIBURING $(shell pkg-config --cflags liburing 2>/dev/null)
+  URING_LIBS   := $(shell pkg-config --libs liburing 2>/dev/null)
+endif
+
 # Compression codecs (phase-42): libxrdproto.a carries codec_*.o (compile-gated by
 # shared/xrdproto/Makefile); here we add the matching link libs so the client
 # binaries resolve them. zlib (-lz) is already linked below. Each is optional.
@@ -71,22 +83,25 @@ else ifeq ($(shell pkg-config --exists liblz4 2>/dev/null && echo y),y)
   CODEC_LIBS += -l:liblz4.so.1
 endif
 
-ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -MMD -MP $(KRB5_CFLAGS) $(CFLAGS)
+# -DXRDPROTO_NO_NGX: the native client is an nginx-free consumer of the shared
+# protocol core (libxrdproto), so dual-build headers (e.g. compat/error_mapping.h)
+# resolve to their ngx-free variants exactly as the libxrdproto build does.
+ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -DXRDPROTO_NO_NGX -MMD -MP $(KRB5_CFLAGS) $(URING_CFLAGS) $(CFLAGS)
 
 # OpenSSL: libssl (in-protocol TLS) + libcrypto (GSI/sigver + libxrdproto kernels +
 # md5). zlib (-lz): adler32 for --cksum (the algorithm xrdcp historically uses).
 # krb5 libs (when present) for the sec_krb5 AP-REQ path. CODEC_LIBS: zstd/lzma/
 # brotli/bzip2 for the shared codec kernels (gzip/deflate already via -lz).
-LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS)
+LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 
 LIB_SRCS   := lib/sock.c lib/netpref.c lib/nettmo.c lib/url.c lib/status.c lib/trace.c lib/frame.c lib/zip.c \
               lib/conn.c lib/pool.c lib/aio.c lib/aio_mgr.c lib/streams.c lib/ops_meta.c lib/ops_file.c lib/ops_fs.c \
               lib/copy.c lib/glob.c lib/xrdrc.c lib/weblist.c lib/webfile.c lib/checksum.c lib/fattr.c lib/ops_ext.c lib/proxy.c lib/http.c lib/s3.c lib/tls.c lib/auth.c \
               lib/sigver.c lib/sss_keytab.c lib/credinfo.c lib/credrefresh.c lib/capture.c lib/netdiag.c \
               lib/cli_cksum.c lib/cli_opts.c lib/cli_conn.c lib/resilient.c lib/posix_map.c lib/iobuf.c lib/fuse_ops.c \
-              lib/path.c lib/units.c \
+              lib/path.c lib/units.c lib/uring.c \
               lib/sec/sec_token.c lib/sec/sec_unix.c lib/sec/sec_gsi.c lib/sec/sec_sss.c \
-              lib/sec/sec_krb5.c
+              lib/sec/sec_krb5.c lib/sec/sec_host.c lib/sec/sec_pwd.c
 LIB_OBJS   := $(LIB_SRCS:.c=.o)
 
 # §14.1: the connection/session layer is the public libxrdc — a clean-room,

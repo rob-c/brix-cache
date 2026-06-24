@@ -337,8 +337,9 @@ class TestSetOpcode:
         _, status, body = _set(sock, kXR_set_appid, b"anything")
         assert status == kXR_error, "kXR_set before login must be an error"
         assert _error_code(body) == kXR_NotAuthorized
-        # Connection still usable: ping is allowed pre-login.
-        assert _ping(sock)[1] == kXR_ok
+        # Connection still alive: a pre-login ping is answered with kXR_error
+        # ("not logged in", stock parity), or the connection is dropped — never ok.
+        assert _ping_status(sock) in (kXR_error, None)
 
     def test_set_after_login_ok(self, logged_in):
         """A known modifier (appid) on a logged-in session returns ok."""
@@ -379,12 +380,16 @@ class TestEndsessOpcode:
 
         The handler clears already-clear flags and returns ok; it does not gate
         on login (unlike kXR_set, which is dispatched after require_login).
-        Prove the connection still answers ping.
+        Prove the connection is still alive afterwards.
         """
         sock = pre_login
         _, status, _ = _endsess(sock)
         assert status == kXR_ok, "endsess without login should be a clean ok"
-        assert _ping(sock)[1] == kXR_ok
+        # Liveness on a NOT-logged-in connection: stock and our server both reject
+        # a pre-login ping (kXR_error "not logged in"); a server that drops the
+        # connection is equally acceptable.  kXR_ok is never the right expectation
+        # here — it would require a pre-login ping to succeed, which it does not.
+        assert _ping_status(sock) in (kXR_error, None)
 
     def test_endsess_wrong_sessid_ok(self, logged_in):
         """A non-current sessid is advisory cleanup for another session id.
@@ -426,11 +431,12 @@ class TestEndsessOpcode:
         _, ostatus, obody = _open(sock, "/nonexistent.bin", kXR_open_read)
         assert ostatus == kXR_error, "file op after endsess must be rejected"
         assert _error_code(obody) == kXR_NotAuthorized
-        # ping is allowed even on a de-authorized connection (best-effort: a
-        # server that drops the de-authorized connection is also acceptable,
-        # the security property — open rejected — has already been proven).
+        # On a DE-authorized connection a ping is no longer answered with ok:
+        # like a pre-login ping it is rejected (kXR_error "not logged in"), or the
+        # server drops the connection.  Either proves the de-auth took effect; the
+        # security property — open rejected — has already been proven above.
         ps = _ping_status(sock)
-        assert ps in (kXR_ok, None)
+        assert ps in (kXR_error, None)
 
 
 # ===========================================================================
@@ -448,8 +454,9 @@ class TestBindOpcode:
         _, status, body = _bind(sock, sessid=b"\x5a" * 16)
         assert status == kXR_error, "bind with unknown sessid must fail"
         assert _error_code(body) == kXR_NotAuthorized
-        # The connection survives a rejected bind: ping still works.
-        assert _ping(sock)[1] == kXR_ok
+        # The connection survives a rejected bind: a pre-login ping is answered
+        # (with kXR_error "not logged in", never kXR_ok) or the conn is dropped.
+        assert _ping_status(sock) in (kXR_error, None)
 
     def test_bind_before_primary_login_rejected(self, pre_login):
         """kXR_bind dispatches before the login gate (it is meant for secondary
@@ -459,7 +466,8 @@ class TestBindOpcode:
         _, status, body = _bind(sock, sessid=b"\x00" * 16)
         assert status == kXR_error
         assert _error_code(body) == kXR_NotAuthorized
-        assert _ping(sock)[1] == kXR_ok
+        # Still alive after the rejected bind: pre-login ping -> error, or dropped.
+        assert _ping_status(sock) in (kXR_error, None)
 
     def test_bind_with_primary_sessid(self, logged_in):
         """kXR_bind from a SECOND connection naming the primary's real sessid.
@@ -569,8 +577,12 @@ class TestPreLoginGate:
             assert _error_code(body) == kXR_NotAuthorized, (
                 f"{label} before login should be NotAuthorized, "
                 f"got errnum {_error_code(body)}")
-            # The hostile request did not break the connection: ping still ok.
-            assert _ping(sock)[1] == kXR_ok
+            # The hostile request did not poison the worker: the server either
+            # answers a follow-up pre-login ping with kXR_error ("not logged in",
+            # as ours does) or drops the connection (as stock does after a rejected
+            # pre-login file op).  kXR_ok is impossible — a pre-login ping is never
+            # answered ok by either server.
+            assert _ping_status(sock) in (kXR_error, None)
         finally:
             sock.close()
 
@@ -597,21 +609,27 @@ class TestPreLoginGate:
 # ===========================================================================
 
 class TestPingAndUnknownOpcodes:
-    """kXR_ping needs no login; truly unknown opcodes (including legacy ids
-    below kXR_auth=3000) fall through every dispatcher to kXR_Unsupported
-    (src/handshake/dispatch.c)."""
+    """kXR_ping is login-gated (the reference auth gate rejects every non-auth
+    request before login, ping included — verified against stock xrootd, which
+    answers a pre-login ping with kXR_error "Invalid request; user not logged
+    in"); truly unknown opcodes (including legacy ids below kXR_auth=3000) fall
+    through every dispatcher to an error (src/handshake/dispatch.c)."""
 
-    def test_ping_ok_before_login(self, pre_login):
-        """kXR_ping is answered with ok even on an unauthenticated connection."""
+    def test_ping_before_login_rejected(self, pre_login):
+        """kXR_ping before login is rejected with kXR_error, matching stock
+        xrootd (src/handshake/dispatch_session.c routes kXR_ping through
+        xrootd_dispatch_require_login).  A pre-login ping is NOT a liveness
+        probe a stock server answers ok."""
         sock = pre_login
         _sid, status, _ = _ping(sock)
-        assert status == kXR_ok, "ping must be ok pre-login"
+        assert status == kXR_error, "ping must be rejected pre-login (stock parity)"
 
     def test_unknown_opcode_rejected(self, pre_login):
         """An opcode the server does not implement (e.g. 3999, well above the
-        defined range) is rejected with kXR_Unsupported, and the connection
+        defined range) is rejected with kXR_InvalidRequest, and the connection
         remains usable for a subsequent ping (src/handshake/dispatch.c default
-        falls through to xrootd_send_error(kXR_Unsupported))."""
+        falls through to xrootd_send_error(kXR_InvalidRequest), matching stock
+        xrootd's "Invalid request code" reply for an unrecognised opcode)."""
         sock = pre_login
         try:
             _, status, body = _raw_request(sock, 3999)
@@ -619,14 +637,17 @@ class TestPingAndUnknownOpcodes:
             # Dropping an unimplemented opcode is also a clean rejection.
             return
         assert status == kXR_error, "unknown opcode must be an error"
-        assert _error_code(body) == kXR_Unsupported, (
-            f"unknown opcode should be Unsupported, got {_error_code(body)}")
-        assert _ping_status(sock) in (kXR_ok, None)
+        assert _error_code(body) == kXR_InvalidRequest, (
+            f"unknown opcode should be InvalidRequest, got {_error_code(body)}")
+        # Connection still alive: a pre-login ping is answered with kXR_error, or
+        # the connection was dropped — never kXR_ok (ping is login-gated).
+        assert _ping_status(sock) in (kXR_error, None)
 
     def test_legacy_opcode_below_auth_rejected(self, pre_login):
         """A legacy opcode below kXR_auth (3000), e.g. 2999, is not in any
         dispatch table and must be rejected (Unsupported), never silently
-        accepted.  The connection should survive (ping ok afterwards)."""
+        accepted.  The connection should survive (pre-login ping answered with
+        kXR_error, or dropped) afterwards."""
         sock = pre_login
         try:
             _, status, body = _raw_request(sock, 2999)
@@ -643,4 +664,5 @@ class TestPingAndUnknownOpcodes:
         assert _error_code(body) in (
             kXR_Unsupported, kXR_InvalidRequest, kXR_ArgInvalid), (
             f"legacy opcode errnum {_error_code(body)} unexpected")
-        assert _ping_status(sock) in (kXR_ok, None)
+        # Alive afterwards: pre-login ping -> kXR_error, or dropped; never ok.
+        assert _ping_status(sock) in (kXR_error, None)

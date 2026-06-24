@@ -2,7 +2,9 @@
 #include "api_admin.h"   /* Phase 23: xrootd_admin_dispatch + admin directives */
 #include "../compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
 
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -110,6 +112,29 @@ ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
     }
     ngx_conf_merge_str_value(conf->admin_secret, prev->admin_secret, "");
     ngx_conf_merge_value(conf->admin_require_both, prev->admin_require_both, 0);
+
+    /* Admin file-browser root: canonicalize once (realpath) into browse_root_canon
+     * so request-time confinement has a stable anchor.  Empty => feature off.  A
+     * configured-but-bad path fails config loudly (like an export root). */
+    ngx_conf_merge_str_value(conf->browse_root, prev->browse_root, "");
+    if (conf->browse_root_canon[0] == '\0' && conf->browse_root.len > 0) {
+        char tmp[PATH_MAX];
+        if (conf->browse_root.len >= sizeof(tmp)) {
+            return "xrootd_dashboard_browse_root path too long";
+        }
+        ngx_memcpy(tmp, conf->browse_root.data, conf->browse_root.len);
+        tmp[conf->browse_root.len] = '\0';
+        if (realpath(tmp, conf->browse_root_canon) == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                "xrootd_dashboard_browse_root \"%V\" is not accessible",
+                &conf->browse_root);
+            return NGX_CONF_ERROR;
+        }
+    } else if (conf->browse_root_canon[0] == '\0'
+               && prev->browse_root_canon[0] != '\0') {
+        ngx_memcpy(conf->browse_root_canon, prev->browse_root_canon,
+                   sizeof(conf->browse_root_canon));
+    }
     /* Cross-field invariant: a transfer cannot become "stalled" before it is
      * even "idle", so reject a config that inverts the two thresholds. */
     if (conf->stalled_threshold_ms < conf->idle_threshold_ms) {
@@ -375,6 +400,14 @@ static ngx_command_t ngx_http_xrootd_dashboard_commands[] = {
       0,
       NULL },
 
+    /* Admin file browser root — empty (default) disables the file viewer. */
+    { ngx_string("xrootd_dashboard_browse_root"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, browse_root),
+      NULL },
+
     /* ---- Phase 23: admin write API auth ---- */
     { ngx_string("xrootd_admin_allow"),       /* CIDR allowlist */
       NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
@@ -502,6 +535,15 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
      * never anonymous.  Must precede the generic /api/v1/ catch-all below. */
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/config")) {
         return ngx_http_xrootd_dashboard_config_download_handler(r);
+    }
+
+    /* Admin file browser (list + download); ALWAYS auth-only, confined to
+     * xrootd_dashboard_browse_root.  404 when the feature is not configured. */
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/files")) {
+        return ngx_http_xrootd_dashboard_files_handler(r);
+    }
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/download")) {
+        return ngx_http_xrootd_dashboard_download_handler(r);
     }
 
     /* Phase 23: admin write API (auth + method routing inside dispatch). */

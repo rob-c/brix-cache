@@ -613,9 +613,12 @@ class TestFattrRecurse:
 
         assert status == _kXR_ok, f"fattr list returned status={status}"
         entries = self._parse_entries(body)
-        # Expect an entry like "top.txt:U.color" (relpath:U.name)
-        assert any("top.txt" in e and "U.color" in e for e in entries), \
-            f"top-level attr 'U.color' not found in recurse result: {entries}"
+        # Entry format is "<relpath>:<name>" where <name> is the WIRE attr name
+        # WITHOUT the internal "user.U." prefix (src/fattr/list.c strips it so the
+        # listing matches stock and stays round-trippable: a re-get of "U.color"
+        # would resolve to "user.U.U.color").  So expect "top.txt:color".
+        assert any("top.txt" in e and e.endswith(":color") for e in entries), \
+            f"top-level attr 'color' not found in recurse result: {entries}"
 
     def test_recurse_finds_nested_subdir_attrs(self) -> None:
         """kXR_fa_recurse descends into subdirectories and returns nested attrs."""
@@ -628,9 +631,10 @@ class TestFattrRecurse:
 
         assert status == _kXR_ok, f"fattr list returned status={status}"
         entries = self._parse_entries(body)
-        # Expect an entry like "sub/nested.txt:U.project"
-        assert any("nested.txt" in e and "U.project" in e for e in entries), \
-            f"nested attr 'U.project' not found in recurse result: {entries}"
+        # Wire attr name, no "user.U." prefix (see test_recurse_returns_top_level_
+        # file_attrs): expect "sub/nested.txt:project".
+        assert any("nested.txt" in e and e.endswith(":project") for e in entries), \
+            f"nested attr 'project' not found in recurse result: {entries}"
 
     def test_recurse_flag_absent_does_not_list_children(self) -> None:
         """Without kXR_fa_recurse, listing a directory uses single-file semantics

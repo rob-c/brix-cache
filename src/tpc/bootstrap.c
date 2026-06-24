@@ -8,10 +8,14 @@
  * ------------------------------------------------------------------ */
 
 #include "tpc_internal.h"
+#include "../protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
 
 
 #include <string.h>
 #include <stdlib.h>
+
+/* Server-internal TPC source connector: fixed streamid {0,1}, anonymous "xrd". */
+static const uint8_t tpc_bootstrap_streamid[2] = { 0, 1 };
 
 /* Helper functions declared in gsi_outbound_common.c — extern to link them. */
 extern void tpc_put_u32(u_char *p, uint32_t v);
@@ -33,9 +37,7 @@ tpc_bootstrap(xrootd_tpc_pull_t *t, int fd)
     u_char               *body;
 
     /* Initial handshake */
-    ngx_memzero(&hs, sizeof(hs));
-    hs.fourth = htonl(4);
-    hs.fifth  = htonl(ROOTD_PQ);
+    xrd_pack_handshake(&hs);
 
     if (tpc_send_all(fd, &hs, sizeof(hs)) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC handshake send failed");
@@ -56,11 +58,7 @@ tpc_bootstrap(xrootd_tpc_pull_t *t, int fd)
     }
 
     /* kXR_protocol */
-    ngx_memzero(&pr, sizeof(pr));
-    pr.streamid[1] = 1;
-    pr.requestid   = htons(kXR_protocol);
-    pr.clientpv    = htonl(kXR_PROTOCOLVERSION);
-    pr.expect      = 0x03;
+    xrd_pack_protocol_request(&pr, tpc_bootstrap_streamid, 0);
 
     if (tpc_send_all(fd, &pr, sizeof(pr)) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_protocol send failed");
@@ -95,14 +93,8 @@ tpc_bootstrap(xrootd_tpc_pull_t *t, int fd)
     }
 
     /* kXR_login — anonymous or delegated-token-aware */
-    ngx_memzero(&lr, sizeof(lr));
-    lr.streamid[1] = 1;
-    lr.requestid   = htons(kXR_login);
-    lr.pid         = htonl((kXR_int32) ngx_pid);
-    lr.username[0] = 'x';
-    lr.username[1] = 'r';
-    lr.username[2] = 'd';
-    lr.capver      = kXR_ver005;
+    xrd_pack_login_request(&lr, tpc_bootstrap_streamid, (int32_t) ngx_pid,
+                           "xrd", kXR_ver005);
 
     if (tpc_send_all(fd, &lr, sizeof(lr)) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_login send failed");

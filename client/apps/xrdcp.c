@@ -1155,6 +1155,17 @@ main(int argc, char **argv)
     memset(&opts, 0, sizeof(opts));
     memset(&conn, 0, sizeof(conn));
     conn.verify_host = 1;
+
+    /* Phase 44: XRDC_IO_URING env is the default (auto) for the local-disk
+     * overlap ring; --io-uring overrides it below.  auto = 0 = memset default. */
+    {
+        const char *e = getenv("XRDC_IO_URING");
+        if (e != NULL) {
+            if (strcmp(e, "on") == 0)       { opts.io_uring = XRDC_IO_URING_ON; }
+            else if (strcmp(e, "off") == 0) { opts.io_uring = XRDC_IO_URING_OFF; }
+            else                            { opts.io_uring = XRDC_IO_URING_AUTO; }
+        }
+    }
     xrootd_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
     xrdc_copy_install_signal_handlers();   /* Phase 40 (a): drop partial dest on
                                             * SIGINT/SIGTERM instead of leaving it */
@@ -1185,6 +1196,18 @@ main(int argc, char **argv)
             else if (strcmp(a, "--zip-append") == 0)  { opts.zip_append = 1; }
             else if ((strcmp(a, "-S") == 0 || strcmp(a, "--streams") == 0) && i + 1 < (size_t) argc) { opts.streams = atoi(argv[++i]); }
             else if (strcmp(a, "--max-stall") == 0 && i + 1 < (size_t) argc) { opts.max_stall_ms = atoi(argv[++i]); }
+            else if (strncmp(a, "--io-uring=", 11) == 0) {
+                const char *m = a + 11;
+                opts.io_uring = (strcmp(m, "on") == 0)  ? XRDC_IO_URING_ON
+                              : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
+                                                        : XRDC_IO_URING_AUTO;
+            }
+            else if (strcmp(a, "--io-uring") == 0 && i + 1 < (size_t) argc) {
+                const char *m = argv[++i];
+                opts.io_uring = (strcmp(m, "on") == 0)  ? XRDC_IO_URING_ON
+                              : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
+                                                        : XRDC_IO_URING_AUTO;
+            }
             else if (strcmp(a, "--tpc") == 0 && i + 1 < (size_t) argc) {
                 const char *m = argv[++i];
                 if (strcmp(m, "first") == 0)         { opts.tpc_mode = XRDC_TPC_FIRST; }

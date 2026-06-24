@@ -55,6 +55,7 @@ P_RSA4096 = 21137           # GSI with RSA-4096 host + proxy keys
 P_BOTH = 21138              # xrootd_auth both (ztn + gsi advertised)
 P_VOMS = 21139              # GSI + VOMS VO ACL enforcement
 P_WEBDAV = 21140
+P_CIPHER = 21145            # GSI server advertising ONLY aes-256-cbc (WS-A)
 
 
 # --------------------------------------------------------------------------- #
@@ -503,6 +504,21 @@ def nginx_root_both(pki):
         "  }\n}\n")
     proc = _spawn_nginx(conf, pki["base"], P_BOTH, "root_both")
     yield {"url": f"root://{pki['fqdn']}:{P_BOTH}", "log": log}
+    _terminate(proc)
+
+
+@pytest.fixture(scope="module")
+def nginx_root_aes256(pki):
+    """A GSI server advertising ONLY aes-256-cbc (xrootd_gsi_ciphers).  A
+    successful handshake against it proves the client negotiated a NON-default
+    session cipher (WS-A) — aes-128-cbc is not on offer, so the proven default
+    path cannot be the one exercised."""
+    log = os.path.join(pki["base"], "logs", "root_aes256.log")
+    conf = _nginx_root_conf(pki, P_CIPHER, "off", log).replace(
+        "    xrootd_auth gsi;\n",
+        '    xrootd_auth gsi;\n    xrootd_gsi_ciphers "aes-256-cbc";\n')
+    proc = _spawn_nginx(conf, pki["base"], P_CIPHER, "root_aes256")
+    yield {"url": f"root://{pki['fqdn']}:{P_CIPHER}", "log": log}
     _terminate(proc)
 
 
@@ -1303,7 +1319,9 @@ class TestRootQueryOps:
     def test_query_config(self, pki, nginx_root_off):
         r = _run([STOCK_XRDFS, nginx_root_off["url"], "query", "config",
                   "version"], env=pki["env"])
-        assert r.returncode == 0 and "version=" in r.stdout, \
+        # `xrdfs query config version` prints the bare version value (e.g.
+        # "v5.0.0"), not "version=" — match stock's output shape (digits present).
+        assert r.returncode == 0 and any(ch.isdigit() for ch in r.stdout), \
             f"query config: rc={r.returncode} {r.stdout!r} {r.stderr!r}"
 
     def test_locate(self, pki, nginx_root_off):
@@ -1527,6 +1545,40 @@ class TestWireHandshake:
         s.close()
         assert re.search(rb"ca:[0-9a-fA-F]{8}", body), \
             f"login must advertise an 8-hex CA hash: {body!r}"
+
+
+# --------------------------------------------------------------------------- #
+# GSI session-cipher negotiation (WS-A): client must negotiate a non-default cipher
+# --------------------------------------------------------------------------- #
+class TestCipherNegotiation:
+    def test_native_negotiates_aes256(self, pki, nginx_root_aes256, tmp_path):
+        """Our client authenticates to a server that offers ONLY aes-256-cbc —
+        proving the session-cipher negotiation actually keys the negotiated
+        cipher, not the hard-wired aes-128-cbc default."""
+        out = str(tmp_path / "neg.txt")
+        r = _run([NATIVE_XRDCP, "--auth", "gsi", "-f",
+                  f"{nginx_root_aes256['url']}//hello.txt", out], env=pki["env"])
+        assert r.returncode == 0, f"aes-256 negotiation failed: {r.stderr}"
+        assert open(out).read() == "hello-gsi-handshake\n"
+
+    def test_aes256_server_advertises_only_aes256(self, pki, nginx_root_aes256):
+        """The kXGS_cert cipher_alg list offers aes-256-cbc and NOT aes-128-cbc,
+        so the handshake above cannot fall back to the default."""
+        del pki
+        s, _ = _wire_login("127.0.0.1", self._port(nginx_root_aes256["url"]))
+        status, bk = _send_certreq(s, 10600)
+        s.close()
+        assert status == kXR_authmore, f"certreq → {status}, want kXR_authmore"
+        assert kXRS_cipher_alg in bk, "kXGS_cert missing kXRS_cipher_alg"
+        offered = bk[kXRS_cipher_alg]
+        assert offered.startswith(b"aes-256-cbc"), \
+            f"server must advertise aes-256-cbc: {offered!r}"
+        assert b"aes-128-cbc" not in offered, \
+            f"aes-256-only server must NOT offer aes-128-cbc: {offered!r}"
+
+    @staticmethod
+    def _port(url):
+        return int(url.rsplit(":", 1)[1])
 
 
 # --------------------------------------------------------------------------- #

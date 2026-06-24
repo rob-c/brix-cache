@@ -1,5 +1,6 @@
 #include "query_internal.h"
 #include "../compat/fs_usage.h"
+#include "../protocol/qspace.h"   /* shared oss.* space-report grammar (emit side) */
 
 #include <errno.h>
 
@@ -53,6 +54,19 @@ xrootd_query_space(xrootd_ctx_t *ctx, ngx_connection_t *c,
     char               resp[256];
     xrootd_fs_usage_t  fsu;
 
+    /* The reference do_Qspace runs rpCheck() on the path argument first and
+     * rejects a relative path — one that does not begin with '/', which
+     * includes the empty path — with kXR_NotAuthorized "...relative path '...'
+     * is disallowed." (XrdXrootdProtocol::rpEmsg).  We confine via
+     * RESOLVE_BENEATH rather than lexical rpCheck, but still honour this guard
+     * so an empty/relative Qspace argument is rejected identically. */
+    if (ctx->cur_dlen == 0 || ctx->payload == NULL
+        || ((const char *) ctx->payload)[0] != '/') {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_SPACE);
+        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+                                 "query relative path '' is disallowed.");
+    }
+
     if (xrootd_fs_usage_stat((const char *) conf->common.root.data, &fsu) != NGX_OK) {
         xrootd_log_access(ctx, c, "QUERY", (char *) conf->common.root.data,
                           "space", 0, kXR_IOError, strerror(errno), 0);
@@ -60,17 +74,13 @@ xrootd_query_space(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_IOError, "statvfs failed");
     }
 
-    snprintf(resp, sizeof(resp),
-             "oss.cgroup=default"
-             "&oss.space=%llu"
-             "&oss.free=%llu"
-             "&oss.maxf=%llu"
-             "&oss.used=%llu"
-             "&oss.quota=-1",
-             (unsigned long long) fsu.total_bytes,
-             (unsigned long long) fsu.available_bytes,
-             (unsigned long long) fsu.available_bytes,
-             (unsigned long long) fsu.used_bytes);
+    /* oss.* grammar is shared with the client's parser (protocol/qspace.h);
+     * maxf == free (no hard quota enforced). */
+    xrootd_qspace_format(resp, sizeof(resp),
+                         (unsigned long long) fsu.total_bytes,
+                         (unsigned long long) fsu.available_bytes,
+                         (unsigned long long) fsu.available_bytes,
+                         (unsigned long long) fsu.used_bytes);
 
     xrootd_log_access(ctx, c, "QUERY", (char *) conf->common.root.data,
                       "space", 1, 0, NULL, 0);

@@ -456,7 +456,7 @@ battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
 {
     xrdc_http_resp resp;
     xrdc_status    st;
-    const char    *ca = getenv("X509_CERT_DIR");
+    const char    *ca = xrdc_resolve_ca_dir(NULL);
     char           authhdr[1200];
     const char    *xtra = NULL;
 
@@ -573,7 +573,7 @@ battery_s3(const xrdc_weburl *u, int do_write, const char *ak, const char *sk,
            const char *region, int verify, xrd_battery *b)
 {
     xrdc_status st;
-    const char *ca = getenv("X509_CERT_DIR");
+    const char *ca = xrdc_resolve_ca_dir(NULL);
     char      **keys = NULL;
     size_t      nk = 0;
 

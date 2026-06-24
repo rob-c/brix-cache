@@ -604,15 +604,29 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
         memcpy(buf, bstart, copied);
         consumed = have;                            /* bytes of body read so far */
 
-        /* read the remainder of `want` straight into buf */
-        if (copied < want) {
-            if (xrdc_read_full(&wf->io, (char *) buf + copied, want - copied, st)
-                != 0) {
+        /*
+         * Read the remainder of `want` INCREMENTALLY (not all-or-nothing): on a
+         * mid-body sever, return the bytes copied SO FAR so the caller advances
+         * `off` and resumes the rest with a fresh Range GET — forward progress
+         * under repeated severs, instead of discarding the whole range and
+         * re-reading it from the start (which never completes under heavy loss).
+         */
+        while (copied < want) {
+            ssize_t br = web_read_some(wf, (char *) buf + copied,
+                                       want - copied, st);
+            if (br <= 0) {
                 web_disconnect(wf);
+                if (copied > 0) {
+                    return (ssize_t) copied;        /* partial; caller resumes */
+                }
+                if (br == 0) {
+                    xrdc_status_set(st, XRDC_ESOCK, 0,
+                                    "web GET: peer closed mid-body");
+                }
                 return -1;
             }
-            consumed += want - copied;
-            copied = want;
+            consumed += (size_t) br;
+            copied += (size_t) br;
         }
         /* drain any body beyond what we wanted, to keep the connection aligned
          * for the next keep-alive request (status 200 = server ignored Range) */
@@ -624,7 +638,7 @@ web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
             }
             if (xrdc_read_full(&wf->io, sink, chunk, st) != 0) {
                 web_disconnect(wf);
-                return -1;
+                return (ssize_t) want;   /* have the wanted bytes; lost keep-alive */
             }
             consumed += chunk;
         }
@@ -684,11 +698,30 @@ xrdc_webfile_size(const xrdc_webfile *wf)
     return wf->size;
 }
 
+/* Resilience window (ms) for HTTP reads: $XRDC_MAX_STALL_MS when set (>0 widens,
+ * <=0 disables = fail fast), else the library default — the SAME window the
+ * root:// data path uses, so an HTTP download rides out packet loss the same way
+ * instead of dying on the first sever. */
+static int
+webfile_window_ms(void)
+{
+    const char *e = getenv("XRDC_MAX_STALL_MS");
+    if (e != NULL && *e != '\0') {
+        int v = atoi(e);
+        return (v > 0) ? v : 0;
+    }
+    return XRDC_DEFAULT_MAX_STALL_MS;
+}
+
 ssize_t
 xrdc_webfile_pread(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
                    xrdc_status *st)
 {
-    int attempt;
+    uint64_t deadline;
+    unsigned attempt = 0;
+    int      window_ms;
+    size_t   got = 0;
+
     if (off >= wf->size) {
         return 0;                                  /* past EOF */
     }
@@ -698,24 +731,48 @@ xrdc_webfile_pread(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
     if (len == 0) {
         return 0;
     }
-    /* one transparent reconnect: a keep-alive socket may have been dropped by an
-     * idle timeout or a flaky link between reads. */
-    for (attempt = 0; attempt < 2; attempt++) {
-        ssize_t r;
-        if (!wf->connected && web_connect(wf, st) != 0) {
-            xrdc_backoff_sleep_fast((unsigned) attempt);
-            continue;
+
+    /*
+     * Deadline-bounded resume (mirrors the root:// resilience window).  On a
+     * transport sever, reconnect and re-issue the Range GET from off+got —
+     * web_get_range resumes there and returns PARTIAL progress on a mid-body
+     * sever, so this loop accumulates `len` bytes across reconnects rather than
+     * failing on the first reset.  The deadline measures time-since-progress (it
+     * resets on every byte read), so a steadily-advancing transfer never times
+     * out — only a true stall (no progress for the whole window) does.  A non-
+     * retryable fault (404/403/…) or window<=0 ($XRDC_MAX_STALL_MS=0, fail-fast)
+     * returns immediately.
+     */
+    window_ms = webfile_window_ms();
+    deadline = xrdc_mono_ns() + (uint64_t) window_ms * 1000000ULL;
+
+    for (;;) {
+        if (wf->connected || web_connect(wf, st) == 0) {
+            ssize_t r = web_get_range(wf, off + (int64_t) got,
+                                      (char *) buf + got, len - got, st);
+            if (r > 0) {
+                got += (size_t) r;
+                if (got >= len) {
+                    return (ssize_t) got;          /* full read */
+                }
+                attempt = 0;                       /* progress: reset backoff */
+                if (window_ms > 0) {
+                    deadline = xrdc_mono_ns()
+                             + (uint64_t) window_ms * 1000000ULL;
+                }
+                continue;                          /* resume at off+got */
+            }
+            if (r == 0) {
+                return (ssize_t) got;              /* genuine EOF */
+            }
+            /* r < 0: transport/protocol fault — fall through to the retry gate. */
         }
-        r = web_get_range(wf, off, buf, len, st);
-        if (r >= 0) {
-            return r;
+        if (window_ms <= 0 || !xrdc_status_retryable(st)
+            || xrdc_mono_ns() >= deadline) {
+            return (got > 0) ? (ssize_t) got : -1;
         }
-        if (!xrdc_status_retryable(st)) {
-            return -1;                             /* fatal (404/403/…) */
-        }
-        xrdc_backoff_sleep_fast((unsigned) attempt);
+        xrdc_backoff_sleep_fast(attempt++);
     }
-    return -1;
 }
 
 void

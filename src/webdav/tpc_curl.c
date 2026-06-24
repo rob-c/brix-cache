@@ -17,6 +17,8 @@
 #include "../compat/host_format.h"  /* xrootd_format_host — IPv6 bracketing */
 
 #include <curl/curl.h>
+#include <fcntl.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -591,13 +593,26 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
     }
 
+    /* Open the local endpoint through the confined resolver (openat2
+     * RESOLVE_BENEATH + O_NOFOLLOW): the push side reads an export path supplied
+     * by the client, so a raw fopen() would follow a planted in-export symlink
+     * out of the export root.  The pull side targets the staged temp; confining
+     * it too costs nothing and removes the absolute-path re-open TOCTOU. */
     if (is_push) {
         struct stat  st;
+        int          fd;
 
-        fp = fopen(file_path, "rb");
+        fd = xrootd_open_confined_canon(log, conf->common.root_canon, file_path,
+                                        O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
+        if (fd >= 0) {
+            fp = fdopen(fd, "rb");
+            if (fp == NULL) {
+                (void) close(fd);
+            }
+        }
         if (fp == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                          "xrootd_webdav: TPC push fopen(\"%s\") failed",
+                          "xrootd_webdav: TPC push open(\"%s\") failed",
                           file_path);
             return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
         }
@@ -608,10 +623,21 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
         curl_easy_setopt(curl, CURLOPT_READDATA, fp);
     } else {
-        fp = fopen(file_path, "wb");
+        int fd;
+
+        fd = xrootd_open_confined_canon(log, conf->common.root_canon, file_path,
+                                        O_WRONLY | O_CREAT | O_TRUNC
+                                            | O_CLOEXEC | O_NOFOLLOW,
+                                        0600);
+        if (fd >= 0) {
+            fp = fdopen(fd, "wb");
+            if (fp == NULL) {
+                (void) close(fd);
+            }
+        }
         if (fp == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                          "xrootd_webdav: TPC pull fopen(\"%s\") failed",
+                          "xrootd_webdav: TPC pull open(\"%s\") failed",
                           file_path);
             return webdav_tpc_curl_finish(rc, curl, hdrs, resolve, fp);
         }

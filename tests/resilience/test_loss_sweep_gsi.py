@@ -98,6 +98,20 @@ def test_resilient_recovers_under_loss(fleet, name):
 
 
 @pytest.mark.parametrize("name", ["nginx", "xrootd"])
+def test_jitter_byte_exact(fleet, name):
+    """Out-of-order / reordering manifests on a TCP stream purely as variable
+    latency (TCP reassembles in order below the app). The `jitter` lever injects
+    that — a per-chunk random 0..N ms delay — and never severs the stream, so a
+    correct client must still return the whole file byte-exact, only slower. This
+    is the faithful "how does the client fare under reordering" check."""
+    with servers.FaultProxy(fleet[name]) as fp:
+        fp.set_jitter(15)
+        ok, elapsed, nbytes, why = measure(fp.url(), FILE_PATH, SIZE, 90)
+    assert ok, f"{name}: cat did not complete under 15ms jitter: {why}"
+    assert nbytes == SIZE
+
+
+@pytest.mark.parametrize("name", ["nginx", "xrootd"])
 def test_no_retry_fails_fast(fleet, name):
     """The escape hatch: XRDC_MAX_STALL_MS=0 restores the legacy fail-fast path —
     a sever fails the transfer immediately rather than retrying."""

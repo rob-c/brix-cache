@@ -105,18 +105,46 @@ xrdc_backoff_delay_ms(unsigned attempt, uint64_t *seed)
     return (unsigned) base + jitter;
 }
 
+/* Transport-fault backoff base (ms), tunable via $XRDC_BACKOFF_BASE_MS (default
+ * 25). On a lossy-but-connected link the reconnect itself is sub-millisecond, so
+ * the backoff sleep dominates recovery latency; lowering it (e.g. =1) maximises
+ * throughput under heavy reset-style loss at the cost of a tighter retry loop
+ * against a genuinely-down peer. Read once and cached. */
+static unsigned
+backoff_base_ms(void)
+{
+    static atomic_int cached = -1;
+    int v = atomic_load_explicit(&cached, memory_order_relaxed);
+    if (v < 0) {
+        const char *e = getenv("XRDC_BACKOFF_BASE_MS");
+        long parsed = (e != NULL && *e != '\0') ? strtol(e, NULL, 10) : 25;
+        if (parsed < 0) {
+            parsed = 0;
+        }
+        if (parsed > 10000) {
+            parsed = 10000;
+        }
+        v = (int) parsed;
+        atomic_store_explicit(&cached, v, memory_order_relaxed);
+    }
+    return (unsigned) v;
+}
+
 unsigned
 xrdc_backoff_delay_fast_ms(unsigned attempt, uint64_t *seed)
 {
     /* Fast backoff for TRANSPORT faults (a connection reset/EOF is instant and
-     * not a sign of server overload): 25ms<<attempt capped at 250ms, plus jitter.
-     * A short cap lets many retries fit inside the patience window, which is what
-     * rides out a high packet-loss link — where each large read/reconnect is
-     * frequently severed and must simply be re-attempted promptly. */
+     * not a sign of server overload): BASE<<attempt capped at 10x BASE (>=250ms
+     * for the 25ms default), plus jitter. A short cap lets many retries fit inside
+     * the patience window, which is what rides out a high packet-loss link — where
+     * each large read/reconnect is frequently severed and must simply be
+     * re-attempted promptly. BASE is $XRDC_BACKOFF_BASE_MS (default 25). */
+    unsigned base_ms = backoff_base_ms();
     unsigned shift = (attempt < 4) ? attempt : 4;
-    uint64_t base  = 25ULL << shift;            /* 25,50,100,200,400→cap */
-    if (base > 250) {
-        base = 250;
+    uint64_t base  = (uint64_t) base_ms << shift;   /* e.g. 25,50,100,200,400→cap */
+    uint64_t cap   = (base_ms >= 25) ? 250ULL : (uint64_t) base_ms * 10ULL;
+    if (base > cap) {
+        base = cap;
     }
     uint64_t s = (*seed != 0) ? *seed : 0x2545f4914f6cdd1dULL;
     s ^= s << 13;

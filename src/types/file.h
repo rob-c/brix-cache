@@ -13,6 +13,21 @@ typedef struct {
     uint32_t gen;      /* monotonically increasing generation counter */
 } xrootd_wrts_entry_t;
 
+/* ---- pgwrite CSE (checksum-error) uncorrected-page registry (the "Fob") ----
+ *
+ * Per-open-file set of pages that failed CRC32c on a kXR_pgwrite and have NOT
+ * yet been corrected by a kXR_pgRetry resend.  kXR_close fails with
+ * kXR_ChkSumErr while any page remains uncorrected — this is what preserves
+ * data integrity once corrupt bytes are written to disk (accept-then-correct).
+ * Capacity is kXR_pgMaxEos (256); a fixed array keyed by the stock encoding
+ * key = (offset << kXR_pgPageBL) | (dlen < pgPageSZ ? dlen : 0). */
+#define XROOTD_PGW_FOB_SLOTS 256   /* == kXR_pgMaxEos */
+
+typedef struct {
+    int64_t  key;      /* encoded (offset,dlen) — valid only when used == 1 */
+    uint8_t  used;     /* 1 = slot occupied (key 0 is a legal member)       */
+} xrootd_pgw_fob_entry_t;
+
 /* ---- File: file.h — Per-open-file bookkeeping type (xrootd_file_t) ----
  *
  * WHAT: Defines xrootd_file_t — one slot per open XRootD file handle where array index IS the handle value (0..XROOTD_MAX_FILES-1). Fields: fd (OS descriptor; -1 = free), path (resolved absolute allocated on open), bytes_read/bytes_written cumulative counters, open_time timestamp for throughput log, writable/readable permission flags, from_cache flag drives kXR_cachersp in stat. Immutable over handle lifetime: is_regular S_ISREG at open, device/ino captured at open validates bound reopens, cached_size st_size valid for read-only. Read tracking: read_last_end previous read end offset (-1=none), read_ahead_end WILLNEED hint farthest byte. kXR_chkpoint state: ckp_path checkpoint temp file (NULL=no active checkpoint), ckp_size bytes captured at kXR_ckpBegin. kXR_posc persist-on-successful-close lifecycle: write open with posc → staged to temporary path → clean kXR_close renames temp to posc_final_path → disconnect/error close unlinks temp via path field (set to temp path at open). Native root:// TPC destination state: tpc_destination=1 pending target, tpc_armed first sync acknowledged rendezvous setup, tpc_started pull task posted, tpc_done completed successfully, tpc_key[128] shared rendezvous key, tpc_org[256] origin identity sent to source as tpc.org, tpc_src_host/tpc_src_port/tpc_src_path[PATH_MAX] source address + path, tpc_token_mode[32] OAuth2/OIDC delegation mode for source auth. Write-through state (mirrors XrdPfcFile::m_dirtyOffset/m_bytesWritten): wt_enabled=1 eligible for WT flush on close, wt_policy cached decision at open time (XROOTD_WT_*), wt_mode_bits POSIX mode sent to origin write-open, wt_dirty_offset last dirty write offset (-1=no pending writes), wt_bytes_written cumulative writes since last sync for metrics. Async flush state: wt_flush_task pending async flush task heap allocated before ngx_thread_task_post freed in completion callback after result consumed on main thread, wt_flush_pending=1 flush posted but not confirmed.
@@ -102,6 +117,18 @@ typedef struct {
     char      *posc_final_path; /* target path for POSC rename; NULL if not POSC */
 
     /*
+     * Upload-resume staging (xrootd_upload_resume on).  When set, `path` is a
+     * DETERMINISTIC identity-keyed partial (xrootd_make_resume_path) and
+     * posc_final_path is the destination, so the close-time POSC rename commits
+     * it.  The difference from plain POSC: xrootd_free_fhandle() must NOT unlink
+     * the partial on a disconnect/abort — it is preserved on disk so the same
+     * client reconnecting (re-open in place, no truncate) resumes from its
+     * offset.  Cleared once committed (close) so the free path leaves the renamed
+     * final file alone.
+     */
+    unsigned   is_resume:1;
+
+    /*
      * Native root:// TPC destination state.
      *
      * A destination-side TPC open creates a normal writable handle, then
@@ -165,6 +192,17 @@ typedef struct {
     uint32_t             wrts_count;
     uint32_t             wrts_gen;
     xrootd_wrts_entry_t  wrts_journal[XROOTD_WRTS_JOURNAL_SLOTS];
+
+    /* ---- pgwrite CSE uncorrected-page registry (the "Fob") ----
+     * pgw_fob_enabled = 1 once a writable handle has taken the pgwrite path.
+     * pgw_fob_count   = number of pages currently uncorrected (gates close).
+     * pgw_fob_errs    = cumulative bad pages ever recorded (stats).
+     * pgw_fob_fixes   = cumulative pages corrected via kXR_pgRetry (stats). */
+    int                     pgw_fob_enabled;
+    uint32_t                pgw_fob_count;
+    uint32_t                pgw_fob_errs;
+    uint32_t                pgw_fob_fixes;
+    xrootd_pgw_fob_entry_t  pgw_fob[XROOTD_PGW_FOB_SLOTS];
 
     /* Live transfer monitor slot index — index into xrootd_transfer_table_t.slots[].
      * -1 means this handle is not currently tracked (table full, or dashboard disabled). */

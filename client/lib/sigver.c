@@ -35,9 +35,7 @@ xrdc_sigver_maybe(xrdc_conn *c, const uint8_t *hdr24, const void *payload,
     uint64_t            seq, seq_be;
     uint8_t             mac[32];
     ClientSigverRequest sv;
-    uint16_t            sid, status;
-    uint8_t            *body = NULL;
-    uint32_t            blen = 0;
+    uint16_t            sid;
 
     reqid = xrd_get_u16_be(hdr24 + 2);   /* unaligned-safe */
 
@@ -75,15 +73,12 @@ xrdc_sigver_maybe(xrdc_conn *c, const uint8_t *hdr24, const void *payload,
         || xrdc_write_full(&c->io, mac, 32, st) != 0) {
         return -1;
     }
-
-    /* The server acks the sigver with kXR_ok before the covered request. */
-    if (xrdc_recv(c, sid, &status, &body, &blen, st) != 0) {
-        return -1;
-    }
-    free(body);
-    if (status != kXR_ok) {
-        xrdc_status_set(st, XRDC_EAUTH, 0, "sigver rejected (status %u)", status);
-        return -1;
-    }
+    /*
+     * kXR_sigver is a request PREFIX: a spec-conformant server (stock XRootD,
+     * and now this module) sends NO response on success — only kXR_SigVerErr on
+     * failure, which surfaces as the covered request's reply. So do NOT read an
+     * ack here; the next recv is the covered request's response. Reading a
+     * non-existent ack would consume that reply (or block).
+     */
     return 0;
 }

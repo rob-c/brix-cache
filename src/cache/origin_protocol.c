@@ -366,7 +366,13 @@ xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
                                "data server origin is required");
         return -1;
     }
-    if (status != kXR_ok || dlen < sizeof(ServerOpenBody)) {
+    /* A kXR_open reply is a bare 4-byte fhandle; the cpsize/cptype trailer of
+     * ServerOpenBody (12 bytes) only follows when kXR_compress or kXR_retstat was
+     * requested — and the write-through open requests neither.  Require only the
+     * fhandle (XRD_FHANDLE_LEN), not the full struct, or a conformant origin's
+     * minimal 4-byte response is wrongly rejected (which aborted the flush and
+     * left the origin file half-written). The cache never uses cpsize/cptype. */
+    if (status != kXR_ok || dlen < XRD_FHANDLE_LEN) {
         free(body);
         xrootd_cache_set_error(t, kXR_ServerError, 0,
                                "write-through origin open invalid response");

@@ -8,6 +8,7 @@
 
 #include "webdav.h"
 #include "../path/path.h"
+#include "../fs/vfs.h"
 #include "../compat/http_xml.h"
 #include "../compat/namespace_ops.h"
 
@@ -20,15 +21,35 @@
  * Phase 40: dead-property xattrs (user.nginx_xrootd.webdav.*) must be set / read /
  * listed AS THE MAPPED USER under impersonation — else PROPPATCH setxattr on the
  * user-owned resource fails EACCES from the worker.  Derive the export root from
- * the request and route every xattr op through xrootd_*xattr_confined_canon
- * (broker under map mode; raw path-based syscall otherwise).
+ * the request and route every xattr op through the VFS xattr surface, which
+ * delegates to xrootd_*xattr_confined_canon (broker under map mode; raw
+ * path-based syscall otherwise) while adding OP_XATTR metering — confinement and
+ * errno behaviour are unchanged.
  */
-static const char *
-webdav_dead_prop_root_canon(ngx_http_request_t *r)
+
+/*
+ * Build a transient VFS ctx for a confined dead-property xattr op on `path`
+ * (mirrors the canonical construction in get.c).  The xattr family is not
+ * allow_write-gated, so the allow_write flag does not affect set/remove.
+ */
+static void
+webdav_dead_prop_vfs_ctx_init(ngx_http_request_t *r, const char *path,
+    xrootd_vfs_ctx_t *vctx)
 {
     ngx_http_xrootd_webdav_loc_conf_t *conf =
         ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    return conf->common.root_canon;
+    ngx_http_xrootd_webdav_req_ctx_t *wctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    int is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log,
+        XROOTD_PROTO_WEBDAV, conf->common.root_canon,
+        conf->cache_root_canon, conf->common.allow_write, is_tls,
+        (wctx != NULL) ? wctx->identity : NULL, path);
 }
 
 #ifndef ENOATTR
@@ -293,7 +314,8 @@ ngx_int_t
 webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local, const char *xml, size_t xml_len)
 {
-    char attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
+    char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
+    xrootd_vfs_ctx_t vctx;
 
     if (xml_len > WEBDAV_DEAD_PROP_VALUE_MAX
         || webdav_dead_prop_attr_name(ns, local, attr, sizeof(attr)) != NGX_OK)
@@ -302,9 +324,9 @@ webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
-    if (xrootd_setxattr_confined_canon(r->connection->log,
-            webdav_dead_prop_root_canon(r), path, attr, xml, xml_len, 0) != 0)
-    {
+    webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
+
+    if (xrootd_vfs_setxattr(&vctx, attr, xml, xml_len, 0) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, errno,
                       "xrootd_webdav: setxattr dead property failed");
         return NGX_ERROR;
@@ -322,16 +344,18 @@ ngx_int_t
 webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local)
 {
-    char attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
+    char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
+    xrootd_vfs_ctx_t vctx;
 
     if (webdav_dead_prop_attr_name(ns, local, attr, sizeof(attr)) != NGX_OK) {
         errno = ENAMETOOLONG;
         return NGX_ERROR;
     }
 
+    webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
+
     /* "not present" == already removed, so treat ENODATA/ENOATTR as success. */
-    if (xrootd_removexattr_confined_canon(r->connection->log,
-            webdav_dead_prop_root_canon(r), path, attr) != 0
+    if (xrootd_vfs_removexattr(&vctx, attr) != NGX_OK
         && errno != ENODATA && errno != ENOATTR)
     {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, errno,
@@ -357,10 +381,10 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local, ngx_chain_t **head,
     ngx_chain_t **tail, ngx_flag_t *found)
 {
-    char       attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
-    const char *root_canon = webdav_dead_prop_root_canon(r);
-    char       *value;
-    ssize_t     len;
+    char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
+    xrootd_vfs_ctx_t vctx;
+    char            *value;
+    ssize_t          len;
 
     *found = 0;
 
@@ -368,9 +392,10 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
         return NGX_OK;
     }
 
+    webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
+
     /* Probe length first (buf=NULL, size=0). */
-    len = xrootd_getxattr_confined_canon(r->connection->log, root_canon, path,
-                                         attr, NULL, 0);
+    len = xrootd_vfs_getxattr(&vctx, attr, NULL, 0);
     if (len < 0) {
         if (errno == ENODATA || errno == ENOATTR) {
             return NGX_OK;
@@ -386,8 +411,7 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
 
     /* Second read fetches the actual bytes; a concurrent shrink is fine since
      * we re-read the returned length, a concurrent grow is bounded by the buf. */
-    len = xrootd_getxattr_confined_canon(r->connection->log, root_canon, path,
-                                         attr, value, (size_t) len);
+    len = xrootd_vfs_getxattr(&vctx, attr, value, (size_t) len);
     if (len < 0) {
         return NGX_ERROR;
     }
@@ -412,14 +436,15 @@ ngx_int_t
 webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
     ngx_chain_t **head, ngx_chain_t **tail, ngx_flag_t names_only)
 {
-    const char *root_canon = webdav_dead_prop_root_canon(r);
-    char       *list;
-    ssize_t     len;
-    char       *p;
+    xrootd_vfs_ctx_t vctx;
+    char            *list;
+    ssize_t          len;
+    char            *p;
+
+    webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
 
     /* Probe the size of the NUL-separated key list. */
-    len = xrootd_listxattr_confined_canon(r->connection->log, root_canon, path,
-                                          NULL, 0);
+    len = xrootd_vfs_listxattr(&vctx, NULL, 0);
     if (len <= 0) {
         return NGX_OK;
     }
@@ -430,8 +455,7 @@ webdav_dead_props_append_all(ngx_http_request_t *r, const char *path,
 
     XROOTD_PNALLOC_OR_RETURN(list, r->pool, (size_t) len, NGX_ERROR);
 
-    len = xrootd_listxattr_confined_canon(r->connection->log, root_canon, path,
-                                          list, (size_t) len);
+    len = xrootd_vfs_listxattr(&vctx, list, (size_t) len);
     if (len <= 0) {
         return NGX_OK;
     }

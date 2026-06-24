@@ -22,6 +22,54 @@
 #      that nginx.conf has `thread_pool default threads=4 max_queue=65536;` at
 #      the top level (the async data-plane uses it).
 #
+#   5. RECOMMENDED for fast restarts/reloads — set a bounded shutdown timeout in
+#      the top-level nginx.conf so an old worker that is still streaming a large
+#      transfer is force-closed promptly instead of lingering:
+#
+#         worker_shutdown_timeout 30s;
+#
+#      On `nginx -s reload`/restart this module already (a) stops its background
+#      timers, (b) drops idle keepalive connections at once, and (c) sends a
+#      clean retry signal to in-flight clients (root:// = clean FIN; davs:// =
+#      503 + Retry-After).  The native client / FUSE driver reconnect to the new
+#      worker and RESUME the transfer from the last byte (read/download) within
+#      their stall window (XRDC_MAX_STALL_MS, default 30s).  Keep this timeout
+#      <= that window so anything cut at the backstop still recovers; do NOT set
+#      it to 0 (0 = no timeout = a stuck transfer can pin the old worker).
+#
+#   6. RESUMABLE UPLOADS — ON BY DEFAULT.  Every write is staged to a
+#      deterministic, identity-keyed partial and committed (atomic rename) only on
+#      a clean close / final chunk, so an interrupted UPLOAD resumes from where it
+#      left off instead of restarting at byte 0, and a concurrent reader never sees
+#      a half-written object.  Disable per server/location with:
+#        * root:// (stream{}):  xrootd_upload_resume off;
+#        * davs:// (this file):  xrootd_webdav_upload_resume off;
+#      The native client resumes automatically (root:// reopen-in-place; davs://
+#      Content-Range PUT); other clients resume davs:// via Content-Range PUT + the
+#      X-Upload-Offset reported on a 409.
+#
+#   7. STAGING DIRECTORY — by default the partial is staged ADJACENT to the
+#      destination (commit is a zero-copy atomic rename).  To stage on a separate
+#      high-performance caching device (e.g. NVMe/tmpfs) in front of slower storage
+#      (e.g. a CephFS POSIX mount), point it elsewhere:
+#        * root:// (stream{}):  xrootd_stage_dir       /mnt/fastcache/xrd-stage;
+#        * davs:// (this file):  xrootd_webdav_stage_dir /mnt/fastcache/xrd-stage;
+#      Writes then land on the fast device; the close (root://) / final chunk
+#      (davs://) BLOCKS until commit copies the completed object to the storage and
+#      atomically renames it into place (cross-device commit), then drops the cache
+#      copy — so a client only sees success once the data is durably in its final
+#      location.  The stage dir must be writable by the worker; size it for your
+#      concurrent-upload working set.
+#      DURABILITY: a complete file is recorded with a "<partial>.commit" marker
+#      before the move; if a worker dies mid-move, a worker-0 reaper finishes the
+#      cache->storage move on the next startup and periodically (every 60s), so
+#      complete-but-uncommitted files are tracked across restarts and always reach
+#      storage.  Stale IN-PROGRESS partials (abandoned uploads, no marker) are
+#      "<stagedir>/*.xrdresume.part" — glob-clean from cron, e.g.:
+#        find /mnt/fastcache/xrd-stage -name '*.xrdresume.part' -mtime +1 -delete
+#      NOTE: a cross-device commit copies the whole object cache->storage at close;
+#      for very large objects keep the storage mount fast or expect a longer close.
+#
 # Replace every /etc/grid-security/... and /var/lib/nginx-xrootd/... path and
 # every secret/issuer/audience with your site's real values before serving.
 # ============================================================================
@@ -80,6 +128,13 @@ server {
     location /xrootd/ {
         xrootd_dashboard on;
         xrootd_dashboard_password "CHANGE-ME";
+
+        # Admin file browser: lets a signed-in admin list (name, local owner,
+        # size, creation/modification dates) and download any file beneath this
+        # root, straight from the dashboard.  Off unless set; admin-auth-only and
+        # confined to this root via the kernel (openat2 RESOLVE_BENEATH), so a
+        # client path can never escape it.  Point it at your storage export:
+        #xrootd_dashboard_browse_root /var/lib/nginx-xrootd/data;
     }
 
     location / {
@@ -93,6 +148,12 @@ server {
         # `required` to reject unauthenticated requests.
         xrootd_webdav_auth        optional;
         xrootd_webdav_allow_write on;
+
+        # Resumable uploads are ON by default (note 6).  Optionally stage on a
+        # fast caching device in front of the storage (note 7); commit copies to
+        # the storage mount.  Uncomment to enable, or disable resume entirely.
+        #xrootd_webdav_stage_dir     /mnt/fastcache/xrd-stage;
+        #xrootd_webdav_upload_resume off;
 
         # x509 / VOMS proxy validation against the IGTF CA dir.
         xrootd_webdav_cadir /etc/grid-security/certificates;
@@ -147,6 +208,8 @@ server {
 #         xrootd_root       /var/lib/nginx-xrootd/data;
 #         xrootd_auth       token;
 #         xrootd_allow_write on;
+#         # Resumable uploads are ON by default; optionally stage on a fast device:
+#         #xrootd_stage_dir /mnt/fastcache/xrd-stage;
 #         xrootd_token_jwks     /etc/nginx-xrootd/jwks.json;
 #         xrootd_token_issuer   "https://wlcg.example.org/";
 #         xrootd_token_audience "https://storage.example.org";

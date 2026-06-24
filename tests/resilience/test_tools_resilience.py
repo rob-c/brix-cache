@@ -123,11 +123,17 @@ def test_xrdfs_metadata_recovers(nginx, cmd, needle):
 # --- mutation: resilient create --------------------------------------------
 
 def test_mkdir_resilient_creates(nginx):
-    new = "/t/mk_resilient"
+    # Unique name so a persisted data root from a prior run can't pre-create it.
+    new = f"/t/mk_resilient_{os.getpid()}_{id(nginx) & 0xffff:x}"
     with servers.FaultProxy(nginx.port) as fp:
         fp.set_loss(12)
         r = _run([servers.XRDFS, fp.url(), "mkdir", new])
-    assert r.returncode == 0, r.stderr[-300:]
+    # Under loss the op is retried after a severed connection.  If the FIRST
+    # attempt created the directory but its ack was lost, the retry legitimately
+    # gets kXR_ItExists — that is still a successful resilient mkdir (the dir is
+    # there).  What matters is the end state, confirmed by the stat below.
+    assert (r.returncode == 0
+            or "ItExists" in r.stderr or "file exists" in r.stderr), r.stderr[-300:]
     # Confirm it really landed (direct, no proxy).
     chk = _run([servers.XRDFS, f"root://127.0.0.1:{nginx.port}/", "stat", new],
                window=0)

@@ -21,19 +21,75 @@
  */
 
 #include "acc.h"
+#include "../metrics/metrics.h"          /* ngx_xrootd_metrics_t */
+#include "../metrics/metrics_macros.h"   /* Phase 51 (E6): breaker counter */
 #include <netdb.h>
 #include <sys/socket.h>
+#include <time.h>
+
+/*
+ * Phase 51 (E3): circuit-breaker around the blocking reverse-DNS lookup so a slow
+ * or down resolver cannot block the event loop on every new connection's first
+ * resolve.  After N consecutive slow lookups the breaker opens for a cooldown,
+ * during which we fail fast to NULL (caller falls back to the numeric IP — host
+ * rules simply don't fire, the conservative degraded behaviour).  Per-worker,
+ * event-loop only → lock-free.
+ */
+#define ACC_DNS_SLOW_MS        2000
+#define ACC_DNS_TRIP_COUNT     5
+#define ACC_DNS_COOLDOWN_SECS  10
+
+static struct {
+    int     consecutive_slow;
+    time_t  open_until;
+} acc_dns_breaker;
+
+static int64_t
+acc_dns_monotonic_ms(void)
+{
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return 0;
+    }
+    return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
 
 const char *
 xrootd_acc_resolve_peer(struct sockaddr *sa, socklen_t salen,
                         char *buf, size_t buflen)
 {
+    time_t   now;
+    int64_t  t0, elapsed;
+    int      rc;
+
     if (sa == NULL || buf == NULL || buflen == 0) {
         return NULL;
     }
 
-    if (getnameinfo(sa, salen, buf, (socklen_t) buflen, NULL, 0,
-                    NI_NAMEREQD) != 0) {
+    now = time(NULL);
+    if (acc_dns_breaker.open_until > now) {
+        return NULL;            /* breaker open — skip the (slow) resolver */
+    }
+
+    t0 = acc_dns_monotonic_ms();
+    rc = getnameinfo(sa, salen, buf, (socklen_t) buflen, NULL, 0, NI_NAMEREQD);
+    elapsed = acc_dns_monotonic_ms() - t0;
+
+    if (elapsed >= ACC_DNS_SLOW_MS) {
+        if (++acc_dns_breaker.consecutive_slow >= ACC_DNS_TRIP_COUNT) {
+            acc_dns_breaker.open_until = now + ACC_DNS_COOLDOWN_SECS;
+            acc_dns_breaker.consecutive_slow = 0;
+            XROOTD_RESIL_METRIC_INC(acc_dns_breaker_open_total);
+            ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+                          "xrootd_acc: reverse DNS slow (%L ms) — opening "
+                          "circuit breaker for %ds (host rules fall back to IP)",
+                          (long long) elapsed, ACC_DNS_COOLDOWN_SECS);
+        }
+    } else {
+        acc_dns_breaker.consecutive_slow = 0;
+    }
+
+    if (rc != 0) {
         return NULL;
     }
 

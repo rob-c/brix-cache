@@ -20,6 +20,8 @@
  */
 
 #include "acc.h"
+#include "../metrics/metrics.h"          /* ngx_xrootd_metrics_t */
+#include "../metrics/metrics_macros.h"   /* Phase 51 (E6): breaker counter */
 
 #include <pwd.h>
 #include <grp.h>
@@ -109,6 +111,39 @@ typedef struct {
 
 static acc_grp_cache_t  acc_grp_cache[ACC_GRP_CACHE_SLOTS];
 
+/*
+ * Phase 51 (E3): bound the blocking NSS group resolution under system pressure.
+ * getpwnam/getgrouplist/getgrgid block the single-threaded event loop when the
+ * backing directory service (NIS/LDAP) is slow or down.  Two guards:
+ *   - NEGATIVE CACHE: an unknown / no-group user is cached (count 0) for a short
+ *     TTL so a flood of distinct unknown users cannot re-block on every request.
+ *   - CIRCUIT BREAKER: after N consecutive SLOW resolutions the breaker opens for
+ *     a cooldown, during which lookups fail fast to "no supplementary groups"
+ *     (the conservative degraded behaviour — group-based grants are withheld, the
+ *     user's primary identity still works) instead of re-blocking the worker.
+ */
+#define ACC_NSS_NEG_TTL_SECS   60      /* negative-cache lifetime */
+#define ACC_NSS_SLOW_MS        2000    /* a resolve over this is "slow" */
+#define ACC_NSS_TRIP_COUNT     5       /* consecutive slow resolves → open */
+#define ACC_NSS_COOLDOWN_SECS  10      /* breaker stays open this long */
+
+static struct {
+    int     consecutive_slow;
+    time_t  open_until;   /* breaker open (skip NSS) until this time; 0 = closed */
+} acc_nss_breaker;
+
+/* Monotonic milliseconds for measuring a blocking call's wall time (ngx_current_msec
+ * is not updated while a syscall blocks, so it cannot time one). */
+static int64_t
+acc_monotonic_ms(void)
+{
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return 0;
+    }
+    return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
 static unsigned
 acc_user_hash(const char *user)
 {
@@ -197,12 +232,47 @@ xrootd_acc_unix_groups(ngx_pool_t *pool, const char *user)
 
     /* Cache hit on the same user and not expired? */
     if (!(e->user[0] != '\0' && e->expiry > now && ngx_strcmp(e->user, user) == 0)) {
-        char **names;
-        int    cnt = acc_resolve_unix(user, &names);
-        acc_cache_free(e);
-        if (cnt < 0) {
-            return NULL;             /* unknown user */
+        char  **names;
+        int     cnt;
+        int64_t t0, elapsed;
+
+        /* E3: circuit breaker open → fail fast to "no groups", don't touch NSS. */
+        if (acc_nss_breaker.open_until > now) {
+            return NULL;
         }
+
+        t0  = acc_monotonic_ms();
+        cnt = acc_resolve_unix(user, &names);
+        elapsed = acc_monotonic_ms() - t0;
+
+        /* E3: trip the breaker on sustained slow resolutions. */
+        if (elapsed >= ACC_NSS_SLOW_MS) {
+            if (++acc_nss_breaker.consecutive_slow >= ACC_NSS_TRIP_COUNT) {
+                acc_nss_breaker.open_until = now + ACC_NSS_COOLDOWN_SECS;
+                acc_nss_breaker.consecutive_slow = 0;
+                XROOTD_RESIL_METRIC_INC(acc_nss_breaker_open_total);
+                ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+                              "xrootd_acc: NSS group lookup slow (%L ms) — "
+                              "opening circuit breaker for %ds (failing to "
+                              "no-supplementary-groups)",
+                              (long long) elapsed, ACC_NSS_COOLDOWN_SECS);
+            }
+        } else {
+            acc_nss_breaker.consecutive_slow = 0;
+        }
+
+        acc_cache_free(e);
+
+        /* E3: negative-cache an unknown / no-group user (short TTL) so a flood of
+         * distinct misses cannot re-block NSS on every request. */
+        if (cnt <= 0) {
+            ngx_memcpy(e->user, user, ngx_strlen(user) + 1);
+            e->names  = NULL;
+            e->count  = 0;
+            e->expiry = now + ngx_min(ACC_NSS_NEG_TTL_SECS, acc_gidlifetime);
+            return NULL;
+        }
+
         ngx_memcpy(e->user, user, ngx_strlen(user) + 1);
         e->names = names;
         e->count = cnt;

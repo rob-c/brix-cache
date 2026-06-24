@@ -32,9 +32,23 @@ its scopes — the caller must still call `xrootd_token_check_read()` /
 `xrootd_token_check_write()` for the specific path before granting access, and that
 path check is what enforces the scope-confined namespace.
 
-A cross-worker `token_cache.c` keyed on the SHA-256 of the raw token lets repeated
-presentations skip the expensive `EVP_DigestVerify` step, capped at a short TTL so
-stateless JWT validation stays close to fail-closed.
+Validation results are cached in two tiers so token auth never re-runs crypto +
+JSON parsing on the event loop for a repeated token — the cause of "HTTP
+ReadTimeout under load":
+
+- **L1 — `worker_cache.c` (always on, per-worker, lockless).** A direct-mapped
+  table keyed on SHA-256(token) → validated `xrootd_token_claims_t`, created
+  lazily on first token auth. An L1 hit skips both `EVP_DigestVerify` AND the L2
+  spinlock. This is the dominant win: the common "one client reuses its token for
+  many requests" pattern collapses to an O(1) probe with no lock.
+- **L2 — `token_cache.c` (optional, cross-worker SHM).** The pre-existing
+  `xrootd_kv_t`-backed cache; consulted on an L1 miss and promoted into L1.
+
+Both tiers store *only* successfully validated claims and cap each entry at
+`min(exp-now, 5 min)`, so a token is re-validated at least every 5 minutes (the
+standard stateless-JWT revocation/rotation tradeoff). L1 is per-conf, so the
+issuer/audience/key-set/secret that governed a validation is implicitly part of
+the cache identity — claims are never served across server/location blocks.
 
 ## Files
 
@@ -49,7 +63,8 @@ stateless JWT validation stays close to fail-closed.
 | `signature.c` | JWT signature verification. `xrootd_token_verify_rs256()` (RSA+SHA-256 EVP chain) and `xrootd_token_verify_es256()` (converts IEEE P1363 raw `r||s` → DER ASN.1 before EVP). |
 | `refresh.c` | JWKS hot-reload. Per-worker mtime-polling timer (`xrootd_token_jwks_schedule_refresh()` + handler) that reloads keys in-place only after a successful parse, preserving old keys on failure. |
 | `config.c` | `xrootd_configure_token_auth()`: `nginx -t`-time validation that `token_jwks`/`token_issuer`/`token_audience` are set when auth is token/both, loads JWKS, records mtime, registers cleanup. |
-| `token_cache.c` | Cross-worker validated-claims cache keyed on SHA-256(token), TTL = `min(exp-now, 5min)`. `xrootd_token_cache_lookup/_store()` and the `xrootd_token_cache` zone directive setter. |
+| `token_cache.c` | L2: cross-worker validated-claims cache keyed on SHA-256(token), TTL = `min(exp-now, 5min)`. `xrootd_token_cache_lookup/_store()` and the `xrootd_token_cache` zone directive setter. |
+| `worker_cache.c` | L1: always-on, per-worker, lockless direct-mapped validated-claims cache (`xrootd_token_l1_create/_lookup/_store()`). Front of the optional L2; created lazily per conf. Stops repeated token validation from stalling the event loop under load. |
 | `oauth2.c` | `xrootd_oauth2_parse_access_token()`: extracts `access_token` from an OIDC/OAuth2 token-endpoint JSON response (jansson, duplicate-rejecting). |
 | `file.c` | `xrootd_token_read_file()`: shared bounded reader for tokens/credentials stored on disk (size cap, whitespace strip, `FD_CLOEXEC`). |
 | `b64url.c` | base64url codec (RFC 4648 URL-safe). `b64url_decode()` (OpenSSL EVP, 8 KiB cap) and `b64url_encode()` (minimal table-driven). |

@@ -8,7 +8,9 @@
 
 #include "../ngx_xrootd_module.h"
 #include "../aio/aio.h"
+#include "../path/op_path.h"
 #include "../manager/registry.h"
+#include "../protocol/dirlist_fmt.h"   /* shared dstat lead-in sentinel */
 #include "dcksm.h"
 
 #include <spawn.h>
@@ -193,8 +195,8 @@ xrootd_dirlist_origin_forward(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (chunk == NULL) { return NGX_ERROR; }
     data = chunk + XRD_RESPONSE_HDR_LEN;
     if (want_stat) {
-        ngx_memcpy(data, ".\n0 0 0 0\n", 10);
-        chunk_pos = 10;
+        ngx_memcpy(data, XROOTD_DSTAT_LEADIN, XROOTD_DSTAT_LEADIN_LEN);
+        chunk_pos = XROOTD_DSTAT_LEADIN_LEN;
     }
 
     for (line = strtok_r((char *) out, "\n", &save);
@@ -322,6 +324,25 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                              reqpath, sizeof(reqpath), 1)) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", "-", "-",
                           kXR_ArgInvalid, "invalid path payload");
+    }
+
+    /* Reject any ".." component (the reference does not normalize ".."); dirlist
+     * resolves through the kernel RESOLVE_BENEATH which would collapse it. */
+    if (xrootd_reject_dotdot_path(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST",
+                                  reqpath)) {
+        return ctx->write_rc;
+    }
+
+    /* Static manager_map: explicit prefix→backend redirect (mirrors open/stat),
+     * so a static-map redirector serves dirlist too (go-hep ls = stat + dirlist). */
+    if (conf->manager_map != NULL) {
+        const xrootd_manager_map_t *m =
+            xrootd_find_manager_map(reqpath, conf->manager_map);
+        if (m != NULL) {
+            XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                                "manager_map",
+                                (const char *) m->host.data, m->port);
+        }
     }
 
     /* Manager mode: redirect dirlist to a registered data server. */
@@ -470,10 +491,8 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         u_char *data = chunk + XRD_RESPONSE_HDR_LEN;
 
         if (want_stat) {
-            static const char dstat_leadin[] = ".\n0 0 0 0\n";
-
-            ngx_memcpy(data, dstat_leadin, 10);
-            chunk_pos = 10;
+            ngx_memcpy(data, XROOTD_DSTAT_LEADIN, XROOTD_DSTAT_LEADIN_LEN);
+            chunk_pos = XROOTD_DSTAT_LEADIN_LEN;
         }
 
 /* ------------------------------------------------------------------ */
@@ -494,6 +513,15 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
             if (name[0] == '.' && (name[1] == '\0' ||
                 (name[1] == '.' && name[2] == '\0')))
+            {
+                continue;
+            }
+
+            /* Hide this gateway's internal control artifacts (e.g. the
+             * checkpoint recovery lock) — a stock XRootD export shows no such
+             * files; mirror that. */
+            if (ngx_strncmp(name, ".nginx-xrootd",
+                            sizeof(".nginx-xrootd") - 1) == 0)
             {
                 continue;
             }

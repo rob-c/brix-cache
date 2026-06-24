@@ -5,6 +5,8 @@
  * preload shim) share one implementation. No connection model, no FUSE types.
  */
 #include "posix_map.h"
+#include "protocol/stat_flags.h"   /* shared stat `flags` semantics (decode side) */
+#include "protocol/qspace.h"       /* shared oss.* space-report grammar (parse side) */
 
 #include <errno.h>
 #include <stdlib.h>
@@ -15,17 +17,16 @@ xrdc_statinfo_to_stat(const xrdc_statinfo *si, int allow_symlink,
                       struct stat *stbuf)
 {
     memset(stbuf, 0, sizeof(*stbuf));
-    if (si->flags & kXR_isDir) {
-        stbuf->st_mode = S_IFDIR | 0755;
+
+    /* File-type + permission bits come from the shared stat-flags semantics, the
+     * inverse-by-spec of the server's st_mode -> kXR flags encode. The FUSE-facing
+     * link count / size policy stays here: a directory advertises nlink 2 and no
+     * size; a symlink (lstat) or regular file advertises nlink 1 and the wire
+     * size (for a symlink that is the target length, which drives readlink). */
+    stbuf->st_mode = xrootd_stat_mode_from_flags(si->flags, allow_symlink);
+    if (S_ISDIR(stbuf->st_mode)) {
         stbuf->st_nlink = 2;
-    } else if (allow_symlink && (si->flags & kXR_other)) {
-        /* Non-regular/non-dir from an lstat: present as a symlink with size =
-         * target length so the kernel follows up with readlink. */
-        stbuf->st_mode = S_IFLNK | 0777;
-        stbuf->st_nlink = 1;
-        stbuf->st_size = (off_t) si->size;
     } else {
-        stbuf->st_mode = S_IFREG | ((si->flags & kXR_xset) ? 0755 : 0644);
         stbuf->st_nlink = 1;
         stbuf->st_size = (off_t) si->size;
     }
@@ -43,17 +44,8 @@ void
 xrdc_parse_qspace(const char *text, unsigned long long *total,
                   unsigned long long *freeb)
 {
-    const char *p;
-
-    if (total != NULL) { *total = 0; }
-    if (freeb != NULL) { *freeb = 0; }
-    if (text == NULL) {
-        return;
-    }
-    p = strstr(text, "oss.space=");
-    if (p != NULL && total != NULL) { *total = strtoull(p + 10, NULL, 10); }
-    p = strstr(text, "oss.free=");
-    if (p != NULL && freeb != NULL) { *freeb = strtoull(p + 9, NULL, 10); }
+    /* oss.* token grammar is shared with the server's emitter (protocol/qspace.h). */
+    xrootd_qspace_parse(text, total, freeb);
 }
 
 int

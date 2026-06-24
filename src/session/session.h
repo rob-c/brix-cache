@@ -62,4 +62,12 @@ STACK_OF(X509) *xrootd_gsi_parse_x509(xrootd_ctx_t *ctx,
  * WHAT: kXR_auth handler — multi-round authentication dispatcher routing to GSI or token auth based on configured auth mode. For GSI: exchanges DH keys, certificates, and signed random challenge via multiple kXR_auth/kXR_authmore round-trips tracked by XrdSutBuffer step numbers in protocol/gsi.h. For tokens: validates JWT bearer token against JWKS endpoint checking signature, scope (storage.read/storage.write), expiry, and issuer. Sets auth_done=1 upon successful authentication enabling subsequent file operations. */
 ngx_int_t xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c);
 
+/* Phase 51 (E4): per-worker in-flight GSI-handshake admission gauge (gsi/auth.c).
+ * _admit returns 1 if the new handshake is admitted under `cap` (0 = unlimited)
+ * and marks ctx->gsi_counted; 0 if it should be shed.  _release frees the slot
+ * exactly once (gated by ctx->gsi_counted) — called at auth completion AND from
+ * the disconnect funnel so the gauge can never leak. */
+ngx_int_t xrootd_gsi_inflight_admit(xrootd_ctx_t *ctx, ngx_int_t cap);
+void      xrootd_gsi_inflight_release(xrootd_ctx_t *ctx);
+
 #endif /* XROOTD_SESSION_H */

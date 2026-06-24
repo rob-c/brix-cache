@@ -456,6 +456,17 @@ typedef struct {
     ngx_atomic_t  read_pdu_timeouts_total;  /* steady-state read deadline fired    */
     ngx_atomic_t  send_drain_timeouts_total;/* response-drain deadline fired       */
     ngx_atomic_t  connections_rejected_total; /* refused at xrootd_max_connections */
+
+    /*
+     * Phase 44 — optional io_uring disk-I/O backend (all 0 unless a worker
+     * fronting this listener brought up the ring and submitted ops through it).
+     * active is a 0/1 gauge set the first time the listener uses io_uring; ops vs
+     * fallback give the ring-utilisation ratio for mapped (read/write/single-
+     * group readv/writev) ops — unmapped ops (pgread/dirlist) are not counted.
+     */
+    ngx_atomic_t  io_uring_active;          /* gauge: 1 = listener used io_uring   */
+    ngx_atomic_t  io_uring_ops_total;       /* mapped ops submitted via io_uring   */
+    ngx_atomic_t  io_uring_fallback_total;  /* mapped ops that fell back to pool    */
 } ngx_xrootd_srv_metrics_t;
 
 /* ---- Per-VO traffic tracking (bounded LRU, low-cardinality) ---- */
@@ -575,8 +586,31 @@ typedef struct {
     ngx_atomic_t  pmark_flowlabel_failed_total;/* flow-label setsockopt refusals       */
     ngx_atomic_t  pmark_map_unresolved_total;  /* opens with no (exp,act) mapping      */
 
+    /* Phase 51 — cross-protocol resilience observability (low cardinality). */
+    ngx_atomic_t  cms_read_timeouts_total;      /* A1: client manager-silence reconnects */
+    ngx_atomic_t  cms_login_timeouts_total;     /* A1: server LOGIN-handshake deadline fired */
+    ngx_atomic_t  cms_idle_closes_total;        /* A1: server post-login idle watchdog closed */
+    ngx_atomic_t  cms_cap_rejections_total;     /* A1: accept refused (global or per-IP cap) */
+    ngx_atomic_t  cms_frame_yields_total;       /* A2: read-loop yielded (flood fairness) */
+    ngx_atomic_t  ocsp_timeouts_total;          /* E1: OCSP fetch hit the socket deadline */
+    ngx_atomic_t  auth_l1_hits_total;           /* E2: auth-gate verdict served from L1 */
+    ngx_atomic_t  auth_l1_misses_total;         /* E2: auth-gate L1 miss (fell to L2/eval) */
+    ngx_atomic_t  acc_nss_breaker_open_total;   /* E3: NSS group-lookup breaker tripped open */
+    ngx_atomic_t  acc_dns_breaker_open_total;   /* E3: reverse-DNS breaker tripped open */
+
     ngx_xrootd_vo_global_t    vo_global;
     ngx_xrootd_user_global_t  user_tracking;
+
+    /*
+     * Config/reload diagnostics, published by the master in init_module once per
+     * config load (xrootd_config_version_publish()).  Lives in SHM so the HTTP
+     * /healthz handler can read it, and so config_generation survives reload
+     * (the metrics zone re-attaches).  config_generation counts loads (1 at first
+     * start, +1 on every `nginx -s reload`); config_hash is an FNV-1a fingerprint
+     * of the main config file (0 if it could not be read).
+     */
+    ngx_atomic_t  config_generation;
+    uint64_t      config_hash;
 
 } ngx_xrootd_metrics_t;
 
@@ -585,6 +619,14 @@ typedef struct {
  * postconfiguration; read by the HTTP metrics module at request time.
  */
 extern ngx_shm_zone_t *ngx_xrootd_shm_zone;
+
+/*
+ * config.c — publish the config/reload fingerprint into the metrics SHM.  Call
+ * once per config load from the module's init_module hook (after shared memory
+ * is mapped): bumps config_generation and stores the FNV-1a hash of the main
+ * config file, then logs a NOTICE.  No-op when no metrics zone exists.
+ */
+void  xrootd_config_version_publish(ngx_cycle_t *cycle);
 
 /* tracking.c — per-VO traffic and unique user identity counting. */
 ngx_int_t  xrootd_track_vo_activity(ngx_xrootd_metrics_t *shm,

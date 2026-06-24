@@ -461,11 +461,47 @@ do_mv(xrdc_conn *c, const char *cwd, int argc, char **argv)
     return 0;
 }
 
-/* chmod [-R] <path> <octal-mode> — keeps the historical xrdfs arg order (path first).
- * Only octal absolute modes are supported: symbolic modes (u+x) would require the
- * file's current permission bits, which the XRootD wire stat does not expose
- * (xrdc_statinfo carries kXR_readable/writable flags, not the full mode). -R recurses
- * into directories, applying the same mode to every entry. */
+/* parse_chmod_mode — accept the stock xrdfs 9-char symbolic form ("rwxr-xr-x",
+ * XrdClFS.cc ConvertMode) AND an octal absolute mode ("755") as a local
+ * extension. Returns the permission bits, or -1 on a malformed mode. The stock
+ * client takes ONLY the symbolic 9-char form, so users/tools that pass it (and
+ * our own conformance suite) must get the right bits — previously strtol(…,8)
+ * turned "rwxr-xr-x" into 0, silently setting mode 000. */
+static int
+parse_chmod_mode(const char *s)
+{
+    size_t n = strlen(s);
+
+    if (n == 9) {
+        int i, m = 0, ok = 1;
+        for (i = 0; i < 9; i++) {
+            char want = "rwx"[i % 3];
+            if (s[i] == want) {
+                m |= (1 << (8 - i));    /* pos 0 -> 0400 … pos 8 -> 0001 */
+            } else if (s[i] != '-') {
+                ok = 0;
+                break;
+            }
+        }
+        if (ok) {
+            return m;
+        }
+    }
+
+    {
+        char *endp = NULL;
+        long  v    = strtol(s, &endp, 8);
+        if (endp != s && *endp == '\0' && v >= 0) {
+            return (int) (v & 07777);
+        }
+    }
+    return -1;
+}
+
+/* chmod [-R] <path> <mode> — keeps the historical xrdfs arg order (path first).
+ * <mode> is the stock 9-char symbolic form ("rwxr-xr-x") or an octal absolute
+ * mode ("755"). -R recurses into directories, applying the same mode to every
+ * entry. */
 static int
 do_chmod(xrdc_conn *c, const char *cwd, int argc, char **argv)
 {
@@ -480,11 +516,16 @@ do_chmod(xrdc_conn *c, const char *cwd, int argc, char **argv)
         else if (modearg == NULL)         { modearg = argv[i]; }
     }
     if (patharg == NULL || modearg == NULL) {
-        fprintf(stderr, "usage: chmod [-R] <path> <octal-mode>\n");
+        fprintf(stderr, "usage: chmod [-R] <path> <rwxr-xr-x | octal-mode>\n");
         return 50;
     }
     build_path(cwd, patharg, path, sizeof(path));
-    mode = (int) strtol(modearg, NULL, 8);
+    mode = parse_chmod_mode(modearg);
+    if (mode < 0) {
+        fprintf(stderr, "xrdfs: chmod: invalid mode '%s' "
+                "(expected rwxr-xr-x or octal)\n", modearg);
+        return 50;
+    }
 
     xrdc_status_clear(&st);
     if (xrdc_chmod(c, path, mode, &st) != 0) {
@@ -2747,7 +2788,7 @@ main(int argc, char **argv)
         w.base   = base;
         w.bearer = web_token != NULL ? web_token : getenv("BEARER_TOKEN");
         w.verify = opts.verify_host;
-        w.ca_dir = getenv("X509_CERT_DIR");
+        w.ca_dir = xrdc_resolve_ca_dir(NULL);
         if (argi >= argc) {
             fprintf(stderr, "xrdfs: an http(s)/WebDAV endpoint needs a command "
                             "(e.g. ls); the interactive shell is root:// only\n");

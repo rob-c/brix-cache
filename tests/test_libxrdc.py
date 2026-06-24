@@ -53,6 +53,37 @@ def _codec_link_libs():
     return libs
 
 
+def _krb5_link_libs():
+    """Link flags for Kerberos, when libxrdc was compiled with krb5 support.
+
+    The client's krb5 security module (sec_krb5.o) is compiled into libxrdc.a
+    only when the krb5 dev headers are present at build time; that object then
+    references krb5_init_context / krb5_cc_default / … which live in libkrb5.
+    A static consumer must link it or the build fails with undefined references.
+    Probe by file presence so the flag appears exactly when the symbols do.
+    """
+    for d in _LIBDIRS:
+        if any(os.path.exists(os.path.join(d, n))
+               for n in ("libkrb5.so", "libkrb5.so.3")):
+            return ["-lkrb5"]
+    return []
+
+
+def _uring_link_libs():
+    """Link flag for liburing, when libxrdc was compiled with io_uring support.
+
+    The client's disk/io_uring fast path (uring.o) is compiled into libxrdc.a
+    only when liburing dev headers are present at build time; it then references
+    io_uring_queue_init / io_uring_submit / … from liburing.  A static consumer
+    must link it.  Probe by file presence so the flag tracks the build exactly.
+    """
+    for d in _LIBDIRS:
+        if any(os.path.exists(os.path.join(d, n))
+               for n in ("liburing.so", "liburing.so.2", "liburing.so.1")):
+            return ["-luring"]
+    return []
+
+
 @pytest.fixture(scope="module")
 def installed(tmp_path_factory):
     if CC is None:
@@ -103,7 +134,8 @@ def _build_demo(installed, tmp_path, static):
                 "-I" + os.path.join(installed, "include", "xrdc", "xrdproto"),
                 os.path.join(installed, "lib", "libxrdc.a"),
                 os.path.join(installed, "lib", "libxrdproto.a"),
-                "-lssl", "-lcrypto", "-lz"] + _codec_link_libs())
+                "-lssl", "-lcrypto", "-lz"]
+               + _codec_link_libs() + _krb5_link_libs() + _uring_link_libs())
     cmd += ["-o", out]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, f"demo build failed:\n{' '.join(cmd)}\n{proc.stderr}"

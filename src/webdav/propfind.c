@@ -580,7 +580,15 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
         }
     }
 
-    if (mask & (PF_QUOTA_AVAILABLE | PF_QUOTA_USED)) {
+    /*
+     * RFC 4331 quota properties describe a COLLECTION's storage quota, not a
+     * file's.  Emitting them on a regular file is non-conformant and actively
+     * breaks clients: gfal2/davix maps <D:quota-used-bytes> onto st_size, so a
+     * file's reported size becomes the filesystem's used bytes (~TB) instead of
+     * getcontentlength.  Stock XrdHttp never emits quota per-file.  Gate to
+     * directories so files carry only getcontentlength as their size.
+     */
+    if ((mask & (PF_QUOTA_AVAILABLE | PF_QUOTA_USED)) && S_ISDIR(sb->st_mode)) {
         xrootd_fs_usage_t fsu;
         if (xrootd_fs_usage_stat(path, &fsu) == NGX_OK) {
             if ((mask & PF_QUOTA_AVAILABLE)

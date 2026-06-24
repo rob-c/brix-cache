@@ -22,6 +22,13 @@ xrootd_cms_srv_create_conf(ngx_conf_t *cf)
     conf->interval = NGX_CONF_UNSET;
     /* allow / sss_keytab / sss_keys are zero-initialised by pcalloc (NULL). */
 
+    conf->login_timeout    = NGX_CONF_UNSET_MSEC;
+    conf->idle_timeout     = NGX_CONF_UNSET_MSEC;
+    conf->max_connections  = NGX_CONF_UNSET;
+    conf->max_connections_per_ip = NGX_CONF_UNSET;
+    conf->tcp_keepalive    = NGX_CONF_UNSET;
+    conf->tcp_user_timeout = NGX_CONF_UNSET_MSEC;
+
     return conf;
 }
 
@@ -38,6 +45,31 @@ xrootd_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->interval, prev->interval, 60);
     if (conf->interval < 1) {
         conf->interval = 1;   /* never derive a 0ms self-rearming ping timer */
+    }
+
+    /*
+     * Phase 50: accept-side resilience deadlines + connection cap.  Resolved
+     * after interval so an unset idle timeout auto-derives from it.  Generous
+     * ON-by-default values; an explicit 0 disables a timeout / uncaps.
+     */
+    ngx_conf_merge_msec_value(conf->login_timeout, prev->login_timeout, 10000);
+    if (conf->idle_timeout == NGX_CONF_UNSET_MSEC) {
+        if (prev->idle_timeout != NGX_CONF_UNSET_MSEC) {
+            conf->idle_timeout = prev->idle_timeout;
+        } else {
+            ngx_msec_t d = (ngx_msec_t) conf->interval * 3 * 1000;
+            conf->idle_timeout = (d > 90000) ? d : 90000;
+        }
+    }
+    ngx_conf_merge_value(conf->max_connections, prev->max_connections, 4096);
+    ngx_conf_merge_value(conf->max_connections_per_ip,
+                         prev->max_connections_per_ip, 256);
+    ngx_conf_merge_value(conf->tcp_keepalive,   prev->tcp_keepalive,   1);
+    if (conf->tcp_user_timeout == NGX_CONF_UNSET_MSEC) {
+        conf->tcp_user_timeout =
+            (prev->tcp_user_timeout != NGX_CONF_UNSET_MSEC)
+                ? prev->tcp_user_timeout
+                : conf->idle_timeout;
     }
 
     /* Inherit auth config from the parent block when the child omitted it. */
@@ -199,6 +231,49 @@ static ngx_command_t  xrootd_cms_srv_commands[] = {
       xrootd_cms_srv_set_sss_keytab,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
+      NULL },
+
+    /* Phase 50: accept-side resilience deadlines + connection cap. */
+    { ngx_string("xrootd_cms_server_login_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_cms_srv_conf_t, login_timeout),
+      NULL },
+
+    { ngx_string("xrootd_cms_server_idle_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_cms_srv_conf_t, idle_timeout),
+      NULL },
+
+    { ngx_string("xrootd_cms_server_max_connections"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_cms_srv_conf_t, max_connections),
+      NULL },
+
+    { ngx_string("xrootd_cms_server_max_connections_per_ip"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_cms_srv_conf_t, max_connections_per_ip),
+      NULL },
+
+    { ngx_string("xrootd_cms_server_tcp_keepalive"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_cms_srv_conf_t, tcp_keepalive),
+      NULL },
+
+    { ngx_string("xrootd_cms_server_tcp_user_timeout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_cms_srv_conf_t, tcp_user_timeout),
       NULL },
 
     ngx_null_command

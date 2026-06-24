@@ -23,13 +23,13 @@ PROTOCOL (newline-delimited JSON, one message per line)
     response  {"id": int, "ok": bool, ...}            ok=False carries "error"
     Binary payloads are wrapped as {"__bytes__": "<base64>"}.
 
-    THREADING CONSTRAINT
-    pyxrootd's synchronous methods only complete when invoked from the process
-    MAIN thread — driving them from any other Python thread deadlocks in the
-    XrdCl response-delivery path (verified empirically).  The worker therefore
-    services every request inline on the main thread, sequentially.  Genuine
-    client-side concurrency is provided by the parent running a POOL of these
-    workers (one process per concurrency slot); see tests/_xrdcl_proxy.py.
+    The worker is multi-threaded: each request is serviced on its own daemon
+    thread (XrdCl is thread-safe), so genuine client-side concurrency — parallel
+    File/FileSystem ops issued by threads in the test — is preserved.  stdout
+    writes are serialised by a lock.  A hung XrdCl op only ties up its own
+    thread; the parent's per-call wall-clock timeout kills the whole worker, so
+    a deadlock can never wedge the pytest interpreter (the reason this isolation
+    layer exists).
 """
 
 import base64
@@ -132,8 +132,26 @@ def _encode_response(resp):
         return None
     if isinstance(resp, (bytes, bytearray, memoryview)):
         return _b64(resp)
+    # Primitive scalars pass through verbatim.  This branch is essential once
+    # we recurse into containers: a bare str/int reached via a list/tuple/dict
+    # must NOT fall through to the object-scrape fallback (which would drop its
+    # value, encoding "cms" as {"__type__": "str"}).
+    if isinstance(resp, (str, bool, int, float)):
+        return resp
+    # Preserve tuple-vs-list identity: pyxrootd returns genuine tuples (e.g.
+    # get_xattr -> [(name, value, status), ...]) and tests do isinstance(x,tuple).
+    if isinstance(resp, tuple):
+        return {"__tuple__": [_encode_response(x) for x in resp]}
+    if isinstance(resp, list):
+        return {"__list__": [_encode_response(x) for x in resp]}
+    if isinstance(resp, dict):
+        return {"__dict__": {str(k): _encode_response(v)
+                             for k, v in resp.items()}}
 
     tname = type(resp).__name__
+
+    if tname == "XRootDStatus":
+        return {"__status__": _encode_status(resp)}
 
     if tname == "StatInfo":
         return _encode_statinfo(resp)
@@ -235,14 +253,40 @@ def _decode_args(args, kwargs):
 # --------------------------------------------------------------------------
 def _call_method(target, method, args, kwargs):
     args, kwargs = _decode_args(args, kwargs)
+    # JSON has no tuple type, so lists of pairs arrive as lists of 2-element
+    # lists.  Several pyxrootd calls insist on real tuples:
+    #   vector_read(chunks=[(offset, length), ...])
+    #   set_xattr(path, attrs=[(name, value), ...])
+    if method == "vector_read" and args and isinstance(args[0], list):
+        args[0] = [tuple(c) for c in args[0]]
+    elif method == "set_xattr" and len(args) >= 2 and isinstance(args[1], list):
+        args[1] = [tuple(p) if isinstance(p, list) else p for p in args[1]]
     fn = getattr(target, method)
     result = fn(*args, **kwargs)
-    # pyxrootd returns (status, response); some calls return only a status.
-    if isinstance(result, tuple) and len(result) == 2:
+    return _encode_call_result(result)
+
+
+def _is_status(obj):
+    return type(obj).__name__ == "XRootDStatus"
+
+
+def _encode_call_result(result):
+    """Normalise a pyxrootd call's return value for transport.
+
+    Three shapes occur:
+      * (XRootDStatus, response)  — the usual stat/read/query/... pattern
+      * XRootDStatus              — close/sync/truncate and friends
+      * a plain value             — e.g. File.is_open() -> bool
+    The third must NOT be coerced into a status (that loses the value and
+    crashes _encode_status); it is returned under a distinct "value" key.
+    """
+    if isinstance(result, tuple) and len(result) == 2 and _is_status(result[0]):
         status, resp = result
-    else:
-        status, resp = result, None
-    return {"status": _encode_status(status), "response": _encode_response(resp)}
+        return {"status": _encode_status(status),
+                "response": _encode_response(resp)}
+    if _is_status(result):
+        return {"status": _encode_status(result), "response": None}
+    return {"value": _encode_response(result)}
 
 
 def _handle(req):
@@ -285,17 +329,20 @@ def _handle(req):
 
 
 # --------------------------------------------------------------------------
-# Main loop: read requests and service each INLINE on the main thread (the only
-# thread on which pyxrootd's synchronous calls complete).  Responses are tagged
-# with the request id and written in completion order.
+# Main loop: read requests, service each on its own daemon thread, and write
+# tagged responses in completion order.  stdout is line-buffered text; a lock
+# serialises concurrent writes.
 # --------------------------------------------------------------------------
 _out = sys.stdout
+_out_lock = threading.Lock()
 
 
 def _send(msg):
-    _out.write(json.dumps(msg))
-    _out.write("\n")
-    _out.flush()
+    line = json.dumps(msg)
+    with _out_lock:
+        _out.write(line)
+        _out.write("\n")
+        _out.flush()
 
 
 def _service(req):
@@ -306,8 +353,23 @@ def _service(req):
         body["ok"] = True
         _send(body)
     except Exception as exc:  # noqa: BLE001 — report every failure to parent
+        # Carry the exception's type and message so the parent can re-raise the
+        # SAME builtin exception (tests catch native ValueError/TypeError that
+        # pyxrootd raises, e.g. I/O on a closed file or unsupported kwargs).
         _send({"id": rid, "ok": False,
+               "etype": type(exc).__name__,
+               "emsg": str(exc),
                "error": "%s: %s" % (type(exc).__name__, exc)})
+
+
+def _apply_env(env):
+    """Mirror the parent's os.environ so the bindings see live credential vars.
+
+    Applied on the main thread in request order (never inside a worker thread)
+    so the environment is settled before the op it belongs to is dispatched.
+    """
+    os.environ.clear()
+    os.environ.update(env)
 
 
 def main():
@@ -321,7 +383,11 @@ def main():
             continue
         if req.get("op") == "shutdown":
             break
-        _service(req)
+        env = req.pop("env", None)
+        if env is not None:
+            _apply_env(env)
+        t = threading.Thread(target=_service, args=(req,), daemon=True)
+        t.start()
 
 
 if __name__ == "__main__":

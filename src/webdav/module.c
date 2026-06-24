@@ -501,6 +501,16 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, vomsdir),
       NULL },
 
+    /* Per-socket TCP congestion control (e.g. "bbr") for the HTTP data path — the
+     * sender's CC governs download throughput; BBR ignores reordering's spurious
+     * loss signals.  Same directive name as the stream module, different context. */
+    { ngx_string("xrootd_tcp_congestion"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, tcp_congestion),
+      NULL },
+
     { ngx_string("xrootd_webdav_voms_cert_dir"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -555,6 +565,20 @@ static ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.allow_write),
+      NULL },
+
+    { ngx_string("xrootd_webdav_upload_resume"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, upload_resume),
+      NULL },
+
+    { ngx_string("xrootd_webdav_stage_dir"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, upload_stage_dir),
       NULL },
 
     /* phase-42: opt-in outbound GET response compression (Accept-Encoding). */

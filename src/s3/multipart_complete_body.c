@@ -379,9 +379,7 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
                         sizeof(t->fs_path));
             ngx_cpystrn((u_char *) t->root_canon,
                         (u_char *) cf->common.root_canon, sizeof(t->root_canon));
-            task->handler       = s3_mpu_aio_thread;
-            task->event.handler = s3_mpu_aio_done;
-            task->event.data    = task;
+            xrootd_task_bind(task, s3_mpu_aio_thread, s3_mpu_aio_done);
 
             if (ngx_thread_task_post(pool, task) != NGX_OK) {
                 XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);

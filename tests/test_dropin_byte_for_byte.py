@@ -621,26 +621,23 @@ class TestStatParity:
         assert _ping(n)[1] == kXR_ok and _ping(x)[1] == kXR_ok
 
     def test_statx_field_format_matches(self, both):
-        """kXR_statx (the python XRootD client has NO statx method, so this is
-        raw-wire only) returns inline stat lines in the same 4-field format as
-        kXR_stat.  nginx returns the populated line; the official server's
-        statx returns an empty body for a single path here, so when its line is
-        not 4 fields we assert nginx's format alone and skip the cross compare."""
+        """kXR_statx returns ONE flag byte per path (kXR_file=0 / kXR_isDir=2 /
+        kXR_other=4 / kXR_offline=8) — exactly the reference do_Statx response,
+        NOT a kXR_stat text line.  The python XRootD client has no statx method,
+        so this is raw-wire only.  Both servers must classify the regular file
+        identically (a non-directory flag byte)."""
         n, x = both
-        n_sid, n_st, n_body = _statx(n, [PLAIN_NAME])
-        x_sid, x_st, x_body = _statx(x, [PLAIN_NAME])
+        _, n_st, n_body = _statx(n, [PLAIN_NAME])
+        _, x_st, x_body = _statx(x, [PLAIN_NAME])
         if n_st != kXR_ok:
             pytest.skip(f"statx not supported on nginx (status={n_st})")
-        n_line = n_body.split(b"\n")[0].decode().split()
-        assert len(n_line) == 4, f"nginx statx line not 4 fields: {n_line}"
-        assert int(n_line[1]) == PLAIN_SIZE, "nginx statx size wrong"
-        x_line = (x_body.split(b"\n")[0].decode().split()
-                  if x_st == kXR_ok else [])
-        if len(x_line) >= 4:
-            assert int(x_line[1]) == PLAIN_SIZE, "official statx size wrong"
-        else:
-            pytest.skip("official xrootd statx returns no inline stat line "
-                        "for a single path — nginx format verified standalone")
+        assert len(n_body) == 1, f"nginx statx must be one flag byte: {n_body!r}"
+        assert not (n_body[0] & 0x02), "nginx flagged a regular file as a dir"
+        # The official server returns the same one-byte-per-path body; cross-check
+        # when it answers (some builds reply empty for a single path).
+        if x_st == kXR_ok and len(x_body) == 1:
+            assert (x_body[0] & 0x02) == (n_body[0] & 0x02), \
+                "isDir flag disagrees between nginx and official statx"
         assert _ping(n)[1] == kXR_ok and _ping(x)[1] == kXR_ok
 
 

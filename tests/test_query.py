@@ -287,10 +287,14 @@ class TestSpace:
         oss = self._parse_oss(resp)
         assert oss["oss.cgroup"], "oss.cgroup must not be empty"
 
-    def test_space_query_with_empty_path(self):
-        """Empty path should also be accepted."""
+    def test_space_query_with_empty_path_rejected(self):
+        """An empty path is rejected, matching stock xrootd.
+
+        Verified differentially: stock answers `query space ''` with
+        `[3010] Stating relative path '' is disallowed`; our server rejects it the
+        same way (a relative/empty path is never resolved to the export root)."""
         status, resp = self.fs.query(QueryCode.SPACE, "")
-        assert status.ok, f"space query with empty path failed: {status.message}"
+        assert not status.ok, "space query with empty path must be rejected (stock parity)"
 
 
 # ---------------------------------------------------------------------------

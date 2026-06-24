@@ -60,6 +60,6 @@ void xrootd_prefetch_flush(ngx_log_t *log, int fd, off_t range_start,
  * Flushes merged range at boundary changes via xrootd_prefetch_flush().
  */
 void xrootd_prefetch_readv_segments(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    readahead_list *segments, size_t segment_count);
+    readahead_list *segments, size_t segment_count, size_t readv_seg_max);
 
 #endif /* XROOTD_READ_PREFETCH_H */

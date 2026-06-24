@@ -138,6 +138,11 @@ void  xrootd_export_s3_metrics(metrics_writer_t *mw,
 void  xrootd_export_pmark_metrics(metrics_writer_t *mw,
     ngx_xrootd_metrics_t *shm);
 
+/* stream.c — Phase 51 cross-protocol resilience counters (CMS timeouts/idle/cap/
+ * yields, OCSP timeouts, auth-gate L1 hit/miss, NSS/DNS breaker trips). */
+void  xrootd_export_resilience_metrics(metrics_writer_t *mw,
+    ngx_xrootd_metrics_t *shm);
+
 /* frm/metrics.c — phase-35 FRM tape-stage counters (stage requests/dedup/
  * success/fail-by-reason, in-flight gauge, evict/migrate/purge, async
  * waitresp/asynresp, and the coarse seconds stage-latency histogram). */

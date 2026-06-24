@@ -171,9 +171,13 @@ typedef struct {
      * Phase 1 lands the ring with effective depth 1: the recv loop stays serial
      * (it suspends on XRD_ST_SENDING), so out_head == out_tail == 0 throughout
      * and behaviour is identical to the previous single wbuf/wchain singletons.
-     * Phase 2 raises the in-flight bound to XROOTD_PIPELINE_MAX.
+     * Phase 2 raises the in-flight bound to ctx->pipeline_depth.
+     *
+     * out_ring/rd_pool are heap-allocated (c->pool) to pipeline_depth slots at
+     * connection setup (handler.c); all ring arithmetic is modulo pipeline_depth.
      */
-    xrootd_resp_slot_t out_ring[XROOTD_PIPELINE_MAX];
+    ngx_uint_t         pipeline_depth; /* ring capacity = configured in-flight bound */
+    xrootd_resp_slot_t *out_ring;  /* [pipeline_depth] response slots */
     ngx_uint_t         out_head;   /* slot being drained to the socket */
     ngx_uint_t         out_tail;   /* slot currently being built */
     ngx_uint_t         out_count;  /* number of slots in use (responses queued) */
@@ -209,8 +213,8 @@ typedef struct {
      *
      * wr_inflight counts plain-write pwrites posted to the pool and not yet
      * acked.  The recv loop only keeps reading while out_count + wr_inflight <
-     * XROOTD_PIPELINE_MAX, which bounds BOTH the in-flight pwrites (thread-pool
-     * fairness) AND the queued acks (out_ring has XROOTD_PIPELINE_MAX slots) so
+     * ctx->pipeline_depth, which bounds BOTH the in-flight pwrites (thread-pool
+     * fairness) AND the queued acks (out_ring has pipeline_depth slots) so
      * the ring can never overflow.  Non-pipelinable opcodes (close, sync,
      * pgwrite, …) still drain to wr_inflight == 0 before dispatch, preserving
      * the serial invariant (e.g. a close cannot retire a handle a pwrite is
@@ -296,14 +300,15 @@ typedef struct {
 
     /*
      * Phase 32 WS3 — concurrent-AIO read pipeline state.  rd_pool holds up to
-     * XROOTD_PIPELINE_MAX in-flight memory-read buffers/tasks; rd_inflight is the
+     * ctx->pipeline_depth in-flight memory-read buffers/tasks; rd_inflight is the
      * count currently in use.  rd_backpressured is set when the recv loop stops
      * admitting reads because the pool + out_ring are full, and cleared when a
      * pool entry frees (driving a read-resume).  Single-shot memory reads draw
      * from this pool so several can be outstanding at once; the legacy
      * read_scratch/read_aio_task pair still backs windowed reads (serial).
+     * Heap-allocated to pipeline_depth slots alongside out_ring (handler.c).
      */
-    xrootd_read_slot_t rd_pool[XROOTD_PIPELINE_MAX];
+    xrootd_read_slot_t *rd_pool;   /* [pipeline_depth] in-flight read buffers */
     ngx_uint_t         rd_inflight;
     unsigned           rd_backpressured:1;
 
@@ -348,6 +353,18 @@ typedef struct {
      *     back in round 2 (parse_x509.c) so both rounds agree on padding/IV.
      */
     int        gsi_signed_dh;
+
+    /*
+     * Phase 52 (WS-B): XrdSecpwd multi-round handshake state.  Round 1 derives the
+     * DH session key from the client's kXRS_puk and stores it here (16 bytes,
+     * aes-128); round 2 decrypts the credential with it, so the ephemeral DH
+     * keypair need not survive between rounds.  pwd_round counts rounds seen
+     * (1 = puk-exchange done, awaiting creds).  pwd_user is the username asserted
+     * in round 1, verified against the creds in round 2.
+     */
+    uint8_t    pwd_session_key[16];
+    unsigned   pwd_round;
+    char       pwd_user[64];
 
     /*
      * Bearer-token auth state.

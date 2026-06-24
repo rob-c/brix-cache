@@ -36,4 +36,25 @@ typedef struct {
 void xrootd_http_parse_range(const unsigned char *hdr_val, size_t hdr_len,
     off_t file_size, xrootd_http_range_t *out);
 
+typedef struct {
+    off_t  start;
+    off_t  end;        /* inclusive */
+    off_t  total;      /* declared total size, or -1 if "*" (unknown) */
+    int    present;    /* 1 if a well-formed Content-Range was parsed */
+} xrootd_http_content_range_t;
+
+/*
+ * WHAT: Parse a request "Content-Range: bytes <start>-<end>/<total>" header
+ *       (the resumable-PUT form; <total> may be "*").  Used by WebDAV PUT to
+ *       place a chunk at an absolute offset for upload resume.
+ *
+ * HOW:  Strict grammar — optional "bytes " prefix, decimal start, '-', decimal
+ *       end (>= start), '/', then decimal total or '*'.  On any deviation
+ *       out->present stays 0 (caller treats the PUT as a whole-body upload).
+ *
+ * Input: hdr_val/hdr_len — raw header value; NULL/0 = absent.
+ */
+void xrootd_http_parse_content_range(const unsigned char *hdr_val,
+    size_t hdr_len, xrootd_http_content_range_t *out);
+
 #endif /* XROOTD_COMPAT_RANGE_H */

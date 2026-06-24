@@ -167,7 +167,7 @@ xrootd_token_validate(ngx_log_t *log,
     const u_char *macaroon_secret, size_t secret_len,
     xrootd_token_claims_t *claims)
 {
-    const char *dot1, *dot2;
+    xrdjwt_seg  seg[3];
     u_char      hdr_json[2048], pay_json[4096], sig_bin[512];
     ssize_t     hdr_len, pay_len, sig_len;
     char        alg[16], kid[128];
@@ -184,8 +184,31 @@ xrootd_token_validate(ngx_log_t *log,
                           "xrootd_token: Macaroon detected but no secret configured");
             return -1;
         }
-        return xrootd_macaroon_validate(log, token, token_len,
-                                        macaroon_secret, secret_len, claims);
+        if (xrootd_macaroon_validate(log, token, token_len,
+                                     macaroon_secret, secret_len, claims) != 0)
+        {
+            return -1;
+        }
+        /*
+         * Issuer pinning applies to macaroons too (fail-closed).  The macaroon
+         * "location" packet is recorded in claims->iss; when the operator has
+         * configured an expected issuer, a macaroon whose location does not match
+         * — including one with no location packet (claims->iss == "") — is
+         * rejected, closing the same issuer-confusion gap the JWT path guards
+         * against below.  Macaroons carry no audience claim, so expected_audience
+         * is intentionally not applied here.
+         */
+        if (expected_issuer != NULL && expected_issuer[0]
+            && strcmp(claims->iss, expected_issuer) != 0)
+        {
+            char safe_iss[512];
+            token_sanitize_for_log(claims->iss, safe_iss, sizeof(safe_iss));
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "xrootd_macaroon: issuer/location mismatch: got \"%s\" "
+                          "expected \"%s\"", safe_iss, expected_issuer);
+            return -1;
+        }
+        return 0;
     }
 
     if (token_len == 0 || token_len > 8192) {
@@ -194,25 +217,23 @@ xrootd_token_validate(ngx_log_t *log,
         return -1;
     }
 
-    dot1 = memchr(token, '.', token_len);
-    if (dot1 == NULL) {
+    /* Split "header.payload.signature" via the shared splitter (libxrdproto —
+     * the same xrdjwt_split() the native client's token introspection uses), so
+     * the two-dot scan is single-sourced across both trees. */
+    if (xrdjwt_split((const char *) token, token_len, seg) != 0) {
+        return xrootd_token_malformed(log);   /* fewer than 2 dots */
+    }
+
+    /* Compact JWS is EXACTLY 3 segments; xrdjwt_split folds any extra dots into
+     * the signature slice, so reject a dot inside it here — keeping this gate's
+     * strict structural check (defence-in-depth) and its "malformed" log path. */
+    if (memchr(seg[2].p, '.', seg[2].n) != NULL) {
         return xrootd_token_malformed(log);
     }
 
-    dot2 = memchr(dot1 + 1, '.', token_len - (size_t) (dot1 + 1 - token));
-    if (dot2 == NULL) {
-        return xrootd_token_malformed(log);
-    }
-
-    if (memchr(dot2 + 1, '.', token_len - (size_t) (dot2 + 1 - token))
-        != NULL)
-    {
-        return xrootd_token_malformed(log);
-    }
-
-    hdr_b64_len = (size_t) (dot1 - token);
-    pay_b64_len = (size_t) (dot2 - dot1 - 1);
-    sig_b64_len = token_len - (size_t) (dot2 + 1 - token);
+    hdr_b64_len = seg[0].n;
+    pay_b64_len = seg[1].n;
+    sig_b64_len = seg[2].n;
 
     hdr_len = b64url_decode(token, hdr_b64_len, hdr_json,
                             sizeof(hdr_json) - 1);
@@ -258,14 +279,14 @@ xrootd_token_validate(ngx_log_t *log,
         return -1;
     }
 
-    sig_len = b64url_decode(dot2 + 1, sig_b64_len, sig_bin, sizeof(sig_bin));
+    sig_len = b64url_decode(seg[2].p, sig_b64_len, sig_bin, sizeof(sig_bin));
     if (sig_len < 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "xrootd_token: cannot decode JWT signature");
         return -1;
     }
 
-    signed_len = (size_t) (dot2 - token);
+    signed_len = hdr_b64_len + 1 + pay_b64_len;   /* "header.payload" */
     {
         int sig_ok;
         if (strcmp(alg, "ES256") == 0) {
@@ -284,7 +305,7 @@ xrootd_token_validate(ngx_log_t *log,
         }
     }
 
-    pay_len = b64url_decode(dot1 + 1, pay_b64_len, pay_json,
+    pay_len = b64url_decode(seg[1].p, pay_b64_len, pay_json,
                             sizeof(pay_json) - 1);
     if (pay_len < 0) {
         return xrootd_token_malformed(log);
@@ -379,7 +400,10 @@ xrootd_token_validate(ngx_log_t *log,
     claims->scope_count = xrootd_token_parse_scopes(
         claims->scope_raw, claims->scopes, XROOTD_MAX_TOKEN_SCOPES);
 
-    {
+    /* Only build the ~2.5 KB of sanitized log strings when INFO logging is
+     * actually enabled — otherwise this is pure wasted work on every validation
+     * (the hot path under token-auth load). */
+    if (log->log_level >= NGX_LOG_INFO) {
         char safe_sub[512], safe_iss[512], safe_scope[1024], safe_groups[512];
         token_sanitize_for_log(claims->sub,       safe_sub,    sizeof(safe_sub));
         token_sanitize_for_log(claims->iss,       safe_iss,    sizeof(safe_iss));

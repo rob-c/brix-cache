@@ -481,19 +481,20 @@ class TestLogin:
             sock.close()
 
     def test_login_repeated_on_same_session(self):
-        """A second kXR_login on an already-logged-in session.  The dispatcher
-        routes kXR_login unconditionally (no 'already logged in' guard) and the
-        handler re-generates/returns a session id without error, so the repeat
-        returns kXR_ok with a 16-byte body and the session stays usable.  This
-        proves a duplicate login cannot wedge or crash the session."""
+        """A second kXR_login on an already-logged-in session is REJECTED, matching
+        stock xrootd (our server replies kXR_error 'duplicate login; already logged
+        in'; stock replies kXR_error 'Required argument not present').  Crucially
+        the duplicate cannot wedge or crash the session: the ORIGINAL login stays
+        valid, so the connection remains usable (ping still ok).  Verified
+        differentially against stock."""
         sock = _connect()
         try:
             _handshake(sock)
             _, s1, b1 = _login(sock, streamid=b"\x00\x02")
             assert s1 == kXR_ok and len(b1) == XROOTD_SESSION_ID_LEN
-            _, s2, b2 = _login(sock, streamid=b"\x00\x03", username=b"second12")
-            assert s2 == kXR_ok, "a repeated login must not error"
-            assert len(b2) == XROOTD_SESSION_ID_LEN
+            _, s2, _b2 = _login(sock, streamid=b"\x00\x03", username=b"second12")
+            assert s2 == kXR_error, "a duplicate login must be rejected (stock parity)"
+            # The first session is untouched by the rejected duplicate.
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()

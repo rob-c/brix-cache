@@ -64,6 +64,7 @@ kXR_ok           = 0
 kXR_error        = 4003
 kXR_NOT_AUTHORIZED = 3010
 kXR_Unsupported    = 3013
+kXR_InvalidRequest = 3006   # "Invalid request code" — stock's reply for an unknown opcode
 
 # Open flags
 kXR_open_read = 0x0010
@@ -392,7 +393,12 @@ class TestMalformedDlen:
 # =========================================================================
 
 class TestInvalidRequestID:
-    """Unknown opcodes must return kXR_Unsupported, not crash."""
+    """Unknown opcodes must be rejected (not crash).
+
+    Stock xrootd replies kXR_InvalidRequest ("Invalid request code",
+    XrdXrootdProtocol.cc:608) for an unrecognised request code; kXR_Unsupported
+    is reserved for a *recognised* op the backend cannot perform.  We match that.
+    """
 
     def _send_unknown(self, sock, reqid, streamid=b"\x00\x01"):
         req = struct.pack("!2sH16sI", streamid, reqid, b"\x00"*16, 0)
@@ -404,14 +410,14 @@ class TestInvalidRequestID:
         _, status, body = self._send_unknown(sock, 0)
         sock.close()
         assert status == kXR_error
-        assert _error_code(body) == kXR_Unsupported
+        assert _error_code(body) == kXR_InvalidRequest
 
     def test_requestid_below_range_rejected(self):
         sock = _full_session()
         _, status, body = self._send_unknown(sock, 2999)
         sock.close()
         assert status == kXR_error
-        assert _error_code(body) == kXR_Unsupported
+        assert _error_code(body) == kXR_InvalidRequest
 
     def test_requestid_above_range_rejected(self):
         sock = _full_session()
@@ -419,14 +425,14 @@ class TestInvalidRequestID:
         _, status, body = self._send_unknown(sock, 3033)
         sock.close()
         assert status == kXR_error
-        assert _error_code(body) == kXR_Unsupported
+        assert _error_code(body) == kXR_InvalidRequest
 
     def test_requestid_max_uint16_rejected(self):
         sock = _full_session()
         _, status, body = self._send_unknown(sock, 0xFFFF)
         sock.close()
         assert status == kXR_error
-        assert _error_code(body) == kXR_Unsupported
+        assert _error_code(body) == kXR_InvalidRequest
 
     def test_requestid_lowest_valid_is_3001(self):
         # kXR_query = 3001 is a valid opcode — must NOT return Unsupported

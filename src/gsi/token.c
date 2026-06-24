@@ -2,6 +2,7 @@
 #include "../session/registry.h"
 #include "../token/macaroon.h"
 #include "../token/token_cache.h"
+#include "../token/worker_cache.h"
 
 /*
  * Bearer-token (JWT/WLCG) authentication for the "ztn" credential type.
@@ -79,16 +80,31 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
             conf->token_macaroon_secret.len, secret, sizeof(secret));
     }
 
-    /* Cross-worker JWT cache: a verified fingerprint short-circuits the
-     * RSA/ECDSA signature verification entirely.  Only successfully verified
-     * claims are ever cached (see token_cache.c). */
+    /*
+     * Token-validation caches, consulted cheapest-first so token auth does not
+     * re-run RSA/ECDSA verification on the event loop under load:
+     *   L1 — always-on, per-worker, lockless (lazily created here).  A hit skips
+     *        both the signature verification AND the L2 spinlock.
+     *   L2 — the optional cross-worker SHM cache; an L2 hit is promoted into L1.
+     * Only successfully verified claims are ever cached.
+     */
     int cache_hit = 0;
-    if (conf->token_cache_kv != NULL
-        && xrootd_token_cache_lookup(conf->token_cache_kv,
-                                     token, token_len, &claims))
+
+    if (conf->token_l1 == NULL) {
+        conf->token_l1 = xrootd_token_l1_create(ngx_cycle->pool,
+                                                XROOTD_TOKEN_L1_SLOTS);
+    }
+
+    if (xrootd_token_l1_lookup(conf->token_l1, token, token_len, &claims)) {
+        rc = 0;
+        cache_hit = 1;
+    } else if (conf->token_cache_kv != NULL
+               && xrootd_token_cache_lookup(conf->token_cache_kv,
+                                            token, token_len, &claims))
     {
         rc = 0;
         cache_hit = 1;
+        xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
     } else {
         rc = xrootd_token_validate(c->log, token, token_len,
                                    conf->jwks_keys, conf->jwks_key_count,
@@ -133,10 +149,14 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "bearer token validation failed");
     }
 
-    /* Cache the freshly verified claims for subsequent presentations. */
-    if (!cache_hit && conf->token_cache_kv != NULL) {
-        xrootd_token_cache_store(conf->token_cache_kv, token, token_len,
-                                 &claims);
+    /* Cache the freshly verified claims for subsequent presentations (L1 always,
+     * L2 when a SHM zone is configured). */
+    if (!cache_hit) {
+        xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
+        if (conf->token_cache_kv != NULL) {
+            xrootd_token_cache_store(conf->token_cache_kv, token, token_len,
+                                     &claims);
+        }
     }
 
     ctx->token_auth = 1;

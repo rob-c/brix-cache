@@ -49,6 +49,7 @@
 #include "../connection/budget.h"
 #include "prefetch.h"
 #include "../compat/range_vector.h"
+#include "../protocol/readv_seg.h"   /* shared kXR_readv segment-header codec */
 
 #include <stdlib.h>
 #include <sys/uio.h>
@@ -205,6 +206,7 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * kXR_read; readv's interleaved per-segment framing (and its pgread-style
      * integrity expectations) stay byte-for-byte intact. */
     ngx_stream_xrootd_srv_conf_t *rconf;
+    size_t                          readv_seg_max;
     readahead_list                 *wire_segments;
     size_t                          segment_count;
     size_t                          segment_index;
@@ -230,6 +232,18 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return xrootd_send_error(ctx, c, kXR_ArgTooLong,
                                  "readv segment count exceeds server limit");
     }
+
+    rconf = ngx_stream_get_module_srv_conf(
+        (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+
+    /* Per-element read cap = the configured readv segment size (official
+     * maxReadv_ior, advertised via Qconfig readv_ior_max).  An element requesting
+     * more is served SHORT (capped): our native client reads each segment's
+     * actual returned length (see test_readv_variable_blocks).  Well-behaved
+     * clients honour the advertised readv_ior_max and never request more; a
+     * client that ignores it and cannot handle a short element (e.g. XrdCl's
+     * VectorRead) must therefore size its elements within the cap. */
+    readv_seg_max = rconf->readv_segment_size;
 
     /*
      * First pass validates every file handle and computes the upper bound for
@@ -264,8 +278,8 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
                                      "readv not supported on slice-cached handle");
         }
 
-        if (read_length > XROOTD_READ_MAX) {
-            read_length = XROOTD_READ_MAX;
+        if ((size_t) read_length > readv_seg_max) {
+            read_length = (uint32_t) readv_seg_max;
         }
         max_response_bytes += XROOTD_READV_SEGSIZE + read_length;
 
@@ -276,10 +290,8 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
         }
     }
 
-    xrootd_prefetch_readv_segments(ctx, c, wire_segments, segment_count);
-
-    rconf = ngx_stream_get_module_srv_conf(
-        (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+    xrootd_prefetch_readv_segments(ctx, c, wire_segments, segment_count,
+                                   readv_seg_max);
 
     /*
      * Phase 31 W4: kXR_readv assembles its whole response (up to
@@ -328,8 +340,8 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             read_length = (uint32_t) ntohl(
                 (uint32_t) wire_segments[segment_index].rlen);
 
-            if (read_length > XROOTD_READ_MAX) {
-                read_length = XROOTD_READ_MAX;
+            if ((size_t) read_length > readv_seg_max) {
+                read_length = (uint32_t) readv_seg_max;
             }
 
             ngx_memcpy(response_cursor, wire_segments[segment_index].fhandle,

@@ -19,6 +19,7 @@
  * existing wire framing. No XrdCl.
  */
 #include "aio.h"
+#include "uring.h"                 /* phase-44: xrdc_uring_available() + ring */
 #include "protocol/frame_hdr.h"   /* shared resp-hdr / error / wait codecs */
 
 #include <sys/epoll.h>
@@ -32,11 +33,17 @@
 #include <stdlib.h>
 #include <time.h>
 #include <arpa/inet.h>
+#include <poll.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#if (XROOTD_HAVE_LIBURING)
+#include <liburing.h>
+#endif
+
 #define AIO_MAXEV      64        /* epoll_wait batch size */
+#define AIO_URING_SLOTS 128      /* phase-44 loop-engine poll-slot table size */
 #define AIO_READ_CHUNK 65536u    /* read headroom reserved per recv attempt */
 #define AIO_TICK_MS    1000      /* idle epoll_wait cap (deadline granularity) */
 
@@ -323,6 +330,8 @@ struct xrdc_aconn {
     reqmap         inflight;
 
     int            epoll_events;          /* currently registered interest */
+    int            uring_slot;            /* phase-44: io_uring poll-slot idx, or -1 */
+    uint32_t       fd_gen;                /* phase-44: bumped per (re)arm; guards CQEs */
     int            dead;                  /* socket not usable right now */
     int            tls_want_write_on_read;/* SSL_read returned WANT_WRITE */
     int            tls_want_read_on_write;/* SSL_write returned WANT_READ */
@@ -378,6 +387,16 @@ typedef struct cmd {
     struct cmd  *next;
 } cmd;
 
+/* Phase 44: io_uring loop-engine poll slot — UAF-safe CQE→aconn mapping.  The
+ * poll's user_data carries (generation<<32 | slot); a stale CQE for a recycled
+ * slot is dropped, so a poll completing after its aconn was freed/reconnected
+ * never dereferences freed memory (the same discipline as the server ring). */
+struct xrdc_poll_slot {
+    xrdc_aconn *ac;
+    uint32_t    gen;
+    int         in_use;
+};
+
 struct xrdc_loop {
     int             epfd;
     int             evfd;
@@ -390,6 +409,13 @@ struct xrdc_loop {
 
     xrdc_aconn     *aconns;   /* loop-thread-owned list */
     int             stop;
+
+    int             use_uring; /* phase-44: loop engine is io_uring (default 0) */
+#if (XROOTD_HAVE_LIBURING)
+    struct io_uring uring;
+    int             uring_ok;  /* ring initialized (teardown guard)             */
+    struct xrdc_poll_slot uslots[AIO_URING_SLOTS];
+#endif
 };
 
 /* forward decls */
@@ -699,6 +725,283 @@ aconn_handle_io(xrdc_aconn *ac, uint32_t events)
     }
 }
 
+/* ============ Phase 44: pluggable loop I/O engine (epoll | io_uring) ============
+ *
+ * Two readiness engines share one interface.  The epoll branch is the historical
+ * code, preserved verbatim.  The io_uring branch (multishot IORING_OP_POLL_ADD,
+ * default OFF — gated by XRDC_IO_URING_LOOP=on + a runtime probe, best-effort
+ * fallback to epoll) is a drop-in readiness source: the loop still runs
+ * aconn_do_read/aconn_do_write unchanged, so TLS (which drives the fd through
+ * OpenSSL itself) is safe.  Cross-thread wake is write(evfd) for BOTH engines —
+ * the io_uring engine arms a multishot poll on the same evfd.
+ *
+ * UAF safety: a poll's user_data carries (slot-generation<<32 | slot); the slot
+ * table maps back to the aconn and the reaper drops any CQE whose generation no
+ * longer matches (poll completing after its aconn was reconnected/freed) — the
+ * same discipline as the server ring.  fd changes (reconnect) cancel the old
+ * poll and bump the slot generation before re-arming the new fd. */
+
+static int  io_engine_arm(xrdc_loop *l, xrdc_aconn *ac, int want);
+static void io_engine_del(xrdc_loop *l, xrdc_aconn *ac);
+
+#if (XROOTD_HAVE_LIBURING)
+
+#define AIO_URING_EVFD_UD    0xffffffffffffffffULL  /* evfd readiness poll       */
+#define AIO_URING_IGNORE_UD  0xfffffffffffffffeULL  /* cancel-ack CQE (drop)     */
+
+/* epoll interest mask -> poll(2) mask for io_uring_prep_poll_*. */
+static unsigned
+uring_pollmask(int want)
+{
+    unsigned m = 0;
+    if (want & EPOLLIN)  { m |= POLLIN;  }
+    if (want & EPOLLOUT) { m |= POLLOUT; }
+    return m;
+}
+
+/* Claim a free poll slot for ac (loop-thread only; no lock). Returns 0 / -1. */
+static int
+uring_slot_alloc(xrdc_loop *l, xrdc_aconn *ac)
+{
+    unsigned i;
+    for (i = 0; i < AIO_URING_SLOTS; i++) {
+        if (!l->uslots[i].in_use) {
+            l->uslots[i].in_use = 1;
+            l->uslots[i].ac     = ac;
+            ac->uring_slot      = (int) i;
+            return 0;
+        }
+    }
+    return -1;   /* table full — pool has more conns than slots (shouldn't happen) */
+}
+
+/* Submit a multishot poll for ac with the current slot generation as user_data. */
+static int
+uring_poll_submit(xrdc_loop *l, xrdc_aconn *ac, int want)
+{
+    struct io_uring_sqe *sqe = io_uring_get_sqe(&l->uring);
+    uint32_t             slot = (uint32_t) ac->uring_slot;
+
+    if (sqe == NULL) {
+        return -1;
+    }
+    io_uring_prep_poll_multishot(sqe, ac->fd, uring_pollmask(want));
+    io_uring_sqe_set_data64(sqe, ((uint64_t) l->uslots[slot].gen << 32) | slot);
+    return io_uring_submit(&l->uring) < 0 ? -1 : 0;
+}
+
+/* Cancel ac's outstanding poll (by current user_data) and bump the slot gen so
+ * any late CQE for it is dropped.  Keeps the slot allocated (caller re-arms) or
+ * frees it when freeing == 1. */
+static void
+uring_poll_cancel(xrdc_loop *l, xrdc_aconn *ac, int freeing)
+{
+    uint32_t             slot = (uint32_t) ac->uring_slot;
+    struct io_uring_sqe *sqe;
+
+    if (ac->uring_slot < 0) {
+        return;
+    }
+    sqe = io_uring_get_sqe(&l->uring);
+    if (sqe != NULL) {
+        io_uring_prep_poll_remove(sqe,
+            ((uint64_t) l->uslots[slot].gen << 32) | slot);
+        io_uring_sqe_set_data64(sqe, AIO_URING_IGNORE_UD);
+        (void) io_uring_submit(&l->uring);
+    }
+    l->uslots[slot].gen++;          /* invalidate the old poll's user_data */
+    if (freeing) {
+        l->uslots[slot].in_use = 0;
+        l->uslots[slot].ac     = NULL;
+        ac->uring_slot = -1;
+    }
+}
+
+#endif /* XROOTD_HAVE_LIBURING */
+
+/* Create the readiness set + the wake eventfd.  evfd is used by both engines;
+ * epoll registers it in the set, io_uring arms a multishot poll on it. */
+static int
+io_engine_setup(xrdc_loop *l, xrdc_status *st)
+{
+    l->evfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (l->evfd < 0) {
+        xrdc_status_set(st, XRDC_ESOCK, errno, "eventfd: %s", strerror(errno));
+        return -1;
+    }
+
+#if (XROOTD_HAVE_LIBURING)
+    if (l->use_uring) {
+        struct io_uring_sqe *sqe;
+        if (io_uring_queue_init(256, &l->uring, 0) < 0) {
+            xrdc_status_set(st, XRDC_ESOCK, errno, "io_uring_queue_init");
+            return -1;
+        }
+        l->uring_ok = 1;
+        sqe = io_uring_get_sqe(&l->uring);     /* multishot poll on the evfd */
+        if (sqe == NULL) {
+            xrdc_status_set(st, XRDC_ESOCK, 0, "io_uring evfd arm");
+            return -1;
+        }
+        io_uring_prep_poll_multishot(sqe, l->evfd, POLLIN);
+        io_uring_sqe_set_data64(sqe, AIO_URING_EVFD_UD);
+        if (io_uring_submit(&l->uring) < 0) {
+            xrdc_status_set(st, XRDC_ESOCK, errno, "io_uring evfd submit");
+            return -1;
+        }
+        return 0;
+    }
+#endif
+
+    l->epfd = epoll_create1(EPOLL_CLOEXEC);
+    if (l->epfd < 0) {
+        xrdc_status_set(st, XRDC_ESOCK, errno, "epoll_create1: %s",
+                        strerror(errno));
+        return -1;
+    }
+    {
+        struct epoll_event ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.events   = EPOLLIN;
+        ev.data.ptr = l;                       /* loop pointer tags the eventfd */
+        if (epoll_ctl(l->epfd, EPOLL_CTL_ADD, l->evfd, &ev) != 0) {
+            xrdc_status_set(st, XRDC_ESOCK, errno, "epoll_ctl(evfd): %s",
+                            strerror(errno));
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static void
+io_engine_teardown(xrdc_loop *l)
+{
+#if (XROOTD_HAVE_LIBURING)
+    if (l->use_uring) {
+        if (l->uring_ok) {
+            io_uring_queue_exit(&l->uring);
+            l->uring_ok = 0;
+        }
+        if (l->evfd >= 0) { close(l->evfd); l->evfd = -1; }
+        return;
+    }
+#endif
+    if (l->epfd >= 0) { close(l->epfd); l->epfd = -1; }
+    if (l->evfd >= 0) { close(l->evfd); l->evfd = -1; }
+}
+
+/* Arm/modify interest for ac to `want`; sets ac->epoll_events on success.
+ * Returns 0 / -1 (caller keeps its own failure handling). */
+static int
+io_engine_arm(xrdc_loop *l, xrdc_aconn *ac, int want)
+{
+#if (XROOTD_HAVE_LIBURING)
+    if (l->use_uring) {
+        if (ac->uring_slot < 0) {
+            if (uring_slot_alloc(l, ac) != 0) { return -1; }
+        } else {
+            uring_poll_cancel(l, ac, 0);   /* drop the old mask's poll, keep slot */
+        }
+        ac->fd_gen++;
+        if (uring_poll_submit(l, ac, want) != 0) { return -1; }
+        ac->epoll_events = want;
+        return 0;
+    }
+#endif
+    {
+        struct epoll_event ev;
+        int op = (ac->epoll_events == 0) ? EPOLL_CTL_ADD : EPOLL_CTL_MOD;
+        memset(&ev, 0, sizeof(ev));
+        ev.events   = (uint32_t) want;
+        ev.data.ptr = ac;
+        if (epoll_ctl(l->epfd, op, ac->fd, &ev) != 0) {
+            return -1;
+        }
+        ac->epoll_events = want;
+        return 0;
+    }
+}
+
+static void
+io_engine_del(xrdc_loop *l, xrdc_aconn *ac)
+{
+#if (XROOTD_HAVE_LIBURING)
+    if (l->use_uring) {
+        uring_poll_cancel(l, ac, 1);       /* cancel + free the slot */
+        ac->epoll_events = 0;
+        return;
+    }
+#endif
+    if (ac->fd >= 0) {
+        epoll_ctl(l->epfd, EPOLL_CTL_DEL, ac->fd, NULL);
+    }
+    ac->epoll_events = 0;
+}
+
+/* Fill evs[] with up to `max` readiness events (data.ptr + EPOLL* mask) and
+ * return the count, or -1 on a hard wait error.  For io_uring, translate poll
+ * CQEs (generation-guarded) and re-arm any multishot that auto-disarmed. */
+static int
+io_engine_wait(xrdc_loop *l, struct epoll_event *evs, int max, int timeout_ms)
+{
+#if (XROOTD_HAVE_LIBURING)
+    if (l->use_uring) {
+        struct io_uring_cqe *cqe;
+        struct __kernel_timespec ts;
+        int n = 0;
+
+        ts.tv_sec  = timeout_ms / 1000;
+        ts.tv_nsec = (long) (timeout_ms % 1000) * 1000000L;
+
+        /* Block until at least one CQE or the timeout. */
+        if (io_uring_wait_cqe_timeout(&l->uring, &cqe, &ts) < 0) {
+            return 0;   /* timeout / -ETIME / -EINTR: no events this tick */
+        }
+
+        while (n < max && io_uring_peek_cqe(&l->uring, &cqe) == 0) {
+            uint64_t ud = io_uring_cqe_get_data64(cqe);
+
+            if (ud == AIO_URING_IGNORE_UD) {
+                io_uring_cqe_seen(&l->uring, cqe);
+                continue;
+            }
+            if (ud == AIO_URING_EVFD_UD) {
+                evs[n].data.ptr = l;
+                evs[n].events   = EPOLLIN;
+                n++;
+                io_uring_cqe_seen(&l->uring, cqe);
+                continue;
+            }
+            {
+                uint32_t slot = (uint32_t) (ud & 0xffffffffULL);
+                uint32_t gen  = (uint32_t) (ud >> 32);
+
+                if (slot < AIO_URING_SLOTS && l->uslots[slot].in_use
+                    && l->uslots[slot].gen == gen
+                    && l->uslots[slot].ac != NULL && cqe->res >= 0)
+                {
+                    xrdc_aconn *ac = l->uslots[slot].ac;
+                    uint32_t    ev = 0;
+                    if (cqe->res & (POLLIN | POLLHUP | POLLERR)) { ev |= EPOLLIN; }
+                    if (cqe->res & POLLOUT)                      { ev |= EPOLLOUT; }
+                    evs[n].data.ptr = ac;
+                    evs[n].events   = ev;
+                    n++;
+                    /* Re-arm if the multishot auto-disarmed (no F_MORE). */
+                    if (!(cqe->flags & IORING_CQE_F_MORE)) {
+                        (void) uring_poll_submit(l, ac, ac->epoll_events);
+                    }
+                }
+                /* else: stale/cancelled CQE for a recycled slot — dropped. */
+                io_uring_cqe_seen(&l->uring, cqe);
+            }
+        }
+        return n;
+    }
+#endif
+    return epoll_wait(l->epfd, evs, max, timeout_ms);
+}
+
 /* ----------------------------------------------------------------- epoll ----- */
 
 static void
@@ -711,13 +1014,7 @@ aconn_update_epoll(xrdc_aconn *ac)
     if (want == ac->epoll_events) {
         return;
     }
-    struct epoll_event ev;
-    memset(&ev, 0, sizeof(ev));
-    ev.events = (uint32_t) want;
-    ev.data.ptr = ac;
-    if (epoll_ctl(ac->loop->epfd, EPOLL_CTL_MOD, ac->fd, &ev) == 0) {
-        ac->epoll_events = want;
-    }
+    (void) io_engine_arm(ac->loop, ac, want);
 }
 
 /* ------------------------------------------------------------------- conn ----- */
@@ -832,10 +1129,7 @@ aconn_on_transport_error(xrdc_aconn *ac, const xrdc_status *st)
     if (ac->state != ACONN_ALIVE) {
         return;   /* already reconnecting or dead */
     }
-    if (ac->fd >= 0) {
-        epoll_ctl(ac->loop->epfd, EPOLL_CTL_DEL, ac->fd, NULL);
-    }
-    ac->epoll_events = 0;
+    io_engine_del(ac->loop, ac);   /* epoll DEL or io_uring poll cancel */
     ac->dead = 1;
 
     if (ac->max_stall_ms <= 0) {   /* reconnect disabled — fail outright */
@@ -892,18 +1186,13 @@ aconn_reconnect_succeeded(xrdc_aconn *ac)
         fcntl(ac->fd, F_SETFL, fl | O_NONBLOCK);
     }
 
-    struct epoll_event ev;
-    memset(&ev, 0, sizeof(ev));
-    ev.events = EPOLLIN;
-    ev.data.ptr = ac;
-    if (epoll_ctl(ac->loop->epfd, EPOLL_CTL_ADD, ac->fd, &ev) != 0) {
+    if (io_engine_arm(ac->loop, ac, EPOLLIN) != 0) {
         xrdc_status st;
-        xrdc_status_set(&st, XRDC_ESOCK, errno, "epoll re-register failed");
+        xrdc_status_set(&st, XRDC_ESOCK, errno, "poll re-register failed");
         ac->state = ACONN_DEAD;
         aconn_pending_fail_all(ac, &st);
         return;
     }
-    ac->epoll_events = EPOLLIN;
     ac->dead = 0;
     ac->state = ACONN_ALIVE;
     ac->last_activity_ns = xrdc_mono_ns();
@@ -1006,7 +1295,7 @@ aconn_destroy(xrdc_aconn *ac)
         ac->rc_thread_live = 0;
     }
     if (!ac->dead) {
-        epoll_ctl(l->epfd, EPOLL_CTL_DEL, ac->fd, NULL);
+        io_engine_del(l, ac);
         aconn_drain_inflight(ac, &st);
     }
     aconn_pending_fail_all(ac, &st);   /* fail any parked requests */
@@ -1201,12 +1490,7 @@ loop_drain_commands(xrdc_loop *l)
         switch (c->type) {
         case CMD_ADD_ACONN: {
             xrdc_aconn *ac = c->ac;
-            struct epoll_event ev;
-            memset(&ev, 0, sizeof(ev));
-            ev.events = EPOLLIN;
-            ev.data.ptr = ac;
-            if (epoll_ctl(l->epfd, EPOLL_CTL_ADD, ac->fd, &ev) == 0) {
-                ac->epoll_events = EPOLLIN;
+            if (io_engine_arm(l, ac, EPOLLIN) == 0) {
                 ac->next = l->aconns;
                 l->aconns = ac;
             } else {
@@ -1323,7 +1607,7 @@ loop_thread(void *arg)
 
     int timeout = AIO_TICK_MS;
     while (!l->stop) {
-        int n = epoll_wait(l->epfd, events, AIO_MAXEV, timeout);
+        int n = io_engine_wait(l, events, AIO_MAXEV, timeout);
 
         loop_drain_commands(l);
         if (l->stop) {
@@ -1370,15 +1654,28 @@ loop_thread(void *arg)
 static xrdc_loop *
 xrdc_loop_create_fail(xrdc_loop *l)
 {
-    if (l->epfd >= 0) {
-        close(l->epfd);
-    }
-    if (l->evfd >= 0) {
-        close(l->evfd);
-    }
+    io_engine_teardown(l);
     pthread_mutex_destroy(&l->cq_lock);
     free(l);
     return NULL;
+}
+
+/* Decide the loop readiness engine: io_uring only when XRDC_IO_URING_LOOP=on
+ * (or =1) AND the runtime probe passes; otherwise epoll.  Default OFF — the
+ * loop engine is the experimental, highest-risk tier.  Best-effort: an
+ * unavailable ring silently falls back to epoll (not a hard error). */
+static int
+xrdc_loop_want_uring(void)
+{
+#if (XROOTD_HAVE_LIBURING)
+    const char *e = getenv("XRDC_IO_URING_LOOP");
+    if (e == NULL || (strcmp(e, "on") != 0 && strcmp(e, "1") != 0)) {
+        return 0;
+    }
+    return xrdc_uring_available();
+#else
+    return 0;
+#endif
 }
 
 xrdc_loop *
@@ -1392,26 +1689,10 @@ xrdc_loop_create(xrdc_status *st)
     pthread_mutex_init(&l->cq_lock, NULL);
     l->epfd = -1;
     l->evfd = -1;
+    l->use_uring = xrdc_loop_want_uring();   /* phase-44 loop engine (default off) */
 
-    l->epfd = epoll_create1(EPOLL_CLOEXEC);
-    if (l->epfd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "epoll_create1: %s", strerror(errno));
+    if (io_engine_setup(l, st) != 0) {
         return xrdc_loop_create_fail(l);
-    }
-    l->evfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    if (l->evfd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "eventfd: %s", strerror(errno));
-        return xrdc_loop_create_fail(l);
-    }
-    {
-        struct epoll_event ev;
-        memset(&ev, 0, sizeof(ev));
-        ev.events = EPOLLIN;
-        ev.data.ptr = l;            /* the loop pointer tags the eventfd */
-        if (epoll_ctl(l->epfd, EPOLL_CTL_ADD, l->evfd, &ev) != 0) {
-            xrdc_status_set(st, XRDC_ESOCK, errno, "epoll_ctl(evfd): %s", strerror(errno));
-            return xrdc_loop_create_fail(l);
-        }
     }
     if (pthread_create(&l->thread, NULL, loop_thread, l) != 0) {
         xrdc_status_set(st, XRDC_ESOCK, errno, "pthread_create: %s", strerror(errno));
@@ -1440,12 +1721,7 @@ xrdc_loop_destroy(xrdc_loop *l)
         }
         pthread_join(l->thread, NULL);
     }
-    if (l->epfd >= 0) {
-        close(l->epfd);
-    }
-    if (l->evfd >= 0) {
-        close(l->evfd);
-    }
+    io_engine_teardown(l);
     pthread_mutex_destroy(&l->cq_lock);
     free(l);
 }
@@ -1480,6 +1756,7 @@ xrdc_aconn_attach(xrdc_loop *l, xrdc_conn *conn, xrdc_status *st)
     ac->fd       = conn->io.fd;
     ac->ssl      = conn->io.ssl;
     ac->next_sid = 1;
+    ac->uring_slot = -1;   /* phase-44: no io_uring poll slot yet (0 is valid!) */
     ac->state    = ACONN_ALIVE;
     ac->last_activity_ns = xrdc_mono_ns();
 

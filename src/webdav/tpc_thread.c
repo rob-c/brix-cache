@@ -15,6 +15,7 @@
 #include "../compat/net_target.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../tpc/common/metrics.h"
+#include "../aio/aio.h"          /* xrootd_task_bind */
 #include "../tpc/common/registry.h"
 
 
@@ -355,9 +356,7 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
     ngx_cpystrn((u_char *) t->root_canon, (u_char *) conf->common.root_canon,
                 sizeof(t->root_canon));
 
-    task->handler       = tpc_thread_func;
-    task->event.handler = tpc_thread_done;
-    task->event.data    = task;
+    xrootd_task_bind(task, tpc_thread_func, tpc_thread_done);
     task->event.log     = r->connection->log;
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {

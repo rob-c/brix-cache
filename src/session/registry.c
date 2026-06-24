@@ -182,6 +182,9 @@ xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
         return NGX_ERROR;
     }
 
+    xrootd_shm_zone_warn_on_resize(cf, xrootd_session_shm_zone,
+                                   "xrootd_session_slots");
+
     xrootd_session_shm_zone->init = xrootd_session_shm_init_zone;
     xrootd_session_shm_zone->data = (void *) 1;
 

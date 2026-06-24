@@ -29,7 +29,7 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ROOT_URL="root://localhost:11094"          # anonymous root:// (read + write)
-DASH_HOST_PORT="localhost:8443"            # HTTPS server hosting the dashboard
+DASH_HOST_PORT="localhost:8445"            # dedicated dashboard portal (no client-cert prompt)
 DASH_URL="https://${DASH_HOST_PORT}/xrootd/"
 DASH_PASS="testpassword"                   # from the test config
 DEMO_OBJ="dashboard_demo_100mb.bin"

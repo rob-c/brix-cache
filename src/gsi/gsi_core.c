@@ -27,7 +27,10 @@
 #include <openssl/dh.h>          /* EVP_PKEY_CTX_set_dh_pad */
 #include <openssl/rand.h>        /* RAND_bytes (rtag) */
 #include <openssl/pem.h>         /* PEM_{read,write}_bio_Parameters (W4 cipher) */
-#include <openssl/evp.h>         /* EVP_aes_128_cbc + cipher ctx (W4) */
+#include <openssl/evp.h>         /* EVP cipher ctx + EVP_get_cipherbyname (W4) */
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/provider.h>    /* phase-52: load legacy provider for bf/3des */
+#endif
 #include <openssl/rsa.h>         /* RSA_PKCS1_PADDING (rtag sign, W6) */
 
 #include "../protocol/gsi.h"      /* GSI bucket + step constants (pure header) */
@@ -472,9 +475,113 @@ xrootd_gsi_cipher_parse_peer(const uint8_t *buf, size_t len)
     return peer;
 }
 
+/* ------------------------------------------------------------------ */
+/* Phase 52 (WS-A): GSI session-cipher negotiation (table-driven).       */
+/*                                                                       */
+/* The XrdSecgsi handshake negotiates a symmetric session cipher from a  */
+/* colon-separated list (XrdCrypto default aes-128-cbc:bf-cbc:des-ede3-  */
+/* cbc).  The session key is the first EVP_CIPHER_key_length bytes of the */
+/* DH shared secret; the IV length is the cipher's native block size     */
+/* (16 for AES, 8 for Blowfish/3DES).  We allow only this fixed set (so a */
+/* hostile peer cannot select an arbitrary/weak EVP cipher by name), and */
+/* resolve each via EVP_get_cipherbyname so bf/3des work only when their  */
+/* provider (OpenSSL 3 legacy) is loaded — aes-128/256 are always present. */
+/* aes-128-cbc stays first, so the proven default + stock interop is      */
+/* byte-for-byte unchanged.                                              */
+/* ------------------------------------------------------------------ */
+
+/* Allowlist of negotiable GSI session ciphers (XrdCrypto/OpenSSL names). */
+static const char *const gsi_cipher_allow[] = {
+    "aes-128-cbc", "aes-256-cbc", "bf-cbc", "des-ede3-cbc", NULL
+};
+
+const char *
+xrootd_gsi_cipher_default_list(void)
+{
+    return "aes-128-cbc:aes-256-cbc:bf-cbc:des-ede3-cbc";
+}
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+/* Best-effort one-shot load of the OpenSSL 3 legacy provider so bf-cbc /
+ * des-ede3-cbc resolve.  No-op / harmless when unavailable; aes-* never need it. */
+static void
+gsi_load_legacy_once(void)
+{
+    static int tried = 0;
+    if (!tried) {
+        tried = 1;
+        (void) OSSL_PROVIDER_load(NULL, "legacy");
+        (void) OSSL_PROVIDER_load(NULL, "default");
+    }
+}
+#endif
+
+int
+xrootd_gsi_cipher_lookup(const char *name, xrootd_gsi_cipher_t *out)
+{
+    const EVP_CIPHER *evp;
+    int               i, allowed = 0;
+
+    if (name == NULL || out == NULL) {
+        return 0;
+    }
+    for (i = 0; gsi_cipher_allow[i] != NULL; i++) {
+        if (strcmp(name, gsi_cipher_allow[i]) == 0) { allowed = 1; break; }
+    }
+    if (!allowed) {
+        return 0;                  /* not a negotiable GSI cipher */
+    }
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    gsi_load_legacy_once();
+#endif
+    evp = EVP_get_cipherbyname(name);
+    if (evp == NULL) {
+        return 0;                  /* provider not loaded (e.g. legacy bf/3des) */
+    }
+    out->evp     = evp;
+    out->key_len = EVP_CIPHER_key_length(evp);
+    out->iv_len  = EVP_CIPHER_iv_length(evp);
+    if (out->key_len <= 0 || out->key_len > XROOTD_GSI_MAX_KEY
+        || out->iv_len < 0 || out->iv_len > XROOTD_GSI_MAX_IV) {
+        return 0;
+    }
+    return 1;
+}
+
+int
+xrootd_gsi_cipher_pick(const char *offered, xrootd_gsi_cipher_t *out,
+                       char chosen[24])
+{
+    const char *p = offered;
+
+    if (offered == NULL || out == NULL) {
+        return 0;
+    }
+    while (*p) {
+        char        name[24];
+        size_t      n = 0;
+        const char *start = p;
+
+        while (*p && *p != ':') { p++; }
+        n = (size_t) (p - start);
+        if (n > 0 && n < sizeof(name)) {
+            memcpy(name, start, n);
+            name[n] = '\0';
+            if (xrootd_gsi_cipher_lookup(name, out)) {
+                if (chosen != NULL) {
+                    memcpy(chosen, name, n + 1);
+                }
+                return 1;
+            }
+        }
+        if (*p == ':') { p++; }
+    }
+    return 0;
+}
+
 int
 xrootd_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
-                              uint8_t key[16])
+                              uint8_t *key, int key_len)
 {
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(mine, NULL);
     uint8_t      *secret;
@@ -483,19 +590,20 @@ xrootd_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
 
     /* `padded` MUST match the peer's XrdSecgsi HasPad: pre-DHsigned (<10400)
      * peers use dh_pad=0 (leading zeros stripped), newer ones dh_pad=1.  The
-     * AES-128 key is the first 16 bytes of the resulting secret. */
-    if (ctx == NULL
+     * session key is the first key_len bytes of the resulting secret. */
+    if (key_len <= 0 || key_len > XROOTD_GSI_MAX_KEY
+        || ctx == NULL
         || EVP_PKEY_derive_init(ctx) != 1
         || EVP_PKEY_CTX_set_dh_pad(ctx, padded ? 1 : 0) != 1
         || EVP_PKEY_derive_set_peer(ctx, peer) != 1
         || EVP_PKEY_derive(ctx, NULL, &slen) != 1
-        || slen < 16) {
+        || slen < (size_t) key_len) {
         EVP_PKEY_CTX_free(ctx);
         return 0;
     }
     secret = (uint8_t *) malloc(slen);
     if (secret != NULL && EVP_PKEY_derive(ctx, secret, &slen) == 1) {
-        memcpy(key, secret, 16);
+        memcpy(key, secret, (size_t) key_len);
         ok = 1;
     }
     if (secret != NULL) {
@@ -507,12 +615,14 @@ xrootd_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
 }
 
 uint8_t *
-xrootd_gsi_cipher_encrypt(const uint8_t key[16], const uint8_t *in, size_t inlen,
-                          int use_iv, size_t *outlen)
+xrootd_gsi_cipher_encrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
+                          const uint8_t *in, size_t inlen, int use_iv,
+                          size_t *outlen)
 {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    uint8_t         iv[16];
-    size_t          off = use_iv ? 16 : 0;     /* IV prepended only when use_iv */
+    uint8_t         iv[XROOTD_GSI_MAX_IV];
+    size_t          ivl = (size_t) c->iv_len;
+    size_t          off = use_iv ? ivl : 0;    /* IV prepended only when use_iv */
     uint8_t        *out;
     int             l1 = 0, l2 = 0;
 
@@ -522,19 +632,19 @@ xrootd_gsi_cipher_encrypt(const uint8_t key[16], const uint8_t *in, size_t inlen
         return NULL;
     }
     if (use_iv) {
-        if (RAND_bytes(iv, 16) != 1) { EVP_CIPHER_CTX_free(ctx); return NULL; }
+        if (RAND_bytes(iv, c->iv_len) != 1) { EVP_CIPHER_CTX_free(ctx); return NULL; }
     } else {
-        memset(iv, 0, 16);
+        memset(iv, 0, ivl);
     }
-    out = (uint8_t *) malloc(off + inlen + 16);
+    out = (uint8_t *) malloc(off + inlen + (size_t) EVP_CIPHER_block_size(c->evp));
     if (out == NULL) {
         EVP_CIPHER_CTX_free(ctx);
         return NULL;
     }
     if (use_iv) {
-        memcpy(out, iv, 16);
+        memcpy(out, iv, ivl);
     }
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv) == 1
+    if (EVP_EncryptInit_ex(ctx, c->evp, NULL, key, iv) == 1
         && EVP_EncryptUpdate(ctx, out + off, &l1, in, (int) inlen) == 1
         && EVP_EncryptFinal_ex(ctx, out + off + l1, &l2) == 1) {
         *outlen = off + (size_t) (l1 + l2);
@@ -547,12 +657,14 @@ xrootd_gsi_cipher_encrypt(const uint8_t key[16], const uint8_t *in, size_t inlen
 }
 
 uint8_t *
-xrootd_gsi_cipher_decrypt(const uint8_t key[16], const uint8_t *in, size_t inlen,
-                          int use_iv, size_t *outlen)
+xrootd_gsi_cipher_decrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
+                          const uint8_t *in, size_t inlen, int use_iv,
+                          size_t *outlen)
 {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    uint8_t         iv[16];
-    size_t          off = use_iv ? 16 : 0;
+    uint8_t         iv[XROOTD_GSI_MAX_IV];
+    size_t          ivl = (size_t) c->iv_len;
+    size_t          off = use_iv ? ivl : 0;
     uint8_t        *out;
     int             l1 = 0, l2 = 0;
 
@@ -561,16 +673,16 @@ xrootd_gsi_cipher_decrypt(const uint8_t key[16], const uint8_t *in, size_t inlen
         return NULL;
     }
     if (use_iv) {
-        memcpy(iv, in, 16);                       /* IV is the first 16 bytes */
+        memcpy(iv, in, ivl);                      /* IV is the first iv_len bytes */
     } else {
-        memset(iv, 0, 16);
+        memset(iv, 0, ivl);
     }
-    out = (uint8_t *) malloc(inlen - off + 16);
+    out = (uint8_t *) malloc(inlen - off + (size_t) EVP_CIPHER_block_size(c->evp));
     if (out == NULL) {
         EVP_CIPHER_CTX_free(ctx);
         return NULL;
     }
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv) == 1
+    if (EVP_DecryptInit_ex(ctx, c->evp, NULL, key, iv) == 1
         && EVP_DecryptUpdate(ctx, out, &l1, in + off, (int) (inlen - off)) == 1
         && EVP_DecryptFinal_ex(ctx, out + l1, &l2) == 1) {
         *outlen = (size_t) (l1 + l2);

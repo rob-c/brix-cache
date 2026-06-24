@@ -169,7 +169,7 @@ xrootd_prefetch_flush(ngx_log_t *log, int fd, off_t range_start,
 
 void
 xrootd_prefetch_readv_segments(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    readahead_list *segments, size_t segment_count)
+    readahead_list *segments, size_t segment_count, size_t readv_seg_max)
 {
     int     merged_fd = -1;
     off_t   merged_start = 0;
@@ -192,8 +192,8 @@ xrootd_prefetch_readv_segments(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         request_length = (uint32_t) ntohl((uint32_t) segments[i].rlen);
-        if (request_length > XROOTD_READ_MAX) {
-            request_length = XROOTD_READ_MAX;
+        if ((size_t) request_length > readv_seg_max) {
+            request_length = (uint32_t) readv_seg_max;
         }
         if (request_length == 0) {
             continue;

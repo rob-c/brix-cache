@@ -329,6 +329,18 @@ xrootd_read_aio_done(ngx_event_t *ev)
     xrootd_queue_response_chain(ctx, c, rsp_chain, t->databuf);
     if (ctx->state != XRD_ST_SENDING) {
         xrootd_release_read_buffer(ctx, c, t->databuf);
+    } else {
+        /*
+         * Parked and draining: the buffer is a per-in-flight rd_pool slot and the
+         * header is per-slot, so this memory-backed read is SAFE to pipeline.  Note
+         * the cold-AIO path does not yet ACTUALLY pipeline: recv already suspended
+         * on this read's AIO and xrootd_aio_resume() only drains the write side, so
+         * the next read is not issued until this response drains.  Setting the flag
+         * is correct and forward-compatible with the non-suspending read-AIO change
+         * that will let cold reads pipeline like the warm-cache inline path does.
+         * Single-chunk only (non-windowed read <= XROOTD_READ_WINDOW < CHUNK_MAX).
+         */
+        ctx->resp_pipelinable = 1;
     }
     xrootd_aio_resume(c);
 }
@@ -383,7 +395,7 @@ xrootd_pgread_aio_done(ngx_event_t *ev)
     xrootd_ctx_t               *ctx = t->ctx;
     ngx_connection_t           *c = t->c;
     ServerStatusResponse_pgRead *hdr_buf;
-    ngx_chain_t                *cl_hdr, *rsp_chain;
+    ngx_chain_t                *rsp_chain;
     ngx_stream_xrootd_srv_conf_t *rconf;
 
     if (!xrootd_aio_restore_request(ctx, t->streamid)) {
@@ -416,56 +428,16 @@ xrootd_pgread_aio_done(ngx_event_t *ev)
         return;
     }
 
-    hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
-    if (hdr_buf == NULL) {
+    /* PGREAD: the encoded page data (in t->scratch from offset 0) carries its
+     * own per-page CRC32c and must be sent verbatim behind the pgRead status
+     * header — never through xrootd_build_chunked_chain (wrong kXR_ok framing).
+     * Shared with the synchronous handler via xrootd_build_pgread_chain. */
+    rsp_chain = xrootd_build_pgread_chain(ctx, c, t->offset, t->scratch,
+                                          (uint32_t) t->out_size);
+    if (rsp_chain == NULL) {
         xrootd_release_read_buffer(ctx, c, t->scratch);
         xrootd_aio_resume(c);
         return;
-    }
-    xrootd_build_pgread_status(ctx, t->offset, (uint32_t) t->out_size, hdr_buf);
-
-    cl_hdr = ngx_alloc_chain_link(c->pool);
-    if (cl_hdr == NULL) {
-        xrootd_release_read_buffer(ctx, c, t->scratch);
-        xrootd_aio_resume(c);
-        return;
-    }
-    cl_hdr->buf = ngx_calloc_buf(c->pool);
-    if (cl_hdr->buf == NULL) {
-        xrootd_release_read_buffer(ctx, c, t->scratch);
-        xrootd_aio_resume(c);
-        return;
-    }
-    cl_hdr->buf->pos = (u_char *) hdr_buf;
-    cl_hdr->buf->last = cl_hdr->buf->pos + sizeof(*hdr_buf);
-    cl_hdr->buf->memory = 1;
-    cl_hdr->buf->last_buf = 0;
-
-    {
-        ngx_chain_t *cl_data;
-        ngx_buf_t   *bd;
-
-        /* PGREAD: Send encoded page data directly, NOT via xrootd_build_chunked_chain
-         * which adds wrong headers (kXR_ok) for pgread. The encoded wire output
-         * occupies t->scratch from offset 0 (data was read straight into it) and
-         * carries its own per-page CRC32c - just send it.
-         */
-        cl_data = ngx_alloc_chain_link(c->pool);
-        bd = ngx_calloc_buf(c->pool);
-        if (cl_data == NULL || bd == NULL) {
-            xrootd_release_read_buffer(ctx, c, t->scratch);
-            xrootd_aio_resume(c);
-            return;
-        }
-        bd->pos = t->scratch;
-        bd->last = bd->pos + t->out_size;
-        bd->memory = 1;
-        bd->last_buf = 1;
-        cl_data->buf = bd;
-        cl_data->next = NULL;
-
-        cl_hdr->next = cl_data;
-        rsp_chain = cl_hdr;
     }
 
     ctx->files[t->handle_idx].bytes_read += (size_t) t->nread;

@@ -1,5 +1,6 @@
 #include "../ngx_xrootd_module.h"
 #include "stat.h"
+#include "../path/op_path.h"
 #include "../manager/registry.h"
 #include "../manager/pending.h"
 #include "../cms/cms_internal.h"
@@ -9,6 +10,40 @@
 #include <spawn.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/statvfs.h>
+
+/*
+ * xrootd_make_vfs_body — kXR_stat(kXR_vfs) / `xrdfs statvfs` response body.
+ *
+ * The reference format (XrdCl StatInfoVFS::ParseServerResponse) is SIX
+ * space-separated integers, each a bare number:
+ *   "<nodesRW> <freeRW_MB> <utilRW%> <nodesStaging> <freeStaging_MB> <utilStaging%>"
+ * (We previously emitted the 4-field "id size flags mtime" stat line here, which
+ * the stock client rejects as "Invalid response".) Free space comes from
+ * statvfs(2) on the export root; staging is reported as 0 (no tape staging tier).
+ */
+static void
+xrootd_make_vfs_body(ngx_stream_xrootd_srv_conf_t *conf, char *out, size_t outsz)
+{
+    struct statvfs vfs;
+    const char    *root = conf->common.root_canon[0]
+                          ? conf->common.root_canon : "/";
+    long long      free_mb = 0, total_mb = 0;
+    int            util = 0;
+    int            nrw = conf->common.allow_write ? 1 : 0;
+
+    if (statvfs(root, &vfs) == 0) {
+        unsigned long bs = vfs.f_frsize ? vfs.f_frsize : vfs.f_bsize;
+        free_mb  = (long long) ((double) vfs.f_bavail * (double) bs / 1048576.0);
+        total_mb = (long long) ((double) vfs.f_blocks * (double) bs / 1048576.0);
+        if (total_mb > 0) {
+            util = (int) (100.0 * (double) (total_mb - free_mb)
+                          / (double) total_mb);
+        }
+    }
+
+    snprintf(out, outsz, "%d %lld %d 0 0 0", nrw, free_mb, util);
+}
 
 extern char **environ;
 
@@ -200,6 +235,25 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                               kXR_ArgInvalid, "invalid path payload");
         }
         reqpath = reqpath_buf;
+        /* Reject any ".." component outright (the reference does not normalize
+         * "..").  This op resolves through the kernel RESOLVE_BENEATH, which
+         * would silently collapse an in-tree "..", so the guard is explicit. */
+        if (xrootd_reject_dotdot_path(ctx, c, XROOTD_OP_STAT, "STAT", reqpath)) {
+            return ctx->write_rc;
+        }
+        /* Static manager_map: an explicit prefix→backend redirect (mirrors the
+         * open/locate paths) so a static-map redirector also serves stat — stock
+         * and go-hep clients stat a path before they open it, and without this a
+         * map-only redirector answered stat locally (IOError, no root). */
+        if (conf->manager_map != NULL) {
+            const xrootd_manager_map_t *m =
+                xrootd_find_manager_map(reqpath, conf->manager_map);
+            if (m != NULL) {
+                XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath,
+                                    "manager_map",
+                                    (const char *) m->host.data, m->port);
+            }
+        }
         /* Manager mode: redirect to a registered data server. */
         if (conf->manager_mode) {
             char     redir_host[256];
@@ -215,7 +269,9 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                                   "file not found on any data server");
             }
 
-            if (xrootd_srv_select(reqpath, 0, redir_host,
+            /* Like open: tolerate a server whose CMS heartbeat just dropped (it
+             * is almost certainly still serving) rather than a false NotFound. */
+            if (xrootd_srv_select_or_blacklisted(reqpath, 0, redir_host,
                                   sizeof(redir_host), &redir_port)) {
                 XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_STAT, "STAT",
                                     reqpath, "registry",
@@ -263,6 +319,27 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             int src = (req->options & kXR_statNoFollow)
                       ? xrootd_lstat_beneath(conf->rootfd, reqpath, &st)
                       : xrootd_stat_beneath(conf->rootfd, reqpath, &st);
+
+            /* Follow fallback for an in-export symlink with a host-ABSOLUTE
+             * target: RESOLVE_IN_ROOT chroots the absolute target and lands on
+             * ENOENT, where stock follows it on the real fs.  Match stock, but
+             * CONFINE via realpath — accept only when the canonical target is
+             * within the export root (an escaping link is rejected).  Read-only,
+             * so the realpath/stat TOCTOU window is benign. */
+            if (src != 0 && errno == ENOENT
+                && !(req->options & kXR_statNoFollow)
+                && conf->common.root_canon[0] != '\0')
+            {
+                char        real[PATH_MAX];
+                size_t      rl = ngx_strlen(conf->common.root_canon);
+                if (realpath(full_path, real) != NULL
+                    && ngx_strncmp(real, conf->common.root_canon, rl) == 0
+                    && (real[rl] == '/' || real[rl] == '\0')
+                    && stat(real, &st) == 0)
+                {
+                    src = 0;
+                }
+            }
             if (src != 0) {
                 int saved_errno = errno;
                 /* Local miss: a GSI-proxy cache forwards the metadata stat to
@@ -332,8 +409,14 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                           ? kXR_cachersp : 0;
     }
 
-    /* Convert the host stat struct into the exact ASCII body the client expects. */
-    xrootd_make_stat_body(&st, is_vfs, extra_flags, body, sizeof(body));
+    /* Convert into the exact ASCII body the client expects. statvfs has its own
+     * 6-field RW/staging-space format (xrdfs statvfs); a plain stat is the
+     * 4-field "id size flags mtime" line. */
+    if (is_vfs) {
+        xrootd_make_vfs_body(conf, body, sizeof(body));
+    } else {
+        xrootd_make_stat_body(&st, 0, extra_flags, body, sizeof(body));
+    }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: kXR_stat ok: %s", body);

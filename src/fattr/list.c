@@ -123,11 +123,16 @@ fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
             if (strncmp(lp, XROOTD_FATTR_XKEY_PFX, XROOTD_FATTR_XKEY_PFX_LEN) == 0
                 && full_nlen > XROOTD_FATTR_XKEY_PFX_LEN)
             {
-                /* Strip "user." (5 bytes) to keep "U.name" */
-                const char *resp_name   = lp + 5;
-                size_t      resp_nlen   = full_nlen - 5;
+                /* Strip the full internal "user.U." prefix (7 bytes) so the
+                 * client sees the bare name it set — the reference uses 'U' only
+                 * as an internal SFS namespace and returns verbatim names in the
+                 * List response (XeqFALsd). Returning "U.name" both diverged from
+                 * stock AND broke list→get round-trips (a re-get of "U.name"
+                 * would resolve to "user.U.U.name"). */
+                const char *resp_name   = lp + XROOTD_FATTR_XKEY_PFX_LEN;
+                size_t      resp_nlen   = full_nlen - XROOTD_FATTR_XKEY_PFX_LEN;
                 size_t      relpath_len = strlen(relpath);
-                /* entry = "relpath:U.name\0" — +1 for ':' separator, +1 for NUL */
+                /* entry = "relpath:name\0" — +1 for ':' separator, +1 for NUL */
                 size_t      entry_len   = relpath_len + 1 + resp_nlen + 1;
 
                 /* Append only if it fits; over-cap entries are silently dropped. */
@@ -262,9 +267,11 @@ ngx_int_t fattr_list(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* Emit only managed "user.U.*" keys with a non-empty suffix. */
         if (strncmp(lp, XROOTD_FATTR_XKEY_PFX, XROOTD_FATTR_XKEY_PFX_LEN) == 0
             && full_nlen > XROOTD_FATTR_XKEY_PFX_LEN) {
-            /* Strip "user." (5 bytes); client sees "U.name". */
-            const char *resp_name = lp + 5;
-            size_t      resp_nlen = full_nlen - 5;
+            /* Strip the full internal "user.U." prefix (7 bytes) so the client
+             * sees the bare name it set — matching the reference XeqFALsd, which
+             * returns verbatim names (the 'U' namespace is internal only). */
+            const char *resp_name = lp + XROOTD_FATTR_XKEY_PFX_LEN;
+            size_t      resp_nlen = full_nlen - XROOTD_FATTR_XKEY_PFX_LEN;
             /* name + NUL, plus (if aData) the 4-byte len prefix + value buffer. */
             size_t space_needed = resp_nlen + 1
                                   + (aData ? 4 + 4096 : 0);

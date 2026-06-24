@@ -2,6 +2,7 @@
 #define XROOTD_WRITE_H
 
 #include "../ngx_xrootd_module.h"
+#include "../compat/pgio.h"   /* xrdp_pg_bad_t */
 
 /* kXR_write — write bytes from payload to an open file at a given offset. */
 ngx_int_t xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c);
@@ -77,11 +78,16 @@ ngx_int_t xrootd_pgwrite_decode_payload(const u_char *payload,
  *   after the write completes (used when the payload has been detached from
  *   ctx->payload_buf).
  *
+ * bad / bad_count: pgwrite CSE bad-page list (NULL/0 for plain kXR_write). When
+ *   non-empty the done callback emits a CSE retransmit frame; the list is copied
+ *   into the task so the caller's stack buffer need not outlive the post.
+ *
  * Returns NGX_OK (task posted or not posted), NGX_ERROR on task alloc failure.
  */
 ngx_int_t xrootd_try_post_write_aio(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int idx, off_t offset, const u_char *data, size_t len,
     int64_t req_offset, ngx_uint_t is_pgwrite, u_char *payload_to_free,
+    const xrdp_pg_bad_t *bad, size_t bad_count,
     const char *fallback_log, ngx_flag_t *posted);
 
 #endif /* XROOTD_WRITE_H */

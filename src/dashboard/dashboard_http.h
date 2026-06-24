@@ -50,7 +50,19 @@ typedef struct {
     ngx_array_t *admin_proxy_allow; /* ngx_str_t[] allowed dynamic-proxy backend hosts;
                                      * [xrootd_admin_proxy_allow <host>...] (W6/E1).
                                      * NULL = unrestricted (back-compat).               */
+
+    /* ---- admin file browser (/xrootd/api/v1/files + /download) ---- */
+    ngx_str_t   browse_root;        /* [xrootd_dashboard_browse_root <path>] — root the
+                                     * admin file viewer may list/download from.  Empty
+                                     * = feature disabled (endpoints 404, UI hidden). */
+    char        browse_root_canon[PATH_MAX]; /* realpath of browse_root (confinement
+                                              * anchor); empty when disabled.          */
 } ngx_http_xrootd_dashboard_loc_conf_t;
+
+/* Admin file browser handlers (dashboard/files.c).  Both are admin-auth-only and
+ * confined to browse_root_canon via openat2 RESOLVE_BENEATH. */
+ngx_int_t ngx_http_xrootd_dashboard_files_handler(ngx_http_request_t *r);
+ngx_int_t ngx_http_xrootd_dashboard_download_handler(ngx_http_request_t *r);
 
 typedef enum {
     XROOTD_DASHBOARD_API_COMPAT_TRANSFERS = 0,

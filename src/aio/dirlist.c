@@ -161,6 +161,14 @@ xrootd_dirlist_aio_thread(void *data, ngx_log_t *log)
             continue;
         }
 
+        /* Skip this gateway's internal control artifacts (e.g. the checkpoint
+         * recovery lock ".nginx-xrootd-ckp-recovery.lock") so they never appear
+         * in the user-visible namespace — a stock XRootD export has no such
+         * files, and a conformance dirlist must match. */
+        if (ngx_strncmp(name, ".nginx-xrootd", sizeof(".nginx-xrootd") - 1) == 0) {
+            continue;
+        }
+
         /* Skip entries whose names contain control characters or DEL —
          * they would corrupt the newline-delimited wire format. */
         {

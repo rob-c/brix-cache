@@ -61,15 +61,41 @@ EVP_PKEY *xrootd_gsi_cipher_keygen_from(EVP_PKEY *peer);
 char     *xrootd_gsi_cipher_public(EVP_PKEY *dh, size_t *outlen);
 /* Parse a peer kXRS_cipher blob → peer public EVP_PKEY; caller frees. */
 EVP_PKEY *xrootd_gsi_cipher_parse_peer(const uint8_t *buf, size_t len);
-/* AES-128 session key = first 16 bytes of the DH secret; `padded` must match the
+/* Phase 52 (WS-A): a negotiated GSI session cipher.  evp/key_len/iv_len come from
+ * EVP_get_cipherbyname for one of the allowed names (aes-128-cbc, aes-256-cbc,
+ * bf-cbc, des-ede3-cbc). */
+#define XROOTD_GSI_MAX_KEY  32   /* largest session key (aes-256) */
+#define XROOTD_GSI_MAX_IV   16   /* largest IV (AES); bf/3des use 8 */
+
+typedef struct {
+    const EVP_CIPHER *evp;
+    int               key_len;
+    int               iv_len;
+} xrootd_gsi_cipher_t;
+
+/* The default server-advertised cipher preference list (aes-128-cbc first, so the
+ * proven default + stock interop stays byte-for-byte unchanged). */
+const char *xrootd_gsi_cipher_default_list(void);
+/* Resolve `name` (must be in the allowlist AND its provider loaded) into *out.
+ * Returns 1 on success, 0 if not allowed / unavailable. */
+int  xrootd_gsi_cipher_lookup(const char *name, xrootd_gsi_cipher_t *out);
+/* Pick the first cipher in the colon-separated `offered` list that we support;
+ * fills *out and (if non-NULL) chosen[] with its name. Returns 1/0. */
+int  xrootd_gsi_cipher_pick(const char *offered, xrootd_gsi_cipher_t *out,
+                            char chosen[24]);
+
+/* Session key = first key_len bytes of the DH secret; `padded` must match the
  * peer's XrdSecgsi HasPad (0 for pre-DHsigned <10400 peers, 1 for newer). 1/0. */
 int       xrootd_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer,
-                                        int padded, uint8_t key[16]);
-/* aes-128-cbc.  use_iv: 1 = a fresh random IV is prepended (XrdSecgsi >=DHsigned
- * peers); 0 = zero IV, nothing prepended (pre-DHsigned).  malloc'd, *outlen. */
-uint8_t  *xrootd_gsi_cipher_encrypt(const uint8_t key[16], const uint8_t *in,
+                                        int padded, uint8_t *key, int key_len);
+/* Encrypt with the negotiated cipher `c`.  use_iv: 1 = a fresh random IV
+ * (c->iv_len bytes) is prepended (XrdSecgsi >=DHsigned peers); 0 = zero IV,
+ * nothing prepended (pre-DHsigned).  malloc'd, *outlen. */
+uint8_t  *xrootd_gsi_cipher_encrypt(const xrootd_gsi_cipher_t *c,
+                                    const uint8_t *key, const uint8_t *in,
                                     size_t inlen, int use_iv, size_t *outlen);
-uint8_t  *xrootd_gsi_cipher_decrypt(const uint8_t key[16], const uint8_t *in,
+uint8_t  *xrootd_gsi_cipher_decrypt(const xrootd_gsi_cipher_t *c,
+                                    const uint8_t *key, const uint8_t *in,
                                     size_t inlen, int use_iv, size_t *outlen);
 
 /* ---- XrdSecgsi handshake helpers (shared client/server, phase-48) ---- */

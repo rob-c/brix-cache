@@ -147,9 +147,9 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     size_t        signed_rtag_len = 0;
     size_t        main_len;
     u_char       *main_buf;
-    const char   *cipher_alg = "aes-128-cbc:aes-256-cbc:bf-cbc";
+    char          cipher_alg[96];
     const char   *md_alg = "sha256:sha1";
-    size_t        calg_len = strlen(cipher_alg);
+    size_t        calg_len;
     size_t        malg_len = strlen(md_alg);
     int           signed_dh;
     uint32_t      pub_type;          /* kXRS_puk (unsigned) or kXRS_cipher */
@@ -164,6 +164,48 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
     cert_pem = conf->gsi_cert_pem;
     cert_len = conf->gsi_cert_pem_len;
+
+    /*
+     * Phase 52 (WS-A): build the advertised kXRS_cipher_alg list from the
+     * configured preference (or the built-in default, aes-128-cbc first), keeping
+     * ONLY ciphers this build can actually key — so a client never selects one we
+     * cannot decrypt (e.g. bf-cbc without the OpenSSL legacy provider).
+     */
+    {
+        const char *src = (conf->gsi_ciphers.len > 0)
+                          ? (const char *) conf->gsi_ciphers.data
+                          : xrootd_gsi_cipher_default_list();
+        const char *p = src;
+        size_t      out = 0;
+
+        cipher_alg[0] = '\0';
+        while (*p && out + 1 < sizeof(cipher_alg)) {
+            const char *start = p;
+            char        name[24];
+            size_t      n;
+            xrootd_gsi_cipher_t tmp;
+
+            while (*p && *p != ':') { p++; }
+            n = (size_t) (p - start);
+            if (n > 0 && n < sizeof(name)) {
+                ngx_memcpy(name, start, n);
+                name[n] = '\0';
+                if (xrootd_gsi_cipher_lookup(name, &tmp)
+                    && out + n + 1 < sizeof(cipher_alg)) {
+                    if (out > 0) { cipher_alg[out++] = ':'; }
+                    ngx_memcpy(cipher_alg + out, name, n);
+                    out += n;
+                    cipher_alg[out] = '\0';
+                }
+            }
+            if (*p == ':') { p++; }
+        }
+        if (out == 0) {
+            ngx_cpystrn((u_char *) cipher_alg, (u_char *) "aes-128-cbc",
+                        sizeof(cipher_alg));
+        }
+    }
+    calg_len = ngx_strlen(cipher_alg);
 
     /*
      * Resolve the signed-DH variant for this handshake from the operator policy

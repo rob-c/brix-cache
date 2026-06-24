@@ -47,6 +47,8 @@ static const char *xrootd_unified_op_names[XROOTD_METRIC_OP_COUNT] = {
     "rename",
     "dirlist",
     "tpc",
+    "xattr",
+    "copy",
 };
 
 static const char *xrootd_unified_err_names[XROOTD_ERR_COUNT] = {
@@ -65,6 +67,8 @@ static const char *xrootd_unified_auth_names[XROOTD_METRIC_AUTH_COUNT] = {
     "s3key",
     "unix",
     "krb5",
+    "host",
+    "pwd",
 };
 
 static const char *xrootd_unified_tpc_direction_names[
@@ -130,6 +134,12 @@ xrootd_metric_auth_slot(ngx_uint_t auth_method)
     }
     if (auth_method & XROOTD_AUTHN_KRB5) {
         return XROOTD_METRIC_AUTH_KRB5;
+    }
+    if (auth_method & XROOTD_AUTHN_HOST) {
+        return XROOTD_METRIC_AUTH_HOST;
+    }
+    if (auth_method & XROOTD_AUTHN_PWD) {
+        return XROOTD_METRIC_AUTH_PWD;
     }
 
     return XROOTD_METRIC_AUTH_NONE;

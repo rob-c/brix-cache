@@ -1,6 +1,7 @@
 #include "cache_internal.h"
 #include "writethrough_metrics.h"
 #include "../aio/aio.h"
+#include "../path/path.h"   /* xrootd_open_confined — root-confined read-back */
 
 
 #include <errno.h>
@@ -91,6 +92,70 @@ xrootd_wt_origin_path_from_local(ngx_stream_xrootd_srv_conf_t *conf,
     }
 
     return NGX_ERROR;
+}
+
+/* ---- Root-confined read-back open of the local cache file ----
+ *
+ * WHAT: Open wt->local_path O_RDONLY|O_NOFOLLOW under the export-root confinement
+ *       cascade (openat2 RESOLVE_BENEATH, O_NOFOLLOW fallback), selecting whichever
+ *       configured root the path lives under (cache_root first, then the export
+ *       root) — mirroring the prefix match in xrootd_wt_origin_path_from_local.
+ *       Returns the fd (caller closes it) or -1 with errno set.
+ *
+ * WHY:  The write-back read-back used a raw open() of an absolute path with no
+ *       confinement, so a symlink or parent swap under the cache/export root could
+ *       redirect the read outside the managed namespace. Routing it through the
+ *       confined-open primitive enforces kernel-level RESOLVE_BENEATH the same way
+ *       every other namespace read does. This helper is syscall-only (no nginx
+ *       pool, no per-op metrics/log emission), so it is safe to call from the async
+ *       flush worker thread as well as the synchronous event-loop path.
+ *
+ * HOW:  Try conf->cache_root, then conf->common.root: skip empty roots and roots
+ *       the absolute local_path is not lexically under; for the first match, call
+ *       xrootd_open_confined() (which canonicalises the ngx_str_t root and resolves
+ *       local_path relative to it). On no match, EXDEV. O_CLOEXEC is added by the
+ *       confined-open helper itself. */
+static int
+xrootd_wt_open_local_confined(const xrootd_wt_flush_t *wt, int flags)
+{
+    const ngx_str_t *roots[2];
+    ngx_uint_t       i;
+
+    if (wt == NULL || wt->conf == NULL || wt->local_path[0] != '/') {
+        errno = EINVAL;
+        return -1;
+    }
+
+    roots[0] = &wt->conf->cache_root;
+    roots[1] = &wt->conf->common.root;
+
+    for (i = 0; i < 2; i++) {
+        const ngx_str_t *root = roots[i];
+        size_t           plen;
+
+        if (root == NULL || root->data == NULL || root->len == 0) {
+            continue;
+        }
+
+        plen = root->len;
+        while (plen > 1 && root->data[plen - 1] == '/') {
+            plen--;
+        }
+
+        /* local_path must be the root itself or a path beneath it. */
+        if (ngx_strncmp((u_char *) wt->local_path, root->data, plen) != 0) {
+            continue;
+        }
+        if (!(plen == 1 || wt->local_path[plen] == '/'
+              || wt->local_path[plen] == '\0')) {
+            continue;
+        }
+
+        return xrootd_open_confined(wt->log, root, wt->local_path, flags, 0);
+    }
+
+    errno = EXDEV;
+    return -1;
 }
 
 /* ---- Error propagation from fill operation to flush task ----
@@ -299,14 +364,30 @@ xrootd_wt_run_flush_exec(xrootd_wt_flush_t *wt)
         return;
     }
 
-    if (stat(wt->local_path, &st) != 0 || !S_ISREG(st.st_mode)) {
-        wt->result = NGX_ERROR;
-        wt->sys_errno = errno;
-        wt->xrd_error = kXR_IOError;
-        ngx_cpystrn((u_char *) wt->err_msg,
-                    (u_char *) "write-through local file invalid",
-                    sizeof(wt->err_msg));
-        return;
+    /*
+     * Validate the local file under root confinement (O_NOFOLLOW + RESOLVE_BENEATH)
+     * rather than a raw path stat(): the result (S_ISREG + size for bytes_flushed)
+     * is taken from an fstat on the confined fd, so a symlink/parent swap under the
+     * cache/export root cannot point the validation (or the size we later report)
+     * at a file outside the managed namespace. The fd is closed immediately — the
+     * upload itself is performed by the spawned client against local_path.
+     */
+    {
+        int sfd = xrootd_wt_open_local_confined(wt, O_RDONLY | O_NOFOLLOW);
+
+        if (sfd < 0 || fstat(sfd, &st) != 0 || !S_ISREG(st.st_mode)) {
+            wt->result = NGX_ERROR;
+            wt->sys_errno = errno;
+            wt->xrd_error = kXR_IOError;
+            ngx_cpystrn((u_char *) wt->err_msg,
+                        (u_char *) "write-through local file invalid",
+                        sizeof(wt->err_msg));
+            if (sfd >= 0) {
+                close(sfd);
+            }
+            return;
+        }
+        close(sfd);
     }
 
     /* root[s]://host:port//<origin_path>  (origin_path carries its leading '/') */
@@ -430,7 +511,7 @@ xrootd_wt_run_flush(xrootd_wt_flush_t *wt)
         return;
     }
 
-    fd = open(wt->local_path, O_RDONLY | O_CLOEXEC);
+    fd = xrootd_wt_open_local_confined(wt, O_RDONLY | O_NOFOLLOW);
     if (fd < 0) {
         fill.sys_errno = errno;
         fill.xrd_error = kXR_IOError;

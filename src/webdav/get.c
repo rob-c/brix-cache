@@ -109,26 +109,17 @@ webdav_handle_get(ngx_http_request_t *r)
         return rc;
     }
 
-    ngx_memzero(&vctx, sizeof(vctx));
-    vctx.rootfd = -1;
-    vctx.pool = r->pool;
-    vctx.log = r->connection->log;
-    vctx.metrics_proto = XROOTD_PROTO_WEBDAV;
-    vctx.root_canon = conf->common.root_canon;
-    vctx.cache_root_canon = conf->cache_root_canon;
-    vctx.cache_enabled = (conf->cache_root_canon[0] != '\0') ? 1 : 0;
-    vctx.allow_write = conf->common.allow_write ? 1 : 0;
-    vctx.resolved.resolved.data = (u_char *) path;
-    vctx.resolved.resolved.len = ngx_strlen(path);
-    vctx.resolved.is_confined = 1;
-
-#if (NGX_HTTP_SSL)
-    vctx.is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-
     wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
-    if (wctx != NULL) {
-        vctx.identity = wctx->identity;
+
+    {
+        int is_tls = 0;
+#if (NGX_HTTP_SSL)
+        is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+        xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+            XROOTD_PROTO_WEBDAV, conf->common.root_canon,
+            conf->cache_root_canon, conf->common.allow_write, is_tls,
+            (wctx != NULL) ? wctx->identity : NULL, path);
     }
 
     fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);

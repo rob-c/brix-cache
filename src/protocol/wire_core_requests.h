@@ -151,6 +151,32 @@ typedef struct {
     kXR_int64  offset;      /* file offset of written data */
 } ServerResponseBody_pgWrite;  /* 8 bytes */
 
+/* ---- kXR_pgwrite CSE (checksum-error) retransmit trailer ----
+ *
+ * Appended to ServerResponseBody_pgWrite when one or more pages failed CRC32c
+ * verification. The server replies with a SUCCESS kXR_status frame (not an
+ * error) whose bdy.dlen = sizeof(pgWrCSE) + n*8, then the client resends each
+ * listed page with reqflags |= kXR_pgRetry. Followed inline by a big-endian
+ * vector `kXR_int64 bof[n]` of the corrupt pages' file offsets.
+ *
+ * Wire layout for a CSE reply (n bad pages) — stock srsComplete convention:
+ * hdr.dlen counts ONLY the fixed status body (24); the CSE trailer follows as
+ * separate `data` of length bdy.dlen, exactly like pgread page data.
+ *   [ServerResponseHdr 8B]       status=kXR_status, dlen = 24
+ *   [ServerResponseBody_Status]  dlen = 8 + n*8 (size of the CSE trailer below)
+ *   [ServerResponseBody_pgWrite] offset
+ *   ---- the following bytes are NOT counted in hdr.dlen ----
+ *   [ServerResponseBody_pgWrCSE 8B] cseCRC, dlFirst, dlLast
+ *   [kXR_int64 bof[n]]           corrupt-page file offsets (big-endian)
+ *
+ * body crc32c covers only the 20-byte fixed head (streamID..pgw.offset);
+ * cseCRC = CRC32c of every byte AFTER cseCRC (dlFirst..end of bof[]). */
+typedef struct {
+    kXR_unt32  cseCRC;      /* CRC32c of all following bytes (dlFirst..bof end) */
+    kXR_int16  dlFirst;     /* fragment length of the first bad page  */
+    kXR_int16  dlLast;      /* fragment length of the last  bad page  */
+} ServerResponseBody_pgWrCSE;  /* 8 bytes; kXR_int64 bof[n] follows */
+
 /* Full kXR_status response for pgread (header only; data follows in chain) */
 typedef struct {
     ServerResponseHdr         hdr; /* status=kXR_status, dlen=24+data */

@@ -79,6 +79,87 @@ xrootd_configure_metrics(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)
  *      fresh-only field inits beyond the zeroing the helper already performs.
  */
 
+/*
+ * fnv1a64_file — FNV-1a 64-bit hash of a file's bytes (config fingerprint).
+ *
+ * Reads the file in fixed chunks so an arbitrarily large (included) config never
+ * needs to be held whole in memory.  Returns 0 on any open/read failure — the
+ * caller treats 0 as "fingerprint unavailable", never as a real digest.  Note
+ * this fingerprints the top-level config file only; `include`d files are not
+ * folded in (documented in reload-semantics.md), so config_generation, not the
+ * hash, is the authoritative "a reload happened" signal.
+ */
+static uint64_t
+fnv1a64_file(ngx_str_t *path, ngx_log_t *log)
+{
+    u_char     buf[4096];
+    uint64_t   h = 0xcbf29ce484222325ULL;   /* FNV offset basis (64-bit) */
+    ngx_fd_t   fd;
+    ssize_t    n;
+    size_t     i;
+
+    if (path == NULL || path->len == 0) {
+        return 0;
+    }
+
+    fd = ngx_open_file(path->data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
+    if (fd == NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+                      "xrootd: cannot read config \"%V\" for version hash",
+                      path);
+        return 0;
+    }
+
+    for ( ;; ) {
+        n = ngx_read_fd(fd, buf, sizeof(buf));
+        if (n <= 0) {
+            break;
+        }
+        for (i = 0; i < (size_t) n; i++) {
+            h ^= (uint64_t) buf[i];
+            h *= 0x100000001b3ULL;           /* FNV prime (64-bit) */
+        }
+    }
+
+    (void) ngx_close_file(fd);
+    return h;
+}
+
+
+void
+xrootd_config_version_publish(ngx_cycle_t *cycle)
+{
+    ngx_xrootd_metrics_t  *tbl;
+    ngx_atomic_uint_t      gen;
+    uint64_t               hash;
+
+    /*
+     * No metrics zone means no enabled stream server block — nothing to publish
+     * and nothing to probe.  The zone's ->data is the slab-allocated table once
+     * the master has mapped it (before this init_module hook runs).
+     */
+    if (ngx_xrootd_shm_zone == NULL || ngx_xrootd_shm_zone->data == NULL) {
+        return;
+    }
+    tbl = ngx_xrootd_shm_zone->data;
+
+    hash = fnv1a64_file(&cycle->conf_file, cycle->log);
+
+    /*
+     * init_module runs exactly once per config load in the master, so a plain
+     * atomic increment counts loads precisely (the metrics zone re-attaches
+     * across reload, so the previous value is preserved).  The hash is written
+     * by this single master before any worker forks off the new cycle.
+     */
+    gen = ngx_atomic_fetch_add(&tbl->config_generation, 1) + 1;
+    tbl->config_hash = hash;
+
+    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+                  "xrootd: config generation %ui live (pid %P, version %016xL)",
+                  (ngx_uint_t) gen, ngx_pid, hash);
+}
+
+
 ngx_int_t
 ngx_xrootd_metrics_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {

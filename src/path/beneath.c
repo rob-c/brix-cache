@@ -91,16 +91,15 @@ xrootd_beneath_open_root(const char *root_canon)
  * ops must pre-resolve their parent via beneath_open_parent() (see below).
  */
 static int
-do_openat2(int rootfd, const char *rel, int flags, mode_t mode)
+do_openat2_resolve(int rootfd, const char *rel, int flags, mode_t mode,
+    uint64_t resolve)
 {
     struct open_how how;
     /* empty rel means root dir itself; "." opens the rootfd directory */
     if (rel[0] == '\0') { rel = "."; }
     ngx_memzero(&how, sizeof(how));
     how.flags   = (uint64_t)(flags | O_CLOEXEC);
-    /* RESOLVE_BENEATH: kernel confines resolution to the rootfd subtree.
-     * RESOLVE_NO_MAGICLINKS: refuse /proc/PID/fd and other magic-link escapes. */
-    how.resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS;
+    how.resolve = resolve;
     /*
      * openat2() is stricter than open()/openat(): it rejects (EINVAL) any
      * how.mode bit outside 07777.  Callers legitimately pass a full struct
@@ -110,6 +109,15 @@ do_openat2(int rootfd, const char *rel, int flags, mode_t mode)
      */
     if (flags & O_CREAT) { how.mode = (uint64_t)(mode & 07777); }
     return (int)syscall(SYS_openat2, rootfd, rel, &how, sizeof(how));
+}
+
+/* The default confinement for open/mutate paths: RESOLVE_BENEATH (no symlinks,
+ * no "..", no absolute paths) + RESOLVE_NO_MAGICLINKS (refuse /proc/PID/fd). */
+static int
+do_openat2(int rootfd, const char *rel, int flags, mode_t mode)
+{
+    return do_openat2_resolve(rootfd, rel, flags, mode,
+                              RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS);
 }
 
 int
@@ -129,9 +137,14 @@ xrootd_stat_beneath(int rootfd, const char *reqpath, struct stat *st)
     if (xrootd_imp_client_active()) {
         return xrootd_imp_stat(reqpath, st, 0 /* follow */);
     }
-    /* O_PATH without O_NOFOLLOW: follow symlinks, but RESOLVE_BENEATH blocks
-     * any attempt to escape the root — escapes return EXDEV. */
-    fd = do_openat2(rootfd, xrootd_beneath_rel(reqpath), O_PATH, 0);
+    /* O_PATH without O_NOFOLLOW: follow symlinks.  RESOLVE_IN_ROOT (not BENEATH)
+     * so an in-export symlink — including one with an ABSOLUTE target that points
+     * back into the export — is followed chroot-style (the kernel resolves "/" and
+     * ".." relative to rootfd) and still CANNOT escape the root.  BENEATH rejected
+     * every absolute/symlink target outright (EXDEV), diverging from stock, which
+     * follows in-export links (test_conf_stattypes). */
+    fd = do_openat2_resolve(rootfd, xrootd_beneath_rel(reqpath), O_PATH, 0,
+                            RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
     if (fd < 0) { return -1; }
     rc = fstat(fd, st);
     close(fd);
@@ -147,9 +160,13 @@ xrootd_lstat_beneath(int rootfd, const char *reqpath, struct stat *st)
         return xrootd_imp_stat(reqpath, st, 1 /* nofollow */);
     }
     /* O_PATH | O_NOFOLLOW: do NOT follow a trailing symlink, so fstat() reports
-     * the link itself (lstat semantics). RESOLVE_BENEATH still confines the path;
-     * intermediate symlinks are resolved/blocked exactly as in stat_beneath. */
-    fd = do_openat2(rootfd, xrootd_beneath_rel(reqpath), O_PATH | O_NOFOLLOW, 0);
+     * the link itself (lstat semantics).  RESOLVE_IN_ROOT (chroot-style) confines
+     * the path while still permitting in-export symlinks in INTERMEDIATE
+     * components; the trailing link is opened as itself via O_NOFOLLOW.  (BENEATH
+     * rejected even a trailing symlink here with EXDEV, so lstat of a link failed.) */
+    fd = do_openat2_resolve(rootfd, xrootd_beneath_rel(reqpath),
+                            O_PATH | O_NOFOLLOW, 0,
+                            RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
     if (fd < 0) { return -1; }
     rc = fstat(fd, st);
     close(fd);

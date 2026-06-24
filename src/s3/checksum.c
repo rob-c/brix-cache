@@ -26,6 +26,7 @@
 #include "../compat/http_headers.h"
 #include "../compat/http_query.h"
 #include "../compat/integrity_info.h"
+#include "../fs/vfs.h"
 
 #include <fcntl.h>
 #include <string.h>
@@ -51,6 +52,38 @@ static const s3_cksum_desc_t s3_cksum_table[] = {
 
 /* Default algorithm when the client requested no checksum (AWS SDK default). */
 #define S3_CKSUM_DEFAULT_IDX  2   /* crc64nvme */
+
+/*
+ * s3_cksum_vfs_unlink — remove the just-committed object via the VFS unlink
+ * surface when a client integrity check fails (mismatch / ambiguous / trailer
+ * with an unsupported algorithm).  Replicates the reference ctx helper
+ * (object.c s3_vfs_ctx) and routes the delete through the VFS (OP_DELETE metric
+ * + access-log + write gate) instead of the bare confined-canon unlink, while
+ * delegating the same confined syscall underneath.  Best-effort — the caller's
+ * result code is already decided.
+ */
+static void
+s3_cksum_vfs_unlink(ngx_http_request_t *r, const char *fs_path,
+    const char *root_canon)
+{
+    ngx_http_s3_loc_conf_t *cf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+    ngx_http_s3_req_ctx_t  *s3ctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    xrootd_vfs_ctx_t        vctx;
+    int                     is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    /* root_canon is passed by the caller; it equals cf->common.root_canon. */
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
+        (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+
+    (void) xrootd_vfs_unlink(&vctx);
+}
 
 static int
 s3_hexval(unsigned char c)
@@ -225,8 +258,7 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     if (conflict) {
         /* The object was already committed; remove it — a malformed integrity
          * request must not leave an object behind (AWS rejects pre-store). */
-        (void) xrootd_unlink_confined_canon(r->connection->log, root_canon,
-                                            fs_path, 0);
+        s3_cksum_vfs_unlink(r, fs_path, root_canon);
         return S3_CKSUM_CONFLICT;
     }
     if (desc == NULL) {
@@ -250,8 +282,7 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
         if (want_value->value.len != blen
             || ngx_strncmp(want_value->value.data, (u_char *) b64, blen) != 0)
         {
-            (void) xrootd_unlink_confined_canon(r->connection->log, root_canon,
-                                                fs_path, 0);
+            s3_cksum_vfs_unlink(r, fs_path, root_canon);
             return S3_CKSUM_MISMATCH;
         }
     }
@@ -279,8 +310,7 @@ s3_put_trailer_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     desc = s3_cksum_by_token(algo_token, ngx_strlen(algo_token));
     if (desc == NULL) {
         /* Trailer named an algorithm we do not support — reject the upload. */
-        (void) xrootd_unlink_confined_canon(r->connection->log, root_canon,
-                                            fs_path, 0);
+        s3_cksum_vfs_unlink(r, fs_path, root_canon);
         return S3_CKSUM_CONFLICT;
     }
 
@@ -300,8 +330,7 @@ s3_put_trailer_checksum_apply(ngx_http_request_t *r, const char *fs_path,
         if (ngx_strlen(value) != blen
             || ngx_strncmp((u_char *) value, (u_char *) b64, blen) != 0)
         {
-            (void) xrootd_unlink_confined_canon(r->connection->log, root_canon,
-                                                fs_path, 0);
+            s3_cksum_vfs_unlink(r, fs_path, root_canon);
             return S3_CKSUM_MISMATCH;
         }
     }

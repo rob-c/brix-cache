@@ -228,6 +228,40 @@ xrootd_http_body_write_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
 }
 
 /*
+ * xrootd_http_body_write_to_fd_at — like xrootd_http_body_write_to_fd, but the
+ * body lands starting at absolute offset base_off (via pwrite/copy_range), for
+ * resumable Content-Range PUT where a chunk fills [base_off, base_off+len).
+ */
+ngx_int_t
+xrootd_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, xrootd_http_body_summary_t *summary_out, off_t base_off)
+{
+    ngx_chain_t                *cl;
+    off_t                       off;
+    xrootd_http_body_summary_t  summary;
+
+    if (summary_out == NULL) {
+        summary_out = &summary;
+    }
+    if (xrootd_http_body_summary(r, summary_out) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (r == NULL || r->request_body == NULL) {
+        return NGX_OK;
+    }
+
+    off = base_off;
+    for (cl = r->request_body->bufs; cl != NULL; cl = cl->next) {
+        if (xrootd_http_body_write_buf(r, dst_fd, cl->buf, &off, log_path)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
+/*
  * xrootd_http_body_read_all - copy the entire body into one pool buffer.
  *
  * WHAT: allocates a single NUL-terminated buffer from r->pool and fills it

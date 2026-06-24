@@ -1,4 +1,5 @@
 #include "upstream_internal.h"
+#include "../protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
 
 /*
  * WHAT: XRootD upstream bootstrap sequence — handshake, protocol negotiation, TLS upgrade detection,
@@ -19,69 +20,29 @@
 #include <ctype.h>
 #include <errno.h>
 
-static u_char *
-xrootd_upstream_write_be32(u_char *cursor, uint32_t value)
-{
-    uint32_t value_be;
-
-    value_be = htonl(value);
-    ngx_memcpy(cursor, &value_be, sizeof(value_be));
-
-    return cursor + sizeof(value_be);
-}
+/*
+ * A server-internal connector owns a fixed streamid {0,1} and presents the
+ * anonymous "xrd" identity with no TLS-capability flags in the protocol request
+ * (TLS, when required, is driven by the server's kXR_gotoTLS response, not by a
+ * client-side wantTLS flag). The wire layout itself lives in bootstrap_pack.h.
+ */
+static const uint8_t xrootd_upstream_streamid[2] = { 0, 1 };
 
 void
 xrootd_upstream_build_bootstrap(u_char *buf)
 {
-    u_char *cursor;
+    u_char *cursor = buf;
 
-    cursor = buf;
+    xrd_pack_handshake((ClientInitHandShake *) (void *) cursor);
+    cursor += sizeof(ClientInitHandShake);
 
-    /*
-     * XRootD's initial server handshake is not a normal request header.  The
-     * client sends 12 zero bytes followed by two big-endian words:
-     *   client protocol version marker, ROOTD protocol selector.
-     *
-     * Use memcpy-based stores so this remains safe on platforms that dislike
-     * unaligned uint32_t writes.
-     */
-    ngx_memzero(cursor, 12);
-    cursor += 12;
-    cursor = xrootd_upstream_write_be32(cursor, 4);
-    cursor = xrootd_upstream_write_be32(cursor, ROOTD_PQ);
+    xrd_pack_protocol_request((ClientProtocolRequest *) (void *) cursor,
+                              xrootd_upstream_streamid, 0);
+    cursor += sizeof(ClientProtocolRequest);
 
-    {
-        ClientProtocolRequest *protocol_request;
-
-        protocol_request = (ClientProtocolRequest *) (void *) cursor;
-
-        ngx_memzero(protocol_request, sizeof(*protocol_request));
-        protocol_request->streamid[0] = 0;
-        protocol_request->streamid[1] = 1;
-        protocol_request->requestid = htons(kXR_protocol);
-        protocol_request->clientpv = htonl(kXR_PROTOCOLVERSION);
-        protocol_request->flags = 0;
-        protocol_request->expect = 0x03;
-        protocol_request->dlen = 0;
-        cursor += sizeof(*protocol_request);
-    }
-
-    {
-        ClientLoginRequest *login_request;
-
-        login_request = (ClientLoginRequest *) (void *) cursor;
-
-        ngx_memzero(login_request, sizeof(*login_request));
-        login_request->streamid[0] = 0;
-        login_request->streamid[1] = 1;
-        login_request->requestid = htons(kXR_login);
-        login_request->pid = htonl((kXR_int32) ngx_pid);
-        login_request->username[0] = 'x';
-        login_request->username[1] = 'r';
-        login_request->username[2] = 'd';
-        login_request->capver = kXR_ver005;
-        login_request->dlen = 0;
-    }
+    xrd_pack_login_request((ClientLoginRequest *) (void *) cursor,
+                           xrootd_upstream_streamid, (int32_t) ngx_pid,
+                           "xrd", kXR_ver005);
 }
 
 /*
@@ -93,16 +54,8 @@ xrootd_upstream_build_bootstrap(u_char *buf)
 void
 xrootd_upstream_build_login(ClientLoginRequest *req)
 {
-    ngx_memzero(req, sizeof(*req));
-    req->streamid[0] = 0;
-    req->streamid[1] = 1;
-    req->requestid = htons(kXR_login);
-    req->pid = htonl((kXR_int32) ngx_pid);
-    req->username[0] = 'x';
-    req->username[1] = 'r';
-    req->username[2] = 'd';
-    req->capver = kXR_ver005;
-    req->dlen = 0;
+    xrd_pack_login_request(req, xrootd_upstream_streamid, (int32_t) ngx_pid,
+                           "xrd", kXR_ver005);
 }
 
 void

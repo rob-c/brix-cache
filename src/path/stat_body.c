@@ -1,4 +1,6 @@
 #include "../ngx_xrootd_module.h"
+#include "../protocol/stat_line.h"    /* shared stat-line grammar (encode side) */
+#include "../protocol/stat_flags.h"   /* shared stat `flags` semantics (encode side) */
 
 #include <stdio.h>
 #include <sys/stat.h>
@@ -15,29 +17,36 @@ void
 xrootd_make_stat_body(const struct stat *st, ngx_flag_t is_vfs,
                       int extra_flags, char *out, size_t outsz)
 {
-    int flags = extra_flags;
+    int flags;
 
+    /* VFS mode hides the real inode/blocks: id 0, size = block bytes, readable. */
     if (is_vfs) {
-        snprintf(out, outsz, "0 %lld %d %ld",
-                 (long long) st->st_blocks * 512,
-                 kXR_readable,
-                 (long) st->st_mtime);
+        xrootd_statline_format(out, outsz, 0ULL,
+                               (long long) st->st_blocks * 512,
+                               kXR_readable,
+                               (long) st->st_mtime);
         return;
     }
 
-    if (S_ISDIR(st->st_mode)) {
-        flags |= kXR_isDir;
-    } else if (!S_ISREG(st->st_mode)) {
-        flags |= kXR_other;
-    }
+    /* The stat `flags` field bits come from the shared semantics header,
+     * mirroring the reference StatGen: readable/writable/xset are derived from
+     * the file's permission bits checked against the server's own (effective)
+     * uid/gid — whom the confined export is accessed as — plus dir/other type. */
+    flags = xrootd_stat_flags_from_stat(st, geteuid(), getegid(), extra_flags);
 
-    if (st->st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) {
-        flags |= kXR_readable;
-    }
-
-    snprintf(out, outsz, "%llu %lld %d %ld",
-             (unsigned long long) st->st_ino,
-             (long long) st->st_size,
-             flags,
-             (long) st->st_mtime);
+    /* Unique id ("devid", chunks[0] of the stat line) — mirror the reference
+     * StatGen exactly so XrdCl/gfal parse an identical value.  StatGen builds it
+     * via `union {long long uuid; struct {int hi; int lo;} id;}` with
+     * `id.lo = st_ino; id.hi = st_dev`.  On the LP64/little-endian platform this
+     * runs on, the `id.lo` int sits in the low-address (least-significant) word,
+     * so the composed 64-bit value is (st_ino << 32) | (uint32_t)st_dev — the
+     * inode in the high word, device in the low word (verified against stock:
+     * `stock_id >> 32 == st_ino`).  uuid is zero only when both are zero, which
+     * is the reference's `!Dev.uuid` offline trigger — preserved here. */
+    xrootd_statline_format(out, outsz,
+                           ((unsigned long long) st->st_ino << 32)
+                               | (unsigned long long) (uint32_t) st->st_dev,
+                           (long long) st->st_size,
+                           flags,
+                           (long) st->st_mtime);
 }

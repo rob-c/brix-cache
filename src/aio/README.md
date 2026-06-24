@@ -11,6 +11,46 @@ detour**: the heavy syscalls (`pread`, `pwrite`, `fsync`, `readdir`/`fstatat`,
 per-page CRC32C, per-entry checksum) are offloaded to the nginx **thread pool**,
 and only the protocol/wire work runs back on the event loop.
 
+## Optional io_uring backend (Phase 44 — `uring.c` / `uring_submit.c` / `uring_admin.c`)
+
+A third dispatch tier sits **above** the thread pool, making the cascade
+**io_uring → thread pool → inline sync**.  It is OFF BY DEFAULT, double-gated
+(`pkg-config liburing` at build → `-DXROOTD_HAVE_LIBURING`; an authoritative
+opcode probe at runtime), and degrades transparently.  The single interposition
+point is `xrootd_aio_post_task()` (`resume.c`): a selector keyed on the task's
+bound worker-fn picks io_uring for READ/WRITE and single-contiguous-group
+READV/WRITEV(+linked FSYNC); everything else (pgread CRC interleave, dirlist,
+multi-fd/gap vectored ops) falls through to the pool unchanged.  The six
+`*_aio_t` structs and `*_aio_done` callbacks are reused verbatim — only the
+*syscall location* differs.
+
+- `uring.c` — per-worker ring singleton, eventfd→epoll bridge (public-API
+  analogue of nginx core's libaio `ngx_epoll_aio_init`/`ngx_epoll_eventfd_handler`),
+  the UAF-safe generation-guarded completion-slot table, and the reaper (posts
+  to `ngx_posted_events`, never inline).  Brought up in `init_process`, torn
+  down in `exit_process`; gated on a NOP self-test.  `register_eventfd` must run
+  **before** `register_restrictions`+`enable_rings` (register ops are denied on a
+  restricted+enabled ring).
+- `uring_submit.c` — `xrootd_uring_op_for` (worker-fn → op) + `xrootd_uring_submit`
+  (slot acquire → SQE prep → cookie → submit; linked FSYNC for a `do_sync`
+  writev via `IOSQE_IO_LINK` + an SQ-space pre-check).
+- `uring_admin.c` — the no-reload kill switch: a cross-worker SHM `ngx_atomic_t`
+  read lock-free on the submit hot path (`xrootd_uring_disabled`), flipped by the
+  admin endpoint (`POST /xrootd/api/v1/admin/io_uring`) or a watched panic-file
+  (`xrootd_io_uring_panic_file`).
+- `§32` fail-fast: `xrootd_io_uring on` makes `nginx -t` fail (and the master
+  refuse to start) if io_uring is not compiled in or the probe fails;
+  `auto`/`off` always start.  Containment: the ring runs in the unprivileged
+  worker on broker-opened `RESOLVE_BENEATH` fds and is restricted to fd-only data
+  opcodes, so it can never open or traverse a path.
+
+See [`docs/refactor/phase-44-io-uring-backend.md`](../../docs/refactor/phase-44-io-uring-backend.md)
+for the full design, the per-workstream status table, and the deferred tiers
+(client loop-engine swap CB-W4, O_DIRECT, registered buffers, uring-pgread,
+SQPOLL, Prometheus metrics exposition).
+
+## Thread-pool contract
+
 Every offloaded opcode follows the same three-phase contract: a `_thread`
 worker function does *only* the blocking syscall (no nginx state, no pools, no
 `c->log`); nginx posts a `_done` completion callback back to the single-threaded

@@ -36,11 +36,17 @@ ngx_http_xrootd_webdav_tpc_merge_loc_conf(
     ngx_conf_merge_str_value(conf->tpc_key, prev->tpc_key, "");
     ngx_conf_merge_str_value(conf->tpc_cadir, prev->tpc_cadir, "");
     ngx_conf_merge_str_value(conf->tpc_cafile, prev->tpc_cafile, "");
+    /* Phase 51 (B2): default the curl low-speed stall detector ON (abort a pull/
+     * push that averages < 1KB/s for 60s) so a stalled remote cannot hold a
+     * thread-pool worker indefinitely.  This measures lack of PROGRESS, not
+     * duration, so a slow-but-advancing transfer is never clipped.  The absolute
+     * total timeout stays opt-in (0 = unlimited) — operators who need a hard cap
+     * set xrootd_webdav_tpc_timeout.  0 on either low-speed knob disables it. */
     ngx_conf_merge_uint_value(conf->tpc_timeout, prev->tpc_timeout, 0);
     ngx_conf_merge_uint_value(conf->tpc_low_speed_bytes,
-                              prev->tpc_low_speed_bytes, 0);
+                              prev->tpc_low_speed_bytes, 1024);
     ngx_conf_merge_uint_value(conf->tpc_low_speed_secs,
-                              prev->tpc_low_speed_secs, 0);
+                              prev->tpc_low_speed_secs, 60);
     ngx_conf_merge_uint_value(conf->tpc_marker_interval,
                               prev->tpc_marker_interval, 0);
     ngx_conf_merge_uint_value(conf->tpc_max_streams, prev->tpc_max_streams, 1);

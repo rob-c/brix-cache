@@ -75,3 +75,82 @@ xrootd_http_parse_range(const unsigned char *hdr_val, size_t hdr_len,
         out->end     = range.end;
     }
 }
+
+/* Parse one run of decimal digits at *p (bounded by end) into *val; advance *p.
+ * Returns 1 if at least one digit was consumed (no overflow), else 0. */
+static int
+cr_parse_u64(const unsigned char **p, const unsigned char *end, off_t *val)
+{
+    const unsigned char *s = *p;
+    unsigned long long   v = 0;
+
+    if (s >= end || *s < '0' || *s > '9') {
+        return 0;
+    }
+    for (; s < end && *s >= '0' && *s <= '9'; s++) {
+        if (v > (0x7fffffffffffffffULL - 9) / 10) {
+            return 0;   /* overflow guard */
+        }
+        v = v * 10 + (unsigned long long) (*s - '0');
+    }
+    *val = (off_t) v;
+    *p = s;
+    return 1;
+}
+
+void
+xrootd_http_parse_content_range(const unsigned char *hdr_val, size_t hdr_len,
+    xrootd_http_content_range_t *out)
+{
+    const unsigned char *p, *end;
+
+    out->start = out->end = 0;
+    out->total = -1;
+    out->present = 0;
+
+    if (hdr_val == NULL || hdr_len == 0) {
+        return;
+    }
+    p = hdr_val;
+    end = hdr_val + hdr_len;
+
+    /* optional "bytes " unit prefix */
+    if ((size_t) (end - p) >= 6 && memcmp(p, "bytes ", 6) == 0) {
+        p += 6;
+    }
+    while (p < end && *p == ' ') {
+        p++;
+    }
+
+    if (!cr_parse_u64(&p, end, &out->start)) {
+        return;
+    }
+    if (p >= end || *p != '-') {
+        return;
+    }
+    p++;
+    if (!cr_parse_u64(&p, end, &out->end)) {
+        return;
+    }
+    if (p >= end || *p != '/') {
+        return;
+    }
+    p++;
+    if (p < end && *p == '*') {
+        out->total = -1;
+        p++;
+    } else if (!cr_parse_u64(&p, end, &out->total)) {
+        return;
+    }
+    if (out->end < out->start) {
+        return;   /* malformed: end before start */
+    }
+    /* trailing whitespace tolerated; anything else is malformed */
+    while (p < end && (*p == ' ' || *p == '\t')) {
+        p++;
+    }
+    if (p != end) {
+        return;
+    }
+    out->present = 1;
+}

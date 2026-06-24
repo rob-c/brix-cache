@@ -198,6 +198,7 @@ tests/manage_test_servers.sh start|restart|stop
 | Conf merge? | main→srv→loc. Check `NGX_CONF_UNSET` in merge |
 | File handles? | 0–255 → `xrootd_file_t` in `src/connection/fd_table.c` |
 | Log strings from wire? | `xrootd_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` |
+| Config reload? | Standard nginx drain — new conns get new settings, in-flight finish on old workers. `config_generation`/`config_version` in `/healthz` + `xrootd_config_generation` gauge confirm it. Cert/key/keytab rotate **on reload** (not in-place); slot-count changes reset the SHM table (WARN). Full matrix: [docs/09-developer-guide/reload-semantics.md](docs/09-developer-guide/reload-semantics.md) |
 
 ---
 

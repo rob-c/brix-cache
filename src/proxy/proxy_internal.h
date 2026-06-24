@@ -245,6 +245,11 @@ extern xrootd_proxy_up_status_t *proxy_up_status;
 /* Pool management */
 /* Init the worker-local idle-connection queue and counter. Call once at startup. */
 void xrootd_proxy_pool_init(void);
+
+/* Drain and free every idle pooled upstream connection (called at worker exit
+ * from the shutdown sweeper so a draining worker releases upstream sockets at
+ * once instead of holding them to worker_shutdown_timeout). */
+void xrootd_proxy_pool_shutdown(void);
 /* Take a reusable, already-authenticated upstream connection out of the pool, matched
  * by health-aware round-robin upstream index + auth type (+ bearer-token MD5 in forward
  * mode). Returns the connection (caller takes ownership, must set c->data) and writes

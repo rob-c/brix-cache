@@ -138,7 +138,14 @@ webdav_handle_head(ngx_http_request_t *r, int send_body)
     if (!S_ISDIR(sb.st_mode)) {
         xrdhttp_req_ctx_t *ctx = xrdhttp_get_ctx(r);
         if (ctx != NULL && ctx->want_cksum[0]) {
-            ngx_fd_t fd = open(path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
+            ngx_http_xrootd_webdav_loc_conf_t *conf =
+                ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+            /* Confined re-open (openat2 RESOLVE_BENEATH + O_NOFOLLOW leaf): the
+             * raw open() followed a planted symlink in any parent component out
+             * of the export root. */
+            ngx_fd_t fd = xrootd_open_confined_canon(
+                r->connection->log, conf->common.root_canon, path,
+                O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW, 0);
             if (fd != NGX_INVALID_FILE) {
                 (void) xrdhttp_add_checksum_header(r, fd, &sb);
                 close(fd);

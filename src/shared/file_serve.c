@@ -41,6 +41,8 @@
 #include "../compat/range.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../cache/open.h"
+#include "../webdav/webdav.h"          /* xrootd_tcp_congestion (webdav-owned directive) */
+#include "../connection/netopt.h"      /* xrootd_apply_tcp_congestion */
 
 #include <unistd.h>
 
@@ -58,6 +60,27 @@ xrootd_http_serve_file_ranged(ngx_http_request_t *r,
     const char          *cache_path;
 
     ngx_memzero(result, sizeof(*result));
+
+    /*
+     * Select the configured TCP congestion control on this connection before the
+     * body is streamed.  This single site covers BOTH WebDAV GET and S3 GetObject
+     * (both delegate the body send here), so one apply governs every HTTP download
+     * regardless of which protocol handler opened the file.  The directive
+     * (xrootd_tcp_congestion) is owned by the always-present webdav http module;
+     * reading its per-location conf applies the same sender-side policy (e.g.
+     * "bbr") uniformly.  Empty value => kernel default (no syscall).
+     */
+    {
+        ngx_http_xrootd_webdav_loc_conf_t *wconf =
+            ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+
+        if (wconf != NULL && wconf->tcp_congestion.len > 0
+            && r->connection != NULL
+            && r->connection->fd != (ngx_socket_t) -1)
+        {
+            xrootd_apply_tcp_congestion(r->connection->fd, wconf->tcp_congestion);
+        }
+    }
 
     /* Phase 1: range parse */
     xrootd_http_parse_range(
