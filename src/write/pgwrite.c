@@ -327,7 +327,17 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 		/* Synchronous path: write the entire flat buffer in one syscall. */
 		write_offset = offset;
-		nw = pwrite(ctx->files[idx].fd, flat, flat_sz, (off_t) write_offset);
+		{
+			xrootd_vfs_job_t job;
+
+			xrootd_vfs_job_write_init(&job, ctx->files[idx].fd,
+									  (off_t) write_offset, flat, flat_sz);
+			xrootd_vfs_io_execute(&job);
+			nw = job.nio;
+			if (job.io_errno != 0) {
+				errno = job.io_errno;
+			}
+		}
 		if (nw < 0) {
 			snprintf(write_detail, sizeof(write_detail), "%lld+%zu",
 					 (long long) offset, flat_sz);

@@ -398,11 +398,34 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         xrootd_dirlist_aio_t *t;
         ngx_flag_t            posted;
         u_char               *response_buf;
+        int                   aio_dirfd;
 
-        XROOTD_PALLOC_OR_RETURN(response_buf, c->pool, XROOTD_DIRLIST_AIO_RESPONSE_MAX, NGX_ERROR);
+        aio_dirfd = xrootd_open_beneath(conf->rootfd, reqpath,
+                                        O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
+        if (aio_dirfd < 0) {
+            int err = errno;
+
+            if (err == ENOTDIR) {
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                                  "-", kXR_NotFile, "path is not a directory");
+            }
+            if (err == ENOENT) {
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                                  "-", kXR_NotFound, "directory not found");
+            }
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
+                              "-", kXR_IOError, strerror(err));
+        }
+
+        response_buf = ngx_palloc(c->pool, XROOTD_DIRLIST_AIO_RESPONSE_MAX);
+        if (response_buf == NULL) {
+            close(aio_dirfd);
+            return NGX_ERROR;
+        }
 
         task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_dirlist_aio_t));
         if (task == NULL) {
+            close(aio_dirfd);
             return NGX_ERROR;
         }
 
@@ -414,6 +437,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         t->streamid[1]  = ctx->cur_streamid[1];
         t->want_stat    = want_stat;
         t->want_cksum   = want_cksum;
+        t->dirfd        = aio_dirfd;
         t->response     = response_buf;
         t->response_cap = XROOTD_DIRLIST_AIO_RESPONSE_MAX;
         t->response_len = 0;
@@ -436,6 +460,9 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         if (posted) {
             return NGX_OK;
         }
+
+        close(aio_dirfd);
+        t->dirfd = -1;
 
         /* Pool queue was full — fall through to the synchronous path. */
     }

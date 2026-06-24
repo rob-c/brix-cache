@@ -415,12 +415,19 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
         size_t       response_bytes;
         ngx_chain_t *rsp_chain;
         char         error_message[128];
+        xrootd_vfs_job_t job;
 
         error_message[0] = '\0';
-        if (xrootd_readv_read_segments(segment_descs, segment_count,
-                                       &bytes_read_total, error_message,
-                                       sizeof(error_message)) != NGX_OK)
-        {
+        ngx_memzero(&job, sizeof(job));
+        job.op = XROOTD_VFS_IO_READV;
+        job.segs = segment_descs;
+        job.nsegs = segment_count;
+        job.err_msg = error_message;
+        job.err_msg_cap = sizeof(error_message);
+
+        xrootd_vfs_io_execute(&job);
+
+        if (job.io_errno != 0) {
             ngx_free(segment_descs);
             xrootd_release_read_buffer(ctx, c, response_buffer);
             XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
@@ -429,8 +436,8 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
                                                        : "readv I/O error");
         }
 
-        response_bytes = segment_count * XROOTD_READV_SEGSIZE
-                         + bytes_read_total;
+        bytes_read_total = (size_t) job.nio;
+        response_bytes = job.out_size;
 
         for (segment_index = 0; segment_index < segment_count;
              segment_index++)

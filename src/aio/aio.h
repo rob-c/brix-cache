@@ -3,6 +3,7 @@
 
 #include "../ngx_xrootd_module.h"
 #include "../compat/pgio.h"   /* xrdp_pg_bad_t — pgwrite CSE bad-page list */
+#include "../fs/vfs_io_core.h"
 
 /*
  * AIO — async file I/O via the nginx thread pool, plus response builders.
@@ -109,14 +110,7 @@ void xrootd_trim_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c);
  * therefore pass payload_ptr directly to preadv(), avoiding a copy after I/O
  * completes while keeping the wire headers adjacent to their data.
  */
-typedef struct {
-    int       fd;
-    int       handle_index;
-    off_t     offset;
-    uint32_t  read_length;
-    u_char   *header_read_length_ptr;
-    u_char   *payload_ptr;
-} xrootd_readv_seg_desc_t;
+typedef xrootd_vfs_readv_seg_t xrootd_readv_seg_desc_t;
 
 /* Execute the I/O for a built readv plan: validate every segment (rejects
  * negative offsets and offset+length overflow), coalesce adjacent same-fd
@@ -186,13 +180,7 @@ typedef struct {
     char    err_msg[64];
 } xrootd_readv_aio_t;
 
-typedef struct {
-    int           fd;
-    int           handle_idx;
-    off_t         offset;
-    const u_char *data;
-    uint32_t      wlen;
-} xrootd_writev_seg_desc_t;
+typedef xrootd_vfs_writev_seg_t xrootd_writev_seg_desc_t;
 
 typedef struct {
     ngx_connection_t              *c;
@@ -236,7 +224,7 @@ typedef struct {
  * freed via ngx_pfree after drain), copies auth-checked path/algo/flags
  * into the struct, then posts to the thread pool.
  *
- * The worker thread opens the directory, iterates entries, calls
+ * The worker thread consumes a loop-confined directory fd, iterates entries, calls
  * xrootd_dirlist_checksum_token() when kXR_dcksm is requested, and builds
  * the complete wire response (kXR_oksofar chunks + final kXR_ok frame)
  * directly into response[0..response_len).  No pool access in the thread.
@@ -253,6 +241,7 @@ typedef struct {
     u_char      streamid[2];
     char        resolved[PATH_MAX];  /* absolute path, already auth-checked   */
     char        cksum_algo[32];      /* e.g. "adler32", "sha256"              */
+    int         dirfd;               /* beneath-confined directory fd         */
     ngx_flag_t  want_stat;
     ngx_flag_t  want_cksum;
     u_char     *response;            /* ngx_palloc'd; freed after full drain  */

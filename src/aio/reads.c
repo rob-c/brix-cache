@@ -8,11 +8,11 @@
  *       (xrootd_read_window_pump / _emit) streams a large memory-backed
  *       (TLS / non-regular) read as fill->drain->fill chunks. (2) Plain
  *       kXR_read AIO (xrootd_read_aio_thread / _done) offloads a single
- *       pread(2) to a worker thread and returns one chained response.
+ *       file reads to a worker thread and returns one chained response.
  *       (3) pgread AIO (xrootd_pgread_aio_thread / _done) does the same but
  *       interleaves a per-page CRC32C into the wire output.
  *
- * WHY:  pread(2) (and the pgread CRC32C loop) can block; running them on the
+ * WHY:  File I/O (and the pgread CRC32C loop) can block; running them on the
  *       nginx event-loop thread would stall every other connection on this
  *       worker. The thread pool absorbs the blocking syscall and CPU-bound
  *       checksum so the event loop stays responsive.
@@ -196,16 +196,25 @@ xrootd_read_window_pump(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         /*
          * Inline fallback (no pool configured, or post failed): do the blocking
-         * pread on the event-loop thread for this one window only, then let the
-         * for(;;) loop pick up the next window. Bounded to a single window so a
-         * large read can never monopolise the loop for more than XROOTD_READ_WINDOW.
+         * VFS read on the event-loop thread for this one window only, then let
+         * the for(;;) loop pick up the next window. Bounded to a single window
+         * so a large read can never monopolise the loop for more than
+         * XROOTD_READ_WINDOW.
          */
-        nread = pread(ctx->rd_win_fd, databuf, want, ctx->rd_win_offset);
-        if (xrootd_read_window_emit(ctx, c, nread, nread < 0 ? errno : 0)
-            == NGX_ERROR)
         {
-            xrootd_aio_resume(c);
-            return;
+            xrootd_vfs_job_t job;
+
+            xrootd_vfs_job_read_init(&job, ctx->rd_win_fd,
+                                      ctx->rd_win_offset, want, databuf,
+                                      want, 0);
+            xrootd_vfs_io_execute(&job);
+            nread = job.nio;
+            if (xrootd_read_window_emit(ctx, c, nread, job.io_errno)
+                == NGX_ERROR)
+            {
+                xrootd_aio_resume(c);
+                return;
+            }
         }
         if (ctx->state == XRD_ST_SENDING) {
             return;   /* async send: send.c resumes the pump on drain */
@@ -218,7 +227,7 @@ xrootd_read_window_pump(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * xrootd_read_aio_thread — thread-pool worker for kXR_read.
  *
  * Runs on a worker thread; must not touch nginx state, connection pools, or
- * any field that is not owned by the task struct.  Only the blocking pread(2)
+ * any field that is not owned by the task struct.  Only the blocking VFS core
  * syscall belongs here; all protocol work happens in the done callback on the
  * main thread.
  *
@@ -229,15 +238,18 @@ void
 xrootd_read_aio_thread(void *data, ngx_log_t *log)
 {
     xrootd_read_aio_t *t = data;
+    xrootd_vfs_job_t   job;
 
     /*
-     * Worker threads do the blocking syscall only; all protocol state updates
-     * stay on the event-loop side in the completion callback.
+     * Worker threads execute the VFS-owned thread-safe core only; all protocol
+     * state updates stay on the event-loop side in the completion callback.
      */
-    t->nread = pread(t->fd, t->databuf, t->rlen, t->offset);
-    if (t->nread < 0) {
-        t->io_errno = errno;
-    }
+    xrootd_vfs_job_read_init(&job, t->fd, t->offset, t->rlen,
+                             t->databuf, t->rlen, 0);
+    xrootd_vfs_io_execute(&job);
+
+    t->nread = job.nio;
+    t->io_errno = job.io_errno;
 }
 
 /*
@@ -374,10 +386,16 @@ void
 xrootd_pgread_aio_thread(void *data, ngx_log_t *log)
 {
     xrootd_pgread_aio_t *t = data;
+    xrootd_vfs_job_t     job;
 
-    t->out_size = xrootd_pgread_read_encode_inplace(t->fd, t->offset, t->rlen,
-                                                    t->scratch, &t->nread,
-                                                    &t->io_errno);
+    xrootd_vfs_job_read_init(&job, t->fd, t->offset, t->rlen,
+                             t->scratch, t->rlen, 0);
+    job.op = XROOTD_VFS_IO_PGREAD;
+    xrootd_vfs_io_execute(&job);
+
+    t->out_size = job.out_size;
+    t->nread = job.nio;
+    t->io_errno = job.io_errno;
 }
 
 /*

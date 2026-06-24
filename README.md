@@ -174,17 +174,17 @@ Not sure which mode you need? The decision only takes 30 seconds:
 
 ```mermaid
 graph TD
-    A[What do you want to achieve?] --> B{Replace or augment an existing xrootd server?}
-    B -->|Yes| C[Mode 1: Standalone Server]
-    B -->|No| D{Add TLS/auth/metrics in front of an existing XRootD service?}
-    D -->|Yes| E[Mode 2: Transparent Proxy]
-    D -->|No| F{Expose WebDAV through HTTPS perimeter? (WLCG token auth, browser access)}
-    F -->|Yes| G[Mode 3: WebDAV Perimeter Proxy]
-    F -->|No| H[Use multiple modes in the same nginx instance]
+    A["What do you want to achieve?"] --> B{"Replace or augment an existing xrootd server?"}
+    B -->|Yes| C["Mode 1: Standalone Server"]
+    B -->|No| D{"Add TLS/auth/metrics in front of an existing XRootD service?"}
+    D -->|Yes| E["Mode 2: Transparent Proxy"]
+    D -->|No| F{"Expose WebDAV through HTTPS perimeter? (WLCG token auth, browser access)"}
+    F -->|Yes| G["Mode 3: WebDAV Perimeter Proxy"]
+    F -->|No| H["Use multiple modes in the same nginx instance"]
 
-    C -.-> |Read more| DM1[/Deployment Modes/]
-    E -.-> |Read more| PMG[/Proxy Mode Guide/]
-    G -.-> |Read more| WDO[/WebDAV Overview/]
+    C -.->|Read more| DM1[/"Deployment Modes"/]
+    E -.->|Read more| PMG[/"Proxy Mode Guide"/]
+    G -.->|Read more| WDO[/"WebDAV Overview"/]
 ```
 
 ---
@@ -360,6 +360,9 @@ source-verified tool matrix, examples, and current limitations.
 | GSI / x509 proxy certificates | Yes | Yes | — |
 | WLCG / JWT bearer tokens | Yes | Yes | — |
 | SSS (shared secret) | Yes | — | — |
+| Host (reverse-DNS allowlist) | Yes | — | — |
+| Password (`pwd` / XrdSecpwd) | Yes | — | — |
+| Kerberos 5 | Yes | — | — |
 
 Every GSI session enforces `kXR_sigver` HMAC-SHA256 request signing. WLCG token scopes (`storage.read`, `storage.write`, `storage.create`) are checked per-path and configurable per location. [Auth Overview](docs/06-authentication/auth-overview.md) explains the layered security model; [PKI Config](docs/06-authentication/pki-config.md) walks through the certificate and JWKS setup.
 
@@ -381,7 +384,9 @@ All 32 active opcodes are implemented — `open`, `read`, `pgread`, `readv`, `wr
 - **Native client tools:** clean-room `xrdcp`, `xrdfs`, `xrddiag`, checksum
   utilities, GSI/SSS helpers, FUSE mounts, POSIX preload, and `libxrdc`
 - **Auth:** anonymous, GSI/x509 proxy certs with `kXR_sigver` signing,
-  WLCG/JWT bearer tokens (scope enforcement), SSS shared secret
+  WLCG/JWT bearer tokens (scope enforcement), SSS shared secret,
+  host (reverse-DNS allowlist), password (XrdSecpwd DH-bootstrapped),
+  Kerberos 5
 - **TLS:** in-protocol `root://` upgrade (`kXR_wantTLS`/`kXR_ableTLS`),
   `roots://` TLS-from-byte-one, HTTPS for WebDAV and S3
 - **Transparent XRootD proxy:** lazy upstream connect, file-handle translation,
@@ -571,7 +576,8 @@ Docs are organized as a learning path — newcomers follow 01 → 02 → … and
 | **07 — Security** | Hardening and security model | [Security Hardening Guide](docs/07-security/hardening-guide.md) |
 | **08 — Metrics & Monitoring** | Prometheus metrics, HTTPS dashboard, access logging | [Monitoring Guide](docs/08-metrics-monitoring/monitoring-guide.md), [Dashboard Feature Ideas](docs/08-metrics-monitoring/dashboard-feature-ideas.md) |
 | **09 — Developer Guide** | Contributing, testing, development workflow | [Dev Workflow](docs/09-developer-guide/dev-workflow.md), [Testing Runbook](docs/09-developer-guide/testing-runbook.md), [Feature Roadmap](docs/09-developer-guide/feature-roadmap.md), [Contributing](docs/09-developer-guide/contributing.md) |
-| **10 — Reference** | Deep technical reference (advanced) | [XRootD Concepts Deep](docs/10-reference/xrootd-concepts-deep.md), [Protocol Notes](docs/10-reference/protocol-notes.md), [Quirks & Compromises](docs/10-reference/quirks.md) |
+| **Architecture** | Architecture diagrams, data-path traces, plane-by-plane design | [Architecture Overview](docs/10-architecture/overview.md), [Request Lifecycle](docs/10-architecture/index.md) |
+| **Reference** | Deep technical reference (advanced) | [XRootD Concepts Deep](docs/10-reference/xrootd-concepts-deep.md), [Protocol Notes](docs/10-reference/protocol-notes.md), [Quirks & Compromises](docs/10-reference/quirks.md) |
 
 Start at [docs/index.md](docs/index.md) for a guided path based on your experience level.
 

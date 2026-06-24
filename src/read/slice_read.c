@@ -364,9 +364,17 @@ xrootd_read_from_slices(xrootd_ctx_t *ctx, ngx_connection_t *c,
         off_t  soff = slices[i].req_start - slices[i].file_start;
         size_t slen = (size_t) (slices[i].req_end - slices[i].req_start);
         int    sfd;
+        xrootd_vfs_job_t job;
 
         sfd = open(slices[i].path, O_RDONLY | O_CLOEXEC | O_NOCTTY);
-        if (sfd < 0 || pread(sfd, ptr, slen, soff) != (ssize_t) slen) {
+        if (sfd < 0) {
+            ngx_free(buf);
+            return xrootd_send_error(ctx, c, kXR_IOError, "slice read failed");
+        }
+
+        xrootd_vfs_job_read_init(&job, sfd, soff, slen, ptr, slen, 0);
+        xrootd_vfs_io_execute(&job);
+        if (job.io_errno != 0 || job.nio < 0 || (size_t) job.nio != slen) {
             if (sfd >= 0) {
                 close(sfd);
             }

@@ -5,7 +5,7 @@
  *       thread-pool worker, freeing the nginx event loop to serve other
  *       connections while a large or slow-media directory is being scanned.
  *
- * WHY: readdir(3) + fstatat(2) + fgetxattr(2)/hash-on-miss can block for tens
+ * WHY: directory iteration + fstatat(2) + fgetxattr(2)/hash-on-miss can block for tens
  *      to hundreds of milliseconds on spinning disk or network-backed storage.
  *      Running these on the event loop stalls all connections sharing that
  *      worker process.  Posting to the nginx thread pool lets I/O block on a
@@ -65,233 +65,37 @@
 #define DIRLIST_CHUNK_CAP  65536UL
 
 /*
- * xrootd_dirlist_aio_thread — worker: open dir, iterate, build wire response.
+ * xrootd_dirlist_aio_thread — worker: execute confined dirlist VFS job.
  *
  * THREAD SAFETY RULES (enforced here):
  *   - NO pool allocation (ngx_palloc / ngx_pcalloc / ngx_palloc_large).
  *   - NO nginx connection state access (c->log is stale once on a thread).
- *   - Use only POSIX calls, memcpy, snprintf, and the pure-computation helpers
- *     (xrootd_dirlist_checksum_token, xrootd_dirlist_make_dcksm_stat_body,
- *      xrootd_make_stat_body, xrootd_build_resp_hdr).
- *   - Use the `log` parameter provided by the thread pool for any logging.
+ *   - Use only the VFS worker-safe execution core and task-owned fields.
  */
 void
 xrootd_dirlist_aio_thread(void *data, ngx_log_t *log)
 {
     ngx_thread_task_t    *task = data;
     xrootd_dirlist_aio_t *t    = task->ctx;
-    DIR                  *dp;
-    struct dirent        *de;
-    int                   dfd;
-    u_char               *out  = t->response;
-    size_t                cap  = t->response_cap;
-
-    /*
-     * Response wire layout:
-     *
-     *   base       = start of the current chunk's ServerResponseHdr
-     *   cdata      = out + base + XRD_RESPONSE_HDR_LEN  (data area)
-     *   cdpos      = bytes written so far into cdata
-     *
-     * When a chunk fills up we write its kXR_oksofar header at `out + base`,
-     * advance base to the next chunk, and start fresh.
-     */
-    size_t   base  = 0;       /* position of current chunk header in out[]  */
-    u_char  *cdata;           /* data area of current chunk                 */
-    size_t   cdpos = 0;       /* bytes written in current chunk data area   */
+    xrootd_vfs_job_t      job;
 
     t->response_len = 0;
     t->io_errno     = 0;
     t->err_msg[0]   = '\0';
 
-    /* Verify the buffer is large enough for at least one chunk. */
-    if (cap < (size_t)(XRD_RESPONSE_HDR_LEN + DIRLIST_CHUNK_CAP)) {
-        t->io_errno = ENOMEM;
-        ngx_snprintf((u_char *) t->err_msg, sizeof(t->err_msg) - 1,
-                     "response buffer too small");
-        return;
+    xrootd_vfs_job_opendir_init(&job, t->dirfd, t->response, t->response_cap,
+                                t->streamid, t->want_stat, t->want_cksum,
+                                t->resolved, t->cksum_algo, log,
+                                t->err_msg, sizeof(t->err_msg));
+    xrootd_vfs_io_execute(&job);
+
+    t->response_len = job.out_size;
+    t->io_errno = job.io_errno;
+
+    if (t->dirfd >= 0) {
+        close(t->dirfd);
+        t->dirfd = -1;
     }
-
-    /* Open the directory directly; no xrootd_open_confined() here because
-     * the path was already validated and confined on the main thread. */
-    dfd = open(t->resolved, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    if (dfd < 0) {
-        t->io_errno = errno;
-        ngx_snprintf((u_char *) t->err_msg, sizeof(t->err_msg) - 1,
-                     "%s", strerror(errno));
-        return;
-    }
-
-    dp = fdopendir(dfd);
-    if (dp == NULL) {
-        t->io_errno = errno;
-        ngx_snprintf((u_char *) t->err_msg, sizeof(t->err_msg) - 1,
-                     "%s", strerror(errno));
-        close(dfd);
-        return;
-    }
-
-    /* Initialise first chunk data pointer. */
-    cdata = out + XRD_RESPONSE_HDR_LEN;
-
-    /*
-     * kXR_dstat leadin: the "." pseudo-entry with an empty stat body.
-     * Format: ".\n<stat_body>\n"  where stat_body is "0 0 0 0".
-     */
-    if (t->want_stat) {
-        static const char dstat_leadin[] = ".\n0 0 0 0\n";
-        memcpy(cdata, dstat_leadin, sizeof(dstat_leadin) - 1);
-        cdpos = sizeof(dstat_leadin) - 1;
-    }
-
-    while ((de = readdir(dp)) != NULL) {
-        const char *name = de->d_name;
-        size_t      nlen;
-        struct stat entry_st;
-        char        statbuf[256];
-        char        cksum_token[EVP_MAX_MD_SIZE * 2 + 64];
-        char        entry_path[PATH_MAX];
-        size_t      need;
-        int         n;
-
-        /* Skip self and parent. */
-        if (name[0] == '.' && (name[1] == '\0'
-                                || (name[1] == '.' && name[2] == '\0')))
-        {
-            continue;
-        }
-
-        /* Skip this gateway's internal control artifacts (e.g. the checkpoint
-         * recovery lock ".nginx-xrootd-ckp-recovery.lock") so they never appear
-         * in the user-visible namespace — a stock XRootD export has no such
-         * files, and a conformance dirlist must match. */
-        if (ngx_strncmp(name, ".nginx-xrootd", sizeof(".nginx-xrootd") - 1) == 0) {
-            continue;
-        }
-
-        /* Skip entries whose names contain control characters or DEL —
-         * they would corrupt the newline-delimited wire format. */
-        {
-            const u_char *p;
-            int           unsafe = 0;
-
-            for (p = (const u_char *) name; *p != '\0'; p++) {
-                if (*p < 0x20 || *p == 0x7f) {
-                    unsafe = 1;
-                    break;
-                }
-            }
-            if (unsafe) {
-                ngx_log_error(NGX_LOG_WARN, log, 0,
-                    "xrootd: dirlist (aio) skipping entry with control bytes");
-                continue;
-            }
-        }
-
-        nlen = strlen(name);
-        need = nlen + 1;     /* name + '\n' */
-        statbuf[0]    = '\0';
-        cksum_token[0] = '\0';
-
-        if (t->want_stat) {
-            if (fstatat(dirfd(dp), name, &entry_st,
-                        AT_SYMLINK_NOFOLLOW) != 0)
-            {
-                if (errno != ENOENT) {
-                    ngx_log_error(NGX_LOG_WARN, log, errno,
-                        "xrootd: dirlist (aio) fstatat failed");
-                }
-                continue;
-            }
-
-            if (t->want_cksum) {
-                xrootd_dirlist_make_dcksm_stat_body(&entry_st, statbuf,
-                                                    sizeof(statbuf));
-            } else {
-                xrootd_make_stat_body(&entry_st, 0, 0, statbuf,
-                                      sizeof(statbuf));
-            }
-            need += strlen(statbuf) + 1;   /* stat body + '\n' */
-        }
-
-        if (t->want_cksum && t->want_stat) {
-            n = snprintf(entry_path, sizeof(entry_path), "%s/%s",
-                         t->resolved, name);
-            if (n < 0 || (size_t) n >= sizeof(entry_path)) {
-                snprintf(cksum_token, sizeof(cksum_token),
-                         "%s:none", t->cksum_algo);
-            } else {
-                xrootd_dirlist_checksum_token(log, dirfd(dp), name,
-                                              entry_path, &entry_st,
-                                              t->cksum_algo,
-                                              cksum_token,
-                                              sizeof(cksum_token));
-            }
-            /* " [ algo:hex ]" */
-            need += strlen(cksum_token) + sizeof(" [  ]") - 1;
-        }
-
-        /* If this entry would overflow the current chunk, flush it first. */
-        if (cdpos + need > DIRLIST_CHUNK_CAP) {
-            xrootd_build_resp_hdr(t->streamid, kXR_oksofar,
-                                  (uint32_t) cdpos,
-                                  (ServerResponseHdr *)(out + base));
-            base  += XRD_RESPONSE_HDR_LEN + cdpos;
-
-            /* Check whether there's room for at least one more chunk. */
-            if (base + XRD_RESPONSE_HDR_LEN + DIRLIST_CHUNK_CAP > cap) {
-                ngx_log_error(NGX_LOG_WARN, log, 0,
-                    "xrootd: dirlist (aio) response buffer full "
-                    "(%uz bytes), listing truncated",
-                    cap);
-                t->io_errno = E2BIG;
-                snprintf(t->err_msg, sizeof(t->err_msg),
-                         "listing too large for AIO buffer (%zu bytes)", cap);
-                closedir(dp);
-                return;
-            }
-
-            cdata = out + base + XRD_RESPONSE_HDR_LEN;
-            cdpos = 0;
-        }
-
-        /* Write the entry name. */
-        memcpy(cdata + cdpos, name, nlen);
-        cdpos += nlen;
-        cdata[cdpos++] = '\n';
-
-        /* Write stat body and optional checksum token. */
-        if (t->want_stat) {
-            size_t slen = strlen(statbuf);
-
-            memcpy(cdata + cdpos, statbuf, slen);
-            cdpos += slen;
-
-            if (t->want_cksum) {
-                n = snprintf((char *)(cdata + cdpos),
-                             DIRLIST_CHUNK_CAP - cdpos,
-                             " [ %s ]", cksum_token);
-                if (n > 0) {
-                    cdpos += (size_t) n;
-                }
-            }
-
-            cdata[cdpos++] = '\n';
-        }
-    }
-
-    closedir(dp);
-
-    /*
-     * Write the final kXR_ok frame.
-     * The last '\n' becomes '\0' per the XRootD wire convention.
-     */
-    if (cdpos > 0) {
-        cdata[cdpos - 1] = '\0';
-    }
-    xrootd_build_resp_hdr(t->streamid, kXR_ok, (uint32_t) cdpos,
-                          (ServerResponseHdr *)(out + base));
-    t->response_len = base + XRD_RESPONSE_HDR_LEN + cdpos;
 }
 
 /*
@@ -360,4 +164,3 @@ xrootd_dirlist_aio_done(ngx_event_t *ev)
 
     xrootd_aio_resume(c);
 }
-

@@ -24,9 +24,9 @@
  *       same plaintext, hence an equivalent frame).  The plaintext window is
  *       staged in ctx->read_scratch and the codec output in ctx->cmp_scratch —
  *       both raw-alloc'd session-lifetime keep-slots (xrootd_get_pool_scratch /
- *       xrootd_release_read_buffer).  To stay event-loop friendly the read is
- *       synchronous but clamped to XROOTD_READ_CHUNK_MAX; a larger client
- *       request simply gets a short (but legal) read and asks again.
+ *       xrootd_release_read_buffer).  To stay event-loop friendly the VFS-core
+ *       read is synchronous but clamped to XROOTD_READ_CHUNK_MAX; a larger
+ *       client request simply gets a short (but legal) read and asks again.
  */
 
 #include "read.h"
@@ -36,6 +36,7 @@
 #include "../response/response.h"
 #include "prefetch.h"
 
+#include <errno.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -165,11 +166,20 @@ xrootd_read_compressed(xrootd_ctx_t *ctx, ngx_connection_t *c,
     xrootd_prefetch_read_file(c->log, &ctx->files[idx], offset, data_total,
                               file_size);
 
-    nread = pread(fd, plain, data_total, offset);
-    if (nread < 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_READ, "READ",
-                          ctx->files[idx].path, "-",
-                          kXR_IOError, strerror(errno));
+    {
+        xrootd_vfs_job_t job;
+
+        xrootd_vfs_job_read_init(&job, fd, offset, data_total, plain,
+                                  data_total, 0);
+        xrootd_vfs_io_execute(&job);
+        nread = job.nio;
+        if (job.io_errno != 0 || nread < 0) {
+            int err = job.io_errno != 0 ? job.io_errno : EIO;
+
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_READ, "READ",
+                              ctx->files[idx].path, "-",
+                              kXR_IOError, strerror(err));
+        }
     }
     data_total = (size_t) nread;
 

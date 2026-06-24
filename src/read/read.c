@@ -433,11 +433,29 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             if (posted) {
                 return NGX_OK;
             }
-            nread = pread(fd, databuf, rlen, (off_t) offset);
+            {
+                xrootd_vfs_job_t job;
+
+                xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
+                                          databuf, rlen, 0);
+                xrootd_vfs_io_execute(&job);
+                nread = job.nio;
+                if (job.io_errno != 0) {
+                    errno = job.io_errno;
+                }
+            }
 
         } else {
+            xrootd_vfs_job_t job;
+
             /* No thread pool configured: read inline on the event loop. */
-            nread = pread(fd, databuf, rlen, (off_t) offset);
+            xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
+                                      databuf, rlen, 0);
+            xrootd_vfs_io_execute(&job);
+            nread = job.nio;
+            if (job.io_errno != 0) {
+                errno = job.io_errno;
+            }
         }
     }
     if (nread < 0) {

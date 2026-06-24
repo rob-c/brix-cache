@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <unistd.h>
 
 #if defined(__linux__)
@@ -13,11 +14,11 @@
 
 /* ---- File: source.c — TPC remote source pull (open → read loop → close) ----
  *
- * WHAT: Single public function `tpc_pull_from_source()` executes the complete native XRootD third-party-copy fetch from a remote origin into dst_fd. Phase 1 → builds ClientOpenRequest with src_path + opaque key/org params, sends kXR_open to remote, receives ServerOpenBody fhandle (handles both minimal 4-byte and full 12+ byte responses), extracts fhandle; Phase 2 → streaming read loop via repeated kXR_read requests at TPC_CHUNK_SIZE offsets, accumulates kXR_oksofar + kXR_ok frames per request, writes each frame's body bytes to dst_fd via write() (EINTR retry), tracks offset advancement and total bytes_written; Phase 3 → fsync(dst_fd) for durability, sets result=NGX_OK/xrd_error=0, best-effort remote close via kXR_close. Returns -1 on failure with error message + xrd_error code, 0 on success.
+ * WHAT: Single public function `tpc_pull_from_source()` executes the complete native XRootD third-party-copy fetch from a remote origin into dst_fd. Phase 1 → builds ClientOpenRequest with src_path + opaque key/org params, sends kXR_open to remote, receives ServerOpenBody fhandle (handles both minimal 4-byte and full 12+ byte responses), extracts fhandle; Phase 2 → streaming read loop via repeated kXR_read requests at TPC_CHUNK_SIZE offsets, accumulates kXR_oksofar + kXR_ok frames per request, writes each frame's body bytes to dst_fd through the VFS core, tracks offset advancement and total bytes_written; Phase 3 → syncs dst_fd through the VFS core for durability, sets result=NGX_OK/xrd_error=0, best-effort remote close via kXR_close. Returns -1 on failure with error message + xrd_error code, 0 on success.
  *
  * WHY: TPC (Third-Party Copy) transfers require the destination server to connect to a remote root:// origin, open the source file, stream all bytes into dst_fd, and close the remote handle. This function encapsulates the entire pull lifecycle — open → read loop → fsync → close — so launch.c/thread.c can delegate it to a thread-pool worker without managing the protocol sequence themselves. Handles peer diversity (minimal vs full ServerOpenBody), oksofar accumulation for large reads, EINTR-safe writes, and best-effort remote cleanup on failure paths.
  *
- * HOW: Build open_buf with ClientOpenRequest header + src_path + opaque "?tpc.key=...&tpc.org=..." → send_all(fd) kXR_open → recv_response fd status/body → check kXR_ok + dlen>=XRD_FHANDLE_LEN → memcpy fhandle → free(body) → offset=0 loop: build ClientReadRequest with streamid[1]=3, kXR_read, fhandle, htobe64(offset), htonl(TPC_CHUNK_SIZE) → send_all → inner for-loop: recv_response accumulating kXR_oksofar/kXR_ok frames → write body bytes to dst_fd (EINTR continue, failure=break) → got_this_req+=dlen → offset+=got_this_req → outer loop exits when done=1(got_this_req==0/EOF) or failed=1 → fsync(dst_fd) → shared remote-close ladder: build ClientCloseRequest with kXR_close + fhandle → send_all + recv_response (best-effort, discard result). */
+ * HOW: Build open_buf with ClientOpenRequest header + src_path + opaque "?tpc.key=...&tpc.org=..." → send_all(fd) kXR_open → recv_response fd status/body → check kXR_ok + dlen>=XRD_FHANDLE_LEN → memcpy fhandle → free(body) → offset=0 loop: build ClientReadRequest with streamid[1]=3, kXR_read, fhandle, htobe64(offset), htonl(TPC_CHUNK_SIZE) → send_all → inner for-loop: recv_response accumulating kXR_oksofar/kXR_ok frames → write body bytes to dst_fd using a positional VFS WRITE job at offset+got_this_req → got_this_req+=dlen → offset+=got_this_req → outer loop exits when done=1(got_this_req==0/EOF) or failed=1 → VFS SYNC dst_fd → shared remote-close ladder: build ClientCloseRequest with kXR_close + fhandle → send_all + recv_response (best-effort, discard result). */
 
 /* ------------------------------------------------------------------ */
 /* Remote file open, streaming read loop, and protocol-level close       */
@@ -241,32 +242,37 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
             }
 
             if (dlen > 0 && body != NULL) {
-                /* Drain this frame fully to dst_fd: write() may return short,
-                 * so advance wp/wrem until the whole frame is committed. EINTR
-                 * is retried; any other short/zero/negative write is fatal. */
-                const u_char *wp   = body;
-                uint32_t      wrem = dlen;
-                while (wrem > 0) {
-                    ssize_t wn = write(t->dst_fd, wp, wrem);
-                    if (wn < 0 && errno == EINTR) {
-                        continue;
-                    }
-                    if (wn <= 0) {
-                        snprintf(t->err_msg, sizeof(t->err_msg),
-                                 "TPC dst write failed: %s", strerror(errno));
-                        t->xrd_error = kXR_IOError;
-                        free(body);
-                        failed = 1;
-                        break;
-                    }
-                    wp   += (size_t) wn;
-                    wrem -= (size_t) wn;
-                }
-                if (failed) {
+                xrootd_vfs_job_t job;
+                off_t            dst_offset;
+
+                if (offset > (uint64_t) LLONG_MAX - (uint64_t) got_this_req) {
+                    snprintf(t->err_msg, sizeof(t->err_msg),
+                             "TPC dst write offset too large");
+                    t->xrd_error = kXR_IOError;
+                    free(body);
+                    failed = 1;
                     break;
                 }
-                got_this_req += dlen;
-                t->bytes_written += dlen;
+
+                dst_offset = (off_t) (offset + (uint64_t) got_this_req);
+                xrootd_vfs_job_write_init(&job, t->dst_fd, dst_offset, body,
+                                           (size_t) dlen);
+                xrootd_vfs_io_execute(&job);
+                if (job.io_errno != 0 || job.nio < 0
+                    || (uint32_t) job.nio != dlen)
+                {
+                    int err = job.io_errno != 0 ? job.io_errno : EIO;
+
+                    snprintf(t->err_msg, sizeof(t->err_msg),
+                             "TPC dst write failed: %s", strerror(err));
+                    t->xrd_error = kXR_IOError;
+                    free(body);
+                    failed = 1;
+                    break;
+                }
+
+                got_this_req += (size_t) job.nio;
+                t->bytes_written += (size_t) job.nio;
                 (void) xrootd_tpc_progress_emit(
                     t->transfer_id, (off_t) t->bytes_written, 0,
                     XROOTD_TPC_STATE_ACTIVE,
@@ -303,18 +309,24 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
             t->xrd_error = kXR_IOError;
         }
         rc = -1;
-    } else if (fsync(t->dst_fd) != 0) {
-        /* fsync before declaring success: TPC durability guarantee — the
-         * client's kXR_open/sync reply must not be sent until bytes are on
-         * stable storage. */
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC dst fsync failed: %s", strerror(errno));
-        t->xrd_error = kXR_IOError;
-        rc = -1;
     } else {
-        t->result    = NGX_OK;
-        t->xrd_error = 0;
-        rc = 0;
+        xrootd_vfs_job_t job;
+
+        xrootd_vfs_job_sync_init(&job, t->dst_fd);
+        xrootd_vfs_io_execute(&job);
+        if (job.io_errno != 0) {
+            /* Sync before declaring success: TPC durability guarantee — the
+             * client's kXR_open/sync reply must not be sent until bytes are on
+             * stable storage. */
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC dst fsync failed: %s", strerror(job.io_errno));
+            t->xrd_error = kXR_IOError;
+            rc = -1;
+        } else {
+            t->result    = NGX_OK;
+            t->xrd_error = 0;
+            rc = 0;
+        }
     }
 
     /*

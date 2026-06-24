@@ -496,6 +496,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/pmark/flowlabel.c \
     $ngx_addon_dir/src/types/identity.c \
     $ngx_addon_dir/src/fs/vfs_open.c \
+    $ngx_addon_dir/src/fs/vfs_io_core.c \
     $ngx_addon_dir/src/fs/vfs_read.c \
     $ngx_addon_dir/src/fs/vfs_write.c \
     $ngx_addon_dir/src/fs/vfs_stat.c \

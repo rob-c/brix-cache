@@ -7,8 +7,9 @@
  *       xrootd_write_compress on.  The request payload is ONE self-contained
  *       codec frame (the symmetric inverse of W4's per-request read frames); the
  *       server decompresses it under a decompression-bomb guard and streams the
- *       recovered plaintext to pwrite() at the request offset, storing the file
- *       plaintext on disk.  The client thus trades CPU for upload-wire bytes.
+ *       recovered plaintext through the VFS write core at the request offset,
+ *       storing the file plaintext on disk.  The client thus trades CPU for
+ *       upload-wire bytes.
  *
  * WHY:  This is the write-direction counterpart of W4 (read decompression) and
  *       the last plan workstream (W5).  It is deliberately ISOLATED from the
@@ -22,9 +23,10 @@
  * HOW:  Each kXR_write is an independent whole-frame, so writes stay offset-
  *       addressable (re-writing the same offset reproduces the same plaintext).
  *       The plaintext is produced into a fixed window (write_scratch) and
- *       pwritten chunk-by-chunk at advancing offsets, so memory stays bounded
- *       regardless of the decompressed size.  A synchronous pwrite keeps the
- *       opt-in path simple; the default path keeps its AIO offload.
+ *       written chunk-by-chunk at advancing offsets through the VFS core, so
+ *       memory stays bounded regardless of the decompressed size.  A
+ *       synchronous VFS write keeps the opt-in path simple; the default path
+ *       keeps its AIO offload.
  */
 
 #include "write.h"
@@ -34,10 +36,11 @@
 #include "../compat/http_body.h"   /* XROOTD_DECODE_MAX_RATIO */
 #include "../response/response.h"
 
+#include <errno.h>
 #include <unistd.h>
 #include <string.h>
 
-/* Fixed plaintext window streamed to pwrite; bounds memory for any output size. */
+/* Fixed plaintext window streamed through VFS; bounds memory for any output size. */
 #define XROOTD_WCMP_WINDOW   (1u << 20)              /* 1 MiB                    */
 /* Absolute ceiling on the plaintext produced from ONE write frame — a bomb that
  * tries to exceed this is rejected (the ratio guard catches the classic case). */
@@ -92,17 +95,22 @@ xrootd_write_compressed(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                                  win, XROOTD_WCMP_WINDOW,
                                                  &out_pos, 1 /* finish */);
         if (out_pos > 0) {
-            ssize_t n = pwrite(fd, win, out_pos, cur);
-            if (n < 0 || (size_t) n != out_pos) {
+            xrootd_vfs_job_t job;
+
+            xrootd_vfs_job_write_init(&job, fd, cur, win, out_pos);
+            xrootd_vfs_io_execute(&job);
+            if (job.io_errno != 0 || job.nio < 0
+                || (size_t) job.nio != out_pos)
+            {
                 /* Capture the write errno NOW: xrootd_codec_close() below runs
                  * backend teardown (free/library cleanup) that may clobber errno
                  * before the io_err branch formats strerror(). */
-                saved_errno = errno;
+                saved_errno = job.io_errno != 0 ? job.io_errno : EIO;
                 io_err = 1;
                 break;
             }
-            cur      += (off_t) out_pos;
-            produced += out_pos;
+            cur      += (off_t) job.nio;
+            produced += (size_t) job.nio;
         }
         if (rc == XROOTD_CODEC_END) {
             break;
