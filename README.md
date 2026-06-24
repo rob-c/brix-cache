@@ -176,7 +176,7 @@ Not sure which mode you need? The decision only takes 30 seconds:
 graph TD
     A[What do you want to achieve?] --> B{Replace or augment<br/>an existing xrootd server?}
     B -->|Yes| C[Mode 1: Standalone Server]
-    B -->|No| D{Add TLS/auth/metrics<br/>in front of an existing XRootD service?}
+    B -->|No| D{Add TLS/auth/metrics in front of an existing XRootD service?}
     D -->|Yes| E[Mode 2: Transparent Proxy]
     D -->|No| F{Expose WebDAV through HTTPS perimeter?<br/>(WLCG token auth, browser access)}
     F -->|Yes| G[Mode 3: WebDAV Perimeter Proxy]
