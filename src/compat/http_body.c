@@ -18,6 +18,7 @@
 #include "http_body.h"
 #include "copy_range.h"
 #include "codec_core.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 
 #include <errno.h>
 #include <unistd.h>
@@ -45,10 +46,15 @@ static ngx_int_t
 xrootd_http_body_pwrite_full(ngx_log_t *log, ngx_fd_t fd, const u_char *data,
     size_t len, off_t *off, const char *path)
 {
+    xrootd_sd_obj_t obj;
+
+    /* Route the raw syscall through the Storage Driver seam (phase-55). */
+    xrootd_sd_posix_wrap(&obj, fd);
+
     while (len > 0) {
         ssize_t n;
 
-        n = pwrite(fd, data, len, *off);
+        n = xrootd_sd_posix_driver.pwrite(&obj, data, len, *off);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;
@@ -310,14 +316,18 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
             }
 
             if (b->in_file) {
-                off_t off = b->file_pos;
+                off_t           off = b->file_pos;
+                xrootd_sd_obj_t obj;
+
+                /* Route the raw syscall through the Storage Driver seam. */
+                xrootd_sd_posix_wrap(&obj, b->file->fd);
 
                 while (off < b->file_last) {
                     size_t  want;
                     ssize_t n;
 
                     want = (size_t) (b->file_last - off);
-                    n = pread(b->file->fd, buf + pos, want, off);
+                    n = xrootd_sd_posix_driver.pread(&obj, buf + pos, want, off);
                     if (n < 0) {
                         if (errno == EINTR) {
                             continue;
@@ -447,7 +457,11 @@ codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
         }
 
         if (b->in_file) {
-            off_t  file_off = b->file_pos;
+            off_t           file_off = b->file_pos;
+            xrootd_sd_obj_t obj;
+
+            /* Route the raw syscall through the Storage Driver seam. */
+            xrootd_sd_posix_wrap(&obj, b->file->fd);
 
             while (file_off < b->file_last) {
                 size_t   want;
@@ -458,7 +472,7 @@ codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
                     want = XROOTD_INFLATE_IN_BUFSZ;
                 }
                 do {
-                    n = pread(b->file->fd, inbuf, want, file_off);
+                    n = xrootd_sd_posix_driver.pread(&obj, inbuf, want, file_off);
                 } while (n < 0 && errno == EINTR);
                 if (n <= 0) {
                     ngx_log_error(NGX_LOG_ERR, log, errno,

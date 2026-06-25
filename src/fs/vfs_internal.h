@@ -45,7 +45,11 @@
 #define XROOTD_VFS_COPY_CHUNK 65536
 
 struct xrootd_vfs_file_s {
-    ngx_fd_t          fd;
+    /* Backend object: carries the open descriptor plus its driver + instance,
+     * so close and (future) data-plane ops route through the storage driver
+     * rather than assuming a raw POSIX fd. obj.fd is the descriptor for fd-based
+     * backends, NGX_INVALID_FILE otherwise. */
+    xrootd_sd_obj_t   obj;
     off_t             size;
     time_t            mtime;
     time_t            ctime;
@@ -78,6 +82,64 @@ struct xrootd_vfs_staged_s {
     ngx_pool_t           *pool;
     ngx_log_t            *log;
 };
+
+/* Build a transient storage-driver object view from a ctx + fd: the bound
+ * instance (or NULL for the default backend), that backend's driver, and the
+ * fd. Used to ask the backend to perform/decide a per-fd operation without the
+ * VFS hard-coding any concrete driver. "No explicit backend" resolves to
+ * xrootd_sd_default_driver() rather than naming POSIX. */
+static ngx_inline void
+xrootd_vfs_ctx_sd_obj(const xrootd_vfs_ctx_t *ctx, ngx_fd_t fd,
+    xrootd_sd_obj_t *obj)
+{
+    ngx_memzero(obj, sizeof(*obj));
+    obj->inst = ctx != NULL ? ctx->sd : NULL;
+    obj->driver = (obj->inst != NULL) ? obj->inst->driver
+                                      : xrootd_sd_default_driver();
+    obj->fd = fd;
+}
+
+/* Same, for an open handle: copy its backend object (driver + instance + fd). */
+static ngx_inline void
+xrootd_vfs_handle_sd_obj(const xrootd_vfs_file_t *fh, xrootd_sd_obj_t *obj)
+{
+    if (fh != NULL) {
+        *obj = fh->obj;
+    } else {
+        xrootd_vfs_ctx_sd_obj(NULL, NGX_INVALID_FILE, obj);
+    }
+}
+
+/* Map the backend's protocol-neutral stat into the VFS stat the callers see. */
+static ngx_inline void
+xrootd_vfs_sd_stat_to_vfs(const xrootd_sd_stat_t *in, xrootd_vfs_stat_t *out)
+{
+    ngx_memzero(out, sizeof(*out));
+    out->size = in->size;
+    out->mtime = in->mtime;
+    out->ctime = in->ctime;
+    out->mode = (ngx_uint_t) in->mode;
+    out->ino = in->ino;
+    out->is_directory = in->is_dir ? 1 : 0;
+    out->is_regular = in->is_reg ? 1 : 0;
+}
+
+/* Ask the handle's backend for a sendfile-able fd over [off, off+len), passing
+ * the VFS's storage-neutral zero-copy verdict; returns the fd, or
+ * NGX_INVALID_FILE when the backend declines (or has no read_sendfile_fd slot).
+ * This is the single place the VFS consults the backend's sendfile decision. */
+static ngx_inline ngx_fd_t
+xrootd_vfs_handle_sendfile_fd(const xrootd_vfs_file_t *fh, off_t off,
+    size_t len, unsigned want_zerocopy)
+{
+    xrootd_sd_obj_t obj;
+
+    xrootd_vfs_handle_sd_obj(fh, &obj);
+    if (obj.driver == NULL || obj.driver->read_sendfile_fd == NULL) {
+        return NGX_INVALID_FILE;
+    }
+    return obj.driver->read_sendfile_fd(&obj, off, len, want_zerocopy);
+}
 
 /* Borrow the ctx's resolved confined path as a NUL-terminated C string.
  * Returns NULL (not "") when ctx or the resolved path is unset; the pointer

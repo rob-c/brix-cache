@@ -30,6 +30,15 @@ without delivering a response frame, wedging `xrdfs` readiness probes in
 one-worker test deployments. Reviewers should treat the synchronous path as the
 live code path.
 
+Since phase-54 the VFS-owned thread-safe core `xrootd_vfs_io_execute()` has an
+`OPENDIR` op (in [`../fs/vfs_io_core.c`](../fs/README.md)) that scans a confined
+directory fd and builds the `kXR_dirlist` wire body off the event loop. **It is
+wired into the `../aio/dirlist.c` worker only** — and that worker is currently
+gated off (see above) — so the **live** path is still the synchronous
+`fdopendir`/`readdir` loop in `handler.c`. Routing that live path through the
+core (and ungating the worker) is the tracked follow-up that finishes bringing
+dirlist into the unified VFS I/O core.
+
 In **manager / redirector mode** the handler does not enumerate locally at all:
 it selects a registered data server via `xrootd_srv_select()`
 (`../manager/registry.h`) and replies with `kXR_redirect`, or `kXR_Overloaded`

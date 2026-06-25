@@ -1,4 +1,5 @@
 #include "cache_internal.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "writethrough_metrics.h"
 #include "../aio/aio.h"
 #include "../path/path.h"   /* xrootd_open_confined — root-confined read-back */
@@ -259,8 +260,10 @@ static int
 xrootd_wt_copy_body(xrootd_cache_fill_t *fill, xrootd_cache_origin_conn_t *oc,
     int fd, off_t file_size, const u_char *fhandle, u_char *buf)
 {
-    off_t offset = 0;
+    off_t           offset = 0;
+    xrootd_sd_obj_t obj;
 
+    xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
     while (offset < file_size) {
         size_t  want;
         ssize_t nread;
@@ -270,7 +273,7 @@ xrootd_wt_copy_body(xrootd_cache_fill_t *fill, xrootd_cache_origin_conn_t *oc,
             want = XROOTD_CACHE_FETCH_CHUNK;
         }
 
-        nread = pread(fd, buf, want, offset);
+        nread = xrootd_sd_posix_driver.pread(&obj, buf, want, offset);
         if (nread < 0) {
             xrootd_cache_set_error(fill, kXR_IOError, errno,
                                    "write-through local read failed");

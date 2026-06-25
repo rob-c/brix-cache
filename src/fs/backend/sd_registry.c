@@ -1,0 +1,143 @@
+/*
+ * sd_registry.c — Storage Driver registry + capability-gated accessors.
+ *
+ * WHAT: Owns the static table of registered drivers (POSIX today; block/object
+ *       later), the name->driver lookup, per-export instance construction and
+ *       teardown, and the small accessor helpers (caps/fd/supports/name) that
+ *       keep callers off the raw vtable.
+ *
+ * WHY:  The VFS must select a backend by config name and obtain a bound instance
+ *       without knowing any driver's internals. Centralizing registration here
+ *       means adding a backend is a one-line table edit plus its sd_<name>.c.
+ *
+ * HOW:  xrootd_sd_instance_create() looks up the driver, pcalloc's an instance,
+ *       and runs the driver's init(). The accessors read the driver caps/fd
+ *       behind NULL-tolerant guards. Phase 55.A registers only "posix".
+ */
+
+#include "sd.h"
+
+#include <errno.h>
+
+/* The driver table. Append a row + its sd_<name>.c to add a backend. */
+static const xrootd_sd_driver_t *const sd_drivers[] = {
+    &xrootd_sd_posix_driver,
+};
+
+/* ---- xrootd_sd_driver_find — resolve a backend name to its driver ----------
+ *
+ * WHAT: Returns the registered driver whose name matches, or NULL.
+ * WHY:  Config parsing and instance creation both map a string to a driver.
+ * HOW:  Linear scan of the small static table (NULL name -> NULL).
+ */
+/* ---- xrootd_sd_default_driver — the backend used when none is selected ------
+ *
+ * WHAT: Returns the driver an export defaults to when it names no backend.
+ * WHY:  Lets the VFS resolve "the default backend" without hard-coding the POSIX
+ *       driver symbol, keeping POSIX knowledge out of the VFS.
+ * HOW:  Return the built-in POSIX driver (the full-featured reference backend).
+ */
+const xrootd_sd_driver_t *
+xrootd_sd_default_driver(void)
+{
+    return &xrootd_sd_posix_driver;
+}
+
+const xrootd_sd_driver_t *
+xrootd_sd_driver_find(const char *name)
+{
+    ngx_uint_t i;
+
+    if (name == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < sizeof(sd_drivers) / sizeof(sd_drivers[0]); i++) {
+        if (ngx_strcmp(sd_drivers[i]->name, name) == 0) {
+            return sd_drivers[i];
+        }
+    }
+    return NULL;
+}
+
+/* ---- xrootd_sd_instance_create — build a bound per-export instance ---------
+ *
+ * WHAT: Allocates an instance for the named driver and runs its init().
+ * WHY:  Each export binds one backend instance at config/worker init time.
+ * HOW:  Find the driver, pcalloc the instance, call init(driver_conf). On an
+ *       init failure or unknown driver, set *err_out and return NULL.
+ */
+xrootd_sd_instance_t *
+xrootd_sd_instance_create(ngx_pool_t *pool, ngx_log_t *log, const char *name,
+    void *driver_conf, int *err_out)
+{
+    const xrootd_sd_driver_t *driver;
+    xrootd_sd_instance_t     *inst;
+
+    driver = xrootd_sd_driver_find(name);
+    if (driver == NULL) {
+        if (err_out != NULL) { *err_out = ENOENT; }
+        return NULL;
+    }
+
+    inst = ngx_pcalloc(pool, sizeof(*inst));
+    if (inst == NULL) {
+        if (err_out != NULL) { *err_out = ENOMEM; }
+        return NULL;
+    }
+
+    inst->driver = driver;
+    inst->log = log;
+    inst->pool = pool;
+
+    if (driver->init != NULL && driver->init(inst, driver_conf) != NGX_OK) {
+        if (err_out != NULL) { *err_out = errno != 0 ? errno : EINVAL; }
+        return NULL;
+    }
+    return inst;
+}
+
+/* ---- xrootd_sd_instance_destroy — tear down an instance -------------------
+ *
+ * WHAT: Runs the driver's cleanup(); the pool reclaims the struct itself.
+ * WHY:  Drivers may hold kernel/transport resources (POSIX rootfd) to release.
+ * HOW:  NULL-safe call into driver->cleanup().
+ */
+void
+xrootd_sd_instance_destroy(xrootd_sd_instance_t *inst)
+{
+    if (inst != NULL && inst->driver != NULL && inst->driver->cleanup != NULL) {
+        inst->driver->cleanup(inst);
+    }
+}
+
+/* ---- accessors ------------------------------------------------------------ */
+
+uint32_t
+xrootd_sd_caps(const xrootd_sd_instance_t *inst)
+{
+    return (inst != NULL && inst->driver != NULL) ? inst->driver->caps : 0;
+}
+
+ngx_fd_t
+xrootd_sd_fd(const xrootd_sd_obj_t *obj)
+{
+    if (obj == NULL || obj->driver == NULL
+        || !(obj->driver->caps & XROOTD_SD_CAP_FD))
+    {
+        return NGX_INVALID_FILE;
+    }
+    return obj->fd;
+}
+
+const char *
+xrootd_sd_backend_name(const xrootd_sd_instance_t *inst)
+{
+    return (inst != NULL && inst->driver != NULL) ? inst->driver->name : "?";
+}
+
+ngx_int_t
+xrootd_sd_supports(const xrootd_sd_instance_t *inst, uint32_t required_caps)
+{
+    return (xrootd_sd_caps(inst) & required_caps) == required_caps
+               ? NGX_OK : NGX_ERROR;
+}

@@ -164,7 +164,10 @@ webdav_handle_get(ngx_http_request_t *r)
     sb.st_mode = (mode_t) vst.mode;
     sb.st_ino = vst.ino;
 
-    fd = xrootd_vfs_file_fd(fh);
+    /* Zero-copy (sendfile) serve fd, gated on the backend's CAP_SENDFILE; a
+     * non-sendfile backend returns NGX_INVALID_FILE and the dup below fails
+     * closed instead of serving from a bogus descriptor. */
+    fd = xrootd_vfs_file_sendfile_fd(fh);
     from_cache = xrootd_vfs_file_from_cache(fh);
     cache_path = xrootd_vfs_file_path(fh);
 

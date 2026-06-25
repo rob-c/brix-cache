@@ -8,6 +8,7 @@
  */
 
 #include "aws_chunked.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "s3.h"
 #include "../compat/http_headers.h"
 #include "../compat/crypto.h"
@@ -186,8 +187,10 @@ s3_chunk_emit(s3_chunk_ctx_t *c, const u_char *p, size_t n)
         s3_chunk_fail(c, NGX_HTTP_BAD_REQUEST);   /* more data than declared */
         return -1;
     }
+    xrootd_sd_obj_t obj;
+    xrootd_sd_posix_wrap(&obj, c->fd);   /* phase-55: SD seam */
     while (n > 0) {
-        ssize_t w = pwrite(c->fd, p, n, c->write_off);
+        ssize_t w = xrootd_sd_posix_driver.pwrite(&obj, p, n, c->write_off);
         if (w < 0) {
             if (errno == EINTR) {
                 continue;
@@ -444,7 +447,10 @@ s3_chunk_feed_buf(s3_chunk_ctx_t *c, ngx_buf_t *b, u_char *window)
     }
 
     if (b->in_file) {
-        off_t off = b->file_pos;
+        off_t           off = b->file_pos;
+        xrootd_sd_obj_t obj;
+
+        xrootd_sd_posix_wrap(&obj, b->file->fd);   /* phase-55: SD seam */
         while (off < b->file_last && c->state != ST_DONE
                && c->state != ST_ERROR)
         {
@@ -453,7 +459,7 @@ s3_chunk_feed_buf(s3_chunk_ctx_t *c, ngx_buf_t *b, u_char *window)
             if (want > S3_CHUNK_READ_WINDOW) {
                 want = S3_CHUNK_READ_WINDOW;
             }
-            n = pread(b->file->fd, window, (size_t) want, off);
+            n = xrootd_sd_posix_driver.pread(&obj, window, (size_t) want, off);
             if (n < 0) {
                 if (errno == EINTR) { continue; }
                 s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);

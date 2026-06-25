@@ -12,6 +12,7 @@
  */
 
 #include "webdav.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "../tpc/common/registry.h"
 #include "../compat/net_target.h"
 #include "../compat/host_format.h"  /* xrootd_format_host — IPv6 bracketing */
@@ -378,9 +379,12 @@ ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
     size_t           total = size * nmemb;
     size_t           done  = 0;
 
+    xrootd_sd_obj_t obj;
+
+    xrootd_sd_posix_wrap(&obj, ctx->fd);   /* phase-55: SD seam */
     while (done < total) {
-        ssize_t n = pwrite(ctx->fd, ptr + done, total - done,
-                           ctx->cur_offset + (off_t) done);
+        ssize_t n = xrootd_sd_posix_driver.pwrite(&obj, ptr + done, total - done,
+                                                  ctx->cur_offset + (off_t) done);
         if (n < 0) {
             if (errno == EINTR) continue;
             return 0;  /* signal error to curl */

@@ -288,6 +288,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/types/identity.h \
                         $ngx_addon_dir/src/fs/vfs.h \
                         $ngx_addon_dir/src/fs/vfs_internal.h \
+                        $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/frm/frm.h \
                         $ngx_addon_dir/src/frm/frm_format.h \
                         $ngx_addon_dir/src/frm/frm_internal.h \
@@ -389,6 +390,7 @@ ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
                         $ngx_addon_dir/src/mirror/mirror.h \
                         $ngx_addon_dir/src/mirror/http_mirror.h \
                         $ngx_addon_dir/src/fs/vfs.h \
+                        $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/cache/open.h \
                         $ngx_addon_dir/src/webdav/xrdhttp.h \
                         $ngx_addon_dir/src/compat/time.h \
@@ -509,6 +511,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs_copy.c \
     $ngx_addon_dir/src/fs/vfs_staged.c \
     $ngx_addon_dir/src/fs/fd_cache.c \
+    $ngx_addon_dir/src/fs/backend/sd_posix.c \
+    $ngx_addon_dir/src/fs/backend/sd_registry.c \
     $ngx_addon_dir/src/config/root_prepare.c \
     $ngx_addon_dir/src/config/http_rootfd.c \
     $ngx_addon_dir/src/config/helpers.c \
@@ -954,6 +958,7 @@ ngx_module_deps="$ngx_addon_dir/src/s3/s3.h \
                  $ngx_addon_dir/src/s3/aws_chunked.h \
                  $ngx_addon_dir/src/s3/tagging.h \
                  $ngx_addon_dir/src/fs/vfs.h \
+                 $ngx_addon_dir/src/fs/backend/sd.h \
                  $ngx_addon_dir/src/cache/open.h \
                  $ngx_addon_dir/src/compat/hex.h \
                  $ngx_addon_dir/src/compat/time.h \
