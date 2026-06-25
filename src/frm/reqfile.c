@@ -22,6 +22,7 @@
  */
 
 #include "frm_internal.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "../compat/crc32c.h"
 
 #include <errno.h>
@@ -208,9 +209,12 @@ frm_file_unlock(frm_queue_t *q)
 static ngx_int_t
 frm_pread_all(int fd, void *buf, size_t len, off_t off, ngx_log_t *log)
 {
-    u_char *p = buf;
+    u_char         *p = buf;
+    xrootd_sd_obj_t obj;
+
+    xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
     while (len > 0) {
-        ssize_t n = pread(fd, p, len, off);
+        ssize_t n = xrootd_sd_posix_driver.pread(&obj, p, len, off);
         if (n < 0) {
             if (errno == EINTR) { continue; }
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "frm: pread failed");
@@ -228,9 +232,12 @@ frm_pread_all(int fd, void *buf, size_t len, off_t off, ngx_log_t *log)
 static ngx_int_t
 frm_pwrite_all(int fd, const void *buf, size_t len, off_t off, ngx_log_t *log)
 {
-    const u_char *p = buf;
+    const u_char   *p = buf;
+    xrootd_sd_obj_t obj;
+
+    xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
     while (len > 0) {
-        ssize_t n = pwrite(fd, p, len, off);
+        ssize_t n = xrootd_sd_posix_driver.pwrite(&obj, p, len, off);
         if (n < 0) {
             if (errno == EINTR) { continue; }
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "frm: pwrite failed");

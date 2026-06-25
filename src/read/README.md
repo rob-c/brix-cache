@@ -20,7 +20,13 @@ payload have been accumulated by `../connection/`. (That same switch also routes
 subsystems — see `../dirlist/`, `../query/`, `../fattr/`.) Handlers run on nginx's
 single-threaded event loop and must never block — blocking `pread`/`preadv` is offloaded
 to the thread pool in `../aio/`, with the completion callback rebuilding the response
-chain identically to the synchronous path. Responses are framed by `../response/` and
+chain identically to the synchronous path. Since phase-54 the AIO-offloaded and the
+window-pump inline-fallback read/pgread/readv bodies run through the VFS-owned
+thread-safe core `xrootd_vfs_io_execute()` ([`../fs/vfs_io_core.c`](../fs/README.md))
+rather than a `pread` reimplemented here; these handlers own validation, framing, and
+scheduling. The zero-copy `sendfile` branch and the `preadv2(RWF_NOWAIT)` warm-cache
+probe stay separate by design (they move bytes without a core buffer). Responses are
+framed by `../response/` and
 queued via `xrootd_queue_response` / `xrootd_queue_response_chain`; the terse
 metric+log+error exits use the `XROOTD_RETURN_ERR` / `XROOTD_RETURN_REDIR` /
 `XROOTD_RETURN_OK` / `XROOTD_OP_OK` / `XROOTD_OP_ERR` macros.

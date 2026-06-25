@@ -41,6 +41,7 @@
  * HOW: Two-phase read → validate read handle (xrootd_validate_read_handle for read-side validation) — parse offset/rlen from wire format (big-endian int64 + uint32_t) — cap rlen at XROOTD_READ_REQUEST_MAX if exceeds limit — perform pread(2) from file using AIO thread-pool or inline fallback (NGX_THREADS compile guard) — build chunked response chain via xrootd_build_chunked_chain() — queue response via xrootd_queue_response_chain() with databuf release callback. Access-log detail format "<offset>+rlen" tracks byte count transferred; throughput calculation uses bytes_read + session_bytes_written counters. */
 
 #include "read.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "slice_read.h"
 
 #include "../ngx_xrootd_module.h"
@@ -364,10 +365,13 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
         ssize_t warm = -1;
 #if defined(RWF_NOWAIT)
         if (rconf->common.thread_pool != NULL && ctx->files[idx].is_regular) {
-            struct iovec iov;
+            struct iovec    iov;
+            xrootd_sd_obj_t obj;
             iov.iov_base = databuf;
             iov.iov_len  = rlen;
-            warm = preadv2(fd, &iov, 1, (off_t) offset, RWF_NOWAIT);
+            xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
+            warm = xrootd_sd_posix_driver.preadv2(&obj, &iov, 1,
+                                                  (off_t) offset, RWF_NOWAIT);
         }
 #endif
 

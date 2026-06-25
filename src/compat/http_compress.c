@@ -9,6 +9,7 @@
  */
 
 #include "http_compress.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "http_file_response.h"
 
 #include <unistd.h>
@@ -177,6 +178,7 @@ xrootd_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
     off_t                      off = 0;
     ngx_int_t                  rc;
     int                        done = 0;
+    xrootd_sd_obj_t            send_obj;
 
     (void) fs_path;
     if (desc == NULL || !desc->available) {
@@ -227,13 +229,15 @@ xrootd_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
     }
 
     rc = NGX_OK;
+    xrootd_sd_posix_wrap(&send_obj, send_fd);   /* phase-55: SD seam */
     while (!done) {
         ssize_t n;
         size_t  ip = 0, fill = 0;
         int     finish;
 
         do {
-            n = pread(send_fd, inbuf + fill, XROOTD_COMPRESS_CHUNK - fill, off);
+            n = xrootd_sd_posix_driver.pread(&send_obj, inbuf + fill,
+                                             XROOTD_COMPRESS_CHUNK - fill, off);
         } while (n < 0 && errno == EINTR);
         if (n < 0) { rc = NGX_ERROR; break; }
         if (n > 0) { off += n; fill = (size_t) n; }

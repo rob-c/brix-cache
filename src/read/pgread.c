@@ -47,6 +47,7 @@
 #include "read.h"
 
 #include "../ngx_xrootd_module.h"
+#include "../fs/backend/sd.h"   /* phase-55: route preadv through the SD seam */
 #include "../compat/pgio.h"     /* shared kXR page-mode encode (libxrdproto) */
 #include "../compat/crc32c.h"   /* xrootd_crc32c_value — in-place per-page CRC  */
 
@@ -91,12 +92,17 @@ xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
 {
     u_char  *o = out;            /* write cursor in the gapped wire buffer */
     size_t   remaining = rlen;   /* file bytes not yet laid out into a batch */
-    size_t   out_size = 0;       /* encoded bytes produced so far */
-    ssize_t  total = 0;          /* file bytes actually read */
-    int      eof = 0;
+    size_t          out_size = 0;       /* encoded bytes produced so far */
+    ssize_t         total = 0;          /* file bytes actually read */
+    int             eof = 0;
+    xrootd_sd_obj_t obj;
 
     *nread_out = 0;
     *io_errno_out = 0;
+
+    /* Route the batched vectored read through the Storage Driver seam
+     * (phase-55); the page layout / in-place CRC policy stays here. */
+    xrootd_sd_posix_wrap(&obj, fd);
 
     while (remaining > 0 && !eof) {
         struct iovec iov[XROOTD_PGREAD_MAXIOV];
@@ -128,7 +134,7 @@ xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
             k++;
         }
 
-        n = preadv(fd, iov, k, batch_off);
+        n = xrootd_sd_posix_driver.preadv(&obj, iov, k, batch_off);
         if (n < 0) {
             *nread_out = -1;
             *io_errno_out = errno;

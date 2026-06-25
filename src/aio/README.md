@@ -11,6 +11,20 @@ detour**: the heavy syscalls (`pread`, `pwrite`, `fsync`, `readdir`/`fstatat`,
 per-page CRC32C, per-entry checksum) are offloaded to the nginx **thread pool**,
 and only the protocol/wire work runs back on the event loop.
 
+Since phase-54 these workers do **not** carry their own copies of the raw
+syscalls. Every `_thread` body fills a POD `xrootd_vfs_job_t` and calls the
+VFS-owned, thread-safe I/O core `xrootd_vfs_io_execute()`
+([`../fs/vfs_io_core.c`](../fs/README.md)); the inline fallbacks (no pool, or
+post failed) call the exact same core on the event loop for one bounded unit of
+work. So the **offloaded and inline-fallback raw I/O — read/write/readv/writev/
+pgread and the dirlist worker's scan — now flows through the VFS layer**, and
+confinement, CRC, short-I/O, and error handling live in one place instead of
+being duplicated here. This subsystem now owns the *scheduling* (which tier, the
+three-phase hand-off, scratch-buffer lifetime), not the raw I/O itself. (The
+handler-level zero-copy fast paths — `sendfile` and the `preadv2(RWF_NOWAIT)`
+warm-cache probe in [`../read/`](../read/README.md) — and the still-live
+synchronous `dirlist` loop deliberately sit outside this offload path.)
+
 ## Optional io_uring backend (Phase 44 — `uring.c` / `uring_submit.c` / `uring_admin.c`)
 
 A third dispatch tier sits **above** the thread pool, making the cascade
@@ -52,10 +66,11 @@ SQPOLL, Prometheus metrics exposition).
 ## Thread-pool contract
 
 Every offloaded opcode follows the same three-phase contract: a `_thread`
-worker function does *only* the blocking syscall (no nginx state, no pools, no
-`c->log`); nginx posts a `_done` completion callback back to the single-threaded
-event loop via `ngx_post_event`; the `_done` callback builds the XRootD wire
-response identically to the synchronous path and re-arms the connection. While a
+worker function does *only* the blocking I/O via the VFS core
+`xrootd_vfs_io_execute()` (no nginx state, no pools, no `c->log`); nginx posts a
+`_done` completion callback back to the single-threaded event loop via
+`ngx_post_event`; the `_done` callback builds the XRootD wire response
+identically to the synchronous path and re-arms the connection. While a
 task is in flight the connection sits in `XRD_ST_AIO` with both read and write
 events disarmed, and `ctx->destroyed` is checked in every callback so a task
 completing after the client disconnects discards its work safely.

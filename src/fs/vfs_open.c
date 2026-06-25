@@ -142,7 +142,8 @@ ngx_int_t
 xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
     unsigned from_cache, xrootd_vfs_file_t **out)
 {
-    struct stat         st;
+    xrootd_sd_stat_t    st;
+    xrootd_sd_obj_t     obj;
     xrootd_vfs_file_t  *fh;
 
     if (out == NULL) {
@@ -156,7 +157,11 @@ xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
         return NGX_ERROR;
     }
 
-    if (fstat(fd, &st) != 0) {
+    /* Capture the open-time metadata through the backend's fstat slot rather
+     * than a direct fstat(2): the VFS records the cached size/mtime/etc. but
+     * leaves the syscall to the storage driver. */
+    xrootd_vfs_ctx_sd_obj(ctx, fd, &obj);
+    if (obj.driver->fstat == NULL || obj.driver->fstat(&obj, &st) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -171,15 +176,15 @@ xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
         return NGX_ERROR;
     }
 
-    fh->fd = fd;
+    fh->obj = obj;          /* backend object built above (driver + inst + fd) */
     fh->pool = ctx->pool;
     fh->log = ctx->log;
     fh->ctx = ctx;
-    fh->size = st.st_size;
-    fh->mtime = st.st_mtime;
-    fh->ctime = st.st_ctime;
-    fh->ino = st.st_ino;
-    fh->mode = st.st_mode;
+    fh->size = st.size;
+    fh->mtime = st.mtime;
+    fh->ctime = st.ctime;
+    fh->ino = st.ino;
+    fh->mode = st.mode;
     fh->from_cache = from_cache ? 1 : 0;
     fh->is_tls = ctx->is_tls;
     fh->stat_current = 1;   /* cached metadata is fresh from the fstat above */
@@ -215,6 +220,24 @@ xrootd_vfs_open_flags(ngx_uint_t flags)
     }
 
     return oflags;
+}
+
+/* Map the VFS open flags to the backend-neutral SD open flags the driver open
+ * slot consumes (the driver maps them to O_* itself). 1:1 with the O_* mapping
+ * above, so a driver-routed open is byte-identical to the legacy beneath open. */
+static int
+xrootd_vfs_to_sd_flags(ngx_uint_t flags)
+{
+    int sd = 0;
+
+    if (flags & XROOTD_VFS_O_READ)   { sd |= XROOTD_SD_O_READ; }
+    if (flags & XROOTD_VFS_O_WRITE)  { sd |= XROOTD_SD_O_WRITE; }
+    if (flags & XROOTD_VFS_O_CREATE) { sd |= XROOTD_SD_O_CREATE; }
+    if (flags & XROOTD_VFS_O_EXCL)   { sd |= XROOTD_SD_O_EXCL; }
+    if (flags & XROOTD_VFS_O_TRUNC)  { sd |= XROOTD_SD_O_TRUNC; }
+    if (flags & XROOTD_VFS_O_APPEND) { sd |= XROOTD_SD_O_APPEND; }
+
+    return sd;
 }
 
 /* For XROOTD_VFS_O_MKDIRPATH: create the target's parent directory chain
@@ -325,7 +348,37 @@ xrootd_vfs_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
      *      open is unreachable.
      */
     if (ctx->rootfd >= 0) {
-        fd = xrootd_open_beneath(ctx->rootfd, path, oflags, 0644);
+        /*
+         * Hot path: route the confined open through the Storage Driver. A
+         * pool-lived POSIX instance borrows the persistent rootfd (no extra
+         * syscall, no fd ownership transfer); the driver performs the
+         * RESOLVE_BENEATH open. The instance is cached on ctx->sd for reuse
+         * across opens on this ctx. driver->open's fstat/obj are discarded —
+         * adopt_fd re-wraps the returned fd below — keeping one handle-build path.
+         */
+        if (ctx->sd == NULL) {
+            ctx->sd = xrootd_sd_posix_borrow_instance(ctx->pool, ctx->log,
+                                                      ctx->rootfd,
+                                                      ctx->root_canon);
+        }
+        if (ctx->sd != NULL && ctx->sd->driver->open != NULL) {
+            xrootd_sd_obj_t *o;
+            int              sderr = 0;
+
+            o = ctx->sd->driver->open(ctx->sd, path,
+                                      xrootd_vfs_to_sd_flags(flags), 0644,
+                                      &sderr);
+            if (o == NULL) {
+                if (err_out != NULL) {
+                    *err_out = sderr;
+                }
+                errno = sderr;
+                return NULL;
+            }
+            fd = o->fd;
+        } else {
+            fd = xrootd_open_beneath(ctx->rootfd, path, oflags, 0644);
+        }
     } else if (ctx->root_canon != NULL) {
         fd = xrootd_open_confined_canon(ctx->log, ctx->root_canon, path,
                                         oflags, 0644);
@@ -356,26 +409,49 @@ xrootd_vfs_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
 ngx_int_t
 xrootd_vfs_close(xrootd_vfs_file_t *fh, ngx_log_t *log)
 {
-    if (fh == NULL || fh->fd == NGX_INVALID_FILE) {
+    if (fh == NULL || fh->obj.driver == NULL
+        || fh->obj.fd == NGX_INVALID_FILE)
+    {
         return NGX_OK;
     }
 
-    if (ngx_close_file(fh->fd) != NGX_OK) {
+    /* Release the descriptor through the backend's close slot; the driver
+     * marks obj.fd invalid. The VFS keeps the error-log wrapper. */
+    if (fh->obj.driver->close(&fh->obj) != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, log != NULL ? log : fh->log, ngx_errno,
                       "xrootd_vfs: close failed for \"%s\"",
                       fh->path != NULL ? fh->path : "-");
-        fh->fd = NGX_INVALID_FILE;
         return NGX_ERROR;
     }
 
-    fh->fd = NGX_INVALID_FILE;
     return NGX_OK;
 }
 
 ngx_fd_t
 xrootd_vfs_file_fd(const xrootd_vfs_file_t *fh)
 {
-    return fh != NULL ? fh->fd : NGX_INVALID_FILE;
+    return fh != NULL ? fh->obj.fd : NGX_INVALID_FILE;
+}
+
+/* The fd only when the backend elects to back a zero-copy transfer of the whole
+ * object, else NGX_INVALID_FILE. The decision is delegated to the backend's
+ * read_sendfile_fd slot (want_zerocopy=1: the HTTP serve helper applies the
+ * TLS/cleartext choice itself). The contract gate for callers that build a
+ * sendfile / file-backed response. */
+ngx_fd_t
+xrootd_vfs_file_sendfile_fd(const xrootd_vfs_file_t *fh)
+{
+    if (fh == NULL) {
+        return NGX_INVALID_FILE;
+    }
+    return xrootd_vfs_handle_sendfile_fd(fh, 0, (size_t) fh->size, 1);
+}
+
+/* Predicate form: 1 iff the backend will provide a sendfile fd for this handle. */
+ngx_uint_t
+xrootd_vfs_file_can_sendfile(const xrootd_vfs_file_t *fh)
+{
+    return xrootd_vfs_file_sendfile_fd(fh) != NGX_INVALID_FILE ? 1 : 0;
 }
 
 const char *
@@ -405,9 +481,10 @@ xrootd_vfs_file_from_cache(const xrootd_vfs_file_t *fh)
 ngx_int_t
 xrootd_vfs_file_stat(const xrootd_vfs_file_t *fh, xrootd_vfs_stat_t *stat_out)
 {
-    struct stat st;
+    xrootd_sd_stat_t st;
+    xrootd_sd_obj_t  obj;
 
-    if (fh == NULL || fh->fd == NGX_INVALID_FILE || stat_out == NULL) {
+    if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE || stat_out == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
@@ -431,10 +508,12 @@ xrootd_vfs_file_stat(const xrootd_vfs_file_t *fh, xrootd_vfs_stat_t *stat_out)
         return NGX_OK;
     }
 
-    if (fstat(fh->fd, &st) != 0) {
+    /* Live re-stat through the backend's fstat slot (not a direct fstat(2)). */
+    xrootd_vfs_handle_sd_obj(fh, &obj);
+    if (obj.driver->fstat == NULL || obj.driver->fstat(&obj, &st) != NGX_OK) {
         return NGX_ERROR;
     }
 
-    xrootd_vfs_fill_stat(&st, stat_out);
+    xrootd_vfs_sd_stat_to_vfs(&st, stat_out);
     return NGX_OK;
 }

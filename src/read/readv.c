@@ -1,4 +1,5 @@
 #include "read.h"
+#include "../fs/backend/sd.h"      /* phase-55: route preadv through the SD seam */
 #include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 /* ------------------------------------------------------------------ */
@@ -164,10 +165,17 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
             run_bytes      += (size_t) segments[segment_index + k].read_length;
         }
 
-        do {
-            bytes_read = preadv(first_segment->fd, iov,
-                                (int) run_count, first_segment->offset);
-        } while (bytes_read < 0 && errno == EINTR);
+        {
+            xrootd_sd_obj_t obj;
+
+            /* Route the coalesced vectored read through the Storage Driver seam
+             * (phase-55); the EINTR/coalescing policy stays here. */
+            xrootd_sd_posix_wrap(&obj, first_segment->fd);
+            do {
+                bytes_read = xrootd_sd_posix_driver.preadv(
+                    &obj, iov, (int) run_count, first_segment->offset);
+            } while (bytes_read < 0 && errno == EINTR);
+        }
 
         if (bytes_read < 0) {
             snprintf(error_message, error_message_len,

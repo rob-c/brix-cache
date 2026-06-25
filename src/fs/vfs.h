@@ -33,6 +33,7 @@
 #include "../path/unified.h"
 #include "../types/identity.h"
 #include "../metrics/unified.h"
+#include "backend/sd.h"
 
 #define XROOTD_VFS_O_READ        0x01
 #define XROOTD_VFS_O_WRITE       0x02
@@ -83,6 +84,10 @@ typedef struct {
     const char          *root_canon;
     const char          *cache_root_canon;
     int                  rootfd;           /* persistent O_PATH fd, or -1 */
+    /* Bound storage-driver instance for this export, or NULL to use the default
+     * POSIX backend (full-featured, sendfile-capable). Reserved for per-export
+     * backend selection; today the VFS treats NULL as POSIX. */
+    xrootd_sd_instance_t *sd;
     void                *cache_writethrough_cfg;
     xrootd_path_result_t resolved;
     unsigned             allow_write:1;
@@ -118,6 +123,15 @@ ngx_int_t xrootd_vfs_close(xrootd_vfs_file_t *fh, ngx_log_t *log);
 /* Accessors over the handle's cached metadata (captured at open via fstat) —
  * no syscalls. fd: underlying descriptor or NGX_INVALID_FILE if fh is NULL. */
 ngx_fd_t xrootd_vfs_file_fd(const xrootd_vfs_file_t *fh);
+/* The handle's fd ONLY when the backend can back a zero-copy transfer
+ * (CAP_FD|CAP_SENDFILE), else NGX_INVALID_FILE. Callers that build a sendfile /
+ * file-backed (b->in_file) response MUST gate on this — a NGX_INVALID_FILE
+ * return means "this backend cannot sendfile; serve memory-backed instead".
+ * For the default POSIX backend this is always the real fd. */
+ngx_fd_t xrootd_vfs_file_sendfile_fd(const xrootd_vfs_file_t *fh);
+/* 1 iff this handle's backend supports zero-copy sendfile (CAP_FD|CAP_SENDFILE),
+ * else 0. The predicate form of xrootd_vfs_file_sendfile_fd(). */
+ngx_uint_t xrootd_vfs_file_can_sendfile(const xrootd_vfs_file_t *fh);
 /* Borrowed pointer to the handle's NUL-terminated path (owned by the pool);
  * returns "" (never NULL) when fh or its path is NULL. */
 const char *xrootd_vfs_file_path(const xrootd_vfs_file_t *fh);

@@ -8,6 +8,7 @@
  */
 
 #include "s3.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "../impersonate/lifecycle.h"
 #include "s3_auth_internal.h"
 #include "../compat/crypto.h"
@@ -1145,8 +1146,10 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     stfd = xrootd_vfs_staged_fd(st);
     remaining = form->file_len;
     p = form->file_data;
+    xrootd_sd_obj_t obj;
+    xrootd_sd_posix_wrap(&obj, stfd);   /* phase-55: SD seam */
     while (remaining > 0) {
-        ssize_t n = pwrite(stfd, p, remaining, off);
+        ssize_t n = xrootd_sd_posix_driver.pwrite(&obj, p, remaining, off);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;               /* interrupted syscall: retry */

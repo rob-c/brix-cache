@@ -24,6 +24,7 @@
  *       metrics/log via xrootd_vfs_observe_file_op().
  */
 #include "vfs_internal.h"
+#include "backend/sd.h"
 #include "../cache/writethrough.h"
 
 /* EINTR-safe, short-write-safe pwrite loop. Writes exactly len bytes at offset
@@ -32,10 +33,16 @@ ngx_int_t
 xrootd_vfs_pwrite_full(ngx_fd_t fd, const u_char *buf, size_t len,
     off_t offset)
 {
-    size_t done = 0;
+    size_t          done = 0;
+    xrootd_sd_obj_t obj;
+
+    /* Route the raw syscall through the Storage Driver seam (phase-55); the
+     * EINTR/short-write loop policy stays here in the VFS. */
+    xrootd_sd_posix_wrap(&obj, fd);
 
     while (done < len) {
-        ssize_t n = pwrite(fd, buf + done, len - done, offset + (off_t) done);
+        ssize_t n = xrootd_sd_posix_driver.pwrite(&obj, buf + done, len - done,
+                                                  offset + (off_t) done);
 
         if (n < 0) {
             if (errno == EINTR) {
@@ -90,7 +97,7 @@ xrootd_vfs_write_file_buf(xrootd_vfs_file_t *fh, ngx_buf_t *b,
             return NGX_ERROR;
         }
 
-        if (xrootd_vfs_pwrite_full(fh->fd, tmp, chunk, *dst_off) != NGX_OK) {
+        if (xrootd_vfs_pwrite_full(fh->obj.fd, tmp, chunk, *dst_off) != NGX_OK) {
             return NGX_ERROR;
         }
 
@@ -124,7 +131,7 @@ xrootd_vfs_write_memory_buf(xrootd_vfs_file_t *fh, ngx_buf_t *b,
         return NGX_OK;
     }
 
-    if (xrootd_vfs_pwrite_full(fh->fd, b->pos, len, *dst_off) != NGX_OK) {
+    if (xrootd_vfs_pwrite_full(fh->obj.fd, b->pos, len, *dst_off) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -186,7 +193,7 @@ xrootd_vfs_write(xrootd_vfs_file_t *fh, off_t offset, ngx_chain_t *in,
         result->offset = offset;
     }
 
-    if (fh == NULL || fh->fd == NGX_INVALID_FILE || offset < 0) {
+    if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE || offset < 0) {
         errno = EINVAL;
         saved_errno = errno;
         xrootd_vfs_observe_file_op(fh, XROOTD_METRIC_OP_WRITE, result, 0,

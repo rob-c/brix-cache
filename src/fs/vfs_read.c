@@ -23,6 +23,7 @@
  *       xrootd_vfs_observe_file_op().
  */
 #include "vfs_internal.h"
+#include "backend/sd.h"
 #include "../cache/open.h"
 
 /* EINTR-safe, short-read-tolerant pread into buf. Loops until len bytes are
@@ -31,10 +32,16 @@ ngx_int_t
 xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
     off_t offset, size_t *nread)
 {
-    size_t done = 0;
+    size_t          done = 0;
+    xrootd_sd_obj_t obj;
+
+    /* Route the raw syscall through the Storage Driver seam (phase-55); the
+     * EINTR/short-read loop policy stays here in the VFS. */
+    xrootd_sd_posix_wrap(&obj, fd);
 
     while (done < len) {
-        ssize_t n = pread(fd, buf + done, len - done, offset + (off_t) done);
+        ssize_t n = xrootd_sd_posix_driver.pread(&obj, buf + done, len - done,
+                                                 offset + (off_t) done);
 
         if (n < 0) {
             if (errno == EINTR) {
@@ -78,7 +85,7 @@ xrootd_vfs_make_memory_chain(xrootd_vfs_file_t *fh, off_t offset,
         return NGX_ERROR;
     }
 
-    if (xrootd_vfs_pread_full(fh->fd, data, length, offset, &nread)
+    if (xrootd_vfs_pread_full(fh->obj.fd, data, length, offset, &nread)
         != NGX_OK)
     {
         return NGX_ERROR;
@@ -113,11 +120,13 @@ xrootd_vfs_make_memory_chain(xrootd_vfs_file_t *fh, off_t offset,
     return NGX_OK;
 }
 
-/* File-backed read: dup the handle fd (pool-cleanup registered) and emit an
- * in_file ngx_buf_t covering [offset, offset+length) so cleartext responses can
- * sendfile() with no userspace copy. */
+/* File-backed read: dup the backend-supplied sendfile fd (pool-cleanup
+ * registered) and emit an in_file ngx_buf_t covering [offset, offset+length) so
+ * cleartext responses can sendfile() with no userspace copy. src_fd is the fd
+ * the backend returned from read_sendfile_fd() — the VFS does not assume it is
+ * fh->obj.fd. */
 static ngx_int_t
-xrootd_vfs_make_file_chain(xrootd_vfs_file_t *fh, off_t offset,
+xrootd_vfs_make_file_chain(xrootd_vfs_file_t *fh, ngx_fd_t src_fd, off_t offset,
     size_t length, ngx_chain_t **out)
 {
     ngx_buf_t    *b;
@@ -125,7 +134,7 @@ xrootd_vfs_make_file_chain(xrootd_vfs_file_t *fh, off_t offset,
     ngx_fd_t      fd;
     size_t        path_len;
 
-    fd = dup(fh->fd);
+    fd = dup(src_fd);
     if (fd == NGX_INVALID_FILE) {
         return NGX_ERROR;
     }
@@ -202,7 +211,7 @@ xrootd_vfs_read(xrootd_vfs_file_t *fh, off_t offset, size_t length,
         result->from_cache = fh != NULL ? fh->from_cache : 0;
     }
 
-    if (fh == NULL || fh->fd == NGX_INVALID_FILE || offset < 0) {
+    if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE || offset < 0) {
         errno = EINVAL;
         saved_errno = errno;
         xrootd_vfs_observe_file_op(fh, XROOTD_METRIC_OP_READ, result, 0,
@@ -231,10 +240,25 @@ xrootd_vfs_read(xrootd_vfs_file_t *fh, off_t offset, size_t length,
         result->length = capped;
     }
 
-    if (fh->is_tls || (fh->ctx != NULL && fh->ctx->want_pgcrc)) {
-        rc = xrootd_vfs_make_memory_chain(fh, offset, capped, out, result);
-    } else {
-        rc = xrootd_vfs_make_file_chain(fh, offset, capped, out);
+    /* The VFS computes only a storage-neutral transport verdict — zero-copy is
+     * acceptable when the response is cleartext and no per-read CRC is needed —
+     * then asks the backend to decide whether it can serve this range that way.
+     * The backend returns a sendfile-able fd (file-backed chain) or
+     * NGX_INVALID_FILE (serve memory-backed). The VFS knows nothing about which
+     * backends can sendfile; it only builds the nginx buffer for the answer. */
+    {
+        unsigned want_zerocopy;
+        ngx_fd_t sfd;
+
+        want_zerocopy = !(fh->is_tls
+                          || (fh->ctx != NULL && fh->ctx->want_pgcrc));
+        sfd = xrootd_vfs_handle_sendfile_fd(fh, offset, capped, want_zerocopy);
+
+        if (sfd != NGX_INVALID_FILE) {
+            rc = xrootd_vfs_make_file_chain(fh, sfd, offset, capped, out);
+        } else {
+            rc = xrootd_vfs_make_memory_chain(fh, offset, capped, out, result);
+        }
     }
 
     if (rc == NGX_OK && fh->from_cache && capped > 0) {

@@ -19,6 +19,7 @@
 
 #include "vfs_internal.h"
 #include "vfs_io_core.h"
+#include "backend/sd.h"
 
 #include "../aio/aio.h"
 #include "../dirlist/dcksm.h"
@@ -100,7 +101,8 @@ static ngx_int_t
 xrootd_vfs_io_write_counted(ngx_fd_t fd, const u_char *buf, size_t len,
     off_t offset, ssize_t *written, unsigned *short_io)
 {
-    size_t done;
+    size_t          done;
+    xrootd_sd_obj_t obj;
 
     if (written == NULL || short_io == NULL) {
         errno = EINVAL;
@@ -111,10 +113,15 @@ xrootd_vfs_io_write_counted(ngx_fd_t fd, const u_char *buf, size_t len,
     *short_io = 0;
     done = 0;
 
+    /* Route the raw syscall through the Storage Driver seam (phase-55); the
+     * short-I/O accounting policy stays here in the VFS. */
+    xrootd_sd_posix_wrap(&obj, fd);
+
     while (done < len) {
         ssize_t nwrite;
 
-        nwrite = pwrite(fd, buf + done, len - done, offset + (off_t) done);
+        nwrite = xrootd_sd_posix_driver.pwrite(&obj, buf + done, len - done,
+                                               offset + (off_t) done);
         if (nwrite < 0) {
             if (errno == EINTR) {
                 continue;
@@ -398,13 +405,18 @@ xrootd_vfs_io_execute_writev(xrootd_vfs_job_t *job)
 static void
 xrootd_vfs_io_execute_sync(xrootd_vfs_job_t *job)
 {
+    xrootd_sd_obj_t obj;
+
     if (job->fd == NGX_INVALID_FILE) {
         job->nio = -1;
         job->io_errno = EINVAL;
         return;
     }
 
-    if (fsync(job->fd) != 0) {
+    /* Dispatch through the Storage Driver seam (phase-55). The POSIX driver's
+     * fsync slot is fsync(2) verbatim, so behaviour is byte-identical. */
+    xrootd_sd_posix_wrap(&obj, job->fd);
+    if (xrootd_sd_posix_driver.fsync(&obj) != NGX_OK) {
         job->nio = -1;
         job->io_errno = errno;
         return;
@@ -426,13 +438,18 @@ xrootd_vfs_io_execute_sync(xrootd_vfs_job_t *job)
 static void
 xrootd_vfs_io_execute_truncate(xrootd_vfs_job_t *job)
 {
+    xrootd_sd_obj_t obj;
+
     if (job->fd == NGX_INVALID_FILE || job->offset < 0) {
         job->nio = -1;
         job->io_errno = EINVAL;
         return;
     }
 
-    if (ftruncate(job->fd, job->offset) != 0) {
+    /* Dispatch through the Storage Driver seam (phase-55). The POSIX driver's
+     * ftruncate slot is ftruncate(2) verbatim, so behaviour is byte-identical. */
+    xrootd_sd_posix_wrap(&obj, job->fd);
+    if (xrootd_sd_posix_driver.ftruncate(&obj, job->offset) != NGX_OK) {
         job->nio = -1;
         job->io_errno = errno;
         return;

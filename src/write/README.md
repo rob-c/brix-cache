@@ -28,7 +28,11 @@ fork: when a thread pool is configured they detach the received payload from
 `../aio/write.c`, *not* in this directory), letting the event loop read the next
 header while disk I/O proceeds. With no thread pool, or if the task queue is
 full, they fall back to an inline synchronous `pwrite(2)` that rebuilds the same
-response. Namespace opcodes are path-based: they resolve the client path beneath
+response. Either way, since phase-54 the `pwrite`/writev/pgwrite byte movement runs
+through the VFS-owned thread-safe core `xrootd_vfs_io_execute()`
+([`../fs/vfs_io_core.c`](../fs/README.md)) rather than a syscall reimplemented here, so
+short-write and error handling are shared with the rest of the VFS. Namespace opcodes are
+path-based: they resolve the client path beneath
 the export root, run the auth gate, and perform a single confined syscall via
 [`../compat`](../compat/README.md)'s `namespace_ops` helpers.
 

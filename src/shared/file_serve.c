@@ -177,8 +177,11 @@ xrootd_http_serve_file_ranged(ngx_http_request_t *r,
         opts->xfer_proto, XROOTD_XFER_DIR_READ, opts->op_name,
         (int64_t) send_len);
 
-    /* Phase 4: dup fd, release vfs handle, send */
-    fd         = xrootd_vfs_file_fd(fh);
+    /* Phase 4: dup fd, release vfs handle, send. Use the sendfile-gated fd: the
+     * serve path is zero-copy (sendfile for cleartext), so it requires a backend
+     * that can back it. A non-sendfile backend returns NGX_INVALID_FILE here and
+     * fails closed rather than dup'ing a bogus descriptor. */
+    fd         = xrootd_vfs_file_sendfile_fd(fh);
     from_cache = xrootd_vfs_file_from_cache(fh);
     cache_path = xrootd_vfs_file_path(fh);
 

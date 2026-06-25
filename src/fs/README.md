@@ -25,11 +25,16 @@ Crucially, the VFS does **not** decide *which* path to touch — that is the job
 embedded in the ctx. The VFS *re-verifies* confinement before every syscall
 (`is_confined` must be set and the resolved path non-empty) and then opens via
 the kernel `RESOLVE_BENEATH` API in [`../path/beneath.h`](../path/README.md). It
-also does not run blocking I/O on the event loop on its own behalf: the
-synchronous `pread`/`pwrite` helpers here are the bodies that
-[`../aio/`](../aio/README.md) offloads to the thread pool, and the read path is
+also does not run blocking I/O on the event loop on its own behalf. The blocking
+read/write/readv/writev/pgread bodies — on a [`../aio/`](../aio/README.md)
+thread-pool worker, on the io_uring inline fallback, or on the event-loop inline
+fallback — execute through one VFS-owned, thread-safe core,
+`xrootd_vfs_io_execute()` in `vfs_io_core.c` (phase-54). The synchronous
+`pread`/`pwrite` helpers here are the bodies that core runs, and the read path is
 careful to build the *same* buffer chain whether invoked sync or from an AIO
-completion.
+completion. Workers no longer carry their own copies of these syscalls; a few
+zero-copy/fast paths stay beside the core by design (see the two-tier boundary
+note below).
 
 Callers today: [`../read/`](../read/README.md) and [`../write/`](../write/README.md)
 (XRootD opcodes), [`../shared/file_serve.c`](../shared/README.md),
@@ -39,17 +44,45 @@ xattr/copy/staged/delete paths in `prop_xattr.c`, `dead_props.c`, `copy.c`,
 `post_object.c`, `put.c`, `tagging.c`, `checksum.c`, `conditional.c`), and
 [`../dirlist/`](../dirlist/README.md).
 
-> **Event-loop-only boundary.** The VFS entry points allocate from an nginx
-> request `pool` and emit Prometheus metrics + access-log lines, none of which
-> are thread-safe. They therefore run **only on the event loop**. Code that
-> mutates the export namespace from a **thread-pool worker** — native TPC pull
-> (`../tpc/source.c`), async/multipart S3 PUT assembly, and the collection
-> COPY/MOVE engines — deliberately stays on the lower confined-helper /
-> `xrootd_ns_*` / `compat/staged_file` tier instead. Those helpers provide the
-> same `RESOLVE_BENEATH` confinement; only the VFS's metering/cache layer is
-> skipped. Lifting that boundary would require giving each worker a private pool
-> and deferring all metric/log emission back to the completion handler — a
-> separate, larger change.
+> **Two VFS tiers — metered (loop-only) vs. raw (thread-safe).** Since phase-54
+> the VFS exposes two surfaces, and **all disk byte I/O now goes through the VFS**
+> regardless of which thread runs it:
+>
+> 1. **Public metered entry points** (`xrootd_vfs_open`/`read`/`write`/`stat`/…)
+>    allocate from an nginx request `pool` and emit Prometheus metrics +
+>    access-log lines — none of which is thread-safe — so they run **only on the
+>    event loop**.
+> 2. **The worker-safe I/O core** (`xrootd_vfs_io_execute()`, `vfs_io_core.c`) is
+>    the thread-safe EXECUTE surface that the offloaded and inline-fallback raw
+>    byte ops now funnel through — `kXR_read`, `write`, `readv`, `writev`,
+>    `pgread`, and the `dirlist` scan — whether executed on the
+>    [`../aio/`](../aio/README.md) thread pool, on the event-loop **inline
+>    fallback** (no pool / queue full), or on the io_uring inline fallback. It
+>    mutates only a POD job descriptor and caller-owned buffers: **no pool, no
+>    metrics, no log, no cache.** This is what removed the old "workers
+>    reimplement raw syscalls outside the VFS" boundary — the
+>    read/write/readv/pgread bodies are no longer duplicated in `../aio/`, so
+>    confinement, CRC, short-I/O, and error behaviour can no longer drift between
+>    the worker and the VFS.
+>
+>    Two categories sit *beside* the core by design, not below it: (a) **zero-copy
+>    fast paths** — the cleartext/kTLS `sendfile` read and the
+>    `preadv2(RWF_NOWAIT)` warm-cache probe in [`../read/read.c`](../read/README.md)
+>    move bytes without a core buffer at all; (b) the **live synchronous
+>    `dirlist`** loop in [`../dirlist/handler.c`](../dirlist/README.md) still runs
+>    its own confined `fdopendir`/`readdir` (the core's `OPENDIR` op is wired into
+>    the `../aio/dirlist.c` worker, which is currently gated off). These are
+>    tracked follow-ups, not separate raw-I/O implementations of the offload path.
+>
+> Namespace **mutation** is the one part still split: the metered
+> `xrootd_vfs_unlink`/`rmdir`/`rename`/`mkdir`/`copy` and the staged-write family
+> are loop-only, while worker-thread namespace mutation — native TPC pull
+> (`../tpc/source.c`), async/multipart S3 PUT assembly, the collection COPY/MOVE
+> engines — stays on the `xrootd_ns_*` / `compat/staged_file` tier. Both tiers
+> share the same `RESOLVE_BENEATH` confinement; only the VFS's metering/cache
+> layer is skipped on the worker tier. (Phase-55 plans to unify even that beneath
+> a pluggable storage-driver seam — see
+> [`../../docs/refactor/phase-55-storage-backend-abstraction.md`](../../docs/refactor/phase-55-storage-backend-abstraction.md).)
 
 ## Files
 
@@ -57,6 +90,8 @@ xattr/copy/staged/delete paths in `prop_xattr.c`, `dead_props.c`, `copy.c`,
 |---|---|
 | `vfs.h` | Public API. Open flags (`XROOTD_VFS_O_READ/WRITE/CREATE/EXCL/TRUNC/APPEND/MKDIRPATH/NOCACHE`), opaque handle types, the `xrootd_vfs_ctx_t` request descriptor, `xrootd_vfs_stat_t`/`xrootd_vfs_io_result_t`, and every `xrootd_vfs_*` prototype. The only header protocol handlers should include. |
 | `vfs_internal.h` | Implementation-private definitions: the real `xrootd_vfs_file_s`/`xrootd_vfs_dir_s` structs, confinement/write guards (`xrootd_vfs_require_confined`, `xrootd_vfs_require_write`), the metrics+access-log observer helpers (`xrootd_vfs_observe_*`), and shared internal prototypes (`pread_full`, `pwrite_full`, `adopt_fd`, `fill_stat`). |
+| `vfs_io_core.h` | The **thread-safe** I/O surface: the POD job descriptor `xrootd_vfs_job_t` (IN fields + OUT results), the readv/writev segment descriptors, the per-op `xrootd_vfs_job_*_init` helpers, and the `xrootd_vfs_io_execute()` prototype. The only fs header a thread-pool worker or io_uring fallback may include. |
+| `vfs_io_core.c` | The worker-safe EXECUTE core (phase-54). `xrootd_vfs_io_execute()` dispatches one job to a small per-op helper for READ/WRITE/PGREAD/READV/WRITEV/OPENDIR, mutating only the job's OUT fields and caller-owned buffers — **no pool, metrics, log, or cache**. Reuses the pure bodies (`xrootd_vfs_pread_full`/`pwrite_full`, `xrootd_pgread_read_encode_inplace`, `xrootd_readv_read_segments`) and builds the `kXR_dirlist` response from a confined `fdopendir` scan. This is the shared raw-I/O body for every dispatch tier (inline / thread pool / io_uring). |
 | `vfs_open.c` | Open/close + handle lifecycle. Maps flags to `O_*`, runs the cache-first / confinement-cascade open logic, `fstat`s into the handle, registers pool cleanup. Also hosts the shared helpers (`fill_stat`, `copy_path`, `register_fd_cleanup`, `adopt_fd`) and the `xrootd_vfs_file_*` accessors. |
 | `vfs_read.c` | Read path. `xrootd_vfs_read()` chooses memory-backed chain (TLS or page-CRC wanted) vs file-backed chain (cleartext sendfile via `dup`'d fd), caps length at EOF, computes per-read CRC32c, records cache access. `xrootd_vfs_pread_full()` is the EINTR-safe full-read primitive used everywhere. |
 | `vfs_write.c` | Write path. `xrootd_vfs_write()` walks an input `ngx_chain_t` writing in-file and in-memory bufs to the destination offset, extends CRC32c, grows the cached handle size, and consults the write-through cache decision. `xrootd_vfs_pwrite_full()` is the EINTR/short-write-safe primitive. |

@@ -25,12 +25,12 @@ xrootd_vfs_truncate(xrootd_vfs_file_t *fh, off_t length)
 {
     xrootd_vfs_job_t job;
 
-    if (fh == NULL || fh->fd == NGX_INVALID_FILE || length < 0) {
+    if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE || length < 0) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    xrootd_vfs_job_truncate_init(&job, fh->fd, length);
+    xrootd_vfs_job_truncate_init(&job, fh->obj.fd, length);
     xrootd_vfs_io_execute(&job);
     if (job.io_errno != 0) {
         errno = job.io_errno;
@@ -48,12 +48,12 @@ xrootd_vfs_sync(xrootd_vfs_file_t *fh)
 {
     xrootd_vfs_job_t job;
 
-    if (fh == NULL || fh->fd == NGX_INVALID_FILE) {
+    if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    xrootd_vfs_job_sync_init(&job, fh->fd);
+    xrootd_vfs_job_sync_init(&job, fh->obj.fd);
     xrootd_vfs_io_execute(&job);
     if (job.io_errno != 0) {
         errno = job.io_errno;

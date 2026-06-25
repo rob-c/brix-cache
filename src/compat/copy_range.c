@@ -17,6 +17,7 @@
  */
 
 #include "copy_range.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 
 #include <errno.h>
 #include <limits.h>
@@ -48,11 +49,16 @@ xrootd_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
     int dst_fd, off_t dst_off, size_t len,
     const char *src_path, const char *dst_path)
 {
-    u_char  buf[XROOTD_COPY_RANGE_BUFSZ];
+    u_char          buf[XROOTD_COPY_RANGE_BUFSZ];
+    xrootd_sd_obj_t src_obj, dst_obj;
+
+    /* Route both raw syscalls through the Storage Driver seam (phase-55). */
+    xrootd_sd_posix_wrap(&src_obj, src_fd);
+    xrootd_sd_posix_wrap(&dst_obj, dst_fd);
 
     while (len > 0) {
         size_t  want = (len < sizeof(buf)) ? len : sizeof(buf);
-        ssize_t nr   = pread(src_fd, buf, want, src_off);
+        ssize_t nr   = xrootd_sd_posix_driver.pread(&src_obj, buf, want, src_off);
         ssize_t nread;
         u_char *p;
 
@@ -77,7 +83,7 @@ xrootd_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
         nread = nr;
         p = buf;
         while (nr > 0) {
-            ssize_t nw = pwrite(dst_fd, p, (size_t) nr, dst_off);
+            ssize_t nw = xrootd_sd_posix_driver.pwrite(&dst_obj, p, (size_t) nr, dst_off);
             if (nw < 0) {
                 if (errno == EINTR) {
                     continue;
@@ -116,12 +122,17 @@ xrootd_copy_range(ngx_log_t *log,
                   const char *src_path, const char *dst_path)
 {
 #if defined(__linux__) && defined(__NR_copy_file_range)
+    xrootd_sd_obj_t src_obj, dst_obj;
+
+    /* Route the zero-copy primitive through the Storage Driver seam (phase-55);
+     * the loop and the pread/pwrite fallback stay here in the VFS. */
+    xrootd_sd_posix_wrap(&src_obj, src_fd);
+    xrootd_sd_posix_wrap(&dst_obj, dst_fd);
+
     while (len > 0) {
         size_t  want = (len > (size_t) SSIZE_MAX) ? (size_t) SSIZE_MAX : len;
-        loff_t  si = (loff_t) src_off;
-        loff_t  di = (loff_t) dst_off;
-        ssize_t n  = (ssize_t) syscall(__NR_copy_file_range,
-                                       src_fd, &si, dst_fd, &di, want, 0u);
+        ssize_t n  = xrootd_sd_posix_driver.copy_range(&src_obj, src_off,
+                                                       &dst_obj, dst_off, want);
         if (n > 0) {
             src_off += (off_t) n;
             dst_off += (off_t) n;

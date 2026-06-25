@@ -60,13 +60,19 @@ typedef struct {
  * second choice (it loses the OP metric/log) and direct xrootd_*_confined*()
  * calls from such paths are a defect.
  *
- * EXEMPT — code running on a THREAD-POOL worker (off the event loop): native
- * TPC pull, async/multipart S3 PUT assembly, the collection copy/move engines.
- * The VFS allocates from an nginx pool and emits metrics/log lines, none of
- * which are thread-safe, so worker-thread code stays on this xrootd_ns_*() /
- * confined-helper / staged_file tier. Confinement is identical (RESOLVE_BENEATH);
- * only the VFS metering is skipped. See src/fs/README.md "Event-loop-only
- * boundary".
+ * EXEMPT — namespace MUTATION running on a THREAD-POOL worker (off the event
+ * loop): native TPC pull, async/multipart S3 PUT assembly, the collection
+ * copy/move engines. The metered VFS namespace entry points allocate from an
+ * nginx pool and emit metrics/log lines, none of which are thread-safe, so
+ * worker-thread namespace mutation stays on this xrootd_ns_*() / confined-helper
+ * / staged_file tier. Confinement is identical (RESOLVE_BENEATH); only the VFS
+ * metering is skipped.
+ *
+ * NOTE (phase-54): this exemption is for namespace MUTATION only. Raw byte I/O
+ * (read/write/readv/writev/pgread + the dirlist scan) is no longer exempt —
+ * worker threads now run it through the VFS-owned thread-safe core
+ * xrootd_vfs_io_execute() (src/fs/vfs_io_core.c), so that path is unified across
+ * all dispatch tiers. See src/fs/README.md "Two VFS tiers".
  */
 
 /*

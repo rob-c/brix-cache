@@ -12,6 +12,7 @@
  *       (per coding-standards): the EVP path uses an init-at-edge helper.
  */
 #include "checksum_core.h"
+#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "crc32c.h"
 #include "crc64.h"
 
@@ -46,8 +47,10 @@ xrootd_cksum_u32_fd(int kind, int fd, uint32_t *out)
          : (kind == XROOTD_CK_CRC32)   ? crc32(0L, Z_NULL, 0)
                                        : 0;
 
+    xrootd_sd_obj_t obj;
+    xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
     for (;;) {
-        ssize_t n = pread(fd, buf, sizeof(buf), offset);
+        ssize_t n = xrootd_sd_posix_driver.pread(&obj, buf, sizeof(buf), offset);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;
@@ -90,8 +93,10 @@ xrootd_cksum_u64_fd(int kind, int fd, uint64_t *out)
         return -1;
     }
 
+    xrootd_sd_obj_t obj;
+    xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
     for (;;) {
-        ssize_t n = pread(fd, buf, sizeof(buf), offset);
+        ssize_t n = xrootd_sd_posix_driver.pread(&obj, buf, sizeof(buf), offset);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;
@@ -131,8 +136,10 @@ digest_drive(EVP_MD_CTX *ctx, const EVP_MD *md, int fd,
     if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
         return -1;
     }
+    xrootd_sd_obj_t obj;
+    xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
     for (;;) {
-        ssize_t n = pread(fd, buf, sizeof(buf), offset);
+        ssize_t n = xrootd_sd_posix_driver.pread(&obj, buf, sizeof(buf), offset);
         if (n < 0) {
             if (errno == EINTR) {
                 continue;
