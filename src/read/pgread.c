@@ -1,48 +1,6 @@
-/* ------------------------------------------------------------------ */
-/* Paged Read — kXR_pgread with CRC32c Integrity                           */
-/* ------------------------------------------------------------------ */
 /*
- * WHAT: This file implements the kXR_pgread opcode — page-mode reads used by xrdcp v5 for high-integrity large-file transfers. Unlike single-segment kXR_read which returns raw bytes, pgread interleaves 4-byte CRC32c checksums between each page fragment (up to 4096 bytes per page) ensuring every byte read is verified against its checksum before returning to client. The response uses kXR_status framing with next expected offset — this allows clients to track read progress precisely through large transfers and retry corrupted pages without retransmitting the entire file.
- *
- * WHY: Page-mode reads provide byte-level integrity verification for large file downloads where single-segment kXR_read would offer no checksum protection. CRC32c per-page verification ensures data corruption is detected immediately rather than after transfer completion — clients can retry corrupted pages without retransmitting the entire file. The kXR_status response (next expected offset) enables precise progress tracking, critical for resumable downloads and monitoring large transfers in production deployments where network failures may interrupt mid-transfer reads.
- *
- * HOW: Two-phase encoding → xrootd_pgread_encode_pages(): iterate through source bytes splitting into pages (kXR_pgPageSZ=4096), compute CRC32c via xrootd_crc32c_copy() while simultaneously copying data to destination buffer, append 4-byte CRC after each page fragment — returns total encoded length; xrootd_handle_pgread(): validates read handle (xrootd_validate_read_handle for read-side validation) — reads from file using pread(2) (AIO thread-pool or inline fallback) — encodes pages via xrootd_pgread_encode_pages() — builds response chain with kXR_status framing containing next expected offset — queues response via xrootd_queue_response_chain(). */
-
-/* ------------------------------------------------------------------ */
-/* Section: Page Encoding with CRC Verification                             */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_pgread_encode_pages() encodes raw file data into page-mode format interleaving 4-byte CRC32c checksums between each page fragment. Iterates through source bytes splitting into pages (kXR_pgPageSZ=4096), computes CRC32c via xrootd_crc32c_copy() while simultaneously copying data to destination buffer, appends 4-byte CRC after each page fragment — returns total encoded length including both data and checksum bytes. First and last fragments may be shorter when read offset is unaligned or request ends mid-page.
- *
- * WHY: Single-pass CRC+copy fusion via xrootd_crc32c_copy() eliminates unnecessary memory reads by combining checksum computation with data extraction in one operation. For large transfers (10GB+ files), this reduction in memory bandwidth can significantly improve throughput on systems where cache pressure is a bottleneck. Per-page checksum verification ensures corruption is detected immediately rather than after transfer completion — clients can retry corrupted pages without retransmitting the entire file.
- *
- * HOW: Four-phase encoding → iterate through source bytes (remaining > 0 loop) — determine page_data size (min(remaining, kXR_pgPageSZ)) — compute CRC32c via xrootd_crc32c_copy() while simultaneously copying data to destination buffer — append 4-byte big-endian CRC after each page fragment — return total encoded length including both data and checksum bytes. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Paged Read Handler                                              */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_handle_pgread() handles the kXR_pgread opcode — page-mode read with per-page CRC32c integrity verification. Supports two modes: handle-based (fhandle[4] identifies open slot, dlen==0) using fd already open on the slot; path-based (dlen>0 with payload containing path) resolves path via xrootd_resolve_path_write fallback to xrootd_resolve_path, opens O_RDONLY for pread(2), calls read then closes temporary fd. Offset is big-endian int64 representing start position in file; rlen is uint32_t representing requested byte count (capped at XROOTD_READ_REQUEST_MAX). Token scope read gate required for both paths ensuring only authenticated clients can access files. Returns kXR_status response containing next expected offset for client progress tracking.
- *
- * WHY: Page-mode reads provide byte-level integrity verification for large file downloads where single-segment kXR_read would offer no checksum protection. CRC32c per-page verification ensures data corruption is detected immediately rather than after transfer completion — clients can retry corrupted pages without retransmitting the entire file. The kXR_status response (next expected offset) enables precise progress tracking, critical for resumable downloads and monitoring large transfers in production deployments where network failures may interrupt mid-transfer reads.
- *
- * HOW: Two-phase read → validate read handle (xrootd_validate_read_handle for read-side validation) — parse offset/rlen from wire format (big-endian int64 + uint32_t) — cap rlen at XROOTD_READ_REQUEST_MAX if exceeds limit — pread(2) from file using AIO thread-pool or inline fallback — encode pages via xrootd_pgread_encode_pages() — build response chain with kXR_status framing containing next expected offset — queue response via xrootd_queue_response_chain(). */
-
-/* ---- Function: xrootd_pgread_encode_pages() ----
- *
- * WHAT: Encodes raw file data into page-mode format interleaving 4-byte CRC32c checksums between each page fragment. Iterates through source bytes splitting into pages (kXR_pgPageSZ=4096), computes CRC32c via xrootd_crc32c_copy() while simultaneously copying data to destination buffer, appends 4-byte CRC after each page fragment — returns total encoded length including both data and checksum bytes. First and last fragments may be shorter when read offset is unaligned or request ends mid-page.
- *
- * WHY: Single-pass CRC+copy fusion via xrootd_crc32c_copy() eliminates unnecessary memory reads by combining checksum computation with data extraction in one operation. For large transfers (10GB+ files), this reduction in memory bandwidth can significantly improve throughput on systems where cache pressure is a bottleneck. Per-page checksum verification ensures corruption is detected immediately rather than after transfer completion — clients can retry corrupted pages without retransmitting the entire file.
- *
- * HOW: Four-phase encoding → iterate through source bytes (remaining > 0 loop) — determine page_data size (min(remaining, kXR_pgPageSZ)) — compute CRC32c via xrootd_crc32c_copy() while simultaneously copying data to destination buffer — append 4-byte big-endian CRC after each page fragment — return total encoded length including both data and checksum bytes. */
-
-/* ---- Function: xrootd_handle_pgread() ----
- *
- * WHAT: Handles the kXR_pgread opcode — page-mode read with per-page CRC32c integrity verification supporting two modes: handle-based (fhandle[4] identifies open slot, dlen==0) using fd already open on the slot; path-based (dlen>0 with payload containing path) resolves via xrootd_resolve_path_write fallback to xrootd_resolve_path, opens O_RDONLY for pread(2), calls read then closes temporary fd. Offset is big-endian int64 representing start position in file; rlen is uint32_t representing requested byte count (capped at XROOTD_READ_REQUEST_MAX). Token scope read gate required for both paths ensuring only authenticated clients can access files. Returns kXR_status response containing next expected offset for client progress tracking.
- *
- * WHY: Page-mode reads provide byte-level integrity verification for large file downloads where single-segment kXR_read would offer no checksum protection. CRC32c per-page verification ensures data corruption is detected immediately rather than after transfer completion — clients can retry corrupted pages without retransmitting the entire file. The kXR_status response (next expected offset) enables precise progress tracking, critical for resumable downloads and monitoring large transfers in production deployments where network failures may interrupt mid-transfer reads.
- *
- * HOW: Two-phase read → validate read handle (xrootd_validate_read_handle for read-side validation) — parse offset/rlen from wire format (big-endian int64 + uint32_t) — cap rlen at XROOTD_READ_REQUEST_MAX if exceeds limit — pread(2) from file using AIO thread-pool or inline fallback — encode pages via xrootd_pgread_encode_pages() — build response chain with kXR_status framing containing next expected offset — queue response via xrootd_queue_response_chain(). */
+ * pgread.c — kXR_pgread opcode.  See each function's docblock below.
+ */
 
 #include "read.h"
 
@@ -88,7 +46,7 @@
  */
 size_t
 xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
-    u_char *out, ssize_t *nread_out, int *io_errno_out)
+    u_char *out, ssize_t *nread_out, int *io_errno_out, int nowait)
 {
     u_char  *o = out;            /* write cursor in the gapped wire buffer */
     size_t   remaining = rlen;   /* file bytes not yet laid out into a batch */
@@ -134,11 +92,30 @@ xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
             k++;
         }
 
-        n = xrootd_sd_posix_driver.preadv(&obj, iov, k, batch_off);
-        if (n < 0) {
-            *nread_out = -1;
-            *io_errno_out = errno;
-            return 0;
+#if defined(RWF_NOWAIT)
+        if (nowait) {
+            /* Warm-cache probe: read only what is already resident. Any short
+             * batch or EAGAIN means "not fully in page cache" — abort the whole
+             * inline attempt so the caller offloads a blocking read (which also
+             * re-detects true EOF correctly). A real error likewise aborts; the
+             * blocking re-read surfaces it. Earlier full batches' work is
+             * discarded by that re-read. */
+            n = xrootd_sd_posix_driver.preadv2(&obj, iov, k, batch_off,
+                                               RWF_NOWAIT);
+            if (n < 0 || (size_t) n < batch_bytes) {
+                *nread_out = 0;
+                *io_errno_out = (n < 0) ? errno : EAGAIN;
+                return 0;
+            }
+        } else
+#endif
+        {
+            n = xrootd_sd_posix_driver.preadv(&obj, iov, k, batch_off);
+            if (n < 0) {
+                *nread_out = -1;
+                *io_errno_out = errno;
+                return 0;
+            }
         }
         total += n;
 
@@ -259,9 +236,10 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
     fd = ctx->files[idx].fd;
 
     {
-        size_t  n_pages_max;
-        size_t  scratch_size;
-        u_char *scratch;
+        size_t     n_pages_max;
+        size_t     scratch_size;
+        u_char    *scratch;
+        ngx_flag_t warm_hit = 0;
 
         rconf = ngx_stream_get_module_srv_conf(
             (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
@@ -290,7 +268,35 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
             return NGX_ERROR;
         }
 
-        if (rconf->common.thread_pool != NULL) {
+        /*
+         * Warm-cache fast path: when the whole range is already page-cache
+         * resident, read + CRC it inline on the event loop via preadv2
+         * (RWF_NOWAIT) and skip the thread-pool handoff entirely — the handoff
+         * latency, not the copy, is the single-stream (n=1) cost. A miss
+         * (not resident / EOF / error) sets no warm_hit and falls through to the
+         * blocking offload below, which re-reads the full range. Only attempted
+         * with a pool configured (else the blocking path runs inline anyway) and
+         * for a regular file (RWF_NOWAIT is meaningful against the page cache).
+         * Mirrors the kXR_read Phase-32 probe.
+         */
+        if (rconf->common.thread_pool != NULL && ctx->files[idx].is_regular) {
+            ssize_t warm_nread = 0;
+            int     warm_errno = 0;
+            size_t  warm_osz;
+
+            warm_osz = xrootd_pgread_read_encode_inplace(fd, (off_t) offset,
+                                                         rlen, scratch,
+                                                         &warm_nread,
+                                                         &warm_errno, 1);
+            if (warm_errno == 0 && warm_nread == (ssize_t) rlen) {
+                out_size = warm_osz;
+                flat_buf = scratch;
+                out_buf  = scratch;
+                warm_hit = 1;          /* rlen already == bytes encoded */
+            }
+        }
+
+        if (!warm_hit && rconf->common.thread_pool != NULL) {
             ngx_thread_task_t   *task;
             xrootd_pgread_aio_t *t;
             ngx_flag_t           posted;
@@ -333,8 +339,9 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
         /*
          * Sync fallback: read directly into the gapped wire buffer and CRC each
          * page in place (no flat-buffer copy). Same code path as the AIO worker.
+         * Skipped when the warm-cache fast path already produced the encoding.
          */
-        {
+        if (!warm_hit) {
             xrootd_vfs_job_t job;
 
             xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,

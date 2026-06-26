@@ -16,8 +16,12 @@
 
 #include "integrity_info.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/xattr.h>
 #include <openssl/evp.h>
@@ -39,6 +43,90 @@ integrity_xattr_key(const char *algo, char *buf, size_t bufsz)
         return NULL;
     }
     return buf;
+}
+
+/* ---- official XrdCks/XrdCksData binary record (§8.1 interop) ----
+ * Stock xrootd stores the checksum in the SAME xattr ("user.XrdCks.<alg>") as a
+ * binary XrdCksData struct (host byte order, ADR-4). We can both read and (opt-in)
+ * write it so `xrdfs query checksum` / XrdOss interoperate. Layout mirrors
+ * XrdCks/XrdCksData.hh. */
+struct xrd_cks_data {
+    char      Name[16];   /* algo name, NUL-padded */
+    long long fmTime;     /* file mtime (sec) when computed */
+    int       csTime;     /* delta secs fmTime→compute */
+    short     Rsvd1;
+    char      Rsvd2;
+    char      Length;     /* digest length in bytes */
+    char      Value[64];  /* binary digest */
+};
+
+static int
+cks_hex_nibble(unsigned char c)
+{
+    if (c >= '0' && c <= '9') { return c - '0'; }
+    if (c >= 'a' && c <= 'f') { return c - 'a' + 10; }
+    if (c >= 'A' && c <= 'F') { return c - 'A' + 10; }
+    return -1;
+}
+
+size_t
+xrootd_cksdata_encode(const xrootd_integrity_info_t *in, time_t fmtime,
+    unsigned char *out)
+{
+    struct xrd_cks_data d;
+    size_t              hexlen = ngx_strlen(in->hex);
+    int                 i, dl = (int) (hexlen / 2);
+
+    ngx_memzero(&d, sizeof(d));
+    ngx_cpystrn((u_char *) d.Name, (u_char *) in->alg_name, sizeof(d.Name));
+    d.fmTime = (long long) fmtime;
+    d.csTime = 0;
+    if (dl > (int) sizeof(d.Value)) { dl = (int) sizeof(d.Value); }
+    d.Length = (char) dl;
+    for (i = 0; i < dl; i++) {
+        int hi = cks_hex_nibble((unsigned char) in->hex[2 * i]);
+        int lo = cks_hex_nibble((unsigned char) in->hex[2 * i + 1]);
+        if (hi < 0 || lo < 0) { return 0; }
+        d.Value[i] = (char) ((hi << 4) | lo);
+    }
+    ngx_memcpy(out, &d, sizeof(d));
+    return sizeof(d);
+}
+
+int
+xrootd_cksdata_decode(const unsigned char *buf, size_t len, time_t cur_mtime,
+    xrootd_integrity_info_t *out)
+{
+    static const char hx[] = "0123456789abcdef";
+    struct xrd_cks_data d;
+    int                 i;
+
+    if (len != sizeof(d)) {
+        return 0;
+    }
+    ngx_memcpy(&d, buf, sizeof(d));
+    if (d.Length <= 0 || d.Length > (char) sizeof(d.Value)) {
+        return 0;
+    }
+    if (cur_mtime != (time_t) 0 && (time_t) d.fmTime != cur_mtime) {
+        return 0;   /* stale → recompute */
+    }
+    for (i = 0; i < d.Length; i++) {
+        out->hex[2 * i]     = hx[(d.Value[i] >> 4) & 0xf];
+        out->hex[2 * i + 1] = hx[d.Value[i] & 0xf];
+    }
+    out->hex[2 * d.Length] = '\0';
+    /* Name in the record is authoritative for the algorithm label. */
+    {
+        size_t j;
+        for (j = 0; j < sizeof(d.Name) && d.Name[j]; j++) { }
+        if (j > 0 && j < sizeof(out->alg_name)) {
+            ngx_memcpy(out->alg_name, d.Name, j);
+            out->alg_name[j] = '\0';
+        }
+    }
+    out->from_cache = 1;
+    return 1;
 }
 
 /* Returns 1 and populates out->hex if a valid, still-current cached value exists.
@@ -67,6 +155,21 @@ integrity_xattr_read(int fd, const char *algo,
     if (n <= 0) {
         return 0;
     }
+
+    /* §8.1: a stock-xrootd value is a binary XrdCksData record (exact size). Decode
+     * it (mtime-validated against the live file) so we interoperate with
+     * `xrdfs query checksum` / XrdOss without recomputing. */
+    if ((size_t) n == sizeof(struct xrd_cks_data)) {
+        struct stat bst;
+        time_t      cur = (fstat(fd, &bst) == 0) ? bst.st_mtim.tv_sec : (time_t) 0;
+        if (xrootd_cksdata_decode((const unsigned char *) val, (size_t) n,
+                                  cur, out))
+        {
+            return 1;
+        }
+        return 0;   /* binary-sized but stale/invalid → miss */
+    }
+
     val[n] = '\0';
 
     nread = sscanf(val, "%127s %ld %ld %lld",
@@ -101,8 +204,23 @@ integrity_xattr_read(int fd, const char *algo,
     return 1;
 }
 
-static void
-integrity_xattr_write(int fd, const char *algo, const char *hexval)
+/* §8.x process-global WRITE format (default text; reader handles either). */
+static ngx_uint_t s_xattr_format = XROOTD_CKS_FMT_TEXT;
+
+void
+xrootd_integrity_set_xattr_format(ngx_uint_t fmt)
+{
+    if (fmt == XROOTD_CKS_FMT_TEXT || fmt == XROOTD_CKS_FMT_XRDCKS) {
+        s_xattr_format = fmt;
+    }
+}
+
+/* Writes the checksum xattr and reports the fsetxattr errno (0 on success) so the
+ * caller can fall back to a sidecar file when the filesystem lacks user xattrs.
+ * Emits the binary XrdCksData record (stock-interoperable) when the configured
+ * format is XRDCKS, else our text record. */
+static int
+integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
 {
     char        key[64];
     char        val[INTEGRITY_XATTR_VAL_MAX];
@@ -110,22 +228,172 @@ integrity_xattr_write(int fd, const char *algo, const char *hexval)
     int         n;
 
     if (integrity_xattr_key(algo, key, sizeof(key)) == NULL) {
-        return;
+        return EINVAL;
     }
-
     if (fstat(fd, &st) != 0) {
-        return;   /* can't store mtime+size — skip cache write */
+        return errno;
     }
 
-    n = snprintf(val, sizeof(val), "%s %ld %ld %lld",
-                 hexval,
+    if (s_xattr_format == XROOTD_CKS_FMT_XRDCKS) {
+        xrootd_integrity_info_t tmp;
+        unsigned char           rec[sizeof(struct xrd_cks_data)];
+        size_t                  rn;
+
+        ngx_memzero(&tmp, sizeof(tmp));
+        ngx_cpystrn((u_char *) tmp.alg_name, (u_char *) algo,
+                    sizeof(tmp.alg_name));
+        ngx_cpystrn((u_char *) tmp.hex, (u_char *) hexval, sizeof(tmp.hex));
+        rn = xrootd_cksdata_encode(&tmp, st.st_mtim.tv_sec, rec);
+        if (rn == 0) {
+            return EINVAL;
+        }
+        if (fsetxattr(fd, key, rec, rn, 0) != 0) {
+            return errno;
+        }
+        return 0;
+    }
+
+    n = snprintf(val, sizeof(val), "%s %ld %ld %lld", hexval,
                  (long) st.st_mtim.tv_sec, (long) st.st_mtim.tv_nsec,
                  (long long) st.st_size);
     if (n < 0 || (size_t) n >= sizeof(val)) {
+        return EINVAL;
+    }
+    if (fsetxattr(fd, key, val, (size_t) n, 0) != 0) {
+        return errno;
+    }
+    return 0;
+}
+
+/* ---- .cks sidecar fallback (§8.2) — for exports without user xattrs ----
+ * "<path>.cks" holds one text record per algorithm:
+ *   "<algo> <hex> <mtime_sec> <mtime_nsec> <size>\n"
+ * keyed/validated on the live file's mtime+size, mirroring the xattr policy. The
+ * sidecar is our own fallback cache (stock interop uses the xattr), opened
+ * O_NOFOLLOW|O_CLOEXEC. */
+#define INTEGRITY_SIDECAR_MAX (64 * 1024)
+
+static int
+integrity_sidecar_path(const char *path, char *buf, size_t bufsz)
+{
+    int n = snprintf(buf, bufsz, "%s.cks", path);
+    return (n > 0 && (size_t) n < bufsz) ? 0 : -1;
+}
+
+static int
+integrity_sidecar_read(const char *path, const char *algo,
+    xrootd_integrity_info_t *out)
+{
+    char        scpath[4096];
+    char        line[INTEGRITY_XATTR_VAL_MAX + 64];
+    struct stat st;
+    FILE       *fp;
+    int         fd, found = 0;
+
+    if (path == NULL
+        || integrity_sidecar_path(path, scpath, sizeof(scpath)) != 0
+        || stat(path, &st) != 0)
+    {
+        return 0;
+    }
+    fd = open(scpath, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) {
+        return 0;
+    }
+    fp = fdopen(fd, "r");
+    if (fp == NULL) {
+        close(fd);
+        return 0;
+    }
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        char      ralgo[32], rhex[INTEGRITY_XATTR_VAL_MAX];
+        long      ms, mn;
+        long long sz;
+        if (sscanf(line, "%31s %159s %ld %ld %lld",
+                   ralgo, rhex, &ms, &mn, &sz) != 5) {
+            continue;
+        }
+        if (strcmp(ralgo, algo) != 0) {
+            continue;
+        }
+        if ((long) st.st_mtim.tv_sec == ms && (long) st.st_mtim.tv_nsec == mn
+            && (long long) st.st_size == sz)
+        {
+            ngx_cpystrn((u_char *) out->hex, (u_char *) rhex, sizeof(out->hex));
+            out->from_cache = 1;
+            found = 1;
+        }
+        break;   /* algo line found (fresh or stale) */
+    }
+    fclose(fp);
+    return found;
+}
+
+static void
+integrity_sidecar_write(const char *path, const char *algo, const char *hexval)
+{
+    char        scpath[4096];
+    char       *buf;
+    size_t      cap = INTEGRITY_SIDECAR_MAX, len = 0;
+    char        line[INTEGRITY_XATTR_VAL_MAX + 64];
+    struct stat st;
+    FILE       *fp;
+    int         fd, ln;
+
+    if (path == NULL
+        || integrity_sidecar_path(path, scpath, sizeof(scpath)) != 0
+        || stat(path, &st) != 0)
+    {
         return;
     }
 
-    (void) fsetxattr(fd, key, val, (size_t) n, 0);
+    /* Build the new content: existing lines (minus this algo) + the fresh record. */
+    buf = malloc(cap);
+    if (buf == NULL) {
+        return;
+    }
+    fd = open(scpath, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd >= 0) {
+        fp = fdopen(fd, "r");
+        if (fp != NULL) {
+            char  rd[INTEGRITY_XATTR_VAL_MAX + 64];
+            size_t alen = strlen(algo);
+            while (fgets(rd, sizeof(rd), fp) != NULL) {
+                if (strncmp(rd, algo, alen) == 0 && rd[alen] == ' ') {
+                    continue;   /* drop the stale record for this algo */
+                }
+                {
+                    size_t rl = strlen(rd);
+                    if (len + rl < cap) {
+                        memcpy(buf + len, rd, rl);
+                        len += rl;
+                    }
+                }
+            }
+            fclose(fp);
+        } else {
+            close(fd);
+        }
+    }
+    ln = snprintf(line, sizeof(line), "%s %s %ld %ld %lld\n", algo, hexval,
+                  (long) st.st_mtim.tv_sec, (long) st.st_mtim.tv_nsec,
+                  (long long) st.st_size);
+    if (ln > 0 && len + (size_t) ln < cap) {
+        memcpy(buf + len, line, (size_t) ln);
+        len += (size_t) ln;
+    }
+
+    fd = open(scpath, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
+    if (fd >= 0) {
+        ssize_t w = 0;
+        while ((size_t) w < len) {
+            ssize_t k = write(fd, buf + w, len - (size_t) w);
+            if (k <= 0) { break; }
+            w += k;
+        }
+        close(fd);
+    }
+    free(buf);
 }
 
 /* Default policy when opts is NULL. */
@@ -164,9 +432,15 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
         return NGX_ERROR;
     }
 
-    /* Check the xattr cache first when allowed. */
-    if (o->allow_xattr_cache && integrity_xattr_read(fd, out->alg_name, out)) {
-        return NGX_OK;
+    /* Check the xattr cache first when allowed, then the .cks sidecar fallback
+     * (§8.2) for exports without user xattrs. */
+    if (o->allow_xattr_cache) {
+        if (integrity_xattr_read(fd, out->alg_name, out)) {
+            return NGX_OK;
+        }
+        if (integrity_sidecar_read(path, out->alg_name, out)) {
+            return NGX_OK;
+        }
     }
 
     /* Cache-only callers (e.g. S3 GET/HEAD echo) decline on a miss rather than
@@ -185,9 +459,17 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
     ngx_cpystrn((u_char *) out->hex, (u_char *) hex, sizeof(out->hex));
     out->from_cache = 0;
 
-    /* Update xattr cache on successful computation when permitted. */
+    /* Persist the computed value: xattr first; if the filesystem lacks user
+     * xattrs (ENOTSUP/EOPNOTSUPP/EPERM) fall back to the .cks sidecar (§8.2). */
     if (o->allow_xattr_cache && o->update_xattr_cache) {
-        integrity_xattr_write(fd, out->alg_name, hex);
+        int wrc = integrity_xattr_write_rc(fd, out->alg_name, hex);
+        if (wrc == ENOTSUP
+#ifdef EOPNOTSUPP
+            || wrc == EOPNOTSUPP
+#endif
+            || wrc == EPERM) {
+            integrity_sidecar_write(path, out->alg_name, hex);
+        }
     }
 
     return NGX_OK;

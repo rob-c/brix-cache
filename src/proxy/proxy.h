@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PROXY_PROXY_H
+#define XROOTD_PROXY_PROXY_H
 
 /*
  * proxy.h — public API for the XRootD transparent proxy module.
@@ -72,3 +73,5 @@ char *xrootd_conf_set_proxy_path_rewrite(ngx_conf_t *cf, ngx_command_t *cmd,
  * Called from xrootd_on_disconnect().
  */
 void xrootd_proxy_cleanup(xrootd_proxy_ctx_t *proxy);
+
+#endif /* XROOTD_PROXY_PROXY_H */

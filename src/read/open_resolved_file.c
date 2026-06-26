@@ -13,6 +13,7 @@
 
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>   /* open(2) flags + fcntl() to clear O_NONBLOCK post-open */
 
 /* ---- Function: xrootd_open_resolved_file() ----
  *
@@ -80,6 +81,20 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	                             conf->cache_root.data,
 	                             conf->cache_root.len) == 0);
 
+	/* A write open of an existing DIRECTORY must be rejected up front with
+	 * kXR_isDirectory (stock parity: O_WRONLY on a directory fails EISDIR).
+	 * Without this the staging path below would derive a ".part" FILE from the
+	 * directory's name, create it, and wrongly report success — diverging from
+	 * stock. The read side is rejected symmetrically just below. */
+	if (is_write) {
+		struct stat dst;
+		if (stat(resolved, &dst) == 0 && S_ISDIR(dst.st_mode)) {
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_isDirectory,
+			                  "is a directory");
+		}
+	}
+
 	/*
 	 * Build the POSC staging temp path: same directory as the final path,
 	 * with a ".posc.<pid>.<random>" suffix appended.  This keeps the temp
@@ -88,8 +103,18 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* When staging is active the kXR_new exclusive-create check must run against
 	 * the FINAL path, not the staging temp (which is what actually gets O_EXCL):
 	 * staging never opens the final, so without this an exclusive create over an
-	 * existing object would wrongly succeed and overwrite it on commit. */
-	if (stage && (options & kXR_new)) {
+	 * existing object would wrongly succeed and overwrite it on commit.
+	 *
+	 * This is an EXCLUSIVE-create check, so it only applies when kXR_new is set
+	 * WITHOUT kXR_delete — exactly the O_EXCL condition in the direct-open
+	 * mapping (open_flags.h: kXR_new adds O_EXCL "unless kXR_delete is also
+	 * set"). With kXR_delete also present the client explicitly asked to
+	 * truncate/overwrite any existing object (the delete intent wins over the
+	 * new intent), so an existing final must NOT be rejected — staging will
+	 * replace it on the commit rename. Without this guard a delete+new overwrite
+	 * (e.g. xrdcp -f, or a kXR_recoverWrts reopen) was wrongly rejected with
+	 * kXR_ItExists. */
+	if (stage && (options & kXR_new) && !(options & kXR_delete)) {
 		struct stat fst;
 		if (stat(resolved, &fst) == 0) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
@@ -187,7 +212,13 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * O_TRUNC is inherited from `oflags`: a fresh create/truncate open
 		 * starts the partial empty; a resume re-open (kXR_open_updt, no trunc)
 		 * preserves the already-written bytes. */
-		int effective_oflags = oflags | (stage ? O_CREAT : 0);
+		/* O_NONBLOCK guarantees the open(2) cannot park the worker in the
+		 * kernel FIFO/device "wait_for_partner" rendezvous (a named pipe in the
+		 * export would otherwise freeze the worker's event loop and stall every
+		 * connection pinned to it).  It is harmless for the regular files we
+		 * serve and is cleared again on the surviving fd once fstat() confirms
+		 * S_ISREG below.  Mirrors the central guard in xrootd_open_beneath(). */
+		int effective_oflags = oflags | (stage ? O_CREAT : 0) | O_NONBLOCK;
 
 		/* Resume staging on a configured fast device: the partial lives OUTSIDE
 		 * root_canon, so it cannot go through the RESOLVE_BENEATH open.  Its
@@ -274,6 +305,29 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
 						  "OPEN", resolved, is_write ? "wr" : "rd",
 						  kXR_isDirectory, "is a directory");
+	}
+
+	/* Only regular files are servable byte streams.  A FIFO, socket, device or
+	 * other special file was opened O_NONBLOCK (so the open could not wedge the
+	 * worker); refuse to serve it rather than let a read/write spin on EAGAIN.
+	 * A staged write always lands on a freshly O_CREAT'd regular temp, so this
+	 * only ever rejects a pre-existing special file at the resolved path. */
+	if (!S_ISREG(st.st_mode)) {
+		close(fd);
+		XROOTD_RETURN_ERR(ctx, c,
+						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+						  "OPEN", resolved, is_write ? "wr" : "rd",
+						  kXR_IOError, "not a regular file");
+	}
+
+	/* The fd is a confirmed regular file: drop O_NONBLOCK so every downstream
+	 * read/write/sendfile sees ordinary blocking semantics (a no-op for local
+	 * regular files, but it keeps the fd's flags unsurprising for callers). */
+	{
+		int fl = fcntl(fd, F_GETFL);
+		if (fl != -1 && (fl & O_NONBLOCK)) {
+			(void) fcntl(fd, F_SETFL, fl & ~O_NONBLOCK);
+		}
 	}
 
 	ctx->files[idx].fd          = fd;

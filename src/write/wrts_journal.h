@@ -23,7 +23,8 @@
  * HEP streaming workloads without heap allocation.
  */
 
-#pragma once
+#ifndef XROOTD_WRITE_WRTS_JOURNAL_H
+#define XROOTD_WRITE_WRTS_JOURNAL_H
 
 #include "../types/file.h"
 
@@ -64,3 +65,5 @@ int xrootd_wrts_is_replay(const xrootd_file_t *f,
  * write with the same offset is treated as a fresh write, not a replay.
  */
 void xrootd_wrts_flush(xrootd_file_t *f);
+
+#endif /* XROOTD_WRITE_WRTS_JOURNAL_H */

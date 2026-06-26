@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_CRYPTO_OCSP_H
+#define XROOTD_CRYPTO_OCSP_H
 
 /*
  * OCSP client: check certificate revocation status and staple OCSP responses.
@@ -48,3 +49,5 @@ int xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer,
  */
 ngx_int_t xrootd_ocsp_staple_fetch(ngx_log_t *log,
     ngx_stream_xrootd_srv_conf_t *xcf);
+
+#endif /* XROOTD_CRYPTO_OCSP_H */

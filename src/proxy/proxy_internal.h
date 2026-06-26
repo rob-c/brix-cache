@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PROXY_PROXY_INTERNAL_H
+#define XROOTD_PROXY_PROXY_INTERNAL_H
 
 #include "proxy.h"
 
@@ -360,3 +361,5 @@ ngx_int_t xrootd_proxy_dispatch_pending(xrootd_proxy_ctx_t *proxy);
  * countdown has elapsed.
  */
 void xrootd_proxy_wait_handler(ngx_event_t *ev);
+
+#endif /* XROOTD_PROXY_PROXY_INTERNAL_H */

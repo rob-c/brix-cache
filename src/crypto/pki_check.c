@@ -3,6 +3,8 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+#include "../compat/log_diag.h"
+
 #include <openssl/pem.h>
 #include <openssl/evp.h>
 
@@ -212,9 +214,13 @@ xrootd_pki_check_paths(ngx_log_t *log, const char *ca_path,
 
     ca_certs = xrootd_pki_load_certs_from_path(ca_path, log);
     if (ca_certs == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "%s: PKI check: no CA certificates found in \"%s\"",
-                      log_prefix, ca_path);
+        XROOTD_DIAG_WARN(log, 0,
+            "%s: no CA certificates loaded from \"%s\"",
+            "directory has no readable *.pem CA certs, or wrong path",
+            "point the CA setting at your grid trust store "
+            "(usually /etc/grid-security/certificates); until then ALL "
+            "GSI/x509 client authentication will be rejected",
+            log_prefix, ca_path);
         return NGX_OK;
     }
 
@@ -225,9 +231,12 @@ xrootd_pki_check_paths(ngx_log_t *log, const char *ca_path,
 
     crls = xrootd_pki_load_crls_from_path(crl_path, log);
     if (crls == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "%s: PKI check: no CRLs loaded from \"%s\"",
-                      log_prefix, crl_path);
+        XROOTD_DIAG_WARN(log, 0,
+            "%s: no CRLs loaded from \"%s\"",
+            "CRL directory is empty, stale, or wrong path",
+            "run fetch-crl (or your CRL refresh cron) to populate it; "
+            "until then REVOKED certificates are still ACCEPTED",
+            log_prefix, crl_path);
         sk_X509_pop_free(ca_certs, X509_free);
         return NGX_OK;
     }

@@ -27,6 +27,7 @@
 #include <openssl/dh.h>          /* EVP_PKEY_CTX_set_dh_pad */
 #include <openssl/rand.h>        /* RAND_bytes (rtag) */
 #include <openssl/pem.h>         /* PEM_{read,write}_bio_Parameters (W4 cipher) */
+#include <openssl/x509.h>        /* X509 (peer cert pubkey, signed-DH verify) */
 #include <openssl/evp.h>         /* EVP cipher ctx + EVP_get_cipherbyname (W4) */
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/provider.h>    /* phase-52: load legacy provider for bf/3des */
@@ -881,6 +882,331 @@ xrootd_gsi_build_certreq(const char *cryptomod, uint32_t version,
     xrootd_gbuf_free(&inner);
     xrootd_gbuf_free(&outer);
     return result;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared XrdSecgsi round-2 (kXGC_cert) response builder.               */
+/* Single source for both the native client (sec_gsi.c gsi_more) and    */
+/* the TPC destination (gsi_outbound_exchange.c) — handles both the      */
+/* unsigned (kXRS_puk) and signed-DH (kXRS_cipher, v>=10400) variants.  */
+/* ------------------------------------------------------------------ */
+
+/* Public key of the first X.509 cert in a PEM bucket (the peer's EEC). */
+static EVP_PKEY *
+gsi_cresp_cert_pubkey(const uint8_t *pem, size_t len)
+{
+    BIO      *bio = BIO_new_mem_buf(pem, (int) len);
+    X509     *cert = bio ? PEM_read_bio_X509(bio, NULL, NULL, NULL) : NULL;
+    EVP_PKEY *pk = cert ? X509_get_pubkey(cert) : NULL;
+
+    X509_free(cert);
+    BIO_free(bio);
+    return pk;
+}
+
+/* Export an EVP_PKEY public part as PEM SubjectPublicKeyInfo
+ * (XrdCryptosslRSA::ExportPublic = PEM_write_bio_PUBKEY).  malloc'd,
+ * NUL-terminated, *outlen = strlen.  The signed-DH path sends this as kXRS_puk so
+ * the server can verify our signed DH before it has decrypted our cert chain. */
+static char *
+gsi_cresp_export_pubkey_pem(EVP_PKEY *key, size_t *outlen)
+{
+    BIO  *bio = BIO_new(BIO_s_mem());
+    char *pem = NULL, *out = NULL;
+    long  len;
+
+    if (bio != NULL && PEM_write_bio_PUBKEY(bio, key) == 1) {
+        len = BIO_get_mem_data(bio, &pem);
+        out = malloc((size_t) len + 1);
+        if (out != NULL) {
+            memcpy(out, pem, (size_t) len);
+            out[len] = '\0';
+            *outlen = (size_t) len;
+        }
+    }
+    BIO_free(bio);
+    return out;
+}
+
+/* Choose the kXRS_md_alg digest to echo back: prefer "sha256" when the server
+ * offers it (it matches our SHA256(secret) key derivation), else the server's
+ * first ':'-separated token, else "sha256".  dCache rejects the handshake if the
+ * reply names a digest it did not advertise. */
+static size_t
+gsi_cresp_pick_md_alg(const uint8_t *sbody, uint32_t slen, char *out, size_t outcap)
+{
+    const uint8_t *list = NULL;
+    size_t         listlen = 0, n = 0;
+
+    if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_md_alg,
+                               &list, &listlen) == 0 && listlen > 0) {
+        if (listlen >= 6) {
+            for (size_t i = 0; i + 6 <= listlen; i++) {
+                if (memcmp(list + i, "sha256", 6) == 0) {
+                    memcpy(out, "sha256", 6);
+                    out[6] = '\0';
+                    return 6;
+                }
+            }
+        }
+        while (n < listlen && n + 1 < outcap && list[n] != ':') {
+            out[n] = (char) list[n];
+            n++;
+        }
+    }
+    if (n == 0) {
+        memcpy(out, "sha256", 6);
+        n = 6;
+    }
+    out[n] = '\0';
+    return n;
+}
+
+/*
+ * gsi_cresp_ctx — owned resources for the round-2 response, freed once by
+ * gsi_cresp_cleanup (single NULL-safe destructor, no goto).  proxy_pem and the
+ * proxy private key are NOT held here — they are borrowed from the caller.
+ */
+typedef struct {
+    EVP_PKEY    *mine;          /* our session DH keypair                   */
+    EVP_PKEY    *peer;          /* server session DH public                 */
+    EVP_PKEY    *servpub;       /* server cert public key (verify signed DH)*/
+    uint8_t     *peerblob;      /* recovered server Public() blob (signed)  */
+    uint8_t     *signed_rtag;   /* server rtag signed with the proxy key    */
+    size_t       signed_rtag_len;
+    char        *cpub;          /* our DH public, Public() wire blob        */
+    uint8_t     *signed_cpub;   /* our cpub signed with the proxy key       */
+    size_t       signed_cpub_len;
+    char        *pubpem;        /* proxy public key PEM (signed path)       */
+    uint8_t     *enc;           /* encrypted response main                  */
+    xrootd_gbuf  inner;
+    xrootd_gbuf  outer;
+} gsi_cresp_ctx;
+
+static int
+gsi_cresp_fail(gsi_cresp_ctx *x, char *err, size_t errcap, const char *msg)
+{
+    if (err != NULL && errcap > 0 && msg != NULL) {
+        snprintf(err, errcap, "%s", msg);
+    }
+    free(x->peerblob);
+    free(x->signed_rtag);
+    free(x->signed_cpub);
+    free(x->pubpem);
+    free(x->enc);
+    free(x->cpub);
+    EVP_PKEY_free(x->mine);
+    EVP_PKEY_free(x->peer);
+    EVP_PKEY_free(x->servpub);
+    xrootd_gbuf_free(&x->inner);
+    xrootd_gbuf_free(&x->outer);
+    return -1;
+}
+
+int
+xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
+                              const uint8_t *proxy_pem, size_t proxy_pem_len,
+                              EVP_PKEY *proxy_key,
+                              uint8_t **payload, uint32_t *plen,
+                              char *err, size_t errcap)
+{
+    const uint8_t *cipher = NULL, *puk = NULL, *sx509 = NULL, *xmain = NULL;
+    size_t         cipherlen = 0, puklen = 0, sx509len = 0;
+    size_t         xmainlen = 0, enclen = 0, cpublen = 0;
+    const uint8_t *peerpub = NULL;
+    size_t         peerpublen = 0;
+    int            signed_dh;
+    uint8_t        aeskey[XROOTD_GSI_MAX_KEY];
+    xrootd_gsi_cipher_t sesscipher;
+    char           chosen_cipher[24];
+    char           cipher_field[40];
+    int            use_iv;
+    uint8_t        newrtag[8];
+    char           md_alg[32];
+    size_t         md_alg_len;
+    gsi_cresp_ctx  x;
+
+    memset(&x, 0, sizeof(x));
+    xrootd_gbuf_init(&x.inner);
+    xrootd_gbuf_init(&x.outer);
+
+    if (proxy_pem == NULL || proxy_key == NULL) {
+        return gsi_cresp_fail(&x, err, errcap, "gsi: missing proxy credential");
+    }
+
+    /* 1. Determine the DH variant + recover the server's DH public blob. */
+    signed_dh = xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher,
+                                       &cipher, &cipherlen) == 0;
+    if (signed_dh) {
+        if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_x509,
+                                   &sx509, &sx509len) != 0
+            || (x.servpub = gsi_cresp_cert_pubkey(sx509, sx509len)) == NULL) {
+            return gsi_cresp_fail(&x, err, errcap,
+                                  "gsi: server certificate missing");
+        }
+        x.peerblob = malloc(cipherlen + 64);
+        if (x.peerblob == NULL) {
+            return gsi_cresp_fail(&x, err, errcap, "gsi: out of memory");
+        }
+        peerpublen = xrootd_gsi_rsa_decrypt_public(x.servpub, cipher, cipherlen,
+                                                   x.peerblob, cipherlen + 64);
+        if (peerpublen == 0) {
+            return gsi_cresp_fail(&x, err, errcap,
+                                  "gsi: verifying signed server DH parameters");
+        }
+        peerpub = x.peerblob;
+    } else if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_puk,
+                                      &puk, &puklen) == 0) {
+        peerpub = puk;
+        peerpublen = puklen;
+    } else {
+        return gsi_cresp_fail(&x, err, errcap, "gsi: server DH public missing");
+    }
+
+    /* Choose the session cipher from the server's kXRS_cipher_alg list, preferring
+     * aes-128-cbc (the universal XrdSecgsi default) whenever offered. */
+    {
+        const uint8_t *ca = NULL; size_t cal = 0;
+        char           offered[128];
+
+        snprintf(chosen_cipher, sizeof(chosen_cipher), "aes-128-cbc");
+        if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher_alg,
+                                   &ca, &cal) == 0 && cal > 0
+            && cal < sizeof(offered)) {
+            memcpy(offered, ca, cal);
+            offered[cal] = '\0';
+            if (memmem(offered, cal, "aes-128-cbc", 11) == NULL) {
+                (void) xrootd_gsi_cipher_pick(offered, &sesscipher, chosen_cipher);
+            }
+        }
+        if (!xrootd_gsi_cipher_lookup(chosen_cipher, &sesscipher)) {
+            (void) xrootd_gsi_cipher_lookup("aes-128-cbc", &sesscipher);
+            snprintf(chosen_cipher, sizeof(chosen_cipher), "aes-128-cbc");
+        }
+    }
+
+    /* 2. Agree the session key (HasPad follows the variant). */
+    {
+        const uint8_t *cm = NULL; size_t cml = 0;
+        int peer_nopad = (xrootd_gsi_find_bucket(sbody, slen,
+                              (uint32_t) kXRS_cryptomod, &cm, &cml) == 0
+                          && cml >= 5
+                          && memmem(cm, cml, "nopad", 5) != NULL);
+        int dh_pad = signed_dh && !peer_nopad;
+
+        x.peer = xrootd_gsi_cipher_parse_peer(peerpub, peerpublen);
+        x.mine = x.peer ? xrootd_gsi_cipher_keygen_from(x.peer) : NULL;
+        if (x.peer == NULL || x.mine == NULL
+            || !xrootd_gsi_cipher_session_key(x.mine, x.peer, dh_pad, aeskey,
+                                              sesscipher.key_len)) {
+            return gsi_cresp_fail(&x, err, errcap,
+                                  "gsi: session-key agreement failed");
+        }
+    }
+
+    /* 3. Sign the server's random tag with the proxy key (proof of possession). */
+    if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_main,
+                               &xmain, &xmainlen) == 0) {
+        const uint8_t *srtag = NULL;
+        size_t         srtaglen = 0;
+
+        if (xrootd_gsi_find_bucket(xmain, xmainlen, (uint32_t) kXRS_rtag,
+                                   &srtag, &srtaglen) == 0) {
+            uint8_t sig[1024];
+            size_t  siglen = xrootd_gsi_rsa_sign_raw(proxy_key, srtag, srtaglen,
+                                                     sig);
+            if (siglen == 0 || siglen > sizeof(sig)
+                || (x.signed_rtag = malloc(siglen)) == NULL) {
+                OPENSSL_cleanse(aeskey, sizeof(aeskey));
+                return gsi_cresp_fail(&x, err, errcap,
+                                  "gsi: signing the server tag with the proxy key");
+            }
+            memcpy(x.signed_rtag, sig, siglen);
+            x.signed_rtag_len = siglen;
+        }
+    }
+
+    /* 4. Build + encrypt the response main: proxy chain + signed tag + new tag. */
+    if (!xrootd_gsi_rand(newrtag, sizeof(newrtag))) {
+        OPENSSL_cleanse(aeskey, sizeof(aeskey));
+        return gsi_cresp_fail(&x, err, errcap, "gsi: RNG failed");
+    }
+    xrootd_gbuf_start(&x.inner, (uint32_t) kXGC_cert);
+    xrootd_gbuf_bucket(&x.inner, (uint32_t) kXRS_x509, proxy_pem, proxy_pem_len);
+    if (x.signed_rtag != NULL) {
+        xrootd_gbuf_bucket(&x.inner, (uint32_t) kXRS_signed_rtag,
+                           x.signed_rtag, x.signed_rtag_len);
+    }
+    xrootd_gbuf_bucket(&x.inner, (uint32_t) kXRS_rtag, newrtag, sizeof(newrtag));
+    xrootd_gbuf_end(&x.inner);
+    /* IV is prepended exactly for v>=10400 peers (signed_dh tracks the same
+     * condition); XRDC_GSI_USEIV overrides for interop debugging. */
+    use_iv = signed_dh;
+    {
+        const char *ivov = getenv("XRDC_GSI_USEIV");
+        if (ivov != NULL) { use_iv = atoi(ivov); }
+    }
+    if (!x.inner.err) {
+        x.enc = xrootd_gsi_cipher_encrypt(&sesscipher, aeskey, x.inner.p,
+                                          x.inner.len, use_iv, &enclen);
+    }
+    OPENSSL_cleanse(aeskey, sizeof(aeskey));
+    if (x.inner.err || x.enc == NULL) {
+        return gsi_cresp_fail(&x, err, errcap, "gsi: main encrypt failed");
+    }
+
+    /* 5. Outer kXGC_cert: our DH public — kXRS_cipher (RSA-signed) for signed-DH,
+     *    else a plain kXRS_puk. */
+    x.cpub = xrootd_gsi_cipher_public(x.mine, &cpublen);
+    if (x.cpub == NULL) {
+        return gsi_cresp_fail(&x, err, errcap, "gsi: cannot encode session public");
+    }
+    xrootd_gbuf_start(&x.outer, (uint32_t) kXGC_cert);
+    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_cryptomod, "ssl", 3);
+    if (signed_dh) {
+        size_t cap = cpublen + (size_t) EVP_PKEY_size(proxy_key) + 64;
+        x.signed_cpub = malloc(cap);
+        if (x.signed_cpub != NULL) {
+            x.signed_cpub_len = xrootd_gsi_rsa_encrypt_private(
+                proxy_key, (const uint8_t *) x.cpub, cpublen, x.signed_cpub, cap);
+        }
+        if (x.signed_cpub == NULL || x.signed_cpub_len == 0) {
+            return gsi_cresp_fail(&x, err, errcap, "gsi: signing session public");
+        }
+        xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_cipher,
+                           x.signed_cpub, x.signed_cpub_len);
+        {
+            size_t ppl = 0;
+            x.pubpem = gsi_cresp_export_pubkey_pem(proxy_key, &ppl);
+            if (x.pubpem == NULL) {
+                return gsi_cresp_fail(&x, err, errcap, "gsi: export proxy pubkey");
+            }
+            xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_puk, x.pubpem, ppl);
+        }
+    } else {
+        xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_puk, x.cpub, cpublen);
+    }
+    if (use_iv) {
+        snprintf(cipher_field, sizeof(cipher_field), "%s#%d",
+                 chosen_cipher, sesscipher.iv_len);
+    } else {
+        snprintf(cipher_field, sizeof(cipher_field), "%s", chosen_cipher);
+    }
+    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_cipher_alg, cipher_field,
+                       strlen(cipher_field));
+    md_alg_len = gsi_cresp_pick_md_alg(sbody, slen, md_alg, sizeof(md_alg));
+    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_md_alg, md_alg, md_alg_len);
+    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_main, x.enc, enclen);
+    xrootd_gbuf_end(&x.outer);
+    if (x.outer.err) {
+        return gsi_cresp_fail(&x, err, errcap, "gsi: out of memory");
+    }
+
+    *payload = x.outer.p;
+    *plen = (uint32_t) x.outer.len;
+    x.outer.p = NULL;          /* ownership → caller */
+    (void) gsi_cresp_fail(&x, NULL, 0, NULL);   /* free everything else, no err */
+    return 0;
 }
 
 /* ------------------------------------------------------------------ */

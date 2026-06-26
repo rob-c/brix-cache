@@ -28,10 +28,10 @@ xrootd_vfs_delete(xrootd_vfs_ctx_t *ctx, unsigned recursive,
     xrootd_ns_delete_opts_t opts;
     xrootd_ns_result_t      res;
     const char             *path;
-    ngx_msec_t              start;
+    uint64_t                start;
     int                     saved_errno;
 
-    start = ngx_current_msec;
+    start = xrootd_vfs_now_ns();
     path = xrootd_vfs_ctx_path(ctx);
 
     if (xrootd_vfs_require_write(ctx) != NGX_OK) {

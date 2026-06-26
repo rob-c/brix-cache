@@ -39,7 +39,7 @@ Only the WebDAV/`davs://`/`http://` HTTP protocol path uses this code; the
 
 | File | Responsibility |
 |------|----------------|
-| `request.c` | The four LOCK request parsers: `webdav_lock_parse_timeout` (decode `Timeout: Second-N`/`Infinite`, clamp to `conf->lock_timeout`, return absolute `ngx_current_msec`-based expiry), `webdav_lock_if_header_matches` (substring-match a token in the `If` header, falling back to `Lock-Token` for non-conformant clients), `webdav_lock_parse_depth` (parse `Depth: 0`/`infinity`, default infinity, `400` on anything else), `webdav_lock_parse_body` (extract owner + exclusive/shared scope from the `<lockinfo>` XML body via the shared XML parser). |
+| `request.c` | The four LOCK request parsers: `webdav_lock_parse_timeout` (decode `Timeout: Second-N`/`Infinite`, clamp to `conf->lock_timeout`, return absolute wall-clock (`ngx_time()` seconds) expiry), `webdav_lock_if_header_matches` (substring-match a token in the `If` header, falling back to `Lock-Token` for non-conformant clients), `webdav_lock_parse_depth` (parse `Depth: 0`/`infinity`, default infinity, `400` on anything else), `webdav_lock_parse_body` (extract owner + exclusive/shared scope from the `<lockinfo>` XML body via the shared XML parser). |
 | `request.h` | Public prototypes for the four parsers; includes `../webdav.h` for `ngx_http_request_t`, `ngx_http_xrootd_webdav_loc_conf_t`, and the `webdav_tpc_find_header` helper. Guard `XROOTD_WEBDAV_LOCKS_REQUEST_H`. |
 
 > Build registration is in the top-level `config` script (`request.h` ~line 225,
@@ -54,10 +54,13 @@ writes into are owned elsewhere:
 
 - **`webdav_lock_xattr_t`** (`../webdav.h`) — the persisted lock record:
   `char token[64]` (`opaquelocktoken:UUID`), `char owner[256]`,
-  `ngx_msec_t expires` (absolute, msec since epoch), and the `exclusive` /
-  `depth_infinity` bitfields. `request.c` populates the `owner`, `exclusive`,
-  and (via the returned expiry) `expires` fields that `../lock.c` then stamps
-  into this struct before calling `webdav_lock_xattr_write`.
+  `int64_t expires` (absolute Unix **wall-clock** seconds, `ngx_time()`-based —
+  reboot-stable, unlike the monotonic `ngx_current_msec`), the `exclusive` /
+  `depth_infinity` bitfields, and `is_null` (lock-null placeholder). `request.c`
+  populates the `owner`, `exclusive`, and (via the returned expiry) `expires`
+  fields that `../lock.c` then stamps into this struct before calling
+  `webdav_lock_xattr_write`. The xattr value is schema `v=2`; a legacy `v`-less
+  record (monotonic expiry) is decoded as already-expired so it is released.
 - **`ngx_http_xrootd_webdav_loc_conf_t::lock_timeout`** (`../webdav.h`, line
   175) — per-location maximum lock lifetime in seconds; the upper clamp and the
   value substituted for a `Timeout: Infinite` request.
@@ -71,7 +74,7 @@ writes into are owned elsewhere:
 `webdav_check_locks`/`check_locks_descendants` gates). There is no other caller.
 
 - `webdav_lock_parse_timeout` → reads the `Timeout` header, clamps to
-  `conf->lock_timeout`, returns `ngx_current_msec + seconds*1000` →
+  `conf->lock_timeout`, returns `ngx_time() + seconds` (absolute wall-clock) →
   `../lock.c` stores it in `webdav_lock_xattr_t.expires`.
 - `webdav_lock_if_header_matches` → reads `If` (or legacy `Lock-Token`) →
   `../lock.c` uses the boolean to decide *refresh* (token matches the existing

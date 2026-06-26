@@ -69,4 +69,9 @@ int xrdc_disk_ring_flush(xrdc_disk_ring *r, xrdc_status *st);
 ssize_t xrdc_disk_ring_pread(xrdc_disk_ring *r, int64_t off, uint8_t *out,
                              size_t cap, xrdc_status *st);
 
+/* Return the per-op buffer size the ring was created with.  Safe on NULL (returns 0).
+ * Callers that issue writes larger than bufsz must split them into bufsz-sized pieces
+ * before calling xrdc_disk_ring_pwrite — that function asserts n <= bufsz. */
+size_t xrdc_disk_ring_bufsz(const xrdc_disk_ring *r);
+
 #endif /* XRDC_URING_H */

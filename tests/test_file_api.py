@@ -29,6 +29,7 @@ from settings import (
     DATA_ROOT,
     HOST,
     NGINX_ANON_PORT,
+    NGINX_ANON_RESUME_OFF_PORT,
     NGINX_GSI_PORT,
     PROXY_STD,
     REF_XROOTD_GSI_SHARED_PORT,
@@ -45,9 +46,18 @@ CROSS_BACKEND = selected_backend_name()
 if CROSS_BACKEND == "xrootd":
     ANON_URL = f"root://{HOST}:{REF_XROOTD_PORT}"
     GSI_URL  = f"root://{HOST}:{REF_XROOTD_GSI_SHARED_PORT}"
+    # Stock xrootd has no upload_resume — it is already direct-to-disk.
+    RESUME_OFF_URL = ANON_URL
 else:
     ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
     GSI_URL  = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
+    # Same shared data root, upload_resume OFF — direct-to-disk (stock posture).
+    RESUME_OFF_URL = f"root://{SERVER_HOST}:{NGINX_ANON_RESUME_OFF_PORT}"
+
+# Whether the resume-ON (staging) posture is exercisable here.  Only the nginx
+# backend implements upload_resume; against real xrootd both URLs are the same
+# stock endpoint, so the resume-ON variant is skipped.
+RESUME_ON_AVAILABLE = (CROSS_BACKEND != "xrootd")
 
 DATA_DIR  = DATA_ROOT
 PROXY_PEM = PROXY_STD
@@ -358,16 +368,50 @@ class TestFileWrite:
 class TestFileSync:
 
     def test_sync_flushes_to_disk(self):
-        """sync() succeeds and data is on disk immediately after."""
+        """sync() succeeds and data is on disk immediately after.
+
+        Stock direct-to-disk semantics: verified on the upload_resume=OFF
+        endpoint, where a write+sync is durable at the FINAL path before close.
+        (On the resume=ON endpoint the bytes are staged in a .xrdresume.*.part
+        until close — see test_sync_durable_via_handle_resume_on.)
+        """
         content = b"synced content"
         f = anon_file()
-        f.open(f"{ANON_URL}//{PREFIX}sync.txt",
+        f.open(f"{RESUME_OFF_URL}//{PREFIX}sync.txt",
                OpenFlags.NEW | OpenFlags.UPDATE)
         f.write(content, offset=0)
         status, _ = f.sync()
         assert status.ok, f"sync failed: {status.message}"
         assert open(disk(f"{PREFIX}sync.txt"), "rb").read() == content
         f.close()
+
+    @pytest.mark.skipif(not RESUME_ON_AVAILABLE,
+                        reason="upload_resume is an nginx-only feature")
+    def test_sync_durable_via_handle_resume_on(self):
+        """sync() on the upload_resume=ON endpoint flushes the staged partial.
+
+        The data is staged (not visible at the final path mid-write), so
+        durability is verified by reading it back through the SAME handle after
+        sync; the final object appears only after a clean close.  Proves sync()
+        and upload_resume are compatible.
+        """
+        content = b"synced via staging"
+        remote = f"{PREFIX}sync_resume_on.txt"
+        f = anon_file()
+        f.open(f"{ANON_URL}//{remote}", OpenFlags.NEW | OpenFlags.UPDATE)
+        f.write(content, offset=0)
+        status, _ = f.sync()
+        assert status.ok, f"sync failed: {status.message}"
+        # Staged: the final path must NOT exist yet (data is in the .part).
+        assert not os.path.exists(disk(remote)), \
+            "resume=ON must stage the write, not publish it before close"
+        # Durable + readable through the handle after sync.
+        status, data = f.read(offset=0, size=len(content))
+        assert status.ok and data == content, "sync'd data must read back"
+        f.close()
+        # Synchronously committed to the final path on close.
+        assert open(disk(remote), "rb").read() == content
+        os.unlink(disk(remote))
 
     def test_sync_on_read_only_file(self):
         """sync() on a read-only file handle succeeds (nothing to flush)."""

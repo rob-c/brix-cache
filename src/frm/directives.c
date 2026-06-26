@@ -37,6 +37,9 @@ xrootd_frm_conf_init(xrootd_frm_conf_t *frm)
     frm->fail_retries       = NGX_CONF_UNSET_UINT;
     frm->residency_cmd.len  = 0;  frm->residency_cmd.data  = NULL;
     frm->copy_timeout       = NGX_CONF_UNSET_MSEC;
+    frm->stage_dir.len      = 0;  frm->stage_dir.data      = NULL;
+    frm->force_scratch      = NGX_CONF_UNSET;
+    frm->control_dir.len    = 0;  frm->control_dir.data    = NULL;
     frm->migrate_copycmd.len= 0;  frm->migrate_copycmd.data= NULL;
     frm->purge_hi_ppm       = NGX_CONF_UNSET_UINT;
     frm->purge_lo_ppm       = NGX_CONF_UNSET_UINT;
@@ -63,6 +66,9 @@ xrootd_frm_conf_merge(ngx_conf_t *cf, xrootd_frm_conf_t *conf,
     ngx_conf_merge_uint_value(conf->fail_retries, prev->fail_retries, 3);
     ngx_conf_merge_str_value(conf->residency_cmd, prev->residency_cmd, "");
     ngx_conf_merge_msec_value(conf->copy_timeout, prev->copy_timeout, 0);
+    ngx_conf_merge_str_value(conf->stage_dir, prev->stage_dir, "");
+    ngx_conf_merge_value(conf->force_scratch, prev->force_scratch, 0);
+    ngx_conf_merge_str_value(conf->control_dir, prev->control_dir, "");
     ngx_conf_merge_str_value(conf->migrate_copycmd, prev->migrate_copycmd, "");
     ngx_conf_merge_uint_value(conf->purge_hi_ppm, prev->purge_hi_ppm, 0);
     ngx_conf_merge_uint_value(conf->purge_lo_ppm, prev->purge_lo_ppm, 0);

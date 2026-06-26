@@ -49,7 +49,7 @@ paths checked, see
 | Kerberos 5 auth | Yes | Yes | Optional build-time support in `src/krb5`; older docs that call this missing are stale. |
 | Macaroons | Yes | Yes | Includes token mint/verify and WebDAV delegation flows. |
 | VOMS and ACL policy | Yes | Yes | Implemented through policy, ACL, authdb, and VOMS helpers. |
-| `host` and `pwd` auth protocols | Yes | No | Still missing from nginx-xrootd and should remain visible in reviews. |
+| `host` and `pwd` auth protocols | Yes | Yes | Implemented in `src/host/` (reverse-DNS allowlist) and `src/pwd/` (DH-bootstrapped password handshake); wire-equivalents, not the `xrdpwdadmin` admin ecosystem. |
 | Full upstream `XrdAcc` semantics | Yes | Partial | nginx-xrootd has ACL/authdb/VOMS/scope checks but not every upstream `XrdAcc` privilege model and plugin behavior. |
 | External security plugin ecosystem | Yes | Partial | nginx-xrootd implements selected native mechanisms directly rather than loading the full upstream sec plugin matrix. |
 
@@ -77,7 +77,8 @@ paths checked, see
 | Open-file cache and sendfile-style reads | Yes | Yes | Implemented with nginx-aware sendfile/TLS buffer separation. |
 | Full PSS proxy storage | Yes | No | Not implemented; upstream remains stronger for PSS/PFC deployments. |
 | Full proxy file cache (PFC) | Yes | Partial/No | nginx-xrootd has open/cache and local data-plane helpers, not the full upstream PFC subsystem. |
-| Ceph/Rados, CSI, Zip, HDFS-style OSS plugins | Yes | No | Not implemented as upstream-compatible plugin stacks. |
+| Ceph/Rados, CSI, OssArc, HDFS-style OSS plugins | Yes | No | Not implemented as upstream-compatible plugin stacks (these are the remaining hard backend gaps). |
+| ZIP-member access (`XrdZip`) | Yes | Partial | ZIP-member serving over HTTP implemented in `src/zip/`; not full upstream cross-protocol parity. |
 | Checksum plugin ecosystem | Yes | Partial | nginx-xrootd supports checksum query paths plus CRC-64/XZ and CRC-64/NVME, but not the full upstream checksum plugin matrix. |
 | XrdFrm/MSS/tape staging ecosystem | Yes | Partial | nginx-xrootd has FRM queue/Tape REST integration; full upstream migration, purge, space, and MSS driver behavior needs site review. |
 
@@ -98,9 +99,9 @@ paths checked, see
 | Area | Status | Why reviewers should care |
 |---|---|---|
 | Full XrdFrm/MSS parity | Partial | Sites with tape-backed data services must validate prepare/evict/cancel semantics against their real tape workflow. |
-| `host`/`pwd` auth | Missing | Rare in modern WLCG-style deployments but still part of the upstream security surface. |
-| Full `XrdAcc` and security plugin ecosystem | Partial | nginx-xrootd implements practical ACL/token/VOMS controls, not every upstream plugin contract. |
-| PSS/PFC/Ceph/OssCsi/Zip backends | Missing/partial | Upstream XRootD remains the better fit for deployments built around those backend plugins. |
+| `host`/`pwd` auth | Implemented | `src/host/` + `src/pwd/`; closed gap. Wire-equivalents, not the `xrdpwdadmin` admin ecosystem. |
+| Full `XrdAcc` and *custom* security plugin ecosystem | Partial | nginx-xrootd implements practical ACL/token/VOMS controls and all standard auth schemes, but not arbitrary loadable third-party sec plugins. |
+| PSS/PFC/Ceph/OssCsi/OssArc backends | Missing/partial | Upstream XRootD remains the better fit for deployments built around those backend plugins (ZIP-member access is implemented). |
 | Native TPC credential edge cases | Partial | Source/destination TPC works, but TLS-upgraded origins and multihop delegation need deployment-specific verification. |
 | CRC64 and checksum plugin breadth | Partial | CRC64/CRC64NVME are implemented; the upstream checksum plugin catalog is still broader. |
 | CMS manager/admin feature breadth | Partial | nginx-xrootd has manager/upstream controls, but not every upstream CMS admin command or redirection mode. |

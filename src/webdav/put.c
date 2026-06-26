@@ -12,6 +12,7 @@
 #include "webdav.h"
 #include "../compat/etag.h"
 #include "../compat/http_body.h"
+#include "../compat/integrity_info.h"
 #include "../compat/http_conditionals.h"
 #include "../compat/range.h"
 #include "../compat/staged_file.h"
@@ -60,6 +61,52 @@ webdav_put_vfs_ctx_init(ngx_http_request_t *r,
 
 static void webdav_put_aio_thread(void *data, ngx_log_t *log);
 static void webdav_put_aio_done(ngx_event_t *ev);
+
+/*
+ * webdav_put_persist_checksums — §8.3 checksum-on-ingest.
+ *
+ * After a successful PUT commit, when xrootd_webdav_checksum_on_write names one or
+ * more algorithms, compute+persist each digest on the freshly committed file via
+ * the integrity service (xattr, or .cks sidecar fallback §8.2). Best-effort and
+ * opt-in (default off): any failure is ignored — the digest simply stays lazy.
+ * Synchronous (the operator opts in knowing the cost); large-file async offload is
+ * a future refinement.
+ */
+static void
+webdav_put_persist_checksums(ngx_http_request_t *r, const char *path)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    char  algs[256];
+    char *save = NULL, *tok;
+    int   fd;
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    if (conf->checksum_on_write.len == 0
+        || conf->checksum_on_write.len >= sizeof(algs))
+    {
+        return;
+    }
+    ngx_memcpy(algs, conf->checksum_on_write.data, conf->checksum_on_write.len);
+    algs[conf->checksum_on_write.len] = '\0';
+
+    fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return;
+    }
+    for (tok = strtok_r(algs, ", \t", &save); tok != NULL;
+         tok = strtok_r(NULL, ", \t", &save))
+    {
+        xrootd_integrity_info_t info;
+        xrootd_integrity_opts_t o;
+        ngx_memzero(&o, sizeof(o));
+        o.allow_xattr_cache    = 1;
+        o.update_xattr_cache   = 1;
+        o.require_regular_file = 1;
+        (void) xrootd_integrity_get_fd(r->connection->log, fd, path, tok, &o,
+                                       &info);
+    }
+    (void) close(fd);
+}
 
 static void
 webdav_put_aio_thread(void *data, ngx_log_t *log)
@@ -130,12 +177,10 @@ webdav_put_aio_done(ngx_event_t *ev)
     xrootd_dashboard_http_add(r, (ngx_atomic_int_t) t->len);
     xrootd_dashboard_http_finish(r);
 
+    webdav_put_persist_checksums(r, (const char *) t->path);   /* §8.3 */
+
     status = t->created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
-    r->headers_out.status = status;
-    r->headers_out.content_length_n = 0;
-    ngx_http_send_header(r);
-    webdav_metrics_finalize_request(r, ngx_http_send_special(r,
-                                                             NGX_HTTP_LAST));
+    webdav_send_status_only(r, (ngx_uint_t) status);
 }
 
 /*
@@ -246,11 +291,7 @@ webdav_put_ranged_resume(ngx_http_request_t *r,
         xrootd_staged_abort(r->connection->log, conf->common.root_canon,
                             &staged, 0 /* keep */);
         webdav_set_upload_offset(r, cur);
-        r->headers_out.status = NGX_HTTP_CONFLICT;
-        r->headers_out.content_length_n = 0;
-        ngx_http_send_header(r);
-        webdav_metrics_finalize_request(r, ngx_http_send_special(r,
-                                                                 NGX_HTTP_LAST));
+        webdav_send_status_only(r, NGX_HTTP_CONFLICT);
         return;
     }
 
@@ -300,21 +341,15 @@ webdav_put_ranged_resume(ngx_http_request_t *r,
         if (stage_tracked) {
             xrootd_stage_unmark_pending(staged.tmp_path);
         }
-        r->headers_out.status = NGX_HTTP_CREATED;
-        r->headers_out.content_length_n = 0;
-        ngx_http_send_header(r);
-        webdav_metrics_finalize_request(r, ngx_http_send_special(r,
-                                                                 NGX_HTTP_LAST));
+        webdav_put_persist_checksums(r, (const char *) path);   /* §8.3 */
+        webdav_send_status_only(r, NGX_HTTP_CREATED);
         return;
     }
 
     xrootd_staged_abort(r->connection->log, conf->common.root_canon,
                         &staged, 0 /* keep partial for the next chunk */);
     webdav_set_upload_offset(r, cur);
-    r->headers_out.status = NGX_HTTP_OK;
-    r->headers_out.content_length_n = 0;
-    ngx_http_send_header(r);
-    webdav_metrics_finalize_request(r, ngx_http_send_special(r, NGX_HTTP_LAST));
+    webdav_send_status_only(r, NGX_HTTP_OK);
 }
 
 static void
@@ -558,6 +593,8 @@ webdav_put_body_inner(ngx_http_request_t *r)
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
+
+    webdav_put_persist_checksums(r, (const char *) path);   /* §8.3 */
 
     status = created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
     r->headers_out.status = status;

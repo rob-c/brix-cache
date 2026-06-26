@@ -3,7 +3,7 @@
 **Quick lookup:** OP→FILE → HELPERS → INVARIANTS → BUILD/TEST → FAQ
 **Wire spec:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`
 **Core rules:** (1) Use HELPERS — never reimplement path/auth/metrics/framing (2) 3 tests per change: success + error + security-neg (3) **NO `goto`** + write functional/modular code — small single-purpose functions, explicit data flow, early-return
-**Coding standard (MANDATORY, read before editing `src/` or `client/`):** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — the authoritative best-practice doc (naming, docs, error handling, allocation, no-goto, functional/modular design, tests).
+**Coding standard (MANDATORY, read before editing `src/`, `shared/`, or `client/`):** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — the authoritative best-practice doc (naming, docs, error handling, allocation, no-goto, functional/modular design, tests). The same formatting and code-style rules apply uniformly across `src/`, `shared/`, and `client/`.
 
 ---
 
@@ -102,11 +102,12 @@ This file is a **lookup reference**, not memorization material. If your context 
 **Architecture:**
 9. Native TPC = SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy
 10. WebDAV TPC = curl COPY with Source/Credential headers (`src/webdav/tpc.c`)
+11. **Data plane ≈ `proto → VFS → POSIX`.** File byte I/O flows proto handler → VFS (`src/fs/`) → storage driver (`src/fs/backend/`, POSIX default); raw `pread`/`pwrite`/`preadv`/`copy_file_range`/`fstat` on file data live ONLY in `src/fs/backend/`. Live entries: `root://` read/write/readv/pgread/pgwrite/sync/truncate → VFS I/O core `xrootd_vfs_io_execute()` (`src/fs/vfs_io_core.c`); WebDAV/S3 GET → `xrootd_vfs_open()`+`xrootd_vfs_file_sendfile_fd()`+`xrootd_vfs_close()`; confined opens via `xrootd_open_beneath` (same RESOLVE_BENEATH backend). **`xrootd_vfs_read`/`xrootd_vfs_write` currently have NO callers — use `xrootd_vfs_io_execute()`** (wire-or-delete pending, see phase-56 audit). Driver is a capability-typed pluggable seam (`xrootd_sd_driver_t`, `src/fs/backend/sd.h`): an object/S3 backend can become primary without changing anything above it. See [src/fs/README.md](src/fs/README.md) + [src/fs/backend/README.md](src/fs/backend/README.md).
 
 ---
 
 ## HARD BLOCKS (non-negotiable)
-- **NO `goto`** anywhere in `src/` or `client/` (`.c`/`.h`) — use early-return + helper decomposition (the 3 recipes in [coding-standards §4](docs/09-developer-guide/coding-standards.md#no-goto--forbidden-no-exceptions)). New `goto` is rejected; refactor existing `goto` out of any function you touch. (`src/` is `goto`-free; `client/` carries a ~70-site refactor-on-touch backlog — OpenSSL/socket cleanup ladders in `client/lib/copy.c`, `proxy.c`, `sec/`, `http.c`, `aio.c`.)
+- **NO `goto`** anywhere in `src/`, `shared/`, or `client/` (`.c`/`.h`) — use early-return + helper decomposition (the 3 recipes in [coding-standards §4](docs/09-developer-guide/coding-standards.md#no-goto--forbidden-no-exceptions)). New `goto` is rejected; refactor existing `goto` out of any function you touch. (`src/`, `shared/`, and `client/` are all `goto`-free as of 2026-06-26 — the former `client/` OpenSSL/socket cleanup-ladder backlog has been fully burned down; keep it that way.)
 - **Write functional + modular code** — one responsibility per function, pass state explicitly (no new globals), pure helpers with side effects at the edges, composition over large stateful procedures ([coding-standards §8](docs/09-developer-guide/coding-standards.md#8-functional--modular-design)).
 - **NEVER run any git command (stash, reset, checkout, clean, rebase, etc.) without explicit OP instruction** — these destroy uncommitted work and cannot always be recovered
 - **NEVER use `git show HEAD:path` or any other git command to restore linter-corrupted files** — the working tree has uncommitted changes that would be lost; use the Edit tool to surgically remove the corrupted lines instead
@@ -229,7 +230,7 @@ error_log /tmp/xrd-test/logs/debug.log debug; # nginx debug (server block)
 ---
 
 ## CODE STYLE
-**Full standard:** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — authoritative and mandatory; read it before editing `src/` or `client/`.
+**Full standard:** [`docs/09-developer-guide/coding-standards.md`](docs/09-developer-guide/coding-standards.md) — authoritative and mandatory; read it before editing `src/`, `shared/`, or `client/`. The same formatting and code-style rules apply uniformly to all three.
 
 Headlines: Smaller well-documented files with focused responsibilities. **No `goto`** — early-return + helper decomposition. **Functional + modular** — one job per function, explicit data flow (pass `ctx`, no new globals), pure helpers with side effects at the edges, table/descriptor-driven dispatch over branch ladders. Use existing helpers and patterns — never reimplement path/auth/metrics/framing. New concepts require docs+tests in same PR. Code must compile and pass tests — no placeholders or stubs. Section-level WHAT/WHY/HOW doc blocks on every function. Consistent formatting and naming. Avoid clever tricks; prefer clarity.
 

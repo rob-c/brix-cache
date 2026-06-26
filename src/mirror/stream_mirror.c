@@ -16,6 +16,7 @@
  * ngx_cycle->log, never the (possibly freed) client connection log.
  */
 #include "mirror/stream_mirror.h"
+#include "mirror/stream_mirror_io.h"
 #include "metrics/metrics_macros.h"
 
 #include <netdb.h>
@@ -173,30 +174,13 @@ xrootd_mirror_request_replayable(xrootd_ctx_t *ctx)
 
 /* ---- write side ---------------------------------------------------------- */
 
+/* Drain the pending write buffer to the shadow socket; see
+ * xrootd_mirror_io_flush(). */
 static ngx_int_t
 xrootd_mir_flush(xrootd_stream_mirror_t *mir)
 {
-    ngx_connection_t *c = mir->conn;
-    ssize_t           n;
-
-    while (mir->wbuf_pos < mir->wbuf_len) {
-        n = c->send(c, mir->wbuf + mir->wbuf_pos, mir->wbuf_len - mir->wbuf_pos);
-        if (n > 0) {
-            mir->wbuf_pos += (size_t) n;
-            continue;
-        }
-        if (n == NGX_AGAIN) {
-            if (ngx_handle_write_event(c->write, 0) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            return NGX_AGAIN;
-        }
-        return NGX_ERROR;
-    }
-    if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
-        return NGX_ERROR;
-    }
-    return NGX_OK;
+    return xrootd_mirror_io_flush(mir->conn, mir->wbuf, mir->wbuf_len,
+                                  &mir->wbuf_pos);
 }
 
 /* Bootstrap complete: send the saved primary request frame to the shadow. */
@@ -265,48 +249,14 @@ xrootd_mir_write_handler(ngx_event_t *wev)
 
 /* ---- read side ----------------------------------------------------------- */
 
+/* Read one shadow response frame (header + bounded body); see
+ * xrootd_mirror_io_recv_frame(). */
 static ngx_int_t
 xrootd_mir_recv_frame(xrootd_stream_mirror_t *mir)
 {
-    ngx_connection_t *c = mir->conn;
-    ssize_t           n;
-
-    if (mir->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
-        size_t need = XRD_RESPONSE_HDR_LEN - mir->rhdr_pos;
-        n = c->recv(c, mir->rhdr + mir->rhdr_pos, need);
-        if (n == NGX_AGAIN) { return NGX_AGAIN; }
-        if (n <= 0)         { return NGX_ERROR; }
-        mir->rhdr_pos += (size_t) n;
-        if (mir->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
-            return NGX_AGAIN;
-        }
-        {
-            ServerResponseHdr *h = (ServerResponseHdr *) (void *) mir->rhdr;
-            mir->resp_status = ntohs(h->status);
-            mir->resp_dlen   = ntohl(h->dlen);
-        }
-        if (mir->resp_dlen > 0) {
-            if (mir->resp_dlen > 65536) {   /* bound shadow response bodies */
-                return NGX_ERROR;
-            }
-            mir->resp_body = ngx_palloc(c->pool, mir->resp_dlen);
-            if (mir->resp_body == NULL) { return NGX_ERROR; }
-            mir->resp_body_pos = 0;
-        }
-    }
-
-    if (mir->resp_body_pos < mir->resp_dlen) {
-        size_t need = mir->resp_dlen - mir->resp_body_pos;
-        n = c->recv(c, mir->resp_body + mir->resp_body_pos, need);
-        if (n == NGX_AGAIN) { return NGX_AGAIN; }
-        if (n <= 0)         { return NGX_ERROR; }
-        mir->resp_body_pos += (size_t) n;
-        if (mir->resp_body_pos < mir->resp_dlen) {
-            return NGX_AGAIN;
-        }
-    }
-
-    return NGX_OK;
+    return xrootd_mirror_io_recv_frame(mir->conn, mir->rhdr, &mir->rhdr_pos,
+                                       &mir->resp_status, &mir->resp_dlen,
+                                       &mir->resp_body, &mir->resp_body_pos);
 }
 
 /* The shadow answered our replayed request: compare status, count divergence. */

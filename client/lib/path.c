@@ -10,6 +10,10 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 void
 xrdc_path_resolve(const char *cwd, const char *arg, char *out, size_t outsz)
@@ -50,4 +54,56 @@ xrdc_path_resolve(const char *cwd, const char *arg, char *out, size_t outsz)
         if (w < 0) { break; }
         pos += (size_t) w;
     }
+}
+
+/*
+ * xrdc_open_credfile — open a credential file for reading, refusing anything an
+ * attacker could have planted or tampered with.
+ *
+ * WHAT: open `path` read-only and return a validated fd (caller closes), or -1.
+ * WHY:  credentials default to predictable, world-writable locations
+ *       (/tmp/bt_u<uid>, /tmp/x509up_u<uid>). A plain fopen/BIO_new_file there
+ *       follows a symlink an attacker pre-planted under the victim's uid — leaking
+ *       a secret the client then transmits — or reads an attacker-owned regular
+ *       file, authenticating the victim as the attacker (confused deputy). This is
+ *       the same hardening xrdc_sss_keytab_read already applies to keytabs.
+ * HOW:  O_NOFOLLOW (no final-component symlink) | O_CLOEXEC; require a regular
+ *       file owned by the effective uid; reject group/other WRITE always, and —
+ *       for `secret` files (private keys / GSI proxies) — group/other READ too.
+ *       `st` may be NULL for silent probing (returns -1 without setting an error).
+ */
+int
+xrdc_open_credfile(const char *path, int secret, xrdc_status *st)
+{
+    struct stat sb;
+    mode_t      bad;
+    int         fd;
+
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) {
+        xrdc_status_set(st, XRDC_EAUTH, errno, "open %s: %s",
+                        path, strerror(errno));
+        return -1;
+    }
+    if (fstat(fd, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+        close(fd);
+        xrdc_status_set(st, XRDC_EAUTH, 0, "%s is not a regular file", path);
+        return -1;
+    }
+    if (sb.st_uid != geteuid()) {
+        close(fd);
+        xrdc_status_set(st, XRDC_EAUTH, 0,
+                        "%s not owned by uid %u (refusing untrusted credential)",
+                        path, (unsigned) geteuid());
+        return -1;
+    }
+    bad = secret ? (S_IRWXG | S_IRWXO) : (S_IWGRP | S_IWOTH);
+    if (sb.st_mode & bad) {
+        close(fd);
+        xrdc_status_set(st, XRDC_EAUTH, 0,
+                        "%s has unsafe permissions (must be %s)",
+                        path, secret ? "0600" : "non-writable by group/other");
+        return -1;
+    }
+    return fd;
 }

@@ -1,5 +1,6 @@
 #include "../ngx_xrootd_module.h"
 #include "stat.h"
+#include "../cms/cns.h"            /* §6 CNS inventory stat answer */
 #include "../path/op_path.h"
 #include "../manager/registry.h"
 #include "../manager/pending.h"
@@ -259,6 +260,22 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             char     redir_host[256];
             uint16_t redir_port;
 
+            /* §6 CNS: if the cluster name space inventory has this path, answer
+             * stat directly (size/mtime) instead of redirecting — a true global
+             * namespace stat at the redirector. */
+            if (conf->cns_mode == XROOTD_CNS_COLLECT) {
+                struct stat cst;
+                if (xrootd_cns_stat(reqpath, &cst) == NGX_OK) {
+                    char cbody[256];
+                    xrootd_make_stat_body(&cst, 0, 0, cbody, sizeof(cbody));
+                    xrootd_log_access(ctx, c, "STAT", reqpath, "cns",
+                                      1, 0, NULL, 0);
+                    XROOTD_OP_OK(ctx, XROOTD_OP_STAT);
+                    return xrootd_send_ok(ctx, c, cbody,
+                                          (uint32_t) (strlen(cbody) + 1));
+                }
+            }
+
             /* tried/triedrc: if the client has already visited every server
              * that holds this path and they returned enoent, stop redirecting
              * and answer not-found — otherwise the client redirect-loops. */
@@ -388,7 +405,20 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                                 ? ctx->files[idx].path : "-"),
                     sizeof(full_path));
 
-        if (ctx->files[idx].slice_mode) {
+        if (ctx->files[idx].zip_mode) {
+            /*
+             * ZIP member (phase-57 W2): the handle's fd is the ARCHIVE, so a
+             * plain fstat would report the archive's size.  Take the archive's
+             * metadata (mode/mtime/ino) but override the size with the member's
+             * UNCOMPRESSED length (cached_size) so the client sees the logical
+             * file size.
+             */
+            if (fstat(ctx->files[idx].fd, &st) != 0) {
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", full_path, "-",
+                                  kXR_IOError, strerror(errno));
+            }
+            st.st_size = (off_t) ctx->files[idx].cached_size;
+        } else if (ctx->files[idx].slice_mode) {
             /*
              * Slice-mode handles park their fd on /dev/null (Phase 26), so
              * fstat() would report size 0.  The real file size was learned

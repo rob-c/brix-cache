@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PATH_OP_PATH_H
+#define XROOTD_PATH_OP_PATH_H
 
 /*
  * Path resolution strategy for namespace operations (Phase 8: existence is
@@ -96,3 +97,5 @@ ngx_int_t xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf,
                                       const char *reqpath,
                                       xrootd_path_mode_t mode,
                                       char *resolved, size_t resolved_sz);
+
+#endif /* XROOTD_PATH_OP_PATH_H */

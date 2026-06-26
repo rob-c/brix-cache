@@ -22,6 +22,8 @@
 
 #include "gsi_verify.h"
 
+#include "../compat/log_diag.h"
+
 #include <string.h>
 
 /*
@@ -77,8 +79,15 @@ xrootd_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
         int         verr     = X509_STORE_CTX_get_error(vctx);
         const char *verr_str = X509_verify_cert_error_string(verr);
 
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI cert verification failed: %s", verr_str);
+        XROOTD_DIAG_WARN(log, 0,
+            "xrootd: GSI client cert rejected: %s",
+            "the client proxy/cert is expired, or its issuing CA is not in "
+            "this server's trust store",
+            "if \"expired\": the user must renew their proxy "
+            "(voms-proxy-init / grid-proxy-init). If \"unable to get local "
+            "issuer certificate\": add the issuing CA to the trust store and "
+            "reload",
+            verr_str);
         X509_STORE_CTX_free(vctx);
         return NGX_ERROR;
     }

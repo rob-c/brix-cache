@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TYPES_CONFIG_H
+#define XROOTD_TYPES_CONFIG_H
 
 /* ---- File: config.h — Per-server configuration struct + helper type definitions ----
  *
@@ -325,6 +326,11 @@ typedef struct {
                                        (10/8, 172.16/12, 192.168/16).
                                        Default on: storage federation nodes commonly
                                        live on private networks. */
+    ngx_flag_t  ssi_enable;         /* [xrootd_ssi on|off] — §7 unary XrdSsi
+                                       request/response over /.ssi/<service>. */
+    ngx_uint_t  cns_mode;           /* [xrootd_cns off|emit|collect] — §6 Composite
+                                       Cluster Name Space (data-server emit / manager
+                                       inventory). XROOTD_CNS_OFF/EMIT/COLLECT. */
     ngx_msec_t  tpc_key_ttl_ms;     /* [xrootd_tpc_key_ttl 60s] — lifetime of
                                        in-flight TPC rendezvous keys in the shared
                                        registry (source-side register / consume). */
@@ -334,6 +340,23 @@ typedef struct {
                                        (no per-frame syscall).  Bounds a slow-drip
                                        remote that keeps resetting the per-recv
                                        SO_RCVTIMEO idle timer.  0 = no cap. */
+    ngx_flag_t  tpc_outbound_tls;   /* [xrootd_tpc_outbound_tls on|off] — phase-57
+                                       §F5: advertise kXR_ableTLS on the TPC pull and
+                                       perform an in-protocol TLS upgrade when the
+                                       source answers kXR_gotoTLS, so TLS-requiring
+                                       sources can be pulled from. Default off:
+                                       behaviour identical to today (no gotoTLS). */
+    ngx_flag_t  tpc_delegate;       /* [xrootd_tpc_delegate on|off] — phase-57 §F6:
+                                       X.509 proxy delegation. When on, the inbound
+                                       GSI login captures the client's delegated
+                                       proxy (kXGS_pxyreq/kXGC_sigpxy) and the TPC
+                                       pull presents it to the source so the source
+                                       authorises as the USER, not the gateway.
+                                       Default off. NOTE: the delegation crypto is
+                                       not yet implemented (gated on a stock
+                                       -dlgpxy:request interop test, see
+                                       tests/test_tpc_delegation.py); the flag parses
+                                       and is reserved so the gate config loads. */
     ngx_int_t   tpc_transfer_max_age;  /* [xrootd_tpc_transfer_max_age 0]
                                        Phase 39 (WS5): seconds with no progress
                                        after which an in-flight TPC registry slot
@@ -475,6 +498,23 @@ typedef struct {
      * plaintext on disk.  pgwrite stays plaintext.  A stock client never sends the
      * opaque, so the uncompressed write path is byte-identical. */
     ngx_flag_t  write_compress;
+
+    /* ---- ZIP member access (phase-57 W2) ----
+     * [xrootd_zip_access on|off] — opt-in, off by default.  When on, a read
+     * open whose opaque carries "?xrdcl.unzip=<member>" serves that member of
+     * the archive as a standalone read-only file (stored + deflate), matching
+     * XrdZip.  zip_cd_max_bytes caps the central-directory read (bomb guard;
+     * default 16 MiB). */
+    ngx_flag_t  zip_access;
+    size_t      zip_cd_max_bytes;
+    /* Materialize-to-scratch for ZIP member access: zip serves a member by
+     * random-access pread (+ sendfile for stored members) over the archive fd,
+     * which a backend with no kernel fd cannot provide.  When staging is in
+     * effect, the archive is copied into a local POSIX scratch and read there.
+     * Off by default (a POSIX export reads the confined fd in place). */
+    ngx_str_t   zip_stage_dir;        /* [xrootd_zip_stage_dir <path>]          */
+    ngx_flag_t  zip_force_scratch;    /* [xrootd_zip_force_scratch on|off]      */
+    size_t      zip_stage_max_bytes;  /* [xrootd_zip_stage_max_bytes <size>]    */
 
     /* ---- cluster / redirector mode ---- */
     ngx_flag_t  manager_mode;  /* [xrootd_manager_mode on|off] — query the
@@ -746,3 +786,5 @@ typedef struct {
  */
 ngx_int_t xrootd_acc_init_server(ngx_stream_xrootd_srv_conf_t *xcf,
     ngx_cycle_t *cycle);
+
+#endif /* XROOTD_TYPES_CONFIG_H */

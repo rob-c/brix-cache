@@ -129,3 +129,28 @@ webdav_metrics_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
     webdav_metrics_response(r, rc);
     ngx_http_finalize_request(r, rc);
 }
+
+/**
+ * WHAT: Emit a status-only (empty-body) response and finalize the request.
+ *
+ * Captures the recurring four-line tail used by status-only outcomes
+ * (201/204/… with no body): set the status and a zero content length, send the
+ * header, then finalize via the send_special result so response metrics are
+ * recorded.  Equivalent to:
+ *   r->headers_out.status = status;
+ *   r->headers_out.content_length_n = 0;
+ *   ngx_http_send_header(r);
+ *   webdav_metrics_finalize_request(r, ngx_http_send_special(r, NGX_HTTP_LAST));
+ *
+ * The caller still owns flow control: this finalizes the request, so it must be
+ * the last action on `r` and the caller should return immediately after.  Add
+ * any response headers (e.g. Location for 201) before calling.
+ */
+void
+webdav_send_status_only(ngx_http_request_t *r, ngx_uint_t status)
+{
+    r->headers_out.status = status;
+    r->headers_out.content_length_n = 0;
+    ngx_http_send_header(r);
+    webdav_metrics_finalize_request(r, ngx_http_send_special(r, NGX_HTTP_LAST));
+}

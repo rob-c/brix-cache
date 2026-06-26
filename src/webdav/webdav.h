@@ -102,9 +102,17 @@ typedef enum {
 typedef struct {
     char        token[64];           /* full opaquelocktoken:UUID string */
     char        owner[256];          /* DN or free-form owner */
-    ngx_msec_t  expires;             /* absolute expiry (msec since epoch) */
+    int64_t     expires;             /* absolute expiry, Unix WALL-CLOCK seconds
+                                      * (ngx_time()-based, NOT the monotonic
+                                      * ngx_current_msec): a persisted lock must
+                                      * keep meaningful expiry across a machine
+                                      * reboot, where the monotonic clock resets. */
     unsigned    exclusive:1;
     unsigned    depth_infinity:1;
+    unsigned    is_null:1;           /* lock-null: the lock created a zero-byte
+                                      * placeholder on a non-existent resource
+                                      * (RFC 4918 §9.10.1); reaped on UNLOCK/expiry
+                                      * while the resource is still empty. */
 } webdav_lock_xattr_t;
 
 /*
@@ -113,6 +121,15 @@ typedef struct {
  *
  * Lifetime: nginx worker lifetime (allocated in cf->pool at startup).
  */
+
+/* §3 XrdDig: one named, read-only diagnostic export. `dir` is the operator's
+ * argument; `canon` is its realpath at config time (the RESOLVE_BENEATH anchor). */
+typedef struct {
+    ngx_str_t name;
+    ngx_str_t dir;
+    ngx_str_t canon;
+} xrootd_dig_export_t;
+
 typedef struct {
     ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
                                              thread_pool_name, thread_pool */
@@ -186,11 +203,28 @@ typedef struct {
                                                  primary secret during key rotation. */
     xrootd_jwks_key_t  jwks_keys[XROOTD_MAX_JWKS_KEYS]; /* loaded RSA pub keys */
     int                 jwks_key_count;  /* number of valid entries in jwks_keys */
+    ngx_flag_t          http_query_token; /* accept ?authz=<token> (default on) */
+    ngx_int_t           macaroon_max_validity; /* seconds cap for macaroon-request */
+    ngx_str_t           macaroon_location;      /* location: caveat (issuer URI) */
+    ngx_str_t           checksum_on_write; /* §8.3 alg list to persist at PUT (off="") */
+    ngx_uint_t          checksum_xattr_format; /* §8.x XROOTD_CKS_FMT_TEXT|XRDCKS */
+    ngx_flag_t          dig_enable;        /* §3 XrdDig remote diagnostics (default off) */
+    ngx_array_t        *dig_exports;       /* §3 of xrootd_dig_export_t (name→canon dir) */
+    ngx_str_t           dig_auth_file;     /* §3 principal→export allow-file (fail-closed) */
 
     /* --- CORS settings --- */
     ngx_array_t        *cors_origins;    /* allowed origins (ngx_str_t array) */
     ngx_flag_t          cors_credentials; /* Access-Control-Allow-Credentials */
     ngx_uint_t          cors_max_age;     /* Access-Control-Max-Age in seconds */
+
+    /* --- ZIP member access (phase-57 W2) ---
+     * [xrootd_webdav_zip_access on|off] — opt-in, off by default.  A GET whose
+     * query carries "?xrdcl.unzip=<member>" serves that member of the archive
+     * (stored + deflate).  Unlike root://, an HTTP client cannot self-inflate,
+     * so the server must extract.  zip_cd_max_bytes caps the central-directory
+     * read (bomb guard; default 16 MiB). */
+    ngx_flag_t          zip_access;
+    size_t              zip_cd_max_bytes;
 
     /* --- WebDAV LOCK --- */
     ngx_uint_t          lock_timeout;    /* max lock timeout in seconds */
@@ -481,6 +515,11 @@ void webdav_metrics_request(ngx_http_request_t *r);
 void webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc);
 /* webdav_metrics_response(r, rc) then return rc — convenience for handler tails. */
 ngx_int_t webdav_metrics_return(ngx_http_request_t *r, ngx_int_t rc);
+/* Emit a status-only (empty-body) response — set status + zero content length,
+ * send the header, and finalise via the send_special result (records response
+ * metrics).  Finalises the request: must be the caller's last action on `r`.
+ * Set any extra headers (e.g. Location for 201) before calling. */
+void webdav_send_status_only(ngx_http_request_t *r, ngx_uint_t status);
 /* webdav_metrics_response(r, rc) then ngx_http_finalize_request(r, rc) — for
  * async/self-finalising paths. */
 void webdav_metrics_finalize_request(ngx_http_request_t *r, ngx_int_t rc);
@@ -560,6 +599,16 @@ ngx_int_t webdav_handle_unlock(ngx_http_request_t *r);
 ngx_int_t webdav_handle_macaroon_discovery(ngx_http_request_t *r);
 /* POST /.oauth2/token: mint a scoped macaroon; self-finalises the request. */
 void webdav_handle_macaroon_token(ngx_http_request_t *r);
+/* POST <path> with Content-Type: application/macaroon-request (dCache/XrdMacaroons
+ * convention): mint a macaroon from a JSON {caveats[],validity} body, returning the
+ * dCache {macaroon, uri{...}} shape. Self-finalises the request. */
+void webdav_handle_macaroon_request(ngx_http_request_t *r);
+
+/* §3 XrdDig: GET/HEAD /.well-known/dig/<export>/<rel> — read-only, RESOLVE_BENEATH-
+ * confined, allow-file-gated exposure of whitelisted server files. Returns an HTTP
+ * status, or NGX_DECLINED when dig is disabled / the path is not a dig path (so
+ * normal WebDAV handling proceeds). Defined in src/dig/dig.c. */
+ngx_int_t xrootd_dig_handle(ngx_http_request_t *r);
 
 /* Dead WebDAV properties persisted as filesystem extended attributes.
  * `xml` for set() must be already-escaped, well-formed XML — it is stored and
@@ -603,7 +652,7 @@ void webdav_fadvise_willneed(ngx_log_t *log, ngx_fd_t fd, off_t offset,
     size_t len);
 /* write(2) the whole buffer, retrying EINTR/short writes.  NGX_OK / NGX_ERROR
  * (errno set; EIO on a 0-byte write). */
-ngx_int_t webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len);
+ngx_int_t webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len, off_t offset);
 /* Copy a spooled PUT temp file (buf->file) into dst_fd, preferring zero-copy
  * copy_file_range with a pread+write fallback.  `scratch` is an optional reused
  * fallback buffer slot (may be ignored).  NGX_OK / NGX_ERROR. */

@@ -32,6 +32,29 @@ ngx_str_t xrootd_http_get_header(ngx_http_request_t *r, const char *name);
 ngx_int_t xrootd_http_extract_bearer(const ngx_str_t *auth_header,
     ngx_str_t *token_out);
 /*
+ * Decode %XX and '+' in a NUL-terminated string in place; returns the new length.
+ * Invalid %XX sequences are passed through verbatim. Shared by query-arg decoding
+ * and URL-encoded form parsing.
+ */
+size_t xrootd_urldecode_inplace(char *str);
+/*
+ * Look up query-string argument `name` (name_len bytes) in r->args and copy its
+ * raw (still %XX-encoded) value into a freshly pool-allocated, NUL-terminated
+ * buffer at *out. Returns NGX_OK with *out set, NGX_DECLINED if absent, or
+ * NGX_ERROR on allocation failure. The caller may decode in place with
+ * xrootd_urldecode_inplace().
+ */
+ngx_int_t xrootd_http_arg(ngx_http_request_t *r, const char *name,
+    size_t name_len, ngx_str_t *out);
+/*
+ * Redact the value of every "authz="/"access_token=" query key, in place and
+ * LENGTH-PRESERVING (each value byte → 'x', no shrink/memmove), so a bearer token
+ * presented via the URL never reaches a log line. Safe to apply to the overlapping
+ * log sources r->args, r->unparsed_uri and r->request_line (their independent ->len
+ * fields stay valid). Idempotent; other args preserved.
+ */
+void xrootd_http_redact_query_token(ngx_str_t *query);
+/*
  * Returns 1 (treat as unsafe) if data[0..len) contains any byte < 0x20 or 0x7F
  * (DEL), else 0. NULL data returns 1. Note: HTAB (0x09) is reported as a ctl.
  */

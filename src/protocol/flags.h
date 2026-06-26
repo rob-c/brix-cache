@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PROTOCOL_FLAGS_H
+#define XROOTD_PROTOCOL_FLAGS_H
 
 /* ------------------------------------------------------------------ */
 /* Open option flags (ClientOpenRequest.options, uint16)               */
@@ -320,3 +321,5 @@
 #define kXR_fa_recurse 0x20    /* (list) LOCAL EXTENSION — recurse into
                                    subdirectories; response entries are
                                    "<relpath>:<U.name>\0" pairs */
+
+#endif /* XROOTD_PROTOCOL_FLAGS_H */

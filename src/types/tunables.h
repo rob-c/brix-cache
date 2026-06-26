@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TYPES_TUNABLES_H
+#define XROOTD_TYPES_TUNABLES_H
 
 #include "../compat/path.h"
 
@@ -307,3 +308,5 @@
         *(rc) = xrootd_send_error((ctx), (c), (code), (msg));            \
         return 0;                                                         \
     } while (0)
+
+#endif /* XROOTD_TYPES_TUNABLES_H */

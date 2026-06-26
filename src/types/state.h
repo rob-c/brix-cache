@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TYPES_STATE_H
+#define XROOTD_TYPES_STATE_H
 
 /*
  * Per-connection state machine enum and opaque forward declarations.
@@ -41,3 +42,5 @@ typedef struct xrootd_proxy_ctx_s xrootd_proxy_ctx_t;
 
 /* Opaque CMS heartbeat context — defined in cms/connect.c */
 typedef struct ngx_xrootd_cms_ctx_s ngx_xrootd_cms_ctx_t;
+
+#endif /* XROOTD_TYPES_STATE_H */

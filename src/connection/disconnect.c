@@ -13,6 +13,10 @@
 #include <stdio.h>
 #include <string.h>
 
+/* §F6 GSI proxy-delegation teardown (src/gsi/delegation.c). Declared here to
+ * avoid pulling the GSI internal header into the connection layer. */
+void xrootd_gsi_delegation_cleanup(xrootd_ctx_t *ctx);
+
 /* ---- Buffer release helper — disconnect-owned payload cleanup ----
  *
  * WHAT: Free payload buffer and prepare_paths allocated during connection lifecycle.
@@ -102,6 +106,9 @@ xrootd_release_disconnect_crypto_state(xrootd_ctx_t *ctx)
         EVP_PKEY_free(ctx->gsi_dh_key);
         ctx->gsi_dh_key = NULL;
     }
+
+    /* §F6: release any captured X.509 delegation state + cleanse the session key. */
+    xrootd_gsi_delegation_cleanup(ctx);
 
     if (ctx->sigver_mac_ctx != NULL) {
         EVP_MAC_CTX_free(ctx->sigver_mac_ctx);

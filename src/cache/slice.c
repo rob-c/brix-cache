@@ -10,6 +10,7 @@
 #include "slice.h"
 #include "cache_http.h"   /* xrootd_cache_file_ready */
 #include "meta.h"
+#include "cinfo.h"        /* xrootd_cache_cinfo_path — drop the .cinfo on evict */
 
 #include <stdio.h>
 #include <string.h>
@@ -141,6 +142,15 @@ xrootd_slice_meta_validate(const char *cache_path, off_t origin_size,
         }
     }
 
+    /* §9: a valid sidecar means we are about to serve from cache — record the hit
+     * (access_count/last_access) for access-driven eviction + observability. We
+     * already hold the parsed record, so bump and write it back in place.
+     * Best-effort: a write failure must not fail the (valid) cache serve. */
+    meta.version      = XROOTD_CACHE_META_VERSION;
+    meta.access_count += 1;
+    meta.last_access   = (uint64_t) ngx_time();
+    (void) xrootd_cache_meta_write(log, base, &meta);
+
     return NGX_OK;
 }
 
@@ -212,6 +222,16 @@ xrootd_slice_evict_all(const char *cache_path, ngx_log_t *log)
         char metapath[PATH_MAX];
         if (xrootd_cache_meta_path(metapath, sizeof(metapath), base) == 0
             && unlink(metapath) == 0)
+        {
+            removed++;
+        }
+    }
+
+    /* The block-present record lives at "<cache_path>.cinfo". */
+    {
+        char cinfopath[PATH_MAX];
+        if (xrootd_cache_cinfo_path(cinfopath, sizeof(cinfopath), cache_path) == 0
+            && unlink(cinfopath) == 0)
         {
             removed++;
         }

@@ -353,6 +353,14 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, tpc_allow_private),
       NULL },
 
+    /* §7 unary XrdSsi request/response over /.ssi/<service> (default: off). */
+    { ngx_string("xrootd_ssi"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ssi_enable),
+      NULL },
+
     /* TPC rendezvous key lifetime in the shared registry (default: 60s). */
     { ngx_string("xrootd_tpc_key_ttl"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,

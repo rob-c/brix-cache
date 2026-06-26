@@ -13,6 +13,7 @@
 
 #include "proxy_internal.h"
 #include "../compat/host_format.h"  /* xrootd_format_host[_port] — IPv6 bracketing */
+#include "../compat/log_diag.h"
 
 /*
  * Resolve one upstream URL and append one backend per resolved address.
@@ -33,8 +34,10 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_xrootd_webdav_loc_conf_t *conf,
     xrootd_webdav_backend_t *be;
 
     if (url->len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_webdav_proxy: empty upstream URL");
+        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
+            "xrootd_webdav_proxy: no upstream URL given",
+            "the directive was used without a backend URL argument",
+            "supply the backend, e.g. xrootd_webdav_proxy https://backend:1094;");
         return NGX_ERROR;
     }
 

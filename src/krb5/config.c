@@ -1,4 +1,5 @@
 #include "../config/config.h"
+#include "../compat/log_diag.h"
 
 /*
  * config.c — configure-time Kerberos 5 (krb5) auth setup for the stream server
@@ -76,9 +77,12 @@ xrootd_configure_krb5_auth(ngx_conf_t *cf,
     }
 
     if (xcf->krb5_principal.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd_auth krb5 requires "
-                           "xrootd_krb5_principal");
+        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
+            "xrootd: krb5 auth is enabled but no service principal is set",
+            "xrootd_auth krb5 needs the service principal it presents to "
+            "clients, but xrootd_krb5_principal is missing",
+            "add e.g. xrootd_krb5_principal \"xrootd/host.example.org@REALM\"; "
+            "it must match a key in the keytab");
         return NGX_ERROR;
     }
 
@@ -111,9 +115,14 @@ xrootd_configure_krb5_auth(ngx_conf_t *cf,
     }
     if (rc != 0) {
         kmsg = xrootd_krb5_error(xcf, rc);
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd: cannot open krb5 keytab \"%V\": %s",
-                           &xcf->krb5_keytab, kmsg ? kmsg : "unknown");
+        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
+            "xrootd: cannot open krb5 keytab \"%V\": %s",
+            "the keytab path is wrong, unreadable by the nginx user, or has "
+            "no key for the configured principal",
+            "point xrootd_krb5_keytab at the service keytab and grant the "
+            "nginx user read access (chmod 0400, correct owner); verify with "
+            "klist -k",
+            &xcf->krb5_keytab, kmsg ? kmsg : "unknown");
         xrootd_krb5_free_error(xcf, kmsg);
         return NGX_ERROR;
     }

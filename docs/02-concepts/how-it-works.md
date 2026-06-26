@@ -74,19 +74,26 @@ After authentication, the server checks what operations the client is allowed to
 #### Reading a File
 
 ```
-Client                          nginx-xrootd              Filesystem
-  │                                  │                        │
-  │─── kXR_open (read mode) ──────→│                        │
-  │                                  │── open(file, O_RDONLY) →│
-  │←── handle + metadata ──────────│←── fd + stat info ──────│
-  │                                  │                        │
-  │─── kXR_read (handle, offset) ─→│                        │
-  │                                  │── pread(fd, buf, off) →│
-  │←── data chunk ─────────────────│←── read bytes ──────────│
-  │                                  │                        │
-  │─── kXR_close (handle) ────────→│                        │
-  │                                  │── close(fd) ──────────>│
+Client                     Protocol handler → VFS        POSIX driver (kernel)
+  │                                  │                            │
+  │─── kXR_open (read mode) ──────→│ open (confined, cache-aware)│
+  │                                  │─ openat2 RESOLVE_BENEATH + fstat ─→│
+  │←── handle + metadata ──────────│←──────────── fd + stat ─────│
+  │                                  │                            │
+  │─── kXR_read (handle, offset) ─→│ xrootd_vfs_io_execute()     │
+  │                                  │─ driver->pread / preadv ───→│
+  │←── data chunk ─────────────────│←──────────── read bytes ────│
+  │                                  │                            │
+  │─── kXR_close (handle) ────────→│ close handle                │
+  │                                  │─ close(fd) ────────────────→│
 ```
+
+**Every byte takes the same path, whatever the protocol.** The opcode handler never
+touches the disk itself: it calls the **VFS** (`xrootd_vfs_*`, `src/fs/`), which
+re-checks confinement, records the metric and access-log line, and consults the
+cache — then the VFS calls the **POSIX storage driver** (`src/fs/backend/`) for the
+raw `open`/`pread`/`pwrite`/`fsync`. WebDAV and S3 reuse these exact two layers, so
+the path is `proto → VFS → POSIX` for all of them.
 
 **Key concepts:**
 - **File handle:** A numeric ID that represents an open file. Multiple reads/writes use the same handle — no need to re-open every time.
@@ -95,18 +102,18 @@ Client                          nginx-xrootd              Filesystem
 #### Writing a File
 
 ```
-Client                          nginx-xrootd              Filesystem
-  │                                  │                        │
-  │─── kXR_open (write mode) ─────→│                        │
-  │←── handle + metadata ──────────│←── fd + stat info ──────│
-  │                                  │                        │
-  │─── kXR_write (handle, data) ──→│                        │
-  │                                  │── write(fd, data) ───>│
-  │←── status OK ──────────────────│←── bytes written ───────│
-  │                                  │                        │
-  │─── kXR_sync (handle) ──────────→│                        │
-  │                                  │── fsync(fd) ──────────>│  Flush to disk!
-  │←── status OK ──────────────────│←── sync complete ───────│
+Client                     Protocol handler → VFS        POSIX driver (kernel)
+  │                                  │                            │
+  │─── kXR_open (write mode) ─────→│ open (confined, write-gated)│
+  │←── handle + metadata ──────────│←──────────── fd + stat ─────│
+  │                                  │                            │
+  │─── kXR_write (handle, data) ──→│ xrootd_vfs_io_execute()     │
+  │                                  │─ driver->pwrite ───────────→│
+  │←── status OK ──────────────────│←──────────── bytes written ─│
+  │                                  │                            │
+  │─── kXR_sync (handle) ──────────→│ xrootd_vfs_io_execute()    │
+  │                                  │─ driver->fsync ────────────→│  Flush to disk!
+  │←── status OK ──────────────────│←──────────── sync complete ─│
 ```
 
 ### Step 6: Response and Cleanup
@@ -131,21 +138,22 @@ xrootd_requests_total{proto="root",op="read",status="ok"} 14302
 WebDAV is simpler — it's HTTP-based, so each request is independent:
 
 ```
-Client                          nginx-xrootd              Filesystem
-  │                                  │                        │
-  │─── GET /path/to/file ─────────→│                        │
-  │     Host: server.example.com     │                        │
-  │     Range: bytes=0-1023          │                        │
-  │                                  │                        │
-  │                                  │── Authenticate ───────>│
-  │                                  │   (cert or token check)│
-  │                                  │                        │
-  │                                  │── open(file, O_RDONLY) →│
-  │←── HTTP/1.1 200 OK ─────────────│←── fd + stat info ──────│
-  │     Content-Type: application/   │                        │
-  │     Content-Length: 1024         │── read(fd, buf) ──────>│
-  │     [response body follows...]    │                        │
+Client                     WebDAV handler → VFS          POSIX driver (kernel)
+  │                                  │                            │
+  │─── GET /path/to/file ─────────→│                            │
+  │     Host: server.example.com     │ Authenticate (cert/token)  │
+  │     Range: bytes=0-1023          │                            │
+  │                                  │ xrootd_vfs_open()          │
+  │                                  │─ driver->open + fstat ─────→│
+  │←── HTTP/1.1 200 OK ─────────────│←──────────── fd + stat ─────│
+  │     Content-Type: application/   │ xrootd_vfs_file_sendfile_fd│
+  │     Content-Length: 1024         │─ driver->read_sendfile_fd ─→│
+  │     [response body follows...]    │←──────────── data (sendfile) ─│
 ```
+
+WebDAV (and S3) take the **same** `proto → VFS → POSIX` data path as `root://` —
+only the front-end framing differs. Auth runs in the handler; once a file is
+touched, the VFS and POSIX storage driver do the rest.
 
 **Key differences from XRootD:**
 - No persistent session — each request is independent

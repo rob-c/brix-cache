@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PROTOCOL_PROTOCOL_H
+#define XROOTD_PROTOCOL_PROTOCOL_H
 
 /*
  * protocol/protocol.h — XRootD root:// wire-format constants and structs.
@@ -23,3 +24,5 @@
 #include "flags.h"
 #include "wire.h"
 #include "gsi.h"
+
+#endif /* XROOTD_PROTOCOL_PROTOCOL_H */

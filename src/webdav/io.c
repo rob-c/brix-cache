@@ -4,17 +4,23 @@
 
 #include "webdav.h"
 #include "../compat/http_body.h"
+#include "../fs/backend/sd.h"   /* route the byte write through the SD backend */
 
 #include <errno.h>
 #include <unistd.h>
 
 ngx_int_t
-webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len)
+webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len, off_t offset)
 {
+    xrootd_sd_obj_t obj;
+
+    /* Positional write-full through the Storage Driver seam (syscall stays in
+     * the backend); the caller passes the destination offset. */
+    xrootd_sd_posix_wrap(&obj, fd);
     while (len > 0) {
         ssize_t nwritten;
 
-        nwritten = write(fd, buf, len);
+        nwritten = obj.driver->pwrite(&obj, buf, len, offset);
         if (nwritten < 0) {
             if (errno == EINTR) {
                 continue;
@@ -29,6 +35,7 @@ webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len)
 
         buf += (size_t) nwritten;
         len -= (size_t) nwritten;
+        offset += nwritten;
     }
 
     return NGX_OK;

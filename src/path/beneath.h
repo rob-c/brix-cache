@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PATH_BENEATH_H
+#define XROOTD_PATH_BENEATH_H
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -125,3 +126,5 @@ xrootd_beneath_full_path(const char *root_canon, const char *reqpath,
     }
     return (int) need;
 }
+
+#endif /* XROOTD_PATH_BENEATH_H */

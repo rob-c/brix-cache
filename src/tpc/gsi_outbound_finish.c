@@ -72,7 +72,7 @@ tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
     }
 
     if (want_gsi && have_cert) {
-        return tpc_outbound_gsi(t, fd);
+        return tpc_outbound_gsi(t, fd, login_body, login_dlen);
     }
 
     snprintf(t->err_msg, sizeof(t->err_msg),

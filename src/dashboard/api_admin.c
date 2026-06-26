@@ -3,6 +3,7 @@
  */
 #include "dashboard.h"
 #include "api_admin.h"
+#include "dashboard_json.h"
 #include "../manager/registry.h"
 #include "../webdav/proxy_pool.h"
 #include "../compat/http_headers.h"
@@ -27,65 +28,6 @@ ngx_int_t xrootd_uring_admin_enabled(void);
 /* JSON response helpers                                               */
 /* ------------------------------------------------------------------ */
 
-/* Serialise `root` (ownership taken — decref'd here) as a no-store JSON
- * response. Two-pass json_dumpb sizes the buffer to the payload. Mirrors
- * dashboard_send_json in api.c but is kept separate so the admin API has no
- * dependency on the read-only dashboard handler. */
-static ngx_int_t
-admin_send_json(ngx_http_request_t *r, ngx_int_t status, json_t *root)
-{
-    ngx_buf_t       *b;
-    ngx_chain_t      out;
-    ngx_table_elt_t *cc;
-    ngx_int_t        rc;
-    size_t           needed;
-    u_char          *buf;
-
-    if (root == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    needed = json_dumpb(root, NULL, 0, JSON_COMPACT);
-    if (needed == 0) {
-        json_decref(root);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    buf = ngx_palloc(r->pool, needed);
-    if (buf == NULL) {
-        json_decref(root);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    json_dumpb(root, (char *) buf, needed, JSON_COMPACT);
-    json_decref(root);
-
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    b->pos = b->start = buf;
-    b->last = b->end  = buf + needed;
-    b->memory   = 1;
-    b->last_buf  = 1;
-
-    r->headers_out.status           = status;
-    r->headers_out.content_length_n = (off_t) needed;
-    r->headers_out.content_type     = (ngx_str_t) ngx_string("application/json");
-    r->headers_out.content_type_len = r->headers_out.content_type.len;
-
-    cc = ngx_list_push(&r->headers_out.headers);
-    if (cc != NULL) {
-        cc->hash = 1;
-        ngx_str_set(&cc->key,   "Cache-Control");
-        ngx_str_set(&cc->value, "no-store");
-    }
-
-    rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
-    }
-    out.buf  = b;
-    out.next = NULL;
-    return ngx_http_output_filter(r, &out);
-}
 
 static ngx_int_t
 admin_send_ok(ngx_http_request_t *r, const char *result)
@@ -96,7 +38,7 @@ admin_send_ok(ngx_http_request_t *r, const char *result)
     }
     json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
     json_object_set_new(root, "result", json_string(result));
-    return admin_send_json(r, NGX_HTTP_OK, root);
+    return dashboard_json_send(r, NGX_HTTP_OK, root);
 }
 
 static ngx_int_t
@@ -108,7 +50,7 @@ admin_send_error(ngx_http_request_t *r, ngx_int_t status, const char *code)
     }
     json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
     json_object_set_new(root, "error", json_string(code));
-    return admin_send_json(r, status, root);
+    return dashboard_json_send(r, status, root);
 }
 
 
@@ -773,7 +715,7 @@ admin_proxy_add(ngx_http_request_t *r, json_t *body)
         json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
         json_object_set_new(root, "result", json_string("added"));
         json_object_set_new(root, "id", json_integer(id));
-        return admin_send_json(r, NGX_HTTP_CREATED, root);
+        return dashboard_json_send(r, NGX_HTTP_CREATED, root);
     }
 }
 
@@ -802,7 +744,7 @@ admin_proxy_list(ngx_http_request_t *r)
     }
     json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
     json_object_set_new(root, "backends", arr);
-    return admin_send_json(r, NGX_HTTP_OK, root);
+    return dashboard_json_send(r, NGX_HTTP_OK, root);
 }
 
 /*
@@ -863,7 +805,7 @@ admin_proxy_one(ngx_http_request_t *r, const char *action, uint32_t id)
                                 json_string("xrootd-dashboard.v1"));
             json_object_set_new(root, "id", json_integer(id));
             json_object_set_new(root, "in_flight", json_integer(inflight));
-            return admin_send_json(r, NGX_HTTP_OK, root);
+            return dashboard_json_send(r, NGX_HTTP_OK, root);
         }
         return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
     }
@@ -931,7 +873,7 @@ admin_io_uring_set(ngx_http_request_t *r, json_t *body)
         json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
         json_object_set_new(root, "result",
                             json_string(enabled ? "enabled" : "disabled"));
-        return admin_send_json(r, NGX_HTTP_OK, root);
+        return dashboard_json_send(r, NGX_HTTP_OK, root);
     }
 }
 
@@ -947,7 +889,7 @@ admin_io_uring_get(ngx_http_request_t *r)
     json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
     json_object_set_new(root, "disabled",
                         json_boolean(xrootd_uring_killswitch_get() != 0));
-    return admin_send_json(r, NGX_HTTP_OK, root);
+    return dashboard_json_send(r, NGX_HTTP_OK, root);
 }
 
 ngx_int_t

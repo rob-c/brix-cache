@@ -23,9 +23,12 @@
 #include "webdav.h"
 #include "../token/macaroon.h"
 #include "../token/macaroon_issue.h"
+#include "../compat/log_diag.h"
 #include "../compat/http_body.h"
+#include "../compat/json_min.h"
 
 #include <openssl/rand.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -445,8 +448,12 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
                               activities, path, expiry,
                               token_out, sizeof(token_out)) != NGX_OK)
     {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "macaroon_endpoint: token issuance failed");
+        XROOTD_DIAG_ERR(r->connection->log, 0,
+            "macaroon_endpoint: could not issue the requested macaroon",
+            "the macaroon signing key is missing or invalid, so tokens "
+            "cannot be minted",
+            "ensure the macaroon secret/signing key is configured and "
+            "readable; clients are getting 500 until it is fixed");
         rc = send_json(r, NGX_HTTP_INTERNAL_SERVER_ERROR,
                        J_SERVER_ERROR, sizeof(J_SERVER_ERROR) - 1);
         webdav_metrics_finalize_request(r, rc);
@@ -460,6 +467,267 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
                  token_out, expire_in);
     if (n < 0) n = 0;
 
+    rc = send_json(r, NGX_HTTP_OK, json, (size_t) n);
+    webdav_metrics_finalize_request(r, rc);
+}
+
+/* ------------------------------------------------------------------ */
+/* dCache / XrdMacaroons "application/macaroon-request" issuance (§2)  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * mac_iso8601_secs — parse a restricted ISO-8601 duration ("PT1H","PT30M","P1D",
+ * "PT3600S") to seconds, clamped to [1,max]. Returns NGX_OK / NGX_ERROR. Units
+ * D/H/M/S only (W/Y/Mo unsupported — WLCG macaroons use these). EITHER.
+ */
+static ngx_int_t
+mac_iso8601_secs(const char *s, size_t len, time_t max, time_t *out)
+{
+    size_t   i = 0;
+    uint64_t total = 0;
+    int      saw_unit = 0;
+
+    if (s == NULL || out == NULL || len == 0) {
+        return NGX_ERROR;
+    }
+    if (s[i] == 'P') { i++; }
+    if (i < len && s[i] == 'T') { i++; }
+    while (i < len) {
+        uint64_t v = 0;
+        size_t   digits = 0;
+        while (i < len && s[i] >= '0' && s[i] <= '9') {
+            if (v > (UINT64_MAX - 9) / 10) { return NGX_ERROR; }
+            v = v * 10 + (uint64_t) (s[i] - '0');
+            i++; digits++;
+        }
+        if (digits == 0 || i >= len) { return NGX_ERROR; }
+        switch (s[i]) {
+        case 'D': total += v * 86400; break;
+        case 'H': total += v * 3600;  break;
+        case 'M': total += v * 60;    break;
+        case 'S': total += v;         break;
+        default:  return NGX_ERROR;
+        }
+        if (total > (uint64_t) 0x7fffffffffffffffLL) { return NGX_ERROR; }
+        i++; saw_unit = 1;
+    }
+    if (!saw_unit) { return NGX_ERROR; }
+    if (total == 0) { total = 1; }
+    if ((time_t) total > max) { total = (uint64_t) max; }
+    *out = (time_t) total;
+    return NGX_OK;
+}
+
+/*
+ * mac_caveats_scan — extract activity/path caveats from a dCache request body's
+ * "caveats":["activity:DOWNLOAD,LIST","path:/foo"] array. json_min has no array
+ * support, so this is a bounded string scan: for each "..." element it recognises
+ * "activity:<csv>" (accumulated, comma-joined into act) and "path:<abs>" (last one
+ * wins into path). Tolerant of whitespace; unknown caveat kinds ignored. EITHER.
+ */
+static void
+mac_caveats_scan(const char *body, size_t len, char *act, size_t actsz,
+                 char *path, size_t pathsz)
+{
+    const u_char *p   = (const u_char *) body;
+    const u_char *end = p + len;
+    const u_char *arr;
+
+    act[0] = '\0';
+    path[0] = '\0';
+    arr = ngx_strlcasestrn((u_char *) p, (u_char *) end,
+                           (u_char *) "\"caveats\"", sizeof("\"caveats\"") - 2);
+    if (arr == NULL) {
+        return;
+    }
+    p = ngx_strlchr((u_char *) arr, (u_char *) end, '[');
+    if (p == NULL) {
+        return;
+    }
+    p++;
+    while (p < end && *p != ']') {
+        const u_char *q;
+        size_t        elen;
+        if (*p != '"') { p++; continue; }
+        q = ++p;
+        while (q < end && *q != '"') { q++; }
+        if (q >= end) { break; }
+        elen = (size_t) (q - p);
+        if (elen > 9
+            && ngx_strncasecmp((u_char *) p, (u_char *) "activity:", 9) == 0)
+        {
+            size_t cur = ngx_strlen(act);
+            size_t cp, room;
+            if (cur > 0 && cur + 1 < actsz) { act[cur++] = ','; }
+            cp   = elen - 9;
+            room = (cur < actsz) ? actsz - cur - 1 : 0;
+            if (cp > room) { cp = room; }
+            ngx_memcpy(act + cur, p + 9, cp);
+            act[cur + cp] = '\0';
+        } else if (elen > 5
+                   && ngx_strncasecmp((u_char *) p, (u_char *) "path:", 5) == 0)
+        {
+            size_t cp = elen - 5;
+            if (cp > pathsz - 1) { cp = pathsz - 1; }
+            ngx_memcpy(path, p + 5, cp);
+            path[cp] = '\0';
+        }
+        p = q + 1;
+    }
+}
+
+void
+webdav_handle_macaroon_request(ngx_http_request_t *r)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_xrootd_webdav_req_ctx_t  *ctx;
+    u_char     *body = NULL;
+    size_t      body_len = 0;
+    u_char      root_key[64];
+    ssize_t     key_len;
+    char        activities[128];
+    char        cav_path[1024];
+    char        location[256];
+    char        identifier[96];
+    char        token_out[XROOTD_MACAROON_ISSUE_OUT_MAX];
+    char        json[XROOTD_MACAROON_ISSUE_OUT_MAX + 768];
+    time_t      validity = 0, exp;
+    ngx_int_t   rc;
+    int         n;
+    const char *scheme;
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    ctx  = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+
+    if (conf->token_macaroon_secret.len == 0) {
+        rc = send_json(r, NGX_HTTP_NOT_FOUND,
+                       J_NOT_CONFIGURED, sizeof(J_NOT_CONFIGURED) - 1);
+        webdav_metrics_finalize_request(r, rc);
+        return;
+    }
+    if (ctx == NULL || !ctx->verified) {
+        rc = send_json(r, NGX_HTTP_UNAUTHORIZED,
+                       J_UNAUTHORIZED, sizeof(J_UNAUTHORIZED) - 1);
+        webdav_metrics_finalize_request(r, rc);
+        return;
+    }
+    if (xrootd_http_body_read_all(r, 16384, &body, &body_len) != NGX_OK
+        || body == NULL || body_len == 0)
+    {
+        rc = send_json(r, NGX_HTTP_BAD_REQUEST,
+                       J_INVALID_REQUEST, sizeof(J_INVALID_REQUEST) - 1);
+        webdav_metrics_finalize_request(r, rc);
+        return;
+    }
+
+    /* caveats[] → activities + path (default base = request path). */
+    mac_caveats_scan((const char *) body, body_len,
+                     activities, sizeof(activities), cav_path, sizeof(cav_path));
+    if (cav_path[0] == '\0') {
+        size_t cp = ngx_min(r->uri.len, sizeof(cav_path) - 1);
+        ngx_memcpy(cav_path, r->uri.data, cp);
+        cav_path[cp] = '\0';
+    }
+
+    /* validity (ISO-8601) → seconds, clamped to the configured max. */
+    {
+        char vbuf[32];
+        if (xrootd_json_get_str((const char *) body, body_len, "validity",
+                                vbuf, sizeof(vbuf)) > 0)
+        {
+            (void) mac_iso8601_secs(vbuf, ngx_strlen(vbuf),
+                                    (time_t) conf->macaroon_max_validity,
+                                    &validity);
+        }
+    }
+    if (validity <= 0) { validity = (time_t) conf->macaroon_max_validity; }
+    exp = (time_t) ngx_time() + validity;
+
+    /* Unique identifier "v=1;t=<unix>;n=<16-hex-random>" (same scheme as the
+     * OAuth2 path — xrootd_macaroon_issue requires a non-NULL identifier). */
+    {
+        u_char rb[8];
+        if (RAND_bytes(rb, (int) sizeof(rb)) != 1) {
+            ngx_uint_t seed = (ngx_uint_t) ngx_time() ^ (ngx_uint_t) (uintptr_t) r;
+            size_t i;
+            for (i = 0; i < sizeof(rb); i++) {
+                seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+                rb[i] = (u_char) (seed >> 56);
+            }
+        }
+        snprintf(identifier, sizeof(identifier) - 1,
+                 "v=1;t=%ld;n=%02x%02x%02x%02x%02x%02x%02x%02x",
+                 (long) ngx_time(),
+                 rb[0], rb[1], rb[2], rb[3], rb[4], rb[5], rb[6], rb[7]);
+        identifier[sizeof(identifier) - 1] = '\0';
+    }
+
+    key_len = xrootd_macaroon_secret_parse(
+        (const char *) conf->token_macaroon_secret.data,
+        conf->token_macaroon_secret.len, root_key, sizeof(root_key));
+    if (key_len <= 0) {
+        rc = send_json(r, NGX_HTTP_INTERNAL_SERVER_ERROR,
+                       J_SERVER_ERROR, sizeof(J_SERVER_ERROR) - 1);
+        webdav_metrics_finalize_request(r, rc);
+        return;
+    }
+
+    /* location: pin to the configured issuer (else Host) — same rule as the
+     * OAuth2 path so our own macaroon re-validates here. */
+    if (conf->token_issuer.len > 0 && conf->token_issuer.len < sizeof(location)) {
+        ngx_memcpy(location, conf->token_issuer.data, conf->token_issuer.len);
+        location[conf->token_issuer.len] = '\0';
+    } else if (conf->macaroon_location.len > 0
+               && conf->macaroon_location.len < sizeof(location)) {
+        ngx_memcpy(location, conf->macaroon_location.data,
+                   conf->macaroon_location.len);
+        location[conf->macaroon_location.len] = '\0';
+    } else {
+        const char *sch = (r->connection->ssl != NULL) ? "https" : "http";
+        u_char     *p;
+        if (r->headers_in.host != NULL) {
+            p = ngx_snprintf((u_char *) location, sizeof(location) - 1,
+                             "%s://%V", sch, &r->headers_in.host->value);
+        } else {
+            p = ngx_snprintf((u_char *) location, sizeof(location) - 1,
+                             "%s://localhost", sch);
+        }
+        *p = '\0';
+    }
+
+    if (xrootd_macaroon_issue(r->connection->log, root_key, (size_t) key_len,
+                              location, identifier,
+                              activities[0] ? activities : NULL,
+                              cav_path, exp, token_out, sizeof(token_out)) != NGX_OK)
+    {
+        rc = send_json(r, NGX_HTTP_INTERNAL_SERVER_ERROR,
+                       J_SERVER_ERROR, sizeof(J_SERVER_ERROR) - 1);
+        webdav_metrics_finalize_request(r, rc);
+        return;
+    }
+
+    /* dCache response: {macaroon, uri{target,targetWithMacaroon,base,baseWithMacaroon}} */
+    scheme = (r->connection->ssl != NULL) ? "https" : "http";
+    {
+        ngx_str_t host;
+        if (r->headers_in.host != NULL) {
+            host = r->headers_in.host->value;
+        } else {
+            ngx_str_set(&host, "localhost");
+        }
+        n = (int) (ngx_snprintf((u_char *) json, sizeof(json) - 1,
+            "{\"macaroon\":\"%s\",\"uri\":{"
+            "\"target\":\"%s://%V%V\","
+            "\"targetWithMacaroon\":\"%s://%V%V?authz=%s\","
+            "\"base\":\"%s://%V/\","
+            "\"baseWithMacaroon\":\"%s://%V/?authz=%s\"}}",
+            token_out,
+            scheme, &host, &r->uri,
+            scheme, &host, &r->uri, token_out,
+            scheme, &host,
+            scheme, &host, token_out) - (u_char *) json);
+    }
+    if (n < 0) { n = 0; }
     rc = send_json(r, NGX_HTTP_OK, json, (size_t) n);
     webdav_metrics_finalize_request(r, rc);
 }

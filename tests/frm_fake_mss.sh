@@ -30,7 +30,13 @@ esac
 
 data="${FRM_DATA_DIR:-}"
 tape="${FRM_TAPE_DIR:-}"
-rel="${dest#"$data"/}"
+
+# Derive the relative tape path from the EXPORT path of the object being recalled.
+# That is $FRM_LFN (the worker exports the export path the agent is staging) — use
+# it rather than $dest, because under materialize-to-scratch $dest is a scratch
+# temp that does not encode the object. Fall back to $dest (legacy in-place).
+ref="${FRM_LFN:-$dest}"
+rel="${ref#"$data"/}"
 src="$tape/$rel"
 
 [ -f "$src" ] || exit 2

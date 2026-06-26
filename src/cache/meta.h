@@ -28,12 +28,35 @@
 
 #define XROOTD_CACHE_META_ETAG_MAX 55
 
+/*
+ * §9 .cinfo upgrade: the record grows a versioned tail (access stats + origin
+ * checksum) AFTER the legacy {mtime,size,etag_len,etag} base. Readers accept a
+ * legacy-sized sidecar (the tail reads short and stays zeroed → version 0); a
+ * grown record is detected by version >= 1. The base layout is unchanged so old
+ * code paths and on-disk validity checks are byte-compatible.
+ */
+#define XROOTD_CACHE_META_VERSION 1
+
 typedef struct {
+    /* ---- legacy base (do not reorder/resize) ---- */
     uint64_t mtime;
     uint64_t size;
     uint8_t  etag_len;
     char     etag[XROOTD_CACHE_META_ETAG_MAX];
+    /* ---- §9 versioned tail (zeroed when reading a legacy sidecar) ---- */
+    uint8_t  version;           /* 0 = legacy (no tail), >=1 = cinfo */
+    uint64_t access_count;      /* cache hits served */
+    uint64_t last_access;       /* unix secs of the most recent hit */
+    uint64_t bytes_served;      /* cumulative bytes served from cache */
+    uint8_t  cks_alg_len;       /* origin checksum algo name length (0 = none) */
+    char     cks_alg[16];       /* origin checksum algo name */
+    uint8_t  cks_len;           /* origin checksum hex length (0 = none) */
+    char     cks_hex[129];      /* origin checksum, lowercase hex, NUL-term */
 } xrootd_cache_meta_t;
+
+/* Size of the legacy on-disk base (everything before the versioned tail). */
+#define XROOTD_CACHE_META_BASE_SIZE \
+    (offsetof(xrootd_cache_meta_t, version))
 
 /*
  * Map a cache file path to its sidecar path by appending the ".meta" suffix.
@@ -70,5 +93,14 @@ ngx_int_t xrootd_cache_meta_read(ngx_log_t *log, const char *cache_path,
  */
 ngx_int_t xrootd_cache_meta_write(ngx_log_t *log, const char *cache_path,
     const xrootd_cache_meta_t *meta);
+
+/*
+ * §9: record a cache hit — read the sidecar, bump access_count + bytes_served and
+ * set last_access=now, upgrade it to a versioned (cinfo) record, and write it back.
+ * Best-effort: a missing/unreadable sidecar is a no-op (NGX_DECLINED). nbytes is the
+ * number of bytes served by this hit. Returns NGX_OK on a successful update.
+ */
+ngx_int_t xrootd_cache_meta_touch(ngx_log_t *log, const char *cache_path,
+    uint64_t nbytes);
 
 #endif /* XROOTD_CACHE_META_H */

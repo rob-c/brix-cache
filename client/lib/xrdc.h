@@ -71,6 +71,8 @@ typedef struct {
                              * — NOT retryable: re-issuing the op just walks into
                              * the same loop, so the resilient wrapper must fail
                              * fast rather than chase it for the whole window. */
+#define XRDC_EIO     (-9)   /* local filesystem I/O error (open/read/write/rename/fstat/truncate/alloc) — permanent, NOT retryable */
+#define XRDC_ENOENT  (-10)  /* object/path does not exist (HTTP 404 / ENOENT) — permanent, NOT retryable */
 
 typedef enum {
     XRDC_SCHEME_ROOT = 0,   /* root:// / xroot:// */
@@ -107,6 +109,8 @@ typedef struct {
 } xrdc_weburl;
 /* Return 1 if `s` begins with a web scheme (http/https/dav/davs/s3/s3s). */
 int xrdc_is_web_url(const char *s);
+/* Return 1 if `s` names a block-device endpoint (block:// prefix or /dev/). */
+int xrdc_is_block_url(const char *s);
 /* Parse a web URL into *out. 0 on success, -1 if not a recognized web URL. */
 int xrdc_weburl_parse(const char *s, xrdc_weburl *out);
 
@@ -119,6 +123,9 @@ int  xrdc_has_glob(const char *s);
  * through xrdc_read_full/xrdc_write_full on this, so TLS is a single branch. We
  * forward-declare struct ssl_st so this header stays OpenSSL-free. */
 struct ssl_st;
+/* Forward-declare the credential store so xrdc_opts can carry a pointer without
+ * pulling cred.h (and its OpenSSL/crypto includes) into every consumer. */
+struct xrdc_cred_store;
 typedef struct {
     int            fd;
     struct ssl_st *ssl;       /* NULL = cleartext; non-NULL = TLS active */
@@ -150,6 +157,10 @@ typedef struct {
                                * $XRDC_MAX_STALL_MS / --max-stall. */
     int         no_retry;     /* 1 ⇒ resilience off: fail fast (legacy behavior).
                                * Set by --no-retry or $XRDC_MAX_STALL_MS=0. */
+    /* ---- credential store (C1) ---- */
+    struct xrdc_cred_store *cred; /* optional pre-built credential store; NULL =
+                                   * per-handler env/default discovery (today's
+                                   * behaviour; C2 will thread this through auth). */
 } xrdc_opts;
 
 /* Default reconnect+retry patience window when resilience is on but unspecified. */
@@ -909,6 +920,39 @@ int xrdc_cksum_fd(int fd, xrdc_cksum_algo algo, char *hex, size_t hexsz,
 int xrdc_query_cksum(xrdc_conn *c, const char *path, const char *algo_name,
                      char *hex, size_t hexsz, xrdc_status *st);
 
+/* ---- cks_verify.c (verify a file on disk against its recorded checksum) ---- */
+#define XRDC_CKV_HEX_MAX 129
+
+/* Which recorded-checksum sources to consult. */
+typedef enum {
+    XRDC_CKV_AUTO = 0,   /* cache sidecars (.cinfo/.meta) AND storage (xattr/.cks) */
+    XRDC_CKV_CACHE,      /* proxy cache only: <file>.cinfo / <file>.meta cks fields */
+    XRDC_CKV_STORAGE     /* storage only: user.XrdCks.<alg> xattr + <file>.cks sidecar */
+} xrdc_ckv_mode;
+
+/* Outcome of a verification. */
+typedef enum {
+    XRDC_CKV_OK = 0,        /* a recorded checksum was found and matches */
+    XRDC_CKV_MISMATCH,      /* recorded != recomputed (corruption) */
+    XRDC_CKV_NO_RECORD,     /* no recorded checksum found for this file/algo */
+    XRDC_CKV_UNSUPPORTED,   /* recorded with an algorithm this engine cannot compute */
+    XRDC_CKV_ERROR          /* I/O / access error */
+} xrdc_ckv_result;
+
+/* Filled with the decisive record (the match, or the mismatch). */
+typedef struct {
+    char source[16];                 /* "xattr" | "cks" | "cinfo" | "meta" */
+    char algo[16];
+    char recorded[XRDC_CKV_HEX_MAX];
+    char computed[XRDC_CKV_HEX_MAX];
+} xrdc_ckv_report;
+
+/* Recompute `path`'s checksum and compare it to the value recorded on disk.
+ * want_algo NULL ⇒ verify every recorded checksum; non-NULL ⇒ only that algo.
+ * `rep` (may be NULL) receives the decisive record. See cks_verify.c. */
+xrdc_ckv_result xrdc_cks_verify_file(const char *path, const char *want_algo,
+    xrdc_ckv_mode mode, xrdc_ckv_report *rep, xrdc_status *st);
+
 /* ---- cli_cksum.c (shared checksum-tool front-end) ---- */
 /* Process-exit conventions shared by the front-end tools (phase-49):
  *   USAGE — bad arguments / URL parse / local open  (was the bare `return 50`)
@@ -923,13 +967,30 @@ int xrdc_query_cksum(xrdc_conn *c, const char *path, const char *algo_name,
 /* The whole body of xrdcrc32c / xrdcrc64 / xrdadler32: checksum a LOCAL file or a
  * root:// file with `algo` (local enum) / `algo_name` (wire name) and print
  * "<hex> <path>". Returns the process exit code. `arg` is the single CLI argument
- * (NULL ⇒ usage). */
+ * (NULL ⇒ usage). `err_exit` is the tool's process exit code for ANY failure to
+ * produce a checksum (connect/query/open/digest), chosen to match the stock tool
+ * byte-for-byte: xrdadler32 → 1, xrdcrc32c → 3, xrdcrc64 → 1. Argument/URL-parse
+ * errors still return XRDC_EXIT_USAGE. */
 int xrdc_cli_cksum_main(const char *prog, const char *algo_name,
-                        xrdc_cksum_algo algo, const char *arg);
+                        xrdc_cksum_algo algo, const char *arg, int err_exit);
 
 /* ---- cli_opts.c / cli_conn.c (shared front-end scaffold) ---- */
 /* Zero-init connection options to the canonical defaults (verify_host on). */
 void xrdc_opts_init(xrdc_opts *o);
+
+/* ---- cli_cred.c — CLI→credential-store builder ---- */
+/* Map per-tool CLI values into an xrdc_cred_config and return a live store.
+ * NULL/empty arguments fall back to per-handler env/default discovery, preserving
+ * today's per-protocol precedence exactly.  Returns NULL only on OOM.
+ * Callers free the result with xrdc_cred_store_free. */
+struct xrdc_cred_store *
+xrdc_cli_cred_store_build(const char *proxy, const char *bearer,
+                           const char *bearer_file, const char *s3_access,
+                           const char *s3_secret, const char *oidc_account,
+                           int auto_refresh);
+/* Release a credential store (matches xrdc_cred_store_new / xrdc_cli_cred_store_build).
+ * No-op when s is NULL. */
+void xrdc_cred_store_free(struct xrdc_cred_store *s);
 /* Consume one common connection/trace flag at argv[*i] (--tls/--notlsok/
  * --noverifyhost/--auth <p>/--wire-trace[=N]/--timing/--redirect-trace/--capture
  * <p>), advancing *i past any value. Returns 1 if it recognised the flag (caller
@@ -949,6 +1010,16 @@ int  xrdc_report_err(FILE *out, const char *tool, const char *op,
 /* Canonicalise `arg` against `cwd` into an absolute server path in out[outsz],
  * collapsing "."/".."/dup-slashes (the xrdfs shell's build_path). */
 void    xrdc_path_resolve(const char *cwd, const char *arg, char *out, size_t outsz);
+/* Open a credential file safely (O_NOFOLLOW, regular + owned by euid, no
+ * group/other write; `secret` also rejects group/other read). Returns an fd the
+ * caller closes, or -1; `st` may be NULL for silent probing. See path.c. */
+int     xrdc_open_credfile(const char *path, int secret, xrdc_status *st);
+/* Open a credential file as an OpenSSL BIO with xrdc_open_credfile's safety
+ * checks (no symlink, owned by euid, secret=1 → 0600). NULL on a missing/unsafe
+ * file; the caller surfaces its own "no proxy" message. Defined in proxy.c; the
+ * opaque forward-decl keeps OpenSSL out of this header. */
+struct bio_st;
+struct bio_st *xrdc_credfile_bio(const char *path, int secret);
 /* Render a byte count: raw decimal, or human ("1.5G") when human!=0. */
 void    xrdc_fmt_size(int64_t n, char *out, size_t sz, int human);
 /* Parse "4096" / "1.5G" (K/M/G/T suffix) → bytes, or -1 if malformed. */
@@ -1072,6 +1143,11 @@ typedef struct {
                                 * reconnect+reopen+resume on a flaky/lossy link
                                 * (0 = default 60000). The read size adapts down to
                                 * survive loss; see pump_src_remote. */
+    int         no_retry;      /* 1 ⇒ resilience off: every bounded copy loop uses a
+                                * zero-stall deadline and fails on the first transport
+                                * fault (--no-retry / --retry 0 / --max-stall 0).
+                                * Distinguishes "fail fast" from max_stall_ms==0
+                                * meaning "use the default". See copy_stall_ms(). */
     xrdc_progress_cb progress;  /* periodic transfer progress, or NULL */
     void            *progress_arg;
     int         io_uring;  /* phase-44 --io-uring: 0=auto, 1=on, 2=off. Selects

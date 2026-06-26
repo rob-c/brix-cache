@@ -94,12 +94,12 @@ ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -D
 # brotli/bzip2 for the shared codec kernels (gzip/deflate already via -lz).
 LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 
-LIB_SRCS   := lib/sock.c lib/netpref.c lib/nettmo.c lib/url.c lib/status.c lib/trace.c lib/frame.c lib/zip.c \
+LIB_SRCS   := lib/sock.c lib/netpref.c lib/nettmo.c lib/url.c lib/status.c lib/trace.c lib/frame.c lib/zip.c lib/cred.c lib/cred_x509.c lib/cred_bearer.c lib/cred_sss.c lib/cred_krb5.c lib/cred_s3.c \
               lib/conn.c lib/pool.c lib/aio.c lib/aio_mgr.c lib/streams.c lib/ops_meta.c lib/ops_file.c lib/ops_fs.c \
               lib/copy.c lib/glob.c lib/xrdrc.c lib/weblist.c lib/webfile.c lib/checksum.c lib/fattr.c lib/ops_ext.c lib/proxy.c lib/http.c lib/s3.c lib/tls.c lib/auth.c \
               lib/sigver.c lib/sss_keytab.c lib/credinfo.c lib/credrefresh.c lib/capture.c lib/netdiag.c \
-              lib/cli_cksum.c lib/cli_opts.c lib/cli_conn.c lib/resilient.c lib/posix_map.c lib/iobuf.c lib/fuse_ops.c \
-              lib/path.c lib/units.c lib/uring.c \
+              lib/cli_cksum.c lib/cks_verify.c lib/cli_opts.c lib/cli_conn.c lib/cli_cred.c lib/resilient.c lib/posix_map.c lib/iobuf.c lib/fuse_ops.c \
+              lib/path.c lib/units.c lib/uring.c lib/vfs.c lib/vfs_posix.c lib/vfs_block.c lib/vfs_s3.c \
               lib/sec/sec_token.c lib/sec/sec_unix.c lib/sec/sec_gsi.c lib/sec/sec_sss.c \
               lib/sec/sec_krb5.c lib/sec/sec_host.c lib/sec/sec_pwd.c
 LIB_OBJS   := $(LIB_SRCS:.c=.o)
@@ -131,7 +131,7 @@ BINDIR := bin
 # Every binary is a thin front-end: apps/<name>.o + the client lib + libxrdproto.
 BINS := xrd xrdfs xrdcp xrdcrc32c xrdcrc64 xrdadler32 xrdqstats wait41 xrdprep xrdgsiproxy xrddiag \
         xrdmapc xrdgsitest mpxstats \
-        xrdsssadmin
+        xrdsssadmin xrdckverify
 BIN_EXES := $(addprefix $(BINDIR)/,$(BINS))
 
 # §14.4: the FUSE mount + the LD_PRELOAD POSIX shim are built only when libfuse3
@@ -201,6 +201,15 @@ apps/xrootdfs_main.o: apps/xrootdfs_main.c apps/xrootdfs_drivers.h | proto
 $(BINDIR)/xrootdfs: apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
 	@echo " + built $@ (libfuse3; unified async+legacy; no libXrdCl/libXrdSec*)"
+
+# A5 VFS S3 backend smoke test — exercises the xrdc_vfs S3 backend directly.
+# Run against a live S3 server: S3_URL=s3://host:port/bucket/key AWS_* ./vfs_s3_smoke
+.PHONY: vfs-s3-smoke
+vfs-s3-smoke: tests/c/vfs_s3_smoke.c $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) tests/c/vfs_s3_smoke.c \
+	    -Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive \
+	    $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/vfs_s3_smoke
+	@echo " + built $(BINDIR)/vfs_s3_smoke (no libXrdCl/libXrdSec*)"
 
 # M1 async-core smoke test (tests/c/aio_smoke.c) — links the static client lib.
 # Run against a live root:// server: ./aio_smoke root://host:port /scratch.bin

@@ -96,6 +96,80 @@ xrootd_ensure_payload_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c,
  *
  * HOW: On each read-ready event, checks ctx->state to determine expected bytes (handshake=20, header=24, payload=dlen), calls c->recv(), accumulates into hdr_buf/payload_buf, dispatches when complete, resets state for next request. Suspend states return immediately without reading. Timeout handling: CMS wait timeout sends retry response; other timeouts disconnect.
  * ------------------------------------------------------------------ */
+/* Pre-loop teardown/deadline gate for the recv handler: handles a graceful-
+ * shutdown close (c->close) and the three read-timeout cases (WAITING_CMS,
+ * WAITING_FRM, and the steady-state read deadline).  Returns 1 when it has
+ * finalized or parked the connection and the caller must return; 0 to proceed
+ * into the recv loop.  Every original early-return path maps to `return 1`. */
+static int
+xrootd_recv_pre_loop(ngx_stream_session_t *s, ngx_connection_t *c,
+    xrootd_ctx_t *ctx, ngx_event_t *rev)
+{
+
+    /*
+     * Graceful shutdown signal: ngx_close_idle_connections() set c->close on a
+     * connection we had marked idle.  Tear it down through the normal disconnect
+     * funnel — a clean FIN is the correct retry signal: the client's resilient
+     * layer treats it as a transport sever and reconnects to the new worker,
+     * resuming the transfer from its last offset.  (kXR_wait would stall the
+     * client ≥1s on the dying worker; a self-redirect trips its loop guard.)
+     */
+    if (c->close) {
+        if (xrootd_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
+            return 1;
+        }
+        xrootd_on_disconnect(ctx, c);
+        xrootd_close_all_files(ctx);
+        ngx_stream_finalize_session(s, NGX_STREAM_OK);
+        return 1;
+    }
+
+    if (rev->timedout) {
+        if (ctx->state == XRD_ST_WAITING_CMS) {
+            /* kYR_select did not arrive in time - tell client to retry. */
+            rev->timedout = 0;
+            xrootd_pending_remove(ctx->cms_wait_streamid, ngx_pid);
+            ctx->state = XRD_ST_REQ_HEADER;
+            xrootd_send_wait(ctx, c, 5);
+            xrootd_schedule_read_resume(c);
+            return 1;
+        }
+        if (ctx->state == XRD_ST_WAITING_FRM) {
+            /* The async recall took longer than stage_ttl — drop the parked
+             * waiter and ask the client to retry (it will re-poll residency:
+             * a hit if staged, or a fresh park otherwise). */
+            rev->timedout = 0;
+            frm_waiter_drop_conn(c->fd, c->number);
+            ctx->state = XRD_ST_REQ_HEADER;
+            xrootd_send_wait(ctx, c, 5);
+            xrootd_schedule_read_resume(c);
+            return 1;
+        }
+        ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
+                      "xrootd: client connection timed out");
+        /* Phase 39: our steady-state read deadline fired — it is the only c->read
+         * timer armed outside the WAITING_CMS/FRM states handled above.  Attribute
+         * it (pre-auth handshake vs in-flight PDU) and tear down via the single
+         * disconnect funnel. */
+        ctx->read_deadline_armed = 0;
+        if (ctx->auth_done) {
+            XROOTD_SRV_METRIC_INC(ctx, read_pdu_timeouts_total);
+        } else {
+            XROOTD_SRV_METRIC_INC(ctx, handshake_timeouts_total);
+        }
+        if (xrootd_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
+            return 1;
+        }
+        xrootd_on_disconnect(ctx, c);
+        xrootd_close_all_files(ctx);
+        ngx_stream_finalize_session(s, NGX_STREAM_OK);
+        return 1;
+    }
+
+
+    return 0;
+}
+
 void
 ngx_stream_xrootd_recv(ngx_event_t *rev)
 {
@@ -120,64 +194,7 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
      * keepalive connection at once instead of holding it until worker exit.
      */
     c->idle = 0;
-
-    /*
-     * Graceful shutdown signal: ngx_close_idle_connections() set c->close on a
-     * connection we had marked idle.  Tear it down through the normal disconnect
-     * funnel — a clean FIN is the correct retry signal: the client's resilient
-     * layer treats it as a transport sever and reconnects to the new worker,
-     * resuming the transfer from its last offset.  (kXR_wait would stall the
-     * client ≥1s on the dying worker; a self-redirect trips its loop guard.)
-     */
-    if (c->close) {
-        if (xrootd_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
-            return;
-        }
-        xrootd_on_disconnect(ctx, c);
-        xrootd_close_all_files(ctx);
-        ngx_stream_finalize_session(s, NGX_STREAM_OK);
-        return;
-    }
-
-    if (rev->timedout) {
-        if (ctx->state == XRD_ST_WAITING_CMS) {
-            /* kYR_select did not arrive in time - tell client to retry. */
-            rev->timedout = 0;
-            xrootd_pending_remove(ctx->cms_wait_streamid, ngx_pid);
-            ctx->state = XRD_ST_REQ_HEADER;
-            xrootd_send_wait(ctx, c, 5);
-            xrootd_schedule_read_resume(c);
-            return;
-        }
-        if (ctx->state == XRD_ST_WAITING_FRM) {
-            /* The async recall took longer than stage_ttl — drop the parked
-             * waiter and ask the client to retry (it will re-poll residency:
-             * a hit if staged, or a fresh park otherwise). */
-            rev->timedout = 0;
-            frm_waiter_drop_conn(c->fd, c->number);
-            ctx->state = XRD_ST_REQ_HEADER;
-            xrootd_send_wait(ctx, c, 5);
-            xrootd_schedule_read_resume(c);
-            return;
-        }
-        ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
-                      "xrootd: client connection timed out");
-        /* Phase 39: our steady-state read deadline fired — it is the only c->read
-         * timer armed outside the WAITING_CMS/FRM states handled above.  Attribute
-         * it (pre-auth handshake vs in-flight PDU) and tear down via the single
-         * disconnect funnel. */
-        ctx->read_deadline_armed = 0;
-        if (ctx->auth_done) {
-            XROOTD_SRV_METRIC_INC(ctx, read_pdu_timeouts_total);
-        } else {
-            XROOTD_SRV_METRIC_INC(ctx, handshake_timeouts_total);
-        }
-        if (xrootd_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
-            return;
-        }
-        xrootd_on_disconnect(ctx, c);
-        xrootd_close_all_files(ctx);
-        ngx_stream_finalize_session(s, NGX_STREAM_OK);
+    if (xrootd_recv_pre_loop(s, c, ctx, rev)) {
         return;
     }
 

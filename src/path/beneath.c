@@ -98,7 +98,25 @@ do_openat2_resolve(int rootfd, const char *rel, int flags, mode_t mode,
     /* empty rel means root dir itself; "." opens the rootfd directory */
     if (rel[0] == '\0') { rel = "."; }
     ngx_memzero(&how, sizeof(how));
-    how.flags   = (uint64_t)(flags | O_CLOEXEC);
+    /*
+     * Force O_NONBLOCK on real (data-bearing) opens so the open(2) itself can
+     * NEVER block the worker.  Opening a FIFO O_RDONLY (or a device with a
+     * blocking open routine) without O_NONBLOCK parks the caller in the kernel
+     * "wait_for_partner" state until a peer appears — which, on a single-threaded
+     * nginx worker, freezes the event loop and stalls EVERY connection pinned to
+     * that worker (a remotely triggerable DoS: a directory entry that is a named
+     * pipe wedges the worker on the kXR_open / GET path).  The flag is a no-op
+     * for the regular files we serve (local-fs reads never return EAGAIN), and
+     * callers reject any non-regular object after fstat()ing the fd.
+     *
+     * It must NOT be added to an O_PATH open: openat2() is stricter than open(2)
+     * and rejects O_PATH|O_NONBLOCK with EINVAL.  O_PATH opens only reference the
+     * inode (stat/lstat, the persistent root anchor, parent resolution for
+     * mutating ops) and never start file I/O, so they cannot block on a FIFO and
+     * need no guard.
+     */
+    how.flags   = (uint64_t)(flags | O_CLOEXEC
+                             | ((flags & O_PATH) ? 0 : O_NONBLOCK));
     how.resolve = resolve;
     /*
      * openat2() is stricter than open()/openat(): it rejects (EINVAL) any

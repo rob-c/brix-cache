@@ -1,4 +1,5 @@
 #include "cache_internal.h"
+#include "../fs/backend/sd.h"   /* route cache-content byte writes through the SD backend */
 
 
 #include <errno.h>
@@ -139,18 +140,24 @@ xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
  *      writes loop until complete. Used only within NGX_THREADS build. */
 
 int
-xrootd_cache_fd_write_all(int fd, const void *buf, size_t len)
+xrootd_cache_fd_write_all(int fd, const void *buf, size_t len, off_t offset)
 {
-    const u_char *p;
+    const u_char   *p;
+    xrootd_sd_obj_t obj;
 
+    /* Route the cache-content byte write through the Storage Driver seam so the
+     * syscall stays in the backend (positional pwrite; the caller passes the
+     * running file offset). */
+    xrootd_sd_posix_wrap(&obj, fd);
     p = buf;
     while (len > 0) {
         ssize_t n;
 
-        n = write(fd, p, len);
+        n = obj.driver->pwrite(&obj, p, len, offset);
         if (n > 0) {
             p += (size_t) n;
             len -= (size_t) n;
+            offset += n;
             continue;
         }
 

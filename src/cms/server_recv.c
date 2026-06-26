@@ -1,5 +1,7 @@
 #include "server.h"
+#include "cns.h"                          /* §6 CNS inventory + event codec */
 #include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
+#include "../compat/log_diag.h"
 
 /* ---- xrootd_cms_srv_close — tear down CMS server-side connection and unregister data server ----
  * WHAT: Closes the TCP connection to a CMS data-server client, removes ping timer, and unregisters from the server registry if logged_in. WHY: When a data server disconnects, it must be removed from the CMS manager's registry so locate queries don't route clients to dead servers. HOW: 1) If ping_timer set → remove timer → 2) If logged_in → unregister host/port from registry → 3) Set ctx->c = NULL → 4) Close TCP connection. */
@@ -35,10 +37,14 @@ xrootd_cms_srv_close(xrootd_cms_srv_ctx_t *ctx)
          * server that just went away.  xrootd_srv_register() clears the flag
          * the moment the server successfully reconnects and re-heartbeats. */
         xrootd_srv_blacklist(ctx->host, ctx->port, 30000);
-        ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
-                      "xrootd: CMS server: data server %s:%d disconnected "
-                      "(blacklisted 30 s)",
-                      ctx->host, (int) ctx->port);
+        XROOTD_DIAG(NGX_LOG_NOTICE, c->log, 0,
+            "xrootd[cms]: data server %s:%d disconnected (blacklisted 30s)",
+            "the data server dropped its CMS connection — it crashed, was "
+            "restarted, or lost network to the manager",
+            "if it does not re-register within seconds, check that server's "
+            "health and connectivity; clients are routed away from it "
+            "meanwhile",
+            ctx->host, (int) ctx->port);
     }
 
     ctx->c = NULL;
@@ -431,6 +437,39 @@ cms_srv_process_frame(xrootd_cms_srv_ctx_t *ctx, u_char code,
             ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                            "xrootd: CMS server: kYR_gone path=%s from %s:%d",
                            path, ctx->host, (int) ctx->port);
+        }
+        break;
+
+    case CMS_RR_CNS:
+        /* §6 Composite Cluster Name Space: a data server reports a namespace
+         * mutation. Apply it into the manager inventory (collect mode only). */
+        if (!ctx->logged_in || !xrootd_cns_collecting()) {
+            break;
+        }
+        {
+            uint8_t   op;
+            uint64_t  size, mtime;
+            char      path[XROOTD_CNS_PATH_MAX + 1];
+            uint32_t  server_id;
+            const u_char *h = (const u_char *) ctx->host;
+            size_t    i;
+
+            if (xrootd_cns_event_decode(payload, payload_len, &op, &size, &mtime,
+                                        path, sizeof(path)) != NGX_OK)
+            {
+                ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
+                              "xrootd: CMS server: malformed CNS event from %s",
+                              ctx->host);
+                break;
+            }
+            server_id = (uint32_t) ctx->port;        /* host hash + port = origin id */
+            for (i = 0; h[i] != '\0'; i++) {
+                server_id = server_id * 33 + h[i];
+            }
+            (void) xrootd_cns_apply(op, path, size, mtime, server_id);
+            ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+                           "xrootd: CNS event op=%ud path=%s from %s",
+                           (unsigned) op, path, ctx->host);
         }
         break;
 

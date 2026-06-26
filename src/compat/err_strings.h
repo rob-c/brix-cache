@@ -6,7 +6,8 @@
  * "Permission denied" (capital P) on Linux; centralising here prevents
  * any future case or format drift across handlers.
  */
-#pragma once
+#ifndef XROOTD_COMPAT_ERR_STRINGS_H
+#define XROOTD_COMPAT_ERR_STRINGS_H
 #include <errno.h>
 #include <string.h>
 
@@ -25,3 +26,5 @@ xrootd_kxr_err_string(int err)
     default:     return strerror(err);
     }
 }
+
+#endif /* XROOTD_COMPAT_ERR_STRINGS_H */

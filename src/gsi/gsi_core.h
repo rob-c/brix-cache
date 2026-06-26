@@ -131,6 +131,24 @@ uint8_t *xrootd_gsi_build_certreq(const char *cryptomod, uint32_t version,
                                   const uint8_t *rtag, size_t rtaglen,
                                   size_t *outlen);
 
+/* Build the round-2 kXGC_cert response to a server's kXGS_cert, the single shared
+ * XrdSecgsi client/dest round-2 (both DH variants: signed-DH via kXRS_cipher when
+ * the server sends one, else unsigned kXRS_puk). Agrees the AES session key, signs
+ * the server's random tag with proxy_key (proof-of-possession), and emits an
+ * encrypted main carrying proxy_pem (the proxy cert chain PEM) + the signed tag +
+ * a fresh tag, plus our DH public (RSA-signed in the signed-DH case).
+ *
+ * proxy_pem (proxy_pem_len) and proxy_key are BORROWED — the caller still owns and
+ * frees them. On success payload+plen receive a malloc'd kXGC_cert buffer the
+ * caller must free(); returns 0. On failure returns -1 and, if err!=NULL, writes a
+ * short reason into err[errcap]. Both the native client (client/lib/sec/sec_gsi.c)
+ * and the TPC destination (src/tpc/gsi_outbound_exchange.c) call this. */
+int xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
+                                   const uint8_t *proxy_pem, size_t proxy_pem_len,
+                                   EVP_PKEY *proxy_key,
+                                   uint8_t **payload, uint32_t *plen,
+                                   char *err, size_t errcap);
+
 /* ---- kXR_sigver opcode policy ---- */
 int xrootd_gsi_sigver_required(uint16_t opcode, int level);
 

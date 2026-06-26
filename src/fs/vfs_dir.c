@@ -20,6 +20,7 @@
  *       calls closedir(3) and nulls the handle so it is idempotent.
  */
 #include "vfs_internal.h"
+#include "../compat/log_diag.h"
 
 /* Open the resolved ctx directory under confinement. Returns a pooled handle or
  * NULL with the errno in *err_out; the open is metered as OP_DIRLIST. */
@@ -28,10 +29,10 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
 {
     xrootd_vfs_dir_t *dh;
     const char       *path;
-    ngx_msec_t        start;
+    uint64_t          start;
     int               saved_errno;
 
-    start = ngx_current_msec;
+    start = xrootd_vfs_now_ns();
 
     if (err_out != NULL) {
         *err_out = 0;
@@ -170,9 +171,13 @@ xrootd_vfs_closedir(xrootd_vfs_dir_t *dh, ngx_log_t *log)
     }
 
     if (closedir(dh->dir) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log != NULL ? log : dh->log, errno,
-                      "xrootd_vfs: closedir failed for \"%s\"",
-                      dh->path != NULL ? dh->path : "-");
+        XROOTD_DIAG_ERR(log != NULL ? log : dh->log, errno,
+            "xrootd[disk]: closedir failed for \"%s\"",
+            "the underlying directory stream returned an error on close — "
+            "usually an I/O error on the backing storage",
+            "check dmesg and the filesystem health for that path; the OS "
+            "reason is appended below",
+            dh->path != NULL ? dh->path : "-");
         dh->dir = NULL;
         return NGX_ERROR;
     }

@@ -48,7 +48,7 @@ xrootd_vfs_getxattr(xrootd_vfs_ctx_t *ctx, const char *name,
     void *buf, size_t bufsz)
 {
     const char *path = xrootd_vfs_ctx_path(ctx);
-    ngx_msec_t  start = ngx_current_msec;
+    uint64_t    start = xrootd_vfs_now_ns();
     ssize_t     n;
 
     if (xrootd_vfs_require_confined(ctx) != NGX_OK) {
@@ -67,7 +67,7 @@ ssize_t
 xrootd_vfs_listxattr(xrootd_vfs_ctx_t *ctx, void *buf, size_t bufsz)
 {
     const char *path = xrootd_vfs_ctx_path(ctx);
-    ngx_msec_t  start = ngx_current_msec;
+    uint64_t    start = xrootd_vfs_now_ns();
     ssize_t     n;
 
     if (xrootd_vfs_require_confined(ctx) != NGX_OK) {
@@ -88,7 +88,7 @@ xrootd_vfs_setxattr(xrootd_vfs_ctx_t *ctx, const char *name,
     const void *value, size_t len, int flags)
 {
     const char *path = xrootd_vfs_ctx_path(ctx);
-    ngx_msec_t  start = ngx_current_msec;
+    uint64_t    start = xrootd_vfs_now_ns();
     int         rc;
     int         saved_errno;
 
@@ -116,7 +116,7 @@ ngx_int_t
 xrootd_vfs_removexattr(xrootd_vfs_ctx_t *ctx, const char *name)
 {
     const char *path = xrootd_vfs_ctx_path(ctx);
-    ngx_msec_t  start = ngx_current_msec;
+    uint64_t    start = xrootd_vfs_now_ns();
     int         rc;
     int         saved_errno;
 

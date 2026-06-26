@@ -15,6 +15,7 @@
 #include "impersonate.h"
 #include "impersonate_proto.h"
 #include "../metrics/metrics.h"   /* xrootd_config_version_publish() */
+#include "../compat/log_diag.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -266,8 +267,13 @@ imp_make_listen(const char *path, uid_t wuid, ngx_log_t *log)
     if (bind(lfd, (struct sockaddr *) &addr, sizeof(addr)) != 0
         || listen(lfd, 64) != 0)
     {
-        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
-                      "impersonate: bind/listen \"%s\" failed", path);
+        XROOTD_DIAG_EMERG(log, ngx_errno,
+            "impersonate: cannot bind broker socket \"%s\"",
+            "the directory is not writable by the master, or a stale socket "
+            "is held by another process",
+            "ensure the socket's parent directory exists and is writable; the "
+            "OS reason is appended below",
+            path);
         close(lfd);
         return -1;
     }
@@ -354,8 +360,12 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
         return NGX_OK;
     }
     if (geteuid() != 0) {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
-                      "impersonate: map mode requires root master");
+        XROOTD_DIAG_EMERG(cycle->log, 0,
+            "impersonate: map mode requires a root master process",
+            "xrootd_impersonation is set to 'map' but nginx was not started "
+            "as root, so it cannot set up the privileged uid-mapping broker",
+            "start nginx as root (workers still drop to the configured user), "
+            "or change xrootd_impersonation away from 'map'");
         return NGX_ERROR;
     }
 
@@ -382,16 +392,23 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
         ngx_snprintf((u_char *) nm, sizeof(nm), "%V%Z", &imp_settings.broker_user);
         pw = getpwnam(nm);
         if (pw == NULL) {
-            ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
-                          "impersonate: xrootd_impersonation_broker_user \"%s\" "
-                          "does not exist", nm);
+            XROOTD_DIAG_EMERG(cycle->log, 0,
+                "impersonate: broker user \"%s\" does not exist",
+                "xrootd_impersonation_broker_user names a local account that "
+                "is not present in /etc/passwd (or NSS)",
+                "create the dedicated service account first, or correct the "
+                "name in the directive",
+                nm);
             return NGX_ERROR;
         }
         if (pw->pw_uid == 0 || (wuid != (uid_t) -1 && pw->pw_uid == wuid)) {
-            ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
-                          "impersonate: broker user \"%s\" must be a dedicated "
-                          "non-root account distinct from the nginx worker user",
-                          nm);
+            XROOTD_DIAG_EMERG(cycle->log, 0,
+                "impersonate: broker user \"%s\" is not a safe choice",
+                "the broker account must NOT be root and must differ from the "
+                "nginx worker user, so a compromise cannot escalate",
+                "point xrootd_impersonation_broker_user at a dedicated, "
+                "unprivileged account used for nothing else",
+                nm);
             return NGX_ERROR;
         }
         xrootd_imp_broker_user_uid = pw->pw_uid;
@@ -404,8 +421,11 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
      * here and inherits the parsed gridmap + policy. */
     imp_fill_idmap_conf(&idc, wuid);
     if (xrootd_idmap_init(&idc, cycle->log) != NGX_OK) {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
-                      "impersonate: idmap init failed (grid-mapfile?)");
+        XROOTD_DIAG_EMERG(cycle->log, 0,
+            "impersonate: identity map failed to load",
+            "the grid-mapfile is missing, unreadable, or malformed",
+            "check xrootd_impersonation_gridmap points at a readable "
+            "grid-mapfile with valid \"<DN>\" <user> lines");
         return NGX_ERROR;
     }
 
@@ -415,8 +435,12 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
     }
     rootfd = open(rootbuf, O_PATH | O_DIRECTORY | O_CLOEXEC);
     if (rootfd < 0) {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, ngx_errno,
-                      "impersonate: cannot open export root \"%s\"", rootbuf);
+        XROOTD_DIAG_EMERG(cycle->log, ngx_errno,
+            "impersonate: cannot open export root \"%s\"",
+            "the export root directory is missing or unreadable by the master",
+            "create the directory and ensure the master can open it; the OS "
+            "reason is appended below",
+            rootbuf);
         close(lfd);
         return NGX_ERROR;
     }

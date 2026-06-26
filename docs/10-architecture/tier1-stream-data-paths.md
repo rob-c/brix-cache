@@ -111,7 +111,7 @@ Wire layout (big-endian):
 #### Core Logic
 1. Validate handle exists in fd_table
 2. Check read permission against ACL rules
-3. Read data from OS file descriptor using pread() or readv()
+3. Read data via the VFS I/O core (`xrootd_vfs_io_execute()`, `src/fs/vfs_io_core.c`), which issues the raw `pread`/`preadv` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pread` directly
 4. Build response chain with ngx_buf_t buffers
 
 #### Response Building
@@ -184,7 +184,7 @@ Wire layout (big-endian):
 #### Core Logic
 1. Validate handle exists in fd_table
 2. Check write permission against ACL rules and conf->allow_write gate
-3. Write data to OS file descriptor using pwrite() or writev()
+3. Write data via the VFS I/O core (`xrootd_vfs_io_execute()`, `src/fs/vfs_io_core.c`), which issues the raw `pwrite`/`pwritev` through the POSIX storage driver (`src/fs/backend/`) — the handler never calls `pwrite` directly
 4. Build response chain with ngx_buf_t buffers
 
 #### Response Building

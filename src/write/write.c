@@ -42,6 +42,7 @@
  * WHY: AIO dispatch detaches the payload buffer from ctx->payload_buf so the main thread can safely begin reading the next request header while write happens in a worker thread. PFC write-through dirty state tracking accumulates wt_bytes_written and wt_dirty_offset for future close-time origin propagation — mirroring XrdPfcFile::m_bytesWritten, m_dirtyOffset semantics. Short-write detection catches disk-full conditions before silently truncating client data. */
 
 #include "ngx_xrootd_module.h"
+#include "ssi/ssi.h"
 #include "cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 
@@ -78,6 +79,13 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	if (!xrootd_validate_write_handle(ctx, c, idx, "WRITE",
 									  XROOTD_OP_WRITE, &rc)) {
 		return rc;
+	}
+
+	/* §7 XrdSsi: an SSI handle accumulates the request body (no fd write). Clean
+	 * early-return — the normal write path below is unchanged for file handles. */
+	if (ctx->files[idx].ssi != NULL) {
+		XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
+		return xrootd_ssi_write(ctx, c, idx);
 	}
 
 	if (wlen == 0) {

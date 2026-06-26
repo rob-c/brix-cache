@@ -108,13 +108,14 @@ webdav_lock_xml_response(ngx_http_request_t *r, webdav_lock_xattr_t *e)
     ngx_chain_t     *head = NULL, *tail = NULL;
     char             timeout_buf[32];
     char            *safe_owner;
-    ngx_msec_t       now = ngx_current_msec;
+    int64_t          now = (int64_t) ngx_time();
     ngx_uint_t       remaining;
     off_t            total_len = 0;
     ngx_chain_t     *lc;
     ngx_table_elt_t *h;
 
-    remaining = (e->expires > now) ? (ngx_uint_t) ((e->expires - now) / 1000) : 0;
+    /* expires is absolute wall-clock seconds → remaining is a plain subtraction. */
+    remaining = (e->expires > now) ? (ngx_uint_t) (e->expires - now) : 0;
     ngx_sprintf((u_char *) timeout_buf, "Second-%ui", remaining);
 
     safe_owner = webdav_escape_xml_text(r->pool, e->owner);
@@ -174,6 +175,43 @@ webdav_lock_xml_response(ngx_http_request_t *r, webdav_lock_xattr_t *e)
 }
 
 /*
+ * webdav_lock_reap_null — release a lock-null placeholder.
+ *
+ * WHAT: If `e` recorded a lock-null lock (the LOCK created a zero-byte resource
+ *       to reserve a name, RFC 4918 §9.10.1) AND the resource is still an empty
+ *       regular file, unlink it so the reserved name disappears with the lock.
+ * WHY:  Without this, UNLOCK (or expiry) of a never-PUT lock-null resource would
+ *       leave an orphaned 0-byte file behind. A resource the client PUT data into
+ *       is non-empty and is never reaped, so the is_null flag becomes inert once
+ *       real content exists — no need to clear it on PUT.
+ * HOW:  Confined no-follow lstat; only a regular, zero-length file is unlinked,
+ *       via the confined unlink. Best-effort — failures are ignored. MUST NOT be
+ *       called on a path that is about to be re-locked (it would remove the file
+ *       out from under a follow-up XATTR_CREATE).
+ */
+static void
+webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
+                      const webdav_lock_xattr_t *e)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    struct stat                        sb;
+
+    if (!e->is_null) {
+        return;
+    }
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+
+    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
+                                    path, &sb, 1) == 0
+        && S_ISREG(sb.st_mode) && sb.st_size == 0)
+    {
+        (void) xrootd_unlink_confined_canon(r->connection->log,
+                                            conf->common.root_canon, path, 0);
+    }
+}
+
+/*
  * webdav_check_locks — walk from path up to export root, checking for active
  * xattr locks at each level.  O(path_depth) xattr reads.
  *
@@ -207,7 +245,7 @@ webdav_check_locks(ngx_http_request_t *r, const char *path, int need_write)
         }
 
         if (rc == NGX_OK) {
-            if (e.expires > ngx_current_msec) {
+            if (e.expires > (int64_t) ngx_time()) {
                 /* Lock covers path if: exact match or depth-infinity ancestor. */
                 int covers = (check_len == path_len)
                              || (e.depth_infinity
@@ -219,6 +257,7 @@ webdav_check_locks(ngx_http_request_t *r, const char *path, int need_write)
                 }
             } else {
                 (void) webdav_lock_xattr_delete(r, check);
+                webdav_lock_reap_null(r, check, &e);
             }
         }
 
@@ -301,13 +340,14 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
         }
 
         if (xrc == NGX_OK) {
-            if (e.expires > ngx_current_msec) {
+            if (e.expires > (int64_t) ngx_time()) {
                 if (!webdav_lock_if_header_matches(r, e.token)) {
                     rc = NGX_HTTP_LOCKED;
                     break;
                 }
             } else {
                 (void) webdav_lock_xattr_delete(r, child);
+                webdav_lock_reap_null(r, child, &e);
             }
         }
         /* xrc == NGX_DECLINED: no lock xattr on this child — OK */
@@ -390,6 +430,7 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
     int                                depth_infinity = 1;
     char                               owner[256];
     int                                exclusive = 1;
+    int                                created_null = 0;  /* lock-null placeholder */
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
 
@@ -426,6 +467,9 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
             }
             if (fd >= 0) {
                 (void) close(fd);
+                /* We created the resource solely to host this lock: it is a
+                 * lock-null placeholder, reaped on UNLOCK/expiry if still empty. */
+                created_null = 1;
             }
         }
     }
@@ -439,7 +483,7 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
     }
 
     /* Treat expired lock as absent. */
-    if (rc == NGX_OK && e.expires <= ngx_current_msec) {
+    if (rc == NGX_OK && e.expires <= (int64_t) ngx_time()) {
         (void) webdav_lock_xattr_delete(r, path);
         rc = NGX_DECLINED;
     }
@@ -474,6 +518,7 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
 
         e.exclusive      = exclusive;
         e.depth_infinity = depth_infinity;
+        e.is_null        = created_null;
         e.expires        = webdav_lock_parse_timeout(r, conf);
 
         rc = webdav_lock_xattr_write(r, path, &e, XATTR_CREATE);
@@ -521,10 +566,11 @@ webdav_handle_unlock(ngx_http_request_t *r)
     if (rc == NGX_ERROR) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (rc == NGX_DECLINED || e.expires <= ngx_current_msec) {
+    if (rc == NGX_DECLINED || e.expires <= (int64_t) ngx_time()) {
         /* No active lock on this path. */
         if (rc == NGX_OK) {
             (void) webdav_lock_xattr_delete(r, path);
+            webdav_lock_reap_null(r, path, &e);
         }
         return NGX_HTTP_CONFLICT;
     }
@@ -559,6 +605,10 @@ webdav_handle_unlock(ngx_http_request_t *r)
     if (webdav_lock_xattr_delete(r, path) != NGX_OK) {
         return NGX_HTTP_FORBIDDEN;
     }
+
+    /* RFC 4918 §9.10.1: a lock-null resource that was never converted by a PUT/
+     * MKCOL disappears when its lock is removed.  Reap the empty placeholder. */
+    webdav_lock_reap_null(r, path, &e);
 
     return webdav_send_no_body(r, NGX_HTTP_NO_CONTENT);
 }
@@ -599,7 +649,7 @@ webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
 {
     webdav_lock_xattr_t  e;
     ngx_int_t            rc;
-    ngx_msec_t           now;
+    int64_t              now;
     ngx_uint_t           remaining;
     char                *safe_owner;
 
@@ -614,10 +664,10 @@ webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
-    now = ngx_current_msec;
+    now = (int64_t) ngx_time();
 
     if (rc == NGX_OK && e.expires > now) {
-        remaining  = (ngx_uint_t) ((e.expires - now) / 1000);
+        remaining  = (ngx_uint_t) (e.expires - now);
         safe_owner = webdav_escape_xml_text(r->pool,
             (e.owner[0] != '\0') ? e.owner : "anonymous");
         if (safe_owner == NULL) {
@@ -642,8 +692,9 @@ webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
             return NGX_ERROR;
         }
     } else if (rc == NGX_OK) {
-        /* Expired lock — clean up lazily. */
+        /* Expired lock — clean up lazily (and reap a lock-null placeholder). */
         (void) webdav_lock_xattr_delete(r, path);
+        webdav_lock_reap_null(r, path, &e);
     }
 
     if (xrootd_http_chain_appendf(r->pool, head, tail,

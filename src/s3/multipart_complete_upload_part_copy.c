@@ -20,6 +20,7 @@
 #include "multipart_internal.h"
 #include "../path/path.h"
 #include "../compat/http_headers.h"
+#include "../fs/backend/sd.h"   /* route the part-copy byte move through the SD backend */
 
 #include <string.h>
 #include "../compat/alloc_guard.h"
@@ -157,24 +158,39 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    while ((nr = read(src_fd, iobuf, sizeof(iobuf))) > 0) {
-        char   *wbuf      = iobuf;
-        ssize_t remaining = nr;
-        while (remaining > 0) {
-            ssize_t nw = write(dst_fd, wbuf, (size_t) remaining);
-            if (nw <= 0) {
-                if (errno == EINTR) {
-                    continue;
+    /* VFS↔VFS (backend↔backend) byte move: read the copy source object through
+     * its driver, write the part object through its driver. Both POSIX today;
+     * positional so a non-POSIX backend slots in unchanged. */
+    {
+        off_t           src_off = 0, dst_off = 0;
+        xrootd_sd_obj_t src_obj, dst_obj;
+
+        xrootd_sd_posix_wrap(&src_obj, src_fd);
+        xrootd_sd_posix_wrap(&dst_obj, dst_fd);
+
+        while ((nr = src_obj.driver->pread(&src_obj, iobuf, sizeof(iobuf),
+                                           src_off)) > 0) {
+            char   *wbuf      = iobuf;
+            ssize_t remaining = nr;
+            while (remaining > 0) {
+                ssize_t nw = dst_obj.driver->pwrite(&dst_obj, wbuf,
+                                                    (size_t) remaining, dst_off);
+                if (nw <= 0) {
+                    if (errno == EINTR) {
+                        continue;
+                    }
+                    close(src_fd);
+                    close(dst_fd);
+                    unlink(part_path);
+                    XROOTD_S3_METRIC_INC(
+                        events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+                    return NGX_HTTP_INTERNAL_SERVER_ERROR;
                 }
-                close(src_fd);
-                close(dst_fd);
-                unlink(part_path);
-                XROOTD_S3_METRIC_INC(
-                    events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+                wbuf      += nw;
+                remaining -= nw;
+                dst_off   += nw;
             }
-            wbuf      += nw;
-            remaining -= nw;
+            src_off += nr;
         }
     }
     close(src_fd);

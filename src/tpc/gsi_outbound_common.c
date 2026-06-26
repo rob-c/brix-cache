@@ -84,12 +84,12 @@ tpc_send_kxr_auth(xrootd_tpc_pull_t *t, int fd, u_char stream_seq,
      * leaves the socket mid-message, so the caller must treat -1 as fatal for
      * this connection (it does — every caller aborts the pull).
      */
-    if (tpc_send_all(fd, &hdr, sizeof(hdr)) != 0) {
+    if (tpc_send_all(t, fd, &hdr, sizeof(hdr)) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_auth send hdr failed");
         t->xrd_error = kXR_ServerError;
         return -1;
     }
-    if (tpc_send_all(fd, cred_payload, cred_len) != 0) {
+    if (tpc_send_all(t, fd, cred_payload, cred_len) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_auth send body failed");
         t->xrd_error = kXR_ServerError;
         return -1;
@@ -196,7 +196,7 @@ tpc_outbound_ztn(xrootd_tpc_pull_t *t, int fd)
      * alone), so free it unconditionally before inspecting status.
      */
     body = NULL;
-    if (tpc_recv_response(fd, &status, &body, &dlen) != 0) {
+    if (tpc_recv_response(t, fd, &status, &body, &dlen) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC ztn auth recv failed");
         t->xrd_error = kXR_ServerError;
         return -1;

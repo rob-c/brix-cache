@@ -29,7 +29,17 @@ shared helpers.
 │  src/write/                                                        │
 │  src/tpc/                                                          │
 └────────────────────────────┬───────────────────────────────────────┘
-                             │  calls into
+                             │  all file I/O (open/read/write/stat/copy)
+┌────────────────────────────▼───────────────────────────────────────┐
+│              Unified data plane   (proto → VFS → POSIX)            │
+│                                                                    │
+│  src/fs/            xrootd_vfs_* — confinement, metrics,           │
+│                     access log, cache, page-CRC, buffers    [all]  │
+│  src/fs/vfs_io_core.c  worker-safe EXECUTE core (AIO/io_uring)     │
+│  src/fs/backend/    xrootd_sd_driver_t vtable; POSIX driver does   │
+│                     the raw pread/pwrite/copy_range/fstat   [all]  │
+└────────────────────────────┬───────────────────────────────────────┘
+                             │  the VFS + every handler also call into
 ┌────────────────────────────▼───────────────────────────────────────┐
 │                    Shared infrastructure layer                      │
 │                                                                    │
@@ -57,6 +67,20 @@ shared helpers.
 ---
 
 ## What is already shared
+
+### The data plane is the most-shared layer of all
+
+The single biggest piece of shared code is the **data plane** itself. No protocol
+handler opens, reads, or writes a file directly — each populates an
+`xrootd_vfs_ctx_t` and calls the VFS (`src/fs/`), which enforces confinement, records
+the metric and access-log line, runs the cache, and computes page-CRC, then calls the
+**POSIX storage driver** (`src/fs/backend/`) for the raw syscall. Every protocol's
+file I/O therefore follows one path — `proto → VFS → POSIX` — and the storage backend
+is a pluggable seam (`xrootd_sd_driver_t`): a future block or object/S3 backend can
+register and become primary without touching a single handler, metric, or access-log
+call site. Full detail in [`src/fs/README.md`](../../src/fs/README.md),
+[`src/fs/backend/README.md`](../../src/fs/backend/README.md), and the
+[architecture overview](overview.md#the-data-plane-one-path-for-every-byte-proto--vfs--posix).
 
 ### Path resolution (`src/compat/path.c`)
 

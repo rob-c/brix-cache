@@ -1,44 +1,16 @@
-/* ------------------------------------------------------------------ */
-/* Server Configuration — Allocation + Inheritance                     */
-/* ------------------------------------------------------------------ */
 /*
- * WHAT: This file implements server-level configuration lifecycle management during nginx parsing phase. It provides three functions: ngx_stream_xrootd_create_srv_conf() allocates and initializes a fresh srv_conf_t with all fields set to NGX_CONF_UNSET sentinels or NULL allowing the merge step to distinguish missing directives from explicitly configured values; ngx_stream_xrootd_merge_srv_conf() implements standard nginx parent→child scope inheritance using ngx_conf_merge_* macros for scalar fields and xrootd_merge_arrays() for array-based rule sets (VO rules, group rules, manager map entries); ngx_stream_xrootd_enable() handles the "xrootd on|off;" directive switching the server block handler from stream core default to xrootd session handler.
+ * server_conf.c — server-block config lifecycle: allocate, merge, enable.
  *
- * WHY: Configuration lifecycle is critical for nginx modular deployment — each server block may have different auth mode (GSI/token/SSS), cache settings, or proxy configuration. The UNSET sentinel pattern ensures merge logic correctly handles cases where a child directive omits a value vs explicitly sets it to zero/null. Array merging enables hierarchical VO ACL rules and group inheritance policies to accumulate across nested server blocks without losing parent-level defaults. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Configuration Allocation                                    */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: ngx_stream_xrootd_create_srv_conf() allocates a fresh srv_conf_t using ngx_pcalloc (zero-initialized pool allocation) and sets every field to either NGX_CONF_UNSET sentinel value or NULL depending on the field type. Scalar fields participate in merge logic use UNSET sentinels; runtime-only objects start out NULL/invalid and are created later during postconfiguration once parsing has finished. This ensures the merge step can distinguish between omitted directives (UNSET) and explicitly configured values.
- *
- * WHY: nginx allocates one config object per server block during parsing then merges parent/child scopes using ngx_conf_merge_* macros that only act on UNSET values. Without proper sentinel initialization, a child block omitting a directive would incorrectly inherit from parent or use default — the UNSET pattern ensures explicit inheritance semantics match user intent. Runtime objects (tls_ctx, cms_ctx) are NULL because they require SSL/crypto context creation during postconfig phase after parsing completes. */
-
-/* ---- Function: ngx_stream_xrootd_create_srv_conf() ----
- *
- * WHAT: Allocates a fresh server-level configuration object using ngx_pcalloc (zero-initialized pool allocation), initializing every field to NGX_CONF_UNSET sentinel or NULL state allowing the merge step later to distinguish between missing directives and explicitly configured values. Scalar fields use UNSET sentinels for merge participation; runtime-only objects start out NULL/invalid created during postconfiguration once parsing has finished.
- *
- * WHY: nginx allocates one config object per server block during parsing then merges parent/child scopes using ngx_conf_merge_* macros that only act on UNSET values. Without proper sentinel initialization, a child block omitting a directive would incorrectly inherit from parent or use default — the UNSET pattern ensures explicit inheritance semantics match user intent. Runtime objects (tls_ctx, cms_ctx) are NULL because they require SSL/crypto context creation during postconfig phase after parsing completes.
- *
- * HOW: ngx_pcalloc allocation of sizeof(ngx_stream_xrootd_srv_conf_t) — zero-initialization via pcalloc — set every scalar field to NGX_CONF_UNSET/NGX_CONF_UNSET_UINT/NGX_CONF_UNSET_MSEC sentinel depending on type — set runtime objects (tls_ctx, cms_ctx, proxy_tls_ctx) to NULL — return conf pointer; NULL on allocation failure. */
-
-/* ---- Function: ngx_stream_xrootd_merge_srv_conf() ----
- *
- * WHAT: Implements standard nginx parent→child scope inheritance for server-level configuration using ngx_conf_merge_* macros for scalar fields and xrootd_merge_arrays() for array-based rule sets (VO rules, group rules, manager map entries). Child values override parent; parent values used as fallback when child is UNSET/empty. Returns NGX_CONF_OK on success; NGX_CONF_ERROR on merge failure.
- *
- * WHY: nginx hierarchical configuration allows nested server blocks to inherit from parents while overriding specific directives — this merge function implements that inheritance chain ensuring child scope gets explicit values with sensible defaults from parent or module-level constants for completely omitted fields. Array merging enables VO ACL rules, group inheritance policies, and manager map entries to accumulate across nested server blocks without losing parent-level defaults.
- *
- * HOW: Three-phase merge → scalar field inheritance using ngx_conf_merge_* macros (value/str_value/uint_value/msec_value/off_value) with child override and parent fallback — array rule set merging using xrootd_merge_arrays() for vo_rules, group_rules, manager_map entries — runtime object inheritance (cms_addr, cms_manager, upstream_host/port, proxy_upstreams) — return NGX_CONF_OK; NGX_CONF_ERROR on any merge failure. */
-
-/* ---- Function: ngx_stream_xrootd_enable() ----
- *
- * WHAT: Handles the "xrootd on|off;" directive — delegates flag parsing to ngx_conf_set_flag_slot then sets server block handler to ngx_stream_xrootd_handler when xrootd is enabled (on). When disabled (off) leaves server block as normal stream server without swapping in our session handler. Returns NGX_CONF_OK on success; NGX_CONF_ERROR on flag parsing failure.
- *
- * WHY: Enables selective XRootD protocol handling per server block — operators can mix nginx stream server functionality with xrootd proxy mode in the same configuration by enabling only specific server blocks. The handler swap is the critical mechanism that determines whether incoming TCP connections are processed as raw stream data or routed through XRootD session lifecycle (handshake → login → auth → read/write).
- *
- * HOW: Two-phase processing → delegate flag parsing to ngx_conf_set_flag_slot returning NGX_CONF_OK/NGX_CONF_ERROR — if enabled (on) retrieve stream core module srv_conf via ngx_stream_conf_get_module_srv_conf and swap handler to ngx_stream_xrootd_handler — return NGX_CONF_OK. */
+ * create_srv_conf() allocates one srv_conf per server block with every field at
+ * an NGX_CONF_UNSET sentinel (or NULL), so the merge step can tell an omitted
+ * directive from one explicitly set. merge_srv_conf() applies nginx parent→child
+ * inheritance (ngx_conf_merge_* for scalars, xrootd_merge_arrays() for the
+ * VO/group/manager-map rule sets), split into one helper per config area below.
+ * enable() handles "xrootd on|off;", swapping in our session handler when on.
+ */
 
 #include "config.h"
+#include "../cms/cns.h"               /* §6 CNS mode enum */
 #include "../tpc/key_registry.h"
 #include "../tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
 #include "../session/registry.h"   /* XROOTD_SESSION_REGISTRY_SLOTS default */
@@ -107,6 +79,10 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->tls_ktls     = NGX_CONF_UNSET;
     conf->read_compress = NGX_CONF_UNSET;
     conf->write_compress = NGX_CONF_UNSET;
+    conf->zip_access   = NGX_CONF_UNSET;
+    conf->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
+    conf->zip_force_scratch = NGX_CONF_UNSET;
+    conf->zip_stage_max_bytes = NGX_CONF_UNSET_SIZE;
     conf->tls_ctx      = NULL;
     conf->cache        = NGX_CONF_UNSET;
     conf->cache_origin_tls = NGX_CONF_UNSET;
@@ -201,8 +177,12 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->host_allow        = NGX_CONF_UNSET_PTR;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
+    conf->ssi_enable        = NGX_CONF_UNSET;
+    conf->cns_mode          = NGX_CONF_UNSET_UINT;
     conf->tpc_key_ttl_ms    = NGX_CONF_UNSET_MSEC;
     conf->tpc_max_transfer_secs = NGX_CONF_UNSET_UINT;
+    conf->tpc_outbound_tls  = NGX_CONF_UNSET;
+    conf->tpc_delegate      = NGX_CONF_UNSET;
     conf->tpc_transfer_max_age  = NGX_CONF_UNSET;
     conf->tpc_outbound_bearer_file.len = 0;
     conf->tpc_outbound_bearer_file.data = NULL;
@@ -254,16 +234,23 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     return conf;
 }
 
-char *
-ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
-{
-    ngx_stream_xrootd_srv_conf_t *prev = parent;
-    ngx_stream_xrootd_srv_conf_t *conf = child;
-    ngx_array_t                  *child_vo_rules;
-    ngx_array_t                  *child_group_rules;
-    ngx_array_t                  *child_wt_deny_prefixes;
-    ngx_array_t                  *child_wt_allow_prefixes;
+/*
+ * The merge below is split into one helper per configuration area. Each helper
+ * is a verbatim slice of the original linear merge and is invoked in the SAME
+ * order, so every cross-area derivation still sees its inputs already merged
+ * (e.g. writethrough's origin/decision in merge_proxy_net depends on the cache
+ * fields settled in merge_storage; CMS timeout derivation depends on
+ * cms_interval). Helpers that can fail config validation return char*
+ * (NGX_CONF_OK / NGX_CONF_ERROR); the rest return void.
+ */
 
+/* Identity & crypto: auth scheme + GSI/pwd, XrdAcc engine (+ native-authdb
+ * validation), SciTags/FRM, X.509 material + CRL, access log, tokens + L1/L2
+ * caches, sss/krb5/unix/host, security level, and TLS toggles. */
+static char *
+xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
+    ngx_stream_xrootd_srv_conf_t *prev)
+{
     /*
      * Standard nginx inheritance rules: values set on the current server
      * override the parent, otherwise we fall back to the parent or the hard
@@ -360,8 +347,26 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
     ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        0);
+
+    return NGX_CONF_OK;
+}
+
+/* Storage: read/write compression, ZIP access, the read-through cache (origin,
+ * sizing, eviction, slice validation, include-regex inheritance), the memory
+ * budget, readv segment sizing, and the io_uring backend. */
+static char *
+xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
+    ngx_stream_xrootd_srv_conf_t *prev)
+{
     ngx_conf_merge_value(conf->read_compress,   prev->read_compress,   0);
     ngx_conf_merge_value(conf->write_compress,  prev->write_compress,  0);
+    ngx_conf_merge_value(conf->zip_access,      prev->zip_access,      0);
+    ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
+                              16 * 1024 * 1024);
+    ngx_conf_merge_str_value(conf->zip_stage_dir, prev->zip_stage_dir, "");
+    ngx_conf_merge_value(conf->zip_force_scratch, prev->zip_force_scratch, 0);
+    ngx_conf_merge_size_value(conf->zip_stage_max_bytes,
+                              prev->zip_stage_max_bytes, 512 * 1024 * 1024);
     ngx_conf_merge_value(conf->cache,           prev->cache,           0);
     ngx_conf_merge_str_value(conf->cache_root,  prev->cache_root,      "");
     ngx_conf_merge_str_value(conf->cache_origin, prev->cache_origin,   "");
@@ -418,8 +423,24 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
         conf->cache_include_regex_set = 1;
     }
 
+    return NGX_CONF_OK;
+}
+
+/* Third-party copy (TPC): local/private allowances, key TTL, transfer caps and
+ * the abandoned-slot reaper age, and the outbound OAuth2/bearer credentials. */
+static void
+xrootd_merge_srv_tpc(ngx_stream_xrootd_srv_conf_t *conf,
+    ngx_stream_xrootd_srv_conf_t *prev)
+{
     ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
     ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
+    ngx_conf_merge_value(conf->ssi_enable,        prev->ssi_enable,        0);
+    ngx_conf_merge_uint_value(conf->cns_mode,     prev->cns_mode,          XROOTD_CNS_OFF);
+    if (conf->cns_mode == XROOTD_CNS_COLLECT) {
+        xrootd_cns_set_collect(1);   /* §6: this node maintains the CNS inventory */
+    }
+    ngx_conf_merge_value(conf->tpc_outbound_tls,  prev->tpc_outbound_tls,  0);
+    ngx_conf_merge_value(conf->tpc_delegate,      prev->tpc_delegate,      0);
     ngx_conf_merge_msec_value(conf->tpc_key_ttl_ms, prev->tpc_key_ttl_ms,
                               XROOTD_TPC_KEY_TTL_MS);
     /* Phase 51 (B2): default native-TPC absolute wall-clock cap to a generous
@@ -447,6 +468,18 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
                              prev->tpc_outbound_client_secret, "");
     ngx_conf_merge_str_value(conf->tpc_outbound_scope,
                              prev->tpc_outbound_scope, "storage.read");
+}
+
+/* Cluster & sessions: manager/redirector mode, write recovery + staged uploads,
+ * pipeline/registry/session sizing, active health checks, the traffic mirror,
+ * the CMS client (+ resilience-timeout derivation), listen port, checksum-scan
+ * limits, and the VO/group/manager-map rule arrays + redirector inheritance. */
+static char *
+xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
+    ngx_stream_xrootd_srv_conf_t *prev)
+{
+    ngx_array_t *child_vo_rules;
+    ngx_array_t *child_group_rules;
 
     ngx_conf_merge_value(conf->manager_mode,         prev->manager_mode,         0);
     ngx_conf_merge_value(conf->metadata_only,        prev->metadata_only,        0);
@@ -590,6 +623,20 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
         conf->upstream_addr = prev->upstream_addr;
     }
 
+    return NGX_CONF_OK;
+}
+
+/* Upstream/proxy & network: upstream TLS + token, transparent proxy mode
+ * (auth/login/timeouts/rewrite), the write-through origin + prefix rules +
+ * decision struct, OCSP, the Phase-39 network-fault deadlines, and rate-limit
+ * rule inheritance. */
+static char *
+xrootd_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
+    ngx_stream_xrootd_srv_conf_t *prev)
+{
+    ngx_array_t *child_wt_deny_prefixes;
+    ngx_array_t *child_wt_allow_prefixes;
+
     ngx_conf_merge_value(conf->upstream_tls,          prev->upstream_tls,          0);
     ngx_conf_merge_str_value(conf->upstream_tls_ca,   prev->upstream_tls_ca,   "");
     ngx_conf_merge_str_value(conf->upstream_tls_name, prev->upstream_tls_name, "");
@@ -693,6 +740,35 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
      * the Phase-25 rl_rules array was previously never inherited). */
     if (conf->rl_rules == NULL) {
         conf->rl_rules = prev->rl_rules;
+    }
+
+    return NGX_CONF_OK;
+}
+
+/*
+ * Standard nginx parent→child scope inheritance. Delegates to one helper per
+ * configuration area (defined above), invoked in the original linear order so
+ * cross-area derivations still observe their already-merged inputs. Any helper
+ * returning NGX_CONF_ERROR aborts the merge (the error is already logged).
+ */
+char *
+ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
+{
+    ngx_stream_xrootd_srv_conf_t *prev = parent;
+    ngx_stream_xrootd_srv_conf_t *conf = child;
+
+    if (xrootd_merge_srv_security(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (xrootd_merge_srv_storage(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    xrootd_merge_srv_tpc(conf, prev);
+    if (xrootd_merge_srv_cluster(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (xrootd_merge_srv_proxy_net(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
     }
 
     return NGX_CONF_OK;

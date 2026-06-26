@@ -481,3 +481,84 @@ def test_s3_unsigned_put_rejected(web_servers, tmp_path):
     p = subprocess.run([XRDCP, "-f", str(src), f"{base}/noauth.bin"],
                        capture_output=True, text=True, timeout=60, env=env)
     assert p.returncode != 0, f"unsigned PUT unexpectedly succeeded: {p.stdout}"
+
+
+# ---------------------------------------------------------------------------
+# Task A5: xrdc_vfs S3 backend smoke tests
+# ---------------------------------------------------------------------------
+
+VFS_S3_SMOKE = os.path.join(CLIENT_DIR, "bin", "vfs_s3_smoke")
+_S3_PART_OVERRIDE = "512"   # force MPU with tiny parts for testing
+
+
+def _build_vfs_s3_smoke():
+    """Build the vfs_s3_smoke binary; skip if no C compiler or build fails."""
+    import shutil
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+    r = subprocess.run(["make", "-C", CLIENT_DIR, "vfs-s3-smoke"],
+                       capture_output=True, text=True, timeout=300)
+    if not os.path.exists(VFS_S3_SMOKE):
+        pytest.skip(f"vfs-s3-smoke build failed:\n{r.stdout}\n{r.stderr}")
+
+
+def test_vfs_s3_backend_roundtrip(web_servers):
+    """A5: xrdc_vfs S3 backend — single-PUT + multipart write→read round-trip.
+
+    Builds the vfs_s3_smoke C driver and runs it against the module's own S3
+    endpoint (web_servers fixture).  S3_PART_MAX_OVERRIDE is set to 512 bytes
+    so the multipart path is exercised without needing a large test object.
+
+    NOTE: this tests the VFS backend directly (not via xrdcp), so it exercises
+    code that copy_web does NOT exercise — confirming Task A5's code path.
+    """
+    _build_vfs_s3_smoke()
+    s3_url = (f"s3://{HOST}:{web_servers['s3_port']}"
+              f"/testbucket/vfs_smoke.bin")
+    env = dict(os.environ,
+               S3_URL=s3_url,
+               AWS_ACCESS_KEY_ID=S3_AK,
+               AWS_SECRET_ACCESS_KEY=S3_SK,
+               AWS_DEFAULT_REGION="us-east-1",
+               S3_PART_MAX_OVERRIDE=_S3_PART_OVERRIDE)
+    p = subprocess.run([VFS_S3_SMOKE, "roundtrip"],
+                       capture_output=True, text=True, timeout=60, env=env)
+    assert p.returncode == 0, (
+        f"vfs_s3_smoke roundtrip failed:\n{p.stdout}\n{p.stderr}"
+    )
+
+
+def test_vfs_s3_bad_credentials(web_servers):
+    """A5 error path: wrong AWS credentials produce XRDC_EAUTH (not a crash)."""
+    _build_vfs_s3_smoke()
+    s3_url = (f"s3://{HOST}:{web_servers['s3_port']}"
+              f"/testbucket/vfs_smoke.bin")
+    env = dict(os.environ,
+               S3_URL=s3_url,
+               AWS_ACCESS_KEY_ID=S3_AK,
+               AWS_SECRET_ACCESS_KEY=S3_SK,
+               AWS_DEFAULT_REGION="us-east-1",
+               S3_PART_MAX_OVERRIDE=_S3_PART_OVERRIDE)
+    p = subprocess.run([VFS_S3_SMOKE, "badcreds"],
+                       capture_output=True, text=True, timeout=60, env=env)
+    assert p.returncode == 0, (
+        f"vfs_s3_smoke badcreds failed:\n{p.stdout}\n{p.stderr}"
+    )
+
+
+def test_vfs_s3_nonsequential_write(web_servers):
+    """A5 negative path: non-sequential pwrite returns XRDC_EUSAGE."""
+    _build_vfs_s3_smoke()
+    s3_url = (f"s3://{HOST}:{web_servers['s3_port']}"
+              f"/testbucket/vfs_smoke.bin")
+    env = dict(os.environ,
+               S3_URL=s3_url,
+               AWS_ACCESS_KEY_ID=S3_AK,
+               AWS_SECRET_ACCESS_KEY=S3_SK,
+               AWS_DEFAULT_REGION="us-east-1",
+               S3_PART_MAX_OVERRIDE=_S3_PART_OVERRIDE)
+    p = subprocess.run([VFS_S3_SMOKE, "nonseq"],
+                       capture_output=True, text=True, timeout=60, env=env)
+    assert p.returncode == 0, (
+        f"vfs_s3_smoke nonseq failed:\n{p.stdout}\n{p.stderr}"
+    )

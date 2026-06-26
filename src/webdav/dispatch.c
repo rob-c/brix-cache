@@ -143,6 +143,32 @@ webdav_dispatch_inner(ngx_http_request_t *r)
             }
             return NGX_DONE;
         }
+
+        /* §3 XrdDig: read-only diagnostics under /.well-known/dig/ (default off).
+         * Declines (falls through) when disabled or not a dig path. */
+        if (conf->dig_enable) {
+            rc = xrootd_dig_handle(r);
+            if (rc != NGX_DECLINED) {
+                return webdav_metrics_return(r, rc);
+            }
+        }
+
+        /* dCache / XrdMacaroons convention: any POST carrying the
+         * application/macaroon-request content type is a token-issue request,
+         * regardless of path (the target path becomes the base caveat). */
+        if (r->method == NGX_HTTP_POST) {
+            ngx_str_t         ct = xrootd_http_get_header(r, "Content-Type");
+            static const char mr[] = "application/macaroon-request";
+            if (ct.len >= sizeof(mr) - 1
+                && ngx_strncasecmp(ct.data, (u_char *) mr, sizeof(mr) - 1) == 0)
+            {
+                rc = xrootd_http_read_body(r, webdav_handle_macaroon_request);
+                if (rc != NGX_DONE) {
+                    return webdav_metrics_return(r, rc);
+                }
+                return NGX_DONE;
+            }
+        }
     }
 
     /* WLCG HTTP Tape REST API (/api/v1/…) — handled before proxy mode because

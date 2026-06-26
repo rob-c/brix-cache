@@ -22,8 +22,9 @@
  */
 
 #include "frm_internal.h"
-#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "../compat/crc32c.h"
+#include "../compat/log_diag.h"
+#include "../fs/backend/sd.h"   /* route the FRM journal byte I/O through the SD backend */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -111,8 +112,12 @@ frm_file_open(frm_queue_t *q, ngx_log_t *log)
     q->fd = open((const char *) q->path.data,
                  O_RDWR | O_CREAT | O_CLOEXEC, 0600);
     if (q->fd < 0) {
-        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
-                      "frm: open(\"%V\") failed", &q->path);
+        XROOTD_DIAG_EMERG(log, ngx_errno,
+            "frm[tape]: cannot open staging queue \"%V\"",
+            "the queue directory is missing or not writable by the nginx user",
+            "create the FRM queue directory and grant the nginx user "
+            "read/write; the OS reason is appended below",
+            &q->path);
         return NGX_ERROR;
     }
 
@@ -212,9 +217,11 @@ frm_pread_all(int fd, void *buf, size_t len, off_t off, ngx_log_t *log)
     u_char         *p = buf;
     xrootd_sd_obj_t obj;
 
-    xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
+    /* Route the FRM journal byte read through the Storage Driver seam so the
+     * syscall stays in the backend (src/fs/backend/). (Reverts phase-56 A-1.) */
+    xrootd_sd_posix_wrap(&obj, fd);
     while (len > 0) {
-        ssize_t n = xrootd_sd_posix_driver.pread(&obj, p, len, off);
+        ssize_t n = obj.driver->pread(&obj, p, len, off);
         if (n < 0) {
             if (errno == EINTR) { continue; }
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "frm: pread failed");
@@ -235,9 +242,11 @@ frm_pwrite_all(int fd, const void *buf, size_t len, off_t off, ngx_log_t *log)
     const u_char   *p = buf;
     xrootd_sd_obj_t obj;
 
-    xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
+    /* Route the FRM journal byte write through the Storage Driver seam so the
+     * syscall stays in the backend (src/fs/backend/). (Reverts phase-56 A-1.) */
+    xrootd_sd_posix_wrap(&obj, fd);
     while (len > 0) {
-        ssize_t n = xrootd_sd_posix_driver.pwrite(&obj, p, len, off);
+        ssize_t n = obj.driver->pwrite(&obj, p, len, off);
         if (n < 0) {
             if (errno == EINTR) { continue; }
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "frm: pwrite failed");
@@ -258,15 +267,23 @@ frm_hdr_read(frm_queue_t *q, frm_file_hdr_t *hdr, ngx_log_t *log)
         return NGX_ERROR;
     }
     if (hdr->magic != FRM_MAGIC) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-                      "frm: bad magic 0x%08xD in \"%V\" — not an FRM queue",
-                      hdr->magic, &q->path);
+        XROOTD_DIAG_EMERG(log, 0,
+            "frm[tape]: \"%V\" is not an FRM queue (bad magic 0x%08xD)",
+            "the path points at an unrelated file, or the queue is corrupt",
+            "confirm the FRM queue path is correct; if it is, the queue is "
+            "damaged — move it aside to let a fresh one be created (in-flight "
+            "stage requests in it will be lost)",
+            &q->path, hdr->magic);
         return NGX_ERROR;
     }
     if (hdr->version > FRM_VERSION) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-                      "frm: queue \"%V\" version %ud newer than supported %ud",
-                      &q->path, hdr->version, FRM_VERSION);
+        XROOTD_DIAG_EMERG(log, 0,
+            "frm[tape]: queue \"%V\" is version %ud, newer than supported %ud",
+            "this queue was written by a newer build of the module than the "
+            "one now running (likely a downgrade)",
+            "run the version that created the queue, or drain and remove it "
+            "before starting the older build",
+            &q->path, hdr->version, FRM_VERSION);
         return NGX_ERROR;
     }
     if (hdr->rec_size != FRM_REC_SIZE) {
@@ -276,8 +293,13 @@ frm_hdr_read(frm_queue_t *q, frm_file_hdr_t *hdr, ngx_log_t *log)
         return NGX_ERROR;
     }
     if (hdr->hdr_crc32c != frm_hdr_compute_crc(hdr)) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-                      "frm: queue \"%V\" header CRC mismatch", &q->path);
+        XROOTD_DIAG_EMERG(log, 0,
+            "frm[tape]: queue \"%V\" header failed its CRC check",
+            "the queue header is corrupt — usually a truncated or partially "
+            "written file after a crash or full disk",
+            "move the queue file aside so a fresh one is created (pending "
+            "stage requests in it will be lost), then investigate the disk",
+            &q->path);
         return NGX_ERROR;
     }
     return NGX_OK;

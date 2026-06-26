@@ -14,6 +14,7 @@
 
 #include "token_internal.h"
 #include "json.h"
+#include "../compat/log_diag.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,17 +35,25 @@ xrootd_jwks_load_jansson(ngx_log_t *log, const char *path,
         if (root != NULL) {
             json_decref(root);
         }
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_token: failed to parse JWKS \"%s\" with jansson: %s",
-                      path, err.text);
+        XROOTD_DIAG_ERR(log, 0,
+            "xrootd_token: JWKS \"%s\" is not valid JSON: %s",
+            "the JWKS file is truncated, HTML (an error page), or was fetched "
+            "to the wrong path",
+            "verify the file holds the IdP's real JWKS JSON; until it parses, "
+            "ALL bearer-token authentication is rejected",
+            path, err.text);
         return -1;
     }
 
     arr = json_object_get(root, "keys");
     if (!json_is_array(arr)) {
         json_decref(root);
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_token: JWKS missing \"keys\" array");
+        XROOTD_DIAG_ERR(log, 0,
+            "xrootd_token: JWKS has no \"keys\" array",
+            "the JSON parsed but is not a JWKS document (no top-level "
+            "\"keys\": [...] member)",
+            "point the JWKS setting at the IdP's jwks_uri output; a bare "
+            "single JWK or an OIDC discovery document will not work");
         return -1;
     }
 
@@ -140,8 +149,13 @@ xrootd_jwks_load(ngx_log_t *log, const char *path,
 
     fp = fopen(path, "r");
     if (fp == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd_token: cannot open JWKS file \"%s\"", path);
+        XROOTD_DIAG_ERR(log, ngx_errno,
+            "xrootd_token: cannot open JWKS file \"%s\"",
+            "the path is wrong, or the file is unreadable by the nginx user",
+            "check xrootd_token_jwks points at a readable file (the JWKS "
+            "refresh job must write it where nginx can read); the OS reason "
+            "is appended below",
+            path);
         return -1;
     }
     fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
@@ -151,9 +165,13 @@ xrootd_jwks_load(ngx_log_t *log, const char *path,
     fseek(fp, 0, SEEK_SET);
 
     if (fsize <= 0 || fsize > 65536) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_token: JWKS file too large or empty: %ld bytes",
-                      fsize);
+        XROOTD_DIAG_ERR(log, 0,
+            "xrootd_token: JWKS file is empty or too large (%ld bytes)",
+            "an empty file usually means the refresh job failed mid-write; "
+            ">64 KiB means it is not a JWKS document",
+            "ensure the JWKS is written atomically and contains just the key "
+            "set; until then token authentication is rejected",
+            fsize);
         fclose(fp);
         return -1;
     }

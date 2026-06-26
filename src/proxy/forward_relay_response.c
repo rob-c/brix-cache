@@ -30,6 +30,182 @@ extern void proxy_write_path_audit(xrootd_proxy_ctx_t *proxy, uint16_t status);
 
 /* ---- relay upstream response to client ------------------------------------ */
 
+/* Handle the synthetic kXR_open response for a bound-secondary lazy open:
+ * translate the upstream fhandle into the reserved local slot (or free it on
+ * failure) and resume the client read loop.  Returns 1 when this was a lazy-
+ * open response and the caller must return; 0 otherwise. */
+static int
+xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
+{
+    xrootd_ctx_t     *ctx = proxy->client_ctx;
+    ngx_connection_t *c   = proxy->client_conn;
+    uint16_t          status = proxy->resp_status;
+    uint32_t          dlen   = proxy->resp_dlen;
+    u_char           *body   = proxy->resp_body;
+
+    if (!proxy->fwd_is_lazy_open) {
+        return 0;
+    }
+    int local_fh = proxy->fwd_local_fh;
+
+    proxy->fwd_is_lazy_open = 0;
+
+    if (status == kXR_ok) {
+        /* Extract upstream fhandle from open response body[0] */
+        int upstream_fh = (body != NULL && dlen >= 1)
+                          ? (int)(unsigned char) body[0] : 0;
+        if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
+            proxy->fh_map[local_fh].upstream_fh = upstream_fh;
+            proxy->fh_map[local_fh].open_msec   = ngx_current_msec;
+        }
+    } else {
+        /* Open failed — report error to client and drop saved read */
+        if (proxy->saved_req != NULL) {
+            ngx_free(proxy->saved_req);
+            proxy->saved_req = NULL;
+        }
+        if (proxy->resp_body != NULL) {
+            ngx_free(proxy->resp_body);
+            proxy->resp_body = NULL;
+        }
+        if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
+            proxy->fh_map[local_fh].upstream_fh = XROOTD_PROXY_FH_FREE;
+        }
+        proxy->state = XRD_PX_IDLE;
+        ctx->state   = XRD_ST_REQ_HEADER;
+        xrootd_send_error(ctx, c, kXR_IOError,
+                          "proxy: lazy open for bound secondary failed");
+        xrootd_schedule_read_resume(c);
+        return 1;
+    }
+
+    /* Discard the open response body; don't relay it to the client */
+    if (proxy->resp_body != NULL) {
+        ngx_free(proxy->resp_body);
+        proxy->resp_body = NULL;
+    }
+
+    /* If more fhs still need lazy-open (multi-handle readv), do next one */
+    if (proxy->lazy_open_pending_count > 0) {
+        int next_fh;
+
+        proxy->lazy_open_pending_count--;
+        next_fh = proxy->lazy_open_pending_fhs[proxy->lazy_open_pending_count];
+
+        /* saved_req and saved_req_len are still set from the first lazy_open call */
+        {
+            u_char *rreq = proxy->saved_req;
+            size_t  rlen = proxy->saved_req_len;
+
+            /* Pass ownership to lazy_open */
+            proxy->saved_req = NULL;
+            if (xrootd_proxy_lazy_open(proxy, ctx, c, next_fh, rreq, rlen)
+                != NGX_OK)
+            {
+                /* Error already handled / reported */
+            }
+        }
+        return 1;
+    }
+
+    /* Dispatch the saved kXR_read / kXR_pgread / kXR_readv */
+    if (proxy->saved_req != NULL) {
+        u_char   *rreq     = proxy->saved_req;
+        size_t    rlen     = proxy->saved_req_len;
+        int       lfh      = proxy->saved_local_fh;
+        uint16_t  saved_rid;
+
+        /* Translate the client-side fhandle(s) to upstream handles */
+        saved_rid = ntohs(((ClientRequestHdr *)(void *) rreq)->requestid);
+        if (saved_rid == kXR_read || saved_rid == kXR_pgread) {
+            int ufh = (lfh >= 0 && lfh < XROOTD_MAX_FILES)
+                      ? proxy->fh_map[lfh].upstream_fh : -1;
+            if (ufh >= 0) rreq[4] = (u_char)(unsigned int) ufh;
+        } else if (saved_rid == kXR_readv) {
+            /* Translate every segment's fhandle using the full fh_map */
+            u_char *pl    = rreq + XRD_REQUEST_HDR_LEN;
+            size_t  pos   = 0;
+            size_t  pdlen = rlen > XRD_REQUEST_HDR_LEN
+                            ? rlen - XRD_REQUEST_HDR_LEN : 0;
+            while (pos + 16 <= pdlen) {
+                int cfh = (int)(unsigned char) pl[pos];
+                if (cfh >= 0 && cfh < XROOTD_MAX_FILES
+                    && proxy->fh_map[cfh].upstream_fh >= 0)
+                {
+                    pl[pos] = (u_char)(unsigned int) proxy->fh_map[cfh].upstream_fh;
+                }
+                pos += 16;
+            }
+            lfh = -1; /* readv fwd_local_fh stays -1 */
+        }
+
+        {
+            ClientRequestHdr *hdr = (ClientRequestHdr *)(void *) rreq;
+            proxy->fwd_reqid       = ntohs(hdr->requestid);
+            proxy->fwd_streamid[0] = hdr->streamid[0];
+            proxy->fwd_streamid[1] = hdr->streamid[1];
+        }
+        proxy->fwd_local_fh    = lfh;
+        proxy->fwd_streaming   = 0;
+        proxy->fwd_payload_len = rlen > XRD_REQUEST_HDR_LEN
+                                 ? rlen - XRD_REQUEST_HDR_LEN : 0;
+        proxy->saved_req       = NULL;
+
+        /* ---- kXR_waitresp / kXR_attn: transparent async response support ---- */
+        /*
+         * Note: We don't need a specific opcode case here.  By default we forward
+         * everything and await a response.  If we get kXR_waitresp (async ack),
+         * we will transition back to IDLE in relay_to_client but stay ready to
+         * receive unsolicited kXR_attn frames in events.c.
+         */
+
+        /* Save a copy for transparent kXR_wait retry (if payload is not huge) */
+        if (rlen < 128 * 1024) {
+            if (proxy->wait_retry_req != NULL) {
+                ngx_free(proxy->wait_retry_req);
+            }
+            proxy->wait_retry_req = ngx_alloc(rlen, c->log);
+            if (proxy->wait_retry_req != NULL) {
+                ngx_memcpy(proxy->wait_retry_req, rreq, rlen);
+                proxy->wait_retry_req_len  = rlen;
+            } else {
+                proxy->wait_retry_req_len  = 0;
+            }
+            proxy->wait_retry_local_fh = proxy->fwd_local_fh;
+            proxy->wait_retry_count    = 0;
+        }
+
+        proxy->wbuf     = rreq;
+
+        proxy->wbuf_len = rlen;
+        proxy->wbuf_pos = 0;
+        proxy->state    = XRD_PX_FORWARDING;
+
+        proxy->rhdr_pos      = 0;
+        proxy->resp_dlen     = 0;
+        proxy->resp_body     = NULL;
+        proxy->resp_body_pos = 0;
+
+        if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
+            xrootd_proxy_abort(proxy,
+                "proxy: send deferred read after lazy open failed");
+            return 1;
+        }
+        if (proxy->wbuf_pos < proxy->wbuf_len) {
+            return 1; /* write handler completes the send */
+        }
+        if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
+            xrootd_proxy_abort(proxy,
+                "proxy: read arm failed after lazy open read");
+        }
+    } else {
+        proxy->state = XRD_PX_IDLE;
+        ctx->state   = XRD_ST_REQ_HEADER;
+        xrootd_schedule_read_resume(c);
+    }
+    return 1;
+}
+
 void
 xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
 {
@@ -42,164 +218,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
     u_char           *buf;
 
     /* ---- lazy open (bound secondary): handle synthetic kXR_open response ---- */
-    if (proxy->fwd_is_lazy_open) {
-        int local_fh = proxy->fwd_local_fh;
-
-        proxy->fwd_is_lazy_open = 0;
-
-        if (status == kXR_ok) {
-            /* Extract upstream fhandle from open response body[0] */
-            int upstream_fh = (body != NULL && dlen >= 1)
-                              ? (int)(unsigned char) body[0] : 0;
-            if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
-                proxy->fh_map[local_fh].upstream_fh = upstream_fh;
-                proxy->fh_map[local_fh].open_msec   = ngx_current_msec;
-            }
-        } else {
-            /* Open failed — report error to client and drop saved read */
-            if (proxy->saved_req != NULL) {
-                ngx_free(proxy->saved_req);
-                proxy->saved_req = NULL;
-            }
-            if (proxy->resp_body != NULL) {
-                ngx_free(proxy->resp_body);
-                proxy->resp_body = NULL;
-            }
-            if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
-                proxy->fh_map[local_fh].upstream_fh = XROOTD_PROXY_FH_FREE;
-            }
-            proxy->state = XRD_PX_IDLE;
-            ctx->state   = XRD_ST_REQ_HEADER;
-            xrootd_send_error(ctx, c, kXR_IOError,
-                              "proxy: lazy open for bound secondary failed");
-            xrootd_schedule_read_resume(c);
-            return;
-        }
-
-        /* Discard the open response body; don't relay it to the client */
-        if (proxy->resp_body != NULL) {
-            ngx_free(proxy->resp_body);
-            proxy->resp_body = NULL;
-        }
-
-        /* If more fhs still need lazy-open (multi-handle readv), do next one */
-        if (proxy->lazy_open_pending_count > 0) {
-            int next_fh;
-
-            proxy->lazy_open_pending_count--;
-            next_fh = proxy->lazy_open_pending_fhs[proxy->lazy_open_pending_count];
-
-            /* saved_req and saved_req_len are still set from the first lazy_open call */
-            {
-                u_char *rreq = proxy->saved_req;
-                size_t  rlen = proxy->saved_req_len;
-
-                /* Pass ownership to lazy_open */
-                proxy->saved_req = NULL;
-                if (xrootd_proxy_lazy_open(proxy, ctx, c, next_fh, rreq, rlen)
-                    != NGX_OK)
-                {
-                    /* Error already handled / reported */
-                }
-            }
-            return;
-        }
-
-        /* Dispatch the saved kXR_read / kXR_pgread / kXR_readv */
-        if (proxy->saved_req != NULL) {
-            u_char   *rreq     = proxy->saved_req;
-            size_t    rlen     = proxy->saved_req_len;
-            int       lfh      = proxy->saved_local_fh;
-            uint16_t  saved_rid;
-
-            /* Translate the client-side fhandle(s) to upstream handles */
-            saved_rid = ntohs(((ClientRequestHdr *)(void *) rreq)->requestid);
-            if (saved_rid == kXR_read || saved_rid == kXR_pgread) {
-                int ufh = (lfh >= 0 && lfh < XROOTD_MAX_FILES)
-                          ? proxy->fh_map[lfh].upstream_fh : -1;
-                if (ufh >= 0) rreq[4] = (u_char)(unsigned int) ufh;
-            } else if (saved_rid == kXR_readv) {
-                /* Translate every segment's fhandle using the full fh_map */
-                u_char *pl    = rreq + XRD_REQUEST_HDR_LEN;
-                size_t  pos   = 0;
-                size_t  pdlen = rlen > XRD_REQUEST_HDR_LEN
-                                ? rlen - XRD_REQUEST_HDR_LEN : 0;
-                while (pos + 16 <= pdlen) {
-                    int cfh = (int)(unsigned char) pl[pos];
-                    if (cfh >= 0 && cfh < XROOTD_MAX_FILES
-                        && proxy->fh_map[cfh].upstream_fh >= 0)
-                    {
-                        pl[pos] = (u_char)(unsigned int) proxy->fh_map[cfh].upstream_fh;
-                    }
-                    pos += 16;
-                }
-                lfh = -1; /* readv fwd_local_fh stays -1 */
-            }
-
-            {
-                ClientRequestHdr *hdr = (ClientRequestHdr *)(void *) rreq;
-                proxy->fwd_reqid       = ntohs(hdr->requestid);
-                proxy->fwd_streamid[0] = hdr->streamid[0];
-                proxy->fwd_streamid[1] = hdr->streamid[1];
-            }
-            proxy->fwd_local_fh    = lfh;
-            proxy->fwd_streaming   = 0;
-            proxy->fwd_payload_len = rlen > XRD_REQUEST_HDR_LEN
-                                     ? rlen - XRD_REQUEST_HDR_LEN : 0;
-            proxy->saved_req       = NULL;
-
-            /* ---- kXR_waitresp / kXR_attn: transparent async response support ---- */
-            /*
-             * Note: We don't need a specific opcode case here.  By default we forward
-             * everything and await a response.  If we get kXR_waitresp (async ack),
-             * we will transition back to IDLE in relay_to_client but stay ready to
-             * receive unsolicited kXR_attn frames in events.c.
-             */
-
-            /* Save a copy for transparent kXR_wait retry (if payload is not huge) */
-            if (rlen < 128 * 1024) {
-                if (proxy->wait_retry_req != NULL) {
-                    ngx_free(proxy->wait_retry_req);
-                }
-                proxy->wait_retry_req = ngx_alloc(rlen, c->log);
-                if (proxy->wait_retry_req != NULL) {
-                    ngx_memcpy(proxy->wait_retry_req, rreq, rlen);
-                    proxy->wait_retry_req_len  = rlen;
-                } else {
-                    proxy->wait_retry_req_len  = 0;
-                }
-                proxy->wait_retry_local_fh = proxy->fwd_local_fh;
-                proxy->wait_retry_count    = 0;
-            }
-
-            proxy->wbuf     = rreq;
-
-            proxy->wbuf_len = rlen;
-            proxy->wbuf_pos = 0;
-            proxy->state    = XRD_PX_FORWARDING;
-
-            proxy->rhdr_pos      = 0;
-            proxy->resp_dlen     = 0;
-            proxy->resp_body     = NULL;
-            proxy->resp_body_pos = 0;
-
-            if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-                xrootd_proxy_abort(proxy,
-                    "proxy: send deferred read after lazy open failed");
-                return;
-            }
-            if (proxy->wbuf_pos < proxy->wbuf_len) {
-                return; /* write handler completes the send */
-            }
-            if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
-                xrootd_proxy_abort(proxy,
-                    "proxy: read arm failed after lazy open read");
-            }
-        } else {
-            proxy->state = XRD_PX_IDLE;
-            ctx->state   = XRD_ST_REQ_HEADER;
-            xrootd_schedule_read_resume(c);
-        }
+    if (xrootd_proxy_relay_lazy_open(proxy)) {
         return;
     }
 

@@ -24,6 +24,7 @@
 
 #include "impersonate.h"
 #include "impersonate_proto.h"
+#include "../compat/log_diag.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -145,8 +146,12 @@ imp_drop_to_service_user(ngx_log_t *log)
         return 0;                        /* no drop requested, or not root */
     }
     if (svc_uid == 0) {
-        if (log) ngx_log_error(NGX_LOG_EMERG, log, 0,
-                               "impersonate broker: service user must not be root");
+        if (log) XROOTD_DIAG_EMERG(log, 0,
+            "impersonate broker: service user resolves to root (uid 0)",
+            "the broker must run as an unprivileged account so it cannot be "
+            "abused to act as root",
+            "set xrootd_impersonation_broker_user to a dedicated non-root "
+            "account");
         return -1;
     }
     if (svc_gid == (gid_t) -1) {
@@ -163,9 +168,13 @@ imp_drop_to_service_user(ngx_log_t *log)
         || setresgid(svc_gid, svc_gid, svc_gid) != 0
         || setresuid(svc_uid, svc_uid, svc_uid) != 0)
     {
-        if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
-                               "impersonate broker: drop to service uid %d failed",
-                               (int) svc_uid);
+        if (log) XROOTD_DIAG_EMERG(log, ngx_errno,
+            "impersonate broker: cannot drop to service uid %d",
+            "the service account is invalid, or the container/host blocks the "
+            "setresuid/setgroups transition",
+            "verify the broker account exists and that the master runs with "
+            "the privileges to switch to it; the OS reason is appended below",
+            (int) svc_uid);
         return -1;
     }
     (void) prctl(PR_SET_KEEPCAPS, 0, 0, 0, 0);

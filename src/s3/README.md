@@ -73,7 +73,6 @@ stable and cheap, matching `XrdClS3` expectations.
 | `multipart_complete_list_uploads.c` | ListMultipartUploads (`GET /<bucket>/?uploads`): scan bucket root for `.<key>.mpu-<id>` staging dirs, sort by key, paginate (`key-marker`/`max-uploads`, cap 1000), `ListMultipartUploadsResult` XML. |
 | `multipart_complete_upload_part_copy.c` | UploadPartCopy (`PUT ?partNumber=N&uploadId=<id>` + `x-amz-copy-source`): confined source→part-file copy loop, `CopyPartResult` XML. |
 | `multipart_internal.h` | `MPU_MAX_PART_NUMBER` (10000) and the `mpu_validate_upload_id` / `mpu_rmdir_recursive` prototypes shared across the multipart files. |
-| `multipart_complete.c` | **Legacy aggregator, not in the build.** `#include`s the three list/copy fragments into one TU; the build compiles each fragment standalone instead. Safe to ignore / a candidate for removal. |
 
 ## Key types & data structures
 

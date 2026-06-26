@@ -102,7 +102,7 @@ ngx_int_t
 xrootd_vfs_staged_commit(xrootd_vfs_staged_t *st, unsigned excl)
 {
     const char *final_path;
-    ngx_msec_t  start = ngx_current_msec;
+    uint64_t    start = xrootd_vfs_now_ns();
     size_t      bytes = 0;
     struct stat sb;
     ngx_int_t   rc;

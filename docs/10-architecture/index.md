@@ -122,8 +122,22 @@ and different code.
                 |                  |          |
                 +------------------+----------+
                                    |
+                       VFS data plane (src/fs/)
+                 confinement · metrics · cache · CRC
+                                   |
+                  POSIX storage driver (src/fs/backend/)
+                    pread / pwrite / sendfile / fstat
+                                   |
                            filesystem and logs
 ```
+
+All four file-serving protocols converge on **one** data plane: the protocol
+handler populates an `xrootd_vfs_ctx_t` and calls the VFS (`src/fs/`), which applies
+confinement, metrics, caching and page-CRC once, then calls the POSIX storage driver
+(`src/fs/backend/`) for the raw syscall — so the data path is `proto → VFS → POSIX`
+for `root://`, WebDAV, and S3 alike. See the [data-plane section of the architecture
+overview](overview.md#the-data-plane-one-path-for-every-byte-proto--vfs--posix) and
+[`src/fs/README.md`](../../src/fs/README.md).
 
 ---
 

@@ -17,8 +17,10 @@ typedef struct {
     const char *name;          /* matches &P=<name> (e.g. "ztn","gsi","unix") */
     char        credtype[4];   /* kXR_auth credtype field, e.g. {'z','t','n',0} */
 
-    /* Do we have usable credentials for this protocol? (env/file probe) */
-    int  (*have_creds)(void);
+    /* Do we have usable credentials for this protocol? (env/file probe).
+     * c may be NULL (e.g. explain path); when c->opts.cred is non-NULL the
+     * store's availability probe is used in place of the inline env probe. */
+    int  (*have_creds)(xrdc_conn *c);
 
     /* Build the first kXR_auth payload. parms = args after "&P=<name>," ("" if
      * none). Allocates *payload (caller frees); sets *plen. 0 / -1. */

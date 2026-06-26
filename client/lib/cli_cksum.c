@@ -11,8 +11,11 @@
  *       algorithm tool is a one-liner and the dispatch logic lives in one place.
  * HOW:  strstr("://") selects the root:// path (parse URL, require root/roots,
  *       connect, query) vs the local path (open O_RDONLY, xrdc_cksum_fd). Exit
- *       codes mirror the historical behaviour: XRDC_EXIT_USAGE on argument/parse/
- *       open errors, xrdc_shellcode(st) on connect/query/digest failures.
+ *       codes mirror the stock tools byte-for-byte: argument/URL-parse errors are
+ *       XRDC_EXIT_USAGE; any failure to PRODUCE a checksum (connect, query, local
+ *       open, or digest) returns the caller's `err_exit` (xrdadler32 → 1,
+ *       xrdcrc32c → 3, xrdcrc64 → 1) rather than the XrdCl-style shellcode, which
+ *       diverged from stock (54=NotFound) and tripped scripts that branch on $?.
  */
 #include "xrdc.h"
 #include "compat/crypto.h"
@@ -24,7 +27,7 @@
 
 int
 xrdc_cli_cksum_main(const char *prog, const char *algo_name,
-                    xrdc_cksum_algo algo, const char *arg)
+                    xrdc_cksum_algo algo, const char *arg, int err_exit)
 {
     xrdc_status st;
     char        hex[129];
@@ -48,12 +51,12 @@ xrdc_cli_cksum_main(const char *prog, const char *algo_name,
         }
         if (xrdc_connect(&c, &u, NULL, &st) != 0) {
             fprintf(stderr, "%s: connect: %s\n", prog, st.msg);
-            return xrdc_shellcode(&st);
+            return err_exit;
         }
         if (xrdc_query_cksum(&c, u.path, algo_name, hex, sizeof(hex), &st) != 0) {
             fprintf(stderr, "%s: %s\n", prog, st.msg);
             xrdc_close(&c);
-            return xrdc_shellcode(&st);
+            return err_exit;
         }
         xrdc_close(&c);
         printf("%s %s\n", hex, u.path);
@@ -64,12 +67,12 @@ xrdc_cli_cksum_main(const char *prog, const char *algo_name,
         int fd = open(arg, O_RDONLY);
         if (fd < 0) {
             fprintf(stderr, "%s: open %s failed\n", prog, arg);
-            return XRDC_EXIT_USAGE;
+            return err_exit;
         }
         if (xrdc_cksum_fd(fd, algo, hex, sizeof(hex), &st) != 0) {
             fprintf(stderr, "%s: %s\n", prog, st.msg);
             close(fd);
-            return xrdc_shellcode(&st);
+            return err_exit;
         }
         close(fd);
         printf("%s %s\n", hex, arg);

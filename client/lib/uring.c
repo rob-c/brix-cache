@@ -409,6 +409,14 @@ xrdc_disk_ring_pread(xrdc_disk_ring *r, int64_t off, uint8_t *out, size_t cap,
 }
 
 
+/* ---- bufsz accessor ---- */
+
+size_t
+xrdc_disk_ring_bufsz(const xrdc_disk_ring *r)
+{
+    return r ? r->bufsz : 0;
+}
+
 /* ---- destroy ---- */
 
 void
@@ -473,6 +481,13 @@ xrdc_disk_ring_pread(xrdc_disk_ring *r, int64_t off, uint8_t *out, size_t cap,
 {
     (void) r; (void) off; (void) out; (void) cap; (void) st;
     return -1;
+}
+
+size_t
+xrdc_disk_ring_bufsz(const xrdc_disk_ring *r)
+{
+    (void) r;
+    return 0;
 }
 
 #endif /* XROOTD_HAVE_LIBURING */

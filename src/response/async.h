@@ -2,7 +2,8 @@
  * src/response/async.h — Native kXR_attn generation and deprecated async handlers.
  */
 
-#pragma once
+#ifndef XROOTD_RESPONSE_ASYNC_H
+#define XROOTD_RESPONSE_ASYNC_H
 
 #include "../ngx_xrootd_module.h"
 
@@ -91,3 +92,5 @@ ngx_int_t xrootd_handle_async_av(xrootd_ctx_t *ctx, ngx_connection_t *c);
 ngx_int_t xrootd_handle_async_unav(xrootd_ctx_t *ctx, ngx_connection_t *c);
 /* kXR_asyncgo (5007) — retired; always replies kXR_Unsupported. */
 ngx_int_t xrootd_handle_async_go(xrootd_ctx_t *ctx, ngx_connection_t *c);
+
+#endif /* XROOTD_RESPONSE_ASYNC_H */

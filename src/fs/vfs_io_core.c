@@ -114,7 +114,10 @@ xrootd_vfs_io_write_counted(ngx_fd_t fd, const u_char *buf, size_t len,
     done = 0;
 
     /* Route the raw syscall through the Storage Driver seam (phase-55); the
-     * short-I/O accounting policy stays here in the VFS. */
+     * short-I/O accounting policy stays here in the VFS. Every data byte op lives
+     * in the backend (src/fs/backend/) so a non-POSIX driver slots in unchanged;
+     * the sync/truncate executors below are on the same seam. (Reverts the
+     * phase-56 A-1 micro-optimization that had inlined a raw pwrite here.) */
     xrootd_sd_posix_wrap(&obj, fd);
 
     while (done < len) {
@@ -266,7 +269,8 @@ xrootd_vfs_io_execute_pgread(xrootd_vfs_job_t *job)
     io_errno = 0;
     job->out_size = xrootd_pgread_read_encode_inplace(job->fd, job->offset,
                                                       job->length, job->buf,
-                                                      &nread, &io_errno);
+                                                      &nread, &io_errno,
+                                                      0 /* blocking */);
     job->nio = nread;
     if (nread < 0) {
         job->io_errno = io_errno;

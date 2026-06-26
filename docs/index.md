@@ -251,6 +251,7 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | [Development Workflow](09-developer-guide/dev-workflow.md) | Source tree layout, utilities, local development setup |
 | [Coding Standards](09-developer-guide/coding-standards.md) | C style, naming, documentation, and review expectations |
 | [XrdSecgsi Handshake](09-developer-guide/xrdsecgsi-handshake.md) | The real GSI handshake (client & server) — protocol, exact wire formats, and every gotcha; how `./client/xrdfs` authenticates to stock EOS |
+| [Lessons — TPC + VFS](09-developer-guide/lessons-tpc-vfs.md) | Field guide from the native-TPC (GSI/async/TLS/delegation) and VFS storage-driver work — the non-obvious things that cost real time (GSI interop traps, gate-first testing, build/test gotchas) |
 | [Testing Runbook](09-developer-guide/testing-runbook.md) | Running tests, cross-compatible test harness, troubleshooting |
 | [Test ↔ Protocol Mapping](09-developer-guide/test-protocol-mapping.md) | Which test files cover which protocol areas |
 | [Adversarial Hardening Tests](09-developer-guide/adversarial-testing.md) | Evil-actor suites (worker-crash hunt, race detection, hostile wire parsing) — what they attack and how the codebase defends |

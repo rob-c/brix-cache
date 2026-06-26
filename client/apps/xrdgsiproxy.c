@@ -71,18 +71,26 @@ main(int argc, char **argv)
 
     if (strcmp(cmd, "info") == 0 || strcmp(cmd, "destroy") == 0) {
         const char *file = NULL;
+        int         is_info = (strcmp(cmd, "info") == 0);
         for (i = 2; i < argc; i++) {
             if (strcmp(argv[i], "-file") == 0 && i + 1 < argc) { file = argv[++i]; }
             else { usage(); return 50; }
         }
-        rc = (strcmp(cmd, "info") == 0)
-             ? xrdc_proxy_info(file, stdout, &st)
-             : xrdc_proxy_destroy(file, &st);
-        if (rc != 0) {
-            fprintf(stderr, "xrdgsiproxy: %s: %s\n", cmd, st.msg);
-            return xrdc_shellcode(&st);
+        rc = is_info ? xrdc_proxy_info(file, stdout, &st)
+                     : xrdc_proxy_destroy(file, &st);
+        if (rc == 0) {
+            return 0;
         }
-        return 0;
+        /* `info` is tolerant of an absent proxy, mirroring stock xrdgsiproxy:
+         * emit a plain "not found" notice and exit 1 rather than escalating a
+         * missing file to a hard usage error. Any other failure (e.g. a present
+         * but unparseable proxy) still surfaces via the normal error path. */
+        if (is_info && st.kxr == XRDC_ENOENT) {
+            printf("%s\n", st.msg);
+            return 1;
+        }
+        fprintf(stderr, "xrdgsiproxy: %s: %s\n", cmd, st.msg);
+        return xrdc_shellcode(&st);
     }
 
     usage();

@@ -10,6 +10,7 @@
 #include "tmp_path.h"
 #include "../path/path.h"
 #include "../path/beneath.h"
+#include "../fs/backend/sd.h"   /* Storage Driver seam: VFS↔VFS (backend↔backend) move */
 
 #include <dirent.h>
 #include <errno.h>
@@ -196,25 +197,38 @@ xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
     return NGX_OK;
 }
 
-/* Copy the whole of src_fd (from offset 0) into dst_fd. Portable read/write loop
- * (works cross-filesystem, unlike copy_file_range on some FS). 0 / NGX_ERROR. */
+/* VFS↔VFS (backend↔backend) byte move: copy the whole source object into the
+ * destination object by reading through the SOURCE object's storage driver and
+ * writing through the DESTINATION object's driver. The two objects may live on
+ * different backends — this is the cross-mount staging commit, so it is exactly
+ * the place where one side could later be a block/object (S3) store while the
+ * other stays POSIX.
+ *
+ * Today both ends are POSIX (xrootd_sd_posix_wrap over a kernel fd), so the only
+ * raw pread/pwrite happen INSIDE the POSIX backend (src/fs/backend/sd_posix.c) —
+ * never here. When a stage or final mount becomes a non-POSIX backend, only how
+ * the object is obtained changes (that driver's open() instead of a bare-fd
+ * wrap); this positional copy loop is unchanged. 0 / NGX_ERROR (errno set). */
 static ngx_int_t
-stage_copy_fd(int src_fd, int dst_fd)
+stage_move_objects(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst)
 {
     static const size_t CHUNK = 256 * 1024;
-    char *buf = malloc(CHUNK);
+    char  *buf = malloc(CHUNK);
+    off_t  off = 0;
+
     if (buf == NULL) { errno = ENOMEM; return NGX_ERROR; }
-    if (lseek(src_fd, 0, SEEK_SET) == (off_t) -1) { free(buf); return NGX_ERROR; }
     for (;;) {
-        ssize_t n = read(src_fd, buf, CHUNK);
+        ssize_t n = src->driver->pread(src, buf, CHUNK, off);
         if (n < 0) { if (errno == EINTR) { continue; } free(buf); return NGX_ERROR; }
         if (n == 0) { break; }
-        ssize_t off = 0;
-        while (off < n) {
-            ssize_t w = write(dst_fd, buf + off, (size_t) (n - off));
+        ssize_t w_done = 0;
+        while (w_done < n) {
+            ssize_t w = dst->driver->pwrite(dst, buf + w_done,
+                                            (size_t) (n - w_done), off + w_done);
             if (w < 0) { if (errno == EINTR) { continue; } free(buf); return NGX_ERROR; }
-            off += w;
+            w_done += w;
         }
+        off += n;
     }
     free(buf);
     return NGX_OK;
@@ -247,7 +261,9 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
     (void) log;
 
     if (fd != NGX_INVALID_FILE) {
-        if (fsync(fd) != 0) {
+        xrootd_sd_obj_t sobj;
+        xrootd_sd_posix_wrap(&sobj, fd);   /* durability flush via the backend */
+        if (sobj.driver->fsync(&sobj) != NGX_OK) {
             return NGX_ERROR;   /* not durable — do not publish */
         }
     }
@@ -275,9 +291,18 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
     if (dfd < 0) {
         e = errno; close(rfd); errno = e; return NGX_ERROR;
     }
-    if (stage_copy_fd(rfd, dfd) != NGX_OK || fsync(dfd) != 0) {
-        e = errno; close(rfd); close(dfd); (void) unlink(tmp); errno = e;
-        return NGX_ERROR;
+    {
+        /* VFS↔VFS move: stage object (source backend) → temp object (final
+         * backend). Both POSIX today; the loop is driver-mediated so a non-POSIX
+         * mount on either side needs no change here. */
+        xrootd_sd_obj_t src_obj, dst_obj;
+        xrootd_sd_posix_wrap(&src_obj, rfd);
+        xrootd_sd_posix_wrap(&dst_obj, dfd);
+        if (stage_move_objects(&src_obj, &dst_obj) != NGX_OK
+            || dst_obj.driver->fsync(&dst_obj) != NGX_OK) {
+            e = errno; close(rfd); close(dfd); (void) unlink(tmp); errno = e;
+            return NGX_ERROR;
+        }
     }
     close(rfd);
     if (close(dfd) != 0) {

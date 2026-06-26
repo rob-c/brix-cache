@@ -25,6 +25,7 @@
 #include "pmark.h"
 #include "../metrics/metrics.h"
 #include "../metrics/metrics_macros.h"
+#include "../compat/log_diag.h"
 
 #if defined(__linux__)
 
@@ -71,9 +72,12 @@ xrootd_pmark_flowlabel_usable(ngx_log_t *log)
 
     fd = (int) ngx_socket(AF_INET6, SOCK_DGRAM, 0);
     if (fd < 0) {
-        ngx_log_error(NGX_LOG_NOTICE, log, ngx_errno,
-            "pmark: IPv6 flow-label unavailable (no AF_INET6 socket); "
-            "firefly-only");
+        XROOTD_DIAG(NGX_LOG_NOTICE, log, ngx_errno,
+            "pmark: IPv6 flow-label marking disabled (no AF_INET6 socket)",
+            "this host has IPv6 disabled, so SciTags cannot set the IPv6 "
+            "flow label; packet marking falls back to firefly UDP only",
+            "if you want flow-label marking, enable IPv6 on the host; "
+            "otherwise this is expected and firefly marking still works");
         return NGX_DECLINED;
     }
 

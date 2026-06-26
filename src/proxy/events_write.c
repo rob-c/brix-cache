@@ -1,5 +1,6 @@
 #include "proxy_internal.h"
 #include "../connection/handler.h"
+#include "../compat/log_diag.h"
 #include <sys/socket.h>
 
 /*
@@ -50,9 +51,13 @@ xrootd_proxy_write_handler(ngx_event_t *wev)
         if (getsockopt(uconn->fd, SOL_SOCKET, SO_ERROR,
                        (char *) &err, &len) == -1 || err)
         {
-            ngx_log_error(NGX_LOG_ERR, proxy->client_conn->log,
-                          err ? err : ngx_socket_errno,
-                          "xrootd proxy: upstream TCP connect failed");
+            XROOTD_DIAG_ERR(proxy->client_conn->log,
+                err ? err : ngx_socket_errno,
+                "xrootd proxy: cannot connect to the backend",
+                "the proxied backend is down, unreachable, or refusing "
+                "connections (wrong host/port, or a firewall)",
+                "confirm the backend in xrootd_proxy_pass is up and reachable "
+                "from this host; the OS reason is appended below");
             XROOTD_PROXY_METRIC_INC(ctx, upstream_connect_errors);
             XROOTD_PROXY_UP_INC(proxy, upstream_connect_errors);
             xrootd_proxy_abort(proxy, "proxy: TCP connect failed");

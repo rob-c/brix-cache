@@ -89,4 +89,29 @@ void xrootd_integrity_invalidate_fd(ngx_log_t *log, int fd);
  */
 void xrootd_integrity_invalidate_path(ngx_log_t *log, const char *path);
 
+/*
+ * xrootd_cksdata_encode / xrootd_cksdata_decode — official XrdCks/XrdCksData binary
+ * codec (§8.1 interop), host byte order (ADR-4). encode writes
+ * sizeof(struct xrd_cks_data) bytes (88 on x86-64) from in->alg_name/in->hex +
+ * fmtime, returning the record size (0 on bad hex). decode parses a record,
+ * validating fmTime against cur_mtime (pass 0 to skip the staleness check);
+ * returns 1 with *out filled, or 0 if the buffer is the wrong size / stale /
+ * malformed. Used by the xattr reader (read stock checksums) and reusable by the
+ * .cks sidecar and cache cinfo (§9).
+ */
+size_t xrootd_cksdata_encode(const xrootd_integrity_info_t *in, time_t fmtime,
+    unsigned char *out88);
+int xrootd_cksdata_decode(const unsigned char *buf, size_t len, time_t cur_mtime,
+    xrootd_integrity_info_t *out);
+
+/*
+ * §8.x checksum xattr WRITE format (process-global, set at config time). The
+ * reader always accepts either form; this only chooses what we WRITE to
+ * "user.XrdCks.<alg>". One value per key, so "both" is not representable —
+ * `xrdcks` is the stock-interoperable choice. Default TEXT (no behaviour change).
+ */
+#define XROOTD_CKS_FMT_TEXT    0   /* "<hex> <mtime_sec> <mtime_nsec> <size>" */
+#define XROOTD_CKS_FMT_XRDCKS  1   /* binary XrdCksData (read by stock xrdfs/OSS) */
+void xrootd_integrity_set_xattr_format(ngx_uint_t fmt);
+
 #endif /* XROOTD_INTEGRITY_INFO_H */

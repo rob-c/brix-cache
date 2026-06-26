@@ -41,8 +41,9 @@ static uint8_t   g_pwd_pass[256];       /* the plaintext password (round 2)     
 static size_t    g_pwd_pass_len;
 
 static int
-pwd_have(void)
+pwd_have(xrdc_conn *c)
 {
+    (void) c;
     return getenv("XRDC_PWD") != NULL || getenv("XrdSecCREDS") != NULL;
 }
 

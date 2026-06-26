@@ -23,13 +23,19 @@ Run:
     PYTHONPATH=tests pytest tests/test_pgwrite_cse.py -v
 """
 
+import glob
 import os
 import struct
 import socket
 
 import pytest
 
-from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
+from settings import (
+    DATA_ROOT,
+    NGINX_ANON_PORT,
+    NGINX_ANON_RESUME_OFF_PORT,
+    SERVER_HOST,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -59,6 +65,12 @@ kXR_pgMaxEpr  = 128     # max bad pages reportable per request (server cap)
 
 _HOST = SERVER_HOST
 _PORT = NGINX_ANON_PORT
+# Stock direct-to-disk endpoint (xrootd_upload_resume off).  pgwrite
+# accept-then-correct lands bytes on the FINAL object immediately here, so the
+# tests that inspect on-disk state out-of-band MID-write must target this port;
+# on the resume-ON _PORT those bytes are staged in a .xrdresume.*.part until
+# close (see TestWriteThenCorrectResumeOn for the resume-ON commit coverage).
+_RESUME_OFF_PORT = NGINX_ANON_RESUME_OFF_PORT
 
 
 # --------------------------------------------------------------------------- #
@@ -347,9 +359,17 @@ class TestCSEReplyShape:
 # 2) Write-then-correct on disk
 # --------------------------------------------------------------------------- #
 class TestWriteThenCorrect:
+    """Accept-then-correct ON DISK (stock direct-to-disk semantics).
+
+    These inspect the final object out-of-band MID-write, so they run against
+    the upload_resume=OFF endpoint where pgwrite lands bytes on the final file
+    immediately.  The resume=ON commit path is covered by
+    TestWriteThenCorrectResumeOn below.
+    """
+
     def test_corrupt_bytes_land_on_disk_then_fixed(self):
         remote = "_cse_disk_fix.bin"
-        sock = _handshake_login()
+        sock = _handshake_login(port=_RESUME_OFF_PORT)
         try:
             fh = _open(sock, f"/{remote}".encode())
             good = os.urandom(2000)
@@ -379,7 +399,7 @@ class TestWriteThenCorrect:
 
     def test_good_pages_intact_alongside_bad(self):
         remote = "_cse_good_intact.bin"
-        sock = _handshake_login()
+        sock = _handshake_login(port=_RESUME_OFF_PORT)
         try:
             fh = _open(sock, f"/{remote}".encode())
             data = os.urandom(kXR_pgPageSZ * 3)
@@ -398,6 +418,51 @@ class TestWriteThenCorrect:
         finally:
             sock.close()
         assert open(disk_path(remote), "rb").read() == data
+        os.unlink(disk_path(remote))
+
+
+class TestWriteThenCorrectResumeOn:
+    """Same accept-then-correct flow, but on the upload_resume=ON endpoint.
+
+    With staging, the in-flight (and corrected) bytes live in a
+    .xrdresume.*.part until close — they are NOT visible at the final path
+    out-of-band mid-write — so the on-config contract is verified through the
+    wire (the CSE status + close gate) and the FINAL committed object AFTER a
+    clean close.  This proves pgwrite + upload_resume are compatible: the
+    corrected bytes are what gets committed.
+    """
+
+    def test_corrupt_then_correct_commits_fixed_bytes(self):
+        remote = "_cse_resume_on_fix.bin"
+        sock = _handshake_login(port=_PORT)
+        try:
+            fh = _open(sock, f"/{remote}".encode())
+            good = os.urandom(2000)
+            # Page 0 arrives corrupt → reported via CSE.  Bytes are staged in the
+            # .part (not the final path), so we do NOT inspect disk mid-write.
+            st, _off, cse = send_pgwrite(sock, fh, 0,
+                                         build_payload(good, 0, corrupt_data=[0]))
+            assert st == kXR_status
+            _c, _f, _l, offs, ok = parse_cse(cse)
+            assert ok and offs == [0]
+            assert not os.path.exists(disk_path(remote)), \
+                "resume=ON must stage writes, not touch the final path mid-write"
+
+            # Correct page 0 → clean status, close gate opens.
+            retry, pgoff = single_page_retry_payload(good, 0, len(good), 0)
+            st, _off, cse = send_pgwrite(sock, fh, pgoff, retry, reqflags=kXR_pgRetry)
+            assert st == kXR_status and cse == b"", "retry should verify clean"
+
+            st, _err = _close(sock, fh)
+            assert st == kXR_ok, "close should succeed once corrected"
+        finally:
+            sock.close()
+        # The staged partial was synchronously committed onto the final path on
+        # close, carrying the CORRECTED bytes (not the corrupt ones).
+        assert open(disk_path(remote), "rb").read() == good, \
+            "resume=ON commit must publish the corrected bytes"
+        assert not glob.glob(disk_path(remote) + "*.xrdresume.*.part"), \
+            "no resume partial should survive a clean close"
         os.unlink(disk_path(remote))
 
 

@@ -59,12 +59,22 @@ CompileFlags:
     - -fstack-clash-protection
     - --param*
 
-# Index the whole project in the background so cross-file navigation works.
+# Index only files that are explicitly opened — never eagerly pre-index the
+# whole tree.  With 523 source files each pulling in the full nginx header set,
+# Background:Build balloons the preamble cache and AST store to several GB and
+# they never shrink because clangd keeps every PCH alive for re-use.
+# Skip cuts idle memory by ~80 % with no loss of go-to-definition for open files.
 Index:
-  Background: Build
+  Background: Skip
+  # Do not add standard-library symbols to the global index (saves ~50 MB more).
+  StandardLibrary: No
 
 Diagnostics:
   # Unused-include detection is noisy and unreliable for C projects that rely on
   # transitive includes (nginx + the split wire.h fragment headers); silence it.
   UnusedIncludes: None
   MissingIncludes: None
+
+# Limit the completion list so the indexer does less work per keystroke.
+Completion:
+  AllScopes: No

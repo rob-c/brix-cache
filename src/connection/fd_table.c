@@ -2,6 +2,7 @@
 #include "../session/registry.h"
 #include "../cache/writethrough_metrics.h"
 #include "../write/pgw_fob.h"
+#include "../zip/zip_member.h"   /* xrootd_zip_handle_cleanup (frees inflate stream) */
 
 #include <errno.h>
 #include <string.h>
@@ -287,6 +288,18 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
 
     xrootd_wt_mark_clean(ctx, handle_index);
 
+    /* ZIP member handle: release the deflate inflate stream (if any) and clear
+     * the zip_* state so a reused slot cannot be mistaken for a zip handle. */
+    xrootd_zip_handle_cleanup(file);
+    file->zip_mode        = 0;
+    file->zip_method      = 0;
+    file->zip_data_off    = 0;
+    file->zip_comp_size   = 0;
+    file->zip_uncomp_size = 0;
+    file->zip_crc32       = 0;
+    file->zip_logical_pos = 0;
+    file->zip_comp_pos    = 0;
+
     file->fd             = -1;
     file->shared_handle_slot_hint = -1;  /* Phase 33 C2: drop the cached SHM slot */
     file->readable       = 0;
@@ -296,6 +309,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     file->bytes_written  = 0;
     file->open_time      = 0;
     file->path           = NULL;
+    file->ssi            = NULL;   /* §7: SSI state is connection-pool owned */
     file->is_regular     = 0;
     file->device         = 0;
     file->inode          = 0;

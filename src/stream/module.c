@@ -13,6 +13,15 @@
 #include "mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
 #include "ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
 #include "impersonate/lifecycle.h" /* Phase 40: impersonation directives */
+#include "cms/cns.h"               /* §6 CNS mode enum */
+
+/* §6 xrootd_cns mode values. */
+static ngx_conf_enum_t xrootd_cns_modes[] = {
+    { ngx_string("off"),     XROOTD_CNS_OFF     },
+    { ngx_string("emit"),    XROOTD_CNS_EMIT    },
+    { ngx_string("collect"), XROOTD_CNS_COLLECT },
+    { ngx_null_string,       0                  }
+};
 
 /* ------------------------------------------------------------------ */
 /* Module directives                                                    */
@@ -571,6 +580,49 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, write_compress),
       NULL },
 
+    /* Enable ZIP member access (phase-57 W2). Opt-in, off by default: a read
+     * open with "?xrdcl.unzip=<member>" serves that member of the archive as a
+     * standalone read-only file. */
+    { ngx_string("xrootd_zip_access"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, zip_access),
+      NULL },
+
+    /* Cap the ZIP central-directory read (bomb guard); default 16 MiB. */
+    { ngx_string("xrootd_zip_cd_max_bytes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, zip_cd_max_bytes),
+      NULL },
+
+    /* Materialize-to-scratch for ZIP member access (a no-kernel-fd backend, or a
+     * test): copy the archive into this local POSIX scratch dir and read there. */
+    { ngx_string("xrootd_zip_stage_dir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, zip_stage_dir),
+      NULL },
+
+    /* Force the archive through scratch even on a POSIX export (tests / policy). */
+    { ngx_string("xrootd_zip_force_scratch"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, zip_force_scratch),
+      NULL },
+
+    /* Decline staging archives larger than this (default 512 MiB). */
+    { ngx_string("xrootd_zip_stage_max_bytes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, zip_stage_max_bytes),
+      NULL },
+
     /* Allow TPC pulls from loopback / link-local addresses (default: off). */
     { ngx_string("xrootd_tpc_allow_local"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
@@ -585,6 +637,41 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, tpc_allow_private),
+      NULL },
+
+    /* §7 unary XrdSsi request/response over /.ssi/<service> (default: off). */
+    { ngx_string("xrootd_ssi"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ssi_enable),
+      NULL },
+
+    /* §6 Composite Cluster Name Space: off | emit (data server) | collect (mgr). */
+    { ngx_string("xrootd_cns"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cns_mode),
+      &xrootd_cns_modes },
+
+    /* phase-57 §F5: upgrade the TPC pull to TLS when the source sends
+     * kXR_gotoTLS (advertise kXR_ableTLS outbound). Default: off. */
+    { ngx_string("xrootd_tpc_outbound_tls"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, tpc_outbound_tls),
+      NULL },
+
+    /* phase-57 §F6: X.509 proxy delegation (capture client proxy → present to
+     * source as the user). Default: off. Reserved — crypto pending its stock
+     * -dlgpxy:request interop gate (tests/test_tpc_delegation.py). */
+    { ngx_string("xrootd_tpc_delegate"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, tpc_delegate),
       NULL },
 
     /* TPC rendezvous key lifetime in the shared registry (default: 60s). */
@@ -1038,6 +1125,33 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, frm.residency_cmd),
       NULL },
+
+    /* Materialize-to-scratch: recall into this local POSIX scratch dir, then move
+     * onto storage (lets the copycmd write to a path on a no-kernel-fd backend). */
+    { ngx_string("xrootd_frm_stage_dir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, frm.stage_dir),
+      NULL },
+
+    /* Force recall through scratch even on a POSIX export (tests / policy). */
+    { ngx_string("xrootd_frm_force_scratch"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, frm.force_scratch),
+      NULL },
+
+    /* Keep residency markers as flat hashed stubs in this local POSIX control
+     * mount (for a backend that cannot carry a user.frm.residency xattr). */
+    { ngx_string("xrootd_frm_control_dir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, frm.control_dir),
+      NULL },
+
     { ngx_string("xrootd_frm_copy_timeout"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,

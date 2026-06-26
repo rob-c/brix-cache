@@ -309,10 +309,13 @@ without protocol conversion.
 
 ### Missing or narrower in nginx
 1. **kXR_gpfile(3005)** — Legacy unused opcode; declared but no handler; falls through to kXR_Unsupported. Minimal impact.
-2. **host/pwd auth and full security plugin ecosystem** — legacy or
-   site-specific upstream behaviors are not reproduced.
-3. **PSS/PFC/Ceph/OssCsi/Zip/full XrdFrm-MSS ecosystem** — upstream remains
-   broader for deployments built around those plugins.
+2. **Custom third-party security plugins** — every *standard* upstream auth
+   scheme is now implemented (GSI, token, SSS, unix, krb5, macaroons, and now
+   `host`/`pwd` in `src/host/`+`src/pwd/`); only arbitrary loadable sec plugins
+   are not reproduced (no sec-plugin ABI).
+3. **PSS/PFC/Ceph/OssCsi/OssArc/full XrdFrm-MSS ecosystem** — upstream remains
+   broader for deployments built around those storage-backend plugins.
+   (ZIP-member access is implemented in `src/zip/`.)
 
 ### Where nginx is superior
 - Confined path resolution as universal invariant gate

@@ -110,6 +110,17 @@ def gsi_tpc(tmp_path_factory):
     if not proxy.exists():
         pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
 
+    # The nginx destination authenticates to the GSI source with a PROXY chain
+    # (proxy + EEC = >= 2 certs in the kXGC_cert bucket); stock XrdSecgsi rejects a
+    # bare single-cert bucket ("expected: >= 2"). Mint a dest proxy from its EEC.
+    dest_proxy = srv / "destproxy.pem"
+    _run(["xrdgsiproxy", "init", "-cert", str(srv / "destcert.pem"),
+          "-key", str(srv / "destkey.pem"), "-out", str(dest_proxy),
+          "-certdir", str(certs), "-valid", "1:00"], input="\n\n", env=penv)
+    if not dest_proxy.exists():
+        pytest.skip("could not mint the destination proxy")
+    os.chmod(dest_proxy, 0o600)
+
     (src_data / "hello.txt").write_text("hello-tpc-gsi\n")
 
     # ---- GSI source: stock xrootd, GSI required ----
@@ -123,7 +134,13 @@ def gsi_tpc(tmp_path_factory):
         f"sec.protocol /usr/lib64 gsi -certdir:{certs} "
         f"-cert:{srv / 'hostcert.pem'} -key:{srv / 'hostkey.pem'} "
         "-crl:0 -gmapopt:10 -dlgpxy:0\n"
-        "sec.protbind * only gsi\n")
+        "sec.protbind * only gsi\n"
+        # Enable third-party-copy on the source so the rendezvous (tpc.dst/key)
+        # and the destination's pull (tpc.org/key) are accepted; without this the
+        # stock source rejects the TPC open with "tpc not supported".
+        # Generous rendezvous TTL: the GSI handshake + async wait can exceed a
+        # short default, yielding "tpc authorization expired".
+        "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n")
     shutil.move(str(src_data), str(base / "gsidata"))
     _free_port(src_port)
     src = subprocess.Popen(["xrootd", "-c", str(src_cfg), "-l", str(logs / "xrd.log"),
@@ -152,8 +169,8 @@ def gsi_tpc(tmp_path_factory):
         "    xrootd_allow_write on;\n"
         "    xrootd_tpc_allow_local on;\n"
         "    xrootd_tpc_allow_private on;\n"
-        f"    xrootd_certificate {srv / 'destcert.pem'};\n"
-        f"    xrootd_certificate_key {srv / 'destkey.pem'};\n"
+        f"    xrootd_certificate {srv / 'destproxy.pem'};\n"
+        f"    xrootd_certificate_key {srv / 'destproxy.pem'};\n"
         f"    xrootd_trusted_ca {certs};\n"
         f"    xrootd_access_log {logs}/dst-access.log;\n"
         "  }\n"

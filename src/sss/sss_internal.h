@@ -5,7 +5,8 @@
  *
  * Include after "../ngx_xrootd_module.h".
  */
-#pragma once
+#ifndef XROOTD_SSS_SSS_INTERNAL_H
+#define XROOTD_SSS_SSS_INTERNAL_H
 
 #include "../ngx_xrootd_module.h"
 #include "../protocol/sss.h"   /* shared SSS wire constants (single source of truth) */
@@ -77,3 +78,5 @@ ngx_int_t xrootd_sss_auth_failed(xrootd_ctx_t *ctx, ngx_connection_t *c);
 /* Encrypt a challenge with key and send a kXR_authmore response. */
 ngx_int_t xrootd_sss_send_authmore(xrootd_ctx_t *ctx, ngx_connection_t *c,
     const xrootd_sss_key_t *key, const u_char *hdr, size_t hdr_len);
+
+#endif /* XROOTD_SSS_SSS_INTERNAL_H */

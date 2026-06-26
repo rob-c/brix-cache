@@ -285,10 +285,7 @@ tpc_thread_done(ngx_event_t *ev)
                 (ngx_atomic_int_t) t->bytes_transferred);
         }
         xrootd_dashboard_http_finish(r);
-        r->headers_out.status           = (ngx_uint_t) status;
-        r->headers_out.content_length_n = 0;
-        ngx_http_send_header(r);
-        webdav_metrics_finalize_request(r, ngx_http_send_special(r, NGX_HTTP_LAST));
+        webdav_send_status_only(r, (ngx_uint_t) status);
     } else {
         xrootd_dashboard_http_error(r, "webdav TPC failed");
         xrootd_dashboard_http_finish(r);

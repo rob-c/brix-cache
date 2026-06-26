@@ -19,8 +19,9 @@
 #include <unistd.h>
 
 static int
-host_have(void)
+host_have(xrdc_conn *c)
 {
+    (void) c;
     return 1;   /* always selectable; the server gates by reverse-DNS allowlist */
 }
 

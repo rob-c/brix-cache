@@ -32,9 +32,12 @@ def _assert_absent(relpath, markers):
 
 
 def test_copy_and_http_file_response_helpers_are_shared():
+    # Phase 55: local-object copy moved behind the shared VFS copy entry point
+    # (xrootd_vfs_copy → xrootd_ns_local_copy in src/fs/vfs_copy.c).  The S3
+    # CopyObject handler must route through that shared seam, not a private copy.
     _assert_markers(
         "src/s3/copy.c",
-        ['#include "s3.h"', "xrootd_ns_local_copy("],
+        ['#include "s3.h"', "xrootd_vfs_copy("],
     )
     _assert_absent("src/s3/copy.c", ["static int\ns3_copy_file"])
     _assert_markers(
@@ -350,11 +353,14 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
     ):
         _assert_markers(relpath, ["../compat/staged_file.h", "xrootd_staged_open("])
 
+    # Phase 55: both the S3 CopyObject and WebDAV COPY handlers delegate the
+    # local-object copy to the shared VFS copy seam (xrootd_vfs_copy), which is
+    # the single place that reaches xrootd_ns_local_copy (src/fs/vfs_copy.c).
     for relpath in (
         "src/s3/copy.c",
         "src/webdav/copy.c",
     ):
-        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "xrootd_ns_local_copy("])
+        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "xrootd_vfs_copy("])
 
     for relpath in ("src/cms/send.c", "src/cms/server_send.c"):
         _assert_markers(relpath, ["frame_io.h", "xrootd_cms_send_frame("])
@@ -584,12 +590,15 @@ def test_phase3_vfs_layer_is_registered():
 
 
 def test_phase3_vfs_preserves_io_invariants():
+    # Phase 55: the file-backed read path dups the sendfile fd supplied by the
+    # storage driver (read_sendfile_fd) rather than the handle's own fd, so the
+    # backend owns the zero-copy fd's lifetime — dup(src_fd), not dup(fh->fd).
     _assert_markers(
         "src/fs/vfs_read.c",
         [
             "b->memory = 1",
             "b->in_file = 1",
-            "dup(fh->fd)",
+            "dup(src_fd)",
             "xrootd_crc32c_value(",
         ],
     )

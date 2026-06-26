@@ -58,9 +58,16 @@ graph TB
         end
     end
     
+    subgraph DataPlane["Unified data plane — every local byte (src/fs)"]
+        vfs["VFS · xrootd_vfs_*<br/>confinement · metrics · cache · page-CRC · buffers"]
+        sd["POSIX storage driver<br/>src/fs/backend · raw syscalls<br/>pread/pwrite/sendfile/fstat"]
+    end
+
     subgraph Storage["Local POSIX filesystem"]
         files[Files on disk<br/>same data, three views]
     end
+
+    backendsrv["root:// backend<br/>existing xrootd server"]
     
     xrdcp --> stream
     curl -.-> http
@@ -75,13 +82,73 @@ graph TB
     http --> s3
     http --> metrics
     
-    native --> files
-    proxy --> files
-    webdav --> files
-    s3 --> files
+    native --> vfs
+    webdav --> vfs
+    s3 --> vfs
+    vfs --> sd
+    sd --> files
+    proxy -.->|relay, no local I/O| backendsrv
 ```
 
-**Key insight:** The same POSIX files are served through three independent protocol handlers. Each handler is a separate nginx module path — the `stream {}` block for XRootD, the `http {}` block for WebDAV and S3.
+**Key insight:** The same POSIX files are served through three independent protocol *front ends* — the `stream {}` block for XRootD, the `http {}` block for WebDAV and S3 — but they are **not** three independent data paths. Every byte they read or write funnels through **one** unified data plane: the front end calls the VFS (`src/fs/`, `xrootd_vfs_*`), which applies confinement, metrics, caching and page-CRC once, then calls the **POSIX storage driver** (`src/fs/backend/`) for the raw syscall. (Proxy mode is the exception — it relays to a backend XRootD server and touches no local files.)
+
+---
+
+## The Data Plane: One Path for Every Byte (proto ↔ VFS ↔ POSIX)
+
+The three front ends differ only in *how a request arrives*. The moment a request
+needs to touch a file, every protocol converges on the **same three-layer data
+plane**, so confinement, metrics, access logging, caching, and page-CRC are
+implemented exactly once and inherited by every front end:
+
+```text
+  Front ends:  root:// (stream) · WebDAV (HTTP) · S3 (HTTP) · CMS data-server
+                       │
+                       │  each populates an xrootd_vfs_ctx_t and calls xrootd_vfs_*()
+                       ▼
+  ── VFS — the "vfs" layer (src/fs/) ───────────────────────────────
+       • re-checks RESOLVE_BENEATH confinement
+       • emits the Prometheus metric + access-log line
+       • read-through / write-through cache
+       • per-page CRC32c (pgread/pgwrite) + buffer shaping
+       • owns every EINTR / short-I/O / coalescing loop
+                       │
+                       │  calls the storage-driver vtable (xrootd_sd_driver_t)
+                       ▼
+  ── Storage driver — the "posix" layer (src/fs/backend/) ──────────
+       POSIX driver (default) — one verbatim syscall per slot:
+         open(openat2 RESOLVE_BENEATH) · pread / preadv · pwrite ·
+         copy_file_range · ftruncate · fsync · fstat
+                       │
+                       ▼
+  ── Local POSIX filesystem ────────────────────────────────────────
+```
+
+**Why this matters:**
+
+- **No protocol handler issues a raw file syscall.** `pread`/`pwrite`/`preadv`/
+  `copy_file_range`/`fstat` on file data exist only inside `src/fs/backend/`. A
+  handler that needs bytes calls a `xrootd_vfs_*` entry point — never `open`/`read`
+  directly. That is what makes confinement, metering, and CRC impossible to drift
+  between protocols.
+- **The VFS owns *policy*; the driver owns *mechanism*.** The VFS keeps every
+  EINTR/short-I/O/coalescing loop and builds the nginx buffer chain; only the raw
+  syscall lives behind a driver slot, so behaviour is byte-identical on POSIX.
+- **The driver is pluggable.** POSIX is the default and only shipping backend, but
+  the seam (`xrootd_sd_driver_t` in `src/fs/backend/sd.h`) is capability-typed, so a
+  block or object/S3 backend can register and become primary **without any change
+  above it** — handlers, metrics, cache, and access logs are untouched.
+- **Two VFS surfaces, one driver.** HTTP/S3 use the metered entry points
+  (`xrootd_vfs_open`, `xrootd_vfs_file_sendfile_fd`, `xrootd_vfs_close`,
+  `xrootd_vfs_stat`, the staged-write family) on the event loop; the `root://` byte
+  I/O (`kXR_read/write/readv/pgread/pgwrite/sync`) flows through the worker-safe I/O
+  core (`xrootd_vfs_io_execute()`), on the AIO thread pool or inline. Both surfaces
+  reach disk through the same POSIX storage driver.
+
+See [`src/fs/README.md`](../../src/fs/README.md) and
+[`src/fs/backend/README.md`](../../src/fs/backend/README.md) for the implementation,
+and [phase-54](../refactor/phase-54-vfs-thread-safe-io-core.md) /
+[phase-55](../refactor/phase-55-storage-backend-abstraction.md) for the design.
 
 ---
 
@@ -130,8 +197,9 @@ sequenceDiagram
     participant Client as xrdcp client
     participant TCP as nginx stream layer
     participant Auth as Authentication<br/>(GSI/token/SSS)
-    participant Ops as Opcode handler
-    participant Disk as POSIX filesystem
+    participant Ops as Opcode handler<br/>(src/read, src/write)
+    participant VFS as VFS<br/>(src/fs)
+    participant SD as POSIX storage driver<br/>(src/fs/backend) + kernel
     
     Client->>TCP: TCP connect (root://host:1094)
     TCP->>Client: Accept connection
@@ -140,17 +208,19 @@ sequenceDiagram
     Client->>Auth: kXR_login (authenticate)
     Auth-->>Client: Login success/fail
     Client->>Ops: kXR_open(/path/to/file)
-    Ops->>Disk: Open file via confined helper
-    Disk-->>Ops: File handle returned
+    Ops->>SD: confined open (openat2 RESOLVE_BENEATH) + fstat
+    SD-->>Ops: fd + stat
     Ops-->>Client: kXR_ok + offset
     loop Read loop
-        Client->>Ops: kXR_read (offset, size)
-        Ops->>Disk: pread() / copy_file_range()
-        Disk-->>Ops: Data chunk
-        Ops-->>Client: kXR_rdres (data)
+        Client->>Ops: kXR_read / kXR_pgread (offset, size)
+        Ops->>VFS: build job → xrootd_vfs_io_execute()
+        VFS->>SD: driver->pread / preadv (cache + CRC32c in VFS)
+        SD-->>VFS: data bytes
+        VFS-->>Ops: ngx_chain + io_result
+        Ops-->>Client: kXR_rdres / kXR_status (data)
     end
     Client->>Ops: kXR_close
-    Ops->>Disk: Close file handle
+    Ops->>SD: close fd
 ```
 
 ### WebDAV (`davs://`) Download Flow
@@ -161,19 +231,26 @@ sequenceDiagram
     participant HTTPS as nginx http {} layer
     participant Auth as Auth gate<br/>(proxy cert / bearer token)
     participant Handler as WebDAV handler<br/>(GET/PUT/COPY)
-    participant Disk as POSIX filesystem
+    participant VFS as VFS<br/>(src/fs)
+    participant SD as POSIX storage driver<br/>(src/fs/backend) + kernel
     
     Browser->>HTTPS: TLS handshake + HTTP GET / Range header
     HTTPS->>Auth: Verify identity (cert or token)
     Auth-->>HTTPS: Verified ✓
     HTTPS->>Handler: Route to GET handler
-    Handler->>Disk: Resolve path via confined helper
-    Disk-->>Handler: Absolute path returned
-    Handler->>Disk: Read file via fd cache + pread()
-    Disk-->>Handler: Data chunk
+    Handler->>VFS: resolve path + xrootd_vfs_open(ctx)
+    VFS->>SD: driver->open (RESOLVE_BENEATH) + fstat
+    SD-->>VFS: fd + stat
+    VFS-->>Handler: VFS handle
+    Handler->>VFS: xrootd_vfs_file_sendfile_fd() (+ Range)
+    VFS->>SD: driver->read_sendfile_fd (CAP_SENDFILE)
+    SD-->>VFS: sendfile-able fd / bytes
+    VFS-->>Handler: serve fd (sendfile) / ngx_chain
     Handler-->>Browser: HTTP 200 OK + body
+    Handler->>VFS: xrootd_vfs_close
+    VFS->>SD: driver->close
     
-    Note over Browser,Disk: CORS headers added automatically<br/>Metrics recorded on every request
+    Note over Browser,SD: Fully VFS-mediated (proto→VFS→POSIX) —<br/>CORS + metrics handled once, in the VFS
 ```
 
 ### Proxy Mode (XRootD Transparent) Flow
@@ -209,10 +286,12 @@ sequenceDiagram
 | **Connection handling** | `src/connection/handler.c`, `recv.c` | TCP accept, read loop, send events |
 | **XRootD handshake** | `src/handshake/dispatch.c` | Protocol negotiation, session setup |
 | **Session dispatch** | `src/handshake/dispatch_session.c` | Session-level opcode routing |
-| **Read path** | `src/read/`, `src/aio/` | open/read/readv/pgread/stat/locate |
-| **Write path** | `src/write/` | write/writev/pgwrite/sync/truncate |
+| **Read path** | `src/read/`, `src/aio/` | open/read/readv/pgread/stat/locate (frames VFS results onto the wire) |
+| **Write path** | `src/write/` | write/writev/pgwrite/sync/truncate (frames VFS results onto the wire) |
 | **WebDAV dispatch** | `src/webdav/dispatch.c` | HTTP method routing, TPC detection |
 | **S3 handler** | `src/s3/handler.c` | REST API entry point and routing |
+| **Unified data plane (VFS)** | `src/fs/` | `xrootd_vfs_*` — the single path every protocol's file I/O takes: confinement, metrics, cache, page-CRC, buffer shaping |
+| **Storage driver (POSIX)** | `src/fs/backend/` | Pluggable backend beneath the VFS; the POSIX driver issues the raw `pread`/`pwrite`/`sendfile`/`fstat` syscalls |
 
 For the complete operation-to-file mapping, see [AGENTS.md](../../AGENTS.md).
 

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PROTOCOL_WIRE_CORE_REQUESTS_H
+#define XROOTD_PROTOCOL_WIRE_CORE_REQUESTS_H
 
 /*
  * Packed wire structures for the XRootD root:// protocol.
@@ -500,3 +501,4 @@ typedef struct {
  * wire.h includes after it (clang -Wpragma-pack flags such cross-file leaks). */
 #pragma pack(pop)
 
+#endif /* XROOTD_PROTOCOL_WIRE_CORE_REQUESTS_H */

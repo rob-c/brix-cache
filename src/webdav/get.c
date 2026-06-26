@@ -11,6 +11,7 @@
 #include "../dashboard/dashboard_tracking.h"
 #include "../fs/vfs.h"
 #include "../shared/file_serve.h"
+#include "../zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -107,6 +108,20 @@ webdav_handle_get(ngx_http_request_t *r)
                                              sizeof(path));
     if (rc != NGX_OK) {
         return rc;
+    }
+
+    /* Phase-57 W2: ZIP member access over HTTP GET.  Auth on the archive ran in
+     * the access phase; serve the requested member instead of the whole file. */
+    if (conf->zip_access) {
+        char member[WEBDAV_MAX_PATH];
+        int  zr = xrootd_zip_http_member_arg(r, member, sizeof(member));
+        if (zr < 0) {
+            return NGX_HTTP_BAD_REQUEST;
+        }
+        if (zr > 0) {
+            return xrootd_zip_http_serve(r, conf->common.root_canon,
+                                         conf->zip_cd_max_bytes, path, member);
+        }
     }
 
     wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);

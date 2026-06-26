@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../compat/alloc_guard.h"
+#include "../compat/str_dup.h"
 
 /* ---- Cache origin directive — parse host:port address ----
  *
@@ -75,11 +76,10 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(rb - addr_copy - 1);
-        xcf->cache_origin_host.data = ngx_pnalloc(cf->pool, hostlen + 1);
-        if (xcf->cache_origin_host.data == NULL) { return NGX_CONF_ERROR; }
-        ngx_memcpy(xcf->cache_origin_host.data, addr_copy + 1, hostlen);
-        xcf->cache_origin_host.data[hostlen] = '\0';
-        xcf->cache_origin_host.len = hostlen;
+        if (xrootd_pstrdupz(cf->pool, &xcf->cache_origin_host,
+                            (u_char *) addr_copy + 1, hostlen) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
         pnum = strtol(rb + 2, &endp, 10);
     } else {
         colon = strrchr(addr_copy, ':');
@@ -89,11 +89,10 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(colon - addr_copy);
-        xcf->cache_origin_host.data = ngx_pnalloc(cf->pool, hostlen + 1);
-        if (xcf->cache_origin_host.data == NULL) { return NGX_CONF_ERROR; }
-        ngx_memcpy(xcf->cache_origin_host.data, addr_copy, hostlen);
-        xcf->cache_origin_host.data[hostlen] = '\0';
-        xcf->cache_origin_host.len = hostlen;
+        if (xrootd_pstrdupz(cf->pool, &xcf->cache_origin_host,
+                            (u_char *) addr_copy, hostlen) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
         pnum = strtol(colon + 1, &endp, 10);
     }
 
@@ -413,11 +412,10 @@ xrootd_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(rb - addr_copy - 1);
-        xcf->wt_origin_host.data = ngx_pnalloc(cf->pool, hostlen + 1);
-        if (xcf->wt_origin_host.data == NULL) { return NGX_CONF_ERROR; }
-        ngx_memcpy(xcf->wt_origin_host.data, addr_copy + 1, hostlen);
-        xcf->wt_origin_host.data[hostlen] = '\0';
-        xcf->wt_origin_host.len = hostlen;
+        if (xrootd_pstrdupz(cf->pool, &xcf->wt_origin_host,
+                            (u_char *) addr_copy + 1, hostlen) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
         pnum = strtol(rb + 2, &endp, 10);
     } else {
         colon = strrchr(addr_copy, ':');
@@ -427,11 +425,10 @@ xrootd_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(colon - addr_copy);
-        xcf->wt_origin_host.data = ngx_pnalloc(cf->pool, hostlen + 1);
-        if (xcf->wt_origin_host.data == NULL) { return NGX_CONF_ERROR; }
-        ngx_memcpy(xcf->wt_origin_host.data, addr_copy, hostlen);
-        xcf->wt_origin_host.data[hostlen] = '\0';
-        xcf->wt_origin_host.len = hostlen;
+        if (xrootd_pstrdupz(cf->pool, &xcf->wt_origin_host,
+                            (u_char *) addr_copy, hostlen) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
         pnum = strtol(colon + 1, &endp, 10);
     }
 

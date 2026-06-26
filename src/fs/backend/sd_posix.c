@@ -20,12 +20,20 @@
 
 #include "sd.h"
 
+/* The instance lifecycle + namespace/dir/xattr/staged ops below are nginx-coupled
+ * (confined open, ngx pool, the shared xrootd_ns_* helpers). They — and these
+ * headers — compile only in the module. The worker-safe raw fd byte ops
+ * (pread/pwrite/preadv/...) are pure POSIX and also build into the ngx-free
+ * shared libxrdproto, so a shared kernel (src/compat/checksum_core.c) can route
+ * its fd reads through xrootd_sd_posix_driver in both worlds. */
+#ifndef XRDPROTO_NO_NGX
 #include "../vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
 #include "../../compat/crc32c.h"
 #include "../../compat/namespace_ops.h"
 #include "../../compat/staged_file.h"
 #include "../../path/beneath.h"
 #include "../../path/path.h"
+#endif
 
 #include <dirent.h>
 #include <errno.h>
@@ -42,6 +50,7 @@ typedef struct {
                               * cleanup must NOT close the fd or free the string */
 } sd_posix_state_t;
 
+#ifndef XRDPROTO_NO_NGX
 /* ---- sd_posix_flags — map SD open flags to POSIX O_* -----------------------
  *
  * WHAT: Translates the backend-neutral XROOTD_SD_O_* bits to an open(2) flag set.
@@ -69,6 +78,7 @@ sd_posix_flags(int sd_flags)
 
     return flags;
 }
+#endif /* !XRDPROTO_NO_NGX */
 
 /* ---- sd_posix_fill_stat — struct stat -> xrootd_sd_stat_t ------------------
  *
@@ -89,6 +99,7 @@ sd_posix_fill_stat(const struct stat *st, xrootd_sd_stat_t *out)
     out->is_reg = S_ISREG(st->st_mode) ? 1 : 0;
 }
 
+#ifndef XRDPROTO_NO_NGX   /* instance lifecycle: ngx pool + confined open (module only) */
 /* ---- sd_posix_init — open the persistent rootfd ---------------------------
  *
  * WHAT: Stores the root_canon and opens its O_PATH anchor fd on the instance.
@@ -242,6 +253,8 @@ sd_posix_close(xrootd_sd_obj_t *obj)
     return NGX_OK;
 }
 
+#endif /* !XRDPROTO_NO_NGX */
+
 /* ---- worker-safe raw byte I/O (no pool/metrics/log) ----------------------- */
 
 /* ---- sd_posix_pread — single pread(2) primitive ---------------------------
@@ -366,6 +379,7 @@ sd_posix_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
     return NGX_OK;
 }
 
+#ifndef XRDPROTO_NO_NGX   /* namespace/dir/xattr/staged: confined paths + ns_* (module only) */
 /* ---- namespace ops --------------------------------------------------------
  * Each delegates to the shared xrootd_ns_* helper and maps its status to errno
  * via xrootd_vfs_ns_status_errno(), preserving today's exact error semantics. */
@@ -649,21 +663,32 @@ sd_posix_staged_abort(xrootd_sd_staged_t *st)
     xrootd_staged_abort(st->inst->log, inst_st->root_canon, &ps->staged, 1);
 }
 
+#endif /* !XRDPROTO_NO_NGX */
+
 /* ---- the driver descriptor ------------------------------------------------
  * POSIX advertises every capability: it is the full-featured reference backend
- * and the behaviour oracle for all others. */
+ * and the behaviour oracle for all others. In the ngx-free shared build only
+ * the worker-safe raw fd ops are present (the namespace/instance/registry slots
+ * are NULL and the matching caps are dropped), which is all a shared kernel
+ * (checksum_core.c) ever calls — xrootd_sd_posix_driver.pread. */
 const xrootd_sd_driver_t xrootd_sd_posix_driver = {
     .name = "posix",
     .caps = XROOTD_SD_CAP_FD | XROOTD_SD_CAP_SENDFILE
           | XROOTD_SD_CAP_RANDOM_WRITE | XROOTD_SD_CAP_RANGE_READ
-          | XROOTD_SD_CAP_TRUNCATE | XROOTD_SD_CAP_SERVER_COPY
-          | XROOTD_SD_CAP_XATTR | XROOTD_SD_CAP_HARD_RENAME
-          | XROOTD_SD_CAP_DIRS | XROOTD_SD_CAP_APPEND | XROOTD_SD_CAP_IOURING,
+          | XROOTD_SD_CAP_TRUNCATE | XROOTD_SD_CAP_APPEND
+          | XROOTD_SD_CAP_IOURING
+#ifndef XRDPROTO_NO_NGX
+          | XROOTD_SD_CAP_SERVER_COPY | XROOTD_SD_CAP_XATTR
+          | XROOTD_SD_CAP_HARD_RENAME | XROOTD_SD_CAP_DIRS
+#endif
+          ,
 
+#ifndef XRDPROTO_NO_NGX
     .init = sd_posix_init,
     .cleanup = sd_posix_cleanup,
     .open = sd_posix_open,
     .close = sd_posix_close,
+#endif
     .pread = sd_posix_pread,
     .pwrite = sd_posix_pwrite,
     .preadv = sd_posix_preadv,
@@ -673,6 +698,7 @@ const xrootd_sd_driver_t xrootd_sd_posix_driver = {
     .ftruncate = sd_posix_ftruncate,
     .fsync = sd_posix_fsync,
     .fstat = sd_posix_fstat,
+#ifndef XRDPROTO_NO_NGX
     .stat = sd_posix_stat,
     .unlink = sd_posix_unlink,
     .mkdir = sd_posix_mkdir,
@@ -689,4 +715,5 @@ const xrootd_sd_driver_t xrootd_sd_posix_driver = {
     .staged_write = sd_posix_staged_write,
     .staged_commit = sd_posix_staged_commit,
     .staged_abort = sd_posix_staged_abort,
+#endif
 };

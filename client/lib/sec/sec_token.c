@@ -11,6 +11,7 @@
  * wire: XProtocol.hh kXR_auth — credtype "ztn", payload repeats "ztn\0" then JWT.
  */
 #include "sec.h"
+#include "../cred.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,12 +31,23 @@ rstrip(char *s)
 static char *
 slurp(const char *path)
 {
-    FILE  *fp = fopen(path, "rb");
+    FILE  *fp;
     char  *buf;
     long   sz;
     size_t got;
+    int    fd;
 
+    /* Discovery probe (st=NULL): a missing OR unsafe file is silently skipped so
+     * the caller falls through to the next location. O_NOFOLLOW + owner check
+     * stop an attacker pre-planting /tmp/bt_u<uid> as a symlink (secret leak) or
+     * a regular file they own (confused-deputy auth). */
+    fd = xrdc_open_credfile(path, 0, NULL);
+    if (fd < 0) {
+        return NULL;
+    }
+    fp = fdopen(fd, "rb");
     if (fp == NULL) {
+        close(fd);
         return NULL;
     }
     if (fseek(fp, 0, SEEK_END) != 0 || (sz = ftell(fp)) < 0) {
@@ -101,8 +113,14 @@ xrdc_token_discover(void)
 }
 
 static int
-token_have(void)
+token_have(xrdc_conn *c)
 {
+    /* Store is a fast "yes"; a store miss falls through to env discovery so a
+     * tool whose store lacks the bearer handler still finds a $BEARER_TOKEN. */
+    if (c != NULL && c->opts.cred != NULL
+        && xrdc_cred_available(c->opts.cred, XRDC_CRED_BEARER)) {
+        return 1;
+    }
     char *t = xrdc_token_discover();
     if (t == NULL) {
         return 0;
@@ -115,14 +133,26 @@ static int
 token_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
             xrdc_status *st)
 {
-    char    *tok;
+    char    *tok = NULL;
     size_t   tl;
     uint8_t *p;
 
-    (void) c;
     (void) parms;
 
-    tok = xrdc_token_discover();
+    /* Try the credential store when present; fall back to env discovery on
+     * failure so env-sourced tokens behave identically to today. */
+    if (c != NULL && c->opts.cred != NULL) {
+        xrdc_cred_view v;
+        if (xrdc_cred_acquire(c->opts.cred, XRDC_CRED_BEARER, 0, &v, st) == 0
+            && v.token != NULL) {
+            tok = strdup(v.token);
+        } else {
+            xrdc_status_clear(st);
+        }
+    }
+    if (tok == NULL) {
+        tok = xrdc_token_discover();
+    }
     if (tok == NULL) {
         xrdc_status_set(st, XRDC_EAUTH, 0,
                         "no bearer token (set BEARER_TOKEN or BEARER_TOKEN_FILE)");

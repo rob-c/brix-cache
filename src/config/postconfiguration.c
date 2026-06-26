@@ -60,6 +60,111 @@
 #include "../impersonate/lifecycle.h"
 #include "../aio/uring.h"
 
+/* ---- Function: xrootd_auth_mode_name() (static) ----
+ *
+ * WHAT: map the merged xrootd_auth value to a short human-readable label for
+ *   the startup summary.
+ * WHY: a first-time admin reading the log should see "GSI or token", not "3".
+ * HOW: table-style switch over the XROOTD_AUTH_* constants (tunables.h).
+ */
+static const char *
+xrootd_auth_mode_name(ngx_uint_t auth)
+{
+    switch (auth) {
+    case XROOTD_AUTH_NONE:  return "none (anonymous)";
+    case XROOTD_AUTH_GSI:   return "GSI/x509";
+    case XROOTD_AUTH_TOKEN: return "bearer token";
+    case XROOTD_AUTH_BOTH:  return "GSI or token";
+    case XROOTD_AUTH_SSS:   return "shared-secret (sss)";
+    case XROOTD_AUTH_UNIX:  return "unix (self-asserted)";
+    case XROOTD_AUTH_KRB5:  return "Kerberos 5";
+    case XROOTD_AUTH_HOST:  return "host allowlist";
+    case XROOTD_AUTH_PWD:   return "password (pwd)";
+    default:                return "unknown";
+    }
+}
+
+/* ---- Function: xrootd_log_startup_summary() (static) ----
+ *
+ * WHAT: emit a concise, friendly NOTICE banner for one enabled root:// server
+ *   block — what it serves, how clients authenticate, the revocation posture,
+ *   and which non-default modes are active — plus NOTE/WARN lines for valid-but-
+ *   surprising settings (open anonymous access, GSI without a CRL, writable
+ *   export). Runs once in the master at config load, so it also appears in the
+ *   output of `nginx -t`.
+ * WHY: an admin installing this for the first time should be able to run
+ *   `nginx -t` and immediately confirm the gateway is configured the way they
+ *   intended, without grepping the config or reading the source. The most
+ *   common foot-guns (no auth, no CRL) are surfaced right at startup instead of
+ *   being discovered as a security incident later.
+ * HOW: read the merged srv conf fields and log a primary summary line, an
+ *   optional CRL line, an optional token-key line, and any applicable notes.
+ *   Pure logging — no side effects.
+ */
+static void
+xrootd_log_startup_summary(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
+{
+    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        "xrootd: root:// endpoint ready — export \"%V\" (%s), auth: %s",
+        &xcf->common.root,
+        xcf->common.allow_write ? "read-write" : "read-only",
+        xrootd_auth_mode_name(xcf->auth));
+
+    if (xcf->crl.len > 0) {
+        if (xcf->crl_reload > 0) {
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "xrootd:   revocation: CRL \"%V\", reloaded every %T s",
+                &xcf->crl, (time_t) xcf->crl_reload);
+        } else {
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "xrootd:   revocation: CRL \"%V\", loaded once at startup "
+                "(set xrootd_crl_reload for periodic refresh)",
+                &xcf->crl);
+        }
+    }
+
+    if (xcf->jwks_key_count > 0) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd:   token validation: %d JWKS key(s) loaded",
+            xcf->jwks_key_count);
+    }
+
+    if (xcf->manager_mode) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd:   mode: cluster manager — redirects clients to data "
+            "servers (does not serve local files)");
+    }
+    if (xcf->proxy_enable) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd:   mode: proxy — forwards client traffic to a backend");
+    }
+    if (xcf->cache) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd:   mode: read-through cache in front of an origin");
+    }
+
+    /* Valid-but-noteworthy settings a first-time admin should see explicitly. */
+    if (xcf->auth == XROOTD_AUTH_NONE) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd:   NOTE: no authentication required — this endpoint is "
+            "OPEN to anonymous clients (set xrootd_auth to require "
+            "credentials)");
+    }
+    if ((xcf->auth == XROOTD_AUTH_GSI || xcf->auth == XROOTD_AUTH_BOTH)
+        && xcf->crl.len == 0)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd:   NOTE: GSI auth is enabled but no CRL is configured — "
+            "REVOKED certificates will be ACCEPTED (set xrootd_crl to a CRL "
+            "file/dir, e.g. /etc/grid-security/certificates)");
+    }
+    if (xcf->common.allow_write) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd:   NOTE: write access is enabled — authorized clients can "
+            "create, modify and delete files under the export root");
+    }
+}
+
 ngx_int_t
 ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
 {
@@ -223,7 +328,7 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
                 /* phase-46 W2b: FRM is configured on this process — let the
                  * shared residency probe do its stat+getxattr (it short-circuits
                  * to ONLINE when this is never called). */
-                frm_mark_configured();
+                frm_mark_configured((const char *) xcf->frm.control_dir.data);
                 frm_path = xcf->frm.queue_path;
                 frm_max  = xcf->frm.max_inflight;
                 if (xcf->frm.max_inflight > frm_peak) {
@@ -326,6 +431,20 @@ ngx_stream_xrootd_postconfiguration(ngx_conf_t *cf)
         }
         if (xrootd_imp_validate(cf, derived_root) != NGX_OK) {
             return NGX_ERROR;
+        }
+    }
+
+    /*
+     * Everything above succeeded, so the configuration is valid. Print a
+     * friendly per-endpoint summary (visible in `nginx -t` output and at
+     * startup) so a first-time admin can confirm what each root:// block
+     * actually serves and spot risky-but-valid settings immediately.
+     */
+    for (i = 0; i < cmcf->servers.nelts; i++) {
+        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                  ngx_stream_xrootd_module);
+        if (xcf->common.enable) {
+            xrootd_log_startup_summary(cf->log, xcf);
         }
     }
 

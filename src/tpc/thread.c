@@ -45,6 +45,8 @@ xrootd_tpc_pull_thread(void *data, ngx_log_t *log)
                                           (off_t) t->bytes_written,
                                           XROOTD_TPC_STATE_ERROR,
                                           t->c != NULL ? t->c->log : log);
+        tpc_tls_teardown(t);          /* free any TLS upgraded mid-bootstrap */
+        if (t->deleg_cred_pem) { free(t->deleg_cred_pem); t->deleg_cred_pem = NULL; }
         close(fd);
         return;
     }
@@ -54,5 +56,7 @@ xrootd_tpc_pull_thread(void *data, ngx_log_t *log)
         t->transfer_id, (off_t) t->bytes_written,
         t->result == NGX_OK ? XROOTD_TPC_STATE_DONE : XROOTD_TPC_STATE_ERROR,
         t->c != NULL ? t->c->log : log);
+    tpc_tls_teardown(t);              /* SSL_shutdown/free before closing the fd */
+    if (t->deleg_cred_pem) { free(t->deleg_cred_pem); t->deleg_cred_pem = NULL; }
     close(fd);
 }

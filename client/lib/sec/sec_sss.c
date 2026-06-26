@@ -15,6 +15,7 @@
  * wire: XProtocol.hh kXR_auth credtype "sss"; blob per src/sss/sss_internal.h.
  */
 #include "sec.h"
+#include "../cred.h"
 #include "../sss_keytab.h"
 #include "compat/sss_bf.h"   /* xrootd_sss_build_credential — shared with the server */
 
@@ -58,10 +59,16 @@ sss_load_first_key(xrdc_sss_key *out, xrdc_status *st)
 }
 
 static int
-sss_have(void)
+sss_have(xrdc_conn *c)
 {
     xrdc_sss_key key;
     xrdc_status  st;
+    /* Store is a fast "yes"; a store miss falls through to keytab discovery so a
+     * tool whose store lacks the sss handler still finds a local key. */
+    if (c != NULL && c->opts.cred != NULL
+        && xrdc_cred_available(c->opts.cred, XRDC_CRED_SSS)) {
+        return 1;
+    }
     xrdc_status_clear(&st);
     return sss_load_first_key(&key, &st) == 0;
 }
@@ -77,11 +84,36 @@ sss_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     uint32_t     gen_time;
     size_t       blob_len;
 
-    (void) c;
     (void) parms;
 
-    if (sss_load_first_key(&key, st) != 0) {
-        return -1;
+    /* Acquire the keytab from the credential store when present; fall back to
+     * env/default discovery on failure so env-sourced keytabs work as today. */
+    if (c != NULL && c->opts.cred != NULL) {
+        xrdc_cred_view v;
+        if (xrdc_cred_acquire(c->opts.cred, XRDC_CRED_SSS, 0, &v, st) == 0
+            && v.path != NULL) {
+            xrdc_sss_key keys[XRDC_SSS_KEYS_MAX];
+            int          n = 0;
+            if (xrdc_sss_keytab_read(v.path, keys, XRDC_SSS_KEYS_MAX, &n, st) != 0) {
+                return -1;
+            }
+            if (n == 0) {
+                xrdc_status_set(st, XRDC_EAUTH, 0,
+                                "keytab %s has no usable keys", v.path);
+                return -1;
+            }
+            key = keys[0];
+        } else {
+            /* acquire failed or path missing — fall back to env discovery */
+            xrdc_status_clear(st);
+            if (sss_load_first_key(&key, st) != 0) {
+                return -1;
+            }
+        }
+    } else {
+        if (sss_load_first_key(&key, st) != 0) {
+            return -1;
+        }
     }
 
     /* RNG + clock at the edge; the credential byte assembly lives in the shared

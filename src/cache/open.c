@@ -209,7 +209,9 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
         return NGX_DECLINED;
     }
 
-    rc = xrootd_vfs_adopt_fd(ctx, cache_path, fd, 1, fh_out);
+    /* The cache file is opened O_RDONLY above, so the handle is read-only:
+     * writable=0 lets xrootd_vfs_file_stat() trust the open-time metadata. */
+    rc = xrootd_vfs_adopt_fd(ctx, cache_path, fd, 1, 0, fh_out);
     if (rc != NGX_OK) {
         int err = errno;
         ngx_close_file(fd);

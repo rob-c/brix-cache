@@ -6,7 +6,8 @@
  *
  * HOW: Constants at top → typedef xrootd_tpc_params_t with opaque field comments → API declaration for parse_opaque → typedef xrootd_tpc_pull_t with heap/lifecycle comments → grouped function declarations by file (io.c helpers, connect.c, bootstrap.c auth helpers, source.c pull, thread.c worker, tpc_token.c fetch, done.c callback, launch.c entry points). Each declaration includes brief WHAT describing behavior and return value. */
 
-#pragma once
+#ifndef XROOTD_TPC_TPC_INTERNAL_H
+#define XROOTD_TPC_TPC_INTERNAL_H
 
 #include "../ngx_xrootd_module.h"
 #include "key_registry.h"
@@ -23,6 +24,18 @@
 #define TPC_CONNECT_TIMEOUT_SEC  5  /* poll() timeout for non-blocking connect */
 #define TPC_CHUNK_SIZE      (1024 * 1024)   /* bytes per kXR_read request */
 #define TPC_RESP_MAX_BODY   (TPC_CHUNK_SIZE + 256)  /* malloc cap for recv */
+
+/* Async kXR_open resolution (phase-57 §F8): a real source (EOS/dCache, or any
+ * server still completing the TPC rendezvous) may answer the open with kXR_wait
+ * (retry-after) or kXR_waitresp (a deferred kXR_attn asynresp will follow) before
+ * it settles. tpc_open_resolve() honours that flow, bounded on every axis so a
+ * source that never resolves fails cleanly instead of hanging the pull thread. */
+#define TPC_OPEN_RESOLVE_MAX_SEC   120  /* total wall-clock cap for the negotiation */
+#define TPC_OPEN_WAIT_CAP_SEC       15  /* clamp a single wait sleep AND the per-recv
+                                         * idle timeout during open resolution, so a
+                                         * silent (no-attn) source fails fast enough
+                                         * for the client's --tpc fallback to run */
+#define TPC_OPEN_RESOLVE_MAX_ITERS  16  /* max wait/waitresp/attn rounds */
 
 #define XROOTD_TPC_REPLY_OPEN  1
 #define XROOTD_TPC_REPLY_SYNC  2
@@ -97,6 +110,7 @@ typedef struct {
     char      token_mode[32]; /* OAuth2/OIDC delegation mode for source auth */
     char      delegated_token[65536]; /* fetched delegated access token */
     char      token_scope[256]; /* scope string for token exchange request */
+    uint8_t   gsi_rtag[8];  /* GSI round-1 random tag (sent in certreq) */
     char      dst_path[PATH_MAX]; /* local path being written */
     int       dst_fd;       /* open O_RDWR fd on dst_path; caller must close */
     int       fhandle_idx;  /* ctx->files[] slot pre-allocated by launcher */
@@ -109,6 +123,17 @@ typedef struct {
     ngx_uint_t pmark_exp;   /* SciTags experiment id for the outbound flow,    */
     ngx_uint_t pmark_act;   /* and activity id; 0 = not marked (resolved on the */
                             /* event loop in start_pull, applied in connect.c)  */
+    void      *tls;         /* SSL* once the pull upgraded to TLS (kXR_gotoTLS), */
+                            /* NULL = plaintext. The I/O helpers route through   */
+                            /* it transparently. Owned with tls_ctx; freed in    */
+                            /* thread.c via tpc_tls_teardown(). (phase-57 §F5)    */
+    void      *tls_ctx;     /* SSL_CTX* backing tls (per-pull client ctx), or NULL */
+    u_char    *deleg_cred_pem; /* §F6: captured delegated proxy credential (proxy
+                               * cert + key + issuer chain, PEM) to authenticate the
+                               * pull AS THE USER instead of conf->certificate;
+                               * NULL = use the gateway cert. malloc'd; freed in
+                               * thread.c. */
+    size_t     deleg_cred_len;
 } xrootd_tpc_pull_t;
 
 /*
@@ -121,7 +146,7 @@ typedef struct {
  * on EINTR). buf is borrowed. Returns 0 once all len bytes are sent, -1 on any
  * other send() error; a -1 leaves the socket mid-message (caller must abort).
  */
-int tpc_send_all(int fd, const void *buf, size_t len);
+int tpc_send_all(xrootd_tpc_pull_t *t, int fd, const void *buf, size_t len);
 /*
  * Read one XRootD ServerResponseHdr frame plus its payload from fd.
  * On success returns 0 and sets *status (host order kXR_* code) and *dlen; *body
@@ -129,7 +154,17 @@ int tpc_send_all(int fd, const void *buf, size_t len);
  * (NULL when *dlen == 0). dlen is rejected if it exceeds TPC_RESP_MAX_BODY.
  * Returns -1 on I/O, framing, oversize, or allocation failure (nothing to free).
  */
-int tpc_recv_response(int fd, uint16_t *status, u_char **body, uint32_t *dlen);
+int tpc_recv_response(xrootd_tpc_pull_t *t, int fd, uint16_t *status,
+                      u_char **body, uint32_t *dlen);
+
+/*
+ * tls.c — TPC pull in-protocol TLS upgrade (kXR_gotoTLS). tpc_start_tls performs a
+ * blocking client SSL handshake over the connected pull fd (thread-pool context),
+ * storing the SSL on t->tls so the I/O helpers route through it; tpc_tls_teardown
+ * frees the SSL + per-pull SSL_CTX. (phase-57 §F5)
+ */
+int  tpc_start_tls(xrootd_tpc_pull_t *t, int fd);
+void tpc_tls_teardown(xrootd_tpc_pull_t *t);
 
 /*
  * connect.c — DNS resolution and TCP connect.
@@ -188,7 +223,8 @@ int tpc_outbound_finish_login(xrootd_tpc_pull_t *t, int fd,
  * server is mid-handshake (caller proceeds to tpc_outbound_gsi_exchange), or -1
  * with t->err_msg and t->xrd_error set (kXR_AuthFailed on a wrong/short reply).
  */
-int tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd);
+int tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
+    const u_char *login_body, uint32_t login_dlen);
 /*
  * GSI handshake round 2: perform the DH key exchange, optionally verify the
  * server leaf cert against conf->gsi_store (proxy certs allowed; absent cert is
@@ -277,3 +313,5 @@ ngx_int_t xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t xrootd_tpc_launch_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const xrootd_tpc_params_t *tpc,
     const char *dst_path, uint16_t options, uint16_t mode_bits);
+
+#endif /* XROOTD_TPC_TPC_INTERNAL_H */

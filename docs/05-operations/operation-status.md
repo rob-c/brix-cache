@@ -99,7 +99,8 @@ treated as supported opcodes by this module.
 | Mixed (`both`) | ✅ | Accepts either GSI or token on the same listener |
 | SSS (Simple Shared Secrets) | ✅ | `xrootd_auth sss` + `xrootd_sss_keytab`; keytab uses the standard XRootD BF32-encrypted format; identity fields (user, group, name) extracted and logged |
 | krb5 | ✅ | Optional build-time Kerberos 5 support in `src/krb5`; availability depends on build dependencies/configuration. |
-| host / pwd | ❌ | Legacy. Not planned. |
+| pwd | ✅ | `xrootd_auth pwd` + `xrootd_pwd_file`; 2-round DH-bootstrapped password handshake (`src/pwd/`). Legacy; run under TLS. Wire-equivalent, not the `xrdpwdadmin` admin ecosystem. |
+| host | ✅ | `xrootd_auth host` + `xrootd_host_allow`; reverse-DNS allowlist (`src/host/`). Legacy; fail-closed, trusted-network only. |
 
 **Token scope enforcement**
 

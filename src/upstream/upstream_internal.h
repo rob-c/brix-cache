@@ -27,6 +27,12 @@
 
 #define XROOTD_UP_WAIT_MAX   60
 
+/* Outbound bootstrap auth (phase-57 §F4/W1.4.a): bound the kXR_authmore exchange
+ * so a hostile or misconfigured origin can never drive an unbounded auth loop.
+ * Single-round ztn/token auth uses 1; the bound leaves headroom for a future
+ * multi-round (GSI) continuation on the cache-fill path without another change. */
+#define XRD_OBA_MAX_ROUNDS   8
+
 typedef enum {
     XRD_UP_BS_HANDSHAKE = 0,
     XRD_UP_BS_PROTOCOL,

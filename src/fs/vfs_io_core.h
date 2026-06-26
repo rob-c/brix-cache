@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_FS_VFS_IO_CORE_H
+#define XROOTD_FS_VFS_IO_CORE_H
 
 /*
  * vfs_io_core.h — thread-safe VFS I/O execution descriptors.
@@ -206,3 +207,5 @@ xrootd_vfs_job_opendir_init(xrootd_vfs_job_t *job, int rootfd,
 }
 
 void xrootd_vfs_io_execute(xrootd_vfs_job_t *job);
+
+#endif /* XROOTD_FS_VFS_IO_CORE_H */

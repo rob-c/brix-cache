@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TYPES_CONTEXT_H
+#define XROOTD_TYPES_CONTEXT_H
 
 /* ---- File: context.h — Per-connection session context (xrootd_ctx_t) ----
  *
@@ -355,6 +356,31 @@ typedef struct {
     int        gsi_signed_dh;
 
     /*
+     * phase-57 §F6: X.509 proxy delegation (capture the client's proxy during the
+     * inbound GSI login so a later TPC pull can present it). Off unless
+     * xrootd_tpc_delegate is on. The GSI session cipher (derived in round 2,
+     * parse_x509.c) is persisted here so the extra kXGS_pxyreq/kXGC_sigpxy round
+     * can encrypt/decrypt its main; cleansed once delegation completes or at
+     * disconnect. gsi_deleg_reqkey is the fresh proxy key from
+     * xrootd_gsi_build_pxyreq (kept until kXGC_sigpxy pairs it with the signed
+     * proxy via xrootd_gsi_assemble_proxy). gsi_deleg_await gates the 3rd round.
+     */
+    char       gsi_sess_cipher[24];  /* negotiated session cipher name           */
+    u_char     gsi_sess_key[32];     /* session AES key (DH-secret derived)       */
+    int        gsi_sess_keylen;      /* valid bytes in gsi_sess_key (0 = unset)   */
+    int        gsi_sess_use_iv;      /* 1 = IV-prepended main (signed-DH path)    */
+    EVP_PKEY  *gsi_deleg_reqkey;     /* fresh proxy key (build_pxyreq), or NULL   */
+    int        gsi_deleg_await;      /* 1 = sent kXGS_pxyreq, awaiting kXGC_sigpxy */
+    u_char    *gsi_deleg_chain_pem;  /* client chain PEM (for assemble), heap      */
+    size_t     gsi_deleg_chain_len;
+    u_char    *gsi_deleg_proxy_pem;  /* captured delegated proxy credential (PEM)  */
+    size_t     gsi_deleg_proxy_len;
+    u_char     gsi_deleg_client_rtag[64]; /* client's kXGC_cert random tag — the   */
+    int        gsi_deleg_client_rtag_len; /* server RSA-signs it into the pxyreq   */
+                                          /* (kXRS_signed_rtag) so the client's     */
+                                          /* CheckRtag accepts the kXGS_pxyreq.     */
+
+    /*
      * Phase 52 (WS-B): XrdSecpwd multi-round handshake state.  Round 1 derives the
      * DH session key from the client's kXRS_puk and stores it here (16 bytes,
      * aes-128); round 2 decrypts the credential with it, so the ephemeral DH
@@ -564,3 +590,5 @@ typedef struct {
     ngx_msec_t  send_timeout_ms;        /* cached xrootd_send_timeout (0 = off)      */
 
 } xrootd_ctx_t;
+
+#endif /* XROOTD_TYPES_CONTEXT_H */

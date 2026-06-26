@@ -58,6 +58,62 @@ and `contrib/grafana-dashboard.json`.
 | Backend blacklisted | `xrootd_cluster_server_blacklisted`, health-check counters | A member failed health checks; check that member's `error.log` and connectivity |
 | TPC COPY fails | Source/Credential headers, peer CA bundle | `xrootd_webdav_tpc_cafile` must verify the remote peer; check delegated-credential validity |
 
+## First run: the startup summary
+
+When the configuration is valid, each enabled endpoint logs a short summary at
+`notice` — visible both at startup and in the output of `nginx -t`, so you can
+confirm what you built before going live. The `root://` (`stream{}`) endpoints:
+
+```
+xrootd: root:// endpoint ready — export "/srv/data" (read-write), auth: GSI or token
+xrootd:   revocation: CRL "/etc/grid-security/certificates", reloaded every 3600 s
+xrootd:   token validation: 1 JWKS key(s) loaded
+xrootd:   NOTE: write access is enabled — authorized clients can create, modify and delete files under the export root
+```
+
+…and each WebDAV (`davs://`) location prints the equivalent, tagged with the
+config file and line of the block it came from:
+
+```
+xrootd: WebDAV (davs://) endpoint ready — export "/srv/data" (read-write), auth: optional (anonymous allowed) in nginx.conf:25
+xrootd:   credentials accepted: x509/GSI-proxy bearer-token
+xrootd:   NOTE: x509/GSI is accepted but no CRL is configured — REVOKED certificates will be ACCEPTED (set xrootd_webdav_crl)
+```
+
+It also calls out valid-but-risky settings so they aren't discovered the hard
+way later — e.g. `NOTE: no authentication required — OPEN to anonymous clients`,
+and a `[warn]` `GSI auth is enabled but no CRL is configured — REVOKED
+certificates will be ACCEPTED`. If you don't see a summary for an endpoint you
+expected, that block isn't `enable`d (or `nginx -t` failed earlier).
+
+## Reading the error log
+
+Operational problems in the `error.log` are written as a three-part diagnostic
+so you can act without knowing the internals. The shape is always:
+
+```
+2026/06/25 22:14:03 [warn] 8123#0: xrootd[pki]: no CRLs loaded from "/etc/grid-security/certificates"
+  cause: CRL directory is empty, stale, or wrong path
+  fix:   run fetch-crl (or your CRL refresh cron) to populate it; until then REVOKED certificates are still ACCEPTED
+```
+
+- The **summary** line starts with a `xrootd[<subsystem>]:` tag (e.g. `pki`,
+  `cms`, `frm`, `disk`, `token`) and includes the offending path/address/size.
+- **cause:** names the most likely reason in plain language.
+- **fix:** is the concrete next step. `grep 'fix:' error.log` surfaces every
+  actionable line at a glance.
+
+The severity maps to operator impact: **emerg** = `nginx -t`/startup failed
+(nothing serves yet); **crit** = the running service is degraded for everyone
+(e.g. a store reload failed); **err** = a single request/connection failed but
+the service is healthy; **warn** = working but mis-tuned or insecure — look soon.
+When the OS is involved (disk, network) the kernel's own reason is appended,
+e.g. `… (28: No space left on device)`.
+
+> Not every line carries a `fix:` — purely internal invariant violations are
+> logged plainly because there is no operator action to take. If you see one
+> repeatedly, capture it and the surrounding context for a bug report.
+
 ## Where the logs are
 
 - nginx `error.log` — the first place for any 5xx / startup / module-load issue.

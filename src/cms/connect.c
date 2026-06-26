@@ -1,5 +1,6 @@
 #include "cms_internal.h"
 #include "../connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
+#include "../compat/log_diag.h"
 
 #include <ngx_event_connect.h>
 
@@ -217,9 +218,14 @@ ngx_xrootd_cms_connect(ngx_xrootd_cms_ctx_t *ctx)
 
     rc = ngx_event_connect_peer(&ctx->peer);
     if (rc == NGX_ERROR || rc == NGX_DECLINED || ctx->peer.connection == NULL) {
-        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
-                      "xrootd: CMS connect to %V failed",
-                      &ctx->conf->cms_manager);
+        XROOTD_DIAG_WARN(ctx->cycle->log, 0,
+            "xrootd[cms]: cannot reach cluster manager %V",
+            "the cmsd is down, the address/port is wrong, or a firewall "
+            "blocks the connection",
+            "confirm cmsd is listening and that xrootd_cms_manager matches "
+            "its host:port; this node will keep retrying and stays OUT of the "
+            "cluster until it connects",
+            &ctx->conf->cms_manager);
         ngx_xrootd_cms_schedule_retry(ctx);
         return;
     }

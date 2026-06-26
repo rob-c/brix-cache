@@ -9,6 +9,7 @@
  */
 
 #include "webdav.h"
+#include "../compat/integrity_info.h"   /* §8.x checksum xattr write format */
 #include "proxy_internal.h"
 #include "../mirror/http_mirror.h"
 #include "../config/config.h"
@@ -106,6 +107,13 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->cors_max_age = NGX_CONF_UNSET_UINT;
     conf->lock_timeout = NGX_CONF_UNSET_UINT;
     conf->lock_startup_sweep = NGX_CONF_UNSET;
+    conf->zip_access = NGX_CONF_UNSET;
+    conf->http_query_token = NGX_CONF_UNSET;
+    conf->macaroon_max_validity = NGX_CONF_UNSET;
+    conf->dig_enable = NGX_CONF_UNSET;
+    conf->dig_exports = NGX_CONF_UNSET_PTR;
+    conf->checksum_xattr_format = NGX_CONF_UNSET_UINT;
+    conf->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
     conf->open_file_cache = NGX_CONF_UNSET_PTR;
     conf->open_file_cache_valid = NGX_CONF_UNSET_UINT;
     conf->open_file_cache_min_uses = NGX_CONF_UNSET_UINT;
@@ -169,6 +177,104 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
  * NGX_CONF_ERROR (with an emerg log) on any validation failure so `nginx -t`
  * rejects the config rather than a worker failing at request time.
  */
+/* ---- Function: webdav_auth_name() (static) ----
+ * WHAT: short human label for the merged xrootd_webdav_auth mode (for the
+ *   startup summary), so the log reads "optional (anonymous allowed)" not "1".
+ */
+static const char *
+webdav_auth_name(ngx_uint_t auth)
+{
+    switch (auth) {
+    case WEBDAV_AUTH_REQUIRED: return "required";
+    case WEBDAV_AUTH_OPTIONAL: return "optional (anonymous allowed)";
+    default:                   return "none (anonymous)";
+    }
+}
+
+/* ---- Function: webdav_summary_is_new() (static) ----
+ * WHAT: is this location's WebDAV config a distinct endpoint, or just inherited
+ *   unchanged from its parent location? `xrootd_webdav on` at server scope is
+ *   inherited by every nested location; printing a banner for each would be
+ *   noise, so we only print where the user-visible facts differ from the parent.
+ */
+static ngx_uint_t
+webdav_summary_is_new(ngx_http_xrootd_webdav_loc_conf_t *conf,
+                      ngx_http_xrootd_webdav_loc_conf_t *prev)
+{
+    if (prev == NULL || !prev->common.enable) {
+        return 1;
+    }
+    return (conf->auth != prev->auth
+            || conf->common.allow_write != prev->common.allow_write
+            || ngx_strcmp(conf->common.root_canon,
+                          prev->common.root_canon) != 0);
+}
+
+/* ---- Function: webdav_log_endpoint_summary() (static) ----
+ * WHAT: emit the friendly NOTICE banner for one WebDAV (davs://) endpoint —
+ *   export, read/write, auth mode, which credential types are accepted, CRL
+ *   posture, and TPC/proxy mode — plus WARN notes for valid-but-risky settings.
+ * WHY: give davs:// admins the same first-run confirmation the root:// banner
+ *   gives (visible in `nginx -t`), and surface the same foot-guns: revocation
+ *   off, anonymous writes, auth-required-but-no-credentials. Logged at merge
+ *   time (per location), the only hook that reliably sees every WebDAV location.
+ */
+static void
+webdav_log_endpoint_summary(ngx_conf_t *cf,
+                            ngx_http_xrootd_webdav_loc_conf_t *conf)
+{
+    ngx_uint_t  has_x509  = (conf->cadir.len > 0 || conf->cafile.len > 0
+                             || conf->proxy_certs);
+    ngx_uint_t  has_token = (conf->jwks_key_count > 0);
+
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        "xrootd: WebDAV (davs://) endpoint ready — export \"%V\" (%s), auth: %s",
+        &conf->common.root,
+        conf->common.allow_write ? "read-write" : "read-only",
+        webdav_auth_name(conf->auth));
+
+    if (has_x509 || has_token) {
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "xrootd:   credentials accepted:%s%s",
+            has_x509 ? " x509/GSI-proxy" : "",
+            has_token ? " bearer-token" : "");
+    }
+    if (conf->crl.len > 0) {
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "xrootd:   revocation: CRL \"%V\"", &conf->crl);
+    }
+    if (conf->tpc) {
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "xrootd:   third-party copy (TPC COPY) enabled");
+    }
+    if (conf->upstream_proxy) {
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "xrootd:   mode: proxy — forwards to backend \"%V\"",
+            &conf->upstream_url);
+    }
+
+    /* Valid-but-noteworthy settings, surfaced explicitly for a first-time admin. */
+    if (has_x509 && conf->crl.len == 0) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "xrootd:   NOTE: x509/GSI is accepted but no CRL is configured — "
+            "REVOKED certificates will be ACCEPTED (set xrootd_webdav_crl)");
+    }
+    if (conf->common.allow_write && conf->auth != WEBDAV_AUTH_REQUIRED) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "xrootd:   NOTE: writes are enabled but authentication is not "
+            "required — anonymous clients may be able to create/modify/delete "
+            "files (set xrootd_webdav_auth required)");
+    }
+    if (conf->auth == WEBDAV_AUTH_REQUIRED && !has_x509 && !has_token
+        && !conf->upstream_proxy)
+    {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "xrootd:   NOTE: auth is required but no x509 CA or token JWKS is "
+            "configured — every client will be rejected (set "
+            "xrootd_webdav_cadir and/or xrootd_webdav_token_jwks)");
+    }
+}
+
 char *
 ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
                                       void *parent, void *child)
@@ -208,6 +314,23 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_uint_value(conf->cors_max_age, prev->cors_max_age, 86400);
     ngx_conf_merge_uint_value(conf->lock_timeout, prev->lock_timeout, 600);
     ngx_conf_merge_value(conf->lock_startup_sweep, prev->lock_startup_sweep, 0);
+    ngx_conf_merge_value(conf->zip_access, prev->zip_access, 0);
+    ngx_conf_merge_value(conf->http_query_token, prev->http_query_token, 1);
+    ngx_conf_merge_value(conf->macaroon_max_validity,
+                         prev->macaroon_max_validity, 86400);
+    ngx_conf_merge_str_value(conf->macaroon_location, prev->macaroon_location, "");
+    ngx_conf_merge_str_value(conf->checksum_on_write, prev->checksum_on_write, "");
+    ngx_conf_merge_uint_value(conf->checksum_xattr_format,
+                              prev->checksum_xattr_format, XROOTD_CKS_FMT_TEXT);
+    if (conf->checksum_xattr_format != XROOTD_CKS_FMT_TEXT) {
+        /* §8.x: stock-interoperable binary XrdCksData write format (process-wide). */
+        xrootd_integrity_set_xattr_format(conf->checksum_xattr_format);
+    }
+    ngx_conf_merge_value(conf->dig_enable, prev->dig_enable, 0);
+    ngx_conf_merge_ptr_value(conf->dig_exports, prev->dig_exports, NULL);
+    ngx_conf_merge_str_value(conf->dig_auth_file, prev->dig_auth_file, "");
+    ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
+                              16 * 1024 * 1024);
 
     /* Phase 20 caches/limits: inherit parent block when not set locally. */
     if (conf->token_cache_kv == NULL) {
@@ -567,6 +690,17 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
         if (xrootd_http_mirror_setup(cf, conf, prev) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
+    }
+
+    /*
+     * Friendly per-endpoint startup summary (visible in `nginx -t` output and
+     * at boot). Only for a location that actually enables WebDAV and whose
+     * config is not merely inherited unchanged from its parent — see
+     * webdav_summary_is_new(). Mirrors the root:// banner in the stream
+     * postconfiguration.
+     */
+    if (conf->common.enable && webdav_summary_is_new(conf, prev)) {
+        webdav_log_endpoint_summary(cf, conf);
     }
 
     return NGX_CONF_OK;

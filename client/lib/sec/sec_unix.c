@@ -17,8 +17,9 @@
 #include <pwd.h>
 
 static int
-unix_have(void)
+unix_have(xrdc_conn *c)
 {
+    (void) c;
     return 1;   /* we always have a uid; the server gates by peer address */
 }
 
