@@ -265,6 +265,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/acc/acc.h \
                         $ngx_addon_dir/src/mirror/mirror.h \
                         $ngx_addon_dir/src/mirror/stream_mirror.h \
+                        $ngx_addon_dir/src/mirror/stream_mirror_io.h \
                         $ngx_addon_dir/src/ratelimit/ratelimit.h \
                         $ngx_addon_dir/src/types/config.h \
                         $ngx_addon_dir/src/types/context.h \
@@ -274,6 +275,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/cache/cache_internal.h \
                         $ngx_addon_dir/src/cache/open.h \
                         $ngx_addon_dir/src/cache/meta.h \
+                        $ngx_addon_dir/src/cache/cinfo.h \
                         $ngx_addon_dir/src/cache/slice.h \
                         $ngx_addon_dir/src/cache/writethrough.h \
                         $ngx_addon_dir/src/tpc/tpc_internal.h \
@@ -288,6 +290,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/types/identity.h \
                         $ngx_addon_dir/src/fs/vfs.h \
                         $ngx_addon_dir/src/fs/vfs_internal.h \
+                        $ngx_addon_dir/src/fs/vfs_scratch.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/frm/frm.h \
                         $ngx_addon_dir/src/frm/frm_format.h \
@@ -300,6 +303,8 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/read/open.h \
                         $ngx_addon_dir/src/read/prefetch.h \
                         $ngx_addon_dir/src/read/read.h \
+                        $ngx_addon_dir/src/ssi/ssi.h \
+                        $ngx_addon_dir/src/cms/cns.h \
                         $ngx_addon_dir/src/read/slice_read.h \
                         $ngx_addon_dir/src/read/stat.h \
                         $ngx_addon_dir/src/read/statx.h \
@@ -385,6 +390,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/token/token_cache.h \
                         $ngx_addon_dir/src/token/worker_cache.h"
 ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
+                        $ngx_addon_dir/src/dig/dig.h \
                         $ngx_addon_dir/src/webdav/tape_rest.h \
                         $ngx_addon_dir/src/frm/frm.h \
                         $ngx_addon_dir/src/mirror/mirror.h \
@@ -463,6 +469,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/compat/http_file_response.c \
     $ngx_addon_dir/src/compat/http_compress.c \
     $ngx_addon_dir/src/compat/http_headers.c \
+    $ngx_addon_dir/src/compat/json_min.c \
     $ngx_addon_dir/src/compat/protocol_caps.c \
     $ngx_addon_dir/src/compat/net_target.c \
     $ngx_addon_dir/src/compat/host_format.c \
@@ -510,6 +517,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs_xattr.c \
     $ngx_addon_dir/src/fs/vfs_copy.c \
     $ngx_addon_dir/src/fs/vfs_staged.c \
+    $ngx_addon_dir/src/fs/vfs_scratch.c \
     $ngx_addon_dir/src/fs/fd_cache.c \
     $ngx_addon_dir/src/fs/backend/sd_posix.c \
     $ngx_addon_dir/src/fs/backend/sd_registry.c \
@@ -558,6 +566,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/manager/health_check.c \
     $ngx_addon_dir/src/mirror/stream_mirror.c \
     $ngx_addon_dir/src/mirror/stream_wmirror.c \
+    $ngx_addon_dir/src/mirror/stream_mirror_io.c \
     $ngx_addon_dir/src/manager/redir_cache.c \
     $ngx_addon_dir/src/manager/pending.c \
     $ngx_addon_dir/src/tpc/key_registry.c \
@@ -568,6 +577,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/tpc/common/metrics.c \
     $ngx_addon_dir/src/tpc/parse.c \
     $ngx_addon_dir/src/tpc/io.c \
+    $ngx_addon_dir/src/tpc/tls.c \
     $ngx_addon_dir/src/tpc/connect.c \
     $ngx_addon_dir/src/tpc/bootstrap.c \
     $ngx_addon_dir/src/tpc/gsi_outbound_common.c \
@@ -631,6 +641,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/cache/paths.c \
     $ngx_addon_dir/src/cache/open.c \
     $ngx_addon_dir/src/cache/meta.c \
+    $ngx_addon_dir/src/cache/cinfo.c \
     $ngx_addon_dir/src/cache/slice.c \
     $ngx_addon_dir/src/cache/slice_fill.c \
     $ngx_addon_dir/src/cache/lock.c \
@@ -649,6 +660,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/cms/space.c \
     $ngx_addon_dir/src/cms/send.c \
     $ngx_addon_dir/src/cms/recv.c \
+    $ngx_addon_dir/src/cms/cns.c \
     $ngx_addon_dir/src/cms/connect.c \
     $ngx_addon_dir/src/token/b64url.c \
     $ngx_addon_dir/src/token/file.c \
@@ -666,6 +678,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/voms/collect.c \
     $ngx_addon_dir/src/voms/extract.c \
     $ngx_addon_dir/src/gsi/gsi_core.c \
+    $ngx_addon_dir/src/gsi/proxy_req.c \
+    $ngx_addon_dir/src/gsi/delegation.c \
     $ngx_addon_dir/src/gsi/buffer.c \
     $ngx_addon_dir/src/gsi/parse_crypto_helpers.c \
     $ngx_addon_dir/src/gsi/parse_x509.c \
@@ -748,7 +762,11 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/read/open_overview.c \
     $ngx_addon_dir/src/read/open_resolved_file.c \
     $ngx_addon_dir/src/read/open_request.c \
+    $ngx_addon_dir/src/zip/zip_dir.c \
+    $ngx_addon_dir/src/zip/zip_member.c \
+    $ngx_addon_dir/src/zip/zip_http.c \
     $ngx_addon_dir/src/read/open_cache.c \
+    $ngx_addon_dir/src/ssi/ssi.c \
     $ngx_addon_dir/src/read/read.c \
     $ngx_addon_dir/src/read/read_compress.c \
     $ngx_addon_dir/src/read/slice_read.c \
@@ -853,8 +871,10 @@ xrd_emit_module
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_webdav_module
 ngx_module_srcs="$ngx_addon_dir/src/webdav/module.c \
+                 $ngx_addon_dir/src/webdav/module_acc_directives.c \
                  $ngx_addon_dir/src/webdav/config.c \
                  $ngx_addon_dir/src/webdav/postconfig.c \
+                 $ngx_addon_dir/src/dig/dig.c \
                  $ngx_addon_dir/src/webdav/access.c \
                  $ngx_addon_dir/src/webdav/dispatch.c \
                  $ngx_addon_dir/src/webdav/path.c \
@@ -974,6 +994,7 @@ ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_dashboard_module
 ngx_module_srcs="$ngx_addon_dir/src/dashboard/module.c \
                  $ngx_addon_dir/src/dashboard/auth.c \
+                 $ngx_addon_dir/src/dashboard/dashboard_json.c \
                  $ngx_addon_dir/src/dashboard/api.c \
                  $ngx_addon_dir/src/dashboard/api_admin.c \
                  $ngx_addon_dir/src/dashboard/http_tracking.c \

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PROTOCOL_OPCODES_H
+#define XROOTD_PROTOCOL_OPCODES_H
 
 /* ------------------------------------------------------------------ */
 /* Protocol version and server identity                                 */
@@ -220,3 +221,5 @@
 #define kXR_fattrList  2  /* enumerate all attribute names on the file */
 #define kXR_fattrSet   3  /* create or overwrite named attributes */
 #define kXR_fattrMaxSC 3  /* highest valid subcode (use for bounds checks) */
+
+#endif /* XROOTD_PROTOCOL_OPCODES_H */

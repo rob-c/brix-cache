@@ -1,30 +1,20 @@
 /*
- * vfs_read.c — VFS read path and the shared full-read primitive.
+ * vfs_read.c — the shared full-read primitive.
  *
- * WHAT: Implements xrootd_vfs_read(), which serves a byte range from an open
- *       handle as an ngx_chain_t, and xrootd_vfs_pread_full(), the EINTR-safe
- *       short-read-tolerant pread loop used throughout the VFS (including by the
- *       AIO offload bodies). Two private builders back the read:
- *       xrootd_vfs_make_memory_chain() and xrootd_vfs_make_file_chain().
+ * WHAT: Implements xrootd_vfs_pread_full(), the EINTR-safe, short-read-tolerant
+ *       pread loop used throughout the VFS (the I/O core in vfs_io_core.c and the
+ *       per-buffer write copier, plus the AIO offload bodies).
  *
- * WHY:  The wire-buffer shape is not free choice. Under TLS (or when a per-page
- *       CRC32c is wanted) the bytes must be in memory; in cleartext we prefer a
- *       file-backed buffer so nginx can sendfile() straight from the fd. Reads
- *       must also stop cleanly at EOF and feed the read-through cache's access
- *       accounting. Putting all of that here means every protocol gets identical
- *       framing, CRC, and cache behaviour.
+ * WHY:  Every VFS read has to apply the same short-read/EINTR retry policy, and
+ *       every data byte has to traverse the Storage Driver seam rather than a raw
+ *       syscall. Concentrating the loop here guarantees both, once.
  *
- * HOW:  xrootd_vfs_read() validates the handle/offset, caps the length at the
- *       cached file size (flagging eof), then branches: TLS/want_pgcrc ->
- *       make_memory_chain (pread into a pooled buffer, compute crc32c over the
- *       bytes read); otherwise make_file_chain (dup the fd, register a pool
- *       cleanup, build an in_file ngx_buf_t for sendfile). On success for a
- *       cache-sourced handle it records the access, then emits metrics/log via
- *       xrootd_vfs_observe_file_op().
+ * HOW:  xrootd_vfs_pread_full() wraps the fd in a POSIX storage-driver object and
+ *       drives driver.pread() in a loop until len bytes are read or EOF, retrying
+ *       on EINTR and reporting the byte count in *nread even on error.
  */
 #include "vfs_internal.h"
 #include "backend/sd.h"
-#include "../cache/open.h"
 
 /* EINTR-safe, short-read-tolerant pread into buf. Loops until len bytes are
  * read or EOF; *nread (if non-NULL) reports the byte count even on error. */
@@ -35,8 +25,12 @@ xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
     size_t          done = 0;
     xrootd_sd_obj_t obj;
 
-    /* Route the raw syscall through the Storage Driver seam (phase-55); the
-     * EINTR/short-read loop policy stays here in the VFS. */
+    /* Route every data byte read through the Storage Driver seam (phase-55); the
+     * EINTR/short-read loop policy stays here in the VFS. Keeping the syscall in
+     * the backend (src/fs/backend/) — never raw here — is the invariant: a
+     * non-POSIX driver (block/object) slots in without touching the VFS. (This
+     * deliberately reverts the phase-56 A-1 micro-optimization, which inlined a
+     * raw pread at the cost of putting data POSIX in the VFS layer.) */
     xrootd_sd_posix_wrap(&obj, fd);
 
     while (done < len) {
@@ -65,212 +59,4 @@ xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
     }
 
     return NGX_OK;
-}
-
-/* Memory-backed read: pread into a pooled buffer and emit a single in-memory
- * ngx_buf_t. Used under TLS or when a per-read CRC32c is requested; fills the
- * result length/crc32c/eof. */
-static ngx_int_t
-xrootd_vfs_make_memory_chain(xrootd_vfs_file_t *fh, off_t offset,
-    size_t length, ngx_chain_t **out, xrootd_vfs_io_result_t *result)
-{
-    ngx_buf_t    *b;
-    ngx_chain_t  *link;
-    u_char       *data;
-    size_t        nread;
-
-    data = ngx_pnalloc(fh->pool, length == 0 ? 1 : length);
-    if (data == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-
-    if (xrootd_vfs_pread_full(fh->obj.fd, data, length, offset, &nread)
-        != NGX_OK)
-    {
-        return NGX_ERROR;
-    }
-
-    b = ngx_pcalloc(fh->pool, sizeof(*b));
-    link = ngx_alloc_chain_link(fh->pool);
-    if (b == NULL || link == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-
-    b->pos = data;
-    b->last = data + nread;
-    b->start = data;
-    b->end = data + length;
-    b->memory = 1;
-
-    link->buf = b;
-    link->next = NULL;
-    *out = link;
-
-    if (result != NULL && fh->ctx != NULL && fh->ctx->want_pgcrc) {
-        result->crc32c = xrootd_crc32c_value(data, nread);
-    }
-
-    if (result != NULL) {
-        result->length = nread;
-        result->eof = nread < length ? 1 : result->eof;
-    }
-
-    return NGX_OK;
-}
-
-/* File-backed read: dup the backend-supplied sendfile fd (pool-cleanup
- * registered) and emit an in_file ngx_buf_t covering [offset, offset+length) so
- * cleartext responses can sendfile() with no userspace copy. src_fd is the fd
- * the backend returned from read_sendfile_fd() — the VFS does not assume it is
- * fh->obj.fd. */
-static ngx_int_t
-xrootd_vfs_make_file_chain(xrootd_vfs_file_t *fh, ngx_fd_t src_fd, off_t offset,
-    size_t length, ngx_chain_t **out)
-{
-    ngx_buf_t    *b;
-    ngx_chain_t  *link;
-    ngx_fd_t      fd;
-    size_t        path_len;
-
-    fd = dup(src_fd);
-    if (fd == NGX_INVALID_FILE) {
-        return NGX_ERROR;
-    }
-
-    if (xrootd_vfs_register_fd_cleanup(fh->pool, fd, fh->path, fh->log)
-        != NGX_OK)
-    {
-        int err = errno;
-        ngx_close_file(fd);
-        errno = err;
-        return NGX_ERROR;
-    }
-
-    b = ngx_pcalloc(fh->pool, sizeof(*b));
-    link = ngx_alloc_chain_link(fh->pool);
-    if (b == NULL || link == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-
-    b->file = ngx_pcalloc(fh->pool, sizeof(ngx_file_t));
-    if (b->file == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-
-    path_len = strlen(fh->path);
-    b->file->name.data = ngx_pnalloc(fh->pool, path_len + 1);
-    if (b->file->name.data == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-    ngx_memcpy(b->file->name.data, fh->path, path_len);
-    b->file->name.data[path_len] = '\0';
-    b->file->name.len = path_len;
-    b->file->fd = fd;
-    b->file->log = fh->log;
-
-    b->in_file = 1;
-    b->file_pos = offset;
-    b->file_last = offset + (off_t) length;
-
-    link->buf = b;
-    link->next = NULL;
-    *out = link;
-
-    return NGX_OK;
-}
-
-/* Serve a byte range from an open handle as an ngx_chain_t in *out. Caps length
- * at EOF, picks the memory- vs file-backed builder, records cache access, and
- * emits metrics/log. Empty/past-EOF reads return NGX_OK with eof set. */
-ngx_int_t
-xrootd_vfs_read(xrootd_vfs_file_t *fh, off_t offset, size_t length,
-    ngx_chain_t **out, xrootd_vfs_io_result_t *result)
-{
-    size_t capped;
-    size_t observed;
-    ngx_int_t rc;
-    ngx_msec_t start;
-    int saved_errno;
-
-    start = ngx_current_msec;
-
-    if (out == NULL) {
-        errno = EINVAL;
-        return NGX_ERROR;
-    }
-    *out = NULL;
-
-    if (result != NULL) {
-        ngx_memzero(result, sizeof(*result));
-        result->offset = offset;
-        result->from_cache = fh != NULL ? fh->from_cache : 0;
-    }
-
-    if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE || offset < 0) {
-        errno = EINVAL;
-        saved_errno = errno;
-        xrootd_vfs_observe_file_op(fh, XROOTD_METRIC_OP_READ, result, 0,
-                                   NGX_ERROR, saved_errno, start);
-        return NGX_ERROR;
-    }
-
-    if (offset >= fh->size || length == 0) {
-        if (result != NULL) {
-            result->eof = 1;
-        }
-        xrootd_vfs_observe_file_op(fh, XROOTD_METRIC_OP_READ, result, 0,
-                                   NGX_OK, 0, start);
-        return NGX_OK;
-    }
-
-    capped = length;
-    if ((off_t) capped > fh->size - offset) {
-        capped = (size_t) (fh->size - offset);
-        if (result != NULL) {
-            result->eof = 1;
-        }
-    }
-
-    if (result != NULL) {
-        result->length = capped;
-    }
-
-    /* The VFS computes only a storage-neutral transport verdict — zero-copy is
-     * acceptable when the response is cleartext and no per-read CRC is needed —
-     * then asks the backend to decide whether it can serve this range that way.
-     * The backend returns a sendfile-able fd (file-backed chain) or
-     * NGX_INVALID_FILE (serve memory-backed). The VFS knows nothing about which
-     * backends can sendfile; it only builds the nginx buffer for the answer. */
-    {
-        unsigned want_zerocopy;
-        ngx_fd_t sfd;
-
-        want_zerocopy = !(fh->is_tls
-                          || (fh->ctx != NULL && fh->ctx->want_pgcrc));
-        sfd = xrootd_vfs_handle_sendfile_fd(fh, offset, capped, want_zerocopy);
-
-        if (sfd != NGX_INVALID_FILE) {
-            rc = xrootd_vfs_make_file_chain(fh, sfd, offset, capped, out);
-        } else {
-            rc = xrootd_vfs_make_memory_chain(fh, offset, capped, out, result);
-        }
-    }
-
-    if (rc == NGX_OK && fh->from_cache && capped > 0) {
-        (void) xrootd_cache_record_access(fh->path, capped, fh->log);
-    }
-
-    saved_errno = rc == NGX_OK ? 0 : errno;
-    observed = 0;
-    if (rc == NGX_OK) {
-        observed = result != NULL ? result->length : capped;
-    }
-    xrootd_vfs_observe_file_op(fh, XROOTD_METRIC_OP_READ, result, observed,
-                               rc, saved_errno, start);
-    return rc;
 }

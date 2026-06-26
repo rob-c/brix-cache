@@ -137,7 +137,21 @@ xrootd_cache_meta_read(ngx_log_t *log, const char *cache_path,
         return (errno == ENOENT) ? NGX_DECLINED : NGX_ERROR;
     }
 
-    rc = xrootd_cache_meta_rw_all(fd, meta, sizeof(*meta), 0);
+    /* §9: zero first so a legacy-sized sidecar leaves the versioned tail at zero
+     * (version 0). Read the mandatory legacy base, then best-effort read the tail —
+     * a short tail read (old sidecar) is fine and keeps version 0. */
+    ngx_memzero(meta, sizeof(*meta));
+    rc = xrootd_cache_meta_rw_all(fd, meta, XROOTD_CACHE_META_BASE_SIZE, 0);
+    if (rc == NGX_OK) {
+        u_char   *tail = (u_char *) meta + XROOTD_CACHE_META_BASE_SIZE;
+        size_t    taillen = sizeof(*meta) - XROOTD_CACHE_META_BASE_SIZE;
+        ngx_int_t trc = xrootd_cache_meta_rw_all(fd, tail, taillen, 0);
+        if (trc == NGX_ERROR) {
+            rc = NGX_ERROR;
+        } else if (trc == NGX_DECLINED) {
+            ngx_memzero(tail, taillen);   /* legacy sidecar: no versioned tail */
+        }
+    }
     if (close(fd) != 0 && rc == NGX_OK) {
         rc = NGX_ERROR;
     }
@@ -152,6 +166,26 @@ xrootd_cache_meta_read(ngx_log_t *log, const char *cache_path,
     }
 
     return NGX_OK;
+}
+
+/*
+ * xrootd_cache_meta_touch — §9 record a cache hit (read-modify-write the stats).
+ */
+ngx_int_t
+xrootd_cache_meta_touch(ngx_log_t *log, const char *cache_path, uint64_t nbytes)
+{
+    xrootd_cache_meta_t meta;
+    ngx_int_t           rc;
+
+    rc = xrootd_cache_meta_read(log, cache_path, &meta);
+    if (rc != NGX_OK) {
+        return rc;   /* no/invalid sidecar → nothing to touch */
+    }
+    meta.version       = XROOTD_CACHE_META_VERSION;
+    meta.access_count += 1;
+    meta.bytes_served += nbytes;
+    meta.last_access   = (uint64_t) ngx_time();
+    return xrootd_cache_meta_write(log, cache_path, &meta);
 }
 
 /*

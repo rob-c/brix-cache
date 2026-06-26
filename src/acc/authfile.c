@@ -22,6 +22,7 @@
 
 #include <limits.h>
 #include "../compat/alloc_guard.h"
+#include "../compat/log_diag.h"
 
 #define XROOTD_ACC_AUTHDB_MAX  (1024 * 1024)
 
@@ -188,8 +189,13 @@ acc_cap_path(ngx_pool_t *pool, const char *path, const char *privs,
     int                     i;
 
     if (xrootd_acc_parse_privs(privs, ngx_strlen(privs), &pc) != 0) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-                      "xrootd authdb: invalid privileges \"%s\"", privs);
+        XROOTD_DIAG_EMERG(log, 0,
+            "xrootd authdb: invalid privileges \"%s\"",
+            "a privilege token contains an unknown letter",
+            "valid privilege letters are a(ll) d(elete) i(nsert) k(lock) "
+            "l(ookup) n(rename) r(ead) w(rite), optionally prefixed '-' to "
+            "deny; fix this record in the authdb file",
+            privs);
         return NULL;
     }
 
@@ -516,8 +522,12 @@ acc_dispatch_record(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
     char rtype;
 
     if (w[0][0] == '\0' || w[0][1] != '\0') {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-                      "xrootd authdb: invalid id type \"%s\"", w[0]);
+        XROOTD_DIAG_EMERG(log, 0,
+            "xrootd authdb: invalid record type \"%s\"",
+            "each record must begin with a single-letter type in column 1",
+            "valid record types are = x s g h n o r t u; fix this line in "
+            "the authdb file",
+            w[0]);
         return NGX_ERROR;
     }
     rtype = w[0][0];
@@ -563,8 +573,13 @@ xrootd_acc_authfile_parse(ngx_log_t *log, const char *file,
 
     fd = ngx_open_file((u_char *) file, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (fd == NGX_INVALID_FILE) {
-        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
-                      "xrootd authdb: open \"%s\" failed", file);
+        XROOTD_DIAG_EMERG(log, ngx_errno,
+            "xrootd authdb: cannot open \"%s\"",
+            "the path in xrootd_acc_authdb is wrong or unreadable by the "
+            "nginx user",
+            "check the path exists and the nginx master/worker user can read "
+            "it (the OS reason is appended below)",
+            file);
         return NULL;
     }
     if (ngx_fd_info(fd, &fi) == NGX_FILE_ERROR) {
@@ -573,8 +588,13 @@ xrootd_acc_authfile_parse(ngx_log_t *log, const char *file,
     }
     fsize = (size_t) ngx_file_size(&fi);
     if (fsize > XROOTD_ACC_AUTHDB_MAX) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-                      "xrootd authdb \"%s\" exceeds 1 MiB", file);
+        XROOTD_DIAG_EMERG(log, 0,
+            "xrootd authdb \"%s\" exceeds the 1 MiB limit",
+            "the file is larger than the parser accepts — usually a wrong "
+            "path (pointing at a data file) or a runaway generated authdb",
+            "confirm xrootd_acc_authdb points at the authorization file, not "
+            "something else; split or trim it below 1 MiB",
+            file);
         ngx_close_file(fd);
         return NULL;
     }
@@ -609,8 +629,12 @@ xrootd_acc_authfile_parse(ngx_log_t *log, const char *file,
     nread = ngx_read_fd(fd, buf, fsize);
     ngx_close_file(fd);
     if (nread < 0 || (size_t) nread != fsize) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-                      "xrootd authdb: read \"%s\" failed", file);
+        XROOTD_DIAG_EMERG(log, 0,
+            "xrootd authdb: short read of \"%s\"",
+            "the file changed size or an I/O error occurred while reading it",
+            "make sure the authdb is written atomically (write-then-rename), "
+            "then re-run nginx -t",
+            file);
         ngx_destroy_pool(pool);
         return NULL;
     }

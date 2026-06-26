@@ -215,6 +215,7 @@ substitute_config() {
     
     # Provide sensible defaults which can be overridden by the environment
     : "${NGINX_ANON_PORT:=11094}"
+    : "${NGINX_ANON_RESUME_OFF_PORT:=11118}"
     : "${NGINX_GSI_PORT:=11095}"
     : "${NGINX_GSI_TLS_PORT:=11096}"
     : "${NGINX_TOKEN_PORT:=11097}"
@@ -266,6 +267,7 @@ substitute_config() {
 
     sed -e "s|{PORT}|$NGINX_PORT|g" \
         -e "s|{ANON_PORT}|${NGINX_ANON_PORT}|g" \
+        -e "s|{ANON_RESUME_OFF_PORT}|${NGINX_ANON_RESUME_OFF_PORT}|g" \
         -e "s|{GSI_PORT}|${NGINX_GSI_PORT}|g" \
         -e "s|{GSI_TLS_PORT}|${NGINX_GSI_TLS_PORT}|g" \
         -e "s|{TOKEN_PORT}|${NGINX_TOKEN_PORT}|g" \

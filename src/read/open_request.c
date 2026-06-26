@@ -1,4 +1,5 @@
 #include "open.h"
+#include "../ssi/ssi.h"
 #include "../path/op_path.h"
 #include "../manager/registry.h"
 #include "../manager/redir_cache.h"
@@ -8,6 +9,7 @@
 #include "../cms/cms_internal.h"
 #include "../compat/codec_core.h"
 #include "../protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
+#include "../zip/zip_member.h"        /* phase-57 W2: ZIP member access */
 
 #include <string.h>
 #include <unistd.h>
@@ -88,6 +90,81 @@ open_negotiate_compress_codec(xrootd_ctx_t *ctx,
 	return (uint8_t) d->id;
 }
 
+/* ---- Function: open_extract_zip_member() ----
+ *
+ * WHAT: Phase-57 W2 — pull a validated ZIP member name out of the kXR_open opaque
+ *       "?xrdcl.unzip=<member>".  Returns 1 with out[] filled (NUL-terminated)
+ *       for a usable member, 0 when no "xrdcl.unzip=" key is present (open the
+ *       archive normally), or -1 when the key IS present but its value is invalid
+ *       (empty / too long / traversal) — the caller rejects with kXR_ArgInvalid.
+ * WHY:  ZIP member access serves one file inside an archive.  The member name is
+ *       intra-archive, but a hostile name must never be trusted, so reject empty,
+ *       absolute ("/..."), and any ".." path component here, before it reaches the
+ *       central-directory lookup.
+ * HOW:  Extract the opaque (same carrier as the compression negotiation), scan for
+ *       the "xrdcl.unzip=" key on a token boundary (start / '&' / '?'), copy the
+ *       value up to the next '&', then reject leading '/', a bare "..", a leading
+ *       "../", any embedded "/../", or a trailing "/..".
+ */
+static int
+open_extract_zip_member(xrootd_ctx_t *ctx, char *out, size_t outsz)
+{
+	char        opaque[XROOTD_MAX_PATH + 1];
+	const char *p, *val, *end;
+	size_t      vlen;
+
+	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+		return 0;
+	}
+	if (!open_extract_opaque(ctx->payload, ctx->cur_dlen, opaque, sizeof(opaque))) {
+		return 0;
+	}
+
+	p = strstr(opaque, "xrdcl.unzip=");
+	if (p == NULL) {
+		return 0;
+	}
+	if (p != opaque && p[-1] != '&' && p[-1] != '?') {
+		return 0;   /* not on a key boundary */
+	}
+
+	/* From here the "xrdcl.unzip=" key IS present: a bad value is an explicit
+	 * error (return -1, caller rejects with kXR_ArgInvalid), NOT a fall-through
+	 * to opening the whole archive — so a traversal attempt is surfaced, not
+	 * silently ignored. */
+	val = p + (sizeof("xrdcl.unzip=") - 1);
+	end = val;
+	while (*end != '\0' && *end != '&') {
+		end++;
+	}
+	vlen = (size_t) (end - val);
+	if (vlen == 0 || vlen >= outsz) {
+		return -1;
+	}
+
+	ngx_memcpy(out, val, vlen);
+	out[vlen] = '\0';
+
+	/* Intra-archive traversal / absolute-path guard. */
+	if (out[0] == '/') {
+		return -1;
+	}
+	if (ngx_strcmp(out, "..") == 0) {
+		return -1;
+	}
+	if (vlen >= 3 && out[0] == '.' && out[1] == '.' && out[2] == '/') {
+		return -1;   /* leading "../" */
+	}
+	if (strstr(out, "/../") != NULL) {
+		return -1;
+	}
+	if (vlen >= 3 && ngx_strcmp(out + vlen - 3, "/..") == 0) {
+		return -1;   /* trailing "/.." */
+	}
+
+	return 1;
+}
+
 /* SciTags echo timer (phase-34): periodically emit an "ongoing" firefly for a
  * long-lived marked connection.  ev->data is the xrootd_ctx_t; re-arms itself
  * until the connection is torn down (the timer is cancelled in on_disconnect). */
@@ -153,6 +230,24 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 	/* Determine whether this is a write-mode open (shared write-bit set). */
 	is_write = xrootd_open_options_is_write(options);
+
+	/*
+	 * §7 XrdSsi: an open of a "/.ssi/<service>" resource is a unary RPC channel,
+	 * not a file — intercept before path resolution/open. Clean early-return:
+	 * non-SSI opens are byte-for-byte unchanged.
+	 */
+	if (conf->ssi_enable) {
+		char        ssi_path[PATH_MAX];
+		const char *svc;
+		size_t      svclen;
+
+		if (xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+		                        ssi_path, sizeof(ssi_path), 1)
+		    && xrootd_ssi_match(conf, ssi_path, &svc, &svclen))
+		{
+			return xrootd_ssi_open(ctx, c, svc, svclen);
+		}
+	}
 
 	/*
 	 * TPC (Third-Party Copy) detection.
@@ -529,6 +624,26 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 							  clean_path, full_path, conf,
 							  XROOTD_AUTH_READ, 0) != NGX_OK) {
 			return ctx->write_rc;
+		}
+
+		/* Phase-57 W2: ZIP member access.  The archive existence check and READ
+		 * auth above gate access to the member; serve the requested member of the
+		 * archive instead of the whole file.  (Opt-in via xrootd_zip_access; the
+		 * read-through cache path returned earlier, so this is the direct-serve
+		 * case.) */
+		if (conf->zip_access) {
+			char zipmember[PATH_MAX];
+			int  zr = open_extract_zip_member(ctx, zipmember,
+			                                  sizeof(zipmember));
+			if (zr < 0) {
+				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+				                  clean_path, "zip", kXR_ArgInvalid,
+				                  "invalid zip member name");
+			}
+			if (zr > 0) {
+				return xrootd_zip_open_member(ctx, c, conf, clean_path,
+				                              full_path, zipmember, options);
+			}
 		}
 
 		/* Phase 35: residency gate. A nearline file (on the backend, not on

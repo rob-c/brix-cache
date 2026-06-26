@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TOKEN_TOKEN_H
+#define XROOTD_TOKEN_TOKEN_H
 
 /*
  * token/token.h
@@ -145,3 +146,5 @@ int xrootd_token_check_read(const xrootd_token_scope_t *scopes,
  */
 int xrootd_token_check_write(const xrootd_token_scope_t *scopes,
                              int scope_count, const char *path);
+
+#endif /* XROOTD_TOKEN_TOKEN_H */

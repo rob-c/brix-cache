@@ -16,6 +16,7 @@
 #include "manager/health_check.h"
 #include "manager/registry.h"
 #include "metrics/metrics_macros.h"
+#include "compat/log_diag.h"
 
 #include <netdb.h>
 #include <sys/socket.h>
@@ -208,9 +209,13 @@ xrootd_hc_write_handler(ngx_event_t *wev)
         if (getsockopt(c->fd, SOL_SOCKET, SO_ERROR, (char *) &err, &len) == -1
             || err != 0)
         {
-            ngx_log_error(NGX_LOG_WARN, hc->log, err, /* may be 0 */
-                          "xrootd: health check: %s:%d connect failed",
-                          hc->host, (int) hc->port);
+            XROOTD_DIAG_WARN(hc->log, err, /* may be 0 */
+                "xrootd: health check failed to connect to %s:%d",
+                "the cluster member is down or unreachable from the manager",
+                "check that member's xrootd/data service and the network path "
+                "to it; it is marked DOWN and clients are routed elsewhere "
+                "until it passes again",
+                hc->host, (int) hc->port);
             xrootd_hc_finish(hc, 0);
             return;
         }
@@ -398,9 +403,13 @@ xrootd_hc_timeout_handler(ngx_event_t *ev)
 {
     xrootd_hc_ctx_t *hc = ev->data;
 
-    ngx_log_error(NGX_LOG_WARN, hc->log, 0,
-                  "xrootd: health check: %s:%d timed out",
-                  hc->host, (int) hc->port);
+    XROOTD_DIAG_WARN(hc->log, 0,
+        "xrootd: health check to %s:%d timed out",
+        "the member accepted the TCP connection but never finished the "
+        "health probe — it is overloaded, hung, or half-broken",
+        "investigate that member's load and logs; it is marked DOWN until it "
+        "answers a probe within the timeout",
+        hc->host, (int) hc->port);
     xrootd_hc_finish(hc, 0);
 }
 

@@ -422,3 +422,98 @@ xrootd_http_request_header_add(ngx_http_request_t *r, const char *key,
 
     return NGX_OK;
 }
+
+/* ---- query-string token helpers (shared by §1 ?authz= and form decoding) ---- */
+
+static int
+xrootd_hex_nibble(u_char c)
+{
+    if (c >= '0' && c <= '9') { return c - '0'; }
+    if (c >= 'a' && c <= 'f') { return c - 'a' + 10; }
+    if (c >= 'A' && c <= 'F') { return c - 'A' + 10; }
+    return -1;
+}
+
+size_t
+xrootd_urldecode_inplace(char *str)
+{
+    char *rp = str;
+    char *wp = str;
+    int   hi, lo;
+
+    while (*rp) {
+        if (*rp == '%' && rp[1] && rp[2]
+            && (hi = xrootd_hex_nibble((u_char) rp[1])) >= 0
+            && (lo = xrootd_hex_nibble((u_char) rp[2])) >= 0)
+        {
+            *wp++ = (char) ((hi << 4) | lo);
+            rp   += 3;
+        } else if (*rp == '+') {
+            *wp++ = ' ';
+            rp++;
+        } else {
+            *wp++ = *rp++;
+        }
+    }
+    *wp = '\0';
+    return (size_t) (wp - str);
+}
+
+ngx_int_t
+xrootd_http_arg(ngx_http_request_t *r, const char *name, size_t name_len,
+    ngx_str_t *out)
+{
+    ngx_str_t v;
+
+    if (r == NULL || out == NULL || r->args.len == 0) {
+        return NGX_DECLINED;
+    }
+    if (ngx_http_arg(r, (u_char *) name, name_len, &v) != NGX_OK) {
+        return NGX_DECLINED;
+    }
+    out->data = ngx_pnalloc(r->pool, v.len + 1);
+    if (out->data == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(out->data, v.data, v.len);
+    out->data[v.len] = '\0';
+    out->len = v.len;
+    return NGX_OK;
+}
+
+void
+xrootd_http_redact_query_token(ngx_str_t *query)
+{
+    static const char *const keys[] = { "authz=", "access_token=" };
+    size_t                    k;
+
+    if (query == NULL || query->data == NULL || query->len == 0) {
+        return;
+    }
+
+    /* Length-preserving: overwrite each token value with 'x' in place. The log
+     * sources (r->args / r->unparsed_uri / r->request_line) alias overlapping
+     * regions of the same request buffer, so we must NOT memmove/shrink — that
+     * would desync their independent ->len fields. Overwriting same-length is
+     * idempotent and safe to apply to all three. */
+    for (k = 0; k < sizeof(keys) / sizeof(keys[0]); k++) {
+        u_char *p    = query->data;
+        u_char *end  = query->data + query->len;
+        size_t  klen = ngx_strlen(keys[k]);
+
+        while (p < end
+               && (p = ngx_strlcasestrn(p, end, (u_char *) keys[k], klen - 1))
+                  != NULL)
+        {
+            u_char *v = p + klen;
+            /* A query arg value ends at '&'; in r->request_line it also ends at the
+             * SP before the HTTP version (and CR/LF/HTAB) — stop there so we never
+             * clobber " HTTP/1.1". */
+            while (v < end && *v != '&' && *v != ' ' && *v != '\t'
+                   && *v != '\r' && *v != '\n') {
+                *v++ = 'x';
+            }
+            p = v;
+        }
+    }
+}

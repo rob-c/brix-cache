@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PATH_PATH_INTERNAL_H
+#define XROOTD_PATH_PATH_INTERNAL_H
 
 #include "../ngx_xrootd_module.h"
 
@@ -51,3 +52,5 @@ int xrootd_get_canonical_root(ngx_log_t *log, const ngx_str_t *root,
 ngx_int_t xrootd_finalize_path_rules(ngx_log_t *log, const ngx_str_t *root,
     ngx_array_t *rules, size_t element_size, size_t path_offset,
     size_t resolved_offset, size_t resolved_size);
+
+#endif /* XROOTD_PATH_PATH_INTERNAL_H */

@@ -5,12 +5,14 @@
 
 /*
  * Parse the WebDAV "Timeout" request header into an ABSOLUTE expiry instant.
- * Returns ngx_current_msec + (seconds * 1000), i.e. an ngx_msec_t deadline
- * (not a duration). Accepts "Second-<n>" and "Infinite"; missing/garbage
- * defaults to 3600s. Requested seconds are clamped to [1, conf->lock_timeout],
- * so "Infinite" and any oversized value yield conf->lock_timeout. Never fails.
+ * Returns ngx_time() + seconds, i.e. an absolute Unix WALL-CLOCK-seconds deadline
+ * (not a duration, and NOT the monotonic ngx_current_msec — the value is
+ * persisted in the lock xattr and must survive a reboot). Accepts "Second-<n>"
+ * and "Infinite"; missing/garbage defaults to 3600s. Requested seconds are
+ * clamped to [1, conf->lock_timeout], so "Infinite" and any oversized value
+ * yield conf->lock_timeout. Never fails.
  */
-ngx_msec_t webdav_lock_parse_timeout(ngx_http_request_t *r,
+int64_t webdav_lock_parse_timeout(ngx_http_request_t *r,
     ngx_http_xrootd_webdav_loc_conf_t *conf);
 /*
  * Test whether the client presented a given lock token for refresh/unlock.

@@ -67,6 +67,48 @@ webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
     return NGX_HTTP_FORBIDDEN;
 }
 
+/* Largest accepted bearer token (DoS guard on the query-string path). */
+#define WEBDAV_QUERY_TOKEN_MAX 8192
+
+/*
+ * webdav_bearer_from_query — extract a bearer token from ?authz= / ?access_token=.
+ *
+ * WHAT: query-string fallback used only when no Authorization header carries a
+ *       Bearer token (davix/gfal2/xrdcp redirect + pre-signed-URL flows).
+ * WHY:  XrdHttp accepts the token in the URL; matching it is required for WLCG
+ *       client interop. The header path stays primary.
+ * HOW:  copies the raw arg into r->pool, URL-decodes in place, strips an optional
+ *       case-insensitive "Bearer " prefix, and enforces a length cap. On NGX_OK
+ *       *out is a NUL-terminated pool slice. NGX_DECLINED when disabled/absent.
+ */
+static ngx_int_t
+webdav_bearer_from_query(ngx_http_request_t *r,
+                         ngx_http_xrootd_webdav_loc_conf_t *conf, ngx_str_t *out)
+{
+    ngx_str_t raw;
+    size_t    len;
+
+    if (!conf->http_query_token) {
+        return NGX_DECLINED;
+    }
+    if (xrootd_http_arg(r, "authz", 5, &raw) != NGX_OK
+        && xrootd_http_arg(r, "access_token", 12, &raw) != NGX_OK) {
+        return NGX_DECLINED;
+    }
+    len = xrootd_urldecode_inplace((char *) raw.data);
+    if (len >= 7 && ngx_strncasecmp(raw.data, (u_char *) "Bearer ", 7) == 0) {
+        raw.data += 7;
+        len      -= 7;
+        while (len > 0 && raw.data[0] == ' ') { raw.data++; len--; }
+    }
+    if (len == 0 || len > WEBDAV_QUERY_TOKEN_MAX) {
+        return NGX_DECLINED;
+    }
+    out->data = raw.data;
+    out->len  = len;
+    return NGX_OK;
+}
+
 /* ---- Function: webdav_verify_bearer_token() ----
  *
  * WHAT: Validates WLCG/SciToken bearer tokens presented in HTTP Authorization headers using either JWKS-based JWT verification or macaroon secret-key validation. Extracts token claims (subject, scopes, expiration) and stores them in the request context for downstream operations. Supports grace-period key rotation — if a macaroon is rejected by the current secret but accepted by an old secret configured via conf->token_macaroon_secret_old, the token is still accepted with an informational log message indicating graceful migration during nginx -s reload.
@@ -123,21 +165,35 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     }
  
     if (r->headers_in.authorization == NULL) {
-        return NGX_DECLINED;
-    }
- 
-    auth_hdr = r->headers_in.authorization->value;
-
-    rc = xrootd_http_extract_bearer(&auth_hdr, &bearer);
-    if (rc == NGX_DECLINED) {
-        return NGX_DECLINED;
-    }
-    if (rc != NGX_OK) {
-        return NGX_HTTP_UNAUTHORIZED;
+        /* No Authorization header — try the ?authz= query fallback (§1). */
+        if (webdav_bearer_from_query(r, conf, &bearer) != NGX_OK) {
+            return NGX_DECLINED;
+        }
+    } else {
+        auth_hdr = r->headers_in.authorization->value;
+        rc = xrootd_http_extract_bearer(&auth_hdr, &bearer);
+        if (rc == NGX_DECLINED) {
+            /* Header present but not Bearer — still allow the query fallback. */
+            if (webdav_bearer_from_query(r, conf, &bearer) != NGX_OK) {
+                return NGX_DECLINED;
+            }
+        } else if (rc != NGX_OK) {
+            return NGX_HTTP_UNAUTHORIZED;
+        }
     }
 
     token = (const char *) bearer.data;
     token_len = bearer.len;
+
+    /* §1: the token has now been consumed for auth. Scrub any ?authz=/?access_token=
+     * value, length-preserving, from every log source (args, unparsed URI, request
+     * line) so a URL-borne bearer token never reaches access/error logs. r->uri (the
+     * decoded path used for routing/scope) excludes the query, so this is safe. */
+    if (r->args.len > 0) {
+        xrootd_http_redact_query_token(&r->args);
+        xrootd_http_redact_query_token(&r->unparsed_uri);
+        xrootd_http_redact_query_token(&r->request_line);
+    }
  
     /*
      * Token-validation caches, consulted cheapest-first so token auth does not

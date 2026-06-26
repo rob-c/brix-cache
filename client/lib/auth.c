@@ -140,7 +140,7 @@ xrdc_authenticate(xrdc_conn *c, const char *seclist, const xrdc_opts *o,
         if (!xrootd_sec_proto_advertised(seclist, m->name, parms, sizeof(parms))) {
             continue;
         }
-        if (m->have_creds != NULL && !m->have_creds()) {
+        if (m->have_creds != NULL && !m->have_creds(c)) {
             continue;
         }
 
@@ -207,7 +207,7 @@ xrdc_auth_explain(xrdc_conn *c, const xrdc_opts *o, FILE *out)
             why = "skipped (--auth filter)";
         } else if (!xrootd_sec_proto_advertised(c->sec_list, m->name, parms, sizeof(parms))) {
             why = "not offered by server";
-        } else if (m->have_creds != NULL && !m->have_creds()) {
+        } else if (m->have_creds != NULL && !m->have_creds(c)) {
             why = "offered, but no local credentials";
         } else if (!picked) {
             why = "offered + creds present → preferred";

@@ -89,7 +89,7 @@ their current documentation status after the 2026-06-14 cleanup.
 |---|---|---|---|
 | `docs/05-operations/operation-status.md` | `krb5` auth was not planned; `kXR_prepare/kXR_stage` had no tape dispatch. | `krb5` exists in `src/krb5`; FRM queue and Tape REST gateway support exist, while full XrdFrm/MSS parity remains partial. | Corrected. |
 | `docs/10-reference/xrootd-feature-matrix.md` | UNIX/krb5/macaroons/XrdHttp/protocol flags were missing. | Source has `src/unix`, `src/krb5`, macaroon issue/verify paths, XrdHttp/WebDAV paths, and protocol-flag tests. | Replaced with a current source-verified matrix. |
-| `docs/10-reference/gaps-vs-xrootd.md` | Rate limiting, XrdHttp, HTTP-TPC, FRM/tape, and delegation work were still missing. | Those features exist; remaining gaps are plugin ecosystems, full XrdFrm/MSS parity, host/pwd auth, and selected proxy/admin edges. | Replaced with a current remaining-gaps document. |
+| `docs/10-reference/gaps-vs-xrootd.md` | Rate limiting, XrdHttp, HTTP-TPC, FRM/tape, and delegation work were still missing. | Those features exist; remaining gaps are non-POSIX storage backends (EC/Ceph/OssArc/OssCsi), full XrdFrm/MSS parity, the loadable plugin ABI itself, and selected proxy/admin edges. (`host`/`pwd` auth are now implemented.) | Replaced with a current remaining-gaps document. |
 | `docs/10-reference/comparison-nginx-xrootd-vs-canonical.md` | Upstream/canonical XRootD lacked WebDAV/HTTP-TPC and only had native TPC. | Upstream has `src/XrdHttpTpc/`; nginx adds different HTTP-TPC hardening and operational integration, not the first HTTP-TPC implementation. | Corrected and pointed at this source-verified comparison. |
 | `docs/09-developer-guide/capability-flags-implementation-plan.md` | Several protocol flags were missing/planned. | `src/session/protocol.c` sets the implemented flags and `tests/test_protocol_flags.py` verifies them. | Marked historical. |
 | `docs/05-operations/management.md` and `src/query/README.md` | `kXR_prepare` stage always returned request id `"0"` and kept per-session QPrep state only. | `"0"` is the FRM-off legacy path; FRM-on uses durable request records and real reqids in `src/frm/`. | Corrected. |
@@ -165,8 +165,8 @@ Source anchors:
 | Kerberos 5 | `XrdSeckrb5`. | `src/krb5/auth.c`, `src/krb5/config.c`; optional Kerberos detection in `config`. | Parity | Existing docs that call this absent are stale. |
 | Bearer token / `ztn` | `XrdSecztn`; `XrdSciTokens`. | `src/token/validate.c`, `src/token/jwks.c`, `src/token/scopes.c`; WebDAV bearer auth. | Partial | WLCG/JWT validation and path scopes exist. Upstream SciTokens has a broader helper/config/monitor model. |
 | Macaroons | `XrdMacaroons` HTTP handlers and authz. | `src/token/macaroon.c`, `src/token/macaroon_issue.c`, `src/webdav/macaroon_endpoint.c`. | Partial | Validation, caveats, third-party discharge bundles, and token endpoint exist. Review wire-format compatibility if claiming exact `XrdMacaroons` parity. |
-| Password auth | `XrdSecpwd` and `xrdpwdadmin`. | No comparable `pwd` implementation found. | Missing | Real upstream feature, but legacy and generally not desirable for new deployments. |
-| Host auth | Built-in `host` protocol in `XrdSec`. | No comparable `host` security protocol found. | Missing | May matter for legacy trusted-network deployments. |
+| Password auth | `XrdSecpwd` and `xrdpwdadmin`. | `src/pwd/auth.c` + `src/pwd/pwdfile.c`; 2-round DH-bootstrapped handshake, opt-in `xrootd_auth pwd` + `xrootd_pwd_file`. | Partial / parity | Wire-equivalent of `XrdSecpwd`; not the full `xrdpwdadmin`/server-public-key admin ecosystem. Recommended under TLS. |
+| Host auth | Built-in `host` protocol in `XrdSec` (`XrdSecProtocolhost.cc`). | `src/host/auth.c`; reverse-DNS allowlist, opt-in `xrootd_auth host` + `xrootd_host_allow`. | Parity | Identity from socket reverse-DNS only; fail-closed, trusted-network only by design. |
 | Full `XrdAcc` authdb semantics | `XrdAcc` supports rich auth-file syntax and identities. | `src/path/authdb.c` supports user/group/principal/host rules, longest-prefix matching, and rw/admin-like privilege bits. | Partial | Good practical authdb, not full `XrdAcc` semantics such as all upstream identity classes/templates/exclusive-list behavior. |
 | Token scope authorization | Upstream SciTokens maps token claims to XrdAcc privileges. | `src/token/scopes.c`, `src/path/auth_gate.c`, WebDAV token checks. | Partial / nginx+ | Scope enforcement is explicit and path-boundary aware; upstream configurability is broader. |
 | Global write gate before token scope | Upstream policy depends on configured authz stack. | `xrootd_allow_write` and WebDAV/common write gates. | nginx+ | Useful operational safety: global write enablement remains a precondition. |
@@ -231,7 +231,7 @@ Source anchors:
 | WLCG Tape REST | Not a core XRootD daemon feature in the reviewed source tree. | `src/webdav/tape_rest.c`. | nginx+ | Gives FTS/gfal2-friendly HTTP tape operations tied to the same durable FRM queue. |
 | Migrate/purge policy engine | Upstream `XrdFrmMigrate`, `XrdFrmPurge`, purged daemon. | `src/frm/migrate_purge.c` scaffold/stub per docs. | Missing / Partial | Keep as a serious reviewer item for tape sites requiring disk-to-tape migration or watermark GC inside this process. |
 | External tape/MSS driver abstraction | Upstream has MSS/ARC/Frm-style abstractions and daemon workflows. | Operator `copycmd`/`residency_cmd`; no linked tape library. | Partial | Simpler and auditable, but not drop-in for sites depending on upstream MSS plugins. |
-| Zip archive support | `XrdZip` source exists. | No comparable ZIP virtual filesystem found. | Missing | Likely not needed for most replacement targets. |
+| Zip archive support | `XrdZip` source exists. | `src/zip/` — pure-C central-directory reader (`zip_dir.c`), `zip_member.c`, HTTP member serving (`zip_http.c`), wired into the build. | Partial | ZIP-member access over HTTP exists; not full upstream cross-protocol parity. |
 | Remanufactured memory cache | `XrdRmc` source exists. | No comparable `XrdRmc` implementation found. | Missing | Mostly a specialized upstream cache feature. |
 | Checksum plugin framework | Upstream `XrdCks` plugin mapping supports deployment-specific checksum modules. | `src/compat/checksum.c` supports common algorithms including adler32/crc32/crc32c/md5/sha1/sha256 plus CRC-64/XZ and CRC-64/NVME via `src/compat/crc64.c`. | Partial / nginx+ for CRC64 | Full plugin-framework parity is still narrower; CRC64 itself is implemented. |
 | Client libraries/tools | Upstream ships `XrdCl`, `XrdPosix`, FUSE/tooling. | Not applicable to server module. | Not replacement-scope | This module replaces server behavior, not the upstream client SDK ecosystem. |
@@ -291,8 +291,8 @@ UDP monitoring.
 
 | Gap | Upstream evidence | nginx evidence | Impact | Suggested position |
 |---|---|---|---|---|
-| `pwd` authentication | `/tmp/xrootd-src/src/XrdSecpwd` | No `pwd` auth implementation found. | Legacy password-auth sites cannot drop in. | Keep missing unless a target site requires it. |
-| `host` authentication | `/tmp/xrootd-src/src/XrdSec/XrdSecProtocolhost.cc` | No `host` protocol implementation found. | Trusted-host legacy deployments may need migration. | Prefer modern auth; document as intentional legacy gap if not implementing. |
+| `pwd` authentication | `/tmp/xrootd-src/src/XrdSecpwd` | **Implemented** — `src/pwd/` (DH-bootstrapped handshake). | No longer a blocker; wire-equivalent, not the full `xrdpwdadmin` admin ecosystem. | Closed; advertise as available legacy scheme (TLS recommended). |
+| `host` authentication | `/tmp/xrootd-src/src/XrdSec/XrdSecProtocolhost.cc` | **Implemented** — `src/host/` (reverse-DNS allowlist). | No longer a blocker for trusted-network deployments. | Closed; advertise as fail-closed, trusted-network only. |
 | Full `XrdAcc` compatibility | `/tmp/xrootd-src/src/XrdAcc` | `src/path/authdb.c` implements a narrower authdb. | Complex existing auth files may need translation. | Build a migration guide or converter rather than cloning all `XrdAcc`. |
 | Full SciTokens plugin semantics | `/tmp/xrootd-src/src/XrdSciTokens` | `src/token/` validates WLCG/JWT and scopes. | Sites using advanced issuer/config/helper behavior need review. | Document supported claims/scopes precisely. |
 | Full `XrdFrm` daemon/admin ecosystem | `/tmp/xrootd-src/src/XrdFrm` | `src/frm/` plus Tape REST; migrate/purge scaffold. | Tape sites with upstream FRM operational workflows are not drop-in. | Present as functional tape gateway, not complete FRM clone. |
@@ -301,7 +301,7 @@ UDP monitoring.
 | Ceph plugin | `/tmp/xrootd-src/src/XrdCeph` | No plugin-level Ceph backend. | Ceph/RADOS-backed XRootD sites need POSIX/CephFS or a new backend. | Out of scope unless a target site requires it. |
 | XrdOssCsi tagstore/checksum store | `/tmp/xrootd-src/src/XrdOssCsi` | No comparable tagstore. | Persistent checksum/page-integrity workflows may differ. | Treat as storage-plugin gap. |
 | Checksum plugin framework breadth | `/tmp/xrootd-src/src/XrdCks`, `XrdVersionPlugin.hh` | Fixed local checksum set with CRC64/CRC64NVME included. | Compatibility gap only for uncommon site-specific checksum plugins. | Add plugins only if needed by site validation. |
-| ZIP virtual filesystem | `/tmp/xrootd-src/src/XrdZip` | No comparable implementation found. | Specialized use only. | Not critical for most HEP site replacement cases. |
+| ZIP virtual filesystem | `/tmp/xrootd-src/src/XrdZip` | **Partially implemented** — `src/zip/` (central-dir reader + HTTP member serving). | ZIP-member access over HTTP exists; full cross-protocol parity does not. | Mostly closed; validate breadth if a site needs full ZIP-member semantics. |
 | CMS admin/tooling completeness | `/tmp/xrootd-src/src/XrdCms` | `src/cms/`, `src/manager/` implement practical manager behavior. | Complex multi-tier production clusters may need careful conformance testing. | Claim manager/redirector support with caveats. |
 | Proxy async `kXR_waitresp`/`kXR_attn` relay | Upstream client/server supports async responses. | `src/upstream/response.c` forwards `kXR_waitresp`; no complete unsolicited upstream `kXR_attn` path was verified in this pass. | Could affect proxying to backends that park operations. | Keep as serious proxy-mode gap until source/test proves closure. |
 | Proxy `kXR_prepare` path-list rewrite | Upstream prepare supports path lists. | Existing proxy docs flag whole-payload rewrite behavior. | Path mapping proxy deployments may mishandle multi-path prepare. | Keep as serious gap unless tests/source show per-entry rewrite. |
@@ -321,8 +321,10 @@ Source-backed claims suitable for a review or position paper:
 - It supports HTTP/WebDAV/XrdHttp and HTTP-TPC; upstream also supports XrdHttp
   and XrdHttpTpc, so nginx's advantage is integration, hardening, and
   operations, not the mere existence of HTTP-TPC.
-- It implements modern auth paths including GSI, VOMS, SSS, Unix, Kerberos,
-  WLCG/JWT tokens, scopes, and macaroons; `pwd` and `host` remain missing.
+- It implements every standard upstream stream auth scheme: GSI, VOMS, SSS,
+  Unix, Kerberos, WLCG/JWT tokens, scopes, macaroons, and now `pwd` and `host`.
+  Only *custom* third-party sec plugins (no loadable sec-plugin ABI) remain out
+  of reach.
 - It is a focused, auditable POSIX-backed server/gateway with stronger nginx
   operational ergonomics, not a clone of every upstream storage plugin.
 

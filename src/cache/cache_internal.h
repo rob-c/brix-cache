@@ -134,7 +134,7 @@ int xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
     size_t len);
 /* Write all len bytes to a local fd, looping over short writes and retrying
  * EINTR. Returns 0 on success, -1 on error (errno set; a 0-byte write is -1). */
-int xrootd_cache_fd_write_all(int fd, const void *buf, size_t len);
+int xrootd_cache_fd_write_all(int fd, const void *buf, size_t len, off_t offset);
 
 /* Build "<path><suffix>" into dst (size dstsz). Returns 0 on success, -1 on
  * truncation/encoding error (dst contents then unspecified). */

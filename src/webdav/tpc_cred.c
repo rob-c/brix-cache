@@ -16,6 +16,7 @@
 #include "tpc_cred_internal.h"
 #include "tpc_config.h"
 #include "webdav.h"
+#include "../compat/log_diag.h"
 #include "../tpc/common/credential.h"
 #include "../compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
 
@@ -445,9 +446,13 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
     case XROOTD_TPC_CRED_TOKEN_EXCHANGE:
         if (wconf->tpc_cred.token_endpoint.len == 0
             || wconf->tpc_cred.token_endpoint.data == NULL) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                          "tpc_cred: token_endpoint not configured "
-                          "for token-exchange mode");
+            XROOTD_DIAG_ERR(r->connection->log, 0,
+                "tpc_cred: token-exchange is selected but no token endpoint "
+                "is configured",
+                "third-party-copy credential mode is token-exchange, but "
+                "xrootd_webdav_tpc_token_endpoint is unset",
+                "set the OAuth token endpoint for your IdP, or switch the TPC "
+                "credential mode away from token-exchange");
             webdav_tpc_cred_metric_increment(r, XROOTD_TPC_CRED_NERROR);
             return NGX_ERROR;
         }

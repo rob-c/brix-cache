@@ -27,15 +27,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* True if the default ccache holds a usable client principal (a kinit'd TGT). */
+/* True if the default ccache holds a usable client principal (a kinit'd TGT).
+ * c is accepted for interface uniformity; the store path for krb5 is not yet
+ * wired through first() (ccache env-pass is krb5-specific), so the probe
+ * always falls through to the default ccache check. */
 static int
-krb5_have(void)
+krb5_have(xrdc_conn *c)
 {
     krb5_context   ctx;
     krb5_ccache    cc;
     krb5_principal me = NULL;
     int            ok = 0;
 
+    (void) c;
     if (krb5_init_context(&ctx) != 0) {
         return 0;
     }

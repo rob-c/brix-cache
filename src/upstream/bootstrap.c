@@ -58,6 +58,47 @@ xrootd_upstream_build_login(ClientLoginRequest *req)
                            "xrd", kXR_ver005);
 }
 
+/*
+ * xrootd_upstream_continue_auth — respond to a kXR_authmore challenge during the
+ * outbound bootstrap (cache-fill origin), bounded by XRD_OBA_MAX_ROUNDS.
+ *
+ * WHAT: increments the per-connection authmore counter, aborts once it reaches the
+ *   bound (hostile/misconfigured origin → no unbounded loop), else sends the ztn
+ *   token credential and moves to the AUTH wait phase.
+ * WHY: the origin's sec layer may issue more than one kXR_authmore; the former
+ *   hard "second authmore → abort" both blocked any legitimate multi-round
+ *   continuation and duplicated the LOGIN/AUTH handling. One bounded helper closes
+ *   the hostile-loop security case and is the single seam a future GSI cache-fill
+ *   continuation hooks into.
+ * HOW: bound check → counter++ → require xrootd_upstream_token_file → delegate to
+ *   xrootd_upstream_send_token_auth (which arms the next read in XRD_UP_BS_AUTH).
+ *   Every failure path routes through xrootd_upstream_abort.
+ */
+static void
+xrootd_upstream_continue_auth(xrootd_upstream_t *up)
+{
+    ngx_stream_xrootd_srv_conf_t *conf;
+
+    if (up->authmore_count >= XRD_OBA_MAX_ROUNDS) {
+        xrootd_upstream_abort(up,
+            "upstream: too many kXR_authmore rounds (bounded)");
+        return;
+    }
+    up->authmore_count++;
+
+    conf = ngx_stream_get_module_srv_conf(
+        up->client_ctx->session, ngx_stream_xrootd_module);
+
+    if (conf->upstream_token_file.len == 0) {
+        xrootd_upstream_abort(up,
+            "upstream requires auth; set xrootd_upstream_token_file");
+        return;
+    }
+    if (xrootd_upstream_send_token_auth(up, conf) != NGX_OK) {
+        xrootd_upstream_abort(up, "upstream: token auth exchange failed");
+    }
+}
+
 void
 xrootd_upstream_handle_bootstrap_response(xrootd_upstream_t *up)
 {
@@ -127,29 +168,9 @@ xrootd_upstream_handle_bootstrap_response(xrootd_upstream_t *up)
         xrootd_upstream_abort(up, "upstream: unexpected read in TLS phase");
         return;
 
-    case XRD_UP_BS_LOGIN: {
-        ngx_stream_xrootd_srv_conf_t *conf;
-
+    case XRD_UP_BS_LOGIN:
         if (up->resp_status == kXR_authmore) {
-            if (up->authmore_count > 0) {
-                xrootd_upstream_abort(up,
-                    "upstream: repeated kXR_authmore (not supported)");
-                return;
-            }
-            up->authmore_count++;
-
-            conf = ngx_stream_get_module_srv_conf(
-                up->client_ctx->session, ngx_stream_xrootd_module);
-
-            if (conf->upstream_token_file.len == 0) {
-                xrootd_upstream_abort(up,
-                    "upstream requires auth; set xrootd_upstream_token_file");
-                return;
-            }
-            if (xrootd_upstream_send_token_auth(up, conf) != NGX_OK) {
-                xrootd_upstream_abort(up,
-                    "upstream: token auth exchange failed");
-            }
+            xrootd_upstream_continue_auth(up);
             return;  /* resume after write + read cycle */
         }
         if (up->resp_status != kXR_ok) {
@@ -158,14 +179,19 @@ xrootd_upstream_handle_bootstrap_response(xrootd_upstream_t *up)
         }
         up->bs_phase = XRD_UP_BS_DONE;
         break;
-    }
 
     case XRD_UP_BS_AUTH:
         /*
          * kXR_auth response after we sent a ztn token credential.
-         * kXR_ok → authenticated, proceed to send request.
-         * Anything else (including a second kXR_authmore) → abort.
+         *   kXR_ok       → authenticated, proceed to send the request.
+         *   kXR_authmore → the origin wants another round; continue the bounded
+         *                  exchange (XRD_OBA_MAX_ROUNDS) rather than fail outright.
+         *   anything else → reject.
          */
+        if (up->resp_status == kXR_authmore) {
+            xrootd_upstream_continue_auth(up);
+            return;
+        }
         if (up->resp_status != kXR_ok) {
             xrootd_upstream_abort(up, "upstream: token auth rejected by server");
             return;

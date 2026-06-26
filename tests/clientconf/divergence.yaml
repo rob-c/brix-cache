@@ -1,0 +1,49 @@
+# divergence.yaml — sanctioned, pinned differences between our client and stock.
+#
+# Consulted by diffcore's comparison verbs: for a (tool, case, dim) found here,
+# the requirement switches from "equal to stock" to "matches this expectation".
+# An UNREGISTERED difference still fails.  Cosmetic differences that the
+# normalization pipeline already erases (leading blank lines, version banners,
+# progress redraws, rates, timestamps) do NOT need an entry.
+#
+# kind: superset | replaced | extra-exit-code | format   (see divergence.py)
+
+- id: xrdcp.help.own-text
+  tool: xrdcp
+  case: help
+  dim: stdout
+  kind: replaced
+  reason: >
+    Our --help is our own usage text describing the project tool's vocabulary
+    and extra knobs; it is not a line-for-line copy of stock's help.
+  expect:
+    ours_must_match: "(?i)usage:\\s*xrdcp"
+  owner: client-tools
+  added: 2026-06-26
+
+- id: xrdfs.help.own-text
+  tool: xrdfs
+  case: help
+  dim: stdout
+  kind: replaced
+  reason: >
+    Our xrdfs help advertises the project sub-command set (du/df/tree/find/...)
+    in addition to the stock commands.
+  expect:
+    ours_must_match: "(?i)usage:\\s*xrdfs"
+  owner: client-tools
+  added: 2026-06-26
+
+- id: xrdfs.stat.own-frame
+  tool: xrdfs
+  case: stat-root-frame
+  dim: stdout
+  kind: format
+  reason: >
+    Stock prints a leading blank line before the stat block; ours omits it. The
+    normalizer collapses blank-line runs, so the fields compare equal — this
+    entry documents the intent for any test that asserts the raw frame.
+  expect:
+    ours_must_match: "(?s)Path:.*Size:.*Flags:"
+  owner: client-tools
+  added: 2026-06-26

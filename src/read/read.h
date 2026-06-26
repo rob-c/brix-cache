@@ -68,9 +68,17 @@ size_t xrootd_pgread_encode_pages(const u_char *src, size_t len, off_t offset,
  * bytes read (-1 on I/O error, *io_errno_out = errno). Output is byte-identical to
  * xrootd_pgread_encode_pages over the same bytes. Safe to call on a worker thread
  * (pure I/O + CRC; touches no ctx/connection/pool).
+ *
+ * When `nowait` is set the batched reads use preadv2(RWF_NOWAIT): if the whole
+ * range is NOT page-cache resident (any short batch or EAGAIN) the call aborts
+ * early with *nread_out=0 and *io_errno_out=EAGAIN, having produced nothing
+ * usable — the caller must treat that as a miss and fall back to a blocking
+ * read. A clean hit returns the full encoding with *nread_out==rlen. This powers
+ * the event-loop warm-cache fast path (skip the thread-pool offload when the
+ * data is resident); pass 0 for the normal blocking read.
  */
 size_t xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
                                          u_char *out, ssize_t *nread_out,
-                                         int *io_errno_out);
+                                         int *io_errno_out, int nowait);
 
 #endif // XROOTD_READ_H

@@ -6,6 +6,7 @@
 #include "../dashboard/dashboard_tracking.h"
 #include "../fs/vfs.h"
 #include "../shared/file_serve.h"
+#include "../zip/zip_http.h"   /* phase-57 W2: ZIP member access over S3 GET */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -64,6 +65,28 @@ s3_handle_get(ngx_http_request_t *r,
     char                identity[128];
     ngx_http_s3_req_ctx_t *s3ctx;
     const char         *subject;
+
+    /* Phase-57 W2: ZIP member access.  Auth/key resolution already happened in
+     * the dispatcher; serve the requested member of the archive object. */
+    if (cf->zip_access) {
+        char member[PATH_MAX];
+        int  zr = xrootd_zip_http_member_arg(r, member, sizeof(member));
+        if (zr < 0) {
+            return s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
+                                     "invalid xrdcl.unzip member");
+        }
+        if (zr > 0) {
+            ngx_int_t zs = xrootd_zip_http_serve(r, cf->common.root_canon,
+                                                 cf->zip_cd_max_bytes,
+                                                 fs_path, member);
+            if (zs == NGX_HTTP_NOT_FOUND) {
+                XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
+                return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                                         "The specified key does not exist.");
+            }
+            return zs;
+        }
+    }
 
     s3_vfs_ctx(r, fs_path, cf, &vctx);
     fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);

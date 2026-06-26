@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PATH_AUTH_GATE_H
+#define XROOTD_PATH_AUTH_GATE_H
 #include "../ngx_xrootd_module.h"
 
 /*
@@ -63,3 +64,5 @@ ngx_int_t xrootd_authz_check(xrootd_ctx_t *ctx, ngx_connection_t *c,
                             const char *reqpath, const char *resolved,
                             const char *op_name, int auth_level,
                             xrootd_acc_op_t aop);
+
+#endif /* XROOTD_PATH_AUTH_GATE_H */

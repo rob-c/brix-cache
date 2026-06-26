@@ -87,7 +87,14 @@ GSI_OBJS := $(BUILD)/gsi_core.o
 # base64url decode — the DECODE/scope core, not the JWKS signature-verify path).
 TOKEN := $(REPO)/src/token
 TOKEN_OBJS := $(BUILD)/scopes.o $(BUILD)/b64url.o
-OBJS  := $(COMPAT_OBJS) $(GSI_OBJS) $(TOKEN_OBJS)
+# Storage Driver POSIX raw fd ops (src/fs/backend/sd_posix.c). Under
+# -DXRDPROTO_NO_NGX only the worker-safe pread/pwrite/... slots + the driver
+# descriptor compile (the namespace/instance/registry ops are nginx-coupled and
+# #ifdef'd out), so checksum_core.c can route its fd reads through the same
+# xrootd_sd_posix_driver the module uses, with no nginx dependency.
+BACKEND := $(REPO)/src/fs/backend
+BACKEND_OBJS := $(BUILD)/sd_posix.o
+OBJS  := $(COMPAT_OBJS) $(GSI_OBJS) $(TOKEN_OBJS) $(BACKEND_OBJS)
 
 .PHONY: all check clean
 all: $(LIB)
@@ -107,6 +114,12 @@ $(BUILD)/gsi_core.o: $(GSI)/gsi_core.c | $(BUILD)
 $(BUILD)/scopes.o: $(TOKEN)/scopes.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/b64url.o: $(TOKEN)/b64url.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# Storage Driver POSIX raw fd ops live under src/fs/backend; explicit rule (its
+# "sd.h" resolves via the .c's own dir; the ngx-coupled headers are #ifdef'd
+# out under -DXRDPROTO_NO_NGX).
+$(BUILD)/sd_posix.o: $(BACKEND)/sd_posix.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 $(BUILD):

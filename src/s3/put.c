@@ -132,32 +132,6 @@ typedef struct {
     char                  root_canon[PATH_MAX];
 } s3_put_aio_t;
 
-/*
- * s3_put_vfs_ctx — build a transient VFS request descriptor for an already-
- * resolved confined path.  Replicates the reference helper in object.c
- * (s3_vfs_ctx) so the event-loop directory creation of PUT funnels through the
- * VFS mkdir (metrics + access-log + write gate) while delegating the same
- * confined syscalls underneath.  The staged object write itself stays on the
- * flat xrootd_staged_file_t because it is moved by value into the thread-pool
- * task (s3_put_aio_t / s3_chunk_aio_t) and finished on a worker thread.
- */
-static void
-s3_put_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
-{
-    ngx_http_s3_req_ctx_t *s3ctx;
-    int                    is_tls = 0;
-
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
-        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
-        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
-}
 
 /*
  * s3_thread_pool — resolve (and cache) the async-I/O thread pool for this
@@ -908,7 +882,7 @@ s3_put_body_inner(ngx_http_request_t *r)
         {
             xrootd_vfs_ctx_t pctx;
 
-            s3_put_vfs_ctx(r, parent, cf, &pctx);
+            s3_build_vfs_ctx(r, parent, cf, &pctx);
             if (xrootd_vfs_mkdir(&pctx, 0755, 0 /* no parents */) != NGX_OK
                 && errno != EEXIST)
             {
@@ -974,7 +948,7 @@ s3_put_body_inner(ngx_http_request_t *r)
                 } else {
                     xrootd_vfs_ctx_t pvctx;
 
-                    s3_put_vfs_ctx(r, parent, cf, &pvctx);
+                    s3_build_vfs_ctx(r, parent, cf, &pvctx);
                     if (xrootd_vfs_mkdir(&pvctx, 0755, 1 /* parents */) != NGX_OK
                         && errno != EEXIST) {
                         int mk_errno = errno;  /* capture before logging clobbers it */

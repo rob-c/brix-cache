@@ -20,6 +20,7 @@
  */
 
 #include "dashboard_http.h"
+#include "dashboard_json.h"
 #include "../path/beneath.h"
 #include "../compat/http_file_response.h"
 #include "../compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
@@ -132,49 +133,6 @@ dashboard_files_get_path(ngx_http_request_t *r, char *out, size_t outsz)
     return NGX_OK;
 }
 
-/* Serialise + send a json_t as application/json (no-store).  Takes ownership of
- * root (decref'd here), mirroring api.c's dashboard_send_json. */
-static ngx_int_t
-dashboard_files_send_json(ngx_http_request_t *r, ngx_int_t status, json_t *root)
-{
-    ngx_buf_t       *b;
-    ngx_chain_t      out;
-    ngx_table_elt_t *cc;
-    size_t           needed;
-    u_char          *buf;
-    ngx_int_t        rc;
-
-    needed = json_dumpb(root, NULL, 0, JSON_COMPACT);
-    if (needed == 0) { json_decref(root); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    buf = ngx_palloc(r->pool, needed);
-    if (buf == NULL) { json_decref(root); return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    json_dumpb(root, (char *) buf, needed, JSON_COMPACT);
-    json_decref(root);
-
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) { return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    b->pos = b->start = buf;
-    b->last = b->end = buf + needed;
-    b->memory = 1;
-    b->last_buf = 1;
-
-    r->headers_out.status           = status;
-    r->headers_out.content_length_n = (off_t) needed;
-    r->headers_out.content_type     = (ngx_str_t) ngx_string("application/json");
-    r->headers_out.content_type_len = r->headers_out.content_type.len;
-    cc = ngx_list_push(&r->headers_out.headers);
-    if (cc != NULL) {
-        cc->hash = 1;
-        ngx_str_set(&cc->key, "Cache-Control");
-        ngx_str_set(&cc->value, "no-store");
-    }
-
-    rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) { return rc; }
-    out.buf = b;
-    out.next = NULL;
-    return ngx_http_output_filter(r, &out);
-}
 
 /* Build one entry object from a statx result.  Returns a json_t (caller owns) or
  * NULL on OOM. */
@@ -295,7 +253,7 @@ ngx_http_xrootd_dashboard_files_handler(ngx_http_request_t *r)
     json_object_set_new(root, "truncated", truncated ? json_true() : json_false());
     json_object_set_new(root, "entries", arr);
 
-    return dashboard_files_send_json(r, NGX_HTTP_OK, root);
+    return dashboard_json_send(r, NGX_HTTP_OK, root);
 }
 
 /* ---- GET /xrootd/api/v1/download?path=<rel> ---------------------------- */

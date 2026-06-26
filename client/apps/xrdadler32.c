@@ -12,6 +12,7 @@
 int
 main(int argc, char **argv)
 {
+    /* err_exit=1 mirrors stock xrdadler32: any access/checksum failure exits 1. */
     return xrdc_cli_cksum_main(argv[0], "adler32", XRDC_CK_ADLER32,
-                               argc == 2 ? argv[1] : NULL);
+                               argc == 2 ? argv[1] : NULL, 1);
 }

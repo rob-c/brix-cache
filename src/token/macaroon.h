@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TOKEN_MACAROON_H
+#define XROOTD_TOKEN_MACAROON_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -32,3 +33,5 @@ ssize_t xrootd_macaroon_secret_parse(const char *hex, size_t hex_len,
 /* WHAT: Quick heuristic to distinguish macaroon tokens from JWT tokens for routing.
  * WHY: The token layer needs to dispatch authentication logic — JWTs use RS256 signature verification while macaroons use HMAC chain reconstruction. This check avoids expensive parsing of non-macaroon tokens by exploiting the structural difference (JWTs always have 3 dot-separated parts, macaroons don't). */
 int xrootd_token_is_macaroon(const char *token, size_t token_len);
+
+#endif /* XROOTD_TOKEN_MACAROON_H */

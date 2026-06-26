@@ -11,11 +11,15 @@ namespace mutations through this layer instead of calling `open`/`pread`/
 logging, page-CRC, and read-through/write-through cache integration are
 implemented **once**, here, and inherited by every protocol for free.
 
-The VFS sits between the protocol op handlers and the kernel. A handler builds an
+The VFS sits between the protocol op handlers and the **storage driver**
+([`backend/`](backend/README.md)) — POSIX by default — which performs the actual
+syscall over the kernel; the full data path is therefore `proto → VFS → POSIX`,
+and every byte that touches the export root takes it. A handler builds an
 `xrootd_vfs_ctx_t` (the export root, the already-resolved client path, the
 caller identity, write permission, TLS flag, cache config) and calls one VFS
-entry point. The VFS performs the syscall under kernel-enforced confinement,
-records a Prometheus metric and an access-log line, and hands back either an
+entry point. The VFS calls the storage driver to perform the syscall under
+kernel-enforced confinement, records a Prometheus metric and an access-log line,
+and hands back either an
 opaque handle (`xrootd_vfs_file_t` / `xrootd_vfs_dir_t`) or an
 `ngx_chain_t`/result struct that the caller frames onto the wire. Callers never
 see a raw `fd` except through the accessor `xrootd_vfs_file_fd()`.
@@ -80,8 +84,11 @@ xattr/copy/staged/delete paths in `prop_xattr.c`, `dead_props.c`, `copy.c`,
 > (`../tpc/source.c`), async/multipart S3 PUT assembly, the collection COPY/MOVE
 > engines — stays on the `xrootd_ns_*` / `compat/staged_file` tier. Both tiers
 > share the same `RESOLVE_BENEATH` confinement; only the VFS's metering/cache
-> layer is skipped on the worker tier. (Phase-55 plans to unify even that beneath
-> a pluggable storage-driver seam — see
+> layer is skipped on the worker tier. (Phase-55 has since landed the pluggable
+> storage-driver seam — [`backend/`](backend/README.md) — and the VFS handle data
+> plane, lifecycle, and hot open path now route through it, with POSIX as the
+> default driver; unifying the worker-tier namespace mutation beneath the same
+> seam remains the follow-up. See [`backend/README.md`](backend/README.md) and
 > [`../../docs/refactor/phase-55-storage-backend-abstraction.md`](../../docs/refactor/phase-55-storage-backend-abstraction.md).)
 
 ## Files
@@ -215,9 +222,10 @@ per-op data-plane metrics.
 8. **`stat` uses `lstat`** (no symlink follow) and `readdir` filters `.`/`..`.
    `xrootd_vfs_file_stat()` answers from the metadata cached at open time when the
    handle's `stat_current` bit is set (phase-45 W2/R1 — `adopt_fd` already
-   `fstat`'d the fd, and reads don't change it), avoiding a redundant `fstat` on
-   the GET hot path; `xrootd_vfs_write()` clears the bit so a write-then-stat
-   still issues a live `fstat`. read/write bound I/O against the *cached*
+   `fstat`'d the fd), avoiding a redundant `fstat` on the GET hot path. `adopt_fd`
+   sets the bit only for **read-only** handles, whose file cannot change through
+   them; a writable handle leaves it clear so any stat issues a live `fstat`.
+   read/write bound I/O against the *cached*
    `fh->size` for speed — a file grown by another writer won't be seen until reopen.
 9. **`errno` discipline.** Helpers set `errno` on failure and the observers
    restore the caller's `errno` after logging; rely on the documented `errno`,
@@ -246,6 +254,9 @@ per-op data-plane metrics.
 
 ## See also
 
+- [`backend/README.md`](backend/README.md) — the Storage Driver (SD) layer
+  directly beneath the VFS: the `xrootd_sd_driver_t` vtable and the POSIX driver
+  that issues every raw `pread`/`pwrite`/`copy_range`/`fstat`/`open` for this layer.
 - [`../path/README.md`](../path/README.md) — produces the confined
   `xrootd_path_result_t` and the `RESOLVE_BENEATH` open primitives this layer relies on.
 - [`../cache/README.md`](../cache/README.md) — read-through open + write-through mirroring hooked into open/read/write.

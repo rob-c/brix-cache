@@ -36,8 +36,67 @@
 #include "../compat/staged_file.h"
 #include "../write/wrts_journal.h"
 #include "../write/pgw_fob.h"
+#include "../cms/cns.h"
+#include "../cms/cms_internal.h"   /* ngx_xrootd_cms_ctx_t */
+#include "../cms/frame_io.h"       /* xrootd_cms_send_frame */
 #include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
+
+/*
+ * xrootd_cns_emit_close — §6: report a just-written file to the manager.
+ *
+ * Best-effort, fire-and-forget: only in EMIT mode, only for a writable handle,
+ * only when the worker's manager link is connected + logged in. The logical path
+ * (export-root-relative, what a client would stat) is derived by stripping
+ * root_canon from the handle's final path; size/mtime come from fstat of the fd.
+ */
+static void
+xrootd_cns_emit_close(xrootd_ctx_t *ctx, ngx_stream_xrootd_srv_conf_t *conf,
+    int idx)
+{
+    const char  *fpath, *logical, *root;
+    size_t       rlen;
+    struct stat  st;
+    uint8_t      buf[XROOTD_CNS_HDR_LEN + XROOTD_CNS_PATH_MAX];
+    size_t       n;
+
+    if (conf->cns_mode != XROOTD_CNS_EMIT || !ctx->files[idx].writable) {
+        return;
+    }
+    if (conf->cms_ctx == NULL || conf->cms_ctx->connection == NULL
+        || !conf->cms_ctx->logged_in)
+    {
+        return;
+    }
+
+    fpath = (ctx->files[idx].posc_final_path != NULL)
+            ? ctx->files[idx].posc_final_path : ctx->files[idx].path;
+    if (fpath == NULL) {
+        return;
+    }
+    if (ctx->files[idx].fd < 0 || fstat(ctx->files[idx].fd, &st) != 0
+        || !S_ISREG(st.st_mode))
+    {
+        return;
+    }
+
+    root    = conf->common.root_canon;
+    rlen    = ngx_strlen(root);
+    logical = fpath;
+    if (rlen > 0 && ngx_strncmp(fpath, root, rlen) == 0 && fpath[rlen] == '/') {
+        logical = fpath + rlen;   /* keep the leading '/' → client-facing path */
+    }
+
+    n = xrootd_cns_event_encode(XROOTD_CNS_ADD, logical, (uint64_t) st.st_size,
+                                (uint64_t) st.st_mtime, buf, sizeof(buf));
+    if (n == 0) {
+        return;
+    }
+    (void) xrootd_cms_send_frame(conf->cms_ctx->connection, 0, CMS_RR_CNS,
+                                 CMS_MOD_RAW, buf, n);
+}
 
 ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
     ClientCloseRequest *req = (ClientCloseRequest *) ctx->hdr_buf;
@@ -77,6 +136,11 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
     conf = ngx_stream_get_module_srv_conf(ctx->session,
                                           ngx_stream_xrootd_module);
     wt_local_path = ctx->files[idx].path;
+
+    /* §6 CNS: a data server reports a just-written file to the manager so the
+     * cluster name space learns its size/mtime. Best-effort, fire-and-forget over
+     * the worker's manager link; only for writable handles being closed. */
+    xrootd_cns_emit_close(ctx, conf, idx);
 
     /* Log before freeing so we still have the path and byte counters.
      * detail = average throughput for the transfer ("%.2fMB/s").

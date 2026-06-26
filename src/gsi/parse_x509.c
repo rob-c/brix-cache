@@ -12,6 +12,49 @@ extern EVP_PKEY *xrootd_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_d
     BIGNUM *client_public_bn);
 
 /*
+ * gsi_persist_session_cipher — stash the negotiated GSI session cipher on the
+ * connection so a later kXGS_pxyreq/kXGC_sigpxy delegation round (phase-57 §F6)
+ * can encrypt/decrypt its main with the same key. Purely additive: the key is
+ * already derived for the kXGC_cert decrypt; this copies it (≤32 bytes) + the
+ * cipher name + the IV flag. Inert unless xrootd_tpc_delegate consumes it. The
+ * key is cleansed once delegation completes (auth.c) or at disconnect.
+ */
+static void
+gsi_persist_session_cipher(xrootd_ctx_t *ctx, const char *name,
+                           const u_char *key, int keylen, int use_iv)
+{
+    int n = (keylen > 32) ? 32 : (keylen < 0 ? 0 : keylen);
+    size_t nl = ngx_strlen(name);
+
+    ngx_memcpy(ctx->gsi_sess_key, key, (size_t) n);
+    ctx->gsi_sess_keylen = n;
+    ctx->gsi_sess_use_iv = use_iv;
+    if (nl > sizeof(ctx->gsi_sess_cipher) - 1) {
+        nl = sizeof(ctx->gsi_sess_cipher) - 1;
+    }
+    ngx_memcpy(ctx->gsi_sess_cipher, name, nl);
+    ctx->gsi_sess_cipher[nl] = '\0';
+}
+
+/*
+ * gsi_capture_client_rtag — stash the client's kXGC_cert random tag from the
+ * decrypted main, so a §F6 kXGS_pxyreq can RSA-sign it (kXRS_signed_rtag) and the
+ * client's CheckRtag accepts the delegation round. Inert unless delegation runs.
+ */
+static void
+gsi_capture_client_rtag(xrootd_ctx_t *ctx, const u_char *plain, size_t plain_len)
+{
+    const uint8_t *rt = NULL;
+    size_t         rtl = 0;
+
+    if (xrootd_gsi_find_bucket(plain, plain_len, (uint32_t) kXRS_rtag, &rt, &rtl)
+        == 0 && rtl > 0 && rtl <= sizeof(ctx->gsi_deleg_client_rtag)) {
+        ngx_memcpy(ctx->gsi_deleg_client_rtag, rt, rtl);
+        ctx->gsi_deleg_client_rtag_len = (int) rtl;
+    }
+}
+
+/*
  * gsi_chain_from_plaintext — extract the client proxy chain from a decrypted
  * kXRS_main plaintext (shared by the unsigned and signed-DH round-2 paths).
  * The plaintext is itself an XrdSutBuffer carrying a kXRS_x509 bucket whose
@@ -188,6 +231,10 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
     ngx_memcpy(aeskey, secret, (size_t) cipher.key_len);
 
+    /* Persist the session cipher for a possible §F6 delegation round — signed-DH
+     * path always uses an IV-prepended main (use_iv=1). */
+    gsi_persist_session_cipher(ctx, cipher_name, aeskey, cipher.key_len, 1);
+
     {
         EVP_MD_CTX   *mdctx = EVP_MD_CTX_new();
         unsigned int  dlen = 32;
@@ -228,6 +275,7 @@ xrootd_gsi_parse_x509_signed(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, 0,
                    "xrootd: GSI signed-DH decrypted kXRS_main: %uz bytes",
                    plain_len);
+    gsi_capture_client_rtag(ctx, plain, plain_len);   /* §F6 delegation rtag */
     chain = gsi_chain_from_plaintext(plain, (int) plain_len, log);
     free(plain);
     return chain;
@@ -449,6 +497,9 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
             EVP_CIPHER_CTX_set_key_length(dctx, (int) use_len);
         }
         EVP_DecryptInit_ex(dctx, NULL, NULL, secret, iv);
+        /* Persist the session cipher for a possible §F6 delegation round before
+         * scrubbing — unsigned path: zero IV (use_iv=0). */
+        gsi_persist_session_cipher(ctx, cipher_name, secret, (int) use_len, 0);
         /* Key is now copied into dctx; scrub the plaintext secret immediately. */
         OPENSSL_cleanse(secret, secret_len);
     }
@@ -528,6 +579,8 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, 0,
                        "xrootd: GSI decrypted kXRS_main: %d bytes", plain_len);
+
+        gsi_capture_client_rtag(ctx, plain, (size_t) plain_len); /* §F6 deleg */
 
         if (gsi_find_bucket(plain, (size_t) plain_len, (uint32_t) kXRS_x509,
                             &x509_data, &x509_len) != 0) {

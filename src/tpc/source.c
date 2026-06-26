@@ -7,6 +7,9 @@
 #include <errno.h>
 #include <limits.h>
 #include <unistd.h>
+#include <time.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 
 #if defined(__linux__)
 #include <endian.h>
@@ -19,6 +22,169 @@
  * WHY: TPC (Third-Party Copy) transfers require the destination server to connect to a remote root:// origin, open the source file, stream all bytes into dst_fd, and close the remote handle. This function encapsulates the entire pull lifecycle — open → read loop → fsync → close — so launch.c/thread.c can delegate it to a thread-pool worker without managing the protocol sequence themselves. Handles peer diversity (minimal vs full ServerOpenBody), oksofar accumulation for large reads, EINTR-safe writes, and best-effort remote cleanup on failure paths.
  *
  * HOW: Build open_buf with ClientOpenRequest header + src_path + opaque "?tpc.key=...&tpc.org=..." → send_all(fd) kXR_open → recv_response fd status/body → check kXR_ok + dlen>=XRD_FHANDLE_LEN → memcpy fhandle → free(body) → offset=0 loop: build ClientReadRequest with streamid[1]=3, kXR_read, fhandle, htobe64(offset), htonl(TPC_CHUNK_SIZE) → send_all → inner for-loop: recv_response accumulating kXR_oksofar/kXR_ok frames → write body bytes to dst_fd using a positional VFS WRITE job at offset+got_this_req → got_this_req+=dlen → offset+=got_this_req → outer loop exits when done=1(got_this_req==0/EOF) or failed=1 → VFS SYNC dst_fd → shared remote-close ladder: build ClientCloseRequest with kXR_close + fhandle → send_all + recv_response (best-effort, discard result). */
+
+/* ------------------------------------------------------------------ */
+/* Async kXR_open resolution (phase-57 §F8)                              */
+/* ------------------------------------------------------------------ */
+
+/* Set the socket receive idle-timeout (SO_RCVTIMEO) in whole seconds. Best
+ * effort — a failure only means we fall back to the previously-set timeout. */
+static void
+tpc_set_rcvtimeo(int fd, int secs)
+{
+    struct timeval tv;
+
+    tv.tv_sec  = secs;
+    tv.tv_usec = 0;
+    (void) setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+}
+
+/*
+ * tpc_open_resolve — receive the kXR_open reply, transparently resolving the
+ * asynchronous XRootD flow-control statuses a real source may return before the
+ * open settles:
+ *
+ *   kXR_wait      — "retry in N s": sleep (clamped) and RESEND the open.
+ *   kXR_waitresp  — "the answer arrives later, unsolicited": do NOT resend; wait
+ *                   for the deferred kXR_attn(kXR_asynresp).
+ *   kXR_attn      — unwrap the embedded ServerResponseHeader + body (asynresp)
+ *                   and treat it as the real reply (which may itself be a wait →
+ *                   fold back into the loop).
+ *
+ * On return 0 the out params carry a TERMINAL reply (kXR_ok / kXR_error / …) the
+ * caller handles exactly as a synchronous open; the common case (a source that
+ * answers kXR_ok immediately) returns on the very first frame with no change in
+ * behaviour. Bounded on every axis — the caller tightens SO_RCVTIMEO around this
+ * call, and a clamped single wait, a total iteration cap and a wall-clock
+ * deadline guarantee a source that never resolves fails cleanly (-1) rather than
+ * hanging the pull thread. Runs on a thread-pool worker, so the bounded sleeps
+ * here block only this transfer's thread, never the nginx event loop.
+ */
+static int
+tpc_open_resolve(xrootd_tpc_pull_t *t, int fd,
+                 const u_char *open_buf, size_t send_len,
+                 uint16_t *status, u_char **body, uint32_t *dlen)
+{
+    time_t deadline = time(NULL) + TPC_OPEN_RESOLVE_MAX_SEC;
+    int    iters;
+
+    for (iters = 0; iters < TPC_OPEN_RESOLVE_MAX_ITERS; iters++) {
+        u_char   *b  = NULL;
+        uint32_t  dl = 0;
+        uint16_t  st = 0;
+
+        if (time(NULL) >= deadline) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC kXR_open async deadline exceeded (%ds)",
+                     TPC_OPEN_RESOLVE_MAX_SEC);
+            t->xrd_error = kXR_ServerError;
+            return -1;
+        }
+
+        if (tpc_recv_response(t, fd, &st, &b, &dl) != 0) {
+            snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_open recv failed");
+            return -1;
+        }
+
+        /* kXR_wait: sleep the (clamped) retry-after, then resend the open. */
+        if (st == kXR_wait) {
+            uint32_t secs = xrd_wait_secs_parse(b, dl, 1, TPC_OPEN_WAIT_CAP_SEC);
+
+            free(b);
+            sleep((unsigned) secs);
+            if (tpc_send_all(t, fd, open_buf, send_len) != 0) {
+                snprintf(t->err_msg, sizeof(t->err_msg),
+                         "TPC kXR_open resend (after kXR_wait) failed");
+                return -1;
+            }
+            continue;
+        }
+
+        /* kXR_waitresp: the seconds are informational; the real reply arrives
+         * unsolicited as a kXR_attn(asynresp). Do NOT resend — loop to receive
+         * it (bounded by the tightened SO_RCVTIMEO + the wall-clock deadline). */
+        if (st == kXR_waitresp) {
+            free(b);
+            continue;
+        }
+
+        /* kXR_attn: unwrap the deferred response. Body layout:
+         *   actnum[4 BE] reserved[4] embedded-ServerResponseHeader[8] body[dlen]
+         * where the embedded header is { streamid[2], status[2 BE], dlen[4 BE] }.
+         * Only kXR_asynresp carries a reply; anything else (e.g. an asyncms text
+         * notice) is not ours, so we keep waiting. */
+        if (st == kXR_attn) {
+            uint32_t actnum, edlen;
+            uint16_t est;
+            u_char  *ebody;
+
+            if (b == NULL || dl < 16) {
+                free(b);
+                snprintf(t->err_msg, sizeof(t->err_msg),
+                         "TPC kXR_attn frame too short (%u)", (unsigned) dl);
+                t->xrd_error = kXR_ServerError;
+                return -1;
+            }
+            actnum = xrd_get_u32_be(b);
+            if (actnum != (uint32_t) kXR_asynresp) {
+                free(b);
+                continue;
+            }
+            est   = (uint16_t) (((uint16_t) b[10] << 8) | (uint16_t) b[11]);
+            edlen = xrd_get_u32_be(b + 12);
+            if ((size_t) edlen > (size_t) dl - 16) {
+                edlen = dl - 16;                       /* never over-read */
+            }
+            ebody = NULL;
+            if (edlen > 0) {
+                ebody = malloc((size_t) edlen + 1);
+                if (ebody == NULL) {
+                    free(b);
+                    t->xrd_error = kXR_NoMemory;
+                    return -1;
+                }
+                memcpy(ebody, b + 16, edlen);
+                ebody[edlen] = '\0';
+            }
+            free(b);
+
+            /* A deferred reply that is itself a wait folds back into the loop. */
+            if (est == kXR_wait) {
+                uint32_t secs = xrd_wait_secs_parse(ebody, edlen, 1,
+                                                    TPC_OPEN_WAIT_CAP_SEC);
+                free(ebody);
+                sleep((unsigned) secs);
+                if (tpc_send_all(t, fd, open_buf, send_len) != 0) {
+                    snprintf(t->err_msg, sizeof(t->err_msg),
+                             "TPC kXR_open resend (after asynresp wait) failed");
+                    return -1;
+                }
+                continue;
+            }
+            if (est == kXR_waitresp) {
+                free(ebody);
+                continue;
+            }
+
+            *status = est;
+            *body   = ebody;
+            *dlen   = edlen;
+            return 0;                          /* terminal embedded reply */
+        }
+
+        /* Any other status (kXR_ok / kXR_error / …) is the terminal reply. */
+        *status = st;
+        *body   = b;
+        *dlen   = dl;
+        return 0;
+    }
+
+    snprintf(t->err_msg, sizeof(t->err_msg),
+             "TPC kXR_open did not resolve after %d async rounds",
+             TPC_OPEN_RESOLVE_MAX_ITERS);
+    t->xrd_error = kXR_ServerError;
+    return -1;
+}
 
 /* ------------------------------------------------------------------ */
 /* Remote file open, streaming read loop, and protocol-level close       */
@@ -94,21 +260,32 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
                    opaque, opqlen);
     }
 
-    if (tpc_send_all(fd, open_buf, send_len) != 0) {
+    if (tpc_send_all(t, fd, open_buf, send_len) != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_open send failed");
         return -1;
     }
 
+    /*
+     * Resolve the open through the async XRootD flow (phase-57 §F8): a real
+     * source (EOS/dCache, or any server still completing the TPC rendezvous) may
+     * answer with kXR_wait / kXR_waitresp → kXR_attn(asynresp) before the open
+     * settles. tpc_open_resolve() honours that and returns a TERMINAL reply. We
+     * tighten SO_RCVTIMEO for the negotiation so a silent source fails fast (the
+     * client's --tpc fallback still has time to run), then restore the full I/O
+     * timeout for the streaming read loop below. A source that answers kXR_ok
+     * immediately (e.g. our own nginx source) resolves on the first frame.
+     *
+     * Some peers return a minimal kXR_ok body with only the 4-byte fhandle;
+     * others send the full ServerOpenBody (12+ bytes) — both lead with fhandle.
+     */
     body = NULL;
-    if (tpc_recv_response(fd, &status, &body, &dlen) != 0) {
-        snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_open recv failed");
+    tpc_set_rcvtimeo(fd, TPC_OPEN_WAIT_CAP_SEC);
+    if (tpc_open_resolve(t, fd, open_buf, send_len, &status, &body, &dlen) != 0) {
+        tpc_set_rcvtimeo(fd, TPC_IO_TIMEOUT_SEC);
         return -1;
     }
-    /*
-     * Some peers (including reference xrootd in common configs) return a
-     * minimal kXR_ok body with only the 4-byte fhandle; others send the full
-     * ServerOpenBody (12+ bytes).
-     */
+    tpc_set_rcvtimeo(fd, TPC_IO_TIMEOUT_SEC);
+
     if (status != kXR_ok || body == NULL || dlen < XRD_FHANDLE_LEN) {
         /*
          * kXR_error body = [int32 BE errnum][message]. Surface the remote's
@@ -188,7 +365,7 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
         rdreq.offset = (kXR_int64) htobe64(offset);
         rdreq.rlen   = htonl((kXR_int32) TPC_CHUNK_SIZE);
 
-        if (tpc_send_all(fd, &rdreq, sizeof(rdreq)) != 0) {
+        if (tpc_send_all(t, fd, &rdreq, sizeof(rdreq)) != 0) {
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC kXR_read send failed at offset %llu",
                      (unsigned long long) offset);
@@ -206,7 +383,7 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
          */
         for (;;) {
             body = NULL;
-            if (tpc_recv_response(fd, &status, &body, &dlen) != 0) {
+            if (tpc_recv_response(t, fd, &status, &body, &dlen) != 0) {
                 snprintf(t->err_msg, sizeof(t->err_msg),
                          "TPC kXR_read recv failed at offset %llu",
                          (unsigned long long) offset);
@@ -340,10 +517,10 @@ tpc_pull_from_source(xrootd_tpc_pull_t *t, int fd)
     clreq.streamid[1] = 2;
     clreq.requestid   = htons(kXR_close);
     ngx_memcpy(clreq.fhandle, fhandle, XRD_FHANDLE_LEN);
-    (void) tpc_send_all(fd, &clreq, sizeof(clreq));
+    (void) tpc_send_all(t, fd, &clreq, sizeof(clreq));
     {
         uint16_t s; uint32_t d; u_char *b = NULL;
-        (void) tpc_recv_response(fd, &s, &b, &d);
+        (void) tpc_recv_response(t, fd, &s, &b, &d);
         free(b);
     }
 

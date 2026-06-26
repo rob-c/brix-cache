@@ -21,6 +21,7 @@
 #include "cache_internal.h"
 #include "slice.h"
 #include "meta.h"
+#include "cinfo.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -176,7 +177,21 @@ xrootd_cache_slice_fill_thread(void *data, ngx_log_t *log)
         return;
     }
 
-    (void) xrootd_cache_slice_fetch_origin(t);
+    if (xrootd_cache_slice_fetch_origin(t) == 0 && t->slice_len > 0) {
+        /*
+         * Record-keeping: this slice window is now durably on disk, so mark its
+         * block present in the file's .cinfo bitmap.  Best-effort — a failure to
+         * record must never fail (or roll back) the fill; the worst case is a
+         * block that looks un-recorded and is refetched.  Validity is size-based
+         * here (mtime 0), matching the slice .__xrds.meta sidecar.
+         */
+        uint64_t blk = (uint64_t) (t->slice_start / t->slice_len);
+        (void) xrootd_cache_cinfo_record_block(t->file_cache_path,
+                                               (uint64_t) t->file_size,
+                                               (uint32_t) t->slice_len,
+                                               0 /* mtime: size-based validity */,
+                                               blk, log);
+    }
 
     unlink(t->lock_path);
 }

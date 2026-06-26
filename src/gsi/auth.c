@@ -1,4 +1,5 @@
 #include "gsi_internal.h"
+#include "delegation.h"
 #include "../session/registry.h"
 #include "../crypto/ocsp.h"
 #include "../crypto/gsi_verify.h"
@@ -114,6 +115,75 @@ xrootd_gsi_inflight_release(xrootd_ctx_t *ctx)
  * WHAT: Top-level kXR_auth dispatcher — routes by 4-byte credtype field (ztn=token, sss=SSS, gsi=GSI) to specialized handlers. GSI path implements two-round DH key exchange protocol (kXGC_certreq→server cert response, kXGC_cert→encrypted proxy chain), parses x509 chain via OpenSSL, verifies against configured CA store with X509_V_FLAG_ALLOW_PROXY_CERTS for intermediate proxy certs, extracts DN from verified leaf and optionally VOMS VO membership attributes. Marks ctx->auth_done=1 and registers authenticated session in shared registry after success. Tracks unique user/VO metrics at auth completion.
  *
  * WHY: The two-round GSI pattern ensures the client's proxy certificate is encrypted with a DH shared secret, preventing man-in-the-middle attacks. DN extraction enables VO ACL rule matching for path authorization. VOMS membership provides granular VO-level access control beyond basic DN-based rules. Session registration after auth_done=1 enables bind operations (secondary connections) and CMS/manager mode cross-node communication. Auth metrics tracking provides production visibility into authentication throughput per-VO and per-user. */
+
+/*
+ * xrootd_gsi_complete_auth — finalize a successful GSI authentication once the
+ * client's DN is known: per-identity rate limit, auth_done, identity/session
+ * registration, and metrics. Factored so both the normal kXGC_cert path and the
+ * §F6 delegation path (which completes only after kXGC_sigpxy) share one
+ * completion. Returns via XROOTD_RETURN_OK / XROOTD_RETURN_ERR.
+ */
+static ngx_int_t
+xrootd_gsi_complete_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
+                         ngx_stream_xrootd_srv_conf_t *conf)
+{
+    /* Phase 20: per-identity request rate limit, applied once the DN is known. */
+    if (conf->rate_limit.kv != NULL) {
+        const char *rl_id = conf->rate_limit.key_ip ? ctx->peer_ip : ctx->dn;
+
+        if (xrootd_rate_limit_check(&conf->rate_limit, rl_id,
+                                    ngx_strlen(rl_id)) != NGX_OK)
+        {
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi",
+                              kXR_NotAuthorized, "rate limit exceeded");
+        }
+    }
+
+    ctx->auth_done = 1;
+    xrootd_gsi_inflight_release(ctx);   /* E4: handshake done — free the slot */
+    if (ctx->identity != NULL) {
+        if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+                                   XROOTD_AUTHN_GSI) != NGX_OK
+            || xrootd_identity_set_vos_csv(ctx->identity, c->pool,
+                                           ctx->vo_list) != NGX_OK)
+        {
+            return xrootd_send_error(ctx, c, kXR_NoMemory,
+                                     "identity allocation failed");
+        }
+    }
+    xrootd_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+
+    /* Track unique user and VO at auth completion. */
+    {
+        ngx_xrootd_metrics_t *shm = xrootd_metrics_shared();
+        if (shm != NULL) {
+            size_t vo_len = strlen(ctx->primary_vo);
+            if (vo_len > 0 && vo_len < sizeof(ctx->primary_vo)) {
+                xrootd_track_vo_activity(shm, ctx->primary_vo, 0, 0);
+                ngx_uint_t vi;
+                for (vi = 0; vi < XROOTD_VO_MAX_TRACKED; vi++) {
+                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->primary_vo,
+                                    XROOTD_VO_NAME_LEN) == 0)
+                    {
+                        XROOTD_ATOMIC_INC(&shm->vo_global.slots[vi].requests_total);
+                        break;
+                    }
+                }
+            }
+            xrootd_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
+        }
+    }
+
+    {
+        char dn_log[1024];
+
+        xrootd_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
+        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                      "xrootd: GSI auth OK dn=\"%s\"", dn_log);
+    }
+
+    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi", 0);
+}
 
 static ngx_int_t
 xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -251,6 +321,17 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return xrootd_gsi_send_cert(ctx, c);
     }
 
+    /* §F6: the client's signed delegated proxy — only valid mid-delegation, after
+     * we sent kXGS_pxyreq. Capture it, then complete the deferred auth. */
+    if (gsi_step == (uint32_t) kXGC_sigpxy) {
+        if (!ctx->gsi_deleg_await
+            || xrootd_gsi_handle_sigpxy(ctx, c) != NGX_OK) {
+            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi",
+                              kXR_NotAuthorized, "GSI proxy delegation failed");
+        }
+        return xrootd_gsi_complete_auth(ctx, c, conf);
+    }
+
     if (gsi_step != (uint32_t) kXGC_cert) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "xrootd: unexpected GSI step %ud", (unsigned) gsi_step);
@@ -348,65 +429,26 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
         }
     }
 
-    sk_X509_pop_free(chain, X509_free);
+    /*
+     * §F6 X.509 proxy delegation: when enabled, run an extra handshake round to
+     * capture the client's delegated proxy BEFORE completing auth. The DN/VOMS are
+     * already extracted (above) and the chain/leaf are still valid here; the GSI
+     * session cipher was persisted by parse_x509. begin_delegation sends
+     * kXGS_pxyreq (kXR_authmore) and auth completes when kXGC_sigpxy arrives.
+     */
+    if (conf->tpc_delegate && !ctx->gsi_deleg_await && ctx->gsi_sess_keylen > 0) {
+        ngx_int_t drc = xrootd_gsi_begin_delegation(ctx, c, conf, leaf, chain);
 
-    /* Phase 20: per-identity request rate limit, applied once the DN is known. */
-    if (conf->rate_limit.kv != NULL) {
-        const char *rl_id = conf->rate_limit.key_ip ? ctx->peer_ip : ctx->dn;
-
-        if (xrootd_rate_limit_check(&conf->rate_limit, rl_id,
-                                    ngx_strlen(rl_id)) != NGX_OK)
-        {
+        sk_X509_pop_free(chain, X509_free);
+        if (drc != NGX_OK) {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi",
-                              kXR_NotAuthorized, "rate limit exceeded");
+                              kXR_NotAuthorized, "GSI proxy delegation failed");
         }
+        return NGX_OK;   /* kXGS_pxyreq sent; auth completes on kXGC_sigpxy */
     }
 
-    ctx->auth_done = 1;
-    xrootd_gsi_inflight_release(ctx);   /* E4: handshake done — free the slot */
-    if (ctx->identity != NULL) {
-        if (xrootd_identity_set_dn(ctx->identity, c->pool, ctx->dn,
-                                   XROOTD_AUTHN_GSI) != NGX_OK
-            || xrootd_identity_set_vos_csv(ctx->identity, c->pool,
-                                           ctx->vo_list) != NGX_OK)
-        {
-            return xrootd_send_error(ctx, c, kXR_NoMemory,
-                                     "identity allocation failed");
-        }
-    }
-    xrootd_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
-
-    /* Track unique user and VO at auth completion. */
-    {
-        ngx_xrootd_metrics_t *shm = xrootd_metrics_shared();
-        if (shm != NULL) {
-            size_t vo_len = strlen(ctx->primary_vo);
-            if (vo_len > 0 && vo_len < sizeof(ctx->primary_vo)) {
-                xrootd_track_vo_activity(shm, ctx->primary_vo, 0, 0);
-                /* Increment VO request count for this auth event. */
-                ngx_uint_t vi;
-                for (vi = 0; vi < XROOTD_VO_MAX_TRACKED; vi++) {
-                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->primary_vo,
-                                    XROOTD_VO_NAME_LEN) == 0)
-                    {
-                        XROOTD_ATOMIC_INC(&shm->vo_global.slots[vi].requests_total);
-                        break;
-                    }
-                }
-            }
-            xrootd_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
-        }
-    }
-
-    {
-        char dn_log[1024];
-
-        xrootd_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
-        ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                      "xrootd: GSI auth OK dn=\"%s\"", dn_log);
-    }
-
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi", 0);
+    sk_X509_pop_free(chain, X509_free);
+    return xrootd_gsi_complete_auth(ctx, c, conf);
 }
 
 /* ---- xrootd_handle_auth — rate-limited public entry point ---- */

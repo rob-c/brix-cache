@@ -23,6 +23,7 @@
 #include "frm_internal.h"
 
 #include "../compat/shm_slots.h"
+#include "../compat/log_diag.h"
 
 #include <string.h>
 
@@ -98,8 +99,12 @@ frm_index_init_zone(ngx_shm_zone_t *shm_zone, void *data)
                                          * sizeof(frm_index_entry_t),
                                  &frm_index_mtx_v, &fresh);
     if (tbl == NULL) {
-        ngx_log_error(NGX_LOG_EMERG, ngx_cycle->log, 0,
-                      "frm: index slab alloc failed (zone too small)");
+        XROOTD_DIAG_EMERG(ngx_cycle->log, 0,
+            "frm[tape]: index does not fit in its shared-memory zone",
+            "the FRM index SHM zone is too small for the configured queue "
+            "capacity",
+            "increase the FRM shared-memory zone size (or lower the queue "
+            "capacity) so the index fits");
         return NGX_ERROR;
     }
 
@@ -119,9 +124,15 @@ frm_index_init_zone(ngx_shm_zone_t *shm_zone, void *data)
                 if (frm_file_open(q, ngx_cycle->log) != NGX_OK
                     || frm_reconcile(q, ngx_cycle->log) != NGX_OK)
                 {
-                    ngx_log_error(NGX_LOG_EMERG, ngx_cycle->log, 0,
-                                  "frm: reconciliation of \"%V\" failed",
-                                  &q->path);
+                    XROOTD_DIAG_EMERG(ngx_cycle->log, 0,
+                        "frm[tape]: cannot rebuild the staging index from "
+                        "\"%V\"",
+                        "the on-disk queue is unreadable or corrupt, so the "
+                        "in-memory index could not be reconstructed at startup",
+                        "check the queue file's permissions and integrity (see "
+                        "any frm queue error just above); move it aside to "
+                        "start fresh if it is damaged",
+                        &q->path);
                     frm_file_close(q);
                     return NGX_ERROR;
                 }

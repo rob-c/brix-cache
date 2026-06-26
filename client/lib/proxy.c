@@ -42,6 +42,32 @@ static const unsigned char PROXY_CERT_INFO_DER[] = {
 };
 #define PROXY_CERT_INFO_OID "1.3.6.1.5.5.7.1.14"
 
+/* Open a credential file as a BIO with xrdc_open_credfile's safety checks (no
+ * symlink, owned by euid, secret=1 → 0600), so the predictable /tmp/x509up_u<uid>
+ * proxy can't be hijacked via a planted symlink/file. BIO_CLOSE makes BIO_free
+ * close the underlying fd. Quiet on failure (returns NULL) — callers report. */
+struct bio_st *
+xrdc_credfile_bio(const char *path, int secret)
+{
+    int   fd = xrdc_open_credfile(path, secret, NULL);
+    FILE *fp;
+    BIO  *bio;
+
+    if (fd < 0) {
+        return NULL;
+    }
+    fp = fdopen(fd, "r");
+    if (fp == NULL) {
+        close(fd);
+        return NULL;
+    }
+    bio = BIO_new_fp(fp, BIO_CLOSE);
+    if (bio == NULL) {
+        fclose(fp);
+    }
+    return bio;
+}
+
 void
 xrdc_proxy_default_path(char *out, size_t outsz)
 {
@@ -245,9 +271,13 @@ xrdc_proxy_info(const char *path, FILE *out, xrdc_status *st)
         xrdc_proxy_default_path(defp, sizeof(defp));
         path = defp;
     }
-    bio = BIO_new_file(path, "r");
+    bio = xrdc_credfile_bio(path, 1);
     if (bio == NULL) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "no proxy at %s", path);
+        /* A missing/unreadable proxy is a not-found condition, NOT a CLI
+         * usage error: the arguments were well-formed, the file just isn't
+         * there. Callers (xrdgsiproxy info) lean on XRDC_ENOENT to stay
+         * tolerant of an absent proxy the way stock xrdgsiproxy does. */
+        xrdc_status_set(st, XRDC_ENOENT, 0, "proxy file: %s not found", path);
         return -1;
     }
     cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
@@ -299,7 +329,7 @@ xrdc_proxy_remaining(const char *path, long *secs_left)
         xrdc_proxy_default_path(defp, sizeof(defp));
         path = defp;
     }
-    bio = BIO_new_file(path, "r");
+    bio = xrdc_credfile_bio(path, 1);
     if (bio == NULL) {
         return -1;
     }

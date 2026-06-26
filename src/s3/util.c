@@ -16,6 +16,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/*
+ * Build a transient S3 VFS request descriptor for an already-resolved confined
+ * path.  Shared by the PUT (put.c) and POST-object (post_object.c) write paths,
+ * which previously carried byte-identical private copies.  Pulls pool/log, the
+ * TLS flag, and the authenticated identity from the request; roots and the
+ * write gate from the loc-conf.  rootfd stays -1 (transient confined open).
+ */
+void
+s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+{
+    ngx_http_s3_req_ctx_t *s3ctx;
+    int                    is_tls = 0;
+
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+}
+
 /* -------------------------------------------------------------------------
  * Response header helper
  * ---------------------------------------------------------------------- */

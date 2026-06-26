@@ -48,6 +48,7 @@ LOG-phase handlers registered from `../webdav/postconfig.c`.
 | `stream_mirror.c` | Stateless XRootD stream mirror. Decides replayability (`xrootd_mirror_request_replayable`), snapshots the request frame, and drives a per-target async client through `HANDSHAKE → PROTOCOL → LOGIN → REQUEST` (`xrootd_mir_*` state machine) reusing `xrootd_upstream_build_bootstrap()`. Compares shadow vs. primary status and counts divergence, treating `kXR_Unsupported` and TLS/auth demands as benign. Owns the opcode-name parser shared by the allow/exclude setters. |
 | `stream_wmirror.h` | Public API for the data-write mirror (W3): `xrootd_stream_wmirror_on_open()`, `_observe()`, and `_cleanup()`, called from the open/dispatch/disconnect paths. |
 | `stream_wmirror.c` | Stateful data-write mirror. Accumulates a write-open's sequential `kXR_write` payloads into a bounded per-file buffer hanging off `ctx->wmirror`; on `kXR_close` hands the complete file to a detached async replay (`wmir_*` state machine: `OPEN → WRITE → CLOSE`) against an isolated shadow. Aborts (counted, never blocking) on `kXR_pgwrite`, non-sequential offsets, or cap overflow. |
+| `stream_mirror_io.{c,h}` | The shadow-socket framing shared by both stream mirrors: `xrootd_mirror_io_flush()` (non-blocking write-drain) and `xrootd_mirror_io_recv_frame()` (resumable `ServerResponseHdr` + bounded-body reader, cap `XROOTD_MIRROR_MAX_RESP_BODY` = 64 KiB). `xrootd_mir_*`/`wmir_*` wrap these so the body-size bound lives in one place. |
 
 ## Key types & data structures
 

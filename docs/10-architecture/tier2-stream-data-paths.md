@@ -20,6 +20,8 @@ Client (xrdcp/xrdfs) ──TCP──> nginx-xrootd stream server
                                     │   ├── Session bind + login
                                     │   └── Opcode dispatch → read/write/stat/tpc handlers
                                     │
+                                    ├── VFS data plane (src/fs) → POSIX storage driver (src/fs/backend)
+                                    │       every read/write/stat/copy; raw file syscalls live here only
                                     └── Local POSIX filesystem (or proxy upstream)
 ```
 

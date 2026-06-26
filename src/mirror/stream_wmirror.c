@@ -14,14 +14,16 @@
  *     self-contained async shadow client (its own cycle-pool context, the same
  *     fire-and-forget lifetime as the read mirror, src/mirror/stream_mirror.c)
  *     that bootstraps a fresh shadow session and performs open(create) -> write
- *     -> close.  The connection machinery (flush / recv_frame / read+write
- *     handlers / start) deliberately mirrors stream_mirror.c's proven code.
+ *     -> close.  The shadow-socket framing (flush / recv_frame) is shared with
+ *     the read mirror via src/mirror/stream_mirror_io.c; the read+write handlers
+ *     and start/finish lifecycle deliberately mirror stream_mirror.c.
  *
  * The shadow MUST be an isolated namespace — replaying writes onto the primary's
  * backing store would corrupt it (see xrootd_mirror_writes).
  */
 #include "mirror/stream_wmirror.h"
 #include "mirror/mirror.h"
+#include "mirror/stream_mirror_io.h"
 #include "metrics/metrics_macros.h"
 
 #include <netdb.h>
@@ -119,34 +121,13 @@ static void wmir_finish(xrootd_wmirror_replay_t *r, int ok);
 
 /* ---- send -------------------------------------------------------- */
 
-/*
- * Drain wbuf[wbuf_pos..wbuf_len) to the shadow socket.  WHAT: non-blocking,
- * partial-write aware send loop.  HOW: on NGX_AGAIN it re-arms the write event
- * and returns NGX_AGAIN (wmir_write_handler resumes the same buffer); once fully
- * sent it arms the read event so the response is awaited.  Caller treats only
- * NGX_ERROR as terminal — NGX_AGAIN is a normal yield to the event loop.
- */
+/* Drain the pending write buffer to the shadow socket; see
+ * xrootd_mirror_io_flush(). Caller treats only NGX_ERROR as terminal —
+ * NGX_AGAIN is a normal yield to the event loop (wmir_write_handler resumes). */
 static ngx_int_t
 wmir_flush(xrootd_wmirror_replay_t *r)
 {
-    ngx_connection_t *c = r->conn;
-    ssize_t           n;
-
-    while (r->wbuf_pos < r->wbuf_len) {
-        n = c->send(c, r->wbuf + r->wbuf_pos, r->wbuf_len - r->wbuf_pos);
-        if (n > 0) { r->wbuf_pos += (size_t) n; continue; }
-        if (n == NGX_AGAIN) {
-            if (ngx_handle_write_event(c->write, 0) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            return NGX_AGAIN;
-        }
-        return NGX_ERROR;
-    }
-    if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
-        return NGX_ERROR;
-    }
-    return NGX_OK;
+    return xrootd_mirror_io_flush(r->conn, r->wbuf, r->wbuf_len, &r->wbuf_pos);
 }
 
 /* Clear the response accumulator before awaiting the next frame: zero the
@@ -245,53 +226,14 @@ wmir_send_close(xrootd_wmirror_replay_t *r)
 
 /* ---- receive ----------------------------------------------------- */
 
-/*
- * Read one ServerResponseHdr (8 B) + dlen-byte body from the shadow.
- *
- * WHAT: incremental, resumable frame reader matching the read mirror.  HOW:
- * two cursors (rhdr_pos, resp_body_pos) survive NGX_AGAIN so a frame split
- * across several recv()s is reassembled across event-loop wakeups; the header is
- * parsed exactly once (when rhdr_pos first reaches the full header length) to
- * latch resp_status/resp_dlen and allocate the body buffer.  Returns NGX_AGAIN
- * until the entire frame is in hand, NGX_OK when complete, NGX_ERROR on EOF/
- * oversize.  SECURITY: dlen is capped at 64 KiB so a hostile/buggy shadow cannot
- * make us allocate an arbitrary body.
- */
+/* Read one shadow response frame (header + bounded body), incremental and
+ * resumable; see xrootd_mirror_io_recv_frame(). */
 static ngx_int_t
 wmir_recv_frame(xrootd_wmirror_replay_t *r)
 {
-    ngx_connection_t *c = r->conn;
-    ssize_t           n;
-
-    if (r->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
-        size_t need = XRD_RESPONSE_HDR_LEN - r->rhdr_pos;
-        n = c->recv(c, r->rhdr + r->rhdr_pos, need);
-        if (n == NGX_AGAIN) { return NGX_AGAIN; }
-        if (n <= 0)         { return NGX_ERROR; }
-        r->rhdr_pos += (size_t) n;
-        if (r->rhdr_pos < XRD_RESPONSE_HDR_LEN) { return NGX_AGAIN; }
-        /* Header fully buffered: latch status + body length (network order). */
-        {
-            ServerResponseHdr *h = (ServerResponseHdr *) (void *) r->rhdr;
-            r->resp_status = ntohs(h->status);
-            r->resp_dlen   = ntohl((uint32_t) h->dlen);
-        }
-        if (r->resp_dlen > 0) {
-            if (r->resp_dlen > 65536) { return NGX_ERROR; }  /* bound body size */
-            r->resp_body = ngx_palloc(c->pool, r->resp_dlen);
-            if (r->resp_body == NULL) { return NGX_ERROR; }
-            r->resp_body_pos = 0;
-        }
-    }
-
-    while (r->resp_body_pos < r->resp_dlen) {
-        size_t need = r->resp_dlen - r->resp_body_pos;
-        n = c->recv(c, r->resp_body + r->resp_body_pos, need);
-        if (n == NGX_AGAIN) { return NGX_AGAIN; }
-        if (n <= 0)         { return NGX_ERROR; }
-        r->resp_body_pos += (size_t) n;
-    }
-    return NGX_OK;
+    return xrootd_mirror_io_recv_frame(r->conn, r->rhdr, &r->rhdr_pos,
+                                       &r->resp_status, &r->resp_dlen,
+                                       &r->resp_body, &r->resp_body_pos);
 }
 
 /* A shadow op succeeded if it returned kXR_ok or kXR_oksofar (the latter is a

@@ -79,7 +79,8 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `XrdSecgsi` | `gsi` | ✅ | X.509 proxy + CRL + VOMS |
 | `XrdSecsss` | `sss` | ✅ | Keytab-based shared secret |
 | `XrdSecunix` | `unix` | ✅ | Upstream-compatible `unix\0user [group]` credentials; loopback-only by default, remote trust requires `xrootd_unix_trust_remote on` |
-| `XrdSecpwd` | `pwd` | ❌ | Password auth; no equivalent planned |
+| `XrdSecpwd` | `pwd` | ✅ | 2-round DH-bootstrapped username+password (`src/pwd/`); opt-in `xrootd_auth pwd` + `xrootd_pwd_file`, recommended under TLS. Wire-equivalent, not the `xrdpwdadmin`/server-public-key admin ecosystem |
+| `XrdSecProtocolhost` | `host` | ✅ | Reverse-DNS allowlist auth (`src/host/`); opt-in `xrootd_auth host` + `xrootd_host_allow`, identity from socket reverse-DNS only, fail-closed/trusted-network only |
 | `XrdSeckrb5` | `krb5` | ✅ | Kerberos AP-REQ verification via `krb5_rd_req`, configured with `xrootd_krb5_principal` and optional `xrootd_krb5_keytab` |
 | `XrdSecztn` | `ztn` | ✅ | WLCG/JWT bearer token |
 | `XrdMacaroons` | bearer | ✅ | HMAC-SHA256 validation + caveats + third-party discharge bundles; `POST /.oauth2/token` issues scoped delegation macaroons; `GET /.well-known/oauth-authorization-server` discovery |
@@ -88,7 +89,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 
 **Completed high-priority gap**: inbound `krb5` support is implemented for Kerberos sites. The nginx addon detects Kerberos 5 at configure time and compiles the plugin when `pkg-config krb5` is available; configuring `xrootd_auth krb5` without compiled Kerberos support fails at nginx config validation.
 
-**Remaining upstream plugin gap**: `XrdSecpwd` remains unimplemented. The upstream plugin is an encrypted password-file ecosystem with admin password files, server public keys, and crypto-module negotiation; a plaintext or system-password replacement would not be protocol-compatible and would be a security regression.
+**Completed gap**: `XrdSecpwd` (`pwd`) and the built-in `host` protocol are now implemented (`src/pwd/`, `src/host/`), giving wire-equivalent coverage of every standard upstream stream auth scheme. `pwd` is implemented as the DH-bootstrapped password handshake rather than a plaintext/system-password substitute (which would be a security regression); it is the wire protocol, not the full `xrdpwdadmin` admin-file ecosystem. The only remaining auth gap is *custom* third-party sec plugins (no loadable sec-plugin ABI).
 
 **Completed medium-priority gap**: `XrdMacaroons` third-party delegation. `POST /.oauth2/token` issues scoped WLCG macaroons from `xrootd_webdav_macaroon_secret`; HMAC chain + first-party caveats (activity, path, before) match XrdMacaroons wire format. `GET /.well-known/oauth-authorization-server` provides RFC 8414 discovery. Issued tokens are validated by the existing `xrootd_macaroon_validate_bundle()` path.
 

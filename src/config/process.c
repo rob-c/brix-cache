@@ -37,6 +37,7 @@
 #include "../compat/staged_file.h"
 #include "../write/chkpoint.h"
 #include "../compat/crypto.h"
+#include "../compat/log_diag.h"
 #include "../manager/health_check.h"
 #include "../manager/pending.h"
 #include "../gsi/keypool.h"
@@ -79,8 +80,13 @@ xrootd_crl_reload_handler(ngx_event_t *ev)
                   "from \"%s\"", xcf->crl.data);
 
     if (xrootd_rebuild_gsi_store(xcf, ev->log) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, ev->log, 0,
-                      "xrootd: CRL reload failed - keeping previous store");
+        XROOTD_DIAG_CRIT(ev->log, 0,
+            "xrootd: CRL reload failed for \"%s\" — keeping previous store",
+            "the CRL file/dir is unreadable, malformed, or mid-rewrite",
+            "check the path's permissions and that fetch-crl writes atomically; "
+            "the server keeps serving with the LAST-GOOD CRLs, so a newly "
+            "revoked cert may still be accepted until the next good reload",
+            xcf->crl.data);
     } else if (is_reg_file) {
         /* Record mtime only on a successful rebuild so a failed load is retried
          * (not skipped) on the next interval. */

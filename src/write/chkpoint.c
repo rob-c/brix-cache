@@ -264,6 +264,15 @@ xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return validate_rc;
     }
 
+    /* Checkpoint operates on a real file path. Reject handles that have none — a
+     * virtual/path-less handle (e.g. an SSI channel) or any handle opened without
+     * a stored path. Guards ckp_begin's strlen(f->path) from a NULL deref. */
+    if (ctx->files[idx].path == NULL || ctx->files[idx].ssi != NULL) {
+        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                                 "checkpoint not supported on this handle");
+    }
+
     switch ((unsigned char) req->opcode) {
 
     case kXR_ckpBegin:

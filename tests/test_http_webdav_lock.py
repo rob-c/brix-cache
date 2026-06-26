@@ -199,8 +199,55 @@ class TestLock:
         )
         r = _lock(path, data=body)
         assert r.status_code == 201
-        
+
         # Verify owner shows up in PROPFIND
         r = _propfind(path)
         assert r.status_code == 207
         assert owner_href in r.text
+
+
+class TestLockNull:
+    """RFC 4918 §9.10.1 lock-null resources (phase-57 W3.3.c)."""
+
+    def test_lock_null_create_then_put(self):
+        """LOCK on a non-existent path reserves the name (201); the holder's
+        PUT then converts the lock-null placeholder into a real resource."""
+        path = f"/{_PFX}null_put_{_uid()}.txt"
+
+        # The path must not exist yet.
+        assert _get(path).status_code == 404
+
+        r = _lock(path)
+        assert r.status_code == 201
+        token = r.headers["Lock-Token"]
+
+        # The lock is discoverable on the (now zero-byte) placeholder.
+        r = _propfind(path)
+        assert r.status_code == 207
+        assert "<D:lockdiscovery>" in r.text
+
+        # An unauthenticated PUT is blocked by the lock ...
+        assert _put(path, b"nope").status_code == 423
+        # ... but the lock holder converts it to a real resource.
+        r = _put(path, b"real content", headers={"If": f"({token})"})
+        assert r.status_code in (200, 201, 204)
+        assert _get(path).content == b"real content"
+
+    def test_lock_null_reaped_on_unlock(self):
+        """A lock-null placeholder that is never PUT must disappear when its
+        lock is removed (no orphaned 0-byte file left behind)."""
+        path = f"/{_PFX}null_reap_{_uid()}.txt"
+
+        assert _get(path).status_code == 404
+
+        r = _lock(path)
+        assert r.status_code == 201
+        token = r.headers["Lock-Token"]
+
+        # Placeholder now exists as an empty resource.
+        assert _get(path).status_code == 200
+
+        # UNLOCK without ever PUTting reaps the empty placeholder.
+        r = _unlock(path, token)
+        assert r.status_code == 204
+        assert _get(path).status_code == 404

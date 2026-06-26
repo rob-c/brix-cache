@@ -27,10 +27,12 @@
 #include "waiter.h"
 #include "../compat/checksum.h"
 #include "../manager/registry.h"
+#include "../fs/vfs_scratch.h"   /* capability-gated materialize-to-scratch (Pillar F) */
 
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdlib.h>   /* setenv (export $FRM_LFN to the copycmd) */
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -51,7 +53,13 @@
  * frm_read_full, so frames larger than PIPE_BUF are fine). */
 typedef struct {
     char    reqid[FRM_REQID_LEN];
-    char    path[FRM_LFN_LEN];
+    char    path[FRM_LFN_LEN];                /* WHERE the copycmd writes (export
+                                              * in place, or a scratch temp)     */
+    char    lfn[FRM_LFN_LEN];                 /* the logical name being recalled,
+                                              * exported to the copycmd as
+                                              * $FRM_LFN — so a recall script
+                                              * knows WHAT to fetch even when the
+                                              * destination is a scratch path    */
     char    copycmd[FRM_COPYCMD_MAX];
     char    residency_cmd[FRM_COPYCMD_MAX];  /* F3 oracle (empty = none)        */
     char    cs_value[FRM_CSVAL_LEN];         /* F5 expected checksum (hex/str)  */
@@ -73,6 +81,13 @@ static ngx_uint_t         frm_sched_copymax;
 static ngx_uint_t         frm_sched_ready;
 static ngx_flag_t         frm_sched_manager; /* F1: register staged path on done*/
 static uint16_t           frm_sched_self_port;/* F1: advertised listen port      */
+/* Materialize-to-scratch (prototype): copycmd writes to a LOCAL POSIX scratch
+ * mount, then the worker commits scratch -> storage via the VFS<->VFS move. On a
+ * POSIX backend this is inert (copycmd writes the export path in place). Until a
+ * non-POSIX FRM backend exists, both are opt-in via env so the seam can be
+ * exercised: XROOTD_FRM_STAGE_DIR (scratch mount) + XROOTD_FRM_FORCE_SCRATCH=1. */
+static ngx_str_t          frm_sched_stage_dir;
+static ngx_flag_t         frm_sched_force_scratch;
 static int                frm_agent_fd = -1; /* worker side of the socketpair  */
 static ngx_connection_t  *frm_agent_conn;    /* nginx connection for replies   */
 
@@ -197,8 +212,16 @@ frm_agent_process(const frm_agent_req_t *req)
 {
     int rc;
 
+    /* Export the logical name so the oracle + copycmd know WHAT to recall even
+     * when req->path is a scratch destination (the agent is single-threaded, so
+     * a per-request setenv is safe; the forked child inherits it). */
+    (void) setenv("FRM_LFN", req->lfn, 1);
+
     if (req->residency_cmd[0] != '\0') {
-        int orc = frm_agent_run(req->residency_cmd, req->path);
+        /* The oracle answers "is the OBJECT already resident?" — ask about the
+         * logical object (req->lfn), not req->path, which under materialize-to-
+         * scratch is an empty scratch temp we are about to recall INTO. */
+        int orc = frm_agent_run(req->residency_cmd, req->lfn);
         if (orc == 0) {
             return FRM_RC_OK;                /* oracle: already resident */
         }
@@ -236,6 +259,7 @@ frm_agent_main(int fd)
         }
         req.reqid[FRM_REQID_LEN - 1]         = '\0';
         req.path[FRM_LFN_LEN - 1]            = '\0';
+        req.lfn[FRM_LFN_LEN - 1]             = '\0';
         req.copycmd[FRM_COPYCMD_MAX - 1]     = '\0';
         req.residency_cmd[FRM_COPYCMD_MAX-1] = '\0';
         req.cs_value[FRM_CSVAL_LEN - 1]      = '\0';
@@ -294,6 +318,21 @@ frm_stage_commit(const frm_record_t *rec, int code)
 
     if (q == NULL) {
         return;
+    }
+    if (code == 0) {
+        /* Publish the scratch copy onto storage (no-op on a POSIX backend, where
+         * the copycmd wrote the export object in place) BEFORE flipping residency
+         * — the bytes must be on storage before any open is allowed to resolve. */
+        ngx_uint_t materialized = xrootd_vfs_scratch_needed(NULL,
+                                                            frm_sched_force_scratch);
+        const char *sdir = frm_sched_stage_dir.len
+                           ? (const char *) frm_sched_stage_dir.data : NULL;
+        if (xrootd_vfs_scratch_produce_commit(full_path, sdir, reqid,
+                                              materialized, frm_sched_log) != NGX_OK) {
+            ngx_log_error(NGX_LOG_ERR, frm_sched_log, ngx_errno,
+                          "frm: scratch commit \"%s\" failed", full_path);
+            code = FRM_RC_FORK;              /* fall through to the failure path */
+        }
     }
     if (code == 0) {
         (void) frm_residency_set(frm_sched_log, full_path, FRM_RES_ONLINE);
@@ -439,7 +478,27 @@ frm_stage_dispatch(const frm_record_t *rec)
     }
     ngx_memzero(&req, sizeof(req));
     ngx_cpystrn((u_char *) req.reqid, (u_char *) rec->reqid, sizeof(req.reqid));
-    ngx_cpystrn((u_char *) req.path, (u_char *) rec->lfn, sizeof(req.path));
+
+    /* The copycmd writes to a LOCAL POSIX path: the export object in place on a
+     * POSIX backend, or a <stage_dir>/<reqid>.scratch copy when staging is in
+     * effect (committed onto storage in frm_stage_commit).  storage=NULL ⇒ the
+     * default POSIX backend; the key is the reqid so the commit recomputes it. */
+    {
+        ngx_uint_t materialized;
+        const char *sdir = frm_sched_stage_dir.len
+                           ? (const char *) frm_sched_stage_dir.data : NULL;
+        if (xrootd_vfs_scratch_produce_target(NULL, (const char *) rec->lfn,
+                sdir, (const char *) rec->reqid, frm_sched_force_scratch,
+                (char *) req.path, sizeof(req.path), &materialized,
+                frm_sched_log) != NGX_OK) {
+            ngx_log_error(NGX_LOG_ERR, frm_sched_log, ngx_errno,
+                          "frm: scratch target for \"%s\" failed", rec->lfn);
+            return NGX_ERROR;
+        }
+    }
+    /* The logical name the copycmd should fetch (exported as $FRM_LFN), distinct
+     * from req.path when that is a scratch destination. */
+    ngx_cpystrn((u_char *) req.lfn, (u_char *) rec->lfn, sizeof(req.lfn));
     ngx_cpystrn((u_char *) req.copycmd, frm_sched_cmd.data,
                 ngx_min(frm_sched_cmd.len + 1, sizeof(req.copycmd)));
     /* F3: the residency oracle (empty when unconfigured). */
@@ -641,6 +700,18 @@ frm_stage_scheduler_register(ngx_cycle_t *cycle, xrootd_frm_conf_t *frm,
     frm_sched_manager = manager_mode;                    /* F1                  */
     frm_sched_self_port = self_port;                     /* F1                  */
     frm_sched_log     = cycle->log;
+
+    {
+        /* Materialize-to-scratch wiring (xrootd_frm_stage_dir/_force_scratch). */
+        frm_sched_stage_dir     = frm->stage_dir;
+        frm_sched_force_scratch = (frm->force_scratch == 1) ? 1 : 0;
+        if (frm_sched_force_scratch && frm_sched_stage_dir.len == 0) {
+            ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+                "frm: xrootd_frm_force_scratch set but xrootd_frm_stage_dir empty "
+                "— staging-to-scratch disabled");
+            frm_sched_force_scratch = 0;
+        }
+    }
 
     if (frm_sched_cmd.len == 0) {
         ngx_log_error(NGX_LOG_WARN, cycle->log, 0,

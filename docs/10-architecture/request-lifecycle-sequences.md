@@ -122,15 +122,15 @@ xrootd_handle_read (read.c:78)
      |
      ├─→ sendfile fast-path?
      |    ├─→ !c->ssl OR xrootd_ktls_send_active()?
-     |    └─→ pread(fd, offset, rlen)
+     |    └─→ xrootd_vfs_io_execute() → driver->pread / sendfile-able fd (src/fs/backend)
      |         └─→ xrootd_build_chunked_chain()
      |              └─→ xrootd_queue_response_chain()
      |
      └─→ fallback (TLS or irregular file):
-          ├─→ [NGX_THREADS]: AIO pread via thread pool
+          ├─→ [NGX_THREADS]: AIO offload → xrootd_vfs_io_execute() → driver->preadv
           |    └─→ completion callback frees payload_buf
           |
-          └─→ sync pread on main event loop
+          └─→ sync xrootd_vfs_io_execute() (inline) → driver->pread
                └─→ xrootd_queue_response()
      |
      v (parallel: multiple read requests)
@@ -149,11 +149,11 @@ xrootd_handle_write (write.c:68)
      |
      ├─→ Parse offset (be64toh)
      |
-     ├─→ [NGX_THREADS]: AIO pwrite via thread pool
+     ├─→ [NGX_THREADS]: AIO offload → xrootd_vfs_io_execute() → driver->pwrite
      |    ├─→ xrootd_ensure_payload_buffer() [detach buffer]
      |    └─→ completion callback sends kXR_ok + frees buffer
      |
-     └─→ fallback: sync pwrite on main event loop
+     └─→ fallback: sync xrootd_vfs_io_execute() (inline) → driver->pwrite
           └─→ Track: wt_bytes_written, wt_dirty_offset [PFC]
                └─→ xrootd_queue_response() (kXR_ok)
      |
@@ -208,7 +208,7 @@ PARTICIPANTS: Client = XRootD root:// user; recv loop = TCP state machine in rec
 
 KEY FILES: src/connection/handler.c (entry point), src/connection/recv.c (framing state machine), src/handshake/dispatch.c (opcode router), src/handshake/dispatch_session.c (login/auth), src/gsi/auth.c (GSI certificate verification), src/session/login.c (kXR_login), src/read/open_request.c (kXR_open), src/read/read.c (kXR_read), src/write/write.c (kXR_write), src/read/close.c (kXR_close), src/path/op_path.c (path resolution), src/path/beneath.c (openat2 RESOLVE_BENEATH confinement), src/connection/fd_table.c (file handle table).
 
-CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_path() (canonical) THEN xrootd_open_confined_canon() (kernel RESOLVE_BENEATH gate). Escape attempts return EXDEV/ELOOP → kXR_NotAuthorized. (2) Auth ordering: login MUST precede auth; auth_done gates file operations. (3) Handle lifecycle: fd slot = -1 (free) | >= 0 (open); allocation bounded by XROOTD_MAX_FILES <= 256 (wire format one byte). (4) Response format: [streamid:2B][status:2B BE][dlen:4B BE][body:dlen bytes]. (5) POSC durability: write temp, fsync+rename on close before fd release. (6) Write-through PFC: wt_dirty_offset tracks unflushed origin bytes for cache-origin propagation. (7) TLS vs sendfile: !c->ssl OR xrootd_ktls_send_active() gates zero-copy; else memory-backed buffers. (8) Rate-limiting and signing: sigver()/kXR_sigver envelope wraps costly operations; fail-closed on verification failure.
+CRITICAL INVARIANTS: (1) Path confinement: all client paths → xrootd_resolve_path() (canonical) THEN xrootd_open_confined_canon() (kernel RESOLVE_BENEATH gate). Escape attempts return EXDEV/ELOOP → kXR_NotAuthorized. (2) Auth ordering: login MUST precede auth; auth_done gates file operations. (3) Handle lifecycle: fd slot = -1 (free) | >= 0 (open); allocation bounded by XROOTD_MAX_FILES <= 256 (wire format one byte). (4) Response format: [streamid:2B][status:2B BE][dlen:4B BE][body:dlen bytes]. (5) POSC durability: write temp, fsync+rename on close before fd release. (6) Write-through PFC: wt_dirty_offset tracks unflushed origin bytes for cache-origin propagation. (7) TLS vs sendfile: !c->ssl OR xrootd_ktls_send_active() gates zero-copy; else memory-backed buffers. (8) Rate-limiting and signing: sigver()/kXR_sigver envelope wraps costly operations; fail-closed on verification failure. (9) Data-plane layering: every file open/read/write/stat/copy goes proto → VFS (src/fs) → POSIX storage driver (src/fs/backend); protocol handlers never issue raw file syscalls, so confinement, metrics, cache, and CRC cannot drift between protocols.
 
 **Jump-to anchors:** `src/connection/handler.c:ngx_stream_xrootd_handler` · `src/connection/recv.c:ngx_stream_xrootd_recv` · `src/handshake/dispatch.c:xrootd_dispatch` · `src/handshake/dispatch_session.c:xrootd_dispatch_session_opcode` · `src/read/open_request.c:xrootd_handle_open` · `src/path/beneath.c:xrootd_open_beneath`
 

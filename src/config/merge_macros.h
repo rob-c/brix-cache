@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_CONFIG_MERGE_MACROS_H
+#define XROOTD_CONFIG_MERGE_MACROS_H
 /*
  * merge_macros.h — config merge helpers for patterns nginx's built-ins don't cover.
  *
@@ -36,3 +37,5 @@
         (conf)->field = ((prev)->field != (unset))                   \
                         ? (prev)->field : (def);                     \
     }
+
+#endif /* XROOTD_CONFIG_MERGE_MACROS_H */

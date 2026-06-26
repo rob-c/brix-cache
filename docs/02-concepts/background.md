@@ -127,7 +127,8 @@ nginx-xrootd supports three deployment modes, and you can combine them in a sing
   ──────────────────────────
   xrdcp client ──> nginx-xrootd ──> local POSIX filesystem
                        |
-                  auth / TLS / metrics all here
+            auth / TLS / metrics + the VFS→POSIX data plane all here
+            (every byte: proto → VFS (src/fs) → POSIX driver (src/fs/backend))
 
   MODE 2 — Transparent XRootD proxy
   ───────────────────────────────────

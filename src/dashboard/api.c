@@ -1,4 +1,5 @@
 #include "dashboard_http.h"
+#include "dashboard_json.h"
 
 #include "../compat/fs_usage.h"
 #include "../manager/registry.h"
@@ -1108,68 +1109,6 @@ dashboard_build_v1_truncated(int64_t now_ms,
     return root;
 }
 
-/* -------------------------------------------------------------------------
- * Response serialiser
- *
- * Ownership: dashboard_send_json() takes ownership of root and calls
- * json_decref() after the fill — callers must not touch root afterwards.
- * ---------------------------------------------------------------------- */
-
-static ngx_int_t
-dashboard_send_json(ngx_http_request_t *r, ngx_int_t status, json_t *root)
-{
-    ngx_buf_t       *b;
-    ngx_chain_t      out;
-    ngx_table_elt_t *cc;
-    ngx_int_t        rc;
-    size_t           needed;
-    u_char          *buf;
-
-    /* Two-pass serialise: first call with a NULL buffer returns the exact byte
-     * count, then allocate that and dump for real — sizes the response to the
-     * payload instead of a fixed scratch buffer. needed==0 means a dump error. */
-    needed = json_dumpb(root, NULL, 0, JSON_COMPACT);
-    if (needed == 0) {
-        json_decref(root);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    buf = ngx_palloc(r->pool, needed);
-    if (buf == NULL) {
-        json_decref(root);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    json_dumpb(root, (char *) buf, needed, JSON_COMPACT);
-    /* root is fully serialised into buf; release it now (we own the ref). */
-    json_decref(root);
-
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) { return NGX_HTTP_INTERNAL_SERVER_ERROR; }
-    b->pos = b->start = buf;
-    b->last = b->end  = buf + needed;
-    b->memory = 1;
-    b->last_buf = 1;
-
-    r->headers_out.status            = status;
-    r->headers_out.content_length_n  = (off_t) needed;
-    r->headers_out.content_type      = (ngx_str_t) ngx_string("application/json");
-    r->headers_out.content_type_len  = r->headers_out.content_type.len;
-
-    cc = ngx_list_push(&r->headers_out.headers);
-    if (cc != NULL) {
-        cc->hash = 1;
-        ngx_str_set(&cc->key,   "Cache-Control");
-        ngx_str_set(&cc->value, "no-store");
-    }
-
-    rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) { return rc; }
-
-    out.buf = b;
-    out.next = NULL;
-    return ngx_http_output_filter(r, &out);
-}
 
 /*
  * WHAT: Entry point for every JSON dashboard endpoint.
@@ -1286,5 +1225,5 @@ ngx_http_xrootd_dashboard_api_handler(ngx_http_request_t *r,
         root   = dashboard_build_v1_truncated(now_ms, conf);
     }
 
-    return dashboard_send_json(r, status, root);
+    return dashboard_json_send(r, status, root);
 }

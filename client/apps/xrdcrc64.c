@@ -13,6 +13,8 @@
 int
 main(int argc, char **argv)
 {
+    /* err_exit=1: no stock xrdcrc64 exists; being remote-capable it follows the
+     * xrdadler32 convention (exit 1 on any access/checksum failure). */
     return xrdc_cli_cksum_main(argv[0], "crc64", XRDC_CK_CRC64,
-                               argc == 2 ? argv[1] : NULL);
+                               argc == 2 ? argv[1] : NULL, 1);
 }

@@ -231,3 +231,105 @@ def test_retry_then_fail_no_hang(tmp_path):
                        capture_output=True, text=True, timeout=40)
     assert r.returncode != 0
     assert not out.exists()
+
+
+def test_block_url_remote_to_block(rw, tmp_path):
+    """root:// → block:// single-file copy: VFS block backend receives the bytes.
+
+    A regular pre-allocated file acts as the block target (block:// treats it
+    as a device: open O_WRONLY in-place, no temp+rename, commit=fsync).
+    Content equality is verified by sha256.
+    """
+    content = os.urandom(256 * 1024)   # 256 KiB of noise
+    (rw["data"] / "block_src.bin").write_bytes(content)
+
+    dst = tmp_path / "block_dst.bin"
+    dst.write_bytes(b"\x00" * len(content))   # pre-allocate: block backend needs existing target
+
+    r = subprocess.run(
+        [XRDCP, "-f", _url(rw, "/block_src.bin"), f"block://{dst}"],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert r.returncode == 0, f"remote→block failed: {r.stdout}\n{r.stderr}"
+    assert hashlib.sha256(dst.read_bytes()).hexdigest() == hashlib.sha256(content).hexdigest(), \
+        "sha256 mismatch: remote→block content corrupted"
+
+
+def test_block_url_local_to_block(tmp_path):
+    """local-file → block:// copy: both sides go through xrdc_vfs (POSIX → block).
+
+    No server required.  The source is a plain local file; the destination is a
+    pre-allocated file opened via the block:// scheme (in-place write, no rename).
+    """
+    if not os.path.exists(XRDCP):
+        pytest.skip("xrdcp not built")
+
+    content = os.urandom(128 * 1024)   # 128 KiB
+    src = tmp_path / "local_src.bin"
+    src.write_bytes(content)
+
+    dst = tmp_path / "block_local_dst.bin"
+    dst.write_bytes(b"\x00" * len(content))
+
+    r = subprocess.run(
+        [XRDCP, "-f", str(src), f"block://{dst}"],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert r.returncode == 0, f"local→block failed: {r.stdout}\n{r.stderr}"
+    assert dst.read_bytes() == content, "content mismatch: local→block"
+
+
+def test_block_url_block_to_local(tmp_path):
+    """block:// → local-file copy: block backend reads, POSIX backend writes.
+
+    Verifies the reverse direction: block:// as a source endpoint.
+    """
+    if not os.path.exists(XRDCP):
+        pytest.skip("xrdcp not built")
+
+    content = os.urandom(64 * 1024)   # 64 KiB
+    src = tmp_path / "block_read_src.bin"
+    src.write_bytes(content)
+
+    dst = tmp_path / "block_to_local.bin"
+
+    r = subprocess.run(
+        [XRDCP, "-f", f"block://{src}", str(dst)],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert r.returncode == 0, f"block→local failed: {r.stdout}\n{r.stderr}"
+    assert dst.read_bytes() == content, "content mismatch: block→local"
+
+
+def test_large_file_integrity_uring(rw, tmp_path):
+    """Download a 16 MiB file via xrdcp --io-uring=on and verify byte-exact content.
+
+    Exercises the posix_pwrite splitting loop added in the A6 bug fix: the
+    io_uring ring uses 64 KiB buffers, so an 8 MiB COPY_CHUNK is split into
+    128 ring ops each at a distinct file offset.  A wrong per-piece offset
+    (dropped tail, off-by-one, missing += chunk) corrupts the output and is
+    caught by the sha256 comparison.
+
+    If liburing is unavailable the transfer falls back to classic pread/pwrite
+    via AUTO mode; content equality is still verified.
+    """
+    size = 16 * 1024 * 1024
+    src_bytes = os.urandom(size)
+    src_sha256 = hashlib.sha256(src_bytes).hexdigest()
+    (rw["data"] / "large_uring.bin").write_bytes(src_bytes)
+
+    out = tmp_path / "large_uring.out"
+    r = subprocess.run(
+        [XRDCP, "--io-uring=on", "-f", _url(rw, "/large_uring.bin"), str(out)],
+        capture_output=True, text=True, timeout=120,
+    )
+    if r.returncode != 0 and "io_uring" in (r.stdout + r.stderr).lower():
+        # liburing absent or kernel lacks io_uring; retry with AUTO (classic path)
+        r = subprocess.run(
+            [XRDCP, "-f", _url(rw, "/large_uring.bin"), str(out)],
+            capture_output=True, text=True, timeout=120,
+        )
+    assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
+    assert out.stat().st_size == size, f"size mismatch: {out.stat().st_size} != {size}"
+    got_sha256 = hashlib.sha256(out.read_bytes()).hexdigest()
+    assert got_sha256 == src_sha256, "sha256 mismatch — per-piece write offset is wrong"

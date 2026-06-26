@@ -65,30 +65,6 @@ s3_post_error(ngx_http_request_t *r, ngx_uint_t status, const char *code,
     return s3_send_xml_error(r, status, code, message);
 }
 
-/*
- * s3_post_vfs_ctx — build a transient VFS request descriptor for an already-
- * resolved confined object path.  Replicates the reference helper in object.c
- * (s3_vfs_ctx) so the staged-write and mkdir lifecycle of POST Object funnels
- * through the VFS layer (metrics + access-log + write gate) instead of the bare
- * confined-canon helpers, while delegating the same syscalls underneath.
- */
-static void
-s3_post_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
-{
-    ngx_http_s3_req_ctx_t *s3ctx;
-    int                    is_tls = 0;
-
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
-        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
-        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
-}
 
 /*
  * WHAT: Copy `len` raw form bytes into a fixed C-string buffer `dst`.
@@ -1124,7 +1100,7 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                 xrootd_vfs_ctx_t pctx;
 
                 *last_slash = '\0';
-                s3_post_vfs_ctx(r, parent, cf, &pctx);
+                s3_build_vfs_ctx(r, parent, cf, &pctx);
                 if (xrootd_vfs_mkdir(&pctx, 0755, 1 /* parents */) != NGX_OK
                     && errno != EEXIST)
                 {
@@ -1134,7 +1110,7 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
     }
 
-    s3_post_vfs_ctx(r, fs_path, cf, &vctx);
+    s3_build_vfs_ctx(r, fs_path, cf, &vctx);
     st = xrootd_vfs_staged_open(&vctx, 0600, 16, &vfs_err);
     if (st == NULL) {
         errno = vfs_err;

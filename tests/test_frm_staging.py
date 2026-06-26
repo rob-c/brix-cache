@@ -38,15 +38,7 @@ XRDCP = shutil.which("xrdcp")
 XRDFS = shutil.which("xrdfs")
 
 
-def _xattr_ok(tmp):
-    try:
-        p = os.path.join(tmp, ".xattrprobe")
-        open(p, "w").close()
-        os.setxattr(p, "user.frm.test", b"1")
-        os.remove(p)
-        return True
-    except Exception:
-        return False
+from frm_helpers import xattr_ok as _xattr_ok
 
 
 def _recv_exact(sock, n):

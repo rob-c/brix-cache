@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TPC_KEY_REGISTRY_H
+#define XROOTD_TPC_KEY_REGISTRY_H
 
 #include "../ngx_xrootd_module.h"
 
@@ -63,3 +64,5 @@ int   xrootd_tpc_key_consume(const char *key);
 
 /* Remove a key from the registry (called after successful pull). */
 void  xrootd_tpc_key_remove(const char *key);
+
+#endif /* XROOTD_TPC_KEY_REGISTRY_H */

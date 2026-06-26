@@ -109,6 +109,13 @@ XRDFS_BIN = os.environ.get("TEST_XRDFS_BIN", "xrdfs")
 XRDCP_BIN = os.environ.get("TEST_XRDCP_BIN", "xrdcp")
 
 NGINX_ANON_PORT = int(os.environ.get("TEST_NGINX_ANON_PORT", "11094"))
+# Same shared anon data root, but with xrootd_upload_resume OFF (stock
+# direct-to-disk write posture).  Conformance suites that inspect on-disk state
+# out-of-band (pgwrite accept-then-correct, fsync durability) target this port;
+# the resume-ON behaviour is covered on NGINX_ANON_PORT.
+NGINX_ANON_RESUME_OFF_PORT = int(
+    os.environ.get("TEST_NGINX_ANON_RESUME_OFF_PORT", "11118")
+)
 NGINX_GSI_PORT = int(os.environ.get("TEST_NGINX_GSI_PORT", "11095"))
 NGINX_GSI_TLS_PORT = int(os.environ.get("TEST_NGINX_GSI_TLS_PORT", "11096"))
 NGINX_TOKEN_PORT = int(os.environ.get("TEST_NGINX_TOKEN_PORT", "11097"))

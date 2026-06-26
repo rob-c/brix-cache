@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TYPES_FILE_H
+#define XROOTD_TYPES_FILE_H
 
 /* Number of committed-write entries kept per open handle for replay detection. */
 #define XROOTD_WRTS_JOURNAL_SLOTS 64
@@ -100,6 +101,28 @@ typedef struct {
     char      *slice_cache_path;  /* whole-file cache path (slice naming + meta) */
     char      *slice_clean_path;  /* origin clean path for slice fills */
     size_t     slice_size;        /* bytes per slice (from cache_slice_size) */
+
+    /*
+     * Phase-57 W2 ZIP member access.  When zip_mode is set this read handle's
+     * fd is the ARCHIVE fd, and the handle serves one member of it: stored
+     * members (zip_method 0) by pure offset translation (fd read at
+     * zip_data_off + request offset), deflate members (zip_method 8) by
+     * streaming inflate through zip_inflate (a xrootd_codec_stream_t*, lazily
+     * created on first read).  cached_size holds the member's UNCOMPRESSED size
+     * (the logical file size reported to clients).  Read-only: write/pgwrite/
+     * truncate/sync on a zip_mode handle are rejected.  pgread/readv reject
+     * deflate members (the per-page CRC32c invariant can't span a reconstructed
+     * stream); stored members are fine.
+     */
+    unsigned   zip_mode:1;
+    uint16_t   zip_method;        /* 0 = stored, 8 = deflate */
+    uint64_t   zip_data_off;      /* archive offset of the member's first data byte */
+    uint64_t   zip_comp_size;     /* compressed bytes in the archive */
+    uint64_t   zip_uncomp_size;   /* uncompressed (logical) size == cached_size */
+    uint32_t   zip_crc32;         /* expected IEEE CRC-32 of the uncompressed data */
+    void      *zip_inflate;       /* xrootd_codec_stream_t* (deflate); NULL until used */
+    uint64_t   zip_logical_pos;   /* next uncompressed offset the inflate stream will emit */
+    uint64_t   zip_comp_pos;      /* next compressed offset consumed from the archive */
 
     /* kXR_chkpoint state: non-NULL ckp_path means a checkpoint is active. */
     char      *ckp_path;        /* absolute path to the checkpoint temp file */
@@ -218,4 +241,11 @@ typedef struct {
      * the hinted lookup falls back to a full scan and refreshes the hint. */
     int      shared_handle_slot_hint;
 
+    /* §7 XrdSsi: non-NULL marks this handle as an SSI request/response channel
+     * (no real fd). Points to an xrootd_ssi_req_t (connection-pool allocated); the
+     * read/write handlers branch on it and xrootd_free_fhandle clears it. */
+    void    *ssi;
+
 } xrootd_file_t;
+
+#endif /* XROOTD_TYPES_FILE_H */

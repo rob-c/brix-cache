@@ -42,7 +42,9 @@ usage(void)
         "  -s             silent\n"
         "  -v, -d         verbose / debug\n"
         "  --from <file>  read sources from a manifest (one per line; '-'=stdin)\n"
-        "  --retry <n>    retry each failed transfer up to n times (backoff)\n"
+        "  --retry <n>    retry each failed transfer up to n times (backoff); 0 = fail fast\n"
+        "  --no-retry     disable transport resilience: fail on the first fault\n"
+        "  --max-stall <ms> reconnect/resume patience window (0 = fail fast)\n"
         "  --auto-refresh proactively renew an expired/near-expiry token (oidc-agent)\n"
         "                 or GSI proxy before transferring\n"
         "  --oidc-account <name>  oidc-agent account for --auto-refresh (or $OIDC_ACCOUNT)\n"
@@ -1149,8 +1151,13 @@ main(int argc, char **argv)
     char         **pos = NULL, **srcs = NULL, **exp = NULL;
     size_t         npos = 0, poscap = 0, nsrc = 0, srccap = 0, nexp = 0, expcap = 0, i;
     const char    *from = NULL, *dst = NULL, *oidc_account = NULL;
+    const char    *proxy = NULL;   /* --proxy: explicit X.509 proxy path override */
     int            retries = 0, jobs = 1, sync_mode = 0, force_progress = 0, verify = 0, rc = 0, oom = 0;
     int            auto_refresh = 0;   /* Phase 40 (b): --auto-refresh */
+    /* C1: credential store built from CLI values after arg parsing; INERT until C2
+     * threads it through the auth path.  NULL until xrdc_cli_cred_store_build runs;
+     * freed on every exit path after construction. */
+    struct xrdc_cred_store *cred_store = NULL;
 
     memset(&opts, 0, sizeof(opts));
     memset(&conn, 0, sizeof(conn));
@@ -1182,20 +1189,29 @@ main(int argc, char **argv)
             else if (strcmp(a, "-v") == 0 || strcmp(a, "-d") == 0) { opts.verbose = 1; }
             else if (strcmp(a, "-N") == 0)  { /* no progress bar — already none */ }
             else if (strcmp(a, "--from") == 0 && i + 1 < (size_t) argc) { from = argv[++i]; }
-            else if (strcmp(a, "--retry") == 0 && i + 1 < (size_t) argc) { retries = atoi(argv[++i]); }
+            else if (strcmp(a, "--retry") == 0 && i + 1 < (size_t) argc) {
+                retries = atoi(argv[++i]);
+                if (retries <= 0) { retries = 0; opts.no_retry = 1; }  /* 0 ⇒ fail fast */
+            }
+            else if (strcmp(a, "--no-retry") == 0) { opts.no_retry = 1; }
             else if ((strcmp(a, "-j") == 0 || strcmp(a, "--jobs") == 0) && i + 1 < (size_t) argc) { jobs = atoi(argv[++i]); }
             else if (strcmp(a, "--sync") == 0) { sync_mode = 1; }
             else if (strcmp(a, "--progress") == 0) { force_progress = 1; }
             else if (strcmp(a, "--verify") == 0) { verify = 1; }
             else if (strcmp(a, "--auto-refresh") == 0) { auto_refresh = 1; }
             else if (strcmp(a, "--oidc-account") == 0 && i + 1 < (size_t) argc) { oidc_account = argv[++i]; }
+            else if (strcmp(a, "--proxy") == 0 && i + 1 < (size_t) argc) { proxy = argv[++i]; }
             else if (strcmp(a, "--pgrw") == 0)  { opts.pgrw = 1; }
             else if (strcmp(a, "--cksum") == 0 && i + 1 < (size_t) argc) { opts.cksum = argv[++i]; }
             else if (strcmp(a, "--compress") == 0 && i + 1 < (size_t) argc) { opts.compress = argv[++i]; }
             else if (strcmp(a, "--zip") == 0)         { opts.zip = 1; }
             else if (strcmp(a, "--zip-append") == 0)  { opts.zip_append = 1; }
             else if ((strcmp(a, "-S") == 0 || strcmp(a, "--streams") == 0) && i + 1 < (size_t) argc) { opts.streams = atoi(argv[++i]); }
-            else if (strcmp(a, "--max-stall") == 0 && i + 1 < (size_t) argc) { opts.max_stall_ms = atoi(argv[++i]); }
+            else if (strcmp(a, "--max-stall") == 0 && i + 1 < (size_t) argc) {
+                int v = atoi(argv[++i]);
+                if (v > 0) { opts.max_stall_ms = v; opts.no_retry = 0; }
+                else       { opts.no_retry = 1; }   /* 0/negative ⇒ fail fast */
+            }
             else if (strncmp(a, "--io-uring=", 11) == 0) {
                 const char *m = a + 11;
                 opts.io_uring = (strcmp(m, "on") == 0)  ? XRDC_IO_URING_ON
@@ -1321,6 +1337,16 @@ main(int argc, char **argv)
         }
     }
 
+    /* C1: build the credential store from CLI values and attach it to the
+     * connection options.  The store is INERT here — nothing reads conn.cred
+     * yet; C2 will thread it through the auth/token handshake path.  Building
+     * it now (before the transfer) means C2 only needs to consume conn.cred,
+     * not rebuild it.  NULL/empty args fall back to per-handler env discovery. */
+    cred_store = xrdc_cli_cred_store_build(proxy, opts.bearer, NULL,
+                                            opts.s3_access, opts.s3_secret,
+                                            oidc_account, auto_refresh);
+    conn.cred = cred_store;
+
     xrdc_status_clear(&st);
     /* Recursive copy of a web (davs/http) collection: list it client-side and copy
      * each file (the wire has no recursive transfer op). root:// and local -r are
@@ -1344,6 +1370,7 @@ main(int argc, char **argv)
                                               || xrdc_is_web_url(dst), stderr);
                 }
             }
+            xrdc_cred_store_free(cred_store);
             str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
             return (bad == 0) ? 0 : 1;
         }
@@ -1368,6 +1395,7 @@ main(int argc, char **argv)
                         fprintf(stderr, "xrdcp: %s: %s\n", exp[i], st.msg);
                     }
                 }
+                xrdc_cred_store_free(cred_store);
                 str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
                 return (bad == 0) ? 0 : 1;
             }
@@ -1404,6 +1432,7 @@ main(int argc, char **argv)
         if (dest_is_dir(dst, &conn) != 1) {
             fprintf(stderr, "xrdcp: destination must be an existing directory for "
                             "multi-source copy: %s\n", dst);
+            xrdc_cred_store_free(cred_store);
             str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
             return 50;
         }
@@ -1443,6 +1472,7 @@ main(int argc, char **argv)
         rc = (fail == 0) ? 0 : 1;
     }
 
+    xrdc_cred_store_free(cred_store);
     str_free(pos, npos);
     str_free(srcs, nsrc);
     str_free(exp, nexp);

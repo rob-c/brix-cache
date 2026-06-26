@@ -202,7 +202,7 @@ xrdc_gsi_cert_explain(const char *proxy_path, FILE *out)
     if (proxy_path == NULL || proxy_path[0] == '\0') {
         return;
     }
-    bio = BIO_new_file(proxy_path, "r");
+    bio = xrdc_credfile_bio(proxy_path, 1);
     if (bio == NULL) {
         return;
     }

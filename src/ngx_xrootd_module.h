@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_NGX_XROOTD_MODULE_H
+#define XROOTD_NGX_XROOTD_MODULE_H
 
 /*
  * ngx_xrootd_module.h — umbrella internal header for the nginx XRootD stream module.
@@ -222,10 +223,10 @@ char *xrootd_conf_set_wt_allow_prefix(ngx_conf_t *cf, ngx_command_t *cmd,
  * This file then #includes those same sub-headers below to pull their
  * function declarations into every translation unit that includes us.
  * The resulting include cycle (A includes B, B includes A) is broken
- * by the #pragma once at the top of this file: when B tries to include
- * A a second time, the pragma is already in effect and the re-include
- * is a no-op.  By the time B is processed, all types defined earlier
- * in this file are already visible to B.
+ * by the include guard at the top of this file: when B tries to include
+ * A a second time, XROOTD_NGX_XROOTD_MODULE_H is already defined and the
+ * re-include is a no-op.  By the time B is processed, all types defined
+ * earlier in this file are already visible to B.
  *
  * The net effect: every .c file that does #include "ngx_xrootd_module.h"
  * automatically gets the declarations from every subsystem header too.
@@ -403,3 +404,5 @@ ngx_int_t xrootd_handle_pwd_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * the read/write hot-path callers need not include the HTTP-pulling
  * ratelimit.h. */
 void xrootd_rl_charge_ctx(xrootd_ctx_t *ctx, size_t nbytes);
+
+#endif /* XROOTD_NGX_XROOTD_MODULE_H */

@@ -1,5 +1,6 @@
 #include "server.h"
 #include "../connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
+#include "../compat/log_diag.h"
 #include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
 /*
@@ -226,9 +227,14 @@ xrootd_cms_srv_handler(ngx_stream_session_t *s)
      * path.  When no allowlist is configured this passes (back-compat).
      */
     if (xrootd_cms_srv_check_peer(c, conf) != NGX_OK) {
-        ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
-                      "xrootd: CMS server: registration denied from %s "
-                      "(not in xrootd_cms_server_allow)", ctx->host);
+        XROOTD_DIAG(NGX_LOG_NOTICE, c->log, 0,
+            "xrootd[cms]: rejected data-server registration from %s",
+            "the peer's IP is not covered by the xrootd_cms_server_allow "
+            "allowlist (or the allowlist is wrong)",
+            "if this is a legitimate data server, add its IP/CIDR to "
+            "xrootd_cms_server_allow; otherwise this is an unauthorised peer "
+            "being correctly refused",
+            ctx->host);
         ngx_stream_finalize_session(s, NGX_STREAM_FORBIDDEN);
         return;
     }

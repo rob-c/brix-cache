@@ -7,8 +7,7 @@
  *       ctx-path accessor (xrootd_vfs_ctx_path), the metrics/access-log observer
  *       helpers (xrootd_vfs_observe_ctx_op / xrootd_vfs_observe_file_op and the
  *       elapsed-usec/proto helpers they use), and the cross-unit prototypes
- *       (fill_stat, copy_path, register_fd_cleanup, adopt_fd, pread_full,
- *       pwrite_full). Also defines XROOTD_VFS_COPY_CHUNK.
+ *       (fill_stat, copy_path, adopt_fd, pread_full, pwrite_full).
  *
  * WHY:  Every vfs_*.c file needs the same guard-then-syscall-then-observe
  *       pattern and the same handle layout. Centralising it here keeps the
@@ -40,9 +39,8 @@
 #include <limits.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
-
-#define XROOTD_VFS_COPY_CHUNK 65536
 
 struct xrootd_vfs_file_s {
     /* Backend object: carries the open descriptor plus its driver + instance,
@@ -62,9 +60,14 @@ struct xrootd_vfs_file_s {
     unsigned          from_cache:1;
     unsigned          is_tls:1;
     unsigned          cleanup_registered:1;
-    /* phase-45 W2/R1: the cached size/mtime/ctime/mode/ino above are current
-     * (set by adopt_fd's fstat, no write since), so xrootd_vfs_file_stat() can
-     * answer from them without a second fstat.  Cleared by xrootd_vfs_write(). */
+    /* phase-45 W2/R1: when set, the cached size/mtime/ctime/mode/ino above are
+     * authoritative, so xrootd_vfs_file_stat() answers from them without a second
+     * fstat.  adopt_fd sets it iff the handle is READ-ONLY: a read-only handle
+     * cannot change its own file, so the open-time fstat stays valid for its
+     * lifetime (this is the S3/WebDAV GET read-then-stat fast path).  A writable
+     * handle leaves it 0, forcing a live fstat — correct even though no current
+     * caller writes through a VFS handle (writes use the io_core job interface on
+     * the raw fd), so a future write-through-handle path is safe by construction. */
     unsigned          stat_current:1;
 };
 
@@ -226,19 +229,34 @@ xrootd_vfs_metrics_proto(const xrootd_vfs_ctx_t *ctx)
     return ctx->metrics_proto;
 }
 
-/* Latency since start_msec in MICROseconds (start is an ngx_current_msec
- * snapshot). Clamps to 0 if the cached clock appears to have gone backwards. */
-static ngx_inline ngx_msec_t
-xrootd_vfs_elapsed_usec(ngx_msec_t start_msec)
+/* phase-56 D-1: a real monotonic timestamp in NANOseconds for op-latency.
+ * Replaces the cached ngx_current_msec, which (a) only advances on event-loop
+ * ticks — so a synchronous metadata op that never yields reported 0 µs — and
+ * (b) is millisecond-resolution, quantizing the whole sub-ms band to 0/1000 µs.
+ * CLOCK_MONOTONIC is vDSO-backed (~20 ns/call, lost in the syscalls the op
+ * already makes) and gives honest sub-µs deltas. NOT CLOCK_MONOTONIC_COARSE —
+ * that is also ~1-4 ms granularity and would only fix (a), not the resolution. */
+static ngx_inline uint64_t
+xrootd_vfs_now_ns(void)
 {
-    ngx_msec_t now;
+    struct timespec ts;
 
-    now = ngx_current_msec;
-    if (now < start_msec) {
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t) ts.tv_sec * 1000000000ull + (uint64_t) ts.tv_nsec;
+}
+
+/* Latency since start_ns in MICROseconds (start is an xrootd_vfs_now_ns()
+ * snapshot). Clamps to 0 if the monotonic clock appears to have gone backwards. */
+static ngx_inline ngx_msec_t
+xrootd_vfs_elapsed_usec(uint64_t start_ns)
+{
+    uint64_t now_ns = xrootd_vfs_now_ns();
+
+    if (now_ns < start_ns) {
         return 0;
     }
 
-    return (now - start_msec) * 1000;
+    return (ngx_msec_t) ((now_ns - start_ns) / 1000ull);
 }
 
 /* Post-op observer: derive the error class from rc/sys_errno, compute latency
@@ -249,14 +267,14 @@ xrootd_vfs_elapsed_usec(ngx_msec_t start_msec)
 static ngx_inline void
 xrootd_vfs_observe_ctx_op(const xrootd_vfs_ctx_t *ctx, const char *path,
     xrootd_metric_op_t op, const xrootd_vfs_io_result_t *result,
-    size_t bytes, ngx_int_t rc, int sys_errno, ngx_msec_t start_msec)
+    size_t bytes, ngx_int_t rc, int sys_errno, uint64_t start_ns)
 {
     xrootd_err_class_t err;
     ngx_msec_t         latency_usec;
 
     err = rc == NGX_OK ? XROOTD_ERR_NONE
                        : xrootd_metric_err_from_errno(sys_errno);
-    latency_usec = xrootd_vfs_elapsed_usec(start_msec);
+    latency_usec = xrootd_vfs_elapsed_usec(start_ns);
 
     xrootd_metric_op_done(xrootd_vfs_metrics_proto(ctx), op, bytes,
                           latency_usec, err);
@@ -270,11 +288,11 @@ xrootd_vfs_observe_ctx_op(const xrootd_vfs_ctx_t *ctx, const char *path,
 static ngx_inline void
 xrootd_vfs_observe_file_op(const xrootd_vfs_file_t *fh,
     xrootd_metric_op_t op, const xrootd_vfs_io_result_t *result,
-    size_t bytes, ngx_int_t rc, int sys_errno, ngx_msec_t start_msec)
+    size_t bytes, ngx_int_t rc, int sys_errno, uint64_t start_ns)
 {
     xrootd_vfs_observe_ctx_op(fh != NULL ? fh->ctx : NULL,
                               fh != NULL ? fh->path : NULL,
-                              op, result, bytes, rc, sys_errno, start_msec);
+                              op, result, bytes, rc, sys_errno, start_ns);
 }
 
 /* Translate a struct stat into the protocol-neutral xrootd_vfs_stat_t: zeroes
@@ -287,21 +305,17 @@ void xrootd_vfs_fill_stat(const struct stat *st, xrootd_vfs_stat_t *out);
  * lives as long as pool. */
 char *xrootd_vfs_copy_path(ngx_pool_t *pool, const char *path);
 
-/* Arm a pool cleanup that closes fd when pool is destroyed (the standard way to
- * hand a dup'd fd to a sendfile buffer without leaking). path is borrowed for
- * the cleanup's log name; pass NULL for a default. Returns NGX_OK, or NGX_ERROR
- * with errno=EINVAL (bad fd/pool) / ENOMEM. Does NOT take fd ownership until the
- * cleanup actually fires. */
-ngx_int_t xrootd_vfs_register_fd_cleanup(ngx_pool_t *pool, ngx_fd_t fd,
-    const char *path, ngx_log_t *log);
-
 /* Wrap an already-open fd in a freshly pcalloc'd handle (from ctx->pool):
  * fstat()s fd to populate cached size/mtime/ino/mode, dups path, and records
- * from_cache and ctx->is_tls. On success *out is set and the handle adopts fd
- * (caller stops owning it). Returns NGX_ERROR (out unchanged/NULL) on bad args
- * (EINVAL), fstat failure (errno from fstat), or OOM (ENOMEM). */
+ * from_cache and ctx->is_tls. `writable` is non-zero iff the fd was opened for
+ * writing; it gates the stat_current fast path (see xrootd_vfs_file_stat) — a
+ * writable handle never trusts its open-time metadata, a read-only one always
+ * can (the file cannot change through it). On success *out is set and the handle
+ * adopts fd (caller stops owning it). Returns NGX_ERROR (out unchanged/NULL) on
+ * bad args (EINVAL), fstat failure (errno from fstat), or OOM (ENOMEM). */
 ngx_int_t xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path,
-    ngx_fd_t fd, unsigned from_cache, xrootd_vfs_file_t **out);
+    ngx_fd_t fd, unsigned from_cache, unsigned writable,
+    xrootd_vfs_file_t **out);
 
 /* EINTR-safe, short-read-tolerant pread of up to len bytes at offset into buf.
  * Loops until len is filled or EOF. *nread (optional) always receives the byte

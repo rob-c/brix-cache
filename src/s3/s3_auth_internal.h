@@ -22,7 +22,8 @@
  * string builder and signature verifier operate on identical parsed data.
  * ============================================================
  */
-#pragma once
+#ifndef XROOTD_S3_S3_AUTH_INTERNAL_H
+#define XROOTD_S3_S3_AUTH_INTERNAL_H
 
 /* -------------------------------------------------------------------------
  * SigV4 Authorization header parser — defined in auth_sigv4_parse.c.
@@ -58,3 +59,5 @@ int parse_authorization(const ngx_str_t *auth, sigv4_components_t *out);
  */
 int parse_presigned_authorization(ngx_http_request_t *r,
     sigv4_components_t *out);
+
+#endif /* XROOTD_S3_S3_AUTH_INTERNAL_H */

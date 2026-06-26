@@ -11,6 +11,8 @@
 int
 main(int argc, char **argv)
 {
+    /* err_exit=3 mirrors stock xrdcrc32c (local-only): its open() of the target
+     * fails with Fatal()→exit(3); we match that code on any access failure. */
     return xrdc_cli_cksum_main(argv[0], "crc32c", XRDC_CK_CRC32C,
-                               argc == 2 ? argv[1] : NULL);
+                               argc == 2 ? argv[1] : NULL, 3);
 }

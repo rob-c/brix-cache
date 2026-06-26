@@ -13,7 +13,41 @@
  *       each open follows its own cluster redirect. Server-side TPC is out of scope.
  */
 #include "xrdc.h"
-#include "uring.h"                /* phase-44: optional local-disk overlap ring */
+#include "cred.h"                 /* xrdc_cred_acquire/available for web auth store path */
+#include "vfs.h"                  /* xrdc_vfs — pluggable local storage backend */
+
+/*
+ * POSIX backend link anchor — prevents the static linker from omitting
+ * vfs_posix.o when xrdcp / other tools link against libxrdc.a.
+ *
+ * WHY:  vfs.c declares xrdc_vfs_posix_backend __attribute__((weak)) so the
+ *       library compiles before the backends land.  A weak undefined reference
+ *       is NOT sufficient to pull an object file from a static archive; only a
+ *       STRONG (non-weak) undefined reference triggers the scan.  By declaring
+ *       xrdc_vfs_posix_backend here without the weak attribute, copy.o carries
+ *       a strong U entry that forces the linker to include vfs_posix.o from
+ *       libxrdc.a whenever copy.o is linked — no Makefile changes needed.
+ * HOW:  declare the function (non-weak extern) and store its address in a
+ *       const, __attribute__((used)) variable so neither the compiler nor the
+ *       linker's dead-code pass removes the reference before the archive scan.
+ */
+extern const xrdc_vfs_backend *xrdc_vfs_posix_backend(void);
+__attribute__((used))
+static const xrdc_vfs_backend *(*const s_vfs_posix_anchor)(void) =
+    xrdc_vfs_posix_backend;
+
+/*
+ * Block backend link anchor — mirrors the POSIX anchor above.
+ * WHY:  vfs.c declares xrdc_vfs_block_backend __attribute__((weak)); a weak
+ *       symbol does NOT pull vfs_block.o from libxrdc.a.  Declaring it here
+ *       as a plain extern (strong U) forces the linker to include vfs_block.o
+ *       whenever copy.o is linked, so copy_block / copy_vfs_to_vfs work.
+ */
+extern const xrdc_vfs_backend *xrdc_vfs_block_backend(void);
+__attribute__((used))
+static const xrdc_vfs_backend *(*const s_vfs_block_anchor)(void) =
+    xrdc_vfs_block_backend;
+
 #include "zip.h"                  /* phase-42 W3: ?xrdcl.unzip= member extraction */
 #include "compat/host_format.h"  /* xrootd_format_host_port (IPv6-bracketed Host) */
 #include "compat/hex.h"          /* shared hex encoder (libxrdproto) */
@@ -111,6 +145,44 @@ make_temp_path(const char *dst, char *out, size_t outsz)
 }
 
 /*
+ * open_download_temp — create a fresh private temp next to `dst` for the
+ * download+atomic-rename, and hand back its fd and name.
+ *
+ * WHY: the temp name is predictable (pid + counter), so an attacker with write
+ *      access to the destination directory could pre-create it as a symlink and
+ *      redirect our O_TRUNC onto a victim-owned file. O_EXCL refuses a
+ *      pre-existing name and O_NOFOLLOW refuses a symlink, closing that race; we
+ *      regenerate the name and retry on a stale collision so a leftover temp from
+ *      a killed run doesn't wedge the transfer. Returns an fd (caller closes) and
+ *      fills tmp[], or -1 with *st set.
+ */
+static int
+open_download_temp(const char *dst, char *tmp, size_t tmpsz, xrdc_status *st)
+{
+    int attempt;
+
+    for (attempt = 0; attempt < 64; attempt++) {
+        int fd;
+        if (make_temp_path(dst, tmp, tmpsz) != 0) {
+            xrdc_status_set(st, XRDC_EUSAGE, 0, "destination path too long: %s", dst);
+            return -1;
+        }
+        fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0644);
+        if (fd >= 0) {
+            return fd;
+        }
+        if (errno != EEXIST) {
+            xrdc_status_set(st, XRDC_EUSAGE, errno, "open %s: %s",
+                            tmp, strerror(errno));
+            return -1;
+        }
+    }
+    xrdc_status_set(st, XRDC_EUSAGE, EEXIST,
+                    "could not create a unique temp for %s", dst);
+    return -1;
+}
+
+/*
  * Commit (or discard) a temp destination: on rc==0 rename `tmp`→`dest`
  * atomically (downgrading rc to -1 with st set if the rename fails); on rc!=0
  * drop the temp. Returns the final rc. Shared by every local-dest writer so the
@@ -178,6 +250,26 @@ typedef int (*pump_sink_fn)(void *ctx, const uint8_t *buf, int64_t off, size_t n
  * multi-RTT) reconnects after the severs that do happen. 256 KiB is the sweet
  * spot measured against a fault proxy up to 15% per-segment loss. */
 #define XRDC_RESILIENT_FLOOR (256u * 1024u)
+
+/* Effective resilience (max-stall) window in ms for a copy, honouring the
+ * fail-fast knob: `no_retry` (set by --no-retry / --retry 0 / --max-stall 0)
+ * yields 0 — every bounded copy loop then has a zero-length deadline and fails
+ * on the first transport fault instead of spinning the default window against a
+ * dead endpoint. Otherwise an explicit positive max_stall_ms wins, else `dflt`.
+ * Centralises the choice the bounded loops below all make so `no_retry` can
+ * never again be silently dropped (the raw `max_stall_ms > 0 ? : DEFAULT`
+ * ternary could not distinguish "fail fast" from "use the default"). */
+static int
+copy_stall_ms(const xrdc_copy_opts *o, int dflt)
+{
+    if (o != NULL && o->no_retry) {
+        return 0;
+    }
+    if (o != NULL && o->max_stall_ms > 0) {
+        return o->max_stall_ms;
+    }
+    return dflt;
+}
 
 /* Remote source/sink over an open handle; ->pgrw selects paged I/O + per-page
  * CRC32c (kXR_pgread/pgwrite) vs the plain kXR_read/write path.
@@ -335,73 +427,32 @@ pump_sink_local(void *ctx, const uint8_t *buf, int64_t off, size_t n,
     return write_all(*(int *) ctx, buf, n, st);
 }
 
-/* ---- Phase 44: optional io_uring local-disk overlap (Option A) ----
+/* ---- VFS-backed local pump context and adapters ---------------------------
  *
- * The uring adapters present the same synchronous one-chunk face as the local
- * adapters above, but route through xrdc_disk_ring so disk I/O overlaps the
- * network side.  transfer_pump and the remote adapters are untouched; the only
- * change is which (fn, ctx) pair a local fd is driven by, chosen per
- * xrdc_copy_opts.io_uring.  See copy_run_download / copy_run_upload below. */
+ * pump_local_t holds the VFS handle for a local file endpoint.  The VFS layer
+ * (vfs_posix.c) owns the fd, optional io_uring ring, and temp+rename commit
+ * internally — copy.c just calls xrdc_vfs_pread / xrdc_vfs_pwrite through it.
+ * Ring selection (AUTO/ON/OFF from opts.io_uring) happens inside vfs_posix.c's
+ * open, eliminating the old local_ring_select helper from this file. */
 
 typedef struct {
-    int             fd;
-    xrdc_disk_ring *ring;
+    xrdc_vfs_file *vf;
 } pump_local_t;
 
 static ssize_t
-pump_src_local_uring(void *ctx, uint8_t *buf, int64_t off, size_t cap,
-                     xrdc_status *st)
+pump_src_local_vfs(void *ctx, uint8_t *buf, int64_t off, size_t cap,
+                   xrdc_status *st)
 {
     pump_local_t *lc = ctx;
-    return xrdc_disk_ring_pread(lc->ring, off, buf, cap, st);
+    return xrdc_vfs_pread(lc->vf, off, buf, cap, st);
 }
 
 static int
-pump_sink_local_uring(void *ctx, const uint8_t *buf, int64_t off, size_t n,
-                      xrdc_status *st)
+pump_sink_local_vfs(void *ctx, const uint8_t *buf, int64_t off, size_t n,
+                    xrdc_status *st)
 {
     pump_local_t *lc = ctx;
-    return xrdc_disk_ring_pwrite(lc->ring, off, buf, n, st);
-}
-
-/*
- * local_ring_select — decide whether to engage the overlap ring for a local fd.
- * Sets *ring (NULL = use the classic adapter).  off  -> never; on  -> required,
- * a clean error if io_uring is unavailable (client fail-fast); auto -> use it
- * iff available, silently falling back otherwise.  o == NULL (recursive helper
- * sub-transfers) is treated as auto.  Returns 0, or -1 (with *st) for on+absent.
- */
-static int
-local_ring_select(int fd, const xrdc_copy_opts *o, xrdc_disk_ring **ring,
-                  xrdc_status *st)
-{
-    int mode = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
-
-    *ring = NULL;
-    if (mode == XRDC_IO_URING_OFF) {
-        return 0;
-    }
-    if (!xrdc_uring_available()) {
-        if (mode == XRDC_IO_URING_ON) {
-            xrdc_status_set(st, XRDC_EUNSUPPORTED, 0,
-                "--io-uring=on but io_uring is unavailable on this host "
-                "(kernel/seccomp) or this build lacks liburing");
-            return -1;
-        }
-        return 0;   /* auto: classic path */
-    }
-    {
-        xrdc_status tmp;
-        xrdc_status_clear(&tmp);
-        /* A 4-deep window of pump-sized buffers overlaps disk and network. */
-        *ring = xrdc_disk_ring_create(fd, 4, XRDC_COPY_CHUNK, 0, &tmp);
-        if (*ring == NULL && mode == XRDC_IO_URING_ON) {
-            if (st != NULL) { *st = tmp; }
-            return -1;
-        }
-        /* auto: a create failure just leaves *ring NULL -> classic path */
-    }
-    return 0;
+    return xrdc_vfs_pwrite(lc->vf, off, buf, n, st);
 }
 
 /*
@@ -482,89 +533,26 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
     return rc;
 }
 
-/*
- * copy_run_download — run the pump for a remote source into a local fd, routing
- * the local writes through the io_uring overlap ring when selected.  On the
- * ring path the pump's write-behind leaves writes in flight, so the ring is
- * flushed (committing every queued pwrite) before it is destroyed; a flush
- * error fails the transfer.  The classic path is byte-identical to before.
- */
-static int
-copy_run_download(pump_src_fn rsrc, void *rsctx, int outfd, int64_t expected,
-                  const xrdc_copy_opts *o, int64_t ptotal, xrdc_status *st)
-{
-    xrdc_disk_ring *ring = NULL;
-    int             rc;
-
-    if (local_ring_select(outfd, o, &ring, st) != 0) {
-        return -1;
-    }
-    if (ring == NULL) {
-        return transfer_pump(rsrc, rsctx, pump_sink_local, &outfd,
-                             expected, o, ptotal, st);
-    }
-
-    {
-        pump_local_t lc;
-        lc.fd   = outfd;
-        lc.ring = ring;
-        rc = transfer_pump(rsrc, rsctx, pump_sink_local_uring, &lc,
-                           expected, o, ptotal, st);
-        if (rc == 0) {
-            rc = xrdc_disk_ring_flush(ring, st);
-        }
-        xrdc_disk_ring_destroy(ring);
-    }
-    return rc;
-}
 
 /*
- * copy_run_upload — run the pump for a local fd into a remote sink, routing the
- * local reads through the io_uring read-ahead ring when selected.  Reads need
- * no flush (destroy drains any speculative reads).
- */
-static int
-copy_run_upload(int infd, pump_sink_fn rsink, void *rsctx, int64_t expected,
-                const xrdc_copy_opts *o, int64_t ptotal, xrdc_status *st)
-{
-    xrdc_disk_ring *ring = NULL;
-    int             rc;
-
-    if (local_ring_select(infd, o, &ring, st) != 0) {
-        return -1;
-    }
-    if (ring == NULL) {
-        return transfer_pump(pump_src_local, &infd, rsink, rsctx,
-                             expected, o, ptotal, st);
-    }
-
-    {
-        pump_local_t lc;
-        lc.fd   = infd;
-        lc.ring = ring;
-        rc = transfer_pump(pump_src_local_uring, &lc, rsink, rsctx,
-                           expected, o, ptotal, st);
-        xrdc_disk_ring_destroy(ring);
-    }
-    return rc;
-}
-
-/*
- * WHAT: Open the source for read, stream the known-size body to `outfd`, then
- *       close the remote handle — the whole "remote file is open" lifetime.
+ * WHAT: Open the source for read, stream the known-size body to the local sink,
+ *       then close the remote handle — the whole "remote file is open" lifetime.
  * WHY:  Confining the open-read handle (and its secondary streams + scratch buf)
  *       to one helper lets the caller stay a flat early-return sequence: the file
  *       is always closed here, on every path, without a shared cleanup jump.
- * HOW:  open_read → streams_open(&ss) → malloc buf → read/write loop to si.size →
- *       file_close. Returns 0 on a complete transfer, -1 (st set) otherwise. On
- *       open_read failure the streams are left untouched (ss.n stays 0, so the
- *       caller's streams_close is a no-op) — mirroring the original NULL-init.
- *       buf is freed here; the connection and outfd are owned by the caller so it
- *       can run the post-transfer checksum before tearing them down.
+ * HOW:  open_read → streams_open(&ss) → pump(src, sink/sinkctx, si->size) →
+ *       file_close.  The caller supplies (sink, sinkctx): either a VFS file via
+ *       pump_sink_local_vfs + pump_local_t, or the stdout fd via pump_sink_local.
+ *       Returns 0 on a complete transfer, -1 (st set) otherwise.  On open_read
+ *       failure the streams are left untouched (ss.n stays 0, so the caller's
+ *       streams_close is a no-op) — mirroring the original NULL-init.  The
+ *       connection is owned by the caller so it can run the post-transfer checksum
+ *       before tearing down.
  */
 static int
 download_stream_body(xrdc_conn *c, const xrdc_url *su, const xrdc_statinfo *si,
-                     int outfd, const xrdc_copy_opts *o, xrdc_streamset *ss,
+                     pump_sink_fn sink, void *sinkctx,
+                     const xrdc_copy_opts *o, xrdc_streamset *ss,
                      xrdc_status *st)
 {
     xrdc_file     f;
@@ -585,7 +573,7 @@ download_stream_body(xrdc_conn *c, const xrdc_url *su, const xrdc_statinfo *si,
      * (reconnecting between attempts): the open is the last single-RTT step of
      * setup and is just as sever-prone as connect/stat on a lossy link. */
     {
-        int      stall = (o->max_stall_ms > 0) ? o->max_stall_ms : 60000;
+        int      stall = copy_stall_ms(o, 60000);
         uint64_t deadline = xrdc_mono_ns() + (uint64_t) stall * 1000000ULL;
         unsigned attempt = 0;
         for (;;) {
@@ -609,20 +597,19 @@ download_stream_body(xrdc_conn *c, const xrdc_url *su, const xrdc_statinfo *si,
     /* M8: attach N-1 bound secondary streams to the (post-redirect) session. */
     xrdc_streams_open(ss, c, o->streams, st);
 
-    /* remote (known si->size) → local outfd, with progress. Resilient: a sever
-     * mid-read reconnects + reopens at offset and adapts the request size, so a
-     * one-shot download rides out a flaky/lossy link (off by default-clean: it
-     * only engages on a transport fault). */
+    /* remote (known si->size) → caller-supplied sink, with progress.  Resilient:
+     * a sever mid-read reconnects + reopens at offset and adapts the request size,
+     * so a one-shot download rides out a flaky/lossy link. */
     src.c = c;
     src.f = &f;
     src.pgrw = o->pgrw;
     src.resilient = 1;
     src.path = su->path;
     src.opaque = opaque;
-    src.max_stall_ms = (o->max_stall_ms > 0) ? o->max_stall_ms : 60000;
+    src.max_stall_ms = copy_stall_ms(o, 60000);
     src.cur_chunk = XRDC_COPY_CHUNK;
-    rc = copy_run_download(pump_src_remote, &src, outfd,
-                           si->size, o, si->size, st);
+    rc = transfer_pump(pump_src_remote, &src, sink, sinkctx,
+                       si->size, o, si->size, st);
 
     {
         xrdc_status throwaway;
@@ -681,15 +668,12 @@ static int
 copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
               const xrdc_opts *co, xrdc_status *st)
 {
-    xrdc_conn      c;
-    xrdc_statinfo  si;
+    xrdc_conn     c;
+    xrdc_statinfo si;
     xrdc_streamset ss;
-    int            outfd = -1;
     int            to_stdout = (du->scheme == XRDC_SCHEME_STDIO);
-    int            use_tmp = 0;
+    int            stall = copy_stall_ms(o, 60000);
     int            rc;
-    char           tmp[XRDC_PATH_MAX];
-    int            stall = (o->max_stall_ms > 0) ? o->max_stall_ms : 60000;
 
     ss.n = 0;   /* so the streams teardown is a no-op if we never bind */
     if (resilient_setup(&c, su, co, &si, stall, st) != 0) {
@@ -701,106 +685,126 @@ copy_download(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
         return -1;
     }
 
-    /*
-     * Phase 40 (a): download to a `<dst>.xrdcp-tmp.<pid>` sibling and rename(2)
-     * onto the final path only after a complete, checksum-verified transfer —
-     * the same atomicity copy_web_download already has. An interrupt (SIGINT) or
-     * error then leaves at most an orphan temp; the real destination is never a
-     * truncated/partial file, and a pre-existing file is never clobbered until
-     * the new copy is known-good.
-     */
     if (to_stdout) {
-        outfd = STDOUT_FILENO;
-    } else {
-        if (!o->force && access(du->path, F_OK) == 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0,
-                            "destination exists (use -f to overwrite): %s",
-                            du->path);
-            xrdc_close(&c);
-            return -1;
-        }
-        if (make_temp_path(du->path, tmp, sizeof(tmp)) != 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "destination path too long: %s",
-                            du->path);
-            xrdc_close(&c);
-            return -1;
-        }
-        outfd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        if (outfd < 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, errno,
-                            "open %s: %s", tmp, strerror(errno));
-            xrdc_close(&c);
-            return -1;
-        }
-        use_tmp = 1;
-    }
-
-    rc = download_stream_body(&c, su, &si, outfd, o, &ss, st);
-
-    if (outfd >= 0 && !to_stdout) {
-        close(outfd);   /* flush before any checksum read */
-    }
-    /* Verify the checksum (against the TEMP file) while the post-redirect
-     * connection is still open. A genuine MISMATCH drops the temp; a transient
-     * query failure keeps the good bytes and only warns — never delete a
-     * byte-perfect download because the control-plane query hiccupped. */
-    if (rc == 0 && o->cksum != NULL) {
-        int ck = cksum_verify(&c, su->path, to_stdout ? NULL : tmp,
-                              o->cksum, o->silent, st);
-        if (ck == XRDC_CK_MISMATCH) {
-            rc = -1;
-        } else if (ck == XRDC_CK_UNVERIFIED) {
-            if (!o->silent) {
-                fprintf(stderr, "xrdcp: %s downloaded but checksum NOT verified: "
-                                "%s\n", du->path, st->msg);
+        /* stdio path: pump directly to STDOUT_FILENO — no temp, no VFS, no commit */
+        int stdoutfd = STDOUT_FILENO;
+        rc = download_stream_body(&c, su, &si, pump_sink_local, &stdoutfd,
+                                  o, &ss, st);
+        if (rc == 0 && o->cksum != NULL) {
+            /* stdout has no on-disk file; cksum_verify skips gracefully on NULL */
+            int ck = cksum_verify(&c, su->path, NULL, o->cksum, o->silent, st);
+            if (ck == XRDC_CK_MISMATCH) {
+                rc = -1;
+            } else if (ck == XRDC_CK_UNVERIFIED) {
+                if (!o->silent) {
+                    fprintf(stderr, "xrdcp: %s downloaded but checksum NOT verified: "
+                                    "%s\n", du->path, st->msg);
+                }
+                xrdc_status_clear(st);
             }
-            xrdc_status_clear(st);   /* could-not-verify is not a transfer failure */
         }
+        xrdc_streams_close(&ss);
+        xrdc_close(&c);
+        return rc;
     }
 
-    if (use_tmp) {
-        rc = atomic_dest_finish(tmp, du->path, rc, st);
+    /* Local file path: existence-check preserving the original error message,
+     * then open via VFS (atomic temp+rename and optional io_uring inside the backend).
+     * commit() does fsync+rename; abort() unlinks the temp on any failure or
+     * checksum mismatch so the final destination is never a partial/corrupt file. */
+    if (!o->force && access(du->path, F_OK) == 0) {
+        xrdc_status_set(st, XRDC_EUSAGE, 0,
+                        "destination exists (use -f to overwrite): %s",
+                        du->path);
+        xrdc_close(&c);
+        return -1;
     }
+
+    {
+        xrdc_vfs_file     *vf = NULL;
+        xrdc_vfs_open_opts vopts;
+        pump_local_t       lc;
+        int                committed = 0;
+
+        vopts.io_uring      = o->io_uring;
+        vopts.expected_size = si.size;
+        vopts.cred          = NULL;
+
+        if (xrdc_vfs_open(du->path,
+                          XRDC_VFS_WRITE | (o->force ? XRDC_VFS_FORCE : 0),
+                          &vopts, &vf, st) != 0) {
+            xrdc_close(&c);
+            return -1;
+        }
+
+        lc.vf = vf;
+        rc = download_stream_body(&c, su, &si, pump_sink_local_vfs, &lc,
+                                  o, &ss, st);
+
+        /* Commit on success (fsync + rename temp→final); only then verify the
+         * checksum against the committed file.  A genuine MISMATCH drops the
+         * committed file and returns error — it is an integrity failure, not a
+         * transient fault.  A query hiccup (UNVERIFIED) keeps the good bytes. */
+        if (rc == 0) {
+            rc = xrdc_vfs_commit(vf, st);
+            if (rc == 0) {
+                committed = 1;
+                if (o->cksum != NULL) {
+                    int ck = cksum_verify(&c, su->path, du->path,
+                                         o->cksum, o->silent, st);
+                    if (ck == XRDC_CK_MISMATCH) {
+                        unlink(du->path);   /* drop committed-but-bad file */
+                        rc = -1;
+                    } else if (ck == XRDC_CK_UNVERIFIED) {
+                        if (!o->silent) {
+                            fprintf(stderr, "xrdcp: %s downloaded but checksum "
+                                            "NOT verified: %s\n",
+                                    du->path, st->msg);
+                        }
+                        xrdc_status_clear(st);
+                    }
+                }
+            }
+        }
+        if (rc != 0 && !committed) {
+            xrdc_vfs_abort(vf);   /* discard the partial temp */
+        }
+        xrdc_vfs_close(vf);
+    }
+
     xrdc_streams_close(&ss);
     xrdc_close(&c);
     return rc;
 }
 
 /*
- * WHAT: Connect the destination, open it for write, stream `infd` into it, then
- *       tear the whole remote side down (file close on success, checksum, bound
- *       streams, connection) — the entire "destination session is up" lifetime.
- * WHY:  Confining the connection / write handle / secondary streams / scratch buf
- *       to one helper keeps copy_upload() a flat early-return sequence whose only
- *       lingering resource is the local infd. Both pre-open failure paths
- *       (connect, open_write) return early without entering the finish teardown,
- *       exactly as the original early exits skipped the finish label.
- * HOW:  connect (fail → return -1) → open_write (fail → xrdc_close, return -1) →
- *       streams_open → malloc buf → read(infd)/remote-write loop. The finish step
- *       runs unconditionally once opened: close the remote file cleanly only on
- *       success (POSC discards a partial upload when the handle is abandoned on
- *       error), verify the checksum on the still-open connection, close streams,
- *       close the connection. buf is freed here; infd is owned by the caller.
+ * WHAT: Connect the destination, open it for write, stream bytes from the
+ *       caller-supplied (src, srcctx) into it, then tear the whole remote side
+ *       down (file close on success, checksum, bound streams, connection) — the
+ *       entire "destination session is up" lifetime.
+ * WHY:  Confining the connection / write handle / secondary streams to one helper
+ *       keeps copy_upload() a flat early-return sequence whose only lingering
+ *       resource is the caller-owned VFS handle.  Both pre-open failure paths
+ *       (connect, open_write) return early without entering the finish teardown.
+ * HOW:  connect → open_write → streams_open → transfer_pump(src→remote) → finish.
+ *       `total` is the known source size for progress and resilient-close checks
+ *       (-1 for stdin / unknown).  src is either pump_src_local (stdin) or
+ *       pump_src_local_vfs (local file via xrdc_vfs).  su->path is used as the
+ *       local checksum source path (NULL ≡ stdin → cksum_verify skips gracefully).
  */
 static int
 upload_stream_body(const xrdc_url *su, const xrdc_url *du,
-                   const xrdc_copy_opts *o, const xrdc_opts *co, int infd,
-                   int from_stdin, xrdc_status *st)
+                   const xrdc_copy_opts *o, const xrdc_opts *co,
+                   pump_src_fn src, void *srcctx, int64_t total,
+                   xrdc_status *st)
 {
     xrdc_conn      c;
     xrdc_file      f;
     xrdc_streamset ss;
     pump_remote_t  sink = {0};
-    int64_t        total = -1;   /* progress total: file size, or -1 for stdin */
     int            rc;
 
     ss.n = 0;
-    {
-        struct stat usb;
-        if (!from_stdin && fstat(infd, &usb) == 0 && S_ISREG(usb.st_mode)) {
-            total = (int64_t) usb.st_size;
-        }
-    }
     if (xrdc_connect_resilient(&c, du, co, st) != 0) {
         return -1;
     }
@@ -823,7 +827,7 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
          * create/truncate retry is safe (matches download_stream_body and
          * xrdc_rfile_open_write).  Subsequent reopens (pump_sink_reopen) switch
          * to in-place update so resumed bytes are never re-truncated. */
-        int      stall = (o->max_stall_ms > 0) ? o->max_stall_ms : 60000;
+        int      stall = copy_stall_ms(o, 60000);
         uint64_t deadline = xrdc_mono_ns() + (uint64_t) stall * 1000000ULL;
         unsigned attempt = 0;
         for (;;) {
@@ -853,7 +857,7 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
         xrdc_streams_open(&ss, &c, o->streams, st);
     }
 
-    /* local infd → remote (EOF-driven), with progress (total = file size or -1).
+    /* local src → remote (EOF-driven), with progress (total = file size or -1).
      * The sink is resilient: a transport sever mid-upload reconnects, reopens the
      * destination IN PLACE (no truncate) and re-issues from the same offset, so an
      * upload survives an nginx restart and resumes from where it left off.  This
@@ -867,8 +871,8 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
     sink.resilient = 1;
     sink.path = du->path;
     sink.posc = o->posc;
-    sink.max_stall_ms = (o->max_stall_ms > 0) ? o->max_stall_ms : 60000;
-    rc = copy_run_upload(infd, pump_sink_remote, &sink, -1, o, total, st);
+    sink.max_stall_ms = copy_stall_ms(o, 60000);
+    rc = transfer_pump(src, srcctx, pump_sink_remote, &sink, -1, o, total, st);
 
     /* Only close the remote file cleanly on success: with POSC, abandoning the
      * handle (connection teardown without close) makes the server discard the
@@ -917,9 +921,12 @@ upload_stream_body(const xrdc_url *su, const xrdc_url *du,
         }
     }
     /* The file is persisted after close — verify its checksum now (connection
-     * still open), comparing our local source digest against the server's. */
+     * still open), comparing our local source digest against the server's.
+     * For stdin (XRDC_SCHEME_STDIO) there is no on-disk file; pass NULL so
+     * cksum_verify skips gracefully instead of trying to open the path. */
     if (rc == 0 && o->cksum != NULL) {
-        int ck = cksum_verify(&c, du->path, from_stdin ? NULL : su->path,
+        const char *ck_local = (su->scheme == XRDC_SCHEME_STDIO) ? NULL : su->path;
+        int ck = cksum_verify(&c, du->path, ck_local,
                               o->cksum, o->silent, st);
         if (ck == XRDC_CK_MISMATCH) {
             rc = -1;
@@ -940,27 +947,41 @@ static int
 copy_upload(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
             const xrdc_opts *co, xrdc_status *st)
 {
-    int infd;
-    int from_stdin = (su->scheme == XRDC_SCHEME_STDIO);
-    int rc;
+    if (su->scheme == XRDC_SCHEME_STDIO) {
+        /* stdio path: pump from raw STDIN_FILENO; no VFS open */
+        int stdinfd = STDIN_FILENO;
+        return upload_stream_body(su, du, o, co, pump_src_local, &stdinfd,
+                                  -1 /* size unknown */, st);
+    }
 
-    if (from_stdin) {
-        infd = STDIN_FILENO;
-    } else {
-        infd = open(su->path, O_RDONLY);
-        if (infd < 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, errno,
-                            "open %s: %s", su->path, strerror(errno));
+    /* Local file path: open via VFS (io_uring selection inside the backend) */
+    {
+        xrdc_vfs_file     *vf = NULL;
+        xrdc_vfs_open_opts vopts;
+        xrdc_vfs_stat      vst;
+        xrdc_status        tmp_st;
+        pump_local_t       lc;
+        int64_t            total = -1;
+        int                rc;
+
+        vopts.io_uring      = o->io_uring;
+        vopts.expected_size = -1;   /* read-only open; hint unused */
+        vopts.cred          = NULL;
+
+        if (xrdc_vfs_open(su->path, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
             return -1;
         }
-    }
+        xrdc_status_clear(&tmp_st);
+        if (xrdc_vfs_fstat(vf, &vst, &tmp_st) == 0) {
+            total = vst.size;
+        }
 
-    rc = upload_stream_body(su, du, o, co, infd, from_stdin, st);
-
-    if (infd >= 0 && !from_stdin) {
-        close(infd);
+        lc.vf = vf;
+        rc = upload_stream_body(su, du, o, co, pump_src_local_vfs, &lc,
+                                total, st);
+        xrdc_vfs_close(vf);
+        return rc;
     }
-    return rc;
 }
 
 /*
@@ -1315,43 +1336,45 @@ static int
 copy_one_r2l(xrdc_conn *c, const char *rpath, const char *lpath,
              int64_t expected_size, xrdc_status *st)
 {
-    xrdc_file     f;
-    int           fd;
-    char          tmp[XRDC_PATH_MAX];
-    pump_remote_t src = {0};
-    int           rc;
+    xrdc_file         f;
+    xrdc_vfs_file    *vf = NULL;
+    xrdc_vfs_open_opts vopts;
+    pump_local_t       lc;
+    pump_remote_t      src = {0};
+    int                rc;
 
     if (xrdc_file_open_read(c, rpath, &f, st) != 0) {
         return -1;
     }
-    /* Phase 40 (a): atomic per-file temp+rename + signal-abort, mirroring
-     * copy_download — so a failed or interrupted recursive transfer leaves no
-     * partial/truncated tree entry (the old direct O_TRUNC write left a partial
-     * on every error path and on Ctrl-C). */
-    if (make_temp_path(lpath, tmp, sizeof(tmp)) != 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "destination path too long: %s", lpath);
-        xrdc_file_close(c, &f, st);
-        return -1;
-    }
-    fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "open %s: %s", tmp, strerror(errno));
+
+    /* Atomic temp+rename + signal-abort via VFS, mirroring copy_download — so a
+     * failed or interrupted recursive transfer leaves no partial/truncated tree
+     * entry.  FORCE is always set: recursive copies overwrite existing files. */
+    vopts.io_uring      = XRDC_IO_URING_AUTO;
+    vopts.expected_size = expected_size;
+    vopts.cred          = NULL;
+    if (xrdc_vfs_open(lpath, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+                      &vopts, &vf, st) != 0) {
         xrdc_file_close(c, &f, st);
         return -1;
     }
 
-    /* remote (dirlist-sized when available, plain read — recursive path
-     * historically never paged) → local temp fd. atomic_dest_finish() drops the
-     * temp on any failure (rc != 0). */
-    src.c = c;
-    src.f = &f;
+    /* remote → local VFS (plain read, recursive path; not paged). */
+    src.c    = c;
+    src.f    = &f;
     src.pgrw = 0;
-    rc = copy_run_download(pump_src_remote, &src, fd,
-                           expected_size, NULL, expected_size, st);
+    lc.vf    = vf;
+    rc = transfer_pump(pump_src_remote, &src, pump_sink_local_vfs, &lc,
+                       expected_size, NULL, expected_size, st);
 
-    close(fd);
+    if (rc == 0) {
+        rc = xrdc_vfs_commit(vf, st);
+    } else {
+        xrdc_vfs_abort(vf);
+    }
+    xrdc_vfs_close(vf);
     xrdc_file_close(c, &f, st);
-    return atomic_dest_finish(tmp, lpath, rc, st);
+    return rc;
 }
 
 /* Copy one local file to a fresh remote file (open under conn c). */
@@ -1359,30 +1382,35 @@ static int
 copy_one_l2r(xrdc_conn *c, const char *lpath, const char *rpath,
              const xrdc_copy_opts *o, xrdc_status *st)
 {
-    xrdc_file     f;
-    int           fd;
-    pump_remote_t sink = {0};
-    int           rc;
+    xrdc_file         f;
+    xrdc_vfs_file    *vf = NULL;
+    xrdc_vfs_open_opts vopts;
+    pump_local_t       lc;
+    pump_remote_t      sink = {0};
+    int                rc;
 
-    fd = open(lpath, O_RDONLY);
-    if (fd < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "open %s: %s", lpath, strerror(errno));
+    vopts.io_uring      = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
+    vopts.expected_size = -1;
+    vopts.cred          = NULL;
+    if (xrdc_vfs_open(lpath, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
         return -1;
     }
     if (xrdc_file_open_write(c, rpath, 1 /*force*/, o ? o->posc : 0, &f, st) != 0) {
-        close(fd);
+        xrdc_vfs_close(vf);
         return -1;
     }
 
-    /* local fd (EOF-driven) → remote, plain write (recursive path). On failure
+    /* local VFS (EOF-driven) → remote, plain write (recursive path). On failure
      * the file is still closed (preserving the historical recursive teardown,
      * which never relied on POSC-discard the way single-file upload does). */
-    sink.c = c;
-    sink.f = &f;
+    sink.c    = c;
+    sink.f    = &f;
     sink.pgrw = 0;
-    rc = copy_run_upload(fd, pump_sink_remote, &sink, -1, NULL, 0, st);
+    lc.vf     = vf;
+    rc = transfer_pump(pump_src_local_vfs, &lc, pump_sink_remote, &sink,
+                       -1, NULL, 0, st);
 
-    close(fd);
+    xrdc_vfs_close(vf);
     if (rc != 0) {
         xrdc_file_close(c, &f, st);
         return -1;
@@ -1424,7 +1452,15 @@ copy_tree_download(xrdc_conn *c, const char *rpath, const char *lpath,
         if (ents[i].have_stat && (ents[i].st.flags & kXR_isDir)) {
             if (copy_tree_download(c, rc, lc, o, st) != 0) { free(ents); return -1; }
         } else {
-            int64_t expected = ents[i].have_stat ? ents[i].st.size : -1;
+            /* For a symlink (kXR_other) the dirlist size is the lstat size — the
+             * LENGTH OF THE LINK TARGET PATH, not the bytes the server serves
+             * when it follows the link on open.  Trusting it truncates the copy
+             * (a link to a 10-byte file named "two.txt" would copy 7 bytes), so
+             * read to EOF (expected = -1) for those; regular files keep their
+             * real size, whose short-read guard still catches truncation. */
+            int64_t expected = (ents[i].have_stat
+                                && !(ents[i].st.flags & kXR_other))
+                               ? ents[i].st.size : -1;
             if (copy_one_r2l(c, rc, lc, expected, st) != 0) {
                 free(ents);
                 return -1;
@@ -1486,6 +1522,41 @@ copy_tree_upload(xrdc_conn *c, const char *lpath, const char *rpath,
     return 0;
 }
 
+/* Build the recursive copy's destination root: the source tree's basename
+ * appended to the destination directory.  This matches stock `xrdcp -r`, which
+ * NESTS the copied tree under the source's last path component (`xrdcp -r <dir>
+ * <dst>` populates `<dst>/<basename(dir)>/...`).  Copying the children straight
+ * into <dst> instead would FLATTEN — silently merging two differently-named
+ * source trees and diverging from every other xrootd client.
+ *
+ * A degenerate basename ('.', '/', or empty — e.g. the whole-export `//.` form)
+ * has no meaningful name to nest under, so the destination is used verbatim.
+ * Returns 0 on success, -1 if the composed path would overflow `out`. */
+static int
+recursive_dest_root(const char *dstdir, const char *srcpath,
+                    char *out, size_t outsz)
+{
+    size_t      len = strlen(srcpath);
+    const char *base;
+    size_t      blen, dl, i;
+    const char *sep;
+
+    while (len > 1 && srcpath[len - 1] == '/') { len--; }   /* ignore trailing / */
+    base = srcpath;
+    for (i = len; i > 0; i--) {
+        if (srcpath[i - 1] == '/') { base = srcpath + i; break; }
+    }
+    blen = (size_t) (srcpath + len - base);
+
+    if (blen == 0 || (blen == 1 && base[0] == '.')) {       /* nothing to nest */
+        return ((size_t) snprintf(out, outsz, "%s", dstdir) >= outsz) ? -1 : 0;
+    }
+    dl  = strlen(dstdir);
+    sep = (dl > 0 && dstdir[dl - 1] == '/') ? "" : "/";
+    return ((size_t) snprintf(out, outsz, "%s%s%.*s", dstdir, sep,
+                              (int) blen, base) >= outsz) ? -1 : 0;
+}
+
 /* Recursive copy entry: connect once, walk the source tree. Direction-aware. */
 static int
 copy_recursive(const xrdc_url *su, const xrdc_url *du, int download,
@@ -1493,13 +1564,21 @@ copy_recursive(const xrdc_url *su, const xrdc_url *du, int download,
 {
     xrdc_conn c;
     int       rc;
+    char      destroot[XRDC_PATH_MAX];
+
+    /* Nest under the source basename (stock parity); see recursive_dest_root. */
+    if (recursive_dest_root(du->path, su->path, destroot, sizeof(destroot)) != 0) {
+        xrdc_status_set(st, XRDC_EUSAGE, 0,
+                        "recursive copy: destination path too long");
+        return -1;
+    }
 
     if (download) {
         if (xrdc_connect(&c, su, co, st) != 0) { return -1; }
-        rc = copy_tree_download(&c, su->path, du->path, o, st);
+        rc = copy_tree_download(&c, su->path, destroot, o, st);
     } else {
         if (xrdc_connect(&c, du, co, st) != 0) { return -1; }
-        rc = copy_tree_upload(&c, su->path, du->path, o, st);
+        rc = copy_tree_upload(&c, su->path, destroot, o, st);
     }
     xrdc_close(&c);
     return rc;
@@ -1514,17 +1593,37 @@ copy_recursive(const xrdc_url *su, const xrdc_url *du, int download,
 
 /* Build the auth header block for a web request into hdrs[] (may be empty for an
  * anonymous endpoint). S3 → SigV4 (host signed as "host:port" to match the Host
- * header we send); WebDAV/HTTP → Authorization: Bearer if a token is available. */
+ * header we send); WebDAV/HTTP → Authorization: Bearer if a token is available.
+ *
+ * co carries the credential store (co->cred); when set the store is tried first
+ * for both the bearer token and S3 keys, falling back to opts/env on failure so
+ * env-sourced credentials behave identically to today. */
 static int
 web_auth_headers(const xrdc_weburl *u, const char *method,
-                 const xrdc_copy_opts *o, char *hdrs, size_t hdrsz, xrdc_status *st)
+                 const xrdc_copy_opts *o, const xrdc_opts *co,
+                 char *hdrs, size_t hdrsz, xrdc_status *st)
 {
     hdrs[0] = '\0';
     if (u->is_s3) {
-        const char *ak = (o && o->s3_access) ? o->s3_access : getenv("AWS_ACCESS_KEY_ID");
-        const char *sk = (o && o->s3_secret) ? o->s3_secret : getenv("AWS_SECRET_ACCESS_KEY");
+        const char *ak = (o && o->s3_access) ? o->s3_access : NULL;
+        const char *sk = (o && o->s3_secret) ? o->s3_secret : NULL;
         const char *rg = (o && o->s3_region) ? o->s3_region : getenv("AWS_DEFAULT_REGION");
+        xrdc_cred_view sv;
         char host[300], payhash[65];
+
+        /* Prefer the cred store for S3 keys when no explicit opts override. */
+        if ((ak == NULL || sk == NULL) && co != NULL && co->cred != NULL) {
+            if (xrdc_cred_acquire(co->cred, XRDC_CRED_S3KEYS, 0, &sv, st) == 0) {
+                if (ak == NULL) { ak = sv.s3_access; }
+                if (sk == NULL) { sk = sv.s3_secret; }
+            } else {
+                xrdc_status_clear(st);
+            }
+        }
+        /* Fall through to env when store not set or acquire failed. */
+        if (ak == NULL) { ak = getenv("AWS_ACCESS_KEY_ID"); }
+        if (sk == NULL) { sk = getenv("AWS_SECRET_ACCESS_KEY"); }
+
         if (ak == NULL || sk == NULL) {
             return 0;   /* anonymous — server may permit unsigned access */
         }
@@ -1550,7 +1649,21 @@ web_auth_headers(const xrdc_weburl *u, const char *method,
         return 0;
     }
     {
-        const char *tok = (o && o->bearer) ? o->bearer : getenv("BEARER_TOKEN");
+        const char *tok = (o && o->bearer) ? o->bearer : NULL;
+        xrdc_cred_view bv;
+
+        /* Prefer the cred store for the bearer token when no explicit opt override. */
+        if (tok == NULL && co != NULL && co->cred != NULL) {
+            if (xrdc_cred_acquire(co->cred, XRDC_CRED_BEARER, 0, &bv, st) == 0
+                && bv.token != NULL) {
+                tok = bv.token;
+            } else {
+                xrdc_status_clear(st);
+            }
+        }
+        /* Fall through to env when store not set or acquire failed. */
+        if (tok == NULL) { tok = getenv("BEARER_TOKEN"); }
+
         if (tok != NULL && tok[0] != '\0') {
             int n = snprintf(hdrs, hdrsz, "Authorization: Bearer %s\r\n", tok);
             if (n < 0 || (size_t) n >= hdrsz) {
@@ -1571,7 +1684,7 @@ copy_web_download(const xrdc_weburl *su, const xrdc_url *du, int to_stdout,
     int       outfd, status = 0, rc;
     long long blen = 0;
 
-    if (web_auth_headers(su, "GET", o, hdrs, sizeof(hdrs), st) != 0) {
+    if (web_auth_headers(su, "GET", o, co, hdrs, sizeof(hdrs), st) != 0) {
         return -1;
     }
     if (to_stdout) {
@@ -1589,13 +1702,8 @@ copy_web_download(const xrdc_weburl *su, const xrdc_url *du, int to_stdout,
     }
     /* Download to a temp sibling and atomically rename on success: a failed
      * transfer must never truncate or delete a pre-existing destination. */
-    if (make_temp_path(du->path, tmp, sizeof(tmp)) != 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "destination path too long");
-        return -1;
-    }
-    outfd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    outfd = open_download_temp(du->path, tmp, sizeof(tmp), st);
     if (outfd < 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, errno, "open %s: %s", tmp, strerror(errno));
         return -1;
     }
     rc = xrdc_http_download(su->host, su->port, su->tls, su->path,
@@ -1646,7 +1754,7 @@ copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts 
                         "web upload source must be a regular file: %s", su->path);
         return -1;
     }
-    if (web_auth_headers(du, "PUT", o, hdrs, sizeof(hdrs), st) != 0) {
+    if (web_auth_headers(du, "PUT", o, co, hdrs, sizeof(hdrs), st) != 0) {
         close(infd);
         return -1;
     }
@@ -1655,8 +1763,7 @@ copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts 
          * from the server's durable offset, so the upload survives an nginx
          * restart (server xrootd_webdav_upload_resume).  A plain server commits on
          * the first whole-range chunk, so a single-shot upload still works. */
-        int stall = (o && o->max_stall_ms > 0) ? o->max_stall_ms
-                                               : XRDC_DEFAULT_MAX_STALL_MS;
+        int stall = copy_stall_ms(o, XRDC_DEFAULT_MAX_STALL_MS);
         rc = xrdc_http_upload_resumable(du->host, du->port, du->tls, du->path,
                           hdrs[0] ? hdrs : NULL, infd, (long long) sb.st_size,
                           co ? co->verify_host : 1, co ? co->ca_dir : NULL,
@@ -1789,14 +1896,8 @@ copy_unzip(const xrdc_url *su, const char *archive_path, const char *member,
                             "destination exists (use -f): %s", du->path);
             xrdc_file_close(&c, &f, st); xrdc_close(&c); return -1;
         }
-        if (make_temp_path(du->path, tmp, sizeof(tmp)) != 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "destination path too long");
-            xrdc_file_close(&c, &f, st); xrdc_close(&c); return -1;
-        }
-        outfd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        outfd = open_download_temp(du->path, tmp, sizeof(tmp), st);
         if (outfd < 0) {
-            xrdc_status_set(st, XRDC_EUSAGE, errno, "open %s: %s", tmp,
-                            strerror(errno));
             xrdc_file_close(&c, &f, st); xrdc_close(&c); return -1;
         }
         use_tmp = 1;
@@ -2083,6 +2184,269 @@ copy_zip_store_remote(const char *member, int srcfd, const xrdc_url *du,
     return rc;
 }
 
+/* ---- block:// endpoint copy helpers --------------------------------------- */
+
+/*
+ * copy_remote_to_block — root:// → block:// single-file transfer.
+ *
+ * WHAT: connects to the remote XRootD source, opens the block:// destination
+ *       directly through the VFS block backend (in-place write, no temp+rename),
+ *       and streams all bytes via the existing download pump machinery.
+ * WHY:  copy_download routes its destination through xrdc_url du->path (a stripped
+ *       bare POSIX path), which selects the POSIX backend.  A block:// URL must be
+ *       passed as-is so vfs_url_to_scheme routes it to the block backend instead.
+ * HOW:  parse src → resilient_setup → xrdc_vfs_open(dst_url, WRITE|FORCE) →
+ *       download_stream_body → commit (fsync) on success, abort (no-op) on failure.
+ *       FORCE is always set: block/device targets pre-exist by design.
+ */
+static int
+copy_remote_to_block(const char *src_url, const char *dst_url,
+                     const xrdc_copy_opts *o, const xrdc_opts *co,
+                     xrdc_status *st)
+{
+    xrdc_url            su;
+    xrdc_conn           c;
+    xrdc_statinfo       si;
+    xrdc_streamset      ss;
+    xrdc_vfs_file      *vf = NULL;
+    xrdc_vfs_open_opts  vopts;
+    pump_local_t        lc;
+    int                 stall;
+    int                 rc;
+
+    if (xrdc_url_parse(src_url, &su, st) != 0) {
+        return -1;
+    }
+
+    stall = copy_stall_ms(o, 60000);
+    ss.n = 0;
+    if (resilient_setup(&c, &su, co, &si, stall, st) != 0) {
+        return -1;
+    }
+    if (si.flags & kXR_isDir) {
+        xrdc_status_set(st, XRDC_EUSAGE, 0,
+                        "block copy: remote source is a directory (use -r)");
+        xrdc_close(&c);
+        return -1;
+    }
+
+    vopts.io_uring      = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
+    vopts.expected_size = si.size;
+    vopts.cred          = NULL;
+
+    if (xrdc_vfs_open(dst_url, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+                      &vopts, &vf, st) != 0) {
+        xrdc_close(&c);
+        return -1;
+    }
+
+    lc.vf = vf;
+    rc = download_stream_body(&c, &su, &si, pump_sink_local_vfs, &lc,
+                              o, &ss, st);
+
+    if (rc == 0) {
+        rc = xrdc_vfs_commit(vf, st);
+    } else {
+        xrdc_vfs_abort(vf);
+    }
+    xrdc_vfs_close(vf);
+    xrdc_streams_close(&ss);
+    xrdc_close(&c);
+    return rc;
+}
+
+/*
+ * copy_block_to_remote — block:// → root:// single-file transfer.
+ *
+ * WHAT: opens the block:// source through the VFS block backend (READ) and
+ *       uploads all bytes into the remote (root://) destination.
+ * WHY:  copy_upload reads su->path as a bare path (POSIX backend).  A block://
+ *       source URL must be passed to xrdc_vfs_open so vfs_url_to_scheme routes
+ *       it to the block backend; the stripped path alone selects the POSIX backend.
+ * HOW:  xrdc_vfs_open(src_url, READ) → fstat for size →
+ *       parse dst URL → upload_stream_body(pump_src_local_vfs) → close.
+ *       Checksum verification on block sources is best-effort: cksum_verify
+ *       opens the file by POSIX path; for a pure block:// URL it returns
+ *       XRDC_CK_UNVERIFIED (a non-fatal warn), keeping the good upload intact.
+ */
+static int
+copy_block_to_remote(const char *src_url, const char *dst_url,
+                     const xrdc_copy_opts *o, const xrdc_opts *co,
+                     xrdc_status *st)
+{
+    xrdc_url            du;
+    xrdc_url            fake_su;
+    xrdc_vfs_file      *vf = NULL;
+    xrdc_vfs_open_opts  vopts;
+    xrdc_vfs_stat       vst;
+    xrdc_status         tmp_st;
+    pump_local_t        lc;
+    int64_t             total = -1;
+    int                 rc;
+
+    if (xrdc_url_parse(dst_url, &du, st) != 0) {
+        return -1;
+    }
+
+    vopts.io_uring      = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
+    vopts.expected_size = -1;
+    vopts.cred          = NULL;
+
+    if (xrdc_vfs_open(src_url, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
+        return -1;
+    }
+
+    xrdc_status_clear(&tmp_st);
+    if (xrdc_vfs_fstat(vf, &vst, &tmp_st) == 0) {
+        total = vst.size;
+    }
+
+    /* Synthesise a source descriptor for upload_stream_body diagnostics.
+     * scheme=LOCAL tells it to use fake_su.path for optional cksum_verify;
+     * for a block:// URL that open() cannot resolve, cksum_verify returns
+     * XRDC_CK_UNVERIFIED (non-fatal warn) rather than a hard failure. */
+    memset(&fake_su, 0, sizeof(fake_su));
+    fake_su.scheme = XRDC_SCHEME_LOCAL;
+    snprintf(fake_su.path, sizeof(fake_su.path), "%s", src_url);
+
+    lc.vf = vf;
+    rc = upload_stream_body(&fake_su, &du, o, co, pump_src_local_vfs, &lc,
+                            total, st);
+    xrdc_vfs_close(vf);
+    return rc;
+}
+
+/*
+ * copy_vfs_to_vfs — VFS-source → VFS-destination transfer (local↔block).
+ *
+ * WHAT: opens both src and dst through xrdc_vfs_open (which routes block://
+ *       and /dev/ to the block backend; bare paths to the POSIX backend) and
+ *       pumps bytes via transfer_pump.  Covers local→block://, block://→local,
+ *       and block://→block:// directions.
+ * WHY:  when neither side is a root:// remote the generic copy machinery
+ *       (copy_download / copy_upload) is unnecessary; two VFS opens + a pump
+ *       are enough.
+ * HOW:  open src READ → fstat → open dst WRITE|FORCE → pump → commit dst →
+ *       close both.  FORCE is always set on the destination: block targets
+ *       pre-exist by design; POSIX destinations use atomic temp+rename whose
+ *       overwrite semantics are controlled by the FORCE flag.
+ */
+static int
+copy_vfs_to_vfs(const char *src_url, const char *dst_url,
+                const xrdc_copy_opts *o, xrdc_status *st)
+{
+    xrdc_vfs_file      *src_vf = NULL;
+    xrdc_vfs_file      *dst_vf = NULL;
+    xrdc_vfs_open_opts  vopts;
+    xrdc_vfs_stat       vst;
+    xrdc_status         tmp_st;
+    pump_local_t        src_lc, dst_lc;
+    int64_t             total = -1;
+    int                 rc;
+
+    vopts.io_uring      = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
+    vopts.expected_size = -1;
+    vopts.cred          = NULL;
+
+    if (xrdc_vfs_open(src_url, XRDC_VFS_READ, &vopts, &src_vf, st) != 0) {
+        return -1;
+    }
+
+    xrdc_status_clear(&tmp_st);
+    if (xrdc_vfs_fstat(src_vf, &vst, &tmp_st) == 0) {
+        total = vst.size;
+    }
+
+    vopts.expected_size = total;
+    if (xrdc_vfs_open(dst_url, XRDC_VFS_WRITE | XRDC_VFS_FORCE,
+                      &vopts, &dst_vf, st) != 0) {
+        xrdc_vfs_close(src_vf);
+        return -1;
+    }
+
+    src_lc.vf = src_vf;
+    dst_lc.vf = dst_vf;
+    rc = transfer_pump(pump_src_local_vfs, &src_lc,
+                       pump_sink_local_vfs, &dst_lc,
+                       total, o, total, st);
+
+    if (rc == 0) {
+        rc = xrdc_vfs_commit(dst_vf, st);
+    } else {
+        xrdc_vfs_abort(dst_vf);
+    }
+    xrdc_vfs_close(dst_vf);
+    xrdc_vfs_close(src_vf);
+    return rc;
+}
+
+/*
+ * copy_block — dispatch for copies involving at least one block:// endpoint.
+ *
+ * WHAT: classifies the (src, dst) pair and routes to the right helper:
+ *   root://→block://  → copy_remote_to_block
+ *   block://→root://  → copy_block_to_remote
+ *   local→block://    → copy_vfs_to_vfs  (POSIX src + block dst)
+ *   block://→local    → copy_vfs_to_vfs  (block src + POSIX dst)
+ *   block://→block:// → copy_vfs_to_vfs  (block src + block dst)
+ * WHY:  xrdc_copy() intercepts block:// before xrdc_url_parse (which does not
+ *       know the block:// scheme) and delegates here.
+ * HOW:  classify src/dst by xrdc_is_block_url and xrdc_is_web_url; for the
+ *       root:// directions use xrdc_url_parse to distinguish remote/local;
+ *       recursion and zip are explicitly rejected (not supported for block).
+ */
+static int
+copy_block(const char *src, const char *dst, const xrdc_copy_opts *o,
+           const xrdc_opts *co, xrdc_status *st)
+{
+    int src_block  = xrdc_is_block_url(src);
+    int dst_block  = xrdc_is_block_url(dst);
+    int src_remote = 0;
+    int dst_remote = 0;
+
+    if (o != NULL && o->recursive) {
+        xrdc_status_set(st, XRDC_EUSAGE, 0,
+                        "recursive copy not supported for block:// endpoints");
+        return -1;
+    }
+
+    /* Classify non-block sides: parse with xrdc_url_parse to detect root://. */
+    if (!src_block) {
+        xrdc_url su;
+        xrdc_status tmp;
+        xrdc_status_clear(&tmp);
+        if (xrdc_url_parse(src, &su, &tmp) == 0) {
+            src_remote = (su.scheme == XRDC_SCHEME_ROOT
+                          || su.scheme == XRDC_SCHEME_ROOTS);
+        }
+    }
+    if (!dst_block) {
+        xrdc_url du;
+        xrdc_status tmp;
+        xrdc_status_clear(&tmp);
+        if (xrdc_url_parse(dst, &du, &tmp) == 0) {
+            dst_remote = (du.scheme == XRDC_SCHEME_ROOT
+                          || du.scheme == XRDC_SCHEME_ROOTS);
+        }
+    }
+
+    if (src_remote && dst_block) {
+        return copy_remote_to_block(src, dst, o, co, st);
+    }
+    if (src_block && dst_remote) {
+        return copy_block_to_remote(src, dst, o, co, st);
+    }
+    if (!src_remote && !dst_remote) {
+        /* both sides are local/block: pure VFS-to-VFS */
+        return copy_vfs_to_vfs(src, dst, o, st);
+    }
+
+    xrdc_status_set(st, XRDC_EUSAGE, 0,
+                    "unsupported block:// copy direction "
+                    "(src=%s dst=%s)", src, dst);
+    return -1;
+}
+
 /* xrdcp --zip / --zip-append: store the local source as a STORE member of the
  * destination ZIP archive (create, or append to an existing non-ZIP64 archive). */
 static int
@@ -2139,6 +2503,13 @@ xrdc_copy(const char *src, const char *dst, const xrdc_copy_opts *o,
      * session machinery. Check before xrdc_url_parse (which is root-only). */
     if (xrdc_is_web_url(src) || xrdc_is_web_url(dst)) {
         return copy_web(src, dst, o, co, st);
+    }
+
+    /* block:// (and /dev/) endpoints route through the VFS block backend.
+     * xrdc_url_parse does not know the block:// scheme and would reject it,
+     * so intercept here before the parse. */
+    if (xrdc_is_block_url(src) || xrdc_is_block_url(dst)) {
+        return copy_block(src, dst, o, co, st);
     }
 
     if (xrdc_url_parse(src, &su, st) != 0) {

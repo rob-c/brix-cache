@@ -1,4 +1,5 @@
 #include "../config/config.h"
+#include "../compat/log_diag.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -357,7 +358,10 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     *out_keys = NULL;
 
     if (path == NULL || path->len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "SSS keytab path is empty");
+        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
+            "xrootd: SSS keytab path is empty",
+            "xrootd_sss_keytab was given without a path argument",
+            "supply the keytab file path: xrootd_sss_keytab /etc/xrootd/sss.keytab;");
         return NGX_ERROR;
     }
 
@@ -375,8 +379,13 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     keytab_fd = open((const char *) path->data,
                      O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (keytab_fd < 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "xrootd: cannot open SSS keytab \"%V\"", path);
+        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, ngx_errno,
+            "xrootd: cannot open SSS keytab \"%V\"",
+            "the path is wrong, the file is unreadable by the nginx user, or "
+            "it is a symlink (rejected for safety)",
+            "generate the keytab with xrdsssadmin and give the nginx user "
+            "read access to the real file; the OS reason is appended below",
+            path);
         return NGX_ERROR;
     }
 
@@ -390,9 +399,13 @@ xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     if (xrootd_sss_keytab_mode_ok((const char *) path->data, st.st_mode)
         != NGX_OK)
     {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "xrootd: SSS keytab \"%V\" is not private enough",
-                           path);
+        XROOTD_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
+            "xrootd: SSS keytab \"%V\" has unsafe permissions",
+            "the keytab is a shared secret but is group/world readable or not "
+            "owned correctly",
+            "chmod 0400 (or 0600) the keytab and ensure it is owned by the "
+            "nginx user; it must not be readable by anyone else",
+            path);
         close(keytab_fd);
         return NGX_ERROR;
     }

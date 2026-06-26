@@ -1,0 +1,123 @@
+# surface_map.yaml — stock client surface -> project client classification.
+#
+# The project tools are behaviourally compatible with stock but expose their own
+# CLI vocabulary plus extra knobs.  This file is the authoritative mapping the
+# surface test enforces:
+#
+#   * EVERY stock flag/command (from flag_inventory's live parse of
+#     /tmp/xrootd-src) MUST appear as a key here — a new upstream flag with no
+#     entry fails the surface test as "untested/unmapped".
+#   * EVERY project-only flag MUST be listed under `extras` with a reason — an
+#     added knob with no entry fails the surface test.
+#
+# status values:
+#   same        - accepted with the same spelling and stock-compatible semantics
+#   alias       - same capability, different spelling (`ours` names it)
+#   default     - stock's behaviour is the project tool's DEFAULT (flag implicit)
+#   unsupported - no project equivalent (documented, intentionally absent)
+
+xrdcp:
+  flags:
+    force:           {status: same,  ours: "-f"}
+    recursive:       {status: same,  ours: "-r"}
+    silent:          {status: same,  ours: "-s"}
+    streams:         {status: same,  ours: "-S/--streams"}
+    cksum:           {status: same,  ours: "--cksum"}
+    tpc:             {status: same,  ours: "--tpc"}
+    zip:             {status: same,  ours: "--zip"}
+    zip-append:      {status: same,  ours: "--zip-append"}
+    notlsok:         {status: same,  ours: "--notlsok"}
+    verbose:         {status: same,  ours: "-v"}
+    debug:           {status: same,  ours: "-d"}
+    posc:            {status: same,  ours: "-P", note: "persist-on-successful-close"}
+    retry:           {status: same,  ours: "--retry"}
+    version:         {status: alias, ours: "-V",      reason: "short-only version flag"}
+    help:            {status: alias, ours: "-h",      reason: "short-only help flag"}
+    infiles:         {status: alias, ours: "--from",  reason: "manifest of sources"}
+    parallel:        {status: alias, ours: "-j/--jobs", reason: "concurrent file copies"}
+    nopbar:          {status: default, reason: "progress bar is OFF unless --progress"}
+    retry-policy:    {status: alias, ours: "--no-retry/--max-stall",
+                      reason: "resilience expressed via fail-fast + stall window"}
+    sources:         {status: unsupported, reason: "multi-replica source fan-out not modelled"}
+    coerce:          {status: unsupported, reason: "no force-through-error override"}
+    continue:        {status: unsupported, reason: "resume modelled server-side, not via this flag"}
+    dynamic-src:     {status: unsupported, reason: "growing-source streaming not modelled"}
+    license:         {status: unsupported, reason: "no license banner"}
+    proxy:           {status: unsupported, reason: "SOCKS-style proxy hop not supported"}
+    rm-bad-cksum:    {status: unsupported, reason: "--verify aborts; no auto-rm"}
+    server:          {status: unsupported, reason: "internal server-mode flag"}
+    tlsmetalink:     {status: unsupported, reason: "metalink TLS pinning not modelled"}
+    tlsnodata:       {status: unsupported, reason: "TLS-control-cleartext-data split not modelled"}
+    xattr:           {status: unsupported, reason: "xattr-preserving copy not in xrdcp (see xrdfs xattr)"}
+    path:            {status: unsupported, reason: "dest dir auto-create implicit; no -p flag"}
+    xrate:           {status: unsupported, reason: "client rate cap not modelled"}
+    xrate-threshold: {status: unsupported, reason: "client rate cap not modelled"}
+    zip-mtln-cksum:  {status: unsupported, reason: "metalink-zip checksum not modelled"}
+  # Project-only flags (knobs/tunings).  Each MUST also have a `superset`
+  # divergence entry so its help-line is pinned.
+  extras:
+    "--compress":     "inline root:// compression (gzip/deflate/zstd/br/xz/bzip2)"
+    "--verify":       "post-transfer server-side checksum verification"
+    "--sync":         "skip when destination already has matching size"
+    "--jobs":         "concurrent multi-file copy (batch mode)"
+    "--no-retry":     "disable transport resilience (fail on first fault)"
+    "--max-stall":    "reconnect/resume patience window (ms)"
+    "--auto-refresh": "renew near-expiry token/proxy before transfer"
+    "--oidc-account": "oidc-agent account for --auto-refresh"
+    "--pgrw":         "paged I/O (kXR_pgread/pgwrite) with per-page CRC32c"
+    "--timing":       "print per-opcode RTT summary"
+    "--wire-trace":   "decode every frame to stderr"
+    "--progress":     "opt-in progress bar + ETA"
+    "--tls":          "require in-protocol TLS"
+    "--noverifyhost": "skip TLS hostname check"
+    "--auth":         "force auth protocol (gsi/ztn/krb5/sss/unix)"
+    "--token":        "WebDAV/HTTP bearer token"
+    "--from":         "manifest of sources"
+    "--s3-access":    "S3 SigV4 access key id"
+    "--s3-secret":    "S3 SigV4 secret key"
+    "--s3-region":    "S3 SigV4 region"
+
+xrdfs:
+  commands:
+    stat:      {status: same}
+    statvfs:   {status: same}
+    ls:        {status: same}
+    locate:    {status: same}
+    mv:        {status: same}
+    mkdir:     {status: same}
+    rm:        {status: same}
+    rmdir:     {status: same}
+    query:     {status: same}
+    truncate:  {status: same}
+    prepare:   {status: same}
+    cat:       {status: same}
+    tail:      {status: same}
+    chmod:     {status: same}
+    xattr:     {status: same}
+    spaceinfo: {status: alias, ours: "df", reason: "space report named df"}
+    cache:     {status: unsupported, reason: "pfc cache admin command not modelled"}
+  # Project-only xrdfs sub-commands (read/transfer/inspection extras).
+  extras:
+    du:       "recursive disk-usage summary"
+    df:       "space/usage report (stock spaceinfo)"
+    tree:     "recursive tree view"
+    find:     "recursive name search"
+    touch:    "create/update an empty file"
+    ln:       "create a symlink"
+    readlink: "resolve a symlink"
+    head:     "first bytes of a file"
+    wc:       "byte/line count"
+    grep:     "pattern search in a file"
+    hexdump:  "hex view of file bytes"
+    dd:       "block read/write with offset/count"
+    upload:   "explicit local->remote copy"
+    download: "explicit remote->local copy"
+    cmp:      "compare remote vs local bytes"
+    cksum:    "checksum a remote file"
+    readv:    "vector read"
+    writev:   "vector write"
+    statvfs:  "filesystem stat (also stock)"
+    query:    "server query (also stock)"
+    stage:    "FRM stage-in request"
+    evict:    "cache/residency evict"
+    explain:  "diagnose a path/auth failure"

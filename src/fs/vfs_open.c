@@ -5,8 +5,8 @@
  *       accessors (fd/path/size/mtime/from_cache/file_stat). Also hosts the
  *       cross-unit helpers declared in vfs_internal.h: xrootd_vfs_fill_stat()
  *       (struct stat -> xrootd_vfs_stat_t), xrootd_vfs_copy_path() (pool-dup a
- *       C string), xrootd_vfs_register_fd_cleanup() (close-on-pool-destroy), and
- *       xrootd_vfs_adopt_fd() (wrap an already-open fd in a handle).
+ *       C string) and xrootd_vfs_adopt_fd() (wrap an already-open fd in a
+ *       handle).
  *
  * WHY:  Open is the one place that has to reconcile three concerns at once:
  *       write permission, the read-through cache, and kernel-enforced
@@ -26,6 +26,7 @@
 #include "vfs_internal.h"
 #include "../cache/open.h"
 #include "../path/beneath.h"
+#include "../compat/log_diag.h"
 
 /* Populate a per-request xrootd_vfs_ctx_t with the fields the HTTP front ends
  * (WebDAV, S3) set identically: a transient (rootfd = -1) confined open of an
@@ -106,41 +107,13 @@ xrootd_vfs_copy_path(ngx_pool_t *pool, const char *path)
     return copy;
 }
 
-/* Arm an ngx_pool cleanup that closes fd when the pool is destroyed, so a
- * dup'd descriptor handed to a sendfile buffer never leaks. */
-ngx_int_t
-xrootd_vfs_register_fd_cleanup(ngx_pool_t *pool, ngx_fd_t fd,
-    const char *path, ngx_log_t *log)
-{
-    ngx_pool_cleanup_t      *cln;
-    ngx_pool_cleanup_file_t *clnf;
-
-    if (pool == NULL || fd == NGX_INVALID_FILE) {
-        errno = EINVAL;
-        return NGX_ERROR;
-    }
-
-    cln = ngx_pool_cleanup_add(pool, sizeof(ngx_pool_cleanup_file_t));
-    if (cln == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-
-    cln->handler = ngx_pool_cleanup_file;
-    clnf = cln->data;
-    clnf->fd = fd;
-    clnf->name = (u_char *) (path != NULL ? path : "xrootd_vfs_file");
-    clnf->log = log;
-
-    return NGX_OK;
-}
-
 /* Wrap an already-open fd in a freshly pcalloc'd xrootd_vfs_file_t: fstat the
  * fd into the cached metadata, dup the path, and record from_cache/is_tls.
+ * `writable` gates the stat_current fast path (set only for read-only handles).
  * Used by both xrootd_vfs_open() and the cache layer's open path. */
 ngx_int_t
 xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
-    unsigned from_cache, xrootd_vfs_file_t **out)
+    unsigned from_cache, unsigned writable, xrootd_vfs_file_t **out)
 {
     xrootd_sd_stat_t    st;
     xrootd_sd_obj_t     obj;
@@ -187,7 +160,11 @@ xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
     fh->mode = st.mode;
     fh->from_cache = from_cache ? 1 : 0;
     fh->is_tls = ctx->is_tls;
-    fh->stat_current = 1;   /* cached metadata is fresh from the fstat above */
+    /* Trust the open-time metadata for stat() only on a read-only handle: the
+     * file cannot change through it, so the fstat above stays authoritative for
+     * the handle's lifetime. A writable handle leaves this 0 so xrootd_vfs_file_stat()
+     * always issues a live fstat (its bytes/mtime/size move as it is written). */
+    fh->stat_current = writable ? 0 : 1;
 
     *out = fh;
     return NGX_OK;
@@ -393,7 +370,10 @@ xrootd_vfs_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
         return NULL;
     }
 
-    if (xrootd_vfs_adopt_fd(ctx, path, fd, 0, &fh) != NGX_OK) {
+    if (xrootd_vfs_adopt_fd(ctx, path, fd, 0,
+                            (flags & XROOTD_VFS_O_WRITE) ? 1u : 0u, &fh)
+        != NGX_OK)
+    {
         int err = errno;
         ngx_close_file(fd);
         if (err_out != NULL) {
@@ -418,9 +398,13 @@ xrootd_vfs_close(xrootd_vfs_file_t *fh, ngx_log_t *log)
     /* Release the descriptor through the backend's close slot; the driver
      * marks obj.fd invalid. The VFS keeps the error-log wrapper. */
     if (fh->obj.driver->close(&fh->obj) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log != NULL ? log : fh->log, ngx_errno,
-                      "xrootd_vfs: close failed for \"%s\"",
-                      fh->path != NULL ? fh->path : "-");
+        XROOTD_DIAG_ERR(log != NULL ? log : fh->log, ngx_errno,
+            "xrootd[disk]: close failed for \"%s\"",
+            "a deferred write error surfaced at close — typically the "
+            "filesystem filled up (ENOSPC) or the device returned an I/O error",
+            "check free space and dmesg for disk errors; the file may be "
+            "incomplete, so the client's write should be treated as failed",
+            fh->path != NULL ? fh->path : "-");
         return NGX_ERROR;
     }
 
@@ -490,11 +474,11 @@ xrootd_vfs_file_stat(const xrootd_vfs_file_t *fh, xrootd_vfs_stat_t *stat_out)
     }
 
     /*
-     * phase-45 W2/R1: when the metadata cached at adopt time is still current
-     * (no write on this handle since the open-time fstat), answer from it and
-     * skip a redundant fstat(2).  This is the common read path (S3/WebDAV GET
-     * open the fd then immediately stat it).  xrootd_vfs_write() clears
-     * stat_current, so a write-then-stat caller still gets a live fstat.
+     * phase-45 W2/R1: when the metadata cached at adopt time is authoritative,
+     * answer from it and skip a redundant fstat(2).  This is the common read
+     * path (S3/WebDAV GET open the fd then immediately stat it).  stat_current is
+     * set by adopt_fd only for read-only handles, whose file cannot change
+     * through them; a writable handle has it clear and always takes a live fstat.
      */
     if (fh->stat_current) {
         ngx_memzero(stat_out, sizeof(*stat_out));

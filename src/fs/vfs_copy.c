@@ -32,7 +32,7 @@ xrootd_vfs_copy(xrootd_vfs_ctx_t *ctx, const char *dst_resolved,
     xrootd_ns_copy_opts_t ns_opts;
     xrootd_ns_result_t    res;
     const char           *src = xrootd_vfs_ctx_path(ctx);
-    ngx_msec_t            start = ngx_current_msec;
+    uint64_t              start = xrootd_vfs_now_ns();
     size_t                bytes = 0;
     struct stat           sb;
     int                   saved_errno;

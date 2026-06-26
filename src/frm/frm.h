@@ -56,6 +56,13 @@ typedef struct {
     ngx_uint_t    fail_retries;      /* xrootd_frm_fail_retries (Phase 1)     */
     ngx_str_t     residency_cmd;     /* xrootd_frm_residency_cmd(Phase 1/4)   */
     ngx_msec_t    copy_timeout;      /* xrootd_frm_copy_timeout (Phase 1)     */
+    /* Materialize-to-scratch + control-dir (storage-backend-agnostic FRM):
+     * recall into a local POSIX scratch then move onto storage; keep residency
+     * markers in a local POSIX control mount when the backend cannot hold an
+     * xattr.  Off by default (recall in place; markers on the export object). */
+    ngx_str_t     stage_dir;         /* xrootd_frm_stage_dir                  */
+    ngx_flag_t    force_scratch;     /* xrootd_frm_force_scratch              */
+    ngx_str_t     control_dir;       /* xrootd_frm_control_dir                */
     /* Category-2 (Phase 4) — directives accepted, engine is a stub */
     ngx_str_t     migrate_copycmd;   /* xrootd_frm_migrate_copycmd            */
     ngx_uint_t    purge_hi_ppm;      /* xrootd_frm_purge_watermark high       */
@@ -207,7 +214,7 @@ typedef struct {
  * eliminating that per-request cost on plain (no-tape) S3/WebDAV exports, the
  * same way the native stat/open paths already gate on conf->frm.enable.
  */
-void frm_mark_configured(void);
+void frm_mark_configured(const char *control_dir);
 int  frm_is_configured(void);
 
 /*

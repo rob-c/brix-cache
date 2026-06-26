@@ -5,7 +5,7 @@
 #include "request.h"
 #include "../../compat/xml.h"
 
-ngx_msec_t
+int64_t
 webdav_lock_parse_timeout(ngx_http_request_t *r,
                           ngx_http_xrootd_webdav_loc_conf_t *conf)
 {
@@ -35,7 +35,9 @@ webdav_lock_parse_timeout(ngx_http_request_t *r,
     if (timeout < 1) timeout = 1;
     if (timeout > conf->lock_timeout) timeout = conf->lock_timeout;
 
-    return ngx_current_msec + timeout * 1000;
+    /* Absolute WALL-CLOCK expiry (Unix seconds). Persisted in the lock xattr, so
+     * it must be reboot-stable — ngx_current_msec (monotonic) would not be. */
+    return (int64_t) ngx_time() + (int64_t) timeout;
 }
 
 int

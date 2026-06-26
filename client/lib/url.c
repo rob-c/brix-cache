@@ -92,11 +92,14 @@ parse_remote(const char *s, const char *after_scheme, xrdc_scheme scheme,
     if (path[0] == '/' && path[1] == '/') {
         path++;
     }
-    if (strlen(path) >= sizeof(out->path)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
-        return -1;
+    {
+        size_t pl = strlen(path);
+        if (pl >= sizeof(out->path)) {
+            xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
+            return -1;
+        }
+        memcpy(out->path, path, pl + 1);
     }
-    strcpy(out->path, path);
     return 0;
 }
 
@@ -135,11 +138,14 @@ xrdc_url_parse(const char *s, xrdc_url *out, xrdc_status *st)
             p += 2;
         }
         out->scheme = XRDC_SCHEME_LOCAL;
-        if (strlen(p) >= sizeof(out->path)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
-            return -1;
+        {
+            size_t pl = strlen(p);
+            if (pl >= sizeof(out->path)) {
+                xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
+                return -1;
+            }
+            memcpy(out->path, p, pl + 1);
         }
-        strcpy(out->path, p);
         return 0;
     }
 
@@ -151,11 +157,14 @@ xrdc_url_parse(const char *s, xrdc_url *out, xrdc_status *st)
 
     /* Bare local path. */
     out->scheme = XRDC_SCHEME_LOCAL;
-    if (strlen(s) >= sizeof(out->path)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
-        return -1;
+    {
+        size_t pl = strlen(s);
+        if (pl >= sizeof(out->path)) {
+            xrdc_status_set(st, XRDC_EUSAGE, 0, "path too long");
+            return -1;
+        }
+        memcpy(out->path, s, pl + 1);
     }
-    strcpy(out->path, s);
     return 0;
 }
 
@@ -195,11 +204,14 @@ xrdc_endpoint_parse(const char *ep, xrdc_url *out, xrdc_status *st)
             return -1;
         }
     } else {
-        if (ep[0] == '\0' || strlen(ep) >= sizeof(out->host)) {
-            xrdc_status_set(st, XRDC_EUSAGE, 0, "invalid host");
-            return -1;
+        {
+            size_t hl = strlen(ep);
+            if (ep[0] == '\0' || hl >= sizeof(out->host)) {
+                xrdc_status_set(st, XRDC_EUSAGE, 0, "invalid host");
+                return -1;
+            }
+            memcpy(out->host, ep, hl + 1);
         }
-        strcpy(out->host, ep);
         out->port = XROOTD_DEFAULT_PORT_LOCAL;
     }
     return 0;
@@ -240,6 +252,25 @@ xrdc_is_web_url(const char *s)
         }
     }
     return 0;
+}
+
+/*
+ * xrdc_is_block_url — return 1 if `s` names a block-device URL.
+ *
+ * WHAT: returns 1 for URLs beginning with "block://" or "/dev/"; 0 otherwise.
+ * WHY:  copy.c must intercept block:// before xrdc_url_parse, which does not
+ *       know the block:// scheme and would reject it.  /dev/ paths already
+ *       route to the block backend via xrdc_vfs_open, but the same early
+ *       check lets callers treat them uniformly.
+ * HOW:  two prefix tests; NULL-safe.
+ */
+int
+xrdc_is_block_url(const char *s)
+{
+    if (s == NULL) {
+        return 0;
+    }
+    return (strncmp(s, "block://", 8) == 0 || strncmp(s, "/dev/", 5) == 0);
 }
 
 int

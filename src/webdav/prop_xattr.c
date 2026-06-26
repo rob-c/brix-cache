@@ -62,12 +62,19 @@ webdav_lock_xattr_encode(const webdav_lock_xattr_t *e, char *out, size_t outsz)
 {
     int n;
 
+    /*
+     * Schema v2: `expires` is absolute Unix WALL-CLOCK seconds (not the legacy
+     * v1 monotonic-msec value, which was meaningless after a reboot). The leading
+     * `v=2` lets the decoder reject/expire any pre-upgrade v1 record. `null=1`
+     * marks a lock-null placeholder (RFC 4918 §9.10.1).
+     */
     n = snprintf(out, outsz,
-                 "token=%s|owner=%s|expires=%llu|scope=%s|depth=%s",
+                 "v=2|token=%s|owner=%s|expires=%lld|scope=%s|depth=%s|null=%d",
                  e->token, e->owner,
-                 (unsigned long long) e->expires,
+                 (long long) e->expires,
                  e->exclusive ? "exclusive" : "shared",
-                 e->depth_infinity ? "infinity" : "0");
+                 e->depth_infinity ? "infinity" : "0",
+                 e->is_null ? 1 : 0);
     return (n > 0 && (size_t) n < outsz) ? NGX_OK : NGX_ERROR;
 }
 
@@ -76,6 +83,7 @@ webdav_lock_xattr_decode(const char *raw, size_t rawlen, webdav_lock_xattr_t *e)
 {
     char   buf[WEBDAV_LOCK_XATTR_MAXLEN];
     char  *p, *end, *val, *next;
+    int    version = 0;
 
     if (rawlen == 0 || rawlen >= sizeof(buf)) {
         return NGX_DECLINED;
@@ -98,25 +106,46 @@ webdav_lock_xattr_decode(const char *raw, size_t rawlen, webdav_lock_xattr_t *e)
         if (val != NULL) {
             *val++ = '\0';
 
-            if (strcmp(p, "token") == 0) {
+            if (strcmp(p, "v") == 0) {
+                version = (int) strtol(val, NULL, 10);
+            } else if (strcmp(p, "token") == 0) {
                 ngx_cpystrn((u_char *) e->token, (u_char *) val,
                             sizeof(e->token));
             } else if (strcmp(p, "owner") == 0) {
                 ngx_cpystrn((u_char *) e->owner, (u_char *) val,
                             sizeof(e->owner));
             } else if (strcmp(p, "expires") == 0) {
-                e->expires = (ngx_msec_t) strtoull(val, NULL, 10);
+                e->expires = (int64_t) strtoll(val, NULL, 10);
             } else if (strcmp(p, "scope") == 0) {
                 e->exclusive = (strcmp(val, "exclusive") == 0) ? 1 : 0;
             } else if (strcmp(p, "depth") == 0) {
                 e->depth_infinity = (strcmp(val, "infinity") == 0) ? 1 : 0;
+            } else if (strcmp(p, "null") == 0) {
+                e->is_null = (strcmp(val, "1") == 0) ? 1 : 0;
             }
         }
 
         p = next ? next + 1 : end;
     }
 
-    return (e->token[0] != '\0') ? NGX_OK : NGX_DECLINED;
+    if (e->token[0] == '\0') {
+        return NGX_DECLINED;
+    }
+
+    /*
+     * Migration guard: a legacy v1 record (no `v=2`) carries a MONOTONIC `expires`
+     * that is meaningless in this process (especially after a reboot). Force it to
+     * 0 (already-expired) so every caller's existing expired-lock cleanup path
+     * deletes it and proceeds — a downgrade therefore releases stale locks rather
+     * than honouring a bogus deadline. Returning NGX_OK (not NGX_DECLINED) is
+     * deliberate: NGX_DECLINED would leave the physical xattr in place and a fresh
+     * XATTR_CREATE LOCK would then wrongly hit EEXIST -> 423.
+     */
+    if (version != 2) {
+        e->expires = 0;
+    }
+
+    return NGX_OK;
 }
 
 ngx_int_t

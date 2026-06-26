@@ -797,11 +797,15 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
                       tmp_path);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (ftruncate(fd, total_size) < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "xrootd_webdav: multi-stream: ftruncate failed");
-        close(fd);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    {
+        xrootd_sd_obj_t obj;
+        xrootd_sd_posix_wrap(&obj, fd);
+        if (xrootd_sd_posix_driver.ftruncate(&obj, total_size) != NGX_OK) {
+            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+                          "xrootd_webdav: multi-stream: ftruncate failed");
+            close(fd);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
     cm = curl_multi_init();

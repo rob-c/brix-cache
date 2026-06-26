@@ -19,7 +19,8 @@
  *       no locking is needed (unlike stock's mutex-guarded std::set).
  */
 
-#pragma once
+#ifndef XROOTD_WRITE_PGW_FOB_H
+#define XROOTD_WRITE_PGW_FOB_H
 
 #include "../types/file.h"
 
@@ -43,3 +44,5 @@ uint32_t xrootd_pgw_fob_count(const xrootd_file_t *f);
 
 /* Clear the registry (handle teardown). */
 void xrootd_pgw_fob_reset(xrootd_file_t *f);
+
+#endif /* XROOTD_WRITE_PGW_FOB_H */

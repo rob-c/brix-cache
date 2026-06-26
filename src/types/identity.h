@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TYPES_IDENTITY_H
+#define XROOTD_TYPES_IDENTITY_H
 
 /*
  * identity.h — protocol-agnostic authenticated principal state.
@@ -135,3 +136,5 @@ ngx_int_t xrootd_identity_check_token_scope(const xrootd_identity_t *id,
  */
 ngx_str_t xrootd_identity_describe(const xrootd_identity_t *id,
     ngx_pool_t *pool);
+
+#endif /* XROOTD_TYPES_IDENTITY_H */

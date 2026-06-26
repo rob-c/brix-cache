@@ -146,22 +146,6 @@ ngx_uint_t xrootd_vfs_file_from_cache(const xrootd_vfs_file_t *fh);
 ngx_int_t xrootd_vfs_file_stat(const xrootd_vfs_file_t *fh,
     xrootd_vfs_stat_t *stat_out);
 
-/* Serve [offset, offset+length) from the handle as a freshly built ngx_chain_t
- * in *out (pool-allocated; *out=NULL on empty/past-EOF reads, which still return
- * NGX_OK). length is capped at EOF. Buffer shape depends on the handle: memory-
- * backed under TLS or want_pgcrc (and result->crc32c is filled), else file-backed
- * for sendfile. *result (if non-NULL) gets actual length/eof/from_cache. Records
- * cache access and emits read metrics. NGX_ERROR with errno set on failure. */
-ngx_int_t xrootd_vfs_read(xrootd_vfs_file_t *fh, off_t offset,
-    size_t length, ngx_chain_t **out, xrootd_vfs_io_result_t *result);
-/* Write the input chain `in` (borrowed; file- and memory-backed bufs both
- * handled) contiguously starting at offset. Extends fh->size past the new high-
- * water mark and, when want_pgcrc, accumulates one CRC32c across the whole write
- * into result->crc32c. *result (if non-NULL) also gets bytes-written in length.
- * Emits write metrics. NGX_ERROR with errno set on partial/failed write. */
-ngx_int_t xrootd_vfs_write(xrootd_vfs_file_t *fh, off_t offset,
-    ngx_chain_t *in, xrootd_vfs_io_result_t *result);
-
 /* lstat the resolved ctx path into *stat_out (symlinks reported, not followed).
  * Confined and metered as OP_STAT; NGX_ERROR with errno set on guard failure
  * (NULL stat_out / unconfined ctx -> EINVAL) or lstat error. */

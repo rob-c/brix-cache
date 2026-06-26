@@ -6,7 +6,8 @@
  * (which itself includes ngx_xrootd_module.h and wraps everything in
  * #if (NGX_THREADS)).
  */
-#pragma once
+#ifndef XROOTD_CACHE_EVICT_INTERNAL_H
+#define XROOTD_CACHE_EVICT_INTERNAL_H
 
 #include "cache_internal.h"
 #include "../manager/registry.h"
@@ -128,3 +129,4 @@ int  xrootd_cache_candidate_cmp(const void *a, const void *b);
  */
 void xrootd_cache_free_candidates(xrootd_cache_evict_list_t *list);
 
+#endif /* XROOTD_CACHE_EVICT_INTERNAL_H */

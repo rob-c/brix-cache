@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../compat/alloc_guard.h"
+#include "../compat/str_dup.h"
 
 /* ---- Function: xrootd_conf_set_upstream() — parse and validate upstream address string ----
  *
@@ -34,11 +35,10 @@ xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(rb - addr_copy - 1);
-        xcf->upstream_host.data = ngx_pnalloc(cf->pool, hostlen + 1);
-        if (xcf->upstream_host.data == NULL) { return NGX_CONF_ERROR; }
-        ngx_memcpy(xcf->upstream_host.data, addr_copy + 1, hostlen);
-        xcf->upstream_host.data[hostlen] = '\0';
-        xcf->upstream_host.len = hostlen;
+        if (xrootd_pstrdupz(cf->pool, &xcf->upstream_host,
+                            (u_char *) addr_copy + 1, hostlen) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
         pnum = strtol(rb + 2, &endp, 10);
     } else {
         /* hostname:port or IPv4:port - split on last colon */
@@ -49,11 +49,10 @@ xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(colon - addr_copy);
-        xcf->upstream_host.data = ngx_pnalloc(cf->pool, hostlen + 1);
-        if (xcf->upstream_host.data == NULL) { return NGX_CONF_ERROR; }
-        ngx_memcpy(xcf->upstream_host.data, addr_copy, hostlen);
-        xcf->upstream_host.data[hostlen] = '\0';
-        xcf->upstream_host.len = hostlen;
+        if (xrootd_pstrdupz(cf->pool, &xcf->upstream_host,
+                            (u_char *) addr_copy, hostlen) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
         pnum = strtol(colon + 1, &endp, 10);
     }
 

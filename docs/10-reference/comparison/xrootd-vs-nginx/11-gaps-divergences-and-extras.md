@@ -179,38 +179,55 @@ exists here.
 - **Alternative:** yes — the built-in shaping is the intended replacement, just
   not API-compatible.
 
-### Diagnostics filesystem (`XrdDig`)
+### Diagnostics filesystem (`XrdDig`) — now implemented
 
 - **Official:** `XrdDig/` exposes a controlled diagnostics filesystem
   (`XrdDigFS`, `XrdDigAuth`, `XrdDigConfig`) for remote inspection of config/log
   files.
-- **Here:** no equivalent diagnostics-FS surface.
-- **Why it matters / impact:** sites using `XrdDig` for remote diagnostics lose
-  that mechanism.
-- **Alternative:** partial — the HTTP dashboard/admin API
-  (`src/dashboard/`) and nginx logs cover much of the operational-introspection
-  intent through a different surface.
+- **Here:** **implemented** — `src/dig/dig.c` (`xrootd_webdav_dig` directive).
+  Default-off, read-only (GET/HEAD only → 405 otherwise),
+  `openat2(RESOLVE_BENEATH)`-confined to the export realpath, and gated by a
+  principal→export allow-file (anonymous principal / unset or unreadable
+  allow-file / no matching rule all DENY 403).
+- **Why it matters / impact:** the `XrdDig` remote-diagnostics mechanism has a
+  fail-closed HTTP equivalent. Surface differs (HTTP path vs `XrdDigFS`), but the
+  capability is present.
+- **Alternative:** also the HTTP dashboard/admin API (`src/dashboard/`) and nginx
+  logs.
 
-### ZIP virtual filesystem (`XrdZip`) and replica/memory caches (`XrdRmc`, `XrdFrc`)
+### ZIP virtual filesystem (`XrdZip`) — partial; replica/memory caches (`XrdRmc`, `XrdFrc`)
 
 - **Official:** `XrdZip/` (serve members of a ZIP archive as files), `XrdRmc/`
   (remanufactured memory cache), `XrdFrc/` (file replica catalog).
-- **Here:** none of these have a comparable implementation.
-- **Why it matters / impact:** specialized; not needed for most HEP replacement
-  targets, but a hard miss where used.
-- **Alternative:** none.
+- **Here:** **`XrdZip` partially implemented** — `src/zip/` (`zip_dir.c`
+  pure-C central-directory reader, `zip_member.c`, `zip_http.c`) is wired into
+  the build and serves ZIP members over HTTP. Not full upstream parity (e.g.
+  cross-protocol member-open breadth). `XrdRmc`/`XrdFrc` have no equivalent.
+- **Why it matters / impact:** ZIP-member access is available over HTTP; the
+  in-memory replica/cache catalogs are not (specialized, rarely needed for HEP
+  replacement targets).
+- **Alternative:** none for `XrdRmc`/`XrdFrc`.
 
-### Legacy auth plugins: `pwd` and `host`
+### Legacy auth plugins: `pwd` and `host` — now implemented
 
 - **Official:** `XrdSecpwd/` (encrypted password-file ecosystem with
   `xrdpwdadmin`, server public keys, crypto negotiation) and the built-in
   `host` protocol (`XrdSec/XrdSecProtocolhost.cc`, trusted-network auth).
-- **Here:** **neither is implemented.** GSI, SSS, unix, krb5, ZTN/WLCG tokens,
-  SciTokens, and macaroons are.
-- **Why it matters / impact:** `pwd`-auth or `host`-auth legacy sites cannot
-  drop in. A plaintext/system-password substitute for `pwd` would be a security
-  regression and is deliberately not provided.
-- **Alternative:** none by design; migrate to a modern auth method.
+- **Here:** **both implemented**, alongside GSI, SSS, unix, krb5, ZTN/WLCG
+  tokens, SciTokens, and macaroons.
+  - `pwd` — `src/pwd/` (`auth.c` + `pwdfile.c`), the `XrdSecpwd` wire equivalent:
+    a 2-round Diffie-Hellman-bootstrapped username+password handshake (credential
+    never sent in clear). Opt-in via `xrootd_auth pwd`, requires
+    `xrootd_pwd_file` (empty = deny all), recommended under TLS.
+  - `host` — `src/host/auth.c`, the `XrdSecProtocolhost` wire equivalent:
+    reverse-DNS of the peer against an allowlist. Opt-in via `xrootd_auth host`,
+    requires `xrootd_host_allow` (empty = deny all); identity always from the
+    socket's reverse-DNS, never client-asserted. Fail-closed, trusted-network
+    only by design.
+- **Why it matters / impact:** `pwd`-auth and `host`-auth legacy sites are no
+  longer hard blockers. Note these remain wire-equivalents, not the full
+  `xrdpwdadmin`/server-public-key admin ecosystem.
+- **Alternative:** modern auth (GSI/token/SSS/krb5) still preferred.
 
 ### Full `XrdAcc` privilege model
 
@@ -258,8 +275,10 @@ exists here.
 - **`XrdClRecorder` (client record/replay):** **not verified** — no
   corresponding file found in this `XrdCl` checkout; it is a client-side tool
   regardless and out of replacement scope.
-- **`XrdSsi` (storage server interface), `XrdSfs` Spectrum-Scale specifics:**
-  no equivalents; specialized.
+- **`XrdSsi` (scalable service interface):** **minimal equivalent** in
+  `src/ssi/ssi.c` (`xrootd_ssi`) — a unary request/response service keyed per
+  file handle; not the full upstream SSI framework (streaming/async/partitioned
+  services). `XrdSfs` Spectrum-Scale specifics: no equivalent; specialized.
 
 ---
 
@@ -391,14 +410,14 @@ There is no single drop-in answer. The honest per-profile verdict:
 
 | Profile | Verdict | Where it bites |
 |---|---|---|
-| **Pure POSIX data server** (`root://` + `davs://`, local/parallel-FS storage, GSI/token/SSS/krb5 auth, Prometheus monitoring) | **Strong drop-in candidate.** Full active opcode set through `kXR_clone`, paged I/O, POSC, vector I/O, fattr, confined paths, conformance-tested against stock. | Loses UDP XrdMon (by design); `pwd`/`host` auth absent; complex `XrdAcc` files need translation; no N2N plugin. |
+| **Pure POSIX data server** (`root://` + `davs://`, local/parallel-FS storage, GSI/token/SSS/krb5/pwd/host auth, Prometheus monitoring) | **Strong drop-in candidate.** Full active opcode set through `kXR_clone`, paged I/O, POSC, vector I/O, fattr, confined paths, conformance-tested against stock. | Loses UDP XrdMon (by design); complex `XrdAcc` files need translation; no N2N plugin. |
 | **Redirector / manager** | **Viable for two/three-tier static + practical CMS** (manager registration, locate, redirect, blacklist, per-server metrics, multi-tier tested). | Full CMS admin socket/tooling, virtual node IDs, and some battle-tested CMS semantics are absent; complex production clusters need explicit conformance testing. |
 | **XCache / proxy cache** | **Partial — not a drop-in for PFC-dependent sites.** Read-through/slice cache + eviction + write-through + proxy bridge exist. | No full `XrdPfc` purge/snapshot/policy engine; no `XrdPss` remote-fill-as-storage; proxy unsolicited-`kXR_attn` and per-entry prepare rewrite are deferred. |
 | **WebDAV / HTTP(S) gateway** | **Strong, often ahead of upstream.** XrdHttp dialect, range/multipart, HTTP-TPC (hardened), plus `LOCK`/`PROPPATCH`/`SEARCH`/`ACL` beyond upstream's method set. | Native-TPC TLS-upgrade/multihop edges deferred; checksum-plugin breadth limited to the built-in set. |
 | **S3 gateway** | **Module-exclusive capability** (no upstream S3 *server*). SigV4, multipart, presigned, POST Object, conditional ops, CRC64NVME. | Path-style focused; virtual-hosted buckets and dynamic STS stores out of scope; S3 SigV4 must never share logic with WLCG tokens (invariant). |
 | **Tape / MSS front end** | **Functional gateway, not a drop-in FRM.** Durable stage queue + WLCG Tape REST + `prepare`/`QPrep` (durable reqids with `xrootd_frm on`). | No full `XrdFrm` daemon ecosystem, in-process migrate/purge (scaffold only), MSS driver plugins, or `XrdOssArc`. Validate `prepare`/`cancel`/`evict`/recall against the real storage manager. |
 | **EC / Ceph / non-POSIX backend** | **Not a drop-in.** | No `XrdEc`, no `XrdCeph`, no OSS plugin ABI — hard blockers. |
-| **`pwd`/`host`-auth or UDP-XrdMon-dependent site** | **Not a drop-in without migration.** | Auth methods and UDP monitoring are absent by design. |
+| **UDP-XrdMon-dependent site** | **Not a drop-in without migration.** | UDP f/g-stream monitoring is absent by design (HTTP observability replaces it). `pwd`/`host` auth, by contrast, are now implemented. |
 
 The correct proof point for any of these is never "the feature list says yes" —
 it is a site-specific conformance matrix with three tests per critical feature
@@ -431,7 +450,9 @@ nginx-xrootd (`src/` and `client/`):
 - Protocol/dispatch: `src/protocol/opcodes.h`, `src/protocol/flags.h`,
   `src/handshake/dispatch*.c`, `src/session/protocol.c`, `src/session/signing.c`
 - Auth: `src/gsi/`, `src/token/`, `src/sss/`, `src/unix/`, `src/krb5/`,
-  `src/voms/`, `src/path/authdb.c`, `src/path/auth_gate.c`
+  `src/pwd/`, `src/host/`, `src/voms/`, `src/path/authdb.c`,
+  `src/path/auth_gate.c`
+- Diagnostics / SSI / ZIP: `src/dig/`, `src/ssi/`, `src/zip/`
 - Storage/cache/path: `src/fs/`, `src/path/`, `src/cache/`,
   `src/compat/namespace_ops.c`, `src/cache/origin_protocol.c`
 - FRM/tape: `src/frm/`, `src/query/prepare.c`, `src/webdav/tape_rest.c`

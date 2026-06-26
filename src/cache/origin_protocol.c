@@ -610,7 +610,8 @@ xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
         }
 
         if (dlen > 0) {
-            if (xrootd_cache_fd_write_all(outfd, body, dlen) != 0) {
+            if (xrootd_cache_fd_write_all(outfd, body, dlen,
+                                          (off_t) *got) != 0) {
                 free(body);
                 xrootd_cache_set_syserror(t, kXR_IOError,
                                           "cache file write failed");

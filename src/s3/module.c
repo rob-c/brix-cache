@@ -65,6 +65,8 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
     c->list_cache_ttl               = NGX_CONF_UNSET_MSEC;
     c->max_keys    = NGX_CONF_UNSET;
     c->mpu_max_age = NGX_CONF_UNSET;
+    c->zip_access  = NGX_CONF_UNSET;
+    c->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
     xrootd_acc_http_init_conf(&c->acc);   /* XrdAcc engine (off by default) */
 
     return c;
@@ -88,6 +90,9 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                               10000);   /* 10s default staleness bound */
     ngx_conf_merge_value(conf->max_keys,    prev->max_keys,    1000);
     ngx_conf_merge_value(conf->mpu_max_age, prev->mpu_max_age, 0);
+    ngx_conf_merge_value(conf->zip_access,  prev->zip_access,  0);
+    ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
+                              16 * 1024 * 1024);
     xrootd_acc_http_merge_conf(&conf->acc, &prev->acc);
     ngx_conf_merge_str_value(conf->common.root,             prev->common.root,             "");
     ngx_conf_merge_str_value(conf->cache_root,       prev->cache_root,       "");
@@ -300,6 +305,21 @@ static ngx_command_t ngx_http_s3_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_s3_loc_conf_t, list_cache),
+      NULL },
+
+    /* ZIP member access over S3 GetObject (phase-57 W2). Opt-in, off default. */
+    { ngx_string("xrootd_s3_zip_access"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, zip_access),
+      NULL },
+
+    { ngx_string("xrootd_s3_zip_cd_max_bytes"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, zip_cd_max_bytes),
       NULL },
 
     { ngx_string("xrootd_s3_list_cache_ttl"),

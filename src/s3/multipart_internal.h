@@ -1,8 +1,9 @@
 /*
  * multipart_internal.h — shared declarations for the S3 multipart upload
- * implementation split across multipart.c and multipart_complete.c.
+ * implementation split across multipart.c and the multipart_complete_*.c units.
  */
-#pragma once
+#ifndef XROOTD_S3_MULTIPART_INTERNAL_H
+#define XROOTD_S3_MULTIPART_INTERNAL_H
 
 /* Maximum valid S3 part number (AWS limit). */
 #define MPU_MAX_PART_NUMBER  10000
@@ -19,3 +20,5 @@ int mpu_rmdir_recursive(ngx_log_t *log, const char *root_canon,
  * to one readdir; no-op when max_age_secs <= 0.  Returns the count reaped. */
 int s3_mpu_reap_stale(ngx_log_t *log, const char *root_canon,
     const char *final_path, time_t max_age_secs);
+
+#endif /* XROOTD_S3_MULTIPART_INTERNAL_H */

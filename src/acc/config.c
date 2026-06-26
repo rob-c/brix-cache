@@ -17,6 +17,7 @@
 
 #include "../ngx_xrootd_module.h"
 #include "acc.h"
+#include "../compat/log_diag.h"
 
 #include <sys/stat.h>
 
@@ -252,9 +253,12 @@ xrootd_acc_init_server(ngx_stream_xrootd_srv_conf_t *xcf, ngx_cycle_t *cycle)
         xcf->acc_encoding,
         cycle->log);
     if (xcf->acc_tables == NULL) {
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
-                      "xrootd: failed to load xrdacc authdb \"%V\"",
-                      &xcf->authdb);
+        XROOTD_DIAG_EMERG(cycle->log, 0,
+            "xrootd: failed to load authorization database \"%V\"",
+            "the authdb could not be opened or parsed",
+            "see the specific \"xrootd authdb:\" error logged just above for "
+            "the exact file/line and how to fix it",
+            &xcf->authdb);
         return NGX_ERROR;
     }
 

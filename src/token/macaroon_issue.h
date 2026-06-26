@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_TOKEN_MACAROON_ISSUE_H
+#define XROOTD_TOKEN_MACAROON_ISSUE_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -42,3 +43,5 @@ ngx_int_t xrootd_macaroon_issue(ngx_log_t *log,
     const char *path,
     time_t expiry,
     char *out_b64, size_t out_b64sz);
+
+#endif /* XROOTD_TOKEN_MACAROON_ISSUE_H */

@@ -26,8 +26,41 @@
 #ifndef XROOTD_SD_H
 #define XROOTD_SD_H
 
+#ifdef XRDPROTO_NO_NGX
+/* ngx-free consumers (the native client via shared libxrdproto) include this
+ * header ONLY for the worker-safe POSIX raw-fd surface — xrootd_sd_posix_wrap()
+ * + the driver's pread/pwrite/... slots — which touch no nginx runtime. Supply
+ * the minimal nginx type/macro surface this header *names* so it compiles
+ * without ngx_core.h. Each is a typedef or macro (no runtime symbol), so the
+ * built libxrdproto stays ngx-free (check-ngx-free.sh inspects the archive for
+ * ngx_* symbols). The ngx-coupled namespace/instance/registry slots are simply
+ * absent (NULL) in the ngx-free POSIX driver (see sd_posix.c). */
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+typedef intptr_t          ngx_int_t;
+typedef int               ngx_fd_t;
+typedef struct ngx_log_s  ngx_log_t;   /* opaque: only ever a pointer field */
+typedef struct ngx_pool_s ngx_pool_t;  /* opaque: only ever a pointer field */
+#ifndef NGX_INVALID_FILE
+#define NGX_INVALID_FILE  (-1)
+#endif
+#ifndef NGX_OK
+#define NGX_OK            0
+#endif
+#ifndef NGX_ERROR
+#define NGX_ERROR         (-1)
+#endif
+#ifndef ngx_inline
+#define ngx_inline        inline
+#endif
+#ifndef ngx_memzero
+#define ngx_memzero(buf, n) memset(buf, 0, (n))
+#endif
+#else
 #include <ngx_config.h>
 #include <ngx_core.h>
+#endif
 
 #include <stdint.h>
 #include <sys/stat.h>

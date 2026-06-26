@@ -177,6 +177,18 @@ xrootd_proxy_pool_ping_handler(ngx_event_t *ev)
 void
 xrootd_proxy_pool_shutdown(void)
 {
+    /* proxy_pool is a zero-initialised BSS global. A worker that never ran
+     * xrootd_proxy_pool_init() (e.g. an HTTP-only instance: the stream
+     * init_process returns early when there is no stream main conf, before the
+     * pool init) has a NULL sentinel, not the self-referential empty sentinel.
+     * ngx_queue_empty() would then read NULL != &proxy_pool as "non-empty" and
+     * the dequeue below would deref a NULL head (segfault at the ping_ev
+     * offset). Treat a NULL sentinel as an uninitialised (empty) pool — this is
+     * what makes the call genuinely "safe when proxy mode was never used". */
+    if (proxy_pool.next == NULL) {
+        return;
+    }
+
     while (!ngx_queue_empty(&proxy_pool)) {
         ngx_queue_t                *q  = ngx_queue_head(&proxy_pool);
         xrootd_proxy_pooled_conn_t *pc =

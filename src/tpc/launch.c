@@ -426,6 +426,22 @@ xrootd_tpc_start_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 sizeof(t->tpc_org));
     ngx_cpystrn((u_char *) t->token_mode, (u_char *) file->tpc_token_mode,
                 sizeof(t->token_mode));
+    /*
+     * §F6: if proxy delegation captured the user's proxy during the inbound GSI
+     * login, hand the full credential (proxy cert + key + chain) to the pull so it
+     * authenticates to the source AS THE USER. malloc (thread-owned, freed in
+     * thread.c). Off unless xrootd_tpc_delegate + a proxy was actually captured.
+     */
+    if (conf->tpc_delegate && ctx->gsi_deleg_proxy_pem != NULL
+        && ctx->gsi_deleg_proxy_len > 0) {
+        t->deleg_cred_pem = malloc(ctx->gsi_deleg_proxy_len);
+        if (t->deleg_cred_pem != NULL) {
+            ngx_memcpy(t->deleg_cred_pem, ctx->gsi_deleg_proxy_pem,
+                       ctx->gsi_deleg_proxy_len);
+            t->deleg_cred_len = ctx->gsi_deleg_proxy_len;
+        }
+    }
+
     t->token_scope[0] = '\0';
     if (conf->tpc_outbound_scope.len > 0
         && conf->tpc_outbound_scope.len < sizeof(t->token_scope)) {

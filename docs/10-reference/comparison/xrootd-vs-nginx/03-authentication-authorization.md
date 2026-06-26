@@ -338,10 +338,11 @@ scopes.
   byte-compatible target with stock XrdSecpwd), constant-time compare, file
   format `user:salthex:hashhex` (`pwdfile.c`). Caveat noted in source: full
   byte-interop with stock XrdSecpwd is follow-on (our-client ↔ our-server is
-  verified); run under TLS. Directive: `xrootd_pwd_file`. **Note:** the
-  [source-verified comparison](../../source-verified-xrootd-comparison.md) lists
-  `pwd` as "Missing" — that doc predates this code; see
-  [divergences](#parity-divergences-and-interop).
+  verified); run under TLS. Directive: `xrootd_pwd_file`. (The other reference
+  gap docs — [source-verified comparison](../../source-verified-xrootd-comparison.md),
+  [feature matrix](../../xrootd-feature-matrix.md),
+  [gaps-vs-xrootd](../../gaps-vs-xrootd.md) — have been reconciled to show `pwd`
+  as implemented.)
 
 ### Host-based
 
@@ -353,8 +354,8 @@ scopes.
   (never client-supplied), matched against an allowlist
   (`xrootd_host_pattern_match()`: leading `.` = domain suffix, else exact,
   case-insensitive). **Hostname/suffix only — no CIDR/IP matching**; empty
-  allowlist = deny-all. Directive: `xrootd_host_allow`. Same "Missing in
-  upstream-comparison doc" caveat as `pwd`.
+  allowlist = deny-all. Directive: `xrootd_host_allow`. (The reference gap docs
+  have been reconciled to show `host` as implemented, same as `pwd`.)
 
 ### Support matrix
 
@@ -678,13 +679,14 @@ keytab from `xrdsssadmin` format. See
 - **`pwd` byte-interop with stock XrdSecpwd is follow-on** (our-client ↔
   our-server verified); **`host` supports hostname/suffix only, no CIDR**.
 
-**Note on existing docs:** the
-[source-verified comparison](../../source-verified-xrootd-comparison.md) (auth
-section) records `pwd` and `host` as *Missing* and the XrdAcc port as *Partial*.
-That document predates the 2026-06 Phase-52 additions of `src/pwd/` and
-`src/host/`; this page reflects the current source while not otherwise
-contradicting it (the residual XrdAcc-grammar gaps it lists — no `v`/`l`/`x`,
-narrower identity classes — still hold and are repeated above).
+**Note on existing docs:** the reference gap docs (the
+[source-verified comparison](../../source-verified-xrootd-comparison.md),
+[feature matrix](../../xrootd-feature-matrix.md), and
+[gaps-vs-xrootd](../../gaps-vs-xrootd.md)) originally recorded `pwd` and `host`
+as *Missing*; they have now been reconciled to reflect the 2026-06 Phase-52
+additions of `src/pwd/` and `src/host/`. The XrdAcc port remains *Partial* — the
+residual grammar gaps (no `v`/`l`/`x`, narrower identity classes) still hold and
+are repeated above.
 
 ---
 

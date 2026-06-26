@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_PROTOCOL_GSI_H
+#define XROOTD_PROTOCOL_GSI_H
 
 /*
  * GSI (x509) authentication wire constants.
@@ -47,8 +48,11 @@
 #define kXRS_clnt_opts   3019       /* client option flags (int32)       */
 #define kXRS_x509        3022       /* X.509 certificate (PEM text)      */
 #define kXRS_issuer_hash 3023       /* CA subject name hash (uint32)     */
+#define kXRS_x509_req    3024       /* X.509 certificate request (proxy delegation) */
 #define kXRS_cipher_alg  3025       /* supported cipher algorithms       */
 #define kXRS_md_alg      3026       /* supported digest algorithms       */
 
 /* GSI protocol version sent in kXRS_version bucket. 20100 = 2.01.00 */
 #define kXGSI_VERSION    20100
+
+#endif /* XROOTD_PROTOCOL_GSI_H */

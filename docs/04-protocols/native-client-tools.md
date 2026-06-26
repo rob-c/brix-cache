@@ -68,6 +68,7 @@ client runtime into a deployment.
 | `xrdadler32` | Adler32 checksums | Local files are streamed through zlib; `root://` paths use server `kXR_Qcksum`. |
 | `xrdcrc32c` | CRC32c checksums | Uses the same CRC32c primitive as pgread/pgwrite and server checksum code. |
 | `xrdcrc64` | CRC-64/XZ checksums | Local or `root://`; the server-side name is `crc64`. |
+| `xrdckverify` | Verify a file **on disk** against its recorded checksum | Recomputes a local file and compares it to the value already stored for it — in a storage endpoint's `user.XrdCks.<alg>` xattr (text or stock binary `XrdCksData`) / `<file>.cks` sidecar (`--storage`), or a proxy cache's `<file>.cinfo` / `<file>.meta` digest (`--cache`); `--auto` (default) tries both. `--algo <name>` narrows the algorithm. Exit 0 = match, 1 = mismatch (corruption), 2 = no recorded checksum, 3 = error. |
 | `xrdqstats` | Query server config, space, or stats | Uses `kXR_query` with default `QStats`, `-c` for `Qconfig`, or `-s` for `Qspace`. |
 | `xrdprep` | Submit prepare/stage/evict/cancel/fresh requests | Thin CLI over `kXR_prepare`. |
 | `wait41` | Wait for a server readiness condition | Older utility-style tool; treats its positional argument as `host[:port]` and waits up to its timeout. |

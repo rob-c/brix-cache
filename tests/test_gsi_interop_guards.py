@@ -223,12 +223,24 @@ def test_wire_contract_tripwires():
     docs/10-reference/comparison/xrootd-implementations.md (§5.4).
     """
     client_gsi = _read("client/lib/sec/sec_gsi.c")
+    core = _read("src/gsi/gsi_core.c")
     conn = _read("client/lib/conn.c")
     server_parse = _read("src/gsi/parse_x509.c")
 
-    # (a) client must emit the kXRS_md_alg digest bucket (dCache NPEs without it).
-    assert "kXRS_md_alg" in client_gsi, (
-        "client no longer emits kXRS_md_alg — dCache will NPE (digestBucket null)")
+    # (F4) The XrdSecgsi round-2 (kXGC_cert) now lives in ONE shared kernel,
+    # xrootd_gsi_build_cert_response (src/gsi/gsi_core.c); both the native client
+    # and the TPC destination delegate to it so neither can grow a divergent
+    # reimplementation. Guard the client's delegation here; the wire-critical facts
+    # below are then asserted against the shared kernel that actually emits them.
+    assert "xrootd_gsi_build_cert_response" in client_gsi, (
+        "native client no longer delegates GSI round-2 to the shared gsi_core "
+        "kernel (xrootd_gsi_build_cert_response) — restore the single-source path")
+
+    # (a) the shared round-2 must emit the kXRS_md_alg digest bucket (dCache NPEs
+    #     without it).
+    assert "kXRS_md_alg" in core, (
+        "shared GSI kernel no longer emits kXRS_md_alg — dCache will NPE "
+        "(digestBucket null)")
 
     # (b) when an IV is prepended, the cipher_alg sent to the server MUST carry a
     #     "#ivlen" suffix. dCache reads the suffix to learn the IV is present; a
@@ -236,15 +248,16 @@ def test_wire_contract_tripwires():
     #     ("Could not decrypt encrypted client message") while EOS still passes —
     #     the exact EOS-ok/dCache-broken split. Match any cipher_field format that
     #     embeds '#', tolerant of formatting.
-    assert re.search(r"snprintf\(\s*cipher_field[^;]*#", client_gsi), (
-        "client builds the kXRS_cipher_alg field WITHOUT a '#ivlen' suffix while "
-        "still prepending an IV (use_iv) — dCache/stock XRootD will fail to decrypt "
-        "the client message. Restore the '%s#%d' (cipher#ivlen) form when use_iv.")
+    assert re.search(r"snprintf\(\s*cipher_field[^;]*#", core), (
+        "shared GSI kernel builds the kXRS_cipher_alg field WITHOUT a '#ivlen' "
+        "suffix while still prepending an IV (use_iv) — dCache/stock XRootD will "
+        "fail to decrypt the client message. Restore the '%s#%d' form when use_iv.")
 
-    # (c) client must terminate the inner encrypted bucket list with kXRS_none.
-    assert "xrootd_gbuf_end(&x.inner)" in client_gsi, (
-        "client no longer appends the kXRS_none terminator to the inner buffer — "
-        "dCache will overrun (readerIndex exceeds writerIndex)")
+    # (c) the shared round-2 must terminate the inner encrypted bucket list with
+    #     the kXRS_none terminator (xrootd_gbuf_end).
+    assert "xrootd_gbuf_end(&x.inner)" in core, (
+        "shared GSI kernel no longer appends the kXRS_none terminator to the inner "
+        "buffer — dCache will overrun (readerIndex exceeds writerIndex)")
 
     # (d) client CA-dir resolution must fall back to the grid trust dir.
     assert "/etc/grid-security/certificates" in conn, (
@@ -293,21 +306,29 @@ def test_xcache_origin_uses_native_client():
 def test_tpc_outbound_uses_shared_core():
     """The in-process TPC outbound GSI must reuse the shared, proven gsi_core.
 
-    src/tpc/gsi_outbound_*.c is a second GSI implementation; pinning it to the
-    shared cipher/DH kernel (xrootd_gsi_cipher_encrypt / _public) and the kXRS_none
-    terminator stops its crypto drifting from the client that is proven against
-    EOS/stock XRootD.
+    Post-F4 the TPC destination's round-2 (src/tpc/gsi_outbound_exchange.c) is a
+    thin driver that delegates the entire kXGC_cert build to the shared kernel
+    xrootd_gsi_build_cert_response (src/gsi/gsi_core.c) — the SAME implementation
+    the native client uses. We assert the delegation (so the TPC path can never
+    grow a divergent crypto reimplementation) and that the shared kernel still
+    carries the wire-critical facts.
     """
     ex = _read("src/tpc/gsi_outbound_exchange.c")
-    assert "xrootd_gsi_cipher_encrypt" in ex and "xrootd_gsi_cipher_public" in ex, (
-        "TPC outbound GSI no longer uses the shared gsi_core cipher kernel — its "
-        "DH/cipher math can drift from the EOS-proven client")
-    assert "kXRS_none" in ex, (
-        "TPC outbound GSI no longer emits the kXRS_none terminator")
-    # dCache-correctness: the outbound round-2 must echo cipher_alg + md_alg, or
+    core = _read("src/gsi/gsi_core.c")
+    assert "xrootd_gsi_build_cert_response" in ex, (
+        "TPC outbound GSI no longer delegates round-2 to the shared gsi_core kernel "
+        "(xrootd_gsi_build_cert_response) — its DH/cipher math can drift from the "
+        "EOS-proven client")
+    assert ("xrootd_gsi_cipher_encrypt" in core
+            and "xrootd_gsi_cipher_public" in core), (
+        "shared gsi_core kernel no longer uses its own cipher_encrypt/_public — "
+        "the unified GSI DH/cipher math regressed")
+    assert "xrootd_gbuf_end" in core, (
+        "shared GSI kernel no longer emits the kXRS_none terminator")
+    # dCache-correctness: the shared round-2 must echo cipher_alg + md_alg, or
     # dCache NPEs (digestBucket null) on a TPC pull with dCache as the origin.
-    assert "kXRS_md_alg" in ex and "kXRS_cipher_alg" in ex, (
-        "TPC outbound GSI no longer emits kXRS_cipher_alg/kXRS_md_alg — TPC with "
+    assert "kXRS_md_alg" in core and "kXRS_cipher_alg" in core, (
+        "shared GSI kernel no longer emits kXRS_cipher_alg/kXRS_md_alg — TPC with "
         "dCache as the origin will fail (server-side StringBucket NPE)")
 
 

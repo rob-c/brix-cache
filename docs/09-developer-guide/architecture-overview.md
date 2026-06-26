@@ -9,7 +9,7 @@ This document has been consolidated into a single **visual architecture guide** 
 ## What's Here?
 
 The new overview includes:
-- **Mermaid.js architecture diagram** — shows clients → nginx layers → filesystem in one visual
+- **Mermaid.js architecture diagram** — shows clients → nginx layers → VFS → POSIX storage driver → filesystem in one visual (every protocol's file I/O takes the same `proto → VFS → POSIX` path)
 - **Protocol comparison table** — XRootD vs WebDAV vs S3 side-by-side
 - **Deployment mode diagrams** — standalone, proxy, and perimeter proxy modes
 - **Sequence diagram** — native XRootD download request flow (connect → handshake → read → close)

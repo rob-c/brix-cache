@@ -47,6 +47,7 @@
 
 #include "../metrics/metrics.h"
 #include "../compat/protocol_caps.h"
+#include "../fs/vfs.h"             /* xrootd_vfs_ctx_t for s3_build_vfs_ctx() */
 #include "../config/shared_conf.h"
 #include "../compat/namespace_ops.h"
 #include "../acc/acc.h"
@@ -87,6 +88,14 @@ typedef struct {
                                  incomplete-MPU reaper (run on InitiateMultipart)
                                  removes it.  0 = disabled.  Recommended 604800
                                  (7d, AWS-parity). */
+
+    /* ---- ZIP member access (phase-57 W2) ----
+     * [xrootd_s3_zip_access on|off] — opt-in, off by default.  A GetObject whose
+     * query carries "?xrdcl.unzip=<member>" serves that member of the archive
+     * object (stored + deflate).  zip_cd_max_bytes caps the central-directory
+     * read (bomb guard; default 16 MiB). */
+    ngx_flag_t   zip_access;
+    size_t       zip_cd_max_bytes;
 
     /* ---- XrdAcc authorization engine (off by default) ---- */
     xrootd_acc_http_t  acc;    /* settings + per-worker state */
@@ -455,6 +464,12 @@ void s3_delete_objects_body_handler(ngx_http_request_t *r);
  * buf must be at least 40 bytes.
  */
 void s3_etag(const struct stat *st, char *buf, size_t bufsz);
+
+/* Initialise *vctx as a transient (rootfd=-1) S3 VFS request descriptor for the
+ * already-resolved confined path fs_path, taking pool/log/TLS/identity from r
+ * and roots/write-gate from cf.  Shared by the PUT and POST-object write paths. */
+void s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx);
 
 /* AWS S3 full-object checksum headers (this gateway supports CRC-64/NVME). */
 #define S3_HDR_CHECKSUM_CRC64NVME  "x-amz-checksum-crc64nvme"

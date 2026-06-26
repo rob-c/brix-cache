@@ -1,4 +1,5 @@
-#pragma once
+#ifndef XROOTD_WRITE_OP_TABLE_H
+#define XROOTD_WRITE_OP_TABLE_H
 #include "ngx_xrootd_module.h"
 #include "../path/op_path.h"
 
@@ -48,3 +49,5 @@ typedef struct {
 ngx_int_t xrootd_dispatch_op(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                ngx_stream_xrootd_srv_conf_t *conf,
                                uint16_t opcode);
+
+#endif /* XROOTD_WRITE_OP_TABLE_H */
