@@ -25,6 +25,32 @@ All of the new transport lives in `client/lib/aio.c` / `aio.h` (the event loop) 
 `client/lib/aio_mgr.c` (the connection manager + resilient open file). The driver
 is `client/apps/xrootdfs.c` (the synchronous fallback is `client/apps/xrootdfs_legacy.c`).
 
+```text
+  ┌──────────────────────────────────────────────────────────────────┐
+  │ ④ DRIVER  xrootdfs.c   FUSE getattr/read/write/readdir            │
+  │    metadata → sync pool (xfs_meta)   file I/O → xrdc_mfile        │
+  └───────────────┬──────────────────────────────────────────────────┘
+                  │  blocking façade (xrdc_aio_call), many workers pipeline
+  ┌───────────────▼──────────────────────────────────────────────────┐
+  │ ③ MGR + MFILE  aio_mgr.c   resumable handle: reopen + re-issue at  │
+  │    same offset on drop / stale handle (idempotent, at-most-once)   │
+  └───────────────┬──────────────────────────────────────────────────┘
+  ┌───────────────▼──────────────────────────────────────────────────┐
+  │ ② RESILIENCE  adaptive deadline · transparent reconnect · request │
+  │    parking · keepalive heartbeat · retryable-vs-fatal classify    │
+  └───────────────┬──────────────────────────────────────────────────┘
+  ┌───────────────▼──────────────────────────────────────────────────┐
+  │ ① TRANSPORT  aio.c   ONE epoll loop thread owns all conn state    │
+  │    streamid→request demux · pipelining · non-blocking TLS SM      │
+  └──────────────────────────────────────────────────────────────────┘
+
+  THREADS                       cross only via mutex-queue + eventfd
+  ─────────                     ─────────────────────────────────────
+   FUSE worker ×N ─post─▶ ┌─ command queue ─┐ ─drain─▶ epoll LOOP thread
+   reconnect worker ─flag─┘ (eventfd kick)             (does all socket I/O;
+                                                        no per-field locks)
+```
+
 ### 1. Async transport core — `aio.c`
 
 One `epoll` event loop runs on its own thread and owns **all** per-connection state
@@ -78,6 +104,23 @@ does every socket read/write itself. So the data plane needs no per-field lockin
 
 An XRootD file handle is valid **only on the session that opened it**, so a
 reconnect invalidates it. `xrdc_mfile` is an open file that survives a drop:
+
+```text
+  pread(off=2 MiB) in flight ──▶ ✗ transport drop / kXR_FileNotOpen
+        │
+        ▼  resilience layer reconnects (worker thread, backoff+jitter)
+   new session established  ── but the old fhandle is now invalid
+        │
+        ▼  xrdc_mfile reopens NON-destructively (write→update-in-place,
+        │  never re-truncate; read→open-read) under per-file mutex+generation
+        │  → concurrent callers reopen AT MOST ONCE, then share fresh handle
+        ▼
+   re-issue pread at the SAME absolute offset (off=2 MiB)
+        │  identical offset ⇒ idempotent ⇒ no byte lost or duplicated
+        ▼
+   bytes returned to FUSE ── application never sees EIO
+        bounded by max_stall (wall clock) and max_retries
+```
 
 * It is a blocking façade over the loop (each `pread`/`pwrite` is one
   `xrdc_aio_call`; the many FUSE workers pipeline over the shared connection).

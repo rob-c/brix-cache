@@ -30,9 +30,9 @@
  *   kXR_mv         — rename/move a file or directory
  *   kXR_chmod      — change permission bits
  *
- * -------------------------------------------------------------------------
+ *
  * Build
- * -------------------------------------------------------------------------
+ *
  *
  *   ./configure --with-stream --add-module=/path/to/nginx-xrootd
  *   make && make install
@@ -42,9 +42,6 @@
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
 
-/* ------------------------------------------------------------------ */
-/* Module directives                                                    */
-/* ------------------------------------------------------------------ */
 
 /*
  * Text values accepted by `xrootd_auth` in nginx.conf.
@@ -61,9 +58,6 @@ static ngx_conf_enum_t xrootd_auth_modes[] = {
     { ngx_null_string,     0                 }
 };
 
-/* ------------------------------------------------------------------ */
-/* Security level enum                                                  */
-/* ------------------------------------------------------------------ */
 
 /* Values for xrootd_security_level — map to kXR_sec* constants.
  * Operators choose how strictly the server enforces request signing:

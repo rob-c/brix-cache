@@ -25,9 +25,12 @@ ngx_int_t
 xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						ngx_stream_xrootd_srv_conf_t *conf)
 {
-	ClientTruncateRequest *req = (ClientTruncateRequest *) ctx->hdr_buf;
-	int64_t  length = (int64_t) be64toh((uint64_t) req->offset);
+	xrdw_truncate_req_t req;
+	int64_t  length;
 	char     detail[64];
+
+	xrdw_truncate_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	length = req.offset;
 	int      rc;
 
 	snprintf(detail, sizeof(detail), "%lld", (long long) length);
@@ -77,7 +80,7 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  1, 0, NULL, 0);
 	} else {
 		/* Handle-based truncate bypasses path resolution and uses the already-open fd. */
-		int idx = (int)(unsigned char) req->fhandle[0];
+		int idx = (int)(unsigned char) req.fhandle[0];
 		ngx_int_t validate_rc;
 		xrootd_vfs_job_t job;
 

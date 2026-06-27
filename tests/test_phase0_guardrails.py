@@ -34,16 +34,23 @@ def _assert_markers(relpath, markers):
 
 def test_webdav_method_parity_guardrails_present():
     """WebDAV method parity is covered by direct and XrdHttp-style suites."""
+    # The webdav status-code suite was split: HEAD/DELETE/MKCOL + the OPTIONS
+    # check stay in the base file; PROPFIND/MOVE/COPY moved to the _b file.
     _assert_markers(
         "tests/test_http_webdav_status_codes.py",
         [
             "class testhead",
             "class testdelete",
             "class testmkcol",
+            "test_options_allow_header_has_webdav_methods",
+        ],
+    )
+    _assert_markers(
+        "tests/test_http_webdav_status_codes_b.py",
+        [
             "class testpropfind",
             "class testmove",
             "class testcopy",
-            "test_options_allow_header_has_webdav_methods",
         ],
     )
     _assert_markers(

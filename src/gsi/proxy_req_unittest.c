@@ -31,8 +31,7 @@ static int checks = 0, failures = 0;
         else { printf("  ok: %s\n", (msg)); }                                 \
     } while (0)
 
-/* ---- helpers ---- */
-
+/* helpers */
 static EVP_PKEY *genkey(void)
 {
     EVP_PKEY     *k = NULL;
@@ -131,8 +130,7 @@ int main(void)
     char err[160];
     printf("GSI proxy-delegation crypto suite\n");
 
-    /* ---- fixtures: CA -> EEC ---- */
-    EVP_PKEY *cakey = NULL, *eeckey = NULL;
+    /* fixtures: CA -> EEC */    EVP_PKEY *cakey = NULL, *eeckey = NULL;
     X509 *ca = mkcert("Test CA", 1, NULL, NULL, &cakey);
     X509 *eec = mkcert("User", 0, ca, cakey, &eeckey);
     size_t ca_len, eec_len;

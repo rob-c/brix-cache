@@ -6,18 +6,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-/* ---- xrootd_cache_io_send — send all bytes over socket/TLS ----
- *
- * WHAT: Blocking send helper that writes len bytes to the origin connection.
- *       Handles both SSL and plain TCP sockets, retries on WANT_READ/WANT_WRITE/EINTR.
- *
- * WHY: Cache fill operations run in nginx thread pool (blocking context). Unlike
- *      the event-loop main thread, this function can block indefinitely waiting for
- *      network bytes — it must handle SSL renegotiation states and partial writes.
- *
- * HOW: Iterates remaining bytes with send/SSL_write loop. On WANT_READ/WANT_WRITE:
- *      continues without advancing pointer (retry same chunk). On other errors:
- *      maps to EIO and returns -1. Zero-length write on TCP → errno=EPIPE. */
+/* xrootd_cache_io_send — blocking send of all len bytes to the origin (SSL or plain
+ * TCP), retrying the same chunk on WANT_READ/WANT_WRITE/EINTR; other errors map to
+ * EIO/-1 (a zero-length TCP write → EPIPE). Safe to block: runs in a fill
+ * thread-pool worker, not the event loop. */
 
 int
 xrootd_cache_io_send(xrootd_cache_origin_conn_t *oc, const void *buf,
@@ -68,18 +60,10 @@ xrootd_cache_io_send(xrootd_cache_origin_conn_t *oc, const void *buf,
     return 0;
 }
 
-/* ---- xrootd_cache_io_recv_exact — receive exact byte count from socket/TLS ----
- *
- * WHAT: Blocking recv helper that reads exactly len bytes from the origin connection.
- *       Handles both SSL and plain TCP sockets, retries on WANT_READ/WANT_WRITE/EINTR.
- *
- * WHY: Cache fill operations require exact-length wire protocol messages (XRootD
- *      headers are fixed-size). Unlike event-loop recv which accumulates incrementally,
- *      this function guarantees exactly len bytes — partial reads loop until complete.
- *
- * HOW: Iterates remaining bytes with recv/SSL_read loop. On WANT_READ/WANT_WRITE:
- *      continues without advancing pointer (retry same chunk). On other errors:
- *      maps to EIO and returns -1. Zero-length read on TCP → errno=ECONNRESET. */
+/* xrootd_cache_io_recv_exact — blocking recv of exactly len bytes from the origin
+ * (SSL or plain TCP), looping over partial reads and retrying on
+ * WANT_READ/WANT_WRITE/EINTR (the XRootD wire uses fixed-size headers); other errors
+ * map to EIO/-1 (a zero-length TCP read → ECONNRESET). Fill thread-pool worker only. */
 
 int
 xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
@@ -130,14 +114,9 @@ xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
     return 0;
 }
 
-/* ---- xrootd_cache_fd_write_all — write all bytes to local file descriptor ----
- *
- * WHAT: Blocking fd write helper that writes len bytes to a local file descriptor.
- *       Retries on EINTR, returns -1 on any other error (including zero-length write).
- *
- * WHY: Cache fill worker thread writes received origin data to a local .part temp
- *      file before atomic rename. Must guarantee all bytes land on disk — partial
- *      writes loop until complete. Used only within NGX_THREADS build. */
+/* xrootd_cache_fd_write_all — blocking write of all len bytes to a local fd (the
+ * fill worker draining origin data into the .part file before the atomic rename):
+ * loops over partial writes, retries EINTR, -1 on any other error. */
 
 int
 xrootd_cache_fd_write_all(int fd, const void *buf, size_t len, off_t offset)

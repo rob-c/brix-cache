@@ -7,30 +7,9 @@
 #include <string.h>
 #include "../compat/alloc_guard.h"
 
-/* ------------------------------------------------------------------ */
-/* SSS Auth — Simple Shared Secret authentication via Blowfish-CFB64     */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: This file implements the kXR_auth handler for XRootD's Simple Shared Secret (SSS) authentication scheme. Clients and servers share a symmetric key distributed out-of-band (keytab); the client encrypts an identity challenge with Blowfish-CFB64, the server decrypts, verifies CRC32 integrity, checks timestamp expiration, extracts user/group identity, and sets ctx->dn/ctx->vo_list on success. Widely used at grid sites without x509 certificate infrastructure. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Wire Format and Packet Structure                             */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: The outer SSS packet consists of 4-byte magic "sss\0", version/enc_type fields, key-id (8-byte BE), optional key-name with size prefix, followed by N bytes of Blowfish-CFB64 encrypted cleartext + 4-byte CRC32 appended BEFORE encryption. After decryption the CRC is compared as a big-endian uint32_t — not a memcmp — because the CRC is public and secrecy comes from the Blowfish key. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Verification Chain (Security Invariants)                     */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: Seven-step verification chain ensures credential integrity: magic/enc_type check → key-id lookup with expiry prevention → Blowfish-CFB64 decryption → CRC32 wrong-key detection → timestamp replay prevention → identity TLV parsing → optional kXR_authmore challenge for local ID. Each step returns early on failure preventing partial authentication. */
-
-/* ---- Function: xrootd_handle_sss_auth() ----
- *
- * WHAT: SSS shared secret authentication handler — parses 4-byte magic "sss\0" + enc_type BF32, looks up 8-byte key-id in conf->sss_keys with expiry check, decrypts encrypted identity block via Blowfish-CFB64 with zero IV, verifies CRC32 integrity (wrong-key detection), checks timestamp against sss_lifetime for credential replay prevention, optionally sends kXR_authmore challenge for local ID extraction. Parses TLV identity block and maps name/group according to key policy options (anyuser/anygroup). Marks ctx->auth_done=1, sets ctx->dn/ctx->vo_list/ctx->primary_vo from extracted identity, registers session in shared registry, tracks unique user/VO metrics.
- *
- * WHY: SSS provides symmetric authentication for grid sites without x509 certificate infrastructure — the Blowfish-CFB64 encryption with zero IV ensures confidentiality while CRC32 integrity check prevents decryption with wrong keys. Timestamp validation prevents credential replay attacks across sessions. Key policy options (XROOTD_SSS_OPT_ANYUSR/XOPT_ANYGRP) allow flexible identity mapping from shared secret to user/group names for VO ACL rule matching. Session registration after auth_done=1 enables bind operations and CMS/manager mode cross-node communication. */
-
+/* Handle the kXR_auth SSS (XrdSecsss shared-secret) credential: verify the
+ * client token against the keytab, set the identity/session, and return kXR_ok
+ * or kXR_error. */
 ngx_int_t
 xrootd_handle_sss_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)

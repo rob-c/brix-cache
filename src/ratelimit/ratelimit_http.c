@@ -139,8 +139,7 @@ xrootd_rl_http_access_handler(ngx_http_request_t *r)
 }
 
 
-/* ---- bandwidth charge (LOG phase) ----------------------------------------
- * The WebDAV file-serve path sends bytes via a thread-pool/sendfile context
+/* bandwidth charge (LOG phase) * The WebDAV file-serve path sends bytes via a thread-pool/sendfile context
  * that does not reliably traverse a chained body filter, so bandwidth is
  * charged once per request in the log phase from the known response size. */
 ngx_int_t

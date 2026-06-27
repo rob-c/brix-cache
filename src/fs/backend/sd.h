@@ -86,7 +86,8 @@ typedef enum {
     XROOTD_SD_CAP_HARD_RENAME   = 1u << 7,  /* atomic rename (else copy+delete)  */
     XROOTD_SD_CAP_DIRS          = 1u << 8,  /* real directories (else key-prefix)*/
     XROOTD_SD_CAP_APPEND        = 1u << 9,  /* O_APPEND semantics                */
-    XROOTD_SD_CAP_IOURING       = 1u << 10  /* fd is io_uring-submittable        */
+    XROOTD_SD_CAP_IOURING       = 1u << 10, /* fd is io_uring-submittable        */
+    XROOTD_SD_CAP_FSCS          = 1u << 11  /* filesystem page checksums (CSI)   */
 } xrootd_sd_cap_t;
 
 /* ---- SD open flags --------------------------------------------------------

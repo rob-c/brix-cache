@@ -12,9 +12,9 @@
  * The credential scope parsing validates 4-slash structure required by AWS SigV4.
  * All helpers are static — only parse_authorization() and
  * parse_presigned_authorization() are public entry points. */
-/* -------------------------------------------------------------------------
+/*
  * Get a request header value (lowercased name)
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_str_t
 get_header(ngx_http_request_t *r, const char *name)
@@ -22,14 +22,14 @@ get_header(ngx_http_request_t *r, const char *name)
     return xrootd_http_get_header(r, name);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Parse Authorization header
  *
  * Format:
  *   AWS4-HMAC-SHA256 Credential=AKID/DATE/REGION/s3/aws4_request,
  *   SignedHeaders=host;x-amz-content-sha256;x-amz-date,
  *   Signature=<hex64>
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * WHAT: Locate "<name>=" inside the Authorization header value [start,end).

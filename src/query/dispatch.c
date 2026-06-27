@@ -7,6 +7,7 @@
 /* HOW: Sequential infotype comparison chain using ntohs() to convert big-endian 16-bit value from wire format into host byte order. Each if-block calls a dedicated handler function (xrootd_query_prep_status through xrootd_query_opaqug) — handlers return NGX_OK/NGX_ERROR or send error responses directly. The last kXR_Qvisa case includes an additional precondition check: ctx->cur_dlen must be zero (no pending data length) before proceeding to visa query. After all comparisons, debug log the unsupported infotype value and call xrootd_send_error() with kXR_Unsupported status. */
 
 #include "query_internal.h"
+#include "../ssi/ssi.h"   /* §7 XrdSsi response-wait via kXR_query(Qopaqug) */
 
 /*
  * kXR_query dispatcher. The infotype field selects a query sub-protocol.
@@ -16,15 +17,18 @@ ngx_int_t
 xrootd_handle_query(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientQueryRequest *req = (ClientQueryRequest *) ctx->hdr_buf;
-    uint16_t            infotype = ntohs(req->infotype);
+    xrdw_query_req_t    req;
+    uint16_t            infotype;
+
+    xrdw_query_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    infotype = req.infotype;
 
     if (infotype == kXR_QPrep) {
         return xrootd_query_prep_status(ctx, c, conf);
     }
 
     if (infotype == kXR_Qcksum) {
-        return xrootd_query_cksum(ctx, c, conf, req);
+        return xrootd_query_cksum(ctx, c, conf, &req);
     }
 
     if (infotype == kXR_Qckscan) {
@@ -62,7 +66,7 @@ xrootd_handle_query(xrootd_ctx_t *ctx, ngx_connection_t *c,
                               "Invalid information query type code");
         }
 
-        return xrootd_query_visa(ctx, c, req);
+        return xrootd_query_visa(ctx, c, &req);
     }
 
     if (infotype == kXR_Qopaque) {
@@ -74,7 +78,15 @@ xrootd_handle_query(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (infotype == kXR_Qopaqug) {
-        return xrootd_query_opaqug(ctx, c, req);
+        /* §7 XrdSsi: libXrdSsi waits for / cancels a response with a
+         * File::Fcntl == kXR_query(kXR_Qopaqug) whose fhandle is the SSI session
+         * and whose body is an XrdSsiRRInfo. Route those to the SSI engine; all
+         * other opaqug queries keep the generic handler. */
+        int fh = (int) (unsigned char) req.fhandle[0];
+        if (fh >= 0 && fh < XROOTD_MAX_FILES && ctx->files[fh].ssi != NULL) {
+            return xrootd_ssi_query(ctx, c, fh, ctx->payload, ctx->cur_dlen);
+        }
+        return xrootd_query_opaqug(ctx, c, &req);
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,

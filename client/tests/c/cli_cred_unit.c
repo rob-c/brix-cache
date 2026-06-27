@@ -38,8 +38,7 @@
 #include <string.h>
 #include <unistd.h>   /* rmdir */
 
-/* ---- Test 1: success/mapping -------------------------------------------- */
-
+/* Test 1: success/mapping */
 /*
  * test_builder_s3keys_success — explicit s3_access/s3_secret args reach store.
  *
@@ -91,8 +90,7 @@ test_builder_s3keys_success(void)
     printf("test_builder_s3keys_success: PASS\n");
 }
 
-/* ---- Test 2: env-fallback ----------------------------------------------- */
-
+/* Test 2: env-fallback */
 /*
  * test_builder_env_fallback — NULL/empty args fall back to env discovery.
  *
@@ -136,8 +134,7 @@ test_builder_env_fallback(void)
     printf("test_builder_env_fallback: PASS\n");
 }
 
-/* ---- Test 3: precedence (bearer literal overrides env) ------------------- */
-
+/* Test 3: precedence (bearer literal overrides env) */
 /*
  * test_builder_bearer_precedence — a bearer literal arg beats $BEARER_TOKEN.
  *
@@ -181,8 +178,7 @@ test_builder_bearer_precedence(void)
     printf("test_builder_bearer_precedence: PASS\n");
 }
 
-/* ---- main --------------------------------------------------------------- */
-
+/* main */
 int
 main(void)
 {

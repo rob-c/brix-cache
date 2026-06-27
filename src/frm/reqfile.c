@@ -93,8 +93,7 @@ frm_hdr_init_blank(frm_file_hdr_t *hdr, time_t now)
 }
 
 
-/* ---- open / close ---------------------------------------------------------*/
-
+/* open / close*/
 ngx_int_t
 frm_file_open(frm_queue_t *q, ngx_log_t *log)
 {
@@ -157,8 +156,7 @@ frm_file_close(frm_queue_t *q)
 }
 
 
-/* ---- whole-file lock (on the .lock sidecar) -------------------------------*/
-
+/* whole-file lock (on the .lock sidecar)*/
 ngx_int_t
 frm_file_lock(frm_queue_t *q, frm_lock_t mode)
 {
@@ -209,8 +207,7 @@ frm_file_unlock(frm_queue_t *q)
 }
 
 
-/* ---- full-buffer pread / pwrite -------------------------------------------*/
-
+/* full-buffer pread / pwrite*/
 static ngx_int_t
 frm_pread_all(int fd, void *buf, size_t len, off_t off, ngx_log_t *log)
 {
@@ -258,8 +255,7 @@ frm_pwrite_all(int fd, const void *buf, size_t len, off_t off, ngx_log_t *log)
 }
 
 
-/* ---- header ---------------------------------------------------------------*/
-
+/* header*/
 ngx_int_t
 frm_hdr_read(frm_queue_t *q, frm_file_hdr_t *hdr, ngx_log_t *log)
 {
@@ -324,8 +320,7 @@ frm_hdr_write(frm_queue_t *q, frm_file_hdr_t *hdr, ngx_log_t *log)
 }
 
 
-/* ---- record ---------------------------------------------------------------*/
-
+/* record*/
 ngx_int_t
 frm_rec_read(frm_queue_t *q, int64_t off, frm_record_t *rec, ngx_log_t *log)
 {

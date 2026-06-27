@@ -7,6 +7,36 @@ Step-by-step recipe: source file, dispatch entry, config, test. Follow these in 
 Use an existing single-opcode file as a template — `src/write/sync.c` is a
 good minimal example.
 
+The seven steps touch seven places. This is the wiring you are completing —
+a new opcode is "live" only once the request reaches your handler **and** the
+build script knows your file exists:
+
+```text
+   wire byte                                                  metric + log
+   ─────────                                                  ────────────
+  opcode 3028 ──▶ ① opcodes.h ──▶ ② wire.h (24-byte struct)
+                                       │
+                                       ▼
+            ⑤ dispatch_*.c  case kXR_newop:
+                require_auth / require_write
+                       │
+                       ▼
+            ④ src/<sub>/newop.c   xrootd_handle_newop()
+                validate ▶ resolve+acl ▶ do op ▶ ③ metric slot ▶ log ▶ reply
+                       │                              │
+                       ▼                              ▼
+            ⑥ config (deps+srcs) ──▶ ./configure   ③ metrics.h + export.c
+                must agree or the file                (index ⇄ name string
+                is silently not compiled)              positions must match)
+                       │
+                       ▼
+            ⑦ src/<sub>/README.md   (file table row)
+
+   Miss step ⑥ → code never runs.   Miss step ③ alignment → wrong op counted.
+```
+
+
+
 ### Step 1 — Add the opcode constant
 
 `src/protocol/opcodes.h` lists every opcode in numeric order.  Add yours with

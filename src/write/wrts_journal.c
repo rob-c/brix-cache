@@ -23,8 +23,7 @@
 #include "wrts_journal.h"
 #include <string.h>
 
-/* ---- xrootd_wrts_open -------------------------------------------------- */
-
+/* xrootd_wrts_open */
 void
 xrootd_wrts_open(xrootd_file_t *f)
 {
@@ -35,8 +34,7 @@ xrootd_wrts_open(xrootd_file_t *f)
     memset(f->wrts_journal, 0, sizeof(f->wrts_journal));
 }
 
-/* ---- xrootd_wrts_record ------------------------------------------------- */
-
+/* xrootd_wrts_record */
 void
 xrootd_wrts_record(xrootd_file_t *f, int64_t offset, uint32_t length)
 {
@@ -60,8 +58,7 @@ xrootd_wrts_record(xrootd_file_t *f, int64_t offset, uint32_t length)
     }
 }
 
-/* ---- xrootd_wrts_is_replay ---------------------------------------------- */
-
+/* xrootd_wrts_is_replay */
 int
 xrootd_wrts_is_replay(const xrootd_file_t *f, int64_t offset, uint32_t length)
 {
@@ -98,8 +95,7 @@ xrootd_wrts_is_replay(const xrootd_file_t *f, int64_t offset, uint32_t length)
     return 0;
 }
 
-/* ---- xrootd_wrts_flush -------------------------------------------------- */
-
+/* xrootd_wrts_flush */
 void
 xrootd_wrts_flush(xrootd_file_t *f)
 {

@@ -3,8 +3,7 @@
 #include "aio/uring.h"
 
 
-/* ---- File: src/aio/uring_submit.c — io_uring SQE submission (Phase 44) ----
- *
+/* File: src/aio/uring_submit.c — io_uring SQE submission (Phase 44)
  * WHAT: Maps a bound AIO thread task to an io_uring opcode and submits its SQE
  *       (SB-W3: READ/WRITE; SB-W4 extends this with READV and WRITEV+linked
  *       FSYNC).  The completion side (slot table + reaper + cqe->res -> OUT

@@ -41,9 +41,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* ------------------------------------------------------------------ */
 /* configuration (XROOTD_VMP) + the lazily-connected session           */
-/* ------------------------------------------------------------------ */
 
 static pthread_once_t  g_once = PTHREAD_ONCE_INIT;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -146,9 +144,7 @@ ensure_conn(void)
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
 /* shadow fd table (remote read descriptors)                           */
-/* ------------------------------------------------------------------ */
 
 #define XFS_FD_BASE 0x40000000
 #define XFS_FD_MAX  1024
@@ -213,9 +209,7 @@ fill_stat(const xrdc_statinfo *si, struct stat *stbuf)
         real_##name = (__typeof__(name) *) dlsym(RTLD_NEXT, #name);     \
     }
 
-/* ------------------------------------------------------------------ */
 /* open / openat                                                       */
-/* ------------------------------------------------------------------ */
 
 static int
 remote_open(const char *remote)
@@ -299,9 +293,7 @@ openat(int dirfd, const char *path, int flags, ...)
 int openat64(int dirfd, const char *path, int flags, ...)
     __attribute__((alias("openat")));
 
-/* ------------------------------------------------------------------ */
 /* read / pread / lseek / close                                        */
-/* ------------------------------------------------------------------ */
 
 ssize_t
 read(int fd, void *buf, size_t count)
@@ -399,9 +391,7 @@ close(int fd)
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
 /* stat family + access                                                */
-/* ------------------------------------------------------------------ */
 
 static int
 remote_stat(const char *remote, struct stat *stbuf)

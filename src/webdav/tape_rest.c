@@ -42,8 +42,7 @@
 #define TAPE_ID_LEN         33             /* 16 random bytes as hex + NUL    */
 
 
-/* ---- small helpers --------------------------------------------------------*/
-
+/* small helpers*/
 static frm_queue_t *
 tape_queue(void)
 {
@@ -243,8 +242,7 @@ tape_authz_path(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
 }
 
 
-/* ---- POST /api/v1/stage ---------------------------------------------------*/
-
+/* POST /api/v1/stage*/
 static ngx_int_t
 tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
                 ngx_http_xrootd_webdav_req_ctx_t *ctx, json_t *root)
@@ -360,8 +358,7 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
 }
 
 
-/* ---- GET /api/v1/stage/{id} ----------------------------------------------*/
-
+/* GET /api/v1/stage/{id}*/
 static ngx_int_t
 tape_stage_get(ngx_http_request_t *r, const char *id)
 {
@@ -399,8 +396,7 @@ tape_stage_get(ngx_http_request_t *r, const char *id)
 }
 
 
-/* ---- GET /api/v1/stage  (list active) ------------------------------------*/
-
+/* GET /api/v1/stage  (list active)*/
 static ngx_int_t
 tape_stage_list(ngx_http_request_t *r)
 {
@@ -429,8 +425,7 @@ tape_stage_list(ngx_http_request_t *r)
 }
 
 
-/* ---- DELETE /api/v1/stage/{id} -------------------------------------------*/
-
+/* DELETE /api/v1/stage/{id}*/
 static ngx_int_t
 tape_stage_delete(ngx_http_request_t *r,
                   ngx_http_xrootd_webdav_req_ctx_t *ctx, const char *id)
@@ -455,8 +450,7 @@ tape_stage_delete(ngx_http_request_t *r,
 }
 
 
-/* ---- POST /api/v1/stage/{id}/cancel --------------------------------------*/
-
+/* POST /api/v1/stage/{id}/cancel*/
 static ngx_int_t
 tape_stage_cancel(ngx_http_request_t *r,
                   ngx_http_xrootd_webdav_req_ctx_t *ctx, const char *id)
@@ -480,8 +474,7 @@ tape_stage_cancel(ngx_http_request_t *r,
 }
 
 
-/* ---- POST /api/v1/release  (alias /unpin) --------------------------------*/
-
+/* POST /api/v1/release  (alias /unpin)*/
 static ngx_int_t
 tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
              ngx_http_xrootd_webdav_req_ctx_t *ctx, json_t *root)
@@ -533,8 +526,7 @@ tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
 }
 
 
-/* ---- POST /api/v1/archiveinfo  (alias /fileinfo) -------------------------*/
-
+/* POST /api/v1/archiveinfo  (alias /fileinfo)*/
 static ngx_int_t
 tape_archiveinfo(ngx_http_request_t *r,
                  ngx_http_xrootd_webdav_loc_conf_t *conf,
@@ -605,8 +597,7 @@ tape_archiveinfo(ngx_http_request_t *r,
 }
 
 
-/* ---- routing --------------------------------------------------------------*/
-
+/* routing*/
 /*
  * Split the path after /api/v1/ into up to three NUL-terminated segments in a
  * caller buffer. Returns the segment count. e.g. "stage/abc/cancel" → 3.

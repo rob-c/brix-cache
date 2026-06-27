@@ -72,6 +72,8 @@ typedef struct {
     unsigned            do_sync:1;
     unsigned            want_stat:1;
     unsigned            want_cksum:1;
+    unsigned            csi_mismatch:1;  /* OUT: a page failed CSI verify (W2) */
+    void               *csi;             /* IN: xrootd_csi_t* or NULL (W2)      */
     int                 rootfd;
     u_char              streamid[2];
     const char         *path;

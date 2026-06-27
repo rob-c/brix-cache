@@ -26,6 +26,7 @@ All dedicated instances are managed by `manage_test_servers.sh start-all` at ses
 | 11116 | `nginx_krb5.conf` | XRootD stream Kerberos 5 (`xrootd_auth krb5`). **Conditional** — `start_krb5_tier` starts it only when the MIT KDC tooling (`krb5-server`) is installed *and* the nginx binary is linked against libkrb5; otherwise skipped cleanly. The realm/keytab/client-ccache are provisioned under `TEST_ROOT/krb5` by `kdc_helpers.py` (throwaway KDC on 11117). Drives `tests/test_krb5_auth.py`, gated by the `requires_krb5` fixture. |
 | 11211 | `nginx_ha_instance1.conf` | HA Cluster Nginx 1 |
 | 11212 | `nginx_ha_instance2.conf` | HA Cluster Nginx 2 |
+| 12988 | `nginx_xrdhttp_digest.conf` | Cleartext HTTP WebDAV with a tight per-IP rate-limit rule (rate=2r/s burst=2) over the writable `data-xrdhttp-digest` root. Drives `tests/test_xrdhttp_wait_retry_digest_range.py` (HTTP 429 + Retry-After back-pressure, RFC-3230 Want-Digest, RFC-7233 byte ranges, multipart/byteranges, HEAD/GET parity, PUT/GET round-trip). Formerly self-provisioned by the test. |
 ...
 
 ## Gap Analysis: Config Templates that Exist but are NOT Permanently Started

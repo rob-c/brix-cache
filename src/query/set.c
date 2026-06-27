@@ -107,7 +107,7 @@ xrootd_set_handle_cms_space(ngx_connection_t *c, const char *payload,
 ngx_int_t
 xrootd_handle_set(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-    ClientSetRequest *req;
+    xrdw_set_req_t    req;
     char              detail[128];
     u_char            modifier;
     const char       *mod_name;
@@ -115,8 +115,8 @@ xrootd_handle_set(xrootd_ctx_t *ctx, ngx_connection_t *c)
     size_t            payload_len;
     const char       *payload;
 
-    req      = (ClientSetRequest *) ctx->hdr_buf;
-    modifier = (u_char) req->modifier;
+    xrdw_set_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    modifier = (u_char) req.modifier;
 
     switch (modifier) {
     case kXR_set_appid: mod_name = "appid"; break;

@@ -139,7 +139,7 @@ xrootd_krb5_track_identity(xrootd_ctx_t *ctx)
 }
 #endif
 
-/* ---- Function: xrootd_handle_krb5_auth() ----------------------------------
+/*
  *
  * WHAT: Verify a client's krb5 AP_REQ credential and, on success, mark the
  *       stream session as authenticated under XROOTD_AUTHN_KRB5.

@@ -3,15 +3,15 @@
 
 #include <string.h>
 
-/* ---- Function: s3_handle_multipart_abort() — abort S3 multipart upload and cleanup staging files ----
+/*
  *
  * WHAT: Implements S3 AbortMultipartUpload operation. Validates upload_id format via mpu_validate_upload_id() — returns 400 Bad Request with InvalidArgument error if invalid. Constructs staging directory path using s3_get_mpu_dir() from fs_path + upload_id. Probes staging directory existence via lstat() — if directory missing (ENOENT), returns 404 NoSuchUpload matching AWS S3 semantics. If directory exists but removal fails, increments internal_error metric and returns 500 Internal Server Error. On successful cleanup calls mpu_rmdir_recursive() to remove all staged parts, then sends 204 No Content response with zero content length (AbortMultipartUpload has no XML body).
  *
  * WHY: Multipart uploads must be cleanly aborted when clients cancel transfers or connections are lost — staging files accumulate during upload and must be removed to prevent disk space exhaustion. The NoSuchUpload response for missing staging directories matches AWS S3 behavior, ensuring client compatibility across different implementations. Metric increment on removal failure enables monitoring of abort failures without logging noise. Thread safety: operates only on local stack variables (mpu_dir) and provided filesystem path; no shared state accessed during abort operation. */
 
-/* -------------------------------------------------------------------------
+/*
  * DELETE /bucket/key?uploadId=<id>  →  AbortMultipartUpload
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_int_t
 s3_handle_multipart_abort(ngx_http_request_t *r,

@@ -3,75 +3,16 @@
 #include "keypool.h"
 #include "../compat/alloc_guard.h"
 
-/*---- GSI round 1 response function — generate ephemeral DH key + assemble kXGS_cert ----
+/*
+ * cert_response.c — GSI round 1: reply to kXGC_certreq with kXGS_cert.
  *
- * WHAT: Responds to kXGC_certreq (GSI authentication round 1) by generating an ephemeral Diffie-Hellman (DH) key pair using fffdhe2048,
- *       encoding the public key as hex blob, signing a client rtag with RSA PKCS1, and assembling the kXGS_cert wire response. */
-
-/*---- GSI round 1 protocol flow ----
- *
- * HOW: 1) Generate ephemeral DH key pair via EVP_PKEY_CTX_new_from_name("DH") + EVP_PKEY_keygen (ffdhe2048); 
- *      2) Extract public BIGNUM → hex string; encode as "---BPUB---...---EPUB--" blob;
- *      3) PEM-write DH parameters to memory BIO for inclusion in response;
- *      4) Sign client rtag with server RSA private key (conf->gsi_key) via EVP_PKEY_sign(RSA_PKCS1_PADDING);
- *      5) Assemble kXGS_cert wire payload: gsi\0 + kXGS_cert + signed_rtag bucket + puk_blob bucket + cipher/md alg buckets. */
-
-/*---- Ephemeral DH key generation mechanism (ffdhe2048) ----
- *
- * WHAT: Uses OpenSSL 3 EVP_PKEY_CTX_new_from_name() to generate a standard fffdhe2048 DH key pair — this is the FFDHE group from RFC 7919.
- *      The ephemeral nature means each authentication session gets a fresh key pair, preventing key reuse attacks across sessions. */
-
-/*---- FFDHE2048 parameter configuration ----
- *
- * WHY: fffdhe2048 is the standard 2048-bit DH group from RFC 7919 — ensures interoperability with all GSI clients using standardized parameters.
- *      OSSL_PARAM_utf8_string("group", "ffdhe2048") configures OpenSSL to use this exact group for key generation. */
-
-/*---- DH public key encoding mechanism ----
- *
- * HOW: EVP_PKEY_get_bn_param(dhkey, "pub") extracts the public BIGNUM → BN_bn2hex() converts to hex string → 
- *      snprintf formats as "---BPUB---<hex>---EPUB--" blob for inclusion in kXGS_cert wire response. */
-
-/*---- DH key PEM encoding invariant ----
- *
- * WHY: PEM_write_bio_Parameters(bio, dhkey) writes the full DH key (private + parameters) to memory BIO — 
- *      this is stored as ctx->gsi_dh_key for use in round 2 (DH shared secret derivation via EVP_PKEY_derive()). */
-
-/*---- Client rtag signing mechanism ----
- *
- * WHAT: If client provides an rtag (round-tag identifier), signs it with server RSA private key using EVP_PKEY_sign(RSA_PKCS1_PADDING).
- *      This provides cryptographic proof that the response came from this specific server instance. */
-
-/*---- RSA signature generation flow ----
- *
- * HOW: 1) EVP_PKEY_CTX_new(conf->gsi_key, NULL) creates context from server private key; 
- *      2) EVP_PKEY_sign_init() + EVP_PKEY_CTX_set_rsa_padding(RSA_PKCS1_PADDING);
- *      3) EVP_PKEY_sign(sctx, signed_rtag, &slen, clnt_rtag, clnt_rtlen) produces RSA PKCS1 signature. */
-
-/*---- kXGS_cert wire payload assembly ----
- *
- * HOW: The top-level kXGS_cert response carries five buckets, in order:
- *      kXRS_puk (puk_blob = DH public key + PEM parameters), kXRS_cipher_alg
- *      ("aes-256-cbc:aes-128-cbc:bf-cbc"), kXRS_md_alg ("sha256:sha1"),
- *      kXRS_x509 (server cert PEM), and kXRS_main.
- *      The optional signed_rtag is NOT a top-level bucket: it lives INSIDE the
- *      kXRS_main container bucket. kXRS_main is itself a nested bucket list
- *      ("gsi\0" + kXGS_cert opcode + optional kXRS_signed_rtag bucket +
- *      kXRS_none terminator) that is then wrapped as the kXRS_main top-level
- *      bucket — see the kXRS_main assembly at L186-216 and its packing at L277. */
-
-/*---- Cipher algorithm negotiation list ----
- *
- * WHY: Client specifies supported ciphers in kXRS_cipher_alg; server lists supported ciphers in response as colon-separated OpenSSL names.
- *      "aes-256-cbc:aes-128-cbc:bf-cbc" represents the GSI wire protocol standard cipher preference order. */
-
-/*---- MD algorithm negotiation list ----
- *
- * WHY: Server lists supported message digest algorithms for future operations as colon-separated OpenSSL names.
- *      "sha256:sha1" represents the GSI wire protocol standard digest preference order (SHA-256 preferred). */
-
-/*---- kXGS_cert wire response entry point ----
- *
- * WHAT: Called from src/gsi/auth.c as part of kXGC_certreq handling after credential type verification. Returns ngx_int_t result. */
+ * Generates an ephemeral ffdhe2048 DH key (from the per-worker keypool, so
+ * keygen never runs on the event thread), advertises the keyable cipher/md
+ * lists, optionally signs the DH public (signed-DH) and the client rtag with the
+ * server RSA key, and emits the kXGS_cert bucket list (kXRS_puk/cipher,
+ * cipher_alg, md_alg, x509, main).  Each function is documented at its
+ * definition below; the wire layout is described inline at the assembly sites.
+ */
 
 /*
  * gsi_certreq_version — best-effort read of the client's advertised XrdSecgsi
@@ -122,6 +63,50 @@ gsi_use_signed_dh(ngx_uint_t policy, uint32_t client_version)
 }
 
 /*
+ * Phase 52 (WS-A): build the advertised kXRS_cipher_alg list into out[] (NUL-
+ * terminated) from the configured preference (or the built-in default, aes-128-
+ * cbc first), keeping ONLY ciphers this build can actually key — so a client
+ * never selects one we cannot decrypt (e.g. bf-cbc without the OpenSSL legacy
+ * provider).  Falls back to "aes-128-cbc" if nothing usable remains.
+ */
+static void
+gsi_build_cipher_alg_list(const ngx_stream_xrootd_srv_conf_t *conf,
+    char *out, size_t outsz)
+{
+    const char *src = (conf->gsi_ciphers.len > 0)
+                      ? (const char *) conf->gsi_ciphers.data
+                      : xrootd_gsi_cipher_default_list();
+    const char *p = src;
+    size_t      out_n = 0;
+
+    out[0] = '\0';
+    while (*p && out_n + 1 < outsz) {
+        const char *start = p;
+        char        name[24];
+        size_t      n;
+        xrootd_gsi_cipher_t tmp;
+
+        while (*p && *p != ':') { p++; }
+        n = (size_t) (p - start);
+        if (n > 0 && n < sizeof(name)) {
+            ngx_memcpy(name, start, n);
+            name[n] = '\0';
+            if (xrootd_gsi_cipher_lookup(name, &tmp)
+                && out_n + n + 1 < outsz) {
+                if (out_n > 0) { out[out_n++] = ':'; }
+                ngx_memcpy(out + out_n, name, n);
+                out_n += n;
+                out[out_n] = '\0';
+            }
+        }
+        if (*p == ':') { p++; }
+    }
+    if (out_n == 0) {
+        ngx_cpystrn((u_char *) out, (u_char *) "aes-128-cbc", outsz);
+    }
+}
+
+/*
  * Respond to kXGC_certreq with kXGS_cert.
  */
 
@@ -165,46 +150,9 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
     cert_pem = conf->gsi_cert_pem;
     cert_len = conf->gsi_cert_pem_len;
 
-    /*
-     * Phase 52 (WS-A): build the advertised kXRS_cipher_alg list from the
-     * configured preference (or the built-in default, aes-128-cbc first), keeping
-     * ONLY ciphers this build can actually key — so a client never selects one we
-     * cannot decrypt (e.g. bf-cbc without the OpenSSL legacy provider).
-     */
-    {
-        const char *src = (conf->gsi_ciphers.len > 0)
-                          ? (const char *) conf->gsi_ciphers.data
-                          : xrootd_gsi_cipher_default_list();
-        const char *p = src;
-        size_t      out = 0;
-
-        cipher_alg[0] = '\0';
-        while (*p && out + 1 < sizeof(cipher_alg)) {
-            const char *start = p;
-            char        name[24];
-            size_t      n;
-            xrootd_gsi_cipher_t tmp;
-
-            while (*p && *p != ':') { p++; }
-            n = (size_t) (p - start);
-            if (n > 0 && n < sizeof(name)) {
-                ngx_memcpy(name, start, n);
-                name[n] = '\0';
-                if (xrootd_gsi_cipher_lookup(name, &tmp)
-                    && out + n + 1 < sizeof(cipher_alg)) {
-                    if (out > 0) { cipher_alg[out++] = ':'; }
-                    ngx_memcpy(cipher_alg + out, name, n);
-                    out += n;
-                    cipher_alg[out] = '\0';
-                }
-            }
-            if (*p == ':') { p++; }
-        }
-        if (out == 0) {
-            ngx_cpystrn((u_char *) cipher_alg, (u_char *) "aes-128-cbc",
-                        sizeof(cipher_alg));
-        }
-    }
+    /* Advertise the kXRS_cipher_alg list (config preference or default, keyable
+     * ciphers only).  See gsi_build_cipher_alg_list(). */
+    gsi_build_cipher_alg_list(conf, cipher_alg, sizeof(cipher_alg));
     calg_len = ngx_strlen(cipher_alg);
 
     /*

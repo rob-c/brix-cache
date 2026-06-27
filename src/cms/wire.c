@@ -22,20 +22,14 @@
  *      the cursor advanced past the bytes it wrote so callers can chain writes.
  */
 
-/* ---- ngx_xrootd_cms_get16 — read big-endian 16-bit value from wire buffer ----
- *
- * WHAT: Extracts a uint16_t from the first two bytes of buffer p in big-endian order (MSB first). Used to decode CMS frame header fields. */
-
+/* ngx_xrootd_cms_get16 — read a big-endian uint16_t (CMS frame header fields). */
 uint16_t
 ngx_xrootd_cms_get16(const u_char *p)
 {
     return (uint16_t) (((uint16_t) p[0] << 8) | p[1]);
 }
 
-/* ---- ngx_xrootd_cms_get32 — read big-endian 32-bit value from wire buffer ----
- *
- * WHAT: Extracts a uint32_t from the first four bytes of buffer p in big-endian order (MSB first). Used to decode CMS streamid field. */
-
+/* ngx_xrootd_cms_get32 — read a big-endian uint32_t (e.g. the CMS streamid). */
 uint32_t
 ngx_xrootd_cms_get32(const u_char *p)
 {
@@ -45,10 +39,7 @@ ngx_xrootd_cms_get32(const u_char *p)
          | (uint32_t) p[3];
 }
 
-/* ---- ngx_xrootd_cms_put16 — write big-endian 16-bit value to wire buffer ----
- *
- * WHAT: Stores a uint16_t into the first two bytes of buffer p in big-endian order. Used to encode CMS frame header fields. Returns nothing (void). */
-
+/* ngx_xrootd_cms_put16 — write a big-endian uint16_t (CMS frame header fields). */
 void
 ngx_xrootd_cms_put16(u_char *p, uint16_t value)
 {
@@ -56,10 +47,7 @@ ngx_xrootd_cms_put16(u_char *p, uint16_t value)
     p[1] = (u_char) value;
 }
 
-/* ---- ngx_xrootd_cms_put32 — write big-endian 32-bit value to wire buffer ----
- *
- * WHAT: Stores a uint32_t into the first four bytes of buffer p in big-endian order. Used to encode CMS streamid field and payload values. */
-
+/* ngx_xrootd_cms_put32 — write a big-endian uint32_t (streamid, payload values). */
 void
 ngx_xrootd_cms_put32(u_char *p, uint32_t value)
 {
@@ -69,10 +57,9 @@ ngx_xrootd_cms_put32(u_char *p, uint32_t value)
     p[3] = (u_char) value;
 }
 
-/* ---- ngx_xrootd_cms_put_short — write variable-length encoded 16-bit value ----
- *
- * WHAT: Writes a CMS type-tagged short value: prefix byte CMS_PT_SHORT (0x80), then big-endian uint16_t. Returns pointer advanced by 2 bytes past the written value. Used for payload encoding of small values like version numbers and port numbers. */
-
+/* ngx_xrootd_cms_put_short — write a CMS type-tagged short: the CMS_PT_SHORT (0x80)
+ * tag then a big-endian uint16_t (version/port-style payload values); returns the
+ * advanced cursor. */
 u_char *
 ngx_xrootd_cms_put_short(u_char *p, uint16_t value)
 {
@@ -83,10 +70,9 @@ ngx_xrootd_cms_put_short(u_char *p, uint16_t value)
     return p + 2;
 }
 
-/* ---- ngx_xrootd_cms_put_int — write variable-length encoded 32-bit value ----
- *
- * WHAT: Writes a CMS type-tagged int value: prefix byte CMS_PT_INT (0xa0), then big-endian uint32_t. Returns pointer advanced by 4 bytes past the written value. Used for payload encoding of space metrics, streamid correlation keys, and other larger values. */
-
+/* ngx_xrootd_cms_put_int — write a CMS type-tagged int: the CMS_PT_INT (0xa0) tag
+ * then a big-endian uint32_t (space metrics, streamid keys); returns the advanced
+ * cursor. */
 u_char *
 ngx_xrootd_cms_put_int(u_char *p, uint32_t value)
 {
@@ -97,17 +83,11 @@ ngx_xrootd_cms_put_int(u_char *p, uint32_t value)
     return p + 4;
 }
 
-/* ---- ngx_xrootd_cms_put_string — write an XrdOucPup-style packed string ----
- *
- * WHAT: Encodes a string in the real XrdCms wire format used after the Fence in
- *      a kYR_login payload: a 2-byte big-endian length followed by the raw bytes
- *      INCLUDING a trailing NUL.  The encoded length counts the NUL (strlen+1),
- *      matching XrdOucPup::Pack.  A NULL or zero-length string is encoded as a
- *      bare 2-byte zero length (no data, no NUL) — exactly how XrdOucPup emits an
- *      empty/absent string.  Unlike put_short/put_int there is NO type tag byte;
- *      the real Parser distinguishes a string from a scalar by the absence of the
- *      PT_short (0x80) bit in the first byte. Returns the advanced cursor. */
-
+/* ngx_xrootd_cms_put_string — encode a string in XrdOucPup::Pack format (kYR_login
+ * payload after the Fence): a 2-byte big-endian length (counting a trailing NUL, so
+ * strlen+1) then the bytes + NUL; a NULL/empty string is a bare 2-byte zero length.
+ * No type tag byte — the Parser tells a string from a scalar by the absent PT_short
+ * (0x80) bit. Returns the advanced cursor. */
 u_char *
 ngx_xrootd_cms_put_string(u_char *p, const u_char *data, size_t len)
 {

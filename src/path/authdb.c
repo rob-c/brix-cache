@@ -1,15 +1,3 @@
-/* ------------------------------------------------------------------ */
-/* AuthDB — User/Group/Host Permission Database                          */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: This file implements an XRootD authorization database loader and checker. xrootd_finalize_authdb_rules() canonicalizes all authdb rule paths using xrootd_finalize_path_rules with sizeof(xrootd_authdb_rule_t) parameters; xrootd_parse_authdb() reads a config-file-format authdb ("[u|g|p|a] <id> <path> <privs>") into an ngx_array_t of rules, parsing privilege chars ('r','l','w','a','d','m','k') into XROOTD_AUTH_* bitflags; xrootd_find_authdb_rule() performs longest-prefix path matching across all loaded rules with identity filtering (XROOTD_AUTH_ALL/user DN/group VO/host CIDR) and privilege bitmask checks; xrootd_check_authdb() invokes find rule + logs deny on failure. Static helpers: xrootd_parse_privs(), xrootd_path_prefix_match(), xrootd_authdb_addr_prefix_match(), xrootd_authdb_host_cidr_match(), xrootd_authdb_host_match().
- *
- * WHY: AuthDB provides fine-grained per-path access control for XRootD native protocol — unlike VO ACL which controls by organization, authDB controls by individual user DN, group membership, or host CIDR with granular privilege sets (read/lookup/update/delete/mkdir/admin). Longest-prefix matching ensures more specific rules override broader ones; identity filtering supports wildcard '*' for all-users/groups and precise DN/CIDR matching. File-based config allows site administrators to maintain permission tables without nginx recompilation.
- */
-
-/* ------------------------------------------------------------------ */
-/* Section: Rule Finalization                                            */
-/* ------------------------------------------------------------------ */
 #include "../ngx_xrootd_module.h"
 
 #include <stddef.h>
@@ -21,6 +9,8 @@
 
 #include "path_internal.h"
 
+/* Postconfig finalization of the authdb rule array: resolve/validate each rule's
+ * path against the export root. */
 ngx_int_t
 xrootd_finalize_authdb_rules(ngx_log_t *log, const ngx_str_t *root,
                              ngx_array_t *rules)
@@ -31,8 +21,7 @@ xrootd_finalize_authdb_rules(ngx_log_t *log, const ngx_str_t *root,
                                       offsetof(xrootd_authdb_rule_t, resolved),
                                       sizeof(((xrootd_authdb_rule_t *) 0)->resolved));
 }
-/* ---- HOW: Calls xrootd_finalize_path_rules(log, root, rules, sizeof(xrootd_authdb_rule_t), offsetof(xrootd_authdb_rule_t, path), offsetof(xrootd_authdb_rule_t, resolved), sizeof(resolved)) — passes authDB rule struct size and field offsets so the generic finalizer canonicalizes each rule's path via realpath(2) into resolved. Returns xrootd_finalize_path_rules() result directly (NGX_OK or NGX_ERROR). */
-
+/* Parse an XrdAcc privilege string (e.g. "rwld") into an XROOTD_PRIV_* bitmask. */
 static uint32_t
 xrootd_parse_privs(const char *p, size_t len)
 {
@@ -58,8 +47,8 @@ xrootd_parse_privs(const char *p, size_t len)
 
     return privs;
 }
-/* ---- HOW: Initializes privs=0. Iterates chars p[0..len-1]: 'r' → XROOTD_AUTH_READ | XROOTD_AUTH_LOOKUP, 'l' → XROOTD_AUTH_LOOKUP, 'w' or 'a' → XROOTD_AUTH_UPDATE (append treated as update), 'd' → XROOTD_AUTH_DELETE, 'm' → XROOTD_AUTH_MKDIR, 'k' → XROOTD_AUTH_ADMIN. Default case: no-op. Returns accumulated privs bitmask via bitwise OR accumulation across all input chars. */
-
+/* Parse the authdb file into `rules`: one rule per line (path + identity matcher
+ * + privileges).  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
 ngx_int_t
 xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
 {
@@ -226,8 +215,7 @@ xrootd_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
     ngx_close_file(fd);
     return NGX_OK;
 }
-/* ---- HOW: Opens filename via ngx_open_file(NGX_FILE_RDONLY). If fd invalid → log emerg + NGX_ERROR. Initializes ngx_file_t with fd/name/log. fstat via ngx_fd_info — if error → close+NGX_ERROR. Reads file size into buf_size; 0→close+NGX_OK (empty file); >1 MiB→log emerg+NGX_ERROR. Allocates buf=ngx_alloc(buf_size+1). Reads file via ngx_read_file into buf. If read error → free+close+NGX_ERROR. Parses buf line-by-line: finds newline/carriage-return delimiters, skips leading whitespace, skips comments (starting with '#') and empty lines. For each valid line extracts 4 space-delimited fields: type_char (u/g/p/a), id string, path string, privs string. Allocates rule via ngx_array_push(rules). Sets rule->type=type_p[0]. Copies id into rule->id.data via ngx_palloc+ngx_memcpy+null-terminate. Copies path similarly. Computes privilege bitmask via xrootd_parse_privs(privs_p, privs_end-pivs_p). Zeroes rule->resolved (deferred finalization). After all lines: free buf, close fd, return NGX_OK. */
-
+/* Return 1 if `path` is at or beneath `prefix` (component-aligned prefix match). */
 static ngx_flag_t
 xrootd_path_prefix_match(const char *prefix, const char *path)
 {
@@ -248,8 +236,7 @@ xrootd_path_prefix_match(const char *prefix, const char *path)
      * end-of-string or a '/' separator. */
     return path[prefix_len] == '\0' || path[prefix_len] == '/';
 }
-/* ---- HOW: Checks prefix==NULL || path==NULL → returns 0. Computes strlen(prefix) into prefix_len. strncmp(prefix, path, prefix_len) — if !=0 returns 0 (prefix not found at start of path). Returns 1 only when path[prefix_len]=='\0' (exact match) OR path[prefix_len]=='/' (path starts with prefix as a directory component boundary). This prevents partial-prefix false matches: "foo" matches "foo/bar" but NOT "foobar". */
-
+/* Compare the first `bits` of two packed addresses — the CIDR prefix-match core. */
 static ngx_flag_t
 xrootd_authdb_addr_prefix_match(const u_char *a, const u_char *b,
                                 ngx_uint_t bits)
@@ -279,8 +266,7 @@ xrootd_authdb_addr_prefix_match(const u_char *a, const u_char *b,
 
     return 1;
 }
-/* ---- HOW: Computes full=bits/8 (complete bytes to compare), rem=bits%8 (remaining bits). If full>0 && ngx_memcmp(a,b,full)!=0 → returns 0 (first N bytes differ). If rem!=0: mask=(u_char)(0xff << (8-rem)); compares a[full]&mask vs b[full]&mask — if !=0 returns 0. Returns 1 when all full bytes match AND remaining bits match under CIDR mask. */
-
+/* Match a peer IP against a rule's host CIDR (rule_id is host/addr[/bits]). */
 static ngx_flag_t
 xrootd_authdb_host_cidr_match(const char *rule_id, const char *peer_ip)
 {
@@ -342,8 +328,7 @@ xrootd_authdb_host_cidr_match(const char *rule_id, const char *peer_ip)
     return xrootd_authdb_addr_prefix_match(rule_addr, peer_addr,
                                            (ngx_uint_t) bits);
 }
-/* ---- HOW: Checks rule_id==NULL || peer_ip==NULL || peer_ip[0]=='\0' → returns 0. If strlen(rule_id)>=sizeof(cidr) → returns 0 (buffer overflow protection). Copies rule_id into cidr via ngx_cpystrn. strchr(cidr,'/') — if NULL strcmp(rule_id,peer_ip)==0 exact match check. If slash found: *slash++='\0' splits CIDR into addr/bits. strchr(cidr,':') → AF_INET6 (max_bits=128) else AF_INET (max_bits=32). strtol(slash,&end,10): validates end==slash || *end!='\0' || bits<0 || bits>max_bits → returns 0 on invalid. inet_pton(family,cidr,rule_addr) && inet_pton(family,peer_ip,peer_addr) — if either fails → returns 0. Returns xrootd_authdb_addr_prefix_match(rule_addr, peer_addr, (ngx_uint_t)bits). */
-
+/* Match a peer IP against an authdb rule's host id (exact, hostname, or CIDR). */
 static ngx_flag_t
 xrootd_authdb_host_match(const ngx_str_t *rule_id, const char *peer_ip)
 {
@@ -358,24 +343,8 @@ xrootd_authdb_host_match(const ngx_str_t *rule_id, const char *peer_ip)
     return xrootd_authdb_host_cidr_match((const char *) rule_id->data,
                                          peer_ip);
 }
-/* ---- HOW: Checks rule_id==NULL || peer_ip==NULL || peer_ip[0]=='\0' → returns 0. If rule_id->len==1 && rule_id->data[0]=='*' → returns 1 (wildcard matches all hosts). Otherwise delegates to xrootd_authdb_host_cidr_match((const char*)rule_id->data, peer_ip) for CIDR or exact IP matching. */
-
-/* ---- Function: xrootd_find_authdb_rule_identity() ----
- *
- * WHAT: Scans all authdb rules and returns the single best rule that (a) is a
- * path-component prefix of resolved_path, (b) matches the caller's identity for
- * its rule type (ALL / user-DN / group-VO / host-CIDR, with '*' wildcards), and
- * (c) already grants every bit in needed_privs. "Best" means longest matching
- * prefix. Returns NULL when no rule satisfies all three conditions.
- *
- * WHY: Longest-prefix wins so a specific subtree rule overrides a broader
- * parent rule. Crucially, the privilege check is part of the selection (not a
- * post-filter on the single longest match): a long prefix that lacks the needed
- * privs is skipped so a shorter, less-specific rule that DOES grant them can
- * still authorize the request — i.e. selection finds the longest *sufficient*
- * rule, never failing just because the most specific rule happens to be
- * read-only. >= (not >) on length means later rules win ties, matching the
- * config-file last-wins convention. */
+/* Find the authdb rule granting `needed_privs` on resolved_path for `identity`;
+ * returns the matching rule or NULL. */
 const xrootd_authdb_rule_t *
 xrootd_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
                         const xrootd_identity_t *identity,
@@ -457,17 +426,8 @@ xrootd_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
     return best;
 }
 
-/* ---- Function: xrootd_find_authdb_rule() ----
- *
- * WHAT: Session-context wrapper around xrootd_find_authdb_rule_identity().
- * Prefers ctx->identity (the unified identity object) when present; otherwise
- * synthesizes a stack-local identity from the legacy ctx->dn / ctx->vo_list
- * C-strings so older code paths that never populate ctx->identity still resolve.
- *
- * WHY: Bridges the pre-unification (raw dn/vo_list strings) and post-unification
- * (xrootd_identity_t) auth paths behind one call site. The fallback borrows
- * pointers into ctx (no copy) — valid because it is used only synchronously
- * within this call. */
+/* Find the authdb rule granting needed_privs on resolved_path for ctx's identity
+ * (wraps the _identity form). */
 const xrootd_authdb_rule_t *
 xrootd_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
                         xrootd_ctx_t *ctx, uint32_t needed_privs)
@@ -496,19 +456,8 @@ xrootd_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
                                             &fallback, ctx->peer_ip,
                                             needed_privs);
 }
-/* ---- HOW: Checks resolved_path==NULL || rules==NULL → returns NULL. Iterates all rules via rule=rules->elts, for i=0..nelts-1: computes rule_len=strlen(rule[i].resolved). xrootd_path_prefix_match(rule[i].resolved, resolved_path) — if 0 (no path prefix match) continues. Identity check switch on rule[i].type: XROOTD_AUTH_ALL→match=1; XROOTD_AUTH_USER→rule_id=='*' or ngx_strcmp(id.data,ctx->dn)==0; XROOTD_AUTH_GROUP→rule_id=='*' or xrootd_vo_list_contains(ctx->vo_list,id.data); XROOTD_AUTH_HOST→xrootd_authdb_host_match(&id, ctx). If !match continues. If rule[i].privs & needed_privs == needed_privs (privs satisfied) AND rule_len >= best_len → updates best=&rule[i], best_len=rule_len (longest prefix wins). Returns best (NULL if no matching rule found). */
-
-/* ---- Function: xrootd_check_authdb_identity() ----
- *
- * WHAT: Enforcement entry point: returns NGX_OK if an authdb rule grants
- * `identity` the `needed_privs` on `resolved_path`, NGX_ERROR otherwise. An
- * empty/NULL rule set means "no authdb configured" and is allow-all (NGX_OK).
- * On denial it emits a single sanitized WARN log line for audit.
- *
- * WHY: Centralizes the find-rule + deny-logging policy so every operation gets
- * identical semantics. resolved_path is run through xrootd_sanitize_log_string()
- * before logging because it can originate from untrusted wire input (control
- * bytes / quotes would otherwise corrupt or spoof the audit log). */
+/* Authorize `identity` for needed_privs on resolved_path against the rules.
+ * Returns NGX_OK (granted) or NGX_ERROR (denied). */
 ngx_int_t
 xrootd_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
                     const xrootd_identity_t *identity, const char *peer_ip,
@@ -544,6 +493,8 @@ xrootd_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
     return NGX_ERROR;
 }
 
+/* Authorize ctx for needed_privs on resolved_path via the authdb (wraps the
+ * _identity form). */
 ngx_int_t
 xrootd_check_authdb(xrootd_ctx_t *ctx, const char *resolved_path,
                     uint32_t needed_privs)
@@ -571,4 +522,3 @@ xrootd_check_authdb(xrootd_ctx_t *ctx, const char *resolved_path,
                                         ctx->peer_ip, resolved_path,
                                         needed_privs);
 }
-/* ---- HOW: Gets srv conf via ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_xrootd_module). Checks conf->authdb_rules==NULL || nelts==0 → returns NGX_OK (no rules = unrestricted). Calls xrootd_find_authdb_rule(resolved_path, conf->authdb_rules, ctx, needed_privs) — if rule!=NULL returns NGX_OK. Otherwise: sanitizes resolved_path into safe_path[512] via xrootd_sanitize_log_string(); logs warn-level error with "authdb denied path=... privs=0x.. dn=... vos=... peer=..." format; returns NGX_ERROR. */

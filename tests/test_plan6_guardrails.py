@@ -52,11 +52,17 @@ def test_namespace_mutation_guardrails_present():
             "test_mkcol_nested_missing_parent_returns_409",
         ],
     )
+    # DELETE/MKCOL stay in the base file; MOVE/COPY moved to the _b split.
     _assert_markers(
         "tests/test_http_webdav_status_codes.py",
         [
             "class testdelete",
             "class testmkcol",
+        ],
+    )
+    _assert_markers(
+        "tests/test_http_webdav_status_codes_b.py",
+        [
             "class testmove",
             "class testcopy",
         ],

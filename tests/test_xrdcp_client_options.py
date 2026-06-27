@@ -14,11 +14,12 @@ from pathlib import Path
 import pytest
 
 from settings import XRDCP_BIN
+from official_interop_lib import worker_prefix
 
 
 pytestmark = pytest.mark.timeout(240)
 
-PREFIX = "_xrdcp_client_opts_"
+PREFIX = worker_prefix("_xrdcp_client_opts_")  # per-xdist-worker; see official_interop_lib
 DEFAULT_STREAM_TEST_SIZE = 64 * 1024 * 1024
 
 

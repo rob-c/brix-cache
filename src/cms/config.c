@@ -1,15 +1,7 @@
-/* ------------------------------------------------------------------ */
-/* Config directive: xrootd_cms_manager                                 */
-/* ------------------------------------------------------------------ */
 /* WHAT: Parses the nginx config line "xrootd_cms_manager host:port" and stores */
 /*       the parsed address so the heartbeat client can connect to the CMS manager. */
 /* WHY:  The CMS heartbeat subsystem needs a TCP endpoint to send periodic load/avail reports */
 /*       and receive locate redirects from the central CMS manager node. */
-/* HOW:  1) Check for duplicate directive (CMS can only target one manager per server block)     */
-/*       2) Copy raw URI string into srv_conf->cms_manager                                              */
-/*       3) Parse host:port via ngx_parse_url                                                           */
-/*       4) Validate port presence and address resolution                                               */
-/*       5) Store resolved sockaddr + name in srv_conf->cms_addr                                        */
 
 #include "../config/config.h"
 #include "../compat/alloc_guard.h"

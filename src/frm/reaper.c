@@ -64,8 +64,7 @@ frm_reap_expired(frm_queue_t *q, time_t now, ngx_log_t *log)
 }
 
 
-/* ---- the timer -------------------------------------------------------------*/
-
+/* the timer*/
 static ngx_event_t   frm_reaper_ev;
 static frm_queue_t  *frm_reaper_q;
 

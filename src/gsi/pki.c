@@ -1,7 +1,7 @@
 #include "../ngx_xrootd_module.h"
 #include "../crypto/pki_check.h"
 
-/* ---- Function: xrootd_check_pki_consistency_stream() ----
+/*
  *
  * WHAT: Performs PKI/CRL consistency validation for the stream module (native XRootD protocol). Reads
  *       the configured trusted CA path and CRL path from stream configuration, then delegates to

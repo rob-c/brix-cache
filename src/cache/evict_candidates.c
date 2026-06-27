@@ -10,9 +10,9 @@
 
 
 /* Internal forward declarations (private to this file). */
-/* ---- xrootd_cache_fs_usage — query filesystem occupancy via statvfs ----
+/* xrootd_cache_fs_usage — query filesystem occupancy via statvfs.
  *
- * WHAT: Reads filesystem statistics from the cache root directory using
+ * Reads filesystem statistics from the cache root directory using
  *       statvfs() and computes total, available, used bytes plus occupancy
  *       as parts-per-million (ppm). The ppm value is compared against
  *       conf->cache_eviction_threshold to decide whether eviction runs.
@@ -139,9 +139,9 @@ xrootd_cache_evict_unlock(const char *lock_path)
         unlink(lock_path);
     }
 }
-/* ---- xrootd_cache_evict_unlock — release the eviction sentinel lock ----
+/* xrootd_cache_evict_unlock — release the eviction sentinel lock.
  *
- * WHAT: Removes the eviction lock sentinel file created by
+ * Removes the eviction lock sentinel file created by
  *       xrootd_cache_try_evict_lock(). Called after an eviction pass completes
  *      (whether files were evicted or skipped) so the next worker can acquire
  *      the lock.
@@ -280,9 +280,9 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
 
     return NGX_OK;
 }
-/* ---- xrootd_cache_add_candidate — append a candidate to the eviction list ----
+/* xrootd_cache_add_candidate — append a candidate to the eviction list.
  *
- * WHAT: Adds a file path and its stat metadata (size, atime, mtime) to the
+ * Adds a file path and its stat metadata (size, atime, mtime) to the
  *       eviction candidate list. First checks whether this is the protected
  *       path (the lock sentinel itself) and skips it immediately.
  *
@@ -296,9 +296,9 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
  *      Returns NGX_OK on success, NGX_ERROR if memory allocation fails or
  *      strlen returns -1 (invalid path).
  */
-/* ---- xrootd_cache_collect_dir — recursively scan directory for eviction candidates ----
+/* xrootd_cache_collect_dir — recursively scan a directory for eviction candidates.
  *
- * WHAT: Walks a directory tree (recursively) collecting all regular files
+ * Walks a directory tree (recursively) collecting all regular files
  *       as eviction candidates. Filters out special names (. / .. / lock sentinel
  *       / *.part / *.lock), skips non-regular entries, and recurses into
  *       subdirectories.
@@ -381,9 +381,9 @@ xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list, const char *dir,
     closedir(dp);
     return rc;
 }
-/* ---- xrootd_cache_candidate_cmp — sort comparator for eviction candidates ----
+/* xrootd_cache_candidate_cmp — sort comparator for eviction candidates.
  *
- * WHAT: qsort-compatible comparison function that orders candidates by
+ * qsort-compatible comparison function that orders candidates by
  *       oldest access time first, then oldest modification time as tiebreaker,
  *       then alphabetical path name as final tiebreaker.
  *
@@ -424,9 +424,9 @@ xrootd_cache_free_candidates(xrootd_cache_evict_list_t *list)
     list->nelts   = 0;
     list->cap     = 0;
 }
-/* ---- xrootd_cache_free_candidates — release all memory from the eviction list ----
+/* xrootd_cache_free_candidates — release all memory from the eviction list.
  *
- * WHAT: Frees every allocated resource in the evict_list_t struct: individual
+ * Frees every allocated resource in the evict_list_t struct: individual
  *       path strings, the candidate array itself, and the evicted[] tracking
  *       bitmap. Resets all fields to NULL/zero so the list can be reused.
  *

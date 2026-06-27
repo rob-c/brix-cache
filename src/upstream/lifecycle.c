@@ -1,6 +1,6 @@
 #include "upstream_internal.h"
 /*
- * ---- File: upstream lifecycle management ----
+ * upstream lifecycle management
  *
  * WHAT: Cleans up and aborts an outbound XRootD redirector upstream connection. xrootd_upstream_cleanup() releases all resources held by the upstream struct (timer, TCP connection, client context pointer). xrootd_upstream_abort() cleans up the upstream then sends a kXR_ServerError response back to the client at the aborted stream ID and reschedules the client read event so nginx can continue processing the next request.
  *

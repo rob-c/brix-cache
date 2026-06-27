@@ -11,15 +11,12 @@
  *      forwards via xrootd_proxy_forward_request when idle. Dispatch pending (after bootstrap) checks bound-secondary lazy-open case then sets forwarding state and flushes request.
  */
 
-/* ---- deferred request dispatch (called after bootstrap completes) --------- */
-
-/* ---- public API: xrootd_proxy_dispatch_pending() — dispatch saved request after bootstrap ----
- * WHAT: Dispatch proxy->saved_req to upstream when bootstrap completion triggers this callback from events.c.
+/* deferred request dispatch (called after bootstrap completes) */
+/* public API: xrootd_proxy_dispatch_pending() — dispatch saved request after bootstrap * WHAT: Dispatch proxy->saved_req to upstream when bootstrap completion triggers this callback from events.c.
  * WHY: Bound-secondary channel lazy-open case: if a kXR_read/kXR_pgread/kXR_readv arrives for a handle with no upstream mapping,
  *      a synthetic kXR_open must be issued first via xrootd_proxy_lazy_open before the read request can proceed. */
 
-/* ---- public API: xrootd_proxy_dispatch() — main proxy entry point (lazy-connect) ----
- * WHAT: Main dispatch entry point for all post-login opcodes — lazy-initializes upstream connection on first call, queues requests during bootstrap, forwards when ready.
+/* public API: xrootd_proxy_dispatch() — main proxy entry point (lazy-connect) * WHAT: Main dispatch entry point for all post-login opcodes — lazy-initializes upstream connection on first call, queues requests during bootstrap, forwards when ready.
  * WHY: Transparent XRootD proxy must connect lazily to avoid unnecessary overhead; requests arriving before bootstrap are saved and deferred until bootstrap completes via events.c callback. */
 
 ngx_int_t
@@ -90,8 +87,7 @@ xrootd_proxy_dispatch_pending(xrootd_proxy_ctx_t *proxy)
     return NGX_OK;
 }
 
-/* ---- main dispatch entry point ------------------------------------------- */
-
+/* main dispatch entry point */
 ngx_int_t
 xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
                       ngx_stream_xrootd_srv_conf_t *conf)
@@ -99,8 +95,7 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
     xrootd_proxy_ctx_t *proxy;
     int                 i;
 
-    /* --- lazy initialisation: connect to upstream on first dispatch --- */
-    if (ctx->proxy == NULL) {
+    /* lazy initialisation: connect to upstream on first dispatch */    if (ctx->proxy == NULL) {
 
         /*
          * Loop guard: a permanently-rejecting upstream (bad credential, all
@@ -150,8 +145,7 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     proxy = ctx->proxy;
 
-    /* --- if bootstrap is still in progress, save this request --- */
-    if (proxy->state != XRD_PX_IDLE) {
+    /* if bootstrap is still in progress, save this request */    if (proxy->state != XRD_PX_IDLE) {
         size_t total = XRD_REQUEST_HDR_LEN + ctx->cur_dlen;
         u_char *saved;
 
@@ -188,6 +182,5 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return NGX_OK;
     }
 
-    /* --- upstream is ready: forward the request now --- */
-    return xrootd_proxy_forward_request(proxy, ctx, c);
+    /* upstream is ready: forward the request now */    return xrootd_proxy_forward_request(proxy, ctx, c);
 }

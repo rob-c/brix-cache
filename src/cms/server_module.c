@@ -1,12 +1,10 @@
 #include "server.h"
 #include "../config/config.h"   /* xrootd_sss_load_keytab */
 
-/* ------------------------------------------------------------------ */
-/* Config callbacks                                                     */
-/* ------------------------------------------------------------------ */
 
-/* ---- xrootd_cms_srv_create_conf — allocate CMS server config with unset defaults ----
- * WHAT: Creates a new srv_conf instance for the CMS server module, initializing enable=NGX_CONF_UNSET and interval=NGX_CONF_UNSET so merge can apply proper fallback values. WHY: Unset markers allow ngx_conf_merge_value() to distinguish "not configured" from "configured as zero", ensuring default interval=60 applies even when user omits xrootd_cms_server_interval directive. */
+/* xrootd_cms_srv_create_conf — allocate the CMS-server srv_conf with enable and
+ * interval = NGX_CONF_UNSET, so merge can tell "not configured" from "set to zero"
+ * and apply the interval=60 default. */
 
 static void *
 xrootd_cms_srv_create_conf(ngx_conf_t *cf)
@@ -32,8 +30,8 @@ xrootd_cms_srv_create_conf(ngx_conf_t *cf)
     return conf;
 }
 
-/* ---- xrootd_cms_srv_merge_conf — merge CMS server config from parent to child level ----
- * WHAT: Merges CMS server configuration values from main/srv-level conf into the current srv-level conf. enable defaults to 0 (off), interval defaults to 60 seconds. WHY: nginx config hierarchy requires merging: each level may override parent values, and NGX_CONF_UNSET markers indicate "use parent value or apply default". */
+/* xrootd_cms_srv_merge_conf — merge the CMS-server config parent→child: enable
+ * defaults to 0 (off), interval to 60s (NGX_CONF_UNSET = use parent or default). */
 
 static char *
 xrootd_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
@@ -84,12 +82,10 @@ xrootd_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     return NGX_CONF_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Directive: xrootd_cms_server on|off                                 */
-/* ------------------------------------------------------------------ */
 
-/* ---- xrootd_cms_srv_set_enable — parse xrootd_cms_server directive and install session handler ----
- * WHAT: Delegates flag parsing to ngx_conf_set_flag_slot, then if enable=1 installs the CMS server session handler (xrootd_cms_srv_handler) as the stream connection handler. WHY: The CMS server module only needs to intercept incoming connections when enabled — otherwise nginx uses its default stream handler and ignores CMS traffic. HOW: 1) Parse flag via ngx_conf_set_flag_slot → 2) If enabled, grab core srv conf → 3) Set cscf->handler = xrootd_cms_srv_handler → 4) Return NGX_CONF_OK. */
+/* xrootd_cms_srv_set_enable — parse the xrootd_cms_server flag (ngx_conf_set_flag_slot)
+ * and, when enabled, install xrootd_cms_srv_handler as the stream connection handler
+ * so the module only intercepts connections when on. */
 
 static char *
 xrootd_cms_srv_set_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
@@ -113,11 +109,8 @@ xrootd_cms_srv_set_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     return NGX_CONF_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Directive: xrootd_cms_server_allow <cidr>... (W1b)                  */
-/* ------------------------------------------------------------------ */
 
-/* ---- xrootd_cms_srv_set_allow — parse a CIDR allowlist of permitted
+/* xrootd_cms_srv_set_allow — parse a CIDR allowlist of permitted
  * data-node IPs.  Mirrors xrootd_admin_set_allow (dashboard/api_admin.c):
  * accumulate ngx_cidr_t entries that the accept-time gate matches the peer
  * address against.  Compatible with vanilla nodes — a node from a trusted
@@ -160,11 +153,8 @@ xrootd_cms_srv_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     return NGX_CONF_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Directive: xrootd_cms_server_sss_keytab <path> (W1a)               */
-/* ------------------------------------------------------------------ */
 
-/* ---- xrootd_cms_srv_set_sss_keytab — load the cluster sss keytab at config
+/* xrootd_cms_srv_set_sss_keytab — load the cluster sss keytab at config
  * time using the shared loader (enforces 0600/0640 private permissions).
  * When set, a data node must complete the kYR_xauth sss handshake before it
  * is admitted to the registry (fail-closed).  Reuses the same keytab format
@@ -199,9 +189,6 @@ xrootd_cms_srv_set_sss_keytab(ngx_conf_t *cf, ngx_command_t *cmd,
     return NGX_CONF_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Directive table                                                      */
-/* ------------------------------------------------------------------ */
 
 static ngx_command_t  xrootd_cms_srv_commands[] = {
 
@@ -279,9 +266,6 @@ static ngx_command_t  xrootd_cms_srv_commands[] = {
     ngx_null_command
 };
 
-/* ------------------------------------------------------------------ */
-/* Module context and descriptor                                        */
-/* ------------------------------------------------------------------ */
 
 static ngx_stream_module_t  xrootd_cms_srv_module_ctx = {
     NULL,                        /* preconfiguration  */

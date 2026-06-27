@@ -10,12 +10,35 @@
 #include "../compat/shm_slots.h"
 
 #include <string.h>
+#include <openssl/crypto.h>   /* CRYPTO_memcmp — constant-time key compare */
+
+/*
+ * tpc_key_eq — constant-time equality of a presented TPC key against a stored
+ * registry entry. The TPC key is a transfer rendezvous secret, so a
+ * timing-variable strcmp would be a byte-by-byte guessing oracle. Both sides are
+ * compared over the full fixed-width field (entries are NUL-padded), so timing
+ * does not depend on the matching prefix length; an over-long presented key is
+ * rejected up front (it can never be a valid stored key).
+ */
+static int
+tpc_key_eq(const char *stored, const char *presented)
+{
+    char     buf[XROOTD_TPC_KEY_LEN];
+    size_t   n = ngx_strlen(presented);
+
+    if (n >= XROOTD_TPC_KEY_LEN) {
+        return 0;
+    }
+    ngx_memzero(buf, sizeof(buf));
+    ngx_memcpy(buf, presented, n);
+    return CRYPTO_memcmp(stored, buf, XROOTD_TPC_KEY_LEN) == 0;
+}
 
 static ngx_shm_zone_t  *xrootd_tpc_key_shm_zone;
 static ngx_shmtx_t      xrootd_tpc_key_mutex;
 static ngx_uint_t        tpc_key_seq;
 
-/* ---- Function: key_table() ----
+/*
  *
  * WHAT: Returns a pointer to the TPC key table stored in shared memory. This
  *       static helper abstracts access to the shared-memory zone so other
@@ -37,7 +60,7 @@ key_table(void)
     return (xrootd_tpc_key_table_t *) xrootd_tpc_key_shm_zone->data;
 }
 
-/* ---- Function: xrootd_tpc_key_shm_init_zone() ----
+/*
  *
  * WHAT: Initializes the shared-memory zone that holds the TPC key registry. Called
  *       during nginx configuration phase when ngx_shared_memory_add() creates the
@@ -82,7 +105,7 @@ xrootd_tpc_key_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
     return NGX_OK;
 }
 
-/* ---- Function: xrootd_tpc_key_configure_registry() ----
+/*
  *
  * WHAT: Configures the shared-memory zone that holds the TPC key registry during
  *       nginx configuration phase. Allocates a fixed-size memory region ("xrootd_tpc_keys")
@@ -114,7 +137,7 @@ xrootd_tpc_key_configure_registry(ngx_conf_t *cf)
     return NGX_OK;
 }
 
-/* ---- Function: xrootd_tpc_generate_key() ----
+/*
  *
  * WHAT: Generates a unique TPC transfer key string in the format "PID+SEQ" using
  *       snprintf. Combines the nginx worker's process ID with a per-process incrementing
@@ -135,7 +158,7 @@ xrootd_tpc_generate_key(char *buf, size_t buf_sz)
                     (unsigned long) tpc_key_seq);
 }
 
-/* ---- Function: xrootd_tpc_key_register() ----
+/*
  *
  * WHAT: Registers a TPC key in the shared-memory registry with a time-to-live (TTL). The
  *       function scans all slots looking for either an expired slot to reuse, or an existing
@@ -173,7 +196,7 @@ xrootd_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
             }
             continue;
         }
-        if (strcmp(e->key, key) == 0) {
+        if (tpc_key_eq(e->key, key)) {
             /* refresh expiry */
             e->expiry = now + ttl_ms;
             ngx_shmtx_unlock(&xrootd_tpc_key_mutex);
@@ -192,7 +215,7 @@ xrootd_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
     ngx_shmtx_unlock(&xrootd_tpc_key_mutex);
 }
 
-/* ---- Function: xrootd_tpc_key_validate() ----
+/*
  *
  * WHAT: Checks whether a TPC key exists in the registry and has not yet expired. Returns 1 (true)
  *       if the key is found and active, 0 (false) if not found or already expired. Expired entries
@@ -228,7 +251,7 @@ xrootd_tpc_key_validate(const char *key)
             ngx_memzero(e, sizeof(*e));
             continue;
         }
-        if (strcmp(e->key, key) == 0) {
+        if (tpc_key_eq(e->key, key)) {
             found = 1;
             break;
         }
@@ -238,7 +261,7 @@ xrootd_tpc_key_validate(const char *key)
     return found;
 }
 
-/* ---- Function: xrootd_tpc_key_consume() ----
+/*
  *
  * WHAT: Consumes (destroys) a TPC key from the registry. Unlike validate which only checks existence,
  *       consume permanently removes the key entry after finding it — the slot is zeroed and marked as
@@ -275,7 +298,7 @@ xrootd_tpc_key_consume(const char *key)
             ngx_memzero(e, sizeof(*e));
             continue;
         }
-        if (strcmp(e->key, key) == 0) {
+        if (tpc_key_eq(e->key, key)) {
             ngx_memzero(e, sizeof(*e));
             found = 1;
             break;
@@ -286,7 +309,7 @@ xrootd_tpc_key_consume(const char *key)
     return found;
 }
 
-/* ---- Function: xrootd_tpc_key_remove() ----
+/*
  *
  * WHAT: Removes a TPC key from the registry without checking TTL or expiration. Unlike consume which
  *       requires the key to be active, remove works on any entry regardless of state — this is useful
@@ -311,7 +334,7 @@ xrootd_tpc_key_remove(const char *key)
 
     for (i = 0; i < XROOTD_TPC_KEY_SLOTS; i++) {
         e = &tbl->slots[i];
-        if (e->in_use && strcmp(e->key, key) == 0) {
+        if (e->in_use && tpc_key_eq(e->key, key)) {
             ngx_memzero(e, sizeof(*e));
             break;
         }

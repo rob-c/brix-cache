@@ -2,11 +2,15 @@
  * zip_dir.c — ZIP central-directory reader (phase-57 W2). See zip_dir.h.
  *
  * Pure C, pread-only, fully bounds-checked. No nginx / OpenSSL deps so it can be
- * unit-tested standalone. Every offset and length is validated against the
- * archive size before use; a hostile or truncated archive yields a clean error,
- * never an out-of-bounds read.
+ * unit-tested standalone. The security-critical parsing (EOCD/ZIP64 location,
+ * ZIP64-extra decode, local-header data-offset resolution) lives in the shared
+ * zip_kernel.c — the single audited copy linked into both this module and the
+ * native client. This file is the server-side adapter: it wraps the open fd in
+ * the kernel's pread callback (via the SD backend), walks the central directory
+ * to resolve ONE member (last-match-wins, XrdZip semantics), and serves bytes.
  */
 #include "zip_dir.h"
+#include "zip_kernel.h"
 #include "../fs/backend/sd.h"   /* route ZIP directory byte reads through the SD backend */
 
 #include <stdlib.h>
@@ -15,42 +19,12 @@
 #include <errno.h>
 #include <zlib.h>
 
-/* ZIP record signatures (little-endian on disk). */
-#define ZIP_EOCD_SIG    0x06054b50u   /* End Of Central Directory            */
-#define ZIP_EOCD_BASE   22
-#define ZIP_Z64LOC_SIG  0x07064b50u   /* ZIP64 EOCD locator                  */
-#define ZIP_Z64LOC_SIZE 20
-#define ZIP_Z64EOCD_SIG 0x06064b50u   /* ZIP64 EOCD                          */
+/* CDFH layout (the directory walk lives here; the leaf parsers are in the kernel). */
 #define ZIP_CDFH_SIG    0x02014b50u   /* Central Directory File Header       */
 #define ZIP_CDFH_BASE   46
-#define ZIP_LFH_SIG     0x04034b50u   /* Local File Header                   */
-#define ZIP_LFH_BASE    30
-
-#define ZIP_U32_MAX     0xFFFFFFFFu
-#define ZIP_U16_MAX     0xFFFFu
 
 #define ZIP_GPF_ENCRYPTED  0x0001u    /* general-purpose bit 0               */
 #define ZIP_GPF_DATADESC   0x0008u    /* general-purpose bit 3               */
-
-#define ZIP_MAX_COMMENT 65535         /* EOCD comment length cap (u16)        */
-
-/* ---- little-endian field readers (operate on a bounds-checked buffer) ---- */
-
-static uint16_t rd16le(const unsigned char *p)
-{
-    return (uint16_t) (p[0] | (p[1] << 8));
-}
-
-static uint32_t rd32le(const unsigned char *p)
-{
-    return (uint32_t) p[0] | ((uint32_t) p[1] << 8)
-         | ((uint32_t) p[2] << 16) | ((uint32_t) p[3] << 24);
-}
-
-static uint64_t rd64le(const unsigned char *p)
-{
-    return (uint64_t) rd32le(p) | ((uint64_t) rd32le(p + 4) << 32);
-}
 
 /* Read exactly n bytes at off into buf; 0 on success, -1 on short read/error. */
 static int pread_full(int fd, void *buf, size_t n, off_t off)
@@ -76,152 +50,24 @@ static int pread_full(int fd, void *buf, size_t n, off_t off)
     return 0;
 }
 
-/*
- * Locate the central directory: fill *cd_off, *cd_size, *nrec, handling ZIP64.
- * Returns XROOTD_ZIP_OK / _ECORRUPT / _EIO.
- */
-static int
-zip_locate_cd(int fd, off_t archive_size, uint64_t *cd_off, uint64_t *cd_size,
-              uint64_t *nrec)
+/* Kernel pread adapter: read exactly `len` bytes from the open fd boxed in ctx. */
+static ssize_t zip_fd_pread(void *ctx, uint64_t off, void *buf, size_t len)
 {
-    size_t          tail;
-    unsigned char  *buf;
-    ssize_t         eo = -1;          /* EOCD offset within buf */
-    off_t           tail_base;
-
-    if (archive_size < ZIP_EOCD_BASE) {
-        return XROOTD_ZIP_ECORRUPT;
+    int fd = *(int *) ctx;
+    if (pread_full(fd, buf, len, (off_t) off) != 0) {
+        return -1;
     }
-
-    /* The EOCD lives in the last 22 + comment(<=65535) bytes. */
-    tail = (size_t) ZIP_EOCD_BASE + ZIP_MAX_COMMENT;
-    if ((off_t) tail > archive_size) {
-        tail = (size_t) archive_size;
-    }
-    tail_base = archive_size - (off_t) tail;
-
-    buf = malloc(tail);
-    if (buf == NULL) {
-        return XROOTD_ZIP_EIO;
-    }
-    if (pread_full(fd, buf, tail, tail_base) != 0) {
-        free(buf);
-        return XROOTD_ZIP_EIO;
-    }
-
-    /* Scan backward for the EOCD signature. */
-    for (ssize_t o = (ssize_t) tail - ZIP_EOCD_BASE; o >= 0; --o) {
-        if (rd32le(buf + o) == ZIP_EOCD_SIG) {
-            eo = o;
-            break;
-        }
-    }
-    if (eo < 0) {
-        free(buf);
-        return XROOTD_ZIP_ECORRUPT;
-    }
-
-    *nrec    = rd16le(buf + eo + 10);
-    *cd_size = rd32le(buf + eo + 12);
-    *cd_off  = rd32le(buf + eo + 16);
-
-    /* ZIP64 promotion when any 32-bit field is saturated. */
-    if (*cd_off == ZIP_U32_MAX || *nrec == ZIP_U16_MAX || *cd_size == ZIP_U32_MAX) {
-        off_t          loc_off = tail_base + eo - ZIP_Z64LOC_SIZE;
-        unsigned char  loc[ZIP_Z64LOC_SIZE];
-        unsigned char  z64[56];
-        uint64_t       z64_off;
-
-        if (loc_off < 0
-            || pread_full(fd, loc, sizeof(loc), loc_off) != 0
-            || rd32le(loc) != ZIP_Z64LOC_SIG)
-        {
-            free(buf);
-            return XROOTD_ZIP_ECORRUPT;
-        }
-        z64_off = rd64le(loc + 8);
-        if ((off_t) z64_off + (off_t) sizeof(z64) > archive_size
-            || pread_full(fd, z64, sizeof(z64), (off_t) z64_off) != 0
-            || rd32le(z64) != ZIP_Z64EOCD_SIG)
-        {
-            free(buf);
-            return XROOTD_ZIP_ECORRUPT;
-        }
-        *nrec    = rd64le(z64 + 32);
-        *cd_size = rd64le(z64 + 40);
-        *cd_off  = rd64le(z64 + 48);
-    }
-
-    free(buf);
-    return XROOTD_ZIP_OK;
+    return (ssize_t) len;
 }
 
-/*
- * Parse the ZIP64 extra field of a CDFH for any saturated size/offset fields.
- * `extra`/`extra_len` is the raw extra blob; the three out params are updated
- * in-place only for the fields that were saturated, in ZIP spec order
- * (uncompressed, compressed, local-header offset).
- */
-static void
-zip_parse_zip64_extra(const unsigned char *extra, size_t extra_len,
-                      uint64_t *uncomp, uint64_t *comp, uint64_t *lhdr_off)
+/* Map a kernel result code onto this module's XROOTD_ZIP_* enum. */
+static int zip_map_kernel_rc(int krc)
 {
-    size_t p = 0;
-    while (p + 4 <= extra_len) {
-        uint16_t id  = rd16le(extra + p);
-        uint16_t len = rd16le(extra + p + 2);
-        if ((size_t) p + 4 + len > extra_len) {
-            return;                       /* malformed extra → stop */
-        }
-        if (id == 0x0001) {               /* ZIP64 extended info */
-            const unsigned char *d = extra + p + 4;
-            size_t q = 0;
-            if (*uncomp == ZIP_U32_MAX && q + 8 <= len) {
-                *uncomp = rd64le(d + q); q += 8;
-            }
-            if (*comp == ZIP_U32_MAX && q + 8 <= len) {
-                *comp = rd64le(d + q); q += 8;
-            }
-            if (*lhdr_off == ZIP_U32_MAX && q + 8 <= len) {
-                *lhdr_off = rd64le(d + q); q += 8;
-            }
-            return;
-        }
-        p += 4 + len;
+    switch (krc) {
+    case ZIP_K_OK:   return XROOTD_ZIP_OK;
+    case ZIP_K_EIO:  return XROOTD_ZIP_EIO;
+    default:         return XROOTD_ZIP_ECORRUPT;   /* ENOTZIP / ECORRUPT */
     }
-}
-
-/*
- * Resolve the member's first-data offset by reading its Local File Header
- * (its own filename/extra lengths can differ from the CDFH's). Validates the
- * LFH signature and that the data range lies within the archive.
- */
-static int
-zip_resolve_data_off(int fd, off_t archive_size, uint64_t lhdr_off,
-                     xrootd_zip_member_t *out)
-{
-    unsigned char lfh[ZIP_LFH_BASE];
-    uint64_t      data_off;
-
-    if ((off_t) lhdr_off + ZIP_LFH_BASE > archive_size
-        || pread_full(fd, lfh, sizeof(lfh), (off_t) lhdr_off) != 0)
-    {
-        return XROOTD_ZIP_ECORRUPT;
-    }
-    if (rd32le(lfh) != ZIP_LFH_SIG) {
-        return XROOTD_ZIP_ECORRUPT;
-    }
-
-    data_off = lhdr_off + ZIP_LFH_BASE
-             + rd16le(lfh + 26)            /* LFH filename length */
-             + rd16le(lfh + 28);           /* LFH extra length    */
-
-    if (data_off + out->comp_size > (uint64_t) archive_size) {
-        return XROOTD_ZIP_ECORRUPT;
-    }
-
-    out->data_off = data_off;
-    return XROOTD_ZIP_OK;
 }
 
 int
@@ -243,16 +89,13 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
         return XROOTD_ZIP_ECORRUPT;
     }
 
-    rc = zip_locate_cd(fd, archive_size, &cd_off, &cd_size, &nrec);
-    if (rc != XROOTD_ZIP_OK) {
-        return rc;
+    rc = zip_locate_cd(zip_fd_pread, &fd, (uint64_t) archive_size,
+                       (uint64_t) cd_max, 0, &cd_off, &cd_size, &nrec);
+    if (rc != ZIP_K_OK) {
+        return zip_map_kernel_rc(rc);
     }
-
-    /* Bounds + bomb guard on the central directory. */
-    if (cd_size == 0 || cd_size > cd_max
-        || cd_off + cd_size > (uint64_t) archive_size)
-    {
-        return XROOTD_ZIP_ECORRUPT;
+    if (cd_size == 0) {
+        return XROOTD_ZIP_ECORRUPT;   /* empty directory — no member to find */
     }
 
     cd = malloc((size_t) cd_size);
@@ -270,18 +113,18 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
         uint16_t bits, method, fn, ex, cm;
         uint64_t uncomp, comp, lhdr_off;
 
-        if (p + ZIP_CDFH_BASE > cd_size || rd32le(cd + p) != ZIP_CDFH_SIG) {
+        if (p + ZIP_CDFH_BASE > cd_size || zip_rd32le(cd + p) != ZIP_CDFH_SIG) {
             free(cd);
             return XROOTD_ZIP_ECORRUPT;
         }
-        bits     = rd16le(cd + p + 8);
-        method   = rd16le(cd + p + 10);
-        comp     = rd32le(cd + p + 20);
-        uncomp   = rd32le(cd + p + 24);
-        fn       = rd16le(cd + p + 28);
-        ex       = rd16le(cd + p + 30);
-        cm       = rd16le(cd + p + 32);
-        lhdr_off = rd32le(cd + p + 42);
+        bits     = zip_rd16le(cd + p + 8);
+        method   = zip_rd16le(cd + p + 10);
+        comp     = zip_rd32le(cd + p + 20);
+        uncomp   = zip_rd32le(cd + p + 24);
+        fn       = zip_rd16le(cd + p + 28);
+        ex       = zip_rd16le(cd + p + 30);
+        cm       = zip_rd16le(cd + p + 32);
+        lhdr_off = zip_rd32le(cd + p + 42);
 
         if (p + ZIP_CDFH_BASE + (uint64_t) fn + ex + cm > cd_size) {
             free(cd);
@@ -300,7 +143,7 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
                 return XROOTD_ZIP_ECORRUPT;
             }
 
-            zip_parse_zip64_extra(cd + p + ZIP_CDFH_BASE + fn, ex,
+            zip_apply_zip64_extra(cd + p + ZIP_CDFH_BASE + fn, ex,
                                   &uncomp, &comp, &lhdr_off);
 
             memset(&last, 0, sizeof(last));
@@ -309,12 +152,13 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
             last.method      = method;
             last.comp_size   = comp;
             last.uncomp_size = uncomp;
-            last.crc32       = rd32le(cd + p + 16);
+            last.crc32       = zip_rd32le(cd + p + 16);
 
-            rc = zip_resolve_data_off(fd, archive_size, lhdr_off, &last);
-            if (rc != XROOTD_ZIP_OK) {
+            rc = zip_resolve_data_off(zip_fd_pread, &fd, (uint64_t) archive_size,
+                                      lhdr_off, comp, &last.data_off);
+            if (rc != ZIP_K_OK) {
                 free(cd);
-                return rc;
+                return zip_map_kernel_rc(rc);
             }
             found = XROOTD_ZIP_OK;   /* keep scanning: last match wins */
         }

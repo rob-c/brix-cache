@@ -1,4 +1,4 @@
-/* ---- Function: xrootd_chain_pending_bytes() — calculate total bytes queued in chain buffer ----
+/*
  *
  * WHAT: Summation helper that iterates all ngx_chain_t nodes and accumulates buf sizes via ngx_buf_size(). Returns the total pending byte count for a buffered data chain. NULL nodes are skipped during iteration to prevent crashes on malformed chains. Used by send/write helpers (connection/send.c, connection/write_helpers.c) to determine whether to flush a partial write or continue accumulating before sending over TCP/TLS connection.
  *

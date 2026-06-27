@@ -100,8 +100,7 @@ xrootd_prepare_invoke_command(ngx_log_t *log,
         return NGX_OK;
     }
 
-    /* --- grandchild process --- */
-
+    /* grandchild process */
     if (coloc) {
         setenv("XROOTD_PREPARE_COLOC", "1", 1);
     }

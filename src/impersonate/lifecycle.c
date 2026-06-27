@@ -37,9 +37,6 @@ extern ngx_uint_t ngx_test_config;       /* set during `nginx -t` */
 
 #define IMP_DEFAULT_SOCKET  "/var/run/xrootd/impersonate.sock"
 
-/* ------------------------------------------------------------------ */
-/* Process-global settings                                             */
-/* ------------------------------------------------------------------ */
 
 static struct {
     int        mode;                      /* XROOTD_IMP_OFF/SINGLE/MAP */
@@ -68,9 +65,6 @@ xrootd_imp_mode(void)
     return imp_settings.mode;
 }
 
-/* ------------------------------------------------------------------ */
-/* Directive setters                                                   */
-/* ------------------------------------------------------------------ */
 
 /* Duplicate a conf token into a NUL-terminated string on cf->pool. */
 static char *
@@ -158,9 +152,6 @@ xrootd_imp_conf_num(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Mapping config bridge                                               */
-/* ------------------------------------------------------------------ */
 
 /* Populate an xrootd_idmap_conf_t from the settings (for xrootd_idmap_init).
  * `worker_uid` is the nginx worker uid to forbid as a target ((uid_t)-1 = none). */
@@ -179,9 +170,6 @@ imp_fill_idmap_conf(xrootd_idmap_conf_t *c, uid_t worker_uid)
     c->cache_ttl        = imp_settings.cache_ttl;
 }
 
-/* ------------------------------------------------------------------ */
-/* Validation (postconfiguration)                                      */
-/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
@@ -240,9 +228,6 @@ xrootd_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Master: spawn the broker (double-fork, FRM pattern)                 */
-/* ------------------------------------------------------------------ */
 
 /* Bind a 0600 listening AF_UNIX socket at `path`, owned by `wuid`. */
 static int
@@ -481,9 +466,6 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Worker: connect the broker client                                   */
-/* ------------------------------------------------------------------ */
 
 /*
  * Hyper-harden the worker: shed the privilege-escalation / DAC-bypass / identity
@@ -547,9 +529,6 @@ xrootd_imp_init_worker(ngx_cycle_t *cycle)
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Per-request principal                                               */
-/* ------------------------------------------------------------------ */
 
 /* Best principal string for impersonation: DN first, then token subject. */
 static const char *

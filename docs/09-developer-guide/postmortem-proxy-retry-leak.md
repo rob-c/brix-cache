@@ -109,6 +109,28 @@ The deep cause: **two representations of "is this proxy alive" drifted apart on
 the error path.** The loop's liveness signal was `proxy->state`; `abort`'s
 liveness signal was `ctx->proxy = NULL`. Nothing kept them consistent.
 
+```text
+  TWO LIVENESS SIGNALS, DRIFTED ON THE ERROR PATH
+  ───────────────────────────────────────────────
+   for(;;) {                          abort() signals death via:
+     recv ──skip (rhdr already full)      ctx->proxy = NULL   ◀─┐
+        │                                 proxy->state UNCHANGED │ (still BOOTSTRAP)
+        ▼                                                        │
+     state == BOOTSTRAP? ── yes                                  │
+        │                                                        │
+        ▼                                                        │
+     handle_bootstrap() ── auth rejected ── abort() ─────────────┘
+        │                                      │ frees/cleanups proxy
+        ▼                                      ▼
+     state != BOOTSTRAP? ── NO (abort left it stale) ── continue ─┐
+        │                                                          │
+        └──────────────── re-process SAME frame on DEAD proxy ◀────┘
+                          ~500K iters/sec · use-after-free · +34 MB/s · 95% CPU
+
+  THE FIX: the loop checks the SAME signal abort sets
+   if (ctx->proxy != proxy) return;   ← proxy is dead, stop. one source of truth.
+```
+
 ---
 
 ## 4. How it came about (likely origin)

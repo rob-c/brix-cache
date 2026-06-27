@@ -11,13 +11,15 @@
 #include "compat/error_mapping.h"
 #include "path/path.h"
 
-/* ---- exec functions (one per op) ---------------------------------------- */
-
+/* exec functions (one per op) */
 static ngx_int_t
 exec_chmod(const xrootd_op_exec_t *e, int *out_errno)
 {
-    ClientChmodRequest *req = (ClientChmodRequest *) e->ctx->hdr_buf;
-    mode_t mode = ntohs(req->mode) & 0777;
+    xrdw_chmod_req_t req;
+    mode_t mode;
+
+    xrdw_chmod_req_unpack(((ClientRequestHdr *) e->ctx->hdr_buf)->body, &req);
+    mode = req.mode & 0777;
 
     if (mode == 0) {
         mode = 0644;
@@ -76,8 +78,7 @@ exec_rmdir(const xrootd_op_exec_t *e, int *out_errno)
     return NGX_ERROR;
 }
 
-/* ---- descriptor table ---------------------------------------------------- */
-
+/* descriptor table */
 static const xrootd_op_desc_t _ops[] = {
     { kXR_chmod,  "CHMOD",  XROOTD_OP_CHMOD,  XROOTD_AUTH_UPDATE, 1,
       XROOTD_PATH_EXISTING, exec_chmod },
@@ -88,8 +89,7 @@ static const xrootd_op_desc_t _ops[] = {
 };
 #define N_OPS (sizeof(_ops) / sizeof(_ops[0]))
 
-/* ---- interpreter --------------------------------------------------------- */
-
+/* interpreter */
 ngx_int_t
 xrootd_dispatch_op(xrootd_ctx_t *ctx, ngx_connection_t *c,
                    ngx_stream_xrootd_srv_conf_t *conf,

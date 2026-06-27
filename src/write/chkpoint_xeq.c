@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 
-/* ---- Function: ckp_xeq_vfs_write_full() — write checkpoint payload via VFS ---- */
 /* WHAT: Writes one checkpoint payload range through the VFS I/O core and reports
  *      the byte count, errno, and short-write state to the caller.
  * WHY: ckpXeq sub-ops mutate the exported file, so they must share the same
@@ -54,7 +53,6 @@ ckp_xeq_vfs_write_full(ngx_fd_t fd, const u_char *data, size_t len,
     return NGX_OK;
 }
 
-/* ---- Function: ckp_xeq_write() — kXR_ckpXeq sub-op: write under checkpoint ---- */
 /* WHAT: Performs a single VFS-core write to the checkpointed file at the specified offset. Validates handle matches idx, writes sub_dlen bytes,
  *      updates byte counters and sends success response. Handles zero-length payloads (no-op).
  * WHY: ckpXeq write is the atomic transactional write operation — when executed under an active checkpoint, this write becomes "tentative" until commit/rollback.
@@ -65,22 +63,24 @@ static ngx_int_t
 ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     const u_char *sub_hdr, const u_char *sub_payload, uint32_t sub_dlen)
 {
-    ClientWriteRequest *wreq = (ClientWriteRequest *) sub_hdr;
+    xrdw_write_req_t    wreq;
     int64_t             offset;
     ssize_t             nw;
     char                detail[64];
     int                 err;
     ngx_flag_t          short_io;
 
+    xrdw_write_req_unpack(((ClientRequestHdr *) sub_hdr)->body, &wreq);
+
     /* The sub-request names its own handle; it MUST be the one the checkpoint
      * was opened on (idx). Refusing a mismatch keeps a checkpointed op from
      * silently touching a different file than the one being protected. */
-    if ((int)(unsigned char) wreq->fhandle[0] != idx) {
+    if ((int)(unsigned char) wreq.fhandle[0] != idx) {
         return xrootd_send_error(ctx, c, kXR_InvalidRequest,
                                  "ckpXeq write: handle mismatch");
     }
 
-    offset = (int64_t) be64toh((uint64_t) wreq->offset);  /* wire is BE64 */
+    offset = wreq.offset;  /* host order from the shared codec */
     if (sub_dlen == 0) {
         return xrootd_send_ok(ctx, c, NULL, 0);  /* zero-length write: no-op */
     }
@@ -107,7 +107,6 @@ ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
 
-/* ---- Function: ckp_xeq_pgwrite() — kXR_ckpXeq sub-op: pgwrite with CRC32c verification ---- */
 /* WHAT: Performs a page-write under checkpoint protection, decoding the pgwrite payload (per-page CRC32c framing) into flat data,
  *      then writing in XRD_PGWRITE_PAGESZ-sized chunks. Validates checksum integrity before committing writes.
  * WHY: kXR_pgwrite uses per-page CRC32c for data integrity verification — critical for large file transfers where partial corruption must be detected.
@@ -118,7 +117,7 @@ static ngx_int_t
 ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     const u_char *sub_hdr, const u_char *sub_payload, uint32_t sub_dlen)
 {
-    ClientPgWriteRequest *preq = (ClientPgWriteRequest *) sub_hdr;
+    xrdw_pgwrite_req_t    preq;
     int64_t               offset;
     u_char               *flat;
     const u_char         *src;
@@ -130,14 +129,15 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     char                  detail[64];
     ngx_int_t             rc;
 
-    if ((int)(unsigned char) preq->fhandle[0] != idx) {
+    xrdw_pgwrite_req_unpack(((ClientRequestHdr *) sub_hdr)->body, &preq);
+    if ((int)(unsigned char) preq.fhandle[0] != idx) {
         return xrootd_send_error(ctx, c, kXR_InvalidRequest,
                                  "ckpXeq pgwrite: handle mismatch");
     }
 
     /* Payload must hold at least one 4-byte CRC32c plus some data, so it has
      * to exceed XRD_PGWRITE_CKSZ; a negative offset is never valid. */
-    offset = (int64_t) be64toh((uint64_t) preq->offset);
+    offset = preq.offset;
     if (offset < 0 || sub_dlen <= XRD_PGWRITE_CKSZ) {
         snprintf(detail, sizeof(detail), "xeq_pgwrite %lld+%u",
                  (long long) offset, (unsigned) sub_dlen);
@@ -229,7 +229,6 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_pgwrite_status(ctx, c, write_offset);
 }
 
-/* ---- Function: ckp_xeq_truncate() — kXR_ckpXeq sub-op: truncate under checkpoint ---- */
 /* WHAT: Truncates the checkpointed file to a specified length via the VFS I/O core. Always handle-based (path-based not supported in ckpXeq).
  * WHY: Transactional write semantics allow shrinking files as part of tentative operations; rollback restores original size from checkpoint.
  *      Handle mismatch check prevents cross-file corruption during truncated operations under checkpoint protection.
@@ -239,18 +238,19 @@ static ngx_int_t
 ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     const u_char *sub_hdr)
 {
-    ClientTruncateRequest *treq = (ClientTruncateRequest *) sub_hdr;
+    xrdw_truncate_req_t    treq;
     int64_t                length;
     xrootd_vfs_job_t       job;
 
-    if ((int)(unsigned char) treq->fhandle[0] != idx) {
+    xrdw_truncate_req_unpack(((ClientRequestHdr *) sub_hdr)->body, &treq);
+    if ((int)(unsigned char) treq.fhandle[0] != idx) {
         return xrootd_send_error(ctx, c, kXR_InvalidRequest,
                                  "ckpXeq truncate: handle mismatch");
     }
 
     /* ckpXeq truncate is always handle-based; path-based not supported here.
      * The wire reuses the request's offset field to carry the target length. */
-    length = (int64_t) be64toh((uint64_t) treq->offset);
+    length = treq.offset;
 
     xrootd_vfs_job_truncate_init(&job, ctx->files[idx].fd, (off_t) length);
     xrootd_vfs_io_execute(&job);
@@ -263,7 +263,6 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
 
-/* ---- Function: ckp_xeq_writev() — kXR_ckpXeq sub-op: vectorized multi-segment write ---- */
 /* WHAT: Performs a vectorized write under checkpoint protection, parsing multiple segments from the payload (each segment = fhandle+offset+wlen header + data),
  *      validating all segments target the checkpointed handle idx, then writing each segment sequentially through the VFS core. Enforces XROOTD_WRITEV_MAXSEGS limit.
  * WHY: kXR_writev enables efficient multi-offset writes in a single request — critical for sparse file operations and chunked transfers under checkpoint.
@@ -360,7 +359,6 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
 
-/* ---- Function: ckp_xeq() — kXR_ckpXeq dispatcher: run one write under checkpoint ---- */
 /* WHAT: Unwraps the embedded sub-request (a full 24-byte client request header plus
  *      its payload) carried in a kXR_ckpXeq body and routes it to the matching
  *      write/pgwrite/truncate/writev handler for the checkpointed handle idx.

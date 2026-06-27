@@ -28,17 +28,8 @@
  */
 
 
-/* ------------------------------------------------------------------ */
-/* Phase 31 W2.1 — windowed memory read (fill -> drain -> fill).        */
 /*                                                                      */
-/* A memory-backed kXR_read (TLS / non-regular file) larger than        */
 /* XROOTD_READ_WINDOW is served as a sequence of kXR_oksofar wire chunks */
-/* ending in kXR_ok, each sourced from one window-sized read into        */
-/* read_scratch.  The next window is read only after the previous chunk  */
-/* has fully drained, so the single read_scratch buffer is never         */
-/* overwritten while still being sent — bounding resident heap to        */
-/* ~XROOTD_READ_WINDOW per stream regardless of the request size.        */
-/* ------------------------------------------------------------------ */
 
 /*
  * xrootd_read_window_emit — build + queue one window's wire chunk from
@@ -246,10 +237,11 @@ xrootd_read_aio_thread(void *data, ngx_log_t *log)
      */
     xrootd_vfs_job_read_init(&job, t->fd, t->offset, t->rlen,
                              t->databuf, t->rlen, 0);
+    job.csi = t->csi;                    /* phase-59 W2: verify in the worker */
     xrootd_vfs_io_execute(&job);
 
     t->nread = job.nio;
-    t->io_errno = job.io_errno;
+    t->io_errno = job.io_errno;          /* CSI mismatch surfaces as EIO here */
 }
 
 /*
@@ -358,9 +350,6 @@ xrootd_read_aio_done(ngx_event_t *ev)
 }
 
 
-/* ------------------------------------------------------------------ */
-/* Section: kXR_pgread async I/O — page-granular read with CRC32C checksum. */
-/* ------------------------------------------------------------------ */
 /*
  * This section implements the thread-pool offload for pgread, where each
  * 4096-byte page is read and a CRC32C checksum is computed on it.

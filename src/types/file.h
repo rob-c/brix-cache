@@ -246,6 +246,11 @@ typedef struct {
      * read/write handlers branch on it and xrootd_free_fhandle clears it. */
     void    *ssi;
 
+    /* phase-59 W2: non-NULL when CSI page-checksum integrity is active for this
+     * handle. Points to a heap-allocated xrootd_csi_t (its own tag-file fd);
+     * read verifies, write/pgwrite update, xrootd_free_fhandle closes+frees it. */
+    void    *csi;
+
 } xrootd_file_t;
 
 #endif /* XROOTD_TYPES_FILE_H */

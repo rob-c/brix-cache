@@ -58,6 +58,25 @@ Each wrapper chains to the real function via `dlsym(RTLD_NEXT, ...)` — under a
 
 ### What the shim makes deterministic
 
+```text
+  WIDENING THE USE-AFTER-FREE WINDOW (race_shim makes µs deterministic)
+  ────────────────────────────────────────────────────────────────────
+  EVENT LOOP thread        │  POOL WORKER thread (g_main? NO → delayed)
+  ─────────────────        │  ─────────────────────────────────────────
+  dispatch kXR_read        │
+   post task to pool ─────▶│  pread(fd, scratch, …)
+                           │   └─ shim injects nanosleep(15ms) ──┐
+  ◀── loop races ahead ────┤                                     │  worker
+   client RST / close      │                                     │  HELD here
+   FREE scratch buffer ✗   │                                     │  (window
+   unlink+recreate file    │                                     │   forced
+   reuse scratch (pipeline) │                                    │   open)
+                           │   real pread writes into scratch ◀──┘
+                           │   ✗ HEAP-USE-AFTER-FREE (ASan aborts)
+  ────────────────────────────────────────────────────────────────────
+  shim NEVER delays the event loop (pthread_self()==g_main) → can't mask the bug
+```
+
 With a worker held inside `pread`/`pwrite` on a connection's scratch/payload/published-handle buffer, the event loop races ahead and can: (a) RST-disconnect and free those buffers; (b) on a peer connection, `close` + `unlink` + recreate a shared file; (c) pipeline a follow-up op that reuses the same scratch. The shim turns each into a per-iteration hit that ASan (heap-use-after-free) and TSan (missing happens-before) catch reliably.
 
 ## v1 phases (test_evil_actor.py) — stream plane

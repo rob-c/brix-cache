@@ -15,9 +15,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* -------------------------------------------------------------------------
+/*
  * GET /bucket/key - file download with Range support
- * ---------------------------------------------------------------------- */
+ * */
 
 static void
 s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
@@ -80,9 +80,9 @@ s3_handle_get(ngx_http_request_t *r,
                                                  cf->zip_cd_max_bytes,
                                                  fs_path, member);
             if (zs == NGX_HTTP_NOT_FOUND) {
-                XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-                return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
-                                         "The specified key does not exist.");
+                return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                               "The specified key does not exist.",
+                               XROOTD_S3_EVENT_NO_SUCH_KEY);
             }
             return zs;
         }
@@ -92,9 +92,9 @@ s3_handle_get(ngx_http_request_t *r,
     fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         if (vfs_err == ENOENT || vfs_err == ENOTDIR) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-            return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
-                                     "NoSuchKey", "The specified key does not exist.");
+            return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                           "The specified key does not exist.",
+                           XROOTD_S3_EVENT_NO_SUCH_KEY);
         }
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return (ngx_int_t) xrootd_http_errno_to_status(vfs_err);
@@ -108,9 +108,9 @@ s3_handle_get(ngx_http_request_t *r,
 
     if (vst.is_directory) {
         xrootd_vfs_close(fh, r->connection->log);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-        return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
-                                 "NoSuchKey", "The specified key does not exist.");
+        return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                       "The specified key does not exist.",
+                       XROOTD_S3_EVENT_NO_SUCH_KEY);
     }
 
     /*
@@ -125,9 +125,9 @@ s3_handle_get(ngx_http_request_t *r,
             && (res.state == FRM_RES_NEARLINE || res.state == FRM_RES_OFFLINE))
         {
             xrootd_vfs_close(fh, r->connection->log);
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_ACCESS_DENIED]);
-            return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "InvalidObjectState",
-                "The operation is not valid for the object's storage class.");
+            return s3_fail(r, NGX_HTTP_FORBIDDEN, "InvalidObjectState",
+                "The operation is not valid for the object's storage class.",
+                XROOTD_S3_EVENT_ACCESS_DENIED);
         }
     }
 
@@ -219,9 +219,9 @@ s3_handle_get(ngx_http_request_t *r,
     return rc;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * HEAD /bucket/key - metadata only
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_int_t
 s3_handle_head(ngx_http_request_t *r,
@@ -234,18 +234,18 @@ s3_handle_head(ngx_http_request_t *r,
     s3_vfs_ctx(r, fs_path, cf, &vctx);
     if (xrootd_vfs_stat(&vctx, &vst) != NGX_OK) {
         if (errno == ENOENT || errno == ENOTDIR) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-            return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
-                                     "NoSuchKey", "The specified key does not exist.");
+            return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                           "The specified key does not exist.",
+                           XROOTD_S3_EVENT_NO_SUCH_KEY);
         }
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return (ngx_int_t) xrootd_http_errno_to_status(errno);
     }
 
     if (vst.is_directory) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-        return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
-                                 "NoSuchKey", "The specified key does not exist.");
+        return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                       "The specified key does not exist.",
+                       XROOTD_S3_EVENT_NO_SUCH_KEY);
     }
 
     /*
@@ -307,9 +307,9 @@ s3_handle_head(ngx_http_request_t *r,
  * HOW: Mirrors s3_handle_get's opening/fstat path but skips range parsing entirely. Sets status=200, content-length from st_size, last-modified from st_mtime, Content-Type and ETag headers. Sends header only via ngx_http_send_header() + ngx_http_send_special(r, NGX_HTTP_LAST), closes the fd immediately after (no body transfer). Does NOT register pool cleanup since the fd is closed synchronously.
  */
 
-/* -------------------------------------------------------------------------
+/*
  * HEAD /bucket  -> HeadBucket
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * s3_handle_head_bucket — answer a HEAD on the bucket root.
@@ -355,9 +355,9 @@ s3_handle_head_bucket(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     return ngx_http_send_special(r, NGX_HTTP_LAST);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * GET /bucket?location  -> GetBucketLocation
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * s3_handle_get_bucket_location — answer GET /<bucket>?location.
@@ -416,9 +416,9 @@ s3_handle_get_bucket_location(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
         (ngx_str_t) ngx_string("application/xml"), response_buf);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * DELETE /bucket/key
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_int_t
 s3_handle_delete(ngx_http_request_t *r,

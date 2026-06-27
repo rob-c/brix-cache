@@ -28,8 +28,8 @@
 extern void xrootd_ckscan_aio_thread(void *data, ngx_log_t *log);
 extern void xrootd_ckscan_aio_done(ngx_event_t *ev);
 
-/* ---- static helper: ckscan_algorithm_supported() — validates algo against supported set ----
- * WHAT: Parses algo string via xrootd_checksum_parse, returns true only for adler32 or crc32c (xrdadler32 compatibility). Used by select_payload to validate extracted algo prefix. */
+/* ckscan_algorithm_supported — true only for adler32 or crc32c (xrdadler32
+ * compatibility), via xrootd_checksum_parse; gates the extracted algo prefix. */
 
 static ngx_flag_t
 xrootd_ckscan_algorithm_supported(const char *algo)
@@ -46,8 +46,8 @@ xrootd_ckscan_algorithm_supported(const char *algo)
            || alg == XROOTD_CHECKSUM_CRC64NVME;
 }
 
-/* ---- static helper: ckscan_send_error() — error response wrapper ----
- * WHAT: Wraps xrootd_send_error returning NGX_DONE on success (request complete), NGX_ERROR otherwise. Used by select_payload when algo prefix is invalid or unsupported. */
+/* ckscan_send_error — wrap xrootd_send_error, returning NGX_DONE on success
+ * (request complete) else NGX_ERROR; used on an invalid/unsupported algo prefix. */
 
 static ngx_int_t
 xrootd_ckscan_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -59,8 +59,10 @@ xrootd_ckscan_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return (rc == NGX_OK) ? NGX_DONE : rc;
 }
 
-/* ---- static helper: ckscan_select_payload() — parse wire payload for algo + path ----
- * WHAT: Extracts algorithm specifier and scan path from the request payload. Default algo is adler32. Scans payload bytes before first '/' for ':' or ' ' delimiter to detect "algo:path" prefix format. Validates via checksum_parse + algorithm_supported (only adler32/crc32c). Returns NGX_DONE on invalid/unsupported algo, NGX_OK otherwise with extracted path and algo populated. */
+/* ckscan_select_payload — parse the request payload into algo + scan path: bytes
+ * before the first '/' are checked for a ':'/' ' delimiter ("algo:path"), default
+ * adler32, validated by checksum_parse + algorithm_supported. NGX_DONE on an
+ * invalid/unsupported algo, else NGX_OK with path/algo filled. */
 
 static ngx_int_t
 xrootd_ckscan_select_payload(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -105,8 +107,10 @@ xrootd_ckscan_select_payload(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 /* Synchronous fallback (used when thread pool is not configured). */
 
-/* ---- static helper: ckscan_sync() — synchronous event-loop ckscan execution ----
- * WHAT: Mirrors the async thread worker logic on the event loop. Stat's target, opens confined fd for regular files computing single checksum; walks directories recursively with depth/file limits via ckscan_walk. Allocates response buffer with dynamic growth. Sends ok+checksum data or error to client. Used when no thread pool configured or queue is full. */
+/* ckscan_sync — the event-loop fallback (no thread pool, or queue full) mirroring
+ * the async worker: stat the target, checksum a regular file via a confined fd or
+ * walk a directory (ckscan_walk, depth/file limits) into a growable buffer, then
+ * send ok+checksum or error. */
 
 static ngx_int_t
 xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -196,8 +200,10 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return rc;
 }
 
-/* ---- public API: xrootd_query_ckscan() — kXR_Qckscan dispatch entry point ----
- * WHAT: Main dispatch handler for Qckscan requests. Validates payload presence, extracts algo+path via select_payload, resolves path against export root, checks authdb read permission + VO ACL + token scope, then routes to async thread pool (if configured) or synchronous fallback execution. Returns NGX_OK when task posted to thread pool, NGX_DONE/NGX_ERROR for sync completion. */
+/* xrootd_query_ckscan — kXR_Qckscan entry point: parse algo+path (select_payload),
+ * resolve against the export root, check authdb read + VO ACL + token scope, then
+ * route to the async thread pool (NGX_OK posted) or the sync fallback
+ * (NGX_DONE/NGX_ERROR). */
 
 ngx_int_t
 xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,

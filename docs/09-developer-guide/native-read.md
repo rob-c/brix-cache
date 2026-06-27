@@ -139,6 +139,30 @@ This removes a whole userspace copy of the file data on the common native
 cleartext read path. It also keeps memory usage flatter because large reads are
 described as file ranges instead of large allocated buffers.
 
+```text
+  BEFORE: data crosses into userspace and back
+
+     page cache            userspace               socket
+   ┌────────────┐  pread  ┌────────────┐  send   ┌────────────┐
+   │ file bytes │ ──────▶ │ resp buf   │ ──────▶ │  NIC TX    │
+   └────────────┘  copy 1 └────────────┘ copy 2  └────────────┘
+                     (2 copies, large allocation held for the read)
+
+  AFTER (cleartext): kernel sends the file range directly
+
+     page cache                              socket
+   ┌────────────┐         sendfile         ┌────────────┐
+   │ file bytes │ ───────────────────────▶ │  NIC TX    │
+   └────────────┘   header in memory,      └────────────┘
+                    body = file-backed ngx_buf_t (file_pos..file_last)
+                            0 userspace copies of file data
+
+  ── fork by transport ──────────────────────────────────────────
+     root://  (cleartext) ──▶ file-backed chain ──▶ sendfile
+     roots:// (TLS)       ──▶ memory-backed read ──▶ OpenSSL encrypt
+                              (no kernel sendfile for SSL → see caveat)
+```
+
 Expected benefits:
 
 - lower CPU per GiB transferred
@@ -419,6 +443,21 @@ final wire layout:
 
 Each `pread()` or `preadv()` target points directly into the final output slice.
 
+```text
+  ONE workspace, laid out in final wire order:
+
+  ┌──────┬───────────────┬──────┬───────────────┬──────┬─────────┐
+  │ desc │   data slice  │ desc │   data slice  │ desc │  data   │
+  │  0   │   (seg 0)     │  1   │   (seg 1)     │  2   │ (seg 2) │
+  └──────┴───────▲───────┴──────┴───────▲───────┴──────┴────▲────┘
+                 │                      │                   │
+            pread(fd, ─┘           pread(fd, ─┘        pread(fd, ─┘
+            into slice)            into slice)         into slice)
+                 ▲ reads land directly in their final position —
+                 │ no temp buffers, no second packing pass
+   adjacent segments (§9) collapse into a single preadv() over these slices
+```
+
 ### Before
 
 A simpler implementation would read every segment into temporary buffers, then
@@ -536,6 +575,26 @@ The bound is:
 
 ```c
 #define XROOTD_SEND_CHAIN_SPIN_MAX  16
+```
+
+```text
+                 ┌──────────────────────┐
+        ┌───────▶│  send_chain(chain)    │
+        │        └───────────┬──────────┘
+        │                    │
+        │         ┌──────────┴───────────┐
+        │      drained?                stalled (partial)
+        │         │                      │
+        │         ▼            spins < 16 │  ┌── spins == 16 ──┐
+        │   response done      & socket   │  │                 │
+        │   reuse chain        writable   ▼  ▼                 ▼
+        └──── (next req)      └─ retry ─┘  post write event   wait for
+                               immediately  (yield worker)    epoll-out
+                                                  │              │
+                                                  └──────┬───────┘
+                                                         ▼
+                                                  resume later, no
+                                                  monopolizing the worker
 ```
 
 ### Why It Helps

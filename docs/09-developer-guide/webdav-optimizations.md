@@ -63,6 +63,22 @@ resolution and open sequence.
 On a cache hit, the request can use one `fstat()` on an existing fd instead of
 another pathname walk and `open()`.
 
+```text
+  GET /data/a.root  (keepalive, repeated range requests)
+        │
+        ▼  hash(URI) → probe 16-entry per-connection fd cache
+  ┌───────────────┐
+  │  HIT          │  fd + canon + inode/dev already open
+  │  fstat(fd) ───┼────────────────────────▶ serve range  (no open, no walk)
+  └───────────────┘
+  ┌───────────────┐
+  │  MISS         │  open(path) then fstat(fd)   ← §20: never stat()+open()
+  │  insert entry ┼────────────────────────▶ serve + cache for next request
+  └───────────────┘
+        ▲
+        └── invalidated on PUT / DELETE / MKCOL so no stale content survives a write
+```
+
 Expected benefits:
 
 - fewer `open()` and path walk syscalls
@@ -151,6 +167,28 @@ buffers and copies them to the destination with:
 
 - `copy_file_range()` on Linux when available
 - a 1 MiB buffered fallback when the kernel fast path is unavailable
+
+The PUT body classifier (§22 + §23) routes each upload to the cheapest path
+nginx's buffering allows:
+
+```text
+              PUT /data/big.root
+                     │
+        where did nginx put the body?
+        ┌────────────┼─────────────────────────┐
+        ▼            ▼                          ▼
+   spooled temp   fully in memory          empty body
+   file on disk   (small/medium)                │
+        │            │                          ▼
+        ▼            ▼                     create 0-byte file
+  copy_file_range  coalesce once,         (no write loop)
+  (dst ← tmp,      hand blocking
+   kernel-side,    write to thread
+   no userspace    pool — worker
+   bounce)         stays responsive
+        │            │
+        └─ fallback: 1 MiB buffered copy if copy_file_range unavailable
+```
 
 ### Why It Helps
 

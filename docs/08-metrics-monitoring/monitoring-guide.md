@@ -17,7 +17,29 @@ Every request leaves a trace. This section covers every Prometheus metric nginx-
 
 ## Overview
 
-The module provides three ways to observe what is happening: a **Prometheus metrics endpoint**, an **HTTPS monitoring dashboard**, and a **per-request access log**.
+The module provides three ways to observe what is happening: a **Prometheus metrics endpoint**, an **HTTPS monitoring dashboard**, and a **per-request access log**. They answer different questions and live at different cardinalities:
+
+```text
+                       ┌──────────────────────────────────────┐
+   in-flight requests  │            nginx-xrootd               │
+   ───────────────────▶│   SHM counters · live transfer rows   │
+                       └───┬──────────────┬──────────────┬─────┘
+                           │              │              │
+              :9100/metrics│   :8443/xrootd/│     access_log file
+                           ▼              ▼              ▼
+                  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+                  │ PROMETHEUS  │  │ DASHBOARD   │  │ ACCESS LOG  │
+                  │ low-cardin. │  │ live, short │  │ per-request │
+                  │ counters,   │  │ -lived view │  │ full detail │
+                  │ long-term   │  │ of active   │  │ (DN, path,  │
+                  │ trends,     │  │ transfers + │  │ timing,     │
+                  │ alerting    │  │ health      │  │ bytes)      │
+                  └─────────────┘  └─────────────┘  └─────────────┘
+                  "is the fleet    "what is happening "what did THIS
+                   healthy over     right now?"        client/op do?"
+                   time?"
+                  PII-free          admin-only, HTTPS  \xNN-sanitized
+```
 
 ### Prometheus Metrics Endpoint
 

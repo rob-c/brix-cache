@@ -31,8 +31,7 @@ static ngx_uint_t        xrootd_rl_nzones;
     } while (0)
 
 
-/* ---- FNV-1a 32-bit (matches the codebase's kv.c hashing convention) ------ */
-
+/* FNV-1a 32-bit (matches the codebase's kv.c hashing convention) */
 uint32_t
 xrootd_rl_hash(const char *key, size_t len)
 {
@@ -48,8 +47,7 @@ xrootd_rl_hash(const char *key, size_t len)
 }
 
 
-/* ---- rbtree insert (hash key, ties broken by key_str bytes) -------------- */
-
+/* rbtree insert (hash key, ties broken by key_str bytes) */
 /*
  * Custom rbtree insert callback (passed to ngx_rbtree_init).  The tree is
  * ordered by node->key (the 32-bit FNV hash), but distinct principal strings
@@ -92,8 +90,7 @@ xrootd_rl_rbtree_insert_value(ngx_rbtree_node_t *temp,
 }
 
 
-/* ---- zone init callback -------------------------------------------------- */
-
+/* zone init callback */
 /*
  * nginx shared-memory init callback, invoked once per worker generation after
  * the slab is mapped.  Handles three entry paths, in priority order:
@@ -152,8 +149,7 @@ xrootd_rl_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 }
 
 
-/* ---- public: declare / resolve a zone ------------------------------------ */
-
+/* public: declare / resolve a zone */
 ngx_int_t
 xrootd_rl_zone_add(ngx_conf_t *cf, ngx_str_t *name, size_t size,
     xrootd_rl_zone_t **out)
@@ -233,8 +229,7 @@ xrootd_rl_zones_all(xrootd_rl_zone_t **out, ngx_uint_t max)
 }
 
 
-/* ---- node lookup / allocate (caller holds shpool->mutex) ----------------- */
-
+/* node lookup / allocate (caller holds shpool->mutex) */
 /* Find the node for key_str, or NULL.  Refreshes its LRU position. */
 xrootd_rl_node_t *
 xrootd_rl_lookup_locked(xrootd_rl_zone_t *zone, uint32_t hash,

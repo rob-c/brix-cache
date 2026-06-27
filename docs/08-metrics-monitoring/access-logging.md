@@ -22,6 +22,20 @@ One line is written per XRootD operation. The file is opened `O_APPEND` and is s
 
 Before any client-controlled text is written, the logger escapes whitespace, control bytes, quotes, backslashes, and non-ASCII bytes as `\xNN`. This keeps every record single-line and prevents log injection.
 
+Anatomy of one line (a GSI read):
+
+```text
+ 192.168.1.1  gsi  "/DC=test/CN=Test\x20User"  [14/Apr/2026:10:23:45 +0000]  "READ /store/mc/data.root 0+4194304"  OK  4194304  18ms
+ └────┬────┘  └┬┘  └──────────┬─────────────┘  └────────────┬────────────┘  └──────────────┬──────────────────┘  └┬┘  └───┬───┘  └─┬┘
+    ip       auth          identity                     timestamp              verb · path · detail            status  bytes   ms
+                          (DN, \xNN-escaped)                              READ detail = offset+length         OK/ERR  data    server-side
+                                                                                                                       moved   time
+
+   client-controlled fields (identity, path, detail, errmsg) are ALWAYS \xNN-escaped → no log injection, always one line
+   ERR lines append a trailing  "<errmsg>"   ·   bytes = file data only (0 for metadata ops)
+```
+
+
 | Field | Meaning |
 |---|---|
 | `ip` | Client IP address |
@@ -78,6 +92,12 @@ Before any client-controlled text is written, the logger escapes whitespace, con
 127.0.0.1 anon "-" [14/Apr/2026:10:23:46 +0000] "CLOSE /data/upload/file.root 718.20MB/s" OK 52428800 0ms
 127.0.0.1 anon "-" [14/Apr/2026:10:23:46 +0000] "DISCONNECT - rx=689.85MB/s tx=0.00MB/s" OK 52428800 76ms
 ```
+
+The `WRITE` lines name the destination path, but the bytes land in a **staging
+partial** file; the `CLOSE` line is where the server commits it with an atomic
+`rename(2)` onto that path (see [Writing files → Atomic uploads](../05-operations/write.md#atomic-uploads-stage-then-move)).
+A session that never reaches `CLOSE` leaves the partial behind for resume — the
+destination path is never created half-written.
 
 ### GSI read with failed stat:
 ```

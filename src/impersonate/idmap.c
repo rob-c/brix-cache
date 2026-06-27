@@ -26,9 +26,6 @@
 #include <stdlib.h>
 #include <time.h>
 
-/* ------------------------------------------------------------------ */
-/* Module state (per worker / per broker process)                      */
-/* ------------------------------------------------------------------ */
 
 #define IDMAP_CACHE_SLOTS  256
 #define IDMAP_PRINC_MAX    512          /* a GSI DN can be long */
@@ -66,9 +63,6 @@ static int                     idmap_forbidden_uids_n;
 static gid_t                   idmap_forbidden_gids[IDMAP_FORBID_MAX];
 static int                     idmap_forbidden_gids_n;
 
-/* ------------------------------------------------------------------ */
-/* Grid-mapfile                                                        */
-/* ------------------------------------------------------------------ */
 
 /* Free any previously-loaded grid-mapfile table. */
 static void
@@ -205,9 +199,6 @@ idmap_gridmap_lookup(const char *dn)
     return NULL;
 }
 
-/* ------------------------------------------------------------------ */
-/* NSS resolution                                                      */
-/* ------------------------------------------------------------------ */
 
 /* True if gid is reserved (0 / below the effective floor) or on the forbidden
  * privileged-group list.  Used to scan the FULL group set on overflow. */
@@ -347,9 +338,6 @@ xrootd_imp_creds_privileged(const xrootd_idmap_creds_t *cr, uid_t floor,
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* Deny-lists (forbidden target users + privileged groups)             */
-/* ------------------------------------------------------------------ */
 
 /* Append uid to the forbidden-uid set (dedup, bounded). */
 static void
@@ -473,9 +461,6 @@ idmap_creds_allowed(const xrootd_idmap_creds_t *cr)
         && !idmap_creds_have_forbidden_group(cr);
 }
 
-/* ------------------------------------------------------------------ */
-/* Cache                                                               */
-/* ------------------------------------------------------------------ */
 
 static ngx_uint_t
 idmap_hash(const char *s)
@@ -488,9 +473,6 @@ idmap_hash(const char *s)
     return h & (IDMAP_CACHE_SLOTS - 1);
 }
 
-/* ------------------------------------------------------------------ */
-/* Public API                                                          */
-/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_idmap_init(const xrootd_idmap_conf_t *conf, ngx_log_t *log)

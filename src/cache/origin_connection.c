@@ -10,36 +10,11 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-/* ---- xrootd_cache_origin_close — teardown origin TCP/TLS connection ----
- *
- * WHAT: Releases all resources held by an origin connection struct. Frees SSL/SSL_CTX,
- *       closes the socket fd, and nullifies all pointers to prevent use-after-free.
- *
- * WHY: Called on every error path after a failed fetch attempt. Must be symmetric with
- *      origin_connect — every allocated resource must be freed regardless of success/failure.
- *      Order matters: SSL shutdown before free, SSL_CTX before fd close, fd last to avoid
- *      dangling references in the SSL layer. */
+/* xrootd_cache_origin_close — free everything an origin connection holds (SSL,
+ * SSL_CTX, socket fd) and NULL the pointers; symmetric with origin_connect and
+ * called on every error path. Order matters: SSL shutdown before free, SSL_CTX
+ * before the fd close, fd last, so the SSL layer never dangles. */
 
-/* ---- xrootd_cache_origin_connect_addr — DNS resolve + connect + TLS handshake ----
- *
- * WHAT: Resolves host/port via getaddrinfo, iterates addrinfo results trying each socket,
- *       connects with non-blocking poll timeout (avoids ~2min TCP retransmit stall), sets
- *       SO_RCVTIMEO/SO_SNDTIMEO, then optionally performs TLS handshake with CA verification.
- *
- * WHY: Cache fill runs in a thread-pool worker that blocks. Unlike the event-loop main
- *      thread which uses epoll, this function must handle connect completion via poll().
- *      The poll timeout (XROOTD_CACHE_IO_TIMEOUT) prevents unreachable peers from holding
- *      the thread indefinitely. SO_RCVTIMEO/SO_SNDTIMEO bound all subsequent read/write.
- *      TLS is optional — if cache_origin_tls is set, creates SSL_CTX with CA verification,
- *      allocates SSL object, sets SNI hostname, and performs SSL_connect(). */
-
-/* ---- xrootd_cache_origin_connect — thin wrapper for origin connect ----
- *
- * WHAT: Convenience function that calls origin_connect_addr using the configured origin
- *       host/port from conf. Returns 0 on success (connected + TLS if configured), -1 on error.
- *
- * WHY: Separates address resolution/connect logic from fill_t configuration access so that
- *      callers without a full xrootd_cache_fill_t can connect to arbitrary hosts/ports. */
 void
 xrootd_cache_origin_close(xrootd_cache_origin_conn_t *oc)
 {
@@ -60,6 +35,11 @@ xrootd_cache_origin_close(xrootd_cache_origin_conn_t *oc)
     }
 }
 
+/* xrootd_cache_origin_connect_addr — getaddrinfo, try each result with a
+ * non-blocking poll-timeout connect (avoids the ~2min TCP retransmit stall), set
+ * SO_RCVTIMEO/SO_SNDTIMEO, then optional TLS (SSL_CTX with CA verification, SNI,
+ * SSL_connect). Runs in a blocking fill thread-pool worker, so it uses poll() rather
+ * than the event loop; XROOTD_CACHE_IO_TIMEOUT bounds an unreachable peer. */
 int
 xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t portnum)
@@ -152,7 +132,27 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
             return -1;
         }
 
-        (void) SSL_set_tlsext_host_name(oc->ssl, (char *) host->data);
+        /*
+         * Verify the presented cert is actually FOR this host: SSL_VERIFY_PEER
+         * (set above) only checks the chain, not the name, so without this an
+         * on-path attacker with ANY CA-valid cert could impersonate the origin.
+         * SSL_set1_host folds the name check into the handshake verification.
+         */
+        {
+            char   vhost[256];
+            size_t hl = host->len < sizeof(vhost) - 1
+                        ? host->len : sizeof(vhost) - 1;
+
+            ngx_memcpy(vhost, host->data, hl);
+            vhost[hl] = '\0';
+            SSL_set_hostflags(oc->ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+            if (SSL_set1_host(oc->ssl, vhost) != 1) {
+                xrootd_cache_set_error(t, kXR_ServerError, 0,
+                                       "cache origin TLS host-verify setup failed");
+                return -1;
+            }
+            (void) SSL_set_tlsext_host_name(oc->ssl, vhost);
+        }
         SSL_set_fd(oc->ssl, oc->fd);
 
         if (SSL_connect(oc->ssl) != 1) {
@@ -165,6 +165,8 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* xrootd_cache_origin_connect — thin wrapper: connect_addr using the configured
+ * cache_origin host/port. 0 on success (with TLS if configured), -1 on error. */
 int
 xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc)

@@ -24,4 +24,8 @@
 ngx_int_t dashboard_json_send(ngx_http_request_t *r, ngx_int_t status,
     json_t *root);
 
+/* Tag a dashboard JSON object with the API schema version ("schema" field).
+ * No-op on NULL root.  Centralises the version string used by every endpoint. */
+void dashboard_json_set_schema(json_t *root);
+
 #endif /* XROOTD_DASHBOARD_DASHBOARD_JSON_H */

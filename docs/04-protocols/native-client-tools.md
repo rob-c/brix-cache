@@ -5,6 +5,29 @@ nginx module. These tools are built on the project's own protocol vocabulary and
 client library, not on upstream `libXrdCl`, `libXrdSec*`, `XrdFfs`, or
 `XrdPosix`.
 
+```text
+   CLI tools            FUSE / POSIX            ← user-facing
+   xrdcp xrdfs xrddiag  xrootdfs (async+legacy)
+   xrdgsiproxy …        libxrdposix_preload.so
+        └─────────┬───────────┘
+                  ▼
+        ┌───────────────────────┐   clean-room C API (client/lib/xrdc.h)
+        │      libxrdc           │   connect · auth · I/O · TPC · checksums
+        │  auth: unix·ztn·sss·   │   resilience · IPv6→v4 downgrade · pools
+        │        gsi·(krb5)      │
+        └──────────┬────────────┘
+                   ▼
+        ┌───────────────────────┐   shared protocol vocabulary
+        │  libxrdproto           │   wire structs · framing · helpers
+        │  (shared with the      │   (compiled -DXRDPROTO_NO_NGX for client)
+        │   nginx module)        │
+        └──────────┬────────────┘
+                   ▼
+            system OpenSSL · zlib · optional krb5 / libfuse3
+                   ✗ NOT linked: libXrdCl / libXrdSec* / XrdFfs / XrdPosix
+                     (asserted by ldd — one auditable stack, no upstream runtime)
+```
+
 This page is source-verified against:
 
 - `client/Makefile`

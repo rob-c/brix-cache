@@ -499,8 +499,7 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
 }
 
 
-/* ---- public API: xrootd_export_pmark_metrics() ----
- *
+/* public API: xrootd_export_pmark_metrics()
  * Phase 34 SciTags packet-marking aggregate counters.  All low-cardinality
  * scalars (no per-flow/exp/VO labels — INVARIANT #8); always exported. */
 void
@@ -529,8 +528,7 @@ xrootd_export_pmark_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
         &shm->pmark_map_unresolved_total);
 }
 
-/* ---- public API: xrootd_export_resilience_metrics() ----
- *
+/* public API: xrootd_export_resilience_metrics()
  * Phase 51 cross-protocol resilience counters.  All low-cardinality scalars
  * (no per-host/path/identity labels — INVARIANT #8); always exported. */
 void

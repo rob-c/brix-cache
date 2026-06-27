@@ -216,6 +216,30 @@ worker init ──► ngx_xrootd_cms_start()           (arm 1 s initial-delay ti
 Any I/O error or timeout → `ngx_xrootd_cms_disconnect()` → exponential backoff
 retry (`6 s → … → 60 s`, capped, in `ngx_xrootd_cms_schedule_retry()`).
 
+#### Fast cold-start settling (mesh formation)
+
+When a whole cluster boots together — most acutely with several roles on **one host**
+— a node's first connect frequently races ahead of its manager's listen socket and is
+refused. To keep that from costing the multi-second backoff per node (which compounds
+per tier in a meta→sub-manager→leaf mesh), `ngx_xrootd_cms_schedule_retry()` runs a
+**fast-retry regime while a node has never yet logged in**: it retries the connect on a
+short fixed interval for a bounded window, then falls back to exponential backoff. A
+loopback manager (`127.0.0.0/8` / `::1`) gets the most aggressive profile, so same-host
+meshes register within tens of milliseconds of the manager appearing instead of
+seconds. Each node logs its settle time once:
+
+```
+xrootd: CMS registered with 127.0.0.1:2131 after 0 ms (1 connect attempt(s), loopback)
+```
+
+Defaults (tunable via `xrootd_cms_initial_delay` / `xrootd_cms_connect_retry`):
+loopback = 0 ms initial delay, 10 ms retry, 2 s window; remote = 10 ms / 75 ms / 3 s.
+The fast-retry is gated on *pre-first-login* and a *bounded window* and the interval is
+floored at 10 ms, so it can never become a busy-spin; a reconnect **after** a node has
+registered (a real outage) always uses the normal backoff. See
+[`docs/09-developer-guide/lifecycle-startup-shutdown-performance.md`](../09-developer-guide/lifecycle-startup-shutdown-performance.md)
+for the measurement approach this shares.
+
 ### 5.1 `kYR_login` payload (the handshake)
 
 Built in `ngx_xrootd_cms_send_login()` (`src/cms/send.c`) in exact
@@ -506,6 +530,8 @@ See [docs/refactor/phase-50-cms-protocol-hardening.md](../refactor/phase-50-cms-
 |---|---|---|---|
 | `xrootd_cms_read_timeout time` | stream server (client) | `max(3×interval, 90s)` | reconnect if the manager goes silent this long (detects black-holed/half-open managers) |
 | `xrootd_cms_send_timeout time` | stream server (client) | 10s | connect + first-write readiness window for the manager socket |
+| `xrootd_cms_initial_delay time` | stream server (client) | 0 (loopback) / 10ms | delay before the **first** connect attempt at worker start (see fast cold-start settling below) |
+| `xrootd_cms_connect_retry time` | stream server (client) | 10ms (loopback) / 75ms | retry interval while the manager is not yet listening, during the cold-start fast-retry window |
 | `xrootd_cms_tcp_keepalive on\|off` | stream server (client) | on | `SO_KEEPALIVE` + tight probes on the manager socket |
 | `xrootd_cms_tcp_user_timeout time` | stream server (client) | = read timeout | `TCP_USER_TIMEOUT` kernel backstop on the manager socket |
 | `xrootd_cms_server_login_timeout time` | stream server (manager) | 10s | close a peer that never completes LOGIN (+sss xauth) — anti-slowloris |

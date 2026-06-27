@@ -30,6 +30,30 @@ timer). Think of it as writing handlers for a single-threaded async framework
 - **Memory is arena-allocated per request/connection** (see §4). There is no
   RAII; lifetimes are tied to nginx pools, which are freed wholesale.
 
+```text
+  ONE worker process = ONE thread = ONE epoll loop, driving MANY connections
+  ───────────────────────────────────────────────────────────────────────────
+        ┌──────────────── nginx event loop (owns main/epoll) ───────────────┐
+        │   epoll_wait() ──▶ readable? timer? ──▶ invoke OUR callback        │
+        └───────┬─────────────────────────────────────────────▲─────────────┘
+                │ calls                                        │ returns
+                ▼                                              │
+        xrootd handler(ctx, c)   ◀── ctx = get_module_ctx() = our `this`
+                │
+        ┌───────┼───────────────────────────────────────────┐
+        ▼       ▼                       ▼                     ▼
+     NGX_OK   NGX_AGAIN            NGX_DONE              blocking I/O?
+     done,    "consumed what's     reply already        ngx_thread_pool_run()
+     reply    available — call     sent, stop           → runs on a POOL thread,
+     sent     me again later"                             loop stays free
+                │  ↑                                       │
+                └──┘ hand-rolled coroutine suspend/resume  └─▶ completion callback
+                     (returns to loop, no thread blocked)      posted back to loop
+
+   ✗ NEVER block here (sleep / blocking read / long CPU) — it freezes EVERY
+     connection pinned to this worker. That is the whole game.
+```
+
 Entry points to start reading (full map in [AGENTS.md / CLAUDE.md OP→FILE table]):
 | Protocol | Entry |
 |---|---|

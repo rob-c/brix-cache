@@ -1,5 +1,4 @@
-/* ---- File: events.c — Upstream connection non-blocking read/write event handlers and wait retry timer ----
- *
+/* File: events.c — Upstream connection non-blocking read/write event handlers and wait retry timer
  * WHAT: Three nginx event-loop callbacks managing outbound upstream redirector connection lifecycle. xrootd_upstream_wait_timer_handler(ev) is the kXR_wait expiry timer callback — checks ctx validity/cleaned flag, logs info-level "upstream kXR_wait expired; retrying", calls xrootd_upstream_send_request() to resend saved client request, aborts on failure. xrootd_upstream_write_handler(wev) handles non-blocking upstream write: checks ctx validity, aborts on timeout ("connect/write timeout"), if state=XRD_UP_CONNECTING performs SO_ERROR getsockopt check (abort on TCP connect failure, otherwise transitions to XRD_UP_BOOTSTRAP with bs_phase=BS_HANDSHAKE and resets response accumulator), if wbuf_pos < wbuf_len calls xrootd_upstream_flush() for partial write drain (abort on error), after flush completes arms read event via ngx_handle_read_event(uconn->read, 0). xrootd_upstream_read_handler(rev) implements response accumulation loop: checks ctx validity/timeout, accumulates XRD_RESPONSE_HDR_LEN bytes parsing ServerResponseHdr to extract resp_status/resps_dlen (abort on NGX_AGAIN with re-arm, abort on n<=0), allocates resp_body from uconn->pool for dlen>0 bytes with size cap MAX_PATH+256 (abort on oversized or pool failure), accumulates body bytes until full (NGX_AGAIN re-arms read event, n<=0 closes connection), dispatches based on state: XRD_UP_BOOTSTRAP→handle_bootstrap_response(), XRD_UP_REQUEST/XRD_UP_ASYNC→forward_response(), default abort ("unexpected state"). All handlers clean up via xrootd_upstream_cleanup() when ctx destroyed. */
 
 /*
@@ -152,8 +151,7 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
     }
 
     for (;;) {
-        /* --- Stage 1: accumulate the fixed-length response header --- */
-        if (up->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
+        /* Stage 1: accumulate the fixed-length response header */        if (up->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
             size_t need = XRD_RESPONSE_HDR_LEN - up->rhdr_pos;
 
             n = uconn->recv(uconn, up->rhdr + up->rhdr_pos, need);
@@ -206,8 +204,7 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
             }
         }
 
-        /* --- Stage 2: accumulate the variable-length body (skipped when dlen==0) --- */
-        if (up->resp_body_pos < up->resp_dlen) {
+        /* Stage 2: accumulate the variable-length body (skipped when dlen==0) */        if (up->resp_body_pos < up->resp_dlen) {
             size_t need = up->resp_dlen - up->resp_body_pos;
 
             n = uconn->recv(uconn, up->resp_body + up->resp_body_pos, need);
@@ -231,8 +228,7 @@ xrootd_upstream_read_handler(ngx_event_t *rev)
             }
         }
 
-        /* --- Dispatch: a full header+body is now buffered --- */
-
+        /* Dispatch: a full header+body is now buffered */
         /* Bootstrap replies (handshake/protocol/TLS/login) drive the login FSM, which
          * advances bs_phase and, when DONE, replays the saved client request. */
         if (up->state == XRD_UP_BOOTSTRAP) {

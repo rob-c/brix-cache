@@ -285,7 +285,6 @@ xrootd_xml_name_is(const char *name, const char *want)
     return name != NULL && strcmp(name, want) == 0;
 }
 
-
 /* find_child: first DIRECT element child of node whose local name matches
  * (one level only — namespace prefix is ignored, libxml strips it from name). */
 static xmlNodePtr
@@ -360,8 +359,6 @@ xrootd_xml_copy_content(xmlNodePtr node, char *dst, size_t dst_len)
     dst[len] = '\0';
     xmlFree(content);
 }
-
-
 
 /*
  * xrootd_xml_parse_lockinfo - extract owner + scope from a WebDAV LOCK body.

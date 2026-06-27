@@ -4,6 +4,25 @@
 
 HTTP-TPC lets a third party — like WLCG FTS — instruct this server to pull or push data directly without routing it through the client. Here's how it works and how to configure it.
 
+Which header the `COPY` carries decides the direction — and which way the bytes
+flow relative to *this* server:
+
+```text
+  PULL  (COPY carries  Source:)            PUSH  (COPY carries  Destination:)
+  ──────────────────────────────          ────────────────────────────────────
+   client ─COPY Source: REMOTE─▶ THIS      client ─COPY Destination: REMOTE─▶ THIS
+                                 │                                           │
+                THIS curl GET ◀──┘                          THIS curl PUT ───┘
+                  from REMOTE                                  to REMOTE
+                     ▼                                            ▲
+   THIS ◀═══ bytes ═══ REMOTE  (download)   THIS ═══ bytes ═══▶ REMOTE  (upload)
+                     │                                            │
+   written to a temp file, then renamed     reads local file, --upload-file PUT
+   atomically into place on curl success    using xrootd_webdav_tpc_cert/key
+```
+
+
+
 With `xrootd_webdav_tpc on`, this module also supports "push mode" where the server receiving the `COPY` request reads a local file and pushes it to a remote HTTPS destination:
 
 ```bash

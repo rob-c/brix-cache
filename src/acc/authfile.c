@@ -26,9 +26,6 @@
 
 #define XROOTD_ACC_AUTHDB_MAX  (1024 * 1024)
 
-/* ------------------------------------------------------------------ */
-/* Tokenizer — words + logical-record boundaries                       */
-/* ------------------------------------------------------------------ */
 
 typedef struct {
     u_char      *p;
@@ -106,9 +103,6 @@ acc_tok_next(acc_tok_t *t, char **word)
     return (*word == NULL) ? ACC_TOK_EOF : ACC_TOK_WORD;
 }
 
-/* ------------------------------------------------------------------ */
-/* Legacy encoding tunables (spacechar / encoding pct path)            */
-/* ------------------------------------------------------------------ */
 
 /*
  * acc_subspace — in-place replace every `sc` with a real space in an identity
@@ -159,9 +153,6 @@ acc_uri_decode(ngx_pool_t *pool, const char *s)
     return out;
 }
 
-/* ------------------------------------------------------------------ */
-/* Small builders                                                      */
-/* ------------------------------------------------------------------ */
 
 static xrootd_acc_named_t *
 acc_named_prepend(ngx_pool_t *pool, xrootd_acc_named_t **head,
@@ -286,9 +277,6 @@ acc_build_caps(ngx_pool_t *pool, xrootd_acc_tables_t *tabs,
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Record dispatch                                                     */
-/* ------------------------------------------------------------------ */
 
 static int
 acc_selector_ok(char c)
@@ -473,9 +461,6 @@ acc_record_named(xrootd_acc_tables_t *tabs, char rtype, char **w, ngx_uint_t n,
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Post-parse: split id defs into exclusive (ordered) + inclusive      */
-/* ------------------------------------------------------------------ */
 
 static void
 acc_finalize_rules(xrootd_acc_tables_t *tabs, ngx_log_t *log)
@@ -511,9 +496,6 @@ acc_finalize_rules(xrootd_acc_tables_t *tabs, ngx_log_t *log)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Entry point                                                         */
-/* ------------------------------------------------------------------ */
 
 static ngx_int_t
 acc_dispatch_record(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,

@@ -108,17 +108,7 @@ load_proxy_pem(const char *path, size_t *outlen)
     return buf;
 }
 
-/* ---- module callbacks ---- */
-
-/*
- * Per-connection GSI handshake state retained between gsi_first and gsi_more.
- * The CLI client runs one connection at a time, so a file-static is sufficient
- * (and avoids touching the xrdc_conn ABI); a multiplexing client would move this
- * into the connection object.
- */
-static uint8_t g_client_rtag[8];   /* our round-1 random tag (server signs it) */
-static int     g_have_rtag;
-
+/* module callbacks */
 static int
 gsi_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
           xrdc_status *st)
@@ -128,6 +118,12 @@ gsi_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     char     ca[256]    = { 0 };
     uint8_t *buf;
     size_t   buflen = 0;
+    /* Round-1 random tag (the server signs it). Its lifetime is entirely within
+     * this call — it is folded into the certreq below and never read again in
+     * gsi_more — so it MUST be a stack local: the async manager (xrootdfs) opens
+     * several connections in parallel, and a file-static would let one thread's
+     * tag clobber another's mid-handshake, corrupting the certreq. */
+    uint8_t  client_rtag[8];
 
     (void) c;
 
@@ -154,15 +150,14 @@ gsi_first(xrdc_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
         version = vov != NULL ? (uint32_t) strtoul(vov, NULL, 10) : 10600;
     }
 
-    if (!xrootd_gsi_rand(g_client_rtag, sizeof(g_client_rtag))) {
+    if (!xrootd_gsi_rand(client_rtag, sizeof(client_rtag))) {
         xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: RNG failed");
         return -1;
     }
-    g_have_rtag = 1;
 
     /* clnt_opts 0x80 matches a stock client's default (delegated-proxy off). */
     buf = xrootd_gsi_build_certreq(crypto, version, ca, 0x80u,
-                                   g_client_rtag, sizeof(g_client_rtag), &buflen);
+                                   client_rtag, sizeof(client_rtag), &buflen);
     if (buf == NULL) {
         xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: cannot build certreq");
         return -1;

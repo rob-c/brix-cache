@@ -405,6 +405,13 @@ typedef struct {
     int                   token_scope_count;  /* valid entries in token_scopes[] */
     xrootd_token_scope_t  token_scopes[XROOTD_MAX_TOKEN_SCOPES];
 
+    /* phase-59 W3a: XrdThrottle per-user accounting state for this connection.
+     * throttle_open_held = open-file increments this conn holds (so disconnect
+     * decrements exactly that many); throttle_conn_counted = this conn has been
+     * counted toward the per-user active-connection total. */
+    ngx_uint_t            throttle_open_held;
+    unsigned              throttle_conn_counted:1;
+
     /* Per-request start time for latency logging */
     ngx_msec_t  req_start;
 

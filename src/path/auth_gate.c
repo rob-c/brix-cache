@@ -228,8 +228,7 @@ xrootd_auth_gate_op(xrootd_ctx_t *ctx, ngx_connection_t *c,
     xrootd_acc_op_t  key_aop  = is_xrdacc ? aop : XROOTD_AOP_ANY;
     const char      *key_host = is_xrdacc ? ctx->peer_ip : "";
 
-    /* ---- auth-result cache: fast path (E2: lockless L1, then SHM L2) ---- */
-    if (conf->auth_cache.kv != NULL) {
+    /* auth-result cache: fast path (E2: lockless L1, then SHM L2) */    if (conf->auth_cache.kv != NULL) {
         ac_have_key = xrootd_auth_gate_cache_key(ac_key, auth_level,
                                                  need_write, key_aop, key_host,
                                                  reqpath, resolved, ctx);

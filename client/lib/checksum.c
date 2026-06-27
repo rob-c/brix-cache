@@ -129,7 +129,10 @@ xrdc_query_cksum(xrdc_conn *c, const char *path, const char *algo_name,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_query);
-    req.infotype  = htons(kXR_Qcksum);
+    {
+        xrdw_query_req_t b = { .infotype = kXR_Qcksum };
+        xrdw_query_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     /* fhandle stays zero: this is a path-based (not open-handle) query. */
 
     /* Read-only/idempotent: a re-query after a sever yields the same digest. */

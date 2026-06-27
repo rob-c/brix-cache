@@ -7,8 +7,7 @@
 #include <time.h>
 #include <unistd.h>
 
-/* ---- xrootd_cache_try_lock — attempt exclusive lock on cache fill path ----
- *
+/* xrootd_cache_try_lock — attempt exclusive lock on cache fill path
  * WHAT: Creates a lock file (O_CREAT|O_EXCL) at t->lock_path to claim ownership of cache fill. Writes PID into the file for identification. Returns 1 if locked, 0 if another process holds it (EEXIST), -1 on any other error (including write failure or unlink cleanup). This is an atomic filesystem lock — no fcntl(2). */
 
 /* WHY: Atomic filesystem locking via O_CREAT|O_EXCL avoids the complexity of
@@ -57,8 +56,7 @@ xrootd_cache_try_lock(xrootd_cache_fill_t *t)
     return 1;
 }
 
-/* ---- xrootd_cache_wait_or_lock — poll until cache file exists or claim fill ownership ----
- *
+/* xrootd_cache_wait_or_lock — poll until cache file exists or claim fill ownership
  * WHAT: Two-phase polling loop that either waits for the cache file to appear (another process already filling it) or claims ownership via lock. Phase 1: checks file_ready() — if file exists, returns 0 without locking. Phase 2: tries atomic lock — if locked, sets *owned=1 and fills. Polls at XROOTD_CACHE_LOCK_POLL_USEC intervals until cache_lock_timeout expires (returns kXR_FileLocked). */
 
 /* WHY: Two-phase polling prevents race conditions between concurrent workers attempting

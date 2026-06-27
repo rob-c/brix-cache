@@ -41,8 +41,7 @@
 #define S3_TAG_MAX      4096   /* AWS: <=10 tags, key<=128, value<=256 */
 #define S3_TAG_XML_MAX  8192
 
-/* ---- xattr-backed tag store --------------------------------------------- */
-
+/* xattr-backed tag store */
 /*
  * s3_tag_vfs_ctx — build a transient VFS request descriptor for the (already
  * resolved, confined) object path.  Replicates the reference helper in object.c
@@ -131,8 +130,7 @@ s3_tag_store(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
            ? NGX_OK : NGX_ERROR;
 }
 
-/* ---- validation --------------------------------------------------------- */
-
+/* validation */
 /* A tag blob is "k=v&k=v..."; reject control bytes (defends the GET XML emit and
  * keeps the stored form a clean query string). */
 static int
@@ -151,8 +149,7 @@ s3_tag_blob_valid(const char *s, size_t len)
     return 1;
 }
 
-/* ---- GET /<key>?tagging -------------------------------------------------- */
-
+/* GET /<key>?tagging */
 ngx_int_t
 s3_handle_get_object_tagging(ngx_http_request_t *r, const char *fs_path,
     ngx_http_s3_loc_conf_t *cf)
@@ -167,9 +164,9 @@ s3_handle_get_object_tagging(ngx_http_request_t *r, const char *fs_path,
 
     blen = s3_tag_load(r, cf, fs_path, blob, sizeof(blob));
     if (blen < 0) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-        return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
-                                 "The specified key does not exist.");
+        return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                       "The specified key does not exist.",
+                       XROOTD_S3_EVENT_NO_SUCH_KEY);
     }
 
     xml = ngx_palloc(r->pool, xml_capacity);
@@ -227,16 +224,15 @@ s3_handle_get_object_tagging(ngx_http_request_t *r, const char *fs_path,
         (ngx_str_t) ngx_string("application/xml"), buf);
 }
 
-/* ---- DELETE /<key>?tagging ---------------------------------------------- */
-
+/* DELETE /<key>?tagging */
 ngx_int_t
 s3_handle_delete_object_tagging(ngx_http_request_t *r, const char *fs_path,
     ngx_http_s3_loc_conf_t *cf)
 {
     if (s3_tag_store(r, cf, fs_path, NULL, 0, 1 /* remove */) != NGX_OK) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-        return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
-                                 "The specified key does not exist.");
+        return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                       "The specified key does not exist.",
+                       XROOTD_S3_EVENT_NO_SUCH_KEY);
     }
     r->headers_out.status           = NGX_HTTP_NO_CONTENT;
     r->headers_out.content_length_n = 0;
@@ -244,8 +240,7 @@ s3_handle_delete_object_tagging(ngx_http_request_t *r, const char *fs_path,
     return ngx_http_send_special(r, NGX_HTTP_LAST);
 }
 
-/* ---- x-amz-tagging header (on PutObject) --------------------------------- */
-
+/* x-amz-tagging header (on PutObject) */
 ngx_int_t
 s3_apply_put_tagging_header(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon)
@@ -267,8 +262,7 @@ s3_apply_put_tagging_header(ngx_http_request_t *r, const char *fs_path,
                         h->value.len, 0);
 }
 
-/* ---- PUT /<key>?tagging (XML body) -------------------------------------- */
-
+/* PUT /<key>?tagging (XML body) */
 /*
  * Parse <Tagging><TagSet><Tag><Key>k</Key><Value>v</Value></Tag>...> into the
  * stored "k=v&k=v" form (URL-encoded), via libxml2 with the same hardened
@@ -400,8 +394,7 @@ s3_put_object_tagging_body_handler(ngx_http_request_t *r)
     ngx_http_finalize_request(r, ngx_http_send_special(r, NGX_HTTP_LAST));
 }
 
-/* ---- canned subresources ------------------------------------------------ */
-
+/* canned subresources */
 static ngx_int_t
 s3_send_xml_literal(ngx_http_request_t *r, const char *xml)
 {

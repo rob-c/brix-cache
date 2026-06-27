@@ -166,8 +166,7 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
      * return NGX_ERROR;" and no partial document can be serialised. */
     json_object_set_new(root, "storageservice", svc);
 
-    /* ---- storageservice identity ---- */
-    if (lcf->name.len) {
+    /* storageservice identity */    if (lcf->name.len) {
         json_object_set_new(svc, "name", SRR_JSTR(lcf->name));
     }
     if (lcf->id.len) {
@@ -183,8 +182,7 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
         lcf->quality.len ? SRR_JSTR(lcf->quality) : json_string("production"));
     json_object_set_new(svc, "latestupdate", json_integer((json_int_t) now));
 
-    /* ---- storageshares[] (attached empty, then populated) ---- */
-    shares = json_array();
+    /* storageshares[] (attached empty, then populated) */    shares = json_array();
     if (shares == NULL) {
         json_decref(root);
         return NGX_ERROR;
@@ -263,8 +261,7 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
         }
     }
 
-    /* ---- storagecapacity.online (site-wide sum of the shares) ---- */
-    cap    = json_object();
+    /* storagecapacity.online (site-wide sum of the shares) */    cap    = json_object();
     online = json_object();
     if (cap == NULL || online == NULL) {
         if (cap)    { json_decref(cap); }      /* disjoint: not yet attached */
@@ -277,8 +274,7 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
     json_object_set_new(cap, "online", online);
     json_object_set_new(svc, "storagecapacity", cap);
 
-    /* ---- storageendpoints[] (attached empty, then populated) ---- */
-    eps = json_array();
+    /* storageendpoints[] (attached empty, then populated) */    eps = json_array();
     if (eps == NULL) {
         json_decref(root);
         return NGX_ERROR;
@@ -313,8 +309,7 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
         }
     }
 
-    /* ---- serialise into the request pool (two-pass, dashboard idiom) ---- */
-    needed = json_dumpb(root, NULL, 0, JSON_INDENT(2));
+    /* serialise into the request pool (two-pass, dashboard idiom) */    needed = json_dumpb(root, NULL, 0, JSON_INDENT(2));
     if (needed == 0) {
         json_decref(root);
         return NGX_ERROR;

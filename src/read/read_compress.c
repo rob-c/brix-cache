@@ -1,6 +1,3 @@
-/* ------------------------------------------------------------------ */
-/* Inline read compression — kXR_read codec path (phase-42 W4)         */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: xrootd_read_compressed() serves a kXR_read for a handle that was opened
  *       with the opaque "?xrootd.compress=<codec>" while the server has

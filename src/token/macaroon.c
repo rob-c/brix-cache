@@ -24,6 +24,7 @@
 
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <openssl/crypto.h>   /* CRYPTO_memcmp — constant-time MAC compare */
 #include <string.h>
 #include <time.h>
 
@@ -111,8 +112,7 @@ xrootd_macaroon_secret_parse(const char *hex, size_t hex_len,
     return (ssize_t) (hex_len / 2);
 }
 
-/* ---- Discharge Macaroon support (Feature 8b) ---- */
-
+/* Discharge Macaroon support (Feature 8b) */
 /* Max number of discharge Macaroons accepted in a single bundle */
 #define XROOTD_MACAROON_MAX_DISCHARGES   8
 /* Max third-party caveats tracked in one Macaroon (cid+vid pairs) */
@@ -495,7 +495,10 @@ macaroon_parse_core(ngx_log_t *log,
 
         } else if (dlen >= 10 && memcmp(data, "signature ", 10) == 0) {
             const u_char *provided_sig = data + 10;
-            if (dlen < 10 + 32 || memcmp(sig, provided_sig, 32) != 0) {
+            /* Constant-time MAC compare: a timing-variable memcmp here is a
+             * byte-by-byte forgery oracle on a bearer token's signature. */
+            if (dlen < 10 + 32
+                || CRYPTO_memcmp(sig, provided_sig, 32) != 0) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
                               "xrootd_macaroon: signature mismatch");
                 return -1;

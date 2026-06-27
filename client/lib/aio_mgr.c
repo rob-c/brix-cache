@@ -37,26 +37,101 @@
 #include <arpa/inet.h>
 #include <endian.h>
 
-/* ------------------------------------------------------------------- mgr ----- */
-
+/* mgr */
 struct xrdc_mgr {
     xrdc_loop   *loop;
-    int          n;
+    int          n;        /* total stream slots */
     xrdc_conn   *conns;    /* array[n], owned */
-    xrdc_aconn **acs;      /* array[n] */
+    xrdc_aconn **acs;      /* array[n]; acs[i]==NULL ⇒ slot i not yet connected */
     int          rr;       /* round-robin cursor */
     int          max_stall_ms;
+    int          keepalive_ms;
     int          max_retries;
+    /* Retained so lazily-opened streams (eager < n) can connect on first use. */
+    xrdc_url        url;
+    xrdc_opts       opts;
+    int             have_opts;   /* opts captured (vs caller passed NULL) */
+    pthread_mutex_t lazy_lock;   /* serialises first-use connect of a lazy slot */
 };
 
+/* One parallel-connect job: a worker thread runs xrdc_connect on its own slot so
+ * the eager streams' connect+TLS+login+auth round-trips overlap (mount-time wall
+ * collapses from eager×RTT to ~1×RTT). Threads are joined before mgr_create
+ * returns, so they never cross a later fuse daemonize fork. */
+typedef struct {
+    const xrdc_url  *u;
+    const xrdc_opts *o;
+    xrdc_conn       *conn;   /* slot to fill */
+    xrdc_status      st;     /* per-thread status (no shared writes) */
+    int              rc;     /* 0 ok, -1 fail */
+} mgr_connect_job;
+
+static void *
+mgr_connect_worker(void *arg)
+{
+    mgr_connect_job *j = (mgr_connect_job *) arg;
+    j->rc = xrdc_connect(j->conn, j->u, j->o, &j->st);
+    return NULL;
+}
+
+/* Run `count` connect jobs concurrently and wait for all to finish. A thread that
+ * fails to spawn runs its job inline (degrades to serial for that one), so the
+ * caller always sees every job's rc/st populated on return. */
+static void
+mgr_connect_parallel(mgr_connect_job *jobs, int count)
+{
+    pthread_t *tids = (pthread_t *) calloc((size_t) count, sizeof(*tids));
+    int        i;
+
+    for (i = 0; i < count; i++) {
+        if (tids == NULL
+            || pthread_create(&tids[i], NULL, mgr_connect_worker, &jobs[i]) != 0) {
+            if (tids != NULL) { tids[i] = (pthread_t) 0; }
+            mgr_connect_worker(&jobs[i]);   /* inline fallback */
+        }
+    }
+    if (tids != NULL) {
+        for (i = 0; i < count; i++) {
+            if (tids[i] != (pthread_t) 0) { pthread_join(tids[i], NULL); }
+        }
+        free(tids);
+    }
+}
+
+/* Tear down a partially-built manager (used on any create-time failure). */
+static void
+mgr_free(xrdc_mgr *m)
+{
+    int i;
+    for (i = 0; i < m->n; i++) {
+        if (m->acs[i] != NULL) { xrdc_aconn_close(m->acs[i]); }
+    }
+    if (m->loop != NULL) { xrdc_loop_destroy(m->loop); }
+    for (i = 0; i < m->n; i++) {
+        if (m->acs[i] != NULL) { xrdc_close(&m->conns[i]); }
+    }
+    pthread_mutex_destroy(&m->lazy_lock);
+    free(m->conns);
+    free(m->acs);
+    free(m);
+}
+
 xrdc_mgr *
-xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns,
+xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns, int eager,
                 int max_stall_ms, int keepalive_ms, int max_retries,
                 xrdc_status *st)
 {
+    mgr_connect_job *jobs;
+    int              i;
+
     if (nconns < 1) {
         nconns = 1;
     }
+    /* At least one stream connects up front so a bad endpoint / auth fails the
+     * mount immediately; the remainder may be eager or lazy per the caller. */
+    if (eager < 1)      { eager = 1; }
+    if (eager > nconns) { eager = nconns; }
+
     xrdc_mgr *m = (xrdc_mgr *) calloc(1, sizeof(*m));
     if (m == NULL) {
         xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr)");
@@ -71,49 +146,57 @@ xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns,
         xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr arrays)");
         return NULL;
     }
+    m->n            = nconns;
     m->max_stall_ms = max_stall_ms;
+    m->keepalive_ms = keepalive_ms;
     m->max_retries  = max_retries;
+    m->url          = *u;
+    if (o != NULL) { m->opts = *o; m->have_opts = 1; }
+    pthread_mutex_init(&m->lazy_lock, NULL);
 
     m->loop = xrdc_loop_create(st);
     if (m->loop == NULL) {
-        free(m->conns);
-        free(m->acs);
-        free(m);
+        mgr_free(m);
         return NULL;
     }
 
-    for (int i = 0; i < nconns; i++) {
-        if (xrdc_connect(&m->conns[i], u, o, st) != 0) {
-            /* tear down what we built */
-            for (int j = 0; j < i; j++) {
-                xrdc_aconn_close(m->acs[j]);
+    /* Connect the eager streams concurrently, then attach them to the loop
+     * serially (attach touches the shared loop and is not the slow part). */
+    jobs = (mgr_connect_job *) calloc((size_t) eager, sizeof(*jobs));
+    if (jobs == NULL) {
+        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr jobs)");
+        mgr_free(m);
+        return NULL;
+    }
+    for (i = 0; i < eager; i++) {
+        jobs[i].u = &m->url; jobs[i].o = m->have_opts ? &m->opts : NULL;
+        jobs[i].conn = &m->conns[i]; jobs[i].rc = -1;
+    }
+    mgr_connect_parallel(jobs, eager);
+
+    for (i = 0; i < eager; i++) {
+        if (jobs[i].rc != 0) {
+            *st = jobs[i].st;                 /* surface the first real failure */
+            for (int k = 0; k < eager; k++) { /* close any that DID connect */
+                if (k != i && jobs[k].rc == 0) { xrdc_close(&m->conns[k]); }
             }
-            xrdc_loop_destroy(m->loop);
-            for (int j = 0; j < i; j++) {
-                xrdc_close(&m->conns[j]);
-            }
-            free(m->conns);
-            free(m->acs);
-            free(m);
+            free(jobs);
+            mgr_free(m);                       /* acs all NULL ⇒ frees loop+arrays */
             return NULL;
         }
+    }
+    free(jobs);
+
+    for (i = 0; i < eager; i++) {
         m->acs[i] = xrdc_aconn_attach(m->loop, &m->conns[i], st);
         if (m->acs[i] == NULL) {
-            xrdc_close(&m->conns[i]);
-            for (int j = 0; j < i; j++) {
-                xrdc_aconn_close(m->acs[j]);
-            }
-            xrdc_loop_destroy(m->loop);
-            for (int j = 0; j < i; j++) {
-                xrdc_close(&m->conns[j]);
-            }
-            free(m->conns);
-            free(m->acs);
-            free(m);
+            xrdc_close(&m->conns[i]);          /* this one attached failed */
+            for (int k = i + 1; k < eager; k++) { xrdc_close(&m->conns[k]); }
+            mgr_free(m);
             return NULL;
         }
-        xrdc_aconn_set_resilience(m->acs[i], max_stall_ms, keepalive_ms, max_retries);
-        m->n = i + 1;
+        xrdc_aconn_set_resilience(m->acs[i], max_stall_ms, keepalive_ms,
+                                  max_retries);
     }
     return m;
 }
@@ -124,26 +207,66 @@ xrdc_mgr_destroy(xrdc_mgr *m)
     if (m == NULL) {
         return;
     }
-    for (int i = 0; i < m->n; i++) {
-        xrdc_aconn_close(m->acs[i]);
+    mgr_free(m);
+}
+
+/* Bring a lazily-deferred slot up on first use: connect + attach + arm
+ * resilience under lazy_lock (double-checked so concurrent pickers connect it
+ * at most once). On failure the slot stays NULL and the caller falls back to an
+ * already-live stream — eager ≥ 1 guarantees one exists. */
+static xrdc_aconn *
+mgr_ensure_slot(xrdc_mgr *m, int i)
+{
+    xrdc_aconn *ac = __atomic_load_n(&m->acs[i], __ATOMIC_ACQUIRE);
+    xrdc_status st;
+
+    if (ac != NULL) {
+        return ac;
     }
-    xrdc_loop_destroy(m->loop);
-    for (int i = 0; i < m->n; i++) {
-        xrdc_close(&m->conns[i]);
+    pthread_mutex_lock(&m->lazy_lock);
+    ac = m->acs[i];                            /* re-check under the lock */
+    if (ac == NULL) {
+        if (xrdc_connect(&m->conns[i], &m->url,
+                         m->have_opts ? &m->opts : NULL, &st) == 0) {
+            ac = xrdc_aconn_attach(m->loop, &m->conns[i], &st);
+            if (ac != NULL) {
+                xrdc_aconn_set_resilience(ac, m->max_stall_ms, m->keepalive_ms,
+                                          m->max_retries);
+                __atomic_store_n(&m->acs[i], ac, __ATOMIC_RELEASE);
+            } else {
+                xrdc_close(&m->conns[i]);
+            }
+        }
     }
-    free(m->conns);
-    free(m->acs);
-    free(m);
+    pthread_mutex_unlock(&m->lazy_lock);
+    return ac;
 }
 
 xrdc_aconn *
 xrdc_mgr_pick(xrdc_mgr *m)
 {
-    int i = __atomic_fetch_add(&m->rr, 1, __ATOMIC_RELAXED);
+    int         i = __atomic_fetch_add(&m->rr, 1, __ATOMIC_RELAXED);
+    xrdc_aconn *ac;
+    int         k;
+
     if (i < 0) {
         i = -i;
     }
-    return m->acs[i % m->n];
+    i %= m->n;
+
+    ac = mgr_ensure_slot(m, i);
+    if (ac != NULL) {
+        return ac;
+    }
+    /* Lazy connect of slot i failed (server hiccup): fall back to any live
+     * stream rather than returning NULL — at least the eager slot(s) are up. */
+    for (k = 0; k < m->n; k++) {
+        ac = __atomic_load_n(&m->acs[k], __ATOMIC_ACQUIRE);
+        if (ac != NULL) {
+            return ac;
+        }
+    }
+    return NULL;
 }
 
 int
@@ -156,8 +279,7 @@ xrdc_mgr_call(xrdc_mgr *m, const void *hdr24, const void *payload,
     return xrdc_aio_call_ex(ac, hdr24, payload, plen, &o, kxr, body, blen, st);
 }
 
-/* ----------------------------------------------------------------- mfile ----- */
-
+/* mfile */
 struct xrdc_mfile {
     xrdc_aconn     *ac;
     char            path[XRDC_PATH_MAX];
@@ -228,8 +350,11 @@ mfile_do_open(xrdc_mfile *mf, int force, xrdc_status *st)
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_open);
-    req.mode      = mf->writable ? htons(0644) : 0;
-    req.options   = htons(options);
+    {
+        xrdw_open_req_t b = { .mode = (uint16_t) (mf->writable ? 0644 : 0),
+                              .options = options, .optiont = 0 };
+        xrdw_open_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     xrdc_aio_opts o = { mf->max_stall_ms, mf->max_retries, 1 /*open is idempotent*/ };
     int rc = xrdc_aio_call_ex(mf->ac, &req, payload, (uint32_t) plen, &o,
@@ -393,10 +518,11 @@ xrdc_mfile_pread(xrdc_mfile *mf, int64_t off, void *buf, size_t len,
         ClientReadRequest req;
         memset(&req, 0, sizeof(req));
         req.requestid = htons(kXR_read);
-        memcpy(req.fhandle, fh, XRD_FHANDLE_LEN);
-        uint64_t off_be = htobe64((uint64_t) off);
-        memcpy(&req.offset, &off_be, 8);
-        req.rlen = (kXR_int32) htonl((uint32_t) len);
+        {
+            xrdw_read_req_t b = { .offset = off, .rlen = (int32_t) len };
+            memcpy(b.fhandle, fh, XRD_FHANDLE_LEN);
+            xrdw_read_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+        }
 
         uint16_t kxr = 0;
         uint8_t *body = NULL;
@@ -468,9 +594,11 @@ xrdc_mfile_pwrite(xrdc_mfile *mf, int64_t off, const void *buf, size_t len,
         ClientWriteRequest req;
         memset(&req, 0, sizeof(req));
         req.requestid = htons(kXR_write);
-        memcpy(req.fhandle, fh, XRD_FHANDLE_LEN);
-        uint64_t off_be = htobe64((uint64_t) off);
-        memcpy(&req.offset, &off_be, 8);
+        {
+            xrdw_write_req_t b = { .offset = off, .pathid = 0 };
+            memcpy(b.fhandle, fh, XRD_FHANDLE_LEN);
+            xrdw_write_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+        }
 
         uint16_t kxr = 0;
         xrdc_aio_opts o = { mf->max_stall_ms, 0, 0 };
@@ -502,7 +630,11 @@ xrdc_mfile_sync(xrdc_mfile *mf, xrdc_status *st)
     ClientSyncRequest req;
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_sync);
-    memcpy(req.fhandle, fh, XRD_FHANDLE_LEN);
+    {
+        xrdw_sync_req_t b;
+        memcpy(b.fhandle, fh, XRD_FHANDLE_LEN);
+        xrdw_sync_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     uint16_t kxr = 0;
     /* A sync after a reopen is meaningless (fresh handle), but re-issuing is
      * harmless; do not loop — a failed sync is reported, not retried forever. */
@@ -518,7 +650,11 @@ xrdc_mfile_close(xrdc_mfile *mf, xrdc_status *st)
         ClientCloseRequest req;
         memset(&req, 0, sizeof(req));
         req.requestid = htons(kXR_close);
-        memcpy(req.fhandle, mf->fhandle, XRD_FHANDLE_LEN);
+        {
+            xrdw_close_req_t b;
+            memcpy(b.fhandle, mf->fhandle, XRD_FHANDLE_LEN);
+            xrdw_close_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+        }
         uint16_t kxr = 0;
         /* Best-effort: if the conn is down the server reaps the handle on
          * disconnect anyway, so a close failure is not fatal. */

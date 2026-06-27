@@ -99,8 +99,7 @@ static void xrootd_hc_timeout_handler(ngx_event_t *ev);
 static void xrootd_hc_finish(xrootd_hc_ctx_t *hc, int passed);
 
 
-/* ---- write side ---------------------------------------------------------- */
-
+/* write side */
 /*
  * Drain hc->wbuf to the socket without blocking.  Returns NGX_OK once the whole
  * buffer is sent (and read events re-armed so the reply can arrive), NGX_AGAIN
@@ -229,8 +228,7 @@ xrootd_hc_write_handler(ngx_event_t *wev)
 }
 
 
-/* ---- read side ----------------------------------------------------------- */
-
+/* read side */
 /* Accumulate one full ServerResponseHdr + body frame; return NGX_OK when a
  * complete frame is ready, NGX_AGAIN to wait for more, NGX_ERROR on close. */
 static ngx_int_t
@@ -394,8 +392,7 @@ xrootd_hc_read_handler(ngx_event_t *rev)
 }
 
 
-/* ---- lifecycle ----------------------------------------------------------- */
-
+/* lifecycle */
 /* Whole-probe deadline fired (hc_timeout_ms): a server that accepted the TCP
  * connection but never finished answering is failed. */
 static void

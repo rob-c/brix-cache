@@ -1,4 +1,4 @@
-/* ---- Function: fattr_del() — delete extended attributes from file ----
+/*
  *
  * WHAT: Iterates over requested attribute names and deletes each one using POSIX removexattr (path-based) or fremovexattr (open-file-handle). Records individual success/failure for every attribute deletion, then sends a vector status response summarizing how many deletions succeeded versus failed. Supports both operations modes: when path is provided uses removexattr on the filesystem; when fd is provided uses fremovexattr on the open file handle.
  *

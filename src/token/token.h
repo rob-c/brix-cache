@@ -100,9 +100,25 @@ void xrootd_jwks_free(xrootd_jwks_key_t *keys, int count);
 ngx_int_t xrootd_jwks_register_cleanup(ngx_pool_t *pool,
                                        xrootd_jwks_key_t *keys, int *count);
 
+/* Operation class for registry authorization — selects the scope/path
+ * direction the strategy ladder enforces. */
+typedef enum {
+    XROOTD_TOKEN_OP_READ  = 0,
+    XROOTD_TOKEN_OP_WRITE = 1,
+    XROOTD_TOKEN_OP_OTHER = 2
+} xrootd_token_op_e;
+
 /* ------------------------------------------------------------------ */
 /* Token validation                                                     */
 /* ------------------------------------------------------------------ */
+
+/*
+ * Extract the "iss" claim WITHOUT verifying the signature, used only to select
+ * which registry issuer's keys to verify against (the value is re-read from the
+ * verified claims afterwards).  Returns 0 + out on success, -1 otherwise.
+ */
+int xrootd_token_peek_iss(const char *token, size_t token_len,
+                          char *out, size_t outsz);
 
 /*
  * Validate a JWT bearer token.
@@ -131,6 +147,16 @@ int xrootd_token_validate(ngx_log_t *log,
  */
 int xrootd_token_parse_scopes(const char *scope_str,
                               xrootd_token_scope_t *scopes, int max_scopes);
+
+/*
+ * Boundary-checked prefix match: does `scope_path` cover `request_path`?
+ * "/" matches everything; a trailing "/" is ignored; "/data" does NOT match
+ * "/database" (the next char must be '/' or NUL).  Exposed so the SciTokens
+ * issuer registry reuses the exact same logic for base_path/restricted_path
+ * scoping (phase-59 W1).  Returns 1 if covered, 0 otherwise.
+ */
+int xrootd_token_scope_path_matches(const char *scope_path,
+                                    const char *request_path);
 
 /*
  * Check if scopes authorise read access to `path`.

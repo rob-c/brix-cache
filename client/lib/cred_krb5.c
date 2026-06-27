@@ -40,8 +40,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* ---- ccache resolution -------------------------------------------------- */
-
+/* ccache resolution */
 /*
  * open_ccache — open the ccache selected by cfg->ccache > $KRB5CCNAME >
  * krb5_cc_default and write it into *cc.
@@ -66,8 +65,7 @@ open_ccache(krb5_context ctx, const xrdc_cred_config *cfg, krb5_ccache *cc)
     return krb5_cc_default(ctx, cc) == 0 ? 0 : -1;
 }
 
-/* ---- ccache name formatting --------------------------------------------- */
-
+/* ccache name formatting */
 /*
  * format_ccache_name — write the canonical "TYPE:name" ccache name into out[outsz].
  *
@@ -92,8 +90,7 @@ format_ccache_name(krb5_context ctx, krb5_ccache cc, char *out, size_t outsz)
     }
 }
 
-/* ---- TGT endtime extraction --------------------------------------------- */
-
+/* TGT endtime extraction */
 /*
  * extract_tgt_endtime — scan the ccache for the krbtgt/... credential and return
  * its endtime, or 0 if not found / unreadable.
@@ -133,8 +130,7 @@ extract_tgt_endtime(krb5_context ctx, krb5_ccache cc)
     return endtime;
 }
 
-/* ---- handler callbacks -------------------------------------------------- */
-
+/* handler callbacks */
 /*
  * krb5_available — 1 if the resolved ccache has a usable client principal.
  *
@@ -233,8 +229,7 @@ krb5_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
     return 0;
 }
 
-/* ---- handler accessor --------------------------------------------------- */
-
+/* handler accessor */
 static const xrdc_cred_handler s_krb5_handler = {
     .kind      = XRDC_CRED_KRB5,
     .available = krb5_available,

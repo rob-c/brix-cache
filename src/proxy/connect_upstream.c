@@ -24,8 +24,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 
-/* ---- bootstrap frame builder -------------------------------------------- */
-
+/* bootstrap frame builder */
 /*
  * Monotonically increasing counter mixed into the upstream login PID.
  * xrootd treats repeated logins from the same PID as session reconnects and
@@ -64,42 +63,43 @@ xrootd_proxy_build_bootstrap(u_char *buf, const char *username)
     /* kXR_protocol */
     {
         ClientProtocolRequest *r = (ClientProtocolRequest *)(void *) cursor;
+        xrdw_protocol_req_t    b = { .clientpv = kXR_PROTOCOLVERSION,
+                                     .expect = 0x03 };
         ngx_memzero(r, sizeof(*r));
         r->streamid[0] = 0; r->streamid[1] = 1;
         r->requestid    = htons(kXR_protocol);
-        r->clientpv     = htonl(kXR_PROTOCOLVERSION);
-        r->expect       = 0x03;
+        xrdw_protocol_req_pack(&b, ((ClientRequestHdr *) (void *) cursor)->body);
         cursor += sizeof(*r);
     }
 
     /* kXR_login */
     {
         ClientLoginRequest *r = (ClientLoginRequest *)(void *) cursor;
+        xrdw_login_req_t     b = { .capver = kXR_ver005 };
+        ngx_atomic_uint_t    seq = ngx_atomic_fetch_add(&proxy_upstream_seq, 1);
+
+        b.pid = (int32_t) ((ngx_pid << 16) ^ (seq & 0xFFFF));
+        if (username != NULL && username[0] != '\0') {
+            size_t ulen = ngx_strlen(username);
+            if (ulen > sizeof(b.username)) {
+                ulen = sizeof(b.username);
+            }
+            ngx_memcpy(b.username, username, ulen);
+        } else {
+            b.username[0] = 'x';
+            b.username[1] = 'r';
+            b.username[2] = 'd';
+        }
+
         ngx_memzero(r, sizeof(*r));
         r->streamid[0] = 0; r->streamid[1] = 1;
         r->requestid    = htons(kXR_login);
-        {
-            ngx_atomic_uint_t seq = ngx_atomic_fetch_add(&proxy_upstream_seq, 1);
-            r->pid = htonl((kXR_int32)((ngx_pid << 16) ^ (seq & 0xFFFF)));
-        }
-        if (username != NULL && username[0] != '\0') {
-            size_t ulen = ngx_strlen(username);
-            if (ulen > sizeof(r->username)) {
-                ulen = sizeof(r->username);
-            }
-            ngx_memcpy(r->username, username, ulen);
-        } else {
-            r->username[0] = 'x';
-            r->username[1] = 'r';
-            r->username[2] = 'd';
-        }
-        r->capver       = kXR_ver005;
+        xrdw_login_req_pack(&b, ((ClientRequestHdr *) (void *) cursor)->body);
         cursor += sizeof(*r);
     }
 
     return (size_t)(cursor - buf);
 }
-/* ---- Function: xrootd_proxy_build_bootstrap() ---- */
 /*
  * WHAT: Assembles a 68-byte bootstrap buffer containing three XRootD wire
  *       requests — client hello, kXR_protocol negotiation, and kXR_login.
@@ -114,8 +114,7 @@ xrootd_proxy_build_bootstrap(u_char *buf, const char *username)
  *      followed by field assignment. Username defaults to "xrd" when NULL.
  */
 
-/* ---- TLS handshake callback ----------------------------------------------- */
-
+/* TLS handshake callback */
 #if (NGX_SSL)
 void
 xrootd_proxy_tls_handshake_done(ngx_connection_t *uconn)
@@ -164,7 +163,6 @@ xrootd_proxy_tls_handshake_done(ngx_connection_t *uconn)
         xrootd_proxy_abort(proxy, "proxy: read arm after TLS failed");
     }
 }
-/* ---- Function: xrootd_proxy_tls_handshake_done() ---- */
 /*
  * WHAT: nginx SSL callback invoked after upstream TLS handshake completes.
  *       Restores normal read/write handlers, transitions state to BOOTSTRAP,
@@ -183,8 +181,7 @@ xrootd_proxy_tls_handshake_done(ngx_connection_t *uconn)
 
 #endif /* NGX_SSL */
 
-/* ---- public: connect and start bootstrap ---------------------------------- */
-
+/* public: connect and start bootstrap */
 ngx_int_t
 xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
                      ngx_connection_t   *client_conn,
@@ -434,7 +431,6 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
                    use_host->data, (int) use_port);
     return NGX_OK;
 }
-/* ---- Function: xrootd_proxy_connect() ---- */
 /*
  * WHAT: Selects an upstream endpoint, resolves DNS, creates a non-blocking
  *       socket, connects asynchronously, optionally performs TLS, builds the

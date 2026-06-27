@@ -101,7 +101,13 @@ LIB_SRCS   := lib/sock.c lib/netpref.c lib/nettmo.c lib/url.c lib/status.c lib/t
               lib/cli_cksum.c lib/cks_verify.c lib/cli_opts.c lib/cli_conn.c lib/cli_cred.c lib/resilient.c lib/posix_map.c lib/iobuf.c lib/fuse_ops.c \
               lib/path.c lib/units.c lib/uring.c lib/vfs.c lib/vfs_posix.c lib/vfs_block.c lib/vfs_s3.c \
               lib/sec/sec_token.c lib/sec/sec_unix.c lib/sec/sec_gsi.c lib/sec/sec_sss.c \
-              lib/sec/sec_krb5.c lib/sec/sec_host.c lib/sec/sec_pwd.c
+              lib/sec/sec_krb5.c lib/sec/sec_host.c lib/sec/sec_pwd.c \
+              lib/aio_buffers.c lib/aio_io.c lib/aio_engine.c lib/aio_conn.c \
+              lib/http_req.c lib/http_download.c lib/http_upload.c \
+              lib/ops_file_rw.c lib/ops_file_pg.c lib/zip_write.c \
+              lib/copy_pump.c lib/copy_local.c lib/copy_remote.c lib/copy_recursive.c \
+              lib/copy_zip.c lib/copy_block.c \
+              lib/vfs_s3_mpu.c lib/vfs_s3_io.c lib/vfs_s3_http.c lib/webfile_io.c
 LIB_OBJS   := $(LIB_SRCS:.c=.o)
 
 # §14.1: the connection/session layer is the public libxrdc — a clean-room,
@@ -188,6 +194,29 @@ $(BINDIR)/%: apps/%.o $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/$*.o $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
 
+# Phase-38 split front-ends: a per-binary rule (overriding the generic one above)
+# that also links the extracted apps/*.o siblings.  See
+# docs/refactor/phase-38-file-size-unix-modularity.md §7.4.
+XRDCP_SPLIT := apps/xrdcp_transfer.o apps/xrdcp_recursive.o
+$(BINDIR)/xrdcp: apps/xrdcp.o $(XRDCP_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrdcp.o $(XRDCP_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	@echo " + built $@ (split)"
+
+XRD_SPLIT := apps/xrd_battery.o apps/xrd_doctor.o apps/xrd_clockskew.o apps/xrd_mount.o
+$(BINDIR)/xrd: apps/xrd.o $(XRD_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrd.o $(XRD_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	@echo " + built $@ (split)"
+
+XRDFS_SPLIT := apps/xrdfs_data.o apps/xrdfs_walk.o apps/xrdfs_fmt.o apps/xrdfs_meta.o apps/xrdfs_web.o
+$(BINDIR)/xrdfs: apps/xrdfs.o $(XRDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrdfs.o $(XRDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	@echo " + built $@ (split)"
+
+XRDDIAG_SPLIT := apps/diag_check.o apps/diag_bench.o apps/diag_watch.o apps/diag_topology.o apps/diag_compare.o apps/diag_doctor.o apps/diag_misc.o
+$(BINDIR)/xrddiag: apps/xrddiag.o $(XRDDIAG_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrddiag.o $(XRDDIAG_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	@echo " + built $@ (split)"
+
 # §14.4 unified xrootdfs (FUSE) — ONE binary linking the front-end
 # (xrootdfs_main.c) + both drivers: xrootdfs.c (async default) and
 # xrootdfs_legacy.c (synchronous, via --legacy). The two driver TUs share no
@@ -198,8 +227,12 @@ apps/xrootdfs_legacy.o: apps/xrootdfs_legacy.c apps/xrootdfs_drivers.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
 apps/xrootdfs_main.o: apps/xrootdfs_main.c apps/xrootdfs_drivers.h | proto
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
-$(BINDIR)/xrootdfs: apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
+# Phase-38 split of the async driver: the siblings also need the fuse3 headers.
+XROOTDFS_SPLIT := apps/xrootdfs_meta.o apps/xrootdfs_io.o apps/xrootdfs_xattr.o
+$(XROOTDFS_SPLIT): apps/%.o: apps/%.c apps/xrootdfs_internal.h | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
+$(BINDIR)/xrootdfs: apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
 	@echo " + built $@ (libfuse3; unified async+legacy; no libXrdCl/libXrdSec*)"
 
 # A5 VFS S3 backend smoke test — exercises the xrdc_vfs S3 backend directly.
@@ -289,12 +322,17 @@ libxrdc.pc:
 # includes. libxrdproto.a ships alongside for static consumers.
 install: lib
 	install -d $(DESTDIR)$(LIBDIR) $(DESTDIR)$(PKGCONFDIR) \
-	           $(DESTDIR)$(INCLUDEDIR)/xrdc $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol
+	           $(DESTDIR)$(INCLUDEDIR)/xrdc $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol \
+	           $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol/codec
 	install -m644 $(CLIENT_LIB) $(PROTO_LIB) $(DESTDIR)$(LIBDIR)/
 	install -m755 $(LIBXRDC_REAL) $(DESTDIR)$(LIBDIR)/
 	cp -P $(LIBXRDC_SONAME) $(LIBXRDC_SO) $(DESTDIR)$(LIBDIR)/
-	install -m644 lib/xrdc.h $(DESTDIR)$(INCLUDEDIR)/xrdc/
+	# xrdc.h is an umbrella that includes the split xrdc_net/auth/ops headers.
+	install -m644 lib/xrdc.h lib/xrdc_net.h lib/xrdc_auth.h lib/xrdc_ops.h \
+	              $(DESTDIR)$(INCLUDEDIR)/xrdc/
 	install -m644 $(SRC)/protocol/*.h $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol/
+	# protocol.h pulls in codec/wire_codec.h — ship the codec subdir too.
+	install -m644 $(SRC)/protocol/codec/*.h $(DESTDIR)$(INCLUDEDIR)/xrdc/xrdproto/protocol/codec/
 	install -m644 libxrdc.pc $(DESTDIR)$(PKGCONFDIR)/
 
 # Install the CLI binaries + the xrootdfs man page (build them first).

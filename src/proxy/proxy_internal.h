@@ -194,6 +194,10 @@ struct xrootd_proxy_ctx_s {
     /* zero-copy splice state (kXR_read / kXR_pgread without TLS) */
     int    splice_pipe[2];       /* kernel pipe fds; [-1,-1] when not open */
     int    splice_active;        /* 1 while splicing a response body */
+    int    splice_fallback;      /* 1 = under-draining splice handed the REMAINDER
+                                  *     of this body to the buffered recv relay; the
+                                  *     8-byte header + splice_downstream bytes were
+                                  *     already sent, so the remainder is relayed RAW */
     size_t splice_total;         /* body bytes to transfer this response */
     size_t splice_upstream;      /* bytes moved: upstream_fd → pipe[1]  */
     size_t splice_downstream;    /* bytes moved: pipe[0]   → client_fd  */
@@ -302,6 +306,11 @@ void      xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy);
  * eligible (TLS on either side, wrong opcode/status, zero dlen, or pipe2 failure) so the
  * caller falls back to the buffered path. */
 ngx_int_t xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy);
+/* Finish a splice→buffered fallback: the read handler has accumulated the remaining
+ * body bytes (after an under-draining splice) into resp_body; relay them RAW to the
+ * client (the header is already on the wire) and run the normal post-transfer
+ * finish.  Called from the read handler when proxy->splice_fallback is set. */
+void      xrootd_proxy_splice_fallback_finish(xrootd_proxy_ctx_t *proxy);
 
 /* forward.c */
 /* Build the upstream request from the client's current frame (ctx->hdr_buf + payload),

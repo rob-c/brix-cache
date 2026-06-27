@@ -1,7 +1,43 @@
 # Phase 59 — SciTokens breadth, CSI page-checksum tagstore, Throttle/Bwm parity (hyper-detailed design record)
 
-**Status:** plan / spec — not started
+**Status:** plan / spec — **implementation in progress** (see §0.IMPL)
 **Date:** 2026-06-26
+
+### §0.IMPL — implementation status (live)
+
+Branch `phase-59-w1-scitokens-registry`. **Full configured build is green under
+`-Werror`** (`./configure` + `make`, all symbols linked into `objs/nginx`).
+Verified end-to-end via `nginx -t`: the registry **loads 2 issuers** from the
+stock `scitokens.cfg` and every new directive parses ("syntax is ok"). Two
+standalone unit suites pass: `ini_unittest` (14/14, parses the real fixture) and
+`csi_unittest` (11/11, CRC roundtrip + corruption detection + short-last-page;
+caught a real leading-slash confinement bug).
+
+| PR | Scope | State |
+|---|---|---|
+| **PR-1 W1a** | multi-issuer registry + per-path scoping | ✅ **COMPLETE + verified.** `ini.{c,h}`, `issuer_registry.{c,h}`, exposed `xrootd_token_scope_path_matches`, `validate_registry`/`_authn`/`peek_iss`, op enum. Config field + `xrootd_token_config`/`xrootd_webdav_token_config` directives, merge, postconfig registry build + JWKS cleanup (stream `token/config.c` + webdav `webdav/config.c`). Wired into **both** transports: webdav (`auth_token.c`, combined authN+authZ at request time, cache-bypassed) and stream (`gsi/token.c` authN + per-path base_path/strategy gate stored on the identity, `types/identity.{c,h}`). |
+| **PR-2 W1b** | subject/group mapping + strategies | ✅ **COMPLETE (authz core).** `subject_map.{c,h}` (mapfile lookup); `group` + `mapping` strategies in `xrootd_token_authz_strategy`. (Separate `monitor.c` Prometheus module deferred — access log already carries identity.) |
+| **PR-3 W2a** | CSI page-checksum tagstore | ✅ **COMPLETE — engine + full data plane, functionally verified end-to-end.** `fs/backend/csi_tagstore.{c,h}` + `csi_verify.{c,h}` (unit-tested 11/11), `CAP_FSCS`, directives/fields/merge. **Handle lifecycle:** `open_resolved_file.c` opens/attaches the tagstore (creates the prefix tree via `xrootd_mkdir_beneath`; require-on read of an untagged file refused with `kXR_ChkSumErr`), `fd_table.c` closes+frees it. **Data plane wired on ALL stream read/write paths** via `xrootd_vfs_job_t.csi`: warm-cache fast path, sync inline, AND AIO thread-pool (`reads.c`/`write.c`/`common.c`) read-verify + write/pgwrite tag-update; aligned writes tag every touched page incl. the trailing partial; **sendfile is disabled for CSI handles (ADR-6)** so cleartext reads verify. **Live e2e (native `xrdcp` vs a running server):** write creates the tag file (correct size), clean read matches, a corrupted on-disk page makes the read fail (`rc=54`) instead of serving corruption — verified at 20 KB and 100 KB. ⏳ **Staged:** the pgwrite `store_pgcrc` zero-recompute optimization (currently recomputes — correct, just not the fast path); HTTP/S3 sendfile reads do not verify by design (ADR-6). |
+| **PR-4 W2b** | hole/require/loose options + scrub | ✅ **Options wired** (`csi_fill`/`csi_require`/`csi_loose` honored: fill flag in the header, require refuses untagged reads at open, strict/loose drives the RMW path). ⏳ **Staged:** the paced background scrub timer. |
+| **PR-5 W3a** | throttle exact contract | ✅ **Per-user open-files cap COMPLETE + verified; IO-load/userconfig engine built.** `ratelimit/throttle_compat.{c,h}` (IO-load metric, open-file counters, userconfig matcher; node fields `io_time_us`/`io_window`/`open_files`). **Open-files cap wired end-to-end:** directives `xrootd_throttle_zone`/`xrootd_throttle_max_open_files`/`_max_active_connections` (`stream/module.c`), zone resolution + validation in `merge_srv_conf` (undeclared zone ⇒ `nginx -t` error), per-connection accounting (`ctx.throttle_open_held`), `open_inc` at `open_resolved_file.c` (over-cap ⇒ `kXR_Overloaded`), `open_dec` at `close.c` + `disconnect.c`. **Live e2e:** concurrent reads past the cap are rejected with `kXR_Overloaded` (clients retry transparently, correct throttle behavior) — observed `ok=1` under cap, `ok=0` at cap, `ok=1` again after slots freed. ⏳ **Staged:** IO-load `charge_io` call site (needs per-IO timing) + `userconfig`/`max_active_connections` enforcement call sites (engine + config present). |
+| **PR-6 W3b** | Bwm reservation | ✅ **Module COMPLETE + built** (default-off, ADR-3). `ratelimit/reservation.{c,h}` — schedule/done/status with aggregate budget. ⏳ **Staged:** per-worker→SHM cross-worker upgrade + TPC reserve/release call sites (untestable without a working native-TPC env — `native_tpc_gsi_broken`). |
+
+**Build/test commands run:** `./configure --with-stream … --add-module=$REPO &&
+make -j` (green); `gcc … ini_unittest.c ini.c` (14/14); `gcc … csi_unittest.c
+csi_tagstore.c csi_verify.c crc32c.c` (11/11); `nginx -t` (registry loads, syntax
+ok). **Not committed** (feature branch, working-tree changes).
+
+**Remaining integration (the "⏳ Staged" rows):** W1 is fully wired+verified; CSI
+is now wired through the **default** open/read/write/close path (AIO fast-path +
+scrub are the staged remainder). The **throttle (W3a) per-IO charge / open-file
+counters and reservation (W3b) TPC call sites** are the main remaining hot-path
+wiring — the engines are complete and built, but threading the per-IO charge and
+reserve/release through the busiest code is its own reviewed step. Pytest
+integration suites (`test_token_issuer_registry.py`, `test_csi_tagstore.py`,
+`test_throttle_contract.py`) require the server fleet harness and are written
+against the live wiring.
+
+---
 **Owner decisions:** RESOLVED — see §Z (ADR log). W1 parses the upstream
 `scitokens.cfg` grammar verbatim; W2 ships its **own** versioned tag-file format
 (byte-level `.xrdt` interop is a documented follow-on, not v1); W3b (Bwm

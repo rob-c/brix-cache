@@ -2,15 +2,17 @@
 #include "../session/registry.h"
 #include "../cache/writethrough_metrics.h"
 #include "../write/pgw_fob.h"
+#include "../fs/backend/csi_tagstore.h"
 #include "../zip/zip_member.h"   /* xrootd_zip_handle_cleanup (frees inflate stream) */
 
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
 
-/* ---- xrootd_alloc_fhandle — allocate next free file handle slot (0..XROOTD_MAX_FILES) ----
- *
- * WHAT: Scans ctx->files array from index 0 to XROOTD_MAX_FILES-1, returns first slot with fd < 0. The returned index becomes the on-wire fhandle byte sent to the client — bounded by XROOTD_MAX_FILES because the wire format reserves only one byte for the handle value. Returns -1 when all slots are occupied (client should retry or session has too many concurrent files). Security invariant: slot must have fd < 0 before allocation; never reuse a slot with active fd. Thread safety: single-owner per connection on nginx event thread — no locking required. Primary handles owned by TCP session; kXR_bind secondaries are exception (may read primary-published handle from shared memory). */
+/* xrootd_alloc_fhandle — return the first free slot (fd < 0) in ctx->files; the
+ * index becomes the one-byte on-wire fhandle, so it is bounded by XROOTD_MAX_FILES.
+ * -1 when all slots are occupied. Single-owner per connection (event thread, no
+ * locking); a slot is only reused once its fd is closed. */
 int
 xrootd_alloc_fhandle(xrootd_ctx_t *ctx)
 {
@@ -29,9 +31,10 @@ xrootd_alloc_fhandle(xrootd_ctx_t *ctx)
     return -1;
 }
 
-/* ---- xrootd_set_fhandle_path — store canonical path for file handle slot (heap-allocated, survives request lifecycle) ----
- *
- * WHAT: Validates handle bounds (0..XROOTD_MAX_FILES), allocates heap copy of path via ngx_alloc() (NOT pool-allocated so it survives past the kXR_open request), stores in ctx->files[handle_index].path. On collision with existing path, frees old buffer first. Must be freed with ngx_free() by xrootd_free_fhandle — never free directly. Returns NGX_OK on success, NGX_ERROR on invalid bounds or allocation failure. Security invariant: always heap-allocate to prevent pool fragmentation across multiple open/close cycles. Thread safety: single-owner per connection on nginx event thread — no locking required. */
+/* xrootd_set_fhandle_path — store a heap copy (ngx_alloc, NOT pool, so it outlives
+ * the kXR_open request) of the canonical path in the slot, freeing any prior path
+ * first; xrootd_free_fhandle owns the free. NGX_OK, or NGX_ERROR on bad bounds or
+ * allocation failure. Heap (not pool) avoids fragmentation across open/close cycles. */
 ngx_int_t
 xrootd_set_fhandle_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int handle_index, const char *path)
@@ -61,9 +64,9 @@ xrootd_set_fhandle_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
-/* ---- xrootd_local_file_matches_shared_handle — compare local file to shared memory entry ----
- *
- * WHAT: Validates that the local fd matches the shared handle metadata (device, inode, path). Returns 1 if all four fields match (fd valid, readable, same device/inode, same path), 0 otherwise. Used by xrootd_ensure_read_handle() to decide whether a bound secondary's local fd still corresponds to the primary's published handle. */
+/* xrootd_local_file_matches_shared_handle — 1 iff the local fd still corresponds to
+ * the primary's published handle (fd valid + readable, same device/inode/path), used
+ * by xrootd_ensure_read_handle to decide whether a bound secondary must reopen. */
 
 static ngx_flag_t
 xrootd_local_file_matches_shared_handle(const xrootd_file_t *file,
@@ -80,9 +83,10 @@ xrootd_local_file_matches_shared_handle(const xrootd_file_t *file,
            && ngx_strcmp(file->path, shared->path) == 0;
 }
 
-/* ---- xrootd_reopen_bound_read_handle — reopen local fd to match primary's published handle ----
- *
- * WHAT: Reopens the local file descriptor when a bound secondary's stale fd no longer matches the primary session's shared memory entry. Uses confined open (O_RDONLY|O_NOCTTY|O_CLOEXEC) with cache-aware path resolution. Validates device/inode after fstat — if the filesystem object changed, returns NGX_DECLINED to revoke access. Sets up all file metadata fields from the fresh stat result. */
+/* xrootd_reopen_bound_read_handle — reopen a bound secondary's stale fd to match the
+ * primary's shared entry via a cache-aware confined open (O_RDONLY|O_NOCTTY|O_CLOEXEC),
+ * refreshing all file metadata from the fresh fstat; NGX_DECLINED (revoke) if the
+ * filesystem object's device/inode changed. */
 
 static ngx_int_t
 xrootd_reopen_bound_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -179,9 +183,11 @@ xrootd_reopen_bound_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
-/* ---- xrootd_ensure_read_handle — validate and refresh bound secondary's file handle ----
- *
- * WHAT: For unbound sessions: returns NGX_OK if fd exists, NGX_DECLINED otherwise. For bound secondaries: continuously validates the shared memory entry — if primary session closed/reused this slot, revokes local fd via free_fhandle+declined. If stale but still published, reopens fresh fd matching device/inode/path. Critical invariant: bound secondaries must never read from a handle that no longer exists in the primary's published table. */
+/* xrootd_ensure_read_handle — for an unbound session, NGX_OK iff the fd exists. For
+ * a bound secondary, re-validate against the primary's shared entry every time: if
+ * the primary closed/reused the slot, revoke (free + NGX_DECLINED); if stale but
+ * still published, reopen a fresh matching fd. Invariant: a bound secondary never
+ * reads from a handle no longer in the primary's published table. */
 
 ngx_int_t
 xrootd_ensure_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -228,9 +234,10 @@ xrootd_ensure_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_reopen_bound_read_handle(ctx, c, handle_index, &shared);
 }
 
-/* ---- xrootd_free_fhandle — release all resources owned by a file handle slot ----
- *
- * WHAT: Complete teardown of an allocated fhandle: closes fd, unpublishes from shared memory (if not bound), unlinks checkpoint/POSC staging files, frees heap-allocated path buffer. Resets ALL fields to zero/null state. Must be called on session end, error recovery, and kXR_close completion. Handles bound secondary cleanup via unlink only (no unpublish). */
+/* xrootd_free_fhandle — full teardown of one slot: close the fd, unpublish from
+ * shared memory (unbound only), unlink checkpoint/POSC staging files, free the heap
+ * path, and reset every field to its zero/null state. Called on session end, error
+ * recovery, and kXR_close completion. */
 
 void
 xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
@@ -249,6 +256,13 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
 
     if (file->fd >= 0) {
         close(file->fd);
+    }
+
+    /* phase-59 W2: close + free the CSI tagstore (its own tag-file fd). */
+    if (file->csi != NULL) {
+        xrootd_csi_close((xrootd_csi_t *) file->csi);
+        ngx_free(file->csi);
+        file->csi = NULL;
     }
 
     /*
@@ -345,9 +359,8 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     xrootd_pgw_fob_reset(file);
 }
 
-/* ---- xrootd_close_all_files — teardown every allocated file handle slot ----
- *
- * WHAT: Iterates all slots (0..XROOTD_MAX_FILES-1) and calls free_fhandle on each. Used during session termination or error recovery when all handles must be released simultaneously. */
+/* xrootd_close_all_files — xrootd_free_fhandle every slot; used at session
+ * termination or error recovery when all handles must be released at once. */
 
 void
 xrootd_close_all_files(xrootd_ctx_t *ctx)
@@ -359,9 +372,9 @@ xrootd_close_all_files(xrootd_ctx_t *ctx)
     }
 }
 
-/* ---- xrootd_validate_file_handle — verify fhandle is open and valid ----
- *
- * WHAT: Basic validation check that handle_index is in bounds (0..XROOTD_MAX_FILES) AND the slot has an active fd (fd >= 0). Returns 1 if both conditions met, logs kXR_FileNotOpen error and sends response on failure. Used as prerequisite for all read/write operations before capability checks. */
+/* xrootd_validate_file_handle — 1 iff handle_index is in bounds and the slot has an
+ * active fd; otherwise logs + sends kXR_FileNotOpen and returns 0. The prerequisite
+ * check before any read/write capability check. */
 
 ngx_flag_t
 xrootd_validate_file_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -377,9 +390,10 @@ xrootd_validate_file_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return 1;
 }
 
-/* ---- xrootd_validate_read_handle — validate fd exists AND is readable for read operation ----
- *
- * WHAT: Two-phase validation: (1) calls ensure_read_handle() to confirm fd exists + refresh bound secondaries' handles; (2) checks capability bit ctx->files[handle_index].readable. Returns 1 if both phases pass, logs kXR_FileNotOpen/kXR_ServerError on phase-1 failure or kXR_NotAuthorized on readable=0. Authorization was checked at open time — this re-verifies the capability flag on every read to prevent capability drift. */
+/* xrootd_validate_read_handle — two phases: (1) xrootd_ensure_read_handle confirms
+ * the fd and refreshes bound secondaries; (2) the readable capability bit. 1 iff
+ * both pass, else logs + sends kXR_FileNotOpen/kXR_ServerError (phase 1) or
+ * kXR_NotAuthorized (phase 2). Re-checking the bit per read guards against drift. */
 
 ngx_flag_t
 xrootd_validate_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -411,9 +425,9 @@ xrootd_validate_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return 1;
 }
 
-/* ---- xrootd_validate_write_handle — validate fd exists AND is writable for write operation ----
- *
- * WHAT: Combines basic file handle validation (fd open, in bounds) with writable capability check. Returns 1 if both conditions met, logs kXR_NotAuthorized on writable=0. Same invariant as read validation: capability bit set at open time re-checked on every write to prevent drift from ACL changes or session state corruption. */
+/* xrootd_validate_write_handle — xrootd_validate_file_handle plus the writable
+ * capability bit. 1 iff both pass, else logs + sends kXR_NotAuthorized on
+ * writable=0. Re-checking the bit per write guards against drift, as for reads. */
 
 ngx_flag_t
 xrootd_validate_write_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -430,19 +444,3 @@ xrootd_validate_write_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     return 1;
 }
-
-/* ---- xrootd_alloc_fhandle — HOW: Scans ctx->files array from index 0 to XROOTD_MAX_FILES-1 sequentially, returns first slot where files[i].fd < 0 (free). Returns -1 when all slots occupied. Wire format reserves one byte for handle value so bounded by XROOTD_MAX_FILES. Single-owner per connection on nginx event thread — no locking required. ---- */
-
-/* ---- xrootd_set_fhandle_path — HOW: Validates handle_index in [0..XROOTD_MAX_FILES-1] AND path non-null (returns NGX_ERROR otherwise). Computes path_bytes = strlen(path)+1, allocates via ngx_alloc(path_bytes,c->log) (heap not pool for lifecycle survival). Copies path via ngx_memcpy into new buffer. If slot already has existing path, frees old buffer with ngx_free first. Stores pointer in ctx->files[handle_index].path. Returns NGX_OK on success, NGX_ERROR on bounds failure or allocation failure. Caller must free with ngx_free() via xrootd_free_fhandle — never free directly. ---- */
-
-/* ---- xrootd_ensure_read_handle — HOW: For unbound sessions: returns NGX_OK if fd>=0 else NGX_DECLINED (no shared memory lookup). For bound secondaries: calls xrootd_session_handle_lookup(bound_sessid, handle_index, &shared) to fetch current primary entry — if not found AND local fd exists, frees via free_fhandle then returns NGX_DECLINED (primary revoked). If match confirmed via xrootd_local_file_matches_shared_handle() (fd valid+readable, same device/inode/path), returns NGX_OK. If mismatch: frees stale handle first, calls xrootd_reopen_bound_read_handle(ctx,c,handle_index,&shared) which opens O_RDONLY|O_NOCTTY|O_CLOEXEC with cache-aware confined open if shared->from_cache else via xrootd_open_confined(). Validates fstat device/inode match — if filesystem changed returns NGX_DECLINED. On fresh reopen success: sets all file metadata fields from stat result, calls set_fhandle_path for path storage. Returns result of reopen call. ---- */
-
-/* ---- xrootd_free_fhandle — HOW: Validates handle_index bounds (returns immediately on invalid). For unbound sessions with fd>=0: unpublishes via xrootd_session_handle_unpublish(sessid, handle_index). Closes fd if >=0. Unlinks and frees ckp_path if non-null (checkpoint rollback staging). If posc_final_path set AND path set: unlink path then free posc_final_path (POSC partial write cleanup). Free path buffer with ngx_free. Resets ALL file fields to zero/null state including fd=-1, readable/writable=0, from_cache=0, bytes_read/bytes_written=0, open_time=0, path=NULL, is_regular=0, device/inode=0, cached_size=0, read_last_end=-1, read_ahead_end=0, ckp_path=NULL, ckp_size=0, posc_final_path=NULL, tpc_destination=0, tpc_armed/started/done=0, tpc_key/org/src_host/port/path/token_mode="", wt_enabled/policy/bits/dirty_offset=-1/bytes_written=0, flush_task=NULL. ---- */
-
-/* ---- xrootd_close_all_files — HOW: Iterates handle_index from 0 to XROOTD_MAX_FILES-1, calls xrootd_free_fhandle(ctx, handle_index) on each slot sequentially. Used during session termination or error recovery when all handles must be released simultaneously. ---- */
-
-/* ---- xrootd_validate_file_handle — HOW: Validates handle_index in [0..XROOTD_MAX_FILES-1] AND ctx->files[handle_index].fd >= 0 (both required). If either fails: logs access event via xrootd_log_access(verb,"-","-",op,kXR_FileNotOpen,"invalid file handle",0), increments error metric XROOTD_OP_ERR(ctx,op), sets *rc=xrootd_send_error(kXR_FileNotOpen,"invalid file handle"), returns 0. If both conditions met: returns 1. Used as prerequisite for all read/write operations before capability checks. ---- */
-
-/* ---- xrootd_validate_read_handle — HOW: Phase 1: calls xrootd_ensure_read_handle(ctx,c,handle_index) to confirm fd exists and refresh bound secondaries' shared memory entry. If ensure_rc==NGX_ERROR: logs server error via xrootd_log_access(verb,"-","-",op,kXR_ServerError,"could not prepare file handle",0), increments XROOTD_OP_ERR, sets *rc=xrootd_send_error(kXR_ServerError,...), returns 0. If ensure_rc==NGX_DECLINED: logs kXR_FileNotOpen via xrootd_log_access(verb,"-","-",op,kXR_FileNotOpen,"invalid file handle",0), increments XROOTD_OP_ERR, sets *rc=xrootd_send_error(kXR_FileNotOpen,...), returns 0. Phase 2 (both pass): checks ctx->files[handle_index].readable capability bit — if false: logs kXR_NotAuthorized via xrootd_log_access(verb,path,"-",op,kXR_NotAuthorized,"file not open for reading",0), increments XROOTD_OP_ERR, sets *rc=xrootd_send_error(kXR_NotAuthorized,...), returns 0. If both phases pass: returns 1. Capability bit set at open time re-checked on every read to prevent drift from ACL changes or session state corruption. ---- */
-
-/* ---- xrootd_validate_write_handle — HOW: Calls xrootd_validate_file_handle(ctx,c,handle_index,verb,op,rc) first (basic fd+bounds check) — if returns 0, propagates error via rc pointer and returns 0 immediately. If basic validation passes: checks ctx->files[handle_index].writable capability bit — if false: logs kXR_NotAuthorized via xrootd_log_access(verb,path,"-",op,kXR_NotAuthorized,"file not open for writing",0), increments XROOTD_OP_ERR, sets *rc=xrootd_send_error(kXR_NotAuthorized,...), returns 0. If both conditions met: returns 1. Same invariant as read validation — capability bit set at open time re-checked on every write to prevent drift. ---- */

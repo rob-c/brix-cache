@@ -30,9 +30,6 @@
  * resolved at link time into the single combined binary. */
 extern ngx_module_t ngx_http_xrootd_webdav_module;
 
-/* ------------------------------------------------------------------ */
-/* On-disk (shared-memory) structures                                  */
-/* ------------------------------------------------------------------ */
 
 typedef struct {
     ngx_shmtx_sh_t  lock;        /* spinlock — MUST be first */
@@ -54,16 +51,10 @@ typedef struct {
     /* u_char key[key_max]; u_char val[val_max]; follow immediately */
 } xrootd_kv_entry_t;
 
-/* ------------------------------------------------------------------ */
-/* Module-level zone registry                                          */
-/* ------------------------------------------------------------------ */
 
 static xrootd_kv_t *xrootd_kv_zones[XROOTD_KV_MAX_ZONES];
 static ngx_uint_t   xrootd_kv_nzones;
 
-/* ------------------------------------------------------------------ */
-/* Small helpers                                                       */
-/* ------------------------------------------------------------------ */
 
 static uint64_t
 xrootd_kv_hash(const void *key, size_t len)
@@ -164,9 +155,6 @@ xrootd_kv_remove_at(xrootd_kv_header_t *h, size_t stride, uint32_t mask,
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Zone configuration / init                                           */
-/* ------------------------------------------------------------------ */
 
 static ngx_int_t
 xrootd_kv_init_zone(ngx_shm_zone_t *shm_zone, void *data)
@@ -260,9 +248,6 @@ xrootd_kv_configure(ngx_conf_t *cf, xrootd_kv_t *kv, ngx_str_t *name,
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Lookup / insert / delete                                            */
-/* ------------------------------------------------------------------ */
 
 int
 xrootd_kv_get(xrootd_kv_t *kv, const void *key, size_t key_len,
@@ -450,9 +435,6 @@ xrootd_kv_stats(xrootd_kv_t *kv, xrootd_kv_stats_t *out)
     ngx_shmtx_unlock(&kv->mutex);
 }
 
-/* ------------------------------------------------------------------ */
-/* Zone registry                                                       */
-/* ------------------------------------------------------------------ */
 
 xrootd_kv_t *
 xrootd_kv_find(const ngx_str_t *name)
@@ -482,9 +464,6 @@ xrootd_kv_zone_get(ngx_uint_t i)
     return (i < xrootd_kv_nzones) ? xrootd_kv_zones[i] : NULL;
 }
 
-/* ------------------------------------------------------------------ */
-/* `xrootd_kv_zone <name> <size> key=<bytes> val=<bytes>;` directive    */
-/* ------------------------------------------------------------------ */
 
 char *
 xrootd_kv_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)

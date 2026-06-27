@@ -30,9 +30,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* -------------------------------------------------------------------------
+/*
  * POST /bucket/key?uploads  →  InitiateMultipartUpload
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_int_t
 s3_handle_multipart_initiate(ngx_http_request_t *r,

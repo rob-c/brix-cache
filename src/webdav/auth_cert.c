@@ -41,7 +41,7 @@ typedef struct {
 static int webdav_ssl_auth_cache_index = -1;
 static int webdav_ssl_session_auth_cache_index = -1;
 
-/* ---- Function: webdav_tls_auth_cache_free() ----
+/*
  *
  * WHAT: OpenSSL ex_data cleanup callback that frees the TLS auth cache structure when the SSL object or session is destroyed. Called automatically by OpenSSL during resource deallocation — never called directly by application code.
  *
@@ -61,7 +61,7 @@ webdav_tls_auth_cache_free(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
     }
 }
 
-/* ---- Function: webdav_auth_init_ssl_indices() ----
+/*
  *
  * WHAT: Initializes OpenSSL ex_data indices for attaching TLS auth cache data to both SSL objects and SSL sessions. These indices are global static values that allow OpenSSL to store arbitrary data (the auth cache struct) alongside each SSL connection without requiring additional memory allocation by the application.
  *
@@ -93,7 +93,7 @@ webdav_auth_init_ssl_indices(ngx_log_t *log)
     return NGX_OK;
 }
 
-/* ---- Function: webdav_str_equal() ----
+/*
  *
  * WHAT: Compares two ngx_str_t structures for equality by first checking length, then byte-by-byte content. Handles the special case of empty strings (length 0) which are always considered equal regardless of data pointer values. This is safer than using memcmp directly because empty strings with different pointers could pass memcmp if both buffers happen to contain zero bytes.
  *
@@ -112,7 +112,7 @@ webdav_str_equal(const ngx_str_t *a, const ngx_str_t *b)
     return ngx_memcmp(a->data, b->data, a->len) == 0;
 }
 
-/* ---- Function: webdav_free_verify_resources() ----
+/*
  *
  * WHAT: Cleanup callback that frees OpenSSL X509_STORE_CTX and X509 certificate objects after verification completes. Handles NULL pointers gracefully — only frees non-NULL resources to prevent double-free or NULL-deref crashes during error paths.
  *
@@ -128,7 +128,7 @@ webdav_free_verify_resources(X509_STORE_CTX *vctx, X509 *leaf)
     }
 }
 
-/* ---- Function: webdav_cache_matches() ----
+/*
  *
  * WHAT: Validates that a cached TLS auth result is still valid for the current request by checking five conditions: cache exists, config reference matches, CA store pointer matches, verify depth setting matches, and DN was successfully verified (non-empty). Returns NGX_TRUE only when ALL conditions are satisfied.
  *
@@ -144,7 +144,7 @@ webdav_cache_matches(ngx_http_xrootd_webdav_tls_auth_cache_t *cache,
            && cache->dn[0] != '\0';
 }
 
-/* ---- Function: webdav_mark_req_verified() ----
+/*
  *
  * WHAT: Marks the request context as verified by copying the subject DN into ctx->dn, setting ctx->verified=1, and recording the authentication source ("nginx" for compatible mode or "manual" for explicit verification). This is called after successful certificate validation to signal that subsequent requests in this session can skip full re-verification.
  *
@@ -184,7 +184,7 @@ webdav_mark_req_verified(ngx_http_request_t *r,
            ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR;
 }
 
-/* ---- Function: webdav_log_auth_cache_reuse() ----
+/*
  *
  * WHAT: Logs a single informational message when TLS auth cache is reused (either from connection or session), but only logs the first time per request to avoid flooding operator logs with repetitive messages on long-lived connections. Uses reuse_logged flag to ensure exactly one "resumed" log entry per request regardless of how many times the cache is hit during that request.
  *
@@ -204,7 +204,7 @@ webdav_log_auth_cache_reuse(ngx_http_request_t *r,
                   cache_name);
 }
 
-/* ---- Function: webdav_store_tls_auth_cache() ----
+/*
  *
  * WHAT: Stores the verified DN into both SSL object ex_data (for connection lifetime) and optionally SSL_SESSION ex_data (for session resumption across connections). First checks if a cache already exists for this SSL object; if it doesn't match current config, allocates a new one. Then stores into the session-level cache as well so that TLS session resumptions carry the verified DN forward to new TCP connections.
  *

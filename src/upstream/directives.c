@@ -5,7 +5,7 @@
 #include "../compat/alloc_guard.h"
 #include "../compat/str_dup.h"
 
-/* ---- Function: xrootd_conf_set_upstream() — parse and validate upstream address string ----
+/*
  *
  * WHAT: Parses nginx config directive value containing upstream server address into host+port components. Two supported formats: IPv6 literal [addr]:port (detected by leading '[' character, split on ']' then ':'), or hostname/IPv4:port (split on last ':' using strrchr). Allocates host string from request pool via ngx_pnalloc() with null-termination, extracts port number via strtol() parsing decimal digits after delimiter. Validates port range 1 ≤ pnum ≤ 65535 and rejects trailing non-digit characters in parsed string — returns NGX_CONF_ERROR with emerg-level log message on any validation failure. On success stores xcf->upstream_host (ngx_str_t) and xcf->upstream_port (uint16_t), logs notice-level entry confirming configuration. All memory allocated from cf->pool ensures proper cleanup during nginx request lifecycle. Returns NGX_CONF_OK only when both host parsing and port validation succeed.
  *

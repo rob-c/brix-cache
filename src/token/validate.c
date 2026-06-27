@@ -1,17 +1,23 @@
-/* ---- File: validate.c — WLCG/SciToken JWT bearer-token validation and claim extraction ----
+/*
+ * validate.c — WLCG/SciToken JWT bearer-token validation and claim extraction.
  *
- * WHAT: Validates JWT tokens (RS256/ES256) against a JWKS key set, checks issuer/audience/expiry/nbf constraints, extracts claims (scopes, groups, iss/sub/aud), and handles macaroon tokens as an alternative auth path. The main exported function xrootd_token_validate() performs structural verification → algorithm check → key selection → signature verification → claim extraction → time-window enforcement in a single deterministic pipeline.
- *
- * WHY: WLCG storage tokens are the primary bearer-token mechanism for HEP data access — they encode scope-granted paths (storage.read/write/create) and VO group membership. This module provides the authoritative validation path so every nginx connection can trust token claims before granting filesystem access. Macaroon support adds a fallback path for sites that use macaroon-based auth instead of JWT.
- *
- * HOW: Structural check → 3 dot-separated segments (header.payload.signature) → decode header JSON → verify alg is RS256 or ES256 → select key by kid or single-key fallback → verify signature with OpenSSL EVP → decode payload JSON → extract standard claims + groups array → parse scope string into per-path xrootd_token_scope_t entries → check exp/nbf against server clock. Returns 0 on success (claims populated) or -1 on failure (reason logged).
- * ------------------------------------------------------------------ */
+ * Validates JWTs (RS256/ES256) against a JWKS key set, enforces
+ * issuer/audience/exp/nbf, extracts claims (scopes, groups, iss/sub/aud), and
+ * handles macaroons as an alternative auth path. WLCG storage tokens are HEP's
+ * primary bearer mechanism (scope-granted paths + VO group membership), so this is
+ * the authoritative path a connection trusts before granting filesystem access.
+ * xrootd_token_validate() runs one deterministic pipeline: structural (3 segments)
+ * → alg check → key select (by kid, else single-key) → EVP signature → claim
+ * extraction → time window. Returns 0 (claims populated) / -1 (reason logged).
+ */
 
 #include "token_internal.h"
 #include "b64url.h"
 #include "json.h"
 #include "scopes.h"
 #include "macaroon.h"
+#include "issuer_registry.h"
+#include "subject_map.h"
 #include "../types/tunables.h"
 
 #include <stdlib.h>
@@ -26,7 +32,7 @@
  * Output format: printable ASCII is kept verbatim; anything < 0x20, 0x7f, or
  * DEL is replaced with \xHH.  The output is always NUL-terminated.
  */
-/* ---- Function: token_sanitize_for_log() ----
+/*
  *
  * WHAT: Escapes control characters and non-printable bytes in a string before it is written to the nginx error log. Printable ASCII (0x20-0x7e) passes through verbatim; anything below 0x20, at 0x7f, or DEL is replaced with \xHH hex notation. This prevents log-injection attacks where malicious tokens could embed newlines or other control codes to forge or corrupt log entries.
  *
@@ -63,7 +69,7 @@ token_sanitize_for_log(const char *in, char *out, size_t outsz)
     out[i] = '\0';
 }
 
-/* ---- Function: xrootd_token_malformed() ----
+/*
  *
  * WHAT: Logs a warning that the JWT token has malformed structure and returns -1 to signal validation failure. Used whenever the three-segment dot-separated format (header.payload.signature) is violated — missing dots, extra dots, or any structural anomaly indicates an invalid token.
  *
@@ -78,7 +84,7 @@ xrootd_token_malformed(ngx_log_t *log)
     return -1;
 }
 
-/* ---- Function: xrootd_token_extract_groups() ----
+/*
  *
  * WHAT: Extracts the WLCG groups array from the JWT payload JSON into a comma-separated string stored in claims->groups. Reads up to 16 group names from the "wlcg.groups" claim and concatenates them with commas, truncating any individual group name that would exceed remaining buffer space. Empty result (no groups) produces an empty string.
  *
@@ -415,5 +421,186 @@ xrootd_token_validate(ngx_log_t *log,
                       safe_sub, safe_iss, safe_scope, safe_groups,
                       claims->scope_count);
     }
+    return 0;
+}
+
+/* xrootd_token_peek_iss — read the "iss" claim WITHOUT trusting the signature
+ * (xrdjwt_split + b64url_decode + json_get_string): the registry must pick an
+ * issuer, and thus its verification keys, before it can trust anything, so this
+ * read is explicitly untrusted and re-derived from verified claims afterwards. */
+int
+xrootd_token_peek_iss(const char *token, size_t token_len,
+    char *out, size_t outsz)
+{
+    xrdjwt_seg  seg[3];
+    u_char      pay[4096];
+    ssize_t     n;
+
+    out[0] = '\0';
+
+    if (xrdjwt_split(token, token_len, seg) != 0) {
+        return -1;                              /* not a compact JWS */
+    }
+    n = b64url_decode(seg[1].p, seg[1].n, pay, sizeof(pay) - 1);
+    if (n < 0) {
+        return -1;
+    }
+    pay[n] = '\0';
+    if (json_get_string((char *) pay, (size_t) n, "iss", out, outsz) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+/* xrootd_token_validate_registry_authn — registry authN with no path gate: peek
+ * iss → registry_find → validate() with THAT issuer's keys → multi-audience accept.
+ * Stream kXR_auth happens before any path is known, so issuer-keyed authentication
+ * and per-path authorization are split; this is the authN half (also reused by the
+ * combined HTTP entry point). On success returns 0, fills *claims, sets *out_issuer. */
+int
+xrootd_token_validate_registry_authn(ngx_log_t *log,
+    const char *token, size_t token_len,
+    const xrootd_token_registry_t *reg,
+    const u_char *macaroon_secret, size_t secret_len,
+    xrootd_token_claims_t *claims, const xrootd_token_issuer_t **out_issuer)
+{
+    char                          iss[256];
+    const xrootd_token_issuer_t  *is;
+    const char                   *expected_aud;
+    int                           i;
+
+    *out_issuer = NULL;
+
+    if (xrootd_token_peek_iss(token, token_len, iss, sizeof(iss)) != 0) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd_token: cannot read iss for issuer selection");
+        return -1;
+    }
+    is = xrootd_token_registry_find(reg, iss);
+    if (is == NULL) {
+        char safe[512];
+        token_sanitize_for_log(iss, safe, sizeof(safe));
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "xrootd_token: unknown issuer \"%s\"", safe);
+        return -1;
+    }
+
+    /* Verify with THIS issuer's keys; validate() re-checks iss after the
+     * signature is trusted. A single declared audience is handed to validate()
+     * for correct string-or-array membership; multiple audiences are accepted
+     * best-effort below (full multi-audience array membership = W1b). */
+    expected_aud = (is->audience_count == 1) ? is->audiences[0] : NULL;
+    if (xrootd_token_validate(log, token, token_len,
+            is->jwks_key_count ? is->jwks_keys : NULL, is->jwks_key_count,
+            is->issuer, expected_aud, macaroon_secret, secret_len,
+            claims) != 0)
+    {
+        return -1;
+    }
+
+    if (expected_aud == NULL && is->audience_count > 0) {
+        int ok = 0;
+        for (i = 0; i < is->audience_count && !ok; i++) {
+            ok = (strcmp(claims->aud, is->audiences[i]) == 0);
+        }
+        for (i = 0; i < reg->global_audience_count && !ok; i++) {
+            ok = (strcmp(claims->aud, reg->global_audiences[i]) == 0);
+        }
+        if (!ok) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                "xrootd_token: audience not accepted for issuer \"%s\"",
+                is->name);
+            return -1;
+        }
+    }
+
+    *out_issuer = is;
+    return 0;
+}
+
+/* xrootd_token_authz_strategy — the per-path authorization ladder: enforce the
+ * issuer base_path/restricted_path gate, then run the authorization_strategy
+ * (capability / group / mapping) for (req_path, op). Shared by the HTTP combined
+ * path and the stream per-path identity check. Returns 1 = ALLOW, 0 = DENY. */
+int
+xrootd_token_authz_strategy(const xrootd_token_issuer_t *is,
+    const xrootd_token_claims_t *claims, const char *req_path,
+    xrootd_token_op_e op)
+{
+    if (!xrootd_token_issuer_path_ok(is, req_path)) {
+        return 0;
+    }
+
+    /* capability — the token's own WLCG scopes must cover (path, op). */
+    if (is->strategy & XROOTD_AUTHZ_CAPABILITY) {
+        int ok = (op == XROOTD_TOKEN_OP_WRITE)
+            ? xrootd_token_check_write(claims->scopes, claims->scope_count,
+                                       req_path)
+            : xrootd_token_check_read(claims->scopes, claims->scope_count,
+                                      req_path);
+        if (ok) {
+            return 1;
+        }
+    }
+
+    /* group — the issuer vouches for its base_path for any token bearing a
+     * group claim; the per-VO/group ACL layer refines the actual access using
+     * the identity's groups (claims->groups → identity vo_list). */
+    if (is->strategy & XROOTD_AUTHZ_GROUP) {
+        if (claims->groups[0] != '\0') {
+            return 1;
+        }
+    }
+
+    /* mapping — the subject must resolve to a local user (map_subject +
+     * name_mapfile, with onmissing/default policy); the per-user ACL/POSIX
+     * layer then enforces that user's permissions within base_path. */
+    if (is->strategy & XROOTD_AUTHZ_MAPPING) {
+        char user[64];
+
+        if (!is->map_subject) {
+            return 1;                       /* trust the issuer's subject as-is */
+        }
+        if (is->name_mapfile[0] != '\0'
+            && xrootd_subject_mapfile_lookup(is->name_mapfile, claims->sub,
+                                             user, sizeof(user)) == 0)
+        {
+            return 1;
+        }
+        if (!is->onmissing_fail && is->default_user[0] != '\0') {
+            return 1;                       /* fall back to default_user */
+        }
+    }
+
+    return 0;
+}
+
+/* xrootd_token_validate_registry — combined authN+authZ for where the request path
+ * is known at validation time (WebDAV/S3): the authN half then the per-path
+ * strategy ladder. */
+int
+xrootd_token_validate_registry(ngx_log_t *log,
+    const char *token, size_t token_len,
+    const xrootd_token_registry_t *reg, const char *req_path,
+    xrootd_token_op_e op,
+    const u_char *macaroon_secret, size_t secret_len,
+    xrootd_token_claims_t *claims, int *out_issuer_bucket)
+{
+    const xrootd_token_issuer_t *is;
+
+    *out_issuer_bucket = -1;
+
+    if (xrootd_token_validate_registry_authn(log, token, token_len, reg,
+            macaroon_secret, secret_len, claims, &is) != 0)
+    {
+        return -1;
+    }
+    if (!xrootd_token_authz_strategy(is, claims, req_path, op)) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd_token: issuer \"%s\" did not authorize path", is->name);
+        return -1;
+    }
+
+    *out_issuer_bucket = is->metric_bucket;
     return 0;
 }

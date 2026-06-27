@@ -3,83 +3,16 @@
 #include <string.h>
 #include <sys/stat.h>
 
-/* ---- Write-through default policy engine (prefix-based) — kXR_open time decision ----
- *
- * WHAT: Default write-through policy engine that evaluates whether a file should be propagated back to origin XRootD server.
- *       Called once at kXR_open time, result cached on handle determines close-time flush behavior (DENY/ALLOW_SYNC/ALLOW_ASYNC). */
+/*
+ * writethrough_decision.c — the default write-through policy engine. At kXR_open
+ * time it decides DENY / ALLOW_SYNC / ALLOW_ASYNC for a path (the result is cached
+ * on the handle to drive close-time flush). Mirrors XrdPfc's blacklist/allow
+ * decisions, priority order: size filter → deny prefixes (precedence) → allow
+ * prefixes (whitelist) → default ALLOW_SYNC. A custom xrootd_wt_decision_fn can
+ * replace it via config.
+ */
 
-/*---- Policy engine mechanism ----
- *
- * WHAT: Mirrors XrdPfcBlacklistDecision.cc's approach of checking a path database against configured deny/allow lists.
- *       Decision logic follows priority order: size filter → deny prefixes → allow prefixes → default ALLOW_SYNC. */
-
-/*---- Policy engine invariant (priority ordering) ----
- *
- * WHY: Deny prefixes take precedence over allow prefixes, ensuring blacklist semantics where explicit exclusions override whitelists. */
-
-/*---- Default policy engine flow ----
- *
- * HOW: 1) Size check — if file > max_write_through_bytes AND no include regex match → DENY; 
- *      2) Deny prefix check — any deny_prefix matches → DENY (deny takes precedence);
- *      3) Allow prefix check — allow list configured AND none match → DENY (whitelist mode);
- *      4) Default — ALLOW_SYNC (mirrors XrdPfcAllowDecision, sync preferred for local origins). */
-
-/*---- Policy engine extensibility ----
- *
- * WHY: External plugins can provide custom xrootd_wt_decision_fn implementation and register via config callback.
- *      This default engine is suitable for most deployments without requiring external plugin setup. */
-
-/* ---- Internal helpers — prefix matching utility functions ----
- *
- * WHAT: Two helper functions for checking if a path matches a single prefix or any prefix in an array.
- *       xrootd_wt_path_matches_prefix() = O(n) comparison where n = prefix length; acceptable for typical path prefixes (/data/, /atlas/). */
-
-/*---- Prefix matching helper function ----
- *
- * WHAT: Simple prefix comparison — checks if path starts with prefix string using ngx_strncmp(). Returns 0 (false) on NULL/empty inputs. */
-
-/*---- Array prefix matching helper function ----
- *
- * WHAT: Iterates through array of prefixes calling xrootd_wt_path_matches_prefix() for each entry. Returns 1 (true) if any match found. */
-
-/* ---- Decision function (called at kXR_open time) — policy evaluation ----
- *
- * WHAT: Main decision function called from src/read/open.c when kXR_open options indicate write intent. Evaluates size, prefixes, and defaults to determine WT policy. */
-
-/*---- Decision function precondition check ----
- *
- * WHY: Returns DENY if user_data (config) or path is NULL — conservative default prevents unauthorized writes without proper configuration. */
-
-/*---- Size-based admission filter (mirrors cache_max_file_size) ----
- *
- * WHAT: Files larger than max_write_through_bytes are denied unless they match an include regex (configured via xrootd_cache_include_regex). */
-
-/*---- Size check invariant (existing vs new file handling) ----
- *
- * WHY: If file doesn't exist yet (kXR_new open), skip size check and allow creation — this prevents blocking new file creation. */
-
-/*---- Prefix-based admission control ----
- *
- * WHAT: Deny prefixes take precedence (blacklist semantics); allow list configured AND path doesn't match → deny (whitelist mode). */
-
-/*---- Default policy — allow with async flush ----
- *
- * WHY: Mirrors XrdPfcAllowDecision. Sync mode is preferred for local filesystem origins; async for proxy mode. */
-
-/* ---- Configuration helper functions — prefix array initialization ----
- *
- * WHAT: Helper function to initialize and populate prefix arrays from nginx configuration directives. Allocates memory from cf->pool for persistence. */
-
-/*---- Config init helper flow ----
- *
- * HOW: 1) Allocate array if NULL (ngx_array_create with 4 entries); 2) Copy each prefix string into entry from prefix_list;
- *      3) Log configured count via ngx_conf_log_error(NGX_LOG_NOTICE). Prefix strings allocated from cf->pool persist across merges. */
-
-/*---- Config init helper invariant ----
- *
- * WHY: Prefix strings allocated from cf->pool so they persist across merges and don't need to be freed manually — prevents resource leaks. */
-
-/* ---- Internal helpers ---- */
+/* prefix-matching helpers */
 
 static inline int xrootd_wt_path_matches_prefix(const char *path, const ngx_str_t *prefix)
 {
@@ -109,8 +42,10 @@ static inline int xrootd_wt_path_matches_any_prefix(const char *path, ngx_array_
     return 0;
 }
 
-/* ---- Decision function (called at kXR_open time) ---- */
-
+/* xrootd_wt_default_decide — the policy decision at kXR_open write intent (from
+ * read/open.c): DENY on NULL config/path; size filter (skipped for a not-yet-
+ * existing kXR_new file, bypassed by an include-regex match); deny prefixes
+ * (precedence) then allow prefixes (whitelist); else ALLOW_SYNC. */
 xrootd_wt_decision_t xrootd_wt_default_decide(const char *path, uint16_t options,
                                                void *user_data)
 {
@@ -165,8 +100,9 @@ xrootd_wt_decision_t xrootd_wt_default_decide(const char *path, uint16_t options
     return XROOTD_WT_DECISION_ALLOW_ASYNC;
 }
 
-/* ---- Configuration helper functions ---- */
-
+/* xrootd_wt_config_init_prefixes — populate a cf->pool-lived prefix array (created
+ * on first use, capacity 4) from a config directive's prefix list; the strings
+ * persist across merges. Logs the configured count. */
 ngx_int_t xrootd_wt_config_init_prefixes(ngx_conf_t *cf,
                                           ngx_array_t *prefix_list,
                                           ngx_array_t **out_array,

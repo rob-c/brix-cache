@@ -314,8 +314,7 @@ xrdc_recv(xrdc_conn *c, uint16_t want_sid, uint16_t *status,
     }
 }
 
-/* ---- redirect/wait-following request wrapper (M5) ---- */
-
+/* redirect/wait-following request wrapper (M5) */
 /* ServerRedirectBody = port[4 BE] + host[NUL] (host already IPv6-bracketed).
  * The host field may carry a "?<opaque>" tail: a redirector (notably EOS/cmsd)
  * appends the open CAPABILITY (cap.sym/cap.msg) that the open MUST replay to the

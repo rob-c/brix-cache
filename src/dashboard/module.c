@@ -408,8 +408,7 @@ static ngx_command_t ngx_http_xrootd_dashboard_commands[] = {
       offsetof(ngx_http_xrootd_dashboard_loc_conf_t, browse_root),
       NULL },
 
-    /* ---- Phase 23: admin write API auth ---- */
-    { ngx_string("xrootd_admin_allow"),       /* CIDR allowlist */
+    /* Phase 23: admin write API auth */    { ngx_string("xrootd_admin_allow"),       /* CIDR allowlist */
       NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
       xrootd_admin_set_allow,
       NGX_HTTP_LOC_CONF_OFFSET,
@@ -460,8 +459,7 @@ ngx_module_t ngx_http_xrootd_dashboard_module = {
     NGX_MODULE_V1_PADDING
 };
 
-/* ---- Main content handler dispatcher ---- */
-
+/* Main content handler dispatcher */
 /*
  * WHAT: Content handler installed at the dashboard location; routes the request
  *       URI to the page, login, compat-JSON, versioned-API, or admin handler.

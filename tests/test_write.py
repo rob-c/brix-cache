@@ -19,6 +19,7 @@ import tempfile
 import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags
+from official_interop_lib import worker_prefix
 from settings import (
     CA_DIR,
     DATA_ROOT,
@@ -33,6 +34,13 @@ ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 GSI_URL   = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
 DATA_DIR  = DATA_ROOT
 PROXY_PEM = PROXY_STD
+
+# Upload names carry these prefixes; worker_prefix() scopes them per xdist worker
+# so the autouse cleanup_uploads() fixture (which deletes every prefixed file in
+# the shared fleet DATA_DIR) can't nuke another worker's in-flight uploads under
+# `--dist load`.  See official_interop_lib.worker_prefix.
+PREFIX     = worker_prefix("_test_write_")
+GSI_PREFIX = worker_prefix("_test_gsi_write_")
 
 
 def _md5(path: str) -> str:
@@ -63,7 +71,7 @@ def cleanup_uploads():
     """Remove uploaded files from the data dir after each test."""
     yield
     for f in os.listdir(DATA_DIR):
-        if f.startswith("_test_write_") or f.startswith("_test_gsi_write_"):
+        if f.startswith(PREFIX) or f.startswith(GSI_PREFIX):
             try:
                 os.unlink(os.path.join(DATA_DIR, f))
             except OSError:
@@ -79,7 +87,7 @@ class TestWriteAnon:
             tmp.write(content)
             local = tmp.name
 
-        remote = "_test_write_small.txt"
+        remote = f"{PREFIX}small.txt"
         assert _xrdcp_put(local, remote) == 0, "xrdcp upload failed"
 
         dest = os.path.join(DATA_DIR, remote)
@@ -97,7 +105,7 @@ class TestWriteAnon:
             tmp.write(data)
             local = tmp.name
 
-        remote = "_test_write_medium.bin"
+        remote = f"{PREFIX}medium.bin"
         assert _xrdcp_put(local, remote) == 0, "xrdcp upload failed"
 
         dest = os.path.join(DATA_DIR, remote)
@@ -107,7 +115,7 @@ class TestWriteAnon:
 
     def test_upload_overwrite(self):
         """Overwrite an existing file with xrdcp -f."""
-        remote = "_test_write_overwrite.txt"
+        remote = f"{PREFIX}overwrite.txt"
         dest = os.path.join(DATA_DIR, remote)
 
         # First upload
@@ -133,7 +141,7 @@ class TestWriteAnon:
             tmp.write(content)
             local = tmp.name
 
-        remote = "_test_write_roundtrip.bin"
+        remote = f"{PREFIX}roundtrip.bin"
         assert _xrdcp_put(local, remote) == 0
         os.unlink(local)
 
@@ -161,14 +169,14 @@ class TestWriteAnon:
         # xrdcp to the GSI port with no proxy — must not exit 0
         cmd = (
             "env -u X509_USER_PROXY -u X509_CERT_DIR "
-            f"xrdcp {local} root://{HOST}:11095//_test_write_nocreds.txt 2>/dev/null"
+            f"xrdcp {local} root://{HOST}:11095//{PREFIX}nocreds.txt 2>/dev/null"
         )
         rc = os.system(cmd)
         os.unlink(local)
 
         assert rc != 0, "Expected xrdcp to fail on GSI server without credentials"
         assert not os.path.exists(
-            os.path.join(DATA_DIR, "_test_write_nocreds.txt")
+            os.path.join(DATA_DIR, f"{PREFIX}nocreds.txt")
         ), "File should not have been created without valid GSI credentials"
 
 
@@ -182,7 +190,7 @@ class TestWriteGSI:
             tmp.write(content)
             local = tmp.name
 
-        remote = "_test_gsi_write_small.txt"
+        remote = f"{GSI_PREFIX}small.txt"
         assert _xrdcp_put_gsi(local, remote) == 0, "GSI xrdcp upload failed"
         os.unlink(local)
 
@@ -200,7 +208,7 @@ class TestWriteGSI:
             tmp.write(data)
             local = tmp.name
 
-        remote = "_test_gsi_write_large.bin"
+        remote = f"{GSI_PREFIX}large.bin"
         assert _xrdcp_put_gsi(local, remote) == 0, "GSI xrdcp large upload failed"
         os.unlink(local)
 
@@ -217,7 +225,7 @@ class TestWriteGSI:
             tmp.write(content)
             local = tmp.name
 
-        remote = "_test_gsi_write_roundtrip.bin"
+        remote = f"{GSI_PREFIX}roundtrip.bin"
         assert _xrdcp_put_gsi(local, remote) == 0, "GSI upload failed"
         os.unlink(local)
 

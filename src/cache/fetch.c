@@ -1,5 +1,8 @@
 #include "cache_internal.h"
 #include "meta.h"
+#include "verify.h"
+#include "origin/http_transport.h"
+#include "origin/pelican.h"
 
 
 #include <fcntl.h>
@@ -14,16 +17,46 @@
 
 extern char **environ;
 
-/* ---- xrootd_cache_commit_part — publish the downloaded part file ----
- * Atomically rename part_path → cache_path and write the .meta sidecar; also
- * records the cached size on the task. Shared by the anonymous-protocol fill and
- * the exec-GSI fill. Returns 0 / -1 (t error set). */
+/* xrootd_cache_commit_part — publish the downloaded part file: atomically rename
+ * part_path → cache_path, write the .meta sidecar, and record the cached size on
+ * the task. Shared by the anonymous-protocol and exec-GSI fills. Returns 0 / -1
+ * (t error set). */
 static int
 xrootd_cache_commit_part(xrootd_cache_fill_t *t)
 {
-    struct stat          st;
-    xrootd_cache_meta_t  meta;
-    ngx_log_t           *log;
+    struct stat                   st;
+    xrootd_cache_meta_t           meta;
+    ngx_log_t                    *log;
+    xrootd_cache_digest_t         origin;
+    xrootd_cache_verify_result_e  vr;
+    char                          vy_alg[16];
+    char                          vy_hex[129];
+
+    log = (t->c != NULL) ? t->c->log : NULL;
+
+    /*
+     * Checksum-on-fill: verify the staged part against the origin's advertised
+     * digest BEFORE the atomic rename, so a corrupted/truncated transfer never
+     * becomes a served cache entry. Fail-closed best-effort by default
+     * (xrootd_cache_verify). t->origin_cks_* is empty when the origin offered no
+     * checksum (e.g. the GSI-exec fetch path) — the verify policy then governs.
+     */
+    ngx_memzero(&origin, sizeof(origin));
+    if (t->origin_cks_alg[0] != '\0') {
+        size_t an = ngx_min(ngx_strlen(t->origin_cks_alg), sizeof(origin.alg) - 1);
+        size_t hn = ngx_min(ngx_strlen(t->origin_cks_hex), sizeof(origin.hex) - 1);
+        ngx_memcpy(origin.alg, t->origin_cks_alg, an);
+        ngx_memcpy(origin.hex, t->origin_cks_hex, hn);
+    }
+
+    vy_alg[0] = '\0';
+    vy_hex[0] = '\0';
+    vr = xrootd_cache_verify_part(t, t->part_path, &origin,
+            (xrootd_cache_verify_mode_e) t->conf->cache_verify, vy_alg, vy_hex);
+    if (vr == XROOTD_CACHE_VERIFY_MISMATCH || vr == XROOTD_CACHE_VERIFY_ERROR) {
+        unlink(t->part_path);          /* t error already set by verify */
+        return -1;
+    }
 
     if (rename(t->part_path, t->cache_path) != 0) {
         unlink(t->part_path);
@@ -31,11 +64,24 @@ xrootd_cache_commit_part(xrootd_cache_fill_t *t)
         return -1;
     }
 
-    log = (t->c != NULL) ? t->c->log : NULL;
     if (stat(t->cache_path, &st) == 0
         && xrootd_cache_meta_from_stat(&st, NULL, &meta) == NGX_OK)
     {
         t->file_size = (uint64_t) st.st_size;
+
+        /* Record a verified digest into the sidecar for durable provenance. */
+        if (vr == XROOTD_CACHE_VERIFY_VERIFIED && vy_alg[0] != '\0') {
+            size_t an = ngx_min(ngx_strlen(vy_alg), sizeof(meta.cks_alg) - 1);
+            size_t hn = ngx_min(ngx_strlen(vy_hex), sizeof(meta.cks_hex) - 1);
+            meta.version     = XROOTD_CACHE_META_VERSION;
+            meta.cks_alg_len = (uint8_t) an;
+            ngx_memcpy(meta.cks_alg, vy_alg, an);
+            meta.cks_alg[an] = '\0';
+            meta.cks_len     = (uint8_t) hn;
+            ngx_memcpy(meta.cks_hex, vy_hex, hn);
+            meta.cks_hex[hn] = '\0';
+        }
+
         if (xrootd_cache_meta_write(log, t->cache_path, &meta) != NGX_OK
             && log != NULL)
         {
@@ -47,19 +93,12 @@ xrootd_cache_commit_part(xrootd_cache_fill_t *t)
     return 0;
 }
 
-/* ---- xrootd_cache_fetch_origin_exec — GSI/X.509-proxy origin fetch ----
- *
- * WHAT: Fork/exec the native client (cache_origin_client, default "xrdcp") to
- *       download the requested file from the origin into part_path, authenticating
- *       with X509_USER_PROXY=cache_origin_proxy + X509_CERT_DIR=cache_origin_cadir,
- *       then publish it via xrootd_cache_commit_part().
- * WHY:  The built-in origin client only does an anonymous kXR_login, which a GSI
- *       origin (e.g. EOS) rejects for file access. The native client speaks full
- *       GSI (proxy) + EOS open-redirect capability — so we reuse it as the PSS for
- *       authenticated origins. Runs in the fill thread-pool worker (blocking), so
- *       posix_spawn + waitpid does not stall the event loop.
- * HOW:  Build root[s]://host:port//<clean_path>; spawn with an env that overrides
- *       the two X509_* variables; on a clean exit(0) commit the part file. */
+/* xrootd_cache_fetch_origin_exec — GSI/X.509-proxy origin fetch: fork/exec the
+ * native client (cache_origin_client, default "xrdcp") to download into part_path
+ * with X509_USER_PROXY + X509_CERT_DIR overridden, then xrootd_cache_commit_part().
+ * The built-in client only does an anonymous kXR_login, which a GSI origin (e.g.
+ * EOS) rejects; the native client speaks full GSI + open-redirect, so we reuse it
+ * as the PSS. Runs in the fill worker (blocking), so posix_spawn + waitpid is fine. */
 static int
 xrootd_cache_fetch_origin_exec(xrootd_cache_fill_t *t)
 {
@@ -157,21 +196,12 @@ xrootd_cache_fetch_origin_exec(xrootd_cache_fill_t *t)
     return xrootd_cache_commit_part(t);
 }
 
-/* ---- xrootd_cache_fetch_origin — origin file fetch and cache fill ----
- *
- * WHAT: Thread-pool worker function that fetches a complete file from the configured XRootD origin into a local `.part` file,
- *       then atomically renames it to the cache path. Handles admission filtering (size + regex) before caching begins. */
-
-/* ---- Fetch protocol sequence ----
- *
- * HOW: Connect → bootstrap (handshake+login) → open source file → read loop → fsync local part → rename atomic.
- *      Each phase is isolated with error cleanup (origin close on failure). Returns 1 for policy rejection, -1 for errors, 0 for success. */
-
-/* ---- Admission filter invariant ----
- *
- * WHY: Large files (> cache_max_file_size) are not cached unless basename matches include regex.
- *      Rejection returns NGX_DECLINED (not error) so done callback redirects client to origin directly instead of failing. */
-
+/* xrootd_cache_fetch_origin — the fill worker's anonymous-protocol fetch: connect →
+ * bootstrap (handshake+login) → open source → read loop → fsync the .part → atomic
+ * rename, each phase isolated with origin-close cleanup. Admission filtering runs
+ * first: a file over cache_max_file_size that doesn't match the include regex is
+ * rejected with NGX_DECLINED (1) — not an error — so the done callback redirects the
+ * client to origin. Returns 1 (policy reject), -1 (error), 0 (success). */
 int
 xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
 {
@@ -182,6 +212,26 @@ xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
 
     outfd = -1;
     offset = 0;
+
+    /* HTTP(S)/WebDAV origin: fetch over libcurl (http_transport.c) instead of the
+     * XRootD wire client, then run the shared commit+verify path. */
+    if (t->conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTP
+        || t->conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTPS)
+    {
+        if (xrootd_cache_http_download(t) != 0) {
+            return -1;
+        }
+        return xrootd_cache_commit_part(t);
+    }
+
+    /* Pelican federation: discover the Director, then fetch through it (libcurl
+     * follows the 307 to the chosen cache/origin). Same commit+verify path. */
+    if (t->conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_PELICAN) {
+        if (xrootd_cache_pelican_download(t) != 0) {
+            return -1;
+        }
+        return xrootd_cache_commit_part(t);
+    }
 
     /* GSI/X.509 origin (e.g. EOS): the built-in client only does an anonymous
      * login, which such an origin rejects. Delegate the fetch to the native
@@ -249,7 +299,8 @@ xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
         size_t got;
 
         got = 0;
-        if (xrootd_cache_origin_read_chunk(t, &oc, fhandle, outfd, offset,
+        /* whole-file fetch: write base == read offset (absolute). */
+        if (xrootd_cache_origin_read_chunk(t, &oc, fhandle, outfd, offset, offset,
                                            XROOTD_CACHE_FETCH_CHUNK,
                                            &got) != 0) {
             close(outfd);
@@ -284,6 +335,18 @@ xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
         return -1;
     }
     outfd = -1;
+
+    /*
+     * Checksum-on-fill: while the origin connection is still open, ask it for the
+     * file's content checksum (kXR_Qcksum) so commit can verify the bytes we just
+     * downloaded before publishing them. Best-effort — an origin with no checksum
+     * leaves t->origin_cks_* empty and the verify policy decides what that means.
+     */
+    if (t->conf->cache_verify != XROOTD_CACHE_VERIFY_OFF) {
+        xrootd_cache_origin_query_checksum(t, &oc,
+            t->origin_cks_alg, sizeof(t->origin_cks_alg),
+            t->origin_cks_hex, sizeof(t->origin_cks_hex));
+    }
 
     xrootd_cache_origin_close_file(&oc, fhandle);
     xrootd_cache_origin_close(&oc);

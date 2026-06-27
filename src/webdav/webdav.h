@@ -197,6 +197,9 @@ typedef struct {
     ngx_str_t      token_jwks;      /* path to JWKS file for RS256 validation */
     ngx_str_t      token_issuer;    /* required "iss" claim; "" to skip check */
     ngx_str_t      token_audience;  /* required "aud" claim; "" to skip check */
+    ngx_str_t      token_config;    /* [xrootd_webdav_token_config <scitokens.cfg>]
+                                       multi-issuer registry (phase-59 W1) */
+    void          *token_registry;  /* xrootd_token_registry_t* or NULL */
     ngx_str_t      token_macaroon_secret;     /* [xrootd_webdav_macaroon_secret <hex>] */
     ngx_str_t      token_macaroon_secret_old; /* [xrootd_webdav_macaroon_secret_old <hex>]
                                                  grace-period key accepted alongside the

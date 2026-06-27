@@ -113,10 +113,9 @@ s3_handle_copy_object(ngx_http_request_t *r,
     if (!s3_resolve_key(cf->common.root_canon, src_key, src_fs_path,
                         sizeof(src_fs_path)))
     {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_ACCESS_DENIED]);
-        return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                 "AccessDenied",
-                                 "Copy source path is not accessible.");
+        return s3_fail(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                       "Copy source path is not accessible.",
+                       XROOTD_S3_EVENT_ACCESS_DENIED);
     }
 
     /* Route the single-file copy through the metered VFS surface (OP_COPY).
@@ -128,10 +127,9 @@ s3_handle_copy_object(ngx_http_request_t *r,
 
     if (xrootd_vfs_copy(&vctx, dst_fs_path, &copy_opts) != NGX_OK) {
         if (errno == ENOENT) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-            return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
-                                     "NoSuchKey",
-                                     "The copy source does not exist.");
+            return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                           "The copy source does not exist.",
+                           XROOTD_S3_EVENT_NO_SUCH_KEY);
         }
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;

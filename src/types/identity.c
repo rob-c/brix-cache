@@ -1,4 +1,5 @@
 #include "identity.h"
+#include "../token/issuer_registry.h"   /* phase-59 W1: per-path issuer gate */
 
 #include <string.h>
 
@@ -483,6 +484,21 @@ xrootd_identity_check_token_scope(const xrootd_identity_t *id,
 {
     if (id == NULL || !(id->auth_method & XROOTD_AUTHN_TOKEN)) {
         return NGX_OK;
+    }
+
+    /* phase-59 W1: when authed via a multi-issuer registry, enforce the
+     * issuer's base_path/restricted_path gate + strategy ladder per path. */
+    if (id->token_issuer != NULL) {
+        xrootd_token_op_e op = need_write ? XROOTD_TOKEN_OP_WRITE
+                                          : XROOTD_TOKEN_OP_READ;
+        xrootd_token_claims_t c;
+        ngx_memzero(&c, sizeof(c));
+        c.scope_count = id->token_scope_count;
+        ngx_memcpy(c.scopes, id->token_scopes,
+                   sizeof(xrootd_token_scope_t) * id->token_scope_count);
+        return xrootd_token_authz_strategy(
+                   (const xrootd_token_issuer_t *) id->token_issuer,
+                   &c, logical_path, op) ? NGX_OK : NGX_ERROR;
     }
 
     if (need_write) {

@@ -73,8 +73,11 @@ xrdc_mkdir(xrdc_conn *c, const char *path, int mode, int parents, xrdc_status *s
     ClientMkdirRequest req;
     memset(&req, 0, sizeof(req));
     req.requestid  = htons(kXR_mkdir);
-    req.options[0] = (kXR_char) (parents ? kXR_mkdirpath : 0);
-    req.mode       = htons((uint16_t) mode);
+    {
+        xrdw_mkdir_req_t b = { .options = (uint8_t) (parents ? kXR_mkdirpath : 0),
+                               .mode = (uint16_t) mode };
+        xrdw_mkdir_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     /* A resumed mkdir whose first attempt already landed reports EEXIST → success. */
     return fs_simple(c, &req, path, (uint32_t) strlen(path),
                      XRDC_OP_MUTATION_NORMALIZE, EEXIST, st);
@@ -86,6 +89,7 @@ xrdc_rm(xrdc_conn *c, const char *path, xrdc_status *st)
     ClientRmRequest req;
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_rm);
+    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
     /* A resumed rm whose first attempt already landed reports ENOENT → success. */
     return fs_simple(c, &req, path, (uint32_t) strlen(path),
                      XRDC_OP_MUTATION_NORMALIZE, ENOENT, st);
@@ -97,6 +101,7 @@ xrdc_rmdir(xrdc_conn *c, const char *path, xrdc_status *st)
     ClientRmdirRequest req;
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_rmdir);
+    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
     return fs_simple(c, &req, path, (uint32_t) strlen(path),
                      XRDC_OP_MUTATION_NORMALIZE, ENOENT, st);
 }
@@ -125,7 +130,10 @@ xrdc_mv(xrdc_conn *c, const char *src, const char *dst, xrdc_status *st)
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_mv);
-    req.arg1len   = (kXR_int16) htons((uint16_t) sl);
+    {
+        xrdw_twopath_req_t b = { .arg1len = (int16_t) sl };
+        xrdw_twopath_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     /* A resumed mv whose first attempt already moved the file reports ENOENT on
      * the (now-absent) source → success. */
@@ -141,7 +149,10 @@ xrdc_chmod(xrdc_conn *c, const char *path, int mode, xrdc_status *st)
     ClientChmodRequest req;
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_chmod);
-    req.mode      = htons((uint16_t) mode);
+    {
+        xrdw_chmod_req_t b = { .mode = (uint16_t) mode };
+        xrdw_chmod_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     /* Re-applying the same mode is harmless — retry freely. */
     return fs_simple(c, &req, path, (uint32_t) strlen(path),
                      XRDC_OP_IDEMPOTENT, 0, st);
@@ -151,10 +162,12 @@ int
 xrdc_truncate(xrdc_conn *c, const char *path, int64_t size, xrdc_status *st)
 {
     ClientTruncateRequest req;
-    uint64_t              off_be = htobe64((uint64_t) size);
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_truncate);
-    memcpy(&req.offset, &off_be, 8);   /* fhandle stays 0: path-based truncate */
+    {
+        xrdw_truncate_req_t b = { .offset = size };   /* fhandle 0 = path-based */
+        xrdw_truncate_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     /* Truncating to the same size is idempotent — retry freely. */
     return fs_simple(c, &req, path, (uint32_t) strlen(path),
                      XRDC_OP_IDEMPOTENT, 0, st);
@@ -168,7 +181,10 @@ xrdc_query(xrdc_conn *c, int infotype, const char *args, char *out, size_t outsz
     size_t             alen = (args != NULL) ? strlen(args) : 0;
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_query);
-    req.infotype  = htons((uint16_t) infotype);
+    {
+        xrdw_query_req_t b = { .infotype = (uint16_t) infotype };
+        xrdw_query_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     return fs_text(c, &req, args, (uint32_t) alen, out, outsz, st);
 }
 
@@ -179,7 +195,10 @@ xrdc_statvfs(xrdc_conn *c, const char *path, char *out, size_t outsz,
     ClientStatRequest req;
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_stat);
-    req.options   = (kXR_char) kXR_vfs;
+    {
+        xrdw_stat_req_t b = { .options = (uint8_t) kXR_vfs };
+        xrdw_stat_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     return fs_text(c, &req, path, (uint32_t) strlen(path), out, outsz, st);
 }
 
@@ -190,7 +209,10 @@ xrdc_locate(xrdc_conn *c, const char *path, char *out, size_t outsz,
     ClientLocateRequest req;
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_locate);
-    req.options   = 0;
+    {
+        xrdw_locate_req_t b = { .options = 0 };
+        xrdw_locate_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     return fs_text(c, &req, path, (uint32_t) strlen(path), out, outsz, st);
 }
 
@@ -229,9 +251,13 @@ xrdc_prepare(xrdc_conn *c, const char *const *paths, int npaths, int options,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_prepare);
-    req.options   = (kXR_char) (options ? options : kXR_stage);
-    req.optionX   = htons((uint16_t) optionX);   /* kXR_evict… */
-    req.prty      = (kXR_char) (prty & 0x03);     /* 0-3 */
+    {
+        xrdw_prepare_req_t b = { .options = (uint8_t) (options ? options : kXR_stage),
+                                 .prty = (uint8_t) (prty & 0x03),
+                                 .port = 0,
+                                 .optionX = (uint16_t) optionX };
+        xrdw_prepare_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     rc = fs_text(c, &req, payload, (uint32_t) (p - payload), out, outsz, st);
     free(payload);

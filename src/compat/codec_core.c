@@ -24,8 +24,7 @@ struct xrootd_codec_stream_s {
     xrootd_codec_guard_t        guard;
 };
 
-/* ---- IDENTITY backend (passthrough; always available) ---- */
-
+/* IDENTITY backend (passthrough; always available) */
 static int
 identity_init(void **state, xrootd_codec_id_t id, xrootd_codec_dir_t dir, int level)
 {
@@ -68,8 +67,7 @@ const xrootd_codec_desc_t xrootd_codec_identity_desc = {
     XROOTD_CODEC_IDENTITY, "identity", "identity", 1, 0, 0, 0, &identity_backend
 };
 
-/* ---- per-codec descriptors (always defined; available=0 when lib absent) ---- */
-
+/* per-codec descriptors (always defined; available=0 when lib absent) */
 extern const xrootd_codec_desc_t xrootd_codec_gzip_desc;
 extern const xrootd_codec_desc_t xrootd_codec_deflate_desc;
 extern const xrootd_codec_desc_t xrootd_codec_zstd_desc;
@@ -89,8 +87,7 @@ static const xrootd_codec_desc_t *const codec_table[XROOTD_CODEC_MAX] = {
     [XROOTD_CODEC_LZ4]      = &xrootd_codec_lz4_desc,
 };
 
-/* ---- lookups ---- */
-
+/* lookups */
 const xrootd_codec_desc_t *
 xrootd_codec_by_id(xrootd_codec_id_t id)
 {
@@ -157,8 +154,7 @@ xrootd_codec_available(xrootd_codec_id_t id)
     return (d != NULL && d->available && d->backend != NULL);
 }
 
-/* ---- stream lifecycle ---- */
-
+/* stream lifecycle */
 xrootd_codec_stream_t *
 xrootd_codec_open(xrootd_codec_id_t id, xrootd_codec_dir_t dir, int level,
                   const xrootd_codec_guard_t *guard)

@@ -1,6 +1,3 @@
-/* ------------------------------------------------------------------ */
-/* Session Handle Registry — Shared File Handles for Bound Streams       */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: This file implements the shared memory handle table used by kXR_bind
  * secondary connections.  Primary connections publish readable file handle
@@ -73,7 +70,7 @@ xrootd_shared_handle_same_key(const xrootd_shared_handle_entry_t *entry,
            && ngx_memcmp(entry->sessid, sessid, XROOTD_SESSION_ID_LEN) == 0;
 }
 
-/* ---- Function: xrootd_session_handle_publish() ----
+/*
  *
  * WHAT: Shares file handle metadata with other workers enabling bound stream
  * secondary connections to read primary-published handles.  Write-only
@@ -170,14 +167,14 @@ xrootd_session_handle_publish(const u_char sessid[XROOTD_SESSION_ID_LEN],
     ngx_shmtx_unlock(&xrootd_handle_mutex);
 }
 
-/* ---- Function: xrootd_session_handle_lookup() ----
+/*
  *
  * WHAT: Retrieves published handle metadata for bound stream read requests.
  *
  * WHY: Bound streams can reopen a primary-published handle in their own worker
  * and validate path identity against the stored device/inode tuple.
  */
-/* ---- Function: xrootd_session_handle_lookup_hint() ----
+/*
  *
  * WHAT: Same as xrootd_session_handle_lookup() but with a caller-owned slot
  * hint (Phase 33 C2).  A bound secondary re-validates its published handle on
@@ -255,7 +252,7 @@ xrootd_session_handle_lookup(const u_char sessid[XROOTD_SESSION_ID_LEN],
     return xrootd_session_handle_lookup_hint(sessid, handle_index, NULL, out);
 }
 
-/* ---- Function: xrootd_session_handle_unpublish() ----
+/*
  *
  * WHAT: Removes one published handle entry during kXR_close.
  *
@@ -292,7 +289,7 @@ xrootd_session_handle_unpublish(const u_char sessid[XROOTD_SESSION_ID_LEN],
     ngx_shmtx_unlock(&xrootd_handle_mutex);
 }
 
-/* ---- Function: xrootd_session_handle_unpublish_all() ----
+/*
  *
  * WHAT: Removes all published handles for a session during session teardown.
  *

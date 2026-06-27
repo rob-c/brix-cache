@@ -4,7 +4,7 @@
  *               ListParts / ListMultipartUploads).
  *
  * Design overview
- * ---------------
+ *
  * Parts are staged as files named "part.<N>" inside a hidden working directory
  * alongside the target object:
  *
@@ -21,7 +21,7 @@
  * AbortMultipartUpload removes the staging dir in the same safe way.
  *
  * Security notes
- * --------------
+ *
  * - partNumber is range-checked (1–10000) and validated to be a decimal
  *   integer before it appears in any path — no shell metachar risk.
  * - All filesystem paths go through xrootd_open_confined_canon /
@@ -46,9 +46,9 @@
 #include <time.h>
 #include <unistd.h>
 
-/* -------------------------------------------------------------------------
+/*
  * Query-string helpers
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * s3_has_query_flag — return 1 if <key> appears as a bare flag (no '=') in
@@ -72,9 +72,9 @@ s3_get_query_param(ngx_http_request_t *r, const char *key,
                                  XROOTD_HTTP_QUERY_TRUNCATE) > 0;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * MPU path helpers
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * s3_get_mpu_dir — build the staging directory path for an in-progress MPU.
@@ -126,9 +126,9 @@ mpu_validate_upload_id(const char *upload_id)
     return 1;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Safe recursive directory removal — no shell subprocess
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * mpu_rmdir_recursive — remove <path> and all its contents using

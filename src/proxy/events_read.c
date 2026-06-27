@@ -13,8 +13,7 @@
  *      handle kXR_attn relay (unsolicited notifications, special stream ID); process bootstrap or forwarding responses based on proxy->state.
  */
 
-/* ---- read event handler --------------------------------------------------- */
-
+/* read event handler */
 void
 xrootd_proxy_read_handler(ngx_event_t *rev)
 {
@@ -57,8 +56,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             return;
         }
 
-        /* ---- accumulate response header (8 bytes) ---- */
-        if (proxy->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
+        /* accumulate response header (8 bytes) */        if (proxy->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
             size_t need = XRD_RESPONSE_HDR_LEN - proxy->rhdr_pos;
 
             n = uconn->recv(uconn, proxy->rhdr + proxy->rhdr_pos, need);
@@ -131,8 +129,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             }
         }
 
-        /* ---- accumulate response body ---- */
-#ifdef __linux__
+        /* accumulate response body */#ifdef __linux__
         /* If splice is active, upstream readable means more data to pump. */
         if (proxy->splice_active) {
             xrootd_proxy_splice_pump(proxy);
@@ -169,8 +166,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             }
         }
 
-        /* ---- kXR_status two-phase: expand body to include page data ---- */
-        /*
+        /* kXR_status two-phase: expand body to include page data */        /*
          * kXR_status (pgread/pgwrite) has hdr.dlen=24 (fixed header) but
          * bdy.dlen more bytes of page data follow the standard body.
          * After reading the 24-byte fixed body, re-allocate to include those
@@ -213,8 +209,7 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
             }
         }
 
-        /* ---- full response received ---- */
-
+        /* full response received */
         /*
          * Protocol Correctness: Handle kXR_attn (unsolicited or async notification).
          * These frames can arrive while IDLE (unsolicited) or while FORWARDING
@@ -272,6 +267,13 @@ xrootd_proxy_read_handler(ngx_event_t *rev)
         }
 
         if (proxy->state == XRD_PX_FORWARDING) {
+            /* Under-draining-splice fallback: the body just accumulated is the
+             * RAW remainder of a spliced read (header already sent) — relay it
+             * verbatim and finish, never through the header-building relay. */
+            if (proxy->splice_fallback) {
+                xrootd_proxy_splice_fallback_finish(proxy);
+                return;
+            }
             ngx_log_debug(NGX_LOG_DEBUG_STREAM, uconn->log, 0,
                           "xrootd proxy: relay_to_client status=%d dlen=%uz",
                           (int) proxy->resp_status,

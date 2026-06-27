@@ -478,6 +478,11 @@ READONLY_HTTP_DAV_PORT = int(os.environ.get("TEST_READONLY_HTTP_DAV_PORT", "1121
 READONLY_HTTP_S3_PORT = int(os.environ.get("TEST_READONLY_HTTP_S3_PORT", "11217"))
 READONLY_HTTP_DATA_ROOT = os.path.join(TEST_ROOT, "data-readonly-http")
 
+# Cleartext HTTP WebDAV with a tight per-IP rate-limit rule — XrdHttp
+# wait/retry + RFC-3230 digest + RFC-7233 range conformance suite.
+XRDHTTP_DIGEST_PORT = int(os.environ.get("TEST_XRDHTTP_DIGEST_PORT", "12988"))
+XRDHTTP_DIGEST_DATA_ROOT = os.path.join(TEST_ROOT, "data-xrdhttp-digest")
+
 # ---------------------------------------------------------------------------
 # Phase 36: IPv6 dedicated instances (all listen on [::1]).
 # See docs/refactor/phase-36-ipv6-completion.md §7. Tests gate on the

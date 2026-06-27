@@ -7,9 +7,7 @@
 #include <unistd.h>
 #endif
 
-
-/* ---- File: src/aio/uring.c — optional io_uring disk-I/O backend (Phase 44) ----
- *
+/* File: src/aio/uring.c — optional io_uring disk-I/O backend (Phase 44)
  * WHAT: Implements the runtime capability probe, the §32 startup fail-fast
  *       validator, and the per-worker ring lifecycle for the optional io_uring
  *       disk-I/O backend.  Submission and completion live in uring_submit.c
@@ -24,12 +22,6 @@
  * HOW:  All liburing-specific code is under #if (XROOTD_HAVE_LIBURING).  When
  *       the macro is undefined the file compiles to inert stubs that report the
  *       backend as unavailable and hard-fail any `xrootd_io_uring on` block. */
-
-
-/* ------------------------------------------------------------------ */
-/* Shared (build-independent) helper: does any enabled server block     */
-/* request `xrootd_io_uring on`?  Used by the validator on both paths.  */
-/* ------------------------------------------------------------------ */
 
 /*
  * xrootd_uring_any_block_on — scan all stream server blocks for a block whose
@@ -62,12 +54,7 @@ xrootd_uring_any_block_on(ngx_conf_t *cf)
     return 0;
 }
 
-
 #if (XROOTD_HAVE_LIBURING)
-
-/* ------------------------------------------------------------------ */
-/* liburing build                                                       */
-/* ------------------------------------------------------------------ */
 
 /* The per-worker ring singleton.  File-static — reached only via the accessor
  * below, never as an exported global.  Zeroed at process start; .enabled stays
@@ -134,11 +121,6 @@ xrootd_uring_runtime_available(void)
     return cached;
 }
 
-
-/* ================================================================== */
-/* SB-W2: per-worker ring lifecycle, completion-slot table, reaper     */
-/* ================================================================== */
-
 /* IORING_RESTRICTION_SQE_OP is an enum value (preprocessor-invisible), so gate
  * on IORING_SETUP_R_DISABLED — a real #define that arrived alongside the
  * restrictions API (kernel 5.10 / matching liburing). */
@@ -152,8 +134,7 @@ xrootd_uring_runtime_available(void)
  * slot index < queue_depth in the low 32 bits). */
 #define XROOTD_URING_NOP_COOKIE  0xffffffffffffffffULL
 
-/* ---- completion-slot table (UAF-safe task mapping) ---- */
-
+/* completion-slot table (UAF-safe task mapping) */
 /* xrootd_uring_slot_at — bounds-checked slot lookup; NULL if idx is out of
  * range (a corrupt/forged user_data). */
 static xrootd_uring_slot_t *
@@ -365,8 +346,7 @@ xrootd_uring_eventfd_handler(ngx_event_t *ev)
     }
 }
 
-/* ---- bring-up helpers ---- */
-
+/* bring-up helpers */
 #if (XROOTD_URING_HAVE_RESTRICTIONS)
 /*
  * xrootd_uring_apply_restrictions — lock the ring to the fd-only data opcodes
@@ -661,10 +641,6 @@ xrootd_uring_exit_worker(ngx_cycle_t *cycle)
 
 #else  /* !XROOTD_HAVE_LIBURING */
 
-/* ------------------------------------------------------------------ */
-/* stub build — no liburing linked                                      */
-/* ------------------------------------------------------------------ */
-
 ngx_int_t
 xrootd_uring_runtime_available(void)
 {
@@ -687,7 +663,6 @@ xrootd_uring_exit_worker(ngx_cycle_t *cycle)
 }
 
 #endif /* XROOTD_HAVE_LIBURING */
-
 
 /*
  * xrootd_uring_validate_conf — §32 startup fail-fast (ADR-16).

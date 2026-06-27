@@ -15,6 +15,29 @@ explicitly deferred. It is the companion to `docs/refactor/phase-28-adversarial-
 | Compromised admin | Holds the admin API credential | Blast radius — redirect traffic, exfiltrate |
 | Curious insider | Host/log/core access | Secret disclosure at rest |
 
+## Attack surface at a glance
+
+Every listener is a front door; each has a primary threat and the control that
+closes it:
+
+```text
+   EXTERNAL                  LISTENER                  PRIMARY THREAT → CONTROL
+  ──────────                ──────────                ─────────────────────────
+  anon client ──▶ root:// / roots:// ──▶ path traversal → openat2 RESOLVE_BENEATH
+  user+token  ──▶ davs:// (WebDAV)   ──▶ scope escalation → token scope + authdb
+  user+key    ──▶ S3 REST            ──▶ key enum / replay → SigV4 constant-time
+  TPC source  ──▶ (outbound from us) ──▶ SSRF / DNS-rebind → net_target + RESOLVE pin
+  cmsd peer   ──▶ CMS manager port   ──▶ redirect poisoning → sss + CIDR + host-validate
+  scraper     ──▶ /metrics, /healthz ──▶ info leak → low-cardinality, PII-free
+  admin       ──▶ admin API          ──▶ blast radius → CIDR ACL + allowlist + audit
+                                          │
+                       ┌──────────────────┴───────────────────┐
+                       │  shared cross-cutting controls        │
+                       │  rate limit · log sanitize · XXE off  │
+                       │  per-principal concurrency cap        │
+                       └───────────────────────────────────────┘
+```
+
 ## Already-strong controls (pre-Phase-28)
 
 These were verified during the Phase 28 audit and require no further work:
@@ -41,6 +64,24 @@ These were verified during the Phase 28 audit and require no further work:
 The manager's CMS port previously admitted any peer's self-reported host:port:paths into the
 server registry, which then drove client redirects. Three layered controls, each compatible
 with stock XRootD cmsd:
+
+```text
+   THE ATTACK                              THE THREE-LAYER DEFENSE
+   ──────────                              ───────────────────────
+  rogue peer ─LOGIN─▶ manager          peer ──▶ ① CIDR allowlist (W1b)
+  "I serve /atlas at evil:1094"               │   off-list IP rejected at accept
+         │                                    ▼
+         ▼ (before)                      ② sss kYR_xauth (W1a)
+  registry stores evil:1094                   manager demands valid sss cred vs
+         │                                    keytab; no cred ⇒ never admitted
+         ▼                                    ▼
+  client locate /atlas                   ③ host-char validation (W1c)
+         │                                    reject control bytes at the single
+         ▼                                    xrootd_srv_register choke point
+  REDIRECT ──▶ evil:1094  ✗ poisoned          ▼
+                                         only clean, authenticated peers enter
+                                         the registry → no redirect poisoning ✓
+```
 
 - **W1a — sss cluster authentication.** Implements the real cmsd `kYR_xauth` handshake
   (`XrdCmsLogin::Admit` → `getToken`+`Authenticate`): after the data node's LOGIN frame the

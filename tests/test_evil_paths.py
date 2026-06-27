@@ -1,3 +1,4 @@
+# loc-lint: exempt — a single module-scoped autouse `params=` fixture mutates module globals (e.g. BASE_URL) that every test reads directly; splitting tests into a sibling module breaks that shared mutable state (proven: webdav 120->100). Cohesive parametrize-unit; Phase-38 §4.4.
 """
 tests/test_evil_paths.py
 

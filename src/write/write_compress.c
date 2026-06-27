@@ -1,6 +1,3 @@
-/* ------------------------------------------------------------------ */
-/* Inline write decompression — kXR_write codec path (phase-42 W5)     */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: xrootd_write_compressed() serves a kXR_write for a handle opened for
  *       write with the opaque "?xrootd.compress=<codec>" while the server has

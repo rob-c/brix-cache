@@ -3,6 +3,14 @@
  *
  * nginx stream module implementing the XRootD root:// protocol.
  * Acts as a kXR_DataServer at the TCP level, with optional write support.
+ *
+ * loc-lint: exempt — ~95% of this file is the single declarative ngx_command_t
+ * directive table (one C array, terminated by ngx_null_command) plus the
+ * module_enums.h value maps; the conf logic is already split out into
+ * config/server_conf.c (create/merge) and stream/module_definition.c (the
+ * ngx_module_t struct).  A flat declarative table cannot be sharded across files
+ * without ugly macro re-assembly, and per-directive doc-blocks are the bulk.
+ * See docs/refactor/phase-38-file-size-unix-modularity.md §2.6/§6.10.
  */
 
 #include "ngx_xrootd_module.h"
@@ -14,139 +22,17 @@
 #include "ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
 #include "impersonate/lifecycle.h" /* Phase 40: impersonation directives */
 #include "cms/cns.h"               /* §6 CNS mode enum */
+#include "module_enums.h"   /* directive enum value tables */
 
-/* §6 xrootd_cns mode values. */
-static ngx_conf_enum_t xrootd_cns_modes[] = {
-    { ngx_string("off"),     XROOTD_CNS_OFF     },
-    { ngx_string("emit"),    XROOTD_CNS_EMIT    },
-    { ngx_string("collect"), XROOTD_CNS_COLLECT },
-    { ngx_null_string,       0                  }
-};
-
-/* ------------------------------------------------------------------ */
-/* Module directives                                                    */
-/* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
-/* WHAT: Authentication mode enum table                                 */
-/* WHY: Provides nginx with selectable auth policy options mapped to    */
-/*      internal constants. The dispatcher uses this during handshake   */
-/*      to advertise available login methods to clients.               */
-/* HOW: Maps textual config values ("none"/"gsi"/"token"/"both"/"sss") */
-/*      onto XROOTD_AUTH_* enum constants used by the session/login     */
-/*      subsystem. "both" enables dual authentication (GSI+token).     */
-/* ------------------------------------------------------------------ */
-/* Text values accepted by `xrootd_auth` in nginx.conf. */
-static ngx_conf_enum_t xrootd_auth_modes[] = {
-    { ngx_string("none"),  XROOTD_AUTH_NONE  },
-    { ngx_string("gsi"),   XROOTD_AUTH_GSI   },
-    { ngx_string("token"), XROOTD_AUTH_TOKEN },
-    { ngx_string("both"),  XROOTD_AUTH_BOTH  },
-    { ngx_string("sss"),   XROOTD_AUTH_SSS   },
-    { ngx_string("unix"),  XROOTD_AUTH_UNIX  },
-    { ngx_string("krb5"),  XROOTD_AUTH_KRB5  },
-    { ngx_string("host"),  XROOTD_AUTH_HOST  },
-    { ngx_string("pwd"),   XROOTD_AUTH_PWD   },
-    { ngx_null_string,     0                 }
-};
-
-/* `xrootd_authdb_format` — pick the authorization engine for the authdb file. */
-static ngx_conf_enum_t xrootd_authdb_format_modes[] = {
-    { ngx_string("native"), XROOTD_AUTHDB_FORMAT_NATIVE },
-    { ngx_string("xrdacc"), XROOTD_AUTHDB_FORMAT_XRDACC },
-    { ngx_null_string,      0                            }
-};
-
-/* `xrootd_authdb_audit` — which authorization decisions to log. */
-static ngx_conf_enum_t xrootd_authdb_audit_modes[] = {
-    { ngx_string("none"),  XROOTD_AUTHDB_AUDIT_NONE  },
-    { ngx_string("deny"),  XROOTD_AUTHDB_AUDIT_DENY  },
-    { ngx_string("grant"), XROOTD_AUTHDB_AUDIT_GRANT },
-    { ngx_string("all"),   XROOTD_AUTHDB_AUDIT_ALL   },
-    { ngx_null_string,     0                         }
-};
-
-/* Phase 22 — health-check probe type. */
-static ngx_conf_enum_t xrootd_hc_types[] = {
-    { ngx_string("ping"), XROOTD_HC_TYPE_PING },
-    { ngx_string("stat"), XROOTD_HC_TYPE_STAT },
-    { ngx_null_string,    0                   }
-};
-
-/* ------------------------------------------------------------------ */
-/* WHAT: Security/ signing level enum table                             */
-/* WHY: Controls kXR_sigver (HMAC-SHA256 request signing) enforcement  */
-/*      granularity. Higher levels require more rigorous signature      */
-/*      verification but may reject legacy clients that don't sign     */
-/*      requests.                                                      */
-/* HOW: Levels progress from "none" (no signing required) through       */
-/*      "compatible" (legacy tolerance), "standard" (default),          */
-/*      "intense" (strict), to "pedantic" (maximum enforcement).       */
-/* ------------------------------------------------------------------ */
-/* Security level enum for xrootd_security_level. */
-static ngx_conf_enum_t xrootd_security_levels[] = {
-    { ngx_string("none"),       0 },
-    { ngx_string("compatible"), 1 },
-    { ngx_string("standard"),   2 },
-    { ngx_string("intense"),    3 },
-    { ngx_string("pedantic"),   4 },
-    { ngx_null_string,          0 }
-};
-
-/* GSI signed-DH policy [xrootd_gsi_signed_dh off|auto|require] (phase-48);
- * see the gsi_signed_dh field in src/types/config.h. */
-static ngx_conf_enum_t xrootd_signed_dh_modes[] = {
-    { ngx_string("off"),     XROOTD_GSI_SDH_OFF     },
-    { ngx_string("auto"),    XROOTD_GSI_SDH_AUTO    },
-    { ngx_string("require"), XROOTD_GSI_SDH_REQUIRE },
-    { ngx_null_string,       0                      }
-};
-
-/* Phase 44: io_uring backend tier selection.  `on` is a hard requirement —
- * startup fails if io_uring cannot be provided (see xrootd_uring_validate_conf
- * in src/config/postconfiguration.c). */
-static ngx_conf_enum_t xrootd_io_uring_modes[] = {
-    { ngx_string("off"),  XROOTD_IO_URING_OFF  },
-    { ngx_string("on"),   XROOTD_IO_URING_ON   },
-    { ngx_string("auto"), XROOTD_IO_URING_AUTO },
-    { ngx_null_string,    0                    }
-};
-
-/* ------------------------------------------------------------------ */
-/* WHAT: Complete nginx stream module directive configuration table     */
-/* WHY: Consolidates all XRootD configuration options into a single    */
-/*      array so the nginx event loop can parse them during startup.   */
-/*      The table is organized by feature group (core → auth → cache)  */
-/*      for readability and future maintenance.                      */
-/* HOW: Each entry follows nginx convention: directive name, config     */
-/*      level flag, setter function, offset into srv_conf struct,      */
-/*      optional enum/table reference. Terminator is ngx_null_command.*/
-/*                                                                      */
-/* READER'S MAP — entries appear in feature-group order, demarcated by  */
-/*   inline section comments below:                                      */
-/*     enable+root -> auth (GSI/token/SSS/krb5/unix) -> security/TLS -> */
-/*     TPC -> write/observability -> manager/cluster roles -> health    */
-/*     -> mirroring (Ph.24) -> rate-limit (Ph.25) -> upstream redirector*/
-/*     -> cache/proxy + memory budget -> write-through -> CMS -> proxy   */
-/*     mode -> OCSP -> SHM KV-zones/caches/rate-limit (Ph.20).          */
-/*                                                                      */
-/* CONFIG-LEVEL CONVENTION (the 2nd field of each entry):               */
-/*   - Almost every directive is NGX_STREAM_SRV_CONF: per-listen/server */
-/*     scope, stored via NGX_STREAM_SRV_CONF_OFFSET into the            */
-/*     ngx_stream_xrootd_srv_conf_t member named by offsetof().         */
-/*   - A FEW are NGX_STREAM_MAIN_CONF (process-global, declared once at  */
-/*     stream{} scope, offset 0): the SHM-backed pools, namely          */
-/*     xrootd_rate_limit_zone (Ph.25) and xrootd_kv_zone (Ph.20), which  */
-/*     allocate shared memory that all worker processes attach to.       */
-/* SETTER CONVENTION (the 3rd field):                                    */
-/*   - ngx_conf_set_*_slot = stock nginx setters writing straight into  */
-/*     the offsetof() member (str/flag/num/msec/sec/size/off/enum).     */
-/*   - xrootd_conf_set_* / *_directive = CUSTOM setters used when a      */
-/*     directive needs validation, multi-arg parsing, or a side effect   */
-/*     (e.g. ngx_stream_xrootd_enable also installs the session handler);*/
-/*     these pass offset 0 and own their own storage.                    */
-/* ------------------------------------------------------------------ */
-/* Combined directive table: core + cache/proxy directives. */
+/*
+ * Directive table.  Entries are grouped by feature (enable+root -> auth ->
+ * security/TLS -> TPC -> write/observability -> cluster roles -> health ->
+ * mirror -> rate-limit -> upstream -> cache/proxy -> write-through -> CMS ->
+ * proxy mode -> OCSP -> SHM zones), demarcated by the inline comments below.
+ * Most directives are NGX_STREAM_SRV_CONF; the SHM-zone ones
+ * (xrootd_rate_limit_zone, xrootd_kv_zone) are NGX_STREAM_MAIN_CONF.
+ * Enum value tables live in module_enums.c.
+ */
 ngx_command_t ngx_stream_xrootd_commands[] = {
 
     { ngx_string("xrootd"),
@@ -301,6 +187,22 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, gsi_max_inflight),
+      NULL },
+
+    /* Per-worker ephemeral-DH keypool warm target (filled off-thread at boot). */
+    { ngx_string("xrootd_gsi_keypool_size"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, gsi_keypool_size),
+      NULL },
+
+    /* Keys generated synchronously at worker start (rest fill off-thread). */
+    { ngx_string("xrootd_gsi_keypool_seed"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, gsi_keypool_seed),
       NULL },
 
     /* Phase 52 (WS-A): GSI session-cipher advertise preference list. */
@@ -461,6 +363,69 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, token_audience),
+      NULL },
+
+    { ngx_string("xrootd_token_config"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, token_config),
+      NULL },
+
+    { ngx_string("xrootd_throttle_zone"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, throttle_zone_name),
+      NULL },
+
+    { ngx_string("xrootd_throttle_max_open_files"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, throttle_max_open_files),
+      NULL },
+
+    { ngx_string("xrootd_throttle_max_active_connections"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, throttle_max_active_conn),
+      NULL },
+
+    { ngx_string("xrootd_csi"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, csi_enable),
+      NULL },
+
+    { ngx_string("xrootd_csi_prefix"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, csi_prefix),
+      NULL },
+
+    { ngx_string("xrootd_csi_fill"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, csi_fill),
+      NULL },
+
+    { ngx_string("xrootd_csi_require"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, csi_require),
+      NULL },
+
+    { ngx_string("xrootd_csi_loose"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, csi_loose),
       NULL },
  
     { ngx_string("xrootd_macaroon_secret"),
@@ -864,8 +829,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, redir_cache_slots),
       NULL },
 
-    /* ---- Phase 22: active health checks (off by default) ---- */
-    { ngx_string("xrootd_health_check"),
+    /* Phase 22: active health checks (off by default) */    { ngx_string("xrootd_health_check"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
@@ -907,8 +871,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, hc_type),
       xrootd_hc_types },
 
-    /* ---- Phase 24: traffic mirroring (off by default) ---- */
-    { ngx_string("xrootd_stream_mirror_url"),
+    /* Phase 24: traffic mirroring (off by default) */    { ngx_string("xrootd_stream_mirror_url"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       xrootd_stream_mirror_set_url,
       NGX_STREAM_SRV_CONF_OFFSET,
@@ -967,8 +930,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, mirror.timeout_ms),
       NULL },
 
-    /* ---- Phase 25: advanced rate limiting / traffic shaping ---- */
-    { ngx_string("xrootd_rate_limit_zone"),     /* stream main: zone=NAME:SIZE */
+    /* Phase 25: advanced rate limiting / traffic shaping */    { ngx_string("xrootd_rate_limit_zone"),     /* stream main: zone=NAME:SIZE */
       NGX_STREAM_MAIN_CONF | NGX_CONF_1MORE,
       xrootd_rl_zone_directive,
       0,
@@ -1040,8 +1002,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, prepare_command),
       NULL },
 
-    /* ---- Phase 35: FRM durable tape staging ---- */
-    { ngx_string("xrootd_frm"),
+    /* Phase 35: FRM durable tape staging */    { ngx_string("xrootd_frm"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
@@ -1177,8 +1138,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, frm.purge_interval_ms),
       NULL },
 
-    /* ---- cache/proxy directives (merged into ngx_stream_xrootd_commands[]) ---- */
-
+    /* cache/proxy directives (merged into ngx_stream_xrootd_commands[]) */
     /* Read-through cache mode: serve from a local cache_root and fill misses. */
     { ngx_string("xrootd_cache"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
@@ -1331,7 +1291,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       0,
       NULL },
 
-    /* ---- write-through mode directives (mirrors XrdPfc configuration from
+    /* write-through mode directives (mirrors XrdPfc configuration from
      * /tmp/xrootd-src/src/XrdPfc/README) ---- */
 
     { ngx_string("xrootd_write_through"),
@@ -1415,6 +1375,21 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, cms_send_timeout),
       NULL },
 
+    /* Fast cold-start mesh settling (pre-first-login window only). */
+    { ngx_string("xrootd_cms_initial_delay"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cms_initial_delay),
+      NULL },
+
+    { ngx_string("xrootd_cms_connect_retry"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cms_connect_retry),
+      NULL },
+
     { ngx_string("xrootd_cms_tcp_keepalive"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -1462,8 +1437,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, common.thread_pool_name),
       NULL },
 
-    /* ---- transparent proxy mode ---- */
-
+    /* transparent proxy mode */
     { ngx_string("xrootd_proxy"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -1644,8 +1618,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, ocsp_stapling),
       NULL },
 
-    /* ---- Phase 20: shared-memory KV zones, caches, and rate limiting ---- */
-
+    /* Phase 20: shared-memory KV zones, caches, and rate limiting */
     /* xrootd_kv_zone <name> <size> key=<bytes> val=<bytes>;  (stream main) */
     { ngx_string("xrootd_kv_zone"),
       NGX_STREAM_MAIN_CONF | NGX_CONF_2MORE,
@@ -1678,8 +1651,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, rate_limit),
       NULL },
 
-    /* ---- SciTags packet marking (src/pmark/) — see phase-34 doc ---- */
-    { ngx_string("xrootd_pmark"),
+    /* SciTags packet marking (src/pmark/) — see phase-34 doc */    { ngx_string("xrootd_pmark"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, common.pmark.enable), NULL },

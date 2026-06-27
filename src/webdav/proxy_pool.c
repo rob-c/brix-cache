@@ -100,11 +100,6 @@ xrootd_proxy_pool_configure(ngx_conf_t *cf)
     return NGX_OK;
 }
 
-
-/* ------------------------------------------------------------------ */
-/* URL → resolved backend (runtime resolution)                         */
-/* ------------------------------------------------------------------ */
-
 /*
  * Resolve a configured "http(s)://host[:port][/uri]" backend URL into a ready-to-
  * use entry: parse the scheme (sets ssl + default port), DNS/parse the authority
@@ -180,11 +175,6 @@ proxy_pool_resolve(const char *url, ngx_pool_t *pool, ngx_log_t *log,
                  scheme_len, url, out->host);
     return NGX_OK;
 }
-
-
-/* ------------------------------------------------------------------ */
-/* Mutations                                                           */
-/* ------------------------------------------------------------------ */
 
 /*
  * Add a backend to the pool at runtime (admin REST API).
@@ -330,11 +320,6 @@ xrootd_proxy_pool_in_flight(uint32_t id)
     ngx_shmtx_unlock(&xrootd_proxy_pool_mutex);
     return result;
 }
-
-
-/* ------------------------------------------------------------------ */
-/* Selection (weighted round-robin)                                    */
-/* ------------------------------------------------------------------ */
 
 /*
  * Pick one ACTIVE backend by weighted round-robin and copy it into *out.

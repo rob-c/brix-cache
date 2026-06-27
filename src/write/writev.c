@@ -1,41 +1,14 @@
-/* ------------------------------------------------------------------ */
-/* WriteV — scatter-gather write from vector of (offset, data) segments   */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: This file implements kXR_writev — a single opcode that writes multiple byte ranges to one or more open file handles in a single request. The handler validates segment descriptors by scanning until payload size matches N*SEGSIZE + sum(wlen), validates all fhandles before writing anything, builds segment descriptor array for AIO dispatch or synchronous pwrite loop. Supports optional kXR_wv_doSync flag (fsync on every touched handle after write). Dispatches to AIO thread pool when configured; falls back to synchronous inline pwrite otherwise. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Payload Validation and Segment Discovery                   */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: The payload format is N segment descriptors followed by concatenated data blocks. The handler discovers N by scanning until N*SEGSIZE + sum(wlen) == dlen — this identifies the exact segment count without relying on a separate length field. Payload size mismatch detection catches malformed requests before any writes occur. Max segments capped at XROOTD_WRITEV_MAXSEGS for safety. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Handle Validation Before Write                             */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: All handles are validated BEFORE any pwrite() is issued — checking fd index bounds, negative fd values (closed handle), and writable flag. This prevents writing to stale or unauthorized handles. Each validation failure returns kXR_FileNotOpen or kXR_NotAuthorized immediately without partial writes. */
-
-/* ------------------------------------------------------------------ */
-/* Section: AIO Thread Pool Dispatch                                   */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: When NGX_THREADS is enabled and a thread pool is configured, the writev operation is posted to xrootd_writev_aio_thread via ngx_thread_task_alloc. The async handler performs sequential pwrite(2)s in a worker thread; the main event loop receives completion via xrootd_writev_aio_done. Payload buffer ownership transferred to task context for cleanup in done callback. Falls back to synchronous inline pwrite if task posting fails. */
-
-/* ---- Function: xrootd_handle_writev() ----
- *
- * WHAT: Protocol-level kXR_writev handler — discovers segment count by payload size matching (N*SEGSIZE + sum(wlen) == dlen), validates all fhandles before writing, builds segment descriptor array for AIO dispatch or synchronous pwrite loop. Supports optional kXR_wv_doSync flag (fsync on every touched handle). Tracks per-handle bytes_written and session_bytes_written totals on completion. Access-log detail format: "<N>_segs".
- *
- * WHY: All-handle validation before any write prevents partial writes to invalid handles — critical for security invariant #3 (write access checks). AIO dispatch transfers payload buffer ownership to task context so the main thread can safely begin reading the next request header. Per-handle byte counter updates enable Prometheus metric aggregation across all writev segments. Optional fsync ensures data durability when requested by client. */
-
 #include "ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 
+/* Handle kXR_writev — scatter the request's data segments to their per-handle
+ * (fd, offset) targets through the VFS write path, then reply with the aggregate
+ * status. */
 ngx_int_t
 xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-	ClientWriteVRequest *req = (ClientWriteVRequest *) ctx->hdr_buf;
+	xrdw_writev_req_t    req;
 	write_list          *wl;
 	size_t               n_segs, i;
 	size_t               total_wlen;
@@ -44,7 +17,8 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	size_t               bytes_written_total = 0;
 	int                  do_sync;
 
-	do_sync = (req->options & kXR_wv_doSync) ? 1 : 0;
+	xrdw_writev_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	do_sync = (req.options & kXR_wv_doSync) ? 1 : 0;
 
 	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
 		XROOTD_OP_ERR(ctx, XROOTD_OP_WRITEV);
@@ -228,8 +202,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			continue;
 		}
 
-		/* ---- kXR_recoverWrts replay detection ----
-		 * Same replay handling as the AIO path: a range already written on a
+		/* kXR_recoverWrts replay detection		 * Same replay handling as the AIO path: a range already written on a
 		 * prior (dropped) connection is acknowledged as success but not
 		 * re-issued to disk. data_ptr must still skip this segment's bytes to
 		 * stay aligned, and we count the bytes toward the client-visible total

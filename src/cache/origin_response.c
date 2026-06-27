@@ -5,8 +5,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
-/* ---- xrootd_cache_read_response — read XRootD server response header + body ----
- *
+/* xrootd_cache_read_response — read XRootD server response header + body
  * WHAT: Reads ServerResponseHdr (fixed-size wire header) via recv_exact, extracts status
  *       and dlen fields via ntohs/ntohl, validates dlen against max_body guard, allocates
  *       body buffer (dlen+1 for null termination), reads body payload, null-terminates.
@@ -18,8 +17,7 @@
  *      termination enables string operations on error messages and stat strings.
  *      All wire fields are big-endian — ntohs/ntohl convert to host byte order. */
 
-/* ---- xrootd_cache_set_origin_error — extract origin error code + message, fallback ----
- *
+/* xrootd_cache_set_origin_error — extract origin error code + message, fallback
  * WHAT: Parses the first 4 bytes of body as big-endian kXR error code, extracts remaining
  *       bytes as error message string (capped at 256 chars), calls set_error with extracted
  *       values. If body is NULL or too short (< 4 bytes): falls back to generic fallback msg.

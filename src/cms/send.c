@@ -22,6 +22,32 @@ ngx_xrootd_cms_send_frame(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid,
                                  payload, payload_len);
 }
 
+/* ngx_xrootd_cms_send_error — reply to a forwarded op that failed * WHAT: Sends a kYR_error reply frame: [4B big-endian ecode][text + NUL],
+ *       echoing the request streamid.  WHY: byte-exact with cmsd
+ *       XrdCmsProtocol::Reply_Error — a data node answers a failed forwarded
+ *       namespace op (Plane B) this way; success stays silent.  HOW: pack the
+ *       error code then the NUL-terminated text into a stack buffer and dispatch
+ *       a CMS_RSP_ERROR frame.  text is truncated to fit the frame cap. */
+ngx_int_t
+ngx_xrootd_cms_send_error(ngx_xrootd_cms_ctx_t *ctx, uint32_t streamid,
+    uint32_t ecode, const char *text)
+{
+    u_char  buf[256];
+    size_t  tlen;
+
+    tlen = (text != NULL) ? ngx_strlen(text) : 0;
+    if (tlen > sizeof(buf) - 5) {       /* 4B ecode + text + NUL */
+        tlen = sizeof(buf) - 5;
+    }
+    ngx_xrootd_cms_put32(buf, ecode);
+    if (tlen > 0) {
+        ngx_memcpy(buf + 4, text, tlen);
+    }
+    buf[4 + tlen] = '\0';
+    return ngx_xrootd_cms_send_frame(ctx, streamid, CMS_RSP_ERROR, 0,
+                                     buf, 4 + tlen + 1);
+}
+
 /*
  * ngx_xrootd_cms_send_login — initial CMS login frame with server capabilities.
  *

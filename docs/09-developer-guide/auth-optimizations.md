@@ -27,6 +27,21 @@ OpenSSL provider implementation and allocating a MAC context for every covered
 request adds fixed CPU cost before the request reaches `open`, `read`, `stat`,
 or `close`.
 
+```text
+  ONCE PER PROCESS        ONCE PER CONNECTION        PER SIGNED REQUEST
+  (config time)           (first kXR_sigver)         (every covered op)
+  ┌──────────────────┐    ┌──────────────────┐       ┌──────────────────┐
+  │ server cert PEM  │    │ fetch HMAC impl  │       │ HMAC-update(req) │
+  │ serialized & held│──▶ │ alloc MAC ctx    │ ────▶ │ compare to sigver│
+  └──────────────────┘    │ (cached on ctx)  │       │ fail closed on   │
+                          └──────────────────┘       │ any crypto error │
+                                  ▲                   └────────┬─────────┘
+                                  └─── reused ─────────────────┘
+                            no reserialize, no provider lookup, no alloc
+                            ───────────────────────────────────────────▶
+       open · read · stat · close dispatch only after verify succeeds
+```
+
 Expected benefits:
 
 - less repeated OpenSSL/BIO work during GSI session startup
@@ -63,6 +78,20 @@ tokens locally.
 The request path does not call an external identity provider. That removes an
 entire network dependency from transfer startup and avoids unpredictable auth
 latency.
+
+```text
+  REMOTE introspection (avoided)        LOCAL JWKS verify (this module)
+  ──────────────────────────────        ───────────────────────────────
+  bearer ─▶ POST /introspect ─▶ IdP     bearer ─▶ split header.payload.sig
+            (network RTT, can stall)              │
+            ◀── active? scopes? ──┘               ▼ verify sig with pinned
+                  │                          JWKS key (RSA/EC, in memory)
+                  ▼                               │
+            outage in IdP =                       ▼ check exp/nbf/aud/scope
+            transfer outage                       │
+                                                  ▼ accept — no network,
+                                            predictable µs-scale latency
+```
 
 Expected benefits:
 

@@ -35,8 +35,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* ---- process-lifetime token buffer -------------------------------------- */
-
+/* process-lifetime token buffer */
 /*
  * g_tok — owns the most recently acquired token string.
  *
@@ -52,8 +51,7 @@
  */
 static char *g_tok = NULL;
 
-/* ---- file reading helper ------------------------------------------------ */
-
+/* file reading helper */
 /*
  * slurp_credfile — read a credential file safely into a malloc'd string.
  *
@@ -116,8 +114,7 @@ slurp_credfile(const char *path)
     return buf;
 }
 
-/* ---- token acquisition -------------------------------------------------- */
-
+/* token acquisition */
 /*
  * obtain_token — apply discovery precedence and return a malloc'd token string.
  *
@@ -139,8 +136,7 @@ obtain_token(const xrdc_cred_config *cfg)
     return xrdc_token_discover();
 }
 
-/* ---- handler callbacks -------------------------------------------------- */
-
+/* handler callbacks */
 /*
  * bearer_available — 1 if a token is obtainable via the discovery precedence.
  *
@@ -225,8 +221,7 @@ bearer_refresh(const xrdc_cred_config *cfg, xrdc_status *st)
     return 0;   /* no-op; C2 will wire xrdc_cred_autorefresh here */
 }
 
-/* ---- handler accessor --------------------------------------------------- */
-
+/* handler accessor */
 static const xrdc_cred_handler s_bearer_handler = {
     .kind      = XRDC_CRED_BEARER,
     .available = bearer_available,

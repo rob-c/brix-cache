@@ -4,24 +4,11 @@
 #include <string.h>
 
 
-/* ---- xrootd_cache_open_or_fill — cache open-on-hit / schedule-fill entry point ----
- *
- * WHAT: Public entry point called when a kXR_open request hits. Decides whether to serve from cached file or schedule a fill worker.
- *       If cache_path exists and is ready → opens directly from cache (fast path). Otherwise allocates a thread-pool task for origin fetch. */
-
-/* ---- Open decision logic ----
- *
- * HOW: Check xrootd_cache_file_ready() return value: 1 = file present and complete → serve immediately; -1 = check failed → error; else → schedule fill. */
-
-/* ---- Task allocation invariant ----
- *
- * WHY: Uses ngx_thread_task_alloc (not pool-alloc) because task ctx is accessed by a separate thread-pool worker.
- *      The task struct contains all context needed for the fetch operation including streamid, options, and both clean_path/cache_path. */
-
-/* ---- Thread posting flow ----
- *
- * HOW: Post task to conf->common.thread_pool → set client state to XRD_ST_AIO (AIO phase) → wait for completion callback xrootd_cache_fill_done. */
-
+/* xrootd_cache_open_or_fill — kXR_open cache entry point: by xrootd_cache_file_ready()
+ * — 1 serve directly from cache (fast path), -1 error — else allocate a thread-pool
+ * task (ngx_thread_task_alloc, since the worker thread owns the ctx: streamid,
+ * options, clean_path/cache_path), post it to conf->common.thread_pool, enter
+ * XRD_ST_AIO, and await xrootd_cache_fill_done. */
 ngx_int_t
 xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, const char *clean_path,

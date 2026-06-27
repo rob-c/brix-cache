@@ -43,9 +43,9 @@
 #include <time.h>
 #include "../compat/alloc_guard.h"
 
-/* -------------------------------------------------------------------------
+/*
  * qsort comparator — lexicographic key order
- * ---------------------------------------------------------------------- */
+ * */
 
 int
 entry_cmp(const void *a, const void *b)
@@ -54,9 +54,9 @@ entry_cmp(const void *a, const void *b)
                   ((const s3_entry_t *) b)->key);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Push a (pooled, right-sized) key into the growable entry array
- * ---------------------------------------------------------------------- */
+ * */
 
 static int
 s3_walk_push(ngx_array_t *entries, const char *key, unsigned is_prefix)
@@ -80,11 +80,11 @@ s3_walk_push(ngx_array_t *entries, const char *key, unsigned is_prefix)
     return 0;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Classify a directory entry: 1 = dir, 2 = regular file, 0 = skip.
  * Uses readdir d_type (no syscall); falls back to a confined lstat only on
  * DT_UNKNOWN.  Symlinks (and FIFO/SOCK/CHR/BLK) are skipped.
- * ---------------------------------------------------------------------- */
+ * */
 
 static int
 s3_walk_classify(ngx_log_t *log, const char *root, const char *child_path,
@@ -115,9 +115,9 @@ s3_walk_classify(ngx_log_t *log, const char *root, const char *child_path,
     }
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Recursive directory walker — appends entries, returns the running total
- * ---------------------------------------------------------------------- */
+ * */
 
 int
 s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
@@ -255,9 +255,9 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
     return (int) entries->nelts;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Lazy per-object stat — called only for the entries actually emitted
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_int_t
 s3_entry_fill_stat(ngx_log_t *log, const char *root, s3_entry_t *e)

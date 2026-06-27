@@ -26,8 +26,7 @@
  * code and t->error_msg to a human-readable description.  Never touches
  * nginx event-loop state (no ctx, no c, no ngx_pool).
  */
-/* ---- public API: xrootd_cksum_aio_thread() — async qcksum thread worker ----
- * WHAT: Thread pool worker that computes single-file checksum. Parses algo string via xrootd_checksum_parse, computes checksum via xrootd_checksum_hex_fd on pre-opened fd, writes "algo hex" result to resp buffer. On parse failure sets kXR_ArgInvalid; on compute failure sets kXR_IOError + error message. Never touches nginx event-loop state (no ctx, no c, no ngx_pool). */
+/* public API: xrootd_cksum_aio_thread() — async qcksum thread worker * WHAT: Thread pool worker that computes single-file checksum. Parses algo string via xrootd_checksum_parse, computes checksum via xrootd_checksum_hex_fd on pre-opened fd, writes "algo hex" result to resp buffer. On parse failure sets kXR_ArgInvalid; on compute failure sets kXR_IOError + error message. Never touches nginx event-loop state (no ctx, no c, no ngx_pool). */
 
 void
 xrootd_cksum_aio_thread(void *data, ngx_log_t *log)
@@ -63,8 +62,7 @@ xrootd_cksum_aio_thread(void *data, ngx_log_t *log)
  * The fd is closed before the destroy check so it is never leaked even
  * when the client disconnected while the AIO was in flight.
  */
-/* ---- public API: xrootd_cksum_aio_done() — async qcksum completion callback ----
- * WHAT: Main-thread event handler invoked when the thread worker completes. Closes t->fd if path-based request (t->close_fd), restores request streamid via aio_restore_request, sends error response or ok+checksum data to client, resumes client connection event loop via xrootd_aio_resume(). */
+/* public API: xrootd_cksum_aio_done() — async qcksum completion callback * WHAT: Main-thread event handler invoked when the thread worker completes. Closes t->fd if path-based request (t->close_fd), restores request streamid via aio_restore_request, sends error response or ok+checksum data to client, resumes client connection event loop via xrootd_aio_resume(). */
 
 void
 xrootd_cksum_aio_done(ngx_event_t *ev)

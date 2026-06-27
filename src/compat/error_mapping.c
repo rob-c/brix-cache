@@ -18,9 +18,9 @@
 #include "error_mapping.h"
 #include <errno.h>
 
-/* --------------------------------------------------------------------------
+/*
  * Section 1: errno → kXR (XRootD wire protocol error codes)
- * -------------------------------------------------------------------------- */
+ * */
 
 /*
  * WHAT: Maps a single POSIX errno to the kXR error code used in wire responses.
@@ -139,9 +139,9 @@ xrootd_kxr_map_ns_status(xrootd_ns_status_t status, int sys_errno)
     return kXR_IOError;
 }
 
-/* --------------------------------------------------------------------------
+/*
  * Section 2: errno → HTTP status codes
- * -------------------------------------------------------------------------- */
+ * */
 
 /*
  * WHAT: Converts filesystem errors (ENOENT, EACCES, ENOSPC, etc.) into standard
@@ -197,12 +197,12 @@ xrootd_http_errno_to_status(int err)
     }
 }
 
-/* --------------------------------------------------------------------------
+/*
  * Section 3: namespace status → HTTP status codes
  *
  * ngx-only: returns ngx_int_t for NGX_HTTP_* comparisons. Excluded from the
  * standalone libxrdproto core (-DXRDPROTO_NO_NGX); Sections 1-2 above are pure.
- * -------------------------------------------------------------------------- */
+ * */
 #ifndef XRDPROTO_NO_NGX
 
 /*

@@ -1,10 +1,14 @@
 #include "server.h"
+#include "router.h"                       /* table-driven opcode routing */
+#include "rrdata.h"                       /* Pup decode + statfs reply encode */
+#include "../manager/registry.h"          /* aggregate space for statfs reply */
 #include "cns.h"                          /* §6 CNS inventory + event codec */
 #include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 #include "../compat/log_diag.h"
 
-/* ---- xrootd_cms_srv_close — tear down CMS server-side connection and unregister data server ----
- * WHAT: Closes the TCP connection to a CMS data-server client, removes ping timer, and unregisters from the server registry if logged_in. WHY: When a data server disconnects, it must be removed from the CMS manager's registry so locate queries don't route clients to dead servers. HOW: 1) If ping_timer set → remove timer → 2) If logged_in → unregister host/port from registry → 3) Set ctx->c = NULL → 4) Close TCP connection. */
+/* xrootd_cms_srv_close — tear down a CMS data-server connection: drop the ping
+ * timer, unregister host/port from the server registry if logged_in (so locate
+ * queries stop routing clients to a dead server), NULL ctx->c, and close. */
 
 void
 xrootd_cms_srv_close(xrootd_cms_srv_ctx_t *ctx)
@@ -51,7 +55,7 @@ xrootd_cms_srv_close(xrootd_cms_srv_ctx_t *ctx)
     ngx_close_connection(c);
 }
 
-/* --- TLV walk helpers ---------------------------------------------------- */
+/* TLV walk helpers */
 
 /*
  * The LOGIN/LOAD/AVAIL payloads use a simple type-tagged encoding:
@@ -112,7 +116,7 @@ cms_srv_read_string(const u_char **p, const u_char *end,
     return 1;
 }
 
-/* --- LOGIN payload parser ------------------------------------------------- */
+/* LOGIN payload parser */
 
 /*
  * Parse the CMS LOGIN frame payload in the real XrdCms CmsLoginData wire format
@@ -240,7 +244,7 @@ cms_srv_parse_login(xrootd_cms_srv_ctx_t *ctx,
     return 1;
 }
 
-/* --- LOAD/AVAIL payload parsers ------------------------------------------ */
+/* LOAD/AVAIL payload parsers */
 
 /*
  * LOAD payload (from cms/send.c):
@@ -285,7 +289,7 @@ cms_srv_parse_avail(const u_char *payload, size_t payload_len,
     *util_pct = tlv_read_next(&p, end);
 }
 
-/* --- Ping timer ----------------------------------------------------------- */
+/* Ping timer */
 
 static void
 xrootd_cms_srv_ping_timer(ngx_event_t *ev)
@@ -303,7 +307,7 @@ xrootd_cms_srv_ping_timer(ngx_event_t *ev)
     ngx_add_timer(&ctx->ping_timer, ctx->interval_ms);
 }
 
-/* --- Frame dispatcher ----------------------------------------------------- */
+/* Frame dispatcher */
 
 /*
  * cms_srv_complete_login — register the data server and arm heartbeats.
@@ -345,7 +349,7 @@ cms_srv_complete_login(xrootd_cms_srv_ctx_t *ctx)
 }
 
 static void
-cms_srv_process_frame(xrootd_cms_srv_ctx_t *ctx, u_char code,
+cms_srv_process_frame(xrootd_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
     uint32_t  free_mb, util_pct;
@@ -420,6 +424,74 @@ cms_srv_process_frame(xrootd_cms_srv_ctx_t *ctx, u_char code,
                        "xrootd: CMS server: pong from %s", ctx->host);
         break;
 
+    case CMS_RR_PING:
+        /*
+         * Symmetric liveness (do_Ping): a node (or peer) probing us gets a
+         * header-only kYR_pong.  No auth/state needed — pure liveness.
+         */
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+                       "xrootd: CMS server: ping from %s -> pong", ctx->host);
+        if (xrootd_cms_srv_send_pong(ctx) != NGX_OK) {
+            xrootd_cms_srv_close(ctx);
+            return;
+        }
+        break;
+
+    case CMS_RR_DISC:
+        /*
+         * Graceful disconnect (do_Disc as manager): echo a kYR_disc back, then
+         * close — which unregisters the node from the registry.
+         */
+        ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
+                      "xrootd: CMS server: %s requested disconnect", ctx->host);
+        (void) xrootd_cms_srv_send_disc(ctx);
+        xrootd_cms_srv_close(ctx);
+        return;
+
+    case CMS_RR_UPDATE:
+        /*
+         * State-refresh request (do_Update): resend our state as a kYR_status
+         * frame so the peer keeps us active and eligible.
+         */
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+                       "xrootd: CMS server: update from %s -> status", ctx->host);
+        if (xrootd_cms_srv_send_status(ctx, CMS_ST_RESUME | CMS_ST_NOSTAGE)
+            != NGX_OK)
+        {
+            xrootd_cms_srv_close(ctx);
+            return;
+        }
+        break;
+
+    case CMS_RR_STATFS: {
+        /*
+         * Space query for a path (do_StatFS): answer kYR_data with aggregate
+         * cluster space for the servers that hold the path. We report a single
+         * tier (staging == writable) since we model one storage class.
+         */
+        xrootd_cms_rrdata_t  d;
+        u_char               out[64];
+        uint32_t             free_mb = 0, util = 0, num;
+        int                  olen;
+
+        if (!ctx->logged_in
+            || xrootd_cms_rrdata_parse(CMS_RR_STATFS, payload, payload_len, &d)
+               != 0
+            || d.path == NULL)
+        {
+            break;                          /* malformed / pre-auth: ignore */
+        }
+
+        num = (uint32_t) xrootd_srv_count_matching((const char *) d.path);
+        xrootd_srv_aggregate_space(&free_mb, &util);
+        olen = xrootd_cms_statfs_encode(num, free_mb, util, num, free_mb, util,
+                                        out, sizeof(out));
+        if (olen > 0) {
+            (void) xrootd_cms_srv_send_data(ctx, streamid, out, (size_t) olen);
+        }
+        break;
+    }
+
     case CMS_RR_GONE:
         if (!ctx->logged_in) { break; }
         if (payload_len > 0) {
@@ -473,18 +545,34 @@ cms_srv_process_frame(xrootd_cms_srv_ctx_t *ctx, u_char code,
         }
         break;
 
-    default:
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
-                       "xrootd: CMS server: unknown rrCode=%ui from %s",
-                       (ngx_uint_t) code, ctx->host);
+    default: {
+        /*
+         * Consult the manager routing table so the log distinguishes a valid
+         * manager opcode we have not wired yet (e.g. usage/stats/statfs) from a
+         * truly unroutable code.  Either way we drop it — matching cmsd's
+         * tolerance of frames it does not act on.
+         */
+        const xrootd_cms_route_t *r =
+            xrootd_cms_route_lookup(XRDCMS_ROLE_MANAGER, code);
+        if (r != NULL) {
+            ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+                           "xrootd: CMS server: unhandled opcode '%s' from %s",
+                           r->name, ctx->host);
+        } else {
+            ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+                           "xrootd: CMS server: unknown rrCode=%ui from %s",
+                           (ngx_uint_t) code, ctx->host);
+        }
         break;
+    }
     }
 }
 
-/* --- Read handler --------------------------------------------------------- */
+/* Read handler */
 
-/* ---- xrootd_cms_srv_write — CMS server write event handler (sync-only) ----
- * WHAT: Write handler for incoming CMS data-server connections. Since all writes are synchronous via send_ping(), this handler only processes timeout events and closes the connection if timed out. WHY: The ping timer fires and calls send_ping() synchronously; no async write buffering needed — write handler is essentially a timeout guard. HOW: On timeout → close connection via xrootd_cms_srv_close(). */
+/* xrootd_cms_srv_write — CMS server write event handler: a pure timeout guard.
+ * All writes are synchronous via send_ping() (driven by the ping timer), so this
+ * only closes the connection (xrootd_cms_srv_close) on a timeout. */
 
 void
 xrootd_cms_srv_write(ngx_event_t *ev)
@@ -498,8 +586,11 @@ xrootd_cms_srv_write(ngx_event_t *ev)
     }
 }
 
-/* ---- xrootd_cms_srv_read — CMS server-side frame read loop and dispatch ----
- * WHAT: Event handler for reading incoming frames from connected CMS data-server clients. Accumulates bytes until header complete, then reads payload based on dlen. Dispatches each opcode (LOGIN→register, LOAD/AVAIL→update load, PONG→debug log, GONE→unregister path) via cms_srv_process_frame(). WHY: Server-side counterpart to recv.c — accepts incoming connections from data servers and manages their registration lifecycle with the CMS manager. HOW: 1) Loop recv() until in_pos >= in_need → 2) If header size → extend to full frame → 3) On complete frame → decode code at offset 4 → 4) Call cms_srv_process_frame(). Disconnect on timeout, error, or frame too large (>NGX_XROOTD_CMS_MAX_FRAME). */
+/* xrootd_cms_srv_read — read event handler for connected data-server clients
+ * (server-side counterpart to recv.c): accumulate bytes to a complete header, read
+ * the dlen payload, and dispatch each frame (LOGIN→register, LOAD/AVAIL→update load,
+ * PONG→log, GONE→unregister) via cms_srv_process_frame(); disconnect on
+ * timeout/error or a frame over NGX_XROOTD_CMS_MAX_FRAME. */
 
 void
 xrootd_cms_srv_read(ngx_event_t *ev)
@@ -568,7 +659,7 @@ xrootd_cms_srv_read(ngx_event_t *ev)
         /* Full frame received — dispatch. */
         code = ctx->inbuf[4];
         dlen = ngx_xrootd_cms_get16(ctx->inbuf + 6);
-        cms_srv_process_frame(ctx, code,
+        cms_srv_process_frame(ctx, code, ngx_xrootd_cms_get32(ctx->inbuf),
                               ctx->inbuf + NGX_XROOTD_CMS_HDR_LEN, dlen);
 
         /* ctx->c may be NULL if the frame handler closed the connection. */

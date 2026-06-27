@@ -1,5 +1,4 @@
-/* ---- File: noop.c — Stub native-TPC implementation for builds without TPC ----
- *
+/* File: noop.c — Stub native-TPC implementation for builds without TPC
  * WHAT: Provides empty/refusing stand-ins for the entire native-TPC public API
  *       (xrootd_tpc_parse_opaque, the key-registry lifecycle —
  *       xrootd_tpc_key_configure_registry / _generate_key / _register / _validate
@@ -25,7 +24,7 @@
  *       The pull entry points xrootd_tpc_prepare_pull / _start_pull send
  *       kXR_Unsupported via xrootd_send_error; xrootd_tpc_launch_pull forwards to
  *       xrootd_tpc_prepare_pull so every wire-level pull attempt is rejected.
- * ------------------------------------------------------------------ */
+ * */
 
 #include "tpc_internal.h"
 

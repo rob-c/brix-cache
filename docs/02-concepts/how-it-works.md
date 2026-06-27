@@ -101,20 +101,39 @@ the path is `proto → VFS → POSIX` for all of them.
 
 #### Writing a File
 
+A fresh upload is **never written directly to its final path**. The server opens
+a **staging file** (a temp/partial file in the same directory, or under
+`xrootd_stage_dir`), streams the writes there, and only **moves it into place
+with an atomic `rename(2)` on a successful `kXR_close`**. If the client
+disconnects mid-transfer, the final path never appears as a half-written file —
+readers see either the old file or the new one, never a torn one.
+
 ```
-Client                     Protocol handler → VFS        POSIX driver (kernel)
-  │                                  │                            │
-  │─── kXR_open (write mode) ─────→│ open (confined, write-gated)│
-  │←── handle + metadata ──────────│←──────────── fd + stat ─────│
-  │                                  │                            │
-  │─── kXR_write (handle, data) ──→│ xrootd_vfs_io_execute()     │
-  │                                  │─ driver->pwrite ───────────→│
-  │←── status OK ──────────────────│←──────────── bytes written ─│
-  │                                  │                            │
-  │─── kXR_sync (handle) ──────────→│ xrootd_vfs_io_execute()    │
-  │                                  │─ driver->fsync ────────────→│  Flush to disk!
-  │←── status OK ──────────────────│←──────────── sync complete ─│
+Client                  Protocol handler → VFS         POSIX driver (kernel)
+  │                               │                            │
+  │─ kXR_open (write/new) ──────→│ open STAGING file           │
+  │                               │  (.part / temp, O_EXCL) ──→│ fd on temp, not
+  │←─ handle + metadata ─────────│←─────────── fd + stat ──────│ the final path
+  │                               │                            │
+  │─ kXR_write (handle, data) ──→│ xrootd_vfs_io_execute()     │
+  │                               │─ driver->pwrite (→ temp) ──→│
+  │←─ status OK ─────────────────│←─────────── bytes written ──│
+  │                               │                            │
+  │─ kXR_sync (handle) ─────────→│ driver->fsync (temp) ──────→│  durability
+  │←─ status OK ─────────────────│←─────────── sync complete ──│
+  │                               │                            │
+  │─ kXR_close (handle) ────────→│ COMMIT: rename(temp → final)│  atomic move
+  │←─ status OK ─────────────────│←──── final path now visible ┘  into place
 ```
+
+**Staging applies to fresh uploads** (`root://` new/overwrite opens with
+`xrootd_upload_resume` on — the default — or POSC; **all** WebDAV `PUT` and S3
+`PUT`, via `xrootd_staged_open()`/`xrootd_staged_commit()`). A *pure in-place
+update* (`kXR_open_updt` with no create, modifying an existing file at an offset)
+writes directly to the file, because staging through an empty temp would lose the
+unwritten bytes. On a non-clean close the staged partial is preserved (resume),
+not published. See [`src/compat/staged_file.c`](../../src/compat/staged_file.c)
+and `src/read/open_resolved_file.c`.
 
 ### Step 6: Response and Cleanup
 

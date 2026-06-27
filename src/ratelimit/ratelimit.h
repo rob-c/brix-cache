@@ -53,6 +53,10 @@ typedef struct {
     uint64_t           bytes_total;     /* cumulative bytes charged            */
     uint32_t           throttle_count;  /* times throttled                     */
     ngx_uint_t         in_flight;       /* W7: current concurrent requests     */
+    uint64_t           io_time_us;      /* phase-59 W3a: IO service-time in the
+                                           current interval (XrdThrottle load)  */
+    ngx_msec_t         io_window;       /* start of the current interval        */
+    ngx_uint_t         open_files;      /* phase-59 W3a: per-user open handles  */
     u_short            len;             /* key_str length                      */
     u_char             key_str[1];      /* flexible: `len` bytes follow        */
 } xrootd_rl_node_t;

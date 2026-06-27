@@ -1,7 +1,6 @@
 #include "cms_internal.h"
 
-/* ---- ngx_xrootd_cms_export_paths — select exported filesystem path for CMS registration ----
- *
+/* ngx_xrootd_cms_export_paths — select exported filesystem path for CMS registration
  * WHAT: Returns the list of filesystem paths this server exports to the CMS manager. If explicit `xrootd_cms_paths` directive is configured, returns that; otherwise falls back to the main `xrootd_root` directory. WHY: CMS manager needs to know which paths a data server can serve — clients use kYR_locate queries to find servers with specific file locations. HOW: Simple precedence check: cms_paths (explicit) > root (default). Returns ngx_str_t directly without allocation. */
 
 ngx_str_t
@@ -14,8 +13,7 @@ ngx_xrootd_cms_export_paths(ngx_stream_xrootd_srv_conf_t *conf)
     return conf->common.root;
 }
 
-/* ---- ngx_xrootd_cms_stat_space — measure filesystem space via statvfs ----
- *
+/* ngx_xrootd_cms_stat_space — measure filesystem space via statvfs
  * WHAT: Calls statvfs() on the configured root directory to measure total disk capacity and available free space. Returns total_gb, free_mb, and utilization percentage as uint32_t values (rounded). WHY: CMS heartbeat reports need current disk metrics to help managers decide where to route client requests — servers with more free space are preferred destinations. HOW: 1) statvfs(conf->common.root.data) → 2) Calculate total = f_blocks × f_frsize → 3) Free = f_bavail × f_frsize → 4) Used = f_blocks - f_bfree → 5) Convert to GB/MB/pct via integer division. Returns NGX_ERROR if statvfs fails or f_blocks == 0 (division by zero guard). */
 
 ngx_int_t

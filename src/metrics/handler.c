@@ -1,8 +1,7 @@
 #include "metrics_internal.h"
 #include "../compat/http_headers.h"
 
-/* ---- File: metrics handler — Prometheus-format endpoint for nginx-xrootd ----
- *
+/* File: metrics handler — Prometheus-format endpoint for nginx-xrootd
  * WHAT: Declares the shared memory zone pointer (ngx_shm_zone_t) allocated by stream module postconfiguration. This global variable is NULL until nginx processes any stream {} block containing xrootd_enable directive. Read here at request time to determine whether metrics data exists — if NULL, handler sends informational message indicating no stream servers configured; otherwise exports all collected metrics via xrootd_export_prometheus_metrics(). */
 
 /*
@@ -11,7 +10,7 @@
  */
 ngx_shm_zone_t *ngx_xrootd_shm_zone = NULL;
 
-/* ---- Function: ngx_http_xrootd_metrics_handler() — serve Prometheus-format metrics endpoint ----
+/*
  *
  * WHAT: Handles /metrics HTTP endpoint serving Prometheus-compatible metric output in text/plain format (version=0.0.4, charset=utf-8). Validates metrics enable flag from location config (lcf->enable) — returns NGX_DECLINED if disabled allowing nginx to pass request to other handlers. Restricts access to GET/HEAD methods only via ngx_http_not_allowed() for non-matching HTTP verbs. Discards any request body via ngx_http_discard_request_body() since metrics endpoint has no payload. Initializes metrics writer (mw_init) with nginx request pool allocation — returns 500 Internal Server Error if writer initialization fails. Exports all collected metrics from shared memory zone (ngx_xrootd_shm_zone->data) via xrootd_export_prometheus_metrics() — if shm_zone is NULL sends informational comment indicating no stream servers configured. Finishes metric output with mw_finish(), sets response headers (status=200, content_length=mw.total, content_type=Prometheus text format), and sends final filtered output via ngx_http_output_filter().
  *

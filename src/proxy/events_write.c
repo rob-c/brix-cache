@@ -14,8 +14,7 @@
  *      transition to XRD_PX_BOOTSTRAP then flush wbuf via xrootd_proxy_flush(); arm upstream read event after write done.
  */
 
-/* ---- write event handler -------------------------------------------------- */
-
+/* write event handler */
 void
 xrootd_proxy_write_handler(ngx_event_t *wev)
 {

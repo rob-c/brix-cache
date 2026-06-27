@@ -51,6 +51,9 @@ typedef struct {
     ngx_str_t    scope_raw;     /* raw OAuth scope claim */
     int          token_scope_count;
     xrootd_token_scope_t token_scopes[XROOTD_MAX_TOKEN_SCOPES];
+    void        *token_issuer;  /* phase-59 W1: matched xrootd_token_issuer_t*
+                                   when authed via a multi-issuer registry; NULL
+                                   otherwise. Adds the per-path base_path gate. */
 
     ngx_uint_t   auth_method;   /* XROOTD_AUTHN_* bitmask */
     unsigned     is_authenticated:1;

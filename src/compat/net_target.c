@@ -16,9 +16,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* ------------------------------------------------------------------ */
-/* Address classification — ported from src/tpc/connect.c             */
-/* ------------------------------------------------------------------ */
 
 /*
  * Return 1 if the IPv4 host-order address is prohibited under policy.
@@ -159,9 +156,6 @@ xrootd_net_target_check_addr(const struct sockaddr *sa,
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* URL parser                                                          */
-/* ------------------------------------------------------------------ */
 
 /*
  * xrootd_net_target_parse — split "scheme://host[:port][/path]" into fields.
@@ -324,9 +318,6 @@ xrootd_net_target_parse(ngx_pool_t *pool,
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* DNS + address policy check (BLOCKING — call from thread only)      */
-/* ------------------------------------------------------------------ */
 
 /*
  * xrootd_net_target_check_dns — resolve target->host and reject if ANY

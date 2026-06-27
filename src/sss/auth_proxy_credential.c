@@ -4,9 +4,6 @@
 #include <openssl/rand.h>
 #include <string.h>
 
-/* ------------------------------------------------------------------ */
-/* SSS Proxy Credential — Server-side credential for upstream authmore  */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: Builds an SSS kXR_auth payload that a proxy server sends to an upstream XRootD server when the upstream requests SSS authentication via kXR_authmore. Constructs header (magic 'sss\0', version, enc type BF32, 8-byte BE key-id) + Blowfish-CFB encrypted cleartext block containing RAND_bytes nonce + gen_time encode + TLV NAME field for username.
  *

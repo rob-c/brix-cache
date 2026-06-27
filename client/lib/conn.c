@@ -73,9 +73,22 @@ xrdc_resolve_ca_dir(const char *opt_ca_dir)
 static void
 fill_username(char out[9])
 {
-    struct passwd *pw = getpwuid(geteuid());
-    const char    *name = (pw != NULL && pw->pw_name != NULL) ? pw->pw_name : "nobody";
-    size_t         n = strlen(name);
+    /* The login username is the OS identity advertised for monitoring/default
+     * mapping (real authz comes from the chosen sec protocol). Prefer $LOGNAME/
+     * $USER — set in every interactive/login shell — so the common path skips the
+     * getpwuid() NSS lookup entirely (it lazy-loads libnss_* on first call, a
+     * measurable per-process cost the async manager would otherwise pay once per
+     * parallel stream). Fall back to getpwuid() when the environment is unset. */
+    const char    *name = getenv("LOGNAME");
+    struct passwd *pw;
+    size_t         n;
+
+    if (name == NULL || name[0] == '\0') { name = getenv("USER"); }
+    if (name == NULL || name[0] == '\0') {
+        pw = getpwuid(geteuid());
+        name = (pw != NULL && pw->pw_name != NULL) ? pw->pw_name : "nobody";
+    }
+    n = strlen(name);
 
     if (n > 8) { n = 8; }       /* the wire field is 8 bytes; truncate */
     memcpy(out, name, n);
@@ -360,7 +373,11 @@ xrdc_bind(xrdc_conn *sec, const xrdc_conn *primary, xrdc_status *st)
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_bind);
-    memcpy(req.sessid, primary->sessid, XROOTD_SESSION_ID_LEN);
+    {
+        xrdw_sessid_req_t b;
+        memcpy(b.sessid, primary->sessid, XROOTD_SESSION_ID_LEN);
+        xrdw_sessid_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     if (xrdc_send(sec, &req, NULL, 0, &sid, st) != 0
         || xrdc_recv(sec, sid, &status, &body, &blen, st) != 0) {
@@ -540,7 +557,11 @@ xrdc_close(xrdc_conn *c)
         memset(req, 0, sizeof(req));
         req[2] = (uint8_t) (kXR_endsess >> 8);
         req[3] = (uint8_t) (kXR_endsess & 0xff);
-        memcpy(req + 4, c->sessid, XROOTD_SESSION_ID_LEN);   /* body[16] = sessid */
+        {
+            xrdw_sessid_req_t b;   /* body[16] = sessid (shared codec) */
+            memcpy(b.sessid, c->sessid, XROOTD_SESSION_ID_LEN);
+            xrdw_sessid_req_pack(&b, req + 4);
+        }
         xrdc_status_clear(&throwaway);
         (void) xrdc_send(c, req, NULL, 0, &sid, &throwaway);
     }

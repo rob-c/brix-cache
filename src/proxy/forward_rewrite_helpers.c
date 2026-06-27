@@ -12,21 +12,12 @@
  *      looks up local handle in fh_map and replaces byte at offset; returns -1 for invalid/unmapped handles.
  */
 
-/* ---- path prefix rewriting ----------------------------------------------- */
+/* path prefix rewriting */
 
-/* ---- public API: proxy_rewrite_path() — single-path prefix rewrite ----
- * WHAT: Apply strip/add prefix transformation to a request payload containing one filesystem path.
- * WHY: Transparent XRootD proxy translates client paths (e.g., /data) to upstream paths (e.g., /mnt/storage).
- *      Same-length rewrites are done in-place; longer results require reallocation with dlen header update. */
-
-/* ---- public API: proxy_rewrite_prepare_payload() — kXR_prepare multi-path rewrite ----
- * WHAT: Apply strip/add prefix transformation to each newline-separated path in a kXR_prepare payload.
- * WHY: kXR_prepare lists paths for cache staging; the proxy must translate all listed paths before forwarding to upstream. */
-
-/* ---- public API: proxy_translate_fh() — local-to-upstream file handle translation ----
- * WHAT: Replace a 1-byte local file handle byte in buffer with the corresponding upstream handle ID from fh_map lookup.
- * WHY: File handles are assigned locally by nginx-xrootd but must be translated to upstream IDs before forwarding read/write requests. */
-
+/* proxy_rewrite_path — apply the strip/add prefix transform to a request payload
+ * carrying one filesystem path (transparent proxy: client /data → upstream
+ * /mnt/storage); same-length rewrites are in-place, longer results reallocate and
+ * update the dlen header. */
 u_char *
 proxy_rewrite_path(ngx_connection_t *c,
                     ngx_stream_xrootd_srv_conf_t *conf,
@@ -181,7 +172,7 @@ proxy_rewrite_prepare_payload(ngx_connection_t *c,
     return new_req;
 }
 
-/* ---- fhandle translation helpers ----------------------------------------- */
+/* fhandle translation helpers */
 
 /*
  * Translate a 1-byte local file handle in buf[offset] to the upstream handle.

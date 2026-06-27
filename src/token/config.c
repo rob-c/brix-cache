@@ -1,7 +1,8 @@
 #include "../config/config.h"
+#include "../token/issuer_registry.h"
 #include <sys/stat.h>
 
-/* ---- Function: xrootd_configure_token_auth() — validate and initialize token authentication config ----
+/*
  *
  * WHAT: Validates that required token auth configuration fields are present when auth mode is XROOTD_AUTH_TOKEN or XROOTD_AUTH_BOTH. Checks for non-empty token_jwks (JWKS key file path), token_issuer, and token_audience. Validates JWKS file exists as a regular file with read permissions via xrootd_validate_path(). Loads all public keys from the JWKS file into jwks_keys array using xrootd_jwks_load() — returns NGX_OK only when at least one key loaded successfully. Logs configuration summary with key count on success, or emerg-level errors on any validation failure.
  *
@@ -12,6 +13,28 @@ xrootd_configure_token_auth(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf)
 {
     if (xcf->auth != XROOTD_AUTH_TOKEN && xcf->auth != XROOTD_AUTH_BOTH) {
+        return NGX_OK;
+    }
+
+    /* Multi-issuer registry (phase-59 W1): when xrootd_token_config is set it
+     * supersedes the single-issuer token_jwks/_issuer/_audience directives. */
+    if (xcf->token_config.len > 0) {
+        xrootd_token_registry_t *reg = NULL;
+
+        if (xcf->token_issuer.len || xcf->token_audience.len
+            || xcf->token_jwks.len)
+        {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                "xrootd_token_config supersedes xrootd_token_issuer/"
+                "_audience/_jwks (single-issuer directives ignored)");
+        }
+        if (xrootd_token_registry_build(cf,
+                (const char *) xcf->token_config.data,
+                XROOTD_AUTHZ_CAPABILITY, &reg) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+        xcf->token_registry = reg;
         return NGX_OK;
     }
 

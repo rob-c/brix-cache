@@ -1,5 +1,4 @@
-/* ---- File: delegation.c — GSI X.509 proxy delegation, inbound capture (§F6) ----
- *
+/* File: delegation.c — GSI X.509 proxy delegation, inbound capture (§F6)
  * WHAT: The destination's GSI-server side of proxy delegation. After a verified
  *   kXGC_cert, xrootd_gsi_begin_delegation() sends a kXGS_pxyreq (a proxy-cert
  *   request, encrypted under the session cipher); xrootd_gsi_handle_sigpxy()

@@ -25,10 +25,10 @@
 #include <string.h>
 #include "../compat/alloc_guard.h"
 
-/* -------------------------------------------------------------------------
+/*
  * PUT /bucket/key?partNumber=N&uploadId=<id>  +  x-amz-copy-source header
  * →  UploadPartCopy
- * ---------------------------------------------------------------------- */
+ * */
 
 static const char *
 s3_find_request_header_value(ngx_http_request_t *r, const char *name,

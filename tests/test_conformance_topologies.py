@@ -49,7 +49,9 @@ from settings import (
 # hangs the whole run (serial) or crashes the xdist worker (-n N).  Give the module
 # a realistic timeout that sits ABOVE the nested subprocess's own (catchable)
 # timeout so the subprocess raises TimeoutExpired first and the test fails cleanly.
-pytestmark = pytest.mark.timeout(420)
+# serial: spawns 4 full nested conformance runs that hammer the shared reference
+# xrootd with concurrent dirlists — only reliable run one-at-a-time, not in the pool.
+pytestmark = [pytest.mark.timeout(420), pytest.mark.serial]
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 H = SERVER_HOST

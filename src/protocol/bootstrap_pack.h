@@ -33,6 +33,7 @@
 
 #include "wire_core_requests.h"   /* ClientInitHandShake / Protocol / Login + types/opcodes */
 #include "flags.h"                /* kXR_ver005, kXR_secreqs/ableTLS/wantTLS, kXR_asyncap */
+#include "codec/wire_codec.h"     /* shared per-opcode wire-body codec */
 
 /*
  * ClientInitHandShake = {0,0,0, htonl(4), htonl(ROOTD_PQ)} (20 bytes). The first
@@ -60,13 +61,13 @@ static inline void
 xrd_pack_protocol_request(ClientProtocolRequest *pr,
                           const uint8_t streamid[2], uint8_t flags)
 {
+    xrdw_protocol_req_t b = { .clientpv = kXR_PROTOCOLVERSION,
+                              .flags = flags, .expect = kXR_ExpLogin };
     memset(pr, 0, sizeof(*pr));
     pr->streamid[0] = streamid[0];
     pr->streamid[1] = streamid[1];
     pr->requestid   = htons(kXR_protocol);
-    pr->clientpv    = htonl(kXR_PROTOCOLVERSION);
-    pr->flags       = (kXR_char) flags;
-    pr->expect      = (kXR_char) kXR_ExpLogin;   /* a kXR_login follows */
+    xrdw_protocol_req_pack(&b, ((ClientRequestHdr *) pr)->body);  /* clientpv/flags/expect */
     pr->dlen        = 0;
 }
 
@@ -83,19 +84,21 @@ static inline void
 xrd_pack_login_request(ClientLoginRequest *lr, const uint8_t streamid[2],
                        int32_t pid, const char *username, uint8_t capver)
 {
-    size_t n = (username != NULL) ? strlen(username) : 0;
+    size_t          n = (username != NULL) ? strlen(username) : 0;
+    xrdw_login_req_t b = { .pid = pid, .capver = capver };
 
-    if (n > sizeof(lr->username)) {
-        n = sizeof(lr->username);
+    if (n > sizeof(b.username)) {
+        n = sizeof(b.username);
+    }
+    if (n > 0) {
+        memcpy(b.username, username, n);   /* NUL-padded; b pre-zeroed by init */
     }
 
     memset(lr, 0, sizeof(*lr));
     lr->streamid[0] = streamid[0];
     lr->streamid[1] = streamid[1];
     lr->requestid   = htons(kXR_login);
-    lr->pid         = htonl(pid);
-    memcpy(lr->username, username, n);   /* NUL-padded; field pre-zeroed above */
-    lr->capver      = (kXR_char) capver;
+    xrdw_login_req_pack(&b, ((ClientRequestHdr *) lr)->body);  /* pid/username/capver */
     lr->dlen        = 0;
 }
 

@@ -25,8 +25,7 @@
  */
 
 
-/* ---- public API: xrootd_ckscan_aio_thread() — async ckscan thread worker ----
- * WHAT: Thread pool worker that computes checksums for a file or directory tree. Stat's the scan target, opens confined fd
+/* public API: xrootd_ckscan_aio_thread() — async ckscan thread worker * WHAT: Thread pool worker that computes checksums for a file or directory tree. Stat's the scan target, opens confined fd
  *       for regular files and computes single checksum via xrootd_checksum_u32_fd; walks directories recursively with depth/file
  *       limits calling ckscan_append per file. Allocates response buffer with dynamic growth. Sets t->error_code on failure. */
 
@@ -150,8 +149,7 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
     t->error_code = 0;
 }
 
-/* ---- public API: xrootd_ckscan_aio_done() — async ckscan completion callback ----
- * WHAT: Event handler invoked when the thread pool worker completes. Restores the request streamid via aio_restore_request,
+/* public API: xrootd_ckscan_aio_done() — async ckscan completion callback * WHAT: Event handler invoked when the thread pool worker completes. Restores the request streamid via aio_restore_request,
  *       sends error response (t->error_code + t->error_msg) or ok+checksum data to client, frees the response buffer, and
  *       resumes the client connection event loop via xrootd_aio_resume(). */
 

@@ -23,17 +23,24 @@
 #include "vfs.h"
 #include "uring.h"
 #include "xrdc.h"
+#include "fs/backend/sd.h"   /* shared Storage Driver: raw fd I/O single-sourced
+                              * with the nginx server (ngx-free under
+                              * -DXRDPROTO_NO_NGX; xrootd_sd_posix_driver lives in
+                              * libxrdproto). The plain (non-io_uring) paths below
+                              * dispatch through this seam instead of calling the
+                              * syscalls directly, so the raw POSIX I/O semantics
+                              * have exactly one implementation across client+server. */
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* ---- Concrete per-handle struct ----------------------------------------- */
-
+/* Concrete per-handle struct */
 /*
  * vfs_posix_file — concrete file handle for the POSIX backend.
  *
@@ -51,34 +58,40 @@ typedef struct {
     char          *tmp_path;      /* heap-allocated temp path (WRITE only; NULL for READ) */
 } vfs_posix_file;
 
-/* ---- Temp-path helper ---------------------------------------------------- */
-
+/* Temp-path helper */
 /*
  * make_posix_temp_path — allocate a sibling temp path for a WRITE destination.
  *
- * WHAT: returns a heap string "<dst>.xrdvfs-tmp.<pid>", or NULL on OOM/overflow.
+ * WHAT: returns a heap string "<dst>.xrdvfs-tmp.<pid>.<seq>", or NULL on OOM/
+ *       overflow.
  * WHY:  co-locates the temp on the same filesystem as the final so rename() is
- *       guaranteed atomic; the predictable suffix lets the caller open with O_EXCL.
+ *       guaranteed atomic, and opens O_EXCL.  The pid alone is NOT unique under
+ *       `xrdcp -j`, whose batch workers are threads sharing one pid: two same-
+ *       basename destinations would collide on an identical temp and fail O_EXCL
+ *       (`File exists`).  A process-wide atomic sequence makes every concurrent
+ *       open's temp distinct; pids already differ across separate processes.
  * HOW:  snprintf into a heap buffer; return NULL on overflow (path too long) or
  *       malloc failure.  Caller must free the result.
  */
 static char *
 make_posix_temp_path(const char *dst)
 {
-    size_t n = strlen(dst) + 32;   /* room for ".xrdvfs-tmp.<pid>" */
+    static atomic_ulong seq;
+    unsigned long s = atomic_fetch_add(&seq, 1ul);
+    size_t n = strlen(dst) + 48;   /* room for ".xrdvfs-tmp.<pid>.<seq>" */
     char  *buf = malloc(n);
     if (buf == NULL) {
         return NULL;
     }
-    if ((size_t) snprintf(buf, n, "%s.xrdvfs-tmp.%ld", dst, (long) getpid()) >= n) {
+    if ((size_t) snprintf(buf, n, "%s.xrdvfs-tmp.%ld.%lu",
+                          dst, (long) getpid(), s) >= n) {
         free(buf);
         return NULL;
     }
     return buf;
 }
 
-/* ---- Ring selection ------------------------------------------------------- */
-
+/* Ring selection */
 /*
  * posix_ring_select — attach an optional io_uring ring to an already-open fd.
  *
@@ -124,8 +137,7 @@ posix_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
     return 0;
 }
 
-/* ---- vtable operations --------------------------------------------------- */
-
+/* vtable operations */
 /*
  * posix_pread — read n bytes at offset off into buf.
  *
@@ -144,9 +156,12 @@ posix_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
     }
 
     {
-        ssize_t r;
+        xrootd_sd_obj_t obj;
+        ssize_t         r;
+
+        xrootd_sd_posix_wrap(&obj, pf->fd);
         do {
-            r = pread(pf->fd, buf, n, (off_t) off);
+            r = obj.driver->pread(&obj, buf, n, (off_t) off);
         } while (r < 0 && errno == EINTR);
 
         if (r < 0) {
@@ -192,12 +207,14 @@ posix_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
     }
 
     {
-        size_t  written = 0;
-        ssize_t w;
+        xrootd_sd_obj_t obj;
+        size_t          written = 0;
+        ssize_t         w;
 
+        xrootd_sd_posix_wrap(&obj, pf->fd);
         while (written < n) {
-            w = pwrite(pf->fd, (const char *) buf + written,
-                       n - written, (off_t) off + (off_t) written);
+            w = obj.driver->pwrite(&obj, (const char *) buf + written,
+                                   n - written, (off_t) off + (off_t) written);
             if (w < 0) {
                 if (errno == EINTR) {
                     continue;
@@ -222,18 +239,20 @@ posix_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
 static int
 posix_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
 {
-    vfs_posix_file *pf = (vfs_posix_file *) f;
-    struct stat     sb;
+    vfs_posix_file  *pf = (vfs_posix_file *) f;
+    xrootd_sd_obj_t  obj;
+    xrootd_sd_stat_t sd;
 
-    if (fstat(pf->fd, &sb) != 0) {
+    xrootd_sd_posix_wrap(&obj, pf->fd);
+    if (obj.driver->fstat(&obj, &sd) != NGX_OK) {
         xrdc_status_set(st, XRDC_EIO, errno,
                         "vfs posix fstat: %s", strerror(errno));
         return -1;
     }
 
-    out->size   = (int64_t) sb.st_size;
-    out->mtime  = (int64_t) sb.st_mtime;
-    out->is_dir = S_ISDIR(sb.st_mode) ? 1 : 0;
+    out->size   = (int64_t) sd.size;
+    out->mtime  = (int64_t) sd.mtime;
+    out->is_dir = sd.is_dir ? 1 : 0;
     out->exists = 1;
     return 0;
 }
@@ -249,8 +268,10 @@ static int
 posix_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st)
 {
     vfs_posix_file *pf = (vfs_posix_file *) f;
+    xrootd_sd_obj_t obj;
 
-    if (ftruncate(pf->fd, (off_t) size) != 0) {
+    xrootd_sd_posix_wrap(&obj, pf->fd);
+    if (obj.driver->ftruncate(&obj, (off_t) size) != NGX_OK) {
         xrdc_status_set(st, XRDC_EIO, errno,
                         "vfs posix ftruncate: %s", strerror(errno));
         return -1;
@@ -276,10 +297,14 @@ posix_sync(xrdc_vfs_file *f, xrdc_status *st)
         }
     }
 
-    if (fsync(pf->fd) != 0) {
-        xrdc_status_set(st, XRDC_EIO, errno,
-                        "vfs posix fsync: %s", strerror(errno));
-        return -1;
+    {
+        xrootd_sd_obj_t obj;
+        xrootd_sd_posix_wrap(&obj, pf->fd);
+        if (obj.driver->fsync(&obj) != NGX_OK) {
+            xrdc_status_set(st, XRDC_EIO, errno,
+                            "vfs posix fsync: %s", strerror(errno));
+            return -1;
+        }
     }
     return 0;
 }
@@ -364,8 +389,7 @@ posix_close(xrdc_vfs_file *f)
     free(pf);
 }
 
-/* ---- vtable singleton ---------------------------------------------------- */
-
+/* vtable singleton */
 static const xrdc_vfs_ops s_posix_ops = {
     .pread    = posix_pread,
     .pwrite   = posix_pwrite,
@@ -377,8 +401,7 @@ static const xrdc_vfs_ops s_posix_ops = {
     .close    = posix_close,
 };
 
-/* ---- Backend open + stat ------------------------------------------------- */
-
+/* Backend open + stat */
 /*
  * posix_be_open — allocate a vfs_posix_file and open the underlying fd.
  *
@@ -521,8 +544,7 @@ posix_be_stat(const xrdc_vfs_backend *be, const char *path,
     return 0;
 }
 
-/* ---- Backend descriptor + self-registration ----------------------------- */
-
+/* Backend descriptor + self-registration */
 static const xrdc_vfs_backend s_posix_backend = {
     .scheme = "file",
     .caps   = (XRDC_VFS_CAP_RANDOM_WRITE | XRDC_VFS_CAP_TRUNCATE |

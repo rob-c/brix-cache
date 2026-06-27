@@ -48,11 +48,17 @@ attacker or a handshake burst can impose.
 | `parse_x509.c` | `xrootd_gsi_parse_x509()` — GSI round 2 top-level. Extracts client DH public + encrypted `kXRS_main`, derives the DH shared secret, sets `ctx->signing_key`/`ctx->signing_active`, AES-CBC-decrypts the chain, and returns the parsed `STACK_OF(X509)` (caller frees). |
 | `parse_crypto_helpers.c` | OpenSSL building blocks for round 2: `xrootd_gsi_parse_client_dh_public_key()` (decode the BPUB/EPUB hex blob → `BIGNUM`), `xrootd_gsi_select_cipher_name()` (pick the cipher from `kXRS_cipher_alg`), `xrootd_gsi_build_peer_dh_key()` (build the client peer `EVP_PKEY` from merged server params + client pub). |
 | `buffer.c` | `gsi_find_bucket()` — the XrdSutBuffer binary parser. Safely scans an untrusted `[type:BE][len:BE][data]` bucket list (terminated by `kXRS_none`) for one bucket type. Used by every GSI handler to locate buckets. |
-| `keypool.c` / `keypool.h` | Per-worker warm pool of ephemeral `ffdhe2048` DH keys: `xrootd_gsi_dh_keygen()` (one key), `xrootd_gsi_keypool_init()` (synchronous warm-up at worker start), `xrootd_gsi_keypool_pop()` (lock-free pop + off-thread refill). Keeps keygen off the event thread. |
+| `keypool.c` / `keypool.h` | Per-worker warm pool of ephemeral `ffdhe2048` DH keys: `xrootd_gsi_dh_keygen()` (one key), `xrootd_gsi_keypool_init()` (lazy seed at worker start — generates only `xrootd_gsi_keypool_seed` keys synchronously, then fills to `xrootd_gsi_keypool_size` **off the event thread** via the GSI server's thread pool; full synchronous warm-up only when no thread pool exists), `xrootd_gsi_keypool_pop()` (lock-free pop + off-thread refill at half-target low-water). Keeps keygen off the event thread — including at boot, which was the dominant per-worker startup cost. |
 | `token.c` | `xrootd_handle_token_auth()` — the `ztn` (WLCG/SciToken JWT) path. Extracts the bearer token, checks the cross-worker token cache, validates signature/issuer/audience via `xrootd_token_validate()` (with macaroon grace-period key rotation), then sets identity/DN/VO/scopes and registers the session. |
 | `config.c` | `xrootd_configure_gsi()` (load cert/key/CA, cache server PEM, compute CA issuer hash) and `xrootd_rebuild_gsi_store()` (atomic, hot-reloadable `X509_STORE` rebuild from CA + CRLs with `X509_V_FLAG_ALLOW_PROXY_CERTS`). |
 | `pki.c` | `xrootd_check_pki_consistency_stream()` — stream-config wrapper that validates the CA↔CRL pairing at config time via `crypto/pki_check.c`; non-fatal so the server still starts with a broken CRL. |
 | `gsi_internal.h` | Shared internal declarations for the three in-directory handlers (`xrootd_gsi_send_cert`, `xrootd_handle_token_auth`, `xrootd_handle_sss_auth`); pulls in `ngx_xrootd_module.h` for ngx + OpenSSL EVP types. |
+| `gsi_core.c` | **Shared, ngx-free** GSI crypto kernels (compiled into both the module *and* `libxrdproto`). After the Phase-38 split, keeps the cert-request/response assembly (`xrootd_gsi_build_cert_response`) + `kXR_sigver` HMAC helpers + the fixed DH-params PEM. |
+| `gsi_buf.c` | XrdSutBuffer bucket scan (`xrootd_gsi_find_bucket`) + builder (`xrootd_gbuf_*`). *(Phase 38 split of `gsi_core.c`.)* |
+| `gsi_dh.c` | Diffie-Hellman keygen/encode/decode/derive (`xrootd_gsi_dh_*`). *(Phase 38 split of `gsi_core.c`.)* |
+| `gsi_cipher.c` | Session-cipher negotiation + AES encrypt/decrypt (`xrootd_gsi_cipher_*`). *(Phase 38 split of `gsi_core.c`.)* |
+| `gsi_rsa.c` | RSA sign / encrypt-private / decrypt-public + `xrootd_gsi_rand`. *(Phase 38 split of `gsi_core.c`.)* |
+| `gsi_core_internal.h` | Private (ngx-free) split contract shared by the `gsi_core`/`gsi_buf`/`gsi_dh`/`gsi_cipher`/`gsi_rsa` family. |
 
 ## Key types & data structures
 

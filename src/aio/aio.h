@@ -143,6 +143,7 @@ typedef struct {
     u_char    streamid[2];
     ssize_t   nread;
     int       io_errno;
+    void     *csi;        /* phase-59 W2: xrootd_csi_t* or NULL (verify on read) */
 } xrootd_read_aio_t;
 
 typedef struct {
@@ -165,6 +166,7 @@ typedef struct {
      * done callback sends a CSE retransmit frame instead of a plain status. */
     size_t         bad_page_count;
     xrdp_pg_bad_t  bad_pages[kXR_pgMaxEpr];
+    void          *csi;        /* phase-59 W2: xrootd_csi_t* or NULL (tag update) */
 } xrootd_write_aio_t;
 
 typedef struct {

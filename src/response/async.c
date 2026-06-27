@@ -33,9 +33,6 @@
 #include "async.h"
 #include "../compat/alloc_guard.h"
 
-/* ------------------------------------------------------------------ */
-/* Internal helpers                                                     */
-/* ------------------------------------------------------------------ */
 
 static const u_char kAttnZeroStreamid[2] = {0, 0};
 
@@ -43,9 +40,6 @@ static const u_char kAttnZeroStreamid[2] = {0, 0};
  *   actnum[4] + reserved[4] + inner_hdr[8] = 16 bytes */
 #define ATTN_BODY_OVERHEAD  16
 
-/* ------------------------------------------------------------------ */
-/* Frame-size query and buffer builder                                  */
-/* ------------------------------------------------------------------ */
 
 size_t
 xrootd_attn_asyncms_frame_len(size_t msglen)
@@ -84,9 +78,6 @@ xrootd_build_attn_asyncms_frame(u_char *buf, const char *msg, size_t msglen)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Native kXR_attn send functions                                       */
-/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_send_attn_asyncms(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -173,9 +164,6 @@ xrootd_send_attn(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_queue_response(ctx, c, buf, total);
 }
 
-/* ------------------------------------------------------------------ */
-/* Deprecated async operation handlers — all retired in v5.2.0         */
-/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_handle_async_ab(xrootd_ctx_t *ctx, ngx_connection_t *c)

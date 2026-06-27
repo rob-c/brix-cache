@@ -10,6 +10,8 @@
  */
 
 #include "config.h"
+#include "../cache/verify.h"          /* xrootd_cache_verify_mode_e default */
+#include "../ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
 #include "../cms/cns.h"               /* §6 CNS mode enum */
 #include "../tpc/key_registry.h"
 #include "../tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
@@ -56,6 +58,12 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->acc_pgo         = NGX_CONF_UNSET;
     conf->acc_resolve_hosts = NGX_CONF_UNSET;
     conf->acc_encoding    = NGX_CONF_UNSET;
+    conf->csi_enable      = NGX_CONF_UNSET;
+    conf->csi_fill        = NGX_CONF_UNSET;
+    conf->csi_require     = NGX_CONF_UNSET;
+    conf->csi_loose       = NGX_CONF_UNSET;
+    conf->throttle_max_open_files  = NGX_CONF_UNSET_UINT;
+    conf->throttle_max_active_conn = NGX_CONF_UNSET_UINT;
     xrootd_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
     conf->prepare_command.len  = 0;
     conf->prepare_command.data = NULL;
@@ -86,6 +94,8 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->tls_ctx      = NULL;
     conf->cache        = NGX_CONF_UNSET;
     conf->cache_origin_tls = NGX_CONF_UNSET;
+    conf->cache_origin_scheme = NGX_CONF_UNSET_UINT;
+    conf->cache_origin_forward_token = NGX_CONF_UNSET;
     conf->cache_lock_timeout = NGX_CONF_UNSET;
     conf->cache_eviction_threshold = NGX_CONF_UNSET_UINT;
     conf->cache_max_file_size      = NGX_CONF_UNSET;
@@ -96,6 +106,10 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->io_uring_admin           = NGX_CONF_UNSET;
     conf->io_uring_restrict        = NGX_CONF_UNSET;
     conf->cache_include_regex_set  = 0;
+    conf->cache_verify             = NGX_CONF_UNSET_UINT;
+    /* cache_verify_digest left zeroed (ngx_str_t {0,NULL}) by pcalloc */
+    conf->cache_advertise          = NGX_CONF_UNSET;
+    conf->cache_advertise_interval = NGX_CONF_UNSET_MSEC;
     conf->cache_slice_size         = NGX_CONF_UNSET_SIZE;
     conf->wt_enable                = NGX_CONF_UNSET;
     conf->wt_mode                  = XROOTD_WT_MODE_UNSET;
@@ -115,6 +129,8 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->pipeline_depth = NGX_CONF_UNSET_UINT;
     conf->registry_slots = NGX_CONF_UNSET_UINT;
     conf->session_slots  = NGX_CONF_UNSET_UINT;
+    conf->gsi_keypool_size = NGX_CONF_UNSET_UINT;
+    conf->gsi_keypool_seed = NGX_CONF_UNSET_UINT;
     conf->redir_cache_slots = NGX_CONF_UNSET_UINT;
     conf->hc_enabled     = NGX_CONF_UNSET;
     conf->hc_interval_ms = NGX_CONF_UNSET_MSEC;
@@ -158,6 +174,8 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cms_send_timeout     = NGX_CONF_UNSET_MSEC;
     conf->cms_tcp_keepalive    = NGX_CONF_UNSET;
     conf->cms_tcp_user_timeout = NGX_CONF_UNSET_MSEC;
+    conf->cms_initial_delay    = NGX_CONF_UNSET_MSEC;
+    conf->cms_connect_retry    = NGX_CONF_UNSET_MSEC;
     conf->listen_port  = NGX_CONF_UNSET;
     conf->cms_ctx      = NULL;
     conf->ckscan_max_depth = NGX_CONF_UNSET_UINT;
@@ -262,6 +280,10 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->gsi_signed_dh, prev->gsi_signed_dh,
                               XROOTD_GSI_SDH_OFF);
     ngx_conf_merge_value(conf->gsi_max_inflight, prev->gsi_max_inflight, 256);
+    ngx_conf_merge_uint_value(conf->gsi_keypool_size, prev->gsi_keypool_size,
+                              XROOTD_GSI_KEYPOOL_SIZE_DEFAULT);
+    ngx_conf_merge_uint_value(conf->gsi_keypool_seed, prev->gsi_keypool_seed,
+                              XROOTD_GSI_KEYPOOL_SEED_DEFAULT);
     ngx_conf_merge_str_value(conf->gsi_ciphers, prev->gsi_ciphers, "");
     ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
@@ -321,6 +343,33 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
                               NGX_CONF_UNSET_MSEC);
     ngx_conf_merge_str_value(conf->token_issuer,    prev->token_issuer,    "");
     ngx_conf_merge_str_value(conf->token_audience,  prev->token_audience,  "");
+    ngx_conf_merge_str_value(conf->token_config,    prev->token_config,    "");
+    ngx_conf_merge_ptr_value(conf->token_registry,  prev->token_registry,  NULL);
+    ngx_conf_merge_str_value(conf->throttle_zone_name,
+                             prev->throttle_zone_name, "");
+    ngx_conf_merge_ptr_value(conf->throttle_zone, prev->throttle_zone, NULL);
+    ngx_conf_merge_uint_value(conf->throttle_max_open_files,
+                              prev->throttle_max_open_files, 0);
+    ngx_conf_merge_uint_value(conf->throttle_max_active_conn,
+                              prev->throttle_max_active_conn, 0);
+
+    /* phase-59 W3a: resolve the named rate-limit zone the throttle keys its
+     * per-user counters into (declared via xrootd_rate_limit_zone). */
+    if (conf->throttle_zone == NULL && conf->throttle_zone_name.len > 0) {
+        conf->throttle_zone = xrootd_rl_zone_get(&conf->throttle_zone_name);
+        if (conf->throttle_zone == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_throttle_zone \"%V\" is not a declared "
+                "xrootd_rate_limit_zone", &conf->throttle_zone_name);
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    ngx_conf_merge_value(conf->csi_enable,  prev->csi_enable,  0);
+    ngx_conf_merge_str_value(conf->csi_prefix, prev->csi_prefix, "/.xrdt");
+    ngx_conf_merge_value(conf->csi_fill,    prev->csi_fill,    1);
+    ngx_conf_merge_value(conf->csi_require, prev->csi_require, 0);
+    ngx_conf_merge_value(conf->csi_loose,   prev->csi_loose,   0);
     ngx_conf_merge_str_value(conf->token_macaroon_secret,
                              prev->token_macaroon_secret,     "");
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
@@ -375,6 +424,12 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
                              "/etc/grid-security/certificates");
     ngx_conf_merge_str_value(conf->cache_origin_client, prev->cache_origin_client, "xrdcp");
     ngx_conf_merge_value(conf->cache_origin_tls, prev->cache_origin_tls, 0);
+    ngx_conf_merge_uint_value(conf->cache_origin_scheme, prev->cache_origin_scheme,
+                              XROOTD_CACHE_SCHEME_XROOT);
+    ngx_conf_merge_str_value(conf->cache_origin_token_file,
+                             prev->cache_origin_token_file, "");
+    ngx_conf_merge_value(conf->cache_origin_forward_token,
+                         prev->cache_origin_forward_token, 0);
     ngx_conf_merge_value(conf->cache_lock_timeout,
                          prev->cache_lock_timeout, 300);
     ngx_conf_merge_uint_value(conf->cache_eviction_threshold,
@@ -404,6 +459,31 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_size_value(conf->cache_slice_size,
                               prev->cache_slice_size, 0);
 
+    /* Checksum-on-fill: default best-effort (verify when a digest is available,
+     * fail-closed on mismatch). Operators opt down to off or up to require. */
+    ngx_conf_merge_uint_value(conf->cache_verify, prev->cache_verify,
+                              XROOTD_CACHE_VERIFY_BESTEFFORT);
+    ngx_conf_merge_str_value(conf->cache_verify_digest,
+                             prev->cache_verify_digest, "");
+
+    /* Pelican cache advertisement (default off; interval clamped to the
+     * federation minimum of 60s = MinFedTokenTickerRate). */
+    ngx_conf_merge_value(conf->cache_advertise, prev->cache_advertise, 0);
+    ngx_conf_merge_msec_value(conf->cache_advertise_interval,
+                              prev->cache_advertise_interval, 60000);
+    if (conf->cache_advertise_interval < 60000) {
+        conf->cache_advertise_interval = 60000;
+    }
+    ngx_conf_merge_str_value(conf->cache_advertise_key,
+                             prev->cache_advertise_key, "");
+    ngx_conf_merge_str_value(conf->cache_data_url, prev->cache_data_url, "");
+    ngx_conf_merge_str_value(conf->cache_web_url, prev->cache_web_url, "");
+    ngx_conf_merge_str_value(conf->cache_sitename, prev->cache_sitename, "");
+    ngx_conf_merge_str_value(conf->cache_issuer_url, prev->cache_issuer_url, "");
+    if (conf->cache_advertise_ns == NULL) {
+        conf->cache_advertise_ns = prev->cache_advertise_ns;
+    }
+
     /* Phase 26: slice size must be 0 (off) or a positive multiple of the 1 MiB
      * origin fetch chunk (so a fill never reads a partial chunk at a slice
      * boundary). */
@@ -413,6 +493,18 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "xrootd_cache_slice must be a positive multiple of 1m");
+        return NGX_CONF_ERROR;
+    }
+
+    /* Slice-granular fills drive the XRootD wire client (origin_protocol.c); they
+     * are not implemented over the HTTP/Pelican transport. Reject the combination
+     * rather than silently mis-fetch. */
+    if (conf->cache_slice_size != 0
+        && conf->cache_origin_scheme != XROOTD_CACHE_SCHEME_XROOT)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cache_slice requires a root:// origin "
+            "(HTTP/Pelican origins fetch whole files only)");
         return NGX_CONF_ERROR;
     }
 
@@ -576,6 +668,14 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
                 ? prev->cms_tcp_user_timeout
                 : conf->cms_read_timeout;
     }
+
+    /* Leave these UNSET through the merge so connect.c can pick the manager-locality
+     * (loopback vs remote) profile default at worker start; an explicit directive
+     * still wins and is inherited child<-parent. */
+    ngx_conf_merge_msec_value(conf->cms_initial_delay, prev->cms_initial_delay,
+                              NGX_CONF_UNSET_MSEC);
+    ngx_conf_merge_msec_value(conf->cms_connect_retry, prev->cms_connect_retry,
+                              NGX_CONF_UNSET_MSEC);
 
     ngx_conf_merge_value(conf->listen_port,         prev->listen_port,     XROOTD_DEFAULT_PORT);
     ngx_conf_merge_uint_value(conf->ckscan_max_depth,

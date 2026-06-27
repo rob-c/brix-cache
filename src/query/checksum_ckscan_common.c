@@ -16,8 +16,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-/* ---- kXR_Qckscan — directory / file checksum scan ---- */
-
+/* kXR_Qckscan — directory / file checksum scan */
 /* Append one "algo hex  logical_path\n" line, growing the buffer if needed. */
 int
 xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
@@ -75,9 +74,8 @@ xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
     *used += llen;
     return 1;
 }
-/* ---- WHY: Qckscan responses are newline-delimited "algo hex logical_path" lines growing into a dynamically-sized buffer. The client expects all checksum results in one response, so the buffer must handle arbitrary tree sizes via exponential growth. Returns 1 on success (line appended), 0 if output line would overflow local snprintf buffer (path too long → skip silently), -1 if OOM during buffer reallocation. ---- */
-
-/* ---- HOW: snprintf(line) formats "%s %08x  %s\n" with algo, cksum as hex, logical path — returns llen. If llen >= sizeof(line) returns 0 (skip). Checks *used+llen+2 <= *cap — if insufficient allocates new_cap=*cap*2+llen+2 via ngx_alloc(), copies existing *buf content, frees old buffer, updates *buf and *cap. memcpy line into *buf at offset *used; increments *used by llen. Returns 1. */
+/* WHY: Qckscan responses are newline-delimited "algo hex logical_path" lines growing into a dynamically-sized buffer. The client expects all checksum results in one response, so the buffer must handle arbitrary tree sizes via exponential growth. Returns 1 on success (line appended), 0 if output line would overflow local snprintf buffer (path too long → skip silently), -1 if OOM during buffer reallocation. */
+/* HOW: snprintf(line) formats "%s %08x  %s\n" with algo, cksum as hex, logical path — returns llen. If llen >= sizeof(line) returns 0 (skip). Checks *used+llen+2 <= *cap — if insufficient allocates new_cap=*cap*2+llen+2 via ngx_alloc(), copies existing *buf content, frees old buffer, updates *buf and *cap. memcpy line into *buf at offset *used; increments *used by llen. Returns 1. */
 
 /* Join parent + child into a logical path; returns false (skip entry) on
  * truncation. Special-cases parent=="/" so the root export yields "/name", not
@@ -96,9 +94,8 @@ xrootd_ckscan_join_logical(const char *parent, const char *name,
     n = snprintf(out, outsz, "%s/%s", parent, name);
     return (n >= 0 && (size_t) n < outsz);
 }
-/* ---- WHY: Qckscan responses use logical paths (relative to export root) rather than resolved filesystem paths. This function constructs canonical logical paths from parent directory + child name, handling the special case where parent is "/" (root export) which produces "/<name>" instead of "//<name>". Used by ckscan_walk() for every child entry and by dispatchers to construct per-file response lines. ---- */
-
-/* ---- HOW: If strcmp(parent, "/") == 0, snprintf out as "/%s" (root case). Otherwise snprintf as "%s/%s" (normal join). Returns ngx_flag_t true if n >= 0 && (size_t) n < outsz (fits in buffer), false on truncation. Static helper used exclusively by ckscan_walk(). */
+/* WHY: Qckscan responses use logical paths (relative to export root) rather than resolved filesystem paths. This function constructs canonical logical paths from parent directory + child name, handling the special case where parent is "/" (root export) which produces "/<name>" instead of "//<name>". Used by ckscan_walk() for every child entry and by dispatchers to construct per-file response lines. */
+/* HOW: If strcmp(parent, "/") == 0, snprintf out as "/%s" (root case). Otherwise snprintf as "%s/%s" (normal join). Returns ngx_flag_t true if n >= 0 && (size_t) n < outsz (fits in buffer), false on truncation. Static helper used exclusively by ckscan_walk(). */
 
 /* Recursive directory scanner; returns 0 on success, -1 on hard error. */
 int
@@ -242,6 +239,5 @@ xrootd_ckscan_walk(ngx_log_t *log, int rootfd,
     closedir(dh);
     return 0;
 }
-/* ---- WHY: kXR_Qckscan walks directory trees off the event loop via thread pool to compute per-file checksums. Supports recursive traversal up to max_depth with max_files cap, skipping unreadable files and dot entries. Returns one "algo hex logical_path" line per regular file in the response buffer. Depth/capacity limits prevent runaway scans on large filesystems. ---- */
-
-/* ---- HOW: Checks depth > max_depth → returns 0 (cap reached). Opens resolved_dir via xrootd_open_confined_canon() + fdopendir() — if both fail logs errno to errmsg, returns -1. readdir loop over entries: skips dot entries via xrootd_fs_is_dot_entry(), joins child resolved path via xrootd_fs_join_path(), joins child logical path via xrootd_ckscan_join_logical(). fstatat AT_SYMLINK_NOFOLLOW → if S_ISDIR recurses ckscan_walk(depth+1); if S_ISREG checks *nfiles < max_files, opens file via confined canon, parses algo to alg, computes checksum via xrootd_checksum_u32_fd() — on failure sets cksum=-1. If cksum valid calls ckscan_append() for response line; if OOM returns -1. closedir at end, returns 0 success or -1 error. */
+/* WHY: kXR_Qckscan walks directory trees off the event loop via thread pool to compute per-file checksums. Supports recursive traversal up to max_depth with max_files cap, skipping unreadable files and dot entries. Returns one "algo hex logical_path" line per regular file in the response buffer. Depth/capacity limits prevent runaway scans on large filesystems. */
+/* HOW: Checks depth > max_depth → returns 0 (cap reached). Opens resolved_dir via xrootd_open_confined_canon() + fdopendir() — if both fail logs errno to errmsg, returns -1. readdir loop over entries: skips dot entries via xrootd_fs_is_dot_entry(), joins child resolved path via xrootd_fs_join_path(), joins child logical path via xrootd_ckscan_join_logical(). fstatat AT_SYMLINK_NOFOLLOW → if S_ISDIR recurses ckscan_walk(depth+1); if S_ISREG checks *nfiles < max_files, opens file via confined canon, parses algo to alg, computes checksum via xrootd_checksum_u32_fd() — on failure sets cksum=-1. If cksum valid calls ckscan_append() for response line; if OOM returns -1. closedir at end, returns 0 success or -1 error. */

@@ -51,12 +51,8 @@ typedef struct {
 } sd_posix_state_t;
 
 #ifndef XRDPROTO_NO_NGX
-/* ---- sd_posix_flags — map SD open flags to POSIX O_* -----------------------
- *
- * WHAT: Translates the backend-neutral XROOTD_SD_O_* bits to an open(2) flag set.
- * WHY:  The vtable open() speaks SD flags; only the POSIX driver knows O_*.
- * HOW:  OR in the corresponding O_* bit per SD flag; default read-only.
- */
+/* sd_posix_flags — map the backend-neutral XROOTD_SD_O_* bits to an open(2) flag
+ * set (the vtable speaks SD flags; only the POSIX driver knows O_*). */
 static int
 sd_posix_flags(int sd_flags)
 {
@@ -80,12 +76,8 @@ sd_posix_flags(int sd_flags)
 }
 #endif /* !XRDPROTO_NO_NGX */
 
-/* ---- sd_posix_fill_stat — struct stat -> xrootd_sd_stat_t ------------------
- *
- * WHAT: Copies the protocol-neutral fields out of a struct stat.
- * WHY:  The VFS consumes xrootd_sd_stat_t, never a raw struct stat.
- * HOW:  Zero *out, copy size/times/mode/ino, derive is_dir/is_reg from mode.
- */
+/* sd_posix_fill_stat — copy the protocol-neutral fields out of a struct stat into
+ * the xrootd_sd_stat_t the VFS consumes, deriving is_dir/is_reg from the mode. */
 static void
 sd_posix_fill_stat(const struct stat *st, xrootd_sd_stat_t *out)
 {
@@ -100,12 +92,9 @@ sd_posix_fill_stat(const struct stat *st, xrootd_sd_stat_t *out)
 }
 
 #ifndef XRDPROTO_NO_NGX   /* instance lifecycle: ngx pool + confined open (module only) */
-/* ---- sd_posix_init — open the persistent rootfd ---------------------------
- *
- * WHAT: Stores the root_canon and opens its O_PATH anchor fd on the instance.
- * WHY:  The beneath API needs a persistent rootfd per worker for hot opens.
- * HOW:  pcalloc a state struct, copy the root_canon, open the rootfd.
- */
+/* sd_posix_init — pcalloc the instance state, copy root_canon, and open its
+ * persistent O_PATH anchor fd (the beneath API needs one per worker for hot
+ * opens; a -1 rootfd is tolerated). */
 static ngx_int_t
 sd_posix_init(xrootd_sd_instance_t *inst, void *driver_conf)
 {
@@ -135,12 +124,9 @@ sd_posix_init(xrootd_sd_instance_t *inst, void *driver_conf)
     return NGX_OK;
 }
 
-/* ---- sd_posix_cleanup — close the rootfd ----------------------------------
- *
- * WHAT: Closes the persistent rootfd; the pool reclaims the state struct.
- * WHY:  An O_PATH fd is a kernel resource that must not leak on reconfig.
- * HOW:  Close rootfd if open and mark it closed.
- */
+/* sd_posix_cleanup — close the persistent O_PATH rootfd (a kernel resource that
+ * must not leak on reconfig); the pool reclaims the state struct. A borrowed fd
+ * is left alone. */
 static void
 sd_posix_cleanup(xrootd_sd_instance_t *inst)
 {
@@ -152,21 +138,11 @@ sd_posix_cleanup(xrootd_sd_instance_t *inst)
     }
 }
 
-/* ---- xrootd_sd_posix_borrow_instance — wrap an existing rootfd as a POSIX inst
- *
- * WHAT: Builds a pool-lived POSIX instance whose confinement anchor BORROWS an
- *       already-open persistent rootfd (and root_canon) owned by the caller's
- *       config — it does not open or close that fd. Returns NULL (errno set) for
- *       rootfd < 0 (the borrow path is only for the persistent-rootfd hot path)
- *       or on OOM.
- *
- * WHY:  Lets the VFS route its hot-path confined open through driver->open
- *       without a second openat() per request and without transferring fd
- *       ownership to the transient instance (cleanup skips a borrowed fd).
- *
- * HOW:  pcalloc the instance + state, store the borrowed rootfd/root_canon, set
- *       the borrowed flag, and bind the POSIX driver.
- */
+/* xrootd_sd_posix_borrow_instance — build a pool-lived POSIX instance whose
+ * confinement anchor BORROWS an already-open persistent rootfd + root_canon owned
+ * by the caller's config (cleanup never closes a borrowed fd). Lets the VFS route
+ * its hot-path confined open through driver->open with no second openat() per
+ * request. NULL (errno set) for rootfd < 0 or OOM. */
 xrootd_sd_instance_t *
 xrootd_sd_posix_borrow_instance(ngx_pool_t *pool, ngx_log_t *log, int rootfd,
     const char *root_canon)
@@ -196,16 +172,10 @@ xrootd_sd_posix_borrow_instance(ngx_pool_t *pool, ngx_log_t *log, int rootfd,
     return inst;
 }
 
-/* ---- sd_posix_open — confined open into an object handle -------------------
- *
- * WHAT: Opens path under RESOLVE_BENEATH and returns an object carrying the fd.
- * WHY:  This is the POSIX realization of the VFS open cascade's beneath branch.
- *       It does NOT stat the fd — metadata is a separate concern obtained via
- *       the fstat slot, so a caller that does not need it pays no syscall (the
- *       VFS open path fstats once in adopt_fd; a pre-open stat here would be a
- *       redundant second one).
- * HOW:  xrootd_open_beneath -> pcalloc obj carrying driver + instance + fd.
- */
+/* sd_posix_open — the POSIX realization of the VFS open cascade's beneath branch:
+ * xrootd_open_beneath under RESOLVE_BENEATH into an object carrying the fd. It does
+ * NOT fstat (metadata is the separate fstat slot, so a caller that doesn't need it
+ * pays no syscall; the VFS open path fstats once in adopt_fd). */
 static xrootd_sd_obj_t *
 sd_posix_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
@@ -233,12 +203,8 @@ sd_posix_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     return obj;
 }
 
-/* ---- sd_posix_close — close the object fd ---------------------------------
- *
- * WHAT: Closes the handle fd (idempotent); the obj struct lives on the pool.
- * WHY:  Symmetry with open; the VFS owns the close via xrootd_vfs_close.
- * HOW:  close fd if valid, mark invalid, map a close error to NGX_ERROR.
- */
+/* sd_posix_close — close the handle fd (idempotent; the obj lives on the pool);
+ * a close(2) error maps to NGX_ERROR. The VFS owns the close via xrootd_vfs_close. */
 static ngx_int_t
 sd_posix_close(xrootd_sd_obj_t *obj)
 {
@@ -255,41 +221,29 @@ sd_posix_close(xrootd_sd_obj_t *obj)
 
 #endif /* !XRDPROTO_NO_NGX */
 
-/* ---- worker-safe raw byte I/O (no pool/metrics/log) ----------------------- */
+/* worker-safe raw byte I/O (no pool/metrics/log) */
 
-/* ---- sd_posix_pread — single pread(2) primitive ---------------------------
- * WHAT: One pread(2) at off; returns bytes read (0 = EOF), or -1 (errno set).
- * WHY:  The raw storage primitive. The VFS owns the EINTR/short-read loop
- *       (xrootd_vfs_pread_full), which calls this once per iteration, so all
- *       VFS reads funnel through the Storage Driver without changing semantics.
- * HOW:  Return pread(obj->fd, ...) verbatim.
- */
+/* sd_posix_pread — one pread(2) at off (0 = EOF, -1 = errno). The raw storage
+ * primitive; the VFS owns the EINTR/short-read loop (xrootd_vfs_pread_full), so
+ * every VFS read funnels through the driver without changing semantics. */
 static ssize_t
 sd_posix_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     return pread(obj->fd, buf, len, off);
 }
 
-/* ---- sd_posix_pwrite — single pwrite(2) primitive -------------------------
- * WHAT: One pwrite(2) at off; returns bytes written, or -1 (errno set).
- * WHY:  The raw storage primitive. The VFS owns the EINTR/short-write loops
- *       (xrootd_vfs_pwrite_full, xrootd_vfs_io_write_counted), which call this
- *       once per iteration, so all VFS writes funnel through the driver.
- * HOW:  Return pwrite(obj->fd, ...) verbatim.
- */
+/* sd_posix_pwrite — one pwrite(2) at off (bytes written, or -1). The raw
+ * primitive; the VFS owns the EINTR/short-write loops (xrootd_vfs_pwrite_full,
+ * xrootd_vfs_io_write_counted), so every VFS write funnels through the driver. */
 static ssize_t
 sd_posix_pwrite(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 {
     return pwrite(obj->fd, buf, len, off);
 }
 
-/* ---- sd_posix_preadv — single preadv(2) primitive -------------------------
- * WHAT: One preadv(2) of iovcnt segments at off; returns bytes read or -1.
- * WHY:  The raw vectored-read primitive behind kXR_readv coalescing and the
- *       kXR_pgread batch reader. The VFS owns the EINTR loop and the coalescing
- *       policy; this routes the syscall through the Storage Driver.
- * HOW:  Return preadv(obj->fd, ...) verbatim.
- */
+/* sd_posix_preadv — one preadv(2) of iovcnt segments at off (bytes read or -1):
+ * the raw vectored-read primitive behind kXR_readv coalescing and the pgread batch
+ * reader. The VFS owns the EINTR loop and the coalescing policy. */
 static ssize_t
 sd_posix_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     off_t off)
@@ -297,11 +251,9 @@ sd_posix_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     return preadv(obj->fd, iov, iovcnt, off);
 }
 
-/* ---- sd_posix_preadv2 — single preadv2(2) primitive (flags) ---------------
- * WHAT: One preadv2(2) of iovcnt segments at off with flags (e.g. RWF_NOWAIT);
- *       returns bytes read or -1. WHY: the kXR_read warm-cache probe needs a
- *       non-blocking page-cache read through the Storage Driver. HOW: verbatim.
- */
+/* sd_posix_preadv2 — one preadv2(2) of iovcnt segments at off with flags (e.g.
+ * RWF_NOWAIT), for the kXR_read warm-cache non-blocking page-cache probe; bytes
+ * read or -1. */
 static ssize_t
 sd_posix_preadv2(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     off_t off, int flags)
@@ -309,12 +261,9 @@ sd_posix_preadv2(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     return preadv2(obj->fd, iov, iovcnt, off, flags);
 }
 
-/* ---- sd_posix_copy_range — single copy_file_range(2) primitive ------------
- * WHAT: One copy_file_range(2) of up to len bytes src->dst; returns bytes
- *       copied (0 = EOF), or -1 (errno; ENOSYS where unavailable). The VFS owns
- *       the loop and the pread/pwrite fallback. WHY: route the server-side
- *       zero-copy primitive through the Storage Driver. HOW: the raw syscall.
- */
+/* sd_posix_copy_range — one copy_file_range(2) of up to len bytes src->dst (0 =
+ * EOF, -1/ENOSYS where unavailable): the server-side zero-copy primitive. The VFS
+ * owns the loop and the pread/pwrite fallback. */
 static ssize_t
 sd_posix_copy_range(xrootd_sd_obj_t *src, off_t src_off, xrootd_sd_obj_t *dst,
     off_t dst_off, size_t len)
@@ -332,15 +281,10 @@ sd_posix_copy_range(xrootd_sd_obj_t *src, off_t src_off, xrootd_sd_obj_t *dst,
 #endif
 }
 
-/* ---- sd_posix_read_sendfile_fd — POSIX sendfile decision -------------------
- * WHAT: Returns the object's kernel fd when the caller will accept a zero-copy
- *       transfer (want_zerocopy), else NGX_INVALID_FILE. WHY: POSIX files are
- *       seekable kernel fds, so any byte range is sendfile-able whenever the
- *       transport permits zero-copy; the backend, not the VFS, makes this call.
- *       HOW: gate on want_zerocopy and a valid fd; offset/len are irrelevant for
- *       a plain file (they matter only to backends with alignment/residency
- *       constraints).
- */
+/* sd_posix_read_sendfile_fd — return the object's kernel fd when the caller will
+ * accept zero-copy (want_zerocopy), else NGX_INVALID_FILE. A POSIX file is a
+ * seekable fd so any range is sendfile-able; offset/len matter only to backends
+ * with alignment/residency constraints. The backend, not the VFS, makes this call. */
 static ngx_fd_t
 sd_posix_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
     unsigned want_zerocopy)
@@ -354,7 +298,7 @@ sd_posix_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
     return obj->fd;
 }
 
-/* ---- sd_posix_ftruncate / _fsync / _fstat — direct fd ops ----------------- */
+/* sd_posix_ftruncate / _fsync / _fstat — direct fd ops */
 static ngx_int_t
 sd_posix_ftruncate(xrootd_sd_obj_t *obj, off_t len)
 {
@@ -380,9 +324,8 @@ sd_posix_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
 }
 
 #ifndef XRDPROTO_NO_NGX   /* namespace/dir/xattr/staged: confined paths + ns_* (module only) */
-/* ---- namespace ops --------------------------------------------------------
- * Each delegates to the shared xrootd_ns_* helper and maps its status to errno
- * via xrootd_vfs_ns_status_errno(), preserving today's exact error semantics. */
+/* namespace ops — each delegates to the shared xrootd_ns_* helper and maps its
+ * status to errno via xrootd_vfs_ns_status_errno(), preserving exact semantics. */
 
 static ngx_int_t
 sd_posix_stat(xrootd_sd_instance_t *inst, const char *path,
@@ -398,11 +341,8 @@ sd_posix_stat(xrootd_sd_instance_t *inst, const char *path,
     return NGX_OK;
 }
 
-/* ---- sd_posix_ns_result — collapse a namespace result to NGX_OK/ERROR ------
- * WHAT: Returns NGX_OK on XROOTD_NS_OK, else sets errno and returns NGX_ERROR.
- * WHY:  Every namespace slot shares the same status->errno collapse.
- * HOW:  Prefer sys_errno; fall back to the status mapping for derived states.
- */
+/* sd_posix_ns_result — collapse a namespace result to NGX_OK, or set errno (prefer
+ * sys_errno, else the status mapping for derived states) and return NGX_ERROR. */
 static ngx_int_t
 sd_posix_ns_result(xrootd_ns_result_t res)
 {
@@ -468,7 +408,7 @@ sd_posix_server_copy(xrootd_sd_instance_t *inst, const char *src,
     return rc;
 }
 
-/* ---- directory iteration -------------------------------------------------- */
+/* directory iteration */
 
 /* Driver-private dir state: the fdopendir stream. */
 typedef struct {
@@ -547,7 +487,7 @@ sd_posix_closedir(xrootd_sd_dir_t *d)
     return NGX_OK;
 }
 
-/* ---- xattr / metadata ----------------------------------------------------- */
+/* xattr / metadata */
 
 static ssize_t
 sd_posix_getxattr(xrootd_sd_instance_t *inst, const char *path,
@@ -591,7 +531,7 @@ sd_posix_removexattr(xrootd_sd_instance_t *inst, const char *path,
                ? NGX_OK : NGX_ERROR;
 }
 
-/* ---- staged write (temp + atomic rename) ---------------------------------- */
+/* staged write (temp + atomic rename) */
 
 /* Driver-private staged state: the compat primitive + final path. */
 typedef struct {
@@ -665,7 +605,7 @@ sd_posix_staged_abort(xrootd_sd_staged_t *st)
 
 #endif /* !XRDPROTO_NO_NGX */
 
-/* ---- the driver descriptor ------------------------------------------------
+/* the driver descriptor.
  * POSIX advertises every capability: it is the full-featured reference backend
  * and the behaviour oracle for all others. In the ngx-free shared build only
  * the worker-safe raw fd ops are present (the namespace/instance/registry slots

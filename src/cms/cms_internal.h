@@ -19,6 +19,25 @@
 #define NGX_XROOTD_CMS_BACKOFF_INITIAL 6000
 #define NGX_XROOTD_CMS_BACKOFF_MAX     60000
 #define NGX_XROOTD_CMS_CONNECT_TIMEOUT 5000
+
+/*
+ * Fast cold-start mesh settling (src/cms/connect.c).  When a whole cluster boots
+ * together — most acutely on one host — a node's first connect often races ahead of
+ * its manager's listen socket and is refused.  Instead of jumping straight to the
+ * multi-second reconnect backoff, a node that has NEVER yet logged in retries the
+ * TCP connect on a short fixed interval for a bounded window, then falls back to the
+ * normal exponential backoff.  Two locality profiles; an explicit
+ * xrootd_cms_initial_delay / xrootd_cms_connect_retry directive overrides the
+ * matching default.  The interval floor and the bounded window are what keep this
+ * from ever becoming a busy-spin (cf. the self-rearming-0ms-timer footgun).
+ */
+#define NGX_XROOTD_CMS_INITDELAY_LOOPBACK   0      /* loopback: connect immediately */
+#define NGX_XROOTD_CMS_INITDELAY_REMOTE     10     /* remote: tiny settle margin     */
+#define NGX_XROOTD_CMS_FASTRETRY_LOOPBACK   10     /* loopback retry interval (ms)   */
+#define NGX_XROOTD_CMS_FASTRETRY_REMOTE     75     /* remote retry interval (ms)     */
+#define NGX_XROOTD_CMS_FASTRETRY_FLOOR      10     /* never retry faster than this   */
+#define NGX_XROOTD_CMS_FASTWIN_LOOPBACK     2000   /* loopback fast-retry window (ms)*/
+#define NGX_XROOTD_CMS_FASTWIN_REMOTE       3000   /* remote fast-retry window (ms)  */
 #define NGX_XROOTD_CMS_HDR_LEN         8
 #define NGX_XROOTD_CMS_MAX_FRAME       4096
 /*
@@ -35,7 +54,38 @@
  * Numeric values are wire constants; do not renumber.
  */
 #define CMS_RR_LOGIN   0    /* kYR_login: announce server identity to manager */
+#define CMS_RR_CHMOD   1    /* kYR_chmod: forwarded mode change */
 #define CMS_RR_LOCATE  2    /* kYR_locate: ask manager which server has a path */
+#define CMS_RR_MKDIR   3    /* kYR_mkdir: forwarded directory create */
+#define CMS_RR_MKPATH  4    /* kYR_mkpath: forwarded recursive directory create */
+#define CMS_RR_MV      5    /* kYR_mv: forwarded rename */
+#define CMS_RR_PREPADD 6    /* kYR_prepadd: forwarded stage-in request */
+#define CMS_RR_PREPDEL 7    /* kYR_prepdel: forwarded stage cancel */
+#define CMS_RR_RM      8    /* kYR_rm: forwarded file unlink */
+#define CMS_RR_RMDIR   9    /* kYR_rmdir: forwarded directory remove */
+#define CMS_RR_STATS   11   /* kYR_stats: cluster stats query */
+#define CMS_RR_DISC    13   /* kYR_disc: graceful disconnect notification */
+#define CMS_RR_STATFS  21   /* kYR_statfs: space query for a path */
+#define CMS_RR_TRUNC   23   /* kYR_trunc: forwarded truncate */
+#define CMS_RR_UPDATE  25   /* kYR_update: request peer resend its state */
+#define CMS_RR_USAGE   26   /* kYR_usage: load/usage query */
+
+/*
+ * CMS response codes (CmsRspCode) — carried in CmsRRHdr.rrCode on a REPLY frame.
+ * Distinct numeric space from the request codes above (disambiguated by
+ * direction); do not renumber.  Used by forwarded-op replies (Plane B).
+ */
+#define CMS_RSP_DATA   0    /* kYR_data: reply carries data */
+#define CMS_RSP_ERROR  1    /* kYR_error: reply carries [4B ecode][text] */
+#define CMS_RSP_WAIT   3    /* kYR_wait: reply carries [4B delay-seconds] */
+
+/*
+ * CMS error codes (CmsErrorCode) — the 4-byte big-endian value at the head of a
+ * kYR_error payload.  Stock cmsd's XrdCmsProtocol::Execute always replies to a
+ * failed forwarded op with kYR_EINVAL and the strerror() text, so that is the
+ * only code a forwarded-op reply needs.
+ */
+#define CMS_ERR_EINVAL 4    /* kYR_EINVAL */
 #define CMS_RR_AVAIL   12   /* kYR_avail: report available files for a path */
 #define CMS_RR_GONE    14   /* kYR_gone: data server path-level deregister */
 #define CMS_RR_HAVE    15   /* kYR_have: server tells manager it holds a path */
@@ -102,6 +152,16 @@ struct ngx_xrootd_cms_ctx_s {
     ngx_event_t                     timer;       /* reconnect / heartbeat timer */
     ngx_msec_t                      backoff;     /* current reconnect wait (ms) */
     ngx_uint_t                      logged_in;   /* 1 after kYR_login exchange */
+
+    /* Fast cold-start settling state (resolved once at ngx_xrootd_cms_start). */
+    ngx_msec_t                      fast_retry;     /* resolved retry interval (ms) */
+    ngx_msec_t                      fast_window;    /* resolved fast-retry window   */
+    ngx_msec_t                      fast_deadline;  /* ngx_current_msec end of the
+                                                       fast-retry window; 0 = unstarted */
+    ngx_uint_t                      ever_logged_in; /* sticky: 1 after first login  */
+    ngx_uint_t                      connect_attempts; /* TCP connect tries this boot */
+    uint64_t                        start_ns;       /* ctx creation (settle timing) */
+    unsigned                        is_loopback:1;  /* manager addr is loopback     */
     uint32_t                        next_streamid; /* per-worker monotone counter;
                                                       wraps at UINT32_MAX; used as
                                                       CMS locate correlation key */
@@ -180,6 +240,11 @@ ngx_int_t  ngx_xrootd_cms_send_locate(ngx_xrootd_cms_ctx_t *ctx,
 /* Return the next outgoing streamid, incrementing ctx->next_streamid and wrapping
  * UINT32_MAX -> 1 (never returns 0, which is reserved for unsolicited frames). */
 uint32_t   ngx_xrootd_cms_next_streamid(ngx_xrootd_cms_ctx_t *ctx);
+
+/* Reply kYR_error to a failed forwarded op (Plane B): [4B BE ecode][text+NUL],
+ * echoing streamid.  Byte-exact with cmsd Reply_Error. NGX_OK / NGX_ERROR. */
+ngx_int_t  ngx_xrootd_cms_send_error(ngx_xrootd_cms_ctx_t *ctx,
+               uint32_t streamid, uint32_t ecode, const char *text);
 
 /* recv.c — incoming frame read loop and dispatch */
 

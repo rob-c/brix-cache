@@ -8,7 +8,7 @@
 
 #include "path_internal.h"
 
-/* ---- Function: xrootd_mkdir_recursive() ----
+/*
  *
  * WHAT: Creates directories recursively from root to target path using unconstrained mkdir syscall. Thin wrapper that delegates to xrootd_mkdir_recursive_policy() with NULL log and rules (no group policy enforcement).
  *
@@ -22,7 +22,7 @@ xrootd_mkdir_recursive(const char *path, mode_t mode)
     return xrootd_mkdir_recursive_policy(path, mode, NULL, NULL);
 }
 
-/* ---- Function: xrootd_mkdir_recursive_policy() ----
+/*
  *
  * WHAT: Creates directories recursively from root to target path, applying parent group policy at each newly-created intermediate level when log and rules are provided. Uses local stack buffer (tmp[PATH_MAX]) to progressively truncate the path at each '/' separator, mkdir() each prefix, then restore the '/' before advancing.
  *
@@ -83,7 +83,7 @@ xrootd_mkdir_recursive_policy(const char *path, mode_t mode,
     return 0;
 }
 
-/* ---- Function: xrootd_mkdir_recursive_confined_canon() ----
+/*
  *
  * WHAT: Creates directories recursively from root to target path using confined mkdirat syscall under parent directory confinement. Takes pre-canonicalized root_canon and resolved path, validates that resolved is within root_canon before proceeding. Applies optional group policy at each newly-created intermediate level.
  *
@@ -223,8 +223,7 @@ xrootd_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
     return 0;
 }
 
-/* ---- Recursive directory creation with optional group policy enforcement ----
- *
+/* Recursive directory creation with optional group policy enforcement
  * WHAT: Creates directories recursively from the root down to the target path, applying parent group policy at each newly-created intermediate level when log and rules are provided. Three variants: unconstrained recursive mkdir (xrootd_mkdir_recursive), policy-aware variant (xrootd_mkdir_recursive_policy), and confined canonical variant (xrootd_mkdir_recursive_confined_canon).
  *
  * WHY: XRootD clients often create multi-level directory trees in a single MKCOL request. Creating each level individually with mkdir ensures intermediate directories inherit the correct group policy from their parent, preventing misconfigured permissions on nested paths. The confined variants use mkdirat under confinement to prevent creating directories outside the export root even if symlinks were introduced between path resolution and creation. Thread safety: uses local stack buffers only — safe for concurrent use. */

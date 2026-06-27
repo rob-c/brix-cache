@@ -18,6 +18,7 @@ import zlib
 import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
+from official_interop_lib import worker_prefix
 
 
 def _crc32c(data: bytes) -> int:
@@ -53,7 +54,7 @@ kXR_posc = 0x1000
 ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
 DATA_DIR  = DATA_ROOT
-PREFIX = "_opcode_flag_"
+PREFIX = worker_prefix("_opcode_flag_")  # per-xdist-worker; see official_interop_lib
 
 
 @pytest.fixture(autouse=True)

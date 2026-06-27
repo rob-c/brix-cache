@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include "../compat/alloc_guard.h"
 
-/* ---- Function: fattr_read_value_size() — query POSIX xattr value length ----
+/*
  *
  * WHAT: Calls getxattr(path, key, NULL, 0) for path-based operations or
  *       fgetxattr(fd, key, NULL, 0) for open-file-handle operations to
@@ -25,7 +25,7 @@ fattr_read_value_size(const char *path, int fd, const char *xkey)
                         : fgetxattr(fd, xkey, NULL, 0);
 }
 
-/* ---- Function: fattr_read_value() — read POSIX xattr value bytes ----
+/*
  *
  * WHAT: Calls getxattr(path, key, buffer, len) for path-based operations or
  *       fgetxattr(fd, key, buffer, len) for open-file-handle operations to
@@ -46,7 +46,7 @@ fattr_read_value(const char *path, int fd, const char *xkey, u_char *value,
                         : fgetxattr(fd, xkey, value, value_len);
 }
 
-/* ---- Function: fattr_value_len_for_response() — compute response payload length ----
+/*
  *
  * WHAT: Returns the number of bytes an attribute's value contributes to the
  *       vvec (value vector) portion of the kXR_fattrGet response body. If
@@ -59,7 +59,7 @@ fattr_value_len_for_response(const xrootd_fattr_entry_t *attr)
     return attr->vlen > 0 ? (size_t) attr->vlen : 0;
 }
 
-/* ---- Function: fattr_get() — handle kXR_fattrGet: read extended attributes ----
+/*
  *
  * WHAT: Iterates over requested attribute names from the nvec (name vector),
  *       queries each value size via getxattr/fgetxattr, allocates buffers for

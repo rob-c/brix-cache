@@ -31,9 +31,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* -------------------------------------------------------------------------
+/*
  * GET /bucket/key?uploadId=<id>  →  ListParts
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * Part entry collected during directory scan.

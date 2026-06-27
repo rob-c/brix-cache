@@ -1,40 +1,12 @@
+/*
+ * login.c — kXR_login opcode handler + login-success metric.
+ */
+
 #include "../ngx_xrootd_module.h"
 #include "registry.h"
 #include "../compat/alloc_guard.h"
 
-/* ------------------------------------------------------------------ */
-/* Session Login — kXR_login opcode handler                              */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: This file implements the kXR_login request — the first step of session
- *       establishment where the client presents a username and the server assigns
- *       a session ID. After login, GSI/token/SSS clients proceed to kXR_auth for
- *       actual credential verification; anonymous clients complete immediately.
- *
- * WHY: Login is mandatory before any file operation regardless of auth mode. It
- *      establishes the session identity (sessid) and begins tracking session-level
- *      metrics (bytes_read/written, duration). In CMS manager mode, login also triggers
- *      server registration with the central registry if not already bound.
- *
- * HOW: Three phases:
- *      1. CMS suspension check — reject login if manager has suspended this server
- *      2. Parse username (8-byte fixed field) and PID from ClientLoginRequest wire format
- *      3. Generate session ID, set logged_in=1, then branch based on auth mode:
- *         - NONE: complete immediately with sessid only
- *         - GSI/SSS/TOKEN/BOTH: return sessid + parameter block advertising required plugin */
-
-/* ------------------------------------------------------------------ */
-/* Section: Login Success Counter                                        */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: Helper function that atomically increments the LOGIN success counter in
- *       the metrics subsystem. Called after every successful login regardless of auth mode.
- *
- * WHY: Provides production-level visibility into authentication throughput — helps detect
- *      suspicious patterns (e.g., many failed logins followed by a sudden spike) and capacity planning.
- *
- * HOW: Uses ngx_atomic_fetch_add for thread-safe counter increment without locks. */
-
+/* Atomically increment the LOGIN-success metric counter. */
 static void
 xrootd_count_login_ok(xrootd_ctx_t *ctx)
 {
@@ -43,26 +15,13 @@ xrootd_count_login_ok(xrootd_ctx_t *ctx)
     }
 }
 
-/* ---- Function: xrootd_handle_login() ----
- *
- * WHAT: Handles the kXR_login opcode — accepts a client username, generates a session ID (sessid),
- *       sets logged_in=1, and returns either just the sessid (anonymous mode) or sessid + parameter
- *       block advertising required auth plugin (GSI/token/SSS modes). After login, GSI clients proceed
- *       to kXR_auth for certificate verification; anonymous clients can immediately begin file operations.
- *
- * WHY: Login is mandatory before any XRootD operation regardless of authentication mode. It establishes
- *      session identity, begins tracking session-level metrics (bytes_read/written/duration), and in CMS
- *      manager mode triggers server registry registration if not already bound to a data server.
- *
- * HOW: Three-phase flow → CMS suspension check → username/PID parse from 8-byte wire field → sessid
- *      generation + logged_in=1 → auth-mode branch (NONE=sessid-only, GSI/SSS/TOKEN/BOTH=sessid+params) →
- *      session registration + access-log entry + counter increment. */
-
+/* Handle kXR_login — accept a client username, generate a session id (sessid),
+ * and begin auth negotiation (advertising the configured security requirement). */
 ngx_int_t
 xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientLoginRequest *req;
+    xrdw_login_req_t    req;
     u_char             *buf;
     size_t              total;
     char                user[9];
@@ -85,10 +44,10 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "duplicate login; already logged in");
     }
 
-    req = (ClientLoginRequest *) ctx->hdr_buf;
+    xrdw_login_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
 
     /* Username is an 8-byte fixed field on the wire, so copy and terminate it locally. */
-    ngx_memcpy(user, req->username, 8);
+    ngx_memcpy(user, req.username, 8);
     user[8] = '\0';
 
     /* Reject usernames with NUL bytes or non-printable ASCII.  A NUL in the
@@ -106,12 +65,12 @@ xrootd_handle_login(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_memcpy(ctx->login_user, user, sizeof(ctx->login_user));
-    ctx->login_pid = (uint32_t) ntohl(req->pid);
+    ctx->login_pid = (uint32_t) req.pid;
     xrootd_sanitize_log_string(user, user_log, sizeof(user_log));
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: login user=\"%s\" pid=%d auth=%s",
-                   user_log, (int) ntohl(req->pid),
+                   user_log, (int) req.pid,
                    (conf->auth == XROOTD_AUTH_GSI) ? "gsi" :
                    (conf->auth == XROOTD_AUTH_TOKEN) ? "token" :
                    (conf->auth == XROOTD_AUTH_BOTH) ? "both" :

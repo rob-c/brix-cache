@@ -271,8 +271,7 @@ dashboard_scrub_value_creds(u_char *p, u_char *end)
     u_char *s = p;
 
     while (s < end) {
-        /* ---- userinfo: "://" ... ':' ... '@' before the authority ends ---- */
-        if (s + 3 <= end && s[0] == ':' && s[1] == '/' && s[2] == '/') {
+        /* userinfo: "://" ... ':' ... '@' before the authority ends */        if (s + 3 <= end && s[0] == ':' && s[1] == '/' && s[2] == '/') {
             u_char *auth = s + 3;
             u_char *q = auth;
             u_char *at = NULL;
@@ -303,8 +302,7 @@ dashboard_scrub_value_creds(u_char *p, u_char *end)
             }
         }
 
-        /* ---- query credential params: <key>=<value> up to & / delimiter ---- */
-        if (*s == '?' || *s == '&') {
+        /* query credential params: <key>=<value> up to & / delimiter */        if (*s == '?' || *s == '&') {
             u_char *kv = s + 1;
             size_t  i;
             for (i = 0; qkeys[i] != NULL; i++) {

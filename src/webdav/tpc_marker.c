@@ -47,9 +47,6 @@
 /* Poll the transfer thread status every 200 ms. */
 #define TPC_MARKER_POLL_MSEC  200u
 
-/* -------------------------------------------------------------------------- */
-/* Types                                                                       */
-/* -------------------------------------------------------------------------- */
 
 /*
  * Event-loop side state for a 202-streaming TPC transfer.
@@ -85,9 +82,6 @@ typedef struct {
     ngx_array_t                       *transfer_headers;
 } tpc_marker_thread_ctx_t;
 
-/* -------------------------------------------------------------------------- */
-/* Marker block emission                                                       */
-/* -------------------------------------------------------------------------- */
 
 static void
 tpc_marker_send_one(ngx_http_request_t *r, time_t ts,
@@ -151,9 +145,6 @@ tpc_marker_send_all(ngx_http_request_t *r, time_t ts,
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Commit / cleanup                                                            */
-/* -------------------------------------------------------------------------- */
 
 static void
 tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
@@ -273,9 +264,6 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
     ngx_http_finalize_request(r, NGX_DONE);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Event callbacks                                                             */
-/* -------------------------------------------------------------------------- */
 
 static void
 tpc_marker_poll(ngx_event_t *ev)
@@ -352,9 +340,6 @@ tpc_marker_cleanup(void *data)
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Thread function                                                             */
-/* -------------------------------------------------------------------------- */
 
 static void
 tpc_marker_thread_func(void *data, ngx_log_t *log)
@@ -413,9 +398,6 @@ tpc_marker_thread_func(void *data, ngx_log_t *log)
     progress->completed = 1;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Public entry point                                                          */
-/* -------------------------------------------------------------------------- */
 
 /*
  * webdav_tpc_marker_start — start a 202-streaming TPC transfer.

@@ -423,8 +423,7 @@ xrootd_http_request_header_add(ngx_http_request_t *r, const char *key,
     return NGX_OK;
 }
 
-/* ---- query-string token helpers (shared by §1 ?authz= and form decoding) ---- */
-
+/* query-string token helpers (shared by §1 ?authz= and form decoding) */
 static int
 xrootd_hex_nibble(u_char c)
 {

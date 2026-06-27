@@ -6,6 +6,26 @@ Every `xrootd_webdav_*` directive — context, type, default, and what it contro
 
 All `xrootd_webdav_*` directives go inside an `http` server or location block.
 
+The directives cluster into five families. Most deployments only need the first:
+
+```text
+  xrootd_webdav_*
+  ├─ CORE ........ on · root · allow_write · thread_pool
+  │                  └─ activate the handler, set the export, gate writes
+  ├─ AUTH ........ auth(none|optional|required)
+  │                ├─ cert:  cadir · cafile · crl · proxy_certs · verify_depth
+  │                └─ token: token_jwks · token_issuer · token_audience
+  ├─ TPC ......... tpc · tpc_curl · tpc_timeout
+  │                ├─ creds: tpc_cert · tpc_key · tpc_cadir · tpc_cafile
+  │                └─ oauth: tpc_token_endpoint · _client_id · _secret · _scope
+  ├─ CORS ........ cors_origin · cors_credentials · cors_max_age
+  │                  └─ browser clients only
+  └─ LOCKS ....... lock_timeout · lock_startup_sweep
+                     └─ RFC 4918 WebDAV locking (xattr-backed)
+```
+
+
+
 ### `xrootd_webdav on|off`
 
 **Context:** `location`
@@ -272,6 +292,23 @@ Value used for `Access-Control-Max-Age` on allowed CORS preflight responses.
 Maximum duration for a WebDAV lock. When a client requests a lock with a `Timeout:` header, the server bounds the timeout to this value. Expired locks are cleaned up lazily — on the next access to the locked path.
 
 Lock state is stored as a single extended attribute (`user.nginx_xrootd.lock`) on the locked resource itself, in the same storage layer as dead properties. There is no shared-memory table or mutex: atomic creation is provided by the kernel's `XATTR_CREATE` semantics, and a lock check walks from the target path up to the export root (`O(path_depth)` xattr reads).
+
+```text
+  DELETE /data/proj/run42/out.root  — is anything in the path locked?
+  ──────────────────────────────────────────────────────────────────
+   /data/proj/run42/out.root   getxattr(user.nginx_xrootd.lock) ─┐
+   /data/proj/run42            getxattr ───────────────────────┐ │ a Depth:0
+   /data/proj                  getxattr ─────────────────────┐ │ │ lock here,
+   /data            (export root, stop) ─────────────────────┘ │ │ or a
+                                                                │ │ Depth:∞
+   walk UP the tree, O(path_depth) xattr reads ─────────────────┘ │ lock on
+   any locked ancestor (Depth:∞) or the target itself ────────────┘ a parent
+        │                                                            blocks it
+        ▼
+   locked → 423 Locked      free → proceed
+   atomic claim = setxattr(..., XATTR_CREATE)  ← kernel rejects a double-create
+```
+
 - **Exclusive Write Locks**: Only exclusive write locks are currently supported.
 - **Depth Support**: Supports both `Depth: 0` (shallow) and `Depth: infinity` (recursive) lock scope.
 - **Custom Owner**: Parses the LOCK request body to extract custom `<D:owner>` metadata (including `<D:href>`), ensuring compatibility with desktop clients that identify users via XML.

@@ -7,26 +7,32 @@ Write, truncate, sync, mkdir, rm, mv, chmod — every write-side operation with 
 Write operations require `xrootd_allow_write on` in the server block. A server without this setting returns `kXR_fsReadOnly` for any write request.
 
 The write family mirrors the read family, but current clients usually prefer
-the paged-write path because it carries CRC32c integrity fields:
+the paged-write path because it carries CRC32c integrity fields. A fresh upload
+is staged to a temporary/partial file and **atomically moved into place on a
+successful `kXR_close`** (see [Atomic uploads](#atomic-uploads-stage-then-move)
+below):
 
 ```text
-kXR_open(path, create/update flags) -> handle
-        |
+kXR_open(path, create/overwrite flags) -> handle on a STAGING file
+        |                                  (.part / temp, NOT the final path)
         +-- kXR_pgwrite
         |      [page data + CRC32c]...
-        |      verify CRCs -> strip CRC fields -> write raw bytes
+        |      verify CRCs -> strip CRC fields -> write raw bytes to STAGING
         |
         +-- kXR_write
-        |      raw byte payload from older clients
+        |      raw byte payload from older clients -> STAGING
         |
         +-- kXR_writev
-        |      multiple offset/length/data segments in one request
+        |      multiple offset/length/data segments in one request -> STAGING
         |
         +-- kXR_sync
-        |      fsync open handle
+        |      fsync the staging file
         |
         v
    kXR_close(handle)
+        |
+        +-- clean close  -> COMMIT: rename(staging -> final)   (atomic move)
+        +-- aborted/drop -> staging partial preserved for resume, final unchanged
         |
         v
    access log includes close-time transfer summary
@@ -47,6 +53,44 @@ write request
     v
 write accepted
 ```
+
+### Atomic uploads: stage then move
+
+Fresh uploads are **never written directly to the destination path.** The server
+opens a **staging file** — a temporary/partial file alongside the destination (or
+under `xrootd_stage_dir` when configured) — writes every `kXR_write` /
+`kXR_pgwrite` / `kXR_writev` payload there, and only **renames it onto the final
+path on a clean `kXR_close`**. `rename(2)` on the same filesystem is atomic, so:
+
+```text
+   during upload                            on clean close
+   ─────────────                            ──────────────
+   /data/file.root.part   ◀── writes        rename(.part → file.root)  atomic
+   /data/file.root        (absent or old)   /data/file.root  ← new bytes appear
+                                            all-at-once; never torn
+
+   client disconnects mid-upload?
+   ──────────────────────────────
+   /data/file.root.part   ← partial kept (resume), final path untouched
+```
+
+- **Applies to:** `root://` create/overwrite opens (`OpenFlags.NEW`/`DELETE`)
+  while `xrootd_upload_resume` is on (the default) or POSC (`kXR_posc`) is set;
+  **every** WebDAV `PUT` and S3 `PUT`, via the shared
+  `xrootd_staged_open()` → `xrootd_staged_commit()` lifecycle
+  ([`src/compat/staged_file.c`](../../src/compat/staged_file.c)).
+- **Does not apply to in-place updates:** an `OpenFlags.UPDATE` open that modifies
+  an existing file at an offset writes **directly** to the file — staging it
+  through an empty temp would lose the bytes it does not rewrite.
+- **Resume:** with `xrootd_upload_resume` on, the staging partial is
+  deterministic and identity-keyed, so a reconnecting client resumes in place
+  rather than restarting; the partial is preserved (not unlinked) on a non-clean
+  close. See [reload/resume semantics](../09-developer-guide/reload-semantics.md).
+- **Cross-device stage dir:** when `xrootd_stage_dir` is on a different filesystem
+  than the storage, the commit falls back to copy-then-rename (still atomic at the
+  destination).
+
+---
 
 ### Opening a file for writing
 

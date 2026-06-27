@@ -35,8 +35,7 @@
  * cfg_copy_alloc, which appears earlier in the file. */
 static void cfg_copy_free(xrdc_cred_config *c);
 
-/* ---- weak accessor declarations ----------------------------------------- */
-
+/* weak accessor declarations */
 /*
  * Per-kind handler accessors, declared weak so libxrdc.{a,so} (and any test
  * binary that provides only a subset) links cleanly without all B3-B6 objects.
@@ -52,8 +51,7 @@ extern const xrdc_cred_handler *xrdc_cred_krb5(void)    __attribute__((weak));
 extern const xrdc_cred_handler *xrdc_cred_sss(void)     __attribute__((weak));
 extern const xrdc_cred_handler *xrdc_cred_s3keys(void)  __attribute__((weak));
 
-/* ---- config deep-copy helpers ------------------------------------------- */
-
+/* config deep-copy helpers */
 /*
  * cfg_copy_alloc — deep-copy the caller's xrdc_cred_config onto the heap.
  *
@@ -122,8 +120,7 @@ cfg_copy_free(xrdc_cred_config *c)
     free(c);
 }
 
-/* ---- per-kind cache slot ------------------------------------------------- */
-
+/* per-kind cache slot */
 /*
  * cred_slot — one per xrdc_cred_kind; holds the cached view + owned strings.
  *
@@ -144,16 +141,14 @@ typedef struct {
     char           *owned_s3_secret;
 } cred_slot;
 
-/* ---- store struct -------------------------------------------------------- */
-
+/* store struct */
 struct xrdc_cred_store {
     xrdc_cred_config          *cfg;                         /* deep copy         */
     const xrdc_cred_handler   *handlers[XRDC_CRED_KIND_COUNT]; /* may be NULL   */
     cred_slot                  slots[XRDC_CRED_KIND_COUNT];
 };
 
-/* ---- slot helpers -------------------------------------------------------- */
-
+/* slot helpers */
 /*
  * slot_clear_owned — free the owned string copies in a cache slot.
  *
@@ -237,8 +232,7 @@ slot_store_view(cred_slot *sl, const xrdc_cred_view *v, int64_t not_after)
     return 0;
 }
 
-/* ---- kind name table (for error messages) -------------------------------- */
-
+/* kind name table (for error messages) */
 static const char *
 kind_name(xrdc_cred_kind k)
 {
@@ -252,8 +246,7 @@ kind_name(xrdc_cred_kind k)
     }
 }
 
-/* ---- public API ---------------------------------------------------------- */
-
+/* public API */
 /*
  * xrdc_cred_store_new — allocate and initialise a credential store.
  *

@@ -1,5 +1,4 @@
-/* ---- File: proxy_req.c — RFC-3820 GSI proxy-request crypto (phase-57 §F6) ----
- *
+/* File: proxy_req.c — RFC-3820 GSI proxy-request crypto (phase-57 §F6)
  * WHAT: xrootd_gsi_build_pxyreq() generates the proxy-certificate REQUEST a GSI
  *   server sends to a delegating client (the kXGS_pxyreq main payload): a fresh
  *   RSA keypair + a self-signed X509_REQ whose subject is the parent's plus a
@@ -315,9 +314,6 @@ xrootd_gsi_build_pxyreq(const uint8_t *parent_pem, size_t parent_pem_len,
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* Issue (sign) a proxy from a request — the delegating client's role.   */
-/* ------------------------------------------------------------------ */
 
 /* pcPathLengthConstraint of an X509_REQ's proxyCertInfo, or -1 if none. */
 static int
@@ -546,9 +542,6 @@ xrootd_gsi_sign_pxyreq(const uint8_t *signer_pem, size_t signer_pem_len,
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* Assemble the delegated proxy credential — the GSI server's role.      */
-/* ------------------------------------------------------------------ */
 
 int
 xrootd_gsi_assemble_proxy(const uint8_t *proxy_pem, size_t proxy_pem_len,

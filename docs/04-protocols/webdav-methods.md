@@ -9,7 +9,7 @@ Every HTTP method the WebDAV module handles, what RFC it follows, and any nginx-
 | `OPTIONS` | Returns `Allow` header with all supported methods; `DAV: 1` |
 | `GET` | Full file and RFC 7233 `Range` requests (including suffix ranges `bytes=-N`) |
 | `HEAD` | Returns headers without body |
-| `PUT` | Upload; returns 201 on create, 204 on overwrite |
+| `PUT` | Upload; body is written to a staging temp file and **atomically renamed onto the target** on completion (an interrupted PUT never leaves a half-written object). Returns 201 on create, 204 on overwrite |
 | `DELETE` | Removes files and empty directories |
 | `MKCOL` | Creates a directory; trailing slash in URL is accepted |
 | `COPY` | Server-side local copy (RFC 4918 §9.8) when `xrootd_webdav_allow_write on`; HTTP-TPC pull (`Source:` header) or push (`Destination: https://…` header) when `xrootd_webdav_tpc on` |
@@ -18,6 +18,31 @@ Every HTTP method the WebDAV module handles, what RFC it follows, and any nginx-
 | `UNLOCK` | Release a previously held exclusive write lock |
 
 ---
+
+## Conditional requests at a glance
+
+The many RFC 7232 rows below collapse into one precedence ladder. The weak ETag
+`W/"mtime-size"` and the file mtime are evaluated *before* the body or the write:
+
+```text
+  GET / HEAD                              PUT (write)
+  ──────────                              ───────────
+  If-Match: <etag>                        If-Match: <etag>
+     mismatch ──▶ 412                         mismatch ──▶ 412
+     match    ──▶ continue                    match    ──▶ continue
+  If-None-Match: <etag> | *               If-None-Match: *
+     match ──▶ 304 (cached)                   target exists ──▶ 412
+     none  ──▶ continue                       target absent ──▶ continue
+  If-Modified-Since: <date>                          │
+     not newer ──▶ 304                               ▼
+     newer     ──▶ continue              parent missing ──▶ 409 Conflict
+        │                                          │
+        ▼                                          ▼
+  Range: bytes=…                          target existed?
+     satisfiable   ──▶ 206 + Content-Range   yes ──▶ 204 No Content
+     beyond EOF    ──▶ 416                    no  ──▶ 201 Created
+     none          ──▶ 200 full body
+```
 
 ## RFC compliance
 

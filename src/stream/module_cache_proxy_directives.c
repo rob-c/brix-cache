@@ -77,6 +77,23 @@
       offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_client),
       NULL },
 
+    /* Bearer token the cache presents to an HTTP(S)/Pelican origin (path to a
+     * token file, re-read per fill so rotation is picked up). */
+    { ngx_string("xrootd_cache_origin_token_file"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_token_file),
+      NULL },
+
+    /* Replay the client's bearer token upstream to the origin (delegation). */
+    { ngx_string("xrootd_cache_origin_forward_token"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_forward_token),
+      NULL },
+
     { ngx_string("xrootd_cache_lock_timeout"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
@@ -111,7 +128,75 @@
       0,
       NULL },
 
-    /* ---- write-through mode directives (mirrors XrdPfc configuration from
+    /* Checksum-on-fill integrity policy: off | best-effort (default) | require.
+     * Verifies a completed fill against the origin's advertised checksum before
+     * publishing it; a mismatch discards the download (src/cache/verify.h). */
+    { ngx_string("xrootd_cache_verify"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_verify,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Preferred checksum algorithm to request from an HTTP/Pelican origin
+     * (Want-Digest); advisory for root:// (the origin reports its own default). */
+    { ngx_string("xrootd_cache_verify_digest"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_verify_digest,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Pelican cache registration / advertisement */    { ngx_string("xrootd_cache_advertise"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_advertise),
+      NULL },
+    { ngx_string("xrootd_cache_advertise_key"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_advertise_key),
+      NULL },
+    { ngx_string("xrootd_cache_data_url"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_data_url),
+      NULL },
+    { ngx_string("xrootd_cache_web_url"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_web_url),
+      NULL },
+    { ngx_string("xrootd_cache_sitename"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_sitename),
+      NULL },
+    { ngx_string("xrootd_cache_issuer"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_issuer_url),
+      NULL },
+    { ngx_string("xrootd_cache_advertise_interval"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_advertise_interval),
+      NULL },
+    { ngx_string("xrootd_cache_advertise_namespace"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_advertise_ns,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* write-through mode directives (mirrors XrdPfc configuration from
      * /tmp/xrootd-src/src/XrdPfc/README) ---- */
 
     { ngx_string("xrootd_write_through"),
@@ -203,8 +288,7 @@
       offsetof(ngx_stream_xrootd_srv_conf_t, common.thread_pool_name),
       NULL },
 
-    /* ---- transparent proxy mode ---- */
-
+    /* transparent proxy mode */
     { ngx_string("xrootd_proxy"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,

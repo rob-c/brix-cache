@@ -1,5 +1,6 @@
 #include "../config/config.h"
 #include "../crypto/pki_build.h"
+#include "../compat/lifecycle_timing.h"
 
 /*
  * Build (or rebuild) the X509_STORE used for GSI certificate verification.
@@ -56,7 +57,7 @@ xrootd_rebuild_gsi_store(ngx_stream_xrootd_srv_conf_t *xcf, ngx_log_t *log)
     return NGX_OK;
 }
 
-/* ---- Function: xrootd_configure_gsi() ----
+/*
  * WHAT: Full GSI authentication configuration loader — validates auth method (GSI or BOTH), checks all three trust inputs (certificate, private key, trusted CA) are present and path-valid, loads server certificate via PEM_read_X509(), serializes it into cached PEM buffer for kXGS_cert responses on every GSI login, loads private key via PEM_read_PrivateKey(), builds X509_STORE with trusted CA + CRLs via xrootd_rebuild_gsi_store() (with proxy cert flag and CRL_CHECK_ALL), runs PKI/CRL consistency check, computes CA hash via X509_subject_name_hash() for kXRS_issuer_hash advertisement during GSI bootstrap.
  * WHY: All three trust inputs must be present simultaneously — missing any one makes GSI auth meaningless. Cert serialization caching avoids per-request PEM encoding overhead on every client login. CRL checking enables revocation detection across the full certificate chain. CA hash allows clients to confirm which CA the server trusts before initiating DH exchange.
  */
@@ -160,13 +161,25 @@ xrootd_configure_gsi(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
         }
     }
 
-    /* Build trusted CA X509_STORE */
-    if (xrootd_rebuild_gsi_store(xcf, cf->log) != NGX_OK) {
-        return NGX_ERROR;
-    }
+    /* Build trusted CA X509_STORE.  This parses every CA (and CRL) under the
+     * trusted-CA path, so its cost scales with the bundle size — on a full grid
+     * CA distribution (hundreds of CAs + CRLs) it dominates GSI config time.
+     * Time it independently so a slow startup is attributable at a glance. */
+    {
+        uint64_t t0 = xrootd_phase_now_ns();
 
-    /* Run a lightweight PKI/CRL consistency check and log any problems. */
-    (void) xrootd_check_pki_consistency_stream(cf->log, xcf);
+        if (xrootd_rebuild_gsi_store(xcf, cf->log) != NGX_OK) {
+            return NGX_ERROR;
+        }
+
+        /* Run a lightweight PKI/CRL consistency check and log any problems. */
+        (void) xrootd_check_pki_consistency_stream(cf->log, xcf);
+
+        ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
+                      "xrootd: GSI trust store built from \"%V\" in %uLus",
+                      &xcf->trusted_ca,
+                      (xrootd_phase_now_ns() - t0) / 1000ull);
+    }
 
     /* Compute CA hash (for kXRS_issuer_hash in kXGS_init) */
     {

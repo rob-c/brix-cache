@@ -22,6 +22,7 @@ xrootd_write_aio_thread(void *data, ngx_log_t *log)
      * on the main thread.  No nginx state may be touched from here.
      */
     xrootd_vfs_job_write_init(&job, t->fd, t->offset, t->data, t->len);
+    job.csi = t->csi;                    /* phase-59 W2: update tags in worker */
     xrootd_vfs_io_execute(&job);
 
     t->nwritten = job.nio;

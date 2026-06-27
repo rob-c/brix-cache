@@ -52,6 +52,43 @@ xrootd_allow_write on;   # allow uploads and deletes
 
 ---
 
+### `xrootd_upload_resume on|off`
+
+**Default:** `on`
+
+Controls upload staging. When on, a fresh write open (`kXR_new`/overwrite) is
+**not** written to its final path — the server streams the bytes to a
+deterministic, identity-keyed **staging partial file** and **atomically renames
+it onto the destination on a clean `kXR_close`**. Readers never observe a
+half-written file, and a client that disconnects mid-transfer can reconnect and
+**resume in place** (the partial is preserved, not discarded). With it `off`,
+fresh uploads are still staged when the client sets POSC (`kXR_posc`) but are not
+resumable. A pure in-place update (`kXR_open_updt` with no create) always writes
+directly, never through a staging file.
+
+```nginx
+xrootd_upload_resume on;   # stage + atomically move uploads into place (default)
+```
+
+---
+
+### `xrootd_stage_dir <path>`
+
+**Default:** unset (stage alongside the destination file)
+
+Directory for upload staging partials. By default the staging file is created in
+the **same directory** as the destination, so the commit `rename(2)` is atomic on
+the same filesystem. Point this at a dedicated fast device (e.g. NVMe) to absorb
+in-flight uploads there; when the stage dir is on a *different* filesystem than
+the storage, the commit transparently falls back to copy-then-rename (still
+atomic at the destination). Must resolve within a path the worker can write.
+
+```nginx
+xrootd_stage_dir /srv/fast/upload-staging;
+```
+
+---
+
 ### `xrootd_auth none|gsi|token|both`
 
 **Default:** `none`

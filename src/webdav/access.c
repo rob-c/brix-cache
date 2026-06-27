@@ -197,8 +197,7 @@ ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r)
         return NGX_OK;
     }
 
-    /* ---- Authentication gate ---- */
-    if (conf->auth != WEBDAV_AUTH_NONE) {
+    /* Authentication gate */    if (conf->auth != WEBDAV_AUTH_NONE) {
         auth_rc = webdav_verify_proxy_cert(r, conf);
         if (auth_rc != NGX_OK) {
             auth_rc = webdav_verify_bearer_token(r, conf);
@@ -245,18 +244,15 @@ ngx_http_xrootd_webdav_access_handler(ngx_http_request_t *r)
         return NGX_OK;
     }
 
-    /* ---- Write-method gate ---- */
-    if (webdav_is_write_method(r) && !conf->common.allow_write) {
+    /* Write-method gate */    if (webdav_is_write_method(r) && !conf->common.allow_write) {
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }
 
-    /* ---- XrdAcc engine (when xrootd_authdb_format xrdacc) ---- */
-    if (webdav_acc_check(r, conf) != NGX_OK) {
+    /* XrdAcc engine (when xrootd_authdb_format xrdacc) */    if (webdav_acc_check(r, conf) != NGX_OK) {
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }
 
-    /* ---- Token scope check ---- */
-    scope_method = webdav_scope_method_name(r);
+    /* Token scope check */    scope_method = webdav_scope_method_name(r);
     if (scope_method != NULL) {
         rc = webdav_check_token_write_scope(r, scope_method);
         if (rc != NGX_OK) {

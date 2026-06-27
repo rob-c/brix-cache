@@ -55,7 +55,15 @@ ngx_int_t  xrootd_slice_meta_write(const char *cache_path, off_t origin_size,
     const char *origin_etag, uint64_t mtime, void *log);
 ngx_uint_t xrootd_slice_evict_all(const char *cache_path, void *log);
 
-/* ---- Stubs for the two cache-module externals slice.o references. ---- */
+/* ---- Stubs for the cache-module externals slice.o / meta.o reference. ---- */
+
+/* meta.o records last_access via nginx's ngx_time() macro, which expands to
+ * ngx_cached_time->sec.  In the live module ngx_cached_time is maintained by the
+ * event loop; the standalone unit test has no nginx runtime, so provide a backing
+ * struct (layout matches ngx_time_t: time_t sec first) to resolve the link. */
+typedef struct { time_t sec; ngx_uint_t msec; } ngx_time_t;
+static ngx_time_t      _stub_cached_time;
+volatile ngx_time_t   *ngx_cached_time = &_stub_cached_time;
 
 int
 xrootd_cache_file_ready(const char *path)
@@ -70,6 +78,14 @@ int
 xrootd_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
 {
     int n = snprintf(dst, dstsz, "%s.meta", cache_path);
+    return (n < 0 || (size_t) n >= dstsz) ? NGX_ERROR : NGX_OK;
+}
+
+/* Mirrors src/cache/cinfo.c: appends ".cinfo" (slice.o drops it on evict). */
+int
+xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
+{
+    int n = snprintf(dst, dstsz, "%s.cinfo", cache_path);
     return (n < 0 || (size_t) n >= dstsz) ? NGX_ERROR : NGX_OK;
 }
 

@@ -43,8 +43,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-/* ---- X509 tests (use real cred_x509.c) ---------------------------------- */
-
+/* X509 tests (use real cred_x509.c) */
 /*
  * test_x509_env_success — $X509_USER_PROXY overrides the /tmp default.
  *
@@ -164,8 +163,7 @@ test_x509_cfg_precedence(void)
     printf("test_x509_cfg_precedence: PASS\n");
 }
 
-/* ---- bearer tests (use real cred_bearer.c) ------------------------------ */
-
+/* bearer tests (use real cred_bearer.c) */
 /*
  * test_bearer_env_success — $BEARER_TOKEN is visible as the token.
  *
@@ -315,8 +313,7 @@ test_bearer_jwt_not_after(void)
     printf("test_bearer_jwt_not_after: PASS\n");
 }
 
-/* ---- SSS tests (use real cred_sss.c + sss_keytab.c) --------------------- */
-
+/* SSS tests (use real cred_sss.c + sss_keytab.c) */
 /*
  * test_sss_missing_keytab — cfg->keytab_path at a guaranteed-absent file →
  * available()==0 and acquire()==-1 with XRDC_EAUTH in st.
@@ -451,8 +448,7 @@ test_sss_positive(void)
     printf("test_sss_positive: PASS\n");
 }
 
-/* ---- krb5 tests (use real cred_krb5.c) ---------------------------------- */
-
+/* krb5 tests (use real cred_krb5.c) */
 /*
  * test_krb5_missing_ccache — $KRB5CCNAME pointing at a guaranteed-absent ccache
  * → available()==0 and acquire()==-1 with XRDC_EAUTH in st.
@@ -522,8 +518,7 @@ test_krb5_null_accessor(void)
 #endif
 }
 
-/* ---- S3 keys tests (use real cred_s3.c) --------------------------------- */
-
+/* S3 keys tests (use real cred_s3.c) */
 /*
  * test_s3keys_env_success — both AWS env vars set → available()==1 and
  * acquire() returns those exact key values.
@@ -737,8 +732,7 @@ test_s3keys_file_success(void)
     printf("test_s3keys_file_success: PASS\n");
 }
 
-/* ---- main --------------------------------------------------------------- */
-
+/* main */
 int
 main(void)
 {

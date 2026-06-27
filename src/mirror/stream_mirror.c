@@ -85,8 +85,7 @@ static void xrootd_mir_timeout_handler(ngx_event_t *ev);
 static void xrootd_mir_finish(xrootd_stream_mirror_t *mir, int sent);
 
 
-/* ---- opcode filter ------------------------------------------------------- */
-
+/* opcode filter */
 static ngx_uint_t
 xrootd_mirror_opcode_bit(uint16_t reqid)
 {
@@ -172,8 +171,7 @@ xrootd_mirror_request_replayable(xrootd_ctx_t *ctx)
 }
 
 
-/* ---- write side ---------------------------------------------------------- */
-
+/* write side */
 /* Drain the pending write buffer to the shadow socket; see
  * xrootd_mirror_io_flush(). */
 static ngx_int_t
@@ -247,8 +245,7 @@ xrootd_mir_write_handler(ngx_event_t *wev)
 }
 
 
-/* ---- read side ----------------------------------------------------------- */
-
+/* read side */
 /* Read one shadow response frame (header + bounded body); see
  * xrootd_mirror_io_recv_frame(). */
 static ngx_int_t
@@ -383,8 +380,7 @@ xrootd_mir_read_handler(ngx_event_t *rev)
 }
 
 
-/* ---- lifecycle ----------------------------------------------------------- */
-
+/* lifecycle */
 static void
 xrootd_mir_timeout_handler(ngx_event_t *ev)
 {
@@ -482,8 +478,7 @@ xrootd_mir_start(xrootd_stream_mirror_t *mir, ngx_msec_t timeout_ms)
 }
 
 
-/* ---- launch hook (called from dispatch.c) -------------------------------- */
-
+/* launch hook (called from dispatch.c) */
 void
 xrootd_stream_mirror_maybe(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, ngx_int_t primary_rc)
@@ -585,8 +580,7 @@ xrootd_stream_mirror_maybe(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 
-/* ---- directive setters --------------------------------------------------- */
-
+/* directive setters */
 /*
  * xrootd_stream_mirror_url host:port — append one shadow target, resolved at
  * configuration time so request handlers never call getaddrinfo on the event

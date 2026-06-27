@@ -11,8 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- wire codec ---- */
-
+/* wire codec */
 static void
 put_u64(uint8_t *p, uint64_t v)
 {
@@ -76,8 +75,7 @@ xrootd_cns_event_decode(const uint8_t *buf, size_t len, uint8_t *op,
     return NGX_OK;
 }
 
-/* ---- inventory (per-worker, v1) ---- */
-
+/* inventory (per-worker, v1) */
 typedef struct {
     char     path[XROOTD_CNS_PATH_MAX + 1];
     uint64_t size;

@@ -245,9 +245,11 @@ def _setup_session():
     with open(os.path.join(DATA_ROOT, "test.txt"), "wb") as f:
         f.write(b"hello from nginx-xrootd\n")
 
-    # Generate random.bin (5MB of random data)
+    # Generate random.bin (5MB of random data). randbytes() fills the buffer in
+    # one C call — the byte-at-a-time getrandbits() generator it replaces took
+    # ~0.2s here and ~11s for the 200 MiB file below, on every (wiped) session.
     with open(os.path.join(DATA_ROOT, "random.bin"), "wb") as f:
-        f.write(bytes(random.getrandbits(8) for _ in range(5242880)))
+        f.write(random.randbytes(5242880))
 
     # Generate large200.bin (200 MiB) — MD5 exposed via env var for tests that need it.
     LARGE_FILE_SIZE = 200 * 1024 * 1024
@@ -264,7 +266,7 @@ def _setup_session():
             remaining = LARGE_FILE_SIZE
             while remaining > 0:
                 n = min(chunk_size, remaining)
-                chunk = bytes(rng.getrandbits(8) for _ in range(n))
+                chunk = rng.randbytes(n)   # vectorized; ~15x faster than per-byte
                 f.write(chunk)
                 h.update(chunk)
                 remaining -= n

@@ -25,7 +25,7 @@ ngx_int_t
 xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				 ngx_stream_xrootd_srv_conf_t *conf)
 {
-	ClientMvRequest *req = (ClientMvRequest *) ctx->hdr_buf;
+	xrdw_twopath_req_t req;
 	char src_resolved[PATH_MAX];
 	char dst_resolved[PATH_MAX];
 	char src_buf[XROOTD_MAX_PATH + 1];
@@ -44,7 +44,8 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 *   payload = src[arg1len] + ' ' + dst[...]
 	 * The separator between source and destination is a single space (0x20).
 	 */
-	src_len = (int16_t) ntohs((uint16_t) req->arg1len);
+	xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	src_len = req.arg1len;
 	if (src_len < 0 || (uint32_t) src_len >= ctx->cur_dlen) {
 		return xrootd_send_error(ctx, c, kXR_ArgInvalid,
 								 "invalid arg1len for mv");

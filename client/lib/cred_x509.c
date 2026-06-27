@@ -37,8 +37,7 @@
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 
-/* ---- path resolution ---------------------------------------------------- */
-
+/* path resolution */
 /*
  * resolve_proxy_path — fill out[outsz] with the resolved X.509 proxy path.
  *
@@ -66,8 +65,7 @@ resolve_proxy_path(const xrdc_cred_config *cfg, char *out, size_t outsz)
     snprintf(out, outsz, "/tmp/x509up_u%u", (unsigned)geteuid());
 }
 
-/* ---- cert expiry parsing ------------------------------------------------ */
-
+/* cert expiry parsing */
 /*
  * parse_notafter — extract the first cert's notAfter from a PEM file as a
  * Unix timestamp.
@@ -129,8 +127,7 @@ parse_notafter(const char *path, int64_t *result)
     return 0;
 }
 
-/* ---- handler callbacks -------------------------------------------------- */
-
+/* handler callbacks */
 /*
  * x509_available — 1 if the resolved proxy path exists and is readable.
  *
@@ -215,8 +212,7 @@ x509_refresh(const xrdc_cred_config *cfg, xrdc_status *st)
     return 0;   /* no-op; C2 will wire xrdc_cred_autorefresh here */
 }
 
-/* ---- handler accessor --------------------------------------------------- */
-
+/* handler accessor */
 static const xrdc_cred_handler s_x509_handler = {
     .kind      = XRDC_CRED_X509_PROXY,
     .available = x509_available,

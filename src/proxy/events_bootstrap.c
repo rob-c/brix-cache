@@ -14,8 +14,7 @@
 
 #define PROXY_UPSTREAM_BEARER_MAX  65536
 
-/* ---- auth-frame builder --------------------------------------------------- */
-
+/* auth-frame builder */
 /*
  * Builds a kXR_auth frame carrying a ztn (bearer token) credential.
  *
@@ -46,8 +45,7 @@ proxy_build_auth_ztn(u_char *buf, const char *token, size_t token_len)
     return 28 + token_len;
 }
 
-/* ---- upstream auth resolution -------------------------------------------- *
- * WHAT: Resolve the effective upstream auth policy and (for SSS) the key to use
+/* upstream auth resolution * WHAT: Resolve the effective upstream auth policy and (for SSS) the key to use
  *       for THIS upstream: a per-upstream `auth`/`sss:<keyname>` override wins,
  *       else the global xrootd_proxy_auth + first configured key.
  * WHY:  Both the kXR_authmore branch and the kXR_ok login-sec-hint branch need
@@ -96,8 +94,7 @@ proxy_resolve_upstream_auth(xrootd_proxy_ctx_t *proxy, ngx_uint_t *eff_auth,
     }
 }
 
-/* ---- send an SSS kXR_auth credential to the upstream --------------------- *
- * WHAT: Build an SSS credential from `key`, wrap it in a kXR_auth request, and
+/* send an SSS kXR_auth credential to the upstream * WHAT: Build an SSS credential from `key`, wrap it in a kXR_auth request, and
  *       arm the write side; advance bs_phase to BS_AUTH.
  * WHY:  Used by BOTH the kXR_authmore path and the kXR_ok login-sec-hint path
  *       (our own server advertises SSS via the latter), so the logic lives once.
@@ -172,8 +169,7 @@ proxy_send_sss_auth(xrootd_proxy_ctx_t *proxy, const xrootd_sss_key_t *key)
     return NGX_OK;
 }
 
-/* ---- bootstrap response handling ----------------------------------------- */
-
+/* bootstrap response handling */
 /*
  * WHAT: Advance the upstream login handshake one step, consuming the response
  *       that the read handler just finished accumulating (proxy->resp_status /
@@ -201,6 +197,281 @@ proxy_send_sss_auth(xrootd_proxy_ctx_t *proxy, const xrootd_sss_key_t *key)
  *       write if partial -> return. They differ only in how the credential is
  *       sourced.
  */
+/* BS_LOGIN bootstrap phase: handle the upstream login reply — kXR_authmore
+ * (forward bearer / SSS / token-file), login failure, and the token-only
+ * login-sec hint (proactive P=sss / P=ztn).  Returns 1 when it has issued a
+ * frame or aborted and the caller must return; 0 when the phase is complete
+ * (bs_phase advanced to DONE) and the caller falls through to the shared
+ * reset/finish tail. */
+static int
+xrootd_proxy_bs_login(xrootd_proxy_ctx_t *proxy)
+{
+    if (proxy->resp_status == kXR_authmore) {
+        /* Upstream requests authentication — handle by configured policy.
+         * Effective policy: per-upstream override if set, else global conf->proxy_auth. */
+        ngx_stream_xrootd_srv_conf_t  *conf      = proxy->conf;
+        ngx_uint_t                     eff_auth;
+        const xrootd_sss_key_t        *eff_key;
+
+        proxy_resolve_upstream_auth(proxy, &eff_auth, &eff_key);
+
+        /* auth-send arm 1 of 4: FORWARD using the client's bearer         * Preferred FORWARD path: the connecting client already presented a
+         * WLCG bearer token, so re-present it verbatim to the upstream. */
+        if (eff_auth == XROOTD_PROXY_AUTH_FORWARD
+            && proxy->client_ctx != NULL
+            && proxy->client_ctx->bearer_token[0] != '\0')
+        {
+            /* Forward the client's WLCG bearer token as a ztn credential */
+            const char *token     = proxy->client_ctx->bearer_token;
+            size_t      token_len = ngx_strlen(token);
+            size_t      frame_len = 28 + token_len; /* hdr24 + len4 + jwt */
+            u_char     *frame;
+
+            frame = ngx_palloc(proxy->conn->pool, frame_len);
+            if (frame == NULL) {
+                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                        upstream_auth_errors);
+                XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+                xrootd_proxy_abort(proxy, "proxy: OOM building auth frame");
+                return 1;
+            }
+
+            proxy_build_auth_ztn(frame, token, token_len);
+
+            /* Clear the just-consumed response so the accumulator is ready
+             * for the kXR_auth reply, then install the auth frame as the
+             * write buffer and advance to BS_AUTH before flushing. */
+            if (proxy->resp_body != NULL) {
+                ngx_free(proxy->resp_body);
+                proxy->resp_body = NULL;
+            }
+            proxy->rhdr_pos      = 0;
+            proxy->resp_dlen     = 0;
+            proxy->resp_body_pos = 0;
+
+            proxy->wbuf     = frame;
+            proxy->wbuf_len = frame_len;
+            proxy->wbuf_pos = 0;
+            proxy->bs_phase = XRD_PX_BS_AUTH;
+
+            /* flush() may only partially write under backpressure; if so,
+             * arm the write event so the rest goes out later. Either way we
+             * return and wait for the BS_AUTH reply on the next read event. */
+            if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
+                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                        upstream_auth_errors);
+                XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+                xrootd_proxy_abort(proxy, "proxy: auth frame send failed");
+                return 1;
+            }
+            if (proxy->wbuf_pos < proxy->wbuf_len) {
+                if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
+                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                            upstream_auth_errors);
+                    XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+                    xrootd_proxy_abort(proxy,
+                        "proxy: write arm for auth failed");
+                }
+            }
+            return 1;
+        }
+
+        /* auth-send arm 2 of 4: SSS shared-secret credential */        if (eff_auth == XROOTD_PROXY_AUTH_SSS && eff_key != NULL) {
+            (void) proxy_send_sss_auth(proxy, eff_key);
+            return 1;   /* frame queued, or proxy aborted on failure */
+        }
+
+        /* auth-send arm 3 of 4: FORWARD token-file fallback         * FORWARD fallback — client has no bearer token but
+         * xrootd_upstream_token_file is configured (credential bridge).
+         * ftok is function-static (64 KiB) to keep it off the stack; safe
+         * because nginx workers are single-threaded on the event loop and
+         * the token is copied into the heap frame before any yield. */
+        if (eff_auth == XROOTD_PROXY_AUTH_FORWARD
+            && conf != NULL
+            && conf->upstream_token_file.len > 0)
+        {
+            static u_char  ftok[PROXY_UPSTREAM_BEARER_MAX];
+            size_t         flen = 0;
+            size_t         fframe_len;
+            u_char        *fframe;
+
+            if (xrootd_token_read_file(&conf->upstream_token_file,
+                                       ftok, sizeof(ftok), &flen,
+                                       proxy->client_conn->log,
+                                       "proxy authmore-file token") != NGX_OK
+                || flen == 0)
+            {
+                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                        upstream_auth_errors);
+                XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+                xrootd_proxy_abort(proxy,
+                    "upstream requires auth; set xrootd_upstream_token_file");
+                return 1;
+            }
+            fframe_len = 28 + flen;
+            fframe = ngx_palloc(proxy->conn->pool, fframe_len);
+            if (fframe == NULL) {
+                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                        upstream_auth_errors);
+                xrootd_proxy_abort(proxy, "proxy: OOM for file token frame");
+                return 1;
+            }
+            proxy_build_auth_ztn(fframe, (const char *) ftok, flen);
+            if (proxy->resp_body != NULL) {
+                ngx_free(proxy->resp_body);
+                proxy->resp_body = NULL;
+            }
+            proxy->rhdr_pos      = 0;
+            proxy->resp_dlen     = 0;
+            proxy->resp_body_pos = 0;
+            proxy->wbuf     = fframe;
+            proxy->wbuf_len = fframe_len;
+            proxy->wbuf_pos = 0;
+            proxy->bs_phase = XRD_PX_BS_AUTH;
+            if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
+                XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                        upstream_auth_errors);
+                xrootd_proxy_abort(proxy,
+                    "proxy: file token frame send failed");
+                return 1;
+            }
+            if (proxy->wbuf_pos < proxy->wbuf_len) {
+                if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
+                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                            upstream_auth_errors);
+                    xrootd_proxy_abort(proxy,
+                        "proxy: write arm for file token failed");
+                }
+            }
+            return 1;
+        }
+
+        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+        xrootd_proxy_abort(proxy,
+            "upstream requires authentication "
+            "(set xrootd_proxy_auth forward or sss)");
+        return 1;
+    }
+    if (proxy->resp_status != kXR_ok) {
+        XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
+        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
+        xrootd_proxy_abort(proxy, "upstream login failed");
+        return 1;
+    }
+
+    /*
+     * Token-only servers embed a security challenge in the login response:
+     *   [sessid:16][&P=ztn,v:10000]
+     * The client must proactively send kXR_auth (no explicit kXR_authmore).
+     * Detect the hint and inject the token from file or client bearer.
+     */
+    /* The security hint string follows the fixed 16-byte session id in the
+     * login body, so step past it before scanning. resp_body was NUL-padded
+     * by the read handler (alloc dlen+1), making strstr() safe here. */
+    if (proxy->resp_dlen > XROOTD_SESSION_ID_LEN
+        && proxy->resp_body != NULL)
+    {
+        const char *parms =
+            (const char *)(proxy->resp_body + XROOTD_SESSION_ID_LEN);
+
+        /* auth-send arm 5 of 5: proactive SSS on login-sec hint         * The nginx-xrootd server (and stock xrootd) advertise SSS via the
+         * kXR_ok login response sec hint ("&P=sss,..."), NOT via kXR_authmore.
+         * If this upstream's effective policy is SSS, build and send the SSS
+         * credential unprompted — without this, SSS upstream auth silently
+         * never happens and the forwarded open is rejected NotAuthorized. */
+        if (strstr(parms, "P=sss") != NULL) {
+            ngx_uint_t              sss_auth;
+            const xrootd_sss_key_t *sss_key;
+
+            proxy_resolve_upstream_auth(proxy, &sss_auth, &sss_key);
+            if (sss_auth == XROOTD_PROXY_AUTH_SSS && sss_key != NULL) {
+                (void) proxy_send_sss_auth(proxy, sss_key);
+                return 1;   /* frame queued, or proxy aborted on failure */
+            }
+        }
+
+        /* auth-send arm 4 of 5: proactive ztn on login-sec hint         * Server advertised "P=ztn" but did not send kXR_authmore, so we
+         * must send kXR_auth unprompted. Source the token from the client
+         * bearer (FORWARD) first, else from the upstream token file. */
+        if (strstr(parms, "P=ztn") != NULL) {
+            ngx_stream_xrootd_srv_conf_t *lconf = proxy->conf;
+            const char *ltoken     = NULL;
+            size_t      ltoken_len = 0;
+            static u_char lftok[PROXY_UPSTREAM_BEARER_MAX];
+
+            /* Prefer client's bearer token (FORWARD mode) */
+            if (proxy->client_ctx != NULL
+                && proxy->client_ctx->bearer_token[0] != '\0')
+            {
+                ltoken     = proxy->client_ctx->bearer_token;
+                ltoken_len = ngx_strlen(ltoken);
+            }
+            /* Fallback: read from upstream_token_file */
+            else if (lconf != NULL
+                     && lconf->upstream_token_file.len > 0)
+            {
+                size_t lflen = 0;
+                if (xrootd_token_read_file(&lconf->upstream_token_file,
+                                           lftok, sizeof(lftok), &lflen,
+                                           proxy->client_conn->log,
+                                           "proxy login-sec ztn") == NGX_OK
+                    && lflen > 0)
+                {
+                    ltoken     = (const char *) lftok;
+                    ltoken_len = lflen;
+                }
+            }
+
+            if (ltoken != NULL && ltoken_len > 0) {
+                size_t  lframe_len = 28 + ltoken_len;
+                u_char *lframe = ngx_palloc(proxy->conn->pool, lframe_len);
+                if (lframe == NULL) {
+                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                            upstream_auth_errors);
+                    xrootd_proxy_abort(proxy,
+                        "proxy: OOM for login-sec token frame");
+                    return 1;
+                }
+                proxy_build_auth_ztn(lframe, ltoken, ltoken_len);
+                if (proxy->resp_body != NULL) {
+                    ngx_free(proxy->resp_body);
+                    proxy->resp_body = NULL;
+                }
+                proxy->rhdr_pos      = 0;
+                proxy->resp_dlen     = 0;
+                proxy->resp_body_pos = 0;
+                proxy->wbuf     = lframe;
+                proxy->wbuf_len = lframe_len;
+                proxy->wbuf_pos = 0;
+                proxy->bs_phase = XRD_PX_BS_AUTH;
+                if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
+                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                            upstream_auth_errors);
+                    xrootd_proxy_abort(proxy,
+                        "proxy: login-sec token frame send failed");
+                    return 1;
+                }
+                if (proxy->wbuf_pos < proxy->wbuf_len) {
+                    if (ngx_handle_write_event(proxy->conn->write, 0)
+                        != NGX_OK)
+                    {
+                        XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
+                                                upstream_auth_errors);
+                        xrootd_proxy_abort(proxy,
+                            "proxy: write arm for login-sec failed");
+                    }
+                }
+                return 1;
+            }
+        }
+    }
+
+    proxy->bs_phase = XRD_PX_BS_DONE;
+
+    return 0;
+}
+
 void
 xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
 {
@@ -249,273 +520,9 @@ xrootd_proxy_handle_bootstrap(xrootd_proxy_ctx_t *proxy)
         break;
 
     case XRD_PX_BS_LOGIN:
-        if (proxy->resp_status == kXR_authmore) {
-            /* Upstream requests authentication — handle by configured policy.
-             * Effective policy: per-upstream override if set, else global conf->proxy_auth. */
-            ngx_stream_xrootd_srv_conf_t  *conf      = proxy->conf;
-            ngx_uint_t                     eff_auth;
-            const xrootd_sss_key_t        *eff_key;
-
-            proxy_resolve_upstream_auth(proxy, &eff_auth, &eff_key);
-
-            /* --- auth-send arm 1 of 4: FORWARD using the client's bearer ---
-             * Preferred FORWARD path: the connecting client already presented a
-             * WLCG bearer token, so re-present it verbatim to the upstream. */
-            if (eff_auth == XROOTD_PROXY_AUTH_FORWARD
-                && proxy->client_ctx != NULL
-                && proxy->client_ctx->bearer_token[0] != '\0')
-            {
-                /* Forward the client's WLCG bearer token as a ztn credential */
-                const char *token     = proxy->client_ctx->bearer_token;
-                size_t      token_len = ngx_strlen(token);
-                size_t      frame_len = 28 + token_len; /* hdr24 + len4 + jwt */
-                u_char     *frame;
-
-                frame = ngx_palloc(proxy->conn->pool, frame_len);
-                if (frame == NULL) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                            upstream_auth_errors);
-                    XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                    xrootd_proxy_abort(proxy, "proxy: OOM building auth frame");
-                    return;
-                }
-
-                proxy_build_auth_ztn(frame, token, token_len);
-
-                /* Clear the just-consumed response so the accumulator is ready
-                 * for the kXR_auth reply, then install the auth frame as the
-                 * write buffer and advance to BS_AUTH before flushing. */
-                if (proxy->resp_body != NULL) {
-                    ngx_free(proxy->resp_body);
-                    proxy->resp_body = NULL;
-                }
-                proxy->rhdr_pos      = 0;
-                proxy->resp_dlen     = 0;
-                proxy->resp_body_pos = 0;
-
-                proxy->wbuf     = frame;
-                proxy->wbuf_len = frame_len;
-                proxy->wbuf_pos = 0;
-                proxy->bs_phase = XRD_PX_BS_AUTH;
-
-                /* flush() may only partially write under backpressure; if so,
-                 * arm the write event so the rest goes out later. Either way we
-                 * return and wait for the BS_AUTH reply on the next read event. */
-                if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                            upstream_auth_errors);
-                    XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                    xrootd_proxy_abort(proxy, "proxy: auth frame send failed");
-                    return;
-                }
-                if (proxy->wbuf_pos < proxy->wbuf_len) {
-                    if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
-                        XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                                upstream_auth_errors);
-                        XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                        xrootd_proxy_abort(proxy,
-                            "proxy: write arm for auth failed");
-                    }
-                }
-                return;
-            }
-
-            /* --- auth-send arm 2 of 4: SSS shared-secret credential --- */
-            if (eff_auth == XROOTD_PROXY_AUTH_SSS && eff_key != NULL) {
-                (void) proxy_send_sss_auth(proxy, eff_key);
-                return;   /* frame queued, or proxy aborted on failure */
-            }
-
-            /* --- auth-send arm 3 of 4: FORWARD token-file fallback ---
-             * FORWARD fallback — client has no bearer token but
-             * xrootd_upstream_token_file is configured (credential bridge).
-             * ftok is function-static (64 KiB) to keep it off the stack; safe
-             * because nginx workers are single-threaded on the event loop and
-             * the token is copied into the heap frame before any yield. */
-            if (eff_auth == XROOTD_PROXY_AUTH_FORWARD
-                && conf != NULL
-                && conf->upstream_token_file.len > 0)
-            {
-                static u_char  ftok[PROXY_UPSTREAM_BEARER_MAX];
-                size_t         flen = 0;
-                size_t         fframe_len;
-                u_char        *fframe;
-
-                if (xrootd_token_read_file(&conf->upstream_token_file,
-                                           ftok, sizeof(ftok), &flen,
-                                           proxy->client_conn->log,
-                                           "proxy authmore-file token") != NGX_OK
-                    || flen == 0)
-                {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                            upstream_auth_errors);
-                    XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-                    xrootd_proxy_abort(proxy,
-                        "upstream requires auth; set xrootd_upstream_token_file");
-                    return;
-                }
-                fframe_len = 28 + flen;
-                fframe = ngx_palloc(proxy->conn->pool, fframe_len);
-                if (fframe == NULL) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                            upstream_auth_errors);
-                    xrootd_proxy_abort(proxy, "proxy: OOM for file token frame");
-                    return;
-                }
-                proxy_build_auth_ztn(fframe, (const char *) ftok, flen);
-                if (proxy->resp_body != NULL) {
-                    ngx_free(proxy->resp_body);
-                    proxy->resp_body = NULL;
-                }
-                proxy->rhdr_pos      = 0;
-                proxy->resp_dlen     = 0;
-                proxy->resp_body_pos = 0;
-                proxy->wbuf     = fframe;
-                proxy->wbuf_len = fframe_len;
-                proxy->wbuf_pos = 0;
-                proxy->bs_phase = XRD_PX_BS_AUTH;
-                if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-                    XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                            upstream_auth_errors);
-                    xrootd_proxy_abort(proxy,
-                        "proxy: file token frame send failed");
-                    return;
-                }
-                if (proxy->wbuf_pos < proxy->wbuf_len) {
-                    if (ngx_handle_write_event(proxy->conn->write, 0) != NGX_OK) {
-                        XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                                upstream_auth_errors);
-                        xrootd_proxy_abort(proxy,
-                            "proxy: write arm for file token failed");
-                    }
-                }
-                return;
-            }
-
-            XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-            XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-            xrootd_proxy_abort(proxy,
-                "upstream requires authentication "
-                "(set xrootd_proxy_auth forward or sss)");
+        if (xrootd_proxy_bs_login(proxy)) {
             return;
         }
-        if (proxy->resp_status != kXR_ok) {
-            XROOTD_PROXY_METRIC_INC(proxy->client_ctx, upstream_auth_errors);
-            XROOTD_PROXY_UP_INC(proxy, upstream_auth_errors);
-            xrootd_proxy_abort(proxy, "upstream login failed");
-            return;
-        }
-
-        /*
-         * Token-only servers embed a security challenge in the login response:
-         *   [sessid:16][&P=ztn,v:10000]
-         * The client must proactively send kXR_auth (no explicit kXR_authmore).
-         * Detect the hint and inject the token from file or client bearer.
-         */
-        /* The security hint string follows the fixed 16-byte session id in the
-         * login body, so step past it before scanning. resp_body was NUL-padded
-         * by the read handler (alloc dlen+1), making strstr() safe here. */
-        if (proxy->resp_dlen > XROOTD_SESSION_ID_LEN
-            && proxy->resp_body != NULL)
-        {
-            const char *parms =
-                (const char *)(proxy->resp_body + XROOTD_SESSION_ID_LEN);
-
-            /* --- auth-send arm 5 of 5: proactive SSS on login-sec hint ---
-             * The nginx-xrootd server (and stock xrootd) advertise SSS via the
-             * kXR_ok login response sec hint ("&P=sss,..."), NOT via kXR_authmore.
-             * If this upstream's effective policy is SSS, build and send the SSS
-             * credential unprompted — without this, SSS upstream auth silently
-             * never happens and the forwarded open is rejected NotAuthorized. */
-            if (strstr(parms, "P=sss") != NULL) {
-                ngx_uint_t              sss_auth;
-                const xrootd_sss_key_t *sss_key;
-
-                proxy_resolve_upstream_auth(proxy, &sss_auth, &sss_key);
-                if (sss_auth == XROOTD_PROXY_AUTH_SSS && sss_key != NULL) {
-                    (void) proxy_send_sss_auth(proxy, sss_key);
-                    return;   /* frame queued, or proxy aborted on failure */
-                }
-            }
-
-            /* --- auth-send arm 4 of 5: proactive ztn on login-sec hint ---
-             * Server advertised "P=ztn" but did not send kXR_authmore, so we
-             * must send kXR_auth unprompted. Source the token from the client
-             * bearer (FORWARD) first, else from the upstream token file. */
-            if (strstr(parms, "P=ztn") != NULL) {
-                ngx_stream_xrootd_srv_conf_t *lconf = proxy->conf;
-                const char *ltoken     = NULL;
-                size_t      ltoken_len = 0;
-                static u_char lftok[PROXY_UPSTREAM_BEARER_MAX];
-
-                /* Prefer client's bearer token (FORWARD mode) */
-                if (proxy->client_ctx != NULL
-                    && proxy->client_ctx->bearer_token[0] != '\0')
-                {
-                    ltoken     = proxy->client_ctx->bearer_token;
-                    ltoken_len = ngx_strlen(ltoken);
-                }
-                /* Fallback: read from upstream_token_file */
-                else if (lconf != NULL
-                         && lconf->upstream_token_file.len > 0)
-                {
-                    size_t lflen = 0;
-                    if (xrootd_token_read_file(&lconf->upstream_token_file,
-                                               lftok, sizeof(lftok), &lflen,
-                                               proxy->client_conn->log,
-                                               "proxy login-sec ztn") == NGX_OK
-                        && lflen > 0)
-                    {
-                        ltoken     = (const char *) lftok;
-                        ltoken_len = lflen;
-                    }
-                }
-
-                if (ltoken != NULL && ltoken_len > 0) {
-                    size_t  lframe_len = 28 + ltoken_len;
-                    u_char *lframe = ngx_palloc(proxy->conn->pool, lframe_len);
-                    if (lframe == NULL) {
-                        XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                                upstream_auth_errors);
-                        xrootd_proxy_abort(proxy,
-                            "proxy: OOM for login-sec token frame");
-                        return;
-                    }
-                    proxy_build_auth_ztn(lframe, ltoken, ltoken_len);
-                    if (proxy->resp_body != NULL) {
-                        ngx_free(proxy->resp_body);
-                        proxy->resp_body = NULL;
-                    }
-                    proxy->rhdr_pos      = 0;
-                    proxy->resp_dlen     = 0;
-                    proxy->resp_body_pos = 0;
-                    proxy->wbuf     = lframe;
-                    proxy->wbuf_len = lframe_len;
-                    proxy->wbuf_pos = 0;
-                    proxy->bs_phase = XRD_PX_BS_AUTH;
-                    if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-                        XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                                upstream_auth_errors);
-                        xrootd_proxy_abort(proxy,
-                            "proxy: login-sec token frame send failed");
-                        return;
-                    }
-                    if (proxy->wbuf_pos < proxy->wbuf_len) {
-                        if (ngx_handle_write_event(proxy->conn->write, 0)
-                            != NGX_OK)
-                        {
-                            XROOTD_PROXY_METRIC_INC(proxy->client_ctx,
-                                                    upstream_auth_errors);
-                            xrootd_proxy_abort(proxy,
-                                "proxy: write arm for login-sec failed");
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-
-        proxy->bs_phase = XRD_PX_BS_DONE;
         break;
 
     case XRD_PX_BS_AUTH:

@@ -1,11 +1,10 @@
-/* ---- File: gsi_outbound_common.c — Credentialed XRootD login for native TPC pulls ----
- *
+/* File: gsi_outbound_common.c — Credentialed XRootD login for native TPC pulls
  * WHAT: After kXR_login returns kXR_authmore, completes the authentication handshake using either WLCG JWT (ztn) from xrootd_tpc_outbound_bearer_file or GSI cert chain when the server advertises &P=ztn / &P=gsi in the login parameter block. Provides wire helpers (tpc_put_u32 for big-endian encoding, tpc_send_kxr_auth for ClientRequestHdr construction + send_all) and public auth path functions (tpc_outbound_ztn for JWT bearer, tpc_read_bearer_token for file read delegation).
  *
  * WHY: Native TPC pull connects directly to a remote xrootd server; after anonymous handshake (bootstrap.c), authenticated fetch requires sending credentials on the outbound socket. The server's kXR_login response parameter block advertises which auth method it accepts (&P=ztn for JWT, &P=gsi for GSI). This file provides both wire-level helpers and the credential assembly + send logic for each path — ztn reads token from config file or delegated_token buffer, builds "ztn\x00" + token payload, sends kXR_auth ClientRequestHdr. GSI path (certreq chain) lives in gsi_outbound_certreq.c and gsi_outbound_exchange.c.
  *
  * HOW: tpc_put_u32 — htonl(v) → ngx_memcpy to output buffer for big-endian wire encoding; tpc_send_kxr_auth — zero ClientRequestHdr, set streamid[1] = seq + requestid = kXR_auth, memcpy ctype from cred_payload into hdr body offset 12, set dlen via htonl, send_all(hdr) then send_all(cred_payload); tpc_read_bearer_token — read path from t->conf->tpc_outbound_bearer_file, delegate to xrootd_token_read_file with "TPC outbound" label; tpc_outbound_ztn — check delegated_token[0] != '\0' (OAuth2/OIDC exchange result) → strlen → malloc(4+token_len) → memcpy("ztn\x00") + token → tpc_send_kxr_auth → recv_response checking status == kXR_ok → free(cred/body). Caller: tpc/thread.c (auth path dispatch based on login parameter block).
- * ------------------------------------------------------------------ */
+ * */
 
 #include "tpc_internal.h"
 #include "../session/session.h"

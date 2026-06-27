@@ -17,9 +17,9 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* -------------------------------------------------------------------------
+/*
  * Canonical query string: sort params, percent-encode name and value
- * ---------------------------------------------------------------------- */
+ * */
 
 typedef struct {
     u_char name[256];

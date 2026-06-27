@@ -9,7 +9,7 @@
 
 #include "proxy_internal.h"
 
-/* ---- Function: webdav_proxy_reinit_request() ----
+/*
 
  * WHAT: Resets per-request proxy context status to zero and switches nginx upstream process_header callback from status-line parser to header-loop parser. Returns NGX_OK on success or NGX_ERROR if ctx not found.
 
@@ -31,7 +31,7 @@ webdav_proxy_reinit_request(ngx_http_request_t *r)
     return NGX_OK;
 }
 
-/* ---- Function: webdav_proxy_process_status_line() ----
+/*
 
  * WHAT: Parses the backend HTTP/1.x status line from upstream buffer — extracts status code and reason phrase into ctx->status via ngx_http_parse_status_line(), copies status_line string into u->headers_in for nginx forwarding, logs debug status, then immediately delegates to process_header. Returns NGX_AGAIN if more data needed, NGX_HTTP_UPSTREAM_INVALID_HEADER on parse error (502), or NGX_OK after delegating.
 
@@ -82,7 +82,7 @@ webdav_proxy_process_status_line(ngx_http_request_t *r)
     return webdav_proxy_process_header(r);
 }
 
-/* ---- Function: webdav_proxy_process_header() ----
+/*
 
  * WHAT: Infinite loop parsing backend HTTP response headers — calls ngx_http_parse_header_line() extracting each header's name/value into u->headers_in.headers list, runs registered upstream header handlers via umcf->headers_in_hash lookup for known headers (Content-Length/Content-Type etc.), debug-logs each header, returns NGX_OK on header completion or NGX_AGAIN if more data needed.
 
@@ -147,7 +147,7 @@ webdav_proxy_process_header(ngx_http_request_t *r)
     }
 }
 
-/* ---- Function: webdav_proxy_abort_request() ----
+/*
 
  * WHAT: Void cleanup callback invoked when upstream request fails — logs debug message indicating abort. Returns nothing.
 
@@ -162,7 +162,7 @@ webdav_proxy_abort_request(ngx_http_request_t *r)
                    "xrootd_webdav_proxy: abort request");
 }
 
-/* ---- Function: webdav_proxy_finalize_request() ----
+/*
 
  * WHAT: Void cleanup callback invoked when upstream request completes (success or error) — logs debug message with final return code. Returns nothing.
 

@@ -18,20 +18,10 @@
 
 extern char **environ;
 
-/* ---- Origin path derivation from local filesystem path ----
-
- * WHAT: Translates a local cache filesystem path into the corresponding origin XRootD
- *       server path by stripping either the cache_root or xrootd_root prefix. Returns
- *       NGX_OK with the derived origin_path, or NGX_ERROR if neither prefix matches.
-
- * WHY: Write-through flush needs to know where on the origin server to write back data.
- *       The local file lives under cache_root (or root in non-cache mode), but the origin
- *       server expects a path relative to its own root. This function computes that mapping.
-
- * HOW: 1) Try cache_root prefix — strip it, return remainder as origin_path;
- *      2) If no match, try xrootd_root prefix — same logic;
- *      3) If neither matches → NGX_ERROR (file not in managed namespace).
- */
+/* xrootd_wt_origin_path_from_local — map a local cache filesystem path to the
+ * origin server path by stripping the cache_root (then xrootd_root) prefix, since
+ * the origin expects a path relative to its own root. NGX_OK with origin_path, or
+ * NGX_ERROR if neither prefix matches (file not in the managed namespace). */
 static ngx_int_t
 xrootd_wt_origin_path_from_local(ngx_stream_xrootd_srv_conf_t *conf,
     const char *local_path, char *origin_path, size_t origin_path_size)
@@ -95,27 +85,14 @@ xrootd_wt_origin_path_from_local(ngx_stream_xrootd_srv_conf_t *conf,
     return NGX_ERROR;
 }
 
-/* ---- Root-confined read-back open of the local cache file ----
- *
- * WHAT: Open wt->local_path O_RDONLY|O_NOFOLLOW under the export-root confinement
- *       cascade (openat2 RESOLVE_BENEATH, O_NOFOLLOW fallback), selecting whichever
- *       configured root the path lives under (cache_root first, then the export
- *       root) — mirroring the prefix match in xrootd_wt_origin_path_from_local.
- *       Returns the fd (caller closes it) or -1 with errno set.
- *
- * WHY:  The write-back read-back used a raw open() of an absolute path with no
- *       confinement, so a symlink or parent swap under the cache/export root could
- *       redirect the read outside the managed namespace. Routing it through the
- *       confined-open primitive enforces kernel-level RESOLVE_BENEATH the same way
- *       every other namespace read does. This helper is syscall-only (no nginx
- *       pool, no per-op metrics/log emission), so it is safe to call from the async
- *       flush worker thread as well as the synchronous event-loop path.
- *
- * HOW:  Try conf->cache_root, then conf->common.root: skip empty roots and roots
- *       the absolute local_path is not lexically under; for the first match, call
- *       xrootd_open_confined() (which canonicalises the ngx_str_t root and resolves
- *       local_path relative to it). On no match, EXDEV. O_CLOEXEC is added by the
- *       confined-open helper itself. */
+/* xrootd_wt_open_local_confined — open wt->local_path under the export-root
+ * confinement cascade (openat2 RESOLVE_BENEATH, O_NOFOLLOW fallback), picking the
+ * root the path lives under (cache_root first, then the export root) the same way
+ * xrootd_wt_origin_path_from_local does. This replaces a raw open() of an absolute
+ * path, so a symlink/parent swap can no longer redirect the read-back outside the
+ * managed namespace. Syscall-only (no pool/metrics/log), so it is safe from the
+ * async flush worker as well as the event loop. Returns the fd (caller closes) or
+ * -1 (EXDEV when no root matches). */
 static int
 xrootd_wt_open_local_confined(const xrootd_wt_flush_t *wt, int flags)
 {
@@ -159,19 +136,9 @@ xrootd_wt_open_local_confined(const xrootd_wt_flush_t *wt, int flags)
     return -1;
 }
 
-/* ---- Error propagation from fill operation to flush task ----
-
- * WHAT: Copies error fields (result, xrd_error, sys_errno, err_msg) from a
- *       xrootd_cache_fill_t structure into the caller's xrootd_wt_flush_t.
-
- * WHY: The write-through flush uses cache_fill_t internally to perform origin-side
- *       I/O. When that operation fails, this helper normalizes the error into the
- *       wt structure so the public API (xrootd_wt_flush_sync_handle / flush_on_close)
- *       can report it consistently.
-
- * HOW: Direct field copy — result set to NGX_ERROR; xrd_error from fill or default
- *      kXR_ServerError; sys_errno and err_msg copied verbatim via ngx_cpystrn.
- */
+/* xrootd_wt_copy_error — normalize a failed cache_fill_t (used internally for the
+ * origin-side I/O) into the flush task's error fields (result/xrd_error/sys_errno/
+ * err_msg) so the public flush API reports it consistently. */
 static void
 xrootd_wt_copy_error(xrootd_wt_flush_t *wt, xrootd_cache_fill_t *fill)
 {
@@ -184,22 +151,10 @@ xrootd_wt_copy_error(xrootd_wt_flush_t *wt, xrootd_cache_fill_t *fill)
                 sizeof(wt->err_msg));
 }
 
-/* ---- Flush task initialization and validation ----
-
- * WHAT: Validates the flush request parameters (file index, dirty offset, path)
- *       initializes an xrootd_wt_flush_t structure with configuration, logging context,
- *       mode bits, local/origin paths. Returns NGX_DECLINED if no dirty data needs flushing.
- *       NGX_OK on success, NGX_ERROR if validation or origin-path derivation fails.
-
- * WHY: Both sync and async flush entry points (xrootd_wt_flush_sync_handle /
- *       xrootd_wt_flush_on_close) share this initialization logic. Centralizing it avoids
- *       duplication and ensures consistent validation before the actual flush runs.
-
- * HOW: 1) Zero-fill wt structure;
- *      2) Validate idx range, fd >= 0, wt_enabled flag, dirty offset >= 0 → NGX_DECLINED if any fail;
- *      3) Copy conf, log, mode_bits, local_path;
- *      4) Derive origin path via xrootd_wt_origin_path_from_local — error here → NGX_ERROR.
- */
+/* xrootd_wt_init_task — validate the flush request (idx, fd, wt_enabled, dirty
+ * offset) and populate the xrootd_wt_flush_t (conf, log, mode bits, local/origin
+ * paths) shared by the sync and async entry points. NGX_DECLINED when there is no
+ * dirty data, NGX_OK on success, NGX_ERROR on validation or origin-path failure. */
 static ngx_int_t
 xrootd_wt_init_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, int idx, const char *local_path,
@@ -306,36 +261,19 @@ xrootd_wt_copy_body(xrootd_cache_fill_t *fill, xrootd_cache_origin_conn_t *oc,
     return 0;
 }
 
-/* ---- Complete write-through flush cycle: connect → chunked pread + origin_write → truncate/sync/close ----
-
- * WHAT: Executes the full write-back of dirty cached data to the origin XRootD server.
- *       Connects to origin → opens a writable handle on origin_path → reads local file in chunks via
- *       pread → writes each chunk via xrootd_cache_origin_write_chunk → truncates + syncs + closes.
- *       Sets wt->result = NGX_OK on success, or propagates error via xrootd_wt_copy_error on failure.
-
- * WHY: This is the core flush engine. Both sync and async paths call it after task initialization.
- *       It handles all origin-side I/O (connect, bootstrap, open-write, chunked write, truncate/sync),
- *       local file reads (open + pread loop), buffer allocation, and cleanup on both success and failure.
-
- * HOW: 1) Validate host/port configured; early exit if missing;
- *      2) Open local file O_RDONLY, fstat to get size;
- *      3) Connect origin → bootstrap login → open writable handle (mode_bits);
- *      4) Chunked pread loop: read XROOTD_CACHE_FETCH_CHUNK bytes, write_chunk each chunk;
- *      5) Truncate to st.st_size + sync on origin; close all handles;
- *      6) On any failure → unified cleanup: close handles, copy error into wt.
- */
-/* ---- xrootd_wt_run_flush_exec — GSI/X.509-proxy write-back to origin ----
- *
- * WHAT: Mirror the authoritative local file to a GSI origin (e.g. EOS) by
- *       fork/exec'ing the native client (cache_origin_client, default "xrdcp")
- *       to upload local_path → root[s]://host:port//origin_path, authenticating
- *       with X509_USER_PROXY=cache_origin_proxy + X509_CERT_DIR=cache_origin_cadir.
- * WHY:  The built-in write-back (xrootd_wt_run_flush) only does an anonymous
- *       kXR_login, which a GSI origin rejects. This is the write-side mirror of
- *       the read-fetch GSI exec path — reusing the native client as the PSS.
- * HOW:  Build the upload URL + an env overriding the two X509_* vars; on a clean
- *       exit(0) record bytes_flushed from the local size. Runs in the flush
- *       worker (sync or thread-pool), so posix_spawn + waitpid is fine. */
+/* The core flush engine (both sync and async paths call it after init): the full
+ * write-back of dirty cached data to the origin — connect + login, open a writable
+ * handle on origin_path, chunked pread of the local file with
+ * xrootd_cache_origin_write_chunk per chunk, then truncate + sync + close.
+ * wt->result = NGX_OK on success; failure routes through xrootd_wt_copy_error and
+ * the unified close-handles cleanup. */
+/* xrootd_wt_run_flush_exec — mirror the local file to a GSI origin (e.g. EOS) by
+ * fork/exec'ing the native client (cache_origin_client, default "xrdcp") to upload
+ * local_path → root[s]://host:port//origin_path with X509_USER_PROXY +
+ * X509_CERT_DIR overridden. The built-in write-back only does an anonymous
+ * kXR_login, which a GSI origin rejects; this is the write-side mirror of the
+ * read-fetch GSI exec path. Runs in the flush worker, so posix_spawn + waitpid is
+ * fine; a clean exit(0) records bytes_flushed from the local size. */
 static void
 xrootd_wt_run_flush_exec(xrootd_wt_flush_t *wt)
 {
@@ -578,21 +516,12 @@ xrootd_wt_run_flush(xrootd_wt_flush_t *wt)
     wt->result = NGX_OK;
 }
 
-/* ---- Synchronous write-through flush at kXR_sync / kXR_close time ----
- *
- * WHAT: Initialise a flush task and run it synchronously via xrootd_wt_run_flush,
- *       reporting only a STATUS — it never writes to the wire. On success it clears
- *       the handle's dirty marker; on failure it logs + records metrics/dashboard.
- * WHY:  This is a pure status helper so the *caller* (kXR_sync handler or kXR_close)
- *       owns the single wire response. That avoids double-responding for one
- *       streamid: a sync flush failure must surface to the client exactly once, as
- *       a kXR_error, and the caller is the one positioned to send it after its own
- *       cleanup. `fail_status` only selects the dashboard event's error label.
- * RETURNS: NGX_OK     — flush succeeded, or there was no dirty data (no-op);
- *          NGX_ERROR  — init or origin write-back failed; caller must send an error.
- * HOW:  1) Init task; NGX_DECLINED (no dirty data) → NGX_OK;
- *       2) init error → metrics/log → NGX_ERROR;
- *       3) run flush; success → mark clean → NGX_OK; failure → metrics/log → NGX_ERROR. */
+/* xrootd_wt_flush_sync_handle — init a flush task and run it synchronously,
+ * reporting only a STATUS (never the wire) so the *caller* (kXR_sync / kXR_close)
+ * owns the single response and a failure surfaces exactly once as kXR_error.
+ * `fail_status` only selects the dashboard event's error label. Returns NGX_OK on
+ * success or no-dirty-data, NGX_ERROR on init/write-back failure (caller must then
+ * send an error). On success it clears the handle's dirty marker. */
 ngx_int_t
 xrootd_wt_flush_sync_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, int idx, const char *local_path,
@@ -649,23 +578,11 @@ xrootd_wt_flush_sync_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_ERROR;
 }
 
-/* ---- Write-through flush entry point at kXR_close — async or sync mode selection ----
-
- * WHAT: Initializes a flush task, then dispatches it either asynchronously (via nginx
- *       thread pool) or synchronously based on wt_mode configuration. On async success,
- *       sets wt_flush_pending flag and returns immediately; on fallback/post failure runs
- *       sync via xrootd_wt_flush_sync_handle.
-
- * WHY: Write-through flush can block for large files. When configured as async mode
- *       (XROOTD_WT_MODE_ASYNC) with a thread pool available, the flush runs off the event
- *       loop so the client connection stays responsive. Async failures fall back to sync.
-
- * HOW: 1) Init task via xrootd_wt_init_task;
- *      2) If NGX_DECLINED → no dirty data, return NGX_OK;
- *      3) If wt_mode == async + thread_pool available → allocate ngx_thread_task,
- *         memcpy wt into task->ctx, post handler=xrootd_wt_flush_thread;
- *      4) On post failure or sync mode → delegate to xrootd_wt_flush_sync_handle.
- */
+/* xrootd_wt_flush_on_close — kXR_close flush entry point: init a task, then run it
+ * async (nginx thread pool) or sync per wt_mode. A flush can block for large files,
+ * so async mode (when a thread pool is available) keeps the connection responsive
+ * — it sets wt_flush_pending and returns; sync mode and any post/fallback failure
+ * delegate to xrootd_wt_flush_sync_handle. NGX_OK with no dirty data. */
 ngx_int_t
 xrootd_wt_flush_on_close(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, int idx, const char *local_path)
@@ -722,17 +639,9 @@ xrootd_wt_flush_on_close(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_wt_flush_sync_handle(ctx, c, conf, idx, local_path, 0);
 }
 
-/* ---- nginx thread-pool worker callback for async write-through flush ----
-
- * WHAT: Entry point executed by the nginx thread pool when an async flush task is
- *       dispatched. Casts data to xrootd_wt_flush_t and delegates to xrootd_run_flush.
-
- * WHY: The async flush path (xrootd_wt_flush_on_close) allocates an ngx_thread_task
- *       with this handler. It runs in a worker thread, blocking on origin I/O while the
- *       event-loop stays free for other connections.
-
- * HOW: Single-line delegation — casts void* data → xrootd_wt_flush_t, calls run_flush.
- */
+/* xrootd_wt_flush_thread — nginx thread-pool worker callback for an async flush:
+ * cast data → xrootd_wt_flush_t and delegate to xrootd_wt_run_flush, blocking on
+ * origin I/O in the worker thread while the event loop stays free. */
 void
 xrootd_wt_flush_thread(void *data, ngx_log_t *log)
 {
@@ -742,20 +651,9 @@ xrootd_wt_flush_thread(void *data, ngx_log_t *log)
     xrootd_wt_run_flush(wt);
 }
 
-/* ---- Async flush completion callback — logs result, frees task ----
-
- * WHAT: Event-loop callback invoked when the nginx thread pool finishes an async flush
- *       task. Logs success or failure with local/origin paths and error message.
- *       Frees the allocated ngx_thread_task structure.
-
- * WHY: The async flush path (xrootd_wt_flush_on_close) posts a task with this event
- *       handler. When the worker thread completes xrootd_run_flush, the event-loop receives
- *       this callback to finalize logging and memory cleanup.
-
- * HOW: 1) Extract task from ev->data, wt from task->ctx;
- *      2) Log INFO on success (result == NGX_OK), ERROR on failure with sys_errno + err_msg;
- *      3) Free the task via ngx_free.
- */
+/* Async flush completion callback (event loop) — invoked when the thread pool
+ * finishes the task: log success/failure with local/origin paths + error message,
+ * then free the ngx_thread_task. */
 void
 xrootd_wt_flush_done(ngx_event_t *ev)
 {

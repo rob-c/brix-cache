@@ -168,7 +168,7 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * ctx->files[idx].read_codec.  Inline read compression is a kXR_read-only
      * handle property; pgread's kXR_status(4007) framing + per-page CRC32c must
      * stay byte-for-byte intact, so compression is deliberately not applied here. */
-    ClientPgReadRequest          *req = (ClientPgReadRequest *) ctx->hdr_buf;
+    xrdw_pgread_req_t             req;
     int                           idx;
     int64_t                       offset;
     size_t                        rlen;
@@ -182,9 +182,10 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
     char                          detail[64];
     ngx_int_t                     validate_rc;
 
-    idx = (int) (unsigned char) req->fhandle[0];
-    offset = (int64_t) be64toh((uint64_t) req->offset);
-    rlen = (size_t) (uint32_t) ntohl((uint32_t) req->rlen);
+    xrdw_pgread_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    idx = (int) (unsigned char) req.fhandle[0];
+    offset = req.offset;
+    rlen = (size_t) (uint32_t) req.rlen;
 
     if (!xrootd_validate_read_handle(ctx, c, idx, "PGREAD",
                                      XROOTD_OP_PGREAD, &validate_rc)) {
@@ -212,7 +213,7 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
     /* The wire rlen is a signed 32-bit field; a negative request length is
      * invalid.  Read unsigned it would turn -1 into ~4 GiB (then capped),
      * silently succeeding where the reference rejects with kXR_ArgInvalid. */
-    if ((int32_t) ntohl((uint32_t) req->rlen) < 0) {
+    if (req.rlen < 0) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_PGREAD);
         return xrootd_send_error(ctx, c, kXR_ArgInvalid,
                                  "negative read length");

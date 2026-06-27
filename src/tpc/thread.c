@@ -3,11 +3,8 @@
 
 #include <unistd.h>
 
-/* ------------------------------------------------------------------ */
-/* Thread-pool worker: orchestrates connect → bootstrap → pull           */
-/* ------------------------------------------------------------------ */
 
-/* ---- Function: xrootd_tpc_pull_thread() ----
+/*
  *
  * WHAT: Native thread-pool worker for TPC (third-party copy) data pulls. Executes the full source-side workflow: connects to remote XRootD endpoint, bootstraps authentication session, then initiates data transfer via tpc_pull_from_source(). Called from nginx's threaded pool when native TPC is enabled (NGX_THREADS).
  *

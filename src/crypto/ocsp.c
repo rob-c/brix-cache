@@ -108,9 +108,6 @@ ocsp_connect_deadline(BIO *cbio, int secs)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Internal helpers                                                     */
-/* ------------------------------------------------------------------ */
 
 /*
  * parse_ocsp_url — parse "http://host[:port]/path" into components.
@@ -118,7 +115,7 @@ ocsp_connect_deadline(BIO *cbio, int secs)
  * Writes results into the caller-supplied char buffers.  port defaults to 80.
  * Returns 0 on success, -1 if the URL is malformed or not http://.
  */
-/* ---- HOW: Splits the URL string by checking for http:// or https:// prefix. Extracts hostname up to the first ':' (port) or '/' (path). Defaults port=80, use_ssl=0; HTTPS sets port=443, use_ssl=1. Path defaults to "/" if no slash found in URL. Returns -1 if prefix is not http/https or hostname exceeds host_sz buffer. */
+/* HOW: Splits the URL string by checking for http:// or https:// prefix. Extracts hostname up to the first ':' (port) or '/' (path). Defaults port=80, use_ssl=0; HTTPS sets port=443, use_ssl=1. Path defaults to "/" if no slash found in URL. Returns -1 if prefix is not http/https or hostname exceeds host_sz buffer. */
 static int
 parse_ocsp_url(const char *url, char *host, size_t host_sz,
     char *path, size_t path_sz, int *port, int *use_ssl)
@@ -176,7 +173,7 @@ parse_ocsp_url(const char *url, char *host, size_t host_sz,
  * The caller must call OCSP_RESPONSE_free() on the returned pointer.
  * Returns NULL on any network or protocol error.
  */
-/* ---- HOW: Parses the OCSP URL via parse_ocsp_url() extracting host/path/port components. Allocates OCSP_REQUEST, adds certificate ID and a nonce for replay protection. Opens a TCP connection via BIO_new_connect() for HTTP or BIO_new_ssl_connect() for HTTPS with system trust-store verification and SNI. Sends the request using OCSP_sendreq_bio(), then frees request and BIO. Returns NULL on any network/protocol failure. */
+/* HOW: Parses the OCSP URL via parse_ocsp_url() extracting host/path/port components. Allocates OCSP_REQUEST, adds certificate ID and a nonce for replay protection. Opens a TCP connection via BIO_new_connect() for HTTP or BIO_new_ssl_connect() for HTTPS with system trust-store verification and SNI. Sends the request using OCSP_sendreq_bio(), then frees request and BIO. Returns NULL on any network/protocol failure. */
 static OCSP_RESPONSE *
 do_ocsp_request(ngx_log_t *log, const char *url,
     X509 *leaf, X509 *issuer, OCSP_CERTID *id)
@@ -332,7 +329,7 @@ do_ocsp_request(ngx_log_t *log, const char *url,
  *  -1   — certificate is REVOKED or response is invalid
  *   1   — status is UNKNOWN
  */
-/* ---- HOW: Checks response status — returns -1 if not successful. Extracts the BASICRESP via OCSP_response_get1_basic(). Optionally verifies the response signature against a trust store (NULL means use OpenSSL defaults). If original request is available, checks nonce match — mismatch causes failure; missing nonce is a warning only. Finds certificate status via OCSP_resp_find_status() and maps to GOOD(0)/REVOKED(-1)/UNKNOWN(1) using a switch on the V_OCSP_CERTSTATUS_* enum. */
+/* HOW: Checks response status — returns -1 if not successful. Extracts the BASICRESP via OCSP_response_get1_basic(). Optionally verifies the response signature against a trust store (NULL means use OpenSSL defaults). If original request is available, checks nonce match — mismatch causes failure; missing nonce is a warning only. Finds certificate status via OCSP_resp_find_status() and maps to GOOD(0)/REVOKED(-1)/UNKNOWN(1) using a switch on the V_OCSP_CERTSTATUS_* enum. */
 static int
 check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
     X509_STORE *store, OCSP_CERTID *id, OCSP_REQUEST *req_for_nonce)
@@ -407,9 +404,6 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
     return rc;
 }
 
-/* ------------------------------------------------------------------ */
-/* Public API                                                           */
-/* ------------------------------------------------------------------ */
 
 /*
  * xrootd_ocsp_check_cert — query the OCSP responder for leaf's revocation.
@@ -420,7 +414,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
  * Returns  0 if the certificate is GOOD (or soft_fail allows the outcome).
  * Returns -1 if the certificate is REVOKED or the check definitively fails.
  */
-/* ---- HOW: Validates leaf and issuer are non-NULL (returns soft_fail result if either is missing). Extracts OCSP URLs from the certificate's AIA extension via X509_get1_ocsp(). Builds the OCSP certificate ID (SHA-1 hash of issuer fields) using OCSP_cert_to_id(). Iterates over all discovered responder URLs — sends a request via do_ocsp_request(), checks the response via check_ocsp_response(). GOOD results break the loop and return 0; REVOKED breaks immediately (never overridden); UNKNOWN applies soft_fail policy. Free ID and URL stack on exit. */
+/* HOW: Validates leaf and issuer are non-NULL (returns soft_fail result if either is missing). Extracts OCSP URLs from the certificate's AIA extension via X509_get1_ocsp(). Builds the OCSP certificate ID (SHA-1 hash of issuer fields) using OCSP_cert_to_id(). Iterates over all discovered responder URLs — sends a request via do_ocsp_request(), checks the response via check_ocsp_response(). GOOD results break the loop and return 0; REVOKED breaks immediately (never overridden); UNKNOWN applies soft_fail policy. Free ID and URL stack on exit. */
 int
 xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
 {
@@ -512,7 +506,7 @@ xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
  *
  * Memory is allocated with ngx_alloc() and freed on the next reload.
  */
-/* ---- HOW: Validates server certificate is non-NULL. Extracts OCSP URLs from the AIA extension. Locates the issuer certificate by initializing a X509_STORE_CTX against gsi_store and calling get1_issuer(). Builds the OCSP certificate ID via OCSP_cert_to_id(). Iterates responder URLs — sends request, verifies response signature against the trust store, only caches responses with status GOOD. Encodes the valid response to DER via i2d_OCSP_RESPONSE(), allocates nginx-managed memory for the staple bytes, frees old staple if present (reload path), stores buf/der_len in xcf fields. Returns NGX_OK on success, NGX_ERROR on failure. */
+/* HOW: Validates server certificate is non-NULL. Extracts OCSP URLs from the AIA extension. Locates the issuer certificate by initializing a X509_STORE_CTX against gsi_store and calling get1_issuer(). Builds the OCSP certificate ID via OCSP_cert_to_id(). Iterates responder URLs — sends request, verifies response signature against the trust store, only caches responses with status GOOD. Encodes the valid response to DER via i2d_OCSP_RESPONSE(), allocates nginx-managed memory for the staple bytes, frees old staple if present (reload path), stores buf/der_len in xcf fields. Returns NGX_OK on success, NGX_ERROR on failure. */
 ngx_int_t
 xrootd_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
 {

@@ -141,11 +141,14 @@ int xrdc_aio_call_ex(xrdc_aconn *ac, const void *hdr24,
 typedef struct xrdc_mgr   xrdc_mgr;
 typedef struct xrdc_mfile xrdc_mfile;
 
-/* Create the loop + `nconns` attached connections to `u` (opts `o`, may be NULL),
- * each with the given resilience policy. NULL + st on failure. */
+/* Create the loop + a pool of `nconns` connections to `u` (opts `o`, may be NULL),
+ * each with the given resilience policy. `eager` (clamped to [1, nconns]) connect
+ * up front — in parallel, so mount-time wall is ~1×RTT not eager×RTT; the rest
+ * connect lazily on first xrdc_mgr_pick. NULL + st on failure (an eager connect
+ * failed, so a bad endpoint / auth still fails fast). */
 xrdc_mgr *xrdc_mgr_create(const xrdc_url *u, const xrdc_opts *o, int nconns,
-                          int max_stall_ms, int keepalive_ms, int max_retries,
-                          xrdc_status *st);
+                          int eager, int max_stall_ms, int keepalive_ms,
+                          int max_retries, xrdc_status *st);
 void      xrdc_mgr_destroy(xrdc_mgr *m);
 /* Round-robin one of the pool's connections (for a new file or a metadata op). */
 xrdc_aconn *xrdc_mgr_pick(xrdc_mgr *m);

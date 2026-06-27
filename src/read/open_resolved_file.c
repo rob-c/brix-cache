@@ -1,5 +1,7 @@
 #include "open.h"
 #include "ngx_xrootd_module.h"
+#include "../fs/backend/csi_tagstore.h"
+#include "../ratelimit/throttle_compat.h"  /* phase-59 W3a: open-files cap */
 #include "../response/async.h"
 #include "../mirror/stream_wmirror.h"
 #include "../write/wrts_journal.h"
@@ -15,7 +17,7 @@
 #include <unistd.h>
 #include <fcntl.h>   /* open(2) flags + fcntl() to clear O_NONBLOCK post-open */
 
-/* ---- Function: xrootd_open_resolved_file() ----
+/*
  *
  * WHAT: Opens the actual file on disk and allocates a file handle (fhandle). Called after path resolution.
  *       This function performs the POSIX open(2) call with proper security guarantees including:
@@ -168,8 +170,18 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	if (use_resume && !(options & kXR_delete) && !(options & kXR_new)) {
 		struct stat pst, fst;
 
-		if (stat(posc_temp_path, &pst) != 0
-		    && stat(resolved, &fst) == 0 && S_ISREG(fst.st_mode)) {
+		/* A pure update-in-place open is NOT an upload to stage when no resume
+		 * partial is in flight: drop out of resume staging and let the direct
+		 * open mapping (O_RDWR, no O_CREAT) decide, matching stock xrootd:
+		 *   - final is a committed regular file -> edit it in place (preserve the
+		 *     bytes the client does not rewrite);
+		 *   - final does not exist              -> fail kXR_NotFound, exactly as
+		 *     O_RDWR-without-O_CREAT would.  Staging would otherwise CREATE the
+		 *     missing file and return kXR_ok, diverging from stock which derives
+		 *     no O_CREAT for kXR_open_updt alone (XrdXrootdXeq.cc:1524). */
+		int have_partial = (stat(posc_temp_path, &pst) == 0);
+		int final_exists = (stat(resolved, &fst) == 0);
+		if (!have_partial && (!final_exists || S_ISREG(fst.st_mode))) {
 			use_resume = 0;
 			stage = use_posc;
 		}
@@ -232,9 +244,12 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,
 			          create_mode);
 		} else if (from_cache) {
-			/* cache_root files are pre-validated; use O_CLOEXEC to prevent
-			 * FD leakage into any forked child (e.g. tpc_curl). */
-			fd = open(open_path, effective_oflags | O_CLOEXEC, create_mode);
+			/* cache_root files are server-managed (filled by the cache worker,
+			 * never client-written), but add O_NOFOLLOW as defence-in-depth so a
+			 * symlink planted in the cache tree is never followed; O_CLOEXEC
+			 * prevents FD leakage into any forked child (e.g. tpc_curl). */
+			fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,
+			          create_mode);
 		} else {
 			/* open_path is the absolute resolved path; strip root_canon to
 			 * get the path relative to rootfd for openat2 RESOLVE_BENEATH. */
@@ -341,6 +356,78 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].read_last_end  = -1;
 	ctx->files[idx].read_ahead_end = 0;
 
+	/* phase-59 W2: attach a CSI page-checksum tagstore to this handle when
+	 * enabled. A write handle creates/uses tags; a read handle verifies against
+	 * existing tags. An untagged file with require=on is refused at open. */
+	ctx->files[idx].csi = NULL;
+	if (conf->csi_enable && S_ISREG(st.st_mode)) {
+		const char *crel = resolved;
+		size_t      rlen = strlen(conf->common.root_canon);
+		xrootd_csi_t *csi;
+
+		if (rlen > 0
+		    && ngx_strncmp((u_char *) resolved,
+		                   (u_char *) conf->common.root_canon, rlen) == 0
+		    && resolved[rlen] == '/')
+		{
+			crel = resolved + rlen;
+		}
+
+		csi = ngx_alloc(sizeof(xrootd_csi_t), c->log);
+		if (csi != NULL) {
+			int crc;
+
+			ngx_memzero(csi, sizeof(xrootd_csi_t));
+			csi->fill    = conf->csi_fill ? 1 : 0;
+			csi->require = conf->csi_require ? 1 : 0;
+			csi->loose   = conf->csi_loose ? 1 : 0;
+			csi->strict  = conf->csi_loose ? 0 : 1;
+
+			crc = xrootd_csi_open(csi, conf->rootfd, crel,
+			    (const char *) conf->csi_prefix.data, is_write);
+			if (crc == XROOTD_CSI_OK) {
+				ctx->files[idx].csi = csi;
+			} else {
+				xrootd_csi_close(csi);
+				ngx_free(csi);
+				if (!is_write && crc == XROOTD_CSI_NOTAGS
+				    && conf->csi_require)
+				{
+					close(fd);
+					ctx->files[idx].fd = -1;
+					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD,
+					    "OPEN", resolved, "rd",
+					    kXR_ChkSumErr, "integrity tags missing");
+				}
+				/* untagged read (require off) or write tag-setup error:
+				 * proceed without CSI for this handle (fail-open). */
+			}
+		}
+	}
+
+	/* phase-59 W3a: XrdThrottle per-user open-files cap. Checked after the fd
+	 * is open (closed again on rejection); the resolved identity is the key. */
+	if (conf->throttle_zone != NULL && conf->throttle_max_open_files > 0) {
+		const char *tuser = ctx->dn[0] ? ctx->dn : "anonymous";
+
+		if (!xrootd_throttle_open_inc(conf->throttle_zone, tuser,
+		                              conf->throttle_max_open_files))
+		{
+			close(fd);
+			ctx->files[idx].fd = -1;
+			if (ctx->files[idx].csi != NULL) {
+				xrootd_csi_close(ctx->files[idx].csi);
+				ngx_free(ctx->files[idx].csi);
+				ctx->files[idx].csi = NULL;
+			}
+			XROOTD_RETURN_ERR(ctx, c,
+			    is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+			    "OPEN", resolved, is_write ? "wr" : "rd",
+			    kXR_Overloaded, "too many open files for this user");
+		}
+		ctx->throttle_open_held++;
+	}
+
 	/*
 	 * Phase-42 W4/W5 — inline compression.  `codec` is the codec negotiated from
 	 * the open opaque (0 = none).  Honour it only for a regular file, and store it
@@ -360,8 +447,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].wt_flush_task = NULL;
 	ctx->files[idx].wt_flush_pending = 0;
 
-	/* ---- kXR_recoverWrts journal initialisation ----
-	 *
+	/* kXR_recoverWrts journal initialisation
 	 * Arm the write-recovery ring when the handle is opened for writing and
 	 * the recover_writes directive is on.  Read-only handles get the fields
 	 * zeroed (they are zero from xrootd_free_fhandle, but be explicit).
@@ -461,8 +547,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					   (int) want_stat);
 	}
 
-	/* ---- Write-through decision evaluation (mirrors XrdPfc::Cache::Decide()) ----
-	 *
+	/* Write-through decision evaluation (mirrors XrdPfc::Cache::Decide())
 	 * WHAT: Evaluate write-through policy at kXR_open time and cache the result on the handle.
 	 *       This is called once per open — the cached wt_policy determines close-time flush behavior.
 	 *
@@ -481,8 +566,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 *   ALLOW_SYNC → synchronous flush to origin before closing handle (blocks)
 	 *   ALLOW_ASYNC→ schedule async thread-pool flush, return immediately to client */
 
-/* ---- WT decision policy engine (default: prefix-based) ----
- *
+/* WT decision policy engine (default: prefix-based)
  * WHAT: xrootd_wt_default_decide() — built-in prefix-based policy engine.
  *       External plugins can provide their own fn pointer for custom policies.
  *

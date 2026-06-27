@@ -24,25 +24,18 @@ static const xrootd_sd_driver_t *const sd_drivers[] = {
     &xrootd_sd_posix_driver,
 };
 
-/* ---- xrootd_sd_driver_find — resolve a backend name to its driver ----------
- *
- * WHAT: Returns the registered driver whose name matches, or NULL.
- * WHY:  Config parsing and instance creation both map a string to a driver.
- * HOW:  Linear scan of the small static table (NULL name -> NULL).
- */
-/* ---- xrootd_sd_default_driver — the backend used when none is selected ------
- *
- * WHAT: Returns the driver an export defaults to when it names no backend.
- * WHY:  Lets the VFS resolve "the default backend" without hard-coding the POSIX
- *       driver symbol, keeping POSIX knowledge out of the VFS.
- * HOW:  Return the built-in POSIX driver (the full-featured reference backend).
- */
+/* xrootd_sd_default_driver — the backend an export defaults to when it names none:
+ * the built-in POSIX driver (the full-featured reference backend), so the VFS can
+ * resolve "the default backend" without hard-coding the POSIX symbol. */
 const xrootd_sd_driver_t *
 xrootd_sd_default_driver(void)
 {
     return &xrootd_sd_posix_driver;
 }
 
+/* xrootd_sd_driver_find — resolve a backend name to its driver (linear scan of the
+ * small static table; NULL name → NULL). Used by config parsing and instance
+ * creation to map a string to a driver. */
 const xrootd_sd_driver_t *
 xrootd_sd_driver_find(const char *name)
 {
@@ -59,13 +52,9 @@ xrootd_sd_driver_find(const char *name)
     return NULL;
 }
 
-/* ---- xrootd_sd_instance_create — build a bound per-export instance ---------
- *
- * WHAT: Allocates an instance for the named driver and runs its init().
- * WHY:  Each export binds one backend instance at config/worker init time.
- * HOW:  Find the driver, pcalloc the instance, call init(driver_conf). On an
- *       init failure or unknown driver, set *err_out and return NULL.
- */
+/* xrootd_sd_instance_create — build the per-export instance bound at config/worker
+ * init: find the named driver, pcalloc the instance, call init(driver_conf); on an
+ * unknown driver or init failure, set *err_out and return NULL. */
 xrootd_sd_instance_t *
 xrootd_sd_instance_create(ngx_pool_t *pool, ngx_log_t *log, const char *name,
     void *driver_conf, int *err_out)
@@ -96,12 +85,8 @@ xrootd_sd_instance_create(ngx_pool_t *pool, ngx_log_t *log, const char *name,
     return inst;
 }
 
-/* ---- xrootd_sd_instance_destroy — tear down an instance -------------------
- *
- * WHAT: Runs the driver's cleanup(); the pool reclaims the struct itself.
- * WHY:  Drivers may hold kernel/transport resources (POSIX rootfd) to release.
- * HOW:  NULL-safe call into driver->cleanup().
- */
+/* xrootd_sd_instance_destroy — NULL-safe driver->cleanup() (the pool reclaims the
+ * struct); drivers may hold kernel/transport resources, e.g. the POSIX rootfd. */
 void
 xrootd_sd_instance_destroy(xrootd_sd_instance_t *inst)
 {
@@ -110,7 +95,7 @@ xrootd_sd_instance_destroy(xrootd_sd_instance_t *inst)
     }
 }
 
-/* ---- accessors ------------------------------------------------------------ */
+/* accessors */
 
 uint32_t
 xrootd_sd_caps(const xrootd_sd_instance_t *inst)

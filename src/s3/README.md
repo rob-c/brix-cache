@@ -50,8 +50,16 @@ stable and cheap, matching `XrdClS3` expectations.
 | `util.c` | Shared helpers: `s3_resolve_key` (confined key→path via `xrootd_http_resolve_path`), `s3_etag` (synthetic `"mtime-size"`), `s3_send_xml_error`, `s3_set_header`, `s3_object_crc64nvme_b64` (compute/cache CRC-64/NVME → base64-of-8-big-endian-bytes for `x-amz-checksum-crc64nvme`). |
 | `metrics.c` | Per-method request/response accounting: `s3_metrics_method_slot`, `s3_metrics_request_method`, `s3_metrics_return_method`, `s3_metrics_finalize_request_method`, plus the unified-metric op mapping (`s3_unified_op`). NGX_DONE (async body) defers final accounting to the callback. |
 | `object.c` | GetObject / HeadObject / DeleteObject. GET opens via the cache-aware VFS and hands the whole range/header/send pipeline to `xrootd_http_serve_file_ranged`; HEAD stats and sends headers only; DELETE uses idempotent `xrootd_ns_delete`. GET/HEAD echo `x-amz-checksum-crc64nvme` + `x-amz-checksum-type: FULL_OBJECT` **from the xattr cache only** (no read-path recompute). |
-| `put.c` | PutObject / UploadPart body callback `s3_put_body_handler`: directory-sentinel mkdir, recursive parent mkdir, atomic staged-temp-then-rename write, optional gzip/deflate inflate, and a thread-pool offload path (`s3_put_aio_*`) for in-memory bodies. After commit, `s3_put_crc64nvme_apply` verifies a client-supplied `x-amz-checksum-crc64nvme` (mismatch → 400 `BadDigest`, object removed) and echoes it (both sync + async paths). |
-| `post_object.c` | Browser POST Object: parses `multipart/form-data` (fields + file part) with jansson policy handling; auth material lives in the form policy/signature, not the `Authorization` header. Commits through the same staged-file path as PUT. |
+| `put.c` | PutObject / UploadPart body handler `s3_put_body_handler` + streaming dispatch + dashboard glue. *(Phase 38: split.)* |
+| `put_finalize.c` | The `s3_put_finalize_*` result family, `s3_commit_put`, and the CRC64-NVME checksum verify (mismatch → 400 `BadDigest`). *(Phase 38 split of `put.c`.)* |
+| `put_chunk.c` | `aws-chunked` decode path (`s3_chunk_*` finalize/aio + chunk-verify build). *(Phase 38 split of `put.c`.)* |
+| `put_aio.c` | Thread-pool offload (`s3_put_aio_*`, VFS ctx, lazy thread-pool) for in-memory bodies. *(Phase 38 split of `put.c`.)* |
+| `s3_put_internal.h` | Private split contract shared by `put*.c` (the `s3_put_aio_t` ctx + prototypes). |
+| `post_object.c` | Browser POST Object body handler + small helpers; auth lives in the form policy/signature. Commits through the staged-file path. *(Phase 38: split.)* |
+| `post_form.c` | `multipart/form-data` decode: boundary scan, field/file extraction, filename expansion, form parse. *(Phase 38 split of `post_object.c`.)* |
+| `post_policy.c` | POST-policy parse + verify (ISO8601/credential parse, condition + JSON validation). *(Phase 38 split of `post_object.c`.)* |
+| `post_response.c` | The empty/created/success POST responses. *(Phase 38 split of `post_object.c`.)* |
+| `s3_post_internal.h` | Private split contract shared by `post_*.c`. |
 | `copy.c` | CopyObject (`PUT` + `x-amz-copy-source`, no `uploadId`): server-side `xrootd_ns_local_copy` (copy_file_range with read/write fallback), staged commit, `CopyObjectResult` XML. Source and dest both confined to root. |
 | `delete_objects.c` | Batch DeleteObjects (`POST /<bucket>/?delete`): libxml2-parsed `<Delete>` body (network + XXE disabled), per-key `xrootd_ns_delete`, `<DeleteResult>` XML with per-key `<Deleted>`/`<Error>`. |
 | `list_objects_v2.c` | ListObjectsV2 (`GET /<bucket>/?list-type=2`): query parsing, b64url continuation-token pagination, delimiter common-prefix grouping, and `ListBucketResult` XML emission. |

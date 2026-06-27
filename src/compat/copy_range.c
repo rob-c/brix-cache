@@ -30,8 +30,7 @@
 /* 256 KB fallback buffer — matches CLONE_COPY_BUF in read/clone.c. */
 #define XROOTD_COPY_RANGE_BUFSZ  (256 * 1024)
 
-/* ---- xrootd_copy_range_fallback — portable pread/pwrite copy of [src_off, +len) ----
- *
+/* xrootd_copy_range_fallback — portable pread/pwrite copy of [src_off, +len)
  * WHAT: Copies `len` bytes from src_fd@src_off to dst_fd@dst_off in 256 KB
  * chunks using pread/pwrite. Returns NGX_OK on full copy, NGX_ERROR (errno set
  * and logged) on I/O failure or unexpected EOF/short write.

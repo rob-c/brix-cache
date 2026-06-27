@@ -31,9 +31,6 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-/* ------------------------------------------------------------------ */
-/* Per-worker client state                                             */
-/* ------------------------------------------------------------------ */
 
 static int       imp_enabled;                       /* map mode configured */
 static int       imp_conn_fd = -1;                  /* -1 = not connected */
@@ -42,9 +39,6 @@ static ngx_log_t *imp_log;                          /* may be NULL */
 static char      imp_principal[IMP_PRINC_MAX];      /* "" = none set */
 static int       imp_in_request;                    /* inside a per-request bracket */
 
-/* ------------------------------------------------------------------ */
-/* Connection management                                               */
-/* ------------------------------------------------------------------ */
 
 /* Open a fresh connected socket to imp_sock_path.  Returns fd or -1 (errno). */
 static int
@@ -173,9 +167,6 @@ xrootd_imp_clear_principal(void)
     imp_principal[0] = '\0';
 }
 
-/* ------------------------------------------------------------------ */
-/* Wire IO                                                             */
-/* ------------------------------------------------------------------ */
 
 /* Write exactly n bytes.  Returns 0 ok, -1 error. */
 static int
@@ -264,9 +255,6 @@ imp_recv_reply(int fd, imp_rep_t *rep, int *out_fd, char *data_buf,
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* Request/reply round-trip                                            */
-/* ------------------------------------------------------------------ */
 
 /* Build a request frame for the current principal. */
 static void
@@ -373,9 +361,6 @@ imp_call_status(uint32_t op, const char *path, const char *path2,
     return -1;
 }
 
-/* ------------------------------------------------------------------ */
-/* Public ops                                                          */
-/* ------------------------------------------------------------------ */
 
 int
 xrootd_imp_open(const char *reqpath, int flags, mode_t mode)

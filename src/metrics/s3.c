@@ -10,9 +10,9 @@
  *      Each metric line includes HELP description and TYPE counter declaration before the actual data line.
  */
 
-/* ---- static table: S3 HTTP method names ----
- * WHAT: Label strings for xrootd_s3_requests_total and xrootd_s3_responses_total counters by operation type.
- * WHY: Prometheus label values must be low-cardinality (INVARIANT #8) — fixed enum prevents bucket-name or request-type explosion. */
+/* S3 HTTP method name labels for the requests_total / responses_total counters.
+ * A fixed enum keeps the labels low-cardinality (INVARIANT #8) — no bucket-name or
+ * request-type explosion. */
 
 static const char *xrootd_s3_method_names[XROOTD_S3_NMETHODS] = {
     "GET",
@@ -25,8 +25,8 @@ static const char *xrootd_s3_method_names[XROOTD_S3_NMETHODS] = {
     "OTHER",
 };
 
-/* ---- static table: S3 authentication result names ----
- * WHAT: Label strings for xrootd_s3_auth_total counters. SigV4-specific results (signature_mismatch, bad_access_key) are tracked separately per INVARIANT #6. */
+/* S3 auth-result name labels for the auth_total counters; SigV4-specific results
+ * (signature_mismatch, bad_access_key) are tracked separately per INVARIANT #6. */
 
 static const char *xrootd_s3_auth_names[XROOTD_S3_NAUTH_RESULTS] = {
     "anonymous",
@@ -39,8 +39,8 @@ static const char *xrootd_s3_auth_names[XROOTD_S3_NAUTH_RESULTS] = {
     "internal_error",
 };
 
-/* ---- static table: S3 PUT body storage mode names ----
- * WHAT: Label strings for xrootd_s3_put_bodies_total counters. Tracks whether PUT body was stored in memory, spooled to disk, or mixed modes after successful write. */
+/* S3 PUT body storage-mode labels for the put_bodies_total counters (in memory,
+ * spooled to disk, or mixed, after a successful write). */
 
 static const char *xrootd_s3_put_names[XROOTD_S3_NPUT_MODES] = {
     "empty",
@@ -49,8 +49,8 @@ static const char *xrootd_s3_put_names[XROOTD_S3_NPUT_MODES] = {
     "mixed",
 };
 
-/* ---- static table: S3 diagnostic event names ----
- * WHAT: Label strings for xrootd_s3_events_total low-cardinality counter. Tracks endpoint-level diagnostics (URI validation failures, access denied, write disabled). */
+/* S3 diagnostic-event labels for the low-cardinality events_total counter
+ * (URI validation failures, access denied, write disabled). */
 
 static const char *xrootd_s3_event_names[XROOTD_S3_NEVENTS] = {
     "invalid_uri",
@@ -63,11 +63,11 @@ static const char *xrootd_s3_event_names[XROOTD_S3_NEVENTS] = {
     "delete_missing",
 };
 
-/* ---- public API: xrootd_export_s3_metrics() ----
- * WHAT: Export all S3-compatible endpoint Prometheus metrics into the writer buffer chain.
- * WHY: The HTTP metrics handler reads counters from shm->s3 using ngx_atomic_fetch_add(..., 0) for an eventually-consistent snapshot.
- *      Each metric line includes HELP description and TYPE counter declaration before the actual data line, following Prometheus text exposition format (0.0.4).
- * HOW: Iterate counter families via static name tables: requests_total, responses_total[method][status_class], auth_total, bytes_rx_tx, range_total, put_body_total, events_total, plus three ListObjectsV2 stats. All counters are unsigned long values cast from ngx_atomic_t fields. */
+/* xrootd_export_s3_metrics — write all S3-endpoint Prometheus metrics (HELP/TYPE +
+ * data, text format 0.0.4) into the writer buffer chain, reading shm->s3 counters
+ * via ngx_atomic_fetch_add(...,0) for an eventually-consistent snapshot. Iterates
+ * the counter families (requests/responses[method][class], auth, bytes, range, put
+ * body, events, + the ListObjectsV2 stats) using the static name tables above. */
 
 void
 xrootd_export_s3_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)

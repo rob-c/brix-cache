@@ -31,8 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- Helpers ------------------------------------------------------------ */
-
+/* Helpers */
 static void
 die(const char *tag, const xrdc_status *st)
 {
@@ -67,8 +66,7 @@ make_key_url(const char *base_url, const char *key_suffix,
     }
 }
 
-/* ---- Test 1: single-PUT round-trip --------------------------------------- */
-
+/* Test 1: single-PUT round-trip */
 /*
  * test_single_put — write a small object (single-PUT path) and read it back.
  *
@@ -140,8 +138,7 @@ test_single_put(const char *url)
     printf("  single-PUT OK (%zu bytes)\n", payload_len);
 }
 
-/* ---- Test 2: multipart upload round-trip --------------------------------- */
-
+/* Test 2: multipart upload round-trip */
 /*
  * test_multipart — write a multi-part object and read it back.
  *
@@ -247,8 +244,7 @@ test_multipart(const char *url)
     free(rbuf);
 }
 
-/* ---- Test 3: bad credentials → XRDC_EAUTH ------------------------------- */
-
+/* Test 3: bad credentials → XRDC_EAUTH */
 /*
  * test_bad_creds — verify that wrong credentials surface as XRDC_EAUTH.
  *
@@ -310,8 +306,7 @@ test_bad_creds(const char *url)
     printf("  bad_creds OK (got XRDC_EAUTH: %s)\n", st.msg);
 }
 
-/* ---- Test 4: non-sequential pwrite → XRDC_EUSAGE ------------------------ */
-
+/* Test 4: non-sequential pwrite → XRDC_EUSAGE */
 /*
  * test_nonseq — verify that a non-sequential pwrite returns XRDC_EUSAGE.
  *
@@ -369,8 +364,7 @@ test_nonseq(const char *url)
     printf("  nonseq OK (got XRDC_EUSAGE: %s)\n", st.msg);
 }
 
-/* ---- main ---------------------------------------------------------------- */
-
+/* main */
 int
 main(int argc, char **argv)
 {

@@ -315,9 +315,6 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
     return NGX_OK;
 }
 
-/* ====================================================================== */
-/* Upload stage-out tracking — durable "pending commit" markers + reaper.   */
-/* ====================================================================== */
 /*
  * When an upload completes, the (complete) staged file must be moved from the
  * stage device to the final storage.  With a synchronous commit the client waits

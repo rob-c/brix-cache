@@ -3,12 +3,14 @@ tests/test_xrdhttp_wait_retry_digest_range.py — XrdHttp/WebDAV HTTP-plane
 conformance for rate-limit back-pressure, RFC-3230 content digests, and
 RFC-7233 byte-range serving.
 
-This suite stands up its OWN dedicated, cleartext (no-TLS) HTTP WebDAV nginx —
-a single worker with its own error_log/pid, a writable data root
-(`xrootd_webdav_allow_write on;`) and a per-IP `xrootd_rate_limit_zone` /
-`xrootd_rate_limit_rule` so the throttle path can be driven deterministically —
-on DEDICATED high ports (>=12950) so it never collides with the shared 8443
-fleet or any other self-provisioned test stack.  It then proves the documented
+This suite drives a DEDICATED, fleet-managed cleartext (no-TLS) HTTP WebDAV
+nginx — a single worker over an isolated, writable data root
+(`xrootd_webdav_allow_write on;`) with a deliberately tight per-IP
+`xrootd_rate_limit_zone` / `xrootd_rate_limit_rule` so the throttle path can be
+driven deterministically.  The instance is started once by
+`manage_test_servers.sh start-all` (config `tests/configs/nginx_xrdhttp_digest.conf`,
+port `XRDHTTP_DIGEST_PORT`); the suite seeds its fixture file into the data root
+and connects, rather than spawning its own server.  It then proves the documented
 HTTP behaviour of src/webdav (get.c, methods_basic.c, xrdhttp.c,
 xrdhttp_multipart.c) and src/ratelimit (ratelimit_http.c):
 
@@ -45,14 +47,12 @@ Implementation cross-checks (so assertions match real behaviour, not guesses):
   * PROPPATCH is a minimal-compliance handler returning 207 Multi-Status
     (methods_basic.c), never 501.
 
-Run: TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_xrdhttp_wait_retry_digest_range.py -v
+Run: PYTHONPATH=tests pytest tests/test_xrdhttp_wait_retry_digest_range.py -v
 """
 
 import hashlib
 import os
-import shutil
 import socket
-import subprocess
 import time
 import zlib
 
@@ -63,17 +63,31 @@ try:
 except Exception:  # pragma: no cover - requests is a hard dep of the suite
     requests = None
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import HOST, XRDHTTP_DIGEST_PORT, XRDHTTP_DIGEST_DATA_ROOT
+
+# requires_local_server: seeds its fixture file into the dedicated instance's
+# data root and reads PUT bytes back off disk — both need a co-located server fs.
+#
+# xdist_group (not `serial`): the per-IP rate-limit rule means this module's own
+# tests must never run concurrently with EACH OTHER (they would 429 one another),
+# so they are pinned to a single xdist worker via a dedicated group.  Unlike the
+# global `serial` lane, that lets the module run concurrently with unrelated
+# groups instead of serialising behind every other serial suite.
+pytestmark = [
+    pytest.mark.requires_local_server,
+    pytest.mark.xdist_group("xrdhttp_digest"),
+]
 
 
 # ---------------------------------------------------------------------------
-# Dedicated, collision-free high ports for this file's own stack.  12988 sits
-# above test_proxy_protocol_edges' reserved 12950-12972 block so the full P0
-# suite runs collision-free in one pytest invocation.
+# Dedicated fleet instance: started by manage_test_servers.sh start-all from
+# tests/configs/nginx_xrdhttp_digest.conf over the isolated data-xrdhttp-digest
+# root.  The suite connects to it and seeds its fixture file — it never spawns
+# its own nginx.
 # ---------------------------------------------------------------------------
 
-HTTP_PORT = int(os.environ.get("TEST_XHW_HTTP_PORT") or free_port())
-_DIR = os.path.join(os.environ["TMPDIR"], "xrd_xrdhttp_wait_retry_digest_range")
+HTTP_PORT = XRDHTTP_DIGEST_PORT
+DATA_DIR = XRDHTTP_DIGEST_DATA_ROOT
 
 # A non-trivial, non-page-aligned file so ranges exercise a short final window
 # and the checksums are interesting.
@@ -93,109 +107,6 @@ def _reachable(port, timeout=0.5):
         return True
     except OSError:
         return False
-
-
-def _wait_port(port, timeout=15.0):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if _reachable(port):
-            return True
-        time.sleep(0.2)
-    return False
-
-
-def _wait_port_free(port, timeout=10.0):
-    """Block until nothing answers on `port` (used after stop)."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if not _reachable(port):
-            return True
-        time.sleep(0.2)
-    return False
-
-
-def _mkdirs(*paths):
-    for p in paths:
-        os.makedirs(p, exist_ok=True)
-
-
-def _conf_path():
-    return os.path.join(_DIR, "nginx.conf")
-
-
-def _write_conf(data_dir):
-    """Build a self-contained HTTP WebDAV nginx config.
-
-    Single worker; own error_log/pid; a writable data root; and a per-IP
-    request-rate rule (rate=2r/s burst=2) on the location so the throttle path
-    fires after the first couple of requests.
-
-    Directive syntax verified against src/webdav/module.c +
-    src/ratelimit/ratelimit_keys.c:
-      xrootd_rate_limit_zone zone=NAME:SIZE   (http main, CONF_1MORE)
-      xrootd_rate_limit_rule zone=N key=ip rate=Nr/s burst=N  (location)
-    """
-    base = _DIR
-    logs = os.path.join(base, "logs")
-    tmp = os.path.join(base, "tmp")
-    _mkdirs(logs, tmp, data_dir)
-    conf = _conf_path()
-    with open(conf, "w") as f:
-        f.write(
-            "worker_processes 1;\n"
-            "daemon on;\n"
-            f"error_log {logs}/error.log info;\n"
-            f"pid {logs}/nginx.pid;\n"
-            "events { worker_connections 128; }\n"
-            "http {\n"
-            f"    client_body_temp_path {tmp}/cbt;\n"
-            f"    proxy_temp_path {tmp}/pt;\n"
-            f"    fastcgi_temp_path {tmp}/ft;\n"
-            f"    uwsgi_temp_path {tmp}/ut;\n"
-            f"    scgi_temp_path {tmp}/st;\n"
-            "    access_log off;\n"
-            "    client_max_body_size 64m;\n"
-            "    xrootd_rate_limit_zone zone=xhw:4m;\n"
-            "    server {\n"
-            f"        listen {BIND_HOST}:{HTTP_PORT};\n"
-            "        location / {\n"
-            "            xrootd_webdav on;\n"
-            f"            xrootd_webdav_root {data_dir};\n"
-            "            xrootd_webdav_auth none;\n"
-            "            xrootd_webdav_allow_write on;\n"
-            "            xrootd_rate_limit_rule zone=xhw key=ip rate=2r/s burst=2;\n"
-            "        }\n"
-            "    }\n"
-            "}\n")
-    return conf
-
-
-def _start():
-    """Validate then launch nginx.  Raises RuntimeError on any startup failure
-    so the fixture can convert it into a clean skip rather than an error."""
-    conf = _conf_path()
-    chk = subprocess.run([NGINX_BIN, "-t", "-c", conf],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        raise RuntimeError(f"nginx config rejected: {chk.stderr[-400:]}")
-    run = subprocess.run([NGINX_BIN, "-c", conf],
-                         capture_output=True, text=True)
-    if run.returncode != 0:
-        raise RuntimeError(
-            f"nginx failed to start (rc={run.returncode}): {run.stderr[-400:]}")
-
-
-def _stop():
-    conf = _conf_path()
-    if os.path.exists(conf):
-        subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"],
-                       capture_output=True)
-    # Belt-and-braces: kill only processes bound to OUR full cfg path, never a
-    # bare pattern that could match the shell itself.  pkill may be absent in a
-    # minimal container, so guard on availability.
-    if shutil.which("pkill"):
-        subprocess.run(["pkill", "-f", conf], capture_output=True)
-    _wait_port_free(HTTP_PORT)
 
 
 def _base_url():
@@ -222,41 +133,25 @@ def _sanity_ok(name=DATA_NAME):
 
 
 # ---------------------------------------------------------------------------
-# Module-scoped fixture: provision the dedicated HTTP WebDAV nginx + data.
+# Module-scoped fixture: connect to the fleet-managed dedicated instance and
+# seed its fixture file into the isolated data root.  start-all owns the server's
+# lifecycle; the suite never spawns or tears down nginx.
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
 def server():
     if requests is None:
         pytest.skip("python 'requests' library not available")
-    if not NGINX_BIN or not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN!r}")
-    # Refuse to run against a foreign process that already owns our dedicated
-    # port — otherwise we would test the wrong server and leak it on teardown.
-    if _reachable(HTTP_PORT):
-        # Could be an orphan from a crashed prior run; try our own teardown once.
-        _stop()
-        if _reachable(HTTP_PORT):
-            pytest.skip(
-                f"port {HTTP_PORT} already in use by a foreign process")
+    if not _reachable(HTTP_PORT):
+        pytest.skip(
+            f"xrdhttp-digest dedicated instance not running on {HTTP_PORT} "
+            "(start it with manage_test_servers.sh start-all)")
 
-    data_dir = os.path.join(_DIR, "data")
-    _mkdirs(data_dir)
-    with open(os.path.join(data_dir, DATA_NAME), "wb") as fh:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(os.path.join(DATA_DIR, DATA_NAME), "wb") as fh:
         fh.write(DATA_BYTES)
 
-    _write_conf(data_dir)
-    try:
-        _start()
-    except RuntimeError as exc:
-        pytest.skip(str(exc))
-
-    try:
-        if not _wait_port(HTTP_PORT):
-            pytest.skip("HTTP WebDAV nginx did not come up")
-        yield {"base": _base_url(), "data_dir": data_dir}
-    finally:
-        _stop()
+    yield {"base": _base_url(), "data_dir": DATA_DIR}
 
 
 # ---------------------------------------------------------------------------

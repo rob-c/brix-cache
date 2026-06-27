@@ -187,6 +187,15 @@ typedef struct {
      * trips it); 0 = unlimited. [xrootd_gsi_max_inflight_handshakes] */
     ngx_int_t    gsi_max_inflight;
 
+    /* Per-worker ephemeral-DH keypool sizing (see src/gsi/keypool.c). At worker
+     * start only `gsi_keypool_seed` keys are generated synchronously (keeping the
+     * event thread free at boot); the pool is then filled off-thread up to
+     * `gsi_keypool_size`.  Defaults 64 / 4.  size is clamped to the compile-time
+     * ceiling XROOTD_GSI_KEYPOOL_CAP and seed to [1, size].
+     * [xrootd_gsi_keypool_size N] [xrootd_gsi_keypool_seed N] */
+    ngx_uint_t   gsi_keypool_size;
+    ngx_uint_t   gsi_keypool_seed;
+
     /* Phase 52 (WS-A): [xrootd_gsi_ciphers "aes-256-cbc:aes-128-cbc:..."] the GSI
      * session-cipher preference list the server advertises (kXRS_cipher_alg).
      * Empty = the built-in default (aes-128-cbc first → unchanged behaviour).
@@ -215,6 +224,26 @@ typedef struct {
     ngx_str_t   token_jwks;      /* [xrootd_token_jwks /etc/xrd/jwks.json] */
     ngx_str_t   token_issuer;    /* [xrootd_token_issuer https://cilogon.org] */
     ngx_str_t   token_audience;  /* [xrootd_token_audience https://storage.example.org] */
+    ngx_str_t   token_config;    /* [xrootd_token_config /etc/xrd/scitokens.cfg]
+                                    multi-issuer registry (phase-59 W1); when set
+                                    it overrides the single-issuer fields above */
+    void       *token_registry;  /* xrootd_token_registry_t* built at postconfig;
+                                    NULL = single-issuer path.  void* keeps
+                                    issuer_registry.h out of this header. */
+
+    /* ---- Phase-59 W3a: XrdThrottle contract (off by default) ---- */
+    ngx_str_t   throttle_zone_name;  /* [xrootd_throttle_zone <rate-limit zone>] */
+    void       *throttle_zone;       /* xrootd_rl_zone_t* resolved at postconfig */
+    ngx_uint_t  throttle_max_open_files;     /* [xrootd_throttle_max_open_files] */
+    ngx_uint_t  throttle_max_active_conn;    /* [xrootd_throttle_max_active_connections] */
+
+    /* ---- Phase-59 W2: CSI per-page checksum tagstore (off by default) ---- */
+    ngx_flag_t  csi_enable;      /* [xrootd_csi on|off] */
+    ngx_str_t   csi_prefix;      /* [xrootd_csi_prefix /.xrdt] ("" = inline) */
+    ngx_flag_t  csi_fill;        /* [xrootd_csi_fill on|off] tag hole pages */
+    ngx_flag_t  csi_require;     /* [xrootd_csi_require on|off] missing tags=err */
+    ngx_flag_t  csi_loose;       /* [xrootd_csi_loose on|off] recover retries */
+
     ngx_str_t   token_macaroon_secret;     /* [xrootd_macaroon_secret <hex>] */
     ngx_str_t   token_macaroon_secret_old; /* [xrootd_macaroon_secret_old <hex>]
                                               grace-period key: tokens signed with
@@ -406,6 +435,36 @@ typedef struct {
     ngx_str_t   cache_origin_proxy; /* [xrootd_cache_origin_proxy /tmp/x509up_uNNNN] */
     ngx_str_t   cache_origin_cadir; /* [xrootd_cache_origin_cadir /etc/grid-security/certificates] */
     ngx_str_t   cache_origin_client;/* [xrootd_cache_origin_client /path/to/xrdcp] */
+    /* ---- HTTP(S)/Pelican origin transport (src/cache/origin/) ----
+     * cache_origin_scheme records which transport the xrootd_cache_origin URL
+     * selected (xrootd_cache_scheme_e: 0=root/roots, 1=http, 2=https/davs,
+     * 3=pelican). http/https fills run over libcurl (http_transport.c) instead of
+     * the root:// client; pelican adds federation discovery (Phase 3). */
+    ngx_uint_t  cache_origin_scheme;        /* xrootd_cache_scheme_e; 0 = xroot */
+    ngx_str_t   cache_origin_token_file;    /* [xrootd_cache_origin_token_file <path>]
+                                               bearer token the cache presents to an
+                                               HTTP/Pelican origin (re-read per fill). */
+    ngx_flag_t  cache_origin_forward_token; /* [xrootd_cache_origin_forward_token on]
+                                               replay the client's bearer token upstream
+                                               instead of / before the cache credential. */
+    /* ---- Pelican cache registration / advertisement (origin/pelican_register.c) ----
+     * When enabled, this node periodically POSTs a signed OriginAdvertiseV2 to the
+     * federation Director's /api/v1.0/director/registerCache so it is discoverable
+     * as a cache. The advertise JWT (scope pelican.advertise) is ES256-signed with
+     * cache_advertise_key; the cache's public key must be registered with the
+     * federation registry out of band (the prerequisite handshake). */
+    ngx_flag_t  cache_advertise;            /* [xrootd_cache_advertise on] */
+    ngx_str_t   cache_advertise_key;        /* [..._key <ec-p256.pem>] signing key */
+    ngx_str_t   cache_data_url;             /* [..._data_url https://cache:8443] public data URL (data-url) */
+    ngx_str_t   cache_web_url;              /* [..._web_url https://cache:8444] (web-url) */
+    ngx_str_t   cache_sitename;             /* [..._sitename MyCache] → registry-prefix /caches/<name> */
+    ngx_str_t   cache_issuer_url;           /* [..._issuer <url>] advertise token iss */
+    ngx_msec_t  cache_advertise_interval;   /* [..._interval 60s] re-advertise period (>=60s) */
+    ngx_array_t *cache_advertise_ns;        /* ngx_str_t[] namespace prefixes advertised */
+    void        *cache_advertise_key_pkey;  /* loaded EVP_PKEY* (init_process) */
+    void        *cache_advertise_timer;     /* ngx_event_t* periodic timer */
+    char        cache_advertise_instance[40];/* hex UUID instanceID, set at init */
+    uint64_t    cache_advertise_gen;        /* monotonic generationID */
     time_t      cache_lock_timeout; /* [xrootd_cache_lock_timeout 30] — how long to
                                        wait for another worker's fill before giving up */
     ngx_uint_t  cache_eviction_threshold; /* [xrootd_cache_eviction_threshold 0.9]
@@ -431,6 +490,19 @@ typedef struct {
     regex_t     cache_include_regex;      /* compiled POSIX ERE; valid only when
                                              cache_include_regex_set is 1 */
     ngx_flag_t  cache_include_regex_set;  /* 1 after a successful regcomp() */
+
+    /* ---- checksum-on-fill integrity (src/cache/verify.h) ----
+     * After a fill downloads a file into its .part staging file, recompute its
+     * content checksum and compare against the digest the origin advertised
+     * (kXR_Qcksum for root://, a Digest header for HTTP/Pelican). A mismatch
+     * discards the part so a corrupted transfer never becomes a cache entry. */
+    ngx_uint_t  cache_verify;          /* [xrootd_cache_verify off|best-effort|require]
+                                          xrootd_cache_verify_mode_e; default
+                                          best-effort. 0=off, 1=best-effort, 2=require. */
+    ngx_str_t   cache_verify_digest;   /* [xrootd_cache_verify_digest crc32c]
+                                          preferred algorithm to request from an
+                                          HTTP origin (Want-Digest); empty = take
+                                          whatever the origin reports. */
 
     /* ---- Phase 26: slice-granular caching (stream plane) ----
      * cache_slice_size > 0 stores files as fixed-size slices (src/cache/slice.h)
@@ -573,6 +645,17 @@ typedef struct {
     ngx_msec_t            cms_tcp_user_timeout; /* [xrootd_cms_tcp_user_timeout]
                                                    TCP_USER_TIMEOUT (ms); unset =>
                                                    read-timeout backstop. 0 = off. */
+    /* Fast cold-start mesh settling.  Both default by manager-locality profile when
+     * left unset (see src/cms/connect.c): a loopback manager settles most
+     * aggressively.  Only affect the PRE-FIRST-LOGIN window — once a node has
+     * registered, reconnects use the normal exponential backoff. */
+    ngx_msec_t            cms_initial_delay;    /* [xrootd_cms_initial_delay] delay
+                                                   before the first connect attempt;
+                                                   unset => 0 (loopback) / 10ms. */
+    ngx_msec_t            cms_connect_retry;    /* [xrootd_cms_connect_retry] interval
+                                                   between connect retries while the
+                                                   manager is not yet listening; unset
+                                                   => 10ms (loopback) / 75ms. */
 
     /* ---- bounded recursive query walks ---- */
     ngx_uint_t  ckscan_max_depth; /* [xrootd_ckscan_depth N] — maximum

@@ -10,8 +10,7 @@
  *   5. Return kXR_ok response to client
  */
 
-/* ---- Write-through dirty state tracking section ----
- *
+/* Write-through dirty state tracking section
  * This is the core of the Policy File Cache (PFC) write-back feature.
  * When wt_enabled = 1, every write increments two counters:
  *   - wt_bytes_written: cumulative total for session metrics reporting
@@ -22,20 +21,18 @@
  * propagates those bytes back to an origin XRootD server before closing the handle.
  */
 
-/* ---- AIO (Async I/O) section ----
- *
+/* AIO (Async I/O) section
  * When nginx has a thread pool configured, writes are posted to background threads
  * so the main event loop doesn't block on disk I/O. The payload buffer is detached
  * from ctx->payload_buf and freed in the completion callback. This allows the main
  * thread to continue reading the next request header while write happens elsewhere. */
 
-/* ---- Synchronous fallback section ----
- *
+/* Synchronous fallback section
  * When no thread pool is configured OR queue is full, writes happen synchronously
  * on the main event loop thread using pwrite() directly from the recv buffer.
  * This ensures writes always succeed even under degraded conditions. */
 
-/* ---- Function: xrootd_handle_write() ----
+/*
  *
  * WHAT: Protocol-level kXR_write handler — validates write handle (must be open and writable), handles zero-length writes as valid no-ops, dispatches to AIO thread pool when configured (pwrite in worker thread with detached payload buffer), falls back to synchronous inline pwrite on main event loop. Tracks bytes written for access-log throughput calculation and PFC write-through dirty state tracking (wt_bytes_written + wt_dirty_offset for future close-time origin flush). Access-log detail format: "<offset>+<requested-bytes>".
  *
@@ -68,10 +65,15 @@
 ngx_int_t
 xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-	ClientWriteRequest           *req  = (ClientWriteRequest *) ctx->hdr_buf;
-	int     idx    = (int)(unsigned char) req->fhandle[0];
-	int64_t offset = (int64_t) be64toh((uint64_t) req->offset);
+	const u_char *hdrbody = ((ClientRequestHdr *) ctx->hdr_buf)->body;
+	xrdw_write_req_t req;
+	int     idx;
+	int64_t offset;
 	size_t  wlen   = ctx->cur_dlen;
+
+	xrdw_write_req_unpack(hdrbody, &req);
+	idx    = (int)(unsigned char) req.fhandle[0];
+	offset = req.offset;
 	ngx_int_t rc;
 	ssize_t nwritten;
 	char    write_detail[64];
@@ -81,11 +83,14 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		return rc;
 	}
 
-	/* §7 XrdSsi: an SSI handle accumulates the request body (no fd write). Clean
+	/* §7 XrdSsi: an SSI handle accumulates the request body (no fd write). The
+	 * write offset carries an XrdSsiRRInfo (raw big-endian bytes). Clean
 	 * early-return — the normal write path below is unchanged for file handles. */
 	if (ctx->files[idx].ssi != NULL) {
 		XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
-		return xrootd_ssi_write(ctx, c, idx);
+		/* SSI reinterprets the offset field as a raw big-endian XrdSsiRRInfo;
+		 * pass the wire bytes (offset field = body byte 4), not the decoded int. */
+		return xrootd_ssi_write(ctx, c, idx, hdrbody + 4);
 	}
 
 	if (wlen == 0) {
@@ -105,8 +110,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		return xrootd_write_compressed(ctx, c, idx, offset, wlen);
 	}
 
-	/* ---- kXR_recoverWrts replay detection ----
-	 *
+	/* kXR_recoverWrts replay detection
 	 * If the journal already covers this (offset, wlen) range, this is a
 	 * replayed write from a recovering XrdCl client.  The bytes are already
 	 * on disk — skip pwrite() and return kXR_ok so the client can advance.
@@ -156,6 +160,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		xrootd_vfs_job_write_init(&job, ctx->files[idx].fd, (off_t) offset,
 								  ctx->payload ? ctx->payload : (u_char *) "",
 								  wlen);
+		job.csi = ctx->files[idx].csi;   /* phase-59 W2: update page tags */
 		xrootd_vfs_io_execute(&job);
 		nwritten = job.nio;
 		if (job.io_errno != 0) {
@@ -195,8 +200,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		                              "write");
 	}
 
-	/* ---- write-through dirty state tracking (mirrors XrdPfcFile::m_bytesWritten, m_dirtyOffset) ----
-	 *
+	/* write-through dirty state tracking (mirrors XrdPfcFile::m_bytesWritten, m_dirtyOffset)
 	 * When wt_enabled = 1 this handle has a cached DECISION to propagate writes
 	 * back to the origin at close time. We track:
 	 *   - wt_bytes_written: cumulative bytes since last sync point (for metrics)
@@ -219,4 +223,4 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 					 ctx->files[idx].path, write_detail, (size_t) nwritten);
 }
 
-/* ---- HOW: Extracts idx from req->fhandle[0], offset from be64toh(req->offset), wlen from ctx->cur_dlen. Validates write handle via xrootd_validate_write_handle() — returns early on failure. Zero-length writes return kXR_ok immediately as valid no-ops. NGX_THREADS block: calls xrootd_try_post_write_aio() with detached payload; if posted=1 sets ctx->payload=NULL and returns NGX_OK (completion callback sends response); if posted=0 falls through to sync write. Synchronous fallback: pwrite(fd, payload, wlen, offset) inline. Logs access detail "<offset>+<wlen>". On negative nwritten returns kXR_IOError; on short write (<wlen) returns kXR_IOError with "disk full?" message. Updates bytes_written counters (file+session). If wt_enabled updates wt_bytes_written and wt_dirty_offset for PFC write-through tracking. Returns XROOTD_RETURN_OK. */
+/* HOW: Extracts idx from req->fhandle[0], offset from be64toh(req->offset), wlen from ctx->cur_dlen. Validates write handle via xrootd_validate_write_handle() — returns early on failure. Zero-length writes return kXR_ok immediately as valid no-ops. NGX_THREADS block: calls xrootd_try_post_write_aio() with detached payload; if posted=1 sets ctx->payload=NULL and returns NGX_OK (completion callback sends response); if posted=0 falls through to sync write. Synchronous fallback: pwrite(fd, payload, wlen, offset) inline. Logs access detail "<offset>+<wlen>". On negative nwritten returns kXR_IOError; on short write (<wlen) returns kXR_IOError with "disk full?" message. Updates bytes_written counters (file+session). If wt_enabled updates wt_bytes_written and wt_dirty_offset for PFC write-through tracking. Returns XROOTD_RETURN_OK. */

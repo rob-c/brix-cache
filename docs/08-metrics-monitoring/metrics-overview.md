@@ -4,6 +4,35 @@ All Prometheus metrics exported by nginx-xrootd, organized by protocol layer —
 
 ---
 
+## Where each counter family fires
+
+Metrics are emitted at fixed points along the connection → request → data-plane
+pipeline. This map shows which family increments at each stage:
+
+```text
+  TCP accept            handshake/auth         operation            data plane
+  ──────────            ──────────────         ─────────            ──────────
+  ┌──────────────┐  ┌──────────────────┐  ┌────────────────┐  ┌──────────────────┐
+  │ connections_ │  │ requests_total   │  │ requests_total │  │ bytes_rx/tx_total│
+  │  total ▲     │  │  {op=login/auth} │  │  {op,status}   │  │ bytes_root_*     │
+  │ connections_ │  │ webdav_auth_total│  │ webdav_requests│  │ bytes_*_ipv4/6   │
+  │  active ▲▼   │  │ s3_auth_total    │  │ s3_requests    │  │ vo_bytes_*       │
+  └──────┬───────┘  └────────┬─────────┘  └───────┬────────┘  └────────┬─────────┘
+         │                   │                    │                    │
+         ▼                   ▼                    ▼                    ▼
+   per-conn, by          per-identity         per-operation       per-byte, split by
+   {port,auth}           unique_users_*       counters &          proto / IP-version /
+                         user_sessions        status_class        VO; cache_* on fills
+  ──────────────────────────────────────────────────────────────────────────────────
+  wire_bytes_rx/tx_total, stream_*_frames, write_stalls  ← low-level, every socket op
+
+  Label discipline (INVARIANT #8): only low-cardinality labels —
+  {port, auth, op, status, method, status_class}. Never paths, DNs, buckets,
+  keys, or UUIDs. VO is capped at 32 entries; user identity is hashed + LRU-512.
+```
+
+---
+
 ## Stream Layer Metrics
 
 ### Connection Counters

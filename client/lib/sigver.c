@@ -32,7 +32,7 @@ xrdc_sigver_maybe(xrdc_conn *c, const uint8_t *hdr24, const void *payload,
                   uint32_t plen, xrdc_status *st)
 {
     uint16_t            reqid;
-    uint64_t            seq, seq_be;
+    uint64_t            seq;
     uint8_t             mac[32];
     ClientSigverRequest sv;
     uint16_t            sid;
@@ -61,12 +61,12 @@ xrdc_sigver_maybe(xrdc_conn *c, const uint8_t *hdr24, const void *payload,
     sv.streamid[0] = (uint8_t) (sid >> 8);
     sv.streamid[1] = (uint8_t) (sid & 0xff);
     sv.requestid = htons(kXR_sigver);
-    sv.expectrid = htons(reqid);
-    sv.version = 0;
-    sv.flags = 0;                       /* payload is included in the HMAC */
-    seq_be = htobe64(seq);
-    memcpy(&sv.seqno, &seq_be, 8);
-    sv.crypto = (kXR_char) kXR_SHA256_sig;
+    {
+        xrdw_sigver_req_t b = { .expectrid = reqid, .version = 0,
+                                .flags = 0,   /* payload is included in the HMAC */
+                                .seqno = seq, .crypto = kXR_SHA256_sig };
+        xrdw_sigver_req_pack(&b, ((ClientRequestHdr *) &sv)->body);
+    }
     sv.dlen = (kXR_int32) htonl(32);
 
     if (xrdc_write_full(&c->io, &sv, sizeof(sv), st) != 0

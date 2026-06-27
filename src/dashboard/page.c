@@ -21,8 +21,7 @@
  *       differs from the source text - count bytes via sizeof()-1, not by eye.
  */
 
-/* ---- static asset: document head, inline stylesheet (theme/layout only) ---- */
-static const char ngx_xrootd_dashboard_html[] =
+/* static asset: document head, inline stylesheet (theme/layout only) */static const char ngx_xrootd_dashboard_html[] =
 "<!DOCTYPE html>\n"
 "<html lang=\"en\">\n"
 "<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
@@ -41,8 +40,7 @@ static const char ngx_xrootd_dashboard_html[] =
 "@media(max-width:860px){.toolbar,.cards,.panels{grid-template-columns:1fr}.hide-sm{display:none}.path,.identity{max-width:180px}th{top:48px}}\n"
 "@media(prefers-reduced-motion:reduce){#detail-panel{transition:none}}\n"
 "</style></head>\n"
-/* ---- static asset: page chrome (header, toolbar, cards, table, panels) ---- */
-"<body>\n"
+/* static asset: page chrome (header, toolbar, cards, table, panels) */"<body>\n"
 "<header><h1>nginx-xrootd Dashboard</h1><div><button id=\"download-config\" type=\"button\" title=\"Download the running config (secrets redacted)\">Config</button> <button id=\"export-snapshot\" type=\"button\">Export</button> <span id=\"status\" class=\"status bad\" aria-live=\"polite\">connecting</span></div></header>\n"
 "<div id=\"anon-banner\" role=\"status\" hidden style=\"padding:.5rem 1rem;background:#3a2d10;color:#ffd479;border-bottom:1px solid #5a4a1a;font-size:.85rem\">Anonymous read-only view \xe2\x80\x94 client identities, paths and other sensitive data are hidden. <a href=\"/xrootd/login\" style=\"color:#8cc8ff\">Sign in</a> for full details.</div>\n"
 "<section class=\"toolbar\" aria-label=\"Transfer filters\">\n"
@@ -60,12 +58,12 @@ static const char ngx_xrootd_dashboard_html[] =
 "<div class=\"panel\"><h2>Cluster</h2><div id=\"cluster-panel\"></div></div>\n"
 "</section>\n"
 "<section class=\"panels\" style=\"grid-template-columns:1fr\"><div class=\"panel events\" id=\"events-panel\"><h2>Recent Events</h2><div id=\"events-list\"></div></div></section>\n"
-/* ---- admin file browser (hidden unless xrootd_dashboard_browse_root set and
+/* admin file browser (hidden unless xrootd_dashboard_browse_root set and
  *      the viewer is authenticated; populated by filesBrowse() in the script) ---- */
 "<section class=\"panels\" style=\"grid-template-columns:1fr\" id=\"files-section\" hidden><div class=\"panel\"><h2>Files</h2><div id=\"files-bc\" class=\"sub\" style=\"margin-bottom:.5rem\"></div><div class=\"table-wrap\"><table aria-label=\"Files\"><thead><tr><th>Name</th><th>Owner</th><th>Size</th><th>Created</th><th class=\"hide-sm\">Modified</th><th></th></tr></thead><tbody id=\"files-tbody\"></tbody></table><div id=\"files-empty\" class=\"empty\" hidden>Empty directory</div></div></div></section>\n"
 "<aside id=\"detail-panel\" aria-label=\"Transfer detail\" aria-hidden=\"true\"><div class=\"detail-head\"><h2>Transfer Detail</h2><button id=\"detail-close\" type=\"button\">Close</button></div><pre id=\"detail-body\"></pre></aside>\n"
 /*
- * ---- static asset: inline client logic (browser-side; not compiled C) ----
+ * static asset: inline client logic (browser-side; not compiled C)
  *
  * WHAT: the client polls API+'/snapshot' every 2 s and re-renders from the
  *       latest snapshot; detail rows are fetched lazily from
@@ -108,8 +106,7 @@ static const char ngx_xrootd_dashboard_html[] =
 /* Navigate to the auth-only config endpoint; the server replies with a
  * Content-Disposition attachment so the browser downloads it directly. */
 "function downloadConfig(){window.location=API+'/config'}\n"
-/* ---- admin file browser (auth-only; 404 = feature disabled => stay hidden) ---- */
-"var filesTried=false;\n"
+/* admin file browser (auth-only; 404 = feature disabled => stay hidden) */"var filesTried=false;\n"
 "function fileDate(t){t=Number(t)||0;return t?new Date(t*1000).toLocaleString():''}\n"
 "function filesRender(d){var base=(d.path||'/').replace(/\\/+$/,'');var rows=(d.entries||[]).slice();"
 "rows.sort(function(a,b){if((a.type==='dir')!==(b.type==='dir'))return a.type==='dir'?-1:1;return String(a.name).localeCompare(String(b.name))});"

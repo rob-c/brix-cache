@@ -101,8 +101,11 @@ xrootd_cache_slice_fetch_origin(xrootd_cache_fill_t *t)
         size_t want = (size_t) slice_min_off((off_t) XROOTD_CACHE_FETCH_CHUNK,
                                              window - pos);
 
+        /* slice fill: read at the absolute origin offset, but write into the
+         * 0-relative per-slice part file at `pos`. */
         if (xrootd_cache_origin_read_chunk(t, &oc, fhandle, outfd,
                                            (uint64_t) (t->slice_start + pos),
+                                           (uint64_t) pos,
                                            want, &got) != 0)
         {
             close(outfd);

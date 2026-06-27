@@ -20,6 +20,7 @@
 #include "vfs_internal.h"
 #include "vfs_io_core.h"
 #include "backend/sd.h"
+#include "backend/csi_tagstore.h"
 
 #include "../aio/aio.h"
 #include "../dirlist/dcksm.h"
@@ -41,17 +42,9 @@
 /* Maximum wire-response payload per kXR_oksofar / kXR_ok dirlist chunk. */
 #define XROOTD_VFS_DIRLIST_CHUNK_CAP  65536UL
 
-/* ---- xrootd_vfs_io_set_error_message — copy an optional worker error string ----
- *
- * WHAT: Writes message into job->err_msg when an error buffer was supplied.
- *
- * WHY: READV/WRITEV/DIRLIST callers already surface task-local error strings.
- *      Keeping message formatting in the core lets rewired workers preserve the
- *      current client-facing diagnostics without touching connection state.
- *
- * HOW: Check err_msg/err_msg_cap, then snprintf the provided message into the
- *      bounded caller-owned buffer.
- */
+/* xrootd_vfs_io_set_error_message — copy `message` into job->err_msg when the
+ * caller supplied a bounded error buffer (READV/WRITEV/DIRLIST diagnostics), so
+ * the worker can surface client-facing errors without touching connection state. */
 static void
 xrootd_vfs_io_set_error_message(xrootd_vfs_job_t *job, const char *message)
 {
@@ -62,17 +55,9 @@ xrootd_vfs_io_set_error_message(xrootd_vfs_job_t *job, const char *message)
     snprintf(job->err_msg, job->err_msg_cap, "%s", message);
 }
 
-/* ---- xrootd_vfs_io_set_errno_message — format errno into the job error string ----
- *
- * WHAT: Formats "<prefix>: <strerror(err)>" into job->err_msg when available.
- *
- * WHY: Vector operations need segment-specific errors in the done callback, but
- *      workers cannot call protocol response helpers. This keeps the formatting
- *      local to the worker-safe core.
- *
- * HOW: If a caller supplied an error buffer, snprintf prefix and strerror(err)
- *      into it; missing buffers are a no-op.
- */
+/* xrootd_vfs_io_set_errno_message — format "<prefix>: <strerror(err)>" into
+ * job->err_msg when the caller supplied an error buffer; lets vector ops report
+ * segment-specific errors without calling protocol response helpers. */
 static void
 xrootd_vfs_io_set_errno_message(xrootd_vfs_job_t *job, const char *prefix,
     int err)
@@ -84,19 +69,11 @@ xrootd_vfs_io_set_errno_message(xrootd_vfs_job_t *job, const char *prefix,
     snprintf(job->err_msg, job->err_msg_cap, "%s: %s", prefix, strerror(err));
 }
 
-/* ---- xrootd_vfs_io_write_counted — pwrite all bytes while preserving short-I/O facts ----
- *
- * WHAT: Writes len bytes at offset, retrying EINTR and accumulating progress.
- *       Returns bytes written in *written. A zero-byte write is reported as
- *       short I/O with errno=EIO; a hard pwrite error returns NGX_ERROR.
- *
- * WHY: The public VFS full-write helper deliberately exposes only success/error,
- *      but stream done callbacks distinguish hard errors from short writes. This
- *      counted worker helper preserves that protocol-visible distinction.
- *
- * HOW: Loop until len is written; on EINTR retry; on n==0 set *short_io and EIO;
- *      on n<0 capture errno; otherwise advance cursor and continue.
- */
+/* xrootd_vfs_io_write_counted — pwrite all `len` bytes (EINTR-retried) via the
+ * Storage Driver seam, preserving the short-I/O fact the public full-write helper
+ * hides: a 0-byte write sets *short_io + EIO and a hard error returns NGX_ERROR,
+ * both with bytes-so-far in *written. The short-I/O accounting policy stays here
+ * in the VFS; the raw syscall lives in the backend. */
 static ngx_int_t
 xrootd_vfs_io_write_counted(ngx_fd_t fd, const u_char *buf, size_t len,
     off_t offset, ssize_t *written, unsigned *short_io)
@@ -150,17 +127,10 @@ xrootd_vfs_io_write_counted(ngx_fd_t fd, const u_char *buf, size_t len,
     return NGX_OK;
 }
 
-/* ---- xrootd_vfs_io_execute_read — execute READ into caller-owned memory ----
- *
- * WHAT: Reads up to job->length bytes into job->buf and records bytes read,
- *       optional CRC32c, and errno on failure.
- *
- * WHY: kXR_read and the public VFS memory-read path both need the same EOF-safe
- *      pread loop without pool allocation or protocol framing in the worker.
- *
- * HOW: Validate fd/buffer/capacity/offset, call xrootd_vfs_pread_full(), then
- *      fill nio/out_size/crc32c or io_errno.
- */
+/* xrootd_vfs_io_execute_read — EOF-safe pread of job->length into job->buf,
+ * filling nio/out_size and the optional CRC32c. (phase-59) When a CSI is present
+ * the bytes are verified against the stored page CRCs, failing the read with EIO
+ * + csi_mismatch on a mismatch rather than serving corrupt data. */
 static void
 xrootd_vfs_io_execute_read(xrootd_vfs_job_t *job)
 {
@@ -191,19 +161,24 @@ xrootd_vfs_io_execute_read(xrootd_vfs_job_t *job)
     if (job->want_pgcrc && nread > 0) {
         job->crc32c = xrootd_crc32c_value(job->buf, nread);
     }
+
+    /* phase-59 W2: verify the bytes just read against the stored page CRCs.
+     * A mismatch fails the read with EIO + the csi_mismatch flag so the handler
+     * maps it to kXR_ChkSumErr instead of serving corrupt data. */
+    if (job->csi != NULL && nread > 0) {
+        int v = xrootd_csi_verify_read((xrootd_csi_t *) job->csi, job->buf,
+                                       job->offset, nread);
+        if (v == XROOTD_CSI_MISMATCH) {
+            job->nio = -1;
+            job->io_errno = EIO;
+            job->csi_mismatch = 1;
+        }
+    }
 }
 
-/* ---- xrootd_vfs_io_execute_write — execute WRITE from caller-owned memory ----
- *
- * WHAT: Writes job->length bytes from job->buf at job->offset, reporting hard
- *       errors and short writes in job OUT fields.
- *
- * WHY: Stream write completion already owns protocol accounting and response
- *      framing; the worker needs only a shared counted pwrite body.
- *
- * HOW: Validate fd/buffer/offset, call xrootd_vfs_io_write_counted(), and store
- *      nio/out_size/io_errno/short_io for the completion callback.
- */
+/* xrootd_vfs_io_execute_write — counted pwrite of job->buf at job->offset,
+ * recording hard errors vs short writes in the job OUT fields. (phase-59) Retags
+ * aligned page CRCs for the written range (fail-open; non-fatal to the write). */
 static void
 xrootd_vfs_io_execute_write(xrootd_vfs_job_t *job)
 {
@@ -236,20 +211,20 @@ xrootd_vfs_io_execute_write(xrootd_vfs_job_t *job)
 
     job->nio = written;
     job->out_size = (size_t) written;
+
+    /* phase-59 W2: update the per-page CRC tags for the bytes just written.
+     * Full pages are (re)tagged; a trailing partial page is handled by the
+     * RMW-aware path in the engine. Tag-update failure is non-fatal to the
+     * data write (logged by the engine); fail-open keeps writes flowing. */
+    if (job->csi != NULL && written > 0) {
+        (void) xrootd_csi_update_aligned((xrootd_csi_t *) job->csi, job->buf,
+                                         job->offset, (size_t) written);
+    }
 }
 
-/* ---- xrootd_vfs_io_execute_pgread — execute page-mode read encoding ----
- *
- * WHAT: Reads file bytes directly into the final pgread wire buffer and writes
- *       per-page CRC32c words in place.
- *
- * WHY: The existing pgread worker already had a pure, optimized in-place helper.
- *      Routing it through the VFS core gives pgread the same worker contract as
- *      plain reads without reimplementing CRC framing.
- *
- * HOW: Validate inputs, call xrootd_pgread_read_encode_inplace(), and copy its
- *      nread/out_size/io_errno values into the job.
- */
+/* xrootd_vfs_io_execute_pgread — read straight into the final pgread wire buffer
+ * with per-page CRC32c words written in place (xrootd_pgread_read_encode_inplace),
+ * giving pgread the same worker contract as a plain read. */
 static void
 xrootd_vfs_io_execute_pgread(xrootd_vfs_job_t *job)
 {
@@ -277,18 +252,9 @@ xrootd_vfs_io_execute_pgread(xrootd_vfs_job_t *job)
     }
 }
 
-/* ---- xrootd_vfs_io_execute_readv — execute a pre-built readv response plan ----
- *
- * WHAT: Runs the existing coalesced readv segment helper over job->segs and
- *       records total response bytes or an error string.
- *
- * WHY: The readv handler already validates every segment and lays out the final
- *      response buffer before I/O. The core should reuse that pure helper rather
- *      than duplicating preadv/coalescing logic.
- *
- * HOW: Validate segment count, call xrootd_readv_read_segments(), and compute
- *      out_size as segment headers plus payload bytes on success.
- */
+/* xrootd_vfs_io_execute_readv — run the pre-built, pre-validated coalesced readv
+ * plan over job->segs (xrootd_readv_read_segments); out_size = per-segment headers
+ * + payload bytes on success. */
 static void
 xrootd_vfs_io_execute_readv(xrootd_vfs_job_t *job)
 {
@@ -321,19 +287,9 @@ xrootd_vfs_io_execute_readv(xrootd_vfs_job_t *job)
     job->out_size = job->nsegs * XROOTD_READV_SEGSIZE + bytes_read_total;
 }
 
-/* ---- xrootd_vfs_io_execute_writev — execute multi-segment pwrite work ----
- *
- * WHAT: Writes each writev segment to its target fd/offset and optionally fsyncs
- *       segment fds after all writes succeed.
- *
- * WHY: kXR_writev's worker duplicated pwrite/fsync handling outside VFS. Moving
- *      that loop here gives writev the same worker-safe counted-write behavior
- *      as single writes while leaving protocol accounting in the done callback.
- *
- * HOW: Iterate segments, skip zero-length entries, call the counted writer, set
- *      first-error message/state, accumulate out_size, then best-effort fsync
- *      non-empty segment fds when requested.
- */
+/* xrootd_vfs_io_execute_writev — counted pwrite of each writev segment (first
+ * error wins, with a segment-tagged message), accumulating out_size, then a
+ * best-effort fsync of the non-empty segment fds when job->do_sync. */
 static void
 xrootd_vfs_io_execute_writev(xrootd_vfs_job_t *job)
 {
@@ -396,16 +352,9 @@ xrootd_vfs_io_execute_writev(xrootd_vfs_job_t *job)
     job->nio = (ssize_t) job->out_size;
 }
 
-/* ---- xrootd_vfs_io_execute_sync — execute durable fd flush ----
- *
- * WHAT: Runs fsync() for one open main-storage fd and records errno on failure.
- *
- * WHY: Sync operations are storage I/O, so protocol handlers and writev doSync
- *      should route them through the same VFS raw-I/O chokepoint as writes.
- *
- * HOW: Validate fd, call fsync(), set nio=0 on success, or nio=-1/io_errno on
- *      failure.
- */
+/* xrootd_vfs_io_execute_sync — fsync one open fd via the Storage Driver seam so
+ * durability routes through the same chokepoint as writes; nio=0 on success,
+ * -1/io_errno on failure. */
 static void
 xrootd_vfs_io_execute_sync(xrootd_vfs_job_t *job)
 {
@@ -429,16 +378,9 @@ xrootd_vfs_io_execute_sync(xrootd_vfs_job_t *job)
     job->nio = 0;
 }
 
-/* ---- xrootd_vfs_io_execute_truncate — execute fd truncation ----
- *
- * WHAT: Runs ftruncate() for one open main-storage fd to job->offset bytes.
- *
- * WHY: Truncation changes exported file data just like write, so it belongs in
- *      the VFS-owned syscall core instead of protocol handlers.
- *
- * HOW: Validate fd and non-negative length, call ftruncate(), then capture
- *      errno or report a zero-byte successful mutation.
- */
+/* xrootd_vfs_io_execute_truncate — ftruncate one open fd to job->offset via the
+ * Storage Driver seam (truncation mutates file data, so it belongs on the VFS
+ * syscall chokepoint); nio=0 on success, -1/io_errno on failure. */
 static void
 xrootd_vfs_io_execute_truncate(xrootd_vfs_job_t *job)
 {
@@ -462,16 +404,9 @@ xrootd_vfs_io_execute_truncate(xrootd_vfs_job_t *job)
     job->nio = 0;
 }
 
-/* ---- xrootd_vfs_io_dirlist_fail — store an OPENDIR failure in the job ----
- *
- * WHAT: Records errno, marks nio as failed, and writes a bounded error string.
- *
- * WHY: The dirlist done callback already owns protocol error mapping. The core
- *      should return only the syscall fact and a task-local diagnostic string.
- *
- * HOW: Save err into job->io_errno, set nio=-1, and copy either message or
- *      strerror(err) into job->err_msg when the caller supplied one.
- */
+/* xrootd_vfs_io_dirlist_fail — record an OPENDIR failure (io_errno=err, nio=-1)
+ * plus a bounded error string (message, else strerror(err)); the done callback
+ * owns the protocol error mapping. */
 static void
 xrootd_vfs_io_dirlist_fail(xrootd_vfs_job_t *job, int err,
     const char *message)
@@ -482,15 +417,9 @@ xrootd_vfs_io_dirlist_fail(xrootd_vfs_job_t *job, int err,
                                     message != NULL ? message : strerror(err));
 }
 
-/* ---- xrootd_vfs_io_dirlist_name_unsafe — reject unframed entry names ----
- *
- * WHAT: Returns 1 when a directory entry name should be skipped.
- *
- * WHY: The kXR_dirlist wire body is newline-delimited; control bytes or the
- *      gateway's hidden control files would corrupt or pollute the listing.
- *
- * HOW: Check dot entries, the ".nginx-xrootd" prefix, and control/DEL bytes.
- */
+/* xrootd_vfs_io_dirlist_name_unsafe — 1 if a dir entry must be skipped: "."/".."
+ * , the ".nginx-xrootd" control-file prefix, or any control/DEL byte (the
+ * newline-delimited kXR_dirlist body would otherwise be corrupted/polluted). */
 static ngx_flag_t
 xrootd_vfs_io_dirlist_name_unsafe(const char *name)
 {
@@ -517,15 +446,8 @@ xrootd_vfs_io_dirlist_name_unsafe(const char *name)
     return 0;
 }
 
-/* ---- xrootd_vfs_io_dirlist_flush_chunk — finish the current oksofar chunk ----
- *
- * WHAT: Writes a kXR_oksofar header for the current chunk and advances base.
- *
- * WHY: OPENDIR builds the exact pre-existing flat multi-frame wire buffer, but
- *      the caller still owns queueing and response lifetime on the event loop.
- *
- * HOW: Build a response header at out + *base, then advance by header+payload.
- */
+/* xrootd_vfs_io_dirlist_flush_chunk — write the kXR_oksofar header for the
+ * current chunk at out + *base and advance *base past header + payload. */
 static void
 xrootd_vfs_io_dirlist_flush_chunk(xrootd_vfs_job_t *job, u_char *out,
     size_t *base, size_t cdpos)
@@ -535,17 +457,9 @@ xrootd_vfs_io_dirlist_flush_chunk(xrootd_vfs_job_t *job, u_char *out,
     *base += XRD_RESPONSE_HDR_LEN + cdpos;
 }
 
-/* ---- xrootd_vfs_io_dirlist_need_new_chunk — ensure current entry fits ----
- *
- * WHAT: Flushes a full dirlist chunk and prepares a new chunk data pointer.
- *
- * WHY: The worker-safe core must preserve the old fixed-buffer E2BIG behavior:
- *      if one more full chunk would exceed job->buf_cap, completion reports an
- *      I/O error instead of streaming an unbounded allocation.
- *
- * HOW: If cdpos+need fits, return NGX_OK. Otherwise emit kXR_oksofar, check the
- *      remaining response capacity, reset cdata/cdpos, or fail with E2BIG.
- */
+/* xrootd_vfs_io_dirlist_need_new_chunk — if the next entry won't fit the current
+ * chunk, flush a kXR_oksofar chunk and reset the data cursor; fails E2BIG when one
+ * more full chunk would exceed job->buf_cap (preserving the old fixed-buffer bound). */
 static ngx_int_t
 xrootd_vfs_io_dirlist_need_new_chunk(xrootd_vfs_job_t *job, u_char *out,
     size_t *base, u_char **cdata, size_t *cdpos, size_t need)
@@ -572,17 +486,9 @@ xrootd_vfs_io_dirlist_need_new_chunk(xrootd_vfs_job_t *job, u_char *out,
     return NGX_OK;
 }
 
-/* ---- xrootd_vfs_io_dirlist_stat_entry — format optional stat/checksum text ----
- *
- * WHAT: Fills statbuf and cksum_token for one directory entry and reports the
- *       extra bytes needed in the wire body.
- *
- * WHY: Directory stat and checksum handling is pure fd-relative work and belongs
- *      with the worker-safe scan once the directory fd is confined by PREPARE.
- *
- * HOW: fstatat() the entry without following symlinks, format the stat body, and
- *      optionally compute the checksum token via the fd-relative checksum helper.
- */
+/* xrootd_vfs_io_dirlist_stat_entry — for job->want_stat, fstatat the entry
+ * (no-follow) and format the stat body plus optional checksum token, adding the
+ * extra wire bytes to *need; NGX_DECLINED skips a vanished/unstattable entry. */
 static ngx_int_t
 xrootd_vfs_io_dirlist_stat_entry(xrootd_vfs_job_t *job, int dfd,
     const char *name, char *statbuf, size_t statbuf_cap,
@@ -627,15 +533,9 @@ xrootd_vfs_io_dirlist_stat_entry(xrootd_vfs_job_t *job, int dfd,
     return NGX_OK;
 }
 
-/* ---- xrootd_vfs_io_dirlist_emit_entry — append one entry to the wire chunk ----
- *
- * WHAT: Writes name, optional stat body, and optional checksum token.
- *
- * WHY: Keeping the byte appends in one helper makes the OPENDIR executor easier
- *      to audit for buffer-capacity invariants.
- *
- * HOW: Copy the pre-counted strings into cdata and advance cdpos.
- */
+/* xrootd_vfs_io_dirlist_emit_entry — append the pre-counted name, optional stat
+ * body, and optional checksum token into the chunk, advancing *cdpos (the byte
+ * appends live in one helper so capacity invariants are easy to audit). */
 static void
 xrootd_vfs_io_dirlist_emit_entry(xrootd_vfs_job_t *job, u_char *cdata,
     size_t *cdpos, const char *name, size_t nlen, const char *statbuf,
@@ -667,19 +567,11 @@ xrootd_vfs_io_dirlist_emit_entry(xrootd_vfs_job_t *job, u_char *cdata,
     }
 }
 
-/* ---- xrootd_vfs_io_execute_opendir — execute confined dirlist scan/build ----
- *
- * WHAT: Iterates a loop-opened confined directory fd and builds the complete
- *       kXR_dirlist flat response buffer in job->buf.
- *
- * WHY: The old dirlist worker reopened by path after confinement. Duplicating
- *      the prepared fd and using fdopendir() keeps the scan anchored to the
- *      exact directory approved on the event loop.
- *
- * HOW: Validate the job, dup rootfd, fdopendir the duplicate, emit optional
- *      dstat lead-in, append filtered entries with fd-relative fstat/checksum
- *      work, then write the final kXR_ok header and response length.
- */
+/* xrootd_vfs_io_execute_opendir — build the complete kXR_dirlist flat response in
+ * job->buf by fdopendir'ing a dup of the confined rootfd (so the scan stays
+ * anchored to the directory approved on the event loop, not reopened by path):
+ * optional dstat lead-in, then filtered entries with fd-relative fstat/checksum,
+ * then the final kXR_ok header. */
 static void
 xrootd_vfs_io_execute_opendir(xrootd_vfs_job_t *job)
 {
@@ -788,16 +680,9 @@ xrootd_vfs_io_execute_opendir(xrootd_vfs_job_t *job)
     job->nio = 0;
 }
 
-/* ---- xrootd_vfs_io_reset_outputs — clear reusable job result fields ----
- *
- * WHAT: Resets OUT fields and optional error text before execution.
- *
- * WHY: Many nginx thread tasks are reused across requests. Clearing the result
- *      area in one place prevents stale errors or byte counts from escaping.
- *
- * HOW: Assign zero/neutral values to every OUT field and NUL the caller's error
- *      buffer when one was supplied.
- */
+/* xrootd_vfs_io_reset_outputs — clear every job OUT field (and NUL the caller's
+ * error buffer) before execution, since nginx thread tasks are reused across
+ * requests and stale errors or byte counts must not escape. */
 static void
 xrootd_vfs_io_reset_outputs(xrootd_vfs_job_t *job)
 {
@@ -811,17 +696,10 @@ xrootd_vfs_io_reset_outputs(xrootd_vfs_job_t *job)
     }
 }
 
-/* ---- xrootd_vfs_io_execute — dispatch one thread-safe VFS I/O job ----
- *
- * WHAT: Executes the operation described by *job and stores the outcome in the
- *       job's OUT fields. Unknown or malformed jobs return EINVAL in io_errno.
- *
- * WHY: This is the single VFS-owned raw I/O chokepoint that stream AIO workers
- *      and inline fallbacks can call without touching event-loop-only state.
- *
- * HOW: Return immediately on NULL, clear reusable OUT fields, switch on op, and
- *      delegate to one static executor. Each executor captures its own errno.
- */
+/* xrootd_vfs_io_execute — the single VFS-owned raw-I/O chokepoint: clear the OUT
+ * fields and dispatch *job to one static executor per op (EINVAL on a NULL or
+ * unknown job). Callable from stream AIO workers and inline fallbacks without
+ * touching event-loop-only state. */
 void
 xrootd_vfs_io_execute(xrootd_vfs_job_t *job)
 {

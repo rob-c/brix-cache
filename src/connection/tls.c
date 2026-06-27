@@ -1,6 +1,3 @@
-/* ------------------------------------------------------------------ */
-/* Section: In-Protocol TLS Upgrade                                     */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: This file implements in-protocol TLS upgrade for roots:// clients using the kXR_ableTLS/kXR_haveTLS handshake mechanism. Called by recv.c when ctx->tls_pending is set (after server sends kXR_haveTLS flag indicating TLS support) — drives the TLS upgrade lifecycle including SSL connection creation, handshake initiation, and callback completion handling. On success: transitions to encrypted transport; on failure: disconnects immediately with error log.
  *

@@ -1,33 +1,7 @@
-/* ------------------------------------------------------------------ */
-/* Section: CRL Reload Timer Management                                 */
-/* ------------------------------------------------------------------ */
 /*
- * WHAT: This file implements worker process initialization for CRL (Certificate Revocation List) reload timers and CMS startup.
- *      Each timer callback rebuilds the GSI X509_STORE from the configured CRL file path at configurable intervals; worker init
- *      creates per-worker timers because each nginx worker has its own event loop and config copy. Also initializes proxy pool
- *      and starts CMS server handlers when cms_addr is configured.
- * WHY: CRL reload without full restart prevents certificate expiration or revocation from breaking operations mid-session — expired certificates are removed from trusted store at regular intervals rather than only during startup. Per-worker timer allocation prevents cross-worker event loop interference since each worker has independent event processing cycle and config copy. CMS server handlers enable bidirectional communication between nginx workers and CMS servers for cluster coordination when cms_addr is configured.
- * HOW: Two-phase lifecycle — (1) per-worker timer creation via ngx_pcalloc + ngx_add_timer with handler pointer set to xrootd_crl_reload_handler, (2) periodic callback execution: log INFO message → attempt store rebuild → keep previous store on failure → re-arm timer if interval > 0. CMS startup and proxy pool init run once during worker initialization phase. */
-
-/* ------------------------------------------------------------------ */
-/* Section: CRL Reload Timer Callback                                   */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_crl_reload_handler() is a static timer callback that rebuilds the GSI X509_STORE from the configured CRL file path
- *      at configurable intervals. Logs informational message on fire, attempts xrootd_rebuild_gsi_store(), keeps previous store on failure,
- *      re-arms timer if interval > 0. Called by nginx event loop when timer expires.
- * WHY: Periodic CRL reload ensures certificate revocation status is current without requiring full nginx restart — expired or revoked certificates are removed from trusted store at regular intervals rather than only during startup. Per-worker timer allocation prevents cross-worker event loop interference since each worker has its own independent event processing cycle and config copy. Graceful degradation: previous store retained on rebuild failure preventing session disruption.
- * HOW: Three-phase callback execution: (1) log INFO message with CRL path from ev->data (xcf reference), (2) attempt xrootd_rebuild_gsi_store() with NGX_OK/NGX_ERROR result logging, (3) re-arm timer via ngx_add_timer if interval > 0 converts seconds to milliseconds for nginx event loop. Static function — no public API exposure. */
-
-/* ---- Function: xrootd_crl_reload_handler() (static) ----
- *
- * WHAT: Static timer callback that rebuilds the GSI X509_STORE from the configured CRL file path at configurable intervals. Logs
- *      informational message on fire, attempts xrootd_rebuild_gsi_store(), keeps previous store on failure, re-arms timer if interval > 0.
- *      Called by nginx event loop when timer expires — data pointer contains xcf reference for accessing crl and crl_reload fields. */
-
-/* ---- WHY: CRL reload ensures certificate revocation status is current without requiring full nginx restart — expired or revoked
- *      certificates are removed from the trusted store at regular intervals rather than only during startup. Per-worker timer allocation
- *      prevents cross-worker event loop interference since each worker has its own independent event processing cycle and config copy. ---- */
+ * process.c — per-worker process lifecycle: init/exit hooks and the self-arming
+ * maintenance timers (CRL reload, pending-locate reaper, stage-out reaper).
+ */
 
 #include <unistd.h>
 #include <sys/stat.h>
@@ -38,8 +12,10 @@
 #include "../write/chkpoint.h"
 #include "../compat/crypto.h"
 #include "../compat/log_diag.h"
+#include "../compat/lifecycle_timing.h"
 #include "../manager/health_check.h"
 #include "../manager/pending.h"
+#include "../cache/origin/pelican_register.h"
 #include "../gsi/keypool.h"
 #include "../impersonate/lifecycle.h"
 #include "../aio/uring.h"
@@ -48,6 +24,8 @@
 #include <sanitizer/lsan_interface.h>
 #endif
 
+/* Timer callback: rebuild the GSI X509_STORE from the configured CRL file at the
+ * reload interval, then re-arm the timer. */
 static void
 xrootd_crl_reload_handler(ngx_event_t *ev)
 {
@@ -106,6 +84,8 @@ xrootd_crl_reload_handler(ngx_event_t *ev)
  */
 static ngx_event_t  xrootd_pending_reap_timer;
 
+/* Timer callback: reap expired slots from the CMS pending-locate registry
+ * (xrootd_pending_reap_expired), then re-arm the timer. */
 static void
 xrootd_pending_reap_handler(ngx_event_t *ev)
 {
@@ -132,6 +112,8 @@ xrootd_pending_reap_handler(ngx_event_t *ev)
 #define XROOTD_STAGE_REAP_INTERVAL_MS  60000
 static ngx_event_t  xrootd_stage_reap_timer;
 
+/* Timer callback: complete/reap stale FRM stage-out commits
+ * (xrootd_stage_reap_all), then re-arm the timer. */
 static void
 xrootd_stage_reap_handler(ngx_event_t *ev)
 {
@@ -146,33 +128,15 @@ xrootd_stage_reap_handler(ngx_event_t *ev)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Section: Worker Process Initialization                               */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: ngx_stream_xrootd_init_process() performs worker process initialization after nginx fork — initializes proxy pool, starts CMS
- *      server handlers when cms_addr is configured, creates per-worker CRL reload timers for servers with xrootd_crl_reload enabled. Timers
- *      are allocated per-worker because each nginx worker has its own event loop and config copy (X509_STORE* shared within a worker).
- * WHY: Worker initialization is critical because each forked worker has independent event loop, config copy, and memory space — timers must be allocated in the worker's pool rather than shared across processes. Proxy pool initialization enables upstream connection management for proxy mode operations. CMS server handlers enable bidirectional communication between nginx workers and CMS servers when cms_addr is configured. CRL reload ensures certificate revocation status is current without requiring full restart. Three-phase init order: (1) proxy pool → (2) CMS handlers → (3) CRL timers prevents dependency ordering issues.
- * HOW: Three-phase initialization: (1) xrootd_proxy_pool_init() enables upstream connection management, (2) iterate all server blocks starting ngx_xrootd_cms_start() when cms_addr configured, (3) conditional timer creation filtering by auth mode (GSI/BOTH required), crl path non-empty, and interval > 0 — allocates ngx_event_t via ngx_pcalloc, sets handler/data/log pointers, then ngx_add_timer converts seconds to milliseconds. Returns NGX_OK on success; NGX_ERROR on timer allocation failure. */
-
-/* ---- Function: ngx_stream_xrootd_init_process() ----
- *
- * WHAT: Performs worker process initialization after nginx fork — initializes proxy pool, starts CMS server handlers when cms_addr is
- *      configured, creates per-worker CRL reload timers for servers with xrootd_crl_reload enabled (requires GSI auth or BOTH + crl path +
- *      interval). Returns NGX_OK on success; NGX_ERROR on timer allocation failure. Called once per worker process during startup. */
-
-/* ---- WHY: Worker initialization is critical because each forked worker has independent event loop, config copy, and memory space — timers
- *      must be allocated in the worker's pool rather than shared across processes. Proxy pool initialization enables upstream connection
- *      management for proxy mode operations. CMS server handlers enable bidirectional communication between nginx workers and CMS servers
- *      when cms_addr is configured. CRL reload ensures certificate revocation status is current without requiring full restart. ---- */
-
 /*
  * Worker process init: start CRL reload timers for every server block that
  * has xrootd_crl_reload configured. Timers are per-worker because each
  * nginx worker process has its own event loop and its own copy of the config
  * pointers (but the X509_STORE* is shared within a worker).
  */
+/* Per-worker init after fork: bring up the proxy pool, start the CMS server
+ * handlers when cms_addr is set, and arm the CRL/pending/stage maintenance
+ * timers.  Returns NGX_OK / NGX_ERROR. */
 ngx_int_t
 ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
 {
@@ -181,7 +145,13 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
     ngx_stream_xrootd_srv_conf_t  *xcf;
     ngx_uint_t                     i;
     ngx_uint_t                     gsi_seen = 0;
+    ngx_stream_xrootd_srv_conf_t  *gsi_xcf = NULL;  /* first GSI block: keypool cfg */
     ngx_uint_t                     manager_seen = 0;
+    xrootd_phase_timer_t           pt;
+    u_char                         ctx[64];
+
+    /* Permanent per-worker boot-cost breakdown (one NOTICE line at the end). */
+    xrootd_phase_timer_start(&pt);
 
     if (!xrootd_crypto_init()) {
         ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
@@ -224,6 +194,7 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
     if (xrootd_uring_init_worker(cycle) != NGX_OK) {
         return NGX_ERROR;
     }
+    xrootd_phase_mark(&pt, "uring");
 
     for (i = 0; i < cmcf->servers.nelts; i++) {
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
@@ -263,6 +234,9 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
 
         if (xcf->auth == XROOTD_AUTH_GSI || xcf->auth == XROOTD_AUTH_BOTH) {
             gsi_seen = 1;   /* Phase 33: warm the GSI DH key pool below */
+            if (gsi_xcf == NULL) {
+                gsi_xcf = xcf;   /* keypool sizing + thread pool come from here */
+            }
         }
 
         if (xcf->manager_mode) {
@@ -302,6 +276,10 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         /* Phase 22: start the active health-check timer (no-op if disabled). */
         xrootd_hc_manager_start(cycle, xcf);
 
+        /* Pelican: start the cache advertisement timer (no-op unless
+         * xrootd_cache_advertise is on with a key + data-url configured). */
+        xrootd_cache_pelican_schedule_advertise(cycle, xcf);
+
         if ((xcf->auth != XROOTD_AUTH_GSI && xcf->auth != XROOTD_AUTH_BOTH)
             || xcf->crl.len == 0 || xcf->crl_reload == 0)
         {
@@ -330,11 +308,19 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         xrootd_token_jwks_schedule_refresh(cycle, xcf);
     }
 
+    xrootd_phase_mark(&pt, "servers");
+
     /* Phase 33: warm the per-worker GSI ephemeral-DH key pool so kXGC_certreq
-     * never runs keygen on the event thread under a concurrent handshake burst. */
-    if (gsi_seen) {
-        xrootd_gsi_keypool_init(cycle);
+     * never runs keygen on the event thread under a concurrent handshake burst.
+     * Only a small seed is generated synchronously here; the pool fills to its
+     * configured size off the event thread (via the GSI server's thread pool) so
+     * worker startup is not blocked on the full warm-up. */
+    if (gsi_seen && gsi_xcf != NULL) {
+        xrootd_gsi_keypool_init(cycle, gsi_xcf->common.thread_pool,
+                                gsi_xcf->gsi_keypool_size,
+                                gsi_xcf->gsi_keypool_seed);
     }
+    xrootd_phase_mark(&pt, "keypool");
 
     /* Phase 35: arm the FRM expiry reaper (worker 0 only; no-op when disabled). */
     frm_reaper_register(cycle);
@@ -365,9 +351,13 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         ngx_add_timer(&xrootd_stage_reap_timer, XROOTD_STAGE_REAP_FIRST_MS);
     }
 
+    ngx_snprintf(ctx, sizeof(ctx) - 1, "xrootd init_process[w%ui]%Z", ngx_worker);
+    xrootd_phase_timer_log(&pt, cycle->log, (const char *) ctx);
+
     return NGX_OK;
 }
 
+/* Per-worker teardown at exit: release process-scoped resources. */
 void
 xrootd_exit_process(ngx_cycle_t *cycle)
 {

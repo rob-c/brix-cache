@@ -45,7 +45,7 @@ xrootd_krb5_free_error(ngx_stream_xrootd_srv_conf_t *xcf, const char *msg)
 }
 #endif
 
-/* ---- Function: xrootd_configure_krb5_auth() -------------------------------
+/*
  *
  * WHAT: Validate krb5 directives and pre-load the krb5_context, acceptor
  *       principal and keytab into xcf for later use by the auth handler.

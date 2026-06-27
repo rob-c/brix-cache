@@ -23,13 +23,14 @@ from XRootD.client.flags import (
     AccessMode
 )
 from backend_matrix import selected_backend_name
+from official_interop_lib import worker_prefix
 
 # ---------------------------------------------------------------------------
 # Configuration & Fixtures
 # ---------------------------------------------------------------------------
 
 BACKEND = selected_backend_name()
-PREFIX = "_api_surface_"
+PREFIX = worker_prefix("_api_surface_")  # per-xdist-worker; see official_interop_lib
 
 @pytest.fixture(scope="module")
 def _setup_env(test_env, ref_xrootd, ref_xrootd_gsi_shared):

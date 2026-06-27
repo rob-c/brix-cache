@@ -26,43 +26,29 @@
  */
 
 #include "s3.h"
-#include "list_cache.h"
 #include "../compat/http_query.h"
 #include <string.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-
-/* Same parse policy as V2: decode, + → space, reject NUL, allow empty value. */
-#define S3_LIST_QUERY_FLAGS \
-    (XROOTD_HTTP_QUERY_DECODE_VALUE | XROOTD_HTTP_QUERY_PLUS_TO_SPACE \
-     | XROOTD_HTTP_QUERY_REJECT_NUL | XROOTD_HTTP_QUERY_ALLOW_EMPTY)
 
 ngx_int_t
 s3_handle_list_v1(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 {
-    u_char      prefix_buf[S3_MAX_PARAM]    = { 0 };
-    u_char      delimiter_buf[S3_MAX_PARAM] = { 0 };
-    u_char      marker_buf[S3_MAX_KEY]      = { 0 };
-    u_char      max_keys_buf[32]            = { 0 };
-    u_char      encoding_type_buf[8]        = { 0 };
+    u_char       prefix_buf[S3_MAX_PARAM]    = { 0 };
+    u_char       delimiter_buf[S3_MAX_PARAM] = { 0 };
+    u_char       marker_buf[S3_MAX_KEY]      = { 0 };
+    u_char       encoding_type_buf[8]        = { 0 };
     int          max_keys;
     int          url_encode = 0;
-    ngx_array_t *entries;
     s3_entry_t  *items = NULL;
     int          total = 0;
-    int          cached = 0;
-    time_t       dir_mtime = 0;
-    int          start_idx = 0;
-    int         end_idx;
-    int         truncated;
-    int         contents = 0;
-    int         prefixes = 0;
-    ngx_buf_t  *response_buf;
-    size_t      xml_capacity;
-    u_char     *xml;
-    size_t      xml_len = 0;
-    char        iso_buf[32];
+    int          start_idx;
+    int          end_idx;
+    int          truncated;
+    int          contents = 0;
+    int          prefixes = 0;
+    size_t       xml_capacity;
+    u_char      *xml;
+    size_t       xml_len = 0;
+    ngx_int_t    rc;
 
     xrootd_http_query_get(r->args, "prefix",        (char *) prefix_buf,        sizeof(prefix_buf),        S3_LIST_QUERY_FLAGS);
     xrootd_http_query_get(r->args, "delimiter",     (char *) delimiter_buf,     sizeof(delimiter_buf),     S3_LIST_QUERY_FLAGS);
@@ -73,83 +59,19 @@ s3_handle_list_v1(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
         url_encode = 1;
     }
 
-    max_keys = (int) cf->max_keys;
-    if (xrootd_http_query_get(r->args, "max-keys",
-                              (char *) max_keys_buf, sizeof(max_keys_buf),
-                              S3_LIST_QUERY_FLAGS) > 0)
+    max_keys = s3_list_parse_max_keys(r, (int) cf->max_keys);
+
+    if (s3_list_collect_sorted(r, cf, (const char *) prefix_buf,
+                               (const char *) delimiter_buf,
+                               &items, &total) != NGX_OK)
     {
-        char *endp;
-        long  mk;
-
-        errno = 0;
-        mk = strtol((const char *) max_keys_buf, &endp, 10);
-        if (errno == 0 && endp != (char *) max_keys_buf
-            && mk > 0 && mk < max_keys)
-        {
-            max_keys = (int) mk;
-        }
-    }
-    if (max_keys <= 0) {
-        max_keys = 1000;
+        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* W6c: per-worker sorted-listing cache (see list_objects_v2.c / list_cache.c). */
-    if (cf->list_cache) {
-        struct stat rst;
-        if (stat((const char *) cf->common.root.data, &rst) == 0) {
-            dir_mtime = rst.st_mtime;
-        }
-        cached = s3_list_cache_get(r, (const char *) cf->common.root.data,
-                                   (const char *) prefix_buf,
-                                   (const char *) delimiter_buf,
-                                   dir_mtime, cf->list_cache_ttl,
-                                   &items, &total);
-    }
-
-    if (!cached) {
-        /* phase-45 W1: growable, pool-backed entry array (see list_objects_v2.c). */
-        entries = ngx_array_create(r->pool, 256, sizeof(s3_entry_t));
-        if (entries == NULL) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        s3_walk(r->connection->log,
-                (const char *) cf->common.root.data,
-                (const char *) cf->common.root.data,
-                "",
-                (const char *) prefix_buf,
-                (const char *) delimiter_buf,
-                entries, S3_LIST_MAX_ENTRIES);
-
-        total = (int) entries->nelts;
-        items = entries->elts;
-
-        qsort(items, (size_t) total, sizeof(s3_entry_t), entry_cmp);
-
-        if (cf->list_cache) {
-            s3_list_cache_put(r->connection->log,
-                              (const char *) cf->common.root.data,
-                              (const char *) prefix_buf,
-                              (const char *) delimiter_buf,
-                              dir_mtime, items, total);
-        }
-    }
-
-    /* V1 marker is the exclusive start key — skip everything <= marker. */
-    if (marker_buf[0] != '\0') {
-        for (start_idx = 0; start_idx < total; start_idx++) {
-            if (strcmp(items[start_idx].key, (const char *) marker_buf) > 0) {
-                break;
-            }
-        }
-    }
-
-    end_idx = start_idx + max_keys;
-    if (end_idx > total) {
-        end_idx = total;
-    }
-    truncated = (end_idx < total);
+    /* V1 marker is the exclusive start key — same skip semantics as V2. */
+    truncated = s3_list_paginate(items, total, (const char *) marker_buf,
+                                 max_keys, &start_idx, &end_idx);
 
     xml_capacity = 512
                  + (size_t) cf->bucket.len + 32
@@ -193,60 +115,15 @@ s3_handle_list_v1(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
                         strlen(items[end_idx - 1].key));
     }
 
-    for (int entry_index = start_idx; entry_index < end_idx; entry_index++) {
-        s3_entry_t *entry = &items[entry_index];
-
-        if (entry->is_prefix) {
-            prefixes++;
-            XML_APPEND("<CommonPrefixes>");
-            XML_APPEND_ELEM("Prefix", entry->key, strlen(entry->key));
-            XML_APPEND("</CommonPrefixes>");
-        } else {
-            char encoded_key[S3_MAX_KEY * 3 + 1];
-
-            /* phase-45 W1: stat only the emitted page; skip vanished objects. */
-            if (s3_entry_fill_stat(r->connection->log,
-                                   (const char *) cf->common.root.data,
-                                   entry) != NGX_OK) {
-                continue;
-            }
-
-            contents++;
-            xrootd_format_iso8601(entry->mtime, iso_buf, sizeof(iso_buf));
-            XML_APPEND("<Contents>");
-            if (url_encode) {
-                xrootd_http_urlencode((const u_char *) entry->key,
-                                      strlen(entry->key),
-                                      encoded_key, sizeof(encoded_key), "");
-                XML_APPEND_ELEM("Key", encoded_key, strlen(encoded_key));
-            } else {
-                XML_APPEND_ELEM("Key", entry->key, strlen(entry->key));
-            }
-            XML_APPEND("<LastModified>%s</LastModified>", iso_buf);
-            XML_APPEND("<ETag>%s</ETag>", entry->etag);
-            XML_APPEND("<Size>%lld</Size>", (long long) entry->size);
-            XML_APPEND("<StorageClass>STANDARD</StorageClass>");
-            XML_APPEND("</Contents>");
-        }
+    rc = s3_list_emit_entries(r, cf, items, start_idx, end_idx,
+                              url_encode, 0 /* fetch_owner: V1 has no Owner */,
+                              xml, &xml_len, xml_capacity,
+                              &contents, &prefixes);
+    if (rc != NGX_OK) {
+        return rc;
     }
 
     XML_APPEND("</ListBucketResult>");
 
-    response_buf = ngx_create_temp_buf(r->pool, xml_len + 4);
-    if (response_buf == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    response_buf->last = ngx_cpymem(response_buf->last, xml, xml_len);
-    response_buf->last_buf = 1;
-
-    XROOTD_S3_METRIC_ADD(list_contents_total, (size_t) contents);
-    XROOTD_S3_METRIC_ADD(list_common_prefixes_total, (size_t) prefixes);
-    if (truncated) {
-        XROOTD_S3_METRIC_INC(list_truncated_total);
-    }
-    XROOTD_S3_METRIC_ADD(bytes_tx_total, xml_len);
-
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
-        (ngx_str_t) ngx_string("application/xml"), response_buf);
+    return s3_list_finalize(r, xml, xml_len, contents, prefixes, truncated);
 }

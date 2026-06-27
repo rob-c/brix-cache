@@ -46,8 +46,7 @@
 /* Maximum length for an S3 access key or secret (generous upper bound). */
 #define S3KEY_BUFSZ 512
 
-/* ---- ~/.aws/credentials INI parser -------------------------------------- */
-
+/* ~/.aws/credentials INI parser */
 /*
  * trim_inplace — strip leading and trailing ASCII whitespace from a string.
  *
@@ -211,8 +210,7 @@ try_credentials_file(char *access_out, size_t access_sz,
                                          secret_out, secret_sz);
 }
 
-/* ---- key discovery ------------------------------------------------------ */
-
+/* key discovery */
 /*
  * discover_s3_keys — probe all three discovery levels; fill access + secret.
  *
@@ -255,8 +253,7 @@ discover_s3_keys(const xrdc_cred_config *cfg,
     return try_credentials_file(access_out, access_sz, secret_out, secret_sz);
 }
 
-/* ---- handler callbacks -------------------------------------------------- */
-
+/* handler callbacks */
 /*
  * s3keys_available — 1 iff a complete S3 key pair is obtainable.
  *
@@ -315,8 +312,7 @@ s3keys_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
     return 0;
 }
 
-/* ---- handler accessor --------------------------------------------------- */
-
+/* handler accessor */
 static const xrdc_cred_handler s_s3keys_handler = {
     .kind      = XRDC_CRED_S3KEYS,
     .available = s3keys_available,

@@ -15,7 +15,10 @@ Everything here is configured once at startup (`../config/postconfiguration.c` c
 | File | Responsibility |
 |---|---|
 | `registry.h` | Public registry API + the `xrootd_srv_entry_t` / `xrootd_srv_table_t` / `xrootd_srv_snapshot_entry_t` types; capacity constants (`XROOTD_SRV_REGISTRY_SLOTS`, `XROOTD_SRV_MAX_PATHS`). |
-| `registry.c` | The shared-memory server table and all its operations: zone init/configure, `xrootd_srv_register` / `_update_load` / `_unregister`, path-prefix matcher `srv_path_matches`, server selection `xrootd_srv_select` (read=least-loaded / write=most-free), `xrootd_srv_locate_all` (lateral-redirect listing), blacklist/undrain, health-check slot helpers (`_hc_claim/_pass/_fail`), `tried/triedrc` retry-exhaustion logic, per-path deregistration, aggregate-space and snapshot exporters. |
+| `registry.c` | The shared-memory server table core: zone init/configure (owns the `xrootd_srv_shm_zone`/`_mutex`/`_nslots` globals), `xrootd_srv_register` / `_update_load` / `_unregister`. *(Phase 38: split.)* |
+| `registry_select.c` | Server selection (`srv_select_core`, read=least-loaded / write=most-free), path-prefix matcher, count, `tried/triedrc` retry-exhaustion, blacklist/undrain. *(Phase 38 split of `registry.c`.)* |
+| `registry_health.c` | Health-check slot helpers (`_hc_claim/_pass/_fail`), `xrootd_srv_locate_all` (lateral-redirect listing), per-path deregistration, aggregate-space + snapshot exporters. *(Phase 38 split of `registry.c`.)* |
+| `registry_internal.h` | Private split contract shared by `registry*.c` (the `extern` SHM-state decls + prototypes). |
 | `redir_cache.h` | Redirect-collapse cache API + `XROOTD_REDIR_CACHE_SLOTS` default. |
 | `redir_cache.c` | FNV-1a-hashed, bounded-probe open-addressing cache in SHM: `xrootd_redir_cache_lookup` / `_insert` with TTL expiry, free/expired-slot reuse, and soonest-to-expire eviction within the probe window. |
 | `pending.h` | Pending-locate table API + the `xrootd_pending_locate_t` / `xrootd_pending_table_t` types; `XROOTD_PENDING_LOCATE_SLOTS` (32). |

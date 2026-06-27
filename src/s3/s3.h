@@ -132,6 +132,15 @@ typedef struct {
 #define S3_LIST_MAX_ENTRIES  65536
 
 /*
+ * S3 list query parse policy (shared by V1/V2 and list_common.c): URL-decode the
+ * value, + → space, reject embedded NUL, allow an empty value (e.g. delimiter=).
+ * Expands to XROOTD_HTTP_QUERY_* flags — callers must include compat/http_query.h.
+ */
+#define S3_LIST_QUERY_FLAGS \
+    (XROOTD_HTTP_QUERY_DECODE_VALUE | XROOTD_HTTP_QUERY_PLUS_TO_SPACE \
+     | XROOTD_HTTP_QUERY_REJECT_NUL | XROOTD_HTTP_QUERY_ALLOW_EMPTY)
+
+/*
  * s3_entry_t — one object or CommonPrefix returned by ListObjects (V1/V2).
  * is_prefix == 1 means this entry represents a directory delimiter
  * (e.g. "photos/" when delimiter="/"), not an actual file.
@@ -285,6 +294,37 @@ int entry_cmp(const void *a, const void *b);
  */
 ngx_int_t s3_entry_fill_stat(ngx_log_t *log, const char *root, s3_entry_t *e);
 
+/* list_common.c — building blocks shared verbatim by the V1/V2 list emitters
+ * (they differ only in pagination param + a few element names). */
+
+/* Parse `max-keys`, clamped to (0, default_max); default_max when absent/invalid
+ * (1000 floor when default_max is non-positive). */
+int s3_list_parse_max_keys(ngx_http_request_t *r, int default_max);
+
+/* Acquire the sorted (key + is_prefix) listing for (root, prefix, delimiter):
+ * per-worker cache or s3_walk()+qsort(entry_cmp), then cache it. *items and
+ * *total describe a sorted array. NGX_OK, or NGX_ERROR on allocation failure. */
+ngx_int_t s3_list_collect_sorted(ngx_http_request_t *r,
+    ngx_http_s3_loc_conf_t *cf, const char *prefix, const char *delimiter,
+    s3_entry_t **items, int *total);
+
+/* Skip entries whose key <= start_after (NULL/"" = from start), then take up to
+ * max_keys. Fills *start_idx and *end_idx; returns 1 if truncated, else 0. */
+int s3_list_paginate(const s3_entry_t *items, int total, const char *start_after,
+    int max_keys, int *start_idx, int *end_idx);
+
+/* Append the Contents/CommonPrefixes body for [start_idx, end_idx) into the flat
+ * XML buffer (cursor *xml_len_io); lazily stats + skips vanished objects. Counts
+ * land in *contents_out and *prefixes_out. NGX_OK, or 500 on buffer overflow. */
+ngx_int_t s3_list_emit_entries(ngx_http_request_t *r,
+    ngx_http_s3_loc_conf_t *cf, s3_entry_t *items, int start_idx, int end_idx,
+    int url_encode, int fetch_owner, u_char *xml, size_t *xml_len_io,
+    size_t xml_capacity, int *contents_out, int *prefixes_out);
+
+/* Response tail: copy XML into a buffer, record list metrics, send as XML. */
+ngx_int_t s3_list_finalize(ngx_http_request_t *r, const u_char *xml,
+    size_t xml_len, int contents, int prefixes, int truncated);
+
 /* HEAD /bucket/key → metadata */
 ngx_int_t s3_handle_head(ngx_http_request_t *r,
                           const char *fs_path,
@@ -396,6 +436,15 @@ ngx_int_t s3_send_xml_error(ngx_http_request_t *r,
                               ngx_uint_t status,
                               const char *code,
                               const char *message);
+
+/* Increment the events_total[event] counter, then send the S3 XML error — the
+ * common "bump a diagnostic metric and return an error" idiom in one call.
+ * `event` is an XROOTD_S3_EVENT_* index. */
+ngx_int_t s3_fail(ngx_http_request_t *r,
+                  ngx_uint_t status,
+                  const char *code,
+                  const char *message,
+                  int event);
 
 
 /* -------------------------------------------------------------------------

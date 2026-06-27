@@ -7,7 +7,7 @@
  * VO list format.
  */
 
-/* ---- Section: Duplicate Detection & Append Helper ----
+/*
  *
  * WHAT: xrootd_append_vo_token() — deduplicates and appends a VO name to both
  * primary_vo (single VO) and vo_list (comma-separated multi-VO string). Returns
@@ -81,7 +81,7 @@ xrootd_append_vo_token(char *primary_vo, size_t primary_vo_sz,
     return 1;
 }
 
-/* ---- Section: FQAN → VO Name Parser ----
+/*
  *
  * WHAT: xrootd_fqan_to_vo() — extracts the VO name from a Fully-Qualified Attribute
  * Name (FQAN). FQAN format: "/VO/Role=X/Capability=Y" — the VO is the first path
@@ -118,7 +118,7 @@ xrootd_fqan_to_vo(const char *fqan, char *vo, size_t vo_sz)
     return 1;
 }
 
-/* ---- Section: VOMS Entry → VO List Collector ----
+/*
  *
  * WHAT: xrootd_collect_voms_vos() — iterates over all VOMS attribute certificate
  * entries in vd->data and populates primary_vo (single VO name) and vo_list

@@ -42,7 +42,6 @@ token_scope_end(const char *scope_start)
     return scope_end;
 }
 
-/* ---- Function: token_scope_copy_path() — WLCG scope path copy with "/" default ---- */
 /* WHAT: Copies a permission:path path component into the xrootd_token_scope_t structure, enforcing XROOTD_SCOPE_PATH_MAX boundary. When path_len == 0 (no path specified in "permission:" token), defaults to "/" which matches all paths per WLCG token profile convention. Enforces buffer overflow prevention via truncation at XROOTD_SCOPE_PATH_MAX - 1 when input exceeds capacity.
  * WHY: WLCG scope tokens use "storage.read:/atlas/reco" format where the path component grants access only to specific directories. Defaulting empty paths to "/" follows WLCG convention (unscoped permission = full access). Buffer overflow guard prevents malicious tokens with oversized path components from corrupting downstream scope validation logic.
  * HOW: Three-step → if path_len == 0, set scope->path = "/" default; else truncate at XROOTD_SCOPE_PATH_MAX - 1 for boundary safety; memcpy(path) into scope->path with null termination at truncated length. */
@@ -65,7 +64,6 @@ token_scope_copy_path(xrootd_token_scope_t *scope, const char *path,
     scope->path[path_len] = '\0';
 }
 
-/* ---- Function: token_scope_set_permission() — WLCG storage permission string matcher ---- */
 /* WHAT: Parses a WLCG "storage.*" permission string into boolean flags on xrootd_token_scope_t using exact-length memcmp comparison. Recognizes five permissions: storage.read (12 chars), storage.write (13 chars), storage.create (14 chars), storage.modify (14 chars), and storage.stage (13 chars — treated as read-only). Length-based matching prevents substring attacks where "storage.re" could incorrectly match "storage.read".
  * WHY: WLCG token scope claims use standardized permission strings; exact-length memcmp ensures precise matching without partial-string ambiguity. Storage.stage is mapped to read-only (not write) per WLCG staging semantics — staged files are read-accessible but not writable until committed. Length-based validation prevents malformed tokens from granting unintended permissions through substring overlap.
  * HOW: Sequential memcmp comparison against five known permission strings with exact length checks (12/13/14 chars), setting scope->read/write/create/modify/stage flags accordingly on match. Returns immediately after first positive match; storage.stage falls-through sets read=1 as final case. */
@@ -183,7 +181,8 @@ xrootd_token_parse_scopes(const char *scope_str,
 }
 
 /*
- * scope_path_matches — decide whether scope_path covers request_path.
+ * xrootd_token_scope_path_matches — decide whether scope_path covers
+ * request_path.
  *
  * Rules:
  *   - scope "/" matches every path.
@@ -198,9 +197,14 @@ xrootd_token_parse_scopes(const char *scope_str,
  * Preconditions: both scope_path and request_path are NUL-terminated,
  *   absolute paths (start with '/').
  * Returns: 1 if scope covers the request path, 0 otherwise.
+ *
+ * Exposed (non-static) so the SciTokens issuer registry (issuer_registry.c)
+ * reuses the exact same boundary-checked prefix logic for base_path /
+ * restricted_path scoping (phase-59 W1).
  */
-static int
-scope_path_matches(const char *scope_path, const char *request_path)
+int
+xrootd_token_scope_path_matches(const char *scope_path,
+    const char *request_path)
 {
     size_t scope_len;
     char   next;
@@ -238,7 +242,7 @@ xrootd_token_check_read(const xrootd_token_scope_t *scopes, int scope_count,
 
     for (scope_index = 0; scope_index < scope_count; scope_index++) {
         if (scopes[scope_index].read
-            && scope_path_matches(scopes[scope_index].path, path))
+            && xrootd_token_scope_path_matches(scopes[scope_index].path, path))
         {
             return 1;
         }
@@ -274,7 +278,7 @@ xrootd_token_check_write(const xrootd_token_scope_t *scopes, int scope_count,
          */
         if ((scopes[scope_index].write || scopes[scope_index].create
              || scopes[scope_index].modify)
-            && scope_path_matches(scopes[scope_index].path, path))
+            && xrootd_token_scope_path_matches(scopes[scope_index].path, path))
         {
             return 1;
         }

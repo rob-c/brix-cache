@@ -402,13 +402,96 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
  * missing required headers via 400 Bad Request. Uses temporary file staging (<path>.nginx-xrootd-tpc.<pid>.<time>)
  * for pull mode to ensure atomic commit — rename/link on success, unlink on failure.
  */
+
+/* OAuth2/OIDC credential delegation for an HTTP-TPC pull: parse the Credential /
+ * Credentials request header and, unless it is absent or "none", obtain a
+ * delegated token for source_url and inject it as an "Authorization: Bearer"
+ * entry into transfer_headers (consumed by the curl subprocess).  Returns NGX_OK
+ * to continue (whether or not delegation happened), or an NGX_HTTP_* status the
+ * caller must return on a parse/obtain/alloc failure. */
+static ngx_int_t
+webdav_tpc_apply_credential_delegation(ngx_http_request_t *r,
+    ngx_http_xrootd_webdav_loc_conf_t *conf, const char *source_url,
+    ngx_array_t *transfer_headers)
+{
+    ngx_table_elt_t       *credential_hdr;
+    xrootd_tpc_cred_mode_e mode;
+    ngx_str_t              delegated_token;
+    ngx_table_elt_t       *auth_hdr;
+    const char            *subject_token = NULL;
+    ngx_int_t              rc;
+
+    credential_hdr = webdav_tpc_find_header(r, "Credential",
+                                            sizeof("Credential") - 1);
+    if (credential_hdr == NULL) {
+        credential_hdr = webdav_tpc_find_header(r, "Credentials",
+                                                sizeof("Credentials") - 1);
+    }
+    if (credential_hdr == NULL
+        || webdav_tpc_header_value_equals(&credential_hdr->value, "none"))
+    {
+        return NGX_OK;
+    }
+
+    mode = webdav_tpc_cred_parse_mode(
+        (const char *) credential_hdr->value.data,
+        credential_hdr->value.len);
+
+    if (mode == XROOTD_TPC_CRED_UNKNOWN) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                      "xrootd_webdav: unsupported HTTP-TPC credential "
+                      "delegation mode \"%V\"", &credential_hdr->value);
+        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_BAD_REQUEST]);
+        return NGX_HTTP_BAD_REQUEST;
+    }
+
+    /* Extract the subject token from the request's Authorization header. */
+    auth_hdr = webdav_tpc_find_header(r, "Authorization",
+                                      sizeof("Authorization") - 1);
+    rc = webdav_tpc_extract_subject_token(r, auth_hdr, &subject_token);
+    if (rc != NGX_OK) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    rc = webdav_tpc_cred_obtain_token(r, mode, source_url,
+                                      subject_token,
+                                      conf->tpc_cred.token_scope.len > 0
+                                          ? (const char *) conf->tpc_cred.token_scope.data
+                                          : "storage.read",
+                                      &delegated_token);
+    if (rc != NGX_OK) {
+        return NGX_HTTP_BAD_GATEWAY;
+    }
+
+    /* Inject delegated token as Authorization header. */
+    {
+        size_t total_len = sizeof("Authorization: Bearer ") - 1
+                           + delegated_token.len;
+        ngx_str_t *dst = ngx_array_push(transfer_headers);
+        if (dst == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        dst->data = ngx_pnalloc(r->pool, total_len + 1);
+        if (dst->data == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ngx_memcpy(dst->data, "Authorization: Bearer ",
+                   sizeof("Authorization: Bearer ") - 1);
+        ngx_memcpy(dst->data + sizeof("Authorization: Bearer ") - 1,
+                   delegated_token.data, delegated_token.len);
+        dst->len = total_len;
+        dst->data[dst->len] = '\0';
+    }
+
+    return NGX_OK;
+}
+
 ngx_int_t
 ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
 {
     ngx_http_xrootd_webdav_loc_conf_t *conf;
     ngx_table_elt_t *source_hdr;
     ngx_table_elt_t *dest_hdr;
-    ngx_table_elt_t *credential_hdr;
     ngx_table_elt_t *overwrite_hdr;
     ngx_table_elt_t *streams_hdr;
     ngx_array_t     *transfer_headers = NULL;
@@ -488,77 +571,13 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
-    credential_hdr = webdav_tpc_find_header(r, "Credential",
-                                            sizeof("Credential") - 1);
-    if (credential_hdr == NULL) {
-        credential_hdr = webdav_tpc_find_header(r, "Credentials",
-                                                sizeof("Credentials") - 1);
+    /* OAuth2/OIDC credential delegation: obtain a delegated token for the source
+     * and inject it into transfer_headers before the curl subprocess runs. */
+    rc = webdav_tpc_apply_credential_delegation(r, conf, source_url,
+                                                transfer_headers);
+    if (rc != NGX_OK) {
+        return rc;
     }
-
-    /*
-     * OAuth2/OIDC credential delegation: parse the Credential header and
-     * obtain a delegated token for the source.  The delegated token is
-     * injected into transfer_headers before the curl subprocess runs.
-     */
-    if (credential_hdr != NULL
-        && !webdav_tpc_header_value_equals(&credential_hdr->value, "none"))
-    {
-        xrootd_tpc_cred_mode_e mode;
-        ngx_str_t            delegated_token;
-        ngx_table_elt_t     *auth_hdr;
-        const char          *subject_token = NULL;
-
-        mode = webdav_tpc_cred_parse_mode(
-            (const char *) credential_hdr->value.data,
-            credential_hdr->value.len);
-
-        if (mode == XROOTD_TPC_CRED_UNKNOWN) {
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                          "xrootd_webdav: unsupported HTTP-TPC credential "
-                          "delegation mode \"%V\"", &credential_hdr->value);
-            XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_BAD_REQUEST]);
-            return NGX_HTTP_BAD_REQUEST;
-        }
-
-        /* Extract the subject token from the request's Authorization header. */
-        auth_hdr = webdav_tpc_find_header(r, "Authorization",
-                                          sizeof("Authorization") - 1);
-        rc = webdav_tpc_extract_subject_token(r, auth_hdr, &subject_token);
-        if (rc != NGX_OK) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        rc = webdav_tpc_cred_obtain_token(r, mode, source_url,
-                                          subject_token,
-                                          conf->tpc_cred.token_scope.len > 0
-                                              ? (const char *) conf->tpc_cred.token_scope.data
-                                              : "storage.read",
-                                          &delegated_token);
-        if (rc != NGX_OK) {
-            return NGX_HTTP_BAD_GATEWAY;
-        }
-
-        /* Inject delegated token as Authorization header. */
-        {
-            size_t total_len = sizeof("Authorization: Bearer ") - 1
-                               + delegated_token.len;
-            ngx_str_t *dst = ngx_array_push(transfer_headers);
-            if (dst == NULL) {
-                return NGX_HTTP_INTERNAL_SERVER_ERROR;
-            }
-            dst->data = ngx_pnalloc(r->pool, total_len + 1);
-            if (dst->data == NULL) {
-                return NGX_HTTP_INTERNAL_SERVER_ERROR;
-            }
-            ngx_memcpy(dst->data, "Authorization: Bearer ",
-                       sizeof("Authorization: Bearer ") - 1);
-            ngx_memcpy(dst->data + sizeof("Authorization: Bearer ") - 1,
-                       delegated_token.data, delegated_token.len);
-            dst->len = total_len;
-            dst->data[dst->len] = '\0';
-        }
-    }
-    (void) credential_hdr;
 
     overwrite_hdr = webdav_tpc_find_header(r, "Overwrite",
                                            sizeof("Overwrite") - 1);

@@ -174,8 +174,7 @@ frm_index_configure(ngx_conf_t *cf, const ngx_str_t *path, ngx_uint_t slots)
 }
 
 
-/* ---- mutations (caller holds NO lock; we take the index mutex) -------------*/
-
+/* mutations (caller holds NO lock; we take the index mutex)*/
 static frm_index_entry_t *
 frm_index_find(frm_index_table_t *tbl, const char *reqid)
 {

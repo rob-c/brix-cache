@@ -43,15 +43,29 @@ XrdSecgsi is a 2-round (for the cert exchange) challenge-response over an
 the client owns its proxy by signing a server-issued random tag.
 
 ```
-round 1   client → server   kXGC_certreq   cryptomod, version, issuer_hash,
-                                            clnt_opts, main{ rtag }
-round 2   server → client   kXGS_cert      cipher_alg, md_alg, server x509,
-                                            server DH public, main{ server rtag,
-                                            signed copy of the client rtag }
-round 2'  client → server   kXGC_cert      cryptomod, our DH public, cipher_alg,
-                                            ENC main{ proxy chain, signed server
-                                            rtag, fresh rtag }
-          → server replies kXR_ok → authenticated
+  CLIENT (proxy)                                         SERVER (host cert)
+       │                                                       │
+       │  R1  kXGC_certreq                                     │
+       │  cryptomod·version·issuer_hash·clnt_opts              │
+       │  main{ rtag_C }  ── keep rtag_C for §6 ──────────────▶│
+       │                                          R2 builds DH params + key
+       │  R2  kXGS_cert                                        │
+       │  cipher_alg·md_alg·server x509·server DH public       │
+       │◀── main{ rtag_S, sign(rtag_C) } ── main is CLEAR ─────│
+       │                                                       │
+   derive session cipher = DH(server pub, my priv)             │
+   AES key = first keylen bytes of the shared secret           │
+   prove possession: sign(rtag_S) with PROXY private key       │
+       │                                                       │
+       │  R2' kXGC_cert                                        │
+       │  cryptomod·MY DH public·cipher_alg                    │
+       │  ENC main{ proxy chain, sign(rtag_S), rtag_C2 } ─────▶│
+       │                              derive same key, decrypt main,
+       │                              verify sign(rtag_S) vs proxy chain,
+       │                              verify chain → trusted CA, map DN
+       │◀────────────────── kXR_ok  AUTHENTICATED ─────────────│
+       ▼                                                       ▼
+   rtag = random tag (anti-replay)   ·   sign() = RSA over RAW bytes, no digest
 ```
 
 Two protocol variants, gated by version (`XrdSecProtocolgsi.hh`):
@@ -252,6 +266,22 @@ server, for both version paths. Regression tests:
 `test_native_client_signed_dh`).
 
 ### 9a. The wire difference (signed vs unsigned)
+
+```text
+  UNSIGNED  (v < 10400, default)        SIGNED-DH  (v ≥ 10400)
+  ─────────────────────────────         ───────────────────────────
+  DH public bucket:                      DH public bucket:
+    kXRS_puk = Public() blob               kXRS_cipher = RSA-sign(Public())
+    (sent in the clear)                    sender signs w/ its cert key;
+                                           receiver DecryptPublic()s w/
+                                           the sender cert public key
+  dh_pad = 0  (HasPad)                    dh_pad = 1
+  IV     = 16 zero bytes,                 IV     = fresh 16 bytes,
+           NOT prepended                           prepended to AES-CBC main
+  AES key = first keylen bytes of the DH secret  ── same for both ──
+  bucket TYPE (puk vs cipher) is what signals the variant to the peer
+```
+
 The sender RSA-signs its `Public()` blob with its cert private key
 (`XrdCryptosslRSA::EncryptPrivate`, chunked by `key_size − 11`) into
 `kXRS_cipher`; the receiver `DecryptPublic`s it with the sender's cert public

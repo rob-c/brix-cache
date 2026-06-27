@@ -33,8 +33,6 @@ xrootd_pmark_conf_init(xrootd_pmark_conf_t *c)
     c->http_plain     = NGX_CONF_UNSET;
     c->echo           = NGX_CONF_UNSET_MSEC;
     c->domain         = NGX_CONF_UNSET_UINT;
-    /* appname/defsfile: zeroed (len 0) by ngx_pcalloc → "unset" for merge.    */
-    /* arrays: NULL → inherit from parent in merge.                            */
 }
 
 

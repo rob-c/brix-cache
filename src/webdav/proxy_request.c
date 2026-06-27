@@ -58,7 +58,7 @@ webdav_proxy_rewrite_destination(ngx_pool_t *pool,
     return result;
 }
 
-/* ---- Function: webdav_proxy_create_request() ----
+/*
 
  * WHAT: Constructs a complete HTTP/1.1 request for forwarding to upstream backend — computes total header block size, allocates buffer, fills request line (METHOD /uri?args HTTP/1.1), Host header, Connection: close, Content-Length, Authorization header per auth policy (anonymous strips, forward passes unchanged, token replaces with static Bearer), Destination header rewritten from public URL to internal upstream path, and all remaining client headers excluding hop-by-hop headers (Connection/Host/Keep-Alive/Transfer-Encoding). Appends buffered request body if present. Returns NGX_OK on success or NGX_ERROR on allocation failure.
 
@@ -96,8 +96,7 @@ webdav_proxy_create_request(ngx_http_request_t *r)
         }
     }
 
-    /* ---- compute header block size ---- */
-
+    /* compute header block size */
     /* Request line: "METHOD /uri?args HTTP/1.1\r\n" */
     len = r->method_name.len + 1
         + r->uri.len
@@ -171,8 +170,7 @@ webdav_proxy_create_request(ngx_http_request_t *r)
         len += sizeof("Content-Length: \r\n") - 1 + NGX_OFF_T_LEN;
     }
 
-    /* ---- allocate and fill the header buffer ---- */
-
+    /* allocate and fill the header buffer */
     b = ngx_create_temp_buf(r->pool, len);
     if (b == NULL) return NGX_ERROR;
 

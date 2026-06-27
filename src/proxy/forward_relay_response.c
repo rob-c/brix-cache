@@ -23,13 +23,11 @@
 /* Audit helper declaration — defined in forward_relay_audit.c */
 extern void proxy_write_path_audit(xrootd_proxy_ctx_t *proxy, uint16_t status);
 
-/* ---- public API: xrootd_proxy_relay_to_client() — relay upstream response to client ----
- * WHAT: Relay the upstream server's response frame back to the connected client.
+/* public API: xrootd_proxy_relay_to_client() — relay upstream response to client * WHAT: Relay the upstream server's response frame back to the connected client.
  *       Handles bound-secondary lazy-open (synthetic kXR_open), kXR_wait retry,
  *       kXR_redirect follow-through, fhandle translation, path audit, and streaming. */
 
-/* ---- relay upstream response to client ------------------------------------ */
-
+/* relay upstream response to client */
 /* Handle the synthetic kXR_open response for a bound-secondary lazy open:
  * translate the upstream fhandle into the reserved local slot (or free it on
  * failure) and resume the client read loop.  Returns 1 when this was a lazy-
@@ -151,8 +149,7 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
                                  ? rlen - XRD_REQUEST_HDR_LEN : 0;
         proxy->saved_req       = NULL;
 
-        /* ---- kXR_waitresp / kXR_attn: transparent async response support ---- */
-        /*
+        /* kXR_waitresp / kXR_attn: transparent async response support */        /*
          * Note: We don't need a specific opcode case here.  By default we forward
          * everything and await a response.  If we get kXR_waitresp (async ack),
          * we will transition back to IDLE in relay_to_client but stay ready to
@@ -206,75 +203,16 @@ xrootd_proxy_relay_lazy_open(xrootd_proxy_ctx_t *proxy)
     return 1;
 }
 
-void
-xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
+/* kXR_redirect follow-through: when the upstream returns a redirect (and we are
+ * under the 3-hop limit), parse the "host:port" target, tear down the current
+ * upstream, and reconnect to it re-issuing the saved request.  Returns 1 when
+ * the reconnect is in progress and the caller must return; 0 to fall through and
+ * relay the redirect to the client (not a redirect, malformed target, or the
+ * reconnect attempt failed). */
+static int
+xrootd_proxy_relay_try_redirect(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c,
+    uint16_t status, u_char *body, uint32_t dlen)
 {
-    xrootd_ctx_t     *ctx = proxy->client_ctx;
-    ngx_connection_t *c   = proxy->client_conn;
-    uint16_t          status = proxy->resp_status;
-    uint32_t          dlen   = proxy->resp_dlen;
-    u_char           *body   = proxy->resp_body;
-    size_t            total;
-    u_char           *buf;
-
-    /* ---- lazy open (bound secondary): handle synthetic kXR_open response ---- */
-    if (xrootd_proxy_relay_lazy_open(proxy)) {
-        return;
-    }
-
-    /* ---- kXR_wait: absorb upstream "busy, try later" ---- */
-    if (status == kXR_wait
-        && !proxy->fwd_streaming
-        && proxy->wait_retry_req != NULL
-        && proxy->wait_retry_count < XROOTD_PROXY_MAX_WAIT_RETRIES)
-    {
-        /* shared decode+clamp (libxrdproto): floor 1s, ceiling MAX. */
-        uint32_t wait_secs = xrd_wait_secs_parse((const uint8_t *) body, dlen, 1,
-                                                 XROOTD_PROXY_MAX_WAIT_SECS);
-
-        proxy->wait_retry_count++;
-        XROOTD_PROXY_METRIC_INC(ctx, wait_responses_total);
-        XROOTD_PROXY_UP_INC(proxy, wait_responses_total);
-
-        ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "xrootd proxy: kXR_wait for reqid=%d, retry %d in %us",
-                       (int) proxy->fwd_reqid, proxy->wait_retry_count, wait_secs);
-
-        if (proxy->resp_body != NULL) {
-            ngx_free(proxy->resp_body);
-            proxy->resp_body = NULL;
-        }
-        proxy->rhdr_pos      = 0;
-        proxy->resp_dlen     = 0;
-        proxy->resp_body_pos = 0;
-        /* Stay FORWARDING: events_read loops and reads the next upstream
-         * frame.  If upstream sends kXR_redirect/kXR_error before the timer
-         * fires (common when both frames arrive in the same TCP segment) it is
-         * handled immediately.  If the timer fires first, wait_handler
-         * re-issues the request; wait_retry_req == NULL check there is a no-op
-         * guard for the spontaneous-response case. */
-
-        ngx_memzero(&proxy->wait_ev, sizeof(proxy->wait_ev));
-        proxy->wait_ev.handler = xrootd_proxy_wait_handler;
-        proxy->wait_ev.data    = proxy;
-        proxy->wait_ev.log     = proxy->conn->log;
-        ngx_add_timer(&proxy->wait_ev, wait_secs * 1000);
-        return;
-    }
-
-    /* kXR_wait exhausted retries — free retry buffer and relay the wait to client */
-    if (status == kXR_wait) {
-        int local_fh = proxy->fwd_local_fh;
-        if (proxy->fwd_reqid == kXR_open && local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
-            proxy->fh_map[local_fh].upstream_fh = XROOTD_PROXY_FH_FREE;
-        }
-        if (proxy->wait_retry_req != NULL) {
-            ngx_free(proxy->wait_retry_req);
-            proxy->wait_retry_req = NULL;
-        }
-    }
-
-    /* ---- kXR_redirect: follow-through (transparently reconnect) ---- */
     if (status == kXR_redirect && body != NULL && dlen > 0
         && proxy->redirect_count < 3)
     {
@@ -335,7 +273,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
                         proxy->resp_body_pos = 0;
 
                         if (xrootd_proxy_connect(proxy, c, proxy->conf) == NGX_OK) {
-                            return; /* reconnect in progress; dispatches saved_req */
+                            return 1; /* reconnect in progress; dispatches saved_req */
                         }
                         /* reconnect failed — fall through to relay redirect */
                         ngx_log_error(NGX_LOG_ERR, c->log, 0,
@@ -346,8 +284,81 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         }
     }
 
-    /* ---- path-op audit: rm, mkdir, rmdir, mv, chmod, truncate ---- */
-    if (proxy->fwd_path_audit
+    return 0;
+}
+
+void
+xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
+{
+    xrootd_ctx_t     *ctx = proxy->client_ctx;
+    ngx_connection_t *c   = proxy->client_conn;
+    uint16_t          status = proxy->resp_status;
+    uint32_t          dlen   = proxy->resp_dlen;
+    u_char           *body   = proxy->resp_body;
+    size_t            total;
+    u_char           *buf;
+
+    /* lazy open (bound secondary): handle synthetic kXR_open response */    if (xrootd_proxy_relay_lazy_open(proxy)) {
+        return;
+    }
+
+    /* kXR_wait: absorb upstream "busy, try later" */    if (status == kXR_wait
+        && !proxy->fwd_streaming
+        && proxy->wait_retry_req != NULL
+        && proxy->wait_retry_count < XROOTD_PROXY_MAX_WAIT_RETRIES)
+    {
+        /* shared decode+clamp (libxrdproto): floor 1s, ceiling MAX. */
+        uint32_t wait_secs = xrd_wait_secs_parse((const uint8_t *) body, dlen, 1,
+                                                 XROOTD_PROXY_MAX_WAIT_SECS);
+
+        proxy->wait_retry_count++;
+        XROOTD_PROXY_METRIC_INC(ctx, wait_responses_total);
+        XROOTD_PROXY_UP_INC(proxy, wait_responses_total);
+
+        ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                       "xrootd proxy: kXR_wait for reqid=%d, retry %d in %us",
+                       (int) proxy->fwd_reqid, proxy->wait_retry_count, wait_secs);
+
+        if (proxy->resp_body != NULL) {
+            ngx_free(proxy->resp_body);
+            proxy->resp_body = NULL;
+        }
+        proxy->rhdr_pos      = 0;
+        proxy->resp_dlen     = 0;
+        proxy->resp_body_pos = 0;
+        /* Stay FORWARDING: events_read loops and reads the next upstream
+         * frame.  If upstream sends kXR_redirect/kXR_error before the timer
+         * fires (common when both frames arrive in the same TCP segment) it is
+         * handled immediately.  If the timer fires first, wait_handler
+         * re-issues the request; wait_retry_req == NULL check there is a no-op
+         * guard for the spontaneous-response case. */
+
+        ngx_memzero(&proxy->wait_ev, sizeof(proxy->wait_ev));
+        proxy->wait_ev.handler = xrootd_proxy_wait_handler;
+        proxy->wait_ev.data    = proxy;
+        proxy->wait_ev.log     = proxy->conn->log;
+        ngx_add_timer(&proxy->wait_ev, wait_secs * 1000);
+        return;
+    }
+
+    /* kXR_wait exhausted retries — free retry buffer and relay the wait to client */
+    if (status == kXR_wait) {
+        int local_fh = proxy->fwd_local_fh;
+        if (proxy->fwd_reqid == kXR_open && local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
+            proxy->fh_map[local_fh].upstream_fh = XROOTD_PROXY_FH_FREE;
+        }
+        if (proxy->wait_retry_req != NULL) {
+            ngx_free(proxy->wait_retry_req);
+            proxy->wait_retry_req = NULL;
+        }
+    }
+
+    /* kXR_redirect follow-through (transparently reconnect to the target). */
+    if (xrootd_proxy_relay_try_redirect(proxy, c, status, body, dlen)) {
+        return;
+    }
+
+    /* path-op audit: rm, mkdir, rmdir, mv, chmod, truncate */    if (proxy->fwd_path_audit
         && (status == kXR_ok || status == kXR_error))
     {
         if (status == kXR_ok) {
@@ -361,8 +372,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         proxy->fwd_path_audit = 0;
     }
 
-    /* ---- kXR_open: translate upstream fhandle to local fhandle ---- */
-    if (proxy->fwd_reqid == kXR_open && status == kXR_ok) {
+    /* kXR_open: translate upstream fhandle to local fhandle */    if (proxy->fwd_reqid == kXR_open && status == kXR_ok) {
         int local_fh    = proxy->fwd_local_fh;
         int upstream_fh = (body != NULL && dlen >= 1)
                           ? (int)(unsigned char) body[0]
@@ -401,8 +411,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         XROOTD_PROXY_UP_INC(proxy, open_errors);
     }
 
-    /* ---- read/readv/pgread: track bytes returned to client ---- */
-    if (status == kXR_ok || status == kXR_oksofar) {
+    /* read/readv/pgread: track bytes returned to client */    if (status == kXR_ok || status == kXR_oksofar) {
         int local_fh = proxy->fwd_local_fh;
         if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
             switch (proxy->fwd_reqid) {
@@ -431,8 +440,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         }
     }
 
-    /* ---- kXR_close: emit audit record, free the handle slot on success ---- */
-    if (proxy->fwd_reqid == kXR_close && status == kXR_ok) {
+    /* kXR_close: emit audit record, free the handle slot on success */    if (proxy->fwd_reqid == kXR_close && status == kXR_ok) {
         int local_fh = proxy->fwd_local_fh;
         if (local_fh >= 0 && local_fh < XROOTD_MAX_FILES) {
             proxy_write_audit(proxy, local_fh);
@@ -442,8 +450,7 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
         XROOTD_PROXY_UP_INC(proxy, closes_total);
     }
 
-    /* ---- build and send relay buffer ---- */
-    /*
+    /* build and send relay buffer */    /*
      * kXR_status (pgread/pgwrite): hdr.dlen must remain 24 (the fixed-size
      * ServerStatusBody+pgRead header), even though we expanded resp_dlen to
      * 24 + bdy.dlen to buffer the page data.  The client extracts bdy.dlen

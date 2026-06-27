@@ -1,9 +1,6 @@
 #include "../config/config.h"
 #include "../crypto/ocsp.h"
 
-/* ------------------------------------------------------------------ */
-/* TLS Configuration — In-Protocol TLS Upgrade (kXR_ableTLS)            */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: This file configures the SSL context for in-protocol TLS upgrade. When
  *       xrootd_tls is enabled, clients can request kXR_wantTLS after login and
@@ -21,7 +18,7 @@
  *      TLSv1.2+TLSv1.3 enabled, loads the server certificate and private key,
  *      returns NGX_OK or NGX_ERROR with emerg-level log if prerequisites missing. */
 
-/* ---- Function: xrootd_configure_tls() ----
+/*
  *
  * WHAT: Configures an SSL context for in-protocol TLS upgrade (kXR_ableTLS). Called during nginx
  *       postconfiguration when the tls directive is enabled. Creates and populates an ngx_ssl_t object
@@ -34,7 +31,7 @@
  * HOW: Four-step validation → tls flag check (skip if off) → cert/key existence validation (emerg error if missing) →
  *      ngx_ssl_t allocation + TLSv1.2+TLSv1.3 initialization → certificate and key loading from PEM files → NGX_OK/NGX_ERROR. */
 
-/* ---- Function: xrootd_ocsp_stapling_cb() — OCSP stapling TLS extension callback ----
+/*
  *
  * WHAT: OpenSSL callback invoked for each TLS ClientHello that includes the status_request extension. If a cached staple exists in srv_conf->ocsp_staple_data, it is attached to the ServerHello via SSL_set_tlsext_status_ocsp_resp(). The buffer is allocated with OPENSSL_malloc and freed by OpenSSL on SSL_free.
  *
