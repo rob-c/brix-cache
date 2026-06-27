@@ -157,7 +157,7 @@ stream {{
             {"keytab": ("cms.keytab", self.KEYTAB, 0o644)},   # world-readable
         )
         assert rc != 0, "a world-readable cms sss keytab must be rejected"
-        assert "private enough" in out, out
+        assert "unsafe permissions" in out, out
 
     def test_bad_cidr_rejected(self):
         rc, out = _nginx_test(

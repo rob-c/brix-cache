@@ -13,9 +13,6 @@
 #endif
 #include <string.h>
 
-/* ------------------------------------------------------------------ */
-/* SSS Crypto Helpers — Wire Framing, CRC32, Blowfish-CFB               */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: This file provides shared cryptographic helpers for Simple Shared Secret (SSS) authentication.
  *       Includes big-endian 32/64-bit read/write primitives for wire protocol framing, software CRC32c implementation
@@ -48,7 +45,7 @@ xrootd_sss_read_be64(const u_char *p)
     return ((uint64_t) xrootd_sss_read_be32(p) << 32)
          |  (uint64_t) xrootd_sss_read_be32(p + 4);
 }
-/* ---- Function: xrootd_sss_read_be64() ----
+/*
  * WHAT: Reads an 8-byte big-endian uint64_t from wire protocol payload by composing two be32 reads. Used for parsing larger integer fields in SSS credential payloads.
  */
 
@@ -60,7 +57,7 @@ xrootd_sss_write_be32(u_char *p, uint32_t v)
     p[2] = (u_char) (v >> 8);
     p[3] = (u_char) v;
 }
-/* ---- Function: xrootd_sss_write_be32() ----
+/*
  * WHAT: Writes a uint32_t as 4 bytes in big-endian order into wire protocol buffer. Used by SSS auth challenge generation to encode timestamps and key IDs into server-to-client credential payloads.
  */
 
@@ -71,7 +68,7 @@ xrootd_sss_crc32(const u_char *p, size_t len)
 {
     return xrootd_crc32_ieee(p, len);
 }
-/* ---- Function: xrootd_sss_crc32() ----
+/*
  * WHAT: Computes CRC32 checksum using standard polynomial 0xedb88320u (reflected form). Used by SSS authentication for integrity verification — CRC32 is appended to plaintext before Blowfish encryption, then verified after decryption via direct uint32_t comparison.
  */
 
@@ -85,7 +82,7 @@ xrootd_sss_bf32_crypt(int encrypt, const u_char *key, size_t key_len,
     return xrootd_sss_bf_crypt(encrypt, key, key_len, src, src_len,
                                dst, dst_len, out_len) == 0 ? NGX_OK : NGX_ERROR;
 }
-/* ---- Function: xrootd_sss_bf32_crypt() ----
+/*
  * WHAT: Blowfish-CFB symmetric encryption/decryption for SSS challenge-response authentication. Uses EVP_CIPHER_CTX with zero IV and no padding. Encrypt mode: EVP_EncryptInit → set_padding(0) → set_key_length(key_len) → init with key+iv → update → final. Decrypt mode mirrors encrypt flow using EVP_Decrypt*. Returns NGX_OK on success with out_len populated, NGX_ERROR on cipher operation failure or invalid parameters (key_len==0 or >INT_MAX). Key length is variable — SSS keys may be shorter than standard 56-byte Blowfish key.
  */
 
@@ -114,7 +111,7 @@ xrootd_sss_find_key(ngx_stream_xrootd_srv_conf_t *conf, int64_t id)
 {
     return xrootd_sss_find_key_arr(conf->sss_keys, id);
 }
-/* ---- Function: xrootd_sss_find_key() ----
+/*
  * WHAT: Searches configured SSS key table for a matching key ID that is not expired. Returns pointer to first matching active key or NULL if no match found. Used by sss/auth.c during kXR_auth handler to select the correct shared secret for decrypting client challenge.
  */
 
@@ -227,7 +224,7 @@ xrootd_sss_verify_blob(ngx_array_t *keys, time_t lifetime,
     }
     return NGX_OK;
 }
-/* ---- Function: xrootd_sss_find_key() ----
+/*
  * WHAT: Searches configured SSS key table for a matching key ID that is not expired. Returns pointer to first matching active key or NULL if no match found. Used by sss/auth.c during kXR_auth handler to select the correct shared secret for decrypting client challenge.
  */
 

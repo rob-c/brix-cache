@@ -27,13 +27,9 @@
 #include "proxy_internal.h"
 #include "../session/registry.h"
 
-/* ---- public API: proxy_write_audit() — per-file audit logging ----------
- * WHAT: Write a JSON line (path, bytes_read, bytes_written, duration_ms) to the configured
- *       audit log file for a given local file handle slot. Skips if audit fd is invalid or
- *       slot is out of range. */
-
-/* ---- audit log helper ------------------------------------------------------ */
-
+/* proxy_write_audit — append a JSON line (path, bytes_read, bytes_written,
+ * duration_ms) to the configured audit log for a local file-handle slot; no-op if
+ * the audit fd is invalid or the slot is out of range. */
 void
 proxy_write_audit(xrootd_proxy_ctx_t *proxy, int local_fh)
 {
@@ -65,14 +61,11 @@ proxy_write_audit(xrootd_proxy_ctx_t *proxy, int local_fh)
 
     ngx_write_fd(conf->proxy_audit_log_fd, buf, (size_t)(p - buf));
 }
-/* ---- public API: xrootd_proxy_wait_handler() — kXR_wait retry timer callback ----
- * WHAT: Timer callback that fires when upstream returns kXR_wait; restores saved request
- *       metadata (reqid, streamid, local fh), resets response state, flushes the saved
- *       request to upstream, and arms read event for the response. Cleans up proxy if
- *       client context is destroyed. */
 
-/* ---- kXR_wait timer callback: re-issue saved kXR_open -------------------- */
-
+/* xrootd_proxy_wait_handler — kXR_wait retry timer: restore the saved request
+ * metadata (reqid, streamid, local fh), reset response state, re-flush the saved
+ * request to upstream, and arm the read event; cleans up the proxy if the client
+ * context was destroyed. */
 void
 xrootd_proxy_wait_handler(ngx_event_t *ev)
 {
@@ -136,12 +129,8 @@ xrootd_proxy_wait_handler(ngx_event_t *ev)
     /* else: write handler will complete the send */
 }
 
-/* ---- public API: xrootd_proxy_alloc_local_fh() — allocate local file handle slot ----
- * WHAT: Scan the proxy fh_map for a free slot (upstream_fh == FREE) and return its index.
- *       Returns -1 if all slots are occupied. Provides the proxy's own file handle namespace. */
-
-/* ---- file handle allocation ---------------------------------------------- */
-
+/* xrootd_proxy_alloc_local_fh — return the first free slot (upstream_fh == FREE) in
+ * the proxy fh_map (its own file-handle namespace), or -1 if all are occupied. */
 int
 xrootd_proxy_alloc_local_fh(xrootd_proxy_ctx_t *proxy)
 {
@@ -155,7 +144,7 @@ xrootd_proxy_alloc_local_fh(xrootd_proxy_ctx_t *proxy)
     return -1;
 }
 
-/* ---- lazy open for bound secondary connections --------------------------- */
+/* lazy open for bound secondary connections */
 
 /*
  * xrootd_proxy_lazy_open — issue a synthetic kXR_open on the upstream for a
@@ -203,7 +192,10 @@ xrootd_proxy_lazy_open(xrootd_proxy_ctx_t *proxy,
     oreq->streamid[0] = 0;
     oreq->streamid[1] = 0xfe;          /* synthetic — not echoed to client */
     oreq->requestid   = htons(kXR_open);
-    oreq->options     = htons(kXR_open_read);
+    {
+        xrdw_open_req_t b = { .options = kXR_open_read };
+        xrdw_open_req_pack(&b, ((ClientRequestHdr *) (void *) frame)->body);
+    }
     oreq->dlen        = htonl((kXR_int32) pathlen);
     ngx_memcpy(frame + sizeof(*oreq), he.path, pathlen);
 

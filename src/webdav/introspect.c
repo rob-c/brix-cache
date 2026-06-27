@@ -245,8 +245,7 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
     return NGX_AGAIN;                   /* suspend until subrequest completes */
 }
 
-/* ---- directive: xrootd_webdav_revoke_cache zone=<name>; ---- */
-
+/* directive: xrootd_webdav_revoke_cache zone=<name>; */
 char *
 webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 {

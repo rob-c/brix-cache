@@ -139,13 +139,20 @@
  * Phase 33 — GSI ephemeral DH key pool (src/gsi/keypool.c).
  *
  * Per-worker warm pool of pre-generated ffdhe2048 keys so kXGC_certreq never runs
- * keygen on the nginx event thread under a concurrent handshake burst.  SIZE is
- * the warm/refill ceiling (sized to cover a worst-case concurrent-handshake
- * burst); when the pool falls to REFILL_LOW an off-thread refill of REFILL_BATCH
- * keys is scheduled.  Each key is ~1-2 KB → SIZE keys ≈ 100-130 KB per worker.
+ * keygen on the nginx event thread under a concurrent handshake burst.  The target
+ * warm count (SIZE_DEFAULT, runtime-tunable via xrootd_gsi_keypool_size) is the
+ * refill ceiling, sized to cover a worst-case concurrent-handshake burst; when the
+ * pool falls to half the target an off-thread refill of REFILL_BATCH keys is
+ * scheduled.  Each key is ~1-2 KB → target keys ≈ 100-130 KB per worker.
+ *
+ * SEED_DEFAULT keys are generated synchronously at worker start (xrootd_gsi_
+ * keypool_seed); the remainder up to the target fills OFF the event thread so boot
+ * is not blocked on ~target keygens (was the dominant per-worker startup cost). CAP
+ * bounds the static ring so the target directive cannot be set unboundedly high.
  */
-#define XROOTD_GSI_KEYPOOL_SIZE          64
-#define XROOTD_GSI_KEYPOOL_REFILL_LOW    32
+#define XROOTD_GSI_KEYPOOL_CAP           256   /* static ring capacity (ceiling) */
+#define XROOTD_GSI_KEYPOOL_SIZE_DEFAULT  64    /* default warm/refill target     */
+#define XROOTD_GSI_KEYPOOL_SEED_DEFAULT  4     /* default synchronous boot seed  */
 #define XROOTD_GSI_KEYPOOL_REFILL_BATCH  32
 
 /* Maximum simultaneously open files per connection. */

@@ -1,13 +1,10 @@
 #include "gsi_internal.h"
 #include "gsi_core.h"
 
-/* ---- Function: gsi_find_bucket() ----
+/*
  * WHAT: Binary XrdSutBuffer parser — scans payload for a bucket of specified type by iterating over big-endian [type: uint32, len: uint32, data: len bytes] entries terminated by kXRS_none. Validates minimum frame size (8 bytes), uses ngx_strnlen() safety guard on protocol name null-termination to prevent out-of-frame reads from missing terminator, skips past protocol+step fields, iterates buckets reading type+len then checking match against target_type before advancing cursor by bucket_len.
  * WHY: GSI wire messages use nested bucket structures requiring precise extraction of DH public keys (kXRS_puk), encrypted cert chains (kXRS_main), cipher negotiation lists (kXRS_cipher_alg), and certificate data (kXRS_x509). ngx_strnlen() prevents protocol name missing null terminator from causing out-of-bounds reads in untrusted binary frames.
  * */
-/* ------------------------------------------------------------------ */
-/* GSI Buffer — XrdSutBucket Binary Parser                              */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: Implements gsi_find_bucket() — binary parser for XrdSutBuffer wire format used in all GSI authentication messages. Scans payload for a bucket of specified type by iterating over big-endian [type: uint32, len: uint32, data: len bytes] entries terminated by kXRS_none (0x8001). Handles protocol name null-termination with ngx_strnlen() safety guard against missing terminator causing out-of-frame reads.
  *

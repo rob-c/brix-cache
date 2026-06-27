@@ -139,6 +139,14 @@ ngx_int_t xrootd_cms_srv_send_ping(xrootd_cms_srv_ctx_t *ctx);
 ngx_int_t xrootd_cms_srv_send_xauth(xrootd_cms_srv_ctx_t *ctx,
     const u_char *parms, size_t len);
 
+/* Plane A liveness/query replies (byte-exact with cmsd do_Ping/do_Disc/do_Update).
+ * Each is a header-only frame written synchronously; NGX_OK / NGX_ERROR. */
+ngx_int_t xrootd_cms_srv_send_pong(xrootd_cms_srv_ctx_t *ctx);
+ngx_int_t xrootd_cms_srv_send_disc(xrootd_cms_srv_ctx_t *ctx);
+ngx_int_t xrootd_cms_srv_send_status(xrootd_cms_srv_ctx_t *ctx, u_char modifier);
+ngx_int_t xrootd_cms_srv_send_data(xrootd_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t len);
+
 /* server_auth.c — W1 registration authentication (CIDR + sss + host validation) */
 
 /* Accept-time peer check: NGX_OK if the peer is permitted to register.

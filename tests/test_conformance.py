@@ -325,7 +325,7 @@ class TestReadConformance:
 _BASELINE_FILES = {"test.txt", "random.bin", "large200.bin"}
 
 
-def _dirlist_retry(fs, path, flags=DirListFlags.STAT, attempts=10, delay=0.3):
+def _dirlist_retry(fs, path, flags=DirListFlags.STAT, attempts=24, delay=0.3):
     """dirlist with a retry.  The reference OFFICIAL xrootd transiently returns
     '[ERROR] Invalid response' to a dirlist issued while it is under concurrent
     dirlist load (an xrootd-client framing quirk, not an nginx behaviour).
@@ -334,14 +334,19 @@ def _dirlist_retry(fs, path, flags=DirListFlags.STAT, attempts=10, delay=0.3):
     FileSystem can keep hitting it under sustained full-suite load.  When the
     caller passes a URL string we therefore reconnect on a FRESH FileSystem each
     attempt (a new connection sidesteps the poisoned one); a FileSystem object is
-    still accepted for callers that already hold one."""
+    still accepted for callers that already hold one.
+
+    Under the full parallel suite the reference can stay flaky for several
+    seconds, so we retry with a capped-exponential backoff (~0.3s→2s) for a long
+    enough window that a clean snapshot is reached — this is the reference's
+    framing quirk, not nginx, so a longer wait is the correct robustness lever."""
     st = listing = None
-    for _ in range(attempts):
+    for i in range(attempts):
         this_fs = _fs(fs) if isinstance(fs, str) else fs
         st, listing = this_fs.dirlist(path, flags)
         if st.ok:
             return st, listing
-        time.sleep(delay)
+        time.sleep(min(delay * (1.5 ** min(i, 6)), 2.0))
     return st, listing
 
 

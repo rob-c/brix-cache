@@ -61,6 +61,8 @@ xrootd_query_payload_equals(xrootd_ctx_t *ctx, const char *text)
             && ngx_memcmp(ctx->payload, text, text_len) == 0);
 }
 
+/* xrootd_query_stats — kXR_QStats: XML server statistics (active/total
+ * connections, bytes rx/tx, timestamp, listening port). */
 ngx_int_t
 xrootd_query_stats(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
@@ -108,10 +110,9 @@ xrootd_query_stats(xrootd_ctx_t *ctx, ngx_connection_t *c)
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (n + 1));
 }
 
-/* ---- public API: xrootd_query_stats() — kXR_QStats server statistics handler ----
- * WHAT: Returns XML-formatted server statistics including active/total connections, bytes received/sent, current timestamp, and listening port.
- */
-
+/* xrootd_query_xattr — kXR_Qxattr: list a path's extended attributes through the
+ * full security chain (extract → resolve → authdb → VO ACL → stat), returning the
+ * oss.* key-values plus any user.U.*-prefixed xattrs. */
 ngx_int_t
 xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
@@ -201,10 +202,8 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (pos + 1));
 }
 
-/* ---- public API: xrootd_query_xattr() — kXR_Qxattr extended attribute listing handler ----
- * WHAT: Lists file extended attributes (xattrs) on a resolved path. Full security chain: extract_path → resolve_path → authdb read check → vo ACL check → stat → listxattr iteration filtering user.U.* prefixes → getxattr per matching attr. Returns oss.* key-value string with file type, size, timestamps, and access flags plus any user.U.* xattrs.
- */
-
+/* xrootd_query_finfo — kXR_QFinfo: returns "0" placeholder (matches reference
+ * XRootD, which serves this via the XrdOfs plugin layer nginx-xrootd lacks). */
 ngx_int_t
 xrootd_query_finfo(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
@@ -213,13 +212,11 @@ xrootd_query_finfo(xrootd_ctx_t *ctx, ngx_connection_t *c)
     return xrootd_send_ok(ctx, c, "0", 2);
 }
 
-/* ---- public API: xrootd_query_finfo() — kXR_QFinfo file info placeholder handler ----
- * WHAT: Returns "0" as a placeholder response matching reference XRootD behavior for QFinfo (file info) which nginx-xrootd does not implement via the XrdOfs plugin layer.
- */
-
+/* xrootd_query_visa — kXR_Qvisa: validate the fhandle, then return FSctl-
+ * unsupported (matches reference XRootD without the XrdOfs plugin layer). */
 ngx_int_t
 xrootd_query_visa(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ClientQueryRequest *req)
+    const xrdw_query_req_t *req)
 {
     int       idx;
     ngx_int_t rc;
@@ -234,10 +231,8 @@ xrootd_query_visa(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                          "visa", XROOTD_OP_QUERY_VISA);
 }
 
-/* ---- public API: xrootd_query_visa() — kXR_Qvisa visa query handler ----
- * WHAT: Validates fhandle index, then returns FSctl unsupported response matching reference XRootD behavior since nginx-xrootd does not embed the XrdOfs plugin layer.
- */
-
+/* xrootd_query_opaque — kXR_Qopaque: validate payload presence, then return
+ * FSctl-unsupported (matches reference XRootD without the XrdOfs plugin layer). */
 ngx_int_t
 xrootd_query_opaque(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
@@ -250,10 +245,8 @@ xrootd_query_opaque(xrootd_ctx_t *ctx, ngx_connection_t *c)
                                           XROOTD_OP_QUERY_OPAQUE);
 }
 
-/* ---- public API: xrootd_query_opaque() — kXR_Qopaque opaque FSctl query handler ----
- * WHAT: Validates payload presence, then returns FSctl unsupported response matching reference XRootD behavior since nginx-xrootd does not embed the XrdOfs plugin layer.
- */
-
+/* xrootd_query_opaquf — kXR_Qopaquf: run the security chain (extract →
+ * resolve_noexist → authdb → VO ACL), then return fctl-unsupported (reference parity). */
 ngx_int_t
 xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
@@ -285,13 +278,11 @@ xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                           XROOTD_OP_QUERY_OPAQUF);
 }
 
-/* ---- public API: xrootd_query_opaquf() — kXR_Qopaquf opaque fctl query handler ----
- * WHAT: Full security chain: extract_path → resolve_path_noexist (allows non-existing paths) → authdb read check → vo ACL check, then returns fctl unsupported response matching reference XRootD behavior.
- */
-
+/* xrootd_query_opaqug — kXR_Qopaqug: validate the fhandle and detect TPC
+ * cancellation ("ofs.tpc cancel", else kXR_FSError), then return fctl-unsupported. */
 ngx_int_t
 xrootd_query_opaqug(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ClientQueryRequest *req)
+    const xrdw_query_req_t *req)
 {
     int       idx;
     ngx_int_t rc;
@@ -311,7 +302,4 @@ xrootd_query_opaqug(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_query_fctl_unsupported(ctx, c, ctx->files[idx].path,
                                          "opaqug", XROOTD_OP_QUERY_OPAQUG);
 
-/* ---- public API: xrootd_query_opaqug() — kXR_Qopaqug opaque fctl query handler ----
- * WHAT: Validates fhandle index, checks payload against "ofs.tpc cancel" string for TPC cancellation detection (returns kXR_FSError if not found), then returns fctl unsupported response matching reference XRootD behavior.
- */
 }

@@ -87,9 +87,8 @@ xrootd_query_space(xrootd_ctx_t *ctx, ngx_connection_t *c,
     XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_SPACE);
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
-/* ---- WHY: kXR_Qspace returns filesystem capacity in the "oss.*" key-value format used by xrdcp and XRootD clients to display disk usage. Reports total bytes, available (free) bytes, max free (same as available since no hard quota), and used bytes — matching the reference server's statvfs-based response. Returns kXR_IOError on statvfs failure. ---- */
-
-/* ---- HOW: Calls xrootd_fs_usage_stat(conf->common.root.data, &fsu) via compat/fs_usage.h to populate fsu with total_bytes/available_bytes/used_bytes from statvfs — if NGX_OK fails logs access event (error), increments XROOTD_OP_QUERY_SPACE error metric, sends kXR_IOError response. On success: snprintf(resp) formats "oss.cgroup=default&oss.space=%llu&oss.free=%llu&oss.maxf=%llu&oss.used=%llu&oss.quota=-1" with fsu values; logs access event (success), increments OK metric, sends xrootd_send_ok(resp). */
+/* WHY: kXR_Qspace returns filesystem capacity in the "oss.*" key-value format used by xrdcp and XRootD clients to display disk usage. Reports total bytes, available (free) bytes, max free (same as available since no hard quota), and used bytes — matching the reference server's statvfs-based response. Returns kXR_IOError on statvfs failure. */
+/* HOW: Calls xrootd_fs_usage_stat(conf->common.root.data, &fsu) via compat/fs_usage.h to populate fsu with total_bytes/available_bytes/used_bytes from statvfs — if NGX_OK fails logs access event (error), increments XROOTD_OP_QUERY_SPACE error metric, sends kXR_IOError response. On success: snprintf(resp) formats "oss.cgroup=default&oss.space=%llu&oss.free=%llu&oss.maxf=%llu&oss.used=%llu&oss.quota=-1" with fsu values; logs access event (success), increments OK metric, sends xrootd_send_ok(resp). */
 
 /*
  * xrootd_query_fsinfo — handle kXR_QFSinfo (3017) filesystem capacity query.
@@ -149,6 +148,5 @@ xrootd_query_fsinfo(xrootd_ctx_t *ctx, ngx_connection_t *c,
     XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_FSINFO);
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
-/* ---- WHY: kXR_QFSinfo returns filesystem capacity in the reference-compatible "wVal freeMB util sVal freeMB util" format used by XRootD client locate/redirect logic. wVal=1 indicates writable, sVal=1 indicates staging supported; both report identical free_mb and utilization percentage so clients see a single uniform filesystem. Used by kXR_locate to determine whether a server can accept writes based on disk space. ---- */
-
-/* ---- HOW: Calls xrootd_fs_usage_stat(conf->common.root.data, &fsu) — if fails increments XROOTD_OP_QUERY_FSINFO error metric and sends kXR_IOError response. On success: computes util=(used_bytes*100)/total_bytes (0 if total==0), converts available_bytes to MB via >>20, clamps free_mb to 0x7fffffff if overflow (>31 bits). snprintf(resp) formats "1 %lld %d 1 %lld %d" with writable=1, freeMB, util%, staging=1, same freeMB, same util%. Logs access event (success), increments OK metric, sends xrootd_send_ok(resp). */
+/* WHY: kXR_QFSinfo returns filesystem capacity in the reference-compatible "wVal freeMB util sVal freeMB util" format used by XRootD client locate/redirect logic. wVal=1 indicates writable, sVal=1 indicates staging supported; both report identical free_mb and utilization percentage so clients see a single uniform filesystem. Used by kXR_locate to determine whether a server can accept writes based on disk space. */
+/* HOW: Calls xrootd_fs_usage_stat(conf->common.root.data, &fsu) — if fails increments XROOTD_OP_QUERY_FSINFO error metric and sends kXR_IOError response. On success: computes util=(used_bytes*100)/total_bytes (0 if total==0), converts available_bytes to MB via >>20, clamps free_mb to 0x7fffffff if overflow (>31 bits). snprintf(resp) formats "1 %lld %d 1 %lld %d" with writable=1, freeMB, util%, staging=1, same freeMB, same util%. Logs access event (success), increments OK metric, sends xrootd_send_ok(resp). */

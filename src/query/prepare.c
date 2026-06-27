@@ -71,11 +71,10 @@ xrootd_prepare_has_forbidden_component(const char *path)
 
     return 0;
 }
-/* ---- WHY: kXR_prepare rejects paths containing dot (.) or double-dot (..) components to prevent directory traversal into parent exports. Used as a fast pre-check before full path resolution — avoids expensive resolve_path() calls on obviously invalid paths. ---- */
+/* WHY: kXR_prepare rejects paths containing dot (.) or double-dot (..) components to prevent directory traversal into parent exports. Used as a fast pre-check before full path resolution — avoids expensive resolve_path() calls on obviously invalid paths. */
+/* HOW: Scans path character-by-character, skipping leading '/' separators; extracts each segment between slashes via seg→p pointer arithmetic. For each segment checks len==1 && seg[0]=='.' or len==2 && seg[0]=='.' && seg[1]=='.' — if match returns 1 (forbidden). Returns 0 if no forbidden components found after full scan. Static helper used exclusively by xrootd_prepare_check_path(). */
 
-/* ---- HOW: Scans path character-by-character, skipping leading '/' separators; extracts each segment between slashes via seg→p pointer arithmetic. For each segment checks len==1 && seg[0]=='.' or len==2 && seg[0]=='.' && seg[1]=='.' — if match returns 1 (forbidden). Returns 0 if no forbidden components found after full scan. Static helper used exclusively by xrootd_prepare_check_path(). */
-
-/* ---- Function: xrootd_prepare_owner_key() ---------------------------------
+/*
  * WHAT: Return the stable owner string used for FRM stream prepare records and
  * cancel checks. Authenticated callers use their canonical identity DN/token
  * subject; anonymous callers get a per-login owner key derived from sessid.
@@ -127,9 +126,8 @@ xrootd_prepare_send_fail(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     return xrootd_send_error(ctx, c, errcode, errmsg);
 }
-/* ---- WHY: kXR_prepare responses use a unified error format — log access event then send wire response. This helper centralizes the logging + response pattern so callers don't duplicate both steps. Returns xrootd_send_error() result directly for callers that need the raw nginx_int_t return code. ---- */
-
-/* ---- HOW: Logs access event via xrootd_log_access(ctx, c, "PREPARE", path or "-", "-", 0, errcode, errmsg, 0) — then calls xrootd_send_error(ctx, c, errcode, errmsg) and returns its result. Static helper used by check_path and handle_prepare for error responses. */
+/* WHY: kXR_prepare responses use a unified error format — log access event then send wire response. This helper centralizes the logging + response pattern so callers don't duplicate both steps. Returns xrootd_send_error() result directly for callers that need the raw nginx_int_t return code. */
+/* HOW: Logs access event via xrootd_log_access(ctx, c, "PREPARE", path or "-", "-", 0, errcode, errmsg, 0) — then calls xrootd_send_error(ctx, c, errcode, errmsg) and returns its result. Static helper used by check_path and handle_prepare for error responses. */
 
 static ngx_int_t
 xrootd_prepare_check_fail(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -140,9 +138,8 @@ xrootd_prepare_check_fail(xrootd_ctx_t *ctx, ngx_connection_t *c,
     rc = xrootd_prepare_send_fail(ctx, c, path, errcode, errmsg);
     return (rc == NGX_OK) ? NGX_DONE : rc;
 }
-/* ---- WHY: kXR_prepare check_path callers need NGX_DONE (continue processing) vs NGX_ERROR (abort). This helper converts the xrootd_send_error() result into the appropriate return code — NGX_OK from send_error becomes NGX_DONE for graceful continuation, other results pass through as abort codes. Used by check_path to distinguish between "error logged but continue" and "fatal error" returns. ---- */
-
-/* ---- HOW: Calls xrootd_prepare_send_fail(ctx, c, path, errcode, errmsg) — if result == NGX_OK returns NGX_DONE (graceful continuation), otherwise returns the raw result code unchanged. Static helper used exclusively by check_path(). */
+/* WHY: kXR_prepare check_path callers need NGX_DONE (continue processing) vs NGX_ERROR (abort). This helper converts the xrootd_send_error() result into the appropriate return code — NGX_OK from send_error becomes NGX_DONE for graceful continuation, other results pass through as abort codes. Used by check_path to distinguish between "error logged but continue" and "fatal error" returns. */
+/* HOW: Calls xrootd_prepare_send_fail(ctx, c, path, errcode, errmsg) — if result == NGX_OK returns NGX_DONE (graceful continuation), otherwise returns the raw result code unchanged. Static helper used exclusively by check_path(). */
 
 static ngx_int_t
 xrootd_prepare_check_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -291,20 +288,18 @@ xrootd_prepare_handle_cancel(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
 
-/* ---- public API: xrootd_handle_prepare() — kXR_prepare staging hint handler ----
- * WHAT: Main handler for prepare requests. Parses ClientPrepareRequest, validates newline-separated path list against auth/ACLs/filesystem existence,
+/* public API: xrootd_handle_prepare() — kXR_prepare staging hint handler * WHAT: Main handler for prepare requests. Parses ClientPrepareRequest, validates newline-separated path list against auth/ACLs/filesystem existence,
  *       optionally invokes configured staging command via xrootd_prepare_invoke_command(), stores request ID + paths in ctx->prepare_paths for QPrep queries.
  *       Returns "0" as response on kXR_stage; NULL payload on other options. Cancel/evict return noop ok.
  */
-/* ---- WHY: kXR_prepare validates each path in a prepare request against auth, ACLs, and filesystem existence before accepting it for staging. Handles two modes: noerrs (skip errors, count missing paths) for staging collections where files may not exist yet (tape nearline), and strict mode (return error on first failure). Fills out_resolved with canonical path when collecting staging arguments. ---- */
-
-/* ---- HOW: Checks line_len > XROOTD_MAX_PATH → fail kXR_ArgTooLong. Extracts path via xrootd_extract_path() — if fails fail kXR_ArgInvalid. Checks forbidden components (dot/dotdot) via has_forbidden_component() — fail kXR_ArgInvalid. Resolves path via xrootd_resolve_path(): if noerrs and resolve fails, tries resolve_path_noexist() for out_resolved, increments missing count, returns NGX_OK; otherwise fail kXR_NotFound. Auth chain: check_authdb(XROOTD_AUTH_READ) → fail kXR_NotAuthorized; check_vo_acl(vo_rules + vo_list) → fail kXR_NotAuthorized; check_token_scope(pathbuf, 0) → fail kXR_NotAuthorized. Copies resolved path to out_resolved via ngx_cpystrn(). stat(resolved): ENOENT/ENOTDIR with noerrs increments missing, returns NGX_OK; without noerrs fail kXR_NotFound; EACCES/EPERM fail kXR_NotAuthorized; other errno fail kXR_IOError. S_ISDIR: noerrs increments missing; otherwise fail kXR_isDirectory. Returns NGX_OK on full pass or NGX_DONE on error. */
+/* WHY: kXR_prepare validates each path in a prepare request against auth, ACLs, and filesystem existence before accepting it for staging. Handles two modes: noerrs (skip errors, count missing paths) for staging collections where files may not exist yet (tape nearline), and strict mode (return error on first failure). Fills out_resolved with canonical path when collecting staging arguments. */
+/* HOW: Checks line_len > XROOTD_MAX_PATH → fail kXR_ArgTooLong. Extracts path via xrootd_extract_path() — if fails fail kXR_ArgInvalid. Checks forbidden components (dot/dotdot) via has_forbidden_component() — fail kXR_ArgInvalid. Resolves path via xrootd_resolve_path(): if noerrs and resolve fails, tries resolve_path_noexist() for out_resolved, increments missing count, returns NGX_OK; otherwise fail kXR_NotFound. Auth chain: check_authdb(XROOTD_AUTH_READ) → fail kXR_NotAuthorized; check_vo_acl(vo_rules + vo_list) → fail kXR_NotAuthorized; check_token_scope(pathbuf, 0) → fail kXR_NotAuthorized. Copies resolved path to out_resolved via ngx_cpystrn(). stat(resolved): ENOENT/ENOTDIR with noerrs increments missing, returns NGX_OK; without noerrs fail kXR_NotFound; EACCES/EPERM fail kXR_NotAuthorized; other errno fail kXR_IOError. S_ISDIR: noerrs increments missing; otherwise fail kXR_isDirectory. Returns NGX_OK on full pass or NGX_DONE on error. */
 
 ngx_int_t
 xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientPrepareRequest *req;
+    xrdw_prepare_req_t    req;
     const u_char         *p;
     const u_char         *end;
     ngx_uint_t            paths = 0;
@@ -323,27 +318,27 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_uint_t   stage_max   = 0;
     char         group_reqid[FRM_REQID_LEN];
 
-    req = (ClientPrepareRequest *) ctx->hdr_buf;
-    optionx = ntohs(req->optionX);
+    xrdw_prepare_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    optionx = req.optionX;
 
-    collect_stage = (req->options & kXR_stage) && conf->prepare_command.len > 0;
-    do_enqueue    = (req->options & kXR_stage) && conf->frm.enable
+    collect_stage = (req.options & kXR_stage) && conf->prepare_command.len > 0;
+    do_enqueue    = (req.options & kXR_stage) && conf->frm.enable
                     && conf->frm.queue != NULL;
     need_resolved = collect_stage || do_enqueue;
     group_reqid[0] = '\0';
 
-    if ((req->options & kXR_wmode) && !conf->common.allow_write) {
+    if ((req.options & kXR_wmode) && !conf->common.allow_write) {
         return xrootd_prepare_send_fail(ctx, c, "-", kXR_fsReadOnly,
                                         "this is a read-only server");
     }
 
-    if (req->options & kXR_cancel) {
+    if (req.options & kXR_cancel) {
         /* Phase 35: real cancel against the durable queue when FRM is on. */
         if (conf->frm.enable && conf->frm.queue != NULL) {
             return xrootd_prepare_handle_cancel(ctx, c, conf);
         }
         snprintf(detail, sizeof(detail), "noop cancel opts=0x%02x optx=0x%04x",
-                 (unsigned int) req->options, (unsigned int) optionx);
+                 (unsigned int) req.options, (unsigned int) optionx);
         xrootd_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
         return xrootd_send_ok(ctx, c, NULL, 0);
     }
@@ -357,7 +352,7 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
             XROOTD_FRM_METRIC_INC(evict_total);
         }
         snprintf(detail, sizeof(detail), "evict opts=0x%02x optx=0x%04x",
-                 (unsigned int) req->options, (unsigned int) optionx);
+                 (unsigned int) req.options, (unsigned int) optionx);
         xrootd_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
         return xrootd_send_ok(ctx, c, NULL, 0);
     }
@@ -427,7 +422,7 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         rc = xrootd_prepare_check_path(ctx, c, conf, line, line_len,
-                                       (req->options & kXR_noerrs) != 0,
+                                       (req.options & kXR_noerrs) != 0,
                                        &missing, out_resolved);
         if (rc == NGX_DONE) {
             return NGX_OK;
@@ -453,7 +448,7 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 ngx_memzero(&v, sizeof(v));
                 v.lfn        = out_resolved;
                 v.options    = FRM_OPT_STAGE
-                             | ((req->options & kXR_coloc) ? FRM_OPT_COLOC : 0);
+                             | ((req.options & kXR_coloc) ? FRM_OPT_COLOC : 0);
                 v.selector   = "prepare";    /* F2: activity class           */
                 v.requester_dn = (rdn != NULL && rdn[0] != '\0') ? rdn : NULL;
                 v.tod_expire = (int64_t) time(NULL)
@@ -493,14 +488,14 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     snprintf(detail, sizeof(detail),
              "paths=%u missing=%u opts=0x%02x optx=0x%04x%s",
              (unsigned int) paths, (unsigned int) missing,
-             (unsigned int) req->options, (unsigned int) optionx,
-             (req->options & kXR_coloc) ? " (coloc)" : "");
+             (unsigned int) req.options, (unsigned int) optionx,
+             (req.options & kXR_coloc) ? " (coloc)" : "");
 
     xrootd_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
 
     /* kXR_stage: save the path list for kXR_QPrep status queries, return
      * request ID "0", and optionally invoke the configured staging command. */
-    if (req->options & kXR_stage) {
+    if (req.options & kXR_stage) {
         u_char     *saved;
         const char *resp_reqid;
         size_t      resp_reqid_len;
@@ -531,7 +526,7 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
         if (collect_stage && stage_count > 0) {
             if (xrootd_prepare_invoke_command(c->log, conf,
                                               stage_paths, stage_count,
-                                              (req->options & kXR_coloc) != 0)
+                                              (req.options & kXR_coloc) != 0)
                 != NGX_OK)
             {
                 ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
@@ -553,7 +548,7 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * command; we cannot know when they arrive, so the notification is
          * omitted and a warning is logged.  Future work could add a completion
          * pipe from the staging command to deliver the notification later. */
-        if (req->options & kXR_notify) {
+        if (req.options & kXR_notify) {
             if (missing == 0) {
                 char     notify_msg[96];
                 size_t   notify_len;
@@ -599,9 +594,8 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
-/* ---- WHY: kXR_prepare accepts a newline-separated list of paths from clients, validates each against auth/ACLs/filesystem existence, optionally invokes a staging command (e.g., xrdcp to tape), and returns a request ID for later status queries via kXR_QPrep. Supports cancel/evict options as noops, write mode enforcement, and best-effort staging invocation (continues on launch failure). ---- */
-
-/* ---- HOW: Parses ClientPrepareRequest from ctx->hdr_buf — extracts optionX via ntohs(req->optionX). Checks kXR_stage + prepare_command.len > 0 → collect_stage=1. If kXR_wmode && !allow_write fail kXR_fsReadOnly("read-only server"). If kXR_cancel or kXR_evict in optx: log access, send ok with NULL payload (noop). If ctx->cur_dlen==0 || payload==NULL fail kXR_ArgMissing("file list missing"). Pre-allocates stage_paths/stage_bufs arrays via ngx_palloc if collect_stage — caps at XROOTD_PREPARE_CMD_MAX_PATHS. Parses payload line-by-line: extracts line_len trimming trailing \r/\NUL, skips empty lines, increments paths count. For each path points out_resolved at staging buffer slot (if collecting), calls xrootd_prepare_check_path() with noerrs flag from kXR_noerrs — if NGX_DONE returns NGX_OK; if other error returns rc. Accepts non-empty resolved paths into stage_paths array. If paths==0 fail kXR_ArgMissing("empty list"). Logs detail string "paths=%u missing=%u opts=0x%02x optx=0x%04x". If kXR_stage: allocates saved buffer via ngx_alloc, copies payload, frees old ctx->prepare_paths if any, sets reqid="0", stores paths in ctx->prepare_paths/len; invokes staging command via xrootd_prepare_invoke_command() (best-effort: logs error on failure but continues); returns ok with "0" as response. Otherwise returns ok with NULL. */
+/* WHY: kXR_prepare accepts a newline-separated list of paths from clients, validates each against auth/ACLs/filesystem existence, optionally invokes a staging command (e.g., xrdcp to tape), and returns a request ID for later status queries via kXR_QPrep. Supports cancel/evict options as noops, write mode enforcement, and best-effort staging invocation (continues on launch failure). */
+/* HOW: Parses ClientPrepareRequest from ctx->hdr_buf — extracts optionX via ntohs(req->optionX). Checks kXR_stage + prepare_command.len > 0 → collect_stage=1. If kXR_wmode && !allow_write fail kXR_fsReadOnly("read-only server"). If kXR_cancel or kXR_evict in optx: log access, send ok with NULL payload (noop). If ctx->cur_dlen==0 || payload==NULL fail kXR_ArgMissing("file list missing"). Pre-allocates stage_paths/stage_bufs arrays via ngx_palloc if collect_stage — caps at XROOTD_PREPARE_CMD_MAX_PATHS. Parses payload line-by-line: extracts line_len trimming trailing \r/\NUL, skips empty lines, increments paths count. For each path points out_resolved at staging buffer slot (if collecting), calls xrootd_prepare_check_path() with noerrs flag from kXR_noerrs — if NGX_DONE returns NGX_OK; if other error returns rc. Accepts non-empty resolved paths into stage_paths array. If paths==0 fail kXR_ArgMissing("empty list"). Logs detail string "paths=%u missing=%u opts=0x%02x optx=0x%04x". If kXR_stage: allocates saved buffer via ngx_alloc, copies payload, frees old ctx->prepare_paths if any, sets reqid="0", stores paths in ctx->prepare_paths/len; invokes staging command via xrootd_prepare_invoke_command() (best-effort: logs error on failure but continues); returns ok with "0" as response. Otherwise returns ok with NULL. */
 
 /*
  * kXR_QPrep handler.
@@ -776,12 +770,10 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     xrootd_log_access(ctx, c, "QPREP", "-", "-", 1, kXR_ok, NULL, 0);
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (rp - resp + 1));
 }
-/* ---- WHY: kXR_QPrep queries the staging status of paths from a prior kXR_prepare request — clients use it to verify whether files are available on disk ("A") or missing ("M"). Supports inline path lists in the query payload or falls back to stored prepare_paths from the original request. Disk-only servers return immediate results since files are either present or absent. ---- */
+/* WHY: kXR_QPrep queries the staging status of paths from a prior kXR_prepare request — clients use it to verify whether files are available on disk ("A") or missing ("M"). Supports inline path lists in the query payload or falls back to stored prepare_paths from the original request. Disk-only servers return immediate results since files are either present or absent. */
+/* HOW: Parses ctx->payload — if empty returns ok NULL. Skips first line as reqid (ignored). If remaining lines exist uses them as inline paths; otherwise falls back to ctx->prepare_paths/stored list from prior kXR_prepare. Allocates response buffer resp_cap=src_len*2+64 via ngx_palloc — on OOM fail kXR_NoMemory. Parses each path line trimming trailing \r/\NUL, skips empty lines. For each path: extracts via xrootd_extract_path() (skip if malformed), resolves via xrootd_resolve_path(), checks authdb(XROOTD_AUTH_READ) + vo_acl + token_scope + stat(S_ISREG) — if all pass writes 'A ' to response; otherwise writes 'M '. Copies logical pathbuf into response, truncates on buffer overflow. If no output (rp==resp) returns ok NULL; otherwise NUL-terminates resp, logs access event, sends xrootd_send_ok(resp). */
 
-/* ---- HOW: Parses ctx->payload — if empty returns ok NULL. Skips first line as reqid (ignored). If remaining lines exist uses them as inline paths; otherwise falls back to ctx->prepare_paths/stored list from prior kXR_prepare. Allocates response buffer resp_cap=src_len*2+64 via ngx_palloc — on OOM fail kXR_NoMemory. Parses each path line trimming trailing \r/\NUL, skips empty lines. For each path: extracts via xrootd_extract_path() (skip if malformed), resolves via xrootd_resolve_path(), checks authdb(XROOTD_AUTH_READ) + vo_acl + token_scope + stat(S_ISREG) — if all pass writes 'A ' to response; otherwise writes 'M '. Copies logical pathbuf into response, truncates on buffer overflow. If no output (rp==resp) returns ok NULL; otherwise NUL-terminates resp, logs access event, sends xrootd_send_ok(resp). */
-
-/* ---- public API: xrootd_query_prep_status() — kXR_QPrep staging status query handler ----
- * WHAT: Queries staging availability of paths from prior prepare request. Returns "A <path>" for files present on disk, "M <path>" for missing/unauthorized.
+/* public API: xrootd_query_prep_status() — kXR_QPrep staging status query handler * WHAT: Queries staging availability of paths from prior prepare request. Returns "A <path>" for files present on disk, "M <path>" for missing/unauthorized.
  *       Uses inline path list in payload or falls back to stored ctx->prepare_paths. Allocates resp buffer src_len*2+64 via ngx_palloc, resolves each path
  *       + authdb(vo_acl token_scope) + stat(S_ISREG) → writes 'A'/'M' prefix per path, NUL-terminates and sends response.
  */

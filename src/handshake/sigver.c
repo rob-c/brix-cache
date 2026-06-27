@@ -1,8 +1,7 @@
 #include "handshake.h"
 #include "../gsi/gsi_core.h"   /* xrootd_gsi_sigver_required (shared policy) */
 
-/* ---- sigver.c — request signature verification (kXR_sigver HMAC-SHA256) and security-level enforcement ----
- *
+/* sigver.c — request signature verification (kXR_sigver HMAC-SHA256) and security-level enforcement
  * WHAT: Owns the "verify" half of XRootD request signing. Three entry points:
  *       xrootd_verify_pending_sigver() consumes the sigver state recorded when a
  *       kXR_sigver request arrived and validates that the immediately-following

@@ -1,80 +1,10 @@
 /*
- * put.c — S3 PUT handler: body callback, directory-sentinel mkdir,
- *          atomic write via temp file + rename.
- *
- * Thread-pool path (NGX_THREADS): for in-memory bodies, dispatches the
- * pwrite + staged commit to a worker thread via ngx_thread_task_post so the
- * nginx event loop is not blocked during large object writes.
+ * put.c - (kept) routing + shared helpers
+ * Phase-38 split of put.c; behavior-identical.
  */
-/*
- * ============================================================
- * WHAT: S3 PutObject handler — body callback after client request
- *      is fully read by nginx.
- * ============================================================
- *
- * This file implements the completion callback for S3 PUT requests.
- * ngx_http_s3_handler() sets r->ctx to the resolved filesystem path,
- * then calls ngx_http_read_client_request_body(). When the body is
- * fully received, s3_put_body_handler() fires as the async callback.
- *
- * Two paths:
- *   1. Directory sentinel — key ends with S3_DIR_SENTINEL ("_$folder$")
- *      → mkdir parent + create zero-byte sentinel file.
- *   2. Normal object write — body to temp file via O_EXCL, then rename.
- *      The temp file guarantees atomicity: no concurrent PUT can corrupt
- *      the final path because O_EXCL fails if the tmp file already exists.
- * ============================================================
- *
- * WHY atomic temp+rename:
- *   - If the process crashes mid-write, only the .tmp.{pid}.{random} file
- *     is orphaned (cleaned up by staged_abort). The final path is untouched.
- *   - Clients never see a partially-written object.
- * ============================================================
- *
- * Body write modes:
- *   XROOTD_S3_PUT_EMPTY — no body bytes (e.g. sentinel)
- *   XROOTD_S3_PUT_MEMORY — all buffers in-memory (buf->in_file=0)
- *   XROOTD_S3_PUT_SPOOLED — all buffers spooled to nginx temp files
- *     (buf->in_file=1, read via pread())
- *   XROOTD_S3_PUT_MIXED — combination of both modes
- * ============================================================
- *
- * Security/integrity:
- *   - O_EXCL on temp file prevents concurrent PUT corruption
- *   - Confined canon check via xrootd_open_confined_canon() and
- *     xrootd_staged_commit() (rename confined to root_canon)
- *   - Path escape detection already done in handler.c (s3_resolve_key)
- *   - allow_write config gate checked before body read starts
- */
+#include "s3_put_internal.h"
 
-#include "s3.h"
-#include "aws_chunked.h"
-#include "tagging.h"
-#include "../compat/http_body.h"
-#include "../compat/http_headers.h"
-#include "../compat/staged_file.h"
-#include "../fs/vfs.h"
-#include "../path/path.h"
-#include "../dashboard/dashboard_tracking.h"
-#include "../impersonate/lifecycle.h"
-
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <string.h>
-#include <limits.h>
-
-static void s3_put_finalize_error(ngx_http_request_t *r);
-static void s3_put_finalize_fs_error(ngx_http_request_t *r, int saved_errno);
-static void s3_put_finalize_empty_ok(ngx_http_request_t *r);
-static void s3_put_finalize_bad_digest(ngx_http_request_t *r);
-static void s3_put_finalize_invalid_request(ngx_http_request_t *r);
-static int  s3_put_checksum_failed(ngx_http_request_t *r,
-    const char *fs_path, const char *root_canon);
-static void s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    xrootd_staged_file_t *staged, const char *fs_path, ngx_uint_t body_mode);
-
-static const char *
+const char *
 s3_dashboard_put_op(ngx_http_request_t *r)
 {
     char upload_id[128];
@@ -89,7 +19,8 @@ s3_dashboard_put_op(ngx_http_request_t *r)
     return "PutObject";
 }
 
-static void
+
+void
 s3_dashboard_identity(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                       char *out, size_t outsz)
 {
@@ -120,184 +51,6 @@ s3_dashboard_identity(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_cpystrn((u_char *) out, (u_char *) "anonymous", outsz);
 }
 
-typedef struct {
-    ngx_http_request_t   *r;
-    xrootd_staged_file_t  staged;
-    size_t                len;
-    ssize_t               nwritten;
-    int                   io_errno;
-    ngx_uint_t            body_mode;
-    size_t                body_bytes;
-    char                  final_path[PATH_MAX];
-    char                  root_canon[PATH_MAX];
-} s3_put_aio_t;
-
-
-/*
- * s3_thread_pool — resolve (and cache) the async-I/O thread pool for this
- * location.
- *
- * WHY: the S3 postconfiguration only resolves common.thread_pool on the
- * *server-level* loc-conf, but `xrootd_s3 on` is normally inside a `location {}`
- * block whose loc-conf never gets that pointer set — so the offload below would
- * silently never engage.  Mirror the WebDAV COPY/MOVE pattern
- * (src/webdav/copy.c, move.c): resolve lazily at request time via ngx_cycle and
- * cache the result into the loc-conf for subsequent requests.
- */
-ngx_thread_pool_t *
-s3_thread_pool(ngx_http_s3_loc_conf_t *cf)
-{
-    static ngx_str_t   default_name = ngx_string("default");
-    ngx_str_t         *pname;
-    ngx_thread_pool_t *pool;
-
-    if (cf->common.thread_pool != NULL) {
-        return cf->common.thread_pool;
-    }
-    pname = cf->common.thread_pool_name.len > 0
-            ? &cf->common.thread_pool_name : &default_name;
-    pool = ngx_thread_pool_get((ngx_cycle_t *) ngx_cycle, pname);
-    if (pool != NULL) {
-        cf->common.thread_pool = pool;   /* cache for subsequent requests */
-    }
-    return pool;
-}
-
-static void s3_put_finalize_client_error(ngx_http_request_t *r, int status,
-    const char *code, const char *message);
-
-/*
- * s3_commit_put — W6b: commit the staged temp file to its final path, honouring
- * an exclusive (create-if-absent) PutObject.  When the request carried
- * `If-None-Match: *` the commit uses renameat2(RENAME_NOREPLACE); otherwise the
- * plain rename.  Returns NGX_OK; or NGX_ERROR with ngx_errno preserved (EEXIST
- * when an exclusive create lost the race — the caller maps that to 412).  Runs
- * on the event loop (all three PUT commit sites do), so the request ctx is live.
- */
-static ngx_int_t
-s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, const char *final_path)
-{
-    ngx_http_s3_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-
-    if (rx != NULL && rx->exclusive_create) {
-        return xrootd_staged_commit_excl(log, root_canon, staged, final_path);
-    }
-    return xrootd_staged_commit(log, root_canon, staged, final_path);
-}
-
-/*
- * s3_put_commit_conflict — after s3_commit_put() returned NGX_ERROR, send the
- * 412 PreconditionFailed for an exclusive create that lost the race and return
- * 1; return 0 when the failure was something else (caller handles as 500).
- */
-static int
-s3_put_commit_conflict(ngx_http_request_t *r)
-{
-    if (ngx_errno != EEXIST) {
-        return 0;
-    }
-    s3_put_finalize_client_error(r, NGX_HTTP_PRECONDITION_FAILED,
-        "PreconditionFailed",
-        "At least one of the preconditions you specified did not hold "
-        "(If-None-Match).");
-    return 1;
-}
-
-static void
-s3_put_aio_thread(void *data, ngx_log_t *log)
-{
-    s3_put_aio_t *t = data;
-
-    (void) log;
-
-    t->io_errno = 0;
-
-    /*
-     * Phase 31 W2 / phase-46 W1a: stream every body buf straight to the staged
-     * temp fd — no full-body contiguous copy.  Memory bufs go via pwrite(2);
-     * spooled bufs via kernel copy_file_range from the nginx temp file.  Both are
-     * blocking syscalls, which is exactly why they run here on the thread pool
-     * rather than the event loop.
-     */
-    if (xrootd_http_body_write_to_fd(t->r, t->staged.fd, t->final_path, NULL)
-        != NGX_OK)
-    {
-        t->io_errno = errno;
-        t->nwritten = -1;
-        return;
-    }
-
-    t->nwritten = (ssize_t) t->len;
-}
-
-static void
-s3_put_aio_done(ngx_event_t *ev)
-{
-    ngx_thread_task_t  *task = ev->data;
-    s3_put_aio_t       *t = task->ctx;
-    ngx_http_request_t *r = t->r;
-    ngx_log_t          *log = r->connection->log;
-
-    if (t->nwritten < 0 || (size_t) t->nwritten < t->len) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR,
-                             (ngx_uint_t) t->io_errno,
-                             "s3: async write() failed for: \"%s\"",
-                             t->final_path);
-        xrootd_staged_abort(log, t->root_canon, &t->staged, 1);
-        s3_put_finalize_error(r);
-        return;
-    }
-
-    ngx_close_file(t->staged.fd);
-    t->staged.fd = NGX_INVALID_FILE;
-
-    if (s3_commit_put(r, log, t->root_canon, &t->staged,
-                      t->final_path) != NGX_OK)
-    {
-        if (s3_put_commit_conflict(r)) {
-            return;
-        }
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "s3: async staged commit to \"%s\" failed",
-                             t->final_path);
-        s3_put_finalize_error(r);
-        return;
-    }
-
-    /* S3 PutObject requires an ETag on the 200 response (the synchronous path
-     * sets it too — keep the offload path's response identical). */
-    {
-        struct stat final_sb;
-        char        etag_buf[48];
-        if (xrootd_lstat_confined_canon(log, t->root_canon, t->final_path,
-                                        &final_sb, 1) == 0) {
-            s3_etag(&final_sb, etag_buf, sizeof(etag_buf));
-            (void) s3_set_header(r, "ETag", etag_buf);
-        }
-    }
-
-    /* Full-object checksum verify (client-supplied) + echo; failures remove the
-     * object and send the matching 400. */
-    if (s3_put_checksum_failed(r, t->final_path, t->root_canon)) {
-        return;
-    }
-
-    /* x-amz-tagging (best-effort): store the request's tag set on the object. */
-    (void) s3_apply_put_tagging_header(r, t->final_path, t->root_canon);
-
-    xrootd_dashboard_http_add(r, (ngx_atomic_int_t) t->body_bytes);
-    XROOTD_S3_METRIC_ADD(bytes_rx_total, t->body_bytes);
-    if (r->connection && r->connection->sockaddr
-        && r->connection->sockaddr->sa_family == AF_INET6) {
-        XROOTD_S3_METRIC_ADD(bytes_rx_ipv6_total, t->body_bytes);
-    } else {
-        XROOTD_S3_METRIC_ADD(bytes_rx_ipv4_total, t->body_bytes);
-    }
-    XROOTD_S3_METRIC_INC(put_body_total[t->body_mode]);
-    s3_put_finalize_empty_ok(r);
-}
 /*
  * s3_put_body_mode — classify the body into one of four modes.
  *
@@ -307,7 +60,7 @@ s3_put_aio_done(ngx_event_t *ev)
  *   as indices into XROOTD_S3_METRIC_INC(put_body_total[...]).
  */
 
-static ngx_uint_t
+ngx_uint_t
 s3_put_body_mode(const xrootd_http_body_summary_t *summary)
 {
     if (summary->has_spooled && summary->has_memory) {
@@ -321,409 +74,7 @@ s3_put_body_mode(const xrootd_http_body_summary_t *summary)
     }
     return XROOTD_S3_PUT_EMPTY;
 }
-/*
- * s3_put_finalize_error — send 500 and increment internal-error metric.
- *
- * Called from any failure path inside the handler. The response is final;
- * this function does not return NGX_DONE (the caller already incremented
- * r->main->count via ngx_http_read_client_request_body).
- */
 
-static void
-s3_put_finalize_error(ngx_http_request_t *r)
-{
-    xrootd_dashboard_http_error(r, "s3 write failed");
-    xrootd_dashboard_http_finish(r);
-    XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
-                                       NGX_HTTP_INTERNAL_SERVER_ERROR);
-}
-
-/*
- * s3_put_finalize_fs_error — finalize a PUT that failed at a filesystem op,
- * mapping the captured errno to the correct HTTP status instead of a blanket 500.
- *
- * WHAT: A cross-tenant / DAC-denied create (e.g. alice PUT into bob's 0755 dir →
- *       EACCES on the staged temp create) is a forbidden request, not a server
- *       fault.  Route the captured errno through xrootd_http_errno_to_status()
- *       (the same map S3 GET/CopyObject already use): EACCES/EPERM/EXDEV/ELOOP →
- *       403 AccessDenied, ENOENT/ENOTDIR → 404 NoSuchKey, ENOSPC → 507, etc.
- *       Any errno that maps to 5xx falls back to the existing internal-error path.
- * WHY:  A genuine permission denial must surface as 403 (clean 4xx contract), not
- *       HTTP 500 — a 500 misreports a bounded, well-formed request as an internal
- *       error and is the robustness defect the impersonation red-team flagged.
- * HOW:  The caller MUST capture errno into saved_errno BEFORE any intervening
- *       syscall (logging, staged_abort) clobbers it, then pass it here.
- */
-static void
-s3_put_finalize_fs_error(ngx_http_request_t *r, int saved_errno)
-{
-    int         status;
-    const char *code;
-    const char *message;
-
-    status = (int) xrootd_http_errno_to_status(saved_errno);
-
-    /* errno that has no clean 4xx contract (e.g. EIO) keeps the 500 path. */
-    if (status >= 500) {
-        s3_put_finalize_error(r);
-        return;
-    }
-
-    switch (status) {
-    case 403:
-        code = "AccessDenied";
-        message = "Access Denied.";
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_ACCESS_DENIED]);
-        break;
-    case 404:
-        code = "NoSuchKey";
-        message = "The specified key does not exist.";
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_NO_SUCH_KEY]);
-        break;
-    case 409:
-        code = "BucketAlreadyExists";
-        message = "The requested resource already exists.";
-        break;
-    case 414:
-        code = "KeyTooLongError";
-        message = "Your key is too long.";
-        break;
-    default:
-        code = "InvalidRequest";
-        message = "The request could not be completed.";
-        break;
-    }
-
-    xrootd_dashboard_http_error(r, message);
-    xrootd_dashboard_http_finish(r);
-    (void) s3_send_xml_error(r, (ngx_uint_t) status, code, message);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
-                                       (ngx_int_t) status);
-}
-
-static void
-s3_put_finalize_empty_ok(ngx_http_request_t *r)
-{
-    ngx_int_t rc;
-
-    /*
-     * S3 PutObject succeeds with 200 + an ETag header.  A PUT response must
-     * NEVER be reinterpreted as a conditional-GET result: when the client sends
-     * If-None-Match / If-Modified-Since, nginx core's not-modified filter would
-     * otherwise rewrite this 200 into a 304 Not Modified (304 is a GET/HEAD-only
-     * status — RFC 9110 §15.4.5).  The object is written either way, but the
-     * status would be wrong and could break S3 SDKs that set conditional headers
-     * by default.  Disable the not-modified filter for this response.
-     */
-    r->disable_not_modified          = 1;
-    r->headers_out.status           = NGX_HTTP_OK;
-    r->headers_out.content_length_n = 0;
-    ngx_http_send_header(r);
-
-    rc = ngx_http_send_special(r, NGX_HTTP_LAST);
-    xrootd_dashboard_http_finish(r);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT, rc);
-}
-
-static void
-s3_put_finalize_ok(ngx_http_request_t *r, size_t body_bytes,
-    ngx_uint_t body_mode)
-{
-    xrootd_dashboard_http_add(r, (ngx_atomic_int_t) body_bytes);
-    XROOTD_S3_METRIC_ADD(bytes_rx_total, body_bytes);
-    if (r->connection && r->connection->sockaddr
-        && r->connection->sockaddr->sa_family == AF_INET6) {
-        XROOTD_S3_METRIC_ADD(bytes_rx_ipv6_total, body_bytes);
-    } else {
-        XROOTD_S3_METRIC_ADD(bytes_rx_ipv4_total, body_bytes);
-    }
-    XROOTD_S3_METRIC_INC(put_body_total[body_mode]);
-    s3_put_finalize_empty_ok(r);
-}
-
-/*
- * s3_put_finalize_bad_digest — reject a PUT whose client checksum mismatched.
- * The object was already removed by s3_put_checksum_apply; send 400 BadDigest
- * and finalize the dashboard/metrics for the request.
- */
-static void
-s3_put_finalize_bad_digest(ngx_http_request_t *r)
-{
-    xrootd_dashboard_http_error(r, "s3 checksum mismatch");
-    xrootd_dashboard_http_finish(r);
-    (void) s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "BadDigest",
-        "The checksum you specified did not match what was received.");
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
-                                       NGX_HTTP_BAD_REQUEST);
-}
-
-/*
- * s3_put_finalize_invalid_request — reject a PUT whose checksum selection was
- * ambiguous or named an unsupported algorithm (the object was already removed
- * by s3_put_checksum_apply); send 400 InvalidRequest.
- */
-static void
-s3_put_finalize_invalid_request(ngx_http_request_t *r)
-{
-    xrootd_dashboard_http_error(r, "s3 invalid checksum request");
-    xrootd_dashboard_http_finish(r);
-    (void) s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidRequest",
-        "The checksum algorithm selection is invalid or ambiguous.");
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
-                                       NGX_HTTP_BAD_REQUEST);
-}
-
-/*
- * s3_put_finalize_codec_error — reject a PUT whose Content-Encoding could not be
- * decoded (phase-42 W1).  Maps the decoder's HTTP status to a clean S3 XML error
- * instead of a blanket 500: a bomb-guard trip → 413 EntityTooLarge, an
- * unsupported/disabled codec or a malformed/truncated stream → 400 InvalidRequest.
- * The staged object has already been aborted by the caller, so no partial bytes
- * are ever stored.  A genuine I/O/internal failure stays a 500 (caller routes it
- * to s3_put_finalize_error instead).
- */
-static void
-s3_put_finalize_codec_error(ngx_http_request_t *r, ngx_int_t status)
-{
-    const char *code = "InvalidRequest";
-    const char *msg  = "The request body could not be decoded with the "
-                       "requested Content-Encoding.";
-
-    if (status == NGX_HTTP_REQUEST_ENTITY_TOO_LARGE) {
-        code = "EntityTooLarge";
-        msg  = "The decompressed body exceeds the maximum allowed size.";
-    }
-    xrootd_dashboard_http_error(r, "s3 content-encoding decode failed");
-    xrootd_dashboard_http_finish(r);
-    (void) s3_send_xml_error(r, status, code, msg);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT, status);
-}
-
-/*
- * s3_put_checksum_failed — verify+echo the client's full-object checksum and, on
- * a terminal failure, send the corresponding 400 response.
- *
- * Returns 1 when a failure response was already sent (the caller must stop), or
- * 0 to proceed with the success finalize.  A compute error (S3_CKSUM_ERROR) is
- * non-fatal — the object stands, just without an echoed checksum header.
- */
-static int
-s3_put_checksum_failed(ngx_http_request_t *r, const char *fs_path,
-    const char *root_canon)
-{
-    switch (s3_put_checksum_apply(r, fs_path, root_canon)) {
-    case S3_CKSUM_MISMATCH:
-        s3_put_finalize_bad_digest(r);
-        return 1;
-    case S3_CKSUM_CONFLICT:
-        s3_put_finalize_invalid_request(r);
-        return 1;
-    default:
-        return 0;   /* S3_CKSUM_OK or S3_CKSUM_ERROR — proceed */
-    }
-}
-
-/*
- * s3_put_finalize_ok — send 200 with ETag header and update metrics.
- *
- * Parameters:
- *   body_bytes   — total bytes written from the client request body
- *   body_mode    — classification enum (XROOTD_S3_PUT_*), used as metric index
- *
- * Flow:
- *   1. Increment bytes_rx_total by body_bytes
- *   2. Increment put_body_total[body_mode]
- *   3. Call s3_put_finalize_empty_ok() which sends the HTTP response
- */
-/*
- * s3_put_body_handler — ngx_http_read_client_request_body() completion
- * callback for S3 PutObject.
- *
- * Retrieves the filesystem path from the per-request module context (set by
- * ngx_http_s3_handler before calling ngx_http_read_client_request_body).
- *
- * Special case — directory sentinels: S3 clients represent directories as
- * zero-byte objects whose key ends with the S3_DIR_SENTINEL suffix (typically
- * "_$folder$").  These are handled by creating the real directory rather than
- * a file.
- *
- * Normal case: write body to a temp file (O_EXCL for atomicity), then rename
- * onto the final path.  On any error the temp file is unlinked.
- *
- * Ownership: the response is finalised via s3_put_finalize_ok() which calls
- *   ngx_http_send_header() and ngx_http_send_special().  The function must not
- *   return NGX_DONE (the caller already incremented r->main->count via
- *   ngx_http_read_client_request_body).
- */
-static void s3_put_body_inner(ngx_http_request_t *r);
-
-/*
- * s3_put_finalize_client_error — send an S3 XML 4xx for a malformed PUT and
- * finalize dashboard/metrics (used by the aws-chunked decode path).
- */
-static void
-s3_put_finalize_client_error(ngx_http_request_t *r, int status,
-    const char *code, const char *message)
-{
-    xrootd_dashboard_http_error(r, message);
-    xrootd_dashboard_http_finish(r);
-    (void) s3_send_xml_error(r, (ngx_uint_t) status, code, message);
-    s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_PUT,
-                                       (ngx_int_t) status);
-}
-
-/*
- * s3_chunk_finalize — post-decode steps that must run on the event loop:
- * commit the staged object, set the ETag, verify the (trailer or default)
- * checksum, store tags, and send 200.  Shared by the synchronous fallback and
- * the offload completion; `staged` has been written but not yet committed.
- */
-static void
-s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
-    const char *fs_path, xrootd_staged_file_t *staged,
-    const s3_chunk_trailer_t *trailer, uint64_t expected, ngx_uint_t body_mode)
-{
-    if (s3_commit_put(r, r->connection->log, root_canon, staged,
-                      fs_path) != NGX_OK)
-    {
-        if (s3_put_commit_conflict(r)) {
-            return;
-        }
-        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
-                             "s3: staged commit to \"%s\" failed", fs_path);
-        s3_put_finalize_error(r);
-        return;
-    }
-
-    {
-        struct stat sb;
-        char        etag_buf[48];
-        if (xrootd_lstat_confined_canon(r->connection->log, root_canon, fs_path,
-                                        &sb, 1) == 0) {
-            s3_etag(&sb, etag_buf, sizeof(etag_buf));
-            (void) s3_set_header(r, "ETag", etag_buf);
-        }
-    }
-
-    if (trailer->algo_token[0] != '\0') {
-        switch (s3_put_trailer_checksum_apply(r, fs_path, root_canon,
-                                              trailer->algo_token,
-                                              trailer->value))
-        {
-        case S3_CKSUM_MISMATCH:
-            s3_put_finalize_bad_digest(r);
-            return;
-        case S3_CKSUM_CONFLICT:
-            s3_put_finalize_invalid_request(r);
-            return;
-        default:
-            break;
-        }
-    } else if (s3_put_checksum_failed(r, fs_path, root_canon)) {
-        return;
-    }
-
-    (void) s3_apply_put_tagging_header(r, fs_path, root_canon);
-    s3_put_finalize_ok(r, expected, body_mode);
-}
-
-/* Decode-failure path: abort the staged temp and send the mapped S3 error. */
-static void
-s3_chunk_decode_failed(ngx_http_request_t *r, const char *root_canon,
-    xrootd_staged_file_t *staged, int http_status)
-{
-    xrootd_staged_abort(r->connection->log, root_canon, staged, 1);
-    if (http_status >= 500) {
-        s3_put_finalize_error(r);
-    } else if (http_status == NGX_HTTP_FORBIDDEN) {
-        /* W6a: a per-chunk signature mismatch — surface as SignatureDoesNotMatch. */
-        s3_put_finalize_client_error(r, NGX_HTTP_FORBIDDEN,
-            "SignatureDoesNotMatch",
-            "The chunk signature does not match the calculated signature.");
-    } else {
-        s3_put_finalize_client_error(r, NGX_HTTP_BAD_REQUEST, "InvalidRequest",
-            "The aws-chunked request body could not be decoded.");
-    }
-}
-
-/*
- * phase-46 W1b: aws-chunked decode offload.  The decode is a blocking
- * pread/pwrite state machine over the (often spooled) body, so it runs on the
- * thread pool; the completion commits/checksums/finalizes on the event loop.
- * The worker uses the task's own `window` scratch — it never touches r->pool.
- */
-typedef struct {
-    ngx_http_request_t   *r;
-    xrootd_staged_file_t  staged;
-    char                  fs_path[PATH_MAX];
-    char                  root_canon[PATH_MAX];
-    uint64_t              expected;
-    ngx_uint_t            body_mode;
-    s3_chunk_trailer_t    trailer;       /* filled by the worker */
-    s3_chunk_verify_t     verify;        /* W6a: per-chunk SigV4 verify ctx */
-    ngx_int_t             rc;            /* decode result        */
-    int                   http_status;   /* decode error status  */
-    u_char                window[S3_CHUNK_READ_WINDOW];
-} s3_chunk_aio_t;
-
-static void
-s3_chunk_aio_thread(void *data, ngx_log_t *log)
-{
-    s3_chunk_aio_t *t = data;
-
-    (void) log;
-    t->http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-    t->rc = s3_aws_chunked_decode_to_fd(t->r, t->staged.fd, t->fs_path,
-                                        t->expected, &t->trailer,
-                                        &t->http_status, t->window,
-                                        &t->verify);
-}
-
-/*
- * s3_build_chunk_verify — W6a: assemble the per-chunk verification context from
- * the location flag + the SigV4 material auth retained on the request ctx.  Left
- * disabled (zeroed) unless verification is configured AND a signed request was
- * authenticated (an anonymous endpoint has no secret to verify against).
- */
-static void
-s3_build_chunk_verify(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    s3_chunk_verify_t *v)
-{
-    ngx_http_s3_req_ctx_t *rx;
-
-    ngx_memzero(v, sizeof(*v));
-    if (!cf->verify_chunk_signatures) {
-        return;
-    }
-    rx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-    if (rx == NULL || !rx->have_sigv4) {
-        return;
-    }
-    v->enabled = 1;
-    ngx_memcpy(v->signing_key, rx->sigv4_signing_key, 32);
-    ngx_cpystrn((u_char *) v->seed_signature,
-                (u_char *) rx->sigv4_seed_signature, sizeof(v->seed_signature));
-    ngx_cpystrn((u_char *) v->amz_date,
-                (u_char *) rx->sigv4_amz_date, sizeof(v->amz_date));
-    ngx_cpystrn((u_char *) v->scope,
-                (u_char *) rx->sigv4_scope, sizeof(v->scope));
-}
-
-static void
-s3_chunk_aio_done(ngx_event_t *ev)
-{
-    ngx_thread_task_t  *task = ev->data;
-    s3_chunk_aio_t     *t = task->ctx;
-    ngx_http_request_t *r = t->r;
-
-    if (t->rc != NGX_OK) {
-        s3_chunk_decode_failed(r, t->root_canon, &t->staged, t->http_status);
-        return;
-    }
-    s3_chunk_finalize(r, t->root_canon, t->fs_path, &t->staged, &t->trailer,
-                      t->expected, t->body_mode);
-}
 
 /*
  * s3_put_streaming — decode an aws-chunked PUT/UploadPart body and finalize.
@@ -733,7 +84,7 @@ s3_chunk_aio_done(ngx_event_t *ev)
  * event loop) or, when no pool is configured, decodes synchronously.  Either way
  * the commit/ETag/checksum/tagging/200 run on the event loop (s3_chunk_finalize).
  */
-static void
+void
 s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     xrootd_staged_file_t *staged, const char *fs_path, ngx_uint_t body_mode)
 {
@@ -815,6 +166,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 }
 
+
 /*
  * Phase 40: the S3 PUT body is read asynchronously (after inline SigV4 auth has
  * already populated s3ctx->identity), so this callback re-establishes the
@@ -833,14 +185,85 @@ s3_put_body_handler(ngx_http_request_t *r)
     xrootd_imp_request_end();
 }
 
-static void
+
+/* Directory-sentinel fast path: if fs_path names an S3 directory sentinel
+ * (S3_DIR_SENTINEL), create the parent directory plus the zero-byte sentinel,
+ * finalize the request, and return 1 (the caller must return).  Returns 0 when
+ * fs_path is a normal object, so the caller proceeds with the body write. */
+static int
+s3_put_try_sentinel(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    const u_char *fs_path)
+{
+    size_t  plen = ngx_strlen(fs_path);
+    size_t  slen = sizeof(S3_DIR_SENTINEL) - 1;
+    char    parent[PATH_MAX];
+    char   *slash;
+    int     fd;
+    char    identity[128];
+
+    if (!(plen >= slen
+          && ngx_strncmp(fs_path + plen - slen,
+                         (u_char *) S3_DIR_SENTINEL, slen) == 0))
+    {
+        return 0;
+    }
+
+    /* Create the directory that the sentinel lives in. */
+    if (plen >= sizeof(parent)) {
+        s3_put_finalize_error(r);
+        return 1;
+    }
+    memcpy(parent, fs_path, plen + 1);
+    slash = strrchr(parent, '/');
+    if (slash != NULL) {
+        *slash = '\0';
+    }
+    {
+        xrootd_vfs_ctx_t pctx;
+
+        s3_build_vfs_ctx(r, parent, cf, &pctx);
+        if (xrootd_vfs_mkdir(&pctx, 0755, 0 /* no parents */) != NGX_OK
+            && errno != EEXIST)
+        {
+            int mk_errno = errno;  /* capture before logging clobbers it */
+            xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, mk_errno,
+                                 "s3: mkdir(\"%s\") failed", parent);
+            s3_put_finalize_fs_error(r, mk_errno);
+            return 1;
+        }
+    }
+
+    /* Write the zero-byte sentinel. */
+    fd = xrootd_open_confined_canon(r->connection->log, cf->common.root_canon,
+                                    (const char *) fs_path,
+                                    O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        int open_errno = errno;  /* capture before logging clobbers it */
+        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,
+                             "s3: open(\"%s\") for sentinel failed",
+                             (const char *) fs_path);
+        s3_put_finalize_fs_error(r, open_errno);
+        return 1;
+    }
+    close(fd);
+
+    s3_dashboard_identity(r, cf, identity, sizeof(identity));
+    (void) xrootd_dashboard_http_start_identity(r, (const char *) fs_path,
+        identity, "", XROOTD_XFER_PROTO_S3, XROOTD_XFER_DIR_WRITE,
+        "PutObjectSentinel", 0);
+    XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_DIR_SENTINEL]);
+    XROOTD_S3_METRIC_INC(put_body_total[XROOTD_S3_PUT_EMPTY]);
+    s3_put_finalize_empty_ok(r);
+    return 1;
+}
+
+
+void
 s3_put_body_inner(ngx_http_request_t *r)
 {
     u_char              *fs_path;
     ngx_http_s3_loc_conf_t *cf;
     ngx_http_s3_req_ctx_t  *s3ctx;
-    int                  fd = -1;
-    int                  is_sentinel;
     xrootd_codec_id_t    put_codec = XROOTD_CODEC_IDENTITY;
     size_t               body_bytes = 0;
     ngx_uint_t           body_mode = XROOTD_S3_PUT_EMPTY;
@@ -857,64 +280,8 @@ s3_put_body_inner(ngx_http_request_t *r)
         return;
     }
 
-    /* Check for directory sentinel */
-    {
-        size_t plen = ngx_strlen(fs_path);
-        size_t slen = sizeof(S3_DIR_SENTINEL) - 1;
-        is_sentinel = (plen >= slen
-            && ngx_strncmp(fs_path + plen - slen,
-                           (u_char *) S3_DIR_SENTINEL, slen) == 0);
-    }
-
-    if (is_sentinel) {
-        /* Create the directory that the sentinel lives in */
-        char parent[PATH_MAX];
-        size_t plen = ngx_strlen(fs_path);
-        if (plen >= sizeof(parent)) {
-            s3_put_finalize_error(r);
-            return;
-        }
-        memcpy(parent, fs_path, plen + 1);
-        char *slash = strrchr(parent, '/');
-        if (slash != NULL) {
-            *slash = '\0';
-        }
-        {
-            xrootd_vfs_ctx_t pctx;
-
-            s3_build_vfs_ctx(r, parent, cf, &pctx);
-            if (xrootd_vfs_mkdir(&pctx, 0755, 0 /* no parents */) != NGX_OK
-                && errno != EEXIST)
-            {
-                int mk_errno = errno;  /* capture before logging clobbers it */
-                xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, mk_errno,
-                                     "s3: mkdir(\"%s\") failed", parent);
-                s3_put_finalize_fs_error(r, mk_errno);
-                return;
-            }
-        }
-
-        /* Write the zero-byte sentinel */
-        fd = xrootd_open_confined_canon(r->connection->log, cf->common.root_canon,
-                                        (const char *) fs_path,
-                                        O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        if (fd < 0) {
-            int open_errno = errno;  /* capture before logging clobbers it */
-            xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,
-                                 "s3: open(\"%s\") for sentinel failed",
-                                 (const char *) fs_path);
-            s3_put_finalize_fs_error(r, open_errno);
-            return;
-        }
-        close(fd);
-
-        s3_dashboard_identity(r, cf, identity, sizeof(identity));
-        (void) xrootd_dashboard_http_start_identity(r, (const char *) fs_path,
-            identity, "", XROOTD_XFER_PROTO_S3, XROOTD_XFER_DIR_WRITE,
-            "PutObjectSentinel", 0);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_DIR_SENTINEL]);
-        XROOTD_S3_METRIC_INC(put_body_total[XROOTD_S3_PUT_EMPTY]);
-        s3_put_finalize_empty_ok(r);
+    /* Directory-sentinel objects take a separate create-dir-and-return path. */
+    if (s3_put_try_sentinel(r, cf, fs_path)) {
         return;
     }
 

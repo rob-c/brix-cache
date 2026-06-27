@@ -167,6 +167,12 @@ connect_resolved(const char *host, int port, int timeout_ms, int family,
     memset(&hints, 0, sizeof(hints));
     hints.ai_family   = family;
     hints.ai_socktype = SOCK_STREAM;
+    /* AI_NUMERICSERV: the port is always a decimal string, so tell the resolver
+     * never to consult /etc/services (saves an NSS lookup on every connect).
+     * AI_ADDRCONFIG: only return an address family the host actually has
+     * configured, so a v4-only box is not handed a AAAA candidate it would burn
+     * a full connect attempt failing on before falling back to IPv4. */
+    hints.ai_flags    = AI_NUMERICSERV | AI_ADDRCONFIG;
     snprintf(portstr, sizeof(portstr), "%d", port);
 
     gai = getaddrinfo(host, portstr, &hints, &res);

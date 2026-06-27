@@ -84,8 +84,7 @@ xrootd_rl_check(xrootd_rl_rule_t *rule, const char *key_str,
 }
 
 
-/* ---- W7: per-principal concurrency (in-flight) limit ---------------------- */
-
+/* W7: per-principal concurrency (in-flight) limit */
 ngx_int_t
 xrootd_rl_conc_acquire(xrootd_rl_rule_t *rule, const char *key_str)
 {
@@ -245,8 +244,7 @@ xrootd_rl_charge_bytes(xrootd_rl_rule_t *rule, const char *key_str,
 }
 
 
-/* ---- dashboard snapshot -------------------------------------------------- */
-
+/* dashboard snapshot */
 ngx_int_t
 xrootd_rl_snapshot(xrootd_rl_zone_t *zone, xrootd_rl_snapshot_entry_t *out,
     ngx_uint_t max, ngx_uint_t *count)

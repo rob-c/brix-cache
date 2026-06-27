@@ -33,9 +33,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
-/* ------------------------------------------------------------------ */
 /* JWT (bearer token) claims                                           */
-/* ------------------------------------------------------------------ */
 
 /* Decode a JWT's payload segment into out[outsz] as a NUL-terminated JSON string,
  * via the SHARED base64url decoder + JWS splitter (libxrdproto — the same code the
@@ -156,9 +154,7 @@ xrdc_token_meta_get(const char *jwt, xrdc_token_meta *m)
     }
 }
 
-/* ------------------------------------------------------------------ */
 /* GSI proxy certificate                                              */
-/* ------------------------------------------------------------------ */
 
 /* VOMS attribute-certificate extension OID. */
 #define VOMS_AC_OID "1.3.6.1.4.1.8005.100.100.5"
@@ -261,9 +257,7 @@ xrdc_gsi_cert_explain(const char *proxy_path, FILE *out)
     X509_free(cert);
 }
 
-/* ------------------------------------------------------------------ */
 /* Phase 40 (c): client-side pre-flight / auth-failure diagnostics      */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: inspect whatever credential is present locally (a discoverable bearer
  *       token, then a GSI proxy at the default path) and print a specific,

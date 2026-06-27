@@ -14,14 +14,13 @@
 #include <endian.h>
 #endif
 
-/* ---- File: gsi_outbound_finish.c — Auth path selection/dispatch for TPC pull outbound authentication ----
- *
+/* File: gsi_outbound_finish.c — Auth path selection/dispatch for TPC pull outbound authentication
  * WHAT: Single function tpc_outbound_finish_login implements auth path selection based on server login/authmore parameters and client configuration. Parses login_body after session ID to find "ztn" (WLCG JWT) or "gsi" (x509 certreq) in parms string → checks have_ztn_cred (delegated token or configured bearer file) + have_cert (certificate + certificate_key both set) → if want_ztn && have_ztn_cred: try tpc_outbound_ztn(t, fd) first; on failure fall through only if server also allows GSI (want_gsi && have_cert) for recovery from expired token file → if want_gsi && have_cert: delegate to tpc_outbound_gsi(t, fd) → if neither path succeeds: error message referencing missing config + kXR_AuthFailed. Returns 0 or -1 with t->xrd_error set. Caller: thread.c (auth path dispatch after bootstrap).
  *
  * WHY: TPC pull outbound authentication needs to select between WLCG JWT (ztn) and GSI certreq auth paths based on what the server supports (advertised in login/authmore parameters) and what credentials are configured locally. The selection logic prefers JWT when the server lists ztn first (typical for auth=both deployments) and a bearer file exists, with fallback to GSI if ZTN fails but server also allows GSI — this prevents silent failure from expired token files at sites that have both auth methods available.
  *
  * HOW: login_dlen <= session_id_len+1 → error kXR_ArgInvalid → parms = login_body + session_id_len → strstr(parms, "ztn") for want_ztn + strstr(parms, "gsi") for want_gsi → delegated_token or conf->tpc_outbound_bearer_file for have_ztn_cred + certificate.len > 0 && certificate_key.len > 0 for have_cert → if want_ztn && have_ztn_cred: tpc_outbound_ztn(t, fd) == 0 → return 0; else if !want_gsi || !have_cert → return -1 (no fallback available); if want_gsi && have_cert: tpc_outbound_gsi(t, fd) → error snprintf referencing missing config + kXR_AuthFailed.
- * ------------------------------------------------------------------ */
+ * */
 
 /* WHAT: Auth path selection/dispatch — parse server login/authmore params for ztn/gsi, check have_ztn_cred+have_cert config → prefer JWT if want_ztn && have_ztn_cred (fall through to GSI on failure), else delegate tpc_outbound_gsi(t, fd). Returns 0 or -1 with t->xrd_error set. Caller: thread.c auth path dispatch after bootstrap. */
 int

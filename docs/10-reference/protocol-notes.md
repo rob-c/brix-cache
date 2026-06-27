@@ -18,6 +18,23 @@ Non-obvious wire protocol behaviour discovered by reverse-engineering the XRootD
 
 If you send the old 12-byte format, it parses as `status=0x0008` (some intermediate code) and `dlen=1312`. The client waits for 1312 bytes of body that never arrive and hangs.
 
+```text
+  CLIENT sends ONE 44-byte TCP segment:
+  ┌──────────────────────────────┬───────────────────────────────┐
+  │ 20-byte handshake            │ kXR_protocol request (24 bytes)│
+  └──────────────────────────────┴───────────────────────────────┘
+
+  SERVER must reply with STANDARD framing (NOT the 12-byte ServerInitHandShake):
+  reply 1 ┌ ServerResponseHdr ─────────────┬─ body ──────────┐
+          │ streamid={0,0} status=kXR_ok   │ protover msgval │  dlen=8
+          │ dlen=8                          │ (8 bytes)       │
+          └────────────────────────────────┴─────────────────┘
+  reply 2 ┌ ServerResponseHdr + kXR_protocol body … (sent SEPARATELY)
+
+  ✗ WRONG: send old 12-byte format → client reads status=0x0008, dlen=1312
+           → waits forever for 1312 body bytes that never come → HANG
+```
+
 **Fix:** Reply to the handshake with a standard `ServerResponseHdr{streamid={0,0}, status=kXR_ok, dlen=8}` followed by 8 bytes of `protover + msgval`. Then send the `kXR_protocol` response separately.
 
 ---

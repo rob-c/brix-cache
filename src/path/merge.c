@@ -1,6 +1,6 @@
 #include "../ngx_xrootd_module.h"
 
-/* ---- Function: xrootd_merge_arrays() — concatenate two nginx arrays into one ----
+/*
  *
  * WHAT: Merges parent and child nginx arrays into a single combined array by concatenating elements in order (parent first, then child). Calculates total element count from both inputs, creates new array with ngx_array_create() using caller's pool allocation. Copies parent elements via ngx_memcpy() if parent exists and has elements, then copies child elements similarly. Returns NULL when either input is NULL or total element count is zero; returns NULL on any allocation failure during creation or copy operations. All memory allocated from cf->pool ensures proper cleanup during nginx request lifecycle.
  *

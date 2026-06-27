@@ -44,6 +44,25 @@ rate(xrootd_s3_bytes_tx_total[1m])
 
 `xrootd_bytes_tx_total` covers native `kXR_read`, `kXR_readv`, and `kXR_pgread` data payloads. `xrootd_wire_bytes_tx_total` includes protocol framing on top. The gap between the two grows with small-read workloads (many headers, little data) and shrinks toward zero for large sequential reads.
 
+```text
+  "throughput is low" — triage by metric
+  ──────────────────────────────────────
+  rate(xrootd_bytes_tx_total) below line rate?
+        │
+        ├─ write_stalls rate high? ──yes──▶ socket buffer full: slow client,
+        │                                    high RTT, small TCP rcv window
+        │                                    (normal for WAN transfers)
+        │
+        ├─ pgread fraction high? ───yes──▶ per-page CRC32c burns CPU;
+        │                                    CPU saturates before the NIC
+        │
+        ├─ CLOSE log throughput low ─yes──▶ client-side bottleneck or
+        │   across many files?               network congestion
+        │
+        └─ wire_bytes_tx ≫ bytes_tx? ─yes─▶ small-read workload: lots of
+                                             framing, little payload
+```
+
 **Normal range:** For large file sequential reads over a 10 Gbps link you should see `xrootd_bytes_tx_total` rate approaching 1–1.2 GB/s per worker. If you are significantly below that on a dedicated machine, look at:
 
 1. `xrootd_stream_response_write_stalls_total` rate — a high stall rate means the kernel socket buffer is full and the server is waiting for the client. Caused by slow clients, high network RTT, or undersized TCP receive windows.
@@ -109,6 +128,20 @@ rate(xrootd_cache_eviction_errors_total[5m])
 ```
 
 **Normal behavior:** `xrootd_cache_occupancy_ratio` should oscillate below `xrootd_cache_eviction_threshold_ratio`. Evictions fire when occupancy crosses the threshold; afterwards occupancy drops and evictions stop. Continuous evictions mean the cache is too small for the working set or the fill rate exceeds the eviction rate.
+
+```text
+  occupancy
+   100% ┤                                  ⚠ disk-full: writes fail on fsync
+        │ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  thresh├╴╶╶╶╶╶/\╶╶╶╶╶╶╶/\╶╶╶╶╶╶╶/\╶╶╶  eviction high-water (e.g. 90%)
+   90%  │     /  \evict/  \evict/  \      healthy sawtooth: fill ↗, evict ↘
+        │    /    \   /    \   /    \
+        │   /      \ /      \ /
+        └──────────────────────────────▶ time
+   HEALTHY: oscillates under threshold        STALLED: rides the threshold flat
+   evictions_total ticks up at each peak      with evictions_total NOT rising
+                                              → check eviction_errors_total
+```
 
 **Warning signs:**
 

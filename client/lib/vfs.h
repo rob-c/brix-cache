@@ -11,7 +11,18 @@
  * HOW:  the keystone is commit(): POSIX finalises by fsync+rename(temp->final);
  *       block by fsync; S3 by multipart-complete. caps lets the copy engine pick
  *       a path (random-write vs append-only, atomic-temp vs native commit).
- *       ngx-free; never reuse the server's src/fs/backend/sd.h (phase-55 broke it).
+ *       ngx-free.
+ *
+ * BACKEND I/O: this VFS is the client-side *shell* (URL/scheme resolution,
+ *       credential store, commit/abort, io_uring fast-path). The raw byte I/O of
+ *       the POSIX and block backends is dispatched through the SHARED Storage
+ *       Driver `xrootd_sd_posix_driver` (src/fs/backend/sd.h, ngx-free under
+ *       -DXRDPROTO_NO_NGX via libxrdproto) — the SAME driver the nginx server's
+ *       data plane uses (src/fs/vfs_io_core.c). So `pread`/`pwrite`/`fstat`/
+ *       `ftruncate`/`fsync` have ONE implementation across client and server.
+ *       (The old "never reuse sd.h — phase-55 broke it" caveat is obsolete: sd.h
+ *       now carries a complete ngx-free fallback, so the worker-safe raw-fd
+ *       surface is shared without pulling nginx into the client.)
  */
 #ifndef XRDC_VFS_H
 #define XRDC_VFS_H

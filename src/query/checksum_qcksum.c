@@ -40,7 +40,6 @@ xrootd_query_parse_algorithm(const u_char *src, size_t len, char *algo,
                                  algo_sz) == NGX_OK;
 }
 
-/* ---- Function: xrootd_query_cksum_send_error() — error response wrapper with NGX_DONE handling ---- */
 /* WHAT: Wraps xrootd_send_error() and returns NGX_DONE if the error was successfully sent (NGX_OK), otherwise
  *      propagates the original return value. This ensures callers receive consistent result semantics.
  * WHY: kXR_Qcksum must distinguish between "error sent to client" vs "send failed internally"; NGX_DONE signals
@@ -58,7 +57,6 @@ xrootd_query_cksum_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return (rc == NGX_OK) ? NGX_DONE : rc;
 }
 
-/* ---- Function: xrootd_query_build_checksum() — multi-algorithm checksum computation ---- */
 /* WHAT: Computes a file checksum using one of six supported algorithms: adler32, crc32, crc32c, md5, sha1, or sha256.
  *      All algorithms dispatch through xrootd_integrity_get_fd() → xrootd_checksum_hex_fd().
  * WHY: kXR_Qcksum supports multiple hash algorithms for client flexibility and cross-platform compatibility.
@@ -90,7 +88,6 @@ xrootd_query_build_checksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
-/* ---- Function: xrootd_query_cksum_path() — path-based kXR_Qcksum handler ---- */
 /* WHAT: Parses a payload containing "algo:path", resolves the path through security checks (authdb, VO ACL, token scope),
  *      opens the file confined, and delegates checksum computation to xrootd_query_build_checksum(). Returns hex-formatted result.
  * WHY: kXR_Qcksum can query either open-file handles or arbitrary paths; this handler implements the path-based variant with
@@ -325,7 +322,6 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
 
-/* ---- Function: xrootd_query_cksum_handle() — handle-based kXR_Qcksum handler ---- */
 /* WHAT: Computes checksum on an already-open file using its stored fhandle index. Extracts optional algo from payload (prefix byte=0),
  *      validates the handle index, and delegates to xrootd_query_build_checksum(). Returns hex-formatted result.
  * WHY: kXR_Qcksum can query either open-file handles or arbitrary paths; this handler implements the handle-based variant where
@@ -334,7 +330,7 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 static ngx_int_t
 xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, ClientQueryRequest *req,
+    ngx_stream_xrootd_srv_conf_t *conf, const xrdw_query_req_t *req,
     char *algo, size_t algo_sz)
 {
     char      resolved[PATH_MAX];
@@ -416,12 +412,11 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_send_ok(ctx, c, resp, (uint32_t) (strlen(resp) + 1));
 }
 
-/* ---- public API: xrootd_query_cksum() — kXR_Qcksum dispatch entry point ----
- * WHAT: Main dispatcher for Qcksum requests. Routes by payload prefix byte: non-zero → path-based handler (cksum_path with full security chain); zero or empty → handle-based handler (cksum_handle with already-open fd). Default algo is adler32. Both paths support async thread pool execution and synchronous fallback. */
+/* public API: xrootd_query_cksum() — kXR_Qcksum dispatch entry point * WHAT: Main dispatcher for Qcksum requests. Routes by payload prefix byte: non-zero → path-based handler (cksum_path with full security chain); zero or empty → handle-based handler (cksum_handle with already-open fd). Default algo is adler32. Both paths support async thread pool execution and synchronous fallback. */
 
 ngx_int_t
 xrootd_query_cksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, ClientQueryRequest *req)
+    ngx_stream_xrootd_srv_conf_t *conf, const xrdw_query_req_t *req)
 {
     char algo[32];
 

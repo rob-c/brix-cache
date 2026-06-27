@@ -20,8 +20,7 @@
 #include <sys/file.h>
 #include <unistd.h>
 
-/* ---- pure helpers ------------------------------------------------------- */
-
+/* pure helpers */
 uint64_t
 xrootd_cache_cinfo_nblocks(uint64_t size, uint32_t block_size)
 {
@@ -82,8 +81,7 @@ xrootd_cache_cinfo_refresh_flags(xrootd_cache_cinfo_t *hdr, const uint8_t *bitma
     }
 }
 
-/* ---- sidecar path ------------------------------------------------------- */
-
+/* sidecar path */
 int
 xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
 {
@@ -91,8 +89,7 @@ xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
     return (n < 0 || (size_t) n >= dstsz) ? -1 : 0;
 }
 
-/* ---- short-safe positional read/write ----------------------------------- */
-
+/* short-safe positional read/write */
 /* Transfer exactly len bytes at offset off. Returns NGX_OK, NGX_DECLINED on a
  * short read (premature EOF), or NGX_ERROR (errno set). */
 static ngx_int_t
@@ -139,8 +136,7 @@ cinfo_header_ok(const xrootd_cache_cinfo_t *hdr)
     return NGX_OK;
 }
 
-/* ---- load / store ------------------------------------------------------- */
-
+/* load / store */
 ngx_int_t
 xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
     uint8_t **bitmap, size_t *bitmap_len)
@@ -292,8 +288,7 @@ xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m, uint32_t block_size,
     return NGX_OK;
 }
 
-/* ---- record-keeping entry point ---------------------------------------- */
-
+/* record-keeping entry point */
 /*
  * Initialise a fresh, all-absent header for a file of `size` bytes recorded at
  * `block_size`/`mtime`. *out is zeroed; the caller marks bits + writes.

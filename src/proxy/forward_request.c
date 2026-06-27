@@ -29,12 +29,10 @@
  *       and arms the upstream read event loop.
  */
 
-/* ---- public API: xrootd_proxy_forward_request() — build and send forwarded request ----
- * WHAT: Forward a client request to the upstream server with file handle translation,
+/* public API: xrootd_proxy_forward_request() — build and send forwarded request * WHAT: Forward a client request to the upstream server with file handle translation,
  *       path rewriting, audit capture, and kXR_wait retry support. Returns NGX_OK or NGX_ERROR. */
 
-/* ---- build and send the forwarded request --------------------------------- */
-
+/* build and send the forwarded request */
 ngx_int_t
 xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
                               xrootd_ctx_t       *ctx,
@@ -64,8 +62,7 @@ xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
     proxy->fwd_streaming   = 0;
     proxy->fwd_payload_len = ctx->cur_dlen;
 
-    /* ---- file handle translation ---- */
-
+    /* file handle translation */
     switch (reqid) {
 
     case kXR_open: {

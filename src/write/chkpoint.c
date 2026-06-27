@@ -26,9 +26,6 @@
  * A non-NULL ckp_path in the xrootd_file_t slot indicates an active checkpoint.
  */
 
-/* ------------------------------------------------------------------ */
-/* Helpers                                                              */
-/* ------------------------------------------------------------------ */
 
 static void
 ckp_clear_path(xrootd_file_t *f)
@@ -39,11 +36,9 @@ ckp_clear_path(xrootd_file_t *f)
     }
     f->ckp_size = 0;
 }
-/* ---- WHY: Clean up checkpoint state when no longer active — prevents memory leaks (ckp_path string) and stale size tracking. Called after unlink() in commit/rollback, on copy failure cleanup, and by ckp_xeq.c to reset the file slot between sub-operations. ---- */
+/* WHY: Clean up checkpoint state when no longer active — prevents memory leaks (ckp_path string) and stale size tracking. Called after unlink() in commit/rollback, on copy failure cleanup, and by ckp_xeq.c to reset the file slot between sub-operations. */
+/* HOW: Free f->ckp_path if non-NULL via ngx_free(), set it to NULL; zero out f->ckp_size. No stat() or unlink() — caller handles .ckp file removal before calling this helper. Used exclusively by ckp_commit, ckp_rollback, and ckp_begin failure cleanup paths. */
 
-/* ---- HOW: Free f->ckp_path if non-NULL via ngx_free(), set it to NULL; zero out f->ckp_size. No stat() or unlink() — caller handles .ckp file removal before calling this helper. Used exclusively by ckp_commit, ckp_rollback, and ckp_begin failure cleanup paths. */
-
-/* ---- Function: ckp_begin() — kXR_ckpBegin: snapshot current file state ---- */
 /* WHAT: Creates a checkpoint snapshot by copying the entire file to <path>.ckp.
  *      Marks f->ckp_path as non-NULL and stores original size in f->ckp_size.
  * WHY: Enables transactional write semantics — writes under ckpXeq are "tentative"
@@ -125,7 +120,6 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "begin", 0);
 }
 
-/* ---- Function: ckp_commit() — kXR_ckpCommit: discard checkpoint, writes are permanent ---- */
 /* WHAT: Unlinks the .ckp snapshot file and clears f->ckp_path/f->ckp_size. After commit,
  *      all ckpXeq writes become permanent on the original file.
  * WHY: Transactional write semantics require two-phase commitment — tentative writes (ckpXeq)
@@ -133,7 +127,6 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
  *      deleting the rollback snapshot.
  * HOW: Verify f->ckp_path != NULL, unlink .ckp file, call ckp_clear_path() to reset state. */
 
-/* ---- Function: ckp_rollback() — kXR_ckpRollback: restore file from checkpoint ---- */
 /* WHAT: Truncates original file to f->ckp_size, then restores content from .ckp snapshot via xrootd_copy_range().
  *      After rollback, the original file returns to pre-checkpoint state.
  * WHY: Transactional write semantics provide "undo" capability — if writes under ckpXeq should be rejected,
@@ -141,16 +134,12 @@ ckp_begin(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
  *      partial failures must not leave the file in inconsistent state.
  * HOW: 1) Verify f->ckp_path != NULL. 2) Run a VFS TRUNCATE job to checkpointed size (may shrink). 3) Copy .ckp→original via xrootd_copy_range(). 4) unlink + clear_path. */
 
-/* ---- Function: ckp_query() — kXR_ckpQuery: report checkpoint capacity / current usage ---- */
 /* WHAT: Returns ServerResponseBody_ChkPoint with maxCkpSize (kXR_ckpMinMax) and useCkpSize
  *      (size of .ckp file if active, 0 otherwise).
  * WHY: Clients need to know available checkpoint space before beginning a transaction. Large files
  *      may require more disk space for the snapshot than is available.
  * HOW: Check f->ckp_path != NULL; stat() .ckp file for current usage; populate response body with max/usage values. */
 
-/* ------------------------------------------------------------------ */
-/* kXR_ckpCommit — discard checkpoint, writes are permanent            */
-/* ------------------------------------------------------------------ */
 
 static ngx_int_t
 ckp_commit(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
@@ -168,9 +157,6 @@ ckp_commit(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "commit", 0);
 }
 
-/* ------------------------------------------------------------------ */
-/* kXR_ckpRollback — restore file from checkpoint                      */
-/* ------------------------------------------------------------------ */
 
 static ngx_int_t
 ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
@@ -216,9 +202,6 @@ ckp_rollback(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "rollback", 0);
 }
 
-/* ------------------------------------------------------------------ */
-/* kXR_ckpQuery — report checkpoint capacity / current usage           */
-/* ------------------------------------------------------------------ */
 
 static ngx_int_t
 ckp_query(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
@@ -243,21 +226,19 @@ ckp_query(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     return xrootd_send_ok(ctx, c, &body, (uint32_t) sizeof(body));
 }
 
-/* ------------------------------------------------------------------ */
-/* Top-level kXR_chkpoint dispatcher                                   */
-/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientChkPointRequest *req = (ClientChkPointRequest *) ctx->hdr_buf;
+    xrdw_chkpoint_req_t    req;
     int                    idx;
     ngx_int_t              validate_rc;
 
     (void) conf;
 
-    idx = (int)(unsigned char) req->fhandle[0];
+    xrdw_chkpoint_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    idx = (int)(unsigned char) req.fhandle[0];
 
     if (!xrootd_validate_write_handle(ctx, c, idx, "CHKPOINT",
                                       XROOTD_OP_CHKPOINT, &validate_rc)) {
@@ -273,7 +254,7 @@ xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "checkpoint not supported on this handle");
     }
 
-    switch ((unsigned char) req->opcode) {
+    switch ((unsigned char) req.opcode) {
 
     case kXR_ckpBegin:
         return ckp_begin(ctx, c, idx);
@@ -293,17 +274,15 @@ xrootd_handle_chkpoint(xrootd_ctx_t *ctx, ngx_connection_t *c,
     default:
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "xrootd: kXR_chkpoint unknown opcode=%d",
-                       (int)(unsigned char) req->opcode);
+                       (int)(unsigned char) req.opcode);
         XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
         return xrootd_send_error(ctx, c, kXR_ArgInvalid,
                                  "unknown chkpoint opcode");
     }
 
-/* ---- WHAT: Dispatches kXR_chkpoint sub-operations on req->opcode — routes to ckp_begin, ckp_commit, ckp_query, or ckp_rollback; also handles ckpXeq via ckp_xeq(). Validates the write handle before dispatch. ---- */
-
-/* ---- WHY: kXR_chkpoint is a compound opcode with 5 sub-codes (begin/commit/query/rollback/Xeq). The dispatcher extracts the file handle from req->fhandle[0], validates it as an open write handle, then routes to the appropriate handler. ckpXeq is delegated to chkpoint_xeq.c which parses the inner 24-byte sub-header and executes a single write operation under checkpoint protection. ---- */
-
-/* ---- HOW: Extracts idx from req->fhandle[0] as unsigned char; calls xrootd_validate_write_handle() for validation (returns early on failure). switch(req->opcode): kXR_ckpBegin→ckp_begin, kXR_ckpCommit→ckp_commit, kXR_ckpQuery→ckp_query, kXR_ckpRollback→ckp_rollback, kXR_ckpXeq→ckp_xeq. Default case logs debug + returns kXR_ArgInvalid error. */
+/* WHAT: Dispatches kXR_chkpoint sub-operations on req->opcode — routes to ckp_begin, ckp_commit, ckp_query, or ckp_rollback; also handles ckpXeq via ckp_xeq(). Validates the write handle before dispatch. */
+/* WHY: kXR_chkpoint is a compound opcode with 5 sub-codes (begin/commit/query/rollback/Xeq). The dispatcher extracts the file handle from req->fhandle[0], validates it as an open write handle, then routes to the appropriate handler. ckpXeq is delegated to chkpoint_xeq.c which parses the inner 24-byte sub-header and executes a single write operation under checkpoint protection. */
+/* HOW: Extracts idx from req->fhandle[0] as unsigned char; calls xrootd_validate_write_handle() for validation (returns early on failure). switch(req->opcode): kXR_ckpBegin→ckp_begin, kXR_ckpCommit→ckp_commit, kXR_ckpQuery→ckp_query, kXR_ckpRollback→ckp_rollback, kXR_ckpXeq→ckp_xeq. Default case logs debug + returns kXR_ArgInvalid error. */
 }
 
 static ngx_flag_t

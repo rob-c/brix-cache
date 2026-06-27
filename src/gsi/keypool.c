@@ -19,11 +19,25 @@
  * kXGC_certreq and pushes from the refill done-callback (which also runs on the
  * event thread).  The refill THREAD function touches only its own task-local
  * storage, never this state — so no locking is required.
+ *
+ * `target` is the runtime warm ceiling (xrootd_gsi_keypool_size); `pool` is the
+ * thread pool captured at init so the done-callback can chain further off-thread
+ * refills until the target is reached without blocking the event loop.
  */
-static EVP_PKEY  *xrootd_kp_ring[XROOTD_GSI_KEYPOOL_SIZE];
-static ngx_uint_t xrootd_kp_count;
-static ngx_uint_t xrootd_kp_refill_pending;
-static ngx_log_t *xrootd_kp_log;
+static EVP_PKEY          *xrootd_kp_ring[XROOTD_GSI_KEYPOOL_CAP];
+static ngx_uint_t         xrootd_kp_count;
+static ngx_uint_t         xrootd_kp_target = XROOTD_GSI_KEYPOOL_SIZE_DEFAULT;
+static ngx_uint_t         xrootd_kp_refill_pending;
+static ngx_uint_t         xrootd_kp_warmed_logged;   /* one-shot "warmed" notice */
+static ngx_thread_pool_t *xrootd_kp_pool;
+static ngx_log_t         *xrootd_kp_log;
+
+/* Refill once the pool drops to half the target (was a fixed REFILL_LOW). */
+static ngx_inline ngx_uint_t
+xrootd_kp_low_water(void)
+{
+    return xrootd_kp_target / 2;
+}
 
 /* Off-thread refill task: generates a batch into task-local storage. */
 typedef struct {
@@ -55,6 +69,8 @@ xrootd_kp_refill_thread(void *data, ngx_log_t *log)
 
 
 /* Event-thread half of a refill: move generated keys into the pool. */
+static void xrootd_kp_schedule_refill(ngx_thread_pool_t *pool);
+
 static void
 xrootd_kp_refill_done(ngx_event_t *ev)
 {
@@ -63,7 +79,7 @@ xrootd_kp_refill_done(ngx_event_t *ev)
     ngx_uint_t           i;
 
     for (i = 0; i < r->n; i++) {
-        if (xrootd_kp_count < XROOTD_GSI_KEYPOOL_SIZE) {
+        if (xrootd_kp_count < xrootd_kp_target) {
             xrootd_kp_ring[xrootd_kp_count++] = r->keys[i];
         } else {
             EVP_PKEY_free(r->keys[i]);   /* pool refilled meanwhile — drop extra */
@@ -71,6 +87,23 @@ xrootd_kp_refill_done(ngx_event_t *ev)
     }
     xrootd_kp_refill_pending = 0;
     ngx_free(task);
+
+    /* Chain another batch while still below target (initial off-thread warm-up
+     * to the configured size, one batch at a time, all off the event thread). */
+    if (xrootd_kp_pool != NULL && xrootd_kp_count < xrootd_kp_target) {
+        xrootd_kp_schedule_refill(xrootd_kp_pool);
+        return;
+    }
+
+    /* Log once when the background warm-up first reaches the configured target,
+     * so an operator can confirm the off-thread fill completed (and as the test
+     * hook that the lazy seed path really did finish filling the pool). */
+    if (!xrootd_kp_warmed_logged && xrootd_kp_count >= xrootd_kp_target) {
+        xrootd_kp_warmed_logged = 1;
+        ngx_log_error(NGX_LOG_NOTICE, xrootd_kp_log, 0,
+                      "xrootd: GSI DH key pool warmed to %ui/%ui keys "
+                      "(off-thread)", xrootd_kp_count, xrootd_kp_target);
+    }
 }
 
 
@@ -96,11 +129,36 @@ xrootd_kp_schedule_refill(ngx_thread_pool_t *pool)
 
 
 void
-xrootd_gsi_keypool_init(ngx_cycle_t *cycle)
+xrootd_gsi_keypool_init(ngx_cycle_t *cycle, ngx_thread_pool_t *pool,
+                        ngx_uint_t target, ngx_uint_t seed)
 {
+    ngx_uint_t warm;
+
     xrootd_kp_log = cycle->log;
 
-    while (xrootd_kp_count < XROOTD_GSI_KEYPOOL_SIZE) {
+    /* Clamp to the static ring ceiling and a sane seed window. */
+    if (target == 0 || target > XROOTD_GSI_KEYPOOL_CAP) {
+        target = XROOTD_GSI_KEYPOOL_CAP;
+    }
+    if (seed == 0) {
+        seed = 1;
+    }
+    if (seed > target) {
+        seed = target;
+    }
+    xrootd_kp_target = target;
+    xrootd_kp_pool   = pool;
+
+    /*
+     * With a thread pool, generate only `seed` keys synchronously (cheap, keeps
+     * the worker accepting connections fast) and fill the rest OFF the event
+     * thread.  Without a pool there is nowhere to offload, so fall back to the
+     * old behaviour and warm the full target synchronously — correctness over
+     * boot latency.
+     */
+    warm = (pool != NULL) ? seed : target;
+
+    while (xrootd_kp_count < warm) {
         EVP_PKEY *k = xrootd_gsi_dh_keygen();
         if (k == NULL) {
             break;
@@ -108,9 +166,15 @@ xrootd_gsi_keypool_init(ngx_cycle_t *cycle)
         xrootd_kp_ring[xrootd_kp_count++] = k;
     }
 
+    if (pool != NULL && xrootd_kp_count < xrootd_kp_target) {
+        xrootd_kp_schedule_refill(pool);   /* background warm-up to target */
+    }
+
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                  "xrootd: GSI DH key pool warmed with %ui/%d keys",
-                  xrootd_kp_count, XROOTD_GSI_KEYPOOL_SIZE);
+                  "xrootd: GSI DH key pool seeded %ui/%ui keys (%s)",
+                  xrootd_kp_count, xrootd_kp_target,
+                  pool != NULL ? "rest filling off-thread"
+                               : "synchronous, no thread pool");
 }
 
 
@@ -131,7 +195,7 @@ xrootd_gsi_keypool_pop(ngx_thread_pool_t *pool, ngx_log_t *log, EVP_PKEY **out)
     /* Top the pool back up off-thread once it runs low (and a pool exists). */
     if (pool != NULL
         && !xrootd_kp_refill_pending
-        && xrootd_kp_count <= XROOTD_GSI_KEYPOOL_REFILL_LOW)
+        && xrootd_kp_count <= xrootd_kp_low_water())
     {
         xrootd_kp_schedule_refill(pool);
     }

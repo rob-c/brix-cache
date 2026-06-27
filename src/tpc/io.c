@@ -1,5 +1,4 @@
-/* ---- File: tpc io — low-level socket helpers for native TPC data transfer ----
- *
+/* File: tpc io — low-level socket helpers for native TPC data transfer
  * WHAT: Three blocking I/O primitives used exclusively by the TPC thread-pool worker
  *       to read/write bytes between a remote XRootD origin and nginx's local file.
  *       All functions run inside NGX_THREADS detached workers — allocations use
@@ -32,10 +31,7 @@
 #include <limits.h>
 #include <openssl/ssl.h>
 
-/* ------------------------------------------------------------------ */
 /* WHAT: Send all bytes from buf over fd using send() loop — continues on EINTR, returns -1 on any other failure. Returns 0 on full write success. Caller: thread.c, bootstrap.c, source.c (wire I/O pipeline). */
-/* Low-level socket helpers                                              */
-/* ------------------------------------------------------------------ */
 
 int
 tpc_send_all(xrootd_tpc_pull_t *t, int fd, const void *buf, size_t len)
@@ -102,7 +98,7 @@ tpc_recv_exact(xrootd_tpc_pull_t *t, int fd, void *buf, size_t len)
     return 0;
 }
 
-/* ---- Function: tpc_recv_response — read one complete XRootD response frame ----
+/*
  *
  * WHAT: Reads a full XRootD ServerResponseHdr (status code + payload length), then
  *       allocates and reads the payload body. Returns parsed status, malloc'd body,

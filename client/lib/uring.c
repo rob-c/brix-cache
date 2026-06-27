@@ -1,5 +1,4 @@
-/* ---- File: client/lib/uring.c — optional io_uring disk ring (Phase 44) ----
- *
+/* File: client/lib/uring.c — optional io_uring disk ring (Phase 44) *
  * WHAT: Runtime probe + a disk ring that overlaps local-disk I/O with the
  *       network side of an xrdcp transfer.  Write-behind (downloads) queues a
  *       pwrite and returns so the next network read overlaps the disk write;
@@ -61,8 +60,7 @@ struct xrdc_disk_ring {
 };
 
 
-/* ---- probe ---- */
-
+/* probe */
 int
 xrdc_uring_available(void)
 {
@@ -91,8 +89,7 @@ xrdc_uring_available(void)
 }
 
 
-/* ---- lifecycle (no goto: a single failure helper) ---- */
-
+/* lifecycle (no goto: a single failure helper) */
 static xrdc_disk_ring *
 xrdc_disk_ring_fail(xrdc_disk_ring *r, int ring_inited)
 {
@@ -156,8 +153,7 @@ xrdc_disk_ring_create(int fd, unsigned depth, size_t bufsz, int direct,
 }
 
 
-/* ---- slot helpers ---- */
-
+/* slot helpers */
 static ring_slot *
 xrdc_ring_free_slot(xrdc_disk_ring *r, unsigned *idx)
 {
@@ -196,8 +192,7 @@ xrdc_ring_reap_one(xrdc_disk_ring *r)
 }
 
 
-/* ---- write-behind (downloads) ---- */
-
+/* write-behind (downloads) */
 int
 xrdc_disk_ring_pwrite(xrdc_disk_ring *r, int64_t off, const uint8_t *buf,
                       size_t n, xrdc_status *st)
@@ -286,8 +281,7 @@ xrdc_disk_ring_flush(xrdc_disk_ring *r, xrdc_status *st)
 }
 
 
-/* ---- read-ahead (uploads) ---- */
-
+/* read-ahead (uploads) */
 /* Submit reads to fill the window ahead of the delivery cursor. */
 static int
 xrdc_ring_readahead_fill(xrdc_disk_ring *r)
@@ -409,16 +403,14 @@ xrdc_disk_ring_pread(xrdc_disk_ring *r, int64_t off, uint8_t *out, size_t cap,
 }
 
 
-/* ---- bufsz accessor ---- */
-
+/* bufsz accessor */
 size_t
 xrdc_disk_ring_bufsz(const xrdc_disk_ring *r)
 {
     return r ? r->bufsz : 0;
 }
 
-/* ---- destroy ---- */
-
+/* destroy */
 void
 xrdc_disk_ring_destroy(xrdc_disk_ring *r)
 {

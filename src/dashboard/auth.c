@@ -32,8 +32,7 @@
 #define HMAC_HEX_LEN  64    /* SHA-256 = 32 bytes = 64 hex chars */
 #define TIMESTAMP_MAX 20    /* enough for a Unix timestamp string */
 
-/* ---- Helpers ---- */
-
+/* Helpers */
 /*
  * WHAT: Compute HMAC-SHA256(key, msg) and emit it as 64 lowercase hex chars.
  * HOW:  out_hex must hold HMAC_HEX_LEN + 1 bytes; each of the 32 digest bytes
@@ -359,8 +358,7 @@ dashboard_cookie_hmac(const ngx_str_t *key, const char *ts, size_t ts_len,
     return NGX_OK;
 }
 
-/* ---- Public: check auth cookie ---- */
-
+/* Public: check auth cookie */
 ngx_int_t
 ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     const ngx_http_xrootd_dashboard_loc_conf_t *conf,
@@ -532,8 +530,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     return NGX_OK;
 }
 
-/* ---- Inline HTML strings ---- */
-
+/* Inline HTML strings */
 static const char login_form_html[] =
     "<!DOCTYPE html>\n"
     "<html lang=\"en\">\n"
@@ -591,8 +588,7 @@ static const char login_form_html_error[] =
     "<p class=\"err\">Incorrect password.</p>\n"
     "</div></body></html>\n";
 
-/* ---- Helpers for sending HTML responses ---- */
-
+/* Helpers for sending HTML responses */
 /* Emit a complete text/html response from a static string. The buffer is
  * memory-backed (b->memory) pointing directly at the const literal — safe
  * because the data outlives the request and is never mutated. */
@@ -624,8 +620,7 @@ send_html(ngx_http_request_t *r, ngx_int_t status,
     return ngx_http_output_filter(r, &out);
 }
 
-/* ---- Context for async POST body reading ---- */
-
+/* Context for async POST body reading */
 typedef struct {
     ngx_http_request_t                        *r;
     const ngx_http_xrootd_dashboard_loc_conf_t *conf;
@@ -826,8 +821,7 @@ login_post_body_handler(ngx_http_request_t *r)
     ngx_http_finalize_request(r, NGX_HTTP_MOVED_TEMPORARILY);
 }
 
-/* ---- Public: login handler (GET form + POST verify) ---- */
-
+/* Public: login handler (GET form + POST verify) */
 ngx_int_t
 ngx_http_xrootd_dashboard_login_handler(ngx_http_request_t *r)
 {

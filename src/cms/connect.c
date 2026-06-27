@@ -1,15 +1,40 @@
 #include "cms_internal.h"
 #include "../connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
 #include "../compat/log_diag.h"
+#include "../compat/lifecycle_timing.h"   /* monotonic clock for settle timing */
 
 #include <ngx_event_connect.h>
+#include <netinet/in.h>
 
-/* ---- ngx_xrootd_cms_arm_read_deadline — bound manager silence (WS1) ----
- *
- * WHAT: (re)arm c->read with conf->cms_read_timeout so a manager that stops
- * responding (black-holed / half-open) is detected.  ngx_add_timer replaces any
- * pending read timer, so each call measures time-to-next-manager-activity from
- * now.  On expiry the recv handler's ev->timedout branch disconnects + retries. */
+/* cms_addr_is_loopback — classify the resolved manager address as on-host
+ * (127.0.0.0/8 or ::1).  A loopback manager is reached with no network latency, so
+ * it gets the most aggressive cold-start settle profile. */
+static ngx_uint_t
+cms_addr_is_loopback(struct sockaddr *sa)
+{
+    if (sa == NULL) {
+        return 0;
+    }
+
+    if (sa->sa_family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *) sa;
+        return (ntohl(sin->sin_addr.s_addr) & 0xFF000000u) == 0x7F000000u;
+    }
+
+#if (NGX_HAVE_INET6)
+    if (sa->sa_family == AF_INET6) {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *) sa;
+        return IN6_IS_ADDR_LOOPBACK(&sin6->sin6_addr) ? 1 : 0;
+    }
+#endif
+
+    return 0;
+}
+
+/* ngx_xrootd_cms_arm_read_deadline — (re)arm c->read with conf->cms_read_timeout
+ * (WS1) so a black-holed/half-open manager is detected; ngx_add_timer replaces any
+ * pending timer, so each call measures from now. On expiry the recv handler's
+ * ev->timedout branch disconnects and retries. */
 
 void
 ngx_xrootd_cms_arm_read_deadline(ngx_xrootd_cms_ctx_t *ctx)
@@ -24,9 +49,9 @@ ngx_xrootd_cms_arm_read_deadline(ngx_xrootd_cms_ctx_t *ctx)
     ngx_add_timer(c->read, ctx->conf->cms_read_timeout);
 }
 
-/* ---- ngx_xrootd_cms_schedule — set or replace the CMS timer with given delay ----
- *
- * WHAT: Arms or replaces the CMS heartbeat timer to fire after `delay` milliseconds. If a timer is already set, it's removed first before the new one is added. Used by connect lifecycle (initial connection retry, periodic heartbeat). */
+/* ngx_xrootd_cms_schedule — arm or replace the CMS heartbeat timer to fire after
+ * `delay` ms (any pending timer is removed first); used across the connect
+ * lifecycle for retry and periodic heartbeat. */
 
 void
 ngx_xrootd_cms_schedule(ngx_xrootd_cms_ctx_t *ctx, ngx_msec_t delay)
@@ -38,21 +63,66 @@ ngx_xrootd_cms_schedule(ngx_xrootd_cms_ctx_t *ctx, ngx_msec_t delay)
     ngx_add_timer(&ctx->timer, delay);
 }
 
-/* ---- ngx_xrootd_cms_schedule_retry — exponential backoff reconnect scheduler ----
+/* ngx_xrootd_cms_schedule_retry — schedule the next reconnect after a failure.
  *
- * WHAT: Doubles the current backoff delay (up to NGX_XROOTD_CMS_BACKOFF_MAX = 60s) and schedules a retry. Called after connection failure or disconnect to stagger reconnection attempts. Prevents hammering the CMS manager during transient failures. */
+ * Two regimes, chosen automatically so every caller (connect.c and recv.c) gets the
+ * right behaviour without having to know which failure path it is on:
+ *
+ *   - COLD-START FAST-RETRY: a node that has NEVER yet logged in is racing its
+ *     manager's listen socket (most acutely when the whole mesh boots together on
+ *     one host).  Retry on the short fixed fast-retry interval for a bounded window
+ *     so the mesh settles in tens of ms instead of seconds.  Quiet (debug) — a brief
+ *     race is expected, not WARN-worthy.
+ *   - EXPONENTIAL BACKOFF: once the fast-retry window expires, or once this node has
+ *     ever logged in (so a failure is a real outage, not a cold start), fall back to
+ *     the doubling+jitter backoff.  The genuinely-unreachable diagnostic is surfaced
+ *     here, sparsely.
+ *
+ * Gating fast-retry on pre-first-login + a bounded window is what guarantees it can
+ * never become a busy-spin (cf. the self-rearming-0ms-timer footgun).
+ */
 
 void
 ngx_xrootd_cms_schedule_retry(ngx_xrootd_cms_ctx_t *ctx)
 {
     ngx_msec_t  delay;
     ngx_msec_t  max_backoff;
+    ngx_msec_t  now;
 
     /* Never schedule a reconnect once the worker is draining — a pending retry
      * timer would otherwise keep the exiting worker alive to the shutdown
      * timeout for no purpose. */
     if (ngx_exiting) {
         return;
+    }
+
+    /* Cold-start fast-retry window. */
+    if (!ctx->ever_logged_in && ctx->fast_window > 0) {
+        now = ngx_current_msec;
+
+        /* Start the window on the first failure of this cold start. */
+        if (ctx->fast_deadline == 0) {
+            ctx->fast_deadline = now + ctx->fast_window;
+        }
+
+        if ((ngx_msec_int_t) (ctx->fast_deadline - now) > 0) {
+            ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                           "xrootd: CMS fast-retry to %V (attempt %ui)",
+                           &ctx->conf->cms_manager, ctx->connect_attempts);
+            ngx_xrootd_cms_schedule(ctx, ctx->fast_retry);
+            return;
+        }
+
+        /* Window expired: the manager is genuinely unreachable for a same-host
+         * cold start — surface the actionable diagnostic, then fall through to the
+         * sparse exponential backoff below. */
+        XROOTD_DIAG_WARN(ctx->cycle->log, 0,
+            "xrootd[cms]: cannot reach cluster manager %V",
+            "the cmsd is down, the address/port is wrong, or a firewall blocks "
+            "the connection",
+            "confirm cmsd is listening and that xrootd_cms_manager matches its "
+            "host:port; this node stays OUT of the cluster until it connects",
+            &ctx->conf->cms_manager);
     }
 
     /* Cap max backoff at 10× the heartbeat interval so a short cms_interval
@@ -83,9 +153,9 @@ ngx_xrootd_cms_schedule_retry(ngx_xrootd_cms_ctx_t *ctx)
     ngx_xrootd_cms_schedule(ctx, delay);
 }
 
-/* ---- ngx_xrootd_cms_disconnect — tear down active CMS connection and reset state ----
- *
- * WHAT: Closes the active TCP connection, removes read/write timers, resets ctx->connection to NULL. Also clears logged_in flag and resets inbuf position for next reconnection attempt. Called on I/O errors or timeouts. */
+/* ngx_xrootd_cms_disconnect — close the TCP connection, drop its timers, NULL
+ * ctx->connection, clear logged_in, and reset inbuf for the next reconnect; called
+ * on I/O errors or timeouts. */
 
 void
 ngx_xrootd_cms_disconnect(ngx_xrootd_cms_ctx_t *ctx)
@@ -129,8 +199,11 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
                    ctx ? (int) ctx->logged_in : -1, c);
 
     if (ev->timedout) {
-        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                      "xrootd: CMS connect/write timed out");
+        /* A connect/first-write that never completed.  Route through the connect
+         * retry policy: pre-first-login it may fast-retry (bounded window), else it
+         * backs off — never the multi-second backoff for a same-host cold start. */
+        ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+                       "xrootd: CMS connect/write timed out");
         ngx_xrootd_cms_disconnect(ctx);
         ngx_xrootd_cms_schedule_retry(ctx);
         return;
@@ -142,6 +215,10 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
 
     if (!ctx->logged_in) {
         if (ngx_xrootd_cms_send_login(ctx) != NGX_OK) {
+            /* The TCP connect was refused/half-open (on loopback, ECONNREFUSED
+             * surfaces here as a writable-with-error event, not at connect()).
+             * This is exactly the same-host "manager not listening yet" case → the
+             * fast-retry policy, not the multi-second backoff. */
             ngx_xrootd_cms_disconnect(ctx);
             ngx_xrootd_cms_schedule_retry(ctx);
             return;
@@ -154,6 +231,20 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "xrootd: CMS login sent to %V",
                       &ctx->conf->cms_manager);
+
+        /* First successful login of this boot: leave fast-retry mode (any future
+         * reconnect is a real outage → backoff) and report the settle time. */
+        if (!ctx->ever_logged_in) {
+            ctx->ever_logged_in = 1;
+            ctx->fast_deadline  = 0;
+            ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+                          "xrootd: CMS registered with %V after %uL ms "
+                          "(%ui connect attempt(s), %s)",
+                          &ctx->conf->cms_manager,
+                          (xrootd_phase_now_ns() - ctx->start_ns) / 1000000ull,
+                          ctx->connect_attempts,
+                          ctx->is_loopback ? "loopback" : "remote");
+        }
 
         /*
          * Announce traffic state (Resume|noStage) immediately after login so a
@@ -198,15 +289,18 @@ ngx_xrootd_cms_write_handler(ngx_event_t *ev)
                    "xrootd: CMS write handler: heartbeat sent");
 }
 
-/* ---- ngx_xrootd_cms_connect — establish TCP connection to CMS manager ----
- *
- * WHAT: Configures an nginx peer connection to the CMS manager address and initiates TCP connect via ngx_event_connect_peer. On success, sets up read/write handlers and either fires immediately or waits for connect timeout (NGX_XROOTD_CMS_CONNECT_TIMEOUT = 5s). Called from timer handler when ctx->connection == NULL. */
+/* ngx_xrootd_cms_connect — start a TCP connect to the CMS manager via
+ * ngx_event_connect_peer, install the read/write handlers, and arm the connect
+ * timeout (NGX_XROOTD_CMS_CONNECT_TIMEOUT = 5s); called from the timer when
+ * ctx->connection == NULL. */
 
 static void
 ngx_xrootd_cms_connect(ngx_xrootd_cms_ctx_t *ctx)
 {
     ngx_int_t          rc;
     ngx_connection_t  *c;
+
+    ctx->connect_attempts++;
 
     ngx_memzero(&ctx->peer, sizeof(ctx->peer));
     ctx->peer.sockaddr = ctx->conf->cms_addr->sockaddr;
@@ -265,9 +359,9 @@ ngx_xrootd_cms_connect(ngx_xrootd_cms_ctx_t *ctx)
     ngx_xrootd_cms_write_handler(c->write);
 }
 
-/* ---- ngx_xrootd_cms_timer — periodic heartbeat or initial connect trigger ----
- *
- * WHAT: Timer handler for two purposes: (1) After initial connection success, fires periodically to send load heartbeat reports every `cms_interval` seconds. (2) When no active connection exists (ctx->connection == NULL), triggers reconnection attempt. Also handles load heartbeat failures by disconnecting and retrying with backoff. */
+/* ngx_xrootd_cms_timer — the CMS timer handler: when connected, send a load
+ * heartbeat every cms_interval seconds (disconnect + backoff on failure); when
+ * ctx->connection == NULL, trigger a reconnect. */
 
 static void
 ngx_xrootd_cms_timer(ngx_event_t *ev)
@@ -304,13 +398,10 @@ ngx_xrootd_cms_timer(ngx_event_t *ev)
     ngx_xrootd_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms_interval * 1000);
 }
 
-/* ---- ngx_xrootd_cms_start — initialize and start CMS heartbeat client ----
- *
- * WHAT: Entry point called from config/process.c at worker init. Allocates the
- * CMS context, derives the initial reconnect backoff from cms_interval (capped
- * at NGX_XROOTD_CMS_BACKOFF_INITIAL), then schedules the first connection
- * attempt after NGX_XROOTD_CMS_INITIAL_DELAY (1s). Each nginx worker maintains
- * its own independent CMS connection to the parent manager. */
+/* ngx_xrootd_cms_start — worker-init entry point (from config/process.c): allocate
+ * the CMS context, seed the reconnect backoff from cms_interval (capped at
+ * NGX_XROOTD_CMS_BACKOFF_INITIAL), and schedule the first connect after
+ * NGX_XROOTD_CMS_INITIAL_DELAY (1s). Each worker keeps its own connection. */
 
 void
 ngx_xrootd_cms_start(ngx_cycle_t *cycle, ngx_stream_xrootd_srv_conf_t *conf)
@@ -333,6 +424,25 @@ ngx_xrootd_cms_start(ngx_cycle_t *cycle, ngx_stream_xrootd_srv_conf_t *conf)
     ctx->backoff = ngx_min((ngx_msec_t) conf->cms_interval * 1000,
                            (ngx_msec_t) NGX_XROOTD_CMS_BACKOFF_INITIAL);
     ctx->in_need = NGX_XROOTD_CMS_HDR_LEN;
+    ctx->start_ns = xrootd_phase_now_ns();
+
+    /*
+     * Resolve the cold-start settle profile once.  A loopback manager (same host)
+     * is reached with no network latency, so it gets the most aggressive defaults;
+     * an explicit directive overrides the locality default.  The fast-retry interval
+     * is floored so a misconfigured "0" can never become a busy connect-storm.
+     */
+    ctx->is_loopback = cms_addr_is_loopback(conf->cms_addr->sockaddr);
+
+    ctx->fast_retry = (conf->cms_connect_retry != NGX_CONF_UNSET_MSEC)
+                      ? conf->cms_connect_retry
+                      : (ctx->is_loopback ? NGX_XROOTD_CMS_FASTRETRY_LOOPBACK
+                                          : NGX_XROOTD_CMS_FASTRETRY_REMOTE);
+    if (ctx->fast_retry < NGX_XROOTD_CMS_FASTRETRY_FLOOR) {
+        ctx->fast_retry = NGX_XROOTD_CMS_FASTRETRY_FLOOR;
+    }
+    ctx->fast_window = ctx->is_loopback ? NGX_XROOTD_CMS_FASTWIN_LOOPBACK
+                                        : NGX_XROOTD_CMS_FASTWIN_REMOTE;
 
     ctx->timer.handler = ngx_xrootd_cms_timer;
     ctx->timer.data = ctx;
@@ -349,7 +459,15 @@ ngx_xrootd_cms_start(ngx_cycle_t *cycle, ngx_stream_xrootd_srv_conf_t *conf)
 
     conf->cms_ctx = ctx;
 
-    ngx_xrootd_cms_schedule(ctx, NGX_XROOTD_CMS_INITIAL_DELAY);
+    {
+        /* First-connect delay: directive override, else the locality default
+         * (0 for loopback — connect immediately; the fast-retry handles a miss). */
+        ngx_msec_t init_delay = (conf->cms_initial_delay != NGX_CONF_UNSET_MSEC)
+            ? conf->cms_initial_delay
+            : (ctx->is_loopback ? NGX_XROOTD_CMS_INITDELAY_LOOPBACK
+                                : NGX_XROOTD_CMS_INITDELAY_REMOTE);
+        ngx_xrootd_cms_schedule(ctx, init_delay);
+    }
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "xrootd: CMS heartbeat starting for manager %V",

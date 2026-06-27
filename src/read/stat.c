@@ -48,8 +48,7 @@ xrootd_make_vfs_body(ngx_stream_xrootd_srv_conf_t *conf, char *out, size_t outsz
 
 extern char **environ;
 
-/* ---- xrootd_stat_origin_forward — GSI-origin stat for the cache ----
- *
+/* xrootd_stat_origin_forward — GSI-origin stat for the cache
  * WHAT: When the cache has an X.509 proxy (xrootd_cache_origin_proxy) and the
  *       path is not present locally, resolve a kXR_stat by fork/exec'ing the
  *       native `xrdfs <origin> stat <path>` (GSI) and parsing its output into a
@@ -207,7 +206,7 @@ xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf, const char *req
 
 ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientStatRequest *req = (ClientStatRequest *) ctx->hdr_buf;
+    xrdw_stat_req_t    req;
     struct stat        st;
     char               full_path[PATH_MAX];
     char               reqpath_buf[XROOTD_MAX_PATH + 1];
@@ -217,7 +216,8 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
     ngx_int_t          validate_rc;
     int                extra_flags = 0;
 
-    is_vfs = (req->options & kXR_vfs) ? 1 : 0;
+    xrdw_stat_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    is_vfs = (req.options & kXR_vfs) ? 1 : 0;
 
     /*
      * kXR_stat is dual-mode like upstream XRootD:
@@ -333,7 +333,7 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             /* kXR_statNoFollow (vendor): lstat the final component so a symlink
              * reports as itself (kXR_other + target-length size) for FUSE getattr;
              * default follows symlinks exactly as before. */
-            int src = (req->options & kXR_statNoFollow)
+            int src = (req.options & kXR_statNoFollow)
                       ? xrootd_lstat_beneath(conf->rootfd, reqpath, &st)
                       : xrootd_stat_beneath(conf->rootfd, reqpath, &st);
 
@@ -344,7 +344,7 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
              * within the export root (an escaping link is rejected).  Read-only,
              * so the realpath/stat TOCTOU window is benign. */
             if (src != 0 && errno == ENOENT
-                && !(req->options & kXR_statNoFollow)
+                && !(req.options & kXR_statNoFollow)
                 && conf->common.root_canon[0] != '\0')
             {
                 char        real[PATH_MAX];
@@ -392,7 +392,7 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
     } else {
         /* Handle-based stat: fhandle[0] is our slot index. */
         /* The cached path is only for logging; the real metadata comes from fstat(). */
-        int idx = (int)(unsigned char) req->fhandle[0];
+        int idx = (int)(unsigned char) req.fhandle[0];
 
         if (!xrootd_validate_file_handle(ctx, c, idx, "STAT",
                                          XROOTD_OP_STAT, &validate_rc)) {

@@ -30,8 +30,7 @@ struct xrdc_capture {
     FILE *fp;
 };
 
-/* ---- big-endian writers ---- */
-static void
+/* big-endian writers */static void
 put_u16(FILE *fp, uint16_t v)
 {
     fputc((v >> 8) & 0xff, fp);
@@ -47,8 +46,7 @@ put_u32(FILE *fp, uint32_t v)
     fputc(v & 0xff, fp);
 }
 
-/* ---- writer ---- */
-
+/* writer */
 struct xrdc_capture *
 xrdc_capture_open(const char *path)
 {
@@ -118,8 +116,7 @@ xrdc_capture_close(struct xrdc_capture *cap)
     free(cap);
 }
 
-/* ---- readers (offline decode + live playback) ---- */
-
+/* readers (offline decode + live playback) */
 static int
 read_magic(FILE *fp, xrdc_status *st)
 {

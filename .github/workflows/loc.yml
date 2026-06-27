@@ -1,0 +1,20 @@
+# Phase 38 — file-size discipline ratchet.
+#
+# Fails a PR if a non-baselined in-scope source file crosses the hard logical-LoC
+# threshold (>800), or if a baselined offender grows past its recorded size.
+# The baseline (tests/loc_baseline.txt) only ever shrinks as monoliths are split.
+# See docs/refactor/phase-38-file-size-unix-modularity.md (§4).
+name: file-size ratchet
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  loc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # lint_loc.sh uses `git ls-files`
+      - name: file-size ratchet (lint_loc.sh --strict)
+        run: tests/lint_loc.sh --strict

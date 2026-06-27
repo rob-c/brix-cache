@@ -38,7 +38,7 @@
 ngx_int_t
 xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-    ClientCloneRequest *req = (ClientCloneRequest *) ctx->hdr_buf;
+    xrdw_clone_req_t    req;
     int                 dst_idx;
     int                 dst_fd;
     const u_char       *p;
@@ -47,7 +47,8 @@ xrootd_handle_clone(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ngx_int_t           rc;
     uint64_t            total_bytes = 0;
 
-    dst_idx = (int)(unsigned char) req->dst_fhandle[0];
+    xrdw_clone_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    dst_idx = (int)(unsigned char) req.dst_fhandle[0];
 
     if (!xrootd_validate_write_handle(ctx, c, dst_idx, "CLONE",
                                       XROOTD_OP_CLONE, &rc)) {

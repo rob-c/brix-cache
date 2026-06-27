@@ -25,6 +25,7 @@ import tempfile
 import pytest
 from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, StatInfoFlags
+from official_interop_lib import worker_prefix
 from settings import (
     CA_DIR,
     DATA_ROOT,
@@ -404,7 +405,7 @@ sys.exit(0 if not status.ok else 1)
 # Write tests
 # ===========================================================================
 
-WRITE_PREFIX = "_test_gsi_tls_"
+WRITE_PREFIX = worker_prefix("_test_gsi_tls_")  # per-xdist-worker; see official_interop_lib
 
 
 @pytest.fixture(autouse=False)

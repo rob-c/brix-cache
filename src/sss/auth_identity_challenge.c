@@ -6,9 +6,6 @@
 #include <string.h>
 #include "../compat/alloc_guard.h"
 
-/* ------------------------------------------------------------------ */
-/* SSS Auth Identity — Challenge Generation, TLV Parsing                 */
-/* ------------------------------------------------------------------ */
 /*
  * WHAT: This file implements the SSS authentication identity layer. Includes copy_packed_string() for safe bounded string extraction from wire-format TLV fields, xrootd_sss_parse_identity() for parsing decrypted identity blocks (username, groups, host/IP), xrootd_sss_auth_failed() for sending auth failure responses, and xrootd_sss_send_authmore() for generating encrypted login-ID challenges with Blowfish-CFB + CRC32 integrity.
  *
@@ -16,7 +13,7 @@
  *
  * HOW: Four functions → copy_packed_string() (bounded string extraction from TLV value bytes) for safe parsing; xrootd_sss_parse_identity() (TLV stream parser) reading type/length/value triples and extracting name/grps/host fields into identity struct; xrootd_sss_auth_failed() (failure response builder); xrootd_sss_send_authmore() (challenge generation: RAND_bytes → gen_time encode → TLV LGID body → CRC32 append → Blowfish-CFB encrypt → wire response). */
 static void
-/* ---- Function: xrootd_sss_copy_packed_string() ----
+/*
  * WHAT: Safe bounded string copy from TLV value bytes into fixed-size C-string buffer. Handles packed (NUL-terminated) strings by stripping trailing NUL before length check, then clamps to dst_len - 1 and appends local NUL terminator. Used by xrootd_sss_parse_identity() to extract username, groups, and host/IP fields from decrypted identity TLV blocks without risking buffer overflow.
  */
 xrootd_sss_copy_packed_string(char *dst, size_t dst_len,

@@ -50,8 +50,7 @@ dashboard_open_status(int e)
     return NGX_HTTP_INTERNAL_SERVER_ERROR;
 }
 
-/* ---- helpers ----------------------------------------------------------- */
-
+/* helpers */
 /* Resolve uid -> local username; falls back to the decimal uid on lookup miss.
  * A 1-deep cache short-circuits the common "whole dir owned by one user" case. */
 static void
@@ -163,8 +162,7 @@ dashboard_files_entry(const char *name, const struct statx *stx)
     return o;
 }
 
-/* ---- GET /xrootd/api/v1/files?path=<rel> ------------------------------- */
-
+/* GET /xrootd/api/v1/files?path=<rel> */
 ngx_int_t
 ngx_http_xrootd_dashboard_files_handler(ngx_http_request_t *r)
 {
@@ -247,7 +245,7 @@ ngx_http_xrootd_dashboard_files_handler(ngx_http_request_t *r)
     closedir(dp);   /* also closes dirfd */
 
     /* Re-derive the normalised path for echo (strip the "." root sentinel). */
-    json_object_set_new(root, "schema", json_string("xrootd-dashboard.v1"));
+    dashboard_json_set_schema(root);
     json_object_set_new(root, "path",
         json_string((relpath[0] == '.' && relpath[1] == '\0') ? "/" : relpath));
     json_object_set_new(root, "truncated", truncated ? json_true() : json_false());
@@ -256,8 +254,7 @@ ngx_http_xrootd_dashboard_files_handler(ngx_http_request_t *r)
     return dashboard_json_send(r, NGX_HTTP_OK, root);
 }
 
-/* ---- GET /xrootd/api/v1/download?path=<rel> ---------------------------- */
-
+/* GET /xrootd/api/v1/download?path=<rel> */
 /* Build a safe Content-Disposition filename from the basename of relpath:
  * strip the directory, then any byte that could break the header (quote,
  * control, backslash) becomes '_'. */

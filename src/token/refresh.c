@@ -29,8 +29,7 @@
 
 #include <sys/stat.h>
 
-/* ---- Handler: called by the nginx event loop at each refresh interval ---- */
-
+/* Handler: called by the nginx event loop at each refresh interval */
 /*
  * Poll the JWKS file once: reload and swap in a new key set only if the file
  * exists, its mtime changed since the last poll, and it parses to >=1 key. Any
@@ -92,8 +91,7 @@ xrootd_token_jwks_refresh_handler(ngx_event_t *ev)
     }
 }
 
-/* ---- Public: schedule the refresh timer for one server block ---- */
-
+/* Public: schedule the refresh timer for one server block */
 /*
  * WHAT: Allocates and arms a per-worker JWKS mtime-poll timer for the given server
  *       block config. Does nothing if token_jwks is empty or refresh interval is

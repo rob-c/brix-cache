@@ -4,6 +4,7 @@
 
 #include "read.h"
 #include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
+#include "../fs/backend/csi_tagstore.h"  /* phase-59 W2: page-checksum verify */
 #include "slice_read.h"
 #include "../zip/zip_member.h"   /* phase-57 W2: ZIP member read dispatch */
 #include "../ssi/ssi.h"          /* §7: SSI handle read dispatch */
@@ -139,7 +140,7 @@ xrootd_read_serve_sendfile(xrootd_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t
 xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-    ClientReadRequest            *req = (ClientReadRequest *) ctx->hdr_buf;
+    xrdw_read_req_t               req;
     int                           idx;
     int64_t                       offset;
     size_t                        rlen;
@@ -152,16 +153,15 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ngx_int_t                     rc;
 
     /*
-     * ClientReadRequest wire fields are big-endian.  The file handle is a 4-byte
-     * blob but only byte 0 indexes our slot table (XROOTD_MAX_FILES <= 256); the
-     * (unsigned char) cast prevents sign-extension of a high-bit handle byte into
-     * a negative idx.  offset is a signed 64-bit network value (be64toh); rlen is
-     * an unsigned 32-bit count (ntohl) — the explicit (uint32_t) casts keep the
-     * conversions width-exact before widening to size_t on 64-bit hosts.
+     * The shared codec decodes the big-endian wire body into host order; the file
+     * handle is a 4-byte blob but only byte 0 indexes our slot table
+     * (XROOTD_MAX_FILES <= 256); the (unsigned char) cast prevents sign-extension
+     * of a high-bit handle byte into a negative idx.
      */
-    idx = (int) (unsigned char) req->fhandle[0];
-    offset = (int64_t) be64toh((uint64_t) req->offset);
-    rlen = (size_t) (uint32_t) ntohl((uint32_t) req->rlen);
+    xrdw_read_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    idx = (int) (unsigned char) req.fhandle[0];
+    offset = req.offset;
+    rlen = (size_t) (uint32_t) req.rlen;
 
     if (!xrootd_validate_read_handle(ctx, c, idx, "READ",
                                      XROOTD_OP_READ, &rc)) {
@@ -234,7 +234,11 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * memory/window path below.
      */
     if (ctx->files[idx].is_regular
-        && (!c->ssl || xrootd_ktls_send_active(c)))
+        && (!c->ssl || xrootd_ktls_send_active(c))
+        && ctx->files[idx].csi == NULL)   /* phase-59 W2/ADR-6: CSI needs the
+                                           * bytes in memory to verify, so an
+                                           * integrity-checked handle takes the
+                                           * buffered path, not zero-copy sendfile */
     {
         return xrootd_read_serve_sendfile(ctx, c, rconf, idx, fd,
                                           offset, rlen);
@@ -381,6 +385,17 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
         if (warm == (ssize_t) rlen) {
             nread = warm;   /* full page-cache hit — databuf is filled; complete inline */
 
+            /* phase-59 W2: the warm fast path bypasses the VFS job, so verify
+             * the page CRCs here too; a mismatch fails the read (EIO). */
+            if (ctx->files[idx].csi != NULL && nread > 0
+                && xrootd_csi_verify_read(
+                       (xrootd_csi_t *) ctx->files[idx].csi, databuf,
+                       (off_t) offset, (size_t) nread) == XROOTD_CSI_MISMATCH)
+            {
+                nread = -1;
+                errno = EIO;
+            }
+
         } else if (rconf->common.thread_pool != NULL) {
             ngx_thread_task_t *task;
             xrootd_read_aio_t *t;
@@ -417,6 +432,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             t->streamid[1] = ctx->cur_streamid[1];
             t->nread = 0;
             t->io_errno = 0;
+            t->csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
 
             xrootd_task_bind(task, xrootd_read_aio_thread, xrootd_read_aio_done);
 
@@ -437,9 +453,13 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
                 xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
                                           databuf, rlen, 0);
+                job.csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
                 xrootd_vfs_io_execute(&job);
                 nread = job.nio;
                 if (job.io_errno != 0) {
+                    /* A CSI page-checksum mismatch surfaces here as EIO
+                     * (job.csi_mismatch set); the existing nread<0 path fails
+                     * the read so corrupt data is never served. */
                     errno = job.io_errno;
                 }
             }
@@ -450,9 +470,12 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             /* No thread pool configured: read inline on the event loop. */
             xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
                                       databuf, rlen, 0);
+            job.csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
             xrootd_vfs_io_execute(&job);
             nread = job.nio;
             if (job.io_errno != 0) {
+                /* CSI mismatch surfaces as EIO here; the nread<0 path below
+                 * fails the read so corrupt data is never served. */
                 errno = job.io_errno;
             }
         }

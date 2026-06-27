@@ -259,6 +259,9 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 | [Feature Roadmap](09-developer-guide/feature-roadmap.md) | Planned features and priorities |
 | [Refactor Series](refactor/00-overview.md) | Design records for the phased refactor work (phase-NN) |
 | [Optimizations](09-developer-guide/optimizations.md) | Performance work and hot paths (read before touching read/WebDAV/auth code) |
+| [Lifecycle Startup & Shutdown Performance](09-developer-guide/lifecycle-startup-shutdown-performance.md) | Measure-first pass over process lifecycle: phase instrumentation, the lazy GSI keypool win (16ms→1.2ms/worker), and the profiling harness |
+| [Postmortem — Proxy Splice Under-drain Stall](09-developer-guide/postmortem-proxy-splice-underdrain-stall.md) | How a flaky mesh-topology test was traced to an `xrootd_proxy` zero-copy splice stall on large reads, and the self-healing fallback that fixed it — plus the systematic-debugging lessons |
+| [Client Mount & Connect Latency](09-developer-guide/client-mount-connect-latency.md) | Measure-first pass over `xrootdfs` mount / `xrdfs` connect: why the mount opened 5 serial connections, the parallel-eager + `--lazy-streams` fix, the GSI-rtag concurrency prerequisite, and connect-path micro-wins |
 | [Source Reduction Plan](09-developer-guide/source-reduction-plan.md) | External-library and nginx built-in delegation plan with LOC estimates |
 
 ---

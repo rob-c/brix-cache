@@ -100,6 +100,22 @@ What each flag does:
 | `--with-threads` | **Strongly recommended** | Enables nginx thread pools for async file I/O. Without this, slow disk/network I/O paths may fall back to synchronous work on a worker process. |
 | `--add-module=<path>` | **Yes** | Points to the nginx-xrootd source directory |
 
+```text
+   nginx source tree          this repo
+   /tmp/nginx-1.28.3          /opt/nginx-xrootd
+        │                          │
+        │   --add-module=──────────┤  root `config` script
+        │                          │  (the ONLY source list — register new .c here)
+        ▼                          ▼
+   ./configure ◀─── reads `config`, generates objs/Makefile + objs/ngx_modules.c
+        │            ⚠ re-run ./configure after: new .c file · new --with-* · new block
+        ▼
+   make -j$(nproc) ◀─── incremental rebuilds (NO configure needed for code edits)
+        │               ⚠ never edit objs/Makefile (regenerated) or nginx's own src/
+        ▼
+   objs/nginx  ──▶  nginx -t -c …  (validate)  ──▶  run
+```
+
 The module's `config` script (at the root of this repository) runs automatically during `./configure`. It:
 - Registers the **stream** modules: `ngx_stream_xrootd_module` for native XRootD and `ngx_stream_xrootd_cms_srv_module` for the CMS management listener
 - Registers the **HTTP** modules: `ngx_http_xrootd_metrics_module` (Prometheus), `ngx_http_xrootd_webdav_module` (WebDAV), and `ngx_http_xrootd_s3_module` (S3-compatible HTTP)

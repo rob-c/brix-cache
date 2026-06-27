@@ -27,6 +27,22 @@ no CRC64 instruction.
 The raw 64-bit value is the same; only the on-the-wire encoding changes, and that is
 handled at the protocol edge — never in the kernel.
 
+```text
+            ┌──────────────────────────────────────────┐
+   file fd ─▶│  src/compat/crc64.c  (one table kernel)  │
+            │  raw u64 = 0x995DC9BBDF1939FA             │
+            └───────────────┬──────────────────────────┘
+                            │  encode AT THE EDGE, per surface
+        ┌───────────────────┼────────────────────────────┐
+        ▼                   ▼                             ▼
+   root:// Qcksum      WebDAV / XrdHttp              S3 (AWS)
+   "crc64 995dc9bb…"   Digest: crc64=995dc9bb…       x-amz-checksum-crc64nvme:
+   16 lowercase hex    16 lowercase hex              base64( 8 big-endian bytes )
+                                                     = "mV3Ju98ZOfo="
+        └─────────── same number, three wire forms ───────┘
+   ⚠ crc64 (XZ poly) ≠ crc64nvme (NVME poly) — NOT interchangeable; pick per peer
+```
+
 | Surface | How requested | How returned | Encoding |
 |---|---|---|---|
 | root:// (`kXR_query` Qcksum) | algo name `crc64` / `crc64nvme` | `"<algo> <hex>"` | 16 lowercase hex |

@@ -136,9 +136,7 @@ xfs_fill_stat(const xrdc_statinfo *si, struct stat *stbuf)
     xrdc_statinfo_to_stat(si, 0, stbuf);
 }
 
-/* ------------------------------------------------------------------ */
 /* fuse_operations                                                     */
-/* ------------------------------------------------------------------ */
 
 static int
 xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
@@ -530,8 +528,7 @@ xfs_access(const char *path, int mask)
     return rc != 0 ? xfs_err(&st) : 0;
 }
 
-/* ---- extended attributes (opt-in via --xattr) ---------------------------- */
-/* FUSE uses "user.<x>" names; the server stores them under its own "user.U."
+/* extended attributes (opt-in via --xattr) *//* FUSE uses "user.<x>" names; the server stores them under its own "user.U."
  * prefix, so we send the bare "<x>" and the module re-prefixes. Only the user.*
  * namespace is exposed. Returns "<x>" or NULL for a non-user.* name. */
 static const char *
@@ -737,9 +734,7 @@ static const struct fuse_operations xfs_ops = {
     .removexattr = xfs_removexattr,
 };
 
-/* ------------------------------------------------------------------ */
 /* main                                                                */
-/* ------------------------------------------------------------------ */
 
 static void
 usage(void)

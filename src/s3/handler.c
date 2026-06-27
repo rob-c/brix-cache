@@ -105,7 +105,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     return (rc == NGX_ERROR) ? NGX_HTTP_FORBIDDEN : NGX_OK;
 }
 
-/* ---- Function: s3_parse_uri() ----
+/*
  *
  * WHAT: Parses the S3 request URI into bucket name and object key components. Supports
  *       path-style addressing (/<bucket>/<key>) and list requests (/<bucket>/?list-type=2).
@@ -118,7 +118,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 /*
  * HOW: Advances past the leading '/' in the URI, then checks if the remaining prefix matches conf->bucket.len bytes. If bucket match succeeds, advances past '/' to extract the key portion which is URL-decoded via s3_urldecode(). Returns -1 on bucket mismatch (NoSuchBucket), 0 on malformed URI (InvalidURI), 1 on success.
  */
-/* -------------------------------------------------------------------------
+/*
  * Parse the request URI into bucket + key.
  *
  * Path-style: /<bucket>/<key>
@@ -128,7 +128,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
  *   1  - success
  *   0  - malformed URI
  *  -1  - bucket name mismatch
- * ---------------------------------------------------------------------- */
+ * */
 
 static int
 s3_parse_uri(ngx_http_request_t *r,
@@ -180,7 +180,7 @@ s3_parse_uri(ngx_http_request_t *r,
     return 1;
 }
 
-/* ---- Function: s3_is_list_request() ----
+/*
  *
  * WHAT: Detects whether the HTTP request is a ListObjectsV2 operation by searching for the
  *       "list-type=2" query parameter in the request args. Returns 1 if found, 0 otherwise.
@@ -320,9 +320,9 @@ s3_handle_options(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     return ngx_http_send_special(r, NGX_HTTP_LAST);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Main content handler - auth gate + method dispatch
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * ngx_http_s3_handler - nginx HTTP content handler for the S3 API.
@@ -406,8 +406,7 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         }
     }
 
-    /* ---- XrdAcc engine (when xrootd_authdb_format xrdacc) ---- */
-    rc = s3_acc_check(r, cf, s3ctx->identity);
+    /* XrdAcc engine (when xrootd_authdb_format xrdacc) */    rc = s3_acc_check(r, cf, s3ctx->identity);
     if (rc != NGX_OK) {
         return s3_metrics_return_method(r, method_slot, rc);
     }

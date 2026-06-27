@@ -3,6 +3,7 @@
 #include "../token/macaroon.h"
 #include "../token/token_cache.h"
 #include "../token/worker_cache.h"
+#include "../token/issuer_registry.h"
 
 /*
  * Bearer-token (JWT/WLCG) authentication for the "ztn" credential type.
@@ -90,21 +91,33 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
      */
     int cache_hit = 0;
 
+    /* phase-59 W1: a registry config validates per-issuer; bypass the
+     * token-keyed caches. The matched issuer is stored on the identity so the
+     * per-path policy check enforces its base_path. */
+    const xrootd_token_issuer_t *reg_issuer = NULL;
+    int via_registry = (conf->token_registry != NULL);
+
     if (conf->token_l1 == NULL) {
         conf->token_l1 = xrootd_token_l1_create(ngx_cycle->pool,
                                                 XROOTD_TOKEN_L1_SLOTS);
     }
 
-    if (xrootd_token_l1_lookup(conf->token_l1, token, token_len, &claims)) {
+    if (!via_registry
+        && xrootd_token_l1_lookup(conf->token_l1, token, token_len, &claims))
+    {
         rc = 0;
         cache_hit = 1;
-    } else if (conf->token_cache_kv != NULL
+    } else if (!via_registry && conf->token_cache_kv != NULL
                && xrootd_token_cache_lookup(conf->token_cache_kv,
                                             token, token_len, &claims))
     {
         rc = 0;
         cache_hit = 1;
         xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
+    } else if (via_registry) {
+        rc = xrootd_token_validate_registry_authn(c->log, token, token_len,
+                conf->token_registry, slen > 0 ? secret : NULL, (size_t) slen,
+                &claims, &reg_issuer);
     } else {
         rc = xrootd_token_validate(c->log, token, token_len,
                                    conf->jwks_keys, conf->jwks_key_count,
@@ -117,7 +130,7 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* Grace-period fallback: if the primary secret rejected a macaroon token
      * and an old secret is configured, try validating with the old key.
      * This lets in-flight tokens survive nginx -s reload during key rotation. */
-    if (rc != 0 && conf->token_macaroon_secret_old.len) {
+    if (rc != 0 && !via_registry && conf->token_macaroon_secret_old.len) {
         u_char  old_secret[64];
         ssize_t old_slen;
 
@@ -150,8 +163,9 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Cache the freshly verified claims for subsequent presentations (L1 always,
-     * L2 when a SHM zone is configured). */
-    if (!cache_hit) {
+     * L2 when a SHM zone is configured).  Registry tokens are never cached: the
+     * per-path decision is not a function of the token alone. */
+    if (!cache_hit && !via_registry) {
         xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
         if (conf->token_cache_kv != NULL) {
             xrootd_token_cache_store(conf->token_cache_kv, token, token_len,
@@ -167,6 +181,12 @@ xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     {
         return xrootd_send_error(ctx, c, kXR_NoMemory,
                                  "identity allocation failed");
+    }
+
+    /* phase-59 W1: record the matched issuer so the per-path scope check
+     * (xrootd_identity_check_token_scope) enforces its base_path. */
+    if (ctx->identity != NULL && reg_issuer != NULL) {
+        ctx->identity->token_issuer = (void *) reg_issuer;
     }
 
     /* Save raw token so proxy auth-bridging can forward it to the upstream. */

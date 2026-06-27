@@ -16,9 +16,12 @@
 ngx_int_t
 xrootd_handle_sync(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-	ClientSyncRequest *req = (ClientSyncRequest *) ctx->hdr_buf;
-	int idx = (int)(unsigned char) req->fhandle[0];
+	xrdw_sync_req_t req;
+	int idx;
 	ngx_int_t rc;
+
+	xrdw_sync_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	idx = (int)(unsigned char) req.fhandle[0];
 
 	if (!xrootd_validate_file_handle(ctx, c, idx, "SYNC",
 									 XROOTD_OP_SYNC, &rc)) {

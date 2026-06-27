@@ -254,7 +254,7 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
     return NGX_DONE;
 }
 
-/* ---- Function: webdav_handle_copy() ----
+/*
  *
  * WHAT: Implements RFC 4918 §9.8 WebDAV COPY operation for server-side file/directory duplication within the same export root. Orchestrates the complete copy lifecycle: parses Destination/Overwrite/Depth headers, resolves both source and destination paths under root confinement, validates locks on destination, handles conditional checks (If-Match/If-None-Match), performs atomic copy via an intermediate staged temp path, then renames to final destination. Returns 201 Created when target didn't exist or 204 No Content when replacing existing resource; cleanup on failure ensures no orphaned temp files remain.
  *

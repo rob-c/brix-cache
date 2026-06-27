@@ -38,7 +38,7 @@
 #define CKV_XATTR_PREFIX "user.XrdCks."
 #define CKV_MAX_RECORDS  16
 
-/* ---- mirrors of the canonical on-disk layouts (must stay byte-compatible) -- */
+/* mirrors of the canonical on-disk layouts (must stay byte-compatible) -- */
 
 /* src/compat/integrity_info.c struct xrd_cks_data (stock XrdCks/XrdCksData.hh). */
 struct ckv_cksdata {
@@ -95,8 +95,7 @@ typedef struct {
     char hex[XRDC_CKV_HEX_MAX];
 } ckv_record;
 
-/* ---- helpers ----------------------------------------------------------- */
-
+/* helpers */
 static void
 ckv_bin_to_hex(const unsigned char *bin, int len, char *out, size_t outsz)
 {
@@ -258,8 +257,7 @@ ckv_collect_cache(const char *path, ckv_record *recs, size_t max, size_t *n)
     }
 }
 
-/* ---- public entry point ------------------------------------------------ */
-
+/* public entry point */
 xrdc_ckv_result
 xrdc_cks_verify_file(const char *path, const char *want_algo,
     xrdc_ckv_mode mode, xrdc_ckv_report *rep, xrdc_status *st)

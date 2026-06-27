@@ -1,35 +1,15 @@
-/* ------------------------------------------------------------------ */
-/* Section: Server Block Runtime Preparation                            */
-/* ------------------------------------------------------------------ */
 /*
- * WHAT: This file implements server block runtime preparation during postconfiguration phase — validates root path existence and access,
- *      checks cache configuration prerequisites (read-only constraint, origin host requirement, thread pool availability), opens access/proxy
- *      audit log files, creates proxy upstream TLS context when proxy_upstream_tls is enabled. Called once per enabled server after config parsing. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Root Path and Cache Validation                              */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: First phase validates root path existence (directory) with access mode matching write permission policy, then checks cache configuration
- *      prerequisites when xrootd_cache is enabled — read-only constraint requires allow_write off, origin host must be configured, cache_root directory
- *      must exist, lock timeout and eviction threshold must be within valid ranges, nginx must be built with --with-threads. Logs notice-level message on cache enablement. */
-
-/* ---- Function: xrootd_config_prepare_server() ----
- *
- * WHAT: Performs server block runtime preparation during postconfiguration phase — validates root path existence (directory) with access mode matching
- *      write permission policy, checks cache configuration prerequisites when enabled (read-only constraint + origin host + directory + thread availability),
- *      opens access/proxy audit log files when configured, creates proxy upstream TLS context when proxy_upstream_tls is enabled. Returns NGX_OK on success;
- *      NGX_ERROR with emerg-level log on any validation or resource creation failure. Called once per enabled server after config parsing. */
-
-/* ---- WHY: Runtime preparation ensures all server resources are available before accepting client connections — root path validation prevents runtime
- *      failures where nginx would attempt to serve files from non-existent directory under load. Cache prerequisite checks prevent misconfigured cache
- *      operations that could cause data corruption or performance degradation. Log file opening catches permission issues during startup rather than failing
- *      during high-traffic periods. TLS context creation ensures upstream proxy connections can negotiate secure transport when required. ---- */
+ * runtime_server.c — per-server-block runtime preparation at postconfiguration.
+ */
 
 #include "config.h"
 #include "root_prepare.h"
 #include "../compat/staged_file.h"
 
+/* Prepare one server block at postconfiguration: validate the configured root
+ * is an existing, accessible directory (access mode matching the write policy)
+ * and check the cache configuration, before the block accepts connections.
+ * Returns NGX_OK, or NGX_ERROR (emerg-logged) on any invalid resource. */
 ngx_int_t
 xrootd_config_prepare_server(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf)

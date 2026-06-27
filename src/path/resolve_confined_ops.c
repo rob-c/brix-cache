@@ -26,36 +26,21 @@ extern int xrootd_open_confined_parent_fallback(int rootfd, const char *parent);
 extern int xrootd_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, char *base, size_t basesz);
 
-/* ---- Main confined file open function — defence-in-depth root confinement ----
- *
- * WHAT: Opens a file while enforcing ROOT CONFINEMENT at multiple layers (defence-in-depth).
- *       resolved must already be canonical absolute path produced by xrootd_resolve_path* functions. */
+/*
+ * Confinement model for the open/op helpers in this file: defence-in-depth in
+ * two layers — (1) canonical-path resolution by the caller (no symlinks, no
+ * ".."), and (2) kernel-level confinement via openat2 RESOLVE_BENEATH (Linux
+ * 5.6+) or an O_NOFOLLOW fallback. Both must pass, so a symlink swapped in
+ * between resolve and open still cannot escape the export root.
+ */
 
-/* ---- Defence-in-depth confinement mechanism ----
- *
- * WHY: Two-layer security — first layer is CANONICAL PATH RESOLUTION (no symlinks, no "..") via caller's resolve function;
- *      second layer is KERNEL-LEVEL CONFINEMENT via openat2 RESOLVE_BENEATH or fallback O_NOFOLLOW.
- *      Even if a symlink was introduced between resolve and open, kernel-level prevention blocks escape. */
-
-/* ---- Confinement layers (defence-in-depth) ----
- *
- * HOW: Layer 1 = xrootd_resolve_path* functions produce canonical path (no symlinks, no "..");
- *      Layer 2 = kernel RESOLVE_BENEATH (openat2 Linux 5.6+) or user-space O_NOFOLLOW fallback;
- *      Both layers must pass for file access to succeed. */
-
-/* ---- Open confined function preconditions ----
- *
- * WHY: root_canon must be produced by xrootd_get_canonical_root() and resolved must already be within root_canon (caller verified). */
-
-/* ---- File descriptor ownership model ----
- *
- * WHY: The returned fd is NOT pool-managed — caller MUST close it explicitly. This prevents resource leaks in confined operations. */
-
-/* ---- Argument order reminder (flags vs mode) ----
- *
- * HOW: xrootd_open_confined_canon(..., flags, mode). flags = O_RDONLY/O_WRONLY/O_RDWR/O_CREAT/O_TRUNC etc.; 
- *      mode = 0644 permission bits (used only when O_CREAT is set). CRITICAL: Do NOT pass permission bits in flags position —
- *      0644 has the O_EXCL bit (0200) and would cause unexpected exclusive-create semantics. */
+/*
+ * xrootd_dirlist_access_ok — under impersonation, verify the mapped user may
+ * enumerate <resolved> by asking the broker to open it O_RDONLY|O_DIRECTORY as
+ * that user (EACCES ⇒ not entitled). NGX_OK when impersonation is off or the
+ * open succeeds; fail-closed (NGX_ERROR) when map mode is on but no principal is
+ * set for the request.
+ */
 
 ngx_int_t
 xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
@@ -97,6 +82,14 @@ xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
     return NGX_OK;
 }
 
+/*
+ * xrootd_open_confined_canon — open <resolved> (already canonical, under
+ * root_canon) with kernel confinement: openat2(RESOLVE_BENEATH), or on an older
+ * kernel a confined parent open + O_NOFOLLOW openat of the final component.
+ * Under impersonation the open is delegated to the broker (as the mapped user).
+ * Returns a NON-pool fd (caller closes) or -1. Arg order is (…, flags, mode):
+ * never pass permission bits in the flags slot (0644 sets O_EXCL).
+ */
 int
 xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int flags, mode_t mode)
@@ -185,22 +178,8 @@ xrootd_open_confined(ngx_log_t *log, const ngx_str_t *root,
     return xrootd_open_confined_canon(log, root_canon, resolved, flags, mode);
 }
 
-/* ---- Confined file deletion operations — unlinkat under confinement ----
- *
- * WHAT: Deletes files or directories using unlinkat syscall while enforcing parent directory confinement via openconfined_parent_canon().
- *       xrootd_unlink_confined_canon takes pre-canonicalized root; xrootd_unlink_confined converts ngx_str_t* root to canonical form. */
-
-/* ---- Unlink confined operation flow ----
- *
- * HOW: 1) Opens parent fd under confinement via xrootd_open_confined_parent_canon(); 
- *      2) Calls unlinkat(parentfd, base, AT_REMOVEDIR if is_dir else 0);
- *      3) Closes parent fd and returns unlinkat result. */
-
-/* ---- Unlink confined operation invariant (confinement enforced) ----
- *
- * WHY: Deletion operations MUST happen under confinement to prevent deleting files outside the export root directory.
- *      Even if resolved path appears correct, confinement ensures deletion happens at the confined location. */
-
+/* xrootd_unlink_confined_canon — unlinkat (AT_REMOVEDIR when is_dir) at the
+ * confined parent of <resolved> (broker-routed under impersonation). 0/-1. */
 int
 xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int is_dir)
@@ -231,22 +210,8 @@ xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-/* ---- Confined directory creation operations — mkdirat under confinement ----
- *
- * WHAT: Creates new directories using mkdirat syscall while enforcing parent directory confinement via openconfined_parent_canon().
- *       xrootd_mkdir_confined_canon takes pre-canonicalized root; xrootd_mkdir_confined converts ngx_str_t* root to canonical form. */
-
-/* ---- Mkdir confined operation flow ----
- *
- * HOW: 1) Opens parent fd under confinement via xrootd_open_confined_parent_canon(); 
- *      2) Calls mkdirat(parentfd, base, mode);
- *      3) Closes parent fd and returns mkdirat result. */
-
-/* ---- Mkdir confined operation invariant (confinement enforced) ----
- *
- * WHY: Directory creation MUST happen under confinement to prevent creating directories outside the export root directory.
- *      Even if resolved path appears correct, confinement ensures creation happens at the confined location. */
-
+/* xrootd_mkdir_confined_canon — mkdirat(mode) at the confined parent of
+ * <resolved> (broker-routed under impersonation). 0/-1. */
 int
 xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, mode_t mode)
@@ -277,22 +242,9 @@ xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-/* ---- Confined rename/move operations — renameat under confinement ----
- *
- * WHAT: Moves/renames files using renameat syscall while enforcing parent directory confinement for BOTH source and destination.
- *       Requires opening TWO parent fds (src_parentfd + dst_parentfd) to ensure both sides are confined. */
-
-/* ---- Rename confined operation flow (two-parent model) ----
- *
- * HOW: 1) Opens src parent fd under confinement via xrootd_open_confined_parent_canon(src_resolved); 
- *      2) Opens dst parent fd under confinement via xrootd_open_confined_parent_canon(dst_resolved);
- *      3) Calls renameat(src_parentfd, src_base, dst_parentfd, dst_base);
- *      4) Closes both fds and returns renameat result. */
-
-/* ---- Rename confined operation invariant (both sides confined) ----
- *
- * WHY: RENAME/MOVE operations MUST happen under confinement on BOTH source AND destination to prevent moving files into/out of export root.
- *      Even if src/dst paths appear correct, confinement ensures move happens within the confined location boundaries. */
+/* Confined rename/move: renameat at the confined parents of BOTH src and dst
+ * (broker-routed under impersonation) so neither side can escape the export
+ * root. The shared impl backs the plain and create-if-absent variants below. */
 
 #ifndef RENAME_NOREPLACE
 #define RENAME_NOREPLACE (1u << 0)
@@ -382,6 +334,8 @@ xrootd_rename_confined_canon_excl(ngx_log_t *log, const char *root_canon,
                                       dst_resolved, 1);
 }
 
+/* xrootd_link_confined_canon — linkat at the confined parents of BOTH src and
+ * dst (broker-routed under impersonation). 0/-1. */
 int
 xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved)
@@ -426,9 +380,9 @@ xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-/* ---- Confined setattr — utimensat + fchownat under parent confinement ----
+/* Confined setattr — utimensat + fchownat under parent confinement.
  *
- * WHAT: Apply timestamps (set_times → utimensat) and/or owner (set_owner →
+ * Apply timestamps (set_times → utimensat) and/or owner (set_owner →
  *       fchownat) to <resolved>, both *at() syscalls anchored at the confined
  *       parent fd so a symlink/parent swap cannot redirect the change outside the
  *       root. AT_SYMLINK_NOFOLLOW is used so the operation never follows a final
@@ -475,9 +429,9 @@ xrootd_setattr_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-/* ---- Confined chmod — broker-routed under impersonation ----
+/* Confined chmod — broker-routed under impersonation.
  *
- * WHAT: Apply <mode> (low 12 bits) to <resolved>.  Under impersonation routes
+ * Apply <mode> (low 12 bits) to <resolved>.  Under impersonation routes
  *       through the broker so the chmod runs AS THE MAPPED USER (a chmod requires
  *       being the file's owner; the unprivileged worker is not, so a worker-local
  *       chmod of a user-owned file would EPERM — even for the file's real owner).
@@ -517,9 +471,9 @@ xrootd_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-/* ---- Confined symlink creation — symlinkat under parent confinement ----
+/* Confined symlink creation — symlinkat under parent confinement.
  *
- * WHAT: Create a symlink at <link_resolved> with literal contents <target>. Only
+ * Create a symlink at <link_resolved> with literal contents <target>. Only
  *       the LINK location is confined (symlinkat anchored at the confined parent);
  *       the target string is stored verbatim — traversal safety for any later
  *       access THROUGH the link is enforced by the confined-open (RESOLVE_BENEATH),
@@ -558,9 +512,9 @@ xrootd_symlink_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-/* ---- Confined readlink — readlinkat under parent confinement ----
+/* Confined readlink — readlinkat under parent confinement.
  *
- * WHAT: Read the target of the symlink at <resolved> into <buf> (NOT
+ * Read the target of the symlink at <resolved> into <buf> (NOT
  *       NUL-terminated by readlinkat — the caller terminates). The parent is
  *       opened under confinement and readlinkat does not follow the final symlink.
  *       Returns the number of bytes placed in buf, or -1 with errno set.
@@ -597,74 +551,7 @@ xrootd_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
     return n;
 }
 
-/* ---- Confined hard link creation operations — linkat under confinement ----
- *
- * WHAT: Creates hard links using linkat syscall while enforcing parent directory confinement for BOTH source and destination.
- *       Requires opening TWO parent fds (src_parentfd + dst_parentfd) to ensure both sides are confined. */
-
-/* ---- Link confined operation flow (two-parent model) ----
- *
- * HOW: 1) Opens src parent fd under confinement via xrootd_open_confined_parent_canon(src_resolved); 
- *      2) Opens dst parent fd under confinement via xrootd_open_confined_parent_canon(dst_resolved);
- *      3) Calls linkat(src_parentfd, src_base, dst_parentfd, dst_base, 0);
- *      4) Closes both fds and returns linkat result. */
-
-/* ---- Link confined operation invariant (both sides confined) ----
- *
- * WHY: LINK creation MUST happen under confinement on BOTH source AND destination to prevent creating links outside the export root.
- *      Even if src/dst paths appear correct, confinement ensures link is created within the confined location boundaries. */
-
-/* ---- Function: xrootd_open_confined_canon() ----
- *
- * WHAT: Opens a file while enforcing ROOT CONFINEMENT at multiple layers (defence-in-depth). Takes pre-canonicalized root_canon and resolved path, converts to relative form, opens root fd via O_PATH, then uses openat2 RESOLVE_BENEATH (Linux 5.6+) or fallback O_NOFOLLOW to open the target file under confinement.
- *
- * WHY: Two-layer security — first layer is CANONICAL PATH RESOLUTION (no symlinks, no "..") via caller's resolve function; second layer is KERNEL-LEVEL CONFINEMENT via openat2 RESOLVE_BENEATH or fallback O_NOFOLLOW. Even if a symlink was introduced between resolve and open, kernel-level prevention blocks escape. Returns fd that is NOT pool-managed — caller MUST close it explicitly.
- *
- * HOW: 1) Call xrootd_resolved_relative_to_root(root_canon, resolved) to get relative path rel; 2) Open root fd via O_PATH mode (xrootd_open_root_fd); 3) Try openat2 confined syscall (xrootd_openat2_confined); if it fails with ENOSYS/EINVAL/EOPNOTSUPP, fall through; 4) If rel == '.' (target IS the root), openat(rootfd, '.', flags|O_CLOEXEC|O_NOFOLLOW); 5) Otherwise split rel into parent/base via xrootd_split_relative_parent, open parent fd via fallback, then openat(parentfd, base, flags|O_CLOEXEC|O_NOFOLLOW). Returns fd on success, -1 on failure. Thread safety: uses local stack buffers — safe for concurrent use. */
-
-/* ---- Function: xrootd_open_confined() ----
- *
- * WHAT: Thin wrapper that converts ngx_str_t root argument to canonical form via xrootd_get_canonical_root(), then delegates to xrootd_open_confined_canon(). Provides the non-canonical API variant for callers holding ngx_str_t root configuration.
- *
- * WHY: Many callers (WebDAV dispatch, native XRootD handler) hold root as ngx_str_t from location config. This wrapper bridges between the nginx string type and the canonical char* form required by xrootd_open_confined_canon(). Sets errno = EACCES on canonical_root failure.
- *
- * HOW: 1) Call xrootd_get_canonical_root(log, root, root_canon, sizeof(root_canon)); 2) On success, delegate to xrootd_open_confined_canon(log, root_canon, resolved, flags, mode); 3) Return delegated result. Returns fd on success, -1 on failure. Thread safety: uses local stack buffer — safe for concurrent use. */
-
-/* ---- Function: xrootd_unlink_confined_canon() ----
- *
- * WHAT: Deletes files or directories using unlinkat syscall while enforcing parent directory confinement via openconfined_parent_canon(). Takes pre-canonicalized root_canon and resolved path. is_dir parameter controls AT_REMOVEDIR flag.
- *
- * WHY: Deletion operations MUST happen under confinement to prevent deleting files outside the export root directory. Even if resolved path appears correct, confinement ensures deletion happens at the confined location by opening parent fd via xrootd_open_confined_parent_canon() then calling unlinkat(parentfd, base, AT_REMOVEDIR|0).
- *
- * HOW: 1) Call xrootd_open_confined_parent_canon(log, root_canon, resolved, base, sizeof(base)) to get parent fd and extract base name; 2) If parentfd < 0, return -1; 3) Call unlinkat(parentfd, base, is_dir ? AT_REMOVEDIR : 0); 4) Close parent fd; 5) Return unlinkat result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffer — safe for concurrent use. */
-
-/* ---- Function: xrootd_mkdir_confined_canon() ----
- *
- * WHAT: Creates new directories using mkdirat syscall while enforcing parent directory confinement via openconfined_parent_canon(). Takes pre-canonicalized root_canon and resolved path, creates at mode_t permission bits.
- *
- * WHY: Directory creation MUST happen under confinement to prevent creating directories outside the export root directory. Even if resolved path appears correct, confinement ensures creation happens at the confined location by opening parent fd via xrootd_open_confined_parent_canon() then calling mkdirat(parentfd, base, mode).
- *
- * HOW: 1) Call xrootd_open_confined_parent_canon(log, root_canon, resolved, base, sizeof(base)) to get parent fd and extract base name; 2) If parentfd < 0, return -1; 3) Call mkdirat(parentfd, base, mode); 4) Close parent fd; 5) Return mkdirat result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffer — safe for concurrent use. */
-
-
-/* ---- Function: xrootd_rename_confined_canon() ----
- *
- * WHAT: Moves/renames files using renameat syscall while enforcing parent directory confinement for BOTH source and destination. Takes pre-canonicalized root_canon, src_resolved and dst_resolved paths; opens TWO parent fds to ensure both sides are confined.
- *
- * WHY: RENAME/MOVE operations MUST happen under confinement on BOTH source AND destination to prevent moving files into/out of export root. Even if src/dst paths appear correct, confinement ensures move happens within the confined location boundaries by opening src_parentfd and dst_parentfd via xrootd_open_confined_parent_canon() then calling renameat(src_parentfd, src_base, dst_parentfd, dst_base).
- *
- * HOW: 1) Call xrootd_open_confined_parent_canon(log, root_canon, src_resolved, src_base, sizeof(src_base)) to get src_parentfd; 2) If src_parentfd < 0, return -1; 3) Call xrootd_open_confined_parent_canon(log, root_canon, dst_resolved, dst_base, sizeof(dst_base)) to get dst_parentfd; 4) If dst_parentfd < 0, close src_parentfd and return -1; 5) Call renameat(src_parentfd, src_base, dst_parentfd, dst_base); 6) Close both fds; 7) Return renameat result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffers — safe for concurrent use. */
-
-/* ---- Function: xrootd_link_confined_canon() ----
- *
- * WHAT: Creates hard links using linkat syscall while enforcing parent directory confinement for BOTH source and destination. Takes pre-canonicalized root_canon, src_resolved and dst_resolved paths; opens TWO parent fds to ensure both sides are confined.
- *
- * WHY: LINK creation MUST happen under confinement on BOTH source AND destination to prevent creating links outside the export root. Even if src/dst paths appear correct, confinement ensures link is created within the confined location boundaries by opening src_parentfd and dst_parentfd via xrootd_open_confined_parent_canon() then calling linkat(src_parentfd, src_base, dst_parentfd, dst_base, 0).
- *
- * HOW: 1) Call xrootd_open_confined_parent_canon(log, root_canon, src_resolved, src_base, sizeof(src_base)) to get src_parentfd; 2) If src_parentfd < 0, return -1; 3) Call xrootd_open_confined_parent_canon(log, root_canon, dst_resolved, dst_base, sizeof(dst_base)) to get dst_parentfd; 4) If dst_parentfd < 0, close src_parentfd and return -1; 5) Call linkat(src_parentfd, src_base, dst_parentfd, dst_base, 0); 6) Close both fds; 7) Return linkat result. Returns 0 on success, -1 on failure. Thread safety: uses local stack buffers — safe for concurrent use. */
-
-
-/* ---- Confined extended-attribute ops — broker-routed under impersonation ----
+/* Confined extended-attribute ops — broker-routed under impersonation.
  *
  * WHAT: set/get/remove/list extended attributes on a resolved (already
  *       lexically-confined) path.  When impersonation map mode is active the op
@@ -749,9 +636,9 @@ xrootd_listxattr_confined_canon(ngx_log_t *log, const char *root_canon,
     return listxattr(resolved, buf, bufsz);
 }
 
-/* ---- Confined directory open — broker-routed fd + fdopendir under impersonation
+/* Confined directory open — broker-routed fd + fdopendir under impersonation.
  *
- * WHAT: open <resolved> as a directory stream that, under impersonation map mode,
+ * open <resolved> as a directory stream that, under impersonation map mode,
  *       is opened BY THE BROKER as the mapped user (O_RDONLY|O_DIRECTORY via
  *       RESOLVE_BENEATH) and handed back as an fd that we fdopendir().  readdir on
  *       that stream then enumerates the directory with the mapped user's read

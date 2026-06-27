@@ -1,4 +1,5 @@
 #include "cache_internal.h"
+#include "../protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
 
 
 #if defined(__linux__)
@@ -10,88 +11,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- xrootd_cache_origin_bootstrap — handshake + protocol negotiation + login ----
- *
- * WHAT: Performs the three-phase XRootD connection bootstrap on a raw TCP/TLS socket:
- *       ClientInitHandShake → server response → kXR_protocol negotiation → kXR_login.
- *       Returns 0 when anonymous login succeeds, -1 on any phase failure.
- *
- * WHY: Every cache fill must establish a valid XRootD session before reading files.
- *      The handshake identifies the client (fourth=4, fifth=ROOTD_PQ), protocol negotiation
- *      checks server capabilities (kXR_gotoTLS flag triggers TLS upgrade if configured),
- *      and anonymous login establishes streamid[1]=1 for subsequent read/write requests.
- *      The login uses username 'xrd' and capver kXR_ver005 — no credentials needed for
- *      anonymous reads from an open origin. */
-
-/* ---- xrootd_cache_origin_open — open source file with fhandle + stat parsing ----
- *
- * WHAT: Sends kXR_open request (read + kXR_retstat) to the origin, parses ServerOpenBody
- *       for fhandle, and optionally extracts file size from appended stat string.
- *       Returns 0 on success with fhandle populated, -1 on error or redirect.
- *
- * WHY: The read loop needs an opaque file handle (fhandle) to identify the open file in
- *      subsequent kXR_read/kXR_close requests. kXR_retstat adds an ASCII stat string after
- *      the fhandle so we learn file_size before committing to a full download — this enables
- *      the admission filter to reject oversized files without downloading them. */
-
-/* ---- xrootd_cache_origin_open_write — write-through origin open with mkpath ----
- *
- * WHAT: Sends kXR_open request (update + delete + mkpath) to mirror a local file onto
- *       the origin. Truncates destination, creates missing parent directories if supported.
- *       Returns 0 on success with fhandle populated, -1 on error or redirect.
- *
- * WHY: Write-through mirroring copies cached content back to the origin storage. Options:
- *      kXR_open_updt (update mode), kXR_delete (truncate before write), kXR_mkpath (create
- *      parent dirs if missing) ensure atomic replacement of the origin file from the
- *      write-through point of view. */
-
-/* ---- xrootd_cache_origin_close_file — send kXR_close for fhandle ----
- *
- * WHAT: Sends kXR_close request with the given fhandle and reads (but discards) the
- *       server response. Uses a dummy fill_t struct since no metrics logging needed.
- *
- * WHY: Every opened file must be closed on the origin before reconnecting or finishing
- *      the fetch. The response is discarded because close status only matters for errors
- *      — a failed close doesn't invalidate the fetched data already written to disk. */
-
-/* ---- xrootd_cache_origin_write_chunk — write data chunk to origin file ----
- *
- * WHAT: Sends kXR_write request with offset, fhandle, and data payload. Reads response
- *       expecting kXR_ok with zero data length. Returns 0 on success, -1 on error.
- *
- * WHY: Write-through mirroring streams local cache content to the origin file at the
- *      correct offset using big-endian 64-bit offsets (htobe64) matching XRootD wire format.
- *      Response validation requires status=kXR_ok and dlen=0 — any extra data is invalid. */
-
-/* ---- xrootd_cache_origin_truncate — set origin file size to length ----
- *
- * WHAT: Sends kXR_truncate request with fhandle and target offset (big-endian 64-bit).
- *       Reads response expecting kXR_ok. Returns 0 on success, -1 on error.
- *
- * WHY: Write-through may need to shrink the origin file before streaming new content.
- *      Truncate sets the exact byte length — everything beyond offset is discarded.
- *      Used before write_chunk when the destination file is larger than the source. */
-
-/* ---- xrootd_cache_origin_sync — flush origin file buffers ----
- *
- * WHAT: Sends kXR_sync request with fhandle, reads response expecting kXR_ok.
- *       Returns 0 on success, -1 on error.
- *
- * WHY: Write-through mirroring syncs the origin file after streaming all chunks to ensure
- *      data is flushed to disk. Equivalent to fsync() on the origin side — guarantees
- *      the mirrored content survives a server crash before close is issued. */
-
-/* ---- xrootd_cache_origin_read_chunk — read data from origin into local fd ----
- *
- * WHAT: Sends kXR_read request with fhandle, offset, and requested length (rlen). Reads
- *       response loop handling both kXR_ok (final chunk) and kXR_oksofar (intermediate),
- *       writes each data payload to the local part file fd via xrootd_cache_fd_write_all.
- *       Sets *got = total bytes received. Returns 0 on complete read, -1 on error.
- *
- * WHY: The full cache fill downloads the origin file in chunks (XROOTD_CACHE_FETCH_CHUNK).
- *      kXR_oksofar indicates partial delivery — the loop continues until status=kXR_ok
- *      signals final chunk. Data length validation prevents overflow: dlen <= want and
- *      accumulated *got stays within requested bounds. */
+/* xrootd_cache_origin_bootstrap — three-phase XRootD connection bootstrap on a
+ * raw TCP/TLS socket: ClientInitHandShake → kXR_protocol negotiation (a
+ * kXR_gotoTLS flag triggers a TLS upgrade when configured) → anonymous kXR_login
+ * (user 'xrd', capver kXR_ver005, streamid[1]=1). Every cache fill needs a valid
+ * session before reading. Returns 0 on success, -1 on any phase failure. */
 int
 xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc)
@@ -102,10 +26,9 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     uint16_t               status;
     uint32_t               dlen;
     u_char                *body;
+    static const uint8_t   sid[2] = { 0, 1 };   /* cache-origin connector streamid */
 
-    ngx_memzero(&hs, sizeof(hs));
-    hs.fourth = htonl(4);
-    hs.fifth = htonl(ROOTD_PQ);
+    xrd_pack_handshake(&hs);
 
     if (xrootd_cache_io_send(oc, &hs, sizeof(hs)) != 0) {
         xrootd_cache_set_error(t, kXR_ServerError, errno,
@@ -125,12 +48,7 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
         return -1;
     }
 
-    ngx_memzero(&pr, sizeof(pr));
-    pr.streamid[1] = 1;
-    pr.requestid = htons(kXR_protocol);
-    pr.clientpv = htonl(kXR_PROTOCOLVERSION);
-    pr.expect = 0x03;
-    pr.dlen = 0;
+    xrd_pack_protocol_request(&pr, sid, 0);
 
     if (xrootd_cache_io_send(oc, &pr, sizeof(pr)) != 0) {
         xrootd_cache_set_error(t, kXR_ServerError, errno,
@@ -167,15 +85,7 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     }
     free(body);
 
-    ngx_memzero(&lr, sizeof(lr));
-    lr.streamid[1] = 1;
-    lr.requestid = htons(kXR_login);
-    lr.pid = htonl((kXR_int32) ngx_pid);
-    lr.username[0] = 'x';
-    lr.username[1] = 'r';
-    lr.username[2] = 'd';
-    lr.capver = kXR_ver005;
-    lr.dlen = 0;
+    xrd_pack_login_request(&lr, sid, (int32_t) ngx_pid, "xrd", kXR_ver005);
 
     if (xrootd_cache_io_send(oc, &lr, sizeof(lr)) != 0) {
         xrootd_cache_set_error(t, kXR_ServerError, errno,
@@ -203,6 +113,10 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* xrootd_cache_origin_open — kXR_open (read + kXR_retstat) of the source file:
+ * parse ServerOpenBody for the fhandle and the appended stat string, so file_size
+ * is known before a full download (the admission filter can reject oversized files
+ * without fetching them). Returns 0 with fhandle set, -1 on error or redirect. */
 int
 xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, u_char fhandle[XRD_FHANDLE_LEN])
@@ -230,7 +144,10 @@ xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     req->requestid = htons(kXR_open);
     /* kXR_retstat requests an ASCII stat string appended after the fhandle so we
      * can learn the file size before committing to a full download */
-    req->options = htons(kXR_open_read | kXR_retstat);
+    {
+        xrdw_open_req_t b = { .options = kXR_open_read | kXR_retstat };
+        xrdw_open_req_pack(&b, ((ClientRequestHdr *) buf)->body);
+    }
     req->dlen = htonl((kXR_int32) pathlen);
     ngx_memcpy(buf + sizeof(*req), t->clean_path, pathlen);
 
@@ -297,6 +214,106 @@ xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* xrootd_cache_origin_query_checksum — ask the origin for its stored digest of
+ * t->clean_path (path-based kXR_query/kXR_Qcksum), returning "<algo> <hex>" split
+ * into the caller buffers. Checksum-on-fill (verify.c) validates downloaded bytes
+ * against this before publishing. BEST-EFFORT: an origin with no checksum or a
+ * wire hiccup must NOT fail an otherwise-complete fill (data is already on disk) —
+ * on ANY failure it restores t's error state and returns 0 with alg_out emptied,
+ * so the caller treats it as "no origin digest" and the verify policy decides. */
+int
+xrootd_cache_origin_query_checksum(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, char *alg_out, size_t alg_sz,
+    char *hex_out, size_t hex_sz)
+{
+    size_t              pathlen, total;
+    u_char             *buf;
+    ClientQueryRequest *req;
+    uint16_t            status;
+    uint32_t            dlen;
+    u_char             *body;
+    char               *sp;
+    int                 saved_result, saved_xrd;
+
+    if (alg_sz > 0) {
+        alg_out[0] = '\0';
+    }
+    if (hex_sz > 0) {
+        hex_out[0] = '\0';
+    }
+
+    /* The download already succeeded; never let a checksum-query failure leak an
+     * error onto the task. Snapshot and restore the error triple. */
+    saved_result = t->result;
+    saved_xrd    = t->xrd_error;
+
+    pathlen = strlen(t->clean_path);
+    total = sizeof(ClientQueryRequest) + pathlen;
+
+    buf = malloc(total);
+    if (buf == NULL) {
+        return 0;       /* best-effort: skip verification on OOM */
+    }
+
+    ngx_memzero(buf, total);
+    req = (ClientQueryRequest *) buf;
+    req->streamid[1] = 6;                       /* unused stream slot */
+    req->requestid = htons(kXR_query);
+    {
+        xrdw_query_req_t b = { .infotype = kXR_Qcksum };  /* fhandle 0 ⇒ path-based */
+        xrdw_query_req_pack(&b, ((ClientRequestHdr *) buf)->body);
+    }
+    req->dlen = htonl((kXR_int32) pathlen);
+    ngx_memcpy(buf + sizeof(*req), t->clean_path, pathlen);
+
+    if (xrootd_cache_io_send(oc, buf, total) != 0) {
+        free(buf);
+        return 0;
+    }
+    free(buf);
+
+    body = NULL;
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 512) != 0) {
+        t->result    = saved_result;
+        t->xrd_error = saved_xrd;
+        return 0;
+    }
+
+    if (status != kXR_ok || body == NULL || dlen == 0) {
+        free(body);                             /* origin has no checksum */
+        return 0;
+    }
+
+    /* body is NUL-terminated "<algo> <hexvalue>". */
+    sp = strchr((char *) body, ' ');
+    if (sp != NULL) {
+        size_t  an = (size_t) (sp - (char *) body);
+        char   *hv = sp + 1;
+        char   *end = hv + strlen(hv);
+        size_t  hn;
+
+        while (end > hv && (end[-1] == '\n' || end[-1] == '\r'
+                            || end[-1] == ' ' || end[-1] == '\t')) {
+            end--;
+        }
+        hn = (size_t) (end - hv);
+
+        if (an > 0 && an < alg_sz && hn > 0 && hn < hex_sz) {
+            ngx_memcpy(alg_out, body, an);
+            alg_out[an] = '\0';
+            ngx_memcpy(hex_out, hv, hn);
+            hex_out[hn] = '\0';
+        }
+    }
+
+    free(body);
+    return 0;
+}
+
+/* xrootd_cache_origin_open_write — kXR_open (update + delete + mkpath) to mirror a
+ * local file onto the origin: truncate the destination and create missing parent
+ * dirs (where supported) for an atomic write-through replacement. Returns 0 with
+ * fhandle set, -1 on error or redirect. */
 int
 xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const char *path, uint16_t mode_bits,
@@ -329,13 +346,18 @@ xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
     req = (ClientOpenRequest *) buf;
     req->streamid[1] = 2;
     req->requestid = htons(kXR_open);
-    req->mode = htons(mode_bits != 0 ? mode_bits : 0644);
     /*
      * Replace the origin copy atomically from the write-through point of view:
      * open for update, create missing parents if the origin supports mkpath,
      * and truncate the destination before streaming the local contents.
      */
-    req->options = htons(kXR_open_updt | kXR_delete | kXR_mkpath);
+    {
+        xrdw_open_req_t b = {
+            .mode = (uint16_t) (mode_bits != 0 ? mode_bits : 0644),
+            .options = kXR_open_updt | kXR_delete | kXR_mkpath
+        };
+        xrdw_open_req_pack(&b, ((ClientRequestHdr *) buf)->body);
+    }
     req->dlen = htonl((kXR_int32) pathlen);
     ngx_memcpy(buf + sizeof(*req), path, pathlen);
 
@@ -384,6 +406,9 @@ xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* xrootd_cache_origin_close_file — send kXR_close for the fhandle and discard the
+ * reply (close status only matters for errors, which don't invalidate data already
+ * written to disk). Every opened file must be closed before reconnect/finish. */
 void
 xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
     const u_char fhandle[XRD_FHANDLE_LEN])
@@ -411,6 +436,9 @@ xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
     }
 }
 
+/* xrootd_cache_origin_write_chunk — kXR_write a payload at a big-endian 64-bit
+ * offset (htobe64, XRootD wire format); the reply must be kXR_ok with dlen=0.
+ * Returns 0 on success, -1 on error. */
 int
 xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
@@ -465,6 +493,9 @@ xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* xrootd_cache_origin_truncate — kXR_truncate the origin file to a big-endian
+ * 64-bit offset (used before write_chunk when the destination is larger than the
+ * source); the reply must be kXR_ok. Returns 0 on success, -1 on error. */
 int
 xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
@@ -511,6 +542,9 @@ xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* xrootd_cache_origin_sync — kXR_sync the origin file (fsync equivalent) after
+ * streaming all chunks, so the mirrored content survives an origin crash before
+ * close; the reply must be kXR_ok. Returns 0 on success, -1 on error. */
 int
 xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN])
@@ -555,10 +589,14 @@ xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* xrootd_cache_origin_read_chunk — kXR_read at (offset, rlen), writing each reply
+ * payload to the local part fd via xrootd_cache_fd_write_all and looping over
+ * kXR_oksofar until the final kXR_ok. dlen is bounded (<= want, accumulated *got
+ * within request bounds) to prevent overflow. Sets *got; returns 0 / -1. */
 int
 xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
-    int outfd, uint64_t offset, size_t want, size_t *got)
+    int outfd, uint64_t read_off, uint64_t dst_off, size_t want, size_t *got)
 {
     ClientReadRequest req;
     uint16_t          status;
@@ -571,7 +609,7 @@ xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
     req.streamid[1] = 3;
     req.requestid = htons(kXR_read);
     ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
-    req.offset = (kXR_int64) htobe64(offset);
+    req.offset = (kXR_int64) htobe64(read_off);
     req.rlen = htonl((kXR_int32) want);
     req.dlen = 0;
 
@@ -610,8 +648,14 @@ xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
         }
 
         if (dlen > 0) {
+            /* Write at dst_off + bytes already written this call (*got). dst_off
+             * is the caller's WRITE base, decoupled from the origin READ offset:
+             * the whole-file fetch passes dst_off==read_off (absolute), a slice
+             * fill passes a 0-relative base. Using *got alone restarts at 0 each
+             * 1 MiB chunk, so multi-chunk whole-file fetches overwrote at offset 0
+             * (corrupting any file > XROOTD_CACHE_FETCH_CHUNK → adler32 mismatch). */
             if (xrootd_cache_fd_write_all(outfd, body, dlen,
-                                          (off_t) *got) != 0) {
+                                          (off_t) (dst_off + *got)) != 0) {
                 free(body);
                 xrootd_cache_set_syserror(t, kXR_IOError,
                                           "cache file write failed");

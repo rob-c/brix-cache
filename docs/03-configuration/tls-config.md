@@ -24,6 +24,28 @@ attribute certificates, CRL conventions, and GSI DH exchange details — see
 | `root://host:1094/...` + `xrootd_tls on` | After `kXR_protocol` advertises `kXR_haveTLS` | `xrootd_tls on` in `stream {}` | `src/session/protocol.c`, `src/connection/*.c` | Same TCP port, XRootD-native upgrade |
 | `roots://host:1094/...` | Immediately after TCP connect | `listen ... ssl` in `stream {}` | nginx stream SSL + normal XRootD stream module | Transport TLS from byte 0 |
 
+The crux is **when** on the connection timeline the bytes become encrypted —
+plaintext shown as `····`, encrypted as `████`:
+
+```text
+  TCP                                                                    file
+  connect                                                               traffic
+   │                                                                       │
+   ▼                                                                       ▼
+  roots://         ████████████████████████████████████████████████████████  TLS from byte 0
+  (listen ssl)     │TLS handshake│ XRootD handshake·login·auth·I/O (all enc) │
+
+  root:// +        ········│██████████████████████████████████████████████  upgrade mid-stream
+  xrootd_tls on    │hs·kXR_protocol│ ← server: kXR_gotoTLS, THEN TLS handshake│
+                   plaintext until the protocol reply is flushed, then enc
+
+  root:// (GSI,    ····███····································································  creds only
+  no xrootd_tls)   │hs│GSI auth│ login·file I/O all CLEARTEXT (auth protected)│
+
+  davs:// / S3     ████████████████████████████████████████████████████████  HTTPS (nginx http)
+  (listen ssl)     │TLS handshake│ HTTP/WebDAV/S3 request inside TLS          │
+```
+
 One listener should use one transport-TLS model. If a stream listener already
 uses `listen ... ssl` for `roots://`, leave `xrootd_tls` off on that listener.
 

@@ -80,7 +80,7 @@ def test_admin_auth_and_validation_present():
 
 
 def test_registry_undrain_helper_present():
-    assert "xrootd_srv_undrain" in _read("src/manager/registry.c")
+    assert "xrootd_srv_undrain" in _read("src/manager/registry_select.c")  # split out
     assert "xrootd_srv_undrain" in _read("src/manager/registry.h")
 
 

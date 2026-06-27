@@ -68,6 +68,24 @@ stream {
 
 Requests for `/store/...` are opened from `/srv/xcache/store/...` if present. A miss is filled once across all workers, then future clients read the local cached file.
 
+```text
+  client ── root://cache//store/a.root ──▶ ┌─────────────────────────┐
+                                           │  nginx-xrootd (XCache)   │
+                                           │  xrootd_cache_root       │
+                                           └───────────┬─────────────┘
+                  ┌────────────────────────────────────┴───────────┐
+                  ▼ HIT: /srv/xcache/store/a.root exists            ▼ MISS
+            serve local copy                              fill once (shared
+            (no origin traffic)                           lock, all workers
+                  ▲                                        wait on one fetch)
+                  │                                                 │
+                  │                          root://origin//store/a.root
+                  │                                                 ▼
+                  └──── cached for next client ◀── stream from ── origin
+                        (eviction at 90% via                     data server
+                         xrootd_cache_eviction_threshold)
+```
+
 ---
 
 ### VO-restricted storage with group inheritance (CephFS-style)
@@ -148,6 +166,20 @@ opened. `xrootd_allow_write` remains an additional server-wide write gate, and
 ---
 
 ### Two ports: read-only anonymous + read-write GSI-authenticated
+
+```text
+                        ┌──────────────────────────────────────┐
+   anonymous reader ──▶ │ :1094  xrootd_root /data/public      │ read-only
+                        │        (no auth, no write)            │
+                        ├──────────────────────────────────────┤
+   GSI cert holder  ──▶ │ :1095  xrootd_auth gsi                │ read-write
+                        │        xrootd_allow_write on          │ (cert + CA)
+                        │        xrootd_root /data/upload       │
+                        ├──────────────────────────────────────┤
+   Prometheus       ──▶ │ :9100  http /metrics                  │ scrape
+                        └──────────────────────────────────────┘
+   one nginx process · separate listeners · independent auth + root per port
+```
 
 ```nginx
 worker_processes auto;

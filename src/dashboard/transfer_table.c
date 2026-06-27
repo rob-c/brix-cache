@@ -26,8 +26,7 @@
 
 static ngx_shmtx_t xrootd_dashboard_mutex;
 
-/* ---- SHM init callback ---- */
-
+/* SHM init callback */
 ngx_int_t
 ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
@@ -55,8 +54,7 @@ ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
     return NGX_OK;
 }
 
-/* ---- Slot allocation ---- */
-
+/* Slot allocation */
 static void
 dashboard_copy_field(char *dst, size_t dstsz, const char *src)
 {
@@ -138,8 +136,7 @@ xrootd_transfer_slot_alloc(xrootd_transfer_table_t *t,
                                          now_ms);
 }
 
-/* ---- Byte / timestamp update (lock-free) ---- */
-
+/* Byte / timestamp update (lock-free) */
 void
 xrootd_transfer_slot_update_bytes(xrootd_transfer_table_t *t,
     int slot_idx, ngx_atomic_int_t nbytes, int64_t now_ms)
@@ -306,8 +303,7 @@ xrootd_transfer_slot_count_op(xrootd_transfer_table_t *t, int slot_idx,
     }
 }
 
-/* ---- Single-slot free (lock-free CAS) ---- */
-
+/* Single-slot free (lock-free CAS) */
 void
 xrootd_transfer_slot_free(xrootd_transfer_table_t *t, int slot_idx)
 {
@@ -322,8 +318,7 @@ xrootd_transfer_slot_free(xrootd_transfer_table_t *t, int slot_idx)
     (void) ngx_atomic_cmp_set(&t->slots[slot_idx].in_use, 1, 0);
 }
 
-/* ---- Session-wide free (used at disconnect) ---- */
-
+/* Session-wide free (used at disconnect) */
 void
 xrootd_transfer_slot_free_all_for_session(xrootd_transfer_table_t *t,
     const u_char sessid[16])

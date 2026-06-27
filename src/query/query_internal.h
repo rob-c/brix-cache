@@ -113,7 +113,7 @@ ngx_flag_t xrootd_query_digest_file(const ngx_str_t *root,
  * leading "algo:" overrides. May run async (thread pool) or sync. Sends the wire
  * response itself; returns NGX_OK/NGX_DONE on completion or NGX_ERROR. */
 ngx_int_t xrootd_query_cksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, ClientQueryRequest *req);
+    ngx_stream_xrootd_srv_conf_t *conf, const xrdw_query_req_t *req);
 /* kXR_Qckscan: recursive directory checksum scan after auth (READ) on the path.
  * Posts a thread-pool task when configured (returns NGX_OK), else runs sync.
  * Sends the wire response itself. */
@@ -145,7 +145,7 @@ ngx_int_t xrootd_query_finfo(xrootd_ctx_t *ctx, ngx_connection_t *c);
 /* kXR_Qvisa: validates req->fhandle index then replies kXR_Unsupported (fctl not
  * supported). Sends response; returns NGX_OK or the validation error code. */
 ngx_int_t xrootd_query_visa(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ClientQueryRequest *req);
+    const xrdw_query_req_t *req);
 /* kXR_Qopaque: requires payload, then replies kXR_Unsupported (FSctl). Sends
  * response; returns NGX_OK (kXR_ArgMissing if payload absent). */
 ngx_int_t xrootd_query_opaque(xrootd_ctx_t *ctx, ngx_connection_t *c);
@@ -157,7 +157,7 @@ ngx_int_t xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * (no such TPC), otherwise kXR_Unsupported (fctl). Sends response; returns NGX_OK
  * or the validation error code. */
 ngx_int_t xrootd_query_opaqug(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ClientQueryRequest *req);
+    const xrdw_query_req_t *req);
 /* kXR_QPrep status: per-path staging status ("A <path>" available / "M <path>"
  * missing) from inline paths or the ctx-stored prepare list. Empty input sends
  * an empty OK. Sends response; returns NGX_OK (kXR_NoMemory on alloc failure). */

@@ -25,8 +25,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-/* ---- xrootd_parse_address - Parse host:port address with optional scheme ----
- *
+/* xrootd_parse_address - Parse host:port address with optional scheme
  * WHAT: Parse an address string in the form "host:port", "root://host:port",
  *       "roots://host:port", or "https://host:port". Extracts host and port
  *       into separate buffers. Can optionally set enable_tls flag based on scheme.

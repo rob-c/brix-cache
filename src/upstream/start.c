@@ -74,16 +74,16 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * byte order) so the replayed request to the backend is byte-identical to the
      * client's. Only locate/open carry options we must reproduce; open also carries mode. */
     if (ctx->cur_reqid == kXR_locate) {
-        ClientLocateRequest *lr;
+        xrdw_locate_req_t lr;
 
-        lr = (ClientLocateRequest *) (void *) ctx->hdr_buf;
-        up->req_options = ntohs(lr->options);
+        xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &lr);
+        up->req_options = lr.options;
     } else if (ctx->cur_reqid == kXR_open) {
-        ClientOpenRequest *oreq;
+        xrdw_open_req_t oreq;
 
-        oreq = (ClientOpenRequest *) (void *) ctx->hdr_buf;
-        up->req_options = ntohs(oreq->options);
-        up->req_open_mode = ntohs(oreq->mode);
+        xrdw_open_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &oreq);
+        up->req_options = oreq.options;
+        up->req_open_mode = oreq.mode;
     }
 
     fd = (int) NGX_INVALID_FILE;

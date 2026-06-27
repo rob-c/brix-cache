@@ -96,9 +96,9 @@ slice_post_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 
-/* -------------------------------------------------------------------------
+/*
  * Open path
- * ---------------------------------------------------------------------- */
+ * */
 
 static ngx_int_t
 slice_send_open_response(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -260,9 +260,9 @@ xrootd_open_slice_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 
-/* -------------------------------------------------------------------------
+/*
  * Read path
- * ---------------------------------------------------------------------- */
+ * */
 
 /* Done callback of a read-triggered slice fill: re-enter the read handler. */
 static void

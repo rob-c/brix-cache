@@ -32,9 +32,6 @@
 #include <ngx_shmtx.h>
 #include <string.h>
 
-/* ------------------------------------------------------------------ */
-/* Types                                                                */
-/* ------------------------------------------------------------------ */
 
 typedef struct {
     char        path[256];    /* NUL-terminated canonical path (key) */
@@ -56,9 +53,6 @@ typedef struct {
  * Bounds the locked work to O(1) regardless of configured table size. */
 #define XROOTD_REDIR_PROBE_MAX 32
 
-/* ------------------------------------------------------------------ */
-/* Module-level state                                                   */
-/* ------------------------------------------------------------------ */
 
 static ngx_shm_zone_t *xrootd_redir_shm_zone;
 static ngx_shmtx_t    xrootd_redir_mutex;
@@ -67,9 +61,6 @@ static ngx_shmtx_t    xrootd_redir_mutex;
  * capacity.  Set once during configuration before workers fork. */
 static ngx_uint_t     xrootd_redir_cache_nslots = XROOTD_REDIR_CACHE_SLOTS;
 
-/* ------------------------------------------------------------------ */
-/* Internal helpers                                                     */
-/* ------------------------------------------------------------------ */
 
 static xrootd_redir_cache_t *
 redir_cache(void)
@@ -128,9 +119,6 @@ redir_cache_shm_init(ngx_shm_zone_t *shm_zone, void *data)
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/* Public API                                                           */
-/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_redir_cache_configure(ngx_conf_t *cf, ngx_uint_t slots)

@@ -28,8 +28,7 @@
     } while (0)
 
 
-/* ---- method filter -------------------------------------------------------- */
-
+/* method filter */
 static ngx_uint_t
 xrootd_http_mirror_method_bit(ngx_http_request_t *r)
 {
@@ -156,8 +155,7 @@ xrootd_http_mirror_clone_body(ngx_http_request_t *r,
 }
 
 
-/* ---- upstream callbacks (shadow request/response) ------------------------- */
-
+/* upstream callbacks (shadow request/response) */
 static ngx_int_t
 mirror_create_request(ngx_http_request_t *r)
 {
@@ -429,8 +427,7 @@ mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 }
 
 
-/* ---- mirror subrequest execution (CONTENT phase) ------------------------- */
-
+/* mirror subrequest execution (CONTENT phase) */
 static ngx_int_t
 xrootd_http_mirror_proxy(ngx_http_request_t *r,
     ngx_http_xrootd_webdav_req_ctx_t *ctx)
@@ -540,8 +537,7 @@ mirror_put_body_handler(ngx_http_request_t *r)
     ngx_http_core_run_phases(r);
 }
 
-/* ---- PRECONTENT handler -------------------------------------------------- *
- * Two jobs: on the MAIN request, fire one background subrequest per shadow
+/* PRECONTENT handler * Two jobs: on the MAIN request, fire one background subrequest per shadow
  * target; on a mirror SUBREQUEST, take it over and proxy it to the shadow.
  * Doing the takeover here (before the content phase) avoids any dependence on
  * content-phase handler ordering. */
@@ -640,8 +636,7 @@ xrootd_http_mirror_precontent_handler(ngx_http_request_t *r)
 }
 
 
-/* ---- LOG handler (stamp the primary status for divergence) --------------- */
-
+/* LOG handler (stamp the primary status for divergence) */
 ngx_int_t
 xrootd_http_mirror_log_handler(ngx_http_request_t *r)
 {
@@ -658,8 +653,7 @@ xrootd_http_mirror_log_handler(ngx_http_request_t *r)
 }
 
 
-/* ---- merge-time upstream-conf setup -------------------------------------- */
-
+/* merge-time upstream-conf setup */
 ngx_int_t
 xrootd_http_mirror_setup(ngx_conf_t *cf,
     ngx_http_xrootd_webdav_loc_conf_t *conf,
@@ -721,8 +715,7 @@ xrootd_http_mirror_setup(ngx_conf_t *cf,
 }
 
 
-/* ---- directive setters --------------------------------------------------- */
-
+/* directive setters */
 char *
 xrootd_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {

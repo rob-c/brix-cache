@@ -1,4 +1,7 @@
 #include "cms_internal.h"
+#include "node_ops.h"               /* Plane B forwarded-op planner */
+#include "rrdata.h"                 /* Pup decode of forwarded payloads */
+#include "router.h"                 /* node-role opcode routing */
 #include "../manager/pending.h"
 #include "../manager/registry.h"
 #include "../path/beneath.h"
@@ -6,11 +9,99 @@
 #include "../compat/net_target.h"   /* xrootd_net_host_chars_valid (WS6) */
 #include "../metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
+#include <errno.h>
+#include <unistd.h>
+
 static ngx_connection_t *cms_find_client_connection(int fd);
 
-/* ---- cms_wake_pending_session — redirect waiting XRootD client to CMS-managed server ----
- *
- * WHAT: Parses the first host:port entry from a kYR_select or kYR_try payload and wakes the suspended XRootD client session that is waiting for a locate response. The CMS manager has resolved which server should serve this path, and we redirect the client there. WHY: Per-worker design — the CMS connection and the waiting XRootD connection are in the same nginx worker process, so resolving the saved client fd within this worker is sufficient. HOW: 1) Lookup pending locate entry by streamid + pid → 2) Remove from pending table → 3) Resolve fd to live ngx_connection_t → 4) Update client state to XRD_ST_REQ_HEADER → 5) Call xrootd_send_redirect with host/port → 6) Resume reading on client connection. */
+/* cms_node_exec_forward — execute a manager-forwarded namespace op (Plane B): decode
+ * a kYR_chmod/mkdir/mkpath/mv/rm/rmdir/trunc and apply it to local storage UNDER
+ * KERNEL CONFINEMENT (rrdata_parse → pure node_plan → src/path/beneath.h confined
+ * helpers, openat2 RESOLVE_BENEATH), replying like stock cmsd: silent on success,
+ * kYR_error (kYR_EINVAL + strerror) on failure. A hostile manager cannot make the
+ * node mutate outside its export root — an escape fails EXDEV and becomes kYR_error. */
+static ngx_int_t
+cms_node_exec_forward(ngx_xrootd_cms_ctx_t *ctx, u_char code, uint32_t streamid,
+    const u_char *payload, size_t plen)
+{
+    xrootd_cms_rrdata_t      d;
+    xrootd_cms_node_plan_t   plan;
+    int                      rootfd = ctx->conf->rootfd;
+    const char              *root_canon = ctx->conf->common.root_canon;
+    int                      rc = 0;
+
+    if (xrootd_cms_rrdata_parse(code, payload, plen, &d) != 0
+        || xrootd_cms_node_plan(code, &d, &plan) != 0)
+    {
+        return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                                         "badly formed request");
+    }
+
+    /* A manager-only node (no local export) cannot satisfy a mutation. */
+    if (rootfd < 0) {
+        return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                                         "no local storage");
+    }
+
+    switch (plan.action) {
+    case XRDCMS_NACT_MKDIR:
+        rc = xrootd_mkdir_beneath(rootfd, plan.path, plan.mode);
+        break;
+    case XRDCMS_NACT_MKPATH: {
+        char full[PATH_MAX];
+        xrootd_beneath_full_path(root_canon, plan.path, full, sizeof(full));
+        rc = xrootd_mkdir_recursive_beneath(ctx->cycle->log, rootfd, root_canon,
+                                            full, plan.mode, NULL);
+        break;
+    }
+    case XRDCMS_NACT_RMDIR:
+        rc = xrootd_unlink_beneath(rootfd, plan.path, 1);
+        break;
+    case XRDCMS_NACT_RM:
+        rc = xrootd_unlink_beneath(rootfd, plan.path, 0);
+        break;
+    case XRDCMS_NACT_MV:
+        rc = xrootd_rename_beneath(rootfd, plan.path, plan.path2);
+        break;
+    case XRDCMS_NACT_CHMOD: {
+        int fd = xrootd_open_beneath(rootfd, plan.path, O_RDONLY, 0);
+        if (fd < 0) { rc = -1; }
+        else { rc = fchmod(fd, plan.mode); close(fd); }
+        break;
+    }
+    case XRDCMS_NACT_TRUNC: {
+        int fd = xrootd_open_beneath(rootfd, plan.path, O_WRONLY, 0);
+        if (fd < 0) { rc = -1; }
+        else { rc = ftruncate(fd, (off_t) plan.size); close(fd); }
+        break;
+    }
+    default:
+        return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                                         "unsupported operation");
+    }
+
+    if (rc != 0) {
+        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+                      "xrootd: CMS node: forwarded op code=%ui path=%s failed: %s",
+                      (ngx_uint_t) code, plan.path, strerror(errno));
+        /* byte-exact: ecode is always kYR_EINVAL; text carries strerror. */
+        return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                                         strerror(errno));
+    }
+
+    /* Success: stay silent — exactly as cmsd Execute() does on a NULL return
+     * from a non-forwarding leaf node. */
+    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                   "xrootd: CMS node: forwarded op code=%ui path=%s ok",
+                   (ngx_uint_t) code, plan.path);
+    return NGX_OK;
+}
+
+/* cms_wake_pending_session — parse the first host:port from a kYR_select/kYR_try
+ * payload and wake the suspended XRootD client waiting on its locate: look up the
+ * pending entry by streamid+pid, resolve its saved fd to the live connection (same
+ * worker, per-worker design), set XRD_ST_REQ_HEADER, xrootd_send_redirect to the
+ * resolved server, and resume reading. */
 
 static ngx_int_t
 cms_wake_pending_session(ngx_xrootd_cms_ctx_t *cms_ctx, uint32_t streamid,
@@ -121,9 +212,10 @@ cms_find_client_connection(int fd)
     return NULL;
 }
 
-/* ---- ngx_xrootd_cms_process_frame — CMS opcode dispatch from received frame ----
- *
- * WHAT: Decodes the first 4 bytes of a complete CMS frame (streamid + rrCode) and dispatches to handler based on opcode. Handles PING→PONG, SPACE→AVAIL, STATUS=suspend/resume control, SELECT/TRY=client redirect. WHY: Centralized dispatch keeps recv.c self-contained — each opcode handler is inline rather than delegating to separate files. HOW: 1) Extract streamid via ngx_xrootd_cms_get32() → 2) Read rrCode at offset 4 → 3) Switch on code → 4) Call appropriate send function or update conf flags. Unknown opcodes are silently ignored (debug log). */
+/* ngx_xrootd_cms_process_frame — decode a complete CMS frame's streamid + rrCode
+ * (first 4 bytes + offset 4) and dispatch by opcode: PING→PONG, SPACE→AVAIL,
+ * STATUS→suspend/resume conf flags, SELECT/TRY→client redirect. Unknown opcodes are
+ * silently ignored (debug log). Handlers are inline to keep recv.c self-contained. */
 
 static ngx_int_t
 ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
@@ -304,16 +396,55 @@ ngx_xrootd_cms_process_frame(ngx_xrootd_cms_ctx_t *ctx)
         return NGX_OK;
     }
 
-    default:
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                       "xrootd: ignoring CMS rrCode=%ui", (ngx_uint_t) code);
+    case CMS_RR_CHMOD:
+    case CMS_RR_MKDIR:
+    case CMS_RR_MKPATH:
+    case CMS_RR_MV:
+    case CMS_RR_RM:
+    case CMS_RR_RMDIR:
+    case CMS_RR_TRUNC: {
+        /*
+         * Plane B: a manager-forwarded namespace mutation.  Execute it under
+         * kernel confinement and reply silent-on-success / kYR_error-on-failure.
+         */
+        const u_char  *payload = ctx->inbuf + NGX_XROOTD_CMS_HDR_LEN;
+        size_t         plen    = ctx->in_need - NGX_XROOTD_CMS_HDR_LEN;
+        return cms_node_exec_forward(ctx, code, streamid, payload, plen);
+    }
+
+    case CMS_RR_UPDATE:
+        /* Manager asks us to resend state (do_Update -> sendState). */
+        ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                       "xrootd: CMS node: update -> status");
+        return ngx_xrootd_cms_send_status(ctx);
+
+    case CMS_RR_DISC:
+        /* Manager requested disconnect (do_Disc on a node simply closes). */
+        ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+                      "xrootd: CMS node: manager requested disconnect");
+        ngx_xrootd_cms_disconnect(ctx);
+        ngx_xrootd_cms_schedule_retry(ctx);
         return NGX_OK;
+
+    default: {
+        const xrootd_cms_route_t *r =
+            xrootd_cms_route_lookup(XRDCMS_ROLE_NODE, code);
+        if (r != NULL) {
+            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                           "xrootd: CMS node: unhandled opcode '%s'", r->name);
+        } else {
+            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                           "xrootd: ignoring CMS rrCode=%ui", (ngx_uint_t) code);
+        }
+        return NGX_OK;
+    }
     }
 }
 
-/* ---- ngx_xrootd_cms_read_handler — CMS incoming frame read loop and dispatch ----
- *
- * WHAT: Event handler for reading incoming CMS frames from the manager connection. Accumulates bytes until a complete header is received, then reads payload based on dlen. Dispatches each opcode (PING→PONG, SPACE→AVAIL, STATUS=suspend/resume, SELECT/TRY=redirect) via ngx_xrootd_cms_process_frame(). Disconnects and retries on timeout or error. */
+/* ngx_xrootd_cms_read_handler — read event handler for the manager connection:
+ * accumulate bytes to a complete header, read the dlen-sized payload, and dispatch
+ * each frame via ngx_xrootd_cms_process_frame(); disconnect and retry on
+ * timeout/error. */
 
 void
 ngx_xrootd_cms_read_handler(ngx_event_t *ev)

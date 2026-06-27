@@ -137,7 +137,7 @@ xrootd_cms_srv_ip_dec(const char *ip)
 
 void
 xrootd_cms_srv_handler(ngx_stream_session_t *s)
-/* ---- Function: xrootd_cms_srv_handler() -----------------------------------
+/*
  *
  * WHAT: Entry point for CMS server connections accepted by the stream module.
  *       Allocates context, sets up handlers and timer, arms first read.

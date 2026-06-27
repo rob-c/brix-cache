@@ -23,8 +23,7 @@
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
 
-/* ---- File: gsi_outbound_exchange.c — GSI round-2 driver for native TPC pull ----
- *
+/* File: gsi_outbound_exchange.c — GSI round-2 driver for native TPC pull
  * WHAT: tpc_outbound_gsi_exchange completes the outbound GSI handshake on a TPC
  *   pull socket after gsi_outbound_certreq.c has sent kXGC_certreq and received
  *   the server's kXGS_cert (`body`). It (optionally) verifies the server leaf cert
@@ -48,7 +47,7 @@
  *   this function owns `body` (frees on every exit; the caller NULLs its copy) and
  *   the proxy-chain BIO + response payload it allocates; it does NOT free
  *   x/chain/pkey/certreq/cbio/kbio — gsi_outbound_certreq.c owns those.
- * ------------------------------------------------------------------ */
+ * */
 
 /*
  * tpc_gsi_exchange_cleanup — release the round-2 resources (each guard NULL-safe)

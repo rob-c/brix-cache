@@ -18,6 +18,26 @@ client-mediated copy** when server-side TPC fails — so it passed `rc=0` while 
 destination did no server-side pull at all. A `--tpc only` test (no fallback) would
 have shown red immediately.
 
+```text
+  THE TRAP: --tpc first hides a broken server-side pull
+
+  xrdcp --tpc first src dst                xrdcp --tpc only src dst
+  ────────────────────────                 ────────────────────────
+  try server-side TPC ──┐                  try server-side TPC ──┐
+       │                │ fails            │                     │ fails
+       ▼                │ silently         ▼                     ▼
+  dest pulls? ──no──────┘                  dest pulls? ──no──▶ rc≠0  ✗ RED
+       │                ▼                       │
+      yes      fall back to client-mediated   yes
+       │       copy (data flows THROUGH        │
+       ▼       the client)  ──▶ rc=0 ✓ GREEN   ▼
+   real TPC                  ↑                real TPC ──▶ rc=0 ✓ GREEN
+                    "passes for the wrong reason"
+```
+
+A green `--tpc first` proves only that bytes arrived — not that the *server*
+pulled them. Only `--tpc only` (no fallback) gates the behaviour you built.
+
 Rules that came out of this:
 
 - **A passing test that can pass for the wrong reason is worse than no test.** Prefer
@@ -106,6 +126,27 @@ for where you failed to turn it on.
   time — see §5).
 
 ## 4. VFS data-plane: the storage-driver seam
+
+```text
+  ┌───────────────────────────────────────────────────────────┐
+  │  PROTOCOL HANDLERS   root://   WebDAV   S3   native-TPC     │
+  │  populate xrootd_vfs_ctx_t, never touch a raw fd            │
+  └───────────────────────────────┬───────────────────────────┘
+                                  │  xrootd_vfs_io_execute()  ← live entry
+                                  │  (xrootd_vfs_read/write = DEAD, no callers)
+  ┌───────────────────────────────▼───────────────────────────┐
+  │  VFS  (src/fs/)   confinement · metrics · cache · page-CRC  │
+  └───────────────────────────────┬───────────────────────────┘
+                                  │  xrootd_sd_driver_t  (sd.h)
+                                  │  capability-typed seam ↓ swappable
+  ┌───────────────────────────────▼───────────────────────────┐
+  │  STORAGE DRIVER (src/fs/backend/)   POSIX default           │
+  │  the ONLY place raw pread/pwrite/copy_file_range/fstat live │
+  │  ← object/S3 backend slots in here without touching above   │
+  └────────────────────────────────────────────────────────────┘
+     known leak sites still above the line (being migrated):
+     zip · frm · S3 upload_part_copy · webdav-io · cache-io
+```
 
 - **"Data POSIX lives only in the backend" is the load-bearing invariant.** All file
   byte I/O flows `proto → VFS (src/fs/) → storage driver (src/fs/backend/, POSIX

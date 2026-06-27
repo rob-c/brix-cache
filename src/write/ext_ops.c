@@ -111,7 +111,7 @@ ngx_int_t
 xrootd_handle_symlink(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientSymlinkRequest *req = (ClientSymlinkRequest *) ctx->hdr_buf;
+    xrdw_twopath_req_t req;
     char     target[PATH_MAX];
     char     link_buf[XROOTD_MAX_PATH + 1];
     char     link_resolved[PATH_MAX];
@@ -121,7 +121,8 @@ xrootd_handle_symlink(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
         return xrootd_send_error(ctx, c, kXR_ArgMissing, "symlink: no paths");
     }
-    tlen = (int16_t) ntohs((uint16_t) req->arg1len);
+    xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    tlen = req.arg1len;
     if (tlen <= 0 || (uint32_t) (tlen + 1) >= ctx->cur_dlen
         || (size_t) tlen >= sizeof(target)) {
         return xrootd_send_error(ctx, c, kXR_ArgInvalid, "symlink: bad arg1len");
@@ -173,7 +174,7 @@ ngx_int_t
 xrootd_handle_link(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientLinkRequest *req = (ClientLinkRequest *) ctx->hdr_buf;
+    xrdw_twopath_req_t req;
     char     src_buf[XROOTD_MAX_PATH + 1];
     char     dst_buf[XROOTD_MAX_PATH + 1];
     char     src_resolved[PATH_MAX];
@@ -184,7 +185,8 @@ xrootd_handle_link(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
         return xrootd_send_error(ctx, c, kXR_ArgMissing, "link: no paths");
     }
-    src_len = (int16_t) ntohs((uint16_t) req->arg1len);
+    xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    src_len = req.arg1len;
     if (src_len <= 0 || (uint32_t) (src_len + 1) >= ctx->cur_dlen) {
         return xrootd_send_error(ctx, c, kXR_ArgInvalid, "link: bad arg1len");
     }

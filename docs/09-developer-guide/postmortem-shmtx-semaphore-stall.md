@@ -52,6 +52,24 @@ The authoritative evidence was a GDB backtrace of the stalled worker:
 A lock that is **free**, a wait-count of **zero**, and a thread nonetheless
 blocked in `sem_wait()` is the signature of a **lost semaphore wakeup**.
 
+The blast radius — why one stuck worker freezes *many* unrelated transfers:
+
+```text
+   reuseport pins each connection to one worker for its whole life
+   ───────────────────────────────────────────────────────────────
+                     ┌──────────── worker 3 (FROZEN in sem_wait) ──┐
+   conn A ──pinned──▶│  event loop NOT running                    │
+   conn B ──pinned──▶│  · read events never fire (Recv-Q > 0)     │  ✗ all stall
+   conn C ──pinned──▶│  · armed timers never expire               │   60–450 s
+   conn D ──pinned──▶│  · ~0% CPU, futex_do_wait, not crashed     │
+                     └────────────────────────────────────────────┘
+   conn E ──pinned──▶  worker 4 (healthy) ── fine ────────────────▶ ✓ ok
+
+   recovery ONLY when the client times out (~60s) and reconnects → new worker
+```
+
+
+
 ---
 
 ## 2. Impact / symptom
@@ -230,6 +248,31 @@ recorded so the next investigator does not repeat them.
 ## 7. Detection methodology (reusable)
 
 The decision tree that finally worked, in order:
+
+```text
+  connection stalls under concurrency
+            │
+   ① ss -tn 'sport = :PORT'
+            │
+     Recv-Q > 0 ?  ──no(Send-Q>0)──▶ write-side stall (different bug)
+            │ yes → read-side
+            ▼
+   ② /proc/PID/wchan + %cpu
+            │
+     do_epoll_wait,low cpu ──▶ genuinely idle → suspect lost notification
+     futex_do_wait         ──▶ BLOCKED on a lock/condvar  ┐
+            │                                             │
+            ▼                                             │
+   ③ arm a 50ms nginx timer — does it fire? ──no──────────┤ worker not looping
+            │ (never fires while alive)                   │
+            ▼                                             ▼
+   ④ gdb -p PID -batch -ex "thread apply all bt"   ──▶ names lock + call path
+            │                                            (ngx_shmtx_lock ← kXR_open)
+            ▼
+   ⑤ print *(int*)MUTEX.lock  /  *(int*)MUTEX.wait
+            │
+     lock==0 && wait==0 && thread in sem_wait  ──▶ LOST SEMAPHORE WAKEUP ∎
+```
 
 1. **Confirm the side.** `ss -tn 'sport = :<port>'` during a stall. `Recv-Q > 0,
    Send-Q = 0` ⇒ the server is not *reading* (read-side); `Send-Q > 0` ⇒ not

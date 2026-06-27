@@ -42,10 +42,11 @@ xrootd_upstream_send_request(xrootd_upstream_t *up)
     case kXR_locate: {
         ClientLocateRequest *r = (ClientLocateRequest *) (void *) buf;
 
+        xrdw_locate_req_t lb = { .options = up->req_options };
         r->streamid[0] = 0;
         r->streamid[1] = 1;
         r->requestid = htons(kXR_locate);
-        r->options = htons(up->req_options);
+        xrdw_locate_req_pack(&lb, ((ClientRequestHdr *) (void *) buf)->body);
         r->dlen = htonl((kXR_int32) pathlen);
         ngx_memcpy(buf + hdrlen, up->req_path, pathlen);
         break;
@@ -54,11 +55,12 @@ xrootd_upstream_send_request(xrootd_upstream_t *up)
     case kXR_open: {
         ClientOpenRequest *r = (ClientOpenRequest *) (void *) buf;
 
+        xrdw_open_req_t ob = { .mode = up->req_open_mode,
+                               .options = up->req_options };
         r->streamid[0] = 0;
         r->streamid[1] = 1;
         r->requestid = htons(kXR_open);
-        r->mode = htons(up->req_open_mode);
-        r->options = htons(up->req_options);
+        xrdw_open_req_pack(&ob, ((ClientRequestHdr *) (void *) buf)->body);
         r->dlen = htonl((kXR_int32) pathlen);
         ngx_memcpy(buf + hdrlen, up->req_path, pathlen);
         break;

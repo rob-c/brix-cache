@@ -44,9 +44,9 @@
     (XROOTD_HTTP_QUERY_DECODE_VALUE | XROOTD_HTTP_QUERY_PLUS_TO_SPACE \
      | XROOTD_HTTP_QUERY_REJECT_NUL | XROOTD_HTTP_QUERY_ALLOW_EMPTY)
 
-/* -------------------------------------------------------------------------
+/*
  * ETag matching
- * ---------------------------------------------------------------------- */
+ * */
 
 /* Case-sensitive search for the NUL-terminated needle inside h (not NUL-term). */
 static int
@@ -94,9 +94,9 @@ s3_etag_header_matches(const ngx_str_t *h, const char *etag)
     return s3_str_contains(h, etag);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Precondition evaluation
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_int_t
 s3_eval_preconditions(ngx_http_request_t *r, const char *etag, time_t mtime)
@@ -137,9 +137,9 @@ s3_eval_preconditions(ngx_http_request_t *r, const char *etag, time_t mtime)
     return NGX_OK;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Sending the conditional outcomes
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_int_t
 s3_send_not_modified(ngx_http_request_t *r, const char *etag, time_t mtime)
@@ -196,9 +196,9 @@ s3_handle_conditional(ngx_http_request_t *r, time_t mtime, off_t size)
     return NGX_DECLINED;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Conditional PUT (create-if-absent / overwrite-if-match)
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * s3_put_precondition — evaluate If-None-Match / If-Match on a PutObject before
@@ -296,9 +296,9 @@ s3_put_is_exclusive_create(ngx_http_request_t *r)
            && if_none->value.data[0] == '*';
 }
 
-/* -------------------------------------------------------------------------
+/*
  * response-* header overrides (GET)
- * ---------------------------------------------------------------------- */
+ * */
 
 /* Copy a response-* override into a simple response header, rejecting control
  * bytes (response-splitting guard).  No-op when the param is absent. */

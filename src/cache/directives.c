@@ -1,7 +1,7 @@
-/* ---- Cache configuration directives — nginx config parsing ----
- *
- * WHAT: Parse and validate all cache-related nginx configuration directives.
- *       Called during nginx startup when reading the configuration file. */
+/*
+ * directives.c — parse and validate the cache and write-through nginx config
+ * directives (called during startup when reading the configuration file).
+ */
 
 #include "../config/config.h"
 
@@ -11,11 +11,12 @@
 #include <string.h>
 #include "../compat/alloc_guard.h"
 #include "../compat/str_dup.h"
+#include "../compat/checksum.h"  /* xrootd_checksum_parse */
+#include "verify.h"           /* xrootd_cache_verify_mode_e */
 
-/* ---- Cache origin directive — parse host:port address ----
- *
- * WHAT: Parse and validate the xrootd_cache_origin directive (e.g. "root://ceph.example.com:1094").
- *       Accepts plain host:port or root://host:port prefixes. roots:// enables TLS automatically. */
+/* xrootd_conf_set_cache_origin — parse the xrootd_cache_origin address (e.g.
+ * "root://ceph.example.com:1094"): plain host:port or a root://host:port prefix;
+ * roots:// enables TLS automatically. */
 
 char *
 xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -53,12 +54,51 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     {
         addr_data += sizeof("root://") - 1;
         addr_len  -= sizeof("root://") - 1;
+        xcf->cache_origin_scheme = XROOTD_CACHE_SCHEME_XROOT;
     } else if (addr_len > sizeof("roots://") - 1
                && ngx_strncmp(addr_data, "roots://",
                               sizeof("roots://") - 1) == 0)
     {
         addr_data += sizeof("roots://") - 1;
         addr_len  -= sizeof("roots://") - 1;
+        xcf->cache_origin_scheme = XROOTD_CACHE_SCHEME_XROOT;
+        if (xcf->cache_origin_tls == NGX_CONF_UNSET) {
+            xcf->cache_origin_tls = 1;
+        }
+    } else if (addr_len > sizeof("https://") - 1
+               && ngx_strncmp(addr_data, "https://",
+                              sizeof("https://") - 1) == 0)
+    {
+        addr_data += sizeof("https://") - 1;
+        addr_len  -= sizeof("https://") - 1;
+        xcf->cache_origin_scheme = XROOTD_CACHE_SCHEME_HTTPS;
+        if (xcf->cache_origin_tls == NGX_CONF_UNSET) {
+            xcf->cache_origin_tls = 1;
+        }
+    } else if (addr_len > sizeof("davs://") - 1
+               && ngx_strncmp(addr_data, "davs://",
+                              sizeof("davs://") - 1) == 0)
+    {
+        addr_data += sizeof("davs://") - 1;
+        addr_len  -= sizeof("davs://") - 1;
+        xcf->cache_origin_scheme = XROOTD_CACHE_SCHEME_HTTPS;
+        if (xcf->cache_origin_tls == NGX_CONF_UNSET) {
+            xcf->cache_origin_tls = 1;
+        }
+    } else if (addr_len > sizeof("http://") - 1
+               && ngx_strncmp(addr_data, "http://",
+                              sizeof("http://") - 1) == 0)
+    {
+        addr_data += sizeof("http://") - 1;
+        addr_len  -= sizeof("http://") - 1;
+        xcf->cache_origin_scheme = XROOTD_CACHE_SCHEME_HTTP;
+    } else if (addr_len > sizeof("pelican://") - 1
+               && ngx_strncmp(addr_data, "pelican://",
+                              sizeof("pelican://") - 1) == 0)
+    {
+        addr_data += sizeof("pelican://") - 1;
+        addr_len  -= sizeof("pelican://") - 1;
+        xcf->cache_origin_scheme = XROOTD_CACHE_SCHEME_PELICAN;
         if (xcf->cache_origin_tls == NGX_CONF_UNSET) {
             xcf->cache_origin_tls = 1;
         }
@@ -68,9 +108,28 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_memcpy(addr_copy, addr_data, addr_len);
     addr_copy[addr_len] = '\0';
 
+    /*
+     * For root://, host:port is mandatory (unchanged). For http/https/davs and
+     * especially pelican:// (e.g. "pelican://osg-htc.org/namespace/object"), the
+     * port may be omitted (defaulting by scheme) and a trailing /path is allowed
+     * — the object path comes from the client request, not the directive.
+     */
+    int  is_xroot = (xcf->cache_origin_scheme == XROOTD_CACHE_SCHEME_XROOT
+                     || xcf->cache_origin_scheme == NGX_CONF_UNSET_UINT);
+    long default_port =
+        is_xroot ? 0
+        : (xcf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTP ? 80 : 443);
+
+    if (!is_xroot) {
+        char *slash = strchr(addr_copy, '/');     /* strip any trailing path */
+        if (slash != NULL) {
+            *slash = '\0';
+        }
+    }
+
     if (addr_copy[0] == '[') {
         char *rb = strchr(addr_copy, ']');
-        if (rb == NULL || *(rb + 1) != ':') {
+        if (rb == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "xrootd_cache_origin: invalid address \"%V\"", &value[1]);
             return NGX_CONF_ERROR;
@@ -80,20 +139,38 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                             (u_char *) addr_copy + 1, hostlen) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
-        pnum = strtol(rb + 2, &endp, 10);
+        if (*(rb + 1) == ':') {
+            pnum = strtol(rb + 2, &endp, 10);
+        } else if (*(rb + 1) == '\0' && !is_xroot) {
+            pnum = default_port; endp = rb + 1;
+        } else {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_cache_origin: invalid address \"%V\"", &value[1]);
+            return NGX_CONF_ERROR;
+        }
     } else {
         colon = strrchr(addr_copy, ':');
         if (colon == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_cache_origin: missing port in \"%V\"", &value[1]);
-            return NGX_CONF_ERROR;
+            if (is_xroot) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_cache_origin: missing port in \"%V\"", &value[1]);
+                return NGX_CONF_ERROR;
+            }
+            if (xrootd_pstrdupz(cf->pool, &xcf->cache_origin_host,
+                                (u_char *) addr_copy, ngx_strlen(addr_copy))
+                != NGX_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
+            pnum = default_port; endp = addr_copy + ngx_strlen(addr_copy);
+        } else {
+            size_t hostlen = (size_t)(colon - addr_copy);
+            if (xrootd_pstrdupz(cf->pool, &xcf->cache_origin_host,
+                                (u_char *) addr_copy, hostlen) != NGX_OK) {
+                return NGX_CONF_ERROR;
+            }
+            pnum = strtol(colon + 1, &endp, 10);
         }
-        size_t hostlen = (size_t)(colon - addr_copy);
-        if (xrootd_pstrdupz(cf->pool, &xcf->cache_origin_host,
-                            (u_char *) addr_copy, hostlen) != NGX_OK) {
-            return NGX_CONF_ERROR;
-        }
-        pnum = strtol(colon + 1, &endp, 10);
     }
 
     if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
@@ -111,10 +188,8 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-/* ---- Cache eviction threshold directive — parse occupancy percentage ----
- *
- * WHAT: Parse and validate the xrootd_cache_eviction_threshold directive.
- *       Accepts decimal (0.95) or percentage format (95%). Stored as parts-per-million internally. */
+/* xrootd_conf_set_cache_eviction_threshold — parse the eviction threshold as a
+ * decimal (0.95) or percentage (95%), stored as parts-per-million. */
 
 char *
 xrootd_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -174,11 +249,9 @@ xrootd_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
     return NGX_CONF_OK;
 }
 
-/* ---- Cache max file size directive — parse byte-limit with k/m/g suffixes ----
- *
- * WHAT: Parse and validate the xrootd_cache_max_file_size directive. Accepts raw bytes,
- * or kilobyte (k/K), megabyte (m/M), gigabyte (g/G) suffixes. Stored as off_t internally.
- * This limit controls admission: files exceeding this size are served from origin only. */
+/* xrootd_conf_set_cache_max_file_size — parse the byte limit (raw bytes or k/m/g
+ * suffixes) into an off_t. Admission control: files larger than this are served
+ * from origin only, never cached. */
 
 char *
 xrootd_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -251,11 +324,9 @@ xrootd_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
     return NGX_CONF_OK;
 }
 
-/* ---- Cache include regex directive — parse POSIX extended pattern ----
- *
- * WHAT: Parse and validate the xrootd_cache_include_regex directive. Accepts a POSIX
- * extended regular expression compiled via regcomp(REG_EXTENDED | REG_NOSUB). Used to
- * filter cache admission: only paths matching this pattern are cached; all others serve from origin. */
+/* xrootd_conf_set_cache_include_regex — compile the POSIX extended pattern
+ * (regcomp REG_EXTENDED|REG_NOSUB). Admission filter: only matching paths are
+ * cached; all others serve from origin. */
 
 char *
 xrootd_conf_set_cache_include_regex(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -298,13 +369,121 @@ xrootd_conf_set_cache_include_regex(ngx_conf_t *cf, ngx_command_t *cmd,
     return NGX_CONF_OK;
 }
 
-/* ---- Write-through configuration directives ---- */
+/* xrootd_conf_set_cache_verify — parse off|best-effort|require into cache_verify,
+ * the checksum-on-fill policy: off trusts the transfer; best-effort (default)
+ * verifies when a digest is available and fails closed on mismatch; require makes
+ * a usable digest mandatory. Exact match; anything else is rejected. */
+char *
+xrootd_conf_set_cache_verify(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value;
 
-/* ---- Write-through enable directive — parse on/off flag ----
- *
- * WHAT: Parse and validate the xrootd_write_through directive. Accepts "on" or "off".
- * When enabled, dirty write handles are mirrored to origin on kXR_sync or
- * kXR_close. Controls whether client uploads are eligible for write-through. */
+    value = cf->args->elts;
+    (void) cmd;
+
+    if (xcf->cache_verify != NGX_CONF_UNSET_UINT) {
+        return "is duplicate";
+    }
+
+    if (ngx_strcmp(value[1].data, "off") == 0) {
+        xcf->cache_verify = XROOTD_CACHE_VERIFY_OFF;
+    } else if (ngx_strcmp(value[1].data, "best-effort") == 0) {
+        xcf->cache_verify = XROOTD_CACHE_VERIFY_BESTEFFORT;
+    } else if (ngx_strcmp(value[1].data, "require") == 0) {
+        xcf->cache_verify = XROOTD_CACHE_VERIFY_REQUIRE;
+    } else {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cache_verify: invalid value \"%V\", must be "
+            "off, best-effort, or require", &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        "xrootd: cache checksum-on-fill: %V", &value[1]);
+    return NGX_CONF_OK;
+}
+
+/* xrootd_conf_set_cache_verify_digest — parse the preferred digest name (e.g.
+ * crc32c) into cache_verify_digest: the Want-Digest preference for HTTP/Pelican
+ * origins, advisory for root:// (the origin reports its own default).
+ * xrootd_checksum_parse() rejects unknown names; the lowercase form is stored. */
+char *
+xrootd_conf_set_cache_verify_digest(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value;
+    xrootd_checksum_alg_t         alg;
+    char                          norm[32];
+
+    value = cf->args->elts;
+    (void) cmd;
+
+    if (xcf->cache_verify_digest.len > 0) {
+        return "is duplicate";
+    }
+
+    if (xrootd_checksum_parse((const char *) value[1].data, value[1].len,
+                              &alg, norm, sizeof(norm)) != NGX_OK)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cache_verify_digest: unknown algorithm \"%V\"", &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    if (xrootd_pstrdupz(cf->pool, &xcf->cache_verify_digest,
+                        (u_char *) norm, ngx_strlen(norm)) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        "xrootd: cache verify preferred digest: %s", norm);
+    return NGX_CONF_OK;
+}
+
+/* xrootd_conf_set_cache_advertise_ns — xrootd_cache_advertise_namespace <prefix>
+ * (repeatable) adds one namespace path this cache advertises to the Pelican
+ * Director; with none configured the advertiser defaults to "/" (everything).
+ * Lazily creates the ngx_array_t and pushes a pool-copied ngx_str_t. */
+char *
+xrootd_conf_set_cache_advertise_ns(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value;
+    ngx_str_t                    *entry;
+    u_char                       *copy;
+
+    value = cf->args->elts;
+    (void) cmd;
+
+    if (xcf->cache_advertise_ns == NULL) {
+        xcf->cache_advertise_ns =
+            ngx_array_create(cf->pool, 4, sizeof(ngx_str_t));
+        if (xcf->cache_advertise_ns == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    entry = ngx_array_push(xcf->cache_advertise_ns);
+    if (entry == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    XROOTD_PNALLOC_OR_RETURN(copy, cf->pool, value[1].len, NGX_CONF_ERROR);
+    ngx_memcpy(copy, value[1].data, value[1].len);
+    entry->data = copy;
+    entry->len  = value[1].len;
+
+    return NGX_CONF_OK;
+}
+
+/* Write-through configuration directives */
+
+/* xrootd_conf_set_wt_enable — parse xrootd_write_through on|off. When on, dirty
+ * write handles are mirrored to origin on kXR_sync/kXR_close, making client
+ * uploads eligible for write-through. */
 
 char *
 xrootd_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -333,12 +512,9 @@ xrootd_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-/* ---- Write-through mode directive — parse sync/async selection ----
- *
- * WHAT: Parse and validate the xrootd_wt_mode directive. Accepts "sync" or "async".
- * Sync mode flushes dirty close data before kXR_close returns; async mode posts
- * close flushes to the thread pool. Explicit kXR_sync always flushes
- * synchronously. */
+/* xrootd_conf_set_wt_mode — parse xrootd_wt_mode sync|async. sync flushes dirty
+ * close data before kXR_close returns; async posts close flushes to the thread
+ * pool. An explicit kXR_sync always flushes synchronously. */
 
 char *
 xrootd_conf_set_wt_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -365,11 +541,9 @@ xrootd_conf_set_wt_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-/* ---- Write-through origin directive — parse upstream host:port address ----
- *
- * WHAT: Parse and validate the xrootd_wt_origin directive. Same format as cache_origin
- * (plain host:port or root://host:port). Sets the destination for write-through propagation
- * when wt_enable=on. Supports IPv6 bracket notation in address parsing. */
+/* xrootd_conf_set_wt_origin — parse xrootd_wt_origin (same format as cache_origin:
+ * plain host:port or root://host:port, IPv6 brackets supported), the destination
+ * for write-through propagation when wt_enable=on. */
 
 char *
 xrootd_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -446,14 +620,11 @@ xrootd_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-/* ---- Prefix list helpers for WT allow/deny directives ---- */
+/* Prefix list helpers for WT allow/deny directives */
 
-/* ---- Write-through prefix helper — add allow/deny path prefix entry ----
- *
- * WHAT: Internal helper that allocates or grows an ngx_array_t for WT prefix entries,
- * then pushes a new xrootd_wt_prefix_entry_t with the parsed prefix string. The array
- * is created on first use (capacity=4) and persists across config merges via cf->pool.
- * Used by both wt_allow_prefix and wt_deny_prefix directives to build path-based access control lists. */
+/* xrootd_conf_add_wt_prefix — push a parsed prefix onto the WT allow or deny
+ * ngx_array_t (created on first use, capacity 4, cf->pool-lived across merges).
+ * Shared by the wt_allow_prefix and wt_deny_prefix directives. */
 
 static char *
 xrootd_conf_add_wt_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_deny)
@@ -494,11 +665,8 @@ xrootd_conf_add_wt_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is
     return NGX_CONF_OK;
 }
 
-/* ---- Write-through deny prefix directive — add path to deny list ----
- *
- * WHAT: Parse and validate the xrootd_wt_deny_prefix directive. Adds a path prefix to
- * the WT deny list: paths matching this prefix are blocked from write-through propagation,
- * even if other prefixes allow access. Deny takes precedence over allow entries. */
+/* xrootd_conf_set_wt_deny_prefix — add a path prefix to the WT deny list: matching
+ * paths are blocked from write-through propagation. Deny takes precedence over allow. */
 
 char *
 xrootd_conf_set_wt_deny_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -506,11 +674,8 @@ xrootd_conf_set_wt_deny_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return xrootd_conf_add_wt_prefix(cf, cmd, conf, 1);
 }
 
-/* ---- Write-through allow prefix directive — add path to allow list ----
- *
- * WHAT: Parse and validate the xrootd_wt_allow_prefix directive. Adds a path prefix to
- * the WT allow list: paths matching this prefix are eligible for write-through propagation.
- * Only if not denied by wt_deny_prefix entries does the prefix allow access. */
+/* xrootd_conf_set_wt_allow_prefix — add a path prefix to the WT allow list: matching
+ * paths are eligible for write-through propagation unless a deny entry blocks them. */
 
 char *
 xrootd_conf_set_wt_allow_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)

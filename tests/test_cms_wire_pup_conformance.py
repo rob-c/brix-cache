@@ -61,7 +61,15 @@ CMS_RR_PING   = 17
 CMS_RR_PONG   = 18
 CMS_RR_SPACE  = 19
 CMS_RR_STATE  = 20
+CMS_RR_STATFS = 21
 CMS_RR_STATUS = 22
+CMS_RR_DISC   = 13
+CMS_RR_UPDATE = 25
+CMS_RR_MKDIR  = 3
+
+# CMS response codes (CmsRspCode) carried in a reply frame's rrCode field.
+CMS_RSP_DATA  = 0
+CMS_RSP_ERROR = 1
 
 CMS_PT_SHORT  = 0x80   # tagged 2-byte scalar
 CMS_PT_INT    = 0xa0   # tagged 4-byte scalar
@@ -883,3 +891,141 @@ class TestServerFrameParser:
             assert not closed, "server dropped connection after a valid LOAD"
         finally:
             sock.close()
+
+
+# ===========================================================================
+# Class — Plane A liveness/query replies (data-node -> manager, server side)
+# ===========================================================================
+
+def _recv_code(sock, want_code, timeout=5.0):
+    """Read frames until one with rrCode==want_code arrives (skipping any
+    server-initiated frames such as periodic pings), or return None on
+    timeout/close."""
+    deadline = time.time() + timeout
+    sock.settimeout(timeout)
+    while time.time() < deadline:
+        fr = _recv_frame(sock)
+        if fr is None:
+            return None
+        if fr[1] == want_code:
+            return fr
+    return None
+
+
+class TestServerLivenessPlaneA:
+    """The nginx CMS *server* (manager side) must answer node-originated
+    ping/disc/update/statfs exactly like stock cmsd (do_Ping/do_Disc/do_Update/
+    do_StatFS)."""
+
+    def test_ping_gets_pong(self, cms_server):
+        """An incoming kYR_ping is answered with a header-only kYR_pong."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            sock.sendall(_build_frame(0, CMS_RR_PING, 0))
+            fr = _recv_code(sock, CMS_RR_PONG, timeout=5.0)
+            assert fr is not None, "server did not reply kYR_pong to a ping"
+            _sid, code, _mod, payload = fr
+            assert code == CMS_RR_PONG
+            assert payload == b"", "pong must be header-only"
+        finally:
+            sock.close()
+
+    def test_update_gets_status(self, cms_server):
+        """kYR_update -> the server resends its state as a kYR_status frame with
+        the Resume bit set (do_Update -> sendState)."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            sock.sendall(_build_frame(0, CMS_RR_UPDATE, 0))
+            fr = _recv_code(sock, CMS_RR_STATUS, timeout=5.0)
+            assert fr is not None, "server did not reply kYR_status to an update"
+            _sid, _code, mod, _payload = fr
+            assert mod & CMS_ST_RESUME, "status reply must advertise Resume"
+        finally:
+            sock.close()
+
+    def test_disc_is_echoed_and_closes(self, cms_server):
+        """kYR_disc -> the manager echoes a kYR_disc and closes the link
+        (do_Disc as-manager)."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            sock.sendall(_build_frame(0, CMS_RR_DISC, 0))
+            fr = _recv_code(sock, CMS_RR_DISC, timeout=5.0)
+            assert fr is not None, "server did not echo kYR_disc"
+            # After the echo the server closes — a subsequent read sees EOF.
+            sock.settimeout(5)
+            assert _recv_frame(sock) is None, "server must close after disc echo"
+        finally:
+            sock.close()
+
+    def test_statfs_returns_space_data(self, cms_server):
+        """kYR_statfs(path) -> kYR_data with a 4-byte zero prefix and a
+        'wNum wFree wUtil sNum sFree sUtil' ASCII string (do_StatFS)."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            # fwdArgC payload: ident, path (Pup strings; len incl trailing NUL).
+            def pup(s):
+                return struct.pack(">H", len(s) + 1) + s + b"\x00"
+            payload = pup(b"tester") + pup(b"/")
+            sock.sendall(_build_frame(7, CMS_RR_STATFS, 0, payload))
+            fr = _recv_code(sock, CMS_RSP_DATA, timeout=5.0)
+            assert fr is not None, "server did not reply kYR_data to statfs"
+            sid, _code, _mod, data = fr
+            assert sid == 7, "statfs reply must echo the request streamid"
+            assert len(data) >= 5 and data[:4] == b"\x00\x00\x00\x00", \
+                "statfs payload must start with the 4-byte zero prefix"
+            fields = data[4:].rstrip(b"\x00").split(b" ")
+            assert len(fields) == 6, f"expected 6 space fields, got {fields!r}"
+            for f in fields:
+                int(f)   # every field must be a base-10 integer
+        finally:
+            sock.close()
+
+
+# ===========================================================================
+# Class — Plane B forwarded namespace ops (manager -> data node, node side)
+# ===========================================================================
+
+def _fwd_a_payload(ident, mode, path):
+    """fwdArgA Pup payload: ident, mode, path (each [len incl NUL][bytes][NUL])."""
+    def pup(s):
+        return struct.pack(">H", len(s) + 1) + s + b"\x00"
+    return pup(ident) + pup(mode) + pup(path)
+
+
+class TestForwardedNamespaceOps:
+    """A data node executes a manager-forwarded mkdir under kernel confinement:
+    success is silent and creates the directory; a path that escapes the export
+    root is refused (kYR_error) and creates nothing outside the root."""
+
+    def test_forwarded_mkdir_creates_dir(self, node_stack):
+        made = os.path.join(_DIR, "node_data", "fwd_made")
+        if os.path.isdir(made):
+            os.rmdir(made)
+        node_stack.send_to_node(101, CMS_RR_MKDIR, 0,
+                                _fwd_a_payload(b"mgr", b"755", b"/fwd_made"))
+        # Success is silent; poll the filesystem for the created directory.
+        deadline = time.time() + 6.0
+        while time.time() < deadline and not os.path.isdir(made):
+            time.sleep(0.1)
+        assert os.path.isdir(made), "node did not create the forwarded directory"
+        # And it must NOT have sent an error for a valid op.
+        assert node_stack.collect_reply(CMS_RSP_ERROR, timeout=1.0) is None
+
+    def test_forwarded_mkdir_traversal_is_refused(self, node_stack):
+        """A '..' path that escapes the export root must be blocked by the
+        kernel-confined open (openat2 RESOLVE_BENEATH) and answered kYR_error —
+        and must NOT create anything outside the root."""
+        escape = os.path.join(_DIR, "pwned")     # one level above node_data
+        if os.path.isdir(escape):
+            os.rmdir(escape)
+        node_stack.send_to_node(102, CMS_RR_MKDIR, 0,
+                                _fwd_a_payload(b"mgr", b"755", b"/../pwned"))
+        fr = node_stack.collect_reply(CMS_RSP_ERROR, timeout=6.0)
+        assert fr is not None, "node must reply kYR_error for a traversal attempt"
+        # The escape target must never have been created.
+        assert not os.path.exists(escape), \
+            "confinement breach: directory created outside the export root"

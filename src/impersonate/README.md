@@ -45,7 +45,10 @@ its own export rootfd, so a worker bug cannot escape the export root.
 | `impersonate.h` | public types + API (modes, `xrootd_idmap_*`, broker + client) |
 | `impersonate_proto.h` | fixed-size worker↔broker wire frames (`imp_req_t`/`imp_rep_t`) |
 | `idmap.c` | identity → `{uid, gid, gids}` (grid-mapfile + `getpwnam` + policy + TTL cache) |
-| `broker.c` | the privileged root broker: cap-drop, impersonate, confined FS ops, fd passing, `SO_PEERCRED` gate |
+| `broker.c` | the privileged root broker: the request loop `imp_serve_one`, fd passing, and the `SO_PEERCRED` trust gate `imp_peer_allowed` (owns the `imp_base_*`/`imp_self_uid`/`allow_uid` state). *(Phase 38: split.)* |
+| `broker_creds.c` | the privilege transitions: cap-drop, drop-to-service-user, setuid/setgid capset, impersonate/restore. *(Phase 38 split of `broker.c`.)* |
+| `broker_ops.c` | the confined FS op dispatcher `imp_do_op` (openat2/open-parent/stat/rename/xattr under `RESOLVE_BENEATH`). *(Phase 38 split of `broker.c`.)* |
+| `broker_internal.h` | Private split contract shared by `broker*.c` (the `extern` broker-state decls + prototypes). |
 | `client.c` | worker-side broker client: per-request principal, op round-trips, reconnect |
 | `lifecycle.c` | nginx glue: directives, mode validation, master spawn, worker connect, request hooks |
 

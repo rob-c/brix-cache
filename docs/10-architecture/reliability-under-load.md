@@ -19,6 +19,22 @@ beats XRootD"; it is that the module's design removes or contains several classe
 of load-induced fragility, and where it cannot, it fails *predictably* rather
 than *silently* or *fatally*.
 
+```text
+  THREAD-PER-CONNECTION (official)          EVENT LOOP (nginx-xrootd worker)
+  ──────────────────────────────           ────────────────────────────────
+  conn1 ─▶ [thread] ─blocks on disk─╮      conn1 ─┐
+  conn2 ─▶ [thread] ─blocks on cv ──┤      conn2 ─┤   ┌─ epoll loop ─┐  never
+  conn3 ─▶ [thread] ─stalled ───────┤      conn3 ─┼──▶│ non-blocking │  blocks
+  …                                 │      …       │   │ slow work ▶ │
+  connN ─▶ [thread] ────────────────┤      connN ─┘   │ thread pool │
+                                    ▼                  └──────┬──────┘
+   under load: threads SATURATE,           one slow op CANNOT freeze the loop;
+   a wedged op ties up a thread,           a bad request is contained to its
+   the daemon stalls or dies               own ngx_connection_t
+                                           ⚠ the rule: a handler that blocks
+                                             freezes EVERY conn on the worker
+```
+
 The two servers also differ in concurrency model in a way that explains most of
 what follows:
 
@@ -147,6 +163,24 @@ exists**, on two axes:
   stays strict (it reports only live servers), so a genuinely dead node is still
   honestly "not found" there, and the `tried`/`triedrc` retry protocol converges
   cleanly if a fallback target really is gone.
+
+```text
+  data node: cmsd (control plane) DROPS, but xrootd (data plane) STILL SERVING
+  ───────────────────────────────────────────────────────────────────────────
+   client ── open /file (only on node A) ──▶ manager
+                                              │
+                STOCK                         │            nginx-xrootd
+          node A heartbeat missed             │      node A heartbeat missed
+                │                             │            │
+          "A is gone" ──▶ drop A              │      de-prefer / blacklist A (30s)
+                │                             │            │ but data plane likely alive
+          no other replica                    │      open/stat FALL BACK to A
+                ▼                             │            ▼  (last resort)
+          [3011] file NOT FOUND ✗             │      serve bytes ✓  5/5 + checksums
+          (false: file is on disk!)           │
+                                              │   locate STAYS strict → a truly
+                                              │   dead node is still honestly absent
+```
 
 **Verified:** with a data node's `cmsd` killed (data server still up, node
 blacklisted for 30 s), `xrdcp` through the nginx manager now succeeds 5/5 with

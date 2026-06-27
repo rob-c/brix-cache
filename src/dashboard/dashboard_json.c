@@ -67,3 +67,14 @@ dashboard_json_send(ngx_http_request_t *r, ngx_int_t status, json_t *root)
     out.next = NULL;
     return ngx_http_output_filter(r, &out);
 }
+
+#define DASHBOARD_SCHEMA_VERSION "xrootd-dashboard.v1"
+
+void
+dashboard_json_set_schema(json_t *root)
+{
+    if (root != NULL) {
+        json_object_set_new(root, "schema",
+                            json_string(DASHBOARD_SCHEMA_VERSION));
+    }
+}

@@ -64,6 +64,21 @@ rate(xrootd_bytes_root_tx_total[1m]) + rate(xrootd_webdav_bytes_tx_ipv4_total[1m
 
 Groups data transfer by virtual organisation. VO names are truncated to **15 characters** for storage efficiency. The table supports up to **32 VOs** simultaneously; excess VOs increment an overflow counter and evict the oldest entry (LRU policy).
 
+```text
+  WHY BOUNDED: a Prometheus label per VO/user would explode cardinality.
+  A fixed SHM table with LRU eviction keeps the series count flat.
+
+   VO table (cap 32)                     new VO arrives, table FULL
+   ┌────────────┬──────────┐             ┌────────────┬──────────┐
+   │ cms        │ bytes,req│ ← MRU        │ lhcb (new) │ 0,0      │ ← inserted
+   │ atlas      │ …        │              │ cms        │ …        │
+   │ …          │ …        │              │ atlas      │ …        │
+   │ dteam      │ …        │ ← LRU ──evict│ ███████████│ dropped  │   oldest out
+   └────────────┴──────────┘  +1 overflow └────────────┴──────────┘
+                              xrootd_vo_overflow_total ▲ alert: >32 active VOs
+   users table is the same shape: cap 512, DN/sub hashed (FNV-1a), LRU evict
+```
+
 **Metrics:**
 - `xrootd_vo_bytes_tx_total{vo="..."}` — bytes sent to clients from this VO's users
 - `xrootd_vo_bytes_rx_total{vo="..."}` — bytes received from this VO's users  

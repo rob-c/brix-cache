@@ -33,9 +33,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* -------------------------------------------------------------------------
+/*
  * GET /bucket/?uploads  →  ListMultipartUploads
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * One in-progress upload record collected during the bucket scan.

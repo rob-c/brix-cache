@@ -81,6 +81,12 @@ typedef struct {
     int       slice_read_idx;
     off_t     slice_read_offset;
     size_t    slice_read_rlen;
+    /* Checksum-on-fill (verify.c): the origin's advertised content digest,
+     * populated after a successful download (kXR_Qcksum for the xroot origin;
+     * a Digest header for the HTTP/Pelican origins). Empty alg ⇒ origin offered
+     * none; the verify policy then decides commit-unverified vs fail. */
+    char      origin_cks_alg[16];
+    char      origin_cks_hex[129];
     int       result;      /* 0 = success; non-zero = failure */
     int       xrd_error;   /* XRootD error code on failure */
     int       sys_errno;   /* errno on failure */
@@ -200,6 +206,15 @@ int xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
  * (origin must be a data server). Returns 0 on success, -1 on error (t error set). */
 int xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, u_char fhandle[XRD_FHANDLE_LEN]);
+/* kXR_query/kXR_Qcksum on t->clean_path (path-based). Writes the origin's
+ * advertised "<algo> <hexvalue>" digest into alg_out[alg_sz]/hex_out[hex_sz]
+ * (both emptied when the origin has no checksum). BEST-EFFORT: any wire/parse
+ * failure or kXR_error leaves the outputs empty, restores t's error triple, and
+ * returns 0 — a checksum query must never fail an already-complete fill. Used by
+ * checksum-on-fill verification (verify.c). */
+int xrootd_cache_origin_query_checksum(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, char *alg_out, size_t alg_sz,
+    char *hex_out, size_t hex_sz);
 /* kXR_open (update|delete|mkpath) on the borrowed absolute origin path for
  * write-through: truncates the destination and creates missing parents. mode_bits
  * applies to a newly created file (0644 when 0). Fills fhandle (caller-provided).
@@ -217,9 +232,13 @@ void xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
  * kXR_ok. Sets *got to bytes written (may be < want at EOF; never > want — over-
  * reads are rejected as kXR_ServerError). Returns 0 on success, -1 on error
  * (t error set). */
+/* Reads `want` bytes from the origin at `read_off` and writes them into outfd at
+ * `dst_off` (+ progress). The two offsets are decoupled: the whole-file fetch
+ * passes dst_off==read_off (absolute), while a slice fill reads at an absolute
+ * origin offset but writes into a 0-relative per-slice file (dst_off==0-based). */
 int xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
-    int outfd, uint64_t offset, size_t want, size_t *got);
+    int outfd, uint64_t read_off, uint64_t dst_off, size_t want, size_t *got);
 /* kXR_write of len bytes from data at offset (write-through). Requires a kXR_ok
  * reply with zero data length. len>INT32_MAX is rejected (kXR_ArgTooLong).
  * Returns 0 on success, -1 on error (t error set). */

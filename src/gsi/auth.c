@@ -43,79 +43,6 @@ xrootd_gsi_inflight_release(xrootd_ctx_t *ctx)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* GSI Auth — Credential Routing, DH Key Exchange, Certificate Verification  */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: Implements the kXR_auth dispatcher for all client authentication requests (GSI/x509 proxy certs, bearer tokens/WLCG JWT, SSS shared secrets). Routes to specialized handlers based on credtype field extracted from wire payload. GSI path implements two-round DH key exchange protocol (kXGC_certreq→server cert response via xrootd_gsi_send_cert(), kXGC_cert→encrypted proxy chain parsed by xrootd_gsi_parse_x509()), verifies against configured CA store with X509_V_FLAG_ALLOW_PROXY_CERTS, extracts DN from verified leaf and optionally VOMS VO membership attributes. Token path validates JWT against configured JWKS via xrootd_handle_token_auth(). SSS path delegates to xrootd_handle_sss_auth() in src/sss/. Rate-limited public entry point guards against brute-force attempts.
- *
- * WHY: GSI authentication requires two-round DH key exchange to protect the client's proxy certificate from man-in-the-middle attacks. DN extraction enables VO ACL rule matching for path authorization. VOMS membership provides granular VO-level access control beyond basic DN-based rules. Session registration after auth_done=1 enables bind operations and CMS/manager mode cross-node communication. Rate limiting prevents CPU-amplification via costly GSI/OpenSSL/VOMS operations from brute-force attackers.
- *
- * HOW: xrootd_handle_auth() (public entry point) → validate auth_fail_count against XROOTD_MAX_AUTH_ATTEMPTS, detect certreq round to skip rate limit → call xrootd_handle_auth_inner(). Inner dispatcher → extract 4-byte credtype from payload +12 offset → route: ztn→token handler, sss→SSS handler, gsi→GSI path. GSI path → validate ctx->logged_in → check conf->auth method → extract gsi_step (kXGC_certreq vs kXGC_cert) → certreq→send server cert via xrootd_gsi_send_cert(), cert→parse x509 chain via xrootd_gsi_parse_x509() → verify against CA store with X509_V_FLAG_ALLOW_PROXY_CERTS for proxy certs → optional OCSP revocation check (conf->ocsp_enable) → extract DN from verified leaf → optional VOMS VO membership extraction → mark ctx->auth_done=1, register session in shared registry → track unique user/VO metrics. */
-/* ---- kXR_auth dispatcher — top-level credential type routing and authentication ----
- *
- * WHAT: Central entry point for all client authentication requests (GSI/x509 proxy certs, bearer tokens/WLCG JWT, SSS shared secrets).
- *       Routes to specialized handlers based on credtype field extracted from wire payload. */
-
-/* ---- Authentication credential types supported ----
- *
- * WHAT: Three credential types identified by 4-byte credtype field in kXR_auth payload:
- *   - "gsi" = Grid Security Infrastructure — multi-round DH key exchange over x509 proxy certs
- *   - "ztn" = WLCG bearer token — single-round JWT validation against configured JWKS
- *   - "sss" = Shared secret authentication — pre-shared password/secret for trusted environments */
-
-/* ---- Authentication phase ordering (must be logged in first) ----
- *
- * WHY: kXR_auth occurs AFTER kXR_login establishes the session ID. Requires ctx->logged_in to prevent
- *      unauthenticated sessions from attempting credential exchange without proper session context. */
-
-/* ---- Credential type routing pattern ----
- *
- * HOW: Extract 4-byte credtype from payload +12 offset, compare against configured auth method (conf->auth).
- *      Each credential type has its own handler: xrootd_handle_token_auth() for ztn, xrootd_handle_sss_auth() for sss. */
-
-/* ---- GSI multi-step authentication flow ----
- *
- * WHAT: GSI authentication uses two-round protocol with DH key exchange for secure credential transfer:
- *   Round 1 (kXGC_certreq): Client requests server certificate — server responds via xrootd_gsi_send_cert()
- *   Round 2 (kXGC_cert): Client sends encrypted proxy cert chain using shared DH secret — parsed by xrootd_gsi_parse_x509() */
-
-/* ---- GSI authentication invariant (GSISecureBucket protocol) ----
- *
- * WHY: The two-round pattern ensures the client's proxy certificate is encrypted with a DH shared secret,
- *      preventing man-in-the-middle attacks where an interceptor could read the raw certificate chain. */
-
-/* ---- Certificate verification mechanism ----
- *
- * WHAT: After parsing the x509 proxy chain, creates X509_STORE_CTX and verifies against configured CA store.
- *       Uses X509_V_FLAG_ALLOW_PROXY_CERTS flag to permit proxy certificates (intermediate certs between leaf and root). */
-
-/*---- Certificate verification error handling ----
- *
- * WHAT: On verification failure, extracts specific error code via X509_STORE_CTX_get_error() and provides human-readable string.
- *       Logs both debug-level warning and access-log entry with the specific verification failure reason (expired cert, revoked CRL, etc.). */
-
-/*---- DN extraction from verified certificate leaf ----
- *
- * WHAT: Extracts the Subject Distinguished Name (DN) from the verified certificate's first element (leaf).
- *       The DN is stored in ctx->dn for VO ACL rule matching and session registration. Truncated to sizeof(ctx->dn)-1 bytes if too long. */
-
-/*---- VOMS membership extraction (VO attribute extension) ----
- *
- * WHAT: After successful GSI authentication, optionally extracts Virtual Organization (VO) membership attributes from proxy cert extensions.
- *       Requires vomsdir and voms_cert_dir configuration for OSG/VO certificate validation infrastructure. Extracts to ctx->primary_vo and ctx->vo_list. */
-
-/*---- Session registration after successful authentication ----
- *
- * WHAT: Marks ctx->auth_done = 1, registers the authenticated session in shared registry with DN and VO list for cluster coordination.
- *      This enables bind operations (secondary connections) and CMS/manager mode cross-node communication. */
-
-/* ---- Function: xrootd_handle_auth() ----
- *
- * WHAT: Top-level kXR_auth dispatcher — routes by 4-byte credtype field (ztn=token, sss=SSS, gsi=GSI) to specialized handlers. GSI path implements two-round DH key exchange protocol (kXGC_certreq→server cert response, kXGC_cert→encrypted proxy chain), parses x509 chain via OpenSSL, verifies against configured CA store with X509_V_FLAG_ALLOW_PROXY_CERTS for intermediate proxy certs, extracts DN from verified leaf and optionally VOMS VO membership attributes. Marks ctx->auth_done=1 and registers authenticated session in shared registry after success. Tracks unique user/VO metrics at auth completion.
- *
- * WHY: The two-round GSI pattern ensures the client's proxy certificate is encrypted with a DH shared secret, preventing man-in-the-middle attacks. DN extraction enables VO ACL rule matching for path authorization. VOMS membership provides granular VO-level access control beyond basic DN-based rules. Session registration after auth_done=1 enables bind operations (secondary connections) and CMS/manager mode cross-node communication. Auth metrics tracking provides production visibility into authentication throughput per-VO and per-user. */
-
 /*
  * xrootd_gsi_complete_auth — finalize a successful GSI authentication once the
  * client's DN is known: per-identity rate limit, auth_done, identity/session
@@ -185,6 +112,13 @@ xrootd_gsi_complete_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "gsi", 0);
 }
 
+/* xrootd_handle_auth_inner — the kXR_auth dispatcher: route by the 4-byte credtype
+ * (ztn→token, sss→SSS, gsi→GSI), requiring ctx->logged_in first. The GSI path runs
+ * the two-round DH exchange (kXGC_certreq → server cert via xrootd_gsi_send_cert;
+ * kXGC_cert → encrypted proxy chain via xrootd_gsi_parse_x509) so the client's cert
+ * is never sent in clear, verifies the chain against the CA store with
+ * X509_V_FLAG_ALLOW_PROXY_CERTS (+ optional OCSP), extracts the DN and optional VOMS
+ * VO membership, then finalizes via xrootd_gsi_complete_auth. */
 static ngx_int_t
 xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
@@ -451,11 +385,11 @@ xrootd_handle_auth_inner(xrootd_ctx_t *ctx, ngx_connection_t *c)
     return xrootd_gsi_complete_auth(ctx, c, conf);
 }
 
-/* ---- xrootd_handle_auth — rate-limited public entry point ---- */
-/* ---- Function: xrootd_handle_auth() ----
- * WHAT: Rate-limited public entry point for kXR_auth — validates auth_fail_count against XROOTD_MAX_AUTH_ATTEMPTS to reject brute-force attempts and CPU-amplification via costly GSI/OpenSSL/VOMS operations. Detects GSI round 1 (kXGC_certreq) to skip rate limit since server cert response is not a credential failure. Calls xrootd_handle_auth_inner() for actual dispatch, then updates auth_fail_count: resets to zero on successful auth, increments on failed or protocol-level challenge (skipping certreq round).
- * WHY: Rate limiting prevents brute-force attackers from exhausting CPU via expensive GSI certificate verification chains and VOMS attribute extraction. Certreq round exclusion ensures the two-round GSI handshake completes without counting server's first response as a failure.
- */
+/* xrootd_handle_auth — rate-limited public entry point for kXR_auth: reject once
+ * auth_fail_count hits XROOTD_MAX_AUTH_ATTEMPTS (brute-force / GSI CPU-amplification
+ * guard), but skip the limit on the GSI certreq round (the server's cert response
+ * is not a credential failure). Delegates to xrootd_handle_auth_inner, then resets
+ * the counter on success or increments it on failure. */
 ngx_int_t
 xrootd_handle_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {

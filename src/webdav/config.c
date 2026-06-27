@@ -10,6 +10,7 @@
 
 #include "webdav.h"
 #include "../compat/integrity_info.h"   /* §8.x checksum xattr write format */
+#include "../token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
 #include "proxy_internal.h"
 #include "../mirror/http_mirror.h"
 #include "../config/config.h"
@@ -29,7 +30,7 @@
 #define WEBDAV_PATH_DIRECTORY         XROOTD_PATH_DIRECTORY
 #define WEBDAV_PATH_FILE_OR_DIRECTORY XROOTD_PATH_FILE_OR_DIRECTORY
 
-/* ---- Function: webdav_x509_store_cleanup() ----
+/*
  *
  * WHAT: Pool cleanup callback that frees an OpenSSL X509_STORE when the nginx configuration pool is destroyed during worker process exit. Called automatically by ngx_pool_cleanup_add — never invoked directly by application code. Only frees non-NULL store pointers to prevent NULL-deref crashes during error paths in config parsing.
  *
@@ -177,7 +178,7 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
  * NGX_CONF_ERROR (with an emerg log) on any validation failure so `nginx -t`
  * rejects the config rather than a worker failing at request time.
  */
-/* ---- Function: webdav_auth_name() (static) ----
+/*
  * WHAT: short human label for the merged xrootd_webdav_auth mode (for the
  *   startup summary), so the log reads "optional (anonymous allowed)" not "1".
  */
@@ -191,7 +192,7 @@ webdav_auth_name(ngx_uint_t auth)
     }
 }
 
-/* ---- Function: webdav_summary_is_new() (static) ----
+/*
  * WHAT: is this location's WebDAV config a distinct endpoint, or just inherited
  *   unchanged from its parent location? `xrootd_webdav on` at server scope is
  *   inherited by every nested location; printing a banner for each would be
@@ -210,7 +211,7 @@ webdav_summary_is_new(ngx_http_xrootd_webdav_loc_conf_t *conf,
                           prev->common.root_canon) != 0);
 }
 
-/* ---- Function: webdav_log_endpoint_summary() (static) ----
+/*
  * WHAT: emit the friendly NOTICE banner for one WebDAV (davs://) endpoint —
  *   export, read/write, auth mode, which credential types are accepted, CRL
  *   posture, and TPC/proxy mode — plus WARN notes for valid-but-risky settings.
@@ -364,6 +365,8 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->token_jwks, prev->token_jwks, "");
     ngx_conf_merge_str_value(conf->token_issuer, prev->token_issuer, "");
     ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
+    ngx_conf_merge_str_value(conf->token_config, prev->token_config, "");
+    ngx_conf_merge_ptr_value(conf->token_registry, prev->token_registry, NULL);
     ngx_conf_merge_str_value(conf->token_macaroon_secret,
                              prev->token_macaroon_secret, "");
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
@@ -562,6 +565,21 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
         {
             return NGX_CONF_ERROR;
         }
+    }
+
+    /* Multi-issuer registry (phase-59 W1) — only build it on a leaf location
+     * that actually set xrootd_webdav_token_config (token_registry stays the
+     * inherited value otherwise). */
+    if (conf->token_config.len > 0 && conf->token_registry == NULL) {
+        xrootd_token_registry_t *reg = NULL;
+
+        if (xrootd_token_registry_build(cf,
+                (const char *) conf->token_config.data,
+                XROOTD_AUTHZ_CAPABILITY, &reg) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
+        conf->token_registry = reg;
     }
 
     ngx_conf_merge_value(conf->upstream_proxy, prev->upstream_proxy, 0);

@@ -2,6 +2,25 @@
 
 This document maps the architectural pathways within the `nginx-xrootd` module, categorizing them into **Tier 1** (Core Data & Security) and **Tier 2** (Clustering & Advanced Features).
 
+```text
+   TCP connect
+        │
+  ╔═════▼═══════════════ TIER 1: every single-node data server needs this ══════╗
+  ║  handshake ─▶ protocol ─▶ login ─▶ AUTH ─▶ open ─▶ read/write/stat ─▶ close  ║
+  ║  handler.c    protocol.c  login.c  gsi/    open.c   read.c            close.c ║
+  ║                                    token/  │ authdb path check               ║
+  ║                                    sss/    └─▶ resolve_path → confined fd     ║
+  ╚════════════════════════════════════════╤═══════════════════════════════════╝
+                                           │  layered on top, opt-in
+  ╔════════════════════════════════════════▼═══════ TIER 2: cluster + advanced ══╗
+  ║  CLUSTERING        TPC              ADVANCED I/O        MULTI-PROTOCOL        ║
+  ║  cms heartbeat     native key-reg   aio thread pool     WebDAV  GET/PUT/      ║
+  ║  locate/redirect   webdav curl      pgread/pgwrite CRC  s3/     PROPFIND      ║
+  ║  manager mode      pull/push        readv/writev        SigV4   →  same VFS   ║
+  ╚══════════════════════════════════════════════════════════════════════════════╝
+        all file byte I/O converges on the VFS → POSIX data plane (src/fs/)
+```
+
 ---
 
 ## 1. Tier 1 Pathways: Core Data & Security

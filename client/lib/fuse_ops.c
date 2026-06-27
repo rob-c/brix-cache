@@ -59,8 +59,7 @@ xrdc_fuse_run(xrdc_pool *pool, int max_retries,
     return xrdc_fuse_errno(st);
 }
 
-/* ---- op thunks ---------------------------------------------------------- */
-
+/* op thunks */
 int
 xrdc_fuse_op_stat(xrdc_conn *c, void *ctx, xrdc_status *st)
 {

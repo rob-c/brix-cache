@@ -1,5 +1,4 @@
-/* ---- File: auth.c — Outbound bearer-token (ztn) authentication for upstream redirector ----
- *
+/* File: auth.c — Outbound bearer-token (ztn) authentication for upstream redirector
  * WHAT: Sends a kXR_auth request frame containing the configured WLCG JWT token to an upstream XRootD redirector server when it advertises "ztn" credential type. Token file read synchronously from disk via xrootd_token_read_file() (small local file < 64 KiB, refreshed externally by SciTokens daemon or Kubernetes projected-volume refresher — microseconds latency, no event loop stall). Wire frame assembly: ClientAuthRequest header (24 B) with streamid echoing client's ID + kXR_auth requestid + zeroes reserved + "ztn\0" credtype + dlen = 4+token_len big-endian; payload "ztn\0" repeated per XRootD convention + raw JWT bytes. Frame allocated from c->pool via ngx_palloc, flushed to upstream via xrootd_upstream_flush(). State set to bs_phase=XRD_UP_BS_AUTH with read event armed after flush completes (partial write arms write event then read; full write arms read immediately). Response accumulator reset for kXR_auth reply reception (rhdr_pos=0, resp_dlen=0, resp_body=NULL, resp_body_pos=0). Max token size UPSTREAM_BEARER_MAX 65536 bytes.
  *
  * WHY: Upstream redirectors may require their own authentication separate from client auth. When a remote XRootD server responds kXR_login with kXR_authmore + "ztn" credential type, nginx must authenticate itself using the configured upstream token file (different from client-facing tokens). Synchronous read avoids async complexity for small local files. Echoing client streamid maintains request correlation end-to-end. Repeating "ztn\0" in payload follows XRootD wire convention where credtype appears both in header dlen field and payload start. Pool allocation ensures lifecycle tied to connection cleanup. State tracking (XRD_UP_BS_AUTH) enables upstream event handler to know which reply phase is expected. Response accumulator reset prevents stale data from previous phases contaminating the auth reply parsing.
@@ -80,7 +79,11 @@ xrootd_upstream_send_token_auth(xrootd_upstream_t *up,
     hdr->streamid[0] = up->req_streamid[0];
     hdr->streamid[1] = up->req_streamid[1];
     hdr->requestid   = htons(kXR_auth);
-    ngx_memcpy(hdr->credtype, "ztn\x00", 4);
+    {
+        xrdw_auth_req_t b;
+        ngx_memcpy(b.credtype, "ztn\x00", 4);
+        xrdw_auth_req_pack(&b, ((ClientRequestHdr *) (void *) frame)->body);
+    }
     hdr->dlen = htonl((kXR_int32) cred_len);
 
     payload = frame + sizeof(ClientAuthRequest);

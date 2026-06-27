@@ -663,11 +663,23 @@ def test_doctor_also_s3_when_available(rw):
 
 
 def test_sync_uploads_tree(rw, tmp_path):
+    """`xrd sync` mirrors a local tree to a remote dir with rsync-style trailing-
+    slash semantics: a source WITHOUT a trailing slash nests the directory itself
+    under the destination; a source WITH a trailing slash copies its contents in
+    flat."""
     src = tmp_path / "srctree"
     src.mkdir()
     (src / "x.txt").write_text("one\n")
     (src / "y.txt").write_text("two\n")
-    p = _run("sync", str(src), _url(rw, "/synced"))
+
+    # no trailing slash -> nest the source dir under the destination
+    p = _run("sync", str(src), _url(rw, "/nested"))
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
-    assert (rw["data"] / "synced" / "x.txt").read_text() == "one\n"
-    assert (rw["data"] / "synced" / "y.txt").read_text() == "two\n"
+    assert (rw["data"] / "nested" / "srctree" / "x.txt").read_text() == "one\n"
+    assert (rw["data"] / "nested" / "srctree" / "y.txt").read_text() == "two\n"
+
+    # trailing slash -> flat mirror of the contents into the destination
+    p = _run("sync", str(src) + "/", _url(rw, "/flat"))
+    assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
+    assert (rw["data"] / "flat" / "x.txt").read_text() == "one\n"
+    assert (rw["data"] / "flat" / "y.txt").read_text() == "two\n"

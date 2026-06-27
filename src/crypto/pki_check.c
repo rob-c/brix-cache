@@ -27,7 +27,7 @@
 # define CRL_GET_ISSUER(crl) X509_CRL_get_issuer((crl))
 #endif
 
-/* ---- Function: xrootd_pki_name_to_str() (static) ----
+/*
  *
  * WHAT: Converts an X509_NAME structure to a human-readable string via X509_NAME_oneline — produces the standard OpenSSL DN format used for CA/CRL issuer identification in error logs. Returns caller-owned malloc'd string that must be freed with OPENSSL_free.
  *
@@ -42,7 +42,7 @@ xrootd_pki_name_to_str(const X509_NAME *name)
     return X509_NAME_oneline(name, NULL, 0);
 }
 
-/* ---- Function: xrootd_pki_log_name_error() (static) ----
+/*
  *
  * WHAT: Logs a structured PKI error message containing the X509_NAME as readable text — combines log_prefix, descriptive message, and DN string into a single ngx_log_error call. Frees the OpenSSL-allocated name string after logging.
  *
@@ -67,7 +67,7 @@ xrootd_pki_log_name_error(ngx_log_t *log, const char *log_prefix,
     }
 }
 
-/* ---- Function: xrootd_pki_crl_matches_ca() (static) ----
+/*
  *
  * WHAT: Compares the issuer DN of a CRL against the subject DN of a CA certificate — returns 1 if they match, 0 otherwise. Uses HAVE_X509_CRL_GET0_ISSUER compile-time macro to select between modern X509_CRL_get0_issuer (const pointer) and legacy X509_CRL_get_issuer (malloc'd pointer).
  *
@@ -88,7 +88,7 @@ xrootd_pki_crl_matches_ca(X509_CRL *crl, X509 *ca_cert)
     return X509_NAME_cmp(crl_issuer, ca_subject) == 0;
 }
 
-/* ---- Function: xrootd_pki_crl_signature_valid() (static) ----
+/*
  *
  * WHAT: Verifies that a CRL's digital signature was produced by the specified issuer CA's public key — returns 1 if valid, 0 on failure with structured error log. Extracts public key from CA cert, calls X509_CRL_verify, frees key.
  *

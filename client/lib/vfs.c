@@ -18,8 +18,7 @@
 #include <string.h>
 #include <pthread.h>
 
-/* ---- Backend registry --------------------------------------------------- */
-
+/* Backend registry */
 #define VFS_MAX_BACKENDS 8
 
 static const xrdc_vfs_backend *g_backends[VFS_MAX_BACKENDS];
@@ -76,8 +75,7 @@ vfs_init_backends(void)
     }
 }
 
-/* ---- URL→scheme routing ------------------------------------------------- */
-
+/* URL→scheme routing */
 /*
  * vfs_url_to_scheme — classify a URL string into a backend scheme + effective path.
  *
@@ -150,8 +148,7 @@ vfs_find_backend(const char *scheme)
     return NULL;
 }
 
-/* ---- Façade: URL-level operations --------------------------------------- */
-
+/* Façade: URL-level operations */
 /*
  * xrdc_vfs_open — open a storage URL and return a VFS file handle.
  *
@@ -224,8 +221,7 @@ xrdc_vfs_stat_url(const char *url, const xrdc_vfs_open_opts *opts,
     return be->stat(be, path, out, st);
 }
 
-/* ---- Façade: per-handle vtable wrappers --------------------------------- */
-
+/* Façade: per-handle vtable wrappers */
 /*
  * xrdc_vfs_pread — read n bytes at offset off into buf.
  *

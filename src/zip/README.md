@@ -8,7 +8,8 @@ semantics (stored + deflate members).
 
 | Piece | File | Status |
 |---|---|---|
-| Central-directory reader | `zip_dir.{c,h}` | **Done + unit-tested** (15 checks) |
+| Shared parsing kernel | `zip_kernel.{c,h}` | **Done** (callback-driven EOCD/ZIP64 locator + LFH resolver; shared with the native client via libxrdproto) |
+| Central-directory reader | `zip_dir.{c,h}` | **Done + unit-tested** (15 checks) — fd adapter over the kernel |
 | Standalone parser unit test | `zip_dir_unittest.c` | **Done** (not in nginx build) |
 | Virtual member handle I/O | `zip_member.{c,h}` | **Done** (stored + deflate streaming) |
 | Full-extract helper (HTTP/S3) | `zip_dir.c` (`xrootd_zip_extract_full`) | **Done** |
@@ -72,7 +73,9 @@ with zipfile.ZipFile("/tmp/ziptest.zip","w") as z:
     z64 = zipfile.ZipInfo("big64.txt"); z64.compress_type = zipfile.ZIP_STORED
     with z.open(z64, "w", force_zip64=True) as f: f.write(b"zip64 forced member\n")
 PY
-gcc -O2 -Wall -Wextra -Werror -o /tmp/zip_dir_unittest zip_dir.c zip_dir_unittest.c -lz
+gcc -O2 -Wall -Wextra -Werror -D_GNU_SOURCE -DXRDPROTO_NO_NGX -I../compat -I../protocol \
+    -o /tmp/zip_dir_unittest \
+    zip_kernel.c zip_dir.c ../fs/backend/sd_posix.c zip_dir_unittest.c -lz
 /tmp/zip_dir_unittest /tmp/ziptest.zip
 ```
 

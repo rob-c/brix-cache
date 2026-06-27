@@ -28,9 +28,6 @@
 #include <netdb.h>
 #include <time.h>
 
-/* ------------------------------------------------------------------ */
-/* Tunables (set from config; M5 wires the directives)                 */
-/* ------------------------------------------------------------------ */
 
 static time_t  acc_gidlifetime = 43200;   /* 12h, XrdAcc default */
 static int     acc_primary_only = 0;      /* acc.pgo */
@@ -95,9 +92,6 @@ xrootd_acc_groups_set_nisdomain(const char *domain)
     acc_nisdomain[n] = '\0';
 }
 
-/* ------------------------------------------------------------------ */
-/* Per-worker Unix-group cache                                         */
-/* ------------------------------------------------------------------ */
 
 #define ACC_GRP_CACHE_SLOTS  256
 #define ACC_GRP_USER_MAX     128

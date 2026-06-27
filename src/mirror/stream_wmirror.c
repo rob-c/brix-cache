@@ -42,9 +42,6 @@ extern void xrootd_upstream_build_bootstrap(u_char *buf);
         if (_m != NULL) { (void) ngx_atomic_fetch_add(&_m->field, 1); }      \
     } while (0)
 
-/* ------------------------------------------------------------------ */
-/* Per-connection accumulation state                                    */
-/* ------------------------------------------------------------------ */
 
 typedef struct {
     unsigned   active:1;        /* a write-open is accumulating          */
@@ -62,9 +59,6 @@ typedef struct {
     xrootd_wmirror_file_t  files[XROOTD_MAX_FILES];
 } xrootd_wmirror_conn_t;
 
-/* ------------------------------------------------------------------ */
-/* Detached replay state machine                                        */
-/* ------------------------------------------------------------------ */
 
 /*
  * Replay state machine.  The first three are the shared bootstrap (identical to
@@ -119,8 +113,7 @@ static void wmir_write_handler(ngx_event_t *wev);
 static void wmir_timeout_handler(ngx_event_t *ev);
 static void wmir_finish(xrootd_wmirror_replay_t *r, int ok);
 
-/* ---- send -------------------------------------------------------- */
-
+/* send */
 /* Drain the pending write buffer to the shadow socket; see
  * xrootd_mirror_io_flush(). Caller treats only NGX_ERROR as terminal —
  * NGX_AGAIN is a normal yield to the event loop (wmir_write_handler resumes). */
@@ -224,8 +217,7 @@ wmir_send_close(xrootd_wmirror_replay_t *r)
     if (wmir_flush(r) == NGX_ERROR) { wmir_finish(r, 0); }
 }
 
-/* ---- receive ----------------------------------------------------- */
-
+/* receive */
 /* Read one shadow response frame (header + bounded body), incremental and
  * resumable; see xrootd_mirror_io_recv_frame(). */
 static ngx_int_t
@@ -531,9 +523,6 @@ wmir_launch(ngx_stream_xrootd_srv_conf_t *conf, xrootd_wmirror_file_t *f)
     wmir_start(r, conf->mirror.timeout_ms);
 }
 
-/* ------------------------------------------------------------------ */
-/* Per-file accumulation helpers                                        */
-/* ------------------------------------------------------------------ */
 
 /*
  * Free a per-file accumulator slot and return it to the empty state.  WHAT:
@@ -574,9 +563,6 @@ wmir_gate(ngx_stream_xrootd_srv_conf_t *conf)
     return 1;
 }
 
-/* ------------------------------------------------------------------ */
-/* Public API                                                           */
-/* ------------------------------------------------------------------ */
 
 /*
  * Hook: a write-open succeeded on the primary — begin accumulating this file.

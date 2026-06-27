@@ -12,6 +12,7 @@
  */
 #include "sec/sec.h"
 #include "protocol/sec_protocol.h"   /* shared "&P=" security-list parser */
+#include "protocol/codec/wire_codec.h" /* shared per-opcode wire-body codec */
 
 #include <arpa/inet.h>
 #include <stdlib.h>
@@ -27,7 +28,11 @@ send_auth(xrdc_conn *c, const char credtype[4], const uint8_t *payload,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_auth);
-    memcpy(req.credtype, credtype, 4);
+    {
+        xrdw_auth_req_t b;
+        memcpy(b.credtype, credtype, 4);
+        xrdw_auth_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
     return xrdc_send(c, &req, payload, plen, sid, st);
 }
 

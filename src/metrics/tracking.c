@@ -14,14 +14,10 @@
  *      increment atomic counters on match or allocate new slot on miss with eviction fallback when array fills. FNV-1a hash uses 0x811c9dc5 seed + XOR-multiply loop.
  */
 
-/* ---- static helper: xrootd_fnv1a_hash() — FNV-1a 32-bit hash ----
- * WHAT: Compute a 32-bit FNV-1a hash of arbitrary data for identity deduplication.
- * WHY: User identities (DNs, token subjects) are hashed rather than stored verbatim per INVARIANT #8.
- *      The hash allows slot matching without storing full strings — prevents DN/token label explosion in Prometheus counters. */
+/* xrootd_fnv1a_hash — 32-bit FNV-1a over arbitrary data, used to dedup identities
+ * (DNs, token subjects) by hash rather than storing them verbatim (INVARIANT #8 —
+ * no DN/token label explosion in Prometheus). */
 
-/* ------------------------------------------------------------------ */
-/* FNV-1a 32-bit hash — fast, distributes well for short strings       */
-/* ------------------------------------------------------------------ */
 
 static ngx_inline uint32_t
 xrootd_fnv1a_hash(const void *data, size_t len)
@@ -36,10 +32,9 @@ xrootd_fnv1a_hash(const void *data, size_t len)
     return h;
 }
 
-/* ---- public API: xrootd_track_vo_activity() ----
- * WHAT: Track Virtual Organization (VO) activity — increment atomic counters for bytes transferred and request count.
- * WHY: VO-level metrics allow Prometheus dashboards to show per-experiment throughput without storing full DNs as labels.
- *      When a new VO name is seen, it occupies the first empty slot; when all slots are full, overflow_total increments and slot 0 is reused. */
+/* xrootd_track_vo_activity — bump the per-VO atomic byte + request counters for
+ * per-experiment Prometheus throughput; a new VO takes the first empty slot, and
+ * when all slots are full overflow_total increments and slot 0 is reused. */
 
 ngx_int_t
 xrootd_track_vo_activity(ngx_xrootd_metrics_t *shm, const char *vo_name,
@@ -105,10 +100,9 @@ xrootd_track_vo_activity(ngx_xrootd_metrics_t *shm, const char *vo_name,
     return NGX_OK;
 }
 
-/* ---- public API: xrootd_track_unique_user() ----
- * WHAT: Track unique user identities via FNV-1a hash — increment session count and update unique_count when new identity seen.
- * WHY: User-level metrics allow Prometheus dashboards to track per-user activity without storing full DNs as labels (INVARIANT #8).
- *      The hash allows slot matching without storing strings; eviction occurs when all slots are full (evictions_total increments, slot 0 reused). */
+/* xrootd_track_unique_user — track unique identities by FNV-1a hash (no DNs as
+ * labels, INVARIANT #8): bump the session count and unique_count on a new identity;
+ * when all slots are full evictions_total increments and slot 0 is reused. */
 
 ngx_int_t
 xrootd_track_unique_user(ngx_xrootd_metrics_t *shm, const char *identity,

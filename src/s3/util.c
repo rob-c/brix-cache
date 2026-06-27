@@ -41,9 +41,9 @@ s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Response header helper
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * s3_set_header — allocate and set an HTTP response header.
@@ -57,9 +57,9 @@ s3_set_header(ngx_http_request_t *r, const char *key, const char *val)
     return xrootd_http_set_header(r, key, val, NULL);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Filesystem path resolution
- * ---------------------------------------------------------------------- */
+ * */
 
 int
 /*
@@ -90,9 +90,9 @@ s3_resolve_key(const char *root, const char *key, char *out, size_t outsz)
     return xrootd_http_resolve_path(root, key_path, out, outsz) == 0 ? 1 : 0;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * ETag generation  (synthetic: "mtime-size")
- * ---------------------------------------------------------------------- */
+ * */
 
 void
 /*
@@ -108,9 +108,9 @@ s3_etag(const struct stat *st, char *buf, size_t bufsz)
     xrootd_http_etag_str(buf, bufsz, st->st_mtime, st->st_size, 0);
 }
 
-/* -------------------------------------------------------------------------
+/*
  * XML error response
- * ---------------------------------------------------------------------- */
+ * */
 
 ngx_int_t
 /*
@@ -133,9 +133,22 @@ s3_send_xml_error(ngx_http_request_t *r,
     return rc;
 }
 
-/* -------------------------------------------------------------------------
+/*
+ * s3_fail — bump the diagnostic events_total[event] counter, then send the S3 XML
+ * error. Folds the recurring "metric-inc + return s3_send_xml_error(...)" idiom
+ * into one call so the per-event metric and the error response can't drift apart.
+ */
+ngx_int_t
+s3_fail(ngx_http_request_t *r, ngx_uint_t status, const char *code,
+        const char *message, int event)
+{
+    XROOTD_S3_METRIC_INC(events_total[event]);
+    return s3_send_xml_error(r, status, code, message);
+}
+
+/*
  * CRC-64/NVME object checksum (AWS x-amz-checksum-crc64nvme)
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * s3_object_crc64nvme_b64 — compute (or cache-read) an object's CRC-64/NVME and

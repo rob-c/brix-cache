@@ -11,7 +11,7 @@
 #include <string.h>
 #include "../compat/alloc_guard.h"
 
-/* ---- Function: xrootd_handle_fattr() — top-level kXR_fattr request handler ----
+/*
  *
  * WHAT: Validates the fattr request header, determines whether it targets an open
  *       file handle or a filesystem path, enforces read-only and auth gating, then
@@ -34,10 +34,10 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     ngx_stream_xrootd_srv_conf_t *conf)
 {
     /* hdr_buf aliases the fixed request header; payload/cur_dlen hold the body. */
-    ClientFattrRequest *req = (ClientFattrRequest *) ctx->hdr_buf;
-    int                 subcode = req->subcode;
-    int                 numattr = req->numattr;
-    int                 options = req->options;
+    xrdw_fattr_req_t    req;
+    int                 subcode;
+    int                 numattr;
+    int                 options;
     char                full_path[PATH_MAX];
     char                pathbuf[XROOTD_MAX_PATH + 1];
     const char         *path = NULL;
@@ -45,6 +45,11 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int                 close_fd = 0;
     u_char             *args_buf = NULL;
     size_t              args_len = 0;
+
+    xrdw_fattr_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    subcode = req.subcode;
+    numattr = req.numattr;
+    options = req.options;
 
     if (subcode > kXR_fattrMaxSC) {
         return xrootd_send_error(ctx, c, kXR_ArgInvalid,
@@ -91,7 +96,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         {
             /* fhandle index is one wire byte; bounds + open-state checked. */
-            int idx = (int) (unsigned char) req->fhandle[0];
+            int idx = (int) (unsigned char) req.fhandle[0];
 
             if (idx < 0 || idx >= XROOTD_MAX_FILES || ctx->files[idx].fd < 0) {
                 XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
@@ -103,7 +108,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     } else if (ctx->payload != NULL && ctx->payload[0] == 0) {
         /* (b) fhandle-targeted request with a leading 0 marker byte. */
-        int idx = (int) (unsigned char) req->fhandle[0];
+        int idx = (int) (unsigned char) req.fhandle[0];
 
         if (idx < 0 || idx >= XROOTD_MAX_FILES || ctx->files[idx].fd < 0) {
             XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);

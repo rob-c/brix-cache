@@ -1,60 +1,6 @@
-/* ------------------------------------------------------------------ */
-/* Batched Stat — kXR_statx handler                                         */
-/* ------------------------------------------------------------------ */
 /*
- * WHAT: This file implements the kXR_statx opcode — batched metadata query for multiple paths in a single request. Unlike kXR_stat which queries one path at a time, kXR_statx accepts up to 256 paths (XROOTD_STATX_MAX_PATHS) separated by null terminators and returns inline stat results for each path — reducing network round-trips for clients querying many files simultaneously. Each line contains inode/size/flags/mtime formatted identically to kXR_stat response body but packed into single response without kXR_status framing overhead. Buffer capacity XROOTD_STATX_BUF_MAX = 256 × 256 = 64KB provides adequate space for batched results including error lines ("0 0 0 0\n") for paths that cannot be resolved.
- *
- * WHY: Batched stat reduces network round-trips significantly when clients need to query many files simultaneously (e.g., directory listing pre-population, cache validation across multiple paths). Single-request batching eliminates N separate kXR_stat requests where N = path count — critical for large-scale operations where querying hundreds of files would otherwise require hundreds of individual request/response cycles. Inline stat lines eliminate kXR_status framing overhead per-line while maintaining identical inode/size/flags/mtime format enabling clients to parse results identically regardless of whether they used batched or single-path stat queries.
- *
- * HOW: Two-phase batching → path extraction (xrootd_statx_next_path): iterate through cursor advancing past null terminators extracting each path string — validate length against XROOTD_STATX_MAX_PATHS limit and buffer capacity); metadata aggregation (for each extracted path): resolve via xrootd_resolve_path, stat(2) or fstat(2), append line to response buffer via xrootd_statx_append_line with newline terminator); cache flag detection (xrootd_statx_cached_copy_exists): check whether request_path exists in conf->cache_root returning kXR_cachersp flag if regular file found). Returns kXR_ok with inline stat lines body payload containing results for all successfully resolved paths plus error lines for failed resolutions. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Path Extraction from Null-Terminated Buffer                     */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_statx_next_path() extracts individual paths from null-terminated buffer containing multiple paths separated by '\0'. Iterates through cursor advancing past non-null characters until reaching terminator or end boundary — returns extracted path string with length validation against XROOTD_STATX_MAX_PATHS limit and buffer capacity. Zero-length paths (empty strings between terminators) are rejected; paths exceeding output buffer size are also rejected preventing buffer overflow attacks.
- *
- * WHY: Null-terminated multi-path format enables compact payload encoding for batched queries without requiring separator characters or length prefixes — clients can pack up to 256 paths into single request using minimal overhead (one '\0' byte per path separation). Length validation prevents buffer overflow attacks where malicious clients could attempt to encode oversized paths that would exceed response buffer capacity and corrupt subsequent query processing. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Response Line Assembly                                          */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_statx_append_line() assembles inline stat lines into response buffer with newline terminator support. Each line contains inode/size/flags/mtime formatted identically to kXR_stat response body but packed into single response without kXR_status framing overhead. Error lines ("0 0 0 0\n") returned for paths that cannot be resolved — clients parse these identically to successful lines and detect failures by checking zero values instead of actual metadata. Buffer capacity tracking prevents overflow when response exceeds XROOTD_STATX_BUF_MAX = 256 × 256 = 64KB limit, rejecting additional paths rather than truncating existing results mid-batch.
- *
- * WHY: Inline stat lines eliminate kXR_status framing overhead per-line while maintaining identical inode/size/flags/mtime format enabling clients to parse results identically regardless of whether they used batched or single-path stat queries. Error line uniformity ("0 0 0 0\n") enables client-side failure detection without requiring separate error code parsing — clients simply check for zero values instead of actual metadata values to identify unresolved paths within batched results. Buffer capacity tracking prevents overflow when response exceeds limit, rejecting additional paths rather than truncating existing results mid-batch ensuring consistent partial-result semantics. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Cache Flag Detection                                            */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: xrootd_statx_cached_copy_exists() checks whether a requested path exists in the local cache (conf->cache_root). Returns kXR_cachersp flag if regular file found at cache_path = conf->cache_root + request_path, 0 otherwise. Used by statx handler to append cache flags to inline stat lines enabling clients to distinguish between cached content vs origin content for prefetch optimization decisions across batched queries.
- *
- * WHY: Cache flag detection helps clients optimize read patterns when they know content is cached locally — enables downstream logic to skip origin fetches for repeated access patterns, reducing latency across session boundaries. Particularly valuable for large files accessed by multiple clients where cache hit rates significantly reduce overall transfer bandwidth and improve response times compared to origin-only fetches. */
-
-/* ---- Function: xrootd_statx_next_path() ----
- *
- * WHAT: Extracts individual paths from null-terminated buffer containing multiple paths separated by '\0'. Iterates through cursor advancing past non-null characters until reaching terminator or end boundary — returns extracted path string with length validation against XROOTD_STATX_MAX_PATHS limit and buffer capacity. Zero-length paths (empty strings between terminators) are rejected; paths exceeding output buffer size are also rejected preventing buffer overflow attacks.
- *
- * WHY: Null-terminated multi-path format enables compact payload encoding for batched queries without requiring separator characters or length prefixes — clients can pack up to 256 paths into single request using minimal overhead (one '\0' byte per path separation). Length validation prevents buffer overflow attacks where malicious clients could attempt to encode oversized paths that would exceed response buffer capacity and corrupt subsequent query processing.
- *
- * HOW: Iterate through cursor advancing past non-null characters until reaching terminator or end boundary — calculate path_len = cursor - path_start — advance cursor past terminator if present — validate length (0 < path_len < path_size) — memcpy extracted path to output buffer with null termination — return 1 on success, 0 on rejection. */
-
-/* ---- Function: xrootd_statx_append_line() ----
- *
- * WHAT: Assembles inline stat lines into response buffer with newline terminator support. Each line contains inode/size/flags/mtime formatted identically to kXR_stat response body but packed into single response without kXR_status framing overhead. Error lines ("0 0 0 0\n") returned for paths that cannot be resolved — clients parse these identically to successful lines and detect failures by checking zero values instead of actual metadata. Buffer capacity tracking prevents overflow when response exceeds XROOTD_STATX_BUF_MAX = 256 × 256 = 64KB limit, rejecting additional paths rather than truncating existing results mid-batch.
- *
- * WHY: Inline stat lines eliminate kXR_status framing overhead per-line while maintaining identical inode/size/flags/mtime format enabling clients to parse results identically regardless of whether they used batched or single-path stat queries. Error line uniformity ("0 0 0 0\n") enables client-side failure detection without requiring separate error code parsing — clients simply check for zero values instead of actual metadata values to identify unresolved paths within batched results. Buffer capacity tracking prevents overflow when response exceeds limit, rejecting additional paths rather than truncating existing results mid-batch ensuring consistent partial-result semantics.
- *
- * HOW: Calculate required space = line_len + (append_newline ? 1 : 0) — validate remaining buffer capacity (*response_cursor + required < response_end) — memcpy line to response cursor position — advance cursor by line_len — append newline if requested — return NGX_OK on success, NGX_ERROR if insufficient capacity. */
-
-/* ---- Function: xrootd_statx_cached_copy_exists() ----
- *
- * WHAT: Checks whether a requested path exists in the local cache (conf->cache_root). Returns kXR_cachersp flag if regular file found at cache_path = conf->cache_root + request_path, 0 otherwise. Used by statx handler to append cache flags to inline stat lines enabling clients to distinguish between cached content vs origin content for prefetch optimization decisions across batched queries.
- *
- * WHY: Cache flag detection helps clients optimize read patterns when they know content is cached locally — enables downstream logic to skip origin fetches for repeated access patterns, reducing latency across session boundaries. Particularly valuable for large files accessed by multiple clients where cache hit rates significantly reduce overall transfer bandwidth and improve response times compared to origin-only fetches.
- *
- * HOW: Three-step validation → cache enabled check (skip if disabled or cache_root empty) — build cache_path = conf->cache_root + request_path via snprintf with PATH_MAX buffer overflow guard — stat(2) on cache path → return kXR_cachersp if regular file exists, 0 otherwise. Uses PATH_MAX buffer to prevent overflow. */
+ * statx.c — kXR_statx opcode: batched metadata query over multiple paths.
+ */
 
 #include "statx.h"
 #include "stat.h"
@@ -73,6 +19,8 @@
  * could read.) */
 #define XROOTD_STATX_BUF_MAX    XROOTD_STATX_MAX_PATHS
 
+/* Advance *cursor over one NUL-terminated path in the kXR_statx payload,
+ * returning the path (NULL at end).  Bounds-checked against end. */
 static ngx_flag_t
 xrootd_statx_next_path(const u_char **cursor, const u_char *end,
     char *path, size_t path_size)
@@ -104,6 +52,8 @@ xrootd_statx_next_path(const u_char **cursor, const u_char *end,
     return 1;
 }
 
+/* Handle kXR_statx — stat each NUL-separated path in the request and return one
+ * inline stat line (or flag byte) per path. */
 ngx_int_t
 xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)

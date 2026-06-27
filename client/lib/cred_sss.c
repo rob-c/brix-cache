@@ -35,8 +35,7 @@
 
 #include <string.h>
 
-/* ---- keytab path resolution --------------------------------------------- */
-
+/* keytab path resolution */
 /*
  * resolve_keytab_path — fill out[outsz] with the resolved SSS keytab path.
  *
@@ -56,8 +55,7 @@ resolve_keytab_path(const xrdc_cred_config *cfg, char *out, size_t outsz)
     xrdc_sss_keytab_default(out, outsz);
 }
 
-/* ---- keytab probe -------------------------------------------------------- */
-
+/* keytab probe */
 /*
  * keytab_probe — resolve the keytab path and check that it has at least one key.
  *
@@ -82,8 +80,7 @@ keytab_probe(const xrdc_cred_config *cfg, char *path_out, size_t outsz)
             && n > 0) ? 1 : 0;
 }
 
-/* ---- handler callbacks -------------------------------------------------- */
-
+/* handler callbacks */
 /*
  * sss_available — 1 if the resolved keytab exists and contains at least one key.
  *
@@ -135,8 +132,7 @@ sss_acquire(const xrdc_cred_config *cfg, xrdc_cred_view *out,
     return 0;
 }
 
-/* ---- handler accessor --------------------------------------------------- */
-
+/* handler accessor */
 static const xrdc_cred_handler s_sss_handler = {
     .kind      = XRDC_CRED_SSS,
     .available = sss_available,

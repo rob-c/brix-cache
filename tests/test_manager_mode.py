@@ -411,6 +411,62 @@ class TestClusterOpen:
         assert got_port == cluster["ds_port"]
 
 
+kXR_mkdir = 3008
+kXR_rm    = 3014
+
+
+def _cluster_send_mkdir(sock, path, mode=0o755):
+    """ClientMkdirRequest: streamid[2] requestid options[1] reserved[13]
+    mode(u16) dlen — path in the body."""
+    payload = path.encode() + b"\x00"
+    sock.sendall(
+        struct.pack(">BB H B 13x H I", 0, 1, kXR_mkdir, 0, mode, len(payload))
+        + payload
+    )
+
+
+def _cluster_send_rm(sock, path):
+    """ClientRmRequest: streamid[2] requestid reserved[16] dlen — path body."""
+    payload = path.encode() + b"\x00"
+    sock.sendall(
+        struct.pack(">BB H 16x I", 0, 1, kXR_rm, len(payload)) + payload
+    )
+
+
+class TestClusterMutationRedirect:
+    """Plane B manager orchestration: in manager mode a path-based namespace
+    mutation (mkdir/rm) is redirected to the registered data node — it must NOT
+    be executed against the redirector's own (empty) export."""
+
+    def test_mkdir_returns_redirect(self, cluster):
+        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
+        try:
+            _cluster_send_mkdir(sock, "/mgr_made_dir")
+            status, body = _cluster_read_response(sock)
+        finally:
+            sock.close()
+        assert status == kXR_redirect, (
+            f"mkdir must be redirected in manager mode, got status {status}"
+        )
+        got_port = struct.unpack(">I", body[:4])[0]
+        assert got_port == cluster["ds_port"], (
+            f"mkdir redirect port {got_port} != data server {cluster['ds_port']}"
+        )
+
+    def test_rm_returns_redirect(self, cluster):
+        sock = _cluster_handshake_login(HOST, cluster["redir_port"])
+        try:
+            _cluster_send_rm(sock, "/test.txt")
+            status, body = _cluster_read_response(sock)
+        finally:
+            sock.close()
+        assert status == kXR_redirect, (
+            f"rm must be redirected in manager mode, got status {status}"
+        )
+        got_port = struct.unpack(">I", body[:4])[0]
+        assert got_port == cluster["ds_port"]
+
+
 class TestClusterUnregister:
     """After the data server disconnects, the redirector stops redirecting.
 

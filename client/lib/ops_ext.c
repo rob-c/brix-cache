@@ -77,6 +77,7 @@ xrdc_setattr(xrdc_conn *c, const char *path, int set_times,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_setattr);
+    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);  /* 44B prefix is in the payload */
 
     rc = ext_simple(c, &req, payload, (uint32_t) total, st);
     free(payload);
@@ -108,7 +109,10 @@ xrdc_symlink(xrdc_conn *c, const char *target, const char *linkpath,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_symlink);
-    req.arg1len   = (kXR_int16) htons((uint16_t) tl);
+    {
+        xrdw_twopath_req_t b = { .arg1len = (int16_t) tl };
+        xrdw_twopath_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     rc = ext_simple(c, &req, payload, (uint32_t) total, st);
     free(payload);
@@ -140,7 +144,10 @@ xrdc_link(xrdc_conn *c, const char *oldpath, const char *newpath,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_link);
-    req.arg1len   = (kXR_int16) htons((uint16_t) ol);
+    {
+        xrdw_twopath_req_t b = { .arg1len = (int16_t) ol };
+        xrdw_twopath_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     rc = ext_simple(c, &req, payload, (uint32_t) total, st);
     free(payload);
@@ -159,6 +166,7 @@ xrdc_readlink(xrdc_conn *c, const char *path, char *out, size_t outsz,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_readlink);
+    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
 
     if (xrdc_roundtrip(c, &req, path, (uint32_t) strlen(path),
                        &status, &body, &blen, st) != 0) {

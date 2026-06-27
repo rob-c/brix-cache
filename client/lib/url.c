@@ -217,9 +217,7 @@ xrdc_endpoint_parse(const char *ep, xrdc_url *out, xrdc_status *st)
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
 /* web URLs (http/https/dav/davs/s3/s3s) — the non-root transfer surface */
-/* ------------------------------------------------------------------ */
 
 /* One scheme-table row: prefix → proto, TLS, S3-ness, default port. */
 typedef struct {

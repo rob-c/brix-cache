@@ -1,13 +1,12 @@
 #include "tpc_internal.h"
 #include "../compat/host_format.h"  /* xrootd_format_host_port — IPv6 bracketing */
-/* ---- File: launch.c — TPC pull entry point and destination-side preparation for native root:// third-party copy ----
- *
+/* File: launch.c — TPC pull entry point and destination-side preparation for native root:// third-party copy
  * WHAT: Six functions implement the TPC pull launch pipeline on the event thread. tpc_send_open_response builds kXR_ok open response body (fhandle + optional statbuf) → xrootd_queue_response; tpc_build_origin_id constructs origin ID string from ctx->login_user+ngx_pid+getnameinfo host via snprintf+cpystrn; tpc_destination_open_flags derives O_CREAT/O_EXCL/O_TRUNC flags from options bitmask for POSIX open; xrootd_tpc_prepare_pull validates thread_pool + TPC source host/path → checks src policy (allow_local/allow_private) → alloc fhandle idx → xrootd_open_confined(canonical path) → set file metadata (writable=1, tpc_destination=1) → generate+register key if empty → store token_mode → send open response; xrootd_tpc_start_pull validates fhandle_idx + tpc_destination flag → alloc ngx_thread_task → populate xrootd_tpc_pull_t struct from file fields → set handler=xrootd_tpc_pull_thread, event.handler=xrootd_tpc_pull_done → post to thread pool; xrootd_tpc_launch_pull is wrapper for prepare_pull. Non-NGX_THREADS stubs return kXR_ServerError "TPC pull requires NGX_THREADS support". Caller: dispatch.c (kXR_open TPC opaque param path).
  *
  * WHY: The destination server needs to create the local file handle before connecting to the source — this ensures the write target exists with correct permissions and metadata before the thread-pool worker starts pulling data. The launch pipeline separates preparation (event-thread, synchronous) from execution (thread-pool, blocking I/O), allowing nginx to respond immediately to the client open request while the actual fetch runs asynchronously.
  *
  * HOW: prepare_pull — conf->common.thread_pool == NULL → error; tpc->src_host/path empty → error; xrootd_tpc_check_src_policy → error if denied; idx = xrootd_alloc_fhandle(ctx) → fd = xrootd_open_confined(c->log, &conf->common.root, dst_path, tpc_destination_open_flags(options), create_mode) → fstat(fd, &st) → file[idx] metadata set (writable=1, readable=0, tpc_destination=1, tpc_key generated or echoed from tpc->key, token_mode stored) → send open response with fhandle idx + stat if kXR_retstat. start_pull — fhandle_idx valid + file->tpc_destination true → ngx_thread_task_alloc(sizeof(xrootd_tpc_pull_t)) → memcpy src_host/path/key/org/token_mode/dst_path from file fields → task->handler=xrootd_tpc_pull_thread, event.handler=xrootd_tpc_pull_done → ngx_thread_task_post(thread_pool, task) → file->tpc_started=1, ctx->state=XRD_ST_AIO.
- * ------------------------------------------------------------------ */
+ * */
 #include "../session/registry.h"
 
 #include <string.h>

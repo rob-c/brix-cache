@@ -3,8 +3,7 @@
 #include <sys/stat.h>
 
 
-/* ---- File: src/aio/uring_admin.c — io_uring runtime kill switch (Phase 44) ----
- *
+/* File: src/aio/uring_admin.c — io_uring runtime kill switch (Phase 44)
  * WHAT: The no-rebuild, no-reload kill switch for the optional io_uring backend
  *       (§8.1/§14.3): a single cross-worker ngx_atomic_t in shared memory that,
  *       when set, makes every worker's selector skip the io_uring tier on its

@@ -6,6 +6,7 @@
 #include "../upstream/upstream.h"
 #include "../proxy/proxy.h"
 #include "../ratelimit/ratelimit.h"
+#include "../ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "../mirror/stream_wmirror.h"
 
 #include <ngx_event.h>
@@ -17,13 +18,8 @@
  * avoid pulling the GSI internal header into the connection layer. */
 void xrootd_gsi_delegation_cleanup(xrootd_ctx_t *ctx);
 
-/* ---- Buffer release helper — disconnect-owned payload cleanup ----
- *
- * WHAT: Free payload buffer and prepare_paths allocated during connection lifecycle.
- *       Called on any disconnect/close path to prevent memory leaks.
- *
- * WHY: Payload buffers are detached from ctx->payload_buf in AIO write/read paths (src/write/write.c, src/aio/).
- *      Prepare paths allocated for kXR_prepare staging requests (src/prepare/). Must be freed on disconnect. */
+/* Free the payload buffer (detached from ctx->payload_buf by the AIO write/read
+ * paths) and any kXR_prepare staging paths, on every disconnect/close path. */
 
 static void
 xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
@@ -91,13 +87,9 @@ xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
     xrootd_stream_wmirror_cleanup(ctx);
 }
 
-/* ---- Crypto state release — GSI/sigver cleanup on disconnect ----
- *
- * WHAT: Free OpenSSL crypto objects allocated during authentication.
- *       GSI DH key (EVP_PKEY) and sigver MAC context (EVP_MAC_CTX/EVP_MAC).
- *
- * WHY: Gsi authentication allocates DH key pair in src/gsi/; request signing allocates MAC ctx
- *      in src/sigver/. These are NOT freed during normal session — only on unexpected disconnect. */
+/* Free OpenSSL crypto objects from authentication: the GSI DH key (EVP_PKEY) and
+ * the sigver MAC context (EVP_MAC_CTX/EVP_MAC). These persist through a normal
+ * session and are released only on disconnect. */
 
 static void
 xrootd_release_disconnect_crypto_state(xrootd_ctx_t *ctx)
@@ -121,13 +113,9 @@ xrootd_release_disconnect_crypto_state(xrootd_ctx_t *ctx)
     }
 }
 
-/* ---- Metrics update — session byte totals accumulation on disconnect ----
- *
- * WHAT: Finalize session metrics by decrementing connections_active and accumulating
- *       total bytes (rx/tx) for the connection lifecycle. Includes per-IP-version and per-protocol breakdowns.
- *
- * WHY: Prometheus metrics need accurate session totals at close time — not just individual request counts.
- *      Bytes accumulated during AIO operations must be finalized here before ctx is destroyed. */
+/* Finalize session metrics: decrement connections_active and accumulate the
+ * lifecycle rx/tx byte totals (with per-IP-version and per-protocol breakdowns),
+ * which must be committed here before ctx is destroyed. */
 
 static void
 xrootd_disconnect_update_metrics(xrootd_ctx_t *ctx)
@@ -165,13 +153,9 @@ xrootd_disconnect_update_metrics(xrootd_ctx_t *ctx)
     }
 }
 
-/* ---- File bytes helper — prefer written over read for interrupted uploads ----
- *
- * WHAT: Return the dominant byte count for an open handle during disconnect logging.
- *       If writes occurred (upload), return bytes_written; otherwise bytes_read.
- *
- * WHY: Interrupted uploads should NOT be reported as zero-byte reads in access logs.
- *      This ensures metrics accuracy when a connection drops mid-upload. */
+/* Dominant byte count for an open handle in disconnect logging: bytes_written when
+ * any write occurred (upload), else bytes_read — so an interrupted upload is not
+ * logged as a zero-byte read. */
 
 static size_t
 xrootd_disconnect_file_bytes(const xrootd_file_t *file)
@@ -188,13 +172,9 @@ xrootd_disconnect_file_bytes(const xrootd_file_t *file)
     return file->bytes_read;
 }
 
-/* ---- Log open files — access-log entries for all handles at disconnect ----
- *
- * WHAT: Log access entries for every still-open handle when connection drops.
- *       Detail = "interrupted X.XXMB/s" or "interrupted". Status = kXR_Cancelled.
- *
- * WHY: When a connection drops unexpectedly, all open handles must be logged as cancelled.
- *      Duration measured from original open_time (not disconnect time) via req_start reuse. */
+/* Emit a kXR_Cancelled access-log entry for every still-open handle when the
+ * connection drops (detail "interrupted X.XXMB/s" or "interrupted"), with duration
+ * measured from the original open_time via req_start reuse. */
 
 static void
 xrootd_disconnect_log_open_files(xrootd_ctx_t *ctx, ngx_connection_t *c,
@@ -237,13 +217,8 @@ xrootd_disconnect_log_open_files(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 }
 
-/* ---- Session detail formatter — throughput calculation for disconnect logging ----
- *
- * WHAT: Format session-level throughput details (rx/tx MB/s breakdown or single aggregate).
- *       Called before final access-log entry for the connection lifecycle.
- *
- * WHY: Provides accurate session-level metrics for Prometheus dashboards and access logs.
- *      Shows separate read/write throughput when both occurred; aggregate otherwise. */
+/* Format session-level throughput for the final access-log entry: separate rx/tx
+ * MB/s when both occurred, otherwise a single aggregate. */
 
 static void
 xrootd_disconnect_format_session_detail(xrootd_ctx_t *ctx, ngx_msec_t now,
@@ -276,13 +251,10 @@ xrootd_disconnect_format_session_detail(xrootd_ctx_t *ctx, ngx_msec_t now,
              (double) *total_bytes / (double) session_duration_ms / 1000.0);
 }
 
-/* ---- xrootd_on_disconnect — main entry point for unexpected connection close ----
- *
- * WHAT: Called when a TCP connection is closed unexpectedly (not via normal kXR_close).
- *       Performs three-phase cleanup: buffer/crypto release, metrics finalization, access-log entries.
- *
- * WHY: Handles graceful degradation when clients disconnect without proper session termination.
- *      Must clean up ALL resources — buffers, crypto objects, open handles, registry slots. */
+/* xrootd_on_disconnect — entry point for an unexpected TCP close (not a normal
+ * kXR_close): three-phase cleanup — buffer/crypto release, metrics finalization,
+ * and cancelled access-log entries — releasing every resource (buffers, crypto
+ * objects, open handles, registry slots). */
 
 void
 xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
@@ -293,6 +265,22 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
     now = ngx_current_msec;
     ctx->destroyed = 1;
+
+    /* phase-59 W3a: release any throttle open-files slots still held by this
+     * connection (handles closed implicitly by disconnect, not kXR_close). */
+    if (ctx->throttle_open_held > 0) {
+        ngx_stream_xrootd_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
+            (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+        if (tconf->throttle_zone != NULL) {
+            const char *tuser = ctx->dn[0] ? ctx->dn : "anonymous";
+            while (ctx->throttle_open_held > 0) {
+                xrootd_throttle_open_dec(tconf->throttle_zone, tuser);
+                ctx->throttle_open_held--;
+            }
+        } else {
+            ctx->throttle_open_held = 0;
+        }
+    }
 
     /*
      * Phase 39: disarm any steady-state read/write deadline this connection armed.
@@ -387,9 +375,9 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
     xrootd_access_log_flush();
 }
 
-/* ---- xrootd_defer_teardown_if_writing — hold off teardown while pwrites run ----
+/* xrootd_defer_teardown_if_writing — hold off teardown while pwrites run.
  *
- * WHAT: Called at every data-plane finalize site (recv EOF/timeout/error, send
+ * Called at every data-plane finalize site (recv EOF/timeout/error, send
  *   error/timeout).  If a pipelined kXR_write is still in flight (wr_inflight > 0)
  *   the connection MUST NOT be finalized yet — ctx and the open fds are still
  *   referenced by pwrites running in worker threads.  Records the pending finalize
@@ -429,9 +417,9 @@ xrootd_defer_teardown_if_writing(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return 1;
 }
 
-/* ---- xrootd_run_deferred_teardown — finalize once the last pwrite has landed ----
+/* xrootd_run_deferred_teardown — finalize once the last pwrite has landed.
  *
- * WHAT: Invoked from xrootd_write_aio_done when wr_inflight reaches 0 and a
+ * Invoked from xrootd_write_aio_done when wr_inflight reaches 0 and a
  *   teardown was deferred.  Runs the full teardown that was held off — on_disconnect
  *   (metrics/log/registry, idempotent re: the already-set destroyed flag), then
  *   close_all_files (now safe: no pwrite references any fd), then finalize the

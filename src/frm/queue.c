@@ -80,8 +80,7 @@ frm_queue_init(frm_queue_t *q, ngx_log_t *log)
 }
 
 
-/* ---- internal helpers (caller holds the excl lock for alloc) ---------------*/
-
+/* internal helpers (caller holds the excl lock for alloc)*/
 /* First reusable (FREE or torn) slot, else the EOF offset (grow). */
 static int64_t
 frm_alloc_slot(frm_queue_t *q, ngx_log_t *log)
@@ -138,8 +137,7 @@ frm_offset_by_reqid(frm_queue_t *q, const char *reqid, ngx_log_t *log)
 }
 
 
-/* ---- public mutating ops --------------------------------------------------*/
-
+/* public mutating ops*/
 ngx_int_t
 frm_request_add(frm_queue_t *q, const frm_req_view_t *req,
                 char *reqid_out, size_t reqid_out_sz, ngx_log_t *log)
@@ -369,7 +367,7 @@ frm_request_delete(frm_queue_t *q, const char *reqid, ngx_log_t *log)
     return NGX_OK;
 }
 
-/* ---- Function: frm_request_owner_check() ----------------------------------
+/*
  * WHAT: Authorization guard for a CLIENT-initiated cancel/evict of a stage
  *   request named by reqid. Returns NGX_OK when caller_dn is permitted to act on
  *   the request, NGX_DECLINED when the request is owned by a DIFFERENT
@@ -444,8 +442,7 @@ frm_request_claim(frm_queue_t *q, const char *reqid, ngx_log_t *log)
 }
 
 
-/* ---- public read ops (shared lock; never observe a torn record) -----------*/
-
+/* public read ops (shared lock; never observe a torn record)*/
 ngx_int_t
 frm_request_get(frm_queue_t *q, const char *reqid, frm_record_t *out,
                 ngx_log_t *log)

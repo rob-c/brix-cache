@@ -4,6 +4,40 @@ A concrete side-by-side of where nginx-xrootd's third-party copy support
 matches the official XRootD implementation, where it diverges, and why. Read
 this before writing TPC-related tests or integrating with WLCG FTS.
 
+## What TPC is
+
+Third-party copy moves bytes **directly between two storage endpoints** while a
+client only orchestrates. The payload never flows through the client — it just
+sends control requests and watches for completion.
+
+```text
+        ┌──────────┐   1. "copy SRC → DST"   ┌──────────────┐
+        │  client  │ ───────────────────────▶│ destination  │
+        │  (FTS,   │                          │ (this server)│
+        │  gfal…)  │◀────── 4. result ────────│              │
+        └──────────┘                          └──────┬───────┘
+                                                     │ 2. pull
+              data path bypasses the client          │    bytes
+                                                     ▼
+                                              ┌──────────────┐
+                                              │   source     │
+                                              │  (origin)    │
+                                              └──────────────┘
+                                       3. bulk data: SRC ──▶ DST only
+```
+
+Two transports carry this in nginx-xrootd:
+
+```text
+  NATIVE root:// pull (src/tpc/)            HTTP/WebDAV COPY (src/webdav/tpc*.c)
+  ───────────────────────────────          ─────────────────────────────────────
+  client ── kXR_open(tpc.stage) ─▶ DST      client ── COPY + Source: hdr ─▶ DST
+  DST    ── rendezvous key ──────▶ SRC      DST    ── libcurl GET ────────▶ SRC
+  DST    ◀═ raw XRootD reads ═════ SRC      DST    ◀═ Range GET streams ═══ SRC
+  DST    ── kXR_open response ───▶ client   DST    ── 202 + perf-markers ─▶ client
+         (blocking task, 1 stream)                 (multi-stream curl, markers)
+```
+
 ## Executive summary
 
 - nginx-xrootd implements two practical TPC paths:

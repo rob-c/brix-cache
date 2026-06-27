@@ -60,8 +60,10 @@ stat_opt(xrdc_conn *c, const char *path, uint8_t options, xrdc_statinfo *out,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_stat);
-    req.options   = options;
-    req.wants     = 0;
+    {
+        xrdw_stat_req_t b = { .options = options, .wants = 0 };
+        xrdw_stat_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     if (xrdc_roundtrip_resilient(c, &req, path, (uint32_t) strlen(path),
                                  XRDC_OP_READONLY, 0,
@@ -95,8 +97,7 @@ xrdc_lstat(xrdc_conn *c, const char *path, xrdc_statinfo *out, xrdc_status *st)
     return stat_opt(c, path, (uint8_t) kXR_statNoFollow, out, st);
 }
 
-/* ---- dirlist ---- */
-
+/* dirlist */
 /* Append n bytes to a growing heap buffer; returns 0 / -1. */
 static int
 buf_append(uint8_t **buf, size_t *len, size_t *cap, const uint8_t *src, size_t n)
@@ -176,7 +177,10 @@ dirlist_once(xrdc_conn *c, const char *path, int want_stat,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_dirlist);
-    req.options   = (kXR_char) (want_stat ? kXR_dstat : 0);
+    {
+        xrdw_dirlist_req_t b = { .options = (uint8_t) (want_stat ? kXR_dstat : 0) };
+        xrdw_dirlist_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     /* First frame via roundtrip (follows a cluster redirect to the data server);
      * subsequent kXR_oksofar chunks come from that same post-redirect connection. */

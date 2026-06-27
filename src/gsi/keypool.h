@@ -33,9 +33,13 @@
 EVP_PKEY *xrootd_gsi_dh_keygen(void);
 
 /* Warm the per-worker pool at process start.  Call once from init_process when a
- * GSI/BOTH server is configured (caller gates).  Generates synchronously — safe
- * because no connections are being served yet at worker start. */
-void xrootd_gsi_keypool_init(ngx_cycle_t *cycle);
+ * GSI/BOTH server is configured (caller gates).  `seed` keys are generated
+ * synchronously (fast boot); the rest up to `target` fill off `pool` (the thread
+ * pool of a GSI server) so the worker is not blocked on ~target keygens at start.
+ * If `pool` is NULL there is nowhere to offload, so the full `target` is warmed
+ * synchronously (old behaviour).  `target` is clamped to XROOTD_GSI_KEYPOOL_CAP. */
+void xrootd_gsi_keypool_init(ngx_cycle_t *cycle, ngx_thread_pool_t *pool,
+                             ngx_uint_t target, ngx_uint_t seed);
 
 /* Pop one ready ephemeral key (ownership transferred to *out).  Returns 1 on a
  * pool hit, 0 if the pool is empty (caller should inline-generate via

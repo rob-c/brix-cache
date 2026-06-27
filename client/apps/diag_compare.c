@@ -1,0 +1,230 @@
+/*
+ * diag_compare.c - extracted concern
+ * Phase-38 split of xrddiag.c; behavior-identical.
+ */
+#include "diag_internal.h"
+
+void
+probe(const char *name, int ok, const char *fmt, ...)
+{
+    char    detail[256];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(detail, sizeof(detail), fmt, ap);
+    va_end(ap);
+
+    if (!ok) {
+        g_fails++;
+    }
+    printf("  [%s] %-22s %s\n", ok ? "PASS" : "FAIL", name, detail);
+}
+
+
+/* compare — root-vs-reference (size + dirlist set + md5)              */
+
+/* md5 of a remote file fetched over conn c, into hex[hexsz]. 0 / -1. */
+int
+remote_md5(xrdc_conn *c, const char *path, char *hex, size_t hexsz, xrdc_status *st)
+{
+    char    tmpl[] = "/tmp/xrddiag-cmp.XXXXXX";
+    int     fd = mkstemp(tmpl);
+    int64_t got = 0;
+    int     rc;
+
+    if (fd < 0) {
+        xrdc_status_set(st, XRDC_ESOCK, 0, "mkstemp failed");
+        return -1;
+    }
+    rc = download_to_fd(c, path, fd, &got, st);
+    if (rc == 0) {
+        rc = xrdc_cksum_fd(fd, XRDC_CK_MD5, hex, hexsz, st);
+    }
+    close(fd);
+    unlink(tmpl);
+    return rc;
+}
+
+
+/*
+ * §15.6 cross-protocol consistency oracle: read the SAME object via root:// and
+ * cleartext WebDAV (HTTP GET) and assert size + MD5 agree. The capability no
+ * upstream client has — this project unifies the planes over one VFS, so a
+ * divergence here is a real cross-protocol bug. S3 (SigV4) and HTTPS-davs
+ * (TLS+chunked) planes are deferred — noted, not implemented.
+ */
+int
+do_compare_davs(const diag_args *a)
+{
+    xrdc_url      ua;
+    xrdc_conn     ca;
+    xrdc_status   st;
+    char          dhost[256];
+    int           dport;
+    char          root_md5[64], davs_md5[64];
+    char         *body;
+    size_t        blen = 0;
+    int           http = 0, fd;
+    char          tmpl[] = "/tmp/xrddiag-davs.XXXXXX";
+
+    xrdc_status_clear(&st);
+    if (xrdc_endpoint_parse(a->url, &ua, &st) != 0) {
+        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        return 50;
+    }
+    if (ua.path[0] == '\0' || strcmp(ua.path, "/") == 0) {
+        fprintf(stderr, "xrddiag: compare --davs needs a file path in the URL\n");
+        return 50;
+    }
+    parse_http_hostport(a->davs, dhost, sizeof(dhost), &dport);
+    printf("Cross-protocol compare %s\n  root:// %s:%d   davs(http) %s:%d   path %s\n",
+           a->url, ua.host, ua.port, dhost, dport, ua.path);
+
+    if (xrdc_connect(&ca, &ua, &a->conn, &st) != 0) {
+        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", ua.host, ua.port, st.msg);
+        return xrdc_shellcode(&st);
+    }
+    if (remote_md5(&ca, ua.path, root_md5, sizeof(root_md5), &st) != 0) {
+        probe("root-read", 0, "%s", st.msg);
+        xrdc_close(&ca);
+        return 1;
+    }
+    xrdc_close(&ca);
+
+    /* WebDAV plane: cleartext HTTP GET of the same logical path (binary-safe). */
+    body = (char *) malloc(1u << 20);
+    if (body == NULL) {
+        fprintf(stderr, "xrddiag: out of memory\n");
+        return 51;
+    }
+    xrdc_status_clear(&st);
+    if (xrdc_http_get(dhost, dport, ua.path, 5000, &http, body, 1u << 20, &blen,
+                      &st) != 0) {
+        probe("davs-http", 0, "GET %s:%d%s: %s", dhost, dport, ua.path, st.msg);
+        free(body);
+        return 1;
+    }
+    probe("davs-http", http == 200, "HTTP %d for %s", http, ua.path);
+    if (http != 200) {
+        free(body);
+        printf("Result: %d difference(s)\n", g_fails);
+        return 1;
+    }
+    fd = mkstemp(tmpl);
+    if (fd < 0 || (size_t) write(fd, body, blen) != blen
+        || xrdc_cksum_fd(fd, XRDC_CK_MD5, davs_md5, sizeof(davs_md5), &st) != 0) {
+        probe("davs-md5", 0, "local md5 failed");
+        if (fd >= 0) { close(fd); unlink(tmpl); }
+        free(body);
+        return 1;
+    }
+    close(fd);
+    unlink(tmpl);
+    free(body);
+
+    probe("davs-md5", strcmp(root_md5, davs_md5) == 0,
+          "root=%s davs=%s", root_md5, davs_md5);
+    note("s3 / https-davs", "deferred (needs SigV4 / HTTPS+chunked)");
+    printf("Result: %d difference(s)\n", g_fails);
+    return g_fails ? 1 : 0;
+}
+
+
+int
+do_compare(const diag_args *a)
+{
+    if (a->davs != NULL) {
+        return do_compare_davs(a);
+    }
+    xrdc_url      ua, ub;
+    xrdc_conn     ca, cb;
+    xrdc_status   st;
+    xrdc_statinfo sa, sb;
+
+    if (a->ref_url == NULL) {
+        fprintf(stderr, "xrddiag: compare needs --vs-reference <url>\n");
+        return 50;
+    }
+    xrdc_status_clear(&st);
+    if (xrdc_endpoint_parse(a->url, &ua, &st) != 0 ||
+        xrdc_endpoint_parse(a->ref_url, &ub, &st) != 0) {
+        fprintf(stderr, "xrddiag: %s\n", st.msg);
+        return 50;
+    }
+    if (ua.path[0] == '\0' || strcmp(ua.path, "/") == 0) {
+        fprintf(stderr, "xrddiag: compare needs a file/dir path in the URL\n");
+        return 50;
+    }
+    if (xrdc_connect(&ca, &ua, &a->conn, &st) != 0) {
+        fprintf(stderr, "xrddiag: connect A %s:%d: %s\n", ua.host, ua.port, st.msg);
+        return xrdc_shellcode(&st);
+    }
+    if (xrdc_connect(&cb, &ub, &a->conn, &st) != 0) {
+        fprintf(stderr, "xrddiag: connect B %s:%d: %s\n", ub.host, ub.port, st.msg);
+        xrdc_close(&ca);
+        return xrdc_shellcode(&st);
+    }
+
+    printf("Compare %s  vs  %s\n", a->url, a->ref_url);
+
+    {
+        xrdc_status sta, stb;
+        const char *pa = ua.path;
+        const char *pb = (ub.path[0] && strcmp(ub.path, "/")) ? ub.path : ua.path;
+        int oka, okb;
+        xrdc_status_clear(&sta);
+        xrdc_status_clear(&stb);
+        oka = xrdc_stat(&ca, pa, &sa, &sta) == 0;
+        okb = xrdc_stat(&cb, pb, &sb, &stb) == 0;
+        if (!oka || !okb) {
+            probe("stat", 0, "A:%s B:%s", oka ? "ok" : sta.msg, okb ? "ok" : stb.msg);
+            xrdc_close(&ca);
+            xrdc_close(&cb);
+            return 1;
+        }
+        probe("size", sa.size == sb.size, "A=%lld B=%lld",
+              (long long) sa.size, (long long) sb.size);
+
+        if (sa.flags & kXR_isDir) {
+            xrdc_dirent *ea = NULL, *eb = NULL;
+            size_t       na = 0, nb = 0;
+            int          eq = 1;
+            if (xrdc_dirlist(&ca, pa, 0, &ea, &na, &sta) == 0 &&
+                xrdc_dirlist(&cb, pb, 0, &eb, &nb, &stb) == 0) {
+                if (na != nb) {
+                    eq = 0;
+                } else {
+                    for (size_t i = 0; i < na && eq; i++) {
+                        int hit = 0;
+                        for (size_t j = 0; j < nb; j++) {
+                            if (strcmp(ea[i].name, eb[j].name) == 0) { hit = 1; break; }
+                        }
+                        if (!hit) { eq = 0; }
+                    }
+                }
+                probe("dirlist-set", eq, "A=%zu B=%zu entries", na, nb);
+            } else {
+                probe("dirlist-set", 0, "list failed");
+            }
+            free(ea);
+            free(eb);
+        } else {
+            char ha[64], hb[64];
+            xrdc_status ma, mb;
+            xrdc_status_clear(&ma);
+            xrdc_status_clear(&mb);
+            if (remote_md5(&ca, pa, ha, sizeof(ha), &ma) == 0 &&
+                remote_md5(&cb, pb, hb, sizeof(hb), &mb) == 0) {
+                probe("md5", strcmp(ha, hb) == 0, "A=%s B=%s", ha, hb);
+            } else {
+                probe("md5", 0, "A:%s B:%s",
+                      ma.kxr ? ma.msg : "ok", mb.kxr ? mb.msg : "ok");
+            }
+        }
+    }
+
+    xrdc_close(&ca);
+    xrdc_close(&cb);
+    printf("Result: %d difference(s)\n", g_fails);
+    return g_fails ? 1 : 0;
+}

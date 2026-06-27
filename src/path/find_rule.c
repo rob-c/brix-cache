@@ -13,13 +13,10 @@
  *      Returns NULL if no match found or input is invalid.
  */
 
-/* ---- static helper: xrootd_path_prefix_match() ----
- * WHAT: Check whether path starts with prefix (of the given prefix_len) and the next byte after prefix is either end-of-string or a slash.
- * WHY: Prefix containment must be boundary-aware — `/data/atlas` matches `/data` but `/data-atlas` should NOT match.
- *      The boundary check (path[prefix_len] == '\0' || path[prefix_len] == '/') prevents false-positive prefix overlap.
- *      prefix_len is supplied by the caller (it already knows the rule's resolved-path length or the ngx_str_t .len),
- *      so this avoids a redundant strlen of the same rule string on every request in the matching loop.
- * HOW: strncmp comparison up to prefix_len; return 1 if match AND next byte is '\0' or '/'; return 0 otherwise. NULL guards prevent crashes. */
+/* xrootd_path_prefix_match — boundary-aware prefix test: path starts with prefix
+ * (prefix_len bytes) AND the next byte is '\0' or '/', so `/data` matches
+ * `/data/atlas` but not `/data-atlas`. The caller passes prefix_len (it knows the
+ * rule length), avoiding a redundant strlen per request in the match loop. */
 
 static ngx_flag_t
 xrootd_path_prefix_match(const char *prefix, size_t prefix_len, const char *path)
@@ -47,11 +44,10 @@ xrootd_path_prefix_match(const char *prefix, size_t prefix_len, const char *path
     return path[prefix_len] == '\0' || path[prefix_len] == '/';
 }
 
-/* ---- public API: xrootd_find_vo_rule() ----
- * WHAT: Find the VO (Virtual Organization) rule with longest prefix match for a resolved filesystem path.
- * WHY: VO rules define access permissions per organization (ATLAS, CMS, etc.). Longest-prefix ensures that
- *      `/data/atlas/run3` matches the more specific `/data/atlas/run3` rule over the generic `/data/atlas` rule.
- * HOW: Iterate vo_rule_t array via xrootd_path_prefix_match; track best_len; return longest-matching rule or NULL. */
+/* xrootd_find_vo_rule — longest-prefix-match the VO (Virtual Organization) rule for
+ * a resolved path (a more specific `/data/atlas/run3` rule wins over `/data/atlas`):
+ * scan the vo_rule_t array via xrootd_path_prefix_match tracking best_len. NULL if
+ * none match. */
 
 const xrootd_vo_rule_t *
 xrootd_find_vo_rule(const char *resolved_path, ngx_array_t *rules)
@@ -84,11 +80,9 @@ xrootd_find_vo_rule(const char *resolved_path, ngx_array_t *rules)
     return best;
 }
 
-/* ---- public API: xrootd_find_group_rule() ----
- * WHAT: Find the group policy rule with longest prefix match for a resolved filesystem path.
- * WHY: Group rules enable parent-group inheritance — child groups inherit permissions from their parent group's path prefix.
- *      Longest-prefix ensures that `/data/cms/group1` matches more specific group1 rules over generic cms-level rules.
- * HOW: Identical pattern to xrootd_find_vo_rule — iterate group_rule_t array via xrootd_path_prefix_match; track best_len; return longest-matching rule or NULL. */
+/* xrootd_find_group_rule — longest-prefix-match the group policy rule for a resolved
+ * path (enabling parent-group inheritance: a `/data/cms/group1` rule wins over a
+ * generic cms-level one); same scan as xrootd_find_vo_rule over group_rule_t. */
 
 const xrootd_group_rule_t *
 xrootd_find_group_rule(const char *resolved_path, ngx_array_t *rules)
@@ -121,11 +115,9 @@ xrootd_find_group_rule(const char *resolved_path, ngx_array_t *rules)
     return best;
 }
 
-/* ---- public API: xrootd_find_manager_map() ----
- * WHAT: Find the manager-map entry with longest prefix match for a request path.
- * WHY: Manager maps route specific paths to cluster management servers or special handling endpoints.
- *      Longest-prefix ensures `/data/manager/special` matches the most specific routing rule over generic `/data/manager` rules.
- * HOW: Identical pattern — iterate manager_map_t array via xrootd_path_prefix_match; track best_len (uses entry[i].prefix.len); return longest-matching entry or NULL. */
+/* xrootd_find_manager_map — longest-prefix-match the manager-map entry routing a
+ * request path to a cluster management server / special endpoint; same scan over
+ * manager_map_t (using entry[i].prefix.len). */
 
 const xrootd_manager_map_t *
 xrootd_find_manager_map(const char *reqpath, ngx_array_t *map)

@@ -45,8 +45,7 @@ integrity_xattr_key(const char *algo, char *buf, size_t bufsz)
     return buf;
 }
 
-/* ---- official XrdCks/XrdCksData binary record (§8.1 interop) ----
- * Stock xrootd stores the checksum in the SAME xattr ("user.XrdCks.<alg>") as a
+/* official XrdCks/XrdCksData binary record (§8.1 interop) * Stock xrootd stores the checksum in the SAME xattr ("user.XrdCks.<alg>") as a
  * binary XrdCksData struct (host byte order, ADR-4). We can both read and (opt-in)
  * write it so `xrdfs query checksum` / XrdOss interoperate. Layout mirrors
  * XrdCks/XrdCksData.hh. */
@@ -265,8 +264,7 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
     return 0;
 }
 
-/* ---- .cks sidecar fallback (§8.2) — for exports without user xattrs ----
- * "<path>.cks" holds one text record per algorithm:
+/* .cks sidecar fallback (§8.2) — for exports without user xattrs * "<path>.cks" holds one text record per algorithm:
  *   "<algo> <hex> <mtime_sec> <mtime_nsec> <size>\n"
  * keyed/validated on the live file's mtime+size, mirroring the xattr policy. The
  * sidecar is our own fallback cache (stock interop uses the xattr), opened

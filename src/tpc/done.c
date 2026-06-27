@@ -1,11 +1,10 @@
-/* ---- File: done.c — Main-thread completion callback for native TPC pull ----
- *
+/* File: done.c — Main-thread completion callback for native TPC pull
  * WHAT: Handles the thread-pool-to-event-loop handoff when a TPC pull operation completes. Restores the deferred request context, then dispatches based on reply_kind: SYNC mode sends kXR_open success response with fhandle+stat data (or error if pull failed), async mode sends open success response with file handle and optional stat block including tpc.key for xrdcp extraction. On connection close during in-flight pull, releases dst_fd, unlinks dst_path, frees fhandle slot.
  *
  * WHY: Native TPC pull runs blocking socket I/O inside a detached thread-pool worker; the nginx event loop must resume when the thread finishes because it deferred the kXR_open response. This callback bridges the thread→event-loop boundary — restoring streamid context, updating file metadata (tpc_done flag, bytes_written, cached stat info), and sending the wire response that the client is waiting for. Sync vs async reply_kind determines whether to build a full ServerOpenBody with stat data or just send an ok status code.
  *
  * HOW: ev->data = ngx_thread_task_t → extract t (xrootd_tpc_pull_t) from task→ctx → restore request context via xrootd_aio_restore_request(streamid) → if connection closed, close dst_fd + unlink dst_path + free fhandle slot → reply_kind == XROOTD_TPC_REPLY_SYNC: build ServerOpenBody with fhandle[idx] + optional statbuf (inode/size/permissions/mtime + tpc.key) via snprintf, allocate response buffer with ngx_palloc, build wire header + body via xrootd_build_resp_hdr + ngx_memcpy, queue response via xrootd_queue_response → async reply_kind: send ok status code only → xrootd_aio_resume(c) in all paths. Returns void (callback).
- * ------------------------------------------------------------------ */
+ * */
 
 #include "tpc_internal.h"
 
@@ -13,9 +12,6 @@
 #include <string.h>
 #include <unistd.h>
 
-/* ------------------------------------------------------------------ */
-/* Main-thread completion callback: sends kXR_open response or error     */
-/* ------------------------------------------------------------------ */
 
 /* WHAT: Main-thread completion callback — restore deferred request, dispatch SYNC vs async reply, build/send kXR_open response or error. */
 void

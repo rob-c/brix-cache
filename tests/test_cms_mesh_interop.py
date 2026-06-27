@@ -33,6 +33,8 @@ pytestmark = [
         reason="CMS mesh interop needs xrootd, cmsd, xrdfs, xrdcp and nginx",
     ),
     pytest.mark.timeout(120),
+    # serial: a multi-node CMS mesh + failover timing — unreliable in the pool.
+    pytest.mark.serial,
 ]
 
 

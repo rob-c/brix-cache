@@ -19,6 +19,11 @@
 #include "vfs.h"
 #include "uring.h"
 #include "xrdc.h"
+#include "fs/backend/sd.h"   /* shared Storage Driver: raw fd I/O single-sourced
+                              * with the nginx server (ngx-free under
+                              * -DXRDPROTO_NO_NGX). Plain (non-io_uring) byte ops
+                              * dispatch through this seam; block_fstat keeps its
+                              * BLKGETSIZE64 device-size logic, which is block-specific. */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -33,8 +38,7 @@
 #include <linux/fs.h>   /* BLKGETSIZE64 */
 #endif
 
-/* ---- Concrete per-handle struct ----------------------------------------- */
-
+/* Concrete per-handle struct */
 /*
  * vfs_block_file — concrete file handle for the block-device backend.
  *
@@ -50,8 +54,7 @@ typedef struct {
     char          *path;      /* heap-allocated path (for diagnostics) */
 } vfs_block_file;
 
-/* ---- Ring selection ------------------------------------------------------- */
-
+/* Ring selection */
 /*
  * block_ring_select — attach an optional io_uring ring to an already-open fd.
  *
@@ -97,8 +100,7 @@ block_ring_select(int fd, int mode, xrdc_disk_ring **ring, xrdc_status *st)
     return 0;
 }
 
-/* ---- vtable operations --------------------------------------------------- */
-
+/* vtable operations */
 /*
  * block_pread — read n bytes at offset off into buf.
  *
@@ -116,9 +118,12 @@ block_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
     }
 
     {
-        ssize_t r;
+        xrootd_sd_obj_t obj;
+        ssize_t         r;
+
+        xrootd_sd_posix_wrap(&obj, bf->fd);
         do {
-            r = pread(bf->fd, buf, n, (off_t) off);
+            r = obj.driver->pread(&obj, buf, n, (off_t) off);
         } while (r < 0 && errno == EINTR);
 
         if (r < 0) {
@@ -163,12 +168,14 @@ block_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
     }
 
     {
-        size_t  written = 0;
-        ssize_t w;
+        xrootd_sd_obj_t obj;
+        size_t          written = 0;
+        ssize_t         w;
 
+        xrootd_sd_posix_wrap(&obj, bf->fd);
         while (written < n) {
-            w = pwrite(bf->fd, (const char *) buf + written,
-                       n - written, (off_t) off + (off_t) written);
+            w = obj.driver->pwrite(&obj, (const char *) buf + written,
+                                   n - written, (off_t) off + (off_t) written);
             if (w < 0) {
                 if (errno == EINTR) {
                     continue;
@@ -279,10 +286,14 @@ block_sync(xrdc_vfs_file *f, xrdc_status *st)
         }
     }
 
-    if (fsync(bf->fd) != 0) {
-        xrdc_status_set(st, XRDC_EIO, errno,
-                        "vfs block fsync: %s", strerror(errno));
-        return -1;
+    {
+        xrootd_sd_obj_t obj;
+        xrootd_sd_posix_wrap(&obj, bf->fd);
+        if (obj.driver->fsync(&obj) != NGX_OK) {
+            xrdc_status_set(st, XRDC_EIO, errno,
+                            "vfs block fsync: %s", strerror(errno));
+            return -1;
+        }
     }
     return 0;
 }
@@ -307,10 +318,14 @@ block_commit(xrdc_vfs_file *f, xrdc_status *st)
         }
     }
 
-    if (fsync(bf->fd) != 0) {
-        xrdc_status_set(st, XRDC_EIO, errno,
-                        "vfs block commit fsync: %s", strerror(errno));
-        return -1;
+    {
+        xrootd_sd_obj_t obj;
+        xrootd_sd_posix_wrap(&obj, bf->fd);
+        if (obj.driver->fsync(&obj) != NGX_OK) {
+            xrdc_status_set(st, XRDC_EIO, errno,
+                            "vfs block commit fsync: %s", strerror(errno));
+            return -1;
+        }
     }
     return 0;
 }
@@ -353,8 +368,7 @@ block_close(xrdc_vfs_file *f)
     free(bf);
 }
 
-/* ---- vtable singleton ---------------------------------------------------- */
-
+/* vtable singleton */
 static const xrdc_vfs_ops s_block_ops = {
     .pread    = block_pread,
     .pwrite   = block_pwrite,
@@ -366,8 +380,7 @@ static const xrdc_vfs_ops s_block_ops = {
     .close    = block_close,
 };
 
-/* ---- Backend open + stat ------------------------------------------------- */
-
+/* Backend open + stat */
 /*
  * block_be_open — allocate a vfs_block_file and open the underlying fd.
  *
@@ -505,8 +518,7 @@ block_be_stat(const xrdc_vfs_backend *be, const char *path,
     return 0;
 }
 
-/* ---- Backend descriptor + accessor --------------------------------------- */
-
+/* Backend descriptor + accessor */
 static const xrdc_vfs_backend s_block_backend = {
     .scheme = "block",
     .caps   = (XRDC_VFS_CAP_RANDOM_WRITE | XRDC_VFS_CAP_FADVISE),

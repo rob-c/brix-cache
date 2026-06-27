@@ -82,7 +82,9 @@ NAMES := crc32c crc64 crc32_ieee hex crypto error_mapping checksum_core uri \
 COMPAT_OBJS := $(addprefix $(BUILD)/,$(addsuffix .o,$(NAMES)))
 # GSI/sigver crypto + wire kernels (shared with the module's src/gsi).
 GSI   := $(REPO)/src/gsi
-GSI_OBJS := $(BUILD)/gsi_core.o
+# Phase-38: gsi_core.c split into single-responsibility siblings (all ngx-free).
+GSI_OBJS := $(BUILD)/gsi_core.o $(BUILD)/gsi_buf.o $(BUILD)/gsi_dh.o \
+            $(BUILD)/gsi_cipher.o $(BUILD)/gsi_rsa.o
 # Token kernels shared with the module's src/token (WLCG scope authz + JWT
 # base64url decode — the DECODE/scope core, not the JWKS signature-verify path).
 TOKEN := $(REPO)/src/token
@@ -94,7 +96,25 @@ TOKEN_OBJS := $(BUILD)/scopes.o $(BUILD)/b64url.o
 # xrootd_sd_posix_driver the module uses, with no nginx dependency.
 BACKEND := $(REPO)/src/fs/backend
 BACKEND_OBJS := $(BUILD)/sd_posix.o
-OBJS  := $(COMPAT_OBJS) $(GSI_OBJS) $(TOKEN_OBJS) $(BACKEND_OBJS)
+# ZIP central-directory parsing kernel (src/zip/zip_kernel.c): the pure-C,
+# callback-driven, bounds-checked EOCD/ZIP64 parser shared with the module's
+# src/zip. No nginx / OpenSSL / fixed I/O source — the client's clean-room ZIP
+# reader (client/lib/zip.c) and the server's member-access path both link it.
+ZIP   := $(REPO)/src/zip
+ZIP_OBJS := $(BUILD)/zip_kernel.o
+# SSS keytab text grammar (src/sss/sss_keytab_kernel.c): the pure-C keytab line
+# parser + file-permission check shared with the module's src/sss. The crypto
+# kernels (sss_bf) and hex codec are already shared above; this closes the gap.
+SSS   := $(REPO)/src/sss
+SSS_OBJS := $(BUILD)/sss_keytab_kernel.o
+# xrdwire per-opcode wire-body codec (src/protocol/codec/*.c): the shared
+# pack/unpack of each opcode's fixed request/response body. ngx-free; the client
+# and module both marshal through it so the wire offsets cannot drift.
+PROTO_CODEC := $(REPO)/src/protocol/codec
+CODEC_OBJS  := $(BUILD)/wire_codec_meta.o $(BUILD)/wire_codec_file.o \
+               $(BUILD)/wire_codec_ns.o $(BUILD)/wire_codec_session.o
+OBJS  := $(COMPAT_OBJS) $(GSI_OBJS) $(TOKEN_OBJS) $(BACKEND_OBJS) $(ZIP_OBJS) \
+         $(SSS_OBJS) $(CODEC_OBJS)
 
 .PHONY: all check clean
 all: $(LIB)
@@ -108,6 +128,14 @@ $(BUILD)/%.o: $(COMPAT)/%.c | $(BUILD)
 
 $(BUILD)/gsi_core.o: $(GSI)/gsi_core.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/gsi_buf.o: $(GSI)/gsi_buf.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/gsi_dh.o: $(GSI)/gsi_dh.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/gsi_cipher.o: $(GSI)/gsi_cipher.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/gsi_rsa.o: $(GSI)/gsi_rsa.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 # Token kernels live under src/token; explicit rules (take precedence over the
 # COMPAT pattern rule). The local "scopes.h"/"b64url.h" resolve via the .c's dir.
@@ -120,6 +148,21 @@ $(BUILD)/b64url.o: $(TOKEN)/b64url.c | $(BUILD)
 # "sd.h" resolves via the .c's own dir; the ngx-coupled headers are #ifdef'd
 # out under -DXRDPROTO_NO_NGX).
 $(BUILD)/sd_posix.o: $(BACKEND)/sd_posix.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# ZIP parsing kernel lives under src/zip; explicit rule (its "zip_kernel.h"
+# resolves via the .c's own dir). Pure C — no I/O source, no nginx deps.
+$(BUILD)/zip_kernel.o: $(ZIP)/zip_kernel.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# SSS keytab grammar lives under src/sss; explicit rule (its "../compat/hex.h"
+# resolves via the .c's own dir). Pure C — no nginx deps.
+$(BUILD)/sss_keytab_kernel.o: $(SSS)/sss_keytab_kernel.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# xrdwire codec family files live under src/protocol/codec; explicit rule (their
+# "wire_codec.h" resolves via the .c's own dir). Pure C — no nginx deps.
+$(BUILD)/wire_codec_%.o: $(PROTO_CODEC)/wire_codec_%.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 $(BUILD):

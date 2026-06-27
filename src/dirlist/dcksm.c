@@ -19,9 +19,6 @@
  * Returns NGX_OK if supported, NGX_DECLINED for unsupported algorithms,
  * or NGX_ERROR on invalid input (e.g., non-alphanumeric characters).
  */
-/* ------------------------------------------------------------------ */
-/* Section: Algorithm Parsing                                          */
-/* ------------------------------------------------------------------ */
 
 static ngx_int_t
 xrootd_dirlist_parse_algorithm(const u_char *src, size_t len,
@@ -40,9 +37,6 @@ xrootd_dirlist_parse_algorithm(const u_char *src, size_t len,
  * Returns NGX_OK on success, NGX_DECLINED if an unsupported algorithm was
  * requested (bad_algo contains the rejected name for error reporting).
  */
-/* ------------------------------------------------------------------ */
-/* Section: CGI Parameter Extraction                                   */
-/* ------------------------------------------------------------------ */
 
 ngx_int_t
 xrootd_dirlist_checksum_algorithm(const u_char *payload, size_t payload_len,

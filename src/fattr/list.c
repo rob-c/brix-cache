@@ -8,8 +8,7 @@
 #include <dirent.h>
 #include "../compat/alloc_guard.h"
 
-/* ---- kXR_fa_recurse support ---- */
-
+/* kXR_fa_recurse support */
 /*
  * kXR_fa_recurse is a local extension: when fattrList targets a directory the
  * server walks the subtree and emits one "<relpath>:<U.name>\0" entry per
@@ -33,7 +32,7 @@ typedef struct {
     size_t  root_len;   /* length of root path; relpath = fullpath + root_len */
 } fattr_recurse_ctx_t;
 
-/* ---- Function: fattr_recurse_dir() — append managed xattrs found under one dir ----
+/*
  *
  * WHAT: Depth-first walk of dir_path. For every regular file it reads the file's
  *       xattr name list, keeps only the "user.U.*" managed keys, and appends an
@@ -153,7 +152,7 @@ fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
     closedir(dir);
 }
 
-/* ---- Function: fattr_list_recurse() — fattrList over a directory subtree ----
+/*
  *
  * WHAT: Allocates the response accumulator, seeds the walk context (root_len so
  *       child paths are reported relative to this directory), drives
@@ -187,7 +186,7 @@ fattr_list_recurse(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path)
     return xrootd_send_ok(ctx, c, rctx.buf, (uint32_t) rctx.len);
 }
 
-/* ---- Function: fattr_list() — handle kXR_fattrList: enumerate extended attributes ----
+/*
  *
  * WHAT: Handles kXR_fattrList by calling listxattr(path, NULL, 0) for path-based
  *       operations or flistxattr(fd, NULL, 0) for open-file-handle operations to

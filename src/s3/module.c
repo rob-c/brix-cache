@@ -44,9 +44,9 @@
 
 static ngx_int_t ngx_http_s3_postconfiguration(ngx_conf_t *cf);
 
-/* -------------------------------------------------------------------------
+/*
  * Config lifecycle
- * ---------------------------------------------------------------------- */
+ * */
 
 static void *
 ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
@@ -142,9 +142,9 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     return NGX_CONF_OK;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Post-config: install content handler
- * ---------------------------------------------------------------------- */
+ * */
 
 static ngx_int_t
 ngx_http_s3_postconfiguration(ngx_conf_t *cf)
@@ -211,9 +211,9 @@ ngx_http_s3_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Directives
- * ---------------------------------------------------------------------- */
+ * */
 
 static ngx_command_t ngx_http_s3_commands[] = {
 
@@ -351,8 +351,7 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, common.thread_pool_name),
       NULL },
 
-    /* ---- SciTags packet marking (src/pmark/) — see phase-34 doc ---- */
-    { ngx_string("xrootd_pmark"),
+    /* SciTags packet marking (src/pmark/) — see phase-34 doc */    { ngx_string("xrootd_pmark"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_s3_loc_conf_t, common.pmark.enable), NULL },

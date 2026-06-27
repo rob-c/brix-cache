@@ -1,11 +1,10 @@
-/* ---- File: gsi_outbound_certreq.c — GSI certificate request for native TPC pull ----
- *
+/* File: gsi_outbound_certreq.c — GSI certificate request for native TPC pull
  * WHAT: Initiates the outbound GSI authentication handshake on a TPC pull socket. Reads xrootd_certificate and xrootd_certificate_key from config, loads X509 chain + private key via OpenSSL BIO/PEM readers, sends kXGC_certreq wire message (gsi\x00 + opcode + kXRS_none), receives kXR_authmore response containing client cert + CA chain. Validates server expects auth continuation before returning NGX_OK or error code.
  *
  * WHY: Native TPC pull connects directly to an xrootd server on a separate socket; GSI authentication requires the outbound side to present its certificate chain and private key, then receive the server's client certificate + CA chain for mutual verification. This function performs only the first round of that handshake — sending certreq and verifying kXR_authmore response — with subsequent rounds handled by gsi_outbound_common.c functions (tpc_send_kxr_auth continuation).
  *
  * HOW: Validate config has certificate + key paths → ngx_memcpy into local PATH_MAX buffers with NUL termination → BIO_new_file("r") on both cert and key PEM files → sk_X509_new_null() + loop PEM_read_bio_X509(cbio) pushing to chain (x = NULL after each push) → reject if chain empty → PEM_read_bio_PrivateKey(kbio) → malloc(crlen=4+4+8) for wire message → memcpy "gsi\x00" + tpc_put_u32(kXGC_certreq) + tpc_put_u32(kXRS_none) + tpc_put_u32(0) → tpc_send_kxr_auth(t, fd, 3, certreq, crlen) → recv response via tpc_recv_response checking status == kXR_authmore with body ≥16 bytes → every exit returns through tpc_outbound_gsi_finish: BIO_free(cbio/kbio), sk_X509_free(chain), EVP_PKEY_free(pkey), free(certreq/body). Returns NGX_OK on success or error code. Caller: tpc/bootstrap.c (tpc_pull_start).
- * ------------------------------------------------------------------ */
+ * */
 
 #include "tpc_internal.h"
 #include "../gsi/gsi_core.h"          /* build_certreq / parse_parms / rand */
@@ -161,8 +160,7 @@ tpc_outbound_gsi(xrootd_tpc_pull_t *t, int fd,
         }
     }
 
-    /* ---- round 1: kXGC_certreq ----
-     * Build the GSI credential payload that opens the handshake. Layout (16B):
+    /* round 1: kXGC_certreq     * Build the GSI credential payload that opens the handshake. Layout (16B):
      *   [0..3]   "gsi\0"                  4-byte protocol tag (NUL-padded)
      *   [4..7]   kXGC_certreq (=1000)     opcode: client requests server cert
      *   [8..11]  kXRS_none    (=0)        bucket type 0 = end-of-message marker

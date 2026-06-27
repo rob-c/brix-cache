@@ -116,8 +116,7 @@ lz4_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
         return (hint == 0) ? XROOTD_CODEC_END : XROOTD_CODEC_OK;
     }
 
-    /* ---- compress ---- */
-    /* 1) Drain any output staged from a previous refill first. */
+    /* compress */    /* 1) Drain any output staged from a previous refill first. */
     if (st->stage_len > st->stage_pos) {
         if (lz4_drain(st, out, out_size, out_pos)) {
             return XROOTD_CODEC_OK;          /* out full; more staged */

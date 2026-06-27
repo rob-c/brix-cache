@@ -32,6 +32,7 @@
 
 #include "close.h"
 #include "../ngx_xrootd_module.h"
+#include "../ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "../cache/cache_internal.h"
 #include "../compat/staged_file.h"
 #include "../write/wrts_journal.h"
@@ -99,10 +100,13 @@ xrootd_cns_emit_close(xrootd_ctx_t *ctx, ngx_stream_xrootd_srv_conf_t *conf,
 }
 
 ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
-    ClientCloseRequest *req = (ClientCloseRequest *) ctx->hdr_buf;
+    xrdw_close_req_t req;
     ngx_stream_xrootd_srv_conf_t *conf;
-    int idx = (int)(unsigned char) req->fhandle[0];
+    int idx;
     ngx_int_t rc;
+
+    xrdw_close_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    idx = (int)(unsigned char) req.fhandle[0];
     ngx_int_t wt_close_rc = NGX_OK;
     const char *wt_local_path;
 
@@ -114,8 +118,7 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: kXR_close handle=%d", idx);
 
-    /* ---- pgwrite CSE close gate ----
-     * Refuse to close while any page written via kXR_pgwrite failed CRC32c and
+    /* pgwrite CSE close gate     * Refuse to close while any page written via kXR_pgwrite failed CRC32c and
      * was never corrected by a kXR_pgRetry.  Otherwise the POSC rename / write-
      * through flush below would commit known-corrupt bytes.  The handle is left
      * OPEN (no free) so the client can resend the bad pages and close again —
@@ -250,6 +253,17 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
     xrootd_wrts_flush(&ctx->files[idx]);
 
     xrootd_free_fhandle(ctx, idx);
+
+    /* phase-59 W3a: release this user's throttle open-files slot. */
+    if (ctx->throttle_open_held > 0) {
+        ngx_stream_xrootd_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
+            (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+        if (tconf->throttle_zone != NULL) {
+            xrootd_throttle_open_dec(tconf->throttle_zone,
+                ctx->dn[0] ? ctx->dn : "anonymous");
+        }
+        ctx->throttle_open_held--;
+    }
 
     /* A failed SYNC write-through flush means the file did not reach the origin;
      * report the close as an error so the client does not assume durability. */

@@ -131,6 +131,21 @@ def test_forged_macaroon_rejected(mac_server):
         "a macaroon signed with the wrong secret must NOT authenticate (HMAC bypass)"
 
 
+def test_flipped_signature_byte_rejected(mac_server):
+    # Correct structure + right secret, but ONE byte of the 32-byte HMAC
+    # signature flipped → must be rejected. This is the exact case the
+    # constant-time CRYPTO_memcmp in src/token/macaroon.c guards: a
+    # timing-variable memcmp would be a byte-by-byte signature-forgery oracle.
+    import base64
+    tok = make_macaroon(SECRET, "test-subject", _caveats(), location=LOCATION)
+    padded = tok + "=" * (-len(tok) % 4)
+    raw = bytearray(base64.urlsafe_b64decode(padded))
+    raw[-1] ^= 0x01                      # flip the last signature byte
+    forged = base64.urlsafe_b64encode(bytes(raw)).decode().rstrip("=")
+    assert _get(forged).status_code not in (200, 206), \
+        "a macaroon with a single flipped signature byte must NOT authenticate"
+
+
 def test_expired_macaroon_rejected(mac_server):
     tok = make_macaroon(SECRET, "test-subject",
                         _caveats(before="2000-01-01T00:00:00Z"), location=LOCATION)

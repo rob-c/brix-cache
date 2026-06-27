@@ -53,7 +53,7 @@ def test_health_check_module_present():
 
 
 def test_registry_helpers_present():
-    reg = _read("src/manager/registry.c")
+    reg = _read("src/manager/registry_health.c")   # split out of registry.c
     for fn in ("xrootd_srv_hc_claim", "xrootd_srv_hc_pass", "xrootd_srv_hc_fail"):
         assert fn in reg, fn
     # Entry struct carries the new HC fields.

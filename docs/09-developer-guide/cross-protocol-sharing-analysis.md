@@ -8,7 +8,30 @@
 
 ## Executive Summary
 
-The nginx-xrootd module implements three distinct protocols — XRootD (`root://`/`roots://`) via the stream layer, WebDAV (`davs://`/`http://`) via the HTTP layer, and S3-compatible REST via a separate HTTP location handler. Despite their protocol differences, there is significant overlap in **auth validation**, **path resolution**, **namespace operations**, **HTTP response building**, **error mapping**, **metrics infrastructure**, and **I/O helpers**. This analysis identifies:
+The nginx-xrootd module implements three distinct protocols — XRootD (`root://`/`roots://`) via the stream layer, WebDAV (`davs://`/`http://`) via the HTTP layer, and S3-compatible REST via a separate HTTP location handler. Despite their protocol differences, there is significant overlap in **auth validation**, **path resolution**, **namespace operations**, **HTTP response building**, **error mapping**, **metrics infrastructure**, and **I/O helpers**.
+
+```text
+   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   PROTOCOL FRONT-ENDS
+   │ STREAM root://│   │ WebDAV davs://│   │  S3  REST    │   (distinct framing
+   │ opcodes·wire  │   │ HTTP methods  │   │  SigV4·XML   │    & dispatch)
+   └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
+          │ wire-path        │ URI-decode       │ key-strip   protocol-specific
+          ▼ extract          ▼                  ▼ bucket      pre-processing
+   ┌──────────────────────────────────────────────────────┐
+   │  SHARED CORE                                          │  src/compat/, src/path/
+   │  token validate · scope check · confined ns ops       │  src/token/, src/metrics/
+   │  path resolve · error map (errno→kXR / →HTTP)         │
+   │  HTTP file response · range · ETag · XML · fs_walk     │  ← WebDAV+S3 reuse
+   │  staged-file commit · async-job guard · metrics zone   │
+   └───────────────────────────┬──────────────────────────┘
+                               ▼
+                    VFS → POSIX storage driver (src/fs/)
+   ─────────────────────────────────────────────────────────────────────────────
+   reuse legend:  ███ all three protocols   ▓▓ WebDAV+S3 only   ░ stream only
+   INVARIANT #6: S3 SigV4 auth stays SEPARATE — scope checks shared, auth NEVER
+```
+
+This analysis identifies:
 
 1. **Already shared** functions used across 2+ protocols (high ROI — maintain & document)
 2. **Near-shared** patterns that could be unified with minimal effort (medium ROI)

@@ -313,11 +313,6 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
     EVP_CIPHER_CTX    *dctx = NULL;
     unsigned char     *plain = NULL;
     int                olen = 0, flen = 0;
-    const u_char      *x509_data = NULL;
-    size_t             x509_len = 0;
-    STACK_OF(X509)    *chain = NULL;
-    BIO               *bio;
-    X509              *cert;
     char               cipher_name[64];
     char               cipher_log[128];
 
@@ -539,80 +534,8 @@ xrootd_gsi_parse_x509(xrootd_ctx_t *ctx, ngx_connection_t *c)
         EVP_CIPHER_CTX_free(dctx);
     }
 
-/*---- PEM certificate extraction section — parse decrypted proxy chain ----
- *
- * WHAT: Extracts the kXRS_x509 bucket from the decrypted plaintext, creates a BIO memory buffer, then reads x509 certificates using PEM_read_bio_X509().
- *       This is the final phase of GSI authentication round 2 — converts encrypted wire payload into parsed certificate objects. */
-
-/*---- Decrypted buffer structure ----
- *
- * WHY: The decrypted kXRS_main plaintext contains another bucket structure with kXRS_x509 inside — this is nested wire format where
- *      the outer envelope (kXRS_main) wraps the inner certificate payload (kXRS_x509). */
-
-/*---- Decrypted buffer flow ----
- *
- * HOW: 1) EVP_DecryptUpdate(dctx, plain, &olen, main_data, main_len) decrypts first block; 
- *      2) EVP_DecryptFinal_ex(dctx, plain+olen, &flen) decrypts final padding block;
- *      3) Total plaintext = olen + flen bytes containing kXRS_x509 bucket. */
-
-/*---- Certificate extraction mechanism ----
- *
- * WHAT: Creates BIO memory buffer from decrypted x509 data using BIO_new_mem_buf(), initializes empty cert chain via sk_X509_new_null().
- *      Then iteratively reads each PEM-encoded certificate via PEM_read_bio_X509() until EOF, pushing each into the stack. */
-
-/*---- Certificate extraction error handling ----
- *
- * WHY: If kXRS_x509 bucket not found in decrypted buffer → return NULL (corrupted payload);
- *      If sk_X509_num(chain) == 0 after parsing → log warning and free chain (empty certificate data). */
-
-/*---- Certificate ownership model after extraction ----
- *
- * WHY: The returned STACK_OF(X509) contains multiple X509 pointers — each must be freed via sk_X509_pop_free(chain, X509_free).
- *      The BIO buffer is freed immediately (BIO_free(bio)) after parsing completes. */
-
-/*---- Certificate extraction logging invariant ----
- *
- * WHY: ngx_log_debug1() logs the number of certificates parsed for monitoring/debugging purposes — useful for tracking proxy chain depth. */
-
-{
-        int plain_len = olen + flen;
-
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, 0,
-                       "xrootd: GSI decrypted kXRS_main: %d bytes", plain_len);
-
-        gsi_capture_client_rtag(ctx, plain, (size_t) plain_len); /* §F6 deleg */
-
-        if (gsi_find_bucket(plain, (size_t) plain_len, (uint32_t) kXRS_x509,
-                            &x509_data, &x509_len) != 0) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd: GSI kXGC_cert: kXRS_x509 not found "
-                          "in decrypted inner buffer");
-            return NULL;
-        }
-    }
-
-    bio = BIO_new_mem_buf(x509_data, (int) x509_len);
-    chain = sk_X509_new_null();
-    if (!bio || !chain) {
-        BIO_free(bio);
-        sk_X509_free(chain);
-        return NULL;
-    }
-
-    while ((cert = PEM_read_bio_X509(bio, NULL, NULL, NULL)) != NULL) {
-        sk_X509_push(chain, cert);
-    }
-    BIO_free(bio);
-
-    if (sk_X509_num(chain) == 0) {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd: GSI kXGC_cert: kXRS_x509 contained no certs");
-        sk_X509_pop_free(chain, X509_free);
-        return NULL;
-    }
-
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, 0,
-                   "xrootd: GSI parsed %d cert(s) from kXRS_x509 after decrypt",
-                   sk_X509_num(chain));
-    return chain;
+    /* Same tail as the signed path: stash the delegation rtag (§F6), then reuse
+     * gsi_chain_from_plaintext() to parse the kXRS_x509 bucket into a chain. */
+    gsi_capture_client_rtag(ctx, plain, (size_t) (olen + flen));
+    return gsi_chain_from_plaintext(plain, olen + flen, log);
 }

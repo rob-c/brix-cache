@@ -1,5 +1,4 @@
-/* ---- File: proxy write-path audit — JSON-formatted operation logging ----
- *
+/* File: proxy write-path audit — JSON-formatted operation logging
  * WHAT: Implements security audit logging for path modification operations during XRootD proxy forwarding. Writes JSON-formatted entries to configured proxy_audit_log_fd capturing operation type, path, destination (for mv ops), status result, and authenticated user identity. Only logs when both proxy config exists AND audit log file descriptor is valid (NGX_INVALID_FILE means disabled). Six supported operations: rm, mkdir, rmdir, mv, chmod, truncate — unrecognized opcodes skip logging via default case return. User identity sourced from client_ctx->login_user if available; empty string otherwise. JSON format follows structured pattern with type="path" field distinguishing from other audit categories (TPC, read/write). mv operations include separate "dest" field for destination path; all other ops use single "path" field. Each entry terminated with newline for line-oriented log consumption. Written via ngx_write_fd() to avoid blocking event loop during I/O. */
 
 /* One of three standalone translation units split from the proxy relay path

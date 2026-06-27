@@ -1,11 +1,10 @@
-/* ---- File: connect.c — DNS resolution and TCP connect to TPC source server ----
- *
+/* File: connect.c — DNS resolution and TCP connect to TPC source server
  * WHAT: Resolves the remote XRootD origin host via getaddrinfo, validates each candidate address against SSRF policy rules (allow_local/allow_private), creates a blocking socket with configurable receive/send timeouts, then performs non-blocking connect followed by poll-based wait for connection completion. Also provides xrootd_tpc_check_src_policy as an SSRF preflight wrapper that resolves host+port without creating the socket — used before kXR_open destination file creation to validate source addresses early.
  *
  * WHY: Native TPC pull requires nginx to establish a TCP connection to the remote root:// origin server before it can send handshake frames and read the file. DNS resolution must iterate over all addrinfo candidates (IPv4/IPv6) because some may be unreachable; SSRF policy validation prevents connecting to localhost or private ranges when configured to reject them. Non-blocking connect with poll-based wait avoids blocking the nginx event loop while still respecting configurable timeout limits. The preflight check enables early source address validation before allocating destination file resources.
  *
  * HOW: getaddrinfo(src_host, port_str, hints SOCK_STREAM+AF_UNSPEC) → iterate addrinfo candidates → xrootd_net_target_check_addr with SSRF policy → socket(family,socktype,proto) → setsockopt SO_RCVTIMEO/SO_SNDTIMEO → fcntl O_NONBLOCK → connect() → if EINPROGRESS then poll POLLOUT with TPC_CONNECT_TIMEOUT_SEC → getsockopt SO_ERROR to verify zero → restore original flags. Returns connected fd or -1 on failure. Preflight: xrootd_net_target_check_dns resolves host+port without creating socket, returns 0/-1.
- * ------------------------------------------------------------------ */
+ * */
 
 #include "tpc_internal.h"
 #include "../compat/net_target.h"
@@ -23,9 +22,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-/* ------------------------------------------------------------------ */
-/* DNS resolution and TCP connect to TPC source server                   */
-/* ------------------------------------------------------------------ */
 /* WHAT: DNS resolve + TCP connect to TPC origin — getaddrinfo → SSRF policy check per candidate → socket with SO_RCVTIMEO/SO_SNDTIMEO → non-blocking connect via poll. Returns connected fd or -1. */
 
 int

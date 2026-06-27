@@ -17,7 +17,7 @@
 /* Opaque extraction helper — defined in open_overview.c */
 extern int open_extract_opaque(const u_char *payload, size_t payload_len, char *out, size_t out_size);
 
-/* ---- Function: open_negotiate_compress_codec() ----
+/*
  *
  * WHAT: Phase-42 W4/W5 — negotiate an inline-compression codec from the kXR_open
  *       opaque.  Returns the codec ordinal (xrootd_codec_id_t) to use for this
@@ -90,7 +90,7 @@ open_negotiate_compress_codec(xrootd_ctx_t *ctx,
 	return (uint8_t) d->id;
 }
 
-/* ---- Function: open_extract_zip_member() ----
+/*
  *
  * WHAT: Phase-57 W2 — pull a validated ZIP member name out of the kXR_open opaque
  *       "?xrdcl.unzip=<member>".  Returns 1 with out[] filled (NUL-terminated)
@@ -182,7 +182,7 @@ xrootd_pmark_echo_timer(ngx_event_t *ev)
     }
 }
 
-/* ---- Function: xrootd_handle_open() ----
+/*
  *
  * WHAT: Protocol-level entry point for kXR_open. Parses ClientOpenRequest from wire,
  *       validates permissions through security gates (manager mode redirect, authdb, VO ACL,
@@ -210,15 +210,16 @@ ngx_int_t
 xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 				   ngx_stream_xrootd_srv_conf_t *conf)
 {
-	ClientOpenRequest *req = (ClientOpenRequest *) ctx->hdr_buf;
+	xrdw_open_req_t    req;
 	uint16_t           options;
 	uint16_t           mode_bits;
 	char               full_path[PATH_MAX];
 	char               clean_path[PATH_MAX];  /* path with CGI query stripped */
 	int                is_write;
 
-	options   = ntohs(req->options);
-	mode_bits = ntohs(req->mode);
+	xrdw_open_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	options   = req.options;
+	mode_bits = req.mode;
 
 	/*
 	 * open is the densest request in the read-side path because it bridges
@@ -245,7 +246,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		                        ssi_path, sizeof(ssi_path), 1)
 		    && xrootd_ssi_match(conf, ssi_path, &svc, &svclen))
 		{
-			return xrootd_ssi_open(ctx, c, svc, svclen);
+			return xrootd_ssi_open(ctx, c, svc, svclen, options);
 		}
 	}
 

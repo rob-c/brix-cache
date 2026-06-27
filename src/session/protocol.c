@@ -1,44 +1,9 @@
+/*
+ * protocol.c — kXR_protocol opcode handler (capability negotiation).
+ */
+
 #include "../ngx_xrootd_module.h"
 #include "../compat/alloc_guard.h"
-
-/* ------------------------------------------------------------------ */
-/* Protocol Negotiation — kXR_protocol handler                           */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: This file implements the kXR_protocol opcode — the first XRootD request after raw TCP handshake. It negotiates server capabilities including protocol version, available authentication protocols (GSI/token/SSS), and TLS upgrade support. The response body contains a fixed ServerProtocolBody struct plus optional SecurityInfo trailer when the client advertises security negotiation capability flags.
- *
- * WHY: Protocol negotiation determines which authentication flow follows (kXR_auth for GSI or token) and whether in-protocol TLS can be requested (kXR_wantTLS → kXR_ableTLS). Without this exchange, clients would not know what capabilities to expect from the server, potentially sending unsupported opcodes or attempting TLS on non-TLS listeners. The server also advertises its manager mode status (kXR_isManager flag) and security signing level requirements.
- *
- * HOW: Four-phase response assembly → parse client capability flags from body[4] byte → determine available auth protocols based on conf->auth directive → check TLS availability (conf->tls + tls_ctx + client kXR_ableTLS/kXR_wantTLS flag) → reject if client demands TLS but server has none configured → build fixed 8-byte ServerProtocolBody with version flags → append optional SecurityInfo trailer when kXR_secreqs flag set → queue response via xrootd_queue_response(). TLS upgrade pending state (ctx->tls_pending=1) is set when offer_tls=true. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Protocol Body Construction                                    */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: The fixed ServerProtocolBody contains four fields encoded as big-endian integers:
- *      pval = protocol version number, flags = server capability bitmask (kXR_isServer | kXR_isManager | kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin). These are the first eight bytes of every protocol reply body.
- *
- * WHY: Provides clients with a standardized capability advertisement before authentication begins. The flags determine which subsequent opcodes the client should attempt — for example, kXR_ableTLS in the flag tells the client that kXR_wantTLS is available after login.
- *
- * HOW: Server sets body.pval = htonl(kXR_PROTOCOLVERSION) and body.flags from conf->auth/manager/tls state → ngx_memcpy into response buffer at XRD_RESPONSE_HDR_LEN offset. This 8-byte prefix always precedes the optional SecurityInfo trailer. */
-
-/* ------------------------------------------------------------------ */
-/* Section: Security Info Trailer (kXR_secreqs)                           */
-/* ------------------------------------------------------------------ */
-/*
- * WHAT: Optional SecurityInfo trailer appended when client advertises kXR_secreqs capability. Contains four sections: header byte indicating security presence, count of protocol entries, eight-byte entries per available auth method (sss/ztng/gsi), and ServerResponseReqs_Protocol structure specifying signing level requirements.
- *
- * WHY: Allows clients to determine which authentication plugin to load after login. The sec_count determines how many 8-byte entries follow; each entry uses three ASCII characters identifying the method plus four reserved bytes (zero). The seclvl field maps to conf->security_level enum values controlling subsequent opcode signing requirements.
- *
- * HOW: Server computes sec_count from available auth methods → writes SecurityInfo header (4 bytes) at offset bodylen+XRD_RESPONSE_HDR_LEN → appends 8-byte entries per method in order sss/ztng/gsi → adds ServerResponseReqs_Protocol with seclvl = conf->security_level → returns complete response via xrootd_queue_response(). */
-
-/* ---- Function: xrootd_handle_protocol() ----
- *
- * WHAT: Handles the kXR_protocol opcode — negotiates server capabilities by building a fixed 8-byte ServerProtocolBody response with protocol version, capability flags (kXR_isServer | manager mode | TLS support), and optional SecurityInfo trailer when client advertises security negotiation. Advertises available auth protocols based on conf->auth directive (GSI/token/SSS). Rejects requests if client demands TLS but server has none configured. Sets ctx->tls_pending=1 when in-protocol TLS upgrade is available.
- *
- * WHY: Determines the authentication flow and transport capabilities for subsequent requests. Without protocol negotiation, clients would not know what auth methods or security signing levels are available, potentially attempting unsupported opcodes or failing to request necessary TLS upgrades. The SecurityInfo trailer enables clients to select their preferred authentication plugin (GSI proxy cert vs JWT bearer token vs SSS shared secret).
- *
- * HOW: Four-phase response → parse client flags from body[4] byte → determine auth availability from conf->auth enum → check TLS offer based on config + client kXR_ableTLS/kXR_wantTLS flag → reject if client demands TLS but server lacks it → build ServerProtocolBody with version + capability flags → append SecurityInfo trailer when kXR_secreqs set (sec_count entries per available method) → queue response via xrootd_queue_response(). ctx->tls_pending=1 set when offer_tls=true. */
 
 /*
  * kXR_protocol - negotiate protocol version, auth protocols, and TLS support.
@@ -47,6 +12,9 @@
  * user in; it only advertises server capabilities and, when configured, arms
  * the native TLS upgrade for the following login/auth flow.
  */
+/* Handle kXR_protocol — negotiate server capabilities by building the fixed
+ * 8-byte ServerProtocolBody response (protocol version, flags, and the security
+ * requirement advertised to the client). */
 ngx_int_t
 xrootd_handle_protocol(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)

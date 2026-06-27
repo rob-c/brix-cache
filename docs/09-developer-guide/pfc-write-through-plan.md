@@ -13,6 +13,30 @@ This is intentionally not a persistent per-write dual-dispatch design. The
 module mirrors the final local file to the origin in bounded chunks, then sends
 origin `kXR_truncate`, `kXR_sync`, and `kXR_close`.
 
+```text
+  DURING the request: local copy is authoritative, origin untouched
+  ─────────────────────────────────────────────────────────────────
+   client ── kXR_write ──▶ local /data file ── mark handle dirty
+   client ── kXR_write ──▶ local /data file    (wt_dirty_offset ≥ 0)
+   client ── kXR_write ──▶ local /data file
+                                        no origin traffic yet
+
+  ON kXR_sync / kXR_close: mirror the whole file once
+  ─────────────────────────────────────────────────────────────────
+   client ── kXR_sync/close ─▶ ┌─ writethrough_flush.c ─────────────┐
+                               │ local file ──bounded chunks──▶      │
+                               │   origin: open → write* → truncate  │
+                               │           → sync → close            │
+                               └──────────────┬──────────────────────┘
+                       sync mode: origin error ──▶ kXR_IOError to client
+                      async mode: handle released now, flush on thread pool
+```
+
+Why whole-file-on-close rather than per-write dual-dispatch? It is robust and
+simple for **ingest-style** workflows (write once, sync, done) and never leaves
+the origin in a half-written intermediate state — at the cost of being a poor
+fit for very large random-write files (see Limitations).
+
 ## Configuration
 
 ```nginx
@@ -63,6 +87,21 @@ Key files:
   `xrootd_wt_mode async` and a thread pool are configured.
 
 ## Semantics
+
+The open-time decision gates whether a handle ever participates:
+
+```text
+  write-open /data/...      global xrootd_write_through on?
+        │                          │ no ──▶ plain local write, no WT
+        ▼ yes                      ▼ yes
+  deny_prefix match? ──yes──▶ wt_enabled = 0   (writes locally, never mirrors)
+        │ no                                    ← the security-negative case
+        ▼
+  allow_prefix match? ──no──▶ wt_enabled = 0
+        │ yes
+        ▼
+  wt_enabled = 1   (deny wins over allow)
+```
 
 Dirty tracking is handle-local:
 - `wt_enabled` is set only when global WT is on and the decision callback

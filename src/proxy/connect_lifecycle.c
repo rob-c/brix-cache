@@ -13,20 +13,8 @@
  *      frees resp_body/saved_req/wait_retry_req, deletes timers, closes splice pipe and upstream connection (or returns to pool if idle).
  */
 
-/* ---- public API: xrootd_proxy_flush() — write buffer flush to upstream socket ----
- * WHAT: Flush all buffered request data to the upstream TCP socket via uconn->send loop.
- * WHY: The proxy buffers client requests before writing them to upstream; this function drains the complete buffer atomically. */
-
-/* ---- public API: xrootd_proxy_abort() — upstream error handling with reconnect budget ----
- * WHAT: Handle upstream errors — log, audit failed state via xrootd_proxy_up_mark_failed(), and optionally reconnect if idle + no open files + budget available.
- * WHY: Transparent proxy must recover gracefully from transient upstream drops without terminating client sessions unnecessarily. Reconnect only triggers when idle (no active transfers)
- *      and all file handles are closed — prevents interrupting ongoing read/write operations during recovery attempts. */
-
-/* ---- public API: xrootd_proxy_cleanup() — full resource cleanup on session teardown ----
- * WHAT: Release all proxy resources — audit abandoned open file handles via proxy_write_audit, free buffers/timers/splice pipe/redirect host data, close or pool-return upstream connection.
- * WHY: Session teardown must be comprehensive to prevent resource leaks (file handle leaks cause kXR_IOError downstream; splice pipes leak FDs). Idle connections with no open files are returned to pool for reuse. */
-
-/* ---- flush wbuf to upstream socket --------------------------------------- */
+/* xrootd_proxy_flush — drain all buffered request data to the upstream TCP socket
+ * via the uconn->send loop (the proxy buffers client requests before writing). */
 
 ngx_int_t
 xrootd_proxy_flush(xrootd_proxy_ctx_t *proxy)
@@ -50,7 +38,9 @@ xrootd_proxy_flush(xrootd_proxy_ctx_t *proxy)
     return NGX_OK;
 }
 
-/* ---- abort on upstream error --------------------------------------------- */
+/* xrootd_proxy_abort — handle an upstream error: log, mark the upstream failed
+ * (xrootd_proxy_up_mark_failed), and reconnect only when idle (no active transfers,
+ * all handles closed) with budget left, so recovery never interrupts a transfer. */
 
 void
 xrootd_proxy_abort(xrootd_proxy_ctx_t *proxy, const char *reason)
@@ -148,7 +138,9 @@ xrootd_proxy_abort(xrootd_proxy_ctx_t *proxy, const char *reason)
     xrootd_schedule_read_resume(c);
 }
 
-/* ---- cleanup ------------------------------------------------------------- */
+/* xrootd_proxy_cleanup — comprehensive session teardown: audit any abandoned open
+ * handles (proxy_write_audit), free buffers/timers/splice pipe/redirect host, and
+ * close or pool-return the upstream connection — preventing fd and handle leaks. */
 
 void
 xrootd_proxy_cleanup(xrootd_proxy_ctx_t *proxy)

@@ -34,9 +34,6 @@
 #include <sys/un.h>
 #include <fcntl.h>
 
-/* ------------------------------------------------------------------ */
-/*  Metrics helper                                                    */
-/* ------------------------------------------------------------------ */
 
 ngx_int_t
 webdav_tpc_cred_metric_increment(ngx_http_request_t *r,
@@ -69,9 +66,6 @@ webdav_tpc_cred_validate_token(ngx_http_request_t *r, ngx_str_t *token)
 /* Path to the dedicated oidc-agent helper binary. */
 #define TPC_CRED_HELPER_PATH    "/usr/local/sbin/nginx-xrootd-tpc-cred"
 
-/* ------------------------------------------------------------------ */
-/*  oidc-agent IPC                                                    */
-/* ------------------------------------------------------------------ */
 
 /**
  * Send a JSON request to the oidc-agent UNIX socket and read the token.
@@ -268,9 +262,6 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
     return NGX_OK;
 }
 
-/* ------------------------------------------------------------------ */
-/*  RFC 8693 Token Exchange                                           */
-/* ------------------------------------------------------------------ */
 
 /**
  * Perform an RFC 8693 token-exchange request.
@@ -386,9 +377,6 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     return tpc_cred_parse_token_response(r, buf, token_out);
 }
 
-/* ------------------------------------------------------------------ */
-/*  Public API                                                        */
-/* ------------------------------------------------------------------ */
 
 xrootd_tpc_cred_mode_e
 webdav_tpc_cred_parse_mode(const char *value, size_t len)

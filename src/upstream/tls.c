@@ -1,5 +1,4 @@
-/* ---- upstream/tls.c — Outbound TLS upgrade for transparent proxy upstream redirector ----
-
+/* upstream/tls.c — Outbound TLS upgrade for transparent proxy upstream redirector
  * WHAT: This file provides two functions for upgrading the upstream TCP connection to TLS after a remote XRootD server signals kXR_gotoTLS in its kXR_protocol response:
 
  *      1. xrootd_upstream_start_tls() — wraps up->conn in SSL, sets SNI hostname, starts TLS handshake
@@ -16,7 +15,7 @@
 
 static void xrootd_upstream_tls_handshake_done(ngx_connection_t *uconn);
 
-/* ---- Section: TLS Handshake Initiation ----
+/*
 
  * WHAT: xrootd_upstream_start_tls() wraps the upstream TCP connection in SSL and initiates the TLS handshake.
 
@@ -58,7 +57,7 @@ xrootd_upstream_start_tls(xrootd_upstream_t *up,
     return NGX_OK;
 }
 
-/* ---- Section: TLS Handshake Callback ----
+/*
 
  * WHAT: xrootd_upstream_tls_handshake_done() is the nginx ssl->handler callback that fires once the TLS handshake completes (success or failure). On success, restores normal event handlers, allocates a fresh kXR_login frame, and flushes it over the now-TLS connection.
 

@@ -223,13 +223,13 @@ s3_check_presigned_future_skew(ngx_http_request_t *r, time_t request_time)
     return NGX_OK;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * SigV4 signing key derivation
  *
  * Four-round HMAC chain:
  *   k1 = HMAC("AWS4" + secret, date)   k2 = HMAC(k1, region)
  *   k3 = HMAC(k2, "s3")               k4 = HMAC(k3, "aws4_request")
- * ---------------------------------------------------------------------- */
+ * */
 
 /* Worker-local one-slot cache: signing key is stable for one calendar day per
  * region, so cache the last key and avoid four HMAC rounds on every request. */
@@ -267,12 +267,12 @@ s3_sigv4_derive_signing_key_cached(const ngx_str_t *secret_key,
     return 1;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Canonical signed headers builder (merged from auth_sigv4_headers.c)
  *
  * Builds the "header-name:value\n" block required by SigV4.  signed_hdrs is
  * a semicolon-separated list, e.g. "host;x-amz-content-sha256;x-amz-date".
- * ---------------------------------------------------------------------- */
+ * */
 
 static size_t
 build_canonical_headers(ngx_http_request_t *r,
@@ -325,9 +325,9 @@ build_canonical_headers(ngx_http_request_t *r,
     return oi;
 }
 
-/* -------------------------------------------------------------------------
+/*
  * Main verification entry point
- * ---------------------------------------------------------------------- */
+ * */
 
 /*
  * s3_verify_sigv4 — verify an AWS Signature Version 4 Authorization header.
@@ -507,27 +507,27 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         amz_date_len = strlen(header_amz_date);
     }
 
-    /* ----------------------------------------------------------------
+/*
      * 1. Canonical URI
-     * -------------------------------------------------------------- */
+     * */
     xrootd_http_urlencode(r->uri.data, r->uri.len,
                           (char *) canon_uri, sizeof(canon_uri), "/");
 
-    /* ----------------------------------------------------------------
+/*
      * 2. Canonical query string
-     * -------------------------------------------------------------- */
+     * */
     build_canonical_qs(r->args.data, r->args.len, comp.presigned,
                        canon_qs, sizeof(canon_qs));
 
-    /* ----------------------------------------------------------------
+/*
      * 3. Canonical headers
-     * -------------------------------------------------------------- */
+     * */
     build_canonical_headers(r, comp.signed_hdrs,
                              canon_hdrs, sizeof(canon_hdrs));
 
-    /* ----------------------------------------------------------------
+/*
      * 4. Canonical request
-     * -------------------------------------------------------------- */
+     * */
     n = (size_t) snprintf((char *) canonical, sizeof(canonical),
         "%.*s\n"        /* method   */
         "%s\n"          /* uri      */
@@ -544,9 +544,9 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     xrootd_sha256(canonical, n, cr_hash);
     xrootd_hex_encode(cr_hash, 32, (char *) hash_hex);
 
-    /* ----------------------------------------------------------------
+/*
      * 5. String to sign
-     * -------------------------------------------------------------- */
+     * */
     n = (size_t) snprintf((char *) string_to_sign, sizeof(string_to_sign),
         "AWS4-HMAC-SHA256\n"
         "%.*s\n"
@@ -557,18 +557,18 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         comp.region,
         (char *) hash_hex);
 
-    /* ----------------------------------------------------------------
+/*
      * 6. Derive signing key (cached: stable for one calendar day per region)
-     * -------------------------------------------------------------- */
+     * */
     if (!s3_sigv4_derive_signing_key_cached(&cf->secret_key,
                                              comp.date, comp.region, k4)) {
         s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* ----------------------------------------------------------------
+/*
      * 7. Compute and compare signatures
-     * -------------------------------------------------------------- */
+     * */
     if (!xrootd_hmac_sha256(k4, 32, string_to_sign, n, computed)) {
         s3_record_auth_result(XROOTD_S3_AUTH_INTERNAL_ERROR);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;

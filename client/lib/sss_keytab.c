@@ -1,15 +1,16 @@
 /*
  * sss_keytab.c — SSS keytab text I/O + the credential crypto kernels.
  *
- * See sss_keytab.h for the contract. The CRC32 and Blowfish-CFB64 routines are
- * reimplemented from the wire spec (matching src/sss/auth_crypto_helpers.c), not
- * copied from XrdSecsss — clean-room. The keytab grammar matches the server's
- * parser in src/sss/config.c exactly.
+ * See sss_keytab.h for the contract. The CRC32 and Blowfish-CFB64 routines route
+ * through the shared libxrdproto kernels (crc32_ieee / sss_bf), and the keytab
+ * line grammar + permission check come from the shared src/sss/sss_keytab_kernel.c
+ * — one source of truth with the server's parser (no clean-room duplicate to drift).
  */
 #include "sss_keytab.h"
 #include "compat/crc32_ieee.h"   /* shared CRC-32/IEEE (libxrdproto) */
 #include "compat/sss_bf.h"       /* shared Blowfish-CFB64 (libxrdproto) */
 #include "compat/hex.h"          /* shared hex encode/from_char (libxrdproto) */
+#include "sss/sss_keytab_kernel.h" /* shared keytab line grammar + mode check */
 
 #include <ctype.h>
 #include <errno.h>
@@ -26,9 +27,7 @@
 #include <openssl/provider.h>
 #endif
 
-/* ------------------------------------------------------------------ */
 /* crypto kernels                                                      */
-/* ------------------------------------------------------------------ */
 
 /* Forwards to the shared CRC-32/IEEE kernel (libxrdproto) so client-mint and
  * server-verify of the SSS blob use one source of truth. */
@@ -59,35 +58,7 @@ xrdc_sss_bf32_encrypt(const uint8_t *key, size_t key_len,
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* hex helpers                                                         */
-/* ------------------------------------------------------------------ */
-
-/* Decode a hex key string into out (bounded by XRDC_SSS_KEY_MAX); nibbles via the
- * shared xrootd_hex_from_char (case-insensitive, -1 on a non-hex digit). */
-static int
-decode_hex(const char *hex, uint8_t *out, size_t *out_len)
-{
-    size_t n = strlen(hex), i;
-
-    if (n == 0 || (n & 1) || n / 2 > XRDC_SSS_KEY_MAX) {
-        return -1;
-    }
-    for (i = 0; i < n; i += 2) {
-        int hi = xrootd_hex_from_char((unsigned char) hex[i]);
-        int lo = xrootd_hex_from_char((unsigned char) hex[i + 1]);
-        if (hi < 0 || lo < 0) {
-            return -1;
-        }
-        out[i / 2] = (uint8_t) ((hi << 4) | lo);
-    }
-    *out_len = n / 2;
-    return 0;
-}
-
-/* ------------------------------------------------------------------ */
 /* keytab I/O                                                          */
-/* ------------------------------------------------------------------ */
 
 void
 xrdc_sss_keytab_default(char *out, size_t outsz)
@@ -110,56 +81,39 @@ xrdc_sss_keytab_default(char *out, size_t outsz)
     snprintf(out, outsz, "%s/.xrd/sss.keytab", home);
 }
 
-/* Parse one keytab line (mutated by strtok_r). Returns 1 if a key was filled,
- * 0 for blank/comment/expired, -1 on a malformed required field. */
+/* The neutral kernel entry must hold any field this struct can — else the copy
+ * below could truncate a valid key/name (a drift in either would be a real bug). */
+_Static_assert(sizeof(((xrdc_sss_key *) 0)->key)   == SSS_K_KEY_MAX,
+               "SSS key buffer size drift vs shared kernel");
+_Static_assert(sizeof(((xrdc_sss_key *) 0)->user)  == SSS_K_USER_MAX,
+               "SSS user buffer size drift vs shared kernel");
+_Static_assert(sizeof(((xrdc_sss_key *) 0)->group) == SSS_K_GROUP_MAX,
+               "SSS group buffer size drift vs shared kernel");
+_Static_assert(sizeof(((xrdc_sss_key *) 0)->name)  == SSS_K_NAME_MAX,
+               "SSS name buffer size drift vs shared kernel");
+
+/* Parse one keytab line (mutated by strtok_r) via the shared grammar kernel.
+ * Returns 1 if a key was filled, 0 for blank/comment/expired, -1 on a malformed
+ * required field. */
 static int
 parse_line(char *line, xrdc_sss_key *k)
 {
-    char *field, *save;
+    sss_keytab_entry_t entry;
+    int                rc;
 
-    field = strtok_r(line, " \t\r\n", &save);
-    if (field == NULL || field[0] == '#') {
-        return 0;
-    }
-    if (strcmp(field, "0") != 0 && strcmp(field, "1") != 0) {
-        return -1;
+    rc = sss_keytab_parse_line(line, &entry, (int64_t) time(NULL));
+    if (rc <= 0) {
+        return rc;   /* 0 = skip, -1 = malformed */
     }
 
     memset(k, 0, sizeof(*k));
-    k->id = -1;
-    snprintf(k->user, sizeof(k->user), "%s", "nobody");
-    snprintf(k->group, sizeof(k->group), "%s", "nogroup");
-    snprintf(k->name, sizeof(k->name), "%s", "nowhere");
-
-    while ((field = strtok_r(NULL, " \t\r\n", &save)) != NULL) {
-        const char *v;
-        if (field[0] == '#') {
-            break;
-        }
-        if (field[1] != ':') {
-            continue;
-        }
-        v = field + 2;
-        switch (field[0]) {
-        case 'u': snprintf(k->user, sizeof(k->user), "%s", v); break;
-        case 'g': snprintf(k->group, sizeof(k->group), "%s", v); break;
-        case 'n': snprintf(k->name, sizeof(k->name), "%s", v); break;
-        case 'N': k->id = strtoll(v, NULL, 10); break;
-        case 'e': k->exp = (int64_t) strtoll(v, NULL, 10); break;
-        case 'k':
-            if (decode_hex(v, k->key, &k->key_len) != 0) {
-                return -1;
-            }
-            break;
-        default: break;
-        }
-    }
-    if (k->id < 0 || k->key_len == 0) {
-        return -1;
-    }
-    if (k->exp != 0 && k->exp <= (int64_t) time(NULL)) {
-        return 0;   /* expired: skip */
-    }
+    k->id      = entry.id;
+    k->exp     = entry.exp;
+    k->key_len = entry.key_len;
+    memcpy(k->key, entry.key, entry.key_len);
+    snprintf(k->user,  sizeof(k->user),  "%s", entry.user);
+    snprintf(k->group, sizeof(k->group), "%s", entry.group);
+    snprintf(k->name,  sizeof(k->name),  "%s", entry.name);
     return 1;
 }
 
@@ -185,7 +139,7 @@ xrdc_sss_keytab_read(const char *path, xrdc_sss_key *keys, int max, int *n,
         xrdc_status_set(st, XRDC_EAUTH, 0, "keytab %s is not a regular file", path);
         return -1;
     }
-    if (sb.st_mode & (S_IRWXG | S_IRWXO)) {
+    if (sss_keytab_mode_ok(path, sb.st_mode, 0) != 0) {
         close(fd);
         xrdc_status_set(st, XRDC_EAUTH, 0,
                         "keytab %s must be mode 0600 (group/other bits set)", path);

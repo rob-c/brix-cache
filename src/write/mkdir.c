@@ -25,14 +25,15 @@ ngx_int_t
 xrootd_handle_mkdir(xrootd_ctx_t *ctx, ngx_connection_t *c,
 					 ngx_stream_xrootd_srv_conf_t *conf)
 {
-	ClientMkdirRequest *req = (ClientMkdirRequest *) ctx->hdr_buf;
+	xrdw_mkdir_req_t req;
 	char     reqpath[XROOTD_MAX_PATH + 1];
 	char     resolved[PATH_MAX];
 	mode_t   mode;
 	int      recursive;
 
-	recursive = (req->options[0] & kXR_mkdirpath) ? 1 : 0;
-	mode      = ntohs(req->mode) & 0777;
+	xrdw_mkdir_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	recursive = (req.options & kXR_mkdirpath) ? 1 : 0;
+	mode      = req.mode & 0777;
 	if (mode == 0) {
 		mode = 0755;
 	}

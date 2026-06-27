@@ -98,8 +98,10 @@ xrdc_fattr_get(xrdc_conn *c, const char *path, const char *name,
     }
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_fattr);
-    req.subcode   = kXR_fattrGet;
-    req.numattr   = 1;
+    {
+        xrdw_fattr_req_t b = { .subcode = kXR_fattrGet, .numattr = 1 };
+        xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     if (xrdc_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
         free(payload);
@@ -153,9 +155,11 @@ fattr_set_or_del(xrdc_conn *c, const char *path, const char *name,
     }
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_fattr);
-    req.subcode   = (kXR_char) subcode;
-    req.numattr   = 1;
-    req.options   = (kXR_char) options;
+    {
+        xrdw_fattr_req_t b = { .subcode = (uint8_t) subcode, .numattr = 1,
+                               .options = (uint8_t) options };
+        xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     if (xrdc_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
         free(payload);
@@ -212,8 +216,10 @@ xrdc_fattr_list(xrdc_conn *c, const char *path, char *out, size_t bufsz,
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_fattr);
-    req.subcode   = kXR_fattrList;
-    req.numattr   = 0;
+    {
+        xrdw_fattr_req_t b = { .subcode = kXR_fattrList, .numattr = 0 };
+        xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
 
     if (xrdc_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
         free(payload);

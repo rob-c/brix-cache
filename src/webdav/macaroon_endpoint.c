@@ -34,8 +34,7 @@
 #include <string.h>
 #include <time.h>
 
-/* ----- URL-form decoding ----- */
-
+/* URL-form decoding */
 static int
 hex_nibble(char c)
 {
@@ -107,8 +106,7 @@ form_find(const char *form, const char *key, char *dst, size_t dstsz)
     return NGX_DECLINED;
 }
 
-/* ----- Scope → activity mapping ----- */
-
+/* Scope → activity mapping */
 /*
  * scope_to_activities — parse a space-separated WLCG scope string into
  * a comma-joined activity string and the first path found.
@@ -191,8 +189,7 @@ scope_to_activities(const char *scope, char *act_buf, size_t act_sz,
     return NGX_OK;
 }
 
-/* ----- Helper: send a JSON body ----- */
-
+/* Helper: send a JSON body */
 static ngx_int_t
 send_json(ngx_http_request_t *r, ngx_int_t status,
           const char *json, size_t json_len)
@@ -235,8 +232,7 @@ send_json(ngx_http_request_t *r, ngx_int_t status,
     return ngx_http_output_filter(r, &out);
 }
 
-/* ----- Discovery handler ----- */
-
+/* Discovery handler */
 ngx_int_t
 webdav_handle_macaroon_discovery(ngx_http_request_t *r)
 {
@@ -270,8 +266,7 @@ webdav_handle_macaroon_discovery(ngx_http_request_t *r)
     return send_json(r, NGX_HTTP_OK, (const char *) json, jlen);
 }
 
-/* ----- Issuance body handler (called when request body is ready) ----- */
-
+/* Issuance body handler (called when request body is ready) */
 void
 webdav_handle_macaroon_token(ngx_http_request_t *r)
 {
@@ -471,9 +466,6 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
     webdav_metrics_finalize_request(r, rc);
 }
 
-/* ------------------------------------------------------------------ */
-/* dCache / XrdMacaroons "application/macaroon-request" issuance (§2)  */
-/* ------------------------------------------------------------------ */
 
 /*
  * mac_iso8601_secs — parse a restricted ISO-8601 duration ("PT1H","PT30M","P1D",

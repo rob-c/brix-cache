@@ -189,6 +189,19 @@ char *xrootd_conf_set_cache_max_file_size(ngx_conf_t *cf,
  * matching paths are cached. */
 char *xrootd_conf_set_cache_include_regex(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
+/* "xrootd_cache_verify off|best-effort|require": checksum-on-fill policy —
+ * verify a completed fill against the origin's advertised checksum before
+ * publishing it (src/cache/verify.h). */
+char *xrootd_conf_set_cache_verify(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
+/* "xrootd_cache_verify_digest <alg>": preferred checksum algorithm to request
+ * from an HTTP/Pelican origin (Want-Digest); advisory for root://. */
+char *xrootd_conf_set_cache_verify_digest(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
+/* "xrootd_cache_advertise_namespace <prefix>" (repeatable): a federation
+ * namespace this cache advertises to the Pelican Director. */
+char *xrootd_conf_set_cache_advertise_ns(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
 /* "xrootd_write_through on|off": enable mirroring dirty handles to origin on
  * sync/close. */
 char *xrootd_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd,

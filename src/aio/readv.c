@@ -1,7 +1,7 @@
 #include "ngx_xrootd_module.h"
 
 /*
- * Section: kXR_readv async I/O — multi-segment parallel read for large files.
+ * kXR_readv async I/O — multi-segment parallel read for large files.
  *
  * This file implements the thread-pool offload for xrdcp's segmented read mode,
  * where a single request is split into multiple segments and each segment is

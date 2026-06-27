@@ -27,6 +27,10 @@ from settings import (
     SERVER_HOST,
 )
 
+# serial: these assert aggregate-throughput scaling ratios, which are only valid
+# when the box isn't saturated — they must not run inside the parallel pool.
+pytestmark = pytest.mark.serial
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------

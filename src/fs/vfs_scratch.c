@@ -12,8 +12,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* ---- the capability gate ---------------------------------------------------*/
-
+/* the capability gate*/
 ngx_uint_t
 xrootd_vfs_scratch_needed(const xrootd_sd_instance_t *storage, unsigned force)
 {
@@ -47,8 +46,7 @@ scratch_path_for(const char *stage_dir, const char *key, char *out, size_t outsz
     return NGX_OK;
 }
 
-/* ---- PRODUCE ---------------------------------------------------------------*/
-
+/* PRODUCE*/
 ngx_int_t
 xrootd_vfs_scratch_produce_target(const xrootd_sd_instance_t *storage,
     const char *logical_path, const char *stage_dir, const char *key,
@@ -102,8 +100,7 @@ xrootd_vfs_scratch_produce_commit(const char *logical_path, const char *stage_di
     return xrootd_commit_staged(NGX_INVALID_FILE, scratch, logical_path, log);
 }
 
-/* ---- CONSUME ---------------------------------------------------------------*/
-
+/* CONSUME*/
 /* Copy the whole of src_fd into dst_fd through the SD driver (positional; bytes
  * stay on the backend). 0 / -1 (errno set). */
 static ngx_int_t

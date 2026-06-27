@@ -15,8 +15,7 @@
 #include "webdav/webdav.h"      /* ngx_http_xrootd_webdav_req_ctx_t */
 
 
-/* ---- key extraction ------------------------------------------------------ */
-
+/* key extraction */
 /*
  * Emit a "dn:<hash>" key for a (potentially long, PII-bearing) GSI subject DN.
  * WHY hash rather than embed the DN verbatim: the key string is bounded by
@@ -169,8 +168,7 @@ xrootd_rl_key_http(xrootd_rl_rule_t *rule, ngx_http_request_t *r,
 }
 
 
-/* ---- directive parameter parsing ----------------------------------------- */
-
+/* directive parameter parsing */
 /* Parse "key=<type>[:<prefix>]" into rule->key_type / rule->key_match.
  * sizeof("key=")-1 == 4 strips the literal prefix; the value tail is then split
  * on the first ':' into <type> and an optional <prefix> (used only by VOLUME). */
@@ -255,8 +253,7 @@ rl_parse_size(ngx_str_t *v)
 }
 
 
-/* ---- zone directive: xrootd_rate_limit_zone zone=NAME:SIZE --------------- */
-
+/* zone directive: xrootd_rate_limit_zone zone=NAME:SIZE */
 char *
 xrootd_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -309,8 +306,7 @@ xrootd_rl_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 
-/* ---- shared rule builder ------------------------------------------------- */
-
+/* shared rule builder */
 /*
  * Shared setter behind both xrootd_rate_limit_rule (is_bw=0) and
  * xrootd_bandwidth_limit (is_bw=1).  Pushes one xrootd_rl_rule_t onto the rules
@@ -447,8 +443,7 @@ xrootd_rl_bw_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return rl_add_rule(cf, cmd, conf, 1);
 }
 
-/* ---- xrootd_concurrency_limit zone=NAME key=<type> limit=N (W7) ----------- */
-
+/* xrootd_concurrency_limit zone=NAME key=<type> limit=N (W7) */
 /*
  * Setter for xrootd_concurrency_limit — a non-leaky cap on the number of
  * simultaneously in-flight requests per principal (rule->req_conc), distinct

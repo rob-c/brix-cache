@@ -40,9 +40,9 @@
  *      ngx_create_temp_buf(xml_len) → copy into buf → build ngx_chain_t → HTTP 200 + content_length_n = xml_len.
  */
 
-/* -------------------------------------------------------------------------
+/*
  * POST /bucket/key?uploadId=<id>  →  CompleteMultipartUpload (body handler)
- * ---------------------------------------------------------------------- */
+ * */
 
 static void s3_multipart_complete_body_handler_inner(ngx_http_request_t *r);
 

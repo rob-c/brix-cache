@@ -44,7 +44,7 @@ ngx_int_t
 xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
                      ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientLocateRequest *req = (ClientLocateRequest *) ctx->hdr_buf;
+    xrdw_locate_req_t    req;
     char                 reqpath_buf[XROOTD_MAX_PATH + 1];
     struct sockaddr_in  *sin;
     char                 loc_buf[256];
@@ -56,7 +56,8 @@ xrootd_handle_locate(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* options: kXR_prefname (0x0100) = prefer DNS names over IPs in response.
      * We always store the server's registered hostname so this is the default.
      * Parse the field so the compiler sees req as used. */
-    (void) ntohs(req->options);
+    xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    (void) req.options;
 
     if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_LOCATE);

@@ -148,6 +148,8 @@ xrootd_handle_write (write.c:68)
      ├─→ xrootd_validate_write_handle() [idx validation]
      |
      ├─→ Parse offset (be64toh)
+     |    [fresh upload: fd is a STAGING temp/.part file, not the final path —
+     |     staged when upload_resume (default on) or POSC; in-place updt writes direct]
      |
      ├─→ [NGX_THREADS]: AIO offload → xrootd_vfs_io_execute() → driver->pwrite
      |    ├─→ xrootd_ensure_payload_buffer() [detach buffer]
@@ -168,9 +170,10 @@ xrootd_handle_close (close.c:40)
      |    └─→ path = posc_final_path OR ctx->files[idx].path
      |         └─→ throughput = bytes_read/bytes_written ÷ duration
      |
-     ├─→ POSC commit (if staging):
+     ├─→ Staged commit — atomic MOVE into place (POSC or upload_resume):
      |    ├─→ fsync(fd)
-     |    └─→ rename(temp_path, final_path)
+     |    └─→ rename(temp_path, final_path)   [final path appears all-at-once]
+     |         ├─→ aborted/dropped close: partial preserved (resume), no rename
      |         └─→ on failure: return kXR_IOError
      |
      ├─→ Write-through flush (if enabled):

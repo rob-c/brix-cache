@@ -1,5 +1,4 @@
-/* ---- File: tls.c — TPC pull in-protocol TLS upgrade (kXR_gotoTLS) ----
- *
+/* File: tls.c — TPC pull in-protocol TLS upgrade (kXR_gotoTLS)
  * WHAT: tpc_start_tls() performs a blocking client TLS handshake over the already
  *   connected TPC pull socket after the source answered the kXR_protocol request
  *   with kXR_gotoTLS; it stores the negotiated SSL on t->tls (and its per-pull
@@ -46,10 +45,12 @@ tpc_start_tls(xrootd_tpc_pull_t *t, int fd)
     SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
 
     /* Verify the source's certificate chain against xrootd_trusted_ca when it is
-     * configured (treated as a CA directory). Chain-only: hostname verification is
-     * intentionally not enabled here (GSI/token at the sec layer carries identity).
-     * If the CA store cannot be loaded, downgrade to an encrypted-but-unverified
-     * transport rather than failing the pull outright. */
+     * configured (treated as a CA directory). If the CA store cannot be loaded,
+     * downgrade to an encrypted-but-unverified transport rather than failing the
+     * pull outright. When chain verification IS active we ALSO bind the expected
+     * hostname below (verify_host) — chain-only would accept any CA-valid cert
+     * for any host, a MITM gap. */
+    int verify_host = 0;
     if (t->conf->trusted_ca.len > 0 && t->conf->trusted_ca.len < PATH_MAX) {
         char cadir[PATH_MAX];
 
@@ -57,6 +58,7 @@ tpc_start_tls(xrootd_tpc_pull_t *t, int fd)
         cadir[t->conf->trusted_ca.len] = '\0';
         if (SSL_CTX_load_verify_locations(ctx, NULL, cadir) == 1) {
             SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+            verify_host = 1;
         } else {
             SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
         }
@@ -74,6 +76,18 @@ tpc_start_tls(xrootd_tpc_pull_t *t, int fd)
     SSL_set_fd(ssl, fd);
     if (t->src_host[0] != '\0') {
         (void) SSL_set_tlsext_host_name(ssl, t->src_host);
+        /* Only meaningful when the chain is actually being verified. */
+        if (verify_host) {
+            SSL_set_hostflags(ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+            if (SSL_set1_host(ssl, t->src_host) != 1) {
+                snprintf(t->err_msg, sizeof(t->err_msg),
+                         "TPC TLS: host-verify setup failed");
+                t->xrd_error = kXR_ServerError;
+                SSL_free(ssl);
+                SSL_CTX_free(ctx);
+                return -1;
+            }
+        }
     }
 
     if (SSL_connect(ssl) != 1) {

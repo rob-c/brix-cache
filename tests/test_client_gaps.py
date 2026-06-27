@@ -145,6 +145,11 @@ def test_recursive_copy_roundtrip(rw_root, tmp_path):
     (src / "sub" / "c.bin").write_bytes(os.urandom(4096))
     url = f"root://{HOST}:{rw_root['port']}"
 
+    # `xrdcp -r` nests the copied tree under the source's last path component
+    # (stock parity: the reference client preserves the source dir name rather
+    # than flattening it). So `xrdcp -r src //tree` lands src's contents under
+    # //tree/src, and the reverse `xrdcp -r //tree back` lands //tree's contents
+    # under back/tree. A round trip therefore re-nests at each leg.
     up = subprocess.run([XRDCP, "-r", str(src), f"{url}//tree"],
                         capture_output=True, text=True, timeout=60)
     assert up.returncode == 0, f"{up.stdout}\n{up.stderr}"
@@ -153,10 +158,13 @@ def test_recursive_copy_roundtrip(rw_root, tmp_path):
                         capture_output=True, text=True, timeout=60)
     assert dn.returncode == 0, f"{dn.stdout}\n{dn.stderr}"
 
-    # every source file must round-trip byte-exact
+    # every source file must round-trip byte-exact under the nested dest root
+    # (back/tree/src/<rel>); the recursive download must create the missing
+    # parent directories itself (mkdir -p), not just the leaf.
+    landed = back / "tree" / "src"
     for rel in ("a.txt", "sub/b.txt", "sub/c.bin"):
         orig = (src / rel).read_bytes()
-        rt = (back / rel).read_bytes()
+        rt = (landed / rel).read_bytes()
         assert hashlib.md5(orig).hexdigest() == hashlib.md5(rt).hexdigest(), rel
 
 

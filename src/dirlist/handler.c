@@ -61,8 +61,7 @@ xrootd_dirlist_name_is_unsafe(const char *name)
  * A 65536-byte chunk buffer is accumulated and flushed as kXR_oksofar frames;
  * the final flush uses kXR_ok to signal end-of-listing.
  */
-/* ---- xrootd_dirlist_origin_forward — GSI-origin `ls` for the cache ----
- *
+/* xrootd_dirlist_origin_forward — GSI-origin `ls` for the cache
  * WHAT: When the cache has an X.509 proxy (xrootd_cache_origin_proxy), answer a
  *       dirlist by fork/exec'ing the native `xrdfs <origin> ls [-l] <path>` (GSI)
  *       and converting its output into a kXR_dirlist response. Same
@@ -271,7 +270,7 @@ ngx_int_t
 xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                       ngx_stream_xrootd_srv_conf_t *conf)
 {
-    ClientDirlistRequest *req = (ClientDirlistRequest *) ctx->hdr_buf;
+    xrdw_dirlist_req_t    req;
     u_char                options;
     char                  full_path[PATH_MAX];
     char                  reqpath[XROOTD_MAX_PATH + 1];
@@ -288,11 +287,9 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_flag_t            want_cksum;
     int                   dfd;
 
-/* ------------------------------------------------------------------ */
-/* Section: Request Parsing & Auth Checks                              */
-/* ------------------------------------------------------------------ */
 
-    options = req->options;
+    xrdw_dirlist_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    options = req.options;
     want_cksum = (options & kXR_dcksm) ? 1 : 0;
     want_stat = (options & (kXR_dstat | kXR_dcksm)) ? 1 : 0;
 
@@ -467,9 +464,6 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* Pool queue was full — fall through to the synchronous path. */
     }
 
-/* ------------------------------------------------------------------ */
-/* Section: Directory Open & Iteration                                 */
-/* ------------------------------------------------------------------ */
 
     dfd = xrootd_open_beneath(conf->rootfd, reqpath, O_RDONLY | O_DIRECTORY, 0);
     if (dfd < 0) {
@@ -522,9 +516,6 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
             chunk_pos = XROOTD_DSTAT_LEADIN_LEN;
         }
 
-/* ------------------------------------------------------------------ */
-/* Section: Chunked Response Framing                                   */
-/* ------------------------------------------------------------------ */
 
         while ((de = readdir(dp)) != NULL) {
             const char *name = de->d_name;
@@ -642,9 +633,6 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
             }
         }
 
-/* ------------------------------------------------------------------ */
-/* Section: Final Flush & Completion                                   */
-/* ------------------------------------------------------------------ */
 
         closedir(dp);
 

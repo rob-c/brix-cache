@@ -26,6 +26,29 @@ On `nginx -s reload` the master:
 settings; an **in-flight** connection finishes on the old worker with the old
 settings. This is exactly what "reload" means here.
 
+```text
+   nginx -s reload (SIGHUP)
+        │
+   ─────┼──────────────── time ────────────────────────────────────▶
+        │
+  master│ nginx -t passes → fork NEW workers ──────────▶ exit when old gone
+        │                      │
+   OLD  ████████████████████░░░│░░░░░░░░░ (draining) ──┘
+   wkrs │ accepting           ╎ stop accepting, finish in-flight conns
+        │                     ╎
+   NEW  │              ┌──────████████████████████████████████████████▶
+   wkrs │              │ accepting with NEW config
+        │              │
+        │         ┌────┴───── DRAIN WINDOW ─────┐
+        │         │ BOTH accept on shared socket │ ← a new conn may briefly
+        │         │ (bound by                    │   land on an OLD worker
+        │         │  worker_shutdown_timeout)    │   = old per-worker config
+        │         └──────────────────────────────┘
+        │
+   SHM  │ config_generation flips INSTANTLY for every worker (not drained)
+        ▼ a bad config aborts the reload → old config keeps serving (no partial apply)
+```
+
 ### Eventual consistency during the drain window
 
 During the drain window **both** old and new workers are accepting on the shared

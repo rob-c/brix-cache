@@ -136,8 +136,7 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
         return ngx_http_send_special(r, NGX_HTTP_LAST);
     }
 
-    /* --- Compute Content-Length --- */
-    for (i = 0; i < nranges; i++) {
+    /* Compute Content-Length */    for (i = 0; i < nranges; i++) {
         off_t part_data_len = ranges[i].end - ranges[i].start + 1;
 
         /* Per-part header:
@@ -163,8 +162,7 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
     /* Final boundary: --BOUNDARY--\r\n */
     total_len += sizeof("--" XRDHTTP_BOUNDARY "--\r\n") - 1;
 
-    /* --- Build response chain --- */
-    for (i = 0; i < nranges; i++) {
+    /* Build response chain */    for (i = 0; i < nranges; i++) {
         off_t part_data_len = ranges[i].end - ranges[i].start + 1;
 
         /* Part header. */
@@ -224,8 +222,7 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
         tail->buf->last_in_chain   = 1;
     }
 
-    /* --- Set response headers --- */
-    r->headers_out.status           = NGX_HTTP_PARTIAL_CONTENT;
+    /* Set response headers */    r->headers_out.status           = NGX_HTTP_PARTIAL_CONTENT;
     r->headers_out.content_length_n = total_len;
     r->allow_ranges = 0;  /* we're emitting the ranges ourselves */
 

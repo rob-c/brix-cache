@@ -40,7 +40,10 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 
 | File | Responsibility |
 |------|----------------|
-| `module.c` | `ngx_module_t` object + the full `ngx_command_t` directive table; custom directive setters (CORS origins, proxy-auth policy); per-worker `init_process` (`curl_global_init`). |
+| `module.c` | The `ngx_module_t` object + `ngx_http_module_t` ctx + the full `ngx_command_t` directive table (declarative data — kept here, watch tier per §2.6). *(Phase 38: logic extracted.)* |
+| `module_directives.c` | The custom directive setters (`webdav_conf_*`: CORS origins, dig export, proxy-auth/upstream, open-file-cache). *(Phase 38 split of `module.c`.)* |
+| `module_init.c` | Phase handlers + per-worker `init_process`/`exit_process` (`curl_global_init`) + the protocol-variable wiring. *(Phase 38 split of `module.c`.)* |
+| `webdav_module_internal.h` | Private split contract shared by `module*.c`. |
 | `config.c` | Location config `create_loc_conf`/`merge_loc_conf`; startup validation: canonicalize export root, build cached `X509_STORE`, load JWKS, validate TPC/CA/CRL paths, parse upstream URLs. |
 | `postconfig.c` | Registers handlers into ACCESS/PRECONTENT/CONTENT/LOG phases; sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on SSL contexts when `proxy_certs on`; resolves the async thread pool. |
 | `webdav.h` | Umbrella header: `ngx_http_xrootd_webdav_loc_conf_t`, per-request `ngx_http_xrootd_webdav_req_ctx_t`, lock structs, auth enums, every cross-file prototype, and inline helpers (`webdav_send_no_body`, TPC header macros). Includes `xrdhttp.h`. |
@@ -69,7 +72,10 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `namespace.c` | DELETE (recursive collection delete via `../compat/fs_walk`, tree lock check) and MKCOL (delegates to `xrootd_ns_mkdir`). |
 | `copy.c` | RFC 4918 COPY (local, same-root): Destination/Overwrite/Depth parse, staged temp-path + atomic rename, recursive dir copy (thread-pool offloaded), xattr/dead-prop preservation, self-copy → 403. |
 | `move.c` | RFC 4918 MOVE: confined `rename(2)` via `xrootd_ns_rename`; collection moves offloaded to thread pool; Overwrite:F → 412, self-move → 403, non-empty dest dir → 409. |
-| `propfind.c` | RFC 4918 PROPFIND (allprop/propname/prop) with libxml2 body parse; Multi-Status XML for files, directories (Depth 0/1), quota, lockdiscovery, supportedlock, RFC 3744 ACL discovery props. |
+| `propfind.c` | RFC 4918 PROPFIND entry/dispatch: request + Depth parse, prop-name→bit, body assembly. *(Phase 38: split.)* |
+| `propfind_props.c` | The per-resource property emitter `propfind_entry` + RFC 3744 ACL property append. *(Phase 38 split of `propfind.c`.)* |
+| `propfind_walk.c` | Depth traversal `propfind_walk` + the `propfind_do` Multi-Status orchestration. *(Phase 38 split of `propfind.c`.)* |
+| `propfind_internal.h` | Private split contract shared by `propfind*.c`. |
 | `lock.c` | RFC 4918 LOCK/UNLOCK; `webdav_check_locks` (ancestor walk) and `webdav_check_locks_tree` (+descendant scan); lock token UUID; lockdiscovery/supportedlock XML; `webdav_lock_startup_sweep`. |
 | `search.c` | RFC 5323 DAV:basicsearch — conservative subset: scope walk + optional `DAV:contains`/`literal` displayname substring filter. |
 | `acl.c` | RFC 3744 ACL method — write is protected; always returns 403 `cannot-modify-protected-property` (ACL is read-only via PROPFIND). |
@@ -91,7 +97,10 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | File | Responsibility |
 |------|----------------|
 | `tpc.c` | HTTP-TPC COPY orchestrator (pull & push): authz, path resolution, transfer-registry registration, dashboard tracking; chooses sync, thread, or 202-marker path. |
-| `tpc_curl.c` | The actual libcurl transfer (HTTPS-only); `tpc_curl_secure` pins the SSRF-validated IP via `CURLOPT_RESOLVE` (DNS-rebind defense), enforces `SSL_VERIFYPEER/HOST`. |
+| `tpc_curl.c` | The libcurl transfer driver `webdav_tpc_run_curl_core` + pull/push/multi entry points (HTTPS-only). *(Phase 38: split.)* |
+| `tpc_curl_setup.c` | Curl handle setup: `tpc_curl_secure` (SSRF-validated `CURLOPT_RESOLVE`, `SSL_VERIFYPEER/HOST`), conf + stall-bound application, HEAD size probe. *(Phase 38 split of `tpc_curl.c`.)* |
+| `tpc_curl_pmark.c` | SciTags packet-marking socket hooks + the curl progress/finish/write callbacks. *(Phase 38 split of `tpc_curl.c`.)* |
+| `tpc_curl_internal.h` | Private split contract shared by `tpc_curl*.c`. |
 | `tpc_thread.c` | Thread-pool wrapper that moves the blocking curl transfer off the event loop; falls back to sync when no pool. |
 | `tpc_marker.c` | `202 Accepted` + chunked WLCG Performance-Marker streaming while curl runs; single- and multi-stream (`X-Number-Of-Streams`) pull with per-stripe byte counters and a poll timer. |
 | `tpc_headers.c` | `webdav_tpc_collect_transfer_headers` — collect `TransferHeader*` request headers into curl headers; reject control chars (400). |

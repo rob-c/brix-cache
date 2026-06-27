@@ -26,6 +26,7 @@ import signal
 import socket
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from settings import NGINX_BIN, HOST, BIND_HOST
 
@@ -757,27 +758,49 @@ def stop_all():
         time.sleep(0.25)
 
 
+# Per-round readiness probe budget.  A still-forming manager answers a locate
+# with kXR_wait, so the locate blocks up to its timeout; keep it short and re-
+# issue promptly (a stalled probe catches its cluster the moment the data node
+# registers) rather than blocking once for a long time.
+_READY_PROBE_TIMEOUT = 3      # seconds per individual xrdfs locate
+_READY_POLL_INTERVAL = 0.3    # seconds between rounds
+
+
+def _probe_ready(probe):
+    """True iff (manager, path) redirects to a data port — i.e. that topology's
+    data node has registered.  Swallows the locate's own timeout/errors: a
+    still-forming cluster simply isn't ready yet."""
+    mgr, path = probe
+    try:
+        rc, stdout, _ = xrdfs_locate(mgr, path, timeout=_READY_PROBE_TIMEOUT,
+                                     retries=1)
+        return rc == 0 and located_port(stdout) is not None
+    except Exception:
+        return False
+
+
 def wait_ready(timeout=120):
     """Block until the mesh has actually formed: probe each topology's manager
     with a locate for a known path until it redirects (returns a data port).
 
     This replaces a blind settle-sleep — a redirect proves the manager is up
     AND that topology's data node(s) have registered and answer selection.
-    Returns (ready_count, total, still_pending_probes)."""
+    Returns (ready_count, total, still_pending_probes).
+
+    The ~24 probes run CONCURRENTLY each round.  A not-yet-registered manager
+    answers a locate with kXR_wait, so a serial probe blocks ~timeout seconds on
+    every still-forming topology and a round costs their SUM (~20-30 s total).
+    Probing in parallel bounds a round by the SLOWEST single topology instead,
+    so total convergence tracks real cluster formation (~8 s) — a few rounds of
+    short, re-issued probes that each catch their cluster as it registers."""
     pending = list(READY_PROBES)
     total = len(pending)
     deadline = time.time() + timeout
-    while pending:
-        still = []
-        for mgr, path in pending:
-            try:
-                rc, stdout, _ = xrdfs_locate(mgr, path, timeout=10, retries=1)
-                if rc != 0 or located_port(stdout) is None:
-                    still.append((mgr, path))
-            except Exception:
-                still.append((mgr, path))
-        pending = still
-        if not pending or time.time() >= deadline:
-            break
-        time.sleep(2)
+    with ThreadPoolExecutor(max_workers=max(len(pending), 1)) as pool:
+        while pending:
+            ready = pool.map(_probe_ready, pending)
+            pending = [p for p, ok in zip(pending, ready) if not ok]
+            if not pending or time.time() >= deadline:
+                break
+            time.sleep(_READY_POLL_INTERVAL)
     return total - len(pending), total, pending

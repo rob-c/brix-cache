@@ -63,6 +63,21 @@ def worker_port(base):
     the stride exceeds the span of all conformance base ports."""
     return base + _WORKER_BAND_LIFT + _worker_index() * _WORKER_BAND_STRIDE
 
+
+def worker_prefix(base):
+    """Make a filename PREFIX unique per xdist worker — the filesystem analogue of
+    worker_port().
+
+    Many modules share the fleet's single mutable data root and clean up by
+    deleting *every* PREFIX-named artefact before/after each test.  Under
+    `--dist load` a module's tests scatter across workers, so a CONSTANT prefix
+    lets one worker's teardown delete another worker's in-flight files
+    (FileNotFound / wrong-size / cross-talk races).  Tag the prefix with the
+    worker id so each worker's create+cleanup is confined to its own namespace.
+    Returns ``base`` unchanged in serial / `-n0` runs except for a stable "main"
+    tag (PYTEST_XDIST_WORKER is unset), so single-worker semantics are preserved."""
+    return "%s%s_" % (base, os.environ.get("PYTEST_XDIST_WORKER", "main"))
+
 OFF_XRDFS = shutil.which("xrdfs")
 OFF_XRDCP = shutil.which("xrdcp")
 OFF_XROOTD = shutil.which("xrootd")
@@ -88,7 +103,14 @@ def _wait(port, t=10.0):
 
 
 def _det(n, seed=0):
-    return bytes((i * 37 + 11 + seed) & 0xff for i in range(n))
+    # (i*37 + 11 + seed) mod 256 has period 256 (37 is odd → coprime with 256),
+    # so build one 256-byte cycle and tile it. Byte-identical to the old
+    # per-byte generator but ~constant-time instead of O(n) Python calls (the old
+    # form spent seconds on the 1 MiB tree files, ×2 servers, ×~20 conf modules).
+    c = (11 + seed) & 0xff
+    cycle = bytes((i * 37 + c) & 0xff for i in range(256))
+    full, rem = divmod(n, 256)
+    return cycle * full + cycle[:rem]
 
 
 def make_tree(root):

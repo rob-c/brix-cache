@@ -31,8 +31,7 @@
 #include <string.h>
 #include <time.h>
 
-/* ---- stub state --------------------------------------------------------- */
-
+/* stub state */
 static int     s_available_val   = 1;     /* what stub available() returns       */
 static int     s_acquire_count   = 0;     /* total acquire() calls               */
 static int     s_refresh_count   = 0;     /* total refresh() calls               */
@@ -94,8 +93,7 @@ xrdc_cred_s3keys(void)
     return &s_stub_handler;
 }
 
-/* ---- helpers ------------------------------------------------------------ */
-
+/* helpers */
 static void
 reset_stub(int available_val, int64_t not_after_delta)
 {
@@ -105,8 +103,7 @@ reset_stub(int available_val, int64_t not_after_delta)
     s_not_after_delta = not_after_delta;
 }
 
-/* ---- test 1: success path + cache --------------------------------------- */
-
+/* test 1: success path + cache */
 /*
  * test_success_and_cache — handler present + available → acquire returns keys;
  * second acquire returns cached result (acquire-count stays 1).
@@ -142,8 +139,7 @@ test_success_and_cache(void)
     printf("test_success_and_cache: PASS\n");
 }
 
-/* ---- test 2: invalid-kind error ----------------------------------------- */
-
+/* test 2: invalid-kind error */
 /*
  * test_missing_handler — an out-of-range kind (XRDC_CRED_KIND_COUNT) has no
  * handler by construction → available()==0 and acquire()==-1 with st set.
@@ -172,8 +168,7 @@ test_missing_handler(void)
     printf("test_missing_handler: PASS\n");
 }
 
-/* ---- test 3: expiry + refresh gate -------------------------------------- */
-
+/* test 3: expiry + refresh gate */
 /*
  * test_expiry_and_refresh — with auto_refresh=1 and a credential expiring in
  * 30s, a min_remaining_s=60 request triggers refresh+re-acquire; with
@@ -229,8 +224,7 @@ test_expiry_and_refresh(void)
     printf("test_expiry_and_refresh: PASS\n");
 }
 
-/* ---- main --------------------------------------------------------------- */
-
+/* main */
 int
 main(void)
 {

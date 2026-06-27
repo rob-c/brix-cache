@@ -63,7 +63,12 @@ def test_gsi_core_invariants_unit():
         CC, "-O2", "-D_GNU_SOURCE", f"-I{os.path.join(REPO, 'src')}",
         "-o", out_bin,
         os.path.join(REPO, "tests/c/gsi_interop_test.c"),
+        # gsi_core was split into focused units (cipher/rsa/buf/dh); link them all.
         os.path.join(REPO, "src/gsi/gsi_core.c"),
+        os.path.join(REPO, "src/gsi/gsi_cipher.c"),
+        os.path.join(REPO, "src/gsi/gsi_rsa.c"),
+        os.path.join(REPO, "src/gsi/gsi_buf.c"),
+        os.path.join(REPO, "src/gsi/gsi_dh.c"),
         os.path.join(REPO, "src/compat/crypto.c"),
         "-lcrypto",
     ]

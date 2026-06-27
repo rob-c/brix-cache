@@ -226,6 +226,13 @@ Important details:
   "create or replace"
 - large files arrive as multiple `kXR_pgwrite` requests
 - `xrdcp` normally issues `kXR_sync` before closing the handle
+- **the bytes land in a staging file, not the final path.** A fresh upload
+  (`kXR_new`) is written to a temporary/partial file and **atomically renamed
+  onto the destination only on a clean `kXR_close`** (`xrootd_upload_resume` is on
+  by default). A reader never sees a half-written file, and a mid-transfer
+  disconnect leaves the resumable partial behind rather than a torn destination.
+  In-place updates (`kXR_open_updt`) write directly. See
+  [Writing files → Atomic uploads](../05-operations/write.md#atomic-uploads-stage-then-move).
 
 Relevant code:
 
@@ -336,6 +343,11 @@ Things to know:
 - the upload is one HTTP `PUT`, not a stream of `kXR_pgwrite` requests
 - nginx may hold the request body in memory or may spool it to a temp file
   before the module writes the destination file
+- the module then writes to a **staging file and atomically renames it onto the
+  destination** when the `PUT` completes — so an interrupted `PUT` never leaves a
+  half-written object at the target path (same `xrootd_staged_open()`/`commit`
+  lifecycle as S3 `PUT`; see
+  [Writing files → Atomic uploads](../05-operations/write.md#atomic-uploads-stage-then-move))
 - overwrites are expressed as another `PUT` to the same path
 - the module returns `201` for create and `204` for overwrite
 
@@ -363,6 +375,24 @@ x509 verification work on every request.
 ---
 
 ## Side-by-side comparison
+
+The same "download a file" intent, the two transports side by side — note that
+`root://` is **one stateful session** while `davs://` is **independent requests**:
+
+```text
+   USER INTENT          root://  (stateful session)     davs://  (per-request)
+   ───────────          ──────────────────────────     ──────────────────────
+   negotiate    ......  kXR_protocol [+ kXR_Qconfig]    OPTIONS
+   login        ......  kXR_login            ┐ once     (TLS + HTTP context)
+   authenticate ......  kXR_auth             ┘ per conn TLS cert / Bearer hdr
+   stat         ......  kXR_stat                        PROPFIND Depth:0 / HEAD
+   open         ......  kXR_open ── returns fhandle ──┐ (no open; path each req)
+   download     ......  kXR_read / kXR_readv (fhandle)│ GET [+ Range]
+   close        ......  kXR_close ───────────────────┘ (request ends)
+   end          ......  kXR_endsess → TCP close         keepalive → TCP close
+
+   ONE handle reused for many reads ▲         every request re-resolves path ▲
+```
 
 | User intent | Native `root://` | WebDAV `davs://` |
 |---|---|---|

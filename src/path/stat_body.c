@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/* ---- Function: xrootd_make_stat_body() ----
+/*
  *
  * WHAT: Formats filesystem metadata into XRootD wire protocol stat response body string. Converts struct stat fields (inode, size, mode, timestamps) into the 4-field space-separated format expected by kXR_stat/kXR_statx opcodes. Two output modes: VFS mode produces simplified block count + readable flag; non-VFS mode includes inode number and full permission flags.
  *

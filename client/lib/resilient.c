@@ -105,8 +105,7 @@ xrdc_reconnect_home(xrdc_conn *c, xrdc_status *st)
     return xrdc_reconnect(c, host, port, st);
 }
 
-/* --- stateless op wrapper ------------------------------------------------- */
-
+/* stateless op wrapper */
 int
 xrdc_with_resilience(xrdc_conn *c, int max_stall_ms, xrdc_op_class cls,
                      int benign_errno, xrdc_op_fn op, void *arg, xrdc_status *st)
@@ -209,8 +208,7 @@ xrdc_roundtrip_resilient(xrdc_conn *c, void *hdr24, const void *payload,
     }
 }
 
-/* --- resilient file ------------------------------------------------------- */
-
+/* resilient file */
 /* (Re)open the handle on the CURRENT connection. Writes reopen in place via
  * kXR_open_updt (no truncate) so already-written bytes survive a mid-write
  * sever; reads use the opaque variant when an opaque suffix is present. */

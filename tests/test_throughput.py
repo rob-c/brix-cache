@@ -26,7 +26,8 @@ from settings import (
 )
 
 # All tests in this module transfer 200 MB files — give them ample time.
-pytestmark = pytest.mark.timeout(240)
+# serial: measures throughput ratios — invalid under a saturated parallel pool.
+pytestmark = [pytest.mark.timeout(240), pytest.mark.serial]
 
 # ---------------------------------------------------------------------------
 # Configuration

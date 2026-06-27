@@ -26,6 +26,16 @@ root://eoscms.cern.ch//store/data/...root?scitag.flow=206
 flow-id = (experiment << 6) | activity          (experiment 1..1023, activity 1..63)
 ```
 
+```text
+  16-bit flow-id  =  (experiment << 6) | activity
+  ─────────────────────────────────────────────────
+   scitag.flow = 206 = 0b 0000_0011 _ 00_1110
+                          └── exp ──┘ └─ act ─┘
+                          exp = 206 >> 6 = 3   (CMS)
+                          act = 206 & 0x3F = 14 (Analysis primary)
+   exp 1..1023 (10 bits)            act 1..63 (6 bits)
+```
+
 So `scitag.flow=206` means **experiment 3 (CMS)**, **activity 14**. CMS assigns a
 contiguous block of activity codes to its workflows
 ([`ScitagConfig.cc`](https://github.com/cms-sw/cmssw/blob/master/FWStorage/Services/plugins/ScitagConfig.cc),
@@ -155,7 +165,25 @@ for the `xrootd_pmark_map_experiment` / `xrootd_pmark_map_activity` *fallback* r
 
 ## 4. What goes on the wire (and why it matches CMS)
 
-When a flow is marked **exp 3, act 14**, two things happen:
+When a flow is marked **exp 3, act 14**, two things happen — one channel off the
+wire to the collector, one channel on the wire for the network to read:
+
+```text
+  CMS job ── root://…//file?scitag.flow=206 ──▶ ┌─────────────────────┐
+                                                │  nginx-xrootd        │
+                                                │  decode → exp3/act14 │
+                                                └──────┬───────┬───────┘
+                          OUT-OF-BAND (Firefly UDP)    │       │   IN-BAND
+                          ───────────────────────      │       │   ────────
+              flowd.mysite:10514 ◀── JSON {exp:3, ─────┘       └──▶ IPv6 Flow Label
+              SciTags dashboard      act:14, bytes,                 stamped on the
+              (XrdNetPMarkFF-compat) RTT, 5-tuple}                  data socket =
+                                                                    196664 + entropy
+                                                                    (routers/NRENs read it)
+   fail-open: no v6 / no CAP_NET_ADMIN → label skipped, Firefly still reports. Never blocks.
+```
+
+
 
 **Firefly UDP** to `flowd.mysite.example:10514` — a JSON document reporting the
 flow's `experiment-id: 3`, `activity-id: 14`, byte counts, RTT and 5-tuple. This is

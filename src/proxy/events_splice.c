@@ -1,13 +1,18 @@
 #include "proxy_internal.h"
 #include "../connection/handler.h"
+#include "../connection/write_helpers.h"   /* xrootd_queue_response_base */
 #include <sys/socket.h>
+#include <sys/ioctl.h>   /* FIONREAD — only splice a fully-buffered body */
 
-/* ---- zero-copy splice fast-path ------------------------------------------ */
-
+/* zero-copy splice fast-path */
 #ifdef __linux__
 
 /* Forward declaration — xrootd_proxy_splice_wev is defined after the pump. */
 static void xrootd_proxy_splice_wev(ngx_event_t *wev);
+
+/* Forward declaration — the under-draining-splice fallback, defined after the
+ * pump (the pump calls it when splice stalls with data still queued). */
+static void xrootd_proxy_splice_to_buffered(xrootd_proxy_ctx_t *proxy);
 
 /*
  * xrootd_proxy_splice_done — called when all splice_total bytes have been
@@ -37,6 +42,7 @@ xrootd_proxy_splice_done(xrootd_proxy_ctx_t *proxy)
 
     /* Reset accumulator for the next response. */
     proxy->splice_active     = 0;
+    proxy->splice_fallback   = 0;
     proxy->splice_total      = 0;
     proxy->splice_upstream   = 0;
     proxy->splice_downstream = 0;
@@ -94,8 +100,7 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
     }
 
     for (;;) {
-        /* ---- upstream fd → pipe[1] ---- */
-        if (proxy->splice_upstream < proxy->splice_total) {
+        /* upstream fd → pipe[1] */        if (proxy->splice_upstream < proxy->splice_total) {
             size_t in_pipe_now = proxy->splice_upstream - proxy->splice_downstream;
             if (in_pipe_now == 0) {
                 /*
@@ -114,7 +119,25 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
                 if (r > 0) {
                     proxy->splice_upstream += (size_t) r;
                 } else if (r < 0 && ngx_errno == NGX_EAGAIN) {
-                    /* Upstream socket empty — arm read and wait. */
+                    /*
+                     * The pump always drains everything currently in the upstream
+                     * socket (looping pipe-fill/pipe-drain) before splice(upstream→
+                     * pipe) reports EAGAIN.  So reaching EAGAIN with body still
+                     * outstanding means the remainder has not all arrived yet (or
+                     * the kernel under-drains socket splice, as WSL2 does — moving a
+                     * trickle per call and stalling a large read into a 60s client
+                     * timeout).  Either way the reliable, edge-efficient choice is
+                     * to relay the remaining body via the buffered recv path, which
+                     * drains the whole socket buffer per wakeup as data arrives.
+                     * (When the entire body was already buffered, the pump finishes
+                     * via splice_done and never reaches here — so the zero-copy fast
+                     * path is preserved for the in-buffer case.)
+                     */
+                    if (proxy->splice_downstream < proxy->splice_total) {
+                        xrootd_proxy_splice_to_buffered(proxy);
+                        return;
+                    }
+                    /* Body complete — nothing left; arm read and let the loop end. */
                     if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
                         xrootd_proxy_abort(proxy,
                             "proxy: splice read arm failed");
@@ -133,8 +156,7 @@ xrootd_proxy_splice_pump(xrootd_proxy_ctx_t *proxy)
             }
         }
 
-        /* ---- pipe[0] → client fd ---- */
-        {
+        /* pipe[0] → client fd */        {
             size_t  in_pipe = proxy->splice_upstream - proxy->splice_downstream;
             if (in_pipe == 0) {
                 if (proxy->splice_downstream >= proxy->splice_total) {
@@ -207,6 +229,97 @@ xrootd_proxy_splice_wev(ngx_event_t *wev)
 }
 
 /*
+ * xrootd_proxy_splice_to_buffered — switch an under-draining splice transfer to
+ * the reliable buffered recv relay for the REMAINDER of the current body.
+ *
+ * Called from the pump when splice(upstream→pipe) reports EAGAIN but a MSG_PEEK
+ * shows data is still queued (a kernel whose socket-splice under-drains).  At this
+ * point the pipe is empty (splice_upstream == splice_downstream), the 8-byte
+ * response header and splice_downstream body bytes are already on the wire, so the
+ * remaining splice_total − splice_downstream bytes are accumulated via the normal
+ * body loop and relayed RAW (no second header) by xrootd_proxy_splice_fallback_finish.
+ */
+static void
+xrootd_proxy_splice_to_buffered(xrootd_proxy_ctx_t *proxy)
+{
+    size_t remaining = proxy->splice_total - proxy->splice_downstream;
+
+    /*
+     * Bound the buffer: the buffered path holds the remainder in one allocation,
+     * so cap it at the same ceiling the normal relay uses.  An oversized remainder
+     * keeps splicing (arm + wait) — slow on a broken kernel, but never unbounded
+     * memory.  Real reads are far below this; this is belt-and-braces.
+     */
+    if (remaining == 0 || remaining > XROOTD_PROXY_MAX_BODY) {
+        if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
+            xrootd_proxy_abort(proxy, "proxy: splice read arm failed");
+        }
+        return;
+    }
+
+    proxy->resp_body = ngx_alloc(remaining + 1, proxy->client_conn->log);
+    if (proxy->resp_body == NULL) {
+        xrootd_proxy_abort(proxy, "proxy: splice fallback body alloc failed");
+        return;
+    }
+    proxy->resp_body[remaining] = '\0';
+    proxy->resp_dlen     = (uint32_t) remaining;   /* remaining body only */
+    proxy->resp_body_pos = 0;
+    proxy->splice_active = 0;
+    proxy->splice_fallback = 1;
+
+    /* Latch: this upstream's kernel under-drains socket-splice. Re-attempting the
+     * splice fast-path on every subsequent read just repeats the wasted trickle-
+     * splice + buffered-handoff dance (and its rare lost-wakeup stall into the
+     * proxy_read_timeout). Once latched, try_splice declines and every later read
+     * goes straight to the reliable buffered relay. Log only on the first latch. */
+    ngx_log_error(NGX_LOG_NOTICE, proxy->client_conn->log, 0,
+        "xrootd proxy: upstream splice under-draining (%uz/%uz body sent) — "
+        "relaying the remaining %uz bytes via the buffered path",
+        proxy->splice_downstream, proxy->splice_total, remaining);
+
+    /* Drive the body accumulation in the read handler: arm + post the read
+     * event (the queued data produced no fresh edge, so post explicitly). */
+    if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
+        xrootd_proxy_abort(proxy, "proxy: splice fallback read arm failed");
+        return;
+    }
+    if (!proxy->conn->read->posted) {
+        ngx_post_event(proxy->conn->read, &ngx_posted_events);
+    }
+}
+
+/*
+ * xrootd_proxy_splice_fallback_finish — complete a splice→buffered fallback once
+ * the remaining body has been accumulated into resp_body by the read handler.
+ * Sends those bytes RAW to the client (the header is already on the wire), then
+ * runs the same post-transfer accounting/finish as a fully-spliced response.
+ */
+void
+xrootd_proxy_splice_fallback_finish(xrootd_proxy_ctx_t *proxy)
+{
+    xrootd_ctx_t *ctx  = proxy->client_ctx;
+    u_char       *body = proxy->resp_body;
+    size_t        n    = proxy->resp_dlen;
+
+    /* Hand ownership of the heap body to the send path (freed after it drains). */
+    proxy->resp_body     = NULL;
+    proxy->splice_fallback = 0;
+
+    if (xrootd_queue_response_base(ctx, proxy->client_conn, body, n, body)
+        != NGX_OK)
+    {
+        xrootd_proxy_abort(proxy, "proxy: splice fallback relay failed");
+        return;
+    }
+
+    /* The whole body (header + spliced prefix + buffered remainder) is now on the
+     * wire — account and finish exactly as a fully-spliced response would. */
+    proxy->splice_downstream = proxy->splice_total;
+    xrootd_proxy_splice_done(proxy);
+}
+
+/*
  * xrootd_proxy_try_splice — attempt to start a zero-copy splice for the
  * current read response.  Returns NGX_OK if splice was started (the caller
  * must NOT allocate resp_body or loop for body data).  Returns NGX_DECLINED
@@ -239,6 +352,27 @@ xrootd_proxy_try_splice(xrootd_proxy_ctx_t *proxy)
     }
     if (proxy->resp_dlen == 0) {
         return NGX_DECLINED;
+    }
+
+    /*
+     * Only splice a body that has ALREADY fully arrived in the upstream socket
+     * buffer (the 8-byte header was just consumed, so FIONREAD now reports body
+     * bytes).  Splicing a still-streaming body makes the pump hit a mid-transfer
+     * EAGAIN and hand the remainder to the buffered relay — a fragile transition
+     * whose epoll-ET re-arm is unreliable after splice() drains the socket
+     * (observed as rare multi-second lost-wakeup stalls into proxy_read_timeout
+     * over proxy→proxy hops).  When the whole body is buffered, splice completes
+     * in one pump with no handoff; otherwise the caller's buffered relay reads the
+     * streamed body reliably (it drains the socket per wakeup and is plenty fast).
+     * This keeps zero-copy for the fully-buffered common case while removing the
+     * stall-prone streaming-splice handoff entirely.
+     */
+    {
+        int avail = 0;
+        if (ioctl(proxy->conn->fd, FIONREAD, &avail) != 0
+            || (size_t) avail < (size_t) proxy->resp_dlen) {
+            return NGX_DECLINED;
+        }
     }
 
     /* Lazy-create the kernel pipe. */

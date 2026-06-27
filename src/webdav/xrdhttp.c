@@ -46,8 +46,7 @@
 /* Our nginx module context tag for the XrdHttp per-request context. */
 extern ngx_module_t ngx_http_xrootd_webdav_module;
 
-/* ---- context management ---- */
-
+/* context management */
 xrdhttp_req_ctx_t *
 xrdhttp_get_ctx(ngx_http_request_t *r)
 {
@@ -67,8 +66,7 @@ xrdhttp_get_ctx(ngx_http_request_t *r)
     return &webdav_ctx->xrdhttp;
 }
 
-/* ---- query string helpers ---- */
-
+/* query string helpers */
 /*
  * Copy the value of query parameter <key> from the raw nginx args string into
  * <dst> (max <dstsz> bytes including NUL terminator).  Performs URL-decoding
@@ -143,8 +141,7 @@ xrdhttp_normalize_rfc3230_algo(const u_char *value, size_t vlen,
     }
 }
 
-/* ---- request parsing ---- */
-
+/* request parsing */
 void
 xrdhttp_parse_request(ngx_http_request_t *r)
 {
@@ -156,8 +153,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
         return;
     }
 
-    /* --- Detect XrdHttp client via X-Xrootd-Proto header --- */
-    h = webdav_tpc_find_header(r, "X-Xrootd-Proto",
+    /* Detect XrdHttp client via X-Xrootd-Proto header */    h = webdav_tpc_find_header(r, "X-Xrootd-Proto",
                                sizeof("X-Xrootd-Proto") - 1);
     if (h != NULL) {
         ctx->is_xrdhttp = 1;
@@ -171,7 +167,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
                        ctx->proto_version);
     }
 
-    /* --- Want-Digest: adler32 (RFC 3230) enables the streaming body digest.
+    /* Want-Digest: adler32 (RFC 3230) enables the streaming body digest.
      * Only meaningful for XrdHttp clients; the body filter folds the response
      * through adler32 and emits a Digest trailer. Only adler32 streams here —
      * other algorithms (crc32c, crc64, crc64nvme, md5, sha*) are computed from
@@ -185,8 +181,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
         ctx->compute_digest = 1;
     }
 
-    /* --- Capture X-Xrootd-Requuid (echo in every response) --- */
-    h = webdav_tpc_find_header(r, "X-Xrootd-Requuid",
+    /* Capture X-Xrootd-Requuid (echo in every response) */    h = webdav_tpc_find_header(r, "X-Xrootd-Requuid",
                                sizeof("X-Xrootd-Requuid") - 1);
     if (h != NULL && h->value.len > 0) {
         size_t copy = ngx_min(h->value.len, (size_t) XRDHTTP_UUID_MAX - 1);
@@ -194,8 +189,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
         ctx->requuid[copy] = '\0';
     }
 
-    /* --- Capture X-Xrootd-Tpc-Token --- */
-    h = webdav_tpc_find_header(r, "X-Xrootd-Tpc-Token",
+    /* Capture X-Xrootd-Tpc-Token */    h = webdav_tpc_find_header(r, "X-Xrootd-Tpc-Token",
                                sizeof("X-Xrootd-Tpc-Token") - 1);
     if (h != NULL && h->value.len > 0) {
         size_t copy = ngx_min(h->value.len,
@@ -204,8 +198,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
         ctx->tpc_token[copy] = '\0';
     }
 
-    /* --- Parse ?xrd.* and ?tpc.* query parameters --- */
-    if (r->args.len > 0) {
+    /* Parse ?xrd.* and ?tpc.* query parameters */    if (r->args.len > 0) {
         xrdhttp_args_get(&r->args, "xrd.clnt.uuid",
                          sizeof("xrd.clnt.uuid") - 1,
                          ctx->clnt_uuid, sizeof(ctx->clnt_uuid));
@@ -235,7 +228,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
                          ctx->tpc_key, sizeof(ctx->tpc_key));
     }
 
-    /* --- Want-Digest: (RFC 3230) — XrdClHttp sends this on HEAD to request checksums.
+    /* Want-Digest: (RFC 3230) — XrdClHttp sends this on HEAD to request checksums.
      * Only checked when ?xrd.want.cksum= was not supplied (query param takes priority). */
     if (!ctx->want_cksum[0]) {
         h = webdav_tpc_find_header(r, "Want-Digest", sizeof("Want-Digest") - 1);
@@ -268,8 +261,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
     }
 }
 
-/* ---- HTTP → kXR status mapping ---- */
-
+/* HTTP → kXR status mapping */
 int
 xrdhttp_http_to_xrd_status(ngx_int_t http_status)
 {
@@ -360,8 +352,7 @@ xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)
     return NGX_OK;
 }
 
-/* ---- redirect dialect ---- */
-
+/* redirect dialect */
 ngx_int_t
 xrdhttp_send_redirect(ngx_http_request_t *r,
                        const char *location_url,
@@ -451,8 +442,7 @@ xrdhttp_send_redirect(ngx_http_request_t *r,
     return ngx_http_send_special(r, NGX_HTTP_LAST);
 }
 
-/* ---- ?xrd.stats detection ---- */
-
+/* ?xrd.stats detection */
 int
 xrdhttp_request_is_stats_query(ngx_http_request_t *r)
 {
@@ -463,8 +453,7 @@ xrdhttp_request_is_stats_query(ngx_http_request_t *r)
                                 sizeof("xrd.stats") - 1);
 }
 
-/* ---- multirange detection ---- */
-
+/* multirange detection */
 int
 xrdhttp_request_is_multirange(ngx_http_request_t *r)
 {
@@ -481,8 +470,7 @@ xrdhttp_request_is_multirange(ngx_http_request_t *r)
                         ',') != NULL);
 }
 
-/* ---- TPC header injection ---- */
-
+/* TPC header injection */
 ngx_int_t
 xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
 {
@@ -580,8 +568,7 @@ xrdhttp_inject_tpc_headers(ngx_http_request_t *r)
     return NGX_OK;
 }
 
-/* ---- checksum header injection ---- */
-
+/* checksum header injection */
 ngx_int_t
 xrdhttp_add_checksum_header(ngx_http_request_t *r,
                              ngx_fd_t fd,
@@ -636,8 +623,7 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
     return xrootd_http_set_header(r, "Digest", hdr_value, NULL);
 }
 
-/* ---- streaming Digest body filter (Phase 21 Step B) ---- */
-
+/* streaming Digest body filter (Phase 21 Step B) */
 ngx_int_t
 xrdhttp_digest_body_filter(ngx_http_request_t *r, ngx_chain_t *in,
     ngx_http_output_body_filter_pt next)

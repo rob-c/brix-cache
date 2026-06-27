@@ -8,8 +8,7 @@
 #include "pgw_fob.h"          /* CSE uncorrected-page registry */
 #include "../compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */
 
-/* ---- pgwrite_retry_spans_multiple_pages() ----
- *
+/* pgwrite_retry_spans_multiple_pages()
  * A kXR_pgRetry resend must correct exactly one page.  Mirrors stock
  * do_PgWIORetry: an unaligned offset may carry at most (bytes-to-boundary + one
  * CRC); an aligned offset at most one page unit (kXR_pgUnitSZ = 4100).  Returns
@@ -26,8 +25,7 @@ pgwrite_retry_spans_multiple_pages(int64_t offset, size_t dlen)
     return dlen > (size_t) kXR_pgUnitSZ;
 }
 
-/* ---- Payload decoding helper ----
- *
+/* Payload decoding helper
  * Decodes a kXR_pgwrite payload into a flat pwrite() buffer.
  *
  * Payload layout is CRC first:
@@ -76,8 +74,7 @@ xrootd_pgwrite_decode_payload(const u_char *payload, size_t payload_len,
 	return NGX_OK;
 }
 
-/* ---- pgwrite handler section ----
- *
+/* pgwrite handler section
  * WHAT: Handle kXR_pgwrite, the page-mode write with a 4-byte CRC32c before
  *       each ≤4 KiB page.  Implements the stock CSE (checksum-error) retransmit
  *       machine: verify EVERY page (xrdp_pg_decode_collect), write ALL pages —
@@ -101,14 +98,19 @@ xrootd_pgwrite_decode_payload(const u_char *payload, size_t payload_len,
 ngx_int_t
 xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 {
-	ClientPgWriteRequest         *req  = (ClientPgWriteRequest *) ctx->hdr_buf;
+	xrdw_pgwrite_req_t            req;
 	ngx_stream_xrootd_srv_conf_t *rconf;
-	int     idx    = (int)(unsigned char) req->fhandle[0];
-	int64_t offset = (int64_t) be64toh((uint64_t) req->offset);
+	int     idx;
+	int64_t offset;
 	size_t  dlen   = ctx->cur_dlen;
 	u_char *payload = ctx->payload;
-	int     is_retry = (req->reqflags & kXR_pgRetry) != 0;
+	int     is_retry;
 	ngx_int_t rc;
+
+	xrdw_pgwrite_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	idx      = (int)(unsigned char) req.fhandle[0];
+	offset   = req.offset;
+	is_retry = (req.reqflags & kXR_pgRetry) != 0;
 	int64_t write_offset;
 	size_t  total_written;
 	ssize_t nw;
@@ -130,8 +132,7 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 						  kXR_ArgInvalid, "invalid pgwrite payload");
 	}
 
-	/* ---- kXR_pgRetry correction request ----
-	 * A retry must correct exactly one registered page.  Too large → reject.
+	/* kXR_pgRetry correction request	 * A retry must correct exactly one registered page.  Too large → reject.
 	 * Not registered (stray/forged retry, or a resend during write recovery)
 	 * → drop the retry flag and treat as a normal write so it cannot corrupt
 	 * the Fob (matches stock do_PgWIORetry). */
@@ -190,8 +191,7 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		}
 		flat_sz = (size_t) dn;
 
-		/* ---- kXR_recoverWrts replay detection (post-decode) ----
-		 * Only short-circuit a clean replay; a request with bad pages must take
+		/* kXR_recoverWrts replay detection (post-decode)		 * Only short-circuit a clean replay; a request with bad pages must take
 		 * the normal accept-then-correct path so the CSE list is emitted.  A
 		 * kXR_pgRetry correction deliberately re-writes a range already in the
 		 * journal, so it must NOT be mistaken for a replay (that would skip the
@@ -207,8 +207,7 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			return xrootd_send_pgwrite_status(ctx, c, offset);
 		}
 
-		/* ---- register newly-corrupt pages in the Fob (close-time gate) ----
-		 * The data is still written (accept-then-correct); the Fob is what
+		/* register newly-corrupt pages in the Fob (close-time gate)		 * The data is still written (accept-then-correct); the Fob is what
 		 * blocks a clean close until every page is corrected.  Per-file
 		 * capacity overflow → kXR_TooManyErrs (matches stock addOffs). */
 		if (bad_count > 0) {
@@ -259,6 +258,7 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 			xrootd_vfs_job_write_init(&job, ctx->files[idx].fd,
 									  (off_t) write_offset, flat, flat_sz);
+			job.csi = ctx->files[idx].csi;   /* phase-59 W2: update page tags */
 			xrootd_vfs_io_execute(&job);
 			nw = job.nio;
 			if (job.io_errno != 0) {
@@ -287,8 +287,7 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		ctx->session_bytes_written    += total_written;
 		xrootd_rl_charge_ctx(ctx, total_written);  /* Phase 25 bandwidth */
 
-		/* ---- write-through dirty state tracking (mirrors XrdPfcFile::m_dirtyOffset) ----
-		 *
+		/* write-through dirty state tracking (mirrors XrdPfcFile::m_dirtyOffset)
 		 * Same logic as in write.c: when wt_enabled = 1 this handle has a cached
 		 * DECISION to propagate writes back to the origin at close time. We track
 		 * cumulative bytes written and mark the dirty offset so write-back

@@ -1,50 +1,10 @@
 /*
- * webfile.c — HTTP(S)/WebDAV transport for the FUSE driver (read path).
- *
- * WHAT: A small "web file" layer mirroring the root:// mfile API so the FUSE
- *       driver can mount an http/https/dav/davs endpoint:
- *         - xrdc_web_stat()    : PROPFIND Depth:0  → size/mtime/is-dir (getattr)
- *         - xrdc_web_readdir() : PROPFIND Depth:1  → child entries (readdir)
- *         - xrdc_webfile_open/pread/close : a file opened for read whose pread
- *           issues an HTTP Range GET over a PERSISTENT keep-alive connection, so
- *           sequential FUSE reads do not pay a TCP+TLS handshake each — essential
- *           for a fair root-vs-https performance comparison. Resilient: a dropped
- *           connection is transparently re-established and the read re-issued.
- * WHY:  Lets one FUSE driver serve the same namespace over either the binary
- *       root:// protocol or HTTP(S)/WebDAV, against this server or any standard
- *       WebDAV/XrdHttp server, for an apples-to-apples protocol comparison.
- * HOW:  Metadata uses the generic one-shot xrdc_http_req (PROPFIND); the read hot
- *       path keeps its own socket. PROPFIND XML is parsed namespace-prefix-
- *       agnostically (D:, lp1:, a:, or none) so it works across server vendors.
- *       Auth is anonymous or Bearer-token (Authorization header); TLS verifies
- *       the server chain against ca_dir (https/davs).
- *
- * Clean-room: composes the public http/tls/uri helpers; no libXrdCl.
+ * webfile.c - (kept) routing + shared helpers
+ * Phase-38 split of webfile.c; behavior-identical.
  */
-#include "xrdc.h"
-#include "compat/uri.h"
-#include "compat/host_format.h"
+#include "webfile_internal.h"
 
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <stdio.h>
-#include <time.h>
-#include <poll.h>
-#include <errno.h>
-#include <unistd.h>
-
-#define WEB_TIMEOUT_MS   30000
-#define WEB_HDR_MAX      16384         /* response header ceiling for a GET */
-
-/* ------------------------------------------------------------------ */
-/* PROPFIND XML scraping (namespace-prefix agnostic)                   */
-/* ------------------------------------------------------------------ */
-
-/* Value of <[ns:]name> ... </...> within [p,end): returns start + sets *vlen,
- * or NULL. Matches any namespace prefix by keying on "name>" as the open-tag
- * tail and the next "<" as the value terminator. */
-static const char *
+const char *
 tag_val(const char *p, const char *end, const char *name, size_t *vlen)
 {
     char    needle[64];
@@ -66,12 +26,12 @@ tag_val(const char *p, const char *end, const char *name, size_t *vlen)
     return NULL;
 }
 
+
 /* True if [p,end) contains a <[ns:]collection .../> element (defined below). */
-static int has_collection_element(const char *p, const char *end);
 
 /* Parse the HTTP-date in getlastmodified ("Wed, 21 Jun 2026 14:33:03 GMT") to a
  * unix time; 0 if unparseable. */
-static long
+long
 parse_http_date(const char *v, size_t n)
 {
     char       tmp[64];
@@ -88,9 +48,10 @@ parse_http_date(const char *v, size_t n)
     return (long) timegm(&tm);
 }
 
+
 /* Fill *si from one <response> block [p,end). Returns the decoded href into
  * href/hrefsz (path component only). 0 on success. */
-static int
+int
 parse_response(const char *p, const char *end, xrdc_statinfo *si,
                char *href, size_t hrefsz)
 {
@@ -141,12 +102,11 @@ parse_response(const char *p, const char *end, xrdc_statinfo *si,
     return 0;
 }
 
+
 /* Response-block splitters (defined below) — tolerate ns prefixes + attributes. */
-static const char *next_response_open(const char *p, const char *end);
-static const char *next_response_close(const char *p, const char *end);
 
 /* Build the Authorization header (Bearer) or empty. */
-static void
+void
 web_auth(const char *bearer, char *out, size_t outsz)
 {
     if (bearer != NULL && bearer[0] != '\0') {
@@ -155,6 +115,7 @@ web_auth(const char *bearer, char *out, size_t outsz)
         out[0] = '\0';
     }
 }
+
 
 int
 xrdc_web_stat(const xrdc_weburl *u, const char *path, const char *bearer,
@@ -208,19 +169,21 @@ xrdc_web_stat(const xrdc_weburl *u, const char *path, const char *bearer,
     return 0;
 }
 
+
 /* True if c can appear in an XML name (ASCII subset sufficient for ns prefixes). */
-static int
+int
 xml_name_char(char c)
 {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
         || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.';
 }
 
+
 /* Locate the next opening "<[ns:]response[ attrs...]>" tag in [p,end). Returns a
  * pointer to the first byte of inner content (just past the tag's '>'), or NULL.
  * Tolerant of: a namespace prefix ("D:", "lp1:") AND attributes on the open tag
  * (XrdHttp emits <D:response xmlns:lp1="DAV:" ...>; nginx emits <D:response>). */
-static const char *
+const char *
 next_response_open(const char *p, const char *end)
 {
     while (p < end) {
@@ -253,9 +216,10 @@ next_response_open(const char *p, const char *end)
     return NULL;
 }
 
+
 /* Locate the next closing "</[ns:]response>" tag in [p,end). Returns a pointer to
  * its '<' (so [content,close) bounds the element body), or NULL. */
-static const char *
+const char *
 next_response_close(const char *p, const char *end)
 {
     while (p + 2 <= end) {
@@ -278,12 +242,13 @@ next_response_close(const char *p, const char *end)
     return NULL;
 }
 
+
 /* True if [p,end) contains an element whose LOCAL name is exactly "collection"
  * (i.e. <collection.../> or <ns:collection.../>). Keys on the element local name
  * so it rejects <D:collection-set/> (local name "collection-set") and the value
  * tag <lp1:iscollection> (local name "iscollection") — both of which would fool a
  * naive substring search and mislabel a FILE as a directory. */
-static int
+int
 has_collection_element(const char *p, const char *end)
 {
     while (p < end) {
@@ -317,8 +282,9 @@ has_collection_element(const char *p, const char *end)
     return 0;
 }
 
+
 /* basename of a path, with any trailing '/' ignored; "" for "/" or empty. */
-static void
+void
 path_basename(const char *path, char *out, size_t outsz)
 {
     size_t len = strlen(path);
@@ -336,6 +302,7 @@ path_basename(const char *path, char *out, size_t outsz)
     memcpy(out, path + i, bn);
     out[bn] = '\0';
 }
+
 
 int
 xrdc_web_readdir(const xrdc_weburl *u, const char *path, const char *bearer,
@@ -406,382 +373,4 @@ xrdc_web_readdir(const xrdc_weburl *u, const char *path, const char *bearer,
     *ents_out = ents;
     *n_out = n;
     return 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* Persistent-connection ranged read (the FUSE read hot path)         */
-/* ------------------------------------------------------------------ */
-
-struct xrdc_webfile {
-    char     host[256];
-    int      port;
-    int      tls;
-    int      verify;
-    char     ca_dir[512];
-    char     hostport[300];        /* Host: header value (IPv6-bracketed) */
-    char     path[XRDC_PATH_MAX];
-    char     auth[2200];           /* "Authorization: Bearer ...\r\n" or "" */
-    int      timeout_ms;
-    int64_t  size;
-    /* persistent transport */
-    xrdc_io  io;
-    void    *tls_ctx;
-    int      connected;
-};
-
-static void
-web_disconnect(xrdc_webfile *wf)
-{
-    if (!wf->connected) {
-        return;
-    }
-    if (wf->tls) {
-        xrdc_tls_client_free(&wf->io, wf->tls_ctx);
-        wf->tls_ctx = NULL;
-    }
-    if (wf->io.fd >= 0) {
-        close(wf->io.fd);
-    }
-    wf->io.fd = -1;
-    wf->connected = 0;
-}
-
-static int
-web_connect(xrdc_webfile *wf, xrdc_status *st)
-{
-    memset(&wf->io, 0, sizeof(wf->io));
-    wf->io.fd = xrdc_tcp_connect(wf->host, wf->port, wf->timeout_ms, st);
-    if (wf->io.fd < 0) {
-        return -1;
-    }
-    wf->io.timeout_ms = wf->timeout_ms;
-    if (wf->tls && xrdc_tls_client(&wf->io, wf->host, wf->verify, wf->verify,
-                                   wf->ca_dir[0] ? wf->ca_dir : NULL,
-                                   &wf->tls_ctx, st) != 0) {
-        close(wf->io.fd);
-        wf->io.fd = -1;
-        return -1;
-    }
-    wf->connected = 1;
-    return 0;
-}
-
-/* Read up to n bytes (branches on TLS). >0 bytes, 0 EOF, -1 error. */
-static ssize_t
-web_read_some(xrdc_webfile *wf, void *buf, size_t n, xrdc_status *st)
-{
-    if (wf->io.ssl != NULL) {
-        size_t got = 0;
-        if (xrdc_tls_read_some(&wf->io, buf, n, &got, st) != 0) {
-            return -1;
-        }
-        return (ssize_t) got;
-    }
-    struct pollfd pfd;
-    ssize_t       r;
-    int           pr;
-    pfd.fd = wf->io.fd; pfd.events = POLLIN; pfd.revents = 0;
-    do { pr = poll(&pfd, 1, wf->io.timeout_ms); } while (pr < 0 && errno == EINTR);
-    if (pr <= 0) {
-        xrdc_status_set(st, XRDC_ESOCK, pr == 0 ? ETIMEDOUT : errno, "web read");
-        return -1;
-    }
-    do { r = read(wf->io.fd, buf, n); } while (r < 0 && errno == EINTR);
-    if (r < 0) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "web read: %s", strerror(errno));
-        return -1;
-    }
-    return r;
-}
-
-/* Case-insensitive header value lookup in a NUL-terminated header block. */
-static long long
-hdr_clen(const char *hdrs)
-{
-    const char *p = hdrs;
-    while ((p = strchr(p, '\n')) != NULL) {
-        p++;
-        if (strncasecmp(p, "Content-Length:", 15) == 0) {
-            return strtoll(p + 15, NULL, 10);
-        }
-    }
-    if (strncasecmp(hdrs, "Content-Length:", 15) == 0) {
-        return strtoll(hdrs + 15, NULL, 10);
-    }
-    return -1;
-}
-
-/* One ranged GET over the (already-connected) persistent socket. Fills up to len
- * bytes at off into buf; returns bytes read (0 = EOF/416), or -1 (st set). On any
- * transport/protocol fault returns -1 AND disconnects so the caller can retry. */
-static ssize_t
-web_get_range(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
-              xrdc_status *st)
-{
-    char    req[3200];
-    char    hbuf[WEB_HDR_MAX + 1];
-    size_t  hlen = 0;
-    char   *eoh = NULL;
-    int     status = 0;
-    long long clen;
-    int     rn = snprintf(req, sizeof(req),
-                          "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrootdfs\r\n"
-                          "Accept: */*\r\nConnection: keep-alive\r\n"
-                          "Range: bytes=%lld-%lld\r\n%s\r\n",
-                          wf->path[0] ? wf->path : "/", wf->hostport,
-                          (long long) off, (long long) (off + (int64_t) len - 1),
-                          wf->auth);
-    if (rn < 0 || (size_t) rn >= sizeof(req)) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "web GET: request too long");
-        return -1;
-    }
-    if (xrdc_write_full(&wf->io, req, (size_t) rn, st) != 0) {
-        web_disconnect(wf);
-        return -1;
-    }
-
-    /* Read response headers (up to the CRLFCRLF), keeping any body overflow. */
-    for (;;) {
-        ssize_t r;
-        if (hlen >= WEB_HDR_MAX) {
-            web_disconnect(wf);
-            xrdc_status_set(st, XRDC_EPROTO, 0, "web GET: header too large");
-            return -1;
-        }
-        r = web_read_some(wf, hbuf + hlen, WEB_HDR_MAX - hlen, st);
-        if (r <= 0) {
-            web_disconnect(wf);
-            if (r == 0) {
-                xrdc_status_set(st, XRDC_ESOCK, 0, "web GET: peer closed");
-            }
-            return -1;
-        }
-        hlen += (size_t) r;
-        hbuf[hlen] = '\0';
-        eoh = strstr(hbuf, "\r\n\r\n");
-        if (eoh != NULL) {
-            break;
-        }
-    }
-    if (strncmp(hbuf, "HTTP/", 5) == 0) {
-        const char *sp = strchr(hbuf, ' ');
-        status = sp ? atoi(sp + 1) : 0;
-    }
-    if (status == 416) {                 /* range past EOF → no bytes */
-        return 0;
-    }
-    if (status != 206 && status != 200) {
-        web_disconnect(wf);
-        if (status == 404) {
-            xrdc_status_set(st, kXR_NotFound, 0, "not found");
-        } else if (status == 401 || status == 403) {
-            xrdc_status_set(st, kXR_NotAuthorized, 0, "HTTP %d", status);
-        } else {
-            xrdc_status_set(st, XRDC_EPROTO, 0, "web GET: HTTP %d", status);
-        }
-        return -1;
-    }
-
-    *eoh = '\0';
-    clen = hdr_clen(hbuf);
-    if (clen < 0) {
-        /* No Content-Length (e.g. chunked): we cannot keep the socket aligned;
-         * bail and let the caller fall back (rare for a ranged GET). */
-        web_disconnect(wf);
-        xrdc_status_set(st, XRDC_EPROTO, 0, "web GET: no Content-Length");
-        return -1;
-    }
-
-    /* body bytes already sitting in hbuf after the header terminator */
-    {
-        char   *bstart = eoh + 4;
-        size_t  have = hlen - (size_t) (bstart - hbuf);
-        size_t  want = (clen < (long long) len) ? (size_t) clen : len;
-        size_t  copied = (have < want) ? have : want;
-        size_t  total_body = (size_t) clen;        /* must fully consume */
-        size_t  consumed;
-
-        memcpy(buf, bstart, copied);
-        consumed = have;                            /* bytes of body read so far */
-
-        /*
-         * Read the remainder of `want` INCREMENTALLY (not all-or-nothing): on a
-         * mid-body sever, return the bytes copied SO FAR so the caller advances
-         * `off` and resumes the rest with a fresh Range GET — forward progress
-         * under repeated severs, instead of discarding the whole range and
-         * re-reading it from the start (which never completes under heavy loss).
-         */
-        while (copied < want) {
-            ssize_t br = web_read_some(wf, (char *) buf + copied,
-                                       want - copied, st);
-            if (br <= 0) {
-                web_disconnect(wf);
-                if (copied > 0) {
-                    return (ssize_t) copied;        /* partial; caller resumes */
-                }
-                if (br == 0) {
-                    xrdc_status_set(st, XRDC_ESOCK, 0,
-                                    "web GET: peer closed mid-body");
-                }
-                return -1;
-            }
-            consumed += (size_t) br;
-            copied += (size_t) br;
-        }
-        /* drain any body beyond what we wanted, to keep the connection aligned
-         * for the next keep-alive request (status 200 = server ignored Range) */
-        while (consumed < total_body) {
-            char    sink[8192];
-            size_t  chunk = total_body - consumed;
-            if (chunk > sizeof(sink)) {
-                chunk = sizeof(sink);
-            }
-            if (xrdc_read_full(&wf->io, sink, chunk, st) != 0) {
-                web_disconnect(wf);
-                return (ssize_t) want;   /* have the wanted bytes; lost keep-alive */
-            }
-            consumed += chunk;
-        }
-        if (status == 200) {
-            /* Range ignored: keep-alive is fine (we consumed the whole body), but
-             * for a large file that is wasteful — leave the connection up; the
-             * caller still got the right bytes for this offset. */
-        }
-        return (ssize_t) want;
-    }
-}
-
-xrdc_webfile *
-xrdc_webfile_open(const xrdc_weburl *u, const char *path, const char *bearer,
-                  int verify, const char *ca_dir, int timeout_ms,
-                  xrdc_statinfo *si_out, xrdc_status *st)
-{
-    xrdc_webfile *wf;
-    xrdc_statinfo si;
-
-    /* stat first: confirms existence + gives the size (and feeds getattr). */
-    if (xrdc_web_stat(u, path, bearer, verify, ca_dir, &si, st) != 0) {
-        return NULL;
-    }
-    if (si.flags & kXR_isDir) {
-        xrdc_status_set(st, XRDC_EUSAGE, 0, "is a directory");
-        return NULL;
-    }
-    wf = calloc(1, sizeof(*wf));
-    if (wf == NULL) {
-        xrdc_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        return NULL;
-    }
-    snprintf(wf->host, sizeof(wf->host), "%s", u->host);
-    wf->port = u->port;
-    wf->tls = u->tls;
-    wf->verify = verify;
-    if (ca_dir != NULL) {
-        snprintf(wf->ca_dir, sizeof(wf->ca_dir), "%s", ca_dir);
-    }
-    snprintf(wf->path, sizeof(wf->path), "%s", path);
-    web_auth(bearer, wf->auth, sizeof(wf->auth));
-    xrootd_format_host_port(u->host, (uint16_t) u->port, wf->hostport,
-                            sizeof(wf->hostport));
-    wf->timeout_ms = timeout_ms > 0 ? timeout_ms : WEB_TIMEOUT_MS;
-    wf->size = si.size;
-    wf->io.fd = -1;
-    if (si_out != NULL) {
-        *si_out = si;
-    }
-    return wf;
-}
-
-int64_t
-xrdc_webfile_size(const xrdc_webfile *wf)
-{
-    return wf->size;
-}
-
-/* Resilience window (ms) for HTTP reads: $XRDC_MAX_STALL_MS when set (>0 widens,
- * <=0 disables = fail fast), else the library default — the SAME window the
- * root:// data path uses, so an HTTP download rides out packet loss the same way
- * instead of dying on the first sever. */
-static int
-webfile_window_ms(void)
-{
-    const char *e = getenv("XRDC_MAX_STALL_MS");
-    if (e != NULL && *e != '\0') {
-        int v = atoi(e);
-        return (v > 0) ? v : 0;
-    }
-    return XRDC_DEFAULT_MAX_STALL_MS;
-}
-
-ssize_t
-xrdc_webfile_pread(xrdc_webfile *wf, int64_t off, void *buf, size_t len,
-                   xrdc_status *st)
-{
-    uint64_t deadline;
-    unsigned attempt = 0;
-    int      window_ms;
-    size_t   got = 0;
-
-    if (off >= wf->size) {
-        return 0;                                  /* past EOF */
-    }
-    if ((int64_t) len > wf->size - off) {
-        len = (size_t) (wf->size - off);           /* clamp tail read */
-    }
-    if (len == 0) {
-        return 0;
-    }
-
-    /*
-     * Deadline-bounded resume (mirrors the root:// resilience window).  On a
-     * transport sever, reconnect and re-issue the Range GET from off+got —
-     * web_get_range resumes there and returns PARTIAL progress on a mid-body
-     * sever, so this loop accumulates `len` bytes across reconnects rather than
-     * failing on the first reset.  The deadline measures time-since-progress (it
-     * resets on every byte read), so a steadily-advancing transfer never times
-     * out — only a true stall (no progress for the whole window) does.  A non-
-     * retryable fault (404/403/…) or window<=0 ($XRDC_MAX_STALL_MS=0, fail-fast)
-     * returns immediately.
-     */
-    window_ms = webfile_window_ms();
-    deadline = xrdc_mono_ns() + (uint64_t) window_ms * 1000000ULL;
-
-    for (;;) {
-        if (wf->connected || web_connect(wf, st) == 0) {
-            ssize_t r = web_get_range(wf, off + (int64_t) got,
-                                      (char *) buf + got, len - got, st);
-            if (r > 0) {
-                got += (size_t) r;
-                if (got >= len) {
-                    return (ssize_t) got;          /* full read */
-                }
-                attempt = 0;                       /* progress: reset backoff */
-                if (window_ms > 0) {
-                    deadline = xrdc_mono_ns()
-                             + (uint64_t) window_ms * 1000000ULL;
-                }
-                continue;                          /* resume at off+got */
-            }
-            if (r == 0) {
-                return (ssize_t) got;              /* genuine EOF */
-            }
-            /* r < 0: transport/protocol fault — fall through to the retry gate. */
-        }
-        if (window_ms <= 0 || !xrdc_status_retryable(st)
-            || xrdc_mono_ns() >= deadline) {
-            return (got > 0) ? (ssize_t) got : -1;
-        }
-        xrdc_backoff_sleep_fast(attempt++);
-    }
-}
-
-void
-xrdc_webfile_close(xrdc_webfile *wf, xrdc_status *st)
-{
-    (void) st;
-    if (wf == NULL) {
-        return;
-    }
-    web_disconnect(wf);
-    free(wf);
 }

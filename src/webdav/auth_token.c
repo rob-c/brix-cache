@@ -7,8 +7,25 @@
 #include "../token/macaroon.h"
 #include "../token/token_cache.h"
 #include "../token/worker_cache.h"
+#include "../token/issuer_registry.h"
 
 #include <string.h>
+
+/* webdav_token_op_class — map the HTTP method to a registry op class * Read-ish verbs (GET/HEAD/PROPFIND/OPTIONS) authorize against read scopes;
+ * everything else (PUT/DELETE/MKCOL/MOVE/COPY/PROPPATCH/LOCK/...) is a write. */
+static xrootd_token_op_e
+webdav_token_op_class(ngx_http_request_t *r)
+{
+    switch (r->method) {
+    case NGX_HTTP_GET:
+    case NGX_HTTP_HEAD:
+    case NGX_HTTP_PROPFIND:
+    case NGX_HTTP_OPTIONS:
+        return XROOTD_TOKEN_OP_READ;
+    default:
+        return XROOTD_TOKEN_OP_WRITE;
+    }
+}
 
 /*
  * webdav_check_token_write_scope — enforce WLCG/SciToken write scope for
@@ -23,7 +40,7 @@
  * path — the path-prefix invariant is enforced by the scope matching code in
  * token/scopes.c (must be an exact prefix, not a partial directory name match).
  */
-/* ---- Function: webdav_check_token_write_scope() ----
+/*
  *
  * WHAT: Enforces WLCG/SciToken write scope authorization for WebDAV mutating methods (PUT, DELETE, MKCOL, MOVE). Checks whether the authenticated bearer token's write scopes cover the request URI path before allowing any file modification operation. Returns NGX_OK if the scope check passes or if authentication was not via token (e.g., GSI cert auth has no equivalent scope concept). Returns NGX_HTTP_FORBIDDEN when the token lacks sufficient write permissions for the target resource.
  *
@@ -109,7 +126,7 @@ webdav_bearer_from_query(ngx_http_request_t *r,
     return NGX_OK;
 }
 
-/* ---- Function: webdav_verify_bearer_token() ----
+/*
  *
  * WHAT: Validates WLCG/SciToken bearer tokens presented in HTTP Authorization headers using either JWKS-based JWT verification or macaroon secret-key validation. Extracts token claims (subject, scopes, expiration) and stores them in the request context for downstream operations. Supports grace-period key rotation — if a macaroon is rejected by the current secret but accepted by an old secret configured via conf->token_macaroon_secret_old, the token is still accepted with an informational log message indicating graceful migration during nginx -s reload.
  *
@@ -132,7 +149,9 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     u_char                            secret[64];
     ssize_t                           slen = 0;
 
-    if (conf->jwks_key_count <= 0 && conf->token_macaroon_secret.len == 0) {
+    if (conf->jwks_key_count <= 0 && conf->token_macaroon_secret.len == 0
+        && conf->token_registry == NULL)
+    {
         return NGX_DECLINED;
     }
 
@@ -206,21 +225,41 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
      */
     int cache_hit = 0;
 
+    /* The token-validity caches are keyed on the token alone.  Registry authz
+     * (phase-59 W1) is path+op dependent, so a registry config MUST bypass the
+     * caches and re-run the per-request base_path/strategy check every time. */
+    int via_registry = (conf->token_registry != NULL);
+
     if (conf->token_l1 == NULL) {
         conf->token_l1 = xrootd_token_l1_create(ngx_cycle->pool,
                                                 XROOTD_TOKEN_L1_SLOTS);
     }
 
-    if (xrootd_token_l1_lookup(conf->token_l1, token, token_len, &claims)) {
+    if (!via_registry
+        && xrootd_token_l1_lookup(conf->token_l1, token, token_len, &claims))
+    {
         rc = 0;
         cache_hit = 1;
-    } else if (conf->token_cache_kv != NULL
+    } else if (!via_registry && conf->token_cache_kv != NULL
                && xrootd_token_cache_lookup(conf->token_cache_kv,
                                             token, token_len, &claims))
     {
         rc = 0;
         cache_hit = 1;
         xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
+    } else if (via_registry) {
+        char               pathz[2048];
+        size_t             plen;
+        int                bucket;
+
+        plen = (r->uri.len < sizeof(pathz) - 1) ? r->uri.len : sizeof(pathz) - 1;
+        ngx_memcpy(pathz, r->uri.data, plen);
+        pathz[plen] = '\0';
+
+        rc = xrootd_token_validate_registry(r->connection->log, token,
+                token_len, conf->token_registry, pathz,
+                webdav_token_op_class(r),
+                slen > 0 ? secret : NULL, (size_t) slen, &claims, &bucket);
     } else {
         rc = xrootd_token_validate(r->connection->log, token, token_len,
                                    conf->jwks_keys, conf->jwks_key_count,
@@ -233,7 +272,7 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     /* Grace-period fallback: if the primary secret rejected a macaroon token
      * and an old secret is configured, try validating with the old key.
      * This lets in-flight tokens survive nginx -s reload during key rotation. */
-    if (rc != 0 && conf->token_macaroon_secret_old.len) {
+    if (rc != 0 && !via_registry && conf->token_macaroon_secret_old.len) {
         u_char  old_secret[64];
         ssize_t old_slen;
 
@@ -264,8 +303,9 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     }
 
     /* Cache the freshly verified claims for subsequent presentations (L1 always,
-     * L2 when a SHM zone is configured). */
-    if (!cache_hit) {
+     * L2 when a SHM zone is configured).  Registry-authorized tokens are never
+     * cached: the decision is path-dependent and the cache is token-keyed. */
+    if (!cache_hit && !via_registry) {
         xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
         if (conf->token_cache_kv != NULL) {
             xrootd_token_cache_store(conf->token_cache_kv, token, token_len,

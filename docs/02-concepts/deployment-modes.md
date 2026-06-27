@@ -8,6 +8,29 @@ There are three ways to run nginx-xrootd, and they solve three different problem
 
 Answer these questions to find your mode:
 
+```text
+              ┌──────────────────────────────────────┐
+              │ Where do the bytes you serve live?    │
+              └───────────────────┬──────────────────┘
+            local disk on          │          behind an existing
+            this machine           │          server you keep
+                  │                │                │
+                  ▼                │                ▼
+        ┌──────────────────┐       │      what protocol do
+        │ MODE 1 Standalone│       │      external clients speak?
+        │ nginx IS the     │       │        ┌──────────┴──────────┐
+        │ XRootD server,   │       │      root://            HTTP/davs://
+        │ serves /data     │       │        │                     │
+        └──────────────────┘       │        ▼                     ▼
+                                   │  ┌──────────────┐   ┌──────────────────┐
+                                   │  │ MODE 2 Proxy │   │ MODE 3 WebDAV    │
+                                   │  │ relay root://│   │ perimeter proxy  │
+                                   │  │ to a backend │   │ HTTPS+token →    │
+                                   │  │ xrootd daemon│   │ internal WebDAV  │
+                                   │  └──────────────┘   └──────────────────┘
+                                   └─ (modes combine in one process — see below)
+```
+
 | Question | Yes → | No → |
 |---|---|---|
 | Do you already have an `xrootd` daemon running? | **Proxy Mode** (Mode 2) | Continue... |
