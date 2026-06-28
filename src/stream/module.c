@@ -16,6 +16,7 @@
 #include "ngx_xrootd_module.h"
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
+#include "handoff/handoff.h"
 #include "token/token_cache.h"   /* xrootd_token_cache_directive */
 #include "manager/health_check.h" /* XROOTD_HC_TYPE_* */
 #include "mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
@@ -1448,6 +1449,15 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
     { ngx_string("xrootd_proxy_upstream"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE12,
       xrootd_conf_set_proxy_upstream,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* single-port protocol handoff: splice a non-XRootD (HTTP/TLS) client on
+     * this stream port to a local HTTP/WebDAV listener (host:port). */
+    { ngx_string("xrootd_http_handoff"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_http_handoff,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },

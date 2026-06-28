@@ -596,6 +596,15 @@ typedef struct {
     ngx_msec_t  handshake_timeout_ms;   /* cached xrootd_handshake_timeout (0 = off) */
     ngx_msec_t  send_timeout_ms;        /* cached xrootd_send_timeout (0 = off)      */
 
+    /*
+     * Single-port protocol handoff (src/handoff/handoff.c): when a non-XRootD
+     * (HTTP/TLS) client arrives on this stream port and xrootd_http_handoff is
+     * configured, the connection is spliced to a local HTTP/WebDAV listener.
+     * Opaque xrootd_handoff_t* — the hub the client-side relay handlers reach
+     * via s -> ctx -> handoff (the upstream side reaches it via uconn->data).
+     */
+    void       *handoff;
+
 } xrootd_ctx_t;
 
 #endif /* XROOTD_TYPES_CONTEXT_H */

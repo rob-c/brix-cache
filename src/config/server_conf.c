@@ -168,6 +168,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->proxy_keepalive_interval  = NGX_CONF_UNSET_MSEC;
     conf->cms_locate_timeout = NGX_CONF_UNSET_MSEC;
     conf->cms_addr     = NULL;
+    conf->http_handoff_addr = NULL;
     conf->upstream_addr = NULL;
     conf->cms_interval = NGX_CONF_UNSET;
     conf->cms_read_timeout     = NGX_CONF_UNSET_MSEC;
@@ -686,6 +687,11 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     if (conf->cms_addr == NULL && prev->cms_addr != NULL) {
         conf->cms_addr = prev->cms_addr;
         conf->cms_manager = prev->cms_manager;
+    }
+
+    if (conf->http_handoff_addr == NULL && prev->http_handoff_addr != NULL) {
+        conf->http_handoff_addr = prev->http_handoff_addr;
+        conf->http_handoff_name = prev->http_handoff_name;
     }
 
     child_vo_rules = conf->vo_rules;

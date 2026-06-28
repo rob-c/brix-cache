@@ -6,6 +6,7 @@
 #include "deadline.h"
 #include "../manager/pending.h"
 #include "../frm/waiter.h"
+#include "../handoff/handoff.h"
 
 /* File: recv.c — TCP read-event loop and request framing state machine
  * WHAT: The core async recv loop that drives the XRootD protocol lifecycle on each TCP connection. Frames handshake (20-byte ClientInitHandShake), request headers (24-byte ClientRequestHdr), and payload bytes into a deterministic four-state machine — HANDSHAKE → REQ_HEADER → REQ_PAYLOAD → dispatch, with suspend states for SENDING/AIO/UPSTREAM/TLS. Security invariant: dlen must pass xrootd_max_payload_for_request() BEFORE any allocation. Timeout handling: CMS wait timeout sends retry response; other timeouts disconnect. Thread safety: single-owner per connection on nginx event thread — no locking required.
@@ -413,6 +414,20 @@ ngx_stream_xrootd_recv(ngx_event_t *rev)
                 ctx->hdr_pos += avail;
 
                 if (ctx->hdr_pos >= 1 && ctx->hdr_buf[0] != 0) {
+                    /*
+                     * Non-XRootD first byte (HTTP method letter / TLS 0x16; the
+                     * XRootD client hello always begins with a zero streamid
+                     * word).  If xrootd_http_handoff is configured, splice this
+                     * connection to the local HTTP/WebDAV listener so one
+                     * registered port serves both protocols (see handoff.c);
+                     * otherwise close as before.
+                     */
+                    if (conf->http_handoff_addr != NULL
+                        && xrootd_http_handoff_start(s, c, conf,
+                               ctx->hdr_buf, ctx->hdr_pos) == NGX_OK)
+                    {
+                        return;   /* the relay owns the connection now */
+                    }
                     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                                    "xrootd: non-XRootD client (first byte 0x%02xd)"
                                    " closing immediately",

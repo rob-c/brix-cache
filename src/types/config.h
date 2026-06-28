@@ -663,6 +663,15 @@ typedef struct {
     ngx_uint_t  ckscan_max_files; /* [xrootd_ckscan_max_files N] — maximum
                                       regular files emitted by one kXR_Qckscan */
 
+    /* ---- single-port protocol handoff ---- */
+    /* [xrootd_http_handoff host:port] — when a non-XRootD (HTTP/TLS) client
+     * lands on this stream port, splice it to this local HTTP/WebDAV listener.
+     * Lets a single registered port serve both root:// and WebDAV so a stock
+     * XrdHttp redirector (which redirects HTTP to the data port) can reach an
+     * nginx data node.  NULL = off (legacy: a non-XRootD client is closed). */
+    ngx_addr_t *http_handoff_addr;
+    ngx_str_t   http_handoff_name;
+
     /* ---- transparent proxy mode ---- */
     ngx_flag_t  proxy_enable;  /* [xrootd_proxy on|off] */
     ngx_str_t   proxy_host;    /* [xrootd_proxy_upstream host] */
