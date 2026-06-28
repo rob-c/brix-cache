@@ -61,6 +61,17 @@ xrootd_rl_http_access_handler(ngx_http_request_t *r)
     if (lcf == NULL || lcf->rl_rules == NULL || lcf->rl_rules->nelts == 0) {
         return NGX_DECLINED;
     }
+    /*
+     * In WebDAV proxy mode the webdav module's request-ctx slot is owned by the
+     * proxy (webdav_proxy_ctx_t, set in proxy.c), NOT the rate-limit req_ctx.
+     * Touching it here would acquire a concurrency slot the log phase can never
+     * release (it would read the proxy ctx as a req_ctx → garbage rule pointer →
+     * crash, see xrootd_rl_http_log_handler).  Rate limiting does not apply to
+     * proxied requests; leave the slot to the proxy.
+     */
+    if (lcf->upstream_proxy) {
+        return NGX_DECLINED;
+    }
     wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
 
     rules = lcf->rl_rules->elts;
@@ -145,10 +156,22 @@ xrootd_rl_http_access_handler(ngx_http_request_t *r)
 ngx_int_t
 xrootd_rl_http_log_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *wctx;
-    off_t                             nbytes;
+    ngx_http_xrootd_webdav_loc_conf_t *lcf;
+    ngx_http_xrootd_webdav_req_ctx_t  *wctx;
+    off_t                              nbytes;
 
     if (r != r->main) {
+        return NGX_OK;
+    }
+    /*
+     * In proxy mode the webdav module ctx slot holds a webdav_proxy_ctx_t, not
+     * our req_ctx — reading rl_conc_rule/rl_conc_key off it would dereference a
+     * garbage rule pointer (observed SIGSEGV in xrootd_rl_conc_release).  The
+     * access handler likewise skips proxied locations, so there is never a slot
+     * to release here.  Bail before interpreting the foreign ctx.
+     */
+    lcf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    if (lcf == NULL || lcf->upstream_proxy) {
         return NGX_OK;
     }
     wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
