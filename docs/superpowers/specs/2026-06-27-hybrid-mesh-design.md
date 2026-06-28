@@ -81,7 +81,7 @@ The two interop linchpins (must work for the mesh to form):
 | Protocol | Path through mesh | Coverage |
 |----------|-------------------|----------|
 | `root://` | `a` → (`b` \| `c`) → `g` → (`d`\|`e`\|`f`) | **Full** — every node, both tiers; native CMS redirect at `a` and `g`; PSS at `c` |
-| WebDAV / `davs://` | `a` (307) → (`b`\|`c`) → `g` (307) → (`d`\|`e`\|`f`) | **Full** — HTTP listeners on all nodes; stock nodes (`c`,`g`,`d`,`e`) load `libXrdHttp` |
+| WebDAV / `davs://` | `a` (307) → (`b`\|`c`) → `g` (307) → (`d`\|`e`\|`f`) | **Partial via the stock redirector** — HTTP listeners on all nodes; stock nodes (`c`,`g`,`d`,`e`) load `libXrdHttp`. Direct WebDAV works on every backend (incl. nginx `f`); redirector-routed WebDAV works for the stock DSs `d`/`e` (stock multiplexes HTTP on the data port). It does **not** reach nginx `f` via the stock redirector `g`, which redirects HTTP to `f`'s *data* port (11316, root:// only) while nginx serves WebDAV on a separate port (11319). `g` is stock/unmodifiable, so closing this needs nginx single-port protocol multiplexing — tracked as follow-up (see memory `hybrid_mesh_webdav_redirect_gap`). |
 | S3 REST | `client → a → b → f` (ingest), then any protocol reads it back via the cluster | **Ingest path** — see §3.3 |
 
 ### 3.2 Data layout — independent storage (true cluster)
