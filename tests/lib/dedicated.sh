@@ -83,6 +83,13 @@ start_all_dedicated() {
     start_cms_mesh &
     local cms_mesh_pid=$!
 
+    # The hybrid two-tier cross-backend mesh is likewise self-contained (its own
+    # dedicated 11300-11317 band + /tmp tree, no fleet dependency) and pays the
+    # same ~CMS-convergence cost, so background it alongside the CMS mesh and
+    # barrier on both at the end of start-all.
+    start_hybrid_mesh &
+    local hybrid_mesh_pid=$!
+
     start_nginx
     start_ref
 
@@ -408,6 +415,7 @@ EOF
     # (launched right after PKI/token setup) has finished converging — tests
     # depend on it being ready.
     wait "$cms_mesh_pid" 2>/dev/null || true
+    wait "$hybrid_mesh_pid" 2>/dev/null || true
 
     start_xrdhttp
 }
@@ -424,6 +432,18 @@ stop_cms_mesh() {
         >> "${LOG_DIR}/cms-mesh.log" 2>&1 || true
 }
 
+start_hybrid_mesh() {
+    TEST_NGINX_BIN="${NGINX_BIN}" HYBRID_MESH_DIR="${TEST_ROOT}/hybrid-mesh" \
+        python3 "${TESTS_DIR}/hybrid_mesh_servers.py" start \
+        >> "${LOG_DIR}/hybrid-mesh.log" 2>&1 || true
+}
+
+stop_hybrid_mesh() {
+    TEST_NGINX_BIN="${NGINX_BIN}" HYBRID_MESH_DIR="${TEST_ROOT}/hybrid-mesh" \
+        python3 "${TESTS_DIR}/hybrid_mesh_servers.py" stop \
+        >> "${LOG_DIR}/hybrid-mesh.log" 2>&1 || true
+}
+
 stop_krb5_tier() {
     # Stop the test KDC (best-effort) before the session-wide TEST_ROOT wipe so
     # the krb5kdc daemon is never orphaned.  No-op if the tier was never started.
@@ -435,6 +455,7 @@ stop_krb5_tier() {
 
 stop_all_dedicated() {
     stop_cms_mesh
+    stop_hybrid_mesh
     stop_haproxy
     stop_xrdhttp
     stop_krb5_tier
