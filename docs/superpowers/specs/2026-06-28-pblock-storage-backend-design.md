@@ -37,19 +37,27 @@ implements **every vtable slot**, so it is a genuine drop-in replacement.
 
 ## 2. The performance-defining invariant
 
-**The data plane never touches SQLite.** SQLite is consulted only on:
+**The hot bulk-data path never touches SQLite.** The byte ops — `pread` /
+`pwrite` / `preadv` / `preadv2` / `read_sendfile_fd` / `copy_range` /
+`ftruncate` — operate **purely on the blob fd**, issuing the identical syscalls
+the POSIX driver does, and merely mark the object's in-memory metadata dirty
+(any write bumps `mtime`; an extending write or `ftruncate` also updates `size`).
+Bulk transfer therefore runs at raw-POSIX speed, including kernel zero-copy
+`sendfile(2)`.
 
-- `open` — resolve or create the object row + blob;
-- extending `pwrite`, `ftruncate`, `staged_commit`, `close` — write back
-  `size` + `mtime`;
+SQLite is consulted only at metadata boundaries, never per byte:
+
+- `open` — resolve or create the object row + blob (one txn);
+- `fsync` — durability barrier: `fdatasync` the blob **and** flush dirty
+  in-memory `size`/`mtime` back to the catalog (one txn) if dirty;
+- `close` — flush dirty `size`/`mtime` to the catalog, then close the blob fd;
+- `staged_commit` — atomic publish txn;
 - namespace ops (`stat`, `unlink`, `mkdir`, `rename`, `server_copy`, `opendir`/
   `readdir`, xattr CRUD).
 
-The hot byte ops — `pread` / `pwrite` / `preadv` / `preadv2` /
-`read_sendfile_fd` — operate **purely on the blob fd**, issuing the identical
-syscalls the POSIX driver does. Bulk transfer therefore runs at raw-POSIX speed,
-including kernel zero-copy `sendfile(2)`. Only metadata operations pay the
-catalog cost.
+`fstat` reads the object's **in-memory** metadata (populated from the catalog row
+at `open`, updated by writes) — no DB query, no blob syscall — so it always
+reflects pending, not-yet-flushed size/mtime.
 
 ---
 
@@ -117,8 +125,9 @@ caps = CAP_FD | CAP_SENDFILE | CAP_RANDOM_WRITE | CAP_RANGE_READ
 
 | Group | Slots | Implementation |
 |---|---|---|
-| I/O (blob fd, **no SQLite**) | `pread` `pwrite` `preadv` `preadv2` `copy_range` `read_sendfile_fd` `ftruncate` `fsync` `fstat` | direct syscalls on the blob fd; `read_sendfile_fd` returns the blob fd for the range; extending `pwrite`/`ftruncate` flag a deferred catalog size/mtime write-back |
-| lifecycle | `open` `close` | `open`: one txn to look up or create the row + blob, return the real fd in `obj->fd`; private blob fd is the object's fd. `close`: flush pending size/mtime, close blob fd |
+| Bulk I/O (blob fd, **no SQLite**) | `pread` `pwrite` `preadv` `preadv2` `copy_range` `read_sendfile_fd` `ftruncate` | direct syscalls on the blob fd; `read_sendfile_fd` returns the blob fd for the range; any write marks `mtime` dirty, an extending write/`ftruncate` marks `size` dirty (deferred catalog write-back) |
+| stat / durability | `fstat` `fsync` | `fstat`: return the object's in-memory metadata (no DB/blob syscall). `fsync`: `fdatasync` the blob **and** flush dirty `size`/`mtime` to the catalog if dirty |
+| lifecycle | `open` `close` | `open`: one txn to look up or create the row + blob, return the real fd in `obj->fd`; private blob fd is the object's fd. `close`: flush dirty size/mtime, close blob fd |
 | namespace (catalog txns) | `stat` `unlink` `mkdir` `rename` `server_copy` | `unlink`: row + blob removal (dir-emptiness check first). `rename`: atomic `UPDATE objects SET path=…,parent=…` + child reparent in one txn (honest `CAP_HARD_RENAME`). `server_copy`: `copy_file_range` the blob + insert row (`CAP_SERVER_COPY`) |
 | dirs (`CAP_DIRS`) | `opendir` `readdir` `closedir` | `SELECT … WHERE parent=?`; cursor state in the dir handle |
 | xattr (`CAP_XATTR`) | `getxattr` `listxattr` `setxattr` `removexattr` | rows in `xattrs` keyed by `(path, name)` |
@@ -212,6 +221,9 @@ no real S3/Ceph:
   - **Async-style interleave**: out-of-order open/write/stat/close sequences to
     confirm pending size/mtime write-back is flushed correctly regardless of
     operation ordering.
+  - **fsync durability**: after `pwrite` + `fsync`, a *fresh* instance/handle
+    opened on the same catalog sees the flushed `size`/`mtime` (proves the
+    durability barrier persisted dirty metadata, not just in-memory state).
   - **`tests/c/run_pblock_tests.sh`** compiles and runs all of the above with a
     non-zero exit on any failure.
 
