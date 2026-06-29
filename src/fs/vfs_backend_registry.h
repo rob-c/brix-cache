@@ -35,11 +35,20 @@ void xrootd_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
     size_t block_size);
 
 /* Record (at config time) that the export rooted at `root_canon` is backed by a
- * REMOTE root:// origin, served through the sd_xroot driver. `srv_conf` is the
- * export's ngx_stream_xrootd_srv_conf_t* (the origin connection params —
- * cache_origin_host/port/tls — are read from it on first use per worker). Safe to
- * call repeatedly for the same root (idempotent reload). */
-void xrootd_vfs_backend_config_xroot(const char *root_canon, void *srv_conf);
+ * REMOTE root:// origin (`host`:`port`, TLS iff `tls`), served through the
+ * sd_xroot driver. Works for any export — stream OR http — since it carries the
+ * origin params explicitly rather than a protocol-specific conf. Safe to call
+ * repeatedly for the same root (idempotent reload). */
+void xrootd_vfs_backend_config_xroot(const char *root_canon, const char *host,
+    int port, int tls);
+
+/* Register the export's `storage_backend` config value, dispatching on its form:
+ * a "root://host:port" / "roots://host:port" URL → a remote root:// primary
+ * (config_xroot); any other value → a local driver name (config, pblock). One
+ * entry point both the stream and http (webdav/s3) config paths call. Returns
+ * NGX_OK, or NGX_ERROR (cf-logged) on a malformed remote URL. */
+ngx_int_t xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
+    const ngx_str_t *backend, size_t block_size);
 
 /* Resolve `root_canon` to its bound storage-driver instance, creating it on first
  * use in this worker (on ngx_cycle->pool). Returns NULL when the export has no
