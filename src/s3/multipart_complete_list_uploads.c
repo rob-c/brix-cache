@@ -23,7 +23,7 @@
  */
 #include "s3.h"
 #include "multipart_internal.h"
-#include "../path/path.h"
+#include "../fs/vfs.h"   /* confined opendir/readdir/probe via the VFS seam */
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -85,8 +85,8 @@ mpu_upload_entry_cmp(const void *a, const void *b)
  *       the flat bare scan can neither reach (wrong scope) nor — as the
  *       unprivileged worker — open (EACCES).  Mirrors s3_walk()'s confined
  *       recursive enumeration in list_walk.c.
- * HOW:  Each directory is opened via xrootd_opendir_confined_canon (broker-opened
- *       as the mapped user off impersonation it is a plain opendir).  A directory
+ * HOW:  Each directory is opened via xrootd_vfs_opendir_quiet (non-metered;
+ *       broker-opened as the mapped user, a plain opendir off impersonation).  A directory
  *       the mapped user cannot traverse (e.g. another tenant's 0700) yields NULL
  *       and is simply skipped, so cross-tenant uploads are never enumerated.
  *       Bounded by *n < max and MPU_LIST_MAX_DEPTH; symlinks are skipped (lstat).
@@ -96,48 +96,56 @@ mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             const char *dir_path, const char *key_prefix,
             mpu_upload_entry_t *uploads, int max, int *n, int depth)
 {
-    DIR           *dp;
-    struct dirent *de;
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_dir_t *dp;
 
     if (*n >= max || depth > MPU_LIST_MAX_DEPTH) {
         return;
     }
 
-    dp = xrootd_opendir_confined_canon(r->connection->log,
-                                       cf->common.root_canon, dir_path);
+    /* Non-metered confined opendir (the ListMultipartUploads op accounts for the
+     * whole recursive walk; broker fdopendir under impersonation). */
+    s3_build_vfs_ctx(r, dir_path, cf, &vctx);
+    dp = xrootd_vfs_opendir_quiet(&vctx, NULL);
     if (dp == NULL) {
         return;   /* unreadable as the mapped user (e.g. another tenant's 0700) */
     }
 
-    while ((de = readdir(dp)) != NULL && *n < max) {
-        if (de->d_name[0] == '\0'
-            || (de->d_name[0] == '.' && de->d_name[1] == '\0')
-            || (de->d_name[0] == '.' && de->d_name[1] == '.'
-                && de->d_name[2] == '\0'))
-        {
-            continue;   /* "." or ".." */
-        }
+    for ( ;; ) {
+        ngx_str_t          name;
+        const char        *dname;
+        char               child_path[PATH_MAX];
+        xrootd_vfs_ctx_t   cctx;
+        xrootd_vfs_stat_t  csb;
+        const char        *mpu_marker;
 
-        char child_path[PATH_MAX];
+        if (*n >= max) {
+            break;
+        }
+        /* "."/".." filtered by readdir_kind. */
+        if (xrootd_vfs_readdir_kind(dp, &name, NULL) != NGX_OK) {
+            break;   /* NGX_DONE (end) or error → stop */
+        }
+        dname = (const char *) name.data;
+
         if ((size_t) snprintf(child_path, sizeof(child_path), "%s/%s",
-                              dir_path, de->d_name) >= sizeof(child_path)) {
+                              dir_path, dname) >= sizeof(child_path)) {
             continue;
         }
 
-        struct stat sb;
-        if (xrootd_lstat_confined_canon(r->connection->log,
-                                        cf->common.root_canon,
-                                        child_path, &sb, 1) != 0
-            || !S_ISDIR(sb.st_mode))
+        /* Confined no-follow probe (non-metered): need both the dir check and the
+         * mtime for a staging dir. A symlink/file/special is skipped. */
+        s3_build_vfs_ctx(r, child_path, cf, &cctx);
+        if (xrootd_vfs_probe(&cctx, 1 /* no-follow */, &csb) != NGX_OK
+            || !csb.is_directory)
         {
-            continue;   /* not a directory (lstat also rejects symlinks) */
+            continue;   /* not a directory (probe also rejects symlinks) */
         }
 
         /* A staging dir is hidden and carries the ".mpu-" marker. */
-        const char *mpu_marker = (de->d_name[0] == '.')
-                               ? strstr(de->d_name + 1, ".mpu-") : NULL;
+        mpu_marker = (dname[0] == '.') ? strstr(dname + 1, ".mpu-") : NULL;
         if (mpu_marker != NULL) {
-            size_t      seg_len = (size_t) (mpu_marker - (de->d_name + 1));
+            size_t      seg_len = (size_t) (mpu_marker - (dname + 1));
             const char *uid     = mpu_marker + 5;   /* skip ".mpu-" */
             char        keybuf[NAME_MAX + 1];
             int         kl;
@@ -146,7 +154,7 @@ mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                 continue;
             }
             kl = snprintf(keybuf, sizeof(keybuf), "%s%.*s",
-                          key_prefix, (int) seg_len, de->d_name + 1);
+                          key_prefix, (int) seg_len, dname + 1);
             if (kl < 0 || (size_t) kl >= sizeof(keybuf)
                 || strlen(uid) >= sizeof(uploads[*n].upload_id))
             {
@@ -155,22 +163,25 @@ mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             memcpy(uploads[*n].key, keybuf, (size_t) kl + 1);
             ngx_cpystrn((u_char *) uploads[*n].upload_id, (u_char *) uid,
                         sizeof(uploads[*n].upload_id));
-            uploads[*n].mtime = sb.st_mtime;
+            uploads[*n].mtime = csb.mtime;
             (*n)++;
             continue;   /* never descend INTO a staging dir */
         }
 
         /* A plain key-prefix directory (e.g. "alice/"): recurse with the prefix
          * extended by this segment + '/'. */
-        char next_prefix[PATH_MAX];
-        if ((size_t) snprintf(next_prefix, sizeof(next_prefix), "%s%s/",
-                              key_prefix, de->d_name) >= sizeof(next_prefix)) {
-            continue;
+        {
+            char next_prefix[PATH_MAX];
+            if ((size_t) snprintf(next_prefix, sizeof(next_prefix), "%s%s/",
+                                  key_prefix, dname) >= sizeof(next_prefix)) {
+                continue;
+            }
+            mpu_collect(r, cf, child_path, next_prefix, uploads, max, n,
+                        depth + 1);
         }
-        mpu_collect(r, cf, child_path, next_prefix, uploads, max, n, depth + 1);
     }
 
-    closedir(dp);
+    xrootd_vfs_closedir(dp, r->connection->log);
 }
 
 ngx_int_t

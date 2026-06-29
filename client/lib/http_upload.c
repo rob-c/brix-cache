@@ -5,22 +5,27 @@
 #include "http_internal.h"
 
 
-/* Stream `clen` bytes from in_fd to the connected io as the PUT body. The source
- * shrinking mid-stream is a protocol error (the Content-Length already promised
- * the full size). 0 / -1 (st set on error). */
+/* Stream `clen` bytes to the connected io as the PUT body, pulling them from the
+ * source by ABSOLUTE offset (base_off + bytes already sent) so the same source
+ * serves a whole-body PUT (base_off 0) and a resumable Content-Range chunk
+ * (base_off = chunk start) without a shared file offset. The source shrinking
+ * mid-stream is a protocol error (the Content-Length already promised the full
+ * size). 0 / -1 (st set on error). */
 int
-httpx_upload_body(xrdc_io *io, int in_fd, long long clen, xrdc_status *st)
+httpx_upload_body(xrdc_io *io, xrdc_http_body_src_fn src, void *src_ctx,
+                  long long base_off, long long clen, xrdc_status *st)
 {
-    char      buf[XRDC_XFER_BUF];
+    uint8_t   buf[XRDC_XFER_BUF];
     long long remaining = clen;
 
     while (remaining > 0) {
         size_t  want = (remaining < (long long) sizeof(buf))
                        ? (size_t) remaining : sizeof(buf);
-        ssize_t r = read(in_fd, buf, want);
+        ssize_t r = src(src_ctx, buf, base_off + (clen - remaining), want, st);
         if (r < 0) {
-            if (errno == EINTR) { continue; }
-            xrdc_status_set(st, XRDC_ESOCK, errno, "local read: %s", strerror(errno));
+            if (st->kxr == 0 && st->sys_errno == 0) {
+                xrdc_status_set(st, XRDC_ESOCK, 0, "upload: source read failed");
+            }
             return -1;
         }
         if (r == 0) {
@@ -73,8 +78,9 @@ httpx_upload_response(xrdc_io *io, int timeout_ms, int *http_status,
  * teardown needs no shared cleanup label. 0 / -1 (st set on error). */
 int
 httpx_upload_exchange(xrdc_io *io, const char *host, int port, const char *path,
-                      const char *extra_headers, int in_fd, long long clen,
-                      int timeout_ms, int *http_status, xrdc_status *st)
+                      const char *extra_headers, xrdc_http_body_src_fn src,
+                      void *src_ctx, long long clen, int timeout_ms,
+                      int *http_status, xrdc_status *st)
 {
     char req[2048];
     int  rlen;
@@ -91,7 +97,7 @@ httpx_upload_exchange(xrdc_io *io, const char *host, int port, const char *path,
         return -1;
     }
     if (xrdc_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
-    if (httpx_upload_body(io, in_fd, clen, st) != 0) { return -1; }
+    if (httpx_upload_body(io, src, src_ctx, 0, clen, st) != 0) { return -1; }
     return httpx_upload_response(io, timeout_ms, http_status, st);
 }
 
@@ -132,9 +138,10 @@ httpx_parse_upload_offset(const char *hdr, size_t len)
  * over an already-connected io; report the HTTP status and any X-Upload-Offset. */
 int
 httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
-                   const char *extra_headers, int in_fd, long long off,
-                   long long chunk_len, long long total, int timeout_ms,
-                   int *status_out, long long *srv_off_out, xrdc_status *st)
+                   const char *extra_headers, xrdc_http_body_src_fn src,
+                   void *src_ctx, long long off, long long chunk_len,
+                   long long total, int timeout_ms, int *status_out,
+                   long long *srv_off_out, xrdc_status *st)
 {
     char  req[2048];
     char  hp[300];
@@ -144,10 +151,6 @@ httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
     int   status = 0;
 
     *srv_off_out = -1;
-    if (lseek(in_fd, (off_t) off, SEEK_SET) == (off_t) -1) {
-        xrdc_status_set(st, XRDC_ESOCK, errno, "lseek: %s", strerror(errno));
-        return -1;
-    }
     xrootd_format_host_port(host, (uint16_t) port, hp, sizeof(hp));
     rlen = snprintf(req, sizeof(req),
                     "PUT %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrdcp\r\n"
@@ -161,7 +164,7 @@ httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
         return -1;
     }
     if (xrdc_write_full(io, req, (size_t) rlen, st) != 0) { return -1; }
-    if (httpx_upload_body(io, in_fd, chunk_len, st) != 0) { return -1; }
+    if (httpx_upload_body(io, src, src_ctx, off, chunk_len, st) != 0) { return -1; }
 
     hdr = (char *) malloc(XRDC_HDR_CAP);
     if (hdr == NULL) {
@@ -191,9 +194,10 @@ httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path,
  */
 int
 xrdc_http_upload_resumable(const char *host, int port, int tls, const char *path,
-                           const char *extra_headers, int in_fd, long long clen,
-                           int verify, const char *ca_dir, int timeout_ms,
-                           int max_stall_ms, int *http_status, xrdc_status *st)
+                           const char *extra_headers, xrdc_http_body_src_fn src,
+                           void *src_ctx, long long clen, int verify,
+                           const char *ca_dir, int timeout_ms, int max_stall_ms,
+                           int *http_status, xrdc_status *st)
 {
     long long off = 0;
     unsigned  attempt = 0;
@@ -220,8 +224,8 @@ xrdc_http_upload_resumable(const char *host, int port, int tls, const char *path
             continue;
         }
 
-        rc = httpx_upload_chunk(&io, host, port, path, extra_headers, in_fd,
-                                off, chunk, clen, timeout_ms,
+        rc = httpx_upload_chunk(&io, host, port, path, extra_headers, src,
+                                src_ctx, off, chunk, clen, timeout_ms,
                                 &status, &srv_off, st);
         if (tls) { xrdc_tls_client_free(&io, tls_ctx); }
         if (io.fd >= 0) { close(io.fd); }
@@ -261,9 +265,9 @@ xrdc_http_upload_resumable(const char *host, int port, int tls, const char *path
 
 int
 xrdc_http_upload(const char *host, int port, int tls, const char *path,
-                 const char *extra_headers, int in_fd, long long clen,
-                 int verify, const char *ca_dir, int timeout_ms,
-                 int *http_status, xrdc_status *st)
+                 const char *extra_headers, xrdc_http_body_src_fn src,
+                 void *src_ctx, long long clen, int verify, const char *ca_dir,
+                 int timeout_ms, int *http_status, xrdc_status *st)
 {
     xrdc_io  io;
     void    *tls_ctx = NULL;
@@ -275,8 +279,8 @@ xrdc_http_upload(const char *host, int port, int tls, const char *path,
         return -1;
     }
 
-    rc = httpx_upload_exchange(&io, host, port, path, extra_headers, in_fd, clen,
-                               timeout_ms, http_status, st);
+    rc = httpx_upload_exchange(&io, host, port, path, extra_headers, src, src_ctx,
+                               clen, timeout_ms, http_status, st);
 
     if (tls) { xrdc_tls_client_free(&io, tls_ctx); }
     if (io.fd >= 0) { close(io.fd); }

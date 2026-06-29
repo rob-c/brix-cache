@@ -4,6 +4,8 @@
 
 #include "ngx_xrootd_module.h"
 #include "../compat/error_mapping.h"
+#include "fs/vfs.h"   /* mkdir via the VFS seam */
+#include "fs/vfs_backend_registry.h"   /* POSIX-vs-driver export check for group policy */
 
 /*
  * xrootd_handle_mkdir â create a directory within the export root.
@@ -56,28 +58,36 @@ xrootd_handle_mkdir(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	{
-		xrootd_ns_result_t res;
+		xrootd_vfs_ctx_t vctx;
+		ngx_int_t        rc;
 
-		res = xrootd_ns_mkdir(c->log, conf->common.root_canon,
-		                      resolved, mode, recursive);
-		/* Idempotency follows the reference do_Mkdir: only kXR_mkdirpath
-		 * (mkdir -p) tolerates an existing target. A plain mkdir of a path that
-		 * already exists must fail with kXR_ItExists — stock xrdfs reports
-		 * "Unable to mkdir <p>; file exists". Our recursive helper never returns
-		 * EXISTS (mkpath is inherently idempotent), so EXISTS only arises here on
-		 * the single-level path. */
-		if (res.status == XROOTD_NS_EXISTS && !recursive) {
+		xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+			conf->common.root_canon, NULL, conf->common.allow_write,
+			0 /* is_tls */, NULL, resolved);
+		rc = xrootd_vfs_mkdir(&vctx, mode, recursive);
+		if (rc != NGX_OK) {
+			int err = errno;
+
+			/* Idempotency follows the reference do_Mkdir: only kXR_mkdirpath
+			 * (mkdir -p) tolerates an existing target — and the recursive helper
+			 * is itself idempotent (returns NGX_OK), so EEXIST only arises on a
+			 * plain single-level mkdir, which must fail kXR_ItExists. */
+			if (err == EEXIST && !recursive) {
+				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
+				                  kXR_ItExists, "file exists");
+			}
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
-			                  kXR_ItExists, "file exists");
+			                  xrootd_kxr_from_errno(err),
+			                  (err == EACCES || err == EPERM)
+			                      ? "permission denied" : strerror(err));
 		}
-		if (res.status != XROOTD_NS_OK && res.status != XROOTD_NS_EXISTS) {
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "MKDIR", resolved, "-",
-			                  xrootd_kxr_map_ns_status(res.status, res.sys_errno),
-			                  res.status == XROOTD_NS_DENIED ? "permission denied"
-			                                                 : strerror(res.sys_errno));
-		}
-		/* Apply parent group policy after successful single-level mkdir. */
-		if (!recursive && res.created && conf->group_rules != NULL) {
+		/* NGX_OK ⟺ the directory was created (not pre-existing); apply parent
+		 * group policy after a successful single-level mkdir. setgid group
+		 * inheritance is a real-filesystem (POSIX) semantic enforced with raw
+		 * chmod/chown — meaningless for a non-POSIX backend whose namespace lives
+		 * in a catalog, so it is skipped there (the driver owns that mode). */
+		if (!recursive && conf->group_rules != NULL
+		    && xrootd_vfs_backend_resolve(conf->common.root_canon, c->log) == NULL) {
 			xrootd_apply_parent_group_policy_path(c->log, resolved,
 			                                      conf->group_rules);
 		}

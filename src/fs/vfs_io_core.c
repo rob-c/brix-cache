@@ -20,6 +20,7 @@
 #include "vfs_internal.h"
 #include "vfs_io_core.h"
 #include "backend/sd.h"
+#include "core/vfs_core.h"   /* shared ngx-free VFS I/O verbs */
 #include "backend/csi_tagstore.h"
 
 #include "../aio/aio.h"
@@ -75,56 +76,30 @@ xrootd_vfs_io_set_errno_message(xrootd_vfs_job_t *job, const char *prefix,
  * both with bytes-so-far in *written. The short-I/O accounting policy stays here
  * in the VFS; the raw syscall lives in the backend. */
 static ngx_int_t
-xrootd_vfs_io_write_counted(ngx_fd_t fd, const u_char *buf, size_t len,
-    off_t offset, ssize_t *written, unsigned *short_io)
+xrootd_vfs_io_write_counted(xrootd_sd_obj_t *job_obj, ngx_fd_t fd,
+    const u_char *buf, size_t len, off_t offset, ssize_t *written,
+    unsigned *short_io)
 {
-    size_t          done;
-    xrootd_sd_obj_t obj;
+    xrootd_sd_obj_t  scratch;
+    xrootd_sd_obj_t *obj;
+    size_t           w = 0;
+    int              sh = 0;
+    int              rc;
 
     if (written == NULL || short_io == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    *written = 0;
-    *short_io = 0;
-    done = 0;
-
-    /* Route the raw syscall through the Storage Driver seam (phase-55); the
-     * short-I/O accounting policy stays here in the VFS. Every data byte op lives
-     * in the backend (src/fs/backend/) so a non-POSIX driver slots in unchanged;
-     * the sync/truncate executors below are on the same seam. (Reverts the
-     * phase-56 A-1 micro-optimization that had inlined a raw pwrite here.) */
-    xrootd_sd_posix_wrap(&obj, fd);
-
-    while (done < len) {
-        ssize_t nwrite;
-
-        nwrite = xrootd_sd_posix_driver.pwrite(&obj, buf + done, len - done,
-                                               offset + (off_t) done);
-        if (nwrite < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            if (done > 0) {
-                *written = (ssize_t) done;
-                *short_io = 1;
-            }
-            return NGX_ERROR;
-        }
-
-        if (nwrite == 0) {
-            *written = (ssize_t) done;
-            *short_io = 1;
-            errno = EIO;
-            return NGX_ERROR;
-        }
-
-        done += (size_t) nwrite;
-    }
-
-    *written = (ssize_t) done;
-    return NGX_OK;
+    /* The full-write loop + short-I/O accounting live in the shared `vfs` core
+     * (xvfs_pwrite_full, src/fs/core/vfs_core.c — one copy shared with the
+     * clients); the raw syscall stays in the backend driver. This wrapper bridges
+     * the server's ssize_t/unsigned OUT params. */
+    obj = xrootd_vfs_effective_obj(job_obj, fd, &scratch);
+    rc = xvfs_pwrite_full(obj, buf, len, offset, &w, &sh);
+    *written  = (ssize_t) w;
+    *short_io = (unsigned) sh;
+    return (rc == 0) ? NGX_OK : NGX_ERROR;
 }
 
 /* xrootd_vfs_io_execute_read — EOF-safe pread of job->length into job->buf,
@@ -136,7 +111,8 @@ xrootd_vfs_io_execute_read(xrootd_vfs_job_t *job)
 {
     size_t nread;
 
-    if (job->fd == NGX_INVALID_FILE || job->offset < 0
+    if ((job->fd == NGX_INVALID_FILE && job->obj.driver == NULL)
+        || job->offset < 0
         || (job->length > 0 && job->buf == NULL)
         || job->buf_cap < job->length)
     {
@@ -146,14 +122,17 @@ xrootd_vfs_io_execute_read(xrootd_vfs_job_t *job)
     }
 
     nread = 0;
-    if (xrootd_vfs_pread_full(job->fd, job->buf, job->length, job->offset,
-                              &nread)
-        != NGX_OK)
     {
-        job->nio = -1;
-        job->out_size = nread;
-        job->io_errno = errno;
-        return;
+        xrootd_sd_obj_t  scratch;
+        xrootd_sd_obj_t *o = xrootd_vfs_effective_obj(&job->obj, job->fd, &scratch);
+
+        if (xvfs_pread_full(o, job->buf, job->length, job->offset, &nread) != 0)
+        {
+            job->nio = -1;
+            job->out_size = nread;
+            job->io_errno = errno;
+            return;
+        }
     }
 
     job->nio = (ssize_t) nread;
@@ -185,7 +164,8 @@ xrootd_vfs_io_execute_write(xrootd_vfs_job_t *job)
     ssize_t  written;
     unsigned short_io;
 
-    if (job->fd == NGX_INVALID_FILE || job->offset < 0
+    if ((job->fd == NGX_INVALID_FILE && job->obj.driver == NULL)
+        || job->offset < 0
         || (job->length > 0 && job->buf == NULL))
     {
         job->nio = -1;
@@ -198,7 +178,7 @@ xrootd_vfs_io_execute_write(xrootd_vfs_job_t *job)
         return;
     }
 
-    if (xrootd_vfs_io_write_counted(job->fd, job->buf, job->length,
+    if (xrootd_vfs_io_write_counted(&job->obj, job->fd, job->buf, job->length,
                                     job->offset, &written, &short_io)
         != NGX_OK)
     {
@@ -231,7 +211,8 @@ xrootd_vfs_io_execute_pgread(xrootd_vfs_job_t *job)
     ssize_t nread;
     int     io_errno;
 
-    if (job->fd == NGX_INVALID_FILE || job->offset < 0
+    if ((job->fd == NGX_INVALID_FILE && job->obj.driver == NULL)
+        || job->offset < 0
         || (job->length > 0 && job->buf == NULL)
         || job->buf_cap < job->length)
     {
@@ -242,10 +223,15 @@ xrootd_vfs_io_execute_pgread(xrootd_vfs_job_t *job)
 
     nread = 0;
     io_errno = 0;
-    job->out_size = xrootd_pgread_read_encode_inplace(job->fd, job->offset,
-                                                      job->length, job->buf,
-                                                      &nread, &io_errno,
-                                                      0 /* blocking */);
+    {
+        xrootd_sd_obj_t  scratch;
+        xrootd_sd_obj_t *obj = xrootd_vfs_effective_obj(&job->obj, job->fd,
+                                                        &scratch);
+        job->out_size = xrootd_pgread_read_encode_inplace(obj, job->offset,
+                                                          job->length, job->buf,
+                                                          &nread, &io_errno,
+                                                          0 /* blocking */);
+    }
     job->nio = nread;
     if (nread < 0) {
         job->io_errno = io_errno;
@@ -314,7 +300,8 @@ xrootd_vfs_io_execute_writev(xrootd_vfs_job_t *job)
             continue;
         }
 
-        if (xrootd_vfs_io_write_counted(segment->fd, segment->data,
+        if (xrootd_vfs_io_write_counted(&segment->obj, segment->fd,
+                                        segment->data,
                                         (size_t) segment->wlen,
                                         segment->offset, &written, &short_io)
             != NGX_OK)
@@ -360,16 +347,14 @@ xrootd_vfs_io_execute_sync(xrootd_vfs_job_t *job)
 {
     xrootd_sd_obj_t obj;
 
-    if (job->fd == NGX_INVALID_FILE) {
+    if (job->fd == NGX_INVALID_FILE && job->obj.driver == NULL) {
         job->nio = -1;
         job->io_errno = EINVAL;
         return;
     }
 
-    /* Dispatch through the Storage Driver seam (phase-55). The POSIX driver's
-     * fsync slot is fsync(2) verbatim, so behaviour is byte-identical. */
-    xrootd_sd_posix_wrap(&obj, job->fd);
-    if (xrootd_sd_posix_driver.fsync(&obj) != NGX_OK) {
+    /* Durability via the shared `vfs` core (xvfs_fsync → backend driver). */
+    if (xvfs_fsync(xrootd_vfs_effective_obj(&job->obj, job->fd, &obj)) != 0) {
         job->nio = -1;
         job->io_errno = errno;
         return;
@@ -386,16 +371,18 @@ xrootd_vfs_io_execute_truncate(xrootd_vfs_job_t *job)
 {
     xrootd_sd_obj_t obj;
 
-    if (job->fd == NGX_INVALID_FILE || job->offset < 0) {
+    if ((job->fd == NGX_INVALID_FILE && job->obj.driver == NULL)
+        || job->offset < 0)
+    {
         job->nio = -1;
         job->io_errno = EINVAL;
         return;
     }
 
-    /* Dispatch through the Storage Driver seam (phase-55). The POSIX driver's
-     * ftruncate slot is ftruncate(2) verbatim, so behaviour is byte-identical. */
-    xrootd_sd_posix_wrap(&obj, job->fd);
-    if (xrootd_sd_posix_driver.ftruncate(&obj, job->offset) != NGX_OK) {
+    /* Truncate via the shared `vfs` core (xvfs_ftruncate → backend driver). */
+    if (xvfs_ftruncate(xrootd_vfs_effective_obj(&job->obj, job->fd, &obj),
+                       job->offset) != 0)
+    {
         job->nio = -1;
         job->io_errno = errno;
         return;

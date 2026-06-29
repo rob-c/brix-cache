@@ -3,7 +3,6 @@
  */
 
 #include "webdav.h"
-#include "../compat/namespace_ops.h"
 #include "../compat/fs_walk.h"
 #include "../fs/vfs.h"
 
@@ -116,7 +115,7 @@ webdav_handle_mkcol(ngx_http_request_t *r)
     ngx_http_xrootd_webdav_loc_conf_t *conf;
     char                               path[WEBDAV_MAX_PATH];
     ngx_int_t                          rc;
-    xrootd_ns_result_t                 res;
+    xrootd_vfs_ctx_t                   vctx;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
 
@@ -134,17 +133,22 @@ webdav_handle_mkcol(ngx_http_request_t *r)
         return rc;
     }
 
-    res = xrootd_ns_mkdir(r->connection->log, conf->common.root_canon, path, 0755, 0);
+    /* Route MKCOL through the metered VFS surface (non-recursive: a missing
+     * parent component is a 409, matching the prior XROOTD_NS_NOT_FOUND mapping).
+     * MKCOL is allow_write-gated at the access phase, so the VFS write-gate never
+     * fires here. errno after a failed vfs_mkdir mirrors xrootd_ns_mkdir:
+     * EEXIST (target present) -> 405, ENOENT (parent missing) -> 409. */
+    webdav_ns_vfs_ctx_init(r, path, &vctx);
 
-    if (res.status == XROOTD_NS_OK) {
+    if (xrootd_vfs_mkdir(&vctx, 0755, 0 /* no parents */) == NGX_OK) {
         return webdav_send_no_body(r, NGX_HTTP_CREATED);
     }
 
-    if (res.status == XROOTD_NS_EXISTS) {
+    if (errno == EEXIST) {
         return NGX_HTTP_NOT_ALLOWED;
     }
 
-    if (res.status == XROOTD_NS_NOT_FOUND) {
+    if (errno == ENOENT) {
         return NGX_HTTP_CONFLICT;
     }
 

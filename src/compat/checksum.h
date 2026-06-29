@@ -6,6 +6,8 @@
 #include <openssl/evp.h>
 #include <stdint.h>
 
+#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-routed checksum read */
+
 typedef enum {
     XROOTD_CHECKSUM_ADLER32 = 0,
     XROOTD_CHECKSUM_CRC32,
@@ -138,6 +140,13 @@ ngx_int_t xrootd_checksum_digest_fd(xrootd_checksum_alg_t alg, int fd,
 
 ngx_int_t xrootd_checksum_hex_fd(xrootd_checksum_alg_t alg, int fd,
     const char *path, ngx_log_t *log, char *hex, size_t hexsz);
+
+/* Layer 3: hex checksum of a driver-bound object — reads every byte through
+ * obj->driver so a multi-block backend file is summed in full. Same output
+ * format as xrootd_checksum_hex_fd. */
+ngx_int_t xrootd_checksum_hex_obj(xrootd_checksum_alg_t alg,
+    xrootd_sd_obj_t *obj, const char *path, ngx_log_t *log,
+    char *hex, size_t hexsz);
 /*
  * xrootd_checksum_hex_name_fd - parse checksum name string, compute digest, return hex.
  *

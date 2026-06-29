@@ -10,6 +10,16 @@
 #include "compat/namespace_ops.h"
 #include "compat/error_mapping.h"
 #include "path/path.h"
+#include "fs/vfs.h"   /* chmod/rm/rmdir via the VFS seam */
+
+/* Build a stream VFS ctx for a simple namespace op on e->resolved. */
+static void
+op_vfs_ctx(const xrootd_op_exec_t *e, xrootd_vfs_ctx_t *vctx)
+{
+    xrootd_vfs_ctx_init(vctx, e->c->pool, e->c->log, XROOTD_PROTO_STREAM,
+        e->conf->common.root_canon, NULL, e->conf->common.allow_write,
+        0 /* is_tls */, NULL, e->resolved);
+}
 
 /* exec functions (one per op) */
 static ngx_int_t
@@ -24,13 +34,16 @@ exec_chmod(const xrootd_op_exec_t *e, int *out_errno)
     if (mode == 0) {
         mode = 0644;
     }
-    /* Route through the confined helper so that under impersonation the chmod is
-     * performed BY THE BROKER as the mapped user (the unprivileged worker is not
-     * the file's owner and a worker-local chmod() would EPERM — even for the
-     * file's real owner).  Off impersonation this is a confined fchmodat. */
-    if (xrootd_chmod_confined_canon(e->c->log, e->conf->common.root_canon,
-                                    e->resolved, mode) == 0) {
-        return NGX_OK;
+    /* xrootd_vfs_chmod delegates to the impersonation-aware confined chmod, so
+     * under impersonation it is performed BY THE BROKER as the mapped user (the
+     * unprivileged worker is not the owner and a worker-local chmod would EPERM). */
+    {
+        xrootd_vfs_ctx_t vctx;
+
+        op_vfs_ctx(e, &vctx);
+        if (xrootd_vfs_chmod(&vctx, mode) == NGX_OK) {
+            return NGX_OK;
+        }
     }
     *out_errno = errno;
     return NGX_ERROR;
@@ -39,42 +52,36 @@ exec_chmod(const xrootd_op_exec_t *e, int *out_errno)
 static ngx_int_t
 exec_rm(const xrootd_op_exec_t *e, int *out_errno)
 {
-    xrootd_ns_delete_opts_t opts;
-    xrootd_ns_result_t      res;
+    xrootd_vfs_ctx_t vctx;
 
-    ngx_memzero(&opts, sizeof(opts));
-    /* kXR_rm mirrors the reference osFS->rem (XrdOssSys::Unlink): unlink a file,
-     * rmdir a directory — NON-recursively. xrootd_ns_delete already does exactly
-     * that (xrootd_unlink_beneath dispatches rmdir when the target is a dir), so
-     * an empty dir is removed and a NON-EMPTY dir fails with ENOTEMPTY ("directory
-     * not empty"), matching stock. It must NEVER recurse: a recursive retry here
-     * silently deleted whole non-empty subtrees on a plain `rm` (data loss). */
-    res = xrootd_ns_delete(e->c->log, e->conf->common.root_canon,
-                           e->resolved, &opts);
-
-    if (res.status == XROOTD_NS_OK) {
+    /* kXR_rm mirrors osFS->rem: unlink a file, rmdir a directory — NON-recursively
+     * (xrootd_vfs_unlink → xrootd_vfs_delete(recursive=0): an empty dir is removed,
+     * a non-empty dir fails ENOTEMPTY). It must NEVER recurse (recursion here would
+     * silently delete whole subtrees on a plain `rm` — data loss). */
+    op_vfs_ctx(e, &vctx);
+    if (xrootd_vfs_unlink(&vctx) == NGX_OK) {
         return NGX_OK;
     }
-
-    *out_errno = res.sys_errno ? res.sys_errno : EISDIR;
+    *out_errno = errno ? errno : EISDIR;
     return NGX_ERROR;
 }
 
 static ngx_int_t
 exec_rmdir(const xrootd_op_exec_t *e, int *out_errno)
 {
-    xrootd_ns_delete_opts_t opts;
-    xrootd_ns_result_t      res;
+    xrootd_vfs_ctx_t vctx;
 
-    ngx_memzero(&opts, sizeof(opts));
-    opts.idempotent_missing = 1;
-    opts.require_directory  = 1;   /* rmdir must reject regular files (ENOTDIR) */
-    res = xrootd_ns_delete(e->c->log, e->conf->common.root_canon,
-                           e->resolved, &opts);
-    if (res.status == XROOTD_NS_OK) {
+    /* rmdir must reject regular files (xrootd_vfs_rmdir → vfs_delete with
+     * require_directory) and is idempotent for a missing target (stock do_Rmdir
+     * tolerates ENOENT), so a not-found dir is treated as success. */
+    op_vfs_ctx(e, &vctx);
+    if (xrootd_vfs_rmdir(&vctx, 0 /* non-recursive */) == NGX_OK) {
         return NGX_OK;
     }
-    *out_errno = res.sys_errno ? res.sys_errno : ENOTEMPTY;
+    if (errno == ENOENT) {
+        return NGX_OK;   /* idempotent_missing */
+    }
+    *out_errno = errno ? errno : ENOTEMPTY;
     return NGX_ERROR;
 }
 

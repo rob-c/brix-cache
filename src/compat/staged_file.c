@@ -11,6 +11,8 @@
 #include "../path/path.h"
 #include "../path/beneath.h"
 #include "../fs/backend/sd.h"   /* Storage Driver seam: VFS↔VFS (backend↔backend) move */
+#include "../fs/xfer/xfer.h"    /* xrootd_xfer_pump_objects — the shared in-process mover */
+#include "../fs/vfs_backend_registry.h"  /* per-export backend for a non-POSIX commit */
 
 #include <dirent.h>
 #include <errno.h>
@@ -212,31 +214,135 @@ xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
 static ngx_int_t
 stage_move_objects(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst)
 {
-    static const size_t CHUNK = 256 * 1024;
-    char  *buf = malloc(CHUNK);
-    off_t  off = 0;
+    /* The mover now lives in the transfer engine (src/fs/xfer/xfer_mover_pump.c)
+     * as the canonical XROOTD_XFER_MOVE_PUMP strategy; this thin wrapper keeps the
+     * two staged-commit callsites unchanged. */
+    return xrootd_xfer_pump_objects(src, dst);
+}
 
-    if (buf == NULL) { errno = ENOMEM; return NGX_ERROR; }
-    for (;;) {
-        ssize_t n = src->driver->pread(src, buf, CHUNK, off);
-        if (n < 0) { if (errno == EINTR) { continue; } free(buf); return NGX_ERROR; }
-        if (n == 0) { break; }
-        ssize_t w_done = 0;
-        while (w_done < n) {
-            ssize_t w = dst->driver->pwrite(dst, buf + w_done,
-                                            (size_t) (n - w_done), off + w_done);
-            if (w < 0) { if (errno == EINTR) { continue; } free(buf); return NGX_ERROR; }
-            w_done += w;
-        }
-        off += n;
+/* commit_be_logical — the export-root-relative ("/sub/file", or "/" for the root)
+ * key form a non-POSIX backend's namespace expects, matching
+ * xrootd_vfs_export_relative_root used by every other driver-backed op. */
+static const char *
+commit_be_logical(const char *abs, const char *root)
+{
+    size_t rl = (root != NULL) ? strlen(root) : 0;
+
+    if (rl > 0 && strncmp(abs, root, rl) == 0) {
+        if (abs[rl] == '/')  { return abs + rl; }   /* "/sub/file" */
+        if (abs[rl] == '\0') { return "/"; }        /* the export root itself */
     }
-    free(buf);
+    return abs;
+}
+
+/*
+ * commit_staged_to_backend — publish a POSIX-staged partial INTO a non-POSIX
+ * storage backend (e.g. pblock) by streaming it through that driver's staged
+ * write→commit state machine. This is the cross-FILESYSTEM atomic commit that
+ * rename(2) cannot do: the partial lives on an independent POSIX staging mount
+ * (xrootd_stage_dir) and the final export is a different, driver-owned namespace,
+ * so we read the partial through the (POSIX) source backend and write it through
+ * the destination driver's staged_write, then staged_commit (which publishes
+ * atomically — for pblock, a single catalog row insert pointing at the freshly
+ * written blocks). On success the POSIX partial is unlinked; on failure it is
+ * KEPT (a resume client can retry the close) and the driver's staged blob is
+ * aborted. Returns NGX_OK / NGX_ERROR (errno set).
+ */
+static ngx_int_t
+commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
+    const char *final_path, xrootd_sd_instance_t *dst, const char *root_canon,
+    ngx_log_t *log)
+{
+    const char         *logical = commit_be_logical(final_path, root_canon);
+    xrootd_sd_obj_t     src_obj;
+    xrootd_sd_staged_t *st;
+    struct stat         sb;
+    mode_t              mode;
+    int                 rfd, owned = 0, serr = 0;
+    off_t               off = 0;
+
+    (void) log;
+
+    if (dst->driver->staged_open == NULL || dst->driver->staged_write == NULL
+        || dst->driver->staged_commit == NULL
+        || dst->driver->staged_abort == NULL)
+    {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+
+    /* Source: the open staged partial if we still hold it, else open it O_RDONLY.
+     * Reads are positional (pread), so the fd's file position is irrelevant. */
+    if (fd != NGX_INVALID_FILE) {
+        rfd = fd;
+    } else {
+        rfd = open(stage_path, O_RDONLY | O_CLOEXEC);
+        if (rfd < 0) {
+            return NGX_ERROR;
+        }
+        owned = 1;
+    }
+    mode = (fstat(rfd, &sb) == 0) ? (sb.st_mode & 07777) : 0644;
+
+    st = dst->driver->staged_open(dst, logical, mode, &serr);
+    if (st == NULL) {
+        if (owned) { (void) close(rfd); }
+        errno = serr ? serr : EIO;
+        return NGX_ERROR;
+    }
+
+    xrootd_sd_posix_wrap(&src_obj, rfd);   /* read the partial via the SD seam */
+    for ( ;; ) {
+        char    buf[65536];
+        ssize_t r = src_obj.driver->pread(&src_obj, buf, sizeof(buf), off);
+        ssize_t w = 0;
+
+        if (r < 0) {
+            int e = errno;
+            dst->driver->staged_abort(st);
+            if (owned) { (void) close(rfd); }
+            errno = e;
+            return NGX_ERROR;
+        }
+        if (r == 0) {
+            break;                          /* EOF: whole partial consumed */
+        }
+        while (w < r) {
+            ssize_t k = dst->driver->staged_write(st, buf + w,
+                                                  (size_t) (r - w), off + w);
+            if (k <= 0) {
+                int e = errno;
+                dst->driver->staged_abort(st);
+                if (owned) { (void) close(rfd); }
+                errno = e ? e : EIO;
+                return NGX_ERROR;
+            }
+            w += k;
+        }
+        off += r;
+    }
+
+    /* Atomic publish. On failure staged_commit leaves the handle valid, so abort
+     * to release it; KEEP the POSIX partial so a resume retry can republish. */
+    if (dst->driver->staged_commit(st, 0 /* replace allowed */) != NGX_OK) {
+        int e = errno;
+        dst->driver->staged_abort(st);
+        if (owned) { (void) close(rfd); }
+        errno = e ? e : EIO;
+        return NGX_ERROR;
+    }
+
+    if (owned) { (void) close(rfd); }
+    (void) unlink(stage_path);              /* published → drop the partial */
     return NGX_OK;
 }
 
 /*
  * WHAT: Commit a staged file onto its final path — atomically and across
- *       filesystems.  Tries rename(2) first (atomic, same-FS, the fast path); on
+ *       filesystems.  When the final export uses a NON-POSIX storage backend
+ *       (e.g. pblock), the partial is uploaded INTO that backend via the driver's
+ *       staged write→commit state machine (commit_staged_to_backend).  Otherwise
+ *       it tries rename(2) first (atomic, same-FS, the fast path); on
  *       EXDEV (the staged file is on a configured fast-cache device different from
  *       the storage, e.g. CEPHFS) it copies the data to a temp ON THE FINAL
  *       filesystem, fsync()s, atomically renames that temp onto the final path,
@@ -258,13 +364,29 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
     int          rfd, dfd, e;
     struct stat  sb;
 
-    (void) log;
-
     if (fd != NGX_INVALID_FILE) {
         xrootd_sd_obj_t sobj;
         xrootd_sd_posix_wrap(&sobj, fd);   /* durability flush via the backend */
         if (sobj.driver->fsync(&sobj) != NGX_OK) {
             return NGX_ERROR;   /* not durable — do not publish */
+        }
+    }
+
+    /* Non-POSIX final export (e.g. pblock): the staged POSIX partial lives on an
+     * independent staging mount and the final namespace is driver-owned, so
+     * rename(2) cannot publish it. Upload the partial INTO the backend via its
+     * staged write→commit state machine (a cross-filesystem atomic publish).
+     * POSIX exports (the common case) skip this and take the rename path below. */
+    {
+        const char           *be_root = NULL;
+        xrootd_sd_instance_t *dst =
+            xrootd_vfs_backend_resolve_for_path(final_path, &be_root, log);
+
+        if (dst != NULL && dst->driver != NULL
+            && dst->driver != xrootd_sd_default_driver())
+        {
+            return commit_staged_to_backend(fd, stage_path, final_path, dst,
+                                            be_root, log);
         }
     }
 

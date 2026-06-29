@@ -19,6 +19,7 @@
 #include "s3.h"
 #include "../compat/http_body.h"
 #include "../impersonate/lifecycle.h"
+#include "../fs/vfs.h"   /* per-object delete via the VFS unlink surface */
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -38,6 +39,49 @@
  * buffer is sized to hold escaped per-key <Deleted>/<Error> entries for the
  * capped request body without reallocating. */
 
+
+/*
+ * s3_delete_one — remove one resolved object through the VFS unlink surface
+ * (OP_DELETE metric + access-log + write gate + confinement). S3 DeleteObjects
+ * is idempotent, so a missing key (ENOENT) is reported as success. On a real
+ * failure returns NGX_ERROR and sets the code/msg out-params to the S3 error
+ * pair (errno is
+ * mapped the same way the old xrootd_ns_delete status was: EACCES/EPERM →
+ * AccessDenied, ENOTEMPTY → BucketNotEmpty, else InternalError).
+ */
+static ngx_int_t
+s3_delete_one(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    const char *fs_path, const char **code, const char **msg)
+{
+    ngx_http_s3_req_ctx_t *s3ctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    xrootd_vfs_ctx_t       vctx;
+    int                    is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+
+    if (xrootd_vfs_unlink(&vctx) == NGX_OK || errno == ENOENT) {
+        return NGX_OK;   /* deleted, or idempotent-missing */
+    }
+
+    if (errno == EACCES || errno == EPERM) {
+        *code = "AccessDenied";
+        *msg  = "Access Denied.";
+    } else if (errno == ENOTEMPTY) {
+        *code = "BucketNotEmpty";
+        *msg  = "The directory is not empty.";
+    } else {
+        *code = "InternalError";
+        *msg  = "Internal server error.";
+    }
+    return NGX_ERROR;
+}
 
 static ngx_int_t
 s3_delete_xml_append_raw(ngx_buf_t *xml_buf, size_t *xml_len, const char *text)
@@ -404,15 +448,10 @@ s3_delete_objects_body_handler_inner(ngx_http_request_t *r)
             }
 
             {
-                xrootd_ns_delete_opts_t d_opts;
-                xrootd_ns_result_t      d_res;
+                const char *code = NULL;
+                const char *msg  = NULL;
 
-                ngx_memzero(&d_opts, sizeof(d_opts));
-                d_opts.idempotent_missing = 1;
-                d_res = xrootd_ns_delete(r->connection->log,
-                                         cf->common.root_canon,
-                                         fs_path, &d_opts);
-                if (d_res.status == XROOTD_NS_OK) {
+                if (s3_delete_one(r, cf, fs_path, &code, &msg) == NGX_OK) {
                     if (s3_delete_xml_append_deleted(
                             xml_buf, &xml_len,
                             (const u_char *) key_text, key_len) != NGX_OK)
@@ -424,18 +463,6 @@ s3_delete_objects_body_handler_inner(ngx_http_request_t *r)
                         return;
                     }
                 } else {
-                    const char *code;
-                    const char *msg;
-                    if (d_res.status == XROOTD_NS_DENIED) {
-                        code = "AccessDenied";
-                        msg  = "Access Denied.";
-                    } else if (d_res.status == XROOTD_NS_NOT_EMPTY) {
-                        code = "BucketNotEmpty";
-                        msg  = "The directory is not empty.";
-                    } else {
-                        code = "InternalError";
-                        msg  = "Internal server error.";
-                    }
                     if (s3_delete_xml_append_error(
                             xml_buf, &xml_len,
                             (const u_char *) key_text, key_len,

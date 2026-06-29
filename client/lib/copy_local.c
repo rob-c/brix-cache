@@ -500,13 +500,25 @@ copy_upload(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
 }
 
 
+/* VFS-backed pull source for an HTTP PUT body: the local source is read through
+ * xrdc_vfs (so its bytes route through the shared SD driver, not a raw fd). */
+static ssize_t
+web_upload_src_vfs(void *ctx, uint8_t *buf, int64_t off, size_t cap,
+                   xrdc_status *st)
+{
+    return xrdc_vfs_pread((xrdc_vfs_file *) ctx, off, buf, cap, st);
+}
+
+
 int
 copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts *o,
                 const xrdc_opts *co, xrdc_status *st)
 {
-    char        hdrs[8192];
-    struct stat sb;
-    int         infd, status = 0, rc;
+    char               hdrs[8192];
+    xrdc_vfs_file     *vf = NULL;
+    xrdc_vfs_open_opts vopts;
+    xrdc_vfs_stat      vst;
+    int                status = 0, rc;
 
     if (su->scheme == XRDC_SCHEME_STDIO) {
         xrdc_status_set(st, XRDC_EUSAGE, 0,
@@ -514,27 +526,28 @@ copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts 
                         "stdin not supported");
         return -1;
     }
-    infd = open(su->path, O_RDONLY);
-    if (infd < 0) {
-        xrdc_status_set(st, XRDC_EUSAGE, errno, "open %s: %s",
-                        su->path, strerror(errno));
+
+    /* Open the local source through the VFS (byte I/O dispatches to the shared
+     * SD driver), then fstat it for the Content-Length the PUT must promise. */
+    vopts.io_uring      = o ? o->io_uring : 0;
+    vopts.expected_size = -1;   /* read-only open; hint unused */
+    vopts.cred          = NULL;
+    if (xrdc_vfs_open(su->path, XRDC_VFS_READ, &vopts, &vf, st) != 0) {
         return -1;
     }
-    if (fstat(infd, &sb) != 0) {
-        close(infd);
-        xrdc_status_set(st, XRDC_ESOCK, errno, "fstat %s: %s",
-                        su->path, strerror(errno));
+    if (xrdc_vfs_fstat(vf, &vst, st) != 0) {
+        xrdc_vfs_close(vf);
         return -1;
     }
-    if (!S_ISREG(sb.st_mode)) {
-        /* st_size is only a reliable Content-Length for a regular file. */
-        close(infd);
+    if (vst.is_dir) {
+        /* st_size is only a reliable Content-Length for a non-directory file. */
+        xrdc_vfs_close(vf);
         xrdc_status_set(st, XRDC_EUSAGE, 0,
                         "web upload source must be a regular file: %s", su->path);
         return -1;
     }
     if (web_auth_headers(du, "PUT", o, co, hdrs, sizeof(hdrs), st) != 0) {
-        close(infd);
+        xrdc_vfs_close(vf);
         return -1;
     }
     {
@@ -544,14 +557,15 @@ copy_web_upload(const xrdc_url *su, const xrdc_weburl *du, const xrdc_copy_opts 
          * the first whole-range chunk, so a single-shot upload still works. */
         int stall = copy_stall_ms(o, XRDC_DEFAULT_MAX_STALL_MS);
         rc = xrdc_http_upload_resumable(du->host, du->port, du->tls, du->path,
-                          hdrs[0] ? hdrs : NULL, infd, (long long) sb.st_size,
+                          hdrs[0] ? hdrs : NULL, web_upload_src_vfs, vf,
+                          (long long) vst.size,
                           co ? co->verify_host : 1, co ? co->ca_dir : NULL,
                           XRDC_WEB_TIMEOUT_MS, stall, &status, st);
     }
-    close(infd);
+    xrdc_vfs_close(vf);
     if (rc == 0 && o && !o->silent) {
         fprintf(stderr, "xrdcp: uploaded %lld bytes (HTTP %d)\n",
-                (long long) sb.st_size, status);
+                (long long) vst.size, status);
     }
     return rc;
 }

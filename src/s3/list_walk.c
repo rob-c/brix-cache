@@ -31,7 +31,8 @@
 
 #include "s3.h"
 #include "../compat/fs_walk.h"
-#include "../path/path.h"
+#include "../fs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
+#include "../path/path.h"   /* xrootd_dirlist_access_ok (impersonation list gate) */
 #include <errno.h>
 #include <stdlib.h>
 
@@ -87,31 +88,37 @@ s3_walk_push(ngx_array_t *entries, const char *key, unsigned is_prefix)
  * */
 
 static int
-s3_walk_classify(ngx_log_t *log, const char *root, const char *child_path,
-    unsigned char d_type)
+s3_walk_classify(ngx_pool_t *pool, ngx_log_t *log, const char *root,
+    const char *child_path, xrootd_vfs_dirent_kind_t dkind)
 {
-    struct stat sb;
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_stat_t vst;
 
-    switch (d_type) {
-    case DT_DIR:
+    switch (dkind) {
+    case XROOTD_VFS_DT_DIR:
         return 1;
-    case DT_REG:
+    case XROOTD_VFS_DT_REG:
         return 2;
-    case DT_LNK:
-        return 0;   /* never list or traverse a symlink */
-    case DT_UNKNOWN:
-        if (xrootd_lstat_confined_canon(log, root, child_path, &sb, 1) != 0) {
+    case XROOTD_VFS_DT_OTHER:
+        return 0;   /* symlink / special: never list or traverse */
+    case XROOTD_VFS_DT_UNKNOWN:
+    default:
+        /* The filesystem did not populate d_type (e.g. some NFS mounts): classify
+         * via a confined no-follow probe (non-metered — the ListObjects op already
+         * accounts for the walk). A symlink/special stats as neither dir nor
+         * regular and is skipped, preserving the symlink-skip security property. */
+        xrootd_vfs_ctx_init(&vctx, pool, log, XROOTD_PROTO_S3, root, NULL,
+            0 /* allow_write */, 0 /* is_tls */, NULL, child_path);
+        if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK) {
             return 0;
         }
-        if (S_ISDIR(sb.st_mode)) {
+        if (vst.is_directory) {
             return 1;
         }
-        if (S_ISREG(sb.st_mode)) {
+        if (vst.is_regular) {
             return 2;
         }
-        return 0;   /* symlink / special → skip */
-    default:
-        return 0;   /* FIFO/SOCK/CHR/BLK → skip */
+        return 0;
     }
 }
 
@@ -129,13 +136,13 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
         ngx_array_t *entries,      /* growable output array      */
         int         max_entries)   /* hard cap on entries        */
 {
-    DIR            *dh;
-    struct dirent  *de;
-    char            child_path[PATH_MAX];
-    char            child_key[S3_MAX_KEY];
+    xrootd_vfs_ctx_t  wctx;
+    xrootd_vfs_dir_t *dh;
+    char              child_path[PATH_MAX];
+    char              child_key[S3_MAX_KEY];
     /* Cache lengths once — avoids repeated strlen() in the readdir loop. */
-    size_t          fp_len  = filter_prefix ? strlen(filter_prefix) : 0;
-    size_t          del_len = delimiter     ? strlen(delimiter)      : 0;
+    size_t            fp_len  = filter_prefix ? strlen(filter_prefix) : 0;
+    size_t            del_len = delimiter     ? strlen(delimiter)      : 0;
 
     /*
      * Phase 40 confidentiality gate: under impersonation the worker uid may be
@@ -147,45 +154,58 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
         return (int) entries->nelts;
     }
 
-    /* Enumerate AS THE MAPPED USER under impersonation (broker fdopendir); off
-     * impersonation this is a bare opendir(). */
-    dh = xrootd_opendir_confined_canon(log, root, dir_path);
+    /* Enumerate through the VFS (broker fdopendir under impersonation), using the
+     * NON-METERED opendir: a recursive ListObjects must not emit one OP_DIRLIST
+     * per visited subdirectory (the enclosing S3 list op accounts for the walk). */
+    xrootd_vfs_ctx_init(&wctx, entries->pool, log, XROOTD_PROTO_S3, root, NULL,
+        0 /* allow_write */, 0 /* is_tls */, NULL, dir_path);
+    dh = xrootd_vfs_opendir_quiet(&wctx, NULL);
     if (dh == NULL) {
         return (int) entries->nelts;
     }
 
-    while ((de = readdir(dh)) != NULL && (int) entries->nelts < max_entries) {
-        int kind;
+    for ( ;; ) {
+        ngx_str_t                name;
+        xrootd_vfs_dirent_kind_t dkind;
+        const char              *dname;
+        int                      kind;
+        ngx_int_t                rrc;
 
-        if (xrootd_fs_is_dot_entry(de->d_name)) {
-            continue; /* skip . and .. */
+        if ((int) entries->nelts >= max_entries) {
+            break;
         }
+        /* "." / ".." are filtered by xrootd_vfs_readdir_kind; the entry kind
+         * comes from d_type so the fast path needs no per-entry stat. */
+        rrc = xrootd_vfs_readdir_kind(dh, &name, &dkind);
+        if (rrc != NGX_OK) {
+            break;   /* NGX_DONE (end) or error → stop with what we have */
+        }
+        dname = (const char *) name.data;
 
         /* Build filesystem path */
         if ((size_t) snprintf(child_path, sizeof(child_path), "%s/%s",
-                              dir_path, de->d_name) >= sizeof(child_path)) {
+                              dir_path, dname) >= sizeof(child_path)) {
             continue;
         }
 
         /* Build key relative to root */
         if (key_prefix[0] != '\0') {
             if ((size_t) snprintf(child_key, sizeof(child_key), "%s/%s",
-                                  key_prefix, de->d_name) >= sizeof(child_key)) {
+                                  key_prefix, dname) >= sizeof(child_key)) {
                 continue;
             }
         } else {
-            if (strlen(de->d_name) >= sizeof(child_key)) {
+            if (name.len >= sizeof(child_key)) {
                 continue;
             }
-            memcpy(child_key, de->d_name, strlen(de->d_name) + 1);
+            memcpy(child_key, dname, name.len + 1);
         }
 
         /*
-         * phase-45 W1: classify from readdir d_type (no stat); lstat only on
-         * DT_UNKNOWN.  Symlinks are skipped here (kind==0) — the same outcome
-         * the old eager lstat produced via S_ISLNK matching neither branch.
+         * Classify from the readdir d_type (no stat); a confined no-follow probe
+         * is used only on DT_UNKNOWN.  Symlinks/specials are skipped (kind==0).
          */
-        kind = s3_walk_classify(log, root, child_path, de->d_type);
+        kind = s3_walk_classify(entries->pool, log, root, child_path, dkind);
         if (kind == 0) {
             continue;
         }
@@ -227,7 +247,7 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
             }
         } else {           /* kind == 2: regular file */
             /* Skip directory sentinel */
-            if (strcmp(de->d_name, S3_DIR_SENTINEL) == 0) {
+            if (strcmp(dname, S3_DIR_SENTINEL) == 0) {
                 continue;
             }
             /* Filter by prefix */
@@ -251,7 +271,7 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
         }
     }
 
-    closedir(dh);
+    xrootd_vfs_closedir(dh, log);
     return (int) entries->nelts;
 }
 
@@ -260,10 +280,13 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
  * */
 
 ngx_int_t
-s3_entry_fill_stat(ngx_log_t *log, const char *root, s3_entry_t *e)
+s3_entry_fill_stat(ngx_pool_t *pool, ngx_log_t *log, const char *root,
+    s3_entry_t *e)
 {
-    char        fs_path[PATH_MAX];
-    struct stat sb;
+    char              fs_path[PATH_MAX];
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_stat_t vst;
+    struct stat       sb;
 
     if (e->is_prefix) {
         return NGX_OK;   /* CommonPrefix: no size/mtime/etag */
@@ -276,16 +299,22 @@ s3_entry_fill_stat(ngx_log_t *log, const char *root, s3_entry_t *e)
         return NGX_DECLINED;
     }
 
-    /* nofollow lstat (confined): if the entry vanished or is no longer a
-     * regular file (e.g. swapped for a symlink after the walk), skip it —
-     * matching the eager walker's stat-failure / symlink skip. */
-    if (xrootd_lstat_confined_canon(log, root, fs_path, &sb, 1) != 0
-        || !S_ISREG(sb.st_mode)) {
+    /* Confined no-follow probe (non-metered — the ListObjects op accounts for
+     * the page): if the entry vanished or is no longer a regular file (e.g.
+     * swapped for a symlink after the walk), skip it — matching the eager
+     * walker's stat-failure / symlink skip. */
+    xrootd_vfs_ctx_init(&vctx, pool, log, XROOTD_PROTO_S3, root, NULL,
+        0 /* allow_write */, 0 /* is_tls */, NULL, fs_path);
+    if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK
+        || !vst.is_regular) {
         return NGX_DECLINED;
     }
 
-    e->size  = sb.st_size;
-    e->mtime = sb.st_mtime;
+    e->size  = vst.size;
+    e->mtime = vst.mtime;
+    ngx_memzero(&sb, sizeof(sb));
+    sb.st_size  = vst.size;
+    sb.st_mtime = vst.mtime;
     s3_etag(&sb, e->etag, sizeof(e->etag));
     return NGX_OK;
 }

@@ -161,6 +161,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 								  ctx->payload ? ctx->payload : (u_char *) "",
 								  wlen);
 		job.csi = ctx->files[idx].csi;   /* phase-59 W2: update page tags */
+		xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
 		xrootd_vfs_io_execute(&job);
 		nwritten = job.nio;
 		if (job.io_errno != 0) {

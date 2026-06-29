@@ -128,6 +128,21 @@ void xrootd_metric_op_done(xrootd_proto_t proto, xrootd_metric_op_t op,
 void xrootd_metric_cache_result(xrootd_proto_t proto, unsigned int hit,
     size_t bytes_evicted);
 /*
+ * Watermark-driven LRU reaper telemetry (connection-less, process-wide):
+ *  - cache_usage_ratio publishes cache_root occupancy (ppm) as a gauge each tick;
+ *  - cache_watermark_purge accounts one purge run that reclaimed `files`/`bytes`.
+ * Lock-free; no-ops on detached SHM (and purge no-ops when files == 0).
+ */
+void xrootd_metric_cache_usage_ratio(ngx_uint_t occupancy_ppm);
+void xrootd_metric_cache_watermark_purge(ngx_uint_t files, uint64_t bytes);
+/*
+ * Write-back-staging backpressure telemetry: usage_ratio publishes staging
+ * occupancy (ppm) as a gauge; throttled records one shed write (reject != 0 →
+ * hard-cap rejection, else a soft-band delay). Lock-free; no-op on detached SHM.
+ */
+void xrootd_metric_wt_stage_usage_ratio(ngx_uint_t occupancy_ppm);
+void xrootd_metric_wt_stage_throttled(int reject);
+/*
  * Record one auth attempt: maps auth_method (a bitmask) to its slot via
  * xrootd_metric_auth_slot(), then bumps auth_total[proto][slot][ok|fail] keyed
  * by success (boolean). Lock-free; no-ops on out-of-range proto or detached SHM.

@@ -8,7 +8,7 @@
  */
 #include "zip_http.h"
 #include "zip_dir.h"
-#include "../path/path.h"   /* xrootd_open_confined_canon */
+#include "../fs/vfs.h"   /* confined archive read-open via the VFS seam */
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -87,16 +87,28 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
     ngx_buf_t           *b;
     ngx_chain_t          out;
     ngx_int_t            rc;
+    xrootd_vfs_ctx_t     vctx;
+    xrootd_vfs_file_t   *fh;
+    int                  vfs_err = 0;
+    int                  is_tls  = 0;
 
-    fd = xrootd_open_confined_canon(r->connection->log, root_canon,
-                                    archive_full, O_RDONLY | O_CLOEXEC, 0);
-    if (fd < 0) {
+    /* Open the archive through the confined VFS read surface (the member fd is
+     * used transiently to read the central directory + extract/dup the member). */
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+        root_canon, NULL, 0 /* allow_write */, is_tls, NULL, archive_full);
+    fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+    if (fh == NULL) {
+        errno = vfs_err;
         if (errno == ENOENT || errno == ENOTDIR) return NGX_HTTP_NOT_FOUND;
         if (errno == EACCES || errno == EPERM) return NGX_HTTP_FORBIDDEN;
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+    fd = xrootd_vfs_file_fd(fh);
     if (fstat(fd, &ast) != 0 || !S_ISREG(ast.st_mode)) {
-        (void) close(fd);
+        (void) xrootd_vfs_close(fh, r->connection->log);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -105,7 +117,7 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
     }
     zrc = xrootd_zip_find_member(fd, (off_t) ast.st_size, member, cd_max, &m);
     if (zrc != XROOTD_ZIP_OK) {
-        (void) close(fd);
+        (void) xrootd_vfs_close(fh, r->connection->log);
         if (zrc == XROOTD_ZIP_NOMEMBER) return NGX_HTTP_NOT_FOUND;
         return (zrc == XROOTD_ZIP_EIO) ? NGX_HTTP_INTERNAL_SERVER_ERROR
                                        : NGX_HTTP_NOT_IMPLEMENTED;
@@ -134,7 +146,7 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
                 len = total - start;
             }
             if (start >= total) {
-                (void) close(fd);
+                (void) xrootd_vfs_close(fh, r->connection->log);
                 r->headers_out.status = NGX_HTTP_RANGE_NOT_SATISFIABLE;
                 r->headers_out.content_length_n = 0;
                 ngx_http_send_header(r);
@@ -148,7 +160,7 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
 
     b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
     if (b == NULL) {
-        (void) close(fd);
+        (void) xrootd_vfs_close(fh, r->connection->log);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -158,7 +170,7 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
         ngx_file_t        *f = ngx_pcalloc(r->pool, sizeof(ngx_file_t));
         ngx_pool_cleanup_t *cln = ngx_pool_cleanup_add(r->pool, sizeof(ngx_fd_t));
         send_fd = dup(fd);
-        (void) close(fd);
+        (void) xrootd_vfs_close(fh, r->connection->log);
         if (f == NULL || cln == NULL || send_fd == (ngx_fd_t) -1) {
             if (send_fd != (ngx_fd_t) -1) (void) close(send_fd);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -174,17 +186,17 @@ xrootd_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
     } else {
         u_char *mem;
         if (m.uncomp_size > ZIP_HTTP_MEM_MAX) {
-            (void) close(fd);
+            (void) xrootd_vfs_close(fh, r->connection->log);
             return NGX_HTTP_REQUEST_ENTITY_TOO_LARGE;
         }
         mem = ngx_palloc(r->pool, m.uncomp_size ? m.uncomp_size : 1);
         if (mem == NULL
             || xrootd_zip_extract_full(fd, &m, mem, m.uncomp_size) < 0)
         {
-            (void) close(fd);
+            (void) xrootd_vfs_close(fh, r->connection->log);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        (void) close(fd);
+        (void) xrootd_vfs_close(fh, r->connection->log);
         b->memory = 1;
         b->pos    = mem + start;
         b->last   = mem + start + len;

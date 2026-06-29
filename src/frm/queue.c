@@ -195,7 +195,11 @@ frm_request_add(frm_queue_t *q, const frm_req_view_t *req,
             {
                 continue;
             }
-            if (ngx_strcmp(ex.lfn, req->lfn) == 0) {
+            if (ex.xfer_kind == req->xfer_kind
+                && ngx_strcmp(ex.lfn, req->lfn) == 0)
+            {
+                /* dedup is per-kind: a live recall and a live write-through for
+                 * the same path are distinct transfers and must not collapse. */
                 ngx_cpystrn((u_char *) reqid_out, (u_char *) ex.reqid,
                             reqid_out_sz);
                 frm_file_unlock(q);
@@ -239,6 +243,8 @@ frm_request_add(frm_queue_t *q, const frm_req_view_t *req,
     rec.tod_expire  = req->tod_expire;
     rec.opaque_off  = -1;
     rec.lfn_url_off = -1;
+    rec.xfer_kind      = req->xfer_kind;       /* 0 = tape (default) */
+    rec.xfer_mode_bits = req->xfer_mode_bits;
     frm_reqid_format(q->host, seq, rec.reqid, sizeof(rec.reqid));
     ngx_cpystrn((u_char *) rec.lfn, (u_char *) req->lfn, sizeof(rec.lfn));
     if (req->requester_dn) {

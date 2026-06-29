@@ -27,6 +27,8 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+#include "backend/sd.h"   /* xrootd_sd_obj_t — the per-handle storage object */
+
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -42,26 +44,34 @@ typedef enum {
 } xrootd_vfs_io_op_e;
 
 typedef struct {
-    int       fd;
-    int       handle_index;
-    off_t     offset;
-    uint32_t  read_length;
-    u_char   *header_read_length_ptr;
-    u_char   *payload_ptr;
+    int             fd;
+    int             handle_index;
+    off_t           offset;
+    uint32_t        read_length;
+    u_char         *header_read_length_ptr;
+    u_char         *payload_ptr;
+    /* The handle's storage object (driver+state) when a non-POSIX backend is
+     * bound; obj.driver == NULL ⇒ use `fd` via the POSIX wrap (unchanged). */
+    xrootd_sd_obj_t obj;
 } xrootd_vfs_readv_seg_t;
 
 typedef struct {
-    int           fd;
-    int           handle_idx;
-    off_t         offset;
-    const u_char *data;
-    uint32_t      wlen;
+    int             fd;
+    int             handle_idx;
+    off_t           offset;
+    const u_char   *data;
+    uint32_t        wlen;
+    xrootd_sd_obj_t obj;   /* see xrootd_vfs_readv_seg_t.obj */
 } xrootd_vfs_writev_seg_t;
 
 typedef struct {
     /* IN: immutable once posted to a worker. */
     xrootd_vfs_io_op_e  op;
     ngx_fd_t            fd;
+    /* The handle's storage object for a non-POSIX backend (driver+state+fd).
+     * obj.driver == NULL ⇒ the executor POSIX-wraps `fd` (byte-for-byte the
+     * pre-Layer-3 path). Set via xrootd_vfs_job_set_obj. */
+    xrootd_sd_obj_t     obj;
     off_t               offset;
     size_t              length;
     u_char             *buf;
@@ -113,6 +123,32 @@ xrootd_vfs_job_read_init(xrootd_vfs_job_t *job, ngx_fd_t fd, off_t offset,
     job->buf = dst;
     job->buf_cap = dst_cap;
     job->want_pgcrc = want_pgcrc ? 1 : 0;
+}
+
+/* The effective storage object for a data op: the handle's bound driver object
+ * when set (a non-POSIX backend), else a POSIX wrap of the bare fd (the unchanged
+ * pre-Layer-3 path). `src` is the slot/job/segment obj (may be NULL/zeroed). */
+static ngx_inline xrootd_sd_obj_t *
+xrootd_vfs_effective_obj(xrootd_sd_obj_t *src, ngx_fd_t fd,
+    xrootd_sd_obj_t *scratch)
+{
+    if (src != NULL && src->driver != NULL) {
+        return src;
+    }
+    xrootd_sd_posix_wrap(scratch, fd);
+    return scratch;
+}
+
+/* Bind the handle's storage object to a job so the executor dispatches data I/O
+ * through its driver (block-striped/object backend). A NULL or default-POSIX obj
+ * is ignored — the job keeps using its bare fd (the unchanged POSIX path). Call
+ * after the op-specific init. */
+static ngx_inline void
+xrootd_vfs_job_set_obj(xrootd_vfs_job_t *job, const xrootd_sd_obj_t *obj)
+{
+    if (obj != NULL && obj->driver != NULL) {
+        job->obj = *obj;
+    }
 }
 
 /* ---- xrootd_vfs_job_write_init — initialize a thread-safe WRITE job ----

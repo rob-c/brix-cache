@@ -16,9 +16,15 @@
 #include "../manager/health_check.h"
 #include "../manager/pending.h"
 #include "../cache/origin/pelican_register.h"
+#include "../cache/cache_internal.h"   /* xrootd_wt_replay_register (durable WT) */
+#include "../cache/cache_reap.h"       /* stale-dirty reaper (cache-state engine) */
+#include "../cache/reap_watermark.h"  /* proactive watermark LRU reaper */
+#include "../cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
+#include "../fs/xfer/xfer.h"           /* xrootd_xfer_resume_sweep_register      */
 #include "../gsi/keypool.h"
 #include "../impersonate/lifecycle.h"
 #include "../aio/uring.h"
+#include "../fs/backend/sd.h"          /* SD registry: per-worker backend instance */
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
 #include <sanitizer/lsan_interface.h>
@@ -129,6 +135,30 @@ xrootd_stage_reap_handler(ngx_event_t *ev)
 }
 
 /*
+ * Unified cache-state engine: per-server stale-dirty reaper. Removes write-back
+ * staging files dirty longer than xrootd_cache_dirty_max_age (the eviction guard
+ * protects them, so without this an abandoned flush leaks disk forever). Runs on
+ * a maintenance timer independent of occupancy. ev->data is the server conf.
+ */
+#define XROOTD_CACHE_REAP_FIRST_MS     5000
+#define XROOTD_CACHE_REAP_INTERVAL_MS  3600000   /* hourly */
+
+static void
+xrootd_cache_reap_handler(ngx_event_t *ev)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = ev->data;
+    ngx_uint_t                    n = xrootd_cache_reap_dirty(xcf, ev->log);
+
+    if (n > 0) {
+        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+                      "xrootd: cache stale-dirty reaper removed %ui file(s)", n);
+    }
+    if (!ngx_exiting) {
+        ngx_add_timer(ev, XROOTD_CACHE_REAP_INTERVAL_MS);
+    }
+}
+
+/*
  * Worker process init: start CRL reload timers for every server block that
  * has xrootd_crl_reload configured. Timers are per-worker because each
  * nginx worker process has its own event loop and its own copy of the config
@@ -230,6 +260,19 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
                                          (uint16_t) xcf->listen_port);
             /* Phase 4 F6: worker-0 Category-2 purge-watermark monitor (stub). */
             frm_migrate_purge_register(cycle, &xcf->frm);
+
+            /* Phase 4b-2b-ii: re-drive write-through flushes left in the shared
+             * journal by a crash (no-op unless this server has write-through on
+             * and a thread pool). */
+            xrootd_wt_replay_register(cycle, xcf, xcf->common.thread_pool);
+        }
+
+        /* Phase 6 housekeeping: TTL-sweep abandoned upload-resume partials from
+         * the stage dir (worker-0 only; the register itself is idempotent and
+         * arms a single timer for the first stage-dir server). */
+        if (xcf->upload_stage_dir_canon[0] != '\0') {
+            xrootd_xfer_resume_sweep_register(cycle,
+                                              xcf->upload_stage_dir_canon);
         }
 
         if (xcf->auth == XROOTD_AUTH_GSI || xcf->auth == XROOTD_AUTH_BOTH) {
@@ -263,6 +306,18 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
             return NGX_ERROR;
         }
 
+        /* The per-export storage backend (e.g. pblock) is registered at config
+         * time and built per worker lazily by the VFS backend registry on first
+         * use (xrootd_vfs_ctx_init → xrootd_vfs_backend_resolve); no per-server
+         * init_process creation is needed here. */
+
+        /* The cache performs all disk I/O through SD storage instances (POSIX
+         * driver on a per-worker rootfd by default, or a configured backend) —
+         * build them now. No-op unless a cache is configured. */
+        if (xrootd_cache_storage_init(xcf, cycle) != NGX_OK) {
+            return NGX_ERROR;
+        }
+
         /* Build the per-worker XrdAcc tables + hot-reload timer (no-op unless
          * this server uses `xrootd_authdb_format xrdacc`). */
         if (xrootd_acc_init_server(xcf, cycle) != NGX_OK) {
@@ -279,6 +334,42 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         /* Pelican: start the cache advertisement timer (no-op unless
          * xrootd_cache_advertise is on with a key + data-url configured). */
         xrootd_cache_pelican_schedule_advertise(cycle, xcf);
+
+        /* Unified cache-state engine: arm the per-worker stale-dirty reaper when
+         * a state root resolves and a max age is set. Independent of occupancy. */
+        if (xcf->cache_dirty_max_age > 0
+            && xrootd_cache_state_root(xcf) != NULL)
+        {
+            xcf->cache_reap_timer = ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
+            if (xcf->cache_reap_timer == NULL) {
+                return NGX_ERROR;
+            }
+            xcf->cache_reap_timer->handler = xrootd_cache_reap_handler;
+            xcf->cache_reap_timer->data    = xcf;
+            xcf->cache_reap_timer->log     = cycle->log;
+            ngx_add_timer(xcf->cache_reap_timer, XROOTD_CACHE_REAP_FIRST_MS);
+        }
+
+        /* Watermark-driven LRU reaper: arm the proactive per-worker timer when a
+         * cache is configured with a valid HIGH watermark. A small per-worker
+         * jitter on the first tick keeps the workers from all firing together. */
+        if (xcf->cache && xcf->cache_root.len > 0
+            && xcf->cache_high_watermark > 0
+            && xcf->cache_high_watermark < 1000000)
+        {
+            xcf->cache_watermark_timer =
+                ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
+            if (xcf->cache_watermark_timer == NULL) {
+                return NGX_ERROR;
+            }
+            xcf->cache_watermark_timer->handler =
+                xrootd_cache_watermark_timer_handler;
+            xcf->cache_watermark_timer->data = xcf;
+            xcf->cache_watermark_timer->log  = cycle->log;
+            ngx_add_timer(xcf->cache_watermark_timer,
+                          XROOTD_CACHE_REAP_FIRST_MS
+                          + (ngx_msec_t) (ngx_pid % 1000));
+        }
 
         if ((xcf->auth != XROOTD_AUTH_GSI && xcf->auth != XROOTD_AUTH_BOTH)
             || xcf->crl.len == 0 || xcf->crl_reload == 0)
@@ -406,6 +497,7 @@ xrootd_exit_process(ngx_cycle_t *cycle)
             close(xcf->rootfd);
             xcf->rootfd = -1;
         }
+        xrootd_cache_storage_cleanup(xcf);
     }
 
     xrootd_crypto_cleanup();

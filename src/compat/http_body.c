@@ -18,7 +18,7 @@
 #include "http_body.h"
 #include "copy_range.h"
 #include "codec_core.h"
-#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
+#include "../fs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
 
 #include <errno.h>
 #include <unistd.h>
@@ -46,38 +46,16 @@ static ngx_int_t
 xrootd_http_body_pwrite_full(ngx_log_t *log, ngx_fd_t fd, const u_char *data,
     size_t len, off_t *off, const char *path)
 {
-    xrootd_sd_obj_t obj;
-
-    /* Route the raw syscall through the Storage Driver seam (phase-55). */
-    xrootd_sd_posix_wrap(&obj, fd);
-
-    while (len > 0) {
-        ssize_t n;
-
-        n = xrootd_sd_posix_driver.pwrite(&obj, data, len, *off);
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd_http_body: pwrite failed for %s",
-                          path ? path : "-");
-            return NGX_ERROR;
-        }
-
-        if (n == 0) {
-            errno = EIO;
-            ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "xrootd_http_body: pwrite wrote zero bytes for %s",
-                          path ? path : "-");
-            return NGX_ERROR;
-        }
-
-        data += (size_t) n;
-        len -= (size_t) n;
-        *off += (off_t) n;
+    /* Delegate the EINTR/short-write loop to the VFS primitive (routes the byte
+     * syscall through the storage seam); keep the path-tagged error log and the
+     * caller's running offset. */
+    if (xrootd_vfs_pwrite_full(fd, data, len, *off) != NGX_OK) {
+        ngx_log_error(NGX_LOG_ERR, log, errno,
+                      "xrootd_http_body: pwrite failed for %s",
+                      path ? path : "-");
+        return NGX_ERROR;
     }
-
+    *off += (off_t) len;
     return NGX_OK;
 }
 
@@ -268,6 +246,85 @@ xrootd_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd,
 }
 
 /*
+ * xrootd_http_body_write_to_staged — stream the whole request body into a staged
+ * object via xrootd_vfs_staged_write (a driver-backed/object export has no kernel
+ * fd, so write_to_fd does not apply). Memory buffers are forwarded directly;
+ * spooled (in_file) buffers are read from their temp fd in 64 KiB chunks. The
+ * destination offset runs from 0 so the body lands contiguously.
+ */
+ngx_int_t
+xrootd_http_body_write_to_staged(ngx_http_request_t *r,
+    xrootd_vfs_staged_t *st)
+{
+    ngx_chain_t *cl;
+    off_t        off = 0;
+
+    if (r == NULL || st == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (r->request_body == NULL) {
+        return NGX_OK;
+    }
+
+    for (cl = r->request_body->bufs; cl != NULL; cl = cl->next) {
+        ngx_buf_t *b = cl->buf;
+
+        if (b == NULL) {
+            continue;
+        }
+
+        if (b->in_file) {
+            off_t fpos;
+
+            if (b->file == NULL || b->file->fd == NGX_INVALID_FILE
+                || b->file_last < b->file_pos)
+            {
+                errno = EINVAL;
+                return NGX_ERROR;
+            }
+            for (fpos = b->file_pos; fpos < b->file_last; ) {
+                u_char  chunk[65536];
+                size_t  want = (size_t) (b->file_last - fpos);
+                ssize_t n;
+
+                if (want > sizeof(chunk)) {
+                    want = sizeof(chunk);
+                }
+                n = pread(b->file->fd, chunk, want, fpos);
+                if (n < 0) {
+                    if (errno == EINTR) {
+                        continue;
+                    }
+                    return NGX_ERROR;
+                }
+                if (n == 0) {
+                    errno = EIO;
+                    return NGX_ERROR;
+                }
+                if (xrootd_vfs_staged_write(st, chunk, (size_t) n, off)
+                    != NGX_OK)
+                {
+                    return NGX_ERROR;
+                }
+                off  += n;
+                fpos += n;
+            }
+
+        } else if (b->pos < b->last) {
+            size_t len = (size_t) (b->last - b->pos);
+
+            if (xrootd_vfs_staged_write(st, b->pos, len, off) != NGX_OK) {
+                return NGX_ERROR;
+            }
+            off += (off_t) len;
+        }
+    }
+
+    return NGX_OK;
+}
+
+/*
  * xrootd_http_body_read_all - copy the entire body into one pool buffer.
  *
  * WHAT: allocates a single NUL-terminated buffer from r->pool and fills it
@@ -316,32 +373,20 @@ xrootd_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
             }
 
             if (b->in_file) {
-                off_t           off = b->file_pos;
-                xrootd_sd_obj_t obj;
+                size_t want = (size_t) (b->file_last - b->file_pos);
+                size_t got  = 0;
 
-                /* Route the raw syscall through the Storage Driver seam. */
-                xrootd_sd_posix_wrap(&obj, b->file->fd);
-
-                while (off < b->file_last) {
-                    size_t  want;
-                    ssize_t n;
-
-                    want = (size_t) (b->file_last - off);
-                    n = xrootd_sd_posix_driver.pread(&obj, buf + pos, want, off);
-                    if (n < 0) {
-                        if (errno == EINTR) {
-                            continue;
-                        }
-                        return NGX_ERROR;
-                    }
-                    if (n == 0) {
-                        errno = EIO;
-                        return NGX_ERROR;
-                    }
-
-                    off += (off_t) n;
-                    pos += (size_t) n;
+                /* One full read through the storage seam (EINTR/short-read handled
+                 * by the primitive); a short fill is a premature EOF. */
+                if (xrootd_vfs_pread_full(b->file->fd, buf + pos, want,
+                                          b->file_pos, &got) != NGX_OK) {
+                    return NGX_ERROR;
                 }
+                if (got < want) {
+                    errno = EIO;
+                    return NGX_ERROR;
+                }
+                pos += got;
 
             } else if (b->pos < b->last) {
                 size_t n = (size_t) (b->last - b->pos);
@@ -457,32 +502,28 @@ codec_decode_bufs(xrootd_codec_stream_t *s, ngx_http_request_t *r,
         }
 
         if (b->in_file) {
-            off_t           file_off = b->file_pos;
-            xrootd_sd_obj_t obj;
-
-            /* Route the raw syscall through the Storage Driver seam. */
-            xrootd_sd_posix_wrap(&obj, b->file->fd);
+            off_t file_off = b->file_pos;
 
             while (file_off < b->file_last) {
-                size_t   want;
-                ssize_t  n;
+                size_t want = (size_t) (b->file_last - file_off);
+                size_t got  = 0;
 
-                want = (size_t) (b->file_last - file_off);
                 if (want > XROOTD_INFLATE_IN_BUFSZ) {
                     want = XROOTD_INFLATE_IN_BUFSZ;
                 }
-                do {
-                    n = xrootd_sd_posix_driver.pread(&obj, inbuf, want, file_off);
-                } while (n < 0 && errno == EINTR);
-                if (n <= 0) {
+                /* One chunk through the storage seam; EOF before file_last (a
+                 * short fill) is an error, matching the old n<=0 check. */
+                if (xrootd_vfs_pread_full(b->file->fd, inbuf, want, file_off,
+                                          &got) != NGX_OK || got < want)
+                {
                     ngx_log_error(NGX_LOG_ERR, log, errno,
                                   "xrootd_http_body: decode pread failed for %s",
                                   log_path ? log_path : "-");
                     return NGX_ERROR;
                 }
-                file_off += (off_t) n;
+                file_off += (off_t) got;
                 if (codec_feed(s, log, dst_fd, log_path, &dst_off, outbuf,
-                               inbuf, (size_t) n, 0, &ended, worst_rc) != NGX_OK)
+                               inbuf, got, 0, &ended, worst_rc) != NGX_OK)
                 {
                     return NGX_ERROR;
                 }

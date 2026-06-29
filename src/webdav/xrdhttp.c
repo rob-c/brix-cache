@@ -603,7 +603,7 @@ xrdhttp_add_checksum_header(ngx_http_request_t *r,
         iopts.allow_xattr_cache  = 1;
         iopts.update_xattr_cache = 1;
 
-        if (xrootd_integrity_get_fd(r->connection->log, fd, "<xrdhttp>",
+        if (xrootd_integrity_get_fd(r->connection->log, fd, NULL, "<xrdhttp>",
                                     algo, &iopts, &info) != NGX_OK
             || xrootd_integrity_format_http_digest(&info, hdr_value,
                                                    sizeof(hdr_value)) != NGX_OK)

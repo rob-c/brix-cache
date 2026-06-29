@@ -8,6 +8,16 @@ stack introduced by Phase 54 (thread-safe VFS I/O core) and Phase 55 (pluggable
 Storage Driver seam). Treat `src/` as authoritative; re-check an item's
 reachability before quoting it as open.
 
+> **SUPERSEDED for Pillar F by [phase-62](phase-62-vfs-namespace-metadata-seam-closure.md) (2026-06-28).**
+> F-1 (seam closure) and F-3 (CI guard) are now **complete and extended beyond the
+> byte plane**: phase-62 added a **tier-3** to `check_vfs_seam.sh` that enforces the
+> VFS as the sole funnel for raw **namespace/metadata** syscalls too
+> (`open`/`stat`/`opendir`/`unlink`/`rename`/`mkdir`/`truncate`/`chmod`/xattr), with
+> its own backlog (`vfs_seam_backlog_ns.txt`, now 0) and a per-line
+> `vfs-seam-allow` marker for the separate svc-owned storage domains. Both tier-2
+> and tier-3 backlogs are 0. Read phase-62 for the current state; the F-pillar
+> entries below are the historical audit that motivated it.
+>
 > **Implementation status (this revision).**
 > - **F0 — CI seam guard: DONE + verified, now dual-class.** `tools/ci/check_vfs_seam.sh`
 >   + `tools/ci/vfs_seam_backlog.txt` (**48** grandfathered files). Rejects a new

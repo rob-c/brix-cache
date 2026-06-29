@@ -1,4 +1,5 @@
 #include "tpc_internal.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
 #include "../compat/host_format.h"  /* xrootd_format_host_port — IPv6 bracketing */
 /* File: launch.c — TPC pull entry point and destination-side preparation for native root:// third-party copy
  * WHAT: Six functions implement the TPC pull launch pipeline on the event thread. tpc_send_open_response builds kXR_ok open response body (fhandle + optional statbuf) → xrootd_queue_response; tpc_build_origin_id constructs origin ID string from ctx->login_user+ngx_pid+getnameinfo host via snprintf+cpystrn; tpc_destination_open_flags derives O_CREAT/O_EXCL/O_TRUNC flags from options bitmask for POSIX open; xrootd_tpc_prepare_pull validates thread_pool + TPC source host/path → checks src policy (allow_local/allow_private) → alloc fhandle idx → xrootd_open_confined(canonical path) → set file metadata (writable=1, tpc_destination=1) → generate+register key if empty → store token_mode → send open response; xrootd_tpc_start_pull validates fhandle_idx + tpc_destination flag → alloc ngx_thread_task → populate xrootd_tpc_pull_t struct from file fields → set handler=xrootd_tpc_pull_thread, event.handler=xrootd_tpc_pull_done → post to thread pool; xrootd_tpc_launch_pull is wrapper for prepare_pull. Non-NGX_THREADS stubs return kXR_ServerError "TPC pull requires NGX_THREADS support". Caller: dispatch.c (kXR_open TPC opaque param path).
@@ -258,7 +259,7 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
     create_mode = (mode_bits & 0777) ? (mode_t) (mode_bits & 0777) : 0644;
 
     /*
-     * xrootd_open_beneath() resolves its path relative to conf->rootfd (it
+     * xrootd_vfs_open_fd_at() resolves its path relative to conf->rootfd (it
      * strips the leading '/' via xrootd_beneath_rel), so it must receive the
      * LOGICAL export path — not the root_canon-prefixed absolute path that
      * dst_path carries for authz/logging/fhandle metadata.  Passing the
@@ -276,7 +277,7 @@ xrootd_tpc_prepare_pull(xrootd_ctx_t *ctx, ngx_connection_t *c,
             dst_logical = dst_path + root_len;
         }
 
-        fd = xrootd_open_beneath(conf->rootfd, dst_logical,
+        fd = xrootd_vfs_open_fd_at(conf->rootfd, dst_logical,
                                  tpc_destination_open_flags(options),
                                  create_mode);
     }

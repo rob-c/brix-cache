@@ -8,6 +8,7 @@
 #include "s3.h"
 #include "aws_chunked.h"
 #include "tagging.h"
+#include "usermeta.h"
 #include "../compat/http_body.h"
 #include "../compat/http_headers.h"
 #include "../compat/staged_file.h"

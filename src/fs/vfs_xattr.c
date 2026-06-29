@@ -25,6 +25,8 @@
  */
 #include "vfs_internal.h"
 
+#include <sys/xattr.h>
+
 /* Shared observe tail for the value-returning ops (get/list): translate a
  * helper return (>=0 ok, -1 errno) into an OP_XATTR metric + access-log line and
  * return the count unchanged (errno preserved on error). */
@@ -55,6 +57,18 @@ xrootd_vfs_getxattr(xrootd_vfs_ctx_t *ctx, const char *name,
         return xrootd_vfs_xattr_observe_count(ctx, path, -1, start);
     }
 
+    {
+        const xrootd_sd_driver_t *drv = xrootd_vfs_ctx_driver(ctx);
+
+        if (drv != NULL) {
+            n = (drv->getxattr != NULL)
+                ? drv->getxattr(ctx->sd, xrootd_vfs_export_relative(ctx, path),
+                                name, buf, bufsz)
+                : (errno = ENOTSUP, (ssize_t) -1);
+            return xrootd_vfs_xattr_observe_count(ctx, path, n, start);
+        }
+    }
+
     n = xrootd_getxattr_confined_canon(ctx->log, ctx->root_canon, path, name,
                                        buf, bufsz);
     return xrootd_vfs_xattr_observe_count(ctx, path, n, start);
@@ -72,6 +86,18 @@ xrootd_vfs_listxattr(xrootd_vfs_ctx_t *ctx, void *buf, size_t bufsz)
 
     if (xrootd_vfs_require_confined(ctx) != NGX_OK) {
         return xrootd_vfs_xattr_observe_count(ctx, path, -1, start);
+    }
+
+    {
+        const xrootd_sd_driver_t *drv = xrootd_vfs_ctx_driver(ctx);
+
+        if (drv != NULL) {
+            n = (drv->listxattr != NULL)
+                ? drv->listxattr(ctx->sd, xrootd_vfs_export_relative(ctx, path),
+                                 buf, bufsz)
+                : (errno = ENOTSUP, (ssize_t) -1);
+            return xrootd_vfs_xattr_observe_count(ctx, path, n, start);
+        }
     }
 
     n = xrootd_listxattr_confined_canon(ctx->log, ctx->root_canon, path,
@@ -97,6 +123,23 @@ xrootd_vfs_setxattr(xrootd_vfs_ctx_t *ctx, const char *name,
         xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_XATTR, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
         return NGX_ERROR;
+    }
+
+    {
+        const xrootd_sd_driver_t *drv = xrootd_vfs_ctx_driver(ctx);
+
+        if (drv != NULL) {
+            rc = (drv->setxattr != NULL
+                  && drv->setxattr(ctx->sd, xrootd_vfs_export_relative(ctx, path),
+                                   name, value, len, flags) == NGX_OK)
+                 ? 0 : (errno = (drv->setxattr ? errno : ENOTSUP), -1);
+            saved_errno = (rc != 0) ? errno : 0;
+            xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_XATTR, NULL,
+                                      (rc == 0) ? len : 0,
+                                      (rc != 0) ? NGX_ERROR : NGX_OK,
+                                      saved_errno, start);
+            return (rc != 0) ? NGX_ERROR : NGX_OK;
+        }
     }
 
     rc = xrootd_setxattr_confined_canon(ctx->log, ctx->root_canon, path, name,
@@ -127,10 +170,87 @@ xrootd_vfs_removexattr(xrootd_vfs_ctx_t *ctx, const char *name)
         return NGX_ERROR;
     }
 
+    {
+        const xrootd_sd_driver_t *drv = xrootd_vfs_ctx_driver(ctx);
+
+        if (drv != NULL) {
+            rc = (drv->removexattr != NULL
+                  && drv->removexattr(ctx->sd,
+                         xrootd_vfs_export_relative(ctx, path), name) == NGX_OK)
+                 ? 0 : (errno = (drv->removexattr ? errno : ENOTSUP), -1);
+            saved_errno = (rc != 0) ? errno : 0;
+            xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_XATTR, NULL, 0,
+                                      (rc != 0) ? NGX_ERROR : NGX_OK,
+                                      saved_errno, start);
+            return (rc != 0) ? NGX_ERROR : NGX_OK;
+        }
+    }
+
     rc = xrootd_removexattr_confined_canon(ctx->log, ctx->root_canon, path,
                                            name);
     saved_errno = (rc != 0) ? errno : 0;
     xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_XATTR, NULL, 0,
+                              (rc != 0) ? NGX_ERROR : NGX_OK, saved_errno,
+                              start);
+    return (rc != 0) ? NGX_ERROR : NGX_OK;
+}
+
+/* --- open-handle (fd) variants --------------------------------------------
+ * The path variants above re-verify confinement against ctx->resolved before
+ * each syscall. The fd variants below operate on an fd that the VFS already
+ * opened confined (via xrootd_vfs_open / xrootd_vfs_adopt_fd, or a handle-table
+ * fd that came from one), so the confinement guarantee travels with the
+ * descriptor — there is no path to re-resolve. They exist so that fattr's
+ * file-handle mode (and any other open-fd xattr caller) reaches the backend
+ * through the VFS instead of calling f*xattr(2) directly.
+ *
+ * `ctx` is optional and used only for the OP_XATTR metric + access-log line; it
+ * may be NULL (then the op is unobserved). It is NOT required to be confined —
+ * passing the request's ctx simply attributes the metric to the right proto. */
+
+ssize_t
+xrootd_vfs_fgetxattr(const xrootd_vfs_ctx_t *ctx, int fd, const char *name,
+    void *buf, size_t bufsz)
+{
+    uint64_t start = xrootd_vfs_now_ns();
+    ssize_t  n = fgetxattr(fd, name, buf, bufsz);
+
+    return xrootd_vfs_xattr_observe_count(ctx, NULL, n, start);
+}
+
+ssize_t
+xrootd_vfs_flistxattr(const xrootd_vfs_ctx_t *ctx, int fd, void *buf,
+    size_t bufsz)
+{
+    uint64_t start = xrootd_vfs_now_ns();
+    ssize_t  n = flistxattr(fd, buf, bufsz);
+
+    return xrootd_vfs_xattr_observe_count(ctx, NULL, n, start);
+}
+
+ngx_int_t
+xrootd_vfs_fsetxattr(const xrootd_vfs_ctx_t *ctx, int fd, const char *name,
+    const void *value, size_t len, int flags)
+{
+    uint64_t start = xrootd_vfs_now_ns();
+    int      rc = fsetxattr(fd, name, value, len, flags);
+    int      saved_errno = (rc != 0) ? errno : 0;
+
+    xrootd_vfs_observe_ctx_op(ctx, NULL, XROOTD_METRIC_OP_XATTR, NULL,
+                              (rc == 0) ? len : 0,
+                              (rc != 0) ? NGX_ERROR : NGX_OK, saved_errno,
+                              start);
+    return (rc != 0) ? NGX_ERROR : NGX_OK;
+}
+
+ngx_int_t
+xrootd_vfs_fremovexattr(const xrootd_vfs_ctx_t *ctx, int fd, const char *name)
+{
+    uint64_t start = xrootd_vfs_now_ns();
+    int      rc = fremovexattr(fd, name);
+    int      saved_errno = (rc != 0) ? errno : 0;
+
+    xrootd_vfs_observe_ctx_op(ctx, NULL, XROOTD_METRIC_OP_XATTR, NULL, 0,
                               (rc != 0) ? NGX_ERROR : NGX_OK, saved_errno,
                               start);
     return (rc != 0) ? NGX_ERROR : NGX_OK;

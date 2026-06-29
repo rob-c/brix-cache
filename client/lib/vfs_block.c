@@ -19,11 +19,10 @@
 #include "vfs.h"
 #include "uring.h"
 #include "xrdc.h"
-#include "fs/backend/sd.h"   /* shared Storage Driver: raw fd I/O single-sourced
-                              * with the nginx server (ngx-free under
-                              * -DXRDPROTO_NO_NGX). Plain (non-io_uring) byte ops
-                              * dispatch through this seam; block_fstat keeps its
-                              * BLKGETSIZE64 device-size logic, which is block-specific. */
+#include "fs/backend/sd.h"   /* shared Storage Driver (ngx-free) */
+#include "fs/core/vfs_core.h" /* shared `vfs` I/O verbs (single-sourced with the
+                               * server data plane). block_fstat keeps its
+                               * BLKGETSIZE64 device-size logic (block-specific). */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -122,10 +121,7 @@ block_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
         ssize_t         r;
 
         xrootd_sd_posix_wrap(&obj, bf->fd);
-        do {
-            r = obj.driver->pread(&obj, buf, n, (off_t) off);
-        } while (r < 0 && errno == EINTR);
-
+        r = xvfs_pread_once(&obj, buf, n, (off_t) off);
         if (r < 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs block pread: %s", strerror(errno));
@@ -169,50 +165,17 @@ block_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
 
     {
         xrootd_sd_obj_t obj;
-        size_t          written = 0;
-        ssize_t         w;
 
         xrootd_sd_posix_wrap(&obj, bf->fd);
-        while (written < n) {
-            w = obj.driver->pwrite(&obj, (const char *) buf + written,
-                                   n - written, (off_t) off + (off_t) written);
-            if (w < 0) {
-                if (errno == EINTR) {
-                    continue;
-                }
-                xrdc_status_set(st, XRDC_EIO, errno,
-                                "vfs block pwrite: %s", strerror(errno));
-                return -1;
-            }
-            written += (size_t) w;
+        if (xvfs_pwrite_full(&obj, buf, n, (off_t) off, NULL, NULL) != 0) {
+            xrdc_status_set(st, XRDC_EIO, errno,
+                            "vfs block pwrite: %s", strerror(errno));
+            return -1;
         }
         return 0;
     }
 }
 
-/*
- * block_device_size — query the size of a block device via BLKGETSIZE64.
- *
- * WHAT: returns the device byte count via ioctl on Linux; falls back to 0 on
- *       platforms where BLKGETSIZE64 is unavailable.
- * WHY:  block devices report st_size==0 from fstat; the ioctl is the correct
- *       way to obtain device capacity.
- * HOW:  guarded by #ifdef BLKGETSIZE64; ioctl with uint64_t out parameter.
- *       Returns the size, or 0 if the ioctl is not available.
- */
-static int64_t
-block_device_size(int fd)
-{
-#ifdef BLKGETSIZE64
-    uint64_t sz = 0;
-    if (ioctl(fd, BLKGETSIZE64, &sz) == 0) {
-        return (int64_t) sz;
-    }
-#else
-    (void) fd;
-#endif
-    return 0;
-}
 
 /*
  * block_fstat — fill *out with size, mtime, is_dir, exists for the open handle.
@@ -226,24 +189,22 @@ block_device_size(int fd)
 static int
 block_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
 {
-    vfs_block_file *bf = (vfs_block_file *) f;
-    struct stat     sb;
+    vfs_block_file  *bf = (vfs_block_file *) f;
+    xrootd_sd_obj_t  obj;
+    xrootd_sd_stat_t sd;
 
-    if (fstat(bf->fd, &sb) != 0) {
+    /* The shared block driver's fstat applies BLKGETSIZE64 for a device's true
+     * size (fd-keyed; the obj wrap's driver is irrelevant for fstat). */
+    xrootd_sd_posix_wrap(&obj, bf->fd);
+    if (xrootd_sd_block_driver.fstat(&obj, &sd) != NGX_OK) {
         xrdc_status_set(st, XRDC_EIO, errno,
                         "vfs block fstat: %s", strerror(errno));
         return -1;
     }
 
-    if (S_ISBLK(sb.st_mode)) {
-        int64_t dev_sz = block_device_size(bf->fd);
-        out->size = (dev_sz > 0) ? dev_sz : (int64_t) sb.st_size;
-    } else {
-        out->size = (int64_t) sb.st_size;
-    }
-
-    out->mtime  = (int64_t) sb.st_mtime;
-    out->is_dir = S_ISDIR(sb.st_mode) ? 1 : 0;
+    out->size   = (int64_t) sd.size;
+    out->mtime  = (int64_t) sd.mtime;
+    out->is_dir = sd.is_dir ? 1 : 0;
     out->exists = 1;
     return 0;
 }
@@ -289,7 +250,7 @@ block_sync(xrdc_vfs_file *f, xrdc_status *st)
     {
         xrootd_sd_obj_t obj;
         xrootd_sd_posix_wrap(&obj, bf->fd);
-        if (obj.driver->fsync(&obj) != NGX_OK) {
+        if (xvfs_fsync(&obj) != 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs block fsync: %s", strerror(errno));
             return -1;
@@ -321,7 +282,7 @@ block_commit(xrdc_vfs_file *f, xrdc_status *st)
     {
         xrootd_sd_obj_t obj;
         xrootd_sd_posix_wrap(&obj, bf->fd);
-        if (obj.driver->fsync(&obj) != NGX_OK) {
+        if (xvfs_fsync(&obj) != 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs block commit fsync: %s", strerror(errno));
             return -1;
@@ -418,10 +379,11 @@ block_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
     }
 
     if (flags & XRDC_VFS_WRITE) {
-        /* Open the target directly for in-place writing.  No O_CREAT|O_TRUNC
-         * — a block device node must pre-exist and must not be truncated.
+        /* Open the target in place through the shared block driver. No create/
+         * truncate (a device node must pre-exist and must not be zeroed);
          * O_NOFOLLOW guards against a symlink being swapped in. */
-        fd = open(path, O_WRONLY | O_NOFOLLOW);
+        fd = xrootd_sd_block_open_unconfined(path,
+                 XROOTD_SD_O_WRITE | XROOTD_SD_O_NOFOLLOW, 0);
         if (fd < 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs block open write %s: %s",
@@ -430,8 +392,8 @@ block_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
             return -1;
         }
     } else {
-        /* READ */
-        fd = open(path, O_RDONLY);
+        /* READ — in place through the shared block driver. */
+        fd = xrootd_sd_block_open_unconfined(path, XROOTD_SD_O_READ, 0);
         if (fd < 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs block open read %s: %s",
@@ -500,11 +462,19 @@ block_be_stat(const xrdc_vfs_backend *be, const char *path,
     }
 
     if (S_ISBLK(sb.st_mode)) {
-        int tmp_fd = open(path, O_RDONLY | O_NOFOLLOW);
+        int tmp_fd = xrootd_sd_block_open_unconfined(path,
+                         XROOTD_SD_O_READ | XROOTD_SD_O_NOFOLLOW, 0);
         if (tmp_fd >= 0) {
-            int64_t dev_sz = block_device_size(tmp_fd);
+            xrootd_sd_obj_t  obj;
+            xrootd_sd_stat_t sd;
+            xrootd_sd_posix_wrap(&obj, tmp_fd);
+            if (xrootd_sd_block_driver.fstat(&obj, &sd) == NGX_OK
+                && sd.size > 0) {
+                out->size = (int64_t) sd.size;
+            } else {
+                out->size = (int64_t) sb.st_size;
+            }
             close(tmp_fd);
-            out->size = (dev_sz > 0) ? dev_sz : (int64_t) sb.st_size;
         } else {
             out->size = (int64_t) sb.st_size;
         }

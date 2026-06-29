@@ -40,12 +40,18 @@
 #include "meta.h"   /* XROOTD_CACHE_META_ETAG_MAX + xrootd_cache_meta_t */
 
 #define XROOTD_CACHE_CINFO_MAGIC   0x58434931u   /* "XCI1", little-endian */
-#define XROOTD_CACHE_CINFO_VERSION 2
+#define XROOTD_CACHE_CINFO_VERSION 3
 
 /* cinfo.flags */
 #define XROOTD_CINFO_F_COMPLETE 0x0001u   /* every block present */
 #define XROOTD_CINFO_F_PARTIAL  0x0002u   /* some, not all, blocks present */
 #define XROOTD_CINFO_F_VERIFIED 0x0004u   /* contents checked vs the origin digest */
+#define XROOTD_CINFO_F_DIRTY    0x0008u   /* local writes pending write-back */
+
+/* Block granule used to key a DIRTY record's validity (size/mtime/block_size).
+ * The dirty extent is file-level (dirty_lo/dirty_hi), so this granule is only the
+ * validity key, not a per-block dirty bitmap. */
+#define XROOTD_CACHE_DIRTY_BLOCK  (1024u * 1024u)
 
 /*
  * On-disk header.  Field order is largest-alignment-first with an explicit
@@ -66,6 +72,13 @@ typedef struct {
     uint64_t access_count;   /* cache hits served (stats parity with .meta) */
     uint64_t bytes_served;   /* cumulative bytes served from cache */
     uint64_t last_access;    /* unix secs of the most recent hit */
+    /* ---- write-back state (v3) — file-level, alongside the present bitmap ---- */
+    uint64_t dirty_lo;       /* dirty byte-extent start (incl); lo==hi ⇒ clean */
+    uint64_t dirty_hi;       /* dirty byte-extent end (excl) */
+    uint64_t dirty_since;    /* unix secs the file first went dirty this episode */
+    uint64_t flush_gen;      /* bumped on each successful write-back */
+    uint64_t last_flush;     /* unix secs of the last successful write-back */
+    uint64_t bytes_flushed;  /* cumulative mirrored bytes */
     uint8_t  etag_len;
     char     etag[XROOTD_CACHE_META_ETAG_MAX];      /* origin etag, not NUL-term */
     uint8_t  cks_alg_len;
@@ -144,5 +157,58 @@ ngx_int_t xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m,
  */
 ngx_int_t xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
     uint32_t block_size, uint64_t mtime, uint64_t blk, ngx_log_t *log);
+
+/* ---- write-back (dirty) record-keeping (v3) ---------------------------- */
+
+/*
+ * Mark [off,off+len) dirty for the file cached at cache_path. Sets
+ * XROOTD_CINFO_F_DIRTY and widens [dirty_lo,dirty_hi); dirty_since is stamped
+ * ONLY on the clean→dirty transition (a widen of an already-dirty record leaves
+ * it, so age reflects the oldest pending write). Resets validity if
+ * size/mtime/block_size changed. flock-serialised RMW that preserves the present
+ * bitmap. Returns NGX_OK / NGX_ERROR.
+ */
+ngx_int_t xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
+    uint32_t block_size, uint64_t mtime, uint64_t off, uint64_t len,
+    ngx_log_t *log);
+
+/*
+ * Clear the dirty extent for cache_path: drop XROOTD_CINFO_F_DIRTY, zero the
+ * extent + dirty_since, bump flush_gen, set last_flush=now, add bytes to
+ * bytes_flushed. flock-serialised RMW preserving the present bitmap. Returns
+ * NGX_OK, NGX_DECLINED when no record exists, NGX_ERROR on I/O failure.
+ */
+ngx_int_t xrootd_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
+    ngx_log_t *log);
+
+/*
+ * Report the dirty extent + dirty_since for cache_path. NGX_OK with the out
+ * params filled when the record is DIRTY, NGX_DECLINED when no record / clean,
+ * NGX_ERROR on a hard I/O failure. Any out pointer may be NULL.
+ */
+ngx_int_t xrootd_cache_cinfo_dirty_extent(const char *cache_path, uint64_t *lo,
+    uint64_t *hi, uint64_t *dirty_since);
+
+/*
+ * The write-back state the stale-dirty reaper needs to classify WHY a file is
+ * reaped (see xrootd_cache_reap_reason_t):
+ *   is_dirty   — XROOTD_CINFO_F_DIRTY set AND dirty_lo<dirty_hi (un-flushed data)
+ *   flush_gen  — >0 iff the file was EVER written back (distinguishes a
+ *                write-back staging copy from a read-through fill, which is 0)
+ *   last_flush — unix secs of the last successful write-back (0 if never)
+ * Reports the present record regardless of clean/dirty. NGX_OK with *out filled,
+ * NGX_DECLINED when no record exists, NGX_ERROR on a hard I/O failure.
+ */
+typedef struct {
+    int      is_dirty;
+    uint64_t dirty_lo;
+    uint64_t dirty_hi;
+    uint64_t dirty_since;
+    uint64_t flush_gen;
+    uint64_t last_flush;
+} xrootd_cache_cinfo_state_t;
+
+ngx_int_t xrootd_cache_cinfo_state(const char *cache_path,
+    xrootd_cache_cinfo_state_t *out);
 
 #endif /* XROOTD_CACHE_CINFO_H */

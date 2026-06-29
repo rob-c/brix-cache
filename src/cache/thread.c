@@ -1,4 +1,5 @@
 #include "cache_internal.h"
+#include "cache_storage.h"   /* driver-aware readiness for a backend-backed cache */
 #include "../manager/registry.h"
 
 
@@ -40,7 +41,7 @@ xrootd_cache_fill_thread(void *data, ngx_log_t *log)
         return;
     }
 
-    if (xrootd_cache_file_ready(t->cache_path) == 1) {
+    if (xrootd_cache_ready(t->conf, t->cache_path) == 1) {
         unlink(t->lock_path);
         return;
     }

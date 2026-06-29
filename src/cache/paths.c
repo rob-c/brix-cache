@@ -1,5 +1,6 @@
 #include "cache_internal.h"
 #include "meta.h"
+#include "open.h"          /* xrootd_cache_path_for_resolved */
 
 
 #include <errno.h>
@@ -78,4 +79,41 @@ xrootd_cache_file_ready(const char *path)
     }
 
     return 1;
+}
+
+/* xrootd_cache_state_root — the directory the unified .cinfo persistence records
+ * live under: the explicit xrootd_cache_state_root if set, else cache_root, else
+ * NULL (no state tree ⇒ the persistent dirty record is skipped, in-memory only). */
+const char *
+xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf)
+{
+    if (conf == NULL) {
+        return NULL;
+    }
+    if (conf->cache_state_root.len > 0) {
+        return (const char *) conf->cache_state_root.data;
+    }
+    if (conf->cache_root.len > 0) {
+        return (const char *) conf->cache_root.data;
+    }
+    return NULL;
+}
+
+/* xrootd_cache_state_path — map a resolved export path to the cache/state-tree
+ * path whose ".cinfo" sidecar holds this file's unified persistence record. A
+ * pure lexical re-root (export root_canon → the state root); same construction
+ * used by mark_dirty / mark_clean / the reaper so they always agree. Returns
+ * NGX_OK / NGX_ERROR (no state root, or overflow). */
+ngx_int_t
+xrootd_cache_state_path(const ngx_stream_xrootd_srv_conf_t *conf,
+    const char *resolved, char *dst, size_t dstsz)
+{
+    const char *root = xrootd_cache_state_root(conf);
+
+    if (root == NULL || conf->common.root_canon[0] == '\0') {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    return xrootd_cache_path_for_resolved(root, conf->common.root_canon,
+                                          resolved, dst, dstsz);
 }

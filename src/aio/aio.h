@@ -144,6 +144,7 @@ typedef struct {
     ssize_t   nread;
     int       io_errno;
     void     *csi;        /* phase-59 W2: xrootd_csi_t* or NULL (verify on read) */
+    xrootd_sd_obj_t obj;  /* Layer 3: driver obj (driver==NULL ⇒ POSIX-wrap fd) */
 } xrootd_read_aio_t;
 
 typedef struct {
@@ -167,6 +168,7 @@ typedef struct {
     size_t         bad_page_count;
     xrdp_pg_bad_t  bad_pages[kXR_pgMaxEpr];
     void          *csi;        /* phase-59 W2: xrootd_csi_t* or NULL (tag update) */
+    xrootd_sd_obj_t obj;       /* Layer 3: driver obj (driver==NULL ⇒ POSIX fd) */
 } xrootd_write_aio_t;
 
 typedef struct {
@@ -217,6 +219,7 @@ typedef struct {
     u_char    streamid[2];
     ssize_t   nread;      /* actual pread return (set by thread) */
     int       io_errno;
+    xrootd_sd_obj_t obj;  /* Layer 3: driver obj (driver==NULL ⇒ POSIX-wrap fd) */
 } xrootd_pgread_aio_t;
 
 /*

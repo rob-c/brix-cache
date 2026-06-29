@@ -24,6 +24,7 @@
 #include "../path/op_path.h"
 #include "../path/auth_gate.h"
 #include "../path/path.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_setattr — driver-routed metadata mutation */
 
 #include <arpa/inet.h>
 #include <endian.h>
@@ -73,7 +74,7 @@ xrootd_handle_setattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_ArgInvalid, "setattr: invalid path");
     }
 
-    if (xrootd_path_resolve_beneath(conf, reqpath, XROOTD_PATH_EXISTING,
+    if (xrootd_path_resolve_beneath(conf, c->log, reqpath, XROOTD_PATH_EXISTING,
                                     resolved, sizeof(resolved)) != NGX_OK) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHMOD, "SETATTR", reqpath, "-",
                           kXR_NotFound, "not found");
@@ -86,13 +87,22 @@ xrootd_handle_setattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     {
-        int set_times = (flags & kXR_sa_times) ? 1 : 0;
-        int set_owner = (flags & kXR_sa_owner) ? 1 : 0;
+        xrootd_vfs_ctx_t    vctx;
+        xrootd_sd_setattr_t attr;
 
-        if (xrootd_setattr_confined_canon(c->log, conf->common.root_canon,
-                                          resolved, set_times, times,
-                                          set_owner, (uid_t) uid, (gid_t) gid)
-            != 0) {
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+            conf->common.root_canon, NULL, conf->common.allow_write,
+            0 /* is_tls */, NULL, resolved);
+
+        ngx_memzero(&attr, sizeof(attr));
+        attr.set_times = (flags & kXR_sa_times) ? 1 : 0;
+        attr.set_owner = (flags & kXR_sa_owner) ? 1 : 0;
+        attr.atime     = times[0];
+        attr.mtime     = times[1];
+        attr.uid       = (uid_t) uid;
+        attr.gid       = (gid_t) gid;
+
+        if (xrootd_vfs_setattr(&vctx, &attr) != NGX_OK) {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHMOD, "SETATTR", resolved, "-",
                               xrootd_kxr_from_errno(errno), strerror(errno));
         }
@@ -145,7 +155,7 @@ xrootd_handle_symlink(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* The link location's parent must exist; the link itself must not (WRITE). */
-    if (xrootd_path_resolve_beneath(conf, link_buf, XROOTD_PATH_WRITE,
+    if (xrootd_path_resolve_beneath(conf, c->log, link_buf, XROOTD_PATH_WRITE,
                                     link_resolved, sizeof(link_resolved)) != NGX_OK) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "SYMLINK", link_buf, "-",
                           kXR_NotFound, "invalid link path");
@@ -202,7 +212,7 @@ xrootd_handle_link(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_ArgInvalid, "link: invalid path");
     }
 
-    if (xrootd_path_resolve_beneath(conf, src_buf, XROOTD_PATH_EXISTING,
+    if (xrootd_path_resolve_beneath(conf, c->log, src_buf, XROOTD_PATH_EXISTING,
                                     src_resolved, sizeof(src_resolved)) != NGX_OK) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "LINK", src_buf, "-",
                           kXR_NotFound, "source not found");
@@ -212,7 +222,7 @@ xrootd_handle_link(xrootd_ctx_t *ctx, ngx_connection_t *c,
                          XROOTD_AUTH_UPDATE, 1) != NGX_OK) {
         return ctx->write_rc;
     }
-    if (xrootd_path_resolve_beneath(conf, dst_buf, XROOTD_PATH_WRITE,
+    if (xrootd_path_resolve_beneath(conf, c->log, dst_buf, XROOTD_PATH_WRITE,
                                     dst_resolved, sizeof(dst_resolved)) != NGX_OK) {
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MKDIR, "LINK", dst_buf, "-",
                           kXR_NotFound, "invalid destination path");

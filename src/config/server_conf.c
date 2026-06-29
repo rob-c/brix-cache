@@ -49,6 +49,9 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->common.enable       = NGX_CONF_UNSET;
     conf->auth         = NGX_CONF_UNSET_UINT;
     conf->common.allow_write  = NGX_CONF_UNSET;
+    conf->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
+    conf->common.storage_instance  = NULL;
+    /* common.storage_backend (ngx_str_t) left zeroed by pcalloc */
 
     /* XrdAcc engine (acc_tables / acc_timer / acc_nisdomain stay NULL/zero). */
     conf->acc_format      = NGX_CONF_UNSET_UINT;
@@ -106,6 +109,21 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->io_uring_admin           = NGX_CONF_UNSET;
     conf->io_uring_restrict        = NGX_CONF_UNSET;
     conf->cache_include_regex_set  = 0;
+    conf->cache_dirty_max_age      = NGX_CONF_UNSET;
+    conf->cache_high_watermark     = NGX_CONF_UNSET_UINT;
+    conf->cache_low_watermark      = NGX_CONF_UNSET_UINT;
+    conf->cache_reap_interval      = NGX_CONF_UNSET;
+    conf->cache_deny_prefixes      = NULL;
+    conf->cache_allow_prefixes     = NULL;
+    conf->cache_storage_block_size = NGX_CONF_UNSET_SIZE;
+    conf->cache_wt_stage_block_size = NGX_CONF_UNSET_SIZE;
+    conf->cache_wt_stage_high_watermark = NGX_CONF_UNSET_UINT;
+    conf->cache_wt_stage_low_watermark  = NGX_CONF_UNSET_UINT;
+    /* O_PATH rootfds: -1 until xrootd_cache_storage_init (pcalloc's 0 == stdin). */
+    conf->cache_rootfd             = -1;
+    conf->cache_state_rootfd       = -1;
+    conf->cache_wt_stage_rootfd    = -1;
+    /* cache_state_root left zeroed (ngx_str_t {0,NULL}) by pcalloc */
     conf->cache_verify             = NGX_CONF_UNSET_UINT;
     /* cache_verify_digest left zeroed (ngx_str_t {0,NULL}) by pcalloc */
     conf->cache_advertise          = NGX_CONF_UNSET;
@@ -408,6 +426,12 @@ static char *
 xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_stream_xrootd_srv_conf_t *prev)
 {
+    /* Storage backend selection (default POSIX) + pblock stripe size. */
+    ngx_conf_merge_str_value(conf->common.storage_backend,
+                             prev->common.storage_backend, "");
+    ngx_conf_merge_size_value(conf->common.pblock_block_size,
+                              prev->common.pblock_block_size, 0);
+
     ngx_conf_merge_value(conf->read_compress,   prev->read_compress,   0);
     ngx_conf_merge_value(conf->write_compress,  prev->write_compress,  0);
     ngx_conf_merge_value(conf->zip_access,      prev->zip_access,      0);
@@ -419,11 +443,49 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
                               prev->zip_stage_max_bytes, 512 * 1024 * 1024);
     ngx_conf_merge_value(conf->cache,           prev->cache,           0);
     ngx_conf_merge_str_value(conf->cache_root,  prev->cache_root,      "");
+    ngx_conf_merge_str_value(conf->cache_state_root, prev->cache_state_root, "");
+    ngx_conf_merge_str_value(conf->cache_storage_backend,
+                             prev->cache_storage_backend, "");
+    ngx_conf_merge_size_value(conf->cache_storage_block_size,
+                              prev->cache_storage_block_size, 0);
+    ngx_conf_merge_str_value(conf->cache_wt_stage_root,
+                             prev->cache_wt_stage_root, "");
+    ngx_conf_merge_str_value(conf->cache_wt_stage_backend,
+                             prev->cache_wt_stage_backend, "");
+    ngx_conf_merge_size_value(conf->cache_wt_stage_block_size,
+                              prev->cache_wt_stage_block_size, 0);
+
+    /* Staging backpressure: default OFF (high == 0). When only HIGH is set, LOW
+     * defaults 50000 ppm (5%) below it for hysteresis. The ordering invariant
+     * (0 < low < high < 1e6) is enforced in runtime_server.c. */
+    ngx_conf_merge_uint_value(conf->cache_wt_stage_high_watermark,
+                              prev->cache_wt_stage_high_watermark, 0);
+    ngx_conf_merge_uint_value(conf->cache_wt_stage_low_watermark,
+                              prev->cache_wt_stage_low_watermark,
+                              conf->cache_wt_stage_high_watermark > 50000
+                                  ? conf->cache_wt_stage_high_watermark - 50000
+                                  : conf->cache_wt_stage_high_watermark / 2);
+    ngx_conf_merge_sec_value(conf->cache_dirty_max_age,
+                             prev->cache_dirty_max_age, 604800);   /* 7 days */
+    if (conf->cache_deny_prefixes == NULL) {
+        conf->cache_deny_prefixes = prev->cache_deny_prefixes;
+    }
+    if (conf->cache_allow_prefixes == NULL) {
+        conf->cache_allow_prefixes = prev->cache_allow_prefixes;
+    }
     ngx_conf_merge_str_value(conf->cache_origin, prev->cache_origin,   "");
     ngx_conf_merge_str_value(conf->cache_origin_proxy,  prev->cache_origin_proxy,  "");
     ngx_conf_merge_str_value(conf->cache_origin_cadir,  prev->cache_origin_cadir,
                              "/etc/grid-security/certificates");
     ngx_conf_merge_str_value(conf->cache_origin_client, prev->cache_origin_client, "xrdcp");
+    ngx_conf_merge_str_value(conf->cache_origin_s3_bucket,
+                             prev->cache_origin_s3_bucket, "");
+    ngx_conf_merge_str_value(conf->cache_origin_s3_access_key,
+                             prev->cache_origin_s3_access_key, "");
+    ngx_conf_merge_str_value(conf->cache_origin_s3_secret_key,
+                             prev->cache_origin_s3_secret_key, "");
+    ngx_conf_merge_str_value(conf->cache_origin_s3_region,
+                             prev->cache_origin_s3_region, "us-east-1");
     ngx_conf_merge_value(conf->cache_origin_tls, prev->cache_origin_tls, 0);
     ngx_conf_merge_uint_value(conf->cache_origin_scheme, prev->cache_origin_scheme,
                               XROOTD_CACHE_SCHEME_XROOT);
@@ -435,6 +497,21 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
                          prev->cache_lock_timeout, 300);
     ngx_conf_merge_uint_value(conf->cache_eviction_threshold,
                               prev->cache_eviction_threshold, 900000);
+
+    /* Watermark reaper: HIGH defaults to the on-fill eviction threshold so an
+     * existing config keeps its bound; LOW defaults 50000 ppm (5%) below HIGH for
+     * hysteresis; the timer runs every 60s by default. The ordering invariant
+     * (0 < low < high < 1e6) is enforced in runtime_server.c. */
+    ngx_conf_merge_uint_value(conf->cache_high_watermark,
+                              prev->cache_high_watermark,
+                              conf->cache_eviction_threshold);
+    ngx_conf_merge_uint_value(conf->cache_low_watermark,
+                              prev->cache_low_watermark,
+                              conf->cache_high_watermark > 50000
+                                  ? conf->cache_high_watermark - 50000
+                                  : conf->cache_high_watermark / 2);
+    ngx_conf_merge_sec_value(conf->cache_reap_interval,
+                             prev->cache_reap_interval, 60);
     ngx_conf_merge_off_value(conf->cache_max_file_size,
                              prev->cache_max_file_size, 0);
     ngx_conf_merge_off_value(conf->memory_budget,

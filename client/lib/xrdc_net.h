@@ -275,19 +275,30 @@ void xrdc_http_resp_free(xrdc_http_resp *resp);
 int  xrdc_http_header(const xrdc_http_resp *resp, const char *name,
                       char *out, size_t outsz);
 
+/* Pull-source for an HTTP PUT body: read up to `cap` bytes at absolute offset
+ * `off` into buf. Returns bytes read (>0), 0 at EOF, or -1 with *st set. Mirrors
+ * the copy-engine pump source signature so the upload body can be backed by a VFS
+ * handle (storage routed through the shared SD driver) or a plain seekable fd
+ * (anonymous temp / diagnostic) interchangeably — the transport never opens or
+ * reads an export file directly. */
+typedef ssize_t (*xrdc_http_body_src_fn)(void *ctx, uint8_t *buf, int64_t off,
+                                         size_t cap, xrdc_status *st);
+
 /* Streaming transfer (no whole-body buffering — production GET/PUT, any size).
  * xrdc_http_download streams the GET response body straight to out_fd (handles
  * Content-Length, chunked, and connection-close framing). xrdc_http_upload streams
- * exactly `clen` bytes from in_fd as a PUT body. extra_headers is a "K: V\r\n…"
- * block or NULL. Both fill *http_status with the response code. 0 / -1 (st set). */
+ * exactly `clen` bytes pulled from `src(src_ctx, …)` as a PUT body. extra_headers
+ * is a "K: V\r\n…" block or NULL. Both fill *http_status with the response code.
+ * 0 / -1 (st set). */
 int  xrdc_http_download(const char *host, int port, int tls, const char *path,
                         const char *extra_headers, int verify, const char *ca_dir,
                         int out_fd, int timeout_ms, int *http_status,
                         long long *body_len, xrdc_status *st);
 int  xrdc_http_upload(const char *host, int port, int tls, const char *path,
-                      const char *extra_headers, int in_fd, long long clen,
-                      int verify, const char *ca_dir, int timeout_ms,
-                      int *http_status, xrdc_status *st);
+                      const char *extra_headers, xrdc_http_body_src_fn src,
+                      void *src_ctx, long long clen, int verify,
+                      const char *ca_dir, int timeout_ms, int *http_status,
+                      xrdc_status *st);
 
 /* Resumable upload: streams the source as Content-Range PUT chunks, each on a
  * fresh connection, reconnecting + resuming from the server's durable offset on
@@ -295,7 +306,8 @@ int  xrdc_http_upload(const char *host, int port, int tls, const char *path,
  * nginx restart.  Needs server xrootd_webdav_upload_resume for true resume; a
  * plain server commits on the first (whole-range) chunk. 0 / -1 (st set). */
 int  xrdc_http_upload_resumable(const char *host, int port, int tls,
-                      const char *path, const char *extra_headers, int in_fd,
+                      const char *path, const char *extra_headers,
+                      xrdc_http_body_src_fn src, void *src_ctx,
                       long long clen, int verify, const char *ca_dir,
                       int timeout_ms, int max_stall_ms, int *http_status,
                       xrdc_status *st);

@@ -79,6 +79,23 @@ ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.root),
       NULL },
 
+    /* Storage backend for this export: "posix" (default) or "pblock"
+     * (block-based, rooted at xrootd_webdav_root; needs the sqlite build). */
+    { ngx_string("xrootd_webdav_storage_backend"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.storage_backend),
+      NULL },
+
+    /* pblock stripe size for newly-written files (e.g. 64m); 0/unset = 64 MiB. */
+    { ngx_string("xrootd_webdav_pblock_block_size"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.pblock_block_size),
+      NULL },
+
     { ngx_string("xrootd_webdav_cache_root"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,

@@ -54,6 +54,23 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, common.root),
       NULL },
 
+    /* Selects the storage backend for this export: "posix" (default) or
+     * "pblock" (block-based, rooted at xrootd_root; needs the sqlite build). */
+    { ngx_string("xrootd_storage_backend"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.storage_backend),
+      NULL },
+
+    /* pblock stripe size for newly-written files (e.g. 64m); 0/unset = 64 MiB. */
+    { ngx_string("xrootd_pblock_block_size"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.pblock_block_size),
+      NULL },
+
     /*
      * Per-request UNIX impersonation (phase 40).  These write to a process-global
      * settings block (at most one identity broker per nginx instance), so the
@@ -1193,6 +1210,29 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_client),
       NULL },
 
+    /* S3 origin (scheme s3://) SigV4 credentials. The bucket comes from the URL;
+     * region defaults to us-east-1. */
+    { ngx_string("xrootd_cache_origin_s3_access_key"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_s3_access_key),
+      NULL },
+
+    { ngx_string("xrootd_cache_origin_s3_secret_key"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_s3_secret_key),
+      NULL },
+
+    { ngx_string("xrootd_cache_origin_s3_region"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_s3_region),
+      NULL },
+
     { ngx_string("xrootd_cache_lock_timeout"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
@@ -1214,6 +1254,123 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       xrootd_conf_set_cache_max_file_size,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
+      NULL },
+
+    /* Unified cache-state engine: where .cinfo persistence records live ("" ⇒
+     * cache_root), how long a dirty write-back staging file may sit before the
+     * reaper removes it (secs; 0 = off), and read-cache admission prefixes (parity
+     * with xrootd_wt_{allow,deny}_prefix). */
+    { ngx_string("xrootd_cache_state_root"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_state_root),
+      NULL },
+
+    { ngx_string("xrootd_cache_dirty_max_age"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_dirty_max_age),
+      NULL },
+
+    /* Watermark-driven LRU reaper: a background timer purges the read cache
+     * oldest-first when filesystem occupancy crosses the HIGH watermark, down to
+     * the LOW watermark (hysteresis). Watermarks accept 0.9 or 90%; the interval
+     * is in seconds. cache_eviction_threshold remains the on-fill safety net and
+     * the default for HIGH when these are unset. */
+    { ngx_string("xrootd_cache_high_watermark"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_watermark,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_high_watermark),
+      NULL },
+
+    { ngx_string("xrootd_cache_low_watermark"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_watermark,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_low_watermark),
+      NULL },
+
+    { ngx_string("xrootd_cache_reap_interval"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_reap_interval),
+      NULL },
+
+    { ngx_string("xrootd_cache_deny_prefix"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_deny_prefix,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_cache_allow_prefix"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_allow_prefix,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Cache-storage backend selection: bind the read cache and the write-back
+     * staging cache to a storage driver (e.g. pblock) on their own roots — the
+     * cache then keeps its bytes in that backend. Default ("" / posix) = the
+     * POSIX driver on the role's directory. A driver-backed cache REQUIRES a
+     * distinct POSIX xrootd_cache_state_root for its sidecars (validated). */
+    { ngx_string("xrootd_cache_storage_backend"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_storage_backend),
+      NULL },
+
+    { ngx_string("xrootd_cache_storage_block_size"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_storage_block_size),
+      NULL },
+
+    { ngx_string("xrootd_cache_wt_stage_root"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_wt_stage_root),
+      NULL },
+
+    { ngx_string("xrootd_cache_wt_stage_backend"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_wt_stage_backend),
+      NULL },
+
+    { ngx_string("xrootd_cache_wt_stage_block_size"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_wt_stage_block_size),
+      NULL },
+
+    /* Two-tier write-back-staging backpressure: occupancy of the staging
+     * filesystem in [low,high) delays new write-opens/PUTs (kXR_wait/503); at/
+     * above high they are rejected (kXR_Overloaded/429) until it drains below
+     * low. Reads are never throttled. Accepts 0.9 or 90%. No-op unless a staging
+     * root is configured. */
+    { ngx_string("xrootd_wt_stage_high_watermark"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_watermark,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_wt_stage_high_watermark),
+      NULL },
+
+    { ngx_string("xrootd_wt_stage_low_watermark"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_watermark,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, cache_wt_stage_low_watermark),
       NULL },
 
     /* Phase 31 W4: SHM-global transfer-heap budget.  A read that would push the

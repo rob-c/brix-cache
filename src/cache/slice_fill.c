@@ -102,8 +102,10 @@ xrootd_cache_slice_fetch_origin(xrootd_cache_fill_t *t)
                                              window - pos);
 
         /* slice fill: read at the absolute origin offset, but write into the
-         * 0-relative per-slice part file at `pos`. */
-        if (xrootd_cache_origin_read_chunk(t, &oc, fhandle, outfd,
+         * 0-relative per-slice part file at `pos`. The slice cache stays POSIX
+         * (whole-file driver-backing is a follow-on), so the sink wraps the fd. */
+        xrootd_cache_sink_t sink = { .fd = outfd, .staged = NULL };
+        if (xrootd_cache_origin_read_chunk(t, &oc, fhandle, &sink,
                                            (uint64_t) (t->slice_start + pos),
                                            (uint64_t) pos,
                                            want, &got) != 0)

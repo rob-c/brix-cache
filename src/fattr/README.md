@@ -11,19 +11,25 @@ kernel key `user.U.mykey` and reported back to the client as `U.mykey`. The
 listing never leaks unrelated `user.*` xattrs written by other tools.
 
 `kXR_fattr` is a single wire opcode carrying one of four sub-codes — `Get`,
-`Set`, `Del`, `List` — each of which corresponds to a POSIX syscall family
-(`getxattr`, `setxattr`, `removexattr`, `listxattr`, plus the `f*`/handle
-variants). The subsystem is reached only from the **stream** (`root://`) path;
-WebDAV and S3 do not expose xattrs. There is no AIO offload here: xattr syscalls
-are cheap metadata operations executed inline on the event-loop thread, then a
-single response frame is built and sent.
+`Set`, `Del`, `List`. Since phase-62 **every xattr syscall here goes through the
+VFS xattr seam** (`xrootd_vfs_*xattr`, `src/fs/vfs_xattr.c`), never a raw
+`getxattr(2)` — so each touch is confined, impersonation-aware, and metered
+(`OP_XATTR`). The subsystem is reached only from the **stream** (`root://`) path;
+WebDAV and S3 do not expose `kXR_fattr` (they have their own VFS-routed
+dead-properties / tagging). There is no AIO offload here: xattr ops are cheap
+metadata operations executed inline on the event-loop thread, then a single
+response frame is built and sent.
 
 A request can target a file two ways: by an **open file handle** (the 1-byte
-`fhandle` index into `ctx->files[]`, used with `f*xattr` syscalls) or by **path**
-(used with path-based syscalls). The dispatcher decides which based on the wire
+`fhandle` index into `ctx->files[]`, routed through the **fd-based** VFS xattr
+variants `xrootd_vfs_f{get,set,list,remove}xattr` — the fd was already opened
+confined, so confinement travels with the descriptor) or by **path** (routed
+through the **ctx-based** VFS xattr ops, confined to `ctx->resolved`). The
+dispatcher builds one `xrootd_vfs_ctx_t` and selects the mode from the wire
 framing (see Control & data flow). Path-targeted requests are confined under the
-export root before any syscall runs, and a list-recurse local extension lets a
-directory target enumerate attributes across its whole subtree.
+export root before any op runs, and a list-recurse local extension lets a
+directory target enumerate attributes across its whole subtree via
+`xrootd_vfs_opendir_quiet`/`readdir`.
 
 Where it sits in the lifecycle: `handshake/dispatch_read.c` routes `kXR_fattr`
 to `xrootd_handle_fattr()` (this subsystem) after login/auth has completed. The
@@ -36,12 +42,12 @@ per-attribute results and increments the `XROOTD_OP_FATTR` metric slot.
 | File | Responsibility |
 |------|----------------|
 | `ngx_xrootd_fattr.h` | Internal API: the `xrootd_fattr_entry_t` parsed-attribute struct, key-prefix constants (`XROOTD_FATTR_XKEY_PFX`, `XROOTD_FATTR_RESP_PFX`), and prototypes for every handler/helper below. |
-| `dispatch.c` | `xrootd_handle_fattr()` — the single entry point. Validates `subcode`/`numattr`/write-permission, resolves file-handle vs path target, confines + auth-gates path targets, copies and parses the name vector, then routes to `fattr_get`/`fattr_set`/`fattr_del`/`fattr_list`. |
+| `dispatch.c` | `xrootd_handle_fattr()` — the single entry point. Validates `subcode`/`numattr`/write-permission, resolves file-handle vs path target, builds one function-scope `xrootd_vfs_ctx_t` (a confined `xrootd_vfs_stat` verifies a path target; fd targets carry proto/log only), auth-gates path targets, copies and parses the name vector, then routes the ctx + path/fd to `fattr_get`/`fattr_set`/`fattr_del`/`fattr_list`. |
 | `helpers.c` | Shared plumbing: `fattr_errno_to_xrd()` (errno→kXR), `fattr_set_rc()` (write per-attribute status in place, big-endian), `fattr_parse_nvec()` (parse the request name vector into `attrs[]`), `fattr_send_vector_status()` (build/send the Set/Del status frame). |
-| `get.c` | `fattr_get()` — `kXR_fattrGet`. Two-phase read (size query then buffered read) of each named attribute via `getxattr`/`fgetxattr`; builds the value-vector (`vvec`) response: per-attr 4-byte big-endian length + raw bytes. |
-| `set.c` | `fattr_set()` — `kXR_fattrSet`. Parses the value vector (4-byte BE length + bytes per attribute) with signed-length safety checks, applies each via `setxattr`/`fsetxattr`, honoring `kXR_fa_isNew` → `XATTR_CREATE`. |
-| `del.c` | `fattr_del()` — `kXR_fattrDel`. Removes each named attribute via `removexattr`/`fremovexattr`, recording per-attribute status; partial success is valid. |
-| `list.c` | `fattr_list()` — `kXR_fattrList`. Enumerates `user.U.*` names via `listxattr`/`flistxattr`, strips the `user.` prefix; with `kXR_fa_aData` also appends values; with the `kXR_fa_recurse` local extension on a directory target, walks the subtree emitting `relpath:U.name\0` entries. |
+| `get.c` | `fattr_get()` — `kXR_fattrGet`. Two-phase read (size query then buffered read) of each named attribute via the VFS xattr seam — `xrootd_vfs_getxattr` (path mode) / `xrootd_vfs_fgetxattr` (fd mode); builds the value-vector (`vvec`) response: per-attr 4-byte big-endian length + raw bytes. |
+| `set.c` | `fattr_set()` — `kXR_fattrSet`. Parses the value vector (4-byte BE length + bytes per attribute) with signed-length safety checks, applies each via `xrootd_vfs_setxattr`/`xrootd_vfs_fsetxattr`, honoring `kXR_fa_isNew` → `XATTR_CREATE`. |
+| `del.c` | `fattr_del()` — `kXR_fattrDel`. Removes each named attribute via `xrootd_vfs_removexattr`/`xrootd_vfs_fremovexattr`, recording per-attribute status; partial success is valid. |
+| `list.c` | `fattr_list()` — `kXR_fattrList`. Enumerates `user.U.*` names via `xrootd_vfs_listxattr`/`xrootd_vfs_flistxattr`, strips the `user.` prefix; with `kXR_fa_aData` also appends values (via `xrootd_vfs_getxattr`/`fgetxattr`); with the `kXR_fa_recurse` local extension on a directory target, walks the subtree via `xrootd_vfs_opendir_quiet`/`readdir` + a per-file confined ctx, emitting `relpath:U.name\0` entries. |
 
 ## Key types & data structures
 

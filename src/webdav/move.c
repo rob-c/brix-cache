@@ -4,6 +4,7 @@
 
 #include "webdav.h"
 #include "../compat/namespace_ops.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_rename_path + xrootd_vfs_probe */
 #include "../compat/http_conditionals.h"
 #include "../impersonate/impersonate.h"
 #include "../path/path.h"
@@ -14,8 +15,9 @@
 #include <unistd.h>
 
 typedef struct {
-    ngx_http_request_t *r;
-    ngx_log_t         *log;
+    ngx_http_request_t   *r;
+    ngx_log_t            *log;
+    xrootd_sd_instance_t *sd;   /* selected storage backend (NULL = POSIX) */
     char               root_canon[WEBDAV_MAX_PATH];
     char               src_path[WEBDAV_MAX_PATH];
     char               dst_path[WEBDAV_MAX_PATH];
@@ -24,6 +26,40 @@ typedef struct {
     ngx_int_t          http_status;
     int                sys_errno;
 } webdav_move_collection_task_t;
+
+/*
+ * webdav_move_probe — confined stat of `path` (follow, matching the prior
+ * lstat nofollow=0) via the VFS probe, projected to the struct stat fields MOVE
+ * reads (ino/dev for the self-move guard, mode for the dir branch). Non-metered.
+ * NGX_OK / NGX_DECLINED (errno kept).
+ */
+static ngx_int_t
+webdav_move_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    ngx_http_xrootd_webdav_req_ctx_t  *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    xrootd_vfs_ctx_t   vctx;
+    xrootd_vfs_stat_t  vst;
+    int                is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+        conf->common.root_canon, conf->cache_root_canon, conf->common.allow_write,
+        is_tls, (rx != NULL) ? rx->identity : NULL, path);
+    if (xrootd_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
+        return NGX_DECLINED;
+    }
+    ngx_memzero(sb, sizeof(*sb));
+    sb->st_mode = (mode_t) vst.mode;
+    sb->st_ino  = vst.ino;
+    sb->st_dev  = vst.dev;
+    return NGX_OK;
+}
 
 /*
  * Perform the actual rename and map the namespace result to an HTTP status:
@@ -35,27 +71,32 @@ typedef struct {
  * worker thread, so it touches only its parameters and thread-safe FS helpers.
  */
 static ngx_int_t
-webdav_move_execute(ngx_log_t *log, const char *root_canon,
-    const char *src_path, const char *dst_path, ngx_flag_t overwrite,
-    ngx_flag_t dst_existed, int *sys_errno)
+webdav_move_execute(xrootd_sd_instance_t *sd, ngx_log_t *log,
+    const char *root_canon, const char *src_path, const char *dst_path,
+    ngx_flag_t overwrite, ngx_flag_t dst_existed, int *sys_errno)
 {
-    xrootd_ns_result_t res;
-
-    res = xrootd_ns_rename(log, root_canon, src_path, dst_path, overwrite);
-
-    if (sys_errno != NULL) {
-        *sys_errno = res.sys_errno;
-    }
-
-    if (res.status == XROOTD_NS_OK) {
+    /* Rename through the thread-safe VFS surface (a collection MOVE runs this on
+     * a thread-pool worker). The namespace status arrives as errno, 1:1 with the
+     * old xrootd_ns_status_t, so the HTTP mapping below is unchanged. `sd` routes
+     * a non-POSIX backend; NULL ⇒ the default POSIX namespace. */
+    if (xrootd_vfs_rename_path(sd, log, root_canon, src_path, dst_path, overwrite,
+                               NULL) == NGX_OK)
+    {
+        if (sys_errno != NULL) {
+            *sys_errno = 0;
+        }
         return dst_existed ? NGX_HTTP_NO_CONTENT : NGX_HTTP_CREATED;
     }
 
-    if (res.status == XROOTD_NS_EXISTS) {
+    if (sys_errno != NULL) {
+        *sys_errno = errno;
+    }
+
+    if (errno == EEXIST) {                       /* NS_EXISTS */
         return NGX_HTTP_PRECONDITION_FAILED;
     }
 
-    if (res.status == XROOTD_NS_CONFLICT || res.status == XROOTD_NS_NOT_FOUND) {
+    if (errno == ENOTDIR || errno == ENOENT) {   /* NS_CONFLICT / NS_NOT_FOUND */
         return NGX_HTTP_CONFLICT;
     }
 
@@ -71,7 +112,7 @@ webdav_move_collection_thread(void *data, ngx_log_t *log)
 
     (void) log;
 
-    t->http_status = webdav_move_execute(t->log, t->root_canon,
+    t->http_status = webdav_move_execute(t->sd, t->log, t->root_canon,
                                          t->src_path, t->dst_path,
                                          t->overwrite, t->dst_existed,
                                          &t->sys_errno);
@@ -156,6 +197,8 @@ webdav_move_collection_post_task(ngx_http_request_t *r,
     t->overwrite = overwrite;
     t->http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
     t->sys_errno = 0;
+    t->sd = (xrootd_sd_instance_t *)
+        xrootd_webdav_backend_instance(conf, r->connection->log);
 
     ngx_cpystrn((u_char *) t->root_canon, (u_char *) conf->common.root_canon,
                 sizeof(t->root_canon));
@@ -244,8 +287,7 @@ webdav_handle_move(ngx_http_request_t *r)
         return rc;
     }
 
-    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
-                                    src_path, &src_sb, 0) != 0) {
+    if (webdav_move_probe(r, src_path, &src_sb) != NGX_OK) {
         return NGX_HTTP_NOT_FOUND;
     }
 
@@ -262,8 +304,7 @@ webdav_handle_move(ngx_http_request_t *r)
         return rc;
     }
 
-    dst_existed = (xrootd_lstat_confined_canon(r->connection->log,
-                       conf->common.root_canon, dst_path, &dst_sb, 0) == 0);
+    dst_existed = (webdav_move_probe(r, dst_path, &dst_sb) == NGX_OK);
 
     rc = webdav_check_locks_tree(r, dst_path);
     if (rc != NGX_OK) {
@@ -301,9 +342,11 @@ webdav_handle_move(ngx_http_request_t *r)
     {
         int sys_errno = 0;
 
-        rc = webdav_move_execute(r->connection->log, conf->common.root_canon,
-                                 src_path, dst_path, overwrite, dst_existed,
-                                 &sys_errno);
+        rc = webdav_move_execute(
+                (xrootd_sd_instance_t *)
+                    xrootd_webdav_backend_instance(conf, r->connection->log),
+                r->connection->log, conf->common.root_canon,
+                src_path, dst_path, overwrite, dst_existed, &sys_errno);
 
         if (rc == NGX_HTTP_CREATED || rc == NGX_HTTP_NO_CONTENT) {
             return webdav_send_no_body(r, (ngx_uint_t) rc);

@@ -21,7 +21,7 @@
 
 #include "s3.h"
 #include "multipart_internal.h"
-#include "../path/path.h"
+#include "../fs/vfs.h"   /* confined dir probe/opendir/readdir via the VFS seam */
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -63,9 +63,9 @@ s3_handle_list_parts(ngx_http_request_t *r,
 {
     char              upload_id[128];
     char              mpu_dir[PATH_MAX];
-    struct stat       mpu_sb;
-    DIR              *dp;
-    struct dirent    *de;
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_stat_t vst;
+    xrootd_vfs_dir_t *dp;
     mpu_part_entry_t *parts;
     int               nparts = 0;
     int               i;
@@ -101,12 +101,12 @@ s3_handle_list_parts(ngx_http_request_t *r,
      * upload_id + s3_resolve_key()-confined fs_path).  Under MAP mode the staging
      * dir / its parent are owned 0700 by the mapped user, so a bare worker lstat
      * EACCESes on the parent search bit and ListParts wrongly 404s for the owner.
-     * Route through xrootd_lstat_confined_canon (broker stat as the mapped user;
-     * plain lstat off impersonation).
+     * Route through the VFS probe (broker stat as the mapped user under
+     * impersonation; plain no-follow lstat off impersonation).
      */
-    if (xrootd_lstat_confined_canon(r->connection->log, cf->common.root_canon,
-                                    mpu_dir, &mpu_sb, 1) != 0
-        || !S_ISDIR(mpu_sb.st_mode))
+    s3_build_vfs_ctx(r, mpu_dir, cf, &vctx);
+    if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK
+        || !vst.is_directory)
     {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchUpload",
@@ -123,46 +123,62 @@ s3_handle_list_parts(ngx_http_request_t *r,
 
     /* As the mapped user under impersonation (broker fd + fdopendir): the staging
      * dir is owned 0700 by the mapped user, so a raw worker opendir() fails EACCES
-     * (ListParts 500).  Off impersonation this is a plain opendir(). */
-    dp = xrootd_opendir_confined_canon(r->connection->log,
-                                       cf->common.root_canon, mpu_dir);
+     * (ListParts 500).  Off impersonation this is a plain opendir(). Non-metered
+     * (the ListParts op accounts for the scan). */
+    dp = xrootd_vfs_opendir_quiet(&vctx, NULL);
     if (dp == NULL) {
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    while ((de = readdir(dp)) != NULL && nparts < MPU_MAX_PART_NUMBER) {
+    for ( ;; ) {
+        ngx_str_t          name;
+        const char        *dname;
+        char               part_path[PATH_MAX];
+        char              *endptr;
+        long               pn;
+        xrootd_vfs_ctx_t   pctx;
+        xrootd_vfs_stat_t  pst;
+
+        if (nparts >= MPU_MAX_PART_NUMBER) {
+            break;
+        }
+        if (xrootd_vfs_readdir_kind(dp, &name, NULL) != NGX_OK) {
+            break;   /* NGX_DONE (end) or error → stop */
+        }
+        dname = (const char *) name.data;
+
         /* Match "part.<N>" — must start with "part." */
-        if (ngx_strncmp(de->d_name, "part.", 5) != 0) {
+        if (ngx_strncmp(dname, "part.", 5) != 0) {
             continue;
         }
 
         /* Parse the part number after "part." */
-        char *endptr;
-        long pn = strtol(de->d_name + 5, &endptr, 10);
+        pn = strtol(dname + 5, &endptr, 10);
         if (*endptr != '\0' || pn < 1 || pn > MPU_MAX_PART_NUMBER) {
             continue;
         }
 
-        /* part_path is mpu_dir + "/" + de->d_name (readdir result); confinement
-         * is inherited from mpu_dir (see confinement comment above). */
-        char part_path[PATH_MAX];
+        /* part_path is mpu_dir + "/" + name (readdir result); confinement is
+         * inherited from mpu_dir (see confinement comment above). */
         if ((size_t) snprintf(part_path, sizeof(part_path), "%s/%s",
-                              mpu_dir, de->d_name) >= sizeof(part_path)) {
+                              mpu_dir, dname) >= sizeof(part_path)) {
             continue;
         }
 
-        struct stat psb;
-        if (lstat(part_path, &psb) != 0 || !S_ISREG(psb.st_mode)) {
+        /* Confined no-follow probe for size/mtime (non-metered). */
+        s3_build_vfs_ctx(r, part_path, cf, &pctx);
+        if (xrootd_vfs_probe(&pctx, 1 /* no-follow */, &pst) != NGX_OK
+            || !pst.is_regular) {
             continue;
         }
 
         parts[nparts].part_num = (int) pn;
-        parts[nparts].size     = psb.st_size;
-        parts[nparts].mtime    = psb.st_mtime;
+        parts[nparts].size     = pst.size;
+        parts[nparts].mtime    = pst.mtime;
         nparts++;
     }
-    closedir(dp);
+    xrootd_vfs_closedir(dp, r->connection->log);
 
     /* Sort by part number */
     if (nparts > 1) {

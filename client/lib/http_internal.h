@@ -58,11 +58,12 @@ int httpx_download_exchange(xrdc_io *io, const char *host, int port, const char 
 /* http.c */
 int httpx_window_ms(void);
 
-/* http_upload.c */
-int httpx_upload_body(xrdc_io *io, int in_fd, long long clen, xrdc_status *st);
+/* http_upload.c — the body is pulled via `src(src_ctx, buf, base_off + consumed,
+ * …)`, so the transport reads its source by absolute offset (no fd, no lseek). */
+int httpx_upload_body(xrdc_io *io, xrdc_http_body_src_fn src, void *src_ctx, long long base_off, long long clen, xrdc_status *st);
 int httpx_upload_response(xrdc_io *io, int timeout_ms, int *http_status, xrdc_status *st);
-int httpx_upload_exchange(xrdc_io *io, const char *host, int port, const char *path, const char *extra_headers, int in_fd, long long clen, int timeout_ms, int *http_status, xrdc_status *st);
+int httpx_upload_exchange(xrdc_io *io, const char *host, int port, const char *path, const char *extra_headers, xrdc_http_body_src_fn src, void *src_ctx, long long clen, int timeout_ms, int *http_status, xrdc_status *st);
 long long httpx_parse_upload_offset(const char *hdr, size_t len);
-int httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path, const char *extra_headers, int in_fd, long long off, long long chunk_len, long long total, int timeout_ms, int *status_out, long long *srv_off_out, xrdc_status *st);
+int httpx_upload_chunk(xrdc_io *io, const char *host, int port, const char *path, const char *extra_headers, xrdc_http_body_src_fn src, void *src_ctx, long long off, long long chunk_len, long long total, int timeout_ms, int *status_out, long long *srv_off_out, xrdc_status *st);
 
 #endif /* XROOTD_HTTP_INTERNAL_H */

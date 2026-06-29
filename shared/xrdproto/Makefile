@@ -95,7 +95,8 @@ TOKEN_OBJS := $(BUILD)/scopes.o $(BUILD)/b64url.o
 # #ifdef'd out), so checksum_core.c can route its fd reads through the same
 # xrootd_sd_posix_driver the module uses, with no nginx dependency.
 BACKEND := $(REPO)/src/fs/backend
-BACKEND_OBJS := $(BUILD)/sd_posix.o
+BACKEND_OBJS := $(BUILD)/sd_posix.o $(BUILD)/sd_block.o $(BUILD)/sd_s3.o \
+                $(BUILD)/meta_advisory.o
 # ZIP central-directory parsing kernel (src/zip/zip_kernel.c): the pure-C,
 # callback-driven, bounds-checked EOCD/ZIP64 parser shared with the module's
 # src/zip. No nginx / OpenSSL / fixed I/O source — the client's clean-room ZIP
@@ -113,8 +114,13 @@ SSS_OBJS := $(BUILD)/sss_keytab_kernel.o
 PROTO_CODEC := $(REPO)/src/protocol/codec
 CODEC_OBJS  := $(BUILD)/wire_codec_meta.o $(BUILD)/wire_codec_file.o \
                $(BUILD)/wire_codec_ns.o $(BUILD)/wire_codec_session.o
+# Shared, ngx-free VFS I/O verb core (src/fs/core/vfs_core.c): the `vfs` layer of
+# module->vfs_server->vfs->backend / client->vfs->backend. Backend-neutral byte
+# I/O over the SD driver, shared by the server data plane and the userland tools.
+FSCORE := $(REPO)/src/fs/core
+FSCORE_OBJS := $(BUILD)/vfs_core.o
 OBJS  := $(COMPAT_OBJS) $(GSI_OBJS) $(TOKEN_OBJS) $(BACKEND_OBJS) $(ZIP_OBJS) \
-         $(SSS_OBJS) $(CODEC_OBJS)
+         $(SSS_OBJS) $(CODEC_OBJS) $(FSCORE_OBJS)
 
 .PHONY: all check clean
 all: $(LIB)
@@ -147,7 +153,13 @@ $(BUILD)/b64url.o: $(TOKEN)/b64url.c | $(BUILD)
 # Storage Driver POSIX raw fd ops live under src/fs/backend; explicit rule (its
 # "sd.h" resolves via the .c's own dir; the ngx-coupled headers are #ifdef'd
 # out under -DXRDPROTO_NO_NGX).
-$(BUILD)/sd_posix.o: $(BACKEND)/sd_posix.c | $(BUILD)
+$(BUILD)/sd_posix.o: $(BACKEND)/posix/sd_posix.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/sd_block.o: $(BACKEND)/block/sd_block.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/sd_s3.o: $(BACKEND)/s3/sd_s3.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/meta_advisory.o: $(BACKEND)/meta_advisory.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 # ZIP parsing kernel lives under src/zip; explicit rule (its "zip_kernel.h"
@@ -163,6 +175,11 @@ $(BUILD)/sss_keytab_kernel.o: $(SSS)/sss_keytab_kernel.c | $(BUILD)
 # xrdwire codec family files live under src/protocol/codec; explicit rule (their
 # "wire_codec.h" resolves via the .c's own dir). Pure C — no nginx deps.
 $(BUILD)/wire_codec_%.o: $(PROTO_CODEC)/wire_codec_%.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# Shared VFS core lives under src/fs/core; explicit rule (its "../backend/sd.h"
+# resolves via the .c's own dir). Pure C — ngx-free fallback in sd.h.
+$(BUILD)/vfs_core.o: $(FSCORE)/vfs_core.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 $(BUILD):

@@ -1,5 +1,6 @@
 #include "open.h"
 #include "cache_internal.h"
+#include "cache_storage.h"
 #include "meta.h"
 
 #include "../fs/vfs_internal.h"
@@ -140,8 +141,6 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
 {
     char        cache_path[PATH_MAX];
     const char *resolved;
-    int         ready;
-    ngx_fd_t    fd;
     struct stat st;
     ngx_int_t   rc;
 
@@ -169,56 +168,76 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
         return NGX_DECLINED;
     }
 
-    ready = xrootd_cache_file_ready(cache_path);
-    if (ready <= 0) {
-        return NGX_DECLINED;
-    }
-
     /*
-     * NOT an export-root beneath() site.  cache_path lives under
-     * cache_root_canon — a DIFFERENT directory from the export root that the
-     * worker's confinement rootfd (conf->rootfd) anchors.  Using
-     * xrootd_open_beneath(export_rootfd, ...) here would be wrong: the cache
-     * tree is not beneath the export root, so RESOLVE_BENEATH would (correctly)
-     * refuse it.  The cache namespace has its own confinement instead:
-     * xrootd_cache_path_for_resolved() builds cache_path purely from the
-     * server-controlled cache_root_canon + a hash of the resolved path (no raw
-     * client path is appended), and the O_NOFOLLOW above blocks the final
-     * component being a symlink.  A separate persistent cache rootfd +
-     * openat2(RESOLVE_BENEATH) would be the way to extend kernel confinement to
-     * the cache, but that needs its own rootfd plumbed through the cache ctx and
-     * is out of scope for the export-root migration.
+     * Exclusively-VFS hit-serve: the cache file is opened through the cache
+     * STORAGE driver (POSIX driver on the cache rootfd by default, or a configured
+     * backend), keyed on the cache namespace. The driver owns confinement; for a
+     * driver-backed cache the bytes live in the driver's namespace, not as a POSIX
+     * file. The normal read path memory-serves when the backend cannot sendfile.
      */
-    fd = open(cache_path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
-    if (fd == NGX_INVALID_FILE) {
-        return (errno == ENOENT || errno == ENOTDIR) ? NGX_DECLINED
-                                                     : NGX_ERROR;
-    }
+    {
+        xrootd_sd_instance_t *inst =
+            xrootd_cache_storage_by_root(ctx->cache_root_canon);
+        const char           *key;
+        xrootd_sd_stat_t      sd_st;
+        xrootd_sd_obj_t      *o;
+        int                   e = 0;
 
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
-        int err = errno;
-        ngx_close_file(fd);
-        errno = err != 0 ? err : EINVAL;
-        return NGX_ERROR;
-    }
+        if (inst == NULL) {
+            return NGX_DECLINED;          /* no cache storage on this root */
+        }
+        /* key = the suffix under cache_root (what the driver keys its namespace on). */
+        key = cache_path + ngx_strlen(ctx->cache_root_canon);
+        if (key[0] != '/') {
+            return NGX_DECLINED;
+        }
 
-    if (xrootd_cache_validate_meta(cache_path, &st, ctx->log) != NGX_OK) {
-        int err = errno;
-        ngx_close_file(fd);
-        errno = err;
-        return NGX_DECLINED;
-    }
+        if (inst->driver->stat(inst, key, &sd_st) != NGX_OK) {
+            return (errno == ENOENT || errno == ENOTDIR) ? NGX_DECLINED
+                                                         : NGX_ERROR;
+        }
+        if (!sd_st.is_reg) {
+            return NGX_DECLINED;
+        }
 
-    /* The cache file is opened O_RDONLY above, so the handle is read-only:
-     * writable=0 lets xrootd_vfs_file_stat() trust the open-time metadata. */
-    rc = xrootd_vfs_adopt_fd(ctx, cache_path, fd, 1, 0, fh_out);
-    if (rc != NGX_OK) {
-        int err = errno;
-        ngx_close_file(fd);
-        errno = err;
-    }
+        /* Validate against the .meta sidecar (origin freshness) at the POSIX state
+         * path (== cache_path for a co-located cache). Synthesize a struct stat
+         * from the driver snapshot. */
+        ngx_memzero(&st, sizeof(st));
+        st.st_size  = sd_st.size;
+        st.st_mtime = sd_st.mtime;
+        st.st_mode  = S_IFREG;
+        {
+            const char *state_root =
+                xrootd_cache_state_root_by_root(ctx->cache_root_canon);
+            char        sidecar[PATH_MAX];
 
-    return rc;
+            if (state_root == NULL
+                || xrootd_cache_sidecar_path(ctx->cache_root_canon, state_root,
+                       cache_path, sidecar, sizeof(sidecar)) != 0
+                || xrootd_cache_validate_meta(sidecar, &st, ctx->log) != NGX_OK)
+            {
+                return NGX_DECLINED;     /* obj not opened yet — nothing to close */
+            }
+        }
+
+        o = inst->driver->open(inst, key, XROOTD_SD_O_READ, 0, &e);
+        if (o == NULL) {
+            errno = e;
+            return (e == ENOENT || e == ENOTDIR) ? NGX_DECLINED : NGX_ERROR;
+        }
+
+        rc = xrootd_vfs_adopt_obj(ctx, key, o, 0 /* read-only */, fh_out);
+        if (rc != NGX_OK) {
+            int err = errno;
+            (void) inst->driver->close(o);
+            if (o->heap_shell) {
+                free(o);
+            }
+            errno = err;
+        }
+        return rc;
+    }
 }
 
 /*

@@ -4,9 +4,11 @@
 
 #include "webdav.h"
 #include "../path/path.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_probe (confined stat via the VFS seam) */
 #include "../compat/http_headers.h"
 #include "../compat/staged_file.h"
 #include "../dashboard/dashboard_tracking.h"
+#include "../fs/xfer/xfer.h"     /* unified transfer audit ledger (kind=tpc) */
 #include "../tpc/common/auth.h"
 #include "../tpc/common/metrics.h"
 #include "../tpc/common/registry.h"
@@ -15,6 +17,36 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+/* Confined no-follow stat of `path` through the VFS probe, projected into the
+ * struct stat fields the TPC handler reads (mode for the dir check, size for the
+ * dashboard/registry/ledger). Non-metered. NGX_OK / NGX_DECLINED (errno kept). */
+static ngx_int_t
+webdav_tpc_probe(ngx_http_request_t *r,
+    ngx_http_xrootd_webdav_loc_conf_t *conf, const char *path, struct stat *sb)
+{
+    ngx_http_xrootd_webdav_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    xrootd_vfs_ctx_t   vctx;
+    xrootd_vfs_stat_t  vst;
+    int                is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+        conf->common.root_canon, conf->cache_root_canon, conf->common.allow_write,
+        is_tls, (rx != NULL) ? rx->identity : NULL, path);
+    if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK) {
+        return NGX_DECLINED;
+    }
+    ngx_memzero(sb, sizeof(*sb));
+    sb->st_mode  = (mode_t) vst.mode;
+    sb->st_size  = vst.size;
+    sb->st_mtime = vst.mtime;
+    return NGX_OK;
+}
 
 /* Display identity for the live-transfer dashboard: the authenticated DN, or
  * "anonymous" when the request carried no usable identity. */
@@ -376,12 +408,16 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
         (void) xrootd_tpc_registry_remove(transfer_id, r->connection->log);
         xrootd_dashboard_http_error(r, "webdav TPC push failed");
         xrootd_dashboard_http_finish(r);
+        xrootd_xfer_finish(XROOTD_XFER_TPC, "out", path, NULL, 0,
+                           XROOTD_XFER_DST_ERR, 0, r->connection->log);
         return rc;
     }
 
     (void) xrootd_tpc_registry_update(transfer_id, sb.st_size,
                                       XROOTD_TPC_STATE_DONE,
                                       r->connection->log);
+    xrootd_xfer_finish(XROOTD_XFER_TPC, "out", path, NULL, (size_t) sb.st_size,
+                       XROOTD_XFER_OK, 0, r->connection->log);
     xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_WEBDAV, XROOTD_TPC_DIR_PUSH,
                                XROOTD_TPC_METRIC_SUCCESS, (size_t) sb.st_size,
                                r->connection->log);
@@ -598,9 +634,7 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
-    existed = (xrootd_lstat_confined_canon(r->connection->log,
-                                           conf->common.root_canon, path, &sb,
-                                           1) == 0) ? 1 : 0;
+    existed = (webdav_tpc_probe(r, conf, path, &sb) == NGX_OK) ? 1 : 0;
     if (existed && S_ISDIR(sb.st_mode)) {
         return NGX_HTTP_CONFLICT;
     }
@@ -721,6 +755,8 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         xrootd_dashboard_http_error(r, "webdav TPC pull failed");
         xrootd_dashboard_http_finish(r);
         xrootd_staged_abort(r->connection->log, conf->common.root_canon, &staged, 1);
+        xrootd_xfer_finish(XROOTD_XFER_TPC, "in", path, NULL, 0,
+                           XROOTD_XFER_SRC_ERR, 0, r->connection->log);
         return rc;
     }
 
@@ -771,8 +807,7 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
-                                    path, &sb, 1) == 0) {
+    if (webdav_tpc_probe(r, conf, path, &sb) == NGX_OK) {
         xrootd_dashboard_http_add(r, (ngx_atomic_int_t) sb.st_size);
         (void) xrootd_tpc_registry_update(transfer_id, sb.st_size,
                                           XROOTD_TPC_STATE_DONE,
@@ -794,6 +829,10 @@ ngx_http_xrootd_webdav_tpc_handle_copy(ngx_http_request_t *r)
     (void) xrootd_tpc_registry_remove(transfer_id, r->connection->log);
     xrootd_dashboard_http_finish(r);
     XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_PULL_SUCCESS]);
+    xrootd_xfer_finish(XROOTD_XFER_TPC, "in", path, NULL,
+                       (size_t) (webdav_tpc_probe(r, conf, path, &sb) == NGX_OK
+                           ? sb.st_size : 0),
+                       XROOTD_XFER_OK, 0, r->connection->log);
     return webdav_send_no_body(r, existed ? NGX_HTTP_NO_CONTENT
                                           : NGX_HTTP_CREATED);
 }

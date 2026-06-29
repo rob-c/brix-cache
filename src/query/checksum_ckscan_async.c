@@ -33,20 +33,19 @@ void
 xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
 {
     xrootd_ckscan_aio_t *t    = data;
-    struct stat          st;
     /*
-     * Growing-buffer triple, passed by reference into ckscan_append/ckscan_walk:
+     * Growing-buffer triple, passed by reference into xrootd_ckscan_run:
      *   buf  = heap block (ngx_alloc, NOT pool — this runs on a thread-pool worker
      *          with no access to the request pool); ownership is transferred to
      *          t->resp on success so the done callback frees it, otherwise every
      *          error path below must ngx_free(buf) before returning.
-     *   cap  = current allocation size; append/walk realloc and update it in place.
+     *   cap  = current allocation size; the run reallocs and updates it in place.
      *   used = bytes written so far (excludes the trailing NUL added at the end).
      */
     size_t               cap  = XROOTD_CKSCAN_INIT_CAP;
     size_t               used = 0;
     u_char              *buf;
-    ngx_uint_t           nfiles = 0;
+    uint16_t             err_code = 0;
 
     buf = ngx_alloc(cap, log);
     if (buf == NULL) {
@@ -55,84 +54,16 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
         return;
     }
 
-    if (xrootd_stat_beneath(t->rootfd, t->scan_logical, &st) != 0) {
+    /* All stat/open/checksum/walk runs through the confined VFS walk (thread-safe:
+     * no pool allocation, no metric), so the worker never touches a confined
+     * helper or the request pool directly. */
+    if (xrootd_ckscan_run(log, t->rootfd, t->scan_logical, t->algo,
+                          &buf, &cap, &used, t->max_depth, t->max_files,
+                          &err_code, t->error_msg, sizeof(t->error_msg))
+        != NGX_OK)
+    {
         ngx_free(buf);
-        t->error_code = kXR_NotFound;
-        snprintf(t->error_msg, sizeof(t->error_msg), "stat failed: %s",
-                 strerror(errno));
-        return;
-    }
-
-    if (S_ISREG(st.st_mode)) {
-        int  fd;
-        /* Hex result: 8 chars (adler32/crc32c), 16 (crc64/crc64nvme), or up to
-         * EVP_MAX_MD_SIZE*2 for a digest — 129 covers every case. */
-        char hex[129];
-
-        fd = xrootd_open_beneath(t->rootfd, t->scan_logical, O_RDONLY, 0);
-        if (fd < 0) {
-            ngx_free(buf);
-            t->error_code = kXR_IOError;
-            snprintf(t->error_msg, sizeof(t->error_msg), "open failed: %s",
-                     strerror(errno));
-            return;
-        }
-
-        /*
-         * Compute the checksum directly as a hex string (parse + compute via the
-         * shared dispatcher, width per algorithm). An unknown algorithm or read
-         * failure is a checksum error. fd is closed on every branch below.
-         */
-        if (xrootd_checksum_hex_name_fd(t->algo, fd, t->scan_logical, log,
-                                        hex, sizeof(hex), NULL, 0) != NGX_OK)
-        {
-            close(fd);
-            ngx_free(buf);
-            t->error_code = kXR_IOError;
-            snprintf(t->error_msg, sizeof(t->error_msg), "checksum failed");
-            return;
-        }
-        close(fd);
-
-        {
-            /*
-             * append_rc is a tristate, not a boolean: >0 = appended, 0 = the
-             * formatted "algo hex logical\n" line exceeds the per-line limit
-             * (-> kXR_ArgTooLong), <0 = realloc failed (-> kXR_NoMemory). The two
-             * non-positive cases map to distinct wire error codes, hence the branch.
-             */
-            int append_rc;
-
-            append_rc = xrootd_ckscan_append(&buf, &cap, &used,
-                                             t->algo, hex,
-                                             t->scan_logical);
-            if (append_rc <= 0) {
-                ngx_free(buf);
-                t->error_code = (append_rc == 0) ? kXR_ArgTooLong
-                                                 : kXR_NoMemory;
-                snprintf(t->error_msg, sizeof(t->error_msg), "%s",
-                         append_rc == 0 ? "path too long" : "out of memory");
-                return;
-            }
-        }
-
-    } else if (S_ISDIR(st.st_mode)) {
-        char errmsg[128] = "";
-
-        if (xrootd_ckscan_walk(log, t->rootfd, t->scan_logical,
-                               t->algo, &buf, &cap, &used,
-                               0, t->max_depth, t->max_files, &nfiles,
-                               errmsg, sizeof(errmsg)) < 0)
-        {
-            ngx_free(buf);
-            t->error_code = kXR_IOError;
-            snprintf(t->error_msg, sizeof(t->error_msg), "%s", errmsg);
-            return;
-        }
-    } else {
-        ngx_free(buf);
-        t->error_code = kXR_ArgInvalid;
-        snprintf(t->error_msg, sizeof(t->error_msg), "not a file or directory");
+        t->error_code = err_code;
         return;
     }
 

@@ -10,8 +10,9 @@
  * way the old xrootd_validate_components_cstr() did — length, depth, and the
  * forbidden "."/".." components — and (2) reproduce the per-mode existence
  * semantics the old resolve_path* variants provided (EXISTING needs the target,
- * WRITE needs the parent directory) using xrootd_stat_beneath() rather than a
- * realpath() that would have failed.  `resolved` is filled with the lexical
+ * WRITE needs the parent directory) through the VFS seam (xrootd_vfs_probe, a
+ * non-observing confined existence/type check) rather than a realpath() that
+ * would have failed.  `resolved` is filled with the lexical
  * root_canon + reqpath join (xrootd_beneath_full_path); it is used downstream for
  * ACL prefix matching and access logging, NOT as a confinement boundary — the
  * boundary is RESOLVE_BENEATH at the op.  A path that escapes the export root is
@@ -21,6 +22,8 @@
 #include "path/op_path.h"
 #include "path/beneath.h"
 #include "path/path_internal.h"
+#include "fs/vfs.h"   /* existence/type pre-gate via the VFS seam */
+#include "fs/vfs_backend_registry.h"  /* POSIX-vs-driver existence-gate routing */
 
 #include <sys/stat.h>
 
@@ -62,24 +65,50 @@ xrootd_op_path_forbidden_component(const char *reqpath)
  *   want_dir = 1 : the target's PARENT directory must exist (WRITE).
  * Returns NGX_OK when the requirement is met, NGX_DECLINED otherwise.
  */
+/* Build a probe VFS ctx for `reqpath` (joined beneath the export root) and run a
+ * non-observing confined existence/type check (no phantom OP_STAT metric). */
 static ngx_int_t
-op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf,
+op_path_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
+              const char *reqpath, int nofollow, xrootd_vfs_stat_t *vst)
+{
+    xrootd_vfs_ctx_t vctx;
+    char             full[PATH_MAX];
+
+    xrootd_beneath_full_path(conf->common.root_canon, reqpath,
+                             full, sizeof(full));
+    xrootd_vfs_ctx_init(&vctx, NULL /* no alloc in a probe */, log,
+        XROOTD_PROTO_STREAM, conf->common.root_canon, NULL,
+        conf->common.allow_write, 0 /* is_tls */, NULL, full);
+    return xrootd_vfs_probe(&vctx, nofollow, vst);
+}
+
+static ngx_int_t
+op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
                        const char *reqpath, int want_dir)
 {
-    struct stat st;
+    xrootd_vfs_stat_t vst;
 
     if (want_dir < 0) {
         return NGX_OK;                  /* NOEXIST: nothing to verify */
     }
 
     if (want_dir == 0) {
+        /* For a NON-POSIX backend the operation's own driver call validates the
+         * target and returns ENOENT→NotFound, so this gate's probe is a redundant
+         * catalog lookup — skip it (the driver is the single existence check). The
+         * default POSIX export keeps the probe below: its confined lstat is cheap
+         * and preserves the existing existence-before-auth ordering exactly. */
+        if (xrootd_vfs_backend_resolve(conf->common.root_canon, log) != NULL) {
+            return NGX_OK;
+        }
         /* EXISTING: the target name must resolve, confined, to something present.
-         * LSTAT (not stat) so a symlink — including a dangling one — counts as
-         * present: rm/chmod/mv operate on the name itself, and rm of a symlink must
-         * succeed (it never dereferences the final component). This gate is only the
-         * ACL/logging existence check; the confined *_beneath ops remain the security
-         * boundary, so not following the final link here weakens nothing. */
-        return xrootd_lstat_beneath(conf->rootfd, reqpath, &st) == 0
+         * nofollow (lstat semantics) so a symlink — including a dangling one —
+         * counts as present: rm/chmod/mv operate on the name itself, and rm of a
+         * symlink must succeed (it never dereferences the final component). This
+         * gate is only the ACL/logging existence check; the confined VFS ops
+         * remain the security boundary, so not following the final link here
+         * weakens nothing. */
+        return op_path_probe(conf, log, reqpath, 1 /* nofollow */, &vst) == NGX_OK
                ? NGX_OK : NGX_DECLINED;
     }
 
@@ -104,14 +133,22 @@ op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf,
                 /* parent is the export root itself — always present. */
                 return NGX_OK;
             }
+            /* `slash` points just PAST the parent's trailing '/', so plen still
+             * includes it. Drop it: a confined POSIX lstat tolerates a trailing
+             * slash on a directory ("/w0/"), but a driver whose namespace lives
+             * in a catalog (pblock) stores the key as "/w0" and a "/w0/" lookup
+             * misses — which silently broke every non-recursive nested mkdir on a
+             * non-POSIX backend. The parent path handed to the probe must be
+             * slash-free. */
+            plen--;
             if (plen >= sizeof(parent)) {
                 return NGX_DECLINED;
             }
             ngx_memcpy(parent, reqpath, plen);
             parent[plen] = '\0';
         }
-        if (xrootd_stat_beneath(conf->rootfd, parent, &st) != 0
-            || !S_ISDIR(st.st_mode))
+        if (op_path_probe(conf, log, parent, 0 /* follow */, &vst) != NGX_OK
+            || !vst.is_directory)
         {
             return NGX_DECLINED;
         }
@@ -133,7 +170,7 @@ op_path_existence_gate(ngx_stream_xrootd_srv_conf_t *conf,
  *                  the join overflowed resolved_sz) → 4xx ArgInvalid.
  */
 ngx_int_t
-xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf,
+xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
                             const char *reqpath, xrootd_path_mode_t mode,
                             char *resolved, size_t resolved_sz)
 {
@@ -175,9 +212,9 @@ xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf,
         }
     }
 
-    ok = (op_path_existence_gate(conf, reqpath, want_dir) == NGX_OK);
+    ok = (op_path_existence_gate(conf, log, reqpath, want_dir) == NGX_OK);
     if (!ok && mode == XROOTD_PATH_EITHER) {
-        ok = (op_path_existence_gate(conf, reqpath, 0) == NGX_OK);
+        ok = (op_path_existence_gate(conf, log, reqpath, 0) == NGX_OK);
     }
     if (!ok) {
         return NGX_DECLINED;
@@ -237,7 +274,7 @@ xrootd_resolve_op_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return NGX_DONE;
     }
 
-    rc = xrootd_path_resolve_beneath(conf, reqpath, mode,
+    rc = xrootd_path_resolve_beneath(conf, c->log, reqpath, mode,
                                      resolved, resolved_sz);
     if (rc == NGX_ERROR) {
         /*

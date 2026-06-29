@@ -16,6 +16,7 @@
 #include "../compat/integrity_info.h"
 #include "../response/response.h"
 #include "../aio/aio.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_close — release the path-based read handle */
 
 
 /*
@@ -40,7 +41,7 @@ xrootd_cksum_aio_thread(void *data, ngx_log_t *log)
     iopts.allow_xattr_cache  = 1;
     iopts.update_xattr_cache = 1;
 
-    if (xrootd_integrity_get_fd(log, t->fd, t->resolved, t->algo,
+    if (xrootd_integrity_get_fd(log, t->fd, &t->obj, t->resolved, t->algo,
                                 &iopts, &info) != NGX_OK)
     {
         t->error_code = kXR_IOError;
@@ -72,8 +73,16 @@ xrootd_cksum_aio_done(ngx_event_t *ev)
     xrootd_ctx_t       *ctx  = t->ctx;
     ngx_connection_t   *c    = t->c;
 
-    if (t->close_fd && t->fd >= 0) {
-        close(t->fd);
+    if (t->close_fd) {
+        /* Path-based request: release the VFS handle we opened (it owns the fd).
+         * The handle is freed before the destroy check so it is never leaked even
+         * when the client disconnected while the AIO was in flight. */
+        if (t->fh != NULL) {
+            xrootd_vfs_close(t->fh, c->log);
+            t->fh = NULL;
+        } else if (t->fd >= 0) {
+            close(t->fd);
+        }
         t->fd = -1;
     }
 

@@ -14,6 +14,7 @@
  */
 
 #include "../ngx_xrootd_module.h"
+#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — pgread routes via the SD seam */
 
 /* ---- Function: xrootd_handle_read() ----
  * Handles kXR_read opcode — single-segment file read returning raw bytes to client.
@@ -77,8 +78,9 @@ size_t xrootd_pgread_encode_pages(const u_char *src, size_t len, off_t offset,
  * the event-loop warm-cache fast path (skip the thread-pool offload when the
  * data is resident); pass 0 for the normal blocking read.
  */
-size_t xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
-                                         u_char *out, ssize_t *nread_out,
+size_t xrootd_pgread_read_encode_inplace(xrootd_sd_obj_t *obj, off_t offset,
+                                         size_t rlen, u_char *out,
+                                         ssize_t *nread_out,
                                          int *io_errno_out, int nowait);
 
 #endif // XROOTD_READ_H

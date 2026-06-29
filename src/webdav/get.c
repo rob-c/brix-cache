@@ -136,6 +136,8 @@ webdav_handle_get(ngx_http_request_t *r)
             conf->cache_root_canon, conf->common.allow_write, is_tls,
             (wctx != NULL) ? wctx->identity : NULL, path);
     }
+    /* Route through the export's selected storage backend (NULL ⇒ default POSIX). */
+    vctx.sd = xrootd_webdav_backend_instance(conf, r->connection->log);
 
     fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
     if (fh == NULL) {

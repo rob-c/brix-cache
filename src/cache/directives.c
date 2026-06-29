@@ -102,6 +102,16 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (xcf->cache_origin_tls == NGX_CONF_UNSET) {
             xcf->cache_origin_tls = 1;
         }
+    } else if (addr_len > sizeof("s3://") - 1
+               && ngx_strncmp(addr_data, "s3://", sizeof("s3://") - 1) == 0)
+    {
+        /* s3://endpoint[:port]/BUCKET — the bucket is the first path segment; the
+         * object key comes from the client request. TLS is not auto-enabled (set
+         * xrootd_cache_origin_tls on for AWS/https endpoints); a plain endpoint
+         * (e.g. a local MinIO/test server) stays http. */
+        addr_data += sizeof("s3://") - 1;
+        addr_len  -= sizeof("s3://") - 1;
+        xcf->cache_origin_scheme = XROOTD_CACHE_SCHEME_S3;
     }
 
     XROOTD_PNALLOC_OR_RETURN(addr_copy, cf->pool, addr_len + 1, NGX_CONF_ERROR);
@@ -116,13 +126,26 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      */
     int  is_xroot = (xcf->cache_origin_scheme == XROOTD_CACHE_SCHEME_XROOT
                      || xcf->cache_origin_scheme == NGX_CONF_UNSET_UINT);
+    int  is_s3 = (xcf->cache_origin_scheme == XROOTD_CACHE_SCHEME_S3);
     long default_port =
         is_xroot ? 0
-        : (xcf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTP ? 80 : 443);
+        : (xcf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTP
+           || (is_s3 && xcf->cache_origin_tls != 1)) ? 80 : 443;
 
     if (!is_xroot) {
         char *slash = strchr(addr_copy, '/');     /* strip any trailing path */
         if (slash != NULL) {
+            /* For s3://, the first path segment is the bucket — capture it before
+             * stripping (the object key itself comes from the client request). */
+            if (is_s3 && slash[1] != '\0') {
+                char *bend = strchr(slash + 1, '/');
+                size_t blen = (bend != NULL) ? (size_t) (bend - (slash + 1))
+                                             : ngx_strlen(slash + 1);
+                if (xrootd_pstrdupz(cf->pool, &xcf->cache_origin_s3_bucket,
+                                    (u_char *) slash + 1, blen) != NGX_OK) {
+                    return NGX_CONF_ERROR;
+                }
+            }
             *slash = '\0';
         }
     }
@@ -246,6 +269,65 @@ xrootd_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
 
     xcf->cache_eviction_threshold = ppm;
 
+    return NGX_CONF_OK;
+}
+
+/* xrootd_conf_set_cache_watermark — parse a fullness watermark as a decimal
+ * (0.9) or percentage (90%), stored as parts-per-million at cmd->offset. Shared
+ * by the read-cache reaper watermarks and the write-back staging watermarks; the
+ * pair-ordering constraint (low < high) is checked once at runtime_server.c so a
+ * single directive never needs to know its sibling. */
+char *
+xrootd_conf_set_cache_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    char       *base = conf;
+    ngx_uint_t *field = (ngx_uint_t *) (base + cmd->offset);
+    ngx_str_t  *value;
+    char       *copy;
+    char       *endp;
+    double      ratio;
+    ngx_uint_t  ppm;
+
+    value = cf->args->elts;
+
+    if (*field != NGX_CONF_UNSET_UINT) {
+        return "is duplicate";
+    }
+
+    XROOTD_PNALLOC_OR_RETURN(copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
+    ngx_memcpy(copy, value[1].data, value[1].len);
+    copy[value[1].len] = '\0';
+
+    errno = 0;
+    ratio = strtod(copy, &endp);
+    if (endp == copy || errno != 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "%V: invalid value \"%V\"", &cmd->name, &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    if (*endp == '%') {
+        endp++;
+        ratio /= 100.0;
+    } else if (ratio > 1.0) {
+        ratio /= 100.0;
+    }
+
+    if (*endp != '\0' || ratio <= 0.0 || ratio >= 1.0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "%V must be greater than 0 and less than 1.0 (or 1%% and 100%%)",
+            &cmd->name);
+        return NGX_CONF_ERROR;
+    }
+
+    ppm = (ngx_uint_t) (ratio * 1000000.0 + 0.5);
+    if (ppm == 0 || ppm >= 1000000) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "%V is out of range", &cmd->name);
+        return NGX_CONF_ERROR;
+    }
+
+    *field = ppm;
     return NGX_CONF_OK;
 }
 
@@ -626,31 +708,28 @@ xrootd_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  * ngx_array_t (created on first use, capacity 4, cf->pool-lived across merges).
  * Shared by the wt_allow_prefix and wt_deny_prefix directives. */
 
+/* Push one cf->args[1] prefix onto *target (created on first use, cf->pool-lived
+ * so it persists across merges). Shared by the write-through AND read-cache
+ * allow/deny directives so both lists are parsed identically. */
 static char *
-xrootd_conf_add_wt_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_deny)
+xrootd_conf_push_prefix(ngx_conf_t *cf, ngx_array_t **target,
+    const char *log_label)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = conf;
-    ngx_str_t                    *value;
+    ngx_str_t                *value = cf->args->elts;
+    xrootd_wt_prefix_entry_t *entry;
+    char                     *prefix_copy;
 
-    value = cf->args->elts;
-    (void) cmd;
-
-    /* Allocate the array on first use. */
-    ngx_array_t **target = is_deny ? &xcf->wt_deny_prefixes : &xcf->wt_allow_prefixes;
     if (*target == NULL) {
         *target = ngx_array_create(cf->pool, 4, sizeof(xrootd_wt_prefix_entry_t));
         if (*target == NULL) {
             return NGX_CONF_ERROR;
         }
     }
-
-    /* Push a new entry. */
-    xrootd_wt_prefix_entry_t *entry = ngx_array_push(*target);
+    entry = ngx_array_push(*target);
     if (entry == NULL) {
         return NGX_CONF_ERROR;
     }
-    /* Allocate prefix string from cf->pool so it persists across merges. */
-    char *prefix_copy = ngx_pnalloc(cf->pool, value[1].len + 1);
+    prefix_copy = ngx_pnalloc(cf->pool, value[1].len + 1);
     if (prefix_copy == NULL) {
         return NGX_CONF_ERROR;
     }
@@ -659,10 +738,38 @@ xrootd_conf_add_wt_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is
     entry->prefix.data = (u_char *) prefix_copy;
     entry->prefix.len  = value[1].len;
 
-    const char *label = is_deny ? "deny" : "allow";
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "xrootd_wt_%s_prefix: \"%V\"", label, &value[1]);
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0, "%s: \"%V\"", log_label, &value[1]);
     return NGX_CONF_OK;
+}
+
+static char *
+xrootd_conf_add_wt_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_deny)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    (void) cmd;
+    return xrootd_conf_push_prefix(cf,
+        is_deny ? &xcf->wt_deny_prefixes : &xcf->wt_allow_prefixes,
+        is_deny ? "xrootd_wt_deny_prefix" : "xrootd_wt_allow_prefix");
+}
+
+/* xrootd_conf_set_cache_deny_prefix / _allow_prefix — read-cache admission
+ * prefixes (parity with the write-through lists). */
+char *
+xrootd_conf_set_cache_deny_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    (void) cmd;
+    return xrootd_conf_push_prefix(cf, &xcf->cache_deny_prefixes,
+                                   "xrootd_cache_deny_prefix");
+}
+
+char *
+xrootd_conf_set_cache_allow_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    (void) cmd;
+    return xrootd_conf_push_prefix(cf, &xcf->cache_allow_prefixes,
+                                   "xrootd_cache_allow_prefix");
 }
 
 /* xrootd_conf_set_wt_deny_prefix — add a path prefix to the WT deny list: matching

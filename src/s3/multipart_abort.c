@@ -37,7 +37,7 @@ s3_handle_multipart_abort(ngx_http_request_t *r,
      * If the staging dir does not exist, AWS S3 returns 404 NoSuchUpload.
      */
     struct stat sb;
-    if (lstat(mpu_dir, &sb) != 0) {
+    if (lstat(mpu_dir, &sb) != 0) {  /* vfs-seam-allow: S3 multipart staging-dir domain */
         if (errno == ENOENT) {
             return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                      "NoSuchUpload",

@@ -351,21 +351,21 @@ tpc_token_rfc8693(xrootd_tpc_pull_t *t, char *token_out, size_t token_out_sz)
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC token: token-exchange subprocess failed "
                      "(pipe/fork or signal)");
-            unlink(body_file);
+            unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
             t->xrd_error = kXR_ServerError;
             return -1;
         }
         if (ec != 0) {
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC token: token exchange failed (curl exit %d)", ec);
-            unlink(body_file);
+            unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
             t->xrd_error = kXR_AuthFailed;
             return -1;
         }
     }
 
     /* Success: body file no longer needed; remove before parsing the reply. */
-    unlink(body_file);
+    unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
 
     if (tpc_token_parse_access_token(buf, token_out, token_out_sz) != 0) {
         t->xrd_error = kXR_AuthFailed;

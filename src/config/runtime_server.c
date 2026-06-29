@@ -5,6 +5,7 @@
 #include "config.h"
 #include "root_prepare.h"
 #include "../compat/staged_file.h"
+#include "../fs/vfs_backend_registry.h"   /* per-export backend registration */
 
 /* Prepare one server block at postconfiguration: validate the configured root
  * is an existing, accessible directory (access mode matching the write policy)
@@ -25,6 +26,74 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                                        xcf->common.root_canon) != NGX_CONF_OK)
         {
             return NGX_ERROR;
+        }
+
+        /* Register the export's selected storage backend for VFS resolution at
+         * request time. A "root://host:port" / "roots://host:port" value makes the
+         * export's PRIMARY storage a REMOTE XRootD server (read + write through the
+         * sd_xroot driver); a driver name (e.g. "pblock") selects a local backend;
+         * the default POSIX backend is a no-op. */
+        {
+            ngx_str_t *sb = &xcf->common.storage_backend;
+            u_char    *addr = NULL;
+            size_t     addrn = 0;
+            int        is_roots = 0;
+
+            if (sb->len > sizeof("roots://") - 1
+                && ngx_strncmp(sb->data, "roots://", sizeof("roots://") - 1) == 0)
+            {
+                addr = sb->data + sizeof("roots://") - 1;
+                addrn = sb->len - (sizeof("roots://") - 1);
+                is_roots = 1;
+            } else if (sb->len > sizeof("root://") - 1
+                && ngx_strncmp(sb->data, "root://", sizeof("root://") - 1) == 0)
+            {
+                addr = sb->data + sizeof("root://") - 1;
+                addrn = sb->len - (sizeof("root://") - 1);
+            }
+
+            if (addr != NULL) {
+                /* Split "host:port" on the last colon (a bracketed [v6]:port host
+                 * keeps the colon after the ']'). */
+                u_char *colon = NULL;
+                size_t  i, hostn;
+                ngx_int_t portnum;
+                u_char *hcopy;
+
+                for (i = addrn; i > 0; i--) {
+                    if (addr[i - 1] == ':') { colon = addr + i - 1; break; }
+                }
+                if (colon == NULL) {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                        "xrootd_storage_backend: remote origin needs host:port");
+                    return NGX_ERROR;
+                }
+                hostn   = (size_t) (colon - addr);
+                portnum = ngx_atoi(colon + 1,
+                                   (size_t) (addr + addrn - (colon + 1)));
+                if (hostn == 0 || portnum == NGX_ERROR
+                    || portnum <= 0 || portnum > 65535)
+                {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                        "xrootd_storage_backend: invalid remote origin host:port");
+                    return NGX_ERROR;
+                }
+
+                hcopy = ngx_pnalloc(cf->pool, hostn);
+                if (hcopy == NULL) {
+                    return NGX_ERROR;
+                }
+                ngx_memcpy(hcopy, addr, hostn);
+                xcf->cache_origin_host.data = hcopy;
+                xcf->cache_origin_host.len  = hostn;
+                xcf->cache_origin_port      = (uint16_t) portnum;
+                xcf->cache_origin_tls       = is_roots ? 1 : 0;
+
+                xrootd_vfs_backend_config_xroot(xcf->common.root_canon, xcf);
+            } else {
+                xrootd_vfs_backend_config(xcf->common.root_canon, sb,
+                                          xcf->common.pblock_block_size);
+            }
         }
 
         /* Optional fast-cache upload staging device.  Canonicalize once here; an
@@ -58,6 +127,47 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             return NGX_ERROR;
         }
 
+        /* A driver-backed read cache keeps its bytes in the storage backend, so
+         * its POSIX .meta/.cinfo sidecars cannot live under cache_root — require a
+         * distinct xrootd_cache_state_root. Then register the backend keyed on the
+         * cache root for VFS resolution (no-op for the default POSIX backend). */
+        if (xcf->cache_storage_backend.len > 0) {
+            if (xcf->cache_state_root.len == 0
+                || (xcf->cache_state_root.len == xcf->cache_root.len
+                    && ngx_strncmp(xcf->cache_state_root.data,
+                                   xcf->cache_root.data,
+                                   xcf->cache_root.len) == 0))
+            {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_cache_storage_backend requires a distinct POSIX "
+                    "xrootd_cache_state_root (sidecars cannot live in a "
+                    "driver-backed cache_root)");
+                return NGX_ERROR;
+            }
+            xrootd_vfs_backend_config((const char *) xcf->cache_root.data,
+                                      &xcf->cache_storage_backend,
+                                      xcf->cache_storage_block_size);
+        }
+
+        /* Write-back staging cache backend (its own root). Same sidecar rule. */
+        if (xcf->cache_wt_stage_backend.len > 0) {
+            if (xcf->cache_wt_stage_root.len == 0) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_cache_wt_stage_backend requires "
+                    "xrootd_cache_wt_stage_root");
+                return NGX_ERROR;
+            }
+            if (xcf->cache_state_root.len == 0) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_cache_wt_stage_backend requires a POSIX "
+                    "xrootd_cache_state_root for its sidecars");
+                return NGX_ERROR;
+            }
+            xrootd_vfs_backend_config((const char *) xcf->cache_wt_stage_root.data,
+                                      &xcf->cache_wt_stage_backend,
+                                      xcf->cache_wt_stage_block_size);
+        }
+
         if (xcf->cache_root.len == 0 || xcf->cache_origin_host.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "xrootd_cache on requires xrootd_cache_root and "
@@ -89,6 +199,19 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             return NGX_ERROR;
         }
 
+        /* Watermark reaper ordering: 0 < low < high < 1.0. Defaults already
+         * satisfy this; an explicit pair that inverts it is a config error. */
+        if (xcf->cache_high_watermark == 0
+            || xcf->cache_high_watermark >= 1000000
+            || xcf->cache_low_watermark == 0
+            || xcf->cache_low_watermark >= xcf->cache_high_watermark)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_cache_low_watermark must be greater than 0 and less "
+                "than xrootd_cache_high_watermark (which must be < 1.0)");
+            return NGX_ERROR;
+        }
+
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
             "xrootd: cache enabled root=%V origin=%V tls=%s "
             "lock_timeout=%ds eviction_threshold=0.%06ui",
@@ -96,6 +219,29 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             xcf->cache_origin_tls ? "on" : "off",
             (int) xcf->cache_lock_timeout,
             xcf->cache_eviction_threshold);
+    }
+
+    /* Write-back-staging backpressure validation. Independent of the read cache —
+     * write-through staging exists whenever xrootd_write_through is on, so this
+     * runs at the server level. When a HIGH watermark is set it needs a staging
+     * root to measure, and the pair must satisfy 0 < low < high < 1.0. */
+    if (xcf->cache_wt_stage_high_watermark > 0) {
+        if (xcf->cache_wt_stage_root.len == 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_wt_stage_high_watermark requires "
+                "xrootd_cache_wt_stage_root");
+            return NGX_ERROR;
+        }
+        if (xcf->cache_wt_stage_high_watermark >= 1000000
+            || xcf->cache_wt_stage_low_watermark == 0
+            || xcf->cache_wt_stage_low_watermark
+                   >= xcf->cache_wt_stage_high_watermark)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_wt_stage_low_watermark must be greater than 0 and "
+                "less than xrootd_wt_stage_high_watermark (which must be < 1.0)");
+            return NGX_ERROR;
+        }
     }
 
     /*

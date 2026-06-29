@@ -2,10 +2,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/xattr.h>
 #include <arpa/inet.h>
-#include <dirent.h>
 #include "../compat/alloc_guard.h"
 
 /* kXR_fa_recurse support */
@@ -26,10 +23,15 @@
 #define FATTR_RECURSE_MAX_DEPTH  16
 
 typedef struct {
-    u_char *buf;
-    size_t  cap;
-    size_t  len;
-    size_t  root_len;   /* length of root path; relpath = fullpath + root_len */
+    u_char     *buf;
+    size_t      cap;
+    size_t      len;
+    size_t      root_len;   /* length of root path; relpath = fullpath + root_len */
+    /* Carried so each visited node can build a transient VFS ctx (every opendir /
+     * lstat / listxattr in the walk routes through the confined VFS seam). */
+    ngx_pool_t *pool;
+    ngx_log_t  *log;
+    const char *root_canon;
 } fattr_recurse_ctx_t;
 
 /*
@@ -44,59 +46,67 @@ typedef struct {
  *       descend real directories only and never follow symlinks into other trees;
  *       dotfiles are skipped to avoid . / .. recursion and hidden control files.
  *
- * HOW: Returns early past FATTR_RECURSE_MAX_DEPTH. opendir/readdir loop; lstat each
- *       child — recurse into dirs, ignore non-regular files. relpath is computed by
- *       offsetting past root_len (and a leading '/'). listxattr fills a stack buffer
- *       that is NUL-separated; the inner loop strides name-by-name. Entries that
- *       would overflow rctx->cap are dropped (no error — best-effort enumeration).
+ * HOW: Returns early past FATTR_RECURSE_MAX_DEPTH. Opens the dir via the VFS
+ *       (xrootd_vfs_opendir_quiet) and iterates with xrootd_vfs_readdir, whose
+ *       per-child lstat (nofollow) is the same "do not follow symlinks out of the
+ *       subtree" guarantee — recurse into dirs, ignore non-regular files. relpath
+ *       is computed by offsetting past root_len (and a leading '/'). Each file's
+ *       xattr names come from xrootd_vfs_listxattr into a stack buffer that is
+ *       NUL-separated; the inner loop strides name-by-name. Entries that would
+ *       overflow rctx->cap are dropped (no error — best-effort enumeration).
  *       No return value: results accumulate in rctx. */
 static void
 fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
 {
-    DIR           *dir;
-    struct dirent *de;
-    char           fpath[XROOTD_PATH_MAX];
-    char           xlist[FATTR_RECURSE_XLIST_BUF];
-    struct stat    sb;
-    ssize_t        list_sz;
-    char          *lp, *lend;
-    size_t         full_nlen;
-    const char    *relpath;
-    int            plen;
+    xrootd_vfs_ctx_t   dvctx;
+    xrootd_vfs_dir_t  *dir;
+    ngx_str_t          name;
+    xrootd_vfs_stat_t  vst;
+    char               fpath[XROOTD_PATH_MAX];
+    char               xlist[FATTR_RECURSE_XLIST_BUF];
+    ssize_t            list_sz;
+    char              *lp, *lend;
+    size_t             full_nlen;
+    const char        *relpath;
+    int                plen;
+    ngx_int_t          rc;
 
     if (depth > FATTR_RECURSE_MAX_DEPTH) {
         return;
     }
 
-    dir = opendir(dir_path);
+    /* Confined, non-metered open of this subtree directory (the enclosing
+     * fattrList op accounts for the whole walk). */
+    xrootd_vfs_ctx_init(&dvctx, rctx->pool, rctx->log, XROOTD_PROTO_STREAM,
+        rctx->root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */, NULL,
+        dir_path);
+    dir = xrootd_vfs_opendir_quiet(&dvctx, NULL);
     if (dir == NULL) {
         return;
     }
 
-    while ((de = readdir(dir)) != NULL) {
-        /* Skip ".", ".." and any dotfile — avoids self/parent recursion. */
-        if (de->d_name[0] == '.') {
+    /* readdir with a stat_out performs a per-child lstat (nofollow) — "." and
+     * ".." are already filtered by the VFS. */
+    while ((rc = xrootd_vfs_readdir(dir, &name, &vst)) == NGX_OK) {
+        /* Skip any dotfile — avoids hidden control files (and self/parent). */
+        if (name.len == 0 || name.data[0] == '.') {
             continue;
         }
 
         /* Build the absolute child path; drop entries that would truncate. */
-        plen = snprintf(fpath, sizeof(fpath), "%s/%s", dir_path, de->d_name);
+        plen = snprintf(fpath, sizeof(fpath), "%s/%s", dir_path,
+                        (char *) name.data);
         if (plen < 0 || plen >= (int) sizeof(fpath)) {
             continue;
         }
 
-        /* lstat, not stat: do not follow symlinks (no escaping the subtree). */
-        if (lstat(fpath, &sb) != 0) {
-            continue;
-        }
-
-        if (S_ISDIR(sb.st_mode)) {
+        if (vst.is_directory) {
             fattr_recurse_dir(rctx, fpath, depth + 1);
             continue;
         }
 
         /* Only regular files carry managed xattrs we report. */
-        if (!S_ISREG(sb.st_mode)) {
+        if (!vst.is_regular) {
             continue;
         }
 
@@ -106,8 +116,15 @@ fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
             relpath++;
         }
 
-        /* listxattr fills xlist with NUL-separated names; <=0 means none/error. */
-        list_sz = listxattr(fpath, xlist, sizeof(xlist));
+        /* listxattr (via the VFS) fills xlist with NUL-separated names; <=0 means
+         * none/error. A transient per-file ctx re-verifies confinement. */
+        {
+            xrootd_vfs_ctx_t fvctx;
+
+            xrootd_vfs_ctx_init(&fvctx, rctx->pool, rctx->log,
+                XROOTD_PROTO_STREAM, rctx->root_canon, NULL, 0, 0, NULL, fpath);
+            list_sz = xrootd_vfs_listxattr(&fvctx, xlist, sizeof(xlist));
+        }
         if (list_sz <= 0) {
             continue;
         }
@@ -149,7 +166,7 @@ fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
         }
     }
 
-    closedir(dir);
+    xrootd_vfs_closedir(dir, rctx->log);
 }
 
 /*
@@ -165,17 +182,21 @@ fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
  * HOW: Buffer comes from the connection pool (freed with the request). An empty
  *       result still returns OK with a NULL/0 body (valid empty list, not error). */
 static ngx_int_t
-fattr_list_recurse(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path)
+fattr_list_recurse(xrootd_ctx_t *ctx, ngx_connection_t *c,
+    xrootd_vfs_ctx_t *vctx, const char *path)
 {
     fattr_recurse_ctx_t rctx;
     u_char             *buf;
 
     XROOTD_PALLOC_OR_RETURN(buf, c->pool, FATTR_RECURSE_RESP_CAP, xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory"));
 
-    rctx.buf      = buf;
-    rctx.cap      = FATTR_RECURSE_RESP_CAP;
-    rctx.len      = 0;
-    rctx.root_len = strlen(path);   /* relpath = fullpath + root_len in the walk */
+    rctx.buf        = buf;
+    rctx.cap        = FATTR_RECURSE_RESP_CAP;
+    rctx.len        = 0;
+    rctx.root_len   = strlen(path);  /* relpath = fullpath + root_len in the walk */
+    rctx.pool       = vctx->pool;
+    rctx.log        = vctx->log;
+    rctx.root_canon = vctx->root_canon;
 
     fattr_recurse_dir(&rctx, path, 0);
 
@@ -204,20 +225,22 @@ fattr_list_recurse(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path)
  *       filesystems without xattr support return empty response rather than error.
  *       Thread safety: operates only on provided ctx, c, pool and local stack variables. */
 ngx_int_t fattr_list(xrootd_ctx_t *ctx, ngx_connection_t *c,
-                    const char *path, int fd, int options) {
+                    xrootd_vfs_ctx_t *vctx, const char *path, int fd,
+                    int options) {
     ngx_pool_t *pool = c->pool;
     int aData = (options & kXR_fa_aData);
 
     /* Directory + recurse flag → take the subtree-walk path instead. */
     if ((options & kXR_fa_recurse) && path != NULL) {
-        struct stat rsb;
-        if (stat(path, &rsb) == 0 && S_ISDIR(rsb.st_mode)) {
-            return fattr_list_recurse(ctx, c, path);
+        xrootd_vfs_stat_t rvst;
+        if (xrootd_vfs_probe(vctx, 0 /* follow */, &rvst) == NGX_OK
+            && rvst.is_directory) {
+            return fattr_list_recurse(ctx, c, vctx, path);
         }
     }
     /* Phase 1: probe (size, NULL) to learn how big the name list is. */
-    ssize_t list_sz = path ? listxattr(path, NULL, 0)
-                           : flistxattr(fd,   NULL, 0);
+    ssize_t list_sz = path ? xrootd_vfs_listxattr(vctx, NULL, 0)
+                           : xrootd_vfs_flistxattr(vctx, fd, NULL, 0);
     if (list_sz < 0) {
         /* Filesystem with no xattr support → empty list, not an error. */
         if (errno == ENOTSUP || errno == EOPNOTSUPP) {
@@ -237,8 +260,8 @@ ngx_int_t fattr_list(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
     }
     /* Phase 2: read the actual NUL-separated name list into raw. */
-    ssize_t actual = path ? listxattr(path, raw, list_sz + 4096)
-                          : flistxattr(fd,   raw, list_sz + 4096);
+    ssize_t actual = path ? xrootd_vfs_listxattr(vctx, raw, list_sz + 4096)
+                          : xrootd_vfs_flistxattr(vctx, fd, raw, list_sz + 4096);
     if (actual < 0) {
         return xrootd_send_error(ctx, c, kXR_FSError, "listxattr failed");
     }
@@ -284,8 +307,9 @@ ngx_int_t fattr_list(xrootd_ctx_t *ctx, ngx_connection_t *c,
                  * Note getxattr uses the full "user.U.name" key (lp), while the
                  * emitted name above was the stripped form. */
                 char    val[4096];
-                ssize_t vlen = path ? getxattr(path, lp, val, sizeof(val))
-                                    : fgetxattr(fd,   lp, val, sizeof(val));
+                ssize_t vlen = path
+                    ? xrootd_vfs_getxattr(vctx, lp, val, sizeof(val))
+                    : xrootd_vfs_fgetxattr(vctx, fd, lp, val, sizeof(val));
                 if (vlen < 0) vlen = 0;   /* unreadable value → zero-length */
                 uint32_t vlen_be = htonl((uint32_t) vlen);
                 ngx_memcpy(wp, &vlen_be, 4);

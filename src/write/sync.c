@@ -47,6 +47,7 @@ xrootd_handle_sync(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		xrootd_vfs_job_t job;
 
 		xrootd_vfs_job_sync_init(&job, ctx->files[idx].fd);
+		xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
 		xrootd_vfs_io_execute(&job);
 		if (job.io_errno != 0) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_SYNC, "SYNC",

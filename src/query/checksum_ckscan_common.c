@@ -10,8 +10,7 @@
 #include "../response/response.h"
 #include "../aio/aio.h"
 #include "../compat/checksum.h"
-#include "../compat/fs_walk.h"
-#include "../path/beneath.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_walk — confined recursive scan */
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -77,167 +76,107 @@ xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
 /* WHY: Qckscan responses are newline-delimited "algo hex logical_path" lines growing into a dynamically-sized buffer. The client expects all checksum results in one response, so the buffer must handle arbitrary tree sizes via exponential growth. Returns 1 on success (line appended), 0 if output line would overflow local snprintf buffer (path too long → skip silently), -1 if OOM during buffer reallocation. */
 /* HOW: snprintf(line) formats "%s %08x  %s\n" with algo, cksum as hex, logical path — returns llen. If llen >= sizeof(line) returns 0 (skip). Checks *used+llen+2 <= *cap — if insufficient allocates new_cap=*cap*2+llen+2 via ngx_alloc(), copies existing *buf content, frees old buffer, updates *buf and *cap. memcpy line into *buf at offset *used; increments *used by llen. Returns 1. */
 
-/* Join parent + child into a logical path; returns false (skip entry) on
- * truncation. Special-cases parent=="/" so the root export yields "/name", not
- * "//name". Output is a logical path (export-relative), never a host fs path. */
-static ngx_flag_t
-xrootd_ckscan_join_logical(const char *parent, const char *name,
-    char *out, size_t outsz)
+/*
+ * ckscan_walk_ctx_t + ckscan_walk_file — the per-file callback driven by
+ * xrootd_vfs_walk: compute the file's checksum (algorithm-appropriate hex width)
+ * and append one "algo hex logical" line. An unreadable file or unknown algorithm
+ * is a soft skip (return NGX_OK so the scan continues); only an append OOM aborts
+ * the walk (records cc->oom so the caller maps it to kXR_NoMemory). The confined
+ * open + traversal happen INSIDE the VFS walk — this layer never touches a fd
+ * except the read-only one the walk hands it.
+ */
+typedef struct {
+    ngx_log_t  *log;
+    const char *algo;
+    u_char    **buf;
+    size_t     *cap;
+    size_t     *used;
+    int         oom;
+} ckscan_walk_ctx_t;
+
+static ngx_int_t
+ckscan_walk_file(void *cookie, const char *logical,
+    const xrootd_vfs_stat_t *st, int fd)
 {
-    int n;
+    ckscan_walk_ctx_t *cc = cookie;
+    char               hex[129];   /* 8 (adler32/crc32c) … EVP_MAX_MD_SIZE*2 */
 
-    if (strcmp(parent, "/") == 0) {
-        n = snprintf(out, outsz, "/%s", name);
-        return (n >= 0 && (size_t) n < outsz);
+    (void) st;
+
+    if (xrootd_checksum_hex_name_fd(cc->algo, fd, logical, cc->log,
+                                    hex, sizeof(hex), NULL, 0) != NGX_OK)
+    {
+        return NGX_OK;   /* skip unreadable / bad-algorithm file (continue scan) */
     }
 
-    n = snprintf(out, outsz, "%s/%s", parent, name);
-    return (n >= 0 && (size_t) n < outsz);
+    /* append returns 1=ok, 0=line too long (soft skip), <0=OOM (abort). */
+    if (xrootd_ckscan_append(cc->buf, cc->cap, cc->used, cc->algo, hex,
+                             logical) < 0)
+    {
+        cc->oom = 1;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
 }
-/* WHY: Qckscan responses use logical paths (relative to export root) rather than resolved filesystem paths. This function constructs canonical logical paths from parent directory + child name, handling the special case where parent is "/" (root export) which produces "/<name>" instead of "//<name>". Used by ckscan_walk() for every child entry and by dispatchers to construct per-file response lines. */
-/* HOW: If strcmp(parent, "/") == 0, snprintf out as "/%s" (root case). Otherwise snprintf as "%s/%s" (normal join). Returns ngx_flag_t true if n >= 0 && (size_t) n < outsz (fits in buffer), false on truncation. Static helper used exclusively by ckscan_walk(). */
 
-/* Recursive directory scanner; returns 0 on success, -1 on hard error. */
-int
-xrootd_ckscan_walk(ngx_log_t *log, int rootfd,
-    const char *logical_dir, const char *algo,
-    u_char **buf, size_t *cap, size_t *used, ngx_uint_t depth,
-    ngx_uint_t max_depth, ngx_uint_t max_files, ngx_uint_t *nfiles,
-    char *errmsg, size_t errsz)
+/* Run a kXR_Qckscan over a file/dir target through the confined VFS walk and map
+ * the outcome to a kXR error code. See query_internal.h for the full contract. */
+ngx_int_t
+xrootd_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
+    const char *algo, u_char **buf, size_t *cap, size_t *used,
+    ngx_uint_t max_depth, ngx_uint_t max_files,
+    uint16_t *err_code, char *err_msg, size_t err_sz)
 {
-    DIR           *dh;
-    struct dirent *de;
-    struct stat    st;
-    char           child_logical[XROOTD_MAX_PATH + 1];
-    int            dfd;
+    ckscan_walk_ctx_t        cc;
+    xrootd_vfs_walk_opts_t   opts;
+    xrootd_vfs_walk_target_t target = XROOTD_VFS_WALK_NONE;
+    char                     walkmsg[128] = "";
+    ngx_int_t                rc;
 
-    /*
-     * Depth cap is a non-error stop: returning 0 prunes this subtree but lets
-     * the overall scan succeed with whatever was gathered so far. depth counts
-     * from 0 at the scan root, so max_depth==0 means "this directory only".
-     */
-    if (depth > max_depth) {
-        return 0;
+    ngx_memzero(&cc, sizeof(cc));
+    cc.log = log;
+    cc.algo = algo;
+    cc.buf = buf;
+    cc.cap = cap;
+    cc.used = used;
+
+    ngx_memzero(&opts, sizeof(opts));
+    opts.max_depth  = max_depth;
+    opts.max_files  = max_files;
+    opts.open_files = 1;   /* the walk hands each regular file a read-only fd */
+
+    rc = xrootd_vfs_walk(log, rootfd, logical, &opts, ckscan_walk_file, &cc,
+                         &target, walkmsg, sizeof(walkmsg));
+
+    if (rc == NGX_DECLINED) {
+        *err_code = kXR_NotFound;
+        snprintf(err_msg, err_sz, "stat failed: %s", strerror(errno));
+        return NGX_ERROR;
+    }
+    if (rc != NGX_OK) {
+        if (cc.oom) {
+            *err_code = kXR_NoMemory;
+            snprintf(err_msg, err_sz, "out of memory");
+        } else {
+            *err_code = kXR_IOError;
+            snprintf(err_msg, err_sz, "%s", walkmsg[0] ? walkmsg : "I/O error");
+        }
+        return NGX_ERROR;
     }
 
-    /*
-     * SECURITY: xrootd_open_beneath resolves logical_dir relative to rootfd and
-     * refuses to escape that root (no "..", no absolute reanchor, no following a
-     * symlink out of the tree) — this is the export-jail boundary. O_DIRECTORY
-     * makes the open fail rather than succeed-then-misbehave on a non-dir.
-     */
-    dfd = xrootd_open_beneath(rootfd, logical_dir, O_RDONLY | O_DIRECTORY, 0);
-    if (dfd < 0) {
-        snprintf(errmsg, errsz, "opendir failed: %s", strerror(errno));
-        return -1;
+    if (target == XROOTD_VFS_WALK_OTHER) {
+        *err_code = kXR_ArgInvalid;
+        snprintf(err_msg, err_sz, "not a file or directory");
+        return NGX_ERROR;
+    }
+    /* A regular-file target that produced no line means its open succeeded but
+     * the checksum failed (the callback skipped it) — a hard error for a single
+     * file, unlike an (acceptably) empty directory listing. */
+    if (target == XROOTD_VFS_WALK_FILE && *used == 0) {
+        *err_code = kXR_IOError;
+        snprintf(err_msg, err_sz, "checksum computation failed");
+        return NGX_ERROR;
     }
 
-    /*
-     * fdopendir adopts dfd: on success the DIR* owns it (closedir below releases
-     * it), so we only close(dfd) explicitly on the fdopendir failure path to
-     * avoid both a leak and a double-close.
-     *
-     * OWNERSHIP: this DIR* belongs to THIS recursion frame. closedir not only
-     * frees the fdopendir-adopted fd but also the kernel dirent buffer, so every
-     * exit below — normal end, recursion hard-error, and OOM — must closedir
-     * before returning or the fd and buffer leak per frame.
-     */
-    dh = fdopendir(dfd);
-    if (dh == NULL) {
-        close(dfd);
-        snprintf(errmsg, errsz, "opendir failed: %s", strerror(errno));
-        return -1;
-    }
-
-    while ((de = readdir(dh)) != NULL) {
-        if (xrootd_fs_is_dot_entry(de->d_name)) {
-            continue;
-        }
-
-        if (!xrootd_ckscan_join_logical(logical_dir, de->d_name,
-                                        child_logical, sizeof(child_logical))) {
-            continue;
-        }
-
-        /*
-         * SECURITY: stat by (dirfd, name) — not by full path — so we inspect the
-         * exact entry readdir returned, immune to a concurrent rename swapping it.
-         * AT_SYMLINK_NOFOLLOW means a symlink stat's as a symlink (neither S_ISDIR
-         * nor S_ISREG), so it is silently skipped rather than traversed/checksummed
-         * — the walk never follows links out of the export tree.
-         */
-        if (fstatat(dirfd(dh), de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
-            continue;
-        }
-
-        if (S_ISDIR(st.st_mode)) {
-            /*
-             * Recurse with depth+1; errmsg is already populated by the child.
-             * A hard error propagates up the whole recursion — but each frame
-             * must closedir(dh) on the way out, since the open DIR* is owned per
-             * stack frame and is not freed by the unwinding alone.
-             */
-            if (xrootd_ckscan_walk(log, rootfd, child_logical,
-                                   algo, buf, cap, used,
-                                   depth + 1, max_depth, max_files, nfiles,
-                                   errmsg, errsz) < 0)
-            {
-                closedir(dh);
-                return -1;
-            }
-        } else if (S_ISREG(st.st_mode)) {
-            int  fd;
-            /* Hex result: 8 chars (adler32/crc32c), 16 (crc64/crc64nvme), or up
-             * to EVP_MAX_MD_SIZE*2 for any digest — 129 covers every case. */
-            char hex[129];
-
-            /*
-             * File cap counts every regular file we *reach*, incremented before
-             * any open/checksum work — so files skipped for being unreadable or
-             * having a bad checksum still consume budget, bounding total syscalls.
-             * nfiles is shared across the whole recursion (passed by pointer), so
-             * the cap is a tree-wide total, not per-directory.
-             */
-            if (*nfiles >= max_files) {
-                continue;
-            }
-            (*nfiles)++;
-
-            fd = xrootd_open_beneath(rootfd, child_logical, O_RDONLY, 0);
-            if (fd < 0) {
-                continue;  /* unreadable/raced-away file: skip, not a hard error */
-            }
-
-            /*
-             * Compute the checksum directly as a hex string (parse + compute via
-             * the shared dispatcher, so the width is algorithm-appropriate). An
-             * unknown algorithm or read failure drops the file from the output
-             * rather than aborting the scan; fd is closed on every branch.
-             */
-            if (xrootd_checksum_hex_name_fd(algo, fd, child_logical, log,
-                                            hex, sizeof(hex), NULL, 0) != NGX_OK)
-            {
-                close(fd);
-                continue;  /* skip unreadable / bad-algorithm files */
-            }
-            close(fd);
-
-            /*
-             * Only append's <0 (OOM) is fatal here. A 0 return (line too long)
-             * is treated as a soft skip — append already dropped it — so the
-             * walk continues. closedir(dh) before the hard-error return.
-             */
-            if (xrootd_ckscan_append(buf, cap, used,
-                                     algo, hex, child_logical) < 0) {
-                snprintf(errmsg, errsz, "out of memory");
-                closedir(dh);
-                return -1;
-            }
-        }
-    }
-
-    closedir(dh);
-    return 0;
+    return NGX_OK;
 }
-/* WHY: kXR_Qckscan walks directory trees off the event loop via thread pool to compute per-file checksums. Supports recursive traversal up to max_depth with max_files cap, skipping unreadable files and dot entries. Returns one "algo hex logical_path" line per regular file in the response buffer. Depth/capacity limits prevent runaway scans on large filesystems. */
-/* HOW: Checks depth > max_depth → returns 0 (cap reached). Opens resolved_dir via xrootd_open_confined_canon() + fdopendir() — if both fail logs errno to errmsg, returns -1. readdir loop over entries: skips dot entries via xrootd_fs_is_dot_entry(), joins child resolved path via xrootd_fs_join_path(), joins child logical path via xrootd_ckscan_join_logical(). fstatat AT_SYMLINK_NOFOLLOW → if S_ISDIR recurses ckscan_walk(depth+1); if S_ISREG checks *nfiles < max_files, opens file via confined canon, parses algo to alg, computes checksum via xrootd_checksum_u32_fd() — on failure sets cksum=-1. If cksum valid calls ckscan_append() for response line; if OOM returns -1. closedir at end, returns 0 success or -1 error. */

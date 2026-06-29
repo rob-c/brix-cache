@@ -348,6 +348,27 @@ typedef struct {
 } ngx_xrootd_proxy_metrics_t;
 
 /*
+ * Why the stale-dirty cache reaper removed a cached file — the `reason` label on
+ * xrootd_cache_dirty_reaped_total. Derived per file from its .cinfo write-back
+ * state (xrootd_cache_cinfo_state):
+ *   ABANDONED  — DIRTY, aged past xrootd_cache_dirty_max_age, and NEVER written
+ *                back (flush_gen==0): the un-flushed bytes are discarded → loss.
+ *   INCOMPLETE — DIRTY, aged, but the file HAD a prior successful write-back
+ *                (flush_gen>0) and was re-dirtied: only the trailing dirty
+ *                episode is discarded (earlier data reached the origin).
+ *   COMPLETED  — CLEAN and fully written back (flush_gen>0), last flush aged out:
+ *                a finished write-back staging copy reclaimed with NO data loss.
+ *                (A read-through fill has flush_gen==0 and is left for eviction.)
+ * Keep COUNT last; it sizes the per-reason counter array below.
+ */
+typedef enum {
+    XROOTD_CACHE_REAP_ABANDONED = 0,
+    XROOTD_CACHE_REAP_INCOMPLETE,
+    XROOTD_CACHE_REAP_COMPLETED,
+    XROOTD_CACHE_REAP_REASON_COUNT
+} xrootd_cache_reap_reason_t;
+
+/*
  * Per-server counter block.  Lives in shared memory; accessed by all
  * worker processes.  All integer fields are ngx_atomic_t so workers
  * can increment them without locks.
@@ -402,6 +423,14 @@ typedef struct {
     ngx_atomic_t  cache_evictions_total;      /* files unlinked by eviction  */
     ngx_atomic_t  cache_evicted_bytes_total;  /* bytes reclaimed by eviction */
     ngx_atomic_t  cache_eviction_errors_total;/* eviction/stat/unlink errors */
+    /* Files removed by the stale-dirty reaper, split by WHY (see
+     * xrootd_cache_reap_reason_t): [ABANDONED]=un-flushed dirty discarded (loss),
+     * [INCOMPLETE]=re-dirtied after a prior flush (partial loss), [COMPLETED]=a
+     * finished write-back staging copy reclaimed (no loss). Counted over the
+     * unified cache state root shared by the read-through AND write-through caches,
+     * so it is reported for any active cache (gated on in_use, like the wt_
+     * counters). Exported as xrootd_cache_dirty_reaped_total{reason="..."}. */
+    ngx_atomic_t  cache_dirty_reaped[XROOTD_CACHE_REAP_REASON_COUNT];
 
     /* Write-through health counters. */
     ngx_atomic_t  wt_dirty_handles;
@@ -524,6 +553,20 @@ typedef struct {
     ngx_atomic_t  cache_hits[XROOTD_PROTO_COUNT];
     ngx_atomic_t  cache_misses[XROOTD_PROTO_COUNT];
     ngx_atomic_t  cache_bytes_evicted[XROOTD_PROTO_COUNT];
+
+    /* Watermark-driven LRU reaper (reap_watermark.c). Process-wide, connection-
+     * less: the background timer has no per-proto/per-server context. usage_ratio
+     * is a GAUGE in ppm (0-1e6), emitted as a 0-1 ratio; the rest are counters. */
+    ngx_atomic_t  cache_usage_ratio_ppm;         /* gauge: cache_root occupancy, ppm */
+    ngx_atomic_t  cache_watermark_purges;        /* counter: purge runs that did work */
+    ngx_atomic_t  cache_watermark_evicted_files; /* counter: files reaped by the reaper */
+    ngx_atomic_t  cache_watermark_evicted_bytes; /* counter: bytes reaped by the reaper */
+
+    /* Write-back-staging backpressure (stage_admit.c). usage_ratio is a GAUGE in
+     * ppm (staging filesystem occupancy); the throttle counters split by action. */
+    ngx_atomic_t  wt_stage_usage_ratio_ppm;      /* gauge: staging fs occupancy, ppm */
+    ngx_atomic_t  wt_stage_throttled_wait;       /* counter: writes delayed (soft band) */
+    ngx_atomic_t  wt_stage_throttled_reject;     /* counter: writes rejected (hard cap) */
 
     ngx_atomic_t  auth_total[XROOTD_PROTO_COUNT]
                             [XROOTD_METRIC_AUTH_COUNT]

@@ -1,6 +1,9 @@
 #ifndef XROOTD_READ_STAT_H
 #define XROOTD_READ_STAT_H
 
+#include "../fs/vfs.h"   /* xrootd_vfs_stat_t for the projection helper */
+#include <sys/stat.h>    /* struct stat for xrootd_vfs_to_struct_stat */
+
 /* ---- Module: Stat Operations ----
  *
  * WHAT: Function declarations for XRootD stat opcodes — kXR_stat queries file metadata (inode, size, flags,
@@ -38,5 +41,10 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
  */
 int xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf,
     const char *reqpath);
+
+/* Project a VFS stat result into the struct stat fields the kXR_stat/statx
+ * response builders read (unique id, size, perm flags, mtime, blocks). Shared by
+ * the stat and statx handlers' VFS-probe fallbacks. */
+void xrootd_vfs_to_struct_stat(const xrootd_vfs_stat_t *v, struct stat *st);
 
 #endif /* XROOTD_READ_STAT_H */

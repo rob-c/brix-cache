@@ -24,6 +24,7 @@
  *       wrapped by xrootd_vfs_adopt_fd(), which fstat()s it into the handle.
  */
 #include "vfs_internal.h"
+#include "vfs_backend_registry.h"
 #include "../cache/open.h"
 #include "../path/beneath.h"
 #include "../compat/log_diag.h"
@@ -52,6 +53,10 @@ xrootd_vfs_ctx_init(xrootd_vfs_ctx_t *vctx, ngx_pool_t *pool, ngx_log_t *log,
     vctx->log = log;
     vctx->metrics_proto = proto;
     vctx->root_canon = root_canon;
+    /* Resolve the export's selected storage backend (NULL ⇒ default POSIX) so
+     * every VFS op on this ctx routes through the driver without each handler
+     * threading the instance. Per-worker, lazily created on first use. */
+    vctx->sd = xrootd_vfs_backend_resolve(root_canon, log);
     vctx->cache_root_canon = cache_root_canon;
     vctx->cache_enabled =
         (cache_root_canon != NULL && cache_root_canon[0] != '\0') ? 1 : 0;
@@ -78,8 +83,13 @@ xrootd_vfs_fill_stat(const struct stat *st, xrootd_vfs_stat_t *out)
     out->size = st->st_size;
     out->mtime = st->st_mtime;
     out->ctime = st->st_ctime;
+    out->atime = st->st_atime;
     out->mode = (ngx_uint_t) st->st_mode;
     out->ino = st->st_ino;
+    out->dev = st->st_dev;
+    out->uid = st->st_uid;
+    out->gid = st->st_gid;
+    out->blocks = st->st_blocks;
     out->is_directory = S_ISDIR(st->st_mode) ? 1 : 0;
     out->is_regular = S_ISREG(st->st_mode) ? 1 : 0;
 }
@@ -164,6 +174,102 @@ xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
      * file cannot change through it, so the fstat above stays authoritative for
      * the handle's lifetime. A writable handle leaves this 0 so xrootd_vfs_file_stat()
      * always issues a live fstat (its bytes/mtime/size move as it is written). */
+    fh->stat_current = writable ? 0 : 1;
+
+    *out = fh;
+    return NGX_OK;
+}
+
+/* xrootd_vfs_adopt_obj — build a handle from an object the backend's open slot
+ * already produced, PRESERVING its per-open state (e.g. an object backend's
+ * block map / metadata), rather than rebuilding from a bare fd (which would drop
+ * that state). Captures open-time metadata via the object's own fstat slot, then
+ * moves the object into the handle by value. A heap-allocated shell (driver set
+ * obj->heap_shell, e.g. pblock's malloc'd object) is freed once copied; the
+ * per-open `state` lives on and is released by driver->close at handle close.
+ * Used for the non-POSIX storage drivers; POSIX keeps the adopt_fd path. Also
+ * the cache hit-serve path (src/cache/open.c) adopts a cache-storage driver
+ * object — hence public (declared in vfs.h). */
+ngx_int_t
+xrootd_vfs_adopt_obj(xrootd_vfs_ctx_t *ctx, const char *path,
+    xrootd_sd_obj_t *o, unsigned writable, xrootd_vfs_file_t **out);
+
+/* xrootd_vfs_export_relative — the export-root-relative ("logical") form of a
+ * confined path, which is what an inst-keyed storage-driver op expects (per the
+ * SD seam contract). Some callers (WebDAV/S3) resolve to an absolute path under
+ * root_canon; strip that prefix so a non-POSIX backend keys its namespace on the
+ * logical path. Returns `path` unchanged when it is not under root_canon.
+ * Declared in vfs_internal.h; shared with vfs_staged.c. */
+/* Path-based form: strip `root_canon` (an absolute export root) from `path`. */
+const char *
+xrootd_vfs_export_relative_root(const char *path, const char *root_canon)
+{
+    size_t rlen;
+
+    if (root_canon == NULL || path == NULL) {
+        return path;
+    }
+    rlen = ngx_strlen(root_canon);
+    if (rlen == 0 || ngx_strncmp(path, root_canon, rlen) != 0) {
+        return path;
+    }
+    if (path[rlen] == '/') {
+        return path + rlen;          /* "/sub/file"  */
+    }
+    if (path[rlen] == '\0') {
+        return "/";                  /* the export root itself */
+    }
+    return path;                     /* a sibling that merely shares the prefix */
+}
+
+const char *
+xrootd_vfs_export_relative(const xrootd_vfs_ctx_t *ctx, const char *path)
+{
+    return xrootd_vfs_export_relative_root(path, ctx->root_canon);
+}
+
+ngx_int_t
+xrootd_vfs_adopt_obj(xrootd_vfs_ctx_t *ctx, const char *path,
+    xrootd_sd_obj_t *o, unsigned writable, xrootd_vfs_file_t **out)
+{
+    xrootd_sd_stat_t   st;
+    xrootd_vfs_file_t *fh;
+
+    *out = NULL;
+    if (ctx == NULL || path == NULL || o == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (o->driver->fstat == NULL || o->driver->fstat(o, &st) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    fh = ngx_pcalloc(ctx->pool, sizeof(*fh));
+    if (fh == NULL) {
+        errno = ENOMEM;
+        return NGX_ERROR;
+    }
+    fh->path = xrootd_vfs_copy_path(ctx->pool, path);
+    if (fh->path == NULL) {
+        return NGX_ERROR;
+    }
+
+    fh->obj = *o;                  /* driver + instance + fd + per-open state */
+    if (o->heap_shell) {
+        free(o);                   /* shell copied into fh->obj; release it */
+    }
+    fh->obj.heap_shell = 0;        /* fh->obj is embedded, not a heap shell */
+
+    fh->pool = ctx->pool;
+    fh->log = ctx->log;
+    fh->ctx = ctx;
+    fh->size = st.size;
+    fh->mtime = st.mtime;
+    fh->ctime = st.ctime;
+    fh->ino = st.ino;
+    fh->mode = st.mode;
+    fh->from_cache = 0;
+    fh->is_tls = ctx->is_tls;
     fh->stat_current = writable ? 0 : 1;
 
     *out = fh;
@@ -308,6 +414,51 @@ xrootd_vfs_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
     }
 
     oflags = xrootd_vfs_open_flags(flags);
+
+    /*
+     * A non-POSIX storage backend (e.g. pblock) owns its own namespace and
+     * confinement, so route EVERY open through its driver and adopt the returned
+     * object (carrying its per-open state). This must run before the POSIX
+     * confinement cascade below: that cascade opens a bare POSIX fd (via
+     * open_beneath / confined_canon / raw open) which this backend's fstat/read
+     * slots cannot interpret — adopting such an fd under a non-POSIX driver would
+     * dereference a NULL per-open state. POSIX (the default driver, or an unset
+     * backend) falls through to the cascade unchanged.
+     */
+    if (ctx->sd != NULL && ctx->sd->driver != xrootd_sd_default_driver()
+        && ctx->sd->driver->open != NULL)
+    {
+        xrootd_sd_obj_t *o;
+        int              sderr = 0;
+
+        o = ctx->sd->driver->open(ctx->sd,
+                                  xrootd_vfs_export_relative(ctx, path),
+                                  xrootd_vfs_to_sd_flags(flags), 0644, &sderr);
+        if (o == NULL) {
+            if (err_out != NULL) {
+                *err_out = sderr;
+            }
+            errno = sderr;
+            return NULL;
+        }
+        if (xrootd_vfs_adopt_obj(ctx, path, o,
+                (flags & XROOTD_VFS_O_WRITE) ? 1u : 0u, &fh) != NGX_OK)
+        {
+            int err = errno;
+
+            o->driver->close(o);
+            if (o->heap_shell) {
+                free(o);
+            }
+            if (err_out != NULL) {
+                *err_out = err;
+            }
+            errno = err;
+            return NULL;
+        }
+        return fh;
+    }
+
     /*
      * Confinement cascade, strongest first:
      *   1. ctx->rootfd >= 0  → xrootd_open_beneath(): persistent per-worker
@@ -415,6 +566,28 @@ ngx_fd_t
 xrootd_vfs_file_fd(const xrootd_vfs_file_t *fh)
 {
     return fh != NULL ? fh->obj.fd : NGX_INVALID_FILE;
+}
+
+void
+xrootd_vfs_file_sd_obj(const xrootd_vfs_file_t *fh, xrootd_sd_obj_t *out)
+{
+    xrootd_vfs_handle_sd_obj(fh, out);
+}
+
+/* Read up to `len` bytes at `off` through the handle's storage driver — the
+ * backend-neutral read used to serve a backend that exposes no single sendfile
+ * fd (e.g. an object backend whose bytes span multiple block files). Returns the
+ * bytes read (0 = EOF), or -1 with errno. One driver pread; the caller loops. */
+ssize_t
+xrootd_vfs_file_pread(xrootd_vfs_file_t *fh, void *buf, size_t len, off_t off)
+{
+    if (fh == NULL || fh->obj.driver == NULL
+        || fh->obj.driver->pread == NULL)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+    return fh->obj.driver->pread(&fh->obj, buf, len, off);
 }
 
 /* The fd only when the backend elects to back a zero-copy transfer of the whole

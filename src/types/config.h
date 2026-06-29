@@ -441,6 +441,15 @@ typedef struct {
      * 3=pelican). http/https fills run over libcurl (http_transport.c) instead of
      * the root:// client; pelican adds federation discovery (Phase 3). */
     ngx_uint_t  cache_origin_scheme;        /* xrootd_cache_scheme_e; 0 = xroot */
+    /* ---- S3 origin (scheme s3://) ----
+     * The bucket comes from the s3://host[:port]/BUCKET path; the access/secret
+     * keys + region are the SigV4 credentials. Fills run through the sd_remote
+     * driver (delegating to the shared sd_s3 driver over the server libcurl
+     * transport). cache_origin_tls selects http vs https to the endpoint. */
+    ngx_str_t   cache_origin_s3_bucket;     /* parsed from the s3:// URL path */
+    ngx_str_t   cache_origin_s3_access_key; /* [xrootd_cache_origin_s3_access_key] */
+    ngx_str_t   cache_origin_s3_secret_key; /* [xrootd_cache_origin_s3_secret_key] */
+    ngx_str_t   cache_origin_s3_region;     /* [xrootd_cache_origin_s3_region] def us-east-1 */
     ngx_str_t   cache_origin_token_file;    /* [xrootd_cache_origin_token_file <path>]
                                                bearer token the cache presents to an
                                                HTTP/Pelican origin (re-read per fill). */
@@ -490,6 +499,55 @@ typedef struct {
     regex_t     cache_include_regex;      /* compiled POSIX ERE; valid only when
                                              cache_include_regex_set is 1 */
     ngx_flag_t  cache_include_regex_set;  /* 1 after a successful regcomp() */
+
+    /* ---- unified cache-state engine (src/cache/cinfo.h v3) ----
+     * cache_state_root: where the per-file .cinfo persistence records live; "" ⇒
+     * default to cache_root. cache_dirty_max_age: a write-back staging file dirty
+     * for longer than this (secs) is reaped (default 7 days; 0 = off). The
+     * cache_{deny,allow}_prefixes mirror the write-through lists for read-cache
+     * admission parity (consumed via the shared filter, cache_admit.h). */
+    ngx_str_t    cache_state_root;        /* [xrootd_cache_state_root] */
+    time_t       cache_dirty_max_age;     /* [xrootd_cache_dirty_max_age] secs; 0=off */
+    ngx_event_t *cache_reap_timer;        /* per-worker stale-dirty reaper; NULL if off */
+    ngx_array_t *cache_deny_prefixes;     /* xrootd_wt_prefix_entry_t[] — read admission */
+    ngx_array_t *cache_allow_prefixes;    /* same; whitelist when non-empty */
+
+    /* ---- watermark-driven LRU reaper (src/cache/reap_watermark.h) ----
+     * A background per-worker timer purges the read cache oldest-first when
+     * occupancy crosses cache_high_watermark, down to cache_low_watermark
+     * (hysteresis). Watermarks are filesystem occupancy in ppm (0-1000000), the
+     * same unit as cache_eviction_threshold (which maps to high for back-compat).
+     * cache_reap_interval is the timer period in seconds. */
+    ngx_uint_t   cache_high_watermark;    /* [xrootd_cache_high_watermark] ppm; start purge above */
+    ngx_uint_t   cache_low_watermark;     /* [xrootd_cache_low_watermark] ppm; purge down to */
+    time_t       cache_reap_interval;     /* [xrootd_cache_reap_interval] secs between ticks */
+    ngx_event_t *cache_watermark_timer;   /* per-worker watermark reaper; NULL if off */
+
+    /* ---- exclusively-VFS cache storage (src/cache/cache_storage.h) ----
+     * The cache does ALL disk byte-I/O through an SD driver instance per role
+     * (read cache, sidecar/state, write-back staging) — the POSIX driver bound to
+     * a per-worker O_PATH rootfd by default, or a configured driver (pblock).
+     * Built once at worker init (xrootd_cache_storage_init), torn down at exit.
+     * The *_inst pointers are xrootd_sd_instance_t* (void* here to keep config.h
+     * free of the sd.h include). _backend "" ⇒ POSIX on the role's rootfd. */
+    ngx_str_t  cache_storage_backend;     /* [xrootd_cache_storage_backend] read cache */
+    size_t     cache_storage_block_size;  /* [xrootd_cache_storage_block_size] */
+    ngx_str_t  cache_wt_stage_root;       /* [xrootd_cache_wt_stage_root] */
+    ngx_str_t  cache_wt_stage_backend;    /* [xrootd_cache_wt_stage_backend] */
+    size_t     cache_wt_stage_block_size; /* [xrootd_cache_wt_stage_block_size] */
+    /* Two-tier write-back-staging backpressure: when the staging filesystem
+     * (cache_wt_stage_root) occupancy enters [low,high) new write-opens/PUTs are
+     * delayed (kXR_wait / 503); at/above high they are rejected (kXR_Overloaded /
+     * 429) until it drains below low. Reads are never throttled. ppm (0-1e6);
+     * 0 = unset/off (no staging backpressure). */
+    ngx_uint_t cache_wt_stage_high_watermark; /* [xrootd_wt_stage_high_watermark] ppm */
+    ngx_uint_t cache_wt_stage_low_watermark;  /* [xrootd_wt_stage_low_watermark] ppm */
+    int        cache_rootfd;              /* O_PATH on cache_root; -1 until init */
+    int        cache_state_rootfd;        /* O_PATH on cache_state_root (or cache_root) */
+    int        cache_wt_stage_rootfd;     /* O_PATH on cache_wt_stage_root; -1 if none */
+    void      *cache_storage_inst;        /* read-cache xrootd_sd_instance_t* */
+    void      *cache_state_inst;          /* sidecar/state instance (POSIX) */
+    void      *cache_wt_stage_inst;       /* write-back staging instance; NULL if none */
 
     /* ---- checksum-on-fill integrity (src/cache/verify.h) ----
      * After a fill downloads a file into its .part staging file, recompute its

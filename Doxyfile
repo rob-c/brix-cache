@@ -1,0 +1,123 @@
+# Doxyfile for nginx-xrootd — tuned for this C codebase.
+# Generate:  doxygen Doxyfile   (or tools/gen-docs.sh)
+# Output:    docs/doxygen/html/index.html   (git-ignored)
+# See docs/09-developer-guide/nginx-idioms-for-cpp-reviewers.md (the landing page).
+
+#---------------------------------------------------------------------------
+# Project
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "nginx-xrootd"
+PROJECT_BRIEF          = "nginx module implementing the XRootD root:// + WebDAV/S3 protocols"
+OUTPUT_DIRECTORY       = docs/doxygen
+CREATE_SUBDIRS         = NO
+ALLOW_UNICODE_NAMES    = YES
+OUTPUT_LANGUAGE        = English
+
+#---------------------------------------------------------------------------
+# C-specific tuning
+#---------------------------------------------------------------------------
+# This is C, not C++: keep the output un-C++-ified (no namespaces/classes).
+OPTIMIZE_OUTPUT_FOR_C  = YES
+TYPEDEF_HIDES_STRUCT   = YES          # show `xrootd_ctx_t`, not the underlying struct tag
+EXTRACT_ALL            = YES          # most functions have no Doxygen comment yet — show them anyway
+EXTRACT_STATIC         = YES          # the codebase is full of `static` helpers — document them
+EXTRACT_LOCAL_CLASSES  = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+# Treat the first sentence of any block comment as the brief (so existing
+# "WHAT: ..." headers read sanely without rewriting them all first).
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
+MULTILINE_CPP_IS_BRIEF = NO
+OPTIMIZE_OUTPUT_JAVA   = NO
+
+#---------------------------------------------------------------------------
+# Input
+#---------------------------------------------------------------------------
+# The module sources, the native client, and this primer (used as the main page).
+# nginx's own source tree is NOT vendored here, so there is nothing to exclude.
+INPUT                  = src \
+                         client \
+                         docs/09-developer-guide/nginx-idioms-for-cpp-reviewers.md
+INPUT_ENCODING         = UTF-8
+RECURSIVE              = YES
+FILE_PATTERNS          = *.c *.h *.md
+USE_MDFILE_AS_MAINPAGE = docs/09-developer-guide/nginx-idioms-for-cpp-reviewers.md
+# Skip generated/vendored/test trees and build artifacts.
+EXCLUDE_PATTERNS       = */tests/* \
+                         */node_modules/* \
+                         */.git/* \
+                         */bin/* \
+                         */*.bak/*
+EXCLUDE_SYMLINKS       = YES
+
+#---------------------------------------------------------------------------
+# Preprocessing — so the NGX_/XROOTD_ macros don't confuse the parser
+#---------------------------------------------------------------------------
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+SEARCH_INCLUDES        = YES
+INCLUDE_PATH           = src client shared/xrdproto
+# Neutralise build-config and attribute macros that would otherwise break parsing
+# or fragment the docs by #ifdef. (Feature macros are defined so the enabled
+# branches are the ones documented.)
+PREDEFINED             = __GNUC__=11 \
+                         __attribute__(x)= \
+                         ngx_inline=inline \
+                         XROOTD_HAVE_LIBXML2=1 \
+                         XROOTD_HAVE_JANSSON=1 \
+                         XROOTD_HAVE_KRB5=1 \
+                         XROOTD_HAVE_ZLIB=1 \
+                         XROOTD_HAVE_ZSTD=1 \
+                         XROOTD_HAVE_LZMA=1 \
+                         XROOTD_HAVE_BROTLI=1 \
+                         XROOTD_HAVE_BZIP2=1 \
+                         XROOTD_HAVE_LZ4=1
+
+#---------------------------------------------------------------------------
+# Source browsing — let reviewers read annotated source inline
+#---------------------------------------------------------------------------
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+STRIP_CODE_COMMENTS    = NO
+VERBATIM_HEADERS       = YES
+
+#---------------------------------------------------------------------------
+# Diagnostics — keep generation quiet (700+ files would flood warnings)
+#---------------------------------------------------------------------------
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+
+#---------------------------------------------------------------------------
+# Output formats
+#---------------------------------------------------------------------------
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_DYNAMIC_SECTIONS  = YES
+GENERATE_TREEVIEW      = YES          # left-hand navigation tree
+SEARCHENGINE           = YES
+GENERATE_LATEX         = NO
+GENERATE_MAN           = NO
+GENERATE_XML           = NO
+
+#---------------------------------------------------------------------------
+# Graphs (graphviz `dot` is available). Structure graphs are cheap and useful;
+# per-function call graphs over 700 files are not, so leave those off.
+#---------------------------------------------------------------------------
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+INCLUDE_GRAPH          = YES          # what a file #includes
+INCLUDED_BY_GRAPH      = YES
+DIRECTORY_GRAPH        = YES          # the src/ subsystem layout
+CALL_GRAPH             = NO           # too heavy at this scale (enable per-need)
+CALLER_GRAPH           = NO
+GRAPHICAL_HIERARCHY    = YES
+DOT_MULTI_TARGETS      = YES
+DOT_GRAPH_MAX_NODES    = 60

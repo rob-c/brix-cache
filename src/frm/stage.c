@@ -16,11 +16,14 @@
  *   also keeps all blocking work (fork/waitpid) off the event loop without a
  *   thread pool.
  *
- * HOW: setup blocks SIGCHLD, fork→fork(agent)→intermediate _exit (agent → init),
- *   reaps the intermediate while SIGCHLD is blocked (nginx never sees it). The
- *   worker side of the socketpair is registered as an nginx read event; replies
- *   drive completion. The single-recall guarantee is the claim on top of the
- *   queue's under-lock lfn dedup.
+ * HOW: the crash-safe fork/reparent/reap/socketpair mechanics now live in the
+ *   shared transfer-agent harness (src/fs/xfer/xfer_mover_agent.c), which every
+ *   external-process transfer uses. This file supplies only the FRM payload:
+ *   the request/reply frame layout and the agent-side process callback
+ *   (frm_agent_xfer_process → oracle/copycmd/verify) plus the worker-side
+ *   completion callback (frm_agent_xfer_on_reply → frm_stage_commit). The
+ *   single-recall guarantee is the claim on top of the queue's under-lock lfn
+ *   dedup.
  */
 
 #include "frm_internal.h"
@@ -28,12 +31,12 @@
 #include "../compat/checksum.h"
 #include "../manager/registry.h"
 #include "../fs/vfs_scratch.h"   /* capability-gated materialize-to-scratch (Pillar F) */
+#include "../fs/xfer/xfer.h"     /* the shared crash-safe out-of-process agent harness */
+#include "../fs/xfer/xfer_reconcile.h"  /* the shared journal-recovery scan */
 
 #include <errno.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <stdlib.h>   /* setenv (export $FRM_LFN to the copycmd) */
-#include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -88,49 +91,13 @@ static uint16_t           frm_sched_self_port;/* F1: advertised listen port     
  * exercised: XROOTD_FRM_STAGE_DIR (scratch mount) + XROOTD_FRM_FORCE_SCRATCH=1. */
 static ngx_str_t          frm_sched_stage_dir;
 static ngx_flag_t         frm_sched_force_scratch;
-static int                frm_agent_fd = -1; /* worker side of the socketpair  */
-static ngx_connection_t  *frm_agent_conn;    /* nginx connection for replies   */
-
-/* agent lifecycle (death recovery): defined below, forward-declared here. */
-static ngx_int_t          frm_agent_attach(ngx_log_t *log);
-static void               frm_agent_teardown(void);
-static void               frm_agent_respawn(void);
+/* The crash-safe out-of-process agent: the fork/reap/socketpair mechanics now
+ * live in the shared harness (src/fs/xfer/xfer_mover_agent.c); this file supplies
+ * only the FRM payload (frame contents + the process/on_reply callbacks). */
+static xrootd_xfer_agent_t frm_agent;
 
 
 /* ===================== agent process (post-double-fork) ==================== */
-
-static ssize_t
-frm_read_full(int fd, void *buf, size_t len)
-{
-    u_char *p = buf;
-    size_t  got = 0;
-    while (got < len) {
-        ssize_t n = read(fd, p + got, len - got);
-        if (n == 0) { return 0; }            /* EOF */
-        if (n < 0) {
-            if (errno == EINTR) { continue; }
-            return -1;
-        }
-        got += (size_t) n;
-    }
-    return (ssize_t) len;
-}
-
-static ssize_t
-frm_write_full(int fd, const void *buf, size_t len)
-{
-    const u_char *p = buf;
-    size_t        put = 0;
-    while (put < len) {
-        ssize_t n = write(fd, p + put, len - put);
-        if (n < 0) {
-            if (errno == EINTR) { continue; }
-            return -1;
-        }
-        put += (size_t) n;
-    }
-    return (ssize_t) len;
-}
 
 /* Run `cmd path` (no shell) and return its exit status, or FRM_RC_FORK. */
 static int
@@ -244,32 +211,25 @@ frm_agent_process(const frm_agent_req_t *req)
     return FRM_RC_OK;
 }
 
-/* The agent: read a request, run the oracle/copycmd/verify pipeline, reply. */
+/* Agent-side callback (xfer harness owns the socket framing + loop): build one
+ * reply from one request. Terminates the wire-sourced strings on a local copy,
+ * then runs the FRM oracle/copycmd/verify pipeline. */
 static void
-frm_agent_main(int fd)
+frm_agent_xfer_process(const void *reqv, void *repv, void *data)
 {
-    frm_agent_req_t req;
-    frm_agent_rep_t rep;
+    frm_agent_req_t  req = *(const frm_agent_req_t *) reqv;   /* local, mutable */
+    frm_agent_rep_t *rep = repv;
 
-    signal(SIGCHLD, SIG_DFL);                /* our own waitpid must work */
+    (void) data;
+    req.reqid[FRM_REQID_LEN - 1]           = '\0';
+    req.path[FRM_LFN_LEN - 1]              = '\0';
+    req.lfn[FRM_LFN_LEN - 1]               = '\0';
+    req.copycmd[FRM_COPYCMD_MAX - 1]       = '\0';
+    req.residency_cmd[FRM_COPYCMD_MAX - 1] = '\0';
+    req.cs_value[FRM_CSVAL_LEN - 1]        = '\0';
 
-    for ( ;; ) {
-        if (frm_read_full(fd, &req, sizeof(req)) <= 0) {
-            _exit(0);                        /* nginx closed → shut down */
-        }
-        req.reqid[FRM_REQID_LEN - 1]         = '\0';
-        req.path[FRM_LFN_LEN - 1]            = '\0';
-        req.lfn[FRM_LFN_LEN - 1]             = '\0';
-        req.copycmd[FRM_COPYCMD_MAX - 1]     = '\0';
-        req.residency_cmd[FRM_COPYCMD_MAX-1] = '\0';
-        req.cs_value[FRM_CSVAL_LEN - 1]      = '\0';
-
-        ngx_memcpy(rep.reqid, req.reqid, sizeof(rep.reqid));
-        rep.exit_code = frm_agent_process(&req);
-        if (frm_write_full(fd, &rep, sizeof(rep)) < 0) {
-            _exit(0);
-        }
-    }
+    ngx_memcpy(rep->reqid, req.reqid, sizeof(rep->reqid));
+    rep->exit_code = frm_agent_process(&req);
 }
 
 
@@ -367,101 +327,63 @@ frm_stage_commit(const frm_record_t *rec, int code)
                       full_path, reqid);
     }
 
+    /* Unified transfer ledger: one audit line for this recall, sharing the
+     * schema and sink with STAGE uploads (and, later, WT/TPC). A tape recall
+     * brings data IN to our storage; the principal is the recall requester. No
+     * byte count is tracked for a recall, so bytes=0. */
+    {
+        const char *principal = (rec->requester_dn[0] != '\0') ? rec->requester_dn
+                              : (rec->user[0] != '\0')          ? rec->user
+                              :                                    NULL;
+        xrootd_xfer_finish(XROOTD_XFER_TAPE, "in", full_path, principal, 0,
+                           (code == 0) ? XROOTD_XFER_OK : XROOTD_XFER_AGENT_FAIL,
+                           (code == 0) ? 0 : code, frm_sched_log);
+    }
+
     /* Phase 3: wake any clients parked on this recall (kXR_attn asynresp). Marks
      * cross-worker waiters ready for their owner's poll; delivers this worker's
      * own inline. No-op when async recall is off (no waiters were ever added). */
     frm_waiter_deliver(reqid, code);
 }
 
-/*
- * Release the worker side of the agent socketpair.  ngx_close_connection frees
- * the ngx_connection_t back to the pool, removes its read event AND closes the
- * fd, so we must NOT close frm_agent_fd ourselves (double close).  Idempotent.
- */
+/* Worker-side callback (xfer harness owns the recv loop, EOF/respawn, re-arm):
+ * one agent reply arrived → resolve the request and commit residency/status.
+ * Agent death recovery, the connection leak fix, and the read-event re-arm now
+ * live once in src/fs/xfer/xfer_mover_agent.c. In-flight STAGING records on a
+ * dead agent are still recovered by frm_reconcile on the next master start. */
 static void
-frm_agent_teardown(void)
+frm_agent_xfer_on_reply(const void *repv, void *data)
 {
-    if (frm_agent_conn != NULL) {
-        ngx_close_connection(frm_agent_conn);   /* frees conn + closes the fd */
-        frm_agent_conn = NULL;
-    }
-    frm_agent_fd = -1;                           /* dispatch now fails closed */
-}
+    const frm_agent_rep_t *rep = repv;
+    frm_queue_t           *q   = frm_singleton_queue();
+    frm_record_t           rec;
+    char                   reqid[FRM_REQID_LEN];
 
-/*
- * Recover from a dead stage agent: tear the old socketpair/connection down (the
- * leak fix — the death paths in frm_agent_on_reply previously just returned,
- * orphaning the connection and the fd) and spawn a fresh agent so future recalls
- * keep flowing.  If respawn fails, frm_agent_fd stays -1, so frm_stage_dispatch
- * fails closed (records go FAILED gracefully) — no leak, no write to a dead fd,
- * no spin.  In-flight STAGING records dispatched to the dead agent are recovered
- * by frm_reconcile on the next master start (mid-run re-queue is unsafe in the
- * per-worker multi-agent model — it would re-queue other workers' live stages).
- */
-static void
-frm_agent_respawn(void)
-{
-    frm_agent_teardown();
-    if (frm_agent_attach(frm_sched_log) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, frm_sched_log, 0,
-                      "frm: stage agent respawn failed — staging paused until "
-                      "the next reload");
-    } else {
-        ngx_log_error(NGX_LOG_NOTICE, frm_sched_log, 0,
-                      "frm: stage agent respawned after exit");
+    (void) data;
+    ngx_cpystrn((u_char *) reqid, (u_char *) rep->reqid, sizeof(reqid));
+    if (q != NULL && frm_request_get(q, reqid, &rec, frm_sched_log) == NGX_OK) {
+        frm_stage_commit(&rec, rep->exit_code);
     }
 }
 
-/* nginx read-event handler: drain all pending agent replies. */
+/* Worker-side callback: a reply batch drained → a stage slot freed, drain more. */
 static void
-frm_agent_on_reply(ngx_event_t *rev)
+frm_agent_xfer_after_drain(void *data)
 {
-    ngx_connection_t *c = rev->data;
-    frm_agent_rep_t   rep;
-    frm_record_t      rec;
-    frm_queue_t      *q = frm_singleton_queue();
-
-    for ( ;; ) {
-        ssize_t n = recv(c->fd, &rep, sizeof(rep), 0);
-        if (n == 0) {
-            /* Agent exited (EOF): close+free this connection (was leaked) and
-             * respawn so staging recovers.  Returns immediately — `c`/`rev` are
-             * freed by the teardown inside respawn, so must not be touched. */
-            ngx_log_error(NGX_LOG_ERR, c->log, 0, "frm: stage agent exited");
-            frm_agent_respawn();
-            return;
-        }
-        if (n < 0) {
-            if (ngx_errno == NGX_EAGAIN) { break; }
-            if (ngx_errno == NGX_EINTR)  { continue; }
-            ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno, "frm: agent recv");
-            frm_agent_respawn();
-            return;
-        }
-        if (n != (ssize_t) sizeof(rep)) {
-            /* partial frame: read the remainder (small, rarely happens) */
-            if (frm_read_full(c->fd, (u_char *) &rep + n,
-                              sizeof(rep) - (size_t) n) <= 0)
-            {
-                frm_agent_respawn();
-                return;
-            }
-        }
-        rep.reqid[FRM_REQID_LEN - 1] = '\0';
-
-        /* resolve the request's lfn (full path) to commit residency */
-        if (q != NULL
-            && frm_request_get(q, rep.reqid, &rec, c->log) == NGX_OK)
-        {
-            frm_stage_commit(&rec, rep.exit_code);
-        }
-    }
-
-    if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, c->log, 0, "frm: agent read-event re-arm");
-    }
-    frm_stage_kick();                        /* a slot freed → drain more */
+    (void) data;
+    frm_stage_kick();
 }
+
+/* The FRM payload binding for the shared agent harness. */
+static const xrootd_xfer_agent_ops_t frm_agent_ops = {
+    .req_size    = sizeof(frm_agent_req_t),
+    .rep_size    = sizeof(frm_agent_rep_t),
+    .process     = frm_agent_xfer_process,
+    .on_reply    = frm_agent_xfer_on_reply,
+    .after_drain = frm_agent_xfer_after_drain,
+    .data        = NULL,
+    .name        = "frm stage",
+};
 
 
 /* ===================== worker side: the drain ============================== */
@@ -471,9 +393,8 @@ static ngx_int_t
 frm_stage_dispatch(const frm_record_t *rec)
 {
     frm_agent_req_t req;
-    ssize_t         n;
 
-    if (frm_agent_fd < 0) {
+    if (frm_agent.fd < 0) {
         return NGX_ERROR;
     }
     ngx_memzero(&req, sizeof(req));
@@ -512,21 +433,8 @@ frm_stage_dispatch(const frm_record_t *rec)
     ngx_cpystrn((u_char *) req.cs_value, (u_char *) rec->cs_value,
                 sizeof(req.cs_value));
 
-    n = write(frm_agent_fd, &req, sizeof(req));
-    if (n == (ssize_t) sizeof(req)) {
-        return NGX_OK;
-    }
-    if (n < 0 && (ngx_errno == NGX_EAGAIN || ngx_errno == NGX_EINTR)) {
-        return NGX_AGAIN;                    /* agent backed up — retry later */
-    }
-    /* a partial/failed write: finish it blocking (small, rare) */
-    if (n >= 0 && frm_write_full(frm_agent_fd, (u_char *) &req + n,
-                                 sizeof(req) - (size_t) n) == (ssize_t)
-                                 (sizeof(req) - (size_t) n))
-    {
-        return NGX_OK;
-    }
-    return NGX_ERROR;
+    /* Framing + partial-write handling now live in the shared harness. */
+    return xrootd_xfer_agent_dispatch(&frm_agent, &req);
 }
 
 static void
@@ -540,12 +448,10 @@ frm_stage_drain(void)
         return;
     }
 
-    cursor = 0;
-    while (frm_request_list(q, &cursor, FRM_ST_STAGING, 0xff, NULL,
-                            &rec, frm_sched_log) == NGX_OK)
-    {
-        staging++;
-    }
+    /* In-flight tape recalls (the shared journal scan; the QUEUED claim loop
+     * below stays bespoke — it carries a copymax budget + early-break). */
+    staging = xrootd_xfer_journal_foreach(q, FRM_ST_STAGING, FRM_XFER_TAPE,
+                                          NULL, NULL, frm_sched_log);
 
     cursor = 0;
     while (staging < frm_sched_copymax
@@ -553,6 +459,9 @@ frm_stage_drain(void)
                                &rec, frm_sched_log) == NGX_OK)
     {
         ngx_int_t rc;
+        if (rec.xfer_kind != FRM_XFER_TAPE) {
+            continue;                        /* a non-tape journal record     */
+        }
         if (frm_request_claim(q, rec.reqid, frm_sched_log) != NGX_OK) {
             continue;                        /* another worker took it */
         }
@@ -607,82 +516,6 @@ frm_sched_handler(ngx_event_t *ev)
 
 /* ===================== setup ============================================== */
 
-/* Double-fork the agent (reparented to init so nginx never reaps it), reaping
- * the intermediate child while SIGCHLD is blocked. Returns the worker-side fd. */
-static int
-frm_agent_spawn(ngx_log_t *log)
-{
-    int      sv[2];
-    sigset_t block, prev;
-    pid_t    inter;
-
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "frm: socketpair failed");
-        return -1;
-    }
-
-    sigemptyset(&block);
-    sigaddset(&block, SIGCHLD);
-    sigprocmask(SIG_BLOCK, &block, &prev);
-
-    inter = fork();
-    if (inter < 0) {
-        sigprocmask(SIG_SETMASK, &prev, NULL);
-        close(sv[0]); close(sv[1]);
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno, "frm: agent fork failed");
-        return -1;
-    }
-    if (inter == 0) {
-        pid_t agent = fork();
-        if (agent == 0) {
-            close(sv[0]);
-            frm_agent_main(sv[1]);           /* never returns */
-            _exit(0);
-        }
-        _exit(0);                            /* intermediate → agent re-parents */
-    }
-
-    /* parent: reap the intermediate ourselves (nginx never sees it). */
-    close(sv[1]);
-    while (waitpid(inter, NULL, 0) < 0 && errno == EINTR) { }
-    sigprocmask(SIG_SETMASK, &prev, NULL);
-
-    (void) fcntl(sv[0], F_SETFL, O_NONBLOCK);
-    return sv[0];
-}
-
-/*
- * Spawn a stage agent and register the worker side of its socketpair as an nginx
- * read event.  Shared by startup (frm_stage_scheduler_register) and respawn
- * after agent death.  On any failure tears down and leaves frm_agent_fd = -1
- * (dispatch fails closed), returning NGX_ERROR.
- */
-static ngx_int_t
-frm_agent_attach(ngx_log_t *log)
-{
-    frm_agent_fd = frm_agent_spawn(log);
-    if (frm_agent_fd < 0) {
-        return NGX_ERROR;
-    }
-
-    /* register the worker side of the socketpair as an nginx read event */
-    frm_agent_conn = ngx_get_connection(frm_agent_fd, log);
-    if (frm_agent_conn == NULL) {
-        close(frm_agent_fd);
-        frm_agent_fd = -1;
-        return NGX_ERROR;
-    }
-    frm_agent_conn->read->handler  = frm_agent_on_reply;
-    frm_agent_conn->read->log       = log;
-    frm_agent_conn->recv            = ngx_recv;
-    if (ngx_handle_read_event(frm_agent_conn->read, 0) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, log, 0, "frm: cannot arm agent read event");
-        frm_agent_teardown();               /* close+free; fd back to -1 */
-        return NGX_ERROR;
-    }
-    return NGX_OK;
-}
-
 void
 frm_stage_scheduler_register(ngx_cycle_t *cycle, xrootd_frm_conf_t *frm,
                              void *thread_pool, ngx_flag_t manager_mode,
@@ -719,7 +552,9 @@ frm_stage_scheduler_register(ngx_cycle_t *cycle, xrootd_frm_conf_t *frm,
         return;
     }
 
-    if (frm_agent_attach(cycle->log) != NGX_OK) {
+    if (xrootd_xfer_agent_attach(&frm_agent, &frm_agent_ops, cycle->log)
+        != NGX_OK)
+    {
         return;
     }
 

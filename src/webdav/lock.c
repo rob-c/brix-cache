@@ -11,6 +11,7 @@
  */
 #include "webdav.h"
 #include "../path/path.h"
+#include "../fs/vfs.h"   /* lock-DB namespace ops via the VFS seam */
 #include "../impersonate/lifecycle.h"
 #include "locks/request.h"
 #include "../compat/http_xml.h"
@@ -63,39 +64,64 @@ webdav_generate_uuid(char *buf, size_t bufsz)
  * which is not counted and not an error.  The walk continues past per-node
  * failures so one unreadable subtree cannot abort the sweep.
  */
+/* Sweep state threaded to the walk callback so each node can build a transient,
+ * confined VFS ctx for its lock-xattr removal (the sweep runs at config-merge
+ * time, so it carries its own pool/log/root_canon rather than a request ctx). */
+typedef struct {
+    ngx_uint_t  removed;
+    ngx_pool_t *pool;
+    ngx_log_t  *log;
+    const char *root_canon;
+} webdav_lock_sweep_ctx_t;
+
+/* Remove the lock xattr on one absolute path through the VFS seam. removexattr
+ * via the VFS is idempotent for our purposes: ENODATA/ENOATTR (no lock) returns
+ * NGX_ERROR but is simply not counted, so a node without a lock is a no-op. */
+static void
+webdav_lock_sweep_remove(webdav_lock_sweep_ctx_t *sw, const char *path)
+{
+    xrootd_vfs_ctx_t vctx;
+
+    xrootd_vfs_ctx_init(&vctx, sw->pool, sw->log, XROOTD_PROTO_WEBDAV,
+        sw->root_canon, NULL, 1 /* allow_write */, 0 /* is_tls */, NULL, path);
+
+    if (xrootd_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) == NGX_OK) {
+        sw->removed++;
+    }
+}
+
 static ngx_int_t
 webdav_lock_sweep_cb(const xrootd_fs_walk_entry_t *entry, void *data)
 {
-    ngx_uint_t *removed = data;
-
-    if (removexattr(entry->path, WEBDAV_LOCK_XATTR_KEY) == 0) {
-        (*removed)++;
-    }
+    webdav_lock_sweep_remove(data, entry->path);
     return NGX_OK;   /* continue regardless of per-node result */
 }
 
 ngx_uint_t
-webdav_lock_startup_sweep(ngx_log_t *log, const char *root_canon)
+webdav_lock_startup_sweep(ngx_pool_t *pool, ngx_log_t *log,
+    const char *root_canon)
 {
     xrootd_fs_walk_options_t opts;
-    ngx_uint_t               removed = 0;
+    webdav_lock_sweep_ctx_t  sw;
 
     if (root_canon == NULL || root_canon[0] == '\0') {
         return 0;
     }
 
+    ngx_memzero(&sw, sizeof(sw));
+    sw.pool = pool;
+    sw.log = log;
+    sw.root_canon = root_canon;
+
     /* The tree walk visits children only; clear a lock on the root itself. */
-    if (removexattr(root_canon, WEBDAV_LOCK_XATTR_KEY) == 0) {
-        removed++;
-    }
+    webdav_lock_sweep_remove(&sw, root_canon);
 
     ngx_memzero(&opts, sizeof(opts));
     opts.include_files = 1;   /* locks may sit on files ... */
     opts.include_dirs  = 1;   /* ... and on collections (Depth: infinity) */
 
-    (void) xrootd_fs_walk(log, root_canon, &opts, webdav_lock_sweep_cb,
-                          &removed);
-    return removed;
+    (void) xrootd_fs_walk(log, root_canon, &opts, webdav_lock_sweep_cb, &sw);
+    return sw.removed;
 }
 
 /*
@@ -189,25 +215,46 @@ webdav_lock_xml_response(ngx_http_request_t *r, webdav_lock_xattr_t *e)
  *       called on a path that is about to be re-locked (it would remove the file
  *       out from under a follow-up XATTR_CREATE).
  */
+/* Build a confined VFS ctx for a lock-DB namespace op on `path` (mirrors the
+ * canonical webdav construction). Identity comes from the request ctx so the op
+ * runs as the mapped user under impersonation. */
+static void
+webdav_lock_vfs_ctx(ngx_http_request_t *r, const char *path,
+    xrootd_vfs_ctx_t *vctx)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    ngx_http_xrootd_webdav_req_ctx_t  *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    int is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+        conf->common.root_canon, conf->cache_root_canon, conf->common.allow_write,
+        is_tls, (rx != NULL) ? rx->identity : NULL, path);
+}
+
 static void
 webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
                       const webdav_lock_xattr_t *e)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    struct stat                        sb;
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_stat_t vst;
 
     if (!e->is_null) {
         return;
     }
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-
-    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
-                                    path, &sb, 1) == 0
-        && S_ISREG(sb.st_mode) && sb.st_size == 0)
+    /* Confined no-follow probe; only a regular, zero-length file is unlinked,
+     * through the VFS. Best-effort — failures are ignored. */
+    webdav_lock_vfs_ctx(r, path, &vctx);
+    if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_OK
+        && vst.is_regular && vst.size == 0)
     {
-        (void) xrootd_unlink_confined_canon(r->connection->log,
-                                            conf->common.root_canon, path, 0);
+        (void) xrootd_vfs_unlink(&vctx);
     }
 }
 
@@ -295,21 +342,17 @@ webdav_check_locks(ngx_http_request_t *r, const char *path, int need_write)
 static ngx_int_t
 check_locks_descendants(ngx_http_request_t *r, const char *dir)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    DIR                *dp;
-    struct dirent      *de;
-    struct stat         sb;
+    xrootd_vfs_ctx_t    vctx;
+    xrootd_vfs_dir_t   *dp;
     char                child[PATH_MAX];
     size_t              dir_len;
     webdav_lock_xattr_t e;
     ngx_int_t           rc;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-
-    /* Confined opendir (openat2 RESOLVE_BENEATH) so a planted in-export symlink
-     * cannot redirect the recursive lock scan out of the export root. */
-    dp = xrootd_opendir_confined_canon(r->connection->log,
-                                       conf->common.root_canon, dir);
+    /* Confined NON-metered opendir (recursive lock scan; a planted in-export
+     * symlink cannot redirect it out of the export root). */
+    webdav_lock_vfs_ctx(r, dir, &vctx);
+    dp = xrootd_vfs_opendir_quiet(&vctx, NULL);
     if (dp == NULL) {
         return NGX_OK;
     }
@@ -317,20 +360,23 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
     dir_len = strlen(dir);
     rc = NGX_OK;
 
-    while ((de = readdir(dp)) != NULL) {
-        ngx_int_t xrc;
+    for ( ;; ) {
+        ngx_str_t                 name;
+        xrootd_vfs_dirent_kind_t  dkind;
+        const char               *dname;
+        int                       is_dir;
+        ngx_int_t                 xrc;
 
-        if (de->d_name[0] == '.'
-            && (de->d_name[1] == '\0'
-                || (de->d_name[1] == '.' && de->d_name[2] == '\0')))
-        {
-            continue;
+        /* "."/".." filtered by readdir_kind; kind from d_type. */
+        if (xrootd_vfs_readdir_kind(dp, &name, &dkind) != NGX_OK) {
+            break;   /* NGX_DONE (end) or error → stop */
         }
+        dname = (const char *) name.data;
 
-        if (dir_len + 1 + strlen(de->d_name) + 1 > sizeof(child)) {
+        if (dir_len + 1 + name.len + 1 > sizeof(child)) {
             continue;   /* path too long — skip */
         }
-        snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
+        snprintf(child, sizeof(child), "%s/%s", dir, dname);
 
         /* Check lock xattr directly on this child. */
         xrc = webdav_lock_xattr_read(r, child, &e);
@@ -352,12 +398,19 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
         }
         /* xrc == NGX_DECLINED: no lock xattr on this child — OK */
 
-        /* Recurse into subdirectories (confined, no-follow). */
-        if (xrootd_lstat_confined_canon(r->connection->log,
-                                        conf->common.root_canon, child, &sb, 1)
-                == 0
-            && S_ISDIR(sb.st_mode))
-        {
+        /* Recurse into subdirectories. d_type gives the answer directly; on a
+         * DT_UNKNOWN filesystem fall back to a confined no-follow probe so a
+         * trailing symlink is never followed into recursion. */
+        is_dir = (dkind == XROOTD_VFS_DT_DIR);
+        if (dkind == XROOTD_VFS_DT_UNKNOWN) {
+            xrootd_vfs_ctx_t  cctx;
+            xrootd_vfs_stat_t cvst;
+
+            webdav_lock_vfs_ctx(r, child, &cctx);
+            is_dir = (xrootd_vfs_probe(&cctx, 1 /* no-follow */, &cvst) == NGX_OK
+                      && cvst.is_directory);
+        }
+        if (is_dir) {
             rc = check_locks_descendants(r, child);
             if (rc != NGX_OK) {
                 break;
@@ -365,7 +418,7 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
         }
     }
 
-    closedir(dp);
+    xrootd_vfs_closedir(dp, r->connection->log);
     return rc;
 }
 
@@ -377,20 +430,19 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
 ngx_int_t
 webdav_check_locks_tree(ngx_http_request_t *r, const char *path)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    struct stat sb;
-    ngx_int_t   rc;
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_stat_t vst;
+    ngx_int_t         rc;
 
     rc = webdav_check_locks(r, path, 1);
     if (rc != NGX_OK) {
         return rc;
     }
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-
-    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
-                                    path, &sb, 1) == 0
-        && S_ISDIR(sb.st_mode))
+    /* Only recurse for a directory (confined no-follow probe). */
+    webdav_lock_vfs_ctx(r, path, &vctx);
+    if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_OK
+        && vst.is_directory)
     {
         rc = check_locks_descendants(r, path);
     }
@@ -451,22 +503,23 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
 
     /* RFC 4918 §9.10.1: LOCK on non-existent resource MUST create zero-byte resource. */
     {
-        struct stat sb;
-        if (xrootd_lstat_confined_canon(r->connection->log,
-                                        conf->common.root_canon, path, &sb, 1)
-                != 0
+        xrootd_vfs_ctx_t  vctx;
+        xrootd_vfs_stat_t vst;
+
+        webdav_lock_vfs_ctx(r, path, &vctx);
+        if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_DECLINED
             && errno == ENOENT)
         {
-            int fd = xrootd_open_confined_canon(r->connection->log,
-                                                conf->common.root_canon, path,
-                                                O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC,
-                                                0644);
-            if (fd < 0 && errno != EEXIST) {
+            int                verr = 0;
+            xrootd_vfs_file_t *fh = xrootd_vfs_open(&vctx,
+                XROOTD_VFS_O_WRITE | XROOTD_VFS_O_CREATE | XROOTD_VFS_O_EXCL,
+                &verr);
+            if (fh == NULL && verr != EEXIST) {
                 webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
                 return;
             }
-            if (fd >= 0) {
-                (void) close(fd);
+            if (fh != NULL) {
+                xrootd_vfs_close(fh, r->connection->log);
                 /* We created the resource solely to host this lock: it is a
                  * lock-null placeholder, reaped on UNLOCK/expiry if still empty. */
                 created_null = 1;

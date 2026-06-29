@@ -170,9 +170,9 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 /*
  * Phase 40: the S3 PUT body is read asynchronously (after inline SigV4 auth has
  * already populated s3ctx->identity), so this callback re-establishes the
- * impersonation principal for the duration of the object write.  The create
- * (xrootd_open_confined_canon) then routes to the broker and the new object is
- * owned by the mapped user.  No-op unless map mode is active.
+ * impersonation principal for the duration of the object write.  The staged
+ * create then routes to the broker and the new object is owned by the mapped
+ * user.  No-op unless map mode is active.
  */
 void
 s3_put_body_handler(ngx_http_request_t *r)
@@ -233,10 +233,10 @@ s3_put_try_sentinel(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
     }
 
-    /* Write the zero-byte sentinel. */
-    fd = xrootd_open_confined_canon(r->connection->log, cf->common.root_canon,
-                                    (const char *) fs_path,
-                                    O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    /* Write the zero-byte sentinel (confined create via the VFS seam). */
+    fd = xrootd_vfs_open_fd(r->connection->log, cf->common.root_canon,
+                            (const char *) fs_path,
+                            O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         int open_errno = errno;  /* capture before logging clobbers it */
         xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,
@@ -295,21 +295,22 @@ s3_put_body_inner(ngx_http_request_t *r)
             memcpy(parent, fs_path, flen + 1);
             last_slash = strrchr(parent, '/');
             if (last_slash && last_slash != parent) {
-                struct stat pdir;
+                xrootd_vfs_ctx_t  pctx;
+                xrootd_vfs_stat_t pst;
 
                 *last_slash = '\0';
 
                 /*
                  * phase-46 W2a: fast-path the common "many objects into one
-                 * prefix" pattern.  A single confined lstat that finds an
+                 * prefix" pattern.  A single confined probe that finds an
                  * existing directory replaces the per-path-component
-                 * mkdirat(EEXIST) storm of xrootd_mkdir_recursive_confined_canon.
-                 * A symlink (S_ISLNK) or a miss falls through to the recursive
-                 * confined mkdir, which re-enforces confinement.
+                 * mkdirat(EEXIST) storm of the recursive mkdir. A symlink or a
+                 * miss falls through to the confined vfs_mkdir, which re-enforces
+                 * confinement.
                  */
-                if (xrootd_lstat_confined_canon(r->connection->log,
-                        cf->common.root_canon, parent, &pdir, 1) == 0
-                    && S_ISDIR(pdir.st_mode))
+                s3_build_vfs_ctx(r, parent, cf, &pctx);
+                if (xrootd_vfs_probe(&pctx, 1 /* no-follow */, &pst) == NGX_OK
+                    && pst.is_directory)
                 {
                     /* parent prefix already exists — nothing to create */
                 } else {
@@ -501,13 +502,17 @@ s3_put_body_inner(ngx_http_request_t *r)
 
     /* S3 API requires ETag on PutObject 200 response */
     {
-        struct stat  final_sb;
-        char         etag_buf[48];
+        xrootd_vfs_ctx_t  fctx;
+        xrootd_vfs_stat_t fst;
+        char              etag_buf[48];
 
-        if (xrootd_lstat_confined_canon(r->connection->log,
-                                        cf->common.root_canon,
-                                        (const char *) fs_path, &final_sb, 1)
-            == 0) {
+        s3_build_vfs_ctx(r, (const char *) fs_path, cf, &fctx);
+        if (xrootd_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
+            struct stat final_sb;
+
+            ngx_memzero(&final_sb, sizeof(final_sb));
+            final_sb.st_mtime = fst.mtime;
+            final_sb.st_size  = fst.size;
             s3_etag(&final_sb, etag_buf, sizeof(etag_buf));
             (void) s3_set_header(r, "ETag", etag_buf);
         }
@@ -523,5 +528,7 @@ s3_put_body_inner(ngx_http_request_t *r)
 
     (void) s3_apply_put_tagging_header(r, (const char *) fs_path,
                                        cf->common.root_canon);
+    (void) s3_apply_put_user_metadata(r, (const char *) fs_path,
+                                      cf->common.root_canon);
     s3_put_finalize_ok(r, body_bytes, body_mode);
 }

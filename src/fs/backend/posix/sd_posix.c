@@ -18,7 +18,7 @@
  *       xrootd_ns_result_t status to errno via xrootd_vfs_ns_status_errno().
  */
 
-#include "sd.h"
+#include "../sd.h"
 
 /* The instance lifecycle + namespace/dir/xattr/staged ops below are nginx-coupled
  * (confined open, ngx pool, the shared xrootd_ns_* helpers). They — and these
@@ -27,12 +27,12 @@
  * shared libxrdproto, so a shared kernel (src/compat/checksum_core.c) can route
  * its fd reads through xrootd_sd_posix_driver in both worlds. */
 #ifndef XRDPROTO_NO_NGX
-#include "../vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
-#include "../../compat/crc32c.h"
-#include "../../compat/namespace_ops.h"
-#include "../../compat/staged_file.h"
-#include "../../path/beneath.h"
-#include "../../path/path.h"
+#include "../../vfs_internal.h"          /* pread_full/pwrite_full + ns_status_errno */
+#include "../../../compat/crc32c.h"
+#include "../../../compat/namespace_ops.h"
+#include "../../../compat/staged_file.h"
+#include "../../../path/beneath.h"
+#include "../../../path/path.h"
 #endif
 
 #include <dirent.h>
@@ -50,9 +50,10 @@ typedef struct {
                               * cleanup must NOT close the fd or free the string */
 } sd_posix_state_t;
 
-#ifndef XRDPROTO_NO_NGX
 /* sd_posix_flags — map the backend-neutral XROOTD_SD_O_* bits to an open(2) flag
- * set (the vtable speaks SD flags; only the POSIX driver knows O_*). */
+ * set (the vtable speaks SD flags; only the POSIX driver knows O_*). Always
+ * compiled: the server's confined open and the client's unconfined open
+ * (xrootd_sd_posix_open_unconfined) both use it, so the mapping is single-sourced. */
 static int
 sd_posix_flags(int sd_flags)
 {
@@ -66,15 +67,25 @@ sd_posix_flags(int sd_flags)
         flags = O_RDONLY;
     }
 
-    if (sd_flags & XROOTD_SD_O_CREATE) { flags |= O_CREAT; }
-    if (sd_flags & XROOTD_SD_O_EXCL)   { flags |= O_EXCL; }
-    if (sd_flags & XROOTD_SD_O_TRUNC)  { flags |= O_TRUNC; }
-    if (sd_flags & XROOTD_SD_O_APPEND) { flags |= O_APPEND; }
-    if (sd_flags & XROOTD_SD_O_DIR)    { flags |= O_DIRECTORY; }
+    if (sd_flags & XROOTD_SD_O_CREATE)   { flags |= O_CREAT; }
+    if (sd_flags & XROOTD_SD_O_EXCL)     { flags |= O_EXCL; }
+    if (sd_flags & XROOTD_SD_O_TRUNC)    { flags |= O_TRUNC; }
+    if (sd_flags & XROOTD_SD_O_APPEND)   { flags |= O_APPEND; }
+    if (sd_flags & XROOTD_SD_O_DIR)      { flags |= O_DIRECTORY; }
+    if (sd_flags & XROOTD_SD_O_NOFOLLOW) { flags |= O_NOFOLLOW; }
 
     return flags;
 }
-#endif /* !XRDPROTO_NO_NGX */
+
+/* xrootd_sd_posix_open_unconfined — plain open(2) of `path` (no export-root
+ * confinement), the client-side counterpart of the server's confined
+ * sd_posix_open. ngx-free + always compiled so the userland clients open through
+ * the one driver. Returns an fd, or -1 with errno set. */
+int
+xrootd_sd_posix_open_unconfined(const char *path, int sd_flags, mode_t mode)
+{
+    return open(path, sd_posix_flags(sd_flags), mode);
+}
 
 /* sd_posix_fill_stat — copy the protocol-neutral fields out of a struct stat into
  * the xrootd_sd_stat_t the VFS consumes, deriving is_dir/is_reg from the mode. */
@@ -359,11 +370,21 @@ sd_posix_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
 {
     sd_posix_state_t       *st = inst->state;
     xrootd_ns_delete_opts_t opts;
+    char                    abspath[PATH_MAX];
 
+    /* The vtable contract is a root-RELATIVE key (leading slash), matching
+     * sd_posix_open/stat and the non-POSIX drivers. xrootd_ns_delete works in
+     * ABSOLUTE paths under root_canon (strip_root), so build the absolute here. */
+    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
+                          st->root_canon, path) >= sizeof(abspath))
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
     ngx_memzero(&opts, sizeof(opts));
     opts.require_directory = is_dir ? 1 : 0;
     return sd_posix_ns_result(
-        xrootd_ns_delete(inst->log, st->root_canon, path, &opts));
+        xrootd_ns_delete(inst->log, st->root_canon, abspath, &opts));
 }
 
 static ngx_int_t
@@ -546,6 +567,7 @@ sd_posix_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
     sd_posix_state_t   *st = inst->state;
     xrootd_sd_staged_t *handle;
     sd_posix_staged_t  *ps;
+    char                abspath[PATH_MAX];
 
     handle = ngx_pcalloc(inst->pool, sizeof(*handle));
     ps = ngx_pcalloc(inst->pool, sizeof(*ps));
@@ -554,7 +576,18 @@ sd_posix_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
         return NULL;
     }
 
-    if (xrootd_staged_open(inst->log, st->root_canon, final_path,
+    /* The vtable contract is a root-RELATIVE key (leading slash), matching
+     * sd_posix_open and the non-POSIX drivers' staged_open. xrootd_staged_open
+     * (and _commit/_abort) work in ABSOLUTE paths under root_canon, so build the
+     * absolute final path here and store it for commit/abort. */
+    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
+                          st->root_canon, final_path) >= sizeof(abspath))
+    {
+        if (err_out != NULL) { *err_out = ENAMETOOLONG; }
+        return NULL;
+    }
+
+    if (xrootd_staged_open(inst->log, st->root_canon, abspath,
                            O_WRONLY | O_CREAT | O_EXCL, mode, 8, &ps->staged)
         != NGX_OK)
     {
@@ -562,7 +595,7 @@ sd_posix_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
         return NULL;
     }
 
-    ngx_cpystrn((u_char *) ps->final_path, (u_char *) final_path,
+    ngx_cpystrn((u_char *) ps->final_path, (u_char *) abspath,
                 sizeof(ps->final_path));
     handle->inst = inst;
     handle->state = ps;

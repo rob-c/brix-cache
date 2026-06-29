@@ -35,6 +35,7 @@
 #include "../ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "../cache/cache_internal.h"
 #include "../compat/staged_file.h"
+#include "../fs/xfer/xfer.h"   /* unified transfer audit ledger (root:// STAGE) */
 #include "../write/wrts_journal.h"
 #include "../write/pgw_fob.h"
 #include "../cms/cns.h"
@@ -205,6 +206,9 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
              * client can retry the close.  Surface an I/O error. */
             xrootd_free_fhandle(ctx, idx);
             XROOTD_OP_ERR(ctx, XROOTD_OP_CLOSE);
+            xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path,
+                               ctx->dn[0] ? ctx->dn : NULL, 0,
+                               XROOTD_XFER_COMMIT_ERR, err, c->log);
             return xrootd_send_error(ctx, c, kXR_IOError,
                                      "staged commit failed");
         }
@@ -216,6 +220,18 @@ ngx_int_t xrootd_handle_close(xrootd_ctx_t *ctx, ngx_connection_t *c) {
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "xrootd: staged commit \"%s\" -> \"%s\" ok",
                        temp_path, final_path);
+
+        /* Unified ledger: the root:// upload publication — the same audit line
+         * S3/WebDAV PUT and the other kinds emit (this path also covers a
+         * resumed upload's final commit). */
+        {
+            struct stat sb;
+            size_t      n = (fstat(ctx->files[idx].fd, &sb) == 0
+                             && S_ISREG(sb.st_mode)) ? (size_t) sb.st_size : 0;
+            xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path,
+                               ctx->dn[0] ? ctx->dn : NULL, n,
+                               XROOTD_XFER_OK, 0, c->log);
+        }
 
         wt_local_path = final_path;
     }

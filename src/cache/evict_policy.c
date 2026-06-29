@@ -1,4 +1,5 @@
 #include "evict_internal.h"
+#include "cache_storage.h"
 #include "meta.h"
 
 /*
@@ -42,27 +43,45 @@
  * usage re-measurement fails.
  */
 static ngx_int_t
-xrootd_cache_evict_one(xrootd_cache_fill_t *t,
-    xrootd_cache_evict_list_t *list, size_t idx, ngx_log_t *log,
-    xrootd_cache_fs_usage_t *usage, ngx_uint_t *evicted_files,
+xrootd_cache_evict_one(ngx_stream_xrootd_srv_conf_t *conf, xrootd_ctx_t *ctx,
+    ngx_connection_t *c, xrootd_cache_evict_list_t *list, size_t idx,
+    ngx_log_t *log, xrootd_cache_fs_usage_t *usage, ngx_uint_t *evicted_files,
     uint64_t *evicted_bytes)
 {
-    if (unlink(list->elts[idx].path) != 0) {
-        if (errno != ENOENT) {
-            ngx_log_error(NGX_LOG_WARN, log, errno,
-                          "xrootd: cache eviction unlink failed \"%s\"",
-                          list->elts[idx].path);
-            xrootd_cache_metric_add(t->ctx, cache_eviction_errors_total, 1);
-        }
+    {
+        xrootd_sd_instance_t *inst = list->inst;
+        const char           *key = list->elts[idx].path
+                                    + ngx_strlen(list->cache_root);
 
-        return NGX_OK;
+        if (inst->driver->unlink(inst, key, 0) != NGX_OK) {
+            if (errno != ENOENT) {
+                ngx_log_error(NGX_LOG_WARN, log, errno,
+                              "xrootd: cache eviction unlink failed \"%s\"",
+                              list->elts[idx].path);
+                xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
+            }
+            return NGX_OK;
+        }
     }
 
+    /* Remove the .meta/.cinfo sidecars (POSIX) at the state path (== the cache
+     * path for a co-located cache). */
     {
+        char sidecar[PATH_MAX];
         char meta_path[PATH_MAX];
+        const char *base = list->elts[idx].path;
 
-        if (xrootd_cache_meta_path(meta_path, sizeof(meta_path),
-                                   list->elts[idx].path) == 0)
+        if (xrootd_cache_sidecar_path(list->cache_root, list->state_root,
+                                      list->elts[idx].path, sidecar,
+                                      sizeof(sidecar)) == 0)
+        {
+            base = sidecar;
+        }
+        if (xrootd_cache_meta_path(meta_path, sizeof(meta_path), base) == 0) {
+            (void) unlink(meta_path);
+        }
+        if (snprintf(meta_path, sizeof(meta_path), "%s.cinfo", base)
+            < (int) sizeof(meta_path))
         {
             (void) unlink(meta_path);
         }
@@ -74,12 +93,12 @@ xrootd_cache_evict_one(xrootd_cache_fill_t *t,
         *evicted_bytes += (uint64_t) list->elts[idx].size;
     }
 
-    if (t->conf->manager_mode && t->c != NULL
-        && t->c->local_sockaddr != NULL)
+    if (conf->manager_mode && c != NULL
+        && c->local_sockaddr != NULL)
     {
         const char *fs_path   = list->elts[idx].path;
-        const char *root      = (const char *) t->conf->cache_root.data;
-        size_t      root_len  = t->conf->cache_root.len;
+        const char *root      = (const char *) conf->cache_root.data;
+        size_t      root_len  = conf->cache_root.len;
 
         if (ngx_strncmp(fs_path, root, root_len) == 0
             && fs_path[root_len] == '/')
@@ -88,27 +107,27 @@ xrootd_cache_evict_one(xrootd_cache_fill_t *t,
             size_t   addr_len;
             uint16_t self_port;
 
-            addr_len = ngx_sock_ntop(t->c->local_sockaddr,
-                                     t->c->local_socklen,
+            addr_len = ngx_sock_ntop(c->local_sockaddr,
+                                     c->local_socklen,
                                      addr_buf, sizeof(addr_buf) - 1, 0);
             addr_buf[addr_len] = '\0';
             self_port = 0;
-            if (t->c->local_sockaddr->sa_family == AF_INET) {
+            if (c->local_sockaddr->sa_family == AF_INET) {
                 self_port = ntohs(
-                    ((struct sockaddr_in *) t->c->local_sockaddr)->sin_port);
-            } else if (t->c->local_sockaddr->sa_family == AF_INET6) {
+                    ((struct sockaddr_in *) c->local_sockaddr)->sin_port);
+            } else if (c->local_sockaddr->sa_family == AF_INET6) {
                 self_port = ntohs(
-                    ((struct sockaddr_in6 *) t->c->local_sockaddr)->sin6_port);
+                    ((struct sockaddr_in6 *) c->local_sockaddr)->sin6_port);
             }
             xrootd_srv_unregister_path((const char *) addr_buf, self_port,
                                        fs_path + root_len);
         }
     }
 
-    if (xrootd_cache_fs_usage((char *) t->conf->cache_root.data, usage)
+    if (xrootd_cache_fs_usage((char *) conf->cache_root.data, usage)
         != NGX_OK)
     {
-        xrootd_cache_metric_add(t->ctx, cache_eviction_errors_total, 1);
+        xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -138,19 +157,121 @@ xrootd_cache_evict_one(xrootd_cache_fill_t *t,
  *   event loop.  All filesystem operations are safe to call there.  The
  *   metrics increments use ngx_atomic_fetch_add() which is thread-safe.
  */
+/*
+ * xrootd_cache_purge_to_target — the eviction engine, decoupled from any fill
+ * task so both the on-fill safety net and the background watermark reaper can
+ * drive it. Collects the candidate set under cache_root, sorts oldest-first, and
+ * evicts in two passes (large files first, then plain LRU) until occupancy drops
+ * to `target_ppm` or the candidate set is exhausted. `ctx` (per-connection
+ * metrics) and `c` (the manager socket for path-unregister) are OPTIONAL — the
+ * timer passes NULL for both; the macro/branches are NULL-safe. The caller owns
+ * the cross-worker eviction lock and the threshold pre-check. Writes the evicted
+ * file/byte counts (when the out-pointers are non-NULL) and returns NGX_OK, or
+ * NGX_ERROR if a usage re-measurement failed mid-purge (partial work is kept).
+ */
+ngx_int_t
+xrootd_cache_purge_to_target(ngx_stream_xrootd_srv_conf_t *conf,
+    xrootd_ctx_t *ctx, ngx_connection_t *c, const char *protect_path,
+    ngx_uint_t target_ppm, ngx_log_t *log, ngx_uint_t *evicted_files_out,
+    uint64_t *evicted_bytes_out)
+{
+    xrootd_cache_fs_usage_t   usage;
+    xrootd_cache_evict_list_t list;
+    struct stat               root_st;
+    size_t                    i;
+    ngx_uint_t                evicted_files = 0;
+    uint64_t                  evicted_bytes = 0;
+    ngx_int_t                 evict_rc = NGX_OK;
+
+    if (evicted_files_out != NULL) { *evicted_files_out = 0; }
+    if (evicted_bytes_out != NULL) { *evicted_bytes_out = 0; }
+
+    if (xrootd_cache_fs_usage((char *) conf->cache_root.data, &usage)
+        != NGX_OK)
+    {
+        xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
+        return NGX_ERROR;
+    }
+    if (usage.occupancy_ppm <= target_ppm) {
+        return NGX_OK;                       /* already at/below target */
+    }
+    if (stat((char *) conf->cache_root.data, &root_st) != 0) {
+        xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(&list, sizeof(list));
+    list.root_dev = root_st.st_dev;
+    list.protect_path = protect_path;
+    list.inst = xrootd_cache_storage(conf);   /* enumerate via the driver */
+    list.cache_root = (const char *) conf->cache_root.data;
+    list.state_root = conf->cache_state_root.len
+                      ? (const char *) conf->cache_state_root.data
+                      : (const char *) conf->cache_root.data;
+
+    if (list.inst == NULL
+        || xrootd_cache_collect_dir(&list, "/", log) != NGX_OK)
+    {
+        xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
+    }
+
+    if (list.nelts > 1) {
+        qsort(list.elts, list.nelts, sizeof(list.elts[0]),
+              xrootd_cache_candidate_cmp);
+    }
+
+    /*
+     * Two-pass eviction:
+     *   Pass 1 — files above cache_max_file_size first (oldest first): large
+     *            cold files free the most space fastest.
+     *   Pass 2 — remaining files oldest-first until occupancy ≤ target_ppm.
+     * Pass 1 is skipped when cache_max_file_size is 0 (no size limit), so pass 2
+     * degrades to plain single-pass LRU.
+     */
+    if (conf->cache_max_file_size > 0) {
+        for (i = 0; i < list.nelts && usage.occupancy_ppm > target_ppm
+             && evict_rc == NGX_OK; i++)
+        {
+            if (list.elts[i].size <= conf->cache_max_file_size) {
+                continue;
+            }
+            evict_rc = xrootd_cache_evict_one(conf, ctx, c, &list, i, log,
+                          &usage, &evicted_files, &evicted_bytes);
+        }
+    }
+
+    for (i = 0; i < list.nelts && usage.occupancy_ppm > target_ppm
+         && evict_rc == NGX_OK; i++)
+    {
+        if (list.evicted[i]) {
+            continue;
+        }
+        evict_rc = xrootd_cache_evict_one(conf, ctx, c, &list, i, log,
+                      &usage, &evicted_files, &evicted_bytes);
+    }
+
+    xrootd_cache_free_candidates(&list);
+
+    if (evicted_files_out != NULL) { *evicted_files_out = evicted_files; }
+    if (evicted_bytes_out != NULL) { *evicted_bytes_out = evicted_bytes; }
+    return evict_rc;
+}
+
+/*
+ * xrootd_cache_evict_if_needed — on-fill safety net: when cache_root occupancy
+ * exceeds cache_eviction_threshold, take the cross-worker lock and purge back to
+ * the threshold. Runs in the fill worker after each download; the proactive
+ * watermark reaper (reap_watermark.c) handles the quiet-but-full case.
+ */
 void
 xrootd_cache_evict_if_needed(xrootd_cache_fill_t *t, const char *protect_path,
     ngx_log_t *log)
 {
-    xrootd_cache_fs_usage_t      usage;
-    xrootd_cache_evict_list_t    list;
-    struct stat                  root_st;
-    char                         lock_path[PATH_MAX];
-    ngx_uint_t                   threshold;
-    size_t                       i;
-    ngx_uint_t                   evicted_files;
-    uint64_t                     evicted_bytes;
-    ngx_int_t                    evict_rc;
+    xrootd_cache_fs_usage_t usage;
+    char                    lock_path[PATH_MAX];
+    ngx_uint_t              threshold;
+    ngx_uint_t              evicted_files = 0;
+    uint64_t                evicted_bytes = 0;
 
     if (t == NULL || t->conf == NULL || !t->conf->cache) {
         return;
@@ -167,9 +288,8 @@ xrootd_cache_evict_if_needed(xrootd_cache_fill_t *t, const char *protect_path,
         xrootd_cache_metric_add(t->ctx, cache_eviction_errors_total, 1);
         return;
     }
-
     if (usage.occupancy_ppm <= threshold) {
-        return;
+        return;                              /* cheap pre-lock check */
     }
 
     ngx_memzero(lock_path, sizeof(lock_path));
@@ -179,91 +299,18 @@ xrootd_cache_evict_if_needed(xrootd_cache_fill_t *t, const char *protect_path,
         return;
     }
 
-    if (xrootd_cache_fs_usage((char *) t->conf->cache_root.data, &usage)
-        != NGX_OK)
+    if (xrootd_cache_purge_to_target(t->conf, t->ctx, t->c, protect_path,
+            threshold, log, &evicted_files, &evicted_bytes) == NGX_OK
+        && evicted_files > 0)
     {
-        xrootd_cache_metric_add(t->ctx, cache_eviction_errors_total, 1);
-        xrootd_cache_evict_unlock(lock_path);
-        return;
-    }
-
-    if (usage.occupancy_ppm <= threshold) {
-        xrootd_cache_evict_unlock(lock_path);
-        return;
-    }
-
-    if (stat((char *) t->conf->cache_root.data, &root_st) != 0) {
-        xrootd_cache_metric_add(t->ctx, cache_eviction_errors_total, 1);
-        xrootd_cache_evict_unlock(lock_path);
-        return;
-    }
-
-    ngx_memzero(&list, sizeof(list));
-    list.root_dev = root_st.st_dev;
-    list.protect_path = protect_path;
-
-    if (xrootd_cache_collect_dir(&list, (char *) t->conf->cache_root.data,
-                                 log) != NGX_OK)
-    {
-        xrootd_cache_metric_add(t->ctx, cache_eviction_errors_total, 1);
-    }
-
-    if (list.nelts > 1) {
-        qsort(list.elts, list.nelts, sizeof(list.elts[0]),
-              xrootd_cache_candidate_cmp);
-    }
-
-    evicted_files = 0;
-    evicted_bytes = 0;
-    evict_rc = NGX_OK;
-
-/*
- * Two-pass eviction:
- *   Pass 1 — evict files above cache_max_file_size first (oldest first).
- *             Large files are usually not worth keeping after they've grown
- *             cold; evicting them first frees the most space fastest.
- *   Pass 2 — evict any remaining files oldest first until we drop below
- *             the occupancy threshold.
- *
- * When cache_max_file_size is 0 (no size limit), pass 1 is skipped and
- * pass 2 degrades to the original single-pass LRU behaviour.
- */
-
-    /* Pass 1: large files only (size > cache_max_file_size), oldest first */
-    if (t->conf->cache_max_file_size > 0) {
-        for (i = 0; i < list.nelts && usage.occupancy_ppm > threshold
-             && evict_rc == NGX_OK; i++)
-        {
-            if (list.elts[i].size <= t->conf->cache_max_file_size) {
-                continue;
-            }
-            evict_rc = xrootd_cache_evict_one(t, &list, i, log, &usage,
-                                              &evicted_files, &evicted_bytes);
-        }
-    }
-
-    /* Pass 2: remaining files (or all files if no size limit), oldest first */
-    for (i = 0; i < list.nelts && usage.occupancy_ppm > threshold
-         && evict_rc == NGX_OK; i++)
-    {
-        if (list.evicted[i]) {
-            continue;
-        }
-        evict_rc = xrootd_cache_evict_one(t, &list, i, log, &usage,
-                                          &evicted_files, &evicted_bytes);
-    }
-
-    if (evicted_files > 0) {
         xrootd_cache_metric_add(t->ctx, cache_evictions_total, evicted_files);
         xrootd_cache_metric_add(t->ctx, cache_evicted_bytes_total,
                                 evicted_bytes);
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                      "xrootd: cache eviction removed %ui files, %uL bytes, "
-                      "occupancy=0.%06ui threshold=0.%06ui",
-                      evicted_files, (uint64_t) evicted_bytes,
-                      usage.occupancy_ppm, threshold);
+                      "xrootd: cache eviction (on-fill) removed %ui files, "
+                      "%uL bytes, threshold=0.%06ui",
+                      evicted_files, (uint64_t) evicted_bytes, threshold);
     }
 
-    xrootd_cache_free_candidates(&list);
     xrootd_cache_evict_unlock(lock_path);
 }

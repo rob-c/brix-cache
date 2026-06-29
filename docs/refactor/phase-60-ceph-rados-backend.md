@@ -1,13 +1,42 @@
 # Phase 60 — Ceph/RADOS storage backend, routed through the VFS — hyper-detailed design record
 
-**Status:** plan / spec
-**Date:** 2026-06-27
+**Status:** plan / spec — **basic driver landed.** `src/fs/backend/sd_ceph.c`
+(the `xrootd_sd_ceph_driver`) now ships: a flat LFN→RADOS-object-key map plus the
+data plane over raw `librados` (`rados_read`/`write`/`trunc`/`stat`/`remove`),
+compiled only when `./configure` finds librados (`XROOTD_HAVE_CEPH`) — otherwise
+the file contributes only its pure libc LFN→key helpers and the registry row is
+`#if`-compiled out (a no-Ceph build is byte-for-byte unchanged). Caps: range-read,
+random-write, truncate (no fd ⇒ memory-backed reads, no dirs, no atomic rename).
+A standalone `sd_ceph_unittest.c` covers the security-critical key map. **Still
+open (the W-plan below):** live-traffic *selection*/routing of the bound
+`xrootd_sd_obj_t` to this driver, libradosstriper interop with stock XrdCeph,
+directory listing, rename, xattr, and staged commit. See
+[`../../src/fs/backend/README.md`](../../src/fs/backend/README.md).
+**Date:** 2026-06-27 · **Revised:** 2026-06-28 (re-baselined onto the unified `vfs`+`backend` core)
 **Owner decisions:** see §Z (ADR log)
-**Scope:** (a) make the VFS data plane **driver-generic** (de-POSIX-pin it) and
-(b) add one Ceph Storage Driver `src/fs/backend/sd_ceph.c` that the VFS dispatches
-to — plus build plumbing, config directives, per-worker cluster lifecycle, a
-single-node Ceph test harness, and docs. **No protocol changes; no C++ plugin
-ABI; no RADOS symbol anywhere above `src/fs/backend/`.**
+**Scope:** (a) finish de-POSIX-pinning the VFS data plane and (b) add one Ceph
+Storage Driver `src/fs/backend/sd_ceph.c` that the VFS dispatches to — plus build
+plumbing, config directives, per-worker cluster lifecycle, a single-node Ceph test
+harness, and docs. **No protocol changes; no C++ plugin ABI; no RADOS symbol
+anywhere above `src/fs/backend/`.**
+
+> **Re-baseline note (2026-06-28).** The original W0 ("make the VFS data plane
+> driver-generic") was written when the VFS verb loops still called the POSIX
+> driver by name. The **unified VFS layering** work (waves 1–3 of
+> [`docs/superpowers/specs/2026-06-27-unified-vfs-layering-design.md`](../superpowers/specs/2026-06-27-unified-vfs-layering-design.md))
+> has since landed `src/fs/core/vfs_core.c` — the shared, ngx-free verb layer whose
+> EINTR/short-I/O loops already dispatch through `obj->driver->*`. That is exactly
+> the "one true change" the old §A.2 proposed, and it is now **done for both
+> trees**: the server's `xrootd_vfs_pread_full`/`xvfs_*` wrappers *and* the
+> userland clients (`client/lib/vfs_posix.c`, `vfs_block.c`) all run the same
+> backend-neutral core. Two consequences for this phase:
+> 1. **W0 shrinks.** The loop generalization is paid for; what remains is purely
+>    *threading the bound `xrootd_sd_obj_t` from open → fd-table slot → io job*
+>    instead of a bare fd (the boundary still POSIX-wraps an fd — see §0.1).
+> 2. **Ceph becomes reachable from the clients for ~free.** Because `xrdcp` /
+>    `xrootdfs` already ride the shared `vfs` core, an `sd_ceph` driver registered
+>    as a client backend gives `root://…`-over-Ceph reads/writes from the native
+>    tools with no second implementation (new **W5b**, §12).
 
 ---
 
@@ -25,41 +54,66 @@ do for POSIX, and the VFS — not the handler — selects and calls the backend.
         │ WebDAV/S3 GET/PUT/DELETE/PROPFIND   TPC   stat/dirlist/mkdir   │
         └───────────────────────────┬───────────────────────────────────┘
                                      │  xrootd_vfs_* API only
-                          ┌──────────▼───────────┐
-                          │        VFS layer       │  src/fs/vfs*.c
-                          │  open/io_execute/stat/ │  (driver-GENERIC after W0)
-                          │  dir/rename/staged/... │
-                          └──────────┬─────────────┘
+                       ┌─────────────▼──────────────┐
+                       │   vfs_server (confined)     │  src/fs/vfs*.c
+                       │ open(RESOLVE_BENEATH)/aio/  │  nginx-coupled policy shell
+                       │ sendfile/metrics/staged     │
+                       └─────────────┬──────────────┘
+                                     │  obj + verbs
+                       ┌─────────────▼──────────────┐      client (xrdcp/xrootdfs)
+                       │   vfs core  (ngx-free)      │◀──── shares this layer
+                       │ src/fs/core/vfs_core.c —    │      (waves 1–3, DONE)
+                       │ pread/pwrite/fstat/trunc/   │
+                       │ sync loops over obj->driver │
+                       └─────────────┬──────────────┘
                                      │  xrootd_sd_driver_t vtable (caps-typed)
               ┌──────────────────────┼──────────────────────┐
               ▼                      ▼                        ▼
-      sd_posix.c (default)     sd_ceph.c  (NEW)        (future: sd_block, …)
+      sd_posix.c (default)     sd_ceph.c  (NEW)        sd_block.c, sd_s3.c …
         POSIX fd I/O          librados + striper
 ```
+
+The `vfs core` row is the recently-landed shared layer: it is already
+driver-generic (its loops call `obj->driver->pread/...`, never `sd_posix_*`) and is
+the **same code the userland clients run**. W0 below is what is left to let a no-fd
+backend actually *reach* that generic core through the server's open + handle path.
 
 This is the existing data-plane invariant (CLAUDE.md #11: *“raw `pread`/`pwrite`
 … on file data live ONLY in `src/fs/backend/`”*) generalized from
 "data-POSIX confinement" to **data-backend confinement**: the only file that may
 `#include <rados/librados.h>` is `sd_ceph.c`.
 
-### 0.1 Why this needs work: the VFS is driver-*aware* but POSIX-*pinned*
+### 0.1 Why this needs work: the loop layer is generic, the *handle* path is still POSIX-pinned
 
-Two facts from the current tree:
+Three facts from the current tree (post-unification):
 
-- **Good:** `xrootd_vfs_ctx_t` already carries `xrootd_sd_instance_t *sd` (the
-  bound driver instance, or NULL ⇒ default POSIX). The seam, capability model, and
-  no-`CAP_FD` read fallback all exist (Phase 55).
-- **Gap:** the hot path is still pinned to POSIX. `xrootd_vfs_io_execute()`
-  (`src/fs/vfs_io_core.c`) does `xrootd_sd_posix_wrap(&obj, job->fd)` and calls
-  `xrootd_sd_posix_driver.pread/pwrite/fsync/ftruncate` **directly**, and the
-  upper handlers pass a raw `ctx->files[idx].fd` (the fd-table slot
-  `xrootd_file_t` holds an `int fd`, no driver object).
+- **Good (seam):** `xrootd_vfs_ctx_t` already carries `xrootd_sd_instance_t *sd`
+  (the bound driver instance, or NULL ⇒ default POSIX). The seam, capability model,
+  and no-`CAP_FD` read fallback all exist (Phase 55).
+- **Good (loop layer, NEW):** the EINTR/short-I/O verb bodies now live in
+  `src/fs/core/vfs_core.c` (`xvfs_pread_full`/`xvfs_pwrite_full`/`xvfs_fsync`/
+  `xvfs_ftruncate`/`xvfs_fstat`) and dispatch through `obj->driver->...`. They name
+  **no** `sd_posix_*` symbol. This is the loop generalization the old W0 plan
+  scheduled (old §A.2) — already done, and shared with the clients.
+- **Gap (the remainder):** the *handle path* into that generic loop is still a bare
+  fd that gets POSIX-wrapped at the server boundary:
+  - `xrootd_vfs_pread_full(ngx_fd_t fd, …)` (`vfs_read.c`) and the sync/truncate
+    executors in `vfs_io_core.c` do `xrootd_sd_posix_wrap(&obj, job->fd)` *then*
+    call the generic core — i.e. POSIX is re-pinned one frame above the generic loop.
+  - the io job (`xrootd_vfs_job_t`, `vfs_io_core.h`) carries `ngx_fd_t fd`, not an
+    `xrootd_sd_obj_t *obj`; `xrootd_vfs_job_read_init(job, fd, …)`.
+  - the fd-table slot (`xrootd_file_t`, `src/types/file.h:54`) holds `int fd`, no
+    driver object; the upper handlers pass a raw `ctx->files[idx].fd`.
+  - `xrootd_vfs_open()` produces a bare fd; the io-core validity guards key on
+    `job->fd == NGX_INVALID_FILE`.
 
-So today "the VFS goes through the SD driver" really means "the VFS wraps an fd
-and calls the POSIX driver." A **no-fd** backend (RADOS) cannot ride that path.
-**W0 makes the VFS data plane dispatch on the handle's bound driver** — the
-prerequisite that turns "Ceph through the VFS" from aspiration into mechanism,
-and that every future non-POSIX backend reuses.
+So a **no-fd** backend (RADOS) still cannot ride the path — not because the loop is
+POSIX (it no longer is) but because everything that *feeds* the loop traffics in a
+fd. **W0 (now smaller) threads the bound `xrootd_sd_obj_t` end-to-end** —
+open → fd-table slot → io job → the already-generic core — and removes the
+boundary `xrootd_sd_posix_wrap`. That is the prerequisite that turns "Ceph through
+the VFS" from aspiration into mechanism, and every future non-POSIX backend reuses
+it.
 
 ---
 
@@ -113,17 +167,21 @@ Keep `fd` for the POSIX fast paths that legitimately want it (sendfile, io_uring
 but it becomes derived (`xrootd_sd_fd(obj)`), not the dispatch key.
 
 ### 3.2 `xrootd_vfs_io_execute()` dispatches on `obj->driver`
-Replace the hardcoded POSIX wrap:
+The EINTR/short-I/O loops already dispatch generically — they were moved into
+`src/fs/core/vfs_core.c` (`xvfs_pread_full`/`xvfs_pwrite_full`/`xvfs_fsync`/…) by
+the unified-VFS work and call `obj->driver->pread/...` each iteration. **The only
+residue is the boundary that re-POSIX-pins before entering them:**
 ```c
-/* BEFORE */ xrootd_sd_posix_wrap(&obj, job->fd);
-             n = xrootd_sd_posix_driver.pread(&obj, buf, len, off);
-/* AFTER  */ n = job->obj->driver->pread(job->obj, buf, len, off);
+/* TODAY (vfs_io_core.c / vfs_read.c): generic loop, but fed a posix-wrapped fd */
+xrootd_sd_posix_wrap(&obj, job->fd);
+rc = xvfs_pwrite_full(&obj, buf, len, off, &w, &sh);   /* generic core, posix obj */
+/* W0 TARGET: carry the bound obj, drop the wrap */
+rc = xvfs_pwrite_full(job->obj, buf, len, off, &w, &sh);
 ```
-Likewise for `pwrite`/`preadv`/`preadv2`/`fsync`/`ftruncate`/`fstat`. The EINTR /
-short-IO loops the VFS owns (`vfs_pread_full`, `vfs_pwrite_full`) stay in the VFS
-and call the driver primitive each iteration — unchanged semantics, generic
-target. POSIX is one driver among others; `sd_posix_*` are no longer named in the
-io core.
+So W0 §3.2 is no longer "replace the hardcoded POSIX call inside the loop" (done) —
+it is "stop synthesizing a POSIX obj at the boundary and pass `job->obj` straight
+through." Same for the `pread`/`fsync`/`ftruncate` executors. After this, the
+string `xrootd_sd_posix_wrap` appears nowhere in `vfs_io_core.c`/`vfs_read.c`.
 
 ### 3.3 The open handle binds the driver object
 `xrootd_vfs_open()` already has `ctx->sd`. Make it:
@@ -344,19 +402,24 @@ after the io-core generalization, before any Ceph code lands.
 
 | WS | Deliverable | Effort |
 |---|---|---|
-| **W0** | **De-POSIX-pin the VFS data plane:** io_core job carries `obj`; `xrootd_vfs_io_execute` dispatches `obj->driver->*`; `xrootd_vfs_open` binds the driver obj; `xrootd_file_t.vfs` slot; read/write/readv/pgread/pgwrite/sync/truncate handlers feed the VFS handle; POSIX-default regression gate; CI grep gate (no `rados_` above `src/fs/backend`). | 1.5 wk |
+| **W0** | **Thread the bound `obj` end-to-end** (loop layer already generic post-unification — see §0.1): io_core job carries `xrootd_sd_obj_t *obj`; drop the boundary `xrootd_sd_posix_wrap` in `vfs_io_core.c`/`vfs_read.c` (pass `job->obj`); `xrootd_vfs_open` binds the driver obj; `xrootd_file_t.vfs` slot; read/write/readv/pgread/pgwrite/sync/truncate handlers feed the VFS handle; flip the `job->fd==INVALID` guards to `job->obj==NULL`; POSIX-default regression gate; CI grep gate (no `rados_` above `src/fs/backend`). | **0.75 wk** (was 1.5 — loop generalization paid for by the unified `vfs` core) |
 | **W1** | Build: ceph detection, `XROOTD_HAVE_CEPH`, `ngx_module_libs` link, `--without-ceph`. | 0.5 wk |
 | **W2** | Driver skeleton + lifecycle: `sd_ceph.c`, caps, `sd.h` `void *priv`, `sd_registry.c` conditional row, `sd_ceph_state_t`, per-worker connect. | 0.5 wk |
 | **W3** | Data plane slots: open/close/pread/preadv(2)/pwrite/ftruncate/fstat/fsync/read_sendfile_fd + error map; validate root:// read/write/readv/pgread/pgwrite **through the VFS**. | 1.5 wk |
 | **W4** | Namespace slots: stat/unlink/mkdir/rename(copy)/opendir/readdir(stripe-collapse)/xattr/staged_*. | 1.5 wk |
 | **W5** | GET/PUT/TPC integration via the VFS (sendfile fallback, staged upload, copy); concurrency. | 1 wk |
+| **W5b** | **Client reachability (NEW, cheap):** register `sd_ceph` as a client `vfs` backend + URL scheme so `xrdcp`/`xrootdfs` reach a Ceph export directly. Driver + verbs are already shared (waves 1–3); this is endpoint/scheme wiring + a couple of `test_native_*` round-trips, not a second I/O implementation. | 0.5 wk |
 | **W6** | Ceph test harness + `test_ceph_backend.py` + cross-backend matrix. **Dominant cost.** | 1.5 wk |
 | **W7** | Config directives + `-t` validation + `src/fs/backend/README.md` + ops docs. | 0.5 wk |
 
-**Total ≈ 8.5 engineer-weeks** (W0 is a one-time, backend-neutral investment that
-every future non-POSIX backend reuses).
-**MVP ≈ 4–5 weeks:** W0 + W1 + W2 + W3 + minimal W4 (stat/unlink + listing) +
-blocking-on-pool, validated through the VFS against a single-node cluster.
+**Total ≈ 7.25 engineer-weeks** — down from the original ~8.5: the unified `vfs`
+core absorbed ~0.75 wk of W0 (the loop generalization), and the same sharing makes
+the new client-reachability W5b (+0.5 wk) nearly free instead of a second port.
+W0 remains a one-time, backend-neutral investment every future non-POSIX backend
+reuses.
+**MVP ≈ 3.5–4.5 weeks:** W0 + W1 + W2 + W3 + minimal W4 (stat/unlink + listing) +
+blocking-on-pool, validated through the VFS against a single-node cluster (W5b/W6
+client + cross-backend layers fold in after).
 
 ---
 
@@ -388,6 +451,14 @@ landed.
 - **ADR-0 (this phase's spine):** route Ceph through the VFS by making the VFS
   data plane driver-generic (W0), not by special-casing Ceph in handlers. The
   enabling change is backend-neutral and reused by every future driver.
+- **ADR-8 (re-baseline 2026-06-28):** build W0 on top of the unified `vfs`+`backend`
+  core (`src/fs/core/vfs_core.c`), not the pre-unification POSIX-named loops. The
+  shared core already dispatches `obj->driver->*`, so W0 is reduced to threading the
+  bound `obj` through open/handle/job and is *also* what makes the driver reachable
+  from the userland clients (W5b) — one driver, two consumers (server data plane +
+  `xrdcp`/`xrootdfs`). Consequence: do **not** reintroduce `xrootd_sd_posix_wrap`
+  on the io path; the only legitimate fd consumers left are the POSIX sendfile /
+  io_uring fast paths, gated on `CAP_FD|CAP_SENDFILE`.
 - **ADR-1:** add `void *priv` to the SD opaque `obj`/`dir`/`staged` structs.
 - **ADR-2:** stat-on-open caches size; keeps range math / `fstat` POSIX-consistent.
 - **ADR-3:** use `libradosstriper` (not raw RADOS) for on-disk interop with stock
@@ -438,7 +509,15 @@ typedef struct xrootd_file_s {
 } xrootd_file_t;
 ```
 
-## A.2 W0 — de-POSIX-pin the raw I/O helpers (the one true change)
+## A.2 W0 — de-POSIX-pin the raw I/O helpers (mostly landed; see re-baseline)
+
+> **Re-baseline (2026-06-28):** the loop body shown as "AFTER" below already exists
+> as `xvfs_pread_full`/`xvfs_pwrite_full` in `src/fs/core/vfs_core.c` (shared with
+> the clients). What is left of this skeleton is the *outer* change: the server
+> wrappers in `vfs_read.c`/`vfs_io_core.c` still take `ngx_fd_t fd` and
+> `xrootd_sd_posix_wrap` it before calling the generic core — W0 changes those
+> signatures to take `xrootd_sd_obj_t *obj` and pass it straight through. Read the
+> block below as "the loop is done; thread the obj into it."
 
 ```c
 /* src/fs/vfs_read.c — BEFORE: fd in, posix-wrap inside */

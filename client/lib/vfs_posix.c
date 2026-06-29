@@ -23,13 +23,13 @@
 #include "vfs.h"
 #include "uring.h"
 #include "xrdc.h"
-#include "fs/backend/sd.h"   /* shared Storage Driver: raw fd I/O single-sourced
-                              * with the nginx server (ngx-free under
-                              * -DXRDPROTO_NO_NGX; xrootd_sd_posix_driver lives in
-                              * libxrdproto). The plain (non-io_uring) paths below
-                              * dispatch through this seam instead of calling the
-                              * syscalls directly, so the raw POSIX I/O semantics
-                              * have exactly one implementation across client+server. */
+#include "fs/backend/sd.h"   /* shared Storage Driver (ngx-free) */
+#include "fs/core/vfs_core.h" /* shared `vfs` I/O verbs — the EINTR/short-I/O loop
+                               * policy is single-sourced with the nginx server's
+                               * data plane (src/fs/core/vfs_core.c via libxrdproto).
+                               * The plain (non-io_uring) paths below dispatch
+                               * through these verbs; io_uring stays a client-only
+                               * fast-path override. */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -160,10 +160,7 @@ posix_pread(xrdc_vfs_file *f, int64_t off, void *buf, size_t n, xrdc_status *st)
         ssize_t         r;
 
         xrootd_sd_posix_wrap(&obj, pf->fd);
-        do {
-            r = obj.driver->pread(&obj, buf, n, (off_t) off);
-        } while (r < 0 && errno == EINTR);
-
+        r = xvfs_pread_once(&obj, buf, n, (off_t) off);
         if (r < 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs posix pread: %s", strerror(errno));
@@ -208,22 +205,12 @@ posix_pwrite(xrdc_vfs_file *f, int64_t off, const void *buf, size_t n,
 
     {
         xrootd_sd_obj_t obj;
-        size_t          written = 0;
-        ssize_t         w;
 
         xrootd_sd_posix_wrap(&obj, pf->fd);
-        while (written < n) {
-            w = obj.driver->pwrite(&obj, (const char *) buf + written,
-                                   n - written, (off_t) off + (off_t) written);
-            if (w < 0) {
-                if (errno == EINTR) {
-                    continue;
-                }
-                xrdc_status_set(st, XRDC_EIO, errno,
-                                "vfs posix pwrite: %s", strerror(errno));
-                return -1;
-            }
-            written += (size_t) w;
+        if (xvfs_pwrite_full(&obj, buf, n, (off_t) off, NULL, NULL) != 0) {
+            xrdc_status_set(st, XRDC_EIO, errno,
+                            "vfs posix pwrite: %s", strerror(errno));
+            return -1;
         }
         return 0;
     }
@@ -244,7 +231,7 @@ posix_fstat(xrdc_vfs_file *f, xrdc_vfs_stat *out, xrdc_status *st)
     xrootd_sd_stat_t sd;
 
     xrootd_sd_posix_wrap(&obj, pf->fd);
-    if (obj.driver->fstat(&obj, &sd) != NGX_OK) {
+    if (xvfs_fstat(&obj, &sd) != 0) {
         xrdc_status_set(st, XRDC_EIO, errno,
                         "vfs posix fstat: %s", strerror(errno));
         return -1;
@@ -271,7 +258,7 @@ posix_truncate(xrdc_vfs_file *f, int64_t size, xrdc_status *st)
     xrootd_sd_obj_t obj;
 
     xrootd_sd_posix_wrap(&obj, pf->fd);
-    if (obj.driver->ftruncate(&obj, (off_t) size) != NGX_OK) {
+    if (xvfs_ftruncate(&obj, (off_t) size) != 0) {
         xrdc_status_set(st, XRDC_EIO, errno,
                         "vfs posix ftruncate: %s", strerror(errno));
         return -1;
@@ -300,7 +287,7 @@ posix_sync(xrdc_vfs_file *f, xrdc_status *st)
     {
         xrootd_sd_obj_t obj;
         xrootd_sd_posix_wrap(&obj, pf->fd);
-        if (obj.driver->fsync(&obj) != NGX_OK) {
+        if (xvfs_fsync(&obj) != 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs posix fsync: %s", strerror(errno));
             return -1;
@@ -455,9 +442,12 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
             return -1;
         }
 
-        /* O_EXCL refuses a pre-existing name; O_NOFOLLOW refuses a symlink. */
-        fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL | O_NOFOLLOW,
-                  0644);
+        /* Open through the shared POSIX driver (unconfined): O_EXCL refuses a
+         * pre-existing name; O_NOFOLLOW refuses a symlink. Same driver the nginx
+         * server opens through (its variant adds RESOLVE_BENEATH confinement). */
+        fd = xrootd_sd_posix_open_unconfined(tmp_path,
+                 XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE | XROOTD_SD_O_TRUNC
+                 | XROOTD_SD_O_EXCL | XROOTD_SD_O_NOFOLLOW, 0644);
         if (fd < 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs posix open write temp %s: %s",
@@ -467,8 +457,8 @@ posix_be_open(const xrdc_vfs_backend *be, const char *path, int flags,
             return -1;
         }
     } else {
-        /* READ */
-        fd = open(path, O_RDONLY);
+        /* READ — through the shared POSIX driver (unconfined). */
+        fd = xrootd_sd_posix_open_unconfined(path, XROOTD_SD_O_READ, 0);
         if (fd < 0) {
             xrdc_status_set(st, XRDC_EIO, errno,
                             "vfs posix open read %s: %s",

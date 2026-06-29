@@ -91,9 +91,7 @@ webdav_copy_collection_execute(ngx_log_t *log, const char *root_canon,
         return NGX_HTTP_REQUEST_URI_TOO_LARGE;
     }
 
-    if (xrootd_mkdir_confined_canon(log, root_canon, tmp_path,
-                                    src_mode & 0777) != 0)
-    {
+    if (xrootd_vfs_mkdir_path(log, root_canon, tmp_path, src_mode & 0777) != 0) {
         if (errno == ENOENT) {
             return NGX_HTTP_CONFLICT;
         }
@@ -255,6 +253,45 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
 }
 
 /*
+ * webdav_copy_probe — confined stat of `path` (follow semantics, matching the
+ * prior xrootd_lstat_confined_canon nofollow=0) through the VFS probe, projected
+ * into the struct stat fields the COPY handler needs (ino/dev for the self-copy
+ * guard, mode for is-dir, mtime/size for the conditional checks). Non-metered
+ * (the COPY op accounts for itself). Returns NGX_OK / NGX_DECLINED (errno kept).
+ */
+static ngx_int_t
+webdav_copy_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
+{
+    ngx_http_xrootd_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    ngx_http_xrootd_webdav_req_ctx_t  *rx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    xrootd_vfs_ctx_t   vctx;
+    xrootd_vfs_stat_t  vst;
+    int                is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+        conf->common.root_canon, conf->cache_root_canon, conf->common.allow_write,
+        is_tls, (rx != NULL) ? rx->identity : NULL, path);
+
+    if (xrootd_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
+        return NGX_DECLINED;
+    }
+
+    ngx_memzero(sb, sizeof(*sb));
+    sb->st_mode  = (mode_t) vst.mode;
+    sb->st_size  = vst.size;
+    sb->st_mtime = vst.mtime;
+    sb->st_ino   = vst.ino;
+    sb->st_dev   = vst.dev;
+    return NGX_OK;
+}
+
+/*
  *
  * WHAT: Implements RFC 4918 §9.8 WebDAV COPY operation for server-side file/directory duplication within the same export root. Orchestrates the complete copy lifecycle: parses Destination/Overwrite/Depth headers, resolves both source and destination paths under root confinement, validates locks on destination, handles conditional checks (If-Match/If-None-Match), performs atomic copy via an intermediate staged temp path, then renames to final destination. Returns 201 Created when target didn't exist or 204 No Content when replacing existing resource; cleanup on failure ensures no orphaned temp files remain.
  *
@@ -316,8 +353,7 @@ webdav_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
-    if (xrootd_lstat_confined_canon(r->connection->log, conf->common.root_canon,
-                                    src_path, &src_sb, 0) != 0) {
+    if (webdav_copy_probe(r, src_path, &src_sb) != NGX_OK) {
         return (errno == ENOENT) ? NGX_HTTP_NOT_FOUND
                                  : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -329,8 +365,7 @@ webdav_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
-    dst_existed = (xrootd_lstat_confined_canon(r->connection->log,
-                       conf->common.root_canon, dst_path, &dst_sb, 0) == 0);
+    dst_existed = (webdav_copy_probe(r, dst_path, &dst_sb) == NGX_OK);
 
     rc = webdav_check_locks_tree(r, dst_path);
     if (rc != NGX_OK) {

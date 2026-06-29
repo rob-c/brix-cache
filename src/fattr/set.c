@@ -1,7 +1,7 @@
 #include "fattr/ngx_xrootd_fattr.h"
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
+#include <sys/xattr.h>   /* XATTR_CREATE flag only — syscalls go via the VFS */
 #include <arpa/inet.h>
 
 /*
@@ -11,9 +11,10 @@
  * HOW: Four-phase execution: (1) parse vvec with bounds checking and signed-to-unsigned conversion for safety, (2) apply each attribute via path-based or handle-based syscall depending on options, (3) collect per-attribute errors into attrs[] array, (4) send fattr_send_vector_status response with kXR_status(4007) framing containing per-attribute success/failure codes. INVARIANT #1 referenced: vector status responses use kXR_status framing + per-page CRC for integrity verification in pgwrite context; here applied to attribute error reporting consistency. */
 
 ngx_int_t
-fattr_set(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
-    int options, u_char *nvec_copy, size_t nvec_len, u_char *vvec_buf,
-    size_t vvec_len, int numattr, xrootd_fattr_entry_t *attrs)
+fattr_set(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
+    const char *path, int fd, int options, u_char *nvec_copy, size_t nvec_len,
+    u_char *vvec_buf, size_t vvec_len, int numattr,
+    xrootd_fattr_entry_t *attrs)
 {
     u_char *value_cursor;
     u_char *value_end;
@@ -62,11 +63,11 @@ fattr_set(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
         }
 
         if (path != NULL) {
-            rc = setxattr(path, attrs[attr_index].xkey, value_cursor,
-                          value_len, xattr_flags);
+            rc = xrootd_vfs_setxattr(vctx, attrs[attr_index].xkey, value_cursor,
+                                     value_len, xattr_flags);
         } else {
-            rc = fsetxattr(fd, attrs[attr_index].xkey, value_cursor,
-                           value_len, xattr_flags);
+            rc = xrootd_vfs_fsetxattr(vctx, fd, attrs[attr_index].xkey,
+                                      value_cursor, value_len, xattr_flags);
         }
 
         if (rc != 0) {

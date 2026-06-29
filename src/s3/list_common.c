@@ -81,7 +81,7 @@ s3_list_collect_sorted(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     if (cf->list_cache) {
         struct stat rst;
 
-        if (stat((const char *) cf->common.root.data, &rst) == 0) {
+        if (stat((const char *) cf->common.root.data, &rst) == 0) {  /* vfs-seam-allow: export-root mtime for the list cache (the root itself, not a path beneath it) */
             dir_mtime = rst.st_mtime;
         }
         cached = s3_list_cache_get(r, (const char *) cf->common.root.data,
@@ -184,7 +184,7 @@ s3_list_emit_entries(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         /* phase-45 W1: stat is done HERE, only for the emitted page.  If the
          * object vanished or is no longer a regular file, skip it (matches the
          * eager walker's stat-failure skip). */
-        if (s3_entry_fill_stat(r->connection->log,
+        if (s3_entry_fill_stat(r->pool, r->connection->log,
                                (const char *) cf->common.root.data,
                                entry) != NGX_OK)
         {

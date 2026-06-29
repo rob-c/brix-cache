@@ -187,7 +187,7 @@ s3_object_crc64nvme_b64(ngx_http_request_t *r, int fd, const char *path,
     iopts.require_regular_file = 1;
     iopts.no_compute           = cache_only ? 1 : 0;
 
-    rc = xrootd_integrity_get_fd(r->connection->log, fd, path, "crc64nvme",
+    rc = xrootd_integrity_get_fd(r->connection->log, fd, NULL, path, "crc64nvme",
                                  &iopts, &info);
     if (rc != NGX_OK) {
         return rc;   /* NGX_DECLINED (cache-only miss) or NGX_ERROR */

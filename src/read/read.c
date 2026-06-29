@@ -235,10 +235,15 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
      */
     if (ctx->files[idx].is_regular
         && (!c->ssl || xrootd_ktls_send_active(c))
-        && ctx->files[idx].csi == NULL)   /* phase-59 W2/ADR-6: CSI needs the
-                                           * bytes in memory to verify, so an
-                                           * integrity-checked handle takes the
-                                           * buffered path, not zero-copy sendfile */
+        && ctx->files[idx].csi == NULL   /* phase-59 W2/ADR-6: CSI needs the
+                                          * bytes in memory to verify, so an
+                                          * integrity-checked handle takes the
+                                          * buffered path, not zero-copy sendfile */
+        && ctx->files[idx].sd_obj.driver == NULL) /* Layer 3: a driver-backed
+                                          * handle's bare fd is only block 0 — a
+                                          * sendfile over it cannot span striped
+                                          * blocks, so serve via the buffered
+                                          * io_core path (driver preadv) instead */
     {
         return xrootd_read_serve_sendfile(ctx, c, rconf, idx, fd,
                                           offset, rlen);
@@ -369,7 +374,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             iov.iov_base = databuf;
             iov.iov_len  = rlen;
             xrootd_sd_posix_wrap(&obj, fd);   /* phase-55: SD seam */
-            warm = xrootd_sd_posix_driver.preadv2(&obj, &iov, 1,
+            warm = obj.driver->preadv2(&obj, &iov, 1,
                                                   (off_t) offset, RWF_NOWAIT);
         }
 #endif
@@ -433,6 +438,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             t->nread = 0;
             t->io_errno = 0;
             t->csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
+            t->obj = ctx->files[idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
 
             xrootd_task_bind(task, xrootd_read_aio_thread, xrootd_read_aio_done);
 
@@ -454,6 +460,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
                 xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
                                           databuf, rlen, 0);
                 job.csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
+                xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
                 xrootd_vfs_io_execute(&job);
                 nread = job.nio;
                 if (job.io_errno != 0) {
@@ -471,6 +478,7 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
             xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
                                       databuf, rlen, 0);
             job.csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
+            xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
             xrootd_vfs_io_execute(&job);
             nread = job.nio;
             if (job.io_errno != 0) {

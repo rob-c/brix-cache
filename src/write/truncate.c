@@ -4,6 +4,7 @@
 
 #include "ngx_xrootd_module.h"
 #include "cache/writethrough_metrics.h"
+#include "fs/vfs.h"   /* path-based truncate via the VFS seam */
 
 #include <fcntl.h>
 
@@ -31,7 +32,6 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 	xrdw_truncate_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
 	length = req.offset;
-	int      rc;
 
 	snprintf(detail, sizeof(detail), "%lld", (long long) length);
 
@@ -50,32 +50,34 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 							  XROOTD_AUTH_UPDATE, 1) != NGX_OK) {
 			return ctx->write_rc;
 		}
-		rc = xrootd_open_beneath(conf->rootfd, reqpath,
-								  O_WRONLY | O_NOCTTY, 0);
-		if (rc < 0) {
-			/* Map the real errno (ENOENT→kXR_NotFound, EACCES→kXR_NotAuthorized,
-			 * …) instead of a blanket kXR_IOError: stock truncate of a missing
-			 * path returns 3011 (NotFound), and XrdCl/gfal branch on the code. */
-			int err = errno;
-			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
-							  resolved, detail,
-							  xrootd_kxr_from_errno(err), strerror(err));
-		}
 		{
-			xrootd_vfs_job_t job;
+			xrootd_vfs_ctx_t   vctx;
+			xrootd_vfs_file_t *fh;
+			int                vfs_err = 0;
 
-			xrootd_vfs_job_truncate_init(&job, rc, (off_t) length);
-			xrootd_vfs_io_execute(&job);
-			if (job.io_errno != 0) {
-				int err = job.io_errno;
+			xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+				conf->common.root_canon, NULL, conf->common.allow_write,
+				0 /* is_tls */, NULL, resolved);
+			fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_WRITE, &vfs_err);
+			if (fh == NULL) {
+				/* Map the real errno (ENOENT→kXR_NotFound, EACCES→…) instead of a
+				 * blanket kXR_IOError: stock truncate of a missing path returns
+				 * 3011 (NotFound), and XrdCl/gfal branch on the code. */
+				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
+								  resolved, detail,
+								  xrootd_kxr_from_errno(vfs_err),
+								  strerror(vfs_err));
+			}
+			if (xrootd_vfs_truncate(fh, (off_t) length) != NGX_OK) {
+				int err = errno;
 
-				close(rc);
+				xrootd_vfs_close(fh, c->log);
 				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",
 								  resolved, detail,
 								  xrootd_kxr_from_errno(err), strerror(err));
 			}
+			xrootd_vfs_close(fh, c->log);
 		}
-		close(rc);
 		xrootd_log_access(ctx, c, "TRUNCATE", resolved, detail,
 						  1, 0, NULL, 0);
 	} else {
@@ -90,6 +92,7 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		}
 		xrootd_vfs_job_truncate_init(&job, ctx->files[idx].fd,
 									  (off_t) length);
+		xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
 		xrootd_vfs_io_execute(&job);
 		if (job.io_errno != 0) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_TRUNCATE, "TRUNCATE",

@@ -7,12 +7,11 @@
 #include "fattr/ngx_xrootd_fattr.h"
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
 #include <arpa/inet.h>
 
 ngx_int_t
-fattr_del(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
-    u_char *nvec_copy, size_t nvec_len, int numattr,
+fattr_del(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
+    const char *path, int fd, u_char *nvec_copy, size_t nvec_len, int numattr,
     xrootd_fattr_entry_t *attrs)
 {
     int attr_index;
@@ -21,9 +20,9 @@ fattr_del(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
         int rc;
 
         if (path != NULL) {
-            rc = removexattr(path, attrs[attr_index].xkey);
+            rc = xrootd_vfs_removexattr(vctx, attrs[attr_index].xkey);
         } else {
-            rc = fremovexattr(fd, attrs[attr_index].xkey);
+            rc = xrootd_vfs_fremovexattr(vctx, fd, attrs[attr_index].xkey);
         }
 
         if (rc != 0) {

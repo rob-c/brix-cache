@@ -111,7 +111,7 @@ xrootd_prepare_invoke_command(ngx_log_t *log,
      * brute-force scan up to the system limit. */
 #if defined(__linux__)
     {
-        DIR *dp = opendir("/proc/self/fd");
+        DIR *dp = opendir("/proc/self/fd");  /* vfs-seam-allow: /proc fd hygiene before execv, not export storage */
         if (dp != NULL) {
             struct dirent *de;
             /*
@@ -123,7 +123,7 @@ xrootd_prepare_invoke_command(ngx_log_t *log,
              * socket/log/pipe and is closed before execv.
              */
             int            dirfd_self = dirfd(dp);
-            while ((de = readdir(dp)) != NULL) {
+            while ((de = readdir(dp)) != NULL) {  /* vfs-seam-allow: /proc fd hygiene, not export storage */
                 /* entry names are decimal fd numbers; non-numeric ("." "..")
                  * parse to 0 and are filtered by the fd >= 3 guard. */
                 fd = (int) strtol(de->d_name, NULL, 10);

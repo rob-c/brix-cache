@@ -122,7 +122,7 @@ xrootd_dirlist_checksum_token(ngx_log_t *log, int dfd,
         return;
     }
 
-    fd = openat(dfd, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    fd = openat(dfd, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);  /* vfs-seam-allow: dirfd-relative open within an already-VFS-opened confined dir stream (xrootd_vfs_dir_fd) */
     if (fd < 0) {
         snprintf(out, outsz, "%s:none", algo);
         return;
@@ -136,7 +136,7 @@ xrootd_dirlist_checksum_token(ngx_log_t *log, int dfd,
         iopts.allow_xattr_cache  = 1;
         iopts.update_xattr_cache = 1;
 
-        if (xrootd_integrity_get_fd(log, fd, path, algo, &iopts, &info) == NGX_OK) {
+        if (xrootd_integrity_get_fd(log, fd, NULL, path, algo, &iopts, &info) == NGX_OK) {
             snprintf(out, outsz, "%s:%s", info.alg_name, info.hex);
         } else {
             snprintf(out, outsz, "%s:none", algo);

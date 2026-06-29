@@ -119,14 +119,18 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
         }
 
         {
-            xrootd_sd_obj_t obj;
+            xrootd_sd_obj_t  scratch;
+            xrootd_sd_obj_t *obj;
 
-            /* Route the coalesced vectored read through the Storage Driver seam
-             * (phase-55); the EINTR/coalescing policy stays here. */
-            xrootd_sd_posix_wrap(&obj, first_segment->fd);
+            /* Route the coalesced vectored read through the Storage Driver seam:
+             * the handle's bound driver object when set (block-striped/object
+             * backend), else a POSIX wrap of the fd (unchanged). The EINTR /
+             * coalescing policy stays here. */
+            obj = xrootd_vfs_effective_obj(&first_segment->obj,
+                                           first_segment->fd, &scratch);
             do {
-                bytes_read = xrootd_sd_posix_driver.preadv(
-                    &obj, iov, (int) run_count, first_segment->offset);
+                bytes_read = obj->driver->preadv(
+                    obj, iov, (int) run_count, first_segment->offset);
             } while (bytes_read < 0 && errno == EINTR);
         }
 
@@ -311,6 +315,8 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
             segment_descs[segment_index].fd =
                 ctx->files[handle_index].fd;
+            segment_descs[segment_index].obj =
+                ctx->files[handle_index].sd_obj;  /* Layer 3: driver or zeroed */
             segment_descs[segment_index].handle_index = handle_index;
             segment_descs[segment_index].offset = (off_t) (int64_t)
                 be64toh((uint64_t) wire_segments[segment_index].offset);

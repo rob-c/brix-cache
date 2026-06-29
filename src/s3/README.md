@@ -10,7 +10,9 @@ serve. It is a self-contained nginx HTTP module (`ngx_http_xrootd_s3_module`,
 (`handler.c`) as its content handler, and every S3 request — GetObject,
 HeadObject, PutObject, DeleteObject, ListObjectsV2, the full multipart-upload
 lifecycle, CopyObject, UploadPartCopy, DeleteObjects, browser POST Object, and
-CORS preflight — flows through that one entry point.
+CORS preflight — flows through that one entry point. Objects carry **user
+metadata** (`x-amz-meta-*`, `usermeta.c`) and **tags** (`tagging.c`) round-tripped
+through xattrs beside the data.
 
 S3 is a **distinct auth domain** from the rest of the gateway: it authenticates
 with AWS Signature Version 4 (HMAC-SHA256), in both header and presigned-URL
@@ -49,7 +51,7 @@ stable and cheap, matching `XrdClS3` expectations.
 | `operation_table.c` | `xrootd_s3_operations[]` descriptor table (method → metric slot + capability flags) consumed by `../compat/protocol_caps.c` for metric-slot lookup and the OPTIONS `Allow` header. |
 | `util.c` | Shared helpers: `s3_resolve_key` (confined key→path via `xrootd_http_resolve_path`), `s3_etag` (synthetic `"mtime-size"`), `s3_send_xml_error`, `s3_set_header`, `s3_object_crc64nvme_b64` (compute/cache CRC-64/NVME → base64-of-8-big-endian-bytes for `x-amz-checksum-crc64nvme`). |
 | `metrics.c` | Per-method request/response accounting: `s3_metrics_method_slot`, `s3_metrics_request_method`, `s3_metrics_return_method`, `s3_metrics_finalize_request_method`, plus the unified-metric op mapping (`s3_unified_op`). NGX_DONE (async body) defers final accounting to the callback. |
-| `object.c` | GetObject / HeadObject / DeleteObject. GET opens via the cache-aware VFS and hands the whole range/header/send pipeline to `xrootd_http_serve_file_ranged`; HEAD stats and sends headers only; DELETE uses idempotent `xrootd_ns_delete`. GET/HEAD echo `x-amz-checksum-crc64nvme` + `x-amz-checksum-type: FULL_OBJECT` **from the xattr cache only** (no read-path recompute). |
+| `object.c` | GetObject / HeadObject / DeleteObject. GET opens via the cache-aware VFS and hands the whole range/header/send pipeline to `xrootd_http_serve_file_ranged`; HEAD stats and sends headers only; DELETE uses idempotent `xrootd_ns_delete`. GET/HEAD echo `x-amz-checksum-crc64nvme` + `x-amz-checksum-type: FULL_OBJECT` **from the xattr cache only** (no read-path recompute), and the stored `x-amz-meta-*` user metadata (`s3_echo_user_metadata`). |
 | `put.c` | PutObject / UploadPart body handler `s3_put_body_handler` + streaming dispatch + dashboard glue. *(Phase 38: split.)* |
 | `put_finalize.c` | The `s3_put_finalize_*` result family, `s3_commit_put`, and the CRC64-NVME checksum verify (mismatch → 400 `BadDigest`). *(Phase 38 split of `put.c`.)* |
 | `put_chunk.c` | `aws-chunked` decode path (`s3_chunk_*` finalize/aio + chunk-verify build). *(Phase 38 split of `put.c`.)* |
@@ -60,7 +62,7 @@ stable and cheap, matching `XrdClS3` expectations.
 | `post_policy.c` | POST-policy parse + verify (ISO8601/credential parse, condition + JSON validation). *(Phase 38 split of `post_object.c`.)* |
 | `post_response.c` | The empty/created/success POST responses. *(Phase 38 split of `post_object.c`.)* |
 | `s3_post_internal.h` | Private split contract shared by `post_*.c`. |
-| `copy.c` | CopyObject (`PUT` + `x-amz-copy-source`, no `uploadId`): server-side `xrootd_ns_local_copy` (copy_file_range with read/write fallback), staged commit, `CopyObjectResult` XML. Source and dest both confined to root. |
+| `copy.c` | CopyObject (`PUT` + `x-amz-copy-source`, no `uploadId`): server-side `xrootd_ns_local_copy` (copy_file_range with read/write fallback), staged commit, `CopyObjectResult` XML. Source and dest both confined to root. Honours `x-amz-metadata-directive`: REPLACE stores the request's `x-amz-meta-*` on the dest, COPY (default) carries the source's metadata across; a **copy-onto-self with REPLACE skips the byte copy** (metadata-only update — the path `sd_s3_set_meta` drives). |
 | `delete_objects.c` | Batch DeleteObjects (`POST /<bucket>/?delete`): libxml2-parsed `<Delete>` body (network + XXE disabled), per-key `xrootd_ns_delete`, `<DeleteResult>` XML with per-key `<Deleted>`/`<Error>`. |
 | `list_objects_v2.c` | ListObjectsV2 (`GET /<bucket>/?list-type=2`): query parsing, b64url continuation-token pagination, delimiter common-prefix grouping, and `ListBucketResult` XML emission. |
 | `list_objects_v1.c` | ListObjects **V1** (`GET /<bucket>` with no `list-type=2`, phase-43 W2): shares the `s3_walk`/`entry_cmp` walker with V2; differs only in `marker`/`NextMarker` pagination and the V1 XML dialect (no `KeyCount`/continuation token). |
@@ -68,6 +70,7 @@ stable and cheap, matching `XrdClS3` expectations.
 | `checksum.c` | Multi-algorithm full-object checksums (phase-43 W1): `s3_checksum_b64` (crc32/crc32c/sha1/sha256/crc64nvme → base64 wire form via the shared integrity engine), `s3_put_checksum_apply` (select/verify/echo on PUT, conflict → 400), `s3_put_trailer_checksum_apply` (aws-chunked trailer), `s3_echo_object_checksums` (GET/HEAD echo gated on `x-amz-checksum-mode`). |
 | `aws_chunked.{c,h}` | AWS streaming (`aws-chunked`) request-body decoder (phase-43 W0): `s3_body_is_aws_chunked` detection + `s3_aws_chunked_decode_to_fd` streaming state machine that strips chunk framing, enforces `x-amz-decoded-content-length`, and captures a trailer checksum. The fix that stops default SDK clients corrupting every uploaded object. |
 | `tagging.{c,h}` | Object tagging + canned subresources (phase-43 W5): `x-amz-tagging` header + `GET`/`PUT`/`DELETE ?tagging` stored in the `user.s3.tagging` xattr; canned `GetBucketVersioning`/`GetBucketAcl`/`GetObjectAcl`/`?cors` probe-satisfiers; `PUT ?acl` → 501. |
+| `usermeta.{c,h}` | User-defined object metadata (`x-amz-meta-*`): the whole set stored as one URL-encoded `k=v&k=v` blob in the `user.s3.usermeta` xattr beside the object (VFS xattr surface, impersonation-correct, keys lowercased). `s3_apply_put_user_metadata` persists it on PutObject (all 3 finalize paths); `s3_echo_user_metadata` emits `x-amz-meta-<k>` on GET/HEAD; `s3_user_meta_copy` carries it on CopyObject COPY (REPLACE stores the request's set). Validated end-to-end against the shared `sd_s3` driver's `get_meta`/`set_meta` (`tests/run_s3_usermeta.sh`, `tests/run_sd_s3_meta.sh`). |
 | `list_walk.c` | `s3_walk` recursive directory walker + `entry_cmp` comparator + `s3_entry_fill_stat` (used by both V1 and V2). phase-45 W1: classifies dir/file/symlink from readdir `d_type` (an `lstat` fallback only on `DT_UNKNOWN`) and collects only a pooled, right-sized key into the caller's growable `ngx_array_t` — NO per-entry size/mtime/ETag stat. `s3_entry_fill_stat()` then `lstat`s **only the emitted page slice**, so list stats scale with the page, not the bucket; symlinks are still never listed or traversed. |
 | `auth_sigv4_parse.c` | SigV4 component parsing: `parse_authorization` (header form) and `parse_presigned_authorization` (`X-Amz-*` query form) → `sigv4_components_t`; `get_header`; 3-slash credential-scope split (AKID/DATE/REGION). |
 | `auth_sigv4_canonical.c` | `build_canonical_qs`: SigV4 canonical query string — decode, sort by name then value, percent-encode, and (for the signed-header form) exclude `X-Amz-Signature` (self-reference). |

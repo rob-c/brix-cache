@@ -62,8 +62,13 @@ typedef struct {
     off_t        size;
     time_t       mtime;
     time_t       ctime;
+    time_t       atime;      /* access time — for oss.at in kXR_Qxattr replies   */
     ngx_uint_t   mode;
     ino_t        ino;
+    dev_t        dev;        /* with ino: the kXR stat id (ino<<32 | dev)       */
+    uid_t        uid;        /* with gid+mode: stat readable/writable flags     */
+    gid_t        gid;
+    blkcnt_t     blocks;     /* st_blocks — the VFS-mode stat size (blocks*512)  */
     unsigned     is_directory:1;
     unsigned     is_regular:1;
 } xrootd_vfs_stat_t;
@@ -123,6 +128,18 @@ ngx_int_t xrootd_vfs_close(xrootd_vfs_file_t *fh, ngx_log_t *log);
 /* Accessors over the handle's cached metadata (captured at open via fstat) —
  * no syscalls. fd: underlying descriptor or NGX_INVALID_FILE if fh is NULL. */
 ngx_fd_t xrootd_vfs_file_fd(const xrootd_vfs_file_t *fh);
+/* Adopt a storage-driver object (from a driver's open slot) into a NEW VFS read
+ * handle, preserving its per-open state; the object's own fstat populates the
+ * handle metadata. A heap_shell object is freed once copied. Used by the cache
+ * hit-serve path (src/cache/open.c). writable is 0 for a read handle. */
+ngx_int_t xrootd_vfs_adopt_obj(xrootd_vfs_ctx_t *ctx, const char *path,
+    xrootd_sd_obj_t *o, unsigned writable, xrootd_vfs_file_t **out);
+
+/* Copy the handle's storage-driver object (driver + instance + fd) into *out.
+ * Layer 3: lets a caller route whole-object I/O (e.g. checksum-at-rest) through
+ * the backend driver rather than the bare block-0 fd. For a default POSIX handle
+ * out->driver is the POSIX driver (equivalent to using the fd). */
+void xrootd_vfs_file_sd_obj(const xrootd_vfs_file_t *fh, xrootd_sd_obj_t *out);
 /* The handle's fd ONLY when the backend can back a zero-copy transfer
  * (CAP_FD|CAP_SENDFILE), else NGX_INVALID_FILE. Callers that build a sendfile /
  * file-backed (b->in_file) response MUST gate on this — a NGX_INVALID_FILE
@@ -132,6 +149,12 @@ ngx_fd_t xrootd_vfs_file_sendfile_fd(const xrootd_vfs_file_t *fh);
 /* 1 iff this handle's backend supports zero-copy sendfile (CAP_FD|CAP_SENDFILE),
  * else 0. The predicate form of xrootd_vfs_file_sendfile_fd(). */
 ngx_uint_t xrootd_vfs_file_can_sendfile(const xrootd_vfs_file_t *fh);
+
+/* Read up to `len` bytes at offset `off` through the handle's storage driver, for
+ * a memory-backed serve of a backend with no single sendfile fd. Bytes read
+ * (0 = EOF) or -1/errno. */
+ssize_t xrootd_vfs_file_pread(xrootd_vfs_file_t *fh, void *buf, size_t len,
+    off_t off);
 /* Borrowed pointer to the handle's NUL-terminated path (owned by the pool);
  * returns "" (never NULL) when fh or its path is NULL. */
 const char *xrootd_vfs_file_path(const xrootd_vfs_file_t *fh);
@@ -152,19 +175,64 @@ ngx_int_t xrootd_vfs_file_stat(const xrootd_vfs_file_t *fh,
 ngx_int_t xrootd_vfs_stat(xrootd_vfs_ctx_t *ctx,
     xrootd_vfs_stat_t *stat_out);
 
+/* stat the resolved ctx path into *stat_out, FOLLOWING a trailing in-export
+ * symlink chroot-style (RESOLVE_IN_ROOT, confined to the export). Confined and
+ * metered as OP_STAT; NGX_ERROR with errno set on guard failure / stat error. */
+ngx_int_t xrootd_vfs_statf(xrootd_vfs_ctx_t *ctx,
+    xrootd_vfs_stat_t *stat_out);
+
+/* Confined existence/type probe for pre-op resolution / ACL gates. Like
+ * xrootd_vfs_stat but emits NO OP_STAT metric/access-log line (the caller's own
+ * op accounts for the access). nofollow selects lstat vs stat semantics.
+ * NGX_OK (stat_out filled) when present, NGX_DECLINED when absent (errno kept),
+ * NGX_ERROR on a confinement-guard failure. */
+ngx_int_t xrootd_vfs_probe(xrootd_vfs_ctx_t *ctx, int nofollow,
+    xrootd_vfs_stat_t *stat_out);
+
 /* Open the resolved ctx directory under confinement. Returns a handle on
  * ctx->pool, or NULL with the errno in *err_out (if non-NULL). The open is
  * metered as OP_DIRLIST. Release with xrootd_vfs_closedir. */
 xrootd_vfs_dir_t *xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out);
+/* Non-metered confined opendir for bulk recursive walks (S3 ListObjects, WebDAV
+ * SEARCH): emits NO OP_DIRLIST metric/access-log (the enclosing protocol op
+ * accounts for the whole traversal, which would otherwise log one phantom open
+ * per visited subdirectory). Otherwise identical to xrootd_vfs_opendir. */
+xrootd_vfs_dir_t *xrootd_vfs_opendir_quiet(xrootd_vfs_ctx_t *ctx, int *err_out);
 /* Yield the next entry, one per call: name as a pool-allocated NUL-terminated
  * ngx_str_t in *name_out, plus an optional lstat of the child into *stat_out
  * (pass NULL to skip). "." and ".." are filtered out. Returns NGX_DONE at
  * end-of-stream, NGX_ERROR (errno set) on failure, NGX_OK otherwise. */
 ngx_int_t xrootd_vfs_readdir(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
     xrootd_vfs_stat_t *stat_out);
+
+/* Entry kind derived from the readdir d_type, for callers that only need to
+ * classify dir-vs-file without a per-entry stat (S3 ListObjects, WebDAV SEARCH).
+ * XROOTD_VFS_DT_UNKNOWN means the filesystem did not populate d_type — the caller
+ * should xrootd_vfs_probe() the child to classify. OTHER covers symlinks/specials
+ * (never listed or traversed). */
+typedef enum {
+    XROOTD_VFS_DT_UNKNOWN = 0,
+    XROOTD_VFS_DT_DIR,
+    XROOTD_VFS_DT_REG,
+    XROOTD_VFS_DT_OTHER
+} xrootd_vfs_dirent_kind_t;
+
+/* Like xrootd_vfs_readdir but yields the entry KIND from d_type (no per-entry
+ * stat — preserves the fast classification path). *kind_out (optional) is set as
+ * above. "." and ".." are filtered. NGX_DONE at end-of-stream, NGX_ERROR (errno)
+ * on failure, NGX_OK otherwise. */
+ngx_int_t xrootd_vfs_readdir_kind(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
+    xrootd_vfs_dirent_kind_t *kind_out);
+
 /* Close the directory stream (idempotent; NULL/already-closed is NGX_OK). The
  * handle struct stays on the pool. Logs and returns NGX_ERROR on closedir(3). */
 ngx_int_t xrootd_vfs_closedir(xrootd_vfs_dir_t *dh, ngx_log_t *log);
+
+/* The open directory's fd, for a dirfd-relative entry access that must stay
+ * inside the same opened (impersonation-confined) directory — e.g. a TOCTOU-safe
+ * per-entry openat() for a dirlist checksum. NGX_INVALID_FILE for a NULL/closed
+ * handle, or a backend with no real fd (caller then has no dirfd-relative path). */
+ngx_fd_t xrootd_vfs_dir_fd(const xrootd_vfs_dir_t *dh);
 
 /* Remove the resolved ctx path as a regular file (non-recursive). Write-gated
  * (requires allow_write) and requires a non-NULL root_canon; metered as
@@ -179,9 +247,33 @@ ngx_int_t xrootd_vfs_rmdir(xrootd_vfs_ctx_t *ctx, unsigned recursive);
  * both endpoints confined; metered as OP_RENAME. NGX_ERROR with errno set. */
 ngx_int_t xrootd_vfs_rename(xrootd_vfs_ctx_t *ctx,
     const xrootd_path_result_t *dst);
+/* Thread-safe confined rename of src→dst under root_canon (no pool alloc, no
+ * metric — usable off the event loop / pool-less). `overwrite` replaces an
+ * existing destination; otherwise an existing dst fails with errno==EEXIST.
+ * *was_dir_out (optional) reports whether a conflicting destination was a
+ * directory (kXR_mv maps EEXIST + was_dir → kXR_isDirectory vs kXR_ItExists).
+ * NGX_OK, or NGX_ERROR with errno set (EEXIST/ENOTEMPTY/EACCES/ENOTDIR/ENOENT
+ * from the namespace status). */
+ngx_int_t xrootd_vfs_rename_path(xrootd_sd_instance_t *sd, ngx_log_t *log,
+    const char *root_canon, const char *src, const char *dst,
+    unsigned overwrite, int *was_dir_out);
 /* Create the resolved ctx path as a directory with `mode`, creating missing
  * parent components when `parents`. Write-gated, confined; metered as OP_MKDIR.
  * NGX_ERROR with errno set (e.g. EEXIST when the target already exists). */
+/* Change the resolved ctx path's permission bits. Write-gated; impersonation-
+ * aware (performed by the broker as the mapped user when impersonation is on, so
+ * the file's real owner can chmod even though the worker is not the owner). NGX_OK
+ * / NGX_ERROR with errno set. */
+ngx_int_t xrootd_vfs_chmod(xrootd_vfs_ctx_t *ctx, mode_t mode);
+
+/* Apply kXR_setattr (timestamps and/or owner) to the resolved ctx path through
+ * the VFS seam. Write-gated; routes to the backend's setattr slot for a non-POSIX
+ * export (no-op success when the backend has no mutable metadata) and to the
+ * impersonation-aware confined utimensat/fchownat path for the default POSIX
+ * export. NGX_OK / NGX_ERROR with errno set. */
+ngx_int_t xrootd_vfs_setattr(xrootd_vfs_ctx_t *ctx,
+    const xrootd_sd_setattr_t *attr);
+
 ngx_int_t xrootd_vfs_mkdir(xrootd_vfs_ctx_t *ctx, mode_t mode,
     unsigned parents);
 /* ftruncate the open handle to `length` and update the cached fh->size so later
@@ -191,6 +283,119 @@ ngx_int_t xrootd_vfs_truncate(xrootd_vfs_file_t *fh, off_t length);
 /* fsync the open handle to stable storage. Unmetered (the enclosing write op
  * records the metric). NGX_ERROR with errno set on a bad handle or fsync error. */
 ngx_int_t xrootd_vfs_sync(xrootd_vfs_file_t *fh);
+
+/* --- confined recursive walk (src/fs/vfs_walk.c) ---------------------------
+ * A thread-safe, NON-allocating, NON-metered confined traversal for bulk/off-
+ * thread consumers (checksum-scan, recursive copy/remove) that cannot use the
+ * pool-allocating, metered handle API. The traversal (open/opendir/fstatat) runs
+ * inside the VFS over the rootfd-relative confinement (openat2 RESOLVE_BENEATH),
+ * so callers never touch a confined-helper directly; per regular file it invokes
+ * a callback. Symlinks/specials are never followed or reported. */
+typedef struct {
+    ngx_uint_t max_depth;   /* recursion cap; 0 = the target directory only      */
+    ngx_uint_t max_files;   /* cap on regular files visited; 0 = unlimited        */
+    unsigned   open_files:1;/* open each regular file O_RDONLY and pass fd to cb  */
+} xrootd_vfs_walk_opts_t;
+
+typedef enum {
+    XROOTD_VFS_WALK_NONE = 0,  /* target stat failed (not found)                 */
+    XROOTD_VFS_WALK_FILE,      /* target is a regular file (cb fired once)       */
+    XROOTD_VFS_WALK_DIR,       /* target is a directory (cb per regular child)   */
+    XROOTD_VFS_WALK_OTHER      /* target is a symlink/special (cb not fired)     */
+} xrootd_vfs_walk_target_t;
+
+/* Per regular-file callback. `fd` is an open confined read-only fd when
+ * opts->open_files (the walk closes it after the callback returns), else -1.
+ * `logical` is the export-relative path. Return NGX_OK to continue the walk;
+ * any other value aborts it and is returned to the caller. */
+typedef ngx_int_t (*xrootd_vfs_walk_file_cb)(void *cookie, const char *logical,
+    const xrootd_vfs_stat_t *st, int fd);
+
+/* Walk the confined rootfd-relative `logical` target. A regular-file target
+ * fires cb once; a directory target recurses (per-entry open/stat failures skip
+ * that entry — bulk-scan semantics). *target_out (optional) reports the target
+ * kind. Returns NGX_OK (walked; cb may have skipped entries), NGX_DECLINED
+ * (target stat failed → not found), NGX_ERROR (a single-file-target open failure
+ * or an opendir failure mid-walk; errmsg set), or the cb's non-OK abort code.
+ * Thread-safe: no pool allocation, no metric. */
+ngx_int_t xrootd_vfs_walk(ngx_log_t *log, int rootfd, const char *logical,
+    const xrootd_vfs_walk_opts_t *opts, xrootd_vfs_walk_file_cb cb, void *cookie,
+    xrootd_vfs_walk_target_t *target_out, char *errmsg, size_t errsz);
+
+/* Per-entry metadata callback for xrootd_vfs_copyfile/copytree, invoked after
+ * each file is copied and each directory is created, for protocol-specific extra
+ * metadata (e.g. WebDAV dead properties). src/dst are the export-relative
+ * logical paths; is_dir distinguishes a directory from a file. Return NGX_OK to
+ * continue, anything else to abort the copy. */
+typedef ngx_int_t (*xrootd_vfs_copy_meta_cb)(void *cookie, const char *src,
+    const char *dst, int is_dir);
+
+/* Copy a single confined regular file src→dst under root_canon (impersonation-
+ * aware, thread-safe: no pool allocation, no metric — usable on a thread-pool
+ * worker). Bytes move via copy_file_range with a read/write fallback; when
+ * preserve_xattrs the user.* fattrs are copied; meta_cb (if non-NULL) then runs
+ * for protocol extras. NGX_OK / NGX_ERROR with errno set. */
+ngx_int_t xrootd_vfs_copyfile(ngx_log_t *log, const char *root_canon,
+    const char *src, const char *dst, int preserve_xattrs,
+    xrootd_vfs_copy_meta_cb meta_cb, void *cookie);
+
+/* Recursively copy a confined directory tree src→dst under root_canon: each
+ * subdirectory is mkdir'd on the dst side, each regular file copied via
+ * xrootd_vfs_copyfile; symlinks/specials are skipped (never followed out of the
+ * export). Impersonation-aware, thread-safe. meta_cb runs per copied file AND
+ * per created directory. NGX_OK / NGX_ERROR with errno set. */
+ngx_int_t xrootd_vfs_copytree(ngx_log_t *log, const char *root_canon,
+    const char *src, const char *dst, int preserve_xattrs,
+    xrootd_vfs_copy_meta_cb meta_cb, void *cookie);
+
+/* --- thread-safe confined open/unlink primitives (src/fs/vfs_walk.c) -------
+ * Raw-fd / path primitives (no pool allocation, no metric — safe off the event
+ * loop) for bulk/off-thread consumers (multipart assembly) that cannot use the
+ * pool-allocating, metered handle API but must still go through the VFS rather
+ * than a confined helper directly. Impersonation-aware. */
+/* Confined open beneath root_canon returning a RAW fd (caller closes it). Takes
+ * raw O_* `flags` (incl. O_NOFOLLOW/O_DIRECTORY etc.; O_CLOEXEC auto-added);
+ * `mode` applies with O_CREAT. Impersonation-aware. fd or -1 with errno set. */
+int xrootd_vfs_open_fd(ngx_log_t *log, const char *root_canon,
+    const char *logical, int flags, mode_t mode);
+/* Confined open beneath a persistent O_PATH rootfd, returning a RAW fd (caller
+ * closes it). Takes raw O_* `flags` (so callers needing O_DIRECTORY/O_NOCTTY/
+ * O_CLOEXEC etc. that the XROOTD_VFS_O_* set does not model can pass them
+ * through) — for the session handle-table / bind-reopen opens. Impersonation-
+ * aware, thread-safe (no pool/metric). fd or -1 with errno set. */
+int xrootd_vfs_open_fd_at(int rootfd, const char *logical, int flags,
+    mode_t mode);
+/* Confined remove beneath a persistent O_PATH rootfd: is_dir!=0 rmdir's, else
+ * unlinks. Thread-safe (no pool/metric). 0 / -1 with errno set. */
+int xrootd_vfs_unlink_at(int rootfd, const char *logical, int is_dir);
+/* Confined unlink of a regular file. 0 / -1 with errno set. */
+int xrootd_vfs_unlink_path(ngx_log_t *log, const char *root_canon,
+    const char *logical);
+/* Confined mkdir of a single directory (mode). 0 / -1 with errno set (EEXIST if
+ * it already exists — caller decides whether that is benign). */
+/* Recursively create `logical` (export-relative) + missing parents through a
+ * NON-default backend driver's mkdir slot (EEXIST tolerated). NGX_DECLINED for a
+ * default POSIX export (caller uses its own confined/group-policy mkpath); 0 on
+ * success; -1/errno on failure. */
+int xrootd_vfs_backend_mkpath(const char *root_canon, const char *logical,
+    mode_t mode, ngx_log_t *log);
+int xrootd_vfs_mkdir_path(ngx_log_t *log, const char *root_canon,
+    const char *logical, mode_t mode);
+
+/* --- raw fd full read/write primitives (src/fs/vfs_read.c) -----------------
+ * EINTR-safe, short-I/O-tolerant transfers that route the byte syscall through
+ * the storage-driver seam (a stack POSIX object — no allocation, so these are
+ * safe to call off the event-loop thread). Use these instead of a raw
+ * pread/pwrite loop or a direct xrootd_sd_posix_driver.<op> in module code. */
+/* pread up to len bytes at offset into buf, looping until len is filled or EOF.
+ * *nread (optional) always receives the byte count, even on error. NGX_OK on a
+ * full read or clean EOF; NGX_ERROR (errno set) on a real pread error. */
+ngx_int_t xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
+    off_t offset, size_t *nread);
+/* pwrite exactly len bytes at offset from buf. NGX_OK only when all len bytes
+ * are written; NGX_ERROR otherwise with errno set (a 0-byte pwrite is EIO). */
+ngx_int_t xrootd_vfs_pwrite_full(ngx_fd_t fd, const u_char *buf, size_t len,
+    off_t offset);
 
 /* --- extended attributes (src/fs/vfs_xattr.c) ------------------------------
  * Confined `user.`-namespace xattr ops on ctx->resolved, each metered as
@@ -206,6 +411,21 @@ ngx_int_t xrootd_vfs_setxattr(xrootd_vfs_ctx_t *ctx, const char *name,
     const void *value, size_t len, int flags);
 ngx_int_t xrootd_vfs_removexattr(xrootd_vfs_ctx_t *ctx, const char *name);
 
+/* Open-handle (fd) xattr variants: operate on an fd the VFS already opened
+ * confined (so confinement travels with the descriptor — no path to re-resolve).
+ * `ctx` is optional, used only to attribute the OP_XATTR metric/access-log line
+ * (may be NULL → unobserved). get/list return the byte count (bufsz==0 asks the
+ * required size; -1/ERANGE when a value does not fit); set/remove return
+ * NGX_OK / NGX_ERROR with errno set. */
+ssize_t xrootd_vfs_fgetxattr(const xrootd_vfs_ctx_t *ctx, int fd,
+    const char *name, void *buf, size_t bufsz);
+ssize_t xrootd_vfs_flistxattr(const xrootd_vfs_ctx_t *ctx, int fd, void *buf,
+    size_t bufsz);
+ngx_int_t xrootd_vfs_fsetxattr(const xrootd_vfs_ctx_t *ctx, int fd,
+    const char *name, const void *value, size_t len, int flags);
+ngx_int_t xrootd_vfs_fremovexattr(const xrootd_vfs_ctx_t *ctx, int fd,
+    const char *name);
+
 /* --- single-file copy (src/fs/vfs_copy.c) ---------------------------------
  * Copy the resolved ctx (source) regular file to dst_resolved within the same
  * export root via copy_file_range (read/write fallback). Write-gated; metered
@@ -220,8 +440,18 @@ ngx_int_t xrootd_vfs_copy(xrootd_vfs_ctx_t *ctx, const char *dst_resolved,
  * the final path) or abort (close + unlink). Write-gated at open. */
 xrootd_vfs_staged_t *xrootd_vfs_staged_open(xrootd_vfs_ctx_t *ctx, mode_t mode,
     ngx_uint_t attempts, int *err_out);
-/* The staged temp fd to write to, or NGX_INVALID_FILE for a NULL handle. */
+/* The staged temp fd to write to, or NGX_INVALID_FILE for a NULL handle OR a
+ * driver-backed staged object (which has no kernel fd — write it via
+ * xrootd_vfs_staged_write). */
 ngx_fd_t xrootd_vfs_staged_fd(const xrootd_vfs_staged_t *st);
+/* 1 iff this staged handle is delegated to a non-POSIX storage driver (no fd; the
+ * body must be written through xrootd_vfs_staged_write rather than the fd). */
+ngx_uint_t xrootd_vfs_staged_is_driver(const xrootd_vfs_staged_t *st);
+/* Write `len` bytes at offset `off` into the staged object — the backend-neutral
+ * write primitive: a POSIX staged temp gets a pwrite to its fd; a driver-backed
+ * staged object gets driver->staged_write. NGX_OK / NGX_ERROR with errno set. */
+ngx_int_t xrootd_vfs_staged_write(xrootd_vfs_staged_t *st, const void *buf,
+    size_t len, off_t off);
 /* The staged temp path (borrowed; "" when st is NULL). */
 const char *xrootd_vfs_staged_tmp_path(const xrootd_vfs_staged_t *st);
 /* Atomically publish the temp onto the final path; `excl` uses RENAME_NOREPLACE

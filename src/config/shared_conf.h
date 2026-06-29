@@ -33,6 +33,15 @@ typedef struct {
     ngx_flag_t          enable;             /* on/off toggle for protocol          */
     ngx_str_t           root;               /* filesystem export root path         */
     char                root_canon[PATH_MAX]; /* canonicalized/confined root        */
+    ngx_str_t           storage_backend;    /* SD backend name: "" / "posix" = the
+                                             * default POSIX tree; "pblock" = the
+                                             * block-based backend rooted at root.  */
+    size_t              pblock_block_size;  /* pblock stripe size for new files
+                                             * (bytes); 0 = backend default (64 MiB) */
+    void               *storage_instance;   /* resolved xrootd_sd_instance_t* for a
+                                             * non-POSIX backend, built per worker at
+                                             * init_process. Runtime only — never
+                                             * merged. NULL ⇒ default POSIX path.    */
     ngx_flag_t          allow_write;        /* write permission flag               */
     ngx_flag_t          compress;           /* phase-42: outbound GET compression
                                              * (Accept-Encoding negotiated). Off by
@@ -67,6 +76,10 @@ ngx_http_xrootd_shared_init(ngx_http_xrootd_shared_conf_t *conf)
     conf->thread_pool_name.len  = 0;
     conf->thread_pool_name.data = NULL;
     conf->thread_pool        = NULL;
+    conf->storage_backend.len   = 0;
+    conf->storage_backend.data  = NULL;
+    conf->pblock_block_size  = NGX_CONF_UNSET_SIZE;
+    conf->storage_instance   = NULL;   /* built per worker at init_process */
     conf->rootfd             = -1;   /* opened per worker at init_process */
     /* root_canon zeroed by ngx_pcalloc — no explicit memset needed */
     xrootd_pmark_conf_init(&conf->pmark);
@@ -91,6 +104,9 @@ ngx_http_xrootd_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->root, prev->root, "");
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_str_value(conf->thread_pool_name, prev->thread_pool_name, "");
+    ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
+    ngx_conf_merge_size_value(conf->pblock_block_size, prev->pblock_block_size,
+                              0);
 
     return xrootd_pmark_conf_merge(cf, &prev->pmark, &conf->pmark);
 }

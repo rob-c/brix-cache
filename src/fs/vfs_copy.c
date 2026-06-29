@@ -29,13 +29,14 @@ ngx_int_t
 xrootd_vfs_copy(xrootd_vfs_ctx_t *ctx, const char *dst_resolved,
     const xrootd_vfs_copy_opts_t *opts)
 {
-    xrootd_ns_copy_opts_t ns_opts;
-    xrootd_ns_result_t    res;
-    const char           *src = xrootd_vfs_ctx_path(ctx);
-    uint64_t              start = xrootd_vfs_now_ns();
-    size_t                bytes = 0;
-    struct stat           sb;
-    int                   saved_errno;
+    xrootd_ns_copy_opts_t     ns_opts;
+    xrootd_ns_result_t        res;
+    const char               *src = xrootd_vfs_ctx_path(ctx);
+    uint64_t                  start = xrootd_vfs_now_ns();
+    size_t                    bytes = 0;
+    struct stat               sb;
+    int                       saved_errno;
+    const xrootd_sd_driver_t *drv;
 
     if (xrootd_vfs_require_write(ctx) != NGX_OK) {
         saved_errno = errno;
@@ -50,6 +51,35 @@ xrootd_vfs_copy(xrootd_vfs_ctx_t *ctx, const char *dst_resolved,
         xrootd_vfs_observe_ctx_op(ctx, src, XROOTD_METRIC_OP_COPY, NULL, 0,
                                   NGX_ERROR, saved_errno, start);
         return NGX_ERROR;
+    }
+
+    /* Non-POSIX backend: copy through the driver's server-copy slot. The opts'
+     * overwrite gate is enforced here via a pre-stat (the slot itself replaces). */
+    drv = xrootd_vfs_ctx_driver(ctx);
+    if (drv != NULL) {
+        const char      *s = xrootd_vfs_export_relative(ctx, src);
+        const char      *d = xrootd_vfs_export_relative(ctx, dst_resolved);
+        off_t            copied = 0;
+        ngx_int_t        rc;
+        xrootd_sd_stat_t dst_st;
+
+        if (opts != NULL && !opts->overwrite && drv->stat != NULL
+            && drv->stat(ctx->sd, d, &dst_st) == NGX_OK)
+        {
+            errno = EEXIST;
+            xrootd_vfs_observe_ctx_op(ctx, src, XROOTD_METRIC_OP_COPY, NULL, 0,
+                                      NGX_ERROR, EEXIST, start);
+            return NGX_ERROR;
+        }
+
+        rc = (drv->server_copy != NULL)
+            ? drv->server_copy(ctx->sd, s, d, &copied)
+            : (errno = ENOSYS, NGX_ERROR);
+        saved_errno = (rc == NGX_OK) ? 0 : errno;
+        xrootd_vfs_observe_ctx_op(ctx, src, XROOTD_METRIC_OP_COPY, NULL,
+                                  rc == NGX_OK ? (size_t) copied : 0, rc,
+                                  saved_errno, start);
+        return rc;
     }
 
     ngx_memzero(&ns_opts, sizeof(ns_opts));

@@ -66,6 +66,18 @@ typedef enum {
 } frm_cstype_t;
 
 /*
+ * Per-record transfer kind — makes the queue a multi-kind durable journal, not
+ * just tape recalls. 0 = tape recall (the original FRM use), deliberately the
+ * default so existing on-disk records (whose carved bytes are zero) read back as
+ * tape: this is a backward-compatible carve from reserved[], NOT a format change,
+ * so FRM_VERSION stays 1 and old queue files load unchanged.
+ */
+typedef enum {
+    FRM_XFER_TAPE = 0,   /* tape/MSS recall (data in)                          */
+    FRM_XFER_WT   = 1     /* write-through origin flush (durable async, data out) */
+} frm_xfer_kind_t;
+
+/*
  * File header — occupies the first FRM_REC_SIZE bytes (slot 0). The header write
  * is the COMMIT POINT: a record body is pwritten+fdatasync'd first, then the
  * header (first/last/free/seq) is pwritten+fsync'd to publish it. A crash
@@ -121,8 +133,15 @@ typedef struct {
     char      notify[FRM_NOTIFY_LEN];      /* notify target, "" = none        */
     char      selector[FRM_SELECTOR_LEN];
     char      cs_value[FRM_CSVAL_LEN];
+    /* multi-kind journal fields (carved from reserved; zero in legacy records,
+     * which therefore read as FRM_XFER_TAPE — see frm_xfer_kind_t). The whole
+     * record is CRC32c-covered, and these bytes were already zero-and-covered
+     * before, so existing files validate unchanged. */
+    uint8_t   xfer_kind;                   /* frm_xfer_kind_t                 */
+    uint8_t   xfer_pad;                    /* reserved, keep 0                */
+    uint16_t  xfer_mode_bits;              /* WT: origin object mode bits     */
     /* pad to FRM_REC_SIZE */
-    uint8_t   reserved[FRM_REC_SIZE - 4300];
+    uint8_t   reserved[FRM_REC_SIZE - 4304];
 } frm_record_t;
 
 /*

@@ -15,6 +15,7 @@
  */
 
 #include "integrity_info.h"
+#include "../fs/vfs.h"   /* fd-based xattr via the VFS seam */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,7 +24,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
 #include <openssl/evp.h>
 
 /* Format: "<hexval> <mtime_sec> <mtime_nsec> <size>" — 64 hex + " " + 3×20 + 3 seps + NUL */
@@ -150,7 +150,7 @@ integrity_xattr_read(int fd, const char *algo,
         return 0;
     }
 
-    n = fgetxattr(fd, key, val, sizeof(val) - 1);
+    n = xrootd_vfs_fgetxattr(NULL, fd, key, val, sizeof(val) - 1);
     if (n <= 0) {
         return 0;
     }
@@ -246,7 +246,7 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
         if (rn == 0) {
             return EINVAL;
         }
-        if (fsetxattr(fd, key, rec, rn, 0) != 0) {
+        if (xrootd_vfs_fsetxattr(NULL, fd, key, rec, rn, 0) != NGX_OK) {
             return errno;
         }
         return 0;
@@ -258,7 +258,7 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
     if (n < 0 || (size_t) n >= sizeof(val)) {
         return EINVAL;
     }
-    if (fsetxattr(fd, key, val, (size_t) n, 0) != 0) {
+    if (xrootd_vfs_fsetxattr(NULL, fd, key, val, (size_t) n, 0) != NGX_OK) {
         return errno;
     }
     return 0;
@@ -403,22 +403,31 @@ static const xrootd_integrity_opts_t s_default_opts = {
 
 ngx_int_t
 xrootd_integrity_get_fd(ngx_log_t *log, int fd,
-    const char *path, const char *alg_name,
+    xrootd_sd_obj_t *obj, const char *path, const char *alg_name,
     const xrootd_integrity_opts_t *opts,
     xrootd_integrity_info_t *out)
 {
+    int driver_backed = (obj != NULL && obj->driver != NULL);
+
     char                          hex[EVP_MAX_MD_SIZE * 2 + 1];
     const xrootd_integrity_opts_t *o = (opts != NULL) ? opts : &s_default_opts;
     ngx_int_t                     parse_rc;
 
     ngx_memzero(out, sizeof(*out));
 
-    /* Reject non-regular files early when required. */
+    /* Reject non-regular files early when required. A driver-backed object knows
+     * its own type from the open snapshot (its bare fd is only block 0). */
     if (o->require_regular_file) {
-        struct stat st;
+        if (driver_backed) {
+            if (!obj->snap.is_reg) {
+                return NGX_DECLINED;
+            }
+        } else {
+            struct stat st;
 
-        if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
-            return NGX_DECLINED;
+            if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+                return NGX_DECLINED;
+            }
         }
     }
 
@@ -447,9 +456,16 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
         return NGX_DECLINED;
     }
 
-    /* Compute the checksum. */
-    if (xrootd_checksum_hex_fd(out->alg, fd, path, log,
-                                hex, sizeof(hex)) != NGX_OK)
+    /* Compute the checksum — through the driver for a backend-bound object (reads
+     * every block), else the default POSIX-fd kernel. */
+    if (driver_backed) {
+        if (xrootd_checksum_hex_obj(out->alg, obj, path, log,
+                                    hex, sizeof(hex)) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    } else if (xrootd_checksum_hex_fd(out->alg, fd, path, log,
+                                      hex, sizeof(hex)) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -495,22 +511,25 @@ xrootd_integrity_invalidate_fd(ngx_log_t *log, int fd)
 
     for (i = 0; s_algorithms[i] != NULL; i++) {
         if (integrity_xattr_key(s_algorithms[i], key, sizeof(key)) != NULL) {
-            (void) fremovexattr(fd, key);
+            (void) xrootd_vfs_fremovexattr(NULL, fd, key);
         }
     }
 }
 
 void
-xrootd_integrity_invalidate_path(ngx_log_t *log, const char *path)
+xrootd_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
+    const char *path)
 {
-    char key[64];
-    int  i;
+    xrootd_vfs_ctx_t vctx;
+    char             key[64];
+    int              i;
 
-    (void) log;
+    xrootd_vfs_ctx_init(&vctx, NULL, log, XROOTD_PROTO_STREAM, root_canon,
+        NULL, 1 /* allow_write */, 0 /* is_tls */, NULL, path);
 
     for (i = 0; s_algorithms[i] != NULL; i++) {
         if (integrity_xattr_key(s_algorithms[i], key, sizeof(key)) != NULL) {
-            (void) removexattr(path, key);
+            (void) xrootd_vfs_removexattr(&vctx, key);
         }
     }
 }

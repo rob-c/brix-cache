@@ -1,6 +1,7 @@
 #include "../ngx_xrootd_module.h"
 #include "stat.h"
 #include "../cms/cns.h"            /* §6 CNS inventory stat answer */
+#include "../fs/vfs.h"            /* path stat via the VFS seam */
 #include "../path/op_path.h"
 #include "../manager/registry.h"
 #include "../manager/pending.h"
@@ -182,6 +183,29 @@ xrootd_stat_origin_forward(ngx_connection_t *c,
     return 0;
 }
 
+/*
+ * xrootd_vfs_to_struct_stat — project a VFS stat result back into the struct
+ * stat fields the kXR_stat response builder reads: the unique id (st_ino<<32 |
+ * st_dev), st_size, the permission triplet (st_mode/st_uid/st_gid →
+ * readable/writable flags), st_mtime, and st_blocks (statvfs-style body). The
+ * VFS is the only thing that touched the namespace; this is a pure field copy.
+ */
+void
+xrootd_vfs_to_struct_stat(const xrootd_vfs_stat_t *v, struct stat *st)
+{
+    ngx_memzero(st, sizeof(*st));
+    st->st_mode   = (mode_t) v->mode;
+    st->st_size   = v->size;
+    st->st_mtime  = v->mtime;
+    st->st_ctime  = v->ctime;
+    st->st_ino    = v->ino;
+    st->st_dev    = v->dev;
+    st->st_uid    = v->uid;
+    st->st_gid    = v->gid;
+    st->st_blocks = v->blocks;
+    st->st_nlink  = 1;
+}
+
 /* Return kXR_cachersp if reqpath (client's clean path) exists in cache_root. */
 int
 xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf, const char *reqpath)
@@ -200,7 +224,10 @@ xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf, const char *req
         return 0;
     }
 
-    return (stat(cache_path, &cst) == 0 && S_ISREG(cst.st_mode))
+    /* vfs-seam-allow: separate storage domain. cache_path is under the
+     * server-managed cache root (svc-owned, distinct from the export root); the
+     * cachersp existence probe runs as the worker, not via the export VFS. */
+    return (stat(cache_path, &cst) == 0 && S_ISREG(cst.st_mode))  /* vfs-seam-allow: separate cache-root domain */
            ? kXR_cachersp : 0;
 }
 
@@ -332,10 +359,22 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
         {
             /* kXR_statNoFollow (vendor): lstat the final component so a symlink
              * reports as itself (kXR_other + target-length size) for FUSE getattr;
-             * default follows symlinks exactly as before. */
-            int src = (req.options & kXR_statNoFollow)
-                      ? xrootd_lstat_beneath(conf->rootfd, reqpath, &st)
-                      : xrootd_stat_beneath(conf->rootfd, reqpath, &st);
+             * default follows symlinks exactly as before. Both go through the VFS
+             * seam (impersonation-aware, RESOLVE_IN_ROOT-confined); the result is
+             * projected back into struct st for the response/fallback/frm code. */
+            xrootd_vfs_ctx_t  vctx;
+            xrootd_vfs_stat_t vst;
+            int               src;
+
+            xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+                conf->common.root_canon, NULL, conf->common.allow_write,
+                0 /* is_tls */, NULL, full_path);
+            src = (((req.options & kXR_statNoFollow)
+                    ? xrootd_vfs_stat(&vctx, &vst)
+                    : xrootd_vfs_statf(&vctx, &vst)) == NGX_OK) ? 0 : -1;
+            if (src == 0) {
+                xrootd_vfs_to_struct_stat(&vst, &st);
+            }
 
             /* Follow fallback for an in-export symlink with a host-ABSOLUTE
              * target: RESOLVE_IN_ROOT chroots the absolute target and lands on
@@ -351,10 +390,23 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                 size_t      rl = ngx_strlen(conf->common.root_canon);
                 if (realpath(full_path, real) != NULL
                     && ngx_strncmp(real, conf->common.root_canon, rl) == 0
-                    && (real[rl] == '/' || real[rl] == '\0')
-                    && stat(real, &st) == 0)
+                    && (real[rl] == '/' || real[rl] == '\0'))
                 {
-                    src = 0;
+                    /* The canonical target is confirmed within the export root;
+                     * read its metadata through the VFS (the symlink chain is
+                     * already resolved, so a non-follow probe is exact). */
+                    xrootd_vfs_ctx_t  rvctx;
+                    xrootd_vfs_stat_t rvst;
+
+                    xrootd_vfs_ctx_init(&rvctx, c->pool, c->log,
+                        XROOTD_PROTO_STREAM, conf->common.root_canon, NULL,
+                        conf->common.allow_write, 0 /* is_tls */, NULL, real);
+                    if (xrootd_vfs_probe(&rvctx, 0 /* follow */, &rvst)
+                        == NGX_OK)
+                    {
+                        xrootd_vfs_to_struct_stat(&rvst, &st);
+                        src = 0;
+                    }
                 }
             }
             if (src != 0) {
@@ -430,6 +482,32 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             st.st_size = (off_t) ctx->files[idx].cached_size;
             st.st_nlink = 1;
             st.st_mtime = ngx_time();
+        } else if (ctx->files[idx].sd_obj.driver != NULL
+                   && ctx->files[idx].sd_obj.driver
+                          != xrootd_sd_default_driver()) {
+            /*
+             * Driver-backed handle (e.g. pblock): the bare fd is only block 0,
+             * so a plain fstat would report the block size, not the logical
+             * object size.  Ask the storage driver for the object's
+             * (catalog-backed) metadata via its worker-safe fstat slot.
+             */
+            xrootd_sd_stat_t sdst;
+
+            if (ctx->files[idx].sd_obj.driver->fstat == NULL
+                || ctx->files[idx].sd_obj.driver->fstat(
+                       &ctx->files[idx].sd_obj, &sdst) != NGX_OK)
+            {
+                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", full_path,
+                                  "-", kXR_IOError, strerror(errno));
+            }
+            ngx_memzero(&st, sizeof(st));
+            st.st_size  = sdst.size;
+            st.st_mtime = sdst.mtime;
+            st.st_ctime = sdst.ctime;
+            st.st_ino   = sdst.ino;
+            st.st_nlink = 1;
+            st.st_mode  = sdst.mode ? (mode_t) sdst.mode
+                        : (sdst.is_dir ? (S_IFDIR | 0755) : (S_IFREG | 0644));
         } else if (fstat(ctx->files[idx].fd, &st) != 0) {
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", full_path, "-",
                               kXR_IOError, strerror(errno));

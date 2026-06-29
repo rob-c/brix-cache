@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
+#include <time.h>
 #include <unistd.h>
 
 /* pure helpers */
@@ -97,6 +98,10 @@ cinfo_pio(int fd, void *buf, size_t len, off_t off, unsigned write_op)
 {
     u_char *p = buf;
 
+    /* The .cinfo sidecar is cache METADATA (the block-present bitmap), not user
+     * file data, so the data-plane "byte I/O only via the SD backend" invariant
+     * does not apply — and keeping raw pread/pwrite here preserves cinfo.c's
+     * standalone (nginx-free) unit test (tests/c/run_cinfo_tests.sh). */
     while (len > 0) {
         ssize_t n = write_op ? pwrite(fd, p, len, off)
                              : pread(fd, p, len, off);
@@ -136,6 +141,100 @@ cinfo_header_ok(const xrootd_cache_cinfo_t *hdr)
     return NGX_OK;
 }
 
+/*
+ * Frozen v2 on-disk header (pre-write-back layout). A v2 sidecar predates the
+ * dirty/write-back fields; reading it lets a populated cache survive the upgrade
+ * to v3 — the present bitmap is preserved and the dirty state starts clean. The
+ * field order is byte-identical to the v2 xrootd_cache_cinfo_t.
+ */
+#define XROOTD_CACHE_CINFO_V2_VERSION 2
+typedef struct {
+    uint32_t magic;
+    uint16_t version;
+    uint16_t flags;
+    uint32_t block_size;
+    uint32_t reserved;
+    uint64_t size;
+    uint64_t mtime;
+    uint64_t nblocks;
+    uint64_t access_count;
+    uint64_t bytes_served;
+    uint64_t last_access;
+    uint8_t  etag_len;
+    char     etag[XROOTD_CACHE_META_ETAG_MAX];
+    uint8_t  cks_alg_len;
+    char     cks_alg[16];
+    uint8_t  cks_len;
+    char     cks_hex[129];
+} xrootd_cache_cinfo_v2_t;
+#define XROOTD_CACHE_CINFO_V2_HDR_SIZE (sizeof(xrootd_cache_cinfo_v2_t))
+
+/* Promote a v2 header into a zero-initialised v3 header (the dirty/write-back
+ * fields stay 0 ⇒ the upgraded record reads as clean). */
+static void
+cinfo_v2_to_v3(const xrootd_cache_cinfo_v2_t *v2, xrootd_cache_cinfo_t *out)
+{
+    ngx_memzero(out, sizeof(*out));
+    out->magic        = v2->magic;
+    out->version      = XROOTD_CACHE_CINFO_VERSION;
+    out->flags        = v2->flags;
+    out->block_size   = v2->block_size;
+    out->size         = v2->size;
+    out->mtime        = v2->mtime;
+    out->nblocks      = v2->nblocks;
+    out->access_count = v2->access_count;
+    out->bytes_served = v2->bytes_served;
+    out->last_access  = v2->last_access;
+    out->etag_len     = v2->etag_len;
+    ngx_memcpy(out->etag, v2->etag, sizeof(out->etag));
+    out->cks_alg_len  = v2->cks_alg_len;
+    ngx_memcpy(out->cks_alg, v2->cks_alg, sizeof(out->cks_alg));
+    out->cks_len      = v2->cks_len;
+    ngx_memcpy(out->cks_hex, v2->cks_hex, sizeof(out->cks_hex));
+}
+
+/* Read a legacy v2 sidecar (header@v2 size + bitmap@v2 offset) into the v3 hdr +
+ * a freshly malloc'd bitmap. fd is positioned anywhere (pread is used). Returns
+ * NGX_OK with the bitmap out-params set (NULL/0 for a 0-block file), or a
+ * NGX_DECLINED/NGX_ERROR the caller propagates. */
+static ngx_int_t
+cinfo_load_v2(int fd, xrootd_cache_cinfo_t *hdr, uint8_t **bitmap,
+    size_t *bitmap_len)
+{
+    xrootd_cache_cinfo_v2_t v2;
+    size_t                  blen;
+    uint8_t                *bits;
+    ngx_int_t               rc;
+
+    if (cinfo_pio(fd, &v2, XROOTD_CACHE_CINFO_V2_HDR_SIZE, 0, 0) != NGX_OK) {
+        return NGX_DECLINED;
+    }
+    if (v2.block_size == 0
+        || v2.nblocks != xrootd_cache_cinfo_nblocks(v2.size, v2.block_size))
+    {
+        return NGX_DECLINED;                 /* garbage v2 → nothing recorded */
+    }
+    cinfo_v2_to_v3(&v2, hdr);
+
+    blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
+    if (blen == 0) {
+        return NGX_OK;                       /* 0-block file: header only */
+    }
+    bits = malloc(blen);
+    if (bits == NULL) {
+        errno = ENOMEM;
+        return NGX_ERROR;
+    }
+    rc = cinfo_pio(fd, bits, blen, (off_t) XROOTD_CACHE_CINFO_V2_HDR_SIZE, 0);
+    if (rc != NGX_OK) {
+        free(bits);
+        return (rc == NGX_DECLINED) ? NGX_DECLINED : NGX_ERROR;
+    }
+    *bitmap = bits;
+    *bitmap_len = blen;
+    return NGX_OK;
+}
+
 /* load / store */
 ngx_int_t
 xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
@@ -162,6 +261,28 @@ xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
     fd = open(path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) {
         return (errno == ENOENT) ? NGX_DECLINED : NGX_ERROR;
+    }
+
+    /* Peek magic+version first: a v2 sidecar is SHORTER than the v3 header, so a
+     * full v3-sized read would short-read before we could detect the version.
+     * magic (u32 @0) + version (u16 @4) sit at the same offset in v2 and v3. */
+    {
+        unsigned char peek[8];
+
+        if (cinfo_pio(fd, peek, sizeof(peek), 0, 0) == NGX_OK) {
+            uint32_t pmagic;
+            uint16_t pver;
+
+            ngx_memcpy(&pmagic, peek, sizeof(pmagic));
+            ngx_memcpy(&pver, peek + 4, sizeof(pver));
+            if (pmagic == XROOTD_CACHE_CINFO_MAGIC
+                && pver == XROOTD_CACHE_CINFO_V2_VERSION)
+            {
+                rc = cinfo_load_v2(fd, hdr, bitmap, bitmap_len);
+                close(fd);
+                return rc;
+            }
+        }
     }
 
     rc = cinfo_pio(fd, hdr, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0);
@@ -393,4 +514,251 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
         rc = NGX_ERROR;
     }
     return rc;
+}
+
+/* ---- write-back (dirty) record-keeping (v3) ---------------------------- */
+
+/*
+ * Under an flock'd fd, load the current header + present bitmap describing the
+ * SAME origin file (size/mtime/block_size); an absent/garbage/stale record
+ * starts fresh (cinfo_init zeroes the dirty fields too). *bits is malloc'd
+ * (caller frees); *blen_out is its length. Returns NGX_OK / NGX_ERROR.
+ */
+static ngx_int_t
+cinfo_rmw_load(int fd, uint64_t size, uint32_t block_size, uint64_t mtime,
+    xrootd_cache_cinfo_t *hdr, uint8_t **bits, size_t *blen_out)
+{
+    uint64_t nblocks = xrootd_cache_cinfo_nblocks(size, block_size);
+    size_t   blen = xrootd_cache_cinfo_bitmap_len(nblocks);
+    uint8_t *b = malloc(blen ? blen : 1);
+    xrootd_cache_cinfo_t cur;
+    ngx_int_t lrc;
+    int reuse;
+
+    if (b == NULL) {
+        errno = ENOMEM;
+        return NGX_ERROR;
+    }
+    ngx_memzero(b, blen ? blen : 1);
+
+    lrc = cinfo_pio(fd, &cur, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0);
+    reuse = (lrc == NGX_OK
+             && cinfo_header_ok(&cur) == NGX_OK
+             && cur.size == size
+             && cur.block_size == block_size
+             && cur.mtime == mtime);
+    if (reuse) {
+        *hdr = cur;
+        if (blen > 0
+            && cinfo_pio(fd, b, blen, (off_t) XROOTD_CACHE_CINFO_HDR_SIZE, 0)
+               != NGX_OK)
+        {
+            ngx_memzero(b, blen);          /* unreadable tail → start fresh bits */
+        }
+    } else {
+        cinfo_init(hdr, size, block_size, mtime);
+    }
+    *bits = b;
+    *blen_out = blen;
+    return NGX_OK;
+}
+
+ngx_int_t
+xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
+    uint32_t block_size, uint64_t mtime, uint64_t off, uint64_t len,
+    ngx_log_t *log)
+{
+    char                 path[PATH_MAX];
+    xrootd_cache_cinfo_t hdr;
+    uint8_t             *bits = NULL;
+    size_t               blen;
+    int                  fd;
+    ngx_int_t            rc;
+
+    (void) log;
+
+    if (cache_path == NULL || block_size == 0 || len == 0) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    fd = open(path, O_RDWR | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW, 0644);
+    if (fd < 0) {
+        return NGX_ERROR;
+    }
+    while (flock(fd, LOCK_EX) != 0) {
+        if (errno != EINTR) {
+            close(fd);
+            return NGX_ERROR;
+        }
+    }
+
+    if (cinfo_rmw_load(fd, size, block_size, mtime, &hdr, &bits, &blen)
+        != NGX_OK)
+    {
+        flock(fd, LOCK_UN);
+        close(fd);
+        return NGX_ERROR;
+    }
+
+    if (!(hdr.flags & XROOTD_CINFO_F_DIRTY)) {     /* clean → dirty transition */
+        hdr.flags |= XROOTD_CINFO_F_DIRTY;
+        hdr.dirty_lo = off;
+        hdr.dirty_hi = off + len;
+        hdr.dirty_since = (uint64_t) time(NULL);
+    } else {                                       /* widen; keep dirty_since */
+        if (off < hdr.dirty_lo) {
+            hdr.dirty_lo = off;
+        }
+        if (off + len > hdr.dirty_hi) {
+            hdr.dirty_hi = off + len;
+        }
+    }
+
+    rc = cinfo_write_fd(fd, &hdr, bits, blen);
+
+    free(bits);
+    flock(fd, LOCK_UN);
+    if (close(fd) != 0 && rc == NGX_OK) {
+        rc = NGX_ERROR;
+    }
+    return rc;
+}
+
+ngx_int_t
+xrootd_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
+    ngx_log_t *log)
+{
+    char                 path[PATH_MAX];
+    xrootd_cache_cinfo_t hdr;
+    uint8_t             *bits = NULL;
+    size_t               blen;
+    int                  fd;
+    ngx_int_t            rc;
+
+    (void) log;
+
+    if (cache_path == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    fd = open(path, O_RDWR | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW, 0644);
+    if (fd < 0) {
+        return (errno == ENOENT) ? NGX_DECLINED : NGX_ERROR;
+    }
+    while (flock(fd, LOCK_EX) != 0) {
+        if (errno != EINTR) {
+            close(fd);
+            return NGX_ERROR;
+        }
+    }
+
+    {
+        xrootd_cache_cinfo_t cur;
+
+        if (cinfo_pio(fd, &cur, XROOTD_CACHE_CINFO_HDR_SIZE, 0, 0) != NGX_OK
+            || cinfo_header_ok(&cur) != NGX_OK)
+        {
+            flock(fd, LOCK_UN);
+            close(fd);
+            return NGX_DECLINED;               /* no usable record → nothing to do */
+        }
+        blen = xrootd_cache_cinfo_bitmap_len(cur.nblocks);
+        bits = malloc(blen ? blen : 1);
+        if (bits == NULL) {
+            flock(fd, LOCK_UN);
+            close(fd);
+            errno = ENOMEM;
+            return NGX_ERROR;
+        }
+        ngx_memzero(bits, blen ? blen : 1);
+        if (blen > 0) {
+            (void) cinfo_pio(fd, bits, blen,
+                             (off_t) XROOTD_CACHE_CINFO_HDR_SIZE, 0);
+        }
+        hdr = cur;
+    }
+
+    hdr.flags &= (uint16_t) ~XROOTD_CINFO_F_DIRTY;
+    hdr.dirty_lo = 0;
+    hdr.dirty_hi = 0;
+    hdr.dirty_since = 0;
+    hdr.flush_gen += 1;
+    hdr.last_flush = (uint64_t) time(NULL);
+    hdr.bytes_flushed += bytes;
+
+    rc = cinfo_write_fd(fd, &hdr, bits, blen);
+
+    free(bits);
+    flock(fd, LOCK_UN);
+    if (close(fd) != 0 && rc == NGX_OK) {
+        rc = NGX_ERROR;
+    }
+    return rc;
+}
+
+ngx_int_t
+xrootd_cache_cinfo_dirty_extent(const char *cache_path, uint64_t *lo,
+    uint64_t *hi, uint64_t *dirty_since)
+{
+    xrootd_cache_cinfo_t h;
+    uint8_t             *bm = NULL;
+    size_t               bl = 0;
+    ngx_int_t            rc;
+
+    rc = xrootd_cache_cinfo_load(cache_path, &h, &bm, &bl);
+    if (rc != NGX_OK) {
+        return rc;                          /* DECLINED (no record) or ERROR */
+    }
+    free(bm);
+
+    if (!(h.flags & XROOTD_CINFO_F_DIRTY) || h.dirty_lo >= h.dirty_hi) {
+        return NGX_DECLINED;                /* clean */
+    }
+    if (lo != NULL) {
+        *lo = h.dirty_lo;
+    }
+    if (hi != NULL) {
+        *hi = h.dirty_hi;
+    }
+    if (dirty_since != NULL) {
+        *dirty_since = h.dirty_since;
+    }
+    return NGX_OK;
+}
+
+ngx_int_t
+xrootd_cache_cinfo_state(const char *cache_path, xrootd_cache_cinfo_state_t *out)
+{
+    xrootd_cache_cinfo_t h;
+    uint8_t             *bm = NULL;
+    size_t               bl = 0;
+    ngx_int_t            rc;
+
+    if (out == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    rc = xrootd_cache_cinfo_load(cache_path, &h, &bm, &bl);
+    if (rc != NGX_OK) {
+        return rc;                          /* DECLINED (no record) or ERROR */
+    }
+    free(bm);
+
+    out->is_dirty    = ((h.flags & XROOTD_CINFO_F_DIRTY)
+                        && h.dirty_lo < h.dirty_hi) ? 1 : 0;
+    out->dirty_lo    = h.dirty_lo;
+    out->dirty_hi    = h.dirty_hi;
+    out->dirty_since = h.dirty_since;
+    out->flush_gen   = h.flush_gen;
+    out->last_flush  = h.last_flush;
+    return NGX_OK;
 }

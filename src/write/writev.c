@@ -129,6 +129,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 				int64_t  off  = (int64_t) be64toh((uint64_t) wl[i].offset);
 
 				seg_descs[i].fd         = ctx->files[hidx].fd;
+				seg_descs[i].obj        = ctx->files[hidx].sd_obj; /* Layer 3 */
 				seg_descs[i].handle_idx = hidx;
 				seg_descs[i].offset     = (off_t) off;
 				seg_descs[i].data       = dp;   /* points into payload_buf */
@@ -223,6 +224,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 			xrootd_vfs_job_write_init(&job, ctx->files[idx].fd,
 									  (off_t) offset, data_ptr, (size_t) wlen);
+			xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
 			xrootd_vfs_io_execute(&job);
 			nw = job.nio;
 			if (job.io_errno != 0) {
@@ -269,6 +271,7 @@ xrootd_handle_writev(xrootd_ctx_t *ctx, ngx_connection_t *c)
 				xrootd_vfs_job_t job;
 
 				xrootd_vfs_job_sync_init(&job, ctx->files[idx].fd);
+				xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
 				xrootd_vfs_io_execute(&job);
 			}
 		}
