@@ -208,7 +208,9 @@ class TestChkpoint:
         assert "xrootd_copy_range" in src
         assert "xrootd_staged_open" in src
         assert "xrootd_staged_commit" in src
-        assert "xrootd_unlink_confined_canon" in src
+        # Phase 62: confined unlink routes through the VFS seam
+        # (xrootd_vfs_unlink_path) rather than calling the path helper directly.
+        assert "xrootd_vfs_unlink_path" in src
         assert "O_DIRECTORY" in src
         assert "O_NOFOLLOW" in src
         assert "fstatat" in src

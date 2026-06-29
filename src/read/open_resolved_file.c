@@ -1,4 +1,8 @@
 #include "open.h"
+#include "../fs/vfs.h"   /* VFS confined open/probe seam */
+#include "../fs/vfs_backend_registry.h"  /* per-export storage-driver resolution */
+#include "../fs/vfs_internal.h"          /* xrootd_vfs_export_relative_root key form */
+#include "../fs/backend/sd.h"            /* Layer 3: driver-backed export open */
 #include "ngx_xrootd_module.h"
 #include "../fs/backend/csi_tagstore.h"
 #include "../ratelimit/throttle_compat.h"  /* phase-59 W3a: open-files cap */
@@ -7,6 +11,7 @@
 #include "../write/wrts_journal.h"
 #include "../compat/tmp_path.h"
 #include "cache/writethrough_metrics.h"
+#include "cache/cache_storage.h"   /* driver-backed read-cache serve + key helper */
 #include "../manager/registry.h"
 #include "../manager/pending.h"
 #include "../session/registry.h"
@@ -16,6 +21,108 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>   /* open(2) flags + fcntl() to clear O_NONBLOCK post-open */
+
+/* Confined existence/type probe of an absolute path beneath `root` via the VFS
+ * (no metric, no pool). Returns 1 with *vst filled when the path exists, else 0.
+ * `nofollow` selects lstat vs stat semantics. Used for the kXR_open pre-flight
+ * checks (directory reject, exclusive-create, resume-partial existence), each of
+ * which has its own confinement root — the export root for the final path, the
+ * upload stage dir for an external resume partial. */
+static int
+xrootd_open_probe(ngx_log_t *log, const char *root, const char *abs,
+    int nofollow, xrootd_vfs_stat_t *vst)
+{
+    xrootd_vfs_ctx_t vctx;
+
+    xrootd_vfs_ctx_init(&vctx, NULL, log, XROOTD_PROTO_STREAM, root, NULL,
+        1 /* allow_write */, 0 /* is_tls */, NULL, abs);
+    return xrootd_vfs_probe(&vctx, nofollow, vst) == NGX_OK;
+}
+
+/* The export-root-relative ("logical") form of an absolute path confined under
+ * `root`: strips the root prefix + leading '/'. Returns the suffix, or the path
+ * unchanged when it is not under root (then the VFS open/probe will reject it).
+ * Centralises the rel-strip the kXR_open path repeats for the export-root open
+ * (the cache/stage domains open as the worker and need no rel form). */
+static const char *
+xrootd_open_logical(const char *abs, const char *root)
+{
+    size_t root_len = (root != NULL) ? strlen(root) : 0;
+
+    if (root_len > 0
+        && ngx_strncmp((u_char *) abs, (u_char *) root, root_len) == 0
+        && abs[root_len] == '/')
+    {
+        return abs + root_len + 1;
+    }
+    return abs;
+}
+
+/* Map the POSIX open(2) flags the kXR_open path computed back to the backend-
+ * neutral XROOTD_SD_O_* intent the storage driver understands. The driver
+ * re-derives its own native flags from these (the POSIX driver re-expands to
+ * O_*), so a non-POSIX backend never sees Linux-specific bits. */
+static int
+xrootd_open_oflags_to_sd(int oflags, int is_readable, int is_write)
+{
+    int sd = 0;
+
+    if (is_readable)        { sd |= XROOTD_SD_O_READ;   }
+    if (is_write)           { sd |= XROOTD_SD_O_WRITE;  }
+    if (oflags & O_CREAT)   { sd |= XROOTD_SD_O_CREATE; }
+    if (oflags & O_EXCL)    { sd |= XROOTD_SD_O_EXCL;   }
+    if (oflags & O_TRUNC)   { sd |= XROOTD_SD_O_TRUNC;  }
+    if (oflags & O_APPEND)  { sd |= XROOTD_SD_O_APPEND; }
+    return sd;
+}
+
+/* Driver-backed kXR_open (Layer 3): open `logical` through the export's storage
+ * driver into the handle's sd_obj, then synthesize a struct stat from the
+ * driver's captured open snapshot so the rest of the open path (bookkeeping,
+ * size reporting) is backend-agnostic. The handle's bare `fd` becomes the
+ * driver's representative descriptor (a block-0 fd for CAP_FD backends, or
+ * NGX_INVALID_FILE for a pure object store) and all subsequent byte I/O routes
+ * through fh->sd_obj.driver. Writes *out_fd and *st on success and returns
+ * NGX_OK; on failure sets errno and returns NGX_ERROR (the caller maps errno to
+ * the kXR error exactly as for a POSIX open). */
+static ngx_int_t
+xrootd_open_resolved_via_driver(xrootd_sd_instance_t *sd, const char *logical,
+    int oflags, int is_readable, int is_write, mode_t create_mode,
+    xrootd_file_t *fh, int *out_fd, struct stat *st)
+{
+    int              sd_flags = xrootd_open_oflags_to_sd(oflags, is_readable,
+                                                         is_write);
+    int              oerr = 0;
+    xrootd_sd_obj_t *obj;
+
+    obj = sd->driver->open(sd, logical, sd_flags, create_mode, &oerr);
+    if (obj == NULL) {
+        errno = (oerr != 0) ? oerr : EIO;
+        return NGX_ERROR;
+    }
+
+    /* Adopt the object by value into the handle. A driver that malloc'd the obj
+     * shell (heap_shell) hands ownership of the COPY to us; free the now-
+     * redundant shell. The embedded copy is not itself a heap shell. */
+    fh->sd_obj = *obj;
+    if (obj->heap_shell) {
+        free(obj);
+    }
+    fh->sd_obj.heap_shell = 0;
+
+    ngx_memzero(st, sizeof(*st));
+    st->st_size  = fh->sd_obj.snap.size;
+    st->st_mtime = fh->sd_obj.snap.mtime;
+    st->st_ctime = fh->sd_obj.snap.ctime;
+    st->st_ino   = fh->sd_obj.snap.ino;
+    st->st_mode  = (fh->sd_obj.snap.mode != 0)
+                 ? fh->sd_obj.snap.mode
+                 : (fh->sd_obj.snap.is_dir ? (S_IFDIR | 0755)
+                                           : (S_IFREG | 0644));
+
+    *out_fd = fh->sd_obj.fd;   /* block-0 fd, or NGX_INVALID_FILE (-1) */
+    return NGX_OK;
+}
 
 /*
  *
@@ -89,11 +196,50 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * directory's name, create it, and wrongly report success — diverging from
 	 * stock. The read side is rejected symmetrically just below. */
 	if (is_write) {
-		struct stat dst;
-		if (stat(resolved, &dst) == 0 && S_ISDIR(dst.st_mode)) {
+		xrootd_vfs_stat_t dst;
+		/* A final path that is itself a symlink must be rejected for write: we
+		 * never write THROUGH an in-root link. The direct-open mapping enforces
+		 * this with O_NOFOLLOW on the final component (ELOOP), but the staging
+		 * path opens a randomly-named temp instead of the final and would commit
+		 * over the link on rename — so guard it here. lstat (no-follow) reports
+		 * the link as itself; resolution is already confined to the export, so
+		 * this catches an in-export link with EITHER an in-root or outward target
+		 * without following it. */
+		if (xrootd_open_probe(c->log, conf->common.root_canon, resolved, 1,
+		                      &dst) && S_ISLNK((mode_t) dst.mode)) {
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_NotAuthorized,
+			                  "refusing to write through a symlink");
+		}
+		if (xrootd_open_probe(c->log, conf->common.root_canon, resolved, 0,
+		                      &dst) && dst.is_directory) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_isDirectory,
 			                  "is a directory");
+		}
+	}
+
+	/* Phase C: two-tier write-back-staging backpressure. When write-through
+	 * staging is configured with watermarks, shed new write-opens while the
+	 * staging filesystem is full — delay in the soft band (kXR_wait, the client
+	 * retries), reject at the hard cap (kXR_Overloaded). Runs before any handle or
+	 * staging-temp allocation, so a shed write consumes nothing. Reads never reach
+	 * here. */
+	if (is_write && conf->wt_enable) {
+		switch (xrootd_wt_stage_admit(conf)) {
+		case XROOTD_WT_ADMIT_WAIT:
+			xrootd_metric_wt_stage_throttled(0 /* wait */);
+			xrootd_log_access(ctx, c, "OPEN", resolved, "wr-staging-wait",
+			                  0, 0, "write-back staging busy; retry", 0);
+			return xrootd_send_wait(ctx, c, XROOTD_WT_STAGE_WAIT_SECS);
+		case XROOTD_WT_ADMIT_REJECT:
+			xrootd_metric_wt_stage_throttled(1 /* reject */);
+			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN", resolved,
+			                  "wr", kXR_Overloaded,
+			                  "write-back staging area full");
+		case XROOTD_WT_ADMIT_ALLOW:
+		default:
+			break;
 		}
 	}
 
@@ -117,8 +263,9 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * (e.g. xrdcp -f, or a kXR_recoverWrts reopen) was wrongly rejected with
 	 * kXR_ItExists. */
 	if (stage && (options & kXR_new) && !(options & kXR_delete)) {
-		struct stat fst;
-		if (stat(resolved, &fst) == 0) {
+		xrootd_vfs_stat_t fst;
+		if (xrootd_open_probe(c->log, conf->common.root_canon, resolved, 0,
+		                      &fst)) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_WR, "OPEN",
 			                  resolved, "wr", kXR_ItExists,
 			                  "file already exists");
@@ -168,7 +315,8 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * committed regular file, fall through to opening it directly, in place.
 	 */
 	if (use_resume && !(options & kXR_delete) && !(options & kXR_new)) {
-		struct stat pst, fst;
+		xrootd_vfs_stat_t fst;
+		int               have_partial;
 
 		/* A pure update-in-place open is NOT an upload to stage when no resume
 		 * partial is in flight: drop out of resume staging and let the direct
@@ -179,16 +327,31 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 *     O_RDWR-without-O_CREAT would.  Staging would otherwise CREATE the
 		 *     missing file and return kXR_ok, diverging from stock which derives
 		 *     no O_CREAT for kXR_open_updt alone (XrdXrootdXeq.cc:1524). */
-		int have_partial = (stat(posc_temp_path, &pst) == 0);
-		int final_exists = (stat(resolved, &fst) == 0);
-		if (!have_partial && (!final_exists || S_ISREG(fst.st_mode))) {
+		/* The partial lives under the upload stage dir when one is configured
+		 * (a separate, svc-owned storage domain), else next to the final under
+		 * the export root. Probe the export-root partial through the VFS; the
+		 * external stage-dir partial is checked as the worker (separate domain,
+		 * same reasoning as the open below). */
+		if (conf->upload_stage_dir_canon[0] != '\0') {
+			struct stat sst;   /* vfs-seam-allow: separate upload stage-dir domain */
+			have_partial = (stat(posc_temp_path, &sst) == 0);  /* vfs-seam-allow: separate upload stage-dir domain */
+		} else {
+			xrootd_vfs_stat_t pst;
+			have_partial = xrootd_open_probe(c->log, conf->common.root_canon,
+			                                 posc_temp_path, 0, &pst);
+		}
+		int final_exists = xrootd_open_probe(c->log, conf->common.root_canon,
+		                                     resolved, 0, &fst);
+		if (!have_partial && (!final_exists || fst.is_regular)) {
 			use_resume = 0;
 			stage = use_posc;
 		}
 	}
 
 	if (!is_write) {
-		if (stat(resolved, &st) == 0 && S_ISDIR(st.st_mode)) {
+		xrootd_vfs_stat_t rst;
+		if (xrootd_open_probe(c->log, conf->common.root_canon, resolved, 0,
+		                      &rst) && rst.is_directory) {
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
 							  resolved, "rd", kXR_isDirectory,
 							  "is a directory");
@@ -213,7 +376,49 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_ServerError, "too many open files");
 	}
 
-	{
+	/* Layer 3: a non-default storage driver bound to this export (block-striped
+	 * or object store) handles its own opens — POSC/resume staging and the
+	 * server-managed cache domain remain on the POSIX-fd path. */
+	ngx_int_t              driver_backed = 0;
+	ngx_int_t              open_failed   = 0;
+	xrootd_sd_instance_t  *sd_inst =
+	    xrootd_vfs_backend_resolve(conf->common.root_canon, c->log);
+
+	/* A driver-backed read cache (cache_storage_backend) keeps its bytes in the
+	 * cache driver's namespace — there is no POSIX file at cache_path to open. Serve
+	 * it through the cache STORAGE instance, keyed on the export-relative suffix under
+	 * cache_root, adopting the returned object into the handle exactly like an export
+	 * driver open. A POSIX cache (no backend) keeps the raw-fd from_cache path below. */
+	xrootd_sd_instance_t  *cache_inst =
+	    (from_cache && conf->cache_storage_backend.len > 0)
+	        ? conf->cache_storage_inst : NULL;
+
+	if (cache_inst != NULL) {
+		const char *ckey = xrootd_cache_key_under_root(conf, resolved);
+
+		driver_backed = 1;
+		if (ckey == NULL) {
+			errno = EINVAL;
+			open_failed = 1;
+		} else if (xrootd_open_resolved_via_driver(cache_inst, ckey, oflags,
+		               is_readable, is_write, create_mode,
+		               &ctx->files[idx], &fd, &st) != NGX_OK) {
+			open_failed = 1;   /* helper set errno; mapped below */
+		}
+	} else if (sd_inst != NULL && !from_cache && !use_resume) {
+		driver_backed = 1;
+		/* Key the driver namespace on the export-root-relative ("/sub/file")
+		 * form — the same convention WebDAV/S3 and the VFS stat/dirlist/unlink
+		 * paths use (xrootd_vfs_export_relative_root, leading slash retained), so
+		 * a file written here is found by every other driver-backed op. */
+		if (xrootd_open_resolved_via_driver(sd_inst,
+		        xrootd_vfs_export_relative_root(resolved,
+		                                        conf->common.root_canon),
+		        oflags, is_readable, is_write, create_mode,
+		        &ctx->files[idx], &fd, &st) != NGX_OK) {
+			open_failed = 1;   /* helper set errno; mapped below */
+		}
+	} else {
 		/* When POSC is active, open the staging temp path instead of the
 		 * final path.  The O_CREAT flag is forced so the temp file is
 		 * always created fresh; O_EXCL is intentionally omitted so that a
@@ -229,7 +434,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		 * export would otherwise freeze the worker's event loop and stall every
 		 * connection pinned to it).  It is harmless for the regular files we
 		 * serve and is cleared again on the surviving fd once fstat() confirms
-		 * S_ISREG below.  Mirrors the central guard in xrootd_open_beneath(). */
+		 * S_ISREG below.  Mirrors the central guard in xrootd_vfs_open_fd_at(). */
 		int effective_oflags = oflags | (stage ? O_CREAT : 0) | O_NONBLOCK;
 
 		/* Resume staging on a configured fast device: the partial lives OUTSIDE
@@ -241,33 +446,33 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		    && conf->upload_stage_dir_canon[0] != '\0';
 
 		if (stage_external) {
-			fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,
+			/* vfs-seam-allow: separate storage domain. The partial lives under
+			 * the operator-trusted upload stage dir (a different root than the
+			 * export, server-generated hash basename, svc-owned), so it is opened
+			 * as the worker — NOT through the export-confined, impersonation-aware
+			 * VFS (which would resolve under the export rootfd / mapped user).
+			 * O_NOFOLLOW guards the final component. */
+			fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,  /* vfs-seam-allow: separate svc-owned storage domain (cache/stage), opened as worker */
 			          create_mode);
 		} else if (from_cache) {
-			/* cache_root files are server-managed (filled by the cache worker,
-			 * never client-written), but add O_NOFOLLOW as defence-in-depth so a
-			 * symlink planted in the cache tree is never followed; O_CLOEXEC
-			 * prevents FD leakage into any forked child (e.g. tpc_curl). */
-			fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,
+			/* vfs-seam-allow: separate storage domain. cache_root files are
+			 * server-managed (filled by the cache worker, never client-written,
+			 * svc-owned) in a different root than the export, so they are opened
+			 * as the worker rather than through the export-confined VFS. O_NOFOLLOW
+			 * is defence-in-depth; O_CLOEXEC prevents FD leak into a forked child. */
+			fd = open(open_path, effective_oflags | O_NOFOLLOW | O_CLOEXEC,  /* vfs-seam-allow: separate svc-owned storage domain (cache/stage), opened as worker */
 			          create_mode);
 		} else {
-			/* open_path is the absolute resolved path; strip root_canon to
-			 * get the path relative to rootfd for openat2 RESOLVE_BENEATH. */
-			const char *rel = open_path;
-			size_t      root_len = strlen(conf->common.root_canon);
-			if (root_len > 0
-			    && ngx_strncmp((u_char *) open_path,
-			                   (u_char *) conf->common.root_canon,
-			                   root_len) == 0
-			    && open_path[root_len] == '/')
-			{
-			    rel = open_path + root_len;
-			}
-			fd = xrootd_open_beneath(conf->rootfd, rel,
-			                         effective_oflags, create_mode);
+			/* The export final/staged path: open beneath the export root through
+			 * the VFS (openat2 RESOLVE_BENEATH, impersonation-aware). The VFS
+			 * strips the absolute path to its rootfd-relative form. */
+			fd = xrootd_vfs_open_fd_at(conf->rootfd,
+			    xrootd_open_logical(open_path, conf->common.root_canon),
+			    effective_oflags, create_mode);
 		}
+		open_failed = (fd < 0);
 	}
-	if (fd < 0) {
+	if (open_failed) {
 		int err = errno;
 		const char *mode_str = is_write ? "wr" : "rd";
 
@@ -304,44 +509,50 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_IOError, strerror(err));
 	}
 
-	if (fstat(fd, &st) != 0) {
-		int err = errno;
+	/* The POSIX-fd path stats the fd to validate type and clear O_NONBLOCK. A
+	 * driver-backed open already synthesized `st` from the driver snapshot and
+	 * its directory/type rejection happens at the driver (EISDIR mapped above)
+	 * and the pre-flight VFS probe, so this fd-specific block is skipped. */
+	if (!driver_backed) {
+		if (fstat(fd, &st) != 0) {
+			int err = errno;
 
-		close(fd);
-		XROOTD_RETURN_ERR(ctx, c,
-						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
-						  "OPEN", resolved, is_write ? "wr" : "rd",
-						  kXR_IOError, strerror(err));
-	}
+			close(fd);
+			XROOTD_RETURN_ERR(ctx, c,
+							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+							  "OPEN", resolved, is_write ? "wr" : "rd",
+							  kXR_IOError, strerror(err));
+		}
 
-	if (S_ISDIR(st.st_mode)) {
-		close(fd);
-		XROOTD_RETURN_ERR(ctx, c,
-						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
-						  "OPEN", resolved, is_write ? "wr" : "rd",
-						  kXR_isDirectory, "is a directory");
-	}
+		if (S_ISDIR(st.st_mode)) {
+			close(fd);
+			XROOTD_RETURN_ERR(ctx, c,
+							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+							  "OPEN", resolved, is_write ? "wr" : "rd",
+							  kXR_isDirectory, "is a directory");
+		}
 
-	/* Only regular files are servable byte streams.  A FIFO, socket, device or
-	 * other special file was opened O_NONBLOCK (so the open could not wedge the
-	 * worker); refuse to serve it rather than let a read/write spin on EAGAIN.
-	 * A staged write always lands on a freshly O_CREAT'd regular temp, so this
-	 * only ever rejects a pre-existing special file at the resolved path. */
-	if (!S_ISREG(st.st_mode)) {
-		close(fd);
-		XROOTD_RETURN_ERR(ctx, c,
-						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
-						  "OPEN", resolved, is_write ? "wr" : "rd",
-						  kXR_IOError, "not a regular file");
-	}
+		/* Only regular files are servable byte streams.  A FIFO, socket, device
+		 * or other special file was opened O_NONBLOCK (so the open could not
+		 * wedge the worker); refuse to serve it rather than let a read/write spin
+		 * on EAGAIN.  A staged write always lands on a freshly O_CREAT'd regular
+		 * temp, so this only ever rejects a pre-existing special file. */
+		if (!S_ISREG(st.st_mode)) {
+			close(fd);
+			XROOTD_RETURN_ERR(ctx, c,
+							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
+							  "OPEN", resolved, is_write ? "wr" : "rd",
+							  kXR_IOError, "not a regular file");
+		}
 
-	/* The fd is a confirmed regular file: drop O_NONBLOCK so every downstream
-	 * read/write/sendfile sees ordinary blocking semantics (a no-op for local
-	 * regular files, but it keeps the fd's flags unsurprising for callers). */
-	{
-		int fl = fcntl(fd, F_GETFL);
-		if (fl != -1 && (fl & O_NONBLOCK)) {
-			(void) fcntl(fd, F_SETFL, fl & ~O_NONBLOCK);
+		/* The fd is a confirmed regular file: drop O_NONBLOCK so every downstream
+		 * read/write/sendfile sees ordinary blocking semantics (a no-op for local
+		 * regular files, but it keeps the fd's flags unsurprising for callers). */
+		{
+			int fl = fcntl(fd, F_GETFL);
+			if (fl != -1 && (fl & O_NONBLOCK)) {
+				(void) fcntl(fd, F_SETFL, fl & ~O_NONBLOCK);
+			}
 		}
 	}
 

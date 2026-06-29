@@ -50,6 +50,19 @@ s3_part_size_from_env(void)
 }
 
 
+int
+s3_xrdc_from_errno(int e)
+{
+    switch (e) {
+    case EACCES:
+    case EPERM:  return XRDC_EAUTH;    /* HTTP 401/403 → auth */
+    case EINVAL: return XRDC_EUSAGE;   /* non-sequential write → usage */
+    case ENOENT: return XRDC_ENOENT;   /* HTTP 404 → not found */
+    default:     return XRDC_EIO;      /* everything else: local/IO error */
+    }
+}
+
+
 /*
  * s3_alloc_handle — allocate and zero-fill a vfs_s3_file.
  *
@@ -76,83 +89,34 @@ s3_alloc_handle(void)
 int
 s3_open_read(vfs_s3_file *sf, xrdc_status *st)
 {
-    (void) st;
+    char              errbuf[256] = "";
+    sd_s3_open_params p;
 
     sf->obj_size = -1;   /* loaded lazily by s3_fstat → s3_load_size */
+
+    /* Read goes through the shared S3 driver (src/fs/backend/sd_s3.c) over the
+     * client's HTTP transport: HEAD-size + Range-GET live there, once. */
+    memset(&p, 0, sizeof(p));
+    p.host       = sf->host;
+    p.port       = sf->port;
+    p.tls        = sf->tls;
+    p.key        = sf->key_path;
+    p.ak         = sf->ak;
+    p.sk         = sf->sk;
+    p.region     = sf->region;
+    p.transport  = &xrdc_s3_http_transport;
+    p.tctx       = NULL;
+    p.timeout_ms = S3_REQ_TIMEOUT_MS;
+
+    sf->sd = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
+    if (sf->sd == NULL) {
+        xrdc_status_set(st, XRDC_EIO, 0, "s3 open read: %s", errbuf);
+        return -1;
+    }
     return 0;
 }
 
 
-/*
- * s3_open_write_single — initialise a single-PUT write handle.
- *
- * WHAT: allocates the in-memory PUT buffer; decides the initial capacity from
- *       opts->expected_size (when known) or S3_PUT_BUF_INIT.
- * WHY:  single-PUT mode is used when the full object fits in one part and the
- *       size is known at open() time.
- * HOW:  malloc put_buf to max(expected_size, S3_PUT_BUF_INIT); set is_write=1.
- */
-int
-s3_open_write_single(vfs_s3_file *sf, const xrdc_vfs_open_opts *opts,
-                     xrdc_status *st)
-{
-    size_t cap;
-
-    cap = (opts->expected_size > 0)
-          ? (size_t) opts->expected_size
-          : S3_PUT_BUF_INIT;
-    if (cap < (size_t) S3_PUT_BUF_INIT) {
-        cap = S3_PUT_BUF_INIT;
-    }
-    sf->put_buf = malloc(cap);
-    if (sf->put_buf == NULL) {
-        xrdc_status_set(st, XRDC_EIO, ENOMEM,
-                        "s3 open write: out of memory for PUT buffer");
-        return -1;
-    }
-    sf->put_cap      = cap;
-    sf->put_len      = 0;
-    sf->put_write_off = 0;
-    sf->is_write     = 1;
-    sf->is_mpu       = 0;
-    return 0;
-}
-
-
-/*
- * s3_open_write_mpu — initiate a multipart upload and initialise the MPU handle.
- *
- * WHAT: issues CreateMultipartUpload (POST /key?uploads), stores the UploadId,
- *       and allocates the part buffer.
- * WHY:  MPU is used when expected_size is unknown or larger than one part;
- *       the upload handle is ready for s3_pwrite_mpu calls immediately after.
- * HOW:  CreateMultipartUpload → parse UploadId → malloc part_buf of part_size;
- *       set is_write=1, is_mpu=1.  sf->part_size is set by s3_be_open before
- *       dispatch so it is not re-read here.
- */
-int
-s3_open_write_mpu(vfs_s3_file *sf, xrdc_status *st)
-{
-    if (s3_mpu_create(sf, st) != 0) {
-        return -1;
-    }
-    sf->part_buf = malloc((size_t) sf->part_size);
-    if (sf->part_buf == NULL) {
-        xrdc_status_set(st, XRDC_EIO, ENOMEM,
-                        "s3 open write mpu: out of memory for part buffer");
-        /* upload was created on server; best-effort abort */
-        s3_mpu_abort_upload(sf);
-        return -1;
-    }
-    sf->part_buf_len  = 0;
-    sf->mpu_write_off = 0;
-    sf->part_count    = 0;
-    sf->etags         = NULL;
-    sf->etag_cap      = 0;
-    sf->is_write      = 1;
-    sf->is_mpu        = 1;
-    return 0;
-}
 
 
 /*
@@ -173,7 +137,6 @@ s3_be_open(const xrdc_vfs_backend *be, const char *url, int flags,
 {
     xrdc_weburl     wu;
     vfs_s3_file    *sf;
-    int64_t         part_sz;
     int             rc;
 
     (void) be;
@@ -199,14 +162,35 @@ s3_be_open(const xrdc_vfs_backend *be, const char *url, int flags,
     s3_creds_load(sf, opts);
 
     if (flags & XRDC_VFS_WRITE) {
-        /* Choose single-PUT vs MPU based on expected_size and part_size. */
-        part_sz = s3_part_size_from_env();
-        if (opts != NULL && opts->expected_size >= 0
-            && opts->expected_size <= part_sz) {
-            rc = s3_open_write_single(sf, opts, st);
+        /* Write goes through the shared S3 driver (single-PUT vs MPU decided
+         * there from expected_size + part_size). */
+        char              errbuf[256] = "";
+        sd_s3_open_params p;
+        int64_t           exp = (opts != NULL) ? opts->expected_size : -1;
+
+        memset(&p, 0, sizeof(p));
+        p.host       = sf->host;
+        p.port       = sf->port;
+        p.tls        = sf->tls;
+        p.key        = sf->key_path;
+        p.ak         = sf->ak;
+        p.sk         = sf->sk;
+        p.region     = sf->region;
+        p.transport  = &xrdc_s3_http_transport;
+        p.tctx       = NULL;
+        p.timeout_ms = S3_REQ_TIMEOUT_MS;
+
+        errno = 0;   /* the driver sets errno at its error sites; see below */
+        sf->sd = sd_s3_open_write(&p, exp, s3_part_size_from_env(),
+                                  errbuf, sizeof(errbuf));
+        if (sf->sd == NULL) {
+            int e = errno;
+            xrdc_status_set(st, s3_xrdc_from_errno(e), e,
+                            "s3 open write: %s", errbuf);
+            rc = -1;
         } else {
-            sf->part_size = part_sz;
-            rc = s3_open_write_mpu(sf, st);
+            sf->is_write = 1;
+            rc = 0;
         }
     } else {
         rc = s3_open_read(sf, st);
@@ -268,7 +252,11 @@ s3_be_stat(const xrdc_vfs_backend *be, const char *url,
         s3_creds_load(sf, &dummy_opts);
     }
 
-    sf->obj_size = -1;
+    /* Create the shared read driver handle (s3_load_size delegates to it). */
+    if (s3_open_read(sf, st) != 0) {
+        free(sf);
+        return -1;
+    }
     rc = s3_load_size(sf, st);
     if (rc != 0) {
         /* 404 → exists=0 (not an error at the stat level) */
@@ -277,10 +265,12 @@ s3_be_stat(const xrdc_vfs_backend *be, const char *url,
             out->size   = 0;
             out->mtime  = 0;
             out->is_dir = 0;
+            sd_s3_close(sf->sd);
             free(sf);
             xrdc_status_clear(st);
             return 0;
         }
+        sd_s3_close(sf->sd);
         free(sf);
         return -1;
     }
@@ -289,6 +279,7 @@ s3_be_stat(const xrdc_vfs_backend *be, const char *url,
     out->mtime  = 0;
     out->is_dir = 0;
     out->exists = 1;
+    sd_s3_close(sf->sd);
     free(sf);
     return 0;
 }

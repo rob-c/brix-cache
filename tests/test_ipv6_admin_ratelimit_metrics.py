@@ -736,6 +736,7 @@ def test_metrics_ipv6_label_cardinality_bounded():
     # which a bare count cap would miss.  Add a key here only after confirming it
     # is genuinely closed-set.
     allowed_label_keys = {
+        "action",        # write-through stage throttle action: wait/reject
         "auth",          # auth method: anon/gsi/token/sss/krb
         "depth",         # request-pipeline depth bucket (phase-29)
         "direction",     # in/out (read vs write data direction)
