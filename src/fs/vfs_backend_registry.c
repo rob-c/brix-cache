@@ -12,7 +12,9 @@ typedef struct {
     char                  root_canon[PATH_MAX];
     char                  backend[16];   /* "pblock" | "xroot" */
     int64_t               block_size;
-    void                 *srv_conf;       /* xroot: the srv conf the origin reads */
+    char                  origin_host[256];   /* xroot: remote origin */
+    int                   origin_port;
+    int                   origin_tls;
     xrootd_sd_instance_t *inst;          /* lazily built per worker, or NULL */
 } xrootd_vfs_backend_entry_t;
 
@@ -64,22 +66,35 @@ xrootd_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
     }
 }
 
+static void
+xrootd_vfs_backend_set_xroot(xrootd_vfs_backend_entry_t *e, const char *host,
+    int port, int tls)
+{
+    ngx_memcpy(e->backend, "xroot", sizeof("xroot"));
+    ngx_cpystrn((u_char *) e->origin_host, (u_char *) host,
+                sizeof(e->origin_host));
+    e->origin_port = port;
+    e->origin_tls  = tls;
+    e->inst        = NULL;                     /* rebuilt on next resolve */
+}
+
 void
-xrootd_vfs_backend_config_xroot(const char *root_canon, void *srv_conf)
+xrootd_vfs_backend_config_xroot(const char *root_canon, const char *host,
+    int port, int tls)
 {
     ngx_uint_t i;
 
-    if (root_canon == NULL || root_canon[0] == '\0' || srv_conf == NULL) {
+    if (root_canon == NULL || root_canon[0] == '\0' || host == NULL
+        || host[0] == '\0' || port <= 0 || port > 65535)
+    {
         return;
     }
 
     /* Dedup on root_canon so a config reload updates rather than appends. */
     for (i = 0; i < xrootd_vfs_backend_count; i++) {
         if (ngx_strcmp(xrootd_vfs_backends[i].root_canon, root_canon) == 0) {
-            ngx_memcpy(xrootd_vfs_backends[i].backend, "xroot",
-                       sizeof("xroot"));
-            xrootd_vfs_backends[i].srv_conf = srv_conf;
-            xrootd_vfs_backends[i].inst     = NULL;   /* rebuilt on next resolve */
+            xrootd_vfs_backend_set_xroot(&xrootd_vfs_backends[i], host, port,
+                                         tls);
             return;
         }
     }
@@ -93,9 +108,72 @@ xrootd_vfs_backend_config_xroot(const char *root_canon, void *srv_conf)
         ngx_memzero(e, sizeof(*e));
         ngx_cpystrn((u_char *) e->root_canon, (u_char *) root_canon,
                     sizeof(e->root_canon));
-        ngx_memcpy(e->backend, "xroot", sizeof("xroot"));
-        e->srv_conf = srv_conf;
+        xrootd_vfs_backend_set_xroot(e, host, port, tls);
     }
+}
+
+ngx_int_t
+xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
+    const ngx_str_t *sb, size_t block_size)
+{
+    u_char *addr = NULL;
+    size_t  addrn = 0;
+    int     is_roots = 0;
+
+    if (sb == NULL) {
+        return NGX_OK;
+    }
+
+    /* "root://host:port" / "roots://host:port" → a remote root:// primary backend;
+     * any other value is a local driver name (pblock/posix) handled as before. */
+    if (sb->len > sizeof("roots://") - 1
+        && ngx_strncmp(sb->data, "roots://", sizeof("roots://") - 1) == 0)
+    {
+        addr = sb->data + sizeof("roots://") - 1;
+        addrn = sb->len - (sizeof("roots://") - 1);
+        is_roots = 1;
+    } else if (sb->len > sizeof("root://") - 1
+        && ngx_strncmp(sb->data, "root://", sizeof("root://") - 1) == 0)
+    {
+        addr = sb->data + sizeof("root://") - 1;
+        addrn = sb->len - (sizeof("root://") - 1);
+    }
+
+    if (addr == NULL) {
+        xrootd_vfs_backend_config(root_canon, sb, block_size);
+        return NGX_OK;
+    }
+
+    {
+        u_char   *colon = NULL;
+        size_t    i, hostn;
+        ngx_int_t portnum;
+        char      host[256];
+
+        /* Split host:port on the LAST colon (a bracketed [v6]:port keeps it). */
+        for (i = addrn; i > 0; i--) {
+            if (addr[i - 1] == ':') { colon = addr + i - 1; break; }
+        }
+        if (colon == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_storage_backend: remote origin needs host:port");
+            return NGX_ERROR;
+        }
+        hostn   = (size_t) (colon - addr);
+        portnum = ngx_atoi(colon + 1, (size_t) (addr + addrn - (colon + 1)));
+        if (hostn == 0 || hostn >= sizeof(host) || portnum == NGX_ERROR
+            || portnum <= 0 || portnum > 65535)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_storage_backend: invalid remote origin host:port");
+            return NGX_ERROR;
+        }
+        ngx_memcpy(host, addr, hostn);
+        host[hostn] = '\0';
+        xrootd_vfs_backend_config_xroot(root_canon, host, (int) portnum,
+                                        is_roots);
+    }
+    return NGX_OK;
 }
 
 /* Lazily build (per worker) and cache the entry's storage-driver instance. The
@@ -112,7 +190,8 @@ xrootd_vfs_backend_entry_build(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
      * Phase-1 write data path). The instance is malloc-owned (no pool), worker-
      * safe; it reads cache_origin_host/port/tls from the bound srv conf. */
     if (ngx_strcmp(e->backend, "xroot") == 0) {
-        e->inst = xrootd_sd_xroot_create(e->srv_conf, log);
+        e->inst = xrootd_sd_xroot_create_origin(e->origin_host, e->origin_port,
+                                                e->origin_tls, log);
         if (e->inst == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                 "xrootd: remote root:// backend init failed for export \"%s\"",

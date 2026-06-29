@@ -413,12 +413,16 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             }
         }
 
-        /* Register the export's selected storage backend (e.g. pblock) so every
-         * VFS op resolves to it at request time (xrootd_vfs_ctx_init). No-op for
-         * the default POSIX backend. */
-        xrootd_vfs_backend_config(conf->common.root_canon,
-                                  &conf->common.storage_backend,
-                                  conf->common.pblock_block_size);
+        /* Register the export's selected storage backend so every VFS op resolves
+         * to it at request time (xrootd_vfs_ctx_init): a "root://host:port" URL =
+         * a remote root:// primary (WebDAV PUT staged-writes stream through to it);
+         * a driver name (pblock) = a local backend; default POSIX is a no-op. */
+        if (xrootd_vfs_backend_config_str(cf, conf->common.root_canon,
+                &conf->common.storage_backend, conf->common.pblock_block_size)
+            != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
 
         /* Open the persistent confinement rootfd on the freshly-resolved
          * export root (kernel openat2 RESOLVE_BENEATH anchor). */

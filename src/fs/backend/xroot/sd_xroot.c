@@ -15,9 +15,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Instance state: the server conf the origin client reads (host/port/tls/ssl_ctx). */
+/* Instance state: the server conf the origin client reads (host/port/tls). For a
+ * cache-constructed instance `conf` is the real export conf. For a registry-built
+ * PRIMARY backend (stream OR http export, which has no stream conf) we synthesize a
+ * minimal conf carrying just the origin connection params — the only fields the
+ * wire client reads are cache_origin_host/port/tls (+ trusted_ca, TLS-only). */
 typedef struct {
-    ngx_stream_xrootd_srv_conf_t *conf;
+    ngx_stream_xrootd_srv_conf_t *conf;    /* origin params (real or synthetic) */
+    ngx_stream_xrootd_srv_conf_t *synth;   /* owned synthetic conf, or NULL */
+    char                          host[256];
 } sd_xroot_inst_state;
 
 /* Per-open state: a live origin connection + open file handle + the synthetic
@@ -269,6 +275,126 @@ sd_xroot_stat(xrootd_sd_instance_t *inst, const char *path,
     return NGX_OK;
 }
 
+/* ---- staged atomic publish (Mode A passthrough) --------------------------- *
+ * The staged handle is a live origin write handle. With NO local staging store
+ * the write streams straight to the FINAL remote path (transparent write-through,
+ * no local copy), so it is NOT atomic — a failed upload can leave a partial object
+ * on the origin. Configure a local staging directory (Mode B) for atomic / durable
+ * publish (a later phase). The opaque xrootd_sd_staged_t (sd.h) carries our state
+ * in ->state. */
+
+typedef struct {
+    xrootd_cache_origin_conn_t  oc;
+    u_char                      fhandle[XRD_FHANDLE_LEN];
+    xrootd_cache_fill_t        *t;
+    int                         file_open;
+} sd_xroot_staged_state;
+
+/* Free a staged handle + its origin connection (closing an open file handle). */
+static void
+sd_xroot_staged_teardown(xrootd_sd_staged_t *handle)
+{
+    sd_xroot_staged_state *ss;
+
+    if (handle == NULL) {
+        return;
+    }
+    ss = handle->state;
+    if (ss != NULL) {
+        if (ss->file_open) {
+            xrootd_cache_origin_close_file(&ss->oc, ss->fhandle);
+        }
+        xrootd_cache_origin_close(&ss->oc);
+        free(ss->t);
+        free(ss);
+    }
+    free(handle);
+}
+
+static xrootd_sd_staged_t *
+sd_xroot_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+    mode_t mode, int *err_out)
+{
+    sd_xroot_inst_state   *is = inst->state;
+    xrootd_sd_staged_t    *handle = calloc(1, sizeof(*handle));
+    sd_xroot_staged_state *ss = calloc(1, sizeof(*ss));
+    xrootd_cache_fill_t   *t = calloc(1, sizeof(*t));
+
+    if (handle == NULL || ss == NULL || t == NULL) {
+        free(handle);
+        free(ss);
+        free(t);
+        if (err_out) { *err_out = ENOMEM; }
+        return NULL;
+    }
+    ss->t     = t;
+    ss->oc.fd = -1;
+    t->conf   = is->conf;
+    ngx_cpystrn((u_char *) t->clean_path, (u_char *) final_path,
+                sizeof(t->clean_path));
+
+    if (xrootd_cache_origin_connect(t, &ss->oc) != 0
+        || xrootd_cache_origin_bootstrap(t, &ss->oc) != 0
+        || xrootd_cache_origin_open_write(t, &ss->oc, final_path,
+               (uint16_t) ((mode != 0) ? (mode & 0777) : 0644), ss->fhandle) != 0)
+    {
+        if (err_out) { *err_out = sd_xroot_errno(t); }
+        xrootd_cache_origin_close(&ss->oc);
+        free(t);
+        free(ss);
+        free(handle);
+        return NULL;
+    }
+    ss->file_open = 1;
+    handle->inst  = inst;
+    handle->state = ss;
+    return handle;
+}
+
+static ssize_t
+sd_xroot_staged_write(xrootd_sd_staged_t *handle, const void *buf, size_t len,
+    off_t off)
+{
+    sd_xroot_staged_state *ss = handle->state;
+
+    if (len == 0) {
+        return 0;
+    }
+    if (xrootd_cache_origin_write_chunk(ss->t, &ss->oc, ss->fhandle,
+            (uint64_t) off, (const u_char *) buf, len) != 0)
+    {
+        errno = EIO;
+        return -1;
+    }
+    return (ssize_t) len;
+}
+
+/* Publish: sync + close the origin file. On success the handle is consumed (freed);
+ * on failure it stays valid for the caller to staged_abort. `noreplace` cannot be
+ * enforced on a Mode-A direct write (open_write already created the destination) —
+ * use a staging dir (Mode B) for exclusive/atomic publish. */
+static ngx_int_t
+sd_xroot_staged_commit(xrootd_sd_staged_t *handle, int noreplace)
+{
+    sd_xroot_staged_state *ss = handle->state;
+
+    (void) noreplace;
+
+    if (xrootd_cache_origin_sync(ss->t, &ss->oc, ss->fhandle) != 0) {
+        return NGX_ERROR;                    /* leave valid; caller aborts */
+    }
+    sd_xroot_staged_teardown(handle);        /* close_file + free (consumed) */
+    return NGX_OK;
+}
+
+static void
+sd_xroot_staged_abort(xrootd_sd_staged_t *handle)
+{
+    /* Mode A: the partial bytes already streamed to the final remote path; closing
+     * leaves them (non-atomic by design). Mode B staging gives a clean abort. */
+    sd_xroot_staged_teardown(handle);
+}
+
 /* Remote root:// driver (anonymous). Read slots + the write data path
  * (pwrite/ftruncate/fsync over kXR_write/_truncate/_sync) — the foundation for a
  * writable remote backend (Phase 1; staged-write and namespace slots are later
@@ -277,14 +403,18 @@ static const xrootd_sd_driver_t xrootd_sd_xroot_driver = {
     .name      = "xroot",
     .caps      = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE
                  | XROOTD_SD_CAP_TRUNCATE,
-    .open      = sd_xroot_open,
-    .close     = sd_xroot_close,
-    .pread     = sd_xroot_pread,
-    .pwrite    = sd_xroot_pwrite,
-    .fstat     = sd_xroot_fstat,
-    .ftruncate = sd_xroot_ftruncate,
-    .fsync     = sd_xroot_fsync,
-    .stat      = sd_xroot_stat,
+    .open          = sd_xroot_open,
+    .close         = sd_xroot_close,
+    .pread         = sd_xroot_pread,
+    .pwrite        = sd_xroot_pwrite,
+    .fstat         = sd_xroot_fstat,
+    .ftruncate     = sd_xroot_ftruncate,
+    .fsync         = sd_xroot_fsync,
+    .stat          = sd_xroot_stat,
+    .staged_open   = sd_xroot_staged_open,
+    .staged_write  = sd_xroot_staged_write,
+    .staged_commit = sd_xroot_staged_commit,
+    .staged_abort  = sd_xroot_staged_abort,
 };
 
 void
@@ -322,6 +452,43 @@ xrootd_sd_xroot_create(void *conf, ngx_log_t *log)
         return NULL;
     }
     is->conf     = conf;
+    is->synth    = NULL;                       /* borrowed real conf */
+    inst->driver = &xrootd_sd_xroot_driver;
+    inst->log    = log;
+    inst->pool   = NULL;
+    inst->state  = is;
+    return inst;
+}
+
+xrootd_sd_instance_t *
+xrootd_sd_xroot_create_origin(const char *host, int port, int tls, ngx_log_t *log)
+{
+    xrootd_sd_instance_t         *inst;
+    sd_xroot_inst_state          *is;
+    ngx_stream_xrootd_srv_conf_t *synth;
+
+    if (host == NULL || host[0] == '\0' || port <= 0 || port > 65535) {
+        errno = EINVAL;
+        return NULL;
+    }
+    inst  = calloc(1, sizeof(*inst));
+    is    = calloc(1, sizeof(*is));
+    synth = calloc(1, sizeof(*synth));         /* minimal: just the origin params */
+    if (inst == NULL || is == NULL || synth == NULL) {
+        free(inst);
+        free(is);
+        free(synth);
+        errno = ENOMEM;
+        return NULL;
+    }
+    ngx_cpystrn((u_char *) is->host, (u_char *) host, sizeof(is->host));
+    synth->cache_origin_host.data = (u_char *) is->host;
+    synth->cache_origin_host.len  = ngx_strlen(is->host);
+    synth->cache_origin_port      = (uint16_t) port;
+    synth->cache_origin_tls       = tls ? 1 : 0;
+
+    is->conf     = synth;
+    is->synth    = synth;                       /* owned: free on destroy */
     inst->driver = &xrootd_sd_xroot_driver;
     inst->log    = log;
     inst->pool   = NULL;
@@ -334,6 +501,9 @@ xrootd_sd_xroot_destroy(xrootd_sd_instance_t *inst)
 {
     if (inst == NULL) {
         return;
+    }
+    if (inst->state != NULL) {
+        free(((sd_xroot_inst_state *) inst->state)->synth);
     }
     free(inst->state);
     free(inst);

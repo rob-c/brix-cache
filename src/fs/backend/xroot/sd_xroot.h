@@ -44,6 +44,15 @@
  * with xrootd_sd_xroot_destroy. Worker-thread safe (no nginx pool). */
 xrootd_sd_instance_t *xrootd_sd_xroot_create(void *conf, ngx_log_t *log);
 
+/* Build a remote root:// instance from EXPLICIT origin params (host/port/tls),
+ * synthesizing the minimal conf the wire client needs. Used to make a remote
+ * root:// the registry-selectable PRIMARY backend of any export (stream OR http,
+ * which has no stream conf). Anonymous; tls!=0 needs trusted-CA wiring (follow-on).
+ * Returns a malloc-owned instance, or NULL (errno set). Destroy with
+ * xrootd_sd_xroot_destroy. */
+xrootd_sd_instance_t *xrootd_sd_xroot_create_origin(const char *host, int port,
+    int tls, ngx_log_t *log);
+
 /* Free a root:// instance built by xrootd_sd_xroot_create. NULL-safe. */
 void xrootd_sd_xroot_destroy(xrootd_sd_instance_t *inst);
 

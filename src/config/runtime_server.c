@@ -29,71 +29,15 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
         }
 
         /* Register the export's selected storage backend for VFS resolution at
-         * request time. A "root://host:port" / "roots://host:port" value makes the
-         * export's PRIMARY storage a REMOTE XRootD server (read + write through the
-         * sd_xroot driver); a driver name (e.g. "pblock") selects a local backend;
-         * the default POSIX backend is a no-op. */
+         * request time. A "root://host:port" value makes the export's PRIMARY
+         * storage a REMOTE XRootD server (read + write-through via sd_xroot); a
+         * driver name (e.g. "pblock") selects a local backend; default POSIX is a
+         * no-op. */
+        if (xrootd_vfs_backend_config_str(cf, xcf->common.root_canon,
+                &xcf->common.storage_backend, xcf->common.pblock_block_size)
+            != NGX_OK)
         {
-            ngx_str_t *sb = &xcf->common.storage_backend;
-            u_char    *addr = NULL;
-            size_t     addrn = 0;
-            int        is_roots = 0;
-
-            if (sb->len > sizeof("roots://") - 1
-                && ngx_strncmp(sb->data, "roots://", sizeof("roots://") - 1) == 0)
-            {
-                addr = sb->data + sizeof("roots://") - 1;
-                addrn = sb->len - (sizeof("roots://") - 1);
-                is_roots = 1;
-            } else if (sb->len > sizeof("root://") - 1
-                && ngx_strncmp(sb->data, "root://", sizeof("root://") - 1) == 0)
-            {
-                addr = sb->data + sizeof("root://") - 1;
-                addrn = sb->len - (sizeof("root://") - 1);
-            }
-
-            if (addr != NULL) {
-                /* Split "host:port" on the last colon (a bracketed [v6]:port host
-                 * keeps the colon after the ']'). */
-                u_char *colon = NULL;
-                size_t  i, hostn;
-                ngx_int_t portnum;
-                u_char *hcopy;
-
-                for (i = addrn; i > 0; i--) {
-                    if (addr[i - 1] == ':') { colon = addr + i - 1; break; }
-                }
-                if (colon == NULL) {
-                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "xrootd_storage_backend: remote origin needs host:port");
-                    return NGX_ERROR;
-                }
-                hostn   = (size_t) (colon - addr);
-                portnum = ngx_atoi(colon + 1,
-                                   (size_t) (addr + addrn - (colon + 1)));
-                if (hostn == 0 || portnum == NGX_ERROR
-                    || portnum <= 0 || portnum > 65535)
-                {
-                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "xrootd_storage_backend: invalid remote origin host:port");
-                    return NGX_ERROR;
-                }
-
-                hcopy = ngx_pnalloc(cf->pool, hostn);
-                if (hcopy == NULL) {
-                    return NGX_ERROR;
-                }
-                ngx_memcpy(hcopy, addr, hostn);
-                xcf->cache_origin_host.data = hcopy;
-                xcf->cache_origin_host.len  = hostn;
-                xcf->cache_origin_port      = (uint16_t) portnum;
-                xcf->cache_origin_tls       = is_roots ? 1 : 0;
-
-                xrootd_vfs_backend_config_xroot(xcf->common.root_canon, xcf);
-            } else {
-                xrootd_vfs_backend_config(xcf->common.root_canon, sb,
-                                          xcf->common.pblock_block_size);
-            }
+            return NGX_ERROR;
         }
 
         /* Optional fast-cache upload staging device.  Canonicalize once here; an
