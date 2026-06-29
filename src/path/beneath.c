@@ -191,6 +191,27 @@ xrootd_lstat_beneath(int rootfd, const char *reqpath, struct stat *st)
     return rc;
 }
 
+DIR *
+xrootd_opendir_beneath(int rootfd, const char *reqpath)
+{
+    int  fd;
+    DIR *d;
+
+    /* O_RDONLY | O_DIRECTORY under RESOLVE_IN_ROOT (chroot-style): a trailing
+     * in-export directory symlink is followed within the export — matching stock,
+     * which lists through in-export links — while an outward/absolute target is
+     * resolved relative to rootfd and so lands on a non-existent in-root path
+     * (ENOENT) or is refused (EXDEV) rather than escaping the export root. The
+     * legacy bare opendir() followed an outward link straight out of the root. */
+    fd = do_openat2_resolve(rootfd, xrootd_beneath_rel(reqpath),
+                            O_RDONLY | O_DIRECTORY, 0,
+                            RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS);
+    if (fd < 0) { return NULL; }
+    d = fdopendir(fd);
+    if (d == NULL) { close(fd); }
+    return d;    /* closedir() closes the fd */
+}
+
 /*
  * SECURITY: the *at() family (mkdirat / unlinkat / renameat / linkat) does NOT
  * honour RESOLVE_BENEATH — only openat2() does.  Handing them a multi-component

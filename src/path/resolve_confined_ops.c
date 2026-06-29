@@ -1,5 +1,6 @@
 #include "../ngx_xrootd_module.h"
 #include "path_internal.h"
+#include "beneath.h"
 #include "../impersonate/impersonate.h"
 
 #include <errno.h>
@@ -656,17 +657,18 @@ DIR *
 xrootd_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved)
 {
-    if (xrootd_imp_client_active()) {
-        char rel[PATH_MAX];
-        int  fd;
-        DIR *d;
+    char rel[PATH_MAX];
+    int  rootfd;
+    DIR *d;
 
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
-                                              rel, sizeof(rel)))
-        {
-            return NULL;
-        }
-        fd = xrootd_imp_open(rel, O_RDONLY | O_DIRECTORY, 0);  /* as mapped user */
+    if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                          rel, sizeof(rel)))
+    {
+        return NULL;
+    }
+
+    if (xrootd_imp_client_active()) {
+        int fd = xrootd_imp_open(rel, O_RDONLY | O_DIRECTORY, 0); /* mapped user */
         if (fd < 0) {
             return NULL;
         }
@@ -676,7 +678,22 @@ xrootd_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
         }
         return d;                          /* closedir() closes the fd */
     }
-    return opendir(resolved);
+
+    /*
+     * Off impersonation, open the directory chroot-style under an O_PATH rootfd
+     * (openat2 RESOLVE_IN_ROOT) rather than a bare opendir() on the canonical
+     * path: a bare opendir() follows a trailing in-export symlink with an
+     * outward target (e.g. /_sym_dir -> /etc) straight out of the export root
+     * and enumerates it — a confinement escape. RESOLVE_IN_ROOT confines the
+     * resolution so an escaping target is refused.
+     */
+    rootfd = xrootd_open_root_fd(log, root_canon);
+    if (rootfd < 0) {
+        return NULL;
+    }
+    d = xrootd_opendir_beneath(rootfd, rel);
+    close(rootfd);
+    return d;
 }
 
 /* xrootd_lstat_confined_canon — lstat()/stat() a path *as the mapped user* under
@@ -691,15 +708,38 @@ int
 xrootd_lstat_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, struct stat *st, int nofollow)
 {
-    if (xrootd_imp_client_active()) {
-        char rel[PATH_MAX];
+    char rel[PATH_MAX];
+    int  rootfd;
+    int  rc;
 
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
-                                              rel, sizeof(rel)))
-        {
-            return -1;
-        }
+    if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+                                          rel, sizeof(rel)))
+    {
+        return -1;
+    }
+
+    if (xrootd_imp_client_active()) {
         return xrootd_imp_stat(rel, st, nofollow);    /* as mapped user */
     }
-    return nofollow ? lstat(resolved, st) : stat(resolved, st);
+
+    /*
+     * Off impersonation, resolve chroot-style under an O_PATH rootfd via openat2
+     * RESOLVE_IN_ROOT (xrootd_{,l}stat_beneath) rather than a bare stat()/lstat()
+     * on the canonical path.  A bare follow-stat() dereferences a trailing
+     * symlink against the REAL filesystem, so a planted in-export link with an
+     * outward absolute target (e.g. /_sym -> /etc/passwd) would be followed
+     * straight out of the export root — a confinement escape.  RESOLVE_IN_ROOT
+     * resolves "/" and ".." relative to rootfd, so an outward target lands on a
+     * non-existent in-root path (ENOENT) instead, which the stat handler's
+     * realpath-confined fallback then rejects.  nofollow=1 still reports a
+     * trailing link as itself (O_PATH|O_NOFOLLOW) without following it.
+     */
+    rootfd = xrootd_open_root_fd(log, root_canon);
+    if (rootfd < 0) {
+        return -1;
+    }
+    rc = nofollow ? xrootd_lstat_beneath(rootfd, rel, st)
+                  : xrootd_stat_beneath(rootfd, rel, st);
+    close(rootfd);
+    return rc;
 }

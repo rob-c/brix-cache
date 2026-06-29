@@ -9,9 +9,17 @@ def test_copy_and_http_file_response_helpers_are_shared():
         ['#include "s3.h"', "xrootd_vfs_copy("],
     )
     _assert_absent("src/s3/copy.c", ["static int\ns3_copy_file"])
+    # Phase 62: WebDAV COPY's local copy moved behind the shared VFS copy seam
+    # (xrootd_vfs_copyfile / xrootd_vfs_copytree, src/fs/vfs_walk.c), which owns
+    # the underlying copy_file_range path.  The handler must route through that
+    # seam, and the shared VFS layer keeps the single xrootd_copy_range() impl.
     _assert_markers(
         "src/webdav/fs/copy_engine.c",
-        ["../../compat/copy_range.h", "xrootd_copy_range("],
+        ["../../fs/vfs.h", "xrootd_vfs_copyfile("],
+    )
+    _assert_markers(
+        "src/fs/vfs_walk.c",
+        ["xrootd_copy_range("],
     )
     # Phase 12: the range-parse → headers → send pipeline (including the
     # xrootd_http_send_file_range call) moved into the shared file-serve
@@ -321,8 +329,13 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
             ["../compat/fs_walk.h", "xrootd_fs_remove_tree_confined("],
         )
 
-    for relpath in ("src/webdav/propfind_walk.c", "src/query/checksum_ckscan_common.c"):
-        _assert_markers(relpath, ["xrootd_fs_is_dot_entry("])
+    # Phase 62: directory enumeration moved behind the VFS seam — propfind walks
+    # via xrootd_vfs_readdir and ckscan via xrootd_vfs_walk, both of which skip
+    # "."/".." centrally in src/fs/vfs_walk.c (the single xrootd_fs_is_dot_entry
+    # caller) instead of each handler filtering dotted entries itself.
+    _assert_markers("src/webdav/propfind_walk.c", ["xrootd_vfs_readdir("])
+    _assert_markers("src/query/checksum_ckscan_common.c", ["xrootd_vfs_walk("])
+    _assert_markers("src/fs/vfs_walk.c", ["xrootd_fs_is_dot_entry("])
 
     # s3/put was split: the staged_file include is in s3_put_internal.h, the open
     # call stays in put.c; webdav/tpc.c still carries both directly.

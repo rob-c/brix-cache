@@ -31,9 +31,15 @@ NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
 CC = os.environ.get("CC", "cc")
 
 IMP = os.path.join(REPO, "src", "impersonate")
+# broker.c was split into broker.c (dispatch) + broker_creds.c (become/restore/
+# drop_caps + the svc-user uid/gid globals) + broker_ops.c (imp_do_op); the
+# standalone driver must link all three or the privilege-switch symbols are
+# undefined.
 SRCS = [
     os.path.join(HERE, "c", "userns_broker_test.c"),
     os.path.join(IMP, "broker.c"),
+    os.path.join(IMP, "broker_creds.c"),
+    os.path.join(IMP, "broker_ops.c"),
     os.path.join(IMP, "client.c"),
     os.path.join(IMP, "idmap.c"),
 ]

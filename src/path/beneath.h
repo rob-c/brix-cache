@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <dirent.h>
 #include <string.h>
 #include <stddef.h>
 
@@ -41,6 +42,12 @@ int xrootd_stat_beneath(int rootfd, const char *reqpath, struct stat *st);
 /* lstat: O_PATH | O_NOFOLLOW — does NOT follow a trailing symlink, so the result
  * describes the link itself. Used by kXR_stat with the kXR_statNoFollow option. */
 int xrootd_lstat_beneath(int rootfd, const char *reqpath, struct stat *st);
+
+/* Open a directory stream under kernel confinement (RESOLVE_IN_ROOT): a trailing
+ * in-export symlink is followed chroot-style, an escaping one is rejected
+ * (EXDEV/ENOENT), unlike a bare opendir() which follows an outward link out of
+ * the root. Returns a DIR* (caller closedir()s it) or NULL with errno set. */
+DIR *xrootd_opendir_beneath(int rootfd, const char *reqpath);
 
 /* Remove a file (is_dir=0) or empty directory (is_dir=1). */
 int xrootd_unlink_beneath(int rootfd, const char *reqpath, int is_dir);
