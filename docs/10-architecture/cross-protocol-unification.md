@@ -74,10 +74,11 @@ The single biggest piece of shared code is the **data plane** itself. No protoco
 handler opens, reads, or writes a file directly — each populates an
 `xrootd_vfs_ctx_t` and calls the VFS (`src/fs/`), which enforces confinement, records
 the metric and access-log line, runs the cache, and computes page-CRC, then calls the
-**POSIX storage driver** (`src/fs/backend/`) for the raw syscall. Every protocol's
-file I/O therefore follows one path — `proto → VFS → POSIX` — and the storage backend
-is a pluggable seam (`xrootd_sd_driver_t`): a future block or object/S3 backend can
-register and become primary without touching a single handler, metric, or access-log
+**storage driver** (`src/fs/backend/`, POSIX by default) for the raw syscall. Every
+protocol's file I/O therefore follows one path — `proto → VFS → backend` — and the
+storage backend is a pluggable seam (`xrootd_sd_driver_t`): the block, object/S3,
+Ceph/RADOS, and striped-block (pblock) drivers already register the same way, and any
+of them can become primary without touching a single handler, metric, or access-log
 call site. Full detail in [`src/fs/README.md`](../../src/fs/README.md),
 [`src/fs/backend/README.md`](../../src/fs/backend/README.md), and the
 [architecture overview](overview.md#the-data-plane-one-path-for-every-byte-proto--vfs--posix).

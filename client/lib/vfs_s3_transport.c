@@ -1,0 +1,84 @@
+/* client/lib/vfs_s3_transport.c
+ *
+ * WHAT: The client-side HTTP transport for the shared S3 driver
+ *       (src/fs/backend/sd_s3.c). Implements xrootd_s3_transport_t over the
+ *       client's HTTP/1.1 stack (xrdc_http_req/_header/_resp_free).
+ * WHY:  sd_s3 holds the S3 protocol logic in src/ (shared, ngx-free) but needs
+ *       an injected transport — this is the client's. A server consumer would
+ *       provide its own (e.g. libcurl) without touching the driver.
+ * HOW:  one stateless request op (tctx unused) + thin response accessors that
+ *       wrap a heap xrdc_http_resp behind the transport's opaque handle.
+ */
+#include "vfs_s3_internal.h"
+#include "fs/backend/s3/sd_s3_transport.h"
+
+#include <stdlib.h>
+
+static int
+s3t_request(void *tctx, const char *host, int port, int tls,
+            const char *method, const char *path_and_query, const char *headers,
+            const void *body, size_t body_len, int timeout_ms,
+            xrootd_s3_resp_t *resp, char *errbuf, size_t errcap)
+{
+    xrdc_http_resp *r;
+    xrdc_status     st;
+
+    (void) tctx;
+
+    r = calloc(1, sizeof(*r));
+    if (r == NULL) {
+        if (errbuf != NULL && errcap > 0) {
+            snprintf(errbuf, errcap, "s3 transport: out of memory");
+        }
+        return -1;
+    }
+    xrdc_status_clear(&st);
+    /* verify=0, ca_dir=NULL — matches the original vfs_s3 request policy. */
+    if (xrdc_http_req(host, port, tls, method, path_and_query, headers,
+                      body, body_len, timeout_ms, 0, NULL, r, &st) != 0) {
+        if (errbuf != NULL && errcap > 0) {
+            snprintf(errbuf, errcap, "%s", st.msg);
+        }
+        free(r);
+        return -1;
+    }
+    resp->status = r->status;
+    resp->opaque = r;
+    return 0;
+}
+
+static int
+s3t_resp_header(const xrootd_s3_resp_t *resp, const char *name,
+                char *out, size_t outcap)
+{
+    /* xrdc_http_header: 1 = found, 0 = absent → map to 0 / -1. */
+    return xrdc_http_header((const xrdc_http_resp *) resp->opaque,
+                            name, out, outcap) == 1 ? 0 : -1;
+}
+
+static const void *
+s3t_resp_body(const xrootd_s3_resp_t *resp, size_t *len)
+{
+    const xrdc_http_resp *r = (const xrdc_http_resp *) resp->opaque;
+    if (len != NULL) {
+        *len = r->body_len;
+    }
+    return r->body;
+}
+
+static void
+s3t_resp_free(xrootd_s3_resp_t *resp)
+{
+    if (resp->opaque != NULL) {
+        xrdc_http_resp_free((xrdc_http_resp *) resp->opaque);
+        free(resp->opaque);
+        resp->opaque = NULL;
+    }
+}
+
+const xrootd_s3_transport_t xrdc_s3_http_transport = {
+    .request     = s3t_request,
+    .resp_header = s3t_resp_header,
+    .resp_body   = s3t_resp_body,
+    .resp_free   = s3t_resp_free,
+};

@@ -51,6 +51,7 @@ xrootd_try_post_write_aio(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     t->nwritten        = -1;
     t->io_errno        = 0;
     t->csi             = ctx->files[idx].csi;  /* phase-59 W2: tag update */
+    t->obj             = ctx->files[idx].sd_obj; /* Layer 3: driver obj or zeroed */
     t->payload_to_free = payload_to_free;
     t->bad_page_count  = (bad != NULL && bad_count > kXR_pgMaxEpr)
                          ? kXR_pgMaxEpr : bad_count;

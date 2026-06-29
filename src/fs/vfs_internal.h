@@ -77,14 +77,67 @@ struct xrootd_vfs_dir_s {
     ngx_log_t  *log;
     char       *path;
     const char *root_canon;   /* for broker-routed per-child lstat (impersonation) */
+    /* Non-POSIX backend: the driver's open directory + the bits readdir needs to
+     * stat children through the same driver. sd_dir != NULL selects the driver
+     * path; `dir` stays NULL. */
+    xrootd_sd_dir_t          *sd_dir;
+    xrootd_sd_instance_t     *sd;
+    const xrootd_sd_driver_t *drv;
+    const char               *sd_logical;   /* export-relative dir path */
 };
 
 struct xrootd_vfs_staged_s {
-    xrootd_staged_file_t  staged;   /* the compat temp-file primitive */
+    xrootd_staged_file_t  staged;   /* the compat temp-file primitive (POSIX)    */
+    /* Non-NULL when the export selects a non-POSIX backend: the staged lifecycle
+     * is delegated to that driver's staged_open/write/commit/abort slots and
+     * `staged.fd` stays NGX_INVALID_FILE (object backends expose no kernel fd).
+     * driver_total accumulates the bytes written, for the commit metric. */
+    xrootd_sd_staged_t   *driver_staged;
+    off_t                 driver_total;
     xrootd_vfs_ctx_t     *ctx;      /* carries root_canon + final (resolved) path */
     ngx_pool_t           *pool;
     ngx_log_t            *log;
 };
+
+/* The export-root-relative ("logical") form of a confined path — what an
+ * inst-keyed storage-driver op expects (the SD seam keys its namespace on the
+ * logical path). Strips a root_canon prefix; returns `path` unchanged when it is
+ * not under root_canon. Defined in vfs_open.c, shared with vfs_staged.c. */
+const char *xrootd_vfs_export_relative(const xrootd_vfs_ctx_t *ctx,
+    const char *path);
+/* Path-based form for ctx-less callers (rename_path/mkdir_path). */
+const char *xrootd_vfs_export_relative_root(const char *path,
+    const char *root_canon);
+
+/* The NON-default storage driver bound to this ctx (e.g. pblock), or NULL when
+ * the export uses the default POSIX path. The VFS namespace + data ops dispatch
+ * through it (with xrootd_vfs_export_relative paths) when non-NULL; otherwise they
+ * fall to the existing POSIX confined-canon / ns_* helpers unchanged. */
+static ngx_inline const xrootd_sd_driver_t *
+xrootd_vfs_ctx_driver(const xrootd_vfs_ctx_t *ctx)
+{
+    if (ctx != NULL && ctx->sd != NULL
+        && ctx->sd->driver != xrootd_sd_default_driver())
+    {
+        return ctx->sd->driver;
+    }
+    return NULL;
+}
+
+/* Map a storage-driver stat into the VFS stat callers see (the driver path's
+ * counterpart of xrootd_vfs_fill_stat for a struct stat). */
+static ngx_inline void
+xrootd_vfs_sd_stat_fill(const xrootd_sd_stat_t *in, xrootd_vfs_stat_t *out)
+{
+    ngx_memzero(out, sizeof(*out));
+    out->size = in->size;
+    out->mtime = in->mtime;
+    out->ctime = in->ctime;
+    out->mode = (ngx_uint_t) in->mode;
+    out->ino = in->ino;
+    out->is_directory = in->is_dir ? 1 : 0;
+    out->is_regular = in->is_reg ? 1 : 0;
+}
 
 /* Build a transient storage-driver object view from a ctx + fd: the bound
  * instance (or NULL for the default backend), that backend's driver, and the
@@ -317,17 +370,8 @@ ngx_int_t xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path,
     ngx_fd_t fd, unsigned from_cache, unsigned writable,
     xrootd_vfs_file_t **out);
 
-/* EINTR-safe, short-read-tolerant pread of up to len bytes at offset into buf.
- * Loops until len is filled or EOF. *nread (optional) always receives the byte
- * count, even on error. Returns NGX_OK on full read or clean EOF; NGX_ERROR on
- * a real pread error (errno set), with *nread holding the partial count. */
-ngx_int_t xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
-    off_t offset, size_t *nread);
-
-/* EINTR-safe, short-write-safe pwrite of exactly len bytes at offset from buf.
- * Returns NGX_OK only when all len bytes are written; NGX_ERROR otherwise with
- * errno set (a 0-byte pwrite is reported as EIO). No partial-count is exposed. */
-ngx_int_t xrootd_vfs_pwrite_full(ngx_fd_t fd, const u_char *buf, size_t len,
-    off_t offset);
+/* xrootd_vfs_pread_full / xrootd_vfs_pwrite_full are now declared in the public
+ * vfs.h (raw fd full read/write primitives) so module byte loops outside src/fs
+ * can route through the storage seam too. */
 
 #endif /* XROOTD_VFS_INTERNAL_H */

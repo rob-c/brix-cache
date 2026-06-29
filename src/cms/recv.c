@@ -1,4 +1,6 @@
 #include "cms_internal.h"
+#include "../fs/vfs.h"   /* confined open/unlink via the VFS seam */
+#include "../fs/vfs_backend_registry.h"   /* non-POSIX backend driver routing */
 #include "node_ops.h"               /* Plane B forwarded-op planner */
 #include "rrdata.h"                 /* Pup decode of forwarded payloads */
 #include "router.h"                 /* node-role opcode routing */
@@ -13,6 +15,75 @@
 #include <unistd.h>
 
 static ngx_connection_t *cms_find_client_connection(int fd);
+
+/*
+ * cms_node_exec_driver — apply a manager-forwarded namespace op through a
+ * NON-default backend driver's slots, so a pblock/object data node mutates its
+ * catalog instead of the real filesystem (the confined *_beneath helpers the
+ * POSIX path uses only touch the real FS). plan->path/path2 are export-relative
+ * (leading slash), the format the driver slots expect. Returns 0 / -1+errno; sets
+ * *handled=0 only for an action the driver cannot express. The driver namespace
+ * is inherently export-confined, so a hostile manager still cannot escape it.
+ */
+static int
+cms_node_exec_driver(xrootd_sd_instance_t *sd, const char *root_canon,
+    const xrootd_cms_node_plan_t *plan, ngx_log_t *log, int *handled)
+{
+    const xrootd_sd_driver_t *drv = sd->driver;
+
+    *handled = 1;
+
+    switch (plan->action) {
+    case XRDCMS_NACT_MKDIR:
+        if (drv->mkdir == NULL) { errno = ENOSYS; return -1; }
+        return drv->mkdir(sd, plan->path, plan->mode) == NGX_OK ? 0 : -1;
+
+    case XRDCMS_NACT_MKPATH:
+        /* create the whole path + missing parents in the driver namespace. */
+        return xrootd_vfs_backend_mkpath(root_canon, plan->path, plan->mode, log);
+
+    case XRDCMS_NACT_RMDIR:
+        if (drv->unlink == NULL) { errno = ENOSYS; return -1; }
+        return drv->unlink(sd, plan->path, 1) == NGX_OK ? 0 : -1;
+
+    case XRDCMS_NACT_RM:
+        if (drv->unlink == NULL) { errno = ENOSYS; return -1; }
+        return drv->unlink(sd, plan->path, 0) == NGX_OK ? 0 : -1;
+
+    case XRDCMS_NACT_MV:
+        if (drv->rename == NULL) { errno = ENOSYS; return -1; }
+        return drv->rename(sd, plan->path, plan->path2, 0) == NGX_OK ? 0 : -1;
+
+    case XRDCMS_NACT_CHMOD: {
+        xrootd_sd_setattr_t attr;
+        if (drv->setattr == NULL) { return 0; }   /* no mutable metadata — no-op */
+        ngx_memzero(&attr, sizeof(attr));
+        attr.set_mode = 1;
+        attr.mode = plan->mode;
+        return drv->setattr(sd, plan->path, &attr) == NGX_OK ? 0 : -1;
+    }
+
+    case XRDCMS_NACT_TRUNC: {
+        int              err = 0;
+        int              rc;
+        int              saved;
+        xrootd_sd_obj_t *o;
+
+        if (drv->open == NULL || drv->ftruncate == NULL) { errno = ENOSYS; return -1; }
+        o = drv->open(sd, plan->path, XROOTD_SD_O_WRITE, 0, &err);
+        if (o == NULL) { errno = err ? err : EIO; return -1; }
+        rc = drv->ftruncate(o, (off_t) plan->size) == NGX_OK ? 0 : -1;
+        saved = errno;
+        if (drv->close != NULL) { drv->close(o); }
+        errno = saved;
+        return rc;
+    }
+
+    default:
+        *handled = 0;
+        return -1;
+    }
+}
 
 /* cms_node_exec_forward — execute a manager-forwarded namespace op (Plane B): decode
  * a kYR_chmod/mkdir/mkpath/mv/rm/rmdir/trunc and apply it to local storage UNDER
@@ -43,6 +114,35 @@ cms_node_exec_forward(ngx_xrootd_cms_ctx_t *ctx, u_char code, uint32_t streamid,
                                          "no local storage");
     }
 
+    /* A non-POSIX export (pblock/object) routes the mutation through its driver's
+     * namespace slots; the default POSIX export keeps the confined *_beneath path
+     * below unchanged. */
+    {
+        xrootd_sd_instance_t *sd =
+            xrootd_vfs_backend_resolve(root_canon, ctx->cycle->log);
+
+        if (sd != NULL && sd->driver != xrootd_sd_default_driver()) {
+            int handled;
+            rc = cms_node_exec_driver(sd, root_canon, &plan, ctx->cycle->log,
+                                      &handled);
+            if (!handled) {
+                return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                                                 "unsupported operation");
+            }
+            if (rc != 0) {
+                ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+                    "xrootd: CMS node: forwarded op code=%ui path=%s failed: %s",
+                    (ngx_uint_t) code, plan.path, strerror(errno));
+                return ngx_xrootd_cms_send_error(ctx, streamid, CMS_ERR_EINVAL,
+                                                 strerror(errno));
+            }
+            ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                "xrootd: CMS node: forwarded op code=%ui path=%s OK (driver)",
+                (ngx_uint_t) code, plan.path);
+            return NGX_OK;
+        }
+    }
+
     switch (plan.action) {
     case XRDCMS_NACT_MKDIR:
         rc = xrootd_mkdir_beneath(rootfd, plan.path, plan.mode);
@@ -55,24 +155,24 @@ cms_node_exec_forward(ngx_xrootd_cms_ctx_t *ctx, u_char code, uint32_t streamid,
         break;
     }
     case XRDCMS_NACT_RMDIR:
-        rc = xrootd_unlink_beneath(rootfd, plan.path, 1);
+        rc = xrootd_vfs_unlink_at(rootfd, plan.path, 1);
         break;
     case XRDCMS_NACT_RM:
-        rc = xrootd_unlink_beneath(rootfd, plan.path, 0);
+        rc = xrootd_vfs_unlink_at(rootfd, plan.path, 0);
         break;
     case XRDCMS_NACT_MV:
         rc = xrootd_rename_beneath(rootfd, plan.path, plan.path2);
         break;
     case XRDCMS_NACT_CHMOD: {
-        int fd = xrootd_open_beneath(rootfd, plan.path, O_RDONLY, 0);
+        int fd = xrootd_vfs_open_fd_at(rootfd, plan.path, O_RDONLY, 0);
         if (fd < 0) { rc = -1; }
-        else { rc = fchmod(fd, plan.mode); close(fd); }
+        else { rc = fchmod(fd, plan.mode); close(fd); }  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
         break;
     }
     case XRDCMS_NACT_TRUNC: {
-        int fd = xrootd_open_beneath(rootfd, plan.path, O_WRONLY, 0);
+        int fd = xrootd_vfs_open_fd_at(rootfd, plan.path, O_WRONLY, 0);
         if (fd < 0) { rc = -1; }
-        else { rc = ftruncate(fd, (off_t) plan.size); close(fd); }
+        else { rc = ftruncate(fd, (off_t) plan.size); close(fd); }  /* vfs-seam-allow: metadata on a VFS-opened confined fd */
         break;
     }
     default:

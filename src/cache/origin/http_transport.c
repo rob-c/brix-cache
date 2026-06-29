@@ -353,6 +353,25 @@ xrootd_cache_http_get_url(xrootd_cache_fill_t *t, const char *url)
             curl_easy_setopt(curl, CURLOPT_CAPATH,
                              (char *) conf->trusted_ca.data);
         }
+
+        /* GSI / X.509-proxy client authentication (mutual TLS). When
+         * xrootd_cache_origin_proxy is set, present it as the client cert + key —
+         * a grid proxy is a single PEM holding the proxy cert, its chain, and the
+         * proxy private key, so SSLCERT and SSLKEY both point at it. This brings
+         * the http(s):// origin to auth parity with root:// (token OR GSI). */
+        if (conf->cache_origin_proxy.len > 0) {
+            char proxy[XROOTD_MAX_PATH];
+
+            if (conf->cache_origin_proxy.len < sizeof(proxy)) {
+                ngx_memcpy(proxy, conf->cache_origin_proxy.data,
+                           conf->cache_origin_proxy.len);
+                proxy[conf->cache_origin_proxy.len] = '\0';
+                curl_easy_setopt(curl, CURLOPT_SSLCERT, proxy);
+                curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, "PEM");
+                curl_easy_setopt(curl, CURLOPT_SSLKEY, proxy);
+                curl_easy_setopt(curl, CURLOPT_SSLKEYTYPE, "PEM");
+            }
+        }
     }
 
     res = curl_easy_perform(curl);

@@ -3,6 +3,7 @@
  * Phase-38 split of xrdfs.c; behavior-identical.
  */
 #include "xrdfs_internal.h"
+#include "vfs.h"   /* local endpoint I/O routes through the shared SD driver */
 
 
 /* cat / tail / head share an open-read + stream-to-stdout core. tail seeks the tail
@@ -750,7 +751,9 @@ do_upload(xrdc_conn *c, const char *cwd, int argc, char **argv)
     const char     *local = NULL, *remote = NULL;
     int64_t         bs = 1 << 20, off = 0;
     double          rate = 0.0;
-    int             force = 0, i, fd, rc = 0;
+    int             force = 0, i, rc = 0, is_stdin;
+    int             fd = -1;          /* stdin (raw fd 0) endpoint only */
+    xrdc_vfs_file  *svf = NULL;       /* local-file source through the VFS */
     xrdc_rfile      f;
     uint8_t        *buf;
     struct timespec start;
@@ -775,32 +778,43 @@ do_upload(xrdc_conn *c, const char *cwd, int argc, char **argv)
         return 50;
     }
 
-    fd = (strcmp(local, "-") == 0) ? 0 : open(local, O_RDONLY);
-    if (fd < 0) {
-        fprintf(stderr, "xrdfs: upload: %s: %s\n", local, strerror(errno));
-        return 50;
+    /* stdin "-" is a pipe (raw fd 0); a named local file is opened through the
+     * VFS so its bytes route through the shared SD driver, read by offset. */
+    is_stdin = (strcmp(local, "-") == 0);
+    if (is_stdin) {
+        fd = 0;
+    } else {
+        xrdc_vfs_open_opts vopts;
+        vopts.io_uring = 0; vopts.expected_size = -1; vopts.cred = NULL;
+        xrdc_status_clear(&st);
+        if (xrdc_vfs_open(local, XRDC_VFS_READ, &vopts, &svf, &st) != 0) {
+            fprintf(stderr, "xrdfs: upload: %s: %s\n", local, st.msg);
+            return 50;
+        }
     }
     build_path(cwd, remote, rpath, sizeof(rpath));
     xrdc_status_clear(&st);
     if (xrdc_rfile_open_write(c, rpath, force ? 1 : 0, 0, 0, -1, &f, &st) != 0) {
         fprintf(stderr, "xrdfs: upload %s: %s\n", rpath, st.msg);
         xrdc_cred_hint_for_status(&st, 1, stderr);
-        if (fd > 0) { close(fd); }
+        if (svf != NULL) { xrdc_vfs_close(svf); }
         return xrdc_shellcode(&st);
     }
     buf = (uint8_t *) malloc((size_t) bs);
     if (buf == NULL) {
         xrdc_rfile_close(&f, &st);
-        if (fd > 0) { close(fd); }
+        if (svf != NULL) { xrdc_vfs_close(svf); }
         fprintf(stderr, "xrdfs: upload: out of memory\n");
         return 51;
     }
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (;;) {
-        ssize_t r = read(fd, buf, (size_t) bs);
+        ssize_t r = is_stdin ? read(fd, buf, (size_t) bs)
+                             : xrdc_vfs_pread(svf, off, buf, (size_t) bs, &st);
         if (r < 0) {
-            if (errno == EINTR) { continue; }
-            fprintf(stderr, "xrdfs: upload: read %s: %s\n", local, strerror(errno));
+            if (is_stdin && errno == EINTR) { continue; }
+            fprintf(stderr, "xrdfs: upload: read %s: %s\n", local,
+                    is_stdin ? strerror(errno) : st.msg);
             rc = -1; break;
         }
         if (r == 0) { break; }
@@ -813,7 +827,7 @@ do_upload(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     free(buf);
     xrdc_rfile_close(&f, &st);   /* commit */
-    if (fd > 0) { close(fd); }
+    if (svf != NULL) { xrdc_vfs_close(svf); }
     if (rc != 0) { return rc < 0 ? 1 : rc; }
     fprintf(stderr, "%lld bytes uploaded to %s\n", (long long) off, rpath);
     return 0;
@@ -833,7 +847,9 @@ do_download(xrdc_conn *c, const char *cwd, int argc, char **argv)
     const char     *remote = NULL, *local = NULL;
     int64_t         bs = 1 << 20, off = 0;
     double          rate = 0.0;
-    int             force = 0, i, fd, rc = 0;
+    int             force = 0, i, rc = 0, is_stdout;
+    int             fd = -1;          /* stdout (raw fd 1) endpoint only */
+    xrdc_vfs_file  *dvf = NULL;       /* local-file destination through the VFS */
     xrdc_rfile      f;
     uint8_t        *buf;
     struct timespec start;
@@ -869,47 +885,58 @@ do_download(xrdc_conn *c, const char *cwd, int argc, char **argv)
         local = namebuf;
     }
 
-    if (strcmp(local, "-") == 0) {
-        fd = 1;   /* stdout */
+    /* stdout "-" is a pipe (raw fd 1); a named local file is written through the
+     * VFS — atomic temp+rename commit, FORCE (-f) overwrites, else the existing
+     * destination is refused (the same no-overwrite guard as the old O_EXCL). */
+    is_stdout = (strcmp(local, "-") == 0);
+    if (is_stdout) {
+        fd = 1;
     } else {
-        int flags = O_WRONLY | O_CREAT | (force ? O_TRUNC : O_EXCL);
-        fd = open(local, flags, 0644);
-        if (fd < 0) {
-            fprintf(stderr, "xrdfs: download: %s: %s\n", local, strerror(errno));
+        xrdc_vfs_open_opts vopts;
+        vopts.io_uring = 0; vopts.expected_size = -1; vopts.cred = NULL;
+        xrdc_status_clear(&st);
+        if (xrdc_vfs_open(local, XRDC_VFS_WRITE | (force ? XRDC_VFS_FORCE : 0),
+                          &vopts, &dvf, &st) != 0) {
+            fprintf(stderr, "xrdfs: download: %s: %s\n", local, st.msg);
             return 50;
         }
     }
     xrdc_status_clear(&st);
     if (xrdc_rfile_open_read(c, rpath, NULL, 0, -1, &f, &st) != 0) {
         fprintf(stderr, "xrdfs: download %s: %s\n", rpath, st.msg);
-        if (fd > 1) { close(fd); }
+        if (dvf != NULL) { xrdc_vfs_abort(dvf); xrdc_vfs_close(dvf); }
         return xrdc_shellcode(&st);
     }
     buf = (uint8_t *) malloc((size_t) bs);
     if (buf == NULL) {
         xrdc_rfile_close(&f, &st);
-        if (fd > 1) { close(fd); }
+        if (dvf != NULL) { xrdc_vfs_abort(dvf); xrdc_vfs_close(dvf); }
         fprintf(stderr, "xrdfs: download: out of memory\n");
         return 51;
     }
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (;;) {
         ssize_t n = xrdc_rfile_pread(&f, off, buf, (size_t) bs, &st);
-        ssize_t w = 0;
         if (n < 0) {
             fprintf(stderr, "xrdfs: download %s: %s\n", rpath, st.msg);
             rc = xrdc_shellcode(&st); break;
         }
         if (n == 0) { break; }
-        while (w < n) {
-            ssize_t k = write(fd, buf + w, (size_t) (n - w));
-            if (k < 0) {
-                if (errno == EINTR) { continue; }
-                fprintf(stderr, "xrdfs: download: write %s: %s\n", local, strerror(errno));
-                rc = 1; break;
+        if (is_stdout) {
+            ssize_t w = 0;
+            while (w < n) {
+                ssize_t k = write(fd, buf + w, (size_t) (n - w));
+                if (k < 0) {
+                    if (errno == EINTR) { continue; }
+                    fprintf(stderr, "xrdfs: download: write %s: %s\n", local, strerror(errno));
+                    rc = 1; break;
+                }
+                if (k == 0) { rc = 1; break; }
+                w += k;
             }
-            if (k == 0) { rc = 1; break; }
-            w += k;
+        } else if (xrdc_vfs_pwrite(dvf, off, buf, (size_t) n, &st) != 0) {
+            fprintf(stderr, "xrdfs: download: write %s: %s\n", local, st.msg);
+            rc = 1;
         }
         if (rc != 0) { break; }
         off += n;
@@ -917,9 +944,17 @@ do_download(xrdc_conn *c, const char *cwd, int argc, char **argv)
     }
     free(buf);
     xrdc_rfile_close(&f, &st);
-    if (fd > 1) { close(fd); }
+    if (dvf != NULL) {
+        if (rc == 0 && xrdc_vfs_commit(dvf, &st) != 0) {
+            fprintf(stderr, "xrdfs: download: commit %s: %s\n", local, st.msg);
+            rc = 1;
+        } else if (rc != 0) {
+            xrdc_vfs_abort(dvf);
+        }
+        xrdc_vfs_close(dvf);
+    }
     if (rc != 0) { return rc; }
-    if (fd != 1) {   /* don't pollute a piped stdout with the summary */
+    if (!is_stdout) {   /* don't pollute a piped stdout with the summary */
         fprintf(stderr, "%lld bytes downloaded to %s\n", (long long) off, local);
     }
     return 0;

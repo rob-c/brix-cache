@@ -7,6 +7,7 @@
  */
 
 #include "fattr/ngx_xrootd_fattr.h"
+#include "fs/vfs.h"   /* confinement check via the VFS seam */
 
 #include <string.h>
 #include "../compat/alloc_guard.h"
@@ -45,6 +46,11 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int                 close_fd = 0;
     u_char             *args_buf = NULL;
     size_t              args_len = 0;
+    /* One VFS ctx for the whole request: in path mode it carries the resolved
+     * confined path the xattr ops act on; in fd mode it carries only proto/log
+     * for metric attribution (the fd is the target). Lives for the handler
+     * calls below. */
+    xrootd_vfs_ctx_t    vctx;
 
     xrdw_fattr_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
     subcode = req.subcode;
@@ -105,6 +111,10 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
             }
             fd = ctx->files[idx].fd;
         }
+        /* fd target: vctx carries proto/log only (path stays NULL → fd mode). */
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+            conf->common.root_canon, NULL, conf->common.allow_write,
+            0 /* is_tls */, NULL, NULL);
 
     } else if (ctx->payload != NULL && ctx->payload[0] == 0) {
         /* (b) fhandle-targeted request with a leading 0 marker byte. */
@@ -117,6 +127,10 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         fd = ctx->files[idx].fd;
+        /* fd target: vctx carries proto/log only (path stays NULL → fd mode). */
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+            conf->common.root_canon, NULL, conf->common.allow_write,
+            0 /* is_tls */, NULL, NULL);
         /* Everything after the marker byte is the nvec/vvec args region. */
         if (ctx->cur_dlen > 1) {
             args_buf = ctx->payload + 1;
@@ -162,16 +176,20 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         {
-            /* Open with RESOLVE_BENEATH to verify the path is confined. */
-            int path_fd = xrootd_open_beneath(conf->rootfd, pathbuf, O_RDONLY, 0);
-            if (path_fd < 0) {
+            /* Confinement check via the VFS: a confined no-follow stat verifies
+             * the path is within the export root (and exists) without a raw
+             * open_beneath. The fattr ops then operate by path (through the same
+             * vctx) so a directory list can recurse. */
+            xrootd_vfs_stat_t vst;
+
+            xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+                conf->common.root_canon, NULL, conf->common.allow_write,
+                0 /* is_tls */, NULL, full_path);
+            if (xrootd_vfs_stat(&vctx, &vst) != NGX_OK) {
                 XROOTD_OP_ERR(ctx, XROOTD_OP_FATTR);
                 return xrootd_send_error(ctx, c, xrootd_kxr_from_errno(errno),
                                          "fattr: cannot open path");
             }
-            /* The open was only a confinement check — close it and operate by
-             * path, so fattr_list_recurse can traverse directories. */
-            close(path_fd);
             path = full_path;
         }
         /* Args (nvec/vvec) are whatever bytes follow the path's NUL. */
@@ -183,7 +201,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /* list takes no nvec — dispatch directly. */
     if (subcode == kXR_fattrList) {
-        ngx_int_t rc = fattr_list(ctx, c, path, fd, options);
+        ngx_int_t rc = fattr_list(ctx, c, &vctx, path, fd, options);
         if (close_fd) { close(fd); }
         return rc;
     }
@@ -225,17 +243,17 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
             ngx_int_t dispatch_rc;
             switch (subcode) {
             case kXR_fattrGet:
-                dispatch_rc = fattr_get(ctx, c, path, fd, nvec_copy, nvec_len,
-                                        numattr, attrs);
+                dispatch_rc = fattr_get(ctx, c, &vctx, path, fd,
+                                        nvec_copy, nvec_len, numattr, attrs);
                 break;
             case kXR_fattrSet:
-                dispatch_rc = fattr_set(ctx, c, path, fd, options,
+                dispatch_rc = fattr_set(ctx, c, &vctx, path, fd, options,
                                         nvec_copy, nvec_len, vvec_buf, vvec_len,
                                         numattr, attrs);
                 break;
             case kXR_fattrDel:
-                dispatch_rc = fattr_del(ctx, c, path, fd, nvec_copy, nvec_len,
-                                        numattr, attrs);
+                dispatch_rc = fattr_del(ctx, c, &vctx, path, fd,
+                                        nvec_copy, nvec_len, numattr, attrs);
                 break;
             default:
                 dispatch_rc = xrootd_send_error(ctx, c, kXR_Unsupported,

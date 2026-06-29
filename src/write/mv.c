@@ -5,6 +5,8 @@
 #include "ngx_xrootd_module.h"
 #include "../compat/error_mapping.h"
 #include "../path/op_path.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_rename_path (thread-safe confined rename) */
+#include "../fs/vfs_backend_registry.h"   /* per-export backend resolve */
 
 /*
  * xrootd_handle_mv â rename a file or directory.
@@ -92,7 +94,7 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	/* Source must exist (EXISTING).  Confinement is the kernel RESOLVE_BENEATH
 	 * inside xrootd_ns_rename below; this gate only reproduces the historical
 	 * "source not found" 404 without a realpath() call. */
-	if (xrootd_path_resolve_beneath(conf, src_buf, XROOTD_PATH_EXISTING,
+	if (xrootd_path_resolve_beneath(conf, c->log, src_buf, XROOTD_PATH_EXISTING,
 									src_resolved, sizeof(src_resolved)) != NGX_OK) {
 		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", src_buf, "-",
 						  kXR_NotFound, "no such file or directory");
@@ -111,11 +113,16 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * name.  (Without this our parent-creation below would create "Y" as a dir
 	 * and the rename would then report kXR_isDirectory — diverging from stock.) */
 	{
-		size_t      dl = ngx_strlen(dst_buf);
-		struct stat sst;
+		size_t dl = ngx_strlen(dst_buf);
 		if (dl > 1 && dst_buf[dl - 1] == '/') {
-			if (xrootd_lstat_beneath(conf->rootfd, src_buf, &sst) == 0
-				&& !S_ISDIR(sst.st_mode)) {
+			xrootd_vfs_ctx_t  sctx;
+			xrootd_vfs_stat_t svst;
+
+			xrootd_vfs_ctx_init(&sctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+				conf->common.root_canon, NULL, conf->common.allow_write,
+				0 /* is_tls */, NULL, src_resolved);
+			if (xrootd_vfs_probe(&sctx, 1 /* no-follow */, &svst) == NGX_OK
+				&& !svst.is_directory) {
 				/* rename(file, "dst/") → ENOTDIR (a "/"-terminated target must be
 				 * a directory).  Stock reports the "not a directory" category. */
 				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", src_buf, "-",
@@ -134,7 +141,23 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * root by xrootd_mkdir_recursive_policy; the source RENAME auth above has
 	 * already gated the operation. A component that is an existing non-dir fails
 	 * here and the WRITE resolve below then reports the error. */
-	{
+	if (xrootd_vfs_backend_resolve(conf->common.root_canon, c->log) != NULL) {
+		/* Non-POSIX backend: create the destination parent chain in the driver
+		 * namespace (export-relative). setgid group policy is a real-FS-only
+		 * semantic and is intentionally not applied for a catalog/object backend. */
+		char   rel[XROOTD_MAX_PATH + 1];
+		char  *slash;
+		size_t rl = ngx_strlen(dst_buf);
+		if (rl < sizeof(rel)) {
+			ngx_memcpy(rel, dst_buf, rl + 1);
+			slash = strrchr(rel, '/');
+			if (slash && slash > rel) {
+				*slash = '\0';
+				(void) xrootd_vfs_backend_mkpath(conf->common.root_canon, rel,
+												 0755, c->log);
+			}
+		}
+	} else {
 		char  dst_full[PATH_MAX];
 		char *slash;
 		xrootd_beneath_full_path(conf->common.root_canon, dst_buf,
@@ -148,7 +171,7 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	/* Destination parent must exist; the tail may not (WRITE). */
-	if (xrootd_path_resolve_beneath(conf, dst_buf, XROOTD_PATH_WRITE,
+	if (xrootd_path_resolve_beneath(conf, c->log, dst_buf, XROOTD_PATH_WRITE,
 									dst_resolved, sizeof(dst_resolved)) != NGX_OK) {
 		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", src_buf, "-",
 						  kXR_NotFound, "invalid destination path");
@@ -161,29 +184,39 @@ xrootd_handle_mv(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	{
-		xrootd_ns_result_t res;
+		int was_dir = 0;
 
-		res = xrootd_ns_rename(c->log, conf->common.root_canon,
-		                       src_resolved, dst_resolved, 0);
-		if (res.status != XROOTD_NS_OK) {
+		/* Rename through the thread-safe VFS surface; the namespace status is
+		 * conveyed as errno (1:1 with the old xrootd_ns_status_t) + was_dir, so
+		 * the kXR mapping below is identical to the prior xrootd_ns_rename path. */
+		if (xrootd_vfs_rename_path(
+		        xrootd_vfs_backend_resolve(conf->common.root_canon, c->log),
+		        c->log, conf->common.root_canon,
+		        src_resolved, dst_resolved, 0, &was_dir)
+		    != NGX_OK)
+		{
+			int         e = errno;
 			int         kxr;
 			const char *msg;
 
-			/* NS_EXISTS (rename onto an existing target) and NS_DENIED carry no
-			 * errno, so strerror(res.sys_errno) would print "Success" on an error
-			 * response. Map each status to a meaningful kXR code + message; an
-			 * existing-directory destination mirrors stock's kXR_isDirectory
-			 * "is a directory". */
-			if (res.status == XROOTD_NS_DENIED) {
+			if (e == EACCES || e == EPERM) {           /* NS_DENIED */
 				kxr = kXR_NotAuthorized;
 				msg = "permission denied";
-			} else if (res.status == XROOTD_NS_EXISTS) {
-				kxr = res.was_dir ? kXR_isDirectory : kXR_ItExists;
-				msg = res.was_dir ? "destination is a directory"
-				                  : "destination already exists";
+			} else if (e == EEXIST) {                  /* NS_EXISTS */
+				kxr = was_dir ? kXR_isDirectory : kXR_ItExists;
+				msg = was_dir ? "destination is a directory"
+				              : "destination already exists";
 			} else {
-				kxr = xrootd_kxr_map_ns_status(res.status, res.sys_errno);
-				msg = res.sys_errno ? strerror(res.sys_errno) : "rename failed";
+				/* Mirror xrootd_kxr_map_ns_status exactly via the 1:1 errno. */
+				switch (e) {
+				case ENOENT:       kxr = kXR_NotFound;   break; /* NOT_FOUND  */
+				case ENOTDIR:      kxr = kXR_FSError;    break; /* CONFLICT   */
+				case ENOTEMPTY:    kxr = kXR_ItExists;   break; /* NOT_EMPTY  */
+				case ENOSPC:       kxr = kXR_NoSpace;    break; /* NO_SPACE   */
+				case ENAMETOOLONG: kxr = kXR_ArgTooLong; break; /* TOO_LONG   */
+				default:           kxr = xrootd_kxr_from_errno(e); break;
+				}
+				msg = strerror(e);
 			}
 			XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_MV, "MV", src_resolved, "-",
 			                  kxr, msg);

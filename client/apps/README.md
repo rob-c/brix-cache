@@ -35,6 +35,7 @@ record the groupings; the table lists each tool by its binary, not its files.
 | `mpxstats` | Aggregate + pretty-print a server's summary statistics. |
 | `xrdmapc` | Query a manager/redirector for the live cluster map of a path. |
 | `wait41` | Block until an XRootD server accepts connections (scripting/orchestration). |
+| `xrdstorascan` | Backend-aware storage admin tool. Phase 1 (client-side, any backend): `verify <url>` — end-to-end single-file integrity (pull the bytes, recompute, compare to the server's `kXR_Qcksum`); `bench <url>` — gateway throughput/IOPS/latency sweep over block size × parallelism. Later phases add server-engine modes (`inspect`/`inventory`/`drift`/`health`). |
 
 ## Auth & security
 

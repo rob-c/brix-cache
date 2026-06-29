@@ -23,6 +23,7 @@ xrootd_write_aio_thread(void *data, ngx_log_t *log)
      */
     xrootd_vfs_job_write_init(&job, t->fd, t->offset, t->data, t->len);
     job.csi = t->csi;                    /* phase-59 W2: update tags in worker */
+    xrootd_vfs_job_set_obj(&job, &t->obj); /* Layer 3: route via driver if bound */
     xrootd_vfs_io_execute(&job);
 
     t->nwritten = job.nio;

@@ -8,6 +8,7 @@
  * of xrootd_open_resolved_file(); none of the write/POSC/WT machinery applies.
  */
 #include "zip_member.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
 #include "zip_dir.h"
 #include "../fs/backend/sd.h"   /* route ZIP member byte reads through the SD backend */
 #include "../fs/vfs_scratch.h"  /* CONSUME: materialize the archive to local POSIX scratch */
@@ -220,7 +221,7 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     /* Open the archive read-only, confined beneath the export root (same
      * RESOLVE_BENEATH path the normal read open uses). */
-    fd = xrootd_open_beneath(conf->rootfd, archive_logical,
+    fd = xrootd_vfs_open_fd_at(conf->rootfd, archive_logical,
                              O_RDONLY | O_CLOEXEC, 0);
     if (fd < 0) {
         int err = errno;

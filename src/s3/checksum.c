@@ -85,6 +85,33 @@ s3_cksum_vfs_unlink(ngx_http_request_t *r, const char *fs_path,
     (void) xrootd_vfs_unlink(&vctx);
 }
 
+/*
+ * s3_cksum_vfs_open — confined read-open of fs_path through the VFS (same ctx
+ * construction as s3_cksum_vfs_unlink). The returned handle's fd backs the
+ * checksum kernel; the caller releases it with xrootd_vfs_close. NULL on error.
+ */
+static xrootd_vfs_file_t *
+s3_cksum_vfs_open(ngx_http_request_t *r, const char *fs_path,
+    const char *root_canon)
+{
+    ngx_http_s3_loc_conf_t *cf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+    ngx_http_s3_req_ctx_t  *s3ctx =
+        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    xrootd_vfs_ctx_t        vctx;
+    int                     is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+        root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
+        (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+
+    return xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, NULL);
+}
+
 static int
 s3_hexval(unsigned char c)
 {
@@ -121,7 +148,7 @@ s3_checksum_b64(ngx_http_request_t *r, int fd, const char *path,
     iopts.require_regular_file = 1;
     iopts.no_compute           = cache_only ? 1 : 0;
 
-    rc = xrootd_integrity_get_fd(r->connection->log, fd, path, alg_name,
+    rc = xrootd_integrity_get_fd(r->connection->log, fd, NULL, path, alg_name,
                                  &iopts, &info);
     if (rc != NGX_OK) {
         return rc;
@@ -250,7 +277,7 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     const s3_cksum_desc_t *desc;
     ngx_table_elt_t       *want_value;
     int                    conflict;
-    int                    fd;
+    xrootd_vfs_file_t     *fh;
     char                   b64[S3_CHECKSUM_B64_MAX];
     ngx_int_t              rc;
 
@@ -265,14 +292,13 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
         desc = &s3_cksum_table[S3_CKSUM_DEFAULT_IDX];   /* crc64nvme default */
     }
 
-    fd = xrootd_open_confined_canon(r->connection->log, root_canon, fs_path,
-                                    O_RDONLY, 0);
-    if (fd < 0) {
+    fh = s3_cksum_vfs_open(r, fs_path, root_canon);
+    if (fh == NULL) {
         return S3_CKSUM_ERROR;
     }
-    rc = s3_checksum_b64(r, fd, fs_path, desc->alg_name, 0 /* compute+cache */,
-                         b64, sizeof(b64));
-    close(fd);
+    rc = s3_checksum_b64(r, xrootd_vfs_file_fd(fh), fs_path, desc->alg_name,
+                         0 /* compute+cache */, b64, sizeof(b64));
+    xrootd_vfs_close(fh, r->connection->log);
     if (rc != NGX_OK) {
         return S3_CKSUM_ERROR;
     }
@@ -303,7 +329,7 @@ s3_put_trailer_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon, const char *algo_token, const char *value)
 {
     const s3_cksum_desc_t *desc;
-    int                    fd;
+    xrootd_vfs_file_t     *fh;
     char                   b64[S3_CHECKSUM_B64_MAX];
     ngx_int_t              rc;
 
@@ -314,13 +340,13 @@ s3_put_trailer_checksum_apply(ngx_http_request_t *r, const char *fs_path,
         return S3_CKSUM_CONFLICT;
     }
 
-    fd = xrootd_open_confined_canon(r->connection->log, root_canon, fs_path,
-                                    O_RDONLY, 0);
-    if (fd < 0) {
+    fh = s3_cksum_vfs_open(r, fs_path, root_canon);
+    if (fh == NULL) {
         return S3_CKSUM_ERROR;
     }
-    rc = s3_checksum_b64(r, fd, fs_path, desc->alg_name, 0, b64, sizeof(b64));
-    close(fd);
+    rc = s3_checksum_b64(r, xrootd_vfs_file_fd(fh), fs_path, desc->alg_name, 0,
+                         b64, sizeof(b64));
+    xrootd_vfs_close(fh, r->connection->log);
     if (rc != NGX_OK) {
         return S3_CKSUM_ERROR;
     }

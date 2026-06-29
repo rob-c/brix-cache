@@ -8,7 +8,7 @@
  */
 
 #include "aws_chunked.h"
-#include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
+#include "../fs/vfs.h"   /* xrootd_vfs_pread_full / pwrite_full (storage seam) */
 #include "s3.h"
 #include "../compat/http_headers.h"
 #include "../compat/crypto.h"
@@ -187,22 +187,14 @@ s3_chunk_emit(s3_chunk_ctx_t *c, const u_char *p, size_t n)
         s3_chunk_fail(c, NGX_HTTP_BAD_REQUEST);   /* more data than declared */
         return -1;
     }
-    xrootd_sd_obj_t obj;
-    xrootd_sd_posix_wrap(&obj, c->fd);   /* phase-55: SD seam */
-    while (n > 0) {
-        ssize_t w = xrootd_sd_posix_driver.pwrite(&obj, p, n, c->write_off);
-        if (w < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);
-            return -1;
-        }
-        c->write_off     += w;
-        c->total_decoded += (uint64_t) w;
-        p                += w;
-        n                -= (size_t) w;
+    /* Write the decoded chunk through the storage seam (handles EINTR/short
+     * writes); a failure fails the whole upload. */
+    if (xrootd_vfs_pwrite_full(c->fd, p, n, c->write_off) != NGX_OK) {
+        s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return -1;
     }
+    c->write_off     += (off_t) n;
+    c->total_decoded += (uint64_t) n;
     return 0;
 }
 
@@ -447,31 +439,30 @@ s3_chunk_feed_buf(s3_chunk_ctx_t *c, ngx_buf_t *b, u_char *window)
     }
 
     if (b->in_file) {
-        off_t           off = b->file_pos;
-        xrootd_sd_obj_t obj;
+        off_t off = b->file_pos;
 
-        xrootd_sd_posix_wrap(&obj, b->file->fd);   /* phase-55: SD seam */
         while (off < b->file_last && c->state != ST_DONE
                && c->state != ST_ERROR)
         {
-            off_t   want = b->file_last - off;
-            ssize_t n;
+            off_t  want = b->file_last - off;
+            size_t got  = 0;
             if (want > S3_CHUNK_READ_WINDOW) {
                 want = S3_CHUNK_READ_WINDOW;
             }
-            n = xrootd_sd_posix_driver.pread(&obj, window, (size_t) want, off);
-            if (n < 0) {
-                if (errno == EINTR) { continue; }
+            /* One window through the storage seam (EINTR/short-read handled). */
+            if (xrootd_vfs_pread_full(b->file->fd, window, (size_t) want, off,
+                                      &got) != NGX_OK)
+            {
                 s3_chunk_fail(c, NGX_HTTP_INTERNAL_SERVER_ERROR);
                 return -1;
             }
-            if (n == 0) {
+            if (got == 0) {
                 break;
             }
-            if (s3_chunk_feed(c, window, window + n) != 0) {
+            if (s3_chunk_feed(c, window, window + got) != 0) {
                 return -1;
             }
-            off += n;
+            off += (off_t) got;
         }
     }
     return (c->state == ST_ERROR) ? -1 : 0;

@@ -29,10 +29,18 @@ s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
     }
 
     {
-        struct stat sb;
-        char        etag_buf[48];
-        if (xrootd_lstat_confined_canon(r->connection->log, root_canon, fs_path,
-                                        &sb, 1) == 0) {
+        xrootd_vfs_ctx_t  fctx;
+        xrootd_vfs_stat_t fst;
+        char              etag_buf[48];
+
+        xrootd_vfs_ctx_init(&fctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+            root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, fs_path);
+        if (xrootd_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
+            struct stat sb;
+
+            ngx_memzero(&sb, sizeof(sb));
+            sb.st_mtime = fst.mtime;
+            sb.st_size  = fst.size;
             s3_etag(&sb, etag_buf, sizeof(etag_buf));
             (void) s3_set_header(r, "ETag", etag_buf);
         }
@@ -57,6 +65,7 @@ s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
     }
 
     (void) s3_apply_put_tagging_header(r, fs_path, root_canon);
+    (void) s3_apply_put_user_metadata(r, fs_path, root_canon);
     s3_put_finalize_ok(r, expected, body_mode);
 }
 

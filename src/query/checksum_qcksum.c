@@ -3,6 +3,7 @@
 #include "../compat/integrity_info.h"
 #include "../response/response.h"
 #include "../aio/aio.h"
+#include "../fs/vfs.h"   /* confined read-open via the VFS seam */
 #include "../manager/registry.h"
 #include "../manager/pending.h"
 #include "../cms/cms_internal.h"
@@ -65,7 +66,8 @@ xrootd_query_cksum_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 static ngx_int_t
 xrootd_query_build_checksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    int fd, const char *resolved, const char *algo, char *resp, size_t resp_sz)
+    int fd, xrootd_sd_obj_t *obj, const char *resolved, const char *algo,
+    char *resp, size_t resp_sz)
 {
     xrootd_integrity_info_t  info;
     xrootd_integrity_opts_t  iopts;
@@ -75,7 +77,8 @@ xrootd_query_build_checksum(xrootd_ctx_t *ctx, ngx_connection_t *c,
     iopts.allow_xattr_cache  = 1;
     iopts.update_xattr_cache = 1;
 
-    if (xrootd_integrity_get_fd(c->log, fd, resolved, algo, &iopts, &info) != NGX_OK)
+    if (xrootd_integrity_get_fd(c->log, fd, obj, resolved, algo, &iopts, &info)
+        != NGX_OK)
     {
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
         return xrootd_query_cksum_send_error(ctx, c, kXR_IOError,
@@ -98,11 +101,12 @@ static ngx_int_t
 xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, char *algo, size_t algo_sz)
 {
-    char          full_path[PATH_MAX];
-    char          pathbuf[XROOTD_MAX_PATH + 1];
-    char          resp[256];
-    int           fd;
-    const u_char *payload = ctx->payload;
+    char               full_path[PATH_MAX];
+    char               pathbuf[XROOTD_MAX_PATH + 1];
+    char               resp[256];
+    int                fd;
+    xrootd_vfs_file_t *fh = NULL;
+    const u_char      *payload = ctx->payload;
     size_t        payload_len = (size_t) ctx->cur_dlen;
     size_t        wire_len;
     const u_char *sep = NULL;
@@ -243,8 +247,20 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return ctx->write_rc;
     }
 
-    fd = xrootd_open_beneath(conf->rootfd, pathbuf, O_RDONLY, 0);
-    if (fd < 0) {
+    {
+        /* Confined read-open through the VFS seam (impersonation-aware, metered).
+         * The fd backs the backend-agnostic checksum kernel; the handle is closed
+         * via xrootd_vfs_close on every exit (sync below, or the aio done cb). */
+        xrootd_vfs_ctx_t vctx;
+        int              vfs_err = 0;
+
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+            conf->common.root_canon, NULL, conf->common.allow_write,
+            0 /* is_tls */, NULL, full_path);
+        fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+        errno = vfs_err;
+    }
+    if (fh == NULL) {
         /*
          * Read-through cache miss: the file has not been pulled from the origin
          * yet (a cached hit is computed locally above).  The origin holds the
@@ -266,6 +282,7 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                           full_path, "cksum", xrootd_kxr_from_errno(errno),
                           strerror(errno));
     }
+    fd = xrootd_vfs_file_fd(fh);
 
     if (conf->common.thread_pool != NULL) {
         xrootd_cksum_aio_t *t;
@@ -274,7 +291,7 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_cksum_aio_t));
         if (task == NULL) {
-            close(fd);
+            xrootd_vfs_close(fh, c->log);
             XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSUM);
             return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
         }
@@ -284,7 +301,9 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
         t->c        = c;
         t->conf     = conf;
         t->fd       = fd;
+        t->fh       = fh;        /* done cb releases the VFS handle */
         t->close_fd = 1;
+        xrootd_vfs_file_sd_obj(fh, &t->obj); /* Layer 3: whole-object checksum */
         ngx_memcpy(t->streamid, ctx->cur_streamid, 2);
         ngx_cpystrn((u_char *) t->algo, (u_char *) algo, sizeof(t->algo));
         ngx_cpystrn((u_char *) t->resolved, (u_char *) full_path,
@@ -298,18 +317,24 @@ xrootd_query_cksum_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                  "cksum thread pool queue full, using sync",
                                  &posted) != NGX_OK)
         {
-            close(fd);
+            xrootd_vfs_close(fh, c->log);
             return NGX_ERROR;
         }
 
         if (posted) {
             return NGX_OK;
         }
+        /* not posted → fall through to the sync path, reusing the open handle. */
     }
 
-    rc = xrootd_query_build_checksum(ctx, c, fd, full_path, algo, resp,
-                                     sizeof(resp));
-    close(fd);
+    {
+        xrootd_sd_obj_t cobj;
+
+        xrootd_vfs_file_sd_obj(fh, &cobj);
+        rc = xrootd_query_build_checksum(ctx, c, fd, &cobj, full_path, algo,
+                                         resp, sizeof(resp));
+    }
+    xrootd_vfs_close(fh, c->log);
     if (rc == NGX_DONE) {
         return NGX_OK;
     }
@@ -377,6 +402,7 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
         t->conf     = conf;
         t->fd       = ctx->files[idx].fd;
         t->close_fd = 0;
+        t->obj      = ctx->files[idx].sd_obj; /* Layer 3: whole-object checksum */
         ngx_memcpy(t->streamid, ctx->cur_streamid, 2);
         ngx_cpystrn((u_char *) t->algo, (u_char *) algo, sizeof(t->algo));
         ngx_cpystrn((u_char *) t->resolved, (u_char *) resolved,
@@ -398,7 +424,8 @@ xrootd_query_cksum_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    rc = xrootd_query_build_checksum(ctx, c, ctx->files[idx].fd, resolved,
+    rc = xrootd_query_build_checksum(ctx, c, ctx->files[idx].fd,
+                                     &ctx->files[idx].sd_obj, resolved,
                                      algo, resp, sizeof(resp));
     if (rc == NGX_DONE) {
         return NGX_OK;

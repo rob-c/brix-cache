@@ -64,6 +64,20 @@ tmpfile_with(const uint8_t *buf, size_t n)
 }
 
 
+/* fd-backed pull source for xrdc_http_upload: the battery's body is an anonymous
+ * tmpfile (generated diagnostic payload, not export storage), so a plain pread by
+ * offset is the source — storage callers pass a VFS-backed source instead. */
+static ssize_t
+bat_upload_src_fd(void *ctx, uint8_t *buf, int64_t off, size_t cap, xrdc_status *st)
+{
+    ssize_t r = pread(*(int *) ctx, buf, cap, (off_t) off);  /* vfs-seam-allow: anonymous tmpfile diagnostic payload, not export storage */
+    if (r < 0) {
+        xrdc_status_set(st, XRDC_ESOCK, errno, "pread: %s", strerror(errno));
+    }
+    return r;
+}
+
+
 /* The native root:// functional battery: always-safe reads, then (do_write) a full
  * write/read/verify/checksum/metadata cycle under a temp dir that is cleaned up. */
 void
@@ -346,7 +360,8 @@ battery_web(const xrdc_weburl *u, int do_write, const char *bearer, int verify,
         /* PUT */
         fd = tmpfile_with(payload, sizeof(payload));
         xrdc_status_clear(&st);
-        if (fd >= 0 && xrdc_http_upload(u->host, u->port, u->tls, fpath, xtra, fd,
+        if (fd >= 0 && xrdc_http_upload(u->host, u->port, u->tls, fpath, xtra,
+                                        bat_upload_src_fd, &fd,
                                         (long long) sizeof(payload), verify, ca, 10000,
                                         &st_code, &st) == 0) {
             bat_add(b, "PUT", (st_code >= 200 && st_code < 300) ? 1 : 0, "HTTP %d", st_code);
@@ -440,7 +455,8 @@ battery_s3(const xrdc_weburl *u, int do_write, const char *ak, const char *sk,
         xrdc_status_clear(&st);
         if (xrdc_s3_sign_v4("PUT", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) == 0) {
             fd = tmpfile_with(payload, sizeof(payload));
-            if (fd >= 0 && xrdc_http_upload(u->host, u->port, u->tls, uri, hdrs, fd,
+            if (fd >= 0 && xrdc_http_upload(u->host, u->port, u->tls, uri, hdrs,
+                                            bat_upload_src_fd, &fd,
                                             (long long) sizeof(payload), verify, ca, 10000,
                                             &st_code, &st) == 0) {
                 bat_add(b, "PUT", (st_code >= 200 && st_code < 300) ? 1 : 0, "HTTP %d", st_code);

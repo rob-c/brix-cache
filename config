@@ -12,8 +12,16 @@
 #   -Wformat -Werror=format-security  reject printf calls with non-literal format strings
 # These are additive and safe to combine with nginx's own CFLAGS.
 # Alternatively, pass via:  ./configure ... --with-cc-opt="-D_FORTIFY_SOURCE=2 ..."
-# For full RELRO/BIND_NOW, pass at configure time: --with-ld-opt="-Wl,-z,relro,-z,now"
+# For full RELRO/BIND_NOW, defaulted below (NGX_LD_OPT); override with --with-ld-opt.
 CFLAGS="$CFLAGS -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -Wformat -Werror=format-security"
+
+# Link hardening for the dynamic module (.so). Appended unless the operator
+# already passed equivalent flags via --with-ld-opt. Full RELRO + BIND_NOW make
+# the GOT read-only after startup; noexecstack marks the stack non-executable.
+case "$NGX_LD_OPT" in
+    *relro*) : ;;  # operator already set it; don't double-add
+    *) NGX_LD_OPT="$NGX_LD_OPT -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack" ;;
+esac
 
 # Performance profile (Phase 33 D1: v2 is now the DEFAULT, not opt-in).
 # The Phase-33 audit found the hardening flags above cost nothing measurable on
@@ -217,6 +225,65 @@ else
     echo " + xrootd compression: lz4 disabled (install liblz4-dev to enable)"
 fi
 
+# Ceph/RADOS storage backend (phase-60): optional, header-gated.  When the
+# librados dev headers + lib are present we compile src/fs/backend/rados/sd_ceph.c
+# against raw librados and define -DXROOTD_HAVE_CEPH=1; otherwise sd_ceph.c
+# contributes only its pure (libc-only) LFN->object-key helpers and the driver
+# row in sd_registry.c is #if-compiled out, so a no-Ceph build is byte-for-byte
+# unchanged.  Set XROOTD_WITHOUT_CEPH=1 to force-disable even when librados is
+# present.  The link flag MUST go in ngx_module_libs (XROOTD_CEPH_LIBS, appended
+# below), NOT only CORE_LIBS, or dlopen of the DYNAMIC module .so fails
+# (rpm_packaging_three_packages).
+XROOTD_CEPH_LIBS=""
+if [ "${XROOTD_WITHOUT_CEPH:-}" != "1" ] \
+   && printf '#include <rados/librados.h>\nint main(void){rados_t c; return rados_create(&c, 0);}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
+   && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lrados >/dev/null 2>&1; then
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
+    CFLAGS="$CFLAGS -DXROOTD_HAVE_CEPH=1"
+    XROOTD_CEPH_LIBS="-lrados"
+    echo " + xrootd storage backend: ceph/rados enabled"
+
+    # libradosstriper — the stock XrdCeph data-plane layer (RAL/Glasgow on-RADOS
+    # format compatibility). When present, the rados driver's data plane
+    # (sd_ceph_striper.c) is compiled with -DXROOTD_HAVE_RADOSSTRIPER=1; otherwise
+    # only the pure compat helpers (stripe naming, N2N) build, exactly like the
+    # XROOTD_HAVE_CEPH gating of sd_ceph.c.
+    if printf '#include <radosstriper/libradosstriper.h>\nint main(void){rados_striper_t s; (void)s; return 0;}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
+       && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lradosstriper -lrados >/dev/null 2>&1; then
+        rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
+        CFLAGS="$CFLAGS -DXROOTD_HAVE_RADOSSTRIPER=1"
+        XROOTD_CEPH_LIBS="-lradosstriper -lrados"
+        echo " + xrootd storage backend: ceph/rados libradosstriper (stock XrdCeph layout) enabled"
+    else
+        rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
+        echo " + xrootd storage backend: libradosstriper disabled (install libradosstriper-devel for stock XrdCeph layout)"
+    fi
+else
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
+    echo " + xrootd storage backend: ceph/rados disabled (install librados-devel to enable)"
+fi
+
+# pblock storage backend: optional, header-gated like Ceph.  When libsqlite3 dev
+# headers + lib are present we compile src/fs/backend/pblock/sd_pblock.c against
+# sqlite3 and define -DXROOTD_HAVE_SQLITE=1; otherwise sd_pblock.c is empty (the
+# whole file is #if XROOTD_HAVE_SQLITE) and the driver row in sd_registry.c is
+# #if-compiled out, so a no-sqlite build is byte-for-byte unchanged.  Set
+# XROOTD_WITHOUT_SQLITE=1 to force-disable even when sqlite3 is present.  The link
+# flag MUST go in ngx_module_libs (XROOTD_SQLITE_LIBS, appended below), NOT only
+# CORE_LIBS, or dlopen of the DYNAMIC module .so fails (rpm_packaging_three_packages).
+XROOTD_SQLITE_LIBS=""
+if [ "${XROOTD_WITHOUT_SQLITE:-}" != "1" ] \
+   && printf '#include <sqlite3.h>\nint main(void){sqlite3 *d; return sqlite3_open(":memory:", &d) != 0;}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
+   && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lsqlite3 >/dev/null 2>&1; then
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
+    CFLAGS="$CFLAGS -DXROOTD_HAVE_SQLITE=1"
+    XROOTD_SQLITE_LIBS="-lsqlite3"
+    echo " + xrootd storage backend: pblock (sqlite) enabled"
+else
+    rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
+    echo " + xrootd storage backend: pblock (sqlite) disabled (install libsqlite3-devel to enable)"
+fi
+
 # OpenSSL >= 3.0.0 is REQUIRED.
 #   Licensing: OpenSSL 3.x is Apache-2.0, which is compatible with this project's
 #   AGPL-3.0 license.  OpenSSL <= 1.1.1 ships under the legacy OpenSSL/SSLeay dual
@@ -297,7 +364,11 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/fs/vfs.h \
                         $ngx_addon_dir/src/fs/vfs_internal.h \
                         $ngx_addon_dir/src/fs/vfs_scratch.h \
+                        $ngx_addon_dir/src/fs/xfer/xfer.h \
+                        $ngx_addon_dir/src/fs/xfer/xfer_reconcile.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
+                        $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
+                        $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                         $ngx_addon_dir/src/frm/frm.h \
                         $ngx_addon_dir/src/frm/frm_format.h \
                         $ngx_addon_dir/src/frm/frm_internal.h \
@@ -411,6 +482,8 @@ ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
                         $ngx_addon_dir/src/mirror/http_mirror.h \
                         $ngx_addon_dir/src/fs/vfs.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
+                        $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
+                        $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                         $ngx_addon_dir/src/cache/open.h \
                         $ngx_addon_dir/src/webdav/xrdhttp.h \
                         $ngx_addon_dir/src/compat/time.h \
@@ -521,11 +594,13 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/pmark/flowlabel.c \
     $ngx_addon_dir/src/types/identity.c \
     $ngx_addon_dir/src/fs/vfs_open.c \
+    $ngx_addon_dir/src/fs/vfs_backend_registry.c \
     $ngx_addon_dir/src/fs/vfs_io_core.c \
     $ngx_addon_dir/src/fs/vfs_read.c \
     $ngx_addon_dir/src/fs/vfs_write.c \
     $ngx_addon_dir/src/fs/vfs_stat.c \
     $ngx_addon_dir/src/fs/vfs_dir.c \
+    $ngx_addon_dir/src/fs/vfs_walk.c \
     $ngx_addon_dir/src/fs/vfs_unlink.c \
     $ngx_addon_dir/src/fs/vfs_rename.c \
     $ngx_addon_dir/src/fs/vfs_mkdir.c \
@@ -534,8 +609,26 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs_copy.c \
     $ngx_addon_dir/src/fs/vfs_staged.c \
     $ngx_addon_dir/src/fs/vfs_scratch.c \
+    $ngx_addon_dir/src/fs/xfer/xfer_mover_pump.c \
+    $ngx_addon_dir/src/fs/xfer/xfer_mover_agent.c \
+    $ngx_addon_dir/src/fs/xfer/xfer_spawn.c \
+    $ngx_addon_dir/src/fs/xfer/xfer_ledger.c \
+    $ngx_addon_dir/src/fs/xfer/xfer_core.c \
+    $ngx_addon_dir/src/fs/xfer/xfer_reconcile.c \
+    $ngx_addon_dir/src/fs/xfer/xfer_resume_sweep.c \
     $ngx_addon_dir/src/fs/fd_cache.c \
-    $ngx_addon_dir/src/fs/backend/sd_posix.c \
+    $ngx_addon_dir/src/fs/backend/posix/sd_posix.c \
+    $ngx_addon_dir/src/fs/backend/block/sd_block.c \
+    $ngx_addon_dir/src/fs/backend/rados/sd_ceph.c \
+    $ngx_addon_dir/src/fs/backend/rados/sd_ceph_compat.c \
+    $ngx_addon_dir/src/fs/backend/rados/sd_ceph_striper.c \
+    $ngx_addon_dir/src/fs/backend/pblock/sd_pblock.c \
+    $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.c \
+    $ngx_addon_dir/src/fs/backend/s3/sd_s3.c \
+    $ngx_addon_dir/src/fs/backend/remote/sd_remote.c \
+    $ngx_addon_dir/src/fs/backend/xroot/sd_xroot.c \
+    $ngx_addon_dir/src/fs/backend/meta_advisory.c \
+    $ngx_addon_dir/src/fs/backend/site_n2n.c \
     $ngx_addon_dir/src/fs/backend/sd_registry.c \
     $ngx_addon_dir/src/fs/backend/csi_tagstore.c \
     $ngx_addon_dir/src/fs/backend/csi_verify.c \
@@ -668,16 +761,25 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/cache/cinfo.c \
     $ngx_addon_dir/src/cache/verify.c \
     $ngx_addon_dir/src/cache/origin/http_transport.c \
+    $ngx_addon_dir/src/cache/origin/s3_transport.c \
     $ngx_addon_dir/src/cache/origin/pelican.c \
     $ngx_addon_dir/src/cache/origin/pelican_register.c \
     $ngx_addon_dir/src/cache/slice.c \
     $ngx_addon_dir/src/cache/slice_fill.c \
     $ngx_addon_dir/src/cache/lock.c \
+    $ngx_addon_dir/src/cache/cache_admit.c \
+    $ngx_addon_dir/src/cache/stage_admit.c \
+    $ngx_addon_dir/src/cache/cache_storage.c \
+    $ngx_addon_dir/src/cache/cache_key.c \
+    $ngx_addon_dir/src/cache/cache_fs_sampler.c \
+    $ngx_addon_dir/src/cache/cache_reap.c \
+    $ngx_addon_dir/src/cache/reap_watermark.c \
     $ngx_addon_dir/src/cache/writethrough_decision.c \
     $ngx_addon_dir/src/cache/origin_connection.c \
     $ngx_addon_dir/src/cache/origin_response.c \
     $ngx_addon_dir/src/cache/origin_protocol.c \
     $ngx_addon_dir/src/cache/writethrough_flush.c \
+    $ngx_addon_dir/src/cache/writethrough_replay.c \
     $ngx_addon_dir/src/cache/fetch.c \
     $ngx_addon_dir/src/cache/evict_candidates.c \
     $ngx_addon_dir/src/cache/evict_policy.c \
@@ -782,6 +884,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/proxy/forward_relay_dispatch.c \
     $ngx_addon_dir/src/proxy/pool.c \
     $ngx_addon_dir/src/proxy/directives.c \
+    $ngx_addon_dir/src/handoff/handoff.c \
     $ngx_addon_dir/src/connection/handler.c \
     $ngx_addon_dir/src/connection/recv.c \
     $ngx_addon_dir/src/connection/send.c \
@@ -791,6 +894,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/connection/tls.c \
     $ngx_addon_dir/src/connection/write_helpers.c \
     $ngx_addon_dir/src/connection/disconnect.c \
+    $ngx_addon_dir/src/fs/core/vfs_core.c \
     $ngx_addon_dir/src/protocol/codec/wire_codec_meta.c \
     $ngx_addon_dir/src/protocol/codec/wire_codec_file.c \
     $ngx_addon_dir/src/protocol/codec/wire_codec_ns.c \
@@ -874,7 +978,7 @@ ngx_module_deps="$ngx_xrootd_stream_deps \
 # jansson (token/JWT JSON), libxml2 (compat XML helpers), krb5 (krb5 auth).
 # Loaded first (RTLD_GLOBAL) per mod-xrootd.conf, so its symbols also back the
 # thin HTTP modules that share this code.
-ngx_module_libs="-lssl -lcrypto $XROOTD_JANSSON_LIBS $XROOTD_XML2_LIBS $XROOTD_KRB5_LIBS $XROOTD_CODEC_LIBS $XROOTD_URING_LIBS"
+ngx_module_libs="-lssl -lcrypto $XROOTD_JANSSON_LIBS $XROOTD_XML2_LIBS $XROOTD_KRB5_LIBS $XROOTD_CODEC_LIBS $XROOTD_URING_LIBS $XROOTD_CEPH_LIBS $XROOTD_SQLITE_LIBS"
 CORE_LIBS="$CORE_LIBS -lssl -lcrypto"
 xrd_emit_module
 
@@ -1022,6 +1126,7 @@ ngx_module_srcs="$ngx_addon_dir/src/s3/module.c \
                  $ngx_addon_dir/src/s3/checksum.c \
                  $ngx_addon_dir/src/s3/aws_chunked.c \
                  $ngx_addon_dir/src/s3/tagging.c \
+                 $ngx_addon_dir/src/s3/usermeta.c \
                  $ngx_addon_dir/src/s3/auth_sigv4_canonical.c \
                  $ngx_addon_dir/src/s3/auth_sigv4_parse.c \
                  $ngx_addon_dir/src/s3/auth_sigv4_verify.c \
@@ -1041,6 +1146,8 @@ ngx_module_deps="$ngx_addon_dir/src/s3/s3.h \
                  $ngx_addon_dir/src/s3/tagging.h \
                  $ngx_addon_dir/src/fs/vfs.h \
                  $ngx_addon_dir/src/fs/backend/sd.h \
+                 $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                  $ngx_addon_dir/src/cache/open.h \
                  $ngx_addon_dir/src/compat/hex.h \
                  $ngx_addon_dir/src/compat/time.h \
@@ -1068,8 +1175,17 @@ ngx_module_srcs="$ngx_addon_dir/src/dashboard/module.c \
                  $ngx_addon_dir/src/dashboard/http_tracking.c \
                  $ngx_addon_dir/src/dashboard/config_download.c \
                  $ngx_addon_dir/src/dashboard/files.c \
-                 $ngx_addon_dir/src/dashboard/page.c"
+                 $ngx_addon_dir/src/dashboard/page.c \
+                 $ngx_addon_dir/src/scan/scan_record.c \
+                 $ngx_addon_dir/src/scan/scan_throttle.c \
+                 $ngx_addon_dir/src/scan/scan_emit.c \
+                 $ngx_addon_dir/src/scan/scan_engine.c \
+                 $ngx_addon_dir/src/scan/scan_http.c"
 ngx_module_deps="$ngx_addon_dir/src/dashboard/dashboard.h \
+                 $ngx_addon_dir/src/scan/scan_record.h \
+                 $ngx_addon_dir/src/scan/scan_throttle.h \
+                 $ngx_addon_dir/src/scan/scan_emit.h \
+                 $ngx_addon_dir/src/scan/scan_engine.h \
                  $ngx_addon_dir/src/dashboard/dashboard_http.h \
                  $ngx_addon_dir/src/dashboard/dashboard_tracking.h \
                  $ngx_addon_dir/src/dashboard/api_admin.h \

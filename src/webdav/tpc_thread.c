@@ -17,6 +17,7 @@
 #include "../tpc/common/metrics.h"
 #include "../aio/aio.h"          /* xrootd_task_bind */
 #include "../tpc/common/registry.h"
+#include "../fs/xfer/xfer.h"     /* unified transfer audit ledger (kind=tpc) */
 
 
 #include <errno.h>
@@ -148,7 +149,7 @@ tpc_thread_func(void *data, ngx_log_t *log)
                                       t->transfer_id);
         if (rc == NGX_OK) {
             struct stat st;
-            if (stat(t->local_path, &st) == 0) {
+            if (stat(t->local_path, &st) == 0) {  /* vfs-seam-allow: TPC local transfer temp */
                 t->bytes_transferred = st.st_size;
             }
             (void) xrootd_tpc_registry_update(t->transfer_id,
@@ -201,7 +202,7 @@ tpc_thread_func(void *data, ngx_log_t *log)
 
     {
         struct stat st;
-        if (stat(t->local_path, &st) == 0) {
+        if (stat(t->local_path, &st) == 0) {  /* vfs-seam-allow: TPC local transfer temp */
             t->bytes_transferred = st.st_size;
         }
     }
@@ -278,6 +279,24 @@ tpc_thread_done(ngx_event_t *ev)
     (void) xrootd_tpc_registry_remove(t->transfer_id,
                                       r->connection != NULL
                                           ? r->connection->log : t->log);
+
+    /* Unified transfer ledger: one audit line shared with STAGE/TAPE/WT. A push
+     * sends a local object OUT to a remote dest; a pull brings data IN to the
+     * local dest (for a pull, local_path is the staging temp, so the audited
+     * object is dest_path). */
+    {
+        int          ok   = (status == NGX_HTTP_CREATED
+                             || status == NGX_HTTP_NO_CONTENT);
+        const char  *path = t->is_push
+                            ? (t->local_path[0] ? t->local_path : t->url)
+                            : (t->dest_path[0] ? t->dest_path : t->url);
+        xrootd_xfer_finish(XROOTD_XFER_TPC, t->is_push ? "out" : "in",
+                           path, NULL, (size_t) t->bytes_transferred,
+                           ok ? XROOTD_XFER_OK
+                              : (t->is_push ? XROOTD_XFER_DST_ERR
+                                            : XROOTD_XFER_SRC_ERR),
+                           0, t->log);
+    }
 
     if (status == NGX_HTTP_CREATED || status == NGX_HTTP_NO_CONTENT) {
         if (t->bytes_transferred > 0) {

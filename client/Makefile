@@ -17,7 +17,7 @@ PROTO_LIB := $(PROTO_DIR)/libxrdproto.a
 
 # Hardening — mirror the module's ./configure (repo-root `config`).
 HARDEN := -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
-          -fstack-clash-protection -fcf-protection=full \
+          -fstack-clash-protection -fcf-protection=full -fPIE \
           -Wformat -Werror=format-security
 
 # Optimize profile — same knob/default as the module (XROOTD_OPTIMIZE, default v2).
@@ -107,7 +107,8 @@ LIB_SRCS   := lib/sock.c lib/netpref.c lib/nettmo.c lib/url.c lib/status.c lib/t
               lib/ops_file_rw.c lib/ops_file_pg.c lib/zip_write.c \
               lib/copy_pump.c lib/copy_local.c lib/copy_remote.c lib/copy_recursive.c \
               lib/copy_zip.c lib/copy_block.c \
-              lib/vfs_s3_mpu.c lib/vfs_s3_io.c lib/vfs_s3_http.c lib/webfile_io.c
+              lib/vfs_s3_io.c lib/vfs_s3_http.c lib/vfs_s3_transport.c lib/webfile_io.c \
+              lib/metabench.c lib/metabench_run.c
 LIB_OBJS   := $(LIB_SRCS:.c=.o)
 
 # §14.1: the connection/session layer is the public libxrdc — a clean-room,
@@ -137,7 +138,7 @@ BINDIR := bin
 # Every binary is a thin front-end: apps/<name>.o + the client lib + libxrdproto.
 BINS := xrd xrdfs xrdcp xrdcrc32c xrdcrc64 xrdadler32 xrdqstats wait41 xrdprep xrdgsiproxy xrddiag \
         xrdmapc xrdgsitest mpxstats \
-        xrdsssadmin xrdckverify
+        xrdsssadmin xrdckverify xrdstorascan
 BIN_EXES := $(addprefix $(BINDIR)/,$(BINS))
 
 # §14.4: the FUSE mount + the LD_PRELOAD POSIX shim are built only when libfuse3
@@ -188,10 +189,14 @@ $(BIN_EXES): | proto $(BINDIR)
 $(CLIENT_LIB): $(LIB_OBJS)
 	$(AR) rcs $@ $^
 
-# One uniform link rule for every front-end.  $(LDFLAGS) lets a packager inject
-# link hardening (e.g. RPM's %{build_ldflags}: RELRO / BIND_NOW); empty by default.
+# Link hardening defaults. Packagers can override by exporting LDFLAGS.
+LDFLAGS ?= -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
+# Executables are PIE; the shared lib is already -shared (implicitly PIC).
+LDFLAGS_PIE := -pie
+
+# One uniform link rule for every front-end.
 $(BINDIR)/%: apps/%.o $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/$*.o $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/$*.o $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
 
 # Phase-38 split front-ends: a per-binary rule (overriding the generic one above)
@@ -199,22 +204,29 @@ $(BINDIR)/%: apps/%.o $(CLIENT_LIB) | $(BINDIR)
 # docs/refactor/phase-38-file-size-unix-modularity.md §7.4.
 XRDCP_SPLIT := apps/xrdcp_transfer.o apps/xrdcp_recursive.o
 $(BINDIR)/xrdcp: apps/xrdcp.o $(XRDCP_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrdcp.o $(XRDCP_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrdcp.o $(XRDCP_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
 	@echo " + built $@ (split)"
 
 XRD_SPLIT := apps/xrd_battery.o apps/xrd_doctor.o apps/xrd_clockskew.o apps/xrd_mount.o
 $(BINDIR)/xrd: apps/xrd.o $(XRD_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrd.o $(XRD_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrd.o $(XRD_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
 	@echo " + built $@ (split)"
 
 XRDFS_SPLIT := apps/xrdfs_data.o apps/xrdfs_walk.o apps/xrdfs_fmt.o apps/xrdfs_meta.o apps/xrdfs_web.o
 $(BINDIR)/xrdfs: apps/xrdfs.o $(XRDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrdfs.o $(XRDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrdfs.o $(XRDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
 	@echo " + built $@ (split)"
 
-XRDDIAG_SPLIT := apps/diag_check.o apps/diag_bench.o apps/diag_watch.o apps/diag_topology.o apps/diag_compare.o apps/diag_doctor.o apps/diag_misc.o
+XRDDIAG_SPLIT := apps/diag_check.o apps/diag_bench.o apps/diag_metabench.o apps/diag_watch.o apps/diag_topology.o apps/diag_compare.o apps/diag_doctor.o apps/diag_misc.o
 $(BINDIR)/xrddiag: apps/xrddiag.o $(XRDDIAG_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrddiag.o $(XRDDIAG_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrddiag.o $(XRDDIAG_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+	@echo " + built $@ (split)"
+
+# xrdstorascan = front-end + the pure statistics/verdict core (storascan_core.o);
+# needs libm for the percentile/throughput math (ceil/fabs).
+STORASCAN_SPLIT := apps/storascan_core.o
+$(BINDIR)/xrdstorascan: apps/xrdstorascan.o $(STORASCAN_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrdstorascan.o $(STORASCAN_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -lm -o $@
 	@echo " + built $@ (split)"
 
 # §14.4 unified xrootdfs (FUSE) — ONE binary linking the front-end
@@ -232,7 +244,7 @@ XROOTDFS_SPLIT := apps/xrootdfs_meta.o apps/xrootdfs_io.o apps/xrootdfs_xattr.o
 $(XROOTDFS_SPLIT): apps/%.o: apps/%.c apps/xrootdfs_internal.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
 $(BINDIR)/xrootdfs: apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
 	@echo " + built $@ (libfuse3; unified async+legacy; no libXrdCl/libXrdSec*)"
 
 # A5 VFS S3 backend smoke test — exercises the xrdc_vfs S3 backend directly.
@@ -243,6 +255,15 @@ vfs-s3-smoke: tests/c/vfs_s3_smoke.c $(CLIENT_LIB) | $(BINDIR)
 	    -Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive \
 	    $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/vfs_s3_smoke
 	@echo " + built $(BINDIR)/vfs_s3_smoke (no libXrdCl/libXrdSec*)"
+
+# Shared sd_s3 driver object-metadata smoke (get_meta/set_meta/advisory).
+# Run against a live S3 server: ./sd_s3_meta_smoke <host> <port> </bucket/key>
+.PHONY: sd-s3-meta-smoke
+sd-s3-meta-smoke: ../tests/c/sd_s3_meta_smoke.c $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) ../tests/c/sd_s3_meta_smoke.c \
+	    -Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive \
+	    $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/sd_s3_meta_smoke
+	@echo " + built $(BINDIR)/sd_s3_meta_smoke"
 
 # M1 async-core smoke test (tests/c/aio_smoke.c) — links the static client lib.
 # Run against a live root:// server: ./aio_smoke root://host:port /scratch.bin

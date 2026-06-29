@@ -2,6 +2,7 @@
 #define NGX_XROOTD_FATTR_H
 
 #include "../ngx_xrootd_module.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_ctx_t + VFS xattr seam */
 
 /*
  * kXR_fattr — XRootD file-attribute (extended attribute) operations.
@@ -69,33 +70,38 @@ ngx_int_t fattr_send_vector_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char *nvec_copy, size_t nvec_len, int numattr,
     xrootd_fattr_entry_t *attrs);
 
-/* Retrieve xattr values via getxattr(2); fills attrs[i].value and .vlen. */
+/* Retrieve xattr values via the VFS xattr seam; fills attrs[i].value and .vlen.
+ * vctx targets the path mode (resolved == path, root_canon set); fd mode uses
+ * the open descriptor. Exactly one of (vctx path-resolved) / fd is the target,
+ * selected by `path != NULL` (vctx still carries metric attribution in fd mode). */
 ngx_int_t fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    const char *path, int fd, u_char *nvec_copy, size_t nvec_len,
+    xrootd_vfs_ctx_t *vctx, const char *path, int fd,
+    u_char *nvec_copy, size_t nvec_len,
     int numattr, xrootd_fattr_entry_t *attrs);
 
 /*
- * fattr_set — write xattr values via setxattr(2).
+ * fattr_set — write xattr values via the VFS xattr seam.
  * options: kXR_fattrMkPath and kXR_fattrDel flags from the wire header.
  * vvec_buf/vvec_len: the value vector from the request payload.
  */
 ngx_int_t fattr_set(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    const char *path, int fd, int options, u_char *nvec_copy,
-    size_t nvec_len, u_char *vvec_buf, size_t vvec_len, int numattr,
-    xrootd_fattr_entry_t *attrs);
+    xrootd_vfs_ctx_t *vctx, const char *path, int fd, int options,
+    u_char *nvec_copy, size_t nvec_len, u_char *vvec_buf, size_t vvec_len,
+    int numattr, xrootd_fattr_entry_t *attrs);
 
-/* Remove xattr entries via removexattr(2). */
+/* Remove xattr entries via the VFS xattr seam. */
 ngx_int_t fattr_del(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    const char *path, int fd, u_char *nvec_copy, size_t nvec_len,
+    xrootd_vfs_ctx_t *vctx, const char *path, int fd,
+    u_char *nvec_copy, size_t nvec_len,
     int numattr, xrootd_fattr_entry_t *attrs);
 
 /*
- * fattr_list — enumerate all "user.U.*" xattrs via listxattr(2) and send
+ * fattr_list — enumerate all "user.U.*" xattrs via the VFS xattr seam and send
  * the names as a kXR_fattr response.
  * options: kXR_fa_aData returns values; kXR_fa_recurse (local extension)
  *   walks subdirectories and emits "<relpath>:<U.name>\0" entries.
  */
 ngx_int_t fattr_list(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    const char *path, int fd, int options);
+    xrootd_vfs_ctx_t *vctx, const char *path, int fd, int options);
 
 #endif /* NGX_XROOTD_FATTR_H */

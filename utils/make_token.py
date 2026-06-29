@@ -27,6 +27,9 @@ Token directory layout:
         jwks.json            JSON Web Key Set (public key)
 """
 
+from __future__ import annotations   # PEP 563: lazy annotations so the PEP 604
+                                      # `X | None` hints parse on Python 3.9 too
+
 import base64
 import json
 import os

@@ -22,10 +22,13 @@
 #include "vfs_internal.h"
 #include "../compat/log_diag.h"
 
-/* Open the resolved ctx directory under confinement. Returns a pooled handle or
- * NULL with the errno in *err_out; the open is metered as OP_DIRLIST. */
-xrootd_vfs_dir_t *
-xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
+/* Shared opendir body. When `observe` is set the open is metered as OP_DIRLIST;
+ * the quiet variant (observe=0) skips the metric/access-log entirely — for bulk
+ * recursive walks (S3 ListObjects, WebDAV SEARCH) whose enclosing protocol op
+ * already accounts for the traversal and would otherwise emit one phantom
+ * OP_DIRLIST per visited subdirectory. */
+static xrootd_vfs_dir_t *
+xrootd_vfs_opendir_impl(xrootd_vfs_ctx_t *ctx, int *err_out, int observe)
 {
     xrootd_vfs_dir_t *dh;
     const char       *path;
@@ -43,9 +46,11 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
         if (err_out != NULL) {
             *err_out = errno;
         }
-        xrootd_vfs_observe_ctx_op(ctx, xrootd_vfs_ctx_path(ctx),
-                                  XROOTD_METRIC_OP_DIRLIST, NULL, 0,
-                                  NGX_ERROR, saved_errno, start);
+        if (observe) {
+            xrootd_vfs_observe_ctx_op(ctx, xrootd_vfs_ctx_path(ctx),
+                                      XROOTD_METRIC_OP_DIRLIST, NULL, 0,
+                                      NGX_ERROR, saved_errno, start);
+        }
         return NULL;
     }
 
@@ -57,8 +62,10 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
         if (err_out != NULL) {
             *err_out = errno;
         }
-        xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL, 0,
-                                  NGX_ERROR, saved_errno, start);
+        if (observe) {
+            xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL,
+                                      0, NGX_ERROR, saved_errno, start);
+        }
         return NULL;
     }
 
@@ -68,9 +75,47 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
         if (err_out != NULL) {
             *err_out = errno;
         }
-        xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL, 0,
-                                  NGX_ERROR, saved_errno, start);
+        if (observe) {
+            xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL,
+                                      0, NGX_ERROR, saved_errno, start);
+        }
         return NULL;
+    }
+
+    /* Non-POSIX backend: enumerate through the driver's directory iterator. */
+    {
+        const xrootd_sd_driver_t *drv = xrootd_vfs_ctx_driver(ctx);
+
+        if (drv != NULL) {
+            const char *logical = xrootd_vfs_export_relative(ctx, path);
+            int         err = 0;
+
+            if (drv->opendir == NULL) {
+                errno = ENOTSUP;
+            }
+            dh->sd_dir = (drv->opendir != NULL)
+                ? drv->opendir(ctx->sd, logical, &err) : NULL;
+            if (dh->sd_dir == NULL) {
+                saved_errno = (err != 0) ? err : errno;
+                if (err_out != NULL) { *err_out = saved_errno; }
+                if (observe) {
+                    xrootd_vfs_observe_ctx_op(ctx, path,
+                        XROOTD_METRIC_OP_DIRLIST, NULL, 0, NGX_ERROR,
+                        saved_errno, start);
+                }
+                return NULL;
+            }
+            dh->sd  = ctx->sd;
+            dh->drv = drv;
+            dh->sd_logical = xrootd_vfs_copy_path(ctx->pool, logical);
+            dh->pool = ctx->pool;
+            dh->log = ctx->log;
+            if (observe) {
+                xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST,
+                                          NULL, 0, NGX_OK, 0, start);
+            }
+            return dh;
+        }
     }
 
     /* Open the directory AS THE MAPPED USER under impersonation (broker fdopendir)
@@ -83,8 +128,10 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
         if (err_out != NULL) {
             *err_out = errno;
         }
-        xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL, 0,
-                                  NGX_ERROR, saved_errno, start);
+        if (observe) {
+            xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL,
+                                      0, NGX_ERROR, saved_errno, start);
+        }
         return NULL;
     }
 
@@ -92,9 +139,36 @@ xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
     dh->log = ctx->log;
     dh->root_canon = ctx->root_canon;
 
-    xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL, 0,
-                              NGX_OK, 0, start);
+    if (observe) {
+        xrootd_vfs_observe_ctx_op(ctx, path, XROOTD_METRIC_OP_DIRLIST, NULL, 0,
+                                  NGX_OK, 0, start);
+    }
     return dh;
+}
+
+/* Open the resolved ctx directory under confinement. Returns a pooled handle or
+ * NULL with the errno in *err_out; the open is metered as OP_DIRLIST. */
+xrootd_vfs_dir_t *
+xrootd_vfs_opendir(xrootd_vfs_ctx_t *ctx, int *err_out)
+{
+    return xrootd_vfs_opendir_impl(ctx, err_out, 1 /* observe */);
+}
+
+/* Non-metered confined opendir for bulk recursive walks (no OP_DIRLIST emitted —
+ * the enclosing protocol op accounts for the whole traversal). Otherwise
+ * identical to xrootd_vfs_opendir. */
+xrootd_vfs_dir_t *
+xrootd_vfs_opendir_quiet(xrootd_vfs_ctx_t *ctx, int *err_out)
+{
+    return xrootd_vfs_opendir_impl(ctx, err_out, 0 /* quiet */);
+}
+
+/* The open directory's fd (for a dirfd-relative entry openat that must remain in
+ * the same impersonation-confined directory). NGX_INVALID_FILE if unavailable. */
+ngx_fd_t
+xrootd_vfs_dir_fd(const xrootd_vfs_dir_t *dh)
+{
+    return (dh != NULL && dh->dir != NULL) ? dirfd(dh->dir) : NGX_INVALID_FILE;
 }
 
 /* Return the next entry: name as a pooled NUL-terminated ngx_str_t, plus an
@@ -106,9 +180,42 @@ xrootd_vfs_readdir(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
 {
     struct dirent *de;
 
-    if (dh == NULL || dh->dir == NULL || name_out == NULL) {
+    if (dh == NULL || name_out == NULL
+        || (dh->dir == NULL && dh->sd_dir == NULL))
+    {
         errno = EINVAL;
         return NGX_ERROR;
+    }
+
+    /* Non-POSIX backend: pull the next entry from the driver iterator and stat the
+     * child through the same driver (skip a child that vanished mid-scan). */
+    if (dh->sd_dir != NULL) {
+        xrootd_sd_dirent_t de_sd;
+        ngx_int_t          rc = dh->drv->readdir(dh->sd_dir, &de_sd);
+
+        if (rc != NGX_OK) {
+            return rc;                                 /* NGX_DONE / NGX_ERROR */
+        }
+        if (stat_out != NULL && dh->drv->stat != NULL) {
+            char             child[PATH_MAX];
+            xrootd_sd_stat_t sd_st;
+
+            ngx_snprintf((u_char *) child, sizeof(child), "%s/%s%Z",
+                         (dh->sd_logical[0] == '/' && dh->sd_logical[1] == '\0')
+                             ? "" : dh->sd_logical, de_sd.name);
+            if (dh->drv->stat(dh->sd, child, &sd_st) != NGX_OK) {
+                return xrootd_vfs_readdir(dh, name_out, stat_out);   /* skip */
+            }
+            xrootd_vfs_sd_stat_fill(&sd_st, stat_out);
+        }
+        name_out->len = ngx_strlen(de_sd.name);
+        name_out->data = ngx_pnalloc(dh->pool, name_out->len + 1);
+        if (name_out->data == NULL) {
+            errno = ENOMEM;
+            return NGX_ERROR;
+        }
+        ngx_memcpy(name_out->data, de_sd.name, name_out->len + 1);
+        return NGX_OK;
     }
 
     for ( ;; ) {
@@ -125,6 +232,29 @@ xrootd_vfs_readdir(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
             continue;
         }
 
+        /* Per-entry stat is folded into the scan so a single bad entry SKIPS
+         * rather than truncating the listing: a child that races an unlink
+         * (ENOENT), or whose joined path is unrepresentable, is dropped and the
+         * scan continues. (Only NGX_DONE/NGX_ERROR — true end/stream error —
+         * stop the caller's loop.) */
+        if (stat_out != NULL) {
+            char         child[PATH_MAX];
+            struct stat  st;
+            int          n;
+
+            n = snprintf(child, sizeof(child), "%s/%s", dh->path, de->d_name);
+            if (n < 0 || (size_t) n >= sizeof(child)) {
+                continue;
+            }
+            /* lstat the child AS THE MAPPED USER (broker-routed) so enumerating a
+             * group-restricted dir does not EACCES per child as the worker. */
+            if (xrootd_lstat_confined_canon(dh->log, dh->root_canon, child,
+                                            &st, 1) != 0) {
+                continue;
+            }
+            xrootd_vfs_fill_stat(&st, stat_out);
+        }
+
         break;
     }
 
@@ -137,26 +267,88 @@ xrootd_vfs_readdir(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
     ngx_memcpy(name_out->data, de->d_name, name_out->len);
     name_out->data[name_out->len] = '\0';
 
-    if (stat_out != NULL) {
-        char         child[PATH_MAX];
-        struct stat  st;
-        int          n;
+    return NGX_OK;
+}
 
-        n = snprintf(child, sizeof(child), "%s/%s", dh->path, de->d_name);
-        if (n < 0 || (size_t) n >= sizeof(child)) {
-            errno = ENAMETOOLONG;
-            return NGX_ERROR;
-        }
+/* Yield the next entry's name plus its KIND from the readdir d_type, with no
+ * per-entry stat — for callers that classify dir-vs-file on the fast path and
+ * only stat (via xrootd_vfs_probe) on a DT_UNKNOWN filesystem. Skips "."/"..";
+ * NGX_DONE at end-of-stream, NGX_ERROR (errno set) on failure. */
+ngx_int_t
+xrootd_vfs_readdir_kind(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
+    xrootd_vfs_dirent_kind_t *kind_out)
+{
+    struct dirent *de;
 
-        /* lstat the child AS THE MAPPED USER (broker-routed) so enumerating a
-         * group-restricted dir does not EACCES per child as the worker. */
-        if (xrootd_lstat_confined_canon(dh->log, dh->root_canon, child,
-                                        &st, 1) != 0) {
-            return NGX_ERROR;
-        }
-
-        xrootd_vfs_fill_stat(&st, stat_out);
+    if (dh == NULL || name_out == NULL
+        || (dh->dir == NULL && dh->sd_dir == NULL))
+    {
+        errno = EINVAL;
+        return NGX_ERROR;
     }
+
+    if (dh->sd_dir != NULL) {
+        xrootd_sd_dirent_t de_sd;
+        ngx_int_t          rc = dh->drv->readdir(dh->sd_dir, &de_sd);
+
+        if (rc != NGX_OK) {
+            return rc;
+        }
+        if (kind_out != NULL) {
+            char             child[PATH_MAX];
+            xrootd_sd_stat_t sd_st;
+
+            ngx_snprintf((u_char *) child, sizeof(child), "%s/%s%Z",
+                         (dh->sd_logical[0] == '/' && dh->sd_logical[1] == '\0')
+                             ? "" : dh->sd_logical, de_sd.name);
+            *kind_out = (dh->drv->stat != NULL
+                         && dh->drv->stat(dh->sd, child, &sd_st) == NGX_OK)
+                ? (sd_st.is_dir ? XROOTD_VFS_DT_DIR : XROOTD_VFS_DT_REG)
+                : XROOTD_VFS_DT_UNKNOWN;
+        }
+        name_out->len = ngx_strlen(de_sd.name);
+        name_out->data = ngx_pnalloc(dh->pool, name_out->len + 1);
+        if (name_out->data == NULL) {
+            errno = ENOMEM;
+            return NGX_ERROR;
+        }
+        ngx_memcpy(name_out->data, de_sd.name, name_out->len + 1);
+        return NGX_OK;
+    }
+
+    for ( ;; ) {
+        errno = 0;
+        de = readdir(dh->dir);
+        if (de == NULL) {
+            return errno == 0 ? NGX_DONE : NGX_ERROR;
+        }
+
+        if (de->d_name[0] == '.'
+            && (de->d_name[1] == '\0'
+                || (de->d_name[1] == '.' && de->d_name[2] == '\0')))
+        {
+            continue;
+        }
+        break;
+    }
+
+    if (kind_out != NULL) {
+        switch (de->d_type) {
+        case DT_DIR:     *kind_out = XROOTD_VFS_DT_DIR;     break;
+        case DT_REG:     *kind_out = XROOTD_VFS_DT_REG;     break;
+        case DT_UNKNOWN: *kind_out = XROOTD_VFS_DT_UNKNOWN; break;
+        default:         *kind_out = XROOTD_VFS_DT_OTHER;   break;
+        }
+    }
+
+    name_out->len = strlen(de->d_name);
+    name_out->data = ngx_pnalloc(dh->pool, name_out->len + 1);
+    if (name_out->data == NULL) {
+        errno = ENOMEM;
+        return NGX_ERROR;
+    }
+    ngx_memcpy(name_out->data, de->d_name, name_out->len);
+    name_out->data[name_out->len] = '\0';
 
     return NGX_OK;
 }
@@ -166,8 +358,16 @@ xrootd_vfs_readdir(xrootd_vfs_dir_t *dh, ngx_str_t *name_out,
 ngx_int_t
 xrootd_vfs_closedir(xrootd_vfs_dir_t *dh, ngx_log_t *log)
 {
-    if (dh == NULL || dh->dir == NULL) {
+    if (dh == NULL || (dh->dir == NULL && dh->sd_dir == NULL)) {
         return NGX_OK;
+    }
+
+    if (dh->sd_dir != NULL) {
+        ngx_int_t rc = (dh->drv->closedir != NULL)
+            ? dh->drv->closedir(dh->sd_dir) : NGX_OK;
+
+        dh->sd_dir = NULL;
+        return rc;
     }
 
     if (closedir(dh->dir) != 0) {

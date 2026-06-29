@@ -38,6 +38,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>     /* struct timespec for xrootd_sd_setattr_t */
 typedef intptr_t          ngx_int_t;
 typedef int               ngx_fd_t;
 typedef struct ngx_log_s  ngx_log_t;   /* opaque: only ever a pointer field */
@@ -50,6 +51,9 @@ typedef struct ngx_pool_s ngx_pool_t;  /* opaque: only ever a pointer field */
 #endif
 #ifndef NGX_ERROR
 #define NGX_ERROR         (-1)
+#endif
+#ifndef NGX_DONE
+#define NGX_DONE          (-4)
 #endif
 #ifndef ngx_inline
 #define ngx_inline        inline
@@ -100,6 +104,7 @@ typedef enum {
 #define XROOTD_SD_O_TRUNC    0x10
 #define XROOTD_SD_O_APPEND   0x20
 #define XROOTD_SD_O_DIR      0x40
+#define XROOTD_SD_O_NOFOLLOW 0x80   /* refuse a symlink at the final component */
 
 typedef struct xrootd_sd_driver_s   xrootd_sd_driver_t;
 typedef struct xrootd_sd_instance_s xrootd_sd_instance_t;
@@ -124,6 +129,23 @@ typedef struct {
     char        name[256];
 } xrootd_sd_dirent_t;
 
+/* Metadata-mutation request for the driver's setattr slot — the storage-neutral
+ * union of kXR_chmod (mode) and kXR_setattr (times + owner). Each set_* flag gates
+ * its field group; an unset group is left untouched. atime/mtime carry per-field
+ * UTIME_OMIT / UTIME_NOW in tv_nsec (utimensat(2) semantics). uid/gid of
+ * (uid_t)-1 / (gid_t)-1 leave that id unchanged. A driver applies what its
+ * namespace can represent (e.g. a catalog backend may not track owner/atime). */
+typedef struct {
+    unsigned         set_mode:1;
+    unsigned         set_times:1;
+    unsigned         set_owner:1;
+    mode_t           mode;
+    struct timespec  atime;
+    struct timespec  mtime;
+    uid_t            uid;
+    gid_t            gid;
+} xrootd_sd_setattr_t;
+
 /* Per-export bound driver instance: the driver, its log, an instance-lifetime
  * pool, and driver-private state (POSIX: rootfd + root_canon). */
 struct xrootd_sd_instance_s {
@@ -142,6 +164,12 @@ struct xrootd_sd_obj_s {
     ngx_fd_t                  fd;
     xrootd_sd_stat_t          snap;
     void                     *state;
+    /* 1 iff driver->open allocated THIS obj struct on the heap (malloc), so a
+     * caller that adopts the object by value (the VFS copies *o into its handle)
+     * knows to free the now-redundant shell. Drivers that allocate the obj on a
+     * pool (e.g. POSIX) leave it 0. The per-open `state` is always released by
+     * driver->close, independent of this flag. */
+    unsigned                  heap_shell:1;
 };
 
 struct xrootd_sd_dir_s {
@@ -203,6 +231,13 @@ struct xrootd_sd_driver_s {
                               const char *dst, int noreplace);
     ngx_int_t  (*server_copy)(xrootd_sd_instance_t *inst, const char *src,
                               const char *dst, off_t *bytes_out);
+    /* Mutate a path's metadata (mode / times / owner) per the set_* mask. NULL ⇒
+     * the backend has no mutable metadata (block/object data-only namespaces); the
+     * VFS treats that as a no-op success so MKCOL/PUT chmod flows still pass. A
+     * backend applies only what its namespace can represent and returns ENOENT for
+     * an absent path, 0 on success, -1/errno otherwise. */
+    ngx_int_t  (*setattr)    (xrootd_sd_instance_t *inst, const char *path,
+                              const xrootd_sd_setattr_t *attr);
 
     /* directory iteration */
     xrootd_sd_dir_t *(*opendir)(xrootd_sd_instance_t *inst, const char *path,
@@ -257,9 +292,48 @@ void xrootd_sd_instance_destroy(xrootd_sd_instance_t *inst);
 /* The built-in POSIX driver (defined in sd_posix.c). */
 extern const xrootd_sd_driver_t xrootd_sd_posix_driver;
 
+/* Unconfined open of `path` with backend-neutral XROOTD_SD_O_* flags — the
+ * ngx-free counterpart of the server's confined sd_posix_open (which resolves
+ * under a rootfd via RESOLVE_BENEATH). For the userland clients, whose endpoints
+ * are arbitrary user paths with no export root. Shares the flag vocabulary +
+ * O_* mapping with the driver so the open is single-sourced. Returns an fd, or
+ * -1 with errno set. (Defined in sd_posix.c; compiled in every build.) */
+int xrootd_sd_posix_open_unconfined(const char *path, int sd_flags, mode_t mode);
+
+/* The built-in block-device driver (defined in sd_block.c): raw fd I/O identical
+ * to POSIX + a BLKGETSIZE64-aware fstat. Shared by the client (block:// copy
+ * endpoints) and any future block-backed server export. */
+extern const xrootd_sd_driver_t xrootd_sd_block_driver;
+
+/* Open a block device unconfined (no create/truncate — opened in place).
+ * Returns an fd, or -1 with errno set. (Defined in sd_block.c.) */
+int xrootd_sd_block_open_unconfined(const char *path, int sd_flags, mode_t mode);
+
 /* The driver used for an export that selects no explicit backend (today: POSIX).
  * Lets the VFS resolve "the default backend" without naming a concrete driver. */
 const xrootd_sd_driver_t *xrootd_sd_default_driver(void);
+
+#if XROOTD_HAVE_SQLITE
+/* ---- pblock: full-parity, block-based POSIX drop-in (sd_pblock.c) ----------
+ * A complete backend that stores opaque object bytes in real POSIX blob files
+ * (real kernel fds → CAP_FD/SENDFILE, full random I/O) and the entire logical
+ * namespace + metadata in a SQLite catalog (sd_pblock_catalog.c). It advertises
+ * the same capabilities as POSIX and implements every vtable slot; the hot byte
+ * path never touches SQLite. Compiled only when the build found libsqlite3. */
+extern const xrootd_sd_driver_t xrootd_sd_pblock_driver;
+
+/* driver_conf for xrootd_sd_pblock_driver.init(): the export's storage root (the
+ * blob folder `data/` and `catalog.db` are created beneath it), the SQLite busy
+ * timeout used for cross-worker write contention, and the default object block
+ * size (bytes) for NEW files — 0 selects PBLOCK_DEFAULT_BLOCK_SIZE (64 MiB). The
+ * block size is recorded per file at creation, so retuning it only affects files
+ * written afterwards. */
+typedef struct {
+    const char *root;
+    int         busy_timeout_ms;
+    int64_t     block_size;
+} xrootd_sd_pblock_conf_t;
+#endif
 
 /* Build a pool-lived POSIX instance that BORROWS an already-open persistent
  * rootfd (+ root_canon) — it neither opens nor closes that fd. For the VFS hot

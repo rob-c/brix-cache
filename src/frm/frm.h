@@ -88,6 +88,8 @@ typedef struct {
     int8_t       priority;       /* -1..2                                     */
     uint8_t      queue;          /* stgQ/migQ/getQ/putQ                       */
     int64_t      tod_expire;     /* 0 = never                                 */
+    uint8_t      xfer_kind;      /* frm_xfer_kind_t; 0 = tape (default)       */
+    uint16_t     xfer_mode_bits; /* WT: origin object mode bits               */
 } frm_req_view_t;
 
 /* ---- directive helpers (src/frm/directives.c) ------------------------------*/

@@ -16,12 +16,23 @@
  */
 
 #include "sd.h"
+#include "rados/sd_ceph.h"   /* xrootd_sd_ceph_driver (only under XROOTD_HAVE_CEPH) */
 
 #include <errno.h>
 
-/* The driver table. Append a row + its sd_<name>.c to add a backend. */
+/* The driver table. Append a row + its sd_<name>.c to add a backend. The Ceph
+ * and pblock rows are present only when the build found their libraries
+ * (librados / libsqlite3); otherwise the table — and the build — are unchanged.
+ * The pblock extern lives in sd.h (guarded by XROOTD_HAVE_SQLITE). */
 static const xrootd_sd_driver_t *const sd_drivers[] = {
     &xrootd_sd_posix_driver,
+    &xrootd_sd_block_driver,
+#if XROOTD_HAVE_CEPH
+    &xrootd_sd_ceph_driver,
+#endif
+#if XROOTD_HAVE_SQLITE
+    &xrootd_sd_pblock_driver,
+#endif
 };
 
 /* xrootd_sd_default_driver — the backend an export defaults to when it names none:

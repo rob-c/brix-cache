@@ -185,6 +185,44 @@ xrootd_export_stream_cache_metrics(metrics_writer_t *mw,
             (unsigned long) ngx_atomic_fetch_add(&srv->cache_eviction_errors_total, 0));
     }
 
+    /* DIRTY-REAP COUNTER: files removed by the stale-dirty reaper
+     * (xrootd_cache_reap_dirty), split by the `reason` label (see
+     * xrootd_cache_reap_reason_t): "abandoned" (un-flushed dirty discarded — data
+     * loss), "incomplete" (re-dirtied after a prior flush — partial loss), and
+     * "completed" (a finished write-back staging copy reclaimed — no loss). The
+     * reaper scans the unified cache state root shared by the read-through and
+     * write-through caches, so this is gated on in_use ONLY (like the write-through
+     * families below) and reported for any active server with a cache-state root. */
+    {
+        static const char *const reap_reason[XROOTD_CACHE_REAP_REASON_COUNT] = {
+            [XROOTD_CACHE_REAP_ABANDONED]  = "abandoned",
+            [XROOTD_CACHE_REAP_INCOMPLETE] = "incomplete",
+            [XROOTD_CACHE_REAP_COMPLETED]  = "completed",
+        };
+        ngx_uint_t r;
+
+        mw_printf(mw,
+            "# HELP xrootd_cache_dirty_reaped_total "
+                "Cache files reaped by the stale-dirty reaper, by reason "
+                "(abandoned/incomplete = write-back discarded; "
+                "completed = finished staging reclaimed).\n"
+            "# TYPE xrootd_cache_dirty_reaped_total counter\n");
+        for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {
+            srv = &shm->servers[i];
+            if (!srv->in_use) { continue; }
+            ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z",
+                         srv->port);
+            for (r = 0; r < XROOTD_CACHE_REAP_REASON_COUNT; r++) {
+                mw_printf(mw,
+                    "xrootd_cache_dirty_reaped_total"
+                    "{port=\"%s\",auth=\"%s\",reason=\"%s\"} %lu\n",
+                    port_str, srv->auth, reap_reason[r],
+                    (unsigned long) ngx_atomic_fetch_add(
+                        &srv->cache_dirty_reaped[r], 0));
+            }
+        }
+    }
+
     /* WRITE-THROUGH families: dirty-handle/flush-pending gauges and flush
      * counters. NOTE the gate is in_use ONLY (no cache_enabled): write-through
      * mirroring to origin is independent of the read-through cache feature, so

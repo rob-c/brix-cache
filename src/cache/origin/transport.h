@@ -38,7 +38,8 @@ typedef enum {
     XROOTD_CACHE_SCHEME_XROOT = 0,   /* root://  / roots://  (default)         */
     XROOTD_CACHE_SCHEME_HTTP,        /* http://                                 */
     XROOTD_CACHE_SCHEME_HTTPS,       /* https://  / davs://                     */
-    XROOTD_CACHE_SCHEME_PELICAN      /* pelican://  (federation discovery)      */
+    XROOTD_CACHE_SCHEME_PELICAN,     /* pelican://  (federation discovery)      */
+    XROOTD_CACHE_SCHEME_S3           /* s3://bucket  (SigV4 via the sd_remote driver) */
 } xrootd_cache_scheme_e;
 
 /* Transport capability bits (advertised by a driver in caps). */

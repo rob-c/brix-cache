@@ -1,7 +1,7 @@
 #include "s3.h"
 #include "multipart_internal.h"
 #include "../impersonate/lifecycle.h"
-#include "../path/path.h"
+#include "../fs/vfs.h"   /* thread-safe confined open/unlink (off-thread assemble) */
 #include "../compat/copy_range.h"
 
 #include <string.h>
@@ -31,7 +31,7 @@
  *   1. Extract ctx (fs_path from r->ctx, cf from loc_conf), get method_slot for metrics.
  *   2. Parse uploadId query param → s3_get_query_param() → InvalidArgument 400 if missing/invalid.
  *   3. Build mpu_dir = fs_path + "/" + upload_id via s3_get_mpu_dir(). lstat(mpu_dir) → NoSuchUpload 404 if ENOENT.
- *   4. final_tmp = fs_path.mputmp (snprintf). Open with O_WRONLY|O_CREAT|O_TRUNC, mode 0644 via xrootd_open_confined_canon().
+ *   4. final_tmp = fs_path.mputmp (snprintf). Open WRITE|CREATE|TRUNC, mode 0644 via xrootd_vfs_open_fd() (thread-safe confined open).
  *   5. Loop part_num=1..MPU_MAX_PART_NUMBER: snprintf(part_path = mpu_dir/part.%d), open O_RDONLY confined → ENOENT skip,
  *      read/write loop with copy_buf[65536] — write errors close both fds, unlink temp, metric_internal_error, return 500.
  *   6. fstat(final_fd) for ETag generation. Close fd. xrootd_rename_confined_canon(temp→fs_path) → rename error: unlink temp, 500.
@@ -90,8 +90,8 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR;
     crc64_b64_out[0] = '\0';
 
-    final_fd = xrootd_open_confined_canon(log, root_canon, final_tmp,
-                                          O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    final_fd = xrootd_vfs_open_fd(log, root_canon, final_tmp,
+                                 O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (final_fd < 0) {
         xrootd_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: open(\"%s\") failed", final_tmp);
@@ -104,8 +104,8 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                          "%s/part.%d", mpu_dir, part_num);
         *p = '\0';
 
-        part_fd = xrootd_open_confined_canon(log, root_canon, part_path,
-                                             O_RDONLY, 0);
+        part_fd = xrootd_vfs_open_fd(log, root_canon, part_path,
+                                    O_RDONLY, 0);
         if (part_fd < 0) {
             if (errno == ENOENT) {
                 continue;           /* part not uploaded — skip */
@@ -113,7 +113,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
             ngx_log_error(NGX_LOG_ERR, log, errno,
                           "s3 complete_mpu: open part %d failed", part_num);
             close(final_fd);
-            xrootd_unlink_confined_canon(log, root_canon, final_tmp, 0);
+            xrootd_vfs_unlink_path(log, root_canon, final_tmp);
             return NGX_ERROR;
         }
 
@@ -122,7 +122,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                           "s3 complete_mpu: fstat part %d failed", part_num);
             close(part_fd);
             close(final_fd);
-            xrootd_unlink_confined_canon(log, root_canon, final_tmp, 0);
+            xrootd_vfs_unlink_path(log, root_canon, final_tmp);
             return NGX_ERROR;
         }
 
@@ -135,7 +135,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                           "s3 complete_mpu: copy part %d failed", part_num);
             close(part_fd);
             close(final_fd);
-            xrootd_unlink_confined_canon(log, root_canon, final_tmp, 0);
+            xrootd_vfs_unlink_path(log, root_canon, final_tmp);
             return NGX_ERROR;
         }
         dst_off += pst.st_size;
@@ -146,7 +146,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
         ngx_log_error(NGX_LOG_ERR, log, errno,
                       "s3 complete_mpu: fstat temp file failed");
         close(final_fd);
-        xrootd_unlink_confined_canon(log, root_canon, final_tmp, 0);
+        xrootd_vfs_unlink_path(log, root_canon, final_tmp);
         return NGX_ERROR;
     }
     close(final_fd);
@@ -154,7 +154,7 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     if (xrootd_rename_confined_canon(log, root_canon, final_tmp, fs_path) != 0) {
         xrootd_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: rename to \"%s\" failed", fs_path);
-        xrootd_unlink_confined_canon(log, root_canon, final_tmp, 0);
+        xrootd_vfs_unlink_path(log, root_canon, final_tmp);
         return NGX_ERROR;
     }
 
@@ -168,8 +168,8 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     /* Full-object CRC-64/NVME computed directly on the reassembled object (the
      * exact FULL_OBJECT value — no per-part combine), cached in the xattr. */
     {
-        int cfd = xrootd_open_confined_canon(log, root_canon, fs_path,
-                                             O_RDONLY, 0);
+        int cfd = xrootd_vfs_open_fd(log, root_canon, fs_path,
+                                    O_RDONLY, 0);
         if (cfd >= 0) {
             (void) s3_object_crc64nvme_b64(r, cfd, fs_path, 0, crc64_b64_out,
                                            crc64_sz);
@@ -327,19 +327,23 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
      * MAP-mode impersonation the staging dir (and its parent) are owned 0700 by
      * the mapped user, so a raw worker lstat() EACCESes on the parent's search
      * bit and the legitimate owner's Complete spuriously 404s NoSuchUpload.  Route
-     * through xrootd_lstat_confined_canon so the stat runs as the mapped user via
-     * the broker (off impersonation it is a plain lstat — identical behaviour).
+     * through the VFS probe (xrootd_vfs_probe, no-follow) so the stat runs as the
+     * mapped user via the broker (off impersonation it is a plain lstat).
      */
-    struct stat mpu_sb;
-    if (xrootd_lstat_confined_canon(r->connection->log, cf->common.root_canon,
-                                    mpu_dir, &mpu_sb, 1) != 0
-        || !S_ISDIR(mpu_sb.st_mode))
     {
-        s3_metrics_finalize_request_method(r, method_slot,
-            s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
-                              "NoSuchUpload",
-                              "The specified upload does not exist."));
-        return;
+        xrootd_vfs_ctx_t  mctx;
+        xrootd_vfs_stat_t mst;
+
+        s3_build_vfs_ctx(r, mpu_dir, cf, &mctx);
+        if (xrootd_vfs_probe(&mctx, 1 /* no-follow */, &mst) != NGX_OK
+            || !mst.is_directory)
+        {
+            s3_metrics_finalize_request_method(r, method_slot,
+                s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
+                                  "NoSuchUpload",
+                                  "The specified upload does not exist."));
+            return;
+        }
     }
 
     /* Build a temp path alongside the final object for atomic rename */

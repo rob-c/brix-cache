@@ -57,6 +57,8 @@ webdav_put_vfs_ctx_init(ngx_http_request_t *r,
         XROOTD_PROTO_WEBDAV, conf->common.root_canon,
         conf->cache_root_canon, conf->common.allow_write, is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
+    /* Route through the export's selected storage backend (NULL ⇒ default POSIX). */
+    vctx->sd = xrootd_webdav_backend_instance(conf, r->connection->log);
 }
 
 static void webdav_put_aio_thread(void *data, ngx_log_t *log);
@@ -89,7 +91,10 @@ webdav_put_persist_checksums(ngx_http_request_t *r, const char *path)
     ngx_memcpy(algs, conf->checksum_on_write.data, conf->checksum_on_write.len);
     algs[conf->checksum_on_write.len] = '\0';
 
-    fd = open(path, O_RDONLY | O_CLOEXEC);
+    /* Re-open the just-committed export file through the VFS (confined beneath
+     * the export root, impersonation-aware) to compute its digests. */
+    fd = xrootd_vfs_open_fd(r->connection->log, conf->common.root_canon, path,
+                           O_RDONLY, 0);
     if (fd < 0) {
         return;
     }
@@ -102,8 +107,8 @@ webdav_put_persist_checksums(ngx_http_request_t *r, const char *path)
         o.allow_xattr_cache    = 1;
         o.update_xattr_cache   = 1;
         o.require_regular_file = 1;
-        (void) xrootd_integrity_get_fd(r->connection->log, fd, path, tok, &o,
-                                       &info);
+        (void) xrootd_integrity_get_fd(r->connection->log, fd, NULL, path, tok,
+                                       &o, &info);
     }
     (void) close(fd);
 }
@@ -126,8 +131,12 @@ webdav_put_aio_thread(void *data, ngx_log_t *log)
      * only does pwrite(2), so it is safe to run on the thread pool — no nginx
      * pool allocation or event-loop calls.
      */
-    if (xrootd_http_body_write_to_fd(t->r, xrootd_vfs_staged_fd(t->staged),
-                                     t->path, NULL) != NGX_OK)
+    /* A driver-backed (object) staged target has no kernel fd — stream the body
+     * through the staged-write primitive; otherwise write straight to the temp fd. */
+    if (xrootd_vfs_staged_is_driver(t->staged)
+            ? xrootd_http_body_write_to_staged(t->r, t->staged) != NGX_OK
+            : xrootd_http_body_write_to_fd(t->r, xrootd_vfs_staged_fd(t->staged),
+                                           t->path, NULL) != NGX_OK)
     {
         t->io_errno = errno;
         t->nwritten = -1;
@@ -404,8 +413,30 @@ webdav_put_body_inner(ngx_http_request_t *r)
         }
     }
 
-    created = (xrootd_lstat_confined_canon(r->connection->log,
-                   conf->common.root_canon, path, &sb, 0) != 0);
+    {
+        ngx_http_xrootd_webdav_req_ctx_t *rx =
+            ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+        xrootd_vfs_ctx_t  pctx;
+        xrootd_vfs_stat_t pst;
+        int               is_tls = 0;
+
+#if (NGX_HTTP_SSL)
+        is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+        ngx_memzero(&sb, sizeof(sb));
+        xrootd_vfs_ctx_init(&pctx, r->pool, r->connection->log,
+            XROOTD_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
+            conf->common.allow_write, is_tls,
+            (rx != NULL) ? rx->identity : NULL, path);
+        if (xrootd_vfs_probe(&pctx, 0 /* follow */, &pst) == NGX_OK) {
+            created = 0;   /* target exists — sb populated for the ETag check */
+            sb.st_mtime = pst.mtime;
+            sb.st_size  = pst.size;
+            sb.st_mode  = (mode_t) pst.mode;
+        } else {
+            created = 1;   /* new file — sb unused (etag check sees !exists) */
+        }
+    }
 
     rc = xrootd_http_check_etag_preconditions(
         r, !created, &sb, XROOTD_ETAG_WEAK, XROOTD_HTTP_COND_WEAK_EQUIV);
@@ -548,12 +579,22 @@ webdav_put_body_inner(ngx_http_request_t *r)
             ngx_int_t  decode_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
             if (put_codec != XROOTD_CODEC_IDENTITY) {
-                wrc = xrootd_http_body_decode_to_fd(r,
-                                                    xrootd_vfs_staged_fd(staged),
-                                                    path, put_codec,
-                                                    XROOTD_DECODE_MAX_OUTPUT,
-                                                    &body_summary,
-                                                    &decode_status);
+                if (xrootd_vfs_staged_is_driver(staged)) {
+                    /* Content-Encoding decode targets a kernel fd; an object
+                     * backend exposes none. Decode-to-staged is a follow-up. */
+                    errno = ENOSYS;
+                    wrc = NGX_ERROR;
+                    decode_status = NGX_HTTP_NOT_IMPLEMENTED;
+                } else {
+                    wrc = xrootd_http_body_decode_to_fd(r,
+                                                        xrootd_vfs_staged_fd(staged),
+                                                        path, put_codec,
+                                                        XROOTD_DECODE_MAX_OUTPUT,
+                                                        &body_summary,
+                                                        &decode_status);
+                }
+            } else if (xrootd_vfs_staged_is_driver(staged)) {
+                wrc = xrootd_http_body_write_to_staged(r, staged);
             } else {
                 wrc = xrootd_http_body_write_to_fd(r,
                                                     xrootd_vfs_staged_fd(staged),

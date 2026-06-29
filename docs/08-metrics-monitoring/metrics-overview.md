@@ -196,6 +196,37 @@ Labels: `port`, `auth`
 xrootd_cache_eviction_errors_total{port="1094",auth="anon"} 1
 ```
 
+### `xrootd_cache_dirty_reaped_total`
+
+Cache files removed by the stale-dirty reaper, broken down by **why** via the
+`reason` label. The reaper scans the unified cache-state root
+(`xrootd_cache_state_root`, defaulting to `xrootd_cache_root`), shared by the
+**read-through and write-through caches**, so this counter covers both. Unlike the
+eviction counters (gated on the read-through cache being enabled) it is reported
+for **any active server with a cache-state root** — the same `in_use`-only gate as
+the write-through `wt_*` families.
+
+The reason is derived per file from its `.cinfo` write-back state:
+
+| `reason` | Meaning | Data loss? |
+|---|---|---|
+| `abandoned` | Un-flushed dirty data aged past `xrootd_cache_dirty_max_age` and was **never** written back (`flush_gen == 0`). | **Yes** — full |
+| `incomplete` | Aged dirty data on a file that **had** a prior successful write-back (`flush_gen > 0`) and was re-dirtied; only the trailing dirty episode is discarded. | Partial |
+| `completed` | A **clean**, fully written-back staging copy (`flush_gen > 0`) reclaimed once its last flush aged out — bytes are safely on the origin. A read-through fill (`flush_gen == 0`, clean) is left for occupancy-driven eviction. | No |
+
+A non-zero `abandoned`/`incomplete` rate means write-back data is being discarded
+before it reaches the origin/backend (origin unreachable, flush failing, or
+`xrootd_cache_dirty_max_age` too short) — pair it with
+`xrootd_wt_flushes_total{result="error"}`. A `completed` rate is benign cleanup.
+
+Labels: `port`, `auth`, `reason`
+
+```
+xrootd_cache_dirty_reaped_total{port="1094",auth="anon",reason="abandoned"} 3
+xrootd_cache_dirty_reaped_total{port="1094",auth="anon",reason="incomplete"} 0
+xrootd_cache_dirty_reaped_total{port="1094",auth="anon",reason="completed"} 12
+```
+
 ---
 
 ## Request Metrics

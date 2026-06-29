@@ -11,14 +11,17 @@ Uses the pre-started nginx_shared instance (port 9001), anonymous + write.
 """
 
 import base64
+import glob
 import hashlib
+import os
+import time
 import uuid
 import zlib
 
 import pytest
 import requests
 
-from settings import S3_BUCKET
+from settings import S3_BUCKET, TEST_ROOT
 
 BUCKET = S3_BUCKET
 DATA = b"the quick brown fox jumps over the lazy dog" * 7
@@ -54,6 +57,42 @@ def s3_url(test_env):
 
 def _key(s3_url):
     return f"{s3_url}/{BUCKET}/cksum_{uuid.uuid4().hex}"
+
+
+def _find_audit_line(token, kind="stage", timeout=5.0):
+    """Poll every xfer_audit.log under the test root for a line with token+kind."""
+    audit = set(glob.glob(os.path.join(TEST_ROOT, "**", "xfer_audit.log"),
+                          recursive=True))
+    audit.add(os.path.join(TEST_ROOT, "logs", "xfer_audit.log"))
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for p in audit:
+            try:
+                with open(p, "r", errors="replace") as fh:
+                    for line in fh:
+                        if token in line and f"kind={kind}" in line:
+                            return line
+            except OSError:
+                pass
+        time.sleep(0.2)
+    return None
+
+
+def test_put_emits_unified_stage_audit(s3_url):
+    """An S3 PutObject (chunked/aio commit path) emits the SAME unified stage
+    audit line as WebDAV/root:// uploads — closing the prior gap where S3 PUT
+    committed via the raw staged primitive without an audit record."""
+    k = _key(s3_url)
+    key_name = k.rsplit("/", 1)[-1]            # cksum_<uuid> = the object filename
+    r = requests.put(k, data=DATA, timeout=10)
+    assert r.status_code == 200, r.text
+
+    line = _find_audit_line(key_name, kind="stage")
+    requests.delete(k, timeout=10)
+    assert line is not None, "no unified kind=stage audit line for the S3 PUT"
+    assert "dir=in" in line
+    assert "result=ok" in line
+    assert f"bytes={len(DATA)}" in line
 
 
 # ---------------------------------------------------------------------------

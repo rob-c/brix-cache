@@ -9,6 +9,7 @@
 #include "webdav.h"
 #include "../impersonate/lifecycle.h"
 #include "../path/path.h"
+#include "../fs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
 #include "../compat/fs_walk.h"
 #include "../compat/http_body.h"
 #include "../compat/http_xml.h"
@@ -204,8 +205,8 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
     ngx_chain_t **tail, const char *dir_path, const char *base_href,
     ngx_uint_t *count, const webdav_search_query_t *q)
 {
-    DIR           *dp;
-    struct dirent *de;
+    xrootd_vfs_ctx_t  wctx;
+    xrootd_vfs_dir_t *dp;
     ngx_http_xrootd_webdav_loc_conf_t *wdcf =
         ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
 
@@ -222,32 +223,45 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
         return NGX_OK;   /* mapped user may not list this dir — no leak */
     }
 
-    dp = xrootd_opendir_confined_canon(r->connection->log,
-                                       wdcf->common.root_canon, dir_path);
+    /* Enumerate through the VFS (broker fdopendir under impersonation), NON-metered:
+     * a depth-infinity SEARCH must not emit one OP_DIRLIST per visited subdir (the
+     * SEARCH op accounts for the whole walk). */
+    xrootd_vfs_ctx_init(&wctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+        wdcf->common.root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */,
+        NULL, dir_path);
+    dp = xrootd_vfs_opendir_quiet(&wctx, NULL);
     if (dp == NULL) {
         return NGX_OK;   /* unreadable subtree: skip silently */
     }
 
-    while ((de = readdir(dp)) != NULL) {
+    for ( ;; ) {
+        ngx_str_t                name;
+        xrootd_vfs_dirent_kind_t dkind;
+        const char              *dname;
         char        child_path[WEBDAV_MAX_PATH];
         char        child_href[WEBDAV_MAX_PATH + 2];
-        struct stat csb;
         size_t      blen;
-
-        if (xrootd_fs_is_dot_entry(de->d_name) || de->d_name[0] == '.') {
-            continue;
-        }
+        int         is_dir;
+        ngx_int_t   rrc;
 
         if (*count >= WEBDAV_SEARCH_MAX_ENTRIES) {
             break;   /* result-set cap reached: stop scanning this dir */
         }
 
-        /* lstat (not stat): never follow a symlink during the walk, so a symlink
-         * out of the export is not recursed into (it is S_ISLNK -> not S_ISDIR). */
-        if (xrootd_fs_join_path(dir_path, de->d_name, child_path,
-                                sizeof(child_path)) != NGX_OK
-            || xrootd_lstat_confined_canon(r->connection->log,
-                   wdcf->common.root_canon, child_path, &csb, 1) != 0)
+        /* "."/".." are filtered by readdir_kind; the entry KIND comes from d_type
+         * (no per-entry stat). A symlink/special is listed but never recursed. */
+        rrc = xrootd_vfs_readdir_kind(dp, &name, &dkind);
+        if (rrc != NGX_OK) {
+            break;   /* NGX_DONE (end) or error → stop */
+        }
+        dname = (const char *) name.data;
+
+        if (dname[0] == '.') {
+            continue;   /* skip hidden files (search never lists dotfiles) */
+        }
+
+        if (xrootd_fs_join_path(dir_path, dname, child_path,
+                                sizeof(child_path)) != NGX_OK)
         {
             continue;
         }
@@ -257,12 +271,12 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
         blen = strlen(base_href);
         if (blen == 0 || base_href[blen - 1] != '/') {
             if ((size_t) snprintf(child_href, sizeof(child_href), "%s/%s",
-                                  base_href, de->d_name) >= sizeof(child_href))
+                                  base_href, dname) >= sizeof(child_href))
             {
                 continue;
             }
         } else if ((size_t) snprintf(child_href, sizeof(child_href), "%s%s",
-                                     base_href, de->d_name)
+                                     base_href, dname)
                    >= sizeof(child_href))
         {
             continue;
@@ -271,25 +285,40 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
         if (webdav_search_append_response(r, head, tail, child_href, q)
             != NGX_OK)
         {
-            closedir(dp);
+            xrootd_vfs_closedir(dp, r->connection->log);
             return NGX_ERROR;
         }
         (*count)++;
 
-        if (q->depth == -1 && S_ISDIR(csb.st_mode)) {
+        /* Recurse only into directories. d_type gives the answer directly; on a
+         * DT_UNKNOWN filesystem fall back to a confined no-follow probe (so a
+         * trailing symlink is never followed into recursion). */
+        is_dir = (dkind == XROOTD_VFS_DT_DIR);
+        if (dkind == XROOTD_VFS_DT_UNKNOWN) {
+            xrootd_vfs_ctx_t  pctx;
+            xrootd_vfs_stat_t vst;
+
+            xrootd_vfs_ctx_init(&pctx, r->pool, r->connection->log,
+                XROOTD_PROTO_WEBDAV, wdcf->common.root_canon, NULL, 0, 0, NULL,
+                child_path);
+            is_dir = (xrootd_vfs_probe(&pctx, 1 /* no-follow */, &vst) == NGX_OK
+                      && vst.is_directory);
+        }
+
+        if (q->depth == -1 && is_dir) {
             char sub_href[WEBDAV_MAX_PATH + 3];
             if ((size_t) snprintf(sub_href, sizeof(sub_href), "%s/",
                                   child_href) < sizeof(sub_href)
                 && webdav_search_walk(r, head, tail, child_path, sub_href,
                                       count, q) != NGX_OK)
             {
-                closedir(dp);
+                xrootd_vfs_closedir(dp, r->connection->log);
                 return NGX_ERROR;
             }
         }
     }
 
-    closedir(dp);
+    xrootd_vfs_closedir(dp, r->connection->log);
     return NGX_OK;
 }
 

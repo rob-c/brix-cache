@@ -14,6 +14,7 @@
 #include "dig.h"
 #include "../webdav/webdav.h"
 #include "../path/beneath.h"
+#include "../fs/vfs.h"   /* serve diagnostics files through the VFS seam */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -132,8 +133,14 @@ xrootd_dig_handle(ngx_http_request_t *r)
     const char                        *principal;
     size_t                             exlen, rlen;
     ngx_uint_t                         i;
-    int                                rootfd, fd;
+    int                                fd;
     struct stat                        st;
+    xrootd_vfs_ctx_t                   vctx;
+    xrootd_vfs_file_t                 *fh;
+    xrootd_vfs_stat_t                  vst;
+    char                               full[PATH_MAX];
+    int                                vfs_err = 0;
+    int                                is_tls = 0;
     ngx_int_t                          rc;
     ngx_pool_cleanup_t                *cln;
     ngx_pool_cleanup_file_t           *clnf;
@@ -203,25 +210,44 @@ xrootd_dig_handle(ngx_http_request_t *r)
         return NGX_HTTP_FORBIDDEN;
     }
 
-    /* Confined open under the export realpath (kernel RESOLVE_BENEATH). */
+    /* Serve through the VFS seam, confined under the export realpath
+     * (xrootd_vfs_open uses the same kernel RESOLVE_BENEATH open underneath). */
     if (match->canon.len >= sizeof(canon)) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_memcpy(canon, match->canon.data, match->canon.len);
     canon[match->canon.len] = '\0';
 
-    rootfd = xrootd_beneath_open_root(canon);
-    if (rootfd < 0) {
+    if ((size_t) snprintf(full, sizeof(full), "%s/%s", canon, rel)
+        >= sizeof(full))
+    {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    fd = xrootd_open_beneath(rootfd, rel, O_RDONLY | O_NOFOLLOW | O_CLOEXEC, 0);
-    close(rootfd);
-    if (fd < 0) {
-        return dig_open_status(errno);
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+        canon, NULL, 0 /* allow_write */, is_tls, NULL, full);
+
+    fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+    if (fh == NULL) {
+        return dig_open_status(vfs_err);
     }
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
-        close(fd);
+    if (xrootd_vfs_file_stat(fh, &vst) != NGX_OK || !vst.is_regular) {
+        xrootd_vfs_close(fh, r->connection->log);
         return NGX_HTTP_NOT_FOUND;            /* directories/specials not served */
+    }
+    ngx_memzero(&st, sizeof(st));
+    st.st_size  = vst.size;
+    st.st_mtime = vst.mtime;
+    st.st_mode  = (mode_t) vst.mode;
+
+    /* Zero-copy serve fd, gated on the backend's CAP_SENDFILE (the pool cleanup
+     * below closes it; the VFS handle owns no other resource). */
+    fd = xrootd_vfs_file_sendfile_fd(fh);
+    if (fd == NGX_INVALID_FILE) {
+        xrootd_vfs_close(fh, r->connection->log);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     /* Ensure the fd is closed when the request pool is destroyed (after the

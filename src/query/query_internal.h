@@ -3,6 +3,7 @@
 
 #include "../ngx_xrootd_module.h"
 #include "../compat/checksum.h"
+#include "../fs/vfs.h"   /* VFS stat + xattr seam for kXR_Qxattr */
 
 #define XROOTD_CKSCAN_INIT_CAP  (256 * 1024)
 
@@ -54,6 +55,9 @@ typedef struct {
     u_char  streamid[2];
     int     fd;
     int     close_fd;        /* 1 = we opened fd (path-based); must close in done */
+    struct xrootd_vfs_file_s *fh; /* VFS handle backing fd (path-based); vfs-closed */
+    xrootd_sd_obj_t obj;     /* Layer 3: storage-driver object (whole-object read);
+                              * driver==NULL ⇒ checksum the bare fd (POSIX) */
     char    algo[32];
     char    resolved[PATH_MAX];  /* for logging */
     char    resp[256];           /* filled by thread on success */
@@ -81,16 +85,16 @@ void xrootd_cksum_aio_done(ngx_event_t *ev);
  * still owns and must free *buf). */
 int xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
     const char *algo, const char *hex, const char *logical);
-/* Recursively scan logical_dir under rootfd (export-jailed via open_beneath),
- * appending a checksum line per regular file via xrootd_ckscan_append. depth
- * counts from 0; max_depth==0 means this dir only. *nfiles is the running count,
- * capped at max_files. On hard error writes errmsg (errsz bytes) and returns -1;
- * depth/file caps are non-error stops that return 0. */
-int xrootd_ckscan_walk(ngx_log_t *log, int rootfd,
-    const char *logical_dir, const char *algo,
-    u_char **buf, size_t *cap, size_t *used, ngx_uint_t depth,
-    ngx_uint_t max_depth, ngx_uint_t max_files, ngx_uint_t *nfiles,
-    char *errmsg, size_t errsz);
+/* Run a kXR_Qckscan over `logical` (a regular file OR a directory tree) through
+ * the confined VFS walk (xrootd_vfs_walk), appending one "algo hex logical" line
+ * per regular file into the growing buf/cap/used triple. Thread-safe (no pool,
+ * no metric) — usable on the aio worker and the event loop alike. On failure sets
+ * *err_code (kXR_*) + writes *err_msg (err_sz) and returns NGX_ERROR; NGX_OK on
+ * success (the buffer holds the result; an empty directory yields an empty body). */
+ngx_int_t xrootd_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
+    const char *algo, u_char **buf, size_t *cap, size_t *used,
+    ngx_uint_t max_depth, ngx_uint_t max_files,
+    uint16_t *err_code, char *err_msg, size_t err_sz);
 /* Adler-32 by path: confined-open under `root`, compute, close. Borrows args.
  * Returns the checksum, or 0xFFFFFFFF on open or I/O failure. */
 uint32_t xrootd_query_adler32_file(const ngx_str_t *root,

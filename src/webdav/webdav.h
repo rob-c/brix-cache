@@ -390,6 +390,15 @@ int xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
 int xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
 
+/* Resolve (lazily, per worker) the storage-driver instance for this export: a
+ * "pblock" backend is created on first use and cached on the loc conf; "posix"/
+ * unset returns NULL (the default POSIX path). Returned as void* (an
+ * xrootd_sd_instance_t*) to keep the SD types out of this header; assign it to a
+ * VFS ctx's `sd`. The cache is per worker process (copy-on-write conf), so each
+ * worker owns its own SQLite connection. */
+void *xrootd_webdav_backend_instance(
+    ngx_http_xrootd_webdav_loc_conf_t *conf, ngx_log_t *log);
+
 /* Module wiring */
 /* Allocate+default-init the loc conf (cf->pool); returns it, or NULL on OOM. */
 void *ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf);
@@ -486,7 +495,8 @@ ngx_int_t webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path);
  * xrootd_webdav_lock_startup_sweep is on, to restore ephemeral lock semantics.
  * Returns the number of lock xattrs removed.
  */
-ngx_uint_t webdav_lock_startup_sweep(ngx_log_t *log, const char *root_canon);
+ngx_uint_t webdav_lock_startup_sweep(ngx_pool_t *pool, ngx_log_t *log,
+    const char *root_canon);
 
 /* Walk path -> export root checking each level's lock xattr (O(path_depth)
  * getxattr calls); expired locks are lazily deleted in passing.  NGX_HTTP_LOCKED

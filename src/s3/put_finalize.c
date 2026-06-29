@@ -3,6 +3,9 @@
  * Phase-38 split of put.c; behavior-identical.
  */
 #include "s3_put_internal.h"
+#include "../fs/xfer/xfer.h"   /* unified transfer audit ledger (S3 PUT = STAGE) */
+
+#include <sys/stat.h>
 
 
 
@@ -20,11 +23,35 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
 {
     ngx_http_s3_req_ctx_t *rx =
         ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    size_t      bytes;
+    ngx_int_t   rc;
+    int         e;
 
-    if (rx != NULL && rx->exclusive_create) {
-        return xrootd_staged_commit_excl(log, root_canon, staged, final_path);
+    rc = (rx != NULL && rx->exclusive_create)
+         ? xrootd_staged_commit_excl(log, root_canon, staged, final_path)
+         : xrootd_staged_commit(log, root_canon, staged, final_path);
+
+    /* Unified ledger: S3 PutObject (chunked / aio path) is a STAGE publish — the
+     * same audit line as S3 POST, WebDAV PUT, and root:// uploads. The staged fd
+     * is already closed by the body handler before commit, so the committed
+     * object's size comes from a confined stat of the published path. */
+    if (rc == NGX_OK) {
+        xrootd_vfs_ctx_t  fctx;
+        xrootd_vfs_stat_t fst;
+
+        xrootd_vfs_ctx_init(&fctx, r->pool, log, XROOTD_PROTO_S3, root_canon,
+            NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, final_path);
+        bytes = (xrootd_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK
+                 && fst.is_regular) ? (size_t) fst.size : 0;
+        xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path, NULL, bytes,
+                           XROOTD_XFER_OK, 0, log);
+    } else {
+        e = errno;
+        xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path, NULL, 0,
+                           XROOTD_XFER_COMMIT_ERR, e, log);
+        errno = e;   /* preserve EEXIST → 412 for the caller */
     }
-    return xrootd_staged_commit(log, root_canon, staged, final_path);
+    return rc;
 }
 
 

@@ -18,7 +18,7 @@
  */
 #include "s3.h"
 #include "multipart_internal.h"
-#include "../path/path.h"
+#include "../fs/vfs.h"   /* confined source open via the VFS seam */
 #include "../compat/http_headers.h"
 #include "../fs/backend/sd.h"   /* route the part-copy byte move through the SD backend */
 
@@ -65,7 +65,10 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
     char         xml_buf[512];
     char         etag_buf[64];
     char         iso_buf[32];
-    struct stat  src_sb, part_sb;
+    struct stat       part_sb;
+    xrootd_vfs_ctx_t  sctx;
+    xrootd_vfs_stat_t svst;
+    xrootd_vfs_file_t *fh_src;
     int          src_fd, dst_fd;
     ssize_t      nr;
     char         iobuf[65536];
@@ -109,9 +112,9 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
      * RESOLVE_BENEATH, no-follow) — the strstr/strncmp checks above do NOT stop
      * a planted in-bucket symlink, so a raw stat() here would follow it out of
      * the export root (the same hole the open() below was hardened against). */
-    if (xrootd_lstat_confined_canon(r->connection->log, cf->common.root_canon,
-                                    src_fs_path, &src_sb, 1) != 0
-        || !S_ISREG(src_sb.st_mode))
+    s3_build_vfs_ctx(r, src_fs_path, cf, &sctx);
+    if (xrootd_vfs_probe(&sctx, 1 /* no-follow */, &svst) != NGX_OK
+        || !svst.is_regular)
     {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchKey",
@@ -127,7 +130,7 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
     /* Confinement: mpu_dir from s3_get_mpu_dir() — validated upload_id + confined
      * fs_path. part_path is mpu_dir + "/part.<N>". Bare stat is safe. */
     s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
-    if (stat(mpu_dir, &part_sb) != 0) {
+    if (stat(mpu_dir, &part_sb) != 0) {  /* vfs-seam-allow: S3 multipart staging-dir domain */
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchUpload",
                                  "The specified upload does not exist.");
@@ -143,17 +146,16 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
      * confinement every other read path uses.  A raw open() here followed a
      * planted in-bucket symlink straight to a host file (e.g. /etc/passwd),
      * which the string checks above (strstr/strncmp) do not catch. */
-    src_fd = xrootd_open_confined_canon(r->connection->log,
-                                        cf->common.root_canon, src_fs_path,
-                                        O_RDONLY, 0);
-    if (src_fd < 0) {
+    fh_src = xrootd_vfs_open(&sctx, XROOTD_VFS_O_READ, NULL);
+    if (fh_src == NULL) {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                                  "The specified copy source does not exist.");
     }
+    src_fd = xrootd_vfs_file_fd(fh_src);
 
-    dst_fd = open(part_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    dst_fd = open(part_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);  /* vfs-seam-allow: S3 multipart staging-dir domain */
     if (dst_fd < 0) {
-        close(src_fd);
+        xrootd_vfs_close(fh_src, r->connection->log);
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -179,9 +181,9 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                     if (errno == EINTR) {
                         continue;
                     }
-                    close(src_fd);
+                    xrootd_vfs_close(fh_src, r->connection->log);
                     close(dst_fd);
-                    unlink(part_path);
+                    unlink(part_path);  /* vfs-seam-allow: S3 multipart staging-dir domain */
                     XROOTD_S3_METRIC_INC(
                         events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
                     return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -193,10 +195,10 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
             src_off += nr;
         }
     }
-    close(src_fd);
+    xrootd_vfs_close(fh_src, r->connection->log);
     close(dst_fd);
 
-    if (stat(part_path, &part_sb) != 0) {
+    if (stat(part_path, &part_sb) != 0) {  /* vfs-seam-allow: S3 multipart staging-dir domain */
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

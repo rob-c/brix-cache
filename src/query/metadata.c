@@ -117,15 +117,16 @@ ngx_int_t
 xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    char        pathbuf[XROOTD_MAX_PATH + 1];
-    char        full_path[PATH_MAX];
-    char        resp[4096];
-    int         pos = 0;
-    char        raw_list[4096];
-    ssize_t     list_sz;
-    struct stat st;
-    char        ftype;
-    char        facc;
+    char              pathbuf[XROOTD_MAX_PATH + 1];
+    char              full_path[PATH_MAX];
+    char              resp[4096];
+    int               pos = 0;
+    char              raw_list[4096];
+    ssize_t           list_sz;
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_stat_t vst;
+    char              ftype;
+    char              facc;
 
     if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
@@ -148,31 +149,38 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return ctx->write_rc;
     }
 
-    if (xrootd_stat_beneath(conf->rootfd, pathbuf, &st) != 0) {
+    /* Stat + xattr list/get all flow through the VFS (one ctx, confined to the
+     * export root). probe (follow) replaces the raw stat; the OP_STAT metric is
+     * suppressed (probe) so only the enclosing QUERY op is accounted. */
+    xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+        conf->common.root_canon, NULL, conf->common.allow_write,
+        0 /* is_tls */, NULL, full_path);
+
+    if (xrootd_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
         return xrootd_send_error(ctx, c, xrootd_kxr_from_errno(errno),
                                  strerror(errno));
     }
 
-    if (S_ISREG(st.st_mode)) {
+    if (vst.is_regular) {
         ftype = 'f';
-    } else if (S_ISDIR(st.st_mode)) {
+    } else if (vst.is_directory) {
         ftype = 'd';
     } else {
         ftype = 'o';
     }
 
-    facc = (st.st_mode & S_IWUSR) ? 'w' : 'r';
+    facc = (vst.mode & S_IWUSR) ? 'w' : 'r';
 
     pos = snprintf(resp, sizeof(resp) - 1,
                    "oss.cgroup=default&oss.type=%c&oss.used=%lld"
                    "&oss.mt=%ld&oss.ct=%ld&oss.at=%ld"
                    "&oss.u=*&oss.g=*&oss.fs=%c",
-                   ftype, (long long) st.st_size,
-                   (long) st.st_mtime, (long) st.st_ctime, (long) st.st_atime,
+                   ftype, (long long) vst.size,
+                   (long) vst.mtime, (long) vst.ctime, (long) vst.atime,
                    facc);
 
-    list_sz = listxattr(full_path, raw_list, sizeof(raw_list));
+    list_sz = xrootd_vfs_listxattr(&vctx, raw_list, sizeof(raw_list));
     if (list_sz > 0) {
         char *lp = raw_list;
         char *lend = raw_list + list_sz;
@@ -184,7 +192,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 char    val[1024];
                 ssize_t vlen;
 
-                vlen = getxattr(full_path, lp, val, sizeof(val) - 1);
+                vlen = xrootd_vfs_getxattr(&vctx, lp, val, sizeof(val) - 1);
                 if (vlen >= 0) {
                     val[vlen] = '\0';
                     pos += snprintf(resp + pos, sizeof(resp) - pos - 1,

@@ -82,6 +82,7 @@ ngx_http_xrootd_dashboard_create_loc_conf(ngx_conf_t *cf)
     conf->stalled_threshold_ms = NGX_CONF_UNSET_MSEC;
     conf->cluster_stale_after_ms = NGX_CONF_UNSET_MSEC;
     conf->admin_require_both = NGX_CONF_UNSET;   /* admin_allow/secret: NULL via pcalloc */
+    conf->scan_max_files = NGX_CONF_UNSET_UINT;
     return conf;
 }
 
@@ -134,6 +135,28 @@ ngx_http_xrootd_dashboard_merge_loc_conf(ngx_conf_t *cf,
                && prev->browse_root_canon[0] != '\0') {
         ngx_memcpy(conf->browse_root_canon, prev->browse_root_canon,
                    sizeof(conf->browse_root_canon));
+    }
+
+    /* Storage-scan root: canonicalize once (realpath) into scan_root_canon, the
+     * confinement anchor for the /scan endpoint.  Empty => feature off (404). */
+    ngx_conf_merge_str_value(conf->scan_root, prev->scan_root, "");
+    ngx_conf_merge_uint_value(conf->scan_max_files, prev->scan_max_files, 100000);
+    if (conf->scan_root_canon[0] == '\0' && conf->scan_root.len > 0) {
+        char tmp[PATH_MAX];
+        if (conf->scan_root.len >= sizeof(tmp)) {
+            return "xrootd_scan_root path too long";
+        }
+        ngx_memcpy(tmp, conf->scan_root.data, conf->scan_root.len);
+        tmp[conf->scan_root.len] = '\0';
+        if (realpath(tmp, conf->scan_root_canon) == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                "xrootd_scan_root \"%V\" is not accessible", &conf->scan_root);
+            return NGX_CONF_ERROR;
+        }
+    } else if (conf->scan_root_canon[0] == '\0'
+               && prev->scan_root_canon[0] != '\0') {
+        ngx_memcpy(conf->scan_root_canon, prev->scan_root_canon,
+                   sizeof(conf->scan_root_canon));
     }
     /* Cross-field invariant: a transfer cannot become "stalled" before it is
      * even "idle", so reject a config that inverts the two thresholds. */
@@ -408,6 +431,22 @@ static ngx_command_t ngx_http_xrootd_dashboard_commands[] = {
       offsetof(ngx_http_xrootd_dashboard_loc_conf_t, browse_root),
       NULL },
 
+    /* Storage-scan root — empty (default) disables the /scan endpoint. */
+    { ngx_string("xrootd_scan_root"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, scan_root),
+      NULL },
+
+    /* Operator cap on files visited per scan request (default 100000). */
+    { ngx_string("xrootd_scan_max_files"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_dashboard_loc_conf_t, scan_max_files),
+      NULL },
+
     /* Phase 23: admin write API auth */    { ngx_string("xrootd_admin_allow"),       /* CIDR allowlist */
       NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
       xrootd_admin_set_allow,
@@ -542,6 +581,12 @@ ngx_http_xrootd_dashboard_main_handler(ngx_http_request_t *r)
     }
     if (dashboard_uri_eq(uri, "/xrootd/api/v1/download")) {
         return ngx_http_xrootd_dashboard_download_handler(r);
+    }
+
+    /* Storage scan/verify/fill engine; ALWAYS auth-only, confined to
+     * xrootd_scan_root.  404 when the feature is not configured. */
+    if (dashboard_uri_eq(uri, "/xrootd/api/v1/scan")) {
+        return ngx_http_xrootd_dashboard_scan_handler(r);
     }
 
     /* Phase 23: admin write API (auth + method routing inside dispatch). */

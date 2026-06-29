@@ -240,3 +240,58 @@ def test_failed_recall_returns_error_not_hang(staging, tmp_path):
     # the open must return an error, not stall forever.
     r = _xrdcp("/failfile.dat", str(tmp_path / "f.out"), timeout=30)
     assert r.returncode != 0, "open of an unstageable file should fail, not hang"
+
+
+def _xfer_audit_lines(prefix):
+    p = os.path.join(prefix, "logs", "xfer_audit.log")
+    try:
+        with open(p, "r", errors="replace") as fh:
+            return fh.readlines()
+    except OSError:
+        return []
+
+
+def _wait_tape_line(prefix, lfn, timeout=15.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for line in _xfer_audit_lines(prefix):
+            if "kind=tape" in line and lfn in line:
+                return line
+        time.sleep(0.2)
+    return None
+
+
+def test_recall_emits_unified_tape_audit_line(staging, tmp_path):
+    """A tape recall joins the unified transfer ledger (kind=tape), so one audit
+    log covers both staged uploads and recalls. Success → result=ok; a recall
+    with no tape source → result=agent_fail."""
+    prefix = os.path.dirname(staging.data)
+    tape = os.path.join(prefix, "tape")
+
+    # fresh nearline file WITH a tape source → recall succeeds
+    ok_name = "audit_ok.dat"
+    with open(os.path.join(tape, ok_name), "wb") as fh:
+        fh.write(b"FRESH-AUDIT-TAPE\n")
+    ok_stub = os.path.join(staging.data, ok_name)
+    open(ok_stub, "wb").close()
+    os.setxattr(ok_stub, "user.frm.residency", b"nearline")
+
+    r = _xrdcp("/" + ok_name, str(tmp_path / "ok.out"), timeout=30)
+    assert r.returncode == 0, f"recall failed: {r.stderr.decode(errors='replace')}"
+    line = _wait_tape_line(prefix, ok_name)
+    assert line is not None, "no kind=tape audit line for a successful recall"
+    assert "result=ok" in line
+    assert "dir=in" in line
+    assert line.count("\n") == 1
+
+    # fresh nearline file with NO tape source → recall fails → result=agent_fail
+    fail_name = "audit_fail.dat"
+    fail_stub = os.path.join(staging.data, fail_name)
+    open(fail_stub, "wb").close()
+    os.setxattr(fail_stub, "user.frm.residency", b"nearline")
+
+    fr = _xrdcp("/" + fail_name, str(tmp_path / "fail.out"), timeout=30)
+    assert fr.returncode != 0, "recall with no tape source should fail"
+    fline = _wait_tape_line(prefix, fail_name)
+    assert fline is not None, "no kind=tape audit line for a failed recall"
+    assert "result=agent_fail" in fline

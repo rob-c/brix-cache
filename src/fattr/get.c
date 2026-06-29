@@ -1,49 +1,47 @@
 #include "fattr/ngx_xrootd_fattr.h"
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
 #include <arpa/inet.h>
 #include "../compat/alloc_guard.h"
 
 /*
  *
- * WHAT: Calls getxattr(path, key, NULL, 0) for path-based operations or
- *       fgetxattr(fd, key, NULL, 0) for open-file-handle operations to
- *       query the size of an extended attribute's stored value without
- *       allocating a buffer. Returns ssize_t: positive = value length in bytes,
- *       -1 = syscall error (errno set). Used as the first step before
- *       fattr_read_value() which allocates and reads the actual data.
+ * WHAT: Queries the size of an extended attribute's stored value (NULL buffer)
+ *       through the VFS xattr seam — path mode (xrootd_vfs_getxattr on the vctx's
+ *       resolved path) or open-handle mode (xrootd_vfs_fgetxattr on fd) selected
+ *       by `path != NULL`. Returns ssize_t: positive = value length in bytes,
+ *       -1 = error (errno set). First step before fattr_read_value() reads data.
  *
  * WHY: Two-phase read pattern — query size first then allocate buffer
  *       second avoids over-allocation and handles zero-length attributes
- *       correctly. Path-based vs fd-based dispatch via path != NULL check
- *       allows callers to use either operation mode without duplication. */
+ *       correctly. Routing through the VFS keeps every xattr touch confined and
+ *       observed (OP_XATTR metric) rather than hitting getxattr(2) directly. */
 static ssize_t
-fattr_read_value_size(const char *path, int fd, const char *xkey)
+fattr_read_value_size(xrootd_vfs_ctx_t *vctx, const char *path, int fd,
+    const char *xkey)
 {
-    return path != NULL ? getxattr(path, xkey, NULL, 0)
-                        : fgetxattr(fd, xkey, NULL, 0);
+    return path != NULL ? xrootd_vfs_getxattr(vctx, xkey, NULL, 0)
+                        : xrootd_vfs_fgetxattr(vctx, fd, xkey, NULL, 0);
 }
 
 /*
  *
- * WHAT: Calls getxattr(path, key, buffer, len) for path-based operations or
- *       fgetxattr(fd, key, buffer, len) for open-file-handle operations to
- *       read the actual bytes stored in an extended attribute into caller-
- *       provided buffer. Returns ssize_t: positive = bytes read, -1 = syscall
- *       error (errno set). Caller must ensure value_len >= queried size from
- *       fattr_read_value_size().
+ * WHAT: Reads the actual bytes stored in an extended attribute into the caller's
+ *       buffer through the VFS xattr seam — path or open-handle mode as above.
+ *       Returns ssize_t: positive = bytes read, -1 = error (errno set). Caller
+ *       must ensure value_len >= queried size from fattr_read_value_size().
  *
  * WHY: Same path/fd dispatch pattern as fattr_read_value_size() — single
  *       helper serves both operation modes. Buffer filled with raw attribute
  *       bytes; caller responsible for null-termination if needed (fattr_get
  *       adds +1 byte padding at allocation). */
 static ssize_t
-fattr_read_value(const char *path, int fd, const char *xkey, u_char *value,
-    size_t value_len)
+fattr_read_value(xrootd_vfs_ctx_t *vctx, const char *path, int fd,
+    const char *xkey, u_char *value, size_t value_len)
 {
-    return path != NULL ? getxattr(path, xkey, value, value_len)
-                        : fgetxattr(fd, xkey, value, value_len);
+    return path != NULL ? xrootd_vfs_getxattr(vctx, xkey, value, value_len)
+                        : xrootd_vfs_fgetxattr(vctx, fd, xkey, value,
+                                               value_len);
 }
 
 /*
@@ -80,8 +78,8 @@ fattr_value_len_for_response(const xrootd_fattr_entry_t *attr)
  *       correctly. Value length capped at kXR_faMaxVlen to prevent oversized
  *       responses from a single attribute. */
 ngx_int_t
-fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
-    u_char *nvec_copy, size_t nvec_len, int numattr,
+fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, xrootd_vfs_ctx_t *vctx,
+    const char *path, int fd, u_char *nvec_copy, size_t nvec_len, int numattr,
     xrootd_fattr_entry_t *attrs)
 {
     ngx_pool_t *pool;
@@ -99,7 +97,7 @@ fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
         ssize_t              bytes_read;
 
         attr = &attrs[attr_index];
-        value_size = fattr_read_value_size(path, fd, attr->xkey);
+        value_size = fattr_read_value_size(vctx, path, fd, attr->xkey);
         if (value_size < 0) {
             fattr_set_rc(attr, fattr_errno_to_xrd(errno));
             response_size += 4;
@@ -117,7 +115,7 @@ fattr_get(xrootd_ctx_t *ctx, ngx_connection_t *c, const char *path, int fd,
             continue;
         }
 
-        bytes_read = fattr_read_value(path, fd, attr->xkey, attr->value,
+        bytes_read = fattr_read_value(vctx, path, fd, attr->xkey, attr->value,
                                       (size_t) value_size);
         if (bytes_read < 0) {
             fattr_set_rc(attr, fattr_errno_to_xrd(errno));

@@ -1,4 +1,5 @@
 #include "s3.h"
+#include "usermeta.h"
 #include "../cache/open.h"
 #include "../compat/http_file_response.h"
 #include "../compat/http_headers.h"
@@ -175,6 +176,10 @@ s3_handle_get(ngx_http_request_t *r,
         }
     }
 
+    /* User metadata (x-amz-meta-*): echo the stored set before the response
+     * headers are sent (the handle stays open until serve sends them). */
+    s3_echo_user_metadata(r, fs_path);
+
     {
         xrootd_http_serve_opts_t   opts;
         xrootd_http_serve_result_t result;
@@ -281,14 +286,19 @@ s3_handle_head(ngx_http_request_t *r,
      * was set at upload.
      */
     {
-        int cfd = xrootd_open_confined_canon(r->connection->log,
-                                             cf->common.root_canon, fs_path,
-                                             O_RDONLY, 0);
-        if (cfd >= 0) {
-            s3_echo_object_checksums(r, cfd, fs_path);
-            close(cfd);
+        xrootd_vfs_ctx_t   vctx;
+        xrootd_vfs_file_t *fh;
+
+        s3_vfs_ctx(r, fs_path, cf, &vctx);
+        fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, NULL);
+        if (fh != NULL) {
+            s3_echo_object_checksums(r, xrootd_vfs_file_fd(fh), fs_path);
+            xrootd_vfs_close(fh, r->connection->log);
         }
     }
+
+    /* User metadata (x-amz-meta-*): echo the stored set on HEAD. */
+    s3_echo_user_metadata(r, fs_path);
 
     if (xrootd_http_set_file_headers(r, vst.mtime, vst.size, vst.size,
                                      NULL, 0,
@@ -330,7 +340,7 @@ s3_handle_head_bucket(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     struct stat st;
 
     if (cf->common.root_canon[0] == '\0'
-        || stat(cf->common.root_canon, &st) != 0
+        || stat(cf->common.root_canon, &st) != 0  /* vfs-seam-allow: HeadBucket stats the export root itself (the confinement anchor), not a path beneath it */
         || !S_ISDIR(st.st_mode))
     {
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INVALID_URI]);
@@ -425,17 +435,19 @@ s3_handle_delete(ngx_http_request_t *r,
                  const char *fs_path,
                  ngx_http_s3_loc_conf_t *cf)
 {
-    xrootd_ns_result_t      res;
-    xrootd_ns_delete_opts_t opts;
+    xrootd_vfs_ctx_t vctx;
+    ngx_int_t        rc;
 
-    ngx_memzero(&opts, sizeof(opts));
-    opts.idempotent_missing = 1;
-    opts.require_empty_dir  = 1;
+    /* Route DELETE through the metered VFS unlink. xrootd_vfs_unlink unlinks a
+     * file and rmdirs an (empty) directory — a non-empty dir surfaces as
+     * ENOTEMPTY (S3 BucketNotEmpty), exactly as the old require_empty_dir path.
+     * S3 DELETE is idempotent: a missing key (ENOENT) is still 204, and counts
+     * as DELETE_MISSING. errno is read only on the NGX_ERROR branch. */
+    s3_vfs_ctx(r, fs_path, cf, &vctx);
+    rc = xrootd_vfs_unlink(&vctx);
 
-    res = xrootd_ns_delete(r->connection->log, cf->common.root_canon, fs_path, &opts);
-
-    if (res.status == XROOTD_NS_OK) {
-        if (!res.existed) {
+    if (rc == NGX_OK || errno == ENOENT) {
+        if (rc != NGX_OK) {   /* ENOENT: the object did not exist */
             XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_DELETE_MISSING]);
         }
         r->headers_out.status           = NGX_HTTP_NO_CONTENT;
@@ -444,7 +456,7 @@ s3_handle_delete(ngx_http_request_t *r,
         return ngx_http_send_special(r, NGX_HTTP_LAST);
     }
 
-    if (res.status == XROOTD_NS_NOT_EMPTY) {
+    if (errno == ENOTEMPTY) {
         return s3_send_xml_error(r, NGX_HTTP_CONFLICT,
                                  "BucketNotEmpty",
                                  "The directory is not empty.");
@@ -456,5 +468,10 @@ s3_handle_delete(ngx_http_request_t *r,
 /*
  * WHY: S3 DELETE is idempotent — deleting a non-existent key returns 204 No Content (not 404), matching AWS behavior. This allows clients to safely retry delete operations without checking existence first.
  *
- * HOW: Calls the Layer-3 namespace API xrootd_ns_delete() on fs_path with idempotent_missing=1 (a missing key still returns 204, AWS-style) and require_empty_dir=1. On XROOTD_NS_OK sends a 204 No Content header-only response via ngx_http_send_special() (incrementing DELETE_MISSING when the target did not exist); XROOTD_NS_NOT_EMPTY → 409 BucketNotEmpty; any other status → internal_error metric + 500. The namespace layer enforces root confinement internally.
+ * HOW: Routes the delete through the metered VFS surface (xrootd_vfs_unlink, which
+ * unlinks a file and rmdirs an empty directory under root confinement). On success
+ * sends a 204 No Content header-only response via ngx_http_send_special(); a missing
+ * key (ENOENT) is still 204 (AWS-style idempotency) and increments DELETE_MISSING; a
+ * non-empty directory (ENOTEMPTY) → 409 BucketNotEmpty; any other errno → internal_error
+ * metric + 500.
  */

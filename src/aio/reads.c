@@ -238,6 +238,7 @@ xrootd_read_aio_thread(void *data, ngx_log_t *log)
     xrootd_vfs_job_read_init(&job, t->fd, t->offset, t->rlen,
                              t->databuf, t->rlen, 0);
     job.csi = t->csi;                    /* phase-59 W2: verify in the worker */
+    xrootd_vfs_job_set_obj(&job, &t->obj); /* Layer 3: route via driver if bound */
     xrootd_vfs_io_execute(&job);
 
     t->nread = job.nio;
@@ -380,6 +381,7 @@ xrootd_pgread_aio_thread(void *data, ngx_log_t *log)
     xrootd_vfs_job_read_init(&job, t->fd, t->offset, t->rlen,
                              t->scratch, t->rlen, 0);
     job.op = XROOTD_VFS_IO_PGREAD;
+    xrootd_vfs_job_set_obj(&job, &t->obj); /* Layer 3: route via driver if bound */
     xrootd_vfs_io_execute(&job);
 
     t->out_size = job.out_size;

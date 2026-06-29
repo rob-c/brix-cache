@@ -94,6 +94,7 @@ int xrootd_reject_dotdot_path(xrootd_ctx_t *ctx, ngx_connection_t *c,
  *   NGX_ERROR    — malformed (depth / "."/".." / WRITE trailing slash / overflow).
  */
 ngx_int_t xrootd_path_resolve_beneath(ngx_stream_xrootd_srv_conf_t *conf,
+                                      ngx_log_t *log,
                                       const char *reqpath,
                                       xrootd_path_mode_t mode,
                                       char *resolved, size_t resolved_sz);

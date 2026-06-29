@@ -54,9 +54,15 @@ typedef struct {
  *
  * opts may be NULL; NULL is treated as {allow_xattr_cache=1, update_xattr_cache=1,
  * require_regular_file=0}.
+ *
+ * Layer 3: `obj` is the open file's storage-driver object, or NULL. When non-NULL
+ * and obj->driver != NULL the checksum is COMPUTED by reading the whole logical
+ * object through the driver (block-striped / object backend) instead of the bare
+ * fd (which exposes only block 0). NULL keeps the default POSIX-fd compute. The
+ * xattr/sidecar cache layer is unchanged (keyed on fd/path).
  */
 ngx_int_t xrootd_integrity_get_fd(ngx_log_t *log, int fd,
-    const char *path, const char *alg_name,
+    xrootd_sd_obj_t *obj, const char *path, const char *alg_name,
     const xrootd_integrity_opts_t *opts,
     xrootd_integrity_info_t *out);
 
@@ -85,9 +91,12 @@ void xrootd_integrity_invalidate_fd(ngx_log_t *log, int fd);
  * xrootd_integrity_invalidate_path — remove all cached checksums by path.
  *
  * Path-based variant of xrootd_integrity_invalidate_fd for callers that have
- * a path but not an open fd (e.g. after a rename or local copy commit).
+ * a path but not an open fd (e.g. after a rename or local copy commit). The
+ * removal is routed through the VFS xattr seam, so root_canon (the export root
+ * the path is confined to) is required.
  */
-void xrootd_integrity_invalidate_path(ngx_log_t *log, const char *path);
+void xrootd_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
+    const char *path);
 
 /*
  * xrootd_cksdata_encode / xrootd_cksdata_decode — official XrdCks/XrdCksData binary

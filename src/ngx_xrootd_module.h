@@ -182,6 +182,10 @@ char *xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd,
  * as parts-per-million. */
 char *xrootd_conf_set_cache_eviction_threshold(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
+/* "xrootd_cache_{high,low}_watermark" + "xrootd_wt_stage_{high,low}_watermark":
+ * parse a fullness watermark (0.9 / 90%) into ppm at cmd->offset. Shared parser. */
+char *xrootd_conf_set_cache_watermark(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
 /* "xrootd_cache_max_file_size <N[k|m|g]>": max cacheable file size (off_t). */
 char *xrootd_conf_set_cache_max_file_size(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
@@ -221,6 +225,12 @@ char *xrootd_conf_set_wt_deny_prefix(ngx_conf_t *cf, ngx_command_t *cmd,
 /* "xrootd_write_through_allow_prefix <prefix>": permit write-through under
  * this prefix unless a deny prefix matches. */
 char *xrootd_conf_set_wt_allow_prefix(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+/* "xrootd_cache_deny_prefix" / "xrootd_cache_allow_prefix": read-cache admission
+ * prefixes (parity with the write-through lists; deny wins over allow). */
+char *xrootd_conf_set_cache_deny_prefix(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+char *xrootd_conf_set_cache_allow_prefix(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
 /* ------------------------------------------------------------------ */

@@ -17,6 +17,8 @@
 #include "../config/root_prepare.h"
 #include "../config/http_rootfd.h"
 #include "../compat/staged_file.h"
+#include "../fs/backend/sd.h"           /* SD registry: lazy per-worker instance */
+#include "../fs/vfs_backend_registry.h" /* per-export backend config + resolve */
 
 #include <openssl/x509.h>
 
@@ -85,6 +87,24 @@ webdav_validate_cors_origins(ngx_conf_t *cf,
  * that should default to NULL/0 (e.g. the Phase 20/21/24 kv and target pointers)
  * are documented inline but rely on the pcalloc zero-fill.
  */
+/*
+ * Resolve the export's storage-driver instance, creating a "pblock" backend on
+ * first use (per worker). The instance is cached on conf->common.storage_instance;
+ * since the loc conf is shared copy-on-write across workers, each worker that
+ * writes the field gets its own private pointer and therefore its own SQLite
+ * connection (which must never be shared across fork). Allocated on the worker's
+ * cycle pool so it outlives the request. "posix"/unset ⇒ NULL ⇒ default POSIX.
+ */
+void *
+xrootd_webdav_backend_instance(ngx_http_xrootd_webdav_loc_conf_t *conf,
+    ngx_log_t *log)
+{
+    /* The per-export backend is registered at config time and built per worker by
+     * the shared registry; this is now a thin alias kept for the PUT/MOVE offload
+     * paths that pass the instance to a thread task. */
+    return xrootd_vfs_backend_resolve(conf->common.root_canon, log);
+}
+
 void *
 ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
 {
@@ -101,6 +121,9 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->upload_resume = NGX_CONF_UNSET;
     conf->common.allow_write  = NGX_CONF_UNSET;
     conf->common.compress     = NGX_CONF_UNSET;
+    conf->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
+    conf->common.storage_instance  = NULL;
+    /* common.storage_backend (ngx_str_t) left zeroed by pcalloc */
     xrootd_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
     conf->ca_store     = NULL;
     conf->cors_origins = NULL;
@@ -285,6 +308,10 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
 
     ngx_conf_merge_value(conf->common.enable, prev->common.enable, 0);
     ngx_conf_merge_str_value(conf->common.root, prev->common.root, "/");
+    ngx_conf_merge_str_value(conf->common.storage_backend,
+                             prev->common.storage_backend, "");
+    ngx_conf_merge_size_value(conf->common.pblock_block_size,
+                              prev->common.pblock_block_size, 0);
     ngx_conf_merge_str_value(conf->cache_root, prev->cache_root, "");
     ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");
     ngx_conf_merge_str_value(conf->tcp_congestion, prev->tcp_congestion, "");
@@ -386,6 +413,13 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             }
         }
 
+        /* Register the export's selected storage backend (e.g. pblock) so every
+         * VFS op resolves to it at request time (xrootd_vfs_ctx_init). No-op for
+         * the default POSIX backend. */
+        xrootd_vfs_backend_config(conf->common.root_canon,
+                                  &conf->common.storage_backend,
+                                  conf->common.pblock_block_size);
+
         /* Open the persistent confinement rootfd on the freshly-resolved
          * export root (kernel openat2 RESOLVE_BENEATH anchor). */
         if (xrootd_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
@@ -419,7 +453,7 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             && conf->common.root_canon[0] != '\0')
         {
             ngx_uint_t removed = webdav_lock_startup_sweep(
-                cf->log, conf->common.root_canon);
+                cf->pool, cf->log, conf->common.root_canon);
             ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
                 "xrootd_webdav: lock startup sweep removed %ui persisted "
                 "lock(s) under \"%s\"", removed, conf->common.root_canon);

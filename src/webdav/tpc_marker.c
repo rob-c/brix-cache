@@ -137,7 +137,7 @@ tpc_marker_send_all(ngx_http_request_t *r, time_t ts,
         off_t bytes = 0;
         if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
             struct stat sb;
-            if (stat(ctx->tmp_path, &sb) == 0) {
+            if (stat(ctx->tmp_path, &sb) == 0) {  /* vfs-seam-allow: TPC in-progress transfer temp (committed via rename) */
                 bytes = sb.st_size;
             }
         }
@@ -161,7 +161,7 @@ tpc_marker_finish(ngx_http_request_t *r, tpc_marker_ctx_t *ctx, int failed)
     /* Determine final byte count for the last marker. */
     if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
         struct stat sb;
-        final_bytes = (stat(ctx->tmp_path, &sb) == 0) ? sb.st_size : 0;
+        final_bytes = (stat(ctx->tmp_path, &sb) == 0) ? sb.st_size : 0;  /* vfs-seam-allow: TPC in-progress transfer temp */
     } else {
         final_bytes = ctx->is_pull ? 0 : ctx->push_file_size;
     }
@@ -335,7 +335,7 @@ tpc_marker_cleanup(void *data)
     }
 
     if (ctx->is_pull && ctx->tmp_path[0] != '\0') {
-        (void) unlink(ctx->tmp_path);
+        (void) unlink(ctx->tmp_path);  /* vfs-seam-allow: TPC in-progress transfer temp cleanup */
         ctx->tmp_path[0] = '\0';
     }
 }
@@ -466,7 +466,7 @@ webdav_tpc_marker_start(ngx_http_request_t *r,
 
     if (!is_pull && tmp_path != NULL) {
         struct stat sb;
-        if (stat(tmp_path, &sb) == 0) {
+        if (stat(tmp_path, &sb) == 0) {  /* vfs-seam-allow: TPC push source temp size */
             ctx->push_file_size = sb.st_size;
         }
     }

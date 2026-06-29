@@ -343,6 +343,64 @@ xrootd_checksum_hex_fd(xrootd_checksum_alg_t alg, int fd, const char *path,
 }
 
 /*
+ * xrootd_checksum_hex_obj — hex checksum of a driver-bound OBJECT.
+ *
+ * WHAT: Same contract as xrootd_checksum_hex_fd, but reads every byte through
+ *      obj->driver (block-striped / object store) so a multi-block file is
+ *      summed in full rather than just its first backing block. WHY: a Layer-3
+ *      backend's open handle exposes only block 0 as a bare fd; checksum-at-rest
+ *      must traverse the whole logical object. HOW: branch on alg type and call
+ *      the obj-aware kernel (xrootd_cksum_u32_obj / _u64_obj / _digest_obj),
+ *      formatting identically to hex_fd. */
+ngx_int_t
+xrootd_checksum_hex_obj(xrootd_checksum_alg_t alg, xrootd_sd_obj_t *obj,
+    const char *path, ngx_log_t *log, char *hex, size_t hexsz)
+{
+    if (obj == NULL || obj->driver == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (xrootd_checksum_is_u32(alg)) {
+        uint32_t value;
+
+        if (hexsz < 9 || xrootd_cksum_u32_obj((int) alg, obj, &value) != 0) {
+            xrootd_checksum_log_read_error(log, errno,
+                                           xrootd_checksum_name(alg), path);
+            return NGX_ERROR;
+        }
+        snprintf(hex, hexsz, "%08x", (unsigned int) value);
+        return NGX_OK;
+    }
+
+    if (xrootd_checksum_is_u64(alg)) {
+        uint64_t value;
+
+        if (hexsz < 17 || xrootd_cksum_u64_obj((int) alg, obj, &value) != 0) {
+            xrootd_checksum_log_read_error(log, errno,
+                                           xrootd_checksum_name(alg), path);
+            return NGX_ERROR;
+        }
+        snprintf(hex, hexsz, "%016llx", (unsigned long long) value);
+        return NGX_OK;
+    }
+
+    {
+        unsigned char digest[EVP_MAX_MD_SIZE];
+        unsigned int  digest_len;
+
+        if (hexsz < (EVP_MAX_MD_SIZE * 2 + 1)
+            || xrootd_cksum_digest_obj((int) alg, obj, digest, &digest_len) != 0)
+        {
+            xrootd_checksum_log_read_error(log, errno,
+                                           xrootd_checksum_name(alg), path);
+            return NGX_ERROR;
+        }
+        xrootd_checksum_hex_encode(digest, digest_len, hex);
+        return NGX_OK;
+    }
+}
+
+/*
  * xrootd_checksum_hex_name_fd — parse algorithm name and compute hex checksum.
  *
  * WHAT: Convenience entry point that accepts an algorithm name string (e.g. "crc32c") instead

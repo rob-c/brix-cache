@@ -46,7 +46,11 @@ xrootd_open_cached_read(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                         options);
     }
 
-    if (stat(resolved, &cst) == 0) {
+    /* vfs-seam-allow: separate storage domain. `resolved` is under the
+     * server-managed cache root (svc-owned, a different root than the export);
+     * this existence check runs as the worker, not through the export-confined,
+     * impersonation-aware VFS. */
+    if (stat(resolved, &cst) == 0) {  /* vfs-seam-allow: separate server-managed cache-root domain */
         /* Cache-served reads stay plaintext (read_codec=0); inline read
          * compression (phase-42 W4) is only negotiated on the direct path. */
         return xrootd_open_resolved_file(ctx, c, conf, resolved,

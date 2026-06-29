@@ -3,6 +3,7 @@
  * Phase-38 split of tpc_curl.c; behavior-identical.
  */
 #include "tpc_curl_internal.h"
+#include "../fs/vfs.h"   /* confined open/unlink via the VFS seam */
 
 
 /*
@@ -131,7 +132,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
         struct stat  st;
         int          fd;
 
-        fd = xrootd_open_confined_canon(log, conf->common.root_canon, file_path,
+        fd = xrootd_vfs_open_fd(log, conf->common.root_canon, file_path,
                                         O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
         if (fd >= 0) {
             fp = fdopen(fd, "rb");
@@ -154,7 +155,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
     } else {
         int fd;
 
-        fd = xrootd_open_confined_canon(log, conf->common.root_canon, file_path,
+        fd = xrootd_vfs_open_fd(log, conf->common.root_canon, file_path,
                                         O_WRONLY | O_CREAT | O_TRUNC
                                             | O_CLOEXEC | O_NOFOLLOW,
                                         0600);
@@ -319,7 +320,7 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
     }
 
     /* Pre-create the output file at full size so all streams can pwrite. */
-    fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);  /* vfs-seam-allow: TPC multi-stream assembly temp (committed via rename) */
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                       "xrootd_webdav: multi-stream: open(\"%s\") failed",

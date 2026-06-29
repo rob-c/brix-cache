@@ -16,6 +16,7 @@
  * being visible to concurrent readers. */
 
 #include "s3.h"
+#include "usermeta.h"
 #include "../fs/vfs.h"
 #include "../path/path.h"
 #include "../compat/copy_range.h"
@@ -118,29 +119,64 @@ s3_handle_copy_object(ngx_http_request_t *r,
                        XROOTD_S3_EVENT_ACCESS_DENIED);
     }
 
-    /* Route the single-file copy through the metered VFS surface (OP_COPY).
-     * src = ctx path, dst passed explicitly; both confined under root_canon. */
-    s3_copy_vfs_ctx(r, src_fs_path, cf, &vctx);
-    ngx_memzero(&copy_opts, sizeof(copy_opts));
-    copy_opts.overwrite     = 1;
-    copy_opts.staged_commit = 1;
+    /*
+     * x-amz-metadata-directive (default COPY): REPLACE swaps the destination's
+     * user metadata for the request's x-amz-meta-*; COPY carries the source's
+     * across. A copy-onto-self with REPLACE is the metadata-only update SDKs (and
+     * our own sd_s3 set-meta) use — it must NOT rewrite the bytes.
+     */
+    {
+        const char *directive = s3_copy_find_header(r, "x-amz-metadata-directive",
+                                    sizeof("x-amz-metadata-directive") - 1);
+        int replace = (directive != NULL
+                       && ngx_strcasecmp((u_char *) directive,
+                                         (u_char *) "REPLACE") == 0);
+        int is_self = (ngx_strcmp(src_fs_path, dst_fs_path) == 0);
 
-    if (xrootd_vfs_copy(&vctx, dst_fs_path, &copy_opts) != NGX_OK) {
-        if (errno == ENOENT) {
-            return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
-                           "The copy source does not exist.",
-                           XROOTD_S3_EVENT_NO_SUCH_KEY);
+        if (!(is_self && replace)) {
+            /* Route the single-file copy through the metered VFS surface
+             * (OP_COPY). src = ctx path, dst passed explicitly; both confined. */
+            s3_copy_vfs_ctx(r, src_fs_path, cf, &vctx);
+            ngx_memzero(&copy_opts, sizeof(copy_opts));
+            copy_opts.overwrite     = 1;
+            copy_opts.staged_commit = 1;
+
+            if (xrootd_vfs_copy(&vctx, dst_fs_path, &copy_opts) != NGX_OK) {
+                if (errno == ENOENT) {
+                    return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
+                                   "The copy source does not exist.",
+                                   XROOTD_S3_EVENT_NO_SUCH_KEY);
+                }
+                XROOTD_S3_METRIC_INC(
+                    events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            }
         }
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+
+        /* Propagate user metadata per the directive (after the bytes land). */
+        if (replace) {
+            (void) s3_apply_put_user_metadata(r, dst_fs_path,
+                                              cf->common.root_canon);
+        } else {
+            (void) s3_user_meta_copy(r, src_fs_path, dst_fs_path);
+        }
     }
 
-    /* Confined (no-follow) stat of the freshly-copied destination for the ETag —
-     * dst_fs_path is under root_canon but a raw stat() would follow a symlink. */
-    if (xrootd_lstat_confined_canon(r->connection->log, cf->common.root_canon,
-                                    dst_fs_path, &dst_sb, 1) != 0) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    /* Confined no-follow probe of the freshly-copied destination for the ETag,
+     * through the VFS seam (non-metered — the CopyObject op already accounts for
+     * this via OP_COPY; a phantom OP_STAT would inflate the stat counter). */
+    {
+        xrootd_vfs_ctx_t  dctx;
+        xrootd_vfs_stat_t dvst;
+
+        s3_copy_vfs_ctx(r, dst_fs_path, cf, &dctx);
+        if (xrootd_vfs_probe(&dctx, 1 /* no-follow */, &dvst) != NGX_OK) {
+            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ngx_memzero(&dst_sb, sizeof(dst_sb));
+        dst_sb.st_size  = dvst.size;
+        dst_sb.st_mtime = dvst.mtime;
     }
 
     s3_etag(&dst_sb, etag_buf, sizeof(etag_buf));

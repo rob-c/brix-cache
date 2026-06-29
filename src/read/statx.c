@@ -126,10 +126,22 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 size_t rl = ngx_strlen(conf->common.root_canon);
                 if (realpath(full_path, real) != NULL
                     && ngx_strncmp(real, conf->common.root_canon, rl) == 0
-                    && (real[rl] == '/' || real[rl] == '\0')
-                    && stat(real, &st) == 0)
+                    && (real[rl] == '/' || real[rl] == '\0'))
                 {
-                    ok = 1;
+                    /* Canonical target confirmed within the export root; read
+                     * its metadata through the VFS (chain already resolved). */
+                    xrootd_vfs_ctx_t  rvctx;
+                    xrootd_vfs_stat_t rvst;
+
+                    xrootd_vfs_ctx_init(&rvctx, c->pool, c->log,
+                        XROOTD_PROTO_STREAM, conf->common.root_canon, NULL,
+                        conf->common.allow_write, 0 /* is_tls */, NULL, real);
+                    if (xrootd_vfs_probe(&rvctx, 0 /* follow */, &rvst)
+                        == NGX_OK)
+                    {
+                        xrootd_vfs_to_struct_stat(&rvst, &st);
+                        ok = 1;
+                    }
                 }
             }
             if (!ok) {

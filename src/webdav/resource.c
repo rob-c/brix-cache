@@ -3,6 +3,7 @@
  */
 
 #include "webdav.h"
+#include "../fs/vfs_backend_registry.h"
 #include "../fs/vfs.h"
 
 #include <errno.h>
@@ -64,6 +65,10 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
     vctx.log = r->connection->log;
     vctx.metrics_proto = XROOTD_PROTO_WEBDAV;
     vctx.root_canon = conf->common.root_canon;
+    /* Hand-rolled ctx (not xrootd_vfs_ctx_init): resolve the storage backend so
+     * stat routes through the driver on a non-POSIX export. */
+    vctx.sd = xrootd_vfs_backend_resolve(conf->common.root_canon,
+                                         r->connection->log);
     vctx.allow_write = conf->common.allow_write ? 1 : 0;
     vctx.resolved.resolved.data = (u_char *) path;
     vctx.resolved.resolved.len = ngx_strlen(path);

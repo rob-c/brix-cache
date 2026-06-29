@@ -1,4 +1,5 @@
 #include "ngx_xrootd_module.h"
+#include "../fs/vfs.h"   /* confined open/unlink via the VFS seam */
 #include "chkpoint_xeq.h"
 #include "../compat/log.h"
 #include "../compat/copy_range.h"
@@ -312,7 +313,7 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
     ngx_memcpy(orig_path, ckp_path, len - 4);
     orig_path[len - 4] = '\0';
 
-    ckp_fd = xrootd_open_confined_canon(log, root_canon, ckp_path,
+    ckp_fd = xrootd_vfs_open_fd(log, root_canon, ckp_path,
                                         O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0);
     if (ckp_fd < 0) {
         xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
@@ -371,7 +372,7 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
 
     ngx_close_file(ckp_fd);
 
-    if (xrootd_unlink_confined_canon(log, root_canon, ckp_path, 0) != 0) {
+    if (xrootd_vfs_unlink_path(log, root_canon, ckp_path) != 0) {
         xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "xrootd: checkpoint recovery cannot remove "
                              "\"%s\"", ckp_path);
@@ -399,7 +400,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
         return NGX_ERROR;
     }
 
-    dfd = xrootd_open_confined_canon(log, root_canon, dir,
+    dfd = xrootd_vfs_open_fd(log, root_canon, dir,
                                      O_RDONLY | O_DIRECTORY | O_CLOEXEC
                                      | O_NOFOLLOW, 0);
     if (dfd < 0) {

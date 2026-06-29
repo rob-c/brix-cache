@@ -145,6 +145,9 @@ double bench_one(xrdc_conn *c, const char *target, xrdc_status *st);
 void bench_sweep(xrdc_conn *c, const char *target);
 int do_bench(const diag_args *a);
 
+/* diag_metabench.c */
+int do_metabench(const diag_args *a);
+
 /* diag_topology.c */
 int do_topology(const diag_args *a);
 

@@ -282,6 +282,74 @@ xrootd_metric_cache_result(xrootd_proto_t proto, unsigned int hit,
 }
 
 /*
+ * xrootd_metric_cache_usage_ratio — publish the current cache_root occupancy
+ * (ppm, 0-1e6) as a process-wide gauge. Called from the watermark reaper timer
+ * each tick. A plain aligned-word store is atomic on the platforms nginx targets;
+ * no read-modify-write is needed for a gauge.
+ */
+void
+xrootd_metric_cache_usage_ratio(ngx_uint_t occupancy_ppm)
+{
+    ngx_xrootd_metrics_t *shm = xrootd_metrics_shared();
+
+    if (shm != NULL) {
+        shm->unified.cache_usage_ratio_ppm = (ngx_atomic_t) occupancy_ppm;
+    }
+}
+
+/*
+ * xrootd_metric_cache_watermark_purge — account one watermark-reaper purge that
+ * reclaimed space: bumps the purge-run counter and adds the evicted file/byte
+ * totals. The connection-less reaper cannot feed the per-proto/per-server
+ * eviction series, so this dedicated family is its sole reporting path.
+ */
+void
+xrootd_metric_cache_watermark_purge(ngx_uint_t files, uint64_t bytes)
+{
+    ngx_xrootd_metrics_t *shm = xrootd_metrics_shared();
+
+    if (shm == NULL || files == 0) {
+        return;
+    }
+    XROOTD_ATOMIC_INC(&shm->unified.cache_watermark_purges);
+    XROOTD_ATOMIC_ADD(&shm->unified.cache_watermark_evicted_files, files);
+    XROOTD_ATOMIC_ADD(&shm->unified.cache_watermark_evicted_bytes, bytes);
+}
+
+/*
+ * xrootd_metric_wt_stage_usage_ratio — publish write-back staging occupancy (ppm)
+ * as a process-wide gauge. Called from the admission gate each time it samples.
+ */
+void
+xrootd_metric_wt_stage_usage_ratio(ngx_uint_t occupancy_ppm)
+{
+    ngx_xrootd_metrics_t *shm = xrootd_metrics_shared();
+
+    if (shm != NULL) {
+        shm->unified.wt_stage_usage_ratio_ppm = (ngx_atomic_t) occupancy_ppm;
+    }
+}
+
+/*
+ * xrootd_metric_wt_stage_throttled — count a write shed by staging backpressure:
+ * reject != 0 → hard-cap rejection, else a soft-band delay.
+ */
+void
+xrootd_metric_wt_stage_throttled(int reject)
+{
+    ngx_xrootd_metrics_t *shm = xrootd_metrics_shared();
+
+    if (shm == NULL) {
+        return;
+    }
+    if (reject) {
+        XROOTD_ATOMIC_INC(&shm->unified.wt_stage_throttled_reject);
+    } else {
+        XROOTD_ATOMIC_INC(&shm->unified.wt_stage_throttled_wait);
+    }
+}
+
+/*
  * xrootd_metric_auth — record an authentication attempt: map auth_method to its
  * slot, then bump auth_total[proto][method][ok|fail] according to success.
  */
@@ -632,6 +700,51 @@ xrootd_export_unified_metrics(metrics_writer_t *mw,
                   "xrootd_cache_bytes_evicted_total{proto=\"%s\"} %llu\n",
                   xrootd_metric_proto_name((xrootd_proto_t) proto), value);
     }
+
+    /* Watermark-driven LRU reaper (background timer). usage_ratio is a gauge in
+     * 0-1 (stored as ppm); the rest are counters dedicated to the proactive
+     * reaper so they never collide with the per-proto/per-server eviction series. */
+    mw_printf(mw,
+        "# HELP xrootd_cache_usage_ratio Cache filesystem occupancy (0-1).\n"
+        "# TYPE xrootd_cache_usage_ratio gauge\n"
+        "xrootd_cache_usage_ratio %.6f\n",
+        (double) xrootd_metric_value(&shm->unified.cache_usage_ratio_ppm)
+            / 1000000.0);
+
+    mw_printf(mw,
+        "# HELP xrootd_cache_watermark_purges_total Watermark reaper purge runs that reclaimed space.\n"
+        "# TYPE xrootd_cache_watermark_purges_total counter\n"
+        "xrootd_cache_watermark_purges_total %llu\n",
+        xrootd_metric_value(&shm->unified.cache_watermark_purges));
+
+    mw_printf(mw,
+        "# HELP xrootd_cache_watermark_evicted_files_total Files reaped by the watermark reaper.\n"
+        "# TYPE xrootd_cache_watermark_evicted_files_total counter\n"
+        "xrootd_cache_watermark_evicted_files_total %llu\n",
+        xrootd_metric_value(&shm->unified.cache_watermark_evicted_files));
+
+    mw_printf(mw,
+        "# HELP xrootd_cache_watermark_evicted_bytes_total Bytes reaped by the watermark reaper.\n"
+        "# TYPE xrootd_cache_watermark_evicted_bytes_total counter\n"
+        "xrootd_cache_watermark_evicted_bytes_total %llu\n",
+        xrootd_metric_value(&shm->unified.cache_watermark_evicted_bytes));
+
+    /* Write-back-staging backpressure. usage_ratio is a gauge (0-1, stored ppm);
+     * throttled_total is split by the action taken on the shed write. */
+    mw_printf(mw,
+        "# HELP xrootd_wt_stage_usage_ratio Write-back staging filesystem occupancy (0-1).\n"
+        "# TYPE xrootd_wt_stage_usage_ratio gauge\n"
+        "xrootd_wt_stage_usage_ratio %.6f\n",
+        (double) xrootd_metric_value(&shm->unified.wt_stage_usage_ratio_ppm)
+            / 1000000.0);
+
+    mw_printf(mw,
+        "# HELP xrootd_wt_stage_throttled_total Writes shed by staging backpressure, by action.\n"
+        "# TYPE xrootd_wt_stage_throttled_total counter\n"
+        "xrootd_wt_stage_throttled_total{action=\"wait\"} %llu\n"
+        "xrootd_wt_stage_throttled_total{action=\"reject\"} %llu\n",
+        xrootd_metric_value(&shm->unified.wt_stage_throttled_wait),
+        xrootd_metric_value(&shm->unified.wt_stage_throttled_reject));
 
     mw_printf(mw,
         "# HELP xrootd_auth_total Authentication attempts by protocol, method, and status.\n"

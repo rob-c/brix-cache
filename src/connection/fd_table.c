@@ -1,4 +1,5 @@
 #include "fd_table.h"
+#include "../fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
 #include "../session/registry.h"
 #include "../cache/writethrough_metrics.h"
 #include "../write/pgw_fob.h"
@@ -115,7 +116,7 @@ xrootd_reopen_bound_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
      */
     open_flags = O_RDONLY | O_NOCTTY | O_CLOEXEC;
     if (shared->from_cache) {
-        fd = open(shared->path, open_flags);
+        fd = open(shared->path, open_flags);  /* vfs-seam-allow: separate server-managed cache-root domain (from_cache), opened as worker */
     } else {
         /* shared->path is the absolute path; strip root_canon to get the
          * path relative to rootfd for openat2 RESOLVE_BENEATH. */
@@ -129,7 +130,7 @@ xrootd_reopen_bound_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
         {
             rel = shared->path + root_len;
         }
-        fd = xrootd_open_beneath(conf->rootfd, rel, open_flags, 0);
+        fd = xrootd_vfs_open_fd_at(conf->rootfd, rel, open_flags, 0);
     }
 
     if (fd < 0) {
@@ -200,7 +201,11 @@ xrootd_ensure_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (!ctx->is_bound) {
-        return ctx->files[handle_index].fd >= 0 ? NGX_OK : NGX_DECLINED;
+        /* fd >= 0 (POSIX) OR a driver-backed object/remote handle (no kernel fd;
+         * reads route through sd_obj.driver via the buffered serve path). */
+        return (ctx->files[handle_index].fd >= 0
+                || ctx->files[handle_index].sd_obj.driver != NULL)
+               ? NGX_OK : NGX_DECLINED;
     }
 
     /*
@@ -254,7 +259,16 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
         xrootd_session_handle_unpublish(ctx->sessid, handle_index);
     }
 
-    if (file->fd >= 0) {
+    if (file->sd_obj.driver != NULL) {
+        /* Layer 3: a driver-backed handle owns its descriptor(s) and commits any
+         * pending metadata (e.g. catalog size/mtime) in its own close(); do NOT
+         * also raw-close file->fd, which is the driver's block-0 descriptor. */
+        (void) file->sd_obj.driver->close(&file->sd_obj);
+        file->sd_obj.driver = NULL;
+        file->sd_obj.inst   = NULL;
+        file->sd_obj.state  = NULL;
+        file->sd_obj.fd     = -1;
+    } else if (file->fd >= 0) {
         close(file->fd);
     }
 
@@ -270,7 +284,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
      * Normal close/free removes any abandoned checkpoint path.
      */
     if (file->ckp_path != NULL) {
-        (void) unlink(file->ckp_path);
+        (void) unlink(file->ckp_path);  /* vfs-seam-allow: checkpoint journal staging file (handle-owned, teardown context has no export root) */
         ngx_free(file->ckp_path);
     }
 
@@ -287,7 +301,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
      */
     if (file->posc_final_path != NULL) {
         if (file->path != NULL && !file->is_resume) {
-            (void) unlink(file->path);
+            (void) unlink(file->path);  /* vfs-seam-allow: POSC staging temp cleanup on abandoned handle (teardown context has no export root) */
         }
         ngx_free(file->posc_final_path);
     }
@@ -315,6 +329,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     file->zip_comp_pos    = 0;
 
     file->fd             = -1;
+    ngx_memzero(&file->sd_obj, sizeof(file->sd_obj));  /* Layer 3: clear driver obj */
     file->shared_handle_slot_hint = -1;  /* Phase 33 C2: drop the cached SHM slot */
     file->readable       = 0;
     file->writable       = 0;
@@ -381,8 +396,11 @@ xrootd_validate_file_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int handle_index, const char *verb, ngx_uint_t op, ngx_int_t *rc)
 {
     if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES
-        || ctx->files[handle_index].fd < 0)
+        || (ctx->files[handle_index].fd < 0
+            && ctx->files[handle_index].sd_obj.driver == NULL))
     {
+        /* A driver-backed handle (object/remote backend) is "open" with no kernel
+         * fd — data I/O routes through sd_obj.driver, so fd < 0 is normal there. */
         XROOTD_BAIL_ERR(ctx, c, op, verb, "-", "-",
                         kXR_FileNotOpen, "invalid file handle", rc);
     }

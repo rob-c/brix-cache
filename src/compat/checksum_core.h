@@ -20,6 +20,8 @@
 
 #include <stdint.h>
 
+#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-routed whole-object read */
+
 #define XROOTD_CK_ADLER32   0
 #define XROOTD_CK_CRC32     1
 #define XROOTD_CK_CRC32C    2
@@ -30,6 +32,16 @@
 #define XROOTD_CK_CRC64NVME 7   /* CRC-64/NVME */
 #define XROOTD_CK_ZCRC32    8   /* zlib CRC-32 — XRootD "zcrc32" (same algorithm
                                  * as CRC32/ISO-HDLC; a distinct registered name) */
+
+/* Whole-OBJECT (driver pread from offset 0) checksums — the canonical entry for
+ * a backend-bound handle (block-striped/object store): every byte is read
+ * through obj->driver, so a multi-block file is summed in full (not just block
+ * 0). obj->driver must be non-NULL. The _fd wrappers below POSIX-wrap a bare fd
+ * onto this same kernel for the default export. Return 0 / -1. */
+int xrootd_cksum_u32_obj(int kind, xrootd_sd_obj_t *obj, uint32_t *out);
+int xrootd_cksum_u64_obj(int kind, xrootd_sd_obj_t *obj, uint64_t *out);
+int xrootd_cksum_digest_obj(int kind, xrootd_sd_obj_t *obj, unsigned char *out,
+                            unsigned int *outlen);
 
 /* Whole-file (pread from offset 0) 32-bit checksum for ADLER32/CRC32/CRC32C into
  * *out. Returns 0 / -1 (errno set on a read failure). */

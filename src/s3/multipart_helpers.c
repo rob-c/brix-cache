@@ -24,18 +24,16 @@
  *
  * - partNumber is range-checked (1–10000) and validated to be a decimal
  *   integer before it appears in any path — no shell metachar risk.
- * - All filesystem paths go through xrootd_open_confined_canon /
- *   xrootd_mkdir_confined_canon / xrootd_rename_confined_canon to prevent
- *   path traversal.
- * - The recursive delete helper (mpu_rmdir_recursive) is self-contained in
- *   this file, uses opendir/unlinkat internally, and enforces path confinement
- *   via xrootd_unlink_confined_canon.
+ * - All filesystem access goes through the VFS seam (s3_mpu_reap_stale scans via
+ *   xrootd_vfs_opendir_quiet/readdir_kind/probe; mpu_rmdir_recursive delegates to
+ *   xrootd_fs_remove_tree_confined) to prevent path traversal.
  */
 
 #include "s3.h"
 #include "multipart_internal.h"
 #include "../compat/fs_walk.h"
 #include "../path/path.h"
+#include "../fs/vfs.h"   /* reap_stale scan via vfs_opendir_quiet/readdir_kind/probe */
 #include "../compat/http_query.h"
 
 #include <dirent.h>
@@ -164,16 +162,18 @@ mpu_rmdir_recursive(ngx_log_t *log, const char *root_canon, const char *path)
  *       mpu_rmdir_recursive enforces root_canon confinement on every removal.
  */
 int
-s3_mpu_reap_stale(ngx_log_t *log, const char *root_canon,
+s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                   const char *final_path, time_t max_age_secs)
 {
-    char           dir[PATH_MAX];
-    const char    *slash;
-    DIR           *d;
-    struct dirent *de;
-    time_t         now;
-    size_t         dlen;
-    int            reaped = 0;
+    ngx_log_t        *log = r->connection->log;
+    const char       *root_canon = cf->common.root_canon;
+    char              dir[PATH_MAX];
+    const char       *slash;
+    xrootd_vfs_ctx_t  vctx;
+    xrootd_vfs_dir_t *d;
+    time_t            now;
+    size_t            dlen;
+    int               reaped = 0;
 
     if (max_age_secs <= 0 || final_path == NULL) {
         return 0;
@@ -191,30 +191,44 @@ s3_mpu_reap_stale(ngx_log_t *log, const char *root_canon,
     dir[dlen] = '\0';
 
     /* Scan the staging dir AS THE MAPPED USER under impersonation (0700, owned by
-     * that user) — a bare worker opendir would EACCES. */
-    d = xrootd_opendir_confined_canon(log, root_canon, dir);
+     * that user) — a bare worker opendir would EACCES. Non-metered (this reaper
+     * is opportunistic maintenance, not a user LIST). */
+    s3_build_vfs_ctx(r, dir, cf, &vctx);
+    d = xrootd_vfs_opendir_quiet(&vctx, NULL);
     if (d == NULL) {
         return 0;
     }
 
     now = time(NULL);
 
-    while ((de = readdir(d)) != NULL) {
-        char        full[PATH_MAX];
-        struct stat sb;
+    for ( ;; ) {
+        ngx_str_t          name;
+        const char        *dname;
+        char               full[PATH_MAX];
+        xrootd_vfs_ctx_t   cctx;
+        xrootd_vfs_stat_t  cst;
+
+        if (xrootd_vfs_readdir_kind(d, &name, NULL) != NGX_OK) {
+            break;   /* end of stream or error */
+        }
+        dname = (const char *) name.data;
 
         /* Match the staging-dir naming ".<objname>.mpu-<uploadid>" only. */
-        if (de->d_name[0] != '.' || strstr(de->d_name, ".mpu-") == NULL) {
+        if (dname[0] != '.' || strstr(dname, ".mpu-") == NULL) {
             continue;
         }
-        if (snprintf(full, sizeof(full), "%s/%s", dir, de->d_name)
+        if (snprintf(full, sizeof(full), "%s/%s", dir, dname)
             >= (int) sizeof(full)) {
             continue;
         }
-        if (lstat(full, &sb) != 0 || !S_ISDIR(sb.st_mode)) {
+        /* Confined no-follow probe for the dir check + mtime (non-metered). */
+        s3_build_vfs_ctx(r, full, cf, &cctx);
+        if (xrootd_vfs_probe(&cctx, 1 /* no-follow */, &cst) != NGX_OK
+            || !cst.is_directory)
+        {
             continue;
         }
-        if ((now - sb.st_mtime) <= max_age_secs) {
+        if ((now - cst.mtime) <= max_age_secs) {
             continue;   /* recently active — keep */
         }
         if (mpu_rmdir_recursive(log, root_canon, full) == 0) {
@@ -222,7 +236,7 @@ s3_mpu_reap_stale(ngx_log_t *log, const char *root_canon,
         }
     }
 
-    closedir(d);
+    xrootd_vfs_closedir(d, log);
 
     if (reaped > 0 && log != NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,

@@ -103,10 +103,18 @@ s3_put_aio_done(ngx_event_t *ev)
     /* S3 PutObject requires an ETag on the 200 response (the synchronous path
      * sets it too — keep the offload path's response identical). */
     {
-        struct stat final_sb;
-        char        etag_buf[48];
-        if (xrootd_lstat_confined_canon(log, t->root_canon, t->final_path,
-                                        &final_sb, 1) == 0) {
+        xrootd_vfs_ctx_t  fctx;
+        xrootd_vfs_stat_t fst;
+        char              etag_buf[48];
+
+        xrootd_vfs_ctx_init(&fctx, r->pool, log, XROOTD_PROTO_S3, t->root_canon,
+            NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, t->final_path);
+        if (xrootd_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK) {
+            struct stat final_sb;
+
+            ngx_memzero(&final_sb, sizeof(final_sb));
+            final_sb.st_mtime = fst.mtime;
+            final_sb.st_size  = fst.size;
             s3_etag(&final_sb, etag_buf, sizeof(etag_buf));
             (void) s3_set_header(r, "ETag", etag_buf);
         }
@@ -120,6 +128,8 @@ s3_put_aio_done(ngx_event_t *ev)
 
     /* x-amz-tagging (best-effort): store the request's tag set on the object. */
     (void) s3_apply_put_tagging_header(r, t->final_path, t->root_canon);
+    /* x-amz-meta-* (best-effort): store the request's user metadata set. */
+    (void) s3_apply_put_user_metadata(r, t->final_path, t->root_canon);
 
     xrootd_dashboard_http_add(r, (ngx_atomic_int_t) t->body_bytes);
     XROOTD_S3_METRIC_ADD(bytes_rx_total, t->body_bytes);

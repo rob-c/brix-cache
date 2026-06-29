@@ -66,3 +66,6 @@ node_modules
 
 # Doxygen generated API docs (run tools/gen-docs.sh)
 docs/doxygen/
+
+# Local security proof-of-concept (exploit code; kept out of the repo)
+xrootd-session-hijack-poc/

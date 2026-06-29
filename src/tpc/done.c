@@ -7,7 +7,7 @@
  * */
 
 #include "tpc_internal.h"
-
+#include "../fs/vfs.h"   /* confined unlink of the export destination */
 
 #include <string.h>
 #include <unistd.h>
@@ -56,7 +56,8 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
         (void) xrootd_tpc_registry_remove(t->transfer_id,
                                           c != NULL ? c->log : NULL);
         close(t->dst_fd);
-        unlink(t->dst_path);
+        (void) xrootd_vfs_unlink_path(c != NULL ? c->log : NULL,
+                                      t->conf->common.root_canon, t->dst_path);
         if (idx >= 0 && idx < XROOTD_MAX_FILES) {
             ctx->files[idx].fd = -1;
             ctx->files[idx].tpc_transfer_id = 0;
@@ -91,7 +92,8 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
             } else {
                 close(t->dst_fd);
             }
-            unlink(t->dst_path);
+            (void) xrootd_vfs_unlink_path(c != NULL ? c->log : NULL,
+                                      t->conf->common.root_canon, t->dst_path);
 
             (void) xrootd_tpc_registry_update(t->transfer_id,
                                               (off_t) t->bytes_written,
@@ -161,7 +163,8 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
         /* Failed copy: close+unlink the partial destination and release the
          * fhandle slot before replying with the error to the OPEN. */
         close(t->dst_fd);
-        unlink(t->dst_path);
+        (void) xrootd_vfs_unlink_path(c != NULL ? c->log : NULL,
+                                      t->conf->common.root_canon, t->dst_path);
         ctx->files[idx].fd = -1;
         ctx->files[idx].tpc_transfer_id = 0;
         xrootd_free_fhandle(ctx, idx);

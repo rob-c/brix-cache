@@ -1,4 +1,6 @@
 #include "evict_internal.h"
+#include "cache_storage.h"
+#include "cinfo.h"                 /* dirty-extent guard: never evict un-flushed data */
 #include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 /* Phase 27 F9: upper bound on the eviction-candidate set so the growth loop
@@ -206,6 +208,18 @@ xrootd_cache_skip_name(const char *name)
         return 1;
     }
 
+    /* .cinfo sidecars are cache STATE, not cache data — the dirty/present-bitmap
+     * record. Evicting one orphans its data file's write-back-dirty protection
+     * (the next pass would no longer see the file as dirty and could reap it) and
+     * loses the present-block bitmap. Never a candidate; it is removed only with
+     * its data file by xrootd_cache_evict_one(). */
+    suffix_len = sizeof(".cinfo") - 1;
+    if (name_len >= suffix_len
+        && strcmp(name + name_len - suffix_len, ".cinfo") == 0)
+    {
+        return 1;
+    }
+
     return 0;
 }
 
@@ -315,70 +329,107 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
  *      continues scanning remaining entries. closedir(dp) at end.
  */
 
+/* Recursively enumerate the cache namespace under `keydir` (a leading-slash key,
+ * "/" at the root) through the cache STORAGE driver — no raw POSIX scan — adding
+ * regular-file candidates. Each candidate's path is cache_root + key (a real POSIX
+ * file for the default cache; a synthetic identity for a driver cache that the
+ * actor maps back to a key for driver->unlink). Skips dirty entries and the
+ * sidecar/control names. */
 ngx_int_t
-xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list, const char *dir,
+xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list, const char *keydir,
     ngx_log_t *log)
 {
-    DIR           *dp;
-    struct dirent *de;
-    char           child[PATH_MAX];
-    struct stat    st;
-    int            n;
-    ngx_int_t      rc;
+    xrootd_sd_instance_t *inst = list->inst;
+    xrootd_sd_dir_t      *d;
+    xrootd_sd_dirent_t    ent;
+    int                   err = 0;
+    ngx_int_t             rc = NGX_OK;
+    ngx_int_t             drc;
 
-    dp = opendir(dir);
-    if (dp == NULL) {
-        ngx_log_error(NGX_LOG_WARN, log, errno,
-                      "xrootd: cache eviction cannot open directory \"%s\"",
-                      dir);
+    if (inst == NULL || inst->driver->opendir == NULL) {
         return NGX_ERROR;
     }
+    d = inst->driver->opendir(inst, keydir, &err);
+    if (d == NULL) {
+        if (err != ENOENT) {
+            ngx_log_error(NGX_LOG_WARN, log, err,
+                          "xrootd: cache eviction cannot opendir \"%s\"", keydir);
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
 
-    rc = NGX_OK;
+    while ((drc = inst->driver->readdir(d, &ent)) == NGX_OK) {
+        char             childkey[PATH_MAX];
+        char             childpath[PATH_MAX];
+        xrootd_sd_stat_t sd_st;
+        int              n;
 
-    while ((de = readdir(dp)) != NULL) {
-        if (xrootd_cache_skip_name(de->d_name)) {
+        if (xrootd_cache_skip_name(ent.name)) {
             continue;
         }
-
-        n = snprintf(child, sizeof(child), "%s/%s", dir, de->d_name);
-        if (n < 0 || (size_t) n >= sizeof(child)) {
+        n = snprintf(childkey, sizeof(childkey), "%s%s%s", keydir,
+                     keydir[strlen(keydir) - 1] == '/' ? "" : "/", ent.name);
+        if (n < 0 || (size_t) n >= sizeof(childkey)) {
             rc = NGX_ERROR;
             continue;
         }
-
-        if (lstat(child, &st) != 0) {
-            if (errno != ENOENT) {
-                ngx_log_error(NGX_LOG_WARN, log, errno,
-                              "xrootd: cache eviction lstat failed \"%s\"",
-                              child);
+        if (inst->driver->stat(inst, childkey, &sd_st) != NGX_OK) {
+            continue;                          /* vanished / unreadable */
+        }
+        if (sd_st.is_dir) {
+            if (xrootd_cache_collect_dir(list, childkey, log) != NGX_OK) {
                 rc = NGX_ERROR;
             }
             continue;
         }
-
-        if (st.st_dev != list->root_dev) {
+        if (!sd_st.is_reg) {
             continue;
         }
 
-        if (S_ISDIR(st.st_mode)) {
-            if (xrootd_cache_collect_dir(list, child, log) != NGX_OK) {
-                rc = NGX_ERROR;
-            }
-            continue;
-        }
-
-        if (!S_ISREG(st.st_mode)) {
-            continue;
-        }
-
-        if (xrootd_cache_add_candidate(list, child, &st) != NGX_OK) {
+        n = snprintf(childpath, sizeof(childpath), "%s%s",
+                     list->cache_root, childkey);
+        if (n < 0 || (size_t) n >= sizeof(childpath)) {
             rc = NGX_ERROR;
-            break;
+            continue;
+        }
+
+        /* Never evict a file with un-flushed local writes (dirty .cinfo). The
+         * .cinfo lives at the state path (== childpath for a co-located cache). */
+        {
+            uint64_t dlo, dhi, dsince;
+            char     sidecar[PATH_MAX];
+            const char *base = childpath;
+            if (xrootd_cache_sidecar_path(list->cache_root, list->state_root,
+                                          childpath, sidecar, sizeof(sidecar))
+                == 0)
+            {
+                base = sidecar;
+            }
+            if (xrootd_cache_cinfo_dirty_extent(base, &dlo, &dhi, &dsince)
+                == NGX_OK)
+            {
+                continue;
+            }
+        }
+
+        /* Synthesize a stat for the candidate: driver stat has no atime, so the
+         * LRU score uses mtime (a deterministic, monotone proxy; record_access
+         * bumps both mtime and the .cinfo). */
+        {
+            struct stat synth;
+            ngx_memzero(&synth, sizeof(synth));
+            synth.st_size  = sd_st.size;
+            synth.st_mtime = sd_st.mtime;
+            synth.st_atime = sd_st.mtime;
+            if (xrootd_cache_add_candidate(list, childpath, &synth) != NGX_OK) {
+                rc = NGX_ERROR;
+                break;
+            }
         }
     }
 
-    closedir(dp);
+    (void) inst->driver->closedir(d);
     return rc;
 }
 /* xrootd_cache_candidate_cmp — sort comparator for eviction candidates.

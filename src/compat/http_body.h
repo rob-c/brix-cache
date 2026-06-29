@@ -97,6 +97,17 @@ ngx_int_t xrootd_http_body_write_to_fd_at(ngx_http_request_t *r, ngx_fd_t dst_fd
     const char *log_path, xrootd_http_body_summary_t *summary_out, off_t base_off);
 
 /*
+ * xrootd_http_body_write_to_staged - write the whole request body into a staged
+ * object through the backend-neutral xrootd_vfs_staged_write primitive, for a
+ * driver-backed (non-POSIX) export that exposes no kernel fd. Memory buffers are
+ * forwarded directly; spooled (in_file) buffers are read from their temp fd in
+ * chunks. Threads a running offset from 0 so the body lands contiguously.
+ */
+struct xrootd_vfs_staged_s;
+ngx_int_t xrootd_http_body_write_to_staged(ngx_http_request_t *r,
+    struct xrootd_vfs_staged_s *st);
+
+/*
  * xrootd_http_body_read_all - read entire request body into a single allocated buffer.
  *
  * WHAT: Summarizes the request body, allocates a pool buffer of summary.bytes + 1,

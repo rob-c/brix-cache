@@ -25,6 +25,7 @@
 #include "vfs_internal.h"
 
 #include "../compat/staged_file.h"
+#include "xfer/xfer.h"   /* unified transfer audit ledger (one line per publish) */
 
 /* Open a staged temp file for the resolved ctx (final) path. Write-gated.
  * `mode` is the final object's permission bits; `attempts` bounds the O_EXCL
@@ -66,6 +67,26 @@ xrootd_vfs_staged_open(xrootd_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
     st->log  = ctx->log;
     st->staged.fd = NGX_INVALID_FILE;
 
+    /* A non-POSIX backend owns the staged lifecycle: delegate to its staged_open
+     * slot (keyed on the export-relative final path) and leave staged.fd invalid
+     * — the body is written via xrootd_vfs_staged_write (no kernel fd). */
+    if (ctx->sd != NULL && ctx->sd->driver != xrootd_sd_default_driver()
+        && ctx->sd->driver->staged_open != NULL)
+    {
+        int sderr = 0;
+
+        st->driver_staged = ctx->sd->driver->staged_open(ctx->sd,
+            xrootd_vfs_export_relative(ctx, final_path), mode, &sderr);
+        if (st->driver_staged == NULL) {
+            if (err_out != NULL) {
+                *err_out = sderr;
+            }
+            errno = sderr;
+            return NULL;
+        }
+        return st;
+    }
+
     if (xrootd_staged_open(ctx->log, ctx->root_canon, final_path, O_WRONLY,
                            mode, attempts, &st->staged) != NGX_OK)
     {
@@ -83,7 +104,45 @@ xrootd_vfs_staged_open(xrootd_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
 ngx_fd_t
 xrootd_vfs_staged_fd(const xrootd_vfs_staged_t *st)
 {
-    return (st != NULL) ? st->staged.fd : NGX_INVALID_FILE;
+    if (st == NULL || st->driver_staged != NULL) {
+        return NGX_INVALID_FILE;   /* driver-backed: no kernel fd */
+    }
+    return st->staged.fd;
+}
+
+ngx_uint_t
+xrootd_vfs_staged_is_driver(const xrootd_vfs_staged_t *st)
+{
+    return (st != NULL && st->driver_staged != NULL) ? 1 : 0;
+}
+
+/* Backend-neutral staged write: POSIX → pwrite the temp fd; driver-backed →
+ * driver->staged_write (tracking the high-water mark for the commit metric). */
+ngx_int_t
+xrootd_vfs_staged_write(xrootd_vfs_staged_t *st, const void *buf, size_t len,
+    off_t off)
+{
+    if (st == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    if (st->driver_staged != NULL) {
+        ssize_t n = st->ctx->sd->driver->staged_write(st->driver_staged, buf,
+                                                      len, off);
+        if (n < 0 || (size_t) n != len) {
+            if (n >= 0) {
+                errno = EIO;
+            }
+            return NGX_ERROR;
+        }
+        if (off + (off_t) len > st->driver_total) {
+            st->driver_total = off + (off_t) len;
+        }
+        return NGX_OK;
+    }
+
+    return xrootd_vfs_pwrite_full(st->staged.fd, buf, len, off);
 }
 
 /* The staged temp path (for callers that must name it, e.g. a sidecar). Returns
@@ -115,6 +174,31 @@ xrootd_vfs_staged_commit(xrootd_vfs_staged_t *st, unsigned excl)
 
     final_path = xrootd_vfs_ctx_path(st->ctx);
 
+    /* Driver-backed: the driver publishes the object atomically. On success it
+     * consumes its staged handle (NULL it out so abort is not double-applied);
+     * on failure the handle stays valid for the caller's abort. The byte count
+     * is the high-water mark tracked across staged writes. */
+    if (st->driver_staged != NULL) {
+        rc = st->ctx->sd->driver->staged_commit(st->driver_staged, excl);
+        if (rc != NGX_OK) {
+            saved_errno = errno;
+            xrootd_vfs_observe_ctx_op(st->ctx, final_path,
+                                      XROOTD_METRIC_OP_WRITE, NULL, 0, NGX_ERROR,
+                                      saved_errno, start);
+            xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path, NULL, 0,
+                               XROOTD_XFER_COMMIT_ERR, saved_errno, st->log);
+            errno = saved_errno;
+            return NGX_ERROR;
+        }
+        bytes = (size_t) st->driver_total;
+        st->driver_staged = NULL;   /* consumed by a successful commit */
+        xrootd_vfs_observe_ctx_op(st->ctx, final_path, XROOTD_METRIC_OP_WRITE,
+                                  NULL, bytes, NGX_OK, 0, start);
+        xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path, NULL, bytes,
+                           XROOTD_XFER_OK, 0, st->log);
+        return NGX_OK;
+    }
+
     rc = excl
          ? xrootd_staged_commit_excl(st->log, st->ctx->root_canon, &st->staged,
                                      final_path)
@@ -124,6 +208,9 @@ xrootd_vfs_staged_commit(xrootd_vfs_staged_t *st, unsigned excl)
         saved_errno = errno;
         xrootd_vfs_observe_ctx_op(st->ctx, final_path, XROOTD_METRIC_OP_WRITE,
                                   NULL, 0, NGX_ERROR, saved_errno, start);
+        xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path, NULL, 0,
+                           XROOTD_XFER_COMMIT_ERR, saved_errno, st->log);
+        errno = saved_errno;
         return NGX_ERROR;
     }
 
@@ -136,6 +223,10 @@ xrootd_vfs_staged_commit(xrootd_vfs_staged_t *st, unsigned excl)
 
     xrootd_vfs_observe_ctx_op(st->ctx, final_path, XROOTD_METRIC_OP_WRITE, NULL,
                               bytes, NGX_OK, 0, start);
+    /* The publication record — the single place this committed object is
+     * accounted for across all transfer kinds. */
+    xrootd_xfer_finish(XROOTD_XFER_STAGE, "in", final_path, NULL, bytes,
+                       XROOTD_XFER_OK, 0, st->log);
     return NGX_OK;
 }
 

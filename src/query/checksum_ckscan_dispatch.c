@@ -117,11 +117,11 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf, int rootfd,
     const char *logical, const char *algo)
 {
-    struct stat  st;
     u_char      *buf;
     size_t       cap  = XROOTD_CKSCAN_INIT_CAP;
     size_t       used = 0;
-    ngx_uint_t   nfiles = 0;
+    uint16_t     err_code = 0;
+    char         err_msg[128] = "";
     ngx_int_t    rc;
 
     buf = ngx_alloc(cap, c->log);
@@ -130,66 +130,15 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
     }
 
-    if (xrootd_stat_beneath(rootfd, logical, &st) != 0) {
+    /* The whole stat/open/checksum/walk now lives in the confined VFS walk
+     * (xrootd_ckscan_run → xrootd_vfs_walk); this layer only frames the result. */
+    if (xrootd_ckscan_run(c->log, rootfd, logical, algo, &buf, &cap, &used,
+                          conf->ckscan_max_depth, conf->ckscan_max_files,
+                          &err_code, err_msg, sizeof(err_msg)) != NGX_OK)
+    {
         ngx_free(buf);
         XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-        return xrootd_send_error(ctx, c, kXR_NotFound, strerror(errno));
-    }
-
-    if (S_ISREG(st.st_mode)) {
-        int  fd;
-        int  append_rc;
-        /* Hex result: 8 chars (adler32/crc32c), 16 (crc64/crc64nvme), or up to
-         * EVP_MAX_MD_SIZE*2 for a digest — 129 covers every case. */
-        char hex[129];
-
-        fd = xrootd_open_beneath(rootfd, logical, O_RDONLY, 0);
-        if (fd < 0) {
-            ngx_free(buf);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-            return xrootd_send_error(ctx, c, kXR_IOError, strerror(errno));
-        }
-
-        if (xrootd_checksum_hex_name_fd(algo, fd, logical, c->log,
-                                        hex, sizeof(hex), NULL, 0) != NGX_OK)
-        {
-            close(fd);
-            ngx_free(buf);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-            return xrootd_send_error(ctx, c, kXR_IOError,
-                                     "checksum computation failed");
-        }
-        close(fd);
-
-        append_rc = xrootd_ckscan_append(&buf, &cap, &used,
-                                         algo, hex, logical);
-        if (append_rc <= 0) {
-            ngx_free(buf);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-            return xrootd_send_error(ctx, c,
-                                     append_rc == 0 ? kXR_ArgTooLong
-                                                    : kXR_NoMemory,
-                                     append_rc == 0 ? "path too long"
-                                                    : "out of memory");
-        }
-
-    } else if (S_ISDIR(st.st_mode)) {
-        char errmsg[128] = "";
-
-        if (xrootd_ckscan_walk(c->log, rootfd, logical, algo,
-                               &buf, &cap, &used, 0, conf->ckscan_max_depth,
-                               conf->ckscan_max_files, &nfiles, errmsg,
-                               sizeof(errmsg)) < 0)
-        {
-            ngx_free(buf);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-            return xrootd_send_error(ctx, c, kXR_IOError, errmsg);
-        }
-    } else {
-        ngx_free(buf);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
-                                 "not a file or directory");
+        return xrootd_send_error(ctx, c, err_code, err_msg);
     }
 
     buf[used] = '\0';

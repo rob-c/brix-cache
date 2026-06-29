@@ -359,19 +359,19 @@ tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
             ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
                           "tpc_cred(rfc8693): curl subprocess failed "
                           "(pipe/fork or signal)");
-            unlink(body_file);
+            unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
             return NGX_ERROR;
         }
         if (ec != 0) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "tpc_cred(rfc8693): curl exited %d: %s", ec, buf);
-            unlink(body_file);
+            unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
             return NGX_ERROR;
         }
     }
 
     /* Clean up temp file. */
-    unlink(body_file);
+    unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
 
     /* Parse JSON response for access_token. */
     return tpc_cred_parse_token_response(r, buf, token_out);

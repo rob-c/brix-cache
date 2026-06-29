@@ -57,12 +57,23 @@ typedef struct {
                                      * = feature disabled (endpoints 404, UI hidden). */
     char        browse_root_canon[PATH_MAX]; /* realpath of browse_root (confinement
                                               * anchor); empty when disabled.          */
+
+    /* ---- storage scan engine (/xrootd/api/v1/scan, src/scan/) ---- */
+    ngx_str_t   scan_root;        /* [xrootd_scan_root <path>] — confinement root the
+                                   * scan walks. Empty = feature disabled (404).      */
+    char        scan_root_canon[PATH_MAX];  /* realpath of scan_root; empty=disabled  */
+    ngx_uint_t  scan_max_files;   /* [xrootd_scan_max_files <n>] cap on files visited
+                                   * per request (default 100000)                     */
 } ngx_http_xrootd_dashboard_loc_conf_t;
 
 /* Admin file browser handlers (dashboard/files.c).  Both are admin-auth-only and
  * confined to browse_root_canon via openat2 RESOLVE_BENEATH. */
 ngx_int_t ngx_http_xrootd_dashboard_files_handler(ngx_http_request_t *r);
 ngx_int_t ngx_http_xrootd_dashboard_download_handler(ngx_http_request_t *r);
+
+/* Storage-scan handler (src/scan/scan_http.c). Admin-auth-only, confined to
+ * scan_root_canon via openat2 RESOLVE_BENEATH. */
+ngx_int_t ngx_http_xrootd_dashboard_scan_handler(ngx_http_request_t *r);
 
 typedef enum {
     XROOTD_DASHBOARD_API_COMPAT_TRANSFERS = 0,

@@ -227,12 +227,14 @@ logic (SigV4 ≠ WLCG token).
   (`put.c`, `copy.c`, `move.c`, `tpc_thread.c`). When no thread pool is
   configured these fall back to the synchronous path.
 - **Locks are xattr-based, not SHM.** A lock is one xattr on the resource
-  (`prop_xattr.c`); `setxattr(XATTR_CREATE)` gives kernel-atomic cross-worker
-  creation (EEXIST → 423). Expiry cleanup is lazy on next access. Lock checks
-  walk path→root in O(depth); collection mutations also scan descendants
-  (`webdav_check_locks_tree`). Locks **survive restart** unless
-  `xrootd_webdav_lock_startup_sweep on` clears them (RFC 4918 §10.1 ephemeral
-  semantics). (Note: an earlier SHM lock table with a 1024-lock cap no longer
+  (`prop_xattr.c`), written through the VFS xattr seam
+  (`xrootd_vfs_setxattr` with `XATTR_CREATE`) — kernel-atomic cross-worker
+  creation (EEXIST → 423), confined and impersonation-aware. Expiry cleanup is
+  lazy on next access. Lock checks walk path→root in O(depth); collection
+  mutations also scan descendants (`webdav_check_locks_tree`). Locks **survive
+  restart** unless `xrootd_webdav_lock_startup_sweep on` clears them (the sweep
+  removes each persisted lock xattr via `xrootd_vfs_removexattr`; RFC 4918 §10.1
+  ephemeral semantics). (Note: an earlier SHM lock table with a 1024-lock cap no longer
   exists — the xattr design is the current, correct implementation.)
 - **Recursive lock checks on collections** (`lock.c`): DELETE/COPY/MOVE on a
   directory must check ancestor *and* descendant locks, not just the target.

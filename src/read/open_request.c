@@ -10,12 +10,56 @@
 #include "../compat/codec_core.h"
 #include "../protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
 #include "../zip/zip_member.h"        /* phase-57 W2: ZIP member access */
+#include "../fs/vfs_backend_registry.h" /* Layer 3: per-export storage driver */
+#include "../fs/vfs_internal.h"         /* xrootd_vfs_export_relative_root */
+#include "../fs/backend/sd.h"           /* driver stat for read existence check */
 
 #include <string.h>
 #include <unistd.h>
 
 /* Opaque extraction helper — defined in open_overview.c */
 extern int open_extract_opaque(const u_char *payload, size_t payload_len, char *out, size_t out_size);
+
+/* Layer 3 — read-open existence + directory probe.
+ *
+ * A driver-backed export (block-striped / object store) keeps its namespace in
+ * the driver: the physical tree under conf->rootfd holds no data files, so a
+ * POSIX confined stat would spuriously report ENOENT for a file that the driver
+ * actually has. Probe the driver on the export-root-relative key when a driver
+ * is bound; otherwise fall back to the confined fd-relative POSIX stat (the
+ * unchanged default-export path). Returns 1 if the path exists (and sets
+ * *is_dir accordingly), 0 if absent. */
+static int
+xrootd_open_read_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
+    const char *clean_path, const char *full_path, int *is_dir)
+{
+    xrootd_sd_instance_t *sd =
+        xrootd_vfs_backend_resolve(conf->common.root_canon, log);
+
+    *is_dir = 0;
+
+    if (sd != NULL && sd->driver->stat != NULL) {
+        xrootd_sd_stat_t  sst;
+        const char       *key =
+            xrootd_vfs_export_relative_root(full_path, conf->common.root_canon);
+
+        if (sd->driver->stat(sd, key, &sst) != NGX_OK) {
+            return 0;
+        }
+        *is_dir = sst.is_dir ? 1 : 0;
+        return 1;
+    }
+
+    {
+        struct stat est;
+
+        if (xrootd_stat_beneath(conf->rootfd, clean_path, &est) != 0) {
+            return 0;
+        }
+        *is_dir = S_ISDIR(est.st_mode) ? 1 : 0;
+        return 1;
+    }
+}
 
 /*
  *
@@ -602,8 +646,11 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		xrootd_beneath_full_path(conf->common.root_canon, clean_path,
 		                          full_path, sizeof(full_path));
 		{
-			struct stat _exist_st;
-			if (xrootd_stat_beneath(conf->rootfd, clean_path, &_exist_st) != 0) {
+			int _exists, _is_dir;
+
+			_exists = xrootd_open_read_probe(conf, c->log, clean_path,
+			                                 full_path, &_is_dir);
+			if (!_exists) {
 				if (conf->upstream_host.len > 0) {
 					xrootd_log_access(ctx, c, "OPEN", clean_path,
 									  "upstream", 1, 0, NULL, 0);
@@ -614,7 +661,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 								  clean_path, "rd", kXR_NotFound,
 								  "file not found");
 			}
-			if (S_ISDIR(_exist_st.st_mode)) {
+			if (_is_dir) {
 				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
 								  clean_path, "rd", kXR_isDirectory,
 								  "is a directory");

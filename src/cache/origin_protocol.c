@@ -589,14 +589,39 @@ xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
     return 0;
 }
 
+/* Positional write into a fill sink: a driver staged-write handle (driver-backed
+ * cache) or a raw POSIX fd. Keeps the origin read loop backend-agnostic. */
+int
+xrootd_cache_sink_pwrite(xrootd_cache_sink_t *sink, const void *buf, size_t len,
+    off_t off)
+{
+    if (sink->mem != NULL) {
+        /* In-memory sink: a positional copy into the caller's buffer, bounds-
+         * checked against mem_cap. Used by the root:// remote driver's pread. */
+        if (off < 0 || (size_t) off + len > sink->mem_cap) {
+            errno = EINVAL;
+            return -1;
+        }
+        ngx_memcpy(sink->mem + off, buf, len);
+        return 0;
+    }
+    if (sink->staged != NULL) {
+        ssize_t n = sink->staged->inst->driver->staged_write(sink->staged, buf,
+                                                             len, off);
+        return (n == (ssize_t) len) ? 0 : -1;
+    }
+    return xrootd_cache_fd_write_all(sink->fd, buf, len, off);
+}
+
 /* xrootd_cache_origin_read_chunk — kXR_read at (offset, rlen), writing each reply
- * payload to the local part fd via xrootd_cache_fd_write_all and looping over
- * kXR_oksofar until the final kXR_ok. dlen is bounded (<= want, accumulated *got
- * within request bounds) to prevent overflow. Sets *got; returns 0 / -1. */
+ * payload to the sink via xrootd_cache_sink_pwrite and looping over kXR_oksofar
+ * until the final kXR_ok. dlen is bounded (<= want, accumulated *got within
+ * request bounds) to prevent overflow. Sets *got; returns 0 / -1. */
 int
 xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
-    int outfd, uint64_t read_off, uint64_t dst_off, size_t want, size_t *got)
+    xrootd_cache_sink_t *sink, uint64_t read_off, uint64_t dst_off,
+    size_t want, size_t *got)
 {
     ClientReadRequest req;
     uint16_t          status;
@@ -654,8 +679,8 @@ xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
              * fill passes a 0-relative base. Using *got alone restarts at 0 each
              * 1 MiB chunk, so multi-chunk whole-file fetches overwrote at offset 0
              * (corrupting any file > XROOTD_CACHE_FETCH_CHUNK → adler32 mismatch). */
-            if (xrootd_cache_fd_write_all(outfd, body, dlen,
-                                          (off_t) (dst_off + *got)) != 0) {
+            if (xrootd_cache_sink_pwrite(sink, body, dlen,
+                                         (off_t) (dst_off + *got)) != 0) {
                 free(body);
                 xrootd_cache_set_syserror(t, kXR_IOError,
                                           "cache file write failed");

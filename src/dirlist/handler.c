@@ -11,6 +11,7 @@
 #include "../path/op_path.h"
 #include "../manager/registry.h"
 #include "../protocol/dirlist_fmt.h"   /* shared dstat lead-in sentinel */
+#include "../fs/vfs.h"                 /* directory listing via the VFS seam */
 #include "dcksm.h"
 
 #include <spawn.h>
@@ -274,8 +275,10 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char                options;
     char                  full_path[PATH_MAX];
     char                  reqpath[XROOTD_MAX_PATH + 1];
-    DIR                  *dp;
-    struct dirent        *de;
+    xrootd_vfs_ctx_t      vctx;
+    xrootd_vfs_dir_t     *dh;
+    ngx_str_t             entry_name;
+    xrootd_vfs_stat_t     entry_vst;
     ngx_flag_t            want_stat;
     u_char               *chunk;
     size_t                chunk_cap = 65536;
@@ -285,7 +288,6 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
     char                  bad_algo[32];
     ngx_int_t             rc;
     ngx_flag_t            want_cksum;
-    int                   dfd;
 
 
     xrdw_dirlist_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
@@ -379,29 +381,21 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /*
-     * Offload directory iteration + checksum computation to the nginx thread
-     * pool so the event loop is not blocked during fstatat / hash-on-miss.
-     *
-     * If the pool is not configured or is full, xrootd_aio_post_task() returns
-     * posted=0 and we fall through to the synchronous path below.
+     * Synchronous dirlist via the VFS seam: xrootd_vfs_opendir is
+     * impersonation-aware (broker fdopendir as the mapped user) and
+     * xrootd_vfs_readdir yields each name with an optional no-follow lstat. (The
+     * thread-pool AIO variant in aio/dirlist.c is currently disabled — it could
+     * complete without delivering a response frame, wedging xrdfs probes — so the
+     * request path stays synchronous.)
      */
-    /*
-     * Keep kXR_dirlist on the synchronous path for now.  The AIO variant can
-     * complete successfully without delivering a response frame to clients,
-     * which wedges xrdfs readiness probes in one-worker test deployments.
-     */
-    if (0 && conf->common.thread_pool != NULL) {
-        ngx_thread_task_t    *task;
-        xrootd_dirlist_aio_t *t;
-        ngx_flag_t            posted;
-        u_char               *response_buf;
-        int                   aio_dirfd;
+    {
+        int err = 0;
 
-        aio_dirfd = xrootd_open_beneath(conf->rootfd, reqpath,
-                                        O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
-        if (aio_dirfd < 0) {
-            int err = errno;
-
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+            conf->common.root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */,
+            NULL, full_path);
+        dh = xrootd_vfs_opendir(&vctx, &err);
+        if (dh == NULL) {
             if (err == ENOTDIR) {
                 XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
                                   "-", kXR_NotFile, "path is not a directory");
@@ -413,88 +407,13 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
                               "-", kXR_IOError, strerror(err));
         }
-
-        response_buf = ngx_palloc(c->pool, XROOTD_DIRLIST_AIO_RESPONSE_MAX);
-        if (response_buf == NULL) {
-            close(aio_dirfd);
-            return NGX_ERROR;
-        }
-
-        task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_dirlist_aio_t));
-        if (task == NULL) {
-            close(aio_dirfd);
-            return NGX_ERROR;
-        }
-
-        t = task->ctx;
-        t->c            = c;
-        t->ctx          = ctx;
-        t->conf         = conf;
-        t->streamid[0]  = ctx->cur_streamid[0];
-        t->streamid[1]  = ctx->cur_streamid[1];
-        t->want_stat    = want_stat;
-        t->want_cksum   = want_cksum;
-        t->dirfd        = aio_dirfd;
-        t->response     = response_buf;
-        t->response_cap = XROOTD_DIRLIST_AIO_RESPONSE_MAX;
-        t->response_len = 0;
-        t->io_errno     = 0;
-        t->err_msg[0]   = '\0';
-        ngx_cpystrn((u_char *) t->resolved,
-                    (u_char *) full_path, sizeof(t->resolved));
-        ngx_cpystrn((u_char *) t->cksum_algo,
-                    (u_char *) cksum_algo, sizeof(t->cksum_algo));
-
-        xrootd_task_bind(task, xrootd_dirlist_aio_thread, xrootd_dirlist_aio_done);
-
-        if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
-                "xrootd: dirlist thread pool full, running synchronously",
-                &posted) != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-
-        if (posted) {
-            return NGX_OK;
-        }
-
-        close(aio_dirfd);
-        t->dirfd = -1;
-
-        /* Pool queue was full — fall through to the synchronous path. */
-    }
-
-
-    dfd = xrootd_open_beneath(conf->rootfd, reqpath, O_RDONLY | O_DIRECTORY, 0);
-    if (dfd < 0) {
-        int err = errno;
-
-        if (err == ENOTDIR) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
-                              "-", kXR_NotFile, "path is not a directory");
-        }
-        if (err == ENOENT) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
-                              "-", kXR_NotFound, "directory not found");
-        }
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
-                          "-", kXR_IOError, strerror(err));
-    }
-
-    dp = fdopendir(dfd);
-    if (dp == NULL) {
-        int err = errno;
-
-        close(dfd);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_DIRLIST, "DIRLIST", reqpath,
-                          "-", kXR_IOError, strerror(err));
     }
 
     /* Guard against pool exhaustion from a flood of dirlist calls. */
     if (ctx->pool_bytes_used + XRD_RESPONSE_HDR_LEN + chunk_cap
             > XROOTD_MAX_CONN_POOL_BYTES)
     {
-        closedir(dp);
+        xrootd_vfs_closedir(dh, c->log);
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "xrootd: dirlist pool limit reached (%uz bytes), "
                       "closing connection", ctx->pool_bytes_used);
@@ -503,7 +422,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
     chunk = ngx_palloc(c->pool, XRD_RESPONSE_HDR_LEN + chunk_cap);
     if (chunk == NULL) {
-        closedir(dp);
+        xrootd_vfs_closedir(dh, c->log);
         return NGX_ERROR;
     }
     ctx->pool_bytes_used += XRD_RESPONSE_HDR_LEN + chunk_cap;
@@ -517,9 +436,10 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
 
-        while ((de = readdir(dp)) != NULL) {
-            const char *name = de->d_name;
-            size_t      nlen = strlen(name);
+        while (xrootd_vfs_readdir(dh, &entry_name,
+                                  want_stat ? &entry_vst : NULL) == NGX_OK) {
+            const char *name = (char *) entry_name.data;
+            size_t      nlen = entry_name.len;
             char        safe_name[256];
             size_t      need = nlen + 1;
             struct stat entry_st;
@@ -553,16 +473,18 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
             }
 
             if (want_stat) {
-                if (fstatat(dirfd(dp), name, &entry_st, AT_SYMLINK_NOFOLLOW) != 0) {
-                    if (errno != ENOENT) {
-                        xrootd_sanitize_log_string(name, safe_name,
-                                                   sizeof(safe_name));
-                        ngx_log_error(NGX_LOG_WARN, c->log, errno,
-                                      "xrootd: dirlist stat failed for \"%s\"",
-                                      safe_name);
-                    }
-                    continue;
-                }
+                /* readdir already did the no-follow lstat (and skipped any entry
+                 * whose stat failed), so entry_vst is valid here. */
+                ngx_memzero(&entry_st, sizeof(entry_st));
+                entry_st.st_mode   = (mode_t) entry_vst.mode;
+                entry_st.st_size   = entry_vst.size;
+                entry_st.st_mtime  = entry_vst.mtime;
+                entry_st.st_ctime  = entry_vst.ctime;
+                entry_st.st_ino    = entry_vst.ino;
+                entry_st.st_dev    = entry_vst.dev;
+                entry_st.st_uid    = entry_vst.uid;
+                entry_st.st_gid    = entry_vst.gid;
+                entry_st.st_blocks = entry_vst.blocks;
 
                 have_stat = 1;
                 if (want_cksum) {
@@ -584,7 +506,8 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     snprintf(cksum_token, sizeof(cksum_token),
                              "%s:none", cksum_algo);
                 } else {
-                    xrootd_dirlist_checksum_token(c->log, dirfd(dp), name,
+                    xrootd_dirlist_checksum_token(c->log,
+                                                  xrootd_vfs_dir_fd(dh), name,
                                                   entry_path, &entry_st,
                                                   cksum_algo, cksum_token,
                                                   sizeof(cksum_token));
@@ -600,7 +523,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 rc = xrootd_queue_response(ctx, c, chunk,
                                            XRD_RESPONSE_HDR_LEN + chunk_pos);
                 if (rc != NGX_OK) {
-                    closedir(dp);
+                    xrootd_vfs_closedir(dh, c->log);
                     return rc;
                 }
 
@@ -634,7 +557,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
 
-        closedir(dp);
+        xrootd_vfs_closedir(dh, c->log);
 
         {
             size_t final_len;

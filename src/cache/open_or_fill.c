@@ -1,4 +1,5 @@
 #include "cache_internal.h"
+#include "cache_storage.h"   /* driver-aware readiness for a backend-backed cache */
 
 #include <errno.h>
 #include <string.h>
@@ -18,7 +19,7 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
     xrootd_cache_fill_t *t;
     int                  ready;
 
-    ready = xrootd_cache_file_ready(cache_path);
+    ready = xrootd_cache_ready(conf, cache_path);
     if (ready == 1) {
         return xrootd_open_resolved_file(ctx, c, conf, cache_path,
                                          options, mode_bits, 0, 0);

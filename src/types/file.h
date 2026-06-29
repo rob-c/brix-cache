@@ -1,6 +1,8 @@
 #ifndef XROOTD_TYPES_FILE_H
 #define XROOTD_TYPES_FILE_H
 
+#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — per-handle storage object */
+
 /* Number of committed-write entries kept per open handle for replay detection. */
 #define XROOTD_WRTS_JOURNAL_SLOTS 64
 
@@ -250,6 +252,14 @@ typedef struct {
      * handle. Points to a heap-allocated xrootd_csi_t (its own tag-file fd);
      * read verifies, write/pgwrite update, xrootd_free_fhandle closes+frees it. */
     void    *csi;
+
+    /* Layer-3 storage-driver object for this handle.  When a non-POSIX backend
+     * (block-striped / object store) is bound to the export, sd_obj.driver is
+     * non-NULL and all byte I/O for this handle routes through it; the bare `fd`
+     * above is then a driver-managed descriptor (block-0 fd or -1).  When
+     * sd_obj.driver == NULL (the default POSIX export) data I/O POSIX-wraps `fd`,
+     * byte-for-byte the pre-Layer-3 path. */
+    xrootd_sd_obj_t  sd_obj;
 
 } xrootd_file_t;
 

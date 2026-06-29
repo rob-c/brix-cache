@@ -1,4 +1,5 @@
 #include "writethrough.h"
+#include "cache_admit.h"   /* shared admission filter (read+write parity) */
 
 #include <string.h>
 #include <sys/stat.h>
@@ -12,91 +13,45 @@
  * replace it via config.
  */
 
-/* prefix-matching helpers */
-
-static inline int xrootd_wt_path_matches_prefix(const char *path, const ngx_str_t *prefix)
-{
-    /* Simple prefix comparison: path starts with prefix string.
-     * This is O(n) where n = prefix length — acceptable for typical
-     * path prefixes (/data/, /atlas/, etc.). */
-    if (prefix->len == 0 || path == NULL) {
-        return 0;
-    }
-    if ((size_t)(path[0] ? strlen(path) : 0) < prefix->len) {
-        return 0;
-    }
-    return ngx_strncmp((u_char *) path, prefix->data, prefix->len) == 0;
-}
-
-static inline int xrootd_wt_path_matches_any_prefix(const char *path, ngx_array_t *prefixes)
-{
-    if (prefixes == NULL || prefixes->nelts == 0) {
-        return 0;
-    }
-    xrootd_wt_prefix_entry_t *entries = prefixes->elts;
-    for (ngx_uint_t i = 0; i < prefixes->nelts; ++i) {
-        if (xrootd_wt_path_matches_prefix(path, &entries[i].prefix)) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
 /* xrootd_wt_default_decide — the policy decision at kXR_open write intent (from
- * read/open.c): DENY on NULL config/path; size filter (skipped for a not-yet-
- * existing kXR_new file, bypassed by an include-regex match); deny prefixes
- * (precedence) then allow prefixes (whitelist); else ALLOW_SYNC. */
+ * read/open.c): DENY on NULL config/path; otherwise the shared admission filter
+ * (size cap skipped for a not-yet-existing kXR_new file or a path that does not
+ * stat as a regular file, bypassed by an include-regex match; deny prefixes take
+ * precedence, then the allow whitelist). An ADMIT becomes ALLOW_ASYNC. */
 xrootd_wt_decision_t xrootd_wt_default_decide(const char *path, uint16_t options,
                                                void *user_data)
 {
+    xrootd_wt_decision_cfg_t *cfg;
+    xrootd_cache_admit_cfg_t  a;
+    off_t                     size = 0;
+    int                       is_new;
+
     if (user_data == NULL || path == NULL) {
-        /* No config or invalid path — deny to be safe. */
-        return XROOTD_WT_DECISION_DENY;
+        return XROOTD_WT_DECISION_DENY;          /* fail-closed */
     }
+    cfg = (xrootd_wt_decision_cfg_t *) user_data;
 
-    xrootd_wt_decision_cfg_t *cfg = (xrootd_wt_decision_cfg_t *) user_data;
-
-    /* Check 1: Size-based admission filter (mirrors cache_max_file_size).
-     * Files larger than the limit are denied unless they match an include
-     * regex (configured via xrootd_cache_include_regex — we reuse it here). */
-    if (cfg->max_write_through_bytes > 0) {
+    /* Resolve the size for the cap: a kXR_new create has no size yet; an existing
+     * regular file contributes its st_size; anything else skips the cap. stat()
+     * is a local syscall, not a network round-trip. */
+    is_new = (options & kXR_new) != 0;
+    if (!is_new && cfg->max_write_through_bytes > 0) {
         struct stat st;
-
-        /* Size cap (mirrors cache_max_file_size). Only an existing regular file
-         * is subject to it; a kXR_new creation — or a path that does not stat as
-         * a regular file — skips the check and falls through to the prefix rules
-         * below. stat() is a local syscall, not a network round-trip. */
         if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
-            off_t file_size = st.st_size;
-
-            if ((off_t)(options & kXR_new) == 0
-                && file_size > cfg->max_write_through_bytes)
-            {
-                /* Large existing file without include regex match → deny. */
-                if (!cfg->include_regex_set
-                    || regexec(&cfg->include_regex, path, 0, NULL, 0) != 0)
-                {
-                    return XROOTD_WT_DECISION_DENY;
-                }
-            }
+            size = st.st_size;
+        } else {
+            is_new = 1;                          /* not a regular existing file */
         }
     }
 
-    /* Check 2: Deny prefixes take precedence (blacklist semantics). */
-    if (xrootd_wt_path_matches_any_prefix(path, cfg->deny_prefixes)) {
+    a.deny_prefixes  = cfg->deny_prefixes;
+    a.allow_prefixes = cfg->allow_prefixes;
+    a.size_limit     = cfg->max_write_through_bytes;
+    a.include_regex  = cfg->include_regex_set ? &cfg->include_regex : NULL;
+
+    if (xrootd_cache_admit(&a, path, size, is_new) == XROOTD_CACHE_DECLINE) {
         return XROOTD_WT_DECISION_DENY;
     }
-
-    /* Check 3: If allow list is configured and path doesn't match → deny.
-     * This implements an explicit whitelist mode when allow_prefixes is set. */
-    if (cfg->allow_prefixes != NULL && cfg->allow_prefixes->nelts > 0) {
-        if (!xrootd_wt_path_matches_any_prefix(path, cfg->allow_prefixes)) {
-            return XROOTD_WT_DECISION_DENY;
-        }
-    }
-
-    /* Check 4: Default — allow with async flush (mirrors XrdPfcAllowDecision).
-     * Sync mode is preferred for local filesystem origins; async for proxy mode. */
     return XROOTD_WT_DECISION_ALLOW_ASYNC;
 }
 

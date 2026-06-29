@@ -15,48 +15,23 @@
  */
 #include "vfs_internal.h"
 #include "backend/sd.h"
+#include "core/vfs_core.h"   /* shared ngx-free VFS I/O verbs */
 
 /* EINTR-safe, short-read-tolerant pread into buf. Loops until len bytes are
- * read or EOF; *nread (if non-NULL) reports the byte count even on error. */
+ * read or EOF; *nread (if non-NULL) reports the byte count even on error.
+ *
+ * Thin server wrapper over the shared `vfs` core (xvfs_pread_full): the EINTR/
+ * short-read loop + the Storage Driver seam live in src/fs/core/vfs_core.c, the
+ * single copy shared with the userland clients. This wrapper keeps the existing
+ * fd-keyed signature so the server's callers (vfs_io_core, AIO bodies) are
+ * unchanged. */
 ngx_int_t
 xrootd_vfs_pread_full(ngx_fd_t fd, u_char *buf, size_t len,
     off_t offset, size_t *nread)
 {
-    size_t          done = 0;
     xrootd_sd_obj_t obj;
 
-    /* Route every data byte read through the Storage Driver seam (phase-55); the
-     * EINTR/short-read loop policy stays here in the VFS. Keeping the syscall in
-     * the backend (src/fs/backend/) — never raw here — is the invariant: a
-     * non-POSIX driver (block/object) slots in without touching the VFS. (This
-     * deliberately reverts the phase-56 A-1 micro-optimization, which inlined a
-     * raw pread at the cost of putting data POSIX in the VFS layer.) */
     xrootd_sd_posix_wrap(&obj, fd);
-
-    while (done < len) {
-        ssize_t n = xrootd_sd_posix_driver.pread(&obj, buf + done, len - done,
-                                                 offset + (off_t) done);
-
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            if (nread != NULL) {
-                *nread = done;
-            }
-            return NGX_ERROR;
-        }
-
-        if (n == 0) {
-            break;
-        }
-
-        done += (size_t) n;
-    }
-
-    if (nread != NULL) {
-        *nread = done;
-    }
-
-    return NGX_OK;
+    return (xvfs_pread_full(&obj, buf, len, offset, nread) == 0)
+           ? NGX_OK : NGX_ERROR;
 }

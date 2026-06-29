@@ -120,8 +120,6 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     xrootd_vfs_staged_t *st;
     int                  vfs_err;
     off_t                off = 0;
-    size_t               remaining;
-    u_char              *p;
     ngx_fd_t             stfd;
     struct stat          sb;
 
@@ -158,32 +156,14 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         return NGX_ERROR;
     }
 
-    /* Write the full in-memory file part; pwrite may short-write, so loop until
-     * `remaining` is drained, advancing both the buffer pointer and offset. */
+    /* Write the full in-memory file part through the storage seam; the VFS
+     * primitive handles EINTR and short writes. */
     stfd = xrootd_vfs_staged_fd(st);
-    remaining = form->file_len;
-    p = form->file_data;
-    xrootd_sd_obj_t obj;
-    xrootd_sd_posix_wrap(&obj, stfd);   /* phase-55: SD seam */
-    while (remaining > 0) {
-        ssize_t n = xrootd_sd_posix_driver.pwrite(&obj, p, remaining, off);
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;               /* interrupted syscall: retry */
-            }
-            xrootd_vfs_staged_abort(st, 1);
-            return NGX_ERROR;
-        }
-        if (n == 0) {
-            /* Zero progress with bytes left is unexpected: treat as I/O error. */
-            errno = EIO;
-            xrootd_vfs_staged_abort(st, 1);
-            return NGX_ERROR;
-        }
-
-        p += n;
-        off += n;
-        remaining -= (size_t) n;
+    if (xrootd_vfs_pwrite_full(stfd, form->file_data, form->file_len, off)
+        != NGX_OK)
+    {
+        xrootd_vfs_staged_abort(st, 1);
+        return NGX_ERROR;
     }
 
     /* Atomically publish the staged temp as the final object. */
@@ -191,14 +171,22 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         return NGX_ERROR;
     }
 
-    /* Best-effort ETag: a stat failure here is non-fatal (empty ETag).
-     * Confined (no-follow) so a symlink at the final name is not followed. */
-    if (xrootd_lstat_confined_canon(r->connection->log, cf->common.root_canon,
-                                    fs_path, &sb, 1) == 0) {
-        s3_etag(&sb, etag, etag_sz);
-        (void) s3_set_header(r, "ETag", etag);
-    } else {
-        etag[0] = '\0';
+    /* Best-effort ETag: a stat failure here is non-fatal (empty ETag). The VFS
+     * probe is confined + no-follow (so a symlink at the final name is not
+     * followed) and non-metered (the PostObject op already accounts for this
+     * upload; a per-upload OP_STAT would inflate the stat counter). */
+    {
+        xrootd_vfs_stat_t vst;
+
+        if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_OK) {
+            ngx_memzero(&sb, sizeof(sb));
+            sb.st_mtime = vst.mtime;
+            sb.st_size  = vst.size;
+            s3_etag(&sb, etag, etag_sz);
+            (void) s3_set_header(r, "ETag", etag);
+        } else {
+            etag[0] = '\0';
+        }
     }
 
     return NGX_OK;

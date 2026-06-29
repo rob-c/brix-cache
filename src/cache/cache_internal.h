@@ -2,6 +2,33 @@
 #define XROOTD_CACHE_INTERNAL_H
 
 #include "../ngx_xrootd_module.h"
+#include "../fs/backend/sd.h"   /* xrootd_sd_obj_t — driver-backed flush read-back */
+#include "stage_admit.h"        /* xrootd_wt_admit_t + pure band logic */
+
+/*
+ * Two-tier write-back-staging backpressure: sample the staging filesystem and
+ * return ALLOW / WAIT / REJECT for a new write. Defined in stage_admit.c; the
+ * pure band decision (xrootd_wt_stage_decide) is in stage_admit.h. Reads must
+ * never call this — staging fullness gates writes only.
+ */
+xrootd_wt_admit_t xrootd_wt_stage_admit(
+    const ngx_stream_xrootd_srv_conf_t *conf);
+
+/*
+ * Unified cache-state engine path helpers (src/cache/paths.c). Stream-only (they
+ * take ngx_stream_xrootd_srv_conf_t); the HTTP plane uses cache_http.h instead.
+ *
+ * xrootd_cache_state_root: the directory the per-file ".cinfo" persistence
+ * records live under — the explicit xrootd_cache_state_root, else cache_root,
+ * else NULL (no state tree ⇒ persistent dirty-tracking is skipped).
+ *
+ * xrootd_cache_state_path: map a resolved export path to the cache/state-tree
+ * path whose ".cinfo" sidecar carries that file's unified record. NGX_OK /
+ * NGX_ERROR (no state root, or overflow).
+ */
+const char *xrootd_cache_state_root(const ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t   xrootd_cache_state_path(const ngx_stream_xrootd_srv_conf_t *conf,
+    const char *resolved, char *dst, size_t dstsz);
 
 
 /*
@@ -113,6 +140,26 @@ typedef struct {
     int                           xrd_error;
     int                           sys_errno;
     char                          err_msg[256];
+    /* Durable-async (Phase 4b-2): the journal reqid for this in-flight flush, or
+     * "" when not journaled (sync mode, or no journal configured). On completion
+     * the record is deleted (success) or marked FAILED (left for replay). */
+    char                          xfer_reqid[40];
+    /* Driver-backed primary (cache-fronts-a-VFS-backend): when the export uses a
+     * non-POSIX storage driver (pblock/object/tape), the local file's bytes are
+     * NOT in a raw POSIX file, so the flush reads them through this driver object
+     * instead of a confined fd. Opened READ on the main thread in init_task (so a
+     * pblock SQLite catalog lookup never runs on the async worker), read via
+     * sd_obj.driver->pread in the worker, closed after the flush. sd_has_obj == 0
+     * ⇒ the default POSIX read-back path (raw confined open). */
+    xrootd_sd_obj_t               sd_obj;
+    off_t                         sd_size;   /* live size from the write handle */
+    unsigned                      sd_has_obj:1;
+    /* Write-back staging (the "3rd location"): when a staging role is configured,
+     * the flush mirrors FROM a durable staged copy (keyed by the logical path) so
+     * a replay after restart reads immutable bytes, not the live primary. The FRM
+     * journal stays the write-back state engine; the stage is just the bytes. */
+    xrootd_sd_obj_t               stage_obj;
+    unsigned                      has_stage_obj:1;
 } xrootd_wt_flush_t;
 
 /* Record a fill failure into t: sets t->result=NGX_ERROR, stores xrd_error
@@ -236,9 +283,24 @@ void xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
  * `dst_off` (+ progress). The two offsets are decoupled: the whole-file fetch
  * passes dst_off==read_off (absolute), while a slice fill reads at an absolute
  * origin offset but writes into a 0-relative per-slice file (dst_off==0-based). */
+/* A fill write target: a raw POSIX fd (POSIX cache) OR a driver staged-write
+ * handle (driver-backed cache). xrootd_cache_sink_pwrite routes a positional
+ * write to whichever is set — so the origin read loop is not duplicated. */
+typedef struct {
+    int                  fd;       /* >=0 ⇒ POSIX pwrite; -1 when staged/mem used */
+    xrootd_sd_staged_t  *staged;   /* non-NULL ⇒ driver staged_write             */
+    u_char              *mem;      /* non-NULL ⇒ copy into this buffer at off     */
+    size_t               mem_cap;  /* capacity of mem (bounds the positional copy) */
+} xrootd_cache_sink_t;
+
+/* Positional write of len bytes at off into the sink. 0 / -1 (errno set). */
+int xrootd_cache_sink_pwrite(xrootd_cache_sink_t *sink, const void *buf,
+    size_t len, off_t off);
+
 int xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
-    int outfd, uint64_t read_off, uint64_t dst_off, size_t want, size_t *got);
+    xrootd_cache_sink_t *sink, uint64_t read_off, uint64_t dst_off,
+    size_t want, size_t *got);
 /* kXR_write of len bytes from data at offset (write-through). Requires a kXR_ok
  * reply with zero data length. len>INT32_MAX is rejected (kXR_ArgTooLong).
  * Returns 0 on success, -1 on error (t error set). */
@@ -278,6 +340,22 @@ void xrootd_wt_flush_thread(void *data, ngx_log_t *log);
  * metrics, logs success/failure, and frees the ngx_thread_task (which owns the
  * embedded wt copy). */
 void xrootd_wt_flush_done(ngx_event_t *ev);
+
+/* Phase 4b-2b-ii (durable async): re-drive a journaled WT flush recovered from
+ * the durable journal on restart — builds a flush task from the recovered record
+ * and posts it to the thread pool (completion deletes the record on success or
+ * marks it FAILED for bounded retry). Detached from any client. NGX_OK / NGX_ERROR.
+ * (writethrough_flush.c) */
+ngx_int_t xrootd_wt_flush_post_replay(ngx_stream_xrootd_srv_conf_t *conf,
+    ngx_thread_pool_t *tp, const char *local_path, const char *reqid,
+    uint16_t mode_bits, ngx_log_t *log);
+
+/* Arm the per-worker WT replay scheduler: on startup it requeues FAILED and
+ * re-drives QUEUED write-through journal records (bounded retry), so an async
+ * flush interrupted by a crash reaches the origin after a restart. No-op without
+ * a journal (the shared FRM queue) or a thread pool. (writethrough_replay.c) */
+void xrootd_wt_replay_register(ngx_cycle_t *cycle,
+    ngx_stream_xrootd_srv_conf_t *conf, ngx_thread_pool_t *thread_pool);
 
 /* Thread-pool fetch of the WHOLE file from origin into t->part_path, then atomic
  * rename to t->cache_path and write the metadata sidecar. Applies the admission

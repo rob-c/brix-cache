@@ -6,6 +6,7 @@
 
 #include "../ngx_xrootd_module.h"
 #include "../fs/backend/sd.h"   /* phase-55: route preadv through the SD seam */
+#include "../fs/vfs_io_core.h"  /* xrootd_vfs_effective_obj — POSIX-wrap or driver obj */
 #include "../compat/pgio.h"     /* shared kXR page-mode encode (libxrdproto) */
 #include "../compat/crc32c.h"   /* xrootd_crc32c_value — in-place per-page CRC  */
 
@@ -45,22 +46,20 @@
  *      read, exactly as xrdp_pg_encode does.
  */
 size_t
-xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
-    u_char *out, ssize_t *nread_out, int *io_errno_out, int nowait)
+xrootd_pgread_read_encode_inplace(xrootd_sd_obj_t *obj, off_t offset,
+    size_t rlen, u_char *out, ssize_t *nread_out, int *io_errno_out, int nowait)
 {
     u_char  *o = out;            /* write cursor in the gapped wire buffer */
     size_t   remaining = rlen;   /* file bytes not yet laid out into a batch */
     size_t          out_size = 0;       /* encoded bytes produced so far */
     ssize_t         total = 0;          /* file bytes actually read */
     int             eof = 0;
-    xrootd_sd_obj_t obj;
 
     *nread_out = 0;
     *io_errno_out = 0;
 
-    /* Route the batched vectored read through the Storage Driver seam
-     * (phase-55); the page layout / in-place CRC policy stays here. */
-    xrootd_sd_posix_wrap(&obj, fd);
+    /* The batched vectored read goes through the handle's storage driver (POSIX
+     * or block-striped); the page layout / in-place CRC policy stays here. */
 
     while (remaining > 0 && !eof) {
         struct iovec iov[XROOTD_PGREAD_MAXIOV];
@@ -100,7 +99,7 @@ xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
              * re-detects true EOF correctly). A real error likewise aborts; the
              * blocking re-read surfaces it. Earlier full batches' work is
              * discarded by that re-read. */
-            n = xrootd_sd_posix_driver.preadv2(&obj, iov, k, batch_off,
+            n = obj->driver->preadv2(obj, iov, k, batch_off,
                                                RWF_NOWAIT);
             if (n < 0 || (size_t) n < batch_bytes) {
                 *nread_out = 0;
@@ -110,7 +109,7 @@ xrootd_pgread_read_encode_inplace(int fd, off_t offset, size_t rlen,
         } else
 #endif
         {
-            n = xrootd_sd_posix_driver.preadv(&obj, iov, k, batch_off);
+            n = obj->driver->preadv(obj, iov, k, batch_off);
             if (n < 0) {
                 *nread_out = -1;
                 *io_errno_out = errno;
@@ -281,11 +280,15 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
          * Mirrors the kXR_read Phase-32 probe.
          */
         if (rconf->common.thread_pool != NULL && ctx->files[idx].is_regular) {
-            ssize_t warm_nread = 0;
-            int     warm_errno = 0;
-            size_t  warm_osz;
+            ssize_t         warm_nread = 0;
+            int             warm_errno = 0;
+            size_t          warm_osz;
+            xrootd_sd_obj_t warm_scratch;
+            xrootd_sd_obj_t *warm_obj;
 
-            warm_osz = xrootd_pgread_read_encode_inplace(fd, (off_t) offset,
+            warm_obj = xrootd_vfs_effective_obj(&ctx->files[idx].sd_obj, fd,
+                                                &warm_scratch);
+            warm_osz = xrootd_pgread_read_encode_inplace(warm_obj, (off_t) offset,
                                                          rlen, scratch,
                                                          &warm_nread,
                                                          &warm_errno, 1);
@@ -326,6 +329,7 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
             t->out_size = 0;
             t->streamid[0] = ctx->cur_streamid[0];
             t->streamid[1] = ctx->cur_streamid[1];
+            t->obj = ctx->files[idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
 
             xrootd_task_bind(task, xrootd_pgread_aio_thread, xrootd_pgread_aio_done);
 
@@ -348,6 +352,7 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
             xrootd_vfs_job_read_init(&job, fd, (off_t) offset, rlen,
                                       scratch, rlen, 0);
             job.op = XROOTD_VFS_IO_PGREAD;
+            xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
             xrootd_vfs_io_execute(&job);
 
             if (job.io_errno != 0) {

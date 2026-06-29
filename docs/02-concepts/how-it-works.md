@@ -91,9 +91,10 @@ Client                     Protocol handler → VFS        POSIX driver (kernel)
 **Every byte takes the same path, whatever the protocol.** The opcode handler never
 touches the disk itself: it calls the **VFS** (`xrootd_vfs_*`, `src/fs/`), which
 re-checks confinement, records the metric and access-log line, and consults the
-cache — then the VFS calls the **POSIX storage driver** (`src/fs/backend/`) for the
-raw `open`/`pread`/`pwrite`/`fsync`. WebDAV and S3 reuse these exact two layers, so
-the path is `proto → VFS → POSIX` for all of them.
+cache — then the VFS calls the **storage driver** (`src/fs/backend/`, POSIX by
+default; block / S3 / Ceph / pblock drivers register the same way) for the raw
+`open`/`pread`/`pwrite`/`fsync`. WebDAV and S3 reuse these exact two layers, so
+the path is `proto → VFS → backend` for all of them.
 
 **Key concepts:**
 - **File handle:** A numeric ID that represents an open file. Multiple reads/writes use the same handle — no need to re-open every time.
@@ -170,9 +171,9 @@ Client                     WebDAV handler → VFS          POSIX driver (kernel)
   │     [response body follows...]    │←──────────── data (sendfile) ─│
 ```
 
-WebDAV (and S3) take the **same** `proto → VFS → POSIX` data path as `root://` —
+WebDAV (and S3) take the **same** `proto → VFS → backend` data path as `root://` —
 only the front-end framing differs. Auth runs in the handler; once a file is
-touched, the VFS and POSIX storage driver do the rest.
+touched, the VFS and the storage driver (POSIX by default) do the rest.
 
 **Key differences from XRootD:**
 - No persistent session — each request is independent

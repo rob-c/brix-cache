@@ -95,7 +95,12 @@ PORTS = {
     # f) nginx data server
     "f_data":  _p("HYBRID_DS_F_PORT",          11316),
     "f_s3":    _p("HYBRID_DS_F_S3_PORT",       11318),  # S3 origin over the store
-    "f_dav":   _p("HYBRID_DS_F_DAV_PORT",      11319),  # WebDAV origin over store
+    "f_dav":   _p("HYBRID_DS_F_DAV_PORT",      11319),  # WebDAV origin (https, direct)
+    # Plain-HTTP WebDAV origin used as the single-port handoff target: the stock
+    # XrdHttp redirector g redirects HTTP to the data port over http:// (stock
+    # multiplexes plain XrdHttp there), so f's data port splices to THIS plain
+    # listener (not the https one) — see xrootd_http_handoff.
+    "f_dav_http": _p("HYBRID_DS_F_DAV_HTTP_PORT", 11328),
 }
 
 PORT_MIN, PORT_MAX = 11300, 11330
@@ -238,14 +243,21 @@ def _s3_origin_server(listen_port, root, bucket):
     )
 
 
-def _webdav_origin_server(listen_port, root, cert, key):
-    """An https server that IS the WebDAV store over `root` (davs GET /mesh/K ->
-    <root>/mesh/K)."""
+def _webdav_origin_server(listen_port, root, cert, key, tls=True):
+    """A server that IS the WebDAV store over `root` (davs GET /mesh/K ->
+    <root>/mesh/K).  tls=True -> https (direct davs); tls=False -> plain http
+    (the single-port handoff target, reached via the stock redirector's http://
+    data-port redirect)."""
+    ssl_kw = " ssl" if tls else ""
+    ssl_lines = (
+        f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
+        if tls else ""
+    )
     return (
         f"    server {{\n"
-        f"        listen {BIND_HOST}:{listen_port} ssl;\n"
+        f"        listen {BIND_HOST}:{listen_port}{ssl_kw};\n"
         f"        server_name localhost;\n"
-        f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
+        f"{ssl_lines}"
         f"        location / {{\n"
         f"            xrootd_webdav on; xrootd_webdav_root {root};\n"
         f"            xrootd_webdav_auth none; xrootd_webdav_allow_write on;\n"
@@ -340,12 +352,16 @@ def cfg_node_f(data_port, root, cms_mgr, paths, tmpbase, cert, key):
         f"        xrootd_allow_write on;\n"
         f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
         f"        xrootd_cms_interval 2; xrootd_listen_port {data_port};\n"
+        # Single-port mux: an HTTP client the stock redirector sent to this
+        # data port is spliced to the local plain-http WebDAV listener.
+        f"        xrootd_http_handoff {BIND_HOST}:{PORTS['f_dav_http']};\n"
         f"    }}\n"
         "}\n"
         "http {\n    access_log off;\n"
         + _http_temp(tmpbase)
         + _s3_origin_server(PORTS["f_s3"], s3_root, S3_BUCKET)
-        + _webdav_origin_server(PORTS["f_dav"], root, cert, key)
+        + _webdav_origin_server(PORTS["f_dav"], root, cert, key, tls=True)
+        + _webdav_origin_server(PORTS["f_dav_http"], root, cert, key, tls=False)
         + "}\n"
     )
 

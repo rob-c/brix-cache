@@ -59,6 +59,13 @@ typedef struct {
                                                     * if oldest (in-flight) */
     char                           *evicted;       /* parallel bool array:
                                                     * 1 if already unlinked */
+    /* Exclusively-VFS eviction: enumerate + remove through the cache STORAGE
+     * driver instead of raw POSIX. `inst` is the read-cache instance and
+     * `cache_root` its root (a candidate path is cache_root + the namespace key;
+     * the driver-op key is `path + strlen(cache_root)`). */
+    void                           *inst;          /* xrootd_sd_instance_t* */
+    const char                     *cache_root;    /* cache_root_canon string */
+    const char                     *state_root;    /* POSIX sidecar root (==cache_root if co-located) */
 } xrootd_cache_evict_list_t;
 
 /*
@@ -81,6 +88,17 @@ typedef struct {
  */
 ngx_int_t xrootd_cache_fs_usage(const char *root,
     xrootd_cache_fs_usage_t *usage);
+
+/*
+ * TTL-cached wrapper over xrootd_cache_fs_usage (per-worker), so hot callers —
+ * the write-back staging admission gate, and the watermark reaper timer — do not
+ * statvfs on every request. Returns the cached snapshot when it is younger than
+ * ttl_ms, else re-samples. NGX_ERROR only when a fresh sample is needed and the
+ * underlying statvfs fails (a still-valid stale slot is left in place). Defined
+ * in cache_fs_sampler.c; the pure freshness predicate lives in cache_fs_sampler.h.
+ */
+ngx_int_t xrootd_cache_fs_usage_sampled(const char *root, ngx_msec_t ttl_ms,
+    xrootd_cache_fs_usage_t *out);
 
 /*
  * Try to acquire the cross-worker eviction lock (an O_CREAT|O_EXCL sentinel
@@ -113,6 +131,21 @@ void xrootd_cache_evict_unlock(const char *lock_path);
  */
 ngx_int_t xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list,
     const char *dir, ngx_log_t *log);
+
+/*
+ * xrootd_cache_purge_to_target — the fill-task-free eviction engine shared by the
+ * on-fill safety net (xrootd_cache_evict_if_needed) and the background watermark
+ * reaper (xrootd_cache_watermark_purge). Collects candidates under cache_root,
+ * sorts oldest-first, and evicts (large-files pass then LRU pass) until occupancy
+ * ≤ target_ppm. `ctx` (per-conn metrics) and `c` (manager unregister socket) are
+ * OPTIONAL — pass NULL from the timer. The CALLER owns the cross-worker eviction
+ * lock + threshold pre-check. Writes evicted file/byte counts (out-pointers may
+ * be NULL); NGX_OK, or NGX_ERROR on a mid-purge usage re-measurement failure.
+ */
+ngx_int_t xrootd_cache_purge_to_target(ngx_stream_xrootd_srv_conf_t *conf,
+    xrootd_ctx_t *ctx, ngx_connection_t *c, const char *protect_path,
+    ngx_uint_t target_ppm, ngx_log_t *log, ngx_uint_t *evicted_files_out,
+    uint64_t *evicted_bytes_out);
 
 /*
  * qsort(3) comparator over xrootd_cache_evict_candidate_t for oldest-first

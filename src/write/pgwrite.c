@@ -259,6 +259,7 @@ xrootd_handle_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			xrootd_vfs_job_write_init(&job, ctx->files[idx].fd,
 									  (off_t) write_offset, flat, flat_sz);
 			job.csi = ctx->files[idx].csi;   /* phase-59 W2: update page tags */
+			xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
 			xrootd_vfs_io_execute(&job);
 			nw = job.nio;
 			if (job.io_errno != 0) {

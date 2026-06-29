@@ -96,8 +96,10 @@ ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
 
     xrootd_sd_posix_wrap(&obj, ctx->fd);   /* phase-55: SD seam */
     while (done < total) {
-        ssize_t n = xrootd_sd_posix_driver.pwrite(&obj, ptr + done, total - done,
-                                                  ctx->cur_offset + (off_t) done);
+        /* backend-agnostic vtable form (not the concrete xrootd_sd_posix_driver)
+         * so a non-POSIX backend serves this path unchanged. */
+        ssize_t n = obj.driver->pwrite(&obj, ptr + done, total - done,
+                                       ctx->cur_offset + (off_t) done);
         if (n < 0) {
             if (errno == EINTR) continue;
             return 0;  /* signal error to curl */
