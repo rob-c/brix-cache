@@ -60,8 +60,14 @@ else ifeq ($(shell pkg-config --exists liblz4 2>/dev/null && echo y),y)
   CODEC_CFLAGS += -DXROOTD_HAVE_LZ4=1 $(shell pkg-config --cflags liblz4 2>/dev/null)
 endif
 
+# NB: $(COMPAT) (src/compat) is added with -iquote, NOT -I. src/compat/time.h shares
+# its basename with the system <time.h>; under -I it lands in the angle-bracket search
+# path and shadows the real <time.h> (e.g. sd.h's `#include <time.h>` for struct
+# timespec then self-resolves to compat/time.h and time_t goes undefined). -iquote
+# serves only "..."-quoted includes (how every compat header here is referenced),
+# leaving <...> system headers untouched.
 ALL_CFLAGS := -std=c11 -Wall -Wextra -fPIC $(HARDEN) $(OPT) \
-              -DXRDPROTO_NO_NGX $(CODEC_CFLAGS) -I$(COMPAT) -I$(PROTO) $(CFLAGS)
+              -DXRDPROTO_NO_NGX $(CODEC_CFLAGS) -iquote $(COMPAT) -I$(PROTO) $(CFLAGS)
 
 BUILD := build
 LIB   := libxrdproto.a
@@ -84,7 +90,7 @@ COMPAT_OBJS := $(addprefix $(BUILD)/,$(addsuffix .o,$(NAMES)))
 GSI   := $(REPO)/src/gsi
 # Phase-38: gsi_core.c split into single-responsibility siblings (all ngx-free).
 GSI_OBJS := $(BUILD)/gsi_core.o $(BUILD)/gsi_buf.o $(BUILD)/gsi_dh.o \
-            $(BUILD)/gsi_cipher.o $(BUILD)/gsi_rsa.o
+            $(BUILD)/gsi_cipher.o $(BUILD)/gsi_rsa.o $(BUILD)/proxy_req.o
 # Token kernels shared with the module's src/token (WLCG scope authz + JWT
 # base64url decode — the DECODE/scope core, not the JWKS signature-verify path).
 TOKEN := $(REPO)/src/token
@@ -139,6 +145,8 @@ $(BUILD)/gsi_buf.o: $(GSI)/gsi_buf.c | $(BUILD)
 $(BUILD)/gsi_dh.o: $(GSI)/gsi_dh.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/gsi_cipher.o: $(GSI)/gsi_cipher.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/proxy_req.o: $(GSI)/proxy_req.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/gsi_rsa.o: $(GSI)/gsi_rsa.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@

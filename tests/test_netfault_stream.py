@@ -88,7 +88,7 @@ stream {{
     server {{
         listen {HOST}:{PORT};
         xrootd on;
-        xrootd_root {dataroot};
+        xrootd_storage_backend posix:{dataroot};
         xrootd_handshake_timeout {HANDSHAKE_TIMEOUT_MS}ms;
         xrootd_read_timeout {READ_TIMEOUT_MS}ms;
         xrootd_send_timeout {SEND_TIMEOUT_MS}ms;

@@ -13,7 +13,7 @@
  */
 void
 s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
-    const char *fs_path, xrootd_staged_file_t *staged,
+    const char *fs_path, xrootd_vfs_staged_t *staged,
     const s3_chunk_trailer_t *trailer, uint64_t expected, ngx_uint_t body_mode)
 {
     if (s3_commit_put(r, r->connection->log, root_canon, staged,
@@ -73,9 +73,9 @@ s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon,
 /* Decode-failure path: abort the staged temp and send the mapped S3 error. */
 void
 s3_chunk_decode_failed(ngx_http_request_t *r, const char *root_canon,
-    xrootd_staged_file_t *staged, int http_status)
+    xrootd_vfs_staged_t *staged, int http_status)
 {
-    xrootd_staged_abort(r->connection->log, root_canon, staged, 1);
+    xrootd_vfs_staged_abort(staged, 1);
     if (http_status >= 500) {
         s3_put_finalize_error(r);
     } else if (http_status == NGX_HTTP_FORBIDDEN) {
@@ -104,7 +104,7 @@ s3_chunk_aio_thread(void *data, ngx_log_t *log)
 
     (void) log;
     t->http_status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-    t->rc = s3_aws_chunked_decode_to_fd(t->r, t->staged.fd, t->fs_path,
+    t->rc = s3_aws_chunked_decode_to_fd(t->r, xrootd_vfs_staged_fd(t->staged), t->fs_path,
                                         t->expected, &t->trailer,
                                         &t->http_status, t->window,
                                         &t->verify);
@@ -150,9 +150,9 @@ s3_chunk_aio_done(ngx_event_t *ev)
     ngx_http_request_t *r = t->r;
 
     if (t->rc != NGX_OK) {
-        s3_chunk_decode_failed(r, t->root_canon, &t->staged, t->http_status);
+        s3_chunk_decode_failed(r, t->root_canon, t->staged, t->http_status);
         return;
     }
-    s3_chunk_finalize(r, t->root_canon, t->fs_path, &t->staged, &t->trailer,
+    s3_chunk_finalize(r, t->root_canon, t->fs_path, t->staged, &t->trailer,
                       t->expected, t->body_mode);
 }

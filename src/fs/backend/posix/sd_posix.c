@@ -391,9 +391,19 @@ static ngx_int_t
 sd_posix_mkdir(xrootd_sd_instance_t *inst, const char *path, mode_t mode)
 {
     sd_posix_state_t *st = inst->state;
+    char              abspath[PATH_MAX];
 
+    /* The vtable contract is a root-RELATIVE key; xrootd_ns_mkdir works in
+     * ABSOLUTE paths under root_canon (strip_root), so build the absolute here
+     * (matches sd_posix_unlink — the relative-path form silently failed). */
+    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
+                          st->root_canon, path) >= sizeof(abspath))
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
     return sd_posix_ns_result(
-        xrootd_ns_mkdir(inst->log, st->root_canon, path, mode, 0));
+        xrootd_ns_mkdir(inst->log, st->root_canon, abspath, mode, 0));
 }
 
 static ngx_int_t
@@ -510,13 +520,25 @@ sd_posix_closedir(xrootd_sd_dir_t *d)
 
 /* xattr / metadata */
 
+/* The vtable contract is a root-RELATIVE key; the *_confined_canon helpers work in
+ * ABSOLUTE paths under root_canon (they strip root_canon), so build the absolute
+ * here - matching sd_posix_unlink/mkdir. (The VFS reaches posix xattrs via the
+ * canon helpers directly; these driver slots are used by cstore over a posix cache
+ * store, where the relative-path form silently failed.) */
 static ssize_t
 sd_posix_getxattr(xrootd_sd_instance_t *inst, const char *path,
     const char *name, void *buf, size_t cap)
 {
     sd_posix_state_t *st = inst->state;
+    char              abspath[PATH_MAX];
 
-    return xrootd_getxattr_confined_canon(inst->log, st->root_canon, path,
+    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
+                          st->root_canon, path) >= sizeof(abspath))
+    {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    return xrootd_getxattr_confined_canon(inst->log, st->root_canon, abspath,
                                           name, buf, cap);
 }
 
@@ -525,8 +547,15 @@ sd_posix_listxattr(xrootd_sd_instance_t *inst, const char *path,
     void *buf, size_t cap)
 {
     sd_posix_state_t *st = inst->state;
+    char              abspath[PATH_MAX];
 
-    return xrootd_listxattr_confined_canon(inst->log, st->root_canon, path,
+    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
+                          st->root_canon, path) >= sizeof(abspath))
+    {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    return xrootd_listxattr_confined_canon(inst->log, st->root_canon, abspath,
                                            buf, cap);
 }
 
@@ -535,8 +564,15 @@ sd_posix_setxattr(xrootd_sd_instance_t *inst, const char *path,
     const char *name, const void *val, size_t len, int flags)
 {
     sd_posix_state_t *st = inst->state;
+    char              abspath[PATH_MAX];
 
-    return xrootd_setxattr_confined_canon(inst->log, st->root_canon, path,
+    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
+                          st->root_canon, path) >= sizeof(abspath))
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    return xrootd_setxattr_confined_canon(inst->log, st->root_canon, abspath,
                                           name, val, len, flags) == 0
                ? NGX_OK : NGX_ERROR;
 }
@@ -546,8 +582,15 @@ sd_posix_removexattr(xrootd_sd_instance_t *inst, const char *path,
     const char *name)
 {
     sd_posix_state_t *st = inst->state;
+    char              abspath[PATH_MAX];
 
-    return xrootd_removexattr_confined_canon(inst->log, st->root_canon, path,
+    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
+                          st->root_canon, path) >= sizeof(abspath))
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    return xrootd_removexattr_confined_canon(inst->log, st->root_canon, abspath,
                                              name) == 0
                ? NGX_OK : NGX_ERROR;
 }

@@ -35,6 +35,7 @@ daemon on; error_log $PFX/w/logs/e.log info; pid $PFX/w/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http {
+    client_max_body_size 50m;
     server {
         listen 127.0.0.1:${WPORT};
         location / {

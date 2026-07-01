@@ -3,11 +3,36 @@
 #include "../cache/open.h"
 #include "../compat/http_file_response.h"
 #include "../compat/http_headers.h"
-#include "../frm/frm.h"
 #include "../dashboard/dashboard_tracking.h"
 #include "../fs/vfs.h"
 #include "../shared/file_serve.h"
+#include "../shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
+#include "../shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
 #include "../zip/zip_http.h"   /* phase-57 W2: ZIP member access over S3 GET */
+
+/* GetObject range/bytes metrics — shared by the inline serve and the off-loop
+ * serve completion (xrootd_http_serve_offload), so both report identically. */
+static void
+s3_serve_metrics(ngx_http_request_t *r,
+    const xrootd_http_serve_result_t *result)
+{
+    if (result->range_result == XROOTD_SERVE_RANGE_UNSATISFIED) {
+        XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_UNSATISFIED]);
+    } else if (result->range_result == XROOTD_SERVE_RANGE_PARTIAL) {
+        XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_PARTIAL]);
+    } else {
+        XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_FULL]);
+    }
+    if (result->bytes_sent > 0) {
+        XROOTD_S3_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
+        if (r->connection && r->connection->sockaddr
+            && r->connection->sockaddr->sa_family == AF_INET6) {
+            XROOTD_S3_METRIC_ADD(bytes_tx_ipv6_total, (size_t) result->bytes_sent);
+        } else {
+            XROOTD_S3_METRIC_ADD(bytes_tx_ipv4_total, (size_t) result->bytes_sent);
+        }
+    }
+}
 
 #include <errno.h>
 #include <fcntl.h>
@@ -36,6 +61,22 @@ s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+}
+
+/* Re-entry state for the off-event-loop cache fill: GetObject needs its absolute
+ * fs_path + loc_conf to re-serve, so unlike WebDAV (which re-resolves from r) the
+ * trampoline carries them. Both are copied onto r->pool so they outlive the
+ * worker-thread fill. */
+typedef struct {
+    const char             *fs_path;
+    ngx_http_s3_loc_conf_t *cf;
+} s3_get_reenter_t;
+
+static ngx_int_t
+s3_get_reenter(ngx_http_request_t *r, void *data)
+{
+    s3_get_reenter_t *d = data;
+    return s3_handle_get(r, d->fs_path, d->cf);
 }
 
 /* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The range-parse → headers → body-send pipeline is shared with WebDAV GET via xrootd_http_serve_file_ranged() (src/shared/file_serve.c); this handler keeps only the S3-specific concerns: NoSuchKey XML errors, identity resolution, and S3 range/bytes metrics. */
@@ -90,6 +131,88 @@ s3_handle_get(ngx_http_request_t *r,
     }
 
     s3_vfs_ctx(r, fs_path, cf, &vctx);
+
+    /*
+     * Tape residency (phase-64 VFS seam): a GET of a nearline/offline object cannot
+     * be served from disk — S3/Glacier semantics require an explicit restore first
+     * (the WLCG Tape REST API), so report InvalidObjectState rather than faulting a
+     * recall. Checked BEFORE any open/fill so a tape-resident object never triggers
+     * a stage on a plain GET. An export with no nearline tier ⇒ ONLINE (a plain
+     * disk/object export is unaffected).
+     */
+    {
+        xrootd_sd_residency_t res;
+        if (xrootd_vfs_residency(&vctx, &res, NULL) == NGX_OK
+            && (res == XROOTD_SD_RES_NEARLINE || res == XROOTD_SD_RES_OFFLINE))
+        {
+            return s3_fail(r, NGX_HTTP_FORBIDDEN, "InvalidObjectState",
+                "The operation is not valid for the object's storage class.",
+                XROOTD_S3_EVENT_ACCESS_DENIED);
+        }
+    }
+
+    /* phase-64 SP3: serving from a socket-wire backend (a root:// primary backend
+     * or a cache_store/stage_store served from one) cannot open/read on the event
+     * loop - run the whole open+read off-loop, materialise + sendfile. See
+     * webdav/get.c. NGX_DECLINED ⇒ not a socket serve; fall through. */
+    {
+        xrootd_http_serve_opts_t sopts;
+        ngx_int_t                sr;
+
+        ngx_memzero(&sopts, sizeof(sopts));
+        sopts.xfer_proto = XROOTD_XFER_PROTO_S3;
+        sopts.op_name    = "GetObject";
+        sopts.identity   = "";
+        sopts.etag_flags = 0;
+        sopts.compress   = cf->common.compress;
+
+        sr = xrootd_http_serve_offload_remote(r, vctx.sd,
+            xrootd_vfs_export_relative(&vctx, fs_path), fs_path, &sopts,
+            &cf->common, s3_serve_metrics);
+        if (sr == NGX_DONE) {
+            return NGX_DONE;
+        }
+        if (sr == NGX_ERROR) {
+            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    /* phase-64 SP2: offload a remote cache MISS fill to the thread pool (it would
+     * otherwise stall the worker inside xrootd_vfs_open's inline fill) and re-
+     * enter on completion. See webdav/get.c. NGX_DECLINED ⇒ open inline below. */
+    {
+        s3_get_reenter_t *rd = ngx_palloc(r->pool, sizeof(*rd));
+        char             *fp;
+        size_t            fplen;
+        ngx_int_t         fr;
+
+        if (rd == NULL) {
+            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        fplen = ngx_strlen(fs_path);
+        fp = (char *) ngx_pnalloc(r->pool, fplen + 1);
+        if (fp == NULL) {
+            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ngx_memcpy(fp, fs_path, fplen + 1);
+        rd->fs_path = fp;
+        rd->cf      = cf;
+
+        fr = xrootd_http_cache_fill_if_needed(r, vctx.sd,
+            xrootd_vfs_export_relative(&vctx, fs_path), &cf->common,
+            s3_get_reenter, rd);
+        if (fr == NGX_DONE) {
+            return NGX_DONE;
+        }
+        if (fr == NGX_ERROR) {
+            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
     fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         if (vfs_err == ENOENT || vfs_err == ENOTDIR) {
@@ -112,24 +235,6 @@ s3_handle_get(ngx_http_request_t *r,
         return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                        "The specified key does not exist.",
                        XROOTD_S3_EVENT_NO_SUCH_KEY);
-    }
-
-    /*
-     * Tape residency (phase-35): a GET of a nearline/offline object cannot be
-     * served from disk — S3/Glacier semantics require an explicit restore first
-     * (the WLCG Tape REST API). Report InvalidObjectState rather than blocking or
-     * serving a stub. Absent xattr ⇒ ONLINE, so a plain disk export is unaffected.
-     */
-    {
-        frm_residency_t res;
-        if (frm_residency_probe(r->connection->log, fs_path, &res) == NGX_OK
-            && (res.state == FRM_RES_NEARLINE || res.state == FRM_RES_OFFLINE))
-        {
-            xrootd_vfs_close(fh, r->connection->log);
-            return s3_fail(r, NGX_HTTP_FORBIDDEN, "InvalidObjectState",
-                "The operation is not valid for the object's storage class.",
-                XROOTD_S3_EVENT_ACCESS_DENIED);
-        }
     }
 
     /*
@@ -199,26 +304,7 @@ s3_handle_get(ngx_http_request_t *r,
         if (rc == NGX_HTTP_INTERNAL_SERVER_ERROR) {
             XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         }
-
-        if (result.range_result == XROOTD_SERVE_RANGE_UNSATISFIED) {
-            XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_UNSATISFIED]);
-        } else if (result.range_result == XROOTD_SERVE_RANGE_PARTIAL) {
-            XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_PARTIAL]);
-        } else {
-            XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_FULL]);
-        }
-
-        if (result.bytes_sent > 0) {
-            XROOTD_S3_METRIC_ADD(bytes_tx_total, (size_t) result.bytes_sent);
-            if (r->connection && r->connection->sockaddr
-                && r->connection->sockaddr->sa_family == AF_INET6) {
-                XROOTD_S3_METRIC_ADD(bytes_tx_ipv6_total,
-                                     (size_t) result.bytes_sent);
-            } else {
-                XROOTD_S3_METRIC_ADD(bytes_tx_ipv4_total,
-                                     (size_t) result.bytes_sent);
-            }
-        }
+        s3_serve_metrics(r, &result);
     }
 
     return rc;
@@ -254,15 +340,15 @@ s3_handle_head(ngx_http_request_t *r,
     }
 
     /*
-     * Tape residency (phase-35): advertise the GLACIER storage class for a
+     * Tape residency (phase-64 VFS seam): advertise the GLACIER storage class for a
      * nearline object so clients learn a restore is required before a GET. HEAD
      * still returns 200 (metadata only); x-amz-restore reports no active restore
      * (the restore flow is the WLCG Tape REST API, not S3 GET).
      */
     {
-        frm_residency_t res;
-        if (frm_residency_probe(r->connection->log, fs_path, &res) == NGX_OK
-            && (res.state == FRM_RES_NEARLINE || res.state == FRM_RES_OFFLINE))
+        xrootd_sd_residency_t res;
+        if (xrootd_vfs_residency(&vctx, &res, NULL) == NGX_OK
+            && (res == XROOTD_SD_RES_NEARLINE || res == XROOTD_SD_RES_OFFLINE))
         {
             (void) xrootd_http_set_header(r, "x-amz-storage-class",
                                           "GLACIER", NULL);

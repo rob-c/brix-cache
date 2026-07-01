@@ -10,10 +10,17 @@
 #   -fstack-clash-protection     probe stack on entry to catch stack-clash attacks (GCC 8+)
 #   -fcf-protection=full         Intel CET control-flow integrity (x86, GCC 8+)
 #   -Wformat -Werror=format-security  reject printf calls with non-literal format strings
-# These are additive and safe to combine with nginx's own CFLAGS.
+#   -Wvla                        reject variable-length arrays — wire-controlled stack
+#                                growth is forbidden, so make the invariant compiler-enforced
+#   -Wstrict-prototypes -Wold-style-definition  reject K&R/() prototypes (require (void))
+# These are additive and safe to combine with nginx's own CFLAGS — the flags here
+# apply globally (module + nginx core), so only warnings nginx's own source is
+# already clean of may be promoted to -Werror. -Wvla / -Wstrict-prototypes /
+# -Wold-style-definition meet that bar; noisier flags (-Wshadow, -Wcast-qual,
+# -Wconversion) do not and must stay opt-in (e.g. --with-cc-opt) for module-only audits.
 # Alternatively, pass via:  ./configure ... --with-cc-opt="-D_FORTIFY_SOURCE=2 ..."
 # For full RELRO/BIND_NOW, defaulted below (NGX_LD_OPT); override with --with-ld-opt.
-CFLAGS="$CFLAGS -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -Wformat -Werror=format-security"
+CFLAGS="$CFLAGS -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -Wformat -Werror=format-security -Wvla -Wstrict-prototypes -Wold-style-definition"
 
 # Link hardening for the dynamic module (.so). Appended unless the operator
 # already passed equivalent flags via --with-ld-opt. Full RELRO + BIND_NOW make
@@ -335,6 +342,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/mirror/stream_mirror_io.h \
                         $ngx_addon_dir/src/ratelimit/ratelimit.h \
                         $ngx_addon_dir/src/types/config.h \
+                        $ngx_addon_dir/src/config/shared_conf.h \
                         $ngx_addon_dir/src/types/context.h \
                         $ngx_addon_dir/src/types/tunables.h \
                         $ngx_addon_dir/src/config/config.h \
@@ -343,7 +351,10 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/cache/open.h \
                         $ngx_addon_dir/src/cache/meta.h \
                         $ngx_addon_dir/src/cache/cinfo.h \
-                        $ngx_addon_dir/src/cache/slice.h \
+                        $ngx_addon_dir/src/cache/cinfo_l1.h \
+                        $ngx_addon_dir/src/cache/cinfo_xattr.h \
+                        $ngx_addon_dir/src/cache/cinfo_sidecar.h \
+                        $ngx_addon_dir/src/cache/cstore.h \
                         $ngx_addon_dir/src/cache/verify.h \
                         $ngx_addon_dir/src/cache/origin/transport.h \
                         $ngx_addon_dir/src/cache/origin/http_transport.h \
@@ -363,10 +374,13 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/types/identity.h \
                         $ngx_addon_dir/src/fs/vfs.h \
                         $ngx_addon_dir/src/fs/vfs_internal.h \
-                        $ngx_addon_dir/src/fs/vfs_scratch.h \
                         $ngx_addon_dir/src/fs/xfer/xfer.h \
                         $ngx_addon_dir/src/fs/xfer/xfer_reconcile.h \
+                        $ngx_addon_dir/src/fs/xfer/stage_engine.h \
+                        $ngx_addon_dir/src/fs/tier/tier.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
+                        $ngx_addon_dir/src/fs/backend/cache/sd_cache.h \
+                        $ngx_addon_dir/src/fs/backend/frm/sd_frm.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                         $ngx_addon_dir/src/frm/frm.h \
@@ -384,8 +398,18 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/ssi/ssi_rrinfo.h \
                         $ngx_addon_dir/src/ssi/ssi_service.h \
                         $ngx_addon_dir/src/ssi/ssi_reply.h \
+                        $ngx_addon_dir/src/ssi/ssi_req.h \
+                        $ngx_addon_dir/src/ssi/respbuf.h \
+                        $ngx_addon_dir/src/ssi/provider.h \
+                        $ngx_addon_dir/src/ssi/session.h \
+                        $ngx_addon_dir/src/ssi/registry.h \
+                        $ngx_addon_dir/src/ssi/deliver.h \
+                        $ngx_addon_dir/src/ssi/svc_cta/pb_wire.h \
+                        $ngx_addon_dir/src/ssi/svc_cta/cta_pb.h \
+                        $ngx_addon_dir/src/ssi/svc_cta/cta_queue.h \
+                        $ngx_addon_dir/src/ssi/svc_cta/cta_exec.h \
+                        $ngx_addon_dir/src/ssi/svc_cta/cta_service.h \
                         $ngx_addon_dir/src/cms/cns.h \
-                        $ngx_addon_dir/src/read/slice_read.h \
                         $ngx_addon_dir/src/read/stat.h \
                         $ngx_addon_dir/src/read/statx.h \
                         $ngx_addon_dir/src/session/session.h \
@@ -424,6 +448,8 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/compat/http_body.h \
                         $ngx_addon_dir/src/compat/http_conditionals.h \
                         $ngx_addon_dir/src/shared/file_serve.h \
+                        $ngx_addon_dir/src/shared/http_cache_fill.h \
+                        $ngx_addon_dir/src/shared/http_serve_offload.h \
                         $ngx_addon_dir/src/compat/http_file_response.h \
                         $ngx_addon_dir/src/compat/http_headers.h \
                         $ngx_addon_dir/src/compat/error_mapping.h \
@@ -554,6 +580,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/compat/http_body.c \
     $ngx_addon_dir/src/compat/http_conditionals.c \
     $ngx_addon_dir/src/shared/file_serve.c \
+    $ngx_addon_dir/src/shared/http_cache_fill.c \
+    $ngx_addon_dir/src/shared/http_serve_offload.c \
     $ngx_addon_dir/src/compat/http_file_response.c \
     $ngx_addon_dir/src/compat/http_compress.c \
     $ngx_addon_dir/src/compat/http_headers.c \
@@ -608,7 +636,6 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs_xattr.c \
     $ngx_addon_dir/src/fs/vfs_copy.c \
     $ngx_addon_dir/src/fs/vfs_staged.c \
-    $ngx_addon_dir/src/fs/vfs_scratch.c \
     $ngx_addon_dir/src/fs/xfer/xfer_mover_pump.c \
     $ngx_addon_dir/src/fs/xfer/xfer_mover_agent.c \
     $ngx_addon_dir/src/fs/xfer/xfer_spawn.c \
@@ -616,10 +643,16 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/xfer/xfer_core.c \
     $ngx_addon_dir/src/fs/xfer/xfer_reconcile.c \
     $ngx_addon_dir/src/fs/xfer/xfer_resume_sweep.c \
+    $ngx_addon_dir/src/fs/xfer/stage_engine.c \
+    $ngx_addon_dir/src/fs/tier/tier_config.c \
+    $ngx_addon_dir/src/fs/tier/tier_build.c \
     $ngx_addon_dir/src/fs/fd_cache.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix.c \
     $ngx_addon_dir/src/fs/backend/block/sd_block.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph.c \
+    $ngx_addon_dir/src/fs/backend/rados/cephfs_denc.c \
+    $ngx_addon_dir/src/fs/backend/rados/cephfs_layout.c \
+    $ngx_addon_dir/src/fs/backend/rados/sd_cephfs_ro.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_compat.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_striper.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock.c \
@@ -627,6 +660,10 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/s3/sd_s3.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote.c \
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http.c \
+    $ngx_addon_dir/src/fs/backend/stage/sd_stage.c \
+    $ngx_addon_dir/src/fs/backend/cache/sd_cache.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm.c \
     $ngx_addon_dir/src/fs/backend/meta_advisory.c \
     $ngx_addon_dir/src/fs/backend/site_n2n.c \
     $ngx_addon_dir/src/fs/backend/sd_registry.c \
@@ -635,6 +672,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/config/root_prepare.c \
     $ngx_addon_dir/src/config/http_rootfd.c \
     $ngx_addon_dir/src/config/helpers.c \
+    $ngx_addon_dir/src/config/credential_block.c \
     $ngx_addon_dir/src/config/server_conf.c \
     $ngx_addon_dir/src/config/policy.c \
     $ngx_addon_dir/src/config/manager_map.c \
@@ -759,13 +797,15 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/cache/open.c \
     $ngx_addon_dir/src/cache/meta.c \
     $ngx_addon_dir/src/cache/cinfo.c \
+    $ngx_addon_dir/src/cache/cinfo_l1.c \
+    $ngx_addon_dir/src/cache/cinfo_xattr.c \
+    $ngx_addon_dir/src/cache/cinfo_sidecar.c \
+    $ngx_addon_dir/src/cache/cstore.c \
     $ngx_addon_dir/src/cache/verify.c \
     $ngx_addon_dir/src/cache/origin/http_transport.c \
     $ngx_addon_dir/src/cache/origin/s3_transport.c \
     $ngx_addon_dir/src/cache/origin/pelican.c \
     $ngx_addon_dir/src/cache/origin/pelican_register.c \
-    $ngx_addon_dir/src/cache/slice.c \
-    $ngx_addon_dir/src/cache/slice_fill.c \
     $ngx_addon_dir/src/cache/lock.c \
     $ngx_addon_dir/src/cache/cache_admit.c \
     $ngx_addon_dir/src/cache/stage_admit.c \
@@ -778,13 +818,18 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/cache/origin_connection.c \
     $ngx_addon_dir/src/cache/origin_response.c \
     $ngx_addon_dir/src/cache/origin_protocol.c \
-    $ngx_addon_dir/src/cache/writethrough_flush.c \
-    $ngx_addon_dir/src/cache/writethrough_replay.c \
     $ngx_addon_dir/src/cache/fetch.c \
     $ngx_addon_dir/src/cache/evict_candidates.c \
     $ngx_addon_dir/src/cache/evict_policy.c \
     $ngx_addon_dir/src/cache/thread.c \
     $ngx_addon_dir/src/cache/open_or_fill.c \
+    $ngx_addon_dir/src/tap/tap_decode.c \
+    $ngx_addon_dir/src/tap/tap_emit.c \
+    $ngx_addon_dir/src/tap/tap_audit.c \
+    $ngx_addon_dir/src/tap/tap_stream.c \
+    $ngx_addon_dir/src/relay/relay.c \
+    $ngx_addon_dir/src/proxy/gsi_upstream.c \
+    $ngx_addon_dir/src/proxy/gsi_upstream_login.c \
     $ngx_addon_dir/src/cms/wire.c \
     $ngx_addon_dir/src/cms/router.c \
     $ngx_addon_dir/src/cms/rrdata.c \
@@ -918,9 +963,18 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/ssi/ssi_rrinfo.c \
     $ngx_addon_dir/src/ssi/ssi_service.c \
     $ngx_addon_dir/src/ssi/ssi_reply.c \
+    $ngx_addon_dir/src/ssi/provider.c \
+    $ngx_addon_dir/src/ssi/session.c \
+    $ngx_addon_dir/src/ssi/respbuf.c \
+    $ngx_addon_dir/src/ssi/registry.c \
+    $ngx_addon_dir/src/ssi/deliver.c \
+    $ngx_addon_dir/src/ssi/svc_cta/pb_wire.c \
+    $ngx_addon_dir/src/ssi/svc_cta/cta_pb.c \
+    $ngx_addon_dir/src/ssi/svc_cta/cta_queue.c \
+    $ngx_addon_dir/src/ssi/svc_cta/cta_exec.c \
+    $ngx_addon_dir/src/ssi/svc_cta/cta_service.c \
     $ngx_addon_dir/src/read/read.c \
     $ngx_addon_dir/src/read/read_compress.c \
-    $ngx_addon_dir/src/read/slice_read.c \
     $ngx_addon_dir/src/read/readv.c \
     $ngx_addon_dir/src/read/pgread.c \
     $ngx_addon_dir/src/read/locate.c \

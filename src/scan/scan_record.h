@@ -54,6 +54,22 @@ int xrootd_scan_record_health(char *buf, size_t cap, const char *backend,
                               uint64_t total_bytes, uint64_t free_bytes,
                               uint64_t used_bytes);
 
+/* {"t":"object","key":..,"path":..,"size":..,"mtime":..,"orphan":true|false}
+ * — one backend-catalog object (E1 inventory). `key` is the backend object key
+ * (required). `path` is the recovered logical path, or NULL ⇒ "path":null and an
+ * orphan candidate (set `orphan` accordingly). */
+int xrootd_scan_record_object(char *buf, size_t cap, const char *key,
+                              const char *path, int64_t size, int64_t mtime,
+                              int orphan);
+
+/* {"t":"drift","key":..,"path":..,"class":..,"size":..}
+ * — one namespace↔catalog reconciliation result (D2 drift). `class` is one of
+ * "in_both" / "size_mismatch" / "orphan_object" / "namespace_only". `key` is NULL
+ * for namespace_only (no backing object) and `path` is NULL for orphan_object
+ * (no namespace entry); each NULL renders as JSON null. */
+int xrootd_scan_record_drift(char *buf, size_t cap, const char *key,
+                             const char *path, const char *cls, int64_t size);
+
 /* {"t":"cursor","after":<path>} */
 int xrootd_scan_record_cursor(char *buf, size_t cap, const char *after);
 

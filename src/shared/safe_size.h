@@ -37,6 +37,10 @@
  * (in which case *out is left unspecified — callers must not use it). */
 static ngx_inline ngx_int_t
 xrootd_size_mul(size_t a, size_t b, size_t *out)
+    __attribute__((warn_unused_result));
+
+static ngx_inline ngx_int_t
+xrootd_size_mul(size_t a, size_t b, size_t *out)
 {
 #if defined(__GNUC__) || defined(__clang__)
     if (__builtin_mul_overflow(a, b, out)) {
@@ -53,6 +57,10 @@ xrootd_size_mul(size_t a, size_t b, size_t *out)
 }
 
 /* Add: *out = a+b.  Returns NGX_OK / NGX_ERROR (on wrap). */
+static ngx_inline ngx_int_t
+xrootd_size_add(size_t a, size_t b, size_t *out)
+    __attribute__((warn_unused_result));
+
 static ngx_inline ngx_int_t
 xrootd_size_add(size_t a, size_t b, size_t *out)
 {
@@ -77,6 +85,10 @@ xrootd_size_add(size_t a, size_t b, size_t *out)
  */
 static ngx_inline void *
 xrootd_palloc_array(ngx_pool_t *pool, size_t n, size_t sz)
+    __attribute__((warn_unused_result, malloc, alloc_size(2, 3)));
+
+static ngx_inline void *
+xrootd_palloc_array(ngx_pool_t *pool, size_t n, size_t sz)
 {
     size_t total;
 
@@ -87,6 +99,10 @@ xrootd_palloc_array(ngx_pool_t *pool, size_t n, size_t sz)
 }
 
 /* Same, zero-initialised. */
+static ngx_inline void *
+xrootd_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)
+    __attribute__((warn_unused_result, alloc_size(2, 3)));
+
 static ngx_inline void *
 xrootd_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)
 {
@@ -103,6 +119,10 @@ xrootd_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)
  * connection/persistent buffer outlives any request pool.  Returns NULL on
  * overflow or OOM; free with ngx_free().
  */
+static ngx_inline void *
+xrootd_alloc_array(ngx_log_t *log, size_t n, size_t sz)
+    __attribute__((warn_unused_result, malloc, alloc_size(2, 3)));
+
 static ngx_inline void *
 xrootd_alloc_array(ngx_log_t *log, size_t n, size_t sz)
 {

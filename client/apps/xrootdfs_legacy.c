@@ -114,7 +114,7 @@ xfs_flush_wbuf(xfs_handle *h, xrdc_status *st)
 /* The error mapping, the conn-health test, and the pooled metadata-op runner are
  * shared with the async driver in lib/fuse_ops.c.  xfs_err/xfs_conn_healthy stay
  * as thin local wrappers (used throughout the read/write/open paths); the
- * metadata ops below call xrdc_fuse_run(g_pool, 0, …) — max_retries 0 is exactly
+ * metadata ops below call xrdc_fuse_run(g_pool, 0, 0, 0,…) — max_retries 0 is exactly
  * this simple driver's single checkout → op → checkin → map behaviour. */
 static int
 xfs_conn_healthy(const xrdc_status *st)
@@ -154,7 +154,7 @@ xfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
     }
     xrdc_status_clear(&st);
     struct xrdc_fuse_ctx_stat a = { path, &si };
-    rc = xrdc_fuse_run(g_pool, 0, xrdc_fuse_op_stat, &a, &st);
+    rc = xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_stat, &a, &st);
     if (rc != 0) {
         return rc;
     }
@@ -176,7 +176,7 @@ xfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
     /* want_stat=1 (in the op thunk) → the server returns per-entry stat in the
      * SAME round-trip, so `ls -l` doesn't trigger a getattr storm (readdir-plus). */
     struct xrdc_fuse_ctx_dir a = { path, &ents, &n };
-    rc = xrdc_fuse_run(g_pool, 0, xrdc_fuse_op_dirlist, &a, &st);
+    rc = xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_dirlist, &a, &st);
     if (rc != 0) {
         return rc;
     }
@@ -399,7 +399,7 @@ xfs_mkdir(const char *path, mode_t mode)
     xrdc_status st;
     xrdc_status_clear(&st);
     struct xrdc_fuse_ctx_mkdir a = { path, (int) (mode & 0777) };
-    return xrdc_fuse_run(g_pool, 0, xrdc_fuse_op_mkdir, &a, &st);
+    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_mkdir, &a, &st);
 }
 
 static int
@@ -407,7 +407,7 @@ xfs_unlink(const char *path)
 {
     xrdc_status st;
     xrdc_status_clear(&st);
-    return xrdc_fuse_run(g_pool, 0, xrdc_fuse_op_rm, (void *) path, &st);
+    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_rm, (void *) path, &st);
 }
 
 static int
@@ -415,7 +415,7 @@ xfs_rmdir(const char *path)
 {
     xrdc_status st;
     xrdc_status_clear(&st);
-    return xrdc_fuse_run(g_pool, 0, xrdc_fuse_op_rmdir, (void *) path, &st);
+    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_rmdir, (void *) path, &st);
 }
 
 static int
@@ -427,7 +427,7 @@ xfs_rename(const char *from, const char *to, unsigned int flags)
     }
     xrdc_status_clear(&st);
     struct xrdc_fuse_ctx_mv a = { from, to };
-    return xrdc_fuse_run(g_pool, 0, xrdc_fuse_op_mv, &a, &st);
+    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_mv, &a, &st);
 }
 
 static int
@@ -437,7 +437,7 @@ xfs_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
     (void) fi;
     xrdc_status_clear(&st);
     struct xrdc_fuse_ctx_chmod a = { path, (int) (mode & 0777) };
-    return xrdc_fuse_run(g_pool, 0, xrdc_fuse_op_chmod, &a, &st);
+    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_chmod, &a, &st);
 }
 
 static int
@@ -447,7 +447,7 @@ xfs_truncate(const char *path, off_t size, struct fuse_file_info *fi)
     (void) fi;
     xrdc_status_clear(&st);
     struct xrdc_fuse_ctx_trunc a = { path, (int64_t) size };
-    return xrdc_fuse_run(g_pool, 0, xrdc_fuse_op_trunc, &a, &st);
+    return xrdc_fuse_run(g_pool, 0, 0, 0,xrdc_fuse_op_trunc, &a, &st);
 }
 
 /* chown/utimens succeed as no-ops so tools like `cp -p` don't abort the copy. */

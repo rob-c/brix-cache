@@ -58,10 +58,11 @@ def _read_response(sock):
 
 
 def _rrinfo(cmd, req_id, size):
-    """Encode an XrdSsiRRInfo into the 8 wire offset bytes (byte-exact with the
-    real class: [id_lo][id_mid][id_hi][cmd][size little-endian u32])."""
-    return bytes([req_id & 0xff, (req_id >> 8) & 0xff, (req_id >> 16) & 0xff,
-                  cmd]) + struct.pack("<I", size)
+    """Encode an XrdSsiRRInfo into the 8 wire bytes, matching the real class:
+    byte0 = reqCmd, bytes1-3 = reqId big-endian (24-bit), bytes4-7 = reqSize
+    little-endian. (Verified against live libXrdSsi traffic.)"""
+    return bytes([cmd & 0xff, (req_id >> 16) & 0xff, (req_id >> 8) & 0xff,
+                  req_id & 0xff]) + struct.pack("<I", size)
 
 
 def _handshake_login(host, port):
@@ -156,9 +157,10 @@ def ssi_server():
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{SSI_PORT};\n"
-            f"        xrootd on; xrootd_root {data}; xrootd_auth none;\n"
+            f"        xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;\n"
             f"        xrootd_allow_write on;\n"
             f"        xrootd_ssi on;\n"
+            f"        xrootd_ssi_service cta;\n"
             f"    }}\n"
             f"}}\n")
     subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)

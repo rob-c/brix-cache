@@ -323,6 +323,13 @@ copy_tpc(const xrdc_url *su, const xrdc_url *du, const xrdc_copy_opts *o,
         return tpc_teardown(&sc, &dc, &sf, &df, src_opaque, dst_opaque,
                             0, 0, 0, 0, -1, st);
     }
+    /* The source open is the TPC COORDINATOR: it registers the rendezvous key, and
+     * the source defers its open reply (kXR_waitresp) until the pull completes. Let
+     * xrdc_recv surface that deferral rather than block — we still have to open the
+     * destination and trigger the pull that satisfies this very wait, so blocking
+     * here would deadlock the rendezvous. The source connection stays open through
+     * the transfer so the registration remains live. */
+    sc.tpc_coord_defer = 1;
     if (xrdc_file_open_opaque(&sc, su->path, src_opaque, 0, 0, 0, &sf, st) != 0) {
         return tpc_teardown(&sc, &dc, &sf, &df, src_opaque, dst_opaque,
                             1, 0, 0, 0, -1, st);

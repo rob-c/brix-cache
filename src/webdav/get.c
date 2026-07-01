@@ -11,7 +11,47 @@
 #include "../dashboard/dashboard_tracking.h"
 #include "../fs/vfs.h"
 #include "../shared/file_serve.h"
+#include "../shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
+#include "../shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
 #include "../zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
+
+/* GET range/bytes metrics — shared by the inline serve and the off-loop serve
+ * completion (xrootd_http_serve_offload), so both report identically. */
+static void
+webdav_serve_metrics(ngx_http_request_t *r,
+    const xrootd_http_serve_result_t *result)
+{
+    if (result->range_result == XROOTD_SERVE_RANGE_UNSATISFIED) {
+        XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_UNSATISFIED]);
+    } else if (result->range_result == XROOTD_SERVE_RANGE_PARTIAL) {
+        XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_PARTIAL]);
+    } else {
+        XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_FULL]);
+    }
+    if (result->bytes_sent > 0) {
+        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
+        if (r->connection && r->connection->sockaddr) {
+            if (r->connection->sockaddr->sa_family == AF_INET6) {
+                XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total,
+                                         (size_t) result->bytes_sent);
+            } else {
+                XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total,
+                                         (size_t) result->bytes_sent);
+            }
+        }
+    }
+}
+
+/* Re-entry trampoline for the off-event-loop cache fill: after the fill lands the
+ * completion event re-runs the GET handler, which now finds a cache HIT and serves
+ * it zero-copy. The fill helper carries no per-handler state (the request re-
+ * resolves from r), so `data` is unused. */
+static ngx_int_t
+webdav_get_reenter(ngx_http_request_t *r, void *data)
+{
+    (void) data;
+    return webdav_handle_get(r);
+}
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -139,6 +179,51 @@ webdav_handle_get(ngx_http_request_t *r)
     /* Route through the export's selected storage backend (NULL ⇒ default POSIX). */
     vctx.sd = xrootd_webdav_backend_instance(conf, r->connection->log);
 
+    /* phase-64 SP3: serving from a socket-wire backend (a root:// primary backend
+     * or a cache_store/stage_store served from one) cannot open/read on the event
+     * loop. Run the whole open+read on the thread pool, materialise + sendfile.
+     * NGX_DECLINED ⇒ not a socket serve; fall through to the local fast paths. */
+    {
+        const char              *identity =
+            (wctx != NULL && wctx->dn[0] != '\0') ? wctx->dn : "anonymous";
+        xrootd_http_serve_opts_t sopts;
+        ngx_int_t                sr;
+
+        ngx_memzero(&sopts, sizeof(sopts));
+        sopts.xfer_proto = XROOTD_XFER_PROTO_WEBDAV;
+        sopts.op_name    = "GET";
+        sopts.identity   = identity;
+        sopts.etag_flags = XROOTD_ETAG_WEAK;
+        sopts.compress   = conf->common.compress;
+
+        sr = xrootd_http_serve_offload_remote(r, vctx.sd,
+            xrootd_vfs_export_relative(&vctx, path), path, &sopts,
+            &conf->common, webdav_serve_metrics);
+        if (sr == NGX_DONE) {
+            return NGX_DONE;
+        }
+        if (sr == NGX_ERROR) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    /* phase-64 SP2: a cache MISS whose fill reads a remote source or writes a
+     * remote store would stall the worker inside xrootd_vfs_open's inline fill.
+     * Offload it to the thread pool and re-enter (a cache hit) on completion;
+     * NGX_DECLINED ⇒ no offload needed (hit / local tier) — open inline below. */
+    {
+        ngx_int_t fr = xrootd_http_cache_fill_if_needed(r, vctx.sd,
+            xrootd_vfs_export_relative(&vctx, path), &conf->common,
+            webdav_get_reenter, NULL);
+
+        if (fr == NGX_DONE) {
+            return NGX_DONE;
+        }
+        if (fr == NGX_ERROR) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
     fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         if (vfs_err == ENOENT || vfs_err == ENOTDIR
@@ -156,6 +241,24 @@ webdav_handle_get(ngx_http_request_t *r)
             || vfs_err == EXDEV || vfs_err == ELOOP)
         {
             return NGX_HTTP_FORBIDDEN;
+        }
+
+        /* EAGAIN ⇒ a nearline (tape) recall is in flight (sd_frm/sd_cache, §9.2).
+         * Answer 202 "staging" with a Retry-After so the client polls until the
+         * object is recalled into the cache tier and served — never block the
+         * worker for a minutes-to-hours MSS recall. */
+        if (vfs_err == EAGAIN) {
+            ngx_table_elt_t *ra = ngx_list_push(&r->headers_out.headers);
+
+            if (ra != NULL) {
+                ra->hash = 1;
+                ngx_str_set(&ra->key, "Retry-After");
+                ngx_str_set(&ra->value, "10");
+            }
+            r->headers_out.status           = NGX_HTTP_ACCEPTED;
+            r->headers_out.content_length_n = 0;
+            ngx_http_send_header(r);
+            return ngx_http_send_special(r, NGX_HTTP_LAST);
         }
 
         ngx_log_error(NGX_LOG_ERR, r->connection->log, vfs_err,
@@ -241,29 +344,7 @@ webdav_handle_get(ngx_http_request_t *r)
         opts.pre_header_ud   = &sb;
 
         rc = xrootd_http_serve_file_ranged(r, fh, &vst, path, &opts, &result);
-
-        if (result.range_result == XROOTD_SERVE_RANGE_UNSATISFIED) {
-            XROOTD_WEBDAV_METRIC_INC(
-                range_total[XROOTD_WEBDAV_RANGE_UNSATISFIED]);
-        } else if (result.range_result == XROOTD_SERVE_RANGE_PARTIAL) {
-            XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_PARTIAL]);
-        } else {
-            XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_FULL]);
-        }
-
-        if (result.bytes_sent > 0) {
-            XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total,
-                                     (size_t) result.bytes_sent);
-            if (r->connection && r->connection->sockaddr) {
-                if (r->connection->sockaddr->sa_family == AF_INET6) {
-                    XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total,
-                                             (size_t) result.bytes_sent);
-                } else {
-                    XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total,
-                                             (size_t) result.bytes_sent);
-                }
-            }
-        }
+        webdav_serve_metrics(r, &result);
     }
 
     return rc;

@@ -138,7 +138,7 @@ BINDIR := bin
 # Every binary is a thin front-end: apps/<name>.o + the client lib + libxrdproto.
 BINS := xrd xrdfs xrdcp xrdcrc32c xrdcrc64 xrdadler32 xrdqstats wait41 xrdprep xrdgsiproxy xrddiag \
         xrdmapc xrdgsitest mpxstats \
-        xrdsssadmin xrdckverify xrdstorascan
+        xrdsssadmin xrdckverify xrdstorascan xrdcinfo
 BIN_EXES := $(addprefix $(BINDIR)/,$(BINS))
 
 # §14.4: the FUSE mount + the LD_PRELOAD POSIX shim are built only when libfuse3

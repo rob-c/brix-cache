@@ -79,7 +79,7 @@ def _write_conf(tmp_path, extra_loc):
         f"    listen {BIND_HOST}:{HTTP_PORT};\n"
         "    location / {\n"
         "      xrootd_webdav on;\n"
-        f"      xrootd_webdav_root {root};\n"
+        f"      xrootd_webdav_storage_backend posix:{root};\n"
         "      xrootd_webdav_auth none;\n"
         "      xrootd_pmark on;\n"
         "      xrootd_pmark_http_plain on;\n"

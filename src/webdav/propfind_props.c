@@ -340,29 +340,36 @@ propfind_entry(ngx_http_request_t *r, ngx_chain_t **head, ngx_chain_t **tail,
     }
 
     /*
-     * xrd:locality — tape residency (phase-35). Probed (stat+getxattr) only when
-     * the client explicitly names the prop (PF_LOCALITY is not in PF_ALL), and
-     * only for regular files. Absent xattr ⇒ ONLINE, so a plain disk export needs
-     * no migration. Values follow the WLCG locality vocabulary.
+     * xrd:locality — tape residency (phase-64 VFS seam). Emitted only when the
+     * client explicitly names the prop (PF_LOCALITY is not in PF_ALL) and only for
+     * regular files. Residency comes from the storage backend's model via
+     * xrootd_vfs_residency (no FRM xattr): a plain disk/object export classifies
+     * ONLINE, so it needs no nearline tier; on a nearline (tape) export an online
+     * object is ONLINE_AND_NEARLINE (resident AND on the backend) and a
+     * nearline/offline object is NEARLINE. Values follow the WLCG locality vocab.
      */
     if ((mask & PF_LOCALITY) && !S_ISDIR(sb->st_mode)) {
-        frm_residency_t res;
-        const char     *loc = "ONLINE";
+        ngx_http_xrootd_webdav_loc_conf_t *conf =
+            ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+        xrootd_vfs_ctx_t      vctx;
+        xrootd_sd_residency_t res;
+        int                   nearline = 0;
+        const char           *loc = "ONLINE";
 
-        if (frm_residency_probe(r->connection->log, path, &res) == NGX_OK) {
-            switch (res.state) {
-            case FRM_RES_ONLINE:
-                loc = res.backend_exists ? "ONLINE_AND_NEARLINE" : "ONLINE";
+        xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+            XROOTD_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
+            conf->common.allow_write, 0 /* is_tls */, NULL, path);
+        if (xrootd_vfs_residency(&vctx, &res, &nearline) == NGX_OK && nearline) {
+            switch (res) {
+            case XROOTD_SD_RES_ONLINE:
+                loc = "ONLINE_AND_NEARLINE";
                 break;
-            case FRM_RES_NEARLINE:
-            case FRM_RES_OFFLINE:
+            case XROOTD_SD_RES_NEARLINE:
+            case XROOTD_SD_RES_OFFLINE:
                 loc = "NEARLINE";
                 break;
-            case FRM_RES_LOST:
+            case XROOTD_SD_RES_LOST:
                 loc = "LOST";
-                break;
-            default:
-                loc = "ONLINE";
                 break;
             }
         }

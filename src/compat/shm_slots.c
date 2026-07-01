@@ -12,30 +12,46 @@
 
 
 /*
- * xrootd_shm_table_mutex_create — create the table's process-local mutex in
- * spin+yield-only mode (POSIX semaphore disabled).
+ * xrootd_shm_table_mutex_create — bind the table's process-local mutex to the
+ * slab pool's OWN lock word (&sp->lock), in spin+yield-only mode.
  *
- * WHY: ngx_shmtx's POSIX-semaphore wakeup path is lost-wakeup-prone under heavy
- * cross-worker contention (and the underlying sem_wait/sem_post is unreliable on
- * some kernels, notably WSL2): a worker can block in sem_wait indefinitely with
- * the lock ALREADY free — observed as lock==0, wait==0, yet a thread parked in
- * __futex_abstimed_wait_common — because no subsequent unlock ever posts the
- * semaphore (the unlock's wakeup only posts when wait>0).  That hangs the whole
- * worker (it stops running its event loop), stalling every connection pinned to
- * it.  These tables are tiny fixed-slot scans held for microseconds, so spinning
- * with sched_yield on contention is both correct and cheaper than a syscall —
- * and immune to the lost wakeup.  ngx_shmtx_create() initialises the semaphore
- * unconditionally when NGX_HAVE_POSIX_SEM is set, so we clear ->semaphore right
- * after; the lock then uses the spin-then-ngx_sched_yield path exclusively.
+ * WHY BIND TO &sp->lock (dead-holder recovery): nginx's ngx_unlock_mutexes(),
+ * run on EVERY worker death, force-unlocks exactly &((ngx_slab_pool_t *)
+ * shm.addr)->mutex — which points at &sp->lock — for every registered zone. It
+ * has no knowledge of a mutex laid over the table data elsewhere in the zone. A
+ * table mutex bound to its own embedded lock word is therefore NEVER recovered:
+ * a worker SIGKILLed mid-critical-section (e.g. at reload's
+ * worker_shutdown_timeout) while holding it strands the lock forever, and the
+ * spin+yield path below has no timeout to escape. Across many reload/restart
+ * cycles that coincidence becomes a near-certainty, the stale lock survives
+ * reload via the persisted slab pool, and every subsequent kXR_open freezes its
+ * whole worker. Sharing &sp->lock inherits nginx's per-zone recovery for free.
+ * It cannot self-deadlock: every consumer holds this lock only for fixed-slot
+ * table scans that never call ngx_slab_alloc/free (the only other &sp->lock
+ * taker).
+ *
+ * WHY spin+yield (no POSIX semaphore): ngx_shmtx's semaphore wakeup path is
+ * lost-wakeup-prone under heavy cross-worker contention (and sem_wait/sem_post
+ * is unreliable on some kernels, notably WSL2): a worker can block in sem_wait
+ * indefinitely with the lock ALREADY free — lock==0, wait==0, yet a thread
+ * parked in __futex_abstimed_wait_common — because no later unlock posts the
+ * semaphore (wakeup posts only when wait>0). That freezes the whole worker,
+ * stalling every pinned connection. These are microsecond fixed-slot scans, so
+ * spin-then-ngx_sched_yield is correct, cheaper than a syscall, and immune to
+ * the lost wakeup. ngx_shmtx_create() enables the semaphore unconditionally when
+ * NGX_HAVE_POSIX_SEM is set, so we clear ->semaphore on BOTH our handle and the
+ * shared sp->mutex (both point at &sp->lock): neither our ngx_shmtx_lock nor
+ * nginx's force-unlock wakeup must ever touch a semaphore.
  */
 static ngx_int_t
-xrootd_shm_table_mutex_create(ngx_shmtx_t *mtx, ngx_shmtx_sh_t *addr)
+xrootd_shm_table_mutex_create(ngx_shmtx_t *mtx, ngx_slab_pool_t *sp)
 {
-    if (ngx_shmtx_create(mtx, addr, NULL) != NGX_OK) {
+    if (ngx_shmtx_create(mtx, &sp->lock, NULL) != NGX_OK) {
         return NGX_ERROR;
     }
 #if (NGX_HAVE_POSIX_SEM)
-    mtx->semaphore = 0;
+    mtx->semaphore      = 0;
+    sp->mutex.semaphore = 0;
 #endif
     return NGX_OK;
 }
@@ -52,28 +68,26 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
         *fresh = 0;
     }
 
+    /* The table mutex always binds to the slab pool's own lock word (&sp->lock),
+     * so nginx's per-zone force-unlock recovers it on worker death (see
+     * xrootd_shm_table_mutex_create). shm.addr is the slab pool in every path —
+     * fresh, reload, and re-attach. */
+    sp = (ngx_slab_pool_t *) shm_zone->shm.addr;
+
     /* Reload: nginx hands us the previous cycle's table via `data`. */
     if (data) {
         shm_zone->data = data;
-        if (mtx
-            && xrootd_shm_table_mutex_create(mtx, (ngx_shmtx_sh_t *) data)
-               != NGX_OK)
-        {
+        if (mtx && xrootd_shm_table_mutex_create(mtx, sp) != NGX_OK) {
             return NULL;
         }
         return data;
     }
 
-    sp = (ngx_slab_pool_t *) shm_zone->shm.addr;
-
     /* Re-attach to an already-populated segment (persisted slab ->data). */
     if (shm_zone->shm.exists && sp->data != NULL) {
         tbl = sp->data;
         shm_zone->data = tbl;
-        if (mtx
-            && xrootd_shm_table_mutex_create(mtx, (ngx_shmtx_sh_t *) tbl)
-               != NGX_OK)
-        {
+        if (mtx && xrootd_shm_table_mutex_create(mtx, sp) != NGX_OK) {
             return NULL;
         }
         return tbl;
@@ -88,9 +102,7 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
     sp->data       = tbl;                    /* persist for reload re-attach */
     shm_zone->data = tbl;
 
-    if (mtx
-        && xrootd_shm_table_mutex_create(mtx, (ngx_shmtx_sh_t *) tbl) != NGX_OK)
-    {
+    if (mtx && xrootd_shm_table_mutex_create(mtx, sp) != NGX_OK) {
         return NULL;
     }
     if (fresh) {

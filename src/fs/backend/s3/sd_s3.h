@@ -76,6 +76,10 @@ int64_t sd_s3_write_size(const sd_s3_file *f);
 /* Free the handle. */
 void sd_s3_close(sd_s3_file *f);
 
+/* Delete the object (signed DELETE). Idempotent: a missing object (HTTP 404) is
+ * success. 0 / -1 (errbuf; errno set to the POSIX class). */
+int sd_s3_delete(const sd_s3_open_params *p, char *errbuf, size_t errcap);
+
 /* ---- object metadata (x-amz-meta-*) ----------------------------------- *
  * S3 has no in-place metadata mutation: get is a HEAD that reads one user-meta
  * header; set is a copy-onto-self with x-amz-metadata-directive: REPLACE. The

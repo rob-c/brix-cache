@@ -5,7 +5,6 @@
 #include "read.h"
 #include "../fs/backend/sd.h"   /* phase-55: route raw fd I/O through the SD seam */
 #include "../fs/backend/csi_tagstore.h"  /* phase-59 W2: page-checksum verify */
-#include "slice_read.h"
 #include "../zip/zip_member.h"   /* phase-57 W2: ZIP member read dispatch */
 #include "../ssi/ssi.h"          /* §7: SSI handle read dispatch */
 
@@ -14,6 +13,15 @@
 #include "prefetch.h"
 
 #include <sys/uio.h>   /* Phase 32 WS4: preadv2(RWF_NOWAIT) warm-cache probe */
+
+/* Codec-vs-protocol drift guard: the wire codec (shared libxrdproto, deliberately
+ * XProtocol-free) hard-codes the request body as XRDW_BODY_LEN bytes. This is the
+ * one translation unit that sees both that constant and the real XProtocol
+ * ClientRequestHdr, so it ties them together at compile time — if XRootD ever
+ * resized the body region, every xrdw_*_unpack() call here would read the wrong
+ * offsets, and this assert fails the build instead of corrupting requests. */
+_Static_assert(sizeof(((ClientRequestHdr *) 0)->body) == XRDW_BODY_LEN,
+    "wire codec body length must match XProtocol ClientRequestHdr.body");
 
 /*
  * xrootd_ktls_send_active — true when kernel-TLS transmit is active on this
@@ -197,18 +205,10 @@ xrootd_handle_read(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     /* Phase-57 W2: ZIP member handles translate the read into the archive's
-     * byte range (stored = offset add; deflate = stream inflate).  Like
-     * slice_mode this is an early dispatch off the normal fd read path. */
+     * byte range (stored = offset add; deflate = stream inflate) — an early
+     * dispatch off the normal fd read path. */
     if (ctx->files[idx].zip_mode) {
         return xrootd_zip_read(ctx, c, idx, offset, rlen);
-    }
-
-    /* Phase 26: slice-mode handles have no backing fd; serve from the slice
-     * cache (filling missing slices from the origin and suspending if needed). */
-    if (ctx->files[idx].slice_mode) {
-        XROOTD_OP_OK(ctx, XROOTD_OP_READ);
-        return xrootd_read_from_slices(ctx, c, rconf, idx,
-                                       (off_t) offset, rlen);
     }
 
     /*

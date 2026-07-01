@@ -42,6 +42,8 @@ xrootd_scan_mode_parse(const char *name, xrootd_scan_mode_t *out)
     if (strcmp(name, "fill") == 0)    { *out = XROOTD_SCAN_FILL;    return NGX_OK; }
     if (strcmp(name, "compare") == 0) { *out = XROOTD_SCAN_COMPARE; return NGX_OK; }
     if (strcmp(name, "inspect") == 0) { *out = XROOTD_SCAN_INSPECT; return NGX_OK; }
+    if (strcmp(name, "inventory") == 0) { *out = XROOTD_SCAN_INVENTORY; return NGX_OK; }
+    if (strcmp(name, "drift") == 0)   { *out = XROOTD_SCAN_DRIFT;   return NGX_OK; }
     return NGX_ERROR;
 }
 
@@ -218,6 +220,35 @@ scan_action_inspect(scan_walk_ctx_t *cc, const char *logical, off_t size,
                                       1 /* posix: namespace == backend */);
 }
 
+/* inventory (E1): one "object" record per stored object. The scan endpoint walks
+ * the export via POSIX (namespace == catalog), so the logical path IS the backend
+ * key and every entry is backed (orphan=false). A catalog-native backend's
+ * inventory runs through xrootd_vfs_enumerate_catalog (the SD enumerate verb)
+ * instead — the seam is in place; threading a bound instance into the endpoint is
+ * the Ceph follow-on. */
+static int
+scan_action_inventory(scan_walk_ctx_t *cc, const char *logical, off_t size,
+                      time_t mtime, char *line, size_t linesz)
+{
+    cc->sum->ok++;
+    return xrootd_scan_record_object(line, linesz, logical, logical,
+                                     (int64_t) size, (int64_t) mtime, 0);
+}
+
+/* drift (D2): one "drift" record per entry. Over a namespace walk the catalog and
+ * namespace coincide, so every entry is "in_both"; orphan_object / namespace_only
+ * arise only when a native catalog verb (xrootd_vfs_enumerate_catalog) supplies a
+ * backend-object set to reconcile against (scan_drift) — the Ceph follow-on. */
+static int
+scan_action_drift(scan_walk_ctx_t *cc, const char *logical, off_t size,
+                  time_t mtime, char *line, size_t linesz)
+{
+    (void) mtime;
+    cc->sum->ok++;
+    return xrootd_scan_record_drift(line, linesz, logical, logical, "in_both",
+                                    (int64_t) size);
+}
+
 static ngx_int_t
 scan_walk_file(void *cookie, const char *logical, const xrootd_vfs_stat_t *st,
                int fd)
@@ -241,6 +272,14 @@ scan_walk_file(void *cookie, const char *logical, const xrootd_vfs_stat_t *st,
     case XROOTD_SCAN_INSPECT:
         n = scan_action_inspect(cc, disp, st->size, st->mtime, fd, line,
                                 sizeof(line));
+        break;
+    case XROOTD_SCAN_INVENTORY:
+        n = scan_action_inventory(cc, disp, st->size, st->mtime, line,
+                                  sizeof(line));
+        break;
+    case XROOTD_SCAN_DRIFT:
+        n = scan_action_drift(cc, disp, st->size, st->mtime, line,
+                              sizeof(line));
         break;
     case XROOTD_SCAN_DUMP:
     case XROOTD_SCAN_COMPARE:
@@ -307,6 +346,217 @@ xrootd_scan_run(ngx_log_t *log, int rootfd, const char *logical,
     if (target == XROOTD_VFS_WALK_OTHER) {
         *err_code = kXR_ArgInvalid;
         snprintf(err_msg, err_sz, "not a file or directory");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* Cookie for the catalog-enumeration callback: the same growing heap buffer the
+ * walk path uses, plus an OOM flag that aborts the enumeration. */
+typedef struct {
+    u_char                **buf;
+    size_t                 *cap;
+    size_t                 *used;
+    xrootd_scan_summary_t  *sum;
+    int                     oom;
+} scan_catalog_ctx_t;
+
+/* Emit one "object" record per enumerated backend object. A driver-recovered
+ * logical path of NULL marks an orphan (a stored object with no namespace entry).
+ * Returns 0 to continue the enumeration, 1 to abort (only on OOM). */
+static int
+scan_catalog_emit_object(void *ctx, const xrootd_sd_catalog_ent_t *ent)
+{
+    scan_catalog_ctx_t *cc = ctx;
+    char                line[SCAN_LINE_MAX];
+    int                 n;
+
+    n = xrootd_scan_record_object(line, sizeof(line), ent->key, ent->path,
+                                  ent->have_stat ? (int64_t) ent->size : 0,
+                                  ent->have_stat ? (int64_t) ent->mtime : 0,
+                                  ent->path == NULL ? 1 : 0);
+    if (n < 0) {
+        return 0;                        /* unrepresentable key → soft skip */
+    }
+    cc->sum->files++;
+    cc->sum->ok++;
+    if (scan_append(cc->buf, cc->cap, cc->used, line, (size_t) n) < 0) {
+        cc->oom = 1;
+        return 1;                        /* abort enumeration */
+    }
+    return 0;
+}
+
+ngx_int_t
+xrootd_scan_run_inventory(ngx_log_t *log, xrootd_sd_instance_t *sd,
+    const xrootd_scan_opts_t *opts, u_char **buf, size_t *cap, size_t *used,
+    xrootd_scan_summary_t *summary, uint16_t *err_code, char *err_msg,
+    size_t err_sz)
+{
+    scan_catalog_ctx_t cc;
+    ngx_int_t          rc;
+
+    (void) log;    /* enumeration runs through the SD verb (no log needed here) */
+    (void) opts;   /* catalog inventory is whole-pool; alg/depth do not apply */
+
+    ngx_memzero(&cc, sizeof(cc));
+    cc.buf = buf;
+    cc.cap = cap;
+    cc.used = used;
+    cc.sum = summary;
+
+    rc = xrootd_vfs_enumerate_catalog(sd, 1 /* want_stat */,
+                                      scan_catalog_emit_object, &cc);
+
+    if (rc == NGX_DECLINED) {
+        *err_code = kXR_Unsupported;
+        snprintf(err_msg, err_sz, "backend does not support catalog enumeration");
+        return NGX_ERROR;
+    }
+    if (rc != NGX_OK || cc.oom) {
+        *err_code = cc.oom ? kXR_NoMemory : kXR_IOError;
+        snprintf(err_msg, err_sz, "%s",
+                 cc.oom ? "out of memory" : "catalog enumeration failed");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* Cookie for the catalog-verify callback: the bound instance + algorithm, plus
+ * the growing heap buffer / summary the records land in. */
+typedef struct {
+    ngx_log_t              *log;
+    xrootd_sd_instance_t   *sd;
+    const char             *alg;
+    u_char                **buf;
+    size_t                 *cap;
+    size_t                 *used;
+    xrootd_scan_summary_t  *sum;
+    int                     oom;
+} scan_verify_ctx_t;
+
+/* Build one verify "file" record for an OPEN catalog object: read the stored
+ * XrdCks value (xattr, no byte read), recompute over the object's bytes, compare.
+ * Reuses the integrity layer exactly as the POSIX verify path does — the only
+ * difference is the source is a driver object (fd = -1) instead of a POSIX fd, so
+ * the recompute reads through obj->driver->pread (which, for Ceph, reassembles
+ * the libradosstriper layout → byte-identical to stock XrdCeph). */
+static int
+scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
+    const xrootd_sd_catalog_ent_t *ent, xrootd_sd_obj_t *obj,
+    char *line, size_t linesz)
+{
+    xrootd_integrity_info_t stored_info, comp_info;
+    xrootd_integrity_opts_t io;
+    const char             *stored = NULL;
+    const char             *computed = NULL;
+    const char             *status;
+    char                    stored_copy[129];
+    int64_t                 size = ent->have_stat ? (int64_t) ent->size : 0;
+    int64_t                 mtime = ent->have_stat ? (int64_t) ent->mtime : 0;
+
+    ngx_memzero(&io, sizeof(io));
+    io.allow_xattr_cache = 1;
+    io.no_compute = 1;                    /* stored value only — no byte read */
+    if (xrootd_integrity_get_fd(cc->log, -1, obj, logical, cc->alg, &io,
+                                &stored_info) == NGX_OK)
+    {
+        ngx_memcpy(stored_copy, stored_info.hex, ngx_strlen(stored_info.hex) + 1);
+        stored = stored_copy;             /* survive the recompute's info reuse */
+    }
+
+    ngx_memzero(&io, sizeof(io));
+    io.allow_xattr_cache = 0;             /* force a fresh compute over the bytes */
+    io.no_compute = 0;
+    if (xrootd_integrity_get_fd(cc->log, -1, obj, logical, cc->alg, &io,
+                                &comp_info) != NGX_OK)
+    {
+        status = "unreadable";
+        cc->sum->unreadable++;
+    } else {
+        computed = comp_info.hex;
+        cc->sum->bytes += (uint64_t) size;
+        if (stored == NULL) {
+            status = "missing";
+            cc->sum->missing++;
+        } else if (strcasecmp(stored, computed) == 0) {
+            status = "ok";
+            cc->sum->ok++;
+        } else {
+            status = "mismatch";
+            cc->sum->mismatch++;
+        }
+    }
+    return xrootd_scan_record_file(line, linesz, logical, size, mtime,
+                                   cc->alg, stored, computed, status);
+}
+
+/* Verify one enumerated catalog object: open it through the bound driver, build
+ * the record, close. An open failure is reported as "unreadable" (the scan keeps
+ * going). Returns 0 to continue the enumeration, 1 to abort (OOM only). */
+static int
+scan_catalog_verify_one(void *ctx, const xrootd_sd_catalog_ent_t *ent)
+{
+    scan_verify_ctx_t *cc = ctx;
+    const char        *logical = ent->path ? ent->path : ent->key;
+    xrootd_sd_obj_t   *obj;
+    char               line[SCAN_LINE_MAX];
+    int                err = 0;
+    int                n;
+
+    obj = cc->sd->driver->open(cc->sd, logical, XROOTD_SD_O_READ, 0, &err);
+    if (obj == NULL) {
+        cc->sum->unreadable++;
+        n = xrootd_scan_record_file(line, sizeof(line), logical,
+                                    ent->have_stat ? (int64_t) ent->size : 0,
+                                    ent->have_stat ? (int64_t) ent->mtime : 0,
+                                    cc->alg, NULL, NULL, "unreadable");
+    } else {
+        n = scan_verify_obj_record(cc, logical, ent, obj, line, sizeof(line));
+        (void) cc->sd->driver->close(obj);
+    }
+
+    if (n < 0) {
+        return 0;                          /* unrepresentable → soft skip */
+    }
+    cc->sum->files++;
+    if (scan_append(cc->buf, cc->cap, cc->used, line, (size_t) n) < 0) {
+        cc->oom = 1;
+        return 1;
+    }
+    return 0;
+}
+
+ngx_int_t
+xrootd_scan_run_verify_catalog(ngx_log_t *log, xrootd_sd_instance_t *sd,
+    const xrootd_scan_opts_t *opts, u_char **buf, size_t *cap, size_t *used,
+    xrootd_scan_summary_t *summary, uint16_t *err_code, char *err_msg,
+    size_t err_sz)
+{
+    scan_verify_ctx_t cc;
+    ngx_int_t         rc;
+
+    ngx_memzero(&cc, sizeof(cc));
+    cc.log = log;
+    cc.sd = sd;
+    cc.alg = opts->alg;
+    cc.buf = buf;
+    cc.cap = cap;
+    cc.used = used;
+    cc.sum = summary;
+
+    rc = xrootd_vfs_enumerate_catalog(sd, 1 /* want_stat */,
+                                      scan_catalog_verify_one, &cc);
+
+    if (rc == NGX_DECLINED) {
+        *err_code = kXR_Unsupported;
+        snprintf(err_msg, err_sz, "backend does not support catalog enumeration");
+        return NGX_ERROR;
+    }
+    if (rc != NGX_OK || cc.oom) {
+        *err_code = cc.oom ? kXR_NoMemory : kXR_IOError;
+        snprintf(err_msg, err_sz, "%s",
+                 cc.oom ? "out of memory" : "catalog verify failed");
         return NGX_ERROR;
     }
     return NGX_OK;

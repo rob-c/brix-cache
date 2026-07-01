@@ -40,6 +40,9 @@
 #include "../acc/acc.h"            /* XrdAcc engine directives + enum tables */
 #include "../config/root_prepare.h"
 #include "../config/http_rootfd.h"
+#include "../compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
+#include "../config/credential_block.h"   /* §14 xrootd_credential lookup/bearer */
+#include "../fs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "../compat/alloc_guard.h"
 
 static ngx_int_t ngx_http_s3_postconfiguration(ngx_conf_t *cf);
@@ -57,8 +60,19 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
 
     c->common.enable      = NGX_CONF_UNSET;
     c->common.allow_write = NGX_CONF_UNSET;
+    c->common.read_only   = NGX_CONF_UNSET;
     c->common.compress    = NGX_CONF_UNSET;   /* phase-42 W2 outbound GET */
     xrootd_pmark_conf_init(&c->common.pmark);  /* SciTags packet marking */
+    /* phase-64 tier grammar scalars (str/array fields stay zeroed by pcalloc) */
+    c->common.stage_enable      = NGX_CONF_UNSET;
+    c->common.stage_flush_async = NGX_CONF_UNSET_UINT;
+    c->common.cache_max_object  = NGX_CONF_UNSET;
+    c->common.cache_evict_at    = NGX_CONF_UNSET_UINT;
+    c->common.cache_evict_to    = NGX_CONF_UNSET_UINT;
+    c->common.cache_meta_mode   = NGX_CONF_UNSET_UINT;
+    c->common.cache_batch_cinfo = NGX_CONF_UNSET_UINT;
+    c->common.cache_index_cache = NGX_CONF_UNSET_SIZE;
+    c->common.cache_slice_size  = NGX_CONF_UNSET_SIZE;
     c->allow_unsigned_session_token = NGX_CONF_UNSET;
     c->verify_chunk_signatures      = NGX_CONF_UNSET;
     c->list_cache                   = NGX_CONF_UNSET;
@@ -80,6 +94,9 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_value(conf->common.enable,      prev->common.enable,      0);
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
+    ngx_conf_merge_value(conf->common.read_only,   prev->common.read_only,   0);
+    /* Hard read-only: force allow_write off so the S3 write-method gate rejects. */
+    xrootd_shared_apply_read_only(&conf->common, cf->log);
     ngx_conf_merge_value(conf->common.compress,    prev->common.compress,    0);
     ngx_conf_merge_value(conf->allow_unsigned_session_token,
                          prev->allow_unsigned_session_token, 0);
@@ -101,6 +118,38 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->secret_key,       prev->secret_key,       "");
     ngx_conf_merge_str_value(conf->region,           prev->region,           "us-east-1");
     ngx_conf_merge_str_value(conf->common.thread_pool_name, prev->common.thread_pool_name, "");
+    ngx_conf_merge_str_value(conf->common.storage_backend,
+                             prev->common.storage_backend, "");
+    ngx_conf_merge_str_value(conf->common.storage_credential,
+                             prev->common.storage_credential, "");
+    /* phase-64 composable tier grammar */
+    ngx_conf_merge_str_value(conf->common.cache_store, prev->common.cache_store,
+                             "");
+    if (conf->common.cache_store_args == NULL) {
+        conf->common.cache_store_args = prev->common.cache_store_args;
+    }
+    ngx_conf_merge_value(conf->common.stage_enable, prev->common.stage_enable, 0);
+    ngx_conf_merge_str_value(conf->common.stage_store, prev->common.stage_store,
+                             "");
+    if (conf->common.stage_store_args == NULL) {
+        conf->common.stage_store_args = prev->common.stage_store_args;
+    }
+    ngx_conf_merge_uint_value(conf->common.stage_flush_async,
+                              prev->common.stage_flush_async, 0);
+    ngx_conf_merge_off_value(conf->common.cache_max_object,
+                             prev->common.cache_max_object, 0);
+    ngx_conf_merge_uint_value(conf->common.cache_evict_at,
+                              prev->common.cache_evict_at, 90);
+    ngx_conf_merge_uint_value(conf->common.cache_evict_to,
+                              prev->common.cache_evict_to, 80);
+    ngx_conf_merge_uint_value(conf->common.cache_meta_mode,
+                              prev->common.cache_meta_mode, 0);
+    ngx_conf_merge_uint_value(conf->common.cache_batch_cinfo,
+                              prev->common.cache_batch_cinfo, 2);
+    ngx_conf_merge_size_value(conf->common.cache_index_cache,
+                              prev->common.cache_index_cache, 0);
+    ngx_conf_merge_size_value(conf->common.cache_slice_size,
+                              prev->common.cache_slice_size, 0);
     if (xrootd_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
         != NGX_CONF_OK)
     {
@@ -109,8 +158,13 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     if (conf->common.enable) {
         xrootd_export_root_opts_t root_opts;
+
+        /* posix:<path> backend → the local export tree (composable xrootd_root). */
+        xrootd_storage_backend_posix_root(&conf->common);
+
         root_opts.directive_name = "xrootd_s3_root";
-        root_opts.allow_write    = conf->common.allow_write;
+        root_opts.allow_write    = conf->common.allow_write
+                                 && !xrootd_storage_backend_is_remote(&conf->common);
         root_opts.required       = 0;
         root_opts.canon_size     = sizeof(conf->common.root_canon);
         if (xrootd_prepare_export_root(cf, &conf->common.root, &root_opts,
@@ -118,10 +172,58 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
         {
             return NGX_CONF_ERROR;
         }
+        /* SP4: reap interrupted NON-staged direct-write temps under this root. */
+        if (conf->common.root_canon[0] != '\0') {
+            xrootd_tmp_reap_register(conf->common.root_canon);
+        }
 
         /* Open the persistent confinement rootfd (kernel openat2
          * RESOLVE_BENEATH anchor); no-op when no xrootd_s3_root is set. */
         if (xrootd_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
+            return NGX_CONF_ERROR;
+        }
+
+        /* Register the export's composable storage backend (phase-63): a
+         * "root://"/"http://" URL or a driver name routes every VFS op (S3 GET
+         * goes through xrootd_vfs_open) to the source backend; default POSIX is a
+         * no-op. Mirrors the stream/webdav config paths. */
+        if (xrootd_vfs_backend_config_str(cf, conf->common.root_canon,
+                &conf->common.storage_backend, conf->common.pblock_block_size,
+                XROOTD_AF_AUTO)
+            != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
+
+        /* §14: attach the named xrootd_credential's bearer to the source backend. */
+        if (conf->common.storage_credential.len > 0) {
+            char                       cred_z[256];
+            char                       bearer[4096];
+            const xrootd_credential_t *cred;
+
+            ngx_cpystrn((u_char *) cred_z, conf->common.storage_credential.data,
+                        ngx_min(conf->common.storage_credential.len + 1,
+                                sizeof(cred_z)));
+            cred = xrootd_credential_lookup(cred_z);
+            if (cred == NULL) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_s3_storage_credential: no xrootd_credential \"%V\"",
+                    &conf->common.storage_credential);
+                return NGX_CONF_ERROR;
+            }
+            if (xrootd_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
+                != NGX_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
+            xrootd_vfs_backend_set_credential(conf->common.root_canon, bearer,
+                (cred->x509_proxy.len > 0)
+                    ? (const char *) cred->x509_proxy.data : NULL,
+                (cred->ca_dir.len > 0) ? (const char *) cred->ca_dir.data : NULL);
+        }
+
+        /* Phase-64: register the composable cache/stage tiers (§4.4 mirror). */
+        if (xrootd_tier_register_stores(cf, &conf->common) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
 
@@ -215,6 +317,22 @@ ngx_http_s3_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  * Directives
  * */
 
+/* phase-64: xrootd_s3_stage_flush sync|async (0 = sync, 1 = async). */
+static ngx_conf_enum_t  xrootd_s3_stage_flush_enum[] = {
+    { ngx_string("sync"),  0 },
+    { ngx_string("async"), 1 },
+    { ngx_null_string,     0 }
+};
+
+/* phase-64: xrootd_s3_cache_meta map (XROOTD_CMETA_* in cache/cstore.h). */
+static ngx_conf_enum_t  xrootd_s3_cache_meta_enum[] = {
+    { ngx_string("auto"),    0 },
+    { ngx_string("local"),   1 },
+    { ngx_string("xattr"),   2 },
+    { ngx_string("sidecar"), 3 },
+    { ngx_null_string,       0 }
+};
+
 static ngx_command_t ngx_http_s3_commands[] = {
 
     { ngx_string("xrootd_s3"),
@@ -242,6 +360,85 @@ static ngx_command_t ngx_http_s3_commands[] = {
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_s3_loc_conf_t, common.root),
+      NULL },
+
+    /* Composable storage backend for this S3 export (phase-63): "root://host:port",
+     * "http://host/base", or a driver name ("pblock"); default POSIX. */
+    { ngx_string("xrootd_s3_storage_backend"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.storage_backend),
+      NULL },
+
+    /* Names the xrootd_credential block (§14) the source backend authenticates with. */
+    { ngx_string("xrootd_s3_storage_credential"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.storage_credential),
+      NULL },
+
+    /* ---- phase-64 composable tier grammar mirrors (§4.4) ---- */
+    { ngx_string("xrootd_s3_cache_store"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1234,
+      xrootd_conf_set_store_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.cache_store),
+      (void *) offsetof(ngx_http_s3_loc_conf_t, common.cache_store_args) },
+    { ngx_string("xrootd_s3_stage"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.stage_enable),
+      NULL },
+    { ngx_string("xrootd_s3_stage_store"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1234,
+      xrootd_conf_set_store_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.stage_store),
+      (void *) offsetof(ngx_http_s3_loc_conf_t, common.stage_store_args) },
+    { ngx_string("xrootd_s3_stage_flush"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.stage_flush_async),
+      xrootd_s3_stage_flush_enum },
+    { ngx_string("xrootd_s3_cache_max_object"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_off_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.cache_max_object),
+      NULL },
+    { ngx_string("xrootd_s3_cache_evict_at"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.cache_evict_at),
+      NULL },
+    { ngx_string("xrootd_s3_cache_evict_to"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.cache_evict_to),
+      NULL },
+    { ngx_string("xrootd_s3_cache_index_cache"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.cache_index_cache),
+      NULL },
+    { ngx_string("xrootd_s3_cache_meta"),    /* auto|local|xattr|sidecar */
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.cache_meta_mode),
+      xrootd_s3_cache_meta_enum },
+    { ngx_string("xrootd_s3_cache_slice_size"),  /* <size> (0 = whole-file) */
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.cache_slice_size),
       NULL },
 
     { ngx_string("xrootd_s3_bucket"),
@@ -284,6 +481,12 @@ static ngx_command_t ngx_http_s3_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_s3_loc_conf_t, common.allow_write),
+      NULL },
+    { ngx_string("xrootd_s3_read_only"),     /* hard read-only (overrides allow_write) */
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, common.read_only),
       NULL },
 
     { ngx_string("xrootd_s3_allow_unsigned_session_token"),

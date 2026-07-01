@@ -11,7 +11,7 @@
 #include "../fs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
 #include "zip_dir.h"
 #include "../fs/backend/sd.h"   /* route ZIP member byte reads through the SD backend */
-#include "../fs/vfs_scratch.h"  /* CONSUME: materialize the archive to local POSIX scratch */
+#include "../fs/core/vfs_core.h"  /* xvfs_stage_fd: materialize the archive to local scratch */
 
 #include <stdlib.h>             /* free (inflate state cleanup) */
 
@@ -248,11 +248,14 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
                            ? (const char *) conf->zip_stage_dir.data : NULL;
         off_t       maxb = (off_t) conf->zip_stage_max_bytes;
 
-        if (xrootd_vfs_scratch_needed(NULL, conf->zip_force_scratch)
+        /* The default POSIX archive already has a kernel fd — only materialize a
+         * local scratch copy when explicitly forced (a backend without CAP_FD is
+         * the future case, but this open path only sees POSIX archives today). */
+        if (conf->zip_force_scratch
             && sdir != NULL && sdir[0] != '\0'
             && ast.st_size <= maxb)
         {
-            ngx_fd_t sfd = xrootd_vfs_scratch_stage_fd(fd, sdir, c->log);
+            ngx_fd_t sfd = xvfs_stage_fd(fd, sdir);
             if (sfd == NGX_INVALID_FILE) {
                 close(fd);
                 XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", archive_full,

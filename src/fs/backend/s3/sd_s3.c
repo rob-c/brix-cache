@@ -70,6 +70,10 @@ struct sd_s3_file {
 
 static void
 sd_s3_set_err(char *errbuf, size_t errcap, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+
+static void
+sd_s3_set_err(char *errbuf, size_t errcap, const char *fmt, ...)
 {
     va_list ap;
     if (errbuf == NULL || errcap == 0) {
@@ -315,6 +319,12 @@ sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off,
                               errbuf, errcap) != 0) {
         return -1;
     }
+    if (resp.status == 416) {
+        /* Range Not Satisfiable: the offset is at/after the object end - a
+         * positional read past EOF returns 0 (the pread/copy-loop EOF signal). */
+        f->transport->resp_free(&resp);
+        return 0;
+    }
     if (resp.status != 206 && resp.status != 200) {
         sd_s3_status_err(resp.status, "GET", f->key, errbuf, errcap);
         f->transport->resp_free(&resp);
@@ -329,6 +339,38 @@ sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off,
     memcpy(buf, body, (size_t) copied);
     f->transport->resp_free(&resp);
     return copied;
+}
+
+int
+sd_s3_delete(const sd_s3_open_params *p, char *errbuf, size_t errcap)
+{
+    sd_s3_file      *f;
+    char             auth[SD_S3_AUTH_HDRS_CAP];
+    xrootd_s3_resp_t resp;
+    int              rc = 0;
+
+    f = sd_s3_open_read(p, errbuf, errcap);   /* builds the handle; no I/O */
+    if (f == NULL) {
+        return -1;
+    }
+    if (sd_s3_sign(f, "DELETE", "", auth, sizeof(auth)) != 0) {
+        sd_s3_set_err(errbuf, errcap, "s3 DELETE: SigV4 sign failed on %s", f->key);
+        sd_s3_close(f);
+        return -1;
+    }
+    if (f->transport->request(f->tctx, f->host, f->port, f->tls, "DELETE",
+                              f->key, auth, NULL, 0, f->timeout_ms, &resp,
+                              errbuf, errcap) != 0) {
+        sd_s3_close(f);
+        return -1;
+    }
+    /* S3 DELETE is idempotent: 204/200 succeed, 404 means already gone. */
+    if (resp.status != 204 && resp.status != 200 && resp.status != 404) {
+        rc = sd_s3_status_err(resp.status, "DELETE", f->key, errbuf, errcap);
+    }
+    f->transport->resp_free(&resp);
+    sd_s3_close(f);
+    return rc;
 }
 
 /* ---- write path: single PUT + multipart upload ----------------------- */

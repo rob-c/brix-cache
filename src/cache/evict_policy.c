@@ -49,23 +49,21 @@ xrootd_cache_evict_one(ngx_stream_xrootd_srv_conf_t *conf, xrootd_ctx_t *ctx,
     uint64_t *evicted_bytes)
 {
     {
-        xrootd_sd_instance_t *inst = list->inst;
-        const char           *key = list->elts[idx].path
-                                    + ngx_strlen(list->cache_root);
+        xrootd_cstore_t *cs  = (xrootd_cstore_t *) list->cstore;
+        const char      *key = list->elts[idx].path
+                               + ngx_strlen(list->cache_root);
 
-        if (inst->driver->unlink(inst, key, 0) != NGX_OK) {
-            if (errno != ENOENT) {
-                ngx_log_error(NGX_LOG_WARN, log, errno,
-                              "xrootd: cache eviction unlink failed \"%s\"",
-                              list->elts[idx].path);
-                xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
-            }
-            return NGX_OK;
-        }
+        /* Remove the object + its cinfo record + L1 entry through the cstore
+         * adapter — the policy layer never unlinks via the store driver itself
+         * (phase-64 P3/G5). cstore_evict is best-effort (returns NGX_OK even on a
+         * failed unlink), so eviction continues; the .meta sidecar below is the
+         * legacy stats record the cstore does not own and is dropped separately. */
+        (void) xrootd_cstore_evict(cs, key);
     }
 
     /* Remove the .meta/.cinfo sidecars (POSIX) at the state path (== the cache
-     * path for a co-located cache). */
+     * path for a co-located cache). The .cinfo unlink is redundant with
+     * cstore_evict for a co-located store but still covers a separate state_root. */
     {
         char sidecar[PATH_MAX];
         char meta_path[PATH_MAX];
@@ -124,8 +122,8 @@ xrootd_cache_evict_one(ngx_stream_xrootd_srv_conf_t *conf, xrootd_ctx_t *ctx,
         }
     }
 
-    if (xrootd_cache_fs_usage((char *) conf->cache_root.data, usage)
-        != NGX_OK)
+    if (xrootd_cache_usage_measure((xrootd_cstore_t *) list->cstore,
+            (char *) conf->cache_root.data, usage) != NGX_OK)
     {
         xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
         return NGX_ERROR;
@@ -186,8 +184,8 @@ xrootd_cache_purge_to_target(ngx_stream_xrootd_srv_conf_t *conf,
     if (evicted_files_out != NULL) { *evicted_files_out = 0; }
     if (evicted_bytes_out != NULL) { *evicted_bytes_out = 0; }
 
-    if (xrootd_cache_fs_usage((char *) conf->cache_root.data, &usage)
-        != NGX_OK)
+    if (xrootd_cache_usage_measure(xrootd_cache_storage_cstore(conf),
+            (char *) conf->cache_root.data, &usage) != NGX_OK)
     {
         xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
         return NGX_ERROR;
@@ -203,13 +201,14 @@ xrootd_cache_purge_to_target(ngx_stream_xrootd_srv_conf_t *conf,
     ngx_memzero(&list, sizeof(list));
     list.root_dev = root_st.st_dev;
     list.protect_path = protect_path;
-    list.inst = xrootd_cache_storage(conf);   /* enumerate via the driver */
+    list.inst = xrootd_cache_storage(conf);          /* store instance (removal)   */
+    list.cstore = xrootd_cache_storage_cstore(conf); /* enumerate via the adapter  */
     list.cache_root = (const char *) conf->cache_root.data;
     list.state_root = conf->cache_state_root.len
                       ? (const char *) conf->cache_state_root.data
                       : (const char *) conf->cache_root.data;
 
-    if (list.inst == NULL
+    if (list.inst == NULL || list.cstore == NULL
         || xrootd_cache_collect_dir(&list, "/", log) != NGX_OK)
     {
         xrootd_cache_metric_add(ctx, cache_eviction_errors_total, 1);
@@ -282,8 +281,8 @@ xrootd_cache_evict_if_needed(xrootd_cache_fill_t *t, const char *protect_path,
         return;
     }
 
-    if (xrootd_cache_fs_usage((char *) t->conf->cache_root.data, &usage)
-        != NGX_OK)
+    if (xrootd_cache_usage_measure(xrootd_cache_storage_cstore(t->conf),
+            (char *) t->conf->cache_root.data, &usage) != NGX_OK)
     {
         xrootd_cache_metric_add(t->ctx, cache_eviction_errors_total, 1);
         return;

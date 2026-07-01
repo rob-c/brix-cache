@@ -606,12 +606,12 @@ events { worker_connections 1024; }
 stream {
     server {
         listen %s:%d reuseport;
-        xrootd on; xrootd_root %s; xrootd_auth none; xrootd_allow_write on;
+        xrootd on; xrootd_storage_backend posix:%s; xrootd_auth none; xrootd_allow_write on;
         xrootd_thread_pool aiopool; xrootd_memory_budget 6m;
 %s    }
     server {
         listen %s:%d reuseport;
-        xrootd on; xrootd_root %s; xrootd_auth none; xrootd_allow_write on;
+        xrootd on; xrootd_storage_backend posix:%s; xrootd_auth none; xrootd_allow_write on;
         xrootd_thread_pool aiopool; xrootd_memory_budget 6m;
         xrootd_tls on; xrootd_certificate %s; xrootd_certificate_key %s;
     }
@@ -624,9 +624,9 @@ http {
         listen %s:%d ssl;
         ssl_certificate %s; ssl_certificate_key %s;
         location = /metrics { xrootd_metrics on; }
-        location /s3b/ { xrootd_s3 on; xrootd_s3_root %s; xrootd_s3_bucket s3b;
+        location /s3b/ { xrootd_s3 on; xrootd_s3_storage_backend posix:%s; xrootd_s3_bucket s3b;
                          xrootd_s3_region us-east-1; }
-        location / { xrootd_webdav on; xrootd_webdav_root %s; xrootd_webdav_auth none;
+        location / { xrootd_webdav on; xrootd_webdav_storage_backend posix:%s; xrootd_webdav_auth none;
                      xrootd_webdav_allow_write on; }
     }
     server {

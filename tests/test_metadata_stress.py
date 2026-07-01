@@ -124,7 +124,7 @@ def _stream_conf(tmp_path, data, port, rl_rule=""):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_auth none;
             xrootd_allow_write on;
             {rl_rule}
@@ -145,7 +145,7 @@ def _http_conf(tmp_path, data, port, rl_rule=""):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 {rl_rule}
             }}

@@ -191,18 +191,6 @@ xrootd_handle_pgread(xrootd_ctx_t *ctx, ngx_connection_t *c)
         return validate_rc;
     }
 
-    /*
-     * Phase 26: a slice-mode handle parks its fd on /dev/null, so a raw pread
-     * here would silently return an empty page-mode response instead of the
-     * cached bytes.  Only kXR_read is wired into the slice serving path; reject
-     * paged reads on such handles rather than returning wrong data.
-     */
-    if (ctx->files[idx].slice_mode) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_PGREAD);
-        return xrootd_send_error(ctx, c, kXR_Unsupported,
-                                 "pgread not supported on slice-cached handle");
-    }
-
     if (offset < 0) {
         XROOTD_OP_ERR(ctx, XROOTD_OP_PGREAD);
         return xrootd_send_error(ctx, c, kXR_IOError,

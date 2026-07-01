@@ -189,7 +189,7 @@ def cms_server():
     body = (
         f"    server {{\n"
         f"        listen 0.0.0.0:{port};\n"
-        f"        xrootd on; xrootd_root {data_dir}; xrootd_auth none;\n"
+        f"        xrootd on; xrootd_storage_backend posix:{data_dir}; xrootd_auth none;\n"
         f"        xrootd_manager_mode on;\n"
         f"        xrootd_cms_server on;\n"
         f"        xrootd_cms_server_interval 1;\n"
@@ -445,7 +445,7 @@ def silent_manager_node():
     body = (
         f"    server {{\n"
         f"        listen 0.0.0.0:{node_port};\n"
-        f"        xrootd on; xrootd_root {data_dir}; xrootd_auth none;\n"
+        f"        xrootd on; xrootd_storage_backend posix:{data_dir}; xrootd_auth none;\n"
         f"        xrootd_listen_port {node_port};\n"
         f"        xrootd_cms_manager {H}:{mgr_port};\n"
         f"        xrootd_cms_paths /;\n"

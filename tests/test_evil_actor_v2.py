@@ -345,7 +345,7 @@ events { worker_connections 1024; }
 stream {
     server {
         listen %s:%d;
-        xrootd on; xrootd_root %s; xrootd_auth none; xrootd_allow_write on;
+        xrootd on; xrootd_storage_backend posix:%s; xrootd_auth none; xrootd_allow_write on;
         xrootd_thread_pool aiopool; xrootd_memory_budget 6m;
     }
 }
@@ -356,9 +356,9 @@ http {
     server {
         listen %s:%d;
         location = /metrics { xrootd_metrics on; }
-        location /s3b/ { xrootd_s3 on; xrootd_s3_root %s; xrootd_s3_bucket s3b;
+        location /s3b/ { xrootd_s3 on; xrootd_s3_storage_backend posix:%s; xrootd_s3_bucket s3b;
                          xrootd_s3_region us-east-1; }
-        location / { xrootd_webdav on; xrootd_webdav_root %s; xrootd_webdav_auth none;
+        location / { xrootd_webdav on; xrootd_webdav_storage_backend posix:%s; xrootd_webdav_auth none;
                      xrootd_webdav_allow_write on; }
     }
 }

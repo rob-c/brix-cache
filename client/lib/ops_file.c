@@ -104,6 +104,20 @@ xrdc_file_open_opaque(xrdc_conn *c, const char *path, const char *opaque,
         return -1;
     }
     free(payload);
+
+    /* TPC coordinator open deferred: xrdc_recv surfaced the source's kXR_waitresp
+     * (rendezvous key registered, real reply pending) instead of blocking. There is
+     * no fhandle yet — the orchestrator never does I/O on this handle (the dest pulls
+     * the bytes); it only keeps the connection open so the registration stays live,
+     * then drains the deferred reply once the pull is triggered. Report success. */
+    if (c->tpc_coord_defer && status == kXR_waitresp) {
+        memset(f->fhandle, 0, XRD_FHANDLE_LEN);
+        f->read_codec = 0;
+        f->write_codec = 0;
+        free(body);                              /* NULL on the deferred path */
+        return 0;
+    }
+
     if (blen < XRD_FHANDLE_LEN) {
         xrdc_status_set(st, XRDC_EPROTO, 0, "open reply too short (%u bytes)", blen);
         free(body);

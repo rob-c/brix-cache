@@ -101,7 +101,7 @@ def _start(tmp_path_factory, ssi_on):
         "thread_pool default threads=2 max_queue=4096;\n"
         "events { worker_connections 64; }\n"
         "stream { server {\n"
-        f"  listen {BIND_HOST}:{port};\n  xrootd on;\n  xrootd_root {data};\n"
+        f"  listen {BIND_HOST}:{port};\n  xrootd on;\n  xrootd_storage_backend posix:{data};\n"
         "  xrootd_auth none;\n  xrootd_allow_write on;\n"
         f"{ssi}"
         f"  xrootd_access_log {base}/ssi-access.log;\n}} }}\n"

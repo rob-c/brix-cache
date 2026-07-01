@@ -22,6 +22,7 @@
  */
 
 #include "proxy_internal.h"
+#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 #include <openssl/md5.h>
 
 /* Worker-local pool of idle authenticated upstream connections. */
@@ -46,8 +47,8 @@ xrootd_proxy_up_status_init(ngx_stream_xrootd_srv_conf_t *conf)
         return;
     }
 
-    proxy_up_status = ngx_alloc(n * sizeof(xrootd_proxy_up_status_t),
-                                ngx_cycle->log);
+    proxy_up_status = xrootd_alloc_array(ngx_cycle->log, n,
+                                         sizeof(xrootd_proxy_up_status_t));
     if (proxy_up_status == NULL) {
         return;
     }

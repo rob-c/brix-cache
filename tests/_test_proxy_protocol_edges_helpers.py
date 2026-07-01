@@ -5,7 +5,7 @@
 
 """
 tests/test_proxy_protocol_edges.py — protocol-edge conformance for nginx's
-transparent XRootD proxy (``xrootd_proxy on`` + ``xrootd_proxy_upstream``).
+transparent XRootD proxy (``xrootd_tap_proxy on`` + ``xrootd_tap_proxy_upstream``).
 
 This suite stands up its OWN dedicated nginx proxy front in front of a
 self-contained, deterministic Python protocol stub (modelled on
@@ -621,8 +621,9 @@ def _front_conf(name, front_port, upstream_port, extra=""):
             f"        listen {BIND_HOST}:{front_port};\n"
             f"        xrootd on;\n"
             f"        xrootd_auth none;\n"
-            f"        xrootd_proxy on;\n"
-            f"        xrootd_proxy_upstream {HOST}:{upstream_port};\n"
+            f"        xrootd_tap_proxy on;\n"
+            f"        xrootd_tap_proxy_upstream {HOST}:{upstream_port};\n"
+            f"        xrootd_tap_proxy_auth anonymous;\n"
             f"{extra_line}"
             f"    }}\n"
             f"}}\n")

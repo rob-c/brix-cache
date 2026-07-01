@@ -3,6 +3,7 @@
  * Phase-38 split of module.c; behavior-identical.
  */
 #include "webdav_module_internal.h"
+#include "../config/credential_block.h"   /* §14 xrootd_credential block directive */
 
 ngx_conf_enum_t  webdav_auth_values[] = {
     { ngx_string("none"),     WEBDAV_AUTH_NONE     },
@@ -15,6 +16,22 @@ ngx_conf_enum_t  xrootd_webdav_cks_xattr_formats[] = {
     { ngx_string("text"),   XROOTD_CKS_FMT_TEXT   },
     { ngx_string("xrdcks"), XROOTD_CKS_FMT_XRDCKS },
     { ngx_null_string, 0 }
+};
+
+/* phase-64: xrootd_webdav_stage_flush sync|async (0 = sync, 1 = async). */
+static ngx_conf_enum_t  xrootd_webdav_stage_flush_enum[] = {
+    { ngx_string("sync"),  0 },
+    { ngx_string("async"), 1 },
+    { ngx_null_string,     0 }
+};
+
+/* phase-64: xrootd_webdav_cache_meta map (XROOTD_CMETA_* in cache/cstore.h). */
+static ngx_conf_enum_t  xrootd_webdav_cache_meta_enum[] = {
+    { ngx_string("auto"),    0 },
+    { ngx_string("local"),   1 },
+    { ngx_string("xattr"),   2 },
+    { ngx_string("sidecar"), 3 },
+    { ngx_null_string,       0 }
 };
 
 ngx_command_t ngx_http_xrootd_webdav_commands[] = {
@@ -86,6 +103,98 @@ ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.storage_backend),
+      NULL },
+
+    /* Names the xrootd_credential block (§14) the source backend authenticates with;
+     * "" = anonymous. Threads a bearer into the sd_http / sd_xroot source. Shares the
+     * process-wide credential registry with the stream-scope block. */
+    { ngx_string("xrootd_webdav_storage_credential"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.storage_credential),
+      NULL },
+
+    /* ---- phase-64 composable tier grammar mirrors (§4.4) ---- */
+    { ngx_string("xrootd_webdav_cache_store"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1234,
+      xrootd_conf_set_store_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.cache_store),
+      (void *) offsetof(ngx_http_xrootd_webdav_loc_conf_t,
+                        common.cache_store_args) },
+    { ngx_string("xrootd_webdav_stage"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.stage_enable),
+      NULL },
+    { ngx_string("xrootd_webdav_stage_store"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1234,
+      xrootd_conf_set_store_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.stage_store),
+      (void *) offsetof(ngx_http_xrootd_webdav_loc_conf_t,
+                        common.stage_store_args) },
+    { ngx_string("xrootd_webdav_stage_flush"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.stage_flush_async),
+      xrootd_webdav_stage_flush_enum },
+    { ngx_string("xrootd_webdav_cache_max_object"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_off_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.cache_max_object),
+      NULL },
+    { ngx_string("xrootd_webdav_cache_evict_at"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.cache_evict_at),
+      NULL },
+    { ngx_string("xrootd_webdav_cache_evict_to"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.cache_evict_to),
+      NULL },
+    { ngx_string("xrootd_webdav_cache_index_cache"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.cache_index_cache),
+      NULL },
+    { ngx_string("xrootd_webdav_cache_meta"),   /* auto|local|xattr|sidecar */
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.cache_meta_mode),
+      xrootd_webdav_cache_meta_enum },
+    { ngx_string("xrootd_webdav_cache_slice_size"),  /* <size> (0 = whole-file) */
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.cache_slice_size),
+      NULL },
+
+    /* The reusable `xrootd_credential <name> { … }` identity block (§14) at http
+     * scope — declared once inside http{} and referenced by the directive above. */
+    { ngx_string("xrootd_credential"),
+      NGX_HTTP_MAIN_CONF | NGX_CONF_BLOCK | NGX_CONF_TAKE1,
+      xrootd_conf_credential_block,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Write-back staging for a remote (root://) backend: stage uploads to the
+     * local export and promote them on commit (vs Mode A passthrough). */
+    { ngx_string("xrootd_webdav_storage_staging"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.storage_staging),
       NULL },
 
     /* pblock stripe size for newly-written files (e.g. 64m); 0/unset = 64 MiB. */
@@ -174,6 +283,12 @@ ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.allow_write),
+      NULL },
+    { ngx_string("xrootd_webdav_read_only"),    /* hard read-only (overrides allow_write) */
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_webdav_loc_conf_t, common.read_only),
       NULL },
 
     { ngx_string("xrootd_webdav_upload_resume"),
@@ -514,51 +629,13 @@ ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, open_file_cache_events),
       NULL },
 
-    /* upstream HTTP(S) proxy */
-    { ngx_string("xrootd_webdav_proxy"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, upstream_proxy),
-      NULL },
-
-    /* Phase 23: enable the dynamic SHM backend pool (runtime add/drain/remove
-     * via the admin REST API) instead of the static config-pool URL list. */
-    { ngx_string("xrootd_webdav_proxy_dynamic"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, proxy_pool_enabled),
-      NULL },
-
-    /* One or more http(s):// backend URLs (round-robin + passive health). */
-    { ngx_string("xrootd_webdav_proxy_upstream"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
-      webdav_conf_proxy_upstream,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
-
-    { ngx_string("xrootd_webdav_proxy_max_fails"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, upstream_max_fails),
-      NULL },
-
-    { ngx_string("xrootd_webdav_proxy_fail_timeout"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, upstream_fail_timeout),
-      NULL },
-
-    { ngx_string("xrootd_webdav_proxy_auth"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE12,
-      webdav_conf_proxy_auth,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
+    /* ---- legacy WebDAV reverse-proxy directives DISABLED 2026-06-30 ----
+     * (xrootd_webdav_proxy, _dynamic, _upstream, _max_fails, _fail_timeout,
+     * _auth, _connect_timeout, _send_timeout, _read_timeout) are removed ahead of
+     * deleting the unused WebDAV upstream-proxy implementation; a config using any
+     * of them now fails with nginx "unknown directive". Handlers/runtime remain
+     * temporarily, scheduled for removal. NOT affected: xrootd_webdav_proxy_certs
+     * (GSI X.509 RFC-3820 proxy-cert acceptance — an AUTH directive, retained). */
 
     /* Phase 24: traffic mirroring (off by default) */    { ngx_string("xrootd_mirror_url"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -647,26 +724,7 @@ ngx_command_t ngx_http_xrootd_webdav_commands[] = {
       offsetof(ngx_http_xrootd_webdav_loc_conf_t, rl_rules),
       NULL },
 
-    { ngx_string("xrootd_webdav_proxy_connect_timeout"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, upstream_conf.connect_timeout),
-      NULL },
-
-    { ngx_string("xrootd_webdav_proxy_send_timeout"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, upstream_conf.send_timeout),
-      NULL },
-
-    { ngx_string("xrootd_webdav_proxy_read_timeout"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_webdav_loc_conf_t, upstream_conf.read_timeout),
-      NULL },
+    /* (legacy xrootd_webdav_proxy_*_timeout directives removed — see note above) */
 
     /* Phase 20: shared-memory KV zones, token cache, rate limiting */
     /* xrootd_kv_zone <name> <size> key=<bytes> val=<bytes>;  (http main) */

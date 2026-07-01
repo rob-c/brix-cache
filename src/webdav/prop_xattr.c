@@ -191,7 +191,12 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
 
     n = xrootd_vfs_getxattr(&vctx, WEBDAV_LOCK_XATTR_KEY, buf, sizeof(buf) - 1);
     if (n < 0) {
-        if (errno == ENODATA || errno == ENOATTR || errno == ENOENT) {
+        /* No lock present, OR a backend that cannot store xattrs at all (object /
+         * remote root:// stores) — either way the resource carries no WebDAV lock,
+         * so a write may proceed. */
+        if (errno == ENODATA || errno == ENOATTR || errno == ENOENT
+            || errno == ENOTSUP || errno == EOPNOTSUPP)
+        {
             return NGX_DECLINED;
         }
         ngx_log_error(NGX_LOG_ERR, log, errno,
@@ -211,8 +216,10 @@ webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path)
     webdav_lock_vfs_ctx_init(r, path, &vctx);
 
     if (xrootd_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) != NGX_OK) {
-        if (errno == ENODATA || errno == ENOATTR || errno == ENOENT) {
-            return NGX_OK;   /* idempotent */
+        if (errno == ENODATA || errno == ENOATTR || errno == ENOENT
+            || errno == ENOTSUP || errno == EOPNOTSUPP)
+        {
+            return NGX_OK;   /* idempotent (incl. backends without xattr) */
         }
         ngx_log_error(NGX_LOG_WARN, log, errno,
                       "xrootd_webdav: removexattr lock on \"%s\" failed", path);

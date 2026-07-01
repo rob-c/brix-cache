@@ -2,7 +2,8 @@
  * scan_unittest.c — standalone suite for the ngx-free scan cores.
  *
  *   gcc -Wall -Wextra -Werror -I src/scan -o /tmp/scan_ut \
- *       src/scan/scan_unittest.c src/scan/scan_record.c src/scan/scan_throttle.c -lm \
+ *       src/scan/scan_unittest.c src/scan/scan_record.c src/scan/scan_throttle.c \
+ *       src/scan/scan_emit.c src/scan/scan_drift.c -lm \
  *       && /tmp/scan_ut
  *
  * Exit 0 = all checks pass. Driven by tests/test_scan.py.
@@ -128,6 +129,40 @@ test_record_inspect_health(void)
     CHECK(STREQ(buf,
         "{\"t\":\"health\",\"backend\":\"posix\",\"total_bytes\":1000,"
         "\"free_bytes\":400,\"used_bytes\":600}"), "health record");
+}
+
+static void
+test_record_object_drift(void)
+{
+    char buf[256];
+
+    /* inventory object: backend key + recovered logical path, not an orphan */
+    CHECK(xrootd_scan_record_object(buf, sizeof(buf), "atlas.x.root",
+                                    "/atlas/x.root", 12345, 1719600000, 0) > 0,
+          "object rc");
+    CHECK(STREQ(buf,
+        "{\"t\":\"object\",\"key\":\"atlas.x.root\",\"path\":\"/atlas/x.root\","
+        "\"size\":12345,\"mtime\":1719600000,\"orphan\":false}"),
+        "object record");
+
+    /* orphan object: no recoverable namespace path → path null, orphan true */
+    CHECK(xrootd_scan_record_object(buf, sizeof(buf), "atlas.orphan.0", NULL,
+                                    4096, 0, 1) > 0, "object orphan rc");
+    CHECK(strstr(buf, "\"path\":null") != NULL, "orphan path null");
+    CHECK(strstr(buf, "\"orphan\":true") != NULL, "orphan flag true");
+
+    /* drift orphan_object: catalog key present, no namespace entry */
+    CHECK(xrootd_scan_record_drift(buf, sizeof(buf), "atlas.orphan.0", NULL,
+                                   "orphan_object", 4096) > 0, "drift rc");
+    CHECK(STREQ(buf,
+        "{\"t\":\"drift\",\"key\":\"atlas.orphan.0\",\"path\":null,"
+        "\"class\":\"orphan_object\",\"size\":4096}"), "drift orphan record");
+
+    /* drift namespace_only: namespace path present, no backing object → key null */
+    CHECK(xrootd_scan_record_drift(buf, sizeof(buf), NULL, "/atlas/ghost",
+                                   "namespace_only", 0) > 0, "drift ns rc");
+    CHECK(strstr(buf, "\"key\":null") != NULL, "ns_only key null");
+    CHECK(strstr(buf, "\"path\":\"/atlas/ghost\"") != NULL, "ns_only path");
 }
 
 /* ---- scan_throttle -------------------------------------------------------- */
@@ -328,6 +363,7 @@ main(void)
     test_json_escape();
     test_record_file();
     test_record_inspect_health();
+    test_record_object_drift();
     test_record_cursor_summary();
     test_token_bucket();
     test_budget();

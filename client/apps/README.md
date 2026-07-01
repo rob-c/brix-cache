@@ -15,7 +15,7 @@ record the groupings; the table lists each tool by its binary, not its files.
 |---|---|
 | `xrdcp` | Copy files: `root://`, web URLs (`davs://`/`http(s)://`/`dav://`/`s3://`/`s3s://`), local paths, or `-`. Recursive + ZIP-member support. |
 | `xrdfs` | Filesystem operations (`ls`/`stat`/`mkdir`/`rm`/`mv`/`cat`/`xattr`/…); with no command, an interactive shell (`root://`). Web backends too. |
-| `xrd` | Multi-call swiss-army front-end exposing the full verb set (ls/stat/cat/cp/du/df/tree/find/locate/query/prepare/stage/evict/explain/…) plus the `battery`/`doctor`/`clockskew`/`mount` subcommands. |
+| `xrd` | Multi-call swiss-army front-end exposing the full verb set (ls/stat/cat/cp/du/df/tree/find/locate/query/prepare/stage/evict/explain/…) plus the `battery`/`doctor`/`clockskew`/`mount` subcommands and the backend-storage verbs `inventory`/`verify`/`drift`/`inspect` (→ `xrdstorascan`). |
 
 ## Checksums & verification
 

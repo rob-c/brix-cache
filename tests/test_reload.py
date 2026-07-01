@@ -112,7 +112,7 @@ stream {{
     server {{
         listen {self.stream_port};
         xrootd on;
-        xrootd_root {self.data};
+        xrootd_storage_backend posix:{self.data};
         xrootd_auth none;
         xrootd_allow_write {allow_write};
         xrootd_session_slots {session_slots};

@@ -91,7 +91,14 @@ typedef enum {
     XROOTD_SD_CAP_DIRS          = 1u << 8,  /* real directories (else key-prefix)*/
     XROOTD_SD_CAP_APPEND        = 1u << 9,  /* O_APPEND semantics                */
     XROOTD_SD_CAP_IOURING       = 1u << 10, /* fd is io_uring-submittable        */
-    XROOTD_SD_CAP_FSCS          = 1u << 11  /* filesystem page checksums (CSI)   */
+    XROOTD_SD_CAP_FSCS          = 1u << 11, /* filesystem page checksums (CSI)   */
+    /* The backend is NEARLINE (tape/MSS): an object may be offline, so a read can
+     * fault a slow async recall instead of returning bytes. A nearline backend
+     * advertises this AND implements the recall slot below; the composing registry
+     * then REQUIRES a cache tier (the recall target, phase-64 P4/§9.4) in front of
+     * it. Drivers that always serve online leave this 0 (the common case). */
+    XROOTD_SD_CAP_NEARLINE      = 1u << 12, /* tape/MSS: reads may recall (§9)    */
+    XROOTD_SD_CAP_CATALOG       = 1u << 13  /* native object-catalog enumeration  */
 } xrootd_sd_cap_t;
 
 /* ---- SD open flags --------------------------------------------------------
@@ -111,6 +118,38 @@ typedef struct xrootd_sd_instance_s xrootd_sd_instance_t;
 typedef struct xrootd_sd_obj_s      xrootd_sd_obj_t;
 typedef struct xrootd_sd_dir_s      xrootd_sd_dir_t;
 typedef struct xrootd_sd_staged_s   xrootd_sd_staged_t;
+
+/* Residency of a nearline (tape/MSS) object — the online/offline model the VFS
+ * residency seam (xrootd_vfs_residency) exposes to protocol handlers so they can
+ * advertise tape state (the HTTP Tape REST API, S3 InvalidObjectState /
+ * x-amz-storage-class, root:// stat's nearline flag) WITHOUT forcing a recall. A
+ * non-nearline driver has no residency slot; the seam reports ONLINE for it (a
+ * plain disk/object export is always resident). */
+typedef enum {
+    XROOTD_SD_RES_ONLINE   = 0,  /* resident in the online buffer, readable now      */
+    XROOTD_SD_RES_NEARLINE = 1,  /* on the backend, stageable (a recall faults it in) */
+    XROOTD_SD_RES_OFFLINE  = 2,  /* on the backend, not retrievable right now         */
+    XROOTD_SD_RES_LOST     = 3   /* the object is gone                                */
+} xrootd_sd_residency_t;
+
+/* One entry the catalog-enumeration verb (driver->enumerate) reports per stored
+ * backend object — independent of the namespace. `key` is the backend object key
+ * (always present). `path` is the logical path the driver recovered for it, or
+ * NULL when it cannot (⇒ an orphan-object candidate). size/mtime are valid only
+ * when have_stat (the enumerator was asked for stats and the per-object stat
+ * succeeded). All pointers are owned by the enumerator and valid only for the
+ * duration of the callback. */
+typedef struct {
+    const char *key;
+    const char *path;
+    int         have_stat;
+    off_t       size;
+    time_t      mtime;
+} xrootd_sd_catalog_ent_t;
+
+/* Per-object callback fired by driver->enumerate. Return 0 to continue the
+ * enumeration, non-zero to abort it (that code is returned to the caller). */
+typedef int (*xrootd_sd_catalog_cb)(void *ctx, const xrootd_sd_catalog_ent_t *ent);
 
 /* Protocol-neutral stat the driver fills; the VFS maps it to xrootd_vfs_stat_t. */
 typedef struct {
@@ -263,6 +302,34 @@ struct xrootd_sd_driver_s {
                                 size_t len, off_t off);
     ngx_int_t  (*staged_commit)(xrootd_sd_staged_t *st, int noreplace);
     void       (*staged_abort) (xrootd_sd_staged_t *st);
+
+    /* nearline (tape/MSS) recall — phase-64 §9.3. Initiate or join an async recall
+     * of `key` from offline (tape) into the backend's online buffer, returning a
+     * stable request id in reqid_out (≤39 chars + NUL) that the cache tier parks a
+     * stalled open on (xrootd_stage waiter). Returns NGX_AGAIN (queued / in-flight —
+     * park the open), NGX_OK (already online — do a normal cache-fill), or NGX_ERROR
+     * (errno set). NULL on non-nearline drivers (the VFS/cache never calls it unless
+     * XROOTD_SD_CAP_NEARLINE is advertised). */
+    ngx_int_t  (*recall)(xrootd_sd_instance_t *inst, const char *key,
+                         char reqid_out[40]);
+
+    /* nearline residency (tape/MSS) — classify `key` as online/nearline/offline/lost
+     * WITHOUT initiating a recall (a pure read of the MSS residency model). The VFS
+     * residency seam (xrootd_vfs_residency) calls this only on a driver advertising
+     * XROOTD_SD_CAP_NEARLINE; NULL elsewhere (the seam reports ONLINE). Returns
+     * NGX_OK (out set) or NGX_ERROR (errno set, e.g. ENOENT for an unknown key). */
+    ngx_int_t  (*residency)(xrootd_sd_instance_t *inst, const char *key,
+                            xrootd_sd_residency_t *out);
+
+    /* object-catalog enumeration (inventory/drift, spec §E1/D2). Enumerate the
+     * driver's OWN physical object catalog — NOT a namespace walk — firing cb
+     * once per stored object (xrootd_sd_catalog_ent_t). want_stat asks for
+     * size/mtime per object (an extra per-object stat). Returns NGX_OK (full
+     * enumeration; cb may have aborted early), or NGX_ERROR (errno set). NULL on
+     * drivers with no native catalog (POSIX: the namespace IS the catalog) — the
+     * VFS wrapper then reports ENOTSUP. Advertised via XROOTD_SD_CAP_CATALOG. */
+    ngx_int_t  (*enumerate)(xrootd_sd_instance_t *inst, int want_stat,
+                            xrootd_sd_catalog_cb cb, void *ctx);
 };
 
 /* ---- capability-gated accessors (never poke the vtable directly) ---------- */

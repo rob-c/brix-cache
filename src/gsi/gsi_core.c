@@ -221,10 +221,13 @@ gsi_cresp_fail(gsi_cresp_ctx *x, char *err, size_t errcap, const char *msg)
 
 
 int
-xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
+xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
                               const uint8_t *proxy_pem, size_t proxy_pem_len,
                               EVP_PKEY *proxy_key,
                               uint8_t **payload, uint32_t *plen,
+                              uint8_t *out_key, size_t *out_keylen,
+                              char *out_cipher, size_t out_cipher_cap,
+                              int *out_use_iv,
                               char *err, size_t errcap)
 {
     const uint8_t *cipher = NULL, *puk = NULL, *sx509 = NULL, *xmain = NULL;
@@ -367,6 +370,18 @@ xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
         x.enc = xrootd_gsi_cipher_encrypt(&sesscipher, aeskey, x.inner.p,
                                           x.inner.len, use_iv, &enclen);
     }
+    /* Hand the agreed session cipher to the caller before we wipe it — the
+     * client's X.509 delegation round (kXGC_sigpxy) reuses the same key/cipher. */
+    if (out_key != NULL && out_keylen != NULL) {
+        memcpy(out_key, aeskey, sesscipher.key_len);
+        *out_keylen = sesscipher.key_len;
+    }
+    if (out_cipher != NULL && out_cipher_cap > 0) {
+        snprintf(out_cipher, out_cipher_cap, "%s", chosen_cipher);
+    }
+    if (out_use_iv != NULL) {
+        *out_use_iv = use_iv;
+    }
     OPENSSL_cleanse(aeskey, sizeof(aeskey));
     if (x.inner.err || x.enc == NULL) {
         return gsi_cresp_fail(&x, err, errcap, "gsi: main encrypt failed");
@@ -424,6 +439,22 @@ xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
     x.outer.p = NULL;          /* ownership → caller */
     (void) gsi_cresp_fail(&x, NULL, 0, NULL);   /* free everything else, no err */
     return 0;
+}
+
+
+/* Back-compat wrapper: the round-2 builder without the session-key export. */
+int
+xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
+                              const uint8_t *proxy_pem, size_t proxy_pem_len,
+                              EVP_PKEY *proxy_key,
+                              uint8_t **payload, uint32_t *plen,
+                              char *err, size_t errcap)
+{
+    return xrootd_gsi_build_cert_response_ex(sbody, slen, proxy_pem,
+                                             proxy_pem_len, proxy_key,
+                                             payload, plen,
+                                             NULL, NULL, NULL, 0, NULL,
+                                             err, errcap);
 }
 
 

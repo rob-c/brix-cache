@@ -23,14 +23,29 @@ xrdc_fuse_conn_healthy(const xrdc_status *st)
     return st->kxr != XRDC_ESOCK && st->kxr != XRDC_EPROTO;
 }
 
-int
-xrdc_fuse_run(xrdc_pool *pool, int max_retries,
-              xrdc_fuse_op_fn op, void *ctx, xrdc_status *st)
+/* Retry budget exhausted? Deadline-bounded when `deadline` is set (ride the loss
+ * out for the patience window); else the legacy count bound (stop once `attempt`
+ * has reached `max`, i.e. max+1 total attempts — max==0 is a single attempt). */
+static int
+fuse_run_done(uint64_t deadline, unsigned attempt, unsigned max)
 {
+    if (deadline != 0) {
+        return xrdc_mono_ns() >= deadline;
+    }
+    return attempt >= max;
+}
+
+int
+xrdc_fuse_run(xrdc_pool *pool, int max_retries, int max_stall_ms,
+              int benign_errno, xrdc_fuse_op_fn op, void *ctx, xrdc_status *st)
+{
+    uint64_t deadline = (max_stall_ms > 0)
+                        ? xrdc_mono_ns() + (uint64_t) max_stall_ms * 1000000ULL
+                        : 0;
     unsigned max = max_retries > 0 ? (unsigned) max_retries : 0;
     unsigned attempt;
 
-    for (attempt = 0; attempt <= max; attempt++) {
+    for (attempt = 0; ; attempt++) {
         /* Exponential backoff + jitter BEFORE each retry (never the first), so a
          * transient fault on a flaky link is ridden out without a reconnect
          * storm and concurrent FUSE threads do not re-hammer in lockstep. */
@@ -40,7 +55,8 @@ xrdc_fuse_run(xrdc_pool *pool, int max_retries,
 
         xrdc_conn *c = xrdc_pool_checkout(pool, st);
         if (c == NULL) {
-            if (attempt < max && xrdc_status_retryable(st)) {
+            if (xrdc_status_retryable(st)
+                && !fuse_run_done(deadline, attempt, max)) {
                 continue;
             }
             return xrdc_fuse_errno(st);
@@ -51,12 +67,22 @@ xrdc_fuse_run(xrdc_pool *pool, int max_retries,
         if (rc == 0) {
             return 0;
         }
-        if (attempt == max || !xrdc_status_retryable(st)) {
+        /* Idempotency normalization for a re-issued mutation: once we have
+         * retried (attempt > 0), the first attempt may already have applied the
+         * change and had its reply lost to the sever. A benign "already in the
+         * desired state" code (EEXIST for mkdir/symlink/link, ENOENT for
+         * rm/rmdir/mv) then means success, not a spurious error. */
+        if (attempt > 0 && benign_errno != 0
+            && xrdc_kxr_to_errno(st) == benign_errno) {
+            xrdc_status_clear(st);
+            return 0;
+        }
+        if (!xrdc_status_retryable(st)
+            || fuse_run_done(deadline, attempt, max)) {
             return xrdc_fuse_errno(st);
         }
         /* transient → backoff, then retry on a freshly (re)connected slot */
     }
-    return xrdc_fuse_errno(st);
 }
 
 /* op thunks */

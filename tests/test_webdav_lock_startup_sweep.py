@@ -76,7 +76,7 @@ http {{
         listen {SWEEP_PORT};
         location / {{
             xrootd_webdav on;
-            xrootd_webdav_root {root};
+            xrootd_webdav_storage_backend posix:{root};
             xrootd_webdav_auth none;
             xrootd_webdav_lock_startup_sweep {sweep};
         }}

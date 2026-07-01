@@ -50,9 +50,8 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:19951;
-        xrootd on; xrootd_root @DIR@; xrootd_auth none;
+        xrootd on; xrootd_storage_backend posix:@DIR@; xrootd_auth none;
         xrootd_gsi_max_inflight_handshakes 128;
-        xrootd_proxy_write_timeout 30s;
     }
     server {
         listen 127.0.0.1:19952;
@@ -62,7 +61,7 @@ stream {
     }
     server {
         listen 127.0.0.1:19953;
-        xrootd on; xrootd_root @DIR@; xrootd_auth none;
+        xrootd on; xrootd_storage_backend posix:@DIR@; xrootd_auth none;
         xrootd_manager_mode on;
     }
 }
@@ -82,9 +81,8 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:19954;
-        xrootd on; xrootd_root @DIR@; xrootd_auth none;
+        xrootd on; xrootd_storage_backend posix:@DIR@; xrootd_auth none;
         xrootd_gsi_max_inflight_handshakes 0;
-        xrootd_proxy_write_timeout 0;
     }
     server {
         listen 127.0.0.1:19955;

@@ -116,13 +116,13 @@ stream {{
     server {{
         listen {self.port_anon};
         xrootd on;
-        xrootd_root {self.prefix}/data;
+        xrootd_storage_backend posix:{self.prefix}/data;
         xrootd_auth none;
     }}
     server {{
         listen {self.port_gsi};
         xrootd on;
-        xrootd_root {self.prefix}/data;
+        xrootd_storage_backend posix:{self.prefix}/data;
         xrootd_auth gsi;
         xrootd_certificate     {self.prefix}/conf/host.crt;
         xrootd_certificate_key {self.prefix}/conf/host.key;

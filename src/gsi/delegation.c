@@ -66,6 +66,43 @@ gsi_pem_export(X509 *one, STACK_OF(X509) *chain, size_t *len)
     return out;
 }
 
+/*
+ * Re-encode a DER X509_REQ as PEM.  The stock XrdSecgsi client parses the
+ * kXRS_x509_req bucket with PEM_read_bio_X509_REQ (XrdCryptosslX509Req), so the
+ * proxy request MUST travel as PEM on the wire; xrootd_gsi_build_pxyreq emits
+ * DER (consumed as DER by xrootd_gsi_sign_pxyreq and its unit tests), so the
+ * conversion happens here at the wire edge rather than in the crypto core.
+ * A DER request sent verbatim makes the client reject it with
+ * "could not resolve proxy request" and decline to delegate.
+ */
+static u_char *
+gsi_req_der_to_pem(const u_char *der, size_t der_len, size_t *pem_len)
+{
+    const unsigned char *p = der;
+    X509_REQ            *req = d2i_X509_REQ(NULL, &p, (long) der_len);
+    BIO                 *b;
+    char                *d;
+    long                 n;
+    u_char              *out = NULL;
+
+    if (req == NULL) {
+        return NULL;
+    }
+    b = BIO_new(BIO_s_mem());
+    if (b != NULL && PEM_write_bio_X509_REQ(b, req) == 1) {
+        n = BIO_get_mem_data(b, &d);
+        out = malloc((size_t) n + 1);
+        if (out != NULL) {
+            memcpy(out, d, (size_t) n);
+            out[n] = '\0';
+            *pem_len = (size_t) n;
+        }
+    }
+    BIO_free(b);
+    X509_REQ_free(req);
+    return out;
+}
+
 /* Resolve the persisted session cipher; -1 if none was captured. */
 static int
 gsi_session_cipher(xrootd_ctx_t *ctx, xrootd_gsi_cipher_t *cipher)
@@ -109,6 +146,8 @@ typedef struct {
     size_t       chain_len;
     u_char      *req_der;
     size_t       req_len;
+    u_char      *req_pem;
+    size_t       req_pem_len;
     EVP_PKEY    *reqkey;
     uint8_t     *enc;
     size_t       enc_len;
@@ -122,6 +161,7 @@ bdg_fail(bdg_ctx *b)
     free(b->leaf_pem);
     free(b->chain_pem);
     free(b->req_der);
+    free(b->req_pem);
     if (b->reqkey) EVP_PKEY_free(b->reqkey);
     free(b->enc);
     xrootd_gbuf_free(&b->inner);
@@ -169,6 +209,14 @@ xrootd_gsi_begin_delegation(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return bdg_fail(&b);
     }
 
+    /* The stock client parses kXRS_x509_req as PEM — re-encode the DER request. */
+    b.req_pem = gsi_req_der_to_pem(b.req_der, b.req_len, &b.req_pem_len);
+    if (b.req_pem == NULL) {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                      "xrootd: GSI delegation: cannot PEM-encode proxy request");
+        return bdg_fail(&b);
+    }
+
     /*
      * Rtag proof-chain: RSA-sign (EncryptPrivate, our cert key) the client's
      * kXGC_cert random tag → kXRS_signed_rtag; the client's CheckRtag verifies it
@@ -192,7 +240,7 @@ xrootd_gsi_begin_delegation(xrootd_ctx_t *ctx, ngx_connection_t *c,
     xrootd_gbuf_bucket(&b.inner, (uint32_t) kXRS_signed_rtag,
                        signed_rtag, signed_rtag_len);
     xrootd_gbuf_bucket(&b.inner, (uint32_t) kXRS_rtag, new_rtag, sizeof(new_rtag));
-    xrootd_gbuf_bucket(&b.inner, (uint32_t) kXRS_x509_req, b.req_der, b.req_len);
+    xrootd_gbuf_bucket(&b.inner, (uint32_t) kXRS_x509_req, b.req_pem, b.req_pem_len);
     xrootd_gbuf_end(&b.inner);
     if (b.inner.err) {
         return bdg_fail(&b);

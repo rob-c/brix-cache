@@ -411,7 +411,7 @@ events {{}}
 stream {{
     server {{
         listen 0.0.0.0:{MIRROR_SINK_PORT};
-        xrootd on; xrootd_root {sink_data}; xrootd_auth none;
+        xrootd on; xrootd_storage_backend posix:{sink_data}; xrootd_auth none;
         xrootd_allow_write on;
     }}
 }}
@@ -424,7 +424,7 @@ events {{}}
 stream {{
     server {{
         listen 0.0.0.0:{MIRROR_FRONT_PORT};
-        xrootd on; xrootd_root {data}; xrootd_auth none;
+        xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;
         xrootd_allow_write on;
         xrootd_stream_mirror_url {H}:{MIRROR_SINK_PORT};
         xrootd_mirror_opcodes open read readv stat;
@@ -612,7 +612,7 @@ def proxy_chain():
     data = os.path.join(_PROXY_DIR, "data")
     confs = {
         "storage": (PROXY_STORAGE_PORT, f"""\
-        xrootd on; xrootd_root {data}; xrootd_auth none;
+        xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;
         xrootd_allow_write on;"""),
         "hop1": (PROXY_HOP1_PORT, f"""\
         xrootd on; xrootd_auth none;

@@ -187,7 +187,7 @@ def redirector(tmp_path):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen {HOST}:{NGINX_PORT};\n    xrootd on;\n"
-        f"    xrootd_root {data};\n"
+        f"    xrootd_storage_backend posix:{data};\n"
         f"    xrootd_upstream {HOST}:{origin.port};\n"
         f"    xrootd_upstream_token_file {token};\n  }}\n}}\n")
     subprocess.run(["bash", "-c", f"fuser -k {NGINX_PORT}/tcp 2>/dev/null"])

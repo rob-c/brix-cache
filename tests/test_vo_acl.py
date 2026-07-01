@@ -8,7 +8,7 @@ certificate.
 Topology
 --------
   nginx-xrootd VO server (port 11103)
-    xrootd_root   /tmp/xrd-test/data
+    xrootd_storage_backend posix:/tmp/xrd-test/data
     xrootd_require_vo /cms   cms      # CMS VO required for /cms/
     xrootd_require_vo /atlas atlas    # ATLAS VO required for /atlas/
     # /public/ — no restriction

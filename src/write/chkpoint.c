@@ -495,6 +495,12 @@ xrootd_chkpoint_recover_root(ngx_log_t *log, const char *root_canon)
     if (root_canon == NULL || root_canon[0] == '\0') {
         return NGX_OK;
     }
+    /* A pure cache node (no xrootd_root) anchors at the "/" namespace: there is no
+     * local export tree, so no checkpoint journal to recover (and "/" is not a
+     * writable place to drop a recovery lock). Nothing to do. */
+    if (root_canon[0] == '/' && root_canon[1] == '\0') {
+        return NGX_OK;
+    }
 
     root_len = strlen(root_canon);
     if (root_len + sizeof("/.nginx-xrootd-ckp-recovery.lock")

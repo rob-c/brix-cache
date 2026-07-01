@@ -205,7 +205,7 @@ def _spawn_nginx_gsi(gsi_server, port, signed_dh=None, tag="nginx_gsi"):
             "  server {\n"
             f"    listen {port};\n"
             "    xrootd on;\n"
-            f"    xrootd_root {gsi_server['data']};\n"
+            f"    xrootd_storage_backend posix:{gsi_server['data']};\n"
             "    xrootd_auth gsi;\n"
             + sdh +
             f"    xrootd_certificate     {gsi_server['hostcert']};\n"

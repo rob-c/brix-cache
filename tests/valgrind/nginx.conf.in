@@ -61,7 +61,7 @@ http {
             dav_methods           DELETE MKCOL;
 
             xrootd_webdav         on;
-            xrootd_webdav_root    {WORK}/data;
+            xrootd_webdav_storage_backend    posix:{WORK}/data;
             xrootd_webdav_cadir   {CA_DIR};
             xrootd_webdav_auth    required;
             xrootd_webdav_allow_write on;
@@ -98,7 +98,7 @@ http {
             dav_methods           DELETE MKCOL;
 
             xrootd_webdav         on;
-            xrootd_webdav_root    {WORK}/data;
+            xrootd_webdav_storage_backend    posix:{WORK}/data;
             xrootd_webdav_auth    optional;
             xrootd_webdav_cafile  {CA_CERT};
             xrootd_webdav_allow_write on;
@@ -129,7 +129,7 @@ http {
 
         location / {
             xrootd_s3           on;
-            xrootd_s3_root      {WORK}/data;
+            xrootd_s3_storage_backend      posix:{WORK}/data;
             xrootd_s3_bucket    testbucket;
             xrootd_s3_allow_write on;
             xrootd_s3_max_keys  1000;

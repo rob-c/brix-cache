@@ -306,7 +306,7 @@ stream {
     server {
         listen %s:%d;
         xrootd on;
-        xrootd_root %s;
+        xrootd_storage_backend posix:%s;
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_thread_pool aiopool;

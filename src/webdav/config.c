@@ -10,6 +10,7 @@
 
 #include "webdav.h"
 #include "../compat/integrity_info.h"   /* §8.x checksum xattr write format */
+#include "../compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "../token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
 #include "proxy_internal.h"
 #include "../mirror/http_mirror.h"
@@ -26,6 +27,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "../compat/alloc_guard.h"
+#include "../config/credential_block.h"   /* §14 xrootd_credential lookup/bearer */
 
 #define webdav_validate_path          xrootd_validate_path
 #define WEBDAV_PATH_REGULAR_FILE      XROOTD_PATH_REGULAR_FILE
@@ -120,10 +122,22 @@ ngx_http_xrootd_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->tape_rest    = NGX_CONF_UNSET;
     conf->upload_resume = NGX_CONF_UNSET;
     conf->common.allow_write  = NGX_CONF_UNSET;
+    conf->common.read_only    = NGX_CONF_UNSET;
     conf->common.compress     = NGX_CONF_UNSET;
+    conf->common.storage_staging = NGX_CONF_UNSET;
     conf->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
     conf->common.storage_instance  = NULL;
     /* common.storage_backend (ngx_str_t) left zeroed by pcalloc */
+    /* phase-64 tier grammar scalars (str/array fields stay zeroed by pcalloc) */
+    conf->common.stage_enable      = NGX_CONF_UNSET;
+    conf->common.stage_flush_async = NGX_CONF_UNSET_UINT;
+    conf->common.cache_max_object  = NGX_CONF_UNSET;
+    conf->common.cache_evict_at    = NGX_CONF_UNSET_UINT;
+    conf->common.cache_evict_to    = NGX_CONF_UNSET_UINT;
+    conf->common.cache_meta_mode   = NGX_CONF_UNSET_UINT;
+    conf->common.cache_batch_cinfo = NGX_CONF_UNSET_UINT;
+    conf->common.cache_index_cache = NGX_CONF_UNSET_SIZE;
+    conf->common.cache_slice_size  = NGX_CONF_UNSET_SIZE;
     xrootd_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
     conf->ca_store     = NULL;
     conf->cors_origins = NULL;
@@ -312,6 +326,34 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
                              prev->common.storage_backend, "");
     ngx_conf_merge_size_value(conf->common.pblock_block_size,
                               prev->common.pblock_block_size, 0);
+    /* phase-64 composable tier grammar */
+    ngx_conf_merge_str_value(conf->common.cache_store, prev->common.cache_store,
+                             "");
+    if (conf->common.cache_store_args == NULL) {
+        conf->common.cache_store_args = prev->common.cache_store_args;
+    }
+    ngx_conf_merge_value(conf->common.stage_enable, prev->common.stage_enable, 0);
+    ngx_conf_merge_str_value(conf->common.stage_store, prev->common.stage_store,
+                             "");
+    if (conf->common.stage_store_args == NULL) {
+        conf->common.stage_store_args = prev->common.stage_store_args;
+    }
+    ngx_conf_merge_uint_value(conf->common.stage_flush_async,
+                              prev->common.stage_flush_async, 0);
+    ngx_conf_merge_off_value(conf->common.cache_max_object,
+                             prev->common.cache_max_object, 0);
+    ngx_conf_merge_uint_value(conf->common.cache_evict_at,
+                              prev->common.cache_evict_at, 90);
+    ngx_conf_merge_uint_value(conf->common.cache_evict_to,
+                              prev->common.cache_evict_to, 80);
+    ngx_conf_merge_uint_value(conf->common.cache_meta_mode,
+                              prev->common.cache_meta_mode, 0);
+    ngx_conf_merge_uint_value(conf->common.cache_batch_cinfo,
+                              prev->common.cache_batch_cinfo, 2);
+    ngx_conf_merge_size_value(conf->common.cache_index_cache,
+                              prev->common.cache_index_cache, 0);
+    ngx_conf_merge_size_value(conf->common.cache_slice_size,
+                              prev->common.cache_slice_size, 0);
     ngx_conf_merge_str_value(conf->cache_root, prev->cache_root, "");
     ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");
     ngx_conf_merge_str_value(conf->tcp_congestion, prev->tcp_congestion, "");
@@ -330,7 +372,13 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->upload_resume, prev->upload_resume, 1);
     ngx_conf_merge_str_value(conf->upload_stage_dir, prev->upload_stage_dir, "");
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
+    ngx_conf_merge_value(conf->common.read_only, prev->common.read_only, 0);
     ngx_conf_merge_value(conf->common.compress, prev->common.compress, 0);
+    ngx_conf_merge_value(conf->common.storage_staging,
+                         prev->common.storage_staging, 0);
+    /* Hard read-only: force allow_write off after the merge so every WebDAV write-
+     * method gate rejects (before the VFS). */
+    xrootd_shared_apply_read_only(&conf->common, cf->log);
     if (xrootd_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
         != NGX_CONF_OK)
     {
@@ -402,8 +450,13 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
     if (conf->common.enable) {
         {
             xrootd_export_root_opts_t root_opts;
+
+            /* posix:<path> backend → the local export tree (composable xrootd_root). */
+            xrootd_storage_backend_posix_root(&conf->common);
+
             root_opts.directive_name = "xrootd_webdav_root";
-            root_opts.allow_write    = conf->common.allow_write;
+            root_opts.allow_write    = conf->common.allow_write
+                                     && !xrootd_storage_backend_is_remote(&conf->common);
             root_opts.required       = 1;
             root_opts.canon_size     = sizeof(conf->common.root_canon);
             if (xrootd_prepare_export_root(cf, &conf->common.root, &root_opts,
@@ -411,6 +464,8 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
             {
                 return NGX_CONF_ERROR;
             }
+            /* SP4: reap interrupted NON-staged direct-write temps under this root. */
+            xrootd_tmp_reap_register(conf->common.root_canon);
         }
 
         /* Register the export's selected storage backend so every VFS op resolves
@@ -418,15 +473,54 @@ ngx_http_xrootd_webdav_merge_loc_conf(ngx_conf_t *cf,
          * a remote root:// primary (WebDAV PUT staged-writes stream through to it);
          * a driver name (pblock) = a local backend; default POSIX is a no-op. */
         if (xrootd_vfs_backend_config_str(cf, conf->common.root_canon,
-                &conf->common.storage_backend, conf->common.pblock_block_size)
+                &conf->common.storage_backend, conf->common.pblock_block_size,
+                XROOTD_AF_AUTO)
             != NGX_OK)
         {
             return NGX_CONF_ERROR;
+        }
+        if (conf->common.storage_staging) {
+            xrootd_vfs_backend_set_staging(conf->common.root_canon, 1);
+        }
+
+        /* §14: attach the named xrootd_credential's bearer to the source backend
+         * (consumed by sd_http / sd_xroot). Resolved at config time; a missing
+         * credential or unreadable token_file fails loudly. Mirrors runtime_server.c
+         * for the stream scope. No xrootd_webdav_storage_credential ⇒ anonymous. */
+        if (conf->common.storage_credential.len > 0) {
+            char                       cred_z[256];
+            char                       bearer[4096];
+            const xrootd_credential_t *cred;
+
+            ngx_cpystrn((u_char *) cred_z, conf->common.storage_credential.data,
+                        ngx_min(conf->common.storage_credential.len + 1,
+                                sizeof(cred_z)));
+            cred = xrootd_credential_lookup(cred_z);
+            if (cred == NULL) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_webdav_storage_credential: no xrootd_credential \"%V\"",
+                    &conf->common.storage_credential);
+                return NGX_CONF_ERROR;
+            }
+            if (xrootd_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
+                != NGX_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
+            xrootd_vfs_backend_set_credential(conf->common.root_canon, bearer,
+                (cred->x509_proxy.len > 0)
+                    ? (const char *) cred->x509_proxy.data : NULL,
+                (cred->ca_dir.len > 0) ? (const char *) cred->ca_dir.data : NULL);
         }
 
         /* Open the persistent confinement rootfd on the freshly-resolved
          * export root (kernel openat2 RESOLVE_BENEATH anchor). */
         if (xrootd_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
+            return NGX_CONF_ERROR;
+        }
+
+        /* Phase-64: register the composable cache/stage tiers (§4.4 mirror). */
+        if (xrootd_tier_register_stores(cf, &conf->common) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
 

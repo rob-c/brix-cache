@@ -69,7 +69,7 @@ def _spawn(base, port, allow):
         "    server {\n"
         f"        listen 127.0.0.1:{port};\n"
         "        xrootd on;\n"
-        f"        xrootd_root {data};\n"
+        f"        xrootd_storage_backend posix:{data};\n"
         "        xrootd_auth host;\n"
         f"        xrootd_host_allow {allow};\n"
         "    }\n"

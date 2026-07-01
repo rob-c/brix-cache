@@ -1,10 +1,11 @@
 /*
  * ssi_rrinfo.c — byte-exact codec for XrdSsiRRInfo / XrdSsiRRInfoAttn. See header.
  *
- * Layouts validated against golden values from the real XrdSsi classes
- * (ssi_rrinfo_unittest.c). The kXR offset that carries an XrdSsiRRInfo serializes
- * big-endian as [id_lo][id_mid][id_hi][cmd][size little-endian u32]; the attn
- * prefix is [tag][flags][pfxLen BE u16][mdLen BE u32][8 reserved].
+ * Layout matches the real XrdSsiRRInfo wire serialization, verified against live
+ * libXrdSsi traffic: byte0 = reqCmd (Rxq/Rwt/Can), bytes1-3 = reqId big-endian
+ * (24-bit, idMask 0x00ffffff), bytes4-7 = reqSize little-endian. (The reqCmd byte
+ * overlaps reqId's high byte via the union, so the id occupies bytes 1-3.) The
+ * attn prefix is [tag][flags][pfxLen BE u16][mdLen BE u32][8 reserved].
  */
 
 #include "ssi_rrinfo.h"
@@ -13,10 +14,10 @@ void
 xrootd_ssi_rrinfo_decode(const unsigned char off[XROOTD_SSI_RRINFO_LEN],
                          int *cmd, uint32_t *id, uint32_t *size)
 {
-    *id = (uint32_t) off[0]
-        | ((uint32_t) off[1] << 8)
-        | ((uint32_t) off[2] << 16);
-    *cmd = off[3];
+    *cmd = off[0];
+    *id = ((uint32_t) off[1] << 16)
+        | ((uint32_t) off[2] << 8)
+        | (uint32_t) off[3];
     *size = (uint32_t) off[4]
           | ((uint32_t) off[5] << 8)
           | ((uint32_t) off[6] << 16)
@@ -28,10 +29,10 @@ xrootd_ssi_rrinfo_encode(int cmd, uint32_t id, uint32_t size,
                          unsigned char off[XROOTD_SSI_RRINFO_LEN])
 {
     id &= XROOTD_SSI_ID_MAX;
-    off[0] = (unsigned char) (id & 0xff);
-    off[1] = (unsigned char) ((id >> 8) & 0xff);
-    off[2] = (unsigned char) ((id >> 16) & 0xff);
-    off[3] = (unsigned char) cmd;
+    off[0] = (unsigned char) cmd;
+    off[1] = (unsigned char) ((id >> 16) & 0xff);
+    off[2] = (unsigned char) ((id >> 8) & 0xff);
+    off[3] = (unsigned char) (id & 0xff);
     off[4] = (unsigned char) (size & 0xff);
     off[5] = (unsigned char) ((size >> 8) & 0xff);
     off[6] = (unsigned char) ((size >> 16) & 0xff);

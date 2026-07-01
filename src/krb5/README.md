@@ -72,7 +72,7 @@ Entry into this subsystem:
    (alongside GSI/TLS/token/SSS setup). The `xrootd_krb5_principal`,
    `xrootd_krb5_keytab`, and `xrootd_krb5_ip_check` directives are declared in
    the live `ngx_stream_xrootd_commands[]` table in `../stream/module.c`
-   (`module_core_directives.c` is a stale, uncompiled copy) and bound directly to the conf fields
+   and bound directly to the conf fields
    by nginx's standard `ngx_conf_set_str_slot`/`ngx_conf_set_flag_slot`.
 
 2. **Runtime** — a `root://` connection reaches the `kXR_auth` handler in
@@ -159,8 +159,7 @@ Calls out to sibling subsystems:
 - **Add a krb5 tunable directive** (e.g. a new mapping option): add the field to
   the Kerberos block of `ngx_stream_xrootd_srv_conf_t` in `../types/config.h`,
   register the `ngx_command_t` in the live `ngx_stream_xrootd_commands[]` table
-  in `../stream/module.c` (`NGX_STREAM_SRV_CONF`); do not edit
-  `module_core_directives.c`, which is a stale, uncompiled copy. Set its default
+  in `../stream/module.c` (`NGX_STREAM_SRV_CONF`). Set its default
   in the srv-conf merge, and consume it
   in `xrootd_configure_krb5_auth` (validation) and/or `xrootd_handle_krb5_auth`
   (runtime). No new top-level config block, so no `./configure` re-run is needed

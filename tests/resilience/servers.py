@@ -166,7 +166,7 @@ stream {{
     server {{
         listen 127.0.0.1:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth gsi;
         xrootd_allow_write on;
         xrootd_certificate     {server_cert};
@@ -236,7 +236,7 @@ stream {{
     server {{
         listen 127.0.0.1:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_access_log {logs}/xrootd_access_anon.log;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # run_proxy_metadata_phase.sh — verify a REMOTE root:// filesystem (a transparent
-# xrootd_proxy in front of a root:// origin) forwards the FULL metadata/namespace
+# xrootd_tap_proxy in front of a root:// origin) forwards the FULL metadata/namespace
 # phase-space to the origin: mkdir, put/get, stat, ls, chmod, xattr set/get/list,
 # mv, rm. Every op is driven through the proxy and its effect checked on the origin.
 #
@@ -25,14 +25,14 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/p/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root;
+stream { server { listen 127.0.0.1:${OPORT}; xrootd on; xrootd_storage_backend posix:$PFX/o/root;
     xrootd_auth none; xrootd_allow_write on; xrootd_upload_resume off; } }
 EOF
 cat > "$PFX/p/nginx.conf" <<EOF
 daemon on; error_log $PFX/p/logs/e.log info; pid $PFX/p/nginx.pid;
 events { worker_connections 64; }
 stream { server { listen 127.0.0.1:${PPORT}; xrootd on; xrootd_auth none;
-    xrootd_proxy on; xrootd_proxy_upstream 127.0.0.1:${OPORT}; } }
+    xrootd_tap_proxy on; xrootd_tap_proxy_upstream 127.0.0.1:${OPORT}; xrootd_tap_proxy_auth anonymous; } }
 EOF
 
 "$NGINX" -p "$PFX/o" -c "$PFX/o/nginx.conf" 2>"$PFX/o/err" || { echo "origin start failed"; cat "$PFX/o/err"; exit 2; }

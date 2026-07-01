@@ -401,6 +401,34 @@ xrootd_export_prometheus_metrics(metrics_writer_t *mw,
 
 #undef XROOTD_EXPORT_DEPTH_VIOLATIONS
 
+    /* §7 XrdSsi service counters. */
+#define XROOTD_EXPORT_SSI_COUNTER(name, field, help)                          \
+    do {                                                                      \
+        mw_printf(mw, "# HELP " name " " help "\n# TYPE " name " counter\n"); \
+        for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {                    \
+            srv = &shm->servers[i];                                           \
+            if (!srv->in_use) { continue; }                                   \
+            ngx_snprintf((u_char *) port_str, sizeof(port_str),               \
+                         "%ui%Z", srv->port);                                 \
+            mw_printf(mw, name "{port=\"%s\",auth=\"%s\"} %lu\n",             \
+                      port_str, srv->auth,                                     \
+                      (unsigned long) ngx_atomic_fetch_add(&srv->field, 0));  \
+        }                                                                     \
+    } while (0)
+
+    XROOTD_EXPORT_SSI_COUNTER("xrootd_ssi_requests_total", ssi_requests_total,
+                              "XrdSsi requests dispatched.");
+    XROOTD_EXPORT_SSI_COUNTER("xrootd_ssi_errors_total", ssi_errors_total,
+                              "XrdSsi error responses.");
+    XROOTD_EXPORT_SSI_COUNTER("xrootd_ssi_alerts_pushed_total",
+                              ssi_alerts_pushed_total,
+                              "XrdSsi out-of-band alerts pushed to clients.");
+    XROOTD_EXPORT_SSI_COUNTER("xrootd_ssi_attn_push_failures_total",
+                              ssi_attn_push_failures_total,
+                              "XrdSsi kXR_attn pushes that failed to queue.");
+
+#undef XROOTD_EXPORT_SSI_COUNTER
+
     mw_printf(mw,
         "# HELP xrootd_registry_full_total "
             "Server registrations dropped because the registry was at capacity.\n"

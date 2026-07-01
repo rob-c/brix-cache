@@ -330,10 +330,10 @@ stream {{ server {{
     listen {BIND_HOST}:{port};
     xrootd on;
     xrootd_auth none;
-    xrootd_proxy on;
-    xrootd_proxy_auth sss;
+    xrootd_tap_proxy on;
+    xrootd_tap_proxy_auth sss;
     xrootd_sss_keytab {kt};
-    xrootd_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
+    xrootd_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
 }} }}
 """)
 
@@ -345,10 +345,10 @@ stream {{ server {{
     listen {BIND_HOST}:{port};
     xrootd on;
     xrootd_auth none;
-    xrootd_proxy on;
-    xrootd_proxy_auth sss;
+    xrootd_tap_proxy on;
+    xrootd_tap_proxy_auth sss;
     xrootd_sss_keytab {kt_bad};
-    xrootd_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
+    xrootd_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
 }} }}
 """)
 

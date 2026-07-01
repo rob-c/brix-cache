@@ -164,11 +164,16 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
             } else {
                 flag = (u_char) kXR_file;          /* 0 — incl. non-regular */
             }
-            if (conf->frm.enable) {
-                frm_residency_t _res;
-                if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
-                    && (_res.state == FRM_RES_NEARLINE
-                        || _res.state == FRM_RES_OFFLINE))
+            {
+                xrootd_vfs_ctx_t      _rvc;
+                xrootd_sd_residency_t _res;
+
+                xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_STREAM,
+                    conf->common.root_canon, NULL, conf->common.allow_write,
+                    0 /* is_tls */, NULL, full_path);
+                if (xrootd_vfs_residency(&_rvc, &_res, NULL) == NGX_OK
+                    && (_res == XROOTD_SD_RES_NEARLINE
+                        || _res == XROOTD_SD_RES_OFFLINE))
                 {
                     flag |= (u_char) kXR_offline;
                 }

@@ -41,16 +41,28 @@ int xrdc_fuse_conn_healthy(const xrdc_status *st);
 
 /*
  * Run `op` on a connection borrowed from `pool`.
- *   max_retries == 0 → a single attempt (the simple driver's behaviour).
- *   max_retries  > 0 → retry TRANSIENT faults (socket/protocol) up to that many
- *                      times, sleeping with exponential backoff + jitter before
- *                      each retry and reconnecting the dropped slot (the
- *                      resilient driver's behaviour).
+ * Retry budget (mirrors the data-plane mfile path so metadata is as resilient
+ * as read/write on a lossy link):
+ *   max_stall_ms > 0 → DEADLINE-bounded: retry TRANSIENT faults (socket/protocol)
+ *                      with exponential backoff + jitter, reconnecting the dropped
+ *                      slot, until the op succeeds or the patience window elapses
+ *                      (NOT a fixed count — a flapping link is ridden out as long
+ *                      as progress is possible). max_retries is ignored.
+ *   max_stall_ms == 0 → legacy COUNT bound: max_retries == 0 is a single attempt
+ *                      (the simple driver), max_retries > 0 retries that many times.
+ *
+ * benign_errno (idempotency normalization for re-issued MUTATIONS): when > 0 and
+ * a RETRY (not the first attempt) fails with this POSIX errno, treat it as
+ * success — the first attempt's change was already applied and its reply was lost
+ * to the sever (EEXIST for mkdir/symlink/link, ENOENT for rm/rmdir/mv). Pass 0
+ * for read-only / naturally-idempotent ops (chmod/truncate/setattr).
+ *
  * Fatal faults (NotFound, NotAuthorized, …) return immediately.  Returns 0 on
  * success or a negative errno ready to hand back to FUSE.
  */
-int xrdc_fuse_run(xrdc_pool *pool, int max_retries,
-                  xrdc_fuse_op_fn op, void *ctx, xrdc_status *st);
+int xrdc_fuse_run(xrdc_pool *pool, int max_retries, int max_stall_ms,
+                  int benign_errno, xrdc_fuse_op_fn op, void *ctx,
+                  xrdc_status *st);
 
 /* ---- typed ctx structs for the standard metadata ops -------------------- */
 struct xrdc_fuse_ctx_stat  { const char *path; xrdc_statinfo *si; };

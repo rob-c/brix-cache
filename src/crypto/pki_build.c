@@ -13,6 +13,7 @@
 
 #include <openssl/pem.h>
 #include <openssl/x509_vfy.h>
+#include <openssl/x509v3.h>   /* EXFLAG_PROXY, X509_get_extension_flags */
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -20,6 +21,55 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+
+/*
+ * WHAT: check_issued override that accepts a name-matching issuer for an
+ *       RFC 3820 proxy subject even when the proxy's authorityKeyIdentifier
+ *       does not match the issuer's subjectKeyIdentifier.
+ *
+ * WHY:  xrdgsiproxy / voms-proxy-init copy the end-entity certificate's own
+ *       authorityKeyIdentifier into the delegated proxy, so the proxy's AKID
+ *       points at the issuing CA rather than at the signing EEC.  OpenSSL's
+ *       default check_issued then rejects the EEC as the proxy's issuer with
+ *       X509_V_ERR_AKID_SKID_MISMATCH and X509_verify_cert reports "unable to
+ *       get local issuer certificate" — even though the EEC really did sign the
+ *       proxy.  This only bites once the EEC carries a subjectKeyIdentifier
+ *       (every real IGTF/grid certificate does; OpenSSL 3.x also adds one by
+ *       default), so real grid proxies fail while a SKID-less test cert passed.
+ *       The reference XRootD server (XrdCryptosslX509Chain) selects issuers by
+ *       subject name + signature and ignores the AKID hint, so those proxies
+ *       authenticate there but not here.  Match that behaviour.
+ *
+ * HOW:  Defer to the default X509_check_issued.  On success, accept.  For a
+ *       proxy subject whose only objection is an AKID/SKID (or AKID issuer-
+ *       serial) mismatch, accept the name-matching issuer.  The proxy's RSA
+ *       signature is still verified by X509_verify_cert afterwards, so this
+ *       relaxes issuer *selection*, never signature trust; it is scoped to
+ *       certificates OpenSSL has recognised as proxies (EXFLAG_PROXY, set only
+ *       under X509_V_FLAG_ALLOW_PROXY_CERTS with a valid proxyCertInfo) and is
+ *       installed only on stores built for proxy verification.
+ */
+static int
+pki_proxy_check_issued(X509_STORE_CTX *ctx, X509 *subject, X509 *issuer)
+{
+    int rv;
+
+    (void) ctx;
+
+    rv = X509_check_issued(issuer, subject);
+    if (rv == X509_V_OK) {
+        return 1;
+    }
+
+    if ((X509_get_extension_flags(subject) & EXFLAG_PROXY)
+        && (rv == X509_V_ERR_AKID_SKID_MISMATCH
+            || rv == X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH))
+    {
+        return 1;
+    }
+
+    return 0;
+}
 
 /*
  * Load all PEM-encoded CRLs from a single file into the store.
@@ -155,6 +205,17 @@ xrootd_build_ca_store(ngx_log_t *log,
 
     if (extra_flags != 0) {
         X509_STORE_set_flags(store, extra_flags);
+    }
+
+    /*
+     * Proxy-verification stores (GSI): tolerate the AKID/SKID mismatch that
+     * real xrdgsiproxy/voms-proxy-init delegated proxies carry so the signing
+     * EEC is accepted as the proxy's issuer (see pki_proxy_check_issued).  Not
+     * installed on plain client-certificate stores (webdav passes flags 0),
+     * which keep OpenSSL's strict default issuer selection.
+     */
+    if (extra_flags & X509_V_FLAG_ALLOW_PROXY_CERTS) {
+        X509_STORE_set_check_issued(store, pki_proxy_check_issued);
     }
 
     if (cadir != NULL) {

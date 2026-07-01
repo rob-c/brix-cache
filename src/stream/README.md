@@ -31,12 +31,9 @@ CMS / health-check / CRL / JWKS timers), and `exit_process` (worker teardown). A
 five implementations live under `../config/`.
 
 The directive table is the canonical, single-source list of every `xrootd_*`
-directive the module accepts for the `root://` stream protocol. Because the list is
-large it appears, in part, across three `.c` files — but only **`module.c`** and
-**`module_definition.c`** are actually compiled (`config:236-237`). The other two
-files (`module_core_directives.c`, `module_cache_proxy_directives.c`) are *not* in
-`NGX_ADDON_SRCS` and never reach the linker; they are stale partial copies kept in
-the tree. Treat `module.c` as ground truth.
+directive the module accepts for the `root://` stream protocol. It lives entirely
+in **`module.c`**, with the module wiring in **`module_definition.c`** — both
+compiled via `NGX_ADDON_SRCS` (`config:236-237`). Treat `module.c` as ground truth.
 
 ## Files
 
@@ -44,14 +41,6 @@ the tree. Treat `module.c` as ground truth.
 |------|----------------|
 | `module.c` | **Authoritative — compiled.** Defines the live `ngx_stream_xrootd_commands[]`: the complete directive table (core + auth + TLS/OCSP + native TPC + manager/CMS + read-through cache + write-through + transparent proxy + Phase 20 KV/rate-limit + Phase 22 health-check + Phase 24 mirror + Phase 25/26/29/31 tuning), terminated by `ngx_null_command`. Also defines the `xrootd_auth_modes[]`, `xrootd_security_levels[]`, and `xrootd_hc_types[]` enum tables. |
 | `module_definition.c` | **Compiled.** Declares the static module wiring: `ngx_stream_xrootd_module_ctx` (`ngx_stream_module_t` lifecycle hooks — `postconfiguration`, `create_srv_conf`, `merge_srv_conf`; main-conf slots `NULL`) and the `ngx_module_t ngx_stream_xrootd_module` descriptor (`NGX_STREAM_MODULE`, with `init_process` = `ngx_stream_xrootd_init_process` and `exit_process` = `xrootd_exit_process`). Holds an `extern` reference to `ngx_stream_xrootd_commands[]`. |
-| `module_core_directives.c` | **NOT compiled** (absent from `NGX_ADDON_SRCS` in `config`). Stale partial copy of the core + auth + manager directive block; it *also* defines a `ngx_stream_xrootd_commands[]` symbol, but the file never reaches the linker. Reference only — `module.c` supersedes it. |
-| `module_cache_proxy_directives.c` | **NOT compiled** (same reason). Stale tail fragment of the cache / write-through / CMS / proxy directive block that closes a directive array. Reference only — `module.c` supersedes it. |
-
-> **Maintainer warning:** the three `module*` directive files overlap. Only
-> `module.c`'s `ngx_stream_xrootd_commands[]` links into the binary. Editing
-> `module_core_directives.c` or `module_cache_proxy_directives.c` has **zero**
-> runtime effect. When you touch a directive, change `module.c` and grep all four
-> files to avoid leaving misleading duplicates.
 
 ## Key types & data structures
 
@@ -136,10 +125,10 @@ by the config fields populated here but executed in `../cache/`, `../proxy/`,
 
 ## Invariants, security & gotchas
 
-- **`module.c` owns the live directive array; the two `*_directives.c` copies are
-  dead.** Only `module.c` and `module_definition.c` appear in `NGX_ADDON_SRCS`
-  (`config:236-237`); `module_core_directives.c` and `module_cache_proxy_directives.c`
-  are never compiled. Editing them has no runtime effect — always change `module.c`.
+- **`module.c` owns the live directive array.** `module.c` and
+  `module_definition.c` are the only directive sources in `NGX_ADDON_SRCS`
+  (`config:236-237`); always add or change directives in `module.c`'s
+  `ngx_stream_xrootd_commands[]`.
 - **Adding a new source file or a new top-level directive block requires
   `./configure`.** A plain `make` will not pick up a new `.c` file (it must be added to
   `NGX_ADDON_SRCS` in `config`) nor a new `NGX_STREAM_MAIN_CONF` block. Plain scalar

@@ -117,7 +117,8 @@ xfs_mkdir(const char *path, mode_t mode)
     xrdc_status st; xrdc_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     struct xrdc_fuse_ctx_mkdir a = { srv_path(path, pbuf, sizeof(pbuf)), (int) (mode & 0777) };
-    return xfs_meta(xrdc_fuse_op_mkdir, &a, &st);
+    /* a re-issued mkdir whose first reply was lost reports EEXIST → success */
+    return xfs_meta_idem(xrdc_fuse_op_mkdir, &a, EEXIST, &st);
 }
 
 
@@ -127,7 +128,9 @@ xfs_unlink(const char *path)
     if (g_web) return -EROFS;
     xrdc_status st; xrdc_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
-    return xfs_meta(xrdc_fuse_op_rm, (void *) srv_path(path, pbuf, sizeof(pbuf)), &st);
+    /* a re-issued rm whose first reply was lost reports ENOENT → success */
+    return xfs_meta_idem(xrdc_fuse_op_rm,
+                         (void *) srv_path(path, pbuf, sizeof(pbuf)), ENOENT, &st);
 }
 
 
@@ -137,7 +140,9 @@ xfs_rmdir(const char *path)
     if (g_web) return -EROFS;
     xrdc_status st; xrdc_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
-    return xfs_meta(xrdc_fuse_op_rmdir, (void *) srv_path(path, pbuf, sizeof(pbuf)), &st);
+    /* a re-issued rmdir whose first reply was lost reports ENOENT → success */
+    return xfs_meta_idem(xrdc_fuse_op_rmdir,
+                         (void *) srv_path(path, pbuf, sizeof(pbuf)), ENOENT, &st);
 }
 
 
@@ -152,7 +157,9 @@ xfs_rename(const char *from, const char *to, unsigned int flags)
     char fbuf[XRDC_PATH_MAX], tbuf[XRDC_PATH_MAX];
     struct xrdc_fuse_ctx_mv a = { srv_path(from, fbuf, sizeof(fbuf)),
                         srv_path(to, tbuf, sizeof(tbuf)) };
-    return xfs_meta(xrdc_fuse_op_mv, &a, &st);
+    /* a re-issued mv whose first reply was lost reports ENOENT (source already
+     * renamed) → success */
+    return xfs_meta_idem(xrdc_fuse_op_mv, &a, ENOENT, &st);
 }
 
 
@@ -233,7 +240,8 @@ xfs_symlink(const char *target, const char *linkpath)
      * is a namespace path to create, so only it is rebased. */
     char lbuf[XRDC_PATH_MAX];
     struct xrdc_fuse_ctx_link2 a = { target, srv_path(linkpath, lbuf, sizeof(lbuf)) };
-    return xfs_meta(xrdc_fuse_op_symlink, &a, &st);
+    /* a re-issued symlink whose first reply was lost reports EEXIST → success */
+    return xfs_meta_idem(xrdc_fuse_op_symlink, &a, EEXIST, &st);
 }
 
 
@@ -247,12 +255,19 @@ xfs_readlink(const char *path, char *buf, size_t size)
     xrdc_status st; xrdc_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
     const char *sp = srv_path(path, pbuf, sizeof(pbuf));
-    /* readlink is read-only + idempotent → retry-safe across a transient drop. */
-    int tries = g_max_retries + 1;
-    while (tries-- > 0) {
+    /* readlink is read-only + idempotent → retry-safe. Deadline-bounded like the
+     * rest of the metadata path (ride a lossy link out for g_max_stall rather than
+     * a fixed count); g_max_stall <= 0 falls back to the g_max_retries count. */
+    uint64_t deadline = (g_max_stall > 0)
+                        ? xrdc_mono_ns() + (uint64_t) g_max_stall * 1000000ULL : 0;
+    unsigned max = g_max_retries > 0 ? (unsigned) g_max_retries : 0;
+    unsigned attempt;
+    for (attempt = 0; ; attempt++) {
+        int done = deadline ? (xrdc_mono_ns() >= deadline) : (attempt >= max);
+        if (attempt > 0) { xrdc_backoff_sleep_fast(attempt - 1); }
         xrdc_conn *c = xrdc_pool_checkout(g_pool, &st);
         if (c == NULL) {
-            if (tries > 0 && xrdc_status_retryable(&st)) { continue; }
+            if (xrdc_status_retryable(&st) && !done) { continue; }
             return xfs_err(&st);
         }
         ssize_t n = xrdc_readlink(c, sp, buf, size, &st);
@@ -260,11 +275,10 @@ xfs_readlink(const char *path, char *buf, size_t size)
         if (n >= 0) {
             return 0;   /* FUSE: buf is NUL-terminated, return 0 on success */
         }
-        if (tries == 0 || !xrdc_status_retryable(&st)) {
+        if (!xrdc_status_retryable(&st) || done) {
             return xfs_err(&st);
         }
     }
-    return xfs_err(&st);
 }
 
 

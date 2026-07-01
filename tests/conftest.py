@@ -99,6 +99,47 @@ def _check_server_reachable(host: str, port: int, timeout: float = 5.0) -> bool:
         return False
 
 
+# Tri-state memo for "is a fleet already running that we should attach to rather
+# than manage?"  None = not yet decided; resolved once per process on first query.
+_external_fleet = None
+
+
+def _external_fleet_attached() -> bool:
+    """True when a local fleet is already listening and pytest should ATTACH to
+    it without taking lifecycle ownership -- no tree wipe, no start-all/stop-all,
+    no rmtree.
+
+    This closes a footgun in the dev-iteration workflow: an operator keeps a
+    fleet up out of band (``tests/manage_test_servers.sh start-all``) and runs a
+    single test file for a quick check.  Without this guard the session teardown
+    would ``stop-all`` + ``rmtree(TEST_ROOT)`` and orphan every still-running
+    server's export-root fd, so the next manual ``xrdcp``/TPC hangs -- looking
+    exactly like a server bug when it is pure test-harness teardown.  CI is
+    unaffected: there no fleet is listening at session start, so pytest owns the
+    lifecycle (wipe / start-all / stop-all / rmtree) exactly as before.
+
+    Never engages in REMOTE mode (the server is managed elsewhere) and is
+    overridden by ``TEST_OWN_FLEET=1`` for the operator who genuinely wants a
+    clean wipe+restart on top of a running fleet.  Probed once and memoized so we
+    neither re-probe nor re-print the notice on the teardown call."""
+    global _external_fleet
+    if _external_fleet is not None:
+        return _external_fleet
+    if REMOTE_SERVER or os.environ.get("TEST_OWN_FLEET") == "1":
+        _external_fleet = False
+        return _external_fleet
+    _external_fleet = _check_server_reachable(HOST, NGINX_ANON_PORT, timeout=1.0)
+    if _external_fleet:
+        print(
+            f"\n[conftest] A fleet is already listening on {HOST}:{NGINX_ANON_PORT}; "
+            "attaching WITHOUT lifecycle management (no wipe / start-all / stop-all "
+            "/ rmtree) so a stray test run cannot tear down a fleet it did not "
+            "start.  Set TEST_OWN_FLEET=1 to force a clean wipe+restart.",
+            flush=True,
+        )
+    return _external_fleet
+
+
 # ---------------------------------------------------------------------------
 # IPv6 test support (phase-36).  Tests targeting the [::1] dedicated instances
 # gate on this fixture so the whole IPv6 suite is a clean no-op on hosts without
@@ -181,6 +222,20 @@ def _selected_tests_do_not_need_server(config) -> bool:
     return saw_test_path
 
 
+def _should_skip_local_lifecycle(config) -> bool:
+    """Whether pytest should NOT manage (wipe / start-all / stop-all / rmtree)
+    the local fleet this session: explicitly told to skip, the selected tests
+    need no server, or a fleet is already running and we have not been told to
+    take ownership.  Shared by session setup and teardown so both sides agree on
+    who owns the lifecycle -- the asymmetry that previously let setup attach to a
+    running fleet while teardown still tore it down."""
+    return (
+        os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
+        or _selected_tests_do_not_need_server(config)
+        or _external_fleet_attached()
+    )
+
+
 def _setup_session():
     """Shared session setup logic.
 
@@ -202,6 +257,14 @@ def _setup_session():
         os.makedirs(TMP_DIR, exist_ok=True)
         os.environ.setdefault("X509_CERT_DIR", CA_DIR)
         os.environ.setdefault("X509_USER_PROXY", PROXY_STD)
+        return
+
+    # A fleet started out of band owns its own lifecycle: never wipe the tree or
+    # start-all on top of it.  pytest_sessionstart already pre-checks and skips
+    # this call in that case; this self-guard makes the destructive setup safe for
+    # any other caller too (defense-in-depth) so the attach guarantee cannot be
+    # silently bypassed.
+    if _external_fleet_attached():
         return
 
     # ---- LOCAL mode ----
@@ -292,17 +355,22 @@ def _setup_session():
 
 
 def pytest_sessionstart(session):
-    skip = (os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
-            or _selected_tests_do_not_need_server(session.config))
     # xdist workers inherit the environment from the controller which has already
     # called start-all (and wiped the tree).  Running it again from every worker
     # in parallel would race — but each worker still chdir()s into the shared
-    # scratch CWD so its own spawns can't pollute the repo either.
+    # scratch CWD so its own spawns can't pollute the repo either.  That chdir is
+    # gated on whether the session does local server work at all — NOT on
+    # _external_fleet_attached(): in an xdist run the controller has already
+    # started the fleet, so a worker probing the port would always see it
+    # "running" and wrongly skip the chdir.  Lifecycle ownership (the destructive
+    # wipe/start/stop) is a separate, controller-only concern.
+    no_local_work = (os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
+                     or _selected_tests_do_not_need_server(session.config))
     if hasattr(session.config, "workerinput"):
-        if not REMOTE_SERVER and not skip:
+        if not REMOTE_SERVER and not no_local_work:
             _chdir_scratch()
         return
-    if skip:
+    if _should_skip_local_lifecycle(session.config):
         return
     _setup_session()
 
@@ -373,9 +441,7 @@ def pytest_sessionfinish(session, exitstatus):
     if hasattr(session.config, "workerinput"):
         return
 
-    if (REMOTE_SERVER
-            or os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
-            or _selected_tests_do_not_need_server(session.config)):
+    if REMOTE_SERVER or _should_skip_local_lifecycle(session.config):
         return
 
     try:
@@ -411,7 +477,7 @@ def _test_session_setup():
     """
     _setup_session()
     yield
-    if REMOTE_SERVER:
+    if REMOTE_SERVER or _external_fleet_attached():
         return
     import subprocess
 

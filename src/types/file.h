@@ -91,17 +91,6 @@ typedef struct {
      * storing plaintext; pgwrite ignores this field and stays plaintext.
      */
     uint8_t    write_codec;
-
-    /*
-     * Phase 26 slice-cache state.  When slice_mode is set this read handle has
-     * NO backing fd (fd == -1); kXR_read is served from per-slice cache files
-     * named off slice_cache_path, filling missing slices from the origin and
-     * answering kXR_wait in the meantime.  slice_clean_path is the client path
-     * sent to the origin for fills; slice_size is the configured slice width.
-     */
-    unsigned   slice_mode:1;
-    char      *slice_cache_path;  /* whole-file cache path (slice naming + meta) */
-    char      *slice_clean_path;  /* origin clean path for slice fills */
     size_t     slice_size;        /* bytes per slice (from cache_slice_size) */
 
     /*
@@ -186,7 +175,11 @@ typedef struct {
      *   wt_bytes_written tracks cumulative writes between sync points (for metrics)
      */
 
-    int              wt_enabled;      /* 1 = write-back enabled for this handle */
+    int              wt_enabled;      /* 1 = legacy run_flush write-back for this handle */
+    int              wt_stage_flush;  /* 1 = write routed through the wt sd_stage decorator
+                                       * (Option A): flush happens on the storage path (sync
+                                       * job / close); close does an explicit fsync-and-check
+                                       * so a failed flush still fails the close (durability). */
     uint8_t          wt_policy;       /* cached decision at open time — XROOTD_WT_* */
     uint16_t         wt_mode_bits;    /* POSIX mode sent to the origin write-open */
     off_t            wt_dirty_offset; /* last dirty write offset; -1 = no pending writes */

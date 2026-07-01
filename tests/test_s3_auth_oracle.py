@@ -78,7 +78,7 @@ http {{
         listen {BIND_HOST}:{PORT};
         location / {{
             xrootd_s3 on;
-            xrootd_s3_root {data};
+            xrootd_s3_storage_backend posix:{data};
             xrootd_s3_bucket {BUCKET};
             xrootd_s3_access_key {ACCESS_KEY};
             xrootd_s3_secret_key {SECRET_KEY};

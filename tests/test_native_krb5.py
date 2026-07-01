@@ -98,7 +98,7 @@ stream {{
     server {{
         listen {url_host(BIND_HOST)}:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth krb5;
         xrootd_krb5_principal {KRB5_SERVICE_PRINCIPAL};
         xrootd_krb5_keytab {KRB5_KEYTAB};

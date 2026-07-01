@@ -27,6 +27,36 @@
 #include "../compat/staged_file.h"
 #include "xfer/xfer.h"   /* unified transfer audit ledger (one line per publish) */
 
+#include <unistd.h>      /* pread for the write-back promote read loop */
+
+/* Duplicate a C string onto `pool` (NUL-terminated). Returns NULL on a NULL input
+ * (with *lenp = 0) or on allocation failure — the caller distinguishes the two by
+ * checking the input. Used to make a staged handle's ctx self-contained. */
+static char *
+staged_pool_strdup(ngx_pool_t *pool, const char *s, size_t *lenp)
+{
+    size_t  n;
+    u_char *p;
+
+    if (s == NULL) {
+        if (lenp != NULL) {
+            *lenp = 0;
+        }
+        return NULL;
+    }
+    n = ngx_strlen(s);
+    p = ngx_pnalloc(pool, n + 1);
+    if (p == NULL) {
+        return NULL;
+    }
+    ngx_memcpy(p, s, n);
+    p[n] = '\0';
+    if (lenp != NULL) {
+        *lenp = n;
+    }
+    return (char *) p;
+}
+
 /* Open a staged temp file for the resolved ctx (final) path. Write-gated.
  * `mode` is the final object's permission bits; `attempts` bounds the O_EXCL
  * unique-name retries. Returns a handle on ctx->pool, or NULL with the errno in
@@ -62,14 +92,57 @@ xrootd_vfs_staged_open(xrootd_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
         return NULL;
     }
 
-    st->ctx  = ctx;
+    /*
+     * Self-contain the ctx. The staged handle outlives the caller's stack frame:
+     * S3 and WebDAV PUT dispatch the body write to a thread pool and RETURN before
+     * xrootd_vfs_staged_commit runs, so a ctx — and the resolved-path / root_canon
+     * buffers it POINTS at (WebDAV's resolved path lives in a stack `char[]`) —
+     * that was stack-allocated by the caller would be a use-after-free at commit.
+     * Deep-copy the ctx struct and those two strings onto ctx->pool (the request
+     * pool, which lives until the response completes) so the handle is stable
+     * across the async hop regardless of how the caller allocated its ctx.
+     */
+    st->ctx = ngx_palloc(ctx->pool, sizeof(*st->ctx));
+    if (st->ctx == NULL) {
+        errno = ENOMEM;
+        if (err_out != NULL) {
+            *err_out = errno;
+        }
+        return NULL;
+    }
+    *st->ctx = *ctx;
+    {
+        size_t      rlen = 0;
+        const char *rpath = xrootd_vfs_ctx_path(ctx);
+        char       *rpath_dup = staged_pool_strdup(ctx->pool, rpath, &rlen);
+        char       *root_dup  = staged_pool_strdup(ctx->pool, ctx->root_canon, NULL);
+
+        if ((rpath != NULL && rpath_dup == NULL)
+            || (ctx->root_canon != NULL && root_dup == NULL))
+        {
+            errno = ENOMEM;
+            if (err_out != NULL) {
+                *err_out = errno;
+            }
+            return NULL;
+        }
+        if (rpath_dup != NULL) {
+            st->ctx->resolved.resolved.data = (u_char *) rpath_dup;
+            st->ctx->resolved.resolved.len  = rlen;
+        }
+        if (root_dup != NULL) {
+            st->ctx->root_canon = root_dup;
+        }
+    }
     st->pool = ctx->pool;
     st->log  = ctx->log;
     st->staged.fd = NGX_INVALID_FILE;
 
-    /* A non-POSIX backend owns the staged lifecycle: delegate to its staged_open
-     * slot (keyed on the export-relative final path) and leave staged.fd invalid
-     * — the body is written via xrootd_vfs_staged_write (no kernel fd). */
+    /* A non-POSIX backend owns the staged lifecycle: delegate straight to the
+     * resolved instance's staged_open slot (Mode A). When staging is configured the
+     * registry composes the sd_stage write-back DECORATOR (C-2/C-6) as that instance
+     * — so a local-temp-then-promote upload is the decorator's staged_open, NOT a
+     * second copy here. A bare source streams the body to the remote final path. */
     if (ctx->sd != NULL && ctx->sd->driver != xrootd_sd_default_driver()
         && ctx->sd->driver->staged_open != NULL)
     {
@@ -87,6 +160,7 @@ xrootd_vfs_staged_open(xrootd_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
         return st;
     }
 
+    /* Pure-POSIX export: the local confined temp IS the storage. */
     if (xrootd_staged_open(ctx->log, ctx->root_canon, final_path, O_WRONLY,
                            mode, attempts, &st->staged) != NGX_OK)
     {
@@ -152,6 +226,7 @@ xrootd_vfs_staged_tmp_path(const xrootd_vfs_staged_t *st)
 {
     return (st != NULL) ? st->staged.tmp_path : "";
 }
+
 
 /* Atomically publish the staged temp onto the resolved ctx (final) path. When
  * `excl`, uses RENAME_NOREPLACE and fails with errno==EEXIST if the final path

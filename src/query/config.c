@@ -63,6 +63,11 @@ xrootd_qconfig_next_token(const char **pp, char *tok, size_t tok_sz)
 static ngx_flag_t
 xrootd_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
     const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
+
+static ngx_flag_t
+xrootd_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
+    const char *fmt, ...)
 {
     va_list ap;
     int     n;
@@ -100,8 +105,16 @@ xrootd_query_config(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int         tpc_capable;
     int         ntokens = 0;
 
-    /* TPC pull is available on writable data servers with a thread pool. */
-    tpc_capable = (conf->common.allow_write && conf->common.thread_pool != NULL) ? 1 : 0;
+    /*
+     * Advertise TPC support (the client's XrdCl::Utils::CheckTPCLite queries
+     * BOTH endpoints before a transfer).  Any xrootd data server can act as a
+     * TPC *source* — it only serves reads to the pulling destination — so a
+     * read-only source must still answer tpc>=1 or the client aborts with
+     * "Source does not support third-party-copy".  The *destination* pull
+     * additionally needs allow_write + a thread pool; that capability is
+     * enforced where the pull is actually launched (src/tpc), not gated here.
+     */
+    tpc_capable = 1;
 
     p = (ctx->payload && ctx->cur_dlen > 0) ? (const char *) ctx->payload : "";
 

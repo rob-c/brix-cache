@@ -54,8 +54,13 @@ s3_put_aio_thread(void *data, ngx_log_t *log)
      * blocking syscalls, which is exactly why they run here on the thread pool
      * rather than the event loop.
      */
-    if (xrootd_http_body_write_to_fd(t->r, t->staged.fd, t->final_path, NULL)
-        != NGX_OK)
+    /* A driver-backed (remote-stage) staged target has no kernel fd — stream the
+     * body through the staged-write primitive; otherwise write straight to the temp
+     * fd (memory pwrite / spooled copy_file_range). Mirrors the WebDAV PUT path. */
+    if (xrootd_vfs_staged_is_driver(t->staged)
+            ? xrootd_http_body_write_to_staged(t->r, t->staged) != NGX_OK
+            : xrootd_http_body_write_to_fd(t->r, xrootd_vfs_staged_fd(t->staged),
+                                           t->final_path, NULL) != NGX_OK)
     {
         t->io_errno = errno;
         t->nwritten = -1;
@@ -79,15 +84,13 @@ s3_put_aio_done(ngx_event_t *ev)
                              (ngx_uint_t) t->io_errno,
                              "s3: async write() failed for: \"%s\"",
                              t->final_path);
-        xrootd_staged_abort(log, t->root_canon, &t->staged, 1);
+        xrootd_vfs_staged_abort(t->staged, 1);
         s3_put_finalize_error(r);
         return;
     }
 
-    ngx_close_file(t->staged.fd);
-    t->staged.fd = NGX_INVALID_FILE;
-
-    if (s3_commit_put(r, log, t->root_canon, &t->staged,
+    /* The VFS staged commit closes/promotes the temp itself — no manual close. */
+    if (s3_commit_put(r, log, t->root_canon, t->staged,
                       t->final_path) != NGX_OK)
     {
         if (s3_put_commit_conflict(r)) {

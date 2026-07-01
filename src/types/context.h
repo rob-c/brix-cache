@@ -370,6 +370,9 @@ typedef struct {
     int        gsi_sess_keylen;      /* valid bytes in gsi_sess_key (0 = unset)   */
     int        gsi_sess_use_iv;      /* 1 = IV-prepended main (signed-DH path)    */
     EVP_PKEY  *gsi_deleg_reqkey;     /* fresh proxy key (build_pxyreq), or NULL   */
+    uint32_t   gsi_clnt_opts;        /* client's kXRS_clnt_opts flags (kOpts*): the
+                                        client's delegation mode — kOptsFwdPxy(2)=
+                                        forward, kOptsDlgPxy(1)/kOptsSigReq(4)=sign. */
     int        gsi_deleg_await;      /* 1 = sent kXGS_pxyreq, awaiting kXGC_sigpxy */
     u_char    *gsi_deleg_chain_pem;  /* client chain PEM (for assemble), heap      */
     size_t     gsi_deleg_chain_len;
@@ -604,6 +607,15 @@ typedef struct {
      * via s -> ctx -> handoff (the upstream side reaches it via uconn->data).
      */
     void       *handoff;
+
+    /*
+     * Transparent relay (src/relay/relay.c): when xrootd_transparent_proxy is
+     * configured, the connection is relayed verbatim to an upstream XRootD server
+     * while a tap decodes the cleartext frames. Opaque xrootd_relay_t* — reached
+     * by the client-side relay handlers via s -> ctx -> relay (upstream side via
+     * uconn->data), mirroring the handoff hub above.
+     */
+    void       *relay;
 
 } xrootd_ctx_t;
 

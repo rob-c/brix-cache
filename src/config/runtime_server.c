@@ -4,8 +4,203 @@
 
 #include "config.h"
 #include "root_prepare.h"
+#include "credential_block.h"             /* §14 xrootd_credential lookup/bearer */
 #include "../compat/staged_file.h"
+#include "../compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "../fs/vfs_backend_registry.h"   /* per-export backend registration */
+#include "../path/path.h"                 /* xrootd_mkdir_recursive (pblock:// init) */
+#include "../fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
+
+/* Directive setter for a tier store-URL directive: arg[1] = the store URL (into the
+ * ngx_str_t at cmd->offset); args[2..] = trailing credential=/block_size= params
+ * (into the ngx_array_t* at the field offset carried in cmd->post). See header. */
+char *
+xrootd_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    char         *p = conf;
+    ngx_str_t    *url  = (ngx_str_t *) (p + cmd->offset);
+    ngx_array_t **args = (ngx_array_t **) (p + (uintptr_t) cmd->post);
+    ngx_str_t    *value = cf->args->elts;
+    ngx_uint_t    i;
+
+    if (url->data != NULL) {
+        return "is duplicate";
+    }
+    *url = value[1];                            /* the store URL token */
+
+    if (cf->args->nelts > 2) {
+        *args = ngx_array_create(cf->pool, cf->args->nelts - 2, sizeof(ngx_str_t));
+        if (*args == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        for (i = 2; i < cf->args->nelts; i++) {
+            ngx_str_t *a = ngx_array_push(*args);
+
+            if (a == NULL) {
+                return NGX_CONF_ERROR;
+            }
+            *a = value[i];                      /* "credential=..." / "block_size=..." */
+        }
+    }
+    return NGX_CONF_OK;
+}
+
+/* A LOCAL storage backend NAMES THE EXPORT TREE — the fully composable replacement
+ * for xrootd_root. Rewrites common->root from the backend URL and anchors root_canon
+ * there. No-op for a remote/non-local backend (root://, tape://, http://, a cache
+ * origin, or none). Shared by all three protocol finalisers; called BEFORE the
+ * export-root prep. Two forms:
+ *   posix:<path>      → root = <path>; CLEAR the backend (default POSIX driver).
+ *   pblock://<path>   → root = /<path> (one leading '/' guaranteed: "pblock://x"→
+ *                       "/x", "pblock:///abs"→"//abs"→/abs); KEEP the "pblock"
+ *                       driver; create the block-store directory on init if needed. */
+void
+xrootd_storage_backend_posix_root(ngx_http_xrootd_shared_conf_t *common)
+{
+    ngx_str_t *sb = &common->storage_backend;
+
+    if (sb->len > sizeof("posix:") - 1
+        && ngx_strncmp(sb->data, "posix:", sizeof("posix:") - 1) == 0)
+    {
+        u_char *p    = sb->data + (sizeof("posix:") - 1);
+        size_t  plen = sb->len  - (sizeof("posix:") - 1);
+
+        /* Accept both posix:<path> and posix://<path>: collapse leading "//" runs to
+         * one '/' so the root is a single canonical path (a stray double slash
+         * propagates into common->root and breaks raw prefix-strip path uses).
+         * "posix://abs" with an absolute path yields "///abs" → "/abs". */
+        while (plen >= 2 && p[0] == '/' && p[1] == '/') {
+            p++;
+            plen--;
+        }
+        common->root.data = p;
+        common->root.len  = plen;
+        sb->len           = 0;                       /* default POSIX driver */
+        return;
+    }
+
+    if (sb->len > sizeof("pblock://") - 1
+        && ngx_strncmp(sb->data, "pblock://", sizeof("pblock://") - 1) == 0)
+    {
+        size_t base = sizeof("pblock://") - 1;       /* past "pblock://" */
+
+        /* Yield EXACTLY one leading '/': "pblock:///abs" already has it (offset
+         * `base`); "pblock://rel" gains it by keeping the prior '/' (offset base-1).
+         * A double slash would break the write-through's prefix-strip path derivation. */
+        if (sb->data[base] == '/') {
+            common->root.data = sb->data + base;
+            common->root.len  = sb->len  - base;
+        } else {
+            common->root.data = sb->data + base - 1;
+            common->root.len  = sb->len  - base + 1;
+        }
+        sb->len = sizeof("pblock") - 1;              /* the bare "pblock" driver */
+        (void) xrootd_mkdir_recursive((const char *) common->root.data, 0755);
+    }
+}
+
+/* 1 iff the storage backend is REMOTE (the export's bytes live off-box: a root://
+ * origin, http(s)://, s3://, tape://, ceph). For such an export the LOCAL root_canon
+ * is only a namespace anchor — never written — so its export-root prep must not
+ * demand W_OK (a pure remote-backed node defaults root_canon to "/", which is not
+ * writable). Local backends (posix/pblock, or none) return 0 and keep the W_OK
+ * check. Called after xrootd_storage_backend_posix_root (posix:/pblock:// already
+ * rewritten away). */
+int
+xrootd_storage_backend_is_remote(const ngx_http_xrootd_shared_conf_t *common)
+{
+    static const char *const schemes[] = {
+        "root://", "roots://", "http://", "https://", "s3://",
+        "tape://", "frm://", "rados://", "ceph:", "cephfsro:", NULL
+    };
+    const ngx_str_t *sb = &common->storage_backend;
+    int               i;
+
+    for (i = 0; schemes[i] != NULL; i++) {
+        size_t n = ngx_strlen(schemes[i]);
+
+        if (sb->len >= n && ngx_strncmp(sb->data, schemes[i], n) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Register the export's phase-64 composable cache/stage tiers (additive over the
+ * storage backend). Parses the cache_store / stage_store URLs (operator errors are
+ * [emerg], failing nginx -t) and records the tier cfg + policy on the backend
+ * registry, which composes the sd_cache / sd_stage decorators per worker. Shared by
+ * all three protocol finalisers (§4.4) - it reads only the common preamble. */
+ngx_int_t
+xrootd_tier_register_stores(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *common)
+{
+    char                           err[256];
+
+    /* G8 (P4/§9.4): a nearline (tape) backend is unservable without a cache tier
+     * as the recall target - reject at config time. "frm://" is the tape:// alias. */
+    {
+        const ngx_str_t *sb = &common->storage_backend;
+        int is_nearline =
+            (sb->len > sizeof("tape://") - 1
+             && ngx_strncmp(sb->data, "tape://", sizeof("tape://") - 1) == 0)
+            || (sb->len > sizeof("frm://") - 1
+                && ngx_strncmp(sb->data, "frm://", sizeof("frm://") - 1) == 0);
+
+        if (is_nearline && common->cache_store.len == 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd: a \"tape://\"/\"frm://\" backend is nearline and requires "
+                "xrootd_cache_store (the recall target); add a cache tier");
+            return NGX_ERROR;
+        }
+    }
+
+    if (common->cache_store.len > 0) {
+        xrootd_tier_cfg_t     cfg;
+        xrootd_cache_policy_t pol;
+
+        if (xrootd_tier_parse_store(cf, &common->cache_store,
+                common->cache_store_args, XROOTD_TIER_CACHE, &cfg, err,
+                sizeof(err)) != NGX_OK)
+        {
+            return NGX_ERROR;                  /* [emerg] already logged */
+        }
+        ngx_memzero(&pol, sizeof(pol));
+        pol.enabled       = 1;
+        pol.max_file_size = common->cache_max_object;
+        pol.evict_at      = common->cache_evict_at;
+        pol.evict_to      = common->cache_evict_to;
+        pol.meta_mode     = (int) common->cache_meta_mode;
+        pol.batch_cinfo   = (common->cache_batch_cinfo == 2)
+                          ? -1 : (int) common->cache_batch_cinfo;
+        pol.l1_entries    = common->cache_index_cache;
+        pol.slice_size    = common->cache_slice_size;
+        xrootd_vfs_backend_config_cache_store(common->root_canon, &cfg, &pol);
+    }
+
+    if (common->stage_enable == 1) {
+        xrootd_tier_cfg_t     cfg;
+        xrootd_stage_policy_t spol;
+
+        if (common->stage_store.len == 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_stage on requires xrootd_stage_store");
+            return NGX_ERROR;
+        }
+        if (xrootd_tier_parse_store(cf, &common->stage_store,
+                common->stage_store_args, XROOTD_TIER_STAGE, &cfg, err,
+                sizeof(err)) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+        ngx_memzero(&spol, sizeof(spol));
+        spol.enabled    = 1;
+        spol.flush_mode = common->stage_flush_async ? XROOTD_WT_MODE_ASYNC
+                                                     : XROOTD_WT_MODE_SYNC;
+        xrootd_vfs_backend_config_stage_store(common->root_canon, &cfg, &spol);
+    }
+
+    return NGX_OK;
+}
 
 /* Prepare one server block at postconfiguration: validate the configured root
  * is an existing, accessible directory (access mode matching the write policy)
@@ -15,11 +210,36 @@ ngx_int_t
 xrootd_config_prepare_server(ngx_conf_t *cf,
     ngx_stream_xrootd_srv_conf_t *xcf)
 {
+    /* Hard read-only switch: force allow_write off before any allow_write-dependent
+     * setup, so every write gate rejects (root:// require_write, write-open, ...). */
+    xrootd_shared_apply_read_only(&xcf->common, cf->log);
+
+    /* Phase-4b: a GSI tap proxy must capture the client's delegated proxy to
+     * present it upstream — auto-enable delegation receipt if the admin didn't. */
+    if (xcf->proxy_enable && xcf->proxy_auth == XROOTD_PROXY_AUTH_GSI
+        && !xcf->tpc_delegate)
+    {
+        xcf->tpc_delegate = 1;
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "xrootd_tap_proxy_auth gsi: enabling GSI proxy delegation capture");
+    }
+
     if (!xcf->manager_mode && !xcf->supervisor
         && xcf->manager_map == NULL && !xcf->proxy_enable) {
         xrootd_export_root_opts_t root_opts;
+
+        /* A "posix:<path>" storage backend NAMES THE LOCAL EXPORT TREE — the fully
+         * composable replacement for xrootd_root. Anchor the export root at <path>
+         * and clear the backend so the default POSIX driver serves it directly. */
+        xrootd_storage_backend_posix_root(&xcf->common);
+
         root_opts.directive_name = "xrootd_root";
-        root_opts.allow_write    = xcf->common.allow_write;
+        root_opts.allow_write    = xcf->common.allow_write
+                                 && !xrootd_storage_backend_is_remote(&xcf->common);
+        /* A pure cache node needs no local export tree: xrootd_cache_store is the
+         * physical FSAL and xrootd_cache_root the advertised root. xrootd_root then
+         * defaults to "/" (server_conf.c) — the cache serves the "/" namespace,
+         * filling from the backend into the store. */
         root_opts.required       = 1;
         root_opts.canon_size     = sizeof(xcf->common.root_canon);
         if (xrootd_prepare_export_root(cf, &xcf->common.root, &root_opts,
@@ -27,6 +247,10 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
         {
             return NGX_ERROR;
         }
+        /* SP4: reap interrupted NON-staged direct-write temps under a real export
+         * tree (xrootd_tmp_reap_register itself refuses "/" — a pure cache node,
+         * whose root_canon is "/", keeps its in-flight temps in the store tier). */
+        xrootd_tmp_reap_register(xcf->common.root_canon);
 
         /* Register the export's selected storage backend for VFS resolution at
          * request time. A "root://host:port" value makes the export's PRIMARY
@@ -34,10 +258,83 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
          * driver name (e.g. "pblock") selects a local backend; default POSIX is a
          * no-op. */
         if (xrootd_vfs_backend_config_str(cf, xcf->common.root_canon,
-                &xcf->common.storage_backend, xcf->common.pblock_block_size)
+                &xcf->common.storage_backend, xcf->common.pblock_block_size,
+                (int) xcf->cache_origin_family)
             != NGX_OK)
         {
             return NGX_ERROR;
+        }
+
+        /* §14: attach the named xrootd_credential's bearer token to the source
+         * backend (today consumed by sd_http as Authorization: Bearer). Resolved at
+         * config time so a missing credential fails loudly; an empty token_file is
+         * an error too. No xrootd_storage_credential ⇒ anonymous. */
+        if (xcf->common.storage_credential.len > 0) {
+            char                       cred_z[256];
+            char                       bearer[4096];
+            const xrootd_credential_t *cred;
+
+            ngx_cpystrn((u_char *) cred_z, xcf->common.storage_credential.data,
+                        ngx_min(xcf->common.storage_credential.len + 1,
+                                sizeof(cred_z)));
+            cred = xrootd_credential_lookup(cred_z);
+            if (cred == NULL) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_storage_credential: no xrootd_credential \"%V\"",
+                    &xcf->common.storage_credential);
+                return NGX_ERROR;
+            }
+            if (xrootd_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
+                != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+            xrootd_vfs_backend_set_credential(xcf->common.root_canon, bearer,
+                (cred->x509_proxy.len > 0)
+                    ? (const char *) cred->x509_proxy.data : NULL,
+                (cred->ca_dir.len > 0) ? (const char *) cred->ca_dir.data : NULL);
+        }
+
+        /* §14 + C-3/C-5: the write-back flush authenticates to its wt_origin with a
+         * credential too (ztn bearer). Resolve into cache_origin_bearer, which the
+         * C-5 driver write-back already threads into its sd_xroot dest. */
+        if (xcf->wt_credential.len > 0) {
+            char                       cred_z[256];
+            char                       bearer[4096];
+            const xrootd_credential_t *cred;
+
+            ngx_cpystrn((u_char *) cred_z, xcf->wt_credential.data,
+                        ngx_min(xcf->wt_credential.len + 1, sizeof(cred_z)));
+            cred = xrootd_credential_lookup(cred_z);
+            if (cred == NULL) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_wt_credential: no xrootd_credential \"%V\"",
+                    &xcf->wt_credential);
+                return NGX_ERROR;
+            }
+            if (xrootd_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
+                != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+            if (bearer[0] != '\0') {
+                size_t  bl = ngx_strlen(bearer);
+                u_char *bp = ngx_pnalloc(cf->pool, bl + 1);
+
+                if (bp == NULL) {
+                    return NGX_ERROR;
+                }
+                ngx_memcpy(bp, bearer, bl + 1);
+                xcf->cache_origin_bearer.data = bp;
+                xcf->cache_origin_bearer.len  = bl;
+            }
+            /* GSI write-back: the proxy + verify-CA the C-5 dest presents/uses. */
+            if (cred->x509_proxy.len > 0) {
+                xcf->cache_origin_x509_proxy = cred->x509_proxy;
+            }
+            if (cred->ca_dir.len > 0) {
+                xcf->cache_origin_ca_dir = cred->ca_dir;
+            }
         }
 
         /* Optional fast-cache upload staging device.  Canonicalize once here; an
@@ -57,6 +354,12 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
             /* Track for the stage-out reaper (finishes interrupted cache->storage
              * commits across restarts). */
             xrootd_stage_dir_register(xcf->upload_stage_dir_canon);
+        }
+
+        /* Phase-64: register the composable cache/stage tiers (sd_cache / sd_stage
+         * decorators composed over the backend, per worker). */
+        if (xrootd_tier_register_stores(cf, &xcf->common) != NGX_OK) {
+            return NGX_ERROR;
         }
     }
 
@@ -112,11 +415,33 @@ xrootd_config_prepare_server(ngx_conf_t *cf,
                                       xcf->cache_wt_stage_block_size);
         }
 
-        if (xcf->cache_root.len == 0 || xcf->cache_origin_host.len == 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_cache on requires xrootd_cache_root and "
-                "xrootd_cache_origin");
-            return NGX_ERROR;
+        {
+            /* C-1 (phase-63): the cache source may be a remote xrootd_storage_backend
+             * (root://...) instead of a separate xrootd_cache_origin — the cache then
+             * fills from the registered backend (open_or_fill resolves it). */
+            ngx_str_t *sb = &xcf->common.storage_backend;
+            int remote_source =
+                (sb->len > sizeof("root://") - 1
+                 && ngx_strncmp(sb->data, "root://", sizeof("root://") - 1) == 0)
+                || (sb->len > sizeof("roots://") - 1
+                    && ngx_strncmp(sb->data, "roots://",
+                                   sizeof("roots://") - 1) == 0)
+                || (sb->len > sizeof("http://") - 1
+                    && ngx_strncmp(sb->data, "http://",
+                                   sizeof("http://") - 1) == 0)
+                || (sb->len > sizeof("https://") - 1
+                    && ngx_strncmp(sb->data, "https://",
+                                   sizeof("https://") - 1) == 0);
+
+            if (xcf->cache_root.len == 0
+                || (xcf->cache_origin_host.len == 0 && !remote_source))
+            {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "xrootd_cache on requires xrootd_cache_root and either "
+                    "xrootd_cache_origin or a remote xrootd_storage_backend "
+                    "(root://host:port)");
+                return NGX_ERROR;
+            }
         }
 
         if (xrootd_validate_path(cf, "xrootd_cache_root",

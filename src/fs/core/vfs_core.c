@@ -9,6 +9,11 @@
 #include "vfs_core.h"
 
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 int
 xvfs_pread_full(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off,
@@ -115,4 +120,90 @@ int
 xvfs_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
 {
     return (obj->driver->fstat(obj, out) == 0) ? 0 : -1;
+}
+
+int
+xvfs_drain(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst, void *buf, size_t bufsz,
+           off_t *total)
+{
+    off_t off = 0;
+
+    if (buf == NULL || bufsz == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    for ( ;; ) {
+        ssize_t r = xvfs_pread_once(src, buf, bufsz, off);
+
+        if (r < 0) {
+            return -1;                       /* read error (errno set by driver) */
+        }
+        if (r == 0) {
+            break;                           /* EOF — whole object copied */
+        }
+        if (xvfs_pwrite_full(dst, buf, (size_t) r, off, NULL, NULL) != 0) {
+            return -1;                       /* write error (errno set) */
+        }
+        off += r;
+    }
+
+    if (total != NULL) {
+        *total = off;
+    }
+    return 0;
+}
+
+int
+xvfs_stage_fd(int src_fd, const char *stage_dir)
+{
+    char            tmpl[PATH_MAX];
+    char            proc[64];
+    char           *buf;
+    xrootd_sd_obj_t s, d;
+    int             dst_fd, rd_fd, e, n;
+
+    if (stage_dir == NULL || stage_dir[0] == '\0') {
+        errno = EINVAL;
+        return -1;
+    }
+    n = snprintf(tmpl, sizeof(tmpl), "%s/.vfsstage.XXXXXX", stage_dir);
+    if (n < 0 || (size_t) n >= sizeof(tmpl)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    dst_fd = mkstemp(tmpl);
+    if (dst_fd < 0) {
+        return -1;
+    }
+    (void) unlink(tmpl);                 /* anonymous: bytes live behind the fd(s) */
+
+    buf = malloc(256 * 1024);
+    if (buf == NULL) {
+        e = ENOMEM;
+        close(dst_fd);
+        errno = e;
+        return -1;
+    }
+    xrootd_sd_posix_wrap(&s, src_fd);
+    xrootd_sd_posix_wrap(&d, dst_fd);
+    if (xvfs_drain(&s, &d, buf, 256 * 1024, NULL) != 0) {
+        e = errno;
+        free(buf);
+        close(dst_fd);
+        errno = e;
+        return -1;
+    }
+    free(buf);
+
+    /* Reopen the unlinked inode O_RDONLY at offset 0 (clean pread semantics). */
+    (void) snprintf(proc, sizeof(proc), "/proc/self/fd/%d", dst_fd);
+    rd_fd = open(proc, O_RDONLY | O_CLOEXEC);
+    e = errno;
+    close(dst_fd);
+    if (rd_fd < 0) {
+        errno = e;
+        return -1;
+    }
+    return rd_fd;
 }

@@ -1,21 +1,371 @@
 #include "cache_internal.h"
 #include "../protocol/bootstrap_pack.h"   /* shared handshake/protocol/login packers */
+#include "../compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
+#include "../protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
+#include "../gsi/gsi_core.h"              /* shared XrdSecgsi handshake kernel (C-3 GSI) */
+#include "../protocol/gsi.h"              /* kXRS_x509 bucket id (origin-cert verify) */
 
 
 #if defined(__linux__)
 #include <endian.h>
 #endif
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <openssl/bio.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+
+/* cache_origin_send_kxr_auth — frame one kXR_auth request: ClientAuthRequest header
+ * (credtype = the 4-byte protocol id) + the credential payload, on the connector
+ * stream. Shared by the ztn and gsi auth helpers. Returns 0, or -1 (errno set). */
+static int
+cache_origin_send_kxr_auth(xrootd_cache_origin_conn_t *oc, const char credtype[4],
+    const u_char *payload, uint32_t plen)
+{
+    ClientAuthRequest req;
+
+    ngx_memzero(&req, sizeof(req));
+    req.streamid[1] = 1;                         /* the connector stream */
+    req.requestid   = htons(kXR_auth);
+    ngx_memcpy(req.credtype, credtype, 4);
+    req.dlen        = htonl((kXR_int32) plen);
+
+    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0
+        || (plen > 0 && xrootd_cache_io_send(oc, payload, plen) != 0))
+    {
+        return -1;
+    }
+    return 0;
+}
+
+/* xrootd_cache_origin_auth_ztn — present a WLCG/SciToken bearer to the origin via
+ * the XrdSecztn protocol after a kXR_login returned kXR_authmore. The credential is
+ * a single-round kXR_auth: credtype "ztn\0", payload "ztn\0" + <token> (the exact
+ * wire format the native client's sec_token.c sends and this server's gsi/token.c
+ * parses). Returns 0 on a kXR_ok auth, -1 otherwise (t error set). §14/C-3. */
+static int
+xrootd_cache_origin_auth_ztn(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const ngx_str_t *token)
+{
+    u_char           *blob;
+    size_t            blen;
+    uint16_t          status;
+    uint32_t          dlen;
+    u_char           *body;
+
+    blen = 4 + token->len;                      /* "ztn\0" + token */
+    blob = malloc(blen);
+    if (blob == NULL) {
+        xrootd_cache_set_error(t, kXR_NoMemory, 0,
+                               "cache origin ztn payload allocation failed");
+        return -1;
+    }
+    ngx_memcpy(blob, "ztn", 4);                 /* copies the trailing NUL too */
+    ngx_memcpy(blob + 4, token->data, token->len);
+
+    if (cache_origin_send_kxr_auth(oc, "ztn", blob, (uint32_t) blen) != 0) {
+        free(blob);
+        xrootd_cache_set_error(t, kXR_ServerError, errno,
+                               "cache origin ztn auth write failed");
+        return -1;
+    }
+    free(blob);
+
+    body = NULL;
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+        return -1;
+    }
+    if (status == kXR_error) {
+        xrootd_cache_set_origin_error(t, body, dlen,
+                                      "cache origin token auth rejected");
+        free(body);
+        return -1;
+    }
+    free(body);
+
+    if (status != kXR_ok) {
+        /* ztn is single-round; a second authmore (or anything else) is a failure. */
+        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+                               "cache origin token auth incomplete");
+        return -1;
+    }
+    return 0;
+}
+
+/* Load the proxy cert chain as one contiguous PEM blob (certs only). The proxy is an
+ * operator-configured path (trusted, like the server's own cert/key); opened
+ * O_NOFOLLOW so a planted symlink cannot redirect it. malloc'd, *outlen set; NULL on
+ * failure. Mirrors client/lib/sec/sec_gsi.c load_proxy_pem. */
+static uint8_t *
+cache_origin_load_proxy_pem(const char *path, size_t *outlen)
+{
+    int      fd;
+    BIO     *in, *out;
+    X509    *cert;
+    BUF_MEM *bm;
+    uint8_t *buf = NULL;
+    int      n = 0;
+
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: config-domain X.509 proxy PEM (not export storage) */
+    if (fd < 0) {
+        return NULL;
+    }
+    in = BIO_new_fd(fd, BIO_CLOSE);
+    if (in == NULL) {
+        close(fd);
+        return NULL;
+    }
+    out = BIO_new(BIO_s_mem());
+    if (out == NULL) {
+        BIO_free(in);
+        return NULL;
+    }
+    while ((cert = PEM_read_bio_X509(in, NULL, NULL, NULL)) != NULL) {
+        PEM_write_bio_X509(out, cert);
+        X509_free(cert);
+        n++;
+    }
+    ERR_clear_error();                          /* benign PEM EOF on the loop end */
+    BIO_free(in);
+
+    if (n > 0) {
+        BIO_get_mem_ptr(out, &bm);
+        buf = malloc(bm->length);
+        if (buf != NULL) {
+            ngx_memcpy(buf, bm->data, bm->length);
+            *outlen = bm->length;
+        }
+    }
+    BIO_free(out);
+    return buf;
+}
+
+/* Load the proxy RSA private key (the proxy PEM holds the key + the chain). */
+static EVP_PKEY *
+cache_origin_load_proxy_key(const char *path)
+{
+    int       fd;
+    BIO      *in;
+    EVP_PKEY *k = NULL;
+
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: config-domain X.509 proxy key (not export storage) */
+    if (fd < 0) {
+        return NULL;
+    }
+    in = BIO_new_fd(fd, BIO_CLOSE);
+    if (in == NULL) {
+        close(fd);
+        return NULL;
+    }
+    k = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+    BIO_free(in);
+    return k;
+}
+
+/* Extract the "gsi" protocol's parameter substring from a login advert that may
+ * carry several "&P=<proto>,<parms>" entries (e.g. "&P=ztn,v:10000&P=gsi,v:10600,
+ * c:ssl,ca:HASH"). Returns a pointer INTO `parms` just past "gsi," (the v:/c:/ca:
+ * list xrootd_gsi_parse_parms wants), or NULL when gsi is not advertised. */
+static const char *
+cache_origin_gsi_parms(const char *parms, size_t plen)
+{
+    static const char needle[] = "gsi,";
+    size_t            i;
+
+    if (parms == NULL || plen < sizeof(needle) - 1) {
+        return NULL;
+    }
+    for (i = 0; i + (sizeof(needle) - 1) <= plen; i++) {
+        if (ngx_strncmp(parms + i, needle, sizeof(needle) - 1) == 0) {
+            return parms + i + (sizeof(needle) - 1);
+        }
+    }
+    return NULL;
+}
+
+/* xrootd_cache_origin_auth_gsi — present an X.509 proxy to the origin via the
+ * in-process XrdSecgsi two-round handshake after a login advertised "&P=gsi". The
+ * DH/cipher/proof-of-possession math is the SHARED gsi_core kernel (the exact
+ * implementation client/lib/sec/sec_gsi.c and src/tpc/gsi_outbound_exchange.c use):
+ *   round 1  client → kXGC_certreq (build_certreq); server → kXGS_cert (kXR_authmore)
+ *   round 2  client → kXGC_cert (build_cert_response w/ the proxy chain + key); → kXR_ok
+ * `gsi_parms` is the server's gsi v:/c:/ca: list; `proxy_path` the proxy PEM file.
+ * Returns 0 on a kXR_ok auth, -1 otherwise (t error set). C-3. */
+static int
+xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *gsi_parms, const char *proxy_path)
+{
+    uint32_t   version = 0;
+    char       crypto[16] = { 0 };
+    char       ca[256]    = { 0 };
+    uint8_t    client_rtag[8];
+    uint8_t   *certreq = NULL;
+    size_t     certreq_len = 0;
+    uint16_t   status;
+    uint32_t   dlen;
+    u_char    *body = NULL;
+    uint8_t   *proxy_pem = NULL;
+    size_t     proxy_pem_len = 0;
+    EVP_PKEY  *proxy_key = NULL;
+    uint8_t   *resp = NULL;
+    uint32_t   resp_len = 0;
+    char       err[160];
+    int        rc;
+
+    /* ---- round 1: kXGC_certreq ---- */
+    xrootd_gsi_parse_parms(gsi_parms, &version, crypto, sizeof(crypto),
+                           ca, sizeof(ca));
+    if (crypto[0] == '\0') {
+        ngx_memcpy(crypto, "ssl", 4);
+    }
+    version = 10600;                            /* signed-DH default, as sec_gsi.c */
+    if (!xrootd_gsi_rand(client_rtag, sizeof(client_rtag))) {
+        xrootd_cache_set_error(t, kXR_ServerError, 0, "cache origin gsi RNG failed");
+        return -1;
+    }
+    certreq = xrootd_gsi_build_certreq(crypto, version, ca, 0x80u, client_rtag,
+                                       sizeof(client_rtag), &certreq_len);
+    if (certreq == NULL) {
+        xrootd_cache_set_error(t, kXR_ServerError, 0,
+                               "cache origin gsi certreq build failed");
+        return -1;
+    }
+    rc = cache_origin_send_kxr_auth(oc, "gsi", certreq, (uint32_t) certreq_len);
+    free(certreq);
+    if (rc != 0) {
+        xrootd_cache_set_error(t, kXR_ServerError, errno,
+                               "cache origin gsi certreq write failed");
+        return -1;
+    }
+
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 1 << 16) != 0) {
+        return -1;
+    }
+    if (status == kXR_error) {
+        xrootd_cache_set_origin_error(t, body, dlen, "cache origin gsi rejected");
+        free(body);
+        return -1;
+    }
+    if (status != kXR_authmore || body == NULL || dlen < 16) {
+        free(body);
+        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+                               "cache origin gsi expected kXGS_cert");
+        return -1;
+    }
+
+    /* MITM protection: when the credential names a CA (cache_origin_ca_dir →
+     * conf->gsi_store), the origin's server cert MUST be present in the kXGS_cert AND
+     * verify against that store BEFORE we agree a shared secret with it. No store =
+     * the operator opted out of origin-cert verification (unauthenticated origin). */
+    if (t->conf->gsi_store != NULL) {
+        const uint8_t  *srv_pem = NULL;
+        size_t          srv_pem_len = 0;
+        BIO            *mbio;
+        X509           *srv;
+        X509_STORE_CTX *sctx;
+        int             ok = 0;
+
+        if (xrootd_gsi_find_bucket(body, dlen, (uint32_t) kXRS_x509,
+                                   &srv_pem, &srv_pem_len) != 0
+            || srv_pem_len == 0)
+        {
+            free(body);
+            xrootd_cache_set_error(t, kXR_NotAuthorized, 0,
+                "cache origin gsi: server presented no certificate to verify");
+            return -1;
+        }
+        mbio = BIO_new_mem_buf(srv_pem, (int) srv_pem_len);
+        srv  = (mbio != NULL) ? PEM_read_bio_X509(mbio, NULL, NULL, NULL) : NULL;
+        if (mbio != NULL) { BIO_free(mbio); }
+        if (srv != NULL) {
+            sctx = X509_STORE_CTX_new();
+            if (sctx != NULL
+                && X509_STORE_CTX_init(sctx, t->conf->gsi_store, srv, NULL) == 1)
+            {
+                X509_STORE_CTX_set_flags(sctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
+                ok = (X509_verify_cert(sctx) == 1);
+            }
+            if (sctx != NULL) { X509_STORE_CTX_free(sctx); }
+            X509_free(srv);
+        }
+        ERR_clear_error();
+        if (!ok) {
+            free(body);
+            xrootd_cache_set_error(t, kXR_NotAuthorized, 0,
+                "cache origin gsi: server certificate verification failed");
+            return -1;
+        }
+    }
+
+    /* ---- round 2: kXGC_cert with the proxy chain ---- */
+    proxy_pem = cache_origin_load_proxy_pem(proxy_path, &proxy_pem_len);
+    proxy_key = cache_origin_load_proxy_key(proxy_path);
+    if (proxy_pem == NULL || proxy_key == NULL) {
+        free(proxy_pem);
+        EVP_PKEY_free(proxy_key);
+        free(body);
+        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+                               "cache origin gsi cannot load proxy credential");
+        return -1;
+    }
+
+    err[0] = '\0';
+    rc = xrootd_gsi_build_cert_response(body, dlen, proxy_pem, proxy_pem_len,
+                                        proxy_key, &resp, &resp_len,
+                                        err, sizeof(err));
+    free(body);
+    body = NULL;
+    free(proxy_pem);
+    EVP_PKEY_free(proxy_key);
+    if (rc != 0) {
+        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+                               err[0] ? err : "cache origin gsi round-2 failed");
+        return -1;
+    }
+
+    rc = cache_origin_send_kxr_auth(oc, "gsi", resp, resp_len);
+    free(resp);
+    if (rc != 0) {
+        xrootd_cache_set_error(t, kXR_ServerError, errno,
+                               "cache origin gsi round-2 write failed");
+        return -1;
+    }
+
+    body = NULL;
+    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+        return -1;
+    }
+    if (status == kXR_error) {
+        xrootd_cache_set_origin_error(t, body, dlen,
+                                      "cache origin gsi authentication failed");
+        free(body);
+        return -1;
+    }
+    free(body);
+    if (status != kXR_ok) {
+        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+                               "cache origin gsi authentication incomplete");
+        return -1;
+    }
+    return 0;
+}
 
 /* xrootd_cache_origin_bootstrap — three-phase XRootD connection bootstrap on a
  * raw TCP/TLS socket: ClientInitHandShake → kXR_protocol negotiation (a
  * kXR_gotoTLS flag triggers a TLS upgrade when configured) → anonymous kXR_login
- * (user 'xrd', capver kXR_ver005, streamid[1]=1). Every cache fill needs a valid
- * session before reading. Returns 0 on success, -1 on any phase failure. */
+ * (user 'xrd', capver kXR_ver005, streamid[1]=1). When the origin demands auth
+ * (kXR_authmore) and a bearer token is configured, a ztn kXR_auth completes the
+ * session. Every cache fill needs a valid session before reading. Returns 0 on
+ * success, -1 on any phase failure. */
 int
 xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc)
@@ -97,9 +447,63 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
         return -1;
     }
+
+    /* A kXR_ok login on an AUTHENTICATED origin still carries an auth advert:
+     * body = sessid(16) + "&P=<proto>,..." (anonymous origins send only the 16-byte
+     * sessid). So a kXR_ok with a "&P=" parameter block means the session is NOT yet
+     * authenticated — present the configured bearer via ztn (§14/C-3). kXR_authmore
+     * is the mid-protocol variant; handle it the same way. */
+    if ((status == kXR_ok || status == kXR_authmore)
+        && dlen > XROOTD_SESSION_ID_LEN)
+    {
+        const u_char *parms = body + XROOTD_SESSION_ID_LEN;
+        size_t        plen  = dlen - XROOTD_SESSION_ID_LEN;
+        int           needs_auth = (ngx_strlchr((u_char *) parms,
+                                        (u_char *) parms + plen, '=') != NULL);
+        int           has_ztn = (ngx_strnstr((u_char *) parms, "ztn", plen) != NULL);
+        const char   *gp = cache_origin_gsi_parms((const char *) parms, plen);
+        char          gsi_parms[256];
+        int           has_gsi = 0;
+
+        /* Copy the gsi v:/c:/ca: list out of the (about-to-be-freed) body, stopping
+         * at the next "&P=" entry so a co-advertised ztn block isn't mis-parsed. */
+        if (gp != NULL) {
+            const char *amp = gp;
+            size_t      end = (size_t) ((const char *) parms + plen - gp);
+            size_t      i;
+
+            for (i = 0; i < end && amp[i] != '&'; i++) { /* find terminator */ }
+            if (i >= sizeof(gsi_parms)) { i = sizeof(gsi_parms) - 1; }
+            ngx_memcpy(gsi_parms, gp, i);
+            gsi_parms[i] = '\0';
+            has_gsi = 1;
+        }
+
+        free(body);
+        if (needs_auth) {
+            if (has_ztn && t->conf->cache_origin_bearer.len > 0) {
+                return xrootd_cache_origin_auth_ztn(t, oc,
+                                                    &t->conf->cache_origin_bearer);
+            }
+            if (has_gsi && t->conf->cache_origin_x509_proxy.len > 0) {
+                return xrootd_cache_origin_auth_gsi(t, oc, gsi_parms,
+                    (const char *) t->conf->cache_origin_x509_proxy.data);
+            }
+            xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+                (t->conf->cache_origin_bearer.len > 0
+                 || t->conf->cache_origin_x509_proxy.len > 0)
+                    ? "cache origin auth protocol not supported (need ztn/gsi)"
+                    : "cache origin requires authentication (no credential set)");
+            return -1;
+        }
+        return 0;
+    }
     free(body);
 
     if (status == kXR_authmore) {
+        if (t->conf->cache_origin_bearer.len > 0) {
+            return xrootd_cache_origin_auth_ztn(t, oc, &t->conf->cache_origin_bearer);
+        }
         xrootd_cache_set_error(t, kXR_AuthFailed, 0,
                                "cache origin requires authentication");
         return -1;
@@ -308,6 +712,330 @@ xrootd_cache_origin_query_checksum(xrootd_cache_fill_t *t,
 
     free(body);
     return 0;
+}
+
+/* origin_request — send a generic 24-byte ClientRequestHdr (requestid + packed
+ * `body`) plus `payload`, then read the response into (*status, *rbody, *rdlen).
+ * The caller owns *rbody (free it). Returns 0 (response received — check *status)
+ * or -1 on a transport failure. */
+static int
+origin_request(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
+    uint16_t requestid, const uint8_t body[XRDW_BODY_LEN],
+    const void *payload, size_t plen, uint16_t *status, u_char **rbody,
+    uint32_t *rdlen, size_t rmax)
+{
+    size_t            total = sizeof(ClientRequestHdr) + plen;
+    u_char           *buf;
+    ClientRequestHdr *req;
+
+    buf = malloc(total);
+    if (buf == NULL) {
+        return -1;
+    }
+    ngx_memzero(buf, sizeof(ClientRequestHdr));
+    req = (ClientRequestHdr *) buf;
+    req->streamid[1] = 8;                       /* unused stream slot */
+    req->requestid   = htons(requestid);
+    ngx_memcpy(req->body, body, XRDW_BODY_LEN);
+    req->dlen = htonl((kXR_int32) plen);
+    if (plen > 0) {
+        ngx_memcpy(buf + sizeof(ClientRequestHdr), payload, plen);
+    }
+
+    if (xrootd_cache_io_send(oc, buf, total) != 0) {
+        free(buf);
+        return -1;
+    }
+    free(buf);
+
+    *rbody = NULL;
+    return xrootd_cache_read_response(t, oc, status, rbody, rdlen, rmax);
+}
+
+/* Map a non-ok origin response to errno. A failure is a kXR_error frame whose
+ * body is [int32 errnum][msg]; decode the kXR errnum (kXR_NotFound, …) from it.
+ * (Some servers may also place the kXR code directly in the status word.) */
+static int
+origin_status_errno(uint16_t status, const u_char *body, uint32_t dlen)
+{
+    int errcode = (int) status;
+
+    if (status == kXR_error) {
+        const char *m = NULL;
+        size_t      ml = 0;
+        (void) xrd_error_body_decode(body, dlen, &errcode, &m, &ml);
+    }
+    switch (errcode) {
+    case kXR_NotFound:      return ENOENT;
+    case kXR_NotAuthorized: return EACCES;
+    case kXR_isDirectory:   return EISDIR;
+    default:                return EIO;
+    }
+}
+
+/* xrootd_cache_origin_rename — kXR_mv old→new on the origin. Wire payload is
+ * "src ' ' dst" with arg1len=len(src). Returns 0, or -1 with errno set. */
+int
+xrootd_cache_origin_rename(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *src, const char *dst)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    size_t    sl = strlen(src), dl = strlen(dst), total = sl + 1 + dl;
+    char     *payload;
+    uint16_t  status;
+    uint32_t  dlen;
+    u_char   *rbody;
+    int       rc;
+
+    if (sl == 0 || sl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    payload = malloc(total);
+    if (payload == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    ngx_memcpy(payload, src, sl);
+    payload[sl] = ' ';
+    ngx_memcpy(payload + sl + 1, dst, dl);
+
+    {
+        xrdw_twopath_req_t b = { .arg1len = (int16_t) sl };
+        xrdw_twopath_req_pack(&b, body);
+    }
+    rc = origin_request(t, oc, kXR_mv, body, payload, total, &status, &rbody,
+                        &dlen, 256);
+    free(payload);
+    if (rc != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    free(rbody);
+    return 0;
+}
+
+/* xrootd_cache_origin_rm — kXR_rm <path> on the origin (delete a file). The rm
+ * request carries no params (the 16-byte body is reserved/zero); the path is the
+ * payload. Returns 0, or -1 with errno set (ENOENT when the origin reports the
+ * path already gone, so a best-effort reclaim/evict is idempotent). */
+int
+xrootd_cache_origin_rm(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
+    const char *path)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    size_t    pl = (path != NULL) ? strlen(path) : 0;
+    uint16_t  status;
+    uint32_t  dlen;
+    u_char   *rbody = NULL;
+    int       rc;
+
+    if (pl == 0 || pl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    ngx_memzero(body, sizeof(body));            /* kXR_rm params are reserved */
+    rc = origin_request(t, oc, kXR_rm, body, path, pl, &status, &rbody,
+                        &dlen, 256);
+    if (rc != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    free(rbody);
+    return 0;
+}
+
+/* Build "<path>\0[int16 rc=0]<name>\0" (+ "[int32 BE vlen]<value>") for a single-
+ * attribute fattr request. Returns a malloc'd buffer + *plen, or NULL (OOM). */
+static u_char *
+origin_fattr_payload(const char *path, const char *name, const void *val,
+    size_t vlen, int with_value, size_t *plen)
+{
+    size_t   pn = strlen(path), nn = strlen(name);
+    size_t   need = pn + 1 + 2 + nn + 1 + (with_value ? 4 + vlen : 0);
+    u_char  *buf, *p;
+
+    buf = malloc(need);
+    if (buf == NULL) {
+        return NULL;
+    }
+    p = buf;
+    ngx_memcpy(p, path, pn); p += pn; *p++ = 0;
+    *p++ = 0; *p++ = 0;                          /* nvec int16 rc=0 */
+    ngx_memcpy(p, name, nn); p += nn; *p++ = 0;
+    if (with_value) {
+        uint32_t vbe = htonl((uint32_t) vlen);
+        ngx_memcpy(p, &vbe, 4); p += 4;
+        if (vlen > 0) { ngx_memcpy(p, val, vlen); p += vlen; }
+    }
+    *plen = (size_t) (p - buf);
+    return buf;
+}
+
+/* xrootd_cache_origin_getfattr — kXR_fattr Get of ONE attribute on `path`. Copies
+ * the value into buf[cap] and returns its length, 0 if absent, or -1 (errno). */
+ssize_t
+xrootd_cache_origin_getfattr(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *path, const char *name,
+    void *buf, size_t cap)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    u_char   *payload, *rbody = NULL, *after;
+    size_t    plen, next;
+    uint16_t  status, rc = 0;
+    uint32_t  dlen, vlen;
+
+    payload = origin_fattr_payload(path, name, NULL, 0, 0, &plen);
+    if (payload == NULL) { errno = ENOMEM; return -1; }
+    {
+        xrdw_fattr_req_t b = { .subcode = kXR_fattrGet, .numattr = 1 };
+        xrdw_fattr_req_pack(&b, body);
+    }
+    if (origin_request(t, oc, kXR_fattr, body, payload, plen, &status, &rbody,
+                       &dlen, 65536) != 0)
+    {
+        free(payload);
+        errno = EIO;
+        return -1;
+    }
+    free(payload);
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    if (rbody == NULL || dlen < 2
+        || xrdp_fattr_nvec_parse(rbody, dlen, 2, &rc, NULL, NULL, &next) != 0)
+    {
+        free(rbody);
+        errno = EIO;
+        return -1;
+    }
+    if (rc != 0) {                               /* attribute not present */
+        free(rbody);
+        errno = ENODATA;
+        return -1;
+    }
+    after = rbody + next;
+    if (after + 4 > rbody + dlen) { free(rbody); errno = EIO; return -1; }
+    ngx_memcpy(&vlen, after, 4); vlen = ntohl(vlen); after += 4;
+    if (after + vlen > rbody + dlen) { vlen = (uint32_t) (rbody + dlen - after); }
+    if (buf != NULL && cap > 0) {
+        ngx_memcpy(buf, after, (vlen < cap) ? vlen : cap);
+    }
+    free(rbody);
+    return (ssize_t) vlen;
+}
+
+/* xrootd_cache_origin_listfattr — kXR_fattr List on `path`; copies the NUL-
+ * separated name list into buf[cap]. Returns the byte count, or -1 (errno). */
+ssize_t
+xrootd_cache_origin_listfattr(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *path, void *buf, size_t cap)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    size_t    pn = strlen(path);
+    u_char   *payload, *rbody = NULL;
+    uint16_t  status;
+    uint32_t  dlen;
+
+    payload = malloc(pn + 1);
+    if (payload == NULL) { errno = ENOMEM; return -1; }
+    ngx_memcpy(payload, path, pn); payload[pn] = 0;
+    {
+        xrdw_fattr_req_t b = { .subcode = kXR_fattrList, .numattr = 0 };
+        xrdw_fattr_req_pack(&b, body);
+    }
+    if (origin_request(t, oc, kXR_fattr, body, payload, pn + 1, &status, &rbody,
+                       &dlen, 65536) != 0)
+    {
+        free(payload);
+        errno = EIO;
+        return -1;
+    }
+    free(payload);
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    if (buf != NULL && cap > 0 && dlen > 0) {
+        ngx_memcpy(buf, rbody, (dlen < cap) ? dlen : cap);
+    }
+    free(rbody);
+    return (ssize_t) dlen;
+}
+
+/* Shared Set/Del: build payload, send, parse the per-attribute rc. 0 / -1. */
+static int
+origin_fattr_set_or_del(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
+    const char *path, const char *name, const void *val, size_t vlen,
+    int with_value, uint8_t subcode)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    u_char   *payload, *rbody = NULL;
+    size_t    plen, next;
+    uint16_t  status, rc = 0;
+    uint32_t  dlen;
+
+    payload = origin_fattr_payload(path, name, val, vlen, with_value, &plen);
+    if (payload == NULL) { errno = ENOMEM; return -1; }
+    {
+        xrdw_fattr_req_t b = { .subcode = subcode, .numattr = 1 };
+        xrdw_fattr_req_pack(&b, body);
+    }
+    if (origin_request(t, oc, kXR_fattr, body, payload, plen, &status, &rbody,
+                       &dlen, 4096) != 0)
+    {
+        free(payload);
+        errno = EIO;
+        return -1;
+    }
+    free(payload);
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    if (rbody == NULL || dlen < 2
+        || xrdp_fattr_nvec_parse(rbody, dlen, 2, &rc, NULL, NULL, &next) != 0)
+    {
+        free(rbody);
+        errno = EIO;
+        return -1;
+    }
+    free(rbody);
+    if (rc != 0) {
+        errno = (subcode == kXR_fattrDel) ? ENODATA : EIO;
+        return -1;
+    }
+    return 0;
+}
+
+int
+xrootd_cache_origin_setfattr(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *path, const char *name,
+    const void *val, size_t vlen)
+{
+    return origin_fattr_set_or_del(t, oc, path, name, val, vlen, 1,
+                                   kXR_fattrSet);
+}
+
+int
+xrootd_cache_origin_delfattr(xrootd_cache_fill_t *t,
+    xrootd_cache_origin_conn_t *oc, const char *path, const char *name)
+{
+    return origin_fattr_set_or_del(t, oc, path, name, NULL, 0, 0, kXR_fattrDel);
 }
 
 /* xrootd_cache_origin_open_write — kXR_open (update + delete + mkpath) to mirror a

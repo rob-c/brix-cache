@@ -56,13 +56,13 @@ def proxy_stack(tmp_path):
         "be": f"""\
 worker_processes 1; daemon on; pid {tmp_path}/be.pid; error_log {tmp_path}/be.log info;
 events {{ worker_connections 256; }}
-stream {{ server {{ listen {be_port}; xrootd on; xrootd_root {root}; xrootd_auth none; }} }}
+stream {{ server {{ listen {be_port}; xrootd on; xrootd_storage_backend posix:{root}; xrootd_auth none; }} }}
 """,
         "px": f"""\
 worker_processes 1; daemon on; pid {tmp_path}/px.pid; error_log {tmp_path}/px.log info;
 events {{ worker_connections 256; }}
 stream {{ server {{ listen {px_port}; xrootd on; xrootd_auth none;
-    xrootd_proxy on; xrootd_proxy_upstream 127.0.0.1:{be_port}; }} }}
+    xrootd_tap_proxy on; xrootd_tap_proxy_upstream 127.0.0.1:{be_port}; xrootd_tap_proxy_auth anonymous; }} }}
 """,
     }
     paths = {}

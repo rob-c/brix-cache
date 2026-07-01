@@ -84,7 +84,7 @@ def pwd_server(tmp_path_factory):
         "    server {\n"
         f"        listen 127.0.0.1:{P_PWD};\n"
         "        xrootd on;\n"
-        f"        xrootd_root {data};\n"
+        f"        xrootd_storage_backend posix:{data};\n"
         "        xrootd_auth pwd;\n"
         f"        xrootd_pwd_file {pwdfile};\n"
         "        xrootd_allow_write on;\n"

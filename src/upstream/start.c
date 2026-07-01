@@ -110,6 +110,7 @@ xrootd_upstream_start(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         fd = xrootd_resolve_connect_socket((char *) conf->upstream_host.data,
                                            (unsigned) conf->upstream_port,
+                                           XROOTD_AF_AUTO,
                                            &chosen_addr, &chosen_addrlen,
                                            &rstatus);
         if (fd == (int) NGX_INVALID_FILE

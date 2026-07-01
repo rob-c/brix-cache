@@ -44,4 +44,14 @@ ngx_int_t xrootd_make_resume_path(const char *base_path, const char *principal,
                                   const char *stage_dir, char *out,
                                   size_t out_sz);
 
+/* Register an export root to scan for orphaned atomic-write temps (phase-64 SP4).
+ * Called by each protocol's config finaliser; deduped. */
+void xrootd_tmp_reap_register(const char *export_root);
+
+/* Reap orphaned "<final>.xrd-tmp.<pid>.<rand>" temps (interrupted NON-staged direct
+ * writes) under every registered export root: a temp whose owner pid is dead is
+ * removed; one whose owner is still alive (a draining worker during reload) is kept.
+ * Returns the count removed. Call once at worker-0 startup. */
+ngx_uint_t xrootd_tmp_reap_all(ngx_log_t *log);
+
 #endif /* XROOTD_COMPAT_TMP_PATH_H */

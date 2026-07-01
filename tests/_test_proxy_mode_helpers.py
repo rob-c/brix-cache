@@ -3,9 +3,9 @@
 # names and `_`-prefixed helpers) via the __all__ below, so every split
 # sibling shares the exact module-level environment of the original.
 """
-Tests for XRootD transparent proxy mode (xrootd_proxy on + xrootd_proxy_upstream).
+Tests for XRootD transparent proxy mode (xrootd_tap_proxy on + xrootd_tap_proxy_upstream).
 
-Topology:   test client ──► nginx (xrootd_proxy on) ──► xrootd reference daemon
+Topology:   test client ──► nginx (xrootd_tap_proxy on) ──► xrootd reference daemon
 
 The proxy authenticates clients independently (anonymous in Phase 1), lazily
 connects to the upstream on the first post-login opcode, translates
@@ -110,10 +110,11 @@ stream {{
     + """:{PORT};
         xrootd on;
         xrootd_auth none;
-        xrootd_proxy on;
-        xrootd_proxy_upstream """
+        xrootd_tap_proxy on;
+        xrootd_tap_proxy_upstream """
     + HOST
     + """:{UPSTREAM_PORT};
+        xrootd_tap_proxy_auth anonymous;
     }}
 }}
 """

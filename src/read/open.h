@@ -60,8 +60,8 @@ ngx_int_t xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_
  * logical path (CGI already stripped). Checks the VO ACL against the auth root
  * first; on cache hit (stat of cache_root path succeeds) serves directly via
  * xrootd_open_resolved_file(); on miss triggers a background origin fill via
- * xrootd_cache_open_or_fill(); with slice caching configured delegates to
- * xrootd_open_slice_handle() instead. Returns the chosen path's result
+ * xrootd_cache_open_or_fill(); with slice caching configured serves through the
+ * unified sd_cache partial decorator (§6.5). Returns the chosen path's result
  * (NGX_OK / NGX_ERROR); ACL denial and path-length errors become kXR error
  * frames.
  */

@@ -141,7 +141,7 @@ def test_http_directives_parse(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_rate_limit_rule zone=rl key=vo rate=500r/s burst=800;
                 xrootd_rate_limit_rule zone=rl key=ip rate=10r/s burst=10 nodelay;
@@ -162,7 +162,7 @@ def test_bad_rate_rejected(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_rate_limit_rule zone=rl key=ip rate=500 burst=10;
             }}
@@ -181,7 +181,7 @@ def test_unknown_zone_rejected(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_rate_limit_rule zone=missing key=ip rate=5r/s burst=5;
             }}
@@ -201,7 +201,7 @@ def test_coexists_with_phase20_rate_limit(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_rate_limit_rule zone=rl key=ip rate=10r/s burst=10;
             }}
@@ -284,7 +284,7 @@ def test_http_429_after_burst(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
             }}
@@ -312,7 +312,7 @@ def test_http_nodelay_immediate(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_rate_limit_rule zone=rl key=ip rate=1r/s burst=1 nodelay;
             }}
@@ -344,7 +344,7 @@ def test_http_bandwidth_throttled(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_bandwidth_limit zone=rl key=ip rate=10k/s burst=120k;
             }}
@@ -385,7 +385,7 @@ def test_dashboard_shows_throttle_count(tmp_path):
             listen {BIND_HOST}:{port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_rate_limit_rule zone=rl key=ip rate=2r/s burst=2;
             }}
@@ -490,7 +490,7 @@ def test_stream_kxr_wait_after_burst(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_auth none;
             xrootd_rate_limit_rule zone=rls key=ip rate=2r/s burst=2;
         }}
@@ -520,7 +520,7 @@ def test_stream_stat_never_throttled(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_auth none;
             xrootd_rate_limit_rule zone=rls key=ip rate=1r/s burst=1;
         }}
@@ -573,7 +573,7 @@ def _conc_stream_conf(tmp_path, port, data, limit):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_auth none;
             xrootd_concurrency_limit zone=rlc key=ip limit={limit};
         }}
@@ -600,7 +600,7 @@ def test_stream_concurrency_bad_limit_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_auth none;
             xrootd_concurrency_limit zone=rlc key=ip limit=0;
         }}
@@ -717,7 +717,7 @@ def test_keycache_read_path_still_throttles(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_auth none;
             xrootd_rate_limit_rule zone=rlk key=ip rate=2r/s burst=2;
         }}
@@ -752,7 +752,7 @@ def test_keycache_volume_not_collapsed(tmp_path):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_auth none;
             xrootd_rate_limit_rule zone=rlv key=volume:/hot rate=1r/s burst=1;
         }}

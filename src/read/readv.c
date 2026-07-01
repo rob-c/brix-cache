@@ -228,18 +228,6 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             return validate_rc;
         }
 
-        /*
-         * Phase 26: slice-mode handles park their fd on /dev/null, so preadv
-         * here would read nothing (then trip the "past EOF" guard) instead of
-         * serving cached bytes.  Only kXR_read is wired into slice serving;
-         * reject vector reads on such handles with a clear error.
-         */
-        if (ctx->files[handle_index].slice_mode) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
-            return xrootd_send_error(ctx, c, kXR_Unsupported,
-                                     "readv not supported on slice-cached handle");
-        }
-
         if ((size_t) read_length > readv_seg_max) {
             read_length = (uint32_t) readv_seg_max;
         }

@@ -86,7 +86,7 @@ s3_put_body_mode(const xrootd_http_body_summary_t *summary)
  */
 void
 s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    xrootd_staged_file_t *staged, const char *fs_path, ngx_uint_t body_mode)
+    xrootd_vfs_staged_t *staged, const char *fs_path, ngx_uint_t body_mode)
 {
     const char        *root_canon = cf->common.root_canon;
     ngx_table_elt_t   *dcl;
@@ -97,7 +97,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     dcl = xrootd_http_find_header(r, "x-amz-decoded-content-length",
                                   sizeof("x-amz-decoded-content-length") - 1);
     if (dcl == NULL || dcl->value.len == 0) {
-        xrootd_staged_abort(r->connection->log, root_canon, staged, 1);
+        xrootd_vfs_staged_abort(staged, 1);
         s3_put_finalize_client_error(r, NGX_HTTP_BAD_REQUEST,
             "MissingContentLength",
             "Streaming upload is missing x-amz-decoded-content-length.");
@@ -106,7 +106,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     for (i = 0; i < dcl->value.len; i++) {
         u_char d = dcl->value.data[i];
         if (d < '0' || d > '9') {
-            xrootd_staged_abort(r->connection->log, root_canon, staged, 1);
+            xrootd_vfs_staged_abort(staged, 1);
             s3_put_finalize_client_error(r, NGX_HTTP_BAD_REQUEST,
                 "InvalidArgument",
                 "x-amz-decoded-content-length is not a valid length.");
@@ -122,13 +122,13 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         s3_chunk_aio_t    *t;
 
         if (task == NULL) {
-            xrootd_staged_abort(r->connection->log, root_canon, staged, 1);
+            xrootd_vfs_staged_abort(staged, 1);
             s3_put_finalize_error(r);
             return;
         }
         t = task->ctx;                  /* ngx_thread_task_alloc zeroes ctx */
         t->r         = r;
-        t->staged    = *staged;
+        t->staged    = staged;
         t->expected  = expected;
         t->body_mode = body_mode;
         s3_build_chunk_verify(r, cf, &t->verify);   /* W6a */
@@ -139,7 +139,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         xrootd_task_bind(task, s3_chunk_aio_thread, s3_chunk_aio_done);
 
         if (ngx_thread_task_post(pool, task) != NGX_OK) {
-            xrootd_staged_abort(r->connection->log, root_canon, staged, 1);
+            xrootd_vfs_staged_abort(staged, 1);
             s3_put_finalize_error(r);
             return;
         }
@@ -154,7 +154,7 @@ s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         int                status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
         s3_build_chunk_verify(r, cf, &verify);   /* W6a */
-        if (s3_aws_chunked_decode_to_fd(r, staged->fd, fs_path, expected,
+        if (s3_aws_chunked_decode_to_fd(r, xrootd_vfs_staged_fd(staged), fs_path, expected,
                                         &trailer, &status, NULL, &verify)
             != NGX_OK)
         {
@@ -267,7 +267,9 @@ s3_put_body_inner(ngx_http_request_t *r)
     xrootd_codec_id_t    put_codec = XROOTD_CODEC_IDENTITY;
     size_t               body_bytes = 0;
     ngx_uint_t           body_mode = XROOTD_S3_PUT_EMPTY;
-    xrootd_staged_file_t staged;
+    xrootd_vfs_staged_t *staged = NULL;
+    xrootd_vfs_ctx_t     svctx;
+    int                  staged_err = 0;
     xrootd_http_body_summary_t body_summary;
     char                 identity[128];
 
@@ -333,11 +335,14 @@ s3_put_body_inner(ngx_http_request_t *r)
         }
     }
 
-    if (xrootd_staged_open(r->connection->log, cf->common.root_canon,
-                           (const char *) fs_path, O_WRONLY, 0600, 16,
-                           &staged) != NGX_OK)
+    /* A transient stack ctx is fine: xrootd_vfs_staged_open deep-copies the ctx
+     * (and the strings it points at) onto r->pool, so the handle survives the async
+     * body-write completion (put_aio/put_chunk commit after this function returns). */
+    s3_build_vfs_ctx(r, (const char *) fs_path, cf, &svctx);
+    staged = xrootd_vfs_staged_open(&svctx, 0600, 16, &staged_err);
+    if (staged == NULL)
     {
-        int open_errno = errno;   /* capture before logging clobbers errno */
+        int open_errno = staged_err;   /* the VFS open captured errno */
         xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, open_errno,
                              "s3: staged open for \"%s\" failed",
                              (const char *) fs_path);
@@ -347,7 +352,7 @@ s3_put_body_inner(ngx_http_request_t *r)
     }
 
     if (xrootd_http_body_summary(r, &body_summary) != NGX_OK) {
-        xrootd_staged_abort(r->connection->log, cf->common.root_canon, &staged, 1);
+        xrootd_vfs_staged_abort(staged, 1);
         s3_put_finalize_error(r);
         return;
     }
@@ -373,12 +378,11 @@ s3_put_body_inner(ngx_http_request_t *r)
          * undecoded bytes — the same invariant the non-chunked path enforces with
          * 400 below.  Plain aws-chunked (no inner coding) continues normally. */
         if (s3_aws_chunked_has_inner_coding(r)) {
-            xrootd_staged_abort(r->connection->log, cf->common.root_canon,
-                                &staged, 1);
+            xrootd_vfs_staged_abort(staged, 1);
             s3_put_finalize_codec_error(r, NGX_HTTP_BAD_REQUEST);
             return;
         }
-        s3_put_streaming(r, cf, &staged, (const char *) fs_path, body_mode);
+        s3_put_streaming(r, cf, staged, (const char *) fs_path, body_mode);
         return;
     }
 
@@ -391,8 +395,7 @@ s3_put_body_inner(ngx_http_request_t *r)
             if (d == NULL || !d->available) {
                 /* Unknown / not-compiled-in Content-Encoding: never store the
                  * undecoded bytes — reject as a client error (400), not 500. */
-                xrootd_staged_abort(r->connection->log, cf->common.root_canon,
-                                    &staged, 1);
+                xrootd_vfs_staged_abort(staged, 1);
                 s3_put_finalize_codec_error(r, NGX_HTTP_BAD_REQUEST);
                 return;
             }
@@ -418,7 +421,7 @@ s3_put_body_inner(ngx_http_request_t *r)
 
         task = ngx_thread_task_alloc(r->pool, sizeof(s3_put_aio_t));
         if (task == NULL) {
-            xrootd_staged_abort(r->connection->log, cf->common.root_canon, &staged, 1);
+            xrootd_vfs_staged_abort(staged, 1);
             s3_put_finalize_error(r);
             return;
         }
@@ -441,7 +444,7 @@ s3_put_body_inner(ngx_http_request_t *r)
         xrootd_task_bind(task, s3_put_aio_thread, s3_put_aio_done);
 
         if (ngx_thread_task_post(cf->common.thread_pool, task) != NGX_OK) {
-            xrootd_staged_abort(r->connection->log, cf->common.root_canon, &staged, 1);
+            xrootd_vfs_staged_abort(staged, 1);
             s3_put_finalize_error(r);
             return;
         }
@@ -455,20 +458,19 @@ s3_put_body_inner(ngx_http_request_t *r)
         ngx_int_t  decode_status = 0;
 
         if (put_codec != XROOTD_CODEC_IDENTITY) {
-            wrc = xrootd_http_body_decode_to_fd(r, staged.fd,
+            wrc = xrootd_http_body_decode_to_fd(r, xrootd_vfs_staged_fd(staged),
                                                 (const char *) fs_path,
                                                 put_codec,
                                                 XROOTD_DECODE_MAX_OUTPUT,
                                                 &body_summary,
                                                 &decode_status);
         } else {
-            wrc = xrootd_http_body_write_to_fd(r, staged.fd,
+            wrc = xrootd_http_body_write_to_fd(r, xrootd_vfs_staged_fd(staged),
                                                 (const char *) fs_path,
                                                 &body_summary);
         }
         if (wrc != NGX_OK) {
-            xrootd_staged_abort(r->connection->log, cf->common.root_canon,
-                                &staged, 1);
+            xrootd_vfs_staged_abort(staged, 1);
             /* Map a decode failure to a clean S3 client error (413 bomb / 400
              * malformed); a genuine I/O failure (decode_status 0 or 5xx) stays
              * a 500. */
@@ -487,7 +489,7 @@ s3_put_body_inner(ngx_http_request_t *r)
         }
     }
 
-    if (s3_commit_put(r, r->connection->log, cf->common.root_canon, &staged,
+    if (s3_commit_put(r, r->connection->log, cf->common.root_canon, staged,
                       (const char *) fs_path) != NGX_OK)
     {
         if (s3_put_commit_conflict(r)) {

@@ -9,10 +9,11 @@
  *
  * Build & run (XROOTD_HAVE_CEPH intentionally OFF so only the pure helpers
  * compile — no librados needed):
- *   cc -Wall -Wextra -I. sd_ceph_unittest.c sd_ceph.c -o /tmp/sd_ceph_ut \
- *      && /tmp/sd_ceph_ut
+ *   cc -Wall -Wextra -I. sd_ceph_unittest.c sd_ceph.c sd_ceph_compat.c \
+ *      -o /tmp/sd_ceph_ut && /tmp/sd_ceph_ut
  */
 #include "sd_ceph.h"
+#include "sd_ceph_compat.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -105,6 +106,33 @@ main(void)
     }
     if (sd_ceph_ino("xrd/a") == sd_ceph_ino("xrd/b")) {
         fprintf(stderr, "FAIL ino collision on distinct oids\n");
+        failures++;
+    }
+
+    /* XrdCeph striper layout: catalog enumeration keeps the first stripe (one per
+     * file), skips data stripes, and treats flat (non-striped) objects as their
+     * own entry. */
+    if (!sd_ceph_oid_is_first_stripe("data/f.root.0000000000000000")
+        || sd_ceph_oid_is_first_stripe("data/f.root.0000000000000001")
+        || sd_ceph_oid_is_first_stripe("data/f.root")) {
+        fprintf(stderr, "FAIL is_first_stripe classification\n");
+        failures++;
+    }
+    {
+        char pfn[256];
+        if (sd_ceph_oid_to_pfn("data/f.root.0000000000000000", pfn, sizeof(pfn))
+                != 0 || strcmp(pfn, "data/f.root") != 0) {
+            fprintf(stderr, "FAIL oid_to_pfn -> \"%s\"\n", pfn);
+            failures++;
+        }
+    }
+    if (sd_ceph_oid_is_stripe_data("data/f.root.0000000000000000")   /* first */
+        || !sd_ceph_oid_is_stripe_data("data/f.root.0000000000000001") /* data */
+        || !sd_ceph_oid_is_stripe_data("data/f.root.00000000000000ff") /* data */
+        || sd_ceph_oid_is_stripe_data("data/f.root")            /* flat object */
+        || sd_ceph_oid_is_stripe_data("data/f.root.000000000000000g") /* non-hex */
+        || sd_ceph_oid_is_stripe_data("data/f.root.1")) {       /* short suffix */
+        fprintf(stderr, "FAIL is_stripe_data classification\n");
         failures++;
     }
 

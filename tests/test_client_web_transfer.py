@@ -106,7 +106,7 @@ http {{
         client_max_body_size 64m;
         location / {{
             xrootd_webdav on;
-            xrootd_webdav_root {dav_data};
+            xrootd_webdav_storage_backend posix:{dav_data};
             xrootd_webdav_auth none;
             xrootd_webdav_allow_write on;
         }}
@@ -116,7 +116,7 @@ http {{
         client_max_body_size 64m;
         location / {{
             xrootd_s3 on;
-            xrootd_s3_root {s3_data};
+            xrootd_s3_storage_backend posix:{s3_data};
             xrootd_s3_bucket testbucket;
             xrootd_s3_access_key {S3_AK};
             xrootd_s3_secret_key {S3_SK};

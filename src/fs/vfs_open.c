@@ -641,7 +641,11 @@ xrootd_vfs_file_stat(const xrootd_vfs_file_t *fh, xrootd_vfs_stat_t *stat_out)
     xrootd_sd_stat_t st;
     xrootd_sd_obj_t  obj;
 
-    if (fh == NULL || fh->obj.fd == NGX_INVALID_FILE || stat_out == NULL) {
+    if (fh == NULL || stat_out == NULL
+        || (fh->obj.fd == NGX_INVALID_FILE && fh->obj.driver == NULL))
+    {
+        /* A driver-backed handle (object/remote backend) has no kernel fd; it
+         * answers from cached metadata or the driver's fstat slot below. */
         errno = EINVAL;
         return NGX_ERROR;
     }

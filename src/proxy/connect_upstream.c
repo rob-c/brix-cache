@@ -204,7 +204,10 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
         use_port = (ngx_int_t) proxy->redirect_port;
         /* upstream_idx stays what it was, or -1 if we started redirected */
     } else {
-        uconn = xrootd_proxy_pool_get(proxy, conf, &pooled_idx);
+        /* GSI-as-user connections are per-user authenticated — never reuse a
+         * pooled connection (it carries a different identity). */
+        uconn = (conf->proxy_auth == XROOTD_PROXY_AUTH_GSI)
+                ? NULL : xrootd_proxy_pool_get(proxy, conf, &pooled_idx);
         if (uconn != NULL) {
             proxy->conn         = uconn;
             proxy->upstream_idx = pooled_idx;
@@ -234,7 +237,13 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
              * clean error instead of hammering a dead upstream in a tight loop. */
             int found = 0;
             idx = ngx_atomic_fetch_add(&proxy_upstream_rr, 1) % conf->proxy_upstreams->nelts;
-            for (i = 0; i < conf->proxy_upstreams->nelts; i++) {
+            /* proxy_up_status is lazily allocated by the health-tracking path and
+             * is NULL until a failure marks an upstream down (the mark_fail/is_down
+             * accessors are all NULL-tolerant no-ops).  Treat a NULL table as
+             * "every upstream healthy" so the round-robin pick stands — the same
+             * semantics, without dereferencing a NULL array. */
+            for (i = 0; proxy_up_status != NULL
+                        && i < conf->proxy_upstreams->nelts; i++) {
                 ngx_uint_t cur = (idx + i) % conf->proxy_upstreams->nelts;
                 if (!proxy_up_status[cur].down ||
                     ngx_time() - proxy_up_status[cur].checked >= XROOTD_PROXY_FAIL_TIMEOUT)
@@ -243,6 +252,9 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
                     found = 1;
                     break;
                 }
+            }
+            if (proxy_up_status == NULL) {
+                found = 1;      /* no health table → RR pick is authoritative */
             }
 
             if (!found) {
@@ -263,11 +275,19 @@ xrootd_proxy_connect(xrootd_proxy_ctx_t *proxy,
         }
     }
 
+    /* GSI delegation: log in to the upstream AS THE USER in a thread (the blocking
+     * in-process GSI client), then hand the authenticated fd to the relay. */
+    if (conf->proxy_auth == XROOTD_PROXY_AUTH_GSI) {
+        return xrootd_proxy_gsi_connect_async(proxy, conf, use_host,
+                                              (uint16_t) use_port);
+    }
+
     {
         xrootd_resolve_status_t rstatus;
 
         fd = xrootd_resolve_connect_socket((const char *) use_host->data,
                                            (unsigned) use_port,
+                                           XROOTD_AF_AUTO,
                                            &chosen_addr, &chosen_addrlen,
                                            &rstatus);
         if (fd == (int) NGX_INVALID_FILE) {

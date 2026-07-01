@@ -61,7 +61,7 @@ http {{
         listen {PORT};
         location / {{
             xrootd_s3                on;
-            xrootd_s3_root           {data};
+            xrootd_s3_storage_backend           posix:{data};
             xrootd_s3_bucket         {BUCKET};
             xrootd_s3_allow_write    on;
             xrootd_s3_max_keys       1000;

@@ -10,6 +10,7 @@
  */
 
 #include "config.h"
+#include "../compat/af_policy.h"      /* XROOTD_AF_AUTO default for origin family */
 #include "../cache/verify.h"          /* xrootd_cache_verify_mode_e default */
 #include "../ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
 #include "../cms/cns.h"               /* §6 CNS mode enum */
@@ -49,9 +50,20 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->common.enable       = NGX_CONF_UNSET;
     conf->auth         = NGX_CONF_UNSET_UINT;
     conf->common.allow_write  = NGX_CONF_UNSET;
+    conf->common.read_only    = NGX_CONF_UNSET;
     conf->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
     conf->common.storage_instance  = NULL;
     /* common.storage_backend (ngx_str_t) left zeroed by pcalloc */
+    /* phase-64 tier grammar scalars (str/array fields stay zeroed by pcalloc) */
+    conf->common.stage_enable      = NGX_CONF_UNSET;
+    conf->common.stage_flush_async = NGX_CONF_UNSET_UINT;
+    conf->common.cache_max_object  = NGX_CONF_UNSET;
+    conf->common.cache_evict_at    = NGX_CONF_UNSET_UINT;
+    conf->common.cache_evict_to    = NGX_CONF_UNSET_UINT;
+    conf->common.cache_meta_mode   = NGX_CONF_UNSET_UINT;
+    conf->common.cache_batch_cinfo = NGX_CONF_UNSET_UINT;
+    conf->common.cache_index_cache = NGX_CONF_UNSET_SIZE;
+    conf->common.cache_slice_size  = NGX_CONF_UNSET_SIZE;
 
     /* XrdAcc engine (acc_tables / acc_timer / acc_nisdomain stay NULL/zero). */
     conf->acc_format      = NGX_CONF_UNSET_UINT;
@@ -97,6 +109,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->tls_ctx      = NULL;
     conf->cache        = NGX_CONF_UNSET;
     conf->cache_origin_tls = NGX_CONF_UNSET;
+    conf->cache_origin_family = NGX_CONF_UNSET_UINT;
     conf->cache_origin_scheme = NGX_CONF_UNSET_UINT;
     conf->cache_origin_forward_token = NGX_CONF_UNSET;
     conf->cache_lock_timeout = NGX_CONF_UNSET;
@@ -123,6 +136,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cache_rootfd             = -1;
     conf->cache_state_rootfd       = -1;
     conf->cache_wt_stage_rootfd    = -1;
+    conf->cache_wt_store_rootfd    = -1;
     /* cache_state_root left zeroed (ngx_str_t {0,NULL}) by pcalloc */
     conf->cache_verify             = NGX_CONF_UNSET_UINT;
     /* cache_verify_digest left zeroed (ngx_str_t {0,NULL}) by pcalloc */
@@ -187,6 +201,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cms_locate_timeout = NGX_CONF_UNSET_MSEC;
     conf->cms_addr     = NULL;
     conf->http_handoff_addr = NULL;
+    conf->relay_addr = NULL;
     conf->upstream_addr = NULL;
     conf->cms_interval = NGX_CONF_UNSET;
     conf->cms_read_timeout     = NGX_CONF_UNSET_MSEC;
@@ -215,6 +230,11 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
     conf->ssi_enable        = NGX_CONF_UNSET;
+    conf->ssi_cta_enable    = NGX_CONF_UNSET;
+    conf->ssi_max_inflight  = NGX_CONF_UNSET_UINT;
+    conf->ssi_request_max   = NGX_CONF_UNSET_SIZE;
+    conf->ssi_response_max  = NGX_CONF_UNSET_SIZE;
+    conf->ssi_cta_executor  = NGX_CONF_UNSET_UINT;
     conf->cns_mode          = NGX_CONF_UNSET_UINT;
     conf->tpc_key_ttl_ms    = NGX_CONF_UNSET_MSEC;
     conf->tpc_max_transfer_secs = NGX_CONF_UNSET_UINT;
@@ -306,6 +326,7 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->gsi_ciphers, prev->gsi_ciphers, "");
     ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
+    ngx_conf_merge_value(conf->common.read_only,    prev->common.read_only,    0);
 
     /* XrdAcc engine: default native, audit off, refresh off, 12h gid cache. */
     ngx_conf_merge_uint_value(conf->acc_format, prev->acc_format,
@@ -432,6 +453,35 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_size_value(conf->common.pblock_block_size,
                               prev->common.pblock_block_size, 0);
 
+    /* phase-64 composable tier grammar */
+    ngx_conf_merge_str_value(conf->common.cache_store, prev->common.cache_store,
+                             "");
+    if (conf->common.cache_store_args == NULL) {
+        conf->common.cache_store_args = prev->common.cache_store_args;
+    }
+    ngx_conf_merge_value(conf->common.stage_enable, prev->common.stage_enable, 0);
+    ngx_conf_merge_str_value(conf->common.stage_store, prev->common.stage_store,
+                             "");
+    if (conf->common.stage_store_args == NULL) {
+        conf->common.stage_store_args = prev->common.stage_store_args;
+    }
+    ngx_conf_merge_uint_value(conf->common.stage_flush_async,
+                              prev->common.stage_flush_async, 0);
+    ngx_conf_merge_off_value(conf->common.cache_max_object,
+                             prev->common.cache_max_object, 0);
+    ngx_conf_merge_uint_value(conf->common.cache_evict_at,
+                              prev->common.cache_evict_at, 90);
+    ngx_conf_merge_uint_value(conf->common.cache_evict_to,
+                              prev->common.cache_evict_to, 80);
+    ngx_conf_merge_uint_value(conf->common.cache_meta_mode,
+                              prev->common.cache_meta_mode, 0);
+    ngx_conf_merge_uint_value(conf->common.cache_batch_cinfo,
+                              prev->common.cache_batch_cinfo, 2);
+    ngx_conf_merge_size_value(conf->common.cache_index_cache,
+                              prev->common.cache_index_cache, 0);
+    ngx_conf_merge_size_value(conf->common.cache_slice_size,
+                              prev->common.cache_slice_size, 0);
+
     ngx_conf_merge_value(conf->read_compress,   prev->read_compress,   0);
     ngx_conf_merge_value(conf->write_compress,  prev->write_compress,  0);
     ngx_conf_merge_value(conf->zip_access,      prev->zip_access,      0);
@@ -487,6 +537,8 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->cache_origin_s3_region,
                              prev->cache_origin_s3_region, "us-east-1");
     ngx_conf_merge_value(conf->cache_origin_tls, prev->cache_origin_tls, 0);
+    ngx_conf_merge_uint_value(conf->cache_origin_family,
+                              prev->cache_origin_family, XROOTD_AF_AUTO);
     ngx_conf_merge_uint_value(conf->cache_origin_scheme, prev->cache_origin_scheme,
                               XROOTD_CACHE_SCHEME_XROOT);
     ngx_conf_merge_str_value(conf->cache_origin_token_file,
@@ -605,6 +657,13 @@ xrootd_merge_srv_tpc(ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
     ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
     ngx_conf_merge_value(conf->ssi_enable,        prev->ssi_enable,        0);
+    ngx_conf_merge_value(conf->ssi_cta_enable,    prev->ssi_cta_enable,    0);
+    /* defaults mirror XROOTD_SSI_MAX_INFLIGHT (8) and the 1 MiB req/resp caps. */
+    ngx_conf_merge_uint_value(conf->ssi_max_inflight, prev->ssi_max_inflight, 8);
+    ngx_conf_merge_size_value(conf->ssi_request_max,  prev->ssi_request_max,  1u << 20);
+    ngx_conf_merge_size_value(conf->ssi_response_max, prev->ssi_response_max, 1u << 20);
+    ngx_conf_merge_str_value(conf->ssi_cta_journal,   prev->ssi_cta_journal,  "");
+    ngx_conf_merge_uint_value(conf->ssi_cta_executor, prev->ssi_cta_executor, 0);
     ngx_conf_merge_uint_value(conf->cns_mode,     prev->cns_mode,          XROOTD_CNS_OFF);
     if (conf->cns_mode == XROOTD_CNS_COLLECT) {
         xrootd_cns_set_collect(1);   /* §6: this node maintains the CNS inventory */
@@ -769,6 +828,11 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     if (conf->http_handoff_addr == NULL && prev->http_handoff_addr != NULL) {
         conf->http_handoff_addr = prev->http_handoff_addr;
         conf->http_handoff_name = prev->http_handoff_name;
+    }
+
+    if (conf->relay_addr == NULL && prev->relay_addr != NULL) {
+        conf->relay_addr = prev->relay_addr;
+        conf->relay_name = prev->relay_name;
     }
 
     child_vo_rules = conf->vo_rules;

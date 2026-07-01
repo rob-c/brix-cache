@@ -94,6 +94,9 @@ struct xrootd_vfs_staged_s {
      * driver_total accumulates the bytes written, for the commit metric. */
     xrootd_sd_staged_t   *driver_staged;
     off_t                 driver_total;
+    /* Write-back staging is no longer a vfs_staged mode: the registry composes the
+     * sd_stage decorator (phase-63 C-2/C-6), so a remote-backend export with staging
+     * enabled stages locally + promotes inside the driver's staged_* slots above. */
     xrootd_vfs_ctx_t     *ctx;      /* carries root_canon + final (resolved) path */
     ngx_pool_t           *pool;
     ngx_log_t            *log;

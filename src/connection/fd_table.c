@@ -5,6 +5,7 @@
 #include "../write/pgw_fob.h"
 #include "../fs/backend/csi_tagstore.h"
 #include "../zip/zip_member.h"   /* xrootd_zip_handle_cleanup (frees inflate stream) */
+#include "../ssi/ssi.h"          /* xrootd_ssi_handle_cleanup (timers + registry) */
 
 #include <errno.h>
 #include <string.h>
@@ -239,6 +240,28 @@ xrootd_ensure_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return xrootd_reopen_bound_read_handle(ctx, c, handle_index, &shared);
 }
 
+/* fhandle_unlink_staging — remove a handle-owned staging temp (checkpoint journal
+ * or POSC partial) through the VFS seam. `abs_path` is the absolute staging path;
+ * strip `root_canon` to the export-relative key and confined-unlink it (the
+ * teardown context has no request ctx, but the srv conf still gives root_canon +
+ * rootfd). Falls back to a raw unlink only when the path is not under the export
+ * root (no confinement is possible then). */
+static void
+fhandle_unlink_staging(const char *abs_path, const char *root_canon,
+    ngx_log_t *log)
+{
+    size_t root_len = (root_canon != NULL) ? ngx_strlen(root_canon) : 0;
+
+    if (root_len > 0
+        && ngx_strncmp((u_char *) abs_path, (u_char *) root_canon, root_len) == 0
+        && abs_path[root_len] == '/')
+    {
+        (void) xrootd_vfs_unlink_path(log, root_canon, abs_path + root_len);
+        return;
+    }
+    (void) unlink(abs_path);  /* vfs-seam-allow: handle-owned staging temp not under the export root */
+}
+
 /* xrootd_free_fhandle — full teardown of one slot: close the fd, unpublish from
  * shared memory (unbound only), unlink checkpoint/POSC staging files, free the heap
  * path, and reset every field to its zero/null state. Called on session end, error
@@ -247,13 +270,23 @@ xrootd_ensure_read_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
 void
 xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
 {
-    xrootd_file_t *file;
+    xrootd_file_t                *file;
+    ngx_stream_xrootd_srv_conf_t *conf;
+    const char                   *root_canon;
+    ngx_log_t                    *tlog;
 
     if (handle_index < 0 || handle_index >= XROOTD_MAX_FILES) {
         return;
     }
 
     file = &ctx->files[handle_index];
+
+    /* The teardown has no request ctx, but the srv conf still yields the export
+     * root_canon so handle-owned staging temps can be confined-unlinked. */
+    conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_xrootd_module);
+    root_canon = (conf != NULL) ? conf->common.root_canon : NULL;
+    tlog = (ctx->session != NULL && ctx->session->connection != NULL)
+           ? ctx->session->connection->log : NULL;
 
     if (!ctx->is_bound && file->fd >= 0) {
         xrootd_session_handle_unpublish(ctx->sessid, handle_index);
@@ -284,7 +317,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
      * Normal close/free removes any abandoned checkpoint path.
      */
     if (file->ckp_path != NULL) {
-        (void) unlink(file->ckp_path);  /* vfs-seam-allow: checkpoint journal staging file (handle-owned, teardown context has no export root) */
+        fhandle_unlink_staging(file->ckp_path, root_canon, tlog);
         ngx_free(file->ckp_path);
     }
 
@@ -301,7 +334,7 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
      */
     if (file->posc_final_path != NULL) {
         if (file->path != NULL && !file->is_resume) {
-            (void) unlink(file->path);  /* vfs-seam-allow: POSC staging temp cleanup on abandoned handle (teardown context has no export root) */
+            fhandle_unlink_staging(file->path, root_canon, tlog);
         }
         ngx_free(file->posc_final_path);
     }
@@ -338,6 +371,9 @@ xrootd_free_fhandle(xrootd_ctx_t *ctx, int handle_index)
     file->bytes_written  = 0;
     file->open_time      = 0;
     file->path           = NULL;
+    /* §7: cancel SSI async-deferral timers + unregister the session before the
+     * .ssi pointer is dropped (runs on close + disconnect; NULL-safe). */
+    xrootd_ssi_handle_cleanup(file->ssi);
     file->ssi            = NULL;   /* §7: SSI state is connection-pool owned */
     file->is_regular     = 0;
     file->device         = 0;

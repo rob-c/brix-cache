@@ -6,7 +6,7 @@
 #define XROOTD_PROPFIND_INTERNAL_H
 
 #include "webdav.h"
-#include "../frm/frm.h"
+#include "../fs/vfs.h"
 #include "../path/path.h"
 #include "../impersonate/lifecycle.h"
 #include "../compat/etag.h"

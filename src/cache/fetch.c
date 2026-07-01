@@ -9,6 +9,7 @@
 #include "origin/s3_transport.h"               /* server libcurl S3 transport */
 #include "../fs/backend/remote/sd_remote.h"    /* read-only S3 remote-origin driver */
 #include "../fs/backend/xroot/sd_xroot.h"      /* read-only root:// remote-origin driver */
+#include "../fs/backend/http/sd_http.h"        /* read-only HTTP(S) remote-origin driver */
 
 
 #include <fcntl.h>
@@ -189,170 +190,59 @@ xrootd_cache_commit_staged(xrootd_cache_fill_t *t, xrootd_sd_instance_t *inst,
     return 0;
 }
 
-/* xrootd_cache_fetch_origin_exec — GSI/X.509-proxy origin fetch: fork/exec the
- * native client (cache_origin_client, default "xrdcp") to download into part_path
- * with X509_USER_PROXY + X509_CERT_DIR overridden, then xrootd_cache_commit_part().
- * The built-in client only does an anonymous kXR_login, which a GSI origin (e.g.
- * EOS) rejects; the native client speaks full GSI + open-redirect, so we reuse it
- * as the PSS. Runs in the fill worker (blocking), so posix_spawn + waitpid is fine. */
-static int
-xrootd_cache_fetch_origin_exec(xrootd_cache_fill_t *t)
+/* Read the first whitespace-delimited token (a bearer JWT) from `path` into out
+ * (NUL-terminated, truncated to cap). O_NOFOLLOW — a config-domain token file, not
+ * export storage. Best-effort: on any error out stays "". */
+static void
+xrootd_cache_read_token_file(const char *path, char *out, size_t cap)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = t->conf;
-    char        url[XROOTD_MAX_PATH + 320];
-    char        proxy_env[XROOTD_MAX_PATH + 32];
-    char        cadir_env[XROOTD_MAX_PATH + 32];
-    char        bearer_env[XROOTD_MAX_PATH + 32];
-    const char *client;
-    char      **envp;
-    char       *argv[6];
-    int         n, rc, wstatus, ai;
-    size_t      envn, ei;
-    pid_t       pid;
+    int     fd;
+    ssize_t n;
+    size_t  i;
 
-    if (conf->cache_origin_host.len == 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
-            "authenticated cache origin (proxy/token) set but no xrootd_cache_origin");
-        return -1;
+    if (cap == 0) {
+        return;
     }
-
-    /* root[s]://host:port//<clean_path>  (clean_path carries its leading '/') */
-    n = snprintf(url, sizeof(url), "%s://%s:%u/%s",
-                 conf->cache_origin_tls ? "roots" : "root",
-                 (char *) conf->cache_origin_host.data,
-                 (unsigned) conf->cache_origin_port, t->clean_path);
-    if (n < 0 || (size_t) n >= sizeof(url)) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0, "cache origin URL too long");
-        return -1;
+    out[0] = '\0';
+    fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);  /* vfs-seam-allow: config-domain bearer token file (not export storage) */
+    if (fd < 0) {
+        return;
     }
-
-    /* The native client (libxrdc) authenticates the origin from the environment:
-     * X509_USER_PROXY/X509_CERT_DIR drive GSI, BEARER_TOKEN_FILE drives token auth
-     * (xrdc_token_discover). The cache supplies whichever the operator configured,
-     * so a root:// origin gets GSI and/or token parity with the http(s):// path —
-     * each is added only when set. */
-    int have_proxy = (conf->cache_origin_proxy.len > 0);
-    int have_token = (conf->cache_origin_token_file.len > 0);
-
-    if (have_proxy) {
-        n = snprintf(proxy_env, sizeof(proxy_env), "X509_USER_PROXY=%s",
-                     (char *) conf->cache_origin_proxy.data);
-        if (n < 0 || (size_t) n >= sizeof(proxy_env)) {
-            xrootd_cache_set_error(t, kXR_ServerError, 0,
-                                   "cache origin proxy path too long");
-            return -1;
-        }
-        n = snprintf(cadir_env, sizeof(cadir_env), "X509_CERT_DIR=%s",
-                     (char *) conf->cache_origin_cadir.data);
-        if (n < 0 || (size_t) n >= sizeof(cadir_env)) {
-            xrootd_cache_set_error(t, kXR_ServerError, 0,
-                                   "cache origin CA dir too long");
-            return -1;
+    n = read(fd, out, cap - 1);
+    close(fd);
+    if (n < 0) {
+        out[0] = '\0';
+        return;
+    }
+    out[n] = '\0';
+    for (i = 0; i < (size_t) n; i++) {
+        if (out[i] == '\r' || out[i] == '\n' || out[i] == ' ' || out[i] == '\t') {
+            out[i] = '\0';
+            break;
         }
     }
-    if (have_token) {
-        n = snprintf(bearer_env, sizeof(bearer_env), "BEARER_TOKEN_FILE=%s",
-                     (char *) conf->cache_origin_token_file.data);
-        if (n < 0 || (size_t) n >= sizeof(bearer_env)) {
-            xrootd_cache_set_error(t, kXR_ServerError, 0,
-                                   "cache origin token path too long");
-            return -1;
-        }
-    }
-
-    client = conf->cache_origin_client.len
-             ? (char *) conf->cache_origin_client.data : "xrdcp";
-
-    /* envp = environ minus any inherited X509 / BEARER credential vars, plus the
-     * configured ones (so the cache's own credentials win, never the worker's). */
-    for (envn = 0; environ[envn] != NULL; envn++) { /* count */ }
-    envp = malloc((envn + 4) * sizeof(char *));
-    if (envp == NULL) {
-        xrootd_cache_set_error(t, kXR_NoMemory, 0, "cache origin envp alloc failed");
-        return -1;
-    }
-    ei = 0;
-    for (n = 0; (size_t) n < envn; n++) {
-        if (strncmp(environ[n], "X509_USER_PROXY=", 16) == 0
-            || strncmp(environ[n], "X509_CERT_DIR=", 14) == 0
-            || strncmp(environ[n], "BEARER_TOKEN=", 13) == 0
-            || strncmp(environ[n], "BEARER_TOKEN_FILE=", 18) == 0) {
-            continue;
-        }
-        envp[ei++] = environ[n];
-    }
-    if (have_proxy) {
-        envp[ei++] = proxy_env;
-        envp[ei++] = cadir_env;
-    }
-    if (have_token) {
-        envp[ei++] = bearer_env;
-    }
-    envp[ei]   = NULL;
-
-    ai = 0;
-    argv[ai++] = (char *) client;
-    argv[ai++] = (char *) "-f";       /* overwrite the part file */
-    argv[ai++] = url;
-    argv[ai++] = t->part_path;
-    argv[ai]   = NULL;
-
-    rc = posix_spawnp(&pid, client, NULL, NULL, argv, envp);
-    free(envp);
-    if (rc != 0) {
-        char emsg[256];
-        snprintf(emsg, sizeof(emsg),
-                 "cache origin client '%s' spawn failed", client);
-        xrootd_cache_set_error(t, kXR_ServerError, rc, emsg);
-        return -1;
-    }
-
-    while (waitpid(pid, &wstatus, 0) < 0 && errno == EINTR) { /* retry */ }
-
-    if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
-        char emsg[XROOTD_MAX_PATH + 384];
-        unlink(t->part_path);
-        snprintf(emsg, sizeof(emsg),
-                 "origin GSI fetch via %s failed (exit %d) for %s",
-                 client, WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1, url);
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0, emsg);
-        return -1;
-    }
-
-    return xrootd_cache_commit_part(t);
 }
 
-/* xrootd_cache_fetch_origin_s3 — fill from an S3 origin (scheme s3://) THROUGH the
- * read-only remote-origin SD driver (sd_remote → shared sd_s3 → server libcurl
- * transport). The whole-object copy is driver→driver: open the origin object,
+/* Forward decl of the shared fill spine (defined below): open the SD source object,
  * pread sequential ranges into the cache's staged-write sink, then commit + verify.
  * Returns 0 (success), 1 (admission decline), -1 (error; t error fields set). */
-static int
-xrootd_cache_fetch_origin_s3(xrootd_cache_fill_t *t)
+static int xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
+    xrootd_sd_instance_t *source);
+
+/* xrootd_cache_build_s3_origin — THE single mapping from the legacy cache_origin S3
+ * config (s3://endpoint/bucket + access/secret/region) to a bare read-only sd_remote
+ * (SigV4) origin instance. Both the whole-file fetch (below) and the config-time
+ * source builder (cache_storage.c) build through here so their S3 origin config
+ * cannot drift. Caller owns the instance (xrootd_sd_remote_destroy). NULL on failure
+ * (errno set) or when no bucket is configured. */
+xrootd_sd_instance_t *
+xrootd_cache_build_s3_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = t->conf;
-    xrootd_sd_remote_cfg_t        cfg;
-    xrootd_sd_instance_t         *origin;
-    xrootd_sd_instance_t         *cache_inst = xrootd_cache_storage(conf);
-    const char                   *key = xrootd_cache_fill_key(t);
-    xrootd_sd_obj_t              *src;
-    xrootd_sd_staged_t           *staged;
-    xrootd_cache_sink_t           sink;
-    ngx_log_t                    *log = (t->c != NULL) ? t->c->log : NULL;
-    u_char                       *buf;
-    off_t                         off = 0;
-    int                           e = 0;
+    xrootd_sd_remote_cfg_t cfg;
 
-    if (cache_inst == NULL || key == NULL) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0, "cache storage unavailable");
-        return -1;
-    }
     if (conf->cache_origin_s3_bucket.len == 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
-            "s3 origin: no bucket (use s3://endpoint/bucket)");
-        return -1;
+        return NULL;
     }
-
     ngx_memzero(&cfg, sizeof(cfg));
     cfg.scheme = XROOTD_SD_REMOTE_S3;
     cfg.port   = (int) conf->cache_origin_port;
@@ -369,140 +259,141 @@ xrootd_cache_fetch_origin_s3(xrootd_cache_fill_t *t)
                  &conf->cache_origin_s3_secret_key);
     ngx_snprintf((u_char *) cfg.region, sizeof(cfg.region) - 1, "%V%Z",
                  &conf->cache_origin_s3_region);
-
-    origin = xrootd_sd_remote_create(&cfg, log);
-    if (origin == NULL) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
-                               "s3 origin instance create failed");
-        return -1;
-    }
-
-    /* The origin object key is the requested logical path; sd_remote prepends the
-     * bucket. */
-    src = origin->driver->open(origin, t->clean_path, XROOTD_SD_O_READ, 0, &e);
-    if (src == NULL) {
-        xrootd_sd_remote_destroy(origin);
-        xrootd_cache_set_error(t, (e == ENOENT) ? kXR_NotFound : kXR_IOError, e,
-                               "s3 origin object open failed");
-        return -1;
-    }
-    t->file_size = (uint64_t) src->snap.size;
-
-    /* Admission filter (size/prefix/regex), shared with write-through + root://. */
-    {
-        xrootd_cache_admit_cfg_t admit = {
-            .deny_prefixes  = conf->cache_deny_prefixes,
-            .allow_prefixes = conf->cache_allow_prefixes,
-            .size_limit     = conf->cache_max_file_size,
-            .include_regex  = conf->cache_include_regex_set
-                              ? &conf->cache_include_regex : NULL,
-        };
-        if (xrootd_cache_admit(&admit, t->clean_path, (off_t) t->file_size, 0)
-            == XROOTD_CACHE_DECLINE)
-        {
-            origin->driver->close(src);
-            if (src->heap_shell) { free(src); }
-            xrootd_sd_remote_destroy(origin);
-            t->result = NGX_DECLINED;
-            return 1;
-        }
-    }
-
-    staged = cache_inst->driver->staged_open(cache_inst, key, 0644, &e);
-    if (staged == NULL) {
-        origin->driver->close(src);
-        if (src->heap_shell) { free(src); }
-        xrootd_sd_remote_destroy(origin);
-        xrootd_cache_set_error(t, kXR_IOError, e, "cache staged open failed");
-        return -1;
-    }
-    sink.fd = -1;
-    sink.staged = staged;
-
-    buf = malloc(XROOTD_CACHE_FETCH_CHUNK);
-    if (buf == NULL) {
-        cache_inst->driver->staged_abort(staged);
-        origin->driver->close(src);
-        if (src->heap_shell) { free(src); }
-        xrootd_sd_remote_destroy(origin);
-        xrootd_cache_set_error(t, kXR_NoMemory, 0, "cache fill buffer alloc failed");
-        return -1;
-    }
-
-    for (;;) {
-        ssize_t n = src->driver->pread(src, buf, XROOTD_CACHE_FETCH_CHUNK, off);
-
-        /* sink_pwrite returns 0 on success, -1 on failure (NOT a byte count). */
-        if (n < 0
-            || (n > 0
-                && xrootd_cache_sink_pwrite(&sink, buf, (size_t) n, off) != 0))
-        {
-            free(buf);
-            cache_inst->driver->staged_abort(staged);
-            origin->driver->close(src);
-            if (src->heap_shell) { free(src); }
-            xrootd_sd_remote_destroy(origin);
-            xrootd_cache_set_error(t, kXR_IOError, errno,
-                                   "s3 origin read / cache write failed");
-            return -1;
-        }
-        off += n;
-        if ((size_t) n < XROOTD_CACHE_FETCH_CHUNK) {
-            break;                           /* short read = EOF */
-        }
-    }
-
-    free(buf);
-    origin->driver->close(src);
-    if (src->heap_shell) { free(src); }
-    xrootd_sd_remote_destroy(origin);
-
-    if (cache_inst->driver->staged_commit(staged, 0) != NGX_OK) {
-        xrootd_cache_set_error(t, kXR_IOError, 0, "cache staged commit failed");
-        return -1;
-    }
-    return xrootd_cache_commit_staged(t, cache_inst, key);
+    return xrootd_sd_remote_create(&cfg, log);
 }
 
-/* xrootd_cache_fetch_origin_xroot — fill from an anonymous root:// origin THROUGH
- * the read-only root:// remote-origin SD driver (sd_xroot wraps the in-process
- * XRootD wire client). Driver→driver copy: open the origin file, pread sequential
- * ranges into the staged-write sink, query the origin checksum (kXR_Qcksum) for
- * commit-then-verify, then commit. Returns 0 / 1 (admission decline) / -1.
- * Authenticated root:// origins (token/GSI) use the native-client delegation
- * (xrootd_cache_fetch_origin_exec), not this in-process anonymous driver. */
+/* xrootd_cache_build_http_origin — map the legacy cache_origin HTTP(S) config to a
+ * bare read-only sd_http instance (HEAD for size, Range-GET for pread, via the shared
+ * libcurl transport). scheme https ⇒ TLS. The path prefix is empty — the fill key IS
+ * the object path. Bearer comes from cache_origin_token_file (anonymous otherwise).
+ * Caller owns the instance (xrootd_sd_http_destroy). NULL on failure (errno set). */
+xrootd_sd_instance_t *
+xrootd_cache_build_http_origin(const ngx_stream_xrootd_srv_conf_t *conf,
+                               ngx_log_t *log)
+{
+    xrootd_sd_http_cfg_t cfg;
+    char                 host_z[256];
+    char                 bearer[4096];
+
+    ngx_snprintf((u_char *) host_z, sizeof(host_z) - 1, "%V%Z",
+                 &conf->cache_origin_host);
+    bearer[0] = '\0';
+    if (conf->cache_origin_token_file.len > 0) {
+        (void) xrootd_cache_read_token_file(
+            (const char *) conf->cache_origin_token_file.data,
+            bearer, sizeof(bearer));
+    }
+    ngx_memzero(&cfg, sizeof(cfg));
+    cfg.host         = host_z;                    /* copied by sd_http_create */
+    cfg.port         = (int) conf->cache_origin_port;
+    cfg.tls          = (conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTPS
+                        || conf->cache_origin_tls == 1) ? 1 : 0;
+    cfg.base_path    = "";
+    cfg.transport    = &xrootd_s3_origin_curl_transport;
+    cfg.timeout_ms   = 60000;
+    cfg.bearer_token = (bearer[0] != '\0') ? bearer : NULL;
+    return xrootd_sd_http_create(&cfg, log);
+}
+
+/* xrootd_cache_build_wt_origin — the WRITE-BACK origin (flush target): host from
+ * wt_origin (else cache_origin), with the WRITE-BACK credential precedence — the C-3
+ * in-process fields (cache_origin_bearer/x509_proxy/ca_dir) FIRST, falling back to the
+ * legacy cache_origin_proxy/cadir. This is the write-side counterpart of
+ * xrootd_cache_build_origin (which uses the READ credential); keep them distinct.
+ * Caller owns the instance (xrootd_sd_xroot_destroy). NULL if no origin configured. */
+xrootd_sd_instance_t *
+xrootd_cache_build_wt_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
+{
+    const ngx_str_t *host = conf->wt_origin_host.len > 0 ? &conf->wt_origin_host
+                                                         : &conf->cache_origin_host;
+    uint16_t         port = conf->wt_origin_host.len > 0 ? conf->wt_origin_port
+                                                         : conf->cache_origin_port;
+    char             host_z[256];
+
+    if (host->len == 0 || port == 0) {
+        errno = EINVAL;
+        return NULL;
+    }
+    ngx_cpystrn((u_char *) host_z, host->data,
+                ngx_min(host->len + 1, sizeof(host_z)));
+    return xrootd_sd_xroot_create_origin(host_z, (int) port,
+        (conf->cache_origin_tls == 1) ? 1 : 0, (int) conf->cache_origin_family,
+        (conf->cache_origin_bearer.len > 0)
+            ? (const char *) conf->cache_origin_bearer.data : NULL,
+        (conf->cache_origin_x509_proxy.len > 0)
+            ? (const char *) conf->cache_origin_x509_proxy.data
+        : (conf->cache_origin_proxy.len > 0)
+            ? (const char *) conf->cache_origin_proxy.data : NULL,
+        (conf->cache_origin_ca_dir.len > 0)
+            ? (const char *) conf->cache_origin_ca_dir.data
+        : (conf->cache_origin_cadir.len > 0)
+            ? (const char *) conf->cache_origin_cadir.data : NULL,
+        log);
+}
+
+/* xrootd_cache_build_origin — THE single mapping from the legacy cache_origin READ
+ * credentials to a bare sd_xroot origin instance: cache_origin_proxy → GSI X.509,
+ * cache_origin_cadir → origin-cert verify CA, cache_origin_token_file → ztn bearer,
+ * cache_origin_family → connect address family. Both the whole-file fetch (below)
+ * and the slice decorator (cache_storage.c) build through here so their read-origin
+ * auth cannot drift (the C-3 cache_origin_bearer/x509_proxy/ca_dir fields are the
+ * WRITE-BACK credential — wrong for a read fill). Caller owns the instance
+ * (xrootd_sd_xroot_destroy). Returns NULL on failure (errno set by the driver). */
+xrootd_sd_instance_t *
+xrootd_cache_build_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
+{
+    char        host_z[256];
+    char        bearer[4096];
+    const char *proxy;
+    const char *ca_dir;
+
+    ngx_snprintf((u_char *) host_z, sizeof(host_z) - 1, "%V%Z",
+                 &conf->cache_origin_host);
+    proxy  = (conf->cache_origin_proxy.len > 0)
+             ? (const char *) conf->cache_origin_proxy.data : NULL;
+    ca_dir = (conf->cache_origin_cadir.len > 0)
+             ? (const char *) conf->cache_origin_cadir.data : NULL;
+    bearer[0] = '\0';
+    if (conf->cache_origin_token_file.len > 0) {
+        (void) xrootd_cache_read_token_file(
+            (const char *) conf->cache_origin_token_file.data,
+            bearer, sizeof(bearer));
+    }
+    return xrootd_sd_xroot_create_origin(host_z, (int) conf->cache_origin_port,
+        (conf->cache_origin_tls == 1) ? 1 : 0, (int) conf->cache_origin_family,
+        (bearer[0] != '\0') ? bearer : NULL, proxy, ca_dir, log);
+}
+
+/* xrootd_cache_fill_from_source — THE single cache-fill spine (phase-63): fill from
+ * any SD source instance generically — `source->driver->open` → `pread` loop →
+ * staged sink → commit-then-verify. The caller owns `source`'s lifecycle (a
+ * registry-owned backend, or a per-fill sd_xroot/sd_http/sd_remote built from the
+ * cache_origin config). Checksum-on-fill reuses the xroot source's kXR_Qcksum.
+ * Returns 1 (admission decline) / -1 (error) / 0 (success). */
 static int
-xrootd_cache_fetch_origin_xroot(xrootd_cache_fill_t *t)
+xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
+    xrootd_sd_instance_t *source)
 {
     ngx_stream_xrootd_srv_conf_t *conf = t->conf;
-    xrootd_sd_instance_t         *origin;
     xrootd_sd_instance_t         *cache_inst = xrootd_cache_storage(conf);
     const char                   *key = xrootd_cache_fill_key(t);
     xrootd_sd_obj_t              *src;
     xrootd_sd_staged_t           *staged;
     xrootd_cache_sink_t           sink;
-    ngx_log_t                    *log = (t->c != NULL) ? t->c->log : NULL;
     u_char                       *buf;
     off_t                         off = 0;
     int                           e = 0;
 
-    if (cache_inst == NULL || key == NULL) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0, "cache storage unavailable");
+    if (source == NULL || cache_inst == NULL || key == NULL) {
+        xrootd_cache_set_error(t, kXR_ServerError, 0,
+                               "cache source/storage unavailable");
         return -1;
     }
 
-    origin = xrootd_sd_xroot_create(conf, log);
-    if (origin == NULL) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
-                               "root:// origin instance create failed");
-        return -1;
-    }
-
-    src = origin->driver->open(origin, t->clean_path, XROOTD_SD_O_READ, 0, &e);
+    src = source->driver->open(source, t->clean_path, XROOTD_SD_O_READ, 0, &e);
     if (src == NULL) {
-        xrootd_sd_xroot_destroy(origin);
         xrootd_cache_set_error(t, (e == ENOENT) ? kXR_NotFound : kXR_IOError, e,
-                               "root:// origin open failed");
+                               "cache source open failed");
         return -1;
     }
     t->file_size = (uint64_t) src->snap.size;
@@ -518,9 +409,8 @@ xrootd_cache_fetch_origin_xroot(xrootd_cache_fill_t *t)
         if (xrootd_cache_admit(&admit, t->clean_path, (off_t) t->file_size, 0)
             == XROOTD_CACHE_DECLINE)
         {
-            origin->driver->close(src);
+            source->driver->close(src);
             if (src->heap_shell) { free(src); }
-            xrootd_sd_xroot_destroy(origin);
             t->result = NGX_DECLINED;
             return 1;
         }
@@ -528,9 +418,8 @@ xrootd_cache_fetch_origin_xroot(xrootd_cache_fill_t *t)
 
     staged = cache_inst->driver->staged_open(cache_inst, key, 0644, &e);
     if (staged == NULL) {
-        origin->driver->close(src);
+        source->driver->close(src);
         if (src->heap_shell) { free(src); }
-        xrootd_sd_xroot_destroy(origin);
         xrootd_cache_set_error(t, kXR_IOError, e, "cache staged open failed");
         return -1;
     }
@@ -542,10 +431,10 @@ xrootd_cache_fetch_origin_xroot(xrootd_cache_fill_t *t)
     buf = malloc(XROOTD_CACHE_FETCH_CHUNK);
     if (buf == NULL) {
         cache_inst->driver->staged_abort(staged);
-        origin->driver->close(src);
+        source->driver->close(src);
         if (src->heap_shell) { free(src); }
-        xrootd_sd_xroot_destroy(origin);
-        xrootd_cache_set_error(t, kXR_NoMemory, 0, "cache fill buffer alloc failed");
+        xrootd_cache_set_error(t, kXR_NoMemory, 0,
+                               "cache fill buffer alloc failed");
         return -1;
     }
 
@@ -558,30 +447,31 @@ xrootd_cache_fetch_origin_xroot(xrootd_cache_fill_t *t)
         {
             free(buf);
             cache_inst->driver->staged_abort(staged);
-            origin->driver->close(src);
+            source->driver->close(src);
             if (src->heap_shell) { free(src); }
-            xrootd_sd_xroot_destroy(origin);
             xrootd_cache_set_error(t, kXR_IOError, errno,
-                                   "root:// origin read / cache write failed");
+                                   "cache source read / cache write failed");
             return -1;
         }
         off += n;
         if ((size_t) n < XROOTD_CACHE_FETCH_CHUNK) {
-            break;                           /* short read = EOF */
+            break;                               /* short read = EOF */
         }
     }
     free(buf);
 
-    /* Origin content checksum (kXR_Qcksum) for commit-then-verify, before close. */
-    if (conf->cache_verify != XROOTD_CACHE_VERIFY_OFF) {
+    /* Checksum-on-fill is the xroot source's kXR_Qcksum; other sources (http) offer
+     * no in-band digest here, so the verify policy decides on the local bytes. */
+    if (conf->cache_verify != XROOTD_CACHE_VERIFY_OFF
+        && ngx_strcmp(xrootd_sd_backend_name(source), "xroot") == 0)
+    {
         xrootd_sd_xroot_query_checksum(src, t->origin_cks_alg,
             sizeof(t->origin_cks_alg), t->origin_cks_hex,
             sizeof(t->origin_cks_hex));
     }
 
-    origin->driver->close(src);
+    source->driver->close(src);
     if (src->heap_shell) { free(src); }
-    xrootd_sd_xroot_destroy(origin);
 
     if (cache_inst->driver->staged_commit(staged, 0) != NGX_OK) {
         xrootd_cache_set_error(t, kXR_IOError, 0, "cache staged commit failed");
@@ -599,21 +489,19 @@ xrootd_cache_fetch_origin_xroot(xrootd_cache_fill_t *t)
 int
 xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
 {
-    /* HTTP(S)/WebDAV origin: fetch over libcurl (http_transport.c) instead of the
-     * XRootD wire client, then run the shared commit+verify path. */
-    if (t->conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTP
-        || t->conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTPS)
-    {
-        if (xrootd_cache_http_download(t) != 0) {
-            return -1;
-        }
-        return xrootd_cache_commit_part(t);
+    /* Legacy cache_origin fold (phase-64 §6.5): translate the xroot/s3 origin config
+     * to the config-time source instance so a legacy cache_origin fills through the
+     * SAME spine as a registry PRIMARY backend (C-1) — not the per-scheme functions
+     * below. http/https/pelican have no SD instance (they fill via libcurl), so their
+     * source stays NULL and the branches below still handle them. */
+    if (t->source_inst == NULL) {
+        t->source_inst = xrootd_cache_source_inst(t->conf);
     }
 
-    /* S3 origin: fill through the read-only remote-origin SD driver (sd_remote →
-     * sd_s3 → server libcurl). Driver→driver copy into the staged-write sink. */
-    if (t->conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_S3) {
-        return xrootd_cache_fetch_origin_s3(t);
+    /* C-1 (phase-63): the export's registered PRIMARY storage backend, or (fold
+     * above) the legacy cache_origin xroot/s3 source — fill through the one spine. */
+    if (t->source_inst != NULL) {
+        return xrootd_cache_fill_from_source(t, t->source_inst);
     }
 
     /* Pelican federation: discover the Director, then fetch through it (libcurl
@@ -625,16 +513,9 @@ xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
         return xrootd_cache_commit_part(t);
     }
 
-    /* Authenticated root:// origin (GSI X.509 proxy and/or bearer token): the
-     * in-process driver does anonymous login only, which such an origin rejects.
-     * Delegate to the native client, which authenticates from the environment
-     * (X509_USER_PROXY for GSI, BEARER_TOKEN_FILE for token). */
-    if (t->conf->cache_origin_proxy.len > 0
-        || t->conf->cache_origin_token_file.len > 0)
-    {
-        return xrootd_cache_fetch_origin_exec(t);
-    }
-
-    /* Anonymous root:// origin: fill in-process through the sd_xroot driver. */
-    return xrootd_cache_fetch_origin_xroot(t);
+    /* No usable source: xroot/s3 origins are handled above via source_inst; a
+     * missing/unbuildable one (e.g. s3:// without a bucket) lands here. */
+    xrootd_cache_set_error(t, kXR_ServerError, 0,
+                           "cache: no usable origin source configured");
+    return -1;
 }

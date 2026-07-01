@@ -100,7 +100,7 @@ events {{ worker_connections 64; }}
 stream {{
   server {{
     listen {BIND_HOST}:{port};
-    xrootd on; xrootd_root {data}; xrootd_auth none;
+    xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;
     xrootd_frm on; xrootd_frm_queue_path {d}/frm.queue;
     xrootd_frm_copycmd {copycmd};
     xrootd_frm_residency_cmd {oracle};
@@ -172,7 +172,7 @@ events {{ worker_connections 64; }}
 stream {{
   server {{
     listen {BIND_HOST}:{port};
-    xrootd on; xrootd_root {data}; xrootd_auth none;
+    xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none;
     xrootd_frm on; xrootd_frm_queue_path {d}/frm.queue;
     xrootd_frm_copycmd {copycmd};
   }}
@@ -183,7 +183,7 @@ http {{
     listen {BIND_HOST}:{mport};
     location = /metrics {{ xrootd_metrics on; }}
     location / {{
-      xrootd_webdav on; xrootd_webdav_root {data}; xrootd_webdav_auth none;
+      xrootd_webdav on; xrootd_webdav_storage_backend posix:{data}; xrootd_webdav_auth none;
       xrootd_webdav_allow_write on; xrootd_webdav_tape_rest on;
     }}
   }}

@@ -161,7 +161,7 @@ def servers(tmp_path_factory):
                         "stream { server {\n"
                         f"  listen {BIND}:{anon_port};\n"
                         "  xrootd on;\n"
-                        f"  xrootd_root {data};\n"
+                        f"  xrootd_storage_backend posix:{data};\n"
                         "  xrootd_auth none;\n"
                         "} }\n")
     # data server behind the redirector (separate root with the same files)
@@ -170,7 +170,7 @@ def servers(tmp_path_factory):
                       "stream { server {\n"
                       f"  listen {BIND}:{ds_port};\n"
                       "  xrootd on;\n"
-                      f"  xrootd_root {data};\n"
+                      f"  xrootd_storage_backend posix:{data};\n"
                       "  xrootd_auth none;\n"
                       "} }\n")
     rdr_cfg = base / "rdr.conf"

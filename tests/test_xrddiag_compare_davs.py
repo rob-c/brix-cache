@@ -73,7 +73,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{rport};
         xrootd on;
-        xrootd_root {dataR};
+        xrootd_storage_backend posix:{dataR};
         xrootd_auth none;
     }}
 }}
@@ -86,11 +86,11 @@ http {{
     scgi_temp_path {root}/tmp;
     server {{
         listen {BIND_HOST}:{ok_port};
-        location / {{ root {dataR}; xrootd_webdav on; xrootd_webdav_root {dataR}; xrootd_webdav_auth none; }}
+        location / {{ root {dataR}; xrootd_webdav on; xrootd_webdav_storage_backend posix:{dataR}; xrootd_webdav_auth none; }}
     }}
     server {{
         listen {BIND_HOST}:{bad_port};
-        location / {{ root {dataB}; xrootd_webdav on; xrootd_webdav_root {dataB}; xrootd_webdav_auth none; }}
+        location / {{ root {dataB}; xrootd_webdav on; xrootd_webdav_storage_backend posix:{dataB}; xrootd_webdav_auth none; }}
     }}
 }}
 """)

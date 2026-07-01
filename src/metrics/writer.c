@@ -1,5 +1,6 @@
 #include "metrics_internal.h"
 #include "../shm/kv.h"
+#include "../fs/vfs_backend_registry.h"   /* C-7: composed-stack introspection */
 
 /*
  * Shared low-cardinality label tables for both WebDAV and S3 Prometheus export.
@@ -222,6 +223,50 @@ xrootd_kv_metrics_emit(metrics_writer_t *mw)
         mw_printf(mw, "xrootd_kv_capacity{zone=\"%.*s\"} %lu\n",
                   (int) kv->name.len, kv->name.data,
                   (unsigned long) s.capacity);
+    }
+}
+
+/*
+ * xrootd_storage_backend_metrics_emit — C-7: one info gauge per registered export
+ * describing its composed storage stack: the source backend, its origin (host:port
+ * [+tls]), the auth method threaded through the §14 credential, and whether the
+ * write-back stage decorator (C-2/C-6) is composed. Value is always 1 (the labels
+ * carry the information, Prometheus `_info` convention). Exports are config-fixed
+ * and few, so the export-root label stays low-cardinality.
+ */
+void
+xrootd_storage_backend_metrics_emit(metrics_writer_t *mw)
+{
+    ngx_uint_t n = xrootd_vfs_backend_export_count();
+    ngx_uint_t i;
+
+    if (n == 0) {
+        return;
+    }
+    mw_printf(mw,
+        "# HELP xrootd_storage_backend_info Composed storage stack per export "
+            "(source backend, origin, auth, stage); value always 1.\n"
+        "# TYPE xrootd_storage_backend_info gauge\n");
+
+    for (i = 0; i < n; i++) {
+        xrootd_vfs_backend_info_t info;
+        char                      origin[320];
+        const char               *auth;
+
+        if (xrootd_vfs_backend_export_info(i, &info) != NGX_OK) {
+            continue;
+        }
+        auth = info.has_proxy ? "gsi" : (info.has_token ? "token" : "none");
+        if (info.host != NULL && info.host[0] != '\0') {
+            snprintf(origin, sizeof(origin), "%.255s:%d%s", info.host, info.port,
+                     info.tls ? "+tls" : "");
+        } else {
+            origin[0] = '\0';
+        }
+        mw_printf(mw,
+            "xrootd_storage_backend_info{export=\"%s\",backend=\"%s\","
+            "origin=\"%s\",auth=\"%s\",staging=\"%d\"} 1\n",
+            info.root_canon, info.backend, origin, auth, info.staging);
     }
 }
 

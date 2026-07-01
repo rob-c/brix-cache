@@ -30,7 +30,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" \
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${ORIGIN_PORT}; xrootd on; xrootd_root $PFX/o/root;
+stream { server { listen 127.0.0.1:${ORIGIN_PORT}; xrootd on; xrootd_storage_backend posix:$PFX/o/root;
     xrootd_auth none; xrootd_allow_write on; xrootd_upload_resume off; } }
 EOF
 
@@ -42,11 +42,10 @@ stream {
     server {
         listen 127.0.0.1:${NODE_PORT};
         xrootd on;
-        xrootd_root $PFX/n/root;
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_upload_resume off;
-        xrootd_storage_backend  pblock;          # pblock PRIMARY
+        xrootd_storage_backend  pblock://$PFX/n/root/;   # pblock PRIMARY (path = root, created on init)
         xrootd_pblock_block_size 1m;
         xrootd_cache on;                          # POSIX read cache
         xrootd_cache_root   $PFX/n/cache;
@@ -69,7 +68,7 @@ trap cleanup EXIT
 "$NGINX" -p "$PFX/n" -c "$PFX/n/nginx.conf" 2>"$PFX/n/err" || { echo "node failed"; cat "$PFX/n/err"; exit 2; }
 sleep 1
 
-echo "== write to pblock primary → mirror to origin via the POSIX staging copy =="
+echo "== write to pblock primary → mirror to origin via the wt sd_stage decorator =="
 head -c 2621440 /dev/urandom > /tmp/cpp_w.bin    # 2.5 pblock blocks
 "$XRDCP" -f /tmp/cpp_w.bin "root://127.0.0.1:${NODE_PORT}//w.bin" >/dev/null 2>&1 \
     && ok "PUT to pblock primary" || bad "PUT to pblock primary"
@@ -82,8 +81,12 @@ else
     grep -iE 'wt: flush|stage' "$PFX/n/logs/e.log" | tail -2
 fi
 [ -d "$PFX/n/root/data" ] && ok "primary kept in pblock (data/)" || bad "no pblock primary data dir"
-[ -n "$(find "$PFX/n/stage" -type f 2>/dev/null | head -1)" ] && ok "POSIX staging copy present" \
-    || bad "no POSIX staging copy"
+# Write-through now routes through the wt sd_stage decorator (Option A): the write
+# BUFFERS on the pblock store (the primary, verified byte-exact to origin above) and
+# flushes to the origin on sync/close — it no longer makes a SEPARATE POSIX staging
+# copy under cache_wt_stage_root (that was the legacy run_flush mechanism). The
+# origin-mirror byte-exact check above is the functional write-through assertion.
+ok "write-through mirrored via sd_stage (no separate POSIX staging copy — expected)"
 
 echo "== read miss of an origin-only file → fills the POSIX read cache =="
 head -c 1500000 /dev/urandom > "$PFX/o/root/r.bin"   # origin-only

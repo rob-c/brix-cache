@@ -17,6 +17,7 @@
  *       the affected paths first, then reparents each in one transaction.
  */
 #include "sd_pblock_catalog.h"
+#include "../../../compat/snprintf_check.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -735,7 +736,11 @@ rename_one(pblock_catalog *cat, const char *old_path, const char *src,
         "UPDATE xattrs SET path = ?2 WHERE path = ?1;";
     const char   *sqls[2];
 
-    snprintf(new_path, sizeof(new_path), "%s%s", dst, tail);
+    /* A truncated destination would rebind the row to a different (shorter) path
+     * and silently corrupt the catalog — reject rather than truncate. */
+    if (!xrootd_snprintf_ok(new_path, sizeof(new_path), "%s%s", dst, tail)) {
+        return cat_fail(ENAMETOOLONG);
+    }
     parent_of(new_path, new_parent, sizeof(new_parent));
 
     sqls[0] = objects_sql;
@@ -840,8 +845,10 @@ pblock_catalog_readdir(pblock_catalog_iter *it, char *name, size_t cap)
     if (rc != SQLITE_ROW) {
         return cat_fail(EIO);
     }
-    snprintf(name, cap, "%s",
-             basename_of((const char *) sqlite3_column_text(it->stmt, 0)));
+    if (!xrootd_snprintf_ok(name, cap, "%s",
+            basename_of((const char *) sqlite3_column_text(it->stmt, 0)))) {
+        return cat_fail(ENAMETOOLONG);
+    }
     return 0;
 }
 

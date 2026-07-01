@@ -385,3 +385,19 @@ xrootd_vfs_closedir(xrootd_vfs_dir_t *dh, ngx_log_t *log)
     dh->dir = NULL;
     return NGX_OK;
 }
+
+/* xrootd_vfs_enumerate_catalog — driver-agnostic backend-catalog enumeration
+ * (inventory/drift). Dispatches to the bound driver's optional `enumerate` verb;
+ * a backend with no native object catalog (POSIX — the namespace IS the catalog)
+ * leaves the verb NULL, and this reports ENOTSUP via NGX_DECLINED so the engine
+ * falls back to a namespace walk. See vfs.h. */
+ngx_int_t
+xrootd_vfs_enumerate_catalog(xrootd_sd_instance_t *sd, int want_stat,
+    xrootd_sd_catalog_cb cb, void *ctx)
+{
+    if (sd == NULL || sd->driver == NULL || sd->driver->enumerate == NULL) {
+        errno = ENOTSUP;
+        return NGX_DECLINED;
+    }
+    return sd->driver->enumerate(sd, want_stat, cb, ctx);
+}

@@ -38,32 +38,42 @@ bytes_eq(const unsigned char *a, const char *hexstr, size_t n)
     return memcmp(a, b, n) == 0;
 }
 
-/* golden RRInfo wire values (from real XrdSsiRRInfo::Info()) */
+/* golden RRInfo wire values — the real XrdSsiRRInfo layout: byte0 = reqCmd,
+ * bytes1-3 = reqId big-endian, bytes4-7 = reqSize little-endian. Verified against
+ * live libXrdSsi traffic (e.g. rwt id=0 on the wire = 0100000000000000). */
 static void
 test_decode_golden(void)
 {
     unsigned char off[8];
     int cmd; uint32_t id, sz;
 
-    /* rxq id=5 sz=100 -> 0500000064000000 */
-    hex("0500000064000000", off, 8);
+    /* rxq id=5 sz=100 -> [00][00 00 05][64 00 00 00] */
+    hex("0000000564000000", off, 8);
     xrootd_ssi_rrinfo_decode(off, &cmd, &id, &sz);
     CHECK(cmd == XROOTD_SSI_CMD_RXQ);
     CHECK(id == 5);
     CHECK(sz == 100);
 
-    /* can id=0x123456 sz=4096 -> 5634120200100000 */
-    hex("5634120200100000", off, 8);
+    /* can id=0x123456 sz=4096 -> [02][12 34 56][00 10 00 00] */
+    hex("0212345600100000", off, 8);
     xrootd_ssi_rrinfo_decode(off, &cmd, &id, &sz);
     CHECK(cmd == XROOTD_SSI_CMD_CAN);
     CHECK(id == 0x123456);
     CHECK(sz == 4096);
 
-    /* rwt id=1 sz=0 -> 0100000100000000 */
+    /* rwt id=1 sz=0 -> [01][00 00 01][00 00 00 00] */
     hex("0100000100000000", off, 8);
     xrootd_ssi_rrinfo_decode(off, &cmd, &id, &sz);
     CHECK(cmd == XROOTD_SSI_CMD_RWT);
     CHECK(id == 1);
+    CHECK(sz == 0);
+
+    /* rwt id=0 sz=0 — the exact bytes a real libXrdSsi client sends on the
+     * response-wait, which the old [id_lo..][cmd] layout mis-decoded as id=1. */
+    hex("0100000000000000", off, 8);
+    xrootd_ssi_rrinfo_decode(off, &cmd, &id, &sz);
+    CHECK(cmd == XROOTD_SSI_CMD_RWT);
+    CHECK(id == 0);
     CHECK(sz == 0);
 }
 
@@ -73,10 +83,10 @@ test_encode_golden(void)
     unsigned char off[8];
 
     xrootd_ssi_rrinfo_encode(XROOTD_SSI_CMD_RXQ, 5, 100, off);
-    CHECK(bytes_eq(off, "0500000064000000", 8));
+    CHECK(bytes_eq(off, "0000000564000000", 8));
 
     xrootd_ssi_rrinfo_encode(XROOTD_SSI_CMD_CAN, 0x123456, 4096, off);
-    CHECK(bytes_eq(off, "5634120200100000", 8));
+    CHECK(bytes_eq(off, "0212345600100000", 8));
 
     xrootd_ssi_rrinfo_encode(XROOTD_SSI_CMD_RWT, 1, 0, off);
     CHECK(bytes_eq(off, "0100000100000000", 8));

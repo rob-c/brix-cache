@@ -100,14 +100,27 @@ truly has; the VFS degrades or rejects gracefully on the rest:
   2   RANDOM_WRITE     pwrite at arbitrary offset             ✓    ✓     ✓       ✓   ·    ·     ✓
   3   RANGE_READ       pread at arbitrary offset              ✓    ✓     ✓       ✓   ✓    ✓     ✓
   4   TRUNCATE         ftruncate                              ✓    ·     ✓       ✓   ·    ·     ✓
-  5   SERVER_COPY      native copy (copy_file_range/COPY)     ✓    ·     ✓       ·   ·    ·     ·
-  6   XATTR            user.* xattrs / object metadata        ✓    ·     ✓       ·   ·    ·     ·
-  7   HARD_RENAME      atomic rename (else copy+delete)       ✓    ·     ✓       ·   ·    ·     ·
+  5   SERVER_COPY      native copy (copy_file_range/COPY)     ✓    ·     ✓       ·   ·    ·     ✓ᵃ
+  6   XATTR            user.* xattrs / object metadata        ✓    ·     ✓       ·   ·    ·     ✓ᵃ
+  7   HARD_RENAME      atomic rename (else copy+delete)       ✓    ·     ✓       ·   ·    ·     ✓ᵃ
   8   DIRS             real directories (else key-prefix)     ✓    ·     ✓       ·   ·    ·     ·
   9   APPEND           O_APPEND semantics                     ✓    ·     ✓       ·   ·    ·     ·
  10   IOURING          fd is io_uring-submittable             ✓    ✓    ✓(blk0)  ·   ·    ·     ·
  11   FSCS             filesystem page checksums (CSI)        ✓    ·     ·       ·   ·    ·     ·
 ```
+
+> `ᵃ` — `xroot` (remote `root://` primary) **forwards** these to the origin: xattr
+> via `kXR_fattr` (get/set/list/del), rename via `kXR_mv`, server-copy as a gateway
+> read+write relay (not a remote zero-copy/TPC), and vectored read via per-segment
+> `preadv`. The origin wire helpers live in `src/cache/origin_protocol.c`
+> (`xrootd_cache_origin_{getfattr,setfattr,listfattr,delfattr,rename}`). E2E:
+> `tests/run_remote_backend_meta.sh`. **Namespace:** the kXR_fattr handler maps a
+> user attr `X` to the on-disk key `user.U.X` *above* the VFS; since the origin
+> re-applies the same mapping, `sd_xroot` **strips** one `user.U.` before forwarding
+> get/set/del and **re-adds** it on list — so the origin carries a single, standard
+> `user.U.X` and a direct-origin client sees the same name (interoperable). Names
+> from other consumers (webdav locks/dead-props, s3 tags) carry no `user.U.` prefix
+> and pass through unchanged.
 
 > `s3*` — `sd_s3` is a handle library with no caps bitmap of its own; the column
 > shows what its read/write API *supports* (range read, plus single-PUT/multipart
@@ -138,7 +151,7 @@ key question when picking a backend for a site. `✓` = native; `adv` = *advisor
 | `rados` (XrdCeph)¹ | ✓ | root-only² | opt-in copy | striper¹ | adv¹ | follow-on |
 | **`sd_s3`** (object store)³ | ✓ HEAD | key-prefix | CopyObject | ✓ `get_meta`/`set_meta` | adv | ✓ multipart |
 | `remote` (S3 cache origin)⁴ | ✓ (read) | — | — | — | — | — |
-| **`xroot`** (remote root:// primary)⁵ | ✓ | follow-on | follow-on | follow-on | follow-on | follow-on |
+| **`xroot`** (remote root:// primary)⁵ | ✓ | follow-on | ✓⁵ | ✓⁵ | follow-on | ✓⁵ |
 
 ¹ Two layers. The **wired** `sd_ceph` driver (phase-60, gated `XROOTD_HAVE_CEPH`)
 is basic librados: range read / random write / truncate only — **no** dirs /
@@ -162,16 +175,23 @@ root://host:port`): the export's storage IS a remote XRootD server. The byte dat
 path is done — **stat + read + write** (`pwrite`/`ftruncate`/`fsync` over
 kXR_write/_truncate/_sync) — so a write streams straight through to the origin
 (**transparent write-through, no local copy**) and a read serves from it. This
-required teaching the kXR handle path to accept a **no-fd (memory-served) primary**
-(additively, gated on `sd_obj.driver`), since no object/remote backend had ever been
-a root:// *primary* before. E2E: `tests/run_remote_backend_write.sh`. Namespace
-(mkdir/rename), xattr/setattr forwarding, the generic staged-write seam, and an
-optional local **staging directory** (write-back: stage local → promote to origin,
-via the durable write-through engine) are later phases of the writable-remote-root
-work — see `docs/superpowers/specs/2026-06-29-writable-remote-root-staged-write-design.md`.
+required teaching the kXR handle path (and `xrootd_vfs_file_stat`, the WebDAV lock
+pre-check) to accept a **no-fd (memory-served) primary** (additively, gated on
+`sd_obj.driver`), since no object/remote backend had ever been a root:// *primary*
+before. **Staged-write** (WebDAV PUT / S3 POST) works two ways:
+**(a) Mode A — passthrough** (default): `staged_open/write/commit` stream the body
+straight to the remote final path (no local copy; non-atomic on the remote).
+E2E: `tests/run_remote_backend_write.sh` (root://), `tests/run_remote_backend_webdav.sh`
+(WebDAV). **(b) Mode B — write-back** (`xrootd_webdav_storage_staging on`): the upload
+stages to a LOCAL POSIX temp under the export root (fast, random-write, atomic), then
+`xrootd_vfs_staged_promote()` reads it and drives the driver's staged path to the remote
+on commit, dropping the local temp. E2E: `tests/run_remote_backend_staging.sh`.
+Namespace (mkdir/rename), xattr/setattr forwarding, remote-side atomicity + a durable
+journal + backpressure on Mode B are later phases — see
+`docs/superpowers/specs/2026-06-29-writable-remote-root-staged-write-design.md`.
 **Anonymous** origin only (the in-process wire client's mode); authenticated origins
-use the staging path. Recommend a `thread_pool` on the node (the remote write
-offloads to AIO).
+use Mode B / the native-client path. Recommend a `thread_pool` on the node (the remote
+write offloads to AIO).
 
 > **Two ways a remote `root://` filesystem gets full metadata.** (a) The
 > **transparent proxy** (`xrootd_proxy`) relays *every* opcode to the origin by

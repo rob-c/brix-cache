@@ -464,7 +464,7 @@ def _nginx_conf(data_dir):
             f"    server {{\n"
             f"        listen 0.0.0.0:{NGINX_PORT};\n"
             f"        xrootd on;\n"
-            f"        xrootd_root {data_dir};\n"
+            f"        xrootd_storage_backend posix:{data_dir};\n"
             f"        xrootd_auth none;\n"
             f"        xrootd_allow_write on;\n"
             f"    }}\n"

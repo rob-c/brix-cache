@@ -235,7 +235,7 @@ def _s3_origin_server(listen_port, root, bucket):
         f"    server {{\n"
         f"        listen {BIND_HOST}:{listen_port};\n"
         f"        location / {{\n"
-        f"            xrootd_s3 on; xrootd_s3_root {root};\n"
+        f"            xrootd_s3 on; xrootd_s3_storage_backend posix:{root};\n"
         f"            xrootd_s3_bucket {bucket}; xrootd_s3_allow_write on;\n"
         f"            xrootd_s3_max_keys 1000;\n"
         f"        }}\n"
@@ -259,7 +259,7 @@ def _webdav_origin_server(listen_port, root, cert, key, tls=True):
         f"        server_name localhost;\n"
         f"{ssl_lines}"
         f"        location / {{\n"
-        f"            xrootd_webdav on; xrootd_webdav_root {root};\n"
+        f"            xrootd_webdav on; xrootd_webdav_storage_backend posix:{root};\n"
         f"            xrootd_webdav_auth none; xrootd_webdav_allow_write on;\n"
         f"        }}\n"
         f"    }}\n"
@@ -267,18 +267,23 @@ def _webdav_origin_server(listen_port, root, cert, key, tls=True):
 
 
 def _webdav_proxy_server(listen_port, root, upstream_url, cert, key):
-    """An https server that proxies WebDAV to `upstream_url` (relays the
-    upstream's 307, which the client follows to the holding data server)."""
+    """A direct https WebDAV data server.
+
+    NOTE: the WebDAV reverse-proxy directives (xrootd_webdav_proxy /
+    _upstream) that once relayed the upstream's 307 to the holding data server
+    were retired in the legacy-proxy cleanup; only xrootd_webdav_proxy_certs
+    (GSI client auth) survives. This node now serves its own export directly
+    (no relay hop) — `upstream_url` is retained in the signature for callers
+    but is no longer wired into a proxy."""
+    _ = upstream_url  # relay hop retired — kept for call-site compatibility
     return (
         f"    server {{\n"
         f"        listen {BIND_HOST}:{listen_port} ssl;\n"
         f"        server_name localhost;\n"
         f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
         f"        location / {{\n"
-        f"            xrootd_webdav on; xrootd_webdav_root {root};\n"
+        f"            xrootd_webdav on; xrootd_webdav_storage_backend posix:{root};\n"
         f"            xrootd_webdav_auth none; xrootd_webdav_allow_write on;\n"
-        f"            xrootd_webdav_proxy on;\n"
-        f"            xrootd_webdav_proxy_upstream {upstream_url};\n"
         f"        }}\n"
         f"    }}\n"
     )
@@ -318,8 +323,9 @@ def cfg_node_b(data_port, cms_mgr, paths, upstream, s3_upstream, tmpbase,
         f"        listen {BIND_HOST}:{data_port};\n"
         f"        xrootd on; xrootd_auth none;\n"
         f"        xrootd_allow_write on;\n"
-        f"        xrootd_proxy on;\n"
-        f"        xrootd_proxy_upstream {BIND_HOST}:{upstream};\n"
+        f"        xrootd_tap_proxy on;\n"
+        f"        xrootd_tap_proxy_upstream {BIND_HOST}:{upstream};\n"
+        f"        xrootd_tap_proxy_auth anonymous;\n"
         f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
         f"        xrootd_cms_interval 2; xrootd_listen_port {data_port};\n"
         f"    }}\n"
@@ -348,7 +354,7 @@ def cfg_node_f(data_port, root, cms_mgr, paths, tmpbase, cert, key):
         "stream {\n"
         f"    server {{\n"
         f"        listen {BIND_HOST}:{data_port};\n"
-        f"        xrootd on; xrootd_root {root}; xrootd_auth none;\n"
+        f"        xrootd on; xrootd_storage_backend posix:{root}; xrootd_auth none;\n"
         f"        xrootd_allow_write on;\n"
         f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
         f"        xrootd_cms_interval 2; xrootd_listen_port {data_port};\n"

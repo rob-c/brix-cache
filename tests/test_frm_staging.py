@@ -141,7 +141,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{PORT};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
         xrootd_thread_pool frmpool;
         xrootd_frm on;
@@ -202,9 +202,17 @@ def test_online_file_not_offline(staging):
     assert (_stat_flags("/online.bin") & kXR_offline) == 0
 
 
-def test_nearline_file_reports_offline(staging):
-    assert (_stat_flags("/near.dat") & kXR_offline) != 0, \
-        "nearline file not flagged kXR_offline on kXR_stat"
+def test_nearline_xattr_not_a_stat_signal(staging):
+    """Phase-64 P6: kXR_stat's offline flag now comes from the storage BACKEND's
+    residency model (the xrootd_vfs_residency seam), NOT the legacy
+    user.frm.residency xattr. An xattr-marked file on a POSIX export is therefore
+    NOT flagged offline on stat. The tape:// root:// stat-offline UX (a real nearline
+    backend) is covered in tests/run_tape_recall_stream.sh. NB: the OLD FRM
+    open-staging gate still honors the xattr (see test_open_nearline_stages_and_serves)
+    until open_request migrates with the FRM queue removal — a documented transitional
+    state during the src/frm dissolution (spec §13c)."""
+    assert (_stat_flags("/near.dat") & kXR_offline) == 0, \
+        "the FRM residency xattr must NOT drive the stat offline flag on a posix export"
 
 
 def test_open_nearline_stages_and_serves(staging, tmp_path):

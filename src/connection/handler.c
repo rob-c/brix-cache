@@ -1,6 +1,7 @@
 #include "../ngx_xrootd_module.h"
 #include <netinet/tcp.h>   /* Phase 39: TCP_USER_TIMEOUT / TCP_KEEPIDLE etc. */
 #include "netopt.h"        /* Phase 50: shared dead-peer setsockopt helper */
+#include "../relay/relay.h"   /* transparent pass-through relay engage */
 
 void
 ngx_stream_xrootd_handler(ngx_stream_session_t *s)
@@ -206,6 +207,25 @@ ngx_stream_xrootd_handler(ngx_stream_session_t *s)
 
             ngx_atomic_fetch_add(&srv->connections_total, 1);
             ngx_atomic_fetch_add(&srv->connections_active, 1);
+        }
+    }
+
+    /*
+     * Transparent relay: if xrootd_transparent_proxy is configured, this port
+     * relays verbatim to an upstream XRootD server (tapping the cleartext frames)
+     * instead of terminating the protocol locally. Engages before any frame is
+     * read; the relay owns the connection from here.
+     */
+    {
+        ngx_stream_xrootd_srv_conf_t *rconf =
+            ngx_stream_get_module_srv_conf(s, ngx_stream_xrootd_module);
+
+        if (rconf->relay_addr != NULL) {
+            if (xrootd_relay_start(s, c, rconf) != NGX_OK) {
+                ngx_stream_finalize_session(s,
+                                            NGX_STREAM_INTERNAL_SERVER_ERROR);
+            }
+            return;
         }
     }
 

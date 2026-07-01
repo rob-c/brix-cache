@@ -86,13 +86,25 @@ def gate(tmp_path_factory):
         "pos_rights        globus   CA:sign\n"
         "cond_subjects     globus   '\"/O=F6Test/*\"'\n")
 
+    # GSI X.509 proxy delegation signs a proxy request against the delegator's
+    # chain; XrdCrypto's X509SignProxyReq rejects a signing chain whose EEC lacks
+    # a keyUsage extension ("wrong extensions in request"). A real IGTF EEC always
+    # carries keyUsage(digitalSignature,keyEncipherment) — mint ours the same way,
+    # otherwise every delegation attempt fails at the crypto step regardless of the
+    # protocol wiring under test.
+    ku_ext = base / "ku.ext"
+    ku_ext.write_text(
+        "keyUsage=critical,digitalSignature,keyEncipherment\n"
+        "extendedKeyUsage=serverAuth,clientAuth\n"
+    )
+
     def signed(cn, key, cert):
         csr = base / (cn.replace(" ", "") + ".csr")
         osl("req", "-nodes", "-newkey", "rsa:2048", "-subj", f"/O=F6Test/CN={cn}",
             "-keyout", str(key), "-out", str(csr))
         osl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
             "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
-            "-out", str(cert))
+            "-out", str(cert), "-extfile", str(ku_ext))
 
     signed(fqdn, srv / "hostkey.pem", srv / "hostcert.pem")
     signed("F6 User", usr / "userkey.pem", usr / "usercert.pem")
@@ -158,7 +170,7 @@ def gate(tmp_path_factory):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen {DST_PORT};\n    xrootd on;\n"
-        f"    xrootd_root {base / 'dstdata'};\n    xrootd_auth gsi;\n"
+        f"    xrootd_storage_backend posix:{base / 'dstdata'};\n    xrootd_auth gsi;\n"
         "    xrootd_allow_write on;\n"
         "    xrootd_tpc_allow_local on;\n    xrootd_tpc_allow_private on;\n"
         "    xrootd_tpc_delegate on;\n"
@@ -223,25 +235,35 @@ def test_stock_source_captures_delegation(gate):
         "source did not capture the delegated proxy (delegation not engaged)"
 
 
-@pytest.mark.xfail(reason="dest-side F6 inbound is implemented + the handshake "
-    "reaches kXGC_sigpxy, but the stock client declines to return a signed proxy "
-    "under its usedDNS/hostname delegation policy in this synthetic-hostname WSL2 "
-    "rig (needs a real grid host); flip to strict in a proper grid env", strict=False)
 def test_dest_captures_delegated_proxy(gate):
-    """INBOUND F6: a stock DELEGATING client (XrdSecGSIDELEGPROXY=1, dlgReqSign)
+    """INBOUND F6 (GREEN): a stock DELEGATING client (`xrdcp --tpc delegate`)
     authenticates to OUR nginx dest (xrootd_auth gsi + xrootd_tpc_delegate on +
-    signed-DH); the dest runs the kXGS_pxyreq/kXGC_sigpxy round and captures the
-    user's delegated proxy (logged at INFO). The dest reaches kXGC_sigpxy in every
-    rig; the client only RETURNS a signed proxy when its delegation policy allows
-    (real resolvable host + signed-DH + cert-CN match without DNS fallback)."""
-    upload = Path(gate["base"]) / "upload.txt"
-    upload.write_text("inbound delegation capture\n")
-    # XrdSecGSIDELEGPROXY=1 (dlgReqSign): client SIGNS our proxy request into a
-    # delegated proxy cert. Connect by fqdn (matches the dest cert CN) so the
-    # client does not "use DNS" — which would forbid delegation.
-    env = dict(gate["env"], XrdSecGSIDELEGPROXY="1")
-    r = _run([XRDCP, "-f", str(upload),
-              f"root://{gate['fqdn']}:{DST_PORT}//cap.txt"], env=env)
+    signed-DH); the dest runs the kXGS_pxyreq/kXGC_sigpxy round and CAPTURES the
+    user's signed delegated proxy (logged at INFO with the user DN).
+
+    KEY MECHANISM (verified): the client only sets its delegation flags
+    (kOptsSigReq/kOptsDlgPxy) for a real TPC-delegate operation — the plain
+    `XrdSecGSIDELEGPROXY` env var leaves dlgpxy=0, so the client declines with
+    "Not allowed to sign proxy requests". `--tpc delegate` sets dlgpxy=1, the
+    client signs our proxy request, and the dest captures a key-bearing proxy.
+
+    Three server-side requirements this exercises (all now met):
+      * the client cert chain must VERIFY despite the AKID/SKID mismatch that
+        real xrdgsiproxy proxies carry (pki_build.c proxy-tolerant check_issued);
+      * the kXRS_x509_req proxy request must be sent as PEM (delegation.c), which
+        is what the stock client's PEM_read_bio_X509_REQ expects;
+      * the signing EEC must carry keyUsage (the test PKI mints it).
+
+    The subsequent TPC PULL (dest->source using the captured proxy) is a distinct
+    outbound-use phase covered by test_dest_pulls_as_user_via_delegation; this
+    test asserts only the CAPTURE."""
+    # `--tpc delegate only`: the client delegates its proxy to the dest during
+    # login (setting dlgpxy=1), then the dest is asked to pull from the source.
+    # Connect by fqdn (matches the dest cert CN) so the client does not fall back
+    # to DNS, which would forbid delegation.
+    r = _run([XRDCP, "-f", "--tpc", "delegate", "only",
+              f"root://{gate['fqdn']}:{SRC_PORT}//data/hello.txt",
+              f"root://{gate['fqdn']}:{DST_PORT}//cap.txt"], env=gate["env"])
     time.sleep(0.5)
     errlog = Path(gate["base"]) / "dst-err.log"
     log = errlog.read_text(errors="replace") if errlog.exists() else ""
@@ -249,26 +271,37 @@ def test_dest_captures_delegated_proxy(gate):
         f"nginx dest did not capture the delegated proxy (xrdcp rc={r.returncode}: "
         f"{r.stderr.strip()})\n--- dst-err tail ---\n"
         + "\n".join(log.splitlines()[-20:]))
+    assert f"dn=\"{USER_DN}" in log, \
+        "captured proxy is not the delegating USER's identity"
 
 
-@pytest.mark.xfail(reason="F6 outbound use (TPC pull presents the delegated proxy) "
-                          "not yet implemented", strict=False)
 def test_dest_pulls_as_user_via_delegation(gate):
-    """F6 TARGET (xfail until implemented): a delegating client → our nginx dest
-    (xrootd_tpc_delegate on) → stock source. Once the dest captures and forwards
-    the user's proxy, the source must authorise the dest's PULL as the USER — i.e.
-    the gateway DN must NOT appear in the source log. Until F6, the dest pulls as
-    itself (gateway DN present) → this fails (xfail). Flip strict=True on landing."""
+    """F6 TARGET (GREEN): a delegating client (`xrdcp --tpc delegate`) → our nginx
+    dest (xrootd_tpc_delegate on) → stock source. The dest captures the user's
+    proxy, then pulls the source file AS THE USER and the bytes land at the dest.
+
+    Two properties are asserted:
+      * the pull authenticates to the source as the USER, never the gateway DN
+        (the source's grid-mapfile maps both, so the DN it logs is the tell);
+      * the file is transferred byte-for-byte.
+
+    Mechanism: because the dest holds the delegated proxy it opens the source file
+    DIRECTLY as the user — the anonymous tpc.key rendezvous (which the source
+    answers with kXR_waitresp until a client-side authorization that the delegate
+    flow never issues) is skipped for delegated pulls (src/tpc/source.c)."""
     out = Path(gate["base"]) / "dstdata" / "pulled.txt"
+    out.unlink(missing_ok=True)
     # Mark the log boundary so we only inspect THIS transfer's DNs.
     before = len(_src_log(gate))
-    env = dict(gate["env"], XrdSecGSIDELEGPROXY="2")
-    _run([XRDCP, "-f", "--tpc", "only",
-          f"root://{gate['fqdn']}:{SRC_PORT}//data/hello.txt",
-          f"root://127.0.0.1:{DST_PORT}//pulled.txt"], env=env)
+    r = _run([XRDCP, "-f", "--tpc", "delegate", "only",
+              f"root://{gate['fqdn']}:{SRC_PORT}//data/hello.txt",
+              f"root://{gate['fqdn']}:{DST_PORT}//pulled.txt"], env=gate["env"])
     time.sleep(0.5)
     after = _src_log(gate)[before:]
+    assert out.exists() and out.read_text() == "f6 delegation gate\n", \
+        f"delegated pull did not land the bytes (xrdcp rc={r.returncode}: {r.stderr.strip()})"
     # The pull (dest→source) must authenticate as the user, never the gateway.
     assert GW_DN not in after, \
         "source authorised the pull as the GATEWAY DN — delegation not forwarded"
-    assert out.exists() and out.read_text() == "f6 delegation gate\n"
+    assert f"Subject DN='{USER_DN}'" in after, \
+        "source did not authenticate the pull as the delegating USER"
