@@ -115,7 +115,7 @@ def test_kv_directives_parse(tmp_path):
         server {{
             listen {BIND_HOST}:{free_port()};
             xrootd on;
-            xrootd_root {DATA_DIR};
+            xrootd_storage_backend posix:{DATA_DIR};
             xrootd_auth none;
             xrootd_session_slots 4096;
             xrootd_token_cache zone=tkn;
@@ -136,7 +136,7 @@ def test_token_cache_rejects_undersized_zone(tmp_path):
         server {{
             listen {BIND_HOST}:{free_port()};
             xrootd on;
-            xrootd_root {DATA_DIR};
+            xrootd_storage_backend posix:{DATA_DIR};
             xrootd_auth none;
             xrootd_token_cache zone=tkn;
         }}
@@ -153,7 +153,7 @@ def test_unknown_zone_is_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:{free_port()};
             xrootd on;
-            xrootd_root {DATA_DIR};
+            xrootd_storage_backend posix:{DATA_DIR};
             xrootd_auth none;
             xrootd_auth_cache zone=does_not_exist;
         }}
@@ -171,7 +171,7 @@ def test_rate_limit_requires_rate_and_burst(tmp_path):
         server {{
             listen {BIND_HOST}:{free_port()};
             xrootd on;
-            xrootd_root {DATA_DIR};
+            xrootd_storage_backend posix:{DATA_DIR};
             xrootd_auth none;
             xrootd_rate_limit zone=rl;
         }}
@@ -226,7 +226,7 @@ def rate_limited_server(tmp_path):
             listen {BIND_HOST}:{WEBDAV_PORT};
             location / {{
                 xrootd_webdav      on;
-                xrootd_webdav_root {DATA_DIR};
+                xrootd_webdav_storage_backend posix:{DATA_DIR};
                 xrootd_webdav_auth none;
                 xrootd_rate_limit  zone=h_rl rate=1r/s burst=2 key=ip;
             }}

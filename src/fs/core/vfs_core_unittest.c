@@ -3,12 +3,14 @@
  *
  * Built and run OUTSIDE the nginx tree (plain gcc), exercising xvfs_* over a
  * real temp fd wrapped in the POSIX storage driver. Verifies pwrite_full /
- * pread_full / pread_once / fstat / ftruncate / fsync round-trip correctly.
+ * pread_full / pread_once / fstat / ftruncate / fsync / drain round-trip
+ * correctly.
  *
- * Usage:
+ * Usage (-iquote, not -I, so sd.h's <time.h> resolves to the system header and
+ * not the project's compat/time.h shadow):
  *   cd src/fs/core
  *   gcc -O2 -Wall -Wextra -Werror -D_GNU_SOURCE -DXRDPROTO_NO_NGX \
- *       -I../../compat -I../../protocol \
+ *       -iquote ../../compat -iquote ../../protocol \
  *       -o /tmp/vfs_core_unittest \
  *       vfs_core.c ../backend/posix/sd_posix.c vfs_core_unittest.c
  *   /tmp/vfs_core_unittest
@@ -82,6 +84,41 @@ int main(void)
 
     /* fsync */
     CHECK(xvfs_fsync(&obj) == 0, "fsync ok");
+
+    /* drain: copy one object into another through the driver (chunked). Seed and
+     * verify via the xvfs_* verbs (no raw POSIX) so the byte path stays on the
+     * seam — a small drain buffer forces several pread->pwrite iterations. */
+    {
+        char            stmpl[] = "/tmp/vfs_core_drain_s.XXXXXX";
+        char            dtmpl[] = "/tmp/vfs_core_drain_d.XXXXXX";
+        int             sfd = mkstemp(stmpl);
+        int             dfd = mkstemp(dtmpl);
+        xrootd_sd_obj_t sobj, dobj;
+        unsigned char   chk[4096];
+        char            buf[1024];          /* small: forces multiple chunks */
+        size_t          m = 0;
+        int             msh = 0;
+        off_t           total = 0;
+
+        if (sfd < 0 || dfd < 0) { perror("mkstemp drain"); return 2; }
+        xrootd_sd_posix_wrap(&sobj, sfd);
+        xrootd_sd_posix_wrap(&dobj, dfd);
+
+        CHECK(xvfs_pwrite_full(&sobj, src, sizeof(src), 0, &m, &msh) == 0
+              && m == sizeof(src) && msh == 0, "drain: seed source");
+
+        CHECK(xvfs_drain(&sobj, &dobj, buf, sizeof(buf), &total) == 0,
+              "drain returns 0");
+        CHECK(total == (off_t) sizeof(src), "drain reports full byte count");
+
+        memset(chk, 0, sizeof(chk));
+        m = 0;
+        CHECK(xvfs_pread_full(&dobj, chk, sizeof(chk), 0, &m) == 0
+              && m == sizeof(src), "drain: read dst back");
+        CHECK(memcmp(src, chk, sizeof(src)) == 0, "drain: dst byte-identical");
+
+        close(sfd); close(dfd); unlink(stmpl); unlink(dtmpl);
+    }
 
     close(fd);
     unlink(tmpl);

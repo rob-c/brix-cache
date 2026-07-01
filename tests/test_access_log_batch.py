@@ -38,7 +38,7 @@ def _alog_conf(tmp_path, port, data, logfile):
         server {{
             listen {BIND_HOST}:{port};
             xrootd on;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_auth none;
             xrootd_access_log {logfile};
         }}

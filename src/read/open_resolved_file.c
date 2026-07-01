@@ -22,6 +22,10 @@
 #include <unistd.h>
 #include <fcntl.h>   /* open(2) flags + fcntl() to clear O_NONBLOCK post-open */
 
+/* kXR_wait retry interval handed to a client whose read-open faulted a nearline
+ * (tape) recall - the stream equivalent of the WebDAV 202 Retry-After (§9.2). */
+#define XROOTD_RECALL_WAIT_SECS  10
+
 /* Confined existence/type probe of an absolute path beneath `root` via the VFS
  * (no metric, no pool). Returns 1 with *vst filled when the path exists, else 0.
  * `nofollow` selects lstat vs stat semantics. Used for the kXR_open pre-flight
@@ -381,16 +385,35 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * server-managed cache domain remain on the POSIX-fd path. */
 	ngx_int_t              driver_backed = 0;
 	ngx_int_t              open_failed   = 0;
+	ngx_int_t              wt_via_stage  = 0;
 	xrootd_sd_instance_t  *sd_inst =
 	    xrootd_vfs_backend_resolve(conf->common.root_canon, c->log);
+
+	/* Write-through as ONE mechanism (Option A): route a WRITE through the composed
+	 * wt sd_stage decorator (buffer on the export store, flush to the origin on
+	 * sync/close) instead of the local backend + close-time run_flush. Falls back to
+	 * run_flush (wt_via_stage stays 0) when no sd_stage is composed. */
+	if (is_write && conf->wt_enable && !from_cache && !use_resume) {
+		xrootd_sd_instance_t *wt = xrootd_cache_wt_stage_sd_inst(conf);
+
+		if (wt != NULL) {
+			sd_inst      = wt;
+			wt_via_stage = 1;
+		}
+	}
 
 	/* A driver-backed read cache (cache_storage_backend) keeps its bytes in the
 	 * cache driver's namespace — there is no POSIX file at cache_path to open. Serve
 	 * it through the cache STORAGE instance, keyed on the export-relative suffix under
 	 * cache_root, adopting the returned object into the handle exactly like an export
 	 * driver open. A POSIX cache (no backend) keeps the raw-fd from_cache path below. */
+	/* Slice/partial mode (phase-64 §6.5): a composed sd_cache decorator serves the
+	 * cache read hit-or-miss via its range-fill pread — prefer it over the plain
+	 * whole-file cache store when it is configured. */
 	xrootd_sd_instance_t  *cache_inst =
-	    (from_cache && conf->cache_storage_backend.len > 0)
+	    (from_cache && conf->cache_slice_inst != NULL)
+	        ? (xrootd_sd_instance_t *) conf->cache_slice_inst
+	    : (from_cache && conf->cache_storage_backend.len > 0)
 	        ? conf->cache_storage_inst : NULL;
 
 	if (cache_inst != NULL) {
@@ -502,6 +525,17 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 							  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
 							  "OPEN", resolved, mode_str,
 							  kXR_isDirectory, "is a directory");
+		}
+		if (err == EAGAIN && !is_write) {
+			/* A nearline (tape) recall is in flight (sd_cache/sd_frm, §9.2). Tell
+			 * the client to retry with kXR_wait - the stream equivalent of the
+			 * WebDAV 202 "staging": the open "parks" via client retry rather than
+			 * blocking the worker for the MSS latency. A later re-open re-polls the
+			 * recall and, once the object is online in the cache tier, opens +
+			 * serves it. */
+			xrootd_log_access(ctx, c, "OPEN", resolved, "rd-recall-wait",
+			                  0, 0, "nearline recall in progress; retry", 0);
+			return xrootd_send_wait(ctx, c, XROOTD_RECALL_WAIT_SECS);
 		}
 		XROOTD_RETURN_ERR(ctx, c,
 						  is_write ? XROOTD_OP_OPEN_WR : XROOTD_OP_OPEN_RD,
@@ -727,7 +761,14 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 	statbuf[0] = '\0';
 	if (want_stat) {
-		if (fstat(fd, &st) == 0) {
+		/* A driver-backed no-fd handle (e.g. RADOS) has fd == NGX_INVALID_FILE;
+		 * `st` already holds the metadata the driver captured at open (above).
+		 * Only the real-fd path needs a fresh fstat. Without this guard,
+		 * fstat(-1) fails and we silently drop the retstat the client requested
+		 * with kXR_open — which stock clients reject ("invalid response"). */
+		int have_st = (fd != NGX_INVALID_FILE) ? (fstat(fd, &st) == 0) : 1;
+
+		if (have_st) {
 			int stat_flags = 0;
 			if (st.st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) {
 				stat_flags |= kXR_readable;
@@ -797,7 +838,10 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			decision = conf->wt_decision.fn(resolved, options, &conf->wt_decision);
 		}
 
-		ctx->files[idx].wt_enabled  = (decision != XROOTD_WT_DECISION_DENY) ? 1 : 0;
+		/* wt sd_stage handles flush on the storage path (sync job / close), NOT via
+		 * the close-time run_flush — so leave wt_enabled clear for them. */
+		ctx->files[idx].wt_enabled  = (!wt_via_stage
+		                               && decision != XROOTD_WT_DECISION_DENY) ? 1 : 0;
 		ctx->files[idx].wt_policy   = decision;
 		ctx->files[idx].wt_mode_bits = create_mode;
 		ctx->files[idx].wt_dirty_offset = -1; /* no dirty writes yet */

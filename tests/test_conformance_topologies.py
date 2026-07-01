@@ -8,7 +8,7 @@ open, security).  By default it runs against the direct anon endpoint.  This
 module re-runs that ENTIRE suite — unchanged — against the same storage reached
 through:
 
-  * proxy    — one transparent xrootd_proxy hop
+  * proxy    — one transparent xrootd_tap_proxy hop
   * mesh     — two stacked proxy hops (nginx -> nginx -> nginx)
   * cluster  — a CMS redirector that redirects to a registered data server
 
@@ -121,7 +121,7 @@ def _build_proxy():
     """One transparent proxy hop in front of the DATA_ROOT nginx (ANON)."""
     conf = _write_conf("proxy", _stream(PROXY_PORT,
         f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{ANON};"))
+        f"        xrootd_tap_proxy on; xrootd_tap_proxy_upstream {HOST}:{ANON}; xrootd_tap_proxy_auth anonymous;"))
     _start(conf)
     return f"root://{H}:{PROXY_PORT}", [conf]
 
@@ -130,10 +130,10 @@ def _build_mesh():
     """Two stacked proxy hops: hop2 -> hop1 -> ANON (nginx->nginx->nginx)."""
     c1 = _write_conf("mesh1", _stream(MESH_HOP1_PORT,
         f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{ANON};"))
+        f"        xrootd_tap_proxy on; xrootd_tap_proxy_upstream {HOST}:{ANON}; xrootd_tap_proxy_auth anonymous;"))
     c2 = _write_conf("mesh2", _stream(MESH_HOP2_PORT,
         f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_proxy on; xrootd_proxy_upstream {HOST}:{MESH_HOP1_PORT};"))
+        f"        xrootd_tap_proxy on; xrootd_tap_proxy_upstream {HOST}:{MESH_HOP1_PORT}; xrootd_tap_proxy_auth anonymous;"))
     _start(c1)
     _start(c2)
     return f"root://{H}:{MESH_HOP2_PORT}", [c2, c1]
@@ -149,7 +149,7 @@ def _build_cluster():
         f"    server {{\n        listen 0.0.0.0:{CLU_CMS_PORT};\n"
         "        xrootd_cms_server on;\n    }\n}")
     ds = _write_conf("clu_ds", _stream(CLU_DS_PORT,
-        f"        xrootd on; xrootd_root {DATA_ROOT}; xrootd_auth none;\n"
+        f"        xrootd on; xrootd_storage_backend posix:{DATA_ROOT}; xrootd_auth none;\n"
         f"        xrootd_allow_write on;\n"
         f"        xrootd_cms_manager {HOST}:{CLU_CMS_PORT};\n"
         f"        xrootd_cms_paths /;\n"
@@ -171,7 +171,7 @@ def _build_mirror(port=MIRROR_PORT, name="mirror"):
     and the official server export the same DATA_ROOT directory, so writes made
     through the front are visible to the official server for read-back."""
     conf = _write_conf(name, _stream(port,
-        f"        xrootd on; xrootd_root {DATA_ROOT}; xrootd_auth none;\n"
+        f"        xrootd on; xrootd_storage_backend posix:{DATA_ROOT}; xrootd_auth none;\n"
         f"        xrootd_allow_write on;\n"
         f"        xrootd_stream_mirror_url {HOST}:{REF_XROOTD_PORT};\n"
         # Mirror the full read-path opcode set INCLUDING query/Qcksum.  The

@@ -355,8 +355,16 @@ typedef struct {
                                        (10/8, 172.16/12, 192.168/16).
                                        Default on: storage federation nodes commonly
                                        live on private networks. */
-    ngx_flag_t  ssi_enable;         /* [xrootd_ssi on|off] — §7 unary XrdSsi
+    ngx_flag_t  ssi_enable;         /* [xrootd_ssi on|off] — §7 XrdSsi
                                        request/response over /.ssi/<service>. */
+    ngx_flag_t  ssi_cta_enable;     /* [xrootd_ssi_service cta] — gate the flagship
+                                       CTA tape service (off by default). */
+    ngx_uint_t  ssi_max_inflight;   /* [xrootd_ssi_max_inflight N] — concurrent
+                                       requests per session (<= compile-time max). */
+    size_t      ssi_request_max;    /* [xrootd_ssi_request_max SIZE] per-request cap. */
+    size_t      ssi_response_max;   /* [xrootd_ssi_response_max SIZE] per-response cap. */
+    ngx_str_t   ssi_cta_journal;    /* [xrootd_ssi_cta_journal PATH] restart journal. */
+    ngx_uint_t  ssi_cta_executor;   /* [xrootd_ssi_cta_executor test|prod] (0=test). */
     ngx_uint_t  cns_mode;           /* [xrootd_cns off|emit|collect] — §6 Composite
                                        Cluster Name Space (data-server emit / manager
                                        inventory). XROOTD_CNS_OFF/EMIT/COLLECT. */
@@ -427,6 +435,9 @@ typedef struct {
     ngx_str_t   cache_origin_host;  /* parsed hostname / IP */
     uint16_t    cache_origin_port;  /* parsed TCP port */
     ngx_flag_t  cache_origin_tls;   /* [xrootd_cache_origin_tls on] — TLS to origin */
+    ngx_uint_t  cache_origin_family; /* [xrootd_cache_origin_family auto|inet|inet6]
+                                        xrootd_af_policy_t for the origin connect;
+                                        default XROOTD_AF_AUTO (AF_UNSPEC). */
     /* GSI/X.509-proxy auth to the origin (e.g. EOS). When cache_origin_proxy is
      * set, cache fills are performed by fork/exec'ing the native client
      * (cache_origin_client, default "xrdcp") with X509_USER_PROXY/X509_CERT_DIR
@@ -453,6 +464,17 @@ typedef struct {
     ngx_str_t   cache_origin_token_file;    /* [xrootd_cache_origin_token_file <path>]
                                                bearer token the cache presents to an
                                                HTTP/Pelican origin (re-read per fill). */
+    ngx_str_t   cache_origin_bearer;        /* §14/C-3: in-process bearer token the
+                                               root:// origin login presents via ztn
+                                               (XrdSecztn). Set on sd_xroot's synthetic
+                                               conf from the credential; "" = anonymous. */
+    ngx_str_t   cache_origin_x509_proxy;    /* §14/C-3 GSI: X.509 proxy PEM path the
+                                               root:// origin login presents via the
+                                               in-process XrdSecgsi handshake; "" = no
+                                               GSI. Set on sd_xroot's synthetic conf. */
+    ngx_str_t   cache_origin_ca_dir;        /* §14/C-3 GSI: CA file/hashed-dir used to
+                                               VERIFY the origin's server cert (MITM
+                                               protection); "" = no verification. */
     ngx_flag_t  cache_origin_forward_token; /* [xrootd_cache_origin_forward_token on]
                                                replay the client's bearer token upstream
                                                instead of / before the cache credential. */
@@ -548,6 +570,25 @@ typedef struct {
     void      *cache_storage_inst;        /* read-cache xrootd_sd_instance_t* */
     void      *cache_state_inst;          /* sidecar/state instance (POSIX) */
     void      *cache_wt_stage_inst;       /* write-back staging instance; NULL if none */
+    /* Policy-layer cstore adapter built over cache_storage_inst at config time
+     * (eviction / reaper / free-space drive the store through this, never the
+     * bare driver — phase-64 P3/G5). NULL when the read cache is off. */
+    void      *cache_storage_cstore;      /* xrootd_cstore_t* */
+    /* Composed sd_cache slice/partial decorator (source=origin, store=cache_root)
+     * built at config time when cache_slice_size>0 + cache_origin configured — the
+     * root:// slice read serves through this instead of the legacy slice_read path
+     * (phase-64 §6.5). NULL when slice caching is off. */
+    void      *cache_slice_inst;          /* xrootd_sd_instance_t* (sd_cache) */
+    /* Whole-file cache SOURCE built from the legacy cache_origin config (xroot/s3),
+     * so every fill runs through the one xrootd_cache_fill_from_source spine
+     * (phase-64 §6.5 fold). NULL for http/pelican (libcurl) or no legacy origin. */
+    void      *cache_source_inst;         /* xrootd_sd_instance_t* (bare origin) */
+    /* Write-through as one mechanism (Option A): sd_stage(source=wt_origin,
+     * store=export backend). A write-open routes through this so a write buffers on
+     * the local store and flushes to the origin on close — replacing run_flush. NULL
+     * when write-through is off or the store backend is unavailable. */
+    void      *cache_wt_stage_sd_inst;    /* xrootd_sd_instance_t* (sd_stage) */
+    int        cache_wt_store_rootfd;     /* O_PATH fd for a posix-export wt store; -1 */
 
     /* ---- checksum-on-fill integrity (src/cache/verify.h) ----
      * After a fill downloads a file into its .part staging file, recompute its
@@ -590,6 +631,8 @@ typedef struct {
 #define XROOTD_WT_MODE_UNSET 255
     ngx_str_t                wt_origin_host;       /* [xrootd_wt_origin host:port] — defaults to cache_origin */
     uint16_t                 wt_origin_port;       /* parsed TCP port for write-back target */
+    ngx_str_t                wt_credential;        /* [xrootd_wt_credential <name>] — §14 credential
+                                                    * the write-back authenticates with (→ ztn). */
     ngx_array_t             *wt_deny_prefixes;     /* xrootd_wt_prefix_entry[] paths excluded from WT */
     ngx_array_t             *wt_allow_prefixes;    /* same, always included in WT regardless of size */
 
@@ -730,6 +773,12 @@ typedef struct {
     ngx_addr_t *http_handoff_addr;
     ngx_str_t   http_handoff_name;
 
+    /* [xrootd_transparent_proxy host:port] — relay every connection on this port
+     * verbatim to an upstream XRootD server (auth handshake travels end-to-end)
+     * while a tap decodes the cleartext frames (src/relay/relay.c). NULL = off. */
+    ngx_addr_t *relay_addr;
+    ngx_str_t   relay_name;
+
     /* ---- transparent proxy mode ---- */
     ngx_flag_t  proxy_enable;  /* [xrootd_proxy on|off] */
     ngx_str_t   proxy_host;    /* [xrootd_proxy_upstream host] */
@@ -746,6 +795,8 @@ typedef struct {
 #define XROOTD_PROXY_AUTH_ANONYMOUS  0
 #define XROOTD_PROXY_AUTH_FORWARD    1
 #define XROOTD_PROXY_AUTH_SSS        2
+#define XROOTD_PROXY_AUTH_GSI        3   /* phase-4b: present the user's delegated
+                                          * X.509 proxy to the upstream GSI auth */
 
     /* Username placed in the upstream kXR_login frame. */
     ngx_uint_t  proxy_login_user;      /* [xrootd_proxy_login_user anonymous|passthrough|fixed:<n>] */

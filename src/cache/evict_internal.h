@@ -10,6 +10,7 @@
 #define XROOTD_CACHE_EVICT_INTERNAL_H
 
 #include "cache_internal.h"
+#include "cstore.h"                 /* xrootd_cstore_t / _scan / _evict (P3/G5) */
 #include "../manager/registry.h"
 
 #include <dirent.h>
@@ -64,6 +65,10 @@ typedef struct {
      * `cache_root` its root (a candidate path is cache_root + the namespace key;
      * the driver-op key is `path + strlen(cache_root)`). */
     void                           *inst;          /* xrootd_sd_instance_t* */
+    void                           *cstore;        /* xrootd_cstore_t* — policy-layer
+                                                    * store adapter (P3/G5); the scan
+                                                    * + per-object stat/cinfo come
+                                                    * through this, not the driver */
     const char                     *cache_root;    /* cache_root_canon string */
     const char                     *state_root;    /* POSIX sidecar root (==cache_root if co-located) */
 } xrootd_cache_evict_list_t;
@@ -87,6 +92,17 @@ typedef struct {
  * (f_blocks == 0). *usage is left untouched on NGX_ERROR.
  */
 ngx_int_t xrootd_cache_fs_usage(const char *root,
+    xrootd_cache_fs_usage_t *usage);
+
+/*
+ * Measure cache occupancy through the store adapter (phase-64 P3/G5): prefer
+ * xrootd_cstore_freespace(cs) so a non-local store reports its own capacity (via
+ * its statf slot in SP2), and fall back to a raw statvfs on `root` when the
+ * cstore is absent or declines (a LOCAL posix store statvfs's the same dir, so
+ * the result is byte-identical to xrootd_cache_fs_usage today). Fills the same
+ * xrootd_cache_fs_usage_t. NGX_OK / NGX_ERROR (usage untouched on error).
+ */
+ngx_int_t xrootd_cache_usage_measure(xrootd_cstore_t *cs, const char *root,
     xrootd_cache_fs_usage_t *usage);
 
 /*

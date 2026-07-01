@@ -19,7 +19,7 @@
  */
 ngx_int_t
 s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, const char *final_path)
+    xrootd_vfs_staged_t *staged, const char *final_path)
 {
     ngx_http_s3_req_ctx_t *rx =
         ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
@@ -27,9 +27,11 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     ngx_int_t   rc;
     int         e;
 
-    rc = (rx != NULL && rx->exclusive_create)
-         ? xrootd_staged_commit_excl(log, root_canon, staged, final_path)
-         : xrootd_staged_commit(log, root_canon, staged, final_path);
+    (void) root_canon;   /* the staged handle carries its own final/tmp paths */
+    /* Publish through the VFS staged surface (routes through sd_stage when a stage
+     * store is composed; a local temp+rename otherwise) — §6.5/G9 unified staging. */
+    rc = xrootd_vfs_staged_commit(staged,
+             (rx != NULL && rx->exclusive_create) ? 1 : 0);
 
     /* Unified ledger: S3 PutObject (chunked / aio path) is a STAGE publish — the
      * same audit line as S3 POST, WebDAV PUT, and root:// uploads. The staged fd

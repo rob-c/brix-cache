@@ -58,4 +58,25 @@ int xvfs_fsync(xrootd_sd_obj_t *obj);
 int xvfs_ftruncate(xrootd_sd_obj_t *obj, off_t len);
 int xvfs_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out);
 
+/*
+ * Drain: copy the whole of `src` into `dst` through the driver, chunked via the
+ * caller-provided scratch `buf` (`bufsz` bytes). Positional pread->pwrite reusing
+ * xvfs_pread_once / xvfs_pwrite_full, so EINTR and short writes are handled and
+ * the bytes never leave the backend. *total (if non-NULL) reports bytes copied.
+ * The single primitive every auxiliary-storage scratch copy shares (serve
+ * offload, xvfs_stage_fd). Returns 0 / -1 (errno; EINVAL on a NULL/zero buffer).
+ */
+int xvfs_drain(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst, void *buf,
+               size_t bufsz, off_t *total);
+
+/*
+ * Materialize an already-open source fd into a LOCAL anonymous scratch fd under
+ * `stage_dir`: mkstemp + immediate unlink (the bytes live only behind the fd),
+ * copy src->scratch through the driver (xvfs_drain), then reopen the unlinked
+ * inode O_RDONLY at offset 0 for the consumer. For readers that need a real
+ * kernel fd (random access / sendfile) over a backend object that has none.
+ * Returns the read fd, or -1 (errno). The caller still owns/closes `src_fd`.
+ */
+int xvfs_stage_fd(int src_fd, const char *stage_dir);
+
 #endif /* XROOTD_VFS_CORE_H */

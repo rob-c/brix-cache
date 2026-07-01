@@ -88,7 +88,7 @@ stream {{
     server {{
 {blocks}
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
     }}
 }}
@@ -281,7 +281,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
 {extra}    }}
 }}
@@ -455,7 +455,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth sss;
         xrootd_sss_keytab {kt};
     }}
@@ -506,7 +506,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_allow_write on;
         xrootd_auth token;
         xrootd_token_jwks {token_issuer.jwks_path};

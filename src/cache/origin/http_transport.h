@@ -24,17 +24,7 @@
 #include "../cache_internal.h"
 
 /*
- * Download t->clean_path from the configured HTTP(S) origin into t->part_path,
- * populating t->origin_cks_alg/hex from the response Digest header (empty when
- * the origin advertises none). Returns 0 on success (the caller then runs the
- * shared commit+verify path), or -1 on error with the t error fields set. Runs
- * blocking in a fill thread-pool worker.
- */
-int xrootd_cache_http_download(xrootd_cache_fill_t *t);
-
-/*
- * Download an explicit absolute URL into t->part_path (same machinery as
- * xrootd_cache_http_download, but the caller supplies the URL). Used by the
+ * Download an explicit absolute URL into t->part_path. Used by the
  * Pelican transport to fetch the director object URL with redirect-following.
  * TLS verification is enabled when `url` is https. Returns 0 / -1 (t error set).
  */

@@ -2,6 +2,44 @@
 #include "../session/registry.h"
 
 /*
+ * xrootd_proxy_tap_audit_sink — emit one JSON line per tapped frame to the
+ * stable log. xrootd_proxy_tap_init — lazily set up the tap on first use: a log
+ * copy with the per-session handler/data cleared (the connection log's appender
+ * dereferences session state that is torn down out from under a late event), and
+ * the audit sink registered. Mirrors the Phase-3 relay's stable-log pattern.
+ */
+void
+xrootd_proxy_tap_audit_sink(void *ctx, const xrootd_tap_frame_t *f,
+    xrootd_tap_dir_t dir, const u_char *payload, size_t payload_len)
+{
+    ngx_log_t *log = ctx;
+    char       line[1280];
+
+    (void) payload;
+    (void) payload_len;
+
+    if (xrootd_tap_audit_format(f, dir, line, sizeof(line)) > 0) {
+        ngx_log_error(NGX_LOG_INFO, log, 0, "xrootd tap: %s", line);
+    }
+}
+
+void
+xrootd_proxy_tap_init(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c)
+{
+    if (proxy->tap_inited) {
+        return;
+    }
+    proxy->tap_log         = *c->log;
+    proxy->tap_log.handler = NULL;
+    proxy->tap_log.data    = NULL;
+    proxy->tap_log.action  = NULL;
+    ngx_memzero(&proxy->tap, sizeof(proxy->tap));
+    xrootd_tap_register_sink(&proxy->tap, xrootd_proxy_tap_audit_sink,
+                             &proxy->tap_log);
+    proxy->tap_inited = 1;
+}
+
+/*
  * WHAT: Deferred request dispatch and main proxy entry point — handles lazy upstream connection, request queuing during bootstrap,
  *      and bound-secondary channel lazy-open for file handle translation.
  * WHY: The transparent XRootD proxy must connect to the upstream server lazily (on first non-bootstrap request) rather than eagerly.
@@ -62,6 +100,15 @@ xrootd_proxy_dispatch_pending(xrootd_proxy_ctx_t *proxy)
     proxy->fwd_payload_len = len > XRD_REQUEST_HDR_LEN
                              ? len - XRD_REQUEST_HDR_LEN : 0;
     proxy->saved_req       = NULL;  /* ownership transferred to wbuf */
+
+    /* Tap: this is the first post-bootstrap request (e.g. the kXR_open), queued
+     * directly here rather than through xrootd_proxy_forward_request — emit it. */
+    {
+        xrootd_tap_frame_t tf;
+        if (xrootd_tap_decode_request(req, len, &tf) > 0) {
+            xrootd_tap_emit(&proxy->tap, &tf, XROOTD_TAP_C2U, NULL, 0);
+        }
+    }
 
     proxy->wbuf     = req;
     proxy->wbuf_len = len;
@@ -125,6 +172,7 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         proxy->client_ctx     = ctx;
         proxy->client_conn    = c;
         proxy->conf           = conf;
+        xrootd_proxy_tap_init(proxy, c);
         proxy->fwd_local_fh   = -1;
         proxy->saved_local_fh = -1;
         proxy->reconnect_left = (int) conf->proxy_reconnect_attempts;

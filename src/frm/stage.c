@@ -30,15 +30,86 @@
 #include "waiter.h"
 #include "../compat/checksum.h"
 #include "../manager/registry.h"
-#include "../fs/vfs_scratch.h"   /* capability-gated materialize-to-scratch (Pillar F) */
+#include "../compat/staged_file.h"   /* xrootd_commit_staged (scratch->storage move) */
 #include "../fs/xfer/xfer.h"     /* the shared crash-safe out-of-process agent harness */
 #include "../fs/xfer/xfer_reconcile.h"  /* the shared journal-recovery scan */
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>   /* setenv (export $FRM_LFN to the copycmd) */
 #include <sys/wait.h>
 #include <unistd.h>
+
+/* ---- FRM copycmd materialize-to-scratch (folded from the former fs/vfs_scratch;
+ * the copycmd writes a LOCAL POSIX path, committed onto storage afterwards). The
+ * FRM producer always targets the default POSIX backend, so the capability gate
+ * reduces to the force-scratch flag. ------------------------------------------ */
+static ngx_int_t
+frm_scratch_path(const char *stage_dir, const char *key, char *out, size_t outsz)
+{
+    int n;
+
+    if (stage_dir == NULL || stage_dir[0] == '\0' || key == NULL || key[0] == '\0') {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    n = snprintf(out, outsz, "%s/%s.scratch", stage_dir, key);
+    if (n < 0 || (size_t) n >= outsz) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* The local path the copycmd writes into: `logical` in place, or a
+ * <stage_dir>/<key>.scratch copy when force-staging. *materialized reports which. */
+static ngx_int_t
+frm_produce_target(const char *logical, const char *stage_dir, const char *key,
+    unsigned force, char *out, size_t outsz, ngx_uint_t *materialized)
+{
+    if (logical == NULL || out == NULL || materialized == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (!force) {
+        int n = snprintf(out, outsz, "%s", logical);
+
+        if (n < 0 || (size_t) n >= outsz) {
+            errno = ENAMETOOLONG;
+            return NGX_ERROR;
+        }
+        *materialized = 0;
+        return NGX_OK;
+    }
+    if (frm_scratch_path(stage_dir, key, out, outsz) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    *materialized = 1;
+    return NGX_OK;
+}
+
+/* Publish a produced scratch onto storage (same-FS rename or cross-device copy).
+ * No-op when !materialized (the copycmd wrote the export object in place). */
+static ngx_int_t
+frm_produce_commit(const char *logical, const char *stage_dir, const char *key,
+    ngx_uint_t materialized, ngx_log_t *log)
+{
+    char scratch[PATH_MAX];
+
+    if (!materialized) {
+        return NGX_OK;
+    }
+    if (logical == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (frm_scratch_path(stage_dir, key, scratch, sizeof(scratch)) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    return xrootd_commit_staged(NGX_INVALID_FILE, scratch, logical, log);
+}
 
 
 #define FRM_COPYCMD_MAX   1024
@@ -283,12 +354,11 @@ frm_stage_commit(const frm_record_t *rec, int code)
         /* Publish the scratch copy onto storage (no-op on a POSIX backend, where
          * the copycmd wrote the export object in place) BEFORE flipping residency
          * — the bytes must be on storage before any open is allowed to resolve. */
-        ngx_uint_t materialized = xrootd_vfs_scratch_needed(NULL,
-                                                            frm_sched_force_scratch);
+        ngx_uint_t materialized = frm_sched_force_scratch ? 1 : 0;
         const char *sdir = frm_sched_stage_dir.len
                            ? (const char *) frm_sched_stage_dir.data : NULL;
-        if (xrootd_vfs_scratch_produce_commit(full_path, sdir, reqid,
-                                              materialized, frm_sched_log) != NGX_OK) {
+        if (frm_produce_commit(full_path, sdir, reqid,
+                               materialized, frm_sched_log) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, frm_sched_log, ngx_errno,
                           "frm: scratch commit \"%s\" failed", full_path);
             code = FRM_RC_FORK;              /* fall through to the failure path */
@@ -408,10 +478,9 @@ frm_stage_dispatch(const frm_record_t *rec)
         ngx_uint_t materialized;
         const char *sdir = frm_sched_stage_dir.len
                            ? (const char *) frm_sched_stage_dir.data : NULL;
-        if (xrootd_vfs_scratch_produce_target(NULL, (const char *) rec->lfn,
+        if (frm_produce_target((const char *) rec->lfn,
                 sdir, (const char *) rec->reqid, frm_sched_force_scratch,
-                (char *) req.path, sizeof(req.path), &materialized,
-                frm_sched_log) != NGX_OK) {
+                (char *) req.path, sizeof(req.path), &materialized) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, frm_sched_log, ngx_errno,
                           "frm: scratch target for \"%s\" failed", rec->lfn);
             return NGX_ERROR;

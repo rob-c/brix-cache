@@ -58,3 +58,26 @@ sd_ceph_oid_to_pfn(const char *oid, char *pfn, size_t cap)
     pfn[base] = '\0';
     return 0;
 }
+
+int
+sd_ceph_oid_is_stripe_data(const char *oid)
+{
+    size_t n, i;
+
+    if (oid == NULL) {
+        return 0;
+    }
+    n = strlen(oid);
+    /* must end in '.' + exactly 16 lowercase-hex digits to be ANY stripe object */
+    if (n < SUFFIX_LEN || oid[n - SUFFIX_LEN] != '.') {
+        return 0;
+    }
+    for (i = n - SUFFIX_LEN + 1; i < n; i++) {
+        char c = oid[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
+            return 0;                          /* not a 16-hex stripe suffix */
+        }
+    }
+    /* a striper data stripe iff it is NOT the all-zero first stripe */
+    return sd_ceph_oid_is_first_stripe(oid) ? 0 : 1;
+}

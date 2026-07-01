@@ -53,7 +53,6 @@ caught at startup rather than under load.
 | `http_rootfd.c` / `http_rootfd.h` | `xrootd_http_open_rootfd`: opens the persistent `O_PATH` `common->rootfd` for WebDAV/S3 locations at config time (inherited by workers via fork), with a `cf->pool` cleanup so reloads don't leak one fd per export root. Mirrors the stream-side rootfd opened in `process.c`. |
 | `shared_conf.h` | `ngx_http_xrootd_shared_conf_t` — the common preamble (`enable`, `root`, `root_canon[PATH_MAX]`, `allow_write`, `thread_pool*`, `rootfd`) embedded as the **first member** of every protocol config struct, plus inline `ngx_http_xrootd_shared_init`/`ngx_http_xrootd_shared_merge`. |
 | `merge_macros.h` | Three merge macros for patterns nginx's built-in `ngx_conf_merge_*` doesn't cover: `XROOTD_MERGE_PTR` (NULL-sentinel pointer), `XROOTD_MERGE_HOSTPORT` (paired host+port), `XROOTD_MERGE_ENUM` (custom enum with explicit UNSET). |
-| `addr_parse.c` / `addr_parse.h` | `xrootd_parse_address`: shared `host:port` parser with optional `root://`/`roots://`/`https://` scheme prefixes and IPv6 bracket support, returning host/port and a TLS flag — consolidates parsing duplicated across cache/tpc/upstream directives. |
 
 ## Key types & data structures
 
@@ -156,18 +155,16 @@ This subsystem **calls out to** essentially every other subsystem's
 - **Timers and crypto are per-worker.** CRL/JWKS/CMS/health-check timers and the
   GSI key pool are created in `init_process` because each worker has its own
   event loop and config-pointer copy; never start them in the master/postconfig.
-- **IPv6 + port parsing has two implementations.** `manager_map.c` parses
-  inline; everything else should use the shared `xrootd_parse_address`
-  (`addr_parse.c`) — both validate port range 1–65535 and reject malformed
-  brackets.
+- **IPv6 + port parsing.** `manager_map.c` parses host/port inline; the
+  cache/tpc/upstream directives each parse their own `host:port` (validating
+  port range 1–65535 and rejecting malformed brackets).
 
 ## Entry points / extending
 
 - **New config directive:** add the field to `ngx_stream_xrootd_srv_conf_t`
   (`../types/config.h`); set its sentinel in `create_srv_conf`
   (`server_conf.c`); add the `ngx_command_t` entry to the live directives table
-  `ngx_stream_xrootd_commands[]` in `../stream/module.c` (note:
-  `module_core_directives.c` is a stale, uncompiled copy — do not edit it); add the
+  `ngx_stream_xrootd_commands[]` in `../stream/module.c`; add the
   `ngx_conf_merge_*` (or one of `merge_macros.h`'s `XROOTD_MERGE_*`) call in
   `merge_srv_conf`. Only re-run `./configure` if you add a new `.c` file.
 - **New validated path/cache/log resource:** add the check to

@@ -298,6 +298,19 @@ xrootd_proxy_relay_to_client(xrootd_proxy_ctx_t *proxy)
     size_t            total;
     u_char           *buf;
 
+    /* Tap: emit the upstream response metadata (status/dlen) to the observation
+     * tap, keyed to the client's streamid. */
+    {
+        xrootd_tap_frame_t tf;
+        ngx_memzero(&tf, sizeof(tf));
+        tf.is_request = 0;
+        tf.streamid   = (uint16_t) (((unsigned) proxy->fwd_streamid[0] << 8)
+                                     | proxy->fwd_streamid[1]);
+        tf.status     = status;
+        tf.dlen       = dlen;
+        xrootd_tap_emit(&proxy->tap, &tf, XROOTD_TAP_U2C, NULL, 0);
+    }
+
     /* lazy open (bound secondary): handle synthetic kXR_open response */    if (xrootd_proxy_relay_lazy_open(proxy)) {
         return;
     }

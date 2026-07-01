@@ -61,6 +61,31 @@ xrootd_cache_fs_usage(const char *root, xrootd_cache_fs_usage_t *usage)
     return NGX_OK;
 }
 
+ngx_int_t
+xrootd_cache_usage_measure(xrootd_cstore_t *cs, const char *root,
+    xrootd_cache_fs_usage_t *usage)
+{
+    uint64_t total = 0;
+    uint64_t avail = 0;
+
+    /* Prefer the store adapter so the measurement is driver-agnostic; only LOCAL
+     * stores answer today (SP2 adds the non-local statf slot), and a LOCAL store
+     * statvfs's the same dir as the fallback — so this is byte-identical now. */
+    if (cs != NULL
+        && xrootd_cstore_freespace(cs, &total, &avail) == NGX_OK
+        && total > 0)
+    {
+        usage->total       = total;
+        usage->available   = avail;
+        usage->used        = (total >= avail) ? (total - avail) : 0;
+        usage->occupancy_ppm = (ngx_uint_t)
+            (((long double) usage->used * 1000000.0L) / (long double) total);
+        return NGX_OK;
+    }
+
+    return xrootd_cache_fs_usage(root, usage);
+}
+
 /*
  * xrootd_cache_try_evict_lock — acquire an exclusive eviction lock via
  * a sentinel file created with O_CREAT | O_EXCL.
@@ -310,127 +335,86 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
  *      Returns NGX_OK on success, NGX_ERROR if memory allocation fails or
  *      strlen returns -1 (invalid path).
  */
-/* xrootd_cache_collect_dir — recursively scan a directory for eviction candidates.
- *
- * Walks a directory tree (recursively) collecting all regular files
- *       as eviction candidates. Filters out special names (. / .. / lock sentinel
- *       / *.part / *.lock), skips non-regular entries, and recurses into
- *       subdirectories.
- *
- * WHY: Cache eviction must consider every cached file regardless of directory
- *      nesting level. Recursive scan ensures files deep in the tree are
- *      included in the candidate list so oldest-first eviction can pick them.
- *      The root_dev check prevents candidates from other mounted filesystems
- *      from being evicted (e.g., a tmpfs mount under cache root).
- *
- * HOW: opendir(dir) → readdir loop → skip_name() filter → snprintf child path
- *      → lstat(child, &st) → dev check → if directory recurse collect_dir()
- *      → if regular file add_candidate(). On any error sets rc=NGX_ERROR but
- *      continues scanning remaining entries. closedir(dp) at end.
- */
+/* evict_collect_visit — cstore_scan visitor: one call per cached object with its
+ * store stat (`stx`) and cinfo (`ci`, NULL for an orphan/partial). Applies the
+ * same policy the raw scan did — skip control/sidecar names, never collect a key
+ * with un-flushed local writes (dirty .cinfo at the state path), add the rest as
+ * eviction candidates keyed by cache_root + key. Returns NGX_OK to continue the
+ * scan, NGX_ERROR to stop (candidate-array growth failure). */
+static ngx_int_t
+evict_collect_visit(const char *key, const xrootd_cache_cinfo_t *ci,
+    const xrootd_sd_stat_t *stx, void *ctx)
+{
+    xrootd_cache_evict_list_t *list = ctx;
+    const char                *name;
+    char                       childpath[PATH_MAX];
+    char                       sidecar[PATH_MAX];
+    const char                *base;
+    uint64_t                   dlo, dhi, dsince;
+    struct stat                synth;
+    int                        n;
 
-/* Recursively enumerate the cache namespace under `keydir` (a leading-slash key,
- * "/" at the root) through the cache STORAGE driver — no raw POSIX scan — adding
- * regular-file candidates. Each candidate's path is cache_root + key (a real POSIX
- * file for the default cache; a synthetic identity for a driver cache that the
- * actor maps back to a key for driver->unlink). Skips dirty entries and the
- * sidecar/control names. */
+    (void) ci;   /* dirty guard reads the state-root sidecar for exact parity */
+
+    name = strrchr(key, '/');
+    name = (name != NULL) ? name + 1 : key;
+    if (xrootd_cache_skip_name(name)) {
+        return NGX_OK;
+    }
+
+    n = snprintf(childpath, sizeof(childpath), "%s%s", list->cache_root, key);
+    if (n < 0 || (size_t) n >= sizeof(childpath)) {
+        return NGX_OK;                         /* unrepresentable — skip this key */
+    }
+
+    /* Never evict a file with un-flushed local writes (dirty .cinfo). The .cinfo
+     * lives at the state path (== childpath for a co-located cache). */
+    base = childpath;
+    if (xrootd_cache_sidecar_path(list->cache_root, list->state_root,
+                                  childpath, sidecar, sizeof(sidecar)) == 0)
+    {
+        base = sidecar;
+    }
+    if (xrootd_cache_cinfo_dirty_extent(base, &dlo, &dhi, &dsince) == NGX_OK) {
+        return NGX_OK;                         /* dirty — keep */
+    }
+
+    /* Synthesize a stat for the candidate: driver stat has no atime, so the LRU
+     * score uses mtime (a deterministic, monotone proxy; record_access bumps both
+     * the cache-file mtime and the .cinfo). */
+    ngx_memzero(&synth, sizeof(synth));
+    synth.st_size  = stx->size;
+    synth.st_mtime = stx->mtime;
+    synth.st_atime = stx->mtime;
+    return (xrootd_cache_add_candidate(list, childpath, &synth) == NGX_OK)
+           ? NGX_OK : NGX_ERROR;
+}
+
+/* xrootd_cache_collect_dir — collect every eviction candidate in the cache store.
+ *
+ * WHAT: Builds the candidate list for an eviction pass by walking the whole cache
+ *       store and adding each non-dirty regular object (path = cache_root + key).
+ * WHY:  Cache eviction must consider every cached file regardless of nesting; the
+ *       walk + per-object policy now run through the `cstore` adapter so the policy
+ *       layer never touches a store driver directly (phase-64 P3/G5).
+ * HOW:  xrootd_cstore_scan() recurses the store via the driver (skipping sidecars)
+ *       and calls evict_collect_visit() per object with its stat + cinfo; the
+ *       visitor applies the skip/dirty filter and adds candidates. `keydir` is kept
+ *       for the public signature but the scan always starts at the store root (its
+ *       only caller passes "/"). Returns NGX_OK, or NGX_ERROR if the store has no
+ *       cstore (cache off) or the scan stopped on a growth failure. */
 ngx_int_t
 xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list, const char *keydir,
     ngx_log_t *log)
 {
-    xrootd_sd_instance_t *inst = list->inst;
-    xrootd_sd_dir_t      *d;
-    xrootd_sd_dirent_t    ent;
-    int                   err = 0;
-    ngx_int_t             rc = NGX_OK;
-    ngx_int_t             drc;
+    (void) keydir;   /* cstore_scan walks the whole store from its root */
+    (void) log;
 
-    if (inst == NULL || inst->driver->opendir == NULL) {
+    if (list->cstore == NULL) {
         return NGX_ERROR;
     }
-    d = inst->driver->opendir(inst, keydir, &err);
-    if (d == NULL) {
-        if (err != ENOENT) {
-            ngx_log_error(NGX_LOG_WARN, log, err,
-                          "xrootd: cache eviction cannot opendir \"%s\"", keydir);
-            return NGX_ERROR;
-        }
-        return NGX_OK;
-    }
-
-    while ((drc = inst->driver->readdir(d, &ent)) == NGX_OK) {
-        char             childkey[PATH_MAX];
-        char             childpath[PATH_MAX];
-        xrootd_sd_stat_t sd_st;
-        int              n;
-
-        if (xrootd_cache_skip_name(ent.name)) {
-            continue;
-        }
-        n = snprintf(childkey, sizeof(childkey), "%s%s%s", keydir,
-                     keydir[strlen(keydir) - 1] == '/' ? "" : "/", ent.name);
-        if (n < 0 || (size_t) n >= sizeof(childkey)) {
-            rc = NGX_ERROR;
-            continue;
-        }
-        if (inst->driver->stat(inst, childkey, &sd_st) != NGX_OK) {
-            continue;                          /* vanished / unreadable */
-        }
-        if (sd_st.is_dir) {
-            if (xrootd_cache_collect_dir(list, childkey, log) != NGX_OK) {
-                rc = NGX_ERROR;
-            }
-            continue;
-        }
-        if (!sd_st.is_reg) {
-            continue;
-        }
-
-        n = snprintf(childpath, sizeof(childpath), "%s%s",
-                     list->cache_root, childkey);
-        if (n < 0 || (size_t) n >= sizeof(childpath)) {
-            rc = NGX_ERROR;
-            continue;
-        }
-
-        /* Never evict a file with un-flushed local writes (dirty .cinfo). The
-         * .cinfo lives at the state path (== childpath for a co-located cache). */
-        {
-            uint64_t dlo, dhi, dsince;
-            char     sidecar[PATH_MAX];
-            const char *base = childpath;
-            if (xrootd_cache_sidecar_path(list->cache_root, list->state_root,
-                                          childpath, sidecar, sizeof(sidecar))
-                == 0)
-            {
-                base = sidecar;
-            }
-            if (xrootd_cache_cinfo_dirty_extent(base, &dlo, &dhi, &dsince)
-                == NGX_OK)
-            {
-                continue;
-            }
-        }
-
-        /* Synthesize a stat for the candidate: driver stat has no atime, so the
-         * LRU score uses mtime (a deterministic, monotone proxy; record_access
-         * bumps both mtime and the .cinfo). */
-        {
-            struct stat synth;
-            ngx_memzero(&synth, sizeof(synth));
-            synth.st_size  = sd_st.size;
-            synth.st_mtime = sd_st.mtime;
-            synth.st_atime = sd_st.mtime;
-            if (xrootd_cache_add_candidate(list, childpath, &synth) != NGX_OK) {
-                rc = NGX_ERROR;
-                break;
-            }
-        }
-    }
-
-    (void) inst->driver->closedir(d);
-    return rc;
+    return xrootd_cstore_scan((xrootd_cstore_t *) list->cstore,
+                              evict_collect_visit, list);
 }
 /* xrootd_cache_candidate_cmp — sort comparator for eviction candidates.
  *

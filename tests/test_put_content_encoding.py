@@ -82,7 +82,7 @@ http {{
         listen {BIND_HOST}:{WEBDAV_PORT};
         location / {{
             xrootd_webdav on;
-            xrootd_webdav_root {wroot};
+            xrootd_webdav_storage_backend posix:{wroot};
             xrootd_webdav_auth none;
             xrootd_webdav_allow_write on;
         }}
@@ -91,7 +91,7 @@ http {{
         listen {BIND_HOST}:{S3_PORT};
         location / {{
             xrootd_s3 on;
-            xrootd_s3_root {sroot};
+            xrootd_s3_storage_backend posix:{sroot};
             xrootd_s3_bucket {BUCKET};
             xrootd_s3_allow_write on;
         }}

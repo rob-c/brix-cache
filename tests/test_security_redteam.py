@@ -185,7 +185,7 @@ http {{
   scgi_temp_path {prefix}/tmp;
   xrootd_rate_limit_zone zone=conc:1m;
   server {{ listen 28312;
-    location / {{ xrootd_webdav on; xrootd_webdav_root {prefix}/data;
+    location / {{ xrootd_webdav on; xrootd_webdav_storage_backend posix:{prefix}/data;
       xrootd_webdav_auth optional; xrootd_webdav_cafile {ca};
       {extra} }} }} }}
 """

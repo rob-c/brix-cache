@@ -65,8 +65,9 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
     char         xml_buf[512];
     char         etag_buf[64];
     char         iso_buf[32];
-    struct stat       part_sb;
-    xrootd_vfs_ctx_t  sctx;
+    struct stat       part_sb;    /* fstat of the written part fd (ETag size/mtime) */
+    xrootd_vfs_ctx_t  sctx;       /* copy SOURCE ctx (probe + open below)        */
+    xrootd_vfs_ctx_t  uctx;       /* upload staging-dir (mpu_dir) existence probe */
     xrootd_vfs_stat_t svst;
     xrootd_vfs_file_t *fh_src;
     int          src_fd, dst_fd;
@@ -127,10 +128,12 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                                  "The uploadId is invalid.");
     }
 
-    /* Confinement: mpu_dir from s3_get_mpu_dir() — validated upload_id + confined
-     * fs_path. part_path is mpu_dir + "/part.<N>". Bare stat is safe. */
+    /* Confinement + existence: mpu_dir from s3_get_mpu_dir() (validated upload_id +
+     * confined fs_path). Probe it through the VFS seam (reuse sctx, re-pointed at
+     * mpu_dir) rather than a raw stat — absent → 404 NoSuchUpload. */
     s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
-    if (stat(mpu_dir, &part_sb) != 0) {  /* vfs-seam-allow: S3 multipart staging-dir domain */
+    s3_build_vfs_ctx(r, mpu_dir, cf, &uctx);
+    if (xrootd_vfs_probe(&uctx, 1 /* nofollow */, &svst) != NGX_OK) {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchUpload",
                                  "The specified upload does not exist.");
@@ -153,7 +156,9 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
     }
     src_fd = xrootd_vfs_file_fd(fh_src);
 
-    dst_fd = open(part_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);  /* vfs-seam-allow: S3 multipart staging-dir domain */
+    dst_fd = xrootd_vfs_open_fd(r->connection->log, cf->common.root_canon,
+                               part_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
+                               0600);
     if (dst_fd < 0) {
         xrootd_vfs_close(fh_src, r->connection->log);
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
@@ -183,7 +188,8 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                     }
                     xrootd_vfs_close(fh_src, r->connection->log);
                     close(dst_fd);
-                    unlink(part_path);  /* vfs-seam-allow: S3 multipart staging-dir domain */
+                    (void) xrootd_vfs_unlink_path(r->connection->log,
+                                                  cf->common.root_canon, part_path);
                     XROOTD_S3_METRIC_INC(
                         events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
                     return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -196,12 +202,15 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
         }
     }
     xrootd_vfs_close(fh_src, r->connection->log);
-    close(dst_fd);
 
-    if (stat(part_path, &part_sb) != 0) {  /* vfs-seam-allow: S3 multipart staging-dir domain */
+    /* ETag/mtime from the part fd we just wrote (metadata on a VFS-opened confined
+     * fd — no raw path stat) before we release it. */
+    if (fstat(dst_fd, &part_sb) != 0) {
+        close(dst_fd);
         XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+    close(dst_fd);
 
     s3_etag(&part_sb, etag_buf, sizeof(etag_buf));
     xrootd_format_iso8601(part_sb.st_mtime, iso_buf, sizeof(iso_buf));

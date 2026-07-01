@@ -1,5 +1,6 @@
 #include "cache_internal.h"
 #include "../connection/netconnect.h"   /* shared outbound connect/I/O hardening */
+#include "../compat/af_policy.h"        /* xrootd_af_policy_t origin family policy */
 
 
 #include <fcntl.h>
@@ -67,7 +68,14 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
 
     ngx_memzero(&hints, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_UNSPEC;
+    {
+        ngx_uint_t fam = (t->conf != NULL)
+            ? t->conf->cache_origin_family : (ngx_uint_t) XROOTD_AF_AUTO;
+        if (fam == NGX_CONF_UNSET_UINT) {
+            fam = (ngx_uint_t) XROOTD_AF_AUTO;
+        }
+        hints.ai_family = (int) fam;   /* AUTO==AF_UNSPEC tries every family */
+    }
 
     if (getaddrinfo((char *) host->data, port, &hints, &res) != 0) {
         xrootd_cache_set_error(t, kXR_ServerError, 0,

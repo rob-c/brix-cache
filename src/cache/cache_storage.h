@@ -22,6 +22,7 @@
  */
 
 #include "cache_internal.h"
+#include "cstore.h"                 /* xrootd_cstore_t (policy-layer adapter) */
 #include "../fs/backend/sd.h"
 
 /* Build the per-role SD instances + O_PATH rootfds for this worker. No-op when no
@@ -35,6 +36,23 @@ void xrootd_cache_storage_cleanup(ngx_stream_xrootd_srv_conf_t *conf);
 
 /* The read-cache storage instance (cache_root). NULL if no cache configured. */
 xrootd_sd_instance_t *xrootd_cache_storage(const ngx_stream_xrootd_srv_conf_t *conf);
+/* The policy-layer cstore adapter over the read-cache store (eviction, reaper,
+ * free-space drive the store through this — never the bare driver). NULL if the
+ * cache is off. Built at config time in xrootd_cache_storage_init. */
+xrootd_cstore_t *xrootd_cache_storage_cstore(const ngx_stream_xrootd_srv_conf_t *conf);
+/* The composed sd_cache slice/partial decorator (source=origin, store=cache_root),
+ * or NULL when slice caching is off. The root:// slice read serves through this
+ * (phase-64 §6.5). Built in xrootd_cache_storage_init. */
+xrootd_sd_instance_t *xrootd_cache_slice_inst(const ngx_stream_xrootd_srv_conf_t *conf);
+/* The whole-file cache SOURCE instance built from the legacy cache_origin config
+ * (xroot/s3), or NULL (http/pelican use libcurl, or no legacy origin). Consumed by
+ * fetch.c so a legacy cache_origin fills through the one xrootd_cache_fill_from_source
+ * spine. Built in xrootd_cache_storage_init. */
+xrootd_sd_instance_t *xrootd_cache_source_inst(const ngx_stream_xrootd_srv_conf_t *conf);
+/* The write-through sd_stage instance (source=wt_origin, store=export backend), or
+ * NULL (write-through off / no backend → legacy run_flush). A write-open routes
+ * through it so writes buffer locally and flush to the origin on close (Option A). */
+xrootd_sd_instance_t *xrootd_cache_wt_stage_sd_inst(const ngx_stream_xrootd_srv_conf_t *conf);
 /* The POSIX instance holding the .cinfo/.meta sidecar tree. NULL if no cache. */
 xrootd_sd_instance_t *xrootd_cache_state_storage(const ngx_stream_xrootd_srv_conf_t *conf);
 /* The write-back staging instance. NULL when no staging role is configured (the

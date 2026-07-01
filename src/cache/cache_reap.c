@@ -69,7 +69,7 @@ reap_metrics_slot(const ngx_stream_xrootd_srv_conf_t *conf)
  * slot->cache_dirty_reaped[reason] (slot may be NULL). */
 static ngx_uint_t
 reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
-    ngx_xrootd_srv_metrics_t *slot, xrootd_sd_instance_t *data_inst,
+    ngx_xrootd_srv_metrics_t *slot, xrootd_cstore_t *cstore,
     const char *data_root)
 {
     DIR           *dp;
@@ -102,7 +102,7 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
             continue;
         }
         if (S_ISDIR(st.st_mode)) {
-            n += reap_dir(child, cutoff, dev, log, slot, data_inst, data_root);
+            n += reap_dir(child, cutoff, dev, log, slot, cstore, data_root);
             continue;
         }
         if (!S_ISREG(st.st_mode)) {
@@ -133,15 +133,16 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
             continue;                       /* clean read-fill → keep (evictable) */
         }
 
-        /* Remove the DATA through the cache storage driver (exclusively-VFS); the
-         * .cinfo/.meta sidecars are the POSIX state plane (reap_unlink_sidecars).
-         * For the default co-located cache the state root IS the data root, so the
-         * key is child minus data_root. */
-        if (data_inst != NULL && data_root != NULL
+        /* Remove the DATA through the cstore adapter (phase-64 P3/G5: the policy
+         * layer never unlinks via the store driver itself); cstore_evict also drops
+         * the object's cinfo + L1 entry. The .meta sidecar is the legacy stats plane
+         * the cstore does not own, dropped by reap_unlink_sidecars. For the default
+         * co-located cache the state root IS the data root, so the key is child
+         * minus data_root; a file outside the data root is state-only (raw unlink). */
+        if (cstore != NULL && data_root != NULL
             && ngx_strncmp(child, data_root, ngx_strlen(data_root)) == 0)
         {
-            (void) data_inst->driver->unlink(data_inst,
-                child + ngx_strlen(data_root), 0);
+            (void) xrootd_cstore_evict(cstore, child + ngx_strlen(data_root));
         } else {
             (void) unlink(child);
         }
@@ -184,9 +185,11 @@ xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log
     }
     now = time(NULL);
     cutoff = now - conf->cache_dirty_max_age;
-    /* Data removal routes through the read-cache storage driver; data_root is
-     * cache_root (== the state root for the default co-located cache). */
+    /* Data removal routes through the cstore adapter (P3/G5); data_root is
+     * cache_root (== the state root for the default co-located cache). The state
+     * tree is still walked raw above — it is the POSIX state plane (.cinfo state
+     * records), not the store's data objects, so it is not a store-driver touch. */
     return reap_dir(root, cutoff, rs.st_dev, log, reap_metrics_slot(conf),
-                    xrootd_cache_storage(conf),
+                    xrootd_cache_storage_cstore(conf),
                     (const char *) conf->cache_root.data);
 }

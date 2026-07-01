@@ -15,9 +15,12 @@
 #include "crypto.h"
 #include "hex.h"
 
+#include <ftw.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -124,4 +127,101 @@ xrootd_make_resume_path(const char *base_path, const char *principal,
     }
 
     return NGX_OK;
+}
+
+/* ---- orphaned atomic-write temp reaper (phase-64 SP4) ---------------------
+ * A non-staged (direct) write streams the body to a "<final>.xrd-tmp.<pid>.<rand>"
+ * temp and renames it onto the final path on commit. A crash/kill mid-write leaves
+ * that temp orphaned in the export tree. Unlike a STAGED write (recoverable via the
+ * stage_engine reconcile), a broken direct write is simply discarded - so on
+ * startup we REAP these orphans. The owning pid is in the name: a temp whose pid is
+ * still alive is an IN-FLIGHT write of a draining worker (a reload) and is KEPT;
+ * only dead-owner (or malformed) temps are removed - safe under reload. */
+
+#define XROOTD_TMP_REAP_MAX  64
+static char       s_tmp_reap_roots[XROOTD_TMP_REAP_MAX][PATH_MAX];
+static ngx_uint_t s_tmp_reap_count;
+static ngx_uint_t s_tmp_reaped;   /* nftw has no ctx; worker-0 startup is single-threaded */
+
+void
+xrootd_tmp_reap_register(const char *export_root)
+{
+    ngx_uint_t i;
+
+    if (export_root == NULL || export_root[0] == '\0'
+        || strlen(export_root) >= PATH_MAX)
+    {
+        return;
+    }
+    /* Never reap "/" — a cache node anchored at the root namespace (no xrootd_root)
+     * yields root_canon "/", but nftw-walking the whole host filesystem (and
+     * unlinking matching temps anywhere) is catastrophic. A pure cache node has no
+     * local export-tree temps to reap (its in-flight writes live in the store
+     * tier), so there is nothing to walk here. */
+    if (export_root[0] == '/' && export_root[1] == '\0') {
+        return;
+    }
+    for (i = 0; i < s_tmp_reap_count; i++) {
+        if (strcmp(s_tmp_reap_roots[i], export_root) == 0) {
+            return;                             /* dedup across server blocks */
+        }
+    }
+    if (s_tmp_reap_count >= XROOTD_TMP_REAP_MAX) {
+        return;
+    }
+    memcpy(s_tmp_reap_roots[s_tmp_reap_count], export_root,
+           strlen(export_root) + 1);
+    s_tmp_reap_count++;
+}
+
+/* nftw visitor: unlink a "*.xrd-tmp.<pid>.*" file whose owner pid is dead. */
+static int
+xrootd_tmp_reap_cb(const char *fpath, const struct stat *sb, int typeflag,
+    struct FTW *ftwbuf)
+{
+    const char *base;
+    const char *mark;
+    long        pid;
+    char       *end;
+
+    (void) sb;
+    (void) ftwbuf;
+    if (typeflag != FTW_F) {
+        return 0;
+    }
+    base = strrchr(fpath, '/');
+    base = (base != NULL) ? base + 1 : fpath;
+    mark = strstr(base, ".xrd-tmp.");
+    if (mark == NULL) {
+        return 0;
+    }
+    pid = strtol(mark + sizeof(".xrd-tmp.") - 1, &end, 10);
+    if (pid > 0 && end != mark + sizeof(".xrd-tmp.") - 1) {
+        /* A live owner = an in-flight write (a draining worker during reload). A
+         * dead owner (ESRCH) = an orphan. EPERM (foreign owner) = keep, be safe. */
+        if (kill((pid_t) pid, 0) == 0 || errno == EPERM) {
+            return 0;
+        }
+    }
+    if (unlink(fpath) == 0) {
+        s_tmp_reaped++;
+    }
+    return 0;
+}
+
+ngx_uint_t
+xrootd_tmp_reap_all(ngx_log_t *log)
+{
+    ngx_uint_t i;
+
+    s_tmp_reaped = 0;
+    for (i = 0; i < s_tmp_reap_count; i++) {
+        (void) nftw(s_tmp_reap_roots[i], xrootd_tmp_reap_cb, 16, FTW_PHYS);
+    }
+    if (s_tmp_reaped > 0 && log != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "xrootd: reaped %ui orphaned upload temp(s) from interrupted "
+            "non-staged write(s)", s_tmp_reaped);
+    }
+    return s_tmp_reaped;
 }

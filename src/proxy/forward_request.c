@@ -338,6 +338,15 @@ xrootd_proxy_forward_request(xrootd_proxy_ctx_t *proxy,
         proxy->wait_retry_count    = 0;
     }
 
+    /* Tap: decode the fully-assembled (post-rewrite) request frame and emit it
+     * to the observation tap before it goes upstream. */
+    {
+        xrootd_tap_frame_t tf;
+        if (xrootd_tap_decode_request(req, total, &tf) > 0) {
+            xrootd_tap_emit(&proxy->tap, &tf, XROOTD_TAP_C2U, NULL, 0);
+        }
+    }
+
     /* Queue the request to the upstream write buffer */
     proxy->wbuf       = req;
     proxy->wbuf_len   = total;

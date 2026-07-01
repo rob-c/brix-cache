@@ -1,5 +1,6 @@
 #include "cache_internal.h"
 #include "cache_storage.h"   /* driver-aware readiness for a backend-backed cache */
+#include "../fs/vfs_backend_registry.h"   /* C-1: resolve the source backend */
 
 #include <errno.h>
 #include <string.h>
@@ -53,6 +54,22 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 sizeof(t->clean_path));
     ngx_cpystrn((u_char *) t->cache_path, (u_char *) cache_path,
                 sizeof(t->cache_path));
+
+    /* C-1 (phase-63): when no separate xrootd_cache_origin is configured but the
+     * export's PRIMARY storage is a remote SOURCE backend (xroot://), the cache
+     * fills FROM that registered backend. Resolve it HERE (main thread) so the
+     * registry's lazy per-worker build never races on the async fill worker. */
+    if (conf->cache_origin_host.len == 0) {
+        xrootd_sd_instance_t *src =
+            xrootd_vfs_backend_resolve(conf->common.root_canon, c->log);
+
+        if (src != NULL
+            && (ngx_strcmp(xrootd_sd_backend_name(src), "xroot") == 0
+                || ngx_strcmp(xrootd_sd_backend_name(src), "http") == 0))
+        {
+            t->source_inst = src;
+        }
+    }
 
     if (xrootd_cache_append_suffix(t->part_path, sizeof(t->part_path),
                                    cache_path, XROOTD_CACHE_PART_SUFFIX) != 0

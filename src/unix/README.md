@@ -139,8 +139,7 @@ handler set drives [`../path/`](../path/) ACL/VO authorization.
   setters — do not relax `xrootd_unix_name_byte_ok()` without a security review.
 - **Adjust the trust policy:** the directive `xrootd_unix_trust_remote` is wired
   in the live `ngx_stream_xrootd_commands[]` table in
-  [`../stream/module.c`](../stream/module.c) (`module_core_directives.c` is a
-  stale, uncompiled copy)
+  [`../stream/module.c`](../stream/module.c)
   → field `unix_trust_remote` in `../types/config.h`, defaulted in
   [`../config/server_conf.c`](../config/server_conf.c). To add finer-grained
   trust (e.g. a CIDR allow-list) extend `xrootd_unix_peer_is_loopback()` and the

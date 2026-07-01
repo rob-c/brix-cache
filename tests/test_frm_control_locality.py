@@ -79,7 +79,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{stream_port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_frm on;
@@ -99,7 +99,7 @@ http {{
         listen {BIND_HOST}:{http_port};
         location / {{
             xrootd_webdav on;
-            xrootd_webdav_root {data};
+            xrootd_webdav_storage_backend posix:{data};
             xrootd_webdav_auth none;
             xrootd_webdav_allow_write on;
             xrootd_webdav_tape_rest on;

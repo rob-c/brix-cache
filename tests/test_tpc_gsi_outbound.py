@@ -164,7 +164,7 @@ def gsi_tpc(tmp_path_factory):
         "  server {\n"
         f"    listen 127.0.0.1:{dst_port};\n"
         "    xrootd on;\n"
-        f"    xrootd_root {dst_data};\n"
+        f"    xrootd_storage_backend posix:{dst_data};\n"
         "    xrootd_auth none;\n"
         "    xrootd_allow_write on;\n"
         "    xrootd_tpc_allow_local on;\n"

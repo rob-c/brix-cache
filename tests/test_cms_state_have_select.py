@@ -262,7 +262,7 @@ def _client_conf(name, port, data_dir, mgr_port):
             f"    server {{\n"
             f"        listen 0.0.0.0:{port};\n"
             f"        xrootd on;\n"
-            f"        xrootd_root {data_dir};\n"
+            f"        xrootd_storage_backend posix:{data_dir};\n"
             f"        xrootd_auth none;\n"
             f"        xrootd_allow_write on;\n"
             f"        xrootd_cms_manager {HOST}:{mgr_port};\n"

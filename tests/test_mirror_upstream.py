@@ -124,7 +124,7 @@ def _front_conf(name, port, data_dir, upstream_port, opcode_line=""):
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{port};\n"
-            f"        xrootd on; xrootd_root {data_dir}; xrootd_auth none;\n"
+            f"        xrootd on; xrootd_storage_backend posix:{data_dir}; xrootd_auth none;\n"
             f"        xrootd_allow_write on;\n"
             f"        xrootd_stream_mirror_url {HOST}:{upstream_port};\n"
             f"{extra}"

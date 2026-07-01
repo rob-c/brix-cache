@@ -101,7 +101,7 @@ def main():
         fh.write(f"""worker_processes 1; daemon off;
 error_log {errlog} info; pid {logs}/nginx.pid;
 events {{ worker_connections 2048; }}
-stream {{ server {{ listen 127.0.0.1:{port}; xrootd on; xrootd_root {data};
+stream {{ server {{ listen 127.0.0.1:{port}; xrootd on; xrootd_storage_backend posix:{data};
   xrootd_auth none; xrootd_allow_write on;
   xrootd_tls on; xrootd_certificate {servers.SERVER_CERT};
   xrootd_certificate_key {servers.SERVER_KEY};

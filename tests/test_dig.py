@@ -90,7 +90,7 @@ http {{
         listen {BIND_HOST}:{port};
         location / {{
             xrootd_webdav on;
-            xrootd_webdav_root {d}/data;
+            xrootd_webdav_storage_backend posix:{d}/data;
             xrootd_webdav_auth optional;
             xrootd_webdav_cadir {d}/cadir;
             xrootd_webdav_allow_write on;

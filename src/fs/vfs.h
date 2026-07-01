@@ -112,6 +112,13 @@ void xrootd_vfs_ctx_init(xrootd_vfs_ctx_t *vctx, ngx_pool_t *pool,
     const char *cache_root_canon, int allow_write, int is_tls,
     xrootd_identity_t *identity, const char *resolved_path);
 
+/* The export-root-relative ("logical") form of an absolute confined `path` — the
+ * key an inst-keyed storage driver expects (what xrootd_vfs_open passes to the
+ * driver's open slot). Returns `path` unchanged when it is not under the ctx's
+ * export root. A borrowed pointer into `path` (no allocation). */
+const char *xrootd_vfs_export_relative(const xrootd_vfs_ctx_t *ctx,
+    const char *path);
+
 /* Open ctx->resolved under the confinement cascade with the given
  * XROOTD_VFS_O_* flags (translated to O_* internally). XROOTD_VFS_O_WRITE
  * requires ctx->allow_write (else EACCES); XROOTD_VFS_O_MKDIRPATH pre-creates
@@ -134,6 +141,15 @@ ngx_fd_t xrootd_vfs_file_fd(const xrootd_vfs_file_t *fh);
  * hit-serve path (src/cache/open.c). writable is 0 for a read handle. */
 ngx_int_t xrootd_vfs_adopt_obj(xrootd_vfs_ctx_t *ctx, const char *path,
     xrootd_sd_obj_t *o, unsigned writable, xrootd_vfs_file_t **out);
+
+/* Wrap an already-open kernel fd in a NEW VFS read handle (the default POSIX
+ * driver), fstat'ing it into the handle metadata. The handle is sendfile-capable
+ * (CAP_FD|CAP_SENDFILE). Used to serve a materialized local temp file through the
+ * shared sendfile pipeline. `from_cache` tags the handle; `writable` is 0 for a
+ * read handle. NGX_OK with *out set, or NGX_ERROR (errno set). */
+ngx_int_t xrootd_vfs_adopt_fd(xrootd_vfs_ctx_t *ctx, const char *path,
+    ngx_fd_t fd, unsigned from_cache, unsigned writable,
+    xrootd_vfs_file_t **out);
 
 /* Copy the handle's storage-driver object (driver + instance + fd) into *out.
  * Layer 3: lets a caller route whole-object I/O (e.g. checksum-at-rest) through
@@ -180,6 +196,20 @@ ngx_int_t xrootd_vfs_stat(xrootd_vfs_ctx_t *ctx,
  * metered as OP_STAT; NGX_ERROR with errno set on guard failure / stat error. */
 ngx_int_t xrootd_vfs_statf(xrootd_vfs_ctx_t *ctx,
     xrootd_vfs_stat_t *stat_out);
+
+/* Classify the resolved ctx path's nearline (tape/MSS) residency — online /
+ * nearline / offline / lost — WITHOUT forcing a recall, so protocol handlers can
+ * advertise tape state (the HTTP Tape REST API, S3 InvalidObjectState /
+ * x-amz-storage-class, root:// stat's nearline flag). Walks any read-cache /
+ * write-stage decorators down to the CAP_NEARLINE driver; an export with no
+ * nearline tier always reports ONLINE. NGX_OK with *out set, or NGX_ERROR (errno)
+ * on a guard failure or driver error. The phase-64 replacement for the FRM
+ * residency-xattr probe (frm_residency_probe). When `nearline_export` is non-NULL
+ * it is set to 1 iff the residency came from a nearline (tape/MSS) tier (0 for a
+ * plain disk/object export) — so callers that need the WLCG locality vocabulary can
+ * distinguish ONLINE-on-a-tape-export (ONLINE_AND_NEARLINE) from ONLINE-on-disk. */
+ngx_int_t xrootd_vfs_residency(xrootd_vfs_ctx_t *ctx,
+    xrootd_sd_residency_t *out, int *nearline_export);
 
 /* Confined existence/type probe for pre-op resolution / ACL gates. Like
  * xrootd_vfs_stat but emits NO OP_STAT metric/access-log line (the caller's own
@@ -257,6 +287,15 @@ ngx_int_t xrootd_vfs_rename(xrootd_vfs_ctx_t *ctx,
 ngx_int_t xrootd_vfs_rename_path(xrootd_sd_instance_t *sd, ngx_log_t *log,
     const char *root_canon, const char *src, const char *dst,
     unsigned overwrite, int *was_dir_out);
+/* Enumerate the bound backend's OWN object catalog (inventory/drift, spec
+ * §E1/D2) — the driver-agnostic seam over the SD `enumerate` verb. Fires cb once
+ * per stored object (xrootd_sd_catalog_ent_t); want_stat asks for per-object
+ * size/mtime. Returns NGX_OK (full enumeration), the cb's non-zero abort code, or
+ * NGX_DECLINED with errno==ENOTSUP when the backend has no native catalog (POSIX:
+ * the namespace IS the catalog — callers fall back to a vfs_walk). Thread-safe to
+ * the extent the driver's enumerate is (the Ceph verb runs on a thread worker). */
+ngx_int_t xrootd_vfs_enumerate_catalog(xrootd_sd_instance_t *sd, int want_stat,
+    xrootd_sd_catalog_cb cb, void *ctx);
 /* Create the resolved ctx path as a directory with `mode`, creating missing
  * parent components when `parents`. Write-gated, confined; metered as OP_MKDIR.
  * NGX_ERROR with errno set (e.g. EEXIST when the target already exists). */

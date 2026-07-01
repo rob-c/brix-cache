@@ -83,6 +83,8 @@ const char *srv_path(const char *p, char *buf, size_t sz);
 int xfs_err(const xrdc_status *st);
 int xfs_conn_healthy(const xrdc_status *st);
 int xfs_meta(xrdc_fuse_op_fn fn, void *ctx, xrdc_status *st);
+int xfs_meta_idem(xrdc_fuse_op_fn fn, void *ctx, int benign_errno,
+                  xrdc_status *st);
 void xfs_fill_stat(const xrdc_statinfo *si, struct stat *stbuf);
 
 /* xrootdfs_meta.c */

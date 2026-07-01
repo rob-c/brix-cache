@@ -101,7 +101,9 @@ def test_directives_registered():
     for name in ("xrootd_admin_allow", "xrootd_admin_secret",
                  "xrootd_admin_require_both"):
         assert name in d, name
-    assert "xrootd_webdav_proxy_dynamic" in _read("src/webdav/module.c")
+    # NOTE: the WebDAV reverse-proxy directives (xrootd_webdav_proxy /
+    # _dynamic) were retired in the legacy-proxy cleanup; only
+    # xrootd_webdav_proxy_certs (GSI client auth) survives.
 
 
 # --------------------------------------------------------------------------- #
@@ -157,6 +159,9 @@ def test_admin_directives_parse(tmp_path):
     assert rc == 0, out
 
 
+@pytest.mark.skip(reason="WebDAV reverse-proxy directives (xrootd_webdav_proxy/"
+                  "_dynamic) retired in the legacy-proxy cleanup; only "
+                  "xrootd_webdav_proxy_certs survives")
 def test_proxy_dynamic_directive_parses(tmp_path):
     data = tmp_path / "data"
     data.mkdir()
@@ -165,7 +170,7 @@ def test_proxy_dynamic_directive_parses(tmp_path):
             listen {BIND_HOST}:{_P_DYNAMIC};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_webdav_proxy on;
                 xrootd_webdav_proxy_dynamic on;
@@ -265,11 +270,8 @@ def admin_server(tmp_path):
             listen {BIND_HOST}:{port};
             location /dav/ {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
-                xrootd_webdav_proxy on;
-                xrootd_webdav_proxy_dynamic on;
-                xrootd_webdav_proxy_auth anonymous;
             }}
             location /xrootd/ {{
                 xrootd_dashboard on;
@@ -347,6 +349,9 @@ def test_cluster_register_and_invalid_host(admin_server):
 # 5. Functional dynamic proxy pool (add → list → proxy → drain → remove)       #
 # --------------------------------------------------------------------------- #
 
+@pytest.mark.skip(reason="admin proxy-pool backs the dynamic WebDAV proxy, whose "
+                  "enabler (xrootd_webdav_proxy_dynamic) was retired in the "
+                  "legacy-proxy cleanup — the pool SHM zone is never created")
 def test_proxy_pool_lifecycle(admin_server):
     port, be_port = admin_server
     backends = f"{_base(port)}/proxy/backends"

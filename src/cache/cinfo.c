@@ -429,7 +429,8 @@ cinfo_init(xrootd_cache_cinfo_t *out, uint64_t size, uint32_t block_size,
 
 ngx_int_t
 xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
-    uint32_t block_size, uint64_t mtime, uint64_t blk, ngx_log_t *log)
+    uint32_t block_size, uint64_t mtime, uint32_t mode, uint64_t blk,
+    ngx_log_t *log)
 {
     char                 path[PATH_MAX];
     xrootd_cache_cinfo_t hdr;
@@ -503,6 +504,9 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
         }
     }
 
+    if (mode != 0) {
+        hdr.mode = mode;                 /* origin perms (0 = caller has none) */
+    }
     xrootd_cache_cinfo_mark_block(bits, blk);
     xrootd_cache_cinfo_refresh_flags(&hdr, bits);
 

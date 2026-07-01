@@ -35,6 +35,21 @@ struct xrootd_ssi_responder_s {
     void (*alert)(xrootd_ssi_responder_t *r,
                   const unsigned char *buf, size_t len);
     void (*error)(xrootd_ssi_responder_t *r, int code, const char *text);
+    /*
+     * defer: a service that wants to answer later calls this. Returns 0 if the
+     * deferral was accepted (submit phase — the server replies kXR_waitresp and
+     * the service is re-invoked later to produce its response), or -1 if deferral
+     * is unavailable (completion phase — the service must respond inline now).
+     * A service that ignores defer stays fully synchronous (Phase-1 behaviour).
+     */
+    int (*defer)(xrootd_ssi_responder_t *r);
+    /*
+     * svc_slot: returns a pointer to a per-request void* cookie that persists from
+     * the submit call to the deferred completion call, letting a stateful service
+     * correlate the two phases (e.g. stash its request-queue entry). May be NULL
+     * if the host does not provide per-request service state.
+     */
+    void **(*svc_slot)(xrootd_ssi_responder_t *r);
     void *state;   /* responder implementation private data */
 };
 
@@ -48,5 +63,10 @@ typedef int (*xrootd_ssi_process_fn)(const unsigned char *req, size_t req_len,
 
 /* Resolve a service name to its handler, or NULL if unknown. */
 xrootd_ssi_process_fn xrootd_ssi_service_lookup(const char *name);
+
+/* Return the registry's static-lifetime canonical name pointer for a known
+ * service (stable for the program lifetime), or NULL if unknown. Lets callers
+ * store a service name without owning the buffer. */
+const char *xrootd_ssi_service_canon_name(const char *name);
 
 #endif /* XROOTD_SSI_SERVICE_H */

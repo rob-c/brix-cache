@@ -112,7 +112,7 @@ stream {{
     server {{
         listen {self.listen};
         xrootd on;
-        xrootd_root {prefix}/data;
+        xrootd_storage_backend posix:{prefix}/data;
         xrootd_auth none;
         xrootd_cms_manager 127.0.0.1:{mgr_port};
 {extra}    }}

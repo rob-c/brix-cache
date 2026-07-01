@@ -108,7 +108,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{root_port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
         xrootd_allow_write on;
     }}
@@ -121,7 +121,7 @@ http {{
         listen {BIND_HOST}:{s3_port};
         location / {{
             xrootd_s3 on;
-            xrootd_s3_root {data};
+            xrootd_s3_storage_backend posix:{data};
             xrootd_s3_bucket testbucket;
             xrootd_s3_allow_write on;
         }}
@@ -130,7 +130,7 @@ http {{
         listen {BIND_HOST}:{dav_port};
         location / {{
             xrootd_webdav on;
-            xrootd_webdav_root {data};
+            xrootd_webdav_storage_backend posix:{data};
             xrootd_webdav_auth none;
             xrootd_webdav_allow_write on;
         }}

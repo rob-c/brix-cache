@@ -96,6 +96,22 @@ typedef struct {
     uint64_t sig_seqno;          /* monotonic kXR_sigver sequence number */
     uint8_t  signing_key[32];    /* SHA256(DH shared secret) */
 
+    /* --- GSI X.509 delegation (client → server), captured in gsi round-2 so the
+     * follow-up kXGS_pxyreq round can reuse the agreed session cipher --- */
+    int      gsi_deleg_ready;    /* 1 = session cipher below is valid */
+    uint8_t  gsi_deleg_key[64];  /* agreed AES session key */
+    size_t   gsi_deleg_keylen;
+    char     gsi_deleg_cipher[24];
+    int      gsi_deleg_use_iv;
+
+    /* --- TPC coordinator open (third-party copy) --- */
+    int      tpc_coord_defer;    /* 1 = a kXR_waitresp on this conn means "rendezvous
+                                  * registered, final reply deferred"; xrdc_recv
+                                  * surfaces it to the caller instead of blocking for
+                                  * the async reply (which only arrives AFTER the
+                                  * orchestrator opens the dest + triggers the pull —
+                                  * blocking here would deadlock the rendezvous). */
+
     /* --- redirect / reconnect (M5) --- */
     xrdc_opts opts;             /* copy of the connect opts, replayed on reconnect */
     int       want_tls;         /* derived at connect; re-applied on reconnect */

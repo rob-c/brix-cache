@@ -2,6 +2,7 @@
 #define XROOTD_PROXY_PROXY_INTERNAL_H
 
 #include "proxy.h"
+#include "../tap/tap.h"   /* Phase-4a observation tap */
 
 /*
  * WHAT: Internal declarations for the transparent XRootD proxy module — state machine enums,
@@ -201,7 +202,27 @@ struct xrootd_proxy_ctx_s {
     size_t splice_total;         /* body bytes to transfer this response */
     size_t splice_upstream;      /* bytes moved: upstream_fd → pipe[1]  */
     size_t splice_downstream;    /* bytes moved: pipe[0]   → client_fd  */
+
+    /* Phase-4a observation tap: a stable log copy (no session appender — see the
+     * Phase-3 relay note) + the fan-out ctx with the audit sink registered, fed
+     * from forward_request (C2U) and relay_to_client (U2C). */
+    xrootd_tap_ctx_t  tap;
+    ngx_log_t         tap_log;
+    int               tap_inited;
 };
+
+/* Phase-4a tap: stable-log JSON audit sink + lazy per-connection init. */
+void xrootd_proxy_tap_audit_sink(void *ctx, const xrootd_tap_frame_t *f,
+    xrootd_tap_dir_t dir, const u_char *payload, size_t payload_len);
+void xrootd_proxy_tap_init(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c);
+
+/* Phase-4b GSI delegation: connect+login to the upstream AS THE USER in a thread
+ * (reusing the blocking in-process GSI client with the client's delegated proxy),
+ * then hand the authenticated fd to the async relay. Returns NGX_OK (login posted;
+ * completes later) or NGX_ERROR. Requires a thread_pool + a captured delegated
+ * proxy (ctx->gsi_deleg_proxy_pem). */
+ngx_int_t xrootd_proxy_gsi_connect_async(xrootd_proxy_ctx_t *proxy,
+    ngx_stream_xrootd_srv_conf_t *conf, ngx_str_t *host, uint16_t port);
 
 /* ---- internal function declarations ---- */
 

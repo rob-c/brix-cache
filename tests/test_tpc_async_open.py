@@ -190,7 +190,7 @@ def dest(tmp_path):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{DST};\n    xrootd on;\n"
-        f"    xrootd_root {ddata};\n    xrootd_auth none;\n"
+        f"    xrootd_storage_backend posix:{ddata};\n    xrootd_auth none;\n"
         "    xrootd_allow_write on;\n"
         "    xrootd_tpc_allow_local on;\n    xrootd_tpc_allow_private on;\n"
         f"    xrootd_access_log {tmp_path}/dst-acc.log;\n  }}\n}}\n")

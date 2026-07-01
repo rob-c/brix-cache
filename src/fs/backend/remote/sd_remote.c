@@ -18,6 +18,15 @@ typedef struct {
     sd_s3_file *s3;
 } sd_remote_obj_state;
 
+/* Per-staged-write state: the delegated S3 write handle. */
+typedef struct {
+    sd_s3_file *s3;
+} sd_remote_staged_state;
+
+/* Multipart part size for a staged upload of unknown final size (S3's 5 MiB
+ * minimum for non-final parts; 16 MiB balances request count vs. buffering). */
+#define SD_REMOTE_PART_SIZE  (16 * 1024 * 1024)
+
 /* Compose the sd_s3 object path "/bucket/key" from the instance bucket and the
  * export-relative key (which already carries a leading '/'). */
 static void
@@ -72,12 +81,14 @@ sd_remote_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 
     s3 = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
     if (s3 == NULL) {
-        if (err_out) { *err_out = ENOENT; }   /* origin miss / unreachable */
+        if (err_out) { *err_out = ENOMEM; }   /* open_read only fails on bad args/OOM */
         return NULL;
     }
     if (sd_s3_size(s3, &size, errbuf, sizeof(errbuf)) != 0) {
+        int e = errno;                         /* HEAD set errno (ENOENT on 404) */
+
         sd_s3_close(s3);
-        if (err_out) { *err_out = EIO; }
+        if (err_out) { *err_out = e ? e : EIO; }
         return NULL;
     }
 
@@ -174,16 +185,127 @@ sd_remote_stat(xrootd_sd_instance_t *inst, const char *path,
     return NGX_OK;
 }
 
-/* Read-only remote driver: only the read slots are populated. The absent write/
- * dir/xattr/staged slots make it impossible to use as a writable export primary. */
+/* ---- write path (SP3): the S3 store as a writable backend / cache / stage tier.
+ * A staged write delegates to sd_s3's single-PUT/multipart upload; the object only
+ * becomes visible at commit, so a staged upload is atomic from the reader's view. */
+
+static xrootd_sd_staged_t *
+sd_remote_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+    mode_t mode, int *err_out)
+{
+    const xrootd_sd_remote_cfg_t *cfg = inst->state;
+    sd_s3_open_params             p;
+    char                          objpath[768];
+    char                          errbuf[256];
+    sd_s3_file                   *s3;
+    sd_remote_staged_state       *ss;
+    xrootd_sd_staged_t           *h;
+
+    (void) mode;
+    sd_remote_s3_key(cfg, final_path, objpath, sizeof(objpath));
+    sd_remote_s3_params(cfg, objpath, &p);
+
+    /* Unknown final size -> multipart upload (handles any object size). */
+    s3 = sd_s3_open_write(&p, -1, SD_REMOTE_PART_SIZE, errbuf, sizeof(errbuf));
+    if (s3 == NULL) {
+        if (err_out) { *err_out = EIO; }
+        return NULL;
+    }
+    ss = calloc(1, sizeof(*ss));
+    h  = calloc(1, sizeof(*h));
+    if (ss == NULL || h == NULL) {
+        free(ss);
+        free(h);
+        sd_s3_abort(s3);
+        sd_s3_close(s3);
+        if (err_out) { *err_out = ENOMEM; }
+        return NULL;
+    }
+    ss->s3   = s3;
+    h->inst  = inst;
+    h->state = ss;
+    return h;
+}
+
+static ssize_t
+sd_remote_staged_write(xrootd_sd_staged_t *h, const void *buf, size_t len,
+    off_t off)
+{
+    sd_remote_staged_state *ss = h->state;
+    char                    errbuf[256];
+
+    if (sd_s3_pwrite(ss->s3, buf, len, off, errbuf, sizeof(errbuf)) != 0) {
+        errno = EIO;
+        return -1;
+    }
+    return (ssize_t) len;
+}
+
+static ngx_int_t
+sd_remote_staged_commit(xrootd_sd_staged_t *h, int noreplace)
+{
+    sd_remote_staged_state *ss = h->state;
+    char                    errbuf[256];
+    int                     rc;
+
+    (void) noreplace;                          /* S3 PUT/MPU always replaces */
+    rc = sd_s3_commit(ss->s3, errbuf, sizeof(errbuf));
+    sd_s3_close(ss->s3);
+    free(ss);
+    free(h);
+    if (rc != 0) {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+static void
+sd_remote_staged_abort(xrootd_sd_staged_t *h)
+{
+    sd_remote_staged_state *ss = h->state;
+
+    sd_s3_abort(ss->s3);
+    sd_s3_close(ss->s3);
+    free(ss);
+    free(h);
+}
+
+static ngx_int_t
+sd_remote_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+{
+    const xrootd_sd_remote_cfg_t *cfg = inst->state;
+    sd_s3_open_params             p;
+    char                          objpath[768];
+    char                          errbuf[256];
+
+    (void) is_dir;
+    sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
+    sd_remote_s3_params(cfg, objpath, &p);
+
+    if (sd_s3_delete(&p, errbuf, sizeof(errbuf)) != 0) {
+        if (errno == 0) { errno = EIO; }
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* Read + write: the S3 store serves as a read origin (Range GET) and a writable
+ * cache_store / stage_store / backend (staged single-PUT / multipart upload, plus
+ * DELETE for eviction and post-flush stage cleanup). */
 static const xrootd_sd_driver_t xrootd_sd_remote_driver = {
     .name  = "remote",
-    .caps  = XROOTD_SD_CAP_RANGE_READ,
+    .caps  = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE,
     .open  = sd_remote_open,
     .close = sd_remote_close,
     .pread = sd_remote_pread,
     .fstat = sd_remote_fstat,
     .stat  = sd_remote_stat,
+    .unlink        = sd_remote_unlink,
+    .staged_open   = sd_remote_staged_open,
+    .staged_write  = sd_remote_staged_write,
+    .staged_commit = sd_remote_staged_commit,
+    .staged_abort  = sd_remote_staged_abort,
 };
 
 xrootd_sd_instance_t *

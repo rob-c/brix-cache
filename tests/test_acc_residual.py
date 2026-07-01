@@ -162,7 +162,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{self.port};
         xrootd on;
-        xrootd_root {self.root}/data;
+        xrootd_storage_backend posix:{self.root}/data;
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_authdb_format xrdacc;
@@ -431,7 +431,7 @@ http {{
         listen {BIND_HOST}:{self.port};
         location / {{
             xrootd_webdav on;
-            xrootd_webdav_root {self.root}/data;
+            xrootd_webdav_storage_backend posix:{self.root}/data;
             xrootd_webdav_auth none;
             xrootd_webdav_allow_write on;
             xrootd_authdb_format xrdacc;

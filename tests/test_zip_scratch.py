@@ -51,7 +51,7 @@ def _start(tmp_path, force_scratch):
         f"error_log {logs}/err.log info;\npid {base}/nginx.pid;\n"
         "events { worker_connections 64; }\n"
         f"stream {{ server {{ listen 127.0.0.1:{port}; xrootd on; "
-        f"xrootd_root {data}; xrootd_auth none; xrootd_zip_access on; "
+        f"xrootd_storage_backend posix:{data}; xrootd_auth none; xrootd_zip_access on; "
         f"{zip_dirs}}} }}\n")
     proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg), "-p", str(base)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

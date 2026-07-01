@@ -626,7 +626,7 @@ stream {{
     server {{
         listen {data_port};
         xrootd on;
-        xrootd_root {DATA_ROOT};
+        xrootd_storage_backend posix:{DATA_ROOT};
         xrootd_allow_write on;
         xrootd_cms_manager {url_host(HOST)}:{mgr_port};
         xrootd_cms_interval 2;

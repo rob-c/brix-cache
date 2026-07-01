@@ -71,7 +71,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{root_port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
         xrootd_allow_write on;
     }}
@@ -93,7 +93,7 @@ http {{
         location / {{
             root {data};
             xrootd_webdav on;
-            xrootd_webdav_root {data};
+            xrootd_webdav_storage_backend posix:{data};
             xrootd_webdav_auth none;
             xrootd_webdav_macaroon_secret {MACAROON_HEX};
             set $planted_leak "{SET_SECRET}";

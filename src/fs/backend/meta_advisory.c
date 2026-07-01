@@ -17,6 +17,10 @@
 /* Append a printf-formatted chunk to out[cap] at *n; -1 on truncation. */
 static int
 adv_append(char *out, size_t cap, int *n, const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
+
+static int
+adv_append(char *out, size_t cap, int *n, const char *fmt, ...)
 {
     va_list ap;
     int     r;

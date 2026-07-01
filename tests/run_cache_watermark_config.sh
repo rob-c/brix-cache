@@ -23,7 +23,7 @@ daemon off; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:11620; xrootd on; xrootd_root $PFX/root; xrootd_auth none;
+    listen 127.0.0.1:11620; xrootd on; xrootd_auth none;
     xrootd_cache on; xrootd_cache_root $PFX/cache; xrootd_cache_origin 127.0.0.1:1; ${3:-}
     $1 $2
 } }
@@ -58,7 +58,8 @@ daemon off; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:11621; xrootd on; xrootd_root $PFX/root; xrootd_auth none;
+    listen 127.0.0.1:11621; xrootd on; xrootd_auth none;
+    xrootd_storage_backend posix:$PFX/root;
     xrootd_allow_write on; xrootd_write_through on; xrootd_wt_origin 127.0.0.1:1;
     $1
 } }

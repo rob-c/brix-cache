@@ -18,6 +18,8 @@
 #include "sec.h"
 #include "../cred.h"
 #include "gsi/gsi_core.h"     /* shared GSI crypto + bucket kernels (-I src) */
+#include "gsi/proxy_req.h"    /* xrootd_gsi_sign_pxyreq (X.509 delegation)   */
+#include "protocol/gsi.h"     /* kXGS_pxyreq / kXGC_sigpxy / kXRS_* constants */
 #include "compat/crypto.h"    /* xrootd_sha256 (libxrdproto) */
 
 #include <stdio.h>
@@ -183,6 +185,187 @@ load_proxy_key(const char *path)
     return k;
 }
 
+/* Resolve the proxy path (credential store first, else env/default). Shared by
+ * the round-2 (kXGC_cert) and the delegation (kXGC_sigpxy) rounds. */
+static void
+gsi_resolve_proxy(xrdc_conn *c, char *proxy, size_t sz, xrdc_status *st)
+{
+    if (c != NULL && c->opts.cred != NULL) {
+        xrdc_cred_view v;
+        if (xrdc_cred_acquire(c->opts.cred, XRDC_CRED_X509_PROXY, 0, &v, st) == 0
+            && v.path != NULL) {
+            snprintf(proxy, sz, "%s", v.path);
+            return;
+        }
+        xrdc_status_clear(st);
+    }
+    proxy_path(proxy, sz);
+}
+
+/* The XrdSutBuffer step immediately follows the NUL-terminated proto name
+ * ("gsi\0"); read it as a big-endian u32.  0 on a malformed/short buffer. */
+static uint32_t
+gsi_msg_step(const uint8_t *sbody, uint32_t slen)
+{
+    size_t nl;
+
+    if (sbody == NULL || slen < 8) {
+        return 0;
+    }
+    nl = strnlen((const char *) sbody, slen) + 1;
+    if (nl + 4 > (size_t) slen) {
+        return 0;
+    }
+    return ((uint32_t) sbody[nl] << 24) | ((uint32_t) sbody[nl + 1] << 16)
+         | ((uint32_t) sbody[nl + 2] << 8) | (uint32_t) sbody[nl + 3];
+}
+
+/* Re-encode a PEM X509_REQ (how the server sends kXRS_x509_req) as DER, which
+ * xrootd_gsi_sign_pxyreq consumes.  0 / -1. */
+static int
+gsi_req_pem_to_der(const uint8_t *pem, size_t pemlen, uint8_t **der, size_t *derlen)
+{
+    BIO           *b = BIO_new_mem_buf(pem, (int) pemlen);
+    X509_REQ      *req = b ? PEM_read_bio_X509_REQ(b, NULL, NULL, NULL) : NULL;
+    int            n;
+    unsigned char *out = NULL, *pp;
+
+    BIO_free(b);
+    if (req == NULL) {
+        return -1;
+    }
+    n = i2d_X509_REQ(req, NULL);
+    if (n > 0 && (out = malloc((size_t) n)) != NULL) {
+        pp = out;
+        if (i2d_X509_REQ(req, &pp) <= 0) {
+            free(out);
+            out = NULL;
+        }
+    }
+    X509_REQ_free(req);
+    if (out == NULL) {
+        return -1;
+    }
+    *der = out;
+    *derlen = (size_t) n;
+    return 0;
+}
+
+/*
+ * gsi_sigpxy — the X.509 delegation round (kXGS_pxyreq → kXGC_sigpxy).  The
+ * server (a TPC destination / tap proxy with delegation on) asks us to sign a
+ * proxy request so it can act AS US upstream.  We decrypt its request with the
+ * session cipher agreed in round 2, sign it with our proxy (a key-bearing
+ * delegated proxy the server can use), and return the encrypted signed proxy.
+ * Gated on XRDC_GSI_DELEGATE — handing our credential to a server is opt-in,
+ * mirroring the stock client's XrdSecGSIDELEGPROXY.
+ */
+static int
+gsi_sigpxy(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
+           uint32_t *plen, xrdc_status *st)
+{
+    xrootd_gsi_cipher_t  cipher;
+    const uint8_t       *enc = NULL, *reqpem = NULL;
+    size_t               enclen = 0, reqpemlen = 0, plainlen = 0;
+    uint8_t             *plain = NULL, *reqder = NULL, *signed_pem = NULL;
+    uint8_t             *enc2 = NULL, *proxy_pem = NULL;
+    size_t               reqderlen = 0, siglen = 0, enc2len = 0, proxy_pem_len = 0;
+    EVP_PKEY            *proxy_key = NULL;
+    char                 proxy[512], err[160];
+    xrootd_gbuf          inner, outer;
+
+    if (getenv("XRDC_GSI_DELEGATE") == NULL) {
+        xrdc_status_set(st, XRDC_EAUTH, 0,
+                        "gsi: server requested X.509 delegation but "
+                        "XRDC_GSI_DELEGATE is not set");
+        return -1;
+    }
+    if (!c->gsi_deleg_ready
+        || !xrootd_gsi_cipher_lookup(c->gsi_deleg_cipher, &cipher)) {
+        xrdc_status_set(st, XRDC_EAUTH, 0,
+                        "gsi: no session cipher for delegation");
+        return -1;
+    }
+
+    /* 1. Decrypt the server's proxy request, extract the PEM kXRS_x509_req. */
+    if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_main, &enc, &enclen)
+        != 0) {
+        xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: pxyreq main missing");
+        return -1;
+    }
+    plain = xrootd_gsi_cipher_decrypt(&cipher, c->gsi_deleg_key, enc, enclen,
+                                      c->gsi_deleg_use_iv, &plainlen);
+    if (plain == NULL) {
+        xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: pxyreq decrypt failed");
+        return -1;
+    }
+    if (xrootd_gsi_find_bucket(plain, plainlen, (uint32_t) kXRS_x509_req,
+                              &reqpem, &reqpemlen) != 0
+        || gsi_req_pem_to_der(reqpem, reqpemlen, &reqder, &reqderlen) != 0) {
+        xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: pxyreq x509_req missing/bad");
+        free(plain);
+        return -1;
+    }
+    free(plain);
+
+    /* 2. Sign the request with our proxy → a key-bearing delegated proxy. */
+    gsi_resolve_proxy(c, proxy, sizeof(proxy), st);
+    proxy_key = load_proxy_key(proxy);
+    proxy_pem = load_proxy_pem(proxy, &proxy_pem_len);
+    err[0] = '\0';
+    if (proxy_key == NULL || proxy_pem == NULL
+        || xrootd_gsi_sign_pxyreq(proxy_pem, proxy_pem_len, proxy_key,
+                                  reqder, reqderlen, &signed_pem, &siglen,
+                                  err, sizeof(err)) != 0) {
+        xrdc_status_set(st, XRDC_EAUTH, 0,
+                        err[0] != '\0' ? err : "gsi: cannot sign proxy request");
+        free(reqder);
+        free(proxy_pem);
+        EVP_PKEY_free(proxy_key);
+        return -1;
+    }
+    free(reqder);
+    free(proxy_pem);
+    EVP_PKEY_free(proxy_key);
+
+    /* 3. Inner main = { kXGC_sigpxy + kXRS_x509(signed proxy) }, AES-encrypted
+     *    under the round-2 session cipher — what the server's handle_sigpxy
+     *    finds after decrypting kXRS_main. */
+    xrootd_gbuf_init(&inner);
+    xrootd_gbuf_init(&outer);
+    xrootd_gbuf_start(&inner, (uint32_t) kXGC_sigpxy);
+    xrootd_gbuf_bucket(&inner, (uint32_t) kXRS_x509, signed_pem, siglen);
+    xrootd_gbuf_end(&inner);
+    free(signed_pem);
+    if (!inner.err) {
+        enc2 = xrootd_gsi_cipher_encrypt(&cipher, c->gsi_deleg_key, inner.p,
+                                         inner.len, c->gsi_deleg_use_iv, &enc2len);
+    }
+    xrootd_gbuf_free(&inner);
+    if (enc2 == NULL) {
+        xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: sigpxy main encrypt failed");
+        return -1;
+    }
+
+    /* 4. Outer kXGC_sigpxy = { kXRS_main(enc) + kXRS_cipher_alg }. */
+    xrootd_gbuf_start(&outer, (uint32_t) kXGC_sigpxy);
+    xrootd_gbuf_bucket(&outer, (uint32_t) kXRS_main, enc2, enc2len);
+    xrootd_gbuf_bucket(&outer, (uint32_t) kXRS_cipher_alg, c->gsi_deleg_cipher,
+                       strlen(c->gsi_deleg_cipher));
+    xrootd_gbuf_end(&outer);
+    free(enc2);
+    if (outer.err) {
+        xrootd_gbuf_free(&outer);
+        xrdc_status_set(st, XRDC_EAUTH, 0, "gsi: sigpxy assembly failed");
+        return -1;
+    }
+    *payload = outer.p;              /* ownership → the auth loop (frees it) */
+    *plen = (uint32_t) outer.len;
+    outer.p = NULL;
+    xrootd_gbuf_free(&outer);
+    return 0;
+}
+
 /*
  * gsi_more — round 2 (kXGC_cert), standard XrdSecgsi, both DH variants.  The
  * full handshake (DH variant detection, session-key agreement, proof-of-
@@ -203,20 +386,13 @@ gsi_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     char      err[160];
     int       rc;
 
-    /* Resolve the proxy path: prefer the credential store when present, fall
-     * back to env/default discovery so env-sourced proxies work as today. */
-    if (c != NULL && c->opts.cred != NULL) {
-        xrdc_cred_view v;
-        if (xrdc_cred_acquire(c->opts.cred, XRDC_CRED_X509_PROXY, 0, &v, st) == 0
-            && v.path != NULL) {
-            snprintf(proxy, sizeof(proxy), "%s", v.path);
-        } else {
-            xrdc_status_clear(st);
-            proxy_path(proxy, sizeof(proxy));
-        }
-    } else {
-        proxy_path(proxy, sizeof(proxy));
+    /* A later authmore may be the X.509 delegation request (kXGS_pxyreq) rather
+     * than the cert round — dispatch on the buffer's step. */
+    if (gsi_msg_step(sbody, slen) == (uint32_t) kXGS_pxyreq) {
+        return gsi_sigpxy(c, sbody, slen, payload, plen, st);
     }
+
+    gsi_resolve_proxy(c, proxy, sizeof(proxy), st);
 
     proxy_key = load_proxy_key(proxy);
     proxy_pem = load_proxy_pem(proxy, &proxy_pem_len);
@@ -227,16 +403,26 @@ gsi_more(xrdc_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
         return -1;
     }
 
+    /* Retain the agreed session cipher on the connection: if the server follows
+     * with a kXGS_pxyreq (delegation), gsi_sigpxy reuses it to en/decrypt. */
     err[0] = '\0';
-    rc = xrootd_gsi_build_cert_response(sbody, slen, proxy_pem, proxy_pem_len,
-                                        proxy_key, payload, plen,
-                                        err, sizeof(err));
+    rc = xrootd_gsi_build_cert_response_ex(sbody, slen, proxy_pem, proxy_pem_len,
+                                           proxy_key, payload, plen,
+                                           c ? c->gsi_deleg_key : NULL,
+                                           c ? &c->gsi_deleg_keylen : NULL,
+                                           c ? c->gsi_deleg_cipher : NULL,
+                                           c ? sizeof(c->gsi_deleg_cipher) : 0,
+                                           c ? &c->gsi_deleg_use_iv : NULL,
+                                           err, sizeof(err));
     free(proxy_pem);
     EVP_PKEY_free(proxy_key);
     if (rc != 0) {
         xrdc_status_set(st, XRDC_EAUTH, 0,
                         err[0] != '\0' ? err : "gsi: round-2 failed");
         return -1;
+    }
+    if (c != NULL) {
+        c->gsi_deleg_ready = 1;
     }
     return 0;
 }

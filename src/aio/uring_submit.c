@@ -1,6 +1,7 @@
 #include "ngx_xrootd_module.h"
 #include "aio/aio.h"
 #include "aio/uring.h"
+#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 
 /* File: src/aio/uring_submit.c — io_uring SQE submission (Phase 44)
@@ -167,7 +168,8 @@ xrootd_uring_prep_primary(struct io_uring_sqe *sqe, xrootd_uring_op_e op,
         struct iovec       *iov;
         size_t              i;
 
-        iov = ngx_palloc(t->c->pool, t->segment_count * sizeof(struct iovec));
+        iov = xrootd_palloc_array(t->c->pool, t->segment_count,
+                                  sizeof(struct iovec));
         if (iov == NULL) {
             return NGX_ERROR;
         }
@@ -187,7 +189,7 @@ xrootd_uring_prep_primary(struct io_uring_sqe *sqe, xrootd_uring_op_e op,
         struct iovec        *iov;
         size_t               i;
 
-        iov = ngx_palloc(t->c->pool, t->n_segs * sizeof(struct iovec));
+        iov = xrootd_palloc_array(t->c->pool, t->n_segs, sizeof(struct iovec));
         if (iov == NULL) {
             return NGX_ERROR;
         }

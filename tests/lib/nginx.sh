@@ -246,6 +246,8 @@ force_stop_nginx() {
             pids_on_port 11216
             pids_on_port 11217
             pids_on_port 12980
+            # xrdhttp-digest dedicated instance (env-overridable; default 12988)
+            pids_on_port "${XRDHTTP_DIGEST_PORT:-12988}"
             pids_on_port 13210
             pids_on_port 22014
             pids_on_port 22017
@@ -277,6 +279,21 @@ force_stop_nginx() {
             pids_on_port 11178
             pids_on_port 12399
             pids_on_port 12400
+            # Robust catch-all: free every port any RENDERED dedicated config still
+            # listens on. An orphaned worker (on WSL2 a master kill can leave the
+            # worker holding the listen socket, reparented to init) keeps the port
+            # bound and blocks the next start-all with EADDRINUSE; pids_on_port finds
+            # it by the bound port. Deriving the ports from the configs covers every
+            # present AND future dedicated instance (e.g. xrdhttp-digest:12988)
+            # without a hardcoded entry per port.
+            for dconf in "${TEST_ROOT}"/dedicated/*/conf/nginx.conf; do
+                [[ -f "$dconf" ]] || continue
+                sed -nE 's/^[[:space:]]*listen[[:space:]]+([^[:space:];]+).*/\1/p' "$dconf" \
+                    | sed -E 's/.*:([0-9]+)$/\1/' | grep -E '^[0-9]+$' | sort -u \
+                    | while IFS= read -r dport; do
+                        [[ -n "$dport" ]] && pids_on_port "$dport"
+                      done
+            done
         } | sort -u
     )"
     kill_pid_list "$pids"
@@ -337,7 +354,15 @@ start_dedicated_nginx() {
 
         substitute_config "${CONFIGS_DIR}/${template}" "${conf_path}"
         start_nginx
-    )
+    ) || true
+    # A single dedicated instance failing to start (e.g. a config using a directive
+    # not registered in the current build) must NOT abort the whole fleet: the rest
+    # of the dedicated instances — and the tail steps like start_xrdhttp — still need
+    # to come up. Putting the subshell on the left of `|| true` suspends `set -e`
+    # inside it, so an nginx [emerg] is contained here rather than killing
+    # start_all_dedicated. nginx already logs the [emerg] (with the offending config
+    # path), and any test that needs this instance fails loudly with a connect error,
+    # so no extra diagnostic is needed.
 }
 
 start_ha_nginx() {

@@ -86,6 +86,10 @@ void       mw_emit_scalar(metrics_writer_t *mw, const char *name,
  * global state — takes no shm argument. */
 void       xrootd_kv_metrics_emit(metrics_writer_t *mw);
 
+/* C-7: per-export composed-storage-stack info gauge (backend/origin/auth/staging).
+ * Exports are config-fixed and few, so the export-root label is low-cardinality. */
+void       xrootd_storage_backend_metrics_emit(metrics_writer_t *mw);
+
 /* Seal the chain: trim the tail buffer to the written length and mark it
  * last_buf, making mw->head a complete response body. Call exactly once after
  * all output; no further mw_printf/mw_emit_* afterwards. */

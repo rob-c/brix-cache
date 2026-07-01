@@ -82,7 +82,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{STREAM_PORT};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
         xrootd_frm on;
         xrootd_frm_queue_path {queue};
@@ -101,13 +101,13 @@ http {{
         location = /metrics {{ xrootd_metrics on; }}
         location /tapebucket/ {{
             xrootd_s3 on;
-            xrootd_s3_root {data};
+            xrootd_s3_storage_backend posix:{data};
             xrootd_s3_bucket tapebucket;
             xrootd_s3_region us-east-1;
         }}
         location / {{
             xrootd_webdav on;
-            xrootd_webdav_root {data};
+            xrootd_webdav_storage_backend posix:{data};
             xrootd_webdav_auth none;
         }}
     }}
@@ -175,13 +175,19 @@ def _propfind_locality(path):
     return st, resp.decode(errors="replace")
 
 
-def test_propfind_locality_nearline(srv):
+def test_propfind_locality_xattr_not_a_signal(srv):
+    """Phase-64 P6: PROPFIND xrd:locality comes from the storage BACKEND's residency
+    model (the xrootd_vfs_residency seam), NOT the legacy user.frm.residency xattr.
+    An xattr-marked file on a plain POSIX export (no nearline tier) is therefore
+    reported ONLINE. The tape:// locality UX (NEARLINE for an offline object) is
+    covered against a real nearline backend in tests/run_tape_exec_adapter.sh."""
     st, xml = _propfind_locality("/near.dat")
     if st in (401, 403, 405, None):
         pytest.skip("WebDAV PROPFIND not available (status %r)" % st)
     assert st == 207, "PROPFIND status %r: %s" % (st, xml[:200])
-    assert "<xrd:locality>NEARLINE</xrd:locality>" in xml, \
-        "nearline file not reported NEARLINE: %s" % xml[-400:]
+    assert "<xrd:locality>ONLINE</xrd:locality>" in xml, \
+        "the FRM residency xattr must NOT drive locality on a posix export: %s" \
+        % xml[-400:]
 
 
 def test_propfind_locality_online(srv):
@@ -193,18 +199,26 @@ def test_propfind_locality_online(srv):
         "resident file not reported ONLINE: %s" % xml[-400:]
 
 
-def test_s3_nearline_head_glacier_get_forbidden(srv):
+def test_s3_residency_from_backend_not_frm_xattr(srv):
+    """Phase-64 P6: s3 residency now comes from the storage BACKEND's residency
+    model (the xrootd_vfs_residency seam), NOT the legacy user.frm.residency xattr.
+    An xattr-marked object on a plain POSIX s3 export (no nearline tier) is therefore
+    classified ONLINE and served normally — no GLACIER class, no InvalidObjectState.
+    The tape:// residency UX (HEAD→GLACIER, GET→403 InvalidObjectState) is covered
+    against a real nearline backend in tests/run_s3_tape_residency.sh."""
     # Confirm anonymous S3 read works at all (else skip — signed-only build).
     st, h, _b = _http("HEAD", "/tapebucket/online.dat")
     if st != 200:
         pytest.skip("anonymous S3 read not available (online HEAD %r)" % st)
 
+    # near.dat carries the legacy FRM residency xattr but lives on a POSIX backend:
+    # the seam reads the backend (no nearline tier ⇒ ONLINE), not the xattr.
     st, h, _b = _http("HEAD", "/tapebucket/near.dat")
-    assert st == 200, "HEAD of nearline object: %r" % st
+    assert st == 200, "HEAD of an xattr-marked object on a posix export: %r" % st
     sc = h.get("x-amz-storage-class") or h.get("X-Amz-Storage-Class")
-    assert sc == "GLACIER", "nearline HEAD missing GLACIER storage-class: %r" % h
+    assert sc != "GLACIER", \
+        "the FRM residency xattr must NOT drive s3 storage-class anymore: %r" % h
 
-    st, _h, body = _http("GET", "/tapebucket/near.dat")
-    assert st == 403, "GET of nearline object should be 403, got %r" % st
-    assert b"InvalidObjectState" in body, \
-        "403 body should be InvalidObjectState: %r" % body[:200]
+    st, _h, _body = _http("GET", "/tapebucket/near.dat")
+    assert st == 200, \
+        "an xattr-marked object on a posix export is ONLINE, served normally: %r" % st

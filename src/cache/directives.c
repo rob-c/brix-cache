@@ -12,6 +12,7 @@
 #include "../compat/alloc_guard.h"
 #include "../compat/str_dup.h"
 #include "../compat/checksum.h"  /* xrootd_checksum_parse */
+#include "../compat/af_policy.h" /* xrootd_af_policy_parse */
 #include "verify.h"           /* xrootd_cache_verify_mode_e */
 
 /* xrootd_conf_set_cache_origin — parse the xrootd_cache_origin address (e.g.
@@ -208,6 +209,26 @@ xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         (char *) xcf->cache_origin_host.data, (int) xcf->cache_origin_port,
         (xcf->cache_origin_tls == 1) ? "on" : "off");
 
+    return NGX_CONF_OK;
+}
+
+/* xrootd_conf_set_cache_origin_family — parse auto|inet|inet6 into the origin
+ * connect's address-family policy (xrootd_af_policy_t stored as ngx_uint_t). */
+char *
+xrootd_conf_set_cache_origin_family(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value = cf->args->elts;
+    int                           pol;
+
+    (void) cmd;
+
+    pol = xrootd_af_policy_parse((const char *) value[1].data, value[1].len);
+    if (pol < 0) {
+        return "must be one of: auto, inet, inet6";
+    }
+    xcf->cache_origin_family = (ngx_uint_t) pol;
     return NGX_CONF_OK;
 }
 

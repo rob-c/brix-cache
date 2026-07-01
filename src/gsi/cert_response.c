@@ -45,6 +45,35 @@ gsi_certreq_version(const u_char *payload, size_t plen)
 }
 
 /*
+ * gsi_certreq_clnt_opts — read the client's kXRS_clnt_opts (int32 kOpts* flags)
+ * from the certreq payload. XrdSut marshals it host-order; our client emits it
+ * big-endian (gsi_core.c). The flags are a small bitmask (< 256), so pick the
+ * interpretation whose value is a plausible flag word. Returns 0 if absent.
+ */
+static uint32_t
+gsi_certreq_clnt_opts(const u_char *payload, size_t plen)
+{
+    const u_char *ob = NULL;
+    size_t        olen = 0;
+    uint32_t      raw, be;
+
+    if (gsi_find_bucket(payload, plen, (uint32_t) kXRS_clnt_opts, &ob, &olen) != 0
+        || olen < 4)
+    {
+        return 0;
+    }
+    ngx_memcpy(&raw, ob, 4);
+    be = ntohl(raw);
+    if (be != 0 && be < 4096) {
+        return be;
+    }
+    if (raw != 0 && raw < 4096) {
+        return raw;
+    }
+    return 0;
+}
+
+/*
  * gsi_use_signed_dh — resolve the signed-DH decision for this handshake from
  * the operator policy (conf->gsi_signed_dh) and the client's advertised
  * version.  REQUIRE always signs; AUTO signs only modern (>=10400) clients;
@@ -168,6 +197,17 @@ xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c)
         signed_dh = 0;
     }
     ctx->gsi_signed_dh = signed_dh;
+
+    /* §F6: capture the client's advertised delegation mode (kXRS_clnt_opts) so a
+     * later delegation round picks the flow the client actually supports —
+     * kOptsFwdPxy (forward) vs kOptsDlgPxy/kOptsSigReq (sign-request). */
+    ctx->gsi_clnt_opts = gsi_certreq_clnt_opts(ctx->payload, ctx->cur_dlen);
+    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                  "xrootd: GSI client delegation opts=0x%02xd (fwd=%d sign=%d dlg=%d)",
+                  (unsigned) ctx->gsi_clnt_opts,
+                  (ctx->gsi_clnt_opts & 0x2) ? 1 : 0,
+                  (ctx->gsi_clnt_opts & 0x4) ? 1 : 0,
+                  (ctx->gsi_clnt_opts & 0x1) ? 1 : 0);
 
     /*
      * Phase 33: take a pre-generated ephemeral ffdhe2048 DH key from the

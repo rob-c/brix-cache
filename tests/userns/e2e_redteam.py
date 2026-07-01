@@ -1198,7 +1198,7 @@ stream {{
     server {{
         listen 127.0.0.1:{sport};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_allow_write on;
         xrootd_auth token;
         xrootd_token_jwks     {jwks_path};
@@ -1219,7 +1219,7 @@ http {{
         listen 127.0.0.1:{hport};
         location / {{
             xrootd_webdav         on;
-            xrootd_webdav_root    {data};
+            xrootd_webdav_storage_backend    posix:{data};
             xrootd_webdav_auth    required;
             xrootd_webdav_cadir   {cadir};
             xrootd_webdav_allow_write on;
@@ -1232,7 +1232,7 @@ http {{
         listen 127.0.0.1:{s3port};
         location / {{
             xrootd_s3             on;
-            xrootd_s3_root        {data};
+            xrootd_s3_storage_backend        posix:{data};
             xrootd_s3_bucket      {S3_BUCKET};
             xrootd_s3_access_key  alice;
             xrootd_s3_secret_key  {S3_SECRET};

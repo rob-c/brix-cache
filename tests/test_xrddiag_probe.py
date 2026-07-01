@@ -65,7 +65,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth none;
     }}
 }}

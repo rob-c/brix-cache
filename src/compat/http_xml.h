@@ -21,7 +21,8 @@
  */
 
 ngx_buf_t *xrootd_http_chain_vappendf(ngx_pool_t *pool,
-    ngx_chain_t **head, ngx_chain_t **tail, const char *fmt, va_list ap);
+    ngx_chain_t **head, ngx_chain_t **tail, const char *fmt, va_list ap)
+    __attribute__((format(printf, 4, 0)));
 
 /*
  * xrootd_http_chain_appendf - convenience wrapper: append formatted string via variadic args.
@@ -35,7 +36,8 @@ ngx_buf_t *xrootd_http_chain_vappendf(ngx_pool_t *pool,
  */
 
 ngx_buf_t *xrootd_http_chain_appendf(ngx_pool_t *pool,
-    ngx_chain_t **head, ngx_chain_t **tail, const char *fmt, ...);
+    ngx_chain_t **head, ngx_chain_t **tail, const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
 
 /*
  * xrootd_http_send_xml_buffer - send a single ngx_buf_t as an HTTP XML response.

@@ -290,9 +290,21 @@ xrdc_recv(xrdc_conn *c, uint16_t want_sid, uint16_t *status,
 
     case kXR_waitresp: {
         /* Server acknowledged the request but the real reply comes later as an
-         * unsolicited kXR_attn(asynresp). Transparent to every caller. */
+         * unsolicited kXR_attn(asynresp). Transparent to every caller... */
         unsigned secs = (dlen >= 4) ? xrd_get_u32_be(buf) : 0;
         free(buf);
+        /* ...EXCEPT a TPC coordinator open: the source registers the rendezvous key
+         * and defers its open reply until the copy completes — but that copy can only
+         * happen once the orchestrator opens the DESTINATION and triggers the pull.
+         * Blocking here for the deferred reply would deadlock (source waits for the
+         * pull; the pull waits for this call to return). Surface the deferral so the
+         * caller proceeds; the deferred reply is drained after the dest sync. */
+        if (c->tpc_coord_defer) {
+            if (status != NULL) { *status = kXR_waitresp; }
+            if (body != NULL)   { *body = NULL; }
+            if (blen != NULL)   { *blen = 0; }
+            return 0;
+        }
         return recv_after_waitresp(c, want_sid, secs, status, body, blen, st);
     }
 

@@ -77,7 +77,7 @@ stream {{
     server {{
         listen {url_host(BIND_HOST)}:{ACC_PORT};
         xrootd on;
-        xrootd_root {ROOT}/data;
+        xrootd_storage_backend posix:{ROOT}/data;
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_authdb_format xrdacc;
@@ -218,7 +218,7 @@ def webdav_server():
         pytest.skip("nginx binary unavailable")
     conf = _start_http(
         f"            xrootd_webdav on;\n"
-        f"            xrootd_webdav_root {HTTP_ROOT}/data;\n"
+        f"            xrootd_webdav_storage_backend posix:{HTTP_ROOT}/data;\n"
         f"            xrootd_webdav_auth none;\n"
         f"            xrootd_webdav_allow_write on;")
     yield f"http://{url_host(HOST)}:{HTTP_PORT}"
@@ -231,7 +231,7 @@ def s3_server():
         pytest.skip("nginx binary unavailable")
     conf = _start_http(
         f"            xrootd_s3 on;\n"
-        f"            xrootd_s3_root {HTTP_ROOT}/data;")
+        f"            xrootd_s3_storage_backend posix:{HTTP_ROOT}/data;")
     yield f"http://{url_host(HOST)}:{HTTP_PORT}"
     _stop_http(conf)
 

@@ -45,6 +45,14 @@ from settings import (
     TEST_ROOT,
 )
 
+# The WebDAV reverse-proxy directives (xrootd_webdav_proxy / _upstream) were
+# retired in the legacy-proxy cleanup — only xrootd_webdav_proxy_certs (GSI
+# client auth) survives, so this IPv6-proxy suite has no config surface to run
+# against. Skip the whole module until/if the reverse proxy returns.
+pytestmark = pytest.mark.skip(
+    reason="WebDAV reverse-proxy (xrootd_webdav_proxy) retired in legacy-proxy "
+           "cleanup; no config surface to exercise")
+
 # --------------------------------------------------------------------------- #
 # Constants                                                                    #
 # --------------------------------------------------------------------------- #

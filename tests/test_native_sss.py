@@ -88,7 +88,7 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_auth sss;
         xrootd_sss_keytab {kt_srv};
         xrootd_allow_write on;

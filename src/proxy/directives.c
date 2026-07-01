@@ -217,10 +217,12 @@ xrootd_conf_set_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
         conf->proxy_auth = XROOTD_PROXY_AUTH_FORWARD;
     } else if (ngx_strcmp(value[1].data, "sss") == 0) {
         conf->proxy_auth = XROOTD_PROXY_AUTH_SSS;
+    } else if (ngx_strcmp(value[1].data, "gsi") == 0) {
+        conf->proxy_auth = XROOTD_PROXY_AUTH_GSI;
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "xrootd_proxy_auth: invalid value \"%V\"; "
-            "use anonymous, forward, or sss", &value[1]);
+            "use anonymous, forward, sss, or gsi", &value[1]);
         return NGX_CONF_ERROR;
     }
 

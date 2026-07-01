@@ -429,13 +429,21 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
 
         extra_flags = xrootd_cache_path_flag(conf, reqpath);
 
-        /* Phase 35: a nearline file (on the backend, not on disk) is reported
-         * offline so the client knows to issue a prepare/stage before reading. */
-        if (conf->frm.enable) {
-            frm_residency_t _res;
-            if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
-                && (_res.state == FRM_RES_NEARLINE
-                    || _res.state == FRM_RES_OFFLINE))
+        /* Phase 64: a nearline file (on a tape/MSS backend, not resident in the
+         * cache) is reported offline so the client prepares/stages before reading.
+         * Residency comes from the backend's model via the VFS seam — so a tape://
+         * export advertises offline with NO FRM config; a non-nearline export always
+         * classifies ONLINE and sets no flag. */
+        {
+            xrootd_vfs_ctx_t      _rvc;
+            xrootd_sd_residency_t _res;
+
+            xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_STREAM,
+                conf->common.root_canon, NULL, conf->common.allow_write,
+                0 /* is_tls */, NULL, full_path);
+            if (xrootd_vfs_residency(&_rvc, &_res, NULL) == NGX_OK
+                && (_res == XROOTD_SD_RES_NEARLINE
+                    || _res == XROOTD_SD_RES_OFFLINE))
             {
                 extra_flags |= kXR_offline | kXR_bkpexist;
             }
@@ -470,18 +478,6 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                                   kXR_IOError, strerror(errno));
             }
             st.st_size = (off_t) ctx->files[idx].cached_size;
-        } else if (ctx->files[idx].slice_mode) {
-            /*
-             * Slice-mode handles park their fd on /dev/null (Phase 26), so
-             * fstat() would report size 0.  The real file size was learned
-             * from the origin at open time and stored in cached_size; synthesize
-             * a regular-file stat from it so the client sees the true length.
-             */
-            ngx_memzero(&st, sizeof(st));
-            st.st_mode = S_IFREG | 0644;
-            st.st_size = (off_t) ctx->files[idx].cached_size;
-            st.st_nlink = 1;
-            st.st_mtime = ngx_time();
         } else if (ctx->files[idx].sd_obj.driver != NULL
                    && ctx->files[idx].sd_obj.driver
                           != xrootd_sd_default_driver()) {
@@ -513,8 +509,7 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                               kXR_IOError, strerror(errno));
         }
 
-        extra_flags = (ctx->files[idx].from_cache || ctx->files[idx].slice_mode)
-                          ? kXR_cachersp : 0;
+        extra_flags = ctx->files[idx].from_cache ? kXR_cachersp : 0;
     }
 
     /* Convert into the exact ASCII body the client expects. statvfs has its own

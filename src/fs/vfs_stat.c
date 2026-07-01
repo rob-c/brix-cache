@@ -16,6 +16,8 @@
  *       xrootd_vfs_observe_ctx_op().
  */
 #include "vfs_internal.h"
+#include "backend/cache/sd_cache.h"
+#include "backend/stage/sd_stage.h"
 
 /*
  * Shared confined-stat body for both the lstat (no-follow) and stat (follow)
@@ -100,6 +102,60 @@ ngx_int_t
 xrootd_vfs_statf(xrootd_vfs_ctx_t *ctx, xrootd_vfs_stat_t *stat_out)
 {
     return xrootd_vfs_stat_impl(ctx, stat_out, 0 /* follow */);
+}
+
+/* Descend one cache/stage decorator to its wrapped source (NULL at a leaf or a
+ * non-decorator instance). Both unwrap helpers self-guard, so this is safe on any
+ * instance and lets the residency seam find a nearline driver buried under a
+ * read-cache and/or write-stage tier. */
+static xrootd_sd_instance_t *
+xrootd_vfs_decorator_source(const xrootd_sd_instance_t *inst)
+{
+    xrootd_sd_instance_t *s = xrootd_sd_cache_source_instance(inst);
+
+    return (s != NULL) ? s : xrootd_sd_stage_source_instance(inst);
+}
+
+/* Classify the resolved ctx path's nearline residency (online/nearline/offline/
+ * lost) so protocol handlers can advertise tape state — the HTTP Tape REST API, S3
+ * InvalidObjectState / x-amz-storage-class, root:// stat's nearline flag — WITHOUT
+ * forcing a recall. Walks any cache/stage decorators down to the CAP_NEARLINE
+ * driver and reads its residency model; an export with no nearline tier is always
+ * ONLINE (a plain disk/object store is resident). Emits no metric (it is an
+ * internal classification the caller's own op accounts for). NGX_OK with *out set,
+ * or NGX_ERROR (errno) on a guard failure or a driver error. */
+ngx_int_t
+xrootd_vfs_residency(xrootd_vfs_ctx_t *ctx, xrootd_sd_residency_t *out,
+    int *nearline_export)
+{
+    xrootd_sd_instance_t *inst;
+
+    if (nearline_export != NULL) {
+        *nearline_export = 0;
+    }
+    if (out == NULL || xrootd_vfs_require_confined(ctx) != NGX_OK) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    *out = XROOTD_SD_RES_ONLINE;
+
+    for (inst = ctx->sd; inst != NULL;
+         inst = xrootd_vfs_decorator_source(inst))
+    {
+        if ((xrootd_sd_caps(inst) & XROOTD_SD_CAP_NEARLINE) != 0
+            && inst->driver->residency != NULL)
+        {
+            const char *path = xrootd_vfs_ctx_path(ctx);
+
+            if (nearline_export != NULL) {
+                *nearline_export = 1;
+            }
+            return inst->driver->residency(
+                inst, xrootd_vfs_export_relative(ctx, path), out);
+        }
+    }
+    return NGX_OK;
 }
 
 /*

@@ -61,7 +61,7 @@ http {{
             root {data_dir};
             dav_methods DELETE MKCOL;
             xrootd_webdav on;
-            xrootd_webdav_root {data_dir};
+            xrootd_webdav_storage_backend posix:{data_dir};
             xrootd_webdav_auth none;
             xrootd_webdav_allow_write on;
             xrootd_webdav_compress on;

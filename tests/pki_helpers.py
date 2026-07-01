@@ -122,9 +122,15 @@ def blitz_test_pki() -> None:
     # client connecting to https://127.0.0.1 fails TLS hostname verification
     # (curl exit 60) even though the cert chain is valid.  The reference XrdHttp
     # server and several tests address the server by literal 127.0.0.1.
+    # keyUsage/extendedKeyUsage mirror a real IGTF host certificate: a TLS
+    # server needs digitalSignature (handshake signing) + keyEncipherment (RSA
+    # key transport), and serverAuth/clientAuth so the host can act as both the
+    # TLS server and — for TPC/proxying — a TLS client.
     san_ext = server_dir / "san.ext"
     san_ext.write_text(
         "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1\n"
+        "keyUsage=critical,digitalSignature,keyEncipherment\n"
+        "extendedKeyUsage=serverAuth,clientAuth\n"
     )
     _run(
         [
@@ -165,6 +171,19 @@ def blitz_test_pki() -> None:
             USER_SUBJECT,
         ]
     )
+    # An IGTF end-entity certificate carries a critical keyUsage with
+    # digitalSignature (+ keyEncipherment).  This is not cosmetic: GSI X.509
+    # proxy *delegation* signs a proxy request against the delegator's chain,
+    # and XrdCrypto's cryptossl_X509SignProxyReq rejects the request unless the
+    # signing chain carries keyUsage ("wrong extensions in request").  A
+    # keyUsage-less EEC therefore makes every delegation/TPC-lite test fail at
+    # the crypto step regardless of the rest of the setup.  The clientAuth EKU
+    # matches a real user certificate presented over TLS.
+    user_ext = user_dir / "user.ext"
+    user_ext.write_text(
+        "keyUsage=critical,digitalSignature,keyEncipherment\n"
+        "extendedKeyUsage=clientAuth\n"
+    )
     _run(
         [
             "openssl",
@@ -182,6 +201,8 @@ def blitz_test_pki() -> None:
             "-days",
             "3650",
             "-sha256",
+            "-extfile",
+            str(user_ext),
         ]
     )
     _symlink("userkey.pem", user_dir / "user.key")

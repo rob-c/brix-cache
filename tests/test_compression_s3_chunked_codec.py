@@ -64,7 +64,7 @@ http {{
         server_name localhost;
         location / {{
             xrootd_s3             on;
-            xrootd_s3_root        {data_dir};
+            xrootd_s3_storage_backend        posix:{data_dir};
             xrootd_s3_bucket      {BUCKET};
             xrootd_s3_allow_write on;
         }}

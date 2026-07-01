@@ -34,7 +34,7 @@ stream {
     server {
         listen 127.0.0.1:${ORIGIN_PORT};
         xrootd on;
-        xrootd_root $PFX/o/root;
+        xrootd_storage_backend posix:$PFX/o/root;
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_upload_resume off;
@@ -53,11 +53,10 @@ stream {
     server {
         listen 127.0.0.1:${PRIMARY_PORT};
         xrootd on;
-        xrootd_root $PFX/p/root;
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_upload_resume off;
-        xrootd_storage_backend  pblock;
+        xrootd_storage_backend  pblock://$PFX/p/root/;
         xrootd_pblock_block_size 1m;
         xrootd_cache on;
         xrootd_cache_root   $PFX/p/cache;

@@ -9,6 +9,7 @@
 #include "../proxy/proxy.h"
 #include "../proxy/proxy_internal.h"
 #include "../compat/staged_file.h"
+#include "../compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "../write/chkpoint.h"
 #include "../compat/crypto.h"
 #include "../compat/log_diag.h"
@@ -21,6 +22,7 @@
 #include "../cache/reap_watermark.h"  /* proactive watermark LRU reaper */
 #include "../cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
 #include "../fs/xfer/xfer.h"           /* xrootd_xfer_resume_sweep_register      */
+#include "../fs/xfer/stage_engine.h"   /* phase-64 SP4 async stage scheduler     */
 #include "../gsi/keypool.h"
 #include "../impersonate/lifecycle.h"
 #include "../aio/uring.h"
@@ -158,6 +160,20 @@ xrootd_cache_reap_handler(ngx_event_t *ev)
     }
 }
 
+/* phase-64 SP4: drain the deferred (async) stage-flush queue every second. Armed
+ * in every worker (the queue is per-worker); a no-op when empty. */
+#define XROOTD_STAGE_SCHED_MS  1000
+static ngx_event_t  xrootd_stage_sched_timer;
+
+static void
+xrootd_stage_sched_handler(ngx_event_t *ev)
+{
+    xrootd_stage_scheduler_tick();
+    if (!ngx_exiting) {
+        ngx_add_timer(ev, XROOTD_STAGE_SCHED_MS);
+    }
+}
+
 /*
  * Worker process init: start CRL reload timers for every server block that
  * has xrootd_crl_reload configured. Timers are per-worker because each
@@ -188,6 +204,29 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
                       "xrootd: failed to initialise OpenSSL crypto primitives");
         return NGX_ERROR;
     }
+
+    /* phase-64 SP4: durable stage journal + restart reconcile. The journal dir is
+     * opt-in via $XROOTD_STAGE_JOURNAL_DIR (unset = in-memory, no recovery). On a
+     * restart worker 0 replays any staged FLUSH left in flight by a crash so the
+     * write reaches the backend (only staged writes are recoverable - a non-staged
+     * direct write's partial is reaped, not replayed; §11.3). */
+    xrootd_stage_engine_init(getenv("XROOTD_STAGE_JOURNAL_DIR"));
+    if (ngx_worker == 0) {
+        xrootd_stage_reconcile(NULL);
+        /* Clean up the OTHER half: a NON-staged direct write interrupted by the
+         * crash left an orphan "<final>.xrd-tmp.<dead-pid>.*" in the export tree -
+         * reap it (the broken write is discarded; the client retries). */
+        (void) xrootd_tmp_reap_all(cycle->log);
+    }
+
+    /* arm the per-worker async stage-flush scheduler. Done BEFORE the stream-config
+     * early-return below so it runs in HTTP-only (WebDAV/S3) workers too - the
+     * deferred-flush queue is per-worker and protocol-agnostic; the tick is a no-op
+     * when the queue is empty. */
+    xrootd_stage_sched_timer.handler = xrootd_stage_sched_handler;
+    xrootd_stage_sched_timer.data    = NULL;
+    xrootd_stage_sched_timer.log     = cycle->log;
+    ngx_add_timer(&xrootd_stage_sched_timer, XROOTD_STAGE_SCHED_MS);
 
     cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
     if (cmcf == NULL) {
@@ -260,11 +299,6 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
                                          (uint16_t) xcf->listen_port);
             /* Phase 4 F6: worker-0 Category-2 purge-watermark monitor (stub). */
             frm_migrate_purge_register(cycle, &xcf->frm);
-
-            /* Phase 4b-2b-ii: re-drive write-through flushes left in the shared
-             * journal by a crash (no-op unless this server has write-through on
-             * and a thread pool). */
-            xrootd_wt_replay_register(cycle, xcf, xcf->common.thread_pool);
         }
 
         /* Phase 6 housekeeping: TTL-sweep abandoned upload-resume partials from

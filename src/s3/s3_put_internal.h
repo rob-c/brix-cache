@@ -24,7 +24,7 @@
 
 typedef struct {
     ngx_http_request_t   *r;
-    xrootd_staged_file_t  staged;
+    xrootd_vfs_staged_t  *staged;
     size_t                len;
     ssize_t               nwritten;
     int                   io_errno;
@@ -36,7 +36,7 @@ typedef struct {
 
 typedef struct {
     ngx_http_request_t   *r;
-    xrootd_staged_file_t  staged;
+    xrootd_vfs_staged_t  *staged;
     char                  fs_path[PATH_MAX];
     char                  root_canon[PATH_MAX];
     uint64_t              expected;
@@ -54,7 +54,7 @@ const char * s3_dashboard_put_op(ngx_http_request_t *r);
 void s3_dashboard_identity(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, char *out, size_t outsz);
 
 /* put_finalize.c */
-ngx_int_t s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon, xrootd_staged_file_t *staged, const char *final_path);
+ngx_int_t s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon, xrootd_vfs_staged_t *staged, const char *final_path);
 int s3_put_commit_conflict(ngx_http_request_t *r);
 
 /* put_aio.c */
@@ -76,14 +76,14 @@ int s3_put_checksum_failed(ngx_http_request_t *r, const char *fs_path, const cha
 void s3_put_finalize_client_error(ngx_http_request_t *r, int status, const char *code, const char *message);
 
 /* put_chunk.c */
-void s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon, const char *fs_path, xrootd_staged_file_t *staged, const s3_chunk_trailer_t *trailer, uint64_t expected, ngx_uint_t body_mode);
-void s3_chunk_decode_failed(ngx_http_request_t *r, const char *root_canon, xrootd_staged_file_t *staged, int http_status);
+void s3_chunk_finalize(ngx_http_request_t *r, const char *root_canon, const char *fs_path, xrootd_vfs_staged_t *staged, const s3_chunk_trailer_t *trailer, uint64_t expected, ngx_uint_t body_mode);
+void s3_chunk_decode_failed(ngx_http_request_t *r, const char *root_canon, xrootd_vfs_staged_t *staged, int http_status);
 void s3_chunk_aio_thread(void *data, ngx_log_t *log);
 void s3_build_chunk_verify(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, s3_chunk_verify_t *v);
 void s3_chunk_aio_done(ngx_event_t *ev);
 
 /* put.c */
-void s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, xrootd_staged_file_t *staged, const char *fs_path, ngx_uint_t body_mode);
+void s3_put_streaming(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, xrootd_vfs_staged_t *staged, const char *fs_path, ngx_uint_t body_mode);
 void s3_put_body_inner(ngx_http_request_t *r);
 
 #endif /* XROOTD_S3_PUT_INTERNAL_H */

@@ -65,7 +65,9 @@ typedef struct {
     uint16_t version;        /* XROOTD_CACHE_CINFO_VERSION */
     uint16_t flags;          /* XROOTD_CINFO_F_* */
     uint32_t block_size;     /* bytes per block (the slice granule); must be > 0 */
-    uint32_t reserved;       /* 0; keeps the uint64 block 8-byte aligned */
+    uint32_t mode;           /* origin st_mode perm bits (0777); 0 = not recorded
+                              * (pre-mode cinfos) — serve falls back to the store
+                              * object's own bits. Was the 8-byte-align pad. */
     uint64_t size;           /* origin file size in bytes (validity) */
     uint64_t mtime;          /* origin mtime (validity) */
     uint64_t nblocks;        /* ceil(size/block_size) == bitmap bit count */
@@ -156,7 +158,8 @@ ngx_int_t xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m,
  * already knows. Returns NGX_OK on a recorded bit, NGX_ERROR on I/O failure.
  */
 ngx_int_t xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
-    uint32_t block_size, uint64_t mtime, uint64_t blk, ngx_log_t *log);
+    uint32_t block_size, uint64_t mtime, uint32_t mode, uint64_t blk,
+    ngx_log_t *log);
 
 /* ---- write-back (dirty) record-keeping (v3) ---------------------------- */
 

@@ -30,6 +30,7 @@
 #include "../frm/frm.h"
 #include "../compat/http_body.h"
 #include "../compat/http_headers.h"
+#include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
 #include <jansson.h>
 #include <openssl/rand.h>
@@ -268,8 +269,8 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
         return tape_error(r, NGX_HTTP_BAD_REQUEST, "too many files");
     }
 
-    abs     = ngx_pnalloc(r->pool, n * sizeof(*abs));
-    logical = ngx_pnalloc(r->pool, n * sizeof(*logical));
+    abs     = xrootd_palloc_array(r->pool, n, sizeof(*abs));
+    logical = xrootd_palloc_array(r->pool, n, sizeof(*logical));
     if (abs == NULL || logical == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

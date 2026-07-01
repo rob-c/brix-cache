@@ -135,7 +135,7 @@ def test_http_mirror_directives_parse(tmp_path):
             listen {BIND_HOST}:21940;
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_mirror_url     http://{HOST}:21999;
                 xrootd_mirror_url     https://{HOST}:21998;
@@ -158,7 +158,7 @@ def test_http_mirror_bad_scheme_rejected(tmp_path):
             listen {BIND_HOST}:21941;
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_mirror_url ftp://{HOST}:21999;
             }}
@@ -175,7 +175,7 @@ def test_stream_mirror_directives_parse(tmp_path):
         server {{
             listen {BIND_HOST}:21942;
             xrootd on;
-            xrootd_root /tmp/xrd-test/data;
+            xrootd_storage_backend posix:/tmp/xrd-test/data;
             xrootd_auth none;
             xrootd_stream_mirror_url {HOST}:21943;
             xrootd_mirror_opcodes stat locate dirlist;
@@ -195,7 +195,7 @@ def test_stream_mirror_bad_opcode_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:21944;
             xrootd on;
-            xrootd_root /tmp/xrd-test/data;
+            xrootd_storage_backend posix:/tmp/xrd-test/data;
             xrootd_auth none;
             xrootd_stream_mirror_url {HOST}:21943;
             xrootd_mirror_opcodes bogus;
@@ -218,7 +218,7 @@ def test_stream_mirror_write_opcodes_and_gate_parse(tmp_path):
         server {{
             listen {BIND_HOST}:21945;
             xrootd on;
-            xrootd_root /tmp/xrd-test/data;
+            xrootd_storage_backend posix:/tmp/xrd-test/data;
             xrootd_auth none;
             xrootd_stream_mirror_url {HOST}:21943;
             xrootd_mirror_writes on;
@@ -381,7 +381,7 @@ def http_mirror_server(tmp_path):
             listen {BIND_HOST}:{primary_port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_mirror_url     http://{HOST}:{shadow_port};
                 xrootd_mirror_methods GET HEAD;
@@ -443,7 +443,7 @@ def test_shadow_failure_transparent(tmp_path):
             listen {BIND_HOST}:{primary_port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_mirror_url     http://{HOST}:{dead_shadow};
                 xrootd_mirror_methods GET;
@@ -490,7 +490,7 @@ def test_sample_zero_mirrors_nothing(tmp_path):
             listen {BIND_HOST}:{primary_port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_mirror_url     http://{HOST}:{shadow_port};
                 xrootd_mirror_methods GET;
@@ -603,13 +603,13 @@ def _start_stream_pair(tmp_path, primary_port, shadow_port, metrics_port,
         server {{
             listen {BIND_HOST}:{shadow_port};
             xrootd on;
-            xrootd_root {sdata};
+            xrootd_storage_backend posix:{sdata};
             xrootd_auth none;
         }}
         server {{
             listen {BIND_HOST}:{primary_port};
             xrootd on;
-            xrootd_root {pdata};
+            xrootd_storage_backend posix:{pdata};
             xrootd_auth none;
             xrootd_stream_mirror_url {HOST}:{shadow_port};
             xrootd_mirror_opcodes stat;
@@ -739,7 +739,7 @@ def _start_http_writes_primary(tmp_path, primary_port, shadow_port,
             listen {BIND_HOST}:{primary_port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_webdav_allow_write on;
                 xrootd_mirror_url     http://{HOST}:{shadow_port};

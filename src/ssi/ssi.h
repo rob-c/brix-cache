@@ -24,39 +24,13 @@
 #include <ngx_core.h>
 #include "../types/context.h"
 #include "ssi_service.h"
+#include "ssi_req.h"        /* xrootd_ssi_req_t (nginx-free data type) */
 
 #define XROOTD_SSI_PREFIX     "/.ssi/"
 #define XROOTD_SSI_PREFIX_LEN (sizeof(XROOTD_SSI_PREFIX) - 1)
 #define XROOTD_SSI_REQ_MAX    (1u << 20)   /* 1 MiB cap on a unary request */
 #define XROOTD_SSI_RESP_MAX   (1u << 20)   /* 1 MiB cap on a response */
 #define XROOTD_SSI_META_MAX   4096         /* metadata cap */
-
-/* Per-handle SSI request state (connection-pool allocated). */
-typedef struct {
-    char       service[64];            /* service name from the resource path */
-    xrootd_ssi_process_fn handler;     /* resolved service handler (open time) */
-
-    u_char    *req;                    /* accumulated request bytes */
-    size_t     req_len;
-    size_t     req_expected;           /* total request size from the RRInfo */
-    uint32_t   req_id;                 /* reqId from the RRInfo */
-    unsigned   have_size:1;            /* req_expected is known */
-    unsigned   dispatched:1;           /* service has been invoked */
-
-    u_char    *resp;                   /* response bytes (responder-filled) */
-    size_t     resp_len;
-    u_char    *meta;                   /* metadata bytes (responder-filled) */
-    size_t     meta_len;
-    size_t     read_cursor;            /* kXR_read stream position */
-
-    int        err_code;               /* SSI error code (0 = none) */
-    char       err_text[128];
-    unsigned   error:1;
-    unsigned   responded:1;            /* response (or error) is ready */
-    unsigned   streaming:1;            /* service delivered multi-chunk (read-pull) */
-
-    ngx_pool_t *pool;                  /* connection pool for responder allocs */
-} xrootd_ssi_req_t;
 
 /* 1 if `path` is an SSI resource and SSI is enabled; fills *service (borrowed,
  * within the caller's path copy) and *service_len. 0 otherwise. */
@@ -83,5 +57,11 @@ ngx_int_t xrootd_ssi_query(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 /* kXR_read on an SSI handle: serve streamed response bytes from the cursor. */
 ngx_int_t xrootd_ssi_read(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
                           uint64_t offset, uint32_t rlen);
+
+/* Teardown hook for an SSI handle (an xrootd_ssi_session_t*). Cancels any armed
+ * async-deferral timers and unregisters the session. Called from
+ * xrootd_free_fhandle before the .ssi slot is cleared (on close + disconnect).
+ * NULL-safe; a no-op for non-SSI handles. */
+void xrootd_ssi_handle_cleanup(void *ssi_session);
 
 #endif /* NGX_XROOTD_SSI_H */

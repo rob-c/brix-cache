@@ -41,7 +41,7 @@ stream {{
     server {{
         listen 127.0.0.1:{port};
         xrootd on;
-        xrootd_root {data};
+        xrootd_storage_backend posix:{data};
         xrootd_readv_segment_size 16m;
         xrootd_access_log {logs}/access.log;
     }}

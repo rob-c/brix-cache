@@ -1,0 +1,919 @@
+/*
+ * sd_cache.c - the generic read-cache decorator (section 12.1). See header.
+ *
+ * The decorator forwards every write / namespace / xattr / dir / staged op to the
+ * wrapped `source` and interposes only the READ-open path: a COMPLETE cached
+ * object is served from the cache store (cstore), a miss is filled from the source
+ * into the store and recorded in a cinfo, and a write invalidates the cached copy.
+ * Served read objects are the store's own objects, so byte I/O bypasses the
+ * decorator. A sick cache degrades to a source read - it never fails a read or
+ * serves wrong bytes (section 16).
+ */
+#include "sd_cache.h"
+#include "../../../cache/cstore.h"
+
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+typedef struct {
+    xrootd_sd_instance_t  *source;         /* the tier below (stage | backend)    */
+    xrootd_cstore_t        cstore;
+    xrootd_cache_policy_t  policy;
+    ngx_log_t             *log;
+} sd_cache_inst_state;
+
+#define SD_CACHE_ST(inst)   ((sd_cache_inst_state *) (inst)->state)
+#define SD_CACHE_SRC(inst)  (SD_CACHE_ST(inst)->source)
+
+/* Move granule for a miss-fill (driver-mediated pread/staged_write). */
+#define SD_CACHE_CHUNK (1u << 20)
+
+/* ---- admission filter (policy) -------------------------------------------- */
+
+static int
+sd_cache_has_prefix(const char *path, ngx_array_t *prefixes)
+{
+    ngx_str_t  *p;
+    ngx_uint_t  i;
+
+    if (prefixes == NULL) {
+        return 0;
+    }
+    p = prefixes->elts;
+    for (i = 0; i < prefixes->nelts; i++) {
+        if (p[i].len > 0
+            && ngx_strncmp(path, p[i].data, p[i].len) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Decide whether `path` (of `size` bytes, or -1 when not yet known) may be cached
+ * under the policy: deny-prefix wins; a non-empty allow list must match; an
+ * include regex must match; an over-size object is not cached. */
+static int
+sd_cache_admit(const xrootd_cache_policy_t *pol, const char *path, off_t size)
+{
+    if (sd_cache_has_prefix(path, pol->deny_prefixes)) {
+        return 0;
+    }
+    if (pol->allow_prefixes != NULL && pol->allow_prefixes->nelts > 0
+        && !sd_cache_has_prefix(path, pol->allow_prefixes))
+    {
+        return 0;
+    }
+    if (pol->include_regex != NULL
+        && regexec(pol->include_regex, path, 0, NULL, 0) != 0)
+    {
+        return 0;
+    }
+    if (size >= 0 && pol->max_file_size > 0 && size > pol->max_file_size) {
+        return 0;
+    }
+    return 1;
+}
+
+/* ---- the fill spine (source -> cache store) ------------------------------- */
+
+/* Fill `key` from the source into the cache store and record its cinfo. Returns
+ * NGX_OK (object cached + cinfo stored), NGX_DECLINED (policy declined to cache it
+ * - serve from source), or NGX_ERROR (a fill failure - serve from source). */
+static ngx_int_t
+sd_cache_fill(sd_cache_inst_state *st, const char *key)
+{
+    xrootd_sd_instance_t *src = st->source;
+    xrootd_sd_obj_t      *so;
+    xrootd_sd_staged_t   *staged;
+    xrootd_sd_stat_t      snap;
+    u_char               *buf;
+    off_t                 off = 0;
+    int                   err = 0;
+    mode_t                fmode;
+    xrootd_cache_cinfo_t  ci;
+
+    if (src->driver->open == NULL || src->driver->pread == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    so = src->driver->open(src, key, XROOTD_SD_O_READ, 0, &err);
+    if (so == NULL) {
+        errno = err ? err : EIO;
+        return NGX_ERROR;
+    }
+    /* open() does not guarantee a populated snap (the posix driver fstats lazily),
+     * so fstat the object for an accurate size/mtime/mode - the cinfo validity and
+     * the cached file's permission bits both depend on it. */
+    snap = so->snap;
+    if (src->driver->fstat != NULL) {
+        (void) src->driver->fstat(so, &snap);
+    }
+    /* The cache STORE object must stay owner-writable: in XATTR meta_mode the
+     * cinfo record lives as a user.xrd.cinfo xattr ON this object, and Linux
+     * refuses to set/update a user.* xattr on a non-writable inode — so a
+     * read-only (e.g. 0444) source mode would block cinfo persistence entirely
+     * (the remote-store restart-survival path, G3). The physical store mode is a
+     * cache-implementation detail; force owner rw and keep the rest of the source
+     * bits. (Client-facing mode fidelity for a read-only source is a follow-up:
+     * carry the mode in the cinfo record and serve that.) */
+    fmode = ((mode_t) (snap.mode & 0777)) | S_IRUSR | S_IWUSR;
+    if (fmode == 0) {
+        fmode = 0644;                   /* backend reported none - sane default */
+    }
+
+    if (!sd_cache_admit(&st->policy, key, snap.size)) {
+        src->driver->close(so);
+        return NGX_DECLINED;            /* too big / filtered - do not cache */
+    }
+
+    staged = xrootd_cstore_fill_open(&st->cstore, key, fmode);
+    if (staged == NULL) {
+        ngx_log_error(NGX_LOG_WARN, st->log, errno,
+            "sd_cache: fill_open on the cache store failed for \"%s\" - not cached",
+            key);
+        src->driver->close(so);
+        return NGX_ERROR;
+    }
+    buf = malloc(SD_CACHE_CHUNK);
+    if (buf == NULL) {
+        xrootd_cstore_fill_abort(staged);
+        src->driver->close(so);
+        errno = ENOMEM;
+        return NGX_ERROR;
+    }
+
+    for ( ;; ) {
+        ssize_t r = src->driver->pread(so, buf, SD_CACHE_CHUNK, off);
+
+        if (r < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            free(buf);
+            xrootd_cstore_fill_abort(staged);
+            src->driver->close(so);
+            return NGX_ERROR;
+        }
+        if (r == 0) {
+            break;
+        }
+        if (xrootd_cstore_fill_write(staged, buf, (size_t) r, off) < 0) {
+            free(buf);
+            xrootd_cstore_fill_abort(staged);
+            src->driver->close(so);
+            return NGX_ERROR;
+        }
+        off += r;
+    }
+    free(buf);
+    src->driver->close(so);
+
+    if (xrootd_cstore_fill_commit(staged) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    /* Whole-file COMPLETE cinfo (the 1 MiB granule keys validity; the present
+     * bitmap is all-set). A partial/slice fill is section 6.5 / SP2. */
+    ngx_memzero(&ci, sizeof(ci));
+    ci.magic      = XROOTD_CACHE_CINFO_MAGIC;
+    ci.version    = XROOTD_CACHE_CINFO_VERSION;
+    ci.block_size = XROOTD_CACHE_DIRTY_BLOCK;
+    ci.size       = (uint64_t) off;
+    ci.mtime      = (uint64_t) snap.mtime;
+    ci.mode       = (uint32_t) (snap.mode & 0777);   /* origin perms — served back
+                                                      * so a read-only source is not
+                                                      * masked by the owner-writable
+                                                      * physical store object. */
+    ci.nblocks    = xrootd_cache_cinfo_nblocks((uint64_t) off, ci.block_size);
+    ci.flags      = XROOTD_CINFO_F_COMPLETE;
+
+    if (xrootd_cstore_cinfo_store(&st->cstore, key, &ci) != NGX_OK) {
+        /* The object is cached but unrecorded - a safe miss (refill) next time. */
+        ngx_log_error(NGX_LOG_WARN, st->log, errno,
+            "sd_cache: cinfo store failed for \"%s\" - will refill on next read",
+            key);
+    }
+    return NGX_OK;
+}
+
+/* ---- slice/partial caching (section 6.5) ----------------------------------
+ * When policy.slice_size > 0 on a LOCAL posix cache store, an object is cached in
+ * fixed-size BLOCKS filled on demand: a read range-fills only the blocks it
+ * touches (source pread -> cache pwrite -> cinfo present-bit), so a Range request
+ * never pulls the whole object. The served object carries this state and ranges-
+ * fill on pread; it is never sendfiled (it may have holes). A fully-filled object's
+ * cinfo becomes COMPLETE and subsequent opens take the whole-file hit fast path. */
+
+typedef struct {
+    xrootd_sd_instance_t *source;
+    xrootd_sd_obj_t      *src_obj;          /* lazily opened on the first miss   */
+    int                   cache_fd;         /* the RW (sparse) cache object      */
+    off_t                 size;
+    uint32_t              block_size;
+    uint32_t              mode;             /* origin perm bits recorded in cinfo */
+    uint64_t              mtime;
+    uint64_t              nblocks;
+    uint8_t              *bitmap;           /* present blocks (in-memory mirror) */
+    size_t                bitmap_len;
+    ngx_log_t            *log;
+    char                  key[1024];
+    char                  cache_path[PATH_MAX];   /* for cinfo record_block      */
+} sd_cache_partial_t;
+
+/* Fetch block `blk` from the source into the cache object + mark it present. */
+static int
+sd_cache_fill_block(sd_cache_partial_t *p, uint64_t blk)
+{
+    off_t   bstart = (off_t) blk * p->block_size;
+    size_t  blen;
+    u_char *bbuf;
+    off_t   got = 0;
+    int     e = 0;
+
+    if (bstart >= p->size) {
+        return 0;
+    }
+    blen = (size_t) ((bstart + (off_t) p->block_size <= p->size)
+                     ? p->block_size : (p->size - bstart));
+
+    if (p->src_obj == NULL) {
+        if (p->source->driver->open == NULL || p->source->driver->pread == NULL) {
+            errno = ENOSYS;
+            return -1;
+        }
+        p->src_obj = p->source->driver->open(p->source, p->key, XROOTD_SD_O_READ,
+                                             0, &e);
+        if (p->src_obj == NULL) {
+            errno = e ? e : EIO;
+            return -1;
+        }
+    }
+    bbuf = malloc(blen);
+    if (bbuf == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    while ((size_t) got < blen) {
+        ssize_t r = p->source->driver->pread(p->src_obj, bbuf + got,
+                                             blen - (size_t) got, bstart + got);
+        if (r < 0) {
+            if (errno == EINTR) { continue; }
+            free(bbuf);
+            return -1;
+        }
+        if (r == 0) {
+            break;                          /* short source vs stat - stop */
+        }
+        got += r;
+    }
+    {
+        off_t w = 0;
+
+        while (w < got) {
+            ssize_t n = pwrite(p->cache_fd, bbuf + w, (size_t) (got - w),
+                               bstart + w);
+            if (n < 0) {
+                if (errno == EINTR) { continue; }
+                free(bbuf);
+                return -1;
+            }
+            w += n;
+        }
+    }
+    free(bbuf);
+
+    (void) xrootd_cache_cinfo_record_block(p->cache_path, (uint64_t) p->size,
+                                           p->block_size, p->mtime, p->mode, blk,
+                                           p->log);
+    if (p->bitmap != NULL && blk < p->nblocks) {
+        xrootd_cache_cinfo_mark_block(p->bitmap, blk);
+    }
+    return 0;
+}
+
+/* Open a partial-serve object for `key` (slice mode). NULL + *err_out on failure. */
+static xrootd_sd_obj_t *
+sd_cache_partial_open(xrootd_sd_instance_t *inst, sd_cache_inst_state *st,
+    const char *key, int *err_out)
+{
+    xrootd_sd_instance_t *src = st->source;
+    xrootd_sd_stat_t      snap;
+    sd_cache_partial_t   *p;
+    xrootd_sd_obj_t      *o;
+    char                  cpath[PATH_MAX];
+    uint32_t              bs;
+    int                   fd;
+
+    if (src->driver->stat == NULL
+        || src->driver->stat(src, key, &snap) != NGX_OK)
+    {
+        if (err_out != NULL) { *err_out = ENOENT; }
+        return NULL;
+    }
+    bs = (uint32_t) st->policy.slice_size;
+    /* Force owner rw: the partial object is re-opened O_RDWR for every incremental
+     * block fill, so a read-only (0444) source mode would make the SECOND open fail
+     * EACCES and silently fall back to a whole-file fill (§6.5 sparse lost). The
+     * origin perms are carried in the cinfo and served back (see the READ hit). */
+    fd = xrootd_cstore_partial_open(&st->cstore, key,
+                                   ((mode_t) (snap.mode & 0777)) | S_IRUSR | S_IWUSR,
+                                   snap.size, cpath, sizeof(cpath));
+    if (fd < 0) {
+        if (err_out != NULL) { *err_out = errno ? errno : EIO; }
+        return NULL;
+    }
+    p = calloc(1, sizeof(*p));
+    o = calloc(1, sizeof(*o));
+    if (p == NULL || o == NULL) {
+        (void) close(fd);
+        free(p);
+        free(o);
+        if (err_out != NULL) { *err_out = ENOMEM; }
+        return NULL;
+    }
+    p->source     = src;
+    p->cache_fd   = fd;
+    p->size       = snap.size;
+    p->block_size = bs;
+    p->mode       = (uint32_t) (snap.mode & 0777);   /* origin perms → cinfo */
+    p->mtime      = (uint64_t) snap.mtime;
+    p->nblocks    = xrootd_cache_cinfo_nblocks((uint64_t) snap.size, bs);
+    p->bitmap_len = xrootd_cache_cinfo_bitmap_len(p->nblocks);
+    p->log        = st->log;
+    ngx_cpystrn((u_char *) p->key, (u_char *) key, sizeof(p->key));
+    ngx_cpystrn((u_char *) p->cache_path, (u_char *) cpath, sizeof(p->cache_path));
+
+    /* Adopt a previously-recorded present bitmap (an earlier partial fill) when it
+     * matches this object's geometry; otherwise start all-absent. */
+    {
+        xrootd_cache_cinfo_t  hdr;
+        uint8_t              *bm = NULL;
+        size_t                bl = 0;
+
+        if (xrootd_cache_cinfo_load(cpath, &hdr, &bm, &bl) == NGX_OK
+            && bl == p->bitmap_len && hdr.size == (uint64_t) snap.size
+            && hdr.block_size == bs)
+        {
+            p->bitmap = bm;
+        } else {
+            free(bm);
+            p->bitmap = (p->bitmap_len > 0) ? calloc(1, p->bitmap_len) : NULL;
+        }
+    }
+
+    o->driver     = inst->driver;       /* our pread/close/fstat range-fill */
+    o->inst       = inst;
+    o->fd         = NGX_INVALID_FILE;    /* a partial object is never sendfiled */
+    o->snap       = snap;
+    o->state      = p;
+    o->heap_shell = 1;
+    return o;
+}
+
+/* ---- the interposed read/write open --------------------------------------- */
+
+static xrootd_sd_obj_t *
+sd_cache_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+    mode_t mode, int *err_out)
+{
+    sd_cache_inst_state  *st = SD_CACHE_ST(inst);
+    xrootd_sd_instance_t *src = st->source;
+    xrootd_cache_cinfo_t  ci;
+    xrootd_sd_obj_t      *obj;
+
+    /* WRITE / CREATE / TRUNC: pass through and invalidate the cached copy. */
+    if (sd_flags & (XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE | XROOTD_SD_O_TRUNC)) {
+        obj = src->driver->open(src, path, sd_flags, mode, err_out);
+        if (obj != NULL) {
+            (void) xrootd_cstore_evict(&st->cstore, path);
+        }
+        return obj;
+    }
+
+    /* READ: a COMPLETE cinfo is an authoritative hit (freshness is checked at fill
+     * time via verify, not on every read - section 6.4). */
+    if (xrootd_cstore_cinfo_load(&st->cstore, path, &ci) == NGX_OK
+        && (ci.flags & XROOTD_CINFO_F_COMPLETE))
+    {
+        obj = xrootd_cstore_serve_open(&st->cstore, path, err_out);
+        if (obj != NULL) {
+            /* Present the ORIGIN perms recorded in the cinfo, not the physical
+             * store object's bits (which are forced owner-writable so the cinfo
+             * xattr can be maintained). A cached object is a regular file; 0 =
+             * pre-mode cinfo → keep the store bits (snap left untouched). */
+            if (ci.mode != 0) {
+                obj->snap.mode = (mode_t) S_IFREG | (mode_t) (ci.mode & 0777);
+            }
+            ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+                "sd_cache: hit \"%s\"", path);
+            return obj;
+        }
+        /* the cached object vanished under us - fall through to refill */
+    }
+
+    /* Path-filtered out: serve straight from the source, never cache. */
+    if (!sd_cache_admit(&st->policy, path, -1)) {
+        return src->driver->open(src, path, sd_flags, mode, err_out);
+    }
+
+    /* Nearline (tape) source: a miss is an async recall the open parks on
+     * (section 9.2). The waiter that parks/wakes the open lands with the frm
+     * driver (SP4/SP5); until then a NEARLINE source cannot be served here, so
+     * fail soft with EAGAIN rather than block. */
+    if ((xrootd_sd_caps(src) & XROOTD_SD_CAP_NEARLINE) != 0
+        && src->driver->recall != NULL)
+    {
+        char      reqid[40];
+        ngx_int_t rr = src->driver->recall(src, path, reqid);
+
+        if (rr == NGX_AGAIN) {
+            /* Recall in flight: the open "parks" as EAGAIN. The HTTP plane answers
+             * 202 "staging" + Retry-After; a retry re-polls the recall and, once
+             * the MSS brings the object online, takes the normal miss-fill below
+             * (tape -> cache store) and serves (SP5 §9.2). */
+            ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+                "sd_cache: nearline recall of \"%s\" in flight (staging)", path);
+            if (err_out != NULL) {
+                *err_out = EAGAIN;
+            }
+            return NULL;
+        }
+        /* NGX_OK: already online - fall through to a normal fill. */
+    }
+
+    /* Slice/partial caching: a non-default slice_size on a LOCAL cache store fills
+     * on demand (section 6.5) instead of pulling the whole object. A miss or a
+     * PARTIAL cinfo both take this path; a COMPLETE object was already served above. */
+    if (st->policy.slice_size > 0
+        && st->cstore.meta_mode == XROOTD_CMETA_LOCAL)
+    {
+        obj = sd_cache_partial_open(inst, st, path, err_out);
+        if (obj != NULL) {
+            ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+                "sd_cache: partial-serve \"%s\"", path);
+            return obj;
+        }
+        /* partial open failed - fall through to a whole-file fill / source read */
+    }
+
+    /* MISS: fill from the source, then serve the cached copy. */
+    if (sd_cache_fill(st, path) == NGX_OK) {
+        obj = xrootd_cstore_serve_open(&st->cstore, path, err_out);
+        if (obj != NULL) {
+            ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+                "sd_cache: filled \"%s\"", path);
+            return obj;
+        }
+    }
+
+    /* Declined or failed: serve from the source (a sick cache never fails a read,
+     * section 16). */
+    return src->driver->open(src, path, sd_flags, mode, err_out);
+}
+
+/* ---- namespace / xattr / dir forwarders (delegate to the source) ---------- */
+
+static ngx_int_t
+sd_cache_stat(xrootd_sd_instance_t *inst, const char *path,
+    xrootd_sd_stat_t *out)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    return s->driver->stat ? s->driver->stat(s, path, out) : NGX_ERROR;
+}
+
+static ngx_int_t
+sd_cache_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+{
+    sd_cache_inst_state  *st = SD_CACHE_ST(inst);
+    xrootd_sd_instance_t *s = st->source;
+    ngx_int_t             rc;
+
+    rc = s->driver->unlink ? s->driver->unlink(s, path, is_dir) : NGX_ERROR;
+    if (rc == NGX_OK) {
+        (void) xrootd_cstore_evict(&st->cstore, path);
+    }
+    return rc;
+}
+
+static ngx_int_t
+sd_cache_mkdir(xrootd_sd_instance_t *inst, const char *path, mode_t mode)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    return s->driver->mkdir ? s->driver->mkdir(s, path, mode) : NGX_ERROR;
+}
+
+static ngx_int_t
+sd_cache_rename(xrootd_sd_instance_t *inst, const char *src, const char *dst,
+    int noreplace)
+{
+    sd_cache_inst_state  *st = SD_CACHE_ST(inst);
+    xrootd_sd_instance_t *s = st->source;
+    ngx_int_t             rc;
+
+    rc = s->driver->rename ? s->driver->rename(s, src, dst, noreplace)
+                           : NGX_ERROR;
+    if (rc == NGX_OK) {
+        (void) xrootd_cstore_evict(&st->cstore, src);
+        (void) xrootd_cstore_evict(&st->cstore, dst);
+    }
+    return rc;
+}
+
+static ngx_int_t
+sd_cache_server_copy(xrootd_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    return s->driver->server_copy ? s->driver->server_copy(s, src, dst, bytes_out)
+                                  : NGX_ERROR;
+}
+
+static ngx_int_t
+sd_cache_setattr(xrootd_sd_instance_t *inst, const char *path,
+    const xrootd_sd_setattr_t *attr)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+    return s->driver->setattr ? s->driver->setattr(s, path, attr) : NGX_OK;
+}
+
+static xrootd_sd_dir_t *
+sd_cache_opendir(xrootd_sd_instance_t *inst, const char *path, int *err_out)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+
+    if (s->driver->opendir == NULL) {
+        if (err_out != NULL) {
+            *err_out = ENOSYS;
+        }
+        return NULL;
+    }
+    return s->driver->opendir(s, path, err_out);    /* dir->inst = the source */
+}
+
+static ngx_int_t
+sd_cache_readdir(xrootd_sd_dir_t *d, xrootd_sd_dirent_t *out)
+{
+    /* The dir handle carries its owning (source) instance; dispatch through it. */
+    return d->inst->driver->readdir ? d->inst->driver->readdir(d, out)
+                                    : NGX_ERROR;
+}
+
+static ngx_int_t
+sd_cache_closedir(xrootd_sd_dir_t *d)
+{
+    return d->inst->driver->closedir ? d->inst->driver->closedir(d) : NGX_ERROR;
+}
+
+static ssize_t
+sd_cache_getxattr(xrootd_sd_instance_t *inst, const char *path, const char *name,
+    void *buf, size_t cap)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+
+    if (s->driver->getxattr == NULL) {
+        errno = ENOTSUP;
+        return -1;
+    }
+    return s->driver->getxattr(s, path, name, buf, cap);
+}
+
+static ssize_t
+sd_cache_listxattr(xrootd_sd_instance_t *inst, const char *path, void *buf,
+    size_t cap)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+
+    if (s->driver->listxattr == NULL) {
+        errno = ENOTSUP;
+        return -1;
+    }
+    return s->driver->listxattr(s, path, buf, cap);
+}
+
+static ngx_int_t
+sd_cache_setxattr(xrootd_sd_instance_t *inst, const char *path, const char *name,
+    const void *val, size_t len, int flags)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+
+    if (s->driver->setxattr == NULL) {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return s->driver->setxattr(s, path, name, val, len, flags);
+}
+
+static ngx_int_t
+sd_cache_removexattr(xrootd_sd_instance_t *inst, const char *path,
+    const char *name)
+{
+    xrootd_sd_instance_t *s = SD_CACHE_SRC(inst);
+
+    if (s->driver->removexattr == NULL) {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return s->driver->removexattr(s, path, name);
+}
+
+/* ---- staged write forwarders (the write path runs through the source) ----- */
+
+static xrootd_sd_staged_t *
+sd_cache_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+    mode_t mode, int *err_out)
+{
+    sd_cache_inst_state  *st = SD_CACHE_ST(inst);
+    xrootd_sd_instance_t *s = st->source;
+
+    if (s->driver->staged_open == NULL) {
+        if (err_out != NULL) {
+            *err_out = ENOSYS;
+        }
+        return NULL;
+    }
+    /* A staged publish replaces the object; drop any cached copy now. */
+    (void) xrootd_cstore_evict(&st->cstore, final_path);
+    return s->driver->staged_open(s, final_path, mode, err_out);
+}
+
+static ssize_t
+sd_cache_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
+    off_t off)
+{
+    return st->inst->driver->staged_write
+         ? st->inst->driver->staged_write(st, buf, len, off) : -1;
+}
+
+static ngx_int_t
+sd_cache_staged_commit(xrootd_sd_staged_t *st, int noreplace)
+{
+    return st->inst->driver->staged_commit
+         ? st->inst->driver->staged_commit(st, noreplace) : NGX_ERROR;
+}
+
+static void
+sd_cache_staged_abort(xrootd_sd_staged_t *st)
+{
+    if (st->inst->driver->staged_abort != NULL) {
+        st->inst->driver->staged_abort(st);
+    }
+}
+
+/* ---- partial-object byte slots (reached only for a slice partial object, whose
+ * driver is this decorator; whole-file hits return store/source objects that carry
+ * their own driver, so these are never called for them) ---- */
+
+/* cstore fill callback: fill one missing block of this partial object from the
+ * source. The decorator owns the source, so cstore's serve loop calls back here. */
+static int
+sd_cache_fill_block_cb(void *ctx, uint64_t blk)
+{
+    return sd_cache_fill_block((sd_cache_partial_t *) ctx, blk);
+}
+
+static ssize_t
+sd_cache_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+{
+    sd_cache_partial_t *p = obj->state;
+
+    if (p == NULL) {
+        errno = EBADF;
+        return -1;
+    }
+    /* The bitmap-consult + range-serve loop lives in cstore (section 6.5); this
+     * decorator only supplies the source-fill callback for a missing block. */
+    return xrootd_cstore_serve_pread(p->cache_fd, p->bitmap, p->nblocks,
+        p->block_size, (off_t) p->size, buf, len, off, sd_cache_fill_block_cb, p);
+}
+
+static ngx_int_t
+sd_cache_close(xrootd_sd_obj_t *obj)
+{
+    sd_cache_partial_t *p = (obj != NULL) ? obj->state : NULL;
+
+    if (p != NULL) {
+        if (p->src_obj != NULL && p->source->driver->close != NULL) {
+            p->source->driver->close(p->src_obj);
+        }
+        if (p->cache_fd >= 0) {
+            (void) close(p->cache_fd);
+        }
+        free(p->bitmap);
+        free(p);
+    }
+    if (obj != NULL && obj->heap_shell) {
+        free(obj);
+    }
+    return NGX_OK;
+}
+
+static ngx_int_t
+sd_cache_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+{
+    sd_cache_partial_t *p = obj->state;
+
+    if (p == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memzero(out, sizeof(*out));
+    out->size   = p->size;
+    out->mtime  = (time_t) p->mtime;
+    out->mode   = obj->snap.mode ? obj->snap.mode : (S_IFREG | 0644);
+    out->is_reg = 1;
+    return NGX_OK;
+}
+
+static ngx_fd_t
+sd_cache_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
+    unsigned want_zerocopy)
+{
+    (void) obj;
+    (void) off;
+    (void) len;
+    (void) want_zerocopy;
+    return NGX_INVALID_FILE;            /* a partial object is served via pread */
+}
+
+/* The decorator advertises the namespace/write cap set; the served read object
+ * carries the cache store's own byte caps (sendfile/fd), and write/namespace ops
+ * forward to the source - so the cache is transport-transparent above the seam. */
+static const xrootd_sd_driver_t xrootd_sd_cache_driver = {
+    .name        = "cache",
+    .caps        = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE
+                 | XROOTD_SD_CAP_TRUNCATE | XROOTD_SD_CAP_XATTR
+                 | XROOTD_SD_CAP_HARD_RENAME | XROOTD_SD_CAP_SERVER_COPY
+                 | XROOTD_SD_CAP_DIRS,
+    .open             = sd_cache_open,
+    .close            = sd_cache_close,
+    .pread            = sd_cache_pread,
+    .fstat            = sd_cache_fstat,
+    .read_sendfile_fd = sd_cache_read_sendfile_fd,
+    .stat          = sd_cache_stat,
+    .unlink        = sd_cache_unlink,
+    .mkdir         = sd_cache_mkdir,
+    .rename        = sd_cache_rename,
+    .server_copy   = sd_cache_server_copy,
+    .setattr       = sd_cache_setattr,
+    .opendir       = sd_cache_opendir,
+    .readdir       = sd_cache_readdir,
+    .closedir      = sd_cache_closedir,
+    .getxattr      = sd_cache_getxattr,
+    .listxattr     = sd_cache_listxattr,
+    .setxattr      = sd_cache_setxattr,
+    .removexattr   = sd_cache_removexattr,
+    .staged_open   = sd_cache_staged_open,
+    .staged_write  = sd_cache_staged_write,
+    .staged_commit = sd_cache_staged_commit,
+    .staged_abort  = sd_cache_staged_abort,
+};
+
+xrootd_sd_instance_t *
+xrootd_sd_cache_create(xrootd_sd_instance_t *source, xrootd_sd_instance_t *store,
+    const xrootd_cache_policy_t *policy, const char *store_local_root,
+    ngx_log_t *log)
+{
+    xrootd_sd_instance_t *inst;
+    sd_cache_inst_state  *st;
+
+    if (source == NULL || store == NULL || policy == NULL) {
+        errno = EINVAL;
+        return NULL;
+    }
+    inst = calloc(1, sizeof(*inst));
+    st   = calloc(1, sizeof(*st));
+    if (inst == NULL || st == NULL) {
+        free(inst);
+        free(st);
+        errno = ENOMEM;
+        return NULL;
+    }
+    st->source = source;
+    st->policy = *policy;
+    st->log    = log;
+
+    if (xrootd_cstore_init(&st->cstore, store, store_local_root,
+                           policy->meta_mode, policy->l1_entries,
+                           policy->batch_cinfo, log) != NGX_OK)
+    {
+        int e = errno;
+        free(inst);
+        free(st);
+        errno = e ? e : EINVAL;
+        return NULL;
+    }
+
+    inst->driver = &xrootd_sd_cache_driver;
+    inst->log    = log;
+    inst->pool   = NULL;
+    inst->state  = st;
+    return inst;
+}
+
+void
+xrootd_sd_cache_destroy(xrootd_sd_instance_t *inst)
+{
+    sd_cache_inst_state *st;
+
+    if (inst == NULL) {
+        return;
+    }
+    st = inst->state;
+    if (st != NULL) {
+        xrootd_cstore_cleanup(&st->cstore);
+        free(st);
+    }
+    free(inst);
+}
+
+/* ---- async-fill seam (SP2 "shell -> full") --------------------------------
+ * The decorator's open() runs the miss-fill INLINE - correct on a worker thread
+ * (the stream fill task, a WebDAV/S3 PUT worker) but a stall on the event loop
+ * when the fill reads a remote source or writes a remote store (a socket wire
+ * client cannot do blocking I/O on the un-pumped loop; an in-process store just
+ * freezes the worker for the transfer). The HTTP read plane therefore probes
+ * whether an inline open would block, runs the fill on the thread pool, and
+ * re-enters. These three entrypoints expose exactly that - without making the
+ * SD open() contract asynchronous. See src/shared/http_cache_fill.c. */
+
+int
+xrootd_sd_cache_instance_is(const xrootd_sd_instance_t *inst)
+{
+    return (inst != NULL && inst->driver == &xrootd_sd_cache_driver) ? 1 : 0;
+}
+
+/* Would a read-open of `key` block the calling thread on slow (remote) I/O? 1
+ * only for a cache MISS whose whole-file fill would touch a non-local tier - the
+ * source exposes no local fd (a remote read: xroot/http/s3/ceph) or the cache
+ * store is not a local POSIX dir (a remote write: e.g. a rados store). A COMPLETE
+ * hit, a slice-mode object (open returns without filling), a local->local copy,
+ * or a non-cache instance all return 0 (serve inline). No blocking call - the
+ * cinfo probe hits the per-worker L1 / a local sidecar. */
+int
+xrootd_sd_cache_fill_needs_offload(xrootd_sd_instance_t *inst, const char *key)
+{
+    sd_cache_inst_state  *st;
+    xrootd_cache_cinfo_t  ci;
+    int                   src_slow;
+    int                   store_slow;
+
+    if (!xrootd_sd_cache_instance_is(inst) || key == NULL) {
+        return 0;
+    }
+    st = SD_CACHE_ST(inst);
+
+    /* A COMPLETE cached object is served from the store with no fill. */
+    if (xrootd_cstore_cinfo_load(&st->cstore, key, &ci) == NGX_OK
+        && (ci.flags & XROOTD_CINFO_F_COMPLETE))
+    {
+        return 0;
+    }
+    /* Slice/partial mode (LOCAL store): open() returns a partial object without a
+     * whole-file fill, so the open call itself does not block. */
+    if (st->policy.slice_size > 0
+        && st->cstore.meta_mode == XROOTD_CMETA_LOCAL)
+    {
+        return 0;
+    }
+    /* A miss: the inline open would run the whole-file fill. Offload iff a slow
+     * tier is involved - a remote source read or a remote store write. */
+    src_slow   = (xrootd_sd_caps(st->source) & XROOTD_SD_CAP_FD) == 0;
+    store_slow = (st->cstore.meta_mode != XROOTD_CMETA_LOCAL);
+    return (src_slow || store_slow) ? 1 : 0;
+}
+
+/* Run the whole-file fill for `key` (source -> cache store + cinfo) on the
+ * CALLING thread - the worker-thread half of the offload. NGX_OK (cached),
+ * NGX_DECLINED (admission declined - not cached), NGX_ERROR (fill failure).
+ * Safe off the event loop: pure driver pread/pwrite + cstore ops, no nginx pool. */
+ngx_int_t
+xrootd_sd_cache_fill_key(xrootd_sd_instance_t *inst, const char *key)
+{
+    if (!xrootd_sd_cache_instance_is(inst) || key == NULL) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    return sd_cache_fill(SD_CACHE_ST(inst), key);
+}
+
+/* The cache STORE instance (where served objects live), or NULL for a non-cache
+ * instance. A read SERVE reads from the store, so the serve-locality predicate
+ * (http_serve_offload.c) recurses into it. */
+xrootd_sd_instance_t *
+xrootd_sd_cache_store_instance(const xrootd_sd_instance_t *inst)
+{
+    return xrootd_sd_cache_instance_is(inst) ? SD_CACHE_ST(inst)->cstore.store
+                                             : NULL;
+}
+
+/* The cache SOURCE instance (the tier BELOW the cache - a stage decorator or the
+ * backend), or NULL for a non-cache instance. Lets a caller unwrap the composed
+ * stack to reach the stage decorator (SP4 reconcile). */
+xrootd_sd_instance_t *
+xrootd_sd_cache_source_instance(const xrootd_sd_instance_t *inst)
+{
+    return xrootd_sd_cache_instance_is(inst) ? SD_CACHE_SRC(inst) : NULL;
+}

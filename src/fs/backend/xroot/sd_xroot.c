@@ -10,10 +10,15 @@
 
 #include "sd_xroot.h"
 #include "../../../cache/cache_internal.h"   /* origin wire client + fill-task ctx */
+#include "../../../crypto/pki_build.h"       /* xrootd_build_ca_store (GSI MITM verify) */
 
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
 
 /* Instance state: the server conf the origin client reads (host/port/tls). For a
  * cache-constructed instance `conf` is the real export conf. For a registry-built
@@ -24,6 +29,9 @@ typedef struct {
     ngx_stream_xrootd_srv_conf_t *conf;    /* origin params (real or synthetic) */
     ngx_stream_xrootd_srv_conf_t *synth;   /* owned synthetic conf, or NULL */
     char                          host[256];
+    char                          bearer[4096]; /* §14/C-3 ztn token ("" = anon) */
+    char                          x509_proxy[1024]; /* §14/C-3 GSI proxy path */
+    char                          ca_dir[1024];     /* §14/C-3 GSI origin-cert CA */
 } sd_xroot_inst_state;
 
 /* Per-open state: a live origin connection + open file handle + the synthetic
@@ -395,6 +403,314 @@ sd_xroot_staged_abort(xrootd_sd_staged_t *handle)
     sd_xroot_staged_teardown(handle);
 }
 
+/* Vectored read: serve each iov segment from the origin (contiguous from `off`).
+ * Reuses sd_xroot_pread per segment — short read on any segment ends the read. */
+static ssize_t
+sd_xroot_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
+    off_t off)
+{
+    ssize_t total = 0;
+    int     i;
+
+    for (i = 0; i < iovcnt; i++) {
+        ssize_t n = sd_xroot_pread(obj, iov[i].iov_base, iov[i].iov_len,
+                                   off + total);
+        if (n < 0) {
+            return (total > 0) ? total : -1;
+        }
+        total += n;
+        if ((size_t) n < iov[i].iov_len) {
+            break;                               /* short read = EOF */
+        }
+    }
+    return total;
+}
+
+/* ---- namespace + metadata (path-based, fresh anonymous session per op) ----- */
+
+/* The kXR_fattr protocol handler stores a user attribute "X" under the on-disk key
+ * "user.U.X" (XROOTD_FATTR_XKEY_PFX, applied ABOVE the VFS). When we forward to
+ * ANOTHER xrootd server it re-applies the SAME mapping, so handing it the already-
+ * mapped key would double-prefix it on the origin ("user.U.user.U.X") and break
+ * direct-origin interop. So strip one "user.U." before forwarding get/set/remove,
+ * and re-add it on list — the origin then carries a single, standard "user.U.X".
+ * (Kept in sync with src/fattr/ngx_xrootd_fattr.h rather than #included, to avoid a
+ * backend→protocol-handler dependency. Names from other consumers — webdav locks/
+ * dead-props, s3 tags — have no "user.U." prefix and pass through unchanged.) */
+#define SD_XROOT_FATTR_PFX     "user.U."
+#define SD_XROOT_FATTR_PFX_LEN 7
+
+static const char *
+sd_xroot_fattr_unmap(const char *name)
+{
+    if (strncmp(name, SD_XROOT_FATTR_PFX, SD_XROOT_FATTR_PFX_LEN) == 0) {
+        return name + SD_XROOT_FATTR_PFX_LEN;
+    }
+    return name;
+}
+
+/* Connect + bootstrap a fresh anonymous origin session (no file open) for a
+ * path-based op. On success fills *oc + *t_out (caller closes oc + frees t);
+ * returns -1 with *err_out on failure. */
+static int
+sd_xroot_session(ngx_stream_xrootd_srv_conf_t *conf,
+    xrootd_cache_origin_conn_t *oc, xrootd_cache_fill_t **t_out, int *err_out)
+{
+    xrootd_cache_fill_t *t = calloc(1, sizeof(*t));
+
+    if (t == NULL) {
+        if (err_out) { *err_out = ENOMEM; }
+        return -1;
+    }
+    oc->fd  = -1;
+    t->conf = conf;
+    if (xrootd_cache_origin_connect(t, oc) != 0
+        || xrootd_cache_origin_bootstrap(t, oc) != 0)
+    {
+        if (err_out) { *err_out = sd_xroot_errno(t); }
+        xrootd_cache_origin_close(oc);
+        free(t);
+        return -1;
+    }
+    *t_out = t;
+    return 0;
+}
+
+static ssize_t
+sd_xroot_getxattr(xrootd_sd_instance_t *inst, const char *path,
+    const char *name, void *buf, size_t cap)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    xrootd_cache_origin_conn_t  oc;
+    xrootd_cache_fill_t        *t;
+    ssize_t                     n;
+    int                         e = 0;
+
+    if (sd_xroot_session(is->conf, &oc, &t, &e) != 0) { errno = e; return -1; }
+    n = xrootd_cache_origin_getfattr(t, &oc, path, sd_xroot_fattr_unmap(name),
+                                     buf, cap);
+    e = errno;
+    xrootd_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return n;
+}
+
+static ssize_t
+sd_xroot_listxattr(xrootd_sd_instance_t *inst, const char *path,
+    void *buf, size_t cap)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    xrootd_cache_origin_conn_t  oc;
+    xrootd_cache_fill_t        *t;
+    char                       *raw;
+    const size_t                rawcap = 65536;
+    ssize_t                     n;
+    size_t                      out = 0, i;
+    int                         e = 0;
+
+    raw = malloc(rawcap);
+    if (raw == NULL) { errno = ENOMEM; return -1; }
+    if (sd_xroot_session(is->conf, &oc, &t, &e) != 0) {
+        free(raw); errno = e; return -1;
+    }
+    /* The origin returns its user attrs as a NUL-separated list of CLIENT names
+     * (its own "user.U." stripped). Re-add the "user.U." prefix to each so the
+     * kXR_fattr list handler — which keeps "user.U.*" keys — recognizes them. */
+    n = xrootd_cache_origin_listfattr(t, &oc, path, raw, rawcap);
+    e = errno;
+    xrootd_cache_origin_close(&oc);
+    free(t);
+    if (n < 0) { free(raw); errno = e; return -1; }
+
+    for (i = 0; i < (size_t) n; ) {
+        size_t nl = strnlen(raw + i, (size_t) n - i);
+
+        if (nl == 0) { i += 1; continue; }       /* skip an empty entry */
+        if (buf != NULL && cap > 0) {
+            if (out + SD_XROOT_FATTR_PFX_LEN + nl + 1 > cap) {
+                free(raw); errno = ERANGE; return -1;
+            }
+            ngx_memcpy((char *) buf + out, SD_XROOT_FATTR_PFX,
+                       SD_XROOT_FATTR_PFX_LEN);
+            ngx_memcpy((char *) buf + out + SD_XROOT_FATTR_PFX_LEN, raw + i, nl);
+            ((char *) buf)[out + SD_XROOT_FATTR_PFX_LEN + nl] = '\0';
+        }
+        out += SD_XROOT_FATTR_PFX_LEN + nl + 1;
+        i   += nl + 1;
+    }
+    free(raw);
+    return (ssize_t) out;
+}
+
+static ngx_int_t
+sd_xroot_setxattr(xrootd_sd_instance_t *inst, const char *path,
+    const char *name, const void *val, size_t len, int flags)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    xrootd_cache_origin_conn_t  oc;
+    xrootd_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    (void) flags;   /* XATTR_CREATE/REPLACE not distinguished on the wire here */
+    if (sd_xroot_session(is->conf, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
+    rc = xrootd_cache_origin_setfattr(t, &oc, path, sd_xroot_fattr_unmap(name),
+                                      val, len);
+    e = errno;
+    xrootd_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return rc == 0 ? NGX_OK : NGX_ERROR;
+}
+
+static ngx_int_t
+sd_xroot_removexattr(xrootd_sd_instance_t *inst, const char *path,
+    const char *name)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    xrootd_cache_origin_conn_t  oc;
+    xrootd_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    if (sd_xroot_session(is->conf, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
+    rc = xrootd_cache_origin_delfattr(t, &oc, path, sd_xroot_fattr_unmap(name));
+    e = errno;
+    xrootd_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return rc == 0 ? NGX_OK : NGX_ERROR;
+}
+
+static ngx_int_t
+sd_xroot_rename(xrootd_sd_instance_t *inst, const char *src, const char *dst,
+    int noreplace)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    xrootd_cache_origin_conn_t  oc;
+    xrootd_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    (void) noreplace;   /* kXR_mv has no NOREPLACE flag; overwrite is the default */
+    if (sd_xroot_session(is->conf, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
+    rc = xrootd_cache_origin_rename(t, &oc, src, dst);
+    e = errno;
+    xrootd_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return rc == 0 ? NGX_OK : NGX_ERROR;
+}
+
+/* Delete a file on the remote node (kXR_rm). Required so a remote xroot node can
+ * serve as a cache_store (cstore eviction) or a stage_store (post-flush reclaim of
+ * the staged copy). Only regular files are removed; is_dir is refused (no
+ * kXR_rmdir path over the wire yet). Returns NGX_OK / NGX_ERROR (errno set). */
+static ngx_int_t
+sd_xroot_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    xrootd_cache_origin_conn_t  oc;
+    xrootd_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    if (is_dir) {
+        errno = ENOSYS;                 /* directory removal over the wire: TODO */
+        return NGX_ERROR;
+    }
+    if (sd_xroot_session(is->conf, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
+    rc = xrootd_cache_origin_rm(t, &oc, path);
+    e = errno;
+    xrootd_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return rc == 0 ? NGX_OK : NGX_ERROR;
+}
+
+/* Copy src→dst byte stream on an open session (read each chunk from src_fh, write
+ * to dst_fh), then truncate+sync dst. Returns NGX_OK + *bytes_out, or NGX_ERROR. */
+static ngx_int_t
+sd_xroot_copy_body(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
+    const u_char *src_fh, const u_char *dst_fh, off_t *bytes_out)
+{
+    const size_t cap = 1u << 20;
+    u_char      *buf = malloc(cap);
+    off_t        off = 0;
+
+    if (buf == NULL) { errno = ENOMEM; return NGX_ERROR; }
+
+    for (;;) {
+        xrootd_cache_sink_t sink;
+        size_t              got = 0;
+
+        ngx_memzero(&sink, sizeof(sink));
+        sink.fd = -1;
+        sink.mem = buf;
+        sink.mem_cap = cap;
+        if (xrootd_cache_origin_read_chunk(t, oc, src_fh, &sink, (uint64_t) off,
+                                           0, cap, &got) != 0)
+        {
+            free(buf); errno = EIO; return NGX_ERROR;
+        }
+        if (got == 0) {
+            break;
+        }
+        if (xrootd_cache_origin_write_chunk(t, oc, dst_fh, (uint64_t) off, buf,
+                                            got) != 0)
+        {
+            free(buf); errno = EIO; return NGX_ERROR;
+        }
+        off += (off_t) got;
+        if (got < cap) {
+            break;                               /* short read = EOF */
+        }
+    }
+    free(buf);
+
+    if (xrootd_cache_origin_truncate(t, oc, dst_fh, (uint64_t) off) != 0
+        || xrootd_cache_origin_sync(t, oc, dst_fh) != 0)
+    {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    if (bytes_out) { *bytes_out = off; }
+    return NGX_OK;
+}
+
+/* Server-side copy: the gateway reads src and writes dst on the origin (no client
+ * round-trip). Not zero-copy on the origin (no remote TPC) — a read+write relay. */
+static ngx_int_t
+sd_xroot_server_copy(xrootd_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    xrootd_cache_origin_conn_t  oc;
+    xrootd_cache_fill_t        *t;
+    u_char                      src_fh[XRD_FHANDLE_LEN], dst_fh[XRD_FHANDLE_LEN];
+    ngx_int_t                   rc;
+    int                         e = 0;
+
+    if (sd_xroot_session(is->conf, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
+
+    ngx_cpystrn((u_char *) t->clean_path, (u_char *) src, sizeof(t->clean_path));
+    if (xrootd_cache_origin_open(t, &oc, src_fh) != 0) {
+        e = sd_xroot_errno(t);
+        xrootd_cache_origin_close(&oc); free(t); errno = e; return NGX_ERROR;
+    }
+    if (xrootd_cache_origin_open_write(t, &oc, dst, 0644, dst_fh) != 0) {
+        e = sd_xroot_errno(t);
+        xrootd_cache_origin_close_file(&oc, src_fh);
+        xrootd_cache_origin_close(&oc); free(t); errno = e; return NGX_ERROR;
+    }
+
+    rc = sd_xroot_copy_body(t, &oc, src_fh, dst_fh, bytes_out);
+    e  = errno;
+    xrootd_cache_origin_close_file(&oc, dst_fh);
+    xrootd_cache_origin_close_file(&oc, src_fh);
+    xrootd_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return rc;
+}
+
 /* Remote root:// driver (anonymous). Read slots + the write data path
  * (pwrite/ftruncate/fsync over kXR_write/_truncate/_sync) — the foundation for a
  * writable remote backend (Phase 1; staged-write and namespace slots are later
@@ -402,15 +718,24 @@ sd_xroot_staged_abort(xrootd_sd_staged_t *handle)
 static const xrootd_sd_driver_t xrootd_sd_xroot_driver = {
     .name      = "xroot",
     .caps      = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE
-                 | XROOTD_SD_CAP_TRUNCATE,
+                 | XROOTD_SD_CAP_TRUNCATE | XROOTD_SD_CAP_XATTR
+                 | XROOTD_SD_CAP_HARD_RENAME | XROOTD_SD_CAP_SERVER_COPY,
     .open          = sd_xroot_open,
     .close         = sd_xroot_close,
     .pread         = sd_xroot_pread,
+    .preadv        = sd_xroot_preadv,
     .pwrite        = sd_xroot_pwrite,
     .fstat         = sd_xroot_fstat,
     .ftruncate     = sd_xroot_ftruncate,
     .fsync         = sd_xroot_fsync,
     .stat          = sd_xroot_stat,
+    .rename        = sd_xroot_rename,
+    .unlink        = sd_xroot_unlink,
+    .server_copy   = sd_xroot_server_copy,
+    .getxattr      = sd_xroot_getxattr,
+    .listxattr     = sd_xroot_listxattr,
+    .setxattr      = sd_xroot_setxattr,
+    .removexattr   = sd_xroot_removexattr,
     .staged_open   = sd_xroot_staged_open,
     .staged_write  = sd_xroot_staged_write,
     .staged_commit = sd_xroot_staged_commit,
@@ -461,7 +786,9 @@ xrootd_sd_xroot_create(void *conf, ngx_log_t *log)
 }
 
 xrootd_sd_instance_t *
-xrootd_sd_xroot_create_origin(const char *host, int port, int tls, ngx_log_t *log)
+xrootd_sd_xroot_create_origin(const char *host, int port, int tls,
+    int af_policy, const char *bearer, const char *x509_proxy,
+    const char *ca_dir, ngx_log_t *log)
 {
     xrootd_sd_instance_t         *inst;
     sd_xroot_inst_state          *is;
@@ -486,6 +813,43 @@ xrootd_sd_xroot_create_origin(const char *host, int port, int tls, ngx_log_t *lo
     synth->cache_origin_host.len  = ngx_strlen(is->host);
     synth->cache_origin_port      = (uint16_t) port;
     synth->cache_origin_tls       = tls ? 1 : 0;
+    synth->cache_origin_family    = (ngx_uint_t) af_policy;
+
+    /* §14/C-3: present this bearer via ztn when the origin demands authentication.
+     * Store the bytes on the instance so synth's ngx_str_t stays valid for life. */
+    if (bearer != NULL && bearer[0] != '\0') {
+        ngx_cpystrn((u_char *) is->bearer, (u_char *) bearer, sizeof(is->bearer));
+        synth->cache_origin_bearer.data = (u_char *) is->bearer;
+        synth->cache_origin_bearer.len  = ngx_strlen(is->bearer);
+    }
+    if (x509_proxy != NULL && x509_proxy[0] != '\0') {
+        ngx_cpystrn((u_char *) is->x509_proxy, (u_char *) x509_proxy,
+                    sizeof(is->x509_proxy));
+        synth->cache_origin_x509_proxy.data = (u_char *) is->x509_proxy;
+        synth->cache_origin_x509_proxy.len  = ngx_strlen(is->x509_proxy);
+    }
+    if (ca_dir != NULL && ca_dir[0] != '\0') {
+        struct stat ca_st;
+        int         is_dir;
+        int         crl_count = 0;
+
+        ngx_cpystrn((u_char *) is->ca_dir, (u_char *) ca_dir, sizeof(is->ca_dir));
+        synth->cache_origin_ca_dir.data = (u_char *) is->ca_dir;
+        synth->cache_origin_ca_dir.len  = ngx_strlen(is->ca_dir);
+
+        /* Build the verify store once (per worker): a hashed CA dir vs a bundle
+         * file, with proxy certs allowed (GSI). Failure leaves gsi_store NULL ⇒ the
+         * handshake then refuses rather than trusting an unverifiable origin. */
+        is_dir = (stat(is->ca_dir, &ca_st) == 0 && S_ISDIR(ca_st.st_mode));
+        synth->gsi_store = xrootd_build_ca_store(log,
+            is_dir ? is->ca_dir : NULL, is_dir ? NULL : is->ca_dir, NULL,
+            X509_V_FLAG_ALLOW_PROXY_CERTS, &crl_count);
+        if (synth->gsi_store == NULL) {
+            ngx_log_error(NGX_LOG_ERR, log, 0,
+                "xrootd: gsi origin CA store build failed for \"%s\" — GSI to this "
+                "origin will be refused", ca_dir);
+        }
+    }
 
     is->conf     = synth;
     is->synth    = synth;                       /* owned: free on destroy */
@@ -503,7 +867,12 @@ xrootd_sd_xroot_destroy(xrootd_sd_instance_t *inst)
         return;
     }
     if (inst->state != NULL) {
-        free(((sd_xroot_inst_state *) inst->state)->synth);
+        sd_xroot_inst_state *is = inst->state;
+
+        if (is->synth != NULL && is->synth->gsi_store != NULL) {
+            X509_STORE_free(is->synth->gsi_store);
+        }
+        free(is->synth);
     }
     free(inst->state);
     free(inst);

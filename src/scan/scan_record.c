@@ -136,6 +136,78 @@ xrootd_scan_record_health(char *buf, size_t cap, const char *backend,
     return n;
 }
 
+/* Render an optional string as a JSON value into `part` (cap bytes): a quoted,
+ * escaped string when `s` is non-NULL, else the literal `null`. Returns 0, or -1
+ * if escaping/quoting would overflow. Keeps the nullable key/path fields of the
+ * object/drift records single-sourced. */
+static int
+scan_str_or_null(const char *s, char *part, size_t cap)
+{
+    char esc[SCAN_ESC_MAX];
+    int  n;
+
+    if (s == NULL) {
+        n = snprintf(part, cap, "null");
+        return (n < 0 || (size_t) n >= cap) ? -1 : 0;
+    }
+    if (xrootd_scan_json_escape(s, strlen(s), esc, sizeof(esc)) < 0) {
+        return -1;
+    }
+    n = snprintf(part, cap, "\"%s\"", esc);
+    return (n < 0 || (size_t) n >= cap) ? -1 : 0;
+}
+
+int
+xrootd_scan_record_object(char *buf, size_t cap, const char *key,
+                          const char *path, int64_t size, int64_t mtime,
+                          int orphan)
+{
+    char keyesc[SCAN_ESC_MAX];
+    char path_part[SCAN_ESC_MAX + 4];
+    int  n;
+
+    if (key == NULL) {
+        return -1;                 /* a catalog object always has a backend key */
+    }
+    if (xrootd_scan_json_escape(key, strlen(key), keyesc, sizeof(keyesc)) < 0) {
+        return -1;
+    }
+    if (scan_str_or_null(path, path_part, sizeof(path_part)) < 0) {
+        return -1;
+    }
+    n = snprintf(buf, cap,
+        "{\"t\":\"object\",\"key\":\"%s\",\"path\":%s,\"size\":%lld,"
+        "\"mtime\":%lld,\"orphan\":%s}",
+        keyesc, path_part, (long long) size, (long long) mtime,
+        orphan ? "true" : "false");
+    if (n < 0 || (size_t) n >= cap) {
+        return -1;
+    }
+    return n;
+}
+
+int
+xrootd_scan_record_drift(char *buf, size_t cap, const char *key,
+                         const char *path, const char *cls, int64_t size)
+{
+    char key_part[SCAN_ESC_MAX + 4];
+    char path_part[SCAN_ESC_MAX + 4];
+    int  n;
+
+    if (scan_str_or_null(key, key_part, sizeof(key_part)) < 0
+        || scan_str_or_null(path, path_part, sizeof(path_part)) < 0)
+    {
+        return -1;
+    }
+    n = snprintf(buf, cap,
+        "{\"t\":\"drift\",\"key\":%s,\"path\":%s,\"class\":\"%s\",\"size\":%lld}",
+        key_part, path_part, cls, (long long) size);
+    if (n < 0 || (size_t) n >= cap) {
+        return -1;
+    }
+    return n;
+}
+
 int
 xrootd_scan_record_cursor(char *buf, size_t cap, const char *after)
 {

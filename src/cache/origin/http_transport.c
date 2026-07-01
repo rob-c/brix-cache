@@ -333,6 +333,20 @@ xrootd_cache_http_get_url(xrootd_cache_fill_t *t, const char *url)
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) XROOTD_CACHE_IO_TIMEOUT);
+    /*
+     * Bound a STALLED transfer, not just the connect. This fill runs on a
+     * thread-pool worker; without an idle bound, an origin that stops sending
+     * mid-transfer (connection alive, zero progress) blocks curl_easy_perform
+     * forever and wedges the pool thread — enough of them exhaust the pool and
+     * stall ALL async I/O fleet-wide. LOW_SPEED_LIMIT/TIME aborts a transfer
+     * that averages under 1 byte/s for XROOTD_CACHE_IO_TIMEOUT seconds, which
+     * catches a stall without capping a large but progressing download (a hard
+     * CURLOPT_TIMEOUT would wrongly kill big fills). Mirrors the xroot origin's
+     * SO_RCVTIMEO/SO_SNDTIMEO idle guard. CURLOPT_NOSIGNAL is set above, so
+     * curl's timers are thread-safe.
+     */
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, (long) XROOTD_CACHE_IO_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "nginx-xrootd-cache/1.0");
 #ifdef CURLOPT_PROTOCOLS_STR
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
@@ -419,28 +433,4 @@ xrootd_cache_http_get_url(xrootd_cache_fill_t *t, const char *url)
     }
 
     return 0;
-}
-
-
-int
-xrootd_cache_http_download(xrootd_cache_fill_t *t)
-{
-    ngx_stream_xrootd_srv_conf_t *conf = t->conf;
-    char                          url[XROOTD_MAX_PATH + 320];
-    const char                   *scheme;
-    int                           n, tls;
-
-    tls = (conf->cache_origin_scheme == XROOTD_CACHE_SCHEME_HTTPS
-           || conf->cache_origin_tls);
-    scheme = tls ? "https" : "http";
-
-    n = snprintf(url, sizeof(url), "%s://%s:%u%s", scheme,
-                 (char *) conf->cache_origin_host.data,
-                 (unsigned) conf->cache_origin_port, t->clean_path);
-    if (n < 0 || (size_t) n >= sizeof(url)) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0, "cache origin URL too long");
-        return -1;
-    }
-
-    return xrootd_cache_http_get_url(t, url);
 }

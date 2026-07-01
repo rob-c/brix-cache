@@ -30,6 +30,8 @@
 #include <ngx_core.h>
 #include <ngx_event.h>
 
+#include "../compat/af_policy.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -47,9 +49,11 @@ typedef enum {
 } xrootd_resolve_status_t;
 
 /*
- * Resolve host:port (AF_UNSPEC, SOCK_STREAM) and create the first non-blocking
- * socket whose address family succeeds; copy that sockaddr into *addr_out /
- * *addrlen_out. Returns the connected-ready socket fd (caller owns it) with
+ * Resolve host:port (SOCK_STREAM) and create the first non-blocking socket whose
+ * address family succeeds; copy that sockaddr into *addr_out / *addrlen_out.
+ * af_policy constrains getaddrinfo's family — XROOTD_AF_AUTO (AF_UNSPEC) tries all,
+ * XROOTD_AF_INET / _INET6 force IPv4 / IPv6 only. Returns the connected-ready
+ * socket fd (caller owns it) with
  * *status_out = XROOTD_RESOLVE_OK, or NGX_INVALID_FILE with *status_out set to
  * the failure reason (DNS vs no-usable-socket) so the caller logs its own
  * message. Does no logging itself and leaves no fd open on failure.
@@ -61,6 +65,7 @@ typedef enum {
  */
 static ngx_inline int
 xrootd_resolve_connect_socket(const char *host, unsigned port,
+    xrootd_af_policy_t af_policy,
     struct sockaddr_storage *addr_out, socklen_t *addrlen_out,
     xrootd_resolve_status_t *status_out)
 {
@@ -72,7 +77,7 @@ xrootd_resolve_connect_socket(const char *host, unsigned port,
 
     ngx_memzero(&hints, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family   = AF_UNSPEC;
+    hints.ai_family   = (int) af_policy;   /* AUTO==AF_UNSPEC keeps legacy behaviour */
     snprintf(port_str, sizeof(port_str), "%u", port);
 
     if (getaddrinfo(host, port_str, &hints, &res) != 0) {

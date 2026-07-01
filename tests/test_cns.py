@@ -119,7 +119,7 @@ worker_processes 1; daemon off; master_process off;
 error_log {ds_log}/error.log info; pid {ds_log}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{
-  server {{ listen {BIND_HOST}:{ds_port}; xrootd on; xrootd_root {data};
+  server {{ listen {BIND_HOST}:{ds_port}; xrootd on; xrootd_storage_backend posix:{data};
            xrootd_auth none; xrootd_allow_write on; xrootd_cns emit;
            xrootd_cms_manager {BIND_HOST}:{cms_port}; xrootd_cms_paths /;
            xrootd_cms_interval 1; xrootd_listen_port {ds_port}; }}

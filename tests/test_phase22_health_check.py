@@ -105,7 +105,7 @@ def test_all_directives_parse(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_DIRECTIVES};
             xrootd on;
-            xrootd_root /tmp/xrd-test/data;
+            xrootd_storage_backend posix:/tmp/xrd-test/data;
             xrootd_auth none;
             xrootd_health_check on;
             xrootd_health_check_interval 15s;
@@ -126,7 +126,7 @@ def test_bad_type_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_BADTYPE};
             xrootd on;
-            xrootd_root /tmp/xrd-test/data;
+            xrootd_storage_backend posix:/tmp/xrd-test/data;
             xrootd_auth none;
             xrootd_health_check_type bogus;
         }}
@@ -148,7 +148,7 @@ def test_disabled_by_default_no_timer_log(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_DISABLED};
             xrootd on;
-            xrootd_root /tmp/xrd-test/data;
+            xrootd_storage_backend posix:/tmp/xrd-test/data;
             xrootd_auth none;
         }}
     }}
@@ -192,7 +192,7 @@ def test_enabled_starts_manager(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_ENABLED};
             xrootd on;
-            xrootd_root /tmp/xrd-test/data;
+            xrootd_storage_backend posix:/tmp/xrd-test/data;
             xrootd_auth none;
             xrootd_health_check on;
             xrootd_health_check_interval 5s;
@@ -297,7 +297,7 @@ def hc_cluster(tmp_path):
             listen {BIND_HOST}:{DS_PORT};
             xrootd on;
             xrootd_auth none;
-            xrootd_root {data};
+            xrootd_storage_backend posix:{data};
             xrootd_cms_manager {HOST}:{CMS_PORT};
             xrootd_cms_paths /data;
             xrootd_cms_interval 2;

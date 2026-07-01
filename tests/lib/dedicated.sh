@@ -33,6 +33,7 @@ start_krb5_tier() {
 start_all_dedicated() {
     force_stop_ref
     force_stop_nginx
+    unmount_test_fuse   # clear any orphaned FUSE mount a prior crash left wedged
     regenerate_pki
 
     mkdir -p "${TEST_ROOT}/tokens"
@@ -453,6 +454,30 @@ stop_krb5_tier() {
     fi
 }
 
+# Unmount every xrootdfs/FUSE mount the test suite may have left behind.
+#
+# WHY: a crashed xrootdfs/FUSE test (test_xrootdfs*, *_fuse_resilience) can die
+# without unmounting its client, leaving an ORPHANED fuse.xrootdfs mount whose
+# daemon is gone. Any later I/O that touches it — even an unrelated cache node
+# walking a nearby path — blocks FOREVER in the kernel FUSE wait
+# (/proc/PID/wchan == request_wait_answer), and rename() across the dead mount
+# boundary returns EXDEV. That silently wedges the NEXT fleet. We kill any
+# lingering client first, then lazy-unmount so a mount with in-flight waiters
+# still detaches.
+unmount_test_fuse() {
+    pkill -9 -x xrootdfs 2>/dev/null || true
+    # Every fuse.xrootdfs mount, plus any FUSE mount under our test trees.
+    local mnt
+    mount 2>/dev/null \
+        | awk '/ type fuse\.xrootdfs /{print $3}
+               / type fuse[. ]/ && ($3 ~ /\/tmp\/(xrd-test|fusetest)\//){print $3}' \
+        | sort -u \
+        | while read -r mnt; do
+            [ -n "$mnt" ] || continue
+            fusermount -u -z "$mnt" 2>/dev/null || umount -l "$mnt" 2>/dev/null || true
+        done
+}
+
 stop_all_dedicated() {
     stop_cms_mesh
     stop_hybrid_mesh
@@ -461,4 +486,5 @@ stop_all_dedicated() {
     stop_krb5_tier
     force_stop_ref
     force_stop_nginx
+    unmount_test_fuse
 }

@@ -29,6 +29,7 @@ static const xrootd_sd_driver_t *const sd_drivers[] = {
     &xrootd_sd_block_driver,
 #if XROOTD_HAVE_CEPH
     &xrootd_sd_ceph_driver,
+    &xrootd_sd_cephfs_ro_driver,
 #endif
 #if XROOTD_HAVE_SQLITE
     &xrootd_sd_pblock_driver,

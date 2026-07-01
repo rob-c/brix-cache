@@ -3,6 +3,7 @@
  * Phase-38 split of gsi_core.c; behavior-identical.
  */
 #include "gsi_core_internal.h"
+#include "../compat/openssl_auto.h"   /* XRD_AUTO scope cleanup for EVP_CIPHER_CTX */
 
 
 EVP_PKEY *
@@ -256,26 +257,28 @@ xrootd_gsi_cipher_encrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
                           const uint8_t *in, size_t inlen, int use_iv,
                           size_t *outlen)
 {
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    XRD_AUTO(EVP_CIPHER_CTX) *ctx = EVP_CIPHER_CTX_new();
     uint8_t         iv[XROOTD_GSI_MAX_IV];
     size_t          ivl = (size_t) c->iv_len;
     size_t          off = use_iv ? ivl : 0;    /* IV prepended only when use_iv */
     uint8_t        *out;
     int             l1 = 0, l2 = 0;
 
-    /* use_iv: a fresh random IV is prepended (XrdSecgsi >=DHsigned).  Otherwise
+    /* ctx is scope-owned (XRD_AUTO): freed automatically on every return below.
+     * use_iv: a fresh random IV is prepended (XrdSecgsi >=DHsigned).  Otherwise
      * a zero IV is used and nothing is prepended (pre-DHsigned peers). */
     if (ctx == NULL) {
         return NULL;
     }
     if (use_iv) {
-        if (RAND_bytes(iv, c->iv_len) != 1) { EVP_CIPHER_CTX_free(ctx); return NULL; }
+        if (RAND_bytes(iv, c->iv_len) != 1) {
+            return NULL;
+        }
     } else {
         memset(iv, 0, ivl);
     }
     out = (uint8_t *) malloc(off + inlen + (size_t) EVP_CIPHER_block_size(c->evp));
     if (out == NULL) {
-        EVP_CIPHER_CTX_free(ctx);
         return NULL;
     }
     if (use_iv) {
@@ -286,10 +289,9 @@ xrootd_gsi_cipher_encrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
         && EVP_EncryptFinal_ex(ctx, out + off + l1, &l2) == 1) {
         *outlen = off + (size_t) (l1 + l2);
     } else {
-        free(out);
+        free(out);              /* out is caller-owned on success — freed only here */
         out = NULL;
     }
-    EVP_CIPHER_CTX_free(ctx);
     return out;
 }
 
@@ -299,15 +301,15 @@ xrootd_gsi_cipher_decrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
                           const uint8_t *in, size_t inlen, int use_iv,
                           size_t *outlen)
 {
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    XRD_AUTO(EVP_CIPHER_CTX) *ctx = EVP_CIPHER_CTX_new();
     uint8_t         iv[XROOTD_GSI_MAX_IV];
     size_t          ivl = (size_t) c->iv_len;
     size_t          off = use_iv ? ivl : 0;
     uint8_t        *out;
     int             l1 = 0, l2 = 0;
 
+    /* ctx is scope-owned (XRD_AUTO): freed automatically on every return below. */
     if (ctx == NULL || inlen < off) {
-        EVP_CIPHER_CTX_free(ctx);
         return NULL;
     }
     if (use_iv) {
@@ -317,7 +319,6 @@ xrootd_gsi_cipher_decrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
     }
     out = (uint8_t *) malloc(inlen - off + (size_t) EVP_CIPHER_block_size(c->evp));
     if (out == NULL) {
-        EVP_CIPHER_CTX_free(ctx);
         return NULL;
     }
     if (EVP_DecryptInit_ex(ctx, c->evp, NULL, key, iv) == 1
@@ -325,9 +326,8 @@ xrootd_gsi_cipher_decrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
         && EVP_DecryptFinal_ex(ctx, out + l1, &l2) == 1) {
         *outlen = (size_t) (l1 + l2);
     } else {
-        free(out);
+        free(out);              /* out is caller-owned on success — freed only here */
         out = NULL;
     }
-    EVP_CIPHER_CTX_free(ctx);
     return out;
 }

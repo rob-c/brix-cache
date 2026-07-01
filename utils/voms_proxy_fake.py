@@ -403,6 +403,25 @@ def build_voms_proxy(
             x509.BasicConstraints(ca=False, path_length=None),
             critical=True,
         )
+        # A GSI proxy carries a critical keyUsage of digitalSignature (see
+        # make_proxy.py).  Without it the proxy cannot be used to sign a
+        # delegated proxy request — XrdCrypto's X509SignProxyReq rejects a
+        # signing chain that lacks keyUsage.  Matching the plain proxy keeps the
+        # VOMS-decorated proxy usable everywhere the plain one is.
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
         .add_extension(
             UnrecognizedExtension(
                 ObjectIdentifier(OID_PROXY_CERT_INFO),

@@ -159,7 +159,7 @@ stream {
     server {
         listen __H__:__ROOT__;
         xrootd on;
-        xrootd_root __DATA__;
+        xrootd_storage_backend posix:__DATA__;
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_session_slots 64;
@@ -201,14 +201,14 @@ http {
 
         location /dav/ {
             xrootd_webdav on;
-            xrootd_webdav_root __DATA__;
+            xrootd_webdav_storage_backend posix:__DATA__;
             xrootd_webdav_auth none;
             xrootd_webdav_allow_write on;
         }
 
         location /s3/ {
             xrootd_s3 on;
-            xrootd_s3_root __DATA__;
+            xrootd_s3_storage_backend posix:__DATA__;
             xrootd_s3_region us-east-1;
             xrootd_s3_access_key testkey;
             xrootd_s3_secret_key testsecret;
@@ -238,7 +238,7 @@ stream {
     server {
         listen __H__:__ROOT__;
         xrootd on;
-        xrootd_root __DATA__;
+        xrootd_storage_backend posix:__DATA__;
         xrootd_auth none;
         xrootd_allow_write on;
     }

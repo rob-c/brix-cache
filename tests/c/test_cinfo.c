@@ -57,7 +57,7 @@ typedef struct {
     uint16_t version;
     uint16_t flags;
     uint32_t block_size;
-    uint32_t reserved;
+    uint32_t mode;
     uint64_t size;
     uint64_t mtime;
     uint64_t nblocks;
@@ -116,7 +116,8 @@ ngx_int_t xrootd_cache_cinfo_store(const char *cache_path,
 ngx_int_t xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m,
              uint32_t block_size, xrootd_cache_cinfo_t *out);
 ngx_int_t xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
-             uint32_t block_size, uint64_t mtime, uint64_t blk, void *log);
+             uint32_t block_size, uint64_t mtime, uint32_t mode, uint64_t blk,
+             void *log);
 ngx_int_t xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
              uint32_t block_size, uint64_t mtime, uint64_t off, uint64_t len,
              void *log);
@@ -334,7 +335,7 @@ test_record_block(void)
     snprintf(rc_cache, sizeof(rc_cache), "%s/rec.bin", g_dir);
 
     /* fresh record of one block -> PARTIAL, only that bit */
-    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 2, NULL) == NGX_OK,
+    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 2, NULL) == NGX_OK,
           "record block 2");
     CHECK(xrootd_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load after record");
     CHECK((r.flags & F_PARTIAL) && xrootd_cache_cinfo_block_present(rbm, 2)
@@ -342,7 +343,7 @@ test_record_block(void)
     free(rbm);
 
     /* a second, different block accumulates (read-modify-write merge) */
-    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 9, NULL) == NGX_OK,
+    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 9, NULL) == NGX_OK,
           "record block 9");
     CHECK(xrootd_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load 2");
     CHECK(xrootd_cache_cinfo_block_present(rbm, 2)
@@ -351,18 +352,29 @@ test_record_block(void)
     free(rbm);
 
     /* out-of-range block -> ERANGE/ERROR, record unchanged */
-    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 99, NULL) == NGX_ERROR,
+    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 99, NULL) == NGX_ERROR,
           "out-of-range -> ERROR");
 
     /* recording all blocks -> COMPLETE */
     {
         uint64_t b;
         for (b = 0; b < 16; b++) {
-            xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, b, NULL);
+            xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, b, NULL);
         }
         CHECK(xrootd_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load full");
         CHECK((r.flags & F_COMPLETE) && xrootd_cache_cinfo_present_count(rbm, 16) == 16,
               "all blocks -> COMPLETE");
+        free(rbm);
+    }
+
+    /* a non-zero mode is recorded in the header; 0 leaves it unchanged. */
+    {
+        char m_cache[PATH_MAX];
+        snprintf(m_cache, sizeof(m_cache), "%s/mode.bin", g_dir);
+        CHECK(xrootd_cache_cinfo_record_block(m_cache, size, BS, 0, 0644, 0, NULL)
+              == NGX_OK, "record block with mode 0644");
+        CHECK(xrootd_cache_cinfo_load(m_cache, &r, &rbm, &rlen) == NGX_OK, "load mode");
+        CHECK(r.mode == 0644, "origin mode persisted in cinfo header");
         free(rbm);
     }
 }
@@ -377,10 +389,10 @@ test_record_block_stale_reset(void)
     snprintf(c, sizeof(c), "%s/stale.bin", g_dir);
 
     /* record a block for a 16-block file */
-    xrootd_cache_cinfo_record_block(c, 16 * (uint64_t) BS, BS, 100, 5, NULL);
+    xrootd_cache_cinfo_record_block(c, 16 * (uint64_t) BS, BS, 100, 0, 5, NULL);
     /* the origin file changed (new size + mtime): the old bitmap is stale and
      * must be reset, leaving only the freshly-recorded block. */
-    CHECK(xrootd_cache_cinfo_record_block(c, 8 * (uint64_t) BS, BS, 200, 1, NULL) == NGX_OK,
+    CHECK(xrootd_cache_cinfo_record_block(c, 8 * (uint64_t) BS, BS, 200, 0, 1, NULL) == NGX_OK,
           "record after origin change");
     CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load reset");
     CHECK(r.size == 8 * (uint64_t) BS && r.mtime == 200 && r.nblocks == 8,
@@ -494,11 +506,11 @@ test_present_and_dirty_coexist(void)
     char     c[PATH_MAX];
     snprintf(c, sizeof(c), "%s/coex.bin", g_dir);
 
-    CHECK(xrootd_cache_cinfo_record_block(c, 2 * (uint64_t) BS, BS, 1000, 0, NULL) == NGX_OK,
+    CHECK(xrootd_cache_cinfo_record_block(c, 2 * (uint64_t) BS, BS, 1000, 0, 0, NULL) == NGX_OK,
           "record present block 0");
     CHECK(xrootd_cache_cinfo_mark_dirty(c, 2 * (uint64_t) BS, BS, 1000, 0, 100, NULL) == NGX_OK,
           "mark dirty");
-    CHECK(xrootd_cache_cinfo_record_block(c, 2 * (uint64_t) BS, BS, 1000, 1, NULL) == NGX_OK,
+    CHECK(xrootd_cache_cinfo_record_block(c, 2 * (uint64_t) BS, BS, 1000, 0, 1, NULL) == NGX_OK,
           "record present block 1");
     CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load coexist");
     CHECK(xrootd_cache_cinfo_block_present(rbm, 0)

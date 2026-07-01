@@ -755,6 +755,23 @@ scan_render(const char *body, int as_json, int summary_only)
                 scan_json_field(buf, "used_bytes", used, sizeof(used));
                 printf("backend=%s total=%s used=%s free=%s\n",
                        backend, total, used, freeb);
+            } else if (strcmp(t, "object") == 0) {
+                char key[1024] = "", path[1024] = "", size[24] = "0",
+                     orphan[8] = "-";
+                scan_json_field(buf, "key", key, sizeof(key));
+                scan_json_field(buf, "path", path, sizeof(path));
+                scan_json_field(buf, "size", size, sizeof(size));
+                scan_json_field(buf, "orphan", orphan, sizeof(orphan));
+                printf("%-12s %s\tkey=%s orphan=%s\n",
+                       size, path[0] ? path : "(orphan)", key, orphan);
+            } else if (strcmp(t, "drift") == 0) {
+                char cls[24] = "-", key[1024] = "", path[1024] = "",
+                     size[24] = "0";
+                scan_json_field(buf, "class", cls, sizeof(cls));
+                scan_json_field(buf, "key", key, sizeof(key));
+                scan_json_field(buf, "path", path, sizeof(path));
+                scan_json_field(buf, "size", size, sizeof(size));
+                printf("%-14s %-12s key=%s path=%s\n", cls, size, key, path);
             } else {   /* "file" */
                 char path[1024] = "", status[24] = "-", stored[136] = "-",
                      computed[136] = "-", size[24] = "0";
@@ -909,17 +926,13 @@ main(int argc, char **argv)
     }
     if (strcmp(argv[1], "dump") == 0 || strcmp(argv[1], "fill") == 0
         || strcmp(argv[1], "compare") == 0 || strcmp(argv[1], "inspect") == 0
-        || strcmp(argv[1], "health") == 0)
+        || strcmp(argv[1], "health") == 0 || strcmp(argv[1], "inventory") == 0
+        || strcmp(argv[1], "drift") == 0)
     {
         return cmd_scan(argv[1], argc - 2, argv + 2);
     }
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
         return usage(SX_OK);
-    }
-    if (strcmp(argv[1], "inventory") == 0 || strcmp(argv[1], "drift") == 0) {
-        fprintf(stderr, "xrdstorascan: '%s' needs the backend-catalog verb "
-                        "(later phase); not yet available\n", argv[1]);
-        return SX_USAGE;
     }
     fprintf(stderr, "xrdstorascan: unknown mode '%s'\n", argv[1]);
     return usage(SX_USAGE);

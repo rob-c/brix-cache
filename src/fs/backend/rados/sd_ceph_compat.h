@@ -25,4 +25,11 @@ int sd_ceph_oid_is_first_stripe(const char *oid);
  * 0, or -1 if oid is not a first stripe (or overflow). */
 int sd_ceph_oid_to_pfn(const char *oid, char *pfn, size_t cap);
 
+/* 1 iff oid is a NON-first striper data stripe — it carries a ".%016x" suffix
+ * (dot + 16 lowercase-hex digits) whose stripe index is not zero. These are the
+ * objects a catalog enumeration must SKIP: the first stripe (".0000000000000000")
+ * already represents the whole file. A flat object with no 16-hex stripe suffix
+ * returns 0 (it IS its own catalog entry). */
+int sd_ceph_oid_is_stripe_data(const char *oid);
+
 #endif /* XROOTD_SD_CEPH_COMPAT_H */

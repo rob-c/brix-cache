@@ -26,6 +26,7 @@
 #include <ngx_core.h>
 
 #include "backend/sd.h"
+#include "../compat/af_policy.h"   /* XROOTD_AF_* family policy for config_str/_xroot */
 
 /* Record (at config time) that the export rooted at `root_canon` uses backend
  * `name` (currently only "pblock") with `block_size` bytes (0 = default). Safe to
@@ -40,15 +41,43 @@ void xrootd_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
  * origin params explicitly rather than a protocol-specific conf. Safe to call
  * repeatedly for the same root (idempotent reload). */
 void xrootd_vfs_backend_config_xroot(const char *root_canon, const char *host,
-    int port, int tls);
+    int port, int tls, int family);
+
+/* Record (at config time) that the export rooted at `root_canon` is backed by a
+ * read-only HTTP(S) source (`host`:`port`, TLS iff `tls`, URL base `base_path`),
+ * served through the sd_http driver over the shared libcurl transport. */
+void xrootd_vfs_backend_config_http(const char *root_canon, const char *host,
+    int port, int tls, const char *base_path);
+
+/* Record (at config time) that the export rooted at `root_canon` is backed by a
+ * read-only S3 source (`host`:`port`, TLS iff `tls`, path-style `bucket`), served
+ * through the sd_remote driver over the shared libcurl S3 transport. CAP_RANGE_READ
+ * only — an S3 primary is read-only, like an http:// primary. */
+void xrootd_vfs_backend_config_s3(const char *root_canon, const char *host,
+    int port, int tls, const char *bucket);
 
 /* Register the export's `storage_backend` config value, dispatching on its form:
  * a "root://host:port" / "roots://host:port" URL → a remote root:// primary
  * (config_xroot); any other value → a local driver name (config, pblock). One
- * entry point both the stream and http (webdav/s3) config paths call. Returns
- * NGX_OK, or NGX_ERROR (cf-logged) on a malformed remote URL. */
+ * entry point both the stream and http (webdav/s3) config paths call. `family`
+ * is the xrootd_af_policy_t (XROOTD_AF_AUTO/_INET/_INET6) for a remote root://
+ * origin connect; non-remote backends ignore it. Returns NGX_OK, or NGX_ERROR
+ * (cf-logged) on a malformed remote URL. */
 ngx_int_t xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
-    const ngx_str_t *backend, size_t block_size);
+    const ngx_str_t *backend, size_t block_size, int family);
+
+/* Attach (at config time) the credential the source backend authenticates to its
+ * upstream with (§14 xrootd_credential): a bearer token (ztn → sd_http / sd_xroot)
+ * and/or an X.509 proxy PEM path (in-process GSI → sd_xroot). Set after the backend
+ * is registered for the same root; "" / NULL on both ⇒ anonymous. */
+void xrootd_vfs_backend_set_credential(const char *root_canon, const char *bearer,
+    const char *x509_proxy, const char *ca_dir);
+
+/* Mark (at config time) whether the export rooted at `root_canon` stages uploads
+ * locally and PROMOTES them to a remote backend on commit (write-back), vs.
+ * streaming straight through (Mode A passthrough). Only meaningful for a remote
+ * (xroot) backend. Set after the backend is registered for the same root. */
+void xrootd_vfs_backend_set_staging(const char *root_canon, int on);
 
 /* Resolve `root_canon` to its bound storage-driver instance, creating it on first
  * use in this worker (on ngx_cycle->pool). Returns NULL when the export has no
@@ -65,5 +94,27 @@ xrootd_sd_instance_t *xrootd_vfs_backend_resolve(const char *root_canon,
  * `abs_path`. */
 xrootd_sd_instance_t *xrootd_vfs_backend_resolve_for_path(const char *abs_path,
     const char **root_out, ngx_log_t *log);
+
+/* C-7 observability: a read-only snapshot of one registered export's composed
+ * stack, for the /metrics storage-backend info gauge. Pointers alias the registry's
+ * stable per-process storage (valid for the process lifetime). */
+typedef struct {
+    const char *root_canon;
+    const char *backend;     /* "pblock" | "xroot" | "http" (config-time choice) */
+    const char *host;        /* xroot/http origin host, or "" */
+    int         port;
+    int         tls;
+    int         staging;     /* write-back stage decorator composed */
+    int         has_token;   /* §14 bearer credential configured */
+    int         has_proxy;   /* §14 X.509 proxy credential configured */
+} xrootd_vfs_backend_info_t;
+
+/* Number of registered exports (config-time count; stable after config load). */
+ngx_uint_t xrootd_vfs_backend_export_count(void);
+
+/* Fill *out for export index `i` (< export_count). Returns NGX_OK, or NGX_ERROR for
+ * an out-of-range index. Read-only — never builds an instance. */
+ngx_int_t xrootd_vfs_backend_export_info(ngx_uint_t i,
+    xrootd_vfs_backend_info_t *out);
 
 #endif /* XROOTD_VFS_BACKEND_REGISTRY_H */

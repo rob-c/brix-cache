@@ -178,6 +178,10 @@ char *xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd,
  * on origin TLS. */
 char *xrootd_conf_set_cache_origin(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+/* "xrootd_cache_origin_family auto|inet|inet6": address-family policy for the
+ * origin connect (xrootd_af_policy_t). */
+char *xrootd_conf_set_cache_origin_family(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
 /* "xrootd_cache_eviction_threshold <ratio|N%>": occupancy trigger, stored
  * as parts-per-million. */
 char *xrootd_conf_set_cache_eviction_threshold(ngx_conf_t *cf,

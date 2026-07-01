@@ -37,6 +37,7 @@
  */
 
 #include "../sd.h"
+#include "../../../compat/af_policy.h"   /* XROOTD_AF_* for create_origin af_policy */
 
 /* Build a remote root:// instance bound to `conf` (an ngx_stream_xrootd_srv_conf_t*,
  * read for cache_origin_host/port/tls/ssl_ctx). Returns a malloc-owned instance
@@ -47,11 +48,18 @@ xrootd_sd_instance_t *xrootd_sd_xroot_create(void *conf, ngx_log_t *log);
 /* Build a remote root:// instance from EXPLICIT origin params (host/port/tls),
  * synthesizing the minimal conf the wire client needs. Used to make a remote
  * root:// the registry-selectable PRIMARY backend of any export (stream OR http,
- * which has no stream conf). Anonymous; tls!=0 needs trusted-CA wiring (follow-on).
- * Returns a malloc-owned instance, or NULL (errno set). Destroy with
- * xrootd_sd_xroot_destroy. */
+ * which has no stream conf). `bearer` (NULL/"" = anonymous) is presented to the
+ * origin via ztn (XrdSecztn), and `x509_proxy` (a PEM path, NULL/"" = none) via the
+ * in-process XrdSecgsi handshake, when the origin demands authentication — the §14
+ * credential's token / X.509 proxy. `ca_dir` (a CA file or hashed dir, NULL/"" =
+ * none) builds the store that VERIFIES the origin's server cert during the GSI
+ * handshake (MITM protection). `af_policy` (xrootd_af_policy_t) constrains the
+ * origin connect's address family — XROOTD_AF_AUTO tries all, _INET / _INET6 force
+ * IPv4 / IPv6 only. Returns a malloc-owned instance, or NULL (errno set).
+ * Destroy with xrootd_sd_xroot_destroy. */
 xrootd_sd_instance_t *xrootd_sd_xroot_create_origin(const char *host, int port,
-    int tls, ngx_log_t *log);
+    int tls, int af_policy, const char *bearer, const char *x509_proxy,
+    const char *ca_dir, ngx_log_t *log);
 
 /* Free a root:// instance built by xrootd_sd_xroot_create. NULL-safe. */
 void xrootd_sd_xroot_destroy(xrootd_sd_instance_t *inst);

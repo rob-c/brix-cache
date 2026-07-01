@@ -109,7 +109,7 @@ def gsi_nginx(tmp_path_factory):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen {SRC};\n    xrootd on;\n"   # all interfaces: GSI cert CN=fqdn
-        f"    xrootd_root {sdata};\n    xrootd_auth gsi;\n"
+        f"    xrootd_storage_backend posix:{sdata};\n    xrootd_auth gsi;\n"
         f"    xrootd_certificate {srv / 'hostcert.pem'};\n"
         f"    xrootd_certificate_key {srv / 'hostkey.pem'};\n"
         f"    xrootd_trusted_ca {certs};\n"
@@ -123,7 +123,7 @@ def gsi_nginx(tmp_path_factory):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{DST};\n    xrootd on;\n"
-        f"    xrootd_root {ddata};\n    xrootd_auth none;\n"
+        f"    xrootd_storage_backend posix:{ddata};\n    xrootd_auth none;\n"
         "    xrootd_allow_write on;\n"
         "    xrootd_tpc_allow_local on;\n    xrootd_tpc_allow_private on;\n"
         f"    xrootd_certificate {dproxy};\n"

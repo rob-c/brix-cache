@@ -40,7 +40,7 @@ def _run_t(stream_body, port_suffix):
               server {{
                 listen 127.0.0.1:21{port_suffix};
                 xrootd on;
-                xrootd_root {TMP}/export;
+                xrootd_storage_backend posix:{TMP}/export;
             {stream_body}
               }}
             }}

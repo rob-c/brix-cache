@@ -206,7 +206,19 @@ tpc_open_source(xrootd_tpc_pull_t *t, int fd, u_char fhandle[XRD_FHANDLE_LEN])
     opqlen    = 0;
     opaque[0] = '\0';
 
-    if (t->tpc_key[0] != '\0' && t->tpc_org[0] != '\0') {
+    /*
+     * TPC-lite delegation: when we hold the user's delegated proxy we authenticate
+     * to the source AS THE USER, so we open the file directly — no tpc.key opaque.
+     * The tpc.key/tpc.org rendezvous is the *anonymous* TPC model where the pulling
+     * server proves authorization with a key the client pre-registered on the
+     * source; presenting it here makes the source defer with kXR_waitresp forever
+     * (it waits for a client-side authorization that the delegate flow never
+     * issues). A delegated open is a plain authenticated read by the file owner.
+     */
+    if (t->deleg_cred_pem != NULL && t->deleg_cred_len > 0) {
+        opqlen = 0;
+        opaque[0] = '\0';
+    } else if (t->tpc_key[0] != '\0' && t->tpc_org[0] != '\0') {
         opqlen = (size_t) snprintf(opaque, sizeof(opaque),
                                    "?tpc.key=%s&tpc.org=%s",
                                    t->tpc_key, t->tpc_org);

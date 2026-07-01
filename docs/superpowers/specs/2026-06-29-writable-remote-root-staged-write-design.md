@@ -160,14 +160,21 @@ error → mapped errno / write to a read-only/denied origin path).
    *primary* before; pblock always had a block-0 fd). E2E: `tests/run_remote_backend_write.sh`
    (write→origin byte-exact, no local copy, read-back, stat, multi-chunk). Regressions
    green: POSIX roundtrip, pblock, cache-xroot read.
-3. **Generic staged-write passthrough** — `staged_open/write/commit/abort` on
-   `sd_xroot` so `vfs_staged.c` drives Mode A uniformly (WebDAV PUT / S3 POST /
-   `root://` write all "just work").
-4. **Staging-store mode** — `xrootd_storage_staging` pairs local-posix staging with
-   the remote backend; `staged_commit` promotes via the existing flush engine +
-   journal + backpressure (Mode B). Auth-origin guard.
-5. **Docs + matrix** — flip the `sd_xroot` row's write/staged cells; document the
-   two modes and the auth constraint.
+3. **Generic staged-write passthrough** — ✅ **DONE.** `staged_open/write/commit/abort`
+   on `sd_xroot` (Mode A) + decoupled from the stream conf
+   (`xrootd_sd_xroot_create_origin`) so http exports select it; shared
+   `xrootd_vfs_backend_config_str()` URL parser for stream + webdav. Fixed the no-fd
+   gaps the http path hit: WebDAV lock pre-check tolerates `ENOTSUP`,
+   `xrootd_vfs_file_stat` allows fd<0 when driver-backed. E2E:
+   `tests/run_remote_backend_webdav.sh` (PUT staged→origin + no-fd GET + multi-chunk).
+4. **Staging-store mode (Mode B)** — ✅ **DONE.** `xrootd_webdav_storage_staging on`
+   (registry `set_staging` flag) → `vfs_staged.c` stages to a LOCAL POSIX temp under the
+   export root, and `xrootd_vfs_staged_promote()` drives the driver's staged path to the
+   remote on commit, dropping the temp. E2E: `tests/run_remote_backend_staging.sh`
+   (promote→origin byte-exact, local store empty after, GET). Remote-side atomicity +
+   durable journal + backpressure (reuse the cache WT engine) remain follow-ons.
+5. **Docs + matrix** — ✅ **DONE.** `sd_xroot` row + CAP table updated; both staged-write
+   modes and the anonymous-only constraint documented (§1.1 n.⁵, §3.x).
 
 ## 11. Global constraints (repo rules)
 

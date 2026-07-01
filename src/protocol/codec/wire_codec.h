@@ -36,6 +36,18 @@
 #define XRDW_BODY_LEN     16
 #define XRDW_FHANDLE_LEN  4
 
+/* Compile-time guards on the codec's foundational constants. Every pack/unpack
+ * memcpy/put/get below indexes into a XRDW_BODY_LEN-byte buffer at offsets up to
+ * 12 + XRDW_FHANDLE_LEN; if either constant drifts from the XRootD wire (the
+ * 16-byte ClientRequestHdr.body, 4-byte file handle) the offsets silently corrupt
+ * every request. These turn that drift into a build failure. The matching
+ * "codec == real ClientRequestHdr.body" tie lives at the module consumer
+ * (src/read/read.c), since this header is ngx-/XProtocol-free by design. */
+_Static_assert(XRDW_BODY_LEN == 16, "XRootD ClientRequestHdr body region is 16 bytes");
+_Static_assert(XRDW_FHANDLE_LEN == 4, "XRootD file handle is 4 bytes");
+_Static_assert(12 + XRDW_FHANDLE_LEN <= XRDW_BODY_LEN,
+    "fhandle at offset 12 must fit within the body region");
+
 /* ---- big-endian (network order) field helpers ------------------------- */
 
 static inline void xrdw_put_u16(uint8_t *p, uint16_t v)

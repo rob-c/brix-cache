@@ -443,6 +443,12 @@ typedef struct {
      * Prevents CPU exhaustion from malicious symlink traversal chains or deep nesting. */
     ngx_atomic_t  path_depth_violations_total;
 
+    /* §7 XrdSsi service counters (low-cardinality: no per-request labels). */
+    ngx_atomic_t  ssi_requests_total;          /* SSI requests dispatched */
+    ngx_atomic_t  ssi_errors_total;            /* SSI error responses */
+    ngx_atomic_t  ssi_alerts_pushed_total;     /* out-of-band alerts pushed */
+    ngx_atomic_t  ssi_attn_push_failures_total;/* failed kXR_attn pushes */
+
     /*
      * Identity for the listener bound to this slot.
      * The stream module assigns one slot per enabled server during startup.

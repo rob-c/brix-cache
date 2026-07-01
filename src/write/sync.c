@@ -69,22 +69,10 @@ xrootd_handle_sync(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		                              "sync");
 	}
 
-	if (ctx->files[idx].wt_enabled && ctx->files[idx].wt_dirty_offset >= 0) {
-		ngx_stream_xrootd_srv_conf_t *conf;
-
-		conf = ngx_stream_get_module_srv_conf(ctx->session,
-		                                      ngx_stream_xrootd_module);
-		rc = xrootd_wt_flush_sync_handle(ctx, c, conf, idx,
-		                                  ctx->files[idx].path,
-		                                  kXR_IOError);
-		if (rc != NGX_OK) {
-			/* Flush failed: the helper only reports status, so send the
-			 * single kXR_error wire response here. */
-			XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
-			return xrootd_send_error(ctx, c, kXR_IOError,
-			                          "write-through flush to origin failed");
-		}
-	}
+	/* Write-through flush is part of the storage path now (Option A): a wt sd_stage
+	 * handle flushes to the origin through the VFS fsync job above (sd_stage_wb_fsync,
+	 * which surfaces a failure as kXR_error) and on close (sd_stage_wb_close). The
+	 * legacy run_flush loop has been retired. */
 
 	XROOTD_RETURN_OK(ctx, c, XROOTD_OP_SYNC, "SYNC",
 					 ctx->files[idx].path, "-", 0);

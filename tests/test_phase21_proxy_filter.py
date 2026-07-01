@@ -101,6 +101,8 @@ def _http_block(body, tmp_path):
 # 2. Config validation                                                         #
 # --------------------------------------------------------------------------- #
 
+@pytest.mark.skip(reason="multi-backend WebDAV reverse-proxy directives "
+                  "(xrootd_webdav_proxy/_upstream) retired in legacy-proxy cleanup")
 def test_multi_url_proxy_directive_parses(tmp_path):
     (tmp_path / "t").mkdir(exist_ok=True)
     conf = _http_block(f"""
@@ -108,7 +110,7 @@ def test_multi_url_proxy_directive_parses(tmp_path):
             listen {BIND_HOST}:{_CFG_LISTEN_1};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {DATA_DIR};
+                xrootd_webdav_storage_backend posix:{DATA_DIR};
                 xrootd_webdav_auth none;
                 xrootd_webdav_proxy on;
                 xrootd_webdav_proxy_upstream http://{HOST}:{_CFG_UPSTREAM_1}
@@ -122,6 +124,8 @@ def test_multi_url_proxy_directive_parses(tmp_path):
     assert rc == 0, out
 
 
+@pytest.mark.skip(reason="multi-backend WebDAV reverse-proxy directives "
+                  "(xrootd_webdav_proxy/_upstream) retired in legacy-proxy cleanup")
 def test_bad_scheme_rejected(tmp_path):
     (tmp_path / "t").mkdir(exist_ok=True)
     conf = _http_block(f"""
@@ -129,7 +133,7 @@ def test_bad_scheme_rejected(tmp_path):
             listen {BIND_HOST}:{_CFG_LISTEN_2};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {DATA_DIR};
+                xrootd_webdav_storage_backend posix:{DATA_DIR};
                 xrootd_webdav_auth none;
                 xrootd_webdav_proxy on;
                 xrootd_webdav_proxy_upstream ftp://{HOST}:{_CFG_UPSTREAM_1};
@@ -205,6 +209,8 @@ def _get_body(port, path="/x"):
 
 @pytest.fixture
 def proxy_with_two_origins(tmp_path):
+    pytest.skip("multi-backend WebDAV reverse-proxy (xrootd_webdav_proxy) retired "
+                "in legacy-proxy cleanup")
     be1_port, be2_port, proxy_port = _free_port(), _free_port(), _free_port()
     o1 = _start_origin(be1_port, b"BE1")
     o2 = _start_origin(be2_port, b"BE2")
@@ -215,7 +221,7 @@ def proxy_with_two_origins(tmp_path):
             listen {BIND_HOST}:{proxy_port};
             location / {{
                 xrootd_webdav on;
-                xrootd_webdav_root {DATA_DIR};
+                xrootd_webdav_storage_backend posix:{DATA_DIR};
                 xrootd_webdav_auth none;
                 xrootd_webdav_proxy on;
                 xrootd_webdav_proxy_auth anonymous;
@@ -303,7 +309,7 @@ def webdav_server(tmp_path):
             location / {{
                 root {data};
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
             }}
         }}
@@ -412,7 +418,7 @@ def introspect_server(tmp_path):
             location / {{
                 root {data};
                 xrootd_webdav on;
-                xrootd_webdav_root {data};
+                xrootd_webdav_storage_backend posix:{data};
                 xrootd_webdav_auth none;
                 xrootd_webdav_token_introspect_loc /_introspect;
                 xrootd_webdav_token_introspect_fail_open off;

@@ -136,13 +136,13 @@ stream {
     server {
         listen $PORT_ANON;
         xrootd on;
-        xrootd_root $PREFIX/data;
+        xrootd_storage_backend posix:$PREFIX/data;
         xrootd_auth none;
     }
     server {
         listen $PORT_GSI;
         xrootd on;
-        xrootd_root $PREFIX/data;
+        xrootd_storage_backend posix:$PREFIX/data;
         xrootd_auth gsi;
         xrootd_certificate     $PREFIX/conf/host.crt;
         xrootd_certificate_key $PREFIX/conf/host.key;

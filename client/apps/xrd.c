@@ -60,6 +60,12 @@ usage(void)
         "       full endpoint health: creds/TLS/cert/clock/caps + a functional method\n"
         "       battery (--rw adds write tests; --also adds protocols; --json dumps all)\n"
         "    xrd login [--oidc-account N] [--read]  acquire/refresh a token and/or GSI proxy\n\n"
+        "  backend storage (-> xrdstorascan; lists/verifies what the backend physically holds,\n"
+        "                    incl. the Ceph/RADOS object catalog over librados):\n"
+        "    xrd inventory <url> [--stats] [-o objs.tsv]   dump backend object paths (+ sizes)\n"
+        "    xrd verify <url> [--wire]                     recompute + compare checksums\n"
+        "    xrd drift <url>                               reconcile namespace vs catalog (orphans)\n"
+        "    xrd inspect <url>                             one object's backend facts (key/type)\n\n"
         "  FUSE mount (needs the libfuse3-built driver):\n"
         "    xrd mount [--legacy] <endpoint> <mountpoint> [fuse-opts]   mount via xrootdfs (--legacy: simple driver)\n"
         "    xrd mount | xrd mounts            list active XRootD FUSE mounts\n"
@@ -215,6 +221,18 @@ main(int argc, char **argv)
     if (strcmp(cmd, "mounts") == 0) { return xrd_list_mounts(); }
     if (strcmp(cmd, "unmount") == 0 || strcmp(cmd, "umount") == 0) {
         return xrd_unmount(argc, argv);
+    }
+
+    /* backend-storage list/verify (incl. the Ceph/RADOS object catalog) ->
+     * xrdstorascan. `inventory` dumps the objects the backend physically holds;
+     * `verify` recomputes + compares their checksums (Ceph: over libradosstriper-
+     * reassembled bytes); `drift` reconciles namespace vs catalog; `inspect`
+     * reports one object's backend facts. The subcommand stays at argv[1]. */
+    if (strcmp(cmd, "inventory") == 0 || strcmp(cmd, "verify") == 0
+        || strcmp(cmd, "drift") == 0 || strcmp(cmd, "inspect") == 0)
+    {
+        argv[0] = (char *) "xrdstorascan";
+        exec_tool("xrdstorascan", argv);
     }
 
     /* filesystem verb. xrdfs separates the connect endpoint from the path, so when

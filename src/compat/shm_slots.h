@@ -57,9 +57,12 @@ xrootd_shm_remember_free_slot(ngx_uint_t *free_slot, ngx_uint_t none,
  * copycmd). These helpers allocate the table FROM the slab pool, leaving the
  * header intact, so any subsystem that forks children is safe.
  *
- * Contract: the table's FIRST member must be an ngx_shmtx_sh_t lock (pass `mtx`
- * to have the process-local handle created from it; pass NULL for lock-less
- * tables such as the metrics counters).
+ * Contract: pass `mtx` to have a process-local mutex handle created, bound to
+ * the slab pool's OWN lock word (&sp->lock) — the word nginx force-unlocks on
+ * every worker death, so a worker that dies holding it is recovered rather than
+ * stranding the lock forever. Pass NULL for lock-less tables (e.g. the metrics
+ * counters). The lock is NOT taken from the table data, so the table needs no
+ * embedded lock member.
  *
  * xrootd_shm_table_alloc(): handles fresh alloc, reload (data != NULL), and
  *   re-attach (shm.exists). Publishes the table via shm_zone->data AND the slab

@@ -143,7 +143,20 @@ xfs_conn_healthy(const xrdc_status *st)
 int
 xfs_meta(xrdc_fuse_op_fn fn, void *ctx, xrdc_status *st)
 {
-    return xrdc_fuse_run(g_pool, g_max_retries, fn, ctx, st);
+    /* Deadline-bounded (g_max_stall) like the data plane — ride a lossy link out
+     * for the patience window rather than giving up after a fixed count. */
+    return xrdc_fuse_run(g_pool, g_max_retries, g_max_stall, 0, fn, ctx, st);
+}
+
+
+/* As xfs_meta, for a MUTATION whose re-issue after a sever can return a benign
+ * "already in the desired state" code (the first attempt applied it, its reply
+ * lost): benign_errno (EEXIST/ENOENT) is normalized to success on a retry. */
+int
+xfs_meta_idem(xrdc_fuse_op_fn fn, void *ctx, int benign_errno, xrdc_status *st)
+{
+    return xrdc_fuse_run(g_pool, g_max_retries, g_max_stall, benign_errno,
+                         fn, ctx, st);
 }
 
 
@@ -166,7 +179,7 @@ xfs_link(const char *from, const char *to)
     char fbuf[XRDC_PATH_MAX], tbuf[XRDC_PATH_MAX];
     struct xrdc_fuse_ctx_link2 a = { srv_path(from, fbuf, sizeof(fbuf)),
                            srv_path(to, tbuf, sizeof(tbuf)) };
-    return xfs_meta(xrdc_fuse_op_link, &a, &st);
+    return xfs_meta_idem(xrdc_fuse_op_link, &a, EEXIST, &st);
 }
 
 

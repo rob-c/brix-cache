@@ -22,6 +22,8 @@
 #include "../path/beneath.h"
 #include "../compat/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
 #include "../protocol/opcodes.h"
+#include "../fs/vfs.h"                  /* xrootd_sd_caps, xrootd_vfs_enumerate_catalog */
+#include "../fs/vfs_backend_registry.h" /* xrootd_vfs_backend_resolve (export→instance) */
 
 #include <fcntl.h>
 #include <limits.h>
@@ -174,6 +176,7 @@ ngx_http_xrootd_dashboard_scan_handler(ngx_http_request_t *r)
     char                    modebuf[16];
     char                    maxbuf[24];
     int                     rootfd;
+    xrootd_sd_instance_t   *sd;
     u_char                 *buf = NULL;
     size_t                  cap = 0, used = 0;
     u_char                 *body;
@@ -230,17 +233,38 @@ ngx_http_xrootd_dashboard_scan_handler(ngx_http_request_t *r)
         }
     }
 
-    rootfd = xrootd_beneath_open_root(conf->scan_root_canon);
-    if (rootfd < 0) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
     ngx_memzero(&summary, sizeof(summary));
     t0 = ngx_current_msec;
-    rc = xrootd_scan_run(r->connection->log, rootfd, relpath, &opts,
-                         &buf, &cap, &used, &summary,
-                         &err_code, err_msg, sizeof(err_msg));
-    close(rootfd);
+
+    /* A catalog-native backend (e.g. Ceph/RADOS) answers `inventory` by
+     * enumerating its OWN object catalog through the SD `enumerate` verb — no
+     * POSIX rootfd, no namespace walk. Every other export (and every other mode)
+     * runs the confined POSIX walk. */
+    sd = xrootd_vfs_backend_resolve(conf->scan_root_canon, r->connection->log);
+    if (opts.mode == XROOTD_SCAN_INVENTORY && sd != NULL
+        && (xrootd_sd_caps(sd) & XROOTD_SD_CAP_CATALOG))
+    {
+        rc = xrootd_scan_run_inventory(r->connection->log, sd, &opts,
+                                       &buf, &cap, &used, &summary,
+                                       &err_code, err_msg, sizeof(err_msg));
+    } else if (opts.mode == XROOTD_SCAN_VERIFY && sd != NULL
+               && (xrootd_sd_caps(sd) & XROOTD_SD_CAP_CATALOG))
+    {
+        /* Verify checksums of every object the backend physically holds, reading
+         * bytes through the driver (Ceph: libradosstriper-reassembled). */
+        rc = xrootd_scan_run_verify_catalog(r->connection->log, sd, &opts,
+                                            &buf, &cap, &used, &summary,
+                                            &err_code, err_msg, sizeof(err_msg));
+    } else {
+        rootfd = xrootd_beneath_open_root(conf->scan_root_canon);
+        if (rootfd < 0) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        rc = xrootd_scan_run(r->connection->log, rootfd, relpath, &opts,
+                             &buf, &cap, &used, &summary,
+                             &err_code, err_msg, sizeof(err_msg));
+        close(rootfd);
+    }
 
     if (rc != NGX_OK) {
         if (buf != NULL) {

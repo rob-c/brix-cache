@@ -149,6 +149,19 @@ int xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
                                    uint8_t **payload, uint32_t *plen,
                                    char *err, size_t errcap);
 
+/* As xrootd_gsi_build_cert_response, but also hands the agreed session cipher
+ * out to the caller: out_key[out_keylen] the raw AES key, out_cipher the cipher
+ * name, out_use_iv the IV-prepend flag.  Client-side X.509 delegation needs this
+ * to encrypt the follow-up kXGC_sigpxy.  Any out pointer may be NULL. */
+int xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
+                                      const uint8_t *proxy_pem,
+                                      size_t proxy_pem_len, EVP_PKEY *proxy_key,
+                                      uint8_t **payload, uint32_t *plen,
+                                      uint8_t *out_key, size_t *out_keylen,
+                                      char *out_cipher, size_t out_cipher_cap,
+                                      int *out_use_iv,
+                                      char *err, size_t errcap);
+
 /* ---- kXR_sigver opcode policy ---- */
 int xrootd_gsi_sigver_required(uint16_t opcode, int level);
 

@@ -94,20 +94,6 @@ typedef struct {
     char      part_path[PATH_MAX];             /* in-progress download path */
     char      lock_path[PATH_MAX];             /* O_EXCL serialisation lock path */
     off_t     file_size;   /* file size from origin open (kXR_retstat); 0 = unknown */
-    /* Phase 26 slice fill: when slice_len > 0 the worker fetches only the
-     * window [slice_start, slice_start+slice_len) (clamped to file_size) and
-     * cache_path/part_path/lock_path point at the per-slice files.
-     * file_cache_path is the whole-file cache path used for the shared
-     * .__xrds.meta sidecar.  slice_len == 0 keeps the historical whole-file
-     * fill behaviour. */
-    off_t     slice_start;
-    off_t     slice_len;
-    char      file_cache_path[PATH_MAX];
-    /* Phase 26 read-resume: the original kXR_read params, so the slice fill
-     * done callback can re-enter the read handler after a slice lands. */
-    int       slice_read_idx;
-    off_t     slice_read_offset;
-    size_t    slice_read_rlen;
     /* Checksum-on-fill (verify.c): the origin's advertised content digest,
      * populated after a successful download (kXR_Qcksum for the xroot origin;
      * a Digest header for the HTTP/Pelican origins). Empty alg ⇒ origin offered
@@ -118,6 +104,12 @@ typedef struct {
     int       xrd_error;   /* XRootD error code on failure */
     int       sys_errno;   /* errno on failure */
     char      err_msg[256]; /* human-readable error description */
+    /* C-1 (phase-63): when the export's PRIMARY storage is a remote SOURCE backend
+     * (e.g. xroot://) and no separate xrootd_cache_origin is configured, the cache
+     * fills FROM that registered backend instead of the bespoke origin wire client.
+     * Resolved on the MAIN thread in open_or_fill (race-free) and used by the fill
+     * worker via source_inst->driver->open/pread. NULL ⇒ the legacy origin paths. */
+    xrootd_sd_instance_t *source_inst;
 } xrootd_cache_fill_t;
 
 /*
@@ -262,6 +254,24 @@ int xrootd_cache_origin_open(xrootd_cache_fill_t *t,
 int xrootd_cache_origin_query_checksum(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, char *alg_out, size_t alg_sz,
     char *hex_out, size_t hex_sz);
+/* Namespace/metadata ops on the origin (path-based; used by the sd_xroot driver
+ * when a remote root:// is the export's PRIMARY backend). Each returns 0 / -1
+ * with errno set (get/list return the byte count, or -1). */
+int     xrootd_cache_origin_rename(xrootd_cache_fill_t *t,
+            xrootd_cache_origin_conn_t *oc, const char *src, const char *dst);
+int     xrootd_cache_origin_rm(xrootd_cache_fill_t *t,
+            xrootd_cache_origin_conn_t *oc, const char *path);
+ssize_t xrootd_cache_origin_getfattr(xrootd_cache_fill_t *t,
+            xrootd_cache_origin_conn_t *oc, const char *path, const char *name,
+            void *buf, size_t cap);
+ssize_t xrootd_cache_origin_listfattr(xrootd_cache_fill_t *t,
+            xrootd_cache_origin_conn_t *oc, const char *path,
+            void *buf, size_t cap);
+int     xrootd_cache_origin_setfattr(xrootd_cache_fill_t *t,
+            xrootd_cache_origin_conn_t *oc, const char *path, const char *name,
+            const void *val, size_t vlen);
+int     xrootd_cache_origin_delfattr(xrootd_cache_fill_t *t,
+            xrootd_cache_origin_conn_t *oc, const char *path, const char *name);
 /* kXR_open (update|delete|mkpath) on the borrowed absolute origin path for
  * write-through: truncates the destination and creates missing parents. mode_bits
  * applies to a newly created file (0644 when 0). Fills fhandle (caller-provided).
@@ -317,45 +327,11 @@ int xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
 int xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
     xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN]);
 
-/* Write-through flush entry at kXR_close for handle idx: dispatches async (nginx
- * thread pool, sets ctx->files[idx].wt_flush_pending and returns immediately) when
- * wt_mode==ASYNC and a pool exists, else runs synchronously. Falls back to sync on
- * post failure. local_path may be NULL (uses the handle's recorded path). Always
- * returns NGX_OK (errors are logged, not propagated to the close reply). */
-ngx_int_t xrootd_wt_flush_on_close(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, int idx, const char *local_path);
-/* Synchronous write-through flush for handle idx (used by kXR_sync and the sync
- * close path): blocks mirroring the local file to the origin. On success clears
- * the dirty markers. When fail_status != 0, a failure sends that kXR_* error to
- * the client (and is the return of xrootd_send_error); when 0, failures are only
- * logged. Returns NGX_OK when there was nothing dirty (NGX_DECLINED internally)
- * or on logged failure. */
-ngx_int_t xrootd_wt_flush_sync_handle(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, int idx, const char *local_path,
-    uint16_t fail_status);
-/* Thread-pool worker for async write-through: runs the blocking flush on the
- * xrootd_wt_flush_t in `data`. Result is reported via the task struct. */
-void xrootd_wt_flush_thread(void *data, ngx_log_t *log);
-/* Event-loop completion callback for the async write-through task: updates
- * metrics, logs success/failure, and frees the ngx_thread_task (which owns the
- * embedded wt copy). */
-void xrootd_wt_flush_done(ngx_event_t *ev);
-
-/* Phase 4b-2b-ii (durable async): re-drive a journaled WT flush recovered from
- * the durable journal on restart — builds a flush task from the recovered record
- * and posts it to the thread pool (completion deletes the record on success or
- * marks it FAILED for bounded retry). Detached from any client. NGX_OK / NGX_ERROR.
- * (writethrough_flush.c) */
-ngx_int_t xrootd_wt_flush_post_replay(ngx_stream_xrootd_srv_conf_t *conf,
-    ngx_thread_pool_t *tp, const char *local_path, const char *reqid,
-    uint16_t mode_bits, ngx_log_t *log);
-
-/* Arm the per-worker WT replay scheduler: on startup it requeues FAILED and
- * re-drives QUEUED write-through journal records (bounded retry), so an async
- * flush interrupted by a crash reaches the origin after a restart. No-op without
- * a journal (the shared FRM queue) or a thread pool. (writethrough_replay.c) */
-void xrootd_wt_replay_register(ngx_cycle_t *cycle,
-    ngx_stream_xrootd_srv_conf_t *conf, ngx_thread_pool_t *thread_pool);
+/* The write-through flush is now part of the storage path (Option A): a write-open
+ * routes through the wt sd_stage decorator (cache_storage.c: cache_build_wt_stage),
+ * so a write buffers on the local store and flushes to the origin on kXR_sync/close
+ * through the one staging engine. The bespoke run_flush loop + its durable-journal
+ * replay (writethrough_flush.c / writethrough_replay.c) have been retired. */
 
 /* Thread-pool fetch of the WHOLE file from origin into t->part_path, then atomic
  * rename to t->cache_path and write the metadata sidecar. Applies the admission
@@ -363,6 +339,28 @@ void xrootd_wt_replay_register(ngx_cycle_t *cycle,
  * -1 on error (t error set), 1 when admission declined (sets t->result=NGX_DECLINED
  * so the caller redirects the client to the origin). */
 int xrootd_cache_fetch_origin(xrootd_cache_fill_t *t);
+/* Build a bare sd_xroot cache-origin instance from the legacy cache_origin READ
+ * credentials (cache_origin_proxy/cadir/token_file + family + tls). The SINGLE
+ * source of the read-origin credential mapping — the whole-file fetch (fetch.c) and
+ * the slice decorator (cache_storage.c) both build through here so their auth cannot
+ * drift. Caller owns the instance (xrootd_sd_xroot_destroy). NULL on failure. */
+xrootd_sd_instance_t *xrootd_cache_build_origin(
+    const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);
+/* Build a bare read-only sd_remote (S3/SigV4) cache-origin instance from the legacy
+ * cache_origin_s3_* config. The SINGLE source of the S3-origin config mapping (the
+ * whole-file fetch and the config-time source builder both use it). Caller owns the
+ * instance (xrootd_sd_remote_destroy). NULL on failure / when no bucket is set. */
+xrootd_sd_instance_t *xrootd_cache_build_s3_origin(
+    const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);
+/* Build a bare read-only sd_http (HTTP/HTTPS) cache-origin instance from the legacy
+ * cache_origin config. Caller owns it (xrootd_sd_http_destroy). NULL on failure. */
+xrootd_sd_instance_t *xrootd_cache_build_http_origin(
+    const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);
+/* Build the WRITE-BACK origin (flush target) from wt_origin/cache_origin with the
+ * write-back credential precedence. Distinct from xrootd_cache_build_origin (READ).
+ * Caller owns it (xrootd_sd_xroot_destroy). NULL if no origin configured. */
+xrootd_sd_instance_t *xrootd_cache_build_wt_origin(
+    const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log);
 /* Two-pass LRU eviction when cache filesystem occupancy exceeds
  * conf->cache_eviction_threshold (ppm); no-op if cache disabled or threshold 0.
  * protect_path (the file being filled) is never evicted. Takes a directory-level
@@ -378,18 +376,6 @@ void xrootd_cache_fill_thread(void *data, ngx_log_t *log);
  * request, then redirects (NGX_DECLINED), sends a kXR_error (failure), or opens
  * the freshly cached file and resumes the client's AIO read (success). */
 void xrootd_cache_fill_done(ngx_event_t *ev);
-
-/* Phase 26 slice fill (slice_fill.c). */
-/* Fetch ONE byte window [slice_start, slice_start+slice_len) (clamped to file
- * size) into t->part_path, atomically rename to the per-slice t->cache_path, and
- * validate/refresh the shared whole-file meta sidecar (evicting sibling slices on
- * an origin size change). Returns 0 on success, -1 on error (t error set);
- * admission decline (1) never occurs for slices. */
-int  xrootd_cache_slice_fetch_origin(xrootd_cache_fill_t *t);
-/* Thread-pool worker for a slice fill: ensure parent → wait/lock → skip if the
- * slice is already present → fetch the window → release lock. Fire-and-forget:
- * the client was already answered with kXR_wait, so there is no done callback. */
-void xrootd_cache_slice_fill_thread(void *data, ngx_log_t *log);
 
 
 #endif /* XROOTD_CACHE_INTERNAL_H */

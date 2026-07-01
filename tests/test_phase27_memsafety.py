@@ -187,7 +187,7 @@ def _spawn_stream(tmp_path, port):
             "events { worker_connections 64; }\n"
             "stream {\n"
             f"  server {{ listen {BIND_HOST}:{port}; xrootd on;"
-            f" xrootd_root {data}; xrootd_auth none; }}\n"
+            f" xrootd_storage_backend posix:{data}; xrootd_auth none; }}\n"
             "}\ndaemon off;\nmaster_process off;\n")
     cp = tmp_path / "nginx.conf"
     cp.write_text(conf)

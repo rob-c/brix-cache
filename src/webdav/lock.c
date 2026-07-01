@@ -733,14 +733,14 @@ webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
                 "<D:lockscope>%s</D:lockscope>"
                 "<D:depth>%s</D:depth>"
                 "<D:owner>%s</D:owner>"
-                "<D:timeout>Second-%ui</D:timeout>"
+                "<D:timeout>Second-%lu</D:timeout>"
                 "<D:locktoken>"
                 "<D:href>%s</D:href>"
                 "</D:locktoken>"
                 "</D:activelock>",
                 e.exclusive ? "<D:exclusive/>" : "<D:shared/>",
                 e.depth_infinity ? "infinity" : "0",
-                safe_owner, remaining, e.token) == NULL)
+                safe_owner, (unsigned long) remaining, e.token) == NULL)
         {
             return NGX_ERROR;
         }

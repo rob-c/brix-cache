@@ -17,13 +17,60 @@
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
 #include "handoff/handoff.h"
+#include "relay/relay.h"
 #include "token/token_cache.h"   /* xrootd_token_cache_directive */
 #include "manager/health_check.h" /* XROOTD_HC_TYPE_* */
 #include "mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
 #include "ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
 #include "impersonate/lifecycle.h" /* Phase 40: impersonation directives */
 #include "cms/cns.h"               /* §6 CNS mode enum */
+#include "config/credential_block.h" /* §14 xrootd_credential block directive */
 #include "module_enums.h"   /* directive enum value tables */
+
+/* phase-64: xrootd_stage_flush sync|async value map (0 = sync, 1 = async). */
+static ngx_conf_enum_t  xrootd_stage_flush_enum[] = {
+    { ngx_string("sync"),  0 },
+    { ngx_string("async"), 1 },
+    { ngx_null_string,     0 }
+};
+
+/* phase-64: xrootd_cache_meta map (XROOTD_CMETA_* in cache/cstore.h). */
+static ngx_conf_enum_t  xrootd_cache_meta_enum[] = {
+    { ngx_string("auto"),    0 },
+    { ngx_string("local"),   1 },
+    { ngx_string("xattr"),   2 },
+    { ngx_string("sidecar"), 3 },
+    { ngx_null_string,       0 }
+};
+
+/* §7 SSI: xrootd_ssi_cta_executor — simulated (test) vs real tier/frm (prod). */
+static ngx_conf_enum_t  xrootd_ssi_executor_enum[] = {
+    { ngx_string("test"), 0 },
+    { ngx_string("prod"), 1 },
+    { ngx_null_string,    0 }
+};
+
+/*
+ * xrootd_ssi_service <name> — enable a non-default SSI provider. The built-in
+ * test/reference services always resolve; the flagship CTA tape service is opt-in
+ * (it exposes a storage-control surface). Extend the recognised-name list here as
+ * more native services gain config gating.
+ */
+static char *
+xrootd_ssi_service_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value = cf->args->elts;
+
+    (void) cmd;
+    if (value[1].len == 3 && ngx_strncmp(value[1].data, "cta", 3) == 0) {
+        xcf->ssi_cta_enable = 1;
+        return NGX_CONF_OK;
+    }
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                       "unknown SSI service \"%V\" (known: cta)", &value[1]);
+    return NGX_CONF_ERROR;
+}
 
 /*
  * Directive table.  Entries are grouped by feature (enable+root -> auth ->
@@ -63,12 +110,104 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, common.storage_backend),
       NULL },
 
+    /* Names the xrootd_credential block (§14) the source backend authenticates
+     * with; "" = anonymous. Today threads a bearer token into the sd_http source. */
+    { ngx_string("xrootd_storage_credential"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.storage_credential),
+      NULL },
+
+    /* The reusable `xrootd_credential <name> { … }` identity block (§14), declared
+     * once inside stream{} and referenced by xrootd_storage_credential. */
+    { ngx_string("xrootd_credential"),
+      NGX_STREAM_MAIN_CONF | NGX_CONF_BLOCK | NGX_CONF_TAKE1,
+      xrootd_conf_credential_block,
+      NGX_STREAM_MAIN_CONF_OFFSET,
+      0,
+      NULL },
+
     /* pblock stripe size for newly-written files (e.g. 64m); 0/unset = 64 MiB. */
     { ngx_string("xrootd_pblock_block_size"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_size_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, common.pblock_block_size),
+      NULL },
+
+    /* ---- phase-64 composable tier grammar (read-cache + write-stage tiers) ----
+     * A cache/stage store URL composes an sd_cache / sd_stage decorator over the
+     * storage backend (any driver). SP1 wires local posix stores; remote stores +
+     * the credential=/block_size= store params land in SP2/SP3. */
+    { ngx_string("xrootd_cache_store"),      /* <store-url> [credential=][block_size=] */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1234,
+      xrootd_conf_set_store_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.cache_store),
+      (void *) offsetof(ngx_stream_xrootd_srv_conf_t, common.cache_store_args) },
+
+    { ngx_string("xrootd_stage"),            /* on|off: enable the write-stage tier */
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.stage_enable),
+      NULL },
+
+    { ngx_string("xrootd_stage_store"),      /* <store-url> [credential=][block_size=] */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1234,
+      xrootd_conf_set_store_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.stage_store),
+      (void *) offsetof(ngx_stream_xrootd_srv_conf_t, common.stage_store_args) },
+
+    { ngx_string("xrootd_stage_flush"),      /* sync|async write-back to the backend */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.stage_flush_async),
+      xrootd_stage_flush_enum },
+
+    { ngx_string("xrootd_cache_max_object"), /* <size>: skip caching larger objects */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_off_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.cache_max_object),
+      NULL },
+
+    { ngx_string("xrootd_cache_evict_at"),   /* <pct> full -> begin evicting */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.cache_evict_at),
+      NULL },
+
+    { ngx_string("xrootd_cache_evict_to"),   /* <pct>: eviction target */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.cache_evict_to),
+      NULL },
+
+    { ngx_string("xrootd_cache_index_cache"),/* <n>: per-worker cinfo L1 entries */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.cache_index_cache),
+      NULL },
+
+    { ngx_string("xrootd_cache_meta"),       /* auto|local|xattr|sidecar */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.cache_meta_mode),
+      xrootd_cache_meta_enum },
+
+    { ngx_string("xrootd_cache_slice_size"), /* <size>: per-block slice fill (0=whole) */
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.cache_slice_size),
       NULL },
 
     /*
@@ -630,6 +769,52 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, ssi_enable),
       NULL },
 
+    /* §7 SSI: enable a non-default provider (cta). Opt-in. */
+    { ngx_string("xrootd_ssi_service"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_ssi_service_directive,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* §7 SSI: concurrent requests per session (<= compile-time max). */
+    { ngx_string("xrootd_ssi_max_inflight"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ssi_max_inflight),
+      NULL },
+
+    /* §7 SSI: per-request / per-response byte caps. */
+    { ngx_string("xrootd_ssi_request_max"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ssi_request_max),
+      NULL },
+
+    { ngx_string("xrootd_ssi_response_max"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ssi_response_max),
+      NULL },
+
+    /* §7 SSI: flagship CTA service — restart journal + executor backend. */
+    { ngx_string("xrootd_ssi_cta_journal"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ssi_cta_journal),
+      NULL },
+
+    { ngx_string("xrootd_ssi_cta_executor"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, ssi_cta_executor),
+      &xrootd_ssi_executor_enum },
+
     /* §6 Composite Cluster Name Space: off | emit (data server) | collect (mgr). */
     { ngx_string("xrootd_cns"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -728,6 +913,16 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, common.allow_write),
+      NULL },
+
+    /* Hard read-only: when on, forces allow_write off so all writes are rejected
+     * at the protocol edge (before the VFS, before token scope). Overrides
+     * xrootd_allow_write on. */
+    { ngx_string("xrootd_read_only"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, common.read_only),
       NULL },
 
     /* Optional observability and runtime-tuning directives. */
@@ -1020,141 +1215,17 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, prepare_command),
       NULL },
 
-    /* Phase 35: FRM durable tape staging */    { ngx_string("xrootd_frm"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.enable),
-      NULL },
-    { ngx_string("xrootd_frm_queue_path"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.queue_path),
-      NULL },
-    { ngx_string("xrootd_frm_max_inflight"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.max_inflight),
-      NULL },
-    { ngx_string("xrootd_frm_max_per_source"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.max_per_source),
-      NULL },
-    { ngx_string("xrootd_frm_stagecmd"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.stagecmd),
-      NULL },
-    { ngx_string("xrootd_frm_copycmd"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.copycmd),
-      NULL },
-    { ngx_string("xrootd_frm_copymax"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.copymax),
-      NULL },
-    { ngx_string("xrootd_frm_stage_ttl"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.stage_ttl),
-      NULL },
-    { ngx_string("xrootd_frm_xfrhold"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.xfrhold_ms),
-      NULL },
-    { ngx_string("xrootd_frm_stage_wait"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.stage_wait),
-      NULL },
-    { ngx_string("xrootd_frm_async_recall"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.async_recall),
-      NULL },
-    { ngx_string("xrootd_frm_fail_backoff"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.fail_backoff_ms),
-      NULL },
-    { ngx_string("xrootd_frm_fail_retries"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.fail_retries),
-      NULL },
-    { ngx_string("xrootd_frm_residency_cmd"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.residency_cmd),
-      NULL },
-
-    /* Materialize-to-scratch: recall into this local POSIX scratch dir, then move
-     * onto storage (lets the copycmd write to a path on a no-kernel-fd backend). */
-    { ngx_string("xrootd_frm_stage_dir"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.stage_dir),
-      NULL },
-
-    /* Force recall through scratch even on a POSIX export (tests / policy). */
-    { ngx_string("xrootd_frm_force_scratch"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.force_scratch),
-      NULL },
-
-    /* Keep residency markers as flat hashed stubs in this local POSIX control
-     * mount (for a backend that cannot carry a user.frm.residency xattr). */
-    { ngx_string("xrootd_frm_control_dir"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.control_dir),
-      NULL },
-
-    { ngx_string("xrootd_frm_copy_timeout"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.copy_timeout),
-      NULL },
-    { ngx_string("xrootd_frm_migrate_copycmd"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.migrate_copycmd),
-      NULL },
-    { ngx_string("xrootd_frm_purge_watermark"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
-      xrootd_frm_set_purge_watermark,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm),
-      NULL },
-    { ngx_string("xrootd_frm_purge_interval"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, frm.purge_interval_ms),
-      NULL },
+    /* ---- legacy FRM directives (xrootd_frm*) DISABLED 2026-06-30 -------------
+     * The Phase-35 FRM durable-tape-staging directive surface (xrootd_frm,
+     * _queue_path, _max_inflight, _max_per_source, _stagecmd, _copycmd, _copymax,
+     * _stage_ttl, _xfrhold, _stage_wait, _async_recall, _fail_backoff,
+     * _fail_retries, _residency_cmd, _stage_dir, _force_scratch, _control_dir,
+     * _copy_timeout, _migrate_copycmd, _purge_watermark, _purge_interval) is
+     * removed ahead of deleting the now-unused FRM implementation. It is superseded
+     * by the phase-64 tier/nearline backend (sd_frm). A config still using any of
+     * these now fails with nginx "unknown directive". The frm.* conf fields,
+     * handlers and runtime remain temporarily (no longer reachable from config) and
+     * are scheduled for removal. */
 
     /* cache/proxy directives (merged into ngx_stream_xrootd_commands[]) */
     /* Read-through cache mode: serve from a local cache_root and fill misses. */
@@ -1184,6 +1255,13 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, cache_origin_tls),
+      NULL },
+
+    { ngx_string("xrootd_cache_origin_family"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_cache_origin_family,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
       NULL },
 
     /* X.509-proxy (GSI) auth to the origin: when set, cache fills fork/exec the
@@ -1473,6 +1551,16 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       0,
       NULL },
 
+    /* Names the xrootd_credential block (§14) the write-back flush authenticates to
+     * the wt_origin with (ztn bearer); "" = anonymous. Composes C-3-token + C-5 for
+     * an authenticated write-back round-trip. */
+    { ngx_string("xrootd_wt_credential"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, wt_credential),
+      NULL },
+
     /* Repeatable: path prefix that is NEVER write-through (deny list). */
     { ngx_string("xrootd_wt_deny_prefix"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -1595,20 +1683,15 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, common.thread_pool_name),
       NULL },
 
-    /* transparent proxy mode */
-    { ngx_string("xrootd_proxy"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_enable),
-      NULL },
-
-    { ngx_string("xrootd_proxy_upstream"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE12,
-      xrootd_conf_set_proxy_upstream,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
+    /* ---- legacy stream proxy directives (xrootd_proxy*) DISABLED 2026-06-30 ----
+     * The legacy stream cache-origin proxy directive surface (xrootd_proxy,
+     * _upstream, _upstream_tls[_ca|_name], _auth, _login_user, _audit_log,
+     * _reconnect_attempts, _connect_timeout, _read_timeout, _write_timeout,
+     * _keepalive_interval, _path_rewrite) is removed ahead of deleting the unused
+     * proxy implementation; a config using any of them now fails with nginx
+     * "unknown directive". Handlers/runtime remain temporarily, scheduled for
+     * removal. NOT affected: xrootd_http_handoff (single-port handoff, retained
+     * below) and xrootd_cache_origin_proxy (phase-64 tier origin). */
 
     /* single-port protocol handoff: splice a non-XRootD (HTTP/TLS) client on
      * this stream port to a local HTTP/WebDAV listener (host:port). */
@@ -1619,82 +1702,62 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       0,
       NULL },
 
-    { ngx_string("xrootd_proxy_upstream_tls"),
+    /* transparent pass-through relay: relay every connection on this port
+     * verbatim to an upstream XRootD server while a tap decodes the cleartext
+     * frames (src/relay/relay.c). */
+    { ngx_string("xrootd_transparent_proxy"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      xrootd_conf_set_transparent_proxy,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* terminating tap proxy (src/proxy/): authenticate the client locally, then
+     * re-authenticate upstream as the user (anonymous/ztn/SSS/username) and
+     * forward opcode-by-opcode while the tap decodes the now-plaintext frames. */
+    { ngx_string("xrootd_tap_proxy"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_upstream_tls),
+      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_enable),
       NULL },
 
-    { ngx_string("xrootd_proxy_auth"),
+    { ngx_string("xrootd_tap_proxy_upstream"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE12,
+      xrootd_conf_set_proxy_upstream,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_tap_proxy_auth"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       xrootd_conf_set_proxy_auth,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("xrootd_proxy_login_user"),
+    { ngx_string("xrootd_tap_proxy_login_user"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       xrootd_conf_set_proxy_login_user,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("xrootd_proxy_audit_log"),
+    { ngx_string("xrootd_tap_proxy_audit_log"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, proxy_audit_log),
       NULL },
 
-    { ngx_string("xrootd_proxy_upstream_tls_ca"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
+    { ngx_string("xrootd_tap_proxy_upstream_tls"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_upstream_tls_ca),
+      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_upstream_tls),
       NULL },
 
-    { ngx_string("xrootd_proxy_upstream_tls_name"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_upstream_tls_name),
-      NULL },
-
-    { ngx_string("xrootd_proxy_reconnect_attempts"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_reconnect_attempts),
-      NULL },
-
-    { ngx_string("xrootd_proxy_connect_timeout"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_connect_timeout),
-      NULL },
-
-    { ngx_string("xrootd_proxy_read_timeout"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_read_timeout),
-      NULL },
-
-    { ngx_string("xrootd_proxy_keepalive_interval"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_keepalive_interval),
-      NULL },
-
-    { ngx_string("xrootd_proxy_write_timeout"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, proxy_write_timeout),
-      NULL },
+    /* (legacy xrootd_proxy_* directives removed here — see the note above) */
 
     /* Phase 39: network-fault resilience (all off by default; 0 = disabled). */
     { ngx_string("xrootd_read_timeout"),
@@ -1756,12 +1819,7 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, manager_stale_after),
       NULL },
 
-    { ngx_string("xrootd_proxy_path_rewrite"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
-      xrootd_conf_set_proxy_path_rewrite,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
+    /* (legacy xrootd_proxy_path_rewrite removed — see the note above) */
 
     /* OCSP certificate status checking and stapling. */
     { ngx_string("xrootd_ocsp_enable"),
