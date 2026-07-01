@@ -5,7 +5,7 @@
 #include "budget.h"
 #include "deadline.h"
 #include "../manager/pending.h"
-#include "../frm/waiter.h"
+#include "../fs/xfer/stage_waiter.h"
 #include "../handoff/handoff.h"
 
 /* File: recv.c — TCP read-event loop and request framing state machine
@@ -137,7 +137,7 @@ xrootd_recv_pre_loop(ngx_stream_session_t *s, ngx_connection_t *c,
              * waiter and ask the client to retry (it will re-poll residency:
              * a hit if staged, or a fresh park otherwise). */
             rev->timedout = 0;
-            frm_waiter_drop_conn(c->fd, c->number);
+            xrootd_stage_waiter_drop_conn(c->fd, c->number);
             ctx->state = XRD_ST_REQ_HEADER;
             xrootd_send_wait(ctx, c, 5);
             xrootd_schedule_read_resume(c);

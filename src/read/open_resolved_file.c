@@ -937,8 +937,8 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 	 * client, the answer must travel as kXR_attn(asynresp) on the saved streamid,
 	 * not a plain kXR_ok header. The body bytes (ServerOpenBody [+ stat]) sit at
 	 * buf + header; asynresp wraps them itself. */
-	if (ctx->frm_async_active) {
-		return xrootd_send_attn_asynresp(ctx, c, ctx->frm_async_streamid,
+	if (ctx->stage_async_active) {
+		return xrootd_send_attn_asynresp(ctx, c, ctx->stage_async_streamid,
 		                                 (uint16_t) kXR_ok,
 		                                 buf + XRD_RESPONSE_HDR_LEN,
 		                                 (uint32_t) bodylen);

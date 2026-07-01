@@ -375,18 +375,16 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/fs/vfs.h \
                         $ngx_addon_dir/src/fs/vfs_internal.h \
                         $ngx_addon_dir/src/fs/xfer/xfer.h \
-                        $ngx_addon_dir/src/fs/xfer/xfer_reconcile.h \
                         $ngx_addon_dir/src/fs/xfer/stage_engine.h \
+                        $ngx_addon_dir/src/fs/xfer/stage_request_registry.h \
+                        $ngx_addon_dir/src/fs/xfer/stage_waiter.h \
                         $ngx_addon_dir/src/fs/tier/tier.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/fs/backend/cache/sd_cache.h \
                         $ngx_addon_dir/src/fs/backend/frm/sd_frm.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
-                        $ngx_addon_dir/src/frm/frm.h \
-                        $ngx_addon_dir/src/frm/frm_format.h \
-                        $ngx_addon_dir/src/frm/frm_internal.h \
-                        $ngx_addon_dir/src/frm/waiter.h \
+                        $ngx_addon_dir/src/config/tape_stage_conf.h \
                         $ngx_addon_dir/src/path/path.h \
                         $ngx_addon_dir/src/read/clone.h \
                         $ngx_addon_dir/src/read/close.h \
@@ -503,7 +501,6 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/ngx_xrootd_module.h \
 ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
                         $ngx_addon_dir/src/dig/dig.h \
                         $ngx_addon_dir/src/webdav/tape_rest.h \
-                        $ngx_addon_dir/src/frm/frm.h \
                         $ngx_addon_dir/src/mirror/mirror.h \
                         $ngx_addon_dir/src/mirror/http_mirror.h \
                         $ngx_addon_dir/src/fs/vfs.h \
@@ -641,9 +638,10 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/xfer/xfer_spawn.c \
     $ngx_addon_dir/src/fs/xfer/xfer_ledger.c \
     $ngx_addon_dir/src/fs/xfer/xfer_core.c \
-    $ngx_addon_dir/src/fs/xfer/xfer_reconcile.c \
     $ngx_addon_dir/src/fs/xfer/xfer_resume_sweep.c \
     $ngx_addon_dir/src/fs/xfer/stage_engine.c \
+    $ngx_addon_dir/src/fs/xfer/stage_request_registry.c \
+    $ngx_addon_dir/src/fs/xfer/stage_waiter.c \
     $ngx_addon_dir/src/fs/tier/tier_config.c \
     $ngx_addon_dir/src/fs/tier/tier_build.c \
     $ngx_addon_dir/src/fs/fd_cache.c \
@@ -893,18 +891,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/query/metadata.c \
     $ngx_addon_dir/src/query/prepare.c \
     $ngx_addon_dir/src/query/prepare_cmd.c \
-    $ngx_addon_dir/src/frm/reqfile.c \
-    $ngx_addon_dir/src/frm/reqid.c \
-    $ngx_addon_dir/src/frm/index.c \
-    $ngx_addon_dir/src/frm/reconcile.c \
-    $ngx_addon_dir/src/frm/compact.c \
-    $ngx_addon_dir/src/frm/queue.c \
-    $ngx_addon_dir/src/frm/reaper.c \
-    $ngx_addon_dir/src/frm/directives.c \
-    $ngx_addon_dir/src/frm/residency.c \
-    $ngx_addon_dir/src/frm/stage.c \
-    $ngx_addon_dir/src/frm/waiter.c \
-    $ngx_addon_dir/src/frm/migrate_purge.c \
+    $ngx_addon_dir/src/config/tape_stage_conf.c \
     $ngx_addon_dir/src/query/set.c \
     $ngx_addon_dir/src/query/dispatch.c \
     $ngx_addon_dir/src/upstream/lifecycle.c \
@@ -1049,7 +1036,7 @@ ngx_module_name=ngx_http_xrootd_metrics_module
                   $ngx_addon_dir/src/metrics/tracking.c \
                   $ngx_addon_dir/src/metrics/cluster.c \
                   $ngx_addon_dir/src/metrics/ratelimit.c \
-                  $ngx_addon_dir/src/frm/metrics.c \
+                  $ngx_addon_dir/src/metrics/frm_metrics.c \
                   $ngx_addon_dir/src/metrics/handler.c \
                   $ngx_addon_dir/src/metrics/health.c"
 ngx_module_deps="$ngx_addon_dir/src/metrics/metrics.h \
