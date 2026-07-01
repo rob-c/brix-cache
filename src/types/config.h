@@ -24,9 +24,9 @@
  * pulls only ngx_core, so safe to include from this header). */
 #include "../mirror/mirror.h"
 
-/* Phase 35 — FRM tape-staging config block (xrootd_frm_conf_t). Like mirror.h,
- * frm.h pulls only ngx_core, so it is safe to include from this header. */
-#include "../frm/frm.h"
+/* Tape/stage directive config block (xrootd_frm_conf_t). Pulls only ngx_core, so
+ * it is safe to include from this header. (FRM-dissolution: was ../frm/frm.h.) */
+#include "../config/tape_stage_conf.h"
 
 /* ---- Helper structs used inside ngx_stream_xrootd_srv_conf_t ---- */
 

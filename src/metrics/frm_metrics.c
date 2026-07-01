@@ -22,7 +22,7 @@
  *   value comes from the shared SHM block alone.
  */
 
-#include "../metrics/metrics_internal.h"
+#include "metrics_internal.h"
 
 /* Fail-reason labels — order matches XROOTD_FRM_FAIL_* in metrics.h. */
 static const char *xrootd_frm_fail_names[XROOTD_FRM_NFAIL] = {

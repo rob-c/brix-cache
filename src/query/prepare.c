@@ -1,6 +1,6 @@
 #include "query_internal.h"
 #include "../path/beneath.h"
-#include "../frm/frm.h"
+#include "../fs/xfer/stage_request_registry.h"
 
 #include <errno.h>
 #include <sys/stat.h>
@@ -12,14 +12,14 @@
 /* Phase 35: map a durable queue status to the QPrep per-path status letter.
  * 'A' available/online, 'q' queued, 's' staging, 'f' failed, 'M' missing. */
 static char
-xrootd_prepare_status_char(frm_status_t s)
+xrootd_prepare_status_char(xrootd_stage_req_status_t s)
 {
     switch (s) {
-    case FRM_ST_QUEUED:  return 'q';
-    case FRM_ST_STAGING: return 's';
-    case FRM_ST_ONLINE:  return 'A';
-    case FRM_ST_FAILED:  return 'f';
-    default:             return 'M';
+    case XROOTD_STAGE_REQ_QUEUED: return 'q';
+    case XROOTD_STAGE_REQ_ACTIVE: return 's';
+    case XROOTD_STAGE_REQ_DONE:   return 'A';
+    case XROOTD_STAGE_REQ_FAILED: return 'f';
+    default:                      return 'M';
     }
 }
 
@@ -247,10 +247,11 @@ static ngx_int_t
 xrootd_prepare_handle_cancel(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_xrootd_srv_conf_t *conf)
 {
-    char          reqid[FRM_REQID_LEN];
-    char          owner_key[XROOTD_PREPARE_OWNER_KEY_MAX];
-    const u_char *p, *end;
-    size_t        n;
+    char                     reqid[XROOTD_STAGE_REQID_LEN];
+    char                     owner_key[XROOTD_PREPARE_OWNER_KEY_MAX];
+    xrootd_stage_registry_t *reg = xrootd_stage_registry_singleton();
+    const u_char            *p, *end;
+    size_t                   n;
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
         return xrootd_prepare_send_fail(ctx, c, "-", kXR_ArgMissing,
@@ -272,7 +273,7 @@ xrootd_prepare_handle_cancel(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* FRM-1: a request may only be cancelled by the owner that created it.
      * Anonymous stream callers are scoped to their login session id, so another
      * anonymous session cannot cancel by guessing a durable reqid. */
-    if (frm_request_owner_check(conf->frm.queue, reqid,
+    if (xrootd_stage_request_owner_check(reg, reqid,
                                 xrootd_prepare_owner_key(ctx, owner_key,
                                                          sizeof(owner_key)),
                                 c->log) != NGX_OK)
@@ -283,7 +284,7 @@ xrootd_prepare_handle_cancel(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                         "not the owner of this request");
     }
 
-    (void) frm_request_delete(conf->frm.queue, reqid, c->log);   /* idempotent */
+    (void) xrootd_stage_request_delete(reg, reqid, c->log);      /* idempotent */
     xrootd_log_access(ctx, c, "PREPARE", reqid, "cancel", 1, kXR_ok, NULL, 0);
     return xrootd_send_ok(ctx, c, NULL, 0);
 }
@@ -316,14 +317,14 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     char        *stage_bufs  = NULL;
     ngx_uint_t   stage_count = 0;
     ngx_uint_t   stage_max   = 0;
-    char         group_reqid[FRM_REQID_LEN];
+    char         group_reqid[XROOTD_STAGE_REQID_LEN];
 
     xrdw_prepare_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
     optionx = req.optionX;
 
     collect_stage = (req.options & kXR_stage) && conf->prepare_command.len > 0;
     do_enqueue    = (req.options & kXR_stage) && conf->frm.enable
-                    && conf->frm.queue != NULL;
+                    && xrootd_stage_registry_singleton() != NULL;
     need_resolved = collect_stage || do_enqueue;
     group_reqid[0] = '\0';
 
@@ -333,8 +334,8 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (req.options & kXR_cancel) {
-        /* Phase 35: real cancel against the durable queue when FRM is on. */
-        if (conf->frm.enable && conf->frm.queue != NULL) {
+        /* Phase 35: real cancel against the durable registry when staging is on. */
+        if (conf->frm.enable && xrootd_stage_registry_singleton() != NULL) {
             return xrootd_prepare_handle_cancel(ctx, c, conf);
         }
         snprintf(detail, sizeof(detail), "noop cancel opts=0x%02x optx=0x%04x",
@@ -348,9 +349,7 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * disk reclamation is delegated to the MSS (Category-2, Phase 4); here we
          * record the release intent. The authoritative per-path release path with
          * full resolve+scope is the WLCG Tape REST /release endpoint. */
-        if (conf->frm.enable && conf->frm.queue != NULL) {
-            XROOTD_FRM_METRIC_INC(evict_total);
-        }
+        /* (evict metric re-homes to the stage metrics in Task 5) */
         snprintf(detail, sizeof(detail), "evict opts=0x%02x optx=0x%04x",
                  (unsigned int) req.options, (unsigned int) optionx);
         xrootd_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
@@ -435,43 +434,37 @@ xrootd_handle_prepare(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * for the legacy staging command. */
         if (out_resolved != NULL && out_resolved[0] != '\0') {
             if (do_enqueue) {
-                frm_req_view_t v;
-                char           rq[FRM_REQID_LEN];
+                xrootd_stage_request_view_t v;
+                char           rq[XROOTD_STAGE_REQID_LEN];
                 ngx_int_t      arc;
                 /* Record the canonical identity DN/token subject, or a scoped
-                 * anonymous-session key, so F4 quota and FRM-1 cancel-owner
-                 * checks have the same owner string. */
+                 * anonymous-session key, so the cancel-owner check has the same
+                 * owner string. */
                 char           owner_key[XROOTD_PREPARE_OWNER_KEY_MAX];
                 const char    *rdn = xrootd_prepare_owner_key(ctx, owner_key,
                                                               sizeof(owner_key));
 
                 ngx_memzero(&v, sizeof(v));
                 v.lfn        = out_resolved;
-                v.options    = FRM_OPT_STAGE
-                             | ((req.options & kXR_coloc) ? FRM_OPT_COLOC : 0);
-                v.selector   = "prepare";    /* F2: activity class           */
                 v.requester_dn = (rdn != NULL && rdn[0] != '\0') ? rdn : NULL;
                 v.tod_expire = (int64_t) time(NULL)
                              + (int64_t) (conf->frm.stage_ttl / 1000);
 
-                arc = frm_request_add(conf->frm.queue, &v, rq, sizeof(rq),
-                                      c->log);
+                arc = xrootd_stage_request_add(xrootd_stage_registry_singleton(),
+                                               &v, rq, sizeof(rq), c->log);
                 if (arc == NGX_ERROR) {
                     ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                                  "xrootd: frm_request_add failed for \"%s\"",
+                                  "xrootd: stage request add failed for \"%s\"",
                                   out_resolved);
                 } else if (group_reqid[0] == '\0') {
-                    /* The first request id is the handle returned to the client
-                     * (NGX_OK = new, NGX_DECLINED = dedup → existing id). */
+                    /* The first request id is the handle returned to the client. */
                     ngx_cpystrn((u_char *) group_reqid, (u_char *) rq,
                                 sizeof(group_reqid));
                 }
-                if (arc == NGX_OK) {
-                    /* A new recall was queued — wake the stage scheduler now
-                     * (the open/TPC paths already kick; without this a prepare
-                     * recall would wait for the scheduler's slow idle tick). */
-                    frm_stage_kick();
-                }
+                /* NOTE (engine-integration step): driving the recall — the former
+                 * frm_stage_kick() — moves to xrootd_stage_submit(RECALL) + the
+                 * engine scheduler; the composable sd_frm backend also faults the
+                 * recall on read, so the request is durably recorded here. */
             }
             if (collect_stage) {
                 stage_paths[stage_count] = out_resolved;
@@ -618,7 +611,7 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
     u_char       *resp;
     u_char       *rp;
     size_t        resp_cap;
-    char          reqid[FRM_REQID_LEN];
+    char          reqid[XROOTD_STAGE_REQID_LEN];
     size_t        reqid_len = 0;
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
@@ -669,10 +662,12 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * above), and an id we issued resolves via stored paths or an FRM
          * record. */
         if (reqid[0] != '\0') {
-            frm_record_t rec;
-            int known = (conf->frm.enable && conf->frm.queue != NULL
-                         && frm_request_get(conf->frm.queue, reqid, &rec,
-                                            c->log) == NGX_OK);
+            xrootd_stage_request_t rec;
+            int known = (conf->frm.enable
+                         && xrootd_stage_registry_singleton() != NULL
+                         && xrootd_stage_request_get(
+                                xrootd_stage_registry_singleton(), reqid, &rec,
+                                c->log) == NGX_OK);
             if (!known) {
                 return xrootd_prepare_send_fail(ctx, c, reqid, kXR_ArgInvalid,
                     "Prepare requestid owned by an unknown server");
@@ -739,13 +734,19 @@ xrootd_query_prep_status(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     && S_ISREG(st.st_mode))
                 {
                     status_ch = 'A';                /* resident on disk */
-                } else if (conf->frm.enable && conf->frm.queue != NULL) {
-                    frm_record_t qrec;
-                    if (frm_request_find_by_path(conf->frm.queue, full_path,
-                                                 &qrec, c->log) == NGX_OK)
+                } else if (conf->frm.enable
+                           && xrootd_stage_registry_singleton() != NULL) {
+                    xrootd_stage_registry_t *reg =
+                        xrootd_stage_registry_singleton();
+                    xrootd_stage_request_t   qrec;
+                    char                     frq[XROOTD_STAGE_REQID_LEN];
+                    if (xrootd_stage_request_find_by_path(reg, full_path, frq,
+                                                          sizeof(frq), c->log)
+                            == NGX_OK
+                        && xrootd_stage_request_get(reg, frq, &qrec, c->log)
+                            == NGX_OK)
                     {
-                        status_ch = xrootd_prepare_status_char(
-                                        (frm_status_t) qrec.status);
+                        status_ch = xrootd_prepare_status_char(qrec.status);
                     }
                 }
             }

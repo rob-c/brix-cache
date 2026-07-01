@@ -2,7 +2,7 @@
  * tape_rest.c — WLCG HTTP Tape REST API (Phase 35 / Phase 2).
  *
  * WHAT: Implements the standard WLCG Tape REST surface under /api/v1/ so FTS and
- *   gfal2 drive tape staging over davs:// against the same durable FRM queue that
+ *   gfal2 drive tape staging over davs:// against the durable stage request registry that
  *   root:// uses:
  *     POST   /api/v1/stage              submit a bulk stage request
  *     GET    /api/v1/stage/{id}         poll its status
@@ -14,7 +14,7 @@
  *
  * WHY: This is blocker B2's HTTP face. The durable store (Phase 0) and residency
  *   (Phase 1) already exist; this unit is the endpoint router + the WLCG JSON
- *   schema marshalling on top of the frm.h façade. It mirrors macaroon_endpoint.c
+ *   schema marshalling on top of the stage registry + residency seam. It mirrors macaroon_endpoint.c
  *   (POST body read → NGX_DONE, jansson build, send_json).
  *
  * HOW: every wire path is resolved + confined under root_canon BEFORE any frm_*
@@ -27,7 +27,8 @@
 
 #include "webdav.h"
 #include "tape_rest.h"
-#include "../frm/frm.h"
+#include "../fs/vfs.h"                        /* xrootd_vfs_residency (sd_frm seam) */
+#include "../fs/xfer/stage_request_registry.h"
 #include "../compat/http_body.h"
 #include "../compat/http_headers.h"
 #include "../shared/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
@@ -37,6 +38,7 @@
 #include <string.h>
 #include "../compat/alloc_guard.h"
 
+#define TAPE_PATH_MAX       4096           /* confined absolute-path buffer   */
 #define TAPE_API_PREFIX     "/api/v1/"
 #define TAPE_BODY_MAX       (1u << 20)     /* 1 MiB of request JSON           */
 #define TAPE_MAX_FILES      4096           /* bulk request fan-out cap        */
@@ -44,10 +46,10 @@
 
 
 /* small helpers*/
-static frm_queue_t *
+static xrootd_stage_registry_t *
 tape_queue(void)
 {
-    return frm_singleton_queue();
+    return xrootd_stage_registry_singleton();
 }
 
 /* Send a JSON body (clone of macaroon_endpoint.c send_json — kept local so we
@@ -154,50 +156,69 @@ tape_mint_id(char *buf, size_t sz)
     buf[sizeof(rnd) * 2] = '\0';
 }
 
-/* Map a WLCG checksumType name to the FRM checksum enum (F5). */
-static frm_cstype_t
+/* Map a WLCG checksumType name to the stage-registry checksum enum (F5). */
+static xrootd_stage_cstype_t
 tape_cstype_from_name(const char *name)
 {
-    if (name == NULL)                          { return FRM_CS_NONE; }
+    if (name == NULL)                          { return XROOTD_STAGE_CS_NONE; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "adler32") == 0)
-                                               { return FRM_CS_ADLER32; }
+                                               { return XROOTD_STAGE_CS_ADLER32; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "md5") == 0)
-                                               { return FRM_CS_MD5; }
+                                               { return XROOTD_STAGE_CS_MD5; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "crc32") == 0)
-                                               { return FRM_CS_CRC32; }
+                                               { return XROOTD_STAGE_CS_CRC32; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "sha1") == 0)
-                                               { return FRM_CS_SHA1; }
+                                               { return XROOTD_STAGE_CS_SHA1; }
     if (ngx_strcasecmp((u_char *) name, (u_char *) "sha256") == 0
         || ngx_strcasecmp((u_char *) name, (u_char *) "sha2") == 0)
-                                               { return FRM_CS_SHA2; }
-    return FRM_CS_NONE;
+                                               { return XROOTD_STAGE_CS_SHA2; }
+    return XROOTD_STAGE_CS_NONE;
 }
 
-/* Map an FRM record status to a WLCG file state string. */
+/* Map a stage-request status to a WLCG file state string. */
 static const char *
-tape_state_name(uint8_t status)
+tape_state_name(xrootd_stage_req_status_t status)
 {
     switch (status) {
-    case FRM_ST_QUEUED:    return "SUBMITTED";
-    case FRM_ST_STAGING:   return "STARTED";
-    case FRM_ST_ONLINE:    return "COMPLETED";
-    case FRM_ST_FAILED:    return "FAILED";
-    case FRM_ST_CANCELLED: return "CANCELLED";
-    default:               return "UNKNOWN";
+    case XROOTD_STAGE_REQ_QUEUED:    return "SUBMITTED";
+    case XROOTD_STAGE_REQ_ACTIVE:    return "STARTED";
+    case XROOTD_STAGE_REQ_DONE:      return "COMPLETED";
+    case XROOTD_STAGE_REQ_FAILED:    return "FAILED";
+    case XROOTD_STAGE_REQ_CANCELLED: return "CANCELLED";
+    default:                         return "UNKNOWN";
     }
 }
 
-/* Map a residency probe to the WLCG locality vocabulary. */
-static const char *
-tape_locality_name(const frm_residency_t *res)
+/* Resolve residency via the VFS seam (sd_frm). `abs` is a confined absolute path;
+ * fills *state and *nearline (1 = a nearline/tape-backed export). */
+static ngx_int_t
+tape_residency(ngx_http_request_t *r, const char *abs,
+               xrootd_sd_residency_t *state, int *nearline)
 {
-    switch (res->state) {
-    case FRM_RES_ONLINE:
-        return res->backend_exists ? "ONLINE_AND_NEARLINE" : "ONLINE";
-    case FRM_RES_NEARLINE:
-    case FRM_RES_OFFLINE:
+    ngx_http_xrootd_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    xrootd_vfs_ctx_t vctx;
+
+    *nearline = 0;
+    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+        XROOTD_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
+        conf->common.allow_write, 0 /* is_tls */, NULL, abs);
+    return xrootd_vfs_residency(&vctx, state, nearline);
+}
+
+/* Map the sd residency + nearline flag to the WLCG locality vocabulary. On a
+ * nearline (tape) export an online object is ONLINE_AND_NEARLINE (resident AND on
+ * the backend); a plain export online object is ONLINE. */
+static const char *
+tape_locality_name(xrootd_sd_residency_t state, int nearline)
+{
+    switch (state) {
+    case XROOTD_SD_RES_ONLINE:
+        return nearline ? "ONLINE_AND_NEARLINE" : "ONLINE";
+    case XROOTD_SD_RES_NEARLINE:
+    case XROOTD_SD_RES_OFFLINE:
         return "NEARLINE";
-    case FRM_RES_LOST:
+    case XROOTD_SD_RES_LOST:
         return "LOST";
     default:
         return "NONE";
@@ -250,7 +271,7 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
 {
     json_t      *files, *elem, *resp, *jfiles;
     size_t       i, n;
-    frm_queue_t *q = tape_queue();
+    xrootd_stage_registry_t *q = tape_queue();
     char         id[TAPE_ID_LEN];
     char       **abs;     /* resolved paths (pass 1) */
     const char **logical;
@@ -290,8 +311,8 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
             return tape_error(r, NGX_HTTP_BAD_REQUEST,
                               "each file needs a string \"path\"");
         }
-        XROOTD_PNALLOC_OR_RETURN(buf, r->pool, NGX_XROOTD_FRM_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
-        rc = tape_authz_path(r, conf, ctx, lp, 1, buf, NGX_XROOTD_FRM_PATH_MAX);
+        XROOTD_PNALLOC_OR_RETURN(buf, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        rc = tape_authz_path(r, conf, ctx, lp, 1, buf, TAPE_PATH_MAX);
         if (rc != NGX_OK) {
             return tape_error(r, rc, "path not permitted");
         }
@@ -305,15 +326,14 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
     tape_mint_id(id, sizeof(id));
     jfiles = json_array();
     for (i = 0; i < n; i++) {
-        frm_req_view_t v;
-        char           reqid[XROOTD_FRM_REQID_LEN];
+        xrootd_stage_request_view_t v;
+        char           reqid[XROOTD_STAGE_REQID_LEN];
         json_t        *jf = json_object();
         ngx_int_t      rc;
 
         ngx_memzero(&v, sizeof(v));
         v.lfn = abs[i];
         v.requester_dn = xrootd_identity_dn_cstr(ctx->identity);
-        v.options = FRM_OPT_STAGE;
         /* F5: optional per-file integrity request — the stage worker verifies the
          * recalled file against this checksum and fails the recall on mismatch. */
         {
@@ -327,13 +347,14 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
                     json_is_string(jcst) ? json_string_value(jcst) : "adler32");
             }
         }
-        rc = frm_request_add(q, &v, reqid, sizeof(reqid), r->connection->log);
+        rc = xrootd_stage_request_add(q, &v, reqid, sizeof(reqid),
+                                      r->connection->log);
         if (rc == NGX_OK || rc == NGX_DECLINED) {
             if (i == 0) {
                 ngx_memcpy(id, reqid, ngx_min(sizeof(reqid), sizeof(id)));
                 id[sizeof(id) - 1] = '\0';
             }
-            frm_stage_kick();
+            /* recall driving (former frm_stage_kick) → engine-integration step */
             json_object_set_new(jf, "path", json_string(logical[i]));
             json_object_set_new(jf, "state",
                 json_string(rc == NGX_DECLINED ? "STARTED" : "SUBMITTED"));
@@ -363,27 +384,28 @@ tape_stage_post(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
 static ngx_int_t
 tape_stage_get(ngx_http_request_t *r, const char *id)
 {
-    frm_queue_t  *q = tape_queue();
-    frm_record_t  rec;
+    xrootd_stage_registry_t *q = tape_queue();
+    xrootd_stage_request_t   rec;
     json_t       *o, *jfiles, *jf;
-    frm_residency_t res;
+    xrootd_sd_residency_t res;
+    int           nearline = 0;
     int           on_disk = 0;
 
     if (q == NULL) {
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
-    if (frm_request_list_files(q, id, &rec, r->connection->log) != NGX_OK) {
+    if (xrootd_stage_request_get(q, id, &rec, r->connection->log) != NGX_OK) {
         return tape_error(r, NGX_HTTP_NOT_FOUND, "no such request");
     }
-    if (frm_file_locality(rec.lfn, &res, r->connection->log) == NGX_OK) {
-        on_disk = (res.state == FRM_RES_ONLINE);
+    if (tape_residency(r, rec.lfn, &res, &nearline) == NGX_OK) {
+        on_disk = (res == XROOTD_SD_RES_ONLINE);
     }
 
     jf = json_object();
     json_object_set_new(jf, "path", json_string(rec.lfn));
     json_object_set_new(jf, "state", json_string(tape_state_name(rec.status)));
     json_object_set_new(jf, "onDisk", json_boolean(on_disk));
-    if (rec.status == FRM_ST_FAILED) {
+    if (rec.status == XROOTD_STAGE_REQ_FAILED) {
         json_object_set_new(jf, "error", json_string("stage failed"));
     }
     jfiles = json_array();
@@ -401,8 +423,8 @@ tape_stage_get(ngx_http_request_t *r, const char *id)
 static ngx_int_t
 tape_stage_list(ngx_http_request_t *r)
 {
-    frm_queue_t  *q = tape_queue();
-    frm_record_t  rec;
+    xrootd_stage_registry_t *q = tape_queue();
+    xrootd_stage_request_t   rec;
     ngx_uint_t    cursor = 0;
     json_t       *arr, *o;
     ngx_int_t     rc;
@@ -411,7 +433,7 @@ tape_stage_list(ngx_http_request_t *r)
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
     arr = json_array();
-    while ((rc = frm_request_list_active(q, &cursor, NULL, &rec,
+    while ((rc = xrootd_stage_request_list_active(q, &cursor, &rec,
                                          r->connection->log)) == NGX_OK)
     {
         json_t *e = json_object();
@@ -431,19 +453,20 @@ static ngx_int_t
 tape_stage_delete(ngx_http_request_t *r,
                   ngx_http_xrootd_webdav_req_ctx_t *ctx, const char *id)
 {
-    frm_queue_t *q = tape_queue();
+    xrootd_stage_registry_t *q = tape_queue();
 
     if (q == NULL) {
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
-    /* FRM-1: only the owning principal may delete the request (fail-open for
-     * anonymous callers / owner-less records — see frm_request_owner_check). */
-    if (frm_request_owner_check(q, id, xrootd_identity_dn_cstr(ctx->identity),
+    /* only the owning principal may delete the request (fail-open for anonymous
+     * callers / owner-less records — see xrootd_stage_request_owner_check). */
+    if (xrootd_stage_request_owner_check(q, id,
+                                xrootd_identity_dn_cstr(ctx->identity),
                                 r->connection->log) != NGX_OK)
     {
         return tape_error(r, NGX_HTTP_FORBIDDEN, "not the owner of this request");
     }
-    (void) frm_request_delete(q, id, r->connection->log);   /* idempotent */
+    (void) xrootd_stage_request_delete(q, id, r->connection->log); /* idempotent */
     r->headers_out.status = NGX_HTTP_NO_CONTENT;
     r->header_only = 1;
     r->headers_out.content_length_n = 0;
@@ -456,18 +479,19 @@ static ngx_int_t
 tape_stage_cancel(ngx_http_request_t *r,
                   ngx_http_xrootd_webdav_req_ctx_t *ctx, const char *id)
 {
-    frm_queue_t *q = tape_queue();
+    xrootd_stage_registry_t *q = tape_queue();
 
     if (q == NULL) {
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
-    /* FRM-1: only the owning principal may cancel the request. */
-    if (frm_request_owner_check(q, id, xrootd_identity_dn_cstr(ctx->identity),
+    /* only the owning principal may cancel the request. */
+    if (xrootd_stage_request_owner_check(q, id,
+                                xrootd_identity_dn_cstr(ctx->identity),
                                 r->connection->log) != NGX_OK)
     {
         return tape_error(r, NGX_HTTP_FORBIDDEN, "not the owner of this request");
     }
-    (void) frm_request_cancel(q, id, r->connection->log);   /* idempotent */
+    (void) xrootd_stage_request_cancel(q, id, r->connection->log); /* idempotent */
     r->headers_out.status = NGX_HTTP_NO_CONTENT;
     r->header_only = 1;
     r->headers_out.content_length_n = 0;
@@ -491,7 +515,7 @@ tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
                           "body must contain a \"paths\" array");
     }
     n = json_array_size(paths);
-    XROOTD_PNALLOC_OR_RETURN(abs, r->pool, NGX_XROOTD_FRM_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    XROOTD_PNALLOC_OR_RETURN(abs, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /* authorise all paths first (no partial side effects) */
     for (i = 0; i < n; i++) {
@@ -501,7 +525,7 @@ tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
         if (lp == NULL) {
             return tape_error(r, NGX_HTTP_BAD_REQUEST, "path must be a string");
         }
-        rc = tape_authz_path(r, conf, ctx, lp, 1, abs, NGX_XROOTD_FRM_PATH_MAX);
+        rc = tape_authz_path(r, conf, ctx, lp, 1, abs, TAPE_PATH_MAX);
         if (rc != NGX_OK) {
             return tape_error(r, rc, "path not permitted");
         }
@@ -512,8 +536,9 @@ tape_release(ngx_http_request_t *r, ngx_http_xrootd_webdav_loc_conf_t *conf,
     for (i = 0; i < n; i++) {
         const char *lp = json_string_value(json_array_get(paths, i));
         if (tape_authz_path(r, conf, ctx, lp, 1, abs,
-                            NGX_XROOTD_FRM_PATH_MAX) == NGX_OK
-            && frm_pin_release(abs, r->connection->log) == NGX_OK)
+                            TAPE_PATH_MAX) == NGX_OK
+            && xrootd_stage_request_pin_release(tape_queue(), abs,
+                                                r->connection->log) == NGX_OK)
         {
             json_array_append_new(unpinned, json_string(lp));
         } else {
@@ -543,7 +568,7 @@ tape_archiveinfo(ngx_http_request_t *r,
                           "body must contain a non-empty \"paths\" array");
     }
     n = json_array_size(paths);
-    XROOTD_PNALLOC_OR_RETURN(abs, r->pool, NGX_XROOTD_FRM_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    XROOTD_PNALLOC_OR_RETURN(abs, r->pool, TAPE_PATH_MAX, NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /* read scope for all paths first (no partial disclosure on a later 403) */
     for (i = 0; i < n; i++) {
@@ -553,7 +578,7 @@ tape_archiveinfo(ngx_http_request_t *r,
         if (lp == NULL) {
             return tape_error(r, NGX_HTTP_BAD_REQUEST, "path must be a string");
         }
-        rc = tape_authz_path(r, conf, ctx, lp, 0, abs, NGX_XROOTD_FRM_PATH_MAX);
+        rc = tape_authz_path(r, conf, ctx, lp, 0, abs, TAPE_PATH_MAX);
         if (rc != NGX_OK) {
             return tape_error(r, rc, "path not permitted");
         }
@@ -563,29 +588,30 @@ tape_archiveinfo(ngx_http_request_t *r,
     for (i = 0; i < n; i++) {
         const char     *lp = json_string_value(json_array_get(paths, i));
         json_t         *e = json_object();
-        frm_residency_t res;
+        xrootd_sd_residency_t res;
+        int             nearline = 0;
         ngx_int_t       rc;
 
         json_object_set_new(e, "path", json_string(lp));
         if (tape_authz_path(r, conf, ctx, lp, 0, abs,
-                            NGX_XROOTD_FRM_PATH_MAX) != NGX_OK)
+                            TAPE_PATH_MAX) != NGX_OK)
         {
             json_object_set_new(e, "error", json_string("denied"));
             json_array_append_new(arr, e);
             continue;
         }
-        rc = frm_file_locality(abs, &res, r->connection->log);
+        rc = tape_residency(r, abs, &res, &nearline);
         if (rc == NGX_DECLINED || rc == NGX_ERROR) {
             json_object_set_new(e, "exists", json_false());
             json_object_set_new(e, "locality", json_string("NONE"));
         } else {
-            const char *loc = tape_locality_name(&res);
+            const char *loc = tape_locality_name(res, nearline);
             json_object_set_new(e, "exists", json_true());
             json_object_set_new(e, "onDisk",
-                json_boolean(res.state == FRM_RES_ONLINE));
-            json_object_set_new(e, "onTape", json_boolean(res.backend_exists
-                || res.state == FRM_RES_NEARLINE
-                || res.state == FRM_RES_OFFLINE));
+                json_boolean(res == XROOTD_SD_RES_ONLINE));
+            json_object_set_new(e, "onTape", json_boolean(nearline
+                || res == XROOTD_SD_RES_NEARLINE
+                || res == XROOTD_SD_RES_OFFLINE));
             json_object_set_new(e, "locality", json_string(loc));
         }
         json_array_append_new(arr, e);
@@ -657,7 +683,7 @@ tape_dispatch_post(ngx_http_request_t *r)
         ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
     ngx_http_xrootd_webdav_req_ctx_t  *ctx =
         ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
-    char       sbuf[NGX_XROOTD_FRM_PATH_MAX];
+    char       sbuf[TAPE_PATH_MAX];
     char      *seg[3];
     ngx_uint_t nseg;
     json_t    *root;
@@ -712,7 +738,7 @@ webdav_tape_handle(ngx_http_request_t *r)
         ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
     ngx_http_xrootd_webdav_req_ctx_t *ctx =
         ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
-    char       sbuf[NGX_XROOTD_FRM_PATH_MAX];
+    char       sbuf[TAPE_PATH_MAX];
     char      *seg[3];
     ngx_uint_t nseg;
 

@@ -4,7 +4,9 @@
 #include "../manager/registry.h"
 #include "../manager/redir_cache.h"
 #include "../manager/pending.h"
-#include "../frm/waiter.h"
+#include "../fs/xfer/stage_request_registry.h"
+#include "../fs/xfer/stage_waiter.h"
+#include "../fs/vfs.h"                   /* xrootd_vfs_residency (sd_frm seam) */
 #include "../session/registry.h"
 #include "../cms/cms_internal.h"
 #include "../compat/codec_core.h"
@@ -697,55 +699,60 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		/* Phase 35: residency gate. A nearline file (on the backend, not on
 		 * disk) is recalled and the client stalled with kXR_wait-and-retry.
 		 * Runs AFTER auth so an unauthorized caller never learns residency. */
-		if (conf->frm.enable && conf->frm.queue != NULL) {
-			frm_residency_t _res;
-			if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
-			    && _res.state == FRM_RES_OFFLINE)
-			{
-				/* A failed/unretrievable recall — do not spin; surface an
-				 * error so the client re-prepares or gives up. */
-				XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
-				                  clean_path, "rd", kXR_FSError,
-				                  "file is offline (recall failed)");
-			}
-			if (frm_residency_probe(c->log, full_path, &_res) == NGX_OK
-			    && _res.state == FRM_RES_NEARLINE)
-			{
-				frm_req_view_t _v;
-				char           _rq[FRM_REQID_LEN];
-				ngx_memzero(&_v, sizeof(_v));
-				_v.lfn        = full_path;
-				_v.options    = FRM_OPT_STAGE;
-				_v.selector   = "stage";      /* F4/F2: activity class       */
-				_v.queue      = 0;            /* stgQ (XRootD numQ default)   */
-				_v.requester_dn = (ctx->dn[0] != '\0') ? ctx->dn : NULL;
-				_v.tod_expire = (int64_t) ngx_time()
-				              + (int64_t) (conf->frm.stage_ttl / 1000);
-				(void) frm_request_add(conf->frm.queue, &_v, _rq,
-				                       sizeof(_rq), c->log);
-				frm_stage_kick();
+		if (conf->frm.enable && xrootd_stage_registry_singleton() != NULL) {
+			xrootd_vfs_ctx_t      _rvc;
+			xrootd_sd_residency_t _res;
 
-				/* Phase 3: when async recall is on, park the open with
-				 * kXR_waitresp and wake it in place via kXR_attn(asynresp) on
-				 * completion. Falls back to the Phase-1 kXR_wait poll model if
-				 * async is off or the waiter table is full. */
-				if (conf->frm.async_recall
-				    && frm_waiter_add(_rq, options, ctx->cur_streamid,
-				                      c->fd, c->number, ngx_pid,
-				                      conf->frm.stage_ttl) == NGX_OK)
+			/* Residency comes from the backend's model via the VFS seam (sd_frm),
+			 * so a tape:// export classifies nearline/offline with no FRM xattr. */
+			xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_STREAM,
+			    conf->common.root_canon, NULL, conf->common.allow_write,
+			    0 /* is_tls */, NULL, full_path);
+
+			if (xrootd_vfs_residency(&_rvc, &_res, NULL) == NGX_OK) {
+				if (_res == XROOTD_SD_RES_OFFLINE
+				    || _res == XROOTD_SD_RES_LOST)
 				{
-					XROOTD_FRM_METRIC_INC(waitresp_total);
-					xrootd_log_access(ctx, c, "OPEN", clean_path,
-					                  "staging-async", 1, 0, NULL, 0);
-					(void) xrootd_send_waitresp(ctx, c);
-					ctx->state = XRD_ST_WAITING_FRM;
-					ngx_add_timer(c->read, conf->frm.stage_ttl);
-					return NGX_AGAIN;
+					/* A failed/unretrievable recall — do not spin; surface an
+					 * error so the client re-prepares or gives up. */
+					XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN",
+					                  clean_path, "rd", kXR_FSError,
+					                  "file is offline (recall failed)");
 				}
+				if (_res == XROOTD_SD_RES_NEARLINE) {
+					xrootd_stage_request_view_t _v;
+					char           _rq[XROOTD_STAGE_REQID_LEN];
+					ngx_memzero(&_v, sizeof(_v));
+					_v.lfn        = full_path;
+					_v.requester_dn = (ctx->dn[0] != '\0') ? ctx->dn : NULL;
+					_v.tod_expire = (int64_t) ngx_time()
+					              + (int64_t) (conf->frm.stage_ttl / 1000);
+					(void) xrootd_stage_request_add(
+					           xrootd_stage_registry_singleton(),
+					           &_v, _rq, sizeof(_rq), c->log);
+					/* recall driving (former frm_stage_kick) → engine step */
 
-				xrootd_log_access(ctx, c, "OPEN", clean_path, "staging",
-				                  1, kXR_wait, NULL, 0);
-				return xrootd_send_wait(ctx, c, conf->frm.stage_wait);
+					/* When async recall is on, park the open with kXR_waitresp
+					 * and wake it in place via kXR_attn(asynresp) on completion.
+					 * Falls back to the kXR_wait poll model if async is off or
+					 * the waiter table is full. */
+					if (conf->frm.async_recall
+					    && xrootd_stage_waiter_add(_rq, options,
+					                      ctx->cur_streamid, c->fd, c->number,
+					                      ngx_pid, conf->frm.stage_ttl) == NGX_OK)
+					{
+						xrootd_log_access(ctx, c, "OPEN", clean_path,
+						                  "staging-async", 1, 0, NULL, 0);
+						(void) xrootd_send_waitresp(ctx, c);
+						ctx->state = XRD_ST_WAITING_FRM;
+						ngx_add_timer(c->read, conf->frm.stage_ttl);
+						return NGX_AGAIN;
+					}
+
+					xrootd_log_access(ctx, c, "OPEN", clean_path, "staging",
+					                  1, kXR_wait, NULL, 0);
+					return xrootd_send_wait(ctx, c, conf->frm.stage_wait);
+				}
 			}
 		}
 	} else {

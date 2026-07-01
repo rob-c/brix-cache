@@ -422,16 +422,16 @@ typedef struct {
      * The reqid we issued is stored so we can recognize it in QPrep.
      * The path list (newline-separated, heap-allocated) lets us check disk
      * status when the client queries without re-supplying the paths. */
-    char    prepare_reqid[40];   /* FRM "<seq>.<pid>@<host>" (FRM_REQID_LEN) */
+    char    prepare_reqid[40];   /* stage "<seq>.<pid>@<host>" reqid          */
     u_char *prepare_paths;
     size_t  prepare_paths_len;
 
-    /* Phase 35 / Phase 3 — async tape recall (kXR_waitresp → kXR_attn asynresp).
-     * When frm_async_active is set during a replayed open of a just-staged file,
-     * the open-OK emit goes out wrapped in kXR_attn(asynresp) on the saved
-     * frm_async_streamid instead of a normal kXR_ok header. */
-    unsigned  frm_async_active:1;
-    u_char    frm_async_streamid[2];
+    /* Async tape recall (kXR_waitresp → kXR_attn asynresp). When
+     * stage_async_active is set during a replayed open of a just-staged file, the
+     * open-OK emit goes out wrapped in kXR_attn(asynresp) on the saved
+     * stage_async_streamid instead of a normal kXR_ok header. */
+    unsigned  stage_async_active:1;
+    u_char    stage_async_streamid[2];
 
     /* Session-level transfer totals written to the access log at disconnect */
     size_t      session_bytes;          /* total bytes read by client           */

@@ -1,20 +1,12 @@
 /*
- * directives.c — FRM directive defaults, merge, and the custom watermark setter.
- *
- * WHAT: xrootd_frm_conf_init() seeds the per-server FRM sub-struct with UNSET
- *   sentinels; xrootd_frm_conf_merge() applies main→srv inheritance + defaults,
- *   the stagecmd→prepare_command fallback, and absolute-path validation;
- *   xrootd_frm_set_purge_watermark() parses the TAKE2 "<high> <low>" ratios into
- *   parts-per-million (Category-2 / Phase 4 config, accepted now).
- *
- * WHY: The simple FRM directives are registered in the stream module command
- *   table with nested offsets (offsetof(srv_conf, frm.field)) and the stock
- *   ngx_conf_set_*_slot setters; only the watermark pair needs a custom setter,
- *   and the create/merge logic for the whole sub-struct lives here so
- *   server_conf.c just calls these two helpers.
+ * tape_stage_conf.c — tape/stage directive defaults, merge, and the watermark
+ * setter. Lifted out of the deleted src/frm/directives.c by the FRM-dissolution;
+ * see tape_stage_conf.h. The simple directives are registered in the stream module
+ * command table with nested offsets (offsetof(srv_conf, frm.field)) + stock
+ * ngx_conf_set_*_slot setters; only the watermark pair needs a custom setter.
  */
 
-#include "frm.h"
+#include "tape_stage_conf.h"
 
 #include <stdlib.h>
 
@@ -44,7 +36,6 @@ xrootd_frm_conf_init(xrootd_frm_conf_t *frm)
     frm->purge_hi_ppm       = NGX_CONF_UNSET_UINT;
     frm->purge_lo_ppm       = NGX_CONF_UNSET_UINT;
     frm->purge_interval_ms  = NGX_CONF_UNSET_MSEC;
-    frm->queue              = NULL;
 }
 
 char *

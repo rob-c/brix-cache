@@ -20,6 +20,7 @@
 #include "../cache/cache_internal.h"   /* xrootd_wt_replay_register (durable WT) */
 #include "../cache/cache_reap.h"       /* stale-dirty reaper (cache-state engine) */
 #include "../cache/reap_watermark.h"  /* proactive watermark LRU reaper */
+#include "../fs/xfer/stage_request_registry.h"  /* FRM-dissolution: composable registry */
 #include "../cache/cache_storage.h"    /* per-role SD storage instances (exclusively-VFS) */
 #include "../fs/xfer/xfer.h"           /* xrootd_xfer_resume_sweep_register      */
 #include "../fs/xfer/stage_engine.h"   /* phase-64 SP4 async stage scheduler     */
@@ -286,19 +287,19 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
         xcf->proxy_audit_log_fd = xcf->proxy_audit_log_file != NULL
                              ? xcf->proxy_audit_log_file->fd : NGX_INVALID_FILE;
 
-        /* Phase 35: open this worker's own fds onto the FRM queue file (the
-         * master reconciled file → SHM index before fork; workers lock/IO with
-         * independent fds), then arm the per-worker stage scheduler. */
-        if (xcf->frm.enable && xcf->frm.queue != NULL) {
-            if (frm_queue_init(xcf->frm.queue, cycle->log) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            frm_stage_scheduler_register(cycle, &xcf->frm,
-                                         xcf->common.thread_pool,
-                                         xcf->manager_mode,
-                                         (uint16_t) xcf->listen_port);
-            /* Phase 4 F6: worker-0 Category-2 purge-watermark monitor (stub). */
-            frm_migrate_purge_register(cycle, &xcf->frm);
+        /* Open this worker's own fds onto the composable stage request registry
+         * that the migrated staging callers (prepare/tape_rest/open) record into.
+         * Journal dir = the (tape) control dir; NULL-terminate for the C API. The
+         * legacy FRM queue/scheduler/purge worker-init is retired — the recall is
+         * driven by the sd_frm backend + the client poll model. */
+        if (xcf->frm.enable
+            && xcf->frm.control_dir.len > 0
+            && xcf->frm.control_dir.len < NGX_MAX_PATH)
+        {
+            char _jd[NGX_MAX_PATH];
+            ngx_memcpy(_jd, xcf->frm.control_dir.data, xcf->frm.control_dir.len);
+            _jd[xcf->frm.control_dir.len] = '\0';
+            (void) xrootd_stage_registry_init(_jd, cycle->log);
         }
 
         /* Phase 6 housekeeping: TTL-sweep abandoned upload-resume partials from
@@ -447,8 +448,6 @@ ngx_stream_xrootd_init_process(ngx_cycle_t *cycle)
     }
     xrootd_phase_mark(&pt, "keypool");
 
-    /* Phase 35: arm the FRM expiry reaper (worker 0 only; no-op when disabled). */
-    frm_reaper_register(cycle);
 
     /* A4: arm the pending-locate reaper (worker 0 only) when any server is a
      * manager — reclaims abandoned in-flight locate slots even when traffic
