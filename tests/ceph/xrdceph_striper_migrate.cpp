@@ -49,6 +49,8 @@
  *                          the redirect chain serves correct data end-to-end)
  *   --delete-source        (copy mode only) remove striper objects after verify
  *   --force                re-migrate even if the target already exists
+ *   --progress             emit a progress line (done/total, MiB, MiB/s, ETA)
+ *                          every ~5s; on automatically when stderr is a TTY
  *   --dry-run              report actions without writing, then print a
  *                          wall-clock ESTIMATE for both modes. The forecast is
  *                          calibrated by REALLY migrating a small representative
@@ -83,6 +85,7 @@
 #include <string>
 #include <thread>
 #include <unistd.h>
+#include <unordered_map>
 #include <vector>
 
 namespace {
@@ -96,6 +99,7 @@ struct Opts {
     bool        verify = false, del = false, force = false, dry = false;
     bool        rollback = false;         /* undo: remove the CephFS overlay      */
     bool        finalize = false;         /* materialize redirects → owned copies */
+    bool        progress = false;         /* periodic progress line (also auto-TTY)*/
     long        sample_mb = 64;           /* --dry-run read-probe budget (MiB)    */
 };
 
@@ -115,6 +119,85 @@ bool g_quiet = false;   /* suppress per-file logging during sample calibration *
 void logline(const std::string &s) {
     if (g_quiet) { return; }
     std::lock_guard<std::mutex> l(log_mu); fputs(s.c_str(), stdout); fputc('\n', stdout);
+}
+
+double now_s()
+{
+    return std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+/* ---- O(N) source-pool index (see split_stripe/build_source_index) ----
+ *
+ * The former tool rescanned the WHOLE source pool inside every per-file op
+ * (migrate/finalize/detach/delete), i.e. O(files x pool_objects) = O(N^2). We
+ * now scan the source pool ONCE and answer per-file lookups from a hash map
+ * (soid -> its sorted stripe object indices), matching the Python tool's index.
+ * Built once at startup, read-only afterwards → no lock, never stale.
+ *
+ * NOTE: a redirect stub <ino>.<idx> exists iff its source object <soid>.<idx>
+ * exists (the stub points at it), so the SOURCE index also names the stubs to
+ * detach — no separate dest index is needed. (An earlier dest-side index was a
+ * data-loss trap: cached, it missed stubs created after it was built, so a
+ * migrate-then-rollback of the same file in one process failed to detach and
+ * the unlink delete-through destroyed the source.) For a copy --delete-source
+ * rollback the source objects are gone, but those dest objects are OWNED (not
+ * manifests) so detach is a harmless no-op and unlink simply reclaims them. */
+std::unordered_map<std::string, std::vector<uint32_t>> g_src_index;
+
+/* Split a source stripe name "<soid>.<16 hex>" into soid + object index.
+ * (The dest stub name is "<ino>.<8 hex>", so an index always fits in 32 bits —
+ * the tool's own stub format assumes it; we keep the index compact to match.) */
+bool split_stripe(const std::string &name, std::string *soid, uint32_t *idx)
+{
+    if (name.size() < 18 || name[name.size() - 17] != '.') { return false; }
+    size_t dot = name.size() - 17;
+    for (size_t i = dot + 1; i < name.size(); i++) {
+        if (!isxdigit((unsigned char) name[i])) { return false; }
+    }
+    if (soid) { *soid = name.substr(0, dot); }
+    if (idx)  { *idx  = (uint32_t) strtoul(name.c_str() + dot + 1, nullptr, 16); }
+    return true;
+}
+
+/* One pass over the source pool → g_src_index. */
+void build_source_index()
+{
+    for (auto it = g_src.nobjects_begin(); it != g_src.nobjects_end(); ++it) {
+        std::string name = it->get_oid(), soid;
+        uint32_t    idx;
+        if (split_stripe(name, &soid, &idx)) { g_src_index[soid].push_back(idx); }
+    }
+    for (auto &kv : g_src_index) { std::sort(kv.second.begin(), kv.second.end()); }
+}
+
+/* ---- periodic progress line (opt-in via --progress or a TTY on stderr) ---- */
+std::atomic<long> prog_done{0};
+long              prog_total = 0;
+double            prog_t0 = 0, prog_last = 0;
+bool              prog_on = false;
+std::mutex        prog_mu;
+
+/* Emit "progress: done/total files, MiB, MiB/s, ETA" at most every 5 s (always
+ * on the final file). Called once per processed file from the worker loop.
+ * Mirrors the Python Reporter's progress line. */
+void progress_tick()
+{
+    if (!prog_on || g_quiet) { return; }
+    long   done = ++prog_done;
+    double now  = now_s();
+    std::lock_guard<std::mutex> l(prog_mu);
+    if (now - prog_last < 5.0 && done < prog_total) { return; }
+    prog_last = now;
+    double dt  = std::max(now - prog_t0, 1e-6);
+    double mib = bytes_ok.load() / 1048576.0;
+    char   eta[48] = "";
+    if (prog_total > 0 && done > 0 && done < prog_total) {
+        snprintf(eta, sizeof(eta), ", ETA %lds",
+                 (long) ((double) (prog_total - done) * dt / done));
+    }
+    fprintf(stderr, "progress: %ld/%ld files, %.0f MiB, %.1f MiB/s%s\n",
+            done, prog_total, mib, mib / dt, eta);
 }
 
 /* zlib adler32, batched for speed over large files. */
@@ -138,15 +221,6 @@ long xattr_num(const std::string &oid, const char *name, long dflt)
     return strtol(s.c_str(), nullptr, 10);
 }
 
-bool parse_stripe(const std::string &soid, const std::string &name, unsigned long *idx)
-{
-    std::string pfx = soid + ".";
-    if (name.size() != pfx.size() + 16 || name.compare(0, pfx.size(), pfx) != 0) { return false; }
-    std::string hex = name.substr(pfx.size());
-    for (char c : hex) { if (!isxdigit((unsigned char) c)) { return false; } }
-    *idx = strtoul(hex.c_str(), nullptr, 16);
-    return true;
-}
 
 std::string dest_path(const std::string &soid)
 {
@@ -184,17 +258,20 @@ long cephfs_adler32(const std::string &cpath, long size)
 
 enum Result { MIG_OK, MIG_SKIP, MIG_FAIL };
 
-/* Detach every redirect stub of (soid -> ino) from its source object
+/* Detach every redirect stub of (soid, ino) from its source object
  * (unset_manifest). A redirect stub DELETE-THROUGHS to its source when purged,
  * so any unlink of a redirect-migrated file MUST be preceded by this — used by
- * rollback AND by the --force re-migrate path (which unlinks the old file).
- * No-op on owned (copy-mode) objects. */
+ * rollback AND by the --force re-migrate path (which unlinks the old file). The
+ * stub indices come from the (static) source index, so this is O(k) per file
+ * and never stale. No-op on owned (copy-mode) objects, and a no-op when the
+ * source is already gone (copy --delete-source) — where owned objects don't
+ * delete-through anyway. */
 void detach_stubs(const std::string &soid, unsigned long long ino)
 {
-    for (auto it = g_src.nobjects_begin(); it != g_src.nobjects_end(); ++it) {
-        unsigned long idx; std::string name = it->get_oid();
-        if (!parse_stripe(soid, name, &idx)) { continue; }
-        char d[64]; snprintf(d, sizeof(d), "%llx.%08lx", ino, idx);
+    auto it = g_src_index.find(soid);
+    if (it == g_src_index.end()) { return; }
+    for (uint32_t idx : it->second) {
+        char d[64]; snprintf(d, sizeof(d), "%llx.%08x", ino, idx);
         librados::ObjectWriteOperation um; um.unset_manifest();
         g_dst.operate(d, &um);
     }
@@ -268,18 +345,19 @@ Result migrate_one(const std::string &soid)
      * REDIRECT (default, zero-move): create a RADOS redirect stub pointing at the
      * existing striper object — no bytes copied, source untouched.
      * COPY: server-side copy_from (OSD→OSD) — duplicates the bytes in-cluster. */
-    int nrekey = 0;
-    for (auto it = g_src.nobjects_begin(); it != g_src.nobjects_end(); ++it) {
-        unsigned long idx;
-        std::string   name = it->get_oid();
-        if (!parse_stripe(soid, name, &idx)) { continue; }
+    int  nrekey = 0;
+    auto sit = g_src_index.find(soid);
+    if (sit != g_src_index.end()) {
+      for (uint32_t idx : sit->second) {
+        char name[520];
+        snprintf(name, sizeof(name), "%s.%016lx", soid.c_str(), (unsigned long) idx);
 
         uint64_t psize = 0; time_t pmt = 0;
         if (g_src.stat(name, &psize, &pmt) < 0) { logline("FAIL " + soid + ": stat " + name); n_fail++; return MIG_FAIL; }
         uint64_t ver = g_src.get_last_version();
 
         char dstname[64];
-        snprintf(dstname, sizeof(dstname), "%llx.%08lx", ino, idx);
+        snprintf(dstname, sizeof(dstname), "%llx.%08x", ino, idx);
 
         if (g.mode == MODE_REDIRECT) {
             { librados::ObjectWriteOperation cop; cop.create(false); g_dst.operate(dstname, &cop); }
@@ -298,6 +376,7 @@ Result migrate_one(const std::string &soid)
             }
         }
         nrekey++;
+      }
     }
 
     /* ---- carry user.* xattrs (checksums etc.) onto the CephFS file ---- */
@@ -335,10 +414,11 @@ Result migrate_one(const std::string &soid)
     }
 
     /* ---- optionally delete the source after a clean migrate+verify ---- */
-    if (g.del) {
-        for (auto it = g_src.nobjects_begin(); it != g_src.nobjects_end(); ++it) {
-            unsigned long idx; std::string name = it->get_oid();
-            if (parse_stripe(soid, name, &idx)) { if (g_src.remove(name) == 0) { n_deleted++; } }
+    if (g.del && sit != g_src_index.end()) {
+        for (uint32_t idx : sit->second) {
+            char name[520];
+            snprintf(name, sizeof(name), "%s.%016lx", soid.c_str(), (unsigned long) idx);
+            if (g_src.remove(name) == 0) { n_deleted++; }
         }
         g_src.remove(soid);   /* a bare control object, if any */
     }
@@ -397,11 +477,11 @@ Result finalize_one(const std::string &soid)
     if (g.dry) { logline("DRY  finalize " + cpath); n_skip++; return MIG_SKIP; }
     unsigned long long ino = (unsigned long long) stx.stx_ino;
 
-    int n = 0;
-    for (auto it = g_src.nobjects_begin(); it != g_src.nobjects_end(); ++it) {
-        unsigned long idx; std::string name = it->get_oid();
-        if (!parse_stripe(soid, name, &idx)) { continue; }
-        char d[64]; snprintf(d, sizeof(d), "%llx.%08lx", ino, idx);
+    int  n = 0;
+    auto sit = g_src_index.find(soid);
+    if (sit != g_src_index.end()) {
+      for (uint32_t idx : sit->second) {
+        char d[64]; snprintf(d, sizeof(d), "%llx.%08x", ino, idx);
         { librados::ObjectWriteOperation pr; pr.tier_promote();
           if (g_dst.operate(d, &pr) < 0) { logline("FAIL " + soid + ": tier_promote " + d); n_fail++; return MIG_FAIL; } }
         { librados::ObjectWriteOperation um; um.unset_manifest(); g_dst.operate(d, &um); }
@@ -410,6 +490,7 @@ Result finalize_one(const std::string &soid)
             g_dst.rmxattr(d, j);
         }
         n++;
+      }
     }
     n_ok++;
     logline("FINALIZE " + soid + " -> " + cpath + " (" + std::to_string(n) +
@@ -443,12 +524,6 @@ Result finalize_one(const std::string &soid)
  *       read bandwidth capped by --sample-mb). For a skewed size distribution,
  *       forecast per shard with --list.
  * ========================================================================= */
-
-double now_s()
-{
-    return std::chrono::duration<double>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
-}
 
 std::string fmt_dur(double s)
 {
@@ -737,6 +812,7 @@ main(int argc, char **argv)
         else if (a == "--delete-source") { g.del = true; }
         else if (a == "--force")         { g.force = true; }
         else if (a == "--dry-run")       { g.dry = true; }
+        else if (a == "--progress")      { g.progress = true; }
         else if (a == "--sample-mb" && i + 1 < argc) { g.sample_mb = atol(argv[++i]); }
         else if (a == "--help")          { fprintf(stderr, "see header for usage\n"); return 2; }
         else if (a.rfind("--", 0) == 0)  { fprintf(stderr, "unknown option %s\n", a.c_str()); return 2; }
@@ -777,6 +853,17 @@ main(int argc, char **argv)
                   "— these are NOT migrated (out of scope)\n", g.spool.c_str(), snaps.size()); }
 
     std::vector<std::string> work = build_list();
+
+    /* Build the source-pool index ONCE (O(N)); every per-file op then does an
+     * O(1) lookup instead of the former per-file full-pool rescan (O(N^2)).
+     * Rollback needs it too — detach names its stubs from the source index. */
+    {
+        double bi0 = now_s();
+        build_source_index();
+        fprintf(stderr, "indexed %zu source file(s) in %.2fs (one pass)\n",
+                g_src_index.size(), now_s() - bi0);
+    }
+
     fprintf(stderr, "xrdceph_striper_migrate: %zu file(s) to consider"
             " (%s, mode=%s, %d worker(s), dest %s%s%s%s)\n", work.size(),
             g.rollback ? "ROLLBACK" : (g.finalize ? "FINALIZE" : "migrate"),
@@ -784,6 +871,13 @@ main(int argc, char **argv)
             g.threads, g.dest.c_str(),
             g.dry ? ", DRY-RUN" : "", g.verify ? ", verify" : "",
             g.del ? ", delete-source" : "");
+
+    /* progress: on with --progress, or automatically when stderr is a TTY
+     * (matches the Python tool). Off during the dry-run inventory pass. */
+    prog_on    = !g.dry && (g.progress || isatty(fileno(stderr)));
+    prog_total = (long) work.size();
+    prog_t0    = now_s();
+    prog_last  = prog_t0;
 
     std::queue<std::string> q;
     for (auto &s : work) { q.push(s); }
@@ -795,6 +889,7 @@ main(int argc, char **argv)
             if (g.rollback)      { rollback_one(soid); }
             else if (g.finalize) { finalize_one(soid); }
             else                 { migrate_one(soid); }
+            progress_tick();
         }
     };
     std::vector<std::thread> pool;

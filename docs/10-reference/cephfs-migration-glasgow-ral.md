@@ -220,9 +220,29 @@ redirects point at).
 | `--verify` | read + compare `user.XrdCks.adler32` |
 | `--delete-source` | (copy mode only) drop striper objects after verify |
 | `--force` | re-migrate even if the target exists |
+| `--progress` | periodic progress line (`done/total`, MiB, MiB/s, ETA) every ~5s; on automatically when stderr is a TTY |
 | `--dry-run` | report actions, write nothing; probe the pool (read-only) and print a per-mode wall-clock estimate |
 | `--sample-mb N` | dry-run read-bandwidth probe budget in MiB (default 64) |
 | `--conf PATH` | ceph.conf (default `/etc/ceph/ceph.conf` / `$CEPH_CONF`) |
+
+## Performance — single-pass source index
+
+At startup the tool builds a **one-pass index of the source pool** (`soid → its
+sorted stripe object indices`) and answers every per-file lookup from it — the
+same design as the Python tools. This replaces the previous behaviour of
+rescanning the *whole* pool once per file inside migrate / finalize / detach /
+delete, which was **O(files × pool_objects)** (quadratic in a large estate). The
+tool now prints e.g. `indexed 1,204,331 source file(s) in 4.9s (one pass)` and
+each file is an O(1) hash lookup thereafter. On the demo cluster a fixed 40-file
+migrate stays ~2s as the pool grows to 5k objects while the old code climbs with
+pool size; on a real pool with millions of objects the difference is the whole
+migration, not a constant factor.
+
+The stubs to detach on rollback / `--force` are named from this same source
+index (a redirect stub `<ino>.<idx>` exists only while its source object
+`<soid>.<idx>` does), so detach is also O(1) per file and always consistent — it
+never uses a cached dest-pool listing, which could miss stubs created after it
+was built.
 
 ## Safety summary
 
