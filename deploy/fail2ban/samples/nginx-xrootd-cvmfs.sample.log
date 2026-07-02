@@ -1,0 +1,4 @@
+2026/07/02 12:00:00 [warn] 1#0: *3 cvmfs-reject: method=GET uri="/cvmfs/../etc/passwd" client=192.0.2.7 class=reject cause="path is not a CVMFS traffic shape" fix="only /cvmfs/<repo>/{data,...} are served"
+2026/07/02 12:00:01 [warn] 1#0: *4 cvmfs-reject: method=PUT uri="/cvmfs/a.b/.cvmfspublished" client=192.0.2.7 class=reject cause="method not allowed" fix="only GET/HEAD"
+2026/07/02 12:00:02 [warn] 1#0: *5 cvmfs-reject: method=GET uri="/cvmfs/x/random" client=198.51.100.9 class=reject cause="path is not a CVMFS traffic shape" fix="..."
+2026/07/02 12:00:03 [warn] 1#0: *6 sd_cache: refill of "/cvmfs/a.b/.cvmfspublished" failed; serving stale copy client=192.0.2.7
