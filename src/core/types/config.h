@@ -243,6 +243,8 @@ typedef struct {
     ngx_flag_t  csi_fill;        /* [xrootd_csi_fill on|off] tag hole pages */
     ngx_flag_t  csi_require;     /* [xrootd_csi_require on|off] missing tags=err */
     ngx_flag_t  csi_loose;       /* [xrootd_csi_loose on|off] recover retries */
+    ngx_flag_t  csi_trust_fs;    /* [xrootd_csi_trust_fs on|off] fs is
+                                    self-checksumming: skip read-verify */
 
     ngx_str_t   token_macaroon_secret;     /* [xrootd_macaroon_secret <hex>] */
     ngx_str_t   token_macaroon_secret_old; /* [xrootd_macaroon_secret_old <hex>]

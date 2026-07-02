@@ -24,6 +24,14 @@ xrootd_csi_verify_read(xrootd_csi_t *c, const unsigned char *buf, off_t off,
     if (len == 0) {
         return XROOTD_CSI_OK;
     }
+
+    /* trust_fs: the backing filesystem is self-checksumming (ZFS/CephFS/...),
+     * so skip the read-path verify entirely — no tag reads, no CRC pass.
+     * Write-side tagging and RMW verify are unaffected. */
+    if (c->trust_fs) {
+        return XROOTD_CSI_OK;
+    }
+
     p0 = off / XROOTD_CSI_PAGE;
     np = (len + XROOTD_CSI_PAGE - 1) / XROOTD_CSI_PAGE;
 

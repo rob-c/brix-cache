@@ -77,6 +77,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->csi_fill        = NGX_CONF_UNSET;
     conf->csi_require     = NGX_CONF_UNSET;
     conf->csi_loose       = NGX_CONF_UNSET;
+    conf->csi_trust_fs    = NGX_CONF_UNSET;
     conf->throttle_max_open_files  = NGX_CONF_UNSET_UINT;
     conf->throttle_max_active_conn = NGX_CONF_UNSET_UINT;
     xrootd_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
@@ -407,6 +408,7 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_value(conf->csi_fill,    prev->csi_fill,    1);
     ngx_conf_merge_value(conf->csi_require, prev->csi_require, 0);
     ngx_conf_merge_value(conf->csi_loose,   prev->csi_loose,   0);
+    ngx_conf_merge_value(conf->csi_trust_fs, prev->csi_trust_fs, 0);
     ngx_conf_merge_str_value(conf->token_macaroon_secret,
                              prev->token_macaroon_secret,     "");
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,

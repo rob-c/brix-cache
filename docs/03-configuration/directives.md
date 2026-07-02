@@ -743,6 +743,50 @@ stream {
 
 ---
 
+## CSI page-checksum integrity directives
+
+OssCsi-style at-rest integrity: one CRC32C per 4096-byte data page, stored in a
+`.xrdt` sidecar, verified on every read and updated on every write. All
+directives are stream server-block scoped.
+
+| Directive | Default | Meaning |
+|---|---|---|
+| `xrootd_csi on\|off` | `off` | Enable the per-page tagstore for this server |
+| `xrootd_csi_prefix <dir>` | `/.xrdt` | Directory for tag sidecars (`""` = inline next to data) |
+| `xrootd_csi_fill on\|off` | `on` | Tag implied-zero hole pages |
+| `xrootd_csi_require on\|off` | `off` | Refuse read-opens of untagged files |
+| `xrootd_csi_loose on\|off` | `off` | Accept retried interrupted writes on RMW verify |
+| `xrootd_csi_trust_fs on\|off` | `off` | Trust the backing filesystem: skip read-verify |
+
+### `xrootd_csi_trust_fs on|off`
+
+**Default:** `off`
+
+Declares the backing filesystem self-checksumming (ZFS, CephFS, RADOS, Btrfs)
+and skips CSI verification on the read path: pure read handles don't open the
+tag sidecar at all, and reads through a read-write handle skip the tag check.
+The write side is untouched — writes keep tagging pages, the strict
+read-modify-write verify still runs, and pgwrite wire-CRC validation stays on —
+so tags remain fresh for scrubbing and for switching back to `off` later.
+
+Only enable this on storage that provides its own end-to-end data checksums;
+on a plain filesystem it silently disables at-rest corruption detection for
+reads. While trusting, `xrootd_csi_require` is not enforced on read opens.
+
+```nginx
+stream {
+    server {
+        listen 1094;
+        xrootd on;
+        xrootd_root /zpool/data;      # ZFS: checksummed end-to-end already
+        xrootd_csi on;                # keep tagging writes
+        xrootd_csi_trust_fs on;       # but don't re-verify reads
+    }
+}
+```
+
+---
+
 ## Proxy mode directives
 
 These directives configure transparent XRootD proxy mode, in which a stream
