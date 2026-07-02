@@ -44,6 +44,7 @@ import argparse
 import os
 import re
 import sys
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -110,12 +111,15 @@ class Migrator:
         self.cluster = rados.Rados(conffile=args.conf)
         self.cluster.connect()
         self.src = self.cluster.open_ioctx(args.striper_pool)
+        self.dst = self.cluster.open_ioctx(args.cephfs_data_pool)
 
         self.fs = cephfs.LibCephFS(conffile=args.conf)
         self.fs.mount()
 
         self.bridge = ManifestBridge(conf_path=args.conf)
         self.index = {}
+        self._dst_index = None
+        self._dst_lock = threading.Lock()
 
     def close(self):
         self.bridge.close()
@@ -125,7 +129,29 @@ class Migrator:
         except cephfs.Error:
             pass
         self.src.close()
+        self.dst.close()
         self.cluster.shutdown()
+
+    def dst_stubs(self, ino):
+        """The data-pool object indices belonging to an inode, found by
+        enumerating the CephFS data pool (lazy, one pass, cached). Rollback
+        and forced-overwrite detach MUST use this — the source-pool index
+        cannot name the stubs once source objects are gone, and unlinking
+        with attached stubs lets the async MDS purge delete-through into
+        same-named (possibly re-created) source objects."""
+        with self._dst_lock:
+            if self._dst_index is None:
+                pat = re.compile(r"^(?P<ino>[0-9a-f]+)\.(?P<objno>[0-9a-f]{8})$")
+                index = {}
+                for obj in self.dst.list_objects():
+                    key = obj.key if isinstance(obj.key, str) else obj.key.decode()
+                    m = pat.match(key)
+                    if m is None:
+                        continue
+                    index.setdefault(int(m.group("ino"), 16), []).append(
+                        int(m.group("objno"), 16))
+                self._dst_index = index
+        return sorted(self._dst_index.get(ino, []))
 
     # ---- discovery --------------------------------------------------------
 
@@ -255,7 +281,17 @@ class Migrator:
                                  % (total, osz, su, sc))
             return
 
-        if stx is not None:                    # clear a partial/forced target
+        if stx is not None:
+            # Clear a partial/forced target. DETACH its stubs first: the MDS
+            # purge behind unlink is ASYNC and a still-attached redirect stub
+            # DELETE-THROUGHS to the striper source when purged — without
+            # this, a forced re-migrate destroys its own source objects
+            # moments after verifying clean. (The C++ tool has this hazard.)
+            old = self.statx_quiet(cpath, cephfs.CEPH_STATX_INO)
+            if old is not None:
+                for idx in self.dst_stubs(old["ino"]):
+                    self.bridge.unset_manifest(args.cephfs_data_pool,
+                                               self.stub_name(old["ino"], idx))
             self.fs.unlink(cpath.encode())
 
         # MDS: create the namespace entry with a layout matching the striper
@@ -369,7 +405,7 @@ class Migrator:
                           detail="DRY-RUN rollback")
             return
         ino = stx["ino"]
-        for idx in self.index.get(soid, []):
+        for idx in self.dst_stubs(ino):
             # no-op on owned (copy-mode) objects, like the C++ tool
             self.bridge.unset_manifest(args.cephfs_data_pool,
                                        self.stub_name(ino, idx))
