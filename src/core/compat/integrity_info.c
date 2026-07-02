@@ -529,7 +529,7 @@ xrootd_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
     char             key[64];
     int              i;
 
-    xrootd_vfs_ctx_init(&vctx, NULL, log, XROOTD_PROTO_STREAM, root_canon,
+    xrootd_vfs_ctx_init(&vctx, NULL, log, XROOTD_PROTO_ROOT, root_canon,
         NULL, 1 /* allow_write */, 0 /* is_tls */, NULL, path);
 
     for (i = 0; s_algorithms[i] != NULL; i++) {

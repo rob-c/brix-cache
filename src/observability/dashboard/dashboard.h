@@ -30,6 +30,8 @@
 #include <stdint.h>
 #include <ngx_core.h>
 
+#include "core/types/proto_list.h"
+
 /* Maximum simultaneous tracked transfers. */
 #define XROOTD_DASHBOARD_MAX_TRANSFERS   512
 
@@ -43,10 +45,17 @@
 #define XROOTD_DASHBOARD_VO_LEN           32
 
 /* Protocol tag values stored in xrootd_transfer_slot_t.proto */
-#define XROOTD_XFER_PROTO_ROOT    1   /* native XRootD stream (root://)   */
-#define XROOTD_XFER_PROTO_WEBDAV  2   /* WebDAV over HTTPS (davs://)      */
-#define XROOTD_XFER_PROTO_S3      3   /* S3-compatible REST API           */
-#define XROOTD_XFER_PROTO_CVMFS   4   /* cvmfs:// site cache (phase-68)   */
+/* Transfer-slot protocol ids, generated from THE central protocol
+ * declaration (core/types/proto_list.h): value = list row + 1, 0 stays
+ * "untracked". SHM-persisted — the list is append-only. */
+enum {
+    XROOTD_XFER_PROTO_NONE = 0,
+#define X(ID, metric_label, dash_name, http_plane) XROOTD_XFER_PROTO_##ID,
+    XROOTD_PROTO_LIST(X)
+#undef X
+    XROOTD_XFER_PROTO__END
+};
+#define XROOTD_XFER_NPROTOS (XROOTD_XFER_PROTO__END - 1)
 
 /* Direction tag values stored in xrootd_transfer_slot_t.direction */
 #define XROOTD_XFER_DIR_READ   1   /* client downloading (egress)        */
@@ -169,10 +178,9 @@ typedef struct {
 
 typedef struct {
     int64_t       bucket_start_ms;
-    ngx_atomic_t  active_root;
-    ngx_atomic_t  active_webdav;
-    ngx_atomic_t  active_s3;
-    ngx_atomic_t  active_cvmfs;   /* phase-68 cvmfs:// live transfers */
+    /* per-protocol live-transfer counts, indexed by proto list row
+     * (JSON: "active_<dash_name>"); TPC is a direction, kept separate */
+    ngx_atomic_t  active[XROOTD_XFER_NPROTOS];
     ngx_atomic_t  active_tpc;
     ngx_atomic_t  bytes_rx;
     ngx_atomic_t  bytes_tx;

@@ -77,7 +77,7 @@ op_path_probe(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
     xrootd_beneath_full_path(conf->common.root_canon, reqpath,
                              full, sizeof(full));
     xrootd_vfs_ctx_init(&vctx, NULL /* no alloc in a probe */, log,
-        XROOTD_PROTO_STREAM, conf->common.root_canon, NULL,
+        XROOTD_PROTO_ROOT, conf->common.root_canon, NULL,
         conf->common.allow_write, 0 /* is_tls */, NULL, full);
     return xrootd_vfs_probe(&vctx, nofollow, vst);
 }

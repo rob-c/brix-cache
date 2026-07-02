@@ -127,14 +127,14 @@ pwd_round1(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                   (uint32_t) kXRS_user, &user, &user_len) != 0
         || user_len == 0 || user_len >= sizeof(ctx->pwd_user))
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_PWD, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_PWD, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "malformed pwd credential");
     }
 
     peer = xrootd_gsi_cipher_parse_peer(puk, puk_len);
     if (peer == NULL) {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_PWD, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_PWD, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "pwd: bad client key");
     }
@@ -183,7 +183,7 @@ pwd_round2(xrootd_ctx_t *ctx, ngx_connection_t *c,
     int                  verified;
 
     if (conf->pwd_file.len == 0 || conf->pwd_file.len >= sizeof(pwdpath)) {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_PWD, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_PWD, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "pwd auth not configured");
     }
@@ -192,7 +192,7 @@ pwd_round2(xrootd_ctx_t *ctx, ngx_connection_t *c,
                                (uint32_t) kXRS_main, &main_blob, &main_len) != 0
         || !xrootd_gsi_cipher_lookup("aes-128-cbc", &cipher))
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_PWD, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_PWD, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "malformed pwd credential");
     }
@@ -209,7 +209,7 @@ pwd_round2(xrootd_ctx_t *ctx, ngx_connection_t *c,
             OPENSSL_cleanse(plain, plain_len);
             free(plain);
         }
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_PWD, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_PWD, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "pwd: credential decrypt failed");
     }
@@ -232,7 +232,7 @@ pwd_round2(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (!verified) {
         ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
                       "xrootd: pwd auth denied for user (bad credential)");
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_PWD, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_PWD, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "invalid password");
     }
@@ -255,7 +255,7 @@ pwd_round2(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0, "xrootd: pwd auth OK user=\"%s\"",
                   ctx->dn);
-    xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_PWD, 1);
+    xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_PWD, 1);
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "pwd", 0);
 }
 
@@ -266,7 +266,7 @@ xrootd_handle_pwd_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (ctx->payload == NULL || ctx->cur_dlen < 8
         || ngx_strncmp(ctx->payload, "pwd", 4) != 0)
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_PWD, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_PWD, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "malformed pwd credential");
     }

@@ -97,10 +97,7 @@ xrootd_dashboard_history_sample(int64_t now_ms)
     uint64_t                           bytes_tx = 0;
     uint64_t                           errors = 0;
     uint64_t                           auth_failures = 0;
-    ngx_uint_t                         active_root = 0;
-    ngx_uint_t                         active_webdav = 0;
-    ngx_uint_t                         active_s3 = 0;
-    ngx_uint_t                         active_cvmfs = 0;
+    ngx_uint_t                         active[XROOTD_XFER_NPROTOS] = { 0 };
     ngx_uint_t                         active_tpc = 0;
     ngx_uint_t                         i, j;
 
@@ -154,19 +151,12 @@ xrootd_dashboard_history_sample(int64_t now_ms)
                 active_tpc++;
             }
 
-            switch (slot->proto) {
-            case XROOTD_XFER_PROTO_WEBDAV:
-                active_webdav++;
-                break;
-            case XROOTD_XFER_PROTO_S3:
-                active_s3++;
-                break;
-            case XROOTD_XFER_PROTO_CVMFS:
-                active_cvmfs++;
-                break;
-            default:
-                active_root++;
-                break;
+            /* per-proto counts index by list row (id-1); untracked/legacy
+             * slots keep the historic root bucket */
+            if (slot->proto >= 1 && slot->proto <= XROOTD_XFER_NPROTOS) {
+                active[slot->proto - 1]++;
+            } else {
+                active[XROOTD_XFER_PROTO_ROOT - 1]++;
             }
         }
     }
@@ -199,10 +189,13 @@ xrootd_dashboard_history_sample(int64_t now_ms)
             + (uint64_t) met->s3.auth_total[XROOTD_S3_AUTH_BAD_KEY];
     }
 
-    bucket->active_root = active_root;
-    bucket->active_webdav = active_webdav;
-    bucket->active_cvmfs = active_cvmfs;
-    bucket->active_s3 = active_s3;
+    {
+        ngx_uint_t p;
+
+        for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
+            bucket->active[p] = active[p];
+        }
+    }
     bucket->active_tpc = active_tpc;
     bucket->bytes_rx = (ngx_atomic_t) bytes_rx;
     bucket->bytes_tx = (ngx_atomic_t) bytes_tx;

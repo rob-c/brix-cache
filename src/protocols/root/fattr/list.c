@@ -77,7 +77,7 @@ fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
 
     /* Confined, non-metered open of this subtree directory (the enclosing
      * fattrList op accounts for the whole walk). */
-    xrootd_vfs_ctx_init(&dvctx, rctx->pool, rctx->log, XROOTD_PROTO_STREAM,
+    xrootd_vfs_ctx_init(&dvctx, rctx->pool, rctx->log, XROOTD_PROTO_ROOT,
         rctx->root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */, NULL,
         dir_path);
     dir = xrootd_vfs_opendir_quiet(&dvctx, NULL);
@@ -122,7 +122,7 @@ fattr_recurse_dir(fattr_recurse_ctx_t *rctx, const char *dir_path, int depth)
             xrootd_vfs_ctx_t fvctx;
 
             xrootd_vfs_ctx_init(&fvctx, rctx->pool, rctx->log,
-                XROOTD_PROTO_STREAM, rctx->root_canon, NULL, 0, 0, NULL, fpath);
+                XROOTD_PROTO_ROOT, rctx->root_canon, NULL, 0, 0, NULL, fpath);
             list_sz = xrootd_vfs_listxattr(&fvctx, xlist, sizeof(xlist));
         }
         if (list_sz <= 0) {

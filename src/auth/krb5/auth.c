@@ -178,7 +178,7 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (conf->krb5_context == NULL || conf->krb5_principal_obj == NULL
         || conf->krb5_keytab_obj == NULL)
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "krb5",
                           kXR_NotAuthorized, "krb5 not configured");
     }
@@ -186,7 +186,7 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (ctx->payload == NULL || ctx->cur_dlen <= 4
         || ngx_strncmp(ctx->payload, "krb5", 4) != 0)
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "krb5",
                           kXR_NotAuthorized, "malformed krb5 credential");
     }
@@ -202,7 +202,7 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
                       kmsg ? kmsg : "unknown");
         xrootd_krb5_free_error(conf, kmsg);
         XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 0);
         return xrootd_send_error(ctx, c, kXR_NotAuthorized,
                                  "krb5 authentication failed");
     }
@@ -210,7 +210,7 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (conf->krb5_ip_check) {
         if (xrootd_krb5_peer_addr(c, &peer_addr) != NGX_OK) {
             krb5_auth_con_free(conf->krb5_context, auth_ctx);
-            xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 0);
+            xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 0);
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "krb5",
                               kXR_NotAuthorized,
                               "cannot bind krb5 peer address");
@@ -226,7 +226,7 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
             xrootd_krb5_free_error(conf, kmsg);
             krb5_auth_con_free(conf->krb5_context, auth_ctx);
             XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
-            xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 0);
+            xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 0);
             return xrootd_send_error(ctx, c, kXR_NotAuthorized,
                                      "krb5 authentication failed");
         }
@@ -266,7 +266,7 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
                           0, kXR_NotAuthorized,
                           "krb5 credential verification failed", 0);
         XROOTD_OP_ERR(ctx, XROOTD_OP_AUTH);
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 0);
         return xrootd_send_error(ctx, c, kXR_NotAuthorized,
                                  "krb5 authentication failed");
     }
@@ -276,7 +276,7 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     {
         krb5_free_ticket(conf->krb5_context, ticket);
         krb5_auth_con_free(conf->krb5_context, auth_ctx);
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "krb5",
                           kXR_NotAuthorized,
                           "cannot map krb5 client principal");
@@ -305,10 +305,10 @@ xrootd_handle_krb5_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
                   "xrootd: krb5 auth OK principal=\"%s\"", safe_cname);
 
-    xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 1);
+    xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 1);
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "krb5", 0);
 #else
-    xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_KRB5, 0);
+    xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_KRB5, 0);
     XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "krb5",
                       kXR_NotAuthorized, "krb5 support is not compiled in");
 #endif

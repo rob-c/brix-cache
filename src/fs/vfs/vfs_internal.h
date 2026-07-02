@@ -274,12 +274,12 @@ xrootd_vfs_ns_status_errno(xrootd_ns_status_t status)
 }
 
 /* Pick the protocol label for this ctx's metrics, defaulting to
- * XROOTD_PROTO_STREAM when ctx is NULL or its metrics_proto is out of range. */
+ * XROOTD_PROTO_ROOT when ctx is NULL or its metrics_proto is out of range. */
 static ngx_inline xrootd_proto_t
 xrootd_vfs_metrics_proto(const xrootd_vfs_ctx_t *ctx)
 {
     if (ctx == NULL || ctx->metrics_proto >= XROOTD_PROTO_COUNT) {
-        return XROOTD_PROTO_STREAM;
+        return XROOTD_PROTO_ROOT;
     }
 
     return ctx->metrics_proto;

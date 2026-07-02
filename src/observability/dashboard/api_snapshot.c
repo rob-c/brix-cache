@@ -42,27 +42,37 @@ dashboard_collect_totals(xrootd_dashboard_totals_t *totals)
         }
     }
 
-    totals->wdav_rx = (uint64_t) met->webdav.bytes_rx_total;
-    totals->wdav_tx = (uint64_t) met->webdav.bytes_tx_total;
-    totals->s3_rx   = (uint64_t) met->s3.bytes_rx_total;
-    totals->s3_tx   = (uint64_t) met->s3.bytes_tx_total;
-    totals->cvmfs_rx = 0;                     /* read-only protocol */
-    totals->cvmfs_tx = (uint64_t) met->cvmfs.bytes_served_hit_total
-                     + (uint64_t) met->cvmfs.bytes_served_fill_total;
-    totals->cvmfs_errors = (uint64_t) met->cvmfs.fill_failures_total
-                         + (uint64_t) met->cvmfs.verify_failures_total;
+    /* Per-protocol sources stay explicit: each plane's SHM family is
+     * heterogeneous by design (proto_list.h checklist step 3). Indices
+     * come from the central list; JSON keys generate from it. */
+    totals->proto_rx[XROOTD_XFER_PROTO_WEBDAV - 1] =
+        (uint64_t) met->webdav.bytes_rx_total;
+    totals->proto_tx[XROOTD_XFER_PROTO_WEBDAV - 1] =
+        (uint64_t) met->webdav.bytes_tx_total;
+    totals->proto_rx[XROOTD_XFER_PROTO_S3 - 1] =
+        (uint64_t) met->s3.bytes_rx_total;
+    totals->proto_tx[XROOTD_XFER_PROTO_S3 - 1] =
+        (uint64_t) met->s3.bytes_tx_total;
+    totals->proto_rx[XROOTD_XFER_PROTO_CVMFS - 1] = 0;   /* read-only */
+    totals->proto_tx[XROOTD_XFER_PROTO_CVMFS - 1] =
+        (uint64_t) met->cvmfs.bytes_served_hit_total
+        + (uint64_t) met->cvmfs.bytes_served_fill_total;
+    totals->proto_errors[XROOTD_XFER_PROTO_CVMFS - 1] =
+        (uint64_t) met->cvmfs.fill_failures_total
+        + (uint64_t) met->cvmfs.verify_failures_total;
 
     /* HTTP error totals = count of all 4xx and 5xx responses, summed over every
      * method. responses_total is indexed [method][status-class]. */
     for (i = 0; i < XROOTD_WEBDAV_NMETHODS; i++) {
-        totals->webdav_errors +=
+        totals->proto_errors[XROOTD_XFER_PROTO_WEBDAV - 1] +=
             (uint64_t) met->webdav.responses_total[i][XROOTD_HTTP_STATUS_4XX]
             + (uint64_t) met->webdav.responses_total[i][XROOTD_HTTP_STATUS_5XX];
     }
 
     for (i = 0; i < XROOTD_S3_NMETHODS; i++) {
         for (j = XROOTD_HTTP_STATUS_4XX; j <= XROOTD_HTTP_STATUS_5XX; j++) {
-            totals->s3_errors += (uint64_t) met->s3.responses_total[i][j];
+            totals->proto_errors[XROOTD_XFER_PROTO_S3 - 1] +=
+                (uint64_t) met->s3.responses_total[i][j];
         }
     }
 }
@@ -101,14 +111,10 @@ dashboard_collect_protocols(xrootd_dashboard_protocols_t *out, int64_t now_ms)
 
         if (slot->direction == XROOTD_XFER_DIR_TPC) {
             summary = &out->tpc;
-        } else if (slot->proto == XROOTD_XFER_PROTO_WEBDAV) {
-            summary = &out->webdav;
-        } else if (slot->proto == XROOTD_XFER_PROTO_S3) {
-            summary = &out->s3;
-        } else if (slot->proto == XROOTD_XFER_PROTO_CVMFS) {
-            summary = &out->cvmfs;
+        } else if (slot->proto >= 1 && slot->proto <= XROOTD_XFER_NPROTOS) {
+            summary = &out->per[slot->proto - 1];
         } else {
-            summary = &out->root;
+            summary = &out->per[XROOTD_XFER_PROTO_ROOT - 1];
         }
 
         summary->active++;
@@ -153,16 +159,49 @@ dashboard_build_totals(const xrootd_dashboard_totals_t *totals)
     json_object_set_new(obj, "connections_total",   json_integer((json_int_t) totals->conn_total));
     json_object_set_new(obj, "bytes_rx_total",      json_integer((json_int_t) totals->bytes_rx));
     json_object_set_new(obj, "bytes_tx_total",      json_integer((json_int_t) totals->bytes_tx));
-    json_object_set_new(obj, "webdav_bytes_rx",     json_integer((json_int_t) totals->wdav_rx));
-    json_object_set_new(obj, "webdav_bytes_tx",     json_integer((json_int_t) totals->wdav_tx));
-    json_object_set_new(obj, "s3_bytes_rx",         json_integer((json_int_t) totals->s3_rx));
-    json_object_set_new(obj, "s3_bytes_tx",         json_integer((json_int_t) totals->s3_tx));
-    json_object_set_new(obj, "cvmfs_bytes_rx",      json_integer((json_int_t) totals->cvmfs_rx));
-    json_object_set_new(obj, "cvmfs_bytes_tx",      json_integer((json_int_t) totals->cvmfs_tx));
-    json_object_set_new(obj, "stream_errors_total", json_integer((json_int_t) totals->stream_errors));
-    json_object_set_new(obj, "webdav_errors_total", json_integer((json_int_t) totals->webdav_errors));
-    json_object_set_new(obj, "s3_errors_total",     json_integer((json_int_t) totals->s3_errors));
-    json_object_set_new(obj, "cvmfs_errors_total",  json_integer((json_int_t) totals->cvmfs_errors));
+    /* Per-HTTP-protocol keys generate from the central list (dash_name):
+     * "webdav_bytes_rx", "s3_errors_total", ... — byte-identical to the
+     * historic hand-written keys. The stream plane keeps its historic
+     * global keys (bytes_rx_total / stream_errors_total) above. */
+    {
+        static const char *names[XROOTD_XFER_NPROTOS] = {
+#define X(ID, metric_label, dash_name, http_plane) dash_name,
+            XROOTD_PROTO_LIST(X)
+#undef X
+        };
+        static const unsigned http_plane[XROOTD_XFER_NPROTOS] = {
+#define X(ID, metric_label, dash_name, http_plane) http_plane,
+            XROOTD_PROTO_LIST(X)
+#undef X
+        };
+        char        key[64];
+        ngx_uint_t  p;
+
+        for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
+            if (!http_plane[p]) {
+                continue;
+            }
+            ngx_snprintf((u_char *) key, sizeof(key), "%s_bytes_rx%Z",
+                         names[p]);
+            json_object_set_new(obj, key,
+                json_integer((json_int_t) totals->proto_rx[p]));
+            ngx_snprintf((u_char *) key, sizeof(key), "%s_bytes_tx%Z",
+                         names[p]);
+            json_object_set_new(obj, key,
+                json_integer((json_int_t) totals->proto_tx[p]));
+        }
+        json_object_set_new(obj, "stream_errors_total",
+            json_integer((json_int_t) totals->stream_errors));
+        for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
+            if (!http_plane[p]) {
+                continue;
+            }
+            ngx_snprintf((u_char *) key, sizeof(key), "%s_errors_total%Z",
+                         names[p]);
+            json_object_set_new(obj, key,
+                json_integer((json_int_t) totals->proto_errors[p]));
+        }
+    }
     return obj;
 }
 
@@ -196,10 +235,22 @@ dashboard_build_protocols(int64_t now_ms,
     obj = json_object();
     if (!obj) { return NULL; }
 
-    json_object_set_new(obj, "root",   dashboard_build_proto_summary(&ps.root,  totals->bytes_rx, totals->bytes_tx));
-    json_object_set_new(obj, "webdav", dashboard_build_proto_summary(&ps.webdav,totals->wdav_rx,  totals->wdav_tx));
-    json_object_set_new(obj, "s3",     dashboard_build_proto_summary(&ps.s3,    totals->s3_rx,    totals->s3_tx));
-    json_object_set_new(obj, "cvmfs",  dashboard_build_proto_summary(&ps.cvmfs, totals->cvmfs_rx, totals->cvmfs_tx));
+    /* One summary per protocol, keys from the central list. The stream
+     * plane pairs the GLOBAL byte counters (its historic shape); HTTP
+     * planes pair their per-proto totals. */
+    {
+        ngx_uint_t p;
+
+        for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
+            uint64_t rx = (p == XROOTD_XFER_PROTO_ROOT - 1)
+                        ? totals->bytes_rx : totals->proto_rx[p];
+            uint64_t tx = (p == XROOTD_XFER_PROTO_ROOT - 1)
+                        ? totals->bytes_tx : totals->proto_tx[p];
+
+            json_object_set_new(obj, dashboard_proto_name((uint8_t)(p + 1)),
+                dashboard_build_proto_summary(&ps.per[p], rx, tx));
+        }
+    }
 
     /* tpc has no cumulative byte counters — build inline */
     tpc_obj = json_object();
@@ -273,10 +324,17 @@ dashboard_fill_history(json_t *target, ngx_pool_t *pool)
         json_t *b = json_object();
         if (!b) { continue; }
         json_object_set_new(b, "time_ms",             json_integer((json_int_t) buckets[i].bucket_start_ms));
-        json_object_set_new(b, "active_root",         json_integer((json_int_t) buckets[i].active_root));
-        json_object_set_new(b, "active_webdav",       json_integer((json_int_t) buckets[i].active_webdav));
-        json_object_set_new(b, "active_s3",           json_integer((json_int_t) buckets[i].active_s3));
-        json_object_set_new(b, "active_cvmfs",        json_integer((json_int_t) buckets[i].active_cvmfs));
+        {
+            char        akey[48];
+            ngx_uint_t  p;
+
+            for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
+                ngx_snprintf((u_char *) akey, sizeof(akey), "active_%s%Z",
+                             dashboard_proto_name((uint8_t)(p + 1)));
+                json_object_set_new(b, akey,
+                    json_integer((json_int_t) buckets[i].active[p]));
+            }
+        }
         json_object_set_new(b, "active_tpc",          json_integer((json_int_t) buckets[i].active_tpc));
         json_object_set_new(b, "bytes_rx",            json_integer((json_int_t) buckets[i].bytes_rx));
         json_object_set_new(b, "bytes_tx",            json_integer((json_int_t) buckets[i].bytes_tx));

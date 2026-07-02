@@ -21,16 +21,15 @@ typedef struct {
     uint64_t  conn_total;
     uint64_t  bytes_rx;
     uint64_t  bytes_tx;
-    uint64_t  wdav_rx;
-    uint64_t  wdav_tx;
-    uint64_t  s3_rx;
-    uint64_t  s3_tx;
-    uint64_t  cvmfs_rx;       /* always 0 today: cvmfs is read-only        */
-    uint64_t  cvmfs_tx;       /* bytes served to the farm (hit + fill)     */
+    /* per-HTTP-protocol byte/error totals, indexed by proto list row
+     * (row 0 = the stream plane, covered by the global counters above;
+     * JSON keys generate as "<dash_name>_bytes_rx/tx", "<dash_name>_
+     * errors_total"). Sourced per protocol in dashboard_collect_totals —
+     * the per-proto SHM families are heterogeneous by design. */
+    uint64_t  proto_rx[XROOTD_XFER_NPROTOS];
+    uint64_t  proto_tx[XROOTD_XFER_NPROTOS];
+    uint64_t  proto_errors[XROOTD_XFER_NPROTOS];
     uint64_t  stream_errors;
-    uint64_t  webdav_errors;
-    uint64_t  s3_errors;
-    uint64_t  cvmfs_errors;   /* fill failures + CAS verify mismatches     */
 } xrootd_dashboard_totals_t;
 
 typedef struct {
@@ -39,11 +38,13 @@ typedef struct {
     uint64_t   egress_bps;
 } xrootd_dashboard_proto_summary_t;
 
+/* NOTE: sized/keyed by the central protocol declaration
+ * (core/types/proto_list.h) — do not hand-extend. */
+
 typedef struct {
-    xrootd_dashboard_proto_summary_t root;
-    xrootd_dashboard_proto_summary_t webdav;
-    xrootd_dashboard_proto_summary_t s3;
-    xrootd_dashboard_proto_summary_t cvmfs;   /* phase-68 */
+    /* one summary per protocol, indexed by proto list row; TPC is a
+     * direction, not a protocol — kept separate */
+    xrootd_dashboard_proto_summary_t per[XROOTD_XFER_NPROTOS];
     xrootd_dashboard_proto_summary_t tpc;
 } xrootd_dashboard_protocols_t;
 

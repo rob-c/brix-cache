@@ -38,7 +38,7 @@ xrootd_open_probe(ngx_log_t *log, const char *root, const char *abs,
 {
     xrootd_vfs_ctx_t vctx;
 
-    xrootd_vfs_ctx_init(&vctx, NULL, log, XROOTD_PROTO_STREAM, root, NULL,
+    xrootd_vfs_ctx_init(&vctx, NULL, log, XROOTD_PROTO_ROOT, root, NULL,
         1 /* allow_write */, 0 /* is_tls */, NULL, abs);
     return xrootd_vfs_probe(&vctx, nofollow, vst) == NGX_OK;
 }
