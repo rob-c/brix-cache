@@ -165,7 +165,7 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     char          safe_group[XROOTD_SSS_GROUP_MAX * 4];
 
     if (!conf->unix_trust_remote && !xrootd_unix_peer_is_loopback(c)) {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
                           kXR_NotAuthorized,
                           "unix auth is restricted to loopback peers");
@@ -175,7 +175,7 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         || ngx_strncmp(ctx->payload, "unix", 4) != 0
         || ctx->payload[4] != '\0')
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
                           kXR_NotAuthorized, "malformed unix credential");
     }
@@ -205,7 +205,7 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
             && xrootd_unix_copy_name(group, sizeof(group), group_start,
                                      group_len) != NGX_OK)
         {
-            xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 0);
+            xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 0);
             XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
                               kXR_NotAuthorized, "invalid unix group");
         }
@@ -214,7 +214,7 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (xrootd_unix_copy_name(user, sizeof(user), user_start, user_len)
         != NGX_OK)
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix",
                           kXR_NotAuthorized, "invalid unix user");
     }
@@ -250,6 +250,6 @@ xrootd_handle_unix_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
                   "xrootd: unix auth OK user=\"%s\" group=\"%s\"",
                   safe_user, safe_group);
 
-    xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_UNIX, 1);
+    xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_UNIX, 1);
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "unix", 0);
 }

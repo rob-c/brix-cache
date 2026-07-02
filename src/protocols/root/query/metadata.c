@@ -154,7 +154,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* Stat + xattr list/get all flow through the VFS (one ctx, confined to the
      * export root). probe (follow) replaces the raw stat; the OP_STAT metric is
      * suppressed (probe) so only the enclosing QUERY op is accounted. */
-    xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+    xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
         conf->common.root_canon, NULL, conf->common.allow_write,
         0 /* is_tls */, NULL, full_path);
 

@@ -3,6 +3,7 @@
  * Phase-38 split of module.c; behavior-identical.
  */
 #include "webdav_module_internal.h"
+#include "protocols/cvmfs/cvmfs.h"   /* $xrootd_protocol: cvmfs claim */
 
 
 /*
@@ -17,10 +18,12 @@
 
 /* Preconfiguration: register the $xrootd_protocol variable. */
 /*
- * Resolve $xrootd_protocol for the current request: "webdav", "s3", or "http".
- * Precedence is webdav > s3 > plain http, decided by which sibling module is
- * enabled in this request's location conf (WebDAV wins if both somehow apply).
- * Used in log_format / proxy decisions to label the served protocol.
+ * Resolve $xrootd_protocol for the current request: "webdav", "s3", "cvmfs",
+ * or "http". Precedence is webdav > s3 > cvmfs > plain http, decided by
+ * which sibling module is enabled in this request's location conf (WebDAV
+ * wins if several somehow apply). The labels are the central proto_list.h
+ * dash_names; "http" is the nothing-claimed fallback. Used in log_format /
+ * proxy decisions to label the served protocol.
  */
 ngx_int_t
 xrootd_http_protocol_variable(ngx_http_request_t *r,
@@ -28,6 +31,7 @@ xrootd_http_protocol_variable(ngx_http_request_t *r,
 {
     ngx_http_xrootd_webdav_loc_conf_t *wdcf;
     ngx_http_s3_loc_conf_t            *scf;
+    ngx_http_xrootd_cvmfs_loc_conf_t  *ccf;
     const char                        *label;
     size_t                             len;
 
@@ -37,15 +41,17 @@ xrootd_http_protocol_variable(ngx_http_request_t *r,
     len = sizeof("http") - 1;
 
     wdcf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    scf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+    ccf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_cvmfs_module);
     if (wdcf != NULL && wdcf->common.enable) {
         label = "webdav";
         len = sizeof("webdav") - 1;
-    } else {
-        scf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
-        if (scf != NULL && scf->common.enable) {
-            label = "s3";
-            len = sizeof("s3") - 1;
-        }
+    } else if (scf != NULL && scf->common.enable) {
+        label = "s3";
+        len = sizeof("s3") - 1;
+    } else if (ccf != NULL && ccf->cvmfs.enable) {
+        label = "cvmfs";
+        len = sizeof("cvmfs") - 1;
     }
 
     v->len = len;

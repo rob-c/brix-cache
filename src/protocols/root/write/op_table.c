@@ -16,7 +16,7 @@
 static void
 op_vfs_ctx(const xrootd_op_exec_t *e, xrootd_vfs_ctx_t *vctx)
 {
-    xrootd_vfs_ctx_init(vctx, e->c->pool, e->c->log, XROOTD_PROTO_STREAM,
+    xrootd_vfs_ctx_init(vctx, e->c->pool, e->c->log, XROOTD_PROTO_ROOT,
         e->conf->common.root_canon, NULL, e->conf->common.allow_write,
         0 /* is_tls */, NULL, e->resolved);
 }

@@ -91,7 +91,7 @@ xrootd_handle_host_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (ctx->payload == NULL || ctx->cur_dlen < 4
         || ngx_strncmp(ctx->payload, "host", 4) != 0)
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_HOST, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_HOST, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "host",
                           kXR_NotAuthorized, "malformed host credential");
     }
@@ -100,7 +100,7 @@ xrootd_handle_host_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         || xrootd_acc_resolve_peer(c->sockaddr, c->socklen,
                                    host, sizeof(host)) == NULL)
     {
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_HOST, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_HOST, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "host",
                           kXR_NotAuthorized,
                           "host auth: peer reverse-DNS failed");
@@ -111,7 +111,7 @@ xrootd_handle_host_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
         ngx_log_error(NGX_LOG_NOTICE, c->log, 0,
                       "xrootd: host auth denied for \"%s\" "
                       "(not in xrootd_host_allow)", safe_host);
-        xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_HOST, 0);
+        xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_HOST, 0);
         XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "host",
                           kXR_NotAuthorized, "host not authorized");
     }
@@ -136,6 +136,6 @@ xrootd_handle_host_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
                   "xrootd: host auth OK host=\"%s\"", safe_host);
 
-    xrootd_metric_auth(XROOTD_PROTO_STREAM, XROOTD_AUTHN_HOST, 1);
+    xrootd_metric_auth(XROOTD_PROTO_ROOT, XROOTD_AUTHN_HOST, 1);
     XROOTD_RETURN_OK(ctx, c, XROOTD_OP_AUTH, "AUTH", "-", "host", 0);
 }

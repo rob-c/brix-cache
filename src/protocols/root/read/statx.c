@@ -134,7 +134,7 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
                     xrootd_vfs_stat_t rvst;
 
                     xrootd_vfs_ctx_init(&rvctx, c->pool, c->log,
-                        XROOTD_PROTO_STREAM, conf->common.root_canon, NULL,
+                        XROOTD_PROTO_ROOT, conf->common.root_canon, NULL,
                         conf->common.allow_write, 0 /* is_tls */, NULL, real);
                     if (xrootd_vfs_probe(&rvctx, 0 /* follow */, &rvst)
                         == NGX_OK)
@@ -168,7 +168,7 @@ xrootd_handle_statx(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 xrootd_vfs_ctx_t      _rvc;
                 xrootd_sd_residency_t _res;
 
-                xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_STREAM,
+                xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_ROOT,
                     conf->common.root_canon, NULL, conf->common.allow_write,
                     0 /* is_tls */, NULL, full_path);
                 if (xrootd_vfs_residency(&_rvc, &_res, NULL) == NGX_OK

@@ -178,7 +178,7 @@ xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
     {
         int err = 0;
 
-        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
             conf->common.root_canon, NULL, 0 /* allow_write */, 0 /* is_tls */,
             NULL, full_path);
         dh = xrootd_vfs_opendir(&vctx, &err);

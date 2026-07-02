@@ -18,12 +18,18 @@ dashboard_direction_name(uint8_t direction)
 const char *
 dashboard_proto_name(uint8_t proto)
 {
-    switch (proto) {
-    case XROOTD_XFER_PROTO_WEBDAV: return "webdav";
-    case XROOTD_XFER_PROTO_S3:     return "s3";
-    case XROOTD_XFER_PROTO_CVMFS:  return "cvmfs";
-    default:                       return "root";
+    /* Generated from the central protocol declaration; slot ids are
+     * list row + 1. Untracked/legacy slots keep the historic "root". */
+    static const char *names[XROOTD_XFER_NPROTOS] = {
+#define X(ID, metric_label, dash_name, http_plane) dash_name,
+        XROOTD_PROTO_LIST(X)
+#undef X
+    };
+
+    if (proto >= 1 && proto <= XROOTD_XFER_NPROTOS) {
+        return names[proto - 1];
     }
+    return "root";
 }
 
 

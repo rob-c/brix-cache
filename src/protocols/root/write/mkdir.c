@@ -61,7 +61,7 @@ xrootd_handle_mkdir(xrootd_ctx_t *ctx, ngx_connection_t *c,
 		xrootd_vfs_ctx_t vctx;
 		ngx_int_t        rc;
 
-		xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+		xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
 			conf->common.root_canon, NULL, conf->common.allow_write,
 			0 /* is_tls */, NULL, resolved);
 		rc = xrootd_vfs_mkdir(&vctx, mode, recursive);

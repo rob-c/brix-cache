@@ -55,7 +55,7 @@ xrootd_handle_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			xrootd_vfs_file_t *fh;
 			int                vfs_err = 0;
 
-			xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+			xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
 				conf->common.root_canon, NULL, conf->common.allow_write,
 				0 /* is_tls */, NULL, resolved);
 			fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_WRITE, &vfs_err);

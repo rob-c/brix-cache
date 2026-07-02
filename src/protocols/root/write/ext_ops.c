@@ -90,7 +90,7 @@ xrootd_handle_setattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         xrootd_vfs_ctx_t    vctx;
         xrootd_sd_setattr_t attr;
 
-        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
             conf->common.root_canon, NULL, conf->common.allow_write,
             0 /* is_tls */, NULL, resolved);
 

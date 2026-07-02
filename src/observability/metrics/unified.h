@@ -24,13 +24,16 @@
 
 #include <ngx_config.h>
 #include <ngx_core.h>
+#include "core/types/proto_list.h"
 
+/* Generated from THE central protocol declaration (one row per plane —
+ * add protocols there, never here). Values are row indices and persist in
+ * SHM: the list is append-only. */
 typedef enum {
-    XROOTD_PROTO_STREAM = 0,
-    XROOTD_PROTO_WEBDAV = 1,
-    XROOTD_PROTO_S3     = 2,
-    XROOTD_PROTO_CVMFS  = 3,    /* phase-68: the cvmfs:// site-cache plane */
-    XROOTD_PROTO_COUNT  = 4
+#define X(ID, metric_label, dash_name, http_plane) XROOTD_PROTO_##ID,
+    XROOTD_PROTO_LIST(X)
+#undef X
+    XROOTD_PROTO_COUNT
 } xrootd_proto_t;
 
 typedef enum {

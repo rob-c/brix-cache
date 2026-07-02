@@ -9,7 +9,7 @@ xrootd_tpc_metric_proto(ngx_uint_t protocol)
         return XROOTD_PROTO_WEBDAV;
     case XROOTD_TPC_PROTO_STREAM:
     default:
-        return XROOTD_PROTO_STREAM;
+        return XROOTD_PROTO_ROOT;
     }
 }
 

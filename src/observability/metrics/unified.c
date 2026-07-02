@@ -32,11 +32,11 @@
  *       stream-protocol values during export only.
  */
 
+/* Generated from the central protocol declaration (core/types/proto_list.h). */
 static const char *xrootd_unified_proto_names[XROOTD_PROTO_COUNT] = {
-    "stream",
-    "webdav",
-    "s3",
-    "cvmfs",
+#define X(ID, metric_label, dash_name, http_plane) metric_label,
+    XROOTD_PROTO_LIST(X)
+#undef X
 };
 
 static const char *xrootd_unified_op_names[XROOTD_METRIC_OP_COUNT] = {
@@ -546,7 +546,7 @@ static unsigned long long
 xrootd_unified_legacy_auth(ngx_xrootd_metrics_t *shm, xrootd_proto_t proto,
     ngx_uint_t method, ngx_uint_t status)
 {
-    if (proto == XROOTD_PROTO_STREAM) {
+    if (proto == XROOTD_PROTO_ROOT) {
         return xrootd_unified_legacy_stream_auth(shm, method, status);
     }
 
@@ -574,7 +574,7 @@ xrootd_export_unified_metrics(metrics_writer_t *mw,
         "# TYPE xrootd_io_bytes_read counter\n");
     for (proto = 0; proto < XROOTD_PROTO_COUNT; proto++) {
         value = xrootd_metric_value(&shm->unified.io_bytes_read[proto]);
-        if (proto == XROOTD_PROTO_STREAM) {
+        if (proto == XROOTD_PROTO_ROOT) {
             value += xrootd_unified_legacy_stream_bytes(shm, 0);
         } else if (proto == XROOTD_PROTO_WEBDAV) {
             value += xrootd_metric_value(&shm->webdav.bytes_tx_total);
@@ -590,7 +590,7 @@ xrootd_export_unified_metrics(metrics_writer_t *mw,
         "# TYPE xrootd_io_bytes_written counter\n");
     for (proto = 0; proto < XROOTD_PROTO_COUNT; proto++) {
         value = xrootd_metric_value(&shm->unified.io_bytes_written[proto]);
-        if (proto == XROOTD_PROTO_STREAM) {
+        if (proto == XROOTD_PROTO_ROOT) {
             value += xrootd_unified_legacy_stream_bytes(shm, 1);
         } else if (proto == XROOTD_PROTO_WEBDAV) {
             value += xrootd_metric_value(&shm->webdav.bytes_rx_total);
@@ -609,7 +609,7 @@ xrootd_export_unified_metrics(metrics_writer_t *mw,
             for (err = 0; err < XROOTD_ERR_COUNT; err++) {
                 value = xrootd_metric_value(
                     &shm->unified.io_ops_total[proto][op][err]);
-                if (proto == XROOTD_PROTO_STREAM) {
+                if (proto == XROOTD_PROTO_ROOT) {
                     if (err == XROOTD_ERR_NONE) {
                         value += xrootd_unified_legacy_stream_op(
                             shm, (xrootd_metric_op_t) op, 1);

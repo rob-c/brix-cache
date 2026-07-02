@@ -122,7 +122,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
         /* fd target: vctx carries proto/log only (path NULL → fd mode); a driver-
          * backed handle set its resolved path above → driver path mode. */
-        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
             conf->common.root_canon, NULL, conf->common.allow_write,
             0 /* is_tls */, NULL, path);
 
@@ -146,7 +146,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
         /* fd target: vctx carries proto/log only (path NULL → fd mode); a driver-
          * backed handle set its resolved path above → driver path mode. */
-        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+        xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
             conf->common.root_canon, NULL, conf->common.allow_write,
             0 /* is_tls */, NULL, path);
         /* Everything after the marker byte is the nvec/vvec args region. */
@@ -200,7 +200,7 @@ xrootd_handle_fattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
              * vctx) so a directory list can recurse. */
             xrootd_vfs_stat_t vst;
 
-            xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_STREAM,
+            xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
                 conf->common.root_canon, NULL, conf->common.allow_write,
                 0 /* is_tls */, NULL, full_path);
             if (xrootd_vfs_stat(&vctx, &vst) != NGX_OK) {

@@ -717,7 +717,7 @@ xrootd_handle_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 			/* Residency comes from the backend's model via the VFS seam (sd_frm),
 			 * so a tape:// export classifies nearline/offline with no FRM xattr. */
-			xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_STREAM,
+			xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_ROOT,
 			    conf->common.root_canon, NULL, conf->common.allow_write,
 			    0 /* is_tls */, NULL, full_path);
 
