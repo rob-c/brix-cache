@@ -187,7 +187,7 @@ functional replacement; the three that cover essentially all real cases are belo
 > `sec/sec_krb5.c`, `aio.c`, and `ops_file.c`. These are a **refactor-on-touch**
 > backlog: when you edit one of those functions, convert it to early-return +
 > helper decomposition per Recipe 1/2 (the OpenSSL-cleanup-without-`goto` pattern
-> lives in `src/crypto/scoped.h`). Do not add new `goto` anywhere under `src/` or
+> lives in `src/auth/crypto/scoped.h`). Do not add new `goto` anywhere under `src/` or
 > `client/`.
 
 #### Recipe 1 — single-resource cleanup (`goto done` / `goto cleanup`)

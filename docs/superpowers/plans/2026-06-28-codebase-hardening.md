@@ -32,8 +32,8 @@
 
 **Phase B — `safe_size.h` adoption on wire-driven allocations**
 - Modify: `src/zip/zip_dir.c` (central-directory + member buffer allocations)
-- Modify: `src/token/jwks.c` (JWKS file-size allocation)
-- Modify: `src/gsi/gsi_buf.c` + `src/gsi/proxy_req.c` (external-handle buffer allocations)
+- Modify: `src/auth/token/jwks.c` (JWKS file-size allocation)
+- Modify: `src/auth/gsi/gsi_buf.c` + `src/auth/gsi/proxy_req.c` (external-handle buffer allocations)
 - Create/Modify: `tests/c/safe_size_adoption_test.c` (standalone overflow unit checks)
 
 **Phase C — in-process fuzzing**
@@ -316,7 +316,7 @@ git commit -m "harden(zip): overflow-checked central-directory/member allocation
 ### Task 4: JWKS file-load allocation
 
 **Files:**
-- Modify: `src/token/jwks.c:179` (`buf = malloc((size_t) fsize + 1)`)
+- Modify: `src/auth/token/jwks.c:179` (`buf = malloc((size_t) fsize + 1)`)
 - Test: reuse `tests/c/safe_size_adoption_test.c` (already proves the helper); add a pytest that loads a pathologically-sized JWKS path is out of scope — `fsize` comes from `fstat`, so the guard is defense-in-depth against a negative/huge `fsize`.
 
 **Interfaces:**
@@ -325,7 +325,7 @@ git commit -m "harden(zip): overflow-checked central-directory/member allocation
 
 - [ ] **Step 1: Add the include and guard**
 
-In `src/token/jwks.c`, add near the includes:
+In `src/auth/token/jwks.c`, add near the includes:
 
 ```c
 #include "../shared/safe_size.h"
@@ -355,14 +355,14 @@ Expected: builds clean; token tests pass.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/token/jwks.c
+git add src/auth/token/jwks.c
 git commit -m "harden(token): overflow-checked JWKS file-load allocation"
 ```
 
 ### Task 5: GSI external-handle buffers
 
 **Files:**
-- Modify: `src/gsi/gsi_buf.c` and `src/gsi/proxy_req.c` (the wire-length-driven `malloc` sites)
+- Modify: `src/auth/gsi/gsi_buf.c` and `src/auth/gsi/proxy_req.c` (the wire-length-driven `malloc` sites)
 - Test: build + existing GSI test suite
 
 **Interfaces:**
@@ -371,7 +371,7 @@ git commit -m "harden(token): overflow-checked JWKS file-load allocation"
 
 - [ ] **Step 1: Locate the wire-driven allocations**
 
-Run: `grep -nE 'malloc|calloc|realloc' src/gsi/gsi_buf.c src/gsi/proxy_req.c`
+Run: `grep -nE 'malloc|calloc|realloc' src/auth/gsi/gsi_buf.c src/auth/gsi/proxy_req.c`
 For each site whose size derives from a wire/bucket length (not a fixed `sizeof(struct)`), apply the guard pattern.
 
 - [ ] **Step 2: Add include + convert each wire-driven site**
@@ -401,7 +401,7 @@ Expected: builds clean; tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/gsi/gsi_buf.c src/gsi/proxy_req.c
+git add src/auth/gsi/gsi_buf.c src/auth/gsi/proxy_req.c
 git commit -m "harden(gsi): overflow-checked external-handle buffer allocations"
 ```
 
@@ -416,7 +416,7 @@ git commit -m "harden(gsi): overflow-checked external-handle buffer allocations"
 - Modify: `tests/fuzz/README.md` (add to target table)
 
 **Interfaces:**
-- Consumes: `b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_max)` from `src/token/b64url.h` (compiled against `src/token/b64url.c`).
+- Consumes: `b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_max)` from `src/auth/token/b64url.h` (compiled against `src/auth/token/b64url.c`).
 - Produces: a runnable `fuzz_b64url` target that must not crash/overflow/leak.
 
 - [ ] **Step 1: Write the fuzz target**
@@ -430,7 +430,7 @@ git commit -m "harden(gsi): overflow-checked external-handle buffer allocations"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "../../src/token/b64url.h"
+#include "../../src/auth/token/b64url.h"
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (size == 0) return 0;
@@ -451,8 +451,8 @@ Run:
 ```bash
 cd /home/rcurrie/HEP-x/nginx-xrootd/tests/fuzz
 clang -O1 -g -fsanitize=fuzzer,address,undefined \
-    -I ../../src -I ../../src/token \
-    fuzz_b64url.c ../../src/token/b64url.c -o fuzz_b64url
+    -I ../../src -I ../../src/auth/token \
+    fuzz_b64url.c ../../src/auth/token/b64url.c -o fuzz_b64url
 mkdir -p corpus_b64url
 ./fuzz_b64url -runs=200000 -max_total_time=120 corpus_b64url/
 ```
@@ -827,7 +827,7 @@ git commit -m "harden(deploy): sandboxed systemd unit + deployment-hardening gui
 
 **Placeholder scan:** Two intentional "use the file's existing error code" notes remain in Tasks 3/5 because the exact `ZIP_ERR_*`/`GSI_ERR` constant must be read from the surrounding function at implementation time — the step tells the engineer exactly where to look (read N surrounding lines) rather than inventing a wrong constant. The `execve` arg list in Task 10 likewise says "preserve the exact existing args" because they differ between the two call sites. These are deliberate, scoped lookups, not vague TODOs.
 
-**Type consistency:** `xrootd_size_mul`/`xrootd_size_add` signatures match `safe_size.h` exactly across Tasks 3–5; `b64url_decode` signature in Task 6 matches `src/token/b64url.h`; `xrootd_zip_find_member`/`xrootd_zip_member_t` in Task 7 match `src/zip/zip_dir.h`; `_readelf`/`_find_module_so` helpers are defined once in Task 1 and reused in Task 2.
+**Type consistency:** `xrootd_size_mul`/`xrootd_size_add` signatures match `safe_size.h` exactly across Tasks 3–5; `b64url_decode` signature in Task 6 matches `src/auth/token/b64url.h`; `xrootd_zip_find_member`/`xrootd_zip_member_t` in Task 7 match `src/zip/zip_dir.h`; `_readelf`/`_find_module_so` helpers are defined once in Task 1 and reused in Task 2.
 
 ---
 

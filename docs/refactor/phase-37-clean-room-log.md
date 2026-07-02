@@ -76,8 +76,8 @@ both nginx and (download) the reference xrootd.
 ## M4 — authentication (token / unix / GSI) + M7 — in-protocol TLS
 
 **Upstream files consulted:** none beyond our own server code (`src/session/login.c`,
-`src/gsi/{auth,buffer,cert_response,parse_x509,parse_crypto_helpers,keypool}.c`,
-`src/handshake/sigver.c`, `src/token/token.c`) + `src/protocol/{gsi,flags,
+`src/auth/gsi/{auth,buffer,cert_response,parse_x509,parse_crypto_helpers,keypool}.c`,
+`src/handshake/sigver.c`, `src/auth/token/token.c`) + `src/protocol/{gsi,flags,
 wire_write_extended_requests}.h` + black-box runs of the system client. No
 XrdSec*/XrdCrypto `.cc` read.
 
@@ -85,20 +85,20 @@ XrdSec*/XrdCrypto `.cc` read.
 |---|---|---|
 | kXR_auth: credtype[4] at body bytes 16-19; kXR_authmore=more, kXR_ok=done | wire_core_requests.h + auth.c | auth.c |
 | Login sec list `&P=<proto>[,args]&P=...` grammar | src/session/login.c | auth.c |
-| ztn payload = "ztn\0" + JWT (server skips 4-byte tag) | src/token/token.c | sec_token.c |
-| unix payload = "unix\0" + user | src/unix/auth.c | sec_unix.c |
-| GSI buffer = name\0 + step[4 BE] + {type[4] len[4] data}* + kXRS_none(0) | src/gsi/buffer.c | gsi_bucket.c |
-| kXGS_cert (parse): kXRS_puk("...---BPUB---<hex>---EPUB--") + cipher_alg + md_alg + x509 + kXRS_main | src/gsi/cert_response.c | sec_gsi.c |
-| kXGC_cert (build): kXRS_puk(our pub) + kXRS_cipher_alg("aes-256-cbc") + kXRS_main(AES) ; inner = "gsi\0"+kXGC_cert+kXRS_x509(proxy PEM)+none | src/gsi/parse_x509.c | sec_gsi.c |
-| DH ffdhe2048 (EVP_PKEY group); derive dh_pad=0; AES-256-CBC key = **first 32 bytes** of secret, IV=0; signing_key = SHA256(secret) | src/gsi/{keypool,parse_x509}.c | sec_gsi.c |
-| Client DH pub blob format "---BPUB---<UPPERCASE hex>---EPUB--" (BN_bn2hex) | src/gsi/parse_crypto_helpers.c | sec_gsi.c |
+| ztn payload = "ztn\0" + JWT (server skips 4-byte tag) | src/auth/token/token.c | sec_token.c |
+| unix payload = "unix\0" + user | src/auth/unix/auth.c | sec_unix.c |
+| GSI buffer = name\0 + step[4 BE] + {type[4] len[4] data}* + kXRS_none(0) | src/auth/gsi/buffer.c | gsi_bucket.c |
+| kXGS_cert (parse): kXRS_puk("...---BPUB---<hex>---EPUB--") + cipher_alg + md_alg + x509 + kXRS_main | src/auth/gsi/cert_response.c | sec_gsi.c |
+| kXGC_cert (build): kXRS_puk(our pub) + kXRS_cipher_alg("aes-256-cbc") + kXRS_main(AES) ; inner = "gsi\0"+kXGC_cert+kXRS_x509(proxy PEM)+none | src/auth/gsi/parse_x509.c | sec_gsi.c |
+| DH ffdhe2048 (EVP_PKEY group); derive dh_pad=0; AES-256-CBC key = **first 32 bytes** of secret, IV=0; signing_key = SHA256(secret) | src/auth/gsi/{keypool,parse_x509}.c | sec_gsi.c |
+| Client DH pub blob format "---BPUB---<UPPERCASE hex>---EPUB--" (BN_bn2hex) | src/auth/gsi/parse_crypto_helpers.c | sec_gsi.c |
 | kXR_sigver frame = ClientSigverRequest{expectrid,version,flags,seqno[8 BE],crypto} + 32-byte HMAC; HMAC = HMAC-SHA256(signing_key, seqno_be(8) ‖ hdr(24) ‖ payload); server replies kXR_ok; opcode/level policy | src/handshake/sigver.c, src/session/signing.c | sigver.c |
 | TLS flags kXR_ableTLS/wantTLS (client), kXR_haveTLS/gotoTLS (server); upgrade after protocol reply, before login | flags.h + src/session/protocol.c | conn.c, tls.c |
 
 ## Minimization — shared `gsi_core` (single source for module + client)
 
 To keep the client minimal and genuinely "built atop the module", the pure GSI/
-sigver kernels were consolidated into `src/gsi/gsi_core.{c,h}` (ngx-free: OpenSSL +
+sigver kernels were consolidated into `src/auth/gsi/gsi_core.{c,h}` (ngx-free: OpenSSL +
 libc + protocol/gsi.h only) and compiled **build-in-place** into BOTH the nginx
 module (via `config` NGX_ADDON_SRCS) and `libxrdproto` (via shared/xrdproto/Makefile)
 — the same single-source pattern as crc32c/hex/crypto. Contents: `gsi_find_bucket`,
@@ -106,10 +106,10 @@ the bucket builder, ffdhe2048 `dh_keygen`, DH pub encode/decode, `build_peer`,
 `derive`, and the `sigver` opcode policy.
 
 Both sides now call it (no duplication): client `sec_gsi.c`/`sigver.c` use it
-directly; module `src/gsi/{keypool,buffer,parse_crypto_helpers}.c` and
+directly; module `src/auth/gsi/{keypool,buffer,parse_crypto_helpers}.c` and
 `src/handshake/sigver.c` were rewired to thin wrappers/calls. The client's
 `gsi_bucket.c` was deleted; client code shrank 3560→~3220 lines. (One small,
-intentional dup remains: the inline DH derive in `src/gsi/parse_x509.c`, left on the
+intentional dup remains: the inline DH derive in `src/auth/gsi/parse_x509.c`, left on the
 server's critical decrypt path; gsi_core's derive is byte-identical.) The ngx-free
 guard still passes; the module rebuilds clean under -Werror; the 30-test native suite
 still passes — server and client interoperating through the one shared core.
@@ -399,7 +399,7 @@ dlsym(RTLD_NEXT) so wrappers inherit libc's exact prototype. opendir/readdir is 
 documented follow-up (opaque DIR* + readdir64/dirfd/fstatat interplay can't be
 interposed safely). tests/test_xrootdfs.py (9; FUSE tests skip without /dev/fuse).
 
-**SSS** (§6 + §14.3) — clean-room from `src/sss/`:
+**SSS** (§6 + §14.3) — clean-room from `src/auth/sss/`:
 - keytab = TEXT, line `0 N:<id> k:<hexkey> u:<user> g:<group> n:<name> [e:<exp>]`,
   mode **0600** (`(mode & (S_IRWXG|S_IRWXO))` must be 0), `O_NOFOLLOW`; first field
   "0"/"1"; required N:+k:. (config.c).
@@ -446,7 +446,7 @@ the probe to that SAME numeric IP — defeats DNS-rebind/localhost.attacker.com;
 non-loopback refused without `--i-am-authorized`. test_xrddiag_probe.py (5).
 
 **WS-B — krb5 client (`sec_krb5.c`, `#ifdef XROOTD_HAVE_KRB5`)**: payload = 4 bytes
-`"krb5"` + raw AP-REQ (from src/krb5/auth.c: `cur_dlen>4` + `ngx_strncmp(payload,
+`"krb5"` + raw AP-REQ (from src/auth/krb5/auth.c: `cur_dlen>4` + `ngx_strncmp(payload,
 "krb5",4)` then `krb5_rd_req` on bytes past offset 4). `first()`: krb5_cc_default →
 krb5_get_credentials for the service principal (from the advertised `&P=krb5,<princ>`
 parms, else xrootd/<host>) → krb5_mk_req_extended. Registered auth.c gsi>ztn>**krb5**>
@@ -656,7 +656,7 @@ smoking gun (DX_FAIL/CRITICAL). Probes (all PII-free, verdict + kXR code only):
   decided on the exact code (`kXR_NotAuthorized`=enforced, `kXR_fsReadOnly`=read-only-export so
   inconclusive→WARN, success→FAIL).
 
-Mechanism (verified vs the server oracle in src/token, src/handshake/policy.c): credentials are
+Mechanism (verified vs the server oracle in src/auth/token, src/handshake/policy.c): credentials are
 read at connect time, so injection is `setenv(BEARER_TOKEN)`/restore around scoped connects; one
 small client-only lib addition, `xrdc_opts.force_anon` (honored by an early `return 0` in
 `client/lib/auth.c` — log in, present nothing), plus a reusable `xrdc_token_meta_get` factored out

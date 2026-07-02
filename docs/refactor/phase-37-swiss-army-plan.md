@@ -41,7 +41,7 @@ it and silently does the right thing. Re-runs automatically on redirect because
 
 Server accepts (verified): root:// `gsi, ztn(JWT), krb5, sss, unix` (src/session/login.c
 `&P=`); web `Bearer JWT` (src/webdav/auth_token) + `S3 SigV4` (src/s3/auth_sigv4*);
-plus X.509 proxy/VOMS (src/gsi), macaroons (WebDAV).
+plus X.509 proxy/VOMS (src/auth/gsi), macaroons (WebDAV).
 
 **Layer 1 — unified discovery (`lib/sec/cred_discover.c`, new):** centralize the orders
 that today live scattered across the sec modules — token `BEARER_TOKEN`→`BEARER_TOKEN_FILE`

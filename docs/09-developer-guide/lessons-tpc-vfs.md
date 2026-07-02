@@ -58,7 +58,7 @@ time. None of these are documented anywhere obvious; all were found by packet/lo
 archaeology.
 
 1. **`gsi_ca_hash` only computes when `xrootd_trusted_ca` is a CA *file*, not a
-   directory.** `src/gsi/config.c` does `fopen(trusted_ca)` + `PEM_read_X509`; a
+   directory.** `src/auth/gsi/config.c` does `fopen(trusted_ca)` + `PEM_read_X509`; a
    directory leaves the advertised `ca:00000000`, and a stock client then fails
    `unknown CA: cannot verify server certificate`. **Our own native client tolerates
    `ca:0`, which is exactly why this latent bug survived** — interop bugs hide behind
@@ -102,9 +102,9 @@ for where you failed to turn it on.
 ## 3. Structuring protocol code so it's testable
 
 - **Separate the crypto kernel from the wire plumbing.** The F6 RFC-3820 primitives
-  (`src/gsi/proxy_req.c`: `build_pxyreq` / `sign_pxyreq` / `assemble_proxy`) are
+  (`src/auth/gsi/proxy_req.c`: `build_pxyreq` / `sign_pxyreq` / `assemble_proxy`) are
   ngx-free, OpenSSL-only, and have a standalone C unit suite
-  (`src/gsi/proxy_req_unittest.c`, run in CI via `tests/test_gsi_proxy_crypto.py`,
+  (`src/auth/gsi/proxy_req_unittest.c`, run in CI via `tests/test_gsi_proxy_crypto.py`,
   compiled `-Werror`). That suite — request→issue→assemble round-trip, RFC-3820 chain
   verification, two-level delegation, negatives — retired the *highest-risk* part of
   F6 (new crypto) **without** needing the network, the module, or stock interop. Do

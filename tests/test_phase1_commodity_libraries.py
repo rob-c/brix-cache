@@ -50,7 +50,7 @@ def test_phase1_dependency_detection_hooks_present():
 def test_phase1_jansson_token_adapter_present():
     # Jansson is now a required dependency; no fallback path, no XROOTD_HAVE_JANSSON guard.
     _assert_markers(
-        "src/token/json.c",
+        "src/auth/token/json.c",
         [
             "#include <jansson.h>",
             "json_loadb",
@@ -58,7 +58,7 @@ def test_phase1_jansson_token_adapter_present():
         ],
     )
     _assert_markers(
-        "src/token/jwks.c",
+        "src/auth/token/jwks.c",
         [
             "xrootd_jwks_load_jansson",
             "json_array_foreach",

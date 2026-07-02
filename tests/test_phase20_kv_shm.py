@@ -39,8 +39,8 @@ def test_phase20_foundation_files_exist():
     for relpath in (
         "src/core/shm/kv.h",
         "src/core/shm/kv.c",
-        "src/token/token_cache.c",
-        "src/path/auth_cache.c",
+        "src/auth/token/token_cache.c",
+        "src/auth/authz/auth_cache.c",
         "src/core/shm/rate_limit.c",
     ):
         assert (ROOT / relpath).exists(), f"missing {relpath}"
@@ -48,18 +48,18 @@ def test_phase20_foundation_files_exist():
 
 def test_phase20_kv_store_is_wired_into_consumers():
     # Token cache short-circuits signature verification in both protocols.
-    for relpath in ("src/gsi/token.c", "src/webdav/auth_token.c"):
+    for relpath in ("src/auth/gsi/token.c", "src/webdav/auth_token.c"):
         text = _read(relpath)
         assert "xrootd_token_cache_lookup(" in text, relpath
         assert "xrootd_token_cache_store(" in text, relpath
 
     # Auth-result cache lives in the stream auth gate.
-    auth_gate = _read("src/path/auth_gate.c")
+    auth_gate = _read("src/auth/authz/auth_gate.c")
     assert "auth_cache.kv" in auth_gate
     assert "xrootd_kv_get(" in auth_gate
 
     # Rate limiting hooks both protocols.
-    assert "xrootd_rate_limit_check(" in _read("src/gsi/auth.c")
+    assert "xrootd_rate_limit_check(" in _read("src/auth/gsi/auth.c")
     assert "xrootd_rate_limit_check(" in _read("src/webdav/access.c")
 
     # Prometheus export iterates the zone registry.

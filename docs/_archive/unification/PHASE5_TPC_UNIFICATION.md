@@ -70,7 +70,7 @@ Credential extraction in `tpc_cred.c` reads `Credential:` header; independently 
 | Concern | Stream Path | WebDAV Path |
 |:---|:---|:---|
 | Credential parse | `tpc_token.c`, `gsi_outbound_certreq.c` | `tpc_cred.c`, `tpc_cred_parse.c` |
-| Credential validation | `src/gsi/parse.c` (ad-hoc call) | `webdav_verify_proxy_cert()` (ad-hoc call) |
+| Credential validation | `src/auth/gsi/parse.c` (ad-hoc call) | `webdav_verify_proxy_cert()` (ad-hoc call) |
 | Scope check | Manual bitmask on `kXR_prepare` flags | Manual `has_write_scope` check in `tpc.c` |
 | Transfer tracking | `src/tpc/key_registry.c` (SHM) | None — lost on worker restart |
 | Metrics | Not recorded | `src/webdav/metrics.c` partial |
@@ -167,7 +167,7 @@ ngx_int_t xrootd_tpc_credential_validate(const xrootd_tpc_credential_t *cred,
  * HOW:
  *   1. Verify identity->has_write_scope for the destination path.
  *   2. Verify identity->has_read_scope for the source path.
- *   3. Call xrootd_check_authdb() from src/path/acl.c for each path.
+ *   3. Call xrootd_check_authdb() from src/auth/authz/acl.c for each path.
  *   4. Check conf->allow_write is set.
  */
 ngx_int_t xrootd_tpc_check_authz(const xrootd_identity_t *identity,

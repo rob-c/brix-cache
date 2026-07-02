@@ -37,7 +37,7 @@ This document identifies incomplete features, missing corner cases, and areas re
 ## 4. Security & Infrastructure
 
 ### Implementation Status
-- **HTTPS OCSP Responders**: `src/crypto/ocsp.c` supports HTTPS OCSP responder URLs by wrapping the responder connection in an OpenSSL TLS client context, enabling default trust-store verification, SNI, and hostname verification before sending the OCSP request.
+- **HTTPS OCSP Responders**: `src/auth/crypto/ocsp.c` supports HTTPS OCSP responder URLs by wrapping the responder connection in an OpenSSL TLS client context, enabling default trust-store verification, SNI, and hostname verification before sending the OCSP request.
 
 ### Missing Corner Cases
 - No open Security & Infrastructure Section 4 corner cases are currently tracked in this document.

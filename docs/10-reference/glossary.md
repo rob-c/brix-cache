@@ -82,7 +82,7 @@ The security framework standard in the global computing grid ecosystem. Provides
 voms-proxy-init --voms atlas --valid 12:00
 ```
 
-**In nginx-xrootd:** Handled by `src/gsi/` module files. Requires `xrootd_auth gsi` directive and valid host certificate at `/etc/grid-security/hostcert.pem`.
+**In nginx-xrootd:** Handled by `src/auth/gsi/` module files. Requires `xrootd_auth gsi` directive and valid host certificate at `/etc/grid-security/hostcert.pem`.
 
 See also: [Proxy Certificate](#proxy-certificate), [WLCG Token](#wlcg-token)
 
@@ -148,7 +148,7 @@ A cryptographic capability token used for delegation and fine-grained authorizat
 
 **Key difference from JWT:** A JWT says "this user is X"; a macaroon says "the bearer of this token can read /path/to/data but not write it." Macaroons are harder to forge because they include **context-bound caveats**.
 
-**Where you'll encounter it:** `webdav_auth_token macaroon` directive; `src/token/macaroon.c`.
+**Where you'll encounter it:** `webdav_auth_token macaroon` directive; `src/auth/token/macaroon.c`.
 
 See also: [Bearer Token](#bearer-token), [JWT](#jwks-json-web-key-set)
 
@@ -256,7 +256,7 @@ See also: [S3 Path-Style URL](#s3-path-style-url), [XrdClS3](#xrdcls3)
 
 An authentication method using a shared password instead of certificates or tokens. Simpler than GSI but less secure — typically used for testing or internal services where certificate management is impractical.
 
-**Where you'll encounter it:** `xrootd_auth sss` directive; `src/sss/` source directory.
+**Where you'll encounter it:** `xrootd_auth sss` directive; `src/auth/sss/` source directory.
 
 See also: [Authentication Overview](../06-authentication/auth-overview.md)
 

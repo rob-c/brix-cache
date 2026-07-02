@@ -473,7 +473,7 @@ negative (`ca_dir` = wrong/empty CA ⇒ fill refused) is covered in the GSI test
 **Original design note (now satisfied):**
 
 **Files:** `backend/xroot/sd_xroot.c` (today *"Anonymous login only"*, line 6),
-reusing `src/gsi` (X.509 proxy) and `src/token` (bearer) rather than reimplementing.
+reusing `src/auth/gsi` (X.509 proxy) and `src/auth/token` (bearer) rather than reimplementing.
 The credential source is the backend's referenced **`xrootd_credential` block (§14)**
 — `build_source(e)` hands `sd_xroot` the resolved `xrootd_credential_t`, replacing
 `cache_origin_proxy`/`token_file`. *Unlocks deleting `fetch_origin_exec` (the
@@ -635,7 +635,7 @@ is `source(posix)` only; decorators absent; zero overhead.
    (`RESOLVE_BENEATH`) applies to local roots; a remote source is confined by the
    *remote* server. `cache_root`/`stage_root` stay local; the source does not.
 5. **Auth surface for `sd_xroot` (C-3).** Credentialed in-process login pulls GSI/
-   token handling into the data path; reuse `src/gsi`/`src/token`, keep the anon path.
+   token handling into the data path; reuse `src/auth/gsi`/`src/auth/token`, keep the anon path.
 6. **Capability honesty.** A read cache over a remote source must **not** advertise
    `SENDFILE` unless the store can serve block-0 from a local fd, or the VFS sendfile
    gate mis-routes. The decorator's `caps` must reflect reality (Appendix A).
@@ -862,7 +862,7 @@ Because the cache/stage decorators (§3.1) wrap that *same* source instance, the
 fill, the write-back, and a direct serve all use one credential with **no extra
 config** — the point being that **identity is a property of the source, not of each
 subsystem that happens to reach it**. The proxy/TPC paths take the *same*
-`xrootd_credential_t`, so `src/gsi` (X.509 proxy) and `src/token` (bearer) are the
+`xrootd_credential_t`, so `src/auth/gsi` (X.509 proxy) and `src/auth/token` (bearer) are the
 **single** implementation — the §5 consolidation extends to credentials, deleting
 the duplicated proxy/token plumbing across `cache` / `proxy` / `webdav`.
 

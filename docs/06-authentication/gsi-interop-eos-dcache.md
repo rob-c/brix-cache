@@ -43,7 +43,7 @@ This is why an "IV-less" shortcut once passed EOS but silently broke dCache.
 The nginx server's signed-DH path hardcodes `use_iv=1` (sound: signed-DH ⇒
 `v>=10400` ⇒ stock `useIV=true`) and its cipher-name parser strips the `#ivlen`
 suffix, so it interoperates with IV-advertising stock/EOS clients
-(`src/gsi/parse_x509.c`, `src/gsi/parse_crypto_helpers.c`).
+(`src/auth/gsi/parse_x509.c`, `src/auth/gsi/parse_crypto_helpers.c`).
 
 ---
 

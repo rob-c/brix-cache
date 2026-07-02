@@ -1,8 +1,8 @@
-# src/acc — XrdAcc-compatible authorization engine
+# src/auth/authz/acc — XrdAcc-compatible authorization engine
 
 A faithful in-C re-implementation of XRootD's **XrdAcc** authorization framework,
 selectable at runtime with `xrootd_authdb_format xrdacc;`. It runs **alongside**
-the original 6-bit, root://-only `native` engine (`src/path/authdb.c`), which
+the original 6-bit, root://-only `native` engine (`src/auth/authz/authdb.c`), which
 stays the default so existing deployments are unaffected.
 
 When enabled, `xrdacc` authorizes **all three protocols** (root://, WebDAV, S3)

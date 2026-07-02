@@ -128,7 +128,7 @@ a real XRootD SSI peer (per ADR-2).
 | 9 | `.cinfo` cache metadata | **DONE (stats + block bitmap)** | (stats) versioned tail (access_count/last_access/bytes_served + origin-digest) on `xrootd_cache_meta_t`, back-compat read, `xrootd_cache_meta_touch`, wired into slice-hit. (bitmap) new `src/cache/cinfo.{c,h}`: `<cachefile>.cinfo` = versioned header + `ceil(size/block_size)`-bit block-present bitmap; `xrootd_cache_cinfo_record_block` (flock-serialised RMW, origin-change reset, COMPLETE/PARTIAL flags) wired into `slice_fill.c` after each window lands; `slice.c` evict drops the `.cinfo`; load DECLINEs short/garbage (torn-write-safe). Unit-tested (`tests/c/test_cinfo.c`, 53 checks) + integration (`tests/test_slice_cache.py`: partial read records only touched blocks, full read → COMPLETE). Record-keeping only — read-time serve-present/fetch-gaps from the bitmap is the remaining follow-up |
 | 3 | XrdDig (HTTP surface) | **DONE** | `src/dig/{dig.c,dig.h}`; WebDAV dispatch hook; directives `xrootd_webdav_dig` / `_dig_export <name> <dir>` (realpath anchor) / `_dig_auth <allowfile>`; RESOLVE_BENEATH confinement + fail-closed principal→export allow-file + GET/HEAD-only; `tests/test_dig.py` 7/7 (authorized read, unlisted→403, anon→403, **symlink-escape blocked**, unknown-export→404, write→405, disabled→fall-through). Follow-up: root:// surface + dirlist |
 | 4A | OssArc zip member read | **DONE (pre-existing)** | already in tree: `zip_member.c`/`zip_http.c`; `webdav/get.c` `zip_access`; root:// `xrdcl.unzip=` in `open_request.c`. Doc §4A was stale |
-| 5 | GSI delegation | **DONE (pre-existing)** | already in tree+build: `src/gsi/delegation.c` (begin_delegation→`kXGS_pxyreq`, `handle_sigpxy`), `src/gsi/proxy_req.c` (X509_REQ CSR + unittest), session-cipher encrypt, auth.c branches, TPC `tpc_delegate` consumption. `native_tpc_gsi_broken` memory was stale. Doc §5 was a stale TODO |
+| 5 | GSI delegation | **DONE (pre-existing)** | already in tree+build: `src/auth/gsi/delegation.c` (begin_delegation→`kXGS_pxyreq`, `handle_sigpxy`), `src/auth/gsi/proxy_req.c` (X509_REQ CSR + unittest), session-cipher encrypt, auth.c branches, TPC `tpc_delegate` consumption. `native_tpc_gsi_broken` memory was stale. Doc §5 was a stale TODO |
 | 6 | CNS (minimal) | **DONE** | `src/cms/cns.{c,h}` event codec + per-worker inventory; `CMS_RR_CNS` frame; data-server emit on closew (`close.c`); manager apply (`server_recv.c`, gated by global collect flag); manager **global stat from inventory** (`stat.c` manager_mode); `xrootd_cns off\|emit\|collect`; `tests/test_cns.py` 2/2 on a real **2-node cluster** (manager stats a DS-written file from CNS w/ correct size; unknown path not fabricated). v1: in-memory per-worker (single-worker manager); SHM-multi-worker + unlink/mkdir/mv emit are follow-ups |
 | 7 | SSI (minimal unary) | **DONE** | `src/ssi/{ssi.c,ssi.h}` echo over `/.ssi/<service>`; `xrootd_file_t.ssi` + clean early-return hooks in open/read/write; `xrootd_ssi` stream directive (in `module.c` — the LIVE table; `module_core_directives.c` is dead/not in `./config`); `tests/test_ssi.py` 4/4 raw-wire vs real instance. **Also fixed a pre-existing remote crash**: `kXR_chkpoint` on a path-less handle did `strlen(NULL)`→SIGSEGV (now guarded; 30 chkpoint tests pass) |
 
@@ -677,7 +677,7 @@ GSI TPC.
 
 ### 5.1 Current state (verified)
 - Wire steps defined: `src/protocol/gsi.h` has `kXGS_pxyreq 2002`, `kXGC_sigpxy 1002`.
-- Dispatch: `src/gsi/auth.c` reads `gsi_step = ntohl(payload+4)`; handles
+- Dispatch: `src/auth/gsi/auth.c` reads `gsi_step = ntohl(payload+4)`; handles
   `kXGC_certreq` (round 1) and `kXGC_cert` (round 2) only. Delegation is a **3rd
   round** after `kXGC_cert` verifies.
 - Buffer API ready: `xrootd_gbuf_start(g,step)` / `xrootd_gbuf_bucket(g,type,d,n)` /
@@ -712,7 +712,7 @@ C→S  kXGC_sigpxy  XrdSutBuffer:
 round 2). The CSR carries the `proxyCertInfo` extension (RFC 3820) so the returned
 proxy is a valid delegated proxy.
 
-### 5.4 Files (new `src/gsi/delegation.c`)
+### 5.4 Files (new `src/auth/gsi/delegation.c`)
 ```c
 /* LOOP-ONLY. Generate ephemeral keypair + PKCS#10 CSR w/ proxyCertInfo; encrypt into
  * kXRS_main; send kXGS_pxyreq. Stash the private key on ctx (paired w/ the proxy the
@@ -793,7 +793,7 @@ xrootd_gsi_delegation_dir <dir>;             # when store=file
 ```
 
 ### 5.11 Build
-`src/gsi/delegation.c` → `./config` srcs; bucket constants are header-only; `./configure`.
+`src/auth/gsi/delegation.c` → `./config` srcs; bucket constants are header-only; `./configure`.
 
 ### 5.12 Test matrix (`tests/test_gsi_delegation.py`, real `XrdSecgsi`)
 | id | phase | case | expect |
@@ -2557,10 +2557,10 @@ native writer is possible later but isn't on the critical path.
 > `xrootd_alloc_fhandle` + `ctx->files[]` (`src/connection/fd_table.h`),
 > `xrootd_aio_post_task(ctx,c,…)` (`src/core/aio/aio.h`), `xrootd_build_resp_hdr` +
 > `xrootd_queue_response` + `kXR_authmore` (response path), `xrootd_gbuf_*` /
-> `xrootd_gsi_find_bucket` (`src/gsi/gsi_core.h`), `xrootd_shm_table_alloc`
+> `xrootd_gsi_find_bucket` (`src/auth/gsi/gsi_core.h`), `xrootd_shm_table_alloc`
 > (`src/core/compat/shm_slots.h`). **Two GSI crypto helpers are flagged TODO-mirror** —
 > they must reuse the exact round-2 session-cipher path in
-> `src/gsi/parse_crypto_helpers.c` (do not re-derive EVP call sequences by hand).
+> `src/auth/gsi/parse_crypto_helpers.c` (do not re-derive EVP call sequences by hand).
 
 ### OO.1 dig — `src/dig/dig.h`
 ```c
@@ -2707,7 +2707,7 @@ xrootd_dig_authorize(xrootd_ctx_t *ctx, const char *export_name)
 (No `goto` — the inner `for` `break` stops at the first matching export and the outer
 `if (verdict == NGX_OK) break;` ends the scan; HARD BLOCK honored.)
 
-### OO.4 delegation — `src/gsi/delegation.h`
+### OO.4 delegation — `src/auth/gsi/delegation.h`
 ```c
 #ifndef NGX_XROOTD_GSI_DELEGATION_H
 #define NGX_XROOTD_GSI_DELEGATION_H
@@ -2736,7 +2736,7 @@ ngx_int_t xrootd_gsi_deleg_store(xrootd_ctx_t *ctx, X509 *proxy,
 #endif
 ```
 
-### OO.5 delegation — `src/gsi/delegation.c` (send + recv cores)
+### OO.5 delegation — `src/auth/gsi/delegation.c` (send + recv cores)
 ```c
 #include "delegation.h"
 #include "gsi_core.h"
@@ -2963,10 +2963,10 @@ xrootd_ssi_read(xrootd_ssi_req_t *rq, ngx_connection_t *c,
 
 ## §PP. Exact `./config` additions (per new file)
 
-Append to the **header** list (near the existing `src/cache/*.h`, `src/gsi/*.h`):
+Append to the **header** list (near the existing `src/cache/*.h`, `src/auth/gsi/*.h`):
 ```sh
                         $ngx_addon_dir/src/dig/dig.h \
-                        $ngx_addon_dir/src/gsi/delegation.h \
+                        $ngx_addon_dir/src/auth/gsi/delegation.h \
                         $ngx_addon_dir/src/cms/cns.h \
                         $ngx_addon_dir/src/ssi/ssi.h \
                         $ngx_addon_dir/src/ssi/ssi_registry.h \
@@ -2974,13 +2974,13 @@ Append to the **header** list (near the existing `src/cache/*.h`, `src/gsi/*.h`)
                         $ngx_addon_dir/src/zip/zip_member.h \
                         $ngx_addon_dir/src/core/compat/iso8601.h \
 ```
-Append to the **`NGX_ADDON_SRCS`** list (near `src/gsi/*.c`, `src/cms/*.c`):
+Append to the **`NGX_ADDON_SRCS`** list (near `src/auth/gsi/*.c`, `src/cms/*.c`):
 ```sh
     $ngx_addon_dir/src/core/compat/iso8601.c \
     $ngx_addon_dir/src/dig/dig.c \
     $ngx_addon_dir/src/dig/dig_auth.c \
     $ngx_addon_dir/src/dig/directives.c \
-    $ngx_addon_dir/src/gsi/delegation.c \
+    $ngx_addon_dir/src/auth/gsi/delegation.c \
     $ngx_addon_dir/src/cms/cns_emit.c \
     $ngx_addon_dir/src/manager/cns_store.c \
     $ngx_addon_dir/src/ssi/ssi.c \
@@ -3022,7 +3022,7 @@ primitive (`xrootd_open_beneath`). Off by default (`xrootd_dig off`).
 ## Tests
 tests/test_dig.py — success / 403 / traversal / read-only.
 ```
-(Analogous READMEs for `src/ssi/`, `src/cms/` CNS note, and a `src/gsi/` delegation
+(Analogous READMEs for `src/ssi/`, `src/cms/` CNS note, and a `src/auth/gsi/` delegation
 section.)
 
 ---
@@ -3488,7 +3488,7 @@ combined) and parallelizable with the rest. **5.3** is blocked by the outbound-G
 | §2 | `docs/06-authentication/macaroons.md` (add request content-type) |
 | §3 | `docs/05-operations/` dig page; `src/dig/README.md` |
 | §4 | `docs/04-protocols/` archive/zip page; `src/zip/README.md` update |
-| §5 | `docs/06-authentication/gsi.md` delegation section; `src/gsi/README.md` |
+| §5 | `docs/06-authentication/gsi.md` delegation section; `src/auth/gsi/README.md` |
 | §6 | `docs/10-architecture/` CNS page; `src/cms/README.md` CNS note |
 | §7 | `docs/04-protocols/ssi.md`; `src/ssi/README.md` |
 | §8 | `docs/10-reference/crc64-checksums.md` (+at-rest/xattr/sidecar) |

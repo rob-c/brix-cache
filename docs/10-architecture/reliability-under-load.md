@@ -138,7 +138,7 @@ thread-per-connection pool to exhaust.
 
 ### B. Always-on per-worker token validation cache (addresses #5)
 
-`src/token/worker_cache.c` is a **lock-free, per-worker L1 cache** of
+`src/auth/token/worker_cache.c` is a **lock-free, per-worker L1 cache** of
 already-validated bearer-token claims, sitting in front of an optional
 shared-memory L2. Because the loop is single-threaded, the L1 needs no locking
 (O(1) probe, bounded memory, no LRU bookkeeping). A repeated token is served from

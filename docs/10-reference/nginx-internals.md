@@ -292,7 +292,7 @@ The rest of the module is identical whether TLS is active or not.
 For the HTTP module (`davs://`), TLS is handled entirely by the nginx
 `ngx_http_ssl_module`. The module does not write a single line of TLS code for
 the transport — it only interacts with the peer certificate (via OpenSSL APIs
-for x509 proxy chain validation, in `src/crypto/pki_check.c`).
+for x509 proxy chain validation, in `src/auth/crypto/pki_check.c`).
 
 Compare: the XRootD daemon's `XrdTls` subsystem is ~3,000 lines of C++ that
 wires OpenSSL, manages session caches, implements non-blocking handshake
@@ -461,11 +461,11 @@ src/core/config/              ← directive handlers, config merge, postconfigur
 src/connection/          ← XRootD state machine, send/recv loop, TLS start
 src/handshake/           ← initial handshake, opcode dispatch, policy
 src/session/             ← login, auth, bind, ping, per-session opcodes
-src/gsi/                 ← GSI/x509 proxy handshake (protocol-specific)
-src/token/               ← JWT/WLCG validation
-src/sss/                 ← SSS shared-secret auth
-src/voms/                ← VOMS VO extraction (via libvomsapi)
-src/crypto/              ← PKI/CRL load and consistency checks
+src/auth/gsi/                 ← GSI/x509 proxy handshake (protocol-specific)
+src/auth/token/               ← JWT/WLCG validation
+src/auth/sss/                 ← SSS shared-secret auth
+src/auth/voms/                ← VOMS VO extraction (via libvomsapi)
+src/auth/crypto/              ← PKI/CRL load and consistency checks
 src/read/                ← kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_stat
 src/write/               ← kXR_write, kXR_pgwrite, kXR_truncate, kXR_mkdir, etc.
 src/core/aio/                 ← ngx_thread_task_t wrappers for all blocking I/O

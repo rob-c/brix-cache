@@ -50,7 +50,7 @@
 #include "fs/vfs.h"             /* xrootd_vfs_ctx_t for s3_build_vfs_ctx() */
 #include "core/config/shared_conf.h"
 #include "core/compat/namespace_ops.h"
-#include "acc/acc.h"
+#include "auth/authz/acc/acc.h"
 #include "core/compat/etag.h"
 #include "core/compat/error_mapping.h"
 #include "core/compat/http_xml.h"

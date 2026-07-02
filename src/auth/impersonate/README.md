@@ -1,4 +1,4 @@
-# `src/impersonate/` — per-request UNIX impersonation (phase 40)
+# `src/auth/impersonate/` — per-request UNIX impersonation (phase 40)
 
 Optional, **off by default**. Lets the gateway run namespace/open operations as
 the local UNIX account the authenticated identity maps to (so files are owned by,

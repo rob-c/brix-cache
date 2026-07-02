@@ -103,7 +103,7 @@ def test_iso8601_and_hex_helpers_are_shared():
         ['#include "hex.h"', "xrootd_hex_nibble("],
     )
     _assert_markers(
-        "src/token/macaroon.c",
+        "src/auth/token/macaroon.c",
         ["../compat/hex.h", "xrootd_hex_from_char("],
     )
     _assert_markers(
@@ -120,7 +120,7 @@ def test_iso8601_and_hex_helpers_are_shared():
     )
     _assert_absent("src/path/helpers.c", ["xrootd_hex_digit("])
     _assert_absent("src/core/compat/xml.c", ["xrootd_xml_hex_digit("])
-    _assert_absent("src/token/macaroon.c", ["hex_to_int("])
+    _assert_absent("src/auth/token/macaroon.c", ["hex_to_int("])
     _assert_absent("src/core/compat/uri.c", ["hex_val("])
     _assert_absent("src/s3/auth_sigv4_canonical.c", ["hex_encode("])
     _assert_absent("src/s3/s3_auth_internal.h", ["hex_encode("])
@@ -468,15 +468,15 @@ def test_phase2_identity_type_is_registered():
 
 def test_phase2_auth_paths_populate_identity():
     _assert_markers(
-        "src/gsi/auth.c",
+        "src/auth/gsi/auth.c",
         ["xrootd_identity_set_dn(", "XROOTD_AUTHN_GSI"],
     )
     _assert_markers(
-        "src/gsi/token.c",
+        "src/auth/gsi/token.c",
         ["xrootd_identity_set_token_claims("],
     )
     _assert_markers(
-        "src/sss/auth_request.c",
+        "src/auth/sss/auth_request.c",
         ["xrootd_identity_set_dn(", "XROOTD_AUTHN_SSS"],
     )
     _assert_markers(

@@ -66,7 +66,7 @@ are `b->memory=1` only, cleartext file-backed sendfile (INVARIANT #2).
 | OAuth2/OIDC token-exchange → reused outbound bearer | `src/tpc/tpc_token.c` → `xrootd_tpc_pull_t.delegated_token[65536]` (`tpc_internal.h:98`) | Done |
 | TPC rendezvous key registry (cross-worker SHM) | `src/tpc/key_registry.h` — `xrootd_tpc_key_table_t`, 256×`{key[128],expiry,in_use}` | Done |
 | `kXR_auth` frame builder (24-byte hdr, credtype @ body+12 = abs off 16) | `src/tpc/gsi_outbound_common.c:52-99` (`tpc_send_kxr_auth`) | Done |
-| Server-side **inbound** GSI handshake — **2 rounds only** (certreq→cert) | `src/gsi/auth.c:235-258`; rejects any step past `kXGC_cert` at `:254-258` | Done (no delegation) |
+| Server-side **inbound** GSI handshake — **2 rounds only** (certreq→cert) | `src/auth/gsi/auth.c:235-258`; rejects any step past `kXGC_cert` at `:254-258` | Done (no delegation) |
 | GSI delegation opcodes defined but **unused** | `src/protocol/gsi.h:20` `kXGS_pxyreq=2002`, `:23` `kXGC_sigpxy=1002` | Constants only |
 
 **Conclusion:** TLS-upgraded origins and single-round token/GSI auth already work
@@ -98,7 +98,7 @@ four concrete deltas (W1.2).
 GSI runs as nested `XrdSutBuffer` messages inside `kXR_auth` frames. Each buffer
 is `name("gsi\0") + step[4] + {type[4] len[4] data[len]}* + kXRS_none`. The
 module already has the buffer codec: `xrootd_gbuf_*` and `xrootd_gsi_find_bucket`
-(`src/gsi/gsi_core.h:13-33`).
+(`src/auth/gsi/gsi_core.h:13-33`).
 
 **Step constants** — authoritative values from the module's `src/protocol/gsi.h`
 (verified `:18-23`; these are what we implement against, not the stock enum
@@ -217,7 +217,7 @@ frames (W1.4.a) must then go over the TLS socket — the driver runs post-upgrad
 Gated behind one opt-in directive `xrootd_tpc_delegate` (default **off**; when
 off, behavior is byte-identical to today).
 
-**Inbound capture (add the missing 3rd server round in `src/gsi/auth.c`).**
+**Inbound capture (add the missing 3rd server round in `src/auth/gsi/auth.c`).**
 - Today `auth.c:254-258` rejects any GSI step that is not `kXGC_certreq`/
   `kXGC_cert`. Add: after a successful `kXGC_cert` parse, **if** delegation is
   enabled *and* this connection is a TPC-destination context (detected when the
@@ -279,8 +279,8 @@ uint32_t xrootd_tpc_key_take_proxy(const char *key, u_char *buf, uint32_t bufsz)
 - `src/tpc/gsi_outbound_certreq.c`, `gsi_outbound_exchange.c` — expose per-round bodies as the GSI `step()` callback (mechanical extraction; logic reused).
 - `src/tpc/bootstrap.c` / `connect.c` — `kXR_gotoTLS` upgrade for the pull socket.
 - `src/tpc/key_registry.{h,c}` — proxy-blob slot + attach/take helpers.
-- `src/gsi/auth.c` — 3rd round (`kXGS_pxyreq`/`kXGC_sigpxy`) inbound capture.
-- `src/gsi/gsi_core.{h,c}` — `xrootd_gsi_build_pxyreq` / `xrootd_gsi_parse_sigpxy`.
+- `src/auth/gsi/auth.c` — 3rd round (`kXGS_pxyreq`/`kXGC_sigpxy`) inbound capture.
+- `src/auth/gsi/gsi_core.{h,c}` — `xrootd_gsi_build_pxyreq` / `xrootd_gsi_parse_sigpxy`.
 - `src/core/config/directives.c` + stream `*_conf` struct/merge — `xrootd_tpc_delegate`
   (`ngx_flag_t`, `NGX_CONF_UNSET`→0), `xrootd_tpc_outbound_tls` (or reuse `upstream_tls`).
 
@@ -682,7 +682,7 @@ table.
 
 ## Cross-references
 - TPC current architecture: `src/tpc/README.md`, `tpc_internal.h`,
-  `key_registry.h`; GSI: `src/gsi/README.md`, `gsi_core.h`, `protocol/gsi.h`.
+  `key_registry.h`; GSI: `src/auth/gsi/README.md`, `gsi_core.h`, `protocol/gsi.h`.
 - Codec/inflate: `src/core/compat/codec_core.h` (note line 12 lists ZIP as a planned
   surface). Handle model: `src/core/types/file.h`. VFS data plane: `src/fs/README.md`,
   `src/fs/vfs.h` (INVARIANT #11).
@@ -1463,7 +1463,7 @@ Formal table (state = `(method, round)`; the recv result drives transitions):
 | any | `kXR_authmore` with `round+1 ≥ XRD_OBA_MAX_ROUNDS` | fail | **FAIL** (bounded) |
 | any | send/recv I/O error | fail | **FAIL** `kXR_ServerError` |
 
-### D1.2 Inbound GSI server handshake with delegation (`src/gsi/auth.c`)
+### D1.2 Inbound GSI server handshake with delegation (`src/auth/gsi/auth.c`)
 
 Current server recognizes only the first two rows; W1.4.c adds the last two
 (gated by `xrootd_tpc_delegate on`). `step` = client `kXGC_*` value at
@@ -1947,12 +1947,12 @@ Only after Stages 1–3 are green. Full design + wire spec are in **§W1.4.c**, 
 Opt-in via `xrootd_tpc_delegate` (default off → behavior identical to today).
 
 Implementation order within the stage:
-1. **`gsi_core` builders** (`src/gsi/gsi_core.{h,c}`): `xrootd_gsi_build_pxyreq`
+1. **`gsi_core` builders** (`src/auth/gsi/gsi_core.{h,c}`): `xrootd_gsi_build_pxyreq`
    (server→client proxy CSR, encrypted under the session cipher) and
    `xrootd_gsi_parse_sigpxy` (assemble the signed delegated proxy PEM). These are
    the new crypto — **packet-validate against stock** `XrdSecgsi` with
    `dlgpxy:1`/`sigpxy` enabled on a real origin.
-2. **Inbound capture** (`src/gsi/auth.c`): add the third server round. Today
+2. **Inbound capture** (`src/auth/gsi/auth.c`): add the third server round. Today
    `auth.c:254-258` rejects any step past `kXGC_cert`; when `xrootd_tpc_delegate`
    is on, after a valid `kXGC_cert` emit `kXGS_pxyreq` and, on the client's
    `kXGC_sigpxy`, store the delegated proxy PEM.
@@ -2144,7 +2144,7 @@ bootstrap login-auth-trigger change).
 
 The F4 refactor is complete and verified. The XrdSecgsi round-2 (kXGC_cert
 response) now has a **single implementation**, `xrootd_gsi_build_cert_response()`
-in `src/gsi/gsi_core.c` (ngx-free, both DH variants: unsigned kXRS_puk and
+in `src/auth/gsi/gsi_core.c` (ngx-free, both DH variants: unsigned kXRS_puk and
 signed-DH kXRS_cipher). Both callers are thin drivers that supply their proxy
 credential + map errors:
 
@@ -2252,7 +2252,7 @@ implemented in this pass.** Its only correctness gate is a stock `-dlgpxy:1`
 XrdSecgsi source whose access log must show the **user's** DN (not the gateway's) —
 an interop fixture that cannot be stood up in this environment. Implementing the
 ~500 lines of new proxy-delegation crypto (the `kXGS_pxyreq` CSR builder, the
-`kXGC_sigpxy` signed-proxy parser, the inbound 3rd GSI round in `src/gsi/auth.c`,
+`kXGC_sigpxy` signed-proxy parser, the inbound 3rd GSI round in `src/auth/gsi/auth.c`,
 the SHM proxy-carry, and the outbound delegated-proxy signing) without that gate
 would ship **unverified crypto** — precisely the trap §F7 warns against ("do not
 add unverifiable code on top"). Off-by-default would also make it dead, untested
@@ -2305,7 +2305,7 @@ outbound use), turning the xfail green.
 ### F6 building block 1 — proxy-request generator (2026-06-26)
 
 Implementing F6 under the gate (§F6 step 1, first half). New ngx-free OpenSSL
-module **`src/gsi/proxy_req.{c,h}`** with `xrootd_gsi_build_pxyreq()` — the
+module **`src/auth/gsi/proxy_req.{c,h}`** with `xrootd_gsi_build_pxyreq()` — the
 server→client `kXGS_pxyreq` proxy-certificate REQUEST our destination's inbound
 GSI role will send to a delegating client. Ported faithfully from stock
 XrdSecgsi `XrdCryptosslgsiAux.cc::XrdCryptosslX509CreateProxyReq`: fresh RSA key
@@ -2316,16 +2316,16 @@ extensions (minus SAN/pci); self-signed SHA-256; DER-exported. No goto (single
 NULL-safe cleanup, ownership NULLed on transfer). Registered in `./config`.
 
 **Verified** (standalone, no nginx / no stock interop):
-`src/gsi/proxy_req_unittest.c` — 9/9 checks: builds 0; key >= 2048; request DER
+`src/auth/gsi/proxy_req_unittest.c` — 9/9 checks: builds 0; key >= 2048; request DER
 parses; subject = parent (O,CN) + numeric CN; request self-signature verifies;
 proxyCertInfo extension present AND critical.
-`gcc -I src src/gsi/proxy_req.c src/gsi/proxy_req_unittest.c -lcrypto -o /tmp/pxr`.
+`gcc -I src src/auth/gsi/proxy_req.c src/auth/gsi/proxy_req_unittest.c -lcrypto -o /tmp/pxr`.
 
 **F6 remaining (each against tests/test_tpc_delegation.py's xfail):**
 2. `xrootd_gsi_assemble_sigpxy()` — pair the client-signed proxy (kXGC_sigpxy) with
    the saved request key → the delegated proxy PEM (+ a sign helper to round-trip
    the create→sign→assemble crypto locally in the unit test).
-3. Inbound 3rd round in `src/gsi/auth.c` (today ends at kXGC_cert): when
+3. Inbound 3rd round in `src/auth/gsi/auth.c` (today ends at kXGC_cert): when
    `xrootd_tpc_delegate on`, emit kXGS_pxyreq after a valid kXGC_cert and capture
    the kXGC_sigpxy reply (uses the shared session cipher).
 4. Cross-worker carry in `src/tpc/key_registry.{c,h}` (bounded `proxy_pem`, zeroed
@@ -2336,7 +2336,7 @@ proxyCertInfo extension present AND critical.
 
 ### F6 crypto core complete + exhaustively tested (2026-06-26)
 
-All three RFC-3820 proxy-delegation primitives now live in `src/gsi/proxy_req.{c,h}`
+All three RFC-3820 proxy-delegation primitives now live in `src/auth/gsi/proxy_req.{c,h}`
 (ngx-free OpenSSL, ported faithfully from stock XrdCrypto):
 
 - `xrootd_gsi_build_pxyreq` — REQUEST a proxy (server→client kXGS_pxyreq).
@@ -2349,7 +2349,7 @@ All three RFC-3820 proxy-delegation primitives now live in `src/gsi/proxy_req.{c
   the signed proxy's key matches the saved request key, emits `<proxy><chain>` PEM.
 
 **Tested exhaustively, standalone (no nginx / no stock interop):**
-`src/gsi/proxy_req_unittest.c` — **25 checks, 0 failures**, compiled `-Werror` and
+`src/auth/gsi/proxy_req_unittest.c` — **25 checks, 0 failures**, compiled `-Werror` and
 run in CI via **`tests/test_gsi_proxy_crypto.py`**. Coverage: request structure +
 self-signature; issue (issuer/subject/serial/pubkey/critical-pci/validity); assemble
 (key match, 2-cert credential, key-mismatch rejection); the full
@@ -2357,11 +2357,11 @@ create→sign→assemble **round-trip with RFC-3820 chain verification** (proxy�
 under `X509_V_FLAG_ALLOW_PROXY_CERTS`); **two-level delegation** (proxy-of-a-proxy,
 path length, proxy2→proxy1→EEC→CA verifies); negatives (subject mismatch, garbage
 PEM/DER, NULL args). Registered in `./config`; module builds clean.
-Run directly: `gcc -Wall -Wextra -I src src/gsi/proxy_req.c
-src/gsi/proxy_req_unittest.c -lcrypto -o /tmp/pxr && /tmp/pxr`.
+Run directly: `gcc -Wall -Wextra -I src src/auth/gsi/proxy_req.c
+src/auth/gsi/proxy_req_unittest.c -lcrypto -o /tmp/pxr && /tmp/pxr`.
 
 **F6 remaining — wiring the verified crypto (each flips the gate xfail greener):**
-3. Inbound 3rd round in `src/gsi/auth.c` — after a valid kXGC_cert with
+3. Inbound 3rd round in `src/auth/gsi/auth.c` — after a valid kXGC_cert with
    `xrootd_tpc_delegate on`, `build_pxyreq` → send kXGS_pxyreq (encrypted under the
    session cipher) → on kXGC_sigpxy `assemble_proxy` → stash the delegated proxy.
 4. Cross-worker carry in `src/tpc/key_registry.{c,h}` (bounded proxy_pem + key,
@@ -2378,7 +2378,7 @@ connection so the extra round can encrypt/decrypt its main.
   `gsi_sess_keylen` / `gsi_sess_use_iv` (session cipher), and the delegation-round
   state (`gsi_deleg_reqkey`, `gsi_deleg_await`, `gsi_deleg_chain_pem(+len)`,
   `gsi_deleg_proxy_pem(+len)`).
-- `src/gsi/parse_x509.c`: `gsi_persist_session_cipher()` called in BOTH the
+- `src/auth/gsi/parse_x509.c`: `gsi_persist_session_cipher()` called in BOTH the
   unsigned (use_iv=0) and signed-DH (use_iv=1) round-2 paths, right where the key
   is derived (purely additive — copies the already-computed key + name + IV flag).
 
@@ -2393,21 +2393,21 @@ work (a concurrent client-lib refactor was in flight). `tests/test_gsi_proxy_cry
 (25 crypto checks) still green.
 
 **F6 remaining (behaviour-changing, e2e-gated):** build+send kXGS_pxyreq +
-handle kXGC_sigpxy in `src/gsi/auth.c` (gated on `xrootd_tpc_delegate`, deferring
+handle kXGC_sigpxy in `src/auth/gsi/auth.c` (gated on `xrootd_tpc_delegate`, deferring
 auth_done) → registry carry → outbound use → flips
 `test_tpc_delegation.py::test_dest_pulls_as_user_via_delegation` green.
 
 ### F6 inbound round (kXGS_pxyreq/kXGC_sigpxy) implemented (2026-06-26)
 
 The destination's inbound delegation round is wired and exercised against a REAL
-stock xrootd v5.9.5 client. New `src/gsi/delegation.{c,h}`:
+stock xrootd v5.9.5 client. New `src/auth/gsi/delegation.{c,h}`:
 `xrootd_gsi_begin_delegation` (after a verified kXGC_cert, gated on
 `xrootd_tpc_delegate`: RSA-sign the client's rtag → kXRS_signed_rtag, build the
 proxy request via `xrootd_gsi_build_pxyreq`, encrypt {signed_rtag + fresh rtag +
 kXRS_x509_req} under the session cipher, send kXGS_pxyreq as kXR_authmore) and
 `xrootd_gsi_handle_sigpxy` (decrypt the reply, `xrootd_gsi_assemble_proxy`, stash
-on ctx, complete the deferred auth). `src/gsi/parse_x509.c` now persists the
-session cipher + captures the client rtag; `src/gsi/auth.c` factors
+on ctx, complete the deferred auth). `src/auth/gsi/parse_x509.c` now persists the
+session cipher + captures the client rtag; `src/auth/gsi/auth.c` factors
 `xrootd_gsi_complete_auth` and adds the kXGC_sigpxy step; disconnect frees the
 state. Off by default → no-regression (111 `test_gsi_handshake` pass; the 4 fails
 are the unrelated client `uring.c` large-download bug).
@@ -2441,7 +2441,7 @@ end-to-end green under a real grid host. The crypto + inbound round are in place
 
 The final connector: the TPC pull now authenticates to the source AS THE USER with
 the captured delegated proxy.
-- `src/gsi/delegation.c` (handle_sigpxy): builds the full pull credential = proxy
+- `src/auth/gsi/delegation.c` (handle_sigpxy): builds the full pull credential = proxy
   cert + issuer chain + the request private key (PEM, in that order) onto
   `ctx->gsi_deleg_proxy_pem`.
 - `src/tpc/launch.c` (start_pull): when `xrootd_tpc_delegate` is on and a proxy was

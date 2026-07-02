@@ -58,7 +58,7 @@ typedef enum {
 
 /* The XrdAcc engine selector + audit constants live in src/acc/privs.h (pure,
  * shared by the stream / WebDAV / S3 modules); pulled in via the include below. */
-#include "acc/privs.h"
+#include "auth/authz/acc/privs.h"
 
 typedef struct {
     xrootd_auth_type_t type;
@@ -99,7 +99,7 @@ typedef struct {
  * These headers are lightweight (ngx core only) so embedding their config
  * structs here introduces no include cycle. */
 #include "core/shm/kv.h"
-#include "path/auth_cache.h"
+#include "auth/authz/auth_cache.h"
 #include "core/shm/rate_limit.h"
 
 /*

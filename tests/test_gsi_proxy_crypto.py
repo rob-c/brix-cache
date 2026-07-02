@@ -1,5 +1,5 @@
 """phase-57 §F6 — compile + run the standalone GSI proxy-delegation crypto suite
-(src/gsi/proxy_req_unittest.c) so the request/issue/assemble primitives are
+(src/auth/gsi/proxy_req_unittest.c) so the request/issue/assemble primitives are
 exercised in CI without nginx or stock interop.
 
 The C suite covers: build_pxyreq (request), sign_pxyreq (issue), assemble_proxy,

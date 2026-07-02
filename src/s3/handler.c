@@ -30,7 +30,7 @@
 
 #include "s3.h"
 #include "tagging.h"
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include "core/compat/http_body.h"
 #include "core/compat/http_headers.h"
 #include "core/compat/http_query.h"
@@ -39,7 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "acc/acc.h"
+#include "auth/authz/acc/acc.h"
 #include "core/compat/alloc_guard.h"
 
 /* Map an S3 request method to the XrdAcc operation it requires. */

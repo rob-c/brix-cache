@@ -1,6 +1,6 @@
 """test_krb5_auth.py — Kerberos 5 (krb5) authentication for the root:// stream tier.
 
-Exercises the nginx-xrootd krb5 acceptor (``src/krb5/auth.c``) end to end against
+Exercises the nginx-xrootd krb5 acceptor (``src/auth/krb5/auth.c``) end to end against
 the dedicated krb5 server tier provisioned by ``kdc_helpers.py`` (a throwaway MIT
 KDC + service keytab + client ticket under TEST_ROOT/krb5).
 
@@ -165,7 +165,7 @@ class TestKrb5Auth:
     def test_malformed_credential_rejected(self, requires_krb5):
         """A too-short / mistagged 'krb5' credential is rejected on the wire.
 
-        Exercises the input-validation guard in src/krb5/auth.c
+        Exercises the input-validation guard in src/auth/krb5/auth.c
         (``cur_dlen <= 4 || strncmp(payload,"krb5",4) != 0`` -> kXR_NotAuthorized),
         i.e. the server never treats a malformed blob as authenticated.
         """

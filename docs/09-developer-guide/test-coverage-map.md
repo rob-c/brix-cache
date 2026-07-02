@@ -106,7 +106,7 @@ Runs the same operations against both the nginx-xrootd endpoint and a reference 
 
 ## Authentication
 
-**Source:** `src/session/login.c`, `src/gsi/`, `src/token/`, `src/sss/`
+**Source:** `src/session/login.c`, `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`
 
 ### `test_gsi_security.py`
 
@@ -145,7 +145,7 @@ JWT bearer token authentication end-to-end:
 
 ### `test_token_security.py`
 
-Security hardening for the JWT path (`src/token/validate.c`):
+Security hardening for the JWT path (`src/auth/token/validate.c`):
 
 - **Algorithm confusion** (`TestAlgorithmConfusion`) — `none`, HS256, RS384, RS512, ES256, missing alg, empty, uppercase NONE, mixed-case, null byte, very long string, control chars: all rejected.
 - **nbf future token** — 1s / 1h future rejected; zero / now / 1s ago accepted.
@@ -169,7 +169,7 @@ Macaroon token authentication. `test_macaroon_discharge.py` specifically validat
 
 ## Authorization
 
-**Source:** `src/path/acl.c`, `src/handshake/policy.c`, `src/voms/`, `src/authdb.c`
+**Source:** `src/auth/authz/acl.c`, `src/handshake/policy.c`, `src/auth/voms/`, `src/authdb.c`
 
 ### `test_vo_acl.py`
 

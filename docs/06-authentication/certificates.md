@@ -89,7 +89,7 @@ X509_STORE_CTX_set_flags(vctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
 ```
 
 Setting only the store flag is not sufficient — both must be set.  This is
-documented in `protocol-notes.md` §8 and enforced in `src/crypto/` and
+documented in `protocol-notes.md` §8 and enforced in `src/auth/crypto/` and
 `src/webdav/auth_cert.c`.
 
 ### Proxy File Layout (PEM Stack)
@@ -198,7 +198,7 @@ VOMS Attribute Certificate
     └── "/cms/local/tier2/Role=NULL/..."          ← sub-VO group
 ```
 
-The module extracts VO names from FQANs in `src/voms/collect.c`:
+The module extracts VO names from FQANs in `src/auth/voms/collect.c`:
 
 ```c
 /* FQAN "/cms/Role=..." → VO name "cms" (text before the second '/') */

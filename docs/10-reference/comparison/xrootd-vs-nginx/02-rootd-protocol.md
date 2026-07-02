@@ -238,7 +238,7 @@ version in the low 6 bits — `XLoginCapVer`/`XLoginVersion`, `XProtocol.hh:404-
 Official `ClientAuthRequest` (`XProtocol.hh:168-174`) carries a 4-byte `credtype`
 and a credential blob; `do_Auth()` runs the chosen `XrdSecProtocol` and replies
 `kXR_authmore` for additional rounds or `kXR_ok` on success. nginx-xrootd's
-handler is `xrootd_handle_auth` in `src/gsi/auth.c`, which drives GSI / token /
+handler is `xrootd_handle_auth` in `src/auth/gsi/auth.c`, which drives GSI / token /
 SSS / krb5 to completion (multi-round via `kXR_authmore`), then sets
 `auth_done=1`. The crypto details (GSI buckets, DH, IV/`#ivlen`, digest
 negotiation) are out of scope here and covered in

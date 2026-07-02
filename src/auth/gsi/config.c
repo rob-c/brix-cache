@@ -1,5 +1,5 @@
 #include "core/config/config.h"
-#include "crypto/pki_build.h"
+#include "auth/crypto/pki_build.h"
 #include "core/compat/lifecycle_timing.h"
 
 /*

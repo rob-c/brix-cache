@@ -1,7 +1,7 @@
 #include "config.h"
 #include "manager/redir_cache.h"
 #include "fs/xfer/stage_waiter.h"
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"
 #include "core/compat/lifecycle_timing.h"
 

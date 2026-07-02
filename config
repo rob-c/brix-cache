@@ -113,7 +113,7 @@ else
 fi
 
 # Kerberos 5 is optional at build time. If unavailable, xrootd_auth krb5
-# remains a config-time error via src/krb5/config.c.
+# remains a config-time error via src/auth/krb5/config.c.
 #   Detection order: pkg-config (preferred) then krb5-config.  Some hosts ship
 #   the MIT krb5 'krb5-config' tool + headers but no 'krb5.pc' pkg-config file
 #   (a historical Debian split where headers came via krb5-multidev); the
@@ -335,8 +335,8 @@ fi
 ngx_addon_name=ngx_stream_xrootd_module
 
 ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
-                        $ngx_addon_dir/src/acc/privs.h \
-                        $ngx_addon_dir/src/acc/acc.h \
+                        $ngx_addon_dir/src/auth/authz/acc/privs.h \
+                        $ngx_addon_dir/src/auth/authz/acc/acc.h \
                         $ngx_addon_dir/src/mirror/mirror.h \
                         $ngx_addon_dir/src/mirror/stream_mirror.h \
                         $ngx_addon_dir/src/mirror/stream_mirror_io.h \
@@ -358,7 +358,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/cache/verify.h \
                         $ngx_addon_dir/src/cache/origin/transport.h \
                         $ngx_addon_dir/src/cache/origin/pelican_register.h \
-                        $ngx_addon_dir/src/token/jwt_sign.h \
+                        $ngx_addon_dir/src/auth/token/jwt_sign.h \
                         $ngx_addon_dir/src/cache/writethrough.h \
                         $ngx_addon_dir/src/tpc/tpc_internal.h \
                         $ngx_addon_dir/src/tpc/key_registry.h \
@@ -426,13 +426,13 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/fattr/ngx_xrootd_fattr.h \
                         $ngx_addon_dir/src/upstream/upstream.h \
                         $ngx_addon_dir/src/upstream/upstream_internal.h \
-                        $ngx_addon_dir/src/token/token_internal.h \
-                        $ngx_addon_dir/src/token/b64url.h \
-                        $ngx_addon_dir/src/token/file.h \
-                        $ngx_addon_dir/src/token/json.h \
-                        $ngx_addon_dir/src/token/oauth2.h \
-                        $ngx_addon_dir/src/token/scopes.h \
-                        $ngx_addon_dir/src/token/token.h \
+                        $ngx_addon_dir/src/auth/token/token_internal.h \
+                        $ngx_addon_dir/src/auth/token/b64url.h \
+                        $ngx_addon_dir/src/auth/token/file.h \
+                        $ngx_addon_dir/src/auth/token/json.h \
+                        $ngx_addon_dir/src/auth/token/oauth2.h \
+                        $ngx_addon_dir/src/auth/token/scopes.h \
+                        $ngx_addon_dir/src/auth/token/token.h \
                         $ngx_addon_dir/src/core/compat/checksum.h \
                         $ngx_addon_dir/src/core/compat/codec_core.h \
                         $ngx_addon_dir/src/core/compat/crc32c.h \
@@ -488,14 +488,14 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/protocol/gsi.h \
                         $ngx_addon_dir/src/protocol/sss.h \
                         $ngx_addon_dir/src/protocol/frame_hdr.h \
-                        $ngx_addon_dir/src/gsi/keypool.h \
-                        $ngx_addon_dir/src/gsi/gsi_core.h \
+                        $ngx_addon_dir/src/auth/gsi/keypool.h \
+                        $ngx_addon_dir/src/auth/gsi/gsi_core.h \
                         $ngx_addon_dir/src/core/shm/kv.h \
                         $ngx_addon_dir/src/core/shm/rate_limit.h \
-                        $ngx_addon_dir/src/path/auth_cache.h \
-                        $ngx_addon_dir/src/path/auth_gate_l1.h \
-                        $ngx_addon_dir/src/token/token_cache.h \
-                        $ngx_addon_dir/src/token/worker_cache.h"
+                        $ngx_addon_dir/src/auth/authz/auth_cache.h \
+                        $ngx_addon_dir/src/auth/authz/auth_gate_l1.h \
+                        $ngx_addon_dir/src/auth/token/token_cache.h \
+                        $ngx_addon_dir/src/auth/token/worker_cache.h"
 ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
                         $ngx_addon_dir/src/dig/dig.h \
                         $ngx_addon_dir/src/webdav/tape_rest.h \
@@ -674,12 +674,12 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/config/manager_map.c \
     $ngx_addon_dir/src/core/config/runtime_server.c \
     $ngx_addon_dir/src/cms/config.c \
-    $ngx_addon_dir/src/gsi/config.c \
+    $ngx_addon_dir/src/auth/gsi/config.c \
     $ngx_addon_dir/src/session/tls_config.c \
-    $ngx_addon_dir/src/token/config.c \
-    $ngx_addon_dir/src/sss/sss_keytab_kernel.c \
-    $ngx_addon_dir/src/sss/config.c \
-    $ngx_addon_dir/src/krb5/config.c \
+    $ngx_addon_dir/src/auth/token/config.c \
+    $ngx_addon_dir/src/auth/sss/sss_keytab_kernel.c \
+    $ngx_addon_dir/src/auth/sss/config.c \
+    $ngx_addon_dir/src/auth/krb5/config.c \
     $ngx_addon_dir/src/metrics/config.c \
     $ngx_addon_dir/src/metrics/tracking.c \
     $ngx_addon_dir/src/metrics/unified.c \
@@ -737,14 +737,14 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/tpc/done.c \
     $ngx_addon_dir/src/tpc/launch.c \
     $ngx_addon_dir/src/tpc/tpc_token.c \
-    $ngx_addon_dir/src/token/jwks.c \
-    $ngx_addon_dir/src/token/keys.c \
-    $ngx_addon_dir/src/token/refresh.c \
-    $ngx_addon_dir/src/token/signature.c \
-    $ngx_addon_dir/src/token/jwt_sign.c \
-    $ngx_addon_dir/src/token/validate.c \
-    $ngx_addon_dir/src/token/macaroon.c \
-    $ngx_addon_dir/src/token/macaroon_issue.c \
+    $ngx_addon_dir/src/auth/token/jwks.c \
+    $ngx_addon_dir/src/auth/token/keys.c \
+    $ngx_addon_dir/src/auth/token/refresh.c \
+    $ngx_addon_dir/src/auth/token/signature.c \
+    $ngx_addon_dir/src/auth/token/jwt_sign.c \
+    $ngx_addon_dir/src/auth/token/validate.c \
+    $ngx_addon_dir/src/auth/token/macaroon.c \
+    $ngx_addon_dir/src/auth/token/macaroon_issue.c \
     $ngx_addon_dir/src/fattr/helpers.c \
     $ngx_addon_dir/src/fattr/dispatch.c \
     $ngx_addon_dir/src/fattr/get.c \
@@ -759,32 +759,32 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/path/resolve_path_variants.c \
     $ngx_addon_dir/src/path/normalize.c \
     $ngx_addon_dir/src/core/config/merge.c \
-    $ngx_addon_dir/src/path/acl.c \
-    $ngx_addon_dir/src/path/group_policy.c \
+    $ngx_addon_dir/src/auth/authz/acl.c \
+    $ngx_addon_dir/src/auth/authz/group_policy.c \
     $ngx_addon_dir/src/path/mkdir.c \
     $ngx_addon_dir/src/path/stat_body.c \
     $ngx_addon_dir/src/path/strip_cgi.c \
     $ngx_addon_dir/src/path/extract.c \
-    $ngx_addon_dir/src/path/find_rule.c \
+    $ngx_addon_dir/src/auth/authz/find_rule.c \
     $ngx_addon_dir/src/path/canonical.c \
-    $ngx_addon_dir/src/path/authdb.c \
-    $ngx_addon_dir/src/path/auth_gate.c \
-    $ngx_addon_dir/src/acc/privs.c \
-    $ngx_addon_dir/src/acc/capability.c \
-    $ngx_addon_dir/src/acc/tables.c \
-    $ngx_addon_dir/src/acc/authfile.c \
-    $ngx_addon_dir/src/acc/entity.c \
-    $ngx_addon_dir/src/acc/access.c \
-    $ngx_addon_dir/src/acc/groups.c \
-    $ngx_addon_dir/src/acc/audit.c \
-    $ngx_addon_dir/src/acc/resolve.c \
-    $ngx_addon_dir/src/acc/config.c \
-    $ngx_addon_dir/src/impersonate/idmap.c \
-    $ngx_addon_dir/src/impersonate/broker.c \
-    $ngx_addon_dir/src/impersonate/broker_creds.c \
-    $ngx_addon_dir/src/impersonate/broker_ops.c \
-    $ngx_addon_dir/src/impersonate/client.c \
-    $ngx_addon_dir/src/impersonate/lifecycle.c \
+    $ngx_addon_dir/src/auth/authz/authdb.c \
+    $ngx_addon_dir/src/auth/authz/auth_gate.c \
+    $ngx_addon_dir/src/auth/authz/acc/privs.c \
+    $ngx_addon_dir/src/auth/authz/acc/capability.c \
+    $ngx_addon_dir/src/auth/authz/acc/tables.c \
+    $ngx_addon_dir/src/auth/authz/acc/authfile.c \
+    $ngx_addon_dir/src/auth/authz/acc/entity.c \
+    $ngx_addon_dir/src/auth/authz/acc/access.c \
+    $ngx_addon_dir/src/auth/authz/acc/groups.c \
+    $ngx_addon_dir/src/auth/authz/acc/audit.c \
+    $ngx_addon_dir/src/auth/authz/acc/resolve.c \
+    $ngx_addon_dir/src/auth/authz/acc/config.c \
+    $ngx_addon_dir/src/auth/impersonate/idmap.c \
+    $ngx_addon_dir/src/auth/impersonate/broker.c \
+    $ngx_addon_dir/src/auth/impersonate/broker_creds.c \
+    $ngx_addon_dir/src/auth/impersonate/broker_ops.c \
+    $ngx_addon_dir/src/auth/impersonate/client.c \
+    $ngx_addon_dir/src/auth/impersonate/lifecycle.c \
     $ngx_addon_dir/src/path/op_path.c \
     $ngx_addon_dir/src/path/beneath.c \
     $ngx_addon_dir/src/cache/errors.c \
@@ -835,47 +835,47 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/cms/recv.c \
     $ngx_addon_dir/src/cms/cns.c \
     $ngx_addon_dir/src/cms/connect.c \
-    $ngx_addon_dir/src/token/b64url.c \
-    $ngx_addon_dir/src/token/file.c \
-    $ngx_addon_dir/src/token/json.c \
-    $ngx_addon_dir/src/token/oauth2.c \
-    $ngx_addon_dir/src/token/scopes.c \
-    $ngx_addon_dir/src/token/ini.c \
-    $ngx_addon_dir/src/token/issuer_registry.c \
-    $ngx_addon_dir/src/token/subject_map.c \
-    $ngx_addon_dir/src/crypto/pki_build.c \
-    $ngx_addon_dir/src/crypto/pki_load.c \
-    $ngx_addon_dir/src/crypto/pki_check.c \
-    $ngx_addon_dir/src/crypto/gsi_verify.c \
-    $ngx_addon_dir/src/crypto/ocsp.c \
-    $ngx_addon_dir/src/gsi/pki.c \
+    $ngx_addon_dir/src/auth/token/b64url.c \
+    $ngx_addon_dir/src/auth/token/file.c \
+    $ngx_addon_dir/src/auth/token/json.c \
+    $ngx_addon_dir/src/auth/token/oauth2.c \
+    $ngx_addon_dir/src/auth/token/scopes.c \
+    $ngx_addon_dir/src/auth/token/ini.c \
+    $ngx_addon_dir/src/auth/token/issuer_registry.c \
+    $ngx_addon_dir/src/auth/token/subject_map.c \
+    $ngx_addon_dir/src/auth/crypto/pki_build.c \
+    $ngx_addon_dir/src/auth/crypto/pki_load.c \
+    $ngx_addon_dir/src/auth/crypto/pki_check.c \
+    $ngx_addon_dir/src/auth/crypto/gsi_verify.c \
+    $ngx_addon_dir/src/auth/crypto/ocsp.c \
+    $ngx_addon_dir/src/auth/gsi/pki.c \
     $ngx_addon_dir/src/webdav/pki.c \
-    $ngx_addon_dir/src/voms/loader.c \
-    $ngx_addon_dir/src/voms/collect.c \
-    $ngx_addon_dir/src/voms/extract.c \
-    $ngx_addon_dir/src/gsi/gsi_core.c \
-    $ngx_addon_dir/src/gsi/gsi_buf.c \
-    $ngx_addon_dir/src/gsi/gsi_dh.c \
-    $ngx_addon_dir/src/gsi/gsi_cipher.c \
-    $ngx_addon_dir/src/gsi/gsi_rsa.c \
-    $ngx_addon_dir/src/gsi/proxy_req.c \
-    $ngx_addon_dir/src/gsi/delegation.c \
-    $ngx_addon_dir/src/gsi/buffer.c \
-    $ngx_addon_dir/src/gsi/parse_crypto_helpers.c \
-    $ngx_addon_dir/src/gsi/parse_x509.c \
-    $ngx_addon_dir/src/gsi/cert_response.c \
-    $ngx_addon_dir/src/gsi/keypool.c \
-    $ngx_addon_dir/src/gsi/token.c \
-    $ngx_addon_dir/src/gsi/auth.c \
-    $ngx_addon_dir/src/unix/auth.c \
-    $ngx_addon_dir/src/krb5/auth.c \
-    $ngx_addon_dir/src/host/auth.c \
-    $ngx_addon_dir/src/pwd/auth.c \
-    $ngx_addon_dir/src/pwd/pwdfile.c \
-    $ngx_addon_dir/src/sss/auth_crypto_helpers.c \
-    $ngx_addon_dir/src/sss/auth_identity_challenge.c \
-    $ngx_addon_dir/src/sss/auth_proxy_credential.c \
-    $ngx_addon_dir/src/sss/auth_request.c \
+    $ngx_addon_dir/src/auth/voms/loader.c \
+    $ngx_addon_dir/src/auth/voms/collect.c \
+    $ngx_addon_dir/src/auth/voms/extract.c \
+    $ngx_addon_dir/src/auth/gsi/gsi_core.c \
+    $ngx_addon_dir/src/auth/gsi/gsi_buf.c \
+    $ngx_addon_dir/src/auth/gsi/gsi_dh.c \
+    $ngx_addon_dir/src/auth/gsi/gsi_cipher.c \
+    $ngx_addon_dir/src/auth/gsi/gsi_rsa.c \
+    $ngx_addon_dir/src/auth/gsi/proxy_req.c \
+    $ngx_addon_dir/src/auth/gsi/delegation.c \
+    $ngx_addon_dir/src/auth/gsi/buffer.c \
+    $ngx_addon_dir/src/auth/gsi/parse_crypto_helpers.c \
+    $ngx_addon_dir/src/auth/gsi/parse_x509.c \
+    $ngx_addon_dir/src/auth/gsi/cert_response.c \
+    $ngx_addon_dir/src/auth/gsi/keypool.c \
+    $ngx_addon_dir/src/auth/gsi/token.c \
+    $ngx_addon_dir/src/auth/gsi/auth.c \
+    $ngx_addon_dir/src/auth/unix/auth.c \
+    $ngx_addon_dir/src/auth/krb5/auth.c \
+    $ngx_addon_dir/src/auth/host/auth.c \
+    $ngx_addon_dir/src/auth/pwd/auth.c \
+    $ngx_addon_dir/src/auth/pwd/pwdfile.c \
+    $ngx_addon_dir/src/auth/sss/auth_crypto_helpers.c \
+    $ngx_addon_dir/src/auth/sss/auth_identity_challenge.c \
+    $ngx_addon_dir/src/auth/sss/auth_proxy_credential.c \
+    $ngx_addon_dir/src/auth/sss/auth_request.c \
     $ngx_addon_dir/src/query/util.c \
     $ngx_addon_dir/src/query/checksum_qcksum.c \
     $ngx_addon_dir/src/query/checksum_qcksum_async.c \
@@ -994,10 +994,10 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/dirlist/handler.c \
     $ngx_addon_dir/src/dirlist/dcksm.c \
     $ngx_addon_dir/src/core/shm/kv.c \
-    $ngx_addon_dir/src/token/token_cache.c \
-    $ngx_addon_dir/src/token/worker_cache.c \
-    $ngx_addon_dir/src/path/auth_cache.c \
-    $ngx_addon_dir/src/path/auth_gate_l1.c \
+    $ngx_addon_dir/src/auth/token/token_cache.c \
+    $ngx_addon_dir/src/auth/token/worker_cache.c \
+    $ngx_addon_dir/src/auth/authz/auth_cache.c \
+    $ngx_addon_dir/src/auth/authz/auth_gate_l1.c \
     $ngx_addon_dir/src/core/shm/rate_limit.c \
     $ngx_addon_dir/src/ratelimit/ratelimit_zone.c \
     $ngx_addon_dir/src/ratelimit/ratelimit.c \

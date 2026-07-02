@@ -1,7 +1,7 @@
 #include "core/ngx_xrootd_module.h"
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 
 extern ngx_command_t ngx_stream_xrootd_commands[];
 

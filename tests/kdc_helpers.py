@@ -6,7 +6,7 @@ WHAT: stands up an isolated test realm under ``TEST_ROOT/krb5`` — a freshly
   ``kdc.conf``, a running ``krb5kdc`` daemon, and a kinit'd client credential
   cache.  This is the Kerberos analogue of ``pki_helpers.blitz_test_pki()``.
 
-WHY: the nginx-xrootd krb5 acceptor (``src/krb5/auth.c``) validates a client
+WHY: the nginx-xrootd krb5 acceptor (``src/auth/krb5/auth.c``) validates a client
   AP-REQ against a keytab and maps the principal via ``auth_to_local`` — none of
   which exists without a realm.  The suite ships no KDC, so this module creates a
   throwaway one, fully isolated from any host ``/etc/krb5.conf`` (every krb5 tool

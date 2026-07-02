@@ -136,8 +136,8 @@ graph LR
 
 ### Phase 2: Identity Abstraction
 - Create `src/core/types/identity.h` with `xrootd_identity_t`.
-- Refactor `src/token/`, `src/gsi/`, `src/sss/`, and `src/s3/auth_sigv4_verify.c` to populate the identity struct.
-- Update `src/path/acl.c` to consume `xrootd_identity_t *`.
+- Refactor `src/auth/token/`, `src/auth/gsi/`, `src/auth/sss/`, and `src/s3/auth_sigv4_verify.c` to populate the identity struct.
+- Update `src/auth/authz/acl.c` to consume `xrootd_identity_t *`.
 
 ### Phase 3: VFS Operation Abstraction
 - Implement `src/fs/` directory with full open/read/write/stat/dir/mutation API.

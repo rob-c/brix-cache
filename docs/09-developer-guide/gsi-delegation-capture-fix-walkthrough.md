@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-01
 **Status:** ✅ Resolved. Inbound F6 delegation capture works end-to-end; the target test is green.
-**Scope:** `src/gsi/delegation.c`, `src/crypto/pki_build.c`, `tests/pki_helpers.py`,
+**Scope:** `src/auth/gsi/delegation.c`, `src/auth/crypto/pki_build.c`, `tests/pki_helpers.py`,
 `utils/voms_proxy_fake.py`, `tests/test_tpc_delegation.py`.
 **Companion:** [`gsi-delegation-capture-investigation.md`](gsi-delegation-capture-investigation.md)
 (the terse root-cause record; this file is the long-form narrative of *how* it was found).
@@ -36,7 +36,7 @@ server  --kXGS_pxyreq-> client        (server: "here is a proxy request; sign it
 client  --kXGC_sigpxy-> server        (client: "here is your signed delegated proxy")
 ```
 
-Our implementation lives in `src/gsi/delegation.c`:
+Our implementation lives in `src/auth/gsi/delegation.c`:
 `xrootd_gsi_begin_delegation()` builds and sends the `kXGS_pxyreq`;
 `xrootd_gsi_handle_sigpxy()` consumes the `kXGC_sigpxy` and assembles the credential.
 
@@ -150,7 +150,7 @@ server bug. Crucially, the **stock `xrootd` source verified the same proxy fine*
 AKID hint. Our server uses OpenSSL's stricter `X509_verify_cert`. This is a genuine production
 bug: real grid proxies (which have SKIDs) would be rejected by us but accepted everywhere else.
 
-**Fix** (`src/crypto/pki_build.c`): install a proxy-tolerant `check_issued` on stores built for
+**Fix** (`src/auth/crypto/pki_build.c`): install a proxy-tolerant `check_issued` on stores built for
 proxy verification. It defers to `X509_check_issued`, and *only for a subject OpenSSL has
 recognised as a proxy* (`EXFLAG_PROXY`) whose sole objection is an AKID/SKID (or AKID
 issuer-serial) mismatch, it accepts the name-matching issuer. The RSA signature is still
@@ -245,7 +245,7 @@ concern, so the conversion belongs at the wire edge in `delegation.c`.
 
 ## 5. The implementation
 
-### 5.1 `src/gsi/delegation.c` — PEM-encode the proxy request
+### 5.1 `src/auth/gsi/delegation.c` — PEM-encode the proxy request
 
 A small DER→PEM converter, applied to the request before it enters the `kXRS_x509_req` bucket:
 
@@ -295,7 +295,7 @@ The receive side already matched stock: the client returns the signed proxy as P
 (`kXRS_x509`), and `xrootd_gsi_handle_sigpxy` → `xrootd_gsi_assemble_proxy` reads it with
 `PEM_read_bio_X509`.
 
-### 5.2 `src/crypto/pki_build.c` — proxy-tolerant issuer selection
+### 5.2 `src/auth/crypto/pki_build.c` — proxy-tolerant issuer selection
 
 ```c
 static int
@@ -470,7 +470,7 @@ client only arms delegation for `--tpc delegate`; on a plain read it sends `clnt
 declines. This repo's client had **no delegation-send** at all. So we implemented it (the mirror
 of the server-side capture):
 
-* **`src/gsi/gsi_core.c`** — `xrootd_gsi_build_cert_response_ex` now optionally hands the agreed
+* **`src/auth/gsi/gsi_core.c`** — `xrootd_gsi_build_cert_response_ex` now optionally hands the agreed
   AES **session key + cipher + IV flag** back to the caller (the round-2 builder previously wiped
   them). The old signature stays as a thin wrapper, so the TPC caller is untouched.
 * **`client/lib/sec/sec_gsi.c`** — `gsi_more` retains that session cipher on the connection, and

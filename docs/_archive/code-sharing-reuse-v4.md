@@ -332,21 +332,21 @@ The background crypto/PKI analysis revealed the following auth landscape:
 
 ### Elimination Opportunities
 
-#### OCSP (`src/crypto/ocsp.c` — 489 lines) — Good Candidate
+#### OCSP (`src/auth/crypto/ocsp.c` — 489 lines) — Good Candidate
 
 **Functionality:** Sync-only OCSP client via OpenSSL BIO (`BIO_new_connect()`, `OCSP_sendreq_bio()`). Parses OCSP URLs from AIA extension, iterates responders, checks response status (GOOD/REVOKED/UNKNOWN with soft_fail policy). Only used in stream GSI auth path.
 
 **nginx builtin / off-the-shelf:** OpenSSL's built-in chain verification includes OCSP stapling support when configured at SSL context level. The custom sync BIO-based HTTP POST is redundant if the nginx SSL layer already handles OCSP.
 
-**Impact:** **ELIMINATE.** Remove `src/crypto/ocsp.c` and rely on nginx's SSL OCSP stapling (configured via `ssl_stapling on`). Saves 489 lines. The custom sync BIO client adds complexity for marginal benefit — nginx's built-in OCSP handling covers the same ground asynchronously.
+**Impact:** **ELIMINATE.** Remove `src/auth/crypto/ocsp.c` and rely on nginx's SSL OCSP stapling (configured via `ssl_stapling on`). Saves 489 lines. The custom sync BIO client adds complexity for marginal benefit — nginx's built-in OCSP handling covers the same ground asynchronously.
 
-#### SSS Auth (`src/sss/` — ~1,131 lines) — Good Candidate
+#### SSS Auth (`src/auth/sss/` — ~1,131 lines) — Good Candidate
 
 **Functionality:** Simple Shared Secrets authentication using Blowfish-CFB64 encryption with zero IV + CRC32 integrity check. TLV identity block parsing, key rotation grace period, IP-based source validation. Stream-only auth method.
 
 **Client usage:** Rarely used at CERN/SLAC/FNAL — only specific institutional sites use SSS for internal cluster auth. Operation-status.md confirms: "Effectively unused at CERN/SLAC/FNAL."
 
-**Impact:** **ELIMINATE.** Remove `src/sss/` directory entirely. Saves ~1,131 lines. Anonymous + GSI + token cover virtually all production deployments; SSS is a niche auth method for specific institutional sites. Users who need SSS can enable it via config gate (`xrootd_auth sss`).
+**Impact:** **ELIMINATE.** Remove `src/auth/sss/` directory entirely. Saves ~1,131 lines. Anonymous + GSI + token cover virtually all production deployments; SSS is a niche auth method for specific institutional sites. Users who need SSS can enable it via config gate (`xrootd_auth sss`).
 
 #### TLS Auth Cache in WebDAV (`src/webdav/auth_cert.c` — 498 lines) — Moderate Impact
 
@@ -539,13 +539,13 @@ Shared preamble in `src/core/config/shared_conf.h`: `enable`, `root`, `root_cano
 
 ## 9. Additional Feature Elimination Candidates
 
-### VOMS Attribute Parsing (`src/voms/` — ~336 lines) — Good Candidate
+### VOMS Attribute Parsing (`src/auth/voms/` — ~336 lines) — Good Candidate
 
 **Functionality:** Parse VOMS extensions from GSI proxy certificates, extract VO attributes for ACL enforcement. Uses `libvomsapi.so.1` (runtime dlopen'd). Total: ~3 files in voms/ directory.
 
 **Client usage:** Rarely used at sites without libvomsapi installed. Operation-status.md confirms graceful degradation when absent. Most modern deployments use WLCG token scopes instead of VOMS attributes.
 
-**Impact:** **ELIMINATE.** Remove `src/voms/` directory entirely. Saves ~336 lines + removes libvomsapi runtime dependency. Token scope enforcement covers the same authorization semantics without requiring libvomsapi installation. Users who need VOMS can keep it as optional (libvomsapi must be installed).
+**Impact:** **ELIMINATE.** Remove `src/auth/voms/` directory entirely. Saves ~336 lines + removes libvomsapi runtime dependency. Token scope enforcement covers the same authorization semantics without requiring libvomsapi installation. Users who need VOMS can keep it as optional (libvomsapi must be installed).
 
 ### Query Subtypes — Moderate Impact
 

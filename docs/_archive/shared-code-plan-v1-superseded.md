@@ -14,7 +14,7 @@ This is not a refactoring-for-its-own-sake exercise.
 
 | Facility | Location | Used by |
 |---|---|---|
-| JWT / JWKS / scope validation | `src/token/` | stream, WebDAV, XrdHttp |
+| JWT / JWKS / scope validation | `src/auth/token/` | stream, WebDAV, XrdHttp |
 | XRootD confinement primitives | `src/path/resolve_confined_ops.c` | stream, WebDAV, S3 |
 | Kernel-level path confinement | `xrootd_open_confined_canon` / `xrootd_unlink_confined_canon` | all HTTP ops |
 | XML escape + text elements | `src/core/compat/xml.c` | WebDAV (via `util/xml.c`), S3 (direct) |

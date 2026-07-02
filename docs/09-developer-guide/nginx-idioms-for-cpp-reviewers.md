@@ -126,7 +126,7 @@ Rules of thumb for a C++ reader:
   `unique_ptr` owned by the pool, all reset together.
 - For OpenSSL / fd / temp-file cleanup that must run deterministically, use
   `ngx_pool_cleanup_add` (the manual equivalent of a destructor) — see
-  `src/crypto/scoped.h`.
+  `src/auth/crypto/scoped.h`.
 
 ---
 

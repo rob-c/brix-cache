@@ -1,5 +1,5 @@
 #include "core/ngx_xrootd_module.h"
-#include "crypto/pki_check.h"
+#include "auth/crypto/pki_check.h"
 
 /*
  *

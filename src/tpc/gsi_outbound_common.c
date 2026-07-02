@@ -9,7 +9,7 @@
 #include "tpc_internal.h"
 #include "session/session.h"
 #include "protocol/gsi.h"
-#include "token/file.h"
+#include "auth/token/file.h"
 
 #include <stdio.h>
 #include <errno.h>

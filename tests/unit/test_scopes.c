@@ -1,4 +1,4 @@
-#include "../../src/token/scopes.h"
+#include "../../src/auth/token/scopes.h"
 #include <stdio.h>
 #include <string.h>
 

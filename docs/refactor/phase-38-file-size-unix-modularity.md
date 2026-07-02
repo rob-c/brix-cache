@@ -98,8 +98,8 @@ The same coding-standards formatting / file-size rules apply **uniformly across
 - **C source** `src/**/*.c` + `client/**/*.c` and **headers** `src/**/*.h` +
   `client/**/*.h`.
 - **`shared/` (libxrdproto)** — the shared C is *build-in-place*: the `.c`/`.h`
-  files physically live under `src/` (e.g. `src/core/compat/`, `src/gsi/`,
-  `src/token/`, `src/fs/backend/`) and are compiled into both the nginx module
+  files physically live under `src/` (e.g. `src/core/compat/`, `src/auth/gsi/`,
+  `src/auth/token/`, `src/fs/backend/`) and are compiled into both the nginx module
   *and* the ngx-free client/tools via `shared/xrdproto/Makefile`. They are
   therefore **already counted under the `src/**` globs** — no extra path is
   needed. Only the `shared/xrdproto/` build harness itself is exempt (§2.3).
@@ -250,14 +250,14 @@ assignments are in §6.
 | Logical | Raw | File | Tier | Seams (from function inventory) |
 |---|---|---|---|---|
 | 1316 | 1734 | `src/stream/module.c` | 🔴→**exempt** | **95% (1251) is the 213-entry `ngx_command_t` directive table**; conf lifecycle already in `config/server_conf.c` + `stream/module_definition.c` → declarative, exempt (§2.6, §6.10) |
-| 1033 | 1284 | `src/gsi/gsi_core.c` | 🔴 | bucket/buffer codec · DH keygen/derive · cipher negotiation · RSA sign/verify · cert-request/response build (**shared** — also linked into client) |
+| 1033 | 1284 | `src/auth/gsi/gsi_core.c` | 🔴 | bucket/buffer codec · DH keygen/derive · cipher negotiation · RSA sign/verify · cert-request/response build (**shared** — also linked into client) |
 | 986 | 1290 | `src/dashboard/api.c` | 🔴 | name/format helpers · live-transfer model · snapshot assembly · ratelimit view · JSON send/dispatch *(worked example §6.1)* |
 | 973 | 1452 | `src/s3/post_object.c` | 🔴 | multipart-form decode · POST-policy parse/verify · object write · response build *(worked example §6.2)* |
 | 904 | 1153 | `src/webdav/module.c` | 🔴→🟡 | **618 table + 286 logic**; extract the `webdav_conf_*` setters + phase handlers + module ctx → residual table drops to ~618 (watch) (§6.11) |
 | 894 | 1198 | `src/dashboard/api_admin.c` | 🔴 | admin auth · write endpoints · proxy-pool admin |
 | 811 | 1149 | `src/webdav/propfind.c` | 🔴 | request/XML parse · property gather (`propfind_entry` is 308 lines alone) · tree walk · response build *(worked example §6.3)* |
 | 796 | 1186 | `src/s3/put.c` | 🟠 | body-mode/aio plumbing · finalize-result family (12 `s3_put_finalize_*`) · aws-chunked decode |
-| 725 | 1104 | `src/impersonate/broker.c` | 🟠 | peer/cap gate · `imp_do_op` dispatch (288 lines) · xattr filter · request loop *(worked example §6.5)* |
+| 725 | 1104 | `src/auth/impersonate/broker.c` | 🟠 | peer/cap gate · `imp_do_op` dispatch (288 lines) · xattr filter · request loop *(worked example §6.5)* |
 | 686 | 1123 | `src/manager/registry.c` | 🟠 | registry table · selection core · health-check state · locate/aggregate/snapshot *(worked example §6.4)* |
 | 662 | 900 | `src/webdav/tpc_curl.c` | 🟠 | curl handle setup · header build · transfer loop · result map |
 
@@ -663,7 +663,7 @@ Clean functional clusters by prefix:
 Shared decls already partly in `manager_internal.h` if present; otherwise add it.
 Tests: the CMS/manager cluster suite.
 
-### 6.5 `src/impersonate/broker.c` (725 / 1104 → ~3 files) — security-critical
+### 6.5 `src/auth/impersonate/broker.c` (725 / 1104 → ~3 files) — security-critical
 
 The privileged broker — highest audit value. `imp_do_op` (288) is the heart.
 
@@ -1226,13 +1226,13 @@ lands in a dedicated target file, never split mid-body (§6.21).
 
 | File | Largest function | ~Lines | Isolated into (§6) |
 |---|---|---|---|
-| `src/gsi/gsi_core.c` | `xrootd_gsi_build_cert_response` | 210 | cert-response file (P0) |
+| `src/auth/gsi/gsi_core.c` | `xrootd_gsi_build_cert_response` | 210 | cert-response file (P0) |
 | `src/dashboard/api.c` | `dashboard_build_transfer_object` | 134 | `api_transfers.c` (§6.1) |
 | `src/s3/post_object.c` | `s3_post_parse_form` | 156 | `post_form.c` (§6.2) |
 | `src/webdav/propfind.c` | `propfind_entry` | 308 | `propfind_props.c` (§6.3) |
 | `src/dashboard/api_admin.c` | `xrootd_admin_dispatch` | 93 | kept `api_admin.c` (§6.12) |
 | `src/manager/registry.c` | `srv_select_core` | 107 | `registry_select.c` (§6.4) |
-| `src/impersonate/broker.c` | `imp_do_op` | 288 | `broker_ops.c` (§6.5) |
+| `src/auth/impersonate/broker.c` | `imp_do_op` | 288 | `broker_ops.c` (§6.5) |
 | `src/s3/put.c` | `s3_put_streaming` | 89 | kept `put.c` (§6.13) |
 | `src/webdav/tpc_curl.c` | `webdav_tpc_run_curl_core` | 178 | kept `tpc_curl.c` (§6.14) |
 | `client/lib/copy.c` | `transfer_pump` | 163 | `copy_pump.c` (§6.6) |
@@ -1567,7 +1567,7 @@ ngx_uint_t xrootd_srv_snapshot(xrootd_srv_snapshot_entry_t *out, ngx_uint_t max_
 #endif
 ```
 
-#### F.6 `src/impersonate/broker.c` (725/1104 → 3 files; §6.5)
+#### F.6 `src/auth/impersonate/broker.c` (725/1104 → 3 files; §6.5)
 
 **Move table** — current lines → target file:
 

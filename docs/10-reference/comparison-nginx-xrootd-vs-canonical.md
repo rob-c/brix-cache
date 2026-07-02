@@ -311,7 +311,7 @@ without protocol conversion.
 1. **kXR_gpfile(3005)** — Legacy unused opcode; declared but no handler; falls through to kXR_Unsupported. Minimal impact.
 2. **Custom third-party security plugins** — every *standard* upstream auth
    scheme is now implemented (GSI, token, SSS, unix, krb5, macaroons, and now
-   `host`/`pwd` in `src/host/`+`src/pwd/`); only arbitrary loadable sec plugins
+   `host`/`pwd` in `src/auth/host/`+`src/auth/pwd/`); only arbitrary loadable sec plugins
    are not reproduced (no sec-plugin ABI).
 3. **PSS/PFC/Ceph/OssCsi/OssArc/full XrdFrm-MSS ecosystem** — upstream remains
    broader for deployments built around those storage-backend plugins.
@@ -342,7 +342,7 @@ without protocol conversion.
 - `src/session/signing.c` — parses ClientSigverRequest, validates seqno monotonicity (replay protection), stores HMAC pending state
 - `src/handshake/sigver.c` — HMAC-SHA256 verification before next dispatch; enforces `xrootd_security_level` directive
 - `src/handshake/dispatch_signing.c` — routes `kXR_sigver` to handler
-- GSI key derivation: `src/gsi/parse_crypto_helpers.c` sets `ctx->signing_key` = SHA-256(DH shared secret), `ctx->signing_active = 1`
+- GSI key derivation: `src/auth/gsi/parse_crypto_helpers.c` sets `ctx->signing_key` = SHA-256(DH shared secret), `ctx->signing_active = 1`
 
 ### ✓ Done: Manager/redirector mode
 - Full two-tier and three-tier cluster topologies via `xrootd_manager_mode` + `xrootd_cms_manager`

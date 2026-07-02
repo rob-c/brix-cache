@@ -1,6 +1,6 @@
 """Unit vectors for the shared XrdCryptosslCipher-compatible GSI primitives
 (phase-48 W4).  Compiles tests/c/gsi_cipher_test.c against the *shared*
-src/gsi/gsi_core.c + src/core/compat/crypto.c (the exact code used by both the native
+src/auth/gsi/gsi_core.c + src/core/compat/crypto.c (the exact code used by both the native
 client and the nginx server) and runs it.
 
 This pins the crypto math (fixed-DH agreement through the Public()/parse wire
@@ -30,11 +30,11 @@ def test_gsi_cipher_unit():
         "-o", out_bin,
         os.path.join(REPO, "tests/c/gsi_cipher_test.c"),
         # gsi_core was split into focused units (cipher/rsa/buf/dh); link them all.
-        os.path.join(REPO, "src/gsi/gsi_core.c"),
-        os.path.join(REPO, "src/gsi/gsi_cipher.c"),
-        os.path.join(REPO, "src/gsi/gsi_rsa.c"),
-        os.path.join(REPO, "src/gsi/gsi_buf.c"),
-        os.path.join(REPO, "src/gsi/gsi_dh.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_core.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_cipher.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_rsa.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_buf.c"),
+        os.path.join(REPO, "src/auth/gsi/gsi_dh.c"),
         os.path.join(REPO, "src/core/compat/crypto.c"),
         "-lcrypto",
     ]

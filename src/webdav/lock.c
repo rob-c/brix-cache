@@ -12,7 +12,7 @@
 #include "webdav.h"
 #include "path/path.h"
 #include "fs/vfs.h"   /* lock-DB namespace ops via the VFS seam */
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include "webdav/locks/request.h"
 #include "core/compat/http_xml.h"
 #include "core/compat/fs_walk.h"

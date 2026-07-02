@@ -9,7 +9,7 @@
 
 ## Goal
 
-Replace 35+ inline three-tier auth check sequences with a single `xrootd_auth_gate()` call.  Every write and read handler currently repeats the same three-call pattern; this phase centralises it once in `src/path/auth_gate.c` and `src/path/auth_gate.h`.
+Replace 35+ inline three-tier auth check sequences with a single `xrootd_auth_gate()` call.  Every write and read handler currently repeats the same three-call pattern; this phase centralises it once in `src/auth/authz/auth_gate.c` and `src/auth/authz/auth_gate.h`.
 
 ---
 
@@ -52,7 +52,7 @@ if (xrootd_auth_gate(ctx, c, XROOTD_OP_MKDIR, "MKDIR",
 
 ## New Infrastructure
 
-### `src/path/auth_gate.h` (new)
+### `src/auth/authz/auth_gate.h` (new)
 
 ```c
 #pragma once
@@ -88,7 +88,7 @@ ngx_int_t xrootd_auth_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
                             int auth_level, int need_write);
 ```
 
-### `src/path/auth_gate.c` (new, ~60 LoC)
+### `src/auth/authz/auth_gate.c` (new, ~60 LoC)
 
 ```c
 /*
@@ -174,7 +174,7 @@ Note: `src/write/chmod.c` and `src/write/rm.c` already use `xrootd_write_resolve
 
 ```
 # In NGX_ADDON_SRCS, add:
-$ngx_addon_dir/src/path/auth_gate.c
+$ngx_addon_dir/src/auth/authz/auth_gate.c
 ```
 
 This requires a `./configure` run before `make`.

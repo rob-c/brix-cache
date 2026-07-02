@@ -351,7 +351,7 @@ def test_static_map_redirect_tripwire():
 def test_root_prefix_match_tripwire():
     """Bug #3: the prefix matcher must treat a trailing-'/' prefix as boundary-
     aligned, so the root '/' (and any '/dir/') matches everything beneath it."""
-    fr = _read("src/path/find_rule.c")
+    fr = _read("src/auth/authz/find_rule.c")
     assert "prefix[prefix_len - 1] == '/'" in fr, (
         "xrootd_path_prefix_match no longer special-cases a trailing-'/' prefix "
         "(bug #3) — a root-level manager_map/VO/authdb/group rule will match only "

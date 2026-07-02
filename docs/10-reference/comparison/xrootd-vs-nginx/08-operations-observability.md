@@ -425,7 +425,7 @@ generator and serves the file out of band; an nginx-xrootd operator turns on
   set `off` to disable). A separate path-layer access log lives in
   `src/path/access_log.c`. nginx's own `error_log` carries diagnostics/debug.
 - **`xrootd_sanitize_log_string()`** (declared `src/path/path.h`, used across
-  `src/path/acl.c`, `authdb.c`, `resolve_confined_helpers.c`, token validation,
+  `src/auth/authz/acl.c`, `authdb.c`, `resolve_confined_helpers.c`, token validation,
   dirlist, host auth): escapes control bytes, quotes, backslashes, and non-ASCII
   to `\xNN`, so wire-derived strings cannot inject or forge log lines. Mandated
   by CLAUDE.md ("Log strings from wire").

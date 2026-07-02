@@ -18,7 +18,7 @@
 
 #include "s3.h"
 #include "core/compat/http_body.h"
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include "fs/vfs.h"   /* per-object delete via the VFS unlink surface */
 
 #include <libxml/parser.h>

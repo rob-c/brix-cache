@@ -215,11 +215,11 @@ exists here.
   `host` protocol (`XrdSec/XrdSecProtocolhost.cc`, trusted-network auth).
 - **Here:** **both implemented**, alongside GSI, SSS, unix, krb5, ZTN/WLCG
   tokens, SciTokens, and macaroons.
-  - `pwd` — `src/pwd/` (`auth.c` + `pwdfile.c`), the `XrdSecpwd` wire equivalent:
+  - `pwd` — `src/auth/pwd/` (`auth.c` + `pwdfile.c`), the `XrdSecpwd` wire equivalent:
     a 2-round Diffie-Hellman-bootstrapped username+password handshake (credential
     never sent in clear). Opt-in via `xrootd_auth pwd`, requires
     `xrootd_pwd_file` (empty = deny all), recommended under TLS.
-  - `host` — `src/host/auth.c`, the `XrdSecProtocolhost` wire equivalent:
+  - `host` — `src/auth/host/auth.c`, the `XrdSecProtocolhost` wire equivalent:
     reverse-DNS of the peer against an allowlist. Opt-in via `xrootd_auth host`,
     requires `xrootd_host_allow` (empty = deny all); identity always from the
     socket's reverse-DNS, never client-asserted. Fail-closed, trusted-network
@@ -233,7 +233,7 @@ exists here.
 
 - **Official:** `XrdAcc/` rich auth-file syntax: identity classes, templates,
   exclusive-list behavior, full privilege grammar.
-- **Here:** `src/path/authdb.c` — user/group/principal/host rules, longest-prefix
+- **Here:** `src/auth/authz/authdb.c` — user/group/principal/host rules, longest-prefix
   matching, rw/admin-like privilege bits, VO/token-scope gates. Practical, but
   **not** every upstream `XrdAcc` identity class/template/exclusive-list
   behavior.
@@ -245,7 +245,7 @@ exists here.
 
 - **Official:** `XrdSciTokens/` broader issuer/config/helper/monitor model;
   `XrdCks/` plugin framework for site-specific checksum algorithms.
-- **Here:** `src/token/` validates WLCG/JWT + path scopes;
+- **Here:** `src/auth/token/` validates WLCG/JWT + path scopes;
   `src/core/compat/checksum.c` + `src/core/compat/crc64.c` cover adler32, crc32, crc32c,
   md5, sha1, sha256, CRC-64/XZ, CRC-64/NVME. No general checksum **plugin
   framework**.
@@ -330,7 +330,7 @@ interop break for some ops/clients; **Low** = edge/cosmetic.
 |---|---|---|---|---|---|---|
 | 1 | `kXR_sigver` | No response on success (it is a request *prefix*); only `kXR_SigVerErr` on failure | Server ACKed it; client read the ack (consistent-but-nonstandard pair) | FIXED (`src/session/signing.c`, `client/lib/sigver.c`) | High | go-hep |
 | 2 | `stat`/`dirlist` redirect | All ops consult the redirect map | Only `open`/`locate` used the static `manager_map` | FIXED (`src/read/stat.c`, `src/dirlist/handler.c`) | High | go-hep (mesh) |
-| 3 | Root `/` prefix match | A prefix ending in `/` matches everything beneath | `/` matched only `/`, not `/child` | FIXED (`src/path/find_rule.c`) | High | go-hep (mesh) |
+| 3 | Root `/` prefix match | A prefix ending in `/` matches everything beneath | `/` matched only `/`, not `/child` | FIXED (`src/auth/authz/find_rule.c`) | High | go-hep (mesh) |
 | 4 | Unknown opcode | `kXR_InvalidRequest` (3006) | `kXR_Unsupported` (3013) | FIXED | Low | conformance |
 | 5 | `kXR_statx` framing | 1 flag byte/path; newline-separated request | 4 bytes + text line; `\0`-separated request | FIXED | Med | conformance |
 | 6 | `kXR_query` Qconfig | Bare `value\n`; echo-key for unknown; `bind_max` | `key=value` | FIXED | Med | conformance |
@@ -449,9 +449,9 @@ nginx-xrootd (`src/` and `client/`):
 
 - Protocol/dispatch: `src/protocol/opcodes.h`, `src/protocol/flags.h`,
   `src/handshake/dispatch*.c`, `src/session/protocol.c`, `src/session/signing.c`
-- Auth: `src/gsi/`, `src/token/`, `src/sss/`, `src/unix/`, `src/krb5/`,
-  `src/pwd/`, `src/host/`, `src/voms/`, `src/path/authdb.c`,
-  `src/path/auth_gate.c`
+- Auth: `src/auth/gsi/`, `src/auth/token/`, `src/auth/sss/`, `src/auth/unix/`, `src/auth/krb5/`,
+  `src/auth/pwd/`, `src/auth/host/`, `src/auth/voms/`, `src/auth/authz/authdb.c`,
+  `src/auth/authz/auth_gate.c`
 - Diagnostics / SSI / ZIP: `src/dig/`, `src/ssi/`, `src/zip/`
 - Storage/cache/path: `src/fs/`, `src/path/`, `src/cache/`,
   `src/core/compat/namespace_ops.c`, `src/cache/origin_protocol.c`
@@ -461,7 +461,7 @@ nginx-xrootd (`src/` and `client/`):
   `src/srr/`, `src/pmark/`, `src/core/compat/codec_*.c`, `src/core/compat/http_compress.c`
 - Client suite: `client/apps/`, `client/lib/`, `client/lib/sigver.c`
 - Conformance fixes: `src/read/stat.c`, `src/dirlist/handler.c`,
-  `src/path/find_rule.c`, `xrootd_stat_flags_from_stat`,
+  `src/auth/authz/find_rule.c`, `xrootd_stat_flags_from_stat`,
   `xrootd_reject_dotdot_path`
 
 Consolidated docs: see the six authoritative inputs listed under

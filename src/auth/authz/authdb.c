@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include "path_internal.h"
+#include "path/path_internal.h"
 
 /* Postconfig finalization of the authdb rule array: resolve/validate each rule's
  * path against the export root. */

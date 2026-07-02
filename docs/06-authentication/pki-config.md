@@ -106,10 +106,10 @@ layers:
 
 | Path | Where the credential appears | Main verifier |
 |---|---|---|
-| `root://` + GSI | Inside `kXR_auth` payload after XRootD login | `src/gsi/auth.c` |
-| `roots://` + GSI | Same XRootD `kXR_auth` payload, after TLS decrypt | `src/gsi/auth.c` |
+| `root://` + GSI | Inside `kXR_auth` payload after XRootD login | `src/auth/gsi/auth.c` |
+| `roots://` + GSI | Same XRootD `kXR_auth` payload, after TLS decrypt | `src/auth/gsi/auth.c` |
 | `davs://` + x509 | TLS client certificate chain during HTTPS handshake | `src/webdav/auth_cert.c` |
-| `root://` + token | `kXR_auth` credential type `ztn` with JWT payload | `src/token/validate.c` |
+| `root://` + token | `kXR_auth` credential type `ztn` with JWT payload | `src/auth/token/validate.c` |
 | `davs://` + token | `Authorization: Bearer <jwt>` HTTP header | `src/webdav/auth_token.c` |
 
 For native `root://`, nginx sees raw TCP bytes and the module implements the

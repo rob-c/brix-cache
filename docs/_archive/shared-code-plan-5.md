@@ -25,7 +25,7 @@ Already shared and not re-planned here:
 | Staged file lifecycle | `src/core/compat/staged_file.c` |
 | POSIX errno mapping | `src/core/compat/http_errno.c`, `src/core/compat/kxr_errno.c` |
 | Directory utility pieces | `src/core/compat/fs_walk.c` |
-| Token parsing and scope checks | `src/token/*` |
+| Token parsing and scope checks | `src/auth/token/*` |
 | Metrics storage and status classes | `src/metrics/*` |
 
 XrdHttp is implemented as an extension layer inside the WebDAV HTTP module

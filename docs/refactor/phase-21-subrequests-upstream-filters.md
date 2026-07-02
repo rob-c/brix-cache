@@ -2,7 +2,7 @@
 
 **Status:** ✅ Implemented (as-built diverges from this plan — see status section)  
 **Depends on:** Phase 18 (auth-gate), Phase 20 (SHM/KV cache)  
-**Touches:** `src/webdav/`, `src/core/compat/`, `src/token/`  
+**Touches:** `src/webdav/`, `src/core/compat/`, `src/auth/token/`  
 **Net LoC:** +~720 new, -~140 scattered call-site injections = +~580 net
 
 ---
@@ -19,7 +19,7 @@ namespace) the as-built choice is **better** than the original design.
 |------|-----------|--------|-----------------------|
 | **A** | Fix XrdHttp header filter | ✅ **Done — different mechanism** | Implemented as a **separate `HTTP_AUX_FILTER` module** `ngx_http_xrootd_xrdhttp_filter_module` (`src/webdav/xrdhttp_filter.c`; registered in `config` as `ngx_module_type=HTTP_AUX_FILTER`, lines ~601-608), **not** via the webdav module's `preconfiguration` as this plan proposed. The aux-filter module is placed by `auto/modules` *after* the core header/write filters, so it chains correctly — the file's header comment explains why the preconfiguration approach in Step A would still have been clobbered. The old `xrdhttp_register_header_filter()` no-op stub was **removed** (no references remain). |
 | **B** | Body filter for `Digest: adler32` | ✅ **Done** | `xrdhttp_body_filter` in `xrdhttp_filter.c` → `xrdhttp_digest_body_filter()` in `src/webdav/xrdhttp.c`; accumulates adler32 over output bufs and queues a `Digest: adler32=<hex>` trailer. Req-ctx flags `compute_digest`/`digest_emitted`/`adler` in `xrdhttp.h`. No separate `src/core/compat/digest_trailer.h` — logic lives in `xrdhttp.c`. |
-| **C** | OIDC introspection subrequest | ✅ **Done — different location & directive names** | Implemented in **`src/webdav/introspect.c`** (registered at `config:592`), **not** `src/token/introspect.c`. Real `ngx_http_subrequest()` is used; runs as a *second* `NGX_HTTP_ACCESS_PHASE` handler (`src/webdav/postconfig.c`) so suspend/resume re-entry replays only the introspection check. Directives are **`xrootd_webdav_token_introspect_{url,loc,ttl,fail_open}`** (webdav-prefixed; the plan wrote `xrootd_token_introspect_*`). Revoked-token negative results cached in a Phase-20 KV zone via `conf->revoke_kv`; fail-open configurable. |
+| **C** | OIDC introspection subrequest | ✅ **Done — different location & directive names** | Implemented in **`src/webdav/introspect.c`** (registered at `config:592`), **not** `src/auth/token/introspect.c`. Real `ngx_http_subrequest()` is used; runs as a *second* `NGX_HTTP_ACCESS_PHASE` handler (`src/webdav/postconfig.c`) so suspend/resume re-entry replays only the introspection check. Directives are **`xrootd_webdav_token_introspect_{url,loc,ttl,fail_open}`** (webdav-prefixed; the plan wrote `xrootd_token_introspect_*`). Revoked-token negative results cached in a Phase-20 KV zone via `conf->revoke_kv`; fail-open configurable. |
 | **D** | Multi-backend WebDAV proxy | ✅ **Done — simple RR, not weighted** | `upstream_backends` (`ngx_array_t` of `xrootd_webdav_backend_t`, `src/webdav/proxy_internal.h`) replaces the single resolved address; `webdav_proxy_pick_backend()` (`src/webdav/proxy.c`) does round-robin with passive health skip; `webdav_proxy_build_backends()` (`proxy_config.c`) parses multiple space/comma-separated URLs. Directives `xrootd_webdav_proxy_max_fails` (default 3) and `xrootd_webdav_proxy_fail_timeout` (default 30s) exist. **No `weight=` field** — selection is plain round-robin, not weighted as the plan sketched. Per-backend TLS (`ssl`/`ssl_ctx`) was added beyond the plan. |
 | **E** | Phase-20 KV for proxy state | ⚠️ **Diverged — per-worker, not KV** | The round-robin cursor (`upstream_rr`, an `ngx_atomic_t` in the loc conf) and per-backend `fail_count`/`fail_time` live **per-worker in the config pool**, not in a Phase-20 KV/SHM zone as Step E proposed. Adequate for best-effort load distribution (the plan itself allows approximate cross-worker counts). The introspection revocation cache *does* use a Phase-20 KV zone (Step C). |
 
@@ -28,7 +28,7 @@ namespace) the as-built choice is **better** than the original design.
 1. **Filters are a standalone `HTTP_AUX_FILTER` module, not webdav-preconfiguration.**
    This is the *correct* nginx idiom and is what actually survives core-module
    filter registration; treat Step A's preconfiguration recipe as superseded.
-2. **Introspection lives in `src/webdav/`, not `src/token/`,** with
+2. **Introspection lives in `src/webdav/`, not `src/auth/token/`,** with
    `xrootd_webdav_*`-namespaced directives, and runs as a dedicated access-phase
    handler rather than being inlined into `dispatch.c`.
 3. **Multi-backend RR is unweighted** and **state is per-worker**, not the
@@ -68,7 +68,7 @@ with the filter chain and subrequest machinery.
    `preconfiguration`, which runs before any module's `postconfiguration`.
 
 3. **Token revocation has no real-time path.** The JWT validation path in
-   `src/token/validate.c` relies on expiry time only. Revoked tokens remain valid
+   `src/auth/token/validate.c` relies on expiry time only. Revoked tokens remain valid
    until expiry. An OIDC `/introspect` subrequest would allow real-time revocation
    checking against the IdP without blocking the event loop.
 
@@ -276,7 +276,7 @@ the headers frame on the EOS DATA frame — nginx handles this automatically whe
 
 ## Step C — OIDC Token Introspection Subrequest
 
-> **Status: ✅ done — implemented under `src/webdav/`, not `src/token/`.** The code
+> **Status: ✅ done — implemented under `src/webdav/`, not `src/auth/token/`.** The code
 > is in **`src/webdav/introspect.c`** (registered at `config:592`) and runs as a
 > dedicated second `NGX_HTTP_ACCESS_PHASE` handler (`src/webdav/postconfig.c`),
 > not inlined into `dispatch.c`. Directives are namespaced
@@ -287,8 +287,8 @@ the headers frame on the EOS DATA frame — nginx handles this automatically whe
 
 **Files (as-built):** `src/webdav/introspect.c`, `src/webdav/postconfig.c`,
 `src/webdav/module.c` (directives), `src/webdav/webdav.h` (ctx flags)  
-**Files (as planned):** `src/token/introspect.c` (new), `src/token/introspect.h` (new),
-`src/token/validate.c`, `src/webdav/dispatch.c`
+**Files (as planned):** `src/auth/token/introspect.c` (new), `src/auth/token/introspect.h` (new),
+`src/auth/token/validate.c`, `src/webdav/dispatch.c`
 
 ### C1 — Concept
 
@@ -325,7 +325,7 @@ This location is created programmatically via `ngx_http_conf_ctx_t` cloning duri
 
 ### C3 — Subrequest call
 
-In `src/token/introspect.c`:
+In `src/auth/token/introspect.c`:
 
 ```c
 ngx_int_t
@@ -596,8 +596,8 @@ KV framework.
 | `src/webdav/namespace.c` | Modify | Remove manual header injection calls |
 | `src/webdav/methods_basic.c` | Modify | Remove manual header injection calls |
 | `src/webdav/dispatch.c` | Modify | Add introspect subrequest call after JWT verify |
-| `src/token/introspect.c` | **New** | `xrootd_token_introspect()` subrequest setup; done callback |
-| `src/token/introspect.h` | **New** | Public API; `xrootd_introspect_ctx_t` type |
+| `src/auth/token/introspect.c` | **New** | `xrootd_token_introspect()` subrequest setup; done callback |
+| `src/auth/token/introspect.h` | **New** | Public API; `xrootd_introspect_ctx_t` type |
 | `src/webdav/proxy.c` | Modify | Multi-backend selection; store `selected_backend` in ctx |
 | `src/webdav/proxy_config.c` | Modify | Parse multiple URLs into `upstream_backends` array |
 | `src/webdav/proxy_internal.h` | Modify | Add `xrootd_webdav_backend_t`; `selected_backend` in ctx |
@@ -607,7 +607,7 @@ KV framework.
 
 ## Build Registration
 
-`src/token/introspect.c` must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`
+`src/auth/token/introspect.c` must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`
 before `./configure` is re-run. No new top-level config blocks are introduced, so
 `./configure` only needs rerunning once to pick up the new source file.
 

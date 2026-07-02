@@ -5,7 +5,7 @@ Coverage gap #6 (test-coverage-gap-audit): server-side macaroon REJECTION.
 
 The macaroon tests (test_token_macaroon / test_macaroon_discharge) validate only
 the Python helper's structure — they never send a macaroon to the running
-server.  The C validator's negative branches in src/token/macaroon.c
+server.  The C validator's negative branches in src/auth/token/macaroon.c
 (HMAC-chain signature mismatch, before:-in-the-past expiry, malformed token)
 had no end-to-end coverage.  A regression there (e.g. signature not actually
 checked, or expiry compared the wrong way) is a direct auth bypass.
@@ -134,7 +134,7 @@ def test_forged_macaroon_rejected(mac_server):
 def test_flipped_signature_byte_rejected(mac_server):
     # Correct structure + right secret, but ONE byte of the 32-byte HMAC
     # signature flipped → must be rejected. This is the exact case the
-    # constant-time CRYPTO_memcmp in src/token/macaroon.c guards: a
+    # constant-time CRYPTO_memcmp in src/auth/token/macaroon.c guards: a
     # timing-variable memcmp would be a byte-by-byte signature-forgery oracle.
     import base64
     tok = make_macaroon(SECRET, "test-subject", _caveats(), location=LOCATION)

@@ -160,7 +160,7 @@ Relevant code:
 - `src/handshake/*.c`
 - `src/session/*.c`
 - `src/connection/*.c`
-- `src/gsi/*.c`
+- `src/auth/gsi/*.c`
 
 ### Common native download flow
 
@@ -442,7 +442,7 @@ If you want to step through the server side of an `xrdcp` session:
 
 - `src/handshake/*.c`
 - `src/session/*.c`
-- `src/gsi/*.c`
+- `src/auth/gsi/*.c`
 - `src/read/*.c`
 - `src/write/*.c`
 - `src/query/*.c`

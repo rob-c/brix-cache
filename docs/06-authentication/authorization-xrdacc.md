@@ -5,8 +5,8 @@ The module ships **two** authorization-database engines, selected per server by
 
 | Format | Engine | Use when |
 |---|---|---|
-| `native` (default) | `src/path/authdb.c` — `u/g/p/a` records, 6 privilege bits, single longest-prefix rule, root:// only | existing deployments; simple per-DN/VO/host-CIDR ACLs |
-| `xrdacc` | `src/acc/` — a faithful re-implementation of XRootD's **XrdAcc** | dropping in a stock XRootD `authdb`; full XrdAcc grammar + semantics |
+| `native` (default) | `src/auth/authz/authdb.c` — `u/g/p/a` records, 6 privilege bits, single longest-prefix rule, root:// only | existing deployments; simple per-DN/VO/host-CIDR ACLs |
+| `xrdacc` | `src/auth/authz/acc/` — a faithful re-implementation of XRootD's **XrdAcc** | dropping in a stock XRootD `authdb`; full XrdAcc grammar + semantics |
 
 `native` is unchanged and remains the default, so existing configs are unaffected.
 
@@ -157,13 +157,13 @@ and S3 loc-confs from a single shared `xrootd_acc_http_t` block.
 
 ## Implementation
 
-`src/acc/` (see its `README.md`): `privs.c` (privilege algebra), `authfile.c` +
+`src/auth/authz/acc/` (see its `README.md`): `privs.c` (privilege algebra), `authfile.c` +
 `tables.c` + `capability.c` (grammar → tables, incl. spacechar/encoding),
 `entity.c` + `access.c` (the decision engine), `groups.c` (OS/NIS resolution +
 gidretran), `resolve.c` (reverse-DNS for `h` rules), `config.c` (build + hot
 reload for stream and HTTP), `audit.c`. The operation precision (create vs
 update, stage), the bypass-site routing (TPC dest-open, prepare) and the
-operation/host-keyed result cache live in `src/path/auth_gate.c`. Ported from
+operation/host-keyed result cache live in `src/auth/authz/auth_gate.c`. Ported from
 `/tmp/xrootd-src/src/XrdAcc/` with numeric privilege values kept identical so a
 stock authdb decides the same. Tests: `tests/test_acc.py` (engine + protocols),
 `tests/test_acc_residual.py` (create/update, stage, host-resolve, HTTP reload,

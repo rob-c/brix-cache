@@ -19,7 +19,7 @@
  */
 
 #include "pelican_register.h"
-#include "token/jwt_sign.h"
+#include "auth/token/jwt_sign.h"
 
 #include <ngx_thread_pool.h>
 #include <curl/curl.h>

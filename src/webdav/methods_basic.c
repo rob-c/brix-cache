@@ -10,7 +10,7 @@
 
 #include "webdav.h"
 #include "fs/vfs.h"   /* confined read-open for the Want-Digest checksum */
-#include "impersonate/lifecycle.h"
+#include "auth/impersonate/lifecycle.h"
 #include "core/compat/etag.h"
 #include "core/compat/http_body.h"
 #include "core/compat/http_file_response.h"

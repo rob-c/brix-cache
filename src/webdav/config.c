@@ -11,7 +11,7 @@
 #include "webdav.h"
 #include "core/compat/integrity_info.h"   /* §8.x checksum xattr write format */
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
-#include "token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
+#include "auth/token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
 #include "proxy_internal.h"
 #include "mirror/http_mirror.h"
 #include "core/config/config.h"

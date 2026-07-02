@@ -7,7 +7,7 @@
  * */
 
 #include "tpc_internal.h"
-#include "gsi/gsi_core.h"          /* build_certreq / parse_parms / rand */
+#include "auth/gsi/gsi_core.h"          /* build_certreq / parse_parms / rand */
 #include "session/session.h"       /* XROOTD_SESSION_ID_LEN */
 
 /* Helper functions declared in gsi_outbound_common.c — extern to link them.

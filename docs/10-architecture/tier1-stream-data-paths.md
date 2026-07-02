@@ -39,7 +39,7 @@ xrootd_file_t* fd_get(uint8_t handle);                  // Retrieves by wire han
 - Slots are allocated via `fd_alloc()` and retrieved via `fd_get()`
 - Last access time is tracked for cleanup purposes
 
-### ACL Enforcement (`src/path/acl.c`)
+### ACL Enforcement (`src/auth/authz/acl.c`)
 
 Path-based ACL rules with VO-specific attribute validation:
 
@@ -633,7 +633,7 @@ typedef struct {
 - `src/read/open.c` — kXR_open handler implementation (boundary case)
 - `src/read/statx.c` — kXR_statx handler implementation (boundary case, batched stat)
 - `src/connection/fd_table.c` — file handle management, xrootd_file_t struct
-- `src/path/acl.c` — ACL enforcement for path-based operations
+- `src/auth/authz/acl.c` — ACL enforcement for path-based operations
 
 ## Notes on Implementation Patterns
 

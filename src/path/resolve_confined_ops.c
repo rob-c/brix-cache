@@ -1,7 +1,7 @@
 #include "core/ngx_xrootd_module.h"
 #include "path_internal.h"
 #include "beneath.h"
-#include "impersonate/impersonate.h"
+#include "auth/impersonate/impersonate.h"
 
 #include <errno.h>
 #include <fcntl.h>

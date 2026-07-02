@@ -18,11 +18,11 @@
 #include "proxy/proxy_internal.h"
 #include "handoff/handoff.h"
 #include "relay/relay.h"
-#include "token/token_cache.h"   /* xrootd_token_cache_directive */
+#include "auth/token/token_cache.h"   /* xrootd_token_cache_directive */
 #include "manager/health_check.h" /* XROOTD_HC_TYPE_* */
 #include "mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
 #include "ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
-#include "impersonate/lifecycle.h" /* Phase 40: impersonation directives */
+#include "auth/impersonate/lifecycle.h" /* Phase 40: impersonation directives */
 #include "cms/cns.h"               /* §6 CNS mode enum */
 #include "core/config/credential_block.h" /* §14 xrootd_credential block directive */
 #include "module_enums.h"   /* directive enum value tables */

@@ -204,7 +204,7 @@ S3 inlines the two-step pattern at 11 call sites across
 `src/s3/multipart_complete_body.c`.
 
 The XRootD stream protocol inlines the pattern at 24 call sites across
-`src/path/`, `src/read/`, `src/session/`, `src/dirlist/`, `src/gsi/`, and
+`src/path/`, `src/read/`, `src/session/`, `src/dirlist/`, `src/auth/gsi/`, and
 others.
 
 The WebDAV helper itself uses a format string `"%s: \"%s\""` (prefix + quoted

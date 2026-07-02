@@ -9,10 +9,10 @@
 | `src/connection/*.c` | Session state machine, send/recv flow, buffering helpers |
 | `src/handshake/*.c` | Client hello, opcode dispatch, auth/write routing policy |
 | `src/session/*.c` | Protocol negotiation, login, bind, ping/end-session, request signing |
-| `src/gsi/*.c` | GSI/x509 proxy certificate authentication exchange (DH key exchange, cert chain validation) |
-| `src/token/*.c` | JWT/JWKS validation, WLCG scope and group parsing, bearer-token (`ztn`) auth |
-| `src/crypto/pki_*.c` / `src/pki/*.c` | PKI/CRL startup consistency checks |
-| `src/voms/*.c` | Runtime VOMS support via `dlopen("libvomsapi.so.1")` — VO extraction from proxy certs |
+| `src/auth/gsi/*.c` | GSI/x509 proxy certificate authentication exchange (DH key exchange, cert chain validation) |
+| `src/auth/token/*.c` | JWT/JWKS validation, WLCG scope and group parsing, bearer-token (`ztn`) auth |
+| `src/auth/crypto/pki_*.c` / `src/pki/*.c` | PKI/CRL startup consistency checks |
+| `src/auth/voms/*.c` | Runtime VOMS support via `dlopen("libvomsapi.so.1")` — VO extraction from proxy certs |
 | `src/read/*.c` | Read-side operations: open, read, readv, pgread, stat, statx, dirlist, locate, close |
 | `src/cache/*.c` | Read-through cache origin fetch, locking, and fill callbacks |
 | `src/query/*.c` | kXR_query subtypes (cksum, space, config, stats, xattr, finfo, fsinfo) and kXR_prepare, kXR_set |

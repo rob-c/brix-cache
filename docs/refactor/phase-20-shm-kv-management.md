@@ -25,9 +25,9 @@ few integration details diverge from the original design — all detailed below.
 |------|-----------|--------|----------|
 | **B** | Generic KV store (`src/core/shm/kv.{c,h}`) | ✅ **Done** | `kv.c` — FNV-1a 64-bit hash, linear-probe + backward-shift delete, load-factor ≤ 0.5, lazy TTL. Plus zone-registry helpers `xrootd_kv_find()` / `xrootd_kv_zone_directive()` not in the original API. |
 | **A** | SHM zone boilerplate macros (`src/core/compat/shm_zone.h`) | ⛔ **Not implemented (and unnecessary)** | No `shm_zone.h`; no `XROOTD_SHM_ZONE_*` usage anywhere. The KV store made the macro layer moot — the three consumers wrap `xrootd_kv_t` directly with no SHM boilerplate. (`src/core/compat/shm_slots.h` is unrelated — free-slot helpers for the TPC/cache slot pools.) |
-| **C** | JWT token validation cache (`src/token/token_cache.{c,h}`) | ✅ **Done — integration point differs** | Wired at the auth callers `src/gsi/token.c:87,138` and `src/webdav/auth_token.c:145,194`, **not** `token/validate.c` (which has no cache reference). Caches the full `xrootd_token_claims_t`, not the compact `xrootd_token_cache_val_t` the doc proposed. SHA-256 fingerprint key + 5-min TTL cap as designed. |
-| **D** | Auth result cache (`src/path/auth_cache.{c,h}`) | ✅ **Done — matches design** | Wired in `src/path/auth_gate.c` (key build ~`:23-61`, lookup-before-scan ~`:91-114`, store-after ~`:64-78`). 3-byte `xrootd_auth_cache_val_t`, 32-byte SHA-256 key, 30 s default TTL. Stream-only. |
-| **E** | Rate limiting (`src/core/shm/rate_limit.{c,h}`) | ✅ **Done — coexists with Phase 25** | Token-bucket on the KV store; called from `src/webdav/access.c:100` and `src/gsi/auth.c:289`. Does **not** supersede / is not superseded by the separate Phase-25 leaky-bucket system in `src/ratelimit/` — both are active and independent (different directives, different algorithms). |
+| **C** | JWT token validation cache (`src/auth/token/token_cache.{c,h}`) | ✅ **Done — integration point differs** | Wired at the auth callers `src/auth/gsi/token.c:87,138` and `src/webdav/auth_token.c:145,194`, **not** `token/validate.c` (which has no cache reference). Caches the full `xrootd_token_claims_t`, not the compact `xrootd_token_cache_val_t` the doc proposed. SHA-256 fingerprint key + 5-min TTL cap as designed. |
+| **D** | Auth result cache (`src/path/auth_cache.{c,h}`) | ✅ **Done — matches design** | Wired in `src/auth/authz/auth_gate.c` (key build ~`:23-61`, lookup-before-scan ~`:91-114`, store-after ~`:64-78`). 3-byte `xrootd_auth_cache_val_t`, 32-byte SHA-256 key, 30 s default TTL. Stream-only. |
+| **E** | Rate limiting (`src/core/shm/rate_limit.{c,h}`) | ✅ **Done — coexists with Phase 25** | Token-bucket on the KV store; called from `src/webdav/access.c:100` and `src/auth/gsi/auth.c:289`. Does **not** supersede / is not superseded by the separate Phase-25 leaky-bucket system in `src/ratelimit/` — both are active and independent (different directives, different algorithms). |
 | **F** | Configurable existing-table sizes | ⚠️ **3 of 4 done** | `xrootd_session_slots`, `xrootd_registry_slots`, `xrootd_redir_cache_slots` implemented (conf fields + directives). `xrootd_tpc_slots` **still deferred** — `XROOTD_TPC_REGISTRY_SLOTS` (1024) remains a compile-time array dimension (`src/tpc/common/registry.c:16`) for the dual-call-site reason below. |
 | — | Prometheus export | ✅ **Done** | `xrootd_kv_metrics_emit()` in `src/metrics/writer.c` emits `xrootd_kv_{hits,misses,evictions}_total` + `xrootd_kv_{entries,capacity}` per zone. |
 | — | `config.h` / build registration | ✅ **Done** | The four sources (`shm/kv.c`, `token/token_cache.c`, `path/auth_cache.c`, `shm/rate_limit.c`) are registered in the module `config` (NGX_ADDON_SRCS). |
@@ -398,17 +398,17 @@ occurs under the lock.
 ## Step C — JWT token validation cache
 
 > **Status: ✅ IMPLEMENTED — integration point differs from this design.** The
-> cache is wired at the auth callers `src/gsi/token.c:87,138` and
+> cache is wired at the auth callers `src/auth/gsi/token.c:87,138` and
 > `src/webdav/auth_token.c:145,194` (lookup before verify / store on success),
 > **not** in `token/validate.c` (which keeps no cache reference). The cached value
 > is the full `xrootd_token_claims_t`, not the compact `xrootd_token_cache_val_t`
 > sketched below. SHA-256 fingerprint key and 5-minute TTL cap are as designed.
 
-**Files**: `src/token/token_cache.h`, `src/token/token_cache.c` (implemented)  
+**Files**: `src/auth/token/token_cache.h`, `src/auth/token/token_cache.c` (implemented)  
 **Register in**: `config` (NGX_ADDON_SRCS) — done  
-**Integration point (as-built)**: `src/gsi/token.c` and `src/webdav/auth_token.c`
+**Integration point (as-built)**: `src/auth/gsi/token.c` and `src/webdav/auth_token.c`
 → cache lookup before signature verification, store after a successful verify.
-(The original design targeted `src/token/validate.c`.)
+(The original design targeted `src/auth/token/validate.c`.)
 
 ### Why the cross-worker token cache matters
 
@@ -468,7 +468,7 @@ New field in `ngx_stream_xrootd_srv_conf_t` and `ngx_http_xrootd_webdav_loc_conf
 xrootd_kv_t  *token_cache_kv;   /* NULL = disabled */
 ```
 
-### Integration in `src/token/validate.c`
+### Integration in `src/auth/token/validate.c`
 
 ```c
 /* Before EVP_DigestVerify: */
@@ -503,15 +503,15 @@ if (conf->token_cache_kv != NULL && verify_ok) {
 }
 ```
 
-**Files changed**: `src/token/validate.c` (+~25 LoC), `src/core/types/config.h` (+2 LoC),
+**Files changed**: `src/auth/token/validate.c` (+~25 LoC), `src/core/types/config.h` (+2 LoC),
 `src/core/config/directives.c` (+~15 LoC)
 
 ---
 
 ## Step D — Auth result cache
 
-**Files**: `src/path/auth_cache.h` (new, ~25 LoC), `src/path/auth_cache.c` (new, ~75 LoC)  
-**Integration point**: `src/path/auth_gate.c` → checked before authdb+VO scan
+**Files**: `src/auth/authz/auth_cache.h` (new, ~25 LoC), `src/auth/authz/auth_cache.c` (new, ~75 LoC)  
+**Integration point**: `src/auth/authz/auth_gate.c` → checked before authdb+VO scan
 
 ### What gets cached
 
@@ -555,7 +555,7 @@ xrootd_auth_cache zone=xrootd_auth_kv ttl=30;
 
 New directive: `xrootd_auth_cache zone=<name> [ttl=<seconds>];`
 
-### Integration in `src/path/auth_gate.c`
+### Integration in `src/auth/authz/auth_gate.c`
 
 ```c
 ngx_int_t
@@ -606,7 +606,7 @@ xrootd_auth_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 ```
 
-**Files changed**: `src/path/auth_gate.c` (+~30 LoC), `src/core/types/config.h` (+3 LoC)
+**Files changed**: `src/auth/authz/auth_gate.c` (+~30 LoC), `src/core/types/config.h` (+3 LoC)
 
 ---
 
@@ -614,7 +614,7 @@ xrootd_auth_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 **Files**: `src/core/shm/rate_limit.h` (new, ~40 LoC), `src/core/shm/rate_limit.c` (new, ~100 LoC)  
 **Register in**: `config.h`  
-**Integration points**: `src/gsi/auth.c` (post-auth), `src/webdav/access.c` (access phase)
+**Integration points**: `src/auth/gsi/auth.c` (post-auth), `src/webdav/access.c` (access phase)
 
 ### Design: token bucket per identity
 
@@ -761,7 +761,7 @@ as existing tables are migrated opportunistically.
 | B | `src/core/shm/kv.h`, `kv.c` | None | Foundation; no callers yet |
 | A | `src/core/compat/shm_zone.h` | None | Header only; no compilation impact |
 | F | existing configure() + directives.c | None | Trivial; size parameter only |
-| C | `src/token/token_cache.*`, `validate.c` | Step B | Token cache consumer |
+| C | `src/auth/token/token_cache.*`, `validate.c` | Step B | Token cache consumer |
 | D | `src/path/auth_cache.*`, `auth_gate.c` | Step B | Auth cache consumer |
 | E | `src/core/shm/rate_limit.*` | Step B | Rate limit consumer |
 
@@ -775,8 +775,8 @@ depend on Step B being complete and registered in `config.h`.
 ```c
 /* src/core/config/config.h — add to NGX_ADDON_SRCS */
 $ngx_addon_dir/src/core/shm/kv.c \
-$ngx_addon_dir/src/token/token_cache.c \
-$ngx_addon_dir/src/path/auth_cache.c \
+$ngx_addon_dir/src/auth/token/token_cache.c \
+$ngx_addon_dir/src/auth/authz/auth_cache.c \
 $ngx_addon_dir/src/core/shm/rate_limit.c \
 ```
 

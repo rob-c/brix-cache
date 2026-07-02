@@ -9,7 +9,7 @@ for VOMS proxies, a VO list.  The VO list flows through the session context:
 Proxy cert received and verified
           │
           ▼
-VOMS AC extraction (src/voms/collect.c)
+VOMS AC extraction (src/auth/voms/collect.c)
     libvomsapi parses the AC extension from the proxy cert
     For each VOMS AC entry:
         voName           → "cms"
@@ -139,14 +139,14 @@ subsequent file traffic.
 | Proxy chain verification (WebDAV) | `src/webdav/auth_cert.c:webdav_verify_proxy_cert()` |
 | TLS auth cache (WebDAV) | `src/webdav/auth_cert.c`, `SSL_get_ex_data` / `SSL_SESSION_get_ex_data` |
 | `X509_V_FLAG_ALLOW_PROXY_CERTS` setup | `src/webdav/postconfig.c:ngx_http_xrootd_webdav_postconfiguration()` (lines 104-106) |
-| VOMS AC parsing | `src/voms/loader.c` (dlopen of libvomsapi) |
-| VOMS VO extraction | `src/voms/collect.c:xrootd_collect_voms_vos()` |
+| VOMS AC parsing | `src/auth/voms/loader.c` (dlopen of libvomsapi) |
+| VOMS VO extraction | `src/auth/voms/collect.c:xrootd_collect_voms_vos()` |
 | vomsdir LSC lookup | delegated to libvomsapi |
-| VO path ACL enforcement | `src/path/find_rule.c`, `src/core/config/policy.c` |
-| CA bundle load | `src/crypto/pki_load.c` |
-| CRL signature verification | `src/crypto/pki_check.c:xrootd_pki_verify_crls()` |
+| VO path ACL enforcement | `src/auth/authz/find_rule.c`, `src/core/config/policy.c` |
+| CA bundle load | `src/auth/crypto/pki_load.c` |
+| CRL signature verification | `src/auth/crypto/pki_check.c:xrootd_pki_verify_crls()` |
 | kXR_login challenge string | `src/session/login.c:xrootd_handle_login()` |
-| Token (JWT/WLCG) validation | `src/token/` |
+| Token (JWT/WLCG) validation | `src/auth/token/` |
 | Request signing (kXR_sigver) | `src/session/signing.c`, `src/handshake/sigver.c` |
 
 ---

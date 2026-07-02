@@ -274,5 +274,5 @@ Relevant code:
 
 - `src/webdav/auth_cert.c`
 - `src/webdav/pki.c`
-- `src/crypto/pki_load.c`
-- `src/crypto/pki_check.c`
+- `src/auth/crypto/pki_load.c`
+- `src/auth/crypto/pki_check.c`

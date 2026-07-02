@@ -28,11 +28,11 @@ for test in test_*.c; do
     exe="${test%.c}"
     impl=""
     case $test in
-        test_b64url.c) impl="../../src/token/b64url.c" ;;
+        test_b64url.c) impl="../../src/auth/token/b64url.c" ;;
         test_crc32c.c) impl="../../src/core/compat/crc32c.c" ;;
         test_crc64.c) impl="../../src/core/compat/crc64.c" ;;
-        test_json.c) impl="../../src/token/json.c" ;;
-        test_scopes.c) impl="../../src/token/scopes.c" ;;
+        test_json.c) impl="../../src/auth/token/json.c" ;;
+        test_scopes.c) impl="../../src/auth/token/scopes.c" ;;
         test_xml_compat.c) impl="../../src/core/compat/xml.c" ;;
         # test_pki_check.c intentionally left without impl for now
     esac

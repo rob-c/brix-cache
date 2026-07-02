@@ -45,8 +45,8 @@ shared helpers.
 │                                                                    │
 │  src/core/compat/path.c      xrootd_http_resolve_path()  [HTTP+S3]     │
 │  src/path/              xrootd_resolve_path_*()     [stream]      │
-│  src/token/             JWT validate + scope check  [all]         │
-│  src/crypto/            OCSP + PKI load             [all]         │
+│  src/auth/token/             JWT validate + scope check  [all]         │
+│  src/auth/crypto/            OCSP + PKI load             [all]         │
 │  src/metrics/metrics.h  shared-memory layout        [all]         │
 │  src/metrics/tracking.c VO/user activity accounting [all]         │
 │  src/tpc/key_registry.c SHM TPC key table           [stream+webdav]│
@@ -121,12 +121,12 @@ Return codes from `xrootd_http_resolve_path()`:
 | 414 | Path too long | 414 URI Too Long | InvalidURI |
 | 500 | `realpath(3)` unexpected error | 500 | InternalError |
 
-### Token/WLCG JWT validation (`src/token/`)
+### Token/WLCG JWT validation (`src/auth/token/`)
 
 All three protocols consume the same JWT validation stack:
 
 ```
-src/token/
+src/auth/token/
     validate.c    xrootd_token_validate()       — split header.payload.sig, verify sig
     keys.c        xrootd_token_jwks_lookup()    — JWKS key rotation + fetch
     jwks.c        xrootd_token_refresh_jwks()   — background JWKS refresh
@@ -138,23 +138,23 @@ src/token/
 
 Stream path (kXR_auth with credtype="ztn"):
 ```
-xrootd_handle_auth()    src/gsi/auth.c
-    └─ xrootd_handle_token_auth()   src/gsi/token.c
-           └─ xrootd_token_validate()   src/token/validate.c
+xrootd_handle_auth()    src/auth/gsi/auth.c
+    └─ xrootd_handle_token_auth()   src/auth/gsi/token.c
+           └─ xrootd_token_validate()   src/auth/token/validate.c
 ```
 
 WebDAV path (Authorization: Bearer):
 ```
 webdav_verify_bearer_token()   src/webdav/auth_token.c
-    └─ xrootd_token_validate()    src/token/validate.c
-    └─ xrootd_token_check_write() src/token/scopes.c   (for PUT/DELETE/MKCOL/MOVE)
+    └─ xrootd_token_validate()    src/auth/token/validate.c
+    └─ xrootd_token_check_write() src/auth/token/scopes.c   (for PUT/DELETE/MKCOL/MOVE)
 ```
 
 S3 path (when SigV4 is not configured, falls back to token):
 ```
 s3_verify_signature()   src/s3/auth_sigv4_verify.c  (SigV4 branch)
     OR
-xrootd_token_validate() src/token/validate.c        (bearer-token branch)
+xrootd_token_validate() src/auth/token/validate.c        (bearer-token branch)
 ```
 
 The scope check function `xrootd_token_check_write()` enforces WLCG storage.write / storage.create /
@@ -162,18 +162,18 @@ storage.modify prefix matching for all mutating operations regardless of protoco
 to it is the raw decoded URI path (not the filesystem path) so that token scope granularity
 matches the namespace visible to the client.
 
-### PKI / OCSP (`src/crypto/`)
+### PKI / OCSP (`src/auth/crypto/`)
 
 ```
-src/crypto/
+src/auth/crypto/
     pki_load.c    load CA store, CRL list, proxy cert settings at startup
     pki_check.c   xrootd_pki_check_cert()  — verify one x509 chain (stream use)
     ocsp.c        online stapling + cache  — both GSI and WebDAV TLS paths use this
 ```
 
 `pki_check.c` exports `xrootd_pki_check_cert()` which wraps `X509_STORE_CTX` setup with
-`X509_V_FLAG_ALLOW_PROXY_CERTS`. The stream GSI path (`src/gsi/auth.c`) calls this after
-the two-round DH exchange; `src/crypto/ocsp.c` is referenced by both `src/gsi/` and the
+`X509_V_FLAG_ALLOW_PROXY_CERTS`. The stream GSI path (`src/auth/gsi/auth.c`) calls this after
+the two-round DH exchange; `src/auth/crypto/ocsp.c` is referenced by both `src/auth/gsi/` and the
 nginx TLS handshake hook registered by `src/webdav/pki.c`.
 
 ### Prometheus shared-memory layout (`src/metrics/`)
@@ -332,7 +332,7 @@ HTTP and token-adjacent helpers.
 |------|---------------|----------------------|
 | Blocking writes | `src/core/compat/io.c` | WebDAV PUT/COPY spooled writes, S3 PUT body writes |
 | HTTP status classes | `src/metrics/http_common.h` | WebDAV metrics, S3 metrics |
-| GSI verification core | `src/crypto/gsi_verify.c` | stream GSI auth, WebDAV client-cert auth |
+| GSI verification core | `src/auth/crypto/gsi_verify.c` | stream GSI auth, WebDAV client-cert auth |
 | Server-side local copy | `src/core/compat/copy_range.c` | stream clone/checkpoint, WebDAV COPY, S3 CopyObject |
 | HTTP file/range response | `src/core/compat/http_file_response.c` | WebDAV GET, S3 GET |
 | HTTP query params | `src/core/compat/http_query.c` | XrdHttp, S3 list/multipart helpers |
@@ -344,9 +344,9 @@ HTTP and token-adjacent helpers.
 | Recursive filesystem mechanics | `src/core/compat/fs_walk.c` | WebDAV DELETE/access checks, S3 multipart cleanup, Qckscan/PROPFIND dot filtering |
 | Staged temp-file lifecycle | `src/core/compat/staged_file.c` | S3 PUT/CopyObject, WebDAV file COPY, WebDAV TPC pull |
 | CMS frame sending | `src/cms/frame_io.c` | CMS client send path, CMS server send path |
-| Base64url | `src/token/b64url.c` | JWT/macaroons, S3 continuation tokens |
-| Token files | `src/token/file.c` | upstream redirector auth, native TPC outbound auth |
-| OAuth2 token JSON | `src/token/oauth2.c` | native TPC token fetch, WebDAV TPC credential parsing |
+| Base64url | `src/auth/token/b64url.c` | JWT/macaroons, S3 continuation tokens |
+| Token files | `src/auth/token/file.c` | upstream redirector auth, native TPC outbound auth |
+| OAuth2 token JSON | `src/auth/token/oauth2.c` | native TPC token fetch, WebDAV TPC credential parsing |
 | Filesystem usage | `src/core/compat/fs_usage.c` | native query, cache metrics, WebDAV quota props |
 | SHM slot bookkeeping | `src/core/compat/shm_slots.h` | pending locate, TPC key registry |
 
@@ -399,10 +399,10 @@ mechanisms appropriate to their callers.
 The important security property after the GSI, token, query, XML, and path-helper
 consolidations is that security-sensitive mechanics now have one implementation per concern:
 
-- A CA store misconfiguration is caught in one place (`src/crypto/gsi_verify.c`).
+- A CA store misconfiguration is caught in one place (`src/auth/crypto/gsi_verify.c`).
 - A proxy-cert depth limit change applies to both stream and HTTP simultaneously.
 - A CRL-check bypass would have to exist in `xrootd_gsi_verify_chain()` to affect either protocol.
-- Malformed OAuth2 JSON is parsed by Jansson-backed `src/token/oauth2.c`, not by ad-hoc
+- Malformed OAuth2 JSON is parsed by Jansson-backed `src/auth/token/oauth2.c`, not by ad-hoc
   quote scanners in each protocol.
 - NUL and percent-decoding behavior for HTTP query values is controlled by
   `src/core/compat/http_query.c` flags at each call site.
@@ -419,4 +419,4 @@ consolidations is that security-sensitive mechanics now have one implementation 
 - [S3 architecture](s3.md) — SigV4, multipart staging
 - `src/metrics/metrics.h` — shared-memory counter layout
 - `src/core/compat/path.h` — path resolver API contract
-- `src/token/token.h` — JWT validation public API
+- `src/auth/token/token.h` — JWT validation public API

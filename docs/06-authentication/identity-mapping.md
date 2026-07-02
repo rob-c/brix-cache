@@ -39,8 +39,8 @@ everything below and are the single most common source of confusion:
 
    | What | Where it happens | What "UNIX account" means there |
    |---|---|---|
-   | **Authorization** | the auth gate (`src/path/auth_gate.c`) + the authz engine (`src/acc/`, `src/path/authdb.c`, `src/path/acl.c`) | the engine can match a `g <unixgroup>` / `n <netgroup>` rule against the principal's **OS supplementary groups** (`getpwnam`→`getgrouplist`) and NIS netgroups — i.e. local UNIX *groups* are consulted for the *allow/deny decision*, even though no process changes uid/gid |
-   | **Created-object ownership** | `src/path/group_policy.c` (`xrootd_inherit_parent_group`) | a freshly created file/dir is owned by the **worker uid**, but its **group** can be forced to the parent directory's group (with `setgid` propagation) |
+   | **Authorization** | the auth gate (`src/auth/authz/auth_gate.c`) + the authz engine (`src/auth/authz/acc/`, `src/auth/authz/authdb.c`, `src/auth/authz/acl.c`) | the engine can match a `g <unixgroup>` / `n <netgroup>` rule against the principal's **OS supplementary groups** (`getpwnam`→`getgrouplist`) and NIS netgroups — i.e. local UNIX *groups* are consulted for the *allow/deny decision*, even though no process changes uid/gid |
+   | **Created-object ownership** | `src/auth/authz/group_policy.c` (`xrootd_inherit_parent_group`) | a freshly created file/dir is owned by the **worker uid**, but its **group** can be forced to the parent directory's group (with `setgid` propagation) |
 
 If you came here expecting "DN `/DC=org/CN=Rob` becomes local user `rob` who owns
 the file" — that is **not** what happens. The DN becomes an *authorization
@@ -82,12 +82,12 @@ typedef struct {
 
 | Auth method | `dn` ← | `subject` ← | `issuer` ← | `vo_list` ← | scopes ← | Notes |
 |---|---|---|---|---|---|---|
-| **GSI / X.509** (`src/gsi/auth.c`) | certificate **subject DN** | — | — | VOMS FQANs (if `vomsdir`+`voms_cert_dir` set) | — | DN is the *full* RFC2253 DN, e.g. `/DC=org/DC=cilogon/CN=Rob Currie`. |
-| **VOMS** (on top of GSI; `src/voms/`) | (DN as above) | — | — | the VOMS attribute cert FQANs | — | Each FQAN parsed into VO/role/group (§1.2). |
-| **Bearer token** (JWT/WLCG/SciToken; `src/token/`, `src/gsi/token.c`) | **mirror of `sub`** | `sub` claim | `iss` claim | `wlcg.groups` (or `groups`) | `scope` claim | `sub` is copied into `dn` so token principals can also match `u <name>` and OS-user rules (§3). |
-| **SSS** (Simple Shared Secret; `src/sss/`) | the **UNIX user** the keytab maps to | — | — | the **UNIX group** the keytab maps to | — | Both come straight from the keytab entry (`u:` / `g:`), or from the decrypted credential when the entry is `anybody`/`allusers`. |
-| **Kerberos 5** (`src/krb5/`) | **localname** (`krb5_aname_to_localname`, honoring `krb5.conf` `auth_to_local`) or the raw `user@REALM` | — | — | — | — | The localname is the natural bridge to a local UNIX user. |
-| **UNIX** (`src/unix/`, loopback-only by default) | client-asserted user | — | — | client-asserted group | — | Unverified; gated to loopback/AF_UNIX unless `unix_trust_remote`. |
+| **GSI / X.509** (`src/auth/gsi/auth.c`) | certificate **subject DN** | — | — | VOMS FQANs (if `vomsdir`+`voms_cert_dir` set) | — | DN is the *full* RFC2253 DN, e.g. `/DC=org/DC=cilogon/CN=Rob Currie`. |
+| **VOMS** (on top of GSI; `src/auth/voms/`) | (DN as above) | — | — | the VOMS attribute cert FQANs | — | Each FQAN parsed into VO/role/group (§1.2). |
+| **Bearer token** (JWT/WLCG/SciToken; `src/auth/token/`, `src/auth/gsi/token.c`) | **mirror of `sub`** | `sub` claim | `iss` claim | `wlcg.groups` (or `groups`) | `scope` claim | `sub` is copied into `dn` so token principals can also match `u <name>` and OS-user rules (§3). |
+| **SSS** (Simple Shared Secret; `src/auth/sss/`) | the **UNIX user** the keytab maps to | — | — | the **UNIX group** the keytab maps to | — | Both come straight from the keytab entry (`u:` / `g:`), or from the decrypted credential when the entry is `anybody`/`allusers`. |
+| **Kerberos 5** (`src/auth/krb5/`) | **localname** (`krb5_aname_to_localname`, honoring `krb5.conf` `auth_to_local`) or the raw `user@REALM` | — | — | — | — | The localname is the natural bridge to a local UNIX user. |
+| **UNIX** (`src/auth/unix/`, loopback-only by default) | client-asserted user | — | — | client-asserted group | — | Unverified; gated to loopback/AF_UNIX unless `unix_trust_remote`. |
 | **S3 SigV4** (`src/s3/`) | — | the **access key id** | — | — | — | Identity is the access key; group/VO mapping comes from authz rules keyed on the access key as `u <name>`. |
 | **Anonymous** (`xrootd_auth none`) | — | — | — | — | — | `is_authenticated = 0`; the engine sees the principal name as `*` (the `u *` default applies). |
 
@@ -124,19 +124,19 @@ position preserved), `group=/atlas`. Multiple FQANs accumulate, e.g.
 ## 2. The authorization gate: three tiers, fail-closed
 
 Every namespace/file operation passes through `xrootd_auth_gate*()`
-(`src/path/auth_gate.c`), which checks three tiers **in order** and denies on the
+(`src/auth/authz/auth_gate.c`), which checks three tiers **in order** and denies on the
 first failure (kXR_NotAuthorized / HTTP 403):
 
 ```
    ┌─────────────────────────────────────────────────────────────────┐
    │ 1. AUTHDB / XrdAcc engine                                         │
-   │    native  (xrootd_authdb_format native)  → src/path/authdb.c     │
-   │    xrdacc  (xrootd_authdb_format xrdacc)   → src/acc/  (engine)    │
+   │    native  (xrootd_authdb_format native)  → src/auth/authz/authdb.c     │
+   │    xrdacc  (xrootd_authdb_format xrdacc)   → src/auth/authz/acc/  (engine)    │
    │    → matches the identity (DN/VO/role/group/host/OS-group) to a   │
    │      path + privilege rule.   THIS is where local UNIX groups     │
    │      enter the decision (xrdacc only).                            │
    ├─────────────────────────────────────────────────────────────────┤
-   │ 2. VO ACL    (xrootd_require_vo <path> <vo>)  → src/path/acl.c     │
+   │ 2. VO ACL    (xrootd_require_vo <path> <vo>)  → src/auth/authz/acl.c     │
    │    → requires the identity's vo_list to contain <vo> on <path>.   │
    ├─────────────────────────────────────────────────────────────────┤
    │ 3. Token scope (WLCG/SciToken)              → token_scopes        │
@@ -167,7 +167,7 @@ native engine consults credential VO/groups only (§4.2).
 
 The engine's principal name is `name = xrootd_identity_dn_cstr(identity)` — i.e.
 the `dn` field (§1.1). When the engine needs the principal's OS supplementary
-groups it calls, in `src/acc/groups.c`:
+groups it calls, in `src/auth/authz/acc/groups.c`:
 
 ```c
 pw = getpwnam(name);                       /* name == the dn / sub / sss-user */
@@ -198,7 +198,7 @@ identity (see "force/override", §6.5).
 
 ### 3.2 The OS *group* resolver — knobs
 
-`src/acc/groups.c` resolves and **caches** the OS group set per principal:
+`src/auth/authz/acc/groups.c` resolves and **caches** the OS group set per principal:
 
 | Directive | Default | Effect |
 |---|---|---|
@@ -209,7 +209,7 @@ identity (see "force/override", §6.5).
 
 ### 3.3 How XrdAcc records match the resolved user & groups
 
-In `src/acc/access.c`, for principal `ent->name` (the dn) the engine accumulates
+In `src/auth/authz/acc/access.c`, for principal `ent->name` (the dn) the engine accumulates
 privileges from **all** matching identity categories (this is *additive* — see
 [authorization-xrdacc.md](authorization-xrdacc.md)):
 
@@ -256,7 +256,7 @@ record types are summarized in §3.3 above. Key points for mapping:
 
 ### 4.2 Native engine (`xrootd_authdb_format native`, the default)
 
-`src/path/authdb.c`. One rule per line, longest-path-prefix wins, **single**
+`src/auth/authz/authdb.c`. One rule per line, longest-path-prefix wins, **single**
 privilege check (no accumulation, no compound identities, no templates):
 
 ```
@@ -284,7 +284,7 @@ xrootd_require_vo  /cms   cms;       #  <path-prefix>  <required-VO>
 xrootd_require_vo  /atlas atlas;
 ```
 
-`src/path/acl.c`: longest-prefix path match, then the identity's `vo_list` must
+`src/auth/authz/acl.c`: longest-prefix path match, then the identity's `vo_list` must
 contain the required VO. No matching rule ⇒ unrestricted (this tier only *adds*
 a requirement on the listed prefixes). This is a coarse, fast VO gate that
 complements (does not replace) the authdb.
@@ -314,7 +314,7 @@ xrootd_inherit_parent_group  /data;     # path prefix; repeatable
 xrootd_inherit_parent_group  /projects;
 ```
 
-`src/path/group_policy.c` (`xrootd_apply_parent_group_policy_*`) then, for any
+`src/auth/authz/group_policy.c` (`xrootd_apply_parent_group_policy_*`) then, for any
 created object **under a matching prefix** (longest-prefix wins):
 
 1. `stat`s the parent directory.
@@ -546,18 +546,18 @@ u *         /data  rl                 # everyone else: read
 |---|---|
 | Canonical identity struct | `src/core/types/identity.h` |
 | FQAN → VO/role/group split; token claims → identity | `src/core/types/identity.c` |
-| GSI/X.509 DN extraction | `src/gsi/auth.c` |
-| VOMS FQAN extraction | `src/voms/` |
-| Token (JWT/WLCG) validation + claims | `src/token/`, `src/gsi/token.c` |
-| SSS keytab parse + credential → user/group | `src/sss/config.c`, `src/sss/auth_request.c` |
-| Kerberos principal → localname | `src/krb5/auth.c` |
+| GSI/X.509 DN extraction | `src/auth/gsi/auth.c` |
+| VOMS FQAN extraction | `src/auth/voms/` |
+| Token (JWT/WLCG) validation + claims | `src/auth/token/`, `src/auth/gsi/token.c` |
+| SSS keytab parse + credential → user/group | `src/auth/sss/config.c`, `src/auth/sss/auth_request.c` |
+| Kerberos principal → localname | `src/auth/krb5/auth.c` |
 | S3 access-key identity | `src/s3/` |
-| Three-tier auth gate | `src/path/auth_gate.c` |
-| Native authdb parse + match | `src/path/authdb.c` |
-| XrdAcc engine (grammar / decision) | `src/acc/authfile.c`, `src/acc/access.c`, `src/acc/entity.c` |
-| OS user/group + NIS netgroup resolution (`getpwnam`/`getgrouplist`/`innetgr`) | `src/acc/groups.c` |
-| VO ACL (`xrootd_require_vo`) | `src/path/acl.c`, `src/core/config/policy.c` |
-| Created-object group inheritance (`xrootd_inherit_parent_group`) | `src/path/group_policy.c` |
+| Three-tier auth gate | `src/auth/authz/auth_gate.c` |
+| Native authdb parse + match | `src/auth/authz/authdb.c` |
+| XrdAcc engine (grammar / decision) | `src/auth/authz/acc/authfile.c`, `src/auth/authz/acc/access.c`, `src/auth/authz/acc/entity.c` |
+| OS user/group + NIS netgroup resolution (`getpwnam`/`getgrouplist`/`innetgr`) | `src/auth/authz/acc/groups.c` |
+| VO ACL (`xrootd_require_vo`) | `src/auth/authz/acl.c`, `src/core/config/policy.c` |
+| Created-object group inheritance (`xrootd_inherit_parent_group`) | `src/auth/authz/group_policy.c` |
 | Directive tables | `src/stream/module.c` (root://), `src/webdav/module.c` (WebDAV/S3) |
 
 ---

@@ -40,7 +40,7 @@ These were built while chasing a (mis)hypothesized server concurrency bug; the N
 failure later proved that wasn't the cause. They are kept because each is a genuine
 latent improvement, and are validated (build clean; GSI 13/13; N=16 bursts pass):
 
-- **GSI ephemeral-DH key pool** (`src/gsi/keypool.c` + `keypool.h`, registered in
+- **GSI ephemeral-DH key pool** (`src/auth/gsi/keypool.c` + `keypool.h`, registered in
   `config`): a per-worker warm pool of pre-generated ffdhe2048 keys, refilled
   off-thread (`ngx_thread_task` into task-local storage; only the event thread
   mutates the pool), so `kXGC_certreq` no longer runs `EVP_PKEY_keygen` on the nginx
@@ -49,7 +49,7 @@ latent improvement, and are validated (build clean; GSI 13/13; N=16 bursts pass)
   in `cert_response.c`. Tunables `XROOTD_GSI_KEYPOOL_{SIZE,REFILL_LOW,REFILL_BATCH}`
   (64/32/32). Keygen is only ~0.3 ms (`openssl speed ffdh2048`), so this is robustness
   under load, not a single-stream win.
-- **`ERR_clear_error()`** at the top of `xrootd_handle_auth` (`src/gsi/auth.c`) and
+- **`ERR_clear_error()`** at the top of `xrootd_handle_auth` (`src/auth/gsi/auth.c`) and
   `xrootd_start_tls` (`src/connection/tls.c`): closes the OpenSSL per-thread
   error-queue leak (there were zero `ERR_clear_error` in `src/`) that can make nginx
   misreport benign TLS closes as handshake failures under mixed GSI+TLS traffic.

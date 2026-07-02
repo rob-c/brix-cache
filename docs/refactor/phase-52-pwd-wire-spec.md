@@ -10,7 +10,7 @@ prompt, password-change.
 ## Crypto = identical to GSI
 The pwd session cipher is `XrdCryptosslCipher` from the same `XrdCryptossl` factory as
 XrdSecgsi. DH agreement is identical: `Public()` exports DH public, `Finalize(peerpub)`
-runs `EVP_PKEY_derive`. **Reuse `src/gsi/gsi_core.c` DH + cipher primitives verbatim.**
+runs `EVP_PKEY_derive`. **Reuse `src/auth/gsi/gsi_core.c` DH + cipher primitives verbatim.**
 KDFun = **PBKDF2-HMAC-SHA1, 10000 iters, 24-byte output** (`XrdCryptosslAux.cc:78-110`).
 
 ## Bucket TLV (XrdSutBuffer.cc:438-514)

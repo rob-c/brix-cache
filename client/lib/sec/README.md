@@ -39,5 +39,5 @@ advertises, trying strongest-first; the weak host/unix/pwd schemes are preferred
 ## See also
 
 - `../README.md` — the `libxrdc` library overview.
-- Server side: [`src/gsi/`](../../../src/gsi/), [`src/token/`](../../../src/token/),
-  [`src/sss/`](../../../src/sss/), [`src/krb5/`](../../../src/krb5/).
+- Server side: [`src/auth/gsi/`](../../../src/auth/gsi/), [`src/auth/token/`](../../../src/auth/token/),
+  [`src/auth/sss/`](../../../src/auth/sss/), [`src/auth/krb5/`](../../../src/auth/krb5/).

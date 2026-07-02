@@ -204,8 +204,8 @@ nginx-xrootd/
   `src/protocol/*.h`, `src/core/compat/{crc32c,hex,crypto}.{c,h}`, and the
   errno→kXR / ns→kXR portions of `src/core/compat/error_mapping.{c,h}`.
 - **Stays in `src/`** (ngx-coupled, server-only): everything else —
-  `src/handshake/`, `src/session/`, `src/gsi/`, `src/sss/`, `src/krb5/`,
-  `src/token/`, `src/read/`, `src/write/`, `src/dirlist/`, `src/response/`,
+  `src/handshake/`, `src/session/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/krb5/`,
+  `src/auth/token/`, `src/read/`, `src/write/`, `src/dirlist/`, `src/response/`,
   `src/connection/`, `src/cms/`, `src/manager/`, `src/proxy/`, etc.
 - The nginx module's `config` adds `-Ishared/xrdproto/include` and lists the
   moved `.c` files in `NGX_ADDON_SRCS`, so the module build is unchanged in
@@ -268,11 +268,11 @@ to strip. "Reimplement-client-side" = logic is ngx-coupled or is the opposite
 | Initial 20B handshake validate + reply | **reimplement-client-side** | `src/handshake/client_hello.c` logic is correct but uses `ngx_palloc`/`ngx_log_t`/`ngx_connection_t`; client side is also the *opposite* role (we *send* the 20B init, *receive* the reply). Constants reused. |
 | `kXR_protocol` capability negotiation | **reimplement-client-side** | Parse `ServerResponseBody_Protocol` flags (`kXR_haveTLS`/`kXR_gotoTLS`/`kXR_suppgrw`/`kXR_supposc`) ourselves; struct from `protocol/wire.h`. |
 | `kXR_login` + sessid + `&P=` sec-token parse | **reimplement-client-side** | `src/session/login.c` is ngx-coupled; we issue the request, store `sessid[16]`, split the sec string. |
-| Auth state machine (`kXR_auth`/`kXR_authmore`) | **reimplement-client-side** | `src/session/`, `src/gsi/`, `src/sss/`, `src/token/` are server-role + ngx-coupled. Client drives the loop. |
-| GSI: X.509 chain, DH, AES, RSA-sign, buckets | **reimplement-client-side** (crypto reuse-after-extract) | `src/gsi/`, `src/crypto/gsi_verify.c` are server-role verification + ngx. Client builds the request side; low-level DH/AES/RSA/SHA come straight from OpenSSL `libcrypto`. Bucket frame format derived from `protocol/gsi.h` `kXRS_*`. |
-| SSS: keytab load, BF-CFB64, identity TLV | **reimplement-client-side** | `src/sss/` decrypts/verifies (server role); client encrypts. BF crypt kernel mirrors `auth_crypto_helpers.c`'s `xrootd_sss_bf32_crypt`. Keytab file format reverse-engineered (open question §13). |
-| Token (ztn) bearer send | **reimplement-client-side** | `src/token/` validates JWTs (server role); client merely *discovers and sends* the token. No client-side JWT verification needed. |
-| Kerberos5 AP_REQ | **reimplement-client-side** (libkrb5 reuse-as-is) | `src/krb5/auth.c` validates AP_REQ (server). Client uses `libkrb5` (`krb5_mk_req_extended`) directly, compile-gated `XROOTD_HAVE_KRB5`. |
+| Auth state machine (`kXR_auth`/`kXR_authmore`) | **reimplement-client-side** | `src/session/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/token/` are server-role + ngx-coupled. Client drives the loop. |
+| GSI: X.509 chain, DH, AES, RSA-sign, buckets | **reimplement-client-side** (crypto reuse-after-extract) | `src/auth/gsi/`, `src/auth/crypto/gsi_verify.c` are server-role verification + ngx. Client builds the request side; low-level DH/AES/RSA/SHA come straight from OpenSSL `libcrypto`. Bucket frame format derived from `protocol/gsi.h` `kXRS_*`. |
+| SSS: keytab load, BF-CFB64, identity TLV | **reimplement-client-side** | `src/auth/sss/` decrypts/verifies (server role); client encrypts. BF crypt kernel mirrors `auth_crypto_helpers.c`'s `xrootd_sss_bf32_crypt`. Keytab file format reverse-engineered (open question §13). |
+| Token (ztn) bearer send | **reimplement-client-side** | `src/auth/token/` validates JWTs (server role); client merely *discovers and sends* the token. No client-side JWT verification needed. |
+| Kerberos5 AP_REQ | **reimplement-client-side** (libkrb5 reuse-as-is) | `src/auth/krb5/auth.c` validates AP_REQ (server). Client uses `libkrb5` (`krb5_mk_req_extended`) directly, compile-gated `XROOTD_HAVE_KRB5`. |
 | `kXR_sigver` request-signing envelope | **reimplement-client-side** (HMAC reuse-after-extract) | Envelope framing + sequence tracking reimplemented; `xrootd_hmac_sha256()` reused. |
 | TCP socket I/O | **reimplement-client-side** | `src/connection/` is ngx event-loop. Client uses blocking sockets + `poll(2)` for timeouts. |
 | TLS upgrade / `roots://` | **reimplement-client-side** | `src/session/tls.c` is ngx_ssl. Client uses OpenSSL `SSL_CTX`/`SSL_connect` directly. |

@@ -1,6 +1,6 @@
 """test_creds_guard.py — unit test of the reserved-id guard predicate.
 
-Compiles c/creds_guard_test.c against src/impersonate/idmap.c and runs it.  This
+Compiles c/creds_guard_test.c against src/auth/impersonate/idmap.c and runs it.  This
 exercises xrootd_imp_creds_privileged() — the single authoritative test that the
 broker calls (at floor = XROOTD_IMP_HARD_MIN_ID = 1000) before ANY setfsuid, and
 that the mapping layer calls to deny reserved principals.  It is the core proof
