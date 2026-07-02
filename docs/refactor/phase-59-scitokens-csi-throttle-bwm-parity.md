@@ -439,6 +439,11 @@ reporting can advertise filesystem-checksum availability.
 - `xrootd_csi_fill on|off` (inverse of upstream `nofill`; default on)
 - `xrootd_csi_require on|off` (upstream `nomissing`; default off)
 - `xrootd_csi_scrub_interval <time>` (default 0 = off)
+- `xrootd_csi_trust_fs on|off` (default off) — the backing filesystem is
+  self-checksumming (ZFS/CephFS/RADOS/Btrfs): skip CSI read-verify entirely
+  (pure read handles don't open the tagstore; reads through write handles skip
+  the tag check). Writes still tag, RMW verify and the pgwrite wire-CRC check
+  stay on. `csi_require` is not enforced on read opens while trusting.
 
 **Scrub** — a *paced* background sweep ([`idle_cpu_timer_family`]: NOT a
 self-rearming hot poll) walking export roots, recomputing page CRCs, reporting

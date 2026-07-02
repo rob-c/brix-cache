@@ -38,6 +38,8 @@ typedef struct {
     unsigned fill:1;             /* tag implied-zero hole pages              */
     unsigned require:1;          /* missing tags ⇒ error                     */
     unsigned loose:1;            /* accept retried interrupted writes        */
+    unsigned trust_fs:1;         /* backing fs is self-checksumming: skip
+                                    read-verify (writes still tag)           */
     uint64_t tracked_len;        /* cached header value                      */
 } xrootd_csi_t;
 

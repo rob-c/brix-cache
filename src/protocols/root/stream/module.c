@@ -584,6 +584,13 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, csi_loose),
       NULL },
+
+    { ngx_string("xrootd_csi_trust_fs"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_xrootd_srv_conf_t, csi_trust_fs),
+      NULL },
  
     { ngx_string("xrootd_macaroon_secret"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,

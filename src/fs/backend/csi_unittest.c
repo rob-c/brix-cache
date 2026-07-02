@@ -88,6 +88,15 @@ main(void)
     rc = xrootd_csi_verify_read(&c, page, 0, sizeof(page));
     CHECK(rc == XROOTD_CSI_MISMATCH, "corrupt page detected");
 
+    /* trust_fs: the same corrupt page passes read-verify (skip), and clearing
+     * the bit detects it again — the tags themselves are untouched */
+    c.trust_fs = 1;
+    rc = xrootd_csi_verify_read(&c, page, 0, sizeof(page));
+    CHECK(rc == XROOTD_CSI_OK, "trust_fs skips read-verify on corrupt page");
+    c.trust_fs = 0;
+    rc = xrootd_csi_verify_read(&c, page, 0, sizeof(page));
+    CHECK(rc == XROOTD_CSI_MISMATCH, "clearing trust_fs detects again");
+
     /* restore and re-verify */
     page[1 * XROOTD_CSI_PAGE + 10] = 'B';
     rc = xrootd_csi_verify_read(&c, page, 0, sizeof(page));

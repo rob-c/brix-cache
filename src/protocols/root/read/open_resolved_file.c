@@ -582,9 +582,15 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 	/* phase-59 W2: attach a CSI page-checksum tagstore to this handle when
 	 * enabled. A write handle creates/uses tags; a read handle verifies against
-	 * existing tags. An untagged file with require=on is refused at open. */
+	 * existing tags. An untagged file with require=on is refused at open.
+	 * trust_fs (self-checksumming backing fs): a pure read handle skips the
+	 * tagstore entirely — no tag-file open, no per-read verify, and csi_require
+	 * is deliberately not enforced; a write handle still attaches so tags stay
+	 * fresh, with its own read-verify suppressed via csi->trust_fs. */
 	ctx->files[idx].csi = NULL;
-	if (conf->csi_enable && S_ISREG(st.st_mode)) {
+	if (conf->csi_enable && S_ISREG(st.st_mode)
+	    && !(conf->csi_trust_fs && !is_write))
+	{
 		const char *crel = resolved;
 		size_t      rlen = strlen(conf->common.root_canon);
 		xrootd_csi_t *csi;
@@ -606,6 +612,7 @@ xrootd_open_resolved_file(xrootd_ctx_t *ctx, ngx_connection_t *c,
 			csi->require = conf->csi_require ? 1 : 0;
 			csi->loose   = conf->csi_loose ? 1 : 0;
 			csi->strict  = conf->csi_loose ? 0 : 1;
+			csi->trust_fs = conf->csi_trust_fs ? 1 : 0;
 
 			crc = xrootd_csi_open(csi, conf->rootfd, crel,
 			    (const char *) conf->csi_prefix.data, is_write);
