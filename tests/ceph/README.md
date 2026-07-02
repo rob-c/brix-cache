@@ -4,6 +4,11 @@ End-to-end harness for the librados storage backend (`src/fs/backend/rados/`),
 built for **Docker Desktop on WSL2** (where the MON only lives in the DD VM, so
 everything that talks to RADOS runs in a `--network host` container).
 
+> **Deep reference:** how the RADOS/cephfsro builds are made and how the
+> Docker pieces fit together (harness, build image, work container, feature
+> gating, test ladder) is written up in
+> [`docs/10-reference/rados-cephfsro-builds-docker.md`](../../docs/10-reference/rados-cephfsro-builds-docker.md).
+
 ## One-time
 
 ```bash
