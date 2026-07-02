@@ -9,7 +9,7 @@ ok(){ printf '  ok   %s\n' "$1"; }; bad(){ printf '  FAIL %s\n' "$1"; fail=1; }
 cleanup(){ [ -f "$PFX/nginx.pid" ] && kill "$(cat "$PFX/nginx.pid")" 2>/dev/null
            [ -n "${MOCK:-}" ] && kill "$MOCK" 2>/dev/null; rm -rf "$PFX"; }
 trap cleanup EXIT
-MPORT=12831; CPORT=12832; XPORT=12833
+MPORT=12831; CPORT=12832; XPORT=12833; DPORT=12834
 mkdir -p "$PFX/cache" "$PFX/logs"
 
 cat > "$PFX/nginx.conf" <<EOF
@@ -43,6 +43,11 @@ http {
         access_log off;
         location /metrics { xrootd_metrics on; }
         location /healthz { xrootd_health on; }
+    }
+    server {   # T16: operator dashboard (live-transfer visibility check)
+        listen 127.0.0.1:$DPORT;
+        access_log off;
+        location /xrootd/ { xrootd_dashboard on; xrootd_dashboard_password "t16"; }
     }
 }
 EOF
@@ -112,6 +117,26 @@ NB2="$(curl -s "http://127.0.0.1:$MPORT/ctl/heads" | grep -oF "$BOGUS" | wc -l)"
 [ "$CN1" = 404 ] && [ "$CN2" = 404 ] && [ "$NB1" -ge 1 ] && [ "$NB1" = "$NB2" ] \
     && ok "negative cache absorbed repeat 404" \
     || bad "negative cache: codes=$CN1/$CN2 origin-probes=$NB1→$NB2"
+
+# T16: the dashboard sees an IN-FLIGHT cvmfs fill (stalled origin) with the
+# cvmfs protocol tag and the client-visible path
+OBJ6="$(curl -s "http://127.0.0.1:$MPORT/ctl/objects" | python3 -c \
+      'import json,sys; print(json.load(sys.stdin)[6])')"
+curl -s -o /dev/null -X POST -d '{"mode":"stall","count":1}' "http://127.0.0.1:$MPORT/ctl/fault"
+timeout 4 curl -s "http://127.0.0.1:$CPORT$OBJ6" -o /dev/null & STALLPID=$!
+sleep 1.2
+DTS="$(date +%s)"; DH="$(printf '%s' "$DTS" | openssl dgst -sha256 -hmac "t16" -hex | sed 's/^.*= //')"
+DJ="$(curl -s -H "Cookie: xrd_dashboard=${DH}.${DTS}" \
+      "http://127.0.0.1:$DPORT/xrootd/api/v1/transfers")"
+printf '%s' "$DJ" | grep -q '"protocol":"cvmfs"' \
+    && printf '%s' "$DJ" | grep -qF "\"path\":\"$OBJ6\"" \
+    && ok "dashboard: in-flight cvmfs fill visible (proto+path)" \
+    || bad "dashboard: no live cvmfs slot"
+printf '%s' "$DJ" | grep -q '"cvmfs_bytes_tx":' \
+    && ok "dashboard: totals carry the cvmfs bucket" \
+    || bad "dashboard: no cvmfs totals"
+wait "$STALLPID" 2>/dev/null   # only the stalled curl — never the mock job
+curl -s -o /dev/null -X POST -d '{"mode":"none","count":0}' "http://127.0.0.1:$MPORT/ctl/fault"
 
 # T17: reject lines are guard/fail2ban-parsable (convention #4 shape)
 grep -q 'cvmfs-reject: method=GET uri=.*client=.*class=reject' "$PFX/logs/e.log" \

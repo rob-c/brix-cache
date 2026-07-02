@@ -25,9 +25,12 @@ typedef struct {
     uint64_t  wdav_tx;
     uint64_t  s3_rx;
     uint64_t  s3_tx;
+    uint64_t  cvmfs_rx;       /* always 0 today: cvmfs is read-only        */
+    uint64_t  cvmfs_tx;       /* bytes served to the farm (hit + fill)     */
     uint64_t  stream_errors;
     uint64_t  webdav_errors;
     uint64_t  s3_errors;
+    uint64_t  cvmfs_errors;   /* fill failures + CAS verify mismatches     */
 } xrootd_dashboard_totals_t;
 
 typedef struct {
@@ -40,6 +43,7 @@ typedef struct {
     xrootd_dashboard_proto_summary_t root;
     xrootd_dashboard_proto_summary_t webdav;
     xrootd_dashboard_proto_summary_t s3;
+    xrootd_dashboard_proto_summary_t cvmfs;   /* phase-68 */
     xrootd_dashboard_proto_summary_t tpc;
 } xrootd_dashboard_protocols_t;
 

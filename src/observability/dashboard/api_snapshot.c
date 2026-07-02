@@ -46,6 +46,11 @@ dashboard_collect_totals(xrootd_dashboard_totals_t *totals)
     totals->wdav_tx = (uint64_t) met->webdav.bytes_tx_total;
     totals->s3_rx   = (uint64_t) met->s3.bytes_rx_total;
     totals->s3_tx   = (uint64_t) met->s3.bytes_tx_total;
+    totals->cvmfs_rx = 0;                     /* read-only protocol */
+    totals->cvmfs_tx = (uint64_t) met->cvmfs.bytes_served_hit_total
+                     + (uint64_t) met->cvmfs.bytes_served_fill_total;
+    totals->cvmfs_errors = (uint64_t) met->cvmfs.fill_failures_total
+                         + (uint64_t) met->cvmfs.verify_failures_total;
 
     /* HTTP error totals = count of all 4xx and 5xx responses, summed over every
      * method. responses_total is indexed [method][status-class]. */
@@ -100,6 +105,8 @@ dashboard_collect_protocols(xrootd_dashboard_protocols_t *out, int64_t now_ms)
             summary = &out->webdav;
         } else if (slot->proto == XROOTD_XFER_PROTO_S3) {
             summary = &out->s3;
+        } else if (slot->proto == XROOTD_XFER_PROTO_CVMFS) {
+            summary = &out->cvmfs;
         } else {
             summary = &out->root;
         }
@@ -150,9 +157,12 @@ dashboard_build_totals(const xrootd_dashboard_totals_t *totals)
     json_object_set_new(obj, "webdav_bytes_tx",     json_integer((json_int_t) totals->wdav_tx));
     json_object_set_new(obj, "s3_bytes_rx",         json_integer((json_int_t) totals->s3_rx));
     json_object_set_new(obj, "s3_bytes_tx",         json_integer((json_int_t) totals->s3_tx));
+    json_object_set_new(obj, "cvmfs_bytes_rx",      json_integer((json_int_t) totals->cvmfs_rx));
+    json_object_set_new(obj, "cvmfs_bytes_tx",      json_integer((json_int_t) totals->cvmfs_tx));
     json_object_set_new(obj, "stream_errors_total", json_integer((json_int_t) totals->stream_errors));
     json_object_set_new(obj, "webdav_errors_total", json_integer((json_int_t) totals->webdav_errors));
     json_object_set_new(obj, "s3_errors_total",     json_integer((json_int_t) totals->s3_errors));
+    json_object_set_new(obj, "cvmfs_errors_total",  json_integer((json_int_t) totals->cvmfs_errors));
     return obj;
 }
 
@@ -189,6 +199,7 @@ dashboard_build_protocols(int64_t now_ms,
     json_object_set_new(obj, "root",   dashboard_build_proto_summary(&ps.root,  totals->bytes_rx, totals->bytes_tx));
     json_object_set_new(obj, "webdav", dashboard_build_proto_summary(&ps.webdav,totals->wdav_rx,  totals->wdav_tx));
     json_object_set_new(obj, "s3",     dashboard_build_proto_summary(&ps.s3,    totals->s3_rx,    totals->s3_tx));
+    json_object_set_new(obj, "cvmfs",  dashboard_build_proto_summary(&ps.cvmfs, totals->cvmfs_rx, totals->cvmfs_tx));
 
     /* tpc has no cumulative byte counters — build inline */
     tpc_obj = json_object();
@@ -265,6 +276,7 @@ dashboard_fill_history(json_t *target, ngx_pool_t *pool)
         json_object_set_new(b, "active_root",         json_integer((json_int_t) buckets[i].active_root));
         json_object_set_new(b, "active_webdav",       json_integer((json_int_t) buckets[i].active_webdav));
         json_object_set_new(b, "active_s3",           json_integer((json_int_t) buckets[i].active_s3));
+        json_object_set_new(b, "active_cvmfs",        json_integer((json_int_t) buckets[i].active_cvmfs));
         json_object_set_new(b, "active_tpc",          json_integer((json_int_t) buckets[i].active_tpc));
         json_object_set_new(b, "bytes_rx",            json_integer((json_int_t) buckets[i].bytes_rx));
         json_object_set_new(b, "bytes_tx",            json_integer((json_int_t) buckets[i].bytes_tx));

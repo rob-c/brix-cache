@@ -100,6 +100,7 @@ xrootd_dashboard_history_sample(int64_t now_ms)
     ngx_uint_t                         active_root = 0;
     ngx_uint_t                         active_webdav = 0;
     ngx_uint_t                         active_s3 = 0;
+    ngx_uint_t                         active_cvmfs = 0;
     ngx_uint_t                         active_tpc = 0;
     ngx_uint_t                         i, j;
 
@@ -160,6 +161,9 @@ xrootd_dashboard_history_sample(int64_t now_ms)
             case XROOTD_XFER_PROTO_S3:
                 active_s3++;
                 break;
+            case XROOTD_XFER_PROTO_CVMFS:
+                active_cvmfs++;
+                break;
             default:
                 active_root++;
                 break;
@@ -197,6 +201,7 @@ xrootd_dashboard_history_sample(int64_t now_ms)
 
     bucket->active_root = active_root;
     bucket->active_webdav = active_webdav;
+    bucket->active_cvmfs = active_cvmfs;
     bucket->active_s3 = active_s3;
     bucket->active_tpc = active_tpc;
     bucket->bytes_rx = (ngx_atomic_t) bytes_rx;
