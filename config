@@ -355,6 +355,8 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/fs/cache/cinfo_l1.h \
                         $ngx_addon_dir/src/fs/cache/cinfo_xattr.h \
                         $ngx_addon_dir/src/fs/cache/cinfo_sidecar.h \
+                        $ngx_addon_dir/src/fs/meta/xmeta.h \
+                        $ngx_addon_dir/src/fs/meta/xmeta_carrier.h \
                         $ngx_addon_dir/src/fs/cache/cstore.h \
                         $ngx_addon_dir/src/fs/cache/verify.h \
                         $ngx_addon_dir/src/fs/cache/origin/transport.h \
@@ -799,6 +801,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/cinfo_l1.c \
     $ngx_addon_dir/src/fs/cache/cinfo_xattr.c \
     $ngx_addon_dir/src/fs/cache/cinfo_sidecar.c \
+    $ngx_addon_dir/src/fs/meta/xmeta.c \
+    $ngx_addon_dir/src/fs/meta/xmeta_carrier.c \
     $ngx_addon_dir/src/fs/cache/cstore.c \
     $ngx_addon_dir/src/fs/cache/verify.c \
     $ngx_addon_dir/src/protocols/cvmfs/classify.c \
@@ -1228,13 +1232,16 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/cvmfs/module.c \
                  $ngx_addon_dir/src/protocols/cvmfs/gate.c \
                  $ngx_addon_dir/src/protocols/cvmfs/geo.c \
                  $ngx_addon_dir/src/protocols/cvmfs/request.c \
-                 $ngx_addon_dir/src/protocols/cvmfs/upstreams.c"
+                 $ngx_addon_dir/src/protocols/cvmfs/upstreams.c \
+                 $ngx_addon_dir/src/protocols/cvmfs/origin_geo.c \
+                 $ngx_addon_dir/src/protocols/cvmfs/origin_probe.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/cvmfs/cvmfs.h \
                  $ngx_addon_dir/src/protocols/cvmfs/classify.h \
                  $ngx_addon_dir/src/core/config/shared_conf.h \
                  $ngx_addon_dir/src/fs/backend/sd.h \
                  $ngx_addon_dir/src/fs/vfs/vfs_backend_registry.h"
-ngx_module_libs=
+# libm: origin_geo.c haversine (sin/cos/atan2/sqrt)
+ngx_module_libs=-lm
 xrd_emit_module
 
 ngx_module_type=HTTP
