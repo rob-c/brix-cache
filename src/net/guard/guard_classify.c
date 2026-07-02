@@ -146,3 +146,30 @@ guard_classify_pre(const guard_ruleset_t *rs, const guard_request_t *req,
     *why = GUARD_R_NONE;
     return GUARD_ALLOW;
 }
+
+/* ---- Post-response signal classification ----
+ *
+ * WHAT: maps a completed request's outcome to a loggable bad-actor reason
+ *   (GUARD_R_NOTFOUND / GUARD_R_AUTHFAIL) when the ruleset flags that
+ *   outcome, else GUARD_R_NONE. Never bounces — the response already went
+ *   out.
+ *
+ * WHY: not-found storms and repeated auth failures are per-request weak
+ *   signals that fail2ban aggregates into a ban via jail thresholds; the
+ *   guard's job is only to emit one clean line each.
+ *
+ * HOW: 1. NOTFOUND outcome + flag_notfound -> GUARD_R_NOTFOUND.
+ *      2. AUTHFAIL outcome + flag_authfail -> GUARD_R_AUTHFAIL.
+ *      3. Everything else is not a signal.
+ */
+guard_reason_t
+guard_classify_post(const guard_ruleset_t *rs, const guard_request_t *req)
+{
+    if (req->outcome == OUTCOME_NOTFOUND && rs->flag_notfound) {
+        return GUARD_R_NOTFOUND;
+    }
+    if (req->outcome == OUTCOME_AUTHFAIL && rs->flag_authfail) {
+        return GUARD_R_AUTHFAIL;
+    }
+    return GUARD_R_NONE;
+}
