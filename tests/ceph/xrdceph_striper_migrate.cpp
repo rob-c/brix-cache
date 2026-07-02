@@ -62,11 +62,18 @@
  *                          all captured. Source pool never written.
  *   --sample-mb N          client read-bandwidth probe budget in MiB (default 64)
  *   --conf PATH            ceph.conf (default /etc/ceph/ceph.conf, or $CEPH_CONF)
+ *   --config PATH          site profile (or $XRDCEPH_MIGRATE_CONF): flat
+ *                          key = value lines supplying striper_pool/data_pool/
+ *                          dest_prefix/strip/conf/client/fs_name once per site.
+ *                          Precedence: explicit CLI > file > default. Give the
+ *                          full 3 positionals or NONE (the file supplies them).
  *
  *   g++ -std=c++17 -D_FILE_OFFSET_BITS=64 xrdceph_striper_migrate.cpp \
  *       -lrados -lcephfs -lpthread -o xrdceph_striper_migrate
  */
 #include <rados/librados.hpp>
+
+#include "xrdceph_migrate_config.h"
 #include <cephfs/libcephfs.h>
 
 #include <algorithm>
@@ -94,6 +101,9 @@ enum Mode { MODE_REDIRECT, MODE_COPY };
 
 struct Opts {
     std::string spool, dpool, dest, conf, list, strip;
+    std::string config;                   /* --config site profile path           */
+    std::string client = "admin";         /* ceph client id (config key `client`) */
+    std::string fsname;                   /* CephFS fs name (empty = default fs)  */
     int         threads = 4;
     Mode        mode = MODE_REDIRECT;     /* default: zero-move redirect          */
     bool        verify = false, del = false, force = false, dry = false;
@@ -800,6 +810,7 @@ main(int argc, char **argv)
         else if (a == "--strip"  && i + 1 < argc) { g.strip  = argv[++i]; }
         else if (a == "--threads" && i + 1 < argc) { g.threads = atoi(argv[++i]); }
         else if (a == "--conf"   && i + 1 < argc) { g.conf   = argv[++i]; }
+        else if (a == "--config" && i + 1 < argc) { g.config = argv[++i]; }
         else if (a == "--mode"   && i + 1 < argc) {
             std::string m = argv[++i];
             if      (m == "redirect") { g.mode = MODE_REDIRECT; }
@@ -818,11 +829,37 @@ main(int argc, char **argv)
         else if (a.rfind("--", 0) == 0)  { fprintf(stderr, "unknown option %s\n", a.c_str()); return 2; }
         else { pos.push_back(a); }
     }
-    if (pos.size() != 3) {
-        fprintf(stderr, "usage: %s <striper_pool> <cephfs_data_pool> <dest_prefix> [opts]\n", argv[0]);
+    /* site profile: explicit CLI > config file > built-in default; full
+     * positional arity or NONE (a partial mix is ambiguous and refused). */
+    if (g.config.empty() && getenv("XRDCEPH_MIGRATE_CONF") != NULL) {
+        g.config = getenv("XRDCEPH_MIGRATE_CONF");
+    }
+    xrdceph_migrate_cfg cfg;
+    if (!g.config.empty() && !xrdceph_migrate_cfg_load(g.config, &cfg)) {
         return 2;
     }
-    g.spool = pos[0]; g.dpool = pos[1]; g.dest = pos[2];
+    if (pos.size() != 3 && pos.size() != 0) {
+        fprintf(stderr, "usage: %s <striper_pool> <cephfs_data_pool> <dest_prefix> [opts]\n"
+                "       (give all three positionals, or none with --config)\n", argv[0]);
+        return 2;
+    }
+    if (pos.size() == 3) { g.spool = pos[0]; g.dpool = pos[1]; g.dest = pos[2]; }
+    g.spool  = xrdceph_migrate_cfg_resolve(g.spool,  cfg, "striper_pool");
+    g.dpool  = xrdceph_migrate_cfg_resolve(g.dpool,  cfg, "data_pool");
+    g.dest   = xrdceph_migrate_cfg_resolve(g.dest,   cfg, "dest_prefix");
+    g.strip  = xrdceph_migrate_cfg_resolve(g.strip,  cfg, "strip");
+    g.client = xrdceph_migrate_cfg_resolve("", cfg, "client", "admin");
+    g.fsname = xrdceph_migrate_cfg_resolve("", cfg, "fs_name");
+    for (auto req : { std::make_pair("striper_pool", &g.spool),
+                      std::make_pair("data_pool",    &g.dpool),
+                      std::make_pair("dest_prefix",  &g.dest) }) {
+        if (req.second->empty()) {
+            fprintf(stderr, "missing %s: pass positionals or set it in --config\n",
+                    req.first);
+            return 2;
+        }
+    }
+    if (g.conf.empty()) { g.conf = xrdceph_migrate_cfg_resolve("", cfg, "conf"); }
     if (g.conf.empty()) { g.conf = getenv("CEPH_CONF") ? getenv("CEPH_CONF") : "/etc/ceph/ceph.conf"; }
     if (g.threads < 1) { g.threads = 1; }
     if (g.sample_mb < 1) { g.sample_mb = 1; }
@@ -836,12 +873,17 @@ main(int argc, char **argv)
     }
 
     double t_connect = now_s();
-    if (g_cluster.init("admin") < 0 || g_cluster.conf_read_file(g.conf.c_str()) < 0
+    if (g_cluster.init(g.client.c_str()) < 0 || g_cluster.conf_read_file(g.conf.c_str()) < 0
         || g_cluster.connect() < 0) { fprintf(stderr, "rados connect\n"); return 1; }
     if (g_cluster.ioctx_create(g.spool.c_str(), g_src) < 0
         || g_cluster.ioctx_create(g.dpool.c_str(), g_dst) < 0) { fprintf(stderr, "ioctx\n"); return 1; }
-    if (ceph_create(&g_cm, "admin") < 0 || ceph_conf_read_file(g_cm, g.conf.c_str()) < 0
-        || ceph_mount(g_cm, "/") < 0) { fprintf(stderr, "cephfs mount\n"); return 1; }
+    if (ceph_create(&g_cm, g.client.c_str()) < 0 || ceph_conf_read_file(g_cm, g.conf.c_str()) < 0) {
+        fprintf(stderr, "cephfs init\n"); return 1;
+    }
+    if (!g.fsname.empty() && ceph_select_filesystem(g_cm, g.fsname.c_str()) < 0) {
+        fprintf(stderr, "cephfs select filesystem '%s'\n", g.fsname.c_str()); return 1;
+    }
+    if (ceph_mount(g_cm, "/") < 0) { fprintf(stderr, "cephfs mount\n"); return 1; }
     g_startup_s = now_s() - t_connect;   /* fixed cost a real run pays too */
 
     /* The XrdCeph striper source has no hardlinks/symlinks/snapshots in its object
