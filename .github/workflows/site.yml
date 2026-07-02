@@ -1,0 +1,47 @@
+# Build the gnuBall marketing site (site/) and publish it to the gh-pages branch.
+# GitHub Pages is configured (Settings → Pages) to serve from gh-pages / root.
+name: site
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+# Allow the action to push the built output to the gh-pages branch.
+permissions:
+  contents: write
+
+concurrency:
+  group: site-pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
+        working-directory: site
+        run: npm ci
+
+      - name: Build
+        working-directory: site
+        run: npm run build
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: site/dist
+          publish_branch: gh-pages
+          # If you adopt a custom domain, uncomment and set here (or rename
+          # site/public/CNAME.example to site/public/CNAME):
+          # cname: gnuball.dev

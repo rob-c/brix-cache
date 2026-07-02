@@ -1,0 +1,5 @@
+# build output + deps for the Astro marketing site
+dist/
+node_modules/
+.astro/
+npm-debug.log*

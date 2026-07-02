@@ -1,0 +1,22 @@
+---
+// A full-width horizontal band with a hard top rule. Every major section is a
+// Band, so the thick black rules between them make the page structure visible.
+interface Props {
+  variant?: 'plain' | 'sunken' | 'ink';
+  accent?: 'root' | 'dav' | 's3';
+  id?: string;
+  first?: boolean; // suppress the top rule (e.g. directly under the header)
+}
+const { variant = 'plain', accent, id, first = false } = Astro.props;
+const cls = [
+  'band-pad',
+  !first && 'band',
+  variant === 'sunken' && 'band--sunken',
+  variant === 'ink' && 'band--ink',
+].filter(Boolean).join(' ');
+---
+<section class={cls} id={id} data-accent={accent}>
+  <div class="wrap">
+    <slot />
+  </div>
+</section>

@@ -1,0 +1,94 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Band from '../../components/Band.astro';
+import AudienceHero from '../../components/AudienceHero.astro';
+import Benefit from '../../components/Benefit.astro';
+import Cta from '../../components/Cta.astro';
+---
+
+<Layout
+  title="For grid sysadmins"
+  description="Slide gnuBall in front of an existing xrootd server for TLS, auth, and Prometheus metrics — no client or backend changes. One nginx binary, three deploy modes, config validated before traffic."
+  accent="root"
+>
+  <Band first={true}>
+    <AudienceHero
+      group="grid sysadmins"
+      title="Add TLS, auth, and metrics. Change nothing downstream."
+      lede="gnuBall is an nginx module — so your storage endpoint inherits nginx's worker model, graceful reloads, and operational muscle memory. Deploy it standalone, or slide it in front of what you already run."
+    >
+      <div class="term" aria-label="Transparent proxy config">
+        <div class="term-title">in front of an existing server</div>
+        <div><span class="c"># stream {}</span></div>
+        <div>xrootd on;</div>
+        <div>xrootd_proxy on;</div>
+        <div>xrootd_proxy_upstream <span class="k">ceph-xrootd:1094</span>;</div>
+        <div class="mt"><span class="c"># clients connect to nginx — backend stays invisible</span></div>
+      </div>
+    </AudienceHero>
+  </Band>
+
+  <Band variant="sunken">
+    <span class="eyebrow">What you get on day one</span>
+    <h2 class="display sect-head">Operationally boring, on purpose.</h2>
+    <div class="grid grid-2">
+      <Benefit marker="drop-in" title="Front any XRootD service">
+        <p>
+          Run in transparent-proxy mode and gnuBall terminates TLS and auth, emits metrics, then
+          relays opcodes verbatim to your backend — lazy upstream connect, end-to-end file-handle
+          translation, backend identity never exposed. No client or backend config changes.
+        </p>
+      </Benefit>
+      <Benefit marker="modes" title="Three deployments, one instance">
+        <p>
+          Standalone server over a POSIX tree, transparent <span class="mono">root://</span> proxy,
+          or WebDAV perimeter proxy that terminates HTTPS + WLCG tokens and forwards inward. The
+          <span class="mono">stream {}</span> block owns native traffic, <span class="mono">http {}</span>
+          owns WebDAV / S3 / metrics. Mix them freely.
+        </p>
+      </Benefit>
+      <Benefit marker="fail-early" title="Bad config fails at nginx -t">
+        <p>
+          Missing certificates, JWKS files, CRLs, or required directories make
+          <span class="mono">nginx -t</span> fail with an explicit <span class="mono">emerg</span>
+          line — before any traffic is accepted. Reloads drain gracefully: in-flight transfers
+          finish on old workers while new connections pick up the new config.
+        </p>
+      </Benefit>
+      <Benefit marker="observe" title="Prometheus + a live dashboard">
+        <p>
+          Per-request counters for every protocol with fixed, low-cardinality labels, structured
+          access logs, and an HTTPS operator dashboard at <span class="mono">/xrootd/</span> showing
+          active transfers, cache and cluster health, and versioned JSON under
+          <span class="mono">/xrootd/api/v1/</span>.
+        </p>
+      </Benefit>
+      <Benefit marker="cache" title="Read-through cache built in">
+        <p>
+          XCache-style direct-mode fills from an anonymous <span class="mono">root://</span> /
+          <span class="mono">roots://</span> origin with per-file worker locks, with optional
+          write-through mirroring on <span class="mono">kXR_sync</span> / <span class="mono">kXR_close</span>.
+        </p>
+      </Benefit>
+      <Benefit marker="cluster" title="Manager & clustering">
+        <p>
+          CMS heartbeat, a dynamic server registry, <span class="mono">kXR_redirect</span> /
+          <span class="mono">kXR_locate</span>, and an S3 gateway — the pieces for a multi-node
+          storage federation, assembled from the same module.
+        </p>
+      </Benefit>
+    </div>
+  </Band>
+
+  <Band>
+    <Cta
+      title="Put it in front of your storage node."
+      note="The Operations and Proxy Mode guides walk through every deployment shape."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .sect-head { margin: 0.5rem 0 1.6rem; max-width: 22ch; }
+  .term .mt { margin-top: 0.6rem; }
+</style>

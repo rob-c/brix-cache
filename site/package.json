@@ -1,0 +1,21 @@
+{
+  "name": "gnuball-site",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Marketing site for gnuBall — the modular WLCG storage interface",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "astro": "^5.13.0"
+  },
+  "devDependencies": {
+    "@fontsource-variable/archivo": "^5.1.0",
+    "@fontsource/ibm-plex-mono": "^5.1.0",
+    "@fontsource/ibm-plex-sans": "^5.1.0"
+  }
+}

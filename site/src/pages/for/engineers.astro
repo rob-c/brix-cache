@@ -1,0 +1,103 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Band from '../../components/Band.astro';
+import AudienceHero from '../../components/AudienceHero.astro';
+import Benefit from '../../components/Benefit.astro';
+import Cta from '../../components/Cta.astro';
+
+const buckets = [
+  ['core', 'nginx plumbing: compat, types, config, shm, async I/O'],
+  ['protocols', 'one folder per wire protocol: root, webdav, s3, ssi, srr, dig'],
+  ['auth', 'identity & authz: gsi, token, sss, krb5, voms, crypto, impersonate'],
+  ['fs', 'the VFS — sole storage truth: path-confine, backends, cache, tier, xfer'],
+  ['net', 'scale-out: cms, manager, upstream, proxy, ratelimit, tap, mirror'],
+  ['observability', 'metrics, accesslog, dashboard, pmark'],
+  ['tpc', 'third-party copy — cross-plane by nature'],
+];
+---
+
+<Layout
+  title="For engineers"
+  description="One nginx binary speaks root://, WebDAV, and S3 over a shared core. Seven concept buckets, a VFS that is the sole storage truth with pluggable backends, and a clean-room client suite with no libXrdCl dependency."
+  accent="s3"
+>
+  <Band first={true}>
+    <AudienceHero
+      group="infra & OSS engineers"
+      title="Three protocols, one core, no monolith."
+      lede="gnuBall is a single nginx module. Three protocol front-ends parse the wire, one auth layer decides access, and all storage funnels through a VFS — raw file I/O exists in exactly one place."
+    >
+      <div class="term" aria-label="Source layout">
+        <div class="term-title">src/ — seven concept buckets</div>
+        {buckets.map(([name]) => (
+          <div><span class="k">{name}/</span></div>
+        ))}
+      </div>
+    </AudienceHero>
+  </Band>
+
+  <Band variant="sunken">
+    <span class="eyebrow">The architecture, honestly</span>
+    <h2 class="display sect-head">Snap-together parts, one seam for bytes.</h2>
+    <div class="grid grid-2">
+      <Benefit marker="shared-core" title="One event loop, three fronts">
+        <p>
+          The <span class="mono">stream {}</span> block owns native <span class="mono">root://</span>
+          / <span class="mono">roots://</span>; <span class="mono">http {}</span> owns WebDAV, S3,
+          and metrics. Both converge on one shared module core before touching a file — so auth,
+          path confinement, caching, and metrics are written once.
+        </p>
+      </Benefit>
+      <Benefit marker="vfs" title="The VFS is the sole storage truth">
+        <p>
+          Bytes, namespace, and metadata all route through <span class="mono">src/fs/</span>. Raw
+          <span class="mono">pread</span> / <span class="mono">pwrite</span> / <span class="mono">sendfile</span>
+          live only in <span class="mono">src/fs/backend/</span> behind a capability-typed driver —
+          so an object or S3 backend can become primary without changing anything above it.
+        </p>
+      </Benefit>
+      <Benefit marker="async" title="No worker ever blocks">
+        <p>
+          Every disk syscall is handed to an nginx thread pool while the worker keeps framing
+          protocol and servicing other sockets. Cleartext reads use file-backed
+          <span class="mono">sendfile</span>; TLS uses memory-backed buffers — never mixed.
+        </p>
+      </Benefit>
+      <Benefit marker="clean-room" title="A clean-room client suite">
+        <p>
+          The repo ships its own <span class="mono">xrdcp</span>, <span class="mono">xrdfs</span>,
+          diagnostics, checksum tools, a <span class="mono">xrootdfs</span> FUSE mount, a POSIX
+          preload shim, and the C library <span class="mono">libxrdc</span> — built on the same
+          in-tree protocol vocabulary, with no dependency on upstream
+          <span class="mono">libXrdCl</span> / <span class="mono">libXrdSec</span>.
+        </p>
+      </Benefit>
+      <Benefit marker="conformance" title="Tested against the reference">
+        <p>
+          Whole test modules run unchanged against both gnuBall and the reference xrootd daemon —
+          native <span class="mono">root://</span> and the XrdHttp WebDAV endpoint. Any divergence
+          in status code or bytes is a conformance failure, not a footnote.
+        </p>
+      </Benefit>
+      <Benefit marker="wire" title="The full 5.2 wire protocol">
+        <p>
+          All 32 active XRootD opcodes — <span class="mono">open</span>, <span class="mono">read</span>,
+          <span class="mono">pgread</span>, <span class="mono">readv</span>, <span class="mono">write</span>,
+          <span class="mono">pgwrite</span>, <span class="mono">stat</span>, <span class="mono">fattr</span>,
+          <span class="mono">sigver</span>, and the rest — with per-page CRC32c on the paged paths.
+        </p>
+      </Benefit>
+    </div>
+  </Band>
+
+  <Band>
+    <Cta
+      title="Read the source, not just the pitch."
+      note="AGPL-3.0-only. The developer guide has the operation-to-file map and implementation recipes."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .sect-head { margin: 0.5rem 0 1.6rem; max-width: 24ch; }
+</style>

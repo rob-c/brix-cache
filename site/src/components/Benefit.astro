@@ -1,0 +1,24 @@
+---
+// A single benefit/argument block used on the audience pages: a short mono
+// marker, a title, and free-form body content in the default slot.
+interface Props {
+  marker: string;
+  title: string;
+}
+const { marker, title } = Astro.props;
+---
+<article class="panel panel--hover benefit">
+  <span class="benefit-marker mono">{marker}</span>
+  <h3 class="benefit-title">{title}</h3>
+  <div class="benefit-body stack">
+    <slot />
+  </div>
+</article>
+
+<style>
+  .benefit { display: flex; flex-direction: column; height: 100%; }
+  .benefit-marker { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .benefit-title { font-family: var(--display); font-stretch: 112%; font-weight: 700; font-size: 1.35rem; letter-spacing: -0.01em; margin-top: 0.35rem; line-height: 1.05; }
+  .benefit-body { margin-top: 0.7rem; font-size: 0.96rem; }
+  .benefit-body :global(p) { color: var(--ink-2); }
+</style>

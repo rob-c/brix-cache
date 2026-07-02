@@ -1,0 +1,24 @@
+---
+// Closing call-to-action band, reused at the foot of every page.
+import { REPO_URL, DOCS_URL } from '../lib/site';
+interface Props {
+  title: string;
+  note?: string;
+}
+const { title, note } = Astro.props;
+---
+<div class="cta">
+  <h2 class="display cta-title">{title}</h2>
+  {note && <p class="lede muted cta-note">{note}</p>}
+  <div class="cta-actions">
+    <a class="btn btn--accent" href={DOCS_URL}>Read the docs →</a>
+    <a class="btn" href={REPO_URL}>View source ↗</a>
+  </div>
+</div>
+
+<style>
+  .cta { text-align: center; display: grid; justify-items: center; gap: 1rem; }
+  .cta-title { max-width: 20ch; }
+  .cta-note { text-align: center; }
+  .cta-actions { display: flex; gap: 0.8rem; flex-wrap: wrap; justify-content: center; margin-top: 0.4rem; }
+</style>
