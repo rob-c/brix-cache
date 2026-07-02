@@ -33,8 +33,14 @@
 #include "core/compat/alloc_guard.h"
 #include "fs/cache/verify.h"               /* xrootd_cache_verify_mode_e */
 #include "fs/vfs/vfs_backend_registry.h"
+#include "origin_geo.h"
+#include "fs/backend/http/sd_http.h"       /* SD_HTTP_EP_MAX */
+
+#include <stdlib.h>                        /* strtod (coord parsing) */
 
 static ngx_int_t ngx_http_xrootd_cvmfs_postconfiguration(ngx_conf_t *cf);
+static char *cvmfs_geo_rank_config(ngx_conf_t *cf,
+    ngx_http_xrootd_cvmfs_loc_conf_t *conf);
 
 /*
  * Config lifecycle
@@ -71,8 +77,164 @@ ngx_http_xrootd_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->cvmfs.negative_ttl   = NGX_CONF_UNSET;
     c->cvmfs.upstream_allow = NGX_CONF_UNSET_PTR;
     c->cvmfs.upstream_max   = NGX_CONF_UNSET_UINT;
+    c->cvmfs.origin_select  = NGX_CONF_UNSET_UINT;
+    c->cvmfs.origin_coords  = NGX_CONF_UNSET_PTR;
+    c->cvmfs.rtt_interval   = NGX_CONF_UNSET;
 
     return c;
+}
+
+/* Parse "<lat>:<lon>" into two doubles. 0 on success. */
+static int
+cvmfs_parse_latlon(const ngx_str_t *v, double *lat, double *lon)
+{
+    char  buf[64], *colon, *end;
+
+    if (v->len == 0 || v->len >= sizeof(buf)) {
+        return -1;
+    }
+    ngx_memcpy(buf, v->data, v->len);
+    buf[v->len] = '\0';
+    colon = strchr(buf, ':');
+    if (colon == NULL) {
+        return -1;
+    }
+    *colon = '\0';
+    *lat = strtod(buf, &end);
+    if (end == buf || *end != '\0' || *lat < -90.0 || *lat > 90.0) {
+        return -1;
+    }
+    *lon = strtod(colon + 1, &end);
+    if (end == colon + 1 || *end != '\0' || *lon < -180.0 || *lon > 180.0) {
+        return -1;
+    }
+    return 0;
+}
+
+/* Geo mode (T19): every configured endpoint must have coordinates and
+ * xrootd_cvmfs_here must be set — rank once by great-circle distance and
+ * record the ranks on the backend entry (applied at instance build). */
+static char *
+cvmfs_geo_rank_config(ngx_conf_t *cf, ngx_http_xrootd_cvmfs_loc_conf_t *conf)
+{
+    double                here_lat, here_lon;
+    double                metric[SD_HTTP_EP_MAX];
+    int                   ranks[SD_HTTP_EP_MAX];
+    const char           *host;
+    int                   port, idx, n;
+    xrootd_cvmfs_coord_t *coords;
+    ngx_uint_t            i;
+
+    if (conf->cvmfs.here.len == 0
+        || cvmfs_parse_latlon(&conf->cvmfs.here, &here_lat, &here_lon) != 0)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cvmfs_origin_select geo requires xrootd_cvmfs_here "
+            "<lat>:<lon>");
+        return NGX_CONF_ERROR;
+    }
+    if (conf->cvmfs.origin_coords == NULL
+        || conf->cvmfs.origin_coords->nelts == 0)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cvmfs_origin_select geo requires one "
+            "xrootd_cvmfs_origin_coords per configured origin");
+        return NGX_CONF_ERROR;
+    }
+    coords = conf->cvmfs.origin_coords->elts;
+
+    for (n = 0; n < SD_HTTP_EP_MAX; n++) {
+        int matched = 0;
+
+        if (xrootd_vfs_backend_http_endpoint_at(conf->common.root_canon, n,
+                                                &host, &port) != 0)
+        {
+            break;
+        }
+        for (i = 0; i < conf->cvmfs.origin_coords->nelts; i++) {
+            size_t hl = ngx_strlen(host);
+
+            if (coords[i].host.len != hl
+                || ngx_strncasecmp(coords[i].host.data, (u_char *) host, hl)
+                   != 0)
+            {
+                continue;
+            }
+            if (coords[i].port != 0 && (int) coords[i].port != port) {
+                continue;
+            }
+            metric[n] = xrootd_cvmfs_haversine_km(here_lat, here_lon,
+                                                  coords[i].lat,
+                                                  coords[i].lon);
+            matched = 1;
+            break;
+        }
+        if (!matched) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_cvmfs_origin_select geo: no xrootd_cvmfs_origin_coords "
+                "for origin %s:%d", host, port);
+            return NGX_CONF_ERROR;
+        }
+    }
+    if (n == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "xrootd_cvmfs_origin_select geo requires an http(s) "
+            "xrootd_cvmfs_storage_backend");
+        return NGX_CONF_ERROR;
+    }
+    for (idx = n; idx < SD_HTTP_EP_MAX; idx++) {
+        ranks[idx] = 0;
+    }
+    xrootd_cvmfs_rank_by_metric(metric, n, ranks);
+    xrootd_vfs_backend_set_http_ranks(conf->common.root_canon, ranks,
+                                      SD_HTTP_EP_MAX);
+    return NGX_CONF_OK;
+}
+
+/* xrootd_cvmfs_origin_coords <host[:port]> <lat>:<lon> — geographic position
+ * of one origin (multi). An entry with a port matches only that endpoint. */
+static char *
+ngx_http_xrootd_cvmfs_set_coords(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_http_xrootd_cvmfs_loc_conf_t *lcf = conf;
+    ngx_str_t                        *value = cf->args->elts;
+    xrootd_cvmfs_coord_t             *c;
+    u_char                           *colon;
+
+    (void) cmd;
+    if (lcf->cvmfs.origin_coords == NGX_CONF_UNSET_PTR
+        || lcf->cvmfs.origin_coords == NULL)
+    {
+        lcf->cvmfs.origin_coords =
+            ngx_array_create(cf->pool, 4, sizeof(xrootd_cvmfs_coord_t));
+        if (lcf->cvmfs.origin_coords == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+    c = ngx_array_push(lcf->cvmfs.origin_coords);
+    if (c == NULL) {
+        return NGX_CONF_ERROR;
+    }
+
+    c->host = value[1];
+    c->port = 0;
+    colon = ngx_strlchr(value[1].data, value[1].data + value[1].len, ':');
+    if (colon != NULL) {
+        ngx_int_t p = ngx_atoi(colon + 1,
+                               (size_t) (value[1].data + value[1].len
+                                         - (colon + 1)));
+
+        if (p < 1 || p > 65535) {
+            return "has an invalid port";
+        }
+        c->port = (in_port_t) p;
+        c->host.len = (size_t) (colon - value[1].data);
+    }
+    if (cvmfs_parse_latlon(&value[2], &c->lat, &c->lon) != 0) {
+        return "has invalid <lat>:<lon> coordinates";
+    }
+    return NGX_CONF_OK;
 }
 
 static char *
@@ -142,6 +304,14 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                              prev->cvmfs.upstream_allow, NULL);
     ngx_conf_merge_uint_value(conf->cvmfs.upstream_max, prev->cvmfs.upstream_max,
                               8);
+    ngx_conf_merge_uint_value(conf->cvmfs.origin_select,
+                              prev->cvmfs.origin_select,
+                              XROOTD_CVMFS_SELECT_STATIC);
+    ngx_conf_merge_ptr_value(conf->cvmfs.origin_coords,
+                             prev->cvmfs.origin_coords, NULL);
+    ngx_conf_merge_str_value(conf->cvmfs.here, prev->cvmfs.here, "");
+    ngx_conf_merge_sec_value(conf->cvmfs.rtt_interval, prev->cvmfs.rtt_interval,
+                             60);
 
     if (conf->cvmfs.enable) {
         xrootd_export_root_opts_t root_opts;
@@ -194,6 +364,19 @@ ngx_http_xrootd_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
         /* Phase-64: compose the cache/stage tiers over the backend. */
         if (xrootd_tier_register_stores(cf, &conf->common) != NGX_OK) {
             return NGX_CONF_ERROR;
+        }
+
+        /* T19 origin selection: geo ranks compute once at config time;
+         * rtt registers the per-worker probe; static keeps configured
+         * order (all ranks 0 — the pick is order-stable on ties). */
+        if (conf->cvmfs.origin_select == XROOTD_CVMFS_SELECT_GEO) {
+            if (cvmfs_geo_rank_config(cf, conf) != NGX_CONF_OK) {
+                return NGX_CONF_ERROR;
+            }
+        } else if (conf->cvmfs.origin_select == XROOTD_CVMFS_SELECT_RTT) {
+            xrootd_cvmfs_rtt_register(conf->common.root_canon,
+                                      conf->cvmfs.rtt_interval,
+                                      &conf->common.thread_pool_name);
         }
     }
 
@@ -286,7 +469,42 @@ static ngx_conf_enum_t  xrootd_cvmfs_verify_enum[] = {
     { ngx_null_string, 0 }
 };
 
+static ngx_conf_enum_t  xrootd_cvmfs_select_enum[] = {
+    { ngx_string("static"), XROOTD_CVMFS_SELECT_STATIC },
+    { ngx_string("geo"),    XROOTD_CVMFS_SELECT_GEO },
+    { ngx_string("rtt"),    XROOTD_CVMFS_SELECT_RTT },
+    { ngx_null_string, 0 }
+};
+
 static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
+
+    { ngx_string("xrootd_cvmfs_origin_select"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.origin_select),
+      xrootd_cvmfs_select_enum },
+
+    { ngx_string("xrootd_cvmfs_origin_coords"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE2,
+      ngx_http_xrootd_cvmfs_set_coords,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_here"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.here),
+      NULL },
+
+    { ngx_string("xrootd_cvmfs_rtt_interval"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.rtt_interval),
+      NULL },
 
     { ngx_string("xrootd_cache_verify"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -364,6 +582,13 @@ static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
     ngx_null_command
 };
 
+/* Worker init: arm the T19 RTT probe timers for every registered export. */
+static ngx_int_t
+ngx_http_xrootd_cvmfs_init_process(ngx_cycle_t *cycle)
+{
+    return xrootd_cvmfs_rtt_init_worker(cycle);
+}
+
 ngx_module_t ngx_http_xrootd_cvmfs_module = {
     NGX_MODULE_V1,
     &ngx_http_xrootd_cvmfs_module_ctx,  /* module context     */
@@ -371,7 +596,7 @@ ngx_module_t ngx_http_xrootd_cvmfs_module = {
     NGX_HTTP_MODULE,                    /* module type        */
     NULL,                               /* init master        */
     NULL,                               /* init module        */
-    NULL,                               /* init process       */
+    ngx_http_xrootd_cvmfs_init_process, /* init process       */
     NULL,                               /* init thread        */
     NULL,                               /* exit thread        */
     NULL,                               /* exit process       */

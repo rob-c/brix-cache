@@ -231,6 +231,9 @@ xrootd_vfs_backend_build_source(xrootd_vfs_backend_entry_t *e, ngx_log_t *log)
                 "xrootd: http backend init failed for export \"%s\"",
                 e->root_canon);
         } else {
+            if (e->has_http_ranks) {
+                sd_http_set_ranks(inst, e->http_ranks, 8);   /* T19 geo/static */
+            }
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
                 "xrootd: http storage backend ready at \"%s\"", e->root_canon);
         }

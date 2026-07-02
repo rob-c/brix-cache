@@ -117,6 +117,13 @@ ngx_int_t xrootd_vfs_backend_register_http_upstream(const char *up_root,
     const char *template_root, const char *host, int port, int tls,
     const char *store_suffix);
 
+/* T19 origin selection: endpoint inventory + config-time rank recording for
+ * the http backend at `root_canon` (see vfs_backend_config.c). */
+int  xrootd_vfs_backend_http_endpoint_at(const char *root_canon, int idx,
+    const char **host, int *port);
+void xrootd_vfs_backend_set_http_ranks(const char *root_canon,
+    const int *ranks, int n);
+
 /* Resolve the bound backend for an ABSOLUTE path by longest-prefix match against
  * the registered export roots (so a staged-file commit can find the export a
  * final path belongs to without the caller threading root_canon). On a match,

@@ -37,11 +37,11 @@ cmp -s "$PFX/cold.bin" "$PFX/orig.bin" && cmp -s "$PFX/warm.bin" "$PFX/orig.bin"
 # 2: stampede coalescing on a fresh object
 OBJ2="$(curl -s "http://127.0.0.1:$MPORT/ctl/objects" | python3 -c \
       'import json,sys; print(json.load(sys.stdin)[3])')"
-N0="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -c "$OBJ2" || true)"
+N0="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -oF "$OBJ2" | wc -l || true)"
 # subshell: its wait sees only the curls, not the long-lived mock job
 ( for i in $(seq 1 40); do curl -s "http://127.0.0.1:$RPORT$OBJ2" -o /dev/null & done
   wait )
-N1="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -c "$OBJ2" || true)"
+N1="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -oF "$OBJ2" | wc -l || true)"
 [ "$((N1 - N0))" -le 2 ] && ok "stampede coalesced ($((N1-N0)) origin fetches)" \
     || bad "stampede: $((N1-N0)) origin fetches"
 

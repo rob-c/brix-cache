@@ -9,6 +9,7 @@
 #include "sd_http.h"
 
 #include <errno.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,7 +30,7 @@ typedef struct {
     int   tls;
     char  base_path[SD_HTTP_BASE_MAX];
     int   fail_score;
-    int   rank;
+    _Atomic int rank;                 /* T19 selection preference; relaxed */
 } sd_http_endpoint;
 
 /* Health breaks ties inside a rank; a preferred-but-sick endpoint is only
@@ -77,7 +78,9 @@ sd_http_write_path(const sd_http_inst_state *is, const char *key, char *dst,
 static int
 sd_http_ep_score(const sd_http_endpoint *ep)
 {
-    return ep->rank * SD_HTTP_RANK_WEIGHT + ep->fail_score;
+    return atomic_load_explicit((_Atomic int *) &ep->rank,
+                                memory_order_relaxed)
+         * SD_HTTP_RANK_WEIGHT + ep->fail_score;
 }
 
 /* Pick the best endpoint (lowest effective score, order-stable ties). */
@@ -103,7 +106,9 @@ sd_http_preferred(sd_http_inst_state *is)
     int               i;
 
     for (i = 1; i < is->n_eps; i++) {
-        if (is->eps[i].rank < best->rank) {
+        if (atomic_load_explicit(&is->eps[i].rank, memory_order_relaxed)
+            < atomic_load_explicit(&best->rank, memory_order_relaxed))
+        {
             best = &is->eps[i];
         }
     }
@@ -496,6 +501,61 @@ static const xrootd_sd_driver_t xrootd_sd_http_driver = {
     .staged_commit = sd_http_staged_commit,
     .staged_abort  = sd_http_staged_abort,
 };
+
+/* ---- T19/T20 selection + introspection API -------------------------------- */
+
+/* 1 iff `inst` is an sd_http instance (guards the accessors below). */
+static int
+sd_http_instance_is(const xrootd_sd_instance_t *inst)
+{
+    return inst != NULL && inst->driver == &xrootd_sd_http_driver;
+}
+
+/* Push selection ranks (rank 0 = most preferred; order = endpoint order).
+ * Written on the event loop, read by fill threads — relaxed atomics. */
+void
+sd_http_set_ranks(xrootd_sd_instance_t *inst, const int *ranks, int n)
+{
+    sd_http_inst_state *is;
+    int                 i;
+
+    if (!sd_http_instance_is(inst)) {
+        return;
+    }
+    is = inst->state;
+    for (i = 0; i < is->n_eps && i < n; i++) {
+        atomic_store_explicit(&is->eps[i].rank, ranks[i],
+                              memory_order_relaxed);
+    }
+}
+
+/* Endpoint inventory for the RTT prober (copies, no ngx types). */
+int
+sd_http_endpoint_list(xrootd_sd_instance_t *inst, char hosts[][256],
+    int *ports, int max)
+{
+    sd_http_inst_state *is;
+    int                 i, n;
+
+    if (!sd_http_instance_is(inst)) {
+        return 0;
+    }
+    is = inst->state;
+    n = (is->n_eps < max) ? is->n_eps : max;
+    for (i = 0; i < n; i++) {
+        memcpy(hosts[i], is->eps[i].host, sizeof(is->eps[i].host));
+        ports[i] = is->eps[i].port;
+    }
+    return n;
+}
+
+/* Endpoint count (0 for a non-http instance). */
+int
+sd_http_n_endpoints(xrootd_sd_instance_t *inst)
+{
+    return sd_http_instance_is(inst)
+         ? ((sd_http_inst_state *) inst->state)->n_eps : 0;
+}
 
 xrootd_sd_instance_t *
 xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg, ngx_log_t *log)

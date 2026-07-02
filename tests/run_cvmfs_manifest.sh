@@ -35,9 +35,9 @@ M="/cvmfs/test.cern.ch/.cvmfspublished"
 
 # 1: within TTL → cached
 curl -s "http://127.0.0.1:$CPORT$M" -o "$PFX/m1"
-N1="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -c cvmfspublished)"
+N1="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -oF cvmfspublished | wc -l)"
 curl -s "http://127.0.0.1:$CPORT$M" -o "$PFX/m2"
-N2="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -c cvmfspublished)"
+N2="$(curl -s "http://127.0.0.1:$MPORT/ctl/log" | grep -oF cvmfspublished | wc -l)"
 [ "$N1" = "$N2" ] && cmp -s "$PFX/m1" "$PFX/m2" && ok "fresh manifest from cache" \
     || bad "manifest not cached within TTL (origin $N1→$N2)"
 
