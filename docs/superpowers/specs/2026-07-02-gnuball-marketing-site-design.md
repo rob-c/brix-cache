@@ -31,7 +31,7 @@ Everyone on the front page, then a dedicated sub-page per group:
    speaks three protocols over a shared core; VFS/backend seam; snap-together
    design.
 4. **Funders / stakeholders** — impact and credibility: petabyte-scale HEP data,
-   WLCG-native security, project maturity, Apache-2.0 licensing.
+   WLCG-native security, project maturity, AGPL-3.0-only licensing.
 
 ## Visual direction
 

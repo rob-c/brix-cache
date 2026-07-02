@@ -1,0 +1,30 @@
+---
+// Hero for the four audience pages: a "for <group>" eyebrow, headline, lede,
+// and a back-link to the home grid. Body content (a key stat or snippet) goes
+// in the default slot on the right.
+import { url } from '../lib/site';
+interface Props {
+  group: string;
+  title: string;
+  lede: string;
+}
+const { group, title, lede } = Astro.props;
+---
+<div class="ah">
+  <div class="ah-copy stack">
+    <span class="eyebrow">For {group}</span>
+    <h1 class="display">{title}</h1>
+    <p class="lede">{lede}</p>
+    <a class="ah-back mono" href={url('/#who')}>← who else it's for</a>
+  </div>
+  <div class="ah-aside">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .ah { display: grid; gap: 2rem; align-items: center; }
+  @media (min-width: 900px) { .ah { grid-template-columns: 1.1fr 0.9fr; gap: 3rem; } }
+  .ah-back { text-decoration: none; font-size: 0.82rem; font-weight: 600; }
+  .ah-back:hover { text-decoration: underline; }
+</style>

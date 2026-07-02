@@ -1,0 +1,76 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Band from '../../components/Band.astro';
+import AudienceHero from '../../components/AudienceHero.astro';
+import Benefit from '../../components/Benefit.astro';
+import Cta from '../../components/Cta.astro';
+---
+
+<Layout
+  title="For physicists"
+  description="Your tools already work with gnuBall — xrdcp, xrdfs, rucio, aws-cli, or a browser. The same file is reachable three ways, and transfers finish byte-exact even on a bad network."
+  accent="dav"
+>
+  <Band first={true}>
+    <AudienceHero
+      group="physicists & grid users"
+      title="Your tools already work with it."
+      lede="You don't run the server, and you shouldn't have to care how it's built. Point xrdcp, rucio, aws-cli, or a browser at it and copy your data — the same way you already do."
+    >
+      <div class="term" aria-label="Everyday commands">
+        <div class="term-title">same file, whichever tool you reach for</div>
+        <div><span class="p">$</span> xrdcp root://host//data/run3/AOD.root .</div>
+        <div><span class="p">$</span> rucio download <span class="k">mc23_13p6TeV.AOD</span></div>
+        <div><span class="p">$</span> aws s3 cp s3://host/data/run3/AOD.root .</div>
+      </div>
+    </AudienceHero>
+  </Band>
+
+  <Band variant="sunken">
+    <span class="eyebrow">Why it helps your day</span>
+    <h2 class="display sect-head">Fewer surprises between you and your data.</h2>
+    <div class="grid grid-2">
+      <Benefit marker="just-works" title="No new client, no new habits">
+        <p>
+          gnuBall speaks the protocols your tools already use: <span class="mono">xrdcp</span>,
+          <span class="mono">xrdfs</span>, the Python XRootD client, <span class="mono">rucio</span>,
+          the AWS CLI, <span class="mono">boto3</span>, and ordinary browsers. Same URLs, same
+          commands.
+        </p>
+      </Benefit>
+      <Benefit marker="one-tree" title="One file, reachable three ways">
+        <p>
+          The same POSIX tree is visible at once over <span class="mono">root://</span>,
+          <span class="mono">davs://</span>, and S3. Checksums, metadata, and extended attributes
+          match no matter which protocol you use — copy with <span class="mono">xrdcp</span>, verify
+          with <span class="mono">aws s3</span>, get the same bytes.
+        </p>
+      </Benefit>
+      <Benefit marker="resilient" title="Transfers finish on a bad network">
+        <p>
+          Flaky WiFi or a lossy transatlantic link doesn't mean a failed copy. The native client
+          rides out packet loss — reconnect, re-auth, reopen, and <em>resume at the byte offset</em>
+          — over <span class="mono">root://</span> and over HTTP via <span class="mono">Range</span>
+          requests.
+        </p>
+      </Benefit>
+      <Benefit marker="honest" title="Never fast at the cost of correct">
+        <p>
+          A transfer that completes is always byte-exact. Under heavy loss it slows down — it does
+          not corrupt or silently truncate. Integrity is never traded for speed.
+        </p>
+      </Benefit>
+    </div>
+  </Band>
+
+  <Band>
+    <Cta
+      title="Copy your data the way you already do."
+      note="New to the grid tools? The docs start from zero — protocols, clients, and a first transfer."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .sect-head { margin: 0.5rem 0 1.6rem; max-width: 24ch; }
+</style>

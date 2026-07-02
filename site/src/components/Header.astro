@@ -1,0 +1,74 @@
+---
+import { url, REPO_URL, DOCS_URL, AUDIENCES } from '../lib/site';
+const path = Astro.url.pathname.replace(/\/$/, '');
+const isActive = (href: string) => path.endsWith(href);
+---
+
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href={url('/')}>
+      <span class="brand-mark" aria-hidden="true">◍</span>gnuBall
+    </a>
+
+    <nav class="nav" aria-label="Primary">
+      {AUDIENCES.map((a) => (
+        <a href={url(a.href)} class:list={['nav-link', { on: isActive(a.href) }]}>{a.label}</a>
+      ))}
+      <a href={DOCS_URL} class="nav-link">Docs</a>
+      <a href={REPO_URL} class="nav-link nav-cta">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--paper);
+    border-bottom: var(--border);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 62px;
+  }
+  .brand {
+    font-family: var(--display);
+    font-weight: 800;
+    font-stretch: 125%;
+    font-size: 1.4rem;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4ch;
+  }
+  .brand-mark { color: var(--accent); font-size: 1.1em; }
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .nav-link {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 0.35em 0.6em;
+    border: 2px solid transparent;
+  }
+  .nav-link:hover { border-color: var(--ink); }
+  .nav-link.on { background: var(--accent); border-color: var(--ink); }
+  .nav-cta { border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+  .nav-cta:hover { background: var(--accent); }
+
+  @media (max-width: 640px) {
+    .nav-link:not(.nav-cta) { padding: 0.3em 0.45em; }
+    .brand { font-size: 1.2rem; }
+  }
+</style>

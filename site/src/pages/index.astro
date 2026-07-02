@@ -1,0 +1,204 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Band from '../components/Band.astro';
+import ProtocolFan from '../components/ProtocolFan.astro';
+import Cta from '../components/Cta.astro';
+import { url, REPO_URL, DOCS_URL, PROTOCOLS, AUDIENCES } from '../lib/site';
+
+const audienceBlurb: Record<string, string> = {
+  Sysadmins: 'Drop it in front of an existing xrootd server. Gain TLS, auth, and metrics without touching client or backend config.',
+  Physicists: 'Your tools already work with it — xrdcp, rucio, aws-cli, a browser. Nothing new to learn or install.',
+  Engineers: 'One nginx binary speaks three protocols over a shared core. Seven concept buckets, pluggable storage backends.',
+  Stakeholders: 'WLCG-native security and protocols, built on battle-tested nginx, tested for conformance against reference XRootD.',
+};
+
+// How a request flows through the server — a real pipeline, so the arrows carry meaning.
+const flow = [
+  { label: 'clients', sub: 'xrdcp · curl · aws-cli', tint: 'var(--dav)' },
+  { label: 'nginx event loop + module', sub: 'epoll · non-blocking workers', tint: 'var(--root)' },
+  { label: 'shared core', sub: 'auth · path-confine · cache · metrics', tint: 'var(--s3)' },
+  { label: 'POSIX tree / root:// backend', sub: 'thread-pool I/O', tint: 'var(--panel)' },
+];
+---
+
+<Layout
+  title="gnuBall"
+  description="gnuBall teaches nginx to speak root://, WebDAV, and S3 — a modular WLCG storage interface with x509/token auth and Prometheus monitoring, all in one binary."
+  accent="root"
+>
+  <!-- HERO -->
+  <Band first={true}>
+    <div class="hero">
+      <div class="hero-copy stack">
+        <span class="eyebrow">Modular WLCG storage interface</span>
+        <h1 class="display">The whole HEP data<br />stack in one binary.</h1>
+        <p class="lede">
+          gnuBall teaches nginx two protocols it never spoke — <span class="mono">root://</span>
+          (XRootD) and WebDAV — plus an S3 endpoint. Snap-together parts you assemble to fit
+          your site, instead of a monolith you bend to fit.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn--accent" href={DOCS_URL}>Get started →</a>
+          <a class="btn" href={REPO_URL}>View on GitHub ↗</a>
+        </div>
+        <div class="term hero-term" aria-label="Example commands">
+          <div><span class="p">$</span> xrdcp root://host//data/higgs.root .</div>
+          <div><span class="p">$</span> aws s3 cp s3://host/data/higgs.root . <span class="c"># same server</span></div>
+          <div><span class="p">$</span> curl -OL https://host/data/higgs.root <span class="c"># same file</span></div>
+        </div>
+      </div>
+      <div class="hero-fan">
+        <ProtocolFan />
+      </div>
+    </div>
+  </Band>
+
+  <!-- THREE PROTOCOLS -->
+  <Band variant="sunken" id="protocols">
+    <span class="eyebrow">One server, three protocols</span>
+    <h2 class="display band-head">Speak grid, cloud, and web — off the same tree.</h2>
+    <div class="grid grid-3 protogrid">
+      {PROTOCOLS.map((p) => (
+        <article class="panel panel--hover proto" data-accent={p.id}>
+          <span class:list={['chip', `chip--${p.id}`]}>{p.scheme}</span>
+          <h3 class="proto-name">{p.name}</h3>
+          <p class="proto-blurb muted">{p.blurb}</p>
+          <dl class="proto-specs">
+            <div class="spec"><dt>port</dt><dd>{p.port}</dd></div>
+            <div class="spec"><dt>via</dt><dd>{p.transport}</dd></div>
+            <div class="spec"><dt>clients</dt><dd>{p.clients}</dd></div>
+          </dl>
+        </article>
+      ))}
+    </div>
+  </Band>
+
+  <!-- HOW IT PLUGS IN -->
+  <Band id="how">
+    <span class="eyebrow">How it plugs in</span>
+    <h2 class="display band-head">Three fronts in, one path to disk.</h2>
+    <p class="lede muted flow-intro">
+      Every protocol enters through nginx's event loop, funnels through one shared core that
+      handles auth, path confinement, caching, and metrics — then reaches storage. No worker
+      ever blocks: disk syscalls run on a thread pool while the worker keeps serving.
+    </p>
+    <ol class="flow">
+      {flow.map((s, i) => (
+        <li class="flow-step">
+          <div class="flow-box" style={`--tint:${s.tint}`}>
+            <span class="flow-label">{s.label}</span>
+            <span class="flow-sub mono">{s.sub}</span>
+          </div>
+          {i < flow.length - 1 && <span class="flow-arrow" aria-hidden="true">→</span>}
+        </li>
+      ))}
+    </ol>
+  </Band>
+
+  <!-- AUTH + OBSERVABILITY -->
+  <Band variant="sunken" id="trust">
+    <div class="grid grid-2">
+      <div class="feature">
+        <span class="eyebrow">Authentication</span>
+        <h2 class="display feature-head">WLCG-native, checked before a byte moves.</h2>
+        <p class="muted">
+          GSI / x509 proxy certs with <span class="mono">kXR_sigver</span> request signing, VOMS,
+          and WLCG bearer tokens with per-path scope enforcement
+          (<span class="mono">storage.read</span> / <span class="mono">write</span> /
+          <span class="mono">create</span>). Plus SSS, host allowlist, password, and Kerberos 5.
+        </p>
+        <p class="authlist">
+          {['anonymous','GSI / x509','WLCG tokens','SSS','host','password','krb5'].map((m) => (
+            <span class="tag mono">{m}</span>
+          ))}
+        </p>
+      </div>
+      <div class="feature">
+        <span class="eyebrow">Observability</span>
+        <h2 class="display feature-head">Every request is a metric and a log line.</h2>
+        <p class="muted">
+          Prometheus <span class="mono">/metrics</span> with fixed, low-cardinality labels — no
+          per-file or per-user explosion. Structured access logs for every protocol, and a live
+          HTTPS operator dashboard at <span class="mono">/xrootd/</span>.
+        </p>
+        <div class="term">
+          <div><span class="k">xrootd_requests_total</span>{'{proto="root",op="read"}'} <span class="c">14302</span></div>
+          <div><span class="k">xrootd_bytes_sent_total</span>{'{proto="dav"}'} <span class="c">9.2e11</span></div>
+          <div><span class="k">xrootd_auth_total</span>{'{method="gsi",result="ok"}'} <span class="c">4201</span></div>
+        </div>
+      </div>
+    </div>
+  </Band>
+
+  <!-- WHO IT'S FOR -->
+  <Band variant="ink" id="who">
+    <span class="eyebrow">Why gnuBall for you</span>
+    <h2 class="display band-head">Pick your seat.</h2>
+    <div class="grid grid-4 whogrid">
+      {AUDIENCES.map((a, i) => (
+        <a class="panel panel--hover who" href={url(a.href)} data-accent={(['root','dav','s3','root'] as const)[i]}>
+          <span class="who-name">{a.label}</span>
+          <p class="who-blurb">{audienceBlurb[a.label]}</p>
+          <span class="who-go mono">Why →</span>
+        </a>
+      ))}
+    </div>
+  </Band>
+
+  <!-- CTA -->
+  <Band>
+    <Cta
+      title="Point your existing clients at it."
+      note="Standalone server, transparent XRootD proxy, or WebDAV perimeter — all in one nginx instance."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .band-head { margin: 0.5rem 0 1.6rem; max-width: 20ch; }
+
+  /* hero */
+  .hero { display: grid; gap: 2.2rem; align-items: center; }
+  @media (min-width: 900px) { .hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .hero-actions { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.4rem; }
+  .hero-term { margin-top: 0.7rem; }
+
+  /* protocol cards */
+  .protogrid { align-items: stretch; }
+  .proto { display: flex; flex-direction: column; height: 100%; }
+  .proto-name { font-family: var(--display); font-stretch: 112%; font-weight: 700; font-size: 1.4rem; margin: 0.75rem 0 0.4rem; letter-spacing: -0.01em; }
+  .proto-blurb { font-size: 0.92rem; flex: 1; }
+  .proto-specs { margin-top: 1rem; padding-top: 0.8rem; border-top: var(--border-2); display: grid; gap: 0.3rem; }
+
+  /* flow */
+  .flow-intro { max-width: 60ch; margin-bottom: 1.8rem; }
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; }
+  .flow-step { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 220px; }
+  .flow-box {
+    flex: 1; border: var(--border); box-shadow: var(--shadow-sm); background: var(--panel);
+    padding: 0.85rem 0.95rem; display: flex; flex-direction: column; gap: 0.3rem; min-height: 84px;
+    border-left: 10px solid var(--tint);
+  }
+  .flow-label { font-weight: 700; font-size: 0.98rem; }
+  .flow-sub { font-size: 0.74rem; color: var(--ink-2); }
+  .flow-arrow { font-weight: 700; font-size: 1.4rem; color: var(--ink); }
+  .flow-step:last-child .flow-arrow { display: none; }
+  @media (max-width: 620px) {
+    .flow-step { flex-basis: 100%; flex-direction: column; gap: 0.35rem; }
+    .flow-arrow { transform: rotate(90deg); align-self: center; }
+  }
+
+  /* auth + observability */
+  .feature-head { font-size: clamp(1.5rem, 2.6vw, 2rem); margin: 0.5rem 0 0.9rem; }
+  .feature > p { max-width: 46ch; }
+  .authlist { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1rem; }
+  .tag { border: var(--border-2); padding: 0.25em 0.6em; font-size: 0.8rem; background: var(--panel); }
+  .feature .term { margin-top: 1rem; }
+
+  /* who */
+  .whogrid { margin-top: 0.4rem; }
+  .who { display: flex; flex-direction: column; height: 100%; text-decoration: none; }
+  .who-name { font-family: var(--display); font-stretch: 112%; font-weight: 700; font-size: 1.35rem; letter-spacing: -0.01em; }
+  .who-blurb { color: #a8a29e; font-size: 0.9rem; margin: 0.6rem 0 1rem; flex: 1; }
+  .who-go { color: var(--accent); font-weight: 600; font-size: 0.85rem; }
+</style>

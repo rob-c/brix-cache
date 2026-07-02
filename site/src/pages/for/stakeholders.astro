@@ -1,0 +1,91 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Band from '../../components/Band.astro';
+import AudienceHero from '../../components/AudienceHero.astro';
+import Benefit from '../../components/Benefit.astro';
+import Cta from '../../components/Cta.astro';
+---
+
+<Layout
+  title="For stakeholders"
+  description="gnuBall speaks the WLCG-native protocols and auth the grid mandates, built on battle-tested nginx and validated for conformance against reference XRootD. Open source under AGPL-3.0-only."
+  accent="root"
+>
+  <Band first={true}>
+    <AudienceHero
+      group="funders & stakeholders"
+      title="Standard protocols. Proven foundation. No lock-in."
+      lede="gnuBall serves data over exactly the protocols the Worldwide LHC Computing Grid relies on — built as a module for nginx, one of the most deployed and scrutinised servers on the internet."
+    >
+      <ul class="stat-list">
+        <li class="stat"><span class="stat-n mono">3</span><span class="stat-l">protocols, one binary</span></li>
+        <li class="stat"><span class="stat-n mono">32</span><span class="stat-l">XRootD 5.2 opcodes</span></li>
+        <li class="stat"><span class="stat-n mono">7</span><span class="stat-l">auth methods</span></li>
+        <li class="stat"><span class="stat-n mono">AGPL</span><span class="stat-l">3.0 · open source</span></li>
+      </ul>
+    </AudienceHero>
+  </Band>
+
+  <Band variant="sunken">
+    <span class="eyebrow">Why it's a safe bet</span>
+    <h2 class="display sect-head">Credibility from what it's made of.</h2>
+    <div class="grid grid-2">
+      <Benefit marker="wlcg" title="WLCG-native by design">
+        <p>
+          It speaks the protocols and identity systems the grid actually mandates — XRootD,
+          WebDAV, GSI / x509 with VOMS, and WLCG bearer tokens with scoped access — the same
+          machinery used to move petabytes of collision data at labs like CERN, SLAC, and Fermilab.
+        </p>
+      </Benefit>
+      <Benefit marker="foundation" title="Built on nginx, not from scratch">
+        <p>
+          The hard, security-critical parts — the event loop, TLS, connection handling, process
+          model, and graceful reloads — are nginx's, hardened over two decades in production. gnuBall
+          adds the protocol layer on top, so the foundation isn't a research prototype.
+        </p>
+      </Benefit>
+      <Benefit marker="proven" title="Proven by conformance testing">
+        <p>
+          A comprehensive Python suite runs the same tests against gnuBall <em>and</em> the reference
+          xrootd daemon — native <span class="mono">root://</span>, the XrdHttp WebDAV endpoint, auth,
+          ACLs, proxy and manager modes. Divergence is treated as a defect.
+        </p>
+      </Benefit>
+      <Benefit marker="resilient" title="Resilient where it counts">
+        <p>
+          On a healthy network it matches reference-XRootD throughput; on a degraded one, transfers
+          still finish byte-exact instead of failing — the difference between a lost dataset and a
+          slow one.
+        </p>
+      </Benefit>
+      <Benefit marker="open" title="Open source, no vendor lock-in">
+        <p>
+          Released under <span class="mono">AGPL-3.0-only</span>: inspect it, modify it, run it
+          yourself. If you deploy a modified version over a network, you make your source available
+          to its users — the reciprocity that keeps shared infrastructure shared.
+        </p>
+      </Benefit>
+      <Benefit marker="consolidate" title="One service, three interfaces">
+        <p>
+          Grid, cloud, and web access to the same storage from a single deployed component — less
+          software to run, patch, and staff than three separate gateways doing the same job.
+        </p>
+      </Benefit>
+    </div>
+  </Band>
+
+  <Band>
+    <Cta
+      title="One storage service the grid already understands."
+      note="The docs cover the security model, protocol coverage, and operational story in full."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .sect-head { margin: 0.5rem 0 1.6rem; max-width: 22ch; }
+  .stat-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+  .stat { border: var(--border); box-shadow: var(--shadow-sm); background: var(--panel); padding: 0.9rem 1rem; }
+  .stat-n { display: block; font-size: 2rem; font-weight: 600; line-height: 1; color: var(--ink); }
+  .stat-l { display: block; font-size: 0.8rem; color: var(--ink-2); margin-top: 0.35rem; }
+</style>

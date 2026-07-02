@@ -1,0 +1,72 @@
+---
+// Signature element: one POSIX file, reachable over three protocols at once.
+// The file sits at the top; three color-coded branches fan down to the client
+// commands. This is gnuBall's core idea rendered as a diagram.
+import { PROTOCOLS } from '../lib/site';
+
+const FILE = '/data/atlas/run3/AOD.pool.root';
+const rows: Record<string, { url: string; cmd: string }> = {
+  root: { url: 'root://host/', cmd: 'xrdcp root://host//data/…' },
+  dav:  { url: 'davs://host/', cmd: 'curl https://host/data/…' },
+  s3:   { url: 's3://host/',   cmd: 'aws s3 cp s3://host/data/…' },
+};
+---
+<div class="fan">
+  <div class="fan-file">
+    <span class="fan-file-label">one file on disk</span>
+    <code>{FILE}</code>
+  </div>
+
+  <div class="fan-branches" aria-hidden="true">
+    <span class="fan-line" style="--c: var(--root)"></span>
+    <span class="fan-line" style="--c: var(--dav)"></span>
+    <span class="fan-line" style="--c: var(--s3)"></span>
+  </div>
+
+  <ul class="fan-rows">
+    {PROTOCOLS.map((p) => (
+      <li class="fan-row">
+        <span class:list={['chip', `chip--${p.id}`]}>{p.scheme}</span>
+        <code class="fan-cmd">{rows[p.id].cmd}</code>
+      </li>
+    ))}
+  </ul>
+  <p class="fan-note muted">Same bytes, same permissions, same checksums — whichever protocol asks.</p>
+</div>
+
+<style>
+  .fan {
+    border: var(--border);
+    box-shadow: var(--shadow);
+    background: var(--panel);
+    padding: 1.2rem;
+  }
+  .fan-file {
+    background: var(--ink);
+    color: var(--paper);
+    border: var(--border-2);
+    padding: 0.8rem 1rem;
+    text-align: center;
+  }
+  .fan-file-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #a8a29e;
+    margin-bottom: 0.35rem;
+  }
+  .fan-file code { font-family: var(--mono); font-size: clamp(0.8rem, 2.4vw, 1.05rem); font-weight: 600; }
+
+  .fan-branches { display: grid; grid-template-columns: repeat(3, 1fr); height: 26px; }
+  .fan-line { border-left: 3px solid var(--c); width: 0; justify-self: center; height: 100%; }
+
+  .fan-rows { display: grid; gap: 0.6rem; }
+  .fan-row {
+    display: flex; align-items: center; gap: 0.7rem;
+    border: var(--border-2); padding: 0.5rem 0.7rem; background: var(--band);
+  }
+  .fan-cmd { font-family: var(--mono); font-size: clamp(0.72rem, 2vw, 0.9rem); overflow-x: auto; }
+  .fan-note { font-size: 0.82rem; margin-top: 0.9rem; text-align: center; }
+</style>
