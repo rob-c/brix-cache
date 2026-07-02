@@ -106,6 +106,37 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         return cvmfs_reject(r, NGX_HTTP_NOT_ALLOWED, "method not allowed");
     }
 
+    /* proxy mode (T14): an absolute-form request line names its upstream —
+     * allowlist it, then serve against that upstream's per-worker backend
+     * (convention #2: the override rides the request ctx). */
+    if (r->host_start != NULL) {
+        ngx_str_t   up_host;
+        in_port_t   up_port;
+        ngx_int_t   rc;
+
+        rc = xrootd_cvmfs_proxy_target(r, &lcf->cvmfs, &up_host, &up_port);
+        if (rc == NGX_HTTP_FORBIDDEN) {
+            return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
+                                "upstream authority not allowlisted");
+        }
+        if (rc == NGX_HTTP_BAD_REQUEST) {
+            return cvmfs_reject(r, NGX_HTTP_BAD_REQUEST,
+                                "malformed proxy target");
+        }
+        if (rc == NGX_OK) {
+            ngx_uint_t status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+
+            ctx->sd_override = xrootd_cvmfs_upstream_get(r, lcf, &up_host,
+                                                         up_port,
+                                                         &ctx->up_root,
+                                                         &status);
+            if (ctx->sd_override == NULL) {
+                return (ngx_int_t) status;
+            }
+        }
+        /* rc == NGX_DECLINED: origin-form on this listener — fall through */
+    }
+
     /* classify the unescaped, query-stripped path nginx already produced */
     if (cvmfs_classify_url((const char *) r->uri.data, r->uri.len, &ctx->url)
         != 0)

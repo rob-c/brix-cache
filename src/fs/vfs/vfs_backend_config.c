@@ -741,6 +741,61 @@ xrootd_vfs_backend_config_cache_store(const char *root_canon,
     e->inst = NULL;                            /* recompose on next resolve */
 }
 
+/* Runtime twin of the config-time http registration (phase-68 T14 proxy
+ * mode): register (or reuse) a synthetic per-upstream export entry keyed
+ * `up_root`, whose source is the http origin `host`:`port` and whose cache
+ * tier mirrors the entry at `template_root` with its store path suffixed
+ * `store_suffix` — so objects from different Stratum-1s can never alias in
+ * the store. Runs on the worker's event loop only (the entry table is
+ * per-process after fork; no cross-thread access). Returns NGX_OK, or
+ * NGX_ERROR when the table is full / the paths overflow. */
+ngx_int_t
+xrootd_vfs_backend_register_http_upstream(const char *up_root,
+    const char *template_root, const char *host, int port, int tls,
+    const char *store_suffix)
+{
+    xrootd_vfs_backend_entry_t *e, *tpl;
+
+    e = xrootd_vfs_backend_entry_find(up_root);
+    if (e != NULL) {
+        return NGX_OK;                          /* already registered */
+    }
+    tpl = xrootd_vfs_backend_entry_find(template_root);
+    e = xrootd_vfs_backend_entry_get_or_create(up_root);
+    if (e == NULL) {
+        return NGX_ERROR;                       /* table full */
+    }
+    ngx_memcpy(e->backend, "http", sizeof("http"));
+    ngx_cpystrn((u_char *) e->origin_host, (u_char *) host,
+                sizeof(e->origin_host));
+    e->origin_port = port;
+    e->origin_tls  = tls;
+    e->origin_path[0] = '\0';       /* the request URI carries the full path */
+
+    if (tpl != NULL && tpl->cache_tier.configured) {
+        size_t n;
+
+        e->cache_tier   = tpl->cache_tier;
+        e->cache_policy = tpl->cache_policy;
+        n = ngx_strlen(e->cache_tier.path);
+        if (store_suffix != NULL && store_suffix[0] != '\0') {
+            if (n + ngx_strlen(store_suffix) + 1 >= sizeof(e->cache_tier.path)) {
+                return NGX_ERROR;
+            }
+            ngx_cpystrn((u_char *) e->cache_tier.path + n,
+                        (u_char *) store_suffix,
+                        sizeof(e->cache_tier.path) - n);
+            /* the cstore mkdirs each KEY's parents but expects its own root
+             * to exist — create the per-upstream subtree now (local store) */
+            if (ngx_strcmp(e->cache_tier.driver, "posix") == 0) {
+                (void) xrootd_mkdir_recursive(e->cache_tier.path, 0755);
+            }
+        }
+    }
+    e->inst = NULL;
+    return NGX_OK;
+}
+
 void
 xrootd_vfs_backend_config_stage_store(const char *root_canon,
     const xrootd_tier_cfg_t *cfg, const xrootd_stage_policy_t *policy)

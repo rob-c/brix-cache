@@ -108,6 +108,15 @@ xrootd_sd_instance_t *xrootd_vfs_backend_resolve(const char *root_canon,
 int xrootd_vfs_backend_http_endpoint(const char *root_canon,
     const char **host, int *port, int *tls, const char **base);
 
+/* Runtime twin of the config-time http registration (phase-68 T14 proxy
+ * mode): register a synthetic per-upstream export entry keyed `up_root`
+ * (http origin host:port; cache tier cloned from `template_root` with the
+ * store path suffixed `store_suffix` for per-upstream isolation). Idempotent
+ * per worker; event-loop only. NGX_OK, or NGX_ERROR (table full/overflow). */
+ngx_int_t xrootd_vfs_backend_register_http_upstream(const char *up_root,
+    const char *template_root, const char *host, int port, int tls,
+    const char *store_suffix);
+
 /* Resolve the bound backend for an ABSOLUTE path by longest-prefix match against
  * the registered export roots (so a staged-file commit can find the export a
  * final path belongs to without the caller threading root_canon). On a match,

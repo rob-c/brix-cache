@@ -70,6 +70,19 @@ ngx_int_t xrootd_cvmfs_gate(ngx_http_request_t *r,
 ngx_int_t xrootd_cvmfs_geo_passthrough(ngx_http_request_t *r,
     ngx_http_xrootd_cvmfs_loc_conf_t *lcf);
 
+/* Proxy-mode target extraction (T14): NGX_DECLINED = origin-form (reverse
+ * mode), NGX_OK = allowed absolute-form authority (host/port filled), or a
+ * final 403/400 status. */
+ngx_int_t xrootd_cvmfs_proxy_target(ngx_http_request_t *r,
+    const xrootd_cvmfs_conf_t *cc, ngx_str_t *host, in_port_t *port);
+
+/* Proxy-mode per-upstream backend (T14): the (host,port)'s synthetic export,
+ * built once per worker. On success *up_root_out names its registry root
+ * (worker-lifetime storage). NULL + *status set on failure. */
+xrootd_sd_instance_t *xrootd_cvmfs_upstream_get(ngx_http_request_t *r,
+    ngx_http_xrootd_cvmfs_loc_conf_t *lcf, const ngx_str_t *host,
+    in_port_t port, const char **up_root_out, ngx_uint_t *status);
+
 /* Final-status observer (T13): records 404s in the per-worker negative memo.
  * Invoked from the handler's request-finalization hook, so every 404 path —
  * inline open, off-loop fill, future hold/retry — feeds the memo. */
