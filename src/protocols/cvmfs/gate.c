@@ -102,6 +102,18 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
     ngx_http_xrootd_cvmfs_ctx_t *ctx =
         ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
 
+    /* Classify FIRST (a pure parse of the query-stripped path): every later
+     * reject — wrong method, malformed proxy target, authority not
+     * allowlisted — then carries the request's TRUE class in $cvmfs_class.
+     * (The allowlist 403 used to precede classification, so every rejected
+     * geo/manifest request was logged class=cas — the zero value.) */
+    if (cvmfs_classify_url((const char *) r->uri.data, r->uri.len, &ctx->url)
+        != 0)
+    {
+        return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
+                            "path is not a CVMFS traffic shape");
+    }
+
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return cvmfs_reject(r, NGX_HTTP_NOT_ALLOWED, "method not allowed");
     }
@@ -135,14 +147,6 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
             }
         }
         /* rc == NGX_DECLINED: origin-form on this listener — fall through */
-    }
-
-    /* classify the unescaped, query-stripped path nginx already produced */
-    if (cvmfs_classify_url((const char *) r->uri.data, r->uri.len, &ctx->url)
-        != 0)
-    {
-        return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
-                            "path is not a CVMFS traffic shape");
     }
 
     /* per-repository accounting (bounded slot table — metrics.h) */
