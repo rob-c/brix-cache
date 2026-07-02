@@ -64,9 +64,14 @@ def parse_args(argv):
         description="Expose a QUIESCED CephFS as stock-XrdCeph "
                     "(libradosstriper) storage — zero-move redirects by "
                     "default.")
-    ap.add_argument("meta_pool")
-    ap.add_argument("cephfs_data_pool")
-    ap.add_argument("striper_pool")
+    ap.add_argument("meta_pool", nargs="?")
+    ap.add_argument("cephfs_data_pool", nargs="?")
+    ap.add_argument("striper_pool", nargs="?")
+    ap.add_argument("--config",
+                    default=os.environ.get("XRDCEPH_MIGRATE_CONF"),
+                    help="site profile file (striper_pool/meta_pool/"
+                         "data_pool/conf/client/strip); default "
+                         "$XRDCEPH_MIGRATE_CONF")
     ap.add_argument("--assume-quiesced", dest="quiesced", action="store_true")
     ap.add_argument("--finalize", action="store_true")
     ap.add_argument("--rollback", action="store_true")
@@ -76,8 +81,9 @@ def parse_args(argv):
     ap.add_argument("--delete-source", dest="delete_source", action="store_true")
     ap.add_argument("--dry-run", dest="dry_run", action="store_true")
     ap.add_argument("--report-only", dest="report_only", action="store_true")
-    ap.add_argument("--conf", default=os.environ.get("CEPH_CONF",
-                                                     "/etc/ceph/ceph.conf"))
+    ap.add_argument("--conf", default=None,
+                    help="ceph.conf (CLI > config file > $CEPH_CONF > "
+                         "/etc/ceph/ceph.conf)")
     ap.add_argument("--json", dest="json_mode", action="store_true")
     ap.add_argument("--state", dest="state_file")
     ap.add_argument("--list", dest="list_file")
@@ -85,6 +91,33 @@ def parse_args(argv):
     ap.add_argument("--match")
     ap.add_argument("--progress", action="store_true")
     args = ap.parse_args(argv)
+
+    # Site profile: explicit CLI > config file > built-in default; full
+    # positional arity or none (see the forward tool for the rationale).
+    try:
+        cfg = common.load_tool_config(args.config) if args.config else {}
+    except (OSError, ValueError) as e:
+        ap.error("--config: %s" % e)
+    given = [p is not None for p in
+             (args.meta_pool, args.cephfs_data_pool, args.striper_pool)]
+    if any(given) and not all(given):
+        ap.error("give all three positionals (<meta_pool> <cephfs_data_pool> "
+                 "<striper_pool>) or none (with --config)")
+    args.meta_pool = common.resolve_setting(args.meta_pool, cfg, "meta_pool")
+    args.cephfs_data_pool = common.resolve_setting(args.cephfs_data_pool, cfg,
+                                                   "data_pool")
+    args.striper_pool = common.resolve_setting(args.striper_pool, cfg,
+                                               "striper_pool")
+    for key, val in (("meta_pool", args.meta_pool),
+                     ("data_pool", args.cephfs_data_pool),
+                     ("striper_pool", args.striper_pool)):
+        if not val:
+            ap.error("missing %s: pass positionals or set it in --config" % key)
+    args.strip = common.resolve_setting(args.strip, cfg, "strip", "")
+    args.conf = common.resolve_setting(
+        args.conf, cfg, "conf",
+        os.environ.get("CEPH_CONF", "/etc/ceph/ceph.conf"))
+    args.client = common.resolve_setting(None, cfg, "client", "admin")
 
     if not args.quiesced:
         ap.error("refusing to run: pass --assume-quiesced (CephFS MUST be "
@@ -135,7 +168,7 @@ class Migrator:
                        else "finalize" if args.finalize else "migrate")
         self.mode = self.action if self.action != "migrate" else "redirect"
 
-        self.cluster = rados.Rados(conffile=args.conf)
+        self.cluster = rados.Rados(conffile=args.conf, rados_id=args.client)
         self.cluster.connect()
         self.meta = self.cluster.open_ioctx(args.meta_pool)
         self.cdata = self.cluster.open_ioctx(args.cephfs_data_pool)
@@ -143,7 +176,7 @@ class Migrator:
         self.data_pool_id = self.cdata.get_pool_id() \
             if hasattr(self.cdata, "get_pool_id") else -1
 
-        self.bridge = ManifestBridge(conf_path=args.conf)
+        self.bridge = ManifestBridge(conf_path=args.conf, client=args.client)
         self.objs = {}                 # ino -> sorted [objno]
         self.files = []                # [FileEnt]
         self.cls = Classification()
