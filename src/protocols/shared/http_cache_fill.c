@@ -1,33 +1,59 @@
 /*
  * http_cache_fill.c - off-event-loop cache-miss fill for the HTTP read plane.
  * See http_cache_fill.h for the WHAT/WHY/HOW.
+ *
+ * Phase-68 additions:
+ *   - COALESCING: every concurrent request for one (inst,key) parks on a
+ *     single heap-owned fill — a 40-request stampede is exactly ONE origin
+ *     fetch. The waiter list is event-loop-only (no locks).
+ *   - NEVER-DROP (T20): with a client-hold configured, the fill worker
+ *     retries transient origin failures with jittered backoff until the
+ *     hold deadline; a waiter whose hold expires detaches and receives
+ *     504 + Retry-After on a KEPT-ALIVE connection (a TCP close is never
+ *     an error signal — convention #6). A client abort detaches its waiter
+ *     but never cancels the fill: the fill keeps retrying (max-life
+ *     deadline) and publishes so the client's retry is a hit.
+ *
+ * Ownership: the fill ctx (+ its ngx_thread_task_t) is one calloc block,
+ * freed in the done handler. Each waiter is freed by ITS REQUEST's pool
+ * cleanup (which always fires exactly once), so a late cleanup can never
+ * use-after-free a waiter the done handler already resolved.
  */
 #include "http_cache_fill.h"
 #include "fs/backend/cache/sd_cache.h"   /* xrootd_sd_cache_* */
+#include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
+#include "fs/cache/fill_retry.h"        /* T20 classification + backoff */
 #include "core/aio/aio.h"                      /* xrootd_task_bind */
 
 #include <limits.h>                          /* PATH_MAX */
-#include <stdlib.h>                          /* malloc/free (worker heap) */
+#include <stdatomic.h>
+#include <stdlib.h>                          /* calloc/free (worker heap) */
 
 #if (NGX_THREADS)
 
-/* One request parked on an in-flight fill (event-loop-only list). */
+struct xrootd_http_cache_fill_ctx_s;
+
+/* One request parked on an in-flight fill (event-loop-only). */
 typedef struct xrootd_http_fill_waiter_s {
-    ngx_http_request_t                *r;
-    xrootd_http_cache_reenter_pt       reenter;
-    void                              *reenter_data;
-    struct xrootd_http_fill_waiter_s  *next;
+    ngx_http_request_t                   *r;
+    xrootd_http_cache_reenter_pt          reenter;
+    void                                 *reenter_data;
+    struct xrootd_http_fill_waiter_s     *next;
+    struct xrootd_http_cache_fill_ctx_s  *owner;   /* valid while !resolved */
+    ngx_event_t                           hold;    /* T20 client-hold timer */
+    unsigned                              resolved:1;
 } xrootd_http_fill_waiter_t;
 
 /* Per-fill task context — ONE per (inst,key) in flight, shared by every
- * concurrent request for that object (phase-68: a 40-request stampede is
- * exactly ONE origin fetch). Heap-owned (worker lifetime, freed in done);
- * the waiter list is touched on the event loop only, so no locking. */
+ * concurrent request for that object. */
 typedef struct xrootd_http_cache_fill_ctx_s {
     xrootd_sd_instance_t                *inst;
     xrootd_http_fill_waiter_t           *waiters;
-    struct xrootd_http_cache_fill_ctx_s *next;      /* in-flight list */
-    ngx_thread_task_t                   *task;
+    _Atomic int                          waiters_n;  /* read by the worker */
+    struct xrootd_http_cache_fill_ctx_s *next;       /* in-flight list     */
+    ngx_thread_task_t                   *task;       /* the calloc block   */
+    time_t                               client_hold; /* T20 deadlines     */
+    time_t                               max_life;
     ngx_int_t                            result;    /* NGX_OK/DECLINED/ERROR */
     int                                  err;       /* errno from the fill  */
     char                                 key[PATH_MAX];
@@ -49,36 +75,172 @@ xrootd_http_fill_find(xrootd_sd_instance_t *inst, const char *key)
     return NULL;
 }
 
-/* Park `r` on fill `t` (r->main->count++ balanced by the finalize in done). */
+/* Unlink `w` from its fill (idempotent; both the hold timer and the request
+ * cleanup may race to it on the event loop). */
+static void
+xrootd_http_fill_detach(xrootd_http_fill_waiter_t *w)
+{
+    xrootd_http_fill_waiter_t **pp;
+
+    if (w->resolved) {
+        return;
+    }
+    w->resolved = 1;
+    if (w->hold.timer_set) {
+        ngx_del_timer(&w->hold);
+    }
+    for (pp = &w->owner->waiters; *pp != NULL; pp = &(*pp)->next) {
+        if (*pp == w) {
+            *pp = w->next;
+            break;
+        }
+    }
+    atomic_fetch_sub_explicit(&w->owner->waiters_n, 1, memory_order_relaxed);
+}
+
+/* 504 + Retry-After on a KEPT-ALIVE connection (convention #6: origin
+ * trouble is a well-formed HTTP answer, never a broken socket). */
+static void
+xrootd_http_fill_send_retry_later(ngx_http_request_t *r)
+{
+    static u_char     body[] = "origin temporarily unreachable; retrying - "
+                               "please retry\n";
+    ngx_table_elt_t  *h;
+    ngx_buf_t        *b;
+    ngx_chain_t       out;
+
+    h = ngx_list_push(&r->headers_out.headers);
+    if (h == NULL) {
+        ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return;
+    }
+    h->hash = 1;
+    ngx_str_set(&h->key, "Retry-After");
+    ngx_str_set(&h->value, "2");
+
+    r->headers_out.status = NGX_HTTP_GATEWAY_TIME_OUT;
+    r->headers_out.content_length_n = sizeof(body) - 1;
+    r->keepalive = 1;                       /* NEVER close on origin trouble */
+    if (ngx_http_send_header(r) != NGX_OK || r->header_only) {
+        ngx_http_finalize_request(r, NGX_OK);
+        return;
+    }
+    b = ngx_pcalloc(r->pool, sizeof(*b));
+    if (b == NULL) {
+        ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return;
+    }
+    b->pos = b->start = body;
+    b->last = b->end = body + sizeof(body) - 1;
+    b->memory = 1;
+    b->last_buf = 1;
+    out.buf = b;
+    out.next = NULL;
+    ngx_http_finalize_request(r, ngx_http_output_filter(r, &out));
+}
+
+/* T20 hold timer: the client has waited long enough — answer 504 on the
+ * kept-alive connection and leave the fill running (its own retry, arriving
+ * on the same warm socket, coalesces onto this still-running fill). */
+static void
+xrootd_http_fill_hold_expire(ngx_event_t *ev)
+{
+    xrootd_http_fill_waiter_t *w = ev->data;
+    ngx_http_request_t        *r = w->r;
+    ngx_connection_t          *c = r->connection;
+
+    xrootd_http_fill_detach(w);
+    xrootd_http_fill_send_retry_later(r);
+    ngx_http_run_posted_requests(c);
+}
+
+/* Request-pool cleanup: the waiter's single owner for freeing. Fires exactly
+ * once per parked request — after the done handler resolved it (resolved=1,
+ * just free) or on a client abort mid-fill (detach, then free; the fill
+ * itself is NEVER cancelled). */
+static void
+xrootd_http_fill_waiter_cleanup(void *data)
+{
+    xrootd_http_fill_waiter_t *w = data;
+
+    xrootd_http_fill_detach(w);
+    free(w);
+}
+
+/* Park `r` on fill `t` (r->main->count++ balanced by the finalize in done /
+ * hold-expiry / abort teardown). */
 static ngx_int_t
 xrootd_http_fill_attach(xrootd_http_cache_fill_ctx_t *t,
     ngx_http_request_t *r, xrootd_http_cache_reenter_pt reenter,
     void *reenter_data)
 {
-    xrootd_http_fill_waiter_t *w = malloc(sizeof(*w));
+    xrootd_http_fill_waiter_t *w = calloc(1, sizeof(*w));
+    ngx_pool_cleanup_t        *cln;
 
     if (w == NULL) {
+        return NGX_ERROR;
+    }
+    cln = ngx_pool_cleanup_add(r->pool, 0);
+    if (cln == NULL) {
+        free(w);
         return NGX_ERROR;
     }
     w->r            = r;
     w->reenter      = reenter;
     w->reenter_data = reenter_data;
+    w->owner        = t;
     w->next         = t->waiters;
     t->waiters      = w;
+    atomic_fetch_add_explicit(&t->waiters_n, 1, memory_order_relaxed);
+
+    cln->handler = xrootd_http_fill_waiter_cleanup;
+    cln->data    = w;
+
+    if (t->client_hold > 0) {
+        w->hold.handler = xrootd_http_fill_hold_expire;
+        w->hold.data    = w;
+        w->hold.log     = r->connection->log;
+        ngx_add_timer(&w->hold, (ngx_msec_t) t->client_hold * 1000);
+    }
+
     r->main->count++;
     return NGX_DONE;
 }
 
-/* Worker thread: run the blocking source->store fill off the event loop. */
+/* Worker thread: run the blocking source->store fill off the event loop,
+ * retrying transient origin failures to the T20 deadlines (single-pass when
+ * no hold is configured — the pre-phase-68 semantics for other protocols). */
 static void
 xrootd_http_cache_fill_thread(void *data, ngx_log_t *log)
 {
     xrootd_http_cache_fill_ctx_t *t = data;
+    xrootd_fill_retry_t           rs;
+    unsigned                      n_eps;
 
     (void) log;
-    errno = 0;
-    t->result = xrootd_sd_cache_fill_key(t->inst, t->key);
-    t->err = errno;
+    n_eps = (unsigned) sd_http_n_endpoints(
+                xrootd_sd_cache_source_instance(t->inst));
+    xrootd_fill_retry_init(&rs, t->client_hold, t->max_life, &t->waiters_n,
+                           n_eps);
+    for ( ;; ) {
+        errno = 0;
+        t->result = xrootd_sd_cache_fill_key(t->inst, t->key);
+        t->err = errno;
+        switch (xrootd_fill_classify(t->result, t->err, &rs)) {
+        case XROOTD_FILL_OK:
+        case XROOTD_FILL_DEFINITIVE:
+            return;
+        case XROOTD_FILL_RETRY:
+            break;
+        }
+        if (!xrootd_fill_retry_wait(&rs)) {
+            if (t->err == EBADMSG) {
+                return;              /* proven-bad data: 502, not "later" */
+            }
+            t->err = ETIMEDOUT;      /* deadline exhausted: 504 to waiters */
+            return;
+        }
+    }
 }
 
 /* Resolve one waiter with the fill outcome (event loop). */
@@ -103,6 +265,12 @@ xrootd_http_fill_resolve_waiter(xrootd_http_cache_fill_ctx_t *t,
         rc = NGX_HTTP_NOT_FOUND;
     } else if (t->err == EACCES || t->err == EPERM) {
         rc = NGX_HTTP_FORBIDDEN;
+    } else if (t->err == ETIMEDOUT) {
+        /* T20: deadline exhausted while this waiter was still attached —
+         * same keep-alive 504 the hold timer sends. */
+        xrootd_http_fill_send_retry_later(r);
+        ngx_http_run_posted_requests(c);
+        return;
     } else {
         ngx_log_error(NGX_LOG_ERR, c->log, t->err,
             "xrootd: cache fill failed for \"%s\" - returning 502", t->key);
@@ -113,16 +281,16 @@ xrootd_http_fill_resolve_waiter(xrootd_http_cache_fill_ctx_t *t,
     ngx_http_run_posted_requests(c);
 }
 
-/* Event loop: resolve EVERY parked waiter with the one fill outcome (the
- * stampede coalescing contract), then release the fill. The per-waiter
- * finalize balances the count++ taken at attach. */
+/* Event loop: resolve EVERY still-attached waiter with the one fill outcome
+ * (the stampede coalescing contract), then release the fill. Waiter memory
+ * stays with its request's pool cleanup. */
 static void
 xrootd_http_cache_fill_done(ngx_event_t *ev)
 {
     ngx_thread_task_t             *task = ev->data;
     xrootd_http_cache_fill_ctx_t  *t = task->ctx;
     xrootd_http_cache_fill_ctx_t **pp;
-    xrootd_http_fill_waiter_t     *w, *next;
+    xrootd_http_fill_waiter_t     *w;
 
     /* Unlink from the in-flight list FIRST so a re-entered handler that
      * misses again starts a fresh fill rather than attaching to this one. */
@@ -133,10 +301,9 @@ xrootd_http_cache_fill_done(ngx_event_t *ev)
         }
     }
 
-    for (w = t->waiters; w != NULL; w = next) {
-        next = w->next;
+    while ((w = t->waiters) != NULL) {
+        xrootd_http_fill_detach(w);              /* unlink + stop the hold */
         xrootd_http_fill_resolve_waiter(t, w);
-        free(w);
     }
     free(t->task);           /* the calloc'd task+ctx block (task is first) */
 }
@@ -207,9 +374,11 @@ xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
     task = (ngx_thread_task_t *) block;
     task->ctx = block + sizeof(ngx_thread_task_t);
     t = task->ctx;
-    t->inst   = inst;
-    t->task   = task;
-    t->result = NGX_ERROR;
+    t->inst        = inst;
+    t->task        = task;
+    t->result      = NGX_ERROR;
+    t->client_hold = common->cache_client_hold;   /* 0 = single-pass fill */
+    t->max_life    = common->cache_fill_max_life;
     ngx_cpystrn((u_char *) t->key, (u_char *) key, sizeof(t->key));
 
     xrootd_task_bind(task, xrootd_http_cache_fill_thread,
@@ -222,13 +391,13 @@ xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
     }
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
-        r->main->count--;                    /* undo the attach            */
-        free(t->waiters);
+        xrootd_http_fill_detach(t->waiters);     /* undo the attach        */
+        r->main->count--;
         free(block);
         return NGX_ERROR;
     }
 
-    t->next = xrootd_http_fills;             /* publish for coalescing     */
+    t->next = xrootd_http_fills;                 /* publish for coalescing */
     xrootd_http_fills = t;
 
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,

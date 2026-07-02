@@ -29,6 +29,7 @@ http { access_log off; server {
         xrootd_cvmfs_storage_backend "http://127.0.0.1:$M1|http://127.0.0.1:$M2";
         xrootd_cvmfs_cache_store posix:$PFX/cache;
         xrootd_cvmfs on;
+        xrootd_cvmfs_client_hold 3;
     }
 } }
 EOF
@@ -54,9 +55,11 @@ NP="$(curl -s "http://127.0.0.1:$M1/ctl/log" | grep -oF '/data/' | wc -l || true
 [ "$NP" -ge 1 ] && ok "primary reused after recovery ($NP fills)" \
     || bad "primary never reused"
 
-# 3: both down → clean fast 502
+# 3: both down → held for client_hold, then a clean keep-alive 504
+# ("still trying, come back" — convention #6; 502 is reserved for
+# definitive origin badness like a CAS mismatch)
 kill "$MOCK1" "$MOCK2"; sleep 0.2
 C="$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' \
      "http://127.0.0.1:$CPORT${OBJS[5]}")"
-[ "$C" = 502 ] && ok "both-down → clean 502" || bad "both-down: $C"
+[ "$C" = 504 ] && ok "both-down → held then clean 504" || bad "both-down: $C"
 exit $fail

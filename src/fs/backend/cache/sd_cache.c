@@ -261,7 +261,7 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
             xrootd_cache_quarantine_part(pp, st->policy.quarantine_dir,
                                          st->log);
             xrootd_cstore_fill_abort(staged);   /* part already renamed away */
-            errno = EIO;
+            errno = EBADMSG;        /* digest mismatch — T20 budgets retries */
             return NGX_ERROR;
         }
         if (vr == XROOTD_CACHE_VERIFY_ERROR) {
