@@ -15,8 +15,8 @@ Measured from the current tree on 2026-05-20:
 
 | Area | Approx. local C/header LOC | Notes |
 |---|---:|---|
-| `src/webdav` | 12,176 | Largest single area; includes DAV methods, TPC, locks, proxy mode, XrdHttp compatibility. |
-| `src/s3` | 4,923 | SigV4, XML responses, object/multipart operations. |
+| `src/protocols/webdav` | 12,176 | Largest single area; includes DAV methods, TPC, locks, proxy mode, XrdHttp compatibility. |
+| `src/protocols/s3` | 4,923 | SigV4, XML responses, object/multipart operations. |
 | `src/net/proxy` | 3,897 | Native XRootD transparent proxy state machine. |
 | `src/tpc` | 3,796 | Native XRootD third-party copy and outbound GSI helpers. |
 | `src/fs/cache` | 3,709 | Cache origin client, fills, eviction, write-through. |
@@ -66,7 +66,7 @@ large outbound dependency.
 
 | Item | Net LOC change | Area | Priority |
 |---|---:|---|---|
-| TPC curl pull/push deduplication (Candidate 14) | −60 to −120 | src/webdav/tpc_curl.c | Medium (pairs with Design B) |
+| TPC curl pull/push deduplication (Candidate 14) | −60 to −120 | src/protocols/webdav/tpc_curl.c | Medium (pairs with Design B) |
 | AIO dispatch pattern consolidation (Candidate 13) | −80 to −160 | src/core/aio/*.c | Medium |
 | Pool alloc null-check macro (Candidate 15) | −150 to −200 | All of src/ | Low (mechanical) |
 | Dead code audit (Candidate 18) | −50 to −200 | All of src/ | Medium (audit first) |
@@ -149,11 +149,11 @@ Current local WebDAV method code that overlaps with nginx DAV includes:
 
 | Current file(s) | Approx. LOC | Possible fate |
 |---|---:|---|
-| `src/webdav/put.c` + `src/webdav/io.c` | 564 | Delegate `PUT` to nginx DAV, keep auth/scope checks in an earlier phase. |
-| `src/webdav/namespace.c` | 210 | Replace DELETE/MKCOL with nginx DAV where semantics match. |
-| `src/webdav/move.c` | 188 | Delegate to nginx DAV after destination/scope/lock precheck. |
-| `src/webdav/copy.c`, `fs/copy_engine.c`, `methods/copy_conditionals.c` | 686 | Delegate same-host local COPY to nginx DAV. |
-| `src/webdav/get.c`, parts of `fd_cache.c` | 350-850 | Potentially delegate GET/HEAD to `ngx_http_static_module` plus filters. |
+| `src/protocols/webdav/put.c` + `src/protocols/webdav/io.c` | 564 | Delegate `PUT` to nginx DAV, keep auth/scope checks in an earlier phase. |
+| `src/protocols/webdav/namespace.c` | 210 | Replace DELETE/MKCOL with nginx DAV where semantics match. |
+| `src/protocols/webdav/move.c` | 188 | Delegate to nginx DAV after destination/scope/lock precheck. |
+| `src/protocols/webdav/copy.c`, `fs/copy_engine.c`, `methods/copy_conditionals.c` | 686 | Delegate same-host local COPY to nginx DAV. |
+| `src/protocols/webdav/get.c`, parts of `fd_cache.c` | 350-850 | Potentially delegate GET/HEAD to `ngx_http_static_module` plus filters. |
 
 Gross overlap is roughly 1,600-2,500 LOC for write methods, or 2,200-3,300
 LOC if GET/HEAD are also moved toward nginx static file serving. The required
@@ -307,11 +307,11 @@ Expected deletion:
 
 Current files:
 
-- `src/webdav/proxy.c`
-- `src/webdav/proxy_config.c`
-- `src/webdav/proxy_request.c`
-- `src/webdav/proxy_response.c`
-- `src/webdav/proxy_internal.h`
+- `src/protocols/webdav/proxy.c`
+- `src/protocols/webdav/proxy_config.c`
+- `src/protocols/webdav/proxy_request.c`
+- `src/protocols/webdav/proxy_response.c`
+- `src/protocols/webdav/proxy_internal.h`
 
 These exist because the module can terminate auth and forward WebDAV to an
 internal HTTP/HTTPS server.
@@ -341,10 +341,10 @@ The larger benefit is correctness and less hand-built string assembly.
 
 Targets:
 
-- `src/webdav/propfind.c`
-- `src/webdav/lock.c`
-- `src/webdav/methods_basic.c` (`PROPPATCH`)
-- `src/webdav/xrdhttp_stats.c`
+- `src/protocols/webdav/propfind.c`
+- `src/protocols/webdav/lock.c`
+- `src/protocols/webdav/methods_basic.c` (`PROPPATCH`)
+- `src/protocols/webdav/xrdhttp_stats.c`
 - S3 XML response builders if a minimal common XML writer is introduced
 
 Use:
@@ -369,7 +369,7 @@ Current status:
 - `src/core/compat/xml.c` centralizes XML escaping for WebDAV and S3.
 - When `libxml2` is available, `src/core/compat/xml.c` parses WebDAV `LOCK`
   request bodies with `XML_PARSE_NONET` and without entity expansion.
-- `src/webdav/locks/request.c`, `src/webdav/util/xml.c`, and `src/s3/util.c`
+- `src/protocols/webdav/locks/request.c`, `src/protocols/webdav/util/xml.c`, and `src/protocols/s3/util.c`
   now use the shared adapter.
 - Unit coverage lives in `tests/unit/test_xml_compat.c` and includes success,
   short-buffer error, and external-entity security-negative cases.
@@ -492,7 +492,7 @@ Risk:
 
 ### The problem
 
-`src/webdav/tpc_curl.c` and `src/webdav/tpc_cred.c` both use `fork()` +
+`src/protocols/webdav/tpc_curl.c` and `src/protocols/webdav/tpc_cred.c` both use `fork()` +
 `waitpid()` to run external processes synchronously:
 
 - `tpc_curl.c` (296 LOC) forks the `curl` binary for each HTTP-TPC pull and
@@ -600,9 +600,9 @@ Risk:
 
 ---
 
-## Candidate 11: Use `ngx_http_time()` to eliminate `src/webdav/date.c`
+## Candidate 11: Use `ngx_http_time()` to eliminate `src/protocols/webdav/date.c`
 
-`src/webdav/date.c` (70 LOC) implements two functions:
+`src/protocols/webdav/date.c` (70 LOC) implements two functions:
 
 - `webdav_http_date(t, buf, sz)` — RFC 1123 format (`Mon, 01 Jan 2025 …`)
 - `webdav_iso8601_date(t, buf, sz)` — ISO 8601 format (`2025-01-01T00:00:00Z`)
@@ -614,8 +614,8 @@ living in a separate file.
 
 Expected deletion:
 
-- `src/webdav/date.c` entirely (70 LOC).
-- Two forward declarations removed from `src/webdav/webdav.h`.
+- `src/protocols/webdav/date.c` entirely (70 LOC).
+- Two forward declarations removed from `src/protocols/webdav/webdav.h`.
 - Two call sites updated to call `ngx_http_time()` or a short inline snippet.
 - Net: 55-65 LOC deleted.
 
@@ -631,7 +631,7 @@ Risk:
 
 Two areas were evaluated and confirmed **not worth replacing**:
 
-### S3 SigV4 authentication (src/s3/auth_sigv4*.c — 1,043 LOC)
+### S3 SigV4 authentication (src/protocols/s3/auth_sigv4*.c — 1,043 LOC)
 
 The SigV4 code is server-side HMAC-SHA256 verification, not signing.  No
 small C library exists for server-side verification; the AWS C SDK
@@ -694,7 +694,7 @@ well-covered by the existing read/write test suites.
 
 ## Candidate 14: Deduplicate TPC curl pull and push functions
 
-`src/webdav/tpc_curl.c` contains `webdav_tpc_run_curl_pull()` and
+`src/protocols/webdav/tpc_curl.c` contains `webdav_tpc_run_curl_pull()` and
 `webdav_tpc_run_curl_push()`, approximately 140 LOC each, with 70-80% textual
 similarity.
 
@@ -927,7 +927,7 @@ delegation) assume correct event-loop behavior.
 
 1. **TPC subprocess blocking (Candidate 9, Design A)** — **DONE.** The
    `fork/waitpid` call paths in `tpc_curl.c` are now wrapped by
-   `src/webdav/tpc_thread.c` (`webdav_tpc_post_thread_task`).  The thread
+   `src/protocols/webdav/tpc_thread.c` (`webdav_tpc_post_thread_task`).  The thread
    worker runs the entire blocking path (curl fork + waitpid + file commit) and
    fires a completion callback on the event loop.  Both pull and push paths try
    the thread-pool first and fall back to synchronous execution when
@@ -964,7 +964,7 @@ Status: **complete (cleanup done 2026-05-20).**
   fallback parser (`json.c` helpers + `jwks.c` fallback path) has been deleted.
   `src/auth/token/json.c` is now 150 LOC (was 495); `src/auth/token/jwks.c` is 171 LOC
   (was 281).
-- Implemented + cleaned up: `src/webdav/date.c` (70 LOC) deleted; callers in
+- Implemented + cleaned up: `src/protocols/webdav/date.c` (70 LOC) deleted; callers in
   `propfind.c` now use `ngx_http_time()` for RFC 1123 and `strftime()` for
   ISO 8601.
 - Correctness fix: `D:owner` in LOCK responses (`webdav_lock_xml_response`,
@@ -1060,14 +1060,14 @@ The reduction is successful only if:
 ## Recommended Next Step
 
 **Completed (Phase 0.5, 2026-05-20):**
-- TPC `fork/waitpid` wrapped in `ngx_thread_pool` via `src/webdav/tpc_thread.c`.
+- TPC `fork/waitpid` wrapped in `ngx_thread_pool` via `src/protocols/webdav/tpc_thread.c`.
 - Upstream DNS blocking eliminated by config-time `ngx_parse_url()` pre-resolution in `src/net/upstream/directives.c`; `src/net/upstream/start.c` uses the cached `ngx_addr_t *`.
 - `webdav_tpc_run_curl_pull/push` signatures changed to `ngx_log_t *log` for thread safety.
 
 **Completed (Phase 1, cleanup done 2026-05-20):**
 - Commodity-library wiring in place for libxml2, CRC32C, S3 XML helpers, Jansson token parsing.
 - Jansson is now a required dependency; local fallback parser deleted (−345 LOC: json.c 495→150, jwks.c 281→171).
-- `src/webdav/date.c` deleted (−70 LOC); `propfind.c` uses `ngx_http_time()` + `strftime()`.
+- `src/protocols/webdav/date.c` deleted (−70 LOC); `propfind.c` uses `ngx_http_time()` + `strftime()`.
 - LOCK response `D:owner` XML-escaped via `webdav_escape_xml_text()` (correctness fix).
 - Phase 1 guardrails updated to reflect Jansson as required dependency.
 

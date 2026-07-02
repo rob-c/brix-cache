@@ -235,7 +235,7 @@ The `xroot` row is fully READY: a socket-wire driver cannot open/read on the
 un-pumped HTTP event loop (eager connect + `kXR_read` + `kXR_fattr`), so serving a
 remote `xroot` primary backend OR a remote `xroot` `cache_store` runs the whole
 open + cinfo + miss-fill + read on the thread pool, materialises a local temp, and
-sendfiles it (`src/shared/http_serve_offload.c` — the serve-readback complement to
+sendfiles it (`src/protocols/shared/http_serve_offload.c` — the serve-readback complement to
 the off-loop FILL). In-process (`rados`) and curl (`s3`/`http`) backends block-but-
 complete on-loop and serve inline. Verified by `run_remote_backend_serve_offload.sh`
 + `run_xroot_cachestore_serve.sh`.

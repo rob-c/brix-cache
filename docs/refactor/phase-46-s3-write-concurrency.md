@@ -4,7 +4,7 @@
 and strace-verified; W3 deliberately deferred (§2 W3). Built clean (`-Werror`); 336 S3 +
 WebDAV + integrity tests pass, 5 FRM-staging tests pass (W2b with FRM enabled). **Two
 latent bugs found and fixed while implementing W1a** — see the status table below.
-**Scope:** `src/s3/` write path + two shared seams (`src/frm/residency.c`,
+**Scope:** `src/protocols/s3/` write path + two shared seams (`src/frm/residency.c`,
 `src/core/config/postconfiguration.c`). **No wire/format changes** — responses, XML, ETags,
 headers, and continuation tokens are byte-identical, so xrootd / XrdHttp / xrootd-S3
 (XrdClS3) compatibility holds by construction.
@@ -29,7 +29,7 @@ headers, and continuation tokens are byte-identical, so xrootd / XrdHttp / xroot
    a `location {}` block whose conf never received the pointer — so *every* PUT (in-memory
    and spooled) silently ran synchronously on the event loop. Fixed with a lazy resolver
    `s3_thread_pool()` (caches into the loc-conf at request time), mirroring the WebDAV
-   COPY/MOVE pattern (`src/webdav/copy.c`, `move.c`); now used by all three offloads.
+   COPY/MOVE pattern (`src/protocols/webdav/copy.c`, `move.c`); now used by all three offloads.
 2. **The async PUT completion never set the `ETag` header** (the sync path did) — latent
    because the async path never ran. Exposed once the offload engaged; fixed in
    `s3_put_aio_done`.
@@ -97,7 +97,7 @@ new UAF/impersonation surface beyond the existing template.
 ## 2. Workstreams
 
 ### W1 — Offload the blocking write paths (keystone)
-**Files:** `src/s3/put.c`, `src/s3/aws_chunked.{c,h}`, `src/s3/multipart_complete_body.c`
+**Files:** `src/protocols/s3/put.c`, `src/protocols/s3/aws_chunked.{c,h}`, `src/protocols/s3/multipart_complete_body.c`
 
 - **W1a — spooled PUT bodies (smallest, safest, do first).** Widen the thread-pool gate
   (`put.c:764`) to also admit `body_summary.has_spooled` bodies: the existing worker fn
@@ -121,7 +121,7 @@ new UAF/impersonation surface beyond the existing template.
   worker. Falls back to the synchronous path when no thread pool is configured (unchanged).
 
 ### W2 — Per-request syscall cuts (cheap, safe)
-**Files:** `src/s3/put.c` (or `src/fs/path/mkdir.c`), `src/frm/residency.c`
+**Files:** `src/protocols/s3/put.c` (or `src/fs/path/mkdir.c`), `src/frm/residency.c`
 
 - **W2a — PUT parent-dir fast-path.** Before `xrootd_mkdir_recursive_confined_canon`
   (`put.c:692`), confined-`stat` the parent dir; if it exists and is a directory, skip the
@@ -140,7 +140,7 @@ new UAF/impersonation surface beyond the existing template.
   (`test_frm*.py`) still pass with FRM enabled.
 
 ### W3 — *(Optional / deferred)* listing pagination walk-cursor cache
-**File:** `src/s3/list_objects_v2.c`
+**File:** `src/protocols/s3/list_objects_v2.c`
 
 - Each paginated page still re-runs the **full** recursive `s3_walk` + `qsort` + linear
   continuation scan over the whole prefix subtree (`list_objects_v2.c:135-159`) — phase-45
@@ -183,12 +183,12 @@ plus `test_webdav.py` + `test_frm*.py` for the shared-seam changes (W2b).
 
 | Workstream | Files |
 |---|---|
-| W1a / W1b / W2a | `src/s3/put.c` (gate widen; chunked task; parent fast-path) |
-| W1b | `src/s3/aws_chunked.{c,h}` (offload task) |
-| W1c | `src/s3/multipart_complete_body.c` (offload task) |
+| W1a / W1b / W2a | `src/protocols/s3/put.c` (gate widen; chunked task; parent fast-path) |
+| W1b | `src/protocols/s3/aws_chunked.{c,h}` (offload task) |
+| W1c | `src/protocols/s3/multipart_complete_body.c` (offload task) |
 | W2a (shared option) | `src/fs/path/mkdir.c` (stat fast-path if shared) |
 | W2b | `src/frm/residency.c` + the FRM config/init hook (process-global guard) |
-| W3 (optional) | `src/s3/list_objects_v2.c` |
+| W3 (optional) | `src/protocols/s3/list_objects_v2.c` |
 | Tests | new `tests/test_s3_perf_characterization.py` additions (offload-occurs + syscall-delta); existing `test_s3*.py` / `test_s3_multipart.py` / `test_webdav.py` / `test_frm*.py` for regression |
 
 ## 6. Expected outcome

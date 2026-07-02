@@ -44,8 +44,8 @@ access-log batching + WebDAV per-request cuts: tracked follow-ups (documented).
 >   `large200.bin` instead. Standalone TLS shell tests need
 >   `X509_USER_PROXY`/`X509_CERT_DIR` set (conftest sets them).
 **Scope:** the three bulk data planes — `davs://`/WebDAV+TLS, S3, and `root://` —
-`src/read`, `src/core/aio`, `src/connection`, `src/fs`, `src/shared`, `src/webdav`,
-`src/s3`, plus nginx runtime config.
+`src/read`, `src/core/aio`, `src/connection`, `src/fs`, `src/shared`, `src/protocols/webdav`,
+`src/protocols/s3`, plus nginx runtime config.
 **Builds on:** Phase 29 (read bottlenecks), Phase 30 (hyper-opt), Phase 31
 (memory-budget streaming: windowing + budget + pipelining ring scaffold). This
 plan layers performance **on top of** that new functionality without regressing

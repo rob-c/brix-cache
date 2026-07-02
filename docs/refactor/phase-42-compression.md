@@ -313,8 +313,8 @@ behaviour change — pure scaffolding + checksum parity.
 Refactor `src/core/compat/http_body.c` (`xrootd_http_body_inflate_to_fd`,
 `inflate_feed`, `xrootd_http_body_inflate_bufs`) from zlib-only to codec-dispatch
 via `codec_core` (gzip/deflate stay byte-identical: `codec_zlib` uses
-`inflateInit2(15+16)` / `(15)`). Sniff `Content-Encoding` at `src/webdav/put.c`
-(~:247-261) and `src/s3/put.c` (~:527-543) → `xrootd_codec_by_http_token`; the
+`inflateInit2(15+16)` / `(15)`). Sniff `Content-Encoding` at `src/protocols/webdav/put.c`
+(~:247-261) and `src/protocols/s3/put.c` (~:527-543) → `xrootd_codec_by_http_token`; the
 thread-pool fast-path gate becomes `codec == IDENTITY`; reply **415** for an
 unsupported/disabled codec (instead of storing garbage); map a tripped bomb guard
 to **413** (flows through the existing "failed inflate leaves no partial object"
@@ -322,7 +322,7 @@ cleanup). Add the four optional backends in this workstream.
 
 ### W2 — Outbound compress (GET), all codecs — *separate review (perturbs sendfile)*
 New module-only `src/core/compat/http_compress.{c,h}` + a negotiation seam in
-`src/shared/file_serve.c` (`xrootd_http_serve_file_ranged`), after range parse and
+`src/protocols/shared/file_serve.c` (`xrootd_http_serve_file_ranged`), after range parse and
 before headers: parse `Accept-Encoding` q-values ∩ the location's configured +
 `available` codec list; require `size >= min_size`, a compressible MIME (deny
 `image/*`, `video/*`, `application/gzip|zstd|x-xz|x-bzip2`, …), **Range → identity**,
@@ -332,8 +332,8 @@ HEAD → no body. If a codec is chosen, drop the sendfile path and stream
 compressed size is unknown until done). `IDENTITY` path is byte-identical to today
 (zero regression for the common case). Extend `xrootd_http_set_file_headers`
 (`src/core/compat/http_file_response.c`) for the encoding header + the chunked case; add
-a policy field to `xrootd_http_serve_opts_t` so GET callers (`src/webdav/get.c`,
-`src/s3/object.c`) pass per-location config. New config directives: enable
+a policy field to `xrootd_http_serve_opts_t` so GET callers (`src/protocols/webdav/get.c`,
+`src/protocols/s3/object.c`) pass per-location config. New config directives: enable
 per-location + codec list + min-size + MIME set. Keep `Vary`/ETag conservative to
 avoid shared-cache poisoning.
 
@@ -389,9 +389,9 @@ explicit opt-in on top of W4.
   `src/read/compress_negotiate.c`.
 - **Build:** `config` (probes + stream-module `ngx_module_libs` + srcs),
   `shared/xrdproto/Makefile`, `client/Makefile`, `packaging/rpm/nginx-mod-xrootd.spec`.
-- **Inbound:** `src/core/compat/http_body.c`, `src/webdav/put.c`, `src/s3/put.c`.
-- **Outbound:** `src/shared/file_serve.c`, `src/core/compat/http_file_response.c`,
-  `src/shared/file_serve.h`, `src/webdav/get.c`, `src/s3/object.c`.
+- **Inbound:** `src/core/compat/http_body.c`, `src/protocols/webdav/put.c`, `src/protocols/s3/put.c`.
+- **Outbound:** `src/protocols/shared/file_serve.c`, `src/core/compat/http_file_response.c`,
+  `src/protocols/shared/file_serve.h`, `src/protocols/webdav/get.c`, `src/protocols/s3/object.c`.
 - **root:// (W4):** `src/query/config.c`, `src/read/open_request.c`,
   `src/read/open_resolved_file.c`, `src/read/slice_read.c`, `src/read/read.c`,
   `src/core/types/context.h`; `src/read/pgread.c` + `src/read/readv.c` + `src/core/aio/readv.c`

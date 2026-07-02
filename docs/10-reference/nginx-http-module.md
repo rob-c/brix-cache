@@ -48,7 +48,7 @@ The nginx HTTP module provides every layer of this for free:
 The WebDAV handler registers itself as an `ngx_http_module` content handler:
 
 ```c
-/* src/webdav/module.c — simplified */
+/* src/protocols/webdav/module.c — simplified */
 static ngx_http_module_t ngx_http_xrootd_webdav_module_ctx = {
     NULL,                                          /* preconfiguration */
     ngx_http_xrootd_webdav_postconfiguration,      /* postconfiguration */

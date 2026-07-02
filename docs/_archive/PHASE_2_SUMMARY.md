@@ -12,7 +12,7 @@
 ### Phase 2a: Allocation Pattern Migration (Est. -60 LoC)
 
 **Completed:** ✓
-- Modified: `src/webdav/tpc_config.c`
+- Modified: `src/protocols/webdav/tpc_config.c`
 - Consolidated 3 allocation patterns to use `NGX_ALLOC_OR_CONF_ERROR` macro
 - Reduction: ~5 LoC in this file
 
@@ -23,7 +23,7 @@
 ### Phase 2b: WebDAV Response Pattern Migration (Est. -120 LoC)
 
 **Status:** Deferred - Helper infrastructure ready  
-- Created: `src/webdav/response_helpers.h` with 4 inline functions
+- Created: `src/protocols/webdav/response_helpers.h` with 4 inline functions
 - Ready for migration in: propfind.c, put.c, get.c, copy.c, move.c, lock.c
 - Estimated reduction when implemented: **-120 LoC**
 
@@ -51,13 +51,13 @@ return webdav_send_empty_response(r, NGX_HTTP_NO_CONTENT);
 - **Reduction:** ~2 lines
 - Consolidated: `enable`, `session_ttl`, `idle_threshold_ms`, `stalled_threshold_ms`, `cluster_stale_after_ms`, `password`, `cookie_path`, `users`
 
-#### WebDAV Config (`src/webdav/config.c`)
+#### WebDAV Config (`src/protocols/webdav/config.c`)
 - **Before:** 22 `ngx_conf_merge_*` calls  (25+ lines including continuations)
 - **After:** 15 `MERGE_*` macro calls (15 lines)
 - **Reduction:** ~10 lines
 - Consolidated: `cadir`, `cafile`, `crl`, `verify_depth`, `vomsdir`, `voms_cert_dir`, `auth`, `proxy_certs`, `cors_origins`, `cors_credentials`, `cors_max_age`, `lock_timeout`, `open_file_cache*`, `token_*` fields
 
-#### TPC Config (`src/webdav/tpc_config.c`)
+#### TPC Config (`src/protocols/webdav/tpc_config.c`)
 - **Before:** 8 `ngx_conf_merge_*` calls (11 lines with continuations)
 - **After:** 8 `MERGE_*` macro calls (8 lines)
 - **Reduction:** ~3 lines
@@ -100,14 +100,14 @@ xrootd_parse_address(addr_str, addr_len, host, host_len, &port, &tls_enabled);
 ## Code Changes Summary
 
 ### Files Modified
-1. `src/webdav/tpc_config.c` - Added merge helper consolidation
+1. `src/protocols/webdav/tpc_config.c` - Added merge helper consolidation
 2. `src/observability/dashboard/module.c` - Added conf_helpers include and consolidated merges
-3. `src/webdav/config.c` - Added conf_helpers include and consolidated merges
+3. `src/protocols/webdav/config.c` - Added conf_helpers include and consolidated merges
 4. `src/fs/cache/directives.c` - Phase 1 (allocation macro consolidation)
 
 ### Helper Infrastructure Created (Phase 1)
 1. `src/core/compat/alloc_helpers.h` - Memory allocation macros
-2. `src/webdav/response_helpers.h` - HTTP response helpers
+2. `src/protocols/webdav/response_helpers.h` - HTTP response helpers
 3. `src/core/config/conf_helpers.h` - Config merge macros
 4. `src/core/config/addr_parse.c/h` - Address parsing helper
 

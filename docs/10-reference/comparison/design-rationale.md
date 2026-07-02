@@ -151,8 +151,8 @@ In this module the separation is blunt:
 | Request | nginx object | Main state | Main code path |
 |---|---|---|---|
 | native `root://` | `ngx_connection_t` / stream session | `xrootd_ctx_t` | `src/connection/`, `src/handshake/`, `src/read/`, `src/write/` |
-| WebDAV `davs://` | `ngx_http_request_t` | WebDAV request ctx | `src/webdav/` |
-| S3-style HTTP | `ngx_http_request_t` | S3 location config/request ctx | `src/s3/` |
+| WebDAV `davs://` | `ngx_http_request_t` | WebDAV request ctx | `src/protocols/webdav/` |
+| S3-style HTTP | `ngx_http_request_t` | S3 location config/request ctx | `src/protocols/s3/` |
 | metrics | `ngx_http_request_t` | shared counters | `src/observability/metrics/` |
 
 That clarity is a design advantage for security review and performance work.

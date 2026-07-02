@@ -371,13 +371,13 @@ it means some advanced XRootD-daemon features are intentionally out of scope.
 ```
 COPY request
     │
-    ├── Source: header → TPC pull (src/webdav/tpc.c)
+    ├── Source: header → TPC pull (src/protocols/webdav/tpc.c)
     │       server fetches from remote URL into local path
     │
-    ├── Destination: header + Credential: header → TPC push (src/webdav/tpc.c)
+    ├── Destination: header + Credential: header → TPC push (src/protocols/webdav/tpc.c)
     │       server reads local file and streams to remote URL
     │
-    └── Destination: header, no Credential: → server-side copy (src/webdav/copy.c)
+    └── Destination: header, no Credential: → server-side copy (src/protocols/webdav/copy.c)
             RFC 4918 §9.8 — local file copy within the export root
 ```
 
@@ -411,7 +411,7 @@ returns 423 Locked.
 
 ## 17. The WebDAV fd cache is TLS-connection-scoped
 
-The per-connection file descriptor cache (`src/webdav/fd_cache.c`) reuses open
+The per-connection file descriptor cache (`src/protocols/webdav/fd_cache.c`) reuses open
 file descriptors across keepalive requests on the same connection. It is stored
 in OpenSSL `ex_data` — which means it only exists on TLS connections that have
 a stable `SSL` object.
@@ -436,13 +436,13 @@ for typical HEP storage workloads, but it means:
   identical IDs
 
 If you need cryptographically strong upload IDs, the `s3_handle_multipart_initiate`
-function in `src/s3/multipart.c` is the right place to change the generation logic.
+function in `src/protocols/s3/multipart.c` is the right place to change the generation logic.
 
 ---
 
 ## 19. S3 ListObjectsV2 does not support all query parameters
 
-The S3 ListObjectsV2 implementation (`src/s3/list.c`) supports:
+The S3 ListObjectsV2 implementation (`src/protocols/s3/list.c`) supports:
 
 - `prefix` — filters keys by prefix
 - `max-keys` — limits result count

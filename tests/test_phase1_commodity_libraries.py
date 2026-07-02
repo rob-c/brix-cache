@@ -87,7 +87,7 @@ def test_phase1_shared_xml_element_helpers_present():
     # s3_xml_append_text_element was removed by Plan 4 Item 7; XML_APPEND_ELEM in
     # s3.h now calls xrootd_xml_write_text_element directly.
     _assert_markers(
-        "src/s3/s3.h",
+        "src/protocols/s3/s3.h",
         [
             "xrootd_xml_write_text_element",
         ],
@@ -105,9 +105,9 @@ def test_phase1_s3_response_builders_use_xml_helpers():
     # s3_xml_append_text_element was removed by Plan 4 Item 7.  XML_APPEND_ELEM
     # (defined in s3.h) now calls xrootd_xml_write_text_element directly.
     for relpath in (
-        "src/s3/list_objects_v2.c",
-        "src/s3/multipart_complete_list_parts.c",
-        "src/s3/multipart_complete_list_uploads.c",
+        "src/protocols/s3/list_objects_v2.c",
+        "src/protocols/s3/multipart_complete_list_parts.c",
+        "src/protocols/s3/multipart_complete_list_uploads.c",
     ):
         _assert_markers(
             relpath,

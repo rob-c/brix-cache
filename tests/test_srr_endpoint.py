@@ -1,7 +1,7 @@
 """
 tests/test_srr_endpoint.py
 
-WLCG Storage Resource Reporting (SRR) endpoint — src/srr/.
+WLCG Storage Resource Reporting (SRR) endpoint — src/protocols/srr/.
 
 The module serves the WLCG "storageservice" JSON document (schema v4.x) that
 CRIC / WLCG storage accounting harvests over HTTP, deliberately in place of the

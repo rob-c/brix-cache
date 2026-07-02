@@ -62,7 +62,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 
 **Files:**
 - Modify: `src/fs/vfs_residency.c` (or wherever `xrootd_vfs_residency` lives) — dispatch to the resolved SD instance's `->residency`/nearline slot instead of `frm_residency_probe`
-- Modify: `src/read/open_request.c`, `src/webdav/tape_rest.c` — call `xrootd_vfs_residency`/`sd_frm` locality, not `frm_residency_probe`/`frm_file_locality` directly
+- Modify: `src/read/open_request.c`, `src/protocols/webdav/tape_rest.c` — call `xrootd_vfs_residency`/`sd_frm` locality, not `frm_residency_probe`/`frm_file_locality` directly
 - Test: `run_s3_tape_residency.sh`, `test_frm_control_locality.py`, `run_tape_recall_stream.sh`
 
 **Interfaces:**
@@ -133,7 +133,7 @@ Run: `for h in run_tape_recall_stream run_tape_recall_async run_tape_exec_adapte
 > This is the exact re-home of `frm/queue.c` (630) + `frm/reqfile.c` (361) + `frm/reqid.c`/`index.c` operations onto the engine's durable records (adding the tape fields the engine record lacks: requester_dn/cs_type/lfn/status). ~1000 lines, and it is the wire-facing crux — gate every prepare + Tape REST response byte-identical.
 
 **Files:**
-- Modify: `src/query/prepare.c` (`frm_request_add/get/delete/find_by_path/owner_check`), `src/webdav/tape_rest.c` (`frm_request_add/cancel/list_active/list_files/owner_check`, `frm_pin_release`, `frm_singleton_queue`)
+- Modify: `src/query/prepare.c` (`frm_request_add/get/delete/find_by_path/owner_check`), `src/protocols/webdav/tape_rest.c` (`frm_request_add/cancel/list_active/list_files/owner_check`, `frm_pin_release`, `frm_singleton_queue`)
 - Create (if Task-0 strategy B): `src/fs/xfer/stage_request_registry.{c,h}` — reqid gen + owner + list + cancel over the engine's durable records
 - Read/DELETE: `src/frm/queue.c` (630), `src/frm/reqfile.c` (361), `src/frm/reqid.c`, `src/frm/index.c`, `src/frm/compact.c`
 - Test: `test_frm_async.py`, `run_s3_tape_residency.sh`, and a kXR_prepare + a Tape REST client check

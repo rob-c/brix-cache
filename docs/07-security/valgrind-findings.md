@@ -89,7 +89,7 @@ NUL-terminated copy first. See the CLAUDE.md FAQ entry on `ngx_str_t`.
 long-running gateways that reload config or rotate JWKS).
 
 **Files:** `src/auth/token/jwks.c`, `src/auth/token/token.h`, `src/auth/token/config.c`
-(stream), `src/webdav/config.c` (HTTP).
+(stream), `src/protocols/webdav/config.c` (HTTP).
 
 **Symptom (Memcheck):** `1,680 (152 direct, 1,528 indirect) bytes in 1 blocks
 are definitely lost`, the parent of ~10 indirectly-lost OpenSSL allocations:
@@ -101,7 +101,7 @@ malloc
   xrootd_token_rsa_pubkey_from_ne   (src/auth/token/keys.c:73)
   xrootd_jwks_load_jansson          (src/auth/token/jwks.c:76)
   xrootd_jwks_load                  (src/auth/token/jwks.c:177)
-  ngx_http_xrootd_webdav_merge_loc_conf (src/webdav/config.c)
+  ngx_http_xrootd_webdav_merge_loc_conf (src/protocols/webdav/config.c)
   ngx_http_merge_servers / ngx_http_block
   ngx_init_cycle / main
 ```
@@ -121,7 +121,7 @@ was **never registered to run when the conf pool is destroyed**. Consequences:
   because the pool memory holding the pointers is freed before exit).
 
 Both conf load sites had the defect: the stream module (`src/auth/token/config.c`)
-and the HTTP/WebDAV module (`src/webdav/config.c`).
+and the HTTP/WebDAV module (`src/protocols/webdav/config.c`).
 
 **Fix:** A new helper registers an `ngx_pool_cleanup_t` on the conf pool whose
 handler calls `xrootd_jwks_free()`:
@@ -162,7 +162,7 @@ xrootd_jwks_register_cleanup(ngx_pool_t *pool, xrootd_jwks_key_t *keys,
 Wired at both load sites, immediately after a successful load, e.g.:
 
 ```c
-/* src/webdav/config.c */
+/* src/protocols/webdav/config.c */
 conf->jwks_key_count = rc;
 if (rc > 0
     && xrootd_jwks_register_cleanup(cf->pool, conf->jwks_keys,

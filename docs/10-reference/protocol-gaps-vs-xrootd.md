@@ -363,9 +363,9 @@ paths where required.
 
 | Gap | Effort | Implementation Notes |
 |-----|--------|---------------------|
-| **HTTP-TPC multi-stream** | ✅ | `X-Number-Of-Streams` negotiated; `curl_multi` Range-GETs; 202+Perf Markers (`src/webdav/tpc_marker.c`, `tpc_curl.c`) |
+| **HTTP-TPC multi-stream** | ✅ | `X-Number-Of-Streams` negotiated; `curl_multi` Range-GETs; 202+Perf Markers (`src/protocols/webdav/tpc_marker.c`, `tpc_curl.c`) |
 | **Native `kXR_attn` generation** | ✅ | `xrootd_send_attn_asyncms()` / `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` delivers immediate notification; `kXR_asynresp` ready for deferred-response callers |
-| **Macaroons delegation** | ✅ | `POST /.oauth2/token` + `GET /.well-known/oauth-authorization-server`; HMAC-SHA256 issuance in `src/auth/token/macaroon_issue.c`; REST handler in `src/webdav/macaroon_endpoint.c` |
+| **Macaroons delegation** | ✅ | `POST /.oauth2/token` + `GET /.well-known/oauth-authorization-server`; HMAC-SHA256 issuance in `src/auth/token/macaroon_issue.c`; REST handler in `src/protocols/webdav/macaroon_endpoint.c` |
 | **XrdHttp protocol** | ✅ | `Want-Digest:` RFC 3230 on HEAD+GET; algo normalisation; `xrdhttp_add_checksum_header()` on HEAD; 405+Allow on unknown methods |
 | **Throttle** | Low | Per-connection rate limiter |
 | **ZIP serving** | Low | ZIP parser, archive extraction |

@@ -945,7 +945,7 @@ unchanged.
 | `src/read/open_resolved_file.c` | `kXR_open`: keeps resume/POSC partials on the POSIX-fd path; opens the final through the driver otherwise (Layer 3) |
 | `src/read/stat.c` | `kXR_stat` — path stat via `driver->stat`; handle stat via the driver-backed `fstat` branch (§6.1) |
 | `src/read/close.c` | `kXR_close`: POSC/resume commit via `xrootd_commit_staged` |
-| `src/stream/module.c`, `src/webdav/module.c` | the `xrootd_storage_backend` / `xrootd_pblock_block_size` directives |
+| `src/stream/module.c`, `src/protocols/webdav/module.c` | the `xrootd_storage_backend` / `xrootd_pblock_block_size` directives |
 | `config` | build-gates `sd_pblock*.c` on `libsqlite3` (`-DXROOTD_HAVE_SQLITE=1`) |
 
 ## See also

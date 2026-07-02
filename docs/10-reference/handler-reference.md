@@ -263,7 +263,7 @@ complex handlers that send a body keep the three lines explicit.
 
 ## WebDAV handler building blocks
 
-All WebDAV helpers are declared in `src/webdav/webdav.h`.
+All WebDAV helpers are declared in `src/protocols/webdav/webdav.h`.
 
 ### Path resolution
 
@@ -375,7 +375,7 @@ webdav_fd_table_t *webdav_get_fd_table(ngx_http_request_t *r);
 
 ## S3 handler building blocks
 
-All S3 helpers are in `src/s3/`.
+All S3 helpers are in `src/protocols/s3/`.
 
 ### SigV4 auth
 

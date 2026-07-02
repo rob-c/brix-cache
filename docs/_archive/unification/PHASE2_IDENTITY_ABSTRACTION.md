@@ -18,8 +18,8 @@ Authentication and authorization state is currently scattered across at least th
 | Protocol | Auth State Lives In | Populated By |
 |:---|:---|:---|
 | XRootD Stream | `xrootd_ctx_t` (`src/session/session.h`) | `src/session/login.c`, `src/auth/gsi/parse.c`, `src/auth/token/validate.c` |
-| WebDAV/HTTPS | `ngx_http_xrootd_webdav_req_ctx_t` (`src/webdav/webdav.h`) | `src/webdav/auth_cert.c`, `src/webdav/auth_token.c` |
-| S3 REST | Inline locals in `src/s3/auth_sigv4_verify.c` | SigV4 HMAC verification; no persistent identity struct |
+| WebDAV/HTTPS | `ngx_http_xrootd_webdav_req_ctx_t` (`src/protocols/webdav/webdav.h`) | `src/protocols/webdav/auth_cert.c`, `src/protocols/webdav/auth_token.c` |
+| S3 REST | Inline locals in `src/protocols/s3/auth_sigv4_verify.c` | SigV4 HMAC verification; no persistent identity struct |
 
 After this phase every auth path **produces** an `xrootd_identity_t` and every policy path **consumes** one. Protocol-specific wire translation (kXR login handshake, HTTP `Authorization:` header, SigV4 signature) stays in its own layer; the shared layer starts the moment credentials are validated.
 
@@ -48,7 +48,7 @@ Populated by:
 
 ### HTTP Identity (`ngx_http_xrootd_webdav_req_ctx_t`)
 
-Defined in `src/webdav/webdav.h`. Fields are more ad-hoc:
+Defined in `src/protocols/webdav/webdav.h`. Fields are more ad-hoc:
 
 ```c
 // Scattered auth fields in the WebDAV request context
@@ -60,12 +60,12 @@ unsigned int has_read_scope:1;
 ```
 
 Populated by:
-- `src/webdav/auth_cert.c` — mTLS cert extraction, `webdav_verify_proxy_cert()`
-- `src/webdav/auth_token.c` — Bearer token, `webdav_verify_bearer_token()`, scope check
+- `src/protocols/webdav/auth_cert.c` — mTLS cert extraction, `webdav_verify_proxy_cert()`
+- `src/protocols/webdav/auth_token.c` — Bearer token, `webdav_verify_bearer_token()`, scope check
 
 ### S3 Identity (No Persistent Struct)
 
-`src/s3/auth_sigv4_verify.c` verifies the HMAC signature against configured credentials but does **not** produce any reusable identity object. Access key ID is available locally but never stored for later ACL checks.
+`src/protocols/s3/auth_sigv4_verify.c` verifies the HMAC signature against configured credentials but does **not** produce any reusable identity object. Access key ID is available locally but never stored for later ACL checks.
 
 ---
 
@@ -188,9 +188,9 @@ ngx_int_t xrootd_sss_verify(const xrootd_sss_header_t *hdr,
                              ngx_log_t *log);
 ```
 
-### Step 4 — S3 SigV4: `src/s3/auth_sigv4_verify.c`
+### Step 4 — S3 SigV4: `src/protocols/s3/auth_sigv4_verify.c`
 
-Add an `xrootd_identity_t *` output parameter. Fill `id->subject` with the verified access key ID. Set `id->auth_method |= XROOTD_AUTHN_S3KEY`. This allows `src/s3/` to participate in unified audit logging.
+Add an `xrootd_identity_t *` output parameter. Fill `id->subject` with the verified access key ID. Set `id->auth_method |= XROOTD_AUTHN_S3KEY`. This allows `src/protocols/s3/` to participate in unified audit logging.
 
 ```c
 ngx_int_t xrootd_s3_sigv4_verify(ngx_http_request_t *r,
@@ -235,14 +235,14 @@ VOMS extraction (FQAN parsing) already produces an array. It now fills `id->vo_l
 | `src/auth/token/validate.c` | Output into `xrootd_identity_t *` |
 | `src/auth/token/scopes.c` | Accept `xrootd_identity_t *` for scope check helpers |
 | `src/auth/sss/*.c` | Output into `xrootd_identity_t *` |
-| `src/s3/auth_sigv4_verify.c` | Add `xrootd_identity_t *` output |
+| `src/protocols/s3/auth_sigv4_verify.c` | Add `xrootd_identity_t *` output |
 | `src/auth/voms/*.c` | Fill `id->vo_list` |
 | `src/auth/authz/acl.c` | Accept `xrootd_identity_t *` |
 | `src/session/session.h` | Add `xrootd_identity_t *identity` field |
 | `src/session/login.c` | Build and attach identity struct |
-| `src/webdav/webdav.h` | Replace scattered auth fields with `xrootd_identity_t *identity` |
-| `src/webdav/auth_cert.c` | Populate `xrootd_identity_t` via `xrootd_gsi_parse_cert()` |
-| `src/webdav/auth_token.c` | Populate `xrootd_identity_t` via `xrootd_token_validate()` |
+| `src/protocols/webdav/webdav.h` | Replace scattered auth fields with `xrootd_identity_t *identity` |
+| `src/protocols/webdav/auth_cert.c` | Populate `xrootd_identity_t` via `xrootd_gsi_parse_cert()` |
+| `src/protocols/webdav/auth_token.c` | Populate `xrootd_identity_t` via `xrootd_token_validate()` |
 | `src/core/config/config.h` | Add `src/core/types/identity.c` to `NGX_ADDON_SRCS` |
 
 ---

@@ -89,7 +89,7 @@ PROPFIND → <D:getcontentlength>1048576</D:getcontentlength>
 The defect was emitting an *extra, semantically misplaced* property that a stricter
 client (davix) consumed differently than `curl`.
 
-**Fix.** Gate the quota block to collections in `src/webdav/propfind.c`:
+**Fix.** Gate the quota block to collections in `src/protocols/webdav/propfind.c`:
 
 ```c
 if ((mask & (PF_QUOTA_AVAILABLE | PF_QUOTA_USED)) && S_ISDIR(sb->st_mode)) {

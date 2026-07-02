@@ -141,7 +141,7 @@ sigver_mac              — signing algorithm handle
 bearer_token_state      — JWT bearer token validation state
 ```
 
-**WebDAV auth state:** Stored per-request via `ngx_http_set_ctx(r, webdav_ctx, module)` pattern (`src/webdav/xrdhttp.c:56–71`). Retrieved per-request with `ngx_http_get_module_ctx`. Auth verified by `webdav_verify_proxy_cert()` or `webdav_verify_bearer_token()`.
+**WebDAV auth state:** Stored per-request via `ngx_http_set_ctx(r, webdav_ctx, module)` pattern (`src/protocols/webdav/xrdhttp.c:56–71`). Retrieved per-request with `ngx_http_get_module_ctx`. Auth verified by `webdav_verify_proxy_cert()` or `webdav_verify_bearer_token()`.
 
 **S3 auth state:** SigV4 canonical request construction in `auth_sigv4_canonical.c`, header parsing in `auth_sigv4_headers.c`, credential string parsing in `auth_sigv4_parse.c`, verification in `auth_sigv4_verify.c` (HMAC-SHA256 signing chain). Separate from WLCG token auth — never shared logic.
 
@@ -568,7 +568,7 @@ Append a new "Disconnect phases" section after the existing file table:
 
 #### T4: Proxy fh_map Lifecycle Expansion in `src/net/proxy/README.md` (1.5 h)
 
-**Goal:** Expand the sparse 23-line file table into a complete reference covering the fh_map[256] state machine, lazy-open sequence, upstream_fh translation, and the relationship to WebDAV proxy (`src/webdav/proxy.c`).
+**Goal:** Expand the sparse 23-line file table into a complete reference covering the fh_map[256] state machine, lazy-open sequence, upstream_fh translation, and the relationship to WebDAV proxy (`src/protocols/webdav/proxy.c`).
 
 **Blocked by:** Phase 0 read of `proxy/README.md` and `proxy/proxy_internal.h` (272 lines — the fh_map struct definition lives here).
 
@@ -623,7 +623,7 @@ Each state gate is checked in `events_*.c` before processing read/write events.
 
 ## WebDAV proxy relationship
 
-`src/webdav/proxy.c` implements HTTP-level forwarding (WebDAV → backend HTTP/HTTPS). It does **not** use `fh_map` because HTTP requests are stateless — each request carries a full URI, not a handle. Handle translation is a stream-protocol-only concept driven by XRootD's stateful session model.
+`src/protocols/webdav/proxy.c` implements HTTP-level forwarding (WebDAV → backend HTTP/HTTPS). It does **not** use `fh_map` because HTTP requests are stateless — each request carries a full URI, not a handle. Handle translation is a stream-protocol-only concept driven by XRootD's stateful session model.
 ```
 
 **File modified:** `src/net/proxy/README.md`

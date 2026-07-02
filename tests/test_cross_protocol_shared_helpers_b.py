@@ -99,7 +99,7 @@ def test_phase3_vfs_preserves_io_invariants():
     #  - read-side CRC -> fs/vfs_io_core.c
     #  - the write byte primitive -> fs/vfs_write.c
     _assert_markers("src/core/compat/http_file_response.c", ["b->in_file = 1"])
-    _assert_markers("src/shared/file_serve.c",
+    _assert_markers("src/protocols/shared/file_serve.c",
                     ["send_fd = dup(fd)", "xrootd_vfs_close(fh"])
     _assert_markers("src/fs/vfs_io_core.c", ["xrootd_crc32c_value("])
     _assert_markers("src/fs/vfs_write.c", ["xrootd_vfs_pwrite_full("])
@@ -110,7 +110,7 @@ def test_phase3_vfs_preserves_io_invariants():
 
 def test_phase3_http_read_metadata_uses_vfs():
     _assert_markers(
-        "src/s3/object.c",
+        "src/protocols/s3/object.c",
         [
             "../fs/vfs.h",
             "xrootd_vfs_open(",
@@ -119,7 +119,7 @@ def test_phase3_http_read_metadata_uses_vfs():
         ],
     )
     _assert_markers(
-        "src/webdav/resource.c",
+        "src/protocols/webdav/resource.c",
         ["../fs/vfs.h", "xrootd_vfs_stat("],
     )
 
@@ -176,7 +176,7 @@ def test_phase4_vfs_cache_hooks_are_present():
     # Read-side cache-hit recording moved out of vfs_read.c into the shared HTTP
     # serve pipeline; the write-through decision moved into its own cache unit.
     _assert_markers(
-        "src/shared/file_serve.c",
+        "src/protocols/shared/file_serve.c",
         ["../cache/open.h", "xrootd_cache_record_access("],
     )
     _assert_markers(
@@ -192,7 +192,7 @@ def test_phase4_http_protocols_use_vfs_cache_path():
     # field inline. Assert each GET handler routes through the helper + still opens
     # read-only through the VFS and records cache access.
     _assert_markers(
-        "src/webdav/get.c",
+        "src/protocols/webdav/get.c",
         [
             "../cache/open.h",
             "../fs/vfs.h",
@@ -203,11 +203,11 @@ def test_phase4_http_protocols_use_vfs_cache_path():
         ],
     )
     _assert_absent(
-        "src/webdav/get.c",
+        "src/protocols/webdav/get.c",
         ["cache_path = cache_root_canon + (path - root_canon)"],
     )
     _assert_markers(
-        "src/s3/object.c",
+        "src/protocols/s3/object.c",
         [
             "../cache/open.h",
             "xrootd_vfs_ctx_init(",
@@ -224,7 +224,7 @@ def test_phase4_http_protocols_use_vfs_cache_path():
     # per-protocol GET handlers into the shared file-serve pipeline. Both WebDAV
     # and S3 GET now record cache access via xrootd_http_serve_file_ranged().
     _assert_markers(
-        "src/shared/file_serve.c",
+        "src/protocols/shared/file_serve.c",
         [
             "../cache/open.h",
             "xrootd_vfs_file_from_cache(",
@@ -232,7 +232,7 @@ def test_phase4_http_protocols_use_vfs_cache_path():
         ],
     )
     _assert_markers(
-        "src/s3/module.c",
+        "src/protocols/s3/module.c",
         ["xrootd_s3_cache_root", "cache_root_canon"],
     )
 
@@ -350,11 +350,11 @@ def test_phase6_unified_metrics_observability_is_wired():
         ["xrootd_metric_cache_result("],
     )
     _assert_markers(
-        "src/webdav/metrics.c",
+        "src/protocols/webdav/metrics.c",
         ["../metrics/unified.h", "xrootd_metric_op_done("],
     )
     _assert_markers(
-        "src/s3/metrics.c",
+        "src/protocols/s3/metrics.c",
         ["../metrics/unified.h", "xrootd_metric_op_done("],
     )
     _assert_markers(
@@ -413,7 +413,7 @@ def test_implementation_plan_feature_gaps_are_closed():
     )
 
     _assert_markers(
-        "src/webdav/access.c",
+        "src/protocols/webdav/access.c",
         [
             "webdav_add_cors_headers(r)",
             "webdav_verify_proxy_cert(r, conf)",
@@ -423,7 +423,7 @@ def test_implementation_plan_feature_gaps_are_closed():
         ],
     )
     _assert_markers(
-        "src/webdav/auth_token.c",
+        "src/protocols/webdav/auth_token.c",
         [
             "webdav_verify_bearer_token(",
             "webdav_check_token_write_scope(",
@@ -432,7 +432,7 @@ def test_implementation_plan_feature_gaps_are_closed():
         ],
     )
     _assert_markers(
-        "src/webdav/dispatch.c",
+        "src/protocols/webdav/dispatch.c",
         [
             "webdav_metrics_return(r, webdav_proxy_handler(r))",
             "webdav_metrics_return(r, webdav_handle_get(r))",
@@ -445,7 +445,7 @@ def test_implementation_plan_feature_gaps_are_closed():
     )
 
     _assert_markers(
-        "src/s3/handler.c",
+        "src/protocols/s3/handler.c",
         [
             "s3_verify_sigv4(r, cf, s3ctx->identity)",
             "s3_handle_list_multipart_uploads(r, cf)",
@@ -457,7 +457,7 @@ def test_implementation_plan_feature_gaps_are_closed():
         ],
     )
     _assert_markers(
-        "src/s3/auth_sigv4_verify.c",
+        "src/protocols/s3/auth_sigv4_verify.c",
         [
             "s3_verify_sigv4(",
             "s3_record_auth_result(",
@@ -469,17 +469,17 @@ def test_implementation_plan_feature_gaps_are_closed():
     _assert_markers(
         "config",
         [
-            "src/s3/multipart_complete_list_parts.c",
-            "src/s3/multipart_complete_list_uploads.c",
-            "src/s3/multipart_complete_upload_part_copy.c",
+            "src/protocols/s3/multipart_complete_list_parts.c",
+            "src/protocols/s3/multipart_complete_list_uploads.c",
+            "src/protocols/s3/multipart_complete_upload_part_copy.c",
         ],
     )
     _assert_absent(
-        "src/s3/auth_sigv4_verify.c",
+        "src/protocols/s3/auth_sigv4_verify.c",
         ["webdav_verify_bearer_token"],
     )
     _assert_absent(
-        "src/s3/handler.c",
+        "src/protocols/s3/handler.c",
         ["webdav_verify_bearer_token"],
     )
 

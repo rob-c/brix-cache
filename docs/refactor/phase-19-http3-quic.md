@@ -355,13 +355,13 @@ Example: `xrootd_webdav_http3_alt_svc 8443 86400;`
 
 **Implementation** (3 files, ~30 LoC):
 
-1. `src/webdav/webdav.h` — add to `ngx_http_xrootd_webdav_loc_conf_t`:
+1. `src/protocols/webdav/webdav.h` — add to `ngx_http_xrootd_webdav_loc_conf_t`:
    ```c
    ngx_int_t  http3_alt_svc_port;  /* NGX_CONF_UNSET_UINT — 0 = disabled */
    ngx_uint_t http3_alt_svc_max_age; /* seconds, default 86400 */
    ```
 
-2. `src/webdav/module.c` — register directive in `ngx_command_t` array:
+2. `src/protocols/webdav/module.c` — register directive in `ngx_command_t` array:
    ```c
    { ngx_string("xrootd_webdav_http3_alt_svc"),
      NGX_HTTP_LOC_CONF|NGX_CONF_TAKE12,
@@ -370,7 +370,7 @@ Example: `xrootd_webdav_http3_alt_svc 8443 86400;`
      0, NULL },
    ```
 
-3. `src/webdav/access.c` — inject header in access handler after CORS:
+3. `src/protocols/webdav/access.c` — inject header in access handler after CORS:
    ```c
    if (conf->http3_alt_svc_port != NGX_CONF_UNSET_UINT
        && r->http_version != NGX_HTTP_VERSION_30)
@@ -393,7 +393,7 @@ and is preferred unless per-location granularity is required.
 ### Step F — Protocol metrics for HTTP/3
 
 **Files**: `src/observability/metrics/unified.h`, `src/observability/metrics/webdav.c`, `src/observability/metrics/s3.c`,
-`src/observability/metrics/writer.c` (Prometheus export), `src/webdav/access.c`, `src/s3/metrics.c`
+`src/observability/metrics/writer.c` (Prometheus export), `src/protocols/webdav/access.c`, `src/protocols/s3/metrics.c`
 
 1. **`src/observability/metrics/unified.h`** — add H3 to the protocol enum:
    ```c
@@ -408,7 +408,7 @@ and is preferred unless per-location granularity is required.
    Update `xrootd_metric_proto_name()` in `src/observability/metrics/unified.c` to return `"h3"` for
    the new slot.
 
-2. **`src/webdav/access.c`** — detect HTTP/3 and route to H3 protocol counter:
+2. **`src/protocols/webdav/access.c`** — detect HTTP/3 and route to H3 protocol counter:
    ```c
    xrootd_proto_t proto = (r->http_version == NGX_HTTP_VERSION_30)
                           ? XROOTD_PROTO_H3
@@ -440,7 +440,7 @@ and is preferred unless per-location granularity is required.
 
 ### Step G — xrdhttp multipart range (QUIC fix)
 
-**File**: `src/webdav/xrdhttp_multipart.c` (line 191)
+**File**: `src/protocols/webdav/xrdhttp_multipart.c` (line 191)
 
 The multipart range handler calls `xrootd_http_chain_append_file_range()` in a loop
 to build a chain of file-backed buffers for multi-range responses. On QUIC this hits the
@@ -478,7 +478,7 @@ exist — confirmed by grep.
 
 ### Step H — TPC (Third-Party Copy) behavior under HTTP/3
 
-HTTP-TPC (`src/webdav/tpc.c`) uses libcurl for both push and pull transfers. curl 8.x
+HTTP-TPC (`src/protocols/webdav/tpc.c`) uses libcurl for both push and pull transfers. curl 8.x
 supports HTTP/3 when built with `--with-ngtcp2` or `--with-quiche`, but this is not
 guaranteed to be present in system curl packages on EL9 or Debian 12.
 
@@ -496,7 +496,7 @@ Document this in `docs/04-protocols/webdav-overview.md`:
 
 ### Step I — GSI proxy certificate under QUIC
 
-GSI proxy certificate extraction happens in `src/webdav/auth_cert.c`, which reads the
+GSI proxy certificate extraction happens in `src/protocols/webdav/auth_cert.c`, which reads the
 peer certificate from the SSL connection context. QUIC also uses TLS 1.3 for the
 handshake, and the peer certificate is available identically via `SSL_get_peer_certificate()`
 regardless of whether the underlying transport is TCP or UDP.

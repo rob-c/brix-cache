@@ -153,7 +153,7 @@ See [tls.md](../03-configuration/tls-config.md) for configuration details.
 | Feature | Status | Notes |
 |---|---|---|
 | Prometheus metrics (`/metrics`) | ✅ | Per-port native operation counters, native wire/debug counters, WebDAV counters for methods/status/auth/bytes/CORS/fd cache/Range/PROPFIND/HTTP-TPC, and S3 counters for methods/status/auth/bytes/ranges/PUT body modes/ListObjectsV2 diagnostics. See [metrics-and-logging.md](../08-metrics-monitoring/monitoring-guide.md). |
-| WLCG Storage Resource Reporting (SRR) | ✅ | HTTP/JSON `storageservice` document (schema v4.x) at an operator-chosen URL via `xrootd_srr on;`. Live per-share `statvfs` space + endpoints; harvested directly by CRIC / WLCG storage-space accounting. See [`src/srr/README.md`](../../src/srr/README.md). |
+| WLCG Storage Resource Reporting (SRR) | ✅ | HTTP/JSON `storageservice` document (schema v4.x) at an operator-chosen URL via `xrootd_srr on;`. Live per-share `statvfs` space + endpoints; harvested directly by CRIC / WLCG storage-space accounting. See [`src/protocols/srr/README.md`](../../src/protocols/srr/README.md). |
 | XRootD UDP monitoring (f-stream / g-stream) | ❌ (by design) | The binary UDP monitoring/accounting packet stream is intentionally **not** implemented. Storage accounting is served HTTP-native via the SRR endpoint above; transfer/operation counters are on `/metrics` (scrape → MonIT). No `xrootd-monitoring-shoveler` / collector is needed. |
 
 ---
@@ -215,7 +215,7 @@ Full WebDAV over HTTPS is implemented as a separate nginx HTTP module.
 Operations: OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, PROPFIND, COPY (RFC 4918 §9.8 server-side and HTTP-TPC pull/push), MOVE, LOCK, UNLOCK. Authentication accepts proxy certificates and bearer tokens.
 Configurable CORS headers are supported for browser-based WebDAV clients.
 
-**Upstream proxy mode** (`xrootd_webdav_proxy on`): all WebDAV requests — after auth — are forwarded to a backend HTTP or HTTPS server instead of serving from the local filesystem. Supports `http://` and `https://` backends. Three auth bridging policies (`anonymous`, `forward`, `token`). `COPY`/`MOVE` `Destination:` headers are rewritten to the upstream base. Implemented in `src/webdav/proxy.c`.
+**Upstream proxy mode** (`xrootd_webdav_proxy on`): all WebDAV requests — after auth — are forwarded to a backend HTTP or HTTPS server instead of serving from the local filesystem. Supports `http://` and `https://` backends. Three auth bridging policies (`anonymous`, `forward`, `token`). `COPY`/`MOVE` `Destination:` headers are rewritten to the upstream base. Implemented in `src/protocols/webdav/proxy.c`.
 
 See [webdav.md](../04-protocols/webdav-overview.md) for details.
 
@@ -265,7 +265,7 @@ analysis.
 | **Native root:// TPC outbound auth polish** — After `kXR_authmore`, the pull client can complete **ztn** (JWT file via `xrootd_tpc_outbound_bearer_file`) or **GSI** (same PEM as `xrootd_certificate` / `xrootd_certificate_key`, with optional server verification via `xrootd_trusted_ca`). Native TPC source-side `kXR_gotoTLS` and multi-hop delegation beyond this exchange are not implemented. Transparent upstream/proxy connections have their own `kXR_gotoTLS` path; cache/write-through origins keep the separate direct-origin limitations documented in `src/fs/cache/README.md`. |
 | **Remote storage backends** — no full PSS, PFC, HDFS, EOS, CASTOR, Ceph, Zip, or upstream OSS-plugin abstraction | By design: module primarily serves confined local POSIX storage; FRM/Tape REST integration is a control-plane bridge, not the full upstream storage plugin ecosystem |
 | **Hierarchical CMS gateway/proxy mode** — stream `kYR_select` / `kYR_try` sub-manager redirects are implemented and covered by three-tier tests; a select-then-proxy gateway mode is not implemented | Use standard XRootD client redirects for multi-tier deployments |
-| **~~HTTP-TPC OAuth2/OIDC delegation~~ — implemented in `src/webdav/tpc_cred.c`** | ✅ Implemented — `oidc-agent` UNIX-socket delegation and RFC 8693 token exchange are both supported. Configure with `xrootd_webdav_tpc_token_endpoint`. See `src/webdav/tpc_cred.c` and `tests/test_webdav_tpc_cred.py`. |
+| **~~HTTP-TPC OAuth2/OIDC delegation~~ — implemented in `src/protocols/webdav/tpc_cred.c`** | ✅ Implemented — `oidc-agent` UNIX-socket delegation and RFC 8693 token exchange are both supported. Configure with `xrootd_webdav_tpc_token_endpoint`. See `src/protocols/webdav/tpc_cred.c` and `tests/test_webdav_tpc_cred.py`. |
 | **Full XrdAcc / VO authorization database semantics** | Module supports VOMS extraction, `xrootd_require_vo`, authdb, ACLs, and token-scope checks; it does not reproduce every upstream `XrdAcc` privilege/plugin behavior |
 | **Native root:// TPC credential edge cases** | Basic source/destination rendezvous works; TLS-upgraded origins, multihop delegation, and site-specific credential forwarding still need deployment validation |
 

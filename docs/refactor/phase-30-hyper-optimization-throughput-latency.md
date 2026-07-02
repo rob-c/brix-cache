@@ -187,12 +187,12 @@ unless `aio threads` is enabled, and they are small by default (`output_buffers
 
 ### B.2 `[AUDIT]` PUT async path copies the whole body before dispatch
 
-`src/webdav/put.c:246-272` allocates `ngx_palloc(r->pool, body_summary.bytes)` and
+`src/protocols/webdav/put.c:246-272` allocates `ngx_palloc(r->pool, body_summary.bytes)` and
 memcpys every body buf into it before posting the thread-pool write — defeating
 nginx's streaming/temp-file spooling and doubling memory + copy cost on multi-GB
 PUTs. Dispatch a descriptor holding the `xrootd_http_body_summary_t` + chain
 pointer and have the worker `pwrite` directly from `r->request_body->bufs` (which
-live until pool cleanup). Mirror for S3 `src/s3/put.c`.
+live until pool cleanup). Mirror for S3 `src/protocols/s3/put.c`.
 
 - **Invariant note:** preserve the write-gate/auth ordering and any checksum
   computed during receive.
@@ -204,11 +204,11 @@ live until pool cleanup). Mirror for S3 `src/s3/put.c`.
 Three walkers `stat()` every entry **before** applying the filter that would
 discard it:
 
-- `src/webdav/propfind.c` (Depth:1 ~`:853`, walk ~`:724`): one `stat` per entry;
+- `src/protocols/webdav/propfind.c` (Depth:1 ~`:853`, walk ~`:724`): one `stat` per entry;
   PROPNAME requests still `stat` despite needing only names.
-- `src/s3/list_walk.c:~112`: `stat`s directories even when the delimiter prefix
+- `src/protocols/s3/list_walk.c:~112`: `stat`s directories even when the delimiter prefix
   filter would skip them.
-- `src/webdav/fs/copy_engine.c:~117`: sequential `lstat` per child + per-file
+- `src/protocols/webdav/fs/copy_engine.c:~117`: sequential `lstat` per child + per-file
   `llistxattr`×2 on copy.
 
 Fixes: (a) for PROPNAME, skip `stat` entirely — emit empty property elements;
@@ -222,7 +222,7 @@ directories.
 
 ### B.4 `[AUDIT]` S3 SigV4 canonical-request rebuild not cached
 
-`src/s3/auth_sigv4_*`: the **signing key is cached** (verified the cache exists),
+`src/protocols/s3/auth_sigv4_*`: the **signing key is cached** (verified the cache exists),
 but the canonical query string + canonical headers are rebuilt per request
 (`auth_sigv4_canonical.c` stack `qparam_t params[64]`, `enc[1024]`, `qsort`).
 Add a single-range/simple-request fast path and consider caching canonical bytes

@@ -327,6 +327,6 @@ def test_s3_uses_sigv4_not_gsi():
     """Guard the design invariant: S3 (ours and official XrdS3) authenticates
     with AWS SigV4, never GSI — so there is deliberately no S3 GSI test."""
     handler = os.path.join(REPO, "src", "s3", "handler.c")
-    assert os.path.exists(handler), "src/s3/handler.c not present"
+    assert os.path.exists(handler), "src/protocols/s3/handler.c not present"
     text = open(handler).read().lower()
     assert "sigv4" in text, "S3 handler should authenticate via SigV4"

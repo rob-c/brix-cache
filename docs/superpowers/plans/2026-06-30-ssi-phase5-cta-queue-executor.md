@@ -29,8 +29,8 @@
 ### Task 1: Request-queue state machine
 
 **Files:**
-- Create: `src/ssi/svc_cta/cta_queue.{c,h}`
-- Create: `src/ssi/svc_cta/cta_queue_unittest.c`
+- Create: `src/protocols/ssi/svc_cta/cta_queue.{c,h}`
+- Create: `src/protocols/ssi/svc_cta/cta_queue_unittest.c`
 - Modify: `config`
 
 **Interfaces:**
@@ -53,8 +53,8 @@
 ### Task 2: Executor vtable + simulated archive
 
 **Files:**
-- Create: `src/ssi/svc_cta/cta_exec.{c,h}`
-- Create: `src/ssi/svc_cta/cta_exec_unittest.c`
+- Create: `src/protocols/ssi/svc_cta/cta_exec.{c,h}`
+- Create: `src/protocols/ssi/svc_cta/cta_exec_unittest.c`
 
 **Interfaces:**
 - `typedef struct { int (*archive)(cta_req_t*, void *cb); int (*retrieve)(cta_req_t*, void *cb); int (*cancel)(cta_req_t*); } cta_exec_vtbl_t;`
@@ -72,9 +72,9 @@
 ### Task 3: The `cta` provider — glue decode → queue → async deliver
 
 **Files:**
-- Create: `src/ssi/svc_cta/cta_service.{c,h}`
-- Modify: `src/ssi/provider.c` (register `cta`)
-- Modify: `src/ssi/ssi_service.c` if the provider needs a process-fn shim
+- Create: `src/protocols/ssi/svc_cta/cta_service.{c,h}`
+- Modify: `src/protocols/ssi/provider.c` (register `cta`)
+- Modify: `src/protocols/ssi/ssi_service.c` if the provider needs a process-fn shim
 - Test: `tests/test_ssi_cta.py` (end-to-end raw-wire CTA-protobuf client)
 
 **Interfaces:** the `cta` `xrootd_ssi_process_fn`: decode request bytes via `cta_pb_decode_request`; on decode error → `responder->error` (→ `cta.xrd.Response` error via `cta_pb_encode_response`); else `cta_queue_submit`, mark the responder deferred, kick the executor; executor progress → `alert` (Phase 3) with a `cta.xrd.Response` progress message; terminal → final response (`cta_pb_encode_response`); `query` → stream `cta.xrd.Data` rows (Phase 3 PEND/read).
@@ -96,7 +96,7 @@
 
 ### Task 5: Docs
 
-- [ ] Extend `src/ssi/svc_cta/README.md`: the lifecycle state machine, executor vtable (test vs prod), the tier/frm recall wiring, the journal, and the owner/admin authorization rule. Commit.
+- [ ] Extend `src/protocols/ssi/svc_cta/README.md`: the lifecycle state machine, executor vtable (test vs prod), the tier/frm recall wiring, the journal, and the owner/admin authorization rule. Commit.
 
 ---
 

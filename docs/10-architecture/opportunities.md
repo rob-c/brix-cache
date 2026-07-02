@@ -16,8 +16,8 @@ The module has already consolidated a significant shared layer — path resoluti
 │                                                                    │
 │  stream/   ──────────────────────────────────  src/connection/    │
 │  (native XRootD)           WebDAV          S3  src/handshake/     │
-│  src/session/          src/webdav/      src/s3/                   │
-│  src/read/             src/webdav/tpc.c    src/s3/multipart*.c    │
+│  src/session/          src/protocols/webdav/      src/protocols/s3/                   │
+│  src/read/             src/protocols/webdav/tpc.c    src/protocols/s3/multipart*.c    │
 │  src/write/                                                        │
 │  src/tpc/                                                          │
 └────────────────────┬───────────────────────────────────────────────┘
@@ -51,7 +51,7 @@ See [cross-protocol-unification.md](cross-protocol-unification.md) for the full 
 
 ### 1. Config directives — separate structs, overlapping fields
 
-| Area | Stream (`src/core/config/server_conf.c`) | WebDAV (`src/webdav/config.c`) | S3 (`src/s3/module.c`) |
+| Area | Stream (`src/core/config/server_conf.c`) | WebDAV (`src/protocols/webdav/config.c`) | S3 (`src/protocols/s3/module.c`) |
 |------|-------------------------------------|-------------------------------|------------------------|
 | Merge calls | ~60 `ngx_conf_merge_*` macros | ~30 macros + array inheritance + CA store + JWKS loading | 9 directives, no `merge_loc_conf` (single-location config) |
 | Shared fields | `root`, `allow_write`, `cadir/cafile/crl`, `token_jwks/token_issuer/token_audience`, `verify_depth` | Same fields but **different sentinel values**, different defaults, separate struct members | Minimal overlap — S3 has its own `bucket_name`, `sigv4` config |
@@ -63,7 +63,7 @@ See [cross-protocol-unification.md](cross-protocol-unification.md) for the full 
 
 | Protocol | File | Approach |
 |----------|------|----------|
-| WebDAV | `src/webdav/config.c` → `webdav_build_ca_store()` | Reads `cadir`, `cafile`, `crl` from location config, builds `X509_STORE`, caches per-worker |
+| WebDAV | `src/protocols/webdav/config.c` → `webdav_build_ca_store()` | Reads `cadir`, `cafile`, `crl` from location config, builds `X509_STORE`, caches per-worker |
 | Stream | `src/connection/postconfig.c` | Reads `cadir`, `cafile`, `crl` from server config, builds its own store during post-merge phase |
 
 Both read the same file types (CA certs + CRLs), use OpenSSL APIs (`X509_STORE_add_cert`, `X509_CRL_load_file`), and cache the result. But they have separate implementations with different sentinel checks and error paths.
@@ -74,8 +74,8 @@ Both read the same file types (CA certs + CRLs), use OpenSSL APIs (`X509_STORE_a
 
 | Protocol | File(s) | What they do |
 |----------|---------|--------------|
-| S3 | `src/s3/util.c` (inline), `s3/headers.c` | Content-Type, Content-Length, ETag, Last-Modified, Range, CORS headers — built inline per-response |
-| WebDAV | `src/webdav/headers.c`, `tpc_headers.c` | Same set of headers plus TPC Source/Credential header lookup |
+| S3 | `src/protocols/s3/util.c` (inline), `s3/headers.c` | Content-Type, Content-Length, ETag, Last-Modified, Range, CORS headers — built inline per-response |
+| WebDAV | `src/protocols/webdav/headers.c`, `tpc_headers.c` | Same set of headers plus TPC Source/Credential header lookup |
 | Stream | No HTTP headers — wire protocol framing only |
 
 `src/core/compat/http_headers.c` already provides request-header lookup, value comparison, and response header set functions. But S3 still builds many headers inline rather than calling the compat helpers. WebDAV uses some but has its own `webdav_tpc_find_header()` for TPC-specific lookups alongside.
@@ -110,7 +110,7 @@ S3 and WebDAV both build XML error/respone chains. S3's builder is more structur
 
 | Protocol | Constants file | Values |
 |----------|---------------|--------|
-| WebDAV | `src/webdav/` headers | `WEBDAV_PATH_MAX`, `WEBDAV_PATH_MIN` |
+| WebDAV | `src/protocols/webdav/` headers | `WEBDAV_PATH_MAX`, `WEBDAV_PATH_MIN` |
 | Stream | `src/connection/` / `handshake/` | `XROOTD_PATH_MAX`, `XROOTD_PATH_*` |
 
 Both validate path length and component count, but use different constants. The actual filesystem limits are the same (PATH_MAX = 4096 on Linux). Different names create confusion when comparing code.
@@ -245,11 +245,11 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 ### 3. `libcurl` — shared library vs. external curl process spawning
 
-**Current:** WebDAV HTTP-TPC (`src/webdav/tpc_curl.c`) spawns an **external `curl(1)` process** via fork+pipe+waitpid for COPY transfers with Source/Credential headers. ~80 lines of subprocess boilerplate per transfer.
+**Current:** WebDAV HTTP-TPC (`src/protocols/webdav/tpc_curl.c`) spawns an **external `curl(1)` process** via fork+pipe+waitpid for COPY transfers with Source/Credential headers. ~80 lines of subprocess boilerplate per transfer.
 
 **AlmaLinux 8/9 package:** `libcurl` (libcurl-devel) — already present on AlmaLinux as a dependency, but not used directly in the module. API: `curl_easy_init()`, `curl_easy_setopt()`, `curl_easy_perform()`.
 
-**Opportunity:** Replace external curl process spawning with libcurl inline calls (`src/webdav/tpc_curl.c` → `src/webdav/tpc_libcurl.c`). Same Source/Credential header logic, but no fork/waitpid overhead. Reduces latency for TPC transfers (no subprocess startup), reduces subprocess boilerplate.
+**Opportunity:** Replace external curl process spawning with libcurl inline calls (`src/protocols/webdav/tpc_curl.c` → `src/protocols/webdav/tpc_libcurl.c`). Same Source/Credential header logic, but no fork/waitpid overhead. Reduces latency for TPC transfers (no subprocess startup), reduces subprocess boilerplate.
 
 ### 4. `zlib` — compression support (already present, could be leveraged)
 
@@ -318,4 +318,4 @@ Stream XRootD uses length-prefix binary wire framing (kXR_status responses). HTT
 - `src/core/compat/http_headers.c` — shared HTTP header helpers (currently underutilized by S3)
 - `src/core/compat/xml.c` — minimal XML scanner (could be extended for error response builder)
 - `src/core/config/server_conf.c` — Stream config directives (~60 merge calls)
-- `src/webdav/config.c` — WebDAV config directives (~30 merge calls + CA store build)
+- `src/protocols/webdav/config.c` — WebDAV config directives (~30 merge calls + CA store build)

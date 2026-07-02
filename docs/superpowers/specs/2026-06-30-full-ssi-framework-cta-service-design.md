@@ -1,15 +1,15 @@
 # Full XrdSsi framework + CTA-compatible tape service — design
 
 **Date:** 2026-06-30
-**Status:** IMPLEMENTED (all 6 phases, 2026-06-30) — see `docs/superpowers/plans/2026-06-30-ssi-phase{1..6}-*.md` and `src/ssi/README.md`.
-**Subsystem:** `src/ssi/`
+**Status:** IMPLEMENTED (all 6 phases, 2026-06-30) — see `docs/superpowers/plans/2026-06-30-ssi-phase{1..6}-*.md` and `src/protocols/ssi/README.md`.
+**Subsystem:** `src/protocols/ssi/`
 **Wire spec:** `/tmp/xrootd-src/src/XProtocol/XProtocol.hh`, `/tmp/xrootd-src/src/XrdSsi/`, CTA `cta_frontend.proto` / `eos_cta.proto`
 
 ---
 
 ## 1. Goal & scope
 
-Grow `src/ssi/` from its current **unary-only** request/response engine into a
+Grow `src/protocols/ssi/` from its current **unary-only** request/response engine into a
 **full XrdSsi framework** carried over the ordinary `root://` protocol, and ship
 one **flagship real service** — a CERN-CTA-compatible tape archive/retrieve
 request service — as the proof.
@@ -39,7 +39,7 @@ and out of scope for this module:
 
 ### Starting point (already present)
 
-`src/ssi/` already implements, byte-exact:
+`src/protocols/ssi/` already implements, byte-exact:
 
 - The `XrdSsiRRInfo` offset codec (`ssi_rrinfo.c`) — `Rxq`/`Rwt`/`Can`, `reqId`, size.
 - A per-handle unary request buffer, metadata, error path.
@@ -105,7 +105,7 @@ model, does not scale, contradicts the module's whole async architecture.
 
 ### Session object
 
-`src/ssi/session.{c,h}` — hangs off the virtual handle (`ctx->files[idx].ssi`),
+`src/protocols/ssi/session.{c,h}` — hangs off the virtual handle (`ctx->files[idx].ssi`),
 replacing the single `xrootd_ssi_req_t`:
 
 ```
@@ -145,7 +145,7 @@ an over-quota error. Each `reqId` has independent lifecycle, cursor, and executo
 
 ## 4. Async delivery primitive
 
-`src/ssi/deliver.{c,h}` — the **only** place threads meet the socket:
+`src/protocols/ssi/deliver.{c,h}` — the **only** place threads meet the socket:
 
 ```
 void ssi_deliver(conn_id, generation, reqId, kind, buf, len);
@@ -169,7 +169,7 @@ Contract and behaviour:
 
 ### Session registry
 
-`src/ssi/registry.{c,h}` — per-worker map `conn_id → session*` with a monotonic
+`src/protocols/ssi/registry.{c,h}` — per-worker map `conn_id → session*` with a monotonic
 generation per slot. Open inserts; close bumps generation and removes. Lookups are
 the guard above. Per-worker only (SSI sessions are connection-bound to one worker);
 no SHM needed.
@@ -198,7 +198,7 @@ Keep the struct shape; change semantics and backing:
 
 ### Provider registry
 
-`src/ssi/provider.{c,h}` — compiled-in table `name → { provision?, process }`,
+`src/protocols/ssi/provider.{c,h}` — compiled-in table `name → { provision?, process }`,
 replacing `ssi_service_lookup`. The no-plugin-ABI substitute for `XrdSsiProvider` /
 `XrdSsiService`. Ships:
 
@@ -207,7 +207,7 @@ replacing `ssi_service_lookup`. The no-plugin-ABI substitute for `XrdSsiProvider
 
 ---
 
-## 6. Flagship CTA service (`src/ssi/svc_cta/`)
+## 6. Flagship CTA service (`src/protocols/ssi/svc_cta/`)
 
 ### Protobuf wire codec — `cta_pb.{c,h}`
 
@@ -339,19 +339,19 @@ mixed-ABI garbage — rebuild clean when the source list changes.
 
 | File | Status | Responsibility |
 |---|---|---|
-| `src/ssi/session.{c,h}` | new | Session object + RRTable multiplex |
-| `src/ssi/deliver.{c,h}` | new | Event-loop-only async delivery primitive |
-| `src/ssi/registry.{c,h}` | new | Generation-guarded session registry |
-| `src/ssi/provider.{c,h}` | new | Service-name → implementation registry |
-| `src/ssi/ssi.{c,h}` | changed | Wire hooks → session/provider; drop one-req-per-handle |
-| `src/ssi/ssi_service.h` | changed | Responder ABI: real alerts, streaming, handle-not-pointer |
-| `src/ssi/ssi_reply.{c,h}` | changed | Streamed/PEND reply framing |
-| `src/ssi/svc_cta/cta_pb.{c,h}` | new | Minimal CTA protobuf codec |
-| `src/ssi/svc_cta/cta_queue.{c,h}` | new | Request-queue state machine + journal |
-| `src/ssi/svc_cta/cta_exec.{c,h}` | new | Pluggable executor (tier/frm + simulated archive) |
+| `src/protocols/ssi/session.{c,h}` | new | Session object + RRTable multiplex |
+| `src/protocols/ssi/deliver.{c,h}` | new | Event-loop-only async delivery primitive |
+| `src/protocols/ssi/registry.{c,h}` | new | Generation-guarded session registry |
+| `src/protocols/ssi/provider.{c,h}` | new | Service-name → implementation registry |
+| `src/protocols/ssi/ssi.{c,h}` | changed | Wire hooks → session/provider; drop one-req-per-handle |
+| `src/protocols/ssi/ssi_service.h` | changed | Responder ABI: real alerts, streaming, handle-not-pointer |
+| `src/protocols/ssi/ssi_reply.{c,h}` | changed | Streamed/PEND reply framing |
+| `src/protocols/ssi/svc_cta/cta_pb.{c,h}` | new | Minimal CTA protobuf codec |
+| `src/protocols/ssi/svc_cta/cta_queue.{c,h}` | new | Request-queue state machine + journal |
+| `src/protocols/ssi/svc_cta/cta_exec.{c,h}` | new | Pluggable executor (tier/frm + simulated archive) |
 | `src/core/config/*` | changed | New directives |
-| `src/ssi/README.md` | changed | Document the full framework + CTA service |
-| `tests/test_ssi_*.py`, `src/ssi/*_unittest.c`, native test client | new | Per section 8 |
+| `src/protocols/ssi/README.md` | changed | Document the full framework + CTA service |
+| `tests/test_ssi_*.py`, `src/protocols/ssi/*_unittest.c`, native test client | new | Per section 8 |
 
 ---
 

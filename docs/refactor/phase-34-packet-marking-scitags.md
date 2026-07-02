@@ -282,7 +282,7 @@ request/connection
   Recommended: **make it configurable** — default to TPC-only for strict interop, with
   `xrootd_pmark_http_plain on;` to also mark plain GET/PUT (a documented superset).
 - **`SciTag:` request header** → CGI `scitag.flow` (XrdHttp parses a header; we do the same in
-  `scitag.c`, called from `src/webdav/dispatch.c:24` / `src/s3/handler.c:24`). fd = `r->connection->fd`.
+  `scitag.c`, called from `src/protocols/webdav/dispatch.c:24` / `src/protocols/s3/handler.c:24`). fd = `r->connection->fd`.
 - Identity from `webdav/auth_cert.c` / `auth_token.c` / `s3/auth_sigv4_verify.c`.
 
 ### 6.3 TPC (outbound — the most XRootD-faithful path)
@@ -290,7 +290,7 @@ request/connection
   right after `socket(2)` — add the **flow-label setsockopt** and register the fd with `firefly.c`
   at the same site (`flow_begin` after connect succeeds; `flow_end` on teardown). Source identity
   parsed from the TPC URL/params (`src/tpc/launch.c`).
-- **WebDAV TPC (libcurl)** (`src/webdav/tpc_curl.c:110`): we already set `CURLOPT_RESOLVE`. Add
+- **WebDAV TPC (libcurl)** (`src/protocols/webdav/tpc_curl.c:110`): we already set `CURLOPT_RESOLVE`. Add
   `CURLOPT_OPENSOCKETFUNCTION` + `CURLOPT_CLOSESOCKETFUNCTION` exactly like
   `XrdHttpTpcPMarkManager`: open-cb captures the curl fd → `flow_begin`; close-cb → `flow_end`
   **before** `close(fd)` (so TCP_INFO byte counts are non-zero). PULL ⇒ `appname=http-put`,

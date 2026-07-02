@@ -98,7 +98,7 @@ All three functions in `src/core/compat/http_file_response.c` are shared between
 | Function | File | Used By |
 |---|---|---|
 | `xrootd_xml_write_text_element()` | `src/core/compat/xml.c` | WebDAV PROPFIND, S3 ListObjectsV2, S3 multipart responses |
-| `xrootd_http_xml_error_builder()` (via XML_APPEND macros) | `src/s3/s3.h`, `src/webdav/propfind.c` | S3 error responses, WebDAV PROPFIND |
+| `xrootd_http_xml_error_builder()` (via XML_APPEND macros) | `src/protocols/s3/s3.h`, `src/protocols/webdav/propfind.c` | S3 error responses, WebDAV PROPFIND |
 
 **Current state:** Both protocols share the same XML encoding helpers for escaping, element building, and error response generation.
 
@@ -167,8 +167,8 @@ These patterns are structurally similar but currently implemented separately. Un
 | Protocol | Function | File | Input Format |
 |---|---|---|---|
 | Stream (XRootD) | `xrootd_resolve_path()` variants | `src/fs/path/resolve_path_variants.c` | Raw wire payload string |
-| WebDAV | `ngx_http_xrootd_webdav_resolve_path()` | `src/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` | HTTP URI (percent-encoded) |
-| S3 | `s3_resolve_key()` | `src/s3/util.c` → key-strips then calls `xrootd_http_resolve_path()` | S3 object key + bucket prefix stripping |
+| WebDAV | `ngx_http_xrootd_webdav_resolve_path()` | `src/protocols/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` | HTTP URI (percent-encoded) |
+| S3 | `s3_resolve_key()` | `src/protocols/s3/util.c` → key-strips then calls `xrootd_http_resolve_path()` | S3 object key + bucket prefix stripping |
 
 **Key differences:**
 - Stream: extracts path from wire payload, handles CGI suffix stripping via `xrootd_strip_cgi()`
@@ -186,7 +186,7 @@ These patterns are structurally similar but currently implemented separately. Un
 | Protocol | Function | File | Caching Strategy |
 |---|---|---|---|
 | Stream (XRootD) | `xrootd_handle_gsi_auth()` → parse_x509 + verify CA chain | `src/auth/gsi/auth.c`, `parse_x509.c` | Session-level — verified once per session |
-| WebDAV | `webdav_verify_proxy_cert()` | `src/webdav/auth_cert.c` | Per-request with caching via `webdav_mark_req_verified()` |
+| WebDAV | `webdav_verify_proxy_cert()` | `src/protocols/webdav/auth_cert.c` | Per-request with caching via `webdav_mark_req_verified()` |
 
 **Key differences:**
 - Stream: two-round DH key exchange (certreq→send_cert, cert→parse_x509), session-level verification
@@ -202,7 +202,7 @@ WebDAV both call this helper after their protocol-specific credential intake:
   caching.
 
 **Remaining expansion:** VOMS extraction is now available to WebDAV via
-`webdav_extract_voms_ctx()` in `src/webdav/auth_cert.c`. After any successful
+`webdav_extract_voms_ctx()` in `src/protocols/webdav/auth_cert.c`. After any successful
 GSI cert verification path (cached, nginx-verified, or manually verified),
 the function calls `xrootd_extract_voms_info()` from `src/auth/voms/extract.c`
 and populates `ctx->primary_vo` and `ctx->vo_list` in the per-request context.
@@ -220,8 +220,8 @@ the shared body helpers in `src/core/compat/http_body.c`:
 
 | Protocol | Function | File | Buffer Handling |
 |---|---|---|---|
-| WebDAV | `webdav_put_body_handler()` → async callback after body read | `src/webdav/put.c` | Uses `xrootd_http_body_write_buf()` from `src/core/compat/http_body.c` |
-| S3 | `s3_put_body_handler()` → async callback after body read | `src/s3/put.c` | Uses `xrootd_http_body_write_to_fd()` from `src/core/compat/http_body.c` |
+| WebDAV | `webdav_put_body_handler()` → async callback after body read | `src/protocols/webdav/put.c` | Uses `xrootd_http_body_write_buf()` from `src/core/compat/http_body.c` |
+| S3 | `s3_put_body_handler()` → async callback after body read | `src/protocols/s3/put.c` | Uses `xrootd_http_body_write_to_fd()` from `src/core/compat/http_body.c` |
 
 **Key differences:**
 - WebDAV: uses shared `xrootd_http_body_pwrite_full()` / `xrootd_http_body_write_buf()` helpers from `src/core/compat/http_body.c`
@@ -237,8 +237,8 @@ retry behavior for both WebDAV and S3.
 
 | Protocol | Function | File | Temp Pattern |
 |---|---|---|---|
-| S3 PUT | `xrootd_staged_open()` / `xrootd_staged_commit()` / `xrootd_staged_abort()` | `src/core/compat/staged_file.c` + used in `src/s3/put.c` | `.xrd-tmp.{pid}.{random}` |
-| WebDAV PUT | `xrootd_staged_open()` / `xrootd_staged_commit()` / `xrootd_staged_abort()` | `src/core/compat/staged_file.c` + used in `src/webdav/put.c` | `.xrd-tmp.{pid}.{random}` |
+| S3 PUT | `xrootd_staged_open()` / `xrootd_staged_commit()` / `xrootd_staged_abort()` | `src/core/compat/staged_file.c` + used in `src/protocols/s3/put.c` | `.xrd-tmp.{pid}.{random}` |
+| WebDAV PUT | `xrootd_staged_open()` / `xrootd_staged_commit()` / `xrootd_staged_abort()` | `src/core/compat/staged_file.c` + used in `src/protocols/webdav/put.c` | `.xrd-tmp.{pid}.{random}` |
 
 **Key differences:**
 - S3: uses shared `xrootd_staged_*()` helpers from `src/core/compat/staged_file.c` with 16-attempt retry loop
@@ -273,13 +273,13 @@ These are capabilities that one protocol has but others lack. Adding them would 
 
 **Gap:** WebDAV GET and S3 GetObject do not use the read-through cache. HTTP clients downloading files always hit the filesystem directly, even when the file is cached locally.
 
-**Expansion opportunity:** Add cache lookup to WebDAV GET (`src/webdav/get.c`) and S3 GetObject (`src/s3/object.c`). Before opening the file via `xrootd_open_confined_canon()`, check if a cached copy exists in the cache directory (same mechanism used by stream). This would:
+**Expansion opportunity:** Add cache lookup to WebDAV GET (`src/protocols/webdav/get.c`) and S3 GetObject (`src/protocols/s3/object.c`). Before opening the file via `xrootd_open_confined_canon()`, check if a cached copy exists in the cache directory (same mechanism used by stream). This would:
 - Reduce filesystem I/O for hot files accessed via HTTP protocols
 - Improve latency for repeated downloads from browser/rucio/aws s3 clients
 - Provide consistent caching behavior across all protocol entry points
 
 **Implemented:** Read-through cache lookup is now integrated into both
-WebDAV GET (`src/webdav/get.c`) and S3 GetObject (`src/s3/object.c`). When
+WebDAV GET (`src/protocols/webdav/get.c`) and S3 GetObject (`src/protocols/s3/object.c`). When
 `xrootd_webdav_cache_root` (WebDAV) or `xrootd_s3_cache_root` (S3) is
 configured, each handler checks `xrootd_cache_file_ready()` from
 `src/fs/cache/paths.c` before opening the canonical file path. On a cache hit
@@ -293,9 +293,9 @@ Configuration: add `xrootd_webdav_cache_root /srv/cache;` or
 
 ### 3.2 Native TPC — Stream Only, Could Expand to HTTP
 
-**Current state:** Native Third-Party Copy (`src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) operates only on the stream (XRootD) layer using SHM key registry for cross-process zero-copy transfers. WebDAV TPC uses curl COPY with Source/Credential headers (`src/webdav/tpc.c`). S3 has local copy via `xrootd_ns_local_copy()` but no remote TPC.
+**Current state:** Native Third-Party Copy (`src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) operates only on the stream (XRootD) layer using SHM key registry for cross-process zero-copy transfers. WebDAV TPC uses curl COPY with Source/Credential headers (`src/protocols/webdav/tpc.c`). S3 has local copy via `xrootd_ns_local_copy()` but no remote TPC.
 
-**Gap:** S3 does not support third-party copy (PUT with Content-Copy-Source header already exists as `s3_handle_copy_object()` in `src/s3/copy.c` but uses local file copy, not cross-server transfer). WebDAV TPC is curl-based; stream TPC is SHM-based — two different architectures for the same concept.
+**Gap:** S3 does not support third-party copy (PUT with Content-Copy-Source header already exists as `s3_handle_copy_object()` in `src/protocols/s3/copy.c` but uses local file copy, not cross-server transfer). WebDAV TPC is curl-based; stream TPC is SHM-based — two different architectures for the same concept.
 
 **Expansion opportunity:**
 1. **S3 TPC via native TPC:** Enable S3 PUT with Content-Copy-Source header to use the native SHM key registry TPC path instead of local copy_file_range. This would allow cross-server transfers between S3 endpoints and XRootD backends.
@@ -312,11 +312,11 @@ copy sources (`/bucket/key` or `bucket/key`) continue to use
 
 ### 3.3 WebDAV Locking — Stream Has ACL, No File Locks
 
-**Current state:** WebDAV has full LOCK/UNLOCK support (`src/webdav/lock.c`) with file-level locking for concurrent access control. Stream (XRootD) uses VO ACL and token scope for authorization but has no per-file lock mechanism.
+**Current state:** WebDAV has full LOCK/UNLOCK support (`src/protocols/webdav/lock.c`) with file-level locking for concurrent access control. Stream (XRootD) uses VO ACL and token scope for authorization but has no per-file lock mechanism.
 
 **Gap:** XRootD clients cannot acquire locks on files — concurrent access is controlled only by ACLs and session authentication. This means `xrdcp` clients can overwrite each other's files without coordination.
 
-**Expansion opportunity:** Add file locking to stream protocol handlers (kXR_open, kXR_write, kXR_close). Reuse the WebDAV lock infrastructure from `src/webdav/lock.c`:
+**Expansion opportunity:** Add file locking to stream protocol handlers (kXR_open, kXR_write, kXR_close). Reuse the WebDAV lock infrastructure from `src/protocols/webdav/lock.c`:
 - LOCK on open → acquire advisory lock on fd
 - WRITE while locked → check lock ownership before writing
 - CLOSE with UNLOCK → release lock
@@ -325,7 +325,7 @@ copy sources (`/bucket/key` or `bucket/key`) continue to use
 
 ### 3.4 S3 WLCG Token Auth — SigV4 Only, Could Add Bearer Tokens
 
-**Current state:** S3 uses only AWS Signature Version 4 (`src/s3/auth_sigv4_verify.c`) with HMAC-SHA256 signing chain. Anonymous mode is supported via empty access_key config. WLCG/JWT bearer tokens are NOT used for S3 auth per INVARIANT #6 ("S3 SigV4 ≠ WLCG token — never share auth logic").
+**Current state:** S3 uses only AWS Signature Version 4 (`src/protocols/s3/auth_sigv4_verify.c`) with HMAC-SHA256 signing chain. Anonymous mode is supported via empty access_key config. WLCG/JWT bearer tokens are NOT used for S3 auth per INVARIANT #6 ("S3 SigV4 ≠ WLCG token — never share auth logic").
 
 **Status:** Deferred by invariant. WebDAV supports GSI certs and WLCG bearer
 tokens, while S3 supports SigV4 or anonymous mode. That separation is
@@ -432,8 +432,8 @@ compatibility check before moving it into the shared preamble.
 
 **Current state:** All three protocols use nginx thread pools for async I/O but each configures and dispatches independently:
 - Stream: `src/core/aio/read.c`, `aio/pgread.c`, `aio/write.c` — uses `conf->common.thread_pool`
-- WebDAV: `src/webdav/put.c`, `src/webdav/copy.c` — uses `conf->common.thread_pool` via `ngx_thread_task_post()`
-- S3: `src/s3/put.c` — uses `cf->common.thread_pool` via staged file async
+- WebDAV: `src/protocols/webdav/put.c`, `src/protocols/webdav/copy.c` — uses `conf->common.thread_pool` via `ngx_thread_task_post()`
+- S3: `src/protocols/s3/put.c` — uses `cf->common.thread_pool` via staged file async
 
 **Partially implemented:** HTTP async PUT jobs now share the lifecycle guard in
 `src/core/compat/async_job.c`. WebDAV and S3 threaded PUT tasks register staged-file
@@ -502,14 +502,14 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 
 ### Path Resolution (Section 2.1)
 - `src/fs/path/resolve_path_variants.c` — stream resolver variants
-- `src/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` — webdav wrapper
+- `src/protocols/webdav/path.c` → URL-decodes then calls `xrootd_http_resolve_path()` — webdav wrapper
 - `src/core/compat/path.c` → `xrootd_http_resolve_path()` — shared core logic
-- `src/s3/util.c` → `s3_resolve_key()` — S3 key-to-path mapper
+- `src/protocols/s3/util.c` → `s3_resolve_key()` — S3 key-to-path mapper
 
 ### Confined Ops (Section 1.2)
 - `src/fs/path/resolve_confined_ops.c` — all confined helpers
-- `src/webdav/webdav.h` — declarations for WebDAV callers
-- `src/s3/s3.h` — declarations for S3 callers
+- `src/protocols/webdav/webdav.h` — declarations for WebDAV callers
+- `src/protocols/s3/s3.h` — declarations for S3 callers
 
 ### HTTP Response Building (Section 1.4)
 - `src/core/compat/http_file_response.c` — file response helpers
@@ -518,20 +518,20 @@ These existing invariants from AGENTS.md should be preserved or updated during c
 
 ### Staged Files (Section 2.4)
 - `src/core/compat/staged_file.c` — staged file helpers
-- `src/s3/put.c` — current S3 staging usage
-- `src/webdav/put.c` — current WebDAV inline staging
+- `src/protocols/s3/put.c` — current S3 staging usage
+- `src/protocols/webdav/put.c` — current WebDAV inline staging
 
 ### Read-Through Cache (Section 3.1)
 - `src/fs/cache/paths.c` — cache path resolution
 - `src/fs/cache/README.md` — cache architecture overview
-- `src/webdav/get.c` — target for cache integration
-- `src/s3/object.c` — target for cache integration
+- `src/protocols/webdav/get.c` — target for cache integration
+- `src/protocols/s3/object.c` — target for cache integration
 
 ### Token Validation (Section 1.1)
 - `src/auth/token/validate.c` — shared JWT validation
 - `src/auth/token/scopes.c` — scope checking
 - `src/auth/gsi/token.c` — Stream token handler
-- `src/webdav/auth_token.c` — WebDAV token handler
+- `src/protocols/webdav/auth_token.c` — WebDAV token handler
 
 ### Metrics (Section 1.9)
 - `src/observability/metrics/metrics_macros.h` — shared metric macros
@@ -568,9 +568,9 @@ Cross-protocol consolidation changes should also include:
 | Confined ops | All helpers via `src/path/` | All helpers via `src/path/` | All helpers via `src/path/` |
 | File response | Wire framing (kXR_ok + data) | `xrootd_http_send_file_range()` | `xrootd_http_send_file_range()` |
 | Range support | Offset+length in wire payload | HTTP Range header | HTTP Range header |
-| TPC | SHM key registry (`src/tpc/`) | curl COPY (`src/webdav/tpc.c`) | Local copy (`xrootd_ns_local_copy()`) |
+| TPC | SHM key registry (`src/tpc/`) | curl COPY (`src/protocols/webdav/tpc.c`) | Local copy (`xrootd_ns_local_copy()`) |
 | Cache | Read-through (stream only) | No cache | No cache |
-| Locking | ACL + scope enforcement | LOCK/UNLOCK (`src/webdav/lock.c`) | None |
+| Locking | ACL + scope enforcement | LOCK/UNLOCK (`src/protocols/webdav/lock.c`) | None |
 | Multipart | kXR_prepare/kXR_sync pattern | WebDAV PUT with chunked upload | UploadPart + CompleteMultipartUpload |
 | Metrics | Per-op counters via shared zone | Per-method counters via shared zone | Per-S3-op counters via shared zone |
 | XML responses | ASCII stat body format | PROPFIND XML | ListObjectsV2, multipart XML |

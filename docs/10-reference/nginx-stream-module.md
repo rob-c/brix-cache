@@ -103,7 +103,7 @@ ngx_module_t ngx_stream_xrootd_module = {
     NGX_MODULE_V1_PADDING
 };
 
-/* HTTP module — src/webdav/module.c */
+/* HTTP module — src/protocols/webdav/module.c */
 ngx_module_t ngx_http_xrootd_webdav_module = {
     NGX_MODULE_V1,
     &ngx_http_xrootd_webdav_module_ctx,

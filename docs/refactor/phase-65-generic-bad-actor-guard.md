@@ -795,7 +795,7 @@ git commit -m "build(guard): register guard core in ./config + README"
 - Produces: `ngx_http_xrootd_guard_module`; `ngx_http_xrootd_guard_loc_conf_t` (holds a built `guard_ruleset_t`, `enable`, `profile`, `audit_log` `ngx_open_file_t*`, `bounce_status`); the directives from spec §5.
 - Consumes: guard-core ruleset builders (Task 3/2).
 
-Follow the pattern in `src/webdav/module.c` (module struct, `ngx_command_t` table, create/merge loc-conf, `postconfiguration` registering phase handlers). Key points below.
+Follow the pattern in `src/protocols/webdav/module.c` (module struct, `ngx_command_t` table, create/merge loc-conf, `postconfiguration` registering phase handlers). Key points below.
 
 - [ ] **Step 1: Write `src/httpguard/guard_http.h`**
 
@@ -932,7 +932,7 @@ ngx_http_xrootd_guard_postconf(ngx_conf_t *cf)
 }
 ```
 
-Also in `module.c`: `create_loc_conf` (`ngx_pcalloc`, set `enable/default_sigs/bounce_status = NGX_CONF_UNSET`, arrays `NGX_CONF_UNSET_PTR`); `merge_loc_conf` (apply defaults — `bounce_status` default `444`, `default_sigs` default `1` — then build `ruleset`: `guard_ruleset_init` → if `default_sigs` `guard_ruleset_add_default_signatures` → `guard_ruleset_load_profile(&ruleset, profile)` → append operator `extra_sigs` as `GUARD_SIG_SUBSTR`, `prefixes` via `guard_ruleset_add_prefix`, map `methods` to `op_allowed`); and the three custom slot helpers (`_audit_log_slot` via `ngx_conf_open_file(cf->cycle, &value[1])`, `_array_slot`, `_methods_slot`). Mirror `src/webdav/config.c` for the `ngx_conf_open_file` idiom.
+Also in `module.c`: `create_loc_conf` (`ngx_pcalloc`, set `enable/default_sigs/bounce_status = NGX_CONF_UNSET`, arrays `NGX_CONF_UNSET_PTR`); `merge_loc_conf` (apply defaults — `bounce_status` default `444`, `default_sigs` default `1` — then build `ruleset`: `guard_ruleset_init` → if `default_sigs` `guard_ruleset_add_default_signatures` → `guard_ruleset_load_profile(&ruleset, profile)` → append operator `extra_sigs` as `GUARD_SIG_SUBSTR`, `prefixes` via `guard_ruleset_add_prefix`, map `methods` to `op_allowed`); and the three custom slot helpers (`_audit_log_slot` via `ngx_conf_open_file(cf->cycle, &value[1])`, `_array_slot`, `_methods_slot`). Mirror `src/protocols/webdav/config.c` for the `ngx_conf_open_file` idiom.
 
 - [ ] **Step 3: Register in `./config`**
 

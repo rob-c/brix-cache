@@ -170,7 +170,7 @@ control. This is a **~1000× improvement in loss tolerance** (~0.001% → ≥1%)
 
 - **`xrootd_tcp_congestion <algo>`** (`src/connection/netopt.h` helper;
   stream via `connection/handler.c`; HTTP WebDAV+S3 via the shared
-  `src/shared/file_serve.c`): per-socket `setsockopt(TCP_CONGESTION)` (e.g.
+  `src/protocols/shared/file_serve.c`): per-socket `setsockopt(TCP_CONGESTION)` (e.g.
   `bbr`). The sender's congestion control governs download throughput, and BBR
   ignores the spurious dup-ACK "loss" signals that *real* IP reordering induces —
   a client-agnostic throughput lever. Default unset = kernel default (no syscall).
@@ -225,8 +225,8 @@ control. This is a **~1000× improvement in loss tolerance** (~0.001% → ≥1%)
 `src/core/config/server_conf.c`, `src/stream/module.c`, `src/connection/handler.c`,
 `src/connection/netopt.h`, `src/connection/recv.c`, `src/connection/write_helpers.c`,
 `src/connection/disconnect.c`, `src/connection/budget.h`, `src/core/aio/buffers.c`,
-`src/core/aio/reads.c`, `src/core/aio/aio.h`, `src/read/read.c`, `src/shared/file_serve.c`,
-`src/webdav/webdav.h`, `src/webdav/module.c`, `src/webdav/config.c`, `config`.
+`src/core/aio/reads.c`, `src/core/aio/aio.h`, `src/read/read.c`, `src/protocols/shared/file_serve.c`,
+`src/protocols/webdav/webdav.h`, `src/protocols/webdav/module.c`, `src/protocols/webdav/config.c`, `config`.
 
 **Client:** `client/lib/nettmo.c`, `client/lib/http.c`, `client/lib/webfile.c`.
 

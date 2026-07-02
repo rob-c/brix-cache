@@ -7,7 +7,7 @@
 /* HOW: Sequential infotype comparison chain using ntohs() to convert big-endian 16-bit value from wire format into host byte order. Each if-block calls a dedicated handler function (xrootd_query_prep_status through xrootd_query_opaqug) — handlers return NGX_OK/NGX_ERROR or send error responses directly. The last kXR_Qvisa case includes an additional precondition check: ctx->cur_dlen must be zero (no pending data length) before proceeding to visa query. After all comparisons, debug log the unsupported infotype value and call xrootd_send_error() with kXR_Unsupported status. */
 
 #include "query_internal.h"
-#include "ssi/ssi.h"   /* §7 XrdSsi response-wait via kXR_query(Qopaqug) */
+#include "protocols/ssi/ssi.h"   /* §7 XrdSsi response-wait via kXR_query(Qopaqug) */
 
 /*
  * kXR_query dispatcher. The infotype field selects a query sub-protocol.

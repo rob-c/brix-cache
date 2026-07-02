@@ -3,7 +3,7 @@
 This plan picks up where `shared-code-plan.md` left off.  Phases A (URL
 decode) and B (errno mapping) have been implemented and are in `src/core/compat/`.
 This document catalogues what remains from that plan and adds three new
-opportunities found by cross-reading `src/webdav/` and `src/s3/` after those
+opportunities found by cross-reading `src/protocols/webdav/` and `src/protocols/s3/` after those
 changes landed.
 
 ---
@@ -33,9 +33,9 @@ confined within `root_canon`.
 
 | Copy | File | LOC | Key behaviour |
 |---|---|---:|---|
-| `ngx_http_xrootd_webdav_resolve_path` | `src/webdav/path.c` | ~120 | URL-decodes `r->uri`, `..` check, `realpath()`, ENOENT parent strategy, confinement verify. Returns `NGX_HTTP_*`. |
-| `webdav_resolve_destination_path` | `src/webdav/path.c` | ~100 | Same logic for pre-decoded Destination header paths (COPY/MOVE). |
-| `s3_resolve_key` | `src/s3/util.c` | ~45 | Concatenates root + key, `..` scan only. **No `realpath()` call.** Symlinks in the key path reach the kernel unverified at user-space level. |
+| `ngx_http_xrootd_webdav_resolve_path` | `src/protocols/webdav/path.c` | ~120 | URL-decodes `r->uri`, `..` check, `realpath()`, ENOENT parent strategy, confinement verify. Returns `NGX_HTTP_*`. |
+| `webdav_resolve_destination_path` | `src/protocols/webdav/path.c` | ~100 | Same logic for pre-decoded Destination header paths (COPY/MOVE). |
+| `s3_resolve_key` | `src/protocols/s3/util.c` | ~45 | Concatenates root + key, `..` scan only. **No `realpath()` call.** Symlinks in the key path reach the kernel unverified at user-space level. |
 
 **Security gap:** `s3_resolve_key` does not call `realpath()`.  Symlink
 escapes are caught downstream by `xrootd_open_confined_canon`'s kernel-level
@@ -72,10 +72,10 @@ Replace:
 
 **What:** `s3_set_header(r, key, value)` — allocate and push a response header.
 
-**Where:** Defined as a `static` function in `src/s3/object.c` (lines 14–30).
+**Where:** Defined as a `static` function in `src/protocols/s3/object.c` (lines 14–30).
 Used only within that file.
 
-**Fix:** Move to `src/s3/util.c`, remove `static`, declare in `src3/s3.h`.
+**Fix:** Move to `src/protocols/s3/util.c`, remove `static`, declare in `src3/s3.h`.
 Allows other S3 files to call it without duplicating the pattern.
 
 **LOC saved:** ~0 net (move, not deletion).  Value: prevents future copies.
@@ -94,8 +94,8 @@ range_end, has_range)` and clamp to file size.
 
 | Copy | File | Range LOC |
 |---|---|---:|
-| `s3_handle_get` | `src/s3/object.c` | ~55 (lines 91–145) |
-| `webdav_handle_get` | `src/webdav/get.c` | ~65 (lines 133–200) |
+| `s3_handle_get` | `src/protocols/s3/object.c` | ~55 (lines 91–145) |
+| `webdav_handle_get` | `src/protocols/webdav/get.c` | ~65 (lines 133–200) |
 
 The two implementations are **structurally identical** — same three-case parse
 (`bytes=S-E`, `bytes=-suffix`, `bytes=S-`), same clamping, same 416 path.
@@ -148,8 +148,8 @@ S3: `test_s3_get_range_partial_206`, `test_s3_get_range_suffix_206`,
 
 | Copy | File | Format | RFC status |
 |---|---|---|---|
-| `webdav_etag_str` | `src/webdav/headers.c` | `W/"%lx-%llx"` | Weak (RFC 7232 §2.1) |
-| `s3_etag` | `src/s3/util.c` | `"%lx-%lx"` | Strong |
+| `webdav_etag_str` | `src/protocols/webdav/headers.c` | `W/"%lx-%llx"` | Weak (RFC 7232 §2.1) |
+| `s3_etag` | `src/protocols/s3/util.c` | `"%lx-%lx"` | Strong |
 
 **Two divergences:**
 
@@ -199,14 +199,14 @@ comes from the decoded S3 object key in the request URI.  An attacker can
 include `\n`, `\r`, or escape sequences in the object key to forge log entries.
 
 `xrootd_sanitize_log_string` is already declared in `src/fs/path/path.h` (the
-stream-layer header) and re-declared in `src/webdav/webdav.h`.  The function
+stream-layer header) and re-declared in `src/protocols/webdav/webdav.h`.  The function
 is compiled into the stream module and available to all modules in the binary.
 
-**Fix:** In `src/s3/put.c`, before each `ngx_log_error` call that includes a
+**Fix:** In `src/protocols/s3/put.c`, before each `ngx_log_error` call that includes a
 user-derived path, pass it through `xrootd_sanitize_log_string`.  S3's `s3.h`
 should include `src/fs/path/path.h` (or a compat wrapper) to get the declaration.
 
-Files to update: `src/s3/put.c` (~6 log sites), `src/s3/object.c` (~2 log
+Files to update: `src/protocols/s3/put.c` (~6 log sites), `src/protocols/s3/object.c` (~2 log
 sites with `fs_path`).
 
 **LOC added:** ~15 (sanitization buffers + calls).  Net: +15 LOC for a
@@ -269,11 +269,11 @@ security fix, not a reduction.  Worth doing regardless of LOC cost.
 
 ### Phase G — S3 log sanitization (0.5 day, security fix)
 
-1. Include `src/fs/path/path.h` in `src/s3/s3.h` for
+1. Include `src/fs/path/path.h` in `src/protocols/s3/s3.h` for
    `xrootd_sanitize_log_string` declaration.
-2. In `src/s3/put.c`: wrap each user-derived path in a `safe_path[512]` buffer
+2. In `src/protocols/s3/put.c`: wrap each user-derived path in a `safe_path[512]` buffer
    via `xrootd_sanitize_log_string` before passing to `ngx_log_error`.
-3. In `src/s3/object.c`: same treatment for any `fs_path` log sites.
+3. In `src/protocols/s3/object.c`: same treatment for any `fs_path` log sites.
 4. Build + manual log-injection test: PUT key containing `\n` → verify log
    shows escaped `\n`, not a forged new log line.
 

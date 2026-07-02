@@ -11,7 +11,7 @@ WEBDAV_DELLOCK_DATA_ROOT), so it never touches the shared test fleet and skips
 cleanly when that instance is down.  The server and this test share the local
 filesystem, so the fixture seeds any needed files into the data root and reads
 the server's writes back from it.  It exercises the real handler code in
-src/webdav/{namespace.c, lock.c, move.c, dispatch.c}: DELETE on
+src/protocols/webdav/{namespace.c, lock.c, move.c, dispatch.c}: DELETE on
 a non-empty collection (-> 409 Conflict per require_empty_dir policy), UNLOCK
 ownership/token mismatch and malformed/missing Lock-Token, LOCK conflict /
 shared-lock behaviour, MKCOL with a body and with a missing intermediate
@@ -207,7 +207,7 @@ def _sanity():
 class TestDeleteNonEmptyCollection:
 
     def test_delete_nonempty_collection_returns_409(self):
-        """src/webdav/namespace.c sets opts.require_empty_dir = 1, so DELETE of
+        """src/protocols/webdav/namespace.c sets opts.require_empty_dir = 1, so DELETE of
         a non-empty collection maps XROOTD_NS_NOT_EMPTY -> 409 Conflict."""
         coll = f"/del_nonempty_{uuid.uuid4().hex}"
         assert _mkcol(coll)[0] == 201
@@ -435,7 +435,7 @@ class TestMkcol:
         """RFC 4918 §9.3.1: a MKCOL request carrying a body whose entity the
         server does not understand SHOULD be rejected with 415 Unsupported
         Media Type.  Assert the ACTUAL behaviour: either the documented 415, or
-        — since src/webdav/dispatch.c routes MKCOL straight to
+        — since src/protocols/webdav/dispatch.c routes MKCOL straight to
         webdav_handle_mkcol without consuming a body — the collection is
         created (201) with the body ignored.  A silent partial state or a 5xx
         is NOT acceptable."""

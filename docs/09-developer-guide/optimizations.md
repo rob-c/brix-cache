@@ -356,7 +356,7 @@ Start here when tracing a performance change:
 - `src/core/aio/*.c` - response builders and thread-pool completion paths
 - `src/read/*.c` - native read/readv/pgread implementations
 - `src/write/*.c` - native write/pgwrite implementations
-- `src/webdav/*.c` - WebDAV GET/PUT/auth/path optimizations
+- `src/protocols/webdav/*.c` - WebDAV GET/PUT/auth/path optimizations
 - `src/auth/token/*.c` - local token verification
 - `src/observability/metrics/*.c` - shared-memory counters
 

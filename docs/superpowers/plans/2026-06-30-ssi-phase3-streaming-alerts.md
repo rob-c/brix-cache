@@ -30,10 +30,10 @@
 Replace the fixed `XROOTD_SSI_RESP_MAX` block with an append-grow buffer so a streaming service can produce more than one chunk over time without pre-sizing.
 
 **Files:**
-- Create: `src/ssi/respbuf.{c,h}` (a tiny grow-on-append byte buffer over an `ngx_pool_t`)
-- Create: `src/ssi/respbuf_unittest.c`
-- Modify: `src/ssi/ssi_req.h` (response becomes `respbuf` instead of `u_char* + len`)
-- Modify: `src/ssi/ssi.c` (responder `set_response` appends; read serves from the buffer)
+- Create: `src/protocols/ssi/respbuf.{c,h}` (a tiny grow-on-append byte buffer over an `ngx_pool_t`)
+- Create: `src/protocols/ssi/respbuf_unittest.c`
+- Modify: `src/protocols/ssi/ssi_req.h` (response becomes `respbuf` instead of `u_char* + len`)
+- Modify: `src/protocols/ssi/ssi.c` (responder `set_response` appends; read serves from the buffer)
 - Modify: `config`
 
 **Interfaces:**
@@ -53,8 +53,8 @@ Replace the fixed `XROOTD_SSI_RESP_MAX` block with an append-grow buffer so a st
 When a deferred/streaming service appends a non-final chunk and the client is waiting, push a `PEND` attn so the client issues `kXR_read`; on the final chunk, push the terminal response (or let the read drain to EOF).
 
 **Files:**
-- Modify: `src/ssi/ssi.c` (`ssi_resp_set_response`: on `last=0` while `waiting`, `xrootd_ssi_deliver(SSI_DLV_PEND)`; on `last=1`, mark responded)
-- Modify: `src/ssi/ssi_service.c` (`stream-async` service: emit 3 chunks on successive timers)
+- Modify: `src/protocols/ssi/ssi.c` (`ssi_resp_set_response`: on `last=0` while `waiting`, `xrootd_ssi_deliver(SSI_DLV_PEND)`; on `last=1`, mark responded)
+- Modify: `src/protocols/ssi/ssi_service.c` (`stream-async` service: emit 3 chunks on successive timers)
 - Test: `tests/test_ssi_stream.py`
 
 **Interfaces:** consumes Phase-2 `deliver`; produces built-in `stream-async`.
@@ -71,9 +71,9 @@ When a deferred/streaming service appends a non-final chunk and the client is wa
 Make `alert()` push a `kXR_attn` alert (`XROOTD_SSI_ATTN_ALRT`, tag `!`) instead of dropping it.
 
 **Files:**
-- Modify: `src/ssi/ssi.c` (`ssi_resp_alert` → `xrootd_ssi_deliver(SSI_DLV_ALERT)` with the alert bytes; for a deferred req only — sync services still drop, documented)
-- Modify: `src/ssi/deliver.c` (`SSI_DLV_ALERT` builds an `ALRT`-tagged attn carrying the alert payload as metadata)
-- Modify: `src/ssi/ssi_service.c` (`alert-async` service: push 2 alerts then a final response)
+- Modify: `src/protocols/ssi/ssi.c` (`ssi_resp_alert` → `xrootd_ssi_deliver(SSI_DLV_ALERT)` with the alert bytes; for a deferred req only — sync services still drop, documented)
+- Modify: `src/protocols/ssi/deliver.c` (`SSI_DLV_ALERT` builds an `ALRT`-tagged attn carrying the alert payload as metadata)
+- Modify: `src/protocols/ssi/ssi_service.c` (`alert-async` service: push 2 alerts then a final response)
 - Test: `tests/test_ssi_alerts.py`
 
 - [ ] **Step 1: Failing wire test** — open `/.ssi/alert-async`, submit, expect `kXR_waitresp`, then ≥2 `kXR_attn` frames whose attn tag is `!` (alert) carrying the alert bytes, then a final response attn. Use `_parse_ssi_reply` extended to read the tag byte.
@@ -85,7 +85,7 @@ Make `alert()` push a `kXR_attn` alert (`XROOTD_SSI_ATTN_ALRT`, tag `!`) instead
 
 ### Task 4: Docs
 
-- [ ] Update `src/ssi/README.md`: streaming + alerts move to *implemented*; document `stream-async`/`alert-async`, the growable `respbuf`, and the PEND-on-chunk rule. Commit.
+- [ ] Update `src/protocols/ssi/README.md`: streaming + alerts move to *implemented*; document `stream-async`/`alert-async`, the growable `respbuf`, and the PEND-on-chunk rule. Commit.
 
 ---
 

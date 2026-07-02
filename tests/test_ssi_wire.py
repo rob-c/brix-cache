@@ -1,6 +1,6 @@
 """
 tests/test_ssi_wire.py — byte-exact XrdSsi-over-xroot conformance for the nginx
-module's SSI engine (src/ssi/).
+module's SSI engine (src/protocols/ssi/).
 
 A raw-wire client reproduces exactly what a real libXrdSsi client does
 (XrdSsiTaskReal + XrdClFile): open "/.ssi/<svc>", submit the request via

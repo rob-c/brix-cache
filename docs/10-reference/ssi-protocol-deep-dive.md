@@ -248,7 +248,7 @@ why a faithful native re-implementation has to replace the `XrdSsiService` /
 
 ## 8. How our nginx module implements SSI natively
 
-We re-implement the **server** side natively (no C++ plugin ABI), in `src/ssi/`:
+We re-implement the **server** side natively (no C++ plugin ABI), in `src/protocols/ssi/`:
 
 | File | Role |
 |---|---|

@@ -101,12 +101,12 @@ static xrootd_route_t xrootd_protocol_routes[] = {
 
 ## 4. Specific Methods to be Decommissioned (Hyper-List)
 
-### 4.1 Remove from `src/webdav/`
+### 4.1 Remove from `src/protocols/webdav/`
 *   `webdav_render_multistatus()`: Replace with generic XML template.
 *   `webdav_parse_lockinfo()`: Replace with generic XML-to-Intent parser.
 *   `webdav_handle_propfind()`: 900 lines reduced to 50 lines of intent mapping.
 
-### 4.2 Remove from `src/s3/`
+### 4.2 Remove from `src/protocols/s3/`
 *   `s3_build_canonical_qs()`: Replace with generic URI canonicalizer.
 *   `s3_verify_sigv4()`: 500 lines reduced to a 20-line HMAC pipeline call.
 *   `s3_send_xml_error()`: Replace with generic `xrootd_resp_send_error()`.

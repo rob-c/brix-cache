@@ -8,7 +8,7 @@ initiated by a client that never touches the bytes itself: the client tells one
 gateway to pull a file from (or push it to) a remote origin. The module
 implements two completely separate TPC transports — native XRootD pull
 (`src/tpc/`, driven by a write-mode `kXR_open` carrying `tpc.src=...`) and WebDAV
-HTTP-TPC (`src/webdav/tpc*.c`, driven by the `COPY` method with
+HTTP-TPC (`src/protocols/webdav/tpc*.c`, driven by the `COPY` method with
 `Source:`/`Credential:` headers). Rather than duplicate authorization,
 credential parsing, transfer bookkeeping, and metrics across both transports,
 those four concerns are factored into this `common/` directory so both go

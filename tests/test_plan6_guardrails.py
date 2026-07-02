@@ -233,14 +233,14 @@ def test_export_root_helper_present():
     )
     # S3 merge uses the helper
     _assert_markers(
-        "src/s3/module.c",
+        "src/protocols/s3/module.c",
         [
             "xrootd_prepare_export_root",
         ],
     )
     # WebDAV merge uses the helper
     _assert_markers(
-        "src/webdav/config.c",
+        "src/protocols/webdav/config.c",
         [
             "xrootd_prepare_export_root",
         ],
@@ -267,7 +267,7 @@ def test_capability_registry_present():
         ],
     )
     _assert_markers(
-        "src/webdav/operation_table.c",
+        "src/protocols/webdav/operation_table.c",
         [
             "xrootd_webdav_operations",
             "xrootd_proto_op_read",
@@ -275,7 +275,7 @@ def test_capability_registry_present():
         ],
     )
     _assert_markers(
-        "src/s3/operation_table.c",
+        "src/protocols/s3/operation_table.c",
         [
             "xrootd_s3_operations",
             "xrootd_proto_op_read",
@@ -284,14 +284,14 @@ def test_capability_registry_present():
     )
     # WebDAV Allow header driven by the table
     _assert_markers(
-        "src/webdav/methods_basic.c",
+        "src/protocols/webdav/methods_basic.c",
         [
             "xrootd_http_operation_allow_header",
         ],
     )
     # WebDAV CORS methods driven by the table
     _assert_markers(
-        "src/webdav/cors.c",
+        "src/protocols/webdav/cors.c",
         [
             "xrootd_http_operation_allow_header",
         ],

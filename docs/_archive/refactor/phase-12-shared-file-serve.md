@@ -1,7 +1,7 @@
 # Phase 12 — Shared HTTP File-Serve Handler
 
 **Target**: eliminate duplicated range-parse → headers → send pipeline shared between
-`src/webdav/get.c` and `src/s3/object.c`.
+`src/protocols/webdav/get.c` and `src/protocols/s3/object.c`.
 
 **Net LoC reduction**: ~80–110 LoC  
 **Risk**: low — mechanical extraction of already-working code into a new function  
@@ -57,8 +57,8 @@ webdav/get.c:     301 LoC → ~195 LoC  (save ~106 LoC)
 s3/object.c GET:  ~137 LoC → ~70 LoC  (save ~67 LoC)
 ─────────────────────────────────────────────────────
 Total removed from callers:           ~173 LoC
-New: src/shared/file_serve.h          ~45 LoC
-New: src/shared/file_serve.c          ~80 LoC
+New: src/protocols/shared/file_serve.h          ~45 LoC
+New: src/protocols/shared/file_serve.c          ~80 LoC
 ─────────────────────────────────────────────────────
 Net reduction:                        ~48 LoC
 ```
@@ -75,7 +75,7 @@ place, and any future protocol (e.g. XrdHTTP object serve) calls the same functi
 
 ## Design
 
-### `src/shared/file_serve.h`
+### `src/protocols/shared/file_serve.h`
 
 ```c
 #ifndef XROOTD_SHARED_FILE_SERVE_H
@@ -138,7 +138,7 @@ ngx_int_t xrootd_http_serve_file_ranged(ngx_http_request_t *r,
 #endif /* XROOTD_SHARED_FILE_SERVE_H */
 ```
 
-### `src/shared/file_serve.c` — implementation skeleton
+### `src/protocols/shared/file_serve.c` — implementation skeleton
 
 ```c
 #include "file_serve.h"
@@ -351,13 +351,13 @@ Add to `config` (the top-level nginx module config shell script), in the
 `NGX_ADDON_SRCS` list alongside the other `shared/` or `compat/` entries:
 
 ```sh
-    $ngx_addon_dir/src/shared/file_serve.c \
+    $ngx_addon_dir/src/protocols/shared/file_serve.c \
 ```
 
 Add to the `NGX_ADDON_DEPS` header list:
 
 ```sh
-    $ngx_addon_dir/src/shared/file_serve.h \
+    $ngx_addon_dir/src/protocols/shared/file_serve.h \
 ```
 
 Because a new source file is added, `./configure` must be re-run once:
@@ -374,8 +374,8 @@ All subsequent incremental builds use `make -j$(nproc)` only.
 
 ## Implementation steps
 
-1. **Create** `src/shared/file_serve.h` (opts struct, result struct, 3 `#define` constants, declaration)
-2. **Create** `src/shared/file_serve.c` (implementation as above; ~80 LoC)
+1. **Create** `src/protocols/shared/file_serve.h` (opts struct, result struct, 3 `#define` constants, declaration)
+2. **Create** `src/protocols/shared/file_serve.c` (implementation as above; ~80 LoC)
 3. **Register** both in `config` (`NGX_ADDON_DEPS` + `NGX_ADDON_SRCS`); run `./configure`
 4. **Edit `webdav/get.c`**:
    - Add `#include "../shared/file_serve.h"`

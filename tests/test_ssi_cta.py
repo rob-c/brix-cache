@@ -8,7 +8,7 @@ A raw-wire client builds a real (byte-compatible) cta.xrd.Request protobuf, open
   - a query (admincmd) answers synchronously (polled);
   - a malformed request answers with a cta.xrd.Response error type.
 
-Protobuf field numbers match CTA's real .proto (see src/ssi/svc_cta/cta_pb.c).
+Protobuf field numbers match CTA's real .proto (see src/protocols/ssi/svc_cta/cta_pb.c).
 
 Run:
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_ssi_cta.py -v

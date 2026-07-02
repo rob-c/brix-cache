@@ -9,7 +9,7 @@ aws-chunked,gzip``) the payload was compressed THEN chunk-framed — de-chunking
 leaves the bytes still gzip-compressed, which would be committed as a silently
 corrupt object.
 
-The server was fixed (src/s3/put.c → ``s3_aws_chunked_has_inner_coding`` guard) to
+The server was fixed (src/protocols/s3/put.c → ``s3_aws_chunked_has_inner_coding`` guard) to
 REJECT such a request with 400 and abort the staged object so it is never committed,
 mirroring the non-chunked path's 400 for an undecodable Content-Encoding.
 

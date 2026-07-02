@@ -255,7 +255,7 @@ self-contained alternate stores with their own confinement):
   checkpoint journal), `src/read/slice_read` (the slice cache).
 - **Config / cert / token / auth readers** (never the export backend):
   `src/auth/crypto/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/pwd/`, `src/auth/token/`, `src/core/config/`,
-  `src/auth/krb5/`, `src/auth/authz/acc/`, `src/auth/voms/`, `src/ssi/`, `src/dig/`, `src/core/aio/`.
+  `src/auth/krb5/`, `src/auth/authz/acc/`, `src/auth/voms/`, `src/protocols/ssi/`, `src/protocols/dig/`, `src/core/aio/`.
 - Unit tests (`*unittest*`, `*_test*`).
 
 `compat/integrity_info.c`'s `.cks` sidecar fallback store and its `fstat` of an

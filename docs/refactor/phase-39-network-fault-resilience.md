@@ -176,8 +176,8 @@ DISABLED but `tcp_user_timeout` enabled → kernel backstop still tears it down.
 **Closes:** curl TPC has no connect/idle/low-speed bound (only optional `CURLOPT_TIMEOUT` at
 `tpc_curl.c:257/516`); native TPC has only a per-recv `SO_RCVTIMEO` that resets every byte. A stalled
 remote pins a finite thread-pool worker forever; enough stalls wedge all TPC.
-**Files:** `src/webdav/tpc_curl.c`; `src/tpc/source.c` (native pull loop ~182+);
-`src/tpc/tpc_internal.h`; `src/webdav/webdav.h`, `tpc_config.c`; `config.h` + `module.c` (native knob).
+**Files:** `src/protocols/webdav/tpc_curl.c`; `src/tpc/source.c` (native pull loop ~182+);
+`src/tpc/tpc_internal.h`; `src/protocols/webdav/webdav.h`, `tpc_config.c`; `config.h` + `module.c` (native knob).
 **Changes:**
 - On **every** curl easy handle (single + multi paths) set `CURLOPT_CONNECTTIMEOUT` (e.g. 30s),
   `CURLOPT_LOW_SPEED_LIMIT` (new `xrootd_webdav_tpc_low_speed_bytes`, e.g. 1024) + `CURLOPT_LOW_SPEED_TIME`
@@ -202,7 +202,7 @@ pool-size TPCs against a black-hole source → throughput recovers after the bou
 **Closes:** the cross-process TPC registry slot is freed only on explicit completion; abandoned transfers
 accumulate as permanent `in_use` slots until `XROOTD_TPC_REGISTRY_SLOTS` fill and every new TPC 503s. The
 transfer struct already carries `started_at`/`updated_at` (`src/tpc/common/transfer.h:59-60`).
-**Files:** `src/tpc/common/registry.c/.h`; `src/webdav/tpc_curl.c`, `tpc_marker.c`, `tpc_thread.c`;
+**Files:** `src/tpc/common/registry.c/.h`; `src/protocols/webdav/tpc_curl.c`, `tpc_marker.c`, `tpc_thread.c`;
 `config.h` + `module.c`.
 **Changes:**
 - `xrootd_tpc_registry_reap(max_age, log)` driven by a coarse per-worker timer (~60s). New
@@ -274,7 +274,7 @@ slowloris, too tight for slow WAN), HTTP-2 (S3 MPU staging dirs orphan forever �
 (WebDAV PUT writes final path `O_TRUNC` in place — concurrent reader sees partial, crash leaves truncated
 file), HTTP-5 (`CompleteMultipartUpload` assembles parts with blocking read/write on the event thread,
 head-of-line-stalling the worker).
-**Files:** `src/webdav/config.c`, `webdav.h`, `put.c`; `src/s3/multipart_*.c`, `module.c`;
+**Files:** `src/protocols/webdav/config.c`, `webdav.h`, `put.c`; `src/protocols/s3/multipart_*.c`, `module.c`;
 `docs/03-configuration/production-deployment.md`.
 **Changes:**
 - HTTP-1: module-recommended timeout defaults via docs + a tuned sample config, and optionally sane

@@ -93,7 +93,7 @@ These features add significant code but are optional — not required by any XRo
 
 **Files:** gsi_outbound_exchange.c (519), key_registry.c (19), parse.c (18), launch.c (12), thread.c (7), io.c (6), connect.c (8), done.c (2), bootstrap.c (4), tpc_token.c (10), gsi_outbound_dh_helpers.c (7), gsi_outbound_finish.c (2), gsi_outbound_common.c (8), gsi_outbound_certreq.c (6), source.c (3)
 
-**Functionality:** Shared-memory SHM key registry for native root:// TPC rendezvous across nginx worker processes with spinlock protection. Source/parse/launch/thread/io/connect/done/bootstrap/token lifecycle. GSI outbound auth: DH key exchange, certificate request, exchange, finish. HTTP-TPC in WebDAV (`src/webdav/tpc.c` — 493 lines) is more commonly used than native TPC.
+**Functionality:** Shared-memory SHM key registry for native root:// TPC rendezvous across nginx worker processes with spinlock protection. Source/parse/launch/thread/io/connect/done/bootstrap/token lifecycle. GSI outbound auth: DH key exchange, certificate request, exchange, finish. HTTP-TPC in WebDAV (`src/protocols/webdav/tpc.c` — 493 lines) is more commonly used than native TPC.
 
 **Assessment:** **ELIMINATE (native), KEEP (HTTP-TPC).** Native TPC adds ~3,401 lines but HTTP-TPC in WebDAV is the primary TPC mechanism for most deployments. Removing `src/tpc/` directory eliminates cross-process SHM key registry complexity while retaining WebDAV HTTP-TPC COPY with Source/Credential headers.
 
@@ -348,7 +348,7 @@ The background crypto/PKI analysis revealed the following auth landscape:
 
 **Impact:** **ELIMINATE.** Remove `src/auth/sss/` directory entirely. Saves ~1,131 lines. Anonymous + GSI + token cover virtually all production deployments; SSS is a niche auth method for specific institutional sites. Users who need SSS can enable it via config gate (`xrootd_auth sss`).
 
-#### TLS Auth Cache in WebDAV (`src/webdav/auth_cert.c` — 498 lines) — Moderate Impact
+#### TLS Auth Cache in WebDAV (`src/protocols/webdav/auth_cert.c` — 498 lines) — Moderate Impact
 
 **Functionality:** GSI cert verification + custom TLS auth cache layer (ex_data cache with connection+session tiers). Lines 17-259: caching verified DN/VO state across requests on the same TLS connection to avoid re-verifying certificates.
 
@@ -511,7 +511,7 @@ Shared preamble in `src/core/config/shared_conf.h`: `enable`, `root`, `root_cano
 - `xrootd_manager_mode on/off` + `xrootd_manager_map` → src/net/manager/
 - `xrootd_cms_server on/off` + `xrootd_cms_manager` → src/net/cms/
 - `xrootd_tpc_outbound_bearer_file` → src/tpc/
-- `xrootd_s3_access_key` + `xrootd_s3_secret_key` → src/s3/
+- `xrootd_s3_access_key` + `xrootd_s3_secret_key` → src/protocols/s3/
 
 **Impact:** **SIMPLIFY.** When features are eliminated (Sections 1 above), their config directives become no-ops:
 - Dashboard directives → single `xrootd_dashboard on/off` that always returns NGX_DECLINED

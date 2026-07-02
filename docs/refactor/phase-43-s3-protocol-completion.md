@@ -2,7 +2,7 @@
 
 **Status:** IMPLEMENTED 2026-06-21 (all six workstreams W0–W5; 56 new pytest, full
 S3 suite 230 pass). Two deliberate scope deviations, recorded in §10.
-**Scope:** `src/s3/` only (+ a small amount of shared `src/core/compat/` checksum reuse). No
+**Scope:** `src/protocols/s3/` only (+ a small amount of shared `src/core/compat/` checksum reuse). No
 changes to root:// or WebDAV planes.
 
 ---
@@ -33,7 +33,7 @@ against the shared anonymous S3 instance (port 9001).
    (an inert directive would be a misleading stub).
 2. **W4 atomicity** — create-if-absent uses a pre-commit confined `stat` check
    rather than `renameat2(RENAME_NOREPLACE)` (which would cascade through the
-   beneath + impersonation rename path, outside `src/s3/`). The micro-TOCTOU window
+   beneath + impersonation rename path, outside `src/protocols/s3/`). The micro-TOCTOU window
    between the existence test and the staged-rename commit is documented in
    `s3_put_precondition()`; closing it fully is the noted follow-up.
 3. **Response overrides** (W3, §4.6) are honored for **all** requests with strict
@@ -140,7 +140,7 @@ Add a dechunking stage between the nginx body spool and the object writer. Keep 
 zero-buffering / `copy_file_range` design (no whole-object in memory).
 
 **New files:**
-- `src/s3/aws_chunked.c` / `.h` — the decoder + trailer parser.
+- `src/protocols/s3/aws_chunked.c` / `.h` — the decoder + trailer parser.
 
 **Detection (in dispatch, `handler.c` PUT/UploadPart path):**
 1. Read `x-amz-content-sha256`. If it begins with `STREAMING-`, set
@@ -289,7 +289,7 @@ buckets.
 set as a single JSON/`querystring` blob in a dedicated integrity-namespace xattr
 (`user.s3.tagging`) on the object — no new on-disk structures, survives copy if the
 copy path is taught to carry it. Return the AWS `<Tagging><TagSet>…` XML. Useful for
-Rucio/data-management labelling. ~120 lines (`src/s3/tagging.c`). Off unless
+Rucio/data-management labelling. ~120 lines (`src/protocols/s3/tagging.c`). Off unless
 `allow_write` for the mutating verbs.
 
 ### 5.2 Canned bucket/object subresources (probe-satisfiers)
@@ -349,15 +349,15 @@ pre-existing paths are byte-for-byte unchanged.
 
 | File | Change |
 |---|---|
-| `src/s3/aws_chunked.c` / `.h` (new) | dechunk state machine + trailer parse + opt-in chunk-sig verify |
-| `src/s3/put.c` | route streaming bodies through decoder; generalize checksum apply |
-| `src/s3/checksum.c` / `.h` (new) | algo descriptor table (crc32/crc32c/sha1/sha256/crc64nvme), edge encoding |
-| `src/s3/object.c` | conditional GET/HEAD, response overrides, HeadBucket, GetBucketLocation |
-| `src/s3/list_objects_v1.c` (new) + `list_walk.c` | V1 emitter sharing the V2 walk |
-| `src/s3/handler.c` | dispatch: streaming detection, bucket-subresource table, V1 vs V2, HeadBucket |
-| `src/s3/tagging.c` / `.h` (new) | object tagging via xattr |
-| `src/s3/s3.h`, `s3_auth_internal.h` | new ctx fields (body_encoding, decoded length), signing-key reuse decl |
-| `src/core/config/config.h`, `src/s3/module.c`/config | `xrootd_s3_verify_chunk_signatures` directive; reuse `region` field |
+| `src/protocols/s3/aws_chunked.c` / `.h` (new) | dechunk state machine + trailer parse + opt-in chunk-sig verify |
+| `src/protocols/s3/put.c` | route streaming bodies through decoder; generalize checksum apply |
+| `src/protocols/s3/checksum.c` / `.h` (new) | algo descriptor table (crc32/crc32c/sha1/sha256/crc64nvme), edge encoding |
+| `src/protocols/s3/object.c` | conditional GET/HEAD, response overrides, HeadBucket, GetBucketLocation |
+| `src/protocols/s3/list_objects_v1.c` (new) + `list_walk.c` | V1 emitter sharing the V2 walk |
+| `src/protocols/s3/handler.c` | dispatch: streaming detection, bucket-subresource table, V1 vs V2, HeadBucket |
+| `src/protocols/s3/tagging.c` / `.h` (new) | object tagging via xattr |
+| `src/protocols/s3/s3.h`, `s3_auth_internal.h` | new ctx fields (body_encoding, decoded length), signing-key reuse decl |
+| `src/core/config/config.h`, `src/protocols/s3/module.c`/config | `xrootd_s3_verify_chunk_signatures` directive; reuse `region` field |
 | `docs/10-reference/feature-gaps.md`, `docs/10-architecture/s3.md` | update once landed |
 
 New `.c` files must be registered in `src/core/config/config.h` (`NGX_ADDON_SRCS`) and a

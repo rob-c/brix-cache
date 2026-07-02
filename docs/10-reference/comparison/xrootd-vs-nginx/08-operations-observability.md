@@ -26,7 +26,7 @@ design decision** by the maintainer, is the monitoring *paradigm*:
 > **pull-over-HTTP** observability — Prometheus `/metrics`, a JSON SRR endpoint,
 > a REST dashboard/admin API, and JSON access logs.
 
-This is called out explicitly in the module's own source: `src/srr/README.md`
+This is called out explicitly in the module's own source: `src/protocols/srr/README.md`
 states the project intentionally replaces XRootD UDP f/g-stream monitoring with
 HTTP/JSON pull, and `src/observability/metrics/README.md` documents the Prometheus exporter as
 "the single observability spine." It is also recorded as a product decision in
@@ -105,7 +105,7 @@ endpoints:
   byte-compatible with `XrdNetPMarkFF`) and in-band **IPv6 flow-label** marking
   (`flowlabel.c`, WLCG flow-label bit layout). Integrated into `root://`,
   WebDAV, S3, and TPC.
-- **SRR:** `src/srr/` — an HTTP/JSON WLCG `storageservice` endpoint
+- **SRR:** `src/protocols/srr/` — an HTTP/JSON WLCG `storageservice` endpoint
   (`builder.c` + `handler.c`), conventionally served at
   `/.well-known/wlcg-storage-resource-reporting`.
 - **Logging:** `src/observability/metrics/access_log.c` emits a per-op JSON access log; nginx's
@@ -156,8 +156,8 @@ the config file. Changing a server directive means a daemon restart
 
 Directives are nginx `ngx_command_t` entries declared in the module command
 tables (`src/stream/module.c`, `src/stream/module_core_directives.c`,
-`src/stream/module_cache_proxy_directives.c`, `src/webdav/module.c`,
-`src/s3/module.c`, plus the metrics/dashboard/srr/pmark module tables). They are
+`src/stream/module_cache_proxy_directives.c`, `src/protocols/webdav/module.c`,
+`src/protocols/s3/module.c`, plus the metrics/dashboard/srr/pmark module tables). They are
 merged main→srv→loc by `src/core/config/` (`process.c`, `server_conf.c`,
 `postconfiguration.c`, `runtime_server.c`, `merge_macros.h`) and follow nginx
 grammar — `{}` blocks, `;`-terminated directives, `include` files, `if`
@@ -373,7 +373,7 @@ JSON document harvested by CRIC.
   nothing in the daemon; the only WLCG-named code is the **SciTokens** authz
   plugin (`src/XrdSciTokens/`), which is unrelated. SRR for XRootD sites is
   produced by **external tooling**, not the server process.
-- **nginx-xrootd:** a built-in HTTP/JSON sub-module, `src/srr/`
+- **nginx-xrootd:** a built-in HTTP/JSON sub-module, `src/protocols/srr/`
   (`builder.c` + `handler.c` + `module.c`). It serves the WLCG `storageservice`
   schema (GET/HEAD, `application/json`), conventionally at
   `location = /.well-known/wlcg-storage-resource-reporting`, unauthenticated by
@@ -517,7 +517,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | Admin write API | admin tooling / `xrootd.admin` socket | `/api/v1/admin` (CIDR+secret, audited) | Different surface |
 | SciTags Firefly UDP | Yes (`XrdNetPMarkFF`) | Yes (`firefly.c`, byte-compatible) | Parity |
 | SciTags IPv6 flow-label | **TODO (not implemented)** | **Implemented** (`flowlabel.c`) | nginx-xrootd advantage |
-| WLCG SRR endpoint | Not in core (external tool) | Built-in `src/srr/` JSON | nginx-xrootd advantage |
+| WLCG SRR endpoint | Not in core (external tool) | Built-in `src/protocols/srr/` JSON | nginx-xrootd advantage |
 | Access log | Text + UDP monitor | JSON access log (sanitized) | Different; nginx-native |
 | Log sanitization | logger escaping | `xrootd_sanitize_log_string()` | Parity-ish |
 | Log rotation | logger-managed (daily/FIFO) | logrotate (`contrib/`) | Different mechanism |
@@ -564,9 +564,9 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 |---|---|
 | Metrics / Prometheus | `src/observability/metrics/{handler,stream,writer,unified,webdav,s3,cluster,tracking,stream_proxy,stream_cache,config,module,access_log,health}.c`, `metrics_macros.h`, `metrics.h`, `metrics_internal.h`, `README.md` |
 | Dashboard / admin | `src/observability/dashboard/{module,api,api_admin,config,config_download,auth,events,history,transfer_table,page}.c`, `README.md` |
-| Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/webdav/module.c`, `src/s3/module.c` |
+| Config model | `src/core/config/{process,server_conf,postconfiguration,runtime_server}.c`, `merge_macros.h`; directives in `src/stream/module.c`, `module_core_directives.c`, `module_cache_proxy_directives.c`, `src/protocols/webdav/module.c`, `src/protocols/s3/module.c` |
 | SciTags / PMark | `src/observability/pmark/{firefly,flowlabel,scitag,mapping,config,defsfile,sockstats}.c`, `pmark.h`, `README.md` |
-| SRR | `src/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
+| SRR | `src/protocols/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
 | Logging / sanitize | `src/observability/metrics/access_log.{c,h}`, `src/observability/accesslog/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |
 | Health | `src/observability/metrics/health.c` |
 | Rate limiting | `src/net/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/observability/metrics/ratelimit.c` |

@@ -158,7 +158,7 @@ All error codes declared in `opcodes.h` and mapped via `errno → kXR_*` helpers
 
 ### 4.7 WebDAV TPC via curl COPY
 - **Official XRootD:** HTTP-TPC is implemented by `src/XrdHttpTpc`; native root TPC is implemented separately in the XRootD stack.
-- **nginx-xrootd:** WebDAV TPC uses libcurl/helper paths with Source/Credential headers (`src/webdav/tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c`)
+- **nginx-xrootd:** WebDAV TPC uses libcurl/helper paths with Source/Credential headers (`src/protocols/webdav/tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c`)
 
 **Difference:** nginx-xrootd's WebDAV TPC is operationally tied to nginx/WebDAV
 and includes module-specific hardening; it should not be presented as a feature
@@ -166,7 +166,7 @@ missing from upstream XRootD.
 
 ### 4.8 S3 SigV4 Auth Gate
 - **Canonical:** No native S3 REST API support
-- **nginx-xrootd:** Full S3 REST API with AWS Signature Version 4 authentication gate (`src/s3/auth.c`) — GET, PUT, List, Multipart operations
+- **nginx-xrootd:** Full S3 REST API with AWS Signature Version 4 authentication gate (`src/protocols/s3/auth.c`) — GET, PUT, List, Multipart operations
 
 **Advantage:** nginx-xrootd adds a complete S3-compatible REST layer on top of XRootD storage — clients can access the same data via both `root://` protocol and `s3://` REST API without duplication.
 
@@ -213,7 +213,7 @@ client (`docs/10-reference/crc64-checksums.md`).
 | Feature | Canonical | nginx-xrootd |
 |---|---|---|
 | Native root TPC | ✓ (official XRootD TPC handling in `src/XrdOfs` / `src/XrdXrootd`) | ✓ (`src/tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c`) |
-| HTTP/WebDAV TPC | ✓ (`src/XrdHttpTpc`) | ✓ (`src/webdav/tpc.c`, `tpc_curl.c`, `tpc_marker.c`, `tpc_cred.c`) |
+| HTTP/WebDAV TPC | ✓ (`src/XrdHttpTpc`) | ✓ (`src/protocols/webdav/tpc.c`, `tpc_curl.c`, `tpc_marker.c`, `tpc_cred.c`) |
 
 **Status:** Both projects implement HTTP/WebDAV TPC, but with different
 integration models and operational controls.
@@ -271,17 +271,17 @@ integration models and operational controls.
 | MOVE | ✓ (`src/XrdHttp`) | ✓ |
 | COPY | ✓ (`src/XrdHttp`) | ✓ |
 | PROPFIND | ✓ (`src/XrdHttp`) | ✓ |
-| LOCK | Site/plugin dependent | ✓ (`src/webdav/lock.c`) |
-| HTTP/WebDAV TPC | ✓ (`src/XrdHttpTpc`) | ✓ (`src/webdav/tpc.c`) |
+| LOCK | Site/plugin dependent | ✓ (`src/protocols/webdav/lock.c`) |
+| HTTP/WebDAV TPC | ✓ (`src/XrdHttpTpc`) | ✓ (`src/protocols/webdav/tpc.c`) |
 
 ### 7.2 S3 REST API (Unique to nginx-xrootd)
 | Operation | Canonical | nginx-xrootd |
 |---|---|---|
-| GET Object | ✗ | ✓ (`src/s3/get.c`) |
-| PUT Object | ✗ | ✓ (`src/s3/put.c`) — atomic temp write + rename |
-| List Objects | ✗ | ✓ (`src/s3/list.c`) |
-| Multipart Upload | ✗ | ✓ (`src/s3/multipart.c`) |
-| SigV4 Auth | ✗ | ✓ (`src/s3/auth.c`) |
+| GET Object | ✗ | ✓ (`src/protocols/s3/get.c`) |
+| PUT Object | ✗ | ✓ (`src/protocols/s3/put.c`) — atomic temp write + rename |
+| List Objects | ✗ | ✓ (`src/protocols/s3/list.c`) |
+| Multipart Upload | ✗ | ✓ (`src/protocols/s3/multipart.c`) |
+| SigV4 Auth | ✗ | ✓ (`src/protocols/s3/auth.c`) |
 
 **Advantage:** nginx-xrootd provides an S3-compatible REST layer in addition to
 native/WebDAV storage access, enabling cloud-native clients to access HEP data

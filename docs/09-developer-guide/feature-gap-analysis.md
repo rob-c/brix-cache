@@ -36,7 +36,7 @@ Outbound connections initiated by the nginx node (for read-through cache fill or
 WebDAV locks are maintained in process-local memory. A reload causes these locks to disappear.
 
 *   **Files to Modify:**
-    *   `src/webdav/lock.c`: Add serialization logic to flush locks to a file before shutdown and reload them on startup.
+    *   `src/protocols/webdav/lock.c`: Add serialization logic to flush locks to a file before shutdown and reload them on startup.
 *   **Work Required:** Design a simple binary file format for lock state and implement read/write hooks.
 
 ### 4. Multi-hop GSI Delegation

@@ -445,7 +445,7 @@ the official XRootD daemon implements manually (or not at all):
 | gzip response compression | `gzip on` | Not available |
 | HTTP/2 | `http2 on` (nginx ≥ 1.25) | Not in XrdHttp |
 | Client certificate auth | `ssl_verify_client on` | Reimplemented in `XrdTls` |
-| CORS | Module code (`src/webdav/*.c`) | Reimplemented in `XrdHttp` |
+| CORS | Module code (`src/protocols/webdav/*.c`) | Reimplemented in `XrdHttp` |
 | Proxy protocol (PROXY header) | `proxy_protocol on` | Not supported |
 | OS privilege separation | master/worker split | Custom in `XrdSupervisor` |
 
@@ -478,7 +478,7 @@ src/tpc/                 ← native root:// TPC (pull path on destination)
 src/response/            ← XRootD response framing helpers
 src/observability/metrics/             ← Prometheus counters and HTTP export endpoint
 src/net/upstream/            ← outbound XRootD redirect client
-src/webdav/              ← HTTP/WebDAV module (all methods, auth, TPC, S3)
+src/protocols/webdav/              ← HTTP/WebDAV module (all methods, auth, TPC, S3)
 src/net/manager/             ← dynamic server registry for manager mode
 src/core/types/               ← shared type headers (xrootd_ctx_t, config.h, etc.)
 src/protocol/            ← wire format constants (kXR_* opcodes, flags)

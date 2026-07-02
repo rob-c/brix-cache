@@ -30,7 +30,7 @@ Each item stands alone.
 
 ## Item 1 — `s3_xml_escape()` and `s3_xml_append_escaped()` are dead code  ★★★ trivial
 
-**Files:** `src/s3/util.c:109–123`, `src/s3/list_query_helpers.c:40–56`, `src/s3/s3.h:228`
+**Files:** `src/protocols/s3/util.c:109–123`, `src/protocols/s3/list_query_helpers.c:40–56`, `src/protocols/s3/s3.h:228`
 
 **What:** Both functions were made obsolete when `XML_APPEND_ELEM` was added to `s3.h`.
 Neither has any live callers:
@@ -40,14 +40,14 @@ s3_xml_append_escaped()  ← defined in list_query_helpers.c, no external declar
 s3_xml_escape()          ← declared in s3.h:228, only caller is s3_xml_append_escaped()
 ```
 
-Confirmed with `grep -rn "s3_xml_escape\b" src/s3/` — the only appearances are the
+Confirmed with `grep -rn "s3_xml_escape\b" src/protocols/s3/` — the only appearances are the
 declaration in `s3.h`, the definition in `util.c`, and the single call inside
 `s3_xml_append_escaped()` itself.
 
 **Change:**
-1. Remove `s3_xml_escape()` body from `src/s3/util.c`.
-2. Remove `void s3_xml_escape(...)` declaration from `src/s3/s3.h:228`.
-3. Remove `s3_xml_append_escaped()` body from `src/s3/list_query_helpers.c`.
+1. Remove `s3_xml_escape()` body from `src/protocols/s3/util.c`.
+2. Remove `void s3_xml_escape(...)` declaration from `src/protocols/s3/s3.h:228`.
+3. Remove `s3_xml_append_escaped()` body from `src/protocols/s3/list_query_helpers.c`.
 
 **Effort:** 10 min.  **Risk:** None.
 
@@ -55,7 +55,7 @@ declaration in `s3.h`, the definition in `util.c`, and the single call inside
 
 ## Item 2 — `webdav/headers.c` contains two 1-line delegates  ★★★ trivial
 
-**Files:** `src/webdav/headers.c` (entire file, 66 lines), `src/webdav/webdav.h`
+**Files:** `src/protocols/webdav/headers.c` (entire file, 66 lines), `src/protocols/webdav/webdav.h`
 
 **What:** The file exports exactly two functions, each a single-line call to a compat
 helper with fixed ETag-flag arguments:
@@ -70,9 +70,9 @@ ngx_int_t webdav_add_etag(ngx_http_request_t *r, time_t mtime, off_t size)
 ```
 
 Three call sites in total:
-- `src/webdav/get.c:175` — `webdav_add_etag(r, sb.st_mtime, sb.st_size)`
-- `src/webdav/methods_basic.c:104` — `webdav_add_etag(r, sb.st_mtime, sb.st_size)`
-- `src/webdav/propfind.c:345` — `webdav_etag_str(etag_buf, sizeof(etag_buf), ...)`
+- `src/protocols/webdav/get.c:175` — `webdav_add_etag(r, sb.st_mtime, sb.st_size)`
+- `src/protocols/webdav/methods_basic.c:104` — `webdav_add_etag(r, sb.st_mtime, sb.st_size)`
+- `src/protocols/webdav/propfind.c:345` — `webdav_etag_str(etag_buf, sizeof(etag_buf), ...)`
 
 **Change:**
 1. Replace each call site with the direct compat call and explicit `XROOTD_ETAG_WEAK`:
@@ -84,7 +84,7 @@ Three call sites in total:
                         XROOTD_ETAG_WEAK);
    ```
 2. Remove both declarations from `webdav.h`.
-3. Delete `src/webdav/headers.c`; remove from `config`.
+3. Delete `src/protocols/webdav/headers.c`; remove from `config`.
 
 **Effort:** 20 min.  **Risk:** None.
 
@@ -92,7 +92,7 @@ Three call sites in total:
 
 ## Item 3 — `s3_get_arg()` wrapper and an empty `list_query_helpers.c`  ★★ low effort
 
-**Files:** `src/s3/list_query_helpers.c`, `src/s3/s3.h`, `src/s3/list_objects_v2.c:68–84`
+**Files:** `src/protocols/s3/list_query_helpers.c`, `src/protocols/s3/s3.h`, `src/protocols/s3/list_objects_v2.c:68–84`
 
 **What:** After Item 1, `list_query_helpers.c` holds only `s3_get_arg()` — an 8-line
 delegate over `xrootd_http_query_get()` with a specific four-flag combination:
@@ -125,7 +125,7 @@ correct adapter and stays.
 2. Replace each `s3_get_arg(r->args, "…", buf, sz)` call with
    `xrootd_http_query_get(r->args, "…", (char *) buf, sz, S3_LIST_QUERY_FLAGS) > 0`.
 3. Remove `s3_get_arg` declaration from `s3.h`.
-4. Delete `src/s3/list_query_helpers.c`; remove from `config`.
+4. Delete `src/protocols/s3/list_query_helpers.c`; remove from `config`.
 
 **Effort:** 30 min.  **Risk:** None — mechanical substitution.
 
@@ -133,7 +133,7 @@ correct adapter and stays.
 
 ## Item 4 — "set response headers from stat" block duplicated in three handlers  ★★ medium effort
 
-**Files:** `src/s3/object.c` (`s3_handle_get`, `s3_handle_head`), `src/webdav/get.c`
+**Files:** `src/protocols/s3/object.c` (`s3_handle_get`, `s3_handle_head`), `src/protocols/webdav/get.c`
 
 **What:** All three handlers execute the same five-header block after opening and
 stat-ing a file:
@@ -178,13 +178,13 @@ are exercised by the existing GET/HEAD test suite.
 
 ## Item 5 — S3 PUT blocks the nginx event loop on large uploads  ★★ correctness
 
-**Files:** `src/s3/put.c`, reference: `src/webdav/put.c`
+**Files:** `src/protocols/s3/put.c`, reference: `src/protocols/webdav/put.c`
 
-**What:** `src/s3/put.c` writes the uploaded body synchronously on the nginx worker
+**What:** `src/protocols/s3/put.c` writes the uploaded body synchronously on the nginx worker
 thread.  For large HEP objects (GiB range), this blocks the event loop and stalls all
 other connections on that worker for the duration of the write syscall.
 
-`src/webdav/put.c` solves this with a well-tested `#if (NGX_THREADS)` block that
+`src/protocols/webdav/put.c` solves this with a well-tested `#if (NGX_THREADS)` block that
 dispatches to nginx's thread pool via `ngx_thread_task_alloc / ngx_thread_task_post`.
 
 This is a **latency correctness** issue, not merely style: a single large S3 PUT from
@@ -227,7 +227,7 @@ place for builds without `--with-threads`.
 
 ## Item 6 — S3 MPU staging `lstat()` bypasses confinement invariant  ★ documentation
 
-**Files:** `src/s3/multipart_abort.c`, `multipart_complete_body.c`,
+**Files:** `src/protocols/s3/multipart_abort.c`, `multipart_complete_body.c`,
 `multipart_complete_list_parts.c`, `multipart_complete_list_uploads.c`,
 `multipart_complete_upload_part_copy.c`
 

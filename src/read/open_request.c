@@ -1,5 +1,5 @@
 #include "open.h"
-#include "ssi/ssi.h"
+#include "protocols/ssi/ssi.h"
 #include "path/op_path.h"
 #include "net/manager/registry.h"
 #include "net/manager/redir_cache.h"

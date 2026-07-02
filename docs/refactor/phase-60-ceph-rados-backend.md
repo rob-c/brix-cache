@@ -44,8 +44,8 @@ anywhere above `src/fs/backend/`.**
 
 Every byte of file I/O and every namespace mutation for a Ceph export MUST flow
 **proto → VFS → SD driver → RADOS**. Nothing above `src/fs/` ever sees a
-`rados_*` symbol; the protocol handlers (`src/read`, `src/write`, `src/webdav`,
-`src/s3`, `src/tpc`) keep talking to the **VFS** (`src/fs/vfs*.c`) exactly as they
+`rados_*` symbol; the protocol handlers (`src/read`, `src/write`, `src/protocols/webdav`,
+`src/protocols/s3`, `src/tpc`) keep talking to the **VFS** (`src/fs/vfs*.c`) exactly as they
 do for POSIX, and the VFS — not the handler — selects and calls the backend.
 
 ```

@@ -325,7 +325,7 @@ registered backend." That separation is the central structural gap.
 | `fs/vfs_staged.c` | 244 | VFS wrapper over `driver->staged_*` for the upload paths |
 | `fs/vfs_scratch.c` | 177 | materialize-to-scratch (stage object → local POSIX → VFS↔VFS move) |
 
-…plus S3 multipart (`src/s3/multipart_*`) and the WebDAV/S3 PUT upload-stage dir.
+…plus S3 multipart (`src/protocols/s3/multipart_*`) and the WebDAV/S3 PUT upload-stage dir.
 
 ---
 
@@ -750,10 +750,10 @@ points (fill start/done, evict, flush) regardless of source — they describe th
 > The X.509/GSI fields parse + store but are consumed by C-3; the proxy/TPC/cache-origin
 > migration and the `_*` deprecation shim (§14.5) remain. **http-scope parity ✅
 > (2026-06-29):** `xrootd_credential` + `xrootd_webdav_storage_credential` registered
-> at NGX_HTTP scope (`src/webdav/`), sharing the process-wide credential registry —
+> at NGX_HTTP scope (`src/protocols/webdav/`), sharing the process-wide credential registry —
 > a WebDAV export over a token-auth root:// origin authenticates via sd_xroot ztn
 > (`tests/run_credential_webdav_xroot.sh`). **S3-scope parity ✅ (2026-06-29):**
-> `xrootd_s3_storage_backend` + `xrootd_s3_storage_credential` (`src/s3/module.c`)
+> `xrootd_s3_storage_backend` + `xrootd_s3_storage_credential` (`src/protocols/s3/module.c`)
 > give an **S3 export a composable source backend** — S3 GetObject (which already
 > goes through `xrootd_vfs_open`) now serves from a remote root:///http source via
 > the same VFS path, anonymous or ztn-authenticated

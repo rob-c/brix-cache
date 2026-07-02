@@ -22,7 +22,7 @@ Negative coverage (the credential must be *refused*): a proxy from an untrusted
 CA, an expired credential, no credential at all, and a client that does not
 trust the server's host cert.
 
-**S3 is intentionally out of scope.** S3 — both ours (``src/s3/``) and the
+**S3 is intentionally out of scope.** S3 — both ours (``src/protocols/s3/``) and the
 official ``XrdS3`` — authenticates with AWS SigV4 exclusively; GSI does not apply
 to S3.  SigV4 coverage lives in ``test_s3_*.py``.
 

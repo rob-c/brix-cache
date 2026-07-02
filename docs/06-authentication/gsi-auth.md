@@ -148,7 +148,7 @@ Finished                                            ──────>
 
 GET /data/cms/file.root HTTP/1.1                    ──────>
 
-═══ WebDAV auth decision (src/webdav/auth_cert.c) ═══
+═══ WebDAV auth decision (src/protocols/webdav/auth_cert.c) ═══
 
                                          webdav_verify_proxy_cert()
                                          │

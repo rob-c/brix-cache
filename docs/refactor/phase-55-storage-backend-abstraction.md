@@ -197,7 +197,7 @@ src/fs/backend/
   sd_posix.c        # POSIX driver (wraps today's beneath/ns_* helpers verbatim)
   sd_block.c        # block-device driver (phase 55.D — later)
   sd_object.c       # object/S3 driver (phase 55.E — the headline)
-  sd_object_s3.c    # S3 transport for the object driver (reuses src/s3 SigV4)
+  sd_object_s3.c    # S3 transport for the object driver (reuses src/protocols/s3 SigV4)
   README.md
 ```
 
@@ -791,7 +791,7 @@ the parsed config into instances and collapsing `staging=same` to a shared point
 | **55.B** | `sd_posix.c`: move raw-I/O EXECUTE bodies behind the vtable; `xrootd_vfs_job_t` carries `xrootd_sd_obj_t*`; rewire `vfs_io_core.c` + `vfs_read/write.c` to dispatch via driver. POSIX-only. | Medium | identical |
 | **55.C** | Move namespace + dir + stat + xattr + staged + copy behind `sd_posix`; collapse `xrootd_ns_*` to forwarders; retire `xrootd_vfs_file_fd()` (§6.1). Re-express staged-commit as the §3.6.1 decision over `(staging,backend)` instances — but both still POSIX-same, so native rename is the only path exercised. Full POSIX parity. | Medium | identical |
 | **55.D** | `sd_block.c`: raw block-device / extent-map driver (`O_DIRECT`, no dirs → flat key map in a superblock). Off by default. Proves the abstraction with a *second* non-trivial backend before S3. | High | new (opt-in) |
-| **55.E** | `sd_object.c` + `sd_object_s3.c`: object/S3 driver. Reuses `src/s3` SigV4/transport. Range-GET reads, multipart-on-staged-commit writes, CopyObject, tag-xattrs, key-prefix dirs. AIO-offloaded namespace ops. **Cross-store promote** (POSIX staging → object backend) lands here: the §3.6.2 composed-staged-lifecycle and the `xrootd_storage_staging` directive become live. Off by default. | High | new (opt-in) |
+| **55.E** | `sd_object.c` + `sd_object_s3.c`: object/S3 driver. Reuses `src/protocols/s3` SigV4/transport. Range-GET reads, multipart-on-staged-commit writes, CopyObject, tag-xattrs, key-prefix dirs. AIO-offloaded namespace ops. **Cross-store promote** (POSIX staging → object backend) lands here: the §3.6.2 composed-staged-lifecycle and the `xrootd_storage_staging` directive become live. Off by default. | High | new (opt-in) |
 | **55.F** | Promote object backend: capability-degradation polish, the `!RANDOM_WRITE`/`!SENDFILE` adaptation paths, metrics for every degraded path, full conformance + integrity matrix vs POSIX, docs. Object backend becomes a *supported* (then *recommended*) main backend. | High | parity-gated |
 
 55.A–55.C are a pure refactor (the entire existing suite is the oracle). 55.D–55.F add
@@ -2531,7 +2531,7 @@ prose into concrete, compilable-shaped skeletons for the two non-POSIX drivers l
 | `sd_object_s3.c` | **transport** — HEAD/GET-range/PUT/multipart/DELETE/CopyObject/ListObjectsV2 over signed HTTP; HTTP-status→errno table; retry/timeout; credentials | SigV4 signing, HTTP wire; **never** the SD vtable or VFS types |
 | `sd_block.c` | **proof backend** — extent-map / fixed-object-table over a block device or file | a superblock + `pread`/`pwrite` against one device fd; **never** dirs/copy |
 
-Reuse note: the existing `src/s3/` module is the *server* (inbound) SigV4 path — it
+Reuse note: the existing `src/protocols/s3/` module is the *server* (inbound) SigV4 path — it
 **verifies** client signatures (`s3_verify_sigv4`, `build_canonical_qs`,
 `s3_sigv4_derive_signing_key_cached` in `auth_sigv4_verify.c` / `auth_sigv4_canonical.c`).
 The object driver is the *client* (outbound) signing path. The two share exactly one
@@ -2545,11 +2545,11 @@ kernel that is already factored and pure-pointer:
 What does **not** yet exist as a reusable outbound seam (must be factored, see §16.2):
 
 1. A **canonical-request builder for signing** (the inbound `build_canonical_qs` in
-   `src/s3/auth_sigv4_canonical.c` is `static` and verify-shaped). Factor a shared
+   `src/protocols/s3/auth_sigv4_canonical.c` is `static` and verify-shaped). Factor a shared
    `xrootd_s3_canonical_request()` into a new `src/core/compat/s3_canon.c` that *both* the
    server verify path and this driver call, so the canonical form can never drift.
 2. A **blocking, worker-thread HTTP transport**. Two candidates exist:
-   `src/webdav/tpc_curl.c` (libcurl, event-loop-coupled via nginx socket hooks) and
+   `src/protocols/webdav/tpc_curl.c` (libcurl, event-loop-coupled via nginx socket hooks) and
    `client/lib/http.c` (`xrdc_http_req`/`httpx_exchange`, pure-C, blocking, no nginx).
    The object driver's blocking calls run in the AIO thread pool (§5.5), so the
    nginx-coupled curl path is wrong here. Reuse the **`client/lib/http.c`** style —
@@ -3165,9 +3165,9 @@ touches no nginx pool/metrics/log, and does its own bounded retry.
  *       SigV4-signed HTTP, run inside the AIO thread pool.
  * WHY:  the policy core (sd_object.c) must stay transport-agnostic; all SigV4 + HTTP
  *       wire bytes live here. Reuses the shared signing-key kernel so the sign path
- *       (this file) and the server verify path (src/s3/auth_sigv4_*.c) can never drift.
+ *       (this file) and the server verify path (src/protocols/s3/auth_sigv4_*.c) can never drift.
  * HOW:  one private s3_signed_exchange() builds the canonical request via the shared
- *       xrootd_s3_canonical_request() (factored from src/s3/auth_sigv4_canonical.c),
+ *       xrootd_s3_canonical_request() (factored from src/protocols/s3/auth_sigv4_canonical.c),
  *       signs with xrootd_sigv4_signing_key()+xrootd_hmac_sha256(), and drives the
  *       blocking xrootd_httpc_exchange() (factored from client/lib/http.c). Each public
  *       op is a thin wrapper that sets method/headers/body-source/sink and maps the
@@ -4537,7 +4537,7 @@ allow_write-gated" semantics — is byte-identical.
 
 ---
 
-### 17.14 `src/webdav/get.c`
+### 17.14 `src/protocols/webdav/get.c`
 
 **Intent:** replace `xrootd_vfs_file_fd()` + manual `dup`/sendfile-buf construction with
 the capability-correct `xrootd_vfs_read()` chain (§6.1). The handle already exposes size
@@ -4573,7 +4573,7 @@ file-backed (sendfile) buffers because `CAP_SENDFILE` is set.
 
 ---
 
-### 17.15 `src/s3/object.c`
+### 17.15 `src/protocols/s3/object.c`
 
 **Intent:** the only `xrootd_vfs_file_fd()` use (near line 148) feeds
 `s3_echo_object_checksums(r, cfd, fs_path)`, which recomputes/echoes a stored checksum
@@ -4603,7 +4603,7 @@ buffer shape.
 
 ---
 
-### 17.16 `src/shared/file_serve.c`
+### 17.16 `src/protocols/shared/file_serve.c`
 
 **Intent:** the three `xrootd_vfs_file_fd()` sites (compressed-send dup at line 127, the
 `pre_header_send` callback at line 170, and the final range-send dup at line 181) must
@@ -4652,7 +4652,7 @@ this is a clean signature narrowing.
 The `xrootd_vfs_file_from_cache`/`xrootd_vfs_file_path` accessors here stay. For POSIX
 every path keeps using sendfile; the only new code is the `else` arm, dead for POSIX.
 
-`src/fs/README.md` (line 21) and `src/shared/README.md` (line 66) prose that names
+`src/fs/README.md` (line 21) and `src/protocols/shared/README.md` (line 66) prose that names
 `xrootd_vfs_file_fd()` as the raw-fd accessor should be updated to state that raw fds are
 no longer exposed above the seam (capability-gated `xrootd_sd_fd` is private to the VFS).
 
@@ -6751,7 +6751,7 @@ Conventions used below:
   capability-aware `xrootd_vfs_read()`-family call that returns the correct chain
   (memory or file-backed); internal `vfs_open.c` use becomes `xrootd_sd_fd(obj)`.
   `struct xrootd_vfs_file_s.fd` → `xrootd_sd_obj_t *obj` (§6.2).
-- **Files:** `src/webdav/get.c`, `src/s3/object.c`, `src/shared/file_serve.c`, `src/fs/vfs_read.c`, `src/fs/vfs.h`, `src/fs/vfs_open.c`.
+- **Files:** `src/protocols/webdav/get.c`, `src/protocols/s3/object.c`, `src/protocols/shared/file_serve.c`, `src/fs/vfs_read.c`, `src/fs/vfs.h`, `src/fs/vfs_open.c`.
 - **Depends-on:** PR-12
 - **Review checklist:**
   - Cleartext WebDAV/S3/root reads **still use sendfile/file-backed buffers** on POSIX when `CAP_SENDFILE` (INVARIANT 2; §10 sendfile-preservation gate).
@@ -6827,12 +6827,12 @@ Conventions used below:
 
 #### PR-18 — `sd_object_s3.c` transport: HEAD/range-GET/PUT/multipart/DELETE/CopyObject/ListV2
 - **Phase:** 55.E · **Risk:** High
-- **Scope:** S3 transport for the object driver, reusing `src/s3` SigV4/transport.
+- **Scope:** S3 transport for the object driver, reusing `src/protocols/s3` SigV4/transport.
   Implements `pread` (range GET), `stat` (HEAD), `unlink` (DELETE), `server_copy`
   (CopyObject), `opendir`/`readdir` (ListObjectsV2 prefix listing + pagination),
   `staged_*` (multipart init/part/complete/abort). Credential loading
   (`env|file|webidentity|static`), retry/timeout, sanitized error reporting.
-- **Files:** `src/fs/backend/sd_object_s3.c` (new), `src/s3/*` (SigV4 reuse only), `config`.
+- **Files:** `src/fs/backend/sd_object_s3.c` (new), `src/protocols/s3/*` (SigV4 reuse only), `config`.
 - **Depends-on:** PR-17
 - **Review checklist:**
   - All blocking calls run in the AIO thread pool — **never** on the event loop (§5.5; shmtx-stall lesson).

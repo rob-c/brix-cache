@@ -31,7 +31,7 @@ the `root://` (stream) plane and the relevant HTTP integration points are
 covered.
 
 Out of scope here (covered in sibling comparison pages): the HTTP/WebDAV
-**HTTP-TPC** `COPY` transport (`src/webdav/tpc*.c` vs
+**HTTP-TPC** `COPY` transport (`src/protocols/webdav/tpc*.c` vs
 `/tmp/xrootd-src/src/XrdHttpTpc/`); the data-plane I/O opcodes; auth plugins; and
 UDP monitoring (an explicit module non-goal). Erasure-coded redirects
 (`kXR_ecRedir`) are defined but never set on the module side and require an EC
@@ -494,7 +494,7 @@ Capabilities (`src/net/proxy/`, memory: proxy enhancements / phase 2-3):
 ### Module WebDAV proxy and `src/net/upstream/`
 
 For completeness, two more outbound paths exist (see also the HTTP comparison
-page): `src/webdav/proxy.c` (`xrootd_webdav_proxy`) forwards WebDAV/HTTP to a
+page): `src/protocols/webdav/proxy.c` (`xrootd_webdav_proxy`) forwards WebDAV/HTTP to a
 backend HTTP(S) origin using nginx's `ngx_http_upstream_t` (auth modes
 anonymous/forward/static-token, Destination rewrite for COPY/MOVE); and
 `src/net/upstream/` (described under [Redirection](#confirming-with-the-data-server-srcupstream))
@@ -712,7 +712,7 @@ nginx-xrootd (repo-relative `src/`):
   `connect_lifecycle.c`, `events_read.c` (teardown-guard leak fix),
   `events_write.c`, `events_bootstrap.c`, `events_splice.c`,
   `forward_request.c`, `forward_relay*.c`, `pool.c`, `directives.c`,
-  `proxy_internal.h`; WebDAV counterpart `src/webdav/proxy.c`; and
+  `proxy_internal.h`; WebDAV counterpart `src/protocols/webdav/proxy.c`; and
   [`src/net/proxy/README.md`](../../../../src/net/proxy/README.md).
 - Mirroring: `src/net/mirror/` — `mirror.h`, `http_mirror.c`, `stream_mirror.c`,
   `stream_wmirror.c`; and [`src/net/mirror/README.md`](../../../../src/net/mirror/README.md).

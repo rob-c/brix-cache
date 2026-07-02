@@ -525,7 +525,7 @@ single pass writes each CRC into its preceding gap — no copy
   property. RFC 4331 defines quota as a **collection** property, and stock XrdHttp
   never emits it per-file (`XrdHttpReq.cc` emits only
   getcontentlength/getlastmodified/resourcetype/iscollection/executable). **Fix:**
-  gate the quota block to directories (`S_ISDIR`) in `src/webdav/propfind.c` — files
+  gate the quota block to directories (`S_ISDIR`) in `src/protocols/webdav/propfind.c` — files
   now carry only `getcontentlength`, and `gfal-stat` returns the true size;
   collections still report quota. (Full write-up: `gfal-interop-findings.md`.)
 * **Lesson — the abstraction layer is its own interop surface.** Unlike a

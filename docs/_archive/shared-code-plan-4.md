@@ -2,8 +2,8 @@
 
 This plan is the fourth pass over `src/` for duplicate or near-duplicate logic
 across the four protocol implementations — XRootD native stream (`src/session/`,
-`src/read/`, `src/write/`, `src/core/aio/`), WebDAV HTTP (`src/webdav/`), S3 REST
-(`src/s3/`), and the already-shared compat layer (`src/core/compat/`).
+`src/read/`, `src/write/`, `src/core/aio/`), WebDAV HTTP (`src/protocols/webdav/`), S3 REST
+(`src/protocols/s3/`), and the already-shared compat layer (`src/core/compat/`).
 
 Plans 1–3 consolidated the compat layer itself.  This plan looks specifically at
 cross-protocol patterns: things the S3 and WebDAV HTTP modules share with each
@@ -48,22 +48,22 @@ line numbers, and what the concrete change is.
 
 ---
 
-### 1 — `XML_APPEND` / `XML_APPEND_ELEM` defined three times in `src/s3/`  ★★★ trivial
+### 1 — `XML_APPEND` / `XML_APPEND_ELEM` defined three times in `src/protocols/s3/`  ★★★ trivial
 
 **What:** Three S3 response files each contain a `#define … #undef` block for
 two identical macros, `XML_APPEND` and `XML_APPEND_ELEM`:
 
 | File | Lines |
 |---|---|
-| `src/s3/list_objects_v2.c` | 158–166, undef 242–243 |
-| `src/s3/multipart_complete_list_parts.c` | 199–217, undef 257–258 |
-| `src/s3/multipart_complete_list_uploads.c` | 192–210, undef 250–251 |
+| `src/protocols/s3/list_objects_v2.c` | 158–166, undef 242–243 |
+| `src/protocols/s3/multipart_complete_list_parts.c` | 199–217, undef 257–258 |
+| `src/protocols/s3/multipart_complete_list_uploads.c` | 192–210, undef 250–251 |
 
 All three definitions are byte-for-byte identical.  They reference three local
 variables by fixed name (`xml`, `xml_len`, `xml_capacity`) and call
 `s3_xml_append_text_element()` from `s3.h`.
 
-**Change:** Move both macros to `src/s3/s3.h` as permanent definitions (no
+**Change:** Move both macros to `src/protocols/s3/s3.h` as permanent definitions (no
 `#undef` needed — names are short-lived by convention).  Remove the six
 define/undef blocks from the three files.  The convention of using `xml`,
 `xml_len`, and `xml_capacity` as the local variable names is already uniform
@@ -82,12 +82,12 @@ response handlers inline this pattern instead of calling the shared function:
 
 | File | What it sends | Note |
 |---|---|---|
-| `src/s3/multipart_initiate.c` | `<InitiateMultipartUploadResult>` | Also omits `content_type` — bug |
-| `src/s3/copy.c` | `<CopyObjectResult>` | |
-| `src/s3/multipart_complete_upload_part_copy.c` | `<CopyPartResult>` | |
-| `src/s3/multipart_complete_list_parts.c` | `<ListPartsResult>` | |
-| `src/s3/multipart_complete_list_uploads.c` | `<ListMultipartUploadsResult>` | |
-| `src/s3/delete_objects.c` | `<DeleteResult>` | |
+| `src/protocols/s3/multipart_initiate.c` | `<InitiateMultipartUploadResult>` | Also omits `content_type` — bug |
+| `src/protocols/s3/copy.c` | `<CopyObjectResult>` | |
+| `src/protocols/s3/multipart_complete_upload_part_copy.c` | `<CopyPartResult>` | |
+| `src/protocols/s3/multipart_complete_list_parts.c` | `<ListPartsResult>` | |
+| `src/protocols/s3/multipart_complete_list_uploads.c` | `<ListMultipartUploadsResult>` | |
+| `src/protocols/s3/delete_objects.c` | `<DeleteResult>` | |
 
 `multipart_initiate.c` is also missing the `content_type = "application/xml"`
 assignment, so it sends the XML body with no Content-Type header.
@@ -116,13 +116,13 @@ Note: `delete_objects.c` wraps its `output_filter` call in
 
 ---
 
-### 3 — Stale `extern` declarations in `src/s3/list_objects_v2.c`  ★★★ trivial cleanup
+### 3 — Stale `extern` declarations in `src/protocols/s3/list_objects_v2.c`  ★★★ trivial cleanup
 
 **What:** Four hand-written `extern` declarations at the top of
 `list_objects_v2.c` duplicate what should be in `s3.h`:
 
 ```c
-/* src/s3/list_objects_v2.c lines 17–23 */
+/* src/protocols/s3/list_objects_v2.c lines 17–23 */
 extern int entry_cmp(const void *a, const void *b);
 extern int s3_walk(const char *root, ...);
 extern int s3_get_arg(ngx_str_t args, ...);
@@ -148,7 +148,7 @@ version of the listing code.
 
 ### 4 — `s3_urldecode()` is a thin wrapper over `xrootd_http_urldecode()`  ★★ low effort
 
-**What:** `src/s3/util.c` defines `s3_urldecode()` as a 10-line wrapper:
+**What:** `src/protocols/s3/util.c` defines `s3_urldecode()` as a 10-line wrapper:
 
 ```c
 ssize_t
@@ -163,12 +163,12 @@ s3_urldecode(const u_char *src, size_t slen, u_char *dst, size_t dsz)
 }
 ```
 
-Three callers: `src/s3/handler.c:71`, `src/s3/auth_sigv4_canonical.c:106,122`,
-`src/s3/auth_sigv4_parse.c:160`.  The only thing the wrapper adds is converting
+Three callers: `src/protocols/s3/handler.c:71`, `src/protocols/s3/auth_sigv4_canonical.c:106,122`,
+`src/protocols/s3/auth_sigv4_parse.c:160`.  The only thing the wrapper adds is converting
 the int return code to a `ssize_t` length.
 
 This is a close parallel to `webdav_urldecode()` in
-`src/webdav/util/uri.c`, which wraps the same compat function with a different
+`src/protocols/webdav/util/uri.c`, which wraps the same compat function with a different
 flag set (`REJECT_NUL` only, no `PLUS_TO_SPACE`) and maps return codes to
 `NGX_HTTP_*` values.
 
@@ -192,7 +192,7 @@ question is whether the S3 wrapper adds enough value to justify a named function
 **What:** All three protocols need to log filesystem paths safely — calling
 `xrootd_sanitize_log_string()` before writing to `ngx_log_error`.
 
-WebDAV centralised this in `src/webdav/util/logging.c`:
+WebDAV centralised this in `src/protocols/webdav/util/logging.c`:
 
 ```c
 void ngx_http_xrootd_webdav_log_safe_path(ngx_log_t *log, ngx_uint_t level,
@@ -200,8 +200,8 @@ void ngx_http_xrootd_webdav_log_safe_path(ngx_log_t *log, ngx_uint_t level,
 ```
 
 S3 inlines the two-step pattern at 11 call sites across
-`src/s3/put.c`, `src/s3/copy.c`, `src/s3/multipart_initiate.c`, and
-`src/s3/multipart_complete_body.c`.
+`src/protocols/s3/put.c`, `src/protocols/s3/copy.c`, `src/protocols/s3/multipart_initiate.c`, and
+`src/protocols/s3/multipart_complete_body.c`.
 
 The XRootD stream protocol inlines the pattern at 24 call sites across
 `src/path/`, `src/read/`, `src/session/`, `src/dirlist/`, `src/auth/gsi/`, and
@@ -236,15 +236,15 @@ cannot use the single-path helper and must continue inlining.
 
 ### 6 — Directory traversal: `list_walk.c` and `propfind.c` both open-code `opendir`/`readdir`  ★ medium effort, higher risk
 
-**What:** `src/s3/list_walk.c` and `src/webdav/propfind.c` each contain their
+**What:** `src/protocols/s3/list_walk.c` and `src/protocols/webdav/propfind.c` each contain their
 own recursive `opendir`/`readdir` loops.  Neither uses `xrootd_fs_walk()` from
 `compat/fs_walk.c`, though both include `fs_walk.h` for utility helpers.
 
 | Location | Lines | Purpose |
 |---|---|---|
-| `src/s3/list_walk.c:70–170` | 100 lines | S3 ListObjectsV2 with prefix/delimiter filtering |
-| `src/webdav/propfind.c:511–580` | 70 lines | PROPFIND Depth:1 enumeration |
-| `src/webdav/propfind.c:643–680` | 40 lines | PROPFIND Depth:infinity recursive walk |
+| `src/protocols/s3/list_walk.c:70–170` | 100 lines | S3 ListObjectsV2 with prefix/delimiter filtering |
+| `src/protocols/webdav/propfind.c:511–580` | 70 lines | PROPFIND Depth:1 enumeration |
+| `src/protocols/webdav/propfind.c:643–680` | 40 lines | PROPFIND Depth:infinity recursive walk |
 
 Both skip hidden/dot entries, build child paths via `snprintf`, call `stat()`, and
 recurse into subdirectories.  `list_walk.c` uses `de->d_name[0] == '.'` for
@@ -278,7 +278,7 @@ The dot-skip consistency fix is safe and should be done regardless.
 
 ### 7 — `s3_xml_append_text_element()` duplicates the `xrootd_xml_write_text_element()` interface  ★ low effort
 
-**What:** `src/s3/util.c` defines a 12-line wrapper:
+**What:** `src/protocols/s3/util.c` defines a 12-line wrapper:
 
 ```c
 ngx_int_t

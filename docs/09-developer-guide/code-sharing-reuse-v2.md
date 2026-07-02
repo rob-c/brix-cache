@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The module has three protocol layers — XRootD stream (`src/`), WebDAV HTTP (`src/webdav/`), and S3 REST (`src/s3/`) — each with their own error pattern, path resolver, metric wrapper, async callback boilerplate, and staged file logic. Many of these are near-identical implementations that could be consolidated into `src/core/compat/` or `src/response/`, giving new contributors a clear mental model: **"common layer does X, protocol layer adds Y on top."**
+The module has three protocol layers — XRootD stream (`src/`), WebDAV HTTP (`src/protocols/webdav/`), and S3 REST (`src/protocols/s3/`) — each with their own error pattern, path resolver, metric wrapper, async callback boilerplate, and staged file logic. Many of these are near-identical implementations that could be consolidated into `src/core/compat/` or `src/response/`, giving new contributors a clear mental model: **"common layer does X, protocol layer adds Y on top."**
 
 ### Estimated Impact
 
@@ -64,8 +64,8 @@ Already shares `conf->allow_write` across all protocol layers with unified merge
 
 **Current state:** Three independent error response paths with no shared wrapper:
 - **Stream:** `xrootd_send_error(ctx, c, kXR_code, msg)` — direct wire framing (`src/response/basic.c`)
-- **WebDAV:** Each handler builds HTTP status + optional XML body → calls `webdav_metrics_return()` to finalize (`src/webdav/dispatch.c` lines 37–181)
-- **S3:** `s3_send_xml_error(r, http_status, error_code, message)` wrapper around `xrootd_http_send_xml_error()` (`src/s3/util.c:90`)
+- **WebDAV:** Each handler builds HTTP status + optional XML body → calls `webdav_metrics_return()` to finalize (`src/protocols/webdav/dispatch.c` lines 37–181)
+- **S3:** `s3_send_xml_error(r, http_status, error_code, message)` wrapper around `xrootd_http_send_xml_error()` (`src/protocols/s3/util.c:90`)
 
 **Duplication observed:**
 - S3 handler.c has 25+ identical patterns: `XROOTD_S3_METRIC_INC(event_slot); return s3_metrics_return_method(r, method_slot, s3_send_xml_error(...))` — same boilerplate repeated everywhere
@@ -91,8 +91,8 @@ ngx_int_t xrootd_stream_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 **Current state:** Three separate path resolution wrappers, each doing the same core work:
 - **Stream:** `xrootd_resolve_path()`, `xrootd_resolve_path_write()`, `xrootd_resolve_path_noexist()` (`src/fs/path/resolve_path_variants.c`) — takes `ngx_str_t *root`
-- **WebDAV:** `ngx_http_xrootd_webdav_resolve_path(r, root_canon, path)` → wraps `xrootd_resolve_path_input()` with URI decoding + slash stripping (`src/webdav/path.c:58`)
-- **S3:** `s3_resolve_key(root, key, out, outsz)` → wraps `xrootd_resolve_path_input()` with URL decoding (`src/s3/util.c:50`)
+- **WebDAV:** `ngx_http_xrootd_webdav_resolve_path(r, root_canon, path)` → wraps `xrootd_resolve_path_input()` with URI decoding + slash stripping (`src/protocols/webdav/path.c:58`)
+- **S3:** `s3_resolve_key(root, key, out, outsz)` → wraps `xrootd_resolve_path_input()` with URL decoding (`src/protocols/s3/util.c:50`)
 
 **Duplication observed:** Both WebDAV and S3 wrappers do identical pre-processing steps:
 1. Decode URI/key (WebDAV: `webdav_urldecode`; S3: via `xrootd_resolve_path_input` internal decode)
@@ -115,8 +115,8 @@ WebDAV's `path.c` and S3's `util.c` each lose ~20 lines of duplicated decode+str
 ### 3. Metrics Wrapper Consolidation
 
 **Current state:** Three independent metric-finalize patterns:
-- **S3:** `s3_metrics_method_slot()` → `s3_metrics_request_method()` → `s3_metrics_return_method()` → `s3_metrics_finalize_request_method()` — each adds a layer of wrapping (`src/s3/metrics.c`)
-- **WebDAV:** `webdav_metrics_return(r, rc)` — single wrapper that increments requests_total + responses_total (`src/webdav/metrics.c:85`)
+- **S3:** `s3_metrics_method_slot()` → `s3_metrics_request_method()` → `s3_metrics_return_method()` → `s3_metrics_finalize_request_method()` — each adds a layer of wrapping (`src/protocols/s3/metrics.c`)
+- **WebDAV:** `webdav_metrics_return(r, rc)` — single wrapper that increments requests_total + responses_total (`src/protocols/webdav/metrics.c:85`)
 - **Stream:** No HTTP-style metric finalize; metrics are inline at each callsite via `XROOTD_SRV_METRIC_INC()`
 
 **Duplication observed:** S3 handler.c has 20+ identical call chains: `s3_metrics_return_method(r, method_slot, handler_result)` — the same three-step wrap around every dispatch branch. WebDAV dispatch.c repeats `return webdav_metrics_return(r, ...)` on every method handler return.
@@ -138,15 +138,15 @@ S3 handler.c could reduce ~20 lines of repetitive metric wrapping. The four-step
 
 **Current state:** Each protocol layer repeats identical async boilerplate:
 - **Stream AIO:** `xrootd_pgread_aio_thread()` → `xrootd_pgread_aio_done()` callback pattern (`src/core/aio/pgread.c`)
-- **WebDAV PUT:** Async body read → callback builds response chain (`src/webdav/put.c`)
-- **S3 PUT:** `ngx_http_read_client_request_body()` → `s3_put_body_handler()` async callback (`src/s3/handler.c:160`, `src/s3/put.c`)
+- **WebDAV PUT:** Async body read → callback builds response chain (`src/protocols/webdav/put.c`)
+- **S3 PUT:** `ngx_http_read_client_request_body()` → `s3_put_body_handler()` async callback (`src/protocols/s3/handler.c:160`, `src/protocols/s3/put.c`)
 
 **Duplication observed:** All three follow the same pattern:
 1. Set request context (fs_path stored in r->ctx)
 2. Call nginx async body reader
 3. Callback retrieves ctx, validates config, performs operation, builds response, increments metrics
 
-The S3 PUT callback (`src/s3/put.c`) and WebDAV PUT handler share nearly identical structure: retrieve fs_path from ctx → validate conf→ write temp file → rename → stat → ETag → metrics → HTTP 200.
+The S3 PUT callback (`src/protocols/s3/put.c`) and WebDAV PUT handler share nearly identical structure: retrieve fs_path from ctx → validate conf→ write temp file → rename → stat → ETag → metrics → HTTP 200.
 
 **Proposal:** A shared async PUT wrapper in `src/core/compat/http_put_async.c`:
 
@@ -162,12 +162,12 @@ This eliminates ~60 lines of duplicated "retrieve ctx → validate conf → writ
 
 ### 5. Staged File Operations (Already Partially Shared)
 
-**Current state:** `src/core/compat/staged_file.c` provides `.part` creation + atomic rename, used by cache fills and some write operations. But S3 PUT (`src/s3/put.c`) independently implements the same pattern:
+**Current state:** `src/core/compat/staged_file.c` provides `.part` creation + atomic rename, used by cache fills and some write operations. But S3 PUT (`src/protocols/s3/put.c`) independently implements the same pattern:
 - Generate tmp_path = fs_path.tmp.{pid}.{random}
 - Open with O_WRONLY|O_CREAT|O_EXCL (16 retry attempts)
 - Write body → close temp fd → rename to final path
 
-WebDAV PUT (`src/webdav/put.c`) uses similar staged file logic via `staged_file.c` helpers.
+WebDAV PUT (`src/protocols/webdav/put.c`) uses similar staged file logic via `staged_file.c` helpers.
 
 **Duplication observed:** S3's temp-file loop in put.c is ~40 lines of independent implementation that duplicates what `staged_file.c` already provides (with the same O_EXCL + rename semantics).
 
@@ -249,7 +249,7 @@ This bridges the two systems so stream handlers can build HTTP responses without
 
 ### 9. Temp Path Generation (Already Shared)
 
-**Current state:** `src/core/compat/tmp_path.c` provides temporary path generation. S3 PUT (`src/s3/put.c`) independently implements the same pattern inline:
+**Current state:** `src/core/compat/tmp_path.c` provides temporary path generation. S3 PUT (`src/protocols/s3/put.c`) independently implements the same pattern inline:
 - Generate tmp_path = fs_path.tmp.{pid}.{random}
 
 WebDAV PUT and cache operations use the shared helper from `tmp_path.c`.
@@ -295,8 +295,8 @@ S3 put.c loses ~5 lines of duplicated temp path generation. One shared pattern f
 
 ### Metrics Patterns
 - Three independent metric systems: `XROOTD_SRV_METRIC_INC`, `XROOTD_WEBDAV_METRIC_INC`, `XROOTD_S3_METRIC_INC` (`src/observability/metrics/metrics_macros.h`)
-- S3 metrics chain: 4-step wrapper (`s3_metrics_method_slot → request → response → finalize`) in `src/s3/metrics.c`
-- WebDAV single wrapper: `webdav_metrics_return()` in `src/webdav/metrics.c`
+- S3 metrics chain: 4-step wrapper (`s3_metrics_method_slot → request → response → finalize`) in `src/protocols/s3/metrics.c`
+- WebDAV single wrapper: `webdav_metrics_return()` in `src/protocols/webdav/metrics.c`
 
 ### Config Shared Fields
 - `conf->allow_write` already shared via `src/core/config/shared_conf.h` (line 56, merge line 101)
@@ -310,7 +310,7 @@ Three items from the original analysis are already complete or superseded by mor
 
 | Item | Analysis Claim | Actual Status |
 |------|---------------|---------------|
-| Item 5 — Staged file in S3 PUT | S3 put.c has inline loop | **Done.** `src/s3/put.c` already uses `xrootd_staged_open/commit/abort`; the inline loop no longer exists |
+| Item 5 — Staged file in S3 PUT | S3 put.c has inline loop | **Done.** `src/protocols/s3/put.c` already uses `xrootd_staged_open/commit/abort`; the inline loop no longer exists |
 | Item 9 — Temp path in S3 PUT | S3 put.c generates path inline | **Done.** Handled by staged_file helper as part of Item 5 |
 | Item 6 — Config consolidation | Three separate config structs | **Largely done.** `ngx_http_xrootd_shared_conf_t` in `shared_conf.h` already provides `enable`, `root`, `root_canon`, `allow_write`, `thread_pool`, `cache_root` used as `conf->common.*` across all three layers. Remaining gap: auth-specific fields (cert paths, JWKS URI) still duplicated in protocol-specific structs |
 
@@ -359,11 +359,11 @@ Low-risk grep-and-fix passes. Run before any structural changes so the audit res
 **Grep commands:**
 ```bash
 grep -rn "ngx_buf\|ngx_palloc.*xml\|snprintf.*<\|xml_node\|<?xml" \
-    src/s3/ src/webdav/ --include="*.c" | grep -v "http_xml\.c"
+    src/protocols/s3/ src/protocols/webdav/ --include="*.c" | grep -v "http_xml\.c"
 grep -rn "s3_send_xml_error\|xrootd_http_send_xml_error" src/ --include="*.c"
 ```
 
-**Files likely modified:** `src/s3/util.c`, `src/s3/handler.c`, `src/webdav/propfind.c` (if any inline XML found)
+**Files likely modified:** `src/protocols/s3/util.c`, `src/protocols/s3/handler.c`, `src/protocols/webdav/propfind.c` (if any inline XML found)
 
 **Tests:** `PYTHONPATH=tests pytest tests/test_s3.py tests/test_webdav.py -v --tb=short`
 
@@ -380,10 +380,10 @@ grep -rn "s3_send_xml_error\|xrootd_http_send_xml_error" src/ --include="*.c"
 **Grep command:**
 ```bash
 grep -rn "ETag\|etag\|mtime.*size\|size.*mtime" \
-    src/s3/ src/webdav/ --include="*.c" | grep -v "etag\."
+    src/protocols/s3/ src/protocols/webdav/ --include="*.c" | grep -v "etag\."
 ```
 
-**Files likely modified:** `src/s3/put.c`, `src/webdav/get.c` (if inline ETag string building found)
+**Files likely modified:** `src/protocols/s3/put.c`, `src/protocols/webdav/get.c` (if inline ETag string building found)
 
 **Tests:** `PYTHONPATH=tests pytest tests/test_s3.py tests/test_webdav.py -k "etag or get" -v`
 
@@ -399,13 +399,13 @@ All three tasks can run in parallel. Each creates one new file in `src/core/comp
 
 #### Task 1: HTTP path consolidation (2.5 h)
 
-**Goal:** Eliminate the ~20-line duplicate decode+strip logic in both `src/webdav/path.c` and `src/s3/util.c`.
+**Goal:** Eliminate the ~20-line duplicate decode+strip logic in both `src/protocols/webdav/path.c` and `src/protocols/s3/util.c`.
 
 **Blocked by:** nothing.
 
 **Files to read before starting:**
-- `src/webdav/path.c` — full file (89 lines); understand `webdav_urldecode` call and trailing-slash strip
-- `src/s3/util.c` — full file (107 lines); understand `s3_resolve_key` implementation
+- `src/protocols/webdav/path.c` — full file (89 lines); understand `webdav_urldecode` call and trailing-slash strip
+- `src/protocols/s3/util.c` — full file (107 lines); understand `s3_resolve_key` implementation
 - `src/core/compat/path.c` — understand `xrootd_resolve_path_input()` signature
 - `src/core/compat/path.h`
 
@@ -424,8 +424,8 @@ All three tasks can run in parallel. Each creates one new file in `src/core/comp
 **Files modified:**
 | File | Change | Lines delta |
 |------|--------|-------------|
-| `src/webdav/path.c` | Replace inline decode+strip+resolve with `xrootd_http_resolve_path()` call | −20 |
-| `src/s3/util.c` | Replace `s3_resolve_key()` body with `xrootd_http_resolve_path()` call | −18 |
+| `src/protocols/webdav/path.c` | Replace inline decode+strip+resolve with `xrootd_http_resolve_path()` call | −20 |
+| `src/protocols/s3/util.c` | Replace `s3_resolve_key()` body with `xrootd_http_resolve_path()` call | −18 |
 | `src/core/config/config.h` | Add `src/core/compat/http_path.c` to `NGX_ADDON_SRCS` | +1 |
 
 **Build:** `./configure --with-stream ... --add-module=$REPO && make -j$(nproc)` (new .c file added)
@@ -448,9 +448,9 @@ PYTHONPATH=tests pytest tests/test_s3.py::test_path_traversal_rejected -v
 **Blocked by:** nothing.
 
 **Files to read before starting:**
-- `src/s3/metrics.c` — full file (125 lines); trace `s3_metrics_method_slot → s3_metrics_request_method → s3_metrics_return_method → s3_metrics_finalize_request_method`
-- `src/s3/handler.c` — lines 185–320; count all `s3_metrics_return_method` callsites (there are ~18)
-- `src/webdav/metrics.c` — full file (104 lines); understand `webdav_metrics_return` signature
+- `src/protocols/s3/metrics.c` — full file (125 lines); trace `s3_metrics_method_slot → s3_metrics_request_method → s3_metrics_return_method → s3_metrics_finalize_request_method`
+- `src/protocols/s3/handler.c` — lines 185–320; count all `s3_metrics_return_method` callsites (there are ~18)
+- `src/protocols/webdav/metrics.c` — full file (104 lines); understand `webdav_metrics_return` signature
 - `src/observability/metrics/metrics_macros.h` — understand `XROOTD_S3_METRIC_INC` vs `XROOTD_WEBDAV_METRIC_INC`
 
 **Files created:**
@@ -468,9 +468,9 @@ PYTHONPATH=tests pytest tests/test_s3.py::test_path_traversal_rejected -v
 **Files modified:**
 | File | Change | Lines delta |
 |------|--------|-------------|
-| `src/s3/handler.c` | Replace ~18 `s3_metrics_return_method(r, slot, ...)` with `xrootd_http_metrics_finalize(r, slot, ...)` | −22 |
-| `src/s3/metrics.c` | Retain internal helpers but delegate from the new shared wrapper; remove exported chain functions no longer needed externally | −15 |
-| `src/webdav/dispatch.c` | Replace `webdav_metrics_return(r, handler_func())` with `xrootd_http_metrics_finalize(r, WEBDAV_SLOT, handler_func())` at all 18 callsites | 0 (1-for-1 substitution) |
+| `src/protocols/s3/handler.c` | Replace ~18 `s3_metrics_return_method(r, slot, ...)` with `xrootd_http_metrics_finalize(r, slot, ...)` | −22 |
+| `src/protocols/s3/metrics.c` | Retain internal helpers but delegate from the new shared wrapper; remove exported chain functions no longer needed externally | −15 |
+| `src/protocols/webdav/dispatch.c` | Replace `webdav_metrics_return(r, handler_func())` with `xrootd_http_metrics_finalize(r, WEBDAV_SLOT, handler_func())` at all 18 callsites | 0 (1-for-1 substitution) |
 | `src/core/config/config.h` | Add `src/core/compat/http_metrics.c` to `NGX_ADDON_SRCS` | +1 |
 
 **Build:** `./configure ... && make -j$(nproc)`
@@ -553,8 +553,8 @@ These tasks depend on Phase 1 outputs. Start only after the relevant Phase 1 tas
 **Goal:** Extract the common "retrieve ctx → validate conf → write via staged file → stat → ETag → metrics → HTTP 200" flow shared by WebDAV PUT and S3 PUT into a single callback in `src/core/compat/http_put_async.c`.
 
 **Files to read before starting:**
-- `src/webdav/put.c` — full file (317 lines); trace the async body callback from `webdav_handle_put()` through `s3_put_body_handler()`-equivalent
-- `src/s3/put.c` — full file (541 lines); trace `s3_put_body_handler()`
+- `src/protocols/webdav/put.c` — full file (317 lines); trace the async body callback from `webdav_handle_put()` through `s3_put_body_handler()`-equivalent
+- `src/protocols/s3/put.c` — full file (541 lines); trace `s3_put_body_handler()`
 - `src/core/compat/staged_file.h` — understand `xrootd_staged_file_t` API (already in use by both)
 - `src/core/compat/async_job.h` — async job dispatch API used by S3 PUT for thread-pool path
 - `src/core/compat/etag.h`
@@ -581,10 +581,10 @@ These tasks depend on Phase 1 outputs. Start only after the relevant Phase 1 tas
 **Files modified:**
 | File | Change | Lines delta |
 |------|--------|-------------|
-| `src/s3/put.c` | Replace `s3_put_body_handler()` with a thin wrapper that sets `put_ctx->proto = XROOTD_PUT_PROTO_S3` then calls `xrootd_http_put_body_handler()` | −120 |
-| `src/webdav/put.c` | Replace the equivalent WebDAV body callback with the shared handler | −100 |
-| `src/s3/handler.c` | Update the `ngx_http_read_client_request_body(r, xrootd_http_put_body_handler)` callsite | −3 |
-| `src/webdav/dispatch.c` | Same update for the WebDAV PUT dispatch callsite | −3 |
+| `src/protocols/s3/put.c` | Replace `s3_put_body_handler()` with a thin wrapper that sets `put_ctx->proto = XROOTD_PUT_PROTO_S3` then calls `xrootd_http_put_body_handler()` | −120 |
+| `src/protocols/webdav/put.c` | Replace the equivalent WebDAV body callback with the shared handler | −100 |
+| `src/protocols/s3/handler.c` | Update the `ngx_http_read_client_request_body(r, xrootd_http_put_body_handler)` callsite | −3 |
+| `src/protocols/webdav/dispatch.c` | Same update for the WebDAV PUT dispatch callsite | −3 |
 | `src/core/config/config.h` | Add `src/core/compat/http_put_async.c` | +1 |
 
 **Build:** `make -j$(nproc)` (no new `./configure` needed if config.h was updated in Task 1)
@@ -596,7 +596,7 @@ PYTHONPATH=tests pytest tests/test_s3.py -k "put" -v
 PYTHONPATH=tests pytest tests/test_s3_multipart.py -v
 ```
 
-**Risk (HIGH):** The directory-sentinel path in `s3_put_body_handler()` (zero-byte `_$folder$` object → `mkdir`) must be preserved as a branch in the shared handler or as a pre-dispatch check. If S3-specific sentinel logic cannot be cleanly extracted, keep `s3_put_body_handler()` in `src/s3/put.c` and share only the normal-object write path. Do not merge until both WebDAV and S3 spooled-PUT tests pass.
+**Risk (HIGH):** The directory-sentinel path in `s3_put_body_handler()` (zero-byte `_$folder$` object → `mkdir`) must be preserved as a branch in the shared handler or as a pre-dispatch check. If S3-specific sentinel logic cannot be cleanly extracted, keep `s3_put_body_handler()` in `src/protocols/s3/put.c` and share only the normal-object write path. Do not merge until both WebDAV and S3 spooled-PUT tests pass.
 
 ---
 
@@ -604,16 +604,16 @@ PYTHONPATH=tests pytest tests/test_s3_multipart.py -v
 
 **Blocked by:** Task 2 (metrics wrapper must exist so the unified error helper can call `xrootd_http_metrics_finalize`).
 
-**Goal:** Replace 25+ repetitive `XROOTD_S3_METRIC_INC + s3_send_xml_error` patterns in `src/s3/handler.c` and 18+ `return webdav_metrics_return(r, NGX_HTTP_*)` patterns in `src/webdav/dispatch.c` with a single call that atomically maps errno → HTTP status + logs + increments metrics.
+**Goal:** Replace 25+ repetitive `XROOTD_S3_METRIC_INC + s3_send_xml_error` patterns in `src/protocols/s3/handler.c` and 18+ `return webdav_metrics_return(r, NGX_HTTP_*)` patterns in `src/protocols/webdav/dispatch.c` with a single call that atomically maps errno → HTTP status + logs + increments metrics.
 
 **Scope note on stream handlers:** The 310+ `xrootd_send_error()` calls in stream handlers are already the correct low-level primitive; they do not need wrapping. The stream layer does not have the metric-increment-before-return pattern that drives this change. Stream handlers are **excluded** from this task.
 
 **Files to read before starting:**
 - `src/core/compat/error_mapping.c` — `errno_to_http_status()`, `errno_to_kxr_code()`
 - `src/core/compat/error_mapping.h`
-- `src/s3/util.c` — `s3_send_xml_error()` implementation
-- `src/s3/handler.c` — lines 185–320, all metric+error callsites
-- `src/webdav/dispatch.c` — full file (182 lines), all `webdav_metrics_return(r, NGX_HTTP_*)` callsites
+- `src/protocols/s3/util.c` — `s3_send_xml_error()` implementation
+- `src/protocols/s3/handler.c` — lines 185–320, all metric+error callsites
+- `src/protocols/webdav/dispatch.c` — full file (182 lines), all `webdav_metrics_return(r, NGX_HTTP_*)` callsites
 - `src/core/compat/http_metrics.h` (output of Task 2)
 
 **Files created:**
@@ -640,9 +640,9 @@ PYTHONPATH=tests pytest tests/test_s3_multipart.py -v
 **Files modified:**
 | File | Change | Lines delta |
 |------|--------|-------------|
-| `src/s3/handler.c` | Replace 25+ `XROOTD_S3_METRIC_INC(slot); return s3_metrics_return_method(r, slot, s3_send_xml_error(...))` with `return xrootd_http_s3_error(r, slot, errno, code, msg)` | −42 |
-| `src/s3/util.c` | `s3_send_xml_error()` becomes a thin wrapper or is inlined into `error_response.c` | −25 or 0 |
-| `src/webdav/dispatch.c` | Replace 5 error-specific `return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED)` etc. with `return xrootd_http_webdav_error(r, EPERM, "method not allowed")` | −8 |
+| `src/protocols/s3/handler.c` | Replace 25+ `XROOTD_S3_METRIC_INC(slot); return s3_metrics_return_method(r, slot, s3_send_xml_error(...))` with `return xrootd_http_s3_error(r, slot, errno, code, msg)` | −42 |
+| `src/protocols/s3/util.c` | `s3_send_xml_error()` becomes a thin wrapper or is inlined into `error_response.c` | −25 or 0 |
+| `src/protocols/webdav/dispatch.c` | Replace 5 error-specific `return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED)` etc. with `return xrootd_http_webdav_error(r, EPERM, "method not allowed")` | −8 |
 | `src/core/config/config.h` | Add `src/core/compat/error_response.c` | +1 |
 
 **Build:** `make -j$(nproc)`
@@ -664,34 +664,34 @@ PYTHONPATH=tests pytest tests/ -k "error or denied or forbidden" -v
 
 **Blocked by:** All Phase 0–2 tasks (config struct changes cascade into every file modified above; change this last to avoid rebase conflicts).
 
-**Goal:** Audit whether `cert_path`, `jwks_uri`, and `auth_timeout` are duplicated between `src/webdav/webdav.h` (loc_conf struct) and `src/s3/s3.h` (loc_conf struct); if so, promote them to `ngx_http_xrootd_shared_conf_t` in `src/core/config/shared_conf.h`.
+**Goal:** Audit whether `cert_path`, `jwks_uri`, and `auth_timeout` are duplicated between `src/protocols/webdav/webdav.h` (loc_conf struct) and `src/protocols/s3/s3.h` (loc_conf struct); if so, promote them to `ngx_http_xrootd_shared_conf_t` in `src/core/config/shared_conf.h`.
 
 **Decision gate:** Run this grep before writing any code:
 ```bash
 grep -n "cert_path\|jwks_uri\|jwks_url\|auth_timeout\|token_secret" \
-    src/webdav/webdav.h src/s3/s3.h src/core/config/shared_conf.h
+    src/protocols/webdav/webdav.h src/protocols/s3/s3.h src/core/config/shared_conf.h
 ```
 If the fields appear only in one protocol struct, **stop** — they are not duplicated and this task has no work. Document the finding and close the task.
 
 **Files to read before starting:**
-- `src/webdav/webdav.h` — full loc_conf struct
-- `src/s3/s3.h` — full loc_conf struct
+- `src/protocols/webdav/webdav.h` — full loc_conf struct
+- `src/protocols/s3/s3.h` — full loc_conf struct
 - `src/core/config/shared_conf.h` — full file (132 lines)
 - `src/core/config/server_conf.c` — `ngx_http_xrootd_shared_create_loc_conf()` and `ngx_http_xrootd_shared_merge_loc_conf()`
-- `src/webdav/config.c` — full file; all `ngx_conf_merge_str_value` calls for auth fields
-- `src/s3/handler.c` — `create_loc_conf` and `merge_loc_conf` sections
+- `src/protocols/webdav/config.c` — full file; all `ngx_conf_merge_str_value` calls for auth fields
+- `src/protocols/s3/handler.c` — `create_loc_conf` and `merge_loc_conf` sections
 
 **Files modified (if auth fields are duplicated):**
 | File | Change | Lines delta |
 |------|--------|-------------|
 | `src/core/config/shared_conf.h` | Add `cert_path`, `jwks_uri`, `auth_timeout` fields to struct | +6 |
 | `src/core/config/server_conf.c` | Add merge calls for new shared fields in `ngx_http_xrootd_shared_merge_loc_conf()` | +9 |
-| `src/webdav/webdav.h` | Remove fields now in shared preamble | −6 |
-| `src/webdav/config.c` | Remove duplicate merge calls; update field access paths | −9 |
-| `src/s3/s3.h` | Remove fields now in shared preamble | −6 |
-| `src/s3/handler.c` | Update `cf->jwks_uri` → `cf->common.jwks_uri` etc. | variable |
-| `src/webdav/auth_cert.c` | Update field access paths | variable |
-| `src/webdav/auth_token.c` | Update field access paths | variable |
+| `src/protocols/webdav/webdav.h` | Remove fields now in shared preamble | −6 |
+| `src/protocols/webdav/config.c` | Remove duplicate merge calls; update field access paths | −9 |
+| `src/protocols/s3/s3.h` | Remove fields now in shared preamble | −6 |
+| `src/protocols/s3/handler.c` | Update `cf->jwks_uri` → `cf->common.jwks_uri` etc. | variable |
+| `src/protocols/webdav/auth_cert.c` | Update field access paths | variable |
+| `src/protocols/webdav/auth_token.c` | Update field access paths | variable |
 
 **Build:** `./configure --with-stream ... --add-module=$REPO && make -j$(nproc)` (struct layout changes require full reconfigure)
 

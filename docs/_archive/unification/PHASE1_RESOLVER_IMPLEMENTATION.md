@@ -567,8 +567,8 @@ xrootd_path_get_type(const ngx_str_t *resolved_path)
 4. Run existing stream tests, verify no regressions
 
 ### Step 3: Update HTTP/WebDAV Code
-1. Update `src/webdav/dispatch.c` to use new resolver
-2. Update `src/s3/handler.c` to use new resolver
+1. Update `src/protocols/webdav/dispatch.c` to use new resolver
+2. Update `src/protocols/s3/handler.c` to use new resolver
 3. Run existing WebDAV/S3 tests, verify no regressions
 
 ### Step 4: Cross-Protocol Tests

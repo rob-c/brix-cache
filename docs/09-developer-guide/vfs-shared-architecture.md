@@ -43,7 +43,7 @@ The four layers, top to bottom:
 
 | Layer | Server home | Client home | Shared? |
 |---|---|---|---|
-| **module / app** | proto handlers (`src/read/`, `src/webdav/`, `src/s3/`) | `xrdcp`, `xrootdfs`, `copy.c` | no (protocol/UX) |
+| **module / app** | proto handlers (`src/read/`, `src/protocols/webdav/`, `src/protocols/s3/`) | `xrdcp`, `xrootdfs`, `copy.c` | no (protocol/UX) |
 | **vfs_server** (confined open + nginx lifecycle) | `src/fs/vfs_open.c`, `vfs_io_core.c`, … | *(n/a — the client adapter is its peer)* | no (policy) |
 | **vfs** (storage-neutral I/O verbs) | `src/fs/core/vfs_core.c` | `client/lib/vfs_posix.c`, `vfs_block.c`, `vfs_s3*.c` | **YES** (`vfs_core.c`) |
 | **backend** (Storage Driver: raw syscalls / S3 protocol) | `src/fs/backend/sd_*.c` | same files via `libxrdproto` | **YES** |

@@ -50,8 +50,8 @@ This document identifies incomplete features, missing corner cases, and areas re
 Implement the `OPTIONS` method for the S3 protocol to support CORS pre-flight requests and feature discovery.
 
 ### Implemented
-1.  **Operation Table**: Add `"OPTIONS"` to the `xrootd_s3_operations` table in `src/s3/operation_table.c`.
-2.  **Handler**: Update `ngx_http_s3_handler` in `src/s3/handler.c` to catch `NGX_HTTP_OPTIONS`.
+1.  **Operation Table**: Add `"OPTIONS"` to the `xrootd_s3_operations` table in `src/protocols/s3/operation_table.c`.
+2.  **Handler**: Update `ngx_http_s3_handler` in `src/protocols/s3/handler.c` to catch `NGX_HTTP_OPTIONS`.
 3.  **Response**: Return `200 OK`, `Allow`, and browser preflight CORS headers before SigV4 authentication.
 4.  **Metrics**: Track `OPTIONS` in a fixed low-cardinality S3 method bucket.
 
@@ -65,8 +65,8 @@ Implement the `OPTIONS` method for the S3 protocol to support CORS pre-flight re
 Replace `ngx_http_dav_module` delegation for `MKCOL` and `DELETE` with native implementations to improve metric accuracy, preserve module lock checks, and reduce external dependencies.
 
 ### Implemented
-1.  **Dispatch**: `src/webdav/dispatch.c` routes `MKCOL` and `DELETE` to native handlers.
-2.  **Handlers**: `src/webdav/namespace.c` owns native namespace operations using confined path resolution and lock checks.
+1.  **Dispatch**: `src/protocols/webdav/dispatch.c` routes `MKCOL` and `DELETE` to native handlers.
+2.  **Handlers**: `src/protocols/webdav/namespace.c` owns native namespace operations using confined path resolution and lock checks.
 3.  **Shared Copy Metadata**: `src/core/compat/namespace_ops.c` preserves XRootD-mapped `user.U.*` extended attributes when WebDAV COPY requests metadata preservation.
 
 ### Test Coverage

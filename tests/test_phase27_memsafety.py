@@ -156,7 +156,7 @@ def test_w6c_valgrind_findings_closed_and_harness_present():
     assert "ngx_min(r->connection->addr_text.len" in _read(
         "src/observability/dashboard/http_tracking.c")
     # Finding 2: JWKS pool cleanup registered at both conf load sites.
-    assert "xrootd_jwks_register_cleanup" in _read("src/webdav/config.c")
+    assert "xrootd_jwks_register_cleanup" in _read("src/protocols/webdav/config.c")
     assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/config.c")
     # Committed harness + findings writeup.
     assert (ROOT / "tests/valgrind/run_valgrind.sh").exists()

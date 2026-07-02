@@ -66,7 +66,7 @@ typedef struct {
 ---
 
 ### C. Unified VFS & I/O Orchestration
-The most significant duplication exists in the I/O path. Both `src/read/read.c` and `src/webdav/get.c` independently handle:
+The most significant duplication exists in the I/O path. Both `src/read/read.c` and `src/protocols/webdav/get.c` independently handle:
 - Read-through cache lookups.
 - AIO thread-pool dispatching.
 - dashboard transfer slot updates.
@@ -136,12 +136,12 @@ graph LR
 
 ### Phase 2: Identity Abstraction
 - Create `src/core/types/identity.h` with `xrootd_identity_t`.
-- Refactor `src/auth/token/`, `src/auth/gsi/`, `src/auth/sss/`, and `src/s3/auth_sigv4_verify.c` to populate the identity struct.
+- Refactor `src/auth/token/`, `src/auth/gsi/`, `src/auth/sss/`, and `src/protocols/s3/auth_sigv4_verify.c` to populate the identity struct.
 - Update `src/auth/authz/acl.c` to consume `xrootd_identity_t *`.
 
 ### Phase 3: VFS Operation Abstraction
 - Implement `src/fs/` directory with full open/read/write/stat/dir/mutation API.
-- Replace direct I/O in `src/read/`, `src/write/`, `src/webdav/`, and `src/s3/` with VFS calls.
+- Replace direct I/O in `src/read/`, `src/write/`, `src/protocols/webdav/`, and `src/protocols/s3/` with VFS calls.
 - Enforce TLS buffer invariant and pgwrite CRC32c in VFS layer.
 
 ### Phase 4: Cache Unification

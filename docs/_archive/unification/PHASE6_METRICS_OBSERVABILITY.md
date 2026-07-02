@@ -20,7 +20,7 @@ Currently metrics are siloed:
 | Bytes sent | `src/observability/metrics/stream.c` | `src/observability/metrics/webdav.c` | `src/observability/metrics/s3.c` |
 | Request count | `src/observability/metrics/stream.c` | `src/observability/metrics/webdav.c` | `src/observability/metrics/s3.c` |
 | Cache hits | `src/observability/metrics/stream_cache.c` | Not recorded | Not recorded |
-| TPC bytes | Not recorded | `src/webdav/metrics.c` (partial) | N/A |
+| TPC bytes | Not recorded | `src/protocols/webdav/metrics.c` (partial) | N/A |
 | Auth method | Not recorded | Not recorded | Not recorded |
 
 After Phase 6:
@@ -168,7 +168,7 @@ void xrootd_metric_cache_result(xrootd_proto_t proto,
 
 /*
  * Record authentication outcome.
- * Called by src/session/login.c and src/webdav/auth_*.c (Phase 2).
+ * Called by src/session/login.c and src/protocols/webdav/auth_*.c (Phase 2).
  */
 void xrootd_metric_auth(xrootd_proto_t proto,
                          ngx_uint_t auth_method,   /* XROOTD_AUTHN_* */
@@ -176,7 +176,7 @@ void xrootd_metric_auth(xrootd_proto_t proto,
 
 /*
  * Record TPC transfer outcome.
- * Called by src/tpc/done.c and src/webdav/tpc_thread.c (Phase 5).
+ * Called by src/tpc/done.c and src/protocols/webdav/tpc_thread.c (Phase 5).
  */
 void xrootd_metric_tpc(xrootd_proto_t proto,
                         unsigned int is_push,

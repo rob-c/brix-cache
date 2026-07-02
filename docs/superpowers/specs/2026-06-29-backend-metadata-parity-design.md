@@ -43,7 +43,7 @@ Status legend: ✓ shipped · **add** planned · *built* = done by this work
 
 ¹ via the VFS confined-POSIX fallback. ² `sd_s3` already has multipart write.
 ³ **shipped:** the S3 server persists/echoes `x-amz-meta-*` user metadata
-(`src/s3/usermeta.c`, PUT/GET/HEAD + CopyObject COPY/REPLACE), and the shared
+(`src/protocols/s3/usermeta.c`, PUT/GET/HEAD + CopyObject COPY/REPLACE), and the shared
 `sd_s3` driver gained `get_meta`/`set_meta` + advisory `get/set_unixattr` with a
 SigV4-over-extra-headers signer (`sd_s3_sign_ext`). Live-tested:
 `tests/run_s3_usermeta.sh`, `tests/run_sd_s3_meta.sh`. Decision context: a remote
@@ -51,7 +51,7 @@ SigV4-over-extra-headers signer (`sd_s3_sign_ext`). Live-tested:
 transparent proxy (`tests/run_proxy_metadata_phase.sh`), so the cache-origin
 read-side `remote`/`xroot` xattr slots were de-scoped (no live consumer).
 ⁴ S3 has no directories (key-prefix namespace); "rename" is CopyObject at the REST
-layer (`src/s3/copy.c`), now metadata-directive aware.
+layer (`src/protocols/s3/copy.c`), now metadata-directive aware.
 
 ## Global constraints (from the repo rules)
 

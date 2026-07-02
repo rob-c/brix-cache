@@ -602,7 +602,7 @@ xrootd_rl_http_handler(ngx_http_request_t *r)
 }
 ```
 
-Registration in `src/webdav/postconfig.c` (existing file, append to `postconfig` handler):
+Registration in `src/protocols/webdav/postconfig.c` (existing file, append to `postconfig` handler):
 
 ```c
 h = ngx_array_push(&cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers);
@@ -902,8 +902,8 @@ minimise lock hold time.
 
 | Location | Change |
 |---|---|
-| `src/webdav/postconfig.c` | Register `xrootd_rl_http_handler` in `NGX_HTTP_ACCESS_PHASE` |
-| `src/webdav/postconfig.c` | Register `xrootd_rl_body_filter` in body filter chain |
+| `src/protocols/webdav/postconfig.c` | Register `xrootd_rl_http_handler` in `NGX_HTTP_ACCESS_PHASE` |
+| `src/protocols/webdav/postconfig.c` | Register `xrootd_rl_body_filter` in body filter chain |
 | `src/handshake/dispatch.c` | Call `xrootd_dispatch_maybe_ratelimit` before each opcode handler |
 | `src/read/read.c`, `pgread.c` | Call `xrootd_rl_charge_bytes` after `xrootd_send_ok` |
 | `src/write/write.c`, `pgwrite.c` | Call `xrootd_rl_charge_bytes` after write flush |

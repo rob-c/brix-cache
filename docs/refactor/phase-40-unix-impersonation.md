@@ -201,7 +201,7 @@ Each phase is independently buildable/testable. New code lives in a new
   `xrootd_impersonation_socket <path>` (for `map`), `xrootd_gridmap <file>`,
   `xrootd_idmap_default_user <name>` (squash else deny), `xrootd_idmap_min_uid <N>`,
   `xrootd_idmap_cache_ttl <secs>`. Register in `src/stream/module.c` +
-  `src/webdav/module.c`; fields in `src/core/types/config.h`; config-time mode
+  `src/protocols/webdav/module.c`; fields in `src/core/types/config.h`; config-time mode
   validation (fail closed on invalid combinations).
 - Capability/seccomp minimization on the broker; `SO_PEERCRED` gate; reserved-uid
   floor; bounded relpaths; audit logging of every mapping decision.
@@ -223,7 +223,7 @@ Each phase is independently buildable/testable. New code lives in a new
   respawn), `src/auth/authz/acc/groups.c` (`getpwnam`/`getgrouplist`/cache), the SHM-safe
   zone contract (`src/core/compat/shm_slots.c`).
 - **Config/directives:** `src/core/types/config.h`, `src/stream/module.c`,
-  `src/webdav/module.c`, `src/core/config/server_conf.c` (init/merge).
+  `src/protocols/webdav/module.c`, `src/core/config/server_conf.c` (init/merge).
 
 ## Verification
 

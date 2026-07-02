@@ -20,10 +20,10 @@
 
 ## Consumed Phase-1 interfaces (already in tree)
 
-- `xrootd_ssi_session_t { char service[64]; xrootd_ssi_provider_t provider; ngx_pool_t *pool; xrootd_ssi_req_t rr[8]; }` (`src/ssi/session.h`)
-- `xrootd_ssi_req_t` (`src/ssi/ssi_req.h`) — extended in Task 1
+- `xrootd_ssi_session_t { char service[64]; xrootd_ssi_provider_t provider; ngx_pool_t *pool; xrootd_ssi_req_t rr[8]; }` (`src/protocols/ssi/session.h`)
+- `xrootd_ssi_req_t` (`src/protocols/ssi/ssi_req.h`) — extended in Task 1
 - `xrootd_ssi_session_req(s, req_id, create)` / `_drop` / `_create`
-- responder ABI `xrootd_ssi_responder_t { set_metadata, set_response, alert, error, state }` (`src/ssi/ssi_service.h`)
+- responder ABI `xrootd_ssi_responder_t { set_metadata, set_response, alert, error, state }` (`src/protocols/ssi/ssi_service.h`)
 - `xrootd_send_waitresp(ctx,c)`, `xrootd_send_attn_asynresp(ctx,c,deferred_streamid,resp_status,body,bodylen)` (`src/response/`)
 
 ---
@@ -33,16 +33,16 @@
 Add the fields a deferred request needs and a per-session generation that a delivery uses to detect a recycled/closed session.
 
 **Files:**
-- Modify: `src/ssi/ssi_req.h` (add deferral fields)
-- Modify: `src/ssi/session.h` (add `generation`, `conn_id`; bump on create)
-- Modify: `src/ssi/session.c` (init generation)
-- Test: `src/ssi/session_unittest.c` (generation increments per create)
+- Modify: `src/protocols/ssi/ssi_req.h` (add deferral fields)
+- Modify: `src/protocols/ssi/session.h` (add `generation`, `conn_id`; bump on create)
+- Modify: `src/protocols/ssi/session.c` (init generation)
+- Test: `src/protocols/ssi/session_unittest.c` (generation increments per create)
 
 **Interfaces:**
 - Produces (in `xrootd_ssi_req_t`): `unsigned deferred:1;`, `unsigned waiting:1;`, `u_char defer_streamid[2];`
 - Produces (in `xrootd_ssi_session_t`): `uint64_t generation;`, `uintptr_t conn_id;`
 
-- [ ] **Step 1: Extend `xrootd_ssi_req_t`** — in `src/ssi/ssi_req.h`, after `streaming:1;` add:
+- [ ] **Step 1: Extend `xrootd_ssi_req_t`** — in `src/protocols/ssi/ssi_req.h`, after `streaming:1;` add:
 
 ```c
     unsigned        deferred:1;        /* service will respond later (async) */
@@ -50,14 +50,14 @@ Add the fields a deferred request needs and a per-session generation that a deli
     unsigned char   defer_streamid[2]; /* streamid of the submit, for asynresp */
 ```
 
-- [ ] **Step 2: Extend the session** — in `src/ssi/session.h`, add to `xrootd_ssi_session_t` (after `pool`):
+- [ ] **Step 2: Extend the session** — in `src/protocols/ssi/session.h`, add to `xrootd_ssi_session_t` (after `pool`):
 
 ```c
     uint64_t               generation;  /* bumped each create; delivery guard key */
     uintptr_t              conn_id;     /* stable connection id for the registry */
 ```
 
-- [ ] **Step 3: Write the failing test** — add to `src/ssi/session_unittest.c`:
+- [ ] **Step 3: Write the failing test** — add to `src/protocols/ssi/session_unittest.c`:
 
 ```c
 static void test_generation_increments(void)
@@ -72,9 +72,9 @@ static void test_generation_increments(void)
 ```
 Add `test_generation_increments();` to `main()`.
 
-- [ ] **Step 4: Run it, expect FAIL** — `gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src -o /tmp/ssi_session_ut src/ssi/session_unittest.c src/ssi/session.c && /tmp/ssi_session_ut` → FAIL (`generation` unset/0).
+- [ ] **Step 4: Run it, expect FAIL** — `gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src -o /tmp/ssi_session_ut src/protocols/ssi/session_unittest.c src/protocols/ssi/session.c && /tmp/ssi_session_ut` → FAIL (`generation` unset/0).
 
-- [ ] **Step 5: Implement** — in `src/ssi/session.c`, add a file-static monotonic counter and assign in `xrootd_ssi_session_create` after alloc:
+- [ ] **Step 5: Implement** — in `src/protocols/ssi/session.c`, add a file-static monotonic counter and assign in `xrootd_ssi_session_create` after alloc:
 
 ```c
 static uint64_t ssi_gen_seq;   /* per-worker; sessions are connection-bound */
@@ -92,9 +92,9 @@ static uint64_t ssi_gen_seq;   /* per-worker; sessions are connection-bound */
 A per-worker registry maps `conn_id → session`, and `ssi_deliver` resolves `{conn_id, generation, reqId}` to a live slot and pushes the frame. This is the single place async results reach the socket.
 
 **Files:**
-- Create: `src/ssi/registry.{c,h}`
-- Create: `src/ssi/deliver.{c,h}`
-- Create: `src/ssi/registry_unittest.c`
+- Create: `src/protocols/ssi/registry.{c,h}`
+- Create: `src/protocols/ssi/deliver.{c,h}`
+- Create: `src/protocols/ssi/registry_unittest.c`
 - Modify: `config`
 
 **Interfaces:**
@@ -124,7 +124,7 @@ int main(void){
 ```
 
 - [ ] **Step 2: Run → FAIL** (registry files absent). Build line:
-`gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src -o /tmp/ssi_reg_ut src/ssi/registry_unittest.c src/ssi/registry.c && /tmp/ssi_reg_ut`
+`gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src -o /tmp/ssi_reg_ut src/protocols/ssi/registry_unittest.c src/protocols/ssi/registry.c && /tmp/ssi_reg_ut`
 
 - [ ] **Step 3: Implement `registry.{c,h}`** — a `static` fixed array of `{ uintptr_t conn_id; uint64_t generation; xrootd_ssi_session_t *s; int in_use; }`. `add` stores `{conn_id, s->generation, s}`; `find` linear-scans for a matching `conn_id` and equal `generation`; `remove` clears the slot. No nginx types needed (compiles under `SSI_UT_STANDALONE` with `xrootd_ssi_session_t` from `session.h`). Per-worker; no SHM.
 
@@ -144,7 +144,7 @@ int main(void){
 `open` registers the session and stamps `conn_id`; close/teardown removes it (bumping liveness via `ctx->destroyed`). The write hook, when the service defers, captures the submit streamid, sends `kXR_waitresp`, and marks the slot `waiting`.
 
 **Files:**
-- Modify: `src/ssi/ssi.c` (open register, write defer path)
+- Modify: `src/protocols/ssi/ssi.c` (open register, write defer path)
 - Modify: the SSI handle free path — find where `ctx->files[idx].ssi` is cleared (`grep -n "files\[.*\].ssi" src/connection/fd_table.c src/read/close.c`) and call `xrootd_ssi_registry_remove(sess->conn_id)` there.
 
 **Interfaces:**
@@ -165,8 +165,8 @@ int main(void){
 Give the responder an async mode: a service marks the request deferred and arms an event-loop timer; on fire (event-loop context, `ctx->destroyed`-guarded), it fills the response and calls `xrootd_ssi_deliver(... SSI_DLV_RESPONSE)`.
 
 **Files:**
-- Modify: `src/ssi/ssi.c` (responder: a `defer()` op or a deferred flag; the timer handler)
-- Modify: `src/ssi/ssi_service.c` (register `echo-async`)
+- Modify: `src/protocols/ssi/ssi.c` (responder: a `defer()` op or a deferred flag; the timer handler)
+- Modify: `src/protocols/ssi/ssi_service.c` (register `echo-async`)
 - Test: `tests/test_ssi_async.py` (raw-wire: submit → `kXR_waitresp` → `kXR_attn` asynresp carries the echo)
 
 **Interfaces:**
@@ -177,7 +177,7 @@ Give the responder an async mode: a service marks the request deferred and arms 
 
 - [ ] **Step 2: Run → FAIL** (no `echo-async`, no defer path).
 
-- [ ] **Step 3: Implement the deferred responder + timer** — add to `src/ssi/ssi.c`:
+- [ ] **Step 3: Implement the deferred responder + timer** — add to `src/protocols/ssi/ssi.c`:
   - A `svc_echo_async` handler in `ssi_service.c` that copies the request into a small pool struct, marks the responder deferred (e.g. responder gains `void (*defer)(xrootd_ssi_responder_t*)` that sets `rq->deferred=1`), arms `ngx_add_timer(&rq_timer_event, 10)`, and returns 0 without calling `set_response`.
   - The timer event's `data` is a small struct `{ xrootd_ctx_t *ctx; ngx_connection_t *c; uintptr_t conn_id; uint64_t generation; uint32_t req_id; }` (pool-allocated; NOT a raw `rq` pointer).
   - Timer handler: `if (ctx->destroyed) return;` then `s = xrootd_ssi_registry_find(conn_id, generation); if (!s) return;` then `rq = xrootd_ssi_session_req(s, req_id, 0); if(!rq) return;` fill `rq->resp` from the saved request, `rq->responded = 1`, and `xrootd_ssi_deliver(ctx, c, s, req_id, SSI_DLV_RESPONSE);`.
@@ -191,7 +191,7 @@ Give the responder an async mode: a service marks the request deferred and arms 
 
 ### Task 5: Docs
 
-- [ ] Update `src/ssi/README.md`: move "server-pushed async responses via `kXR_attn`" from *upcoming* to *implemented*; document `echo-async`, the registry + generation guard, and the event-loop-only delivery contract. Commit.
+- [ ] Update `src/protocols/ssi/README.md`: move "server-pushed async responses via `kXR_attn`" from *upcoming* to *implemented*; document `echo-async`, the registry + generation guard, and the event-loop-only delivery contract. Commit.
 
 ---
 

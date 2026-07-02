@@ -233,7 +233,7 @@ deployment, the key is stable for 24 hours (one calendar day in YYYYMMDD format)
 Within one nginx worker (single-threaded), a two-field cache is safe:
 
 ```c
-/* src/s3/auth_sigv4_verify.c — worker-level cache */
+/* src/protocols/s3/auth_sigv4_verify.c — worker-level cache */
 static struct {
     char   date[9];    /* "YYYYMMDD\0" */
     char   region[64];
@@ -381,10 +381,10 @@ Remove `auth_sigv4_headers.c` from `config.h`; run `./configure`.
 |---|---|---|---|---|
 | `compat/crypto.c` | 79 | 90 | +11 | init/cleanup added; fetch loop removed |
 | `compat/crypto.h` | 27 | 30 | +3 | two new declarations |
-| `src/s3/auth_sigv4_verify.c` | 534 | 472 | −62 | civil days deleted; key derivation → helper; headers merged in |
-| `src/s3/auth_sigv4_headers.c` | 73 | 0 | −73 | merged into verify.c |
-| `src/s3/post_object.c` | 1,112 | 1,090 | −22 | key derivation → helper |
-| `src/s3/s3_auth_internal.h` | ~50 | ~55 | +5 | new declaration |
+| `src/protocols/s3/auth_sigv4_verify.c` | 534 | 472 | −62 | civil days deleted; key derivation → helper; headers merged in |
+| `src/protocols/s3/auth_sigv4_headers.c` | 73 | 0 | −73 | merged into verify.c |
+| `src/protocols/s3/post_object.c` | 1,112 | 1,090 | −22 | key derivation → helper |
+| `src/protocols/s3/s3_auth_internal.h` | ~50 | ~55 | +5 | new declaration |
 | **Signing key helper + cache (new)** | 0 | +65 | +65 | in verify.c |
 | **Net** | | | **−73** | |
 
@@ -412,10 +412,10 @@ final signature check.
 ```
 compat/crypto.c         — singleton HMAC/SHA256 fetch
 compat/crypto.h         — xrootd_crypto_init / xrootd_crypto_cleanup
-src/s3/auth_sigv4_verify.c  — absorb headers.c; key helper; cache; timegm
-src/s3/auth_sigv4_headers.c — DELETED
-src/s3/post_object.c        — use s3_sigv4_derive_signing_key_cached
-src/s3/s3_auth_internal.h   — declare s3_sigv4_derive_signing_key[_cached]
+src/protocols/s3/auth_sigv4_verify.c  — absorb headers.c; key helper; cache; timegm
+src/protocols/s3/auth_sigv4_headers.c — DELETED
+src/protocols/s3/post_object.c        — use s3_sigv4_derive_signing_key_cached
+src/protocols/s3/s3_auth_internal.h   — declare s3_sigv4_derive_signing_key[_cached]
 src/net/upstream/bootstrap.c    — call xrootd_crypto_init in init_process hook
                                call xrootd_crypto_cleanup in exit_process hook
 ```
@@ -469,7 +469,7 @@ PYTHONPATH=tests pytest tests/ -k "s3" -v
 PYTHONPATH=tests pytest tests/ -k "clock_skew or expired or presigned" -v
 
 # Verify CRYPTO_memcmp constant-time comparison is preserved
-grep -n "CRYPTO_memcmp" src/s3/auth_sigv4_verify.c
+grep -n "CRYPTO_memcmp" src/protocols/s3/auth_sigv4_verify.c
 # Must still be present — no regression to string comparison
 
 # SigV4 test vectors (AWS publishes test vectors at:

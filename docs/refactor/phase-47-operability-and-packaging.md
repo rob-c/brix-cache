@@ -36,7 +36,7 @@
   preflight folded into `/healthz?verbose`.
 - **Regression:** 15/15 S3-metrics + large-file byte-exact/checksum smoke green;
   static build clean (also surgically fixed a pre-existing `-Werror=comment`
-  breakage in `src/shared/file_serve.c`).
+  breakage in `src/protocols/shared/file_serve.c`).
 
 ---
 
@@ -137,7 +137,7 @@ working `dnf install`.
 
 - Add a `xrootd_health on;` location directive in the **metrics** module (avoids a new
   module/`.so`; reuses the lightest content-handler recipe — the SRR pattern in
-  `src/srr/handler.c:22-80`: set status + `application/json`, send one `ngx_buf_t`).
+  `src/protocols/srr/handler.c:22-80`: set status + `application/json`, send one `ngx_buf_t`).
 - `GET /healthz` → **200** `{"status":"ok","version":"…"}` for liveness (process accepting
   connections). A `?verbose` / readiness variant additionally reports cheap, non-secret
   signals: metrics SHM mapped, export root reachable/writable, host-cert notAfter (days to
@@ -206,7 +206,7 @@ All three landed (each opt-in / transparent-fallback, wire-compatible). 9 new te
   verify-off unchanged). Gotcha: the seed canonical request uses **UNSIGNED-PAYLOAD**
   (XrdClS3 convention), not the STREAMING marker.
 - **W6c — ListObjects sorted-listing cache.** Opt-in `xrootd_s3_list_cache` +
-  `_ttl`. **Per-worker LRU** (`src/s3/list_cache.c`), NOT SHM — the shared KV store's
+  `_ttl`. **Per-worker LRU** (`src/protocols/s3/list_cache.c`), NOT SHM — the shared KV store's
   fixed key_max+val_max stride would waste memory on every slot and cap the cacheable
   listing size (a finding during implementation; the user chose the per-worker design). A
   readdir-position cursor is impossible (S3 needs lexicographic order, sorting happens after
@@ -240,7 +240,7 @@ All three landed (each opt-in / transparent-fallback, wire-compatible). 9 new te
 | W3 | new `contrib/xrootd.conf.example`, `contrib/logrotate.d/nginx-xrootd`; spec `%install`/`%files` |
 | W4 | new `contrib/grafana-dashboard.json`, `contrib/prometheus-alerts.yml`; spec dashboards subpackage |
 | W5 | new `docs/05-operations/{troubleshooting,capacity-planning,certificate-rotation,upgrade-procedure}.md` + `docs/index.md` |
-| W6 (optional) | per-feature (`src/s3/aws_chunked.c`+auth, beneath/impersonate rename, `src/s3/list_objects_v2.c`) |
+| W6 (optional) | per-feature (`src/protocols/s3/aws_chunked.c`+auth, beneath/impersonate rename, `src/protocols/s3/list_objects_v2.c`) |
 
 ## 6. Expected outcome
 

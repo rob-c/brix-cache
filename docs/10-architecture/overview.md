@@ -288,8 +288,8 @@ sequenceDiagram
 | **Session dispatch** | `src/handshake/dispatch_session.c` | Session-level opcode routing |
 | **Read path** | `src/read/`, `src/core/aio/` | open/read/readv/pgread/stat/locate (frames VFS results onto the wire) |
 | **Write path** | `src/write/` | write/writev/pgwrite/sync/truncate (frames VFS results onto the wire) |
-| **WebDAV dispatch** | `src/webdav/dispatch.c` | HTTP method routing, TPC detection |
-| **S3 handler** | `src/s3/handler.c` | REST API entry point and routing |
+| **WebDAV dispatch** | `src/protocols/webdav/dispatch.c` | HTTP method routing, TPC detection |
+| **S3 handler** | `src/protocols/s3/handler.c` | REST API entry point and routing |
 | **Unified data plane (VFS)** | `src/fs/` | `xrootd_vfs_*` — the single path every protocol's file I/O takes: confinement, metrics, cache, page-CRC, buffer shaping |
 | **Storage driver (POSIX)** | `src/fs/backend/` | Pluggable backend beneath the VFS; the POSIX driver issues the raw `pread`/`pwrite`/`sendfile`/`fstat` syscalls |
 

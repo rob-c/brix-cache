@@ -295,7 +295,7 @@ the handler returns `kXR_authmore` until all GSI phases complete.
 | How metrics are counted | `metrics/metrics.h` (`XROOTD_OP_OK`, `XROOTD_OP_ERR`) |
 | What every xrootd_ctx_t field means | `ngx_xrootd_module.h`, `docs/types.md` |
 | How to add a new opcode | `docs/contributing.md` |
-| How a WebDAV request is routed | `src/webdav/dispatch.c` |
-| How an S3 request is routed | `src/s3/handler.c` |
+| How a WebDAV request is routed | `src/protocols/webdav/dispatch.c` |
+| How an S3 request is routed | `src/protocols/s3/handler.c` |
 
 ---

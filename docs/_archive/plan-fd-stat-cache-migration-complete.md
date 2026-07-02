@@ -1,17 +1,17 @@
 # Design Plan: FD/Stat Cache Migration to Nginx Core (COMPLETED)
 
-This migration was successfully executed on 2026-05-20. The custom `src/webdav/fd_cache.c` was removed and replaced with core `ngx_open_file_cache` integration.
+This migration was successfully executed on 2026-05-20. The custom `src/protocols/webdav/fd_cache.c` was removed and replaced with core `ngx_open_file_cache` integration.
 
 ## 1. Objectives
-- **Code Reduction**: Eliminate ~15KB of custom C code in `src/webdav/fd_cache.c` and associated logic.
+- **Code Reduction**: Eliminate ~15KB of custom C code in `src/protocols/webdav/fd_cache.c` and associated logic.
 - **Reliability**: Use the battle-tested, high-performance open file cache provided by Nginx core.
 - **Consistency**: Align the module's resource management with standard Nginx behavior (e.g., proper handling of `inactive`, `valid`, and `min_uses` parameters).
 - **Correctness**: Leverage core Nginx logic for detecting stale file handles after disk mutations.
 
 ## 2. Components for Removal
 The following files and logic will be removed or substantially pruned:
-- `src/webdav/fd_cache.c`: Entire file.
-- `webdav_fd_table_t` and `webdav_fd_entry_t` structures in `src/webdav/webdav.h`.
+- `src/protocols/webdav/fd_cache.c`: Entire file.
+- `webdav_fd_table_t` and `webdav_fd_entry_t` structures in `src/protocols/webdav/webdav.h`.
 - Custom WebDAV metrics for FD cache hits/misses/evictions.
 - `webdav_get_fd_table()`, `webdav_fd_table_get()`, `webdav_fd_table_put()`, and `webdav_fd_table_evict()` functions.
 
@@ -29,12 +29,12 @@ xrootd_open_file_cache_errors on;
 These will map to `ngx_open_file_cache_t` fields in the `ngx_http_xrootd_webdav_loc_conf_t` structure.
 
 ### B. Implementation Steps
-1.  **Header Updates**: Include `ngx_open_file_cache.h` in `src/webdav/webdav.h`.
+1.  **Header Updates**: Include `ngx_open_file_cache.h` in `src/protocols/webdav/webdav.h`.
 2.  **Configuration Structure**: Add `ngx_open_file_cache_t *open_file_cache` and related settings to the WebDAV location configuration.
-3.  **Directive Registration**: Add command handlers in `src/webdav/postconfig.c` or a new directive file that uses standard Nginx parsing for open file caches.
+3.  **Directive Registration**: Add command handlers in `src/protocols/webdav/postconfig.c` or a new directive file that uses standard Nginx parsing for open file caches.
 4.  **Handler Refactoring**:
-    - Update `src/webdav/get.c`: Replace `webdav_fd_table_get()` with `ngx_open_cached_file()`.
-    - Update `src/webdav/namespace.c` (DELETE), `src/webdav/move.c`, and `src/webdav/copy.c`: Remove explicit `webdav_fd_table_evict()` calls. The core cache handles invalidation via the `valid` timer and re-stating files.
+    - Update `src/protocols/webdav/get.c`: Replace `webdav_fd_table_get()` with `ngx_open_cached_file()`.
+    - Update `src/protocols/webdav/namespace.c` (DELETE), `src/protocols/webdav/move.c`, and `src/protocols/webdav/copy.c`: Remove explicit `webdav_fd_table_evict()` calls. The core cache handles invalidation via the `valid` timer and re-stating files.
 5.  **Metrics Integration**: Map standard Nginx cache events to the module's Prometheus metrics if necessary, or rely on core Nginx status modules.
 
 ## 4. Migration Risks & Mitigations

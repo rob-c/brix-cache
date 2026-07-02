@@ -29,9 +29,9 @@ This file is a **lookup reference**, not memorization material. If your context 
 | Proto | Layer | Entry | Test Port |
 |---|---|---|---|
 | `root://` / `roots://` | stream | `src/connection/handler.c`→`src/handshake/dispatch.c` | anon=11094 GSI=11095 TLS=11096 Token=11097 |
-| `davs://` (GSI+TLS) | http | `src/webdav/dispatch.c`→method handler | 8444 |
-| `davs://` / `http://` (no GSI) | http | `src/webdav/dispatch.c`→method handler | 8443 |
-| S3 REST | http | `src/s3/handler.c`→method handler | 9001 |
+| `davs://` (GSI+TLS) | http | `src/protocols/webdav/dispatch.c`→method handler | 8444 |
+| `davs://` / `http://` (no GSI) | http | `src/protocols/webdav/dispatch.c`→method handler | 8443 |
+| S3 REST | http | `src/protocols/s3/handler.c`→method handler | 9001 |
 | `/metrics` | http | `src/observability/metrics/stream.c`/`writer.c` | 9100 |
 
 ---
@@ -54,15 +54,15 @@ This file is a **lookup reference**, not memorization material. If your context 
 | native tpc | `tpc/key_registry.c`, `launch.c`, `thread.c`, `io.c`, `done.c` |
 | cms / manager / cluster | `manager/registry.c`, `cms/send.c`, `upstream/` |
 
-### HTTP (`src/webdav/` prefix unless noted)
+### HTTP (`src/protocols/webdav/` prefix unless noted)
 | Keyword | Files |
 |---|---|
 | routing / proxy | `dispatch.c`, `proxy.c`, `postconfig.c` |
 | methods (GET/PUT/etc) | `get.c`, `put.c`, `namespace.c`, `move.c`, `copy.c`, `propfind.c`, `lock.c` |
 | auth / tpc | `auth_cert.c`, `auth_token.c`, `tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c` |
 | helpers | `path.c`, `resource.c`, `io.c`, `fd_cache.c`, `headers.c` |
-| s3 dispatch | `src/s3/handler.c`, `auth.c`, `util.c` |
-| s3 ops | `src/s3/get.c`, `put.c`, `list.c`, `multipart.c` |
+| s3 dispatch | `src/protocols/s3/handler.c`, `auth.c`, `util.c` |
+| s3 ops | `src/protocols/s3/get.c`, `put.c`, `list.c`, `multipart.c` |
 
 ---
 
@@ -101,7 +101,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 
 **Architecture:**
 9. Native TPC = SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy
-10. WebDAV TPC = curl COPY with Source/Credential headers (`src/webdav/tpc.c`)
+10. WebDAV TPC = curl COPY with Source/Credential headers (`src/protocols/webdav/tpc.c`)
 11. **Storage plane ≈ `proto → VFS → backend`. The VFS is the SOLE source of storage truth — bytes AND namespace AND metadata.** (a) **Byte data**: proto handler → VFS (`src/fs/`) → storage driver (`src/fs/backend/`, POSIX default); raw `pread`/`pwrite`/`preadv`/`copy_file_range`/`fstat`/`sendfile` on file data live ONLY in `src/fs/backend/` (tier-1, HARD rule). `root://` read/write/readv/pgread/pgwrite/sync/truncate → `xrootd_vfs_io_execute()` (`vfs_io_core.c`); WebDAV/S3 GET → `xrootd_vfs_open()`+`xrootd_vfs_file_sendfile_fd()`+`xrootd_vfs_close()`. (b) **Namespace + metadata (phase-62)**: every handler reaches `open`/`stat`/`opendir`/`unlink`/`rename`/`mkdir`/`truncate`/`chmod`/**xattr** on an export path through `xrootd_vfs_*` — `xrootd_vfs_probe` (non-metered existence/type), `xrootd_vfs_stat`/`statf`, `xrootd_vfs_open_fd`/`_at`, `xrootd_vfs_{get,set,list,remove}xattr` + fd variants `xrootd_vfs_f{get,set,list,remove}xattr`, `xrootd_vfs_unlink_path`/`_at`/`mkdir_path`/`rename_path`/`walk` — never a raw libc call. **Only raw FS left in handlers:** (i) non-export resources (config/cert/token, `/tmp` creds, `/dev/null`, `/proc`, sockets) and (ii) SEPARATE svc-owned storage domains (read-through cache, upload stage dir, FRM control/journal, S3 multipart staging, checkpoint journal) which MUST stay raw-as-worker — the VFS confines to ONE export root + routes to the impersonation broker as the mapped user, the wrong root/identity for those. Each such raw call carries a same-line `/* vfs-seam-allow: <reason> */` marker. `*_confined_canon` primitives take the ABSOLUTE path (they strip root_canon themselves — never pre-strip). **Guard `tools/ci/check_vfs_seam.sh`** (3 tiers; tier-2 backlog `vfs_seam_backlog.txt`=0, tier-3 ns backlog `vfs_seam_backlog_ns.txt`=0; `--regen` only after a deliberate migration). Driver = capability-typed pluggable seam (`xrootd_sd_driver_t`, `src/fs/backend/sd.h`): an object/S3 backend can become primary without changing anything above it. See [src/fs/README.md](src/fs/README.md), [src/fs/backend/README.md](src/fs/backend/README.md), [docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md](docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md).
 
 ---
@@ -179,7 +179,7 @@ tests/manage_test_servers.sh start|restart|stop
 ---
 
 ## RECIPES (step-by-step implementation patterns)
-**New WebDAV method:** `src/webdav/op.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests
+**New WebDAV method:** `src/protocols/webdav/op.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests
 **New XRootD opcode:** `src/<sub>/op.c` → register `handshake/dispatch_<type>.c` → constants `protocol/opcodes.h`/`wire.h` → `./configure`+`make` → 3 tests
 **New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/observability/metrics/<sub>.c` → `XROOTD_<TYPE>_METRIC_INC(slot)` at callsite
 **New config directive:** field `src/core/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/core/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block

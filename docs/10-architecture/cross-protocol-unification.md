@@ -24,8 +24,8 @@ shared helpers.
 │                                                                    │
 │  stream/   ──────────────────────────────────  src/connection/    │
 │  (native XRootD)           WebDAV          S3  src/handshake/     │
-│  src/session/          src/webdav/      src/s3/                   │
-│  src/read/             src/webdav/tpc.c    src/s3/multipart*.c    │
+│  src/session/          src/protocols/webdav/      src/protocols/s3/                   │
+│  src/read/             src/protocols/webdav/tpc.c    src/protocols/s3/multipart*.c    │
 │  src/write/                                                        │
 │  src/tpc/                                                          │
 └────────────────────────────┬───────────────────────────────────────┘
@@ -92,7 +92,7 @@ path-resolution implementation for both WebDAV and S3:
 WebDAV PUT /atlas/reco/file.root
     │
     ▼
-ngx_http_xrootd_webdav_resolve_path()      src/webdav/path.c
+ngx_http_xrootd_webdav_resolve_path()      src/protocols/webdav/path.c
     │  percent-decodes URI (compat/uri.c)
     │  strips trailing slashes
     ▼
@@ -108,7 +108,7 @@ xrootd_http_resolve_path(root_canon, decoded, out, outsz)
   filesystem path confined to root_canon
 ```
 
-The same `xrootd_http_resolve_path()` is called from `src/s3/handler.c` via a thin wrapper
+The same `xrootd_http_resolve_path()` is called from `src/protocols/s3/handler.c` via a thin wrapper
 that maps the return codes to S3 XML error responses instead of HTTP status codes.
 
 Return codes from `xrootd_http_resolve_path()`:
@@ -145,14 +145,14 @@ xrootd_handle_auth()    src/auth/gsi/auth.c
 
 WebDAV path (Authorization: Bearer):
 ```
-webdav_verify_bearer_token()   src/webdav/auth_token.c
+webdav_verify_bearer_token()   src/protocols/webdav/auth_token.c
     └─ xrootd_token_validate()    src/auth/token/validate.c
     └─ xrootd_token_check_write() src/auth/token/scopes.c   (for PUT/DELETE/MKCOL/MOVE)
 ```
 
 S3 path (when SigV4 is not configured, falls back to token):
 ```
-s3_verify_signature()   src/s3/auth_sigv4_verify.c  (SigV4 branch)
+s3_verify_signature()   src/protocols/s3/auth_sigv4_verify.c  (SigV4 branch)
     OR
 xrootd_token_validate() src/auth/token/validate.c        (bearer-token branch)
 ```
@@ -174,7 +174,7 @@ src/auth/crypto/
 `pki_check.c` exports `xrootd_pki_check_cert()` which wraps `X509_STORE_CTX` setup with
 `X509_V_FLAG_ALLOW_PROXY_CERTS`. The stream GSI path (`src/auth/gsi/auth.c`) calls this after
 the two-round DH exchange; `src/auth/crypto/ocsp.c` is referenced by both `src/auth/gsi/` and the
-nginx TLS handshake hook registered by `src/webdav/pki.c`.
+nginx TLS handshake hook registered by `src/protocols/webdav/pki.c`.
 
 ### Prometheus shared-memory layout (`src/observability/metrics/`)
 
@@ -232,7 +232,7 @@ Worker B: xrootd_tpc_key_lookup()      src/tpc/key_registry.c
     validates key, marks entry consumed
 ```
 
-WebDAV TPC (`src/webdav/tpc.c` + `tpc_curl.c`) is an entirely separate implementation using
+WebDAV TPC (`src/protocols/webdav/tpc.c` + `tpc_curl.c`) is an entirely separate implementation using
 libcurl rather than the key registry — the two TPC mechanisms are not currently unified.
 
 ### Compat utilities (`src/core/compat/`)
@@ -241,10 +241,10 @@ libcurl rather than the key registry — the two TPC mechanisms are not currentl
 |------|---------|---------|
 | `crc32c.c` | `xrootd_crc32c()` | `src/read/pgread.c`, `src/write/pgwrite.c` |
 | `checksum.c` | `xrootd_checksum_parse()`, `xrootd_checksum_hex_fd()` | `kXR_Qcksum`, `kXR_Qckscan`, dirlist checksums, XrdHttp Digest |
-| `etag.c` | `xrootd_http_etag_str()` | `src/webdav/get.c`, `src/s3/object.c` |
-| `range.c` | `xrootd_http_parse_range()` | `src/webdav/get.c`, `src/s3/object.c` |
-| `uri.c` | `xrootd_http_urldecode()` | `src/webdav/path.c`, `src/s3/handler.c` |
-| `xml.c` | minimal XML scanner | `src/webdav/propfind.c`, `src/webdav/lock.c` |
+| `etag.c` | `xrootd_http_etag_str()` | `src/protocols/webdav/get.c`, `src/protocols/s3/object.c` |
+| `range.c` | `xrootd_http_parse_range()` | `src/protocols/webdav/get.c`, `src/protocols/s3/object.c` |
+| `uri.c` | `xrootd_http_urldecode()` | `src/protocols/webdav/path.c`, `src/protocols/s3/handler.c` |
+| `xml.c` | minimal XML scanner | `src/protocols/webdav/propfind.c`, `src/protocols/webdav/lock.c` |
 | `copy_range.c` | `xrootd_copy_range()` | stream clone/checkpoint, WebDAV COPY, S3 CopyObject |
 | `http_file_response.c` | file-backed sendfile response + range/ETag headers | WebDAV GET/HEAD path, S3 GET |
 | `http_headers.c` | request-header lookup, value comparison, response header set | WebDAV TPC/CORS, S3 SigV4/CopyObject |

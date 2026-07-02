@@ -386,7 +386,7 @@ Native root:// third-party copy (SHM key registry):
 
 ## WebDAV
 
-**Source:** `src/webdav/`
+**Source:** `src/protocols/webdav/`
 
 ### `test_webdav.py`
 
@@ -422,7 +422,7 @@ HTTP-level correctness:
 
 ### `test_webdav_auth_cache.py`
 
-x509 certificate authentication caching (`src/webdav/auth_cert.c`).
+x509 certificate authentication caching (`src/protocols/webdav/auth_cert.c`).
 
 ### `test_webdav_spooled_put.py`
 
@@ -432,7 +432,7 @@ Regression test for PUT bodies that nginx spools to a temp file (large bodies th
 
 ## WebDAV TPC
 
-**Source:** `src/webdav/tpc.c`, `src/webdav/tpc_curl.c`, `src/webdav/tpc_cred.c`, `src/webdav/tpc_headers.c`
+**Source:** `src/protocols/webdav/tpc.c`, `src/protocols/webdav/tpc_curl.c`, `src/protocols/webdav/tpc_cred.c`, `src/protocols/webdav/tpc_headers.c`
 
 ### `test_webdav_tpc.py`
 
@@ -452,7 +452,7 @@ HTTP third-party copy:
 
 ### `test_tpc_ssrf_policy.py`
 
-SSRF protection for TPC destinations (`src/webdav/tpc.c`):
+SSRF protection for TPC destinations (`src/protocols/webdav/tpc.c`):
 
 - **Default policy** — loopback IPv4 rejected, `localhost` rejected, link-local rejected, RFC-1918 10/192.168/172 allowed.
 - **`tpc_allow_local on`** — loopback and link-local not SSRF-blocked, private still allowed.
@@ -466,7 +466,7 @@ SSRF protection for TPC destinations (`src/webdav/tpc.c`):
 
 ## S3
 
-**Source:** `src/s3/`
+**Source:** `src/protocols/s3/`
 
 ### `test_s3.py` / `test_s3_status_codes.py`
 
@@ -487,7 +487,7 @@ Multipart upload lifecycle: basic two-part, single-part, overwrite existing, lar
 
 ### `test_s3_presigned.py`
 
-SigV4 authentication for presigned URLs (`src/s3/auth.c`).
+SigV4 authentication for presigned URLs (`src/protocols/s3/auth.c`).
 
 ---
 

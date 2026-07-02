@@ -90,7 +90,7 @@ X509_STORE_CTX_set_flags(vctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
 
 Setting only the store flag is not sufficient — both must be set.  This is
 documented in `protocol-notes.md` §8 and enforced in `src/auth/crypto/` and
-`src/webdav/auth_cert.c`.
+`src/protocols/webdav/auth_cert.c`.
 
 ### Proxy File Layout (PEM Stack)
 

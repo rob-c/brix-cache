@@ -2,7 +2,7 @@
 
 **Status:** ✅ Implemented (one security item pending — see status section)  
 **Depends on:** Phase 22 (health checks) recommended but not required  
-**Touches:** `src/observability/dashboard/`, `src/net/manager/`, `src/webdav/`  
+**Touches:** `src/observability/dashboard/`, `src/net/manager/`, `src/protocols/webdav/`  
 **Net LoC:** +~920 new, ~60 modified
 
 ---
@@ -20,7 +20,7 @@ source files exist and are registered. The main gap vs. the plan is the admin-AP
 | **A** | Admin auth layer | ✅ **Done** | `xrootd_admin_check_auth()` (`api_admin.c:167`) — CIDR allowlist and/or bearer secret, with `xrootd_admin_require_both`. Directives `xrootd_admin_allow` / `xrootd_admin_secret` / `xrootd_admin_require_both` registered in `src/observability/dashboard/module.c`. The `XROOTD_ADMIN_AUTH_METHOD_NOT_ALLOWED` enum value was dropped — only `OK`/`DENIED`. |
 | **B** | Async body reader | ✅ **Done** | `xrootd_admin_read_body()` (`api_admin.c:293`) coalesces the body, parses JSON (jansson), dispatches to a handler. |
 | **C** | Cluster registry endpoints | ✅ **Done** | `admin_cluster_register` (POST/PUT upsert), `admin_cluster_drain`, DELETE, and `xrootd_srv_undrain()` (`registry.c:591`, declared `registry.h:89`). Host/path whitelist validation present. |
-| **D** | WebDAV proxy backend pool | ✅ **Done** | `src/webdav/proxy_pool.{c,h}` — SHM table of `xrootd_proxy_be_entry_t`, `xrootd_proxy_pool_add/remove/drain/undrain/select/snapshot` + atomic `in_flight`. `proxy.c:50-87` selects from the pool when `proxy_pool_enabled` and reserves `in_flight`; `proxy_response.c:192` releases it in finalize. `select()` signature differs (`xrootd_proxy_pool_select(xrootd_proxy_be_pick_t *out)` returning `ngx_int_t`, not returning an entry pointer). |
+| **D** | WebDAV proxy backend pool | ✅ **Done** | `src/protocols/webdav/proxy_pool.{c,h}` — SHM table of `xrootd_proxy_be_entry_t`, `xrootd_proxy_pool_add/remove/drain/undrain/select/snapshot` + atomic `in_flight`. `proxy.c:50-87` selects from the pool when `proxy_pool_enabled` and reserves `in_flight`; `proxy_response.c:192` releases it in finalize. `select()` signature differs (`xrootd_proxy_pool_select(xrootd_proxy_be_pick_t *out)` returning `ngx_int_t`, not returning an entry pointer). |
 | **E** | Proxy backend endpoints | ✅ **Done** | `admin_proxy_add` + `/admin/proxy/backends[/{id}[/drain\|/undrain]]` routing (`api_admin.c:842-853`). Drain workflow backed by the `in_flight` counter (`xrootd_proxy_pool_in_flight()`). |
 | **F** | Dispatch routing | ✅ **Done** | `xrootd_admin_dispatch()` (`api_admin.c:798`) auth-checks then routes by method + URI; reached from the dashboard handler for `/xrootd/api/v1/admin/` URIs. Structured audit log line emitted per write (`api_admin.c:213`: `xrootd: admin: %V %s target=%s client=%V result=%s`). |
 | **G** | Dashboard GET extension | ✅ **Done (partial)** | The cluster snapshot gained the `"draining"` field (`api.c:715`). Proxy-pool state is exposed via the snapshot/admin path rather than a separate no-auth `/xrootd/api/v1/proxy/backends` read endpoint. |
@@ -62,7 +62,7 @@ maintenance before rebooting it). The only manual option is `nginx -s reload`, w
 tears down every active XRootD session — unacceptable for a 100-node storage cluster
 mid-transfer.
 
-**Surface B — WebDAV proxy backends:** `src/webdav/proxy.c` currently holds a single
+**Surface B — WebDAV proxy backends:** `src/protocols/webdav/proxy.c` currently holds a single
 pre-resolved `ngx_http_upstream_resolved_t` pointer from `conf->upstream_resolved`.
 Adding or removing a WebDAV backend means editing nginx.conf and reloading. A dynamic
 pool in shared memory would allow zero-downtime backend rotation.
@@ -351,9 +351,9 @@ xrootd_srv_undrain(const char *host, uint16_t port)
 
 ## Step D — WebDAV Proxy Backend Pool
 
-**Files:** `src/webdav/proxy_pool.h` (new), `src/webdav/proxy_pool.c` (new),
-`src/webdav/proxy.c` (modify), `src/webdav/proxy_config.c` (modify),
-`src/webdav/webdav.h` (modify)
+**Files:** `src/protocols/webdav/proxy_pool.h` (new), `src/protocols/webdav/proxy_pool.c` (new),
+`src/protocols/webdav/proxy.c` (modify), `src/protocols/webdav/proxy_config.c` (modify),
+`src/protocols/webdav/webdav.h` (modify)
 
 ### D1 — SHM pool structure
 
@@ -637,11 +637,11 @@ json_object_set_new(srv, "draining",
 | `src/observability/dashboard/api.c` | Modify | Add `draining` field to cluster snapshot; add proxy pool GET |
 | `src/observability/dashboard/module.c` | Modify | Route non-GET methods to `xrootd_admin_dispatch()`; add new endpoint enum values |
 | `src/observability/dashboard/dashboard_http.h` | Modify | Add admin endpoint enum values |
-| `src/webdav/proxy_pool.h` | **New** | `xrootd_proxy_be_entry_t`, `xrootd_proxy_be_table_t`, pool API |
-| `src/webdav/proxy_pool.c` | **New** | SHM init, add/remove/drain/select/snapshot |
-| `src/webdav/proxy.c` | Modify | Pick from pool when `proxy_pool_enabled`; decrement `in_flight` in finalize |
-| `src/webdav/proxy_config.c` | Modify | Seed pool with static URL at config time; allocate SHM zone |
-| `src/webdav/webdav.h` | Modify | Add `proxy_pool_zone`, `proxy_pool_enabled`, `proxy_be_id` to ctx |
+| `src/protocols/webdav/proxy_pool.h` | **New** | `xrootd_proxy_be_entry_t`, `xrootd_proxy_be_table_t`, pool API |
+| `src/protocols/webdav/proxy_pool.c` | **New** | SHM init, add/remove/drain/select/snapshot |
+| `src/protocols/webdav/proxy.c` | Modify | Pick from pool when `proxy_pool_enabled`; decrement `in_flight` in finalize |
+| `src/protocols/webdav/proxy_config.c` | Modify | Seed pool with static URL at config time; allocate SHM zone |
+| `src/protocols/webdav/webdav.h` | Modify | Add `proxy_pool_zone`, `proxy_pool_enabled`, `proxy_be_id` to ctx |
 | `src/net/manager/registry.c` | Modify | Add `xrootd_srv_undrain()`; declare in `registry.h` |
 | `src/net/manager/registry.h` | Modify | Declare `xrootd_srv_undrain()` |
 | `src/core/config/directives.c` | Modify | Register 3 admin auth directives |
@@ -652,7 +652,7 @@ json_object_set_new(srv, "draining",
 
 ## Build Registration
 
-Two new source files (`src/webdav/proxy_pool.c`, `src/observability/dashboard/api_admin.c`) must
+Two new source files (`src/protocols/webdav/proxy_pool.c`, `src/observability/dashboard/api_admin.c`) must
 be added to `NGX_ADDON_SRCS` in `src/core/config/config.h` before running `./configure`
 once. All subsequent changes build with `make -j$(nproc)`.
 

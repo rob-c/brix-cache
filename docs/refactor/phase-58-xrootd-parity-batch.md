@@ -108,7 +108,7 @@ Backlog:                8.4 per-page CSI + scrub
 
 Dependency edges: `8 → 9` (cinfo stores the origin digest from §8); `5-P1 → 5-P2`
 with the outbound-GSI fix in between; `4A → 4B`; `6` reuses the `src/net/cms/` channel and
-`src/srr/` totals; `7` reuses `kXR_read`/`kXR_write` plumbing and is validated against
+`src/protocols/srr/` totals; `7` reuses `kXR_read`/`kXR_write` plumbing and is validated against
 a real XRootD SSI peer (per ADR-2).
 
 ---
@@ -126,11 +126,11 @@ a real XRootD SSI peer (per ADR-2).
 | 8.3 | checksum-on-ingest (root:// close / TPC) | TODO (needs async) | a synchronous full-file digest on `kXR_close`/TPC-done would block the worker event loop on large files; correct impl offloads to the AIO pool (reuse `query/checksum_qcksum_async.c`). Deferred rather than add hot-path blocking |
 | 8.x | write-binary xattr format | **DONE** | `xrootd_integrity_set_xattr_format` + binary write in `integrity_xattr_write_rc`; `xrootd_webdav_checksum_xattr_format text\|xrdcks` directive (process-global); `tests/test_checksum_on_write.py::test_xrdcks_binary_format` proves on-disk `user.XrdCks.adler32` is a stock `XrdCksData` record (Name/Length/Value validated). M8 interop now complete BOTH directions |
 | 9 | `.cinfo` cache metadata | **DONE (stats + block bitmap)** | (stats) versioned tail (access_count/last_access/bytes_served + origin-digest) on `xrootd_cache_meta_t`, back-compat read, `xrootd_cache_meta_touch`, wired into slice-hit. (bitmap) new `src/fs/cache/cinfo.{c,h}`: `<cachefile>.cinfo` = versioned header + `ceil(size/block_size)`-bit block-present bitmap; `xrootd_cache_cinfo_record_block` (flock-serialised RMW, origin-change reset, COMPLETE/PARTIAL flags) wired into `slice_fill.c` after each window lands; `slice.c` evict drops the `.cinfo`; load DECLINEs short/garbage (torn-write-safe). Unit-tested (`tests/c/test_cinfo.c`, 53 checks) + integration (`tests/test_slice_cache.py`: partial read records only touched blocks, full read → COMPLETE). Record-keeping only — read-time serve-present/fetch-gaps from the bitmap is the remaining follow-up |
-| 3 | XrdDig (HTTP surface) | **DONE** | `src/dig/{dig.c,dig.h}`; WebDAV dispatch hook; directives `xrootd_webdav_dig` / `_dig_export <name> <dir>` (realpath anchor) / `_dig_auth <allowfile>`; RESOLVE_BENEATH confinement + fail-closed principal→export allow-file + GET/HEAD-only; `tests/test_dig.py` 7/7 (authorized read, unlisted→403, anon→403, **symlink-escape blocked**, unknown-export→404, write→405, disabled→fall-through). Follow-up: root:// surface + dirlist |
+| 3 | XrdDig (HTTP surface) | **DONE** | `src/protocols/dig/{dig.c,dig.h}`; WebDAV dispatch hook; directives `xrootd_webdav_dig` / `_dig_export <name> <dir>` (realpath anchor) / `_dig_auth <allowfile>`; RESOLVE_BENEATH confinement + fail-closed principal→export allow-file + GET/HEAD-only; `tests/test_dig.py` 7/7 (authorized read, unlisted→403, anon→403, **symlink-escape blocked**, unknown-export→404, write→405, disabled→fall-through). Follow-up: root:// surface + dirlist |
 | 4A | OssArc zip member read | **DONE (pre-existing)** | already in tree: `zip_member.c`/`zip_http.c`; `webdav/get.c` `zip_access`; root:// `xrdcl.unzip=` in `open_request.c`. Doc §4A was stale |
 | 5 | GSI delegation | **DONE (pre-existing)** | already in tree+build: `src/auth/gsi/delegation.c` (begin_delegation→`kXGS_pxyreq`, `handle_sigpxy`), `src/auth/gsi/proxy_req.c` (X509_REQ CSR + unittest), session-cipher encrypt, auth.c branches, TPC `tpc_delegate` consumption. `native_tpc_gsi_broken` memory was stale. Doc §5 was a stale TODO |
 | 6 | CNS (minimal) | **DONE** | `src/net/cms/cns.{c,h}` event codec + per-worker inventory; `CMS_RR_CNS` frame; data-server emit on closew (`close.c`); manager apply (`server_recv.c`, gated by global collect flag); manager **global stat from inventory** (`stat.c` manager_mode); `xrootd_cns off\|emit\|collect`; `tests/test_cns.py` 2/2 on a real **2-node cluster** (manager stats a DS-written file from CNS w/ correct size; unknown path not fabricated). v1: in-memory per-worker (single-worker manager); SHM-multi-worker + unlink/mkdir/mv emit are follow-ups |
-| 7 | SSI (minimal unary) | **DONE** | `src/ssi/{ssi.c,ssi.h}` echo over `/.ssi/<service>`; `xrootd_file_t.ssi` + clean early-return hooks in open/read/write; `xrootd_ssi` stream directive (in `module.c` — the LIVE table; `module_core_directives.c` is dead/not in `./config`); `tests/test_ssi.py` 4/4 raw-wire vs real instance. **Also fixed a pre-existing remote crash**: `kXR_chkpoint` on a path-less handle did `strlen(NULL)`→SIGSEGV (now guarded; 30 chkpoint tests pass) |
+| 7 | SSI (minimal unary) | **DONE** | `src/protocols/ssi/{ssi.c,ssi.h}` echo over `/.ssi/<service>`; `xrootd_file_t.ssi` + clean early-return hooks in open/read/write; `xrootd_ssi` stream directive (in `module.c` — the LIVE table; `module_core_directives.c` is dead/not in `./config`); `tests/test_ssi.py` 4/4 raw-wire vs real instance. **Also fixed a pre-existing remote crash**: `kXR_chkpoint` on a path-less handle did `strlen(NULL)`→SIGSEGV (now guarded; 30 chkpoint tests pass) |
 
 New build-list addition so far: `src/core/compat/json_min.c` (for §2) — registered in
 `./config`, reconfigured. No other new files yet; §1/§2/§8.1 are edits to existing TUs.
@@ -222,17 +222,17 @@ redirected and pre-signed-URL flows. The `Authorization` header stays primary; t
 query is a strict fallback. (XrdHttp reads `authz=` from the request CGI.)
 
 ### 1.1 Current state (verified)
-`src/webdav/auth_token.c::webdav_verify_bearer_token()` extracts **only** from
+`src/protocols/webdav/auth_token.c::webdav_verify_bearer_token()` extracts **only** from
 `r->headers_in.authorization` via `xrootd_http_extract_bearer(&auth_hdr,&bearer)`
 (`compat/http_headers.h`), then runs the L1 (per-worker lockless) → L2 (SHM) →
 `xrootd_token_validate()` ladder. There is no query-string path.
 
 ### 1.2 Files touched
-- `src/webdav/auth_token.c` — add the query fallback (edit hunk in 1.5).
+- `src/protocols/webdav/auth_token.c` — add the query fallback (edit hunk in 1.5).
 - `src/core/compat/http_headers.{c,h}` — move/host `urlencode_decode_inplace`
   (today private in `macaroon_endpoint.c`) + add `xrootd_http_arg_token()`.
-- `src/webdav/log.c` (access-log line build) — redaction.
-- `src/webdav/config.c` + `directives.c` — `xrootd_http_query_token`.
+- `src/protocols/webdav/log.c` (access-log line build) — redaction.
+- `src/protocols/webdav/config.c` + `directives.c` — `xrootd_http_query_token`.
 
 ### 1.3 Function signatures + ABI contracts
 ```c
@@ -363,11 +363,11 @@ PR-1.3 log redaction (+1h) + docs + gaps-doc update.
 **Goal.** `POST <path>` with `Content-Type: application/macaroon-request` and JSON
 body `{"caveats":["activity:DOWNLOAD,LIST","path:/foo"],"validity":"PT1H"}` →
 `200 application/json {"macaroon":"…","uri":{…}}`. Today only the OAuth2 form
-(`POST /.oauth2/token`) exists (`src/webdav/macaroon_endpoint.c`).
+(`POST /.oauth2/token`) exists (`src/protocols/webdav/macaroon_endpoint.c`).
 
 ### 2.1 Files touched
-- `src/webdav/dispatch.c` — content-type detect → route (hunk in 2.4).
-- `src/webdav/macaroon_endpoint.c` — `webdav_handle_macaroon_request` + body parser.
+- `src/protocols/webdav/dispatch.c` — content-type detect → route (hunk in 2.4).
+- `src/protocols/webdav/macaroon_endpoint.c` — `webdav_handle_macaroon_request` + body parser.
 - `src/core/compat/iso8601.c` (new, tiny) — duration parse; `compat/json_min.h` reuse;
   `token/macaroon_issue.h` reuse.
 
@@ -476,7 +476,7 @@ GET   https://host/.well-known/dig/<export>/<relpath># http (or alias dashboard 
 Each `<export>` is a config-declared real directory. `<relpath>` is confined beneath
 that directory via `RESOLVE_BENEATH` (no `..`, no symlink escape).
 
-### 3.2 Files (new `src/dig/`)
+### 3.2 Files (new `src/protocols/dig/`)
 - `dig.c` — prefix recognizer + export resolver + read/stat/dirlist glue.
 - `dig_auth.c` — allow-file parser + match (`principal → {export…}`).
 - `dig.h`, `directives.c`, `README.md`.
@@ -546,10 +546,10 @@ xrootd_dig_auth   <file>;                # principal → exports allow-file
 
 ### 3.8 Build (`./config`)
 ```
-# headers list:  $ngx_addon_dir/src/dig/dig.h \
-# srcs list:     $ngx_addon_dir/src/dig/dig.c \
-                 $ngx_addon_dir/src/dig/dig_auth.c \
-                 $ngx_addon_dir/src/dig/directives.c \
+# headers list:  $ngx_addon_dir/src/protocols/dig/dig.h \
+# srcs list:     $ngx_addon_dir/src/protocols/dig/dig.c \
+                 $ngx_addon_dir/src/protocols/dig/dig_auth.c \
+                 $ngx_addon_dir/src/protocols/dig/directives.c \
 ```
 then `./configure`.
 
@@ -607,7 +607,7 @@ ngx_int_t xrootd_zip_member_pread(xrootd_zip_handle_t *h, off_t moff,
 **Addressing.** Reuse XrdZip's opaque convention so stock clients interoperate:
 `root://h//path/archive.zip?xrdcl.unzip=<member>` (stream) and
 `GET /path/archive.zip?xrdcl.unzip=<member>` (HTTP). Parsed in
-`src/read/open_request.c` (opaque already parsed there) and `src/webdav/get.c`.
+`src/read/open_request.c` (opaque already parsed there) and `src/protocols/webdav/get.c`.
 
 **Hooks**
 - `src/read/open_request.c` — detect `xrdcl.unzip=` → set a member-open intent on the
@@ -616,7 +616,7 @@ ngx_int_t xrootd_zip_member_pread(xrootd_zip_handle_t *h, off_t moff,
   a read-only member handle (size = `uncomp_size`).
 - `src/read/read.c` / `pgread.c` — route member handles through
   `xrootd_zip_member_pread` (CRC framing unchanged).
-- `src/webdav/get.c` — same for HTTP GET (+ `Range` support via `moff`).
+- `src/protocols/webdav/get.c` — same for HTTP GET (+ `Range` support via `moff`).
 
 ### Phase B — compose + stage (FRM-driven)
 External-archiver model (don't write a native zip writer first).
@@ -823,7 +823,7 @@ space totals. Minimal subset (not XrdCnsd's offline files + `cns_ssi` reconcile)
  open(write)/close/mkdir/                    CMS channel (src/net/cms/)
  rm/mv/truncate  ──── CNS event ───────────▶ inventory store (SHM + file)
  (size on closew)                            ├─ answer stat/dirlist from inventory
-                                             └─ feed src/srr/ space totals
+                                             └─ feed src/protocols/srr/ space totals
 ```
 
 ### 6.2 Event record (our format — XrdCns not in the checkout)
@@ -858,14 +858,14 @@ ngx_int_t xrootd_cns_apply(const xrootd_cns_event *ev, size_t total_len);
 /* manager side — answer metadata from the inventory. */
 ngx_int_t xrootd_cns_stat(const char *path, xrootd_stat_t *out);
 ngx_int_t xrootd_cns_dirlist(const char *dir, xrootd_dir_emit_cb cb, void *u);
-uint64_t  xrootd_cns_space_used(void);   /* feeds src/srr */
+uint64_t  xrootd_cns_space_used(void);   /* feeds src/protocols/srr */
 ```
 
 ### 6.4 Manager hooks
 - `src/net/cms/server_recv.c` — decode CNS events alongside existing CMS frames.
 - `src/net/manager/registry.c` / redirect path — answer `kXR_stat`/`kXR_dirlist` from
   `xrootd_cns_*` when the path is not locally present (manager has no data).
-- `src/srr/` — `xrootd_cns_space_used()` augments space reporting.
+- `src/protocols/srr/` — `xrootd_cns_space_used()` augments space reporting.
 
 ### 6.5 Durability & reload
 Inventory file is the source of truth; SHM is a rebuildable cache (rebuild on start by
@@ -930,7 +930,7 @@ port to nginx-C — we implement the **wire behavior** with built-in handlers in
 - Out of scope (documented): `XrdSsiStream` responses, `XrdSsiAlert`, scalable
   session mux, `XrdSsiCluster` GeoMgr.
 
-### 7.3 Files (new `src/ssi/`)
+### 7.3 Files (new `src/protocols/ssi/`)
 ```c
 /* ssi.c — LOOP-ONLY. Recognize SSI resource opens; bind a virtual handle that buffers
  * the request on write and produces the response on first read. */
@@ -974,7 +974,7 @@ xrootd_ssi_resource <name> <handler>;    # e.g. echo echo
 ```
 
 ### 7.8 Build
-`src/ssi/ssi.c`, `src/ssi/ssi_registry.c` (+headers) → `./config`; `./configure`.
+`src/protocols/ssi/ssi.c`, `src/protocols/ssi/ssi_registry.c` (+headers) → `./config`; `./configure`.
 
 ### 7.9 Test matrix (`tests/test_ssi.py`)
 | id | case | expect |
@@ -1057,8 +1057,8 @@ falls back to sidecar on `ENOTSUP`).
 Today digests are lazy (first query). Persist at **ingest** so they're durable from
 creation:
 - `kXR_close` of a written handle → `src/read/close.c` (after fsync, before reply).
-- WebDAV PUT completion → `src/webdav/put.c`.
-- S3 PUT/complete-multipart → `src/s3/object.c`.
+- WebDAV PUT completion → `src/protocols/webdav/put.c`.
+- S3 PUT/complete-multipart → `src/protocols/s3/object.c`.
 - TPC destination finish → `src/tpc/done.c`.
 Computed on the **AIO thread pool** (reuse `query/checksum_qcksum_async.c`), never on
 the event loop; on completion, `xrootd_integrity_*` persists via §8.1/§8.2.
@@ -1989,7 +1989,7 @@ xrootd_iso8601_duration_secs(const char *s, size_t len, time_t max, time_t *out)
 }
 ```
 
-### EE.2 `src/webdav/macaroon_endpoint.c` — request body + caveats walker + handler (§2)
+### EE.2 `src/protocols/webdav/macaroon_endpoint.c` — request body + caveats walker + handler (§2)
 ```c
 /* EITHER. Collect r->request_body->bufs into one pool buffer (≤cap). NGX_OK/-. */
 static ngx_int_t
@@ -2562,7 +2562,7 @@ native writer is possible later but isn't on the critical path.
 > they must reuse the exact round-2 session-cipher path in
 > `src/auth/gsi/parse_crypto_helpers.c` (do not re-derive EVP call sequences by hand).
 
-### OO.1 dig — `src/dig/dig.h`
+### OO.1 dig — `src/protocols/dig/dig.h`
 ```c
 #ifndef NGX_XROOTD_DIG_H
 #define NGX_XROOTD_DIG_H
@@ -2588,7 +2588,7 @@ int xrootd_dig_open(const char *real_root, const char *rel, ngx_log_t *log);
 #endif
 ```
 
-### OO.2 dig — `src/dig/dig.c`
+### OO.2 dig — `src/protocols/dig/dig.c`
 ```c
 #include "dig.h"
 #include "../path/beneath.h"
@@ -2654,7 +2654,7 @@ xrootd_dig_open(const char *real_root, const char *rel, ngx_log_t *log)
 }
 ```
 
-### OO.3 dig — `src/dig/dig_auth.c`
+### OO.3 dig — `src/protocols/dig/dig_auth.c`
 ```c
 #include "dig.h"
 #include "../types/identity.h"
@@ -2895,7 +2895,7 @@ xrootd_cns_stat(const char *path, struct stat *out)
 > `g_cns` is created via `xrootd_shm_table_alloc(zone, data, bytes, &g_cns_mtx, …)`
 > in the manager's shm-zone init, which clears `mtx->semaphore` (spin+yield).
 
-### OO.8 SSI — `src/ssi/ssi.c` (handle bind + unary RPC)
+### OO.8 SSI — `src/protocols/ssi/ssi.c` (handle bind + unary RPC)
 ```c
 #include "ssi.h"
 #include "../connection/fd_table.h"
@@ -2965,11 +2965,11 @@ xrootd_ssi_read(xrootd_ssi_req_t *rq, ngx_connection_t *c,
 
 Append to the **header** list (near the existing `src/fs/cache/*.h`, `src/auth/gsi/*.h`):
 ```sh
-                        $ngx_addon_dir/src/dig/dig.h \
+                        $ngx_addon_dir/src/protocols/dig/dig.h \
                         $ngx_addon_dir/src/auth/gsi/delegation.h \
                         $ngx_addon_dir/src/net/cms/cns.h \
-                        $ngx_addon_dir/src/ssi/ssi.h \
-                        $ngx_addon_dir/src/ssi/ssi_registry.h \
+                        $ngx_addon_dir/src/protocols/ssi/ssi.h \
+                        $ngx_addon_dir/src/protocols/ssi/ssi_registry.h \
                         $ngx_addon_dir/src/fs/cache/cinfo.h \
                         $ngx_addon_dir/src/zip/zip_member.h \
                         $ngx_addon_dir/src/core/compat/iso8601.h \
@@ -2977,14 +2977,14 @@ Append to the **header** list (near the existing `src/fs/cache/*.h`, `src/auth/g
 Append to the **`NGX_ADDON_SRCS`** list (near `src/auth/gsi/*.c`, `src/net/cms/*.c`):
 ```sh
     $ngx_addon_dir/src/core/compat/iso8601.c \
-    $ngx_addon_dir/src/dig/dig.c \
-    $ngx_addon_dir/src/dig/dig_auth.c \
-    $ngx_addon_dir/src/dig/directives.c \
+    $ngx_addon_dir/src/protocols/dig/dig.c \
+    $ngx_addon_dir/src/protocols/dig/dig_auth.c \
+    $ngx_addon_dir/src/protocols/dig/directives.c \
     $ngx_addon_dir/src/auth/gsi/delegation.c \
     $ngx_addon_dir/src/net/cms/cns_emit.c \
     $ngx_addon_dir/src/net/manager/cns_store.c \
-    $ngx_addon_dir/src/ssi/ssi.c \
-    $ngx_addon_dir/src/ssi/ssi_registry.c \
+    $ngx_addon_dir/src/protocols/ssi/ssi.c \
+    $ngx_addon_dir/src/protocols/ssi/ssi_registry.c \
     $ngx_addon_dir/src/zip/zip_member.c \
     $ngx_addon_dir/src/fs/cache/cinfo.c \
     $ngx_addon_dir/src/frm/archive.c \
@@ -3000,7 +3000,7 @@ files → no reconfigure.)
 
 Each new directory ships a `README.md` (doc-tree standard). Skeleton:
 ```markdown
-# src/dig/ — remote diagnostics (XrdDig parity)
+# src/protocols/dig/ — remote diagnostics (XrdDig parity)
 
 ## Overview
 Read-only, admin-only exposure of whitelisted server files over root://+HTTP under
@@ -3022,7 +3022,7 @@ primitive (`xrootd_open_beneath`). Off by default (`xrootd_dig off`).
 ## Tests
 tests/test_dig.py — success / 403 / traversal / read-only.
 ```
-(Analogous READMEs for `src/ssi/`, `src/net/cms/` CNS note, and a `src/auth/gsi/` delegation
+(Analogous READMEs for `src/protocols/ssi/`, `src/net/cms/` CNS note, and a `src/auth/gsi/` delegation
 section.)
 
 ---
@@ -3486,11 +3486,11 @@ combined) and parallelizable with the rest. **5.3** is blocked by the outbound-G
 |---|---|
 | §1 | `docs/06-authentication/` token page (+query param); `06.../security` note |
 | §2 | `docs/06-authentication/macaroons.md` (add request content-type) |
-| §3 | `docs/05-operations/` dig page; `src/dig/README.md` |
+| §3 | `docs/05-operations/` dig page; `src/protocols/dig/README.md` |
 | §4 | `docs/04-protocols/` archive/zip page; `src/zip/README.md` update |
 | §5 | `docs/06-authentication/gsi.md` delegation section; `src/auth/gsi/README.md` |
 | §6 | `docs/10-architecture/` CNS page; `src/net/cms/README.md` CNS note |
-| §7 | `docs/04-protocols/ssi.md`; `src/ssi/README.md` |
+| §7 | `docs/04-protocols/ssi.md`; `src/protocols/ssi/README.md` |
 | §8 | `docs/10-reference/crc64-checksums.md` (+at-rest/xattr/sidecar) |
 | §9 | `docs/02-concepts/` caching page (+cinfo); `src/fs/cache/README.md` |
 | all | `docs/10-reference/gaps-vs-xrootd.md` rows flipped to "implemented" |

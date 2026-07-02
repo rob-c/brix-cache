@@ -73,7 +73,7 @@ Phase 2 implementation successfully:
 ### ✅ Phase 2b: WebDAV Response Pattern Migration - INFRASTRUCTURE READY
 
 **Status:** Infrastructure complete and tested
-- File: `src/webdav/response_helpers.h`
+- File: `src/protocols/webdav/response_helpers.h`
 - Functions: 4 inline response helpers
 - Ready for deployment to: propfind.c, put.c, get.c, copy.c, move.c, lock.c
 - Estimated reduction when deployed: -120 LoC
@@ -94,15 +94,15 @@ Phase 2 implementation successfully:
 
 ### Files Modified (Phase 2 Consolidations)
 1. `src/core/config/server_conf.c` - Added conf_helpers.h, consolidated 28 merges
-2. `src/s3/module.c` - Added conf_helpers.h, consolidated 6 merges
+2. `src/protocols/s3/module.c` - Added conf_helpers.h, consolidated 6 merges
 3. `src/observability/metrics/module.c` - Added conf_helpers.h, consolidated 1 merge
-4. `src/webdav/config.c` - Added conf_helpers.h, consolidated 22 merges
+4. `src/protocols/webdav/config.c` - Added conf_helpers.h, consolidated 22 merges
 5. `src/observability/dashboard/module.c` - Added conf_helpers.h, consolidated 10 merges
-6. `src/webdav/tpc_config.c` - Added conf_helpers.h, consolidated 8 merges
+6. `src/protocols/webdav/tpc_config.c` - Added conf_helpers.h, consolidated 8 merges
 
 ### Helper Infrastructure (Phase 1, deployed in Phase 2)
 1. `src/core/compat/alloc_helpers.h` - 6 memory allocation macros
-2. `src/webdav/response_helpers.h` - 4 HTTP response inline functions
+2. `src/protocols/webdav/response_helpers.h` - 4 HTTP response inline functions
 3. `src/core/config/conf_helpers.h` - 9 config merge wrapper macros
 4. `src/core/config/addr_parse.c/h` - Unified address parsing function
 

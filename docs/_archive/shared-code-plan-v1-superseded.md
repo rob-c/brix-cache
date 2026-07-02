@@ -38,8 +38,8 @@ Each entry includes: **what** is duplicated, **where** each copy lives,
 
 | Copy | File | LOC | Key behaviour |
 |---|---|---:|---|
-| `webdav_urldecode` | `src/webdav/util/uri.c` | 65 | Rejects `%00` (NUL) → `NGX_HTTP_BAD_REQUEST`. Does NOT convert `+`. Returns `ngx_int_t`. |
-| `s3_urldecode` | `src/s3/util.c` | 35 | Accepts NUL bytes (security gap). Converts `+` → space (needed for query params). Returns `ssize_t`. |
+| `webdav_urldecode` | `src/protocols/webdav/util/uri.c` | 65 | Rejects `%00` (NUL) → `NGX_HTTP_BAD_REQUEST`. Does NOT convert `+`. Returns `ngx_int_t`. |
+| `s3_urldecode` | `src/protocols/s3/util.c` | 35 | Accepts NUL bytes (security gap). Converts `+` → space (needed for query params). Returns `ssize_t`. |
 
 **Divergences:**
 - NUL rejection: WebDAV has it; S3 lacks it. A decoded NUL in an S3 object key
@@ -72,9 +72,9 @@ filesystem path confined within `root_canon`.
 
 | Copy | File | LOC | Key behaviour |
 |---|---|---:|---|
-| `ngx_http_xrootd_webdav_resolve_path` | `src/webdav/path.c` | 120 | URL-decodes `r->uri`, scans `..` components, calls `realpath()` twice (existing path / ENOENT parent strategy), verifies result within root. Returns `NGX_HTTP_*`. |
-| `webdav_resolve_destination_path` | `src/webdav/path.c` | 100 | Same realpath strategy for pre-decoded Destination header paths (COPY/MOVE). |
-| `s3_resolve_key` | `src/s3/util.c` | 45 | Concatenates root + key, scans for `..` components only. Does **not** call `realpath()`. Symlinks in the key path are **not** caught at the user-space layer. |
+| `ngx_http_xrootd_webdav_resolve_path` | `src/protocols/webdav/path.c` | 120 | URL-decodes `r->uri`, scans `..` components, calls `realpath()` twice (existing path / ENOENT parent strategy), verifies result within root. Returns `NGX_HTTP_*`. |
+| `webdav_resolve_destination_path` | `src/protocols/webdav/path.c` | 100 | Same realpath strategy for pre-decoded Destination header paths (COPY/MOVE). |
+| `s3_resolve_key` | `src/protocols/s3/util.c` | 45 | Concatenates root + key, scans for `..` components only. Does **not** call `realpath()`. Symlinks in the key path are **not** caught at the user-space layer. |
 
 **Security gap in S3:** `s3_resolve_key` relies on the kernel's `RESOLVE_BENEATH`
 (or `O_NOFOLLOW` fallback) inside `xrootd_open_confined_canon` to reject symlink
@@ -119,8 +119,8 @@ symlink escape; multipart lstat paths gain confinement).
 
 **Where:** Scattered `if (errno == ENOENT) return 404` chains in at least:
 
-- `src/webdav/get.c`, `put.c`, `copy.c`, `move.c`, `namespace.c`
-- `src/s3/object.c`, `put.c`, `multipart_helpers.c`, `multipart_complete_body.c`
+- `src/protocols/webdav/get.c`, `put.c`, `copy.c`, `move.c`, `namespace.c`
+- `src/protocols/s3/object.c`, `put.c`, `multipart_helpers.c`, `multipart_complete_body.c`
 
 Current mappings differ between WebDAV and S3:
 
@@ -146,10 +146,10 @@ Current mappings differ between WebDAV and S3:
 
 **Where:**
 
-- `s3_set_header` in `src/s3/object.c` (local static, also copy-pasted in `list_objects_v2.c`).
+- `s3_set_header` in `src/protocols/s3/object.c` (local static, also copy-pasted in `list_objects_v2.c`).
 - WebDAV uses `ngx_list_push` directly from nginx's API; no helper.
 
-**Proposed resolution:** Move `s3_set_header` to `src/s3/util.c` (S3-internal, not `src/core/compat/`) and remove the copy in `list_objects_v2.c`. This is an S3-only cleanup, not cross-protocol sharing.
+**Proposed resolution:** Move `s3_set_header` to `src/protocols/s3/util.c` (S3-internal, not `src/core/compat/`) and remove the copy in `list_objects_v2.c`. This is an S3-only cleanup, not cross-protocol sharing.
 
 **LOC saved:** ~20.
 **Risk:** Low.
@@ -162,7 +162,7 @@ Current mappings differ between WebDAV and S3:
 |---|---|
 | Auth logic (GSI / Bearer / SigV4) | Three incompatible wire formats. GSI uses X.509 proxy cert chains + VOMS. WebDAV/XrdHttp use OIDC bearer tokens. S3 uses HMAC-SHA256 request signing. A unified interface would add cost without benefit. |
 | Request dispatch / routing | Stream uses a binary XProtocol framing state machine in `NGX_STREAM_CONTENT_PHASE`. HTTP modules use nginx's parsed request in `NGX_HTTP_CONTENT_PHASE`. Incompatible at the protocol layer. |
-| TPC credential / header parsing | `src/webdav/tpc_headers.c` + `tpc_cred.c` are WLCG-specific. XrdHttp reuses them via symbol linkage. S3 has no TPC concept. No further sharing needed. |
+| TPC credential / header parsing | `src/protocols/webdav/tpc_headers.c` + `tpc_cred.c` are WLCG-specific. XrdHttp reuses them via symbol linkage. S3 has no TPC concept. No further sharing needed. |
 | fd-cache / open-file cache | WebDAV `get.c` uses nginx's `ngx_open_cached_file` for hot-path GET. S3 opens fresh per request. Sharing would require S3 to adopt the nginx `open_file_cache` directive and module infrastructure — worthwhile only if S3 GET is benchmarked as hot. File a separate performance ticket if needed. |
 | XML response builders | WebDAV PROPFIND (`propfind.c`, 564 LOC) and S3 list (`list_objects_v2.c`) both use `ngx_chain_t`-based XML. They already share the escape/element primitives in `src/core/compat/xml.c`. The higher-level serialization format (MultiStatus vs ListBucketResult) is protocol-specific; unifying it further would produce leaky abstractions. |
 
@@ -203,7 +203,7 @@ Current mappings differ between WebDAV and S3:
 
 ### Phase D — S3 header helper cleanup (0.5 day, cosmetic)
 
-1. Move `s3_set_header` to `src/s3/util.c`.
+1. Move `s3_set_header` to `src/protocols/s3/util.c`.
 2. Remove duplicate in `list_objects_v2.c`.
 3. Build + test.
 

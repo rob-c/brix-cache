@@ -195,7 +195,7 @@ The `pki/` directory exists only as a naming layer between module-specific confi
 and the generic crypto helpers. Eliminating it removes one unnecessary indirection.
 
 - `git mv src/pki/stream.c src/auth/gsi/pki.c` — stream PKI loading belongs with GSI auth
-- `git mv src/pki/webdav.c src/webdav/pki.c` — WebDAV PKI loading belongs with WebDAV
+- `git mv src/pki/webdav.c src/protocols/webdav/pki.c` — WebDAV PKI loading belongs with WebDAV
 - Delete `src/pki/` directory
 - Update `config` build file: remove old paths, add new paths
 - Update `config` deps list: remove `pki/` header references (there are none; `pki/`
