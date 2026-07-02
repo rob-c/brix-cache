@@ -16,6 +16,7 @@
 
 #include "integrity_info.h"
 #include "fs/vfs/vfs.h"   /* fd-based xattr via the VFS seam */
+#include "fs/meta/xmeta_path.h"   /* record-DIGEST fallback carrier (§8.2) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -264,134 +265,137 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
     return 0;
 }
 
-/* .cks sidecar fallback (§8.2) — for exports without user xattrs * "<path>.cks" holds one text record per algorithm:
- *   "<algo> <hex> <mtime_sec> <mtime_nsec> <size>\n"
- * keyed/validated on the live file's mtime+size, mirroring the xattr policy. The
- * sidecar is our own fallback cache (stock interop uses the xattr), opened
- * O_NOFOLLOW|O_CLOEXEC. */
-#define INTEGRITY_SIDECAR_MAX (64 * 1024)
+/* Record-DIGEST fallback (§8.2, xmeta P4) — for exports without user xattrs.
+ * Instead of the retired "<path>.cks" sidecar, the checksum rides as a DIGEST
+ * entry in the file's unified xmeta record (which itself falls back to the
+ * stock-readable "<path>.cinfo" sidecar on such filesystems — ONE metadata
+ * form). Entry value = "<hex> <mtime_sec> <mtime_nsec> <size>", keyed and
+ * validated on the live file's mtime+size, mirroring the xattr policy. Stock
+ * interop is untouched: xattr-capable exports keep user.XrdCks.<alg>. */
 
-static int
-integrity_sidecar_path(const char *path, char *buf, size_t bufsz)
+static uint16_t
+integrity_alg_id(const char *algo)
 {
-    int n = snprintf(buf, bufsz, "%s.cks", path);
-    return (n > 0 && (size_t) n < bufsz) ? 0 : -1;
+    static const struct { const char *name; uint16_t id; } map[] = {
+        { "adler32",   XROOTD_XMETA_ALG_ADLER32   },
+        { "crc32",     XROOTD_XMETA_ALG_CRC32     },
+        { "crc32c",    XROOTD_XMETA_ALG_CRC32C    },
+        { "md5",       XROOTD_XMETA_ALG_MD5       },
+        { "sha1",      XROOTD_XMETA_ALG_SHA1      },
+        { "sha256",    XROOTD_XMETA_ALG_SHA256    },
+        { "crc64",     XROOTD_XMETA_ALG_CRC64XZ   },
+        { "crc64nvme", XROOTD_XMETA_ALG_CRC64NVME },
+        { "zcrc32",    XROOTD_XMETA_ALG_ZCRC32    },
+        { NULL, 0 },
+    };
+    int i;
+
+    for (i = 0; map[i].name != NULL; i++) {
+        if (strcmp(map[i].name, algo) == 0) {
+            return map[i].id;
+        }
+    }
+    return 0;                       /* unmapped: no record caching */
 }
 
 static int
-integrity_sidecar_read(const char *path, const char *algo,
+integrity_record_read(const char *path, const char *algo,
     xrootd_integrity_info_t *out)
 {
-    char        scpath[4096];
-    char        line[INTEGRITY_XATTR_VAL_MAX + 64];
-    struct stat st;
-    FILE       *fp;
-    int         fd, found = 0;
+    xrootd_xmeta_t xm;
+    struct stat    st;
+    uint16_t       want = integrity_alg_id(algo);
+    uint32_t       idx;
+    int            found = 0;
 
-    if (path == NULL
-        || integrity_sidecar_path(path, scpath, sizeof(scpath)) != 0
-        || stat(path, &st) != 0)
+    if (path == NULL || want == 0 || stat(path, &st) != 0
+        || xrootd_xmeta_path_load(path, &xm) != XROOTD_XMETA_OK)
     {
         return 0;
     }
-    fd = open(scpath, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-    if (fd < 0) {
-        return 0;
-    }
-    fp = fdopen(fd, "r");
-    if (fp == NULL) {
-        close(fd);
-        return 0;
-    }
-    while (fgets(line, sizeof(line), fp) != NULL) {
-        char      ralgo[32], rhex[INTEGRITY_XATTR_VAL_MAX];
-        long      ms, mn;
-        long long sz;
-        if (sscanf(line, "%31s %159s %ld %ld %lld",
-                   ralgo, rhex, &ms, &mn, &sz) != 5) {
+    for (idx = 0; ; idx++) {
+        uint16_t       alg = 0, vlen = 0;
+        const uint8_t *val = NULL;
+        char           rec[INTEGRITY_XATTR_VAL_MAX + 64];
+        char           rhex[INTEGRITY_XATTR_VAL_MAX];
+        long           ms, mn;
+        long long      sz;
+
+        if (xrootd_xmeta_digest_get(&xm, idx, &alg, &val, &vlen)
+            != XROOTD_XMETA_OK)
+        {
+            break;
+        }
+        if (alg != want || vlen == 0 || vlen >= sizeof(rec)) {
             continue;
         }
-        if (strcmp(ralgo, algo) != 0) {
+        memcpy(rec, val, vlen);
+        rec[vlen] = 0;
+        if (sscanf(rec, "%159s %ld %ld %lld", rhex, &ms, &mn, &sz) != 4) {
             continue;
         }
-        if ((long) st.st_mtim.tv_sec == ms && (long) st.st_mtim.tv_nsec == mn
+        if ((long) st.st_mtim.tv_sec == ms
+            && (long) st.st_mtim.tv_nsec == mn
             && (long long) st.st_size == sz)
         {
-            ngx_cpystrn((u_char *) out->hex, (u_char *) rhex, sizeof(out->hex));
+            ngx_cpystrn((u_char *) out->hex, (u_char *) rhex,
+                        sizeof(out->hex));
             out->from_cache = 1;
             found = 1;
         }
-        break;   /* algo line found (fresh or stale) */
+        break;                      /* entry found (fresh or stale) */
     }
-    fclose(fp);
+    xrootd_xmeta_free(&xm);
     return found;
 }
 
 static void
-integrity_sidecar_write(const char *path, const char *algo, const char *hexval)
+integrity_record_write(const char *path, const char *algo, const char *hexval)
 {
-    char        scpath[4096];
-    char       *buf;
-    size_t      cap = INTEGRITY_SIDECAR_MAX, len = 0;
-    char        line[INTEGRITY_XATTR_VAL_MAX + 64];
-    struct stat st;
-    FILE       *fp;
-    int         fd, ln;
+    xrootd_xmeta_t xm;
+    struct stat    st;
+    char           rec[INTEGRITY_XATTR_VAL_MAX + 64];
+    uint16_t       id = integrity_alg_id(algo);
+    int            n, rc, lockfd;
 
-    if (path == NULL
-        || integrity_sidecar_path(path, scpath, sizeof(scpath)) != 0
-        || stat(path, &st) != 0)
+    if (path == NULL || id == 0 || stat(path, &st) != 0) {
+        return;
+    }
+    n = snprintf(rec, sizeof(rec), "%s %ld %ld %lld", hexval,
+                 (long) st.st_mtim.tv_sec, (long) st.st_mtim.tv_nsec,
+                 (long long) st.st_size);
+    if (n <= 0 || (size_t) n >= sizeof(rec)) {
+        return;
+    }
+
+    lockfd = xrootd_xmeta_path_lock(path);
+    if (lockfd < 0) {
+        return;
+    }
+    rc = xrootd_xmeta_path_load(path, &xm);
+    if (rc == XROOTD_XMETA_ERR
+        || (rc == XROOTD_XMETA_FOREIGN
+            && xrootd_xmeta_init(&xm, st.st_size, 1024 * 1024)
+               != XROOTD_XMETA_OK))
     {
+        xrootd_xmeta_path_unlock(lockfd);
         return;
     }
-
-    /* Build the new content: existing lines (minus this algo) + the fresh record. */
-    buf = malloc(cap);
-    if (buf == NULL) {
-        return;
-    }
-    fd = open(scpath, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-    if (fd >= 0) {
-        fp = fdopen(fd, "r");
-        if (fp != NULL) {
-            char  rd[INTEGRITY_XATTR_VAL_MAX + 64];
-            size_t alen = strlen(algo);
-            while (fgets(rd, sizeof(rd), fp) != NULL) {
-                if (strncmp(rd, algo, alen) == 0 && rd[alen] == ' ') {
-                    continue;   /* drop the stale record for this algo */
-                }
-                {
-                    size_t rl = strlen(rd);
-                    if (len + rl < cap) {
-                        memcpy(buf + len, rd, rl);
-                        len += rl;
-                    }
-                }
-            }
-            fclose(fp);
-        } else {
-            close(fd);
+    if (rc == XROOTD_XMETA_FOREIGN) {
+        /* fresh record for a live export file: fully present, no CRC table */
+        xm.origin_mtime = (uint64_t) st.st_mtime;
+        if (xm.nblocks > 0) {
+            memset(xm.bitmap, 0xFF, (size_t) ((xm.nblocks + 7) / 8));
         }
+        xm.have_blockcrc = 0;
     }
-    ln = snprintf(line, sizeof(line), "%s %s %ld %ld %lld\n", algo, hexval,
-                  (long) st.st_mtim.tv_sec, (long) st.st_mtim.tv_nsec,
-                  (long long) st.st_size);
-    if (ln > 0 && len + (size_t) ln < cap) {
-        memcpy(buf + len, line, (size_t) ln);
-        len += (size_t) ln;
+    if (xrootd_xmeta_digest_set(&xm, id, rec, (uint16_t) n)
+        == XROOTD_XMETA_OK)
+    {
+        (void) xrootd_xmeta_path_save(path, &xm);   /* best-effort cache */
     }
-
-    fd = open(scpath, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0644);
-    if (fd >= 0) {
-        ssize_t w = 0;
-        while ((size_t) w < len) {
-            ssize_t k = write(fd, buf + w, len - (size_t) w);
-            if (k <= 0) { break; }
-            w += k;
-        }
-        close(fd);
-    }
-    free(buf);
+    xrootd_xmeta_free(&xm);
+    xrootd_xmeta_path_unlock(lockfd);
 }
 
 /* Default policy when opts is NULL. */
@@ -439,13 +443,13 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
         return NGX_ERROR;
     }
 
-    /* Check the xattr cache first when allowed, then the .cks sidecar fallback
-     * (§8.2) for exports without user xattrs. */
+    /* Check the xattr cache first when allowed, then the record-DIGEST
+     * fallback (§8.2) for exports without user xattrs. */
     if (o->allow_xattr_cache) {
         if (integrity_xattr_read(fd, out->alg_name, out)) {
             return NGX_OK;
         }
-        if (integrity_sidecar_read(path, out->alg_name, out)) {
+        if (integrity_record_read(path, out->alg_name, out)) {
             return NGX_OK;
         }
     }
@@ -474,7 +478,8 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
     out->from_cache = 0;
 
     /* Persist the computed value: xattr first; if the filesystem lacks user
-     * xattrs (ENOTSUP/EOPNOTSUPP/EPERM) fall back to the .cks sidecar (§8.2). */
+     * xattrs (ENOTSUP/EOPNOTSUPP/EPERM) fall back to a DIGEST entry in the
+     * file's unified xmeta record (§8.2, xmeta P4). */
     if (o->allow_xattr_cache && o->update_xattr_cache) {
         int wrc = integrity_xattr_write_rc(fd, out->alg_name, hex);
         if (wrc == ENOTSUP
@@ -482,7 +487,7 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
             || wrc == EOPNOTSUPP
 #endif
             || wrc == EPERM) {
-            integrity_sidecar_write(path, out->alg_name, hex);
+            integrity_record_write(path, out->alg_name, hex);
         }
     }
 

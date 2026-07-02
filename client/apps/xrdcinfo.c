@@ -1,17 +1,16 @@
 /*
- * xrdcinfo.c — dump a cache object's .cinfo present-bitmap as JSON.
+ * xrdcinfo.c — dump a file's unified xmeta metadata record as JSON.
  *
- * WHAT: Reads a ".cinfo" sidecar (or the user.xrd.cinfo xattr of a cache
- *       object) and prints the block-present bitmap + flags as one JSON object,
- *       for ops/debug and for the partial-fill test suite.
- * WHY:  The nginx-side cinfo.h struct is ngx-coupled (pulls ngx_core.h via
- *       meta.h), so a client tool cannot include it. The on-disk format is
- *       frozen/versioned, so we read fixed little-endian offsets instead —
- *       faithful and decoupled.
- * HOW:  magic u32@0 (XCI1), version u16@4 (3), flags u16@6, block_size u32@8,
- *       size u64@16, nblocks u64@32; the present-bitmap is the trailing
- *       ceil(nblocks/8) bytes (bit b present iff bitmap[b/8] & (1<<(b%8))).
+ * WHAT: Reads the "user.xrd.cinfo" xattr (or the "<path>.cinfo" sidecar /
+ *       an explicit record file) and prints the record as one JSON object:
+ *       geometry, present bitmap, dirty/verify state, block-CRC coverage and
+ *       cached digests. WHY: operators/tests inspect exactly what a node
+ *       recorded for a file without any nginx dependency. HOW: a minimal
+ *       self-contained parser of the xmeta layout — stock XrdPfc cinfo v4
+ *       prefix (version i32, 48-byte Store POD, crc, bitmap, AStat[], crc)
+ *       followed by "XCX1" TLV sections (STATE/DIGEST/BLOCKCRC/ORIGIN).
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -19,14 +18,15 @@
 #include <sys/types.h>
 #include <sys/xattr.h>
 
-#define XRDCINFO_MAGIC      0x58434931u   /* "XCI1", little-endian */
-#define XRDCINFO_VERSION    3
-#define XRDCINFO_F_COMPLETE 0x1u
-#define XRDCINFO_F_PARTIAL  0x2u
-#define XRDCINFO_F_VERIFIED 0x4u
-#define XRDCINFO_F_DIRTY    0x8u
+#define XMETA_STOCK_VERSION 4
+#define XMETA_EXT_MAGIC     0x31584358u   /* "XCX1" */
+#define SEC_STATE    0x0001
+#define SEC_DIGEST   0x0002
+#define SEC_BLOCKCRC 0x0003
+#define SEC_ORIGIN   0x0004
+#define F_VERIFIED   0x0001u
+#define F_EXPIRES    0x0002u
 
-/* Little-endian field reads at fixed offsets (buf holds at least off+width). */
 static uint16_t
 rd_u16(const uint8_t *b, size_t off)
 {
@@ -115,46 +115,43 @@ slurp_xattr(const char *path, uint8_t **buf)
 static int
 dump_record(const uint8_t *buf, size_t n)
 {
-    uint16_t       flags;
-    uint32_t       bsize;
-    uint64_t       size;
-    uint64_t       nblocks;
-    size_t         bmlen;
+    int64_t  bsize, size, no_cksum;
+    int32_t  astatn;
+    uint64_t nblocks, present = 0, b;
+    size_t   bmlen, off;
     const uint8_t *bm;
-    const char    *sep;
-    uint64_t       present;
-    uint64_t       b;
+    const char *sep;
+    uint64_t dirty_lo = 0, dirty_hi = 0;
+    uint32_t mode = 0, state_flags = 0;
+    int      have_state = 0;
 
-    if (n < 40 || rd_u32(buf, 0) != XRDCINFO_MAGIC) {
+    if (n < 56 || (int32_t) rd_u32(buf, 0) != XMETA_STOCK_VERSION) {
         printf("{\"error\":\"bad_magic\"}\n");
         return 2;
     }
-    if (rd_u16(buf, 4) != XRDCINFO_VERSION) {
-        printf("{\"error\":\"bad_version\"}\n");
+    bsize    = (int64_t) rd_u64(buf, 4);
+    size     = (int64_t) rd_u64(buf, 12);
+    no_cksum = (int64_t) rd_u64(buf, 28);
+    astatn   = (int32_t) rd_u32(buf, 48);
+    if (bsize <= 0 || size < 0 || astatn < 0) {
+        printf("{\"error\":\"bad_magic\"}\n");
         return 2;
     }
-    flags   = rd_u16(buf, 6);
-    bsize   = rd_u32(buf, 8);
-    size    = rd_u64(buf, 16);
-    nblocks = rd_u64(buf, 32);
-
+    nblocks = (size > 0) ? ((uint64_t) size + (uint64_t) bsize - 1)
+                           / (uint64_t) bsize : 0;
     bmlen = (size_t) ((nblocks + 7) / 8);
-    if (bmlen > n) {
+    off = 4 + 48 + 4;                        /* version + Store + crc */
+    if (off + bmlen + (size_t) astatn * 56 + 4 > n) {
         printf("{\"error\":\"bad_magic\"}\n");
         return 2;
     }
-    bm = buf + (n - bmlen);   /* bitmap is the file tail */
+    bm = buf + off;
+    off += bmlen + (size_t) astatn * 56 + 4; /* bitmap + AStat[] + crc */
 
-    printf("{\"version\":3,\"flags\":[");
-    sep = "";
-    if (flags & XRDCINFO_F_COMPLETE) { printf("%s\"COMPLETE\"", sep); sep = ","; }
-    if (flags & XRDCINFO_F_PARTIAL)  { printf("%s\"PARTIAL\"",  sep); sep = ","; }
-    if (flags & XRDCINFO_F_VERIFIED) { printf("%s\"VERIFIED\"", sep); sep = ","; }
-    if (flags & XRDCINFO_F_DIRTY)    { printf("%s\"DIRTY\"",    sep); sep = ","; }
-    printf("],\"block_size\":%u,\"size\":%llu,\"nblocks\":%llu,",
-           bsize, (unsigned long long) size, (unsigned long long) nblocks);
+    printf("{\"version\":4,\"block_size\":%lld,\"size\":%lld,"
+           "\"nblocks\":%llu,", (long long) bsize, (long long) size,
+           (unsigned long long) nblocks);
 
-    present = 0;
     printf("\"present_blocks\":[");
     sep = "";
     for (b = 0; b < nblocks; b++) {
@@ -164,9 +161,95 @@ dump_record(const uint8_t *buf, size_t n)
             present++;
         }
     }
-    printf("],\"present_count\":%llu,\"complete\":%s}\n",
+    printf("],\"present_count\":%llu,\"complete\":%s",
            (unsigned long long) present,
-           (flags & XRDCINFO_F_COMPLETE) ? "true" : "false");
+           (nblocks == 0 || present == nblocks) ? "true" : "false");
+
+    /* extension sections */
+    if (off + 8 <= n && rd_u32(buf, off) == XMETA_EXT_MAGIC) {
+        uint16_t nsec = rd_u16(buf, off + 6);
+        uint16_t i;
+
+        off += 8;
+        for (i = 0; i < nsec && off + 12 <= n; i++) {
+            uint16_t type = rd_u16(buf, off);
+            uint32_t plen = rd_u32(buf, off + 4);
+            size_t   pay  = off + 8;
+
+            if (pay + plen + 4 > n) {
+                break;
+            }
+            if (type == SEC_STATE && plen >= 80) {
+                dirty_lo    = rd_u64(buf, pay + 8);
+                dirty_hi    = rd_u64(buf, pay + 16);
+                mode        = rd_u32(buf, pay + 72);
+                state_flags = rd_u32(buf, pay + 76);
+                have_state  = 1;
+                printf(",\"origin_mtime\":%llu,\"flush_gen\":%llu",
+                       (unsigned long long) rd_u64(buf, pay),
+                       (unsigned long long) rd_u64(buf, pay + 24));
+            } else if (type == SEC_BLOCKCRC && plen >= 16) {
+                uint64_t nb = rd_u64(buf, pay + 8), set = 0, k;
+
+                for (k = 0; k < nb && pay + 16 + k * 4 + 4 <= n; k++) {
+                    if (rd_u32(buf, pay + 16 + (size_t) k * 4) != 0) {
+                        set++;
+                    }
+                }
+                printf(",\"blockcrc\":{\"granule\":%u,\"nblocks\":%llu,"
+                       "\"computed\":%llu}", rd_u32(buf, pay),
+                       (unsigned long long) nb, (unsigned long long) set);
+            } else if (type == SEC_DIGEST) {
+                size_t d = pay, dend = pay + plen;
+
+                printf(",\"digests\":[");
+                sep = "";
+                while (d + 4 <= dend) {
+                    uint16_t alg = rd_u16(buf, d);
+                    uint16_t vl  = rd_u16(buf, d + 2);
+                    size_t   j;
+
+                    if (d + 4 + vl > dend) {
+                        break;
+                    }
+                    printf("%s{\"alg\":%u,\"value\":\"", sep, alg);
+                    for (j = 0; j < vl; j++) {
+                        uint8_t ch = buf[d + 4 + j];
+                        if (ch >= 0x20 && ch < 0x7f && ch != '"'
+                            && ch != '\\')
+                        {
+                            putchar(ch);
+                        } else {
+                            printf("\\u%04x", ch);
+                        }
+                    }
+                    printf("\"}");
+                    sep = ",";
+                    d += 4 + (size_t) vl;
+                }
+                printf("]");
+            }
+            off = pay + plen + 4;
+        }
+    }
+
+    printf(",\"flags\":[");
+    sep = "";
+    if (nblocks == 0 || present == nblocks) {
+        printf("%s\"COMPLETE\"", sep); sep = ",";
+    } else if (present > 0) {
+        printf("%s\"PARTIAL\"", sep); sep = ",";
+    }
+    if (have_state && dirty_lo < dirty_hi) {
+        printf("%s\"DIRTY\"", sep); sep = ",";
+    }
+    if (state_flags & F_VERIFIED) {
+        printf("%s\"VERIFIED\"", sep); sep = ",";
+    }
+    if (no_cksum != 0) {
+        printf("%s\"UNVERIFIED_BLOCKS\"", sep); sep = ",";
+    }
+    printf("],\"mode\":%u}\n", mode);
     return 0;
 }
 
@@ -192,7 +275,21 @@ main(int argc, char **argv)
         return 4;
     }
 
-    n = use_xattr ? slurp_xattr(path, &buf) : slurp_file(path, &buf);
+    /* carrier chain: the data file's xattr, then its "<path>.cinfo"
+     * sidecar, then the path itself as a raw record file. --xattr forces
+     * the first form only. */
+    n = slurp_xattr(path, &buf);
+    if (n < 0 && !use_xattr) {
+        char sc[4096];
+        int  k = snprintf(sc, sizeof(sc), "%s.cinfo", path);
+
+        if (k > 0 && (size_t) k < sizeof(sc)) {
+            n = slurp_file(sc, &buf);
+        }
+        if (n < 0) {
+            n = slurp_file(path, &buf);
+        }
+    }
     if (n < 0) {
         printf("{\"absent\":true}\n");
         return 3;
