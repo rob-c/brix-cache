@@ -331,6 +331,48 @@ def test_reporter_human_and_exit0(capsys):
     assert "OK" in out and "s1" in out
 
 
+def test_load_tool_config(tmp_path):
+    from pymigrate.common import load_tool_config
+    p = tmp_path / "site.conf"
+    p.write_text(
+        "# site profile\n"
+        "striper_pool = xrdtest\n"
+        "meta_pool= cephfs.cephfs.meta\n"
+        "data_pool =cephfs.cephfs.data   # inline comment\n"
+        "client\t=\tadmin\n"
+        "fs_name =\n"                     # empty value = unset
+        "\n"
+        "dest_prefix = /migrated\n")
+    cfg = load_tool_config(str(p))
+    assert cfg == {"striper_pool": "xrdtest",
+                   "meta_pool": "cephfs.cephfs.meta",
+                   "data_pool": "cephfs.cephfs.data",
+                   "client": "admin",
+                   "dest_prefix": "/migrated"}
+
+
+def test_load_tool_config_rejects_unknown_key(tmp_path):
+    from pymigrate.common import load_tool_config
+    p = tmp_path / "bad.conf"
+    p.write_text("meta_pol = typo\n")
+    with pytest.raises(ValueError, match="meta_pol"):
+        load_tool_config(str(p))
+    p2 = tmp_path / "junk.conf"
+    p2.write_text("not a key value line\n")
+    with pytest.raises(ValueError):
+        load_tool_config(str(p2))
+
+
+def test_resolve_setting_precedence():
+    from pymigrate.common import resolve_setting
+    cfg = {"client": "site", "conf": "/site/ceph.conf"}
+    assert resolve_setting("cli", cfg, "client", "admin") == "cli"
+    assert resolve_setting(None, cfg, "client", "admin") == "site"
+    assert resolve_setting(None, cfg, "fs_name", None) is None
+    assert resolve_setting(None, {}, "client", "admin") == "admin"
+    assert resolve_setting("", cfg, "client", "admin") == "site"  # empty CLI = unset
+
+
 def test_run_parallel_isolates_exceptions():
     from pymigrate.common import run_parallel
     seen = []
