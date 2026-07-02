@@ -554,7 +554,7 @@ chosen, assert no path stores `ctx->sd` past the synchronous open call.
 The tree already has mature `POSIX_FADV_WILLNEED` machinery — but only at two
 layers, applied *after* open by each protocol:
 
-- **WebDAV:** `webdav_fadvise_willneed` (`src/webdav/io.c:76`), called from
+- **WebDAV:** `webdav_fadvise_willneed` (`src/protocols/webdav/io.c:76`), called from
   `webdav/get.c:55` for the whole file.
 - **Stream read:** `src/read/prefetch.{c,h}` — windowed, sequential-pattern-aware
   (`read_last_end`/`read_ahead_end`), HEP-tuned 1 MiB/32 MiB/8 MiB constants.
@@ -1081,14 +1081,14 @@ subsystem:
   `write/op_table.c:50,70` (mv/mkdir/delete via `xrootd_ns_*`/`_beneath`);
   `query/checksum_ckscan_common.c:132,209,172` + `checksum_ckscan_dispatch.c:142`
   (checksum-scan opens + `fstatat`); `path/op_path.c:82` (`lstat_beneath`).
-- **WebDAV (`src/webdav`):** `propfind.c:811,845,985,1011` (collection
+- **WebDAV (`src/protocols/webdav`):** `propfind.c:811,845,985,1011` (collection
   opendir+lstat); `lock.c:272,316,351,414,419` (lock-DB scan + open);
   `copy.c:323,336` + `fs/copy_engine.c:52,56,62,99,131` (COPY tree
   lstat/open/opendir); `search.c:225,249`; `methods_basic.c:146`;
   `namespace.c:137` (mkdir), `move.c:44` (rename); `tpc.c:582,755` (lstat) and the
   `staged_open`/`staged_abort` ladder `tpc.c:604,639,653,672,685,704,719,735,736`;
   `tpc_curl.c:609,632` (src/dst opens).
-- **S3 (`src/s3`):** `object.c:261` (open), `:412` (`ns_delete`);
+- **S3 (`src/protocols/s3`):** `object.c:261` (open), `:412` (`ns_delete`);
   `checksum.c:268,317` (read-open); `delete_objects.c:412` (`ns_delete`);
   `multipart_complete_list_parts.c:107,127` + `multipart_complete_list_uploads.c:106`
   (lstat+opendir of the upload staging dir).
@@ -1646,12 +1646,12 @@ COMPLETE), `src/fs/vfs_io_core.h`.
 `src/fs/backend/sd_posix.c` (A-1 raw slots, B-1 borrow, B-2 fadvise, C-1 d_type),
 `src/fs/backend/sd_registry.c` (§10 new driver registration).
 
-**Crosses the seam (referenced, not re-audited):** `src/shared/file_serve.c`
-(Funnel 1), `src/core/aio/reads.c` / `aio/write.c` (Funnels 2/4, D-2), `src/webdav/get.c`
-/ `put.c`, `src/s3/object.c` / `post_object.c` / `copy.c`, `src/core/compat/fs_walk.c`
+**Crosses the seam (referenced, not re-audited):** `src/protocols/shared/file_serve.c`
+(Funnel 1), `src/core/aio/reads.c` / `aio/write.c` (Funnels 2/4, D-2), `src/protocols/webdav/get.c`
+/ `put.c`, `src/protocols/s3/object.c` / `post_object.c` / `copy.c`, `src/core/compat/fs_walk.c`
 (C-1 central tree walker), `src/core/compat/namespace_ops.c` (recursive delete),
 `src/fs/path/resolve_confined_ops.c` (impersonation stat — §0.3), `src/read/prefetch.c`
-+ `src/webdav/io.c` (B-2 existing fadvise), `src/observability/metrics/unified.{h,c}` (D-1/D-2),
++ `src/protocols/webdav/io.c` (B-2 existing fadvise), `src/observability/metrics/unified.{h,c}` (D-1/D-2),
 `src/fs/cache/writethrough_decision.c` (E-3).
 
 **Pillar F seam-closure backlog (the ~105 bypass sites to migrate — §9.4):**
@@ -1659,11 +1659,11 @@ COMPLETE), `src/fs/vfs_io_core.h`.
 hot), `src/dirlist/handler.c` + `dirlist/dcksm.c`, `src/write/mv.c` / `mkdir.c` /
 `op_table.c` / `chkpoint.c`, `src/query/checksum_ckscan_common.c` /
 `checksum_ckscan_dispatch.c`, `src/path/op_path.c`; *WebDAV*
-`src/webdav/propfind.c` / `lock.c` / `copy.c` / `fs/copy_engine.c` / `search.c` /
+`src/protocols/webdav/propfind.c` / `lock.c` / `copy.c` / `fs/copy_engine.c` / `search.c` /
 `methods_basic.c` / `namespace.c` / `move.c` / `tpc.c` / `tpc_curl.c`; *S3*
-`src/s3/object.c` / `checksum.c` / `delete_objects.c` /
+`src/protocols/s3/object.c` / `checksum.c` / `delete_objects.c` /
 `multipart_complete_list_parts.c` / `multipart_complete_list_uploads.c`, and the
-**unconfined** (F2-priority) `src/s3/multipart_complete_upload_part_copy.c` /
+**unconfined** (F2-priority) `src/protocols/s3/multipart_complete_upload_part_copy.c` /
 `multipart_helpers.c` (§9.6). **New files:** `tools/ci/check_vfs_seam.sh` +
 `tools/ci/vfs_seam_backlog.txt` (§9.9). **Legitimate non-targets (§9.8):**
 `src/fs/path/beneath.c` / `resolve_confined_ops.c`, `src/core/compat/{namespace_ops,
@@ -1772,7 +1772,7 @@ Families: **O**=open→`vfs_open`, **S**=stat→`vfs_stat`, **D**=opendir→`vfs
 | `write/truncate.c` | O(1) | F5 | `kXR_truncate`-by-path open |
 | `write/chkpoint.c` | O(2) G(3) | F4/F7 | checkpoint journal (gateway-private, §9.7) |
 
-### C.2 WebDAV (`src/webdav`) — 40 sites
+### C.2 WebDAV (`src/protocols/webdav`) — 40 sites
 
 | File | Fam (n) | Phase | Note |
 |---|---|---|---|
@@ -1788,7 +1788,7 @@ Families: **O**=open→`vfs_open`, **S**=stat→`vfs_stat`, **D**=opendir→`vfs
 | `tpc.c` | S(2) G(9) | **F4** | TPC stat + staged-abort **ladder** (migrates as 1 unit) |
 | `tpc_curl.c` | O(2) | F5 | TPC curl src/dst opens |
 
-### C.3 S3 (`src/s3`) — 41 sites
+### C.3 S3 (`src/protocols/s3`) — 41 sites
 
 | File | Fam (n) | Phase | Note |
 |---|---|---|---|
@@ -1808,11 +1808,11 @@ Families: **O**=open→`vfs_open`, **S**=stat→`vfs_stat`, **D**=opendir→`vfs
 ### C.4 The §9.6 raw / unconfined subset (tier-1, separate from the 105) — fix in F1
 
 ```
-src/s3/multipart_complete_upload_part_copy.c:153  open(part_path, O_CREAT|O_TRUNC)   ← raw, no O_NOFOLLOW (write-side asymmetry)
-src/s3/multipart_complete_upload_part_copy.c:160  read()/write() copy loop           ← userspace copy (use copy_range)
-src/s3/multipart_complete_upload_part_copy.c:129  stat(mpu_dir) / :183 stat(part_path)
-src/s3/multipart_complete_list_parts.c:156        lstat(part_path)
-src/s3/multipart_helpers.c:214                    lstat(full)
+src/protocols/s3/multipart_complete_upload_part_copy.c:153  open(part_path, O_CREAT|O_TRUNC)   ← raw, no O_NOFOLLOW (write-side asymmetry)
+src/protocols/s3/multipart_complete_upload_part_copy.c:160  read()/write() copy loop           ← userspace copy (use copy_range)
+src/protocols/s3/multipart_complete_upload_part_copy.c:129  stat(mpu_dir) / :183 stat(part_path)
+src/protocols/s3/multipart_complete_list_parts.c:156        lstat(part_path)
+src/protocols/s3/multipart_helpers.c:214                    lstat(full)
 ```
 
 ### C.5 Legitimate non-targets (allowlisted permanently, never migrate — §9.8)

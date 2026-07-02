@@ -295,7 +295,7 @@ See [extended-metrics.md](./extended-metrics.md) for full details.
 
 ## S3-Compatible Counters
 
-S3-compatible counters are global to the nginx instance and intentionally avoid bucket, object key, access-key, principal, and other client-controlled labels. They cover the path-style REST subset implemented under `src/s3/`.
+S3-compatible counters are global to the nginx instance and intentionally avoid bucket, object key, access-key, principal, and other client-controlled labels. They cover the path-style REST subset implemented under `src/protocols/s3/`.
 
 Metrics:
 

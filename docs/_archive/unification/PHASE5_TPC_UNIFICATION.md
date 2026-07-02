@@ -14,7 +14,7 @@
 Third-Party Copy (TPC) is the operation where the server itself initiates a data transfer between two storage endpoints on behalf of a client. This module supports TPC over two distinct paths:
 
 - **Stream TPC** (`src/tpc/`): Client sends `kXR_prepare` with `kXR_Mv` flag; server uses a SHM key registry and spawns a thread to open a GSI-authenticated XRootD connection to the source.
-- **WebDAV TPC** (`src/webdav/tpc*.c`): Client sends HTTP COPY with `Source:` and `Credential:` headers; server uses libcurl to fetch the source over HTTPS.
+- **WebDAV TPC** (`src/protocols/webdav/tpc*.c`): Client sends HTTP COPY with `Source:` and `Credential:` headers; server uses libcurl to fetch the source over HTTPS.
 
 These two paths share the same *semantic* requirements but currently implement credential extraction, authorization checking, transfer tracking, and metric accounting entirely independently. Duplication means a security fix in one path often misses the other.
 
@@ -49,7 +49,7 @@ The transport layer (SHM+thread for stream, libcurl for WebDAV) remains protocol
 
 Credential for outbound connection comes from `gsi_outbound_certreq.c` (proxy certificate delegation) or `tpc_token.c` (token delegation). **No reuse with WebDAV credential path.**
 
-### WebDAV TPC (`src/webdav/tpc*.c`)
+### WebDAV TPC (`src/protocols/webdav/tpc*.c`)
 
 | File | Purpose |
 |:---|:---|
@@ -73,7 +73,7 @@ Credential extraction in `tpc_cred.c` reads `Credential:` header; independently 
 | Credential validation | `src/auth/gsi/parse.c` (ad-hoc call) | `webdav_verify_proxy_cert()` (ad-hoc call) |
 | Scope check | Manual bitmask on `kXR_prepare` flags | Manual `has_write_scope` check in `tpc.c` |
 | Transfer tracking | `src/tpc/key_registry.c` (SHM) | None — lost on worker restart |
-| Metrics | Not recorded | `src/webdav/metrics.c` partial |
+| Metrics | Not recorded | `src/protocols/webdav/metrics.c` partial |
 | Authorization | Hardcoded in `parse.c` | Hardcoded in `tpc.c` |
 
 ---
@@ -220,7 +220,7 @@ The stream-specific `src/tpc/key_registry.c` is **not deleted** in this phase �
 
 ### Step 1 — Credential Unification
 
-**WebDAV:** Replace `src/webdav/tpc_cred.c` logic with a call to `xrootd_tpc_credential_parse()`. The `Credential:` header value is passed as `raw_credential`. `type` hint = `XROOTD_TPC_CRED_NONE` (auto-detect from header prefix: `"Bearer "` → TOKEN, `"-----BEGIN"` → PROXY).
+**WebDAV:** Replace `src/protocols/webdav/tpc_cred.c` logic with a call to `xrootd_tpc_credential_parse()`. The `Credential:` header value is passed as `raw_credential`. `type` hint = `XROOTD_TPC_CRED_NONE` (auto-detect from header prefix: `"Bearer "` → TOKEN, `"-----BEGIN"` → PROXY).
 
 **Stream:** Replace `src/tpc/tpc_token.c` and the inline GSI delegation in `gsi_outbound_certreq.c` with a call to `xrootd_tpc_credential_parse()`. The kXR delegation key resolves to a raw credential string; pass that directly.
 
@@ -228,7 +228,7 @@ The stream-specific `src/tpc/key_registry.c` is **not deleted** in this phase �
 
 ### Step 2 — Authorization Unification
 
-**WebDAV:** `src/webdav/tpc.c` currently checks authorization with ad-hoc scope flags. Replace with `xrootd_tpc_check_authz(request_ctx->identity, src_path, dst_path, log)`.
+**WebDAV:** `src/protocols/webdav/tpc.c` currently checks authorization with ad-hoc scope flags. Replace with `xrootd_tpc_check_authz(request_ctx->identity, src_path, dst_path, log)`.
 
 **Stream:** `src/tpc/parse.c` authorization check replaced with `xrootd_tpc_check_authz(ctx->identity, src_path, dst_path, log)`.
 
@@ -236,13 +236,13 @@ Both paths now use Phase 2's `xrootd_identity_t` — meaning a token that grants
 
 ### Step 3 — Transfer Registry Integration
 
-**WebDAV:** `src/webdav/tpc_thread.c` registers the transfer with `xrootd_tpc_registry_add()` at launch; calls `xrootd_tpc_registry_update()` on each libcurl progress callback; calls `xrootd_tpc_registry_remove()` on completion.
+**WebDAV:** `src/protocols/webdav/tpc_thread.c` registers the transfer with `xrootd_tpc_registry_add()` at launch; calls `xrootd_tpc_registry_update()` on each libcurl progress callback; calls `xrootd_tpc_registry_remove()` on completion.
 
 **Stream:** `src/tpc/launch.c` registers; `src/tpc/thread.c` updates; `src/tpc/done.c` removes.
 
 ### Step 4 — Progress / Marker Unification
 
-WebDAV TPC sends chunked HTTP response lines (perf markers) via `src/webdav/tpc_marker.c`. Stream TPC has no equivalent (status is in the key registry). After Phase 5:
+WebDAV TPC sends chunked HTTP response lines (perf markers) via `src/protocols/webdav/tpc_marker.c`. Stream TPC has no equivalent (status is in the key registry). After Phase 5:
 
 - A shared `src/tpc/common/progress.c` provides `xrootd_tpc_progress_emit()`.
 - WebDAV TPC calls it to generate marker lines.
@@ -276,11 +276,11 @@ Both paths read progress from the **same** registry entry, so a monitoring endpo
 | `src/tpc/launch.c` | Add `xrootd_tpc_registry_add()` call |
 | `src/tpc/thread.c` | Add `xrootd_tpc_registry_update()` calls |
 | `src/tpc/done.c` | Add `xrootd_tpc_registry_remove()` call |
-| `src/webdav/tpc.c` | Replace auth with `xrootd_tpc_check_authz()` |
-| `src/webdav/tpc_cred.c` | Delegate to `xrootd_tpc_credential_parse()` |
-| `src/webdav/tpc_cred_parse.c` | Keep raw header parsing; remove validation logic (moved to common) |
-| `src/webdav/tpc_thread.c` | Add registry integration |
-| `src/webdav/tpc_marker.c` | Call `xrootd_tpc_progress_emit()` |
+| `src/protocols/webdav/tpc.c` | Replace auth with `xrootd_tpc_check_authz()` |
+| `src/protocols/webdav/tpc_cred.c` | Delegate to `xrootd_tpc_credential_parse()` |
+| `src/protocols/webdav/tpc_cred_parse.c` | Keep raw header parsing; remove validation logic (moved to common) |
+| `src/protocols/webdav/tpc_thread.c` | Add registry integration |
+| `src/protocols/webdav/tpc_marker.c` | Call `xrootd_tpc_progress_emit()` |
 | `src/core/config/config.h` | Add `src/tpc/common/*.c` to `NGX_ADDON_SRCS` |
 
 ---
@@ -291,7 +291,7 @@ TPC is the highest-risk operation in the module. These invariants must be preser
 
 1. **Credential forwarding scope**: A token with read scope on `/store/A` must never be forwarded to authenticate access to `/store/B`. `xrootd_tpc_credential_validate()` checks `identity->scopes` against both source and destination paths.
 2. **Proxy certificate chain length**: Delegated proxies must not exceed configured `proxy_max_chain_depth`. Checked in `xrootd_tpc_credential_validate()`.
-3. **SSRF via Source: URL**: The `Source:` URL must be validated against an allowlist (`xrootd_tpc_allowed_sources`) before curl initiates the connection. This validation already exists in `src/webdav/tpc.c` and must be preserved.
+3. **SSRF via Source: URL**: The `Source:` URL must be validated against an allowlist (`xrootd_tpc_allowed_sources`) before curl initiates the connection. This validation already exists in `src/protocols/webdav/tpc.c` and must be preserved.
 4. **SigV4 credentials never forwarded as TPC credentials**: S3 SigV4 access keys are not valid TPC credentials. `XROOTD_AUTHN_S3KEY` in `identity->auth_method` must cause `xrootd_tpc_check_authz()` to return `NGX_HTTP_FORBIDDEN`.
 5. **Transfer registry overflow**: Registry is SHM-bounded. On overflow, reject new TPC requests with 503 rather than silently dropping old entries.
 

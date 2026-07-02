@@ -76,7 +76,7 @@ The most-used directives on one page. Start here when you know what you want to 
 | `xrootd_srr_share <name> <path> [vos]` | `location` (HTTP) | — | Repeatable. One `storageshares[]` entry; `<path>` is `statvfs`'d for total/used bytes; `[vos]` = comma-separated VO list |
 | `xrootd_srr_endpoint <name> <iftype> <url>` | `location` (HTTP) | — | Repeatable. One `storageendpoints[]` entry (e.g. `webdav davs https://se:8443/`) |
 
-See [`src/srr/README.md`](../../src/srr/README.md) for the full document layout and caveats.
+See [`src/protocols/srr/README.md`](../../src/protocols/srr/README.md) for the full document layout and caveats.
 
 ---
 

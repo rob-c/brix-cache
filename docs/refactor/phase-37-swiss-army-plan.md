@@ -40,7 +40,7 @@ it and silently does the right thing. Re-runs automatically on redirect because
 ## Engine 2 — Just-works auth (matches the nginx module's accepted set)
 
 Server accepts (verified): root:// `gsi, ztn(JWT), krb5, sss, unix` (src/session/login.c
-`&P=`); web `Bearer JWT` (src/webdav/auth_token) + `S3 SigV4` (src/s3/auth_sigv4*);
+`&P=`); web `Bearer JWT` (src/protocols/webdav/auth_token) + `S3 SigV4` (src/protocols/s3/auth_sigv4*);
 plus X.509 proxy/VOMS (src/auth/gsi), macaroons (WebDAV).
 
 **Layer 1 — unified discovery (`lib/sec/cred_discover.c`, new):** centralize the orders
@@ -99,7 +99,7 @@ audience/scope selection among multiple tokens.
    "no token at all" laptop/student case is the biggest just-works miss.
 4. **TPC token delegation still has remaining gaps, but is no longer absent.**
    WebDAV `Credential: oidc-agent` and RFC 8693 `token-exchange` are implemented
-   in `src/webdav/tpc_cred.c`; native root TPC can complete ztn or GSI outbound
+   in `src/protocols/webdav/tpc_cred.c`; native root TPC can complete ztn or GSI outbound
    auth after `kXR_authmore` when configured. Remaining work is automatic
    downscoped token/macaroon minting and broader multihop/native delegation
    polish.

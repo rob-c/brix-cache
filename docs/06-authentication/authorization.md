@@ -136,9 +136,9 @@ subsequent file traffic.
 |---|---|
 | GSI DH key exchange | `src/handshake/` (GSI auth state machine) |
 | Proxy chain verification (stream) | `src/handshake/policy.c`, OpenSSL `X509_verify_cert` |
-| Proxy chain verification (WebDAV) | `src/webdav/auth_cert.c:webdav_verify_proxy_cert()` |
-| TLS auth cache (WebDAV) | `src/webdav/auth_cert.c`, `SSL_get_ex_data` / `SSL_SESSION_get_ex_data` |
-| `X509_V_FLAG_ALLOW_PROXY_CERTS` setup | `src/webdav/postconfig.c:ngx_http_xrootd_webdav_postconfiguration()` (lines 104-106) |
+| Proxy chain verification (WebDAV) | `src/protocols/webdav/auth_cert.c:webdav_verify_proxy_cert()` |
+| TLS auth cache (WebDAV) | `src/protocols/webdav/auth_cert.c`, `SSL_get_ex_data` / `SSL_SESSION_get_ex_data` |
+| `X509_V_FLAG_ALLOW_PROXY_CERTS` setup | `src/protocols/webdav/postconfig.c:ngx_http_xrootd_webdav_postconfiguration()` (lines 104-106) |
 | VOMS AC parsing | `src/auth/voms/loader.c` (dlopen of libvomsapi) |
 | VOMS VO extraction | `src/auth/voms/collect.c:xrootd_collect_voms_vos()` |
 | vomsdir LSC lookup | delegated to libvomsapi |

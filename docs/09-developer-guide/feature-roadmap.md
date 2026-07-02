@@ -10,8 +10,8 @@ pick the one that unblocks your site first.
 **Status:** Complete. COPY with a `Destination:` header is fully implemented as
 of 2026-05-09. All 10 integration tests pass.
 
-**What was done:** Added `webdav_tpc_handle_push()` in `src/webdav/tpc.c`,
-`webdav_tpc_run_curl_push()` in `src/webdav/tpc_curl.c`, two new Prometheus
+**What was done:** Added `webdav_tpc_handle_push()` in `src/protocols/webdav/tpc.c`,
+`webdav_tpc_run_curl_push()` in `src/protocols/webdav/tpc_curl.c`, two new Prometheus
 metric slots (`push_started`, `push_success`), and 10 tests in
 `tests/test_webdav_tpc.py::TestHTTPTPCPush`. The main `handle_copy` dispatcher
 now routes on which header is present (`Source:` → pull, `Destination:` → push,
@@ -31,7 +31,7 @@ HTTP PUT to the destination URL, forwarding the `Authorization:` /
 **Implementation sketch:**
 
 ```c
-/* in src/webdav/tpc.c, in ngx_http_xrootd_webdav_tpc_handle_copy() */
+/* in src/protocols/webdav/tpc.c, in ngx_http_xrootd_webdav_tpc_handle_copy() */
 
 if (source_hdr == NULL && dest_hdr != NULL) {
     /* push mode */
@@ -52,12 +52,12 @@ response (chunked 202 with periodic position updates) is optional for
 interoperability with standard FTS but makes large transfers observable.
 
 **Files to change:**
-- `src/webdav/tpc.c` — add `webdav_tpc_run_curl_push()` and wire into the
+- `src/protocols/webdav/tpc.c` — add `webdav_tpc_run_curl_push()` and wire into the
   dispatch at the top of `ngx_http_xrootd_webdav_tpc_handle_copy()`
-- `src/webdav/webdav.h` — declare `webdav_tpc_run_curl_push()`
+- `src/protocols/webdav/webdav.h` — declare `webdav_tpc_run_curl_push()`
 - `src/observability/metrics/webdav.c` — add `XROOTD_WEBDAV_TPC_PUSH_OK` /
   `XROOTD_WEBDAV_TPC_PUSH_FAIL` event slots
-- `src/webdav/dispatch.c` — OPTIONS Allow header already advertises COPY; no
+- `src/protocols/webdav/dispatch.c` — OPTIONS Allow header already advertises COPY; no
   change needed
 - Tests: `tests/test_webdav_tpc.py` — add push-mode tests against a local
   HTTPS server fixture
@@ -166,7 +166,7 @@ changes; the bound stream closes any stale local fd and the read fails with
  - Implemented `xrootd_macaroon_validate()` in `src/auth/token/macaroon.c` with support for parsing ISO8601 timestamps and WLCG activity caveats.
  - Updated `xrootd_token_validate()` to dispatch Macaroon validation transparently.
  - Added `xrootd_macaroon_secret` directive in the stream module and `xrootd_webdav_macaroon_secret` in the WebDAV module for static secret configuration.
- - Integrated secret parsing into `src/auth/gsi/token.c` and `src/webdav/auth_token.c`.
+ - Integrated secret parsing into `src/auth/gsi/token.c` and `src/protocols/webdav/auth_token.c`.
  - Created Macaroon generation helper and test cases in `tests/test_token_macaroon.py`.
 
 **Why it matters:** Some WLCG sites (particularly those running dCache and
@@ -181,12 +181,12 @@ authenticate.
  **Status:** Complete. Exclusive write locks with xattr-based storage, Depth header support (0/infinity), and XML owner parsing are fully implemented (originally SHM-backed as of 2026-05-09; migrated to the unified xattr prop store).
 
  **What was done:**
- - Added `src/webdav/lock.c` (lock lifecycle) with lock state persisted as the `user.nginx_xrootd.lock` xattr via `src/webdav/prop_xattr.c`; request parsing lives in `src/webdav/locks/request.c`.
- - Integrated LOCK/UNLOCK handlers in `src/webdav/dispatch.c` with client request body parsing.
+ - Added `src/protocols/webdav/lock.c` (lock lifecycle) with lock state persisted as the `user.nginx_xrootd.lock` xattr via `src/protocols/webdav/prop_xattr.c`; request parsing lives in `src/protocols/webdav/locks/request.c`.
+ - Integrated LOCK/UNLOCK handlers in `src/protocols/webdav/dispatch.c` with client request body parsing.
  - Implemented XML body parsing in `lock.c` for custom `<D:owner>` metadata using safety-first `webdav_strnstr`.
  - Supported `Depth: 0` (shallow) and `Depth: infinity` (recursive) lock scope.
- - Updated OPTIONS advertisement in `src/webdav/methods_basic.c`.
- - Added `lockdiscovery` and `supportedlock` properties in `src/webdav/propfind.c`.
+ - Updated OPTIONS advertisement in `src/protocols/webdav/methods_basic.c`.
+ - Added `lockdiscovery` and `supportedlock` properties in `src/protocols/webdav/propfind.c`.
  - Added `xrootd_webdav_lock_timeout` directive for site-specific policy.
  - Enforced lock checks in `PUT`, `DELETE`, `MKCOL`, `MOVE`, and `COPY`.
  - Added 9 integration tests in `tests/test_http_webdav_lock.py` covering timeout, conflict, depth, and owner parsing.
@@ -195,7 +195,7 @@ authenticate.
 
 ## 6. WebDAV server-side COPY ✓ IMPLEMENTED
 
-**Status:** Complete. RFC 4918 §9.8 server-side copy is fully implemented in `src/webdav/copy.c`.
+**Status:** Complete. RFC 4918 §9.8 server-side copy is fully implemented in `src/protocols/webdav/copy.c`.
 
 **What was done:**
 - Implemented `webdav_handle_copy()` with `copy_file_range(2)` support and fallback to pread/write.
@@ -246,8 +246,8 @@ confined-open helpers to prevent path traversal.
 full lifecycle, abort, negative cases, and security invariants.
 
 **Files:**
-- `src/s3/multipart.c` — initiate, abort, complete handlers + query helpers
-- `src/s3/handler.c` — PUT UploadPart routing + POST Complete dispatch
+- `src/protocols/s3/multipart.c` — initiate, abort, complete handlers + query helpers
+- `src/protocols/s3/handler.c` — PUT UploadPart routing + POST Complete dispatch
 - `tests/test_s3_multipart.py` — full integration test suite
 
 ---
@@ -269,7 +269,7 @@ pull and push is fully implemented as of 2026-05-10.
 
 **What was done:**
 - Wired up existing `tpc_cred.c` implementation into the WebDAV COPY handler
-  (`src/webdav/tpc.c`). The `Credential:` header is now parsed in both pull
+  (`src/protocols/webdav/tpc.c`). The `Credential:` header is now parsed in both pull
   and push modes, and delegated tokens are injected into the curl subprocess
   as `Authorization: Bearer` headers.
 - Added nginx directives:
@@ -330,12 +330,12 @@ curl -X COPY https://server:8443//local/path \
 ```
 
 **Files changed:**
-- `src/webdav/tpc.c` — wire up credential delegation in pull and push handlers
-- `src/webdav/tpc_cred.c` — add `webdav_tpc_cred_metric_increment` helper
-- `src/webdav/tpc_cred.h` — declare metric increment function
-- `src/webdav/tpc_config.c` — merge OAuth2/OIDC config fields
-- `src/webdav/webdav.h` — add `tpc_cred` config field and declarations
-- `src/webdav/module.c` — add nginx directives for token endpoint, client ID/secret, scope
+- `src/protocols/webdav/tpc.c` — wire up credential delegation in pull and push handlers
+- `src/protocols/webdav/tpc_cred.c` — add `webdav_tpc_cred_metric_increment` helper
+- `src/protocols/webdav/tpc_cred.h` — declare metric increment function
+- `src/protocols/webdav/tpc_config.c` — merge OAuth2/OIDC config fields
+- `src/protocols/webdav/webdav.h` — add `tpc_cred` config field and declarations
+- `src/protocols/webdav/module.c` — add nginx directives for token endpoint, client ID/secret, scope
 - `src/observability/metrics/metrics.h` — add TPC cred metrics enum and shared memory field
 - `src/observability/metrics/webdav.c` — add TPC cred metrics export
  
@@ -455,7 +455,7 @@ what is missing. Items are grouped by feature area.
 ### HTTP-TPC push and pull (items 1, 10)
 
 - ~~**No Performance-Marker streaming (chunked 202)**~~ ✓ **DONE:**
-  `src/webdav/tpc_marker.c` streams WLCG `Performance-Marker:` blocks in a
+  `src/protocols/webdav/tpc_marker.c` streams WLCG `Performance-Marker:` blocks in a
   chunked `202 Accepted` body when `xrootd_webdav_tpc_marker_interval` is set.
 
 - **No automatic credential-mode fallback:** `tpc_cred.c` — if `oidc-agent`
@@ -517,13 +517,13 @@ what is missing. Items are grouped by feature area.
 
 - ~~**Static secret only — no key rotation**~~ ✓ **DONE:** `xrootd_macaroon_secret_old`
   grace-period directive added to both stream (`src/stream/module.c`) and WebDAV
-  (`src/webdav/module.c`) modules. `src/auth/gsi/token.c` and `src/webdav/auth_token.c`
+  (`src/protocols/webdav/module.c`) modules. `src/auth/gsi/token.c` and `src/protocols/webdav/auth_token.c`
   now fall back to the old secret when primary validation fails, allowing zero-
   downtime key rotation without reloading nginx.
 
 ### WebDAV LOCK / UNLOCK (item 5)
 
-- ~~**Shared locks always treated as exclusive**~~ ✓ **DONE:** `src/webdav/lock.c`
+- ~~**Shared locks always treated as exclusive**~~ ✓ **DONE:** `src/protocols/webdav/lock.c`
   now parses `<D:lockscope>` in the request body and sets `e->exclusive`
   accordingly. Conflict detection treats shared+exclusive and exclusive+any as
   conflicting; shared+shared is permitted. `lockdiscovery` in PROPFIND and the
@@ -544,7 +544,7 @@ what is missing. Items are grouped by feature area.
 
 ### WebDAV PROPFIND (items 5, 6)
 
-- **Limited property set:** `src/webdav/propfind.c` now returns
+- **Limited property set:** `src/protocols/webdav/propfind.c` now returns
   `resourcetype`, `getcontentlength`, `getlastmodified`, `getetag`,
   `creationdate`, and `displayname`. Still missing:
   - `quota-available-bytes` / `quota-used-bytes` (RFC 4331) — used by rucio
@@ -552,7 +552,7 @@ what is missing. Items are grouped by feature area.
   - `supported-report-set` — needed for clients that probe for CalDAV/CardDAV
     collision
 
-- **Former PROPPATCH gap** ✓ **DONE:** `src/webdav/methods_basic.c` now
+- **Former PROPPATCH gap** ✓ **DONE:** `src/protocols/webdav/methods_basic.c` now
   implements `webdav_handle_proppatch()` per RFC 4918 §9.2: drains the request
   body and returns 207 Multi-Status with `200 OK` per property. Dead properties
   are not stored (acceptable per the RFC). Unblocks Cyberduck and rucio upload
@@ -560,7 +560,7 @@ what is missing. Items are grouped by feature area.
 
 ### WebDAV server-side COPY (item 6)
 
-- ~~**No ETag enforcement on `Overwrite: F`**~~ ✓ **DONE:** `src/webdav/copy.c`
+- ~~**No ETag enforcement on `Overwrite: F`**~~ ✓ **DONE:** `src/protocols/webdav/copy.c`
   now implements `webdav_check_copy_conditionals()` (called from
   `webdav_handle_copy()`). `If-Match: "*"` requires the destination to exist;
   `If-Match: "<etag>"` requires an exact ETag match. `If-None-Match: "*"` fails
@@ -570,26 +570,26 @@ what is missing. Items are grouped by feature area.
 ### S3 multipart upload (item 8)
 
 - **Former `ListParts` gap** ✓ **DONE:** `GET /<bucket>/<key>?uploadId=<id>`
-  is now handled by `s3_handle_list_parts()` in `src/s3/multipart.c`. Scans the
+  is now handled by `s3_handle_list_parts()` in `src/protocols/s3/multipart.c`. Scans the
   MPU staging directory for `part.<N>` files, sorts by part number, and emits a
   valid `ListPartsResult` XML response.
 
-- **Former `UploadPartCopy` gap** ✓ **DONE:** `src/s3/multipart.c` now
+- **Former `UploadPartCopy` gap** ✓ **DONE:** `src/protocols/s3/multipart.c` now
   implements `s3_handle_upload_part_copy()`. When `PUT /<bucket>/<key>?partNumber=N&uploadId=<id>`
-  carries an `x-amz-copy-source:` header, `src/s3/handler.c` dispatches to this
+  carries an `x-amz-copy-source:` header, `src/protocols/s3/handler.c` dispatches to this
   handler instead of starting the body reader. Validates the copy-source path
   against `root_canon` to prevent traversal, copies via a 64 KiB read/write loop,
   and returns `<CopyPartResult>` XML with ETag and LastModified.
 
 - **Former `ListMultipartUploads` gap** ✓ **DONE:** `GET /<bucket>/?uploads`
-  is now handled by `s3_handle_list_multipart_uploads()` in `src/s3/multipart.c`.
+  is now handled by `s3_handle_list_multipart_uploads()` in `src/protocols/s3/multipart.c`.
   Scans the bucket root for `.*.mpu-*` hidden directories, parses key and
   upload-id from each name, and emits a `ListMultipartUploadsResult` XML response
   (capped at 1000 entries per page, matching the AWS S3 default).
 
 - **Former presigned URL authentication gap** ✓ **DONE:**
-  `src/s3/auth_sigv4_parse.c`, `src/s3/auth_sigv4_canonical.c`, and
-  `src/s3/auth_sigv4_verify.c` now accept SigV4 query-string authentication
+  `src/protocols/s3/auth_sigv4_parse.c`, `src/protocols/s3/auth_sigv4_canonical.c`, and
+  `src/protocols/s3/auth_sigv4_verify.c` now accept SigV4 query-string authentication
   (`X-Amz-Signature`) and enforce `X-Amz-Expires`.
 
 - **Former STS-shaped session-token compatibility gap** ✓ **STATIC-SECRET COMPAT ADDED:**
@@ -690,7 +690,7 @@ mechanism are all implemented (M6 steps 1–6). Remaining gaps:
   if exceeded). Silent truncation at 4096 bytes is gone.
 
 - ~~**S3 `ListObjectsV2` `fetch-owner` and `encoding-type` not handled**~~ ✓ **DONE:**
-  `src/s3/list.c` now parses both query parameters. `fetch-owner=true` adds an
+  `src/protocols/s3/list.c` now parses both query parameters. `fetch-owner=true` adds an
   `<Owner>` element (using the configured `access_key` as both ID and display name)
   to each `<Contents>` entry. `encoding-type=url` percent-encodes key characters
 ---

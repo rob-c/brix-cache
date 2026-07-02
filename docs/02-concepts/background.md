@@ -87,7 +87,7 @@ The native XRootD path is session-oriented: one TCP connection logs in, opens a
 file handle, reads or writes by handle, and closes it. The WebDAV path is
 HTTP-oriented: each `GET`, `PUT`, `HEAD`, or `PROPFIND` is an HTTP request with
 headers, status codes, and optional TLS client authentication. The S3-compatible
-path is also HTTP-oriented, but it dispatches to `src/s3/` and maps
+path is also HTTP-oriented, but it dispatches to `src/protocols/s3/` and maps
 `GET`, `HEAD`, `PUT`, `DELETE`, and `ListObjectsV2` requests onto filesystem
 objects under the configured bucket root.
 
@@ -95,7 +95,7 @@ These views can serve the same files, but they do not share exactly the same
 wire semantics. For example, native `kXR_read` returns XRootD response frames,
 WebDAV `GET` returns HTTP headers and a response body, and S3-compatible
 `GET` returns S3-style headers and errors. This is why the source tree has
-separate `src/read/`, `src/webdav/`, and `src/s3/` implementations.
+separate `src/read/`, `src/protocols/webdav/`, and `src/protocols/s3/` implementations.
 
 ## What is an nginx stream module?
 

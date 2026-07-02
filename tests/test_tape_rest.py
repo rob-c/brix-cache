@@ -1,7 +1,7 @@
 """
 tests/test_tape_rest.py
 
-Phase 35 / Phase 2 — WLCG HTTP Tape REST API (src/webdav/tape_rest.c).
+Phase 35 / Phase 2 — WLCG HTTP Tape REST API (src/protocols/webdav/tape_rest.c).
 
 Self-contained nginx: a stream root:// server with FRM enabled (so the durable
 queue + frm_singleton_queue exist in the worker) plus an http WebDAV location

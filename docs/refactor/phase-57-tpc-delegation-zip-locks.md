@@ -396,7 +396,7 @@ header time → **reject** such members (size required at open).
   for `xrdcl.unzip=` on a key boundary (`start`/`&`/`?` — same boundary check as
   `:67`), copy the member name.
 - WebDAV/S3 GET: `?xrdcl.unzip=<member>` query arg + documented `X-Xrootd-Unzip`
-  header alias, parsed near the Range handling in `src/webdav/get.c:68`.
+  header alias, parsed near the Range handling in `src/protocols/webdav/get.c:68`.
 - Validate the member name: reject empty, leading `/`, any `..` component, NUL —
   reuse the posture of `xrootd_reject_dotdot_path` (`open_request.c:397`). (Intra-
   archive only; cannot escape the fs, but a hostile name must not be trusted.)
@@ -476,7 +476,7 @@ CD read (e.g. ≤ 16 MiB) to bound memory on hostile archives.
 - `src/read/read.c`, `readv.c`, `pgread.c`, `stat.c`, `close.c`: one early
   `if (fh->zip_mode)` dispatch to `zip_member.c` helpers (`xrootd_zip_read`,
   `..._stat`, `..._close`) — same shape as the `slice_mode` branch.
-- `src/webdav/get.c` (+ optional `src/s3/get.c`): with the member arg, open the
+- `src/protocols/webdav/get.c` (+ optional `src/protocols/s3/get.c`): with the member arg, open the
   archive via VFS, resolve the member; stored → `xrootd_http_serve_file_ranged`
   with shifted offset (`get.c:226`); deflate → inflate into the `ngx_chain_t`
   (synthesized bytes are **memory-backed** `b->memory=1` in BOTH TLS and cleartext
@@ -488,7 +488,7 @@ CD read (e.g. ≤ 16 MiB) to bound memory on hostile archives.
 (register `.c` in `./config` — see C0).
 **Modify:** `src/core/types/file.h` (handle fields), `src/read/open_request.c`
 (`open_negotiate_zip_member()` + dispatch), `src/read/{read,readv,pgread,stat,close}.c`
-(zip_mode branch), `src/webdav/get.c` (+ `s3/get.c` optional), `src/core/config/directives.c`.
+(zip_mode branch), `src/protocols/webdav/get.c` (+ `s3/get.c` optional), `src/core/config/directives.c`.
 **Build:** `./configure` (new sources + directives).
 
 ⚠️ **Full rebuild required** after the `file.h` struct change (memory
@@ -530,7 +530,7 @@ old `xrootd_file_t` size SIGSEGVs. Run `make clean && make -j$(nproc)`.
 
 | Behavior | Evidence | State |
 |---|---|---|
-| Locks persisted as one xattr on the resource (survive restart **and** reload) | `src/webdav/lock.c:4-10`; `src/webdav/prop_xattr.c:60-194` | **Done** |
+| Locks persisted as one xattr on the resource (survive restart **and** reload) | `src/protocols/webdav/lock.c:4-10`; `src/protocols/webdav/prop_xattr.c:60-194` | **Done** |
 | Atomic create across workers (`XATTR_CREATE`→EEXIST→423) | `prop_xattr.c:122-150`; `lock.c:479-484` | Done |
 | xattr value via the impersonating VFS xattr surface (Phase 40) | `prop_xattr.c:36-54,136-138` | Done |
 | Opt-in startup sweep → ephemeral semantics (default **off**) | `lock.c:77-99`; `config.c:108,210`; `module.c:788` | Done |
@@ -615,18 +615,18 @@ Keep one xattr, store **multiple shared holders** as a bounded array inside it:
 
 ## W3.4 File-by-file changes
 **Modify:**
-- `src/webdav/webdav.h` — `webdav_lock_xattr_t` (`:108`): add `expires_wall`
+- `src/protocols/webdav/webdav.h` — `webdav_lock_xattr_t` (`:108`): add `expires_wall`
   (`int64_t`), `is_null` (`unsigned:1`), optional shared-holder array; bump
   `WEBDAV_LOCK_XATTR_MAXLEN` (`:86`) if doing W3.3.b.
-- `src/webdav/prop_xattr.c` — encode/decode v2 schema (`:60-120`): wall-clock
+- `src/protocols/webdav/prop_xattr.c` — encode/decode v2 schema (`:60-120`): wall-clock
   `expires`, `v=2`, `null=`, shared `h=` groups.
-- `src/webdav/lock.c` — comparisons → wall-clock (`:117,210,304,442,524`);
+- `src/protocols/webdav/lock.c` — comparisons → wall-clock (`:117,210,304,442,524`);
   lock-null reaping (unlock/expiry); shared merge (`:461-491`); remaining-seconds
   math (`:117-118`).
-- `src/webdav/locks/request.c` — `webdav_lock_parse_timeout` returns
+- `src/protocols/webdav/locks/request.c` — `webdav_lock_parse_timeout` returns
   `ngx_time()+sec` (`int64_t`).
 **No `./configure`** (no new directive required). No struct-size ABI risk beyond
-WebDAV objects, but a clean rebuild of `src/webdav/*` is prudent.
+WebDAV objects, but a clean rebuild of `src/protocols/webdav/*` is prudent.
 
 ## W3.5 Tests (extend `tests/test_http_webdav_lock.py` — currently 9 cases)
 - `test_lock_survives_reload` — LOCK → `nginx -s reload` → PUT w/o token → 423;
@@ -826,7 +826,7 @@ Remove `authmore_count` from `src/net/upstream/upstream_internal.h:73`; add an
 Apply the same one-line early dispatch in `readv.c`, `pgread.c` (→ reject/fallback
 for deflate), `stat.c` (→ `xrootd_zip_stat`), `close.c` (→ free `zip_inflate`).
 
-### B2.4 `src/webdav/locks/request.c:8-39` — wall-clock timeout
+### B2.4 `src/protocols/webdav/locks/request.c:8-39` — wall-clock timeout
 ```c
 -ngx_msec_t
 +int64_t                                  /* absolute Unix seconds */
@@ -844,7 +844,7 @@ Update the declaration in `locks/request.h:13` to `int64_t`. Note
 `conf->lock_timeout` is currently in **seconds** as used here (`timeout` is a
 seconds count, `Second-N`), so no unit change for the directive.
 
-### B2.5 `src/webdav/prop_xattr.c:60-120` — v2 schema (wall-clock + null + shared)
+### B2.5 `src/protocols/webdav/prop_xattr.c:60-120` — v2 schema (wall-clock + null + shared)
 ```c
  ngx_int_t
  webdav_lock_xattr_encode(const webdav_lock_xattr_t *e, char *out, size_t outsz)
@@ -869,7 +869,7 @@ Decode (`:74-120`): add `v`, `null`, switch `expires` parse to
 expired** (`return NGX_DECLINED` after setting a 0 expiry) — the legacy-monotonic
 migration guard. (Shared `h=` group parsing only if W3.3.b is taken.)
 
-### B2.6 `src/webdav/lock.c` — comparison swaps (5 sites)
+### B2.6 `src/protocols/webdav/lock.c` — comparison swaps (5 sites)
 At `:117,210,304,442,524` replace `e.expires {>,<=} ngx_current_msec` with
 `e.expires_wall {>,<=} (int64_t) ngx_time()`; at `:117-118` the remaining-seconds
 display becomes `(e.expires_wall > now_s) ? (ngx_uint_t)(e.expires_wall - now_s) : 0`

@@ -92,8 +92,8 @@ extended attributes (keyed by mtime+size, invalidated on write) via the shared
 - Spine: `src/core/compat/checksum.{c,h}` (enum, `is_u64`, `xrootd_checksum_u64_fd`, hex),
   `src/core/compat/checksum_core.c` (`xrootd_cksum_u64_fd`), `src/core/compat/integrity_info.*`.
 - root://: `src/query/config.c`, `src/query/checksum_ckscan_*.c`.
-- WebDAV: `src/webdav/xrdhttp.c` (inherits via the fd-based Digest path).
-- S3: `src/s3/util.c`, `object.c`, `put.c`, `handler.c` (CORS),
+- WebDAV: `src/protocols/webdav/xrdhttp.c` (inherits via the fd-based Digest path).
+- S3: `src/protocols/s3/util.c`, `object.c`, `put.c`, `handler.c` (CORS),
   `multipart_complete_body.c`, `s3.h`.
 - Client: `client/lib/checksum.c`, `client/apps/xrdcrc64.c`.
 - Tests: `tests/unit/test_crc64.c` (kernel + combine), `tests/test_crc64.py`

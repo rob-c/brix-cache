@@ -128,12 +128,12 @@ For a new opcode, add equivalent success and error-path tests.
 
 ## 7. Adding a new WebDAV method
 
-Use `src/webdav/copy.c` or `src/webdav/move.c` as a template — they are both
+Use `src/protocols/webdav/copy.c` or `src/protocols/webdav/move.c` as a template — they are both
 recent, clean, and follow all current conventions.
 
 ### Step 1 — Create the handler file
 
-Create `src/webdav/mymethod.c`. The handler signature must match:
+Create `src/protocols/webdav/mymethod.c`. The handler signature must match:
 
 ```c
 ngx_int_t
@@ -162,7 +162,7 @@ webdav_handle_mymethod(ngx_http_request_t *r)
 
 ### Step 2 — Declare in webdav.h
 
-Add to the "HTTP methods" section of `src/webdav/webdav.h`:
+Add to the "HTTP methods" section of `src/protocols/webdav/webdav.h`:
 
 ```c
 ngx_int_t webdav_handle_mymethod(ngx_http_request_t *r);
@@ -170,7 +170,7 @@ ngx_int_t webdav_handle_mymethod(ngx_http_request_t *r);
 
 ### Step 3 — Add dispatch routing
 
-In `src/webdav/dispatch.c`, before the final `return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED)`:
+In `src/protocols/webdav/dispatch.c`, before the final `return webdav_metrics_return(r, NGX_HTTP_NOT_ALLOWED)`:
 
 ```c
 if (r->method_name.len == 8
@@ -193,7 +193,7 @@ require both.
 
 ### Step 4 — Update the Allow header
 
-In `src/webdav/methods_basic.c`, add the new method name to the
+In `src/protocols/webdav/methods_basic.c`, add the new method name to the
 `conf->allow_write` branch of the Allow header value.
 
 ### Step 5 — Add to the build system
@@ -201,7 +201,7 @@ In `src/webdav/methods_basic.c`, add the new method name to the
 In the `config` file (project root), add to the webdav source list:
 
 ```sh
-$ngx_addon_dir/src/webdav/mymethod.c \
+$ngx_addon_dir/src/protocols/webdav/mymethod.c \
 ```
 
 ### Step 6 — Re-run ./configure
@@ -269,13 +269,13 @@ ngx_int_t webdav_metrics_return(ngx_http_request_t *r, ngx_int_t rc);
 
 ## 8. Adding a new S3 endpoint
 
-Use `src/s3/multipart.c` as a template for POST-body handlers and
-`src/s3/put.c` for PUT-body handlers.
+Use `src/protocols/s3/multipart.c` as a template for POST-body handlers and
+`src/protocols/s3/put.c` for PUT-body handlers.
 
 ### Step 1 — Identify the routing key
 
 S3 endpoints are distinguished by HTTP method + query string combination.
-The main handler in `src/s3/handler.c` checks in this order:
+The main handler in `src/protocols/s3/handler.c` checks in this order:
 
 1. Query string presence: `?uploads`, `?partNumber=N&uploadId=ID`, `?uploadId=ID`
 2. HTTP method: GET, HEAD, PUT, POST, DELETE
@@ -285,9 +285,9 @@ Decide where your new operation fits in this routing tree.
 
 ### Step 2 — Add the handler function
 
-For simple operations, add the handler directly in `src/s3/handler.c` or
-`src/s3/put.c`. For operations with a body (POST-based like CompleteMultipart),
-add in `src/s3/multipart.c` and use the `ngx_http_read_client_request_body`
+For simple operations, add the handler directly in `src/protocols/s3/handler.c` or
+`src/protocols/s3/put.c`. For operations with a body (POST-based like CompleteMultipart),
+add in `src/protocols/s3/multipart.c` and use the `ngx_http_read_client_request_body`
 + callback pattern:
 
 ```c
@@ -314,7 +314,7 @@ s3_handle_myop(ngx_http_request_t *r, ...)
 
 ### Step 3 — Add routing in handler.c
 
-In `ngx_http_s3_handler()` in `src/s3/handler.c`, add a routing case
+In `ngx_http_s3_handler()` in `src/protocols/s3/handler.c`, add a routing case
 before the generic method checks:
 
 ```c
@@ -326,7 +326,7 @@ if (/* condition */) {
 
 ### Step 4 — Add XML response helpers (if needed)
 
-S3 XML responses follow the pattern in `src/s3/util.c`. Use `ngx_snprintf`
+S3 XML responses follow the pattern in `src/protocols/s3/util.c`. Use `ngx_snprintf`
 or a simple string buffer to build the XML, then send with
 `ngx_http_send_header` + response body chain.
 

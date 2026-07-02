@@ -74,13 +74,13 @@ def test_http_phase_handlers_present():
     assert "xrootd_http_mirror_precontent_handler" in h
     assert "ngx_http_subrequest" in h
     assert "NGX_HTTP_SUBREQUEST_BACKGROUND" in h
-    pc = _read("src/webdav/postconfig.c")
+    pc = _read("src/protocols/webdav/postconfig.c")
     assert "NGX_HTTP_PRECONTENT_PHASE" in pc
     assert "xrootd_http_mirror_precontent_handler" in pc
 
 
 def test_directives_registered():
-    wd = _read("src/webdav/module.c")
+    wd = _read("src/protocols/webdav/module.c")
     for name in ("xrootd_mirror_url", "xrootd_mirror_methods",
                  "xrootd_mirror_sample", "xrootd_mirror_strip_auth"):
         assert name in wd, name
@@ -247,7 +247,7 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
     # Default merge is 0 (off) on both surfaces.
     assert "conf->mirror.mirror_writes,\n                         prev->mirror.mirror_writes, 0" \
         in _read("src/core/config/server_conf.c")
-    assert "prev->mirror.mirror_writes, 0" in _read("src/webdav/config.c")
+    assert "prev->mirror.mirror_writes, 0" in _read("src/protocols/webdav/config.c")
 
 
 # --------------------------------------------------------------------------- #

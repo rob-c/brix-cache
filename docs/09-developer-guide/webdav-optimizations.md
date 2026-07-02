@@ -34,8 +34,8 @@ Expected benefits:
 
 Relevant code:
 
-- `src/webdav/config.c`
-- `src/webdav/path.c`
+- `src/protocols/webdav/config.c`
+- `src/protocols/webdav/path.c`
 
 ---
 
@@ -94,7 +94,7 @@ content is not served after mutation.
 Relevant code:
 
 - `src/fs/fd_cache.c`
-- `src/webdav/get.c`
+- `src/protocols/webdav/get.c`
 
 ---
 
@@ -120,7 +120,7 @@ Expected benefits:
 
 Relevant code:
 
-- `src/webdav/get.c`
+- `src/protocols/webdav/get.c`
 - `src/fs/fd_cache.c`
 
 ---
@@ -152,7 +152,7 @@ through the SSL stack.
 
 Relevant code:
 
-- `src/webdav/get.c`
+- `src/protocols/webdav/get.c`
 - `src/fs/fd_cache.c`
 
 ---
@@ -206,8 +206,8 @@ Expected benefits:
 
 Relevant code:
 
-- `src/webdav/put.c`
-- `src/webdav/io.c`
+- `src/protocols/webdav/put.c`
+- `src/protocols/webdav/io.c`
 
 ---
 
@@ -232,8 +232,8 @@ Expected benefits:
 
 Relevant code:
 
-- `src/webdav/put.c`
-- `src/webdav/io.c`
+- `src/protocols/webdav/put.c`
+- `src/protocols/webdav/io.c`
 
 ---
 
@@ -272,7 +272,7 @@ Relevant tests:
 
 Relevant code:
 
-- `src/webdav/auth_cert.c`
-- `src/webdav/pki.c`
+- `src/protocols/webdav/auth_cert.c`
+- `src/protocols/webdav/pki.c`
 - `src/auth/crypto/pki_load.c`
 - `src/auth/crypto/pki_check.c`

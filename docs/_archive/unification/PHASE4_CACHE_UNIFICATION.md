@@ -57,12 +57,12 @@ src/read/open_cache.c
 
 ### WebDAV Cache Path (Current)
 
-- **Reads:** No cache integration. `src/webdav/get.c` opens the origin path directly.
-- **Writes (TPC only):** `src/webdav/tpc.c` calls `src/fs/cache/writethrough_decision.c` to decide whether to write through, then `writethrough_flush.c`.
+- **Reads:** No cache integration. `src/protocols/webdav/get.c` opens the origin path directly.
+- **Writes (TPC only):** `src/protocols/webdav/tpc.c` calls `src/fs/cache/writethrough_decision.c` to decide whether to write through, then `writethrough_flush.c`.
 
 ### S3 Cache Path (Current)
 
-None. `src/s3/object.c` opens the origin path directly every time.
+None. `src/protocols/s3/object.c` opens the origin path directly every time.
 
 ---
 

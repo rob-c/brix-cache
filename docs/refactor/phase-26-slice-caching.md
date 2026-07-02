@@ -38,7 +38,7 @@ No separate implementation per protocol.
                  └────────────┬──────────────────┬───────────────────┘
                               │                  │
               ┌───────────────▼──┐       ┌───────▼─────────────────┐
-              │ src/webdav/get.c  │       │  src/read/read.c        │
+              │ src/protocols/webdav/get.c  │       │  src/read/read.c        │
               │ HTTP GET handler  │       │  kXR_read handler       │
               │ (slice-aware)     │       │  (slice-aware)          │
               └───────────────┬──┘       └───────┬─────────────────┘
@@ -408,7 +408,7 @@ big-endian encoding and response parsing.  The existing whole-file fill loop in
 
 ## Step C — WebDAV GET Slice Serving
 
-**Modified file:** `src/webdav/get.c`
+**Modified file:** `src/protocols/webdav/get.c`
 
 When `conf->cache_slice_size > 0` and the cache is enabled, replace the existing
 single-file `xrootd_cache_file_ready()` check with the slice-aware path:
@@ -887,7 +887,7 @@ All 3 files must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`.
 
 | File | Change |
 |---|---|
-| `src/webdav/get.c` | Add `webdav_get_slice()` and `webdav_get_slice_with_fill()` |
+| `src/protocols/webdav/get.c` | Add `webdav_get_slice()` and `webdav_get_slice_with_fill()` |
 | `src/read/read.c` | Add `xrootd_read_from_slices()` and dispatch guard |
 | `src/fs/cache/cache_internal.h` | Add `xrootd_slice_fill_t` struct |
 | `src/fs/cache/evict_candidates.c` | Add paired-eviction logic for slice file sets |

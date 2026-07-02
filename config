@@ -390,21 +390,21 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/read/open.h \
                         $ngx_addon_dir/src/read/prefetch.h \
                         $ngx_addon_dir/src/read/read.h \
-                        $ngx_addon_dir/src/ssi/ssi.h \
-                        $ngx_addon_dir/src/ssi/ssi_rrinfo.h \
-                        $ngx_addon_dir/src/ssi/ssi_service.h \
-                        $ngx_addon_dir/src/ssi/ssi_reply.h \
-                        $ngx_addon_dir/src/ssi/ssi_req.h \
-                        $ngx_addon_dir/src/ssi/respbuf.h \
-                        $ngx_addon_dir/src/ssi/provider.h \
-                        $ngx_addon_dir/src/ssi/session.h \
-                        $ngx_addon_dir/src/ssi/registry.h \
-                        $ngx_addon_dir/src/ssi/deliver.h \
-                        $ngx_addon_dir/src/ssi/svc_cta/pb_wire.h \
-                        $ngx_addon_dir/src/ssi/svc_cta/cta_pb.h \
-                        $ngx_addon_dir/src/ssi/svc_cta/cta_queue.h \
-                        $ngx_addon_dir/src/ssi/svc_cta/cta_exec.h \
-                        $ngx_addon_dir/src/ssi/svc_cta/cta_service.h \
+                        $ngx_addon_dir/src/protocols/ssi/ssi.h \
+                        $ngx_addon_dir/src/protocols/ssi/ssi_rrinfo.h \
+                        $ngx_addon_dir/src/protocols/ssi/ssi_service.h \
+                        $ngx_addon_dir/src/protocols/ssi/ssi_reply.h \
+                        $ngx_addon_dir/src/protocols/ssi/ssi_req.h \
+                        $ngx_addon_dir/src/protocols/ssi/respbuf.h \
+                        $ngx_addon_dir/src/protocols/ssi/provider.h \
+                        $ngx_addon_dir/src/protocols/ssi/session.h \
+                        $ngx_addon_dir/src/protocols/ssi/registry.h \
+                        $ngx_addon_dir/src/protocols/ssi/deliver.h \
+                        $ngx_addon_dir/src/protocols/ssi/svc_cta/pb_wire.h \
+                        $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_pb.h \
+                        $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_queue.h \
+                        $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_exec.h \
+                        $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_service.h \
                         $ngx_addon_dir/src/net/cms/cns.h \
                         $ngx_addon_dir/src/read/stat.h \
                         $ngx_addon_dir/src/read/statx.h \
@@ -443,9 +443,9 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/core/compat/fs_usage.h \
                         $ngx_addon_dir/src/core/compat/http_body.h \
                         $ngx_addon_dir/src/core/compat/http_conditionals.h \
-                        $ngx_addon_dir/src/shared/file_serve.h \
-                        $ngx_addon_dir/src/shared/http_cache_fill.h \
-                        $ngx_addon_dir/src/shared/http_serve_offload.h \
+                        $ngx_addon_dir/src/protocols/shared/file_serve.h \
+                        $ngx_addon_dir/src/protocols/shared/http_cache_fill.h \
+                        $ngx_addon_dir/src/protocols/shared/http_serve_offload.h \
                         $ngx_addon_dir/src/core/compat/http_file_response.h \
                         $ngx_addon_dir/src/core/compat/http_headers.h \
                         $ngx_addon_dir/src/core/compat/error_mapping.h \
@@ -496,9 +496,9 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/auth/authz/auth_gate_l1.h \
                         $ngx_addon_dir/src/auth/token/token_cache.h \
                         $ngx_addon_dir/src/auth/token/worker_cache.h"
-ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
-                        $ngx_addon_dir/src/dig/dig.h \
-                        $ngx_addon_dir/src/webdav/tape_rest.h \
+ngx_xrootd_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
+                        $ngx_addon_dir/src/protocols/dig/dig.h \
+                        $ngx_addon_dir/src/protocols/webdav/tape_rest.h \
                         $ngx_addon_dir/src/net/mirror/mirror.h \
                         $ngx_addon_dir/src/net/mirror/http_mirror.h \
                         $ngx_addon_dir/src/fs/vfs.h \
@@ -506,23 +506,23 @@ ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
                         $ngx_addon_dir/src/fs/cache/open.h \
-                        $ngx_addon_dir/src/webdav/xrdhttp.h \
+                        $ngx_addon_dir/src/protocols/webdav/xrdhttp.h \
                         $ngx_addon_dir/src/core/compat/time.h \
-                        $ngx_addon_dir/src/webdav/proxy_internal.h \
-                        $ngx_addon_dir/src/webdav/proxy_pool.h \
-                        $ngx_addon_dir/src/webdav/tpc_cred_internal.h \
+                        $ngx_addon_dir/src/protocols/webdav/proxy_internal.h \
+                        $ngx_addon_dir/src/protocols/webdav/proxy_pool.h \
+                        $ngx_addon_dir/src/protocols/webdav/tpc_cred_internal.h \
                         $ngx_addon_dir/src/tpc/common/auth.h \
                         $ngx_addon_dir/src/tpc/common/credential.h \
                         $ngx_addon_dir/src/tpc/common/metrics.h \
                         $ngx_addon_dir/src/tpc/common/registry.h \
                         $ngx_addon_dir/src/tpc/common/transfer.h \
                         $ngx_addon_dir/src/observability/metrics/unified.h \
-                        $ngx_addon_dir/src/webdav/fs/copy_engine.h \
-                        $ngx_addon_dir/src/webdav/locks/request.h \
-                        $ngx_addon_dir/src/webdav/methods/copy_conditionals.h \
+                        $ngx_addon_dir/src/protocols/webdav/fs/copy_engine.h \
+                        $ngx_addon_dir/src/protocols/webdav/locks/request.h \
+                        $ngx_addon_dir/src/protocols/webdav/methods/copy_conditionals.h \
                         $ngx_addon_dir/src/core/compat/log.h \
-                        $ngx_addon_dir/src/webdav/util/uri.h \
-                        $ngx_addon_dir/src/webdav/util/xml.h"
+                        $ngx_addon_dir/src/protocols/webdav/util/uri.h \
+                        $ngx_addon_dir/src/protocols/webdav/util/xml.h"
 
 # ---------------------------------------------------------------------------
 # phase-47 W1: emit non-filter modules so the DYNAMIC build produces ONE
@@ -574,9 +574,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/shm_slots.c \
     $ngx_addon_dir/src/core/compat/http_body.c \
     $ngx_addon_dir/src/core/compat/http_conditionals.c \
-    $ngx_addon_dir/src/shared/file_serve.c \
-    $ngx_addon_dir/src/shared/http_cache_fill.c \
-    $ngx_addon_dir/src/shared/http_serve_offload.c \
+    $ngx_addon_dir/src/protocols/shared/file_serve.c \
+    $ngx_addon_dir/src/protocols/shared/http_cache_fill.c \
+    $ngx_addon_dir/src/protocols/shared/http_serve_offload.c \
     $ngx_addon_dir/src/core/compat/http_file_response.c \
     $ngx_addon_dir/src/core/compat/http_compress.c \
     $ngx_addon_dir/src/core/compat/http_headers.c \
@@ -849,7 +849,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/crypto/gsi_verify.c \
     $ngx_addon_dir/src/auth/crypto/ocsp.c \
     $ngx_addon_dir/src/auth/gsi/pki.c \
-    $ngx_addon_dir/src/webdav/pki.c \
+    $ngx_addon_dir/src/protocols/webdav/pki.c \
     $ngx_addon_dir/src/auth/voms/loader.c \
     $ngx_addon_dir/src/auth/voms/collect.c \
     $ngx_addon_dir/src/auth/voms/extract.c \
@@ -942,20 +942,20 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/zip/zip_member.c \
     $ngx_addon_dir/src/zip/zip_http.c \
     $ngx_addon_dir/src/read/open_cache.c \
-    $ngx_addon_dir/src/ssi/ssi.c \
-    $ngx_addon_dir/src/ssi/ssi_rrinfo.c \
-    $ngx_addon_dir/src/ssi/ssi_service.c \
-    $ngx_addon_dir/src/ssi/ssi_reply.c \
-    $ngx_addon_dir/src/ssi/provider.c \
-    $ngx_addon_dir/src/ssi/session.c \
-    $ngx_addon_dir/src/ssi/respbuf.c \
-    $ngx_addon_dir/src/ssi/registry.c \
-    $ngx_addon_dir/src/ssi/deliver.c \
-    $ngx_addon_dir/src/ssi/svc_cta/pb_wire.c \
-    $ngx_addon_dir/src/ssi/svc_cta/cta_pb.c \
-    $ngx_addon_dir/src/ssi/svc_cta/cta_queue.c \
-    $ngx_addon_dir/src/ssi/svc_cta/cta_exec.c \
-    $ngx_addon_dir/src/ssi/svc_cta/cta_service.c \
+    $ngx_addon_dir/src/protocols/ssi/ssi.c \
+    $ngx_addon_dir/src/protocols/ssi/ssi_rrinfo.c \
+    $ngx_addon_dir/src/protocols/ssi/ssi_service.c \
+    $ngx_addon_dir/src/protocols/ssi/ssi_reply.c \
+    $ngx_addon_dir/src/protocols/ssi/provider.c \
+    $ngx_addon_dir/src/protocols/ssi/session.c \
+    $ngx_addon_dir/src/protocols/ssi/respbuf.c \
+    $ngx_addon_dir/src/protocols/ssi/registry.c \
+    $ngx_addon_dir/src/protocols/ssi/deliver.c \
+    $ngx_addon_dir/src/protocols/ssi/svc_cta/pb_wire.c \
+    $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_pb.c \
+    $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_queue.c \
+    $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_exec.c \
+    $ngx_addon_dir/src/protocols/ssi/svc_cta/cta_service.c \
     $ngx_addon_dir/src/read/read.c \
     $ngx_addon_dir/src/read/read_compress.c \
     $ngx_addon_dir/src/read/readv.c \
@@ -1049,10 +1049,10 @@ xrd_emit_module
 # from the stream module's compat/fs_usage.c into the same binary.
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_srr_module
-ngx_module_srcs="$ngx_addon_dir/src/srr/module.c \
-                 $ngx_addon_dir/src/srr/builder.c \
-                 $ngx_addon_dir/src/srr/handler.c"
-ngx_module_deps="$ngx_addon_dir/src/srr/srr.h \
+ngx_module_srcs="$ngx_addon_dir/src/protocols/srr/module.c \
+                 $ngx_addon_dir/src/protocols/srr/builder.c \
+                 $ngx_addon_dir/src/protocols/srr/handler.c"
+ngx_module_deps="$ngx_addon_dir/src/protocols/srr/srr.h \
                  $ngx_addon_dir/src/core/compat/fs_usage.h"
 # SRR builder.c serialises the storageservice document with jansson.
 ngx_module_libs="$XROOTD_JANSSON_LIBS"
@@ -1060,65 +1060,65 @@ xrd_emit_module
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_webdav_module
-ngx_module_srcs="$ngx_addon_dir/src/webdav/module.c \
-                 $ngx_addon_dir/src/webdav/module_directives.c \
-                 $ngx_addon_dir/src/webdav/module_init.c \
-                 $ngx_addon_dir/src/webdav/module_acc_directives.c \
-                 $ngx_addon_dir/src/webdav/config.c \
-                 $ngx_addon_dir/src/webdav/postconfig.c \
-                 $ngx_addon_dir/src/dig/dig.c \
-                 $ngx_addon_dir/src/webdav/access.c \
-                 $ngx_addon_dir/src/webdav/dispatch.c \
-                 $ngx_addon_dir/src/webdav/path.c \
-                 $ngx_addon_dir/src/webdav/util/uri.c \
-                 $ngx_addon_dir/src/webdav/util/xml.c \
-                 $ngx_addon_dir/src/webdav/cors.c \
-                 $ngx_addon_dir/src/webdav/metrics.c \
-                 $ngx_addon_dir/src/webdav/io.c \
-                 $ngx_addon_dir/src/webdav/resource.c \
-                 $ngx_addon_dir/src/webdav/auth_store.c \
-                 $ngx_addon_dir/src/webdav/auth_cert.c \
-                 $ngx_addon_dir/src/webdav/auth_token.c \
-                 $ngx_addon_dir/src/webdav/locks/request.c \
-                 $ngx_addon_dir/src/webdav/lock.c \
-                 $ngx_addon_dir/src/webdav/prop_xattr.c \
-                 $ngx_addon_dir/src/webdav/operation_table.c \
-                 $ngx_addon_dir/src/webdav/dead_props.c \
-                 $ngx_addon_dir/src/webdav/methods_basic.c \
-                 $ngx_addon_dir/src/webdav/get.c \
-                 $ngx_addon_dir/src/webdav/put.c \
-                 $ngx_addon_dir/src/webdav/move.c \
-                 $ngx_addon_dir/src/webdav/fs/copy_engine.c \
-                 $ngx_addon_dir/src/webdav/methods/copy_conditionals.c \
-                 $ngx_addon_dir/src/webdav/copy.c \
-                 $ngx_addon_dir/src/webdav/namespace.c \
-                 $ngx_addon_dir/src/webdav/propfind.c \
-                 $ngx_addon_dir/src/webdav/propfind_props.c \
-                 $ngx_addon_dir/src/webdav/propfind_walk.c \
-                 $ngx_addon_dir/src/webdav/search.c \
-                 $ngx_addon_dir/src/webdav/acl.c \
-                  $ngx_addon_dir/src/webdav/tpc_config.c \
-                  $ngx_addon_dir/src/webdav/tpc_headers.c \
-                  $ngx_addon_dir/src/webdav/tpc_curl.c \
-                  $ngx_addon_dir/src/webdav/tpc_curl_setup.c \
-                  $ngx_addon_dir/src/webdav/tpc_curl_pmark.c \
-                  $ngx_addon_dir/src/webdav/tpc_thread.c \
-                  $ngx_addon_dir/src/webdav/tpc_marker.c \
-                  $ngx_addon_dir/src/webdav/tpc_cred_parse.c \
-                  $ngx_addon_dir/src/webdav/tpc_cred.c \
-                  $ngx_addon_dir/src/webdav/tpc.c \
-                  $ngx_addon_dir/src/webdav/proxy_config.c \
-                  $ngx_addon_dir/src/webdav/proxy_request.c \
-                  $ngx_addon_dir/src/webdav/proxy_response.c \
-                  $ngx_addon_dir/src/webdav/proxy.c \
-                  $ngx_addon_dir/src/webdav/proxy_pool.c \
+ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
+                 $ngx_addon_dir/src/protocols/webdav/module_directives.c \
+                 $ngx_addon_dir/src/protocols/webdav/module_init.c \
+                 $ngx_addon_dir/src/protocols/webdav/module_acc_directives.c \
+                 $ngx_addon_dir/src/protocols/webdav/config.c \
+                 $ngx_addon_dir/src/protocols/webdav/postconfig.c \
+                 $ngx_addon_dir/src/protocols/dig/dig.c \
+                 $ngx_addon_dir/src/protocols/webdav/access.c \
+                 $ngx_addon_dir/src/protocols/webdav/dispatch.c \
+                 $ngx_addon_dir/src/protocols/webdav/path.c \
+                 $ngx_addon_dir/src/protocols/webdav/util/uri.c \
+                 $ngx_addon_dir/src/protocols/webdav/util/xml.c \
+                 $ngx_addon_dir/src/protocols/webdav/cors.c \
+                 $ngx_addon_dir/src/protocols/webdav/metrics.c \
+                 $ngx_addon_dir/src/protocols/webdav/io.c \
+                 $ngx_addon_dir/src/protocols/webdav/resource.c \
+                 $ngx_addon_dir/src/protocols/webdav/auth_store.c \
+                 $ngx_addon_dir/src/protocols/webdav/auth_cert.c \
+                 $ngx_addon_dir/src/protocols/webdav/auth_token.c \
+                 $ngx_addon_dir/src/protocols/webdav/locks/request.c \
+                 $ngx_addon_dir/src/protocols/webdav/lock.c \
+                 $ngx_addon_dir/src/protocols/webdav/prop_xattr.c \
+                 $ngx_addon_dir/src/protocols/webdav/operation_table.c \
+                 $ngx_addon_dir/src/protocols/webdav/dead_props.c \
+                 $ngx_addon_dir/src/protocols/webdav/methods_basic.c \
+                 $ngx_addon_dir/src/protocols/webdav/get.c \
+                 $ngx_addon_dir/src/protocols/webdav/put.c \
+                 $ngx_addon_dir/src/protocols/webdav/move.c \
+                 $ngx_addon_dir/src/protocols/webdav/fs/copy_engine.c \
+                 $ngx_addon_dir/src/protocols/webdav/methods/copy_conditionals.c \
+                 $ngx_addon_dir/src/protocols/webdav/copy.c \
+                 $ngx_addon_dir/src/protocols/webdav/namespace.c \
+                 $ngx_addon_dir/src/protocols/webdav/propfind.c \
+                 $ngx_addon_dir/src/protocols/webdav/propfind_props.c \
+                 $ngx_addon_dir/src/protocols/webdav/propfind_walk.c \
+                 $ngx_addon_dir/src/protocols/webdav/search.c \
+                 $ngx_addon_dir/src/protocols/webdav/acl.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_config.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_headers.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_curl.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_curl_setup.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_curl_pmark.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_thread.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_marker.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_cred_parse.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_cred.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc.c \
+                  $ngx_addon_dir/src/protocols/webdav/proxy_config.c \
+                  $ngx_addon_dir/src/protocols/webdav/proxy_request.c \
+                  $ngx_addon_dir/src/protocols/webdav/proxy_response.c \
+                  $ngx_addon_dir/src/protocols/webdav/proxy.c \
+                  $ngx_addon_dir/src/protocols/webdav/proxy_pool.c \
                   $ngx_addon_dir/src/net/mirror/http_mirror.c \
-                  $ngx_addon_dir/src/webdav/introspect.c \
-                  $ngx_addon_dir/src/webdav/xrdhttp.c \
-                  $ngx_addon_dir/src/webdav/xrdhttp_multipart.c \
-                  $ngx_addon_dir/src/webdav/xrdhttp_stats.c \
-                  $ngx_addon_dir/src/webdav/macaroon_endpoint.c \
-                  $ngx_addon_dir/src/webdav/tape_rest.c"
+                  $ngx_addon_dir/src/protocols/webdav/introspect.c \
+                  $ngx_addon_dir/src/protocols/webdav/xrdhttp.c \
+                  $ngx_addon_dir/src/protocols/webdav/xrdhttp_multipart.c \
+                  $ngx_addon_dir/src/protocols/webdav/xrdhttp_stats.c \
+                  $ngx_addon_dir/src/protocols/webdav/macaroon_endpoint.c \
+                  $ngx_addon_dir/src/protocols/webdav/tape_rest.c"
 ngx_module_deps="$ngx_xrootd_webdav_deps"
 # WebDAV module .so links: OpenSSL + libcurl (HTTP-TPC COPY), libxml2 (PROPFIND
 # parsing / XML builders), jansson (Tape REST + macaroon JSON).
@@ -1132,7 +1132,7 @@ xrd_emit_module
 # direct assignment to ngx_http_top_header_filter).
 ngx_module_type=HTTP_AUX_FILTER
 ngx_module_name=ngx_http_xrootd_xrdhttp_filter_module
-ngx_module_srcs="$ngx_addon_dir/src/webdav/xrdhttp_filter.c"
+ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/xrdhttp_filter.c"
 ngx_module_deps="$ngx_xrootd_webdav_deps"
 # Set explicitly (do not inherit the previous module's ngx_module_libs); the
 # filter only needs OpenSSL, with shared xrootd_* symbols resolved at load time
@@ -1142,45 +1142,45 @@ ngx_module_libs="-lssl -lcrypto"
 
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_s3_module
-ngx_module_srcs="$ngx_addon_dir/src/s3/module.c \
-                 $ngx_addon_dir/src/s3/handler.c \
-                 $ngx_addon_dir/src/s3/metrics.c \
-                 $ngx_addon_dir/src/s3/object.c \
-                 $ngx_addon_dir/src/s3/put.c \
-                 $ngx_addon_dir/src/s3/put_finalize.c \
-                 $ngx_addon_dir/src/s3/put_chunk.c \
-                 $ngx_addon_dir/src/s3/put_aio.c \
-                 $ngx_addon_dir/src/s3/post_object.c \
-                 $ngx_addon_dir/src/s3/post_form.c \
-                 $ngx_addon_dir/src/s3/post_policy.c \
-                 $ngx_addon_dir/src/s3/post_response.c \
-                 $ngx_addon_dir/src/s3/list_walk.c \
-                 $ngx_addon_dir/src/s3/list_common.c \
-                 $ngx_addon_dir/src/s3/list_objects_v2.c \
-                 $ngx_addon_dir/src/s3/list_objects_v1.c \
-                 $ngx_addon_dir/src/s3/list_cache.c \
-                 $ngx_addon_dir/src/s3/conditional.c \
-                 $ngx_addon_dir/src/s3/checksum.c \
-                 $ngx_addon_dir/src/s3/aws_chunked.c \
-                 $ngx_addon_dir/src/s3/tagging.c \
-                 $ngx_addon_dir/src/s3/usermeta.c \
-                 $ngx_addon_dir/src/s3/auth_sigv4_canonical.c \
-                 $ngx_addon_dir/src/s3/auth_sigv4_parse.c \
-                 $ngx_addon_dir/src/s3/auth_sigv4_verify.c \
-                 $ngx_addon_dir/src/s3/multipart_helpers.c \
-                 $ngx_addon_dir/src/s3/multipart_initiate.c \
-                 $ngx_addon_dir/src/s3/multipart_abort.c \
-                 $ngx_addon_dir/src/s3/multipart_complete_body.c \
-                 $ngx_addon_dir/src/s3/multipart_complete_list_parts.c \
-                 $ngx_addon_dir/src/s3/multipart_complete_list_uploads.c \
-                 $ngx_addon_dir/src/s3/multipart_complete_upload_part_copy.c \
-                 $ngx_addon_dir/src/s3/copy.c \
-                 $ngx_addon_dir/src/s3/delete_objects.c \
-                 $ngx_addon_dir/src/s3/util.c \
-                 $ngx_addon_dir/src/s3/operation_table.c"
-ngx_module_deps="$ngx_addon_dir/src/s3/s3.h \
-                 $ngx_addon_dir/src/s3/aws_chunked.h \
-                 $ngx_addon_dir/src/s3/tagging.h \
+ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
+                 $ngx_addon_dir/src/protocols/s3/handler.c \
+                 $ngx_addon_dir/src/protocols/s3/metrics.c \
+                 $ngx_addon_dir/src/protocols/s3/object.c \
+                 $ngx_addon_dir/src/protocols/s3/put.c \
+                 $ngx_addon_dir/src/protocols/s3/put_finalize.c \
+                 $ngx_addon_dir/src/protocols/s3/put_chunk.c \
+                 $ngx_addon_dir/src/protocols/s3/put_aio.c \
+                 $ngx_addon_dir/src/protocols/s3/post_object.c \
+                 $ngx_addon_dir/src/protocols/s3/post_form.c \
+                 $ngx_addon_dir/src/protocols/s3/post_policy.c \
+                 $ngx_addon_dir/src/protocols/s3/post_response.c \
+                 $ngx_addon_dir/src/protocols/s3/list_walk.c \
+                 $ngx_addon_dir/src/protocols/s3/list_common.c \
+                 $ngx_addon_dir/src/protocols/s3/list_objects_v2.c \
+                 $ngx_addon_dir/src/protocols/s3/list_objects_v1.c \
+                 $ngx_addon_dir/src/protocols/s3/list_cache.c \
+                 $ngx_addon_dir/src/protocols/s3/conditional.c \
+                 $ngx_addon_dir/src/protocols/s3/checksum.c \
+                 $ngx_addon_dir/src/protocols/s3/aws_chunked.c \
+                 $ngx_addon_dir/src/protocols/s3/tagging.c \
+                 $ngx_addon_dir/src/protocols/s3/usermeta.c \
+                 $ngx_addon_dir/src/protocols/s3/auth_sigv4_canonical.c \
+                 $ngx_addon_dir/src/protocols/s3/auth_sigv4_parse.c \
+                 $ngx_addon_dir/src/protocols/s3/auth_sigv4_verify.c \
+                 $ngx_addon_dir/src/protocols/s3/multipart_helpers.c \
+                 $ngx_addon_dir/src/protocols/s3/multipart_initiate.c \
+                 $ngx_addon_dir/src/protocols/s3/multipart_abort.c \
+                 $ngx_addon_dir/src/protocols/s3/multipart_complete_body.c \
+                 $ngx_addon_dir/src/protocols/s3/multipart_complete_list_parts.c \
+                 $ngx_addon_dir/src/protocols/s3/multipart_complete_list_uploads.c \
+                 $ngx_addon_dir/src/protocols/s3/multipart_complete_upload_part_copy.c \
+                 $ngx_addon_dir/src/protocols/s3/copy.c \
+                 $ngx_addon_dir/src/protocols/s3/delete_objects.c \
+                 $ngx_addon_dir/src/protocols/s3/util.c \
+                 $ngx_addon_dir/src/protocols/s3/operation_table.c"
+ngx_module_deps="$ngx_addon_dir/src/protocols/s3/s3.h \
+                 $ngx_addon_dir/src/protocols/s3/aws_chunked.h \
+                 $ngx_addon_dir/src/protocols/s3/tagging.h \
                  $ngx_addon_dir/src/fs/vfs.h \
                  $ngx_addon_dir/src/fs/backend/sd.h \
                  $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
@@ -1226,7 +1226,7 @@ ngx_module_deps="$ngx_addon_dir/src/observability/dashboard/dashboard.h \
                  $ngx_addon_dir/src/observability/dashboard/dashboard_http.h \
                  $ngx_addon_dir/src/observability/dashboard/dashboard_tracking.h \
                  $ngx_addon_dir/src/observability/dashboard/api_admin.h \
-                 $ngx_addon_dir/src/webdav/proxy_pool.h \
+                 $ngx_addon_dir/src/protocols/webdav/proxy_pool.h \
                  $ngx_addon_dir/src/observability/metrics/metrics.h \
                  $ngx_addon_dir/src/tpc/common/registry.h \
                  $ngx_addon_dir/src/tpc/common/transfer.h"

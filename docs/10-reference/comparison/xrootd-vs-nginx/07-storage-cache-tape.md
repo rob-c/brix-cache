@@ -34,7 +34,7 @@ In scope:
   open/close staging, including the documented disconnect-semantics difference.
 - **Caching**: `XrdPfc` (XCache) + `XrdPss` (proxy storage) vs `src/fs/cache/`.
 - **Tape / FRM**: `XrdFrm`/`XrdFrc` multi-daemon ecosystem vs `src/frm/` +
-  `src/query/prepare.c` + `src/webdav/tape_rest.c`.
+  `src/query/prepare.c` + `src/protocols/webdav/tape_rest.c`.
 - The **operator view**: directives and what to monitor on each side.
 
 Out of scope (covered elsewhere in the comparison set): the wire protocol, auth,
@@ -112,7 +112,7 @@ process with a **unified VFS** and **no plugin ABI**:
 - **`src/frm/` — a durable, crash-safe tape stage queue.** A file-backed
   fixed-record log (`frm_format.h`, modeled on `XrdFrcReqFile`) with an SHM hot
   index, backing `kXR_prepare`/`kXR_QPrep`, residency-aware opens, async recall
-  (`waiter.c`), and the WLCG HTTP Tape REST API (`src/webdav/tape_rest.c`).
+  (`waiter.c`), and the WLCG HTTP Tape REST API (`src/protocols/webdav/tape_rest.c`).
   POSC commit logic lives in `src/read/close.c` / `src/connection/fd_table.c`.
 
 The design point is **convergence and operability**: one process, one confinement
@@ -405,7 +405,7 @@ defining invariant is **file = truth, SHM = cache**:
   parked with `kXR_waitresp` and satisfied in place via `kXR_attn(asynresp)` when
   the recall lands — same-worker inline, cross-worker via an SHM waiter table
   delivered by the owning worker's scheduler tick (no IPC).
-- **WLCG HTTP Tape REST** (`src/webdav/tape_rest.c`, `xrootd_webdav_tape_rest`):
+- **WLCG HTTP Tape REST** (`src/protocols/webdav/tape_rest.c`, `xrootd_webdav_tape_rest`):
   `/api/v1/{stage, release, unpin, archiveinfo, fileinfo, stage/{id}[/cancel]}`
   over the *same* durable queue, so FTS/gfal2 HTTP tape control and native
   `kXR_prepare` share one queue. This is an **nginx+** feature — not a core
@@ -529,7 +529,7 @@ such here.
 | Disk purge GC daemon | `frm_purged` watermark/hold/policy | watermark monitor scaffold | **Missing / Partial** | No in-process purge engine. |
 | MSS driver | OSS/MSS plugin + `copycmd` | `stagecmd`/`copycmd`/`residency_cmd` (commands only) | **Partial** | Simpler, auditable; not drop-in for MSS plugins. |
 | Admin tooling | `frm_admin` interactive client | Prometheus + dashboard + HTTP Tape REST | **Divergence** | Different operational model. |
-| WLCG HTTP Tape REST | not a core daemon surface | `src/webdav/tape_rest.c` on same queue | **nginx+** | FTS/gfal2-friendly HTTP tape ops. |
+| WLCG HTTP Tape REST | not a core daemon surface | `src/protocols/webdav/tape_rest.c` on same queue | **nginx+** | FTS/gfal2-friendly HTTP tape ops. |
 | Tape/stage monitoring | UDP stage/migr/purge streams | Prometheus `xrootd_frm_*` + dashboard | **Divergence** | Modern pull-based metrics instead of UDP. |
 
 **One-line summary:** this module is a **strong, kernel-confined POSIX data
@@ -589,7 +589,7 @@ monitor-only scaffolds delegated to operator commands). Do not claim full
   `src/frm/reqid.c`, `src/frm/index.c`, `src/frm/reconcile.c`,
   `src/frm/residency.c`, `src/frm/stage.c`, `src/frm/waiter.c`,
   `src/frm/migrate_purge.c`, `src/frm/directives.c`, `src/query/prepare.c`,
-  `src/webdav/tape_rest.c`.
+  `src/protocols/webdav/tape_rest.c`.
 - Cross-checked against: `docs/10-reference/source-verified-xrootd-comparison.md`
   (Storage/Cache/Tape section) and `docs/10-reference/comparison/conformance-findings.md`
   (POSC-disconnect xfail; 4-byte-fhandle write-through regression).

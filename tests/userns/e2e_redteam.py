@@ -458,7 +458,7 @@ def _s3_post_form(access_key, key, file_bytes, when=None, expires_min=60,
     """Build a browser S3 POST Object multipart/form-data body + Content-Type.
 
     Returns (content_type_header, body_bytes).  Mirrors the server's POST-policy
-    auth (src/s3/post_object.c): the x-amz-signature is HMAC-SHA256(signing_key,
+    auth (src/protocols/s3/post_object.c): the x-amz-signature is HMAC-SHA256(signing_key,
     base64_policy) hex-encoded, where signing_key is the AWS4 date/region-scoped
     key.  `tamper_sig` corrupts that signature; `omit_policy` drops the auth
     fields; `cred_override` forges the x-amz-credential access key; `when`
@@ -522,7 +522,7 @@ DEAD_PREFIX = "user.nginx_xrootd.webdav."
 def _dead_xattr_count(fp):
     """Count on-disk WebDAV dead-property xattrs on `fp` (the kernel ground truth,
     independent of any PROPFIND echo).  WebDAV PROPPATCH stores each dead property
-    under the `user.nginx_xrootd.webdav.` xattr prefix (src/webdav/dead_props.c).
+    under the `user.nginx_xrootd.webdav.` xattr prefix (src/protocols/webdav/dead_props.c).
     Returns -1 if the path is unreadable."""
     try:
         names = os.listxattr(fp)
@@ -6720,7 +6720,7 @@ def run_malformed_hostile_inputs(key, data, port, s3port):
                 # SigV4 STRICTNESS GAP (not a security breach): the server
                 # ignores the credential-scope SERVICE field and reconstructs
                 # the string-to-sign / signing key with a hardcoded "s3"
-                # (src/s3/auth_sigv4_verify.c lines ~553 and ~258/564;
+                # (src/protocols/s3/auth_sigv4_verify.c lines ~553 and ~258/564;
                 # sigv4_parse_credential_scope in auth_sigv4_parse.c only reads
                 # AKID/DATE/REGION). The "/s3/"->"/iam/" edit therefore changes
                 # nothing the server computes, so the request is accepted IF AND
@@ -13285,7 +13285,7 @@ def run_protocol_features_s3(key, data, port, s3port):
     st1, _ = s3("PUT", "alice/pfs_cond_create.txt", s3port, data=b"PFS-V1-BODY\n",
                 extra_hdrs={"If-None-Match": "*"})
     # S3 conditional-create (If-None-Match:*) is not implemented (no conditional
-    # handling in src/s3/) — the server may ignore it (create) or return 304/412.
+    # handling in src/protocols/s3/) — the server may ignore it (create) or return 304/412.
     # Accept either; the security invariant is: IF it created, the object is alice's.
     ok((st1 in (200, 201) and owned_alice(fp)) or st1 in (304, 412, 501, 400),
        f"S3 If-None-Match:* first PUT handled, any object owned by alice (HTTP {st1})")
@@ -19640,7 +19640,7 @@ def run_combo_connection_state_identity(key, data, port, s3port):
     ok(rfx[0][0] in (401, 403) and b"BOB-PRIVATE-SECRET" not in rfx[0][1],
        f"(f) forged-token read of bob secret rejected + no leak (HTTP {rfx[0][0]})")
     # A WebDAV GET on a COLLECTION is forbidden by design (listing is via
-    # PROPFIND, not GET) — src/webdav/get.c:164-167 returns 403 for any directory,
+    # PROPFIND, not GET) — src/protocols/webdav/get.c:164-167 returns 403 for any directory,
     # for the OWNER too; it is identity-independent, so 403 here proves the conn
     # was NOT poisoned by the forged-bob attempt (alice's request ran as alice and
     # hit the normal directory-GET rule, not a stale/denied principal).  The
@@ -19701,7 +19701,7 @@ def run_combo_connection_state_identity(key, data, port, s3port):
     # The DENY is what matters: carol lacks write on alice's 0755 home, so the
     # unlink fails with EACCES (mapped to XROOTD_NS_DENIED).  The WebDAV DELETE
     # handler currently surfaces that as 500 rather than 403 (a cosmetic status
-    # gap — see src/webdav/namespace.c:65-77, which only maps OK/NOT_EMPTY/
+    # gap — see src/protocols/webdav/namespace.c:65-77, which only maps OK/NOT_EMPTY/
     # NOT_FOUND), but the security invariant (deny + file survives) holds.  Accept
     # any non-2xx and assert the file was NOT deleted.
     ok(rg[2][0] not in (200, 201, 202, 204),
@@ -19735,7 +19735,7 @@ def run_combo_connection_state_identity(key, data, port, s3port):
     # The DENY is what matters: alice cannot create in carol's 0755 home, so the
     # staged O_CREAT|O_EXCL fails with EACCES.  The WebDAV PUT handler surfaces a
     # non-ENOENT/ENOTDIR open failure as 500 (a cosmetic status gap — see
-    # src/webdav/put.c:211-225), but the security invariant (write denied + NO
+    # src/protocols/webdav/put.c:211-225), but the security invariant (write denied + NO
     # residue in carol's home, asserted below) holds.  Accept any non-2xx.
     ok(rh[0][0] not in (200, 201, 202, 204),
        f"(h) alice's cross-tenant write into carol's home DENIED — non-2xx (HTTP {rh[0][0]})")
@@ -20374,7 +20374,7 @@ def run_combo_error_rollback(key, data, port, s3port):
 def run_s3_subresource_fallthrough(key, data, port, s3port):
     """S3 UNHANDLED sub-resource fall-through under per-request impersonation.
 
-    The dispatcher (src/s3/handler.c) recognizes only a handful of query params
+    The dispatcher (src/protocols/s3/handler.c) recognizes only a handful of query params
     (delete, key-marker, max-parts, max-uploads, part-number-marker, uploads,
     +partNumber/uploadId pairs).  EVERY other S3 sub-resource (?acl, ?tagging,
     ?versioning, ?policy, ?cors, ?lifecycle, ?retention, ?legal-hold, ...) is
@@ -20429,7 +20429,7 @@ def run_s3_subresource_fallthrough(key, data, port, s3port):
         st, b = s3("GET", "alice/sr_own.txt", s3port, params={sr: ""})
         if sr in ("acl", "tagging"):
             # ?acl / ?tagging are now HANDLED ops (GetObjectAcl / GetObjectTagging,
-            # src/s3/tagging.c) — a benign metadata XML response, NOT the object
+            # src/protocols/s3/tagging.c) — a benign metadata XML response, NOT the object
             # body; still runs as alice, never leaks another tenant.
             ok(st == 200 and b"SR-OWN-BODY" not in (b or b"")
                and (b"<AccessControlPolicy" in (b or b"") or b"<Tagging" in (b or b"")),
@@ -20580,7 +20580,7 @@ def run_s3_subresource_fallthrough(key, data, port, s3port):
 def run_s3_post_form_and_bucketops(key, data, port, s3port):
     """S3 browser POST-form upload + bucket-level ops under impersonation.
 
-    The browser POST Object path (src/s3/post_object.c) is EXEMPT from the
+    The browser POST Object path (src/protocols/s3/post_object.c) is EXEMPT from the
     dispatch-time header SigV4 (handler.c: `if (!is_post_object_form)`), so the
     impersonation identity for a form upload is whatever auth populated — never a
     privileged fallback.  This batch proves the load-bearing invariant: any object
@@ -21665,7 +21665,7 @@ def run_conditional_header_matrix(key, data, port, s3port):
            f"If-Range with REAL ETag + Range -> 206 partial slice (HTTP {st})")
         # If-Range with a STALE validator: a compliant impl serves the whole
         # representation (200); this module does not implement If-Range (no
-        # if_range parsing in src/shared/file_serve.c), so with a Range present it
+        # if_range parsing in src/protocols/shared/file_serve.c), so with a Range present it
         # deterministically serves the slice (206 + "chm-").  Either is byte-exact
         # on alice's OWN file -> accept both (If-Range is optional, not a boundary).
         st, b = http("GET", "/alice/chm_base.txt", port, ta,
@@ -22134,7 +22134,7 @@ def run_content_negotiation_ranges(key, data, port, s3port):
                                   {"If-Range": '"stale-nonmatching-xyz"',
                                    "Range": "bytes=0-9"})
         # If-Range is not implemented by this module (no if_range parsing in
-        # src/shared/file_serve.c); with a Range present the server deterministically
+        # src/protocols/shared/file_serve.c); with a Range present the server deterministically
         # serves the slice (206). A compliant If-Range impl would return 200+full.
         # Either is byte-exact on alice's OWN file -> accept both.
         ok((srst == 200 and srbo == ON_DISK)
@@ -23987,7 +23987,7 @@ def run_multistep_lifecycle_invariants(key, data, port, s3port):
     seeded3 = exists(f"{D_COLL}/inner.txt") and exists(f"{D_COLL}/sub/deep.txt")
     ok(seeded3, f"{TAG}/s3: collection populated with nested children")
     # The WebDAV module implements NON-recursive collection DELETE
-    # (src/webdav/namespace.c sets opts.require_empty_dir = 1): a DELETE of a
+    # (src/protocols/webdav/namespace.c sets opts.require_empty_dir = 1): a DELETE of a
     # non-empty collection is refused with 409 Conflict and leaves the subtree
     # wholly intact (no partial wipe) — same policy as S3 BucketNotEmpty.  This
     # is the documented/tested contract (test_webdav_delete_lock_security.py:
@@ -24254,9 +24254,9 @@ def run_http_tpc_webdav(key, data, port, s3port):
     DISTINCT from run_native_tpc / run_tpc_pull_push_matrix (native xrdcp --tpc wire
     path) and run_combo_setgid_via_copymove (setgid inheritance through local copy):
     this batch drives the *HTTP/curl* COPY-with-Source (pull) and COPY-with-
-    Destination+Credential (push) machinery in src/webdav/tpc.c, plus the
+    Destination+Credential (push) machinery in src/protocols/webdav/tpc.c, plus the
     Destination-without-Credential fall-through to the RFC-4918 local copy handler
-    (src/webdav/copy.c).  HTTP-TPC is OFF in the e2e config (xrootd_webdav_tpc
+    (src/protocols/webdav/copy.c).  HTTP-TPC is OFF in the e2e config (xrootd_webdav_tpc
     defaults to 0 and is not set), so dispatch.c returns 405 BEFORE any curl runs:
     we assert that clean 4xx for every TPC shape AND, crucially, the on-disk
     security invariants that must hold whether or not curl ever fires -- no
@@ -24303,7 +24303,7 @@ def run_http_tpc_webdav(key, data, port, s3port):
             b = b.encode("utf-8", "replace")
         return n in b
 
-    # remote endpoint = THIS server (loopback); src/webdav/tpc.c requires an
+    # remote endpoint = THIS server (loopback); src/protocols/webdav/tpc.c requires an
     # https:// Source/Destination, but the !conf->tpc 405 gate fires first.
     base_s = "https://127.0.0.1:%d" % port
     base_h = "http://127.0.0.1:%d" % port
@@ -26669,7 +26669,7 @@ def run_deep_novel_combos_r8(key, data, port, s3port):
 
     # =====================================================================
     # (1) HTTP-TPC PULL into the setgid shared dir.  A WebDAV COPY carrying a
-    #     remote https `Source:` header is a third-party PULL (src/webdav/tpc.c
+    #     remote https `Source:` header is a third-party PULL (src/protocols/webdav/tpc.c
     #     requires an https Source).  In this loopback userns config there is NO
     #     https origin, so the pull cannot complete -- but the security invariant
     #     still holds regardless of the verdict: a rejected/failed pull must leave
@@ -27005,7 +27005,7 @@ def run_deep_novel_combos_r8(key, data, port, s3port):
 
 # ===== Round-9 new-feature-surface batches =====
 def run_s3_conditional_impersonation(key, data, port, s3port):
-    """S3 conditional requests (phase-43 src/s3/conditional.c) under per-request
+    """S3 conditional requests (phase-43 src/protocols/s3/conditional.c) under per-request
     impersonation.  conditional.c front-runs nginx's core not-modified filter with
     S3 semantics: If-Match/If-None-Match against a synthetic ETag (mtime+size),
     If-Modified-Since with S3 'before' semantics (future date -> 304), and a 412
@@ -27235,7 +27235,7 @@ def run_s3_conditional_impersonation(key, data, port, s3port):
 
 
 def run_s3_checksum_verify_impersonation(key, data, port, s3port):
-    """S3 phase-43 MULTI-ALGO checksum verify-on-PUT (src/s3/checksum.c) under
+    """S3 phase-43 MULTI-ALGO checksum verify-on-PUT (src/protocols/s3/checksum.c) under
     impersonation.  checksum.c selects an algorithm from x-amz-checksum-<algo> /
     x-amz-sdk-checksum-algorithm, VERIFIES a supplied full-object value (400
     BadDigest + 'object removed' on mismatch), rejects conflicting/unsupported
@@ -27534,7 +27534,7 @@ def run_s3_checksum_verify_impersonation(key, data, port, s3port):
 
 
 def run_s3_acl_tagging_dac(key, data, port, s3port):
-    """S3 GetObjectAcl + Object Tagging (src/s3/tagging.c, phase-43 W5) DAC under
+    """S3 GetObjectAcl + Object Tagging (src/protocols/s3/tagging.c, phase-43 W5) DAC under
     per-request impersonation.
 
     Two distinct sub-surfaces, neither asserted by run_s3_subresource_fallthrough
@@ -28479,7 +28479,7 @@ def run_raw_kxr_authed(key, data, port, s3port):
 def run_phase_features_combos(key, data, port, s3port):
     """PHASE-42/43 feature x impersonation-DAC COMBINATION frontier: drives the
     NET-NEW S3 checksum-verify / conditional-PUT / object-tagging / canned-ACL
-    code (src/s3/checksum.c, conditional.c, tagging.c) and the phase-42 in/out
+    code (src/protocols/s3/checksum.c, conditional.c, tagging.c) and the phase-42 in/out
     compression path CROSSED with concurrent identity-switch, cross-tenant DAC,
     setgid-group inheritance, WebDAV lock-state and cross-tenant rename — shapes
     NONE of the existing batches drive.  Distinct from run_conditional_header_matrix

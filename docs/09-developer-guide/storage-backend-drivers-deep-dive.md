@@ -202,7 +202,7 @@ write offloads to AIO).
 > metadata (that would need a metadata-aware cache, a separate concern).
 
 > **The S3 REST endpoint is metadata-capable.** The S3 server
-> (`src/s3/usermeta.c`) persists `x-amz-meta-*` user metadata (one
+> (`src/protocols/s3/usermeta.c`) persists `x-amz-meta-*` user metadata (one
 > `user.s3.usermeta` xattr blob beside the object) on PutObject/CopyObject and
 > echoes it on GET/HEAD, honouring `x-amz-metadata-directive: COPY|REPLACE`
 > (REPLACE-onto-self = a metadata-only update, no byte rewrite). This is the live

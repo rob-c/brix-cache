@@ -102,7 +102,7 @@ Expected benefits:
 Relevant code:
 
 - `src/auth/token/*.c`
-- `src/webdav/auth_token.c`
+- `src/protocols/webdav/auth_token.c`
 
 ---
 

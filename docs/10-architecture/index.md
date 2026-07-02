@@ -77,7 +77,7 @@ PROPFIND /store/
 
 That means the code path is different too: native XRootD requests enter under
 `src/connection/`, `src/handshake/`, `src/read/`, and `src/write/`; WebDAV
-requests enter through nginx HTTP and land under `src/webdav/`.
+requests enter through nginx HTTP and land under `src/protocols/webdav/`.
 
 ---
 
@@ -96,7 +96,7 @@ requests enter through nginx HTTP and land under `src/webdav/`.
 When debugging, start by identifying both the URL scheme and the configured
 nginx location. A `davs://` URL is WebDAV over HTTPS from nginx's point of
 view. S3 clients also use HTTP(S) on the wire, but a location with
-`xrootd_s3 on;` dispatches to `src/s3/` instead of `src/webdav/`. A
+`xrootd_s3 on;` dispatches to `src/protocols/s3/` instead of `src/protocols/webdav/`. A
 `root://` bug and an HTTPS/WebDAV/S3 bug may touch the same filesystem, CA
 bundle, and user credential, but they travel through different nginx modules
 and different code.

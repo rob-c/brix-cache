@@ -2,7 +2,7 @@
 tests/test_query_token.py — §1 HTTP bearer token via ?authz= query parameter.
 
 Verifies the query-string token fallback (davix/gfal2/xrdcp redirect & pre-signed
-URL flows) added in src/webdav/auth_token.c:
+URL flows) added in src/protocols/webdav/auth_token.c:
   - GET with ?authz=Bearer<jwt> authenticates (200)
   - GET with ?authz=<rawjwt> (no scheme) authenticates (200)
   - Authorization header path still works (200)

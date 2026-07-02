@@ -54,7 +54,7 @@ into dedicated subdirectories:
 | `src/ngx_xrootd_handshake.c` | `src/handshake/` (10 files) |
 | `src/ngx_xrootd_session.c` | `src/session/` |
 | `src/ngx_xrootd_response.c` | `src/response/` |
-| `src/ngx_http_xrootd_webdav_*.c` (4 files) | `src/webdav/` (34 files) |
+| `src/ngx_http_xrootd_webdav_*.c` (4 files) | `src/protocols/webdav/` (34 files) |
 | `src/ngx_http_xrootd_metrics_module.c` | `src/observability/metrics/` |
 | `src/xrootd_protocol.h` | `src/protocol/wire.h` + companion headers |
 | `src/ngx_xrootd_metrics.h` | `src/observability/metrics/metrics.h` |
@@ -87,7 +87,7 @@ net).
 |---|---|
 | `src/fs/cache/` | Read-through cache (eviction, config, AIO integration) |
 | `src/net/proxy/` | Upstream proxy pool — connection pooling, event handling, forwarding |
-| `src/s3/` | S3-compatible REST gateway: GET/PUT/DELETE, ListObjectsV2, multipart upload, SigV4 auth |
+| `src/protocols/s3/` | S3-compatible REST gateway: GET/PUT/DELETE, ListObjectsV2, multipart upload, SigV4 auth |
 | `src/auth/sss/` | SSS (Shared-Secret-Security) authentication |
 | `src/net/manager/` | Dynamic manager/registry state |
 | `src/net/cms/` | CMS heartbeat, space/load reporting, multi-server config |
@@ -95,7 +95,7 @@ net).
 | `src/dirlist/` | Native directory listing (`kXR_dirlist`) |
 | `src/auth/crypto/` | Shared PKI loading and verification helpers |
 
-### 2.4 WebDAV (`src/webdav/`) — new and expanded handlers
+### 2.4 WebDAV (`src/protocols/webdav/`) — new and expanded handlers
 
 New handlers not previously in the monolith:
 
@@ -114,7 +114,7 @@ New handlers not previously in the monolith:
 
 Fully rewritten as a proper multi-file module: `export.c`, `handler.c`,
 `module.c`, `writer.c`, `metrics_internal.h`, `stream.c`.  WebDAV metrics
-moved to `src/webdav/metrics.c`, S3 metrics to `src/s3/metrics.c`.
+moved to `src/protocols/webdav/metrics.c`, S3 metrics to `src/protocols/s3/metrics.c`.
 
 ### 2.6 Uncommitted working-tree changes to `src/`
 

@@ -246,7 +246,7 @@ See also: [pgread](#xrootd-wire-protocol), [Response Builder](#response-builder)
 
 ### S3-Compatible Endpoint
 
-An HTTP API that mimics Amazon S3's REST interface, allowing tools like `aws s3 cp` to work with nginx-xrootd without modification. Uses path-style URLs like `http://host/atlas/data/file.root`. Implemented in `src/s3/`.
+An HTTP API that mimics Amazon S3's REST interface, allowing tools like `aws s3 cp` to work with nginx-xrootd without modification. Uses path-style URLs like `http://host/atlas/data/file.root`. Implemented in `src/protocols/s3/`.
 
 See also: [S3 Path-Style URL](#s3-path-style-url), [XrdClS3](#xrdcls3)
 
@@ -467,7 +467,7 @@ A distributed computing resource that connects regional and institutional comput
 | thread_pool | Performance | [Getting started](../01-getting-started/getting-started-full.md#step-3-write-a-minimal-nginxconf), [Optimizations](../09-developer-guide/optimizations.md) |
 | WebDAV (davs://) | Protocol | [WebDAV Overview](../04-protocols/webdav-overview.md) |
 | HTTP-TPC / Native TPC | Transfer | [HTTP TPC Reference](../04-protocols/http-tpc-reference.md), [Native TPC tests](../../tests/test_root_tpc.py) |
-| S3 endpoint | Protocol | [S3 handler](../../src/s3/handler.c), [S3 tests](../../tests/) |
+| S3 endpoint | Protocol | [S3 handler](../../src/protocols/s3/handler.c), [S3 tests](../../tests/) |
 
 ---
 

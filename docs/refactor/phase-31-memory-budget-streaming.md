@@ -5,8 +5,8 @@
 **Status:** MOSTLY COMPLETE — raw-alloc scratch fix + W1 trim (re-enabled) + W3 +
 W2.1 windowed read + W2.2 PUT + W4 budget all landed & verified; W2.3 readv is
 budget-bounded (full resident windowing is a follow-up)
-**Scope:** all bulk data paths — `src/read`, `src/write`, `src/core/aio`, `src/webdav`,
-`src/s3`, `src/fs/cache`, `src/session`, `src/core/types/context.h`, `src/core/types/tunables.h`
+**Scope:** all bulk data paths — `src/read`, `src/write`, `src/core/aio`, `src/protocols/webdav`,
+`src/protocols/s3`, `src/fs/cache`, `src/session`, `src/core/types/context.h`, `src/core/types/tunables.h`
 **Companion:** Phase 29 (read throughput) and Phase 30 (whole-src hyper-opt). 29/30
 make a single stream *fast*; 31 makes N concurrent streams *cheap*. They share the
 data plane and must land consistently — do not regress the sendfile path.
@@ -99,7 +99,7 @@ worst-case buffer above is also the *normal* buffer.
 
 ### C. PUT paths — collect whole body into one contiguous buffer
 
-- `src/webdav/put.c` (AIO path) and `src/s3/put.c:112` collect the request body
+- `src/protocols/webdav/put.c` (AIO path) and `src/protocols/s3/put.c:112` collect the request body
   into a single contiguous allocation before dispatching the async `pwrite`.
   `s3_put_aio_t` embeds `PATH_MAX` twice (~8.5 KB) *plus* the body pointer.
 - nginx has **already** buffered the body — in `r->request_body->bufs`, possibly

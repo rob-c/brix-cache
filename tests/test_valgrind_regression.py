@@ -71,7 +71,7 @@ def test_finding2_jwks_pool_cleanup_defined():
 
 def test_finding2_jwks_cleanup_called_at_both_sites():
     # Reverting EITHER call reintroduces the per-reload EVP_PKEY leak.
-    assert "xrootd_jwks_register_cleanup" in _read("src/webdav/config.c"), (
+    assert "xrootd_jwks_register_cleanup" in _read("src/protocols/webdav/config.c"), (
         "HTTP/WebDAV conf must register the JWKS pool cleanup"
     )
     assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/config.c"), (

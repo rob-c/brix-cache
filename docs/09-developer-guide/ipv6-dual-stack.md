@@ -198,8 +198,8 @@ This should be the template for any other code that classifies addresses.
 
 | Layer | Why it's OK |
 |-------|-------------|
-| **WebDAV** (`src/webdav/`) | No direct socket code. Uses nginx's HTTP request machinery. TCP listening/connecting is handled by nginx core. TPC URLs come from HTTP headers (`Source:`, `Destination:`) and are passed verbatim to curl, which understands bracketed IPv6. |
-| **S3** (`src/s3/`) | No direct socket code. Same as WebDAV — uses nginx HTTP layer. |
+| **WebDAV** (`src/protocols/webdav/`) | No direct socket code. Uses nginx's HTTP request machinery. TCP listening/connecting is handled by nginx core. TPC URLs come from HTTP headers (`Source:`, `Destination:`) and are passed verbatim to curl, which understands bracketed IPv6. |
+| **S3** (`src/protocols/s3/`) | No direct socket code. Same as WebDAV — uses nginx HTTP layer. |
 | **Metrics** (`src/observability/metrics/`) | No IP address handling. Uses shared atomic counters with fixed labels. |
 | **Response module** (`src/response/`) | `xrootd_send_redirect()` takes a `host` string and `port` number. The host string is embedded verbatim into the wire response. IPv6 formatting responsibility is on the *callers* (see §3.3). |
 | **CMS protocol** | The CMS heartbeat sends `listen_port` but not hostname; the CMS manager provides the hostname in `kYR_select` redirects. The CMS subsystem doesn't format IPv6 addresses itself — it delegates to the CMS manager. This is a protocol-level dependency. |

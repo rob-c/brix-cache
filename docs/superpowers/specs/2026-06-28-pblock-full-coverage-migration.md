@@ -158,7 +158,7 @@ non-contiguous (block-striped) backend; `read_sendfile_fd` already returns
 object to hash it:
 - `src/core/compat/checksum_core.c` already calls `obj.driver->pread` — but the obj is
   built by `xrootd_sd_posix_wrap(fd)`, so `driver == posix`. Feed it the real obj.
-- `src/webdav/put.c` `webdav_put_persist_checksums` reopens via `xrootd_vfs_open_fd`
+- `src/protocols/webdav/put.c` `webdav_put_persist_checksums` reopens via `xrootd_vfs_open_fd`
   (bare fd ⇒ block-0 only). Migrate to a handle + `vfs_file_pread`.
 - `src/dirlist/dcksm.c` (per-entry dirlist checksum) — same.
 

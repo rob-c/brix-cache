@@ -28,7 +28,7 @@
 **Files:**
 - Modify: `src/core/types/config.h` (add fields)
 - Modify: the stream module directive table + merge (`src/stream/module*.c` — `grep` for the existing `xrootd_ssi` directive added in Phase 1)
-- Modify: `src/ssi/*` to read the configured values (cap, enabled services)
+- Modify: `src/protocols/ssi/*` to read the configured values (cap, enabled services)
 - Test: `tests/test_ssi_config.py`
 
 **Directives (all default-off / sensible defaults):**
@@ -49,7 +49,7 @@
 
 **Files:**
 - Modify: `src/observability/metrics/metrics_internal.h` (enum slots) + the relevant `src/observability/metrics/*.c` export
-- Modify: `src/ssi/ssi.c` / `deliver.c` / `svc_cta/cta_service.c` (increment at callsites)
+- Modify: `src/protocols/ssi/ssi.c` / `deliver.c` / `svc_cta/cta_service.c` (increment at callsites)
 - Test: `tests/test_ssi_metrics.py`
 
 **Metrics (low-cardinality):**
@@ -72,14 +72,14 @@
 - Create: `tests/test_ssi_conformance.py` (aggregator) — or extend `test_ssi_wire.py::TestSsiRealClient`
 
 - [ ] **Step 1:** Extend the real `libXrdSsi` client tests to cover: async response (deferred), streamed response, an alert round-trip, and 2-way multiplex — the generic framework's gold-standard proof. Where the stock client cannot drive a case, fall back to the golden-vector raw-wire proof and document the limitation inline.
-- [ ] **Step 2:** Full SSI regression: run every `tests/test_ssi*.py` + all `src/ssi/**/*_unittest.c` standalone tests; record pass counts.
+- [ ] **Step 2:** Full SSI regression: run every `tests/test_ssi*.py` + all `src/protocols/ssi/**/*_unittest.c` standalone tests; record pass counts.
 - [ ] **Step 3:** Run a broad module smoke (`pytest tests/ -k "ssi or conformance" -v --tb=short`) to confirm no cross-subsystem regression. Commit.
 
 ---
 
 ### Task 4: Final docs
 
-- [ ] Update `src/ssi/README.md` + `src/ssi/svc_cta/README.md`: full directive reference, metric reference, the conformance story (real client + golden vectors) and its honest limitation (no standalone `xrdssi` CLI). Update the design spec's status to *implemented*. Commit.
+- [ ] Update `src/protocols/ssi/README.md` + `src/protocols/ssi/svc_cta/README.md`: full directive reference, metric reference, the conformance story (real client + golden vectors) and its honest limitation (no standalone `xrdssi` CLI). Update the design spec's status to *implemented*. Commit.
 
 ---
 

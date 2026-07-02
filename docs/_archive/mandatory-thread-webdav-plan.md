@@ -13,9 +13,9 @@
 |------|---------|-----------------|--------|
 | `src/core/aio/aio.h` | 68–end of file | AIO struct definitions (`xrootd_aio_ctx_t`) and all function declarations | Remove — always compile |
 | `src/core/config/config.h` | 315–319 | `thread_pool` + `thread_pool_name` fields in `ngx_stream_xrootd_srv_conf_t` | Remove ifdef wrapper, keep fields |
-| `src/webdav/webdav.h` | 8 | `#include <ngx_thread_pool.h>` | Remove ifdef wrapper, always include |
-| `src/webdav/webdav.h` | 125–130 | `thread_pool` + `thread_pool_name` in `ngx_http_xrootd_webdav_loc_conf_t` | Remove ifdef wrapper, keep fields |
-| `src/webdav/webdav.h` | 304–318 | Thread pool function declarations (`webdav_*_aio_thread`, `_done`) | Remove ifdef wrapper, always declare |
+| `src/protocols/webdav/webdav.h` | 8 | `#include <ngx_thread_pool.h>` | Remove ifdef wrapper, always include |
+| `src/protocols/webdav/webdav.h` | 125–130 | `thread_pool` + `thread_pool_name` in `ngx_http_xrootd_webdav_loc_conf_t` | Remove ifdef wrapper, keep fields |
+| `src/protocols/webdav/webdav.h` | 304–318 | Thread pool function declarations (`webdav_*_aio_thread`, `_done`) | Remove ifdef wrapper, always declare |
 
 #### Source files (22 blocks across 17 files)
 | File | Line(s) | What is guarded | Action |
@@ -24,17 +24,17 @@
 | `src/connection/fd_table.c` | 295–end | AIO-related cleanup code | Remove ifdef, keep code |
 | `src/stream/module_cache_proxy_directives.c` | 170–end | Thread pool directive parsing | Remove ifdef, keep code |
 | `src/stream/module.c` | 541–end | Postconfiguration thread pool setup | Remove ifdef, always call |
-| `src/webdav/postconfig.c` | 70–100 | WebDAV thread pool resolution loop | Remove ifdef, always run |
-| `src/webdav/tpc_thread.c` | 17–209 | Thread functions for HTTP-TPC | Remove ifdef wrapper, keep code |
-| `src/webdav/tpc.c` | 203–408 | TPC thread pool usage in pull handler | Remove ifdef, always use threads |
-| `src/webdav/tpc.c` | 409–end | Second thread block (TPC async dispatch) | Remove ifdef, keep code |
-| `src/webdav/put.c` | 14–182 | AIO PUT path | Remove ifdef, always use aio |
-| `src/webdav/put.c` | 183–end | Second thread block in PUT handler | Remove ifdef, keep code |
-| `src/s3/put.c` | 61–347 | S3 PUT with thread pool async write | Remove ifdef, always use aio |
-| `src/s3/put.c` | 348–end | Second thread block in S3 PUT | Remove ifdef, keep code |
-| `src/s3/module.c` | 42–44 | Postconfiguration forward declaration | Remove ifdef |
-| `src/s3/module.c` | 106–143 | Postconfiguration function body | Remove ifdef, always compile |
-| `src/s3/module.c` | 147–151 | Module context postconfig slot (NGX_THREADS/else) | Collapse to single entry: `ngx_http_s3_postconfiguration` |
+| `src/protocols/webdav/postconfig.c` | 70–100 | WebDAV thread pool resolution loop | Remove ifdef, always run |
+| `src/protocols/webdav/tpc_thread.c` | 17–209 | Thread functions for HTTP-TPC | Remove ifdef wrapper, keep code |
+| `src/protocols/webdav/tpc.c` | 203–408 | TPC thread pool usage in pull handler | Remove ifdef, always use threads |
+| `src/protocols/webdav/tpc.c` | 409–end | Second thread block (TPC async dispatch) | Remove ifdef, keep code |
+| `src/protocols/webdav/put.c` | 14–182 | AIO PUT path | Remove ifdef, always use aio |
+| `src/protocols/webdav/put.c` | 183–end | Second thread block in PUT handler | Remove ifdef, keep code |
+| `src/protocols/s3/put.c` | 61–347 | S3 PUT with thread pool async write | Remove ifdef, always use aio |
+| `src/protocols/s3/put.c` | 348–end | Second thread block in S3 PUT | Remove ifdef, keep code |
+| `src/protocols/s3/module.c` | 42–44 | Postconfiguration forward declaration | Remove ifdef |
+| `src/protocols/s3/module.c` | 106–143 | Postconfiguration function body | Remove ifdef, always compile |
+| `src/protocols/s3/module.c` | 147–151 | Module context postconfig slot (NGX_THREADS/else) | Collapse to single entry: `ngx_http_s3_postconfiguration` |
 | `src/write/pgwrite.c` | 237–255 | pgwrite thread pool path | Remove ifdef, always use aio |
 | `src/write/common.c` | 106–163 | Common write with thread pool | Remove ifdef, keep code |
 | `src/core/aio/pgread.c` | 14–183 | AIO pgread thread/callback | Remove ifdef wrapper, keep code |
@@ -52,17 +52,17 @@ These `.c` files check `conf->thread_pool == NULL` at runtime — after making t
 |------|----------|---------|--------|
 | `src/write/common.c` | ~line 106–163 | `if (conf->thread_pool == NULL) { /* sync fallback */ }` | Convert to assert or remove — pool always exists |
 | `src/fs/cache/open_or_fill.c` | ~line X | `if (conf->thread_pool == NULL)` | Convert to assert |
-| `src/webdav/postconfig.c` | lines 88–92 | `if (wdcf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove — pool always resolved, change log level if needed |
-| `src/s3/module.c` | lines 133–137 | `if (scf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove |
+| `src/protocols/webdav/postconfig.c` | lines 88–92 | `if (wdcf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove — pool always resolved, change log level if needed |
+| `src/protocols/s3/module.c` | lines 133–137 | `if (scf->thread_pool == NULL) { NGX_LOG_NOTICE }` | Remove |
 | `src/core/aio/config.c` | lines 49–61 | Cache-required pool check + fallback notice | Keep cache-required check; remove fallback notice path |
 
 ### Other conditionals related to WebDAV
 
 | Conditional | Files | Lines | What is guarded | Action |
 |-------------|-------|-------|-----------------|--------|
-| `#if defined(XROOTD_WEBDAV_DAV_DELEGATION)` | `src/webdav/access.c` | 197, 225 | MKCOL/DELETE delegation to nginx dav module | Remove ifdef — always include DAV delegation path |
-| `#if defined(XROOTD_WEBDAV_DAV_DELEGATION)` | `src/webdav/dispatch.c` | 81, 93 | Method routing for MKCOL/DELETE | Remove ifdef — always route MKCOL/DELETE |
-| `#if defined(XROOTD_HAVE_LIBXML2)` | `src/webdav/propfind.c` | 24, 153, 159 | XML parsing for PROPFIND Multi-Status responses | Remove ifdef — always compile XML path; provide stub fallback if libxml2 absent (or make mandatory) |
+| `#if defined(XROOTD_WEBDAV_DAV_DELEGATION)` | `src/protocols/webdav/access.c` | 197, 225 | MKCOL/DELETE delegation to nginx dav module | Remove ifdef — always include DAV delegation path |
+| `#if defined(XROOTD_WEBDAV_DAV_DELEGATION)` | `src/protocols/webdav/dispatch.c` | 81, 93 | Method routing for MKCOL/DELETE | Remove ifdef — always route MKCOL/DELETE |
+| `#if defined(XROOTD_HAVE_LIBXML2)` | `src/protocols/webdav/propfind.c` | 24, 153, 159 | XML parsing for PROPFIND Multi-Status responses | Remove ifdef — always compile XML path; provide stub fallback if libxml2 absent (or make mandatory) |
 
 ### Current configure script dependency status
 
@@ -140,7 +140,7 @@ echo " + xrootd WebDAV: nginx DAV delegation enabled (MKCOL+DELETE → ngx_http_
 - Update field comments to drop "(NGX_THREADS only)" qualifier
 - This is the most impactful header change: every .c file that accesses these fields now has them unconditionally
 
-#### `src/webdav/webdav.h` — Remove 3 blocks (lines 8, 125–130, 304–318)
+#### `src/protocols/webdav/webdav.h` — Remove 3 blocks (lines 8, 125–130, 304–318)
 - Line 8: always include `<ngx_thread_pool.h>`
 - Lines 125–130: keep `thread_pool` + `thread_pool_name` fields in loc_conf_t unconditionally
 - Lines 304–318: always declare thread pool function prototypes
@@ -151,33 +151,33 @@ For each .c file, remove the `#if (NGX_THREADS)` / `#endif` pair and keep all co
 
 **Files with entire-file guards (remove outermost ifdef):**
 - `src/core/aio/config.c` — lines 3–72: remove outer `#if (NGX_THREADS)`, function always compiles
-- `src/webdav/tpc_thread.c` — lines 17–209: remove outer guard, thread functions always compile
+- `src/protocols/webdav/tpc_thread.c` — lines 17–209: remove outer guard, thread functions always compile
 
 **Files with module context conditional slots:**
-- `src/s3/module.c` — lines 42–44, 106–143, 147–151: 
+- `src/protocols/s3/module.c` — lines 42–44, 106–143, 147–151: 
   - Remove forward-declaration ifdef (line 42)
   - Remove function-body ifdef (line 106)
   - Collapse module context slot from `#if/else/#endif` pattern to single entry: `ngx_http_s3_postconfiguration, /* postconfiguration */`
 
 **Files with runtime NULL checks that become no-ops:**
 - `src/write/common.c`, `src/fs/cache/open_or_fill.c`: convert `conf->thread_pool == NULL` fallback paths to either assertions or remove entirely (pool always exists)
-- `src/webdav/postconfig.c` lines 88–92: change "NOT found" notice to never-executed path, or remove the else branch
-- `src/s3/module.c` lines 133–137: same — pool always resolved
+- `src/protocols/webdav/postconfig.c` lines 88–92: change "NOT found" notice to never-executed path, or remove the else branch
+- `src/protocols/s3/module.c` lines 133–137: same — pool always resolved
 
 **Files with inline thread blocks (remove ifdef pair only):**
-- `src/webdav/tpc.c`, `src/webdav/put.c`, `src/s3/put.c`, `src/write/pgwrite.c`, `src/write/common.c`, `src/core/aio/pgread.c`, `src/core/aio/readv.c`, `src/core/aio/resume.c`, `src/write/writev.c`, `src/write/sync.c`, `src/core/aio/dirlist.c`: each has a single `#if (NGX_THREADS)` / `#endif` pair wrapping a function or code block — remove the pair, keep the content
+- `src/protocols/webdav/tpc.c`, `src/protocols/webdav/put.c`, `src/protocols/s3/put.c`, `src/write/pgwrite.c`, `src/write/common.c`, `src/core/aio/pgread.c`, `src/core/aio/readv.c`, `src/core/aio/resume.c`, `src/write/writev.c`, `src/write/sync.c`, `src/core/aio/dirlist.c`: each has a single `#if (NGX_THREADS)` / `#endif` pair wrapping a function or code block — remove the pair, keep the content
 
 ### Phase D: WebDAV-specific conditionals (3 files)
 
-#### `src/webdav/access.c` — Remove `#if defined(XROOTD_WEBDAV_DAV_DELEGATION)` at lines 197, 225
+#### `src/protocols/webdav/access.c` — Remove `#if defined(XROOTD_WEBDAV_DAV_DELEGATION)` at lines 197, 225
 - Lines 197–224: MKCOL delegation to nginx dav module — always compile this path
 - Line 225: DELETE delegation — always compile
 
-#### `src/webdav/dispatch.c` — Remove `#if defined(XROOTD_WEBDAV_DAV_DELEGATION)` at lines 81, 93
+#### `src/protocols/webdav/dispatch.c` — Remove `#if defined(XROOTD_WEBDAV_DAV_DELEGATION)` at lines 81, 93
 - Lines 81–92: MKCOL method routing — always include
 - Line 93: DELETE method routing — always include
 
-#### `src/webdav/propfind.c` — Remove `#if defined(XROOTD_HAVE_LIBXML2)` at lines 24, 153, 159
+#### `src/protocols/webdav/propfind.c` — Remove `#if defined(XROOTD_HAVE_LIBXML2)` at lines 24, 153, 159
 - Line 24: XML header includes and forward declarations — always compile
 - Lines 153–159: XML parsing functions for PROPFIND Multi-Status body — always compile
 

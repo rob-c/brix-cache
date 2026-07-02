@@ -9,7 +9,7 @@
  * charge the actual bytes sent.
  */
 #include "ratelimit.h"
-#include "webdav/webdav.h"
+#include "protocols/webdav/webdav.h"
 #include "core/compat/http_headers.h"
 #include "observability/metrics/metrics_macros.h"
 

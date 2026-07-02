@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Promote `src/ssi/`'s one-request-per-handle engine into a session object holding an RRTable, so a single open SSI handle multiplexes many concurrent requests keyed by `reqId` — a pure refactor that preserves existing single-request behavior and adds no new wire features.
+**Goal:** Promote `src/protocols/ssi/`'s one-request-per-handle engine into a session object holding an RRTable, so a single open SSI handle multiplexes many concurrent requests keyed by `reqId` — a pure refactor that preserves existing single-request behavior and adds no new wire features.
 
 **Architecture:** The fd-table `.ssi` slot (already `void *`) points at a new `xrootd_ssi_session_t` instead of a bare `xrootd_ssi_req_t`. The session owns the resolved provider and a fixed-size table of per-`reqId` request slots. The `open`/`write`/`query`/`read` hooks decode the `reqId` from the `XrdSsiRRInfo` and route to the matching slot. Service resolution moves behind a small provider registry (the no-plugin-ABI stand-in for `XrdSsiProvider`). The client-poll (`kXR_query`) delivery path is unchanged.
 
@@ -25,27 +25,27 @@
 Introduce a tiny service-name → implementation registry so `open` no longer calls `xrootd_ssi_service_lookup` directly. Returned **by value** (caller copies into the session) so it is reentrant.
 
 **Files:**
-- Create: `src/ssi/provider.h`
-- Create: `src/ssi/provider.c`
-- Create: `src/ssi/provider_unittest.c`
-- Modify: `config` (register `src/ssi/provider.c`)
+- Create: `src/protocols/ssi/provider.h`
+- Create: `src/protocols/ssi/provider.c`
+- Create: `src/protocols/ssi/provider_unittest.c`
+- Modify: `config` (register `src/protocols/ssi/provider.c`)
 
 **Interfaces:**
-- Consumes: `xrootd_ssi_process_fn` (from `src/ssi/ssi_service.h`), `xrootd_ssi_service_lookup()` (existing, resolves built-in `echo`).
+- Consumes: `xrootd_ssi_process_fn` (from `src/protocols/ssi/ssi_service.h`), `xrootd_ssi_service_lookup()` (existing, resolves built-in `echo`).
 - Produces:
   - `typedef struct { const char *name; xrootd_ssi_process_fn process; } xrootd_ssi_provider_t;`
   - `int xrootd_ssi_provider_lookup(const char *name, xrootd_ssi_provider_t *out);` → returns 1 and fills `*out` if known, else 0.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `src/ssi/provider_unittest.c`:
+Create `src/protocols/ssi/provider_unittest.c`:
 
 ```c
 /*
  * provider_unittest.c — standalone unit test for the SSI provider registry.
  *
  *   gcc -Wall -Wextra -Werror -I src -o /tmp/ssi_provider_ut \
- *       src/ssi/provider_unittest.c src/ssi/provider.c src/ssi/ssi_service.c \
+ *       src/protocols/ssi/provider_unittest.c src/protocols/ssi/provider.c src/protocols/ssi/ssi_service.c \
  *       && /tmp/ssi_provider_ut
  */
 #include "provider.h"
@@ -91,12 +91,12 @@ int main(void)
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `gcc -Wall -Wextra -Werror -I src -o /tmp/ssi_provider_ut src/ssi/provider_unittest.c src/ssi/provider.c src/ssi/ssi_service.c && /tmp/ssi_provider_ut`
+Run: `gcc -Wall -Wextra -Werror -I src -o /tmp/ssi_provider_ut src/protocols/ssi/provider_unittest.c src/protocols/ssi/provider.c src/protocols/ssi/ssi_service.c && /tmp/ssi_provider_ut`
 Expected: FAIL to compile — `provider.h`/`provider.c` do not exist yet.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `src/ssi/provider.h`:
+Create `src/protocols/ssi/provider.h`:
 
 ```c
 #ifndef XROOTD_SSI_PROVIDER_H
@@ -126,7 +126,7 @@ int xrootd_ssi_provider_lookup(const char *name, xrootd_ssi_provider_t *out);
 #endif /* XROOTD_SSI_PROVIDER_H */
 ```
 
-Create `src/ssi/provider.c`:
+Create `src/protocols/ssi/provider.c`:
 
 ```c
 /*
@@ -160,21 +160,21 @@ xrootd_ssi_provider_lookup(const char *name, xrootd_ssi_provider_t *out)
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `gcc -Wall -Wextra -Werror -I src -o /tmp/ssi_provider_ut src/ssi/provider_unittest.c src/ssi/provider.c src/ssi/ssi_service.c && /tmp/ssi_provider_ut`
+Run: `gcc -Wall -Wextra -Werror -I src -o /tmp/ssi_provider_ut src/protocols/ssi/provider_unittest.c src/protocols/ssi/provider.c src/protocols/ssi/ssi_service.c && /tmp/ssi_provider_ut`
 Expected: `OK`
 
 - [ ] **Step 5: Register the new source in `./config`**
 
-Find the line registering `src/ssi/ssi.c` (e.g. `grep -n "ssi/ssi.c" config`) and add `provider.c` to the same `NGX_ADDON_SRCS`-style list, on its own line matching the surrounding `$ngx_addon_dir/src/ssi/...` entries. Example pattern to match the file's style:
+Find the line registering `src/protocols/ssi/ssi.c` (e.g. `grep -n "ssi/ssi.c" config`) and add `provider.c` to the same `NGX_ADDON_SRCS`-style list, on its own line matching the surrounding `$ngx_addon_dir/src/protocols/ssi/...` entries. Example pattern to match the file's style:
 
 ```
-    $ngx_addon_dir/src/ssi/provider.c \
+    $ngx_addon_dir/src/protocols/ssi/provider.c \
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/ssi/provider.h src/ssi/provider.c src/ssi/provider_unittest.c config
+git add src/protocols/ssi/provider.h src/protocols/ssi/provider.c src/protocols/ssi/provider_unittest.c config
 git commit -m "feat(ssi): provider registry (service-name → handler)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
@@ -187,11 +187,11 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Add the session struct holding the provider (by value) and a fixed table of per-`reqId` request slots, with find-or-create and drop. The per-request struct is the existing `xrootd_ssi_req_t` body, now table-resident and tagged with `reqId` + `in_use`.
 
 **Files:**
-- Create: `src/ssi/session.h`
-- Create: `src/ssi/session.c`
-- Create: `src/ssi/session_unittest.c`
-- Modify: `src/ssi/ssi.h:34-59` (move per-request struct fields; add `reqId`/`in_use`; drop `service`/`handler` which move to the session)
-- Modify: `config` (register `src/ssi/session.c`)
+- Create: `src/protocols/ssi/session.h`
+- Create: `src/protocols/ssi/session.c`
+- Create: `src/protocols/ssi/session_unittest.c`
+- Modify: `src/protocols/ssi/ssi.h:34-59` (move per-request struct fields; add `reqId`/`in_use`; drop `service`/`handler` which move to the session)
+- Modify: `config` (register `src/protocols/ssi/session.c`)
 
 **Interfaces:**
 - Consumes: `xrootd_ssi_provider_t` (Task 1); `xrootd_ssi_req_t` (existing struct, amended here).
@@ -204,7 +204,7 @@ Add the session struct holding the provider (by value) and a fixed table of per-
 
 - [ ] **Step 1: Amend the per-request struct in `ssi.h`**
 
-In `src/ssi/ssi.h`, change the `xrootd_ssi_req_t` definition: remove `char service[64];`, `xrootd_ssi_process_fn handler;` (these move to the session), and add identity/occupancy fields at the top. Resulting struct:
+In `src/protocols/ssi/ssi.h`, change the `xrootd_ssi_req_t` definition: remove `char service[64];`, `xrootd_ssi_process_fn handler;` (these move to the session), and add identity/occupancy fields at the top. Resulting struct:
 
 ```c
 /* Per-reqId SSI request state; lives in the session's rrtable. */
@@ -238,7 +238,7 @@ Leave the `xrootd_ssi_open/_write/_query/_read` prototypes unchanged.
 
 - [ ] **Step 2: Write the failing test**
 
-Create `src/ssi/session_unittest.c`:
+Create `src/protocols/ssi/session_unittest.c`:
 
 ```c
 /*
@@ -246,7 +246,7 @@ Create `src/ssi/session_unittest.c`:
  *
  *   gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src \
  *       -o /tmp/ssi_session_ut \
- *       src/ssi/session_unittest.c src/ssi/session.c && /tmp/ssi_session_ut
+ *       src/protocols/ssi/session_unittest.c src/protocols/ssi/session.c && /tmp/ssi_session_ut
  */
 #include "session.h"
 #include <stdio.h>
@@ -311,12 +311,12 @@ int main(void)
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src -o /tmp/ssi_session_ut src/ssi/session_unittest.c src/ssi/session.c && /tmp/ssi_session_ut`
+Run: `gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src -o /tmp/ssi_session_ut src/protocols/ssi/session_unittest.c src/protocols/ssi/session.c && /tmp/ssi_session_ut`
 Expected: FAIL to compile — `session.h`/`session.c` do not exist yet.
 
 - [ ] **Step 4: Write minimal implementation**
 
-Create `src/ssi/session.h`:
+Create `src/protocols/ssi/session.h`:
 
 ```c
 #ifndef XROOTD_SSI_SESSION_H
@@ -374,7 +374,7 @@ void xrootd_ssi_session_drop(xrootd_ssi_session_t *s, uint32_t req_id);
 #endif /* XROOTD_SSI_SESSION_H */
 ```
 
-Create `src/ssi/session.c`:
+Create `src/protocols/ssi/session.c`:
 
 ```c
 /*
@@ -458,21 +458,21 @@ xrootd_ssi_session_drop(xrootd_ssi_session_t *s, uint32_t req_id)
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src -o /tmp/ssi_session_ut src/ssi/session_unittest.c src/ssi/session.c && /tmp/ssi_session_ut`
+Run: `gcc -Wall -Wextra -Werror -DSSI_UT_STANDALONE -I src -o /tmp/ssi_session_ut src/protocols/ssi/session_unittest.c src/protocols/ssi/session.c && /tmp/ssi_session_ut`
 Expected: `OK`
 
 - [ ] **Step 6: Register the new source in `./config`**
 
-Add to the `src/ssi/` source list (same place as Task 1, Step 5):
+Add to the `src/protocols/ssi/` source list (same place as Task 1, Step 5):
 
 ```
-    $ngx_addon_dir/src/ssi/session.c \
+    $ngx_addon_dir/src/protocols/ssi/session.c \
 ```
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/ssi/session.h src/ssi/session.c src/ssi/session_unittest.c src/ssi/ssi.h config
+git add src/protocols/ssi/session.h src/protocols/ssi/session.c src/protocols/ssi/session_unittest.c src/protocols/ssi/ssi.h config
 git commit -m "feat(ssi): session object + RRTable (reqId-keyed multiplex)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
@@ -482,11 +482,11 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ### Task 3: Route the wire hooks through the session
 
-Refactor `src/ssi/ssi.c` so `open` binds a session (resolving the provider), and `write`/`query`/`read` decode the `reqId` from the `RRInfo` and operate on that slot. Dispatch calls `session->provider.process`. The poll reply path and the synchronous responder are unchanged in shape — only their state source moves from a single `rq` to `session_req(...)`.
+Refactor `src/protocols/ssi/ssi.c` so `open` binds a session (resolving the provider), and `write`/`query`/`read` decode the `reqId` from the `RRInfo` and operate on that slot. Dispatch calls `session->provider.process`. The poll reply path and the synchronous responder are unchanged in shape — only their state source moves from a single `rq` to `session_req(...)`.
 
 **Files:**
-- Modify: `src/ssi/ssi.c` (all four hooks + `ssi_dispatch`)
-- Test: `src/ssi/session_unittest.c` (already covers the table); wire behavior covered by Task 4.
+- Modify: `src/protocols/ssi/ssi.c` (all four hooks + `ssi_dispatch`)
+- Test: `src/protocols/ssi/session_unittest.c` (already covers the table); wire behavior covered by Task 4.
 
 **Interfaces:**
 - Consumes: `xrootd_ssi_session_create`, `xrootd_ssi_session_req`, `xrootd_ssi_session_drop` (Task 2); `xrootd_ssi_provider_lookup` (Task 1); `xrootd_ssi_rrinfo_decode` (existing).
@@ -494,7 +494,7 @@ Refactor `src/ssi/ssi.c` so `open` binds a session (resolving the provider), and
 
 - [ ] **Step 1: Update includes and `open` to bind a session**
 
-In `src/ssi/ssi.c`, add `#include "session.h"` and `#include "provider.h"`. Replace the body of `xrootd_ssi_open` so it resolves the provider and stores a session in the slot:
+In `src/protocols/ssi/ssi.c`, add `#include "session.h"` and `#include "provider.h"`. Replace the body of `xrootd_ssi_open` so it resolves the provider and stores a session in the slot:
 
 ```c
     xrootd_ssi_provider_t   prov;
@@ -690,7 +690,7 @@ Expected: build succeeds, exit 0. (Use the project's actual configure invocation
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/ssi/ssi.c
+git add src/protocols/ssi/ssi.c
 git commit -m "refactor(ssi): route open/write/query/read through session+RRTable
 
 One open /.ssi/ handle now multiplexes concurrent requests keyed by reqId.
@@ -818,12 +818,12 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Update `src/ssi/README.md`
+### Task 5: Update `src/protocols/ssi/README.md`
 
 Document that an SSI handle is now a session with an RRTable, the provider registry, and the `XROOTD_SSI_MAX_INFLIGHT` cap. Keep "async push / alerts / streaming" listed as the next phases (still non-goals in Phase 1).
 
 **Files:**
-- Modify: `src/ssi/README.md`
+- Modify: `src/protocols/ssi/README.md`
 
 - [ ] **Step 1: Edit the README**
 
@@ -832,7 +832,7 @@ Update the Overview to state: one open `/.ssi/<service>` handle is an `xrootd_ss
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/ssi/README.md
+git add src/protocols/ssi/README.md
 git commit -m "docs(ssi): document session/RRTable multiplex + provider registry
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"

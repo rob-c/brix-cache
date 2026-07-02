@@ -29,7 +29,7 @@ Already shared and not re-planned here:
 | Metrics storage and status classes | `src/observability/metrics/*` |
 
 XrdHttp is implemented as an extension layer inside the WebDAV HTTP module
-(`src/webdav/xrdhttp.c`), so this plan treats it as a protocol dialect sharing
+(`src/protocols/webdav/xrdhttp.c`), so this plan treats it as a protocol dialect sharing
 the WebDAV dispatch path, not as a fourth independent nginx module.
 
 ## Do Not Unify
@@ -115,9 +115,9 @@ Keep final emission protocol-specific:
 
 ### First Migration Targets
 
-1. `src/s3/object.c`: open/fstat/not-dir failures.
-2. `src/webdav/get.c`: cached-open and range failure handling.
-3. `src/webdav/xrdhttp.c`: replace its local HTTP-to-kXR switch with the shared result map.
+1. `src/protocols/s3/object.c`: open/fstat/not-dir failures.
+2. `src/protocols/webdav/get.c`: cached-open and range failure handling.
+3. `src/protocols/webdav/xrdhttp.c`: replace its local HTTP-to-kXR switch with the shared result map.
 4. `src/read/stat.c`: path-based stat failure mapping only.
 
 ### Tests
@@ -141,7 +141,7 @@ surface.
 
 ### Problem
 
-`src/webdav/metrics.c` and `src/s3/metrics.c` both implement the same response
+`src/protocols/webdav/metrics.c` and `src/protocols/s3/metrics.c` both implement the same response
 status extraction pattern:
 
 1. Ignore `NGX_DONE`.
@@ -153,7 +153,7 @@ status extraction pattern:
 
 Only the method enum and counter arrays differ.
 
-`src/webdav/xrdhttp.c` also has local `add_header_str()` and `add_header_num()`
+`src/protocols/webdav/xrdhttp.c` also has local `add_header_str()` and `add_header_num()`
 helpers even though `src/core/compat/http_headers.c` already owns most response
 header insertion.
 
@@ -200,10 +200,10 @@ The same `stat` tuple is repeatedly converted into protocol-specific metadata:
 
 | Surface | Files |
 |---|---|
-| WebDAV HEAD/GET/PROPFIND | `src/webdav/resource.c`, `methods_basic.c`, `get.c`, `propfind.c` |
-| S3 GET/HEAD/ListObjectsV2 | `src/s3/object.c`, `src/s3/list_walk.c`, `src/s3/util.c` |
+| WebDAV HEAD/GET/PROPFIND | `src/protocols/webdav/resource.c`, `methods_basic.c`, `get.c`, `propfind.c` |
+| S3 GET/HEAD/ListObjectsV2 | `src/protocols/s3/object.c`, `src/protocols/s3/list_walk.c`, `src/protocols/s3/util.c` |
 | Native stat/statx/dirlist | `src/read/stat.c`, `src/read/statx.c`, `src/dirlist/handler.c` |
-| XrdHttp Digest/headers | `src/webdav/xrdhttp.c`, `src/webdav/get.c` |
+| XrdHttp Digest/headers | `src/protocols/webdav/xrdhttp.c`, `src/protocols/webdav/get.c` |
 
 Each surface asks the same questions:
 
@@ -245,8 +245,8 @@ Keep wire serialization separate:
 | Serializer | Stays where |
 |---|---|
 | XRootD stat body | `src/path/stat_body.c` |
-| WebDAV PROPFIND XML | `src/webdav/propfind.c` |
-| S3 XML listing entry | `src/s3/list_objects_v2.c` |
+| WebDAV PROPFIND XML | `src/protocols/webdav/propfind.c` |
+| S3 XML listing entry | `src/protocols/s3/list_objects_v2.c` |
 | HTTP ETag header | `src/core/compat/http_file_response.c` |
 
 The shared struct should stop repeated `stat` interpretation without hiding the
@@ -254,9 +254,9 @@ protocol differences.
 
 ### First Migration Targets
 
-1. `src/s3/object.c`: GET/HEAD fstat handling.
-2. `src/webdav/methods_basic.c`: HEAD handling.
-3. `src/webdav/get.c`: metadata and range setup.
+1. `src/protocols/s3/object.c`: GET/HEAD fstat handling.
+2. `src/protocols/webdav/methods_basic.c`: HEAD handling.
+3. `src/protocols/webdav/get.c`: metadata and range setup.
 4. `src/read/statx.c`: convert host stat to info before formatting.
 
 ### Tests
@@ -321,8 +321,8 @@ Keep these as protocol callbacks or wrapper responsibilities:
 
 ### First Migration Targets
 
-1. Move the common range/header/send path from `src/s3/object.c`.
-2. Move the common range/header/send path from `src/webdav/get.c`.
+1. Move the common range/header/send path from `src/protocols/s3/object.c`.
+2. Move the common range/header/send path from `src/protocols/webdav/get.c`.
 3. Let XrdHttp pass a digest callback or keep one wrapper around the shared send.
 
 ### Tests
@@ -500,8 +500,8 @@ Directory enumeration is still fragmented:
 |---|---|
 | Native `kXR_dirlist` | `src/dirlist/handler.c` |
 | Native `kXR_Qckscan` | `src/query/checksum_ckscan_common.c` |
-| WebDAV PROPFIND | `src/webdav/propfind.c` |
-| S3 ListObjectsV2 | `src/s3/list_walk.c`, `src/s3/list_objects_v2.c` |
+| WebDAV PROPFIND | `src/protocols/webdav/propfind.c` |
+| S3 ListObjectsV2 | `src/protocols/s3/list_walk.c`, `src/protocols/s3/list_objects_v2.c` |
 
 `src/core/compat/fs_walk.c` provides a recursive callback walk, but it does not yet
 carry all information needed by every serializer:
@@ -657,9 +657,9 @@ helpers:
 
 | File | Current pattern |
 |---|---|
-| `src/s3/handler.c` | manual scan for `list-type=2` |
-| `src/webdav/xrdhttp.c` | local wrappers around `xrootd_http_query_get()` |
-| `src/webdav/xrdhttp.c` | local request-header insertion |
+| `src/protocols/s3/handler.c` | manual scan for `list-type=2` |
+| `src/protocols/webdav/xrdhttp.c` | local wrappers around `xrootd_http_query_get()` |
+| `src/protocols/webdav/xrdhttp.c` | local request-header insertion |
 | S3 copy/multipart paths | repeated request-header loops |
 
 This is not large, but it is low-risk cleanup and reduces parser drift.
@@ -820,7 +820,7 @@ Start with Phase 1 because it is low risk and creates useful building blocks:
    new `src/core/compat/http_status.c/h`.
 2. Add `xrootd_http_set_header_num()`.
 3. Add `xrootd_http_request_header_add()` for XrdHttp injected headers.
-4. Migrate `src/webdav/metrics.c`, `src/s3/metrics.c`, and the local XrdHttp
+4. Migrate `src/protocols/webdav/metrics.c`, `src/protocols/s3/metrics.c`, and the local XrdHttp
    header helpers.
 5. Replace `s3_is_list_request()` with `xrootd_http_query_has()`.
 

@@ -55,19 +55,19 @@ def _read(rel):
 # --------------------------------------------------------------------------- #
 
 def test_multi_backend_wiring_present():
-    pinternal = _read("src/webdav/proxy_internal.h")
+    pinternal = _read("src/protocols/webdav/proxy_internal.h")
     assert "xrootd_webdav_backend_t" in pinternal
     assert "webdav_proxy_pick_backend" in pinternal
-    proxy = _read("src/webdav/proxy.c")
+    proxy = _read("src/protocols/webdav/proxy.c")
     assert "webdav_proxy_pick_backend" in proxy
     assert "upstream_rr" in proxy
     # Passive health updates the selected backend on gateway failures.
-    resp = _read("src/webdav/proxy_response.c")
+    resp = _read("src/protocols/webdav/proxy_response.c")
     assert "fail_count" in resp and "selected_backend" in resp
 
 
 def test_request_builder_uses_selected_backend():
-    req = _read("src/webdav/proxy_request.c")
+    req = _read("src/protocols/webdav/proxy_request.c")
     assert "selected_backend" in req, "request builder must use picked backend host"
 
 
@@ -264,12 +264,12 @@ def test_round_robin_distributes(proxy_with_two_origins):
 # --------------------------------------------------------------------------- #
 
 def test_aux_filter_module_registered():
-    assert (ROOT / "src/webdav/xrdhttp_filter.c").exists()
+    assert (ROOT / "src/protocols/webdav/xrdhttp_filter.c").exists()
     cfg = _read("config")
     assert "ngx_module_type=HTTP_AUX_FILTER" in cfg
     assert "ngx_http_xrootd_xrdhttp_filter_module" in cfg
     # The body filter / Want-Digest wiring is present.
-    xh = _read("src/webdav/xrdhttp.c")
+    xh = _read("src/protocols/webdav/xrdhttp.c")
     assert "xrdhttp_digest_body_filter" in xh
     assert "Want-Digest" in xh
 
@@ -367,11 +367,11 @@ def test_want_digest_does_not_break_get(webdav_server):
 # --------------------------------------------------------------------------- #
 
 def test_introspect_wiring_present():
-    intro = _read("src/webdav/introspect.c")
+    intro = _read("src/protocols/webdav/introspect.c")
     assert "ngx_http_subrequest" in intro
     assert "webdav_introspect_access_handler" in intro
     # Registered as a second access-phase handler.
-    pc = _read("src/webdav/postconfig.c")
+    pc = _read("src/protocols/webdav/postconfig.c")
     assert "webdav_introspect_access_handler" in pc
 
 

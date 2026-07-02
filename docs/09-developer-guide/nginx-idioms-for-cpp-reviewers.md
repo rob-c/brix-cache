@@ -58,8 +58,8 @@ Entry points to start reading (full map in [AGENTS.md / CLAUDE.md OP→FILE tabl
 | Protocol | Entry |
 |---|---|
 | `root://` (binary, stream) | `src/connection/handler.c` → `src/handshake/dispatch.c` |
-| `davs://` / WebDAV (HTTP) | `src/webdav/dispatch.c` |
-| S3 (HTTP) | `src/s3/handler.c` |
+| `davs://` / WebDAV (HTTP) | `src/protocols/webdav/dispatch.c` |
+| S3 (HTTP) | `src/protocols/s3/handler.c` |
 
 ---
 

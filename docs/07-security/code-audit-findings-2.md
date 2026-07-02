@@ -41,15 +41,15 @@ could not be confirmed by direct code reading are marked `[NEEDS VERIFICATION]`.
 ## G-01: S3 XML Escape Heap Overflow
 
 **Severity:** High  
-**Files:** `src/s3/util.c:158–172`, `src/s3/list_query_helpers.c:123–135`,
-`src/s3/list_objects_v2.c:137–153`
+**Files:** `src/protocols/s3/util.c:158–172`, `src/protocols/s3/list_query_helpers.c:123–135`,
+`src/protocols/s3/list_objects_v2.c:137–153`
 
 ### Vulnerability
 
 `list_objects_v2` estimates the XML response buffer with 3× expansion per key character:
 
 ```c
-/* src/s3/list_objects_v2.c:142-143 */
+/* src/protocols/s3/list_objects_v2.c:142-143 */
 xml_capacity = 512 + ...
              + (size_t)(end_idx - start_idx)
                * (S3_MAX_KEY * 3 + 256 + (fetch_owner ? 128 : 0));
@@ -60,7 +60,7 @@ The 3× factor is intended to cover URL encoding.  However, `s3_xml_append_escap
 certain characters by **up to 6×**:
 
 ```c
-/* src/s3/util.c:150-155 */
+/* src/protocols/s3/util.c:150-155 */
 { '&',  "&amp;",  5 },  /* 5× */
 { '<',  "&lt;",   4 },
 { '>',  "&gt;",   4 },
@@ -71,7 +71,7 @@ certain characters by **up to 6×**:
 Critically, `s3_xml_escape` performs **no bounds check against `b->end`**:
 
 ```c
-/* src/s3/util.c:158-172 */
+/* src/protocols/s3/util.c:158-172 */
 for (size_t i = 0; i < len; i++) {
     ...
     b->last = ngx_cpymem(b->last, tbl[t].esc, tbl[t].elen);  /* no end check */
@@ -231,7 +231,7 @@ requires (real tokens have 2–4 levels at most).
 ## G-03: WebDAV Lock Token Timing Oracle
 
 **Severity:** Medium  
-**File:** `src/webdav/lock.c:470`
+**File:** `src/protocols/webdav/lock.c:470`
 
 ### Vulnerability
 
@@ -239,7 +239,7 @@ The UNLOCK handler verifies that the client-supplied `Lock-Token` header contain
 the stored token using a substring search:
 
 ```c
-/* src/webdav/lock.c:470 */
+/* src/protocols/webdav/lock.c:470 */
 if (ngx_strstr(h->value.data, (u_char *) tbl->slots[i].token) != NULL) {
     /* unlock succeeds */
 }
@@ -342,7 +342,7 @@ carries an `aud` claim the server does not match.
 ## G-05: PROPFIND `Depth: infinity` — No Per-IP Rate Limit
 
 **Severity:** Medium  
-**File:** `src/webdav/propfind.c`
+**File:** `src/protocols/webdav/propfind.c`
 
 ### Vulnerability
 
@@ -395,8 +395,8 @@ beyond a configurable limit.
 ## G-06: `strtol` Results Cast to `int` Without `INT_MAX` Guard
 
 **Severity:** Low  
-**Files:** `src/s3/multipart_complete_list_parts.c:151,163`, `src/s3/handler.c:275`,
-`src/s3/multipart_complete_list_uploads.c:78`, `src/s3/list_objects_v2.c:79`
+**Files:** `src/protocols/s3/multipart_complete_list_parts.c:151,163`, `src/protocols/s3/handler.c:275`,
+`src/protocols/s3/multipart_complete_list_uploads.c:78`, `src/protocols/s3/list_objects_v2.c:79`
 
 ### Vulnerability
 
@@ -404,7 +404,7 @@ Five S3 pagination parameters are parsed with `strtol` and then cast to `int`
 without verifying that the `long` value fits in an `int`:
 
 ```c
-/* src/s3/multipart_complete_list_parts.c:151-153 */
+/* src/protocols/s3/multipart_complete_list_parts.c:151-153 */
 long  mn = strtol(marker_str, &endp, 10);
 if (endp != marker_str && mn >= 0) {
     part_number_marker = (int) mn;   /* undefined behaviour if mn > INT_MAX */
@@ -440,14 +440,14 @@ server-side maximum constant.
 ## G-07: `sprintf` Without Size in Lock UUID Generation
 
 **Severity:** Low  
-**File:** `src/webdav/lock.c:60`
+**File:** `src/protocols/webdav/lock.c:60`
 
 ### Vulnerability
 
 `webdav_generate_uuid` uses unsafe `sprintf` with no buffer-size parameter:
 
 ```c
-/* src/webdav/lock.c:50-65 */
+/* src/protocols/webdav/lock.c:50-65 */
 static void
 webdav_generate_uuid(char *buf)
 {
@@ -676,13 +676,13 @@ G-06 through G-10 are defensive hygiene improvements with minimal effort.
 
 | ID | Files changed | Change |
 |----|---------------|--------|
-| G-01 | `src/s3/util.c`, `src/s3/list_objects_v2.c` | Added `b->last + elen > b->end` guard inside `s3_xml_escape`; raised capacity estimate from 3× to 6× worst-case XML entity expansion |
+| G-01 | `src/protocols/s3/util.c`, `src/protocols/s3/list_objects_v2.c` | Added `b->last + elen > b->end` guard inside `s3_xml_escape`; raised capacity estimate from 3× to 6× worst-case XML entity expansion |
 | G-02 | `src/auth/token/json.c` | Added `JSON_MAX_NEST_DEPTH=32`; `json_skip_compound` now delegates to `json_skip_compound_depth` which decrements a remaining-depth counter and returns `NULL` when exhausted |
-| G-03 | `src/webdav/lock.c` | Replaced `ngx_strstr` with `CRYPTO_memcmp` after stripping angle-bracket delimiters; comparison is now constant-time in token length |
+| G-03 | `src/protocols/webdav/lock.c` | Replaced `ngx_strstr` with `CRYPTO_memcmp` after stripping angle-bracket delimiters; comparison is now constant-time in token length |
 | G-04 | — | Already enforced: `src/auth/token/config.c` rejects configuration when `xrootd_auth token` is set without `xrootd_token_audience` |
 | G-05 | `docs/07-security/hardening-guide.md` | Added `limit_req_zone propfind_limit` example with `rate=2r/s burst=4` guidance for operators |
-| G-06 | `src/s3/multipart_complete_list_parts.c` | Added `mn <= MPU_MAX_PART_NUMBER` guard before `(int)` cast of `strtol` result |
-| G-07 | `src/webdav/lock.c` | Changed `webdav_generate_uuid(char *buf)` → `webdav_generate_uuid(char *buf, size_t bufsz)`; replaced `sprintf` with `snprintf` |
+| G-06 | `src/protocols/s3/multipart_complete_list_parts.c` | Added `mn <= MPU_MAX_PART_NUMBER` guard before `(int)` cast of `strtol` result |
+| G-07 | `src/protocols/webdav/lock.c` | Changed `webdav_generate_uuid(char *buf)` → `webdav_generate_uuid(char *buf, size_t bufsz)`; replaced `sprintf` with `snprintf` |
 | G-08 | `src/auth/sss/auth_request.c` | Added `OPENSSL_cleanse(clear, cipher_len)` immediately before `ctx->auth_done = 1` |
 | G-09 | `src/auth/sss/config.c` | Replaced `stat()` + `fopen()` with `open(O_RDONLY\|O_NOFOLLOW\|O_CLOEXEC)` + `fstat()` + `fdopen()` to close the TOCTOU window and prevent symlink substitution |
 | G-10 | `src/core/types/tunables.h`, `src/auth/token/validate.c` | Defined `XROOTD_TOKEN_CLOCK_SKEW_SECS=30`; `exp` check now allows 30 s grace after expiry, `nbf` check now allows 30 s before the not-before instant |

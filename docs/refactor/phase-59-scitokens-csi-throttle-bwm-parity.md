@@ -555,7 +555,7 @@ typedef struct {                 /* one reservation slot in SHM              */
   `bwm.src`/`bwm.dst` analogue).
 - API: `xrootd_resv_schedule(class) → handle | QUEUED`, `xrootd_resv_done(handle)`,
   `xrootd_resv_status(&in,&out,&xeq)`.
-- Integrate at TPC launch (`src/tpc/launch.c`, `src/webdav/tpc.c`): reserve before
+- Integrate at TPC launch (`src/tpc/launch.c`, `src/protocols/webdav/tpc.c`): reserve before
   transfer, release on done/abort. Non-TPC data ops unaffected.
 - `Status` → dashboard + Prometheus gauge `xrootd_reservation_queue{state}`.
 
@@ -789,7 +789,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
  {  /* unchanged: single-issuer fast path, now also the 1-entry shim target */ }
 ```
 
-**T-3 `src/webdav/auth_token.c:225,246`** (W1) — call the registry path when
+**T-3 `src/protocols/webdav/auth_token.c:225,246`** (W1) — call the registry path when
 `conf->token_registry != NULL`, else the existing `xrootd_token_validate()`; pass
 `rctx->uri`/op so `base_path` can be enforced and the resolved username stored.
 
@@ -833,7 +833,7 @@ xrootd_throttle_ioload_over(xrootd_rl_zone_t *zone, const char *user,
 **T-8 `src/connection/disconnect.c:288`** (W3a) — decrement per-user counters in
 `xrootd_on_disconnect()` (active-connection + any still-open files).
 
-**T-9 `src/tpc/launch.c`, `src/webdav/tpc.c`** (W3b) — `xrootd_resv_schedule()`
+**T-9 `src/tpc/launch.c`, `src/protocols/webdav/tpc.c`** (W3b) — `xrootd_resv_schedule()`
 before transfer; `xrootd_resv_done()` on done/abort (both success and error
 ladders).
 
@@ -1160,7 +1160,7 @@ status updated; [`dropin_gap_analysis`] memory touched when a WS lands.
 modified: `src/auth/token/validate.c` (+`xrootd_token_validate_registry`, peek_iss,
 aud_ok), `src/core/types/config.h` (+`token_config`/`token_default_strategy`/
 `token_registry`), `src/core/config/directives.c` (+2 directives), merge_srv_conf
-(+registry build), `src/webdav/auth_token.c` + `src/auth/gsi/token.c` (registry branch),
+(+registry build), `src/protocols/webdav/auth_token.c` + `src/auth/gsi/token.c` (registry branch),
 `./config` (+2 srcs). Tests: `tests/test_token_issuer_registry.py`,
 `tests/fixtures/scitokens.cfg`. Docs: `src/auth/token/README.md`,
 `docs/10-reference/protocol-gaps-vs-xrootd.md` (SciTokens row).
@@ -1180,8 +1180,8 @@ config.h` (+csi fields), `directives.c` (+csi directives), `src/read/open.c`
 `tests/test_csi_tagstore.py`. Unit: standalone `csi_*` + `crc32c` build.
 
 **PR-4 (W2b)** — new: scrub timer (`src/fs/backend/csi_scrub.c`); modified:
-`csi_verify.c` (fill/require/loose option handling), `src/webdav/get.c` +
-`src/s3/get.c` (sendfile-disable under CSI, ADR-6), postconfiguration (arm scrub).
+`csi_verify.c` (fill/require/loose option handling), `src/protocols/webdav/get.c` +
+`src/protocols/s3/get.c` (sendfile-disable under CSI, ADR-6), postconfiguration (arm scrub).
 Tests: `tests/test_csi_holes.py`.
 
 **PR-5 (W3a)** — new: `src/net/ratelimit/throttle_compat.{c,h}`; modified:
@@ -1192,7 +1192,7 @@ directives, custom parser), reuses `src/auth/token/ini.c` for userconfig, `./con
 Tests: `tests/test_throttle_contract.py`, `tests/fixtures/throttle-users.conf`.
 
 **PR-6 (W3b)** — new: `src/net/ratelimit/reservation.{c,h}`; modified: `src/tpc/
-launch.c` + `src/webdav/tpc.c` (reserve/release), `directives.c` (+reservation
+launch.c` + `src/protocols/webdav/tpc.c` (reserve/release), `directives.c` (+reservation
 directives), `src/observability/dashboard/` (queue panel), `./config`. Tests:
 `tests/test_reservation.py`.
 
@@ -1212,7 +1212,7 @@ Step-by-step changes to each touched request path, so a reviewer can trace the
 exact call-site edits. All edits preserve the existing control flow; the new
 calls are early-return-guarded on the feature flag.
 
-### QQ.1 HTTP bearer auth — `src/webdav/auth_token.c`
+### QQ.1 HTTP bearer auth — `src/protocols/webdav/auth_token.c`
 1. In `webdav_verify_bearer_token()` (line ~120), after extracting the Bearer
    token, branch on `conf->token_registry != NULL`:
    - **registry path:** call `xrootd_token_validate_registry(log, token, len,
@@ -1247,7 +1247,7 @@ calls are early-return-guarded on the feature flag.
   the job; call `xrootd_csi_store_pgcrc(csi, page, client_crc[i])` per aligned
   page — **no recompute** (FR-9). A trailing partial page recomputes.
 
-### QQ.5 WebDAV/S3 GET — `src/webdav/get.c`, `src/s3/get.c`
+### QQ.5 WebDAV/S3 GET — `src/protocols/webdav/get.c`, `src/protocols/s3/get.c`
 - These use `xrootd_vfs_open()` + `xrootd_vfs_file_sendfile_fd()`. With CSI on,
   **sendfile cannot verify** (bytes never enter userspace). Options (ADR-6,
   NN-5): (a) disable sendfile when CSI is on for that location (correctness over
@@ -1262,7 +1262,7 @@ calls are early-return-guarded on the feature flag.
   `xrootd_throttle_open_dec(t, user)` for each still-open handle, and decrement
   the active-connection counter once if the connection had ≥1 open file.
 
-### QQ.7 TPC reserve/release — `src/tpc/launch.c`, `src/webdav/tpc.c`
+### QQ.7 TPC reserve/release — `src/tpc/launch.c`, `src/protocols/webdav/tpc.c`
 - Before initiating the pull/push: `handle = xrootd_resv_schedule(zone, class,
   est_bytes)`; if `handle == 0` (QUEUED) park the TPC with the existing
   `kXR_waitresp`/retry machinery.
@@ -3774,6 +3774,6 @@ This module (`src/`): `src/auth/token/` (`token.h`, `token_internal.h`, `validat
 (caps @75-89), `src/core/compat/{crc32c,pgio,integrity_info}.{c,h}`;
 `src/net/ratelimit/` (`ratelimit.{c,h}`, `ratelimit_keys.c`, `ratelimit_zone.c`);
 `src/connection/disconnect.c` (`xrootd_on_disconnect` @288); `src/auth/authz/authdb.c`,
-`src/auth/authz/auth_gate.c`; callers `src/webdav/auth_token.c`, `src/auth/gsi/token.c`,
+`src/auth/authz/auth_gate.c`; callers `src/protocols/webdav/auth_token.c`, `src/auth/gsi/token.c`,
 `src/handshake/policy.c`, `src/core/types/identity.c`. Builds on Phase-58 §8/§9.
 </content>

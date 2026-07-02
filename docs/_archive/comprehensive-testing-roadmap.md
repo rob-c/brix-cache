@@ -232,7 +232,7 @@ This scenario is designed to exercise the largest possible number of internal `n
 3.  **Multi-Stream TPC with Protocol Bridging:**
     *   Initiate an `xrdcp` TPC where the **Source** is Tier 3 via the **S3 REST API**, and the **Destination** is Tier 1 via **Binary root://**.
     *   This forces Nginx to:
-        1.  Parse S3 headers in `src/s3/`.
+        1.  Parse S3 headers in `src/protocols/s3/`.
         2.  Translate to internal I/O.
         3.  Launch a TPC task in `src/tpc/`.
         4.  Bridge the data into a Binary `root://` stream with handle translation in `src/net/proxy/`.

@@ -12,7 +12,7 @@
  * rules array via cmd->offset so one implementation serves both planes.
  */
 #include "ratelimit.h"
-#include "webdav/webdav.h"      /* ngx_http_xrootd_webdav_req_ctx_t */
+#include "protocols/webdav/webdav.h"      /* ngx_http_xrootd_webdav_req_ctx_t */
 
 
 /* key extraction */

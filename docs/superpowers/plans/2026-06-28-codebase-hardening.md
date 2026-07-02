@@ -44,7 +44,7 @@
 
 **Phase D — runtime + deployment hardening**
 - Create: `tests/build_sanitizer.sh` (ASan+UBSan build) + `tests/test_sanitizer_smoke.py`
-- Modify: `src/tpc/tpc_token.c`, `src/webdav/tpc_cred.c` (absolute-path + sanitized-env exec)
+- Modify: `src/tpc/tpc_token.c`, `src/protocols/webdav/tpc_cred.c` (absolute-path + sanitized-env exec)
 - Create: `packaging/nginx-xrootd.service` (hardened systemd unit) + `docs/09-developer-guide/deployment-hardening.md`
 
 ---
@@ -665,7 +665,7 @@ git commit -m "test: ASan+UBSan build script + sanitizer smoke lane"
 ### Task 10: Lock down privileged subprocess exec
 
 **Files:**
-- Modify: `src/tpc/tpc_token.c:169` and `src/webdav/tpc_cred.c:194` (the `execlp("oidc-token", ...)` calls)
+- Modify: `src/tpc/tpc_token.c:169` and `src/protocols/webdav/tpc_cred.c:194` (the `execlp("oidc-token", ...)` calls)
 
 **Interfaces:**
 - Consumes: nothing new.
@@ -673,7 +673,7 @@ git commit -m "test: ASan+UBSan build script + sanitizer smoke lane"
 
 - [ ] **Step 1: Read both call sites and their surrounding fork/exec helper**
 
-Run: `sed -n '150,200p' src/tpc/tpc_token.c; sed -n '180,210p' src/webdav/tpc_cred.c`
+Run: `sed -n '150,200p' src/tpc/tpc_token.c; sed -n '180,210p' src/protocols/webdav/tpc_cred.c`
 Confirm both are post-`fork()` child branches calling `execlp`.
 
 - [ ] **Step 2: Switch to a resolved absolute path + sanitized env**
@@ -731,7 +731,7 @@ Expected: builds clean; TPC credential tests pass (or skip if oidc-token not ins
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tpc/tpc_token.c src/webdav/tpc_cred.c
+git add src/tpc/tpc_token.c src/protocols/webdav/tpc_cred.c
 git commit -m "harden(tpc): resolve oidc-token to absolute path + sanitized env on exec"
 ```
 

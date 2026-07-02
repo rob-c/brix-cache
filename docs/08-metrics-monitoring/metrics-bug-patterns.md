@@ -160,7 +160,7 @@ This bug appeared in two different protocol layers, independently.
 
 ### Instances found
 
-**WebDAV — `src/webdav/access.c`** (the request-routing access handler):
+**WebDAV — `src/protocols/webdav/access.c`** (the request-routing access handler):
 
 ```c
 /* BUG: called before body is read; INC adds 1, not body bytes */
@@ -171,7 +171,7 @@ if (r->connection->sockaddr->sa_family == AF_INET6) {
 }
 ```
 
-**S3 — `src/s3/handler.c`** (the S3 dispatch handler):
+**S3 — `src/protocols/s3/handler.c`** (the S3 dispatch handler):
 
 ```c
 /* BUG: same pattern — INC at dispatch, before body read */
@@ -183,12 +183,12 @@ if (ip_ver == AF_INET) {
 ```
 
 Both also had a secondary gap: `bytes_tx_ipv*` for S3 GET responses
-(`src/s3/object.c`) and S3 LIST responses (`src/s3/list_objects_v2.c`) were never
+(`src/protocols/s3/object.c`) and S3 LIST responses (`src/protocols/s3/list_objects_v2.c`) were never
 updated, while the WebDAV GET path in `get.c` correctly called `_ADD`. PROPFIND and
 multipart-range responses (`propfind.c`, `xrdhttp_multipart.c`) also updated
 `bytes_tx_total` but omitted the per-IP split.
 
-The reference implementation was `src/webdav/get.c`:
+The reference implementation was `src/protocols/webdav/get.c`:
 
 ```c
 /* CORRECT: called after send_len is known, uses _ADD not _INC */
@@ -240,7 +240,7 @@ only call site that could do so. The field is always zero in production.
 
 ### Instance found
 
-`src/s3/list_objects_v2.c` — the S3 LIST response:
+`src/protocols/s3/list_objects_v2.c` — the S3 LIST response:
 
 ```c
 /* present, correctly updated */

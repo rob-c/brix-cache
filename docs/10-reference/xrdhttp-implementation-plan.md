@@ -1,7 +1,7 @@
 # XrdHttp Parity Implementation Plan
 
 > **Status: COMPLETE** — All 6 feature areas implemented. 28/28 tests pass (`tests/test_xrdhttp.py`).
-> Implementation lives in `src/webdav/xrdhttp.c`, `xrdhttp.h`, `xrdhttp_multipart.c`, `xrdhttp_stats.c`.
+> Implementation lives in `src/protocols/webdav/xrdhttp.c`, `xrdhttp.h`, `xrdhttp_multipart.c`, `xrdhttp_stats.c`.
 
 This document outlines the specific technical work required to implement full support for the **XrdHttp** protocol dialect within the `nginx-xrootd` module. While the module currently supports standard WebDAV and S3, achieving parity with the official XRootD reference implementation involves adding support for XRootD-specific HTTP extensions.
 

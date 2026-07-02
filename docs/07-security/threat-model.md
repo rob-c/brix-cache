@@ -98,7 +98,7 @@ with stock XRootD cmsd:
 
 ### W2 — WebDAV TPC DNS-rebind + TLS verification (HIGH)
 
-`src/webdav/tpc_curl.c` `tpc_curl_secure()` now (a) sets `CURLOPT_SSL_VERIFYPEER=1` /
+`src/protocols/webdav/tpc_curl.c` `tpc_curl_secure()` now (a) sets `CURLOPT_SSL_VERIFYPEER=1` /
 `VERIFYHOST=2` explicitly rather than relying on curl defaults, and (b) resolves the target
 once under SSRF policy and pins the validated address via `CURLOPT_RESOLVE`
 (`xrootd_net_target_check_dns_pin`), so curl cannot re-resolve to a rebind address. Applied to
@@ -107,7 +107,7 @@ single, multi-stream, and HEAD paths.
 ### W3 — Helper-exec argv option-injection (MEDIUM)
 
 `oidc-token`'s client-derived host argument is rejected if it begins with `-`
-(`src/webdav/tpc_cred.c`); the curl token-exchange builders place a `--` end-of-options
+(`src/protocols/webdav/tpc_cred.c`); the curl token-exchange builders place a `--` end-of-options
 terminator before the endpoint URL in `tpc_cred.c` and `src/tpc/tpc_token.c`.
 
 ### W4 — STATX authorization parity (MEDIUM)
@@ -118,7 +118,7 @@ fall through to the per-entry "inaccessible" sentinel.
 
 ### W5 — S3 access-key side channel (MEDIUM)
 
-`src/s3/auth_sigv4_verify.c` defers the access-key match into a `key_ok` flag and folds it into
+`src/protocols/s3/auth_sigv4_verify.c` defers the access-key match into a `key_ok` flag and folds it into
 the final constant-time signature decision: an unknown key and a bad signature now traverse the
 same HMAC work and return the identical `SignatureDoesNotMatch`/403 — no timing or message
 oracle for key enumeration.

@@ -26,7 +26,7 @@ Phase 2 implementation successfully consolidated code duplication patterns acros
 ### ✅ Phase 2a: Allocation Pattern Migration - COMPLETE
 
 **Implementation:**
-- Modified: `src/webdav/tpc_config.c`
+- Modified: `src/protocols/webdav/tpc_config.c`
 - Consolidated: 3 memory allocation patterns using `NGX_ALLOC_OR_CONF_ERROR` macro
 - LoC Reduced: ~5 LoC
 
@@ -73,7 +73,7 @@ Five modules consolidated with config merge helper macros:
 ### ✅ Phase 2b: WebDAV Response Pattern Migration - INFRASTRUCTURE READY
 
 **Implementation:**
-- Created: `src/webdav/response_helpers.h`
+- Created: `src/protocols/webdav/response_helpers.h`
 - Functions: 4 inline response helpers
   - `webdav_send_empty_response(r, status)` - 204/201 responses
   - `webdav_send_status_with_content_length(r, status, len)` - GET responses
@@ -104,15 +104,15 @@ Five modules consolidated with config merge helper macros:
 ## Code Changes Summary
 
 ### Modified Files (5 total)
-1. `src/webdav/tpc_config.c` - Added conf_helpers.h include, consolidated 8 merges
+1. `src/protocols/webdav/tpc_config.c` - Added conf_helpers.h include, consolidated 8 merges
 2. `src/observability/dashboard/module.c` - Added conf_helpers.h include, consolidated 10 merges
-3. `src/webdav/config.c` - Added conf_helpers.h include, consolidated 22 merges
+3. `src/protocols/webdav/config.c` - Added conf_helpers.h include, consolidated 22 merges
 4. `src/observability/metrics/module.c` - Added conf_helpers.h include, consolidated 1 merge
-5. `src/s3/module.c` - Added conf_helpers.h include, consolidated 6 merges
+5. `src/protocols/s3/module.c` - Added conf_helpers.h include, consolidated 6 merges
 
 ### Helper Files Created (Phase 1, Used in Phase 2)
 1. `src/core/compat/alloc_helpers.h` - 6 memory allocation macros
-2. `src/webdav/response_helpers.h` - 4 HTTP response inline functions
+2. `src/protocols/webdav/response_helpers.h` - 4 HTTP response inline functions
 3. `src/core/config/conf_helpers.h` - 9 config merge wrapper macros
 4. `src/core/config/addr_parse.c/h` - Unified address parsing
 

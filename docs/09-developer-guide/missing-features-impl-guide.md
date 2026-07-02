@@ -374,12 +374,12 @@ def test_jwks_hot_refresh_rejects_old_key_after_rotation():
 **Status:** ✅ IMPLEMENTED — Option B (full recursive walk) with 10 000-entry cap  
 **Impact:** Medium — blocks Cyberduck, GNOME GVFS, and some rucio WebDAV clients  
 **Effort:** 2–3 days  
-**Implemented in:** `src/webdav/propfind.c` (`propfind_parse_depth()`, `propfind_walk()`), `src/observability/metrics/metrics.h` (`XROOTD_WEBDAV_PROPFIND_DEPTH_INF`), `src/observability/metrics/webdav.c`  
+**Implemented in:** `src/protocols/webdav/propfind.c` (`propfind_parse_depth()`, `propfind_walk()`), `src/observability/metrics/metrics.h` (`XROOTD_WEBDAV_PROPFIND_DEPTH_INF`), `src/observability/metrics/webdav.c`  
 **Tests:** `tests/test_propfind_infinity.py`
 
 ### Problem
 
-`propfind_depth_is_one()` in `src/webdav/propfind.c` returns `0` for anything
+`propfind_depth_is_one()` in `src/protocols/webdav/propfind.c` returns `0` for anything
 that is not exactly `"1"`, including `"infinity"`. The handler then generates
 only a single entry (depth 0). RFC 4918 §9.1.2 permits servers to refuse
 `Depth: infinity` with `403 Depth Not Supported` but requires them to say so
@@ -387,7 +387,7 @@ explicitly rather than silently returning truncated results.
 
 ### Option A — Return `403 Depth Not Supported` (correct spec behavior, minimal change)
 
-**Files:** `src/webdav/propfind.c`
+**Files:** `src/protocols/webdav/propfind.c`
 
 ```c
 /* Replace propfind_depth_is_one() with propfind_parse_depth() */
@@ -443,7 +443,7 @@ if (depth == -1) {
 Implement a bounded recursive walk (cap at 10 000 entries or a configurable
 `xrootd_webdav_propfind_max_entries` directive to prevent runaway allocations).
 
-**Files:** `src/webdav/propfind.c`
+**Files:** `src/protocols/webdav/propfind.c`
 
 Add a recursive helper:
 
@@ -574,7 +574,7 @@ The mock CMS helpers are implemented inline in `tests/test_manager_mode.py`.
 
 ### Problem
 
-`src/s3/auth_sigv4_parse.c` parses only the `Authorization` header. Presigned
+`src/protocols/s3/auth_sigv4_parse.c` parses only the `Authorization` header. Presigned
 URL authentication passes credentials as query parameters:
 
 ```
@@ -590,15 +590,15 @@ GET /bucket/key
 ### Implementation
 
 **Implemented in:**
-- `src/s3/auth_sigv4_parse.c` — detects `X-Amz-Signature`, extracts and
+- `src/protocols/s3/auth_sigv4_parse.c` — detects `X-Amz-Signature`, extracts and
   URL-decodes `X-Amz-Credential`, `X-Amz-Date`, `X-Amz-Expires`, and
   `X-Amz-SignedHeaders`.
-- `src/s3/auth_sigv4_canonical.c` — canonicalizes query parameters from decoded
+- `src/protocols/s3/auth_sigv4_canonical.c` — canonicalizes query parameters from decoded
   values, sorts by name/value, and omits `X-Amz-Signature` while verifying
   presigned URLs.
-- `src/s3/auth_sigv4_verify.c` — selects presigned auth before header auth,
+- `src/protocols/s3/auth_sigv4_verify.c` — selects presigned auth before header auth,
   uses query `X-Amz-Date` in the string-to-sign, and rejects expired URLs.
-- `src/s3/s3_auth_internal.h` — stores presigned metadata on
+- `src/protocols/s3/s3_auth_internal.h` — stores presigned metadata on
   `sigv4_components_t`.
 
 ### Tests
@@ -671,7 +671,7 @@ does not complete ztn/GSI `kXR_authmore`.
 ### 8a. HTTP-TPC `Performance-Marker` streaming (chunked 202)
 
 **Status:** ✅ IMPLEMENTED — timer-polled curl subprocess with chunked `202` markers  
-**Implemented in:** `src/webdav/tpc_marker.c`, `src/webdav/tpc.c`, `src/webdav/tpc_config.c`  
+**Implemented in:** `src/protocols/webdav/tpc_marker.c`, `src/protocols/webdav/tpc.c`, `src/protocols/webdav/tpc_config.c`  
 **Tests:** `tests/test_xrdhttp_tpc.py::TestXrdHttpTPC::test_tpc_marker_streaming_header_present`
 
 FTS optionally parses `Performance-Marker:` lines from a `202 Accepted`
@@ -722,7 +722,7 @@ matches any peer.
 ### 8d. Delta CRL processing
 
 **Status:** ✅ IMPLEMENTED — OpenSSL delta-CRL verification flag enabled  
-**Implemented in:** `src/auth/gsi/config.c`, `src/webdav/auth_store.c`  
+**Implemented in:** `src/auth/gsi/config.c`, `src/protocols/webdav/auth_store.c`  
 **Regression tests:** `tests/test_crl.py`
 
 Delta CRLs (RFC 5280 §5.2.4) carry only revocations issued since the last full
@@ -765,7 +765,7 @@ Two sub-features were implemented:
 ### 8f. S3 STS session token (`X-Amz-Security-Token`)
 
 **Status:** ✅ IMPLEMENTED — static-secret STS compatibility mode  
-**Implemented in:** `src/s3/auth_sigv4_verify.c`, `src/s3/module.c`, `src/s3/s3.h`  
+**Implemented in:** `src/protocols/s3/auth_sigv4_verify.c`, `src/protocols/s3/module.c`, `src/protocols/s3/s3.h`  
 **Tests:** `tests/test_s3_presigned.py::test_session_token_rejected_by_default`, `test_session_token_header_allowed_with_static_secret`, `test_session_token_presigned_allowed_with_static_secret`
 
 AWS STS `AssumeRole` returns temporary credentials: an access key ID, a secret

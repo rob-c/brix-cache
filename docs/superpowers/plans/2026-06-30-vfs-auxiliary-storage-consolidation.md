@@ -22,10 +22,10 @@
 
 ### Task 1: Migrate the serve-offload materialize write onto the driver seam
 
-Closes the single live `check_vfs_seam.sh` break: `src/shared/http_serve_offload.c:149` writes the materialized object to its scratch tmp fd with a raw `pwrite`, while the read side already goes through `obj->driver->pread`. Wrap the tmp fd in a stack POSIX SD object and write through the driver — symmetric with the read side and with `vfs_scratch.c`'s `scratch_copy_in`.
+Closes the single live `check_vfs_seam.sh` break: `src/protocols/shared/http_serve_offload.c:149` writes the materialized object to its scratch tmp fd with a raw `pwrite`, while the read side already goes through `obj->driver->pread`. Wrap the tmp fd in a stack POSIX SD object and write through the driver — symmetric with the read side and with `vfs_scratch.c`'s `scratch_copy_in`.
 
 **Files:**
-- Modify: `src/shared/http_serve_offload.c:99-171` (the `serve_offload_thread` materialize loop)
+- Modify: `src/protocols/shared/http_serve_offload.c:99-171` (the `serve_offload_thread` materialize loop)
 - Test: `tools/ci/check_vfs_seam.sh` (acceptance gate) + `tests/test_serve_offload_remote.py` (runtime byte-equality, may already exist — see Step 4)
 
 **Interfaces:**
@@ -35,11 +35,11 @@ Closes the single live `check_vfs_seam.sh` break: `src/shared/http_serve_offload
 - [ ] **Step 1: Run the guard to confirm the break exists**
 
 Run: `bash tools/ci/check_vfs_seam.sh`
-Expected: FAIL, naming `src/shared/http_serve_offload.c:149 ... pwrite(t->tmp_fd, ...)`.
+Expected: FAIL, naming `src/protocols/shared/http_serve_offload.c:149 ... pwrite(t->tmp_fd, ...)`.
 
 - [ ] **Step 2: Wrap the tmp fd and write through the driver**
 
-In `serve_offload_thread` (`src/shared/http_serve_offload.c`), after `buf` is allocated and before the copy loop, add the stack wrap; then replace the inner raw `pwrite` with the driver slot. The loop becomes:
+In `serve_offload_thread` (`src/protocols/shared/http_serve_offload.c`), after `buf` is allocated and before the copy loop, add the stack wrap; then replace the inner raw `pwrite` with the driver slot. The loop becomes:
 
 ```c
     xrootd_sd_obj_t dst;                  /* worker-owned scratch, driver-routed */
@@ -102,7 +102,7 @@ Expected: PASS — the served bytes equal the origin object (the materialize cop
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/shared/http_serve_offload.c
+git add src/protocols/shared/http_serve_offload.c
 git commit -m "fix(vfs-seam): route serve-offload scratch write through the SD driver
 
 The materialize loop read via obj->driver->pread but wrote the scratch
@@ -121,7 +121,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/fs/vfs_scratch.h` (declare the primitive) and `src/fs/vfs_scratch.c` (define it; reimplement `scratch_copy_in` on top of it)
-- Modify: `src/shared/http_serve_offload.c` (call the primitive)
+- Modify: `src/protocols/shared/http_serve_offload.c` (call the primitive)
 - Test: `src/fs/vfs_scratch_unittest.c` (new standalone gcc test)
 - Modify: top-level `config` only if a new `.c` is compiled into the module — the unittest is **not** added to the build (standalone, like `vfs_core_unittest.c`); `vfs_scratch.c` is already compiled.
 
@@ -288,7 +288,7 @@ Expected: all `ok:` lines, final `RESULT: PASS`.
 
 - [ ] **Step 6: Use the primitive in serve-offload**
 
-In `src/shared/http_serve_offload.c` `serve_offload_thread`, replace the entire hand-rolled copy loop (the block added in Task 1) with one call, after the `obj` is open and `snap`/`mtime` captured:
+In `src/protocols/shared/http_serve_offload.c` `serve_offload_thread`, replace the entire hand-rolled copy loop (the block added in Task 1) with one call, after the `obj` is open and `snap`/`mtime` captured:
 
 ```c
     {
@@ -318,7 +318,7 @@ Expected: clean build, `GUARD_GREEN`, serve test PASS (byte-equality preserved).
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/fs/vfs_scratch.h src/fs/vfs_scratch.c src/fs/vfs_scratch_unittest.c src/shared/http_serve_offload.c
+git add src/fs/vfs_scratch.h src/fs/vfs_scratch.c src/fs/vfs_scratch_unittest.c src/protocols/shared/http_serve_offload.c
 git commit -m "refactor(vfs): one shared obj->scratch-fd drain primitive
 
 Promote vfs_scratch's private copy loop to xrootd_vfs_scratch_drain_obj
@@ -338,8 +338,8 @@ These are the auxiliary storage domains that INVARIANT #11 currently carves *out
 | # | Domain | Files (raw today) | Driver that exists | What the plan must design |
 |---|--------|-------------------|--------------------|---------------------------|
 | 3 | **Read-through cache store** | `src/fs/cache/` — ~19 of 34 files still raw (`io.c`, `cache_storage.c`, `cstore.c`, `fetch.c`, `open_or_fill.c`, `evict_*`) | `sd_cache` + `tier`/`xfer` | Finish the phase-64 migration: cache-store byte/namespace I/O via the cstore/`sd_cache` instance, not raw cache-root POSIX. Highest leverage (biggest domain, infra already exists). |
-| 4 | **S3 multipart staging** | `src/s3/` — 5 `vfs-seam-allow` markers | — (none) | A staging instance (worker-identity scratch ctx) so part upload/assemble/commit route through the driver; commit stays a VFS↔VFS move. |
-| 5 | **TPC temp / assembly** | `src/tpc/`, `src/webdav/tpc*` — 8 markers | — (none) | In-progress transfer temps + multi-stream assembly onto the scratch ctx; final publish via `xrootd_commit_staged`. |
+| 4 | **S3 multipart staging** | `src/protocols/s3/` — 5 `vfs-seam-allow` markers | — (none) | A staging instance (worker-identity scratch ctx) so part upload/assemble/commit route through the driver; commit stays a VFS↔VFS move. |
+| 5 | **TPC temp / assembly** | `src/tpc/`, `src/protocols/webdav/tpc*` — 8 markers | — (none) | In-progress transfer temps + multi-stream assembly onto the scratch ctx; final publish via `xrootd_commit_staged`. |
 | 6 | **Checkpoint journal** | `src/write/` (chkpoint) — handle-owned raw | — (none) | Journal file as a handle-owned scratch object; teardown path currently has "no export root" — the scratch ctx supplies one. |
 | 7 | **FRM control/journal** | `src/frm/` — partial | `sd_frm` | Route FRM control/journal through `sd_frm`; reconcile with the `xfer` ledger. |
 

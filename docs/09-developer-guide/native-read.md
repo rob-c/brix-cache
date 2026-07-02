@@ -39,7 +39,7 @@ Relevant code:
 
 - `src/connection/*.c`
 - `src/handshake/*.c`
-- `src/webdav/*.c`
+- `src/protocols/webdav/*.c`
 
 ---
 
@@ -92,7 +92,7 @@ Relevant code:
 - `src/core/aio/readv.c`
 - `src/core/aio/write.c`
 - `src/write/*.c`
-- `src/webdav/put.c`
+- `src/protocols/webdav/put.c`
 
 ---
 

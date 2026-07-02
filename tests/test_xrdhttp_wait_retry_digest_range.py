@@ -11,7 +11,7 @@ driven deterministically.  The instance is started once by
 `manage_test_servers.sh start-all` (config `tests/configs/nginx_xrdhttp_digest.conf`,
 port `XRDHTTP_DIGEST_PORT`); the suite seeds its fixture file into the data root
 and connects, rather than spawning its own server.  It then proves the documented
-HTTP behaviour of src/webdav (get.c, methods_basic.c, xrdhttp.c,
+HTTP behaviour of src/protocols/webdav (get.c, methods_basic.c, xrdhttp.c,
 xrdhttp_multipart.c) and src/net/ratelimit (ratelimit_http.c):
 
   * a per-IP request-rate rule emits HTTP 429 + Retry-After once the burst is

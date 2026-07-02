@@ -48,7 +48,7 @@ def test_phase20_foundation_files_exist():
 
 def test_phase20_kv_store_is_wired_into_consumers():
     # Token cache short-circuits signature verification in both protocols.
-    for relpath in ("src/auth/gsi/token.c", "src/webdav/auth_token.c"):
+    for relpath in ("src/auth/gsi/token.c", "src/protocols/webdav/auth_token.c"):
         text = _read(relpath)
         assert "xrootd_token_cache_lookup(" in text, relpath
         assert "xrootd_token_cache_store(" in text, relpath
@@ -60,7 +60,7 @@ def test_phase20_kv_store_is_wired_into_consumers():
 
     # Rate limiting hooks both protocols.
     assert "xrootd_rate_limit_check(" in _read("src/auth/gsi/auth.c")
-    assert "xrootd_rate_limit_check(" in _read("src/webdav/access.c")
+    assert "xrootd_rate_limit_check(" in _read("src/protocols/webdav/access.c")
 
     # Prometheus export iterates the zone registry.
     assert "xrootd_kv_metrics_emit(" in _read("src/observability/metrics/handler.c")

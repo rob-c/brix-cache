@@ -22,8 +22,8 @@
 ### Task 1: Protobuf wire primitives
 
 **Files:**
-- Create: `src/ssi/svc_cta/pb_wire.{c,h}`
-- Create: `src/ssi/svc_cta/pb_wire_unittest.c`
+- Create: `src/protocols/ssi/svc_cta/pb_wire.{c,h}`
+- Create: `src/protocols/ssi/svc_cta/pb_wire_unittest.c`
 
 **Interfaces:**
 - `typedef struct { const unsigned char *p, *end; } pb_reader;`
@@ -43,7 +43,7 @@
   - tag encode/decode: field=11 wiretype=2 → byte 0x5A; round-trips.
   - `pb_skip_field` advances correctly for each wiretype; rejects overrun.
   Golden hex asserted with a `bytes_eq` helper (copy from `ssi_rrinfo_unittest.c`).
-- [ ] **Step 2: Run → FAIL.** `gcc -Wall -Wextra -Werror -I src -o /tmp/pb_wire_ut src/ssi/svc_cta/pb_wire_unittest.c src/ssi/svc_cta/pb_wire.c && /tmp/pb_wire_ut`
+- [ ] **Step 2: Run → FAIL.** `gcc -Wall -Wextra -Werror -I src -o /tmp/pb_wire_ut src/protocols/ssi/svc_cta/pb_wire_unittest.c src/protocols/ssi/svc_cta/pb_wire.c && /tmp/pb_wire_ut`
 - [ ] **Step 3: Implement `pb_wire.{c,h}`** — standard LEB128 varint (≤10 bytes, reject longer), tag = field<<3|wiretype, length-delimited reads validate `len <= end-p`. Writers append into a caller-sized `cap` buffer, return -1 on overflow.
 - [ ] **Step 4: Run → PASS.** Commit.
 
@@ -52,8 +52,8 @@
 ### Task 2: Decode `cta.xrd.Request`
 
 **Files:**
-- Create: `src/ssi/svc_cta/cta_pb.{c,h}`
-- Create: `src/ssi/svc_cta/cta_pb_unittest.c`
+- Create: `src/protocols/ssi/svc_cta/cta_pb.{c,h}`
+- Create: `src/protocols/ssi/svc_cta/cta_pb_unittest.c`
 - Modify: `config`
 
 **Interfaces (`cta_pb.h`):**
@@ -85,7 +85,7 @@
 
 ### Task 4: Docs + golden-vector provenance
 
-- [ ] Create `src/ssi/svc_cta/README.md`: documents the pinned field table as the external contract, how golden vectors were produced (capture from a real CTA frontend, or `protoc --encode` from the `.proto` — record the exact command), and the re-capture procedure when CTA's schema bumps. Commit.
+- [ ] Create `src/protocols/ssi/svc_cta/README.md`: documents the pinned field table as the external contract, how golden vectors were produced (capture from a real CTA frontend, or `protoc --encode` from the `.proto` — record the exact command), and the re-capture procedure when CTA's schema bumps. Commit.
 
 ---
 

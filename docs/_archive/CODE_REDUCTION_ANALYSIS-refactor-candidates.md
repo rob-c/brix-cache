@@ -127,7 +127,7 @@ Repeats with minor variations across 300+ lines
    - Create: `webdav_send_status(r, status, content_type)`
    - Files affected: propfind.c, put.c, get.c, copy.c, move.c, lock.c
    - Risk: Low (encapsulates existing pattern)
-   - Candidates: src/webdav/{propfind,put,get,copy,move,lock}.c
+   - Candidates: src/protocols/webdav/{propfind,put,get,copy,move,lock}.c
 
 3. **Configuration merge templates** (-200 LoC)
    - Create: `CONF_MERGE_BLOCK(field, default)` macro
@@ -169,12 +169,12 @@ Repeats with minor variations across 300+ lines
 | File | Current LoC | Est. Reduction | Priority | Reason |
 |------|------------|---|---|---|
 | src/observability/dashboard/api.c | 1104 | -150 | Medium | Repetitive JSON building |
-| src/webdav/propfind.c | 998 | -180 | Medium | XML property generation |
+| src/protocols/webdav/propfind.c | 998 | -180 | Medium | XML property generation |
 | src/fs/cache/directives.c | 533 | -80 | High | Address parsing patterns |
-| src/webdav/module.c | 582 | -40 | High | Config merge boilerplate |
+| src/protocols/webdav/module.c | 582 | -40 | High | Config merge boilerplate |
 | src/observability/dashboard/module.c | ~300 | -20 | High | Config merge + setter wrappers |
-| src/webdav/auth_cert.c | 498 | -30 | High | Memory allocation patterns |
-| src/webdav/tpc_config.c | 56 | -15 | High | Address parsing |
+| src/protocols/webdav/auth_cert.c | 498 | -30 | High | Memory allocation patterns |
+| src/protocols/webdav/tpc_config.c | 56 | -15 | High | Address parsing |
 | src/net/upstream/directives.c | ~200 | -60 | High | Address parsing + boilerplate |
 
 ## Concrete Examples
@@ -231,13 +231,13 @@ webdav_send_empty_response(ngx_http_request_t *r, ngx_uint_t status)
 ```
 
 **Found in:**
-- src/webdav/lock.c (lines ~160, ~180, ~200+)
-- src/webdav/methods_basic.c (lines ~90, ~120+)
-- src/webdav/namespace.c (lines ~150+)
-- src/webdav/propfind.c
-- src/webdav/put.c
-- src/webdav/copy.c
-- src/webdav/move.c
+- src/protocols/webdav/lock.c (lines ~160, ~180, ~200+)
+- src/protocols/webdav/methods_basic.c (lines ~90, ~120+)
+- src/protocols/webdav/namespace.c (lines ~150+)
+- src/protocols/webdav/propfind.c
+- src/protocols/webdav/put.c
+- src/protocols/webdav/copy.c
+- src/protocols/webdav/move.c
 
 ### Example 3: Config Merge Macro
 **Before (repeated 93 times across 14 files):**
@@ -263,7 +263,7 @@ CONF_MERGE_UINT(port, 1094);
 
 **Found in:**
 - src/observability/dashboard/module.c (lines 84-92)
-- src/webdav/module.c
+- src/protocols/webdav/module.c
 - src/observability/metrics/module.c
 - src/fs/cache/module.c
 - And 10+ other module files

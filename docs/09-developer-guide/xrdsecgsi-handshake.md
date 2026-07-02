@@ -396,7 +396,7 @@ A stream `server{}` directive (`src/stream/module.c`,
 
 All 220 GSI tests across the seven files above pass with **zero skips**.
 
-**S3 is deliberately excluded.** S3 — ours (`src/s3/`) and the official
+**S3 is deliberately excluded.** S3 — ours (`src/protocols/s3/`) and the official
 `XrdS3` — authenticates with AWS SigV4 only; GSI does not apply. A guard test
 (`test_s3_uses_sigv4_not_gsi`) pins that invariant; SigV4 coverage is in
 `tests/test_s3_*.py`.

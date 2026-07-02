@@ -172,7 +172,7 @@ string literals, or `#if 0` blocks — those are rare enough to ignore and errin
 toward *over*-counting keeps the metric conservative (a file the linter calls
 clean is genuinely clean).
 
-**Why logical, not raw.** Worked proof from this very repo: `src/webdav/webdav.h`
+**Why logical, not raw.** Worked proof from this very repo: `src/protocols/webdav/webdav.h`
 is **827 raw** lines but **372 logical** — it is almost entirely the mandatory
 declaration doc-blocks. By raw count it looks like a must-split header; by the
 metric that matters it is comfortably ideal. Measuring raw would punish the
@@ -195,7 +195,7 @@ files in this repo are table-dominated, measured:
   `ngx_conf_enum_t` value maps. There is nothing left to split — a C array cannot
   be cut across files without ugly macro re-assembly, and per-directive doc-blocks
   are the bulk.
-- **`src/webdav/module.c`** — **618 logical table + 286 logical logic** (setters
+- **`src/protocols/webdav/module.c`** — **618 logical table + 286 logical logic** (setters
   `webdav_conf_*`, phase handlers, module ctx). Here the logic *can* and should
   move out, dropping the residual table file to the watch tier.
 
@@ -252,14 +252,14 @@ assignments are in §6.
 | 1316 | 1734 | `src/stream/module.c` | 🔴→**exempt** | **95% (1251) is the 213-entry `ngx_command_t` directive table**; conf lifecycle already in `config/server_conf.c` + `stream/module_definition.c` → declarative, exempt (§2.6, §6.10) |
 | 1033 | 1284 | `src/auth/gsi/gsi_core.c` | 🔴 | bucket/buffer codec · DH keygen/derive · cipher negotiation · RSA sign/verify · cert-request/response build (**shared** — also linked into client) |
 | 986 | 1290 | `src/observability/dashboard/api.c` | 🔴 | name/format helpers · live-transfer model · snapshot assembly · ratelimit view · JSON send/dispatch *(worked example §6.1)* |
-| 973 | 1452 | `src/s3/post_object.c` | 🔴 | multipart-form decode · POST-policy parse/verify · object write · response build *(worked example §6.2)* |
-| 904 | 1153 | `src/webdav/module.c` | 🔴→🟡 | **618 table + 286 logic**; extract the `webdav_conf_*` setters + phase handlers + module ctx → residual table drops to ~618 (watch) (§6.11) |
+| 973 | 1452 | `src/protocols/s3/post_object.c` | 🔴 | multipart-form decode · POST-policy parse/verify · object write · response build *(worked example §6.2)* |
+| 904 | 1153 | `src/protocols/webdav/module.c` | 🔴→🟡 | **618 table + 286 logic**; extract the `webdav_conf_*` setters + phase handlers + module ctx → residual table drops to ~618 (watch) (§6.11) |
 | 894 | 1198 | `src/observability/dashboard/api_admin.c` | 🔴 | admin auth · write endpoints · proxy-pool admin |
-| 811 | 1149 | `src/webdav/propfind.c` | 🔴 | request/XML parse · property gather (`propfind_entry` is 308 lines alone) · tree walk · response build *(worked example §6.3)* |
-| 796 | 1186 | `src/s3/put.c` | 🟠 | body-mode/aio plumbing · finalize-result family (12 `s3_put_finalize_*`) · aws-chunked decode |
+| 811 | 1149 | `src/protocols/webdav/propfind.c` | 🔴 | request/XML parse · property gather (`propfind_entry` is 308 lines alone) · tree walk · response build *(worked example §6.3)* |
+| 796 | 1186 | `src/protocols/s3/put.c` | 🟠 | body-mode/aio plumbing · finalize-result family (12 `s3_put_finalize_*`) · aws-chunked decode |
 | 725 | 1104 | `src/auth/impersonate/broker.c` | 🟠 | peer/cap gate · `imp_do_op` dispatch (288 lines) · xattr filter · request loop *(worked example §6.5)* |
 | 686 | 1123 | `src/net/manager/registry.c` | 🟠 | registry table · selection core · health-check state · locate/aggregate/snapshot *(worked example §6.4)* |
-| 662 | 900 | `src/webdav/tpc_curl.c` | 🟠 | curl handle setup · header build · transfer loop · result map |
+| 662 | 900 | `src/protocols/webdav/tpc_curl.c` | 🟠 | curl handle setup · header build · transfer loop · result map |
 
 ### 3.3 `client/` C source > 650 logical LoC — the client split list
 
@@ -287,7 +287,7 @@ Newly in scope (2026-06-26). Registration is `client/Makefile`, not the root
 | 579 | 1183 | `client/lib/xrdc.h` | The client spine — split by concern: connection/session decls · metadata/file-op decls · wire-struct helpers · config/types. **Mixed-ABI** (every `client/` TU includes it) → full rebuild. |
 | 518 | 790 | `src/core/types/config.h` | Module config structs. **Mixed-ABI** → full rebuild. Split by plane (stream conf · http/webdav conf · s3 conf · shared tunables) only if it grows; currently borderline. |
 
-> **Dropped from the old must-split list:** `src/webdav/webdav.h` (372 logical /
+> **Dropped from the old must-split list:** `src/protocols/webdav/webdav.h` (372 logical /
 > 827 raw) and `src/observability/metrics/metrics.h` (390 logical / 639 raw) are **not** offenders
 > by the logical metric — they are mostly declaration doc-blocks. Earlier revisions
 > flagged them on raw count; §2.5 explains why that was wrong. Leave them.
@@ -620,7 +620,7 @@ Shared decls (the `summary` struct, helper prototypes) → new
 green. (`api_snapshot.c` at ~480 is near the line; if `fill_cache`'s 104 lines
 push it over, peel `api_cache.c` out as a fifth file.)
 
-### 6.2 `src/s3/post_object.c` (973 / 1452 → ~4 files)
+### 6.2 `src/protocols/s3/post_object.c` (973 / 1452 → ~4 files)
 
 POST-object (browser-upload) handler with four phases:
 
@@ -635,7 +635,7 @@ POST-object (browser-upload) handler with four phases:
 Shared decls → `post_internal.h`. Tests: `tests/test_s3_post_object.py` (+ the S3
 conformance batch) unchanged.
 
-### 6.3 `src/webdav/propfind.c` (811 / 1149 → ~3 files)
+### 6.3 `src/protocols/webdav/propfind.c` (811 / 1149 → ~3 files)
 
 Dominated by two large functions — `propfind_entry` (308) and `propfind_do`
 (215). Seam is parse vs property-emit vs walk:
@@ -761,7 +761,7 @@ This removes it from the baseline. *(If the table is ever felt to be too big to
 read, the right move is documentation/grouping comments within the array — which
 it already has — not sharding the C array.)*
 
-### 6.11 `src/webdav/module.c` (904 / 1153 → ~3 files, residual table → watch)
+### 6.11 `src/protocols/webdav/module.c` (904 / 1153 → ~3 files, residual table → watch)
 
 **618 logical table + 286 logical logic.** Extract the logic; the residual table
 file lands at ~618 (🟡 watch — green for the ratchet):
@@ -791,7 +791,7 @@ Shared decls → `dashboard_api_internal.h` (§5.3). **Security-sensitive** (adm
 auth) — keep `check_auth`/`audit` in the kept file. Tests:
 `tests/test_dashboard_admin*.py`.
 
-### 6.13 `src/s3/put.c` (796 / 1186 → ~4 files)
+### 6.13 `src/protocols/s3/put.c` (796 / 1186 → ~4 files)
 
 Dominated by a 12-function `s3_put_finalize_*` result family:
 
@@ -805,7 +805,7 @@ Dominated by a 12-function `s3_put_finalize_*` result family:
 Shared decls → `s3_put_internal.h`. **Invariant 6** (SigV4 ≠ WLCG) — no auth logic
 moves. Tests: S3 conformance batch + `tests/test_s3_write_concurrency.py`.
 
-### 6.14 `src/webdav/tpc_curl.c` (662 / 900 → ~3 files)
+### 6.14 `src/protocols/webdav/tpc_curl.c` (662 / 900 → ~3 files)
 
 `webdav_tpc_run_curl_core` (178) is the heart; SciTags pmark and curl-setup are
 separable:
@@ -976,7 +976,7 @@ The §3.2 🟠 rows (the 4 files 651–800 logical), audit-value first:
 - `tests/manage_test_servers.sh` (1868) — extract sourced libs; the single
   highest-LoC shell file and central to every test run, so do it carefully with a
   smoke run of `start-all`/`restart`.
-- *(Note: `src/webdav/webdav.h`/`metrics.h` are NOT split — §3.4.)*
+- *(Note: `src/protocols/webdav/webdav.h`/`metrics.h` are NOT split — §3.4.)*
 
 ### 7.4 P3 — `client/` native-client track (independent, parallelizable)
 
@@ -1228,13 +1228,13 @@ lands in a dedicated target file, never split mid-body (§6.21).
 |---|---|---|---|
 | `src/auth/gsi/gsi_core.c` | `xrootd_gsi_build_cert_response` | 210 | cert-response file (P0) |
 | `src/observability/dashboard/api.c` | `dashboard_build_transfer_object` | 134 | `api_transfers.c` (§6.1) |
-| `src/s3/post_object.c` | `s3_post_parse_form` | 156 | `post_form.c` (§6.2) |
-| `src/webdav/propfind.c` | `propfind_entry` | 308 | `propfind_props.c` (§6.3) |
+| `src/protocols/s3/post_object.c` | `s3_post_parse_form` | 156 | `post_form.c` (§6.2) |
+| `src/protocols/webdav/propfind.c` | `propfind_entry` | 308 | `propfind_props.c` (§6.3) |
 | `src/observability/dashboard/api_admin.c` | `xrootd_admin_dispatch` | 93 | kept `api_admin.c` (§6.12) |
 | `src/net/manager/registry.c` | `srv_select_core` | 107 | `registry_select.c` (§6.4) |
 | `src/auth/impersonate/broker.c` | `imp_do_op` | 288 | `broker_ops.c` (§6.5) |
-| `src/s3/put.c` | `s3_put_streaming` | 89 | kept `put.c` (§6.13) |
-| `src/webdav/tpc_curl.c` | `webdav_tpc_run_curl_core` | 178 | kept `tpc_curl.c` (§6.14) |
+| `src/protocols/s3/put.c` | `s3_put_streaming` | 89 | kept `put.c` (§6.13) |
+| `src/protocols/webdav/tpc_curl.c` | `webdav_tpc_run_curl_core` | 178 | kept `tpc_curl.c` (§6.14) |
 | `client/lib/copy.c` | `transfer_pump` | 163 | `copy_pump.c` (§6.6) |
 | `client/lib/aio.c` | `reqmap_del` | 144 | `aio_buffers.c` (§6.7) |
 | `client/lib/http.c` | `xrdc_http_get` | 129 | kept `http.c` (§6.8) |
@@ -1363,7 +1363,7 @@ json_t * dashboard_build_v1_truncated(int64_t now_ms, const ngx_http_xrootd_dash
 #endif
 ```
 
-#### F.2 `src/s3/post_object.c` (973/1452 → 4 files; §6.2)
+#### F.2 `src/protocols/s3/post_object.c` (973/1452 → 4 files; §6.2)
 
 **Move table** — current lines → target file:
 
@@ -1420,7 +1420,7 @@ ngx_int_t s3_post_send_success(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf
 #endif
 ```
 
-#### F.3 `src/webdav/propfind.c` (811/1149 → 3 files; §6.3)
+#### F.3 `src/protocols/webdav/propfind.c` (811/1149 → 3 files; §6.3)
 
 **Move table** — current lines → target file:
 
@@ -1617,7 +1617,7 @@ int imp_do_op(int rootfd, const imp_req_t *req, imp_rep_t *rep, int *out_fd, cha
 #endif
 ```
 
-#### F.7 `src/s3/put.c` (796/1186 → 4 files; §6.13). Duplicate names = forward-decl + definition.
+#### F.7 `src/protocols/s3/put.c` (796/1186 → 4 files; §6.13). Duplicate names = forward-decl + definition.
 
 **Move table** — current lines → target file:
 
@@ -1684,7 +1684,7 @@ void s3_chunk_aio_done(ngx_event_t *ev);
 #endif
 ```
 
-#### F.8 `src/webdav/tpc_curl.c` (662/900 → 3 files; §6.14)
+#### F.8 `src/protocols/webdav/tpc_curl.c` (662/900 → 3 files; §6.14)
 
 **Move table** — current lines → target file:
 
@@ -1726,7 +1726,7 @@ off_t tpc_curl_head_size(ngx_log_t *log, ngx_http_xrootd_webdav_loc_conf_t *conf
 #endif
 ```
 
-#### F.9 `src/webdav/module.c` (904/1153 → table + 2 logic files; §6.11). Residual = pure table (~618, watch).
+#### F.9 `src/protocols/webdav/module.c` (904/1153 → table + 2 logic files; §6.11). Residual = pure table (~618, watch).
 
 **Move table** — current lines → target file:
 

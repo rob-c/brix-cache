@@ -57,7 +57,7 @@ regress these, and should extend their rigor to the edges.
   JWKS (so HMAC/RSA-pubkey **alg-confusion is structurally impossible** — no
   symmetric path exists); `iss`/`aud`/`exp`/`nbf` all enforced (`token_cache.c:38`,
   `validate.c`). ES256 requires exact 64-byte P1363 sig (`signature.c`).
-- **S3 SigV4 replay window.** `src/s3/auth_sigv4_verify.c:184–219` rejects clock
+- **S3 SigV4 replay window.** `src/protocols/s3/auth_sigv4_verify.c:184–219` rejects clock
   skew (incl. presigned future-skew); signatures must be exactly 64 hex chars
   (`:590`).
 - **SSS replay protection.** Timestamp-vs-`sss_lifetime` check, `RAND_bytes`
@@ -69,7 +69,7 @@ regress these, and should extend their rigor to the edges.
   in `gsi/parse_x509.c`, `sss/auth_request.c`, `token/macaroon.c`.
 - **Native-TPC SSRF policy.** `allow_local`/`allow_private` source gates
   (`src/tpc/launch.c`, `src/tpc/noop.c`); WebDAV-TPC curl restricted to
-  `CURLPROTO_HTTPS` only (`src/webdav/tpc_curl.c:55,57`).
+  `CURLPROTO_HTTPS` only (`src/protocols/webdav/tpc_curl.c:55,57`).
 - **TLS peer verification on** for OCSP (`crypto/ocsp.c:151`) and origin cache
   (`cache/origin_connection.c:197`).
 - **Auth brute-force cap** (`gsi/auth.c:357`, `XROOTD_MAX_AUTH_ATTEMPTS`) and the
@@ -91,9 +91,9 @@ Severity = exploitability × impact for the named actor. Each cites real code.
 
 | # | File:line | Issue | Sev | Guard |
 |---|-----------|-------|-----|-------|
-| A1 | `src/webdav/tpc_cred.c:176,187` | `execlp("oidc-token","oidc-token","-c",host,…)` — `host` derives from the client-supplied source URL. A value beginning with `-` is parsed as an **option** by oidc-token (argv injection, no shell needed). | High | Insert `"--"` end-of-options before any attacker-derived arg; reject/encode values with a leading `-`; validate host as a strict hostname |
-| A2 | `src/webdav/tpc_cred.c:197,200` | `execve(helper, {helper, sockpath, source_url}, NULL)` passes the raw `source_url` to a credential helper. | Med | Same `--`/leading-dash defense; canonicalise+validate URL first |
-| A3 | `src/webdav/tpc_cred.c:288–325` | `curl_argv[16]` built for the rfc8693 exchange; if any attacker-derived value (URL, token) lands in argv without `--`, curl flags like `-o`/`-K`/`--config` enable **file write / file read (SSRF-by-config)**. | High | Hard `--` terminator before URLs; never let user data occupy an argv slot that precedes a flag; prefer a fixed-arg helper over building curl argv |
+| A1 | `src/protocols/webdav/tpc_cred.c:176,187` | `execlp("oidc-token","oidc-token","-c",host,…)` — `host` derives from the client-supplied source URL. A value beginning with `-` is parsed as an **option** by oidc-token (argv injection, no shell needed). | High | Insert `"--"` end-of-options before any attacker-derived arg; reject/encode values with a leading `-`; validate host as a strict hostname |
+| A2 | `src/protocols/webdav/tpc_cred.c:197,200` | `execve(helper, {helper, sockpath, source_url}, NULL)` passes the raw `source_url` to a credential helper. | Med | Same `--`/leading-dash defense; canonicalise+validate URL first |
+| A3 | `src/protocols/webdav/tpc_cred.c:288–325` | `curl_argv[16]` built for the rfc8693 exchange; if any attacker-derived value (URL, token) lands in argv without `--`, curl flags like `-o`/`-K`/`--config` enable **file write / file read (SSRF-by-config)**. | High | Hard `--` terminator before URLs; never let user data occupy an argv slot that precedes a flag; prefer a fixed-arg helper over building curl argv |
 | A4 | `src/tpc/tpc_token.c:125` | `fork`+`execve`/`execlp oidc-token` token helper — same argv-position discipline needed. | Med | `--` terminator; arg validation |
 
 The fork/exec design is correct (no shell); the gap is **option-injection via
@@ -103,10 +103,10 @@ attacker-controlled argv values**, which `--` + leading-dash rejection closes.
 
 | # | File:line | Issue | Sev | Guard |
 |---|-----------|-------|-----|-------|
-| B1 | `src/tpc/launch.c`, `src/webdav/tpc_curl.c:52` | TPC source host comes from the client. `allow_private` gates RFC1918 but there is **no explicit block of link-local `169.254.0.0/16` / cloud-metadata `169.254.169.254` / `::1` / `0.0.0.0`** (no literal found anywhere in src). An attacker points TPC/copy at the metadata endpoint → credential theft. | High | Default-deny destination IP classes: loopback, link-local, metadata, multicast, unspecified, ULA `fc00::/7`; apply to **both** native-TPC and curl paths |
-| B2 | `src/webdav/tpc_curl.c` | Host is validated/policy-checked, then curl **re-resolves DNS** and connects → **DNS-rebinding TOCTOU**: policy sees a public IP, curl connects to an internal one. | High | Resolve once, validate the *resolved* IP set, pin curl to it (`CURLOPT_RESOLVE`/`OPENSOCKETFUNCTION`); re-check post-resolution |
-| B3 | `src/webdav/tpc_curl.c:63–72,275–287` | Sets `SSLCERT/SSLKEY/CAINFO/CAPATH` but **does not explicitly set `CURLOPT_SSL_VERIFYPEER=1` / `VERIFYHOST=2`** — relies on curl's compiled default. A build/default change silently disables verification. | Med | Set both explicitly; never expose a "disable verify" knob |
-| B4 | `src/webdav/tpc_cred.c`, `src/tpc/*` | **Confused deputy:** the server uses *its own* delegated credential/token to fetch a *client-named* source → client redirects the server's privileged identity at an unintended target. | Med | Bind the delegated credential's usable audience/host to the request's intended source; refuse cross-target reuse |
+| B1 | `src/tpc/launch.c`, `src/protocols/webdav/tpc_curl.c:52` | TPC source host comes from the client. `allow_private` gates RFC1918 but there is **no explicit block of link-local `169.254.0.0/16` / cloud-metadata `169.254.169.254` / `::1` / `0.0.0.0`** (no literal found anywhere in src). An attacker points TPC/copy at the metadata endpoint → credential theft. | High | Default-deny destination IP classes: loopback, link-local, metadata, multicast, unspecified, ULA `fc00::/7`; apply to **both** native-TPC and curl paths |
+| B2 | `src/protocols/webdav/tpc_curl.c` | Host is validated/policy-checked, then curl **re-resolves DNS** and connects → **DNS-rebinding TOCTOU**: policy sees a public IP, curl connects to an internal one. | High | Resolve once, validate the *resolved* IP set, pin curl to it (`CURLOPT_RESOLVE`/`OPENSOCKETFUNCTION`); re-check post-resolution |
+| B3 | `src/protocols/webdav/tpc_curl.c:63–72,275–287` | Sets `SSLCERT/SSLKEY/CAINFO/CAPATH` but **does not explicitly set `CURLOPT_SSL_VERIFYPEER=1` / `VERIFYHOST=2`** — relies on curl's compiled default. A build/default change silently disables verification. | Med | Set both explicitly; never expose a "disable verify" knob |
+| B4 | `src/protocols/webdav/tpc_cred.c`, `src/tpc/*` | **Confused deputy:** the server uses *its own* delegated credential/token to fetch a *client-named* source → client redirects the server's privileged identity at an unintended target. | Med | Bind the delegated credential's usable audience/host to the request's intended source; refuse cross-target reuse |
 | B5 | `src/fs/cache/origin_connection.c`, `src/net/proxy/*`, `src/net/mirror/*` | Origin/upstream/mirror targets — confirm they are **config-fixed**, never request-derived; if any path lets a header pick the upstream, it is SSRF. | Med | Audit; assert upstream selection is config-bound only |
 
 ### C — Trust & redirect poisoning (cluster/PKI integrity)
@@ -121,7 +121,7 @@ attacker-controlled argv values**, which `--` + leading-dash rejection closes.
 
 | # | File:line | Issue | Sev | Guard |
 |---|-----------|-------|-----|-------|
-| D1 | `src/s3/auth_sigv4_verify.c:581` | Final SigV4 signature comparison — confirm it uses **`CRYPTO_memcmp`**, not `strcmp`/`memcmp` (the file uses `strcmp` for cache-key/region at `:270`). Non-constant-time compare of an HMAC is a (low-but-real) timing channel. | Low-Med | Constant-time compare for the signature itself |
+| D1 | `src/protocols/s3/auth_sigv4_verify.c:581` | Final SigV4 signature comparison — confirm it uses **`CRYPTO_memcmp`**, not `strcmp`/`memcmp` (the file uses `strcmp` for cache-key/region at `:270`). Non-constant-time compare of an HMAC is a (low-but-real) timing channel. | Low-Med | Constant-time compare for the signature itself |
 | D2 | cross-cutting | **Deny-by-default audit:** every handler must reach a default-deny if no auth/ACL rule matches. The global `allow_write` gate is correctly checked before serving writes (`src/read/open_request.c:253`) — extend the same "explicit allow required" audit to *every* op (stat, locate, dirlist, fattr, query). | Med | Matrix test: each op × (no-auth, wrong-scope, wrong-VO) must 403/NotAuthorized |
 | D3 | `src/auth/authz/authdb.c:50` | The `k` → `XROOTD_AUTH_ADMIN` privilege bit — verify it is never implicitly granted and that ADMIN ⇏ all-paths without an explicit path scope. | Med | Test ADMIN bit is path-scoped, not global |
 | D4 | auth paths | **User enumeration / timing:** do auth failures differ (message or timing) between "unknown user" and "bad credential"? GSI rate-limit helps; token/SSS/S3 should return a **uniform** failure + constant-ish work. | Low-Med | Uniform auth-failure response; avoid early-out timing divergence on secret-bearing compares |
@@ -150,7 +150,7 @@ Mostly Phase 27 territory; the *adversarial* additions:
 
 | # | Area | Issue | Sev | Guard |
 |---|------|-------|-----|-------|
-| G1 | `src/webdav` PROPFIND `Depth: infinity`, dead-props XML | Deep/recursive WebDAV traversal and nested XML are amplification vectors. | Med | Cap `Depth`, XML nesting depth & entity count; reject `Depth: infinity` on large trees |
+| G1 | `src/protocols/webdav` PROPFIND `Depth: infinity`, dead-props XML | Deep/recursive WebDAV traversal and nested XML are amplification vectors. | Med | Cap `Depth`, XML nesting depth & entity count; reject `Depth: infinity` on large trees |
 | G2 | per-identity flooding | Auth-attempt cap exists, but no **per-identity request-rate / concurrency cap** for authenticated floods. | Med | Reuse the rate-limit infra (Phase 25) keyed by identity; connection caps per source |
 | G3 | TPC/readv amplification | A small request triggers large server-side I/O/egress (TPC pull, readv coalescing). | Med | Per-identity concurrent-TPC and aggregate-bytes quotas |
 

@@ -29,7 +29,7 @@ sends control requests and watches for completion.
 Two transports carry this in nginx-xrootd:
 
 ```text
-  NATIVE root:// pull (src/tpc/)            HTTP/WebDAV COPY (src/webdav/tpc*.c)
+  NATIVE root:// pull (src/tpc/)            HTTP/WebDAV COPY (src/protocols/webdav/tpc*.c)
   ───────────────────────────────          ─────────────────────────────────────
   client ── kXR_open(tpc.stage) ─▶ DST      client ── COPY + Source: hdr ─▶ DST
   DST    ── rendezvous key ──────▶ SRC      DST    ── libcurl GET ────────▶ SRC
@@ -43,7 +43,7 @@ Two transports carry this in nginx-xrootd:
 - nginx-xrootd implements two practical TPC paths:
   - native destination-side XRootD pull and source rendezvous implemented in
     `src/tpc/` (root:// sources).
-  - HTTP/WebDAV TPC implemented in `src/webdav/tpc*.c` with libcurl-based
+  - HTTP/WebDAV TPC implemented in `src/protocols/webdav/tpc*.c` with libcurl-based
     pull/push, TransferHeader handling, OAuth2/OIDC delegation, performance
     markers, and optional multi-stream Range GET.
 - Official xrootd (`XrdHttpTpc`) provides a full-featured HTTP(S) TPC handler
@@ -60,12 +60,12 @@ Two transports carry this in nginx-xrootd:
   - native TPC: [src/tpc/](../../src/tpc/)
     - `src/tpc/launch.c`, `src/tpc/thread.c`, `src/tpc/source.c`,
       `src/tpc/bootstrap.c`, `src/tpc/connect.c`, `src/tpc/tpc_internal.h`
-  - HTTP/WebDAV TPC glue: [src/webdav/tpc.c](../../src/webdav/tpc.c),
-    [src/webdav/tpc_curl.c](../../src/webdav/tpc_curl.c),
-    `src/webdav/tpc_cred.c` (OAuth2/OIDC token handling),
-    `src/webdav/tpc_cred_parse.c` (token parsing),
-    `src/webdav/tpc_marker.c` (perf-marker generation),
-    `src/webdav/tpc_thread.c` (async transfer threading)
+  - HTTP/WebDAV TPC glue: [src/protocols/webdav/tpc.c](../../src/protocols/webdav/tpc.c),
+    [src/protocols/webdav/tpc_curl.c](../../src/protocols/webdav/tpc_curl.c),
+    `src/protocols/webdav/tpc_cred.c` (OAuth2/OIDC token handling),
+    `src/protocols/webdav/tpc_cred_parse.c` (token parsing),
+    `src/protocols/webdav/tpc_marker.c` (perf-marker generation),
+    `src/protocols/webdav/tpc_thread.c` (async transfer threading)
 
 - official xrootd (reference): key code is in the `XrdHttpTpc` plugin
   (example files under a reference tree used for earlier comparisons):
@@ -111,8 +111,8 @@ TPC deeply into its HTTP stack and avoids external helpers.
     origins and multihop delegation remain narrower than upstream.
   - WebDAV TPC collects `TransferHeader*`, can use configured cert/key/CA
     material, and supports `Credential: oidc-agent` and
-    `Credential: token-exchange` via `src/webdav/tpc_cred.c` and
-    `src/webdav/tpc_cred_parse.c`.
+    `Credential: token-exchange` via `src/protocols/webdav/tpc_cred.c` and
+    `src/protocols/webdav/tpc_cred_parse.c`.
 - official xrootd:
   - supports TransferHeader and credential forwarding, integrates
     authz→opaque CGI mapping and can include client-supplied authz in the
@@ -155,7 +155,7 @@ with its HTTP/TPC scheduler and monitoring model.
 
 - nginx-xrootd: native TPC streams raw XRootD read responses into the file.
   IMPLEMENTED: perf‑marker multipart streaming for HTTP/WebDAV TPC COPYs is now
-  implemented in `src/webdav/tpc_marker.c` (202 Accepted + chunked WLCG
+  implemented in `src/protocols/webdav/tpc_marker.c` (202 Accepted + chunked WLCG
   Performance-Marker blocks, including per-stripe markers for multi-stream
   pulls).
 - official xrootd: emits periodic "Perf Marker" chunks (see
@@ -176,7 +176,7 @@ with its HTTP/TPC scheduler and monitoring model.
 
 - Both implement the safe pattern of writing to a temp file and linking/renaming
   into place on success. nginx-xrootd uses `tmp_path` + `rename/link` logic in
-  `src/webdav/tpc.c` and the native TPC launcher stages a local file and then
+  `src/protocols/webdav/tpc.c` and the native TPC launcher stages a local file and then
   returns the open response once the pull finishes (see `src/tpc/done.c`).
 
 ### 9) Monitoring and metrics
@@ -205,7 +205,7 @@ note and an estimated effort (Small / Medium / Large).
 
 2) Expand perf-marker compatibility and tests (Small to Medium)
    - 202 + chunked WLCG Performance-Marker streaming is implemented in
-     `src/webdav/tpc_marker.c`; add compatibility tests against clients that
+     `src/protocols/webdav/tpc_marker.c`; add compatibility tests against clients that
      depend on upstream marker timing and final-marker details.
 
 3) Credential delegation hardening (Small to Medium)

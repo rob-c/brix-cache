@@ -142,8 +142,8 @@ typedef struct {
 
 Consolidate I/O dispatch currently duplicated in:
 - `src/read/read.c` (XRootD stream read)
-- `src/webdav/get.c` (WebDAV HTTP GET)
-- `src/s3/get.c` (S3 REST GET)
+- `src/protocols/webdav/get.c` (WebDAV HTTP GET)
+- `src/protocols/s3/get.c` (S3 REST GET)
 
 Into unified `src/fs/io_engine.c` I/O dispatcher.
 

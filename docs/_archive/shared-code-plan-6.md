@@ -50,7 +50,7 @@ These boundaries should remain protocol-specific:
 |---|---|
 | Native XRootD frame emission | Binary stream responses and `kXR_status` framing must stay in `src/response/` and handlers |
 | S3 SigV4 canonical request logic | It is an S3 API contract, not a storage policy decision |
-| WebDAV lock model | RFC 4918 lock discovery, `If`, and `Lock-Token` stay in `src/webdav/lock.c` |
+| WebDAV lock model | RFC 4918 lock discovery, `If`, and `Lock-Token` stay in `src/protocols/webdav/lock.c` |
 | XrdHttp compatibility headers | `X-Xrootd-*` remains an HTTP dialect wrapper |
 | S3 XML error bodies | S3 clients require S3 code/message vocabulary |
 | Native TPC wire protocol | XRootD TPC rendezvous remains separate from WebDAV curl-based TPC |
@@ -68,10 +68,10 @@ WebDAV, XrdHttp-through-WebDAV, and S3 surfaces.
 
 | Operation | Native root:// | WebDAV / XrdHttp | S3 |
 |---|---|---|---|
-| create directory | `src/write/mkdir.c` | `src/webdav/namespace.c` | directory sentinel paths in `src/s3/put.c`, MPU dirs |
-| delete | `src/write/rm.c`, `rmdir.c` | `src/webdav/namespace.c` | `src/s3/object.c`, `delete_objects.c`, MPU abort |
-| rename/move | `src/write/mv.c` | `src/webdav/move.c` | MPU complete temp-to-final rename |
-| local copy | `src/read/clone.c`, `src/write/chkpoint*.c` | `src/webdav/copy.c`, `fs/copy_engine.c` | `src/s3/copy.c`, upload-part-copy |
+| create directory | `src/write/mkdir.c` | `src/protocols/webdav/namespace.c` | directory sentinel paths in `src/protocols/s3/put.c`, MPU dirs |
+| delete | `src/write/rm.c`, `rmdir.c` | `src/protocols/webdav/namespace.c` | `src/protocols/s3/object.c`, `delete_objects.c`, MPU abort |
+| rename/move | `src/write/mv.c` | `src/protocols/webdav/move.c` | MPU complete temp-to-final rename |
+| local copy | `src/read/clone.c`, `src/write/chkpoint*.c` | `src/protocols/webdav/copy.c`, `fs/copy_engine.c` | `src/protocols/s3/copy.c`, upload-part-copy |
 | truncate/chmod | `src/write/truncate.c`, `chmod.c` | not generally exposed | not exposed |
 
 The low-level confined helpers already exist and must remain canonical:
@@ -208,7 +208,7 @@ The module now has three related range paths:
 | Surface | File | Current behavior |
 |---|---|---|
 | HTTP single range | `src/core/compat/range.c` | parses one `Range: bytes=...` value |
-| XrdHttp multi-range | `src/webdav/xrdhttp_multipart.c` | local parser for comma-separated ranges |
+| XrdHttp multi-range | `src/protocols/webdav/xrdhttp_multipart.c` | local parser for comma-separated ranges |
 | Native readv | `src/read/readv.c` | validates wire segments and coalesces adjacent reads |
 
 These are not identical wire formats, but they share several decisions:
@@ -265,12 +265,12 @@ Keep serialization protocol-specific:
 | Protocol | Stays where |
 |---|---|
 | Native readv wire body | `src/read/readv.c` |
-| XrdHttp multipart/byteranges chain | `src/webdav/xrdhttp_multipart.c` |
+| XrdHttp multipart/byteranges chain | `src/protocols/webdav/xrdhttp_multipart.c` |
 | WebDAV/S3 single-range response headers | `src/core/compat/http_file_response.c` |
 
 ### First Migration Targets
 
-1. Replace `parse_multi_ranges()` in `src/webdav/xrdhttp_multipart.c`.
+1. Replace `parse_multi_ranges()` in `src/protocols/webdav/xrdhttp_multipart.c`.
 2. Let `src/core/compat/range.c` become a thin max-one wrapper around the vector
    parser.
 3. Move the contiguous-run logic from `src/read/readv.c` into the coalescer
@@ -307,7 +307,7 @@ Native root TPC has an SSRF guard in `src/tpc/connect.c`:
 | IPv4-mapped IPv6 handling | native TPC |
 
 WebDAV HTTP-TPC and XrdHttp TPC currently enforce a different minimum policy in
-`src/webdav/tpc.c` and `src/webdav/xrdhttp.c`: URL must be `https://`, must not
+`src/protocols/webdav/tpc.c` and `src/protocols/webdav/xrdhttp.c`: URL must be `https://`, must not
 contain control bytes, and must fit local buffers. That is necessary, but it is
 not the same destination policy as native TPC.
 
@@ -370,9 +370,9 @@ Policy defaults:
 3. Add `xrootd_webdav_tpc_allow_local` and
    `xrootd_webdav_tpc_allow_private` directives, or reuse a common HTTP-TPC
    config block, defaulting to the native policy.
-4. Validate `Source` and `Destination` URLs in `src/webdav/tpc.c` before curl
+4. Validate `Source` and `Destination` URLs in `src/protocols/webdav/tpc.c` before curl
    runs.
-5. Validate `?tpc.src=` and `?tpc.dst=` in `src/webdav/xrdhttp.c` before header
+5. Validate `?tpc.src=` and `?tpc.dst=` in `src/protocols/webdav/xrdhttp.c` before header
    injection.
 
 ### Tests
@@ -406,7 +406,7 @@ metadata policy is still split:
 | native `kXR_Qcksum` | computes checksum by path or handle |
 | native `kXR_Qckscan` | computes checksums while walking |
 | native `kXR_dirlist` dcksm | has its own xattr cache in `src/dirlist/dcksm.c` |
-| XrdHttp `Want-Digest` | computes and injects `Digest` in `src/webdav/xrdhttp.c` |
+| XrdHttp `Want-Digest` | computes and injects `Digest` in `src/protocols/webdav/xrdhttp.c` |
 | fattr | exposes user metadata through POSIX xattrs |
 | WebDAV PROPFIND | emits selected metadata and ETag |
 | S3 | uses stat-derived ETag, not a general checksum |
@@ -492,14 +492,14 @@ WebDAV examples:
 
 | Concern | Current file |
 |---|---|
-| dispatch routing | `src/webdav/dispatch.c` |
-| write-method detection | `src/webdav/access.c` |
-| token scope method name | `src/webdav/access.c` |
-| OPTIONS `Allow` header | `src/webdav/methods_basic.c` |
-| CORS methods | `src/webdav/cors.c` |
-| metrics method slots | `src/webdav/metrics.c` |
+| dispatch routing | `src/protocols/webdav/dispatch.c` |
+| write-method detection | `src/protocols/webdav/access.c` |
+| token scope method name | `src/protocols/webdav/access.c` |
+| OPTIONS `Allow` header | `src/protocols/webdav/methods_basic.c` |
+| CORS methods | `src/protocols/webdav/cors.c` |
+| metrics method slots | `src/protocols/webdav/metrics.c` |
 
-S3 has a similar split between `src/s3/handler.c` and `src/s3/metrics.c`.
+S3 has a similar split between `src/protocols/s3/handler.c` and `src/protocols/s3/metrics.c`.
 Native root has opcode dispatch, `kXR_Qconfig` capability reporting, and metric
 slot mappings in separate places.
 
@@ -533,8 +533,8 @@ Protocol modules keep their own tables:
 
 | Table | Owner |
 |---|---|
-| WebDAV methods | `src/webdav/operation_table.c` |
-| S3 operations | `src/s3/operation_table.c` |
+| WebDAV methods | `src/protocols/webdav/operation_table.c` |
+| S3 operations | `src/protocols/s3/operation_table.c` |
 | Native root opcode capabilities | `src/protocol/operation_table.c` or stream-local table |
 
 Shared helpers format and query those tables:
@@ -585,8 +585,8 @@ Export-root validation and canonicalization are done in at least three places:
 | Surface | Current path |
 |---|---|
 | native stream | `src/core/config/runtime_server.c` and stream config |
-| WebDAV/XrdHttp | `src/webdav/config.c` |
-| S3 | `src/s3/module.c` |
+| WebDAV/XrdHttp | `src/protocols/webdav/config.c` |
+| S3 | `src/protocols/s3/module.c` |
 
 The WebDAV path uses `xrootd_validate_path()` and then `realpath()`. The S3
 path does its own length copy and `realpath()`. Native stream validates the
@@ -651,7 +651,7 @@ Several features run work outside the main request path:
 |---|---|
 | native read/write AIO | `src/core/aio/*`, `src/read/readv.c` |
 | native TPC pull | `src/tpc/thread.c`, `done.c`, `source.c` |
-| WebDAV HTTP-TPC curl thread | `src/webdav/tpc_thread.c`, `tpc_marker.c` |
+| WebDAV HTTP-TPC curl thread | `src/protocols/webdav/tpc_thread.c`, `tpc_marker.c` |
 | Qckscan checksum scan | `src/query/checksum_ckscan_async.c` |
 | request body callbacks | WebDAV PUT, S3 PUT, S3 multipart complete |
 

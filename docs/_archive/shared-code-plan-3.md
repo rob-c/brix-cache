@@ -142,8 +142,8 @@ invariant in `AGENTS.md`).
 
 | File | Approx. line | Variable logged unsanitized |
 |---|---|---|
-| `src/s3/multipart_initiate.c` | ~76 | `mpu_dir` |
-| `src/s3/multipart_complete_body.c` | ~76, ~97, ~110, ~126, ~140, ~156 | various path strings |
+| `src/protocols/s3/multipart_initiate.c` | ~76 | `mpu_dir` |
+| `src/protocols/s3/multipart_complete_body.c` | ~76, ~97, ~110, ~126, ~140, ~156 | various path strings |
 
 The MPU directory path is server-generated (not directly client-controlled
 byte-for-byte), so this is not an exploitable injection.  However, it
@@ -169,7 +169,7 @@ ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
 `propfind.c`, `methods_basic.c`, and LOCK/UNLOCK XML helpers now call
 `xrootd_http_chain_appendf()` directly.
 
-**What:** `src/webdav/propfind.c` defines a local variadic function whose
+**What:** `src/protocols/webdav/propfind.c` defines a local variadic function whose
 entire body is a single call to `xrootd_http_chain_vappendf()` — the exact
 internal form of `xrootd_http_chain_appendf()` from `compat/http_xml.c`.
 The wrapper function adds no logic, no documentation value, and no type
@@ -223,9 +223,9 @@ header appears in at least three locations:
 
 | File | Form |
 |---|---|
-| `src/webdav/auth_token.c` | `ngx_strncmp(auth_hdr.data, "Bearer ", 7)` then skip 7 |
-| `src/webdav/tpc.c` | `strncasecmp(value, "Bearer ", prefix_len)` (push path) |
-| `src/webdav/tpc.c` | Same pattern again (pull path, ~200 lines below) |
+| `src/protocols/webdav/auth_token.c` | `ngx_strncmp(auth_hdr.data, "Bearer ", 7)` then skip 7 |
+| `src/protocols/webdav/tpc.c` | `strncasecmp(value, "Bearer ", prefix_len)` (push path) |
+| `src/protocols/webdav/tpc.c` | Same pattern again (pull path, ~200 lines below) |
 
 Each site has its own case-sensitivity choice and its own error path.  The
 `tpc.c` sites use `strncasecmp` (case-insensitive); `auth_token.c` uses
@@ -266,8 +266,8 @@ PROPFIND creationdate uses the same UTC formatter.  The helper preserves the
 existing S3 wire format with fixed zero milliseconds:
 `YYYY-MM-DDTHH:MM:SS.000Z`.
 
-**What:** `src/s3/util.c` defines `s3_iso8601(time_t t, char *buf, size_t bufsz)`
-and calls it from five S3 files.  `src/webdav/propfind.c` formats a similar
+**What:** `src/protocols/s3/util.c` defines `s3_iso8601(time_t t, char *buf, size_t bufsz)`
+and calls it from five S3 files.  `src/protocols/webdav/propfind.c` formats a similar
 UTC ISO-8601 creationdate inline with `gmtime_r` + `strftime`.
 
 **Change:** Move `s3_iso8601` to `src/core/compat/time.c` as
@@ -299,7 +299,7 @@ nibble ↔ ASCII hex character conversion:
 | `src/core/compat/uri.c` | `hex_val(unsigned char c, unsigned char *out)` | ASCII → nibble |
 
 Additionally, `src/core/compat/checksum.c` has `xrootd_checksum_hex_encode(in, len, out)`
-and `src/s3/auth_sigv4_canonical.c` has a private `hex_encode(in, len, out)` — both
+and `src/protocols/s3/auth_sigv4_canonical.c` has a private `hex_encode(in, len, out)` — both
 performing byte-array → lowercase hex string conversion.
 
 **Change:** Create `src/core/compat/hex.c` / `compat/hex.h` exporting:

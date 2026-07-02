@@ -58,7 +58,7 @@ observability/anti-abuse depth that "extremely hardened" implies.
 | Native TPC | thread-pooled | `curl` on thread pool, 30s connect timeout, registry reaper + cancel-on-disconnect |
 | Health check | bounded | 5s probe deadline + 10s blacklist |
 | GSI DH keygen | **FULL** | thread-pool keypool warms 64 ffdhe2048 keys off-loop (`src/auth/gsi/keypool.c`); pop is O(1), inline keygen only on pool-empty (phase-33 wedge fixed) |
-| S3 SigV4 signing key | **FULL** | per-worker one-slot date+region cache (`src/s3/auth_sigv4_verify.c`) → ~99% hit, 4-round HMAC only on date roll |
+| S3 SigV4 signing key | **FULL** | per-worker one-slot date+region cache (`src/protocols/s3/auth_sigv4_verify.c`) → ~99% hit, 4-round HMAC only on date roll |
 | SSS / krb5 keytab | bounded | keytabs loaded once at startup, in-memory; SSS Blowfish+CRC32 is µs-scale CPU only |
 | XrdAcc group lookups | partial | per-worker 256-slot username cache (12h TTL) in `src/auth/authz/acc/groups.c` — but a cold/diverse miss blocks on NSS/NIS/LDAP |
 | GSI auth-result cache | partial | DN+VO-keyed SHM verdict cache (`src/auth/authz/auth_gate.c`) skips full chain re-verify for repeat clients — but SHM-spinlock only, **no per-worker L1** |
@@ -150,7 +150,7 @@ conformant slow-but-progressing transfer is never clipped.
 - `xrootd_apply_tcp_deadpeer_opts()` (`netopt.h`), CMS deadlines (`src/net/cms/*`),
   `xrootd_net_host_chars_valid()` / `xrootd_sanitize_log_string()`.
 - TPC stall plumbing present: `tpc_curl_apply_stall_bounds()`
-  (`src/webdav/tpc_curl.c`), `tpc_max_transfer_secs`, `tpc_low_speed_bytes/secs`,
+  (`src/protocols/webdav/tpc_curl.c`), `tpc_max_transfer_secs`, `tpc_low_speed_bytes/secs`,
   registry reaper (`src/tpc/common/registry.c`).
 - `proxy_write_timeout` arming present (`src/net/proxy/events_write.c`) — only the
   default changes.
@@ -297,7 +297,7 @@ GSI DH keypool (`src/auth/gsi/keypool.c`) is the model for moving cost off the l
 - Manager: `src/net/manager/pending.c`/`.h` (A4 reaper).
 - Metrics: `src/observability/metrics/metrics.h` + `src/observability/metrics/stream.c` (A1 counters/export).
 - Defaults: `src/core/config/server_conf.c` (B1, B2).
-- TPC/durability: `src/webdav/tpc_curl.c` (confirm B2), WebDAV/S3 staged-commit
+- TPC/durability: `src/protocols/webdav/tpc_curl.c` (confirm B2), WebDAV/S3 staged-commit
   site (C1 fsync).
 - Docs/config: `contrib/xrootd.conf.example` (B3), `docs/04-protocols/cms-protocol.md`
   (metrics table).
@@ -310,7 +310,7 @@ GSI DH keypool (`src/auth/gsi/keypool.c`) is the model for moving cost off the l
   `src/auth/crypto/pki_load.c` (E5), `src/observability/metrics/metrics.h` + `src/observability/metrics/stream.c` +
   `src/observability/metrics/http.c` (E6). New auth directives via the usual
   `NGX_CONF_UNSET`→merge→`ngx_command_t` pattern (`src/core/config/server_conf.c`,
-  `src/stream/module.c`, `src/webdav/module.c`).
+  `src/stream/module.c`, `src/protocols/webdav/module.c`).
 - Auth tests: `tests/test_auth_resilience.py` (new) — OCSP responder that
   black-holes (handshake fails fast within the timeout, not after 60 s; soft-fail
   allows, hard-fail denies, both bounded); a slow-NSS shim (LD_PRELOAD) proving the

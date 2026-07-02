@@ -73,7 +73,7 @@ def test_stream_gate_and_charge_wired():
 
 
 def test_http_handler_and_filter_wired():
-    pc = _read("src/webdav/postconfig.c")
+    pc = _read("src/protocols/webdav/postconfig.c")
     assert "xrootd_rl_http_access_handler" in pc
     assert "xrootd_rl_http_log_handler" in pc      # bandwidth charge (log phase)
     h = _read("src/net/ratelimit/ratelimit_http.c")
@@ -84,7 +84,7 @@ def test_http_handler_and_filter_wired():
 
 def test_directives_distinct_from_phase20():
     # Phase 25 directives must be distinct from the Phase 20 xrootd_rate_limit.
-    wd = _read("src/webdav/module.c")
+    wd = _read("src/protocols/webdav/module.c")
     st = _read("src/stream/module.c")
     for name in ("xrootd_rate_limit_zone", "xrootd_rate_limit_rule",
                  "xrootd_bandwidth_limit"):

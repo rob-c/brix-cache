@@ -1,6 +1,6 @@
 # Phase 36 — Full IPv6 Support Across All Protocols
 
-**Status:** ✅ COMPLETE (Phases 0–4) — full IPv6 suite green (92 passed / 2 xfailed) against live `[::1]` instances · **Subsystem:** cross-cutting (`src/net/manager`, `src/response`, `src/net/cms`, `src/webdav`, `src/tpc`, plus the new `src/core/compat/host_format.c`) · **Build governance:** any new source file must be registered in the module's source list (the top-level `config` script — see the phase-35 build-governance note); editing `src/core/types/context.h` struct layout requires a **full rebuild** (mixed-ABI stale-object crash — see [[build_header_dep_mixed_abi]]).
+**Status:** ✅ COMPLETE (Phases 0–4) — full IPv6 suite green (92 passed / 2 xfailed) against live `[::1]` instances · **Subsystem:** cross-cutting (`src/net/manager`, `src/response`, `src/net/cms`, `src/protocols/webdav`, `src/tpc`, plus the new `src/core/compat/host_format.c`) · **Build governance:** any new source file must be registered in the module's source list (the top-level `config` script — see the phase-35 build-governance note); editing `src/core/types/context.h` struct layout requires a **full rebuild** (mixed-ABI stale-object crash — see [[build_header_dep_mixed_abi]]).
 
 > **Implementation status (this commit).** The bracket-on-emit fix is **implemented and builds clean** (full binary links; server-side IPv6 handshake confirmed over `[::1]`):
 > - **New helper** `src/core/compat/host_format.{c,h}` (`xrootd_format_host`, `xrootd_format_host_port`, `xrootd_host_is_ipv6_literal`) — registered in `config`; standalone unit test green (bracket / IPv4 / hostname / already-bracketed / zone-id / overflow).
@@ -99,8 +99,8 @@ Detection: `host[0] != '[' && strchr(host, ':') != NULL` (a hostname never conta
 
 | Site | Defect | Fix |
 |---|---|---|
-| `src/webdav/proxy_pool.c:167` (`proxy_pool_resolve`) | `"%V:%d%Z"` with bare host → `Host: 2001:db8::1:8080` | helper; also the default-port branch (`out->host` copy) needs bracketing for the bare-IPv6 case |
-| `src/webdav/proxy_config.c:76` (`webdav_proxy_add_url`) | same defect at config-parse time | helper |
+| `src/protocols/webdav/proxy_pool.c:167` (`proxy_pool_resolve`) | `"%V:%d%Z"` with bare host → `Host: 2001:db8::1:8080` | helper; also the default-port branch (`out->host` copy) needs bracketing for the bare-IPv6 case |
+| `src/protocols/webdav/proxy_config.c:76` (`webdav_proxy_add_url`) | same defect at config-parse time | helper |
 
 ### C. Native-TPC URL rebuild — **MAJOR** (TPC)
 
@@ -124,9 +124,9 @@ Also a **security-negative** to cover: confirm the re-bracketed `root://[::ffff:
 |---|---|---|
 | `src/observability/dashboard/api_admin.c:395` (`admin_parse_server_uri`) | splits URI tail on `/` only; a `[2001:db8::1]` segment survives but brackets aren't stripped for registry host-matching | bracket-detect/strip the host segment before comparing to registry entries |
 | `src/net/ratelimit/ratelimit_keys.c:52,60,68,73` | `"ip:%s"` with bare `peer_ip` → colon-bearing key | bracket or use a non-colon separator; **keep raw IP out of low-cardinality metric labels** (invariant #8) |
-| `src/webdav/macaroon_endpoint.c:416` | Location URL from client `Host:` without IPv6 validation/bracketing | normalize/bracket |
-| `src/s3/auth_sigv4_verify.c:312` | SigV4 canonical request uses raw `Host`; `::1` vs expanded forms break the signature | defensive Host normalization (largely client responsibility — document) |
-| `src/webdav/tpc_curl.c:77` | `CURLOPT_RESOLVE` entry format | likely OK (`getnameinfo(NI_NUMERICHOST)` output is bracketed) — **verify end-to-end** |
+| `src/protocols/webdav/macaroon_endpoint.c:416` | Location URL from client `Host:` without IPv6 validation/bracketing | normalize/bracket |
+| `src/protocols/s3/auth_sigv4_verify.c:312` | SigV4 canonical request uses raw `Host`; `::1` vs expanded forms break the signature | defensive Host normalization (largely client responsibility — document) |
+| `src/protocols/webdav/tpc_curl.c:77` | `CURLOPT_RESOLVE` entry format | likely OK (`getnameinfo(NI_NUMERICHOST)` output is bracketed) — **verify end-to-end** |
 
 ---
 
@@ -146,7 +146,7 @@ Also a **security-negative** to cover: confirm the re-bracketed `root://[::ffff:
 
 ## 5. Already correct — do not touch
 
-`src/core/compat/net_target.c` (AF_UNSPEC + `[IPv6]:port` parse + SSRF v4-mapped classification, lines 30-133/242-278/387-410), `src/core/config/addr_parse.c:99-124` (bracket parsing), `src/connection/handler.c:50-68` + `disconnect.c:133-143` (AF_INET6 detection + per-version metrics), `src/auth/authz/authdb.c:285-344` (IPv6 CIDR matching), `src/read/locate.c:182-204` (local locate brackets correctly), `src/auth/unix/auth.c` + `src/auth/krb5/auth.c:57-81` (`::1` / ADDRTYPE_INET6), `src/webdav/proxy_pool.h:40` + `src/net/mirror/mirror.h:116` (`sockaddr_storage`), `src/tpc/connect.c:107-149` (AF_UNSPEC per-candidate policy), inbound stats/metrics (`webdav/access.c`, `webdav/xrdhttp_stats.c`, `query/metadata.c`, `cache/evict_policy.c`).
+`src/core/compat/net_target.c` (AF_UNSPEC + `[IPv6]:port` parse + SSRF v4-mapped classification, lines 30-133/242-278/387-410), `src/core/config/addr_parse.c:99-124` (bracket parsing), `src/connection/handler.c:50-68` + `disconnect.c:133-143` (AF_INET6 detection + per-version metrics), `src/auth/authz/authdb.c:285-344` (IPv6 CIDR matching), `src/read/locate.c:182-204` (local locate brackets correctly), `src/auth/unix/auth.c` + `src/auth/krb5/auth.c:57-81` (`::1` / ADDRTYPE_INET6), `src/protocols/webdav/proxy_pool.h:40` + `src/net/mirror/mirror.h:116` (`sockaddr_storage`), `src/tpc/connect.c:107-149` (AF_UNSPEC per-candidate policy), inbound stats/metrics (`webdav/access.c`, `webdav/xrdhttp_stats.c`, `query/metadata.c`, `cache/evict_policy.c`).
 
 ---
 

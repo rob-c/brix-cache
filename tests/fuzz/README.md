@@ -55,8 +55,8 @@ Recommended next targets (see Phase 27 W7 / Appendix B):
 - **GSI/TPC bucket + PEM/cipher parsing** — `src/tpc/gsi_outbound_*`, `src/auth/gsi`
   (F2 — the densest external-handle error paths).
 - **Token / JWT / JWKS** — `src/auth/token` (base64url, JSON header/claims).
-- **S3 SigV4 + multipart** — `src/s3`.
-- **WebDAV XML / dead-props** — `src/webdav/dead_props.c`.
+- **S3 SigV4 + multipart** — `src/protocols/s3`.
+- **WebDAV XML / dead-props** — `src/protocols/webdav/dead_props.c`.
 
 Seed each `corpus_*/` from the existing test fixtures (captured requests, sample
 PEM/JWT/XML blobs) for faster coverage.

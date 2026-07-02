@@ -21,7 +21,7 @@
 #ifndef XROOTD_MIRROR_HTTP_MIRROR_H
 #define XROOTD_MIRROR_HTTP_MIRROR_H
 
-#include "webdav/webdav.h"
+#include "protocols/webdav/webdav.h"
 
 /* PRECONTENT_PHASE handler with two roles keyed on r vs r->main:
  *   - MAIN request: if mirroring is enabled, the method/write/loop/sample gates

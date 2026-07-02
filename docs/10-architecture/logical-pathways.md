@@ -66,7 +66,7 @@ These pathways provide interoperability with larger XRootD clusters and optimize
 - **Logic Flow**:
   1. `src/tpc/launch.c`: Initiates a transfer between two remote servers.
   2. `src/tpc/key_registry.c`: Manages SHM-based authorization keys for native XRootD TPC.
-  3. `src/webdav/tpc.c`: Handles HTTP-based TPC pull/push using libcurl.
+  3. `src/protocols/webdav/tpc.c`: Handles HTTP-based TPC pull/push using libcurl.
 
 ### C. Advanced I/O (AIO & Page-based)
 - **Logic Flow**:
@@ -76,8 +76,8 @@ These pathways provide interoperability with larger XRootD clusters and optimize
 
 ### D. Multi-Protocol Gateway (WebDAV & S3)
 - **Logic Flow**:
-  1. `src/webdav/dispatch.c`: Maps HTTP methods (GET, PUT, PROPFIND) to XRootD filesystem operations.
-  2. `src/s3/handler.c`: Implements S3 SigV4 authentication and bucket/object listing.
+  1. `src/protocols/webdav/dispatch.c`: Maps HTTP methods (GET, PUT, PROPFIND) to XRootD filesystem operations.
+  2. `src/protocols/s3/handler.c`: Implements S3 SigV4 authentication and bucket/object listing.
 
 ---
 

@@ -429,21 +429,21 @@ if (ngx_xrootd_dashboard_shm_zone != NULL) {
 
 This handles clients that drop TCP without sending `kXR_close`.
 
-### `src/webdav/get.c`
+### `src/protocols/webdav/get.c`
 
 Allocate a slot when the WebDAV GET handler resolves the target path and is about to start streaming a response body. Store the slot index in the WebDAV request context (`ngx_http_xrootd_webdav_ctx_t`, adding `int32_t dashboard_slot`). Update in the sendfile/AIO completion chain. Free in the request finaliser.
 
 Identity for WebDAV: use the client DN extracted during `webdav_verify_proxy_cert()` / `webdav_verify_bearer_token()`, or `"anonymous"` if unauthenticated. This is already stored in the request context.
 
-### `src/webdav/put.c`
+### `src/protocols/webdav/put.c`
 
 Same pattern as GET but with `XROOTD_XFER_DIR_WRITE`. Update on each `write()` completion, free in the PUT finaliser.
 
-### `src/webdav/tpc.c`
+### `src/protocols/webdav/tpc.c`
 
 Allocate a slot with `XROOTD_XFER_DIR_TPC`. The `tpc_curl.c` byte-progress callback updates the slot. Free on TPC completion (success or failure).
 
-### `src/s3/get.c`, `src/s3/put.c`
+### `src/protocols/s3/get.c`, `src/protocols/s3/put.c`
 
 Same treatment as WebDAV. S3 identity from SigV4 key ID or `"anonymous"`.
 

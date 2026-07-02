@@ -6,8 +6,8 @@ Read-only ENDPOINT enforcement for the HTTP protocols (WebDAV + S3).
 The native root:// read-only listener is covered by
 test_privilege_escalation.py::TestReadOnlyServer (reads succeed AND every
 mutating opcode is rejected).  The HTTP write-gate lives in
-src/webdav/access.c (webdav_is_write_method && !allow_write -> 403) and
-src/s3/handler.c (!allow_write -> 403 AccessDenied), but nothing exercised it
+src/protocols/webdav/access.c (webdav_is_write_method && !allow_write -> 403) and
+src/protocols/s3/handler.c (!allow_write -> 403 AccessDenied), but nothing exercised it
 because every WebDAV/S3 server in the shared test config sets allow_write on.
 
 This test stands up a dedicated nginx with WebDAV and S3 locations that OMIT

@@ -4,7 +4,7 @@ tests/test_webdav_unlock_ownership.py
 Coverage gap #7 (test-coverage-gap-audit): WebDAV UNLOCK ownership boundary.
 
 Only the UNLOCK-success path was tested.  The security-load-bearing branches in
-src/webdav/lock.c (the CRYPTO_memcmp lock-token comparison that stops one client
+src/protocols/webdav/lock.c (the CRYPTO_memcmp lock-token comparison that stops one client
 stealing another's lock) had no negative test:
 
   * UNLOCK with a wrong/forged Lock-Token        → 409, and the lock SURVIVES

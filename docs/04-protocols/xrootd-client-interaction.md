@@ -291,8 +291,8 @@ If x509 auth is used:
 
 Relevant code:
 
-- `src/webdav/auth_*.c`
-- `src/webdav/dispatch.c`
+- `src/protocols/webdav/auth_*.c`
+- `src/protocols/webdav/dispatch.c`
 
 ### Common WebDAV download flow
 
@@ -430,7 +430,7 @@ So:
 See:
 
 - `tests/test_root_tpc.py`
-- `src/webdav/tpc*.c`
+- `src/protocols/webdav/tpc*.c`
 
 ---
 
@@ -450,7 +450,7 @@ If you want to step through the server side of an `xrdcp` session:
 
 ### WebDAV `davs://`
 
-- `src/webdav/*.c`
+- `src/protocols/webdav/*.c`
 
 ### Tests that show real client behavior
 

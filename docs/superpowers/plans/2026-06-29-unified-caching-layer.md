@@ -134,7 +134,7 @@
 
 ### Task C4: Enforce at PUT (WebDAV + S3)
 
-**Files:** `src/webdav/put.c`, `src/s3/put.c` (before staging).
+**Files:** `src/protocols/webdav/put.c`, `src/protocols/s3/put.c` (before staging).
 
 - [ ] Failing e2e (HTTP PUT → `503 Retry-After` in soft band, `429` above high; GET unaffected) → implement → PASS.
 

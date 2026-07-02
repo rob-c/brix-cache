@@ -65,7 +65,7 @@ paths checked, see
 | OAuth2/OIDC credential delegation | Yes | Yes | nginx-xrootd includes delegation/token-exchange helpers; older docs saying this is rejected are stale. |
 | Native root TPC | Yes | Partial | Source/destination rendezvous exists. Site review is still needed for TLS-upgraded origins, multihop delegation, and non-default credential paths. |
 | XrdCl client library | Yes | No | nginx-xrootd is a server module and does not attempt to replace the upstream client library. |
-| S3 REST server | No | nginx+ | Implemented under `src/s3` with SigV4/anonymous auth modes. |
+| S3 REST server | No | nginx+ | Implemented under `src/protocols/s3` with SigV4/anonymous auth modes. |
 | WLCG Tape REST gateway | No equivalent | nginx+ | Implemented as a gateway/control-plane surface; it is not a full replacement for upstream XrdFrm/MSS. |
 
 ## Storage and Backend Ecosystem
@@ -117,4 +117,4 @@ These statements appeared in older docs and are no longer accurate:
 | "nginx-xrootd lacks HTTP-TPC multistream/performance markers." | Current WebDAV TPC paths implement multistream/range transfer and progress/marker behavior. |
 | "Prepare always returns request id 0." | That is only the FRM-off legacy behavior; FRM-enabled operation returns durable request ids. |
 | "Write mirroring is out of scope." | Current source has opt-in HTTP/WebDAV write mirroring and stream data-write replay gated by `xrootd_mirror_writes`. |
-| "S3 auth is planned." | S3 SigV4/anonymous auth is implemented under `src/s3`. |
+| "S3 auth is planned." | S3 SigV4/anonymous auth is implemented under `src/protocols/s3`. |

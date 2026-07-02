@@ -60,12 +60,12 @@ def test_admin_module_present():
 
 
 def test_proxy_pool_module_present():
-    assert (ROOT / "src/webdav/proxy_pool.c").exists()
-    assert (ROOT / "src/webdav/proxy_pool.h").exists()
+    assert (ROOT / "src/protocols/webdav/proxy_pool.c").exists()
+    assert (ROOT / "src/protocols/webdav/proxy_pool.h").exists()
     cfg = _read("config")
-    assert "src/webdav/proxy_pool.c" in cfg
+    assert "src/protocols/webdav/proxy_pool.c" in cfg
     # The pool header is a build dependency for both webdav and dashboard.
-    assert cfg.count("src/webdav/proxy_pool.h") >= 2
+    assert cfg.count("src/protocols/webdav/proxy_pool.h") >= 2
 
 
 def test_admin_auth_and_validation_present():
@@ -85,15 +85,15 @@ def test_registry_undrain_helper_present():
 
 
 def test_proxy_pool_api_present():
-    p = _read("src/webdav/proxy_pool.c")
+    p = _read("src/protocols/webdav/proxy_pool.c")
     for fn in ("xrootd_proxy_pool_configure", "xrootd_proxy_pool_add",
                "xrootd_proxy_pool_select", "xrootd_proxy_pool_drain",
                "xrootd_proxy_pool_remove", "xrootd_proxy_pool_snapshot",
                "xrootd_proxy_pool_dec_in_flight"):
         assert fn in p, fn
     # proxy.c branches on the dynamic pool; finalize releases in_flight.
-    assert "xrootd_proxy_pool_select" in _read("src/webdav/proxy.c")
-    assert "xrootd_proxy_pool_dec_in_flight" in _read("src/webdav/proxy_response.c")
+    assert "xrootd_proxy_pool_select" in _read("src/protocols/webdav/proxy.c")
+    assert "xrootd_proxy_pool_dec_in_flight" in _read("src/protocols/webdav/proxy_response.c")
 
 
 def test_directives_registered():

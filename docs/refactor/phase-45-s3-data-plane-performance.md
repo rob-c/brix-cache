@@ -4,7 +4,7 @@
 W4 deliberately deferred (see §2). Built clean (`-Werror`); 181 S3 tests + 155 WebDAV
 + integrity-matrix green; the strace syscall-count proof confirms list stats track the
 page, not the bucket.
-**Scope:** `src/s3/` data path + the read VFS seam it shares (`src/fs/vfs_open.c`,
+**Scope:** `src/protocols/s3/` data path + the read VFS seam it shares (`src/fs/vfs_open.c`,
 `src/fs/vfs_write.c`, `src/fs/vfs_internal.h`). **No wire/format changes** —
 ListObjects XML, ETags, response headers, and continuation tokens are byte-identical
 before/after, so xrootd / XrdHttp / xrootd-S3 (XrdClS3) compatibility holds by
@@ -82,7 +82,7 @@ few MB + ~1 K `lstat`, with **byte-identical XML**.
 ## 2. Workstreams
 
 ### W1 — Listing scalability (the keystone)
-**Files:** `src/s3/list_walk.c`, `src/s3/list_objects_v2.c`, `src/s3/list_objects_v1.c`, `src/s3/s3.h`
+**Files:** `src/protocols/s3/list_walk.c`, `src/protocols/s3/list_objects_v2.c`, `src/protocols/s3/list_objects_v1.c`, `src/protocols/s3/s3.h`
 
 - **L1 lazy-stat:** thread `d_type` out of the `readdir` loop; classify via `d_type`, with an
   `lstat` fallback only on `DT_UNKNOWN`; **defer** size/mtime/ETag to the post-sort page slice.
@@ -105,7 +105,7 @@ few MB + ~1 K `lstat`, with **byte-identical XML**.
 ### W2 — GET/HEAD hot-path syscall cuts
 **Files (actual):** `src/fs/vfs_internal.h` (the `stat_current` bit),
 `src/fs/vfs_open.c` (`adopt_fd` set + `xrootd_vfs_file_stat` cached answer),
-`src/fs/vfs_write.c` (invalidate on write). R2 would have touched `src/s3/object.c`.
+`src/fs/vfs_write.c` (invalidate on write). R2 would have touched `src/protocols/s3/object.c`.
 
 - **R1 — kill the redundant GET `fstat` (DONE).** `xrootd_vfs_adopt_fd` already `fstat`s and
   caches `fh->size`/`fh->mtime`/etc. (`vfs_open.c:122,141-142`), but `xrootd_vfs_file_stat`
@@ -120,13 +120,13 @@ few MB + ~1 K `lstat`, with **byte-identical XML**.
   that xattr. Skipping it would drop the default checksum echo — a visible header change that
   violates the compatibility invariant. The only ways to avoid the open (a path-based
   integrity-xattr read, or gating the unrelated FRM residency probe) fall outside this plan's
-  `src/s3/` + VFS scope and carry correctness risk. Left for a future FRM/integrity-layer pass.
+  `src/protocols/s3/` + VFS scope and carry correctness risk. Left for a future FRM/integrity-layer pass.
 - **Risk:** low. **Validation (R1):** GET/HEAD content/size/ETag unchanged (31 S3 + 155 WebDAV +
   byte-exact integrity-matrix tests); the `xrootd_vfs_write` invalidation keeps the live-fstat-
   after-write contract.
 
 ### W3 — Zero-copy multipart assembly
-**File:** `src/s3/multipart_complete_body.c`
+**File:** `src/protocols/s3/multipart_complete_body.c`
 
 - CompleteMultipartUpload concatenates parts with a **read/write loop** in 64 KiB chunks on the
   event loop (`multipart_complete_body.c:178-206`). Switch part→final concatenation to the
@@ -138,7 +138,7 @@ few MB + ~1 K `lstat`, with **byte-identical XML**.
   green; `strace` shows `copy_file_range` replacing the read/write loop.
 
 ### W4 — *(Optional / deferred)* offload blocking writes off the event loop
-**Files:** `src/s3/put.c`, `src/s3/aws_chunked.c`
+**Files:** `src/protocols/s3/put.c`, `src/protocols/s3/aws_chunked.c`
 
 - Today only **in-memory, non-codec** PUT bodies use the thread pool (`put.c:764-765`);
   **spooled** bodies, the **aws-chunked** decode (`aws_chunked.c`, inline `pread`/`pwrite`),
@@ -181,11 +181,11 @@ baseline).
 
 | Workstream | Files (actual) |
 |---|---|
-| W1 (done) | `src/s3/list_walk.c`, `src/s3/list_objects_v2.c`, `src/s3/list_objects_v1.c`, `src/s3/s3.h` |
+| W1 (done) | `src/protocols/s3/list_walk.c`, `src/protocols/s3/list_objects_v2.c`, `src/protocols/s3/list_objects_v1.c`, `src/protocols/s3/s3.h` |
 | W2/R1 (done) | `src/fs/vfs_internal.h`, `src/fs/vfs_open.c`, `src/fs/vfs_write.c` |
-| W2/R2 (deferred) | — (would be `src/s3/object.c`) |
-| W3 (done) | `src/s3/multipart_complete_body.c` |
-| W4 (deferred) | `src/s3/put.c`, `src/s3/aws_chunked.c` |
+| W2/R2 (deferred) | — (would be `src/protocols/s3/object.c`) |
+| W3 (done) | `src/protocols/s3/multipart_complete_body.c` |
+| W4 (deferred) | `src/protocols/s3/put.c`, `src/protocols/s3/aws_chunked.c` |
 | Tests | new `tests/test_s3_perf_characterization.py` (scale correctness + strace syscall-count proof); existing `test_s3.py` / `test_s3_multipart.py` / `test_webdav.py` / `test_integrity_matrix.py` for the byte-identical regression |
 
 ## 6. Expected outcome

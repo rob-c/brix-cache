@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-27
 **Status:** approved design → implementation
-**Scope:** `src/ssi/` (replaces the echo stub), root:// open/write/read/truncate glue, tests, docs
+**Scope:** `src/protocols/ssi/` (replaces the echo stub), root:// open/write/read/truncate glue, tests, docs
 **Hard requirement:** **byte-exact wire interop** with a real `libXrdSsi` client over `root://` — framing matches `XrdSsi/XrdSsiRRInfo.hh` + `XrdSsiFileSess.cc` exactly.
 
 Separate cycle from the CMS manager-breadth spec.
@@ -11,7 +11,7 @@ Separate cycle from the CMS manager-breadth spec.
 
 ## 1. Motivation
 
-Today `src/ssi/ssi.c` is a fake unary echo: it does **not** implement the
+Today `src/protocols/ssi/ssi.c` is a fake unary echo: it does **not** implement the
 `XrdSsiRRInfo` offset encoding or the `kXR_attn` push, so it is not interoperable
 with a real XrdSsi client. This spec implements the full (Tier C) XrdSsi-over-xroot
 protocol natively (no C++ plugin ABI).
@@ -42,11 +42,11 @@ via `kXR_read`. Long-running/streaming services run on the existing thread pool
 
 | File | Responsibility |
 |---|---|
-| `src/ssi/ssi_rrinfo.{c,h}` | Pure codec for `XrdSsiRRInfo` (offset ⇄ Cmd/reqId/size) and `XrdSsiRRInfoAttn` (attn prefix). Unit-tested standalone. |
-| `src/ssi/ssi_session.{c,h}` | Per-handle request state: service, accumulated request, reqId, response state (pending/ready/streaming/error), metadata, response cursor, stream chunks, cancel flag. |
-| `src/ssi/ssi_attn.{c,h}` | Build + send byte-exact `kXR_attn` frames (header + `XrdSsiRRInfoAttn` + metadata + data). |
-| `src/ssi/ssi_service.{c,h}` | Native `xrootd_ssi_responder_t` (`set_metadata`/`set_response(buf,len,last)`/`alert`/`error`/`finish`) + service registry; thread-pool handoff for async/streaming. |
-| `src/ssi/ssi.{c,h}` | Wire glue invoked from the open/write/read/truncate handlers (replaces the echo). |
+| `src/protocols/ssi/ssi_rrinfo.{c,h}` | Pure codec for `XrdSsiRRInfo` (offset ⇄ Cmd/reqId/size) and `XrdSsiRRInfoAttn` (attn prefix). Unit-tested standalone. |
+| `src/protocols/ssi/ssi_session.{c,h}` | Per-handle request state: service, accumulated request, reqId, response state (pending/ready/streaming/error), metadata, response cursor, stream chunks, cancel flag. |
+| `src/protocols/ssi/ssi_attn.{c,h}` | Build + send byte-exact `kXR_attn` frames (header + `XrdSsiRRInfoAttn` + metadata + data). |
+| `src/protocols/ssi/ssi_service.{c,h}` | Native `xrootd_ssi_responder_t` (`set_metadata`/`set_response(buf,len,last)`/`alert`/`error`/`finish`) + service registry; thread-pool handoff for async/streaming. |
+| `src/protocols/ssi/ssi.{c,h}` | Wire glue invoked from the open/write/read/truncate handlers (replaces the echo). |
 
 ## 5. Data flow
 

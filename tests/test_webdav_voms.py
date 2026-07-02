@@ -1,7 +1,7 @@
 """Section 2.2 — VOMS VO/FQAN extraction for WebDAV tests.
 
 Verifies the behaviour introduced in Section 2.2: ``webdav_extract_voms_ctx()``
-in ``src/webdav/auth_cert.c`` attempts VOMS extraction after every successful
+in ``src/protocols/webdav/auth_cert.c`` attempts VOMS extraction after every successful
 GSI cert verification path and populates ``ctx->primary_vo`` /
 ``ctx->vo_list``.
 

@@ -11,7 +11,7 @@
 ## ✅ Status: Resolved — 2026-06-12 (intent met via specialised helpers; generic infra removed)
 
 Phase 6's *goal* — eliminating XML-builder and HTTP-response boilerplate in
-`src/webdav/` — was achieved, but **not** through the two generic abstractions
+`src/protocols/webdav/` — was achieved, but **not** through the two generic abstractions
 sketched below. Subsequent work converged on more specialised, lower-risk
 helpers, which left the Phase 6 generic infrastructure orphaned. That dead
 infrastructure has now been removed.
@@ -28,7 +28,7 @@ meant to cover. Correct as-is.
 
 ### Pattern 2 — HTTP response helper: ✅ met by `webdav_send_no_body()`
 
-The "winning" helper is `webdav_send_no_body()` in `src/webdav/webdav.h`
+The "winning" helper is `webdav_send_no_body()` in `src/protocols/webdav/webdav.h`
 (used ~7×) alongside `webdav_metrics_response()`. The generic
 `xrootd_webdav_send_response()` proposed below was **never adopted** — its own
 header comment even deferred no-body responses to `webdav_send_no_body()`.
@@ -44,10 +44,10 @@ builders (`webdav_lock_xml_response()`, `webdav_search_append_response()`,
 
 | File | Disposition |
 |---|---|
-| `src/webdav/xml_builder.c` | **Deleted** — API called by nothing; also removed from the `config` build source list. |
-| `src/webdav/xml_builder.h` | **Deleted** — included only by `xml_builder.c` and the (also-dead) `http_response.h`. |
-| `src/webdav/http_response.h` | **Deleted** — included by nothing; superseded by `webdav_send_no_body()`. |
-| `src/webdav/response_helpers.h` | **Deleted** — an earlier competing response helper (`webdav_send_empty_response()` et al.); included by nothing, API used nowhere. |
+| `src/protocols/webdav/xml_builder.c` | **Deleted** — API called by nothing; also removed from the `config` build source list. |
+| `src/protocols/webdav/xml_builder.h` | **Deleted** — included only by `xml_builder.c` and the (also-dead) `http_response.h`. |
+| `src/protocols/webdav/http_response.h` | **Deleted** — included by nothing; superseded by `webdav_send_no_body()`. |
+| `src/protocols/webdav/response_helpers.h` | **Deleted** — an earlier competing response helper (`webdav_send_empty_response()` et al.); included by nothing, API used nowhere. |
 
 Verified: zero source references before removal; `./configure` (source list
 changed) + `make` rebuild clean (0 errors, 0 warnings); `nginx -t` against the
@@ -63,7 +63,7 @@ test config passes.
 
 ## Goal
 
-`src/webdav/` is the largest subdirectory at 13,748 LoC.  It contains three classes of repeated patterns that can be safely consolidated without altering any wire behaviour:
+`src/protocols/webdav/` is the largest subdirectory at 13,748 LoC.  It contains three classes of repeated patterns that can be safely consolidated without altering any wire behaviour:
 
 1. **XML response builder boilerplate** — `propfind.c`, `lock.c`, and `copy.c` all hand-roll the same xml-writing sequences: open namespace, open element, write text node, close element.
 
@@ -93,7 +93,7 @@ p = ngx_cpymem(p, "<?xml ...", sizeof("<?xml ...") - 1);
 /* ... repeated N times for each element */
 ```
 
-### New: `src/webdav/xml_builder.h` + `xml_builder.c` (new, ~150 LoC total)
+### New: `src/protocols/webdav/xml_builder.h` + `xml_builder.c` (new, ~150 LoC total)
 
 ```c
 /*
@@ -190,7 +190,7 @@ return ngx_http_output_filter(r, &out);
 
 That is **13 lines** (with NULL check).
 
-### New: `src/webdav/http_response.h` (new, header-only, ~40 LoC)
+### New: `src/protocols/webdav/http_response.h` (new, header-only, ~40 LoC)
 
 ```c
 #pragma once
@@ -265,7 +265,7 @@ That is **15 lines** per lookup.  The existing `webdav_tpc_find_header()` functi
 ### Fix: Audit all callers and migrate to the existing helper
 
 ```bash
-grep -rn "headers_in.headers.part" src/webdav/
+grep -rn "headers_in.headers.part" src/protocols/webdav/
 ```
 
 Each re-implementation is replaced with:
@@ -280,18 +280,18 @@ ngx_str_t val = webdav_tpc_find_header(&r->headers_in.headers, &key);
 
 | File | Current LoC | Delta | Notes |
 |---|---|---|---|
-| `src/webdav/propfind.c` | ~600 | −80 | XML builder |
-| `src/webdav/lock.c` | ~500 | −60 | XML builder |
-| `src/webdav/copy.c` | ~400 | −40 | XML builder (error body) |
-| `src/webdav/namespace.c` | ~350 | −50 | HTTP response helper |
-| `src/webdav/methods_basic.c` | ~300 | −40 | HTTP response helper |
-| `src/webdav/put.c` | ~280 | −20 | HTTP response helper |
-| `src/webdav/tpc.c` | ~450 | −30 | Header extraction |
-| `src/webdav/tpc_cred.c` | ~200 | −20 | Header extraction |
-| `src/webdav/tpc_headers.c` | ~150 | −15 | Header extraction |
-| `src/webdav/xml_builder.c` (new) | 0 | +100 | XML builder impl |
-| `src/webdav/xml_builder.h` (new) | 0 | +50 | XML builder API |
-| `src/webdav/http_response.h` (new) | 0 | +40 | Response helper |
+| `src/protocols/webdav/propfind.c` | ~600 | −80 | XML builder |
+| `src/protocols/webdav/lock.c` | ~500 | −60 | XML builder |
+| `src/protocols/webdav/copy.c` | ~400 | −40 | XML builder (error body) |
+| `src/protocols/webdav/namespace.c` | ~350 | −50 | HTTP response helper |
+| `src/protocols/webdav/methods_basic.c` | ~300 | −40 | HTTP response helper |
+| `src/protocols/webdav/put.c` | ~280 | −20 | HTTP response helper |
+| `src/protocols/webdav/tpc.c` | ~450 | −30 | Header extraction |
+| `src/protocols/webdav/tpc_cred.c` | ~200 | −20 | Header extraction |
+| `src/protocols/webdav/tpc_headers.c` | ~150 | −15 | Header extraction |
+| `src/protocols/webdav/xml_builder.c` (new) | 0 | +100 | XML builder impl |
+| `src/protocols/webdav/xml_builder.h` (new) | 0 | +50 | XML builder API |
+| `src/protocols/webdav/http_response.h` (new) | 0 | +40 | Response helper |
 | **Net** | | **−165** | Conservative |
 
 Conservative estimate: **−165 LoC**.  Optimistic (if all XML hand-rolling is replaced): **−350 LoC**.
@@ -301,7 +301,7 @@ Conservative estimate: **−165 LoC**.  Optimistic (if all XML hand-rolling is r
 ## Files Added to `config.h`
 
 ```
-$ngx_addon_dir/src/webdav/xml_builder.c
+$ngx_addon_dir/src/protocols/webdav/xml_builder.c
 ```
 
 Requires `./configure`.

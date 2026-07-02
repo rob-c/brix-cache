@@ -51,8 +51,8 @@ native stream file handles are wired into the live slot lifecycle.
 | `src/observability/dashboard/page.c` | Add filters, detail drawer, summary panels, sparklines, snapshot export, and accessibility improvements. |
 | `src/observability/dashboard/auth.c` | Add configurable cookie path, TTL directive support, users file auth, and audit events. |
 | `src/observability/dashboard/module.c` | Add directives and route new API endpoints. |
-| `src/webdav/get.c`, `src/webdav/put.c`, `src/webdav/tpc.c`, `src/webdav/tpc_marker.c` | Wire WebDAV and HTTP-TPC transfer slot lifecycle. |
-| `src/s3/object.c`, `src/s3/put.c`, `src/s3/multipart*.c` | Wire S3 transfer slot lifecycle. |
+| `src/protocols/webdav/get.c`, `src/protocols/webdav/put.c`, `src/protocols/webdav/tpc.c`, `src/protocols/webdav/tpc_marker.c` | Wire WebDAV and HTTP-TPC transfer slot lifecycle. |
+| `src/protocols/s3/object.c`, `src/protocols/s3/put.c`, `src/protocols/s3/multipart*.c` | Wire S3 transfer slot lifecycle. |
 | `src/net/manager/registry.h`, `src/net/manager/registry.c` | Add safe snapshot/export helper for cluster view. |
 | `src/observability/metrics/stream_cache.c`, `src/observability/metrics/metrics.h` | Reuse cache counters and add minimal WT counters if missing. |
 | `tests/test_dashboard.py` | New dashboard API, auth, UI JSON, and security tests. |
@@ -257,7 +257,7 @@ Implementation details:
 
 Touchpoints:
 
-- `src/webdav/get.c`
+- `src/protocols/webdav/get.c`
 - shared sendfile helper `src/core/compat/http_file_response.c`
 
 Implementation:
@@ -282,7 +282,7 @@ queued; later work can add an output-filter-based progress hook.
 
 Touchpoints:
 
-- `src/webdav/put.c`
+- `src/protocols/webdav/put.c`
 - `src/core/compat/http_body.c`
 
 Implementation:
@@ -312,10 +312,10 @@ Use it from both WebDAV PUT and S3 PUT.
 
 Touchpoints:
 
-- `src/webdav/tpc.c`
-- `src/webdav/tpc_curl.c`
-- `src/webdav/tpc_marker.c`
-- `src/webdav/tpc_headers.c`
+- `src/protocols/webdav/tpc.c`
+- `src/protocols/webdav/tpc_curl.c`
+- `src/protocols/webdav/tpc_marker.c`
+- `src/protocols/webdav/tpc_headers.c`
 
 Implementation:
 
@@ -342,7 +342,7 @@ Implementation:
 
 Touchpoints:
 
-- `src/s3/object.c`
+- `src/protocols/s3/object.c`
 
 Implementation mirrors WebDAV GET:
 
@@ -358,8 +358,8 @@ Implementation mirrors WebDAV GET:
 
 Touchpoints:
 
-- `src/s3/put.c`
-- `src/s3/multipart*.c`
+- `src/protocols/s3/put.c`
+- `src/protocols/s3/multipart*.c`
 - `src/core/compat/http_body.c`
 
 Implementation:
@@ -548,8 +548,8 @@ on error paths is simpler and acceptable.
 Add event calls at these sites:
 
 - `src/observability/dashboard/auth.c`: login success/failure, cookie reject.
-- WebDAV auth failures in `src/webdav/auth_cert.c` and `auth_token.c`.
-- S3 SigV4 failure classes in `src/s3/auth.c`.
+- WebDAV auth failures in `src/protocols/webdav/auth_cert.c` and `auth_token.c`.
+- S3 SigV4 failure classes in `src/protocols/s3/auth.c`.
 - namespace errors in WebDAV/S3/root mutation paths.
 - I/O errors in read/write/PUT/GET/TPC paths.
 - dashboard table full, stale slot cleanup, and JSON truncation in

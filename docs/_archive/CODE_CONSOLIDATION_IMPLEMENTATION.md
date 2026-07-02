@@ -42,7 +42,7 @@ NGX_ALLOC_OR_CONF_ERROR(buf, pool, size);
 
 ### 2. WebDAV Response Helpers ✓
 
-**File:** `src/webdav/response_helpers.h`  
+**File:** `src/protocols/webdav/response_helpers.h`  
 **Purpose:** Consolidate HTTP response building patterns  
 **Functions Created:** 4 inline functions
 
@@ -185,18 +185,18 @@ Files to migrate:
 ### Priority 2b: WebDAV Response Pattern Migration (Est. -120 LoC)
 
 Files to migrate:
-- src/webdav/propfind.c (~40 instances)
-- src/webdav/put.c (~15 instances)
-- src/webdav/get.c (~10 instances)
-- src/webdav/copy.c (~8 instances)
-- src/webdav/move.c (~8 instances)
-- src/webdav/lock.c (~10 instances)
+- src/protocols/webdav/propfind.c (~40 instances)
+- src/protocols/webdav/put.c (~15 instances)
+- src/protocols/webdav/get.c (~10 instances)
+- src/protocols/webdav/copy.c (~8 instances)
+- src/protocols/webdav/move.c (~8 instances)
+- src/protocols/webdav/lock.c (~10 instances)
 
 ### Priority 2c: Config Merge Migration (Est. -200 LoC)
 
 Files to migrate (14+ modules):
 - src/observability/dashboard/module.c
-- src/webdav/module.c
+- src/protocols/webdav/module.c
 - src/observability/metrics/module.c
 - src/fs/cache/module.c
 - src/net/upstream/module.c
@@ -216,7 +216,7 @@ Files to migrate (14+ modules):
 ### Step 2: Migrate WebDAV handlers to response helpers
 ```bash
 # In each WebDAV handler (propfind.c, put.c, etc.):
-# 1. #include "src/webdav/response_helpers.h"
+# 1. #include "src/protocols/webdav/response_helpers.h"
 # 2. Replace status+header+send patterns with helper calls
 # Estimate: -120 LoC total
 ```
@@ -261,7 +261,7 @@ Files to migrate (14+ modules):
 | File | Status | Type | Purpose |
 |------|--------|------|---------|
 | src/core/compat/alloc_helpers.h | Created | Header | Memory allocation macros |
-| src/webdav/response_helpers.h | Created | Header | HTTP response helpers |
+| src/protocols/webdav/response_helpers.h | Created | Header | HTTP response helpers |
 | src/core/config/conf_helpers.h | Created | Header | Config merge macros |
 | src/core/config/addr_parse.h | Created | Header | Address parsing declaration |
 | src/core/config/addr_parse.c | Created | Source | Address parsing implementation |

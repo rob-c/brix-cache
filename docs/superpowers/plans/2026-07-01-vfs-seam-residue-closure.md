@@ -30,8 +30,8 @@
 Three raw sites remain in S3 multipart; all are under the export with `root_canon` in scope and direct existing-primitive equivalents.
 
 **Files:**
-- Modify: `src/s3/multipart_abort.c:40` (the `lstat(mpu_dir)` existence probe)
-- Modify: `src/s3/multipart_complete_upload_part_copy.c:156,186` (dst-part `open` + error `unlink`)
+- Modify: `src/protocols/s3/multipart_abort.c:40` (the `lstat(mpu_dir)` existence probe)
+- Modify: `src/protocols/s3/multipart_complete_upload_part_copy.c:156,186` (dst-part `open` + error `unlink`)
 - Test: `tests/` S3 multipart suite (see Step 4)
 
 **Interfaces:**
@@ -40,7 +40,7 @@ Three raw sites remain in S3 multipart; all are under the export with `root_cano
 
 - [ ] **Step 1: Migrate the abort existence probe**
 
-In `src/s3/multipart_abort.c`, the staging-dir probe currently is:
+In `src/protocols/s3/multipart_abort.c`, the staging-dir probe currently is:
 
 ```c
     if (lstat(mpu_dir, &sb) != 0) {  /* vfs-seam-allow: S3 multipart staging-dir domain */
@@ -57,7 +57,7 @@ Replace with the confined stat (the `cf` loc-conf is already resolved in this ha
 
 - [ ] **Step 2: Migrate the dst-part open + error unlink**
 
-In `src/s3/multipart_complete_upload_part_copy.c`, the destination part file open (line ~156):
+In `src/protocols/s3/multipart_complete_upload_part_copy.c`, the destination part file open (line ~156):
 
 ```c
     dst_fd = open(part_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);  /* vfs-seam-allow: S3 multipart staging-dir domain */
@@ -110,8 +110,8 @@ Expected: `GUARD_GREEN`; the three S3 multipart markers are gone and no new raw 
 Three raw `stat()` size-probes remain in the WebDAV TPC path (progress/byte accounting). They are under the export with `root_canon` available and map onto `xrootd_lstat_confined_canon`.
 
 **Files:**
-- Modify: `src/webdav/tpc_thread.c:152,205` (`stat(t->local_path)` after push/pull)
-- Modify: `src/webdav/tpc_marker.c:469` (`stat(ctx->tmp_path)` single-stream progress)
+- Modify: `src/protocols/webdav/tpc_thread.c:152,205` (`stat(t->local_path)` after push/pull)
+- Modify: `src/protocols/webdav/tpc_marker.c:469` (`stat(ctx->tmp_path)` single-stream progress)
 - Test: the TPC test suite (see Step 3)
 
 **Interfaces:**
@@ -120,7 +120,7 @@ Three raw `stat()` size-probes remain in the WebDAV TPC path (progress/byte acco
 
 - [ ] **Step 1: Migrate the tpc_thread size probes**
 
-In `src/webdav/tpc_thread.c`, both occurrences (push at ~152, pull at ~205) of:
+In `src/protocols/webdav/tpc_thread.c`, both occurrences (push at ~152, pull at ~205) of:
 
 ```c
             if (stat(t->local_path, &st) == 0) {  /* vfs-seam-allow: TPC local transfer temp */
@@ -141,7 +141,7 @@ become:
 
 - [ ] **Step 2: Migrate the tpc_marker single-stream probe**
 
-In `src/webdav/tpc_marker.c` (~469), inside the single-stream branch:
+In `src/protocols/webdav/tpc_marker.c` (~469), inside the single-stream branch:
 
 ```c
             if (stat(ctx->tmp_path, &sb) == 0) {  /* vfs-seam-allow: TPC in-progress transfer temp (committed via rename) */

@@ -19,8 +19,8 @@ attribute certificates, CRL conventions, and GSI DH exchange details — see
 
 | Client URL / mode | Where TLS starts | Main nginx config | Main code path | Notes |
 |---|---|---|---|---|
-| `davs://host:8443/...` | Before HTTP request parsing | `listen ... ssl` in `http {}` | `src/webdav/*.c` | Standard HTTPS/WebDAV |
-| S3-compatible `https://host/bucket/key` | Before HTTP request parsing | `listen ... ssl` in `http {}` + `xrootd_s3 on` | `src/s3/*.c` | HTTPS transport with optional SigV4 auth |
+| `davs://host:8443/...` | Before HTTP request parsing | `listen ... ssl` in `http {}` | `src/protocols/webdav/*.c` | Standard HTTPS/WebDAV |
+| S3-compatible `https://host/bucket/key` | Before HTTP request parsing | `listen ... ssl` in `http {}` + `xrootd_s3 on` | `src/protocols/s3/*.c` | HTTPS transport with optional SigV4 auth |
 | `root://host:1094/...` + `xrootd_tls on` | After `kXR_protocol` advertises `kXR_haveTLS` | `xrootd_tls on` in `stream {}` | `src/session/protocol.c`, `src/connection/*.c` | Same TCP port, XRootD-native upgrade |
 | `roots://host:1094/...` | Immediately after TCP connect | `listen ... ssl` in `stream {}` | nginx stream SSL + normal XRootD stream module | Transport TLS from byte 0 |
 
@@ -297,8 +297,8 @@ stack:
    - keepalive requests and resumed TLS sessions can skip repeated chain
      verification work
 
-The relevant code lives in `src/webdav/auth_*.c`, `src/webdav/dispatch.c`, and
-`src/webdav/postconfig.c`.
+The relevant code lives in `src/protocols/webdav/auth_*.c`, `src/protocols/webdav/dispatch.c`, and
+`src/protocols/webdav/postconfig.c`.
 
 ### WebDAV auth order
 

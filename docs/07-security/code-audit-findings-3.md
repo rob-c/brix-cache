@@ -22,14 +22,14 @@ evaluate symlink-swap risk.
 
 **Confirmed not vulnerable (no action needed):**
 
-- `src/webdav/copy.c`, `src/webdav/tpc.c`, `src/s3/put.c`, `src/s3/copy.c` — all
+- `src/protocols/webdav/copy.c`, `src/protocols/webdav/tpc.c`, `src/protocols/s3/put.c`, `src/protocols/s3/copy.c` — all
   use `xrootd_staged_open` which enforces `O_CREAT|O_EXCL|O_NOFOLLOW`, random names
   via `xrootd_make_tmp_path()`, and confined operations. ✅
 - `src/read/open_resolved_file.c` (POSC) — uses `xrootd_make_tmp_path()` (random name),
   `O_EXCL` on first open attempt, `xrootd_open_confined()` (path escape prevention). ✅
 - `src/fs/cache/lock.c`, `src/fs/cache/evict_candidates.c` — lock files use `O_CREAT|O_EXCL`;
   correct for lock semantics, not temp-file semantics. ✅
-- `src/webdav/lock.c` — WebDAV lock token file uses `O_CREAT|O_EXCL`; zero-byte resource
+- `src/protocols/webdav/lock.c` — WebDAV lock token file uses `O_CREAT|O_EXCL`; zero-byte resource
   creation, not a staging temp file. ✅
 
 ---

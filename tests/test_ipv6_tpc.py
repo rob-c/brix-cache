@@ -513,7 +513,7 @@ class TestWebdavTpcIpv6Copy:
         Config-model note (diagnosed against the LIVE ipv6-webdav instance,
         nginx_ipv6_webdav.conf): that instance does NOT set "xrootd_webdav_tpc on",
         so HTTP-TPC is disabled.  A COPY carrying a "Source:" header therefore hits
-        the TPC config gate at src/webdav/dispatch.c (`if (!conf->tpc) return
+        the TPC config gate at src/protocols/webdav/dispatch.c (`if (!conf->tpc) return
         NGX_HTTP_NOT_ALLOWED;`) and is answered 405 — BEFORE any Source-URL parse.
         This 405 was verified to be address-family-agnostic: an IPv4, hostname, or
         bracketed-IPv6 Source all return the identical 405, and a plain server-side
@@ -551,7 +551,7 @@ class TestWebdavTpcIpv6Copy:
     def test_webdav_tpc_copy_ipv6_destination_header_accepted(self):
         """GATING (push): a COPY push with "Destination: <scheme>://[::1]:PORT/..."
         plus a "Credential:" header (which is what flags an HTTP-TPC push, see
-        src/webdav/dispatch.c) is NOT rejected as a malformed URL (400) on account
+        src/protocols/webdav/dispatch.c) is NOT rejected as a malformed URL (400) on account
         of the bracketed IPv6 egress authority.  Mirrors the pull case on the
         egress side; the destination/cert posture is sibling-owned, so we assert
         on response shape, never a transfer outcome.

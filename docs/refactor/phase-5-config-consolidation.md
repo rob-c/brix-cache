@@ -18,7 +18,7 @@ patterns nginx does **not** cover.
 - **Implemented header:** `src/core/config/merge_macros.h` (~40 LoC), providing only
   `XROOTD_MERGE_PTR` (NULL-sentinel pointer inherit), `XROOTD_MERGE_HOSTPORT`
   (paired host+port inherit), and `XROOTD_MERGE_ENUM` (custom-enum sentinel).
-  All three are in active use (`src/core/config/server_conf.c`, `src/webdav/config.c`).
+  All three are in active use (`src/core/config/server_conf.c`, `src/protocols/webdav/config.c`).
 - **Not implemented:** the six-macro sketch below (`XROOTD_MERGE_FLAG/SIZE/MSEC/
   UINT/STR/ARRAY_PTR`) was intentionally dropped — those cases are handled by
   nginx's own `ngx_conf_merge_value/size_value/msec_value/uint_value/
@@ -161,8 +161,8 @@ Each block is 3–4 lines.  A merge function with 20 fields is 60–80 lines of 
 |---|---|---|---|
 | `src/core/config/merge_stream.c` | ~120 | 60 | −60 |
 | `src/core/config/merge_http.c` | ~90 | 45 | −45 |
-| `src/webdav/postconfig.c` (merge section) | ~70 | 35 | −35 |
-| `src/s3/config.c` (merge section) | ~60 | 30 | −30 |
+| `src/protocols/webdav/postconfig.c` (merge section) | ~70 | 35 | −35 |
+| `src/protocols/s3/config.c` (merge section) | ~60 | 30 | −30 |
 | `src/fs/cache/config.c` (merge section) | ~50 | 25 | −25 |
 | `src/net/proxy/config.c` (merge section) | ~45 | 22 | −23 |
 | `src/observability/metrics/config.c` (merge section) | ~30 | 15 | −15 |

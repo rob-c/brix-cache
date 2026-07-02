@@ -107,8 +107,8 @@ breakers, in-flight caps).
   `src/auth/authz/auth_gate.c` `xrootd_auth_gate_op()` (authdb → VO ACL → token scope,
   fail-closed on first failure), behind the `auth_done` completion gate in
   `src/handshake/policy.c`.
-- **HTTP/WebDAV/S3** auth lives in `src/webdav/auth_cert.c`,
-  `src/webdav/auth_token.c`, and `src/s3/` (SigV4), all reusing the same
+- **HTTP/WebDAV/S3** auth lives in `src/protocols/webdav/auth_cert.c`,
+  `src/protocols/webdav/auth_token.c`, and `src/protocols/s3/` (SigV4), all reusing the same
   `src/auth/token/` and `src/auth/authz/acc/` cores.
 
 ---
@@ -271,7 +271,7 @@ scopes.
   configured issuer; a no-location macaroon is rejected when an issuer is
   configured). Discharge bundles are supported (`xrootd_macaroon_validate_bundle()`,
   ≤8 discharges, AES-256-CBC vid decryption). The HTTP token endpoint exists at
-  `src/webdav/macaroon_endpoint.c` (`/.well-known/oauth-authorization-server`
+  `src/protocols/webdav/macaroon_endpoint.c` (`/.well-known/oauth-authorization-server`
   discovery + `POST /.oauth2/token`, `grant_type=client_credentials`,
   anonymous rejected 401). These map to the project memory on macaroon
   mandatory-expiry/issuer-pinning.
@@ -369,7 +369,7 @@ scopes.
 | WLCG/SciToken `root://` | `ztn` transport + `XrdSciTokens` plugin | `src/auth/token/validate.c` in-process | module validates RS256/ES256 itself |
 | JWKS source | issuer/scitokens-cpp | **local file + mtime poll** | divergence |
 | Macaroon | `XrdMacaroons`/`libmacaroons` | `src/auth/token/macaroon.c` in-process | module: mandatory-expiry + issuer-pin |
-| Token endpoint (HTTP) | XrdMacaroons ext handler | `src/webdav/macaroon_endpoint.c` | both `POST /.oauth2/token` |
+| Token endpoint (HTTP) | XrdMacaroons ext handler | `src/protocols/webdav/macaroon_endpoint.c` | both `POST /.oauth2/token` |
 | SSS | `XrdSecsss` (Blowfish, ts window) | `src/auth/sss/` (Blowfish-CFB + CRC32 + replay window) | + proxy-upstream arm |
 | Kerberos 5 | `XrdSeckrb5` (native AP-REQ) | `src/auth/krb5/` (native AP-REQ) | both not-GSSAPI; build-gated |
 | UNIX | `XrdSecunix` (self-asserted) | `src/auth/unix/` (self-asserted, loopback-default) | module stricter by default |
@@ -627,7 +627,7 @@ http {
 ```
 
 Directive sources: stream table `src/stream/module.c`; WebDAV table
-`src/webdav/module.c`; per-module `config.c` files. Field conventions:
+`src/protocols/webdav/module.c`; per-module `config.c` files. Field conventions:
 `trusted_ca` directory → OpenSSL CApath (grid certs dir); CRLs `*.pem` or hash
 `*.r0..r9`; **JWKS is a local file with mtime reload** (no issuer fetch); SSS
 keytab from `xrdsssadmin` format. See

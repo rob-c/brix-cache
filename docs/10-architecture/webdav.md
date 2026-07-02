@@ -19,29 +19,29 @@ HTTP client (xrdcp --allow-http, curl, FTS, Rucio)
 nginx HTTP SSL (if HTTPS)
     │  decrypts TLS, hands off to HTTP handler
     ▼
-ngx_http_xrootd_webdav_handler()        src/webdav/dispatch.c
+ngx_http_xrootd_webdav_handler()        src/protocols/webdav/dispatch.c
     │
     │  1. CORS preflight check
     │      if OPTIONS + Origin + Access-Control-Request-Method:
     │          webdav_handle_options()  → 200 OK with CORS headers
     │
     │  2. Authentication gate
-    │      webdav_verify_proxy_cert()   src/webdav/auth_cert.c
-    │      webdav_verify_bearer_token() src/webdav/auth_token.c
+    │      webdav_verify_proxy_cert()   src/protocols/webdav/auth_cert.c
+    │      webdav_verify_bearer_token() src/protocols/webdav/auth_token.c
     │      if auth=required and both fail → 403
     │      if auth=optional and both fail → anonymous
     │
     │  3. Method routing
-    │      GET     → webdav_handle_get()      src/webdav/get.c
-    │      HEAD    → webdav_handle_head()     src/webdav/methods_basic.c
-    │      PUT     → read body → webdav_handle_put_body()  src/webdav/put.c
-    │      DELETE  → webdav_handle_delete()   src/webdav/namespace.c
-    │      MKCOL   → webdav_handle_mkcol()    src/webdav/namespace.c
-    │      PROPFIND → webdav_handle_propfind() src/webdav/propfind.c
+    │      GET     → webdav_handle_get()      src/protocols/webdav/get.c
+    │      HEAD    → webdav_handle_head()     src/protocols/webdav/methods_basic.c
+    │      PUT     → read body → webdav_handle_put_body()  src/protocols/webdav/put.c
+    │      DELETE  → webdav_handle_delete()   src/protocols/webdav/namespace.c
+    │      MKCOL   → webdav_handle_mkcol()    src/protocols/webdav/namespace.c
+    │      PROPFIND → webdav_handle_propfind() src/protocols/webdav/propfind.c
     │      COPY    → (see TPC disambiguation below)
-    │      MOVE    → webdav_handle_move()     src/webdav/move.c
-    │      LOCK    → read body → webdav_handle_lock()  src/webdav/lock.c
-    │      UNLOCK  → webdav_handle_unlock()   src/webdav/lock.c
+    │      MOVE    → webdav_handle_move()     src/protocols/webdav/move.c
+    │      LOCK    → read body → webdav_handle_lock()  src/protocols/webdav/lock.c
+    │      UNLOCK  → webdav_handle_unlock()   src/protocols/webdav/lock.c
     ▼
   handler performs filesystem operation
     │
@@ -61,13 +61,13 @@ headers are present:
 COPY request arrives
     │
     ├── Source: header present?
-    │       yes → TPC pull (src/webdav/tpc.c)
+    │       yes → TPC pull (src/protocols/webdav/tpc.c)
     │
     ├── Destination: header + Credential: header present?
-    │       yes → TPC push (src/webdav/tpc.c)
+    │       yes → TPC push (src/protocols/webdav/tpc.c)
     │
     └── Destination: header, no Credential:
-            → server-side copy RFC 4918 §9.8 (src/webdav/copy.c)
+            → server-side copy RFC 4918 §9.8 (src/protocols/webdav/copy.c)
 ```
 
 ### WebDAV GET path in detail
@@ -75,14 +75,14 @@ COPY request arrives
 GET is the most optimized WebDAV path because it is on the hot data read path:
 
 ```
-webdav_handle_get()                     src/webdav/get.c
+webdav_handle_get()                     src/protocols/webdav/get.c
     │
-    ├── webdav_fd_table_get()           src/webdav/fd_cache.c
+    ├── webdav_fd_table_get()           src/protocols/webdav/fd_cache.c
     │       look up cached fd for this path on this connection
     │       if found: skip open+stat
     │
     ├── if not cached:
-    │       ngx_http_xrootd_webdav_resolve_path()  src/webdav/path.c
+    │       ngx_http_xrootd_webdav_resolve_path()  src/protocols/webdav/path.c
     │       open(path, O_RDONLY)
     │       fstat() for size and mtime
     │       cache fd in fd_table
@@ -103,10 +103,10 @@ webdav_handle_get()                     src/webdav/get.c
 ### WebDAV PUT path in detail
 
 ```
-webdav_handle_put_body()               src/webdav/put.c
+webdav_handle_put_body()               src/protocols/webdav/put.c
     │  (called from body callback — nginx has spooled the body)
     │
-    ├── webdav_check_locks()           src/webdav/lock.c
+    ├── webdav_check_locks()           src/protocols/webdav/lock.c
     │       reject if path is locked by another token (423)
     │
     ├── Detect nginx-spooled body:

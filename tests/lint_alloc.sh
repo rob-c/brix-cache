@@ -10,7 +10,7 @@
 # Checks:
 #   1. Wire-driven `<expr> * sizeof(...)` / `malloc(... * ...)` allocations that
 #      do not have an overflow-checked helper or a cap keyword within N lines.
-#   2. Raw malloc/free in HTTP request handlers (src/webdav, src/s3) that should
+#   2. Raw malloc/free in HTTP request handlers (src/protocols/webdav, src/protocols/s3) that should
 #      use r->pool.
 #   3. ngx_alloc in stream files without a matching ngx_free /
 #      ngx_pool_cleanup_add in the same file (lifetime smell).

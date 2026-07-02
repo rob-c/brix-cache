@@ -88,7 +88,7 @@ typedef struct {
 | **SSS** (Simple Shared Secret; `src/auth/sss/`) | the **UNIX user** the keytab maps to | — | — | the **UNIX group** the keytab maps to | — | Both come straight from the keytab entry (`u:` / `g:`), or from the decrypted credential when the entry is `anybody`/`allusers`. |
 | **Kerberos 5** (`src/auth/krb5/`) | **localname** (`krb5_aname_to_localname`, honoring `krb5.conf` `auth_to_local`) or the raw `user@REALM` | — | — | — | — | The localname is the natural bridge to a local UNIX user. |
 | **UNIX** (`src/auth/unix/`, loopback-only by default) | client-asserted user | — | — | client-asserted group | — | Unverified; gated to loopback/AF_UNIX unless `unix_trust_remote`. |
-| **S3 SigV4** (`src/s3/`) | — | the **access key id** | — | — | — | Identity is the access key; group/VO mapping comes from authz rules keyed on the access key as `u <name>`. |
+| **S3 SigV4** (`src/protocols/s3/`) | — | the **access key id** | — | — | — | Identity is the access key; group/VO mapping comes from authz rules keyed on the access key as `u <name>`. |
 | **Anonymous** (`xrootd_auth none`) | — | — | — | — | — | `is_authenticated = 0`; the engine sees the principal name as `*` (the `u *` default applies). |
 
 > **The single most important column is `dn`.** It is the string the authz engine
@@ -551,14 +551,14 @@ u *         /data  rl                 # everyone else: read
 | Token (JWT/WLCG) validation + claims | `src/auth/token/`, `src/auth/gsi/token.c` |
 | SSS keytab parse + credential → user/group | `src/auth/sss/config.c`, `src/auth/sss/auth_request.c` |
 | Kerberos principal → localname | `src/auth/krb5/auth.c` |
-| S3 access-key identity | `src/s3/` |
+| S3 access-key identity | `src/protocols/s3/` |
 | Three-tier auth gate | `src/auth/authz/auth_gate.c` |
 | Native authdb parse + match | `src/auth/authz/authdb.c` |
 | XrdAcc engine (grammar / decision) | `src/auth/authz/acc/authfile.c`, `src/auth/authz/acc/access.c`, `src/auth/authz/acc/entity.c` |
 | OS user/group + NIS netgroup resolution (`getpwnam`/`getgrouplist`/`innetgr`) | `src/auth/authz/acc/groups.c` |
 | VO ACL (`xrootd_require_vo`) | `src/auth/authz/acl.c`, `src/core/config/policy.c` |
 | Created-object group inheritance (`xrootd_inherit_parent_group`) | `src/auth/authz/group_policy.c` |
-| Directive tables | `src/stream/module.c` (root://), `src/webdav/module.c` (WebDAV/S3) |
+| Directive tables | `src/stream/module.c` (root://), `src/protocols/webdav/module.c` (WebDAV/S3) |
 
 ---
 

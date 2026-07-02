@@ -7,8 +7,8 @@ Topology:
 
 The proxy front (nginx_ipv6_proxy.conf) is configured with
     xrootd_webdav_proxy_upstream  http://[::1]:11245;
-so the URL is parsed by src/webdav/proxy_config.c::webdav_proxy_add_url and the
-per-request Host header is emitted by src/webdav/proxy_pool.c.  ngx_parse_url()
+so the URL is parsed by src/protocols/webdav/proxy_config.c::webdav_proxy_add_url and the
+per-request Host header is emitted by src/protocols/webdav/proxy_pool.c.  ngx_parse_url()
 strips the brackets off "[::1]", so without the bracket-on-emit fix the proxy
 would send the bare, RFC-ambiguous "Host: ::1:11245".  The fix re-brackets the
 IPv6 literal, so the upstream must observe "Host: [::1]:11245".
@@ -169,7 +169,7 @@ def _assert_proxy_sent_bracketed_host(marker_path):
     """Assert the upstream logged a bracketed Host for the request whose URI
     contains `marker_path`. This is the bracket-on-emit acceptance check.
 
-    GATING: proves src/webdav/proxy_pool.c re-brackets the IPv6 literal.
+    GATING: proves src/protocols/webdav/proxy_pool.c re-brackets the IPv6 literal.
     """
     def hit(line):
         return marker_path in line and "host=" in line
@@ -197,7 +197,7 @@ def _assert_proxy_sent_bracketed_host(marker_path):
 class TestProxyHostHeaderBracketing:
     """Every request the proxy forwards must carry a bracketed IPv6 Host header.
 
-    Gates 36: src/webdav/proxy_config.c (config-parse) + proxy_pool.c (per-req).
+    Gates 36: src/protocols/webdav/proxy_config.c (config-parse) + proxy_pool.c (per-req).
     """
 
     def test_proxy_get_small_file(self):

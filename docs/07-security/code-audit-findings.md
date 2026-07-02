@@ -31,7 +31,7 @@ path escape, and timing-side-channel attacks.
 ## F-01: S3 SigV4 Timing Attack
 
 **Severity:** Critical  
-**File:** `src/s3/auth_sigv4_verify.c:403`
+**File:** `src/protocols/s3/auth_sigv4_verify.c:403`
 
 ### Vulnerability
 
@@ -39,7 +39,7 @@ The computed HMAC-SHA256 signature is compared to the client-provided value usin
 `ngx_strcmp()`, which is **not constant-time**:
 
 ```c
-/* src/s3/auth_sigv4_verify.c lines 401-413 */
+/* src/protocols/s3/auth_sigv4_verify.c lines 401-413 */
 hex_encode(computed, 32, computed_hex);
 
 if (ngx_strcmp((u_char *) computed_hex,
@@ -101,7 +101,7 @@ Add a length guard in `auth_sigv4_parse.c` when storing `comp.signature`.
 
 ### Implementation
 
-**`src/s3/auth_sigv4_verify.c`** — added `#include <openssl/crypto.h>`, a 64-char length
+**`src/protocols/s3/auth_sigv4_verify.c`** — added `#include <openssl/crypto.h>`, a 64-char length
 guard before the comparison, and replaced `ngx_strcmp` with `CRYPTO_memcmp`:
 
 ```c
@@ -128,7 +128,7 @@ but the code path is proven constant-time by OpenSSL's implementation.
 ## F-02: HTTP-TPC SSRF via `curl --location` Redirect
 
 **Severity:** High  
-**Files:** `src/webdav/tpc_curl.c:38-43`, `src/webdav/tpc.c:40-51`, `tpc.c:243-251`
+**Files:** `src/protocols/webdav/tpc_curl.c:38-43`, `src/protocols/webdav/tpc.c:40-51`, `tpc.c:243-251`
 
 ### Vulnerability
 
@@ -137,7 +137,7 @@ and passes `--proto =https` to restrict curl to HTTPS. However, both pull and pu
 invocations also pass `--location`:
 
 ```c
-/* src/webdav/tpc_curl.c — pull and push, identical pattern */
+/* src/protocols/webdav/tpc_curl.c — pull and push, identical pattern */
 WEBDAV_TPC_ARG("--proto");
 WEBDAV_TPC_ARG("=https");
 ...
@@ -221,7 +221,7 @@ WEBDAV_TPC_ARG("*");
 
 ### Implementation
 
-Option A was applied. Both `--location` arguments were removed from `src/webdav/tpc_curl.c`:
+Option A was applied. Both `--location` arguments were removed from `src/protocols/webdav/tpc_curl.c`:
 
 - `WEBDAV_TPC_ARG("--location");` removed from `webdav_tpc_run_curl_pull` (pull path)
 - `WEBDAV_TPC_PUSH_ARG("--location");` removed from `webdav_tpc_run_curl_push` (push path)
