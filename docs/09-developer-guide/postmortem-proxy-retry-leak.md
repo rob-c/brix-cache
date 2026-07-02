@@ -1,10 +1,10 @@
 # Postmortem: Proxy Upstream-Bootstrap Memory Leak (event-loop spin on a torn-down proxy)
 
-**Status:** Resolved. Primary fix in `src/proxy/events_read.c` (a teardown guard);
-defense-in-depth in the rest of `src/proxy/` (see [The fix](#5-the-fix)).
+**Status:** Resolved. Primary fix in `src/net/proxy/events_read.c` (a teardown guard);
+defense-in-depth in the rest of `src/net/proxy/` (see [The fix](#5-the-fix)).
 **Severity:** Critical — a single client connection could drive a worker to
 **>20 GB RSS at ~95% CPU**, rendering the host unresponsive (OOM risk).
-**Component:** `src/proxy/` (transparent root:// proxy / upstream forwarding).
+**Component:** `src/net/proxy/` (transparent root:// proxy / upstream forwarding).
 **Trigger surfaced by:** `tests/test_chaos_mixed_auth.py` (the `proxy-sss-bad`
 instance — a proxy configured with a deliberately-wrong SSS keytab so the
 upstream permanently rejects the forwarded credential).
@@ -32,10 +32,10 @@ attempted a client send, and corrupted memory; RSS climbed ~34 MB/s.
 The authoritative evidence was a GDB backtrace of the live worker:
 
 ```
-#3  xrootd_proxy_up_mark_failed        at src/proxy/pool.c:80
-#4  xrootd_proxy_abort                 at src/proxy/connect_lifecycle.c:135
-#5  xrootd_proxy_handle_bootstrap      at src/proxy/events_bootstrap.c:225
-#6  xrootd_proxy_read_handler          at src/proxy/events_read.c:239   <-- for(;;)
+#3  xrootd_proxy_up_mark_failed        at src/net/proxy/pool.c:80
+#4  xrootd_proxy_abort                 at src/net/proxy/connect_lifecycle.c:135
+#5  xrootd_proxy_handle_bootstrap      at src/net/proxy/events_bootstrap.c:225
+#6  xrootd_proxy_read_handler          at src/net/proxy/events_read.c:239   <-- for(;;)
 #7  ngx_epoll_process_events
 ```
 
@@ -65,7 +65,7 @@ re-allocated and never returning to dispatch.
 dispatches on the **upstream-side** state field `proxy->state`:
 
 ```c
-/* src/proxy/events_read.c */
+/* src/net/proxy/events_read.c */
 for (;;) {
     /* ... recv upstream header into proxy->rhdr (skipped while rhdr_pos >= 8) ... */
 
@@ -166,7 +166,7 @@ guard at the top of the loop catches teardown from **any** aborting handler
 (bootstrap, relay, splice, …):
 
 ```c
-/* src/proxy/events_read.c — top of the for(;;) loop */
+/* src/net/proxy/events_read.c — top of the for(;;) loop */
 if (ctx->proxy != proxy) {
     return;     /* a handler called abort(): proxy is dead, do not re-process */
 }
@@ -180,11 +180,11 @@ the `proxy->state` field `abort` leaves stale.
 | File | Change |
 |---|---|
 | `src/core/types/context.h` | New `ngx_uint_t proxy_fail_count` on `xrootd_ctx_t`. |
-| `src/proxy/proxy_internal.h` | `#define XROOTD_PROXY_MAX_CONN_FAILS 8`. |
-| `src/proxy/forward_relay_dispatch.c` | Stop spawning a new proxy once the per-connection budget is exhausted; count sync connect/selection failures. |
-| `src/proxy/connect_lifecycle.c` | Hard abort increments `proxy_fail_count`. |
-| `src/proxy/events_bootstrap.c` | A successful bootstrap resets `proxy_fail_count = 0`. |
-| `src/proxy/connect_upstream.c` | Selection fails fast when **all** upstreams are down instead of falling through to a dead one. |
+| `src/net/proxy/proxy_internal.h` | `#define XROOTD_PROXY_MAX_CONN_FAILS 8`. |
+| `src/net/proxy/forward_relay_dispatch.c` | Stop spawning a new proxy once the per-connection budget is exhausted; count sync connect/selection failures. |
+| `src/net/proxy/connect_lifecycle.c` | Hard abort increments `proxy_fail_count`. |
+| `src/net/proxy/events_bootstrap.c` | A successful bootstrap resets `proxy_fail_count = 0`. |
+| `src/net/proxy/connect_upstream.c` | Selection fails fast when **all** upstreams are down instead of falling through to a dead one. |
 
 These bound the *dispatch-level* re-creation path (and avoid hammering a
 known-down upstream), but the spinning worker never reached dispatch — the

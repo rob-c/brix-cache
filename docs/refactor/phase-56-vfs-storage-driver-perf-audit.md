@@ -1017,7 +1017,7 @@ plane (plus the §9.6 copy loop).
 
 **Two subsystems invariant #11 names explicitly, audited:**
 
-- **CMS / manager data-server (`src/cms`, `src/manager`) — VERIFIED CLEAN.** No
+- **CMS / manager data-server (`src/net/cms`, `src/net/manager`) — VERIFIED CLEAN.** No
   `xrootd_vfs_*`, `xrootd_ns_*`, `xrootd_*_beneath`, or raw file-data syscall on the
   export; CMS is a network/metadata control plane (cluster registry, redirect,
   `cms.space` reporting) and never touches export bytes directly. It is named in #11

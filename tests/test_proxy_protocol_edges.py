@@ -120,7 +120,7 @@ def test_wait_bigpayload_not_saved_for_retry(wait_bigpayload_stack):
 
 def test_redirect_hop_limit_honored(hop_stack):
     """Upstream redirects to itself on every hop.  The proxy is documented to
-    follow at most 3 hops (redirect_count < 3, src/proxy/forward_relay_response.c)
+    follow at most 3 hops (redirect_count < 3, src/net/proxy/forward_relay_response.c)
     then relay the redirect to the client instead of looping forever.
 
     The proxy follows each hop by reconnecting + re-bootstrapping the upstream;
@@ -165,7 +165,7 @@ def test_redirect_hop_limit_honored(hop_stack):
 def test_redirect_invalidates_handles_on_new_upstream(redirect_stack):
     """Following a kXR_redirect closes the current upstream and reconnects to a
     NEW one, so the proxy must rebuild a clean handle map against that upstream
-    (src/proxy/forward_relay_response.c closes proxy->conn then reconnects).
+    (src/net/proxy/forward_relay_response.c closes proxy->conn then reconnects).
 
     The first forwarded op triggers the follow.  If the proxy completes the
     re-issue against the redirect target, the open succeeds there with a

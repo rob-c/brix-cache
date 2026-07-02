@@ -70,7 +70,7 @@ features. A read-only audit surfaced one real correctness blocker and a cluster 
 2. **No default/example config or logrotate is installed** — the RPM ships only the
    `load_module` snippet; the operator must hand-write `nginx.conf`.
 3. **No HTTP health/readiness endpoint** — there is internal *upstream* health-checking
-   (`src/manager/health_check.c`) and SRR/metrics/dashboard, but nothing an LB or
+   (`src/net/manager/health_check.c`) and SRR/metrics/dashboard, but nothing an LB or
    Kubernetes probe can hit (`/healthz`, `/ready`).
 4. **No shipped Grafana dashboard / alert rules** — the README references a "ready-made"
    dashboard but none exists in-repo; `/metrics` is rich and low-cardinality but operators

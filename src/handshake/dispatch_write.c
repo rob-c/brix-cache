@@ -1,7 +1,7 @@
 #include "handshake.h"
 #include "write/chkpoint.h"
 #include "write/ext_ops.h"   /* vendor setattr/symlink/link */
-#include "manager/registry.h"   /* xrootd_srv_select_or_blacklisted */
+#include "net/manager/registry.h"   /* xrootd_srv_select_or_blacklisted */
 #include "fs/path/path.h"          /* xrootd_extract_path */
 #include "response/response.h"  /* xrootd_send_redirect / xrootd_send_error */
 

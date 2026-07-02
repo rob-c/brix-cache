@@ -235,13 +235,13 @@ This scenario is designed to exercise the largest possible number of internal `n
         1.  Parse S3 headers in `src/s3/`.
         2.  Translate to internal I/O.
         3.  Launch a TPC task in `src/tpc/`.
-        4.  Bridge the data into a Binary `root://` stream with handle translation in `src/proxy/`.
+        4.  Bridge the data into a Binary `root://` stream with handle translation in `src/net/proxy/`.
 4.  **Synchronous Conflict:** During the TPC, a separate client performs a `kXR_open(kXR_new)` on the same file through the Tier 2 Write-Through cache. Verify that the lock-contention from Tier 3 is bubbled up correctly through all tiers.
 5.  **Chaos Injection:** Mid-transfer, send `SIGHUP` (reload) to Tier 2. Verify that Nginx's "graceful shutdown" preserves the proxy handles and that the client transfer continues without `kXR_IOError`.
 
 ### C. Specific Code Paths Exercised
 *   **`src/session/signing.c`**: SSS internal auth.
-*   **`src/proxy/handle_table.c`**: Mapping handles across a 3-tier NAT-like hierarchy.
+*   **`src/net/proxy/handle_table.c`**: Mapping handles across a 3-tier NAT-like hierarchy.
 *   **`src/fs/cache/eviction.c`**: Triggered by writing a file larger than the Tier 2 cache disk partition.
 *   **`src/tpc/bridge.c`**: Moving data between the HTTP/S3 and Binary state machines.
 *   **`src/connection/fd_table.c`**: High-pressure FD usage with multi-stream TPC.

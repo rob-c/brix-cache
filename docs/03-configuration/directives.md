@@ -1,6 +1,6 @@
 # Configuration directive reference
 
-Reference for the most commonly-used `xrootd_*` directives — name, context, type, default, and what each one actually does. For a single-table summary of the most-used directives, see [quick-reference.md](quick-reference.md). Some advanced features are summarized in their subsystem docs first; for example, health checks live in [`src/upstream/README.md`](../../src/upstream/README.md), traffic mirroring in [`src/mirror/README.md`](../../src/mirror/README.md), and advanced rate/bandwidth/concurrency limits in [`src/ratelimit/README.md`](../../src/ratelimit/README.md).
+Reference for the most commonly-used `xrootd_*` directives — name, context, type, default, and what each one actually does. For a single-table summary of the most-used directives, see [quick-reference.md](quick-reference.md). Some advanced features are summarized in their subsystem docs first; for example, health checks live in [`src/net/upstream/README.md`](../../src/net/upstream/README.md), traffic mirroring in [`src/net/mirror/README.md`](../../src/net/mirror/README.md), and advanced rate/bandwidth/concurrency limits in [`src/net/ratelimit/README.md`](../../src/net/ratelimit/README.md).
 
 [← Configuration overview](config-reference.md)
 

@@ -14,16 +14,16 @@
  */
 
 #include "core/ngx_xrootd_module.h"
-#include "proxy/proxy.h"
-#include "proxy/proxy_internal.h"
+#include "net/proxy/proxy.h"
+#include "net/proxy/proxy_internal.h"
 #include "handoff/handoff.h"
 #include "relay/relay.h"
 #include "auth/token/token_cache.h"   /* xrootd_token_cache_directive */
-#include "manager/health_check.h" /* XROOTD_HC_TYPE_* */
-#include "mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
-#include "ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
+#include "net/manager/health_check.h" /* XROOTD_HC_TYPE_* */
+#include "net/mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
+#include "net/ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
 #include "auth/impersonate/lifecycle.h" /* Phase 40: impersonation directives */
-#include "cms/cns.h"               /* §6 CNS mode enum */
+#include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "core/config/credential_block.h" /* §14 xrootd_credential block directive */
 #include "module_enums.h"   /* directive enum value tables */
 

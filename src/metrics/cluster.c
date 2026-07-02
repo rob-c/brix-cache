@@ -10,7 +10,7 @@
 
 #include "metrics_internal.h"
 #include "metrics_macros.h"
-#include "manager/registry.h"
+#include "net/manager/registry.h"
 
 /*
  * WHAT: emit the per-server cluster gauges and aggregate health-check counters

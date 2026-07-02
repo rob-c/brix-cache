@@ -4,7 +4,7 @@
 #include "tls.h"
 #include "budget.h"
 #include "deadline.h"
-#include "manager/pending.h"
+#include "net/manager/pending.h"
 #include "fs/xfer/stage_waiter.h"
 #include "handoff/handoff.h"
 

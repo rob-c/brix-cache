@@ -58,7 +58,7 @@ These pathways provide interoperability with larger XRootD clusters and optimize
 
 ### A. Clustering & Redirection (CMS)
 - **Logic Flow**:
-  1. `src/cms/send.c`: Heartbeat and free-space reporting to a manager node.
+  1. `src/net/cms/send.c`: Heartbeat and free-space reporting to a manager node.
   2. `xrootd_handle_locate`: Redirects clients to the actual data node (`src/read/locate.c`).
   3. `xrootd_manager_mode`: Toggles logic between a data server and a redirector.
 

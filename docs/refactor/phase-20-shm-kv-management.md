@@ -27,7 +27,7 @@ few integration details diverge from the original design — all detailed below.
 | **A** | SHM zone boilerplate macros (`src/core/compat/shm_zone.h`) | ⛔ **Not implemented (and unnecessary)** | No `shm_zone.h`; no `XROOTD_SHM_ZONE_*` usage anywhere. The KV store made the macro layer moot — the three consumers wrap `xrootd_kv_t` directly with no SHM boilerplate. (`src/core/compat/shm_slots.h` is unrelated — free-slot helpers for the TPC/cache slot pools.) |
 | **C** | JWT token validation cache (`src/auth/token/token_cache.{c,h}`) | ✅ **Done — integration point differs** | Wired at the auth callers `src/auth/gsi/token.c:87,138` and `src/webdav/auth_token.c:145,194`, **not** `token/validate.c` (which has no cache reference). Caches the full `xrootd_token_claims_t`, not the compact `xrootd_token_cache_val_t` the doc proposed. SHA-256 fingerprint key + 5-min TTL cap as designed. |
 | **D** | Auth result cache (`src/path/auth_cache.{c,h}`) | ✅ **Done — matches design** | Wired in `src/auth/authz/auth_gate.c` (key build ~`:23-61`, lookup-before-scan ~`:91-114`, store-after ~`:64-78`). 3-byte `xrootd_auth_cache_val_t`, 32-byte SHA-256 key, 30 s default TTL. Stream-only. |
-| **E** | Rate limiting (`src/core/shm/rate_limit.{c,h}`) | ✅ **Done — coexists with Phase 25** | Token-bucket on the KV store; called from `src/webdav/access.c:100` and `src/auth/gsi/auth.c:289`. Does **not** supersede / is not superseded by the separate Phase-25 leaky-bucket system in `src/ratelimit/` — both are active and independent (different directives, different algorithms). |
+| **E** | Rate limiting (`src/core/shm/rate_limit.{c,h}`) | ✅ **Done — coexists with Phase 25** | Token-bucket on the KV store; called from `src/webdav/access.c:100` and `src/auth/gsi/auth.c:289`. Does **not** supersede / is not superseded by the separate Phase-25 leaky-bucket system in `src/net/ratelimit/` — both are active and independent (different directives, different algorithms). |
 | **F** | Configurable existing-table sizes | ⚠️ **3 of 4 done** | `xrootd_session_slots`, `xrootd_registry_slots`, `xrootd_redir_cache_slots` implemented (conf fields + directives). `xrootd_tpc_slots` **still deferred** — `XROOTD_TPC_REGISTRY_SLOTS` (1024) remains a compile-time array dimension (`src/tpc/common/registry.c:16`) for the dual-call-site reason below. |
 | — | Prometheus export | ✅ **Done** | `xrootd_kv_metrics_emit()` in `src/metrics/writer.c` emits `xrootd_kv_{hits,misses,evictions}_total` + `xrootd_kv_{entries,capacity}` per zone. |
 | — | `config.h` / build registration | ✅ **Done** | The four sources (`shm/kv.c`, `token/token_cache.c`, `path/auth_cache.c`, `shm/rate_limit.c`) are registered in the module `config` (NGX_ADDON_SRCS). |
@@ -725,7 +725,7 @@ follow-up work. The compile-time default (1024) remains in effect.
 `ngx_shared_memory_add()`.
 
 **Files changed**: `src/session/registry.c` (+~10 LoC), `src/webdav/module.c` (+~10 LoC),
-`src/tpc/common/registry.c` (+~10 LoC), `src/manager/redir_cache.c` (+~10 LoC),
+`src/tpc/common/registry.c` (+~10 LoC), `src/net/manager/redir_cache.c` (+~10 LoC),
 `src/core/config/directives.c` (+~40 LoC), `src/core/config/config.h` (+~5 LoC)
 
 ---

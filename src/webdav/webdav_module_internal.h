@@ -13,8 +13,8 @@
 #include "core/shm/kv.h"             
 #include "core/shm/rate_limit.h"     
 #include "auth/token/token_cache.h"  
-#include "mirror/http_mirror.h" 
-#include "ratelimit/ratelimit.h" 
+#include "net/mirror/http_mirror.h" 
+#include "net/ratelimit/ratelimit.h" 
 #include <curl/curl.h>
 #include <stddef.h>
 #include <stdlib.h>

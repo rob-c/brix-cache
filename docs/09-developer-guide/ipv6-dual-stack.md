@@ -60,14 +60,14 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 |------|-------------|-------------|
 | `src/tpc/connect.c` | TPC outbound TCP connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries, IPv6 SSRF checks in `tpc_addr_is_prohibited()` |
 | `src/fs/cache/origin_connection.c` | Cache-fill origin connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries |
-| `src/cms/config.c` | CMS manager address parsing | Uses `ngx_parse_url()` which handles IPv6 literals via nginx's internal resolver |
-| `src/upstream/directives.c` | `xrootd_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
+| `src/net/cms/config.c` | CMS manager address parsing | Uses `ngx_parse_url()` which handles IPv6 literals via nginx's internal resolver |
+| `src/net/upstream/directives.c` | `xrootd_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
 | `src/core/config/manager_map.c` | `xrootd_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
 | `src/fs/cache/directives.c` | `xrootd_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
 | `src/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
 | `src/tpc/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |
 | `src/path/access_log.c` | Access log client IP | Uses `c->addr_text` — nginx's pre-formatted address string which includes brackets for IPv6 |
-| `src/cms/server_handler.c` (line 23) | Server address logging | `ngx_sock_ntop()` — nginx's dual-stack address formatter |
+| `src/net/cms/server_handler.c` (line 23) | Server address logging | `ngx_sock_ntop()` — nginx's dual-stack address formatter |
 
 ### 3.2 Outbound connects — **[RESOLVED]** (formerly P0: IPv4-only)
 
@@ -75,7 +75,7 @@ These were the most impactful gaps because they blocked manager-mode redirects a
 transparent proxying on IPv6 networks entirely. Both call sites have since been
 converted to dual-stack and are documented below for historical reference.
 
-#### `src/upstream/start.c` — **[RESOLVED]**
+#### `src/net/upstream/start.c` — **[RESOLVED]**
 
 This previously hardcoded `AF_INET` + `inet_addr()` + `gethostbyname()`. The current
 code is dual-stack: the fast path (pre-resolved config address) uses
@@ -89,10 +89,10 @@ correctly.
 (`kXR_locate` miss → redirect to `xrootd_upstream`) and manager-mode redirects
 to IPv6 backends are supported.
 
-#### `src/proxy/connect_upstream.c` — **[RESOLVED]**
+#### `src/net/proxy/connect_upstream.c` — **[RESOLVED]**
 
-The proxy connect path was previously `src/proxy/connect.c` with the identical
-IPv4-only anti-pattern. It is now `src/proxy/connect_upstream.c`, which resolves
+The proxy connect path was previously `src/net/proxy/connect.c` with the identical
+IPv4-only anti-pattern. It is now `src/net/proxy/connect_upstream.c`, which resolves
 via `getaddrinfo(AF_UNSPEC)`, iterates addrinfo entries, and stores the endpoint
 in a `struct sockaddr_storage`.
 
@@ -166,7 +166,7 @@ self_port = ntohs(
 
 ### 3.4 P1 failures — Configuration parsing
 
-#### `src/proxy/directives.c` (lines 23–24)
+#### `src/net/proxy/directives.c` (lines 23–24)
 
 ```c
 colon = ngx_strlchr(value[1].data,
@@ -237,7 +237,7 @@ number. The host string is embedded verbatim into the wire response. This means:
 - Manager-mode redirects get the host from the CMS registry, which gets it from the
   CMS manager — a chain of trust that depends on each link formatting correctly.
 
-**Ambiguity**: The manager registry (`src/manager/registry.c`) stores host strings
+**Ambiguity**: The manager registry (`src/net/manager/registry.c`) stores host strings
 as opaque text from heartbeats. The CMS login heartbeat (line 132–134 of `send.c`)
 sends empty host/port trailer fields, meaning the CMS manager infers the server's
 address from the TCP connection. This is correct for the CMS→manager path, but
@@ -305,7 +305,7 @@ doesn't use `inet_ntop()`.
 
 ### 5.1 Unit-level tests (per-module)
 
-#### 5.1.1 Upstream redirector (`src/upstream/start.c`)
+#### 5.1.1 Upstream redirector (`src/net/upstream/start.c`)
 
 | Test | Description | Expected |
 |------|-------------|----------|
@@ -316,7 +316,7 @@ doesn't use `inet_ntop()`.
 | `test_upstream_ipv6_literal` | `xrootd_upstream [::1]:1094;` | Connects to IPv6 literal |
 | `test_upstream_no_ipv6_backend` | IPv6-only backend unreachable | Returns meaningful error, not crash |
 
-#### 5.1.2 Proxy mode (`src/proxy/connect_upstream.c`)
+#### 5.1.2 Proxy mode (`src/net/proxy/connect_upstream.c`)
 
 | Test | Description | Expected |
 |------|-------------|----------|
@@ -563,7 +563,7 @@ Cross-compatibility tests should run against both IPv4 and IPv6 reference instan
 
 ### 7.1 P0 — Fix outbound IPv4-only connect code — **[IMPLEMENTED]**
 
-**Files**: `src/upstream/start.c`, `src/proxy/connect_upstream.c`
+**Files**: `src/net/upstream/start.c`, `src/net/proxy/connect_upstream.c`
 
 The `AF_INET` + `inet_addr()` + `gethostbyname()` pattern has been replaced with
 `getaddrinfo(AF_UNSPEC)` + addrinfo iteration in both call sites. The fast path in
@@ -573,8 +573,8 @@ per-request with `getaddrinfo(AF_UNSPEC)`, iterate all returned entries, and sto
 the chosen endpoint in a `struct sockaddr_storage`.
 
 **Reference implementations in this codebase**:
-- `src/upstream/start.c` — upstream redirector connect (dual-stack)
-- `src/proxy/connect_upstream.c` — proxy upstream connect (dual-stack)
+- `src/net/upstream/start.c` — upstream redirector connect (dual-stack)
+- `src/net/proxy/connect_upstream.c` — proxy upstream connect (dual-stack)
 - `src/tpc/connect.c` — TPC connect
 - `src/fs/cache/origin_connection.c` — cache origin connect
 
@@ -609,7 +609,7 @@ Key differences from current code:
 
 ### 7.3 P1 — Fix proxy_upstream IPv6 config parsing
 
-**File**: `src/proxy/directives.c`
+**File**: `src/net/proxy/directives.c`
 
 Replace the `ngx_strlchr()` approach with bracket-aware parsing (same pattern as
 `upstream/directives.c` lines 24–54):

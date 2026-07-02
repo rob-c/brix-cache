@@ -229,7 +229,7 @@ worker-level accountant so the invariant holds under any concurrency.
 2. **Admission / backpressure when the budget is hot.** Before allocating a new
    transfer window, try to reserve from the budget. On failure:
    - `root://` stream: send `kXR_wait` (the protocol's native backpressure — the
-     rate-limiter in `src/ratelimit/` already does this) and retry on drain;
+     rate-limiter in `src/net/ratelimit/` already does this) and retry on drain;
    - HTTP/WebDAV/S3: `503` with `Retry-After`, or defer the read in the event
      loop.
    This converts an OOM-kill risk into graceful slowdown — exactly the behavior

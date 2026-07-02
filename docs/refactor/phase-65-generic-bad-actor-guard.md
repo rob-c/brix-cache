@@ -6,7 +6,7 @@
 
 **Goal:** Put nginx in front of ARC and a real XRootD instance as a credential-preserving MITM that classifies each request, bounces obvious junk, and emits one structured log line per bad-actor signal for fail2ban to ban on.
 
-**Architecture:** A protocol-agnostic, allocation-free guard core (`src/guard/`, no nginx — same discipline as `src/tap/`) exposes `guard_classify_pre/post` + `guard_audit_format` over a normalized `guard_request_t`. Three thin adapters feed it: one nginx HTTP module (`ngx_http_xrootd_guard_module`) serving ARC and XrdHttp/WebDAV via a `profile` directive (ACCESS phase = pre-backend bounce, LOG phase = audit), and the existing `src/relay/` stream relay (guard sink on the tap → drop the connection). Stock `ngx_http_proxy_module` moves the bytes.
+**Architecture:** A protocol-agnostic, allocation-free guard core (`src/guard/`, no nginx — same discipline as `src/net/tap/`) exposes `guard_classify_pre/post` + `guard_audit_format` over a normalized `guard_request_t`. Three thin adapters feed it: one nginx HTTP module (`ngx_http_xrootd_guard_module`) serving ARC and XrdHttp/WebDAV via a `profile` directive (ACCESS phase = pre-backend bounce, LOG phase = audit), and the existing `src/relay/` stream relay (guard sink on the tap → drop the connection). Stock `ngx_http_proxy_module` moves the bytes.
 
 **Tech Stack:** C (C99), nginx module API (stream + http), stock `ngx_http_proxy_module`, pytest test harness, fail2ban (nftables banaction), standalone `gcc` for pure-C unit tests.
 
@@ -17,7 +17,7 @@ Copied verbatim from CLAUDE.md / spec — every task's requirements implicitly i
 - **NO `goto`** anywhere in `src/`. Early-return + helper decomposition only.
 - **Functional/modular**: one job per function, explicit data flow, no new globals, pure helpers with side effects at the edges.
 - **Use HELPERS — never reimplement** path/auth/metrics/framing. In particular: `xrootd_sanitize_log_string()` on every wire-derived string; stock `ngx_http_proxy_module` for proxying (never a bespoke proxy).
-- **Guard core is pure C**: no nginx headers, no allocation, no OpenSSL — so it unit-tests standalone (mirror `src/tap/`).
+- **Guard core is pure C**: no nginx headers, no allocation, no OpenSSL — so it unit-tests standalone (mirror `src/net/tap/`).
 - nginx allocation only in adapters: HTTP `ngx_palloc(r->pool,…)`, stream `ngx_pcalloc(c->pool,…)` — never raw `malloc`.
 - **Metric labels low-cardinality only** (INVARIANT 8): no paths/IPs in metrics. High-cardinality detail lives in the audit log; any metric counts by `signal` class only.
 - **New `.c`/`.h` files register in the top-level `./config`** (`$ngx_addon_dir/src/...` lists), then run `./configure`. Incremental builds are `make -j$(nproc)` alone.
@@ -90,7 +90,7 @@ Copied verbatim from CLAUDE.md / spec — every task's requirements implicitly i
  * WHY:  the bad-actor logic and the fail2ban contract are identical across ARC,
  *   XrdHttp/WebDAV, and root:// — write them once, feed from thin adapters.
  * HOW:  pure C — no nginx, no allocation, no OpenSSL — so it embeds in an nginx
- *   http module, in the stream relay, and unit-tests standalone. Mirrors src/tap/.
+ *   http module, in the stream relay, and unit-tests standalone. Mirrors src/net/tap/.
  */
 
 #include <stddef.h>
@@ -750,7 +750,7 @@ git commit -m "feat(guard): key=value audit line formatter + reason/op tokens"
 
 - [ ] **Step 1: Add the guard sources to `./config`**
 
-Find the `NGX_ADDON_SRCS` block that lists `src/tap/...` and add, in the same style:
+Find the `NGX_ADDON_SRCS` block that lists `src/net/tap/...` and add, in the same style:
 
 ```
     $ngx_addon_dir/src/guard/guard_classify.c \
@@ -1324,7 +1324,7 @@ git commit -m "test(httpguard): XrdHttp/WebDAV profile parity matrix"
 - Test: `tests/test_stream_guard.py`
 
 **Interfaces:**
-- Consumes: `xrootd_tap_frame_t` (`src/tap/tap.h`), `guard_classify_pre/post`, `guard_audit_format`.
+- Consumes: `xrootd_tap_frame_t` (`src/net/tap/tap.h`), `guard_classify_pre/post`, `guard_audit_format`.
 - Produces: `xrootd_relay_guard_t` state; `xrootd_relay_guard_init(...)`; a tap sink `xrootd_relay_guard_sink(...)`; `int xrootd_relay_guard_should_drop(const xrootd_relay_guard_t*)`.
 
 - [ ] **Step 1: Add guard state to `relay.h` / `xrootd_relay_t`**

@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 #include "../src/protocol/opcodes.h"
-#include "../src/tap/tap.h"
+#include "../src/net/tap/tap.h"
 
 /* Build a request frame: streamid + requestid(BE) + 16B body + dlen(BE) + payload */
 static size_t

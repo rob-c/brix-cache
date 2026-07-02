@@ -41,7 +41,7 @@ outbound implementation in `src/tpc/`.
 
 ### Problem
 
-Before Phase 1 and 2 landed, `src/upstream/bootstrap.c` aborted the upstream
+Before Phase 1 and 2 landed, `src/net/upstream/bootstrap.c` aborted the upstream
 connection if the remote server responded with:
 
 - `kXR_gotoTLS` flag in the `kXR_protocol` response body — the server demands
@@ -50,7 +50,7 @@ connection if the remote server responded with:
   exchange (GSI, token, or SSS) before accepting requests.
 
 ```c
-/* src/upstream/bootstrap.c — historical abort stubs */
+/* src/net/upstream/bootstrap.c — historical abort stubs */
 if (ntohl(flags_be) & kXR_gotoTLS) {
     xrootd_upstream_abort(up,
         "upstream requires TLS (not supported on outbound)");
@@ -71,11 +71,11 @@ credential gaps from the transparent-upstream bootstrap code.
 ### Phase 1 — Outbound TLS upgrade (`kXR_gotoTLS`) ✅ IMPLEMENTED
 
 **Implemented in:**
-- `src/upstream/tls.c` — `xrootd_upstream_start_tls()` wraps connection in SSL
+- `src/net/upstream/tls.c` — `xrootd_upstream_start_tls()` wraps connection in SSL
   and `xrootd_upstream_tls_handshake_done()` resends `kXR_login` over TLS.
-- `src/upstream/bootstrap.c` — `XRD_UP_BS_PROTOCOL` case detects `kXR_gotoTLS`
+- `src/net/upstream/bootstrap.c` — `XRD_UP_BS_PROTOCOL` case detects `kXR_gotoTLS`
   flag and calls `xrootd_upstream_start_tls()` instead of aborting.
-- `src/upstream/upstream_internal.h` — added `XRD_UP_BS_TLS` phase and
+- `src/net/upstream/upstream_internal.h` — added `XRD_UP_BS_TLS` phase and
   `xrootd_upstream_build_login()` declaration.
 - `src/core/types/config.h` — `upstream_tls`, `upstream_tls_ca`, `upstream_tls_name`,
   `upstream_tls_ctx` fields.
@@ -112,12 +112,12 @@ the client.
 ### Phase 2 — Outbound bearer token auth (`kXR_authmore` with token) ✅ IMPLEMENTED
 
 **Implemented in:**
-- `src/upstream/auth.c` — `xrootd_upstream_send_token_auth()` reads the
+- `src/net/upstream/auth.c` — `xrootd_upstream_send_token_auth()` reads the
   configured token file and sends a `kXR_auth` frame with `ztn\0` credential.
-- `src/upstream/bootstrap.c` — `XRD_UP_BS_LOGIN` case detects `kXR_authmore`
+- `src/net/upstream/bootstrap.c` — `XRD_UP_BS_LOGIN` case detects `kXR_authmore`
   and calls `xrootd_upstream_send_token_auth()`; new `XRD_UP_BS_AUTH` case
   accepts or rejects the server's reply.
-- `src/upstream/upstream_internal.h` — added `XRD_UP_BS_AUTH` phase and
+- `src/net/upstream/upstream_internal.h` — added `XRD_UP_BS_AUTH` phase and
   `authmore_count` field (prevents infinite auth loops).
 - `src/core/types/config.h` — `upstream_token_file` field.
 - `src/core/config/server_conf.c` — init + merge for `upstream_token_file`.
@@ -527,7 +527,7 @@ def test_propfind_depth_infinity_caps_at_max_entries():
 ### Problem
 
 The `XRD_ST_WAITING_CMS` session-suspension, `kYR_select`, and `kYR_try`
-handlers are all implemented in `src/cms/recv.c`. The previous coverage gaps
+handlers are all implemented in `src/net/cms/recv.c`. The previous coverage gaps
 were:
 
 1. **`kYR_try` multi-alternative selection** — parent manager replies with an
@@ -553,7 +553,7 @@ mode and CMS registry coverage.
   meta-manager, receives `kYR_select`, wakes the client with `kXR_redirect`,
   then the client connects to the leaf data-server and opens the file.
 
-The `kYR_try` payload used by the tests matches `src/cms/recv.c`:
+The `kYR_try` payload used by the tests matches `src/net/cms/recv.c`:
 
 ```text
 [hostname NUL-terminated]

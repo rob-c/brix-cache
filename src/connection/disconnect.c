@@ -3,11 +3,11 @@
 #include "budget.h"
 #include "session/session.h"   /* Phase 51 (E4): xrootd_gsi_inflight_release */
 #include "session/registry.h"
-#include "upstream/upstream.h"
-#include "proxy/proxy.h"
-#include "ratelimit/ratelimit.h"
-#include "ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
-#include "mirror/stream_wmirror.h"
+#include "net/upstream/upstream.h"
+#include "net/proxy/proxy.h"
+#include "net/ratelimit/ratelimit.h"
+#include "net/ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
+#include "net/mirror/stream_wmirror.h"
 
 #include <ngx_event.h>
 #include <ngx_stream.h>

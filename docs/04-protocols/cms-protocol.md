@@ -56,8 +56,8 @@ nginx-xrootd implements two independent halves of this, in two source trees:
 
 | Half | Direction | Source | Role it enables |
 |---|---|---|---|
-| **CMS client** | nginx → upstream manager | `src/cms/{connect,send,recv,wire,space}.c` | data server, sub-manager (upward) |
-| **CMS server** | data servers → nginx | `src/cms/server_*.c` + `src/manager/{registry,redir_cache,pending}.c` | manager, sub-manager (downward) |
+| **CMS client** | nginx → upstream manager | `src/net/cms/{connect,send,recv,wire,space}.c` | data server, sub-manager (upward) |
+| **CMS server** | data servers → nginx | `src/net/cms/server_*.c` + `src/net/manager/{registry,redir_cache,pending}.c` | manager, sub-manager (downward) |
 
 ---
 
@@ -78,8 +78,8 @@ Every CMS frame, in either direction, begins with the same fixed 8-byte header,
 ```
 
 Implemented as `NGX_XROOTD_CMS_HDR_LEN = 8`. The big-endian get/put helpers live
-in `src/cms/wire.c` (`ngx_xrootd_cms_get16/get32`, `put16/put32`). The frame
-reader (`src/cms/recv.c`, `src/cms/server_recv.c`) reads exactly 8 bytes, decodes
+in `src/net/cms/wire.c` (`ngx_xrootd_cms_get16/get32`, `put16/put32`). The frame
+reader (`src/net/cms/recv.c`, `src/net/cms/server_recv.c`) reads exactly 8 bytes, decodes
 `dlen` at offset 6, then reads `dlen` more bytes before dispatching. A frame whose
 `dlen + 8` exceeds `NGX_XROOTD_CMS_MAX_FRAME` (4096) is rejected and the
 connection is dropped — a cheap guard against a desynchronised or hostile peer.
@@ -122,7 +122,7 @@ and the length **includes the trailing NUL**:
  ""/NULL  →  00 00                            (empty/absent string)
 ```
 
-Encoder: `ngx_xrootd_cms_put_string()` in `src/cms/wire.c`. The real
+Encoder: `ngx_xrootd_cms_put_string()` in `src/net/cms/wire.c`. The real
 `XrdCmsParser` distinguishes a string from a scalar **by the absence of the
 `0x80` high bit in the first length byte** — which is why a string must never
 carry a `PT_short`/`PT_int` tag.
@@ -144,7 +144,7 @@ whole game.
 
 ## 4. Opcode catalogue (`kYR_*`)
 
-From `src/cms/cms_internal.h`. Numeric values are wire constants — never
+From `src/net/cms/cms_internal.h`. Numeric values are wire constants — never
 renumber.
 
 | Constant | `rrCode` | Direction | Purpose |
@@ -187,9 +187,9 @@ values (the early nginx constants had `SUSPEND`/`RESUME` swapped and wrong — �
 
 ## 5. Negotiation A — nginx as data server (outbound CMS client)
 
-This is the `src/cms/` client half. One **independent connection per nginx
+This is the `src/net/cms/` client half. One **independent connection per nginx
 worker** (see §8) is opened to `xrootd_cms_manager`. Lifecycle in
-`src/cms/connect.c`:
+`src/net/cms/connect.c`:
 
 ```
 worker init ──► ngx_xrootd_cms_start()           (arm 1 s initial-delay timer)
@@ -242,7 +242,7 @@ for the measurement approach this shares.
 
 ### 5.1 `kYR_login` payload (the handshake)
 
-Built in `ngx_xrootd_cms_send_login()` (`src/cms/send.c`) in exact
+Built in `ngx_xrootd_cms_send_login()` (`src/net/cms/send.c`) in exact
 `CmsLoginData` Pup order — **ten tagged scalars, a logical "Fence", then four
 bare strings**:
 
@@ -275,7 +275,7 @@ cmsd form: newline-separated `"<type> <path>"` entries, where `<type>` is `w`
 when `allow_write` is set, else `r` (e.g. `"w /data\nw /atlas"`). The length
 prefix counts the NUL. A real manager logs this as `adding path: w /…`.
 
-**Space.** `ngx_xrootd_cms_stat_space()` (`src/cms/space.c`, via `statvfs`)
+**Space.** `ngx_xrootd_cms_stat_space()` (`src/net/cms/space.c`, via `statvfs`)
 fills `tSpace/fSpace/fsUtil`. In **manager mode** these are replaced by
 `xrootd_srv_aggregate_space()` so a sub-manager advertises the *sum* of its
 children's capacity upward instead of its own (possibly empty) disk.
@@ -318,7 +318,7 @@ are how each side detects a dead peer.
 
 Real XRootD managers do **not** redirect purely on the static path list from
 login. For each client lookup the manager *verifies the file exists* by
-broadcasting `kYR_state` to subscribed servers (`src/cms/recv.c`,
+broadcasting `kYR_state` to subscribed servers (`src/net/cms/recv.c`,
 `CMS_RR_STATE`):
 
 - `modifier` has `CMS_MOD_RAW` set; the payload is the **raw, NUL-terminated
@@ -338,15 +338,15 @@ broadcasting `kYR_state` to subscribed servers (`src/cms/recv.c`,
 
 ## 6. Negotiation B — nginx as manager (inbound CMS server)
 
-This is the `src/cms/server_*.c` half plus the shared-memory
-`src/manager/registry.c`. Enabled with `xrootd_cms_server on` on a stream server
+This is the `src/net/cms/server_*.c` half plus the shared-memory
+`src/net/manager/registry.c`. Enabled with `xrootd_cms_server on` on a stream server
 block listening on the CMS port (e.g. `1213`). Each accepted data-server
 connection gets a per-connection `xrootd_cms_srv_ctx_t`
-(`src/cms/server_handler.c`).
+(`src/net/cms/server_handler.c`).
 
 ### 6.1 Inbound frame handling
 
-`cms_srv_process_frame()` (`src/cms/server_recv.c`) drives the registry:
+`cms_srv_process_frame()` (`src/net/cms/server_recv.c`) drives the registry:
 
 | Frame in | Action |
 |---|---|
@@ -364,11 +364,11 @@ the `"<type> "` prefix off each path segment, and stores the bare paths
 colon-delimited (`/data:/atlas`) — the exact form `srv_path_matches()` expects.
 
 The manager sends its own `kYR_ping` on a timer (`xrootd_cms_srv_send_ping`,
-`src/cms/server_send.c`); a failed send closes and unregisters the server.
+`src/net/cms/server_send.c`); a failed send closes and unregisters the server.
 
 ### 6.2 The registry
 
-`src/manager/registry.{h,c}` — a spinlock-protected shared-memory table
+`src/net/manager/registry.{h,c}` — a spinlock-protected shared-memory table
 (`XROOTD_SRV_REGISTRY_SLOTS = 128` by default, tunable via
 `xrootd_registry_slots`) so **every nginx worker shares one view**. Each slot
 holds host, port, colon-delimited export paths, `free_mb`, `util_pct`,
@@ -394,7 +394,7 @@ it speaks `kXR_locate` / `kXR_open` on the data port, and the manager answers
 with `kXR_redirect`. The lookup order, when `xrootd_manager_mode on`
 (`src/read/locate.c`, `src/read/open.c`):
 
-1. **Redirect-collapse cache** (`src/manager/redir_cache.c`) — if
+1. **Redirect-collapse cache** (`src/net/manager/redir_cache.c`) — if
    `xrootd_collapse_redir` is on and a recent identical lookup is cached, answer
    immediately, skipping CMS entirely. TTL = `xrootd_collapse_redir_ttl`.
 2. **Live registry** — `xrootd_srv_select(path, for_write)`.
@@ -407,8 +407,8 @@ with `kXR_redirect`. The lookup order, when `xrootd_manager_mode on`
 When a sub-manager misses locally it must ask its parent over CMS and hold the
 client's `root://` session open until the answer arrives. This couples two
 different connections — a data-channel client and the CMS control channel —
-which is the hard part. The mechanism (`src/manager/pending.c` +
-`src/cms/recv.c`):
+which is the hard part. The mechanism (`src/net/manager/pending.c` +
+`src/net/cms/recv.c`):
 
 ```
  client kXR_locate /f  ─►  sub-manager (data channel, worker W)
@@ -552,18 +552,18 @@ three-tier configs.
 
 | File | Responsibility |
 |---|---|
-| `src/cms/cms_internal.h` | opcode/modifier constants, `ngx_xrootd_cms_ctx_t`, prototypes |
-| `src/cms/connect.c` | CMS-client lifecycle: connect, login→status→load, heartbeat timer, backoff |
-| `src/cms/send.c` | outbound client frames: login, status, load, avail, pong, locate, have |
-| `src/cms/recv.c` | inbound manager frames at a node: ping→pong, space→avail, status, state→have, select/try→wake |
-| `src/cms/wire.c` | big-endian + XrdOucPup encode/decode helpers |
-| `src/cms/space.c` | `statvfs` space measurement; export-path selection |
-| `src/cms/server_handler.c` | accept an inbound data-server connection |
-| `src/cms/server_recv.c` | parse login/load/avail/gone; drive the registry |
-| `src/cms/server_send.c` | outbound manager frames (ping) |
-| `src/manager/registry.c` | shared-memory server registry + selection |
-| `src/manager/redir_cache.c` | redirect-collapse cache |
-| `src/manager/pending.c` | pending-locate bridge (suspend client ↔ CMS reply) |
+| `src/net/cms/cms_internal.h` | opcode/modifier constants, `ngx_xrootd_cms_ctx_t`, prototypes |
+| `src/net/cms/connect.c` | CMS-client lifecycle: connect, login→status→load, heartbeat timer, backoff |
+| `src/net/cms/send.c` | outbound client frames: login, status, load, avail, pong, locate, have |
+| `src/net/cms/recv.c` | inbound manager frames at a node: ping→pong, space→avail, status, state→have, select/try→wake |
+| `src/net/cms/wire.c` | big-endian + XrdOucPup encode/decode helpers |
+| `src/net/cms/space.c` | `statvfs` space measurement; export-path selection |
+| `src/net/cms/server_handler.c` | accept an inbound data-server connection |
+| `src/net/cms/server_recv.c` | parse login/load/avail/gone; drive the registry |
+| `src/net/cms/server_send.c` | outbound manager frames (ping) |
+| `src/net/manager/registry.c` | shared-memory server registry + selection |
+| `src/net/manager/redir_cache.c` | redirect-collapse cache |
+| `src/net/manager/pending.c` | pending-locate bridge (suspend client ↔ CMS reply) |
 | `src/read/locate.c`, `src/read/open.c` | client-facing redirect / CMS-escalate logic |
 
 ---

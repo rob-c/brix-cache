@@ -34,7 +34,7 @@ mode and tells the client to keep waiting; everything else terminates the query
 
 Only three opcodes are serialized outbound — `kXR_locate`, `kXR_open`,
 `kXR_stat` — which is exactly the set needed for redirector resolution. This is
-distinct from the inline transparent-forwarding *proxy mode* (`src/proxy/`,
+distinct from the inline transparent-forwarding *proxy mode* (`src/net/proxy/`,
 `xrootd_proxy_upstream`) and from native third-party copy (`src/tpc/`); see
 **See also**.
 

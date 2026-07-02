@@ -1126,7 +1126,7 @@ class TestKyrGone:
 # entries in priority order.  nginx picks the FIRST entry and wakes the
 # suspended client with a redirect to that host:port.
 #
-# Wire format for kYR_try payload (src/cms/cms_internal.h CMS_RR_TRY=24):
+# Wire format for kYR_try payload (src/net/cms/cms_internal.h CMS_RR_TRY=24):
 #   entry_0: NUL-terminated hostname + 2-byte big-endian port
 #   entry_1: NUL-terminated hostname + 2-byte big-endian port
 #   ...

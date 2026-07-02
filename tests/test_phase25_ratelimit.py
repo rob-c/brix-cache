@@ -53,14 +53,14 @@ def _read(rel):
 # --------------------------------------------------------------------------- #
 
 def test_ratelimit_module_present():
-    for f in ("src/ratelimit/ratelimit.h", "src/ratelimit/ratelimit.c",
-              "src/ratelimit/ratelimit_zone.c", "src/ratelimit/ratelimit_keys.c",
-              "src/ratelimit/ratelimit_http.c",
-              "src/ratelimit/ratelimit_stream.c", "src/metrics/ratelimit.c"):
+    for f in ("src/net/ratelimit/ratelimit.h", "src/net/ratelimit/ratelimit.c",
+              "src/net/ratelimit/ratelimit_zone.c", "src/net/ratelimit/ratelimit_keys.c",
+              "src/net/ratelimit/ratelimit_http.c",
+              "src/net/ratelimit/ratelimit_stream.c", "src/metrics/ratelimit.c"):
         assert (ROOT / f).exists(), f
     cfg = _read("config")
-    assert "src/ratelimit/ratelimit_zone.c" in cfg
-    assert "src/ratelimit/ratelimit_stream.c" in cfg
+    assert "src/net/ratelimit/ratelimit_zone.c" in cfg
+    assert "src/net/ratelimit/ratelimit_stream.c" in cfg
 
 
 def test_stream_gate_and_charge_wired():
@@ -68,7 +68,7 @@ def test_stream_gate_and_charge_wired():
     assert "xrootd_rl_stream_gate" in d
     assert "xrootd_rl_charge_ctx" in _read("src/read/read.c")
     assert "xrootd_rl_charge_ctx" in _read("src/write/write.c")
-    s = _read("src/ratelimit/ratelimit_stream.c")
+    s = _read("src/net/ratelimit/ratelimit_stream.c")
     assert "xrootd_send_wait" in s
 
 
@@ -76,7 +76,7 @@ def test_http_handler_and_filter_wired():
     pc = _read("src/webdav/postconfig.c")
     assert "xrootd_rl_http_access_handler" in pc
     assert "xrootd_rl_http_log_handler" in pc      # bandwidth charge (log phase)
-    h = _read("src/ratelimit/ratelimit_http.c")
+    h = _read("src/net/ratelimit/ratelimit_http.c")
     assert "NGX_HTTP_TOO_MANY_REQUESTS" in h
     assert "Retry-After" in h
     assert "xrootd_rl_charge_bytes" in h
@@ -554,7 +554,7 @@ def test_stream_concurrency_wiring():
     assert "xrootd_concurrency_limit" in st
     assert "xrootd_rl_conc_directive" in st
     # ... the gate acquires a slot ...
-    rs = _read("src/ratelimit/ratelimit_stream.c")
+    rs = _read("src/net/ratelimit/ratelimit_stream.c")
     assert "xrootd_rl_conc_acquire" in rs
     assert "xrootd_rl_release_ctx" in rs
     # ... the per-connection slot lives on the ctx ...
@@ -698,7 +698,7 @@ def test_keycache_wiring():
     assert "XROOTD_RL_RULE_CACHE_MAX" in _read("src/core/types/tunables.h")
     ctx = _read("src/core/types/context.h")
     assert "rl_key_cache" in ctx and "rl_key_cache_valid" in ctx
-    gate = _read("src/ratelimit/ratelimit_stream.c")
+    gate = _read("src/net/ratelimit/ratelimit_stream.c")
     assert "rl_key_cache_valid" in gate
     # VOLUME rules must be excluded from caching.
     assert "XROOTD_RL_KEY_VOLUME" in gate

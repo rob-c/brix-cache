@@ -1,9 +1,9 @@
 #include "open.h"
 #include <string.h>
 #include <unistd.h>
-#include "manager/registry.h"
-#include "manager/pending.h"
-#include "cms/cms_internal.h"
+#include "net/manager/registry.h"
+#include "net/manager/pending.h"
+#include "net/cms/cms_internal.h"
 #include "session/registry.h"
 #include "fs/cache/writethrough_decision.h"
 

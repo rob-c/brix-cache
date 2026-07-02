@@ -128,7 +128,7 @@ def test_iso8601_and_hex_helpers_are_shared():
 
 def test_token_fs_usage_and_shm_slot_helpers_are_shared():
     for relpath in (
-        "src/upstream/auth.c",
+        "src/net/upstream/auth.c",
         "src/tpc/gsi_outbound_common.c",
         "src/tpc/tpc_token.c",
     ):
@@ -145,7 +145,7 @@ def test_token_fs_usage_and_shm_slot_helpers_are_shared():
         _assert_markers(relpath, ["xrootd_fs_usage_"])
 
     for relpath in (
-        "src/manager/pending.c",
+        "src/net/manager/pending.c",
         "src/tpc/key_registry.c",
     ):
         _assert_markers(relpath, ["../compat/shm_slots.h", "xrootd_shm_"])
@@ -355,7 +355,7 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
     ):
         _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "xrootd_vfs_copy("])
 
-    for relpath in ("src/cms/send.c", "src/cms/server_send.c"):
+    for relpath in ("src/net/cms/send.c", "src/net/cms/server_send.c"):
         _assert_markers(relpath, ["frame_io.h", "xrootd_cms_send_frame("])
 
 

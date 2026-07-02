@@ -1,6 +1,6 @@
 # Phase 25 — Advanced Rate Limiting & Traffic Shaping
 
-**Status:** IMPLEMENTED — 2026-06-13 (verified against `src/ratelimit/`). All of
+**Status:** IMPLEMENTED — 2026-06-13 (verified against `src/net/ratelimit/`). All of
 Steps A–I landed and tested (`tests/test_phase25_ratelimit.py`, 15 tests); a W7
 per-principal *concurrency* limiter was added beyond the original draft and now
 covers **both** the HTTP/WebDAV and `root://` stream planes (stream support added
@@ -14,7 +14,7 @@ covers **both** the HTTP/WebDAV and `root://` stream planes (stream support adde
 
 ---
 
-## Implementation status (2026-06-13, vs `src/ratelimit/`)
+## Implementation status (2026-06-13, vs `src/net/ratelimit/`)
 
 The implementation matches the plan closely and is functionally complete. The
 draft's planned file/symbol names differ from what shipped (consolidated into
@@ -115,7 +115,7 @@ Bandwidth throttling uses the same formula but charges `bytes_sent × 1000` inst
 
 ## Data Structures
 
-### `src/ratelimit/ratelimit.h`
+### `src/net/ratelimit/ratelimit.h`
 
 ```c
 #ifndef XROOTD_RATELIMIT_H
@@ -226,9 +226,9 @@ bucket, a safe degradation.
 
 ## Step A — SHM Zone Initialization
 
-**File:** `src/ratelimit/zone.c`
+**File:** `src/net/ratelimit/zone.c`
 
-Mirrors the pattern from `src/manager/registry.c` and `src/metrics/metrics.c`.
+Mirrors the pattern from `src/net/manager/registry.c` and `src/metrics/metrics.c`.
 
 ```c
 /* Called from ngx_http_xrootd_webdav_module postconfiguration. */
@@ -302,7 +302,7 @@ Scanning is O(n) but the zone should hold several thousand nodes at most — the
 
 ## Step B — Core Leaky-Bucket Logic
 
-**File:** `src/ratelimit/ratelimit.c`
+**File:** `src/net/ratelimit/ratelimit.c`
 
 ```c
 ngx_int_t
@@ -446,7 +446,7 @@ xrootd_rl_bw_check(xrootd_rl_zone_t *zone, xrootd_rl_rule_t *rule,
 
 ## Step C — Rate Limit Key Extraction
 
-**File:** `src/ratelimit/keys.c`
+**File:** `src/net/ratelimit/keys.c`
 
 Stream and HTTP contexts expose identity through different struct types.  A pair of extraction
 functions produce a canonical `key_str` buffer given the rule's `key_type`.
@@ -533,7 +533,7 @@ accumulate per-VO.
 
 ## Step D — HTTP/WebDAV Enforcement
 
-**File:** `src/ratelimit/http_handler.c`  
+**File:** `src/net/ratelimit/http_handler.c`  
 **Hook:** `NGX_HTTP_ACCESS_PHASE` — runs after auth, before content
 
 ```c
@@ -642,7 +642,7 @@ xrootd_rl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
 ## Step E — XRootD Stream Enforcement
 
-**File:** `src/ratelimit/stream_check.c`  
+**File:** `src/net/ratelimit/stream_check.c`  
 **Hook:** Called from `src/handshake/dispatch.c` before routing each opcode
 
 The stream dispatcher already has access to `xrootd_ctx_t *ctx` and the resolved path at the
@@ -919,13 +919,13 @@ minimise lock hold time.
 
 | File | LoC | Purpose |
 |---|---|---|
-| `src/ratelimit/ratelimit.h` | 80 | Public API and data structures |
-| `src/ratelimit/zone.c` | 120 | SHM zone init + LRU eviction |
-| `src/ratelimit/ratelimit.c` | 200 | Leaky-bucket core: check + charge |
-| `src/ratelimit/keys.c` | 150 | Key string extraction (stream + HTTP) |
-| `src/ratelimit/http_handler.c` | 160 | NGX_HTTP_ACCESS_PHASE handler |
-| `src/ratelimit/stream_check.c` | 100 | Stream dispatch gate |
-| `src/ratelimit/hash.c` | 50 | xxhash32 (small, license-compatible) |
+| `src/net/ratelimit/ratelimit.h` | 80 | Public API and data structures |
+| `src/net/ratelimit/zone.c` | 120 | SHM zone init + LRU eviction |
+| `src/net/ratelimit/ratelimit.c` | 200 | Leaky-bucket core: check + charge |
+| `src/net/ratelimit/keys.c` | 150 | Key string extraction (stream + HTTP) |
+| `src/net/ratelimit/http_handler.c` | 160 | NGX_HTTP_ACCESS_PHASE handler |
+| `src/net/ratelimit/stream_check.c` | 100 | Stream dispatch gate |
+| `src/net/ratelimit/hash.c` | 50 | xxhash32 (small, license-compatible) |
 | `src/metrics/ratelimit.c` | 80 | Prometheus export |
 
 All 8 files must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`.  No `./configure` rerun

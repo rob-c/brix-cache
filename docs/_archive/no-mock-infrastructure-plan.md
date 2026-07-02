@@ -50,7 +50,7 @@ both previously-skipped tests now show PASSED.
 
 ### What the test exercises
 `test_locate_wait_then_redirect` tests that when the upstream backend sends `kXR_wait`,
-nginx's upstream relay (`src/upstream/response.c:case kXR_wait`) correctly forwards it to the
+nginx's upstream relay (`src/net/upstream/response.c:case kXR_wait`) correctly forwards it to the
 client and schedules a retry.
 
 ### Why the current backend does not work
@@ -114,7 +114,7 @@ dynamically. The redirect path is already covered by `TestUpstreamRedirect::test
 
 ### What the test exercises
 `test_locate_waitresp_then_redirect` tests that `kXR_waitresp` from the upstream is
-forwarded to the client (`src/upstream/response.c:case kXR_waitresp` →
+forwarded to the client (`src/net/upstream/response.c:case kXR_waitresp` →
 `xrootd_send_waitresp(ctx, c)`).
 
 ### Why the current backend does not work

@@ -45,7 +45,7 @@ frame to the mock CMS manager. The mock responds with either `kYR_select`
 
 ### Root cause area
 
-`src/cms/recv.c` — `cms_wake_pending_session()` (line 10–60):
+`src/net/cms/recv.c` — `cms_wake_pending_session()` (line 10–60):
 
 ```c
 xrd_ctx->state = XRD_ST_REQ_HEADER;
@@ -103,14 +103,14 @@ and restore it in `cms_wake_pending_session` before calling
 `xrootd_send_redirect`:
 
 ```c
-/* In xrootd_pending_locate_t (src/manager/pending.h): */
+/* In xrootd_pending_locate_t (src/net/manager/pending.h): */
 u_char  streamid[2];  /* client streamid at kXR_locate time */
 
 /* In locate handler (src/read/locate.c), when adding to pending table: */
 pending->streamid[0] = ctx->cur_streamid[0];
 pending->streamid[1] = ctx->cur_streamid[1];
 
-/* In cms_wake_pending_session (src/cms/recv.c): */
+/* In cms_wake_pending_session (src/net/cms/recv.c): */
 xrd_ctx->cur_streamid[0] = pending->streamid[0];
 xrd_ctx->cur_streamid[1] = pending->streamid[1];
 ```
@@ -162,7 +162,7 @@ test reads the first response (expects `kXR_waitresp`), then reads the second
 
 ### Root cause area
 
-`src/proxy/forward_relay_response.c` — `xrootd_proxy_relay_to_client()`.
+`src/net/proxy/forward_relay_response.c` — `xrootd_proxy_relay_to_client()`.
 
 The `kXR_waitresp` path in the relay dispatch reads at line 183:
 
@@ -440,8 +440,8 @@ not reachable.
 
 | # | Test(s) | Type | Effort | Root cause file |
 |---|---------|------|--------|-----------------|
-| 1 | `TestCmsSelectWake` + `TestCmsKyrTry` (3) | Implementation bug | Medium | `src/cms/recv.c:57` |
-| 2 | `test_locate_waitresp_then_redirect` (1) | Implementation bug | Low | `src/proxy/forward_relay_response.c` |
+| 1 | `TestCmsSelectWake` + `TestCmsKyrTry` (3) | Implementation bug | Medium | `src/net/cms/recv.c:57` |
+| 2 | `test_locate_waitresp_then_redirect` (1) | Implementation bug | Low | `src/net/proxy/forward_relay_response.c` |
 | 3B | `test_deep_path_rejected_by_guard` + `test_malicious_symlink_chain_blocked` (2) | Implementation bug | Low | `src/fs/path/resolve_path_variants.c:71` |
 | 3A | `test_normal_path_passes_depth_check` (1) | Test code bug | Trivial | `tests/test_path_depth_guards.py:151` |
 | 4a | xrdhttp (4+2+1=7) | Infra + test code bugs | Low–Medium | `tests/test_xrdhttp_*.py` |

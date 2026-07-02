@@ -127,7 +127,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_supposc` | POSC | ✅ |
 | `kXR_haveTLS` | TLS available | ✅ |
 | `kXR_recoverWrts` | Write recovery | ✅ | Uses per-handle write journal for idempotent replay |
-| `kXR_collapseRedir` | Collapse redirects (`xrootd_collapse_redir on`) | ✅ | SHM redirect-target cache in `src/manager/redir_cache.c` |
+| `kXR_collapseRedir` | Collapse redirects (`xrootd_collapse_redir on`) | ✅ | SHM redirect-target cache in `src/net/manager/redir_cache.c` |
 | `kXR_ecRedir` | Erasure-code redirect | ❌ |
 | `kXR_anongpf` | Anonymous GPF | ❌ |
 | `kXR_supgpf` | GPF | ❌ |
@@ -197,7 +197,7 @@ paths where required.
 | `XrdXrootd` | Core protocol handler | Native `root://` stream module |
 | `XrdHttp` | HTTP file serving | WebDAV (`davs://`) + S3 REST |
 | `XrdHttpTpc` | HTTP TPC | WebDAV TPC via `COPY` + curl |
-| `XrdCms` | Cluster management | `src/cms/` + `src/manager/` |
+| `XrdCms` | Cluster management | `src/net/cms/` + `src/net/manager/` |
 | `XrdCrypto` | Encryption framework | TLS transport (no data-at-rest) |
 | `XrdCks` | Checksum framework | `kXR_query` checksums + pgread CRC |
 | `XrdOuc` | Utilities | `src/core/compat/` |
@@ -323,7 +323,7 @@ paths where required.
 | Multi-tier CMS hierarchy | Three-tier (meta → sub-manager → leaf DS) implemented and tested |
 | `kXR_attrMeta` / `kXR_attrSuper` / `kXR_attrVirtRdr` | All three role flags advertised via `xrootd_metadata_only`, `xrootd_supervisor`, `xrootd_virtual_redirector` |
 | `kXR_collapseRedir` | SHM redirect-target cache implemented; advertised via `xrootd_collapse_redir on` |
-| **Server blacklisting** | 30 s temporary blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM registry; cleared on reconnect (`src/manager/registry.c`) |
+| **Server blacklisting** | 30 s temporary blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM registry; cleared on reconnect (`src/net/manager/registry.c`) |
 | **Per-server cluster metrics** | `xrootd_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges (`src/metrics/cluster.c`) |
 | **Colocation hint** | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
 | **Lateral redirect** | `kXR_locate` returns `kXR_ok` with full server list via `xrootd_srv_locate_all()`; no redirect chaining needed |
@@ -379,7 +379,7 @@ paths where required.
 | **`kXR_attrMeta`** | `xrootd_metadata_only on` — namespace ops only, file I/O returns kXR_Unsupported |
 | **`kXR_attrSuper`** | `xrootd_supervisor on` — top-tier manager role |
 | **`kXR_attrVirtRdr`** | `xrootd_virtual_redirector on` — path-map redirector without CMS |
-| **`kXR_collapseRedir`** | `xrootd_collapse_redir on` — SHM redirect-target cache (`src/manager/redir_cache.c`) |
+| **`kXR_collapseRedir`** | `xrootd_collapse_redir on` — SHM redirect-target cache (`src/net/manager/redir_cache.c`) |
 | **`kXR_attn` relay (proxy)** | Proxy mode transparently relays upstream `kXR_attn` frames |
 | **`kXR_attn` native generation** | `xrootd_send_attn_asyncms()` + `xrootd_send_attn_asynresp()` in `src/response/async.c`; `kXR_notify` on `kXR_prepare` wired; `kXR_asyncms` / `kXR_asynresp` constants in `src/protocol/opcodes.h` |
 | **Server blacklisting** | 30 s blacklist on CMS disconnect; `xrootd_srv_blacklist()` + `error_count` in SHM; clears on reconnect |

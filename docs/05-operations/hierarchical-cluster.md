@@ -135,7 +135,7 @@ report to a site-level or experiment-level parent.
 All five phases documented in [cluster-mode.md](cluster-management.md) are complete
 and tested.
 
-### M1 — Server registry (`src/manager/`)
+### M1 — Server registry (`src/net/manager/`)
 
 A shared-memory table, spinlock-protected, maps each registered data server to
 its host, port, colon-delimited export path list, free space, and utilisation.
@@ -153,9 +153,9 @@ If the table is full when a new registration arrives, a `NGX_LOG_WARN` message
 is written to the error log and the `xrootd_registry_full_total` Prometheus
 counter is incremented.
 
-Key files: `src/manager/registry.h`, `src/manager/registry.c`.
+Key files: `src/net/manager/registry.h`, `src/net/manager/registry.c`.
 
-### M2 — CMS server listener (`src/cms/server_*.c`)
+### M2 — CMS server listener (`src/net/cms/server_*.c`)
 
 A dedicated nginx stream server block (`xrootd_cms_server on`) accepts inbound
 TCP connections from data servers. It parses CMS frames and maintains the
@@ -170,8 +170,8 @@ registry:
 | `kYR_gone` | Calls `xrootd_srv_unregister_path()` for the path named in the payload (Step 1a — implemented) |
 | Disconnect | Calls `xrootd_srv_unregister()` to free the slot |
 
-Key files: `src/cms/server_handler.c`, `src/cms/server_recv.c`,
-`src/cms/server_send.c`, `src/cms/server_module.c`.
+Key files: `src/net/cms/server_handler.c`, `src/net/cms/server_recv.c`,
+`src/net/cms/server_send.c`, `src/net/cms/server_module.c`.
 
 ### M3 — Dynamic redirect in `kXR_locate` and `kXR_open`
 
@@ -201,7 +201,7 @@ What works:
   the parent recognises this node as a sub-manager rather than a leaf.
 - `xrootd_srv_aggregate_space()` sums `free_mb` and averages `util_pct` across
   all registered children; the aggregated value is used in `kYR_load` heartbeats
-  sent upward (`src/cms/send.c`).
+  sent upward (`src/net/cms/send.c`).
 - `CMS_RR_STATUS` (suspend / resume) from the parent manager is handled;
   `cms_suspended` gates new `kXR_login` attempts.
 
@@ -272,20 +272,20 @@ depend on steps 2 and 3. Step 6 depends on steps 3, 4, and 5.
 ### Step 1a — `kYR_gone` ✅ Implemented
 
 `CMS_RR_GONE` (value 14) is handled in `cms_srv_process_frame()` in
-`src/cms/server_recv.c` (the CMS server receive path, which handles frames
+`src/net/cms/server_recv.c` (the CMS server receive path, which handles frames
 arriving from data servers — the correct direction for `kYR_gone`).
 
 When a `CMS_RR_GONE` frame arrives, the handler copies the NUL-terminated path
 from the payload and calls `xrootd_srv_unregister_path(ctx->host, ctx->port,
 path)` using the data server's login-time host and port.
 
-`#define CMS_RR_GONE 14` is in `src/cms/cms_internal.h`.
+`#define CMS_RR_GONE 14` is in `src/net/cms/cms_internal.h`.
 
-Note: the plan originally placed this in `src/cms/recv.c` (the CMS client
+Note: the plan originally placed this in `src/net/cms/recv.c` (the CMS client
 receive path). `kYR_gone` flows data-server → manager, so the correct file is
-`src/cms/server_recv.c`.
+`src/net/cms/server_recv.c`.
 
-Files changed: `src/cms/cms_internal.h`, `src/cms/server_recv.c`.
+Files changed: `src/net/cms/cms_internal.h`, `src/net/cms/server_recv.c`.
 
 ---
 
@@ -309,7 +309,7 @@ compile-time constant. When the table is full, a `NGX_LOG_WARN` message is
 emitted and `m->registry_full_total` is incremented atomically. The counter is
 exported as the `xrootd_registry_full_total` Prometheus counter.
 
-Files changed: `src/manager/registry.h`, `src/manager/registry.c`,
+Files changed: `src/net/manager/registry.h`, `src/net/manager/registry.c`,
 `src/core/config/config.h`, `src/core/config/server_conf.c`,
 `src/core/config/postconfiguration.c`, `src/stream/module.c`,
 `src/core/types/config.h`, `src/metrics/metrics.h`, `src/metrics/stream.c`.
@@ -334,18 +334,18 @@ Note: the plan described removing a `ngx_process.slot == 0` guard, but that
 guard was not present in the codebase. The per-worker behavior was already
 correct. The actual changes in this step were:
 
-- Fixed a bug in `src/manager/registry.c`: the sentinel value for "no free slot
+- Fixed a bug in `src/net/manager/registry.c`: the sentinel value for "no free slot
   found" was `XROOTD_SRV_REGISTRY_SLOTS` (hardcoded to 128) instead of
   `tbl->capacity`. This broke `xrootd_srv_register()` whenever `registry_slots`
   was configured to any value other than 128.
-- Updated the stale struct comment in `src/cms/cms_internal.h` that incorrectly
+- Updated the stale struct comment in `src/net/cms/cms_internal.h` that incorrectly
   stated "Only one worker manages the CMS connection per server block (worker
   index 0)".
 - Added `TestPerWorkerCMS` (Part 3) in `tests/test_manager_mode.py`: starts
   nginx with `worker_processes 2` and a mock TCP CMS listener; asserts the mock
   receives at least 2 connections.
 
-Files changed: `src/manager/registry.c`, `src/cms/cms_internal.h`,
+Files changed: `src/net/manager/registry.c`, `src/net/cms/cms_internal.h`,
 `tests/test_manager_mode.py`.
 
 ---
@@ -354,7 +354,7 @@ Files changed: `src/manager/registry.c`, `src/cms/cms_internal.h`,
 
 A new shared-memory zone bridges a waiting XRootD session to its in-flight CMS
 locate query. The implementation follows the same pattern as
-`src/manager/registry.c`: a fixed `ngx_shm_zone_t` zone, an `ngx_shmtx_t`
+`src/net/manager/registry.c`: a fixed `ngx_shm_zone_t` zone, an `ngx_shmtx_t`
 spinlock embedded in the zone header, and a linear scan over a fixed-size slot
 array.
 
@@ -373,14 +373,14 @@ New `xrootd_cms_locate_timeout` directive (default `5000 ms`). Accepts nginx
 time strings (`5s`, `500ms`, etc.). Stored as `ngx_msec_t cms_locate_timeout`
 in `ngx_stream_xrootd_srv_conf_t`.
 
-Files added: `src/manager/pending.h`, `src/manager/pending.c`.
+Files added: `src/net/manager/pending.h`, `src/net/manager/pending.c`.
 Files changed: `src/core/config/config.h`, `src/core/config/postconfiguration.c`,
 `src/core/config/server_conf.c`, `src/stream/module.c`, `src/core/types/config.h`,
 `config`.
 
 ---
 
-### Step 4 — `ngx_xrootd_cms_send_locate()` in `src/cms/send.c` ✅ Implemented
+### Step 4 — `ngx_xrootd_cms_send_locate()` in `src/net/cms/send.c` ✅ Implemented
 
 `ngx_xrootd_cms_send_locate()` builds a `kYR_locate` frame containing the
 NUL-terminated path (payload up to `XROOTD_SRV_MAX_PATHS` = 1024 bytes) and
@@ -394,10 +394,10 @@ independent CMS connection to the manager, streamids are per-worker and do not
 need to be coordinated across workers.
 
 `#define CMS_RR_LOCATE 2` and the two new function declarations were added to
-`src/cms/cms_internal.h`. The `next_streamid` field was added to
+`src/net/cms/cms_internal.h`. The `next_streamid` field was added to
 `ngx_xrootd_cms_ctx_s`.
 
-Files changed: `src/cms/send.c`, `src/cms/cms_internal.h`.
+Files changed: `src/net/cms/send.c`, `src/net/cms/cms_internal.h`.
 
 ---
 
@@ -432,11 +432,11 @@ Files changed: `src/core/types/state.h`, `src/core/types/context.h`,
 
 ---
 
-### Step 6 — `kYR_select` and `kYR_try` in `src/cms/recv.c` ✅ Implemented
+### Step 6 — `kYR_select` and `kYR_try` in `src/net/cms/recv.c` ✅ Implemented
 
-Added `CMS_RR_SELECT 10` and `CMS_RR_TRY 24` to `src/cms/cms_internal.h`.
+Added `CMS_RR_SELECT 10` and `CMS_RR_TRY 24` to `src/net/cms/cms_internal.h`.
 
-Added `#include "../manager/pending.h"` to `src/cms/recv.c` and factored the
+Added `#include "../manager/pending.h"` to `src/net/cms/recv.c` and factored the
 wake logic into a static helper `cms_wake_pending_session(ctx, streamid, host,
 port)`. The helper:
 
@@ -459,7 +459,7 @@ NUL-terminated hostname + 2-byte big-endian port (first entry in the case
 of `kYR_try`), with a minimum-length guard before accessing the port bytes.
 Both call `cms_wake_pending_session()`.
 
-Files changed: `src/cms/recv.c`, `src/cms/cms_internal.h`.
+Files changed: `src/net/cms/recv.c`, `src/net/cms/cms_internal.h`.
 
 ---
 
@@ -562,7 +562,7 @@ to the leaf for the data transfer.
 | 1a | `kYR_gone` + `CMS_RR_GONE` in `server_recv.c` | — | ✅ Done |
 | 1b | Configurable `xrootd_registry_slots` + full-table warning + Prometheus counter | — | ✅ Done |
 | 2 | Per-worker CMS connections; fix registry sentinel bug; add multi-worker test | — | ✅ Done |
-| 3 | Pending-locate table (`src/manager/pending.c`) | 1b | ✅ Done |
+| 3 | Pending-locate table (`src/net/manager/pending.c`) | 1b | ✅ Done |
 | 4 | `ngx_xrootd_cms_send_locate()` + streamid counter | 2 | ✅ Done |
 | 5 | `XRD_ST_WAITING_CMS` + session suspension in `locate.c` / `open.c` | 3, 4 | ✅ Done |
 | 6 | `kYR_select` / `kYR_try` in `recv.c` + session wake | 3, 4, 5 | ✅ Done |
@@ -619,14 +619,14 @@ redirects to that server.
 
 | File | Change | Status |
 |---|---|---|
-| `src/cms/cms_internal.h` | Added `CMS_RR_GONE 14`, `CMS_RR_LOCATE 2`, `CMS_RR_SELECT 10`, `CMS_RR_TRY 24`; `next_streamid` field | ✅ Steps 1a, 2, 4, 6 done |
-| `src/cms/server_recv.c` | Added `CMS_RR_GONE` case calling `xrootd_srv_unregister_path()` | ✅ Step 1a done |
-| `src/cms/recv.c` | Added `cms_wake_pending_session()` helper; `CMS_RR_SELECT` and `CMS_RR_TRY` cases | ✅ Step 6 done |
-| `src/cms/send.c` | Added `ngx_xrootd_cms_send_locate()` and `ngx_xrootd_cms_next_streamid()` | ✅ Step 4 done |
-| `src/manager/registry.h` | C99 flexible array member; `capacity` field; updated `xrootd_srv_configure_registry` signature | ✅ Step 1b done |
-| `src/manager/registry.c` | Runtime zone size; `tbl->capacity` loop bounds and sentinel; full-table log and counter | ✅ Steps 1b, 2 done |
-| `src/manager/pending.h` | New: `xrootd_pending_locate_t`, `xrootd_pending_table_t`, API declarations | ✅ Step 3 done |
-| `src/manager/pending.c` | New: shm zone init, insert/lookup/remove with lock, lazy expiry reaping | ✅ Step 3 done |
+| `src/net/cms/cms_internal.h` | Added `CMS_RR_GONE 14`, `CMS_RR_LOCATE 2`, `CMS_RR_SELECT 10`, `CMS_RR_TRY 24`; `next_streamid` field | ✅ Steps 1a, 2, 4, 6 done |
+| `src/net/cms/server_recv.c` | Added `CMS_RR_GONE` case calling `xrootd_srv_unregister_path()` | ✅ Step 1a done |
+| `src/net/cms/recv.c` | Added `cms_wake_pending_session()` helper; `CMS_RR_SELECT` and `CMS_RR_TRY` cases | ✅ Step 6 done |
+| `src/net/cms/send.c` | Added `ngx_xrootd_cms_send_locate()` and `ngx_xrootd_cms_next_streamid()` | ✅ Step 4 done |
+| `src/net/manager/registry.h` | C99 flexible array member; `capacity` field; updated `xrootd_srv_configure_registry` signature | ✅ Step 1b done |
+| `src/net/manager/registry.c` | Runtime zone size; `tbl->capacity` loop bounds and sentinel; full-table log and counter | ✅ Steps 1b, 2 done |
+| `src/net/manager/pending.h` | New: `xrootd_pending_locate_t`, `xrootd_pending_table_t`, API declarations | ✅ Step 3 done |
+| `src/net/manager/pending.c` | New: shm zone init, insert/lookup/remove with lock, lazy expiry reaping | ✅ Step 3 done |
 | `src/read/locate.c` | CMS-suspend path when no registry match | ✅ Step 5 done |
 | `src/read/open.c` | Same | ✅ Step 5 done |
 | `src/core/config/config.h` | Updated `xrootd_srv_configure_registry` declaration; added `xrootd_pending_configure` declaration | ✅ Steps 1b, 3 done |
@@ -783,7 +783,7 @@ action in `cms_wake_pending_session()` from `xrootd_send_redirect()` to
 **File:** `src/core/config/config.h` + `src/core/config/server_conf.c` + directive entry
 in `src/stream/module.c`.
 
-#### G2 — `xrootd_proxy_cms_selected()` in `src/upstream/start.c`
+#### G2 — `xrootd_proxy_cms_selected()` in `src/net/upstream/start.c`
 
 When `cms_response == PROXY` the wake function, rather than redirecting,
 allocates an upstream context (`xrootd_upstream_ctx_t`) and initiates a TCP
@@ -799,10 +799,10 @@ directive, with two differences:
   during bootstrap.
 
 The file-handle translation table (`fh_map[16]`) and the `kXR_oksofar`
-streaming relay from `src/upstream/response.c` apply unchanged.
+streaming relay from `src/net/upstream/response.c` apply unchanged.
 
-**Files:** `src/upstream/start.c` (new path in `xrootd_proxy_cms_selected`),
-`src/upstream/bootstrap.c` (reuse), `src/cms/recv.c` (call site change when
+**Files:** `src/net/upstream/start.c` (new path in `xrootd_proxy_cms_selected`),
+`src/net/upstream/bootstrap.c` (reuse), `src/net/cms/recv.c` (call site change when
 `cms_response == PROXY`).
 
 #### G3 — Auth bridging for CMS-selected upstreams
@@ -840,8 +840,8 @@ In effect, the gateway becomes a **transparent aggregating proxy** rather than
 a redirector — clients see a stable endpoint, backend topology changes are
 invisible, and load balancing is CMS-driven.
 
-**Approximate scope:** `src/upstream/pool.c` (new CMS-backed pool implementation
-replacing `upstream_ctx->round_robin_idx`), `src/cms/server_handler.c` (call
+**Approximate scope:** `src/net/upstream/pool.c` (new CMS-backed pool implementation
+replacing `upstream_ctx->round_robin_idx`), `src/net/cms/server_handler.c` (call
 `xrootd_pool_register()` on `kYR_login`, `xrootd_pool_update_load()` on
 `kYR_load`, `xrootd_pool_unregister()` on disconnect / `kYR_gone`).
 

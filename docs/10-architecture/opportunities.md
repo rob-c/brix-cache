@@ -38,7 +38,7 @@ The module has already consolidated a significant shared layer — path resoluti
 │  src/core/compat/http_*.c    headers/body/conditions     [webdav+s3]   │
 │  src/core/compat/fs_walk.c   dot-entry/remove-tree       [webdav+s3+query] │
 │  src/core/compat/staged_file temp open/commit/abort      [webdav+s3]   │
-│  src/cms/frame_io.c     CMS send-all + frame build  [cms paths]   │
+│  src/net/cms/frame_io.c     CMS send-all + frame build  [cms paths]   │
 │  src/core/compat/xml.c       minimal XML scanner         [webdav]      │
 └────────────────────────────────────────────────────────────────────┘
 ```

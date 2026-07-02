@@ -164,9 +164,9 @@ Each block is 3–4 lines.  A merge function with 20 fields is 60–80 lines of 
 | `src/webdav/postconfig.c` (merge section) | ~70 | 35 | −35 |
 | `src/s3/config.c` (merge section) | ~60 | 30 | −30 |
 | `src/fs/cache/config.c` (merge section) | ~50 | 25 | −25 |
-| `src/proxy/config.c` (merge section) | ~45 | 22 | −23 |
+| `src/net/proxy/config.c` (merge section) | ~45 | 22 | −23 |
 | `src/metrics/config.c` (merge section) | ~30 | 15 | −15 |
-| `src/upstream/config.c` (merge section) | ~35 | 17 | −18 |
+| `src/net/upstream/config.c` (merge section) | ~35 | 17 | −18 |
 | `src/core/config/merge_macros.h` (new) | 0 | +60 | +60 |
 | **Net** | | | **−191** |
 

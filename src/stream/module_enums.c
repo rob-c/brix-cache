@@ -6,8 +6,8 @@
  * to the XROOTD_* constants used by the rest of the module.
  */
 #include "core/ngx_xrootd_module.h"
-#include "cms/cns.h"               /* §6 CNS mode enum */
-#include "manager/health_check.h"  /* XROOTD_HC_TYPE_* */
+#include "net/cms/cns.h"               /* §6 CNS mode enum */
+#include "net/manager/health_check.h"  /* XROOTD_HC_TYPE_* */
 #include "module_enums.h"
 
 /* §6 xrootd_cns mode values. */

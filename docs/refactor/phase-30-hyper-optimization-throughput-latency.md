@@ -306,7 +306,7 @@ Feed OpenSSL `EVP_DecodeUpdate` incrementally with a small fixed buffer.
 
 ### D.1 `[VERIFIED]` Redirect cache is an O(n) scan under a global spinlock — **P1-2**
 
-`src/manager/redir_cache.c:148-163` (lookup) and `:183-208` (insert) hold
+`src/net/manager/redir_cache.c:148-163` (lookup) and `:183-208` (insert) hold
 `xrootd_redir_mutex` across a **full linear scan** of all `capacity` (default 512)
 entries, comparing `ngx_strcmp(e->path, path)` each slot. Every `kXR_open`/locate
 that consults the redirect cache serializes on this one lock and walks ~200 KB of
@@ -322,7 +322,7 @@ entries (L3-missing). On a busy manager this is a top contention point.
 
 ### D.2 `[AUDIT]` Server registry full-scan per locate/select — **P1-2**
 
-`src/manager/registry.c` (`select_read`, `locate_all`, `register`,
+`src/net/manager/registry.c` (`select_read`, `locate_all`, `register`,
 `update_load`) scan the 128-slot registry under `xrootd_srv_mutex`, and
 `srv_path_matches` (`:134-167`) re-parses colon-delimited path tokens per query.
 Cache "best server per path" (TTL), and/or partition by path-hash bucket to shrink
@@ -356,7 +356,7 @@ list in the metadata sidecar for O(1) eviction.
 
 ### D.6 `[VERIFIED]` Proxy splice pipes use the default 64 KiB — **P0-5**
 
-`src/proxy/events_splice.c` creates pipes with `pipe2` and never calls
+`src/net/proxy/events_splice.c` creates pipes with `pipe2` and never calls
 `fcntl(F_SETPIPE_SZ)` (verified: no `F_SETPIPE_SZ` anywhere). A 1 GiB relayed body
 → ~16 384 `splice` calls at 64 KiB each. Set the pipe to 1 MiB (Linux max default)
 → ~16× fewer syscalls.
@@ -366,14 +366,14 @@ list in the metadata sidecar for O(1) eviction.
 
 ### D.7 `[AUDIT]` Proxy response body uses raw `ngx_alloc` per response
 
-`src/proxy/events_read.c:~98` `ngx_alloc(resp_dlen + 1, ...)` per non-spliced
+`src/net/proxy/events_read.c:~98` `ngx_alloc(resp_dlen + 1, ...)` per non-spliced
 (TLS/pipelined) response, capped at 16 MiB. Use a per-worker buffer pool or
 `ngx_palloc` to cut allocator churn; revisit the 16 MiB cap with chunked relay for
 large TLS responses.
 
 ### D.8 `[AUDIT]` Upstream/proxy connection pool: O(n) scan + dead-keepalive
 
-`src/proxy/pool.c:~228-262` linear-scans the 32-slot pool per acquire; the
+`src/net/proxy/pool.c:~228-262` linear-scans the 32-slot pool per acquire; the
 keepalive timer (`:136-165`) re-arms but never validates the connection, so a
 restarted upstream leaves zombie sockets that cost a failed read on first reuse.
 Hash the pool by `(upstream_idx, auth, token_hash)`; either validate with a
@@ -431,7 +431,7 @@ requests share cache lines → RFO ping-pong (false sharing) on high-core machin
 - `src/metrics/metrics_macros.h:35-47`: `if (ctx && ctx->metrics)` re-evaluated at
   20+ call sites/request. Hoist a validated `metrics` pointer into the context once
   at request entry.
-- `src/ratelimit/ratelimit.c:36,50,103,166,211`: `ngx_current_msec` re-read 5×/check
+- `src/net/ratelimit/ratelimit.c:36,50,103,166,211`: `ngx_current_msec` re-read 5×/check
   — read once, pass down.
 - `src/metrics/tracking.c:154-158`: `gettimeofday()` syscall on new-user insert —
   use cached `ngx_time()`.
@@ -440,7 +440,7 @@ requests share cache lines → RFO ping-pong (false sharing) on high-core machin
 
 ### E.4 `[AUDIT]` Rate-limit + dashboard SHM spinlock contention — **P2-3**
 
-`src/ratelimit/ratelimit.c:38-71` holds `shpool->mutex` across lookup + token-bucket
+`src/net/ratelimit/ratelimit.c:38-71` holds `shpool->mutex` across lookup + token-bucket
 arithmetic; `src/core/shm/kv.c:247-282` holds the KV mutex across a linear-probe scan;
 `src/dashboard/transfer_table.c:82-135` holds `xrootd_dashboard_mutex` across an
 O(512) free-slot scan + memzero + field copies on every open/close. Under a

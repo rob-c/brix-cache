@@ -64,7 +64,7 @@ work is to make that discipline universal.
   reference pattern.**
 - **Bounded shared-memory registries.** Session registry is fixed-capacity
   (`XROOTD_SESSION_REGISTRY_SLOTS`, `src/session/registry.h:30`); manager
-  registry is 128 slots (`src/manager/registry.c`), rejects-on-full, and
+  registry is 128 slots (`src/net/manager/registry.c`), rejects-on-full, and
   increments `xrootd_registry_full_total`. No unbounded growth.
 - **A rich cap vocabulary already exists** — `XROOTD_MAX_FILES`,
   `XROOTD_MAX_READV_TOTAL`, `XROOTD_READV_MAXSEGS`, `XROOTD_MAX_WALK_DEPTH`,
@@ -86,7 +86,7 @@ Severity reflects exploitability by an external peer.
 | F1 | `src/read/readv.c:79`, `:250` | `malloc(segment_count * sizeof(*ranges))` / `ngx_alloc(segment_count * …)`. `segment_count = cur_dlen / SEGSIZE` (`:204`) is bounded by `recv.c`, but the **`* sizeof` multiply has no explicit overflow/`MAXSEGS` guard at the callsite** — defense-in-depth missing. | Med | Explicit `if (segment_count > XROOTD_READV_MAXSEGS) reject;` + checked-mul helper |
 | F2 | `src/tpc/gsi_outbound_exchange.c:222,271,335,404,439` | DH/cert exchange does ~5 `malloc`/`OPENSSL_malloc` + many OpenSSL handles with hand-rolled `goto round_fail/done`. Long, branchy error paths driven by a **remote origin's** buckets → high risk of handle/heap leak on any malformed bucket. | High | Scoped-cleanup idiom (W3); fuzz the bucket parser (W7) |
 | F3 | `src/read/readv.c:79` (and other per-request `malloc`) | Raw `malloc`/`free` used where a **request/transient pool** would auto-reclaim on the error paths. Each manual `free` is a chance to miss one. | Med | Prefer pool-backed alloc on per-request paths (W4) |
-| F4 | `src/session/registry.*`, `src/manager/registry.c` | Registries are **capacity-bounded but never time-evicted**. A peer that opens sessions/handles (or a flapping CMS server) can fill all slots → legitimate logins rejected (slot-exhaustion DoS). No `last_seen` TTL reaper on the session table. | High | TTL/LRU eviction + per-source quota (W5) |
+| F4 | `src/session/registry.*`, `src/net/manager/registry.c` | Registries are **capacity-bounded but never time-evicted**. A peer that opens sessions/handles (or a flapping CMS server) can fill all slots → legitimate logins rejected (slot-exhaustion DoS). No `last_seen` TTL reaper on the session table. | High | TTL/LRU eviction + per-source quota (W5) |
 | F5 | `src/session/registry.h:30` vs `:36` docstring | `#define XROOTD_SESSION_REGISTRY_SLOTS 1024` but the doc comment says “default 256” — **cap drift** between declared limit and documentation; risk of wrong capacity assumptions in sizing/SHM math. | Low | Reconcile + single source of truth (W5) |
 | F6 | 26 files use `EVP_*`; `src/auth/gsi`, `src/tpc`, `src/auth/crypto`, `src/auth/token`, `src/s3` | OpenSSL `*_new`/`d2i_*`/`PEM_read_*`/`BIO_new` with error returns; needs per-function verification that **every** return path frees. Manual audit cannot guarantee coverage at this scale. | High | LSan/valgrind CI is the real guard (W6) + scoped idiom (W3) |
 | F7 | `src/dashboard`, `src/auth/token`, `src/metrics`, `src/query`, `src/s3` (jansson, 10 files) | `json_t` ownership (borrowed `json_object_get` vs owned `json_loads`/`*_new`; stealing `json_object_set_new`) is error-prone → leak or double-decref. | Med | Ownership audit + LSan (W6); jansson cheatsheet in W3 |
@@ -158,8 +158,8 @@ makes leaks structurally hard rather than reviewer-dependent.
 - For per-request work on a long-lived stream session, prefer a **transient
   pool** or register `ngx_pool_cleanup_add` so teardown frees automatically
   (closes F3, F8).
-- Audit each raw `ngx_alloc` in `src/stream`, `src/session`, `src/cms`,
-  `src/manager`, `src/handshake`, `src/read`, `src/write`, `src/tpc` for a
+- Audit each raw `ngx_alloc` in `src/stream`, `src/session`, `src/net/cms`,
+  `src/net/manager`, `src/handshake`, `src/read`, `src/write`, `src/tpc` for a
   guaranteed free on the **session-close** and **error-disconnect** paths.
 - Where a buffer lives exactly as long as the session, attach it to the
   connection pool's cleanup chain at allocation time so there is no second place
@@ -174,7 +174,7 @@ makes leaks structurally hard rather than reviewer-dependent.
   table so exhaustion is observable in `/metrics`.
 - Reconcile the slot-count cap drift (F5): one `#define`, doc matches code.
 - Confirm redirect/health caches and pending queues
-  (`src/manager`, `src/upstream`, `src/proxy`) have a bound + eviction.
+  (`src/net/manager`, `src/net/upstream`, `src/net/proxy`) have a bound + eviction.
 
 ### W6 — Automated leak / UAF detection in CI (the keystone)
 
@@ -315,7 +315,7 @@ capped + overflow-checked:
 - `src/tpc/io.c:118` — `*dlen+1` *(capped ✓ `TPC_RESP_MAX_BODY`)*
 - `src/query/prepare.c:317` — `cur_dlen+1` *(verify `MAX_PREPARE_PAYLOAD` gate)*
 - `src/fs/cache/origin_protocol.c:220,321` — `malloc(total)` *(verify cap)*
-- `src/proxy/forward_relay_dispatch.c:136`, `forward_rewrite_helpers.c:61,139`
+- `src/net/proxy/forward_relay_dispatch.c:136`, `forward_rewrite_helpers.c:61,139`
   — `ngx_alloc(total/new_total)` *(verify `XROOTD_PROXY_MAX_BODY`)*
 - `src/webdav/dead_props.c:129,285,321` — XML len-derived *(verify cap)*
 - `src/core/compat/namespace_ops.c:114` — `list_len` *(verify source)*

@@ -3,7 +3,7 @@ tests/test_cms_wire_pup_conformance.py — CMS manager-protocol Pup/frame
 wire-conformance tests.
 
 This suite is a byte-level conformance harness for the nginx-xrootd CMS
-heartbeat client (src/cms/{wire,frame_io,send,recv}.c).  It provisions ONE
+heartbeat client (src/net/cms/{wire,frame_io,send,recv}.c).  It provisions ONE
 dedicated nginx data-node configured with ``xrootd_cms_manager`` pointing at a
 tiny in-process Python "manager" peer that speaks the real XrdCms framing.  The
 peer accepts the node's TCP connection, captures the LOGIN/LOAD frames the node
@@ -48,7 +48,7 @@ CMS_SRV_PORT     = int(os.environ.get("TEST_CWP_CMS_SRV_PORT")   or free_port())
 
 
 # ---------------------------------------------------------------------------
-# CMS wire constants — mirror src/cms/cms_internal.h + XProtocol/YProtocol.hh
+# CMS wire constants — mirror src/net/cms/cms_internal.h + XProtocol/YProtocol.hh
 # ---------------------------------------------------------------------------
 
 CMS_RR_LOGIN  = 0

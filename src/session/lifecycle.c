@@ -3,8 +3,8 @@
  */
 
 #include "core/ngx_xrootd_module.h"
-#include "proxy/proxy.h"
-#include "proxy/proxy_internal.h"
+#include "net/proxy/proxy.h"
+#include "net/proxy/proxy_internal.h"
 #include "registry.h"   /* xrootd_session_unregister: targeted session teardown */
 
 /* kXR_ping - liveness check */

@@ -69,17 +69,17 @@ These features add significant code but are optional — not required by any XRo
 
 **Impact:** -3,708 lines. Remove `src/fs/cache/` directory and update `config.h` to exclude all source files from compilation. Update `read/open_overview.c` callers to fall back to direct origin reads. The cache fill uses its own XRootD client protocol (origin_protocol.c: 623 lines) — removing it eliminates a full sub-protocol implementation.
 
-### Manager/Cluster Mode (`src/manager/` — ~794 lines)
+### Manager/Cluster Mode (`src/net/manager/` — ~794 lines)
 
 **Files:** registry.c (573), pending.c (221)
 
 **Functionality:** 128-slot shared-memory server table with spinlock-protected CRUD operations for CMS cluster membership. Used by `kXR_locate` and `kXR_open` to redirect clients to best data server via longest-prefix matching over colon-delimited token paths. Reads select lowest util_pct, writes select highest free_mb. Pending locate tracking for async kXR_locate resolution across workers with timeout management and slot reuse.
 
-**Assessment:** **ELIMINATE (registry), KEEP (CMS client).** The CMS client-side heartbeat (`src/cms/`) is more commonly used than the server-side registry. Removing `registry.c` + `pending.c` would simplify cluster mode but retain CMS client functionality (heartbeat reporting). Update `kXR_locate` dispatch to use static `xrootd_manager_map` only, remove pending-locate SHM zone from config.
+**Assessment:** **ELIMINATE (registry), KEEP (CMS client).** The CMS client-side heartbeat (`src/net/cms/`) is more commonly used than the server-side registry. Removing `registry.c` + `pending.c` would simplify cluster mode but retain CMS client functionality (heartbeat reporting). Update `kXR_locate` dispatch to use static `xrootd_manager_map` only, remove pending-locate SHM zone from config.
 
 **Impact:** -794 lines. Manager becomes a simple static redirector — no dynamic server selection via SHM registry.
 
-### CMS Heartbeat (`src/cms/` — ~1,714 lines)
+### CMS Heartbeat (`src/net/cms/` — ~1,714 lines)
 
 **Files:** send.c (254), connect.c (260), recv.c (9), wire.c (12), space.c (4), frame_io.c (4), server_module.c (9), server_handler.c (2), server_recv.c (18), server_send.c (4), config.c (2)
 
@@ -124,7 +124,7 @@ The `src/core/compat/` module (5,931 lines) bridges XRootD protocol semantics to
 
 **Impact:** ~178 lines in compat/path.c + path/resolve*.c could be reduced by ~30-40%. Keep confinement check and ENOENT-parent; simplify dot/dotdot validation to single-pass walk.
 
-### TLS Handling (`src/connection/tls.c`, `src/upstream/tls.c`) — Low Impact
+### TLS Handling (`src/connection/tls.c`, `src/net/upstream/tls.c`) — Low Impact
 
 **Custom implementation:** In-protocol TLS upgrade for native XRootD stream (kXR_ableTLS/kXR_haveTLS handshake). Wraps SSL on existing TCP connection, re-sends kXR_login over TLS after handshake completes. Upstream proxy: kXR_gotoTLS → upstream TLS upgrade with SNI. Total: 73 lines in tls.c + upstream TLS logic.
 
@@ -508,8 +508,8 @@ Shared preamble in `src/core/config/shared_conf.h`: `enable`, `root`, `root_cano
 **Current state:** ~50+ nginx config directives across all three protocol layers. Many are optional features that map directly to code modules (see Section 1 elimination candidates):
 - `xrootd_dashboard on/off` → src/dashboard/
 - `xrootd_cache on/off` + `xrootd_cache_root` → src/fs/cache/
-- `xrootd_manager_mode on/off` + `xrootd_manager_map` → src/manager/
-- `xrootd_cms_server on/off` + `xrootd_cms_manager` → src/cms/
+- `xrootd_manager_mode on/off` + `xrootd_manager_map` → src/net/manager/
+- `xrootd_cms_server on/off` + `xrootd_cms_manager` → src/net/cms/
 - `xrootd_tpc_outbound_bearer_file` → src/tpc/
 - `xrootd_s3_access_key` + `xrootd_s3_secret_key` → src/s3/
 

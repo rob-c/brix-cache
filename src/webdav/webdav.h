@@ -64,7 +64,7 @@
 #include "core/compat/protocol_caps.h"
 #include "core/config/shared_conf.h"
 #include "core/shm/kv.h"
-#include "mirror/mirror.h"
+#include "net/mirror/mirror.h"
 #include "core/shm/rate_limit.h"
 
 #include <ngx_open_file_cache.h>

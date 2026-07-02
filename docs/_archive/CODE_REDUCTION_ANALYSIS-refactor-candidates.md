@@ -175,7 +175,7 @@ Repeats with minor variations across 300+ lines
 | src/dashboard/module.c | ~300 | -20 | High | Config merge + setter wrappers |
 | src/webdav/auth_cert.c | 498 | -30 | High | Memory allocation patterns |
 | src/webdav/tpc_config.c | 56 | -15 | High | Address parsing |
-| src/upstream/directives.c | ~200 | -60 | High | Address parsing + boilerplate |
+| src/net/upstream/directives.c | ~200 | -60 | High | Address parsing + boilerplate |
 
 ## Concrete Examples
 
@@ -206,7 +206,7 @@ NGX_ALLOC_OR_CONF_ERROR(ptr, pool, size);
 **Found in:**
 - src/fs/cache/directives.c (lines 65-68, 80-81, 94-95)
 - src/tpc_config.c
-- src/upstream/directives.c
+- src/net/upstream/directives.c
 - Multiple other directive files
 
 ### Example 2: HTTP Response Helper

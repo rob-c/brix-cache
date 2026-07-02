@@ -10,8 +10,8 @@
 
 #include "webdav.h"
 #include "tpc/common/registry.h"
-#include "mirror/http_mirror.h"
-#include "ratelimit/ratelimit.h"
+#include "net/mirror/http_mirror.h"
+#include "net/ratelimit/ratelimit.h"
 
 ngx_int_t
 ngx_http_xrootd_webdav_postconfiguration(ngx_conf_t *cf)

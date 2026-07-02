@@ -22,7 +22,7 @@
 
 /* Phase 24 — shared mirror config block embedded below (self-contained;
  * pulls only ngx_core, so safe to include from this header). */
-#include "mirror/mirror.h"
+#include "net/mirror/mirror.h"
 
 /* Tape/stage directive config block (xrootd_frm_conf_t). Pulls only ngx_core, so
  * it is safe to include from this header. (FRM-dissolution: was ../frm/frm.h.) */

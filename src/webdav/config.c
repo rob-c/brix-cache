@@ -13,7 +13,7 @@
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "auth/token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
 #include "proxy_internal.h"
-#include "mirror/http_mirror.h"
+#include "net/mirror/http_mirror.h"
 #include "core/config/config.h"
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"

@@ -57,9 +57,9 @@ are `b->memory=1` only, cleartext file-backed sendfile (INVARIANT #2).
 
 | Capability | Evidence | State |
 |---|---|---|
-| Cache-fill outbound state machine `HANDSHAKE→PROTOCOL→TLS→LOGIN→AUTH→DONE` | `src/upstream/bootstrap.c:62`; enum `upstream_internal.h:31-36` | Done |
-| Cache-fill outbound **`kXR_gotoTLS` upgrade** (detect flag, resend login over TLS) | `src/upstream/bootstrap.c:85-116` (`xrootd_upstream_start_tls`) | **Done** |
-| Cache-fill outbound **single** `kXR_authmore` → token credential | `src/upstream/bootstrap.c:130-153`; `authmore_count` field `upstream_internal.h:73` | Done (1 round only) |
+| Cache-fill outbound state machine `HANDSHAKE→PROTOCOL→TLS→LOGIN→AUTH→DONE` | `src/net/upstream/bootstrap.c:62`; enum `upstream_internal.h:31-36` | Done |
+| Cache-fill outbound **`kXR_gotoTLS` upgrade** (detect flag, resend login over TLS) | `src/net/upstream/bootstrap.c:85-116` (`xrootd_upstream_start_tls`) | **Done** |
+| Cache-fill outbound **single** `kXR_authmore` → token credential | `src/net/upstream/bootstrap.c:130-153`; `authmore_count` field `upstream_internal.h:73` | Done (1 round only) |
 | TPC pull auth-method selection (ztn vs GSI), anchored `&P=` parse | `src/tpc/gsi_outbound_finish.c:27-86` (`tpc_outbound_finish_login`, `xrootd_sec_proto_advertised`) | Done |
 | TPC pull outbound ztn JWT (`"ztn\0"`+token, seq 3) | `src/tpc/gsi_outbound_common.c:132` (`tpc_outbound_ztn`) | Done |
 | TPC pull outbound GSI — **fixed 2 rounds** (certreq → DH cert exchange) | `src/tpc/gsi_outbound_certreq.c` (209 L), `gsi_outbound_exchange.c` (464 L); decl `tpc_internal.h:181-203` | Done (no ≥3 round) |
@@ -75,7 +75,7 @@ four concrete deltas (W1.2).
 
 ## W1.2 Precise gaps
 
-1. **Cache-fill rejects multi-round auth.** `src/upstream/bootstrap.c:134-138`
+1. **Cache-fill rejects multi-round auth.** `src/net/upstream/bootstrap.c:134-138`
    aborts when `authmore_count > 0`; `:163-174` aborts on a second `kXR_authmore`
    after `XRD_UP_BS_AUTH`. GSI on the sec layer is ≥2 rounds, so **no GSI origin
    can be a read-through cache-fill source.**
@@ -135,7 +135,7 @@ authenticate downstream **as the user**.
 
 ## W1.4 Design
 
-### W1.4.a One outbound auth state machine — `src/upstream/auth_handshake.{c,h}`
+### W1.4.a One outbound auth state machine — `src/net/upstream/auth_handshake.{c,h}`
 
 ```c
 /* auth_handshake.h */
@@ -192,7 +192,7 @@ void xrootd_oba_free(xrootd_oba_ctx_t *c);   /* releases mstate */
   and bounds hostile authmore loops.
 
 **Callers:**
-- `src/upstream/bootstrap.c`: in `XRD_UP_BS_LOGIN`/`XRD_UP_BS_AUTH`, on each
+- `src/net/upstream/bootstrap.c`: in `XRD_UP_BS_LOGIN`/`XRD_UP_BS_AUTH`, on each
   `kXR_authmore` call `xrootd_oba_step()`, frame via the existing upstream writer,
   stay in `XRD_UP_BS_AUTH` while `CONT`, advance to `XRD_UP_BS_DONE` on `DONE`.
   **Delete** `authmore_count` (field `upstream_internal.h:73` + checks at
@@ -269,11 +269,11 @@ uint32_t xrootd_tpc_key_take_proxy(const char *key, u_char *buf, uint32_t bufsz)
 ```
 
 ## W1.5 File-by-file changes
-**New:** `src/upstream/auth_handshake.c` + `.h` (register in `./config` — see C0).
+**New:** `src/net/upstream/auth_handshake.c` + `.h` (register in `./config` — see C0).
 **Modify:**
-- `src/upstream/bootstrap.c` — drive `LOGIN`/`AUTH` via the state machine; delete
+- `src/net/upstream/bootstrap.c` — drive `LOGIN`/`AUTH` via the state machine; delete
   `authmore_count` logic.
-- `src/upstream/upstream_internal.h` — remove `authmore_count` (`:73`).
+- `src/net/upstream/upstream_internal.h` — remove `authmore_count` (`:73`).
 - `src/tpc/thread.c` — auth loop via the state machine.
 - `src/tpc/gsi_outbound_finish.c` — `tpc_outbound_finish_login` → `select`+loop wrapper.
 - `src/tpc/gsi_outbound_certreq.c`, `gsi_outbound_exchange.c` — expose per-round bodies as the GSI `step()` callback (mechanical extraction; logic reused).
@@ -704,7 +704,7 @@ table.
 ### B1.1 Cache-fill outbound GSI — today vs. W1
 
 ```
-TODAY (src/upstream/bootstrap.c)               W1 (auth_handshake state machine)
+TODAY (src/net/upstream/bootstrap.c)               W1 (auth_handshake state machine)
 nginx ──► origin                               nginx ──► origin
   handshake/protocol/login (anon) ─►             handshake/protocol/login ─►
   ◄─ kXR_authmore (GSI)                          ◄─ kXR_authmore (parms: &P=gsi)
@@ -771,7 +771,7 @@ The call site stays minimal; the multi-round loop lives in
 Add a `kXR_gotoTLS` branch earlier (after the `kXR_protocol` reply parse) mirroring
 `upstream/bootstrap.c:90-116`, gated on `xrootd_tpc_outbound_tls`.
 
-### B2.2 `src/upstream/bootstrap.c:130-174` — delete the single-round cap
+### B2.2 `src/net/upstream/bootstrap.c:130-174` — delete the single-round cap
 ```c
     case XRD_UP_BS_LOGIN: {
         ...
@@ -805,7 +805,7 @@ Add a `kXR_gotoTLS` branch earlier (after the `kXR_protocol` reply parse) mirror
 +       }
         break;
 ```
-Remove `authmore_count` from `src/upstream/upstream_internal.h:73`; add an
+Remove `authmore_count` from `src/net/upstream/upstream_internal.h:73`; add an
 `xrootd_oba_ctx_t oba;` field.
 
 ### B2.3 `src/read/read.c:131-133` — insert the zip branch before slice_mode
@@ -1123,7 +1123,7 @@ config-field/command declarations, not the file list. A new `.c` must be added t
 **Exact additions to `./config`:**
 ```sh
 # W1 — after config:572 ($ngx_addon_dir/src/tpc/bootstrap.c \), in the same block:
-    $ngx_addon_dir/src/upstream/auth_handshake.c \
+    $ngx_addon_dir/src/net/upstream/auth_handshake.c \
 # (auth_handshake.c is shared by the upstream + tpc blocks; add once to the
 #  variable that both link, or to each srcs list that references upstream/tpc.)
 
@@ -1139,14 +1139,14 @@ but trigger rebuilds. After editing `./config`:
             --with-http_dav_module --with-threads --add-module=$REPO && make -j$(nproc)
 ```
 
-## C1. `src/upstream/auth_handshake.h` (complete)
+## C1. `src/net/upstream/auth_handshake.h` (complete)
 ```c
 /*
  * auth_handshake.h — shared outbound XRootD auth state machine (W1).
  *
  * WHAT: One driver that completes a multi-round kXR_authmore exchange on an
  *       outbound connection, for BOTH the read-through cache-fill path
- *       (src/upstream/bootstrap.c) and the native-TPC pull path (src/tpc/). It
+ *       (src/net/upstream/bootstrap.c) and the native-TPC pull path (src/tpc/). It
  *       selects an auth method from the server's &P= login parameter block and
  *       emits the next kXR_auth credential payload each round until kXR_ok.
  * WHY:  Today cache-fill rejects a 2nd kXR_authmore (bootstrap.c) so no GSI
@@ -1916,7 +1916,7 @@ driver specified in **§W1.4.a** + **§B3.1** + the **D1.1 state table** (note t
 D1.1 correction: the loop terminates on the *received* `kXR_ok`, not a
 step-returned `DONE`).
 
-- New `src/upstream/auth_handshake.{c,h}`; GSI continuation lifts the round
+- New `src/net/upstream/auth_handshake.{c,h}`; GSI continuation lifts the round
   bodies from `gsi_outbound_certreq.c`/`gsi_outbound_exchange.c` behind a
   `step(round)` callback (logic unchanged — this is the refactor that makes
   "multi-round" exist in one place).
@@ -2218,7 +2218,7 @@ any server that sends the asynresp) are now handled.
 Two more W1 stages landed, each independently revertable and gated:
 
 **Stage-2 residual — cache-fill multi-round kXR_authmore (bounded).**
-`src/upstream/bootstrap.c` previously aborted on the *second* kXR_authmore
+`src/net/upstream/bootstrap.c` previously aborted on the *second* kXR_authmore
 ("repeated kXR_authmore (not supported)"), blocking any multi-round origin auth.
 Replaced with one shared bounded helper `xrootd_upstream_continue_auth()` used by
 both the LOGIN and AUTH phases, capped by `XRD_OBA_MAX_ROUNDS` (8) — closes the

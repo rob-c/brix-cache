@@ -5,7 +5,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "../src/proxy/gsi_upstream.h"
+#include "../src/net/proxy/gsi_upstream.h"
 
 int main(void)
 {

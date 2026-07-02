@@ -1,7 +1,7 @@
 #include "server.h"
 #include "router.h"                       /* table-driven opcode routing */
 #include "rrdata.h"                       /* Pup decode + statfs reply encode */
-#include "manager/registry.h"          /* aggregate space for statfs reply */
+#include "net/manager/registry.h"          /* aggregate space for statfs reply */
 #include "cns.h"                          /* §6 CNS inventory + event codec */
 #include "metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 #include "core/compat/log_diag.h"

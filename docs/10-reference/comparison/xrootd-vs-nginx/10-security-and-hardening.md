@@ -19,7 +19,7 @@ re-deriving them:
 
 - [`../conformance-findings.md`](../conformance-findings.md) — fixed wire divergences vs. the spec + stock tools (incl. the framing batch).
 - `tests/test_conf_framing.py` — raw-socket malformed/boundary framing differential vs. the stock data server.
-- `src/auth/impersonate/README.md`, `src/fs/path/README.md`, `src/ratelimit/README.md` — subsystem invariants.
+- `src/auth/impersonate/README.md`, `src/fs/path/README.md`, `src/net/ratelimit/README.md` — subsystem invariants.
 
 ---
 
@@ -409,7 +409,7 @@ nginx core front end, plus this module's identity-aware limiter.
   connect/read/handshake deadlines + TCP keepalive / `TCP_USER_TIMEOUT` (phase
   39/51) mean a slow or stalled client is timed out rather than holding a worker.
   A `max_connections` cap bounds total concurrent connections.
-- **Identity-aware leaky-bucket limiter** (`src/ratelimit/`, phase 25). Enforces
+- **Identity-aware leaky-bucket limiter** (`src/net/ratelimit/`, phase 25). Enforces
   **request-rate**, **bandwidth**, and **concurrency** (in-flight) limits keyed
   on XRootD identity dimensions — VO, token issuer, IP, GSI DN (hashed), or
   storage-volume path prefix. On the stream plane a throttled client gets

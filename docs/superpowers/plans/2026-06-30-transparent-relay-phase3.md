@@ -22,8 +22,8 @@
 ### Task 1 (3a): Streaming frame decoder `xrootd_tap_stream`
 
 **Files:**
-- Modify: `src/tap/tap.h` (add the stream type + API)
-- Create: `src/tap/tap_stream.c`
+- Modify: `src/net/tap/tap.h` (add the stream type + API)
+- Create: `src/net/tap/tap_stream.c`
 - Test: extend `tests/tap_unittest.c`
 
 **Interfaces:**
@@ -106,7 +106,7 @@ Add `test_stream_chunked(); test_stream_response_and_skip();` to `main`.
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/tap/tap_decode.c src/tap/tap_emit.c src/tap/tap_audit.c 2>&1 | head -3`
+Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c src/net/tap/tap_emit.c src/net/tap/tap_audit.c 2>&1 | head -3`
 Expected: FAIL — undefined `xrootd_tap_stream_init` / `_feed`.
 
 - [ ] **Step 3: Add the stream API to `tap.h`** (after the audit formatter decl):
@@ -141,7 +141,7 @@ void xrootd_tap_stream_feed(xrootd_tap_stream_t *st, const uint8_t *buf,
     size_t len);
 ```
 
-- [ ] **Step 4: Write `src/tap/tap_stream.c`**:
+- [ ] **Step 4: Write `src/net/tap/tap_stream.c`**:
 
 ```c
 /*
@@ -250,7 +250,7 @@ xrootd_tap_stream_feed(xrootd_tap_stream_t *st, const uint8_t *buf, size_t len)
 
 - [ ] **Step 5: Run to verify it passes**
 
-Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/tap/tap_decode.c src/tap/tap_emit.c src/tap/tap_audit.c src/tap/tap_stream.c && /tmp/tap_unittest`
+Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c src/net/tap/tap_emit.c src/net/tap/tap_audit.c src/net/tap/tap_stream.c && /tmp/tap_unittest`
 Expected: PASS — `tap_unittest: all checks passed`.
 
 - [ ] **Step 6: Register `tap_stream.c`** in `config` next to the other tap sources; **commit SKIP**.

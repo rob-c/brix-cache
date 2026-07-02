@@ -38,7 +38,7 @@ from settings import HOST, NGINX_BIN, free_port
 H = HOST
 _DIR = os.path.join(os.environ.get("TMPDIR", "/tmp"), "xrd_cms_resilience")
 
-# CMS wire constants — mirror src/cms/cms_internal.h
+# CMS wire constants — mirror src/net/cms/cms_internal.h
 CMS_RR_LOGIN  = 0
 CMS_RR_SELECT = 10
 CMS_RR_LOAD   = 16

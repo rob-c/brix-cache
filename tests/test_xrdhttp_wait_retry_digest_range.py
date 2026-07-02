@@ -12,7 +12,7 @@ driven deterministically.  The instance is started once by
 port `XRDHTTP_DIGEST_PORT`); the suite seeds its fixture file into the data root
 and connects, rather than spawning its own server.  It then proves the documented
 HTTP behaviour of src/webdav (get.c, methods_basic.c, xrdhttp.c,
-xrdhttp_multipart.c) and src/ratelimit (ratelimit_http.c):
+xrdhttp_multipart.c) and src/net/ratelimit (ratelimit_http.c):
 
   * a per-IP request-rate rule emits HTTP 429 + Retry-After once the burst is
     spent (the HTTP analogue of the stream X-Xrootd-Wait back-pressure);

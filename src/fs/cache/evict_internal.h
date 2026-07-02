@@ -11,7 +11,7 @@
 
 #include "cache_internal.h"
 #include "cstore.h"                 /* xrootd_cstore_t / _scan / _evict (P3/G5) */
-#include "manager/registry.h"
+#include "net/manager/registry.h"
 
 #include <dirent.h>
 #include <fcntl.h>

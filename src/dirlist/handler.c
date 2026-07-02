@@ -9,7 +9,7 @@
 #include "core/ngx_xrootd_module.h"
 #include "core/aio/aio.h"
 #include "path/op_path.h"
-#include "manager/registry.h"
+#include "net/manager/registry.h"
 #include "protocol/dirlist_fmt.h"   /* shared dstat lead-in sentinel */
 #include "fs/vfs.h"                 /* directory listing via the VFS seam */
 #include "dcksm.h"

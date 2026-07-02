@@ -107,8 +107,8 @@ exists here.
   `XrdPfc/` (the full proxy-file-cache / XCache policy engine with purge,
   snapshot, resource monitoring).
 - **Here:** `src/fs/cache/` provides a practical read-through/slice cache with
-  eviction and write-through helpers and advertises `kXR_attrCache`; `src/proxy/`
-  + `src/upstream/` provide protocol-bridge proxying. This is **not** a
+  eviction and write-through helpers and advertises `kXR_attrCache`; `src/net/proxy/`
+  + `src/net/upstream/` provide protocol-bridge proxying. This is **not** a
   full PSS/PFC replacement.
 - **Why it matters / impact:** sites depending on XCache purge/snapshot/policy
   internals or PSS remote-fill-as-storage need explicit review. Do not assume
@@ -167,7 +167,7 @@ exists here.
 
 - **Official:** `XrdBwm/` (reservation-style bandwidth manager) and
   `XrdThrottle/` (request-rate plugin).
-- **Here:** `src/ratelimit/` implements cross-protocol, identity-aware
+- **Here:** `src/net/ratelimit/` implements cross-protocol, identity-aware
   request-rate, bandwidth, and concurrency limits (`xrootd_rate_limit_zone`,
   `xrootd_rate_limit_rule`, `xrootd_bandwidth_limit`,
   `xrootd_concurrency_limit`). This is arguably **more** capable for the common
@@ -270,8 +270,8 @@ exists here.
   are never advertised. **Not a practical gap** — correct behavior is to not
   advertise unimplemented GPF.
 - **CMS admin socket / virtual node ID / full CMS tooling:** practical
-  manager/redirector/locate/blacklist/metrics exist (`src/cms/`,
-  `src/manager/`); the full upstream CMS admin command ecosystem does not.
+  manager/redirector/locate/blacklist/metrics exist (`src/net/cms/`,
+  `src/net/manager/`); the full upstream CMS admin command ecosystem does not.
 - **`XrdClRecorder` (client record/replay):** **not verified** — no
   corresponding file found in this `XrdCl` checkout; it is a client-side tool
   regardless and out of replacement scope.
@@ -291,10 +291,10 @@ beyond "same protocol, different daemon." Each is source-grounded.
 | Feature | Source evidence | What it adds |
 |---|---|---|
 | **S3-compatible REST server** | `src/s3/` (`handler.c`, `auth_sigv4_*`, `get.c`, `put.c`, `list_objects_v2.c`, `multipart_*`, `copy.c`, `delete_objects.c`, browser POST) | A full S3 server endpoint over the same namespace: SigV4 (header + presigned), multipart, CopyObject, DeleteObjects, POST Object, OPTIONS/CORS, conditional GET/PUT, CRC64NVME checksums. Upstream ships `XrdClS3` (a **client** plugin), not an S3 REST server. One of the strongest module-only features. |
-| **Traffic mirroring / shadow replay** | `src/mirror/`, `src/mirror/stream_wmirror.c` | Shadow live reads and (gated) writes to an isolated backend to validate a candidate before cutover, logging divergence. No comparable upstream server subsystem found. A first-class migration tool. |
+| **Traffic mirroring / shadow replay** | `src/net/mirror/`, `src/net/mirror/stream_wmirror.c` | Shadow live reads and (gated) writes to an isolated backend to validate a candidate before cutover, logging divergence. No comparable upstream server subsystem found. A first-class migration tool. |
 | **Inline compression** | `src/core/compat/codec_{zlib,zstd,brotli,bzip2,lz4,lzma}.c`, `codec_core.c`, `http_compress.c` | gzip/xz/zstd/brotli/bzip2/lz4 across root/WebDAV/S3 and the client, in all four directions (encode/decode on read/write). |
 | **Prometheus pull metrics** | `src/metrics/`, `/metrics` endpoint | Low-cardinality counters and latency histograms across stream/WebDAV/S3/rate-limit/cache/FRM/mirror/cluster — the intended replacement for UDP XrdMon. |
-| **Leaky-bucket rate / bandwidth / concurrency limiting** | `src/ratelimit/`, `src/metrics/ratelimit.c` | Identity-aware (VO, issuer, DN hash, IP, volume prefix) request-rate, bandwidth, and concurrency shaping across **both** stream and HTTP surfaces — broader and more uniform than per-plugin `XrdThrottle`/`XrdBwm`. |
+| **Leaky-bucket rate / bandwidth / concurrency limiting** | `src/net/ratelimit/`, `src/metrics/ratelimit.c` | Identity-aware (VO, issuer, DN hash, IP, volume prefix) request-rate, bandwidth, and concurrency shaping across **both** stream and HTTP surfaces — broader and more uniform than per-plugin `XrdThrottle`/`XrdBwm`. |
 | **REST admin + live dashboard** | `src/dashboard/` (`api_admin.c`, `api.c`) | HTTP-inspectable transfer/cluster/cache/rate-limit/config state; admin write API with auth/cookie/HMAC paths; config download with fail-closed redaction. |
 | **WLCG Storage Resource Reporting (SRR)** | `src/srr/` (`builder.c`, `handler.c`, `module.c`) | First-class HTTP/JSON SRR endpoint for site accounting/discovery; no core upstream server equivalent in the reviewed tree. |
 | **Resilient pure-C native client suite + FUSE** | `client/apps/` (`xrdcp`, `xrdfs`, `xrddiag`, `xrdmapc`, `xrdprep`, `xrdgsiproxy`, `xrdadler32`, `xrdcrc32c`, `xrdcrc64`, `xrdsssadmin`, …), `client/lib/`, `xrootdfs*` FUSE | A clean-room `libxrdc`-based client + FUSE driver with connect-vs-IO timeouts, fast-fail on permanent errors, IPv6→IPv4 auto-downgrade, atomic/cancellable transfers. Independent of `libXrdCl`. (Server-replacement scope aside, this is a genuine module-family extra.) |
@@ -457,7 +457,7 @@ nginx-xrootd (`src/` and `client/`):
   `src/core/compat/namespace_ops.c`, `src/fs/cache/origin_protocol.c`
 - FRM/tape: `src/frm/`, `src/query/prepare.c`, `src/webdav/tape_rest.c`
 - HTTP/WebDAV/S3: `src/webdav/`, `src/s3/`
-- Extras: `src/mirror/`, `src/metrics/`, `src/ratelimit/`, `src/dashboard/`,
+- Extras: `src/net/mirror/`, `src/metrics/`, `src/net/ratelimit/`, `src/dashboard/`,
   `src/srr/`, `src/pmark/`, `src/core/compat/codec_*.c`, `src/core/compat/http_compress.c`
 - Client suite: `client/apps/`, `client/lib/`, `client/lib/sigver.c`
 - Conformance fixes: `src/read/stat.c`, `src/dirlist/handler.c`,

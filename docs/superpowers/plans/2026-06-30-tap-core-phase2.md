@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** A standalone, ngx-free, unit-tested **tap core** (`src/tap/`) that decodes XRootD wire frames (request + response) and fans each decoded frame out to registered sinks, with a JSON audit formatter as the first sink — ready to be wired into the transparent relay (Phase 3) and the new terminating proxy (Phase 4).
+**Goal:** A standalone, ngx-free, unit-tested **tap core** (`src/net/tap/`) that decodes XRootD wire frames (request + response) and fans each decoded frame out to registered sinks, with a JSON audit formatter as the first sink — ready to be wired into the transparent relay (Phase 3) and the new terminating proxy (Phase 4).
 
 **Architecture:** Pure C, no nginx / OpenSSL / allocation in the core. Reuses the existing single-source framing helpers in `src/protocol/frame_hdr.h` (unaligned-safe BE accessors, `xrd_resp_hdr_unpack`) and opcode constants in `src/protocol/opcodes.h` (`XRD_REQUEST_HDR_LEN`, `kXR_*`). The decoder turns a byte buffer into an `xrootd_tap_frame_t` (streamid, opcode/status, dlen, optional path slice); `xrootd_tap_emit` calls each registered `xrootd_tap_sink_fn`. Sinks that need nginx (log file, Prometheus metrics) are thin adapters added when the tap is wired into a consumer — NOT in this phase.
 
@@ -14,7 +14,7 @@
 - **HELPERS — never reimplement framing:** use `src/protocol/frame_hdr.h` accessors (`xrd_get_u16_be`/`xrd_get_u32_be`/`xrd_resp_hdr_unpack`) and `src/protocol/opcodes.h` constants. Do not hand-roll `ntohs`/`ntohl` or redefine `kXR_*`.
 - **Core stays ngx-free** so it unit-tests with plain gcc and embeds in any consumer.
 - **Metric cardinality (INVARIANT #8):** the future metrics sink must use low-cardinality labels only (no paths) — out of scope here but the audit sink is the path-bearing one by design.
-- **Build governance:** new `.c` files register in the top-level `./config` (`$ngx_addon_dir/src/tap/*.c`) then `./configure`; the standalone unit test does not need the module build.
+- **Build governance:** new `.c` files register in the top-level `./config` (`$ngx_addon_dir/src/net/tap/*.c`) then `./configure`; the standalone unit test does not need the module build.
 - **3 tests:** success (decode + emit + audit), error (truncated/partial frame), parity/safety (non-path op carries no path; oversized dlen clamped).
 
 ---
@@ -22,8 +22,8 @@
 ### Task 1: Frame types + header decoder
 
 **Files:**
-- Create: `src/tap/tap.h`
-- Create: `src/tap/tap_decode.c`
+- Create: `src/net/tap/tap.h`
+- Create: `src/net/tap/tap_decode.c`
 - Test: `tests/tap_unittest.c`
 
 **Interfaces:**
@@ -40,7 +40,7 @@ Create `tests/tap_unittest.c`:
 #include <stdio.h>
 #include <arpa/inet.h>
 #include "../src/protocol/opcodes.h"
-#include "../src/tap/tap.h"
+#include "../src/net/tap/tap.h"
 
 /* Build a request frame: streamid + requestid(BE) + 16B body + dlen(BE) + payload */
 static size_t
@@ -128,12 +128,12 @@ int main(void)
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/tap/tap_decode.c 2>&1 | head -3`
-Expected: FAIL — `src/tap/tap.h: No such file or directory`.
+Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c 2>&1 | head -3`
+Expected: FAIL — `src/net/tap/tap.h: No such file or directory`.
 
 - [ ] **Step 3: Write `tap.h`**
 
-Create `src/tap/tap.h`:
+Create `src/net/tap/tap.h`:
 
 ```c
 #ifndef XROOTD_TAP_TAP_H
@@ -207,7 +207,7 @@ size_t xrootd_tap_audit_format(const xrootd_tap_frame_t *f, xrootd_tap_dir_t dir
 
 - [ ] **Step 4: Write `tap_decode.c`**
 
-Create `src/tap/tap_decode.c`:
+Create `src/net/tap/tap_decode.c`:
 
 ```c
 /*
@@ -290,7 +290,7 @@ xrootd_tap_decode_response(const uint8_t *buf, size_t len,
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/tap/tap_decode.c && /tmp/tap_unittest`
+Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c && /tmp/tap_unittest`
 Expected: PASS — `tap_unittest: all checks passed`, exit 0, no warnings.
 
 (If `kXR_rmdir` / `kXR_locate` are absent from opcodes.h, drop them from `tap_opcode_has_path` — confirm names with `grep -n "define kXR_" src/protocol/opcodes.h` first.)
@@ -302,7 +302,7 @@ Expected: PASS — `tap_unittest: all checks passed`, exit 0, no warnings.
 ### Task 2: Sink registry + fan-out
 
 **Files:**
-- Create: `src/tap/tap_emit.c`
+- Create: `src/net/tap/tap_emit.c`
 - Test: extend `tests/tap_unittest.c`
 
 **Interfaces:**
@@ -345,12 +345,12 @@ Add `test_emit_fanout();` to `main` before the print.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/tap/tap_decode.c 2>&1 | head -3`
+Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c 2>&1 | head -3`
 Expected: FAIL — undefined reference to `xrootd_tap_register_sink` / `xrootd_tap_emit`.
 
 - [ ] **Step 3: Write `tap_emit.c`**
 
-Create `src/tap/tap_emit.c`:
+Create `src/net/tap/tap_emit.c`:
 
 ```c
 /*
@@ -391,7 +391,7 @@ xrootd_tap_emit(xrootd_tap_ctx_t *t, const xrootd_tap_frame_t *f,
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/tap/tap_decode.c src/tap/tap_emit.c && /tmp/tap_unittest`
+Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c src/net/tap/tap_emit.c && /tmp/tap_unittest`
 Expected: PASS — `tap_unittest: all checks passed`.
 
 - [ ] **Step 5: Commit** — SKIP.
@@ -401,7 +401,7 @@ Expected: PASS — `tap_unittest: all checks passed`.
 ### Task 3: JSON audit formatter
 
 **Files:**
-- Create: `src/tap/tap_audit.c`
+- Create: `src/net/tap/tap_audit.c`
 - Test: extend `tests/tap_unittest.c`
 
 **Interfaces:**
@@ -438,12 +438,12 @@ Add `test_audit_format();` to `main`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/tap/tap_decode.c src/tap/tap_emit.c 2>&1 | head -3`
+Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c src/net/tap/tap_emit.c 2>&1 | head -3`
 Expected: FAIL — undefined reference to `xrootd_tap_audit_format`.
 
 - [ ] **Step 3: Write `tap_audit.c`**
 
-Create `src/tap/tap_audit.c`:
+Create `src/net/tap/tap_audit.c`:
 
 ```c
 /*
@@ -567,7 +567,7 @@ xrootd_tap_audit_format(const xrootd_tap_frame_t *f, xrootd_tap_dir_t dir,
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/tap/tap_decode.c src/tap/tap_emit.c src/tap/tap_audit.c && /tmp/tap_unittest`
+Run: `gcc -Wall -Wextra -o /tmp/tap_unittest tests/tap_unittest.c src/net/tap/tap_decode.c src/net/tap/tap_emit.c src/net/tap/tap_audit.c && /tmp/tap_unittest`
 Expected: PASS — `tap_unittest: all checks passed`.
 
 - [ ] **Step 5: Commit** — SKIP.
@@ -592,9 +592,9 @@ Expected: shows the `$ngx_addon_dir/src/...c` list lines where each `.c` is regi
 Add to the `NGX_ADDON_SRCS` list in `config` (next to other `src/...` entries), e.g.:
 
 ```
-    $ngx_addon_dir/src/tap/tap_decode.c \
-    $ngx_addon_dir/src/tap/tap_emit.c \
-    $ngx_addon_dir/src/tap/tap_audit.c \
+    $ngx_addon_dir/src/net/tap/tap_decode.c \
+    $ngx_addon_dir/src/net/tap/tap_emit.c \
+    $ngx_addon_dir/src/net/tap/tap_audit.c \
 ```
 
 - [ ] **Step 3: Reconfigure + build**

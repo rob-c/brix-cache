@@ -17,12 +17,12 @@
 | `src/fs/cache/*.c` | Read-through cache origin fetch, locking, and fill callbacks |
 | `src/query/*.c` | kXR_query subtypes (cksum, space, config, stats, xattr, finfo, fsinfo) and kXR_prepare, kXR_set |
 | `src/fattr/*.c` | kXR_fattr extended attributes (get / set / del / list via Linux xattrs) |
-| `src/upstream/*.c` | Outbound XRootD redirector client for manager/upstream misses |
+| `src/net/upstream/*.c` | Outbound XRootD redirector client for manager/upstream misses |
 | `src/write/*.c` | Write-side and namespace-mutating operations: write, pgwrite, writev, sync, truncate, mkdir, rm, rmdir, mv, chmod |
 | `src/core/aio/*.c` | Async I/O response builders and nginx thread-pool callbacks |
 | `src/response/*.c` | Response framing, control responses, status responses, CRC32C |
 | `src/path/*.c` | Path extraction, root confinement, policy matching, and log sanitization |
-| `src/cms/*.c` | CMS manager heartbeat: registration, ping/pong, space and load reporting |
+| `src/net/cms/*.c` | CMS manager heartbeat: registration, ping/pong, space and load reporting |
 | `src/metrics/` | Prometheus metrics: shared-memory counters and HTTP export endpoint |
 | `src/webdav/*.c` | WebDAV over HTTPS module, auth, path safety, method handlers, HTTP-TPC, and upstream proxy (`proxy.c`) |
 

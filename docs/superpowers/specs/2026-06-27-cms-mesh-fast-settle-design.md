@@ -17,7 +17,7 @@ protection.
 
 ## Root cause (today's behaviour)
 
-The CMS **client** state machine (`src/cms/connect.c`) settles slowly when the mesh
+The CMS **client** state machine (`src/net/cms/connect.c`) settles slowly when the mesh
 boots together:
 
 1. **Fixed 1s initial delay** — every worker waits
@@ -36,7 +36,7 @@ On the same host, where everything starts together and listen sockets race, this
 the dominant settle cost and the reason a mesh can momentarily look like it "didn't
 connect".
 
-The manager-accept side (`src/cms/server_handler.c`) already registers a node on
+The manager-accept side (`src/net/cms/server_handler.c`) already registers a node on
 login with no added delay, so no change is needed there.
 
 ## Design
@@ -55,7 +55,7 @@ profile; excellent automatic defaults plus two operator tunables.
   yields a hard before/after number and is itself a correctness check (did the whole
   mesh form?).
 
-### Stage 2 — Fix (`src/cms/connect.c`, `cms_internal.h`, config)
+### Stage 2 — Fix (`src/net/cms/connect.c`, `cms_internal.h`, config)
 
 **Adaptive fast-retry during cold startup.** Add a "have we ever logged in yet?"
 notion to the CMS ctx. While a node has **never yet completed a login** and a connect

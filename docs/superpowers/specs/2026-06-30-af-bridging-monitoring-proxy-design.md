@@ -77,14 +77,14 @@ transparent-relay path.
         │                                   (NEW: verbatim bytes, no auth-term)
         ▼                              ▼
                          ┌─────────────────────────────┐
-                         │   tap core  (src/tap/)      │ decode frame → fan out
+                         │   tap core  (src/net/tap/)      │ decode frame → fan out
                          │   sinks: audit | metrics |  │
                          │          capture | hook     │
                          └─────────────────────────────┘
 ```
 
 **Why Approach C** (vs. A = extend the two existing proxies in place, vs. B = a
-fully separate `src/mirror/` subsystem): the tap and the family selector are each
+fully separate `src/net/mirror/` subsystem): the tap and the family selector are each
 implemented **once** and shared. The terminating MITM is the *existing*
 `xrootd_proxy` (which already does connect, TLS, pooling, handle translation,
 `kXR_wait`/`kXR_redirect` follow-through, splice) plus credential-forward
@@ -98,7 +98,7 @@ connect/TLS/pooling/frame-parsing the proxy already has.
 | Unit | Purpose | Depends on | Independently testable? |
 |---|---|---|---|
 | address-family selector | choose `AF_INET`/`AF_INET6`/`AF_UNSPEC` for an outbound resolve | `netconnect.h` getaddrinfo | yes — resolve-only unit test |
-| tap core (`src/tap/`) | decode an XRootD frame header + fan out to sinks | nothing above it (pure) | yes — feed bytes, assert sink calls |
+| tap core (`src/net/tap/`) | decode an XRootD frame header + fan out to sinks | nothing above it (pure) | yes — feed bytes, assert sink calls |
 | audit / metrics / capture / hook sinks | one observable each | tap core sink API | yes — per-sink |
 | terminating cred-forward | present user cred upstream | existing proxy bootstrap | yes — per auth method |
 | transparent relay mode | verbatim byte relay + tap feed | proxy connect/splice + tap | yes — byte-equality + tap assertions |
@@ -175,7 +175,7 @@ three directive handlers DRY.
 
 ## 4. Phase 2 — Tap core + audit/metrics sinks (interface-level)
 
-New subsystem `src/tap/` (register new `.c` in the top-level `./config` source
+New subsystem `src/net/tap/` (register new `.c` in the top-level `./config` source
 list, then `./configure`).
 
 ### 4.1 Decoder + fan-out API (sketch)

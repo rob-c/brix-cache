@@ -29,7 +29,7 @@ The current module recognizes the `kXR_prepare` opcode but treats it as a simple
 Outbound connections initiated by the nginx node (for read-through cache fill or native TPC pull) fail if the source requires an auth challenge.
 
 *   **Files to Modify:**
-    *   `src/upstream/bootstrap.c`: Implement `kXR_authmore` and `kXR_gotoTLS` handling.
+    *   `src/net/upstream/bootstrap.c`: Implement `kXR_authmore` and `kXR_gotoTLS` handling.
 *   **Work Required:** Modify the bootstrapping code to handle authentication challenges during the initial handshake with upstream servers.
 
 ### 3. Lock Persistence

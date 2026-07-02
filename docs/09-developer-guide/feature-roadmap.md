@@ -351,13 +351,13 @@ full M6 plan and per-step status.
 
 **What is implemented (M6 steps 1–6):**
 
-- `kYR_gone` CMS opcode — data-server path deregistration (`src/cms/server_recv.c`)
-- Configurable registry slots (`xrootd_registry_slots`; `src/manager/registry.c`)
+- `kYR_gone` CMS opcode — data-server path deregistration (`src/net/cms/server_recv.c`)
+- Configurable registry slots (`xrootd_registry_slots`; `src/net/manager/registry.c`)
 - Per-worker CMS connections — each nginx worker holds its own upstream CMS channel
-- Pending-locate table (`src/manager/pending.c`) — shared-memory bridge between a suspended XRootD session and an in-flight CMS query
+- Pending-locate table (`src/net/manager/pending.c`) — shared-memory bridge between a suspended XRootD session and an in-flight CMS query
 - `ngx_xrootd_cms_send_locate()` — builds and sends `kYR_locate` frames to the parent manager
 - `XRD_ST_WAITING_CMS` state — XRootD session suspension while awaiting `kYR_select`; `xrootd_cms_locate_timeout` fires `kXR_wait` to the client on expiry
-- `kYR_select` and `kYR_try` handling in `src/cms/recv.c` — wakes the suspended session and issues `kXR_redirect`
+- `kYR_select` and `kYR_try` handling in `src/net/cms/recv.c` — wakes the suspended session and issues `kXR_redirect`
 
 **Validation status and remaining extension:**
 
@@ -477,7 +477,7 @@ what is missing. Items are grouped by feature area.
 ### Native root:// TPC rendezvous (item 2), cache origin, and upstream connections
 
 - **Transparent upstream `kXR_gotoTLS` implemented; native TPC source TLS still
-  open:** `src/upstream/bootstrap.c` / `src/upstream/tls.c` handle protocol-time
+  open:** `src/net/upstream/bootstrap.c` / `src/net/upstream/tls.c` handle protocol-time
   TLS upgrade for transparent upstream connections. Native TPC source
   connections still do not upgrade after `kXR_gotoTLS`, and cache/write-through
   origins require their own cache-origin TLS setting.

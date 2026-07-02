@@ -107,7 +107,7 @@ Backlog:                8.4 per-page CSI + scrub
 ```
 
 Dependency edges: `8 → 9` (cinfo stores the origin digest from §8); `5-P1 → 5-P2`
-with the outbound-GSI fix in between; `4A → 4B`; `6` reuses the `src/cms/` channel and
+with the outbound-GSI fix in between; `4A → 4B`; `6` reuses the `src/net/cms/` channel and
 `src/srr/` totals; `7` reuses `kXR_read`/`kXR_write` plumbing and is validated against
 a real XRootD SSI peer (per ADR-2).
 
@@ -129,7 +129,7 @@ a real XRootD SSI peer (per ADR-2).
 | 3 | XrdDig (HTTP surface) | **DONE** | `src/dig/{dig.c,dig.h}`; WebDAV dispatch hook; directives `xrootd_webdav_dig` / `_dig_export <name> <dir>` (realpath anchor) / `_dig_auth <allowfile>`; RESOLVE_BENEATH confinement + fail-closed principal→export allow-file + GET/HEAD-only; `tests/test_dig.py` 7/7 (authorized read, unlisted→403, anon→403, **symlink-escape blocked**, unknown-export→404, write→405, disabled→fall-through). Follow-up: root:// surface + dirlist |
 | 4A | OssArc zip member read | **DONE (pre-existing)** | already in tree: `zip_member.c`/`zip_http.c`; `webdav/get.c` `zip_access`; root:// `xrdcl.unzip=` in `open_request.c`. Doc §4A was stale |
 | 5 | GSI delegation | **DONE (pre-existing)** | already in tree+build: `src/auth/gsi/delegation.c` (begin_delegation→`kXGS_pxyreq`, `handle_sigpxy`), `src/auth/gsi/proxy_req.c` (X509_REQ CSR + unittest), session-cipher encrypt, auth.c branches, TPC `tpc_delegate` consumption. `native_tpc_gsi_broken` memory was stale. Doc §5 was a stale TODO |
-| 6 | CNS (minimal) | **DONE** | `src/cms/cns.{c,h}` event codec + per-worker inventory; `CMS_RR_CNS` frame; data-server emit on closew (`close.c`); manager apply (`server_recv.c`, gated by global collect flag); manager **global stat from inventory** (`stat.c` manager_mode); `xrootd_cns off\|emit\|collect`; `tests/test_cns.py` 2/2 on a real **2-node cluster** (manager stats a DS-written file from CNS w/ correct size; unknown path not fabricated). v1: in-memory per-worker (single-worker manager); SHM-multi-worker + unlink/mkdir/mv emit are follow-ups |
+| 6 | CNS (minimal) | **DONE** | `src/net/cms/cns.{c,h}` event codec + per-worker inventory; `CMS_RR_CNS` frame; data-server emit on closew (`close.c`); manager apply (`server_recv.c`, gated by global collect flag); manager **global stat from inventory** (`stat.c` manager_mode); `xrootd_cns off\|emit\|collect`; `tests/test_cns.py` 2/2 on a real **2-node cluster** (manager stats a DS-written file from CNS w/ correct size; unknown path not fabricated). v1: in-memory per-worker (single-worker manager); SHM-multi-worker + unlink/mkdir/mv emit are follow-ups |
 | 7 | SSI (minimal unary) | **DONE** | `src/ssi/{ssi.c,ssi.h}` echo over `/.ssi/<service>`; `xrootd_file_t.ssi` + clean early-return hooks in open/read/write; `xrootd_ssi` stream directive (in `module.c` — the LIVE table; `module_core_directives.c` is dead/not in `./config`); `tests/test_ssi.py` 4/4 raw-wire vs real instance. **Also fixed a pre-existing remote crash**: `kXR_chkpoint` on a path-less handle did `strlen(NULL)`→SIGSEGV (now guarded; 30 chkpoint tests pass) |
 
 New build-list addition so far: `src/core/compat/json_min.c` (for §2) — registered in
@@ -820,7 +820,7 @@ space totals. Minimal subset (not XrdCnsd's offline files + `cns_ssi` reconcile)
 ```
  data server (each)                         manager / redirector
  ────────────────                           ─────────────────────
- open(write)/close/mkdir/                    CMS channel (src/cms/)
+ open(write)/close/mkdir/                    CMS channel (src/net/cms/)
  rm/mv/truncate  ──── CNS event ───────────▶ inventory store (SHM + file)
  (size on closew)                            ├─ answer stat/dirlist from inventory
                                              └─ feed src/srr/ space totals
@@ -842,15 +842,15 @@ struct xrootd_cns_event {           /* 40 bytes + name */
 };
 ```
 
-### 6.3 Files (new `src/cms/cns_*.c` + manager inventory)
+### 6.3 Files (new `src/net/cms/cns_*.c` + manager inventory)
 ```c
-/* data-server side (src/cms/cns_emit.c) — LOOP-ONLY.
+/* data-server side (src/net/cms/cns_emit.c) — LOOP-ONLY.
  * Emit one event on a namespace mutation; coalesced + best-effort (never blocks the
  * data path; queue + flush on the CMS heartbeat). */
 void xrootd_cns_emit(xrootd_ctx_t *ctx, uint8_t op, const char *path,
                      const char *path2, uint64_t size, uint64_t mtime);
 
-/* manager side (src/manager/cns_store.c) — LOOP-ONLY.
+/* manager side (src/net/manager/cns_store.c) — LOOP-ONLY.
  * Apply an event to the inventory (SHM rbtree of path→{server,size,mtime}; file is
  * the durable truth, SHM the cache — same model as src/frm). */
 ngx_int_t xrootd_cns_apply(const xrootd_cns_event *ev, size_t total_len);
@@ -862,8 +862,8 @@ uint64_t  xrootd_cns_space_used(void);   /* feeds src/srr */
 ```
 
 ### 6.4 Manager hooks
-- `src/cms/server_recv.c` — decode CNS events alongside existing CMS frames.
-- `src/manager/registry.c` / redirect path — answer `kXR_stat`/`kXR_dirlist` from
+- `src/net/cms/server_recv.c` — decode CNS events alongside existing CMS frames.
+- `src/net/manager/registry.c` / redirect path — answer `kXR_stat`/`kXR_dirlist` from
   `xrootd_cns_*` when the path is not locally present (manager has no data).
 - `src/srr/` — `xrootd_cns_space_used()` augments space reporting.
 
@@ -887,7 +887,7 @@ xrootd_cns_flush_interval <t>;      # data-server coalesce window (default 10s)
 ```
 
 ### 6.8 Build
-`src/cms/cns_emit.c`, `src/manager/cns_store.c` (+headers) → `./config`; `./configure`.
+`src/net/cms/cns_emit.c`, `src/net/manager/cns_store.c` (+headers) → `./config`; `./configure`.
 
 ### 6.9 Test matrix (`tests/test_cns.py` — multi-instance like CMS tests)
 | id | case | expect |
@@ -2815,7 +2815,7 @@ xrootd_gsi_recv_sigpxy(xrootd_ctx_t *ctx, const uint8_t *body, uint32_t blen)
 }
 ```
 
-### OO.6 CNS — `src/cms/cns.h`
+### OO.6 CNS — `src/net/cms/cns.h`
 ```c
 #ifndef NGX_XROOTD_CNS_H
 #define NGX_XROOTD_CNS_H
@@ -2844,7 +2844,7 @@ uint64_t  xrootd_cns_space_used(void);
 #endif
 ```
 
-### OO.7 CNS — `src/manager/cns_store.c` (apply + answer)
+### OO.7 CNS — `src/net/manager/cns_store.c` (apply + answer)
 ```c
 #include "../cms/cns.h"
 #include "../compat/shm_slots.h"
@@ -2967,22 +2967,22 @@ Append to the **header** list (near the existing `src/fs/cache/*.h`, `src/auth/g
 ```sh
                         $ngx_addon_dir/src/dig/dig.h \
                         $ngx_addon_dir/src/auth/gsi/delegation.h \
-                        $ngx_addon_dir/src/cms/cns.h \
+                        $ngx_addon_dir/src/net/cms/cns.h \
                         $ngx_addon_dir/src/ssi/ssi.h \
                         $ngx_addon_dir/src/ssi/ssi_registry.h \
                         $ngx_addon_dir/src/fs/cache/cinfo.h \
                         $ngx_addon_dir/src/zip/zip_member.h \
                         $ngx_addon_dir/src/core/compat/iso8601.h \
 ```
-Append to the **`NGX_ADDON_SRCS`** list (near `src/auth/gsi/*.c`, `src/cms/*.c`):
+Append to the **`NGX_ADDON_SRCS`** list (near `src/auth/gsi/*.c`, `src/net/cms/*.c`):
 ```sh
     $ngx_addon_dir/src/core/compat/iso8601.c \
     $ngx_addon_dir/src/dig/dig.c \
     $ngx_addon_dir/src/dig/dig_auth.c \
     $ngx_addon_dir/src/dig/directives.c \
     $ngx_addon_dir/src/auth/gsi/delegation.c \
-    $ngx_addon_dir/src/cms/cns_emit.c \
-    $ngx_addon_dir/src/manager/cns_store.c \
+    $ngx_addon_dir/src/net/cms/cns_emit.c \
+    $ngx_addon_dir/src/net/manager/cns_store.c \
     $ngx_addon_dir/src/ssi/ssi.c \
     $ngx_addon_dir/src/ssi/ssi_registry.c \
     $ngx_addon_dir/src/zip/zip_member.c \
@@ -3022,7 +3022,7 @@ primitive (`xrootd_open_beneath`). Off by default (`xrootd_dig off`).
 ## Tests
 tests/test_dig.py — success / 403 / traversal / read-only.
 ```
-(Analogous READMEs for `src/ssi/`, `src/cms/` CNS note, and a `src/auth/gsi/` delegation
+(Analogous READMEs for `src/ssi/`, `src/net/cms/` CNS note, and a `src/auth/gsi/` delegation
 section.)
 
 ---
@@ -3489,7 +3489,7 @@ combined) and parallelizable with the rest. **5.3** is blocked by the outbound-G
 | §3 | `docs/05-operations/` dig page; `src/dig/README.md` |
 | §4 | `docs/04-protocols/` archive/zip page; `src/zip/README.md` update |
 | §5 | `docs/06-authentication/gsi.md` delegation section; `src/auth/gsi/README.md` |
-| §6 | `docs/10-architecture/` CNS page; `src/cms/README.md` CNS note |
+| §6 | `docs/10-architecture/` CNS page; `src/net/cms/README.md` CNS note |
 | §7 | `docs/04-protocols/ssi.md`; `src/ssi/README.md` |
 | §8 | `docs/10-reference/crc64-checksums.md` (+at-rest/xattr/sidecar) |
 | §9 | `docs/02-concepts/` caching page (+cinfo); `src/fs/cache/README.md` |

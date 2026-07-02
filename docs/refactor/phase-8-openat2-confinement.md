@@ -262,7 +262,7 @@ int  rootfd;          /* O_PATH fd on export root; -1 until worker init */
 Initialise once per worker:
 
 ```c
-/* src/upstream/bootstrap.c (or session/lifecycle.c) — init_process hook */
+/* src/net/upstream/bootstrap.c (or session/lifecycle.c) — init_process hook */
 static ngx_int_t
 xrootd_init_process(ngx_cycle_t *cycle)
 {

@@ -125,8 +125,8 @@ git commit -m "feat(net): add xrootd_af_policy_t + parser for outbound address-f
 
 **Files:**
 - Modify: `src/connection/netconnect.h` (the `xrootd_resolve_connect_socket` signature + `hints.ai_family`)
-- Modify: `src/proxy/connect_upstream.c:269` (caller → `XROOTD_AF_AUTO`)
-- Modify: `src/upstream/start.c:111` (caller → `XROOTD_AF_AUTO`)
+- Modify: `src/net/proxy/connect_upstream.c:269` (caller → `XROOTD_AF_AUTO`)
+- Modify: `src/net/upstream/start.c:111` (caller → `XROOTD_AF_AUTO`)
 
 **Interfaces:**
 - Consumes: `xrootd_af_policy_t` (Task 1).
@@ -172,7 +172,7 @@ Also update the function's doc comment to note the new parameter (one line: `af_
 
 - [ ] **Step 3: Update both callers to pass AUTO**
 
-In `src/proxy/connect_upstream.c` (~line 269):
+In `src/net/proxy/connect_upstream.c` (~line 269):
 
 ```c
         fd = xrootd_resolve_connect_socket((const char *) use_host->data,
@@ -182,7 +182,7 @@ In `src/proxy/connect_upstream.c` (~line 269):
                                            &rstatus);
 ```
 
-In `src/upstream/start.c` (~line 111):
+In `src/net/upstream/start.c` (~line 111):
 
 ```c
         fd = xrootd_resolve_connect_socket((char *) conf->upstream_host.data,
@@ -203,7 +203,7 @@ Expected: PASS — identical to the Step 1 baseline (resolver behavior unchanged
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/connection/netconnect.h src/proxy/connect_upstream.c src/upstream/start.c
+git add src/connection/netconnect.h src/net/proxy/connect_upstream.c src/net/upstream/start.c
 git commit -m "refactor(net): thread af_policy through xrootd_resolve_connect_socket (callers AUTO, no behaviour change)"
 ```
 

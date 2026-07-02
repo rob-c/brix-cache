@@ -46,23 +46,23 @@ def _read(rel):
 # --------------------------------------------------------------------------- #
 
 def test_health_check_module_present():
-    assert (ROOT / "src/manager/health_check.c").exists()
-    assert (ROOT / "src/manager/health_check.h").exists()
+    assert (ROOT / "src/net/manager/health_check.c").exists()
+    assert (ROOT / "src/net/manager/health_check.h").exists()
     cfg = _read("config")
-    assert "src/manager/health_check.c" in cfg
+    assert "src/net/manager/health_check.c" in cfg
 
 
 def test_registry_helpers_present():
-    reg = _read("src/manager/registry_health.c")   # split out of registry.c
+    reg = _read("src/net/manager/registry_health.c")   # split out of registry.c
     for fn in ("xrootd_srv_hc_claim", "xrootd_srv_hc_pass", "xrootd_srv_hc_fail"):
         assert fn in reg, fn
     # Entry struct carries the new HC fields.
-    h = _read("src/manager/registry.h")
+    h = _read("src/net/manager/registry.h")
     assert "hc_in_progress" in h and "hc_fail_count" in h
 
 
 def test_probe_state_machine_and_timer_present():
-    hc = _read("src/manager/health_check.c")
+    hc = _read("src/net/manager/health_check.c")
     # Reuses the proven bootstrap wire builder; sends a ping; bounded by timeout.
     assert "xrootd_upstream_build_bootstrap" in hc
     assert "kXR_ping" in hc

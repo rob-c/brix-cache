@@ -337,10 +337,10 @@ ngx_addon_name=ngx_stream_xrootd_module
 ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/auth/authz/acc/privs.h \
                         $ngx_addon_dir/src/auth/authz/acc/acc.h \
-                        $ngx_addon_dir/src/mirror/mirror.h \
-                        $ngx_addon_dir/src/mirror/stream_mirror.h \
-                        $ngx_addon_dir/src/mirror/stream_mirror_io.h \
-                        $ngx_addon_dir/src/ratelimit/ratelimit.h \
+                        $ngx_addon_dir/src/net/mirror/mirror.h \
+                        $ngx_addon_dir/src/net/mirror/stream_mirror.h \
+                        $ngx_addon_dir/src/net/mirror/stream_mirror_io.h \
+                        $ngx_addon_dir/src/net/ratelimit/ratelimit.h \
                         $ngx_addon_dir/src/core/types/config.h \
                         $ngx_addon_dir/src/core/config/shared_conf.h \
                         $ngx_addon_dir/src/core/types/context.h \
@@ -405,7 +405,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/ssi/svc_cta/cta_queue.h \
                         $ngx_addon_dir/src/ssi/svc_cta/cta_exec.h \
                         $ngx_addon_dir/src/ssi/svc_cta/cta_service.h \
-                        $ngx_addon_dir/src/cms/cns.h \
+                        $ngx_addon_dir/src/net/cms/cns.h \
                         $ngx_addon_dir/src/read/stat.h \
                         $ngx_addon_dir/src/read/statx.h \
                         $ngx_addon_dir/src/session/session.h \
@@ -424,8 +424,8 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/connection/disconnect.h \
                         $ngx_addon_dir/src/connection/chain_helpers.h \
                         $ngx_addon_dir/src/fattr/ngx_xrootd_fattr.h \
-                        $ngx_addon_dir/src/upstream/upstream.h \
-                        $ngx_addon_dir/src/upstream/upstream_internal.h \
+                        $ngx_addon_dir/src/net/upstream/upstream.h \
+                        $ngx_addon_dir/src/net/upstream/upstream_internal.h \
                         $ngx_addon_dir/src/auth/token/token_internal.h \
                         $ngx_addon_dir/src/auth/token/b64url.h \
                         $ngx_addon_dir/src/auth/token/file.h \
@@ -467,15 +467,15 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/core/compat/integrity_info.h \
                         $ngx_addon_dir/src/core/compat/async_job.h \
                         $ngx_addon_dir/src/pmark/pmark.h \
-                        $ngx_addon_dir/src/manager/registry.h \
-                        $ngx_addon_dir/src/proxy/proxy.h \
-                        $ngx_addon_dir/src/proxy/proxy_internal.h \
-                        $ngx_addon_dir/src/cms/cms_internal.h \
-                        $ngx_addon_dir/src/cms/frame_io.h \
-                        $ngx_addon_dir/src/cms/router.h \
-                        $ngx_addon_dir/src/cms/rrdata.h \
-                        $ngx_addon_dir/src/cms/node_ops.h \
-                        $ngx_addon_dir/src/cms/forward.h \
+                        $ngx_addon_dir/src/net/manager/registry.h \
+                        $ngx_addon_dir/src/net/proxy/proxy.h \
+                        $ngx_addon_dir/src/net/proxy/proxy_internal.h \
+                        $ngx_addon_dir/src/net/cms/cms_internal.h \
+                        $ngx_addon_dir/src/net/cms/frame_io.h \
+                        $ngx_addon_dir/src/net/cms/router.h \
+                        $ngx_addon_dir/src/net/cms/rrdata.h \
+                        $ngx_addon_dir/src/net/cms/node_ops.h \
+                        $ngx_addon_dir/src/net/cms/forward.h \
                         $ngx_addon_dir/src/metrics/metrics.h \
                         $ngx_addon_dir/src/metrics/metrics_macros.h \
                         $ngx_addon_dir/src/metrics/unified.h \
@@ -499,8 +499,8 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
 ngx_xrootd_webdav_deps="$ngx_addon_dir/src/webdav/webdav.h \
                         $ngx_addon_dir/src/dig/dig.h \
                         $ngx_addon_dir/src/webdav/tape_rest.h \
-                        $ngx_addon_dir/src/mirror/mirror.h \
-                        $ngx_addon_dir/src/mirror/http_mirror.h \
+                        $ngx_addon_dir/src/net/mirror/mirror.h \
+                        $ngx_addon_dir/src/net/mirror/http_mirror.h \
                         $ngx_addon_dir/src/fs/vfs.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
@@ -673,7 +673,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/config/policy.c \
     $ngx_addon_dir/src/core/config/manager_map.c \
     $ngx_addon_dir/src/core/config/runtime_server.c \
-    $ngx_addon_dir/src/cms/config.c \
+    $ngx_addon_dir/src/net/cms/config.c \
     $ngx_addon_dir/src/auth/gsi/config.c \
     $ngx_addon_dir/src/session/tls_config.c \
     $ngx_addon_dir/src/auth/token/config.c \
@@ -689,7 +689,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/dashboard/events.c \
     $ngx_addon_dir/src/dashboard/history.c \
     $ngx_addon_dir/src/core/aio/config.c \
-    $ngx_addon_dir/src/upstream/directives.c \
+    $ngx_addon_dir/src/net/upstream/directives.c \
     $ngx_addon_dir/src/fs/cache/directives.c \
     $ngx_addon_dir/src/core/config/process.c \
     $ngx_addon_dir/src/core/config/postconfiguration.c \
@@ -708,15 +708,15 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/session/bind.c \
     $ngx_addon_dir/src/session/registry.c \
     $ngx_addon_dir/src/session/handles.c \
-    $ngx_addon_dir/src/manager/registry.c \
-    $ngx_addon_dir/src/manager/registry_select.c \
-    $ngx_addon_dir/src/manager/registry_health.c \
-    $ngx_addon_dir/src/manager/health_check.c \
-    $ngx_addon_dir/src/mirror/stream_mirror.c \
-    $ngx_addon_dir/src/mirror/stream_wmirror.c \
-    $ngx_addon_dir/src/mirror/stream_mirror_io.c \
-    $ngx_addon_dir/src/manager/redir_cache.c \
-    $ngx_addon_dir/src/manager/pending.c \
+    $ngx_addon_dir/src/net/manager/registry.c \
+    $ngx_addon_dir/src/net/manager/registry_select.c \
+    $ngx_addon_dir/src/net/manager/registry_health.c \
+    $ngx_addon_dir/src/net/manager/health_check.c \
+    $ngx_addon_dir/src/net/mirror/stream_mirror.c \
+    $ngx_addon_dir/src/net/mirror/stream_wmirror.c \
+    $ngx_addon_dir/src/net/mirror/stream_mirror_io.c \
+    $ngx_addon_dir/src/net/manager/redir_cache.c \
+    $ngx_addon_dir/src/net/manager/pending.c \
     $ngx_addon_dir/src/tpc/key_registry.c \
     $ngx_addon_dir/src/tpc/common/credential.c \
     $ngx_addon_dir/src/tpc/common/auth.c \
@@ -817,24 +817,24 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/evict_policy.c \
     $ngx_addon_dir/src/fs/cache/thread.c \
     $ngx_addon_dir/src/fs/cache/open_or_fill.c \
-    $ngx_addon_dir/src/tap/tap_decode.c \
-    $ngx_addon_dir/src/tap/tap_emit.c \
-    $ngx_addon_dir/src/tap/tap_audit.c \
-    $ngx_addon_dir/src/tap/tap_stream.c \
+    $ngx_addon_dir/src/net/tap/tap_decode.c \
+    $ngx_addon_dir/src/net/tap/tap_emit.c \
+    $ngx_addon_dir/src/net/tap/tap_audit.c \
+    $ngx_addon_dir/src/net/tap/tap_stream.c \
     $ngx_addon_dir/src/relay/relay.c \
-    $ngx_addon_dir/src/proxy/gsi_upstream.c \
-    $ngx_addon_dir/src/proxy/gsi_upstream_login.c \
-    $ngx_addon_dir/src/cms/wire.c \
-    $ngx_addon_dir/src/cms/router.c \
-    $ngx_addon_dir/src/cms/rrdata.c \
-    $ngx_addon_dir/src/cms/node_ops.c \
-    $ngx_addon_dir/src/cms/forward.c \
-    $ngx_addon_dir/src/cms/frame_io.c \
-    $ngx_addon_dir/src/cms/space.c \
-    $ngx_addon_dir/src/cms/send.c \
-    $ngx_addon_dir/src/cms/recv.c \
-    $ngx_addon_dir/src/cms/cns.c \
-    $ngx_addon_dir/src/cms/connect.c \
+    $ngx_addon_dir/src/net/proxy/gsi_upstream.c \
+    $ngx_addon_dir/src/net/proxy/gsi_upstream_login.c \
+    $ngx_addon_dir/src/net/cms/wire.c \
+    $ngx_addon_dir/src/net/cms/router.c \
+    $ngx_addon_dir/src/net/cms/rrdata.c \
+    $ngx_addon_dir/src/net/cms/node_ops.c \
+    $ngx_addon_dir/src/net/cms/forward.c \
+    $ngx_addon_dir/src/net/cms/frame_io.c \
+    $ngx_addon_dir/src/net/cms/space.c \
+    $ngx_addon_dir/src/net/cms/send.c \
+    $ngx_addon_dir/src/net/cms/recv.c \
+    $ngx_addon_dir/src/net/cms/cns.c \
+    $ngx_addon_dir/src/net/cms/connect.c \
     $ngx_addon_dir/src/auth/token/b64url.c \
     $ngx_addon_dir/src/auth/token/file.c \
     $ngx_addon_dir/src/auth/token/json.c \
@@ -890,28 +890,28 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/config/tape_stage_conf.c \
     $ngx_addon_dir/src/query/set.c \
     $ngx_addon_dir/src/query/dispatch.c \
-    $ngx_addon_dir/src/upstream/lifecycle.c \
-    $ngx_addon_dir/src/upstream/bootstrap.c \
-    $ngx_addon_dir/src/upstream/tls.c \
-    $ngx_addon_dir/src/upstream/auth.c \
-    $ngx_addon_dir/src/upstream/request.c \
-    $ngx_addon_dir/src/upstream/response.c \
-    $ngx_addon_dir/src/upstream/events.c \
-    $ngx_addon_dir/src/upstream/start.c \
-    $ngx_addon_dir/src/proxy/connect_upstream.c \
-    $ngx_addon_dir/src/proxy/connect_lifecycle.c \
-    $ngx_addon_dir/src/proxy/events_bootstrap.c \
-    $ngx_addon_dir/src/proxy/events_write.c \
-    $ngx_addon_dir/src/proxy/events_splice.c \
-    $ngx_addon_dir/src/proxy/events_read.c \
-    $ngx_addon_dir/src/proxy/forward_session_helpers.c \
-    $ngx_addon_dir/src/proxy/forward_rewrite_helpers.c \
-    $ngx_addon_dir/src/proxy/forward_request.c \
-    $ngx_addon_dir/src/proxy/forward_relay_audit.c \
-    $ngx_addon_dir/src/proxy/forward_relay_response.c \
-    $ngx_addon_dir/src/proxy/forward_relay_dispatch.c \
-    $ngx_addon_dir/src/proxy/pool.c \
-    $ngx_addon_dir/src/proxy/directives.c \
+    $ngx_addon_dir/src/net/upstream/lifecycle.c \
+    $ngx_addon_dir/src/net/upstream/bootstrap.c \
+    $ngx_addon_dir/src/net/upstream/tls.c \
+    $ngx_addon_dir/src/net/upstream/auth.c \
+    $ngx_addon_dir/src/net/upstream/request.c \
+    $ngx_addon_dir/src/net/upstream/response.c \
+    $ngx_addon_dir/src/net/upstream/events.c \
+    $ngx_addon_dir/src/net/upstream/start.c \
+    $ngx_addon_dir/src/net/proxy/connect_upstream.c \
+    $ngx_addon_dir/src/net/proxy/connect_lifecycle.c \
+    $ngx_addon_dir/src/net/proxy/events_bootstrap.c \
+    $ngx_addon_dir/src/net/proxy/events_write.c \
+    $ngx_addon_dir/src/net/proxy/events_splice.c \
+    $ngx_addon_dir/src/net/proxy/events_read.c \
+    $ngx_addon_dir/src/net/proxy/forward_session_helpers.c \
+    $ngx_addon_dir/src/net/proxy/forward_rewrite_helpers.c \
+    $ngx_addon_dir/src/net/proxy/forward_request.c \
+    $ngx_addon_dir/src/net/proxy/forward_relay_audit.c \
+    $ngx_addon_dir/src/net/proxy/forward_relay_response.c \
+    $ngx_addon_dir/src/net/proxy/forward_relay_dispatch.c \
+    $ngx_addon_dir/src/net/proxy/pool.c \
+    $ngx_addon_dir/src/net/proxy/directives.c \
     $ngx_addon_dir/src/handoff/handoff.c \
     $ngx_addon_dir/src/connection/handler.c \
     $ngx_addon_dir/src/connection/recv.c \
@@ -999,13 +999,13 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/authz/auth_cache.c \
     $ngx_addon_dir/src/auth/authz/auth_gate_l1.c \
     $ngx_addon_dir/src/core/shm/rate_limit.c \
-    $ngx_addon_dir/src/ratelimit/ratelimit_zone.c \
-    $ngx_addon_dir/src/ratelimit/ratelimit.c \
-    $ngx_addon_dir/src/ratelimit/ratelimit_keys.c \
-    $ngx_addon_dir/src/ratelimit/ratelimit_http.c \
-    $ngx_addon_dir/src/ratelimit/ratelimit_stream.c \
-    $ngx_addon_dir/src/ratelimit/throttle_compat.c \
-    $ngx_addon_dir/src/ratelimit/reservation.c \
+    $ngx_addon_dir/src/net/ratelimit/ratelimit_zone.c \
+    $ngx_addon_dir/src/net/ratelimit/ratelimit.c \
+    $ngx_addon_dir/src/net/ratelimit/ratelimit_keys.c \
+    $ngx_addon_dir/src/net/ratelimit/ratelimit_http.c \
+    $ngx_addon_dir/src/net/ratelimit/ratelimit_stream.c \
+    $ngx_addon_dir/src/net/ratelimit/throttle_compat.c \
+    $ngx_addon_dir/src/net/ratelimit/reservation.c \
 "
 
 ngx_module_deps="$ngx_xrootd_stream_deps \
@@ -1112,7 +1112,7 @@ ngx_module_srcs="$ngx_addon_dir/src/webdav/module.c \
                   $ngx_addon_dir/src/webdav/proxy_response.c \
                   $ngx_addon_dir/src/webdav/proxy.c \
                   $ngx_addon_dir/src/webdav/proxy_pool.c \
-                  $ngx_addon_dir/src/mirror/http_mirror.c \
+                  $ngx_addon_dir/src/net/mirror/http_mirror.c \
                   $ngx_addon_dir/src/webdav/introspect.c \
                   $ngx_addon_dir/src/webdav/xrdhttp.c \
                   $ngx_addon_dir/src/webdav/xrdhttp_multipart.c \
@@ -1237,12 +1237,12 @@ xrd_emit_module
 
 ngx_module_type=STREAM
 ngx_module_name=ngx_stream_xrootd_cms_srv_module
-ngx_module_srcs="$ngx_addon_dir/src/cms/server_handler.c \
-                 $ngx_addon_dir/src/cms/server_recv.c \
-                 $ngx_addon_dir/src/cms/server_send.c \
-                 $ngx_addon_dir/src/cms/server_auth.c \
-                 $ngx_addon_dir/src/cms/server_module.c"
-ngx_module_deps="$ngx_addon_dir/src/cms/server.h"
+ngx_module_srcs="$ngx_addon_dir/src/net/cms/server_handler.c \
+                 $ngx_addon_dir/src/net/cms/server_recv.c \
+                 $ngx_addon_dir/src/net/cms/server_send.c \
+                 $ngx_addon_dir/src/net/cms/server_auth.c \
+                 $ngx_addon_dir/src/net/cms/server_module.c"
+ngx_module_deps="$ngx_addon_dir/src/net/cms/server.h"
 ngx_module_libs=
 xrd_emit_module
 

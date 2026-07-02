@@ -2,9 +2,9 @@
 tests/test_cms_state_have_select.py — CMS on-demand selection wire conformance.
 
 This suite drives the nginx CMS *client* (a data-server / sub-manager that
-connects OUT to a CMS manager, src/cms/recv.c + src/cms/send.c) and the nginx
+connects OUT to a CMS manager, src/net/cms/recv.c + src/net/cms/send.c) and the nginx
 CMS *server* (a manager that accepts data-node registrations,
-src/cms/server_recv.c) using a self-contained Python CMS peer over raw sockets.
+src/net/cms/server_recv.c) using a self-contained Python CMS peer over raw sockets.
 It exercises the real XrdCms on-demand selection handshake the way a live cmsd
 manager does: after nginx logs in, the peer sends kYR_state ("do you hold
 <path>?") and verifies nginx replies kYR_have for a held path with the matching
@@ -22,9 +22,9 @@ with module-scoped fixtures and pidfile/`nginx -s stop` teardown; it skips
 cleanly if the nginx binary is missing, if the build lacks the CMS directives,
 if a port is occupied, or if nginx never dials in.
 
-Wire framing was validated against src/cms/cms_internal.h, src/cms/frame_io.c
+Wire framing was validated against src/net/cms/cms_internal.h, src/net/cms/frame_io.c
 (header = streamid[4] code[1] modifier[1] dlen[2], all big-endian) and the real
-nginx handlers in src/cms/recv.c / src/cms/server_recv.c, and end-to-end against
+nginx handlers in src/net/cms/recv.c / src/net/cms/server_recv.c, and end-to-end against
 the built binary (kYR_state /held.bin -> kYR_have modifier 0x21, streamid echo).
 
 Run:
@@ -68,7 +68,7 @@ SRV_NGINX_PORT    = int(os.environ.get("TEST_CMSSHS_SRV_PORT")    or _FREE_SRV)
 
 
 # ---------------------------------------------------------------------------
-# CMS wire constants (from src/cms/cms_internal.h — do not renumber)
+# CMS wire constants (from src/net/cms/cms_internal.h — do not renumber)
 # ---------------------------------------------------------------------------
 
 CMS_RR_LOGIN   = 0
@@ -85,11 +85,11 @@ CMS_RR_STATE   = 20
 CMS_RR_STATUS  = 22
 CMS_RR_TRY     = 24
 
-# Pup type tags (src/cms/cms_internal.h: CMS_PT_SHORT / CMS_PT_INT).
+# Pup type tags (src/net/cms/cms_internal.h: CMS_PT_SHORT / CMS_PT_INT).
 CMS_PT_SHORT   = 0x80
 CMS_PT_INT     = 0xA0
 
-# Modifier bits (src/cms/cms_internal.h).
+# Modifier bits (src/net/cms/cms_internal.h).
 CMS_MOD_RAW     = 0x20
 CMS_HAVE_ONLINE = 0x01
 
@@ -98,7 +98,7 @@ HDR_LEN = 8
 
 # ---------------------------------------------------------------------------
 # Raw CMS frame helpers (header = streamid[4] code[1] modifier[1] dlen[2], BE).
-# Matches xrootd_cms_send_frame() in src/cms/frame_io.c byte-for-byte.
+# Matches xrootd_cms_send_frame() in src/net/cms/frame_io.c byte-for-byte.
 # ---------------------------------------------------------------------------
 
 def _recv_exact(sock, n):
@@ -444,7 +444,7 @@ def _ping_sanity(conn, deadline_s=6.0):
 
 
 # ===========================================================================
-# Class 1 — kYR_state -> kYR_have (CMS client / src/cms/recv.c)
+# Class 1 — kYR_state -> kYR_have (CMS client / src/net/cms/recv.c)
 # ===========================================================================
 
 class TestStateHave:
@@ -535,7 +535,7 @@ class TestStateHave:
 
 
 # ===========================================================================
-# Class 2 — kYR_select / kYR_try redirect-reply parsing (src/cms/recv.c)
+# Class 2 — kYR_select / kYR_try redirect-reply parsing (src/net/cms/recv.c)
 # ===========================================================================
 
 class TestSelectTryParsing:
@@ -603,7 +603,7 @@ class TestSelectTryParsing:
 
 
 # ===========================================================================
-# Class 3 — kYR_gone on the CMS server side (src/cms/server_recv.c)
+# Class 3 — kYR_gone on the CMS server side (src/net/cms/server_recv.c)
 # ===========================================================================
 
 def _login_payload():
@@ -613,7 +613,7 @@ def _login_payload():
     node registers; the exact values don't matter for the gone tests, only that
     LOGIN is accepted and the node becomes logged_in.
 
-    Wire format verified against src/cms/server_recv.c:
+    Wire format verified against src/net/cms/server_recv.c:
       tlv_read_next()      — PT_SHORT (0x80)+BE u16  |  PT_INT (0xa0)+BE u32
       cms_srv_read_string()— BE u16 length prefix then that many bytes
     """

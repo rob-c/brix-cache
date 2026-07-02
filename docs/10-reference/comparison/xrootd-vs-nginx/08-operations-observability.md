@@ -116,7 +116,7 @@ endpoints:
   `packaging/rpm/nginx-mod-xrootd.spec` builds three RPMs; `contrib/` ships a
   Grafana dashboard, Prometheus alert rules, a logrotate snippet, and an example
   config.
-- **Policy:** `src/ratelimit/` — leaky-bucket rate, bandwidth, and concurrency
+- **Policy:** `src/net/ratelimit/` — leaky-bucket rate, bandwidth, and concurrency
   controls keyed by VO / issuer / IP / DN / volume prefix, answering `kXR_wait`
   (stream) or HTTP `429` (HTTP).
 
@@ -473,7 +473,7 @@ model and adds identity awareness across protocols.
 These are plugins configured via their own directives; they are not identity
 (VO/issuer/DN)-aware in the same first-class way.
 
-### nginx-xrootd — `src/ratelimit/`
+### nginx-xrootd — `src/net/ratelimit/`
 
 A **leaky-bucket** core (`ratelimit.c`, modeled on
 `ngx_http_limit_req_module`): per-principal `xrootd_rl_node_t` slab-allocated in
@@ -523,7 +523,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | Log rotation | logger-managed (daily/FIFO) | logrotate (`contrib/`) | Different mechanism |
 | HTTP health probe | **Not in core** | `/healthz` | nginx-xrootd advantage |
 | Packaging | many sub-RPMs + systemd templates | 3 RPMs + nginx service | Different shape |
-| Rate / bandwidth / concurrency | XrdThrottle, XrdBwm (per-server) | `src/ratelimit/` (identity-aware, cross-protocol) | Parity / nginx-xrootd+ |
+| Rate / bandwidth / concurrency | XrdThrottle, XrdBwm (per-server) | `src/net/ratelimit/` (identity-aware, cross-protocol) | Parity / nginx-xrootd+ |
 
 **Deliberate design choices to call out:**
 
@@ -569,7 +569,7 @@ nginx-xrootd shapes by *identity* (VO/issuer/DN/IP/volume) uniformly across
 | SRR | `src/srr/{builder,handler,module}.c`, `srr.h`, `README.md` |
 | Logging / sanitize | `src/metrics/access_log.{c,h}`, `src/path/access_log.c`, `src/fs/path/path.h` (`xrootd_sanitize_log_string` decl) + `src/path/{acl,authdb,helpers,resolve_confined_helpers}.c` (uses) |
 | Health | `src/metrics/health.c` |
-| Rate limiting | `src/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/metrics/ratelimit.c` |
+| Rate limiting | `src/net/ratelimit/{ratelimit,ratelimit_keys,ratelimit_zone,ratelimit_http,ratelimit_stream}.c`, `ratelimit.h`, `README.md`; `src/metrics/ratelimit.c` |
 | Packaging / ops | `packaging/rpm/nginx-mod-xrootd.spec`; `contrib/{grafana-dashboard.json,prometheus-alerts.yml,logrotate.d/nginx-xrootd,xrootd.conf.example}`; `docs/09-developer-guide/testing-runbook.md` |
 
 ### Companion docs

@@ -1,7 +1,7 @@
 """phase-57 §F4/W1.4.a gate: the upstream cache-fill bootstrap survives a
 MULTI-ROUND kXR_authmore exchange (bounded by XRD_OBA_MAX_ROUNDS).
 
-Before this change `src/upstream/bootstrap.c` aborted on the *second* kXR_authmore
+Before this change `src/net/upstream/bootstrap.c` aborted on the *second* kXR_authmore
 ("repeated kXR_authmore (not supported)"), so an origin whose sec layer needs more
 than one round could never be a read-through cache-fill / redirector source. The
 handling is now a single bounded helper (xrootd_upstream_continue_auth) shared by

@@ -89,7 +89,7 @@ with stock XRootD cmsd:
   **sss credential**, verified against a shared keytab (`xrootd_cms_server_sss_keytab`). The
   verifier is the shared `xrootd_sss_verify_blob` (same XrdSecProtocolsss credential format as
   the XRootD client protocol). Like vanilla cmsd, sss is required only when a keytab is
-  configured — **fail-closed in sss mode, back-compat otherwise**. `src/cms/server_auth.c`.
+  configured — **fail-closed in sss mode, back-compat otherwise**. `src/net/cms/server_auth.c`.
 - **W1b — CIDR allowlist.** `xrootd_cms_server_allow <cidr>...` rejects unauthorised peer IPs
   at accept time (`ngx_cidr_match`). Default back-compat (no list ⇒ accept + one-time warning).
 - **W1c — host validation.** `xrootd_net_host_chars_valid` rejects any registry host that is
@@ -135,7 +135,7 @@ oracle for key enumeration.
 `xrootd_concurrency_limit zone=.. key=.. limit=N` caps in-flight requests per principal
 (VO/issuer/DN/IP/volume) via a SHM counter. The slot is acquired in the HTTP access phase and
 released in the **log phase**, which runs for every finalized request (including errors and
-aborts) — so the counter cannot leak and lock out a principal. `src/ratelimit/`.
+aborts) — so the counter cannot leak and lock out a principal. `src/net/ratelimit/`.
 
 ### W8 — Hygiene
 

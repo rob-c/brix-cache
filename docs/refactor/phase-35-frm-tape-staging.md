@@ -297,7 +297,7 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/core/config/server_conf.c`), i
 **CREATE:**
 - `src/frm/frm_format.h`, `src/frm/frm.h`, `src/frm/frm_internal.h` — formats + API + internal decls (§3.2/§3.3). Reuse credit: `src/core/compat/crc32c.c` SSE4.2 CRC32c verbatim; struct discipline from `XrdFrcReqFile.hh:74-79`.
 - `src/frm/reqfile.c` — file engine: `fcntl` lock (replicates `XrdFrcReqFile::FileLock`, `XrdFrcReqFile.cc:491-534`), header read/refresh (`:518-528`), `frm_rec_read/_write` (pread/pwrite + CRC + fdatasync), free-list pop/push (`:88-96,175-180`), WAL append/commit (`:116-118,553-564`). Reuse: pread/pwrite + fsync idioms from `src/fs/cache/open_or_fill.c`.
-- `src/frm/index.c` — SHM zone (clone `src/manager/registry.h:45-48` lock-first flexible array; LRU reaper `src/session/registry.c:226-289`).
+- `src/frm/index.c` — SHM zone (clone `src/net/manager/registry.h:45-48` lock-first flexible array; LRU reaper `src/session/registry.c:226-289`).
 - `src/frm/reconcile.c` — `Init` analog (`XrdFrcReqFile.cc:216-302`): validate, CRC-scan, rebuild chains ordered `(priority desc, tod_added asc)` (`:266-283`), compact, repopulate index.
 - `src/frm/compact.c` — `ReWrite` analog (`XrdFrcReqFile.cc:571-623`): stream → `.new`, fsync, atomic `rename`, bump `generation`.
 - `src/frm/reqid.c` — durable `seq` bump (persisted analog of `xrootd_tpc_generate_key`, `src/tpc/key_registry.c:118-127`).

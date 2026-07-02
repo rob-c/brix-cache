@@ -294,7 +294,7 @@ scopes.
   with `O_NOFOLLOW` + fstat anti-TOCTOU. ID mapping is TLV-based
   (`auth_identity_challenge.c`, `auth_request.c`) honoring keytab opts
   ANYUSR/ALLUSR/ANYGRP/USRGRP. A **proxy-upstream SSS arm**
-  (`auth_proxy_credential.c`, used by `src/proxy/`) presents an SSS credential
+  (`auth_proxy_credential.c`, used by `src/net/proxy/`) presents an SSS credential
   to a backend (`credtype "sss\0"`), with `xrootd_sss_upstream_needed()` loading
   keys even when the front-end auth is not SSS (project memory: "Chaos mixed
   x509/SSS auth + SSS proxy bugs"). Directive: `xrootd_sss_keytab`.

@@ -206,7 +206,7 @@ nginx-xrootd/
 - **Stays in `src/`** (ngx-coupled, server-only): everything else —
   `src/handshake/`, `src/session/`, `src/auth/gsi/`, `src/auth/sss/`, `src/auth/krb5/`,
   `src/auth/token/`, `src/read/`, `src/write/`, `src/dirlist/`, `src/response/`,
-  `src/connection/`, `src/cms/`, `src/manager/`, `src/proxy/`, etc.
+  `src/connection/`, `src/net/cms/`, `src/net/manager/`, `src/net/proxy/`, etc.
 - The nginx module's `config` adds `-Ishared/xrdproto/include` and lists the
   moved `.c` files in `NGX_ADDON_SRCS`, so the module build is unchanged in
   behaviour. The HTTP-only error-mapping section (the nginx-specific Section 3 of
@@ -930,7 +930,7 @@ hiding it:
 
 - **Redirect-chain trace:** show every `kXR_redirect` hop (host:port, opaque, the
   evolving `tried`/`triedrc` CGI) and flag **redirect loops** or exhaustion — the
-  exact failure `xrootd_manager_tried_exhausted` (`src/manager/registry.c`) and the
+  exact failure `xrootd_manager_tried_exhausted` (`src/net/manager/registry.c`) and the
   conformance-topology fix were about (a nonexistent path must converge to
   `kXR_NotFound`, not bounce forever).
 - **Cluster topology mapper (`xrddiag topology` / a real `xrdmapc`):** walk the

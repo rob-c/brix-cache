@@ -40,7 +40,7 @@ instance, factored generically rather than duplicated.
 | D3 | **All four signals in scope:** junk/scanner signatures (pre-backend), namespace-grammar violations (pre-backend), backend 404/non-existent-path storms (post-response), auth-failure/credential abuse (post-response). |
 | D4 | **Proxying uses stock `ngx_http_proxy_module`** (`proxy_pass`). Our module adds only classify (ACCESS phase) + audit (LOG phase) + credential-forwarding config + the ARC/XRootD decode. No bespoke HTTP proxy. |
 | D5 | **Protocol-agnostic guard core + thin adapters.** Bad-actor logic, audit format, rule config live once in `src/guard/` (pure C, no nginx). Adapters normalize their wire form into one `guard_request_t`. |
-| D6 | **Three surfaces guarded:** ARC-HTTP, XrdHttp/WebDAV-HTTP (same nginx module, different `profile`), and `root://` stream (via existing `src/relay` + `src/tap`, enforcement = drop connection). |
+| D6 | **Three surfaces guarded:** ARC-HTTP, XrdHttp/WebDAV-HTTP (same nginx module, different `profile`), and `root://` stream (via existing `src/relay` + `src/net/tap`, enforcement = drop connection). |
 
 ## 3. Architecture
 
@@ -52,13 +52,13 @@ instance, factored generically rather than duplicated.
    (one nginx http  │  guard_audit_format()  → one JSON line → shared audit log → fail2ban     │
     module, profile)│  guard_ruleset_t: signatures + per-proto grammar + outcome toggles      │
                     └────────────────────────────────────────────────────────────────────────┘
-   root:// adapter ─► reuse src/tap decode → guard_request_t → verdict → close/RST connection
+   root:// adapter ─► reuse src/net/tap decode → guard_request_t → verdict → close/RST connection
    (src/relay tap)
 ```
 
 ### 3.1 Guard core — `src/guard/`
 
-Pure C, no nginx / no allocation / no OpenSSL, matching the `src/tap/` discipline
+Pure C, no nginx / no allocation / no OpenSSL, matching the `src/net/tap/` discipline
 so it unit-tests standalone.
 
 ```c
@@ -98,7 +98,7 @@ Functions:
   suffix/prefix/substring match against the ruleset (defaults + operator adds).
 - `guard_grammar_ok(const guard_ruleset_t*, guard_op_class_t, const char*, size_t)`.
 - `size_t guard_audit_format(const guard_request_t*, guard_reason_t, char *out, size_t)`
-  — single-line record (see §6), mirroring `src/tap/tap_audit.c`. Pure, no I/O.
+  — single-line record (see §6), mirroring `src/net/tap/tap_audit.c`. Pure, no I/O.
 
 `guard_ruleset_t` holds: signature patterns, per-protocol grammar (valid prefixes
 + allowed op-classes), and outcome-flag toggles. Adapters build it from nginx
@@ -224,9 +224,9 @@ Deliverables under `deploy/fail2ban/`:
 
 ## 9. Reuse / invariants honoured
 
-- Reuses `src/tap/` decode + `tap_audit.c` JSON style; extends `src/relay/`.
+- Reuses `src/net/tap/` decode + `tap_audit.c` JSON style; extends `src/relay/`.
 - Uses stock `ngx_http_proxy_module` — no reimplemented proxy (HELPERS rule).
 - `xrootd_sanitize_log_string()` on every wire-derived path (log-sanitize inv.).
-- Guard-core allocation-free/pure like `src/tap/`; nginx allocation only in the
+- Guard-core allocation-free/pure like `src/net/tap/`; nginx allocation only in the
   adapter via `ngx_palloc(r->pool,…)`.
 - No `goto`; functional/modular; new `.c` files registered in `./config`.
