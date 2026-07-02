@@ -131,6 +131,56 @@ in the container with `tests/ceph/run_rescue_tools.sh` (host-side runner).
   ```
   All three assume a quiesced source and only read from RADOS.
 
+## Python migration tools (XrdCeph ⇄ CephFS, pure Python 3)
+
+Pure-Python re-implementations of the two bidirectional migration tools, with
+identical semantics and CLI grammar plus operator quality-of-life additions
+(`--json` JSONL output, resumable `--state` manifest, `--prefix`/`--match`
+worklist filters, progress, O(N) source indexing). The C++ originals stay the
+proven reference; spec:
+`docs/superpowers/specs/2026-07-02-python-xrdceph-cephfs-migration-design.md`,
+deep reference:
+[`docs/10-reference/xrdceph-cephfs-bidirectional-migration.md`](../../docs/10-reference/xrdceph-cephfs-bidirectional-migration.md).
+
+- **`xrdceph_striper_migrate.py`** — striper pool → CephFS (zero-move
+  redirects by default; `--mode copy`, `--rollback`, `--finalize`,
+  `--verify`, `--delete-source` guard as in C++):
+  ```bash
+  xrdceph_striper_migrate.py <striper_pool> <cephfs_data_pool> <dest_prefix> \
+      [--mode redirect|copy] [--rollback] [--finalize] [--verify] [--list F] \
+      [--json] [--state F] [--prefix P] [--match GLOB] ...
+  ```
+- **`xrdceph_cephfs_to_striper.py`** — quiesced CephFS → striper (namespace
+  walked from pure RADOS via the `pymigrate.cephfs_meta` decoders; mandatory
+  `--assume-quiesced`; `--report-only` classification; verify via a real
+  libradosstriper read):
+  ```bash
+  xrdceph_cephfs_to_striper.py <meta_pool> <cephfs_data_pool> <striper_pool> \
+      --assume-quiesced [--report-only] [--finalize] [--rollback] [--verify] ...
+  ```
+
+> **READ-ONLY until finalize** (both directions): a write to a
+> redirect-migrated file writes THROUGH to the source object — serve the
+> migrated estate read-only, or the source is silently modified and rollback
+> can no longer restore it.
+
+**Dependencies:** distro `python3-rados` + `python3-cephfs` only. The
+C++-only redirect ops (`set_redirect`/`copy_from`/`tier_promote`/
+`unset_manifest`) are reached by `pymigrate/radosbridge.py` via ctypes against
+librados's exported (ABI-versioned) C++ symbols, gated by a pre-write
+self-test round-trip; if that path is unusable it falls back to compiling the
+tiny C-ABI shim `pymigrate/shim/rados_manifest_shim.cpp` (needs g++ +
+`librados.hpp`, package `libradospp-devel` on el9). `PYMIGRATE_FORCE_SHIM=1`
+forces the shim path; `PYMIGRATE_SHIM=/path/to.so` points at a prebuilt one.
+
+**Tests:**
+```bash
+# decoder + plumbing unit tests (no cluster):
+python3 -m pytest tests/ceph/test_cephfs_meta.py --noconftest -v
+# full e2e against the demo cluster (both directions, all modes, shim leg):
+tests/ceph/run_py_migrate.sh
+```
+
 ## What works (verified)
 
 - **Driver data + metadata plane:** range read/write, fstat/stat, truncate, and

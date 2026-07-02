@@ -8,6 +8,21 @@ Companion operational runbooks:
 - forward (XrdCeph → CephFS): [`cephfs-migration-glasgow-ral.md`](cephfs-migration-glasgow-ral.md)
 - reverse (CephFS → XrdCeph): [`cephfs-to-xrdceph-migration.md`](cephfs-to-xrdceph-migration.md)
 
+> **Python implementations.** Both tools also exist as pure-Python 3 CLIs with
+> identical semantics and CLI grammar — `tests/ceph/xrdceph_striper_migrate.py`
+> and `tests/ceph/xrdceph_cephfs_to_striper.py` — needing only the distro
+> `python3-rados` / `python3-cephfs` packages (the C++-only redirect ops are
+> reached through `tests/ceph/pymigrate/radosbridge.py`; see the "Python
+> migration tools" section of [`tests/ceph/README.md`](../../tests/ceph/README.md)).
+> They add `--json` machine output, a resumable `--state` manifest,
+> `--prefix`/`--match` worklist filters, progress reporting, and an O(N)
+> source-pool index. e2e coverage: `tests/ceph/run_py_migrate.sh`. Two fixes
+> beyond C++ parity: forced re-migrate/rollback detach stubs via a
+> **data-pool ino index** (the source-index detach loses stubs once sources
+> are gone — [HAZARD] the async MDS purge then delete-throughs into
+> same-named re-created source objects; the C++ tool shares this), and
+> `--list` names files verbatim so rollback works after source deletion.
+
 Legend for the labelled callouts used throughout:
 
 ```
