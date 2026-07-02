@@ -302,6 +302,11 @@ struct xrootd_sd_driver_s {
                                 size_t len, off_t off);
     ngx_int_t  (*staged_commit)(xrootd_sd_staged_t *st, int noreplace);
     void       (*staged_abort) (xrootd_sd_staged_t *st);
+    /* Physical path of the staged temp file, or NULL when the staged write has
+     * no local file (remote/object stores). Lets the cache tier verify a fill
+     * against its digest (and quarantine a mismatch) before commit — phase-68.
+     * Optional slot: NULL means "no path available". */
+    const char *(*staged_path) (const xrootd_sd_staged_t *st);
 
     /* nearline (tape/MSS) recall — phase-64 §9.3. Initiate or join an async recall
      * of `key` from offline (tape) into the backend's online buffer, returning a

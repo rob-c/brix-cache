@@ -77,7 +77,9 @@ typedef struct {
     off_t                       max_file_size;   /* xrootd_cache_max_object        */
     ngx_uint_t                  evict_at;        /* percent-full that triggers evict */
     ngx_uint_t                  evict_to;        /* percent-full target after evict  */
-    xrootd_cache_verify_mode_e  verify;          /* off | best-effort | require      */
+    xrootd_cache_verify_mode_e  verify;          /* off|best-effort|require|cvmfs-cas */
+    char                        quarantine_dir[256]; /* verify-mismatch evidence dir;
+                                                        "" = unlink the failed part */
     regex_t                    *include_regex;   /* xrootd_cache_include             */
     ngx_array_t                *deny_prefixes;   /* xrootd_cache_deny  (ngx_str_t[]) */
     ngx_array_t                *allow_prefixes;  /* xrootd_cache_allow (ngx_str_t[]) */

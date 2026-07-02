@@ -174,6 +174,26 @@ xrootd_tier_register_stores(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *commo
                           ? -1 : (int) common->cache_batch_cinfo;
         pol.l1_entries    = common->cache_index_cache;
         pol.slice_size    = common->cache_slice_size;
+        /* phase-68: digest verification on fill (cvmfs-cas today). The verify
+         * runs on the staged temp BEFORE commit, which needs the store's
+         * staged_path — a local posix store; reject other stores loudly. */
+        pol.verify = (common->cache_verify_mode == NGX_CONF_UNSET_UINT)
+                   ? XROOTD_CACHE_VERIFY_OFF
+                   : (xrootd_cache_verify_mode_e) common->cache_verify_mode;
+        if (pol.verify == XROOTD_CACHE_VERIFY_CVMFS_CAS
+            && ngx_strcmp(cfg.driver, "posix") != 0)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "xrootd_cache_verify cvmfs-cas requires a local posix "
+                "cache store (got \"%s\")", cfg.driver);
+            return NGX_ERROR;
+        }
+        if (common->cache_quarantine_dir.len > 0) {
+            ngx_cpystrn((u_char *) pol.quarantine_dir,
+                        common->cache_quarantine_dir.data,
+                        ngx_min(common->cache_quarantine_dir.len + 1,
+                                sizeof(pol.quarantine_dir)));
+        }
         xrootd_vfs_backend_config_cache_store(common->root_canon, &cfg, &pol);
     }
 
