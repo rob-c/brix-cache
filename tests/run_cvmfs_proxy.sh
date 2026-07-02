@@ -60,4 +60,36 @@ cmp -s "$PFX/p2.bin" "$PFX/r2.bin" && ok "second upstream independent" \
 C="$(curl -s -o /dev/null -w '%{http_code}' -x "$PROXY" \
      "http://evil.example.org/cvmfs/x/data/aa/$(python3 -c 'print("cd"*19)')")"
 [ "$C" = 403 ] && ok "disallowed upstream rejected" || bad "allowlist: $C"
+
+# 4: regression — MULTIPLE hosts on ONE xrootd_cvmfs_upstream_allow line must
+#    ALL be allowed (nginx's stock str-array slot silently kept only the first
+#    argument: every other Stratum-1 got 403 and real clients pinned to the
+#    single surviving host). Second-listed host must proxy fine.
+PFX2="$(mktemp -d /tmp/cvmfs_proxy_multi.XXXXXX)"; CPORT2=12874
+mkdir -p "$PFX2/cache" "$PFX2/logs"
+cat > "$PFX2/nginx.conf" <<EOF
+daemon on; error_log $PFX2/logs/e.log info; pid $PFX2/nginx.pid;
+thread_pool default threads=2;
+events { worker_connections 128; }
+http { access_log off; server {
+    listen 127.0.0.1:$CPORT2;
+    location / {
+        xrootd_cvmfs_cache_store posix:$PFX2/cache;
+        xrootd_cvmfs on;
+        xrootd_cvmfs_upstream_allow bogus.example.org 127.0.0.1 also-bogus.example.org;
+        xrootd_cvmfs_upstream_max 4;
+    }
+} }
+EOF
+"$NGINX" -c "$PFX2/nginx.conf" -p "$PFX2"; sleep 0.5
+C="$(curl -s -o /dev/null -w '%{http_code}' -x "http://127.0.0.1:$CPORT2" \
+     "http://127.0.0.1:$M1$O1")"
+[ "$C" = 200 ] && ok "one-line multi-host allowlist: 2nd host allowed" \
+    || bad "one-line multi-host allowlist dropped 2nd host: $C"
+C="$(curl -s -o /dev/null -w '%{http_code}' -x "http://127.0.0.1:$CPORT2" \
+     "http://evil.example.org/cvmfs/x/.cvmfspublished")"
+[ "$C" = 403 ] && ok "multi-host allowlist still rejects others" \
+    || bad "multi-host allowlist over-allows: $C"
+[ -f "$PFX2/nginx.pid" ] && kill "$(cat "$PFX2/nginx.pid")" 2>/dev/null
+rm -rf "$PFX2"
 exit $fail

@@ -118,6 +118,41 @@ cvmfs_parse_latlon(const ngx_str_t *v, double *lat, double *lon)
     return 0;
 }
 
+/* xrootd_cvmfs_upstream_allow <host> [host ...] — append EVERY argument to
+ * the allowlist. The stock ngx_conf_set_str_array_slot keeps only the first
+ * argument per directive, so a site list written on one line silently
+ * allowed just its first Stratum-1 (observed in the field: every other
+ * Tier-1 answered 403 and clients failed over to — and pinned on — the sole
+ * surviving host). Both forms now work: one directive per host, or one
+ * directive listing them all. */
+static char *
+cvmfs_conf_upstream_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_xrootd_cvmfs_loc_conf_t *c = conf;
+    ngx_str_t                        *value, *slot;
+    ngx_uint_t                        i;
+
+    (void) cmd;
+
+    if (c->cvmfs.upstream_allow == NGX_CONF_UNSET_PTR) {
+        c->cvmfs.upstream_allow = ngx_array_create(cf->pool, 4,
+                                                   sizeof(ngx_str_t));
+        if (c->cvmfs.upstream_allow == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    value = cf->args->elts;
+    for (i = 1; i < cf->args->nelts; i++) {
+        slot = ngx_array_push(c->cvmfs.upstream_allow);
+        if (slot == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        *slot = value[i];
+    }
+    return NGX_CONF_OK;
+}
+
 /* Geo mode (T19): every configured endpoint must have coordinates and
  * xrootd_cvmfs_here must be set — rank once by great-circle distance and
  * record the ranks on the backend entry (applied at instance build). */
@@ -750,7 +785,7 @@ static ngx_command_t ngx_http_xrootd_cvmfs_commands[] = {
 
     { ngx_string("xrootd_cvmfs_upstream_allow"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
-      ngx_conf_set_str_array_slot,
+      cvmfs_conf_upstream_allow,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_xrootd_cvmfs_loc_conf_t, cvmfs.upstream_allow),
       NULL },
