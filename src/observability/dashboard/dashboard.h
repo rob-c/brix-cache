@@ -172,6 +172,7 @@ typedef struct {
     ngx_atomic_t  active_root;
     ngx_atomic_t  active_webdav;
     ngx_atomic_t  active_s3;
+    ngx_atomic_t  active_cvmfs;   /* phase-68 cvmfs:// live transfers */
     ngx_atomic_t  active_tpc;
     ngx_atomic_t  bytes_rx;
     ngx_atomic_t  bytes_tx;

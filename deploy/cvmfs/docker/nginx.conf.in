@@ -18,9 +18,10 @@ thread_pool default threads=8;
 events { worker_connections 4096; }
 
 stream {
-    # Loopback-only root:// endpoint: registers the dashboard/metrics SHM
-    # zones and proves the stream plane lives in the same config. Not
-    # published by the container.
+    # Loopback-only root:// endpoint: proves the stream plane lives in the
+    # same config. (No longer REQUIRED for metrics/dashboard: the cvmfs
+    # postconfiguration ensures those SHM zones on HTTP-only configs too.)
+    # Not published by the container.
     server {
         listen 127.0.0.1:1094;
         xrootd on;
@@ -63,7 +64,8 @@ http {
 
             # forward-proxy authority allowlist (= this site's Stratum-1s).
             # Host-only match, any port; unset would mean proxy mode off.
-            xrootd_cvmfs_upstream_allow @UPSTREAM_ALLOW@;
+            # One directive per host (entrypoint renders the lines).
+            @UPSTREAM_ALLOW_LINES@
             xrootd_cvmfs_upstream_max 16;
 
             # never-drop envelope: hold+retry 25 s (must stay < the client's

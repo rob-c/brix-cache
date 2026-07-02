@@ -156,7 +156,7 @@ class TestDashboardApiFoundation:
         ):
             assert key in data
 
-        assert set(data["protocols"]) == {"root", "webdav", "s3", "tpc"}
+        assert set(data["protocols"]) == {"root", "webdav", "s3", "cvmfs", "tpc"}
         for summary in data["protocols"].values():
             assert "active" in summary
             assert "ingress_bps" in summary

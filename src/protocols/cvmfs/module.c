@@ -589,10 +589,16 @@ ngx_http_xrootd_cvmfs_postconfiguration(ngx_conf_t *cf)
     ngx_str_t                         *pool_name;
     ngx_uint_t                         s;
 
-    /* An HTTP-only cvmfs node has no stream block, so the metrics SHM zone
-     * (normally created by the stream postconfiguration) must be ensured
-     * here or every counter INC is a silent no-op. Idempotent. */
+    /* An HTTP-only cvmfs node has no stream block, so the SHM zones normally
+     * created by the stream postconfiguration must be ensured here: the
+     * metrics table (or every counter INC is a silent no-op) AND the
+     * dashboard transfer/events/history zones (or every live-transfer
+     * record silently fails and the dashboard stays empty). Both are
+     * idempotent — ngx_shared_memory_add returns an existing zone. */
     if (xrootd_metrics_ensure_zone(cf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (xrootd_configure_dashboard(cf) != NGX_OK) {
         return NGX_ERROR;
     }
 

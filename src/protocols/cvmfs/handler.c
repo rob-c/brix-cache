@@ -19,6 +19,7 @@
 #include "fs/vfs/vfs.h"
 #include "fs/vfs/vfs_backend_registry.h"
 #include "observability/dashboard/dashboard.h"
+#include "observability/dashboard/dashboard_tracking.h"
 #include "observability/metrics/unified.h"
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"
@@ -123,6 +124,16 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     key = xrootd_vfs_export_relative(&vctx, path);
+
+    /* Dashboard live-transfer record from TIER ENTRY, not serve time: the
+     * record then spans a cold fill's whole origin wait, so in-flight cvmfs
+     * fills are visible in the transfer table (the serve pipeline's own
+     * start is idempotent and rebinds this same slot; rejects never got
+     * here, so they never occupy one). Auto-freed with the request pool.
+     * `key` is the client-visible /cvmfs/... path — the synthetic proxy-mode
+     * registry root must not leak into the operator display. */
+    (void) xrootd_dashboard_http_start_identity(r, key, "anonymous", "",
+        XROOTD_XFER_PROTO_CVMFS, XROOTD_XFER_DIR_READ, "GET", -1);
 
     /* socket-wire backends can't open/read on the event loop */
     {
