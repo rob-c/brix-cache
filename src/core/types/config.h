@@ -237,12 +237,12 @@ typedef struct {
     ngx_uint_t  throttle_max_open_files;     /* [xrootd_throttle_max_open_files] */
     ngx_uint_t  throttle_max_active_conn;    /* [xrootd_throttle_max_active_connections] */
 
-    /* ---- Phase-59 W2: CSI per-page checksum tagstore (ON by default) ---- */
+    /* ---- CSI block-checksum integrity on the xmeta record (ON by default,
+     * xmeta P3 — the phase-59 per-page .xrdt tagstore is retired) ---- */
     ngx_flag_t  csi_enable;      /* [xrootd_csi on|off] default ON */
-    ngx_str_t   csi_prefix;      /* [xrootd_csi_prefix /.xrdt] ("" = inline) */
-    ngx_flag_t  csi_fill;        /* [xrootd_csi_fill on|off] tag hole pages */
-    ngx_flag_t  csi_require;     /* [xrootd_csi_require on|off] missing tags=err */
-    ngx_flag_t  csi_loose;       /* [xrootd_csi_loose on|off] recover retries */
+    size_t      csi_block;       /* [xrootd_csi_block 1m] granule for NEW
+                                    records (existing keep their own) */
+    ngx_flag_t  csi_require;     /* [xrootd_csi_require on|off] no record=err */
     ngx_flag_t  csi_trust_fs;    /* [xrootd_csi_trust_fs on|off] fs is
                                     self-checksumming: skip read-verify */
 

@@ -192,13 +192,12 @@ xrootd_vfs_io_execute_write(xrootd_vfs_job_t *job)
     job->nio = written;
     job->out_size = (size_t) written;
 
-    /* phase-59 W2: update the per-page CRC tags for the bytes just written.
-     * Full pages are (re)tagged; a trailing partial page is handled by the
-     * RMW-aware path in the engine. Tag-update failure is non-fatal to the
-     * data write (logged by the engine); fail-open keeps writes flowing. */
+    /* xmeta P3: fold the written blocks' CRCs into the handle-local table
+     * (pure in-memory; the record is merged once at close). Failure is
+     * non-fatal to the data write — those blocks simply stay unverified. */
     if (job->csi != NULL && written > 0) {
-        (void) xrootd_csi_update_aligned((xrootd_csi_t *) job->csi, job->buf,
-                                         job->offset, (size_t) written);
+        (void) xrootd_csi_write_update((xrootd_csi_t *) job->csi, job->buf,
+                                       job->offset, (size_t) written);
     }
 }
 

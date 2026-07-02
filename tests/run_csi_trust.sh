@@ -65,7 +65,9 @@ cp_down() { "$XRDCP" -f "root://127.0.0.1:${1}//$2" "$3" >/dev/null 2>&1 && echo
 echo "== trusted write still tags =="
 head -c 12288 /dev/urandom > /tmp/csitrust_src.bin              # 3 full CSI pages
 chk "PUT via trust_fs server"       "$(cp_up "$P_TRU" /tmp/csitrust_src.bin f.bin)" 0
-[ -f "$PFX/root/.xrdt/f.bin.xrdt" ] && ok "tag sidecar created" || bad "no tag sidecar at .xrdt/f.bin.xrdt"
+getfattr -n user.xrd.cinfo "$PFX/root/f.bin" >/dev/null 2>&1 \
+  && ok "xmeta record (user.xrd.cinfo) created at close" || bad "no xmeta record on f.bin"
+[ ! -e "$PFX/root/.xrdt" ] && ok "no .xrdt tag tree (retired)" || bad ".xrdt tree still created"
 chk "GET via verify server passes"  "$(cp_down "$P_VER" f.bin /tmp/csitrust_v.bin)" 0
 cmp -s /tmp/csitrust_src.bin /tmp/csitrust_v.bin && ok "verify GET byte-exact" || bad "verify GET differs"
 
@@ -87,9 +89,11 @@ GOT=$(cp_down "$P_RQO" untagged.bin /tmp/csitrust_u2.bin)
 
 echo "== default on / explicit off =="
 chk "PUT via default server"        "$(cp_up "$P_DEF" /tmp/csitrust_src.bin defon.bin)" 0
-[ -f "$PFX/root/.xrdt/defon.bin.xrdt" ] && ok "CSI tags by default" || bad "default server did not tag"
+getfattr -n user.xrd.cinfo "$PFX/root/defon.bin" >/dev/null 2>&1 \
+  && ok "CSI records by default" || bad "default server did not record"
 chk "PUT via csi-off server"        "$(cp_up "$P_OFF" /tmp/csitrust_src.bin defoff.bin)" 0
-[ ! -f "$PFX/root/.xrdt/defoff.bin.xrdt" ] && ok "xrootd_csi off opts out" || bad "csi-off server tagged anyway"
+getfattr -n user.xrd.cinfo "$PFX/root/defoff.bin" >/dev/null 2>&1 \
+  && bad "csi-off server recorded anyway" || ok "xrootd_csi off opts out"
 
 echo "== security-neg: bad pgwrite wire-CRC still rejected under trust_fs =="
 PYTHONPATH="$HERE/tests" python3 - "$P_TRU" <<'EOF'

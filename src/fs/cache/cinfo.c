@@ -11,7 +11,7 @@
  */
 
 #include "cinfo.h"
-#include "fs/meta/xmeta_carrier.h"   /* xattr name + size cap (shared) */
+#include "fs/meta/xmeta_path.h"      /* the shared raw-path record carrier */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -195,207 +195,39 @@ xrootd_cache_cinfo_from_xmeta(const xrootd_xmeta_t *m,
     }
 }
 
-/* ---- raw path carrier ------------------------------------------------------
+/* ---- raw path carrier (shared: fs/meta/xmeta_path.c) -----------------------
  * The record rides in the data file's user.xrd.cinfo xattr when it fits, else
- * as the stock-readable "<path>.cinfo" sidecar. The cache tree is the
- * read-cache's own svc-owned raw domain (not an export), so these are direct
- * syscalls, which also keeps cinfo.c standalone-testable. */
+ * as the stock-readable "<path>.cinfo" sidecar; CSI and the cache persist into
+ * the SAME record under the SAME per-file lock. Thin NGX-return wrappers. */
 
-#define CINFO_XATTR_NAME XROOTD_XMETA_XATTR_NAME
-
-/* "the record cannot ride in this file's xattr" -- fall back, don't fail */
-static int
-cinfo_xattr_unfit(int err)
-{
-    return err == E2BIG || err == ERANGE || err == ENOSPC || err == ENOTSUP
-        || err == EACCES || err == EPERM || err == ENOENT
-#ifdef EOPNOTSUPP
-        || err == EOPNOTSUPP
-#endif
-        ;
-}
-
-/* Load + decode the record for cache_path (xattr first, then the sidecar
- * file). NGX_OK (caller frees *xm) / NGX_DECLINED (nothing valid recorded) /
- * NGX_ERROR (errno). */
 static ngx_int_t
 cinfo_xmeta_read(const char *cache_path, xrootd_xmeta_t *xm)
 {
-    char     path[PATH_MAX];
-    uint8_t *buf;
-    ssize_t  n;
-    int      fd, drc;
+    int rc = xrootd_xmeta_path_load(cache_path, xm);
 
-    buf = malloc(XROOTD_XMETA_XATTR_MAX);
-    if (buf == NULL) {
-        errno = ENOMEM;
-        return NGX_ERROR;
-    }
-
-    /* vfs-seam-allow: cache-state record on the svc-owned cache tree */
-    n = getxattr(cache_path, CINFO_XATTR_NAME, buf, XROOTD_XMETA_XATTR_MAX);
-    if (n > 0) {
-        drc = xrootd_xmeta_decode(buf, (size_t) n, xm);
-        free(buf);
-        if (drc == XROOTD_XMETA_OK) {
-            return NGX_OK;
-        }
-        return (drc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
-    }
-    free(buf);
-
-    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
-    }
-    fd = open(path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
-    if (fd < 0) {
-        return (errno == ENOENT) ? NGX_DECLINED : NGX_ERROR;
-    }
-    {
-        struct stat stb;
-        uint8_t    *fbuf;
-        size_t      flen, got = 0;
-
-        if (fstat(fd, &stb) != 0 || stb.st_size <= 0
-            || (uint64_t) stb.st_size > XROOTD_XMETA_MAX_SECTION)
-        {
-            close(fd);
-            return NGX_DECLINED;
-        }
-        flen = (size_t) stb.st_size;
-        fbuf = malloc(flen);
-        if (fbuf == NULL) {
-            close(fd);
-            errno = ENOMEM;
-            return NGX_ERROR;
-        }
-        while (got < flen) {
-            ssize_t r = pread(fd, fbuf + got, flen - got, (off_t) got);
-
-            if (r < 0 && errno == EINTR) {
-                continue;
-            }
-            if (r <= 0) {
-                break;
-            }
-            got += (size_t) r;
-        }
-        close(fd);
-        if (got != flen) {
-            free(fbuf);
-            return NGX_DECLINED;
-        }
-        drc = xrootd_xmeta_decode(fbuf, flen, xm);
-        free(fbuf);
-    }
-    if (drc == XROOTD_XMETA_OK) {
+    if (rc == XROOTD_XMETA_OK) {
         return NGX_OK;
     }
-    return (drc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
+    return (rc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
 }
 
-/* Encode + persist the record for cache_path (xattr preferred, sidecar
- * fallback; exactly one carrier survives). NGX_OK / NGX_ERROR (errno). */
 static ngx_int_t
 cinfo_xmeta_write(const char *cache_path, const xrootd_xmeta_t *xm)
 {
-    char     path[PATH_MAX];
-    uint8_t *buf = NULL;
-    size_t   len = 0;
-    int      fd;
-    size_t   put = 0;
-
-    if (xrootd_xmeta_encode(xm, &buf, &len) != XROOTD_XMETA_OK) {
-        return NGX_ERROR;
-    }
-    if (xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0) {
-        free(buf);
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
-    }
-
-    if (len <= XROOTD_XMETA_XATTR_MAX
-        /* vfs-seam-allow: cache-state record on the svc-owned cache tree */
-        && setxattr(cache_path, CINFO_XATTR_NAME, buf, len, 0) == 0)
-    {
-        free(buf);
-        (void) unlink(path);           /* one carrier: drop any stale sidecar */
-        return NGX_OK;
-    }
-    if (len <= XROOTD_XMETA_XATTR_MAX && !cinfo_xattr_unfit(errno)) {
-        free(buf);
-        return NGX_ERROR;
-    }
-
-    fd = open(path, O_WRONLY | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW,
-              0644);
-    if (fd < 0) {
-        free(buf);
-        return NGX_ERROR;
-    }
-    while (put < len) {
-        ssize_t w = pwrite(fd, buf + put, len - put, (off_t) put);
-
-        if (w < 0 && errno == EINTR) {
-            continue;
-        }
-        if (w <= 0) {
-            free(buf);
-            close(fd);
-            return NGX_ERROR;
-        }
-        put += (size_t) w;
-    }
-    free(buf);
-    if (ftruncate(fd, (off_t) len) != 0 || fdatasync(fd) != 0) {
-        close(fd);
-        return NGX_ERROR;
-    }
-    if (close(fd) != 0) {
-        return NGX_ERROR;
-    }
-    (void) removexattr(cache_path, CINFO_XATTR_NAME);  /* one carrier */
-    return NGX_OK;
+    return (xrootd_xmeta_path_save(cache_path, xm) == XROOTD_XMETA_OK)
+           ? NGX_OK : NGX_ERROR;
 }
 
-/* Open + LOCK_EX the per-file RMW lock: the data file when it exists (partial
- * fills, write-back), else the sidecar path (slice cache: the base object is
- * never materialized, so the sidecar doubles as the lock). Returns the locked
- * fd or -1 (errno). flock is advisory, per-open-fd, auto-released on crash. */
 static int
 cinfo_rmw_lock(const char *cache_path)
 {
-    char path[PATH_MAX];
-    int  fd;
-
-    fd = open(cache_path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
-    if (fd < 0) {
-        if (errno != ENOENT
-            || xrootd_cache_cinfo_path(path, sizeof(path), cache_path) != 0)
-        {
-            return -1;
-        }
-        fd = open(path, O_RDWR | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW,
-                  0644);
-        if (fd < 0) {
-            return -1;
-        }
-    }
-    while (flock(fd, LOCK_EX) != 0) {
-        if (errno != EINTR) {
-            close(fd);
-            return -1;
-        }
-    }
-    return fd;
+    return xrootd_xmeta_path_lock(cache_path);
 }
 
 static void
 cinfo_rmw_unlock(int fd)
 {
-    (void) flock(fd, LOCK_UN);
-    (void) close(fd);
+    xrootd_xmeta_path_unlock(fd);
 }
 
 ngx_int_t

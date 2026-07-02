@@ -557,18 +557,11 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       offsetof(ngx_stream_xrootd_srv_conf_t, csi_enable),
       NULL },
 
-    { ngx_string("xrootd_csi_prefix"),
+    { ngx_string("xrootd_csi_block"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
+      ngx_conf_set_size_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, csi_prefix),
-      NULL },
-
-    { ngx_string("xrootd_csi_fill"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, csi_fill),
+      offsetof(ngx_stream_xrootd_srv_conf_t, csi_block),
       NULL },
 
     { ngx_string("xrootd_csi_require"),
@@ -576,13 +569,6 @@ ngx_command_t ngx_stream_xrootd_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_xrootd_srv_conf_t, csi_require),
-      NULL },
-
-    { ngx_string("xrootd_csi_loose"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_xrootd_srv_conf_t, csi_loose),
       NULL },
 
     { ngx_string("xrootd_csi_trust_fs"),
