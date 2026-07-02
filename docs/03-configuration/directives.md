@@ -746,12 +746,14 @@ stream {
 ## CSI page-checksum integrity directives
 
 OssCsi-style at-rest integrity: one CRC32C per 4096-byte data page, stored in a
-`.xrdt` sidecar, verified on every read and updated on every write. All
-directives are stream server-block scoped.
+`.xrdt` sidecar, verified on every read and updated on every write. **On by
+default** — set `xrootd_csi off` to opt out, or keep it on and set
+`xrootd_csi_trust_fs on` where the filesystem already checksums end-to-end.
+All directives are stream server-block scoped.
 
 | Directive | Default | Meaning |
 |---|---|---|
-| `xrootd_csi on\|off` | `off` | Enable the per-page tagstore for this server |
+| `xrootd_csi on\|off` | `on` | Enable the per-page tagstore for this server |
 | `xrootd_csi_prefix <dir>` | `/.xrdt` | Directory for tag sidecars (`""` = inline next to data) |
 | `xrootd_csi_fill on\|off` | `on` | Tag implied-zero hole pages |
 | `xrootd_csi_require on\|off` | `off` | Refuse read-opens of untagged files |

@@ -16,6 +16,8 @@ P_VER=11498   # csi on, trust off  (default verify behavior)
 P_TRU=11499   # csi on, trust_fs on
 P_RQT=11500   # csi + require + trust_fs (untagged read must pass)
 P_RQO=11501   # csi + require only       (untagged read must be refused)
+P_DEF=11502   # no csi directives: CSI must be ON by default
+P_OFF=11503   # xrootd_csi off: opt-out must not tag
 PFX="$(mktemp -d /tmp/csi_trust.XXXXXX)"
 fail=0
 ok()  { printf '  ok   %s\n' "$1"; }
@@ -31,7 +33,6 @@ srv() { cat <<EOF
         xrootd_auth none;
         xrootd_allow_write on;
         xrootd_upload_resume off;
-        xrootd_csi on;
         ${2}
         xrootd_access_log $PFX/logs/access_${1}.log;
     }
@@ -43,10 +44,12 @@ EOF
     echo "pid $PFX/nginx.pid;"
     echo "events { worker_connections 64; }"
     echo "stream {"
-    srv "$P_VER" ""
-    srv "$P_TRU" "xrootd_csi_trust_fs on;"
-    srv "$P_RQT" "xrootd_csi_require on; xrootd_csi_trust_fs on;"
-    srv "$P_RQO" "xrootd_csi_require on;"
+    srv "$P_VER" "xrootd_csi on;"
+    srv "$P_TRU" "xrootd_csi on; xrootd_csi_trust_fs on;"
+    srv "$P_RQT" "xrootd_csi on; xrootd_csi_require on; xrootd_csi_trust_fs on;"
+    srv "$P_RQO" "xrootd_csi on; xrootd_csi_require on;"
+    srv "$P_DEF" ""
+    srv "$P_OFF" "xrootd_csi off;"
     echo "}"
 } > "$PFX/nginx.conf"
 
@@ -81,6 +84,12 @@ head -c 8192 /dev/urandom > "$PFX/root/untagged.bin"
 chk "require+trust reads untagged"  "$(cp_down "$P_RQT" untagged.bin /tmp/csitrust_u.bin)" 0
 GOT=$(cp_down "$P_RQO" untagged.bin /tmp/csitrust_u2.bin)
 [ "$GOT" != 0 ] && ok "require-only refuses untagged (rc=$GOT)" || bad "require-only served an untagged file"
+
+echo "== default on / explicit off =="
+chk "PUT via default server"        "$(cp_up "$P_DEF" /tmp/csitrust_src.bin defon.bin)" 0
+[ -f "$PFX/root/.xrdt/defon.bin.xrdt" ] && ok "CSI tags by default" || bad "default server did not tag"
+chk "PUT via csi-off server"        "$(cp_up "$P_OFF" /tmp/csitrust_src.bin defoff.bin)" 0
+[ ! -f "$PFX/root/.xrdt/defoff.bin.xrdt" ] && ok "xrootd_csi off opts out" || bad "csi-off server tagged anyway"
 
 echo "== security-neg: bad pgwrite wire-CRC still rejected under trust_fs =="
 PYTHONPATH="$HERE/tests" python3 - "$P_TRU" <<'EOF'

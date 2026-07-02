@@ -403,7 +403,7 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
         }
     }
 
-    ngx_conf_merge_value(conf->csi_enable,  prev->csi_enable,  0);
+    ngx_conf_merge_value(conf->csi_enable,  prev->csi_enable,  1);
     ngx_conf_merge_str_value(conf->csi_prefix, prev->csi_prefix, "/.xrdt");
     ngx_conf_merge_value(conf->csi_fill,    prev->csi_fill,    1);
     ngx_conf_merge_value(conf->csi_require, prev->csi_require, 0);
