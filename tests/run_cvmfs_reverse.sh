@@ -18,8 +18,12 @@ thread_pool default threads=2;
 events { worker_connections 128; }
 http {
     access_log off;
+    # T21 canonical connection-durability block (proven by run_cvmfs_keepalive.sh)
+    keepalive_timeout 3600s; keepalive_requests 1000000;
+    send_timeout 300s; client_header_timeout 300s;
+    reset_timedout_connection off;
     server {
-        listen 127.0.0.1:$CPORT;
+        listen 127.0.0.1:$CPORT so_keepalive=60s:10s:6 backlog=2048;
         location /cvmfs/ {
             xrootd_cvmfs_storage_backend http://127.0.0.1:$MPORT;
             xrootd_cvmfs_cache_store posix:$PFX/cache;
