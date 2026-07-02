@@ -1061,6 +1061,21 @@ ngx_module_deps="$ngx_addon_dir/src/protocols/srr/srr.h \
 ngx_module_libs="$XROOTD_JANSSON_LIBS"
 xrd_emit_module
 
+# Phase-65 bad-actor guard — ACCESS-phase bounce + LOG-phase fail2ban audit
+# in front of stock proxy_pass (ARC + XrdHttp profiles).  Classification lives
+# in the pure-C core src/net/guard/ (compiled with the stream module above and
+# linked from the same binary).
+ngx_module_type=HTTP
+ngx_module_name=ngx_http_xrootd_guard_module
+ngx_module_srcs="$ngx_addon_dir/src/net/httpguard/module.c \
+                 $ngx_addon_dir/src/net/httpguard/classify_handler.c \
+                 $ngx_addon_dir/src/net/httpguard/audit_handler.c \
+                 $ngx_addon_dir/src/net/httpguard/guard_http_req.c"
+ngx_module_deps="$ngx_addon_dir/src/net/httpguard/guard_http.h \
+                 $ngx_addon_dir/src/net/guard/guard.h"
+ngx_module_libs=
+xrd_emit_module
+
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_xrootd_webdav_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
