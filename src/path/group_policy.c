@@ -3,7 +3,7 @@
  *
  * WHY: Group policy inheritance ensures new files/directories created under a parent directory inherit the parent's group ownership and appropriate group permission bits — critical for shared HEP datasets where multiple users in the same Unix group need consistent access. S_ISGID propagation on directories ensures subdirectories also inherit the group; file execute bit inherited only if child already has it prevents over-permissive mode assignment on regular files. */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #include <errno.h>
 #include <stddef.h>

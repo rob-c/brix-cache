@@ -386,8 +386,8 @@ inside `sd_s3.c`.
 to force small parts for testing. `expected_size` comes from the copy engine's
 `xrdc_vfs_open_opts.expected_size` hint (`<0` = unknown → MPU).
 
-> **`<time.h>` gotcha (S3):** the module build adds `-I src/compat`, so
-> `#include <time.h>` resolves to `src/compat/time.h` (module-only,
+> **`<time.h>` gotcha (S3):** the module build adds `-I src/core/compat`, so
+> `#include <time.h>` resolves to `src/core/compat/time.h` (module-only,
 > self-recursive). `sd_s3.c` therefore computes UTC with `gettimeofday` + a
 > Howard-Hinnant civil-from-days calc instead of `gmtime_r`. Don't "fix" it back
 > to `<time.h>`.
@@ -502,7 +502,7 @@ simply `NULL` in the client build via `#ifndef XRDPROTO_NO_NGX`.
 ### 7.1 Build-list facts (easy to get wrong)
 
 - New `.c` files register in the **top-level `./config`** (the `$ngx_addon_dir/
-  src/…` lists), *not* `src/config/config.h`.
+  src/…` lists), *not* `src/core/config/config.h`.
 - The module build (`./config`) compiles `sd_posix.c`, `sd_block.c`,
   `sd_registry.c`, `vfs_io_core.c`, `vfs_core.c`.
 - **`sd_s3.c` is `libxrdproto`-only** — it is in `shared/xrdproto/Makefile`'s

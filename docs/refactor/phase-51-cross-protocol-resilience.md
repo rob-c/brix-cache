@@ -70,7 +70,7 @@ observability/anti-abuse depth that "extremely hardened" implies.
 
 1. **Two data-plane timeouts default to UNLIMITED (high-load risk).**
    `proxy_write_timeout = 0` → a slow/backpressured upstream stalls the client
-   connection indefinitely (`src/config/server_conf.c:588`). Native-TPC
+   connection indefinitely (`src/core/config/server_conf.c:588`). Native-TPC
    `tpc_max_transfer_secs = 0` + low-speed knobs off → a stalled remote pins a
    thread-pool worker forever (thread-pool exhaustion = HTTP unresponsiveness
    under load).
@@ -103,7 +103,7 @@ hot-path hazards when a backend is slow/down or under CPU/memory pressure:
    `ocsp off` + `ocsp_soft_fail on`, so stock deployments are unaffected, but any
    site enabling OCSP is exposed.
 9. **No per-worker L1 on the auth-result (auth-gate) cache.** Every GSI/authz
-   decision takes the SHM spinlock (`xrootd_kv_get/_set` in `src/shm/kv.c`) —
+   decision takes the SHM spinlock (`xrootd_kv_get/_set` in `src/core/shm/kv.c`) —
    cross-worker contention under load. The token cache got an L1 this session; the
    auth-gate cache did not (`src/path/auth_gate.c`).
 10. **XrdAcc NSS / reverse-DNS lookups block on miss.** `getpwnam`/`getgrouplist`
@@ -185,7 +185,7 @@ conformant slow-but-progressing transfer is never clipped.
 ### B — Cross-protocol data-plane defaults
 
 - **B1. proxy write-stall ON by default.** `proxy_write_timeout` merge default
-  `0` → ~60s in `src/config/server_conf.c`; `0` still disables. Arming exists.
+  `0` → ~60s in `src/core/config/server_conf.c`; `0` still disables. Arming exists.
 - **B2. Native-TPC stall bounds ON by default.** Default low-speed detector
   (~1KB/s over ~60s) + large absolute `tpc_max_transfer_secs` (~24h); `0` =
   unlimited. Applied via `tpc_curl_apply_stall_bounds()`.
@@ -296,7 +296,7 @@ GSI DH keypool (`src/gsi/keypool.c`) is the model for moving cost off the loop.
   `server.h`, `server_module.c` (A1 INCs, A2 work-cap, A3 per-IP cap).
 - Manager: `src/manager/pending.c`/`.h` (A4 reaper).
 - Metrics: `src/metrics/metrics.h` + `src/metrics/stream.c` (A1 counters/export).
-- Defaults: `src/config/server_conf.c` (B1, B2).
+- Defaults: `src/core/config/server_conf.c` (B1, B2).
 - TPC/durability: `src/webdav/tpc_curl.c` (confirm B2), WebDAV/S3 staged-commit
   site (C1 fsync).
 - Docs/config: `contrib/xrootd.conf.example` (B3), `docs/04-protocols/cms-protocol.md`
@@ -309,7 +309,7 @@ GSI DH keypool (`src/gsi/keypool.c`) is the model for moving cost off the loop.
   `src/gsi/auth.c` / `src/token/validate.c` + the W7 concurrency limiter (E4),
   `src/crypto/pki_load.c` (E5), `src/metrics/metrics.h` + `src/metrics/stream.c` +
   `src/metrics/http.c` (E6). New auth directives via the usual
-  `NGX_CONF_UNSET`→merge→`ngx_command_t` pattern (`src/config/server_conf.c`,
+  `NGX_CONF_UNSET`→merge→`ngx_command_t` pattern (`src/core/config/server_conf.c`,
   `src/stream/module.c`, `src/webdav/module.c`).
 - Auth tests: `tests/test_auth_resilience.py` (new) — OCSP responder that
   black-holes (handshake fails fast within the timeout, not after 60 s; soft-fail

@@ -75,14 +75,14 @@ implementation:
 | `kXR_pgwrite` | `xrootd_handle_pgwrite` | `src/write/pgwrite.c:146` |
 | `kXR_sync` | `xrootd_handle_sync` | `src/write/sync.c:42` |
 
-Asynchrony is the `src/aio/` subsystem: a thread-pool backend (nginx
-`ngx_thread_pool`) plus an optional `io_uring` backend (`src/aio/uring*.c`,
+Asynchrony is the `src/core/aio/` subsystem: a thread-pool backend (nginx
+`ngx_thread_pool`) plus an optional `io_uring` backend (`src/core/aio/uring*.c`,
 Phase 44), both funnelled through one interposition point
-`xrootd_aio_post_task()` (`src/aio/resume.c:68`). Checksums are a single C
-kernel per family (`src/compat/crc32c.c`, `src/compat/crc64.c`,
-`src/compat/checksum*.c`), with per-protocol encoding done at the edges. The
+`xrootd_aio_post_task()` (`src/core/aio/resume.c:68`). Checksums are a single C
+kernel per family (`src/core/compat/crc32c.c`, `src/core/compat/crc64.c`,
+`src/core/compat/checksum*.c`), with per-protocol encoding done at the edges. The
 module additionally implements transparent read/write **compression**
-(`src/compat/codec_*.c`) that has no equivalent in the official root:// path.
+(`src/core/compat/codec_*.c`) that has no equivalent in the official root:// path.
 
 ## Read path
 
@@ -115,7 +115,7 @@ nginx-xrootd's `xrootd_handle_read` runs a comparable dispatch ladder
 5. **small single-shot read** otherwise.
 
 The request length is capped at `XROOTD_READ_REQUEST_MAX = 64 MiB`
-(`read.c:115`, `src/types/tunables.h`); the wire chunk is split at
+(`read.c:115`, `src/core/types/tunables.h`); the wire chunk is split at
 `XROOTD_READ_CHUNK_MAX = 16 MiB`. For the small memory path the module first
 tries a Phase-32 warm-cache probe — `preadv2(..., RWF_NOWAIT)` — and completes
 inline when the page cache already holds the exact range, skipping the thread
@@ -196,7 +196,7 @@ each in-flight request can occupy its own worker.
 **nginx-xrootd.** Asynchrony is a three-tier cascade behind one interposition
 point, `xrootd_aio_post_task()` (`resume.c:68-122`):
 
-1. **io_uring** (Phase 44, `src/aio/uring*.c`) when compiled in and enabled.
+1. **io_uring** (Phase 44, `src/core/aio/uring*.c`) when compiled in and enabled.
    Directive `xrootd_io_uring off|on|auto` (default `auto`,
    `server_conf.c:387`); `on` is fail-fast at `nginx -t`. Companion directives:
    `xrootd_io_uring_queue_depth` (default 256), `xrootd_io_uring_panic_file`
@@ -345,10 +345,10 @@ external plugin, and there is no CRC-64/XZ vs CRC-64/NVME distinction.
 wire as `"<algname> <hexvalue>\0"`.
 
 nginx-xrootd parses and computes a broader set in a single small C kernel per
-family (`xrootd_checksum_parse`, `src/compat/checksum.c:42-169`): **adler32,
+family (`xrootd_checksum_parse`, `src/core/compat/checksum.c:42-169`): **adler32,
 crc32, crc32c, crc64 (alias crc64xz), crc64nvme, zcrc32, md5, sha1, sha256**.
-The crc32c kernel is `src/compat/crc32c.c` (SSE4.2 + software, poly
-`0x82F63B78`). The CRC64 kernel is the single engine in `src/compat/crc64.c`,
+The crc32c kernel is `src/core/compat/crc32c.c` (SSE4.2 + software, poly
+`0x82F63B78`). The CRC64 kernel is the single engine in `src/core/compat/crc64.c`,
 which builds one reflected 256-entry table per *variant* at constructor time:
 
 | Variant | Reflected poly | Check value | Notes |
@@ -383,7 +383,7 @@ written in the old `oocx_CXFile` format and the `kXR_compress` open flag merely
 sets `SFS_O_RAWIO` so the client reads the raw compressed bytes — the server
 neither compresses nor decompresses, and such files cannot be opened for update.
 
-nginx-xrootd implements real, negotiated codecs in `src/compat/codec_*.c`. The
+nginx-xrootd implements real, negotiated codecs in `src/core/compat/codec_*.c`. The
 codec table (`codec_core.c:81-90`) is IDENTITY, GZIP, DEFLATE, ZSTD, BROTLI, XZ
 (lzma), BZIP2, LZ4; each backend compiles to an `available = 0` stub if its
 library is absent. Decompression enforces an output cap and a maximum expansion

@@ -28,11 +28,11 @@
 #include "xrdhttp.h"
 #include "webdav.h"
 #include "protocol/opcodes.h"
-#include "compat/integrity_info.h"
-#include "compat/net_target.h"
-#include "compat/checksum.h"
-#include "compat/http_headers.h"
-#include "compat/http_query.h"
+#include "core/compat/integrity_info.h"
+#include "core/compat/net_target.h"
+#include "core/compat/checksum.h"
+#include "core/compat/http_headers.h"
+#include "core/compat/http_query.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -41,7 +41,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /* Our nginx module context tag for the XrdHttp per-request context. */
 extern ngx_module_t ngx_http_xrootd_webdav_module;

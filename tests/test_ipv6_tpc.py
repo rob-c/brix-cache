@@ -13,7 +13,7 @@ the fix that rebuild emitted a bare, unparseable "root://::1:port/path"; the fix
 re-brackets via xrootd_format_host_port() at src/tpc/launch.c:182 →
 "root://[::1]:port/path".  These tests prove the parse→rebuild round-trip accepts a
 bracketed IPv6 source and that the SSRF gate (src/tpc/connect.c::
-xrootd_tpc_check_src_policy → src/compat/net_target.c) is still applied to the bare
+xrootd_tpc_check_src_policy → src/core/compat/net_target.c) is still applied to the bare
 host BEFORE any rebuild, so the round-trip cannot be used to smuggle a loopback /
 v4-mapped-loopback source past the local-deny policy.
 

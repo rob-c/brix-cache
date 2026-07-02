@@ -19,9 +19,9 @@
 #include "usermeta.h"
 #include "fs/vfs.h"
 #include "path/path.h"
-#include "compat/copy_range.h"
-#include "compat/http_headers.h"
-#include "compat/staged_file.h"
+#include "core/compat/copy_range.h"
+#include "core/compat/http_headers.h"
+#include "core/compat/staged_file.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -29,7 +29,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <limits.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 static const char *
 s3_copy_find_header(ngx_http_request_t *r, const char *name, size_t nlen)

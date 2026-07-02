@@ -7,7 +7,7 @@
  * service dispatch uses the native responder interface in ssi_service.
  */
 
-#include "ngx_xrootd_module.h"   /* master header: ngx + tunables + config + types */
+#include "core/ngx_xrootd_module.h"   /* master header: ngx + tunables + config + types */
 #include "ssi.h"
 #include "ssi_rrinfo.h"
 #include "ssi_reply.h"
@@ -19,7 +19,7 @@
 #include "ssi/svc_cta/cta_service.h"
 #include "connection/fd_table.h"
 #include "response/response.h"
-#include "compat/error_mapping.h"   /* xrootd_kxr_from_errno */
+#include "core/compat/error_mapping.h"   /* xrootd_kxr_from_errno */
 #include "protocol/opcodes.h"
 #include "protocol/wire_core_requests.h"
 

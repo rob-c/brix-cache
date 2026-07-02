@@ -1,6 +1,6 @@
 #include "server.h"
 #include "connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
-#include "compat/log_diag.h"
+#include "core/compat/log_diag.h"
 #include "metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
 
 /*

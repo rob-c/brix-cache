@@ -76,7 +76,7 @@ return webdav_send_empty_response(r, NGX_HTTP_NO_CONTENT);
 ### Phase 2d: Address Parsing Migration (Est. -40 LoC)
 
 **Status:** Deferred - Helper infrastructure ready
-- Created: `src/config/addr_parse.c/h` with unified `xrootd_parse_address()` function
+- Created: `src/core/config/addr_parse.c/h` with unified `xrootd_parse_address()` function
 - Ready for migration in: cache/directives.c, tpc_config.c, upstream/directives.c
 - Estimated reduction when implemented: **-40 LoC**
 
@@ -106,10 +106,10 @@ xrootd_parse_address(addr_str, addr_len, host, host_len, &port, &tls_enabled);
 4. `src/cache/directives.c` - Phase 1 (allocation macro consolidation)
 
 ### Helper Infrastructure Created (Phase 1)
-1. `src/compat/alloc_helpers.h` - Memory allocation macros
+1. `src/core/compat/alloc_helpers.h` - Memory allocation macros
 2. `src/webdav/response_helpers.h` - HTTP response helpers
-3. `src/config/conf_helpers.h` - Config merge macros
-4. `src/config/addr_parse.c/h` - Address parsing helper
+3. `src/core/config/conf_helpers.h` - Config merge macros
+4. `src/core/config/addr_parse.c/h` - Address parsing helper
 
 ### Total LoC Consolidated So Far
 - **Phase 1 infrastructure:** 0 LoC (helpers created)

@@ -182,7 +182,7 @@ for where you failed to turn it on.
   rebuild.)
 
 - **New `.c` files register in the top-level `./config`** (the `$ngx_addon_dir/src/…c`
-  lists), then `./configure`. Not `src/config/config.h` (CLAUDE.md is imprecise here).
+  lists), then `./configure`. Not `src/core/config/config.h` (CLAUDE.md is imprecise here).
 
 - **`ngx_log_error` does not understand `%02x`/`%d`.** Use the ngx specifiers
   (`%xd`, `%ui`, `%uz`, `%*s`); a wrong specifier prints literally or empty and sends

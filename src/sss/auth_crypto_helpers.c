@@ -1,8 +1,8 @@
 #include "sss_internal.h"
 #include "gsi/gsi_internal.h"
 #include "session/registry.h"
-#include "compat/crc32_ieee.h"   /* shared CRC-32/IEEE (libxrdproto) */
-#include "compat/sss_bf.h"       /* shared Blowfish-CFB64 (libxrdproto) */
+#include "core/compat/crc32_ieee.h"   /* shared CRC-32/IEEE (libxrdproto) */
+#include "core/compat/sss_bf.h"       /* shared Blowfish-CFB64 (libxrdproto) */
 
 #include <errno.h>
 #include <openssl/crypto.h>

@@ -155,7 +155,7 @@ counter says a foreign writer may have extended the file.
 
 ### A.6 Large-transfer chunk-array pre-sizing — **P2-2**
 
-`src/aio/buffers.c:277-334` (memory chains) and `:405-477` (sendfile chains)
+`src/core/aio/buffers.c:277-334` (memory chains) and `:405-477` (sendfile chains)
 allocate 4–5 pool objects **per 16 MiB chunk**. A 160 MiB read → 50 chunks → 250
 allocations. Pre-allocate the chunk/`ngx_buf_t`/`ngx_file_t` arrays once per
 response. `[AUDIT]` — pool allocs are cheap; measure before investing.
@@ -167,7 +167,7 @@ response. `[AUDIT]` — pool allocs are cheap; measure before investing.
 ### B.1 `[VERIFIED-as-corrected]` TLS GET is **not** an OOM bug — it's an `aio threads` gap
 
 See Appendix A.1 for why the "whole-file buffer over TLS" claim is false:
-`src/compat/http_file_response.c:211-298` builds a single `in_file=1` buf and hands
+`src/core/compat/http_file_response.c:211-298` builds a single `in_file=1` buf and hands
 it to `ngx_http_output_filter` — the **canonical** nginx pattern. Over TLS, nginx
 reads the file in `output_buffers`-sized chunks; it never materializes the whole
 file. The **real** lever is that those reads are **synchronous in the event loop**
@@ -233,7 +233,7 @@ keyed by a request fingerprint on signing-key-cache hits.
 
 ### B.5 `[AUDIT]` Single-range fast path for `Range`
 
-`src/compat/range.c:39-77` always routes single-range `bytes=a-b` through the
+`src/core/compat/range.c:39-77` always routes single-range `bytes=a-b` through the
 general multi-range vector parser. Add an inline fast path for the dominant
 single-range case.
 
@@ -270,7 +270,7 @@ zero runtime.
 
 `src/path/acl.c:88-101` linear-scans a comma-separated VO list with `strchr` per
 ACL check. Build a small hash set on the identity at auth time
-(`src/types/identity.c`) → O(1) membership.
+(`src/core/types/identity.c`) → O(1) membership.
 
 ### C.4 `[AUDIT]` Parse the JWT payload once — **P1-6**
 
@@ -441,7 +441,7 @@ requests share cache lines → RFO ping-pong (false sharing) on high-core machin
 ### E.4 `[AUDIT]` Rate-limit + dashboard SHM spinlock contention — **P2-3**
 
 `src/ratelimit/ratelimit.c:38-71` holds `shpool->mutex` across lookup + token-bucket
-arithmetic; `src/shm/kv.c:247-282` holds the KV mutex across a linear-probe scan;
+arithmetic; `src/core/shm/kv.c:247-282` holds the KV mutex across a linear-probe scan;
 `src/dashboard/transfer_table.c:82-135` holds `xrootd_dashboard_mutex` across an
 O(512) free-slot scan + memzero + field copies on every open/close. Under a
 single-key burst (bulk client / DDoS) all cores serialize. Move to per-identity
@@ -454,7 +454,7 @@ for dashboard slots, and copy-out-then-compare-outside-lock for KV reads.
 `ngx_log_error`s one line per request (one write/syslog datagram per request at
 1000+ rps). Single-pass builder writing straight to a per-worker ring buffer,
 flushed on a timer / size threshold. Sanitize once at parse time
-(`src/compat/log.c:11-18`), not on every log call.
+(`src/core/compat/log.c:11-18`), not on every log call.
 
 - **Invariant note:** keep `xrootd_sanitize_log_string` semantics (control-byte /
   quote escaping) — just do it once and reuse.
@@ -507,7 +507,7 @@ Phase 32 verified the current CRC32C path is already hardware-accelerated and
 not the active data-plane bottleneck. Keep the rationale below as an optional
 future tuning idea, not as a current P0.
 
-`src/compat/crc32c.c:140-170` (`hw_extend`) processes 8 bytes/iteration with a
+`src/core/compat/crc32c.c:140-170` (`hw_extend`) processes 8 bytes/iteration with a
 **serial dependency** on `state` through `_mm_crc32_u64` (latency ~3 cycles,
 throughput-bound to ~one 8-byte chunk per 3 cycles ≈ 2–3 GB/s). The
 state-of-the-art is **3-way (or N-way) parallel folding with `PCLMULQDQ`** plus
@@ -619,7 +619,7 @@ plane, (3) `allow_write` before token scope, (4) `resolve_path()` before `open()
 
 ### A.1 "HTTP GET buffers whole files into memory over TLS → OOM" — **FALSE**
 
-A sweep flagged `src/compat/http_file_response.c:253` (`b->in_file = 1` set
+A sweep flagged `src/core/compat/http_file_response.c:253` (`b->in_file = 1` set
 unconditionally) as forcing whole-file memory buffering over TLS. **Verified
 false.** The function builds a single file-backed `ngx_buf_t` and calls
 `ngx_http_send_header` + `ngx_http_output_filter` (`:280-298`) — the canonical

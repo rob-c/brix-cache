@@ -1,5 +1,5 @@
 #include "server.h"
-#include "config/config.h"   /* xrootd_sss_load_keytab */
+#include "core/config/config.h"   /* xrootd_sss_load_keytab */
 
 
 /* xrootd_cms_srv_create_conf — allocate the CMS-server srv_conf with enable and

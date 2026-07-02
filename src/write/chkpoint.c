@@ -1,9 +1,9 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "fs/vfs.h"   /* confined open/unlink via the VFS seam */
 #include "chkpoint_xeq.h"
-#include "compat/log.h"
-#include "compat/copy_range.h"
-#include "compat/staged_file.h"
+#include "core/compat/log.h"
+#include "core/compat/copy_range.h"
+#include "core/compat/staged_file.h"
 
 #include <dirent.h>
 #include <errno.h>

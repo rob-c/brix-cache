@@ -266,7 +266,7 @@ class TestBindHandleSlotCache:
         def rd(rel):
             return (root / rel).read_text(encoding="utf-8")
 
-        assert "shared_handle_slot_hint" in rd("src/types/file.h")
+        assert "shared_handle_slot_hint" in rd("src/core/types/file.h")
         assert "shared_handle_slot_hint = -1" in rd("src/connection/handler.c")
         # Reset on free so a reopened/closed handle drops its stale slot.
         assert "shared_handle_slot_hint = -1" in rd("src/connection/fd_table.c")

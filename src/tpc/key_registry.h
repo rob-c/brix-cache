@@ -1,7 +1,7 @@
 #ifndef XROOTD_TPC_KEY_REGISTRY_H
 #define XROOTD_TPC_KEY_REGISTRY_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /*
  * TPC key registry — shared-memory table of in-flight TPC keys.

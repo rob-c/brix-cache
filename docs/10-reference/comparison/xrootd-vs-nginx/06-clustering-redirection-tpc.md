@@ -96,7 +96,7 @@ subsystems map to the five topics:
 - **`src/manager/`** — the redirector control plane: a SHM server registry
   (`registry.c`), a redirect-collapse cache (`redir_cache.c`), a pending-locate
   correlation table (`pending.c`), and active health checks (`health_check.c`).
-  Plus a config-time static `manager_map` route table (`src/config/manager_map.c`).
+  Plus a config-time static `manager_map` route table (`src/core/config/manager_map.c`).
 - **`src/tpc/`** — native destination-pull TPC over `root://`, including a SHM
   cross-worker rendezvous-key registry (`key_registry.c`) and a hand-rolled
   outbound GSI/`ztn` exchange (`gsi_outbound_*.c`, `tpc_token.c`).
@@ -306,7 +306,7 @@ FNV-1a-hashed bounded-probe open-addressing table that evicts soonest-to-expire.
 ### Static routing (`manager_map`) and virtual redirector
 
 Beyond dynamic CMS membership, the module offers a **config-time static route
-table**: `xrootd_manager_map <prefix> <host>:<port>` (`src/config/manager_map.c`,
+table**: `xrootd_manager_map <prefix> <host>:<port>` (`src/core/config/manager_map.c`,
 consulted in `src/read/locate.c:150` via `xrootd_find_manager_map`). This routes
 `open/stat/dirlist/locate/checksum` for a path prefix straight to a fixed
 backend without any CMS handshake — useful for deterministic federation where the
@@ -655,7 +655,7 @@ server {
 | Client redirect (`kXR_redirect`) | `XrdXrootd` + `XrdCmsFinder` | `src/read/open_request.c`/`locate.c`/`stat.c` | Parity |
 | `tried/triedrc` loop avoidance | Client CGI honoured by manager | `xrootd_manager_tried_exhausted`/`xrootd_srv_select` | Parity |
 | Redirect collapse cache | Client/server mechanics | SHM `redir_cache.c` + `kXR_collapseRedir` | nginx+ |
-| Static `manager_map` routing | n/a (always live `cmsd`) | `src/config/manager_map.c` | nginx+ |
+| Static `manager_map` routing | n/a (always live `cmsd`) | `src/core/config/manager_map.c` | nginx+ |
 | Virtual redirector | Clients understand `kXR_attrVirtRdr` | `xrootd_virtual_redirector` static-map mode | nginx+ |
 | Redirector-confirm outbound client | `cmsd` mesh | `src/upstream/` (locate/open/stat only) | Different mechanism |
 | Native TPC key rendezvous | In-process mutex list (`XrdOfsTPCAuth.cc`) | **Cross-process SHM** registry (`key_registry.c`) | Parity + cross-worker, zero-copy |
@@ -698,7 +698,7 @@ nginx-xrootd (repo-relative `src/`):
   `server.h`; and [`src/cms/README.md`](../../../../src/cms/README.md).
 - Redirector control plane: `src/manager/` — `registry.c`/`.h`,
   `redir_cache.c`/`.h`, `pending.c`/`.h`, `health_check.c`/`.h`;
-  static routes `src/config/manager_map.c`; read-path
+  static routes `src/core/config/manager_map.c`; read-path
   `src/read/locate.c`, `src/read/open_request.c`, `src/read/stat.c`,
   `src/dirlist/handler.c`; and [`src/manager/README.md`](../../../../src/manager/README.md).
 - Redirector-confirm client: `src/upstream/` — `start.c`, `bootstrap.c`,

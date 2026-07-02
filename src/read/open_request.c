@@ -9,7 +9,7 @@
 #include "fs/vfs.h"                   /* xrootd_vfs_residency (sd_frm seam) */
 #include "session/registry.h"
 #include "cms/cms_internal.h"
-#include "compat/codec_core.h"
+#include "core/compat/codec_core.h"
 #include "protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
 #include "zip/zip_member.h"        /* phase-57 W2: ZIP member access */
 #include "fs/vfs_backend_registry.h" /* Layer 3: per-export storage driver */

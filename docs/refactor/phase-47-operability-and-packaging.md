@@ -83,7 +83,7 @@ features. A read-only audit surfaced one real correctness blocker and a cluster 
 **Already in place (do NOT re-build):** JWKS hot-reload (`src/token/refresh.c`, mtime
 poll) and non-disruptive CRL/X509_STORE rebuild (`src/gsi`) already exist — the rotation
 runbook documents them, it does not add them. Metrics (`src/metrics/`) and the dashboard
-(`src/dashboard/`) are production-grade. Config-time validation (`src/config/helpers.c`,
+(`src/dashboard/`) are production-grade. Config-time validation (`src/core/config/helpers.c`,
 ~354 `ngx_conf_log_error` sites) is already strict.
 
 ---

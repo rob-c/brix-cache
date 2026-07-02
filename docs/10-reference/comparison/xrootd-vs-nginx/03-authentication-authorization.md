@@ -203,7 +203,7 @@ protocol ≥ 10400.
   OpenSSL CApath when a directory (hashed grid certs dir) or a CAfile otherwise.
   CRLs load in `src/crypto/pki_build.c` (matches `*.pem` and grid `*.r0..r9`)
   and set `CRL_CHECK | CRL_CHECK_ALL | USE_DELTAS`; CRL mtime-skip reload lives
-  in `src/config/process.c` `xrootd_crl_reload_handler()` (a CApath directory is
+  in `src/core/config/process.c` `xrootd_crl_reload_handler()` (a CApath directory is
   always rebuilt). **OCSP exists** here as a module feature
   (`src/crypto/ocsp.c`): AIA-derived responder, `xrootd_ocsp_check_cert()`
   (REVOKED is always fatal), stapling cache, and a hardened

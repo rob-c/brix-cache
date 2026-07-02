@@ -258,8 +258,8 @@ and CLAUDE.md):
 - **Protocol handlers must never block.** A blocked handler freezes *every*
   connection on that worker. No `sleep`, no blocking `read`, no long CPU.
 - **Blocking I/O is exiled to a thread pool.** `pread`/`pwrite`/`fsync`/`readdir`
-  + per-page CRC are offloaded via `ngx_thread_pool_run` (`src/aio/`), with an
-  optional io_uring tier above the pool (`src/aio/uring.c`, Phase 44, off by
+  + per-page CRC are offloaded via `ngx_thread_pool_run` (`src/core/aio/`), with an
+  optional io_uring tier above the pool (`src/core/aio/uring.c`, Phase 44, off by
   default). The worker thread does *only* the syscall and posts a `_done`
   callback back onto the event loop; while in flight the connection sits in
   `XRD_ST_AIO` with read/write events disarmed and `ctx->destroyed` checked in
@@ -275,7 +275,7 @@ Cross-worker state lives in **shared memory (SHM)**, since workers are separate
 processes and share nothing by default:
 
 - SHM tables are allocated through `xrootd_shm_table_alloc()` /
-  `xrootd_shm_table_mutex_create()` (`src/compat/shm_slots.c`), which allocate the
+  `xrootd_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`), which allocate the
   table *from the slab pool* so nginx's `ngx_unlock_mutexes()` (run on every child
   death) does not crash the master.
 - Those table mutexes are deliberately created in **spin+yield-only mode**
@@ -293,7 +293,7 @@ processes and share nothing by default:
 
 ### Per-connection state: `xrootd_ctx_t`
 
-Each accepted TCP connection gets one `xrootd_ctx_t` (`src/types/context.h`),
+Each accepted TCP connection gets one `xrootd_ctx_t` (`src/core/types/context.h`),
 allocated from the connection pool at connect time
 (`ngx_stream_xrootd_handler()`, `src/connection/handler.c`):
 
@@ -369,17 +369,17 @@ pools** whose lifetimes nginx owns:
   with explicit lifetime that must survive across requests on a persistent
   connection. For example the recv payload buffer
   (`xrootd_ensure_payload_buffer`, `recv.c`) and the AIO scratch slots
-  (`read_scratch`/`write_scratch`, `src/aio/`) are grow-only raw-heap buffers
+  (`read_scratch`/`write_scratch`, `src/core/aio/`) are grow-only raw-heap buffers
   reused across requests and freed once at disconnect — pool allocation there
   caused a use-after-free in nginx's large-allocation list (documented in
-  `src/aio/README.md`).
+  `src/core/aio/README.md`).
 - Deterministic cleanup (OpenSSL objects, fds, temp files) uses
   `ngx_pool_cleanup_add(pool, …)` — the manual destructor equivalent
   (`src/crypto/scoped.h`).
 - The output path is buffer/chain assembly: an `ngx_chain_t` of `ngx_buf_t`
   (memory-backed `b->memory=1` for TLS; file-backed `b->in_file=1` for cleartext
   `sendfile`) — never raw `write`/`send`. The shared chain builders live in
-  `src/aio/buffers.c` so sync and async paths produce byte-identical wire output.
+  `src/core/aio/buffers.c` so sync and async paths produce byte-identical wire output.
 
 So where XRootD recycles fixed-size buffers from a global `XrdBuffManager`,
 nginx-xrootd uses **per-request/per-connection arenas plus a few long-lived
@@ -423,7 +423,7 @@ directive is `NGX_STREAM_SRV_CONF` (per-server, stored at an `offsetof` into
 (`xrootd_rate_limit_zone`, `xrootd_kv_zone`) are `NGX_STREAM_MAIN_CONF`. Config
 objects follow nginx's `create_srv_conf` → `merge_srv_conf` (main→srv→loc) merge
 discipline with `NGX_CONF_UNSET` sentinels, validated in
-`ngx_stream_xrootd_postconfiguration` (`src/config/postconfiguration.c`) where
+`ngx_stream_xrootd_postconfiguration` (`src/core/config/postconfiguration.c`) where
 `nginx -t` catches misconfigured paths before traffic.
 
 The deployment unit is therefore **one nginx instance**: start/stop/reload uses
@@ -565,9 +565,9 @@ and *what the author must never do*.
 | Connection entry | `src/connection/handler.c` (`ngx_stream_xrootd_handler`, `xrootd_ctx_t` init, metrics slot, `max_connections` gate) |
 | Recv state machine | `src/connection/recv.c` (`ngx_stream_xrootd_recv`, `XRD_ST_*`, `xrootd_max_payload_for_request`, `xrootd_ensure_payload_buffer`) |
 | Dispatch | `src/handshake/dispatch.c` (`xrootd_dispatch`), `dispatch_{session,read,write,signing}.c` |
-| Directive table / config | `src/stream/module.c` (`ngx_stream_xrootd_commands[]`), `src/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), `src/config/postconfiguration.c`, `src/config/config.h`, `src/types/tunables.h` |
-| Per-connection state | `src/types/context.h` (`xrootd_ctx_t`, `files[]`, `out_ring`/`rd_pool`, `XRD_ST_*`) |
-| Thread-pool / io_uring offload | `src/aio/README.md`, `src/aio/resume.c` (`xrootd_aio_post_task`), `src/aio/buffers.c`, `src/aio/uring.c` |
-| SHM cross-worker state | `src/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/manager/registry.c`, `src/manager/redir_cache.c`, `src/tpc/key_registry.c` |
-| Build governance | top-level `config` (`ngx_addon_name`, `ngx_module_srcs`, `ngx_module_libs`, CFLAGS), `src/config/config.h` |
+| Directive table / config | `src/stream/module.c` (`ngx_stream_xrootd_commands[]`), `src/core/types/config.h` (`ngx_stream_xrootd_srv_conf_t`), `src/core/config/postconfiguration.c`, `src/core/config/config.h`, `src/core/types/tunables.h` |
+| Per-connection state | `src/core/types/context.h` (`xrootd_ctx_t`, `files[]`, `out_ring`/`rd_pool`, `XRD_ST_*`) |
+| Thread-pool / io_uring offload | `src/core/aio/README.md`, `src/core/aio/resume.c` (`xrootd_aio_post_task`), `src/core/aio/buffers.c`, `src/core/aio/uring.c` |
+| SHM cross-worker state | `src/core/compat/shm_slots.c` (`xrootd_shm_table_alloc`, spin+yield mutex), `src/manager/registry.c`, `src/manager/redir_cache.c`, `src/tpc/key_registry.c` |
+| Build governance | top-level `config` (`ngx_addon_name`, `ngx_module_srcs`, `ngx_module_libs`, CFLAGS), `src/core/config/config.h` |
 | Cluster / tape / observability (in-process) | `src/manager/`, `src/cms/`, `src/frm/`, `src/metrics/`, `src/srr/`, `src/dashboard/` |

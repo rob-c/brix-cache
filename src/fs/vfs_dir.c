@@ -20,7 +20,7 @@
  *       calls closedir(3) and nulls the handle so it is idempotent.
  */
 #include "vfs_internal.h"
-#include "compat/log_diag.h"
+#include "core/compat/log_diag.h"
 
 /* Shared opendir body. When `observe` is set the open is metered as OP_DIRLIST;
  * the quiet variant (observe=0) skips the metric/access-log entirely — for bulk

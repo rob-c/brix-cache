@@ -20,7 +20,7 @@
 #include "macaroon.h"
 #include "b64url.h"
 #include "scopes.h"
-#include "compat/hex.h"
+#include "core/compat/hex.h"
 
 #include <openssl/evp.h>
 #include <openssl/hmac.h>

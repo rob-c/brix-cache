@@ -96,8 +96,8 @@ This file is a **lookup reference**, not memorization material. If your context 
 6. S3 SigV4 ≠ WLCG token — never share auth logic
 7. Stat: use handle metadata; no extra path syscalls per read
 8. Metric labels: low-cardinality only (no paths/bucket-names/UUIDs)
-9. CRC64: `crc64`=CRC-64/XZ, `crc64nvme`=CRC-64/NVME — DIFFERENT polys, not interchangeable. Engine `src/compat/crc64.c`; root://+WebDAV emit 16-hex, S3 `x-amz-checksum-crc64nvme` emits base64-of-8-big-endian-bytes (encode at the edge, never in the kernel). See [docs/10-reference/crc64-checksums.md](docs/10-reference/crc64-checksums.md)
-10. **SHM mutexes = spin+yield, NEVER the POSIX-semaphore mode.** Every module shared-memory table mutex MUST be created via `xrootd_shm_table_alloc()` / `xrootd_shm_table_mutex_create()` (`src/compat/shm_slots.c`), which clears `mtx->semaphore` after `ngx_shmtx_create()`. Stock `ngx_shmtx_create(…, NULL)` silently enables a POSIX semaphore whose wakeup path is **lost-wakeup-prone under high cross-worker contention**: a worker blocks in `sem_wait` forever with the lock already free (`*lock==0, *wait==0`), freezing the whole worker (it stops running its event loop) and stalling every connection pinned to it. This hit the hot `kXR_open` path (`xrootd_handle_mutex`) and caused 60–450s multi-worker connection stalls. Our critical sections are µs-held fixed-slot scans, so spin+yield is correct and cheaper. See [docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md](docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md).
+9. CRC64: `crc64`=CRC-64/XZ, `crc64nvme`=CRC-64/NVME — DIFFERENT polys, not interchangeable. Engine `src/core/compat/crc64.c`; root://+WebDAV emit 16-hex, S3 `x-amz-checksum-crc64nvme` emits base64-of-8-big-endian-bytes (encode at the edge, never in the kernel). See [docs/10-reference/crc64-checksums.md](docs/10-reference/crc64-checksums.md)
+10. **SHM mutexes = spin+yield, NEVER the POSIX-semaphore mode.** Every module shared-memory table mutex MUST be created via `xrootd_shm_table_alloc()` / `xrootd_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`), which clears `mtx->semaphore` after `ngx_shmtx_create()`. Stock `ngx_shmtx_create(…, NULL)` silently enables a POSIX semaphore whose wakeup path is **lost-wakeup-prone under high cross-worker contention**: a worker blocks in `sem_wait` forever with the lock already free (`*lock==0, *wait==0`), freezing the whole worker (it stops running its event loop) and stalling every connection pinned to it. This hit the hot `kXR_open` path (`xrootd_handle_mutex`) and caused 60–450s multi-worker connection stalls. Our critical sections are µs-held fixed-slot scans, so spin+yield is correct and cheaper. See [docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md](docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md).
 
 **Architecture:**
 9. Native TPC = SHM key registry (`src/tpc/key_registry.c`) — cross-process, zero-copy
@@ -161,7 +161,7 @@ tests/manage_test_servers.sh start|restart|stop
 
 **The build is governed by two things — and only two:**
 
-1. **`src/config/config.h`** — the module's source list, config fields, and command declarations.
+1. **`src/core/config/config.h`** — the module's source list, config fields, and command declarations.
    Every new source file or header you add must be registered in `config.h` (`NGX_ADDON_SRCS`).
    If your change introduces a new `.c` file, `./configure` will not compile it unless it appears here.
 2. **nginx's `./configure`** — the top-level configure script from nginx.org source that picks up
@@ -182,7 +182,7 @@ tests/manage_test_servers.sh start|restart|stop
 **New WebDAV method:** `src/webdav/op.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests
 **New XRootD opcode:** `src/<sub>/op.c` → register `handshake/dispatch_<type>.c` → constants `protocol/opcodes.h`/`wire.h` → `./configure`+`make` → 3 tests
 **New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/metrics/<sub>.c` → `XROOTD_<TYPE>_METRIC_INC(slot)` at callsite
-**New config directive:** field `src/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block
+**New config directive:** field `src/core/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/core/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block
 
 ---
 
@@ -192,7 +192,7 @@ tests/manage_test_servers.sh start|restart|stop
 |---|---|
 | Alloc? | HTTP: `ngx_palloc(r->pool,sz)` · Stream: `ngx_alloc(sz,log)` · Zero: `ngx_pcalloc` — never raw malloc. Free: `ngx_pool_cleanup_add(pool,size)` |
 | ngx_str_t? | NOT null-terminated; use `.len`. No strcpy/strlen. Null-term: `char z[s.len+1]; ngx_memcpy(z,s.data,s.len); z[s.len]=0;` |
-| Async I/O? | Event-loop only. No wait/sleep/read. Use `ngx_thread_pool_run` (`src/aio/`) or timers |
+| Async I/O? | Event-loop only. No wait/sleep/read. Use `ngx_thread_pool_run` (`src/core/aio/`) or timers |
 | Send response? | Build `ngx_chain_t` of `ngx_buf_t`; never raw write/send. HTTP: `r->headers_out.status=X; r->headers_out.content_length_n=n; ngx_http_send_header(r); return ngx_http_output_filter(r,&chain);` |
 | Stream ctx? | `xrootd_ctx_t *ctx = ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module)` |
 | HTTP loc conf? | `ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module)` |

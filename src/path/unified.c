@@ -29,7 +29,7 @@
  *       config-time / legacy resolver — hot runtime client paths now use the
  *       kernel-confined beneath API (beneath.c) instead (see Phase 8 notes).
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #include <errno.h>
 #include <limits.h>

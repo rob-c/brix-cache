@@ -197,12 +197,12 @@ These flags represent topology roles that have no existing config directive. Eac
 
 **New directive**: `xrootd_metadata_only on|off` (default `off`)
 
-**Config struct** (`src/config/server_conf.h`):
+**Config struct** (`src/core/config/server_conf.h`):
 ```c
 ngx_flag_t  metadata_only;   /* advertise kXR_attrMeta; reject open/read */
 ```
 
-**Merge** (`src/config/server_conf.c`):
+**Merge** (`src/core/config/server_conf.c`):
 ```c
 ngx_conf_merge_value(conf->metadata_only, prev->metadata_only, 0);
 ```
@@ -482,7 +482,7 @@ uint32_t caps = kXR_isServer
 body.flags = htonl(caps);
 ```
 
-### `src/config/server_conf.h` (new fields for Phase 2 directives)
+### `src/core/config/server_conf.h` (new fields for Phase 2 directives)
 
 ```c
 ngx_flag_t  metadata_only;
@@ -492,7 +492,7 @@ ngx_flag_t  collapse_redir;
 ngx_msec_t  collapse_redir_ttl;
 ```
 
-### `src/config/server_conf.c` (merge for new fields)
+### `src/core/config/server_conf.c` (merge for new fields)
 
 ```c
 ngx_conf_merge_value(conf->metadata_only,      prev->metadata_only,      0);
@@ -502,7 +502,7 @@ ngx_conf_merge_value(conf->collapse_redir,      prev->collapse_redir,      0);
 ngx_conf_merge_msec_value(conf->collapse_redir_ttl, prev->collapse_redir_ttl, 30000);
 ```
 
-### `src/config/directives.c` (new ngx_command_t entries)
+### `src/core/config/directives.c` (new ngx_command_t entries)
 
 ```c
 { ngx_string("xrootd_metadata_only"),
@@ -541,7 +541,7 @@ When `manager_map` is configured, the existing redirect path handles it; the err
 
 ### `src/manager/redir_cache.c` (Phase 3a new file)
 
-New source file for the collapse-redir LRU. Must be registered in `src/config/config.h` under `NGX_ADDON_SRCS` and will require a `./configure` run.
+New source file for the collapse-redir LRU. Must be registered in `src/core/config/config.h` under `NGX_ADDON_SRCS` and will require a `./configure` run.
 
 ---
 

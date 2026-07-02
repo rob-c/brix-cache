@@ -74,7 +74,7 @@ Key files:
 - `src/read/open_resolved_file.c` — stores WT policy and mode bits on the
   `xrootd_file_t` handle.
 - `src/write/write.c`, `src/write/pgwrite.c`, `src/write/writev.c`,
-  `src/write/truncate.c`, `src/aio/write.c` — mark handles dirty after local
+  `src/write/truncate.c`, `src/core/aio/write.c` — mark handles dirty after local
   write completion.
 - `src/cache/origin_connection.c` — connects to `xrootd_wt_origin` or the
   configured cache origin.

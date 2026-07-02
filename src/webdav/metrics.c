@@ -3,7 +3,7 @@
  */
 
 #include "webdav.h"
-#include "compat/http_headers.h"
+#include "core/compat/http_headers.h"
 #include "metrics/http_common.h"
 #include "metrics/unified.h"
 

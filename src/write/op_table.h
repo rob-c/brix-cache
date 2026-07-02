@@ -1,6 +1,6 @@
 #ifndef XROOTD_WRITE_OP_TABLE_H
 #define XROOTD_WRITE_OP_TABLE_H
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "path/op_path.h"
 
 /*

@@ -1,5 +1,5 @@
-#include "config/config.h"
-#include "compat/shm_slots.h"
+#include "core/config/config.h"
+#include "core/compat/shm_slots.h"
 
 /*
  * dashboard/config.c — SHM zone registration for the live transfer monitor.

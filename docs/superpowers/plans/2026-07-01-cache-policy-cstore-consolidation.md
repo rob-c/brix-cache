@@ -33,7 +33,7 @@
 Give the legacy policy layer a `cstore` to drive. Build one `xrootd_cstore_t` over `conf->cache_storage_inst` when the read cache is configured, store it on the conf, and tear it down on cleanup.
 
 **Files:**
-- Modify: `src/types/config.h` (add the `cache_storage_cstore` field to `ngx_stream_xrootd_srv_conf_t`)
+- Modify: `src/core/types/config.h` (add the `cache_storage_cstore` field to `ngx_stream_xrootd_srv_conf_t`)
 - Modify: `src/cache/cache_storage.c` (build it after `cache_storage_inst`; free it)
 - Modify: `src/cache/cache_storage.h` (declare an accessor `xrootd_cache_storage_cstore`)
 - Test: `tests/run_cache_reaper.sh` (existing; must still pass) + a new assertion added in Task 4
@@ -44,7 +44,7 @@ Give the legacy policy layer a `cstore` to drive. Build one `xrootd_cstore_t` ov
 
 - [ ] **Step 1: Add the conf field**
 
-In `src/types/config.h`, in `ngx_stream_xrootd_srv_conf_t`, next to `cache_storage_inst`, add:
+In `src/core/types/config.h`, in `ngx_stream_xrootd_srv_conf_t`, next to `cache_storage_inst`, add:
 
 ```c
     /* Policy-layer cstore adapter built over cache_storage_inst at config time

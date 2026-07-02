@@ -69,7 +69,7 @@ def test_gsi_core_invariants_unit():
         os.path.join(REPO, "src/gsi/gsi_rsa.c"),
         os.path.join(REPO, "src/gsi/gsi_buf.c"),
         os.path.join(REPO, "src/gsi/gsi_dh.c"),
-        os.path.join(REPO, "src/compat/crypto.c"),
+        os.path.join(REPO, "src/core/compat/crypto.c"),
         "-lcrypto",
     ]
     build = subprocess.run(cmd, capture_output=True, text=True)

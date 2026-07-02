@@ -1,4 +1,4 @@
-#include "../../src/compat/crc64.h"
+#include "../../src/core/compat/crc64.h"
 
 #include <stddef.h>
 #include <stdint.h>

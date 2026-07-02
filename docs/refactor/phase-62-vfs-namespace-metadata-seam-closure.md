@@ -246,7 +246,7 @@ These directories make raw filesystem calls legitimately and are excluded from
 tier-3 wholesale (they are the seam's own implementation, config readers, or
 self-contained alternate stores with their own confinement):
 
-- **The VFS + resolution layer**: `src/fs/`, `src/path/`, `src/compat/`,
+- **The VFS + resolution layer**: `src/fs/`, `src/path/`, `src/core/compat/`,
   `src/impersonate/`.
 - **Separate storage/metadata domains**: `src/cache/` (read-through cache),
   `src/dashboard/` (admin browse, openat2-confined), `src/frm/` (residency
@@ -254,12 +254,12 @@ self-contained alternate stores with their own confinement):
   optionally under a separate `frm_g_control_dir`), `src/write/chkpoint` (the
   checkpoint journal), `src/read/slice_read` (the slice cache).
 - **Config / cert / token / auth readers** (never the export backend):
-  `src/crypto/`, `src/gsi/`, `src/sss/`, `src/pwd/`, `src/token/`, `src/config/`,
-  `src/krb5/`, `src/acc/`, `src/voms/`, `src/ssi/`, `src/dig/`, `src/aio/`.
+  `src/crypto/`, `src/gsi/`, `src/sss/`, `src/pwd/`, `src/token/`, `src/core/config/`,
+  `src/krb5/`, `src/acc/`, `src/voms/`, `src/ssi/`, `src/dig/`, `src/core/aio/`.
 - Unit tests (`*unittest*`, `*_test*`).
 
 `compat/integrity_info.c`'s `.cks` sidecar fallback store and its `fstat` of an
-already-open fd are in `src/compat/` (below-seam); its export-file xattr cache was
+already-open fd are in `src/core/compat/` (below-seam); its export-file xattr cache was
 still migrated to the VFS fd-xattr primitives because that touches the real
 export object.
 

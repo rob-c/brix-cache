@@ -26,7 +26,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#include "types/identity.h"
+#include "core/types/identity.h"
 
 typedef enum {
     XROOTD_TPC_CREDENTIAL_NONE  = 0,

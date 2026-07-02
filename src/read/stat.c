@@ -1,4 +1,4 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "stat.h"
 #include "cms/cns.h"            /* §6 CNS inventory stat answer */
 #include "fs/vfs.h"            /* path stat via the VFS seam */

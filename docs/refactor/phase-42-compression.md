@@ -35,7 +35,7 @@ byte-identical and stock peers never see the extensions.
 
 **Extension — lz4 (6th codec) + build matrix (2026-06-21).** Beyond the plan's five
 codecs, **lz4 (LZ4 Frame)** was added end-to-end as a 6th backend to prove the codec
-vtable is genuinely pluggable: `XROOTD_CODEC_LZ4 = 7`, new `src/compat/codec_lz4.c`
+vtable is genuinely pluggable: `XROOTD_CODEC_LZ4 = 7`, new `src/core/compat/codec_lz4.c`
 (`#if XROOTD_HAVE_LZ4`, else `available=0` stub), `http_token "lz4"`, compiled into
 BOTH the module and `libxrdproto.a`.  Detection is via an env-hint
 (`XROOTD_LZ4_CFLAGS`/`XROOTD_LZ4_LIBS`) → pkg-config → header-probe ladder, and links
@@ -208,7 +208,7 @@ deliberate extensions *beyond* upstream** — which is exactly this project's
 swiss-army-toolkit goal. (This also answers the recurring "does it support lzma?"
 question: upstream does not — we are adding it on purpose.) nginx-xrootd already
 *exceeds* XRootD on one axis: it decompresses `Content-Encoding: gzip|deflate` PUT
-bodies (`src/compat/http_body.c`), which XrdHttp does not do at all.
+bodies (`src/core/compat/http_body.c`), which XrdHttp does not do at all.
 
 ---
 
@@ -226,11 +226,11 @@ bodies (`src/compat/http_body.c`), which XrdHttp does not do at all.
 
 The single most important decision. A build-in-place, **ngx-free** codec kernel so
 the nginx module and `libxrdc` use one implementation — the `checksum_core.c`
-precedent (ngx-free kernel under `src/compat/`, listed in
+precedent (ngx-free kernel under `src/core/compat/`, listed in
 `shared/xrdproto/Makefile` `NAMES`, compiled into `libxrdproto.a`, linked by both
 the module via `config` and the client via `client/Makefile`).
 
-- New `src/compat/codec_core.{c,h}` (ngx-free) + per-codec backends
+- New `src/core/compat/codec_core.{c,h}` (ngx-free) + per-codec backends
   `codec_zlib.c` / `codec_zstd.c` / `codec_lzma.c` / `codec_brotli.c` /
   `codec_bzip2.c`. Each backend is `#if XROOTD_HAVE_*`-gated and registers a
   descriptor; an absent lib compiles to `available=0` (init returns an error),
@@ -250,7 +250,7 @@ the module via `config` and the client via `client/Makefile`).
 - Add the codec names to `shared/xrdproto/Makefile` `NAMES`; the archive stays
   ngx-free (`make check` / `check-ngx-free.sh` passes).
 
-### Header sketch (`src/compat/codec_core.h`, ngx-free)
+### Header sketch (`src/core/compat/codec_core.h`, ngx-free)
 ```c
 typedef enum { XROOTD_CODEC_IDENTITY=0, XROOTD_CODEC_GZIP, XROOTD_CODEC_DEFLATE,
                XROOTD_CODEC_ZSTD, XROOTD_CODEC_BROTLI, XROOTD_CODEC_XZ,
@@ -305,12 +305,12 @@ ZIP, and root:// code call.
 ### W0 — Foundation (behaviour-preserving)
 `codec_core` + the zlib backend + the bomb guard + the `zcrc32` checksum
 (XRootD's zlib-CRC, distinct name from `crc32c`): add `XROOTD_CHECKSUM_ZCRC32`
-(append-only) to `src/compat/checksum_core.{c,h}` + register `"zcrc32"` in
-`src/compat/checksum.c` name/parse/is_u32; mirror in `client/lib/checksum.c`. No
+(append-only) to `src/core/compat/checksum_core.{c,h}` + register `"zcrc32"` in
+`src/core/compat/checksum.c` name/parse/is_u32; mirror in `client/lib/checksum.c`. No
 behaviour change — pure scaffolding + checksum parity.
 
 ### W1 — Inbound decompress (PUT), all codecs
-Refactor `src/compat/http_body.c` (`xrootd_http_body_inflate_to_fd`,
+Refactor `src/core/compat/http_body.c` (`xrootd_http_body_inflate_to_fd`,
 `inflate_feed`, `xrootd_http_body_inflate_bufs`) from zlib-only to codec-dispatch
 via `codec_core` (gzip/deflate stay byte-identical: `codec_zlib` uses
 `inflateInit2(15+16)` / `(15)`). Sniff `Content-Encoding` at `src/webdav/put.c`
@@ -321,7 +321,7 @@ to **413** (flows through the existing "failed inflate leaves no partial object"
 cleanup). Add the four optional backends in this workstream.
 
 ### W2 — Outbound compress (GET), all codecs — *separate review (perturbs sendfile)*
-New module-only `src/compat/http_compress.{c,h}` + a negotiation seam in
+New module-only `src/core/compat/http_compress.{c,h}` + a negotiation seam in
 `src/shared/file_serve.c` (`xrootd_http_serve_file_ranged`), after range parse and
 before headers: parse `Accept-Encoding` q-values ∩ the location's configured +
 `available` codec list; require `size >= min_size`, a compressible MIME (deny
@@ -331,7 +331,7 @@ HEAD → no body. If a codec is chosen, drop the sendfile path and stream
 + `Vary: Accept-Encoding`, and set `content_length_n = -1` (chunked, since the
 compressed size is unknown until done). `IDENTITY` path is byte-identical to today
 (zero regression for the common case). Extend `xrootd_http_set_file_headers`
-(`src/compat/http_file_response.c`) for the encoding header + the chunked case; add
+(`src/core/compat/http_file_response.c`) for the encoding header + the chunked case; add
 a policy field to `xrootd_http_serve_opts_t` so GET callers (`src/webdav/get.c`,
 `src/s3/object.c`) pass per-location config. New config directives: enable
 per-location + codec list + min-size + MIME set. Keep `Vary`/ETag conservative to
@@ -366,7 +366,7 @@ negotiation, all backward-compatible:
 
 Compatibility matrix: stock↔ours and ours↔stock both stay plaintext/byte-identical;
 compression happens only when both ends agree. Disable the sendfile branch for
-compressed handles; store `codec_id`+`bs` on `xrootd_file_t` (`src/types/context.h`).
+compressed handles; store `codec_id`+`bs` on `xrootd_file_t` (`src/core/types/context.h`).
 Client (`client/lib/ops_file.c::xrdc_file_read`, `client/lib/aio_mgr.c::
 xrdc_mfile_pread`) captures `cpsize`/`cptype` from the open reply and transparently
 decompresses block-framed reads; **reopen-at-offset still works** because blocks are
@@ -384,21 +384,21 @@ explicit opt-in on top of W4.
 ---
 
 ## 5. Critical files (pattern over enumeration)
-- **New:** `src/compat/codec_core.{c,h}`, `src/compat/codec_{zlib,zstd,lzma,brotli,
-  bzip2}.c`, `src/compat/http_compress.{c,h}` (module-only), `client/lib/zip.{c,h}`,
+- **New:** `src/core/compat/codec_core.{c,h}`, `src/core/compat/codec_{zlib,zstd,lzma,brotli,
+  bzip2}.c`, `src/core/compat/http_compress.{c,h}` (module-only), `client/lib/zip.{c,h}`,
   `src/read/compress_negotiate.c`.
 - **Build:** `config` (probes + stream-module `ngx_module_libs` + srcs),
   `shared/xrdproto/Makefile`, `client/Makefile`, `packaging/rpm/nginx-mod-xrootd.spec`.
-- **Inbound:** `src/compat/http_body.c`, `src/webdav/put.c`, `src/s3/put.c`.
-- **Outbound:** `src/shared/file_serve.c`, `src/compat/http_file_response.c`,
+- **Inbound:** `src/core/compat/http_body.c`, `src/webdav/put.c`, `src/s3/put.c`.
+- **Outbound:** `src/shared/file_serve.c`, `src/core/compat/http_file_response.c`,
   `src/shared/file_serve.h`, `src/webdav/get.c`, `src/s3/object.c`.
 - **root:// (W4):** `src/query/config.c`, `src/read/open_request.c`,
   `src/read/open_resolved_file.c`, `src/read/slice_read.c`, `src/read/read.c`,
-  `src/types/context.h`; `src/read/pgread.c` + `src/read/readv.c` + `src/aio/readv.c`
+  `src/core/types/context.h`; `src/read/pgread.c` + `src/read/readv.c` + `src/core/aio/readv.c`
   get only an invariant comment (stay plaintext).
 - **Client:** `client/lib/ops_file.c`, `client/lib/aio_mgr.c`, `client/lib/copy.c`,
   `client/apps/xrdcp.c`.
-- **Checksum:** `src/compat/checksum_core.{c,h}`, `src/compat/checksum.c`,
+- **Checksum:** `src/core/compat/checksum_core.{c,h}`, `src/core/compat/checksum.c`,
   `client/lib/checksum.c`.
 
 ## 6. Security (must-haves)

@@ -2,9 +2,9 @@
  * login.c — kXR_login opcode handler + login-success metric.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "registry.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /* Atomically increment the LOGIN-success metric counter. */
 static void

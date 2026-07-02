@@ -18,7 +18,7 @@
 #include "tpc_internal.h"
 #include "token/file.h"
 #include "token/oauth2.h"
-#include "compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
+#include "core/compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
 
 
 #include <stdio.h>

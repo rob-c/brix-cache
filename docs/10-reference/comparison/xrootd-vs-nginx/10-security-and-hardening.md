@@ -292,7 +292,7 @@ semaphore lost-wakeup**: a shared-memory table mutex created in stock POSIX-
 semaphore mode could lose a wakeup under high cross-worker contention on the hot
 `kXR_open` path, freezing a worker in `sem_wait` with the lock already free and
 stalling every connection pinned to it for 60–450 s. The fix forces spin+yield
-mode for all module SHM mutexes (`src/compat/shm_slots.c`); it is an INVARIANT in
+mode for all module SHM mutexes (`src/core/compat/shm_slots.c`); it is an INVARIANT in
 `CLAUDE.md` and a documented postmortem. This is a hardening difference *in this
 module's favour for availability* that has no analogue in the monolithic server
 (which does not use nginx SHM zones).

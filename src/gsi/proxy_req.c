@@ -50,7 +50,7 @@ static inline void *ngx_palloc(ngx_pool_t *p, size_t n)  { (void)p; return mallo
 static inline void *ngx_pcalloc(ngx_pool_t *p, size_t n) { (void)p; return calloc(1, n); }
 static inline void *ngx_alloc(size_t n, ngx_log_t *l)    { (void)l; return malloc(n);    }
 #endif
-#include "shared/safe_size.h"
+#include "core/compat/safe_size.h"
 
 #define GSI_PROXYCERTINFO_OID          "1.3.6.1.5.5.7.1.14"
 #define GSI_PROXYCERTINFO_OLD_OID      "1.3.6.1.4.1.3536.1.222"

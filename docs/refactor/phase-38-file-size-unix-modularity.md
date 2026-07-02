@@ -98,7 +98,7 @@ The same coding-standards formatting / file-size rules apply **uniformly across
 - **C source** `src/**/*.c` + `client/**/*.c` and **headers** `src/**/*.h` +
   `client/**/*.h`.
 - **`shared/` (libxrdproto)** — the shared C is *build-in-place*: the `.c`/`.h`
-  files physically live under `src/` (e.g. `src/compat/`, `src/gsi/`,
+  files physically live under `src/` (e.g. `src/core/compat/`, `src/gsi/`,
   `src/token/`, `src/fs/backend/`) and are compiled into both the nginx module
   *and* the ngx-free client/tools via `shared/xrdproto/Makefile`. They are
   therefore **already counted under the `src/**` globs** — no extra path is
@@ -140,7 +140,7 @@ The same coding-standards formatting / file-size rules apply **uniformly across
 2. **Mixed-ABI rebuild gotcha.** When a split moves a `struct`/inline between a
    header and its users, touch all dependent `.c` and do a **full rebuild** (stale
    objects → SIGSEGV; see [build_header_dep_mixed_abi]). This is acute for
-   `client/lib/xrdc.h` (every `client/` TU includes it) and `src/types/config.h`.
+   `client/lib/xrdc.h` (every `client/` TU includes it) and `src/core/types/config.h`.
 3. **No `goto` introduced**; refactor any `goto` *out* of code you touch.
    `src/`, the shared sources, and `client/` are **all `goto`-free as of
    2026-06-26** — every split must keep it that way (the linter does not check
@@ -190,7 +190,7 @@ files in this repo are table-dominated, measured:
 
 - **`src/stream/module.c`** — **1251 of 1316 logical (95%) is the 213-entry
   directive table.** Its conf lifecycle is *already* extracted to
-  `src/config/server_conf.c` (create/merge) and `src/stream/module_definition.c`
+  `src/core/config/server_conf.c` (create/merge) and `src/stream/module_definition.c`
   (the `ngx_module_t` struct); what remains is essentially pure table + 8
   `ngx_conf_enum_t` value maps. There is nothing left to split — a C array cannot
   be cut across files without ugly macro re-assembly, and per-directive doc-blocks
@@ -239,7 +239,7 @@ the work is a **tail of 11 files, 7 of them monoliths.** `client/` is far denser
 per-file: out of only 73 files, **11 are over 650 logical and 8 are monoliths** —
 the CLI apps (`xrddiag`, `xrdfs`, `xrd`, `xrdcp`, `xrootdfs`) and the lib engines
 (`copy`, `aio`, `http`). Headers are nearly clean by the logical metric: only two
-exceed 500 (`client/lib/xrdc.h`, `src/types/config.h`).
+exceed 500 (`client/lib/xrdc.h`, `src/core/types/config.h`).
 
 ### 3.2 `src/` C source > 650 logical LoC — the split list
 
@@ -285,7 +285,7 @@ Newly in scope (2026-06-26). Registration is `client/Makefile`, not the root
 | Logical | Raw | File | Note |
 |---|---|---|---|
 | 579 | 1183 | `client/lib/xrdc.h` | The client spine — split by concern: connection/session decls · metadata/file-op decls · wire-struct helpers · config/types. **Mixed-ABI** (every `client/` TU includes it) → full rebuild. |
-| 518 | 790 | `src/types/config.h` | Module config structs. **Mixed-ABI** → full rebuild. Split by plane (stream conf · http/webdav conf · s3 conf · shared tunables) only if it grows; currently borderline. |
+| 518 | 790 | `src/core/types/config.h` | Module config structs. **Mixed-ABI** → full rebuild. Split by plane (stream conf · http/webdav conf · s3 conf · shared tunables) only if it grows; currently borderline. |
 
 > **Dropped from the old must-split list:** `src/webdav/webdav.h` (372 logical /
 > 827 raw) and `src/metrics/metrics.h` (390 logical / 639 raw) are **not** offenders
@@ -748,7 +748,7 @@ These are the largest files in the repo after the Python red-team. Both split on
 Per §2.6 this is **1251/1316 logical = 95% a single 213-entry `ngx_command_t`
 directive table** plus 8 `ngx_conf_enum_t` value maps. Its logic is *already*
 extracted: `ngx_stream_xrootd_create_srv_conf`/`merge_srv_conf` live in
-`src/config/server_conf.c`, and the `ngx_module_t` struct in
+`src/core/config/server_conf.c`, and the `ngx_module_t` struct in
 `src/stream/module_definition.c`. **No split.** Add the exemption comment and
 record the rationale:
 
@@ -971,7 +971,7 @@ The §3.2 🟠 rows (the 4 files 651–800 logical), audit-value first:
 
 - `client/lib/xrdc.h` (579) — split by concern; **full rebuild** (mixed-ABI, every
   `client/` TU includes it). Riskiest single item in the client track.
-- `src/types/config.h` (518) — borderline; split by plane only if it grows.
+- `src/core/types/config.h` (518) — borderline; split by plane only if it grows.
   **Full rebuild** (mixed-ABI).
 - `tests/manage_test_servers.sh` (1868) — extract sourced libs; the single
   highest-LoC shell file and central to every test run, so do it carefully with a

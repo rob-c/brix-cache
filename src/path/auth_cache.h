@@ -15,7 +15,7 @@
 #ifndef XROOTD_PATH_AUTH_CACHE_H
 #define XROOTD_PATH_AUTH_CACHE_H
 
-#include "shm/kv.h"
+#include "core/shm/kv.h"
 
 /* Per-conf settings, filled by xrootd_auth_cache_directive(). */
 typedef struct {

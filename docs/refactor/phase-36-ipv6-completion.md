@@ -1,9 +1,9 @@
 # Phase 36 — Full IPv6 Support Across All Protocols
 
-**Status:** ✅ COMPLETE (Phases 0–4) — full IPv6 suite green (92 passed / 2 xfailed) against live `[::1]` instances · **Subsystem:** cross-cutting (`src/manager`, `src/response`, `src/cms`, `src/webdav`, `src/tpc`, plus the new `src/compat/host_format.c`) · **Build governance:** any new source file must be registered in the module's source list (the top-level `config` script — see the phase-35 build-governance note); editing `src/types/context.h` struct layout requires a **full rebuild** (mixed-ABI stale-object crash — see [[build_header_dep_mixed_abi]]).
+**Status:** ✅ COMPLETE (Phases 0–4) — full IPv6 suite green (92 passed / 2 xfailed) against live `[::1]` instances · **Subsystem:** cross-cutting (`src/manager`, `src/response`, `src/cms`, `src/webdav`, `src/tpc`, plus the new `src/core/compat/host_format.c`) · **Build governance:** any new source file must be registered in the module's source list (the top-level `config` script — see the phase-35 build-governance note); editing `src/core/types/context.h` struct layout requires a **full rebuild** (mixed-ABI stale-object crash — see [[build_header_dep_mixed_abi]]).
 
 > **Implementation status (this commit).** The bracket-on-emit fix is **implemented and builds clean** (full binary links; server-side IPv6 handshake confirmed over `[::1]`):
-> - **New helper** `src/compat/host_format.{c,h}` (`xrootd_format_host`, `xrootd_format_host_port`, `xrootd_host_is_ipv6_literal`) — registered in `config`; standalone unit test green (bracket / IPv4 / hostname / already-bracketed / zone-id / overflow).
+> - **New helper** `src/core/compat/host_format.{c,h}` (`xrootd_format_host`, `xrootd_format_host_port`, `xrootd_host_is_ipv6_literal`) — registered in `config`; standalone unit test green (bracket / IPv4 / hostname / already-bracketed / zone-id / overflow).
 > - **Blockers:** `manager/registry.c:804` (`xrootd_srv_locate_all`), `response/control.c` (`xrootd_send_redirect` + `_tpc`).
 > - **Majors:** `webdav/proxy_pool.c` (both Host branches), `webdav/proxy_config.c`, `tpc/launch.c` (URL rebuild).
 > - **Minors:** `dashboard/api_admin.c` (strip `[]` on the admin host segment), `webdav/tpc_curl.c` (bracket the `CURLOPT_RESOLVE` host; `entry[]` widened to 512).
@@ -55,14 +55,14 @@ One shared bracketing helper + two buffer widenings clears all blockers and majo
 
 ### Non-goals
 
-- **Listen-directive / config dual-stack work** — the audit found **no** defect here; `src/config/addr_parse.c` parses `[IPv6]:port` correctly and nginx `listen` already supports IPv6. Do **not** invent work in this area.
-- **Outbound DNS / SSRF rework** — `src/compat/net_target.c` already uses `getaddrinfo(AF_UNSPEC)` + `sockaddr_storage` and classifies IPv4-mapped IPv6. Leave it.
+- **Listen-directive / config dual-stack work** — the audit found **no** defect here; `src/core/config/addr_parse.c` parses `[IPv6]:port` correctly and nginx `listen` already supports IPv6. Do **not** invent work in this area.
+- **Outbound DNS / SSRF rework** — `src/core/compat/net_target.c` already uses `getaddrinfo(AF_UNSPEC)` + `sockaddr_storage` and classifies IPv4-mapped IPv6. Leave it.
 
 ---
 
 ## 2. The shared primitive (build this first)
 
-Every blocker/major fix reuses one helper. New file `src/compat/host_format.c` (+ `.h`), registered in the module source list:
+Every blocker/major fix reuses one helper. New file `src/core/compat/host_format.c` (+ `.h`), registered in the module source list:
 
 ```c
 /* Brackets an IPv6 literal host for use in a host:port wire/redirect/header string.
@@ -114,7 +114,7 @@ Also a **security-negative** to cover: confirm the re-bracketed `root://[::ffff:
 
 | Site | Fix |
 |---|---|
-| `src/types/context.h:141` `peer_ip[64]` | widen to `INET6_ADDRSTRLEN + 16` (brackets + link-local `%zone` scope-id margin). ⚠️ struct-layout edit → **full rebuild** |
+| `src/core/types/context.h:141` `peer_ip[64]` | widen to `INET6_ADDRSTRLEN + 16` (brackets + link-local `%zone` scope-id margin). ⚠️ struct-layout edit → **full rebuild** |
 | `src/pmark/pmark.h:118-119` `src_ip[64]`/`dst_ip[64]` | widen to `INET6_ADDRSTRLEN + 16` (link-local `fe80::1%ifname`) |
 | `src/manager/registry.h:28` `host[256]`, `src/manager/redir_cache.c:40` `host[128]` | sufficient; **document the IPv6+brackets budget** and keep bounds-checked writes |
 
@@ -146,13 +146,13 @@ Also a **security-negative** to cover: confirm the re-bracketed `root://[::ffff:
 
 ## 5. Already correct — do not touch
 
-`src/compat/net_target.c` (AF_UNSPEC + `[IPv6]:port` parse + SSRF v4-mapped classification, lines 30-133/242-278/387-410), `src/config/addr_parse.c:99-124` (bracket parsing), `src/connection/handler.c:50-68` + `disconnect.c:133-143` (AF_INET6 detection + per-version metrics), `src/path/authdb.c:285-344` (IPv6 CIDR matching), `src/read/locate.c:182-204` (local locate brackets correctly), `src/unix/auth.c` + `src/krb5/auth.c:57-81` (`::1` / ADDRTYPE_INET6), `src/webdav/proxy_pool.h:40` + `src/mirror/mirror.h:116` (`sockaddr_storage`), `src/tpc/connect.c:107-149` (AF_UNSPEC per-candidate policy), inbound stats/metrics (`webdav/access.c`, `webdav/xrdhttp_stats.c`, `query/metadata.c`, `cache/evict_policy.c`).
+`src/core/compat/net_target.c` (AF_UNSPEC + `[IPv6]:port` parse + SSRF v4-mapped classification, lines 30-133/242-278/387-410), `src/core/config/addr_parse.c:99-124` (bracket parsing), `src/connection/handler.c:50-68` + `disconnect.c:133-143` (AF_INET6 detection + per-version metrics), `src/path/authdb.c:285-344` (IPv6 CIDR matching), `src/read/locate.c:182-204` (local locate brackets correctly), `src/unix/auth.c` + `src/krb5/auth.c:57-81` (`::1` / ADDRTYPE_INET6), `src/webdav/proxy_pool.h:40` + `src/mirror/mirror.h:116` (`sockaddr_storage`), `src/tpc/connect.c:107-149` (AF_UNSPEC per-candidate policy), inbound stats/metrics (`webdav/access.c`, `webdav/xrdhttp_stats.c`, `query/metadata.c`, `cache/evict_policy.c`).
 
 ---
 
 ## 6. Implementation order
 
-1. **Shared helper** — `src/compat/host_format.c` + `.h`; register in the module source list; unit-cover the bracket/no-bracket/already-bracketed/IPv4/hostname cases.
+1. **Shared helper** — `src/core/compat/host_format.c` + `.h`; register in the module source list; unit-cover the bracket/no-bracket/already-bracketed/IPv4/hostname cases.
 2. **Buffer widening** — `context.h:141`, `pmark.h:118-119` → `INET6_ADDRSTRLEN + 16` (full rebuild after the `context.h` edit).
 3. **Blockers (root:// + CMS)** — apply the helper at `registry.c:804`, `registry.c:256`, `control.c:71`, `cms/server_handler.c:57` + `cms/server_recv.c`. Choose **bracket-on-emit**.
 4. **Majors (WebDAV proxy + TPC)** — `proxy_pool.c:167`, `proxy_config.c:76`, `tpc/launch.c:180`; verify `tpc_curl.c:77`.

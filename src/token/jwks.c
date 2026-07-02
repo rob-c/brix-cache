@@ -14,8 +14,8 @@
 
 #include "token_internal.h"
 #include "json.h"
-#include "compat/log_diag.h"
-#include "shared/safe_size.h"
+#include "core/compat/log_diag.h"
+#include "core/compat/safe_size.h"
 
 #include <stdio.h>
 #include <stdlib.h>

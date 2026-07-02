@@ -2,8 +2,8 @@
 
 This plan is the fourth pass over `src/` for duplicate or near-duplicate logic
 across the four protocol implementations — XRootD native stream (`src/session/`,
-`src/read/`, `src/write/`, `src/aio/`), WebDAV HTTP (`src/webdav/`), S3 REST
-(`src/s3/`), and the already-shared compat layer (`src/compat/`).
+`src/read/`, `src/write/`, `src/core/aio/`), WebDAV HTTP (`src/webdav/`), S3 REST
+(`src/s3/`), and the already-shared compat layer (`src/core/compat/`).
 
 Plans 1–3 consolidated the compat layer itself.  This plan looks specifically at
 cross-protocol patterns: things the S3 and WebDAV HTTP modules share with each
@@ -212,7 +212,7 @@ path) that is suitable for error-log context.  The S3 and stream sites vary thei
 format strings, so a one-liner `ngx_log_error` with a sanitized variable is more
 flexible than a fixed-format wrapper.
 
-**Change:** Move the WebDAV helper to `src/compat/` as
+**Change:** Move the WebDAV helper to `src/core/compat/` as
 `xrootd_log_safe_path()` with a more general signature:
 
 ```c

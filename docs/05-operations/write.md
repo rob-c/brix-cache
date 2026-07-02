@@ -78,7 +78,7 @@ path on a clean `kXR_close`**. `rename(2)` on the same filesystem is atomic, so:
   while `xrootd_upload_resume` is on (the default) or POSC (`kXR_posc`) is set;
   **every** WebDAV `PUT` and S3 `PUT`, via the shared
   `xrootd_staged_open()` → `xrootd_staged_commit()` lifecycle
-  ([`src/compat/staged_file.c`](../../src/compat/staged_file.c)).
+  ([`src/core/compat/staged_file.c`](../../src/core/compat/staged_file.c)).
 - **Does not apply to in-place updates:** an `OpenFlags.UPDATE` open that modifies
   an existing file at an offset writes **directly** to the file — staging it
   through an empty temp would lose the bytes it does not rewrite.

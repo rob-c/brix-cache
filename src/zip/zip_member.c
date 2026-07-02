@@ -22,8 +22,8 @@
 #include "response/response.h"
 #include "protocol/wire_core_requests.h"
 #include "protocol/opcodes.h"
-#include "types/tunables.h"
-#include "compat/codec_core.h"
+#include "core/types/tunables.h"
+#include "core/compat/codec_core.h"
 
 #include <string.h>
 #include <unistd.h>

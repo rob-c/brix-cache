@@ -44,7 +44,7 @@ def _read(rel):
 # --------------------------------------------------------------------------- #
 
 def test_w1_safe_size_header():
-    h = _read("src/shared/safe_size.h")
+    h = _read("src/core/compat/safe_size.h")
     assert "xrootd_size_mul" in h
     assert "__builtin_mul_overflow" in h
     assert "xrootd_alloc_array" in h

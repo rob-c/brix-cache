@@ -28,7 +28,7 @@ and kTLS regresses. Real benefit narrows to **pgread/readv-heavy** workloads.
 
 ## The change (file-by-file)
 
-### 1. `src/types/context.h`
+### 1. `src/core/types/context.h`
 ```c
 ngx_thread_task_t *read_aio_ring[XROOTD_PIPELINE_MAX]; /* reusable tasks */
 u_char            *read_databuf[XROOTD_PIPELINE_MAX];  /* raw-heap, per-slot */
@@ -65,14 +65,14 @@ lines ~298-337)
   claim slot `i = ctx->read_aio_next; ctx->read_aio_next = (i+1)%W;` lazily
   alloc `read_aio_ring[i]`; grow `read_databuf[i]` (raw heap) to `rlen`;
   `t->databuf = read_databuf[i]; t->ring_idx = i;`. Add `int ring_idx;` to
-  `xrootd_read_aio_t` (`src/aio/aio.h`).
+  `xrootd_read_aio_t` (`src/core/aio/aio.h`).
 - Slot is free because recv only dispatches while `outstanding < W` (see #4).
 
 ### 4. recv decoupling (`src/connection/recv.c`) — mirror Phase 2's out_count
 - After dispatching a memory-AIO read: instead of returning on `state==XRD_ST_AIO`,
   if `outstanding < XROOTD_PIPELINE_MAX` set `state=REQ_HEADER` and keep reading;
   else suspend (leave AIO/SENDING). `outstanding++` happens at post.
-- `xrootd_read_aio_done` (`src/aio/reads.c`): `outstanding--`; build chunked chain
+- `xrootd_read_aio_done` (`src/core/aio/reads.c`): `outstanding--`; build chunked chain
   from `t->databuf`/`t->nread` with `t->streamid`; `xrootd_queue_response_chain`;
   then re-arm read if `outstanding < W` (so the next buffered read dispatches).
   Drop the `state=REQ_HEADER` reset's assumption of single-flight.

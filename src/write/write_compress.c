@@ -28,9 +28,9 @@
 
 #include "write.h"
 
-#include "ngx_xrootd_module.h"
-#include "compat/codec_core.h"
-#include "compat/http_body.h"   /* XROOTD_DECODE_MAX_RATIO */
+#include "core/ngx_xrootd_module.h"
+#include "core/compat/codec_core.h"
+#include "core/compat/http_body.h"   /* XROOTD_DECODE_MAX_RATIO */
 #include "response/response.h"
 
 #include <errno.h>

@@ -1,7 +1,7 @@
 #ifndef XROOTD_DIRLIST_H
 #define XROOTD_DIRLIST_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /*
  * xrootd_handle_dirlist — directory listing with optional per-entry dStat.

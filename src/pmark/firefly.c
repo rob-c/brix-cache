@@ -27,7 +27,7 @@
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /* Per-worker UDP sender sockets (one per family), created on first use.  Process
  * globals: each worker gets its own copy after fork; closed at process exit. */

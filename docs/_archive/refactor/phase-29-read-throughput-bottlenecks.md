@@ -3,7 +3,7 @@
 **Date:** 2026-06-12
 **Author:** performance audit
 **Status:** PLAN — not yet begun
-**Scope:** `root://` large-file read path (`src/read`, `src/aio`, `src/connection/recv.c`)
+**Scope:** `root://` large-file read path (`src/read`, `src/core/aio`, `src/connection/recv.c`)
 **Premise:** nginx-xrootd *should* match or beat native xrootd for a single-stream
 large-file read (nginx's sendfile data plane is excellent).
 
@@ -131,7 +131,7 @@ per-frame encryption. Result: the GSI-TLS path (174) is the slowest of all.
 
 On the non-sendfile path every chunk posts a task to the thread pool
 (`read.c:195–233`) for a blocking `pread`, then wakes the event loop on
-completion (`src/aio/reads.c`). At n=1 single-stream this adds a **context switch
+completion (`src/core/aio/reads.c`). At n=1 single-stream this adds a **context switch
 + event notification per chunk** that the synchronous native-xrootd loop avoids —
 pure latency with no concurrency to amortize it. (For the cleartext sendfile path
 this hop is correctly skipped.)
@@ -277,10 +277,10 @@ framing under the pipelined path.
 - `src/connection/recv.c` — serial state machine; SENDING/AIO suspend reads (B1).
 - `src/read/read.c:93` — sendfile gated on `!c->ssl` (B2); `:150` sendfile chain;
   `:170`–`:233` memory + thread-pool `pread` path (B3).
-- `src/aio/reads.c` — thread-pool `pread` worker + completion wakeup (B3).
+- `src/core/aio/reads.c` — thread-pool `pread` worker + completion wakeup (B3).
 - `src/read/prefetch.c` — `POSIX_FADV_WILLNEED` hints only (not pipelining; B1).
-- `src/aio/buffers.c` — sendfile/memory chain builders; 16 MiB frame split.
-- `src/types/tunables.h` — `XROOTD_READ_MAX` 4 MiB, `_CHUNK_MAX` 16 MiB,
+- `src/core/aio/buffers.c` — sendfile/memory chain builders; 16 MiB frame split.
+- `src/core/types/tunables.h` — `XROOTD_READ_MAX` 4 MiB, `_CHUNK_MAX` 16 MiB,
   `_REQUEST_MAX` 64 MiB (B4/B5).
 - `src/session/tls_config.c` — `kXR_wantTLS` opt-in upgrade (B2).
 - `tests/nginx.perf.conf` — `xrootd_tls on` on the GSI server (B2/B4);

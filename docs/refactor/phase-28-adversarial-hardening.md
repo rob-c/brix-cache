@@ -223,7 +223,7 @@ limits (reuse Phase 25 limiter) and per-identity TPC/byte quotas.
 | File | Purpose | Build impact |
 |---|---|---|
 | `src/shared/argv_guard.h` | leading-dash/control-byte rejection, `--` discipline (H1) | header-only, no `./configure` |
-| `src/shared/egress_policy.{c,h}` | resolve-and-classify SSRF gate, anti-rebind (H2) | **new `.c` → register in `src/config/config.h`, run `./configure`** |
+| `src/shared/egress_policy.{c,h}` | resolve-and-classify SSRF gate, anti-rebind (H2) | **new `.c` → register in `src/core/config/config.h`, run `./configure`** |
 | `tests/test_security_redteam.py` | adversarial pos/neg suite (H8) | test-only |
 | `tests/fuzz/fuzz_auth_*.c` | auth-parser fuzz targets (H8) | standalone |
 | `docs/07-security/threat-model.md` | STRIDE threat model + secure-defaults checklist | docs |

@@ -10,7 +10,7 @@ WHAT
     per-zone loop has no ``ngx_accept_mutex_ptr`` guard). Any zone whose init
     callback laid its own struct directly over ``shm.addr`` clobbers that slab
     header, so the master SIGSEGVs the instant any worker exits. This was a
-    codebase-wide latent bug (FIXED 2026-06-14 via src/compat/shm_slots.c
+    codebase-wide latent bug (FIXED 2026-06-14 via src/core/compat/shm_slots.c
     ``xrootd_shm_table_alloc``, which slab-allocates the table and leaves the
     header intact).
 

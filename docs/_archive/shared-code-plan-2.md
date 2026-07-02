@@ -1,14 +1,14 @@
 # Shared-Code Plan 2: Post-Phase-A/B Opportunities
 
 This plan picks up where `shared-code-plan.md` left off.  Phases A (URL
-decode) and B (errno mapping) have been implemented and are in `src/compat/`.
+decode) and B (errno mapping) have been implemented and are in `src/core/compat/`.
 This document catalogues what remains from that plan and adds three new
 opportunities found by cross-reading `src/webdav/` and `src/s3/` after those
 changes landed.
 
 ---
 
-## Current state of `src/compat/`
+## Current state of `src/core/compat/`
 
 | File | Purpose | Status |
 |---|---|---|
@@ -50,7 +50,7 @@ However:
    `s3_resolve_key` returns `0` (generic failure) with no errno context.
 
 **Proposed implementation:** `xrootd_http_resolve_path(root_canon,
-decoded_path, out, outsz)` in `src/compat/path.c`.  Pure C, no nginx headers.
+decoded_path, out, outsz)` in `src/core/compat/path.c`.  Pure C, no nginx headers.
 Returns 0 on success or an HTTP integer status code (403, 404, 414, 500) on
 failure.  Implements the realpath + ENOENT-parent strategy from WebDAV.
 
@@ -109,7 +109,7 @@ One minor divergence:
 **Proposed implementation:**
 
 ```c
-/* src/compat/range.h */
+/* src/core/compat/range.h */
 typedef struct {
     off_t  start;
     off_t  end;
@@ -164,7 +164,7 @@ S3: `test_s3_get_range_partial_206`, `test_s3_get_range_suffix_206`,
 **Proposed implementation:**
 
 ```c
-/* src/compat/etag.h */
+/* src/core/compat/etag.h */
 #define XROOTD_ETAG_WEAK    0x01u
 
 void xrootd_http_etag_str(char *buf, size_t bufsz,
@@ -225,7 +225,7 @@ security fix, not a reduction.  Worth doing regardless of LOC cost.
 | WebDAV CORS (cors.c) | S3 clients (XrdClS3, s3cmd, boto3) do not issue browser preflight requests; CORS would add latency for zero gain. |
 | `root_canon` init (realpath at config time) | ~15 LOC each, in module init hooks that are called once. Not worth abstracting. |
 | TPC credential/header parsing | WLCG-specific. XrdHttp reuses WebDAV symbols. S3 has no TPC. |
-| High-level XML builders | PROPFIND MultiStatus ≠ ListBucketResult. Shared primitives already in `src/compat/xml.c`. |
+| High-level XML builders | PROPFIND MultiStatus ≠ ListBucketResult. Shared primitives already in `src/core/compat/xml.c`. |
 
 ---
 
@@ -233,7 +233,7 @@ security fix, not a reduction.  Worth doing regardless of LOC cost.
 
 ### Phase C — path resolver (2–3 days, medium risk)
 
-1. Add `src/compat/path.c` + `src/compat/path.h` with
+1. Add `src/core/compat/path.c` + `src/core/compat/path.h` with
    `xrootd_http_resolve_path`.
 2. Add to stream module `ngx_module_srcs` in `config`.
 3. Replace `ngx_http_xrootd_webdav_resolve_path` with wrapper.
@@ -252,7 +252,7 @@ security fix, not a reduction.  Worth doing regardless of LOC cost.
 
 ### Phase E — range parser (1 day, low risk)
 
-1. Add `src/compat/range.c` + `src/compat/range.h` with
+1. Add `src/core/compat/range.c` + `src/core/compat/range.h` with
    `xrootd_http_parse_range`.
 2. Add to stream module `ngx_module_srcs` in `config`.
 3. Replace range-parse block in `webdav/get.c` with call.
@@ -261,7 +261,7 @@ security fix, not a reduction.  Worth doing regardless of LOC cost.
 
 ### Phase F — ETag string (0.5 day, low risk)
 
-1. Add `src/compat/etag.c` + `src/compat/etag.h` with
+1. Add `src/core/compat/etag.c` + `src/core/compat/etag.h` with
    `xrootd_http_etag_str`.
 2. Add to stream module `ngx_module_srcs` in `config`.
 3. Replace `webdav_etag_str` and `s3_etag` bodies with wrappers.

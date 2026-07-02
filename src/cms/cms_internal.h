@@ -1,7 +1,7 @@
 #ifndef NGX_XROOTD_CMS_INTERNAL_H
 #define NGX_XROOTD_CMS_INTERNAL_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /*
  * Timing and sizing constants for the CMS heartbeat client.

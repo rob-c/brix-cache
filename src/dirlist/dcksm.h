@@ -1,7 +1,7 @@
 #ifndef XROOTD_DIRLIST_DCKSM_H
 #define XROOTD_DIRLIST_DCKSM_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include <sys/stat.h>
 
 /* Parse the cks.type= CGI parameter from the kXR_dirlist payload.

@@ -74,7 +74,7 @@ def test_query_xml_and_base64url_helpers_are_shared():
 
 def test_iso8601_and_hex_helpers_are_shared():
     _assert_markers(
-        "src/compat/time.c",
+        "src/core/compat/time.c",
         ["xrootd_format_iso8601(", ".000Z"],
     )
     for relpath in (
@@ -91,7 +91,7 @@ def test_iso8601_and_hex_helpers_are_shared():
     _assert_absent("src/s3/s3.h", ["s3_iso8601("])
 
     _assert_markers(
-        "src/compat/hex.h",
+        "src/core/compat/hex.h",
         ["xrootd_hex_nibble(", "xrootd_hex_from_char(", "xrootd_hex_encode("],
     )
     _assert_markers(
@@ -99,7 +99,7 @@ def test_iso8601_and_hex_helpers_are_shared():
         ["../compat/hex.h", "xrootd_hex_nibble("],
     )
     _assert_markers(
-        "src/compat/xml.c",
+        "src/core/compat/xml.c",
         ['#include "hex.h"', "xrootd_hex_nibble("],
     )
     _assert_markers(
@@ -107,11 +107,11 @@ def test_iso8601_and_hex_helpers_are_shared():
         ["../compat/hex.h", "xrootd_hex_from_char("],
     )
     _assert_markers(
-        "src/compat/uri.c",
+        "src/core/compat/uri.c",
         ['#include "hex.h"', "xrootd_hex_from_char("],
     )
     _assert_markers(
-        "src/compat/checksum.c",
+        "src/core/compat/checksum.c",
         ['#include "hex.h"', "xrootd_hex_encode("],
     )
     _assert_markers(
@@ -119,9 +119,9 @@ def test_iso8601_and_hex_helpers_are_shared():
         ["../compat/hex.h", "xrootd_hex_encode("],
     )
     _assert_absent("src/path/helpers.c", ["xrootd_hex_digit("])
-    _assert_absent("src/compat/xml.c", ["xrootd_xml_hex_digit("])
+    _assert_absent("src/core/compat/xml.c", ["xrootd_xml_hex_digit("])
     _assert_absent("src/token/macaroon.c", ["hex_to_int("])
-    _assert_absent("src/compat/uri.c", ["hex_val("])
+    _assert_absent("src/core/compat/uri.c", ["hex_val("])
     _assert_absent("src/s3/auth_sigv4_canonical.c", ["hex_encode("])
     _assert_absent("src/s3/s3_auth_internal.h", ["hex_encode("])
 
@@ -217,7 +217,7 @@ def test_http_header_body_and_condition_helpers_are_shared():
         ["../compat/http_headers.h", "xrootd_http_find_header("],
     )
     _assert_markers(
-        "src/compat/http_headers.h",
+        "src/core/compat/http_headers.h",
         ["xrootd_http_extract_bearer("],
     )
     _assert_markers(
@@ -269,7 +269,7 @@ def test_http_header_body_and_condition_helpers_are_shared():
 
 def test_phase1_http_status_header_and_query_helpers_are_shared():
     _assert_markers(
-        "src/compat/http_headers.h",
+        "src/core/compat/http_headers.h",
         [
             "xrootd_http_effective_status(",
             "xrootd_http_set_header_num(",
@@ -418,14 +418,14 @@ def test_http_path_resolver_uses_unified_adapter():
     # and lets openat2(RESOLVE_BENEATH) enforce confinement at the operation.
     # Verify it uses that shared resolver rather than reimplementing path munging.
     _assert_markers(
-        "src/compat/path.c",
+        "src/core/compat/path.c",
         [
             "../path/beneath.h",
             "xrootd_beneath_full_path(",
         ],
     )
     _assert_absent(
-        "src/compat/path.c",
+        "src/core/compat/path.c",
         [
             "has_forbidden_components",
             "strrchr(",
@@ -437,12 +437,12 @@ def test_phase2_identity_type_is_registered():
     _assert_markers(
         "config",
         [
-            "src/types/identity.h",
-            "src/types/identity.c",
+            "src/core/types/identity.h",
+            "src/core/types/identity.c",
         ],
     )
     _assert_markers(
-        "src/types/identity.h",
+        "src/core/types/identity.h",
         [
             "typedef struct {",
             "XROOTD_AUTHN_GSI",
@@ -453,7 +453,7 @@ def test_phase2_identity_type_is_registered():
         ],
     )
     _assert_markers(
-        "src/types/context.h",
+        "src/core/types/context.h",
         ["xrootd_identity_t *identity"],
     )
     _assert_markers(

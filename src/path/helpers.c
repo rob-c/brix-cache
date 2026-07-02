@@ -1,6 +1,6 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
-#include "compat/hex.h"
+#include "core/compat/hex.h"
 #include "path_internal.h"
 
 // Check if a path component name is forbidden by filesystem security rules.

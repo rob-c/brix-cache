@@ -7,7 +7,7 @@
 
 #include "dashboard_http.h"
 #include "dashboard_json.h"
-#include "compat/fs_usage.h"
+#include "core/compat/fs_usage.h"
 #include "manager/registry.h"
 #include "tpc/common/registry.h"
 #include "ratelimit/ratelimit.h"

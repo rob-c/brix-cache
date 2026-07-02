@@ -558,7 +558,7 @@ def test_stream_concurrency_wiring():
     assert "xrootd_rl_conc_acquire" in rs
     assert "xrootd_rl_release_ctx" in rs
     # ... the per-connection slot lives on the ctx ...
-    ctx = _read("src/types/context.h")
+    ctx = _read("src/core/types/context.h")
     assert "rl_conc_rule" in ctx
     assert "rl_conc_key" in ctx
     # ... and the release is hooked on disconnect (no LOG phase on the stream).
@@ -695,8 +695,8 @@ def test_stream_concurrency_high_limit_no_throttle(tmp_path):
 # --------------------------------------------------------------------------- #
 
 def test_keycache_wiring():
-    assert "XROOTD_RL_RULE_CACHE_MAX" in _read("src/types/tunables.h")
-    ctx = _read("src/types/context.h")
+    assert "XROOTD_RL_RULE_CACHE_MAX" in _read("src/core/types/tunables.h")
+    ctx = _read("src/core/types/context.h")
     assert "rl_key_cache" in ctx and "rl_key_cache_valid" in ctx
     gate = _read("src/ratelimit/ratelimit_stream.c")
     assert "rl_key_cache_valid" in gate

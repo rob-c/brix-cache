@@ -283,7 +283,7 @@ In AIO completion callbacks (`_done`), always check `ctx->destroyed` before touc
 nginx initialises **every** `shared_memory` zone as an `ngx_slab_pool_t`, and its SIGCHLD handler runs `ngx_unlock_mutexes()` on **every child death** — that routine walks `ngx_cycle->shared_memory` *unconditionally* and dereferences `((ngx_slab_pool_t *) zone.shm.addr)->mutex` for each zone. A zone whose `init` callback lays its own struct directly over `shm.addr` clobbers that slab header, so the **master SIGSEGVs the instant any worker exits** (this was a real codebase-wide bug).
 
 - **Never** cast `shm_zone->shm.addr` to anything but `ngx_slab_pool_t`, and **never** `ngx_memzero(shm.addr, …)`. The slab header lives there and must survive.
-- Allocate the table **from** the slab pool via `xrootd_shm_table_alloc()` (`src/compat/shm_slots.h`), and size the zone with `xrootd_shm_zone_size()`. The helper handles fresh-alloc / reload / re-attach, builds the process-local mutex from the table's first member (an `ngx_shmtx_sh_t lock`; pass `NULL` for lock-less atomic-only tables), and publishes the table via `shm_zone->data`. Initialise non-lock fields only when `*fresh` is set.
+- Allocate the table **from** the slab pool via `xrootd_shm_table_alloc()` (`src/core/compat/shm_slots.h`), and size the zone with `xrootd_shm_zone_size()`. The helper handles fresh-alloc / reload / re-attach, builds the process-local mutex from the table's first member (an `ngx_shmtx_sh_t lock`; pass `NULL` for lock-less atomic-only tables), and publishes the table via `shm_zone->data`. Initialise non-lock fields only when `*fresh` is set.
 - The reference pattern is `src/ratelimit/ratelimit_zone.c` (view the slab pool, then `ngx_slab_alloc`).
 
 This contract is enforced two ways: `tests/test_shm_slab_safety_lint.py` (static — fails CI if any zone clobbers `shm.addr` or skips the slab-safe allocator) and `tests/test_shm_fork_safety.py` (runtime — SIGKILLs workers across every protocol's zones and asserts the master survives).
@@ -487,7 +487,7 @@ These are non-negotiable correctness requirements:
 ## 12. Async I/O
 
 - Event-loop only. No wait/sleep/read in handler functions.
-- Use `ngx_thread_pool_run` (`src/aio/`) or timers for blocking operations.
+- Use `ngx_thread_pool_run` (`src/core/aio/`) or timers for blocking operations.
 - AIO handlers run in worker threads; allocate before posting, check `ctx->destroyed` on completion.
 
 ---

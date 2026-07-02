@@ -83,7 +83,7 @@ Phase 2 implementation successfully:
 ### ✅ Phase 2d: Address Parsing Migration - INFRASTRUCTURE READY
 
 **Status:** Infrastructure complete and tested
-- File: `src/config/addr_parse.c/h`
+- File: `src/core/config/addr_parse.c/h`
 - Function: `xrootd_parse_address()` - unified host:port parser
 - Ready for deployment to: cache/directives.c, tpc_config.c, upstream/directives.c
 - Estimated reduction when deployed: -40 LoC
@@ -93,7 +93,7 @@ Phase 2 implementation successfully:
 ## Code Changes Summary
 
 ### Files Modified (Phase 2 Consolidations)
-1. `src/config/server_conf.c` - Added conf_helpers.h, consolidated 28 merges
+1. `src/core/config/server_conf.c` - Added conf_helpers.h, consolidated 28 merges
 2. `src/s3/module.c` - Added conf_helpers.h, consolidated 6 merges
 3. `src/metrics/module.c` - Added conf_helpers.h, consolidated 1 merge
 4. `src/webdav/config.c` - Added conf_helpers.h, consolidated 22 merges
@@ -101,10 +101,10 @@ Phase 2 implementation successfully:
 6. `src/webdav/tpc_config.c` - Added conf_helpers.h, consolidated 8 merges
 
 ### Helper Infrastructure (Phase 1, deployed in Phase 2)
-1. `src/compat/alloc_helpers.h` - 6 memory allocation macros
+1. `src/core/compat/alloc_helpers.h` - 6 memory allocation macros
 2. `src/webdav/response_helpers.h` - 4 HTTP response inline functions
-3. `src/config/conf_helpers.h` - 9 config merge wrapper macros
-4. `src/config/addr_parse.c/h` - Unified address parsing function
+3. `src/core/config/conf_helpers.h` - 9 config merge wrapper macros
+4. `src/core/config/addr_parse.c/h` - Unified address parsing function
 
 ### Documentation Generated
 - `CODE_REDUCTION_ANALYSIS.md` - Opportunity analysis

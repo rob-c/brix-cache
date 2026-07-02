@@ -100,7 +100,7 @@ their current documentation status after the 2026-06-14 cleanup.
 | `docs/refactor/phase-34-packet-marking-scitags.md` | Packet marking/SciTags was a future plan. | `src/pmark/` implements Firefly UDP and IPv6 flow-label marking, including the XRootD-stubbed flow-label path. | Marked implemented/as-built. |
 | `docs/refactor/phase-29-phase3-aio-pipelining-spec.md` and `docs/refactor/phase-30-hyper-optimization-throughput-latency.md` | AIO pipeline work was entirely unimplemented; build flags and CRC64/CRC32 premises were current. | Phase 32/33 landed response/read-buffer pipeline foundations and build defaults; CRC32C is hardware-accelerated; CRC64 is implemented separately. | Marked superseded/historical; visible stale table rows corrected. |
 | `docs/09-developer-guide/feature-roadmap.md` | OCSP, discharge macaroons, authdb host/query/fattr coverage, CMS escalation tests, FRM prepare, and write-through cache details were stale. | Source has OCSP responder/stapling, macaroon discharge bundles, authdb host/CIDR plus broader handler gates, CMS tests, FRM/Tape REST, and cache-origin anonymous-login limitations. | Corrected with current caveats. |
-| `docs/10-reference/comparison-nginx-xrootd-vs-canonical.md`, `docs/10-reference/gaps-vs-xrootd.md`, `docs/10-reference/xrootd-feature-matrix.md` | CRC64 was missing or grouped as a checksum gap. | `src/compat/crc64.c`, S3 CRC64NVME paths, and `docs/10-reference/crc64-checksums.md` show CRC64/CRC64NVME support. | Corrected; remaining checksum gap is plugin-framework breadth. |
+| `docs/10-reference/comparison-nginx-xrootd-vs-canonical.md`, `docs/10-reference/gaps-vs-xrootd.md`, `docs/10-reference/xrootd-feature-matrix.md` | CRC64 was missing or grouped as a checksum gap. | `src/core/compat/crc64.c`, S3 CRC64NVME paths, and `docs/10-reference/crc64-checksums.md` show CRC64/CRC64NVME support. | Corrected; remaining checksum gap is plugin-framework breadth. |
 | `docs/05-operations/proxy-mode-guide.md` | Proxy mode gaps around unsolicited `kXR_attn` and prepare path rewriting. | Source inspection found `kXR_waitresp` forwarding; complete upstream unsolicited-attention dispatch and per-entry prepare rewrite still need separate review. | Open reviewer attention item. |
 
 ## Native XRootD Protocol Surface
@@ -154,7 +154,7 @@ Source anchors:
   `/tmp/xrootd-src/src/XrdVoms`
 - nginx auth source:
   `src/gsi/`, `src/token/`, `src/sss/`, `src/unix/`, `src/krb5/`,
-  `src/path/authdb.c`, `src/path/acl.c`, `src/config/policy.c`
+  `src/path/authdb.c`, `src/path/acl.c`, `src/core/config/policy.c`
 
 | Feature | Upstream XRootD source | nginx-xrootd source | Status | Notes |
 |---|---|---|---|---|
@@ -217,12 +217,12 @@ Source anchors:
   `/tmp/xrootd-src/src/XrdRmc`
 - nginx storage source:
   `src/fs/`, `src/path/`, `src/cache/`, `src/frm/`,
-  `src/compat/namespace_ops.c`
+  `src/core/compat/namespace_ops.c`
 
 | Feature | Upstream XRootD source | nginx-xrootd source | Status | Notes |
 |---|---|---|---|---|
 | POSIX local filesystem serving | Core `XrdOss`/`XrdSfs` stack. | Local POSIX operations through confined path helpers, namespace ops, fd table, sendfile/mmap-style HTTP paths. | Parity | This module is intentionally strongest as a POSIX-backed data server/gateway. |
-| Path confinement and symlink escape defense | Upstream has its own namespace and auth mechanisms. | `src/path/`, `src/compat/namespace_ops.c`, `ngx_http_xrootd_webdav_resolve_path()`, `xrootd_open_confined_canon()`. | nginx+ | All wire paths should resolve before syscall; this is a major auditability advantage. |
+| Path confinement and symlink escape defense | Upstream has its own namespace and auth mechanisms. | `src/path/`, `src/core/compat/namespace_ops.c`, `ngx_http_xrootd_webdav_resolve_path()`, `xrootd_open_confined_canon()`. | nginx+ | All wire paths should resolve before syscall; this is a major auditability advantage. |
 | Read-through cache / XCache-style role | Upstream `XrdPfc`, `XrdRmc`, cache plugins. | `src/cache/`, `src/open_cache.c`, protocol `kXR_attrCache`. | Partial | Practical cache mode exists. Upstream `XrdPfc` has much broader policy, purge, snapshot, and resource-monitoring machinery. |
 | Parallel Storage Service | `XrdPss` plugin. | No comparable PSS backend found. | Missing | Important for sites using remote federation/cache-fill as their storage layer. |
 | Ceph/RADOS backend | `XrdCeph` plugin. | No comparable Ceph OSS backend found. | Missing | Could be handled through POSIX/CephFS externally, but not through an XRootD-style Ceph plugin. |
@@ -233,7 +233,7 @@ Source anchors:
 | External tape/MSS driver abstraction | Upstream has MSS/ARC/Frm-style abstractions and daemon workflows. | Operator `copycmd`/`residency_cmd`; no linked tape library. | Partial | Simpler and auditable, but not drop-in for sites depending on upstream MSS plugins. |
 | Zip archive support | `XrdZip` source exists. | `src/zip/` — pure-C central-directory reader (`zip_dir.c`), `zip_member.c`, HTTP member serving (`zip_http.c`), wired into the build. | Partial | ZIP-member access over HTTP exists; not full upstream cross-protocol parity. |
 | Remanufactured memory cache | `XrdRmc` source exists. | No comparable `XrdRmc` implementation found. | Missing | Mostly a specialized upstream cache feature. |
-| Checksum plugin framework | Upstream `XrdCks` plugin mapping supports deployment-specific checksum modules. | `src/compat/checksum.c` supports common algorithms including adler32/crc32/crc32c/md5/sha1/sha256 plus CRC-64/XZ and CRC-64/NVME via `src/compat/crc64.c`. | Partial / nginx+ for CRC64 | Full plugin-framework parity is still narrower; CRC64 itself is implemented. |
+| Checksum plugin framework | Upstream `XrdCks` plugin mapping supports deployment-specific checksum modules. | `src/core/compat/checksum.c` supports common algorithms including adler32/crc32/crc32c/md5/sha1/sha256 plus CRC-64/XZ and CRC-64/NVME via `src/core/compat/crc64.c`. | Partial / nginx+ for CRC64 | Full plugin-framework parity is still narrower; CRC64 itself is implemented. |
 | Client libraries/tools | Upstream ships `XrdCl`, `XrdPosix`, FUSE/tooling. | Not applicable to server module. | Not replacement-scope | This module replaces server behavior, not the upstream client SDK ecosystem. |
 
 ## Cluster, Redirector, Proxy, and TPC
@@ -280,7 +280,7 @@ These are the features that make the replacement case stronger than a simple
 | WebDAV desktop/client compatibility | `src/webdav/lock.c`, `dead_props.c`, `search.c`, `acl.c` | Supports clients that need locks or dead properties, beyond upstream XrdHttp's reviewed method set. |
 | Hardened HTTP-TPC | `src/webdav/tpc_curl.c`, `tpc_cred.c`, `tpc_marker.c` | Adds SSRF/DNS pinning, credential exchange, marker streaming, multistream, and metrics in one module. |
 | Traffic mirroring | `src/mirror/` | Enables safe site migration by shadowing reads/writes and logging divergence before cutover. |
-| Path confinement discipline | `src/path/`, `src/compat/namespace_ops.c` | Makes the codebase auditable: resolve/canonicalize/confine first, then syscall. |
+| Path confinement discipline | `src/path/`, `src/core/compat/namespace_ops.c` | Makes the codebase auditable: resolve/canonicalize/confine first, then syscall. |
 | WLCG Tape REST gateway | `src/webdav/tape_rest.c`, `src/frm/` | Provides modern HTTP tape control while sharing the same stage queue as native XRootD prepare/open. |
 | nginx TLS/logging/reload model | nginx module integration through top-level `config` | Sites can reuse nginx operational practices for certs, reloads, logging, HTTP routing, and reverse proxying. |
 
@@ -368,7 +368,7 @@ High-signal source files inspected for this comparison:
 | HTTP/WebDAV/XrdHttp | `src/webdav/` | `/tmp/xrootd-src/src/XrdHttp`, `/tmp/xrootd-src/src/XrdHttpCors` |
 | HTTP-TPC | `src/webdav/tpc*.c` | `/tmp/xrootd-src/src/XrdHttpTpc` |
 | S3 | `src/s3/` | `/tmp/xrootd-src/src/XrdClS3` |
-| Cache/storage | `src/cache/`, `src/fs/`, `src/path/`, `src/compat/namespace_ops.c` | `/tmp/xrootd-src/src/XrdPfc`, `/tmp/xrootd-src/src/XrdPss`, `/tmp/xrootd-src/src/XrdCeph`, `/tmp/xrootd-src/src/XrdOssCsi`, `/tmp/xrootd-src/src/XrdZip`, `/tmp/xrootd-src/src/XrdRmc` |
+| Cache/storage | `src/cache/`, `src/fs/`, `src/path/`, `src/core/compat/namespace_ops.c` | `/tmp/xrootd-src/src/XrdPfc`, `/tmp/xrootd-src/src/XrdPss`, `/tmp/xrootd-src/src/XrdCeph`, `/tmp/xrootd-src/src/XrdOssCsi`, `/tmp/xrootd-src/src/XrdZip`, `/tmp/xrootd-src/src/XrdRmc` |
 | FRM/tape | `src/frm/`, `src/query/prepare.c`, `src/webdav/tape_rest.c` | `/tmp/xrootd-src/src/XrdFrm` |
 | Rate limiting | `src/ratelimit/`, `src/metrics/ratelimit.c` | `/tmp/xrootd-src/src/XrdThrottle`, `/tmp/xrootd-src/src/XrdBwm` |
 | CMS/manager/proxy | `src/cms/`, `src/manager/`, `src/upstream/`, `src/proxy/` | `/tmp/xrootd-src/src/XrdCms`, `/tmp/xrootd-src/src/XrdXrootd` |

@@ -281,7 +281,7 @@ Both paths read progress from the **same** registry entry, so a monitoring endpo
 | `src/webdav/tpc_cred_parse.c` | Keep raw header parsing; remove validation logic (moved to common) |
 | `src/webdav/tpc_thread.c` | Add registry integration |
 | `src/webdav/tpc_marker.c` | Call `xrootd_tpc_progress_emit()` |
-| `src/config/config.h` | Add `src/tpc/common/*.c` to `NGX_ADDON_SRCS` |
+| `src/core/config/config.h` | Add `src/tpc/common/*.c` to `NGX_ADDON_SRCS` |
 
 ---
 

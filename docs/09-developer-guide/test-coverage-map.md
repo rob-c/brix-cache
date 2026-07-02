@@ -201,7 +201,7 @@ Security hardening regression inventory. Run this whenever touching auth or path
 
 ## File I/O
 
-**Source:** `src/read/`, `src/write/`, `src/aio/`
+**Source:** `src/read/`, `src/write/`, `src/core/aio/`
 
 ### `test_file_api.py`
 
@@ -233,7 +233,7 @@ Wire-level edge cases for every read/write variant:
 
 ### `test_aio.py`
 
-AIO thread pool path (`src/aio/`):
+AIO thread pool path (`src/core/aio/`):
 
 - Large reads: integrity, at offset, multiple chunks, MD5 hash.
 - Large writes: integrity, at offset, multiple chunks.

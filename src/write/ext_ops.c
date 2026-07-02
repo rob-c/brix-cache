@@ -17,10 +17,10 @@
  *
  * Wire formats: see src/protocol/wire_vendor_ext.h.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "ext_ops.h"
-#include "compat/error_mapping.h"
-#include "compat/vendor_ext.h"   /* shared kXR_setattr prefix codec (libxrdproto) */
+#include "core/compat/error_mapping.h"
+#include "core/compat/vendor_ext.h"   /* shared kXR_setattr prefix codec (libxrdproto) */
 #include "path/op_path.h"
 #include "path/auth_gate.h"
 #include "path/path.h"

@@ -7,7 +7,7 @@
  */
 
 #include "webdav.h"
-#include "compat/http_xml.h"
+#include "core/compat/http_xml.h"
 
 ngx_int_t
 webdav_handle_acl(ngx_http_request_t *r)

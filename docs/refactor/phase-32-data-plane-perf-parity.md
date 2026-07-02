@@ -32,8 +32,8 @@ access-log batching + WebDAV per-request cuts: tracked follow-ups (documented).
 >   Documented in `docs/05-operations/performance-benchmarks.md`. (`vfs_read.c`
 >   `is_tls` gate confirmed dead code — left as-is.)
 > - **WS2 multi-chunk pipelining — DONE, verified.** `XROOTD_SLOT_HDR_MAX` tunable;
->   `xrootd_resp_slot_t.hdr_bytes` widened 8→32 B (`src/types/context.h`); the
->   multi-chunk sendfile builder (`src/aio/buffers.c`) now writes per-chunk headers
+>   `xrootd_resp_slot_t.hdr_bytes` widened 8→32 B (`src/core/types/context.h`); the
+>   multi-chunk sendfile builder (`src/core/aio/buffers.c`) now writes per-chunk headers
 >   into `slot->hdr_bytes` (not shared `read_hdr_scratch`) and sets
 >   `resp_pipelinable=1`. **Full reconfigure+rebuild** (struct layout changed — the
 >   mixed-ABI gotcha). Validated: 200 MiB multi-chunk root:// read **byte-exact**
@@ -44,7 +44,7 @@ access-log batching + WebDAV per-request cuts: tracked follow-ups (documented).
 >   `large200.bin` instead. Standalone TLS shell tests need
 >   `X509_USER_PROXY`/`X509_CERT_DIR` set (conftest sets them).
 **Scope:** the three bulk data planes — `davs://`/WebDAV+TLS, S3, and `root://` —
-`src/read`, `src/aio`, `src/connection`, `src/fs`, `src/shared`, `src/webdav`,
+`src/read`, `src/core/aio`, `src/connection`, `src/fs`, `src/shared`, `src/webdav`,
 `src/s3`, plus nginx runtime config.
 **Builds on:** Phase 29 (read bottlenecks), Phase 30 (hyper-opt), Phase 31
 (memory-budget streaming: windowing + budget + pipelining ring scaffold). This
@@ -74,7 +74,7 @@ overhead the old fast path didn't have.
 1. **Build flags are already optimal.** `/tmp/nginx-1.28.3/objs/Makefile` CFLAGS
    already include `-O3 -march=x86-64-v2 -fno-plt`. The Phase-30 "no -O3" note is
    **stale** — no win here. (Optional experiment only: `-flto`.)
-2. **CRC32C is already hardware-accelerated** (`src/compat/crc32c.c` uses
+2. **CRC32C is already hardware-accelerated** (`src/core/compat/crc32c.c` uses
    `_mm_crc32_u64`, SSE4.2). Not a bottleneck. No action.
 3. **nginx 1.28.3 supports `SSL_sendfile` (kTLS)** — 7 references in
    `src/event/ngx_event_openssl.c`. kTLS is achievable on this build.
@@ -89,7 +89,7 @@ overhead the old fast path didn't have.
    adds a full copy+alloc. Must be gated to `want_pgcrc` only.
 6. **`root://` send pipeline is effectively depth-1 for the cases that matter.**
    `resp_pipelinable` is set to **1 only in the single-chunk cleartext sendfile
-   builder** (`src/aio/buffers.c:332`); it is **0** for multi-chunk (>16 MiB,
+   builder** (`src/core/aio/buffers.c:332`); it is **0** for multi-chunk (>16 MiB,
    `buffers.c:526`), for TLS/windowed reads, and reset each request
    (`recv.c:381,442`). The `out_ring[XROOTD_PIPELINE_MAX=4]` exists
    (`context.h:142`) but only small cleartext reads ever fill it. Large and TLS
@@ -199,7 +199,7 @@ so the recv loop blocks until each large response fully drains — the dominant
 
 **How:**
 1. **Multi-chunk sendfile:** set `resp_pipelinable=1` in the multi-chunk builder
-   (`src/aio/buffers.c:526`). Each in-flight response already owns a slot
+   (`src/core/aio/buffers.c:526`). Each in-flight response already owns a slot
    (`out_ring[out_tail]`, `xrootd_resp_slot_t`); ensure the multi-chunk **header
    block** is stored per-slot (not in the shared `read_hdr_scratch`) so two
    multi-chunk responses can be queued without aliasing — extend
@@ -253,7 +253,7 @@ stream module, not http).
   synchronous `write(2)` with a per-worker buffered/coalesced access-log writer
   (flush on size/timer), or sample. The single biggest fixed per-read cost when
   logging is on.
-- **Scratch trim hysteresis** (`src/aio/buffers.c` `xrootd_trim_one`,
+- **Scratch trim hysteresis** (`src/core/aio/buffers.c` `xrootd_trim_one`,
   threshold `2×window`): a session doing back-to-back >4 MiB reads frees+reallocs
   `read_scratch` every request. Raise the trim threshold or keep the buffer warm
   while a stream is active (only trim after N idle requests). Minor but free.

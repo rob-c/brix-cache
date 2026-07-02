@@ -23,7 +23,7 @@ the WebDAV PUT decode path (shared harness, port 8443):
                      either reject, or decode exactly once to a correct object —
                      NEVER a half-decoded object.
 
-The server bomb guard (src/compat/codec_core.c + http_body.{c,h}) is an output cap
+The server bomb guard (src/core/compat/codec_core.c + http_body.{c,h}) is an output cap
 (XROOTD_DECODE_MAX_OUTPUT = 16 GiB) plus an expansion-ratio ceiling
 (XROOTD_DECODE_MAX_RATIO = 1000:1, engaged once >= 64 KiB has been produced). LZ4
 uses a lower codec-specific threshold because its frame format compresses zero

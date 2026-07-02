@@ -1,6 +1,6 @@
 # Core type reference
 
-The three types every handler touches. Read alongside `src/ngx_xrootd_module.h`, which has the authoritative definitions
+The three types every handler touches. Read alongside `src/core/ngx_xrootd_module.h`, which has the authoritative definitions
 and field-level comments.
 
 ---

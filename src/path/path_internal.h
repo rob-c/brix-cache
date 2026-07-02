@@ -1,7 +1,7 @@
 #ifndef XROOTD_PATH_PATH_INTERNAL_H
 #define XROOTD_PATH_PATH_INTERNAL_H
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /* Traversal guard: returns 1 (true) iff comp[0..comp_len) is exactly "." or
  * "..", else 0. Borrows comp (need not be NUL-terminated); O(1), no alloc. */

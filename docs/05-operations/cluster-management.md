@@ -85,7 +85,7 @@ with the most `free_mb`.
 (shm zone init, `ngx_shmtx_lock`/`unlock`, linear scan, `ngx_cpystrn` copies).
 
 **Wiring**: call `xrootd_srv_configure_registry(cf)` from
-`src/config/postconfiguration.c` (after the metrics zone, same pattern).
+`src/core/config/postconfiguration.c` (after the metrics zone, same pattern).
 Add `src/manager/registry.c` to `ngx_module_srcs` in `config`.
 
 ---
@@ -149,8 +149,8 @@ the local open path.
 
 **New config directive**: `xrootd_manager_mode on|off` (default off).
 Add `ngx_flag_t manager_mode` to `ngx_stream_xrootd_srv_conf_t` in
-`src/types/config.h`. Register in `src/stream/module.c`, initialise/merge in
-`src/config/server_conf.c`.
+`src/core/types/config.h`. Register in `src/stream/module.c`, initialise/merge in
+`src/core/config/server_conf.c`.
 
 ---
 
@@ -217,9 +217,9 @@ stream {
 
 | Phase | New files | Changed files |
 |---|---|---|
-| M1 registry | `src/manager/registry.h`, `registry.c` | `src/config/postconfiguration.c`, `config` |
+| M1 registry | `src/manager/registry.h`, `registry.c` | `src/core/config/postconfiguration.c`, `config` |
 | M2 CMS server | `src/cms/server_handler.c`, `server_recv.c`, `server_send.c`, `server_timer.c`, `server_module.c` | `config` |
-| M3 dynamic redirect | — | `src/read/locate.c`, `src/read/open.c`, `src/session/protocol.c`, `src/types/config.h`, `src/stream/module.c`, `src/config/server_conf.c` |
+| M3 dynamic redirect | — | `src/read/locate.c`, `src/read/open.c`, `src/session/protocol.c`, `src/core/types/config.h`, `src/stream/module.c`, `src/core/config/server_conf.c` |
 | M4 sub-manager | — | `src/cms/send.c` |
 | M5 cache integration | — | `src/cache/thread.c`, `src/cache/evict.c`, `src/manager/registry.c` |
 
@@ -232,9 +232,9 @@ stream {
 | `src/session/registry.c` | shm zone + spinlock + fixed-slot array pattern for M1 |
 | `src/cms/recv.c`, `send.c`, `wire.c` | CMS frame parser, encoder, byte-order helpers for M2 |
 | `src/cms/connect.c` | timer and backoff pattern for `server_timer.c` |
-| `src/config/manager_map.c` | longest-prefix matching algorithm (static fallback stays) |
+| `src/core/config/manager_map.c` | longest-prefix matching algorithm (static fallback stays) |
 | `src/connection/handler.c` | per-connection context init pattern for `server_handler.c` |
-| `src/metrics/config.c` | shm zone creation pattern for `src/config/postconfiguration.c` |
+| `src/metrics/config.c` | shm zone creation pattern for `src/core/config/postconfiguration.c` |
 
 ---
 

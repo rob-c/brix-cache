@@ -183,7 +183,7 @@ Expected: `GUARD_GREEN`; the three TPC stat markers gone.
 The two `fd_table` teardown unlinks (`file->ckp_path`, the POSC `file->path`) are raw because, as their markers say, "teardown context has no export root." Give the handle a borrowed `root_canon` at open time so teardown can `xrootd_unlink_confined_canon` the handle-owned staging temp.
 
 **Files:**
-- Modify: `src/types/file.h` (add `root_canon` to `xrootd_file_t`)
+- Modify: `src/core/types/file.h` (add `root_canon` to `xrootd_file_t`)
 - Modify: the handle-open site that sets `ckp_path`/`posc_final_path`/`path` (grep below) to also set `file->root_canon`
 - Modify: `src/connection/fd_table.c:288,305` (the teardown unlinks)
 - Test: checkpoint + POSC abandon tests (see Step 5)
@@ -194,7 +194,7 @@ The two `fd_table` teardown unlinks (`file->ckp_path`, the POSC `file->path`) ar
 
 - [ ] **Step 1: Add the field**
 
-In `src/types/file.h`, in `xrootd_file_t`, add next to `path`:
+In `src/core/types/file.h`, in `xrootd_file_t`, add next to `path`:
 
 ```c
     /* Borrowed export root_canon (stable for the worker's life) so handle-owned

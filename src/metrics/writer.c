@@ -1,5 +1,5 @@
 #include "metrics_internal.h"
-#include "shm/kv.h"
+#include "core/shm/kv.h"
 #include "fs/vfs_backend_registry.h"   /* C-7: composed-stack introspection */
 
 /*

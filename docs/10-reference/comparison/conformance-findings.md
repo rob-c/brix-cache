@@ -173,7 +173,7 @@ Two findings were judged **non-bugs / deferred** (evidence otherwise):
   against `xrdcrc32c`/`xrdadler32`/`hashlib`). Not a divergence in our favour to
   "fix"; pinned as `xfail` with the reason.
 
-All nine fixes live in `src/path/stat_body.c`, `src/compat/error_mapping.c`,
+All nine fixes live in `src/path/stat_body.c`, `src/core/compat/error_mapping.c`,
 `src/write/truncate.c`, `src/query/{config,space,prepare}.c`,
 `src/fattr/list.c` (+ `ngx_xrootd_fattr.h`), and `src/session/login.c`, each
 verified client-safe and regression-clean against the full `test_conf_*` suite.

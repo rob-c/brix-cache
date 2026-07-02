@@ -7,7 +7,7 @@
  * */
 
 #include "tpc_internal.h"
-#include "compat/net_target.h"
+#include "core/compat/net_target.h"
 #include "pmark/pmark.h"
 #include "connection/netconnect.h"   /* shared outbound connect/I/O hardening */
 

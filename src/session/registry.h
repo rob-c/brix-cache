@@ -25,7 +25,7 @@
  * normally and secondaries fall back to single-stream I/O.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #define XROOTD_SESSION_REGISTRY_SLOTS  1024
 

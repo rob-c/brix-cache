@@ -194,7 +194,7 @@ The read-side handlers live in:
 
 - `src/read/*.c`
 - `src/query/*.c`
-- `src/aio/*.c`
+- `src/core/aio/*.c`
 
 ### Common native upload flow
 

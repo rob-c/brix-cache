@@ -133,7 +133,7 @@ Client                  Protocol handler → VFS         POSIX driver (kernel)
 update* (`kXR_open_updt` with no create, modifying an existing file at an offset)
 writes directly to the file, because staging through an empty temp would lose the
 unwritten bytes. On a non-clean close the staged partial is preserved (resume),
-not published. See [`src/compat/staged_file.c`](../../src/compat/staged_file.c)
+not published. See [`src/core/compat/staged_file.c`](../../src/core/compat/staged_file.c)
 and `src/read/open_resolved_file.c`.
 
 ### Step 6: Response and Cleanup

@@ -4,7 +4,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-#include "types/identity.h"
+#include "core/types/identity.h"
 
 ngx_int_t xrootd_tpc_check_authz(const xrootd_identity_t *identity,
     const ngx_str_t *src_path, const ngx_str_t *dst_path, ngx_log_t *log);

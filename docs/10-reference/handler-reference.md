@@ -65,7 +65,7 @@ opcodes.
 
 ## Shortcut macros
 
-Defined in `src/types/tunables.h`. Use these when the error message in the
+Defined in `src/core/types/tunables.h`. Use these when the error message in the
 access log and in the wire response are identical and the handler returns
 immediately.
 
@@ -189,7 +189,7 @@ void xrootd_read_aio_done(ngx_event_t *ev)
 }
 ```
 
-`xrootd_aio_restore_stream` (in `src/aio/resume.c`) checks `ctx->destroyed`
+`xrootd_aio_restore_stream` (in `src/core/aio/resume.c`) checks `ctx->destroyed`
 and restores `ctx->cur_streamid`. If it returns `0` the connection was torn
 down while the thread was running — return immediately without touching any
 connection state.

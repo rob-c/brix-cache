@@ -33,7 +33,7 @@ Two deliverables came out of Stage 1, by design:
 
 ## 2. The instrumentation (permanent)
 
-`src/compat/lifecycle_timing.{c,h}` is a tiny monotonic stopwatch. It accumulates a
+`src/core/compat/lifecycle_timing.{c,h}` is a tiny monotonic stopwatch. It accumulates a
 sequence of named phase deltas into one fixed buffer and emits a single `NOTICE`
 line per lifecycle event:
 
@@ -57,10 +57,10 @@ Design points that matter:
 
 Wired into two hooks:
 
-- **Master:** `ngx_stream_xrootd_postconfiguration` (`src/config/postconfiguration.c`)
+- **Master:** `ngx_stream_xrootd_postconfiguration` (`src/core/config/postconfiguration.c`)
   — buckets `prepare` (per-server prep + GSI/TLS/token/sss/krb5), `policy`,
   `registries` (metrics/dashboard/session/srv/tpc SHM zones), `frm`, `pools_uring`.
-- **Per worker:** `ngx_stream_xrootd_init_process` (`src/config/process.c`) —
+- **Per worker:** `ngx_stream_xrootd_init_process` (`src/core/config/process.c`) —
   buckets `uring`, `servers` (the per-server-block startup loop), `keypool`.
 
 ### Gotcha: `ngx_snprintf` does not null-terminate
@@ -272,14 +272,14 @@ connections — idle conns have no timer and never pin the worker.
 
 | File | Change |
 |---|---|
-| `src/compat/lifecycle_timing.{c,h}` | New monotonic phase stopwatch (registered in `./config`) |
-| `src/config/postconfiguration.c` | Master-side phase marks + summary line |
-| `src/config/process.c` | Per-worker phase marks + summary line; pass thread pool + config into keypool init |
+| `src/core/compat/lifecycle_timing.{c,h}` | New monotonic phase stopwatch (registered in `./config`) |
+| `src/core/config/postconfiguration.c` | Master-side phase marks + summary line |
+| `src/core/config/process.c` | Per-worker phase marks + summary line; pass thread pool + config into keypool init |
 | `src/gsi/keypool.{c,h}` | Lazy seed + off-thread fill to target; runtime target/seed; "warmed" NOTICE |
 | `src/gsi/config.c` | Independent timing of the GSI trust-store build |
-| `src/types/config.h` | `gsi_keypool_size` / `gsi_keypool_seed` fields |
-| `src/types/tunables.h` | `XROOTD_GSI_KEYPOOL_CAP` / `_SIZE_DEFAULT` / `_SEED_DEFAULT` |
-| `src/config/server_conf.c` | Merge defaults for the new directives |
+| `src/core/types/config.h` | `gsi_keypool_size` / `gsi_keypool_seed` fields |
+| `src/core/types/tunables.h` | `XROOTD_GSI_KEYPOOL_CAP` / `_SIZE_DEFAULT` / `_SEED_DEFAULT` |
+| `src/core/config/server_conf.c` | Merge defaults for the new directives |
 | `src/stream/module.c` | `xrootd_gsi_keypool_size` / `_seed` command entries |
 | `tests/profile_lifecycle.sh` | Throwaway lifecycle profiler |
 | `tests/test_lifecycle_speed.py` | Feature/regression guard |

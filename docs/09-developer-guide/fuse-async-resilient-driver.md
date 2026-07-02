@@ -237,7 +237,7 @@ server never receives one and a stock client never triggers the handlers.
 ### readdir-plus shows symlinks as links
 
 `ls -l <dir>` over the mount reports a symlink as a symlink, not its target: both
-dirlist stat paths (`src/dirlist/handler.c`, `src/aio/dirlist.c`) stat each entry
+dirlist stat paths (`src/dirlist/handler.c`, `src/core/aio/dirlist.c`) stat each entry
 with `fstatat(..., AT_SYMLINK_NOFOLLOW)`, so `xrootd_make_stat_body` flags it
 `kXR_other`, the client carries that in `xrdc_dirent.st.flags`, and `xfs_readdir`
 maps it to `S_IFLNK` via `FUSE_FILL_DIR_PLUS` — matching local `ls -l` (lstat)

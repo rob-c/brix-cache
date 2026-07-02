@@ -1,7 +1,7 @@
 /*
  * chmod.c — kXR_chmod: delegate to op descriptor table.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "op_table.h"
 
 ngx_int_t

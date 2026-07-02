@@ -293,7 +293,7 @@ SUM_FILES = ["hello.txt", "data.bin", "cksum.bin", "sz_4096.bin", "big1m.bin",
 # checksum configuration so libXrdCl gets kXR_Unsupported (rc 95) for every
 # algo, while our server computes the digest (rc 0).  XrdCl Checksum query:
 # XrdClFileSystem.hh QueryCode::Checksum.  Suspected/relevant: our checksum
-# engine src/compat/crc64.c + cksum dispatch; stock side is purely config.
+# engine src/core/compat/crc64.c + cksum dispatch; stock side is purely config.
 @pytest.mark.xfail(reason="DIVERGENCE: stock server unconfigured for checksums "
                           "(rc95) vs ours computes them (rc0); our digest is "
                           "independently verified correct below",

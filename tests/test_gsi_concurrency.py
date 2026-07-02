@@ -127,10 +127,10 @@ def test_keypool_wiring():
     # keypool module registered in the build + warmed per worker.
     assert "src/gsi/keypool.c" in _rd("config")
     assert "src/gsi/keypool.h" in _rd("config")
-    proc = _rd("src/config/process.c")
+    proc = _rd("src/core/config/process.c")
     assert "xrootd_gsi_keypool_init" in proc
     # tunables present.
-    assert "XROOTD_GSI_KEYPOOL_SIZE" in _rd("src/types/tunables.h")
+    assert "XROOTD_GSI_KEYPOOL_SIZE" in _rd("src/core/types/tunables.h")
     # certreq pops from the pool with an inline fallback (keygen off the event thread).
     cert = _rd("src/gsi/cert_response.c")
     assert "xrootd_gsi_keypool_pop" in cert

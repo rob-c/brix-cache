@@ -31,10 +31,10 @@
 
 #include "s3.h"
 #include "multipart_internal.h"
-#include "compat/fs_walk.h"
+#include "core/compat/fs_walk.h"
 #include "path/path.h"
 #include "fs/vfs.h"   /* reap_stale scan via vfs_opendir_quiet/readdir_kind/probe */
-#include "compat/http_query.h"
+#include "core/compat/http_query.h"
 
 #include <dirent.h>
 #include <fcntl.h>

@@ -57,7 +57,7 @@ kXR_status  = 4007    # pgread extended-status response framing
 
 kXR_open_read = 0x0010
 
-# Phase-42 W4 inline-compression open-reply signalling (src/compat/codec_core.h):
+# Phase-42 W4 inline-compression open-reply signalling (src/core/compat/codec_core.h):
 # ServerResponseBody_Open.cpsize = XROOTD_INLINE_CMP_MAGIC ('Z' = 0x5A) and
 # cptype[0] = <codec id ordinal>.  Codec ordinals: GZIP=1 (always available;
 # zlib is mandatory).

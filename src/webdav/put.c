@@ -10,12 +10,12 @@
  */
 
 #include "webdav.h"
-#include "compat/etag.h"
-#include "compat/http_body.h"
-#include "compat/integrity_info.h"
-#include "compat/http_conditionals.h"
-#include "compat/range.h"
-#include "compat/staged_file.h"
+#include "core/compat/etag.h"
+#include "core/compat/http_body.h"
+#include "core/compat/integrity_info.h"
+#include "core/compat/http_conditionals.h"
+#include "core/compat/range.h"
+#include "core/compat/staged_file.h"
 #include "dashboard/dashboard_tracking.h"
 #include "fs/vfs.h"
 #include "impersonate/lifecycle.h"

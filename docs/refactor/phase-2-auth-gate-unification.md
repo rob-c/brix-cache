@@ -140,7 +140,7 @@ xrootd_auth_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 `xrootd_ctx_t` needs one new field:
 
 ```c
-/* In src/types/context.h, inside xrootd_ctx_t: */
+/* In src/core/types/context.h, inside xrootd_ctx_t: */
 ngx_int_t  write_rc;   /* populated by xrootd_auth_gate on NGX_DONE */
 ```
 
@@ -170,7 +170,7 @@ This is zero-initialised at context allocation and is only meaningful immediatel
 
 Note: `src/write/chmod.c` and `src/write/rm.c` already use `xrootd_write_resolve_existing_path` which wraps auth internally; those are converted in Phase 3 instead.
 
-### New files added to `src/config/config.h`
+### New files added to `src/core/config/config.h`
 
 ```
 # In NGX_ADDON_SRCS, add:

@@ -37,11 +37,11 @@ def _read(relpath):
 
 def test_phase20_foundation_files_exist():
     for relpath in (
-        "src/shm/kv.h",
-        "src/shm/kv.c",
+        "src/core/shm/kv.h",
+        "src/core/shm/kv.c",
         "src/token/token_cache.c",
         "src/path/auth_cache.c",
-        "src/shm/rate_limit.c",
+        "src/core/shm/rate_limit.c",
     ):
         assert (ROOT / relpath).exists(), f"missing {relpath}"
 

@@ -30,7 +30,7 @@
 
 
 #include "s3.h"
-#include "compat/fs_walk.h"
+#include "core/compat/fs_walk.h"
 #include "fs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
 #include "path/path.h"   /* xrootd_dirlist_access_ok (impersonation list gate) */
 #include <errno.h>
@@ -42,7 +42,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <time.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * qsort comparator — lexicographic key order

@@ -5,7 +5,7 @@
  * of module.c so the command table there stays focused.  Each maps config words
  * to the XROOTD_* constants used by the rest of the module.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "cms/cns.h"               /* §6 CNS mode enum */
 #include "manager/health_check.h"  /* XROOTD_HC_TYPE_* */
 #include "module_enums.h"

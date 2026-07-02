@@ -154,7 +154,7 @@ extend `summary` with their class counters.
   auth, `openat2 RESOLVE_BENEATH` confinement.
 - **New params:** `stats=0|1` (inventory), and the bench knobs (§2.4). All bench
   knobs clamp to operator ceilings.
-- **New directives** (`src/config`):
+- **New directives** (`src/core/config`):
   ```nginx
   xrootd_scan_bench        on | off;   # default off — bench generates load
   xrootd_scan_bench_root   <path>;     # scratch prefix for synthetic bench objects

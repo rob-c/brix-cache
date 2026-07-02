@@ -8,8 +8,8 @@
 
 #include "query_internal.h"
 #include "response/response.h"
-#include "aio/aio.h"
-#include "compat/checksum.h"
+#include "core/aio/aio.h"
+#include "core/compat/checksum.h"
 #include "fs/vfs.h"   /* xrootd_vfs_walk — confined recursive scan */
 
 #include <dirent.h>

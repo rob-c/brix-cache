@@ -33,7 +33,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#include "config/shared_conf.h"      /* ngx_http_xrootd_shared_conf_t */
+#include "core/config/shared_conf.h"      /* ngx_http_xrootd_shared_conf_t */
 #include "fs/backend/sd.h"           /* xrootd_sd_instance_t */
 
 /* The handler re-entry callback: invoked on the event loop after a successful

@@ -399,7 +399,7 @@ lexicographic), and emits the full signed request — so set-meta works against 
 AWS/MinIO, not just an anonymous endpoint.
 
 > **Gotcha — standalone consumers must `xrootd_crypto_init()` once.** SigV4's HMAC
-> goes through a fetched `EVP_MAC` handle (`src/compat/crypto.c`); the module and
+> goes through a fetched `EVP_MAC` handle (`src/core/compat/crypto.c`); the module and
 > client tools fetch it in worker init. A bare `sd_s3` harness that skips it gets
 > `s3 … SigV4 sign failed` on **every** request (the HMAC silently returns 0).
 

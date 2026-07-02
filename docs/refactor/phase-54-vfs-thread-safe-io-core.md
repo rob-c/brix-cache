@@ -24,7 +24,7 @@ and VFS-level observability.
 
 Today the VFS layer (`src/fs/`) is the single, metered, cache-aware chokepoint for disk I/O — but **only on the nginx event loop**. It is deliberately *not* thread-safe: its entry points allocate handles/buffers from the per-request nginx `pool` (`ngx_pcalloc`/`ngx_pnalloc`), emit Prometheus metrics + access-log lines, and touch the read-through cache — none of which are safe off the event loop (documented in `src/fs/README.md:42-52`).
 
-As a result, every worker-thread disk op in `src/aio/` **bypasses the VFS entirely** and re-implements the raw syscall: `reads.c` (`pread`, pgread `pread`+CRC), `write.c` (`pwrite`, writev `pwrite`+`fsync`), `readv.c` (`preadv`), `dirlist.c` (raw `open`+`fdopendir`+`readdir`+`fstatat` on a path "trusted" as pre-confined). This duplication means confinement, CRC, error-mapping, metrics, and logging each have two implementations that can drift, and the dirlist worker re-opens a directory with a bare `open()` that merely *trusts* a prior confinement check.
+As a result, every worker-thread disk op in `src/core/aio/` **bypasses the VFS entirely** and re-implements the raw syscall: `reads.c` (`pread`, pgread `pread`+CRC), `write.c` (`pwrite`, writev `pwrite`+`fsync`), `readv.c` (`preadv`), `dirlist.c` (raw `open`+`fdopendir`+`readdir`+`fstatat` on a path "trusted" as pre-confined). This duplication means confinement, CRC, error-mapping, metrics, and logging each have two implementations that can drift, and the dirlist worker re-opens a directory with a bare `open()` that merely *trusts* a prior confinement check.
 
 **Goal:** make the VFS the single chokepoint for *all* disk I/O, including worker-thread offloads, by splitting each operation into a **PREPARE / EXECUTE / COMPLETE** triad that maps onto the existing `xrootd_aio_post_task` lifecycle. The thread-only EXECUTE phase becomes a small, pure, POD-only "VFS I/O core" that workers call instead of duplicating syscalls — while pool allocation, metrics, logging, and cache mutation stay on the loop. Outcome: one confinement path, one CRC path, one error-mapping path, a closed dirlist confinement gap, and an enforced thread-safety contract — with no data-plane perf regression.
 
@@ -36,12 +36,12 @@ thread path and no-thread/queue-full path will keep drifting.
 
 | Path | Current worker body | Current loop completion body | Phase 54 target |
 |---|---|---|---|
-| `src/aio/reads.c` `xrootd_read_aio_thread` | one raw `pread(t->fd, t->databuf, t->rlen, t->offset)` | bytes counters, `XROOTD_OP_*`, chunked chain, buffer release | `XROOTD_VFS_IO_READ` job; done callback keeps protocol chain and delegates VFS completion/accounting |
-| `src/aio/reads.c` `xrootd_pgread_aio_thread` | `xrootd_pgread_read_encode_inplace()` directly | pgread status chain, access log, counters | `XROOTD_VFS_IO_PGREAD` job so pgread CRC framing has one core path |
-| `src/aio/readv.c` `xrootd_readv_aio_thread` | `xrootd_readv_read_segments()` directly | response byte count, counters, chain | `XROOTD_VFS_IO_READV` job over the pre-built segment plan |
-| `src/aio/write.c` `xrootd_write_aio_thread` | one raw `pwrite(t->fd, t->data, t->len, t->offset)` | short-write mapping, dirty/write-recovery journal, ack | `XROOTD_VFS_IO_WRITE` job; completion owns mutations and ack |
-| `src/aio/write.c` `xrootd_writev_write_aio_thread` | per-segment raw `pwrite`, optional per-segment `fsync` | per-segment counters, dirty/journal, access log | `XROOTD_VFS_IO_WRITEV` job over the existing segment descriptors |
-| `src/aio/dirlist.c` `xrootd_dirlist_aio_thread` | raw `open(t->resolved)` then `fdopendir`/`readdir`/`fstatat` | access log, queue flat response buffer | `XROOTD_VFS_IO_OPENDIR` job with loop-side beneath-confined `O_PATH` fd |
+| `src/core/aio/reads.c` `xrootd_read_aio_thread` | one raw `pread(t->fd, t->databuf, t->rlen, t->offset)` | bytes counters, `XROOTD_OP_*`, chunked chain, buffer release | `XROOTD_VFS_IO_READ` job; done callback keeps protocol chain and delegates VFS completion/accounting |
+| `src/core/aio/reads.c` `xrootd_pgread_aio_thread` | `xrootd_pgread_read_encode_inplace()` directly | pgread status chain, access log, counters | `XROOTD_VFS_IO_PGREAD` job so pgread CRC framing has one core path |
+| `src/core/aio/readv.c` `xrootd_readv_aio_thread` | `xrootd_readv_read_segments()` directly | response byte count, counters, chain | `XROOTD_VFS_IO_READV` job over the pre-built segment plan |
+| `src/core/aio/write.c` `xrootd_write_aio_thread` | one raw `pwrite(t->fd, t->data, t->len, t->offset)` | short-write mapping, dirty/write-recovery journal, ack | `XROOTD_VFS_IO_WRITE` job; completion owns mutations and ack |
+| `src/core/aio/write.c` `xrootd_writev_write_aio_thread` | per-segment raw `pwrite`, optional per-segment `fsync` | per-segment counters, dirty/journal, access log | `XROOTD_VFS_IO_WRITEV` job over the existing segment descriptors |
+| `src/core/aio/dirlist.c` `xrootd_dirlist_aio_thread` | raw `open(t->resolved)` then `fdopendir`/`readdir`/`fstatat` | access log, queue flat response buffer | `XROOTD_VFS_IO_OPENDIR` job with loop-side beneath-confined `O_PATH` fd |
 
 The stream open/handle layer (`xrootd_file_t` in `ctx->files[]`) remains the
 protocol ownership model during this phase. Phase 54 does not require replacing
@@ -300,7 +300,7 @@ ngx_int_t xrootd_vfs_slot_read_complete(xrootd_ctx_t *ctx,
 
 Write and vector helpers mirror the same pattern. Stream adapters may live in
 `src/fs/` only if their declarations do not drag `xrootd_ctx_t` into worker
-headers; otherwise keep the protocol-accounting half in `src/aio/` and only use
+headers; otherwise keep the protocol-accounting half in `src/core/aio/` and only use
 the VFS core for EXECUTE.
 
 ### Example worker rewrites
@@ -368,10 +368,10 @@ worker must zero the whole job first.
 
 Each `*_aio_thread` shrinks to: build a stack `xrootd_vfs_job_t` from the task's IN fields → `xrootd_vfs_io_execute(&job)` → copy `nio`/`out_size`/`crc32c`/`io_errno` back to the task. The `*_aio_done` callbacks keep their protocol/chain work and move metering/cache/handle-counter updates into the `_complete` helper (most already live there).
 
-- `src/aio/reads.c` — `xrootd_read_aio_thread` (`:237`), `xrootd_pgread_aio_thread` (`:378`)
-- `src/aio/write.c` — `xrootd_write_aio_thread` (`:23`), `xrootd_writev_write_aio_thread` (`:258`)
-- `src/aio/readv.c` — `xrootd_readv_aio_thread` (`:34`)
-- `src/aio/dirlist.c` — see "dirlist" below
+- `src/core/aio/reads.c` — `xrootd_read_aio_thread` (`:237`), `xrootd_pgread_aio_thread` (`:378`)
+- `src/core/aio/write.c` — `xrootd_write_aio_thread` (`:23`), `xrootd_writev_write_aio_thread` (`:258`)
+- `src/core/aio/readv.c` — `xrootd_readv_aio_thread` (`:34`)
+- `src/core/aio/dirlist.c` — see "dirlist" below
 
 **io_uring is untouched for read/write/readv/writev:** `xrootd_uring_op_for` (`uring_submit.c:101`) keys off the bound thread-fn pointer and the SQE prep reads the *same* `t->fd`/`t->databuf`/`t->offset` IN fields the job reads. The job is a strict superset of the SQE inputs, so io_uring keeps bypassing even the core's `pread`. pgread/dirlist already route to the pool (`XRD_URING_OP_NONE`). No io_uring file changes.
 
@@ -502,13 +502,13 @@ Proposed tag placement:
 - File-level banner in `vfs_io_core.c`: "VFS-THREAD-SAFE translation unit".
 - File-level banner in `vfs_read.c`/`vfs_write.c`/`vfs_dir.c`: "public API is
   VFS-LOOP-ONLY; `pread_full`/`pwrite_full` are VFS-THREAD-SAFE".
-- A short "allowed from worker" allowlist in `src/aio/README.md`.
+- A short "allowed from worker" allowlist in `src/core/aio/README.md`.
 
 Suggested static checks:
 
 ```bash
-rg -n "VFS-LOOP-ONLY|xrootd_vfs_(read|write|open|close|opendir|readdir|observe|ctx_init|cache)" src/aio
-rg -n "#include .*vfs_internal.h" src/aio src/read src/write
+rg -n "VFS-LOOP-ONLY|xrootd_vfs_(read|write|open|close|opendir|readdir|observe|ctx_init|cache)" src/core/aio
+rg -n "#include .*vfs_internal.h" src/core/aio src/read src/write
 rg -n "ngx_palloc|ngx_pcalloc|ngx_pnalloc|xrootd_log_access|XROOTD_OP_|xrootd_cache_" src/fs/vfs_io_core.c
 ```
 
@@ -590,7 +590,7 @@ Metadata freshness:
 
 ## Incremental migration order (each shippable; 3-tests rule: success + error + security-negative)
 
-- **Phase 0 — scaffolding:** add `vfs_io_core.{h,c}` (READ/WRITE arms delegating to `pread_full`/`pwrite_full`), register in `src/config/config.h`, `./configure`, add annotation tags. Tests: execute==direct pread/pwrite; bad-fd → `io_errno`; link/grep assertion that the core references no pool/metrics symbol.
+- **Phase 0 — scaffolding:** add `vfs_io_core.{h,c}` (READ/WRITE arms delegating to `pread_full`/`pwrite_full`), register in `src/core/config/config.h`, `./configure`, add annotation tags. Tests: execute==direct pread/pwrite; bad-fd → `io_errno`; link/grep assertion that the core references no pool/metrics symbol.
 - **Phase 1 — kXR_read:** rewire `read_aio_thread`; add read prepare/complete; re-express `xrootd_vfs_read`. Tests: windowed+plain read byte/CRC identical; EIO → `kXR_IOError`; confinement still enforced at open.
 - **Phase 2 — kXR_write/pgwrite:** rewire `write_aio_thread`. Tests: success; short-write → `kXR_IOError`; `allow_write` off → EACCES.
 - **Phase 3 — kXR_readv:** rewire `readv_aio_thread`. Tests: multi-seg success; bad-offset; overflow/escape negative.
@@ -619,10 +619,10 @@ Every phase should land with the same mechanical checklist:
 ### Detailed per-phase notes
 
 **Phase 0 - scaffolding**
-- Register `src/fs/vfs_io_core.c` in `src/config/config.h` `NGX_ADDON_SRCS`.
+- Register `src/fs/vfs_io_core.c` in `src/core/config/config.h` `NGX_ADDON_SRCS`.
 - Move `xrootd_vfs_pread_full`/`pwrite_full` prototypes to the new public
   thread-safe header or include them through a small internal thread-safe header;
-  do not expose loop-only helpers to `src/aio`.
+  do not expose loop-only helpers to `src/core/aio`.
 - Add unit-level tests that call the core directly through a tiny C harness or
   existing C test style, including bad fd and zero-length jobs.
 
@@ -710,7 +710,7 @@ to keep diffs small enough to review.
 - Include only the minimum nginx/POSIX types needed for `ngx_fd_t`, `u_char`,
   `off_t`, `size_t`, and `uint32_t`.
 - Define `xrootd_vfs_io_op_e`, `xrootd_vfs_job_t`, and any tiny thread-safe
-  segment descriptors that cannot stay in `src/aio/aio.h`.
+  segment descriptors that cannot stay in `src/core/aio/aio.h`.
 - Add a file banner that states this header is allowed in worker translation
   units.
 - Do not include `vfs.h`, `vfs_internal.h`, metrics, cache, access-log, or
@@ -759,7 +759,7 @@ to keep diffs small enough to review.
   callers unless a later patch deliberately moves it onto the new core.
 - Do not make `xrootd_vfs_dir_t` visible to worker code.
 
-### `src/aio/reads.c`
+### `src/core/aio/reads.c`
 
 - Replace raw `pread` in `xrootd_read_aio_thread()` with READ job execution.
 - Replace direct `xrootd_pgread_read_encode_inplace()` call with PGREAD job
@@ -768,7 +768,7 @@ to keep diffs small enough to review.
 - Preserve every buffer release branch; this file is sensitive to leaks on
   stale-connection returns.
 
-### `src/aio/write.c`
+### `src/core/aio/write.c`
 
 - Replace raw `pwrite` in `xrootd_write_aio_thread()` with WRITE job execution.
 - Replace WRITEV loop with WRITEV job execution once Phase 5 lands.
@@ -776,14 +776,14 @@ to keep diffs small enough to review.
   decrement, `ctx->destroyed`, and deferred teardown.
 - Keep write-through dirty marking and `xrootd_wrts_record()` in done callbacks.
 
-### `src/aio/readv.c`
+### `src/core/aio/readv.c`
 
 - Keep the response layout builder outside the worker.
 - Let the worker execute a READV job over the already-built segment descriptors.
 - Keep `ngx_free(t->segments)` and `xrootd_release_read_buffer()` on every early
   return path.
 
-### `src/aio/dirlist.c`
+### `src/core/aio/dirlist.c`
 
 - Remove the worker raw `open(t->resolved, ...)`.
 - Add `dirfd` or `rootfd` to the task context only if the existing task cannot
@@ -794,7 +794,7 @@ to keep diffs small enough to review.
   original prepared fd.
 - Keep `t->resolved` as a display/log/checksum path only.
 
-### `src/aio/aio.h`
+### `src/core/aio/aio.h`
 
 - Prefer no large struct churn. Add fields only when a migrated operation needs
   a result that is not currently represented.
@@ -803,7 +803,7 @@ to keep diffs small enough to review.
 - Do not move `ctx`, `c`, `streamid`, `payload_buf`, or response ownership into
   `src/fs/`.
 
-### `src/config/config.h`
+### `src/core/config/config.h`
 
 - Add every new `.c` file to `NGX_ADDON_SRCS` in the module source list.
 - Do not edit nginx-generated Makefiles.
@@ -858,7 +858,7 @@ For each phase, reviewers should be able to answer "yes" to all of these:
   event loop only?
 - Does no-thread fallback use the same EXECUTE helper as the worker path?
 - Does the patch add success, error, and security-negative coverage?
-- Did the phase avoid new source files unless `src/config/config.h` was updated
+- Did the phase avoid new source files unless `src/core/config/config.h` was updated
   and `./configure` rerun?
 
 ## Risks & guards
@@ -880,26 +880,26 @@ For each phase, reviewers should be able to answer "yes" to all of these:
    before the worker. Treat every path-based worker open as a security-sensitive
    migration.
 9. **Over-broad static guard** — done callbacks legitimately allocate/log/meter.
-   A naive grep across all of `src/aio` will create noise; enforce on worker
+   A naive grep across all of `src/core/aio` will create noise; enforce on worker
    bodies or on `vfs_io_core.c` plus an include allowlist.
 
 ## Files to modify / create
 
-**New (register in `src/config/config.h` `NGX_ADDON_SRCS`, requires `./configure` per AGENTS.md BUILD GOVERNANCE):**
+**New (register in `src/core/config/config.h` `NGX_ADDON_SRCS`, requires `./configure` per AGENTS.md BUILD GOVERNANCE):**
 - `src/fs/vfs_io_core.h` — POD job + `xrootd_vfs_io_execute` (THREAD-SAFE banner)
 - `src/fs/vfs_io_core.c` — dispatcher + per-op execute arms
 
 **Modify (make only):**
 - `src/fs/vfs.h`, `src/fs/vfs_internal.h` — annotation tags; prepare/complete + `pread_full`/`pwrite_full` tagged THREAD-SAFE
 - `src/fs/vfs_read.c`, `vfs_write.c`, `vfs_dir.c` — prepare/complete helpers; beneath-confined opendir prepare
-- `src/aio/reads.c`, `write.c`, `readv.c`, `dirlist.c` — rewire `*_aio_thread` to the core
+- `src/core/aio/reads.c`, `write.c`, `readv.c`, `dirlist.c` — rewire `*_aio_thread` to the core
 - `src/cache/open.c` — `record_access` call moves to COMPLETE (no signature change)
 - `src/fs/README.md` — triad model + contract
-- `src/aio/README.md` — document worker allowlist and inline fallback rule
+- `src/core/aio/README.md` — document worker allowlist and inline fallback rule
 - `tests/` — focused success/error/security-negative tests per phase plus a
   static guard script or pytest
 
-**Explicitly NOT modified:** `src/aio/uring*.c/.h` (same IN fields), `src/path/beneath.*`, `src/compat/namespace_ops.*`, `src/compat/staged_file.*` (already thread-safe, reused), `src/aio/aio.h` task structs (job built *from* them — smaller diff).
+**Explicitly NOT modified:** `src/core/aio/uring*.c/.h` (same IN fields), `src/path/beneath.*`, `src/core/compat/namespace_ops.*`, `src/core/compat/staged_file.*` (already thread-safe, reused), `src/core/aio/aio.h` task structs (job built *from* them — smaller diff).
 
 If a phase needs task structs to carry one new result field, keep the change
 minimal and do not move protocol-only fields (`streamid`, `ctx`, `c`, path copy,
@@ -997,7 +997,7 @@ FORBIDDEN_IN_WORKER = (
 Implementation approach:
 - Extract each worker body by matching braces from the function declaration.
 - Fail if any forbidden token appears in the extracted body.
-- Separately fail if `src/aio/*.c` includes `src/fs/vfs_internal.h`.
+- Separately fail if `src/core/aio/*.c` includes `src/fs/vfs_internal.h`.
 - Separately fail if `src/fs/vfs_io_core.c` references pool, metrics, access-log,
   cache, protocol response builders, or connection/session types.
 
@@ -1052,7 +1052,7 @@ Expected neutral changes:
 ## Acceptance / rollback
 
 Acceptance criteria:
-- `rg -n "pread\\(|pwrite\\(|open\\(" src/aio` shows no raw worker data-plane
+- `rg -n "pread\\(|pwrite\\(|open\\(" src/core/aio` shows no raw worker data-plane
   syscall that should be owned by `vfs_io_core.c` (allow documented exceptions
   only).
 - AIO worker bodies include `vfs_io_core.h` but not `vfs_internal.h`.
@@ -1076,7 +1076,7 @@ Rollback strategy:
 - Should stream `kXR_open` eventually wrap its fd in an `xrootd_vfs_file_t`, or
   is the stream-slot adapter the long-term boundary? The adapter is lower risk
   for Phase 54; full handle unification can be a later refactor.
-- Should READV/WRITEV segment descriptor types move from `src/aio/aio.h` into
+- Should READV/WRITEV segment descriptor types move from `src/core/aio/aio.h` into
   `src/fs/vfs_io_core.h`, or should the core accept opaque segment arrays plus
   typed helper callbacks? Start with the smaller move: reuse current descriptors
   and relocate only if include boundaries become tangled.

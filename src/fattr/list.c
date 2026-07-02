@@ -3,7 +3,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /* kXR_fa_recurse support */
 /*

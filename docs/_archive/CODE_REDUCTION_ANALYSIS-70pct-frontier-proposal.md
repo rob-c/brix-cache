@@ -111,7 +111,7 @@ static xrootd_route_t xrootd_protocol_routes[] = {
 *   `s3_verify_sigv4()`: 500 lines reduced to a 20-line HMAC pipeline call.
 *   `s3_send_xml_error()`: Replace with generic `xrootd_resp_send_error()`.
 
-### 4.3 Remove from `src/compat/`
+### 4.3 Remove from `src/core/compat/`
 *   `xml.c`: If we use `libxml2` directly, 400 lines of manual escaping can go.
 *   `json.c`: Use `jansson` directly with zero-copy buffer maps.
 *   `hex.c`, `b64url.c`: Standardize on `ngx_hex_dump` and `ngx_base64`.

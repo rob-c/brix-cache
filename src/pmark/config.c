@@ -19,7 +19,7 @@
  */
 
 #include "pmark.h"
-#include "config/shared_conf.h"
+#include "core/config/shared_conf.h"
 
 
 void

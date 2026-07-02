@@ -5,8 +5,8 @@
 **Status:** MOSTLY COMPLETE — raw-alloc scratch fix + W1 trim (re-enabled) + W3 +
 W2.1 windowed read + W2.2 PUT + W4 budget all landed & verified; W2.3 readv is
 budget-bounded (full resident windowing is a follow-up)
-**Scope:** all bulk data paths — `src/read`, `src/write`, `src/aio`, `src/webdav`,
-`src/s3`, `src/cache`, `src/session`, `src/types/context.h`, `src/types/tunables.h`
+**Scope:** all bulk data paths — `src/read`, `src/write`, `src/core/aio`, `src/webdav`,
+`src/s3`, `src/cache`, `src/session`, `src/core/types/context.h`, `src/core/types/tunables.h`
 **Companion:** Phase 29 (read throughput) and Phase 30 (whole-src hyper-opt). 29/30
 make a single stream *fast*; 31 makes N concurrent streams *cheap*. They share the
 data plane and must land consistently — do not regress the sendfile path.
@@ -17,12 +17,12 @@ data plane and must land consistently — do not regress the sendfile path.
 
 | Workstream | Status | Notes |
 |---|---|---|
-| **Raw-alloc scratch fix** | **DONE, verified** | Root cause of the trim corruption: `read_scratch`/`write_scratch`/`read_hdr_scratch` were nginx-**pool**-backed (`ngx_palloc`/`ngx_pfree`), so the trim's free+realloc churned the pool large-allocation list under stale pointers → use-after-free. Switched to **raw `ngx_alloc`/`ngx_free`** (`src/aio/buffers.c`), freed explicitly on disconnect (`src/connection/disconnect.c`), exactly like `payload_buf`. Fixed both the trim corruption AND the pre-existing TLS "Bad address" EFAULT. `read→readv` repro survives 10/10; TLS large-read test flipped xfail→xpass; 1072-test regression clean. |
+| **Raw-alloc scratch fix** | **DONE, verified** | Root cause of the trim corruption: `read_scratch`/`write_scratch`/`read_hdr_scratch` were nginx-**pool**-backed (`ngx_palloc`/`ngx_pfree`), so the trim's free+realloc churned the pool large-allocation list under stale pointers → use-after-free. Switched to **raw `ngx_alloc`/`ngx_free`** (`src/core/aio/buffers.c`), freed explicitly on disconnect (`src/connection/disconnect.c`), exactly like `payload_buf`. Fixed both the trim corruption AND the pre-existing TLS "Bad address" EFAULT. `read→readv` repro survives 10/10; TLS large-read test flipped xfail→xpass; 1072-test regression clean. |
 | **W1.1 scratch trim** | **DONE, RE-ENABLED** | Now safe on the raw-alloc foundation; re-enabled in `src/connection/recv.c` (REQ_HEADER boundary). Idle warmed connections shrink back to `XROOTD_READ_WINDOW`. |
 | **W1.2 per-conn ceiling** | Subsumed | W2.1 keeps `read_scratch` ≤ window; W4 budget enforces the aggregate. No separate reject path. |
 | **W3 SHM handle table** | **DONE** | `512×8` = 4096 slots ≈ 17 MB (was 68 MB). `src/session/registry.h`. |
 | **W2.2 PUT streaming** | **DONE, verified** | `webdav/put.c` + `s3/put.c` stream the body via `xrootd_http_body_write_to_fd` — no full-body copy. |
-| **W2.1 windowed read** | **DONE, verified** | Memory-backed `kXR_read` (TLS / non-regular) > `XROOTD_READ_WINDOW` is served as a fill→drain→fill loop of `kXR_oksofar` chunks ending in `kXR_ok`, holding ~one window in `read_scratch`. New `rd_win_*` ctx state, `xrootd_build_window_chain()`, `xrootd_read_window_pump()`/`_emit()` in `src/aio/reads.c`, continuation hook in `src/connection/send.c`. **Validated: a 200 MiB TLS read is byte-exact and `xrootd_xfer_heap_high_water_bytes` peaks at ~2 MiB** (vs up to 64 MiB before) — 32× per-stream reduction. |
+| **W2.1 windowed read** | **DONE, verified** | Memory-backed `kXR_read` (TLS / non-regular) > `XROOTD_READ_WINDOW` is served as a fill→drain→fill loop of `kXR_oksofar` chunks ending in `kXR_ok`, holding ~one window in `read_scratch`. New `rd_win_*` ctx state, `xrootd_build_window_chain()`, `xrootd_read_window_pump()`/`_emit()` in `src/core/aio/reads.c`, continuation hook in `src/connection/send.c`. **Validated: a 200 MiB TLS read is byte-exact and `xrootd_xfer_heap_high_water_bytes` peaks at ~2 MiB** (vs up to 64 MiB before) — 32× per-stream reduction. |
 | **W2.3 readv** | **PARTIAL** | `kXR_readv` now respects the budget (`xrootd_budget_admit`/`_sync` in `src/read/readv.c`) so a burst of large readv cannot blow the cap — **safe/bounded**. Full *resident* windowing (256 MiB upfront → window via incremental segment-batch streaming) is a tracked **follow-up**: readv's interleaved `[seghdr][data]` layout needs an incremental builder, higher risk for lower frequency. |
 | **W4 SHM budget + backpressure** | **DONE, verified** | `xrootd_memory_budget` directive (off_t, default 768m); SHM atomics in `ngx_xrootd_srv_metrics_t`; idempotent charge/release in `src/connection/budget.h`; admission defers over-budget reads with `kXR_wait`; `/metrics` gauges. |
 
@@ -62,12 +62,12 @@ the invariant is *enforced*, not hoped for.
 
 ## Where the memory actually goes today (audited)
 
-Constants verified in `src/types/tunables.h`; per-connection layout in
-`src/types/context.h`.
+Constants verified in `src/core/types/tunables.h`; per-connection layout in
+`src/core/types/context.h`.
 
 ### A. Per-connection scratch buffers — persist at high-water for session life
 
-`xrootd_ctx_t` (`src/types/context.h:43-126`) owns three `malloc`/`realloc`
+`xrootd_ctx_t` (`src/core/types/context.h:43-126`) owns three `malloc`/`realloc`
 buffers that **grow once to the largest request seen and are never trimmed until
 disconnect**:
 
@@ -151,12 +151,12 @@ and to stop holding transfer bytes longer than the syscall that consumes them.
    module buffers *in heap at once* for one in-flight read, independent of the
    logical request size. A 64 MiB TLS read becomes 32 × 2 MiB fill→encrypt→drain
    cycles over the same 2 MiB buffer, using the existing `kXR_oksofar`/chunk
-   framing (`src/aio/buffers.c` already builds multi-chunk chains; we cap the
+   framing (`src/core/aio/buffers.c` already builds multi-chunk chains; we cap the
    *resident* slice, not the wire chunk). Cleartext is unaffected — it stays on
    sendfile with no heap data.
 
 2. **Trim scratch buffers back to the window after each request.**
-   In `xrootd_get_pool_scratch()` (`src/aio/buffers.c:23-49`) and the
+   In `xrootd_get_pool_scratch()` (`src/core/aio/buffers.c:23-49`) and the
    request-completion path, `realloc` the scratch buffers back down to
    `XROOTD_READ_WINDOW` once a request finishes, instead of leaving them at
    high-water. Keeps the steady-state per-connection heap at ~`window` not
@@ -275,8 +275,8 @@ are low risk. W2 is the correctness-sensitive heart. W4 makes the guarantee
 enforceable and should land last so the gauges measure the post-W1/W2 world.
 
 Per CLAUDE.md: every code step ships **3 tests** (success + error + security/neg)
-and registers any new `.c`/`.h` in `src/config/config.h`. New constants go in
-`src/types/tunables.h`; the new directive follows the RECIPES "New config
+and registers any new `.c`/`.h` in `src/core/config/config.h`. New constants go in
+`src/core/types/tunables.h`; the new directive follows the RECIPES "New config
 directive" pattern (field in `config.h`, `ngx_command_t`, merge in
 `merge_*_conf`).
 

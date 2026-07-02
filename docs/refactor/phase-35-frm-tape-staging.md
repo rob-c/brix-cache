@@ -6,7 +6,7 @@ exists; use [`../../src/frm/README.md`](../../src/frm/README.md) and
 for current behavior.
 
 **Build governance:** current source registration lives in the top-level
-`config` script (`ngx_module_srcs` and module deps lists). `src/config/config.h`
+`config` script (`ngx_module_srcs` and module deps lists). `src/core/config/config.h`
 contains module config structs/directive declarations, but it is not the
 authoritative `ngx_module_srcs` list.
 
@@ -69,7 +69,7 @@ B2 turns the existing fire-and-forget staging hook (`src/query/prepare_cmd.c` �
 
 - **Durable queue = file + SHM index.** The on-disk file (modeled on `XrdFrcReqFile`) is **crash-durable truth**; nginx SHM is *process-group-lifetime, not fsync'd*, so it is treated strictly as a **hot read cache** rebuilt by reconciliation at master start. This is the load-bearing invariant of the whole subsystem. Authority rule: **file = truth, SHM = cache**; any mutate takes `fcntl` whole-file lock → writes+fsyncs file → then patches SHM; any divergence (`generation` mismatch) collapses back to the file.
 - **Cross-worker / cross-host coordination** uses an `fcntl(F_SETLKW)` lock on a `<queue>.lock` sidecar (serializes *processes and hosts* sharing the FS, including a real `frm_xfragent`), fronted by an in-process `ngx_shmtx_t` fast-path. **Lock order is always `ngx_shmtx → fcntl`** — deadlock-free.
-- **Blocking work runs on the thread pool**, never the event loop (INVARIANT: async I/O is event-loop-only). The transfer worker (`xrootd_stage_worker_thread`) does blocking `waitpid`/`stat`/`rename` on a pool thread, then posts a main-thread done callback — exactly the `xrootd_cache_fill_t` pattern (`src/cache/open_or_fill.c:78-80`, `src/aio/aio.h:32-40`), but **connectionless** (keyed by `reqid`, not a `c`/`ctx`).
+- **Blocking work runs on the thread pool**, never the event loop (INVARIANT: async I/O is event-loop-only). The transfer worker (`xrootd_stage_worker_thread`) does blocking `waitpid`/`stat`/`rename` on a pool thread, then posts a main-thread done callback — exactly the `xrootd_cache_fill_t` pattern (`src/cache/open_or_fill.c:78-80`, `src/core/aio/aio.h:32-40`), but **connectionless** (keyed by `reqid`, not a `c`/`ctx`).
 - **Async delivery** reuses the deferred-response wire machinery: `kXR_waitresp` parks a streamid (`xrootd_send_waitresp`), and on completion `xrootd_send_attn_asynresp` pushes the real answer carrying the *saved* streamid. The routing key {`worker_pid`, `conn_number`, `streamid`} mirrors `XrdXrootdReqID{Sid,Lid,Linst}` so a stalled connection can be re-found in its owning worker — and rejected if it was recycled.
 - **Residency** is one xattr (`user.frm.residency`) + one SHM dedup-set lookup, folded into a single `frm_residency_probe()` that every protocol face calls. Absent xattr ⇒ ONLINE (zero migration for existing exports).
 
@@ -260,7 +260,7 @@ ngx_int_t    frm_reap_expired(frm_queue_t *q, time_t now, ngx_log_t *log);
 
 ### 3.4 Directive table (server-scope, `NGX_STREAM_SRV_CONF`)
 
-All FRM directives are server-scope (matching `xrootd_prepare_command` at `src/stream/module.c:652`). Fields live in a `xrootd_frm_conf_t frm;` sub-struct embedded in `ngx_stream_xrootd_srv_conf_t` (`src/types/config.h`), right after `prepare_command`, mirroring `xrootd_mirror_conf_t mirror;`.
+All FRM directives are server-scope (matching `xrootd_prepare_command` at `src/stream/module.c:652`). Fields live in a `xrootd_frm_conf_t frm;` sub-struct embedded in `ngx_stream_xrootd_srv_conf_t` (`src/core/types/config.h`), right after `prepare_command`, mirroring `xrootd_mirror_conf_t mirror;`.
 
 | Directive | Args | `conf->frm.*` | Default | Setter |
 |---|---|---|---|---|
@@ -282,7 +282,7 @@ All FRM directives are server-scope (matching `xrootd_prepare_command` at `src/s
 | `xrootd_frm_purge_watermark` | high low | `ngx_uint_t purge_hi_ppm, purge_lo_ppm` | 0 0 (off) | custom TAKE2 ratio→ppm |
 | `xrootd_frm_purge_interval` | time | `ngx_msec_t purge_interval_ms` | 300000 | msec |
 
-Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/config/server_conf.c`), inits in `ngx_stream_xrootd_create_srv_conf`. The stagecmd→prepare_command inheritance: `if (conf->frm.stagecmd.len == 0) conf->frm.stagecmd = conf->prepare_command;`.
+Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/core/config/server_conf.c`), inits in `ngx_stream_xrootd_create_srv_conf`. The stagecmd→prepare_command inheritance: `if (conf->frm.stagecmd.len == 0) conf->frm.stagecmd = conf->prepare_command;`.
 
 **HTTP-side directive** (Phase 2): `xrootd_webdav_tape_rest on|off` in `src/webdav/module.c` (~L321), field `ngx_flag_t tape_rest;` in `webdav.h` loc_conf (~L139).
 
@@ -295,7 +295,7 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/config/server_conf.c`), inits 
 **Goal:** a durable, crash-safe stage queue with real reqids, wired into `kXR_prepare`/`kXR_QPrep`. No transfers yet — the request is durable and pollable, the legacy fire-and-forget command still runs.
 
 **CREATE:**
-- `src/frm/frm_format.h`, `src/frm/frm.h`, `src/frm/frm_internal.h` — formats + API + internal decls (§3.2/§3.3). Reuse credit: `src/compat/crc32c.c` SSE4.2 CRC32c verbatim; struct discipline from `XrdFrcReqFile.hh:74-79`.
+- `src/frm/frm_format.h`, `src/frm/frm.h`, `src/frm/frm_internal.h` — formats + API + internal decls (§3.2/§3.3). Reuse credit: `src/core/compat/crc32c.c` SSE4.2 CRC32c verbatim; struct discipline from `XrdFrcReqFile.hh:74-79`.
 - `src/frm/reqfile.c` — file engine: `fcntl` lock (replicates `XrdFrcReqFile::FileLock`, `XrdFrcReqFile.cc:491-534`), header read/refresh (`:518-528`), `frm_rec_read/_write` (pread/pwrite + CRC + fdatasync), free-list pop/push (`:88-96,175-180`), WAL append/commit (`:116-118,553-564`). Reuse: pread/pwrite + fsync idioms from `src/cache/open_or_fill.c`.
 - `src/frm/index.c` — SHM zone (clone `src/manager/registry.h:45-48` lock-first flexible array; LRU reaper `src/session/registry.c:226-289`).
 - `src/frm/reconcile.c` — `Init` analog (`XrdFrcReqFile.cc:216-302`): validate, CRC-scan, rebuild chains ordered `(priority desc, tod_added asc)` (`:266-283`), compact, repopulate index.
@@ -307,12 +307,12 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/config/server_conf.c`), inits 
 - `src/frm/README.md`.
 
 **MODIFY:**
-- `src/types/config.h` — embed `xrootd_frm_conf_t frm;` after `prepare_command`.
+- `src/core/types/config.h` — embed `xrootd_frm_conf_t frm;` after `prepare_command`.
 - `src/stream/module.c` (~L652, after `xrootd_prepare_command`) — register the FRM directive block.
-- `src/config/server_conf.c` — `create_srv_conf` UNSET inits + `merge_srv_conf` FRM block (stagecmd inheritance).
-- `src/config/postconfiguration.c` — `ngx_shared_memory_add` for the index zone; wire `frm_queue_init` into the master post-config phase (before fork).
-- `src/config/process.c` — register the reaper timer in `init_process`.
-- `src/types/context.h:292` — widen `char prepare_reqid[32]` → `char prepare_reqid[XROOTD_FRM_REQID_LEN]` (host-qualified reqids exceed 32; truncation would break QPrep matching).
+- `src/core/config/server_conf.c` — `create_srv_conf` UNSET inits + `merge_srv_conf` FRM block (stagecmd inheritance).
+- `src/core/config/postconfiguration.c` — `ngx_shared_memory_add` for the index zone; wire `frm_queue_init` into the master post-config phase (before fork).
+- `src/core/config/process.c` — register the reaper timer in `init_process`.
+- `src/core/types/context.h:292` — widen `char prepare_reqid[32]` → `char prepare_reqid[XROOTD_FRM_REQID_LEN]` (host-qualified reqids exceed 32; truncation would break QPrep matching).
 - `src/query/prepare.c`:
   - add `#include "../frm/frm.h"` (after line 5).
   - **`xrootd_handle_prepare`:** replace the cancel/evict noop (222–227) with cancel dispatch (`xrootd_prepare_handle_cancel`) + `is_evict` deferral (§2b of M2); generate reqid before parse loop (§2c) — replaces `ngx_memcpy(ctx->prepare_reqid,"0",2)` at **338**; widen `out_resolved` guard at **285** to `(collect_stage || do_enqueue || is_evict)` (§2d); enqueue one record per resolved path in loop tail **302–305** via `xrootd_prepare_enqueue_one` (§2d); store durable reqid at **338** via `ngx_cpystrn`; gate/remove inline `xrootd_prepare_invoke_command` **343–357** behind `!conf->frm.enable` (legacy path); rebuild notify body **368–399** with the real reqid (variable-length; recompute `ok_len = HDR + reqid_len`); return real reqid at **401**; evict return (§2f).
@@ -344,7 +344,7 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/config/server_conf.c`), inits 
 - `src/frm/stage_fail.c` — `.fail`/hold sidecar (port `XrdOssStage.cc:134-139`): `frm_stage_fail_check/_mark/_clear`.
 - `src/frm/stage_exec.c` — reap-and-capture exec helper `xrootd_stage_run_copycmd` (single-fork + `waitpid` on a pool thread; factor shared `xrootd_close_inherited_fds()` out of `prepare_cmd.c:103-152`, reuse the no-shell `execv` body and SECURITY block `prepare_cmd.c:32-37`).
 - `src/frm/stage_registry.h` + `src/frm/stage_worker.c` — `xrootd_stage_job_t`; `xrootd_stage_worker_thread` (Fetch logic `XrdFrmTransfer.cc:146-328`: pre-stat → copy to `pfn.anew` → verify `stat`+size → atomic `rename` → on fail unlink+`.fail`) + `xrootd_stage_worker_done` (commit M1 status, `frm_stage_release`, fail-backoff `retry_not_before`, scheduler kick). **Phase-1 `worker_done` does NOT call `deliver_waiters`** — that's Phase 3.
-- `src/frm/stage_scheduler.c` — per-worker drain timer: `xrootd_stage_claim_queued` (QUEUED→RUNNING atomic vs `copymax`, `ngx_atomic_fetch_add(&running)`), post `xrootd_task_bind(task, worker_thread, worker_done)` + `ngx_thread_task_post` (reuse `src/cache/open_or_fill.c:78-80`, `src/aio/aio.h:32-40`), skip `retry_not_before>now`.
+- `src/frm/stage_scheduler.c` — per-worker drain timer: `xrootd_stage_claim_queued` (QUEUED→RUNNING atomic vs `copymax`, `ngx_atomic_fetch_add(&running)`), post `xrootd_task_bind(task, worker_thread, worker_done)` + `ngx_thread_task_post` (reuse `src/cache/open_or_fill.c:78-80`, `src/core/aio/aio.h:32-40`), skip `retry_not_before>now`.
 - `src/frm/stage_launch.c` — detached launcher on `FRM_STAGE_LAUNCH`: fail-check → xattr `staging` → enqueue/post → flip xattr on done.
 
 **MODIFY:**
@@ -354,9 +354,9 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/config/server_conf.c`), inits 
 - `src/webdav/propfind.c` — add `PF_LOCALITY (1u<<19)`, bump `PF_ALL` (44–63), register `{"locality",PF_LOCALITY}` (96), add `<xrd:locality/>` to PROPNAME (474), emit value in `propfind_entry` (609, files only) via `frm_residency_probe` → `ONLINE`/`NEARLINE`/`ONLINE_AND_NEARLINE`/`LOST`.
 - `src/s3/object.c:189` (`s3_handle_head`) + `:89` (`s3_handle_get`) — probe; if `!resident && backend_exists` add `x-amz-storage-class: GLACIER` + `x-amz-restore`; GET of nearline → `403 InvalidObjectState` (never block).
 - Top-level `config` script — register new `.c`/`.h` files in the relevant
-  `ngx_module_srcs`/deps lists; update `src/config/config.h` only for config
+  `ngx_module_srcs`/deps lists; update `src/core/config/config.h` only for config
   structs/directive declarations. Wire `frm_stage_configure_registry(cf)` into
-  `src/config/postconfiguration.c` alongside `xrootd_tpc_key_configure_registry`.
+  `src/core/config/postconfiguration.c` alongside `xrootd_tpc_key_configure_registry`.
 - **config:** add `src/frm/metrics.c` to the **HTTP metrics module** srcs block; add the FRM `ngx_xrootd_frm_metrics_t frm;` block to `src/metrics/metrics.h` (state enum `XROOTD_FRM_STATE_*`, `XROOTD_FRM_FAIL_*`, latency buckets), `XROOTD_FRM_METRIC_INC/ADD` macros in `metrics_macros.h`, exporter prototype in `metrics_internal.h`, fan-out from `xrootd_export_prometheus_metrics` in `src/metrics/stream.c`. **Mixed-ABI rule applies** (`metrics.h` struct grows): clean rebuild or touch a `.c` in every module including `metrics.h`.
 
 **Reuse credit:** residency xattr is a structural clone of the WebDAV lock xattr; the dedup set and the worker thread/done binder are clones of the TPC key registry and cache-fill job respectively; the stall is the existing `xrootd_send_wait`. The genuinely new code is the copy→temp→verify→rename worker body and the open-path stall policy.
@@ -416,7 +416,7 @@ Merge in `ngx_stream_xrootd_merge_srv_conf` (`src/config/server_conf.c`), inits 
 **CREATE:**
 - `src/frm/stage_deliver.c` — `xrootd_stage_deliver_waiters(reqid)` + `deliver_one(entry, waiter, c, ctx)`:
   - causality guard: emit `asynresp` only if `waitresp_sent` latched (re-check before push); on a race, send `xrootd_send_waitresp` first.
-  - liveness check: resolve `conn_number → ngx_connection_t` in this worker's `ngx_cycle->connections`, validate `c->number == waiter.conn_number`, not closing, `ctx->destroyed == 0` (the `src/aio/resume.c:23` guard generalized); any failure → drop waiter silently, free slot.
+  - liveness check: resolve `conn_number → ngx_connection_t` in this worker's `ngx_cycle->connections`, validate `c->number == waiter.conn_number`, not closing, `ctx->destroyed == 0` (the `src/core/aio/resume.c:23` guard generalized); any failure → drop waiter silently, free slot.
   - `ONLINE` → build the real open-ok body (fhandle) for `entry->pfn` bound to `c` and push via `xrootd_send_attn_asynresp(ctx, c, waiter.streamid, kXR_ok, body, len)` (manager mode → `kXR_redirect` body); `FAILED` → `asynresp(entry->xrd_error, err_msg)`. Then `xrootd_aio_resume(c)`. **Pass the saved `waiter.streamid`** — never `ctx->cur_streamid`.
   - cross-worker fan-out (M5 mech B): elected scheduler signals owning `worker_pid`; each worker runs `deliver_waiters` only for its own PID's waiters (no cross-process pointer access).
 
@@ -472,7 +472,7 @@ Independent, low-priority items, each its own change + 3 tests:
 
 ## 6. Build governance & sequencing notes
 
-**Source list authority.** The build is governed by the top-level **`config` script** (`ngx_module_srcs` ~L235–L520; deps lists `ngx_xrootd_stream_deps`, `ngx_xrootd_webdav_deps` ~L208) — **not** `src/config/config.h`. Every new `.c` must be appended there; every new `.h` to the right deps list. Editing generated Makefiles or nginx core is forbidden.
+**Source list authority.** The build is governed by the top-level **`config` script** (`ngx_module_srcs` ~L235–L520; deps lists `ngx_xrootd_stream_deps`, `ngx_xrootd_webdav_deps` ~L208) — **not** `src/core/config/config.h`. Every new `.c` must be appended there; every new `.h` to the right deps list. Editing generated Makefiles or nginx core is forbidden.
 
 **FRM is folded into the existing stream module**, not a new `ngx_module_type=STREAM` block: it shares `ngx_stream_xrootd_srv_conf_t`, the metrics SHM, `xrootd_handle_prepare`, and the open/redirect handler, and **owns no listener** (the one standalone stream module, `ngx_stream_xrootd_cms_srv_module`, is separate only because it owns a listener). The reaper/scheduler timers hang off the stream module's `init_process`; the SHM zones off its `postconfiguration` — same pattern as CMS heartbeat, JWKS refresh, and CRL timers.
 

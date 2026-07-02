@@ -197,8 +197,8 @@ def test_phase0_dependency_matrix_hooks_present():
         [
             "pkg-config --exists libxml-2.0",
             "-dxrootd_have_libxml2=1",
-            "src/compat/xml.c",
-            "src/compat/crc32c.c",
+            "src/core/compat/xml.c",
+            "src/core/compat/crc32c.c",
         ],
     )
     _assert_markers(

@@ -6,7 +6,7 @@
  * HOW: Parse_opaque → memset(out,0) → iterate tokens via tpc_parse_token(&-delimited) → check at least one has_* flag set → call tpc_parse_src_fields if has_src=true; parse_token → find '&' or end-of-string as token boundary → locate '=' separator → verify "tpc." prefix (4 bytes) → match remaining key length against known keys (src=3, dst=3, key=3, lfn=3, org=3, stage=5, token_mode=10) → copy value into corresponding buffer with size guard; parse_src_fields → call tpc_parse_src_spec() for URL decomposition → on error clear src_host/\\0, src_path/\\0, src_port=0 → delegate to tpc_fill_src_path_from_lfn for LFN normalization; parse_src_spec → find "://" scheme separator → extract authority (host[:port]) between scheme and '/' → handle IPv6 brackets [...] → strtol validate port range 1-65535 → copy path component after '/'; fill_src_path_from_lfn → if src_path already set or has_lfn=false, return; if lfn starts with '/', copy directly; else prepend '/' then copy remaining chars.
  * */
 #include "tpc_internal.h"
-#include "compat/host_split.h"   /* shared bracketed-IPv6 host:port split (libxrdproto) */
+#include "core/compat/host_split.h"   /* shared bracketed-IPv6 host:port split (libxrdproto) */
 
 #include <string.h>
 #include <stdlib.h>

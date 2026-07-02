@@ -62,7 +62,7 @@ Understanding dual-stack support requires tracing IP addresses through three lay
 | `src/cache/origin_connection.c` | Cache-fill origin connect | `getaddrinfo(AF_UNSPEC)`, iterates all addrinfo entries |
 | `src/cms/config.c` | CMS manager address parsing | Uses `ngx_parse_url()` which handles IPv6 literals via nginx's internal resolver |
 | `src/upstream/directives.c` | `xrootd_upstream host:port` parsing | Lines 24–54: checks for `[` prefix, extracts IPv6 address between brackets |
-| `src/config/manager_map.c` | `xrootd_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
+| `src/core/config/manager_map.c` | `xrootd_manager_map prefix host:port` parsing | Lines 49–77: same bracket-aware IPv6 parsing |
 | `src/cache/directives.c` | `xrootd_cache_origin host:port` parsing | Lines 62–90: same bracket-aware IPv6 parsing, handles `root://` and `roots://` prefixes |
 | `src/connection/handler.c` (lines 93–106) | Port extraction from `c->local_sockaddr` | Lines 93–106: checks `sa_family` and casts to correct type for `AF_INET` and `AF_INET6` |
 | `src/tpc/launch.c` (lines 82–86) | Client address for TPC logging | `getnameinfo()` with `NI_NAMEREQD` — dual-stack safe |

@@ -246,7 +246,7 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
     assert "OP_WRITE_ALL" in sm and "mirror_writes" in sm
     # Default merge is 0 (off) on both surfaces.
     assert "conf->mirror.mirror_writes,\n                         prev->mirror.mirror_writes, 0" \
-        in _read("src/config/server_conf.c")
+        in _read("src/core/config/server_conf.c")
     assert "prev->mirror.mirror_writes, 0" in _read("src/webdav/config.c")
 
 

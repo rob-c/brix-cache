@@ -9,7 +9,7 @@
  */
 
 #include "csi_tagstore.h"
-#include "compat/crc32c.h"
+#include "core/compat/crc32c.h"
 
 #include <string.h>
 

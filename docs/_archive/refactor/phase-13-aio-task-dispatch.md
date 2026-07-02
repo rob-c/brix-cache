@@ -135,10 +135,10 @@ the two entries with one:
 
 ```sh
 # Remove:
-    $ngx_addon_dir/src/aio/read.c \
-    $ngx_addon_dir/src/aio/pgread.c \
+    $ngx_addon_dir/src/core/aio/read.c \
+    $ngx_addon_dir/src/core/aio/pgread.c \
 # Replace with:
-    $ngx_addon_dir/src/aio/reads.c \
+    $ngx_addon_dir/src/core/aio/reads.c \
 ```
 
 Because a source file is renamed (deleted + added), `./configure` must be

@@ -4,11 +4,11 @@
 
 #include "read.h"
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "fs/backend/sd.h"   /* phase-55: route preadv through the SD seam */
 #include "fs/vfs_io_core.h"  /* xrootd_vfs_effective_obj — POSIX-wrap or driver obj */
-#include "compat/pgio.h"     /* shared kXR page-mode encode (libxrdproto) */
-#include "compat/crc32c.h"   /* xrootd_crc32c_value — in-place per-page CRC  */
+#include "core/compat/pgio.h"     /* shared kXR page-mode encode (libxrdproto) */
+#include "core/compat/crc32c.h"   /* xrootd_crc32c_value — in-place per-page CRC  */
 
 #include <sys/uio.h>            /* preadv / struct iovec                        */
 

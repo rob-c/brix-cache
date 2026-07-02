@@ -12,10 +12,10 @@
  *       xrootd_cksum_aio_done() closes fd if path-based request (t->close_fd), restores streamid via aio_restore_request, sends ok+resp or error, frees resources, resumes client connection event loop via aio_resume().
  */
 #include "query_internal.h"
-#include "compat/checksum.h"
-#include "compat/integrity_info.h"
+#include "core/compat/checksum.h"
+#include "core/compat/integrity_info.h"
 #include "response/response.h"
-#include "aio/aio.h"
+#include "core/aio/aio.h"
 #include "fs/vfs.h"   /* xrootd_vfs_close — release the path-based read handle */
 
 

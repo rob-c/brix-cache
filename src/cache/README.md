@@ -108,7 +108,7 @@ The watermark directives (`xrootd_cache_high_watermark`, `xrootd_cache_low_water
 | File | Responsibility |
 |---|---|
 | `cache_admit.c` / `cache_admit.h` | The shared admission filter `xrootd_cache_admit()` (deny-prefix precedence → allow whitelist → size cap with include-regex bypass; `is_new` skips the size cap; fail-closed on NULL). Lifted out of the write-through decision so read-caching (`fetch.c`) and write-through (`writethrough_decision.c`) share one matcher. Unit-tested standalone (`tests/c/test_cache_admit.c`). |
-| `cache_reap.c` / `cache_reap.h` | The stale-dirty reaper `xrootd_cache_reap_dirty()`: a recursive same-device scan of the state root that **unconditionally** removes any data file whose `.cinfo` has been DIRTY longer than `xrootd_cache_dirty_max_age` (data + `.cinfo`/`.meta` sidecars), with a `WARN` per file. Armed as a per-worker hourly timer in `src/config/process.c` (first tick 5 s), independent of occupancy. E2E: `tests/run_cache_reaper.sh`. |
+| `cache_reap.c` / `cache_reap.h` | The stale-dirty reaper `xrootd_cache_reap_dirty()`: a recursive same-device scan of the state root that **unconditionally** removes any data file whose `.cinfo` has been DIRTY longer than `xrootd_cache_dirty_max_age` (data + `.cinfo`/`.meta` sidecars), with a `WARN` per file. Armed as a per-worker hourly timer in `src/core/config/process.c` (first tick 5 s), independent of occupancy. E2E: `tests/run_cache_reaper.sh`. |
 
 ### Write-through
 | File | Responsibility |

@@ -1,4 +1,4 @@
-#include "../../src/compat/crc32c.h"
+#include "../../src/core/compat/crc32c.h"
 
 #include <stddef.h>
 #include <stdint.h>

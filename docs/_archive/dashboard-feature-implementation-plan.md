@@ -258,7 +258,7 @@ Implementation details:
 Touchpoints:
 
 - `src/webdav/get.c`
-- shared sendfile helper `src/compat/http_file_response.c`
+- shared sendfile helper `src/core/compat/http_file_response.c`
 
 Implementation:
 
@@ -283,7 +283,7 @@ queued; later work can add an output-filter-based progress hook.
 Touchpoints:
 
 - `src/webdav/put.c`
-- `src/compat/http_body.c`
+- `src/core/compat/http_body.c`
 
 Implementation:
 
@@ -360,7 +360,7 @@ Touchpoints:
 
 - `src/s3/put.c`
 - `src/s3/multipart*.c`
-- `src/compat/http_body.c`
+- `src/core/compat/http_body.c`
 
 Implementation:
 

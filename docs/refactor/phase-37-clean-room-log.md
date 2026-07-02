@@ -22,7 +22,7 @@ entry here.
 **Upstream files consulted:** none.
 
 M0 only re-packaged files **already present in this project** (`src/protocol/*.h`,
-`src/compat/{crc32c,hex,crypto,error_mapping}.{c,h}`) into an ngx-free static library
+`src/core/compat/{crc32c,hex,crypto,error_mapping}.{c,h}`) into an ngx-free static library
 build. It derived no new wire facts and copied nothing from upstream. The wire
 vocabulary in `src/protocol/*.h` was established (and cross-checked) in earlier phases;
 its own provenance is documented in `src/protocol/README.md`.
@@ -171,7 +171,7 @@ src/response/status.c, wire_core_requests.h):
 | kXR_status header crc32c covers the 20 bytes streamID..offset | src/response/status.c:66,85 | read_status_frame |
 | inner requestid = opcode−kXR_1stRequest (pgread→30, pgwrite→26); resptype 0=Final/1=Partial | status.c:78-79 | — |
 | pgwrite CRC failure → plain kXR_error/kXR_ChkSumErr (NOT the pgWrCSE bad-page list) | src/write/pgwrite.c:245 | xrdc_file_pgwrite |
-| **crc32c is STANDARD Castagnoli** (init/xorout 0xFFFFFFFF, "123456789"→0xe3069283) — the header comment "init 0" in wire_core_requests.h is misleading; the libxrdproto routine the server, the client and Qcksum all use is the standard one | src/compat/crc32c.* (verified C-vs-Python) | checksum.c, decode_pages |
+| **crc32c is STANDARD Castagnoli** (init/xorout 0xFFFFFFFF, "123456789"→0xe3069283) — the header comment "init 0" in wire_core_requests.h is misleading; the libxrdproto routine the server, the client and Qcksum all use is the standard one | src/core/compat/crc32c.* (verified C-vs-Python) | checksum.c, decode_pages |
 | kXR_Qcksum(3) via kXR_query(3001): payload "<algo> <path>" (server splits on first ':'/' '), reply "<algo> <hex>"; manager mode redirects the query to the DS | src/query/checksum_qcksum.c | xrdc_query_cksum (roundtrip) |
 
 Implementation: `xrdc_file_pgread`/`xrdc_file_pgwrite` in ops_file.c share a
@@ -340,11 +340,11 @@ sss/krb5 (no harness keytab/ccache) and real-XrdCl async TPC.
 
 Following the "keep the client minimal / import from the module" directive: the
 last compute the client duplicated from the module — the fd→checksum streaming —
-was extracted to a pure `src/compat/checksum_core.{c,h}` and built-in-place into
+was extracted to a pure `src/core/compat/checksum_core.{c,h}` and built-in-place into
 BOTH the module (config NGX_ADDON_SRCS) and libxrdproto (shared/xrdproto Makefile
 NAMES), exactly like crc32c/gsi_core. `xrootd_cksum_u32_fd`(adler32/crc32/crc32c)
 and `xrootd_cksum_digest_fd`(md5/sha1/sha256) are ngx-free (kind codes match the
-module's xrootd_checksum_alg_t ordinals). The module's `src/compat/checksum.c`
+module's xrootd_checksum_alg_t ordinals). The module's `src/core/compat/checksum.c`
 u32_fd/digest_fd now delegate to the core (keeping their ngx read-error logging via
 errno); the client's `client/lib/checksum.c` does too — so client and server agree
 on every checksum by construction, and the client reimplements none of it
@@ -708,7 +708,7 @@ spaces/specials sign correctly against any S3 server; SigV4 secret-key length bo
 silent truncation→wrong-sig); PII — the root battery's "unparseable URL" no longer echoes st.msg;
 S3 SignatureDoesNotMatch read from the XML `<Code>` element (not a body-wide substring); Digest
 header requires '=' (RFC-3230) to count as a checksum. REJECTED with reasons: the stale
-src/compat/hex.c "uppercase" comment (out-of-scope src/, and the impl is correctly lowercase);
+src/core/compat/hex.c "uppercase" comment (out-of-scope src/, and the impl is correctly lowercase);
 restoring blocking mode after the TLS handshake (would DEFEAT the TLS read timeout — the
 non-blocking socket + wait_io poll IS the never-hang mechanism); dynamic SignedHeaders + header
 trimming (the 3 fixed headers never carry extraneous space); the header-line-boundary "fix" (the

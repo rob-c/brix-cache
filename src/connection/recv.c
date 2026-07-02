@@ -1,4 +1,4 @@
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "disconnect.h"
 #include "fd_table.h"
 #include "tls.h"

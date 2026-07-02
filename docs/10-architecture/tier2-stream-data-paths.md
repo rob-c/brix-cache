@@ -623,7 +623,7 @@ Event Thread                    Thread Pool
     |<-send response to client-------|
 ```
 
-**Key files:** `src/aio/` — async I/O helpers  
+**Key files:** `src/core/aio/` — async I/O helpers  
 **Pattern:** `ngx_thread_task_alloc()` → `ngx_thread_task_post()` → callback in `done.c`
 
 ---

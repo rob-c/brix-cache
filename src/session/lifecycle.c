@@ -2,7 +2,7 @@
  * lifecycle.c — kXR_ping / kXR_endsess opcode handlers (session liveness + teardown).
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "proxy/proxy.h"
 #include "proxy/proxy_internal.h"
 #include "registry.h"   /* xrootd_session_unregister: targeted session teardown */

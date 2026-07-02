@@ -13,7 +13,7 @@
  *      and queues to the client event loop.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "fs/backend/sd.h"   /* xrootd_sd_obj_t — pgread routes via the SD seam */
 
 /* ---- Function: xrootd_handle_read() ----

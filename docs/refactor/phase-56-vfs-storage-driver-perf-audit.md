@@ -122,7 +122,7 @@ hot-path pillars. The split is itself the top architectural finding (**§3**).
 | `xrootd_vfs_opendir`/`readdir`/`closedir` | — | ✅ | PROPFIND-collection / S3 LIST streaming enumerators |
 | `xrootd_vfs_copy` | 4 | ✅ | `webdav/copy.c:424`, `s3/copy.c:129` |
 | `xrootd_vfs_staged_open`/`commit`/`abort` | 4 | ✅ | `webdav/put.c:390`, `s3/post_object.c:1138` |
-| `xrootd_vfs_io_execute` | 20+ | ✅ | all `src/aio/*.c`, `src/read/*.c`, `src/write/*.c` |
+| `xrootd_vfs_io_execute` | 20+ | ✅ | all `src/core/aio/*.c`, `src/read/*.c`, `src/write/*.c` |
 | `xrootd_vfs_file_sendfile_fd` | 2 | ✅ | `shared/file_serve.c:184`, `webdav/get.c:170` |
 | `xrootd_vfs_stat`/`sync`/`truncate` (handle) | — | ✅ | via `xrootd_vfs_io_execute` SYNC/TRUNCATE jobs |
 | **`xrootd_vfs_read`** | **0** | ❌ | — (dead chain-builder; `make_file_chain`/`make_memory_chain`) |
@@ -875,7 +875,7 @@ sub-ms range. Low-cardinality labels unchanged.
 ### 7.2 `[VERIFIED gap]` D-2 — the bulk data plane emits no op-latency metric at all
 
 Verified this sweep: there are only **10** references to `xrootd_metric_op_done`
-tree-wide (including its definition), and **none** in `src/aio/*.c`,
+tree-wide (including its definition), and **none** in `src/core/aio/*.c`,
 `src/read/read.c`, or `src/write/write.c`. So the high-volume **stream read/write**
 and **HTTP sendfile** ops emit **no** per-op latency at all — their accounting is
 byte counters on the handle/session, not the op-latency histogram. The VFS latency
@@ -979,7 +979,7 @@ backend, inherit it everywhere) **and** for honest observability.
                  └─► SD vtable          (src/fs/backend/sd.h)
                        └─► sd_posix      (src/fs/backend/sd_posix.c)
                              └─► xrootd_open_beneath / xrootd_ns_* /          ◄── the "POSIX / confined-helper
-                                 xrootd_*_confined_canon / xrootd_staged_* /      layer": src/path/, src/compat/
+                                 xrootd_*_confined_canon / xrootd_staged_* /      layer": src/path/, src/core/compat/
                                  fs_walk                                          {namespace_ops,staged_file,fs_walk}
                                    └─► openat2(RESOLVE_BENEATH) / pread / …    (libc)
 ```
@@ -994,7 +994,7 @@ backend, inherit it everywhere) **and** for honest observability.
 ### 9.2 Audit methodology (reproducible)
 
 ```bash
-EXC='^src/fs/|^src/path/|^src/compat/(namespace_ops|staged_file|fs_walk|resolve)|^src/impersonate/|^src/dashboard/'
+EXC='^src/fs/|^src/path/|^src/core/compat/(namespace_ops|staged_file|fs_walk|resolve)|^src/impersonate/|^src/dashboard/'
 # Tier-1: raw data-plane syscalls outside the VFS/helper layer
 grep -rnE '\b(pread|pwrite|preadv2?|pwritev2?|copy_file_range|sendfile)\s*\(' src/ --include=*.c | grep -vE "$EXC|xrootd_vfs_|xrootd_sd_"
 # Tier-2: confined-helper calls outside the VFS/helper layer
@@ -1210,7 +1210,7 @@ VFS has two stores, a durable backend store and a staging store."*
 | Location | Why it is correct as-is |
 |---|---|
 | `src/path/beneath.c`, `resolve_confined_ops.c`, `resolve_confined_helpers.c` | These **define** the confined helpers — the POSIX layer the SD driver wraps. Their raw `openat2`/`unlinkat`/`mkdirat`/`renameat` belong here. |
-| `src/compat/namespace_ops.c`, `staged_file.c`, `fs_walk.c` | The namespace/staged/walk implementation `sd_posix.c` delegates to. Below the seam. |
+| `src/core/compat/namespace_ops.c`, `staged_file.c`, `fs_walk.c` | The namespace/staged/walk implementation `sd_posix.c` delegates to. Below the seam. |
 | `src/impersonate/broker.c` | The **privileged broker process** that performs the syscall as the mapped user — the impersonation execution backend, reached via `xrootd_imp_*` *below* the confined helpers. |
 | `src/dashboard/files.c` | The admin file viewer over a **separate** `xrootd_dashboard_browse_root` with its own `openat2(RESOLVE_BENEATH)` confinement — not the protocol export data plane. |
 
@@ -1224,7 +1224,7 @@ Without one, this backlog regrows. Propose `tools/ci/check_vfs_seam.sh`:
 #!/usr/bin/env bash
 # Fail if a confined-helper symbol is called outside the allowed layer.
 set -euo pipefail
-ALLOW='^src/fs/|^src/path/|^src/compat/(namespace_ops|staged_file|fs_walk|resolve)|^src/impersonate/'
+ALLOW='^src/fs/|^src/path/|^src/core/compat/(namespace_ops|staged_file|fs_walk|resolve)|^src/impersonate/'
 SYMS='xrootd_open_beneath|xrootd_open_confined_canon|xrootd_lstat_beneath|xrootd_lstat_confined_canon|xrootd_opendir_confined_canon|xrootd_unlink_beneath|xrootd_ns_(delete|mkdir|rename|local_copy)|xrootd_staged_(open|commit|abort)'
 viol=$(grep -rnE "\\b($SYMS)\\s*\\(" src/ --include=*.c | grep -vE "$ALLOW" \
         | grep -vFf tools/ci/vfs_seam_backlog.txt || true)
@@ -1617,7 +1617,7 @@ metrics-identical; full text lives in the cited functions.
   becomes `(now_ns - start_ns)/1000`. Update the ~7 ctx-op call sites
   (`vfs_stat/copy/rename/unlink/mkdir/dir/staged`) to capture `start_ns` instead
   of `start = ngx_current_msec`.
-- **`src/aio/reads.c` / `src/aio/write.c` (D-2):** in the done callbacks, after the
+- **`src/core/aio/reads.c` / `src/core/aio/write.c` (D-2):** in the done callbacks, after the
   byte counters, call `xrootd_metric_op_done(proto, OP_READ|OP_WRITE, bytes,
   usec_from(task->start_ns), err_class)`; add a `uint64_t start_ns` to the task
   struct set in PREPARE.
@@ -1647,9 +1647,9 @@ COMPLETE), `src/fs/vfs_io_core.h`.
 `src/fs/backend/sd_registry.c` (§10 new driver registration).
 
 **Crosses the seam (referenced, not re-audited):** `src/shared/file_serve.c`
-(Funnel 1), `src/aio/reads.c` / `aio/write.c` (Funnels 2/4, D-2), `src/webdav/get.c`
-/ `put.c`, `src/s3/object.c` / `post_object.c` / `copy.c`, `src/compat/fs_walk.c`
-(C-1 central tree walker), `src/compat/namespace_ops.c` (recursive delete),
+(Funnel 1), `src/core/aio/reads.c` / `aio/write.c` (Funnels 2/4, D-2), `src/webdav/get.c`
+/ `put.c`, `src/s3/object.c` / `post_object.c` / `copy.c`, `src/core/compat/fs_walk.c`
+(C-1 central tree walker), `src/core/compat/namespace_ops.c` (recursive delete),
 `src/path/resolve_confined_ops.c` (impersonation stat — §0.3), `src/read/prefetch.c`
 + `src/webdav/io.c` (B-2 existing fadvise), `src/metrics/unified.{h,c}` (D-1/D-2),
 `src/cache/writethrough_decision.c` (E-3).
@@ -1666,7 +1666,7 @@ hot), `src/dirlist/handler.c` + `dirlist/dcksm.c`, `src/write/mv.c` / `mkdir.c` 
 **unconfined** (F2-priority) `src/s3/multipart_complete_upload_part_copy.c` /
 `multipart_helpers.c` (§9.6). **New files:** `tools/ci/check_vfs_seam.sh` +
 `tools/ci/vfs_seam_backlog.txt` (§9.9). **Legitimate non-targets (§9.8):**
-`src/path/beneath.c` / `resolve_confined_ops.c`, `src/compat/{namespace_ops,
+`src/path/beneath.c` / `resolve_confined_ops.c`, `src/core/compat/{namespace_ops,
 staged_file,fs_walk}.c`, `src/impersonate/broker.c`, `src/dashboard/files.c`.
 
 ---
@@ -1732,7 +1732,7 @@ advertises (§1.1).
 | **dead body** | a function with zero callers (`xrootd_vfs_read`/`write` and their private builders) — §3, §8, Appendix A. |
 | **seam closure** | Pillar F (§9): migrating every export data/namespace op onto `xrootd_vfs_*` so the VFS is the *sole* data-plane funnel; the complement of §3. |
 | **tier-1 / tier-2 bypass** | tier-1 = a handler calls **libc** directly on export data; tier-2 = a handler calls the **confined-helper layer** directly, skipping `xrootd_vfs_*` (§9.1). Tier-1 is ~clean; tier-2 is the ~105-site backlog. |
-| **confined-helper layer** | `xrootd_*_confined_canon` / `xrootd_*_beneath` / `xrootd_ns_*` / `xrootd_staged_*` (in `src/path/`, `src/compat/`) — the POSIX primitives the SD driver delegates to; handlers must reach them *through* the VFS, not directly (§9.1). |
+| **confined-helper layer** | `xrootd_*_confined_canon` / `xrootd_*_beneath` / `xrootd_ns_*` / `xrootd_staged_*` (in `src/path/`, `src/core/compat/`) — the POSIX primitives the SD driver delegates to; handlers must reach them *through* the VFS, not directly (§9.1). |
 | **backend store / staging store** | Phase-55's two independently-selectable SD instances per export — a durable backend (`xrootd_storage_backend`) and an in-progress staging store (`xrootd_storage_staging`); §9.6/§9.7 route multipart + scratch through the latter. |
 | **CI seam guard** | `tools/ci/check_vfs_seam.sh` + shrinking `vfs_seam_backlog.txt` (§9.9) — fails the build on a *new* bypass; the enforcement that keeps the VFS the sole source of truth once §9 lands. |
 | **tier-1.5 bypass** | calls the **SD driver vtable** directly (`xrootd_sd_posix_driver.pread`) — below the VFS but above libc; FRM's journal reader (`frm/reqfile.c`) does this. Shares A-1's no-benefit indirection (§9.3). |
@@ -1819,7 +1819,7 @@ src/s3/multipart_helpers.c:214                    lstat(full)
 
 ```
 src/path/beneath.c  src/path/resolve_confined_ops.c  src/path/resolve_confined_helpers.c   # helper DEFINITIONS
-src/compat/namespace_ops.c  src/compat/staged_file.c  src/compat/fs_walk.c                 # the layer sd_posix delegates to
+src/core/compat/namespace_ops.c  src/core/compat/staged_file.c  src/core/compat/fs_walk.c                 # the layer sd_posix delegates to
 src/impersonate/broker.c                                                                    # privileged execution backend (below seam)
 src/dashboard/files.c                                                                       # separate admin browse-root, own confinement
 src/cache/open.c                                                                            # VFS-internal (called from xrootd_vfs_open)

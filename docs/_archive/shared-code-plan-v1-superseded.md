@@ -2,7 +2,7 @@
 
 This plan identifies code that is duplicated across the four HTTP-layer protocols
 (WebDAV, XrdHttp, S3, and the stream-layer XRootD protocol) and proposes concrete
-steps to consolidate it in `src/compat/`.
+steps to consolidate it in `src/core/compat/`.
 
 The goal is a smaller security surface: every security invariant — confinement,
 NUL rejection, traversal blocking — maintained in one place rather than four.
@@ -17,7 +17,7 @@ This is not a refactoring-for-its-own-sake exercise.
 | JWT / JWKS / scope validation | `src/token/` | stream, WebDAV, XrdHttp |
 | XRootD confinement primitives | `src/path/resolve_confined_ops.c` | stream, WebDAV, S3 |
 | Kernel-level path confinement | `xrootd_open_confined_canon` / `xrootd_unlink_confined_canon` | all HTTP ops |
-| XML escape + text elements | `src/compat/xml.c` | WebDAV (via `util/xml.c`), S3 (direct) |
+| XML escape + text elements | `src/core/compat/xml.c` | WebDAV (via `util/xml.c`), S3 (direct) |
 | Prometheus metrics export | `src/metrics/` | all four protocols |
 
 ---
@@ -48,7 +48,7 @@ Each entry includes: **what** is duplicated, **where** each copy lives,
   exploitable path-escape, but it silently corrupts the key and misleads error logs.
 - `+` → space: Only needed for S3 query-param parsing, not for path components.
 
-**Proposed resolution:** Extract `xrootd_http_urldecode(src, src_len, dst, dst_sz, flags)` to `src/compat/uri.c`:
+**Proposed resolution:** Extract `xrootd_http_urldecode(src, src_len, dst, dst_sz, flags)` to `src/core/compat/uri.c`:
 
 ```c
 #define XROOTD_URLDECODE_REJECT_NUL      0x01  /* WebDAV paths */
@@ -87,7 +87,7 @@ escapes at `open()` time. This means:
    `xrootd_open_confined_canon`; symlink escapes are possible here for multipart
    staging paths.
 
-**Proposed resolution:** Extract `xrootd_http_resolve_path(log, root_canon, raw_path, raw_len, out, outsz, flags)` to `src/compat/path.c`. Implement the full WebDAV-style strategy (realpath + parent fallback for ENOENT) so both WebDAV and S3 share one code path:
+**Proposed resolution:** Extract `xrootd_http_resolve_path(log, root_canon, raw_path, raw_len, out, outsz, flags)` to `src/core/compat/path.c`. Implement the full WebDAV-style strategy (realpath + parent fallback for ENOENT) so both WebDAV and S3 share one code path:
 
 ```c
 #define XROOTD_RESOLVE_STRIP_TRAILING_SLASH  0x01  /* WebDAV: strip '/' from collections */
@@ -133,7 +133,7 @@ Current mappings differ between WebDAV and S3:
 | `EEXIST` | 409 | 409 |
 | `ENAMETOOLONG` | 414 | 400 (inconsistent) |
 
-**Proposed resolution:** Add `xrootd_http_errno_to_status(int err)` to `src/compat/errno.c`. S3 gains `ENOSPC → 507`. `ENAMETOOLONG` alignment to 414 across both protocols.
+**Proposed resolution:** Add `xrootd_http_errno_to_status(int err)` to `src/core/compat/errno.c`. S3 gains `ENOSPC → 507`. `ENAMETOOLONG` alignment to 414 across both protocols.
 
 **LOC saved:** ~50 (net).
 **Risk:** Low. Pure mapping table; behaviour change only in the `ENOSPC` and `ENAMETOOLONG` edge cases for S3.
@@ -149,7 +149,7 @@ Current mappings differ between WebDAV and S3:
 - `s3_set_header` in `src/s3/object.c` (local static, also copy-pasted in `list_objects_v2.c`).
 - WebDAV uses `ngx_list_push` directly from nginx's API; no helper.
 
-**Proposed resolution:** Move `s3_set_header` to `src/s3/util.c` (S3-internal, not `src/compat/`) and remove the copy in `list_objects_v2.c`. This is an S3-only cleanup, not cross-protocol sharing.
+**Proposed resolution:** Move `s3_set_header` to `src/s3/util.c` (S3-internal, not `src/core/compat/`) and remove the copy in `list_objects_v2.c`. This is an S3-only cleanup, not cross-protocol sharing.
 
 **LOC saved:** ~20.
 **Risk:** Low.
@@ -164,7 +164,7 @@ Current mappings differ between WebDAV and S3:
 | Request dispatch / routing | Stream uses a binary XProtocol framing state machine in `NGX_STREAM_CONTENT_PHASE`. HTTP modules use nginx's parsed request in `NGX_HTTP_CONTENT_PHASE`. Incompatible at the protocol layer. |
 | TPC credential / header parsing | `src/webdav/tpc_headers.c` + `tpc_cred.c` are WLCG-specific. XrdHttp reuses them via symbol linkage. S3 has no TPC concept. No further sharing needed. |
 | fd-cache / open-file cache | WebDAV `get.c` uses nginx's `ngx_open_cached_file` for hot-path GET. S3 opens fresh per request. Sharing would require S3 to adopt the nginx `open_file_cache` directive and module infrastructure — worthwhile only if S3 GET is benchmarked as hot. File a separate performance ticket if needed. |
-| XML response builders | WebDAV PROPFIND (`propfind.c`, 564 LOC) and S3 list (`list_objects_v2.c`) both use `ngx_chain_t`-based XML. They already share the escape/element primitives in `src/compat/xml.c`. The higher-level serialization format (MultiStatus vs ListBucketResult) is protocol-specific; unifying it further would produce leaky abstractions. |
+| XML response builders | WebDAV PROPFIND (`propfind.c`, 564 LOC) and S3 list (`list_objects_v2.c`) both use `ngx_chain_t`-based XML. They already share the escape/element primitives in `src/core/compat/xml.c`. The higher-level serialization format (MultiStatus vs ListBucketResult) is protocol-specific; unifying it further would produce leaky abstractions. |
 
 ---
 
@@ -172,15 +172,15 @@ Current mappings differ between WebDAV and S3:
 
 ### Phase A — URL decode (1 day, no behaviour change)
 
-1. Add `src/compat/uri.c` + `src/compat/uri.h` with `xrootd_http_urldecode`.
+1. Add `src/core/compat/uri.c` + `src/core/compat/uri.h` with `xrootd_http_urldecode`.
 2. Replace `webdav_urldecode` body with a one-line wrapper.
 3. Replace `s3_urldecode` body with a one-line wrapper; add `REJECT_NUL` flag.
-4. Add `src/compat/uri.c` to `config` `ngx_module_srcs`.
+4. Add `src/core/compat/uri.c` to `config` `ngx_module_srcs`.
 5. Build + full test run. No behaviour change expected.
 
 ### Phase B — errno mapping (0.5 day)
 
-1. Add `src/compat/errno.c` + `src/compat/errno.h` with `xrootd_http_errno_to_status`.
+1. Add `src/core/compat/errno.c` + `src/core/compat/errno.h` with `xrootd_http_errno_to_status`.
 2. Update S3 call sites in `object.c`, `put.c`, `multipart_helpers.c`.
 3. Update WebDAV call sites in `get.c`, `put.c`, `copy.c`, `move.c`.
 4. Build + full test run. Behaviour change only in `ENOSPC` (S3: 500→507) and
@@ -188,7 +188,7 @@ Current mappings differ between WebDAV and S3:
 
 ### Phase C — shared path resolver (2–3 days, medium risk)
 
-1. Add `src/compat/path.c` + `src/compat/path.h` with `xrootd_http_resolve_path`.
+1. Add `src/core/compat/path.c` + `src/core/compat/path.h` with `xrootd_http_resolve_path`.
    Implement the realpath + ENOENT-parent strategy from `webdav/path.c`.
 2. Update WebDAV callers in `path.c` to use the shared function. Full WebDAV test
    suite must pass before touching S3.

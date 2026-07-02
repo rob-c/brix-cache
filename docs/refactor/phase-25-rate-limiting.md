@@ -54,7 +54,7 @@ fewer files); the table maps plan → actual code.
   `xrootd_rl_stream_gate` calls `xrootd_rl_conc_acquire` on the first matching rule.
   Because the stream plane has **no LOG phase**, the slot is reserved per-connection
   (not per-request): it is stashed on `ctx->rl_conc_rule`/`ctx->rl_conc_key`
-  (`src/types/context.h`) when acquired and released exactly once via the new
+  (`src/core/types/context.h`) when acquired and released exactly once via the new
   `xrootd_rl_release_ctx` from `xrootd_on_disconnect` (`src/connection/disconnect.c`).
   This caps **concurrent connections per principal**; over-cap returns
   `kXR_wait(1)` so the client retries when a slot frees. Per-principal in-flight
@@ -715,7 +715,7 @@ checks.
 
 ## Step F — Configuration Directives
 
-**File:** extend `src/config/directives.c`; fields in `src/config/config.h`
+**File:** extend `src/core/config/directives.c`; fields in `src/core/config/config.h`
 
 ### `xrootd_rate_limit_zone`
 
@@ -907,8 +907,8 @@ minimise lock hold time.
 | `src/handshake/dispatch.c` | Call `xrootd_dispatch_maybe_ratelimit` before each opcode handler |
 | `src/read/read.c`, `pgread.c` | Call `xrootd_rl_charge_bytes` after `xrootd_send_ok` |
 | `src/write/write.c`, `pgwrite.c` | Call `xrootd_rl_charge_bytes` after write flush |
-| `src/config/config.h` | Add `rl_zone`, `rl_rules`, `rl_bw_rules` to loc/srv conf structs |
-| `src/config/directives.c` | Parse `xrootd_rate_limit_zone`, `xrootd_rate_limit`, `xrootd_bandwidth_limit` |
+| `src/core/config/config.h` | Add `rl_zone`, `rl_rules`, `rl_bw_rules` to loc/srv conf structs |
+| `src/core/config/directives.c` | Parse `xrootd_rate_limit_zone`, `xrootd_rate_limit`, `xrootd_bandwidth_limit` |
 | `src/metrics/metrics.h` | Add 4 new counters |
 | `src/metrics/ratelimit.c` | New file: Prometheus export for rate limit counters |
 | `src/dashboard/api.c` | New route `GET /api/v1/ratelimit/status` |
@@ -928,7 +928,7 @@ minimise lock hold time.
 | `src/ratelimit/hash.c` | 50 | xxhash32 (small, license-compatible) |
 | `src/metrics/ratelimit.c` | 80 | Prometheus export |
 
-All 8 files must be added to `NGX_ADDON_SRCS` in `src/config/config.h`.  No `./configure` rerun
+All 8 files must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`.  No `./configure` rerun
 needed if the module was already configured with `--add-module=$REPO` (new `.c` files in
 `NGX_ADDON_SRCS` are picked up by `make` without re-running configure).
 

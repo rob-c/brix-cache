@@ -1,7 +1,7 @@
 /* Standalone unit test for src/compat/af_policy.h — gcc, no nginx. */
 #include <assert.h>
 #include <stdio.h>
-#include "../src/compat/af_policy.h"
+#include "../src/core/compat/af_policy.h"
 
 int main(void)
 {

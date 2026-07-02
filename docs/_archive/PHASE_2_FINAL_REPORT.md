@@ -89,7 +89,7 @@ Five modules consolidated with config merge helper macros:
 ### ✅ Phase 2d: Address Parsing Migration - INFRASTRUCTURE READY
 
 **Implementation:**
-- Created: `src/config/addr_parse.c/h`
+- Created: `src/core/config/addr_parse.c/h`
 - Function: `xrootd_parse_address()` - Unified host:port parser
 - Supports: root://, roots://, https://, IPv6 brackets
 - Handles: Scheme detection, TLS flag setting, port validation
@@ -111,10 +111,10 @@ Five modules consolidated with config merge helper macros:
 5. `src/s3/module.c` - Added conf_helpers.h include, consolidated 6 merges
 
 ### Helper Files Created (Phase 1, Used in Phase 2)
-1. `src/compat/alloc_helpers.h` - 6 memory allocation macros
+1. `src/core/compat/alloc_helpers.h` - 6 memory allocation macros
 2. `src/webdav/response_helpers.h` - 4 HTTP response inline functions
-3. `src/config/conf_helpers.h` - 9 config merge wrapper macros
-4. `src/config/addr_parse.c/h` - Unified address parsing
+3. `src/core/config/conf_helpers.h` - 9 config merge wrapper macros
+4. `src/core/config/addr_parse.c/h` - Unified address parsing
 
 ### Documentation
 - `CODE_REDUCTION_ANALYSIS.md` - Opportunity analysis

@@ -123,7 +123,7 @@ connection hang, spin, leak, or be DoS'd — while a conformant official
 | `xrootd_net_host_chars_valid()` | `src/manager/registry.c` (W1c choke point) | WS6 redirect-host gate |
 | `xrootd_sanitize_log_string()` | `src/path/helpers.c` | wire-derived log lines |
 | phase-39 `SO_KEEPALIVE`/`TCP_USER_TIMEOUT` setsockopt block | `src/connection/handler.c:109-135` | WS5 shared helper |
-| `NGX_CONF_UNSET*` → `ngx_conf_merge_*` → `ngx_command_t` | `src/config/server_conf.c`, `src/stream/module.c`, `src/cms/server_module.c` | WS7 directives |
+| `NGX_CONF_UNSET*` → `ngx_conf_merge_*` → `ngx_command_t` | `src/core/config/server_conf.c`, `src/stream/module.c`, `src/cms/server_module.c` | WS7 directives |
 | Registry `last_seen` staleness | `src/manager/registry.c` | complements WS3 (selection-steer vs slot-reap) |
 
 ---
@@ -272,10 +272,10 @@ suite is the guardrail that these generous defaults never trip a conformant peer
 - `src/cms/server_recv.c` — WS3 idle-watchdog re-arm + read-timer cancel in close.
 - `src/cms/server.h` / `src/cms/server_module.c` — WS7 server-side conf + directives
   + merge.
-- `src/types/config.h`, `src/config/server_conf.c`, `src/stream/module.c` — WS7
+- `src/core/types/config.h`, `src/core/config/server_conf.c`, `src/stream/module.c` — WS7
   client-side conf + directives + merge.
 - `src/connection/handler.c` + new shared helper unit — WS5 setsockopt refactor
-  (register new `.c` in `src/config/config.h` `NGX_ADDON_SRCS`; run `./configure`
+  (register new `.c` in `src/core/config/config.h` `NGX_ADDON_SRCS`; run `./configure`
   once).
 - `tests/test_cms_resilience.py` (new); `docs/04-protocols/cms-protocol.md`.
 

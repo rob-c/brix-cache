@@ -454,7 +454,7 @@ class _Srv:
                 continue
             if "data race" not in txt:
                 continue
-            if any(m in txt for m in ("/src/aio/", "/src/read/", "/src/write/",
+            if any(m in txt for m in ("/src/core/aio/", "/src/read/", "/src/write/",
                                       "/src/cache/", "/src/session/", "/src/connection/",
                                       "/src/frm/", "_aio_thread", "_aio_done",
                                       "read_scratch", "payload_to_free", "ctx->destroyed",

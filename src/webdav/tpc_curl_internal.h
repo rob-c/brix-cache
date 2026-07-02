@@ -8,8 +8,8 @@
 #include "webdav.h"
 #include "fs/backend/sd.h"   
 #include "tpc/common/registry.h"
-#include "compat/net_target.h"
-#include "compat/host_format.h"  
+#include "core/compat/net_target.h"
+#include "core/compat/host_format.h"  
 #include <curl/curl.h>
 #include <fcntl.h>
 #include <stdio.h>

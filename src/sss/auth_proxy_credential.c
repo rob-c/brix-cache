@@ -1,5 +1,5 @@
 #include "sss_internal.h"
-#include "compat/sss_bf.h"   /* xrootd_sss_build_credential — shared with the client */
+#include "core/compat/sss_bf.h"   /* xrootd_sss_build_credential — shared with the client */
 
 #include <openssl/rand.h>
 #include <string.h>

@@ -6,11 +6,11 @@
  * order; sends the kXR_NotAuthorized response and returns NGX_DONE on the
  * first failure, storing the nginx return code in ctx->write_rc.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "auth_gate.h"
 #include "auth_cache.h"
 #include "auth_gate_l1.h"
-#include "compat/crypto.h"
+#include "core/compat/crypto.h"
 #include "acc/acc.h"
 #include "metrics/metrics_macros.h"   /* Phase 51 (E6): auth-gate L1 counters */
 

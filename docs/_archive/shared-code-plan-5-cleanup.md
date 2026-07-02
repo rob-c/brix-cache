@@ -152,7 +152,7 @@ if (has_range)
 The only varying inputs: `etag_flags` (0 for S3, `XROOTD_ETAG_WEAK` for WebDAV),
 `has_range`, `range_start`, `range_end`.
 
-**Change:** Add to `src/compat/http_file_response.c/h`:
+**Change:** Add to `src/core/compat/http_file_response.c/h`:
 
 ```c
 /*

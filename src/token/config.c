@@ -1,4 +1,4 @@
-#include "config/config.h"
+#include "core/config/config.h"
 #include "issuer_registry.h"
 #include <sys/stat.h>
 

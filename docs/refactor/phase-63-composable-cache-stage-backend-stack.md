@@ -75,7 +75,7 @@ signed-DH — the hard crypto piece; tokens are the modern WLCG path), and the
 >   still calls those shared wire helpers; the literal deletion is their relocation
 >   under `backend/xroot/` once the legacy `cache_origin` fill path is also migrated.
 > - **§14 (token slice) ✅ (2026-06-29).** The reusable `xrootd_credential <name> { … }`
->   block (`src/config/credential_block.{c,h}`, the nginx `map`/`geo` block-handler
+>   block (`src/core/config/credential_block.{c,h}`, the nginx `map`/`geo` block-handler
 >   pattern) parses the §14.4 POD (`x509_proxy`/`x509_cert`/`x509_key`/`ca_dir`/`token`/
 >   `token_file`/`token_forward`/`tls`/`vo`), interned by name (dedup = reload-safe).
 >   A source backend names it via the sibling `xrootd_storage_credential <name>`

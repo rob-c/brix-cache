@@ -23,11 +23,11 @@ few integration details diverge from the original design — all detailed below.
 
 | Step | Component | Status | Evidence |
 |------|-----------|--------|----------|
-| **B** | Generic KV store (`src/shm/kv.{c,h}`) | ✅ **Done** | `kv.c` — FNV-1a 64-bit hash, linear-probe + backward-shift delete, load-factor ≤ 0.5, lazy TTL. Plus zone-registry helpers `xrootd_kv_find()` / `xrootd_kv_zone_directive()` not in the original API. |
-| **A** | SHM zone boilerplate macros (`src/compat/shm_zone.h`) | ⛔ **Not implemented (and unnecessary)** | No `shm_zone.h`; no `XROOTD_SHM_ZONE_*` usage anywhere. The KV store made the macro layer moot — the three consumers wrap `xrootd_kv_t` directly with no SHM boilerplate. (`src/compat/shm_slots.h` is unrelated — free-slot helpers for the TPC/cache slot pools.) |
+| **B** | Generic KV store (`src/core/shm/kv.{c,h}`) | ✅ **Done** | `kv.c` — FNV-1a 64-bit hash, linear-probe + backward-shift delete, load-factor ≤ 0.5, lazy TTL. Plus zone-registry helpers `xrootd_kv_find()` / `xrootd_kv_zone_directive()` not in the original API. |
+| **A** | SHM zone boilerplate macros (`src/core/compat/shm_zone.h`) | ⛔ **Not implemented (and unnecessary)** | No `shm_zone.h`; no `XROOTD_SHM_ZONE_*` usage anywhere. The KV store made the macro layer moot — the three consumers wrap `xrootd_kv_t` directly with no SHM boilerplate. (`src/core/compat/shm_slots.h` is unrelated — free-slot helpers for the TPC/cache slot pools.) |
 | **C** | JWT token validation cache (`src/token/token_cache.{c,h}`) | ✅ **Done — integration point differs** | Wired at the auth callers `src/gsi/token.c:87,138` and `src/webdav/auth_token.c:145,194`, **not** `token/validate.c` (which has no cache reference). Caches the full `xrootd_token_claims_t`, not the compact `xrootd_token_cache_val_t` the doc proposed. SHA-256 fingerprint key + 5-min TTL cap as designed. |
 | **D** | Auth result cache (`src/path/auth_cache.{c,h}`) | ✅ **Done — matches design** | Wired in `src/path/auth_gate.c` (key build ~`:23-61`, lookup-before-scan ~`:91-114`, store-after ~`:64-78`). 3-byte `xrootd_auth_cache_val_t`, 32-byte SHA-256 key, 30 s default TTL. Stream-only. |
-| **E** | Rate limiting (`src/shm/rate_limit.{c,h}`) | ✅ **Done — coexists with Phase 25** | Token-bucket on the KV store; called from `src/webdav/access.c:100` and `src/gsi/auth.c:289`. Does **not** supersede / is not superseded by the separate Phase-25 leaky-bucket system in `src/ratelimit/` — both are active and independent (different directives, different algorithms). |
+| **E** | Rate limiting (`src/core/shm/rate_limit.{c,h}`) | ✅ **Done — coexists with Phase 25** | Token-bucket on the KV store; called from `src/webdav/access.c:100` and `src/gsi/auth.c:289`. Does **not** supersede / is not superseded by the separate Phase-25 leaky-bucket system in `src/ratelimit/` — both are active and independent (different directives, different algorithms). |
 | **F** | Configurable existing-table sizes | ⚠️ **3 of 4 done** | `xrootd_session_slots`, `xrootd_registry_slots`, `xrootd_redir_cache_slots` implemented (conf fields + directives). `xrootd_tpc_slots` **still deferred** — `XROOTD_TPC_REGISTRY_SLOTS` (1024) remains a compile-time array dimension (`src/tpc/common/registry.c:16`) for the dual-call-site reason below. |
 | — | Prometheus export | ✅ **Done** | `xrootd_kv_metrics_emit()` in `src/metrics/writer.c` emits `xrootd_kv_{hits,misses,evictions}_total` + `xrootd_kv_{entries,capacity}` per zone. |
 | — | `config.h` / build registration | ✅ **Done** | The four sources (`shm/kv.c`, `token/token_cache.c`, `path/auth_cache.c`, `shm/rate_limit.c`) are registered in the module `config` (NGX_ADDON_SRCS). |
@@ -153,13 +153,13 @@ The plan is in four layers, implemented bottom-up:
 │  token/token_cache.c  path/auth_cache.c  shm/rate_limit.c│
 ├─────────────────────────────────────────────────────────┤
 │  Layer 3 — generic KV store                              │
-│  src/shm/kv.h + kv.c                                    │
+│  src/core/shm/kv.h + kv.c                                    │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 2 — configurable zone sizes (existing tables)     │
 │  Add ngx_command_t directives to existing configure()    │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 1 — SHM zone boilerplate macro                    │
-│  src/compat/shm_zone.h                                   │
+│  src/core/compat/shm_zone.h                                   │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -167,14 +167,14 @@ The plan is in four layers, implemented bottom-up:
 
 ## Step A — SHM zone boilerplate macro layer
 
-> **Status: ⛔ NOT IMPLEMENTED (won't-do).** `src/compat/shm_zone.h` does not
+> **Status: ⛔ NOT IMPLEMENTED (won't-do).** `src/core/compat/shm_zone.h` does not
 > exist and no `XROOTD_SHM_ZONE_*` macros are used anywhere in `src/`. The Step-B
 > KV store removed the need for this layer — the three consumers wrap `xrootd_kv_t`
 > directly with no SHM boilerplate. The macro savings would only have applied to
 > migrating the legacy tables, which is out of scope. The remainder of this section
 > is retained as the original design for reference only.
 
-**File**: `src/compat/shm_zone.h` (new, ~60 LoC)  
+**File**: `src/core/compat/shm_zone.h` (new, ~60 LoC)  
 **Risk**: None — additive header only; nothing calls these macros until callers are updated.
 
 ### Macro API
@@ -229,8 +229,8 @@ future duplication and reduce new feature cost.
 
 ## Step B — Generic SHM key-value store
 
-**Files**: `src/shm/kv.h` (new, ~80 LoC), `src/shm/kv.c` (new, ~260 LoC)  
-**Register in**: `src/config/config.h` under `NGX_ADDON_SRCS`  
+**Files**: `src/core/shm/kv.h` (new, ~80 LoC), `src/core/shm/kv.c` (new, ~260 LoC)  
+**Register in**: `src/core/config/config.h` under `NGX_ADDON_SRCS`  
 **Risk**: Medium — new code, but consumers are all additive; no existing code path changes
 until a consumer is wired in.
 
@@ -299,7 +299,7 @@ O(1) per access.
 ### API
 
 ```c
-/* src/shm/kv.h */
+/* src/core/shm/kv.h */
 
 typedef struct {
     ngx_shm_zone_t  *zone;
@@ -356,7 +356,7 @@ void xrootd_kv_stats(xrootd_kv_t *kv, xrootd_kv_stats_t *out);
 ### Configuration directive
 
 ```c
-/* New directive — placed in src/config/directives.c */
+/* New directive — placed in src/core/config/directives.c */
 
 { ngx_string("xrootd_kv_zone"),
   NGX_HTTP_MAIN_CONF|NGX_STREAM_MAIN_CONF|NGX_CONF_TAKE3,
@@ -503,8 +503,8 @@ if (conf->token_cache_kv != NULL && verify_ok) {
 }
 ```
 
-**Files changed**: `src/token/validate.c` (+~25 LoC), `src/types/config.h` (+2 LoC),
-`src/config/directives.c` (+~15 LoC)
+**Files changed**: `src/token/validate.c` (+~25 LoC), `src/core/types/config.h` (+2 LoC),
+`src/core/config/directives.c` (+~15 LoC)
 
 ---
 
@@ -606,13 +606,13 @@ xrootd_auth_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 ```
 
-**Files changed**: `src/path/auth_gate.c` (+~30 LoC), `src/types/config.h` (+3 LoC)
+**Files changed**: `src/path/auth_gate.c` (+~30 LoC), `src/core/types/config.h` (+3 LoC)
 
 ---
 
 ## Step E — Rate limiting
 
-**Files**: `src/shm/rate_limit.h` (new, ~40 LoC), `src/shm/rate_limit.c` (new, ~100 LoC)  
+**Files**: `src/core/shm/rate_limit.h` (new, ~40 LoC), `src/core/shm/rate_limit.c` (new, ~100 LoC)  
 **Register in**: `config.h`  
 **Integration points**: `src/gsi/auth.c` (post-auth), `src/webdav/access.c` (access phase)
 
@@ -726,7 +726,7 @@ follow-up work. The compile-time default (1024) remains in effect.
 
 **Files changed**: `src/session/registry.c` (+~10 LoC), `src/webdav/module.c` (+~10 LoC),
 `src/tpc/common/registry.c` (+~10 LoC), `src/manager/redir_cache.c` (+~10 LoC),
-`src/config/directives.c` (+~40 LoC), `src/config/config.h` (+~5 LoC)
+`src/core/config/directives.c` (+~40 LoC), `src/core/config/config.h` (+~5 LoC)
 
 ---
 
@@ -758,12 +758,12 @@ as existing tables are migrated opportunistically.
 
 | Step | Files | Prerequisite | Notes |
 |------|-------|-------------|-------|
-| B | `src/shm/kv.h`, `kv.c` | None | Foundation; no callers yet |
-| A | `src/compat/shm_zone.h` | None | Header only; no compilation impact |
+| B | `src/core/shm/kv.h`, `kv.c` | None | Foundation; no callers yet |
+| A | `src/core/compat/shm_zone.h` | None | Header only; no compilation impact |
 | F | existing configure() + directives.c | None | Trivial; size parameter only |
 | C | `src/token/token_cache.*`, `validate.c` | Step B | Token cache consumer |
 | D | `src/path/auth_cache.*`, `auth_gate.c` | Step B | Auth cache consumer |
-| E | `src/shm/rate_limit.*` | Step B | Rate limit consumer |
+| E | `src/core/shm/rate_limit.*` | Step B | Rate limit consumer |
 
 Steps A, B, and F are independent and can proceed in parallel. Steps C, D, E each
 depend on Step B being complete and registered in `config.h`.
@@ -773,11 +773,11 @@ depend on Step B being complete and registered in `config.h`.
 ## config.h registration
 
 ```c
-/* src/config/config.h — add to NGX_ADDON_SRCS */
-$ngx_addon_dir/src/shm/kv.c \
+/* src/core/config/config.h — add to NGX_ADDON_SRCS */
+$ngx_addon_dir/src/core/shm/kv.c \
 $ngx_addon_dir/src/token/token_cache.c \
 $ngx_addon_dir/src/path/auth_cache.c \
-$ngx_addon_dir/src/shm/rate_limit.c \
+$ngx_addon_dir/src/core/shm/rate_limit.c \
 ```
 
 After adding these four lines, one `./configure ... --add-module=...` is needed, then

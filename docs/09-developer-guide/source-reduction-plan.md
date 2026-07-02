@@ -23,7 +23,7 @@ Measured from the current tree on 2026-05-20:
 | `src/query` | 2,765 | Query subtypes, checksum scans, prepare/stage. |
 | `src/token` | 2,658 | JWT/JWKS/scopes/macaroons/base64/json. |
 | `src/path` | 2,885 | Path confinement, ACL/authdb; keep mostly local. |
-| `src/aio` | 2,131 | nginx thread-pool file I/O; keep mostly local. |
+| `src/core/aio` | 2,131 | nginx thread-pool file I/O; keep mostly local. |
 | `src/gsi` + `src/sss` + `src/crypto` | 4,315 | Security protocol glue and PKI/OCSP helpers. |
 | Whole `src/` tree | 68,893 | All C/header files. |
 
@@ -67,7 +67,7 @@ large outbound dependency.
 | Item | Net LOC change | Area | Priority |
 |---|---:|---|---|
 | TPC curl pull/push deduplication (Candidate 14) | −60 to −120 | src/webdav/tpc_curl.c | Medium (pairs with Design B) |
-| AIO dispatch pattern consolidation (Candidate 13) | −80 to −160 | src/aio/*.c | Medium |
+| AIO dispatch pattern consolidation (Candidate 13) | −80 to −160 | src/core/aio/*.c | Medium |
 | Pool alloc null-check macro (Candidate 15) | −150 to −200 | All of src/ | Low (mechanical) |
 | Dead code audit (Candidate 18) | −50 to −200 | All of src/ | Medium (audit first) |
 | Shared-memory registry template (Candidate 16) | −10 to −60 | src/tpc/, src/session/ | Low |
@@ -81,12 +81,12 @@ reliability.
 
 | Item | Primary helper | Areas migrated | Source impact |
 |---|---|---|---:|
-| Request-header lookup/set and value checks | `src/compat/http_headers.c` | WebDAV TPC/CORS, S3 SigV4/CopyObject/util headers | moderate deletion, fewer private scans |
-| Request-body chain handling | `src/compat/http_body.c` | WebDAV PUT/PROPFIND, S3 PUT/DeleteObjects | removes duplicate spooled/memory loops |
-| HTTP conditional headers | `src/compat/http_conditionals.c` | WebDAV GET/PUT/COPY/MOVE | centralizes ETag list and `Overwrite:F` handling |
-| Checksum algorithms | `src/compat/checksum.c` | `kXR_Qcksum`, `kXR_Qckscan`, dirlist `dcksm`, XrdHttp Digest | removes parallel adler/crc/digest dispatch |
-| Recursive filesystem mechanics | `src/compat/fs_walk.c` | WebDAV DELETE/access checks, S3 MPU cleanup, Qckscan/PROPFIND dot filtering | removes repeated dot-entry/remove-tree code |
-| Staged temp-file lifecycle | `src/compat/staged_file.c` | S3 PUT/CopyObject, WebDAV COPY, WebDAV TPC pull | centralizes temp open/commit/abort |
+| Request-header lookup/set and value checks | `src/core/compat/http_headers.c` | WebDAV TPC/CORS, S3 SigV4/CopyObject/util headers | moderate deletion, fewer private scans |
+| Request-body chain handling | `src/core/compat/http_body.c` | WebDAV PUT/PROPFIND, S3 PUT/DeleteObjects | removes duplicate spooled/memory loops |
+| HTTP conditional headers | `src/core/compat/http_conditionals.c` | WebDAV GET/PUT/COPY/MOVE | centralizes ETag list and `Overwrite:F` handling |
+| Checksum algorithms | `src/core/compat/checksum.c` | `kXR_Qcksum`, `kXR_Qckscan`, dirlist `dcksm`, XrdHttp Digest | removes parallel adler/crc/digest dispatch |
+| Recursive filesystem mechanics | `src/core/compat/fs_walk.c` | WebDAV DELETE/access checks, S3 MPU cleanup, Qckscan/PROPFIND dot filtering | removes repeated dot-entry/remove-tree code |
+| Staged temp-file lifecycle | `src/core/compat/staged_file.c` | S3 PUT/CopyObject, WebDAV COPY, WebDAV TPC pull | centralizes temp open/commit/abort |
 | CMS frame send boilerplate | `src/cms/frame_io.c` | CMS client/server send paths | removes duplicate send-all frame assembly |
 
 Guardrail coverage is in `tests/test_cross_protocol_shared_helpers.py`; the
@@ -366,8 +366,8 @@ Expected deletion:
 
 Current status:
 
-- `src/compat/xml.c` centralizes XML escaping for WebDAV and S3.
-- When `libxml2` is available, `src/compat/xml.c` parses WebDAV `LOCK`
+- `src/core/compat/xml.c` centralizes XML escaping for WebDAV and S3.
+- When `libxml2` is available, `src/core/compat/xml.c` parses WebDAV `LOCK`
   request bodies with `XML_PARSE_NONET` and without entity expansion.
 - `src/webdav/locks/request.c`, `src/webdav/util/xml.c`, and `src/s3/util.c`
   now use the shared adapter.
@@ -457,7 +457,7 @@ Risk:
 
 Current status:
 
-- `src/compat/crc32c.c` now owns CRC32C value, copy, and incremental update
+- `src/core/compat/crc32c.c` now owns CRC32C value, copy, and incremental update
   helpers.
 - `src/response/crc32c.c` keeps the public wire-facing API but delegates to
   the shared adapter.
@@ -659,7 +659,7 @@ Candidates 1-12.
 
 ## Candidate 13: Consolidate AIO dispatch patterns
 
-`src/aio/read.c`, `write.c`, `readv.c`, and `pgread.c` (772 LOC total) all
+`src/core/aio/read.c`, `write.c`, `readv.c`, and `pgread.c` (772 LOC total) all
 implement an identical two-phase pattern:
 
 - A `*_thread()` function runs the blocking I/O call on a thread-pool thread.
@@ -759,7 +759,7 @@ structure is identical.
 **Potential design:**
 
 ```c
-/* in src/config/config.h or a shared util header */
+/* in src/core/config/config.h or a shared util header */
 #define XALLOC_OR_RETURN(ptr, pool, size, err) \
     do { (ptr) = ngx_pnalloc((pool), (size)); \
          if ((ptr) == NULL) { return (err); } } while (0)
@@ -780,7 +780,7 @@ Apply incrementally; the biggest wins are in webdav and proxy modules.
 
 ## Candidate 16: Shared-memory registry pattern consolidation
 
-**Status:** Partially implemented.  `src/compat/shm_slots.h` now owns the
+**Status:** Partially implemented.  `src/core/compat/shm_slots.h` now owns the
 lowest-risk common pieces: expiration comparison and first-free-slot selection.
 It is used by the TPC key registry, pending locate registry, and WebDAV lock
 table.  The deeper macro-generated-table design below remains a future option,
@@ -900,8 +900,8 @@ Build matrix guardrails:
 
 - Minimal dependency builds keep fallback XML and checksum paths compiled.
 - External XML builds are detected with `pkg-config --exists libxml-2.0` and
-  compile `src/compat/xml.c` with `XROOTD_HAVE_LIBXML2=1`.
-- Shared checksum code is compiled through `src/compat/crc32c.c`.
+  compile `src/core/compat/xml.c` with `XROOTD_HAVE_LIBXML2=1`.
+- Shared checksum code is compiled through `src/core/compat/crc32c.c`.
 - Unit coverage for the build hooks lives in `tests/unit/run_tests.sh`,
   `tests/unit/test_xml_compat.c`, and `tests/unit/test_crc32c.c`.
 
@@ -952,11 +952,11 @@ available in the build.
 
 Status: **complete (cleanup done 2026-05-20).**
 
-- Implemented: shared XML escape adapter in `src/compat/xml.c`.
+- Implemented: shared XML escape adapter in `src/core/compat/xml.c`.
 - Implemented: libxml2-backed WebDAV `LOCK` body parsing when libxml2 is
   available, with fallback parsing for minimal builds.
-- Implemented: shared CRC32C adapter in `src/compat/crc32c.c`.
-- Implemented: shared XML text-element helpers in `src/compat/xml.c`.
+- Implemented: shared CRC32C adapter in `src/core/compat/crc32c.c`.
+- Implemented: shared XML text-element helpers in `src/core/compat/xml.c`.
 - Implemented: S3 XML response builders now use shared text-element helpers
   for ListObjectsV2, ListParts, ListMultipartUploads, and XML error bodies.
 - Implemented + cleaned up: Jansson is now a **required** build dependency

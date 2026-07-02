@@ -75,7 +75,7 @@ Run: `bash tests/run_pblock_writethrough.sh` — Expected: `ALL PASS` (baseline)
 **Files:**
 - Modify: `src/cache/cache_storage.c` (add `cache_build_wt_stage`, mirroring `cache_build_source`)
 - Modify: `src/cache/cache_storage.h` (accessor decl)
-- Modify: `src/types/config.h` (add `void *cache_wt_stage_sd_inst;` beside `cache_wt_stage_inst`)
+- Modify: `src/core/types/config.h` (add `void *cache_wt_stage_sd_inst;` beside `cache_wt_stage_inst`)
 - Modify: `src/cache/cache_internal.h` (add `xrootd_cache_build_wt_origin` decl)
 - Modify: `src/cache/writethrough_flush.c:645-668` (extract the inline write-back origin build → shared `xrootd_cache_build_wt_origin`)
 - Test: `tests/run_pblock_writethrough.sh`, `tests/run_cache_wt_driver.sh`, `tests/run_credential_wt_ztn.sh`

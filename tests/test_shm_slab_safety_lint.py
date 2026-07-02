@@ -25,7 +25,7 @@ THE CONTRACT (encoded below)
        header and is rejected.
     R2 (completeness): every file that registers a zone (ngx_shared_memory_add)
        must allocate its table with a slab-safe allocator — ``xrootd_shm_table_alloc``
-       (src/compat/shm_slots.c) or raw ``ngx_slab_alloc`` — either in the file
+       (src/core/compat/shm_slots.c) or raw ``ngx_slab_alloc`` — either in the file
        itself or in the ``->init`` callback it registers. A pure no-op init
        (never touches shm.addr) is accepted (it cannot clobber).
 
@@ -318,7 +318,7 @@ def test_no_zone_clobbers_slab_header():
             "Shared-memory zones must not lay a struct over shm.addr (it clobbers "
             "the ngx_slab_pool_t header that ngx_unlock_mutexes() dereferences on "
             "every child death -> master SIGSEGV). Use xrootd_shm_table_alloc() "
-            "from src/compat/shm_slots.h instead. Offending uses:\n" + lines)
+            "from src/core/compat/shm_slots.h instead. Offending uses:\n" + lines)
 
 
 def test_every_zone_uses_a_slab_safe_allocator():

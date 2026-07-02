@@ -2,8 +2,8 @@
  * mkdir.c — kXR_mkdir opcode.  See each function's docblock below.
  */
 
-#include "ngx_xrootd_module.h"
-#include "compat/error_mapping.h"
+#include "core/ngx_xrootd_module.h"
+#include "core/compat/error_mapping.h"
 #include "fs/vfs.h"   /* mkdir via the VFS seam */
 #include "fs/vfs_backend_registry.h"   /* POSIX-vs-driver export check for group policy */
 

@@ -132,7 +132,7 @@ a real XRootD SSI peer (per ADR-2).
 | 6 | CNS (minimal) | **DONE** | `src/cms/cns.{c,h}` event codec + per-worker inventory; `CMS_RR_CNS` frame; data-server emit on closew (`close.c`); manager apply (`server_recv.c`, gated by global collect flag); manager **global stat from inventory** (`stat.c` manager_mode); `xrootd_cns off\|emit\|collect`; `tests/test_cns.py` 2/2 on a real **2-node cluster** (manager stats a DS-written file from CNS w/ correct size; unknown path not fabricated). v1: in-memory per-worker (single-worker manager); SHM-multi-worker + unlink/mkdir/mv emit are follow-ups |
 | 7 | SSI (minimal unary) | **DONE** | `src/ssi/{ssi.c,ssi.h}` echo over `/.ssi/<service>`; `xrootd_file_t.ssi` + clean early-return hooks in open/read/write; `xrootd_ssi` stream directive (in `module.c` — the LIVE table; `module_core_directives.c` is dead/not in `./config`); `tests/test_ssi.py` 4/4 raw-wire vs real instance. **Also fixed a pre-existing remote crash**: `kXR_chkpoint` on a path-less handle did `strlen(NULL)`→SIGSEGV (now guarded; 30 chkpoint tests pass) |
 
-New build-list addition so far: `src/compat/json_min.c` (for §2) — registered in
+New build-list addition so far: `src/core/compat/json_min.c` (for §2) — registered in
 `./config`, reconfigured. No other new files yet; §1/§2/§8.1 are edits to existing TUs.
 
 Notes surfaced during implementation:
@@ -154,7 +154,7 @@ Notes surfaced during implementation:
 
 ### A.1 Build registration (the only two governance points)
 New `.c`/`.h` files are registered in the **top-level `./config`** (NOT
-`src/config/config.h` — see memory `build_source_list_location`). Two lists:
+`src/core/config/config.h` — see memory `build_source_list_location`). Two lists:
 
 - **Headers** go in the dependency list (`./config` ~lines 274–296 style):
   ```sh
@@ -170,14 +170,14 @@ once; thereafter `make -j$(nproc)`. Editing an existing file needs no reconfigur
 Per-feature "Build" subsections below give the exact lines to add.
 
 ### A.2 Config directive pattern
-1. Field in `src/types/config.h`, initialized `NGX_CONF_UNSET`/`NGX_CONF_UNSET_PTR`.
+1. Field in `src/core/types/config.h`, initialized `NGX_CONF_UNSET`/`NGX_CONF_UNSET_PTR`.
 2. `ngx_command_t` row in the subsystem `directives.c` (HTTP loc/srv or stream srv).
 3. Merge in `merge_*_conf()` with `ngx_conf_merge_*`.
 A new **top-level block** needs `./configure`; a new directive in an existing block
 does not.
 
 ### A.3 Feature-flag pattern
-Add `XROOTD_WITH_<FEATURE>` to `src/feature_flags.h` (default-on for direct test
+Add `XROOTD_WITH_<FEATURE>` to `src/core/feature_flags.h` (default-on for direct test
 builds; the `./config` script passes `-DXROOTD_WITH_<F>=0` to disable). Surface the
 live state in `/healthz` JSON and `kXR_Qconfig` so conformance + ops can assert it.
 
@@ -229,7 +229,7 @@ query is a strict fallback. (XrdHttp reads `authz=` from the request CGI.)
 
 ### 1.2 Files touched
 - `src/webdav/auth_token.c` — add the query fallback (edit hunk in 1.5).
-- `src/compat/http_headers.{c,h}` — move/host `urlencode_decode_inplace`
+- `src/core/compat/http_headers.{c,h}` — move/host `urlencode_decode_inplace`
   (today private in `macaroon_endpoint.c`) + add `xrootd_http_arg_token()`.
 - `src/webdav/log.c` (access-log line build) — redaction.
 - `src/webdav/config.c` + `directives.c` — `xrootd_http_query_token`.
@@ -368,7 +368,7 @@ body `{"caveats":["activity:DOWNLOAD,LIST","path:/foo"],"validity":"PT1H"}` →
 ### 2.1 Files touched
 - `src/webdav/dispatch.c` — content-type detect → route (hunk in 2.4).
 - `src/webdav/macaroon_endpoint.c` — `webdav_handle_macaroon_request` + body parser.
-- `src/compat/iso8601.c` (new, tiny) — duration parse; `compat/json_min.h` reuse;
+- `src/core/compat/iso8601.c` (new, tiny) — duration parse; `compat/json_min.h` reuse;
   `token/macaroon_issue.h` reuse.
 
 ### 2.2 Request/response schema
@@ -992,7 +992,7 @@ xrootd_ssi_resource <name> <handler>;    # e.g. echo echo
 ## §8. Checksum-at-rest (XrdCks / XrdOssCsi parity) — *requested*
 
 ### 8.0 Current state (verified)
-`src/compat/integrity_info.c` already stores a checksum **xattr** and caches it:
+`src/core/compat/integrity_info.c` already stores a checksum **xattr** and caches it:
 - key: `user.XrdCks.<alg>`
 - value (TEXT): `"<hex> <mtime_sec> <mtime_nsec> <size>"` (`INTEGRITY_XATTR_VAL_MAX 160`)
 - staleness: recompute if live `mtime`/`size` differ from the stored triple.
@@ -1083,7 +1083,7 @@ file-level digest (8.1–8.3) covers the common WLCG need. Sketch for later:
 ### 8.5 Build
 codecs/sidecar are additions to existing `integrity_info.c` (no new file → no
 reconfigure); `on-write` touches existing handlers; `.csi` (8.4) would add
-`src/compat/csi.c` → `./config`.
+`src/core/compat/csi.c` → `./config`.
 
 ### 8.6 Test matrix (`tests/test_checksum_at_rest.py`)
 | id | case | expect |
@@ -1881,7 +1881,7 @@ INVARIANT #8).
 | `xrootd_checksum_on_write <algs>` | srv | csv | off | §8.3 |
 | `xrootd_cache_cinfo` | srv | flag | on | §9 |
 
-All new fields: `NGX_CONF_UNSET*` in `src/types/config.h`; merged in the owning
+All new fields: `NGX_CONF_UNSET*` in `src/core/types/config.h`; merged in the owning
 `merge_*_conf()`; only `xrootd_dig`/`xrootd_cns`/`xrootd_ssi` (if they introduce a new
 top-level block) trigger a `./configure` — directives within existing blocks do not.
 
@@ -1937,7 +1937,7 @@ paths, and the xdist port-band convention.
 > len, key, out, outsz)` (scalar/string only — **no array support**), and body must
 > be collected from `r->request_body->bufs`. The sources below are authoritative.
 
-### EE.1 `src/compat/iso8601.c` (new) — duration parser (§2)
+### EE.1 `src/core/compat/iso8601.c` (new) — duration parser (§2)
 ```c
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -2131,7 +2131,7 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
 }
 ```
 
-### EE.3 `src/compat/integrity_info.c` — sidecar backend (§8.2)
+### EE.3 `src/core/compat/integrity_info.c` — sidecar backend (§8.2)
 ```c
 /* LOOP-ONLY. "<file>.cks" — concatenated host-order XrdCksData records. Read/write
  * with O_NOFOLLOW|O_CLOEXEC, short-rw-safe (mirrors cache/meta.c). */
@@ -2555,10 +2555,10 @@ native writer is possible later but isn't on the critical path.
 > These are whole-file drafts to the verified APIs: `xrootd_beneath_open_root` /
 > `xrootd_open_beneath` / `xrootd_stat_beneath` (`src/path/beneath.h`),
 > `xrootd_alloc_fhandle` + `ctx->files[]` (`src/connection/fd_table.h`),
-> `xrootd_aio_post_task(ctx,c,…)` (`src/aio/aio.h`), `xrootd_build_resp_hdr` +
+> `xrootd_aio_post_task(ctx,c,…)` (`src/core/aio/aio.h`), `xrootd_build_resp_hdr` +
 > `xrootd_queue_response` + `kXR_authmore` (response path), `xrootd_gbuf_*` /
 > `xrootd_gsi_find_bucket` (`src/gsi/gsi_core.h`), `xrootd_shm_table_alloc`
-> (`src/compat/shm_slots.h`). **Two GSI crypto helpers are flagged TODO-mirror** —
+> (`src/core/compat/shm_slots.h`). **Two GSI crypto helpers are flagged TODO-mirror** —
 > they must reuse the exact round-2 session-cipher path in
 > `src/gsi/parse_crypto_helpers.c` (do not re-derive EVP call sequences by hand).
 
@@ -2972,11 +2972,11 @@ Append to the **header** list (near the existing `src/cache/*.h`, `src/gsi/*.h`)
                         $ngx_addon_dir/src/ssi/ssi_registry.h \
                         $ngx_addon_dir/src/cache/cinfo.h \
                         $ngx_addon_dir/src/zip/zip_member.h \
-                        $ngx_addon_dir/src/compat/iso8601.h \
+                        $ngx_addon_dir/src/core/compat/iso8601.h \
 ```
 Append to the **`NGX_ADDON_SRCS`** list (near `src/gsi/*.c`, `src/cms/*.c`):
 ```sh
-    $ngx_addon_dir/src/compat/iso8601.c \
+    $ngx_addon_dir/src/core/compat/iso8601.c \
     $ngx_addon_dir/src/dig/dig.c \
     $ngx_addon_dir/src/dig/dig_auth.c \
     $ngx_addon_dir/src/dig/directives.c \
@@ -3029,7 +3029,7 @@ section.)
 
 ## §RR. Full config glue (config.h fields, directives.c rows, merges)
 
-### RR.1 `src/types/config.h` — new fields
+### RR.1 `src/core/types/config.h` — new fields
 ```c
 /* §1 */ ngx_flag_t  http_query_token;
 /* §2 */ ngx_int_t   macaroon_max_validity;   ngx_str_t macaroon_location;

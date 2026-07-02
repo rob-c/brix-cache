@@ -2,7 +2,7 @@
 
 **Status:** ✅ Implemented (as-built diverges from this plan — see status section)  
 **Depends on:** Phase 18 (auth-gate), Phase 20 (SHM/KV cache)  
-**Touches:** `src/webdav/`, `src/compat/`, `src/token/`  
+**Touches:** `src/webdav/`, `src/core/compat/`, `src/token/`  
 **Net LoC:** +~720 new, -~140 scattered call-site injections = +~580 net
 
 ---
@@ -18,7 +18,7 @@ namespace) the as-built choice is **better** than the original design.
 | Step | Capability | Status | Evidence / divergence |
 |------|-----------|--------|-----------------------|
 | **A** | Fix XrdHttp header filter | ✅ **Done — different mechanism** | Implemented as a **separate `HTTP_AUX_FILTER` module** `ngx_http_xrootd_xrdhttp_filter_module` (`src/webdav/xrdhttp_filter.c`; registered in `config` as `ngx_module_type=HTTP_AUX_FILTER`, lines ~601-608), **not** via the webdav module's `preconfiguration` as this plan proposed. The aux-filter module is placed by `auto/modules` *after* the core header/write filters, so it chains correctly — the file's header comment explains why the preconfiguration approach in Step A would still have been clobbered. The old `xrdhttp_register_header_filter()` no-op stub was **removed** (no references remain). |
-| **B** | Body filter for `Digest: adler32` | ✅ **Done** | `xrdhttp_body_filter` in `xrdhttp_filter.c` → `xrdhttp_digest_body_filter()` in `src/webdav/xrdhttp.c`; accumulates adler32 over output bufs and queues a `Digest: adler32=<hex>` trailer. Req-ctx flags `compute_digest`/`digest_emitted`/`adler` in `xrdhttp.h`. No separate `src/compat/digest_trailer.h` — logic lives in `xrdhttp.c`. |
+| **B** | Body filter for `Digest: adler32` | ✅ **Done** | `xrdhttp_body_filter` in `xrdhttp_filter.c` → `xrdhttp_digest_body_filter()` in `src/webdav/xrdhttp.c`; accumulates adler32 over output bufs and queues a `Digest: adler32=<hex>` trailer. Req-ctx flags `compute_digest`/`digest_emitted`/`adler` in `xrdhttp.h`. No separate `src/core/compat/digest_trailer.h` — logic lives in `xrdhttp.c`. |
 | **C** | OIDC introspection subrequest | ✅ **Done — different location & directive names** | Implemented in **`src/webdav/introspect.c`** (registered at `config:592`), **not** `src/token/introspect.c`. Real `ngx_http_subrequest()` is used; runs as a *second* `NGX_HTTP_ACCESS_PHASE` handler (`src/webdav/postconfig.c`) so suspend/resume re-entry replays only the introspection check. Directives are **`xrootd_webdav_token_introspect_{url,loc,ttl,fail_open}`** (webdav-prefixed; the plan wrote `xrootd_token_introspect_*`). Revoked-token negative results cached in a Phase-20 KV zone via `conf->revoke_kv`; fail-open configurable. |
 | **D** | Multi-backend WebDAV proxy | ✅ **Done — simple RR, not weighted** | `upstream_backends` (`ngx_array_t` of `xrootd_webdav_backend_t`, `src/webdav/proxy_internal.h`) replaces the single resolved address; `webdav_proxy_pick_backend()` (`src/webdav/proxy.c`) does round-robin with passive health skip; `webdav_proxy_build_backends()` (`proxy_config.c`) parses multiple space/comma-separated URLs. Directives `xrootd_webdav_proxy_max_fails` (default 3) and `xrootd_webdav_proxy_fail_timeout` (default 30s) exist. **No `weight=` field** — selection is plain round-robin, not weighted as the plan sketched. Per-backend TLS (`ssl`/`ssl_ctx`) was added beyond the plan. |
 | **E** | Phase-20 KV for proxy state | ⚠️ **Diverged — per-worker, not KV** | The round-robin cursor (`upstream_rr`, an `ngx_atomic_t` in the loc conf) and per-backend `fail_count`/`fail_time` live **per-worker in the config pool**, not in a Phase-20 KV/SHM zone as Step E proposed. Adequate for best-effort load distribution (the plan itself allows approximate cross-worker counts). The introspection revocation cache *does* use a Phase-20 KV zone (Step C). |
@@ -44,7 +44,7 @@ namespace) the as-built choice is **better** than the original design.
   per-worker model. Recommend marking **won't-do** unless cross-worker health
   consensus is later required.
 - **Weighted round-robin** (`weight=` token): not implemented; plain RR ships.
-- **`src/compat/digest_trailer.h`:** never created; the Digest logic is in
+- **`src/core/compat/digest_trailer.h`:** never created; the Digest logic is in
   `xrdhttp.c` instead (no separate header needed).
 
 ---
@@ -218,7 +218,7 @@ verifies header presence; the filter change should be transparent.
 
 ## Step B — Body Filter for Digest Header Injection
 
-**Files:** `src/webdav/xrdhttp.c`, `src/compat/digest_trailer.h` (new)
+**Files:** `src/webdav/xrdhttp.c`, `src/core/compat/digest_trailer.h` (new)
 
 XrdHttp clients expect a `Digest: adler32=<hex>` trailing header on GET responses.
 Currently the adler32 is computed per-chunk in `xrdhttp_multipart.c` but the final
@@ -568,7 +568,7 @@ xrootd_webdav_proxy_fail_timeout 30s; # retry down backend after 30 seconds
 > revocation cache (Step C) uses a Phase-20 KV zone. The KV-backed proxy-state
 > design below was not adopted.
 
-Phase 20 introduces `src/shm/kv.h`. The multi-backend round-robin counter
+Phase 20 introduces `src/core/shm/kv.h`. The multi-backend round-robin counter
 (`upstream_rr_index`) and passive health counters (`fail_count`) can live in a
 dedicated Phase-20 KV zone rather than a raw `ngx_shared_memory_add()` call:
 
@@ -607,7 +607,7 @@ KV framework.
 
 ## Build Registration
 
-`src/token/introspect.c` must be added to `NGX_ADDON_SRCS` in `src/config/config.h`
+`src/token/introspect.c` must be added to `NGX_ADDON_SRCS` in `src/core/config/config.h`
 before `./configure` is re-run. No new top-level config blocks are introduced, so
 `./configure` only needs rerunning once to pick up the new source file.
 

@@ -193,7 +193,7 @@ missing from upstream XRootD.
 | Max checksum errors per request | kXR_pgMaxEpr=128 | Declared, used in pgread/pgwrite |
 | Max outstanding checksum errors | kXR_pgMaxEos=256 | Declared, used in pgread/pgwrite |
 | SHA256 checksums | ✓ (via kXR_query) | ✓ (via kXR_query handler) |
-| CRC64 checksums | Stock XRootD declares the name/length convention but ships no calculator | ✓ `crc64` / `crc64nvme` via `src/compat/crc64.c`; S3 CRC64NVME headers supported |
+| CRC64 checksums | Stock XRootD declares the name/length convention but ships no calculator | ✓ `crc64` / `crc64nvme` via `src/core/compat/crc64.c`; S3 CRC64NVME headers supported |
 
 **Status:** nginx-xrootd is stronger here: both support per-page CRC32c
 integrity and SHA256 query checksums, while nginx-xrootd additionally implements

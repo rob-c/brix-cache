@@ -1,5 +1,5 @@
-#include "config/config.h"
-#include "compat/log_diag.h"
+#include "core/config/config.h"
+#include "core/compat/log_diag.h"
 
 /*
  * config.c — configure-time Kerberos 5 (krb5) auth setup for the stream server

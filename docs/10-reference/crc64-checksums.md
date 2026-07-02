@@ -14,7 +14,7 @@ and operators are not surprised.
 | `crc64nvme` | CRC-64/NVME (Rocksoft; AWS S3) | `0xAD93D23594C93659` | `0x9A6C9329AC4BC9B5` | `0xAE8B14860A799888` |
 
 Both are reflected with init = xorout = `0xFFFFFFFFFFFFFFFF`. The engine is a single
-parameterized, table-driven kernel (`src/compat/crc64.c`, also built into
+parameterized, table-driven kernel (`src/core/compat/crc64.c`, also built into
 `libxrdproto` for the client); there is no hardware path because the x86 baseline has
 no CRC64 instruction.
 
@@ -29,7 +29,7 @@ handled at the protocol edge — never in the kernel.
 
 ```text
             ┌──────────────────────────────────────────┐
-   file fd ─▶│  src/compat/crc64.c  (one table kernel)  │
+   file fd ─▶│  src/core/compat/crc64.c  (one table kernel)  │
             │  raw u64 = 0x995DC9BBDF1939FA             │
             └───────────────┬──────────────────────────┘
                             │  encode AT THE EDGE, per surface
@@ -88,9 +88,9 @@ extended attributes (keyed by mtime+size, invalidated on write) via the shared
 
 ## Implementation map
 
-- Engine: `src/compat/crc64.{c,h}` (+ `shared/xrdproto/Makefile`, root `config`).
-- Spine: `src/compat/checksum.{c,h}` (enum, `is_u64`, `xrootd_checksum_u64_fd`, hex),
-  `src/compat/checksum_core.c` (`xrootd_cksum_u64_fd`), `src/compat/integrity_info.*`.
+- Engine: `src/core/compat/crc64.{c,h}` (+ `shared/xrdproto/Makefile`, root `config`).
+- Spine: `src/core/compat/checksum.{c,h}` (enum, `is_u64`, `xrootd_checksum_u64_fd`, hex),
+  `src/core/compat/checksum_core.c` (`xrootd_cksum_u64_fd`), `src/core/compat/integrity_info.*`.
 - root://: `src/query/config.c`, `src/query/checksum_ckscan_*.c`.
 - WebDAV: `src/webdav/xrdhttp.c` (inherits via the fd-based Digest path).
 - S3: `src/s3/util.c`, `object.c`, `put.c`, `handler.c` (CORS),

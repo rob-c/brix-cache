@@ -176,7 +176,7 @@ Only `O_NOFOLLOW` was missing.
 Following these two fixes, all temp-file creation paths in the module satisfy one of
 two security patterns:
 
-**Pattern A — Staged atomic write** (four callers; `src/compat/staged_file.c`):
+**Pattern A — Staged atomic write** (four callers; `src/core/compat/staged_file.c`):
 `O_CREAT|O_EXCL|O_NOFOLLOW` + random name + confined ops + confined rename/unlink.
 Used by WebDAV COPY, WebDAV TPC pull, S3 PUT, S3 CopyObject.
 

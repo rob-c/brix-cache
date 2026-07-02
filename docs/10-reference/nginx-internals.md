@@ -32,7 +32,7 @@ directly. Any `pread()`, `pwrite()`, `fsync()`, or `stat()` that might block
 goes to the thread pool:
 
 ```c
-/* src/aio/read.c — kXR_read AIO path */
+/* src/core/aio/read.c — kXR_read AIO path */
 
 /* Thread function: runs in thread pool, must not call nginx APIs */
 void
@@ -110,7 +110,7 @@ going through userspace. No `malloc`, no `memcpy`, no userspace copy at all.
 The module uses this for cleartext reads:
 
 ```c
-/* src/aio/buffers.c — build a file-backed chain for kXR_read */
+/* src/core/aio/buffers.c — build a file-backed chain for kXR_read */
 buf->in_file  = 1;
 buf->file     = &ctx->files[handle_idx].ngx_file;
 buf->file_pos = offset;
@@ -355,7 +355,7 @@ nginx's config system provides:
   `server {}` settings:
 
 ```c
-/* src/config/server_conf.c */
+/* src/core/config/server_conf.c */
 static char *
 ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 {
@@ -378,7 +378,7 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 - **Post-configuration hooks**: after all directives are parsed, the module's
   `postconfiguration` callback runs to resolve paths, validate consistency, and
   install any per-phase handlers. This is where PKI consistency checks and
-  authdb rule path resolution happen (`src/config/postconfiguration.c`).
+  authdb rule path resolution happen (`src/core/config/postconfiguration.c`).
 
 - **Type-checked directive setters**: `ngx_conf_set_flag_slot` (for `on`/`off`),
   `ngx_conf_set_str_slot` (for strings), `ngx_conf_set_num_slot` (for integers)
@@ -457,7 +457,7 @@ Looking at the full source tree, the breakdown is:
 
 ```
 src/stream/module.c      ← module registration only (~200 lines)
-src/config/              ← directive handlers, config merge, postconfiguration
+src/core/config/              ← directive handlers, config merge, postconfiguration
 src/connection/          ← XRootD state machine, send/recv loop, TLS start
 src/handshake/           ← initial handshake, opcode dispatch, policy
 src/session/             ← login, auth, bind, ping, per-session opcodes
@@ -468,7 +468,7 @@ src/voms/                ← VOMS VO extraction (via libvomsapi)
 src/crypto/              ← PKI/CRL load and consistency checks
 src/read/                ← kXR_open, kXR_read, kXR_readv, kXR_pgread, kXR_stat
 src/write/               ← kXR_write, kXR_pgwrite, kXR_truncate, kXR_mkdir, etc.
-src/aio/                 ← ngx_thread_task_t wrappers for all blocking I/O
+src/core/aio/                 ← ngx_thread_task_t wrappers for all blocking I/O
 src/path/                ← path confinement, canonical resolution, VO ACL
 src/query/               ← kXR_query subtypes (cksum, space, config, stats)
 src/fattr/               ← kXR_fattr (xattr get/set/del via Linux xattrs)
@@ -480,7 +480,7 @@ src/metrics/             ← Prometheus counters and HTTP export endpoint
 src/upstream/            ← outbound XRootD redirect client
 src/webdav/              ← HTTP/WebDAV module (all methods, auth, TPC, S3)
 src/manager/             ← dynamic server registry for manager mode
-src/types/               ← shared type headers (xrootd_ctx_t, config.h, etc.)
+src/core/types/               ← shared type headers (xrootd_ctx_t, config.h, etc.)
 src/protocol/            ← wire format constants (kXR_* opcodes, flags)
 ```
 

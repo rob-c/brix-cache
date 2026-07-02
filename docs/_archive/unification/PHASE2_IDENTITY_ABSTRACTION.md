@@ -71,7 +71,7 @@ Populated by:
 
 ## Target Architecture
 
-### New Shared Header: `src/types/identity.h`
+### New Shared Header: `src/core/types/identity.h`
 
 ```c
 #ifndef XROOTD_IDENTITY_H
@@ -134,7 +134,7 @@ ngx_str_t xrootd_identity_describe(const xrootd_identity_t *id,
 #endif /* XROOTD_IDENTITY_H */
 ```
 
-### New Implementation: `src/types/identity.c`
+### New Implementation: `src/core/types/identity.c`
 
 Small — only `xrootd_identity_alloc()` and `xrootd_identity_describe()`. No auth logic lives here.
 
@@ -225,8 +225,8 @@ VOMS extraction (FQAN parsing) already produces an array. It now fills `id->vo_l
 ### New files
 | File | Purpose |
 |:---|:---|
-| `src/types/identity.h` | Canonical header — `xrootd_identity_t` definition |
-| `src/types/identity.c` | `xrootd_identity_alloc()`, `xrootd_identity_describe()` |
+| `src/core/types/identity.h` | Canonical header — `xrootd_identity_t` definition |
+| `src/core/types/identity.c` | `xrootd_identity_alloc()`, `xrootd_identity_describe()` |
 
 ### Modified files
 | File | Change |
@@ -243,7 +243,7 @@ VOMS extraction (FQAN parsing) already produces an array. It now fills `id->vo_l
 | `src/webdav/webdav.h` | Replace scattered auth fields with `xrootd_identity_t *identity` |
 | `src/webdav/auth_cert.c` | Populate `xrootd_identity_t` via `xrootd_gsi_parse_cert()` |
 | `src/webdav/auth_token.c` | Populate `xrootd_identity_t` via `xrootd_token_validate()` |
-| `src/config/config.h` | Add `src/types/identity.c` to `NGX_ADDON_SRCS` |
+| `src/core/config/config.h` | Add `src/core/types/identity.c` to `NGX_ADDON_SRCS` |
 
 ---
 
@@ -299,7 +299,7 @@ These layers produce the raw credential material. The new auth functions receive
 
 ## Completion Criteria
 
-- [ ] `xrootd_identity_t` defined in `src/types/identity.h`
+- [ ] `xrootd_identity_t` defined in `src/core/types/identity.h`
 - [ ] All auth sub-systems produce `xrootd_identity_t` (GSI, Token, SSS, SigV4)
 - [ ] `src/path/acl.c` accepts `xrootd_identity_t *` — no protocol-specific fields
 - [ ] Stream and WebDAV contexts each hold `xrootd_identity_t *identity` (single pointer)

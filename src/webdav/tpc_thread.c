@@ -12,10 +12,10 @@
  */
 
 #include "webdav.h"
-#include "compat/net_target.h"
+#include "core/compat/net_target.h"
 #include "dashboard/dashboard_tracking.h"
 #include "tpc/common/metrics.h"
-#include "aio/aio.h"          /* xrootd_task_bind */
+#include "core/aio/aio.h"          /* xrootd_task_bind */
 #include "tpc/common/registry.h"
 #include "fs/xfer/xfer.h"     /* unified transfer audit ledger (kind=tpc) */
 

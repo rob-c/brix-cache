@@ -4,7 +4,7 @@
  * The lookup/store logic lives inline in xrootd_auth_gate() because that is
  * where every key input is in scope; this file only parses the directive.
  */
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "auth_cache.h"
 
 char *

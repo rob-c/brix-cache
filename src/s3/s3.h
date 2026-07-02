@@ -46,20 +46,20 @@
 #include <ngx_thread_pool.h>
 
 #include "metrics/metrics.h"
-#include "compat/protocol_caps.h"
+#include "core/compat/protocol_caps.h"
 #include "fs/vfs.h"             /* xrootd_vfs_ctx_t for s3_build_vfs_ctx() */
-#include "config/shared_conf.h"
-#include "compat/namespace_ops.h"
+#include "core/config/shared_conf.h"
+#include "core/compat/namespace_ops.h"
 #include "acc/acc.h"
-#include "compat/etag.h"
-#include "compat/error_mapping.h"
-#include "compat/http_xml.h"
-#include "compat/log.h"
-#include "compat/range.h"
-#include "compat/time.h"
-#include "compat/uri.h"
-#include "compat/xml.h"
-#include "types/identity.h"
+#include "core/compat/etag.h"
+#include "core/compat/error_mapping.h"
+#include "core/compat/http_xml.h"
+#include "core/compat/log.h"
+#include "core/compat/range.h"
+#include "core/compat/time.h"
+#include "core/compat/uri.h"
+#include "core/compat/xml.h"
+#include "core/types/identity.h"
 
 /* -------------------------------------------------------------------------
  * Configuration

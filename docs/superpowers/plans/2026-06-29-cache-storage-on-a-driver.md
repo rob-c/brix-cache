@@ -251,7 +251,7 @@ xrootd_cache_sink_write(xrootd_cache_sink_t *s, const void *buf, size_t len)
 
 ### Task 6: `xrootd_cache_storage_backend` directive + validation
 
-**Files:** Modify `src/types/config.h`, `src/stream/module.c`, `src/config/server_conf.c`, `src/config/runtime_server.c`
+**Files:** Modify `src/core/types/config.h`, `src/stream/module.c`, `src/core/config/server_conf.c`, `src/core/config/runtime_server.c`
 
 - [ ] **Step 1:** Add `ngx_str_t cache_storage_backend;` + `size_t cache_storage_block_size;` to the conf. Directives `xrootd_cache_storage_backend` (str) + `xrootd_cache_storage_block_size` (size) in `module.c` (mirror `xrootd_storage_backend`). Merge in `server_conf.c`.
 - [ ] **Step 2:** At config time (`runtime_server.c`, where the primary registers its backend) register the cache backend: `xrootd_vfs_backend_config(cache_root_canon, &cache_storage_backend, cache_storage_block_size)` when the name is non-empty.
@@ -262,7 +262,7 @@ xrootd_cache_sink_write(xrootd_cache_sink_t *s, const void *buf, size_t len)
 
 ### Task 7: write-staging directives + instance
 
-**Files:** Modify `src/types/config.h`, `src/stream/module.c`, `src/config/server_conf.c`, `src/config/runtime_server.c`
+**Files:** Modify `src/core/types/config.h`, `src/stream/module.c`, `src/core/config/server_conf.c`, `src/core/config/runtime_server.c`
 
 - [ ] **Step 1:** Add `ngx_str_t cache_wt_stage_root; ngx_str_t cache_wt_stage_backend; size_t cache_wt_stage_block_size;`. Directives `xrootd_cache_wt_stage_root`, `xrootd_cache_wt_stage_backend`, `xrootd_cache_wt_stage_block_size`. Merge defaults (`""`/0).
 - [ ] **Step 2:** Register the stage backend at config time when named. Validation: a stage backend requires `cache_wt_stage_root` + a POSIX `cache_state_root`.

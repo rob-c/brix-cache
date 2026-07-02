@@ -47,7 +47,7 @@ queueing, letting the read path prepend it to a data chain.
 
 > Note: these `.c`/`.h` files are registered for the build in the top-level nginx
 > addon `config` script (lines ~136–137 for headers, ~475–479 for sources), not in
-> `src/config/config.h`. `xrootd_crc32c_extend()` is *declared* in `response.h` but
+> `src/core/config/config.h`. `xrootd_crc32c_extend()` is *declared* in `response.h` but
 > *defined* in `../compat/crc32c.c`; only the other three CRC entry points are
 > bodied here.
 

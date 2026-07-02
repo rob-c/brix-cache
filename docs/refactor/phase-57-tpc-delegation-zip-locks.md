@@ -29,7 +29,7 @@ path/auth/metrics/framing helpers (never reimplement); section-level
 WHAT/WHY/HOW docblock on every new function; **3 tests per change** (success +
 error + security-negative); register every new source in the top-level `./config`
 script (the `$ngx_addon_dir/src/…c` srcs lists — see C0; **not**
-`src/config/config.h`, contrary to CLAUDE.md) and only then run `./configure`;
+`src/core/config/config.h`, contrary to CLAUDE.md) and only then run `./configure`;
 never edit generated
 Makefiles or nginx core; never run git mutating commands.
 
@@ -281,7 +281,7 @@ uint32_t xrootd_tpc_key_take_proxy(const char *key, u_char *buf, uint32_t bufsz)
 - `src/tpc/key_registry.{h,c}` — proxy-blob slot + attach/take helpers.
 - `src/gsi/auth.c` — 3rd round (`kXGS_pxyreq`/`kXGC_sigpxy`) inbound capture.
 - `src/gsi/gsi_core.{h,c}` — `xrootd_gsi_build_pxyreq` / `xrootd_gsi_parse_sigpxy`.
-- `src/config/directives.c` + stream `*_conf` struct/merge — `xrootd_tpc_delegate`
+- `src/core/config/directives.c` + stream `*_conf` struct/merge — `xrootd_tpc_delegate`
   (`ngx_flag_t`, `NGX_CONF_UNSET`→0), `xrootd_tpc_outbound_tls` (or reuse `upstream_tls`).
 
 **Build:** `./configure` (new source + new directives).
@@ -324,7 +324,7 @@ uint32_t xrootd_tpc_key_take_proxy(const char *key, u_char *buf, uint32_t bufsz)
   `codec_core.h:36`) + `xrootd_codec_guard_t` (out_cap + ratio ceiling,
   `:68-79`) are exactly method-8 needs.
 - **Virtual handles are an established pattern.** `xrootd_file_t`
-  (`src/types/file.h:52`) already carries non-fd modes: `slice_mode:1` with
+  (`src/core/types/file.h:52`) already carries non-fd modes: `slice_mode:1` with
   `fd==-1` served from cache files (`:99-102`), and a `uint8_t read_codec`
   ordinal (`:80`). A `zip_mode` field follows precedent.
 - **Data plane (INVARIANT #11):** `xrootd_vfs_open`/`..._file_sendfile_fd`/
@@ -426,7 +426,7 @@ Per-worker LRU keyed by `(archive_path, mtime, size)` caches the parsed member t
 avoid re-scanning on repeated opens (mirror `redir_cache`/`slice` caches). Cap the
 CD read (e.g. ≤ 16 MiB) to bound memory on hostile archives.
 
-### W2.4.c Member handle — append to `xrootd_file_t` (`src/types/file.h`)
+### W2.4.c Member handle — append to `xrootd_file_t` (`src/core/types/file.h`)
 ```c
     unsigned   zip_mode:1;        /* this handle serves a ZIP member        */
     uint16_t   zip_method;        /* 0 store / 8 deflate                    */
@@ -486,9 +486,9 @@ CD read (e.g. ≤ 16 MiB) to bound memory on hostile archives.
 ## W2.5 File-by-file changes
 **New:** `src/zip/zip_dir.{c,h}`, `src/zip/zip_member.{c,h}`, `src/zip/README.md`
 (register `.c` in `./config` — see C0).
-**Modify:** `src/types/file.h` (handle fields), `src/read/open_request.c`
+**Modify:** `src/core/types/file.h` (handle fields), `src/read/open_request.c`
 (`open_negotiate_zip_member()` + dispatch), `src/read/{read,readv,pgread,stat,close}.c`
-(zip_mode branch), `src/webdav/get.c` (+ `s3/get.c` optional), `src/config/directives.c`.
+(zip_mode branch), `src/webdav/get.c` (+ `s3/get.c` optional), `src/core/config/directives.c`.
 **Build:** `./configure` (new sources + directives).
 
 ⚠️ **Full rebuild required** after the `file.h` struct change (memory
@@ -683,8 +683,8 @@ table.
 ## Cross-references
 - TPC current architecture: `src/tpc/README.md`, `tpc_internal.h`,
   `key_registry.h`; GSI: `src/gsi/README.md`, `gsi_core.h`, `protocol/gsi.h`.
-- Codec/inflate: `src/compat/codec_core.h` (note line 12 lists ZIP as a planned
-  surface). Handle model: `src/types/file.h`. VFS data plane: `src/fs/README.md`,
+- Codec/inflate: `src/core/compat/codec_core.h` (note line 12 lists ZIP as a planned
+  surface). Handle model: `src/core/types/file.h`. VFS data plane: `src/fs/README.md`,
   `src/fs/vfs.h` (INVARIANT #11).
 - Reference wire spec: `/tmp/xrootd-src/src/XrdZip/*`,
   `/tmp/xrootd-src/src/XrdSecgsi/XrdSecProtocolgsi.{hh,cc}`.
@@ -1111,12 +1111,12 @@ Merge: `ngx_conf_merge_value(...,0)` for the flags;
 > points that already carry the WHAT/WHY/HOW docblocks the coding standard
 > requires. The `.c` bodies follow the pseudocode in Part B.
 
-## C0. Build wiring — the real source list is `./config`, NOT `src/config/config.h`
+## C0. Build wiring — the real source list is `./config`, NOT `src/core/config/config.h`
 
 ⚠️ **Correction to CLAUDE.md "BUILD GOVERNANCE":** the module's compiled source
 list lives in the top-level nginx-addon script **`./config`** (entries of the
 form `$ngx_addon_dir/src/<path>.c \` appended to the per-feature srcs shell
-variables — e.g. the TPC block at `config:565-581`). `src/config/config.h` holds
+variables — e.g. the TPC block at `config:565-581`). `src/core/config/config.h` holds
 config-field/command declarations, not the file list. A new `.c` must be added to
 `./config` and then `./configure` re-run, or it will not compile.
 
@@ -2374,7 +2374,7 @@ src/gsi/proxy_req_unittest.c -lcrypto -o /tmp/pxr && /tmp/pxr`.
 Laid the safe, no-behavior-change foundation for the inbound 3rd GSI round
 (kXGS_pxyreq/kXGC_sigpxy): the GSI session cipher is now persisted on the
 connection so the extra round can encrypt/decrypt its main.
-- `src/types/context.h`: + `gsi_sess_cipher[24]` / `gsi_sess_key[32]` /
+- `src/core/types/context.h`: + `gsi_sess_cipher[24]` / `gsi_sess_key[32]` /
   `gsi_sess_keylen` / `gsi_sess_use_iv` (session cipher), and the delegation-round
   state (`gsi_deleg_reqkey`, `gsi_deleg_await`, `gsi_deleg_chain_pem(+len)`,
   `gsi_deleg_proxy_pem(+len)`).

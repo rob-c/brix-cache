@@ -81,7 +81,7 @@ Expected: `ALL PASS`.
 **Files:**
 - Modify: `src/cache/cache_storage.c` (the module that already builds `cache_storage_inst` + `cache_slice_inst`; add a `cache_source_inst`)
 - Modify: `src/cache/cache_storage.h` (accessor decl)
-- Modify: `src/types/config.h:~433` (add `void *cache_source_inst;` beside `cache_slice_inst`)
+- Modify: `src/core/types/config.h:~433` (add `void *cache_source_inst;` beside `cache_slice_inst`)
 - Read: `src/fs/backend/xroot/sd_xroot.h` (`xrootd_sd_xroot_create_origin`), `src/fs/backend/remote/sd_remote.*` (S3/HTTP source), `src/cache/http_transport.c`
 - Test: `tests/run_cache_xroot_origin.sh`, `tests/run_cache_s3_origin.sh`, `tests/run_cache_http_source.sh`
 
@@ -89,7 +89,7 @@ Expected: `ALL PASS`.
 - Consumes: `xrootd_sd_xroot_create_origin(host, port, tls, af, bearer, proxy, cadir, log)` (already used for `cache_slice_inst`); `conf->cache_origin_scheme` (`XROOTD_CACHE_SCHEME_{HTTP,HTTPS,S3,PELICAN,<default xroot>}`); the S3/HTTP source builders used by `fetch_origin_s3`/`http_download`.
 - Produces: `xrootd_sd_instance_t *xrootd_cache_source_inst(const ngx_stream_xrootd_srv_conf_t *conf)` returning a per-conf source instance (or NULL when no legacy origin is configured / scheme has no driver yet), plus `conf->cache_source_inst` set in the build hook and freed in the cleanup hook.
 
-- [ ] **Step 1: Add the field + accessor.** In `src/types/config.h` beside `void *cache_slice_inst;` add:
+- [ ] **Step 1: Add the field + accessor.** In `src/core/types/config.h` beside `void *cache_slice_inst;` add:
 
 ```c
     void       *cache_source_inst;  /* composable source built from legacy cache_origin (§6.5 fold) */
@@ -283,8 +283,8 @@ Expected: pytest all pass/skip, guard GREEN.
 
 **Files:**
 - Modify: `src/stream/module.c:1232-1407` (remove the legacy `ngx_command_t` entries)
-- Modify: `src/types/config.h:433-446+` (remove `cache_root`, `cache_origin*` fields)
-- Modify: `src/config/server_conf.c:922-929` (remove `XROOTD_MERGE_HOSTPORT(cache_origin...)`)
+- Modify: `src/core/types/config.h:433-446+` (remove `cache_root`, `cache_origin*` fields)
+- Modify: `src/core/config/server_conf.c:922-929` (remove `XROOTD_MERGE_HOSTPORT(cache_origin...)`)
 - Modify: all 22 harnesses/tests listed by `grep -rlE 'xrootd_cache_origin|xrootd_cache_root' tests/`
 - Test: the full suite
 

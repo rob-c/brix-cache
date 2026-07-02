@@ -2,9 +2,9 @@
  * bind.c — kXR_bind opcode: attach a secondary data channel to a session.
  */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 #include "registry.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * kXR_bind — attach a secondary TCP data channel to an existing session.

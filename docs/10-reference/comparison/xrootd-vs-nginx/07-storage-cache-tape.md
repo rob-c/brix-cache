@@ -29,7 +29,7 @@ This page is consistent with, and does not contradict,
 In scope:
 
 - The **storage abstraction**: XRootD `XrdOss`/`XrdOfs` vs this module's
-  `src/fs/` (VFS) + `src/path/` (confinement) + `src/compat/namespace_ops.c`.
+  `src/fs/` (VFS) + `src/path/` (confinement) + `src/core/compat/namespace_ops.c`.
 - **POSC** (persist-on-successful-close): `XrdOfs` POSC queue vs `src/read/`
   open/close staging, including the documented disconnect-semantics difference.
 - **Caching**: `XrdPfc` (XCache) + `XrdPss` (proxy storage) vs `src/cache/`.
@@ -100,7 +100,7 @@ process with a **unified VFS** and **no plugin ABI**:
   (`src/path/beneath.c`), anchored to a per-worker `O_PATH` "rootfd". This is a
   *kernel-enforced* boundary, not a string prefix (see the next section). Auth/ACL
   gating (`auth_gate.c`, `authdb.c`, `acl.c`) lives here too.
-- **`src/compat/namespace_ops.c`** — the `xrootd_ns_*` mutation helpers
+- **`src/core/compat/namespace_ops.c`** — the `xrootd_ns_*` mutation helpers
   (`mkdir`/`rename`/`unlink`/`link`) that the VFS and HTTP/S3 callers share, each
   confining through the beneath API. (Also `compat/staged_file.c`,
   `compat/shm_slots.c` for SHM-table allocation.)
@@ -576,8 +576,8 @@ monitor-only scaffolds delegated to operator commands). Do not claim full
 - VFS / storage: `src/fs/README.md`, `src/fs/vfs.h`, `src/fs/vfs_open.c`,
   `src/fs/vfs_read.c`, `src/fs/vfs_write.c`.
 - Confinement / namespace: `src/path/README.md`, `src/path/beneath.c/.h`,
-  `src/path/canonical.c`, `src/path/mkdir.c`, `src/compat/namespace_ops.c`,
-  `src/compat/staged_file.c`, `src/compat/shm_slots.c`.
+  `src/path/canonical.c`, `src/path/mkdir.c`, `src/core/compat/namespace_ops.c`,
+  `src/core/compat/staged_file.c`, `src/core/compat/shm_slots.c`.
 - POSC / open semantics: `src/read/open.h`, `src/read/open_request.c`,
   `src/read/close.c`, `src/connection/fd_table.c` (`xrootd_free_fhandle`).
 - Cache: `src/cache/README.md`, `src/cache/open.c`, `src/cache/fetch.c`,

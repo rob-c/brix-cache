@@ -200,8 +200,8 @@ paths where required.
 | `XrdCms` | Cluster management | `src/cms/` + `src/manager/` |
 | `XrdCrypto` | Encryption framework | TLS transport (no data-at-rest) |
 | `XrdCks` | Checksum framework | `kXR_query` checksums + pgread CRC |
-| `XrdOuc` | Utilities | `src/compat/` |
-| `XrdSys` | System | `src/types/` |
+| `XrdOuc` | Utilities | `src/core/compat/` |
+| `XrdSys` | System | `src/core/types/` |
 | `XrdNet` | Networking | `src/connection/` |
 | `XrdOfs` | Object file system | `src/fs/` |
 | `XrdOss` | Object storage | `src/fs/` (POSIX-backed) |

@@ -590,14 +590,14 @@ Expected: build exit 0; write-through tests pass (same as before the change).
 ### Task 5: config — new directives + struct fields + merge
 
 **Files:**
-- Modify: `src/types/config.h` (struct fields)
+- Modify: `src/core/types/config.h` (struct fields)
 - Modify: `src/cache/directives.c` (parsers) + the module command table (`src/stream/module.c`)
-- Modify: `src/config/server_conf.c` (merge defaults)
+- Modify: `src/core/config/server_conf.c` (merge defaults)
 
 **Interfaces:**
 - Produces config fields: `ngx_str_t cache_state_root;`, `time_t cache_dirty_max_age;`, `ngx_array_t *cache_deny_prefixes;`, `ngx_array_t *cache_allow_prefixes;` on `ngx_stream_xrootd_srv_conf_t`. Default `cache_dirty_max_age = 604800`. `cache_state_root` defaults to `cache_root` when unset (resolved at use, Task 6).
 
-- [ ] **Step 1: Add struct fields** — `src/types/config.h`, in the cache block (near `cache_root`/`cache_include_regex`):
+- [ ] **Step 1: Add struct fields** — `src/core/types/config.h`, in the cache block (near `cache_root`/`cache_include_regex`):
 
 ```c
     ngx_str_t    cache_state_root;       /* [xrootd_cache_state_root]; "" ⇒ cache_root */
@@ -651,7 +651,7 @@ char *xrootd_cache_allow_prefix_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *c
 ```
 Declare the two `_slot` functions in the cache header that `module.c` includes (e.g. `directives` prototypes in `cache_internal.h` or wherever `xrootd_cache_origin` parser is declared — match the existing pattern).
 
-- [ ] **Step 4: Merge defaults** — `src/config/server_conf.c`, in the cache merge section:
+- [ ] **Step 4: Merge defaults** — `src/core/config/server_conf.c`, in the cache merge section:
 
 ```c
     ngx_conf_merge_str_value(conf->cache_state_root, prev->cache_state_root, "");
@@ -814,7 +814,7 @@ Expected: exit 0.
 **Files:**
 - Create: `src/cache/cache_reap.h`, `src/cache/cache_reap.c`
 - Modify: repo-root `config` (register `cache_reap.c`)
-- Modify: `src/config/process.c` (arm the reaper timer, mirror `xrootd_stage_reap_timer`)
+- Modify: `src/core/config/process.c` (arm the reaper timer, mirror `xrootd_stage_reap_timer`)
 - Modify: `src/metrics/` (a `cache_dirty_reaped` counter — count + bytes)
 
 **Interfaces:**
@@ -878,7 +878,7 @@ xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log
 ```
 Header `cache_reap.h` declares `xrootd_cache_reap_dirty`. Register `src/cache/cache_reap.c` in the repo-root `config`.
 
-- [ ] **Step 2: Arm the timer** — `src/config/process.c`, mirror `xrootd_stage_reap_timer` (lines 114-132 + the `ngx_add_timer` in `init_process`).
+- [ ] **Step 2: Arm the timer** — `src/core/config/process.c`, mirror `xrootd_stage_reap_timer` (lines 114-132 + the `ngx_add_timer` in `init_process`).
 
 ```c
 #define XROOTD_CACHE_REAP_FIRST_MS     5000

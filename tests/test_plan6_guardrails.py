@@ -204,10 +204,10 @@ def test_plan6_roadmap_exists():
     _assert_markers(
         "docs/_archive/shared-code-plan-6.md",
         [
-            "src/config/root_prepare",
-            "src/compat/protocol_caps",
-            "src/compat/net_target",
-            "src/compat/range_vector",
+            "src/core/config/root_prepare",
+            "src/core/compat/protocol_caps",
+            "src/core/compat/net_target",
+            "src/core/compat/range_vector",
         ],
     )
 
@@ -215,7 +215,7 @@ def test_plan6_roadmap_exists():
 def test_export_root_helper_present():
     """Opportunity 6 export-root helper is wired into all three protocol surfaces."""
     _assert_markers(
-        "src/config/root_prepare.h",
+        "src/core/config/root_prepare.h",
         [
             "xrootd_prepare_export_root",
             "xrootd_export_root_opts_t",
@@ -224,7 +224,7 @@ def test_export_root_helper_present():
         ],
     )
     _assert_markers(
-        "src/config/root_prepare.c",
+        "src/core/config/root_prepare.c",
         [
             "xrootd_prepare_export_root",
             "realpath",
@@ -247,7 +247,7 @@ def test_export_root_helper_present():
     )
     # Native stream postconfiguration uses the helper
     _assert_markers(
-        "src/config/runtime_server.c",
+        "src/core/config/runtime_server.c",
         [
             "xrootd_prepare_export_root",
         ],
@@ -257,7 +257,7 @@ def test_export_root_helper_present():
 def test_capability_registry_present():
     """Opportunity 5 capability registry is wired into WebDAV and S3."""
     _assert_markers(
-        "src/compat/protocol_caps.h",
+        "src/core/compat/protocol_caps.h",
         [
             "xrootd_http_operation_t",
             "xrootd_proto_op_read",

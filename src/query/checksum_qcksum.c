@@ -1,8 +1,8 @@
 #include "query_internal.h"
-#include "compat/checksum.h"
-#include "compat/integrity_info.h"
+#include "core/compat/checksum.h"
+#include "core/compat/integrity_info.h"
 #include "response/response.h"
-#include "aio/aio.h"
+#include "core/aio/aio.h"
 #include "fs/vfs.h"   /* confined read-open via the VFS seam */
 #include "manager/registry.h"
 #include "manager/pending.h"

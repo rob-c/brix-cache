@@ -36,7 +36,7 @@ The root:// open/write/read/truncate handlers decode the `XrdSsiRRInfo` from the
 request offset and drive a per-handle SSI request state machine; responses and
 alerts are pushed as unsolicited `kXR_attn` frames, bulk/streamed payloads pulled
 via `kXR_read`. Long-running/streaming services run on the existing thread pool
-(`src/aio`) and feed a native responder; the event loop owns all socket writes.
+(`src/core/aio`) and feed a native responder; the event loop owns all socket writes.
 
 ## 4. Components
 

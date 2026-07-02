@@ -12,7 +12,7 @@ file bytes -> MISMATCH (exit 1); no record -> exit 2.  The xattr cases skip when
 the test filesystem has no user-xattr support.
 
 The recorded-record binary layouts here mirror the canonical definitions in
-src/compat/integrity_info.c (XrdCksData), src/cache/meta.h and src/cache/cinfo.h.
+src/core/compat/integrity_info.c (XrdCksData), src/cache/meta.h and src/cache/cinfo.h.
 """
 
 import hashlib
@@ -49,7 +49,7 @@ def _write_xattr_text(path, algo, hexval):
 
 
 def _write_xattr_binary(path, algo, hexval):
-    """Stock XrdCksData (src/compat/integrity_info.c): Name[16], fmTime(q),
+    """Stock XrdCksData (src/core/compat/integrity_info.c): Name[16], fmTime(q),
     csTime(i), Rsvd1(h), Rsvd2(b), Length(b), Value[64]."""
     digest = bytes.fromhex(hexval)
     sec, _nsec, _size = _stat_fields(path)

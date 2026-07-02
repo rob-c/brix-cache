@@ -1,6 +1,6 @@
 #ifndef XROOTD_CONN_EVENT_SCHED_H
 #define XROOTD_CONN_EVENT_SCHED_H
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 /*
  * xrootd_schedule_read_resume — ensure the read event is active and posted so

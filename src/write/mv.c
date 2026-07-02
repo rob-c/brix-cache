@@ -2,8 +2,8 @@
  * mv.c — kXR_mv opcode.  See each function's docblock below.
  */
 
-#include "ngx_xrootd_module.h"
-#include "compat/error_mapping.h"
+#include "core/ngx_xrootd_module.h"
+#include "core/compat/error_mapping.h"
 #include "path/op_path.h"
 #include "fs/vfs.h"   /* xrootd_vfs_rename_path (thread-safe confined rename) */
 #include "fs/vfs_backend_registry.h"   /* per-export backend resolve */

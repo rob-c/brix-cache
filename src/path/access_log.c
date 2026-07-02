@@ -22,7 +22,7 @@
  * xrd_ok flag (OK or ERR variant), snprintf into 4096-byte buffer, write to conf->access_log_fd if valid. Early return
  * if access_log_fd == NGX_INVALID_FILE (logging disabled by config). */
 
-#include "ngx_xrootd_module.h"
+#include "core/ngx_xrootd_module.h"
 
 #include <arpa/inet.h>
 #include <time.h>

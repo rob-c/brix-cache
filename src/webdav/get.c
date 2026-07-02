@@ -4,9 +4,9 @@
 
 #include "webdav.h"
 #include "xrdhttp.h"
-#include "compat/error_mapping.h"
-#include "compat/etag.h"
-#include "compat/http_conditionals.h"
+#include "core/compat/error_mapping.h"
+#include "core/compat/etag.h"
+#include "core/compat/http_conditionals.h"
 #include "cache/open.h"
 #include "dashboard/dashboard_tracking.h"
 #include "fs/vfs.h"

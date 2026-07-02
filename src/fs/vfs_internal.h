@@ -27,9 +27,9 @@
 
 #include "vfs.h"
 
-#include "compat/crc32c.h"
-#include "compat/namespace_ops.h"
-#include "compat/staged_file.h"
+#include "core/compat/crc32c.h"
+#include "core/compat/namespace_ops.h"
+#include "core/compat/staged_file.h"
 #include "metrics/access_log.h"
 #include "path/path.h"
 

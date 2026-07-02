@@ -133,7 +133,7 @@ Today the open returns an fd; `io_core` `posix_wrap`s it. For pblock that fd is
 only **block 0** (or `NGX_INVALID_FILE`), so read/write are wrong/short.
 
 - **3a. Carrier.** Add an `xrootd_sd_obj_t` (driver + per-open state) to the
-  open-file slot `xrootd_file_t` (`src/types/file.h`) and to the `io_core` job
+  open-file slot `xrootd_file_t` (`src/core/types/file.h`) and to the `io_core` job
   (`src/fs/vfs_io_core.h`), beside the existing `fd`.
 - **3b. Open → handle.** `read/open_resolved_file.c` uses `xrootd_vfs_open_fd_at`
   (bare fd). Route it through `xrootd_vfs_open` (handle) and store `fh->obj` in the
@@ -156,7 +156,7 @@ non-contiguous (block-striped) backend; `read_sendfile_fd` already returns
 
 `kXR_Qcksum`, WebDAV `checksum_on_write`, and dirlist checksum tokens reopen the
 object to hash it:
-- `src/compat/checksum_core.c` already calls `obj.driver->pread` — but the obj is
+- `src/core/compat/checksum_core.c` already calls `obj.driver->pread` — but the obj is
   built by `xrootd_sd_posix_wrap(fd)`, so `driver == posix`. Feed it the real obj.
 - `src/webdav/put.c` `webdav_put_persist_checksums` reopens via `xrootd_vfs_open_fd`
   (bare fd ⇒ block-0 only). Migrate to a handle + `vfs_file_pread`.

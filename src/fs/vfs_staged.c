@@ -24,7 +24,7 @@
  */
 #include "vfs_internal.h"
 
-#include "compat/staged_file.h"
+#include "core/compat/staged_file.h"
 #include "fs/xfer/xfer.h"   /* unified transfer audit ledger (one line per publish) */
 
 #include <unistd.h>      /* pread for the write-back promote read loop */

@@ -52,20 +52,20 @@
 #include <sys/stat.h>
 
 #include "metrics/metrics.h"
-#include "compat/error_mapping.h"
-#include "compat/http_headers.h"
-#include "compat/log.h"
+#include "core/compat/error_mapping.h"
+#include "core/compat/http_headers.h"
+#include "core/compat/log.h"
 #include "token/token.h"
-#include "types/identity.h"
+#include "core/types/identity.h"
 #include "acc/acc.h"
 #include "tpc_config.h"
 #include "tpc_cred.h"
-#include "compat/path.h"
-#include "compat/protocol_caps.h"
-#include "config/shared_conf.h"
-#include "shm/kv.h"
+#include "core/compat/path.h"
+#include "core/compat/protocol_caps.h"
+#include "core/config/shared_conf.h"
+#include "core/shm/kv.h"
 #include "mirror/mirror.h"
-#include "shm/rate_limit.h"
+#include "core/shm/rate_limit.h"
 
 #include <ngx_open_file_cache.h>
 
@@ -813,7 +813,7 @@ ngx_int_t webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
 const char *webdav_tpc_cred_metric_name(xrootd_tpc_cred_metrics_e idx);
 
 /* Operation capability table (operation_table.c) */
-#include "compat/protocol_caps.h"
+#include "core/compat/protocol_caps.h"
 extern const xrootd_http_operation_t xrootd_webdav_operations[];
 extern const ngx_uint_t              xrootd_webdav_operations_count;
 #define XROOTD_WEBDAV_ALLOW_FLAGS(conf)                                    \

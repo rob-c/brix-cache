@@ -9,13 +9,13 @@
 #include "webdav.h"
 #include "path/path.h"
 #include "fs/vfs.h"
-#include "compat/http_xml.h"
-#include "compat/namespace_ops.h"
+#include "core/compat/http_xml.h"
+#include "core/compat/namespace_ops.h"
 
 #include <errno.h>
 #include <string.h>
 #include <sys/xattr.h>
-#include "compat/alloc_guard.h"
+#include "core/compat/alloc_guard.h"
 
 /*
  * Phase 40: dead-property xattrs (user.nginx_xrootd.webdav.*) must be set / read /

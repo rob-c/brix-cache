@@ -55,7 +55,7 @@ The rest of this document is the precise, exhaustive version of those two column
 
 Every connection (or HTTP request) is authenticated by exactly one method, which
 populates one canonical identity object, `xrootd_identity_t`
-(`src/types/identity.h`). The authz engine and the mapping logic only ever look
+(`src/core/types/identity.h`). The authz engine and the mapping logic only ever look
 at this object — the wire credential is gone by then.
 
 ```c
@@ -99,7 +99,7 @@ typedef struct {
 ### 1.2 The VOMS-FQAN / token-group parser (VO, role, group)
 
 VOMS FQANs and WLCG token groups are split into three **index-aligned** CSV views
-by `xrootd_identity_derive_attrs()` (`src/types/identity.c`). These feed the
+by `xrootd_identity_derive_attrs()` (`src/core/types/identity.c`). These feed the
 XrdAcc `o` (organization/VO), `r` (role) and `g` (group) records.
 
 Given an FQAN like `/cms/Role=production/Capability=NULL`:
@@ -544,8 +544,8 @@ u *         /data  rl                 # everyone else: read
 
 | Step | File |
 |---|---|
-| Canonical identity struct | `src/types/identity.h` |
-| FQAN → VO/role/group split; token claims → identity | `src/types/identity.c` |
+| Canonical identity struct | `src/core/types/identity.h` |
+| FQAN → VO/role/group split; token claims → identity | `src/core/types/identity.c` |
 | GSI/X.509 DN extraction | `src/gsi/auth.c` |
 | VOMS FQAN extraction | `src/voms/` |
 | Token (JWT/WLCG) validation + claims | `src/token/`, `src/gsi/token.c` |
@@ -556,7 +556,7 @@ u *         /data  rl                 # everyone else: read
 | Native authdb parse + match | `src/path/authdb.c` |
 | XrdAcc engine (grammar / decision) | `src/acc/authfile.c`, `src/acc/access.c`, `src/acc/entity.c` |
 | OS user/group + NIS netgroup resolution (`getpwnam`/`getgrouplist`/`innetgr`) | `src/acc/groups.c` |
-| VO ACL (`xrootd_require_vo`) | `src/path/acl.c`, `src/config/policy.c` |
+| VO ACL (`xrootd_require_vo`) | `src/path/acl.c`, `src/core/config/policy.c` |
 | Created-object group inheritance (`xrootd_inherit_parent_group`) | `src/path/group_policy.c` |
 | Directive tables | `src/stream/module.c` (root://), `src/webdav/module.c` (WebDAV/S3) |
 

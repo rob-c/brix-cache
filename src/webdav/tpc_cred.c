@@ -16,9 +16,9 @@
 #include "tpc_cred_internal.h"
 #include "tpc_config.h"
 #include "webdav.h"
-#include "compat/log_diag.h"
+#include "core/compat/log_diag.h"
 #include "tpc/common/credential.h"
-#include "compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
+#include "core/compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
 
 #include <nginx.h>
 #include <ngx_core.h>

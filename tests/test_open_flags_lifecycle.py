@@ -92,7 +92,7 @@ kXR_open_apnd = 0x0200
 kXR_retstat   = 0x0400
 kXR_posc      = 0x1000
 
-# XROOTD_MAX_FILES (src/types/tunables.h) — handles are a single wire byte.
+# XROOTD_MAX_FILES (src/core/types/tunables.h) — handles are a single wire byte.
 XROOTD_MAX_FILES = 16
 
 # ServerOpenBody is fhandle[4] + cpsize[4] + cptype[4] = 12 bytes; with
@@ -499,7 +499,7 @@ class TestPoscLifecycle:
         # sock.close(), so poll for both invariants to settle rather than
         # checking once and racing the event loop.  POSC staging uses
         # xrootd_make_tmp_path(), producing a "<base>.xrd-tmp.<pid>.<random>"
-        # sibling (src/compat/tmp_path.c), so the orphan marker is ".xrd-tmp.".
+        # sibling (src/core/compat/tmp_path.c), so the orphan marker is ".xrd-tmp.".
         def _orphan_temps():
             return {n for n in (set(os.listdir(data_dir)) - before)
                     if ".xrd-tmp." in n}

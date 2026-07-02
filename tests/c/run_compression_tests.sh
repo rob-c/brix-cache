@@ -48,9 +48,9 @@ run() {  # name  <compile args...>
 }
 
 echo "phase-42 codec/zip/zcrc32 C-unit tests:"
-run codec_test      -I "${REPO}/src/compat" "${HERE}/codec_test.c"      "${PROTO}" ${CODEC_LIBS}
-run codec_edge_test -I "${REPO}/src/compat" "${HERE}/codec_edge_test.c" "${PROTO}" ${CODEC_LIBS}
-run zcrc32_test     -D_GNU_SOURCE -I "${REPO}/src/compat" "${HERE}/zcrc32_test.c" "${PROTO}" ${CODEC_LIBS}
+run codec_test      -I "${REPO}/src/core/compat" "${HERE}/codec_test.c"      "${PROTO}" ${CODEC_LIBS}
+run codec_edge_test -I "${REPO}/src/core/compat" "${HERE}/codec_edge_test.c" "${PROTO}" ${CODEC_LIBS}
+run zcrc32_test     -D_GNU_SOURCE -I "${REPO}/src/core/compat" "${HERE}/zcrc32_test.c" "${PROTO}" ${CODEC_LIBS}
 run zip_test        -D_GNU_SOURCE -I "${REPO}/client/lib" "${HERE}/zip_test.c"      "${ZIPC}" -lz
 run zip_fuzz_test   -D_GNU_SOURCE -I "${REPO}/client/lib" "${HERE}/zip_fuzz_test.c" "${ZIPC}" -lz
 run zip_write_test  -D_GNU_SOURCE -I "${REPO}/client/lib" "${HERE}/zip_write_test.c" "${ZIPC}" -lz
@@ -60,7 +60,7 @@ run zip_write_test  -D_GNU_SOURCE -I "${REPO}/client/lib" "${HERE}/zip_write_tes
 # its -DXROOTD_HAVE_* UNDEFINED, so each links as its available=0 stub and NO
 # optional lib is linked.  Proves the build still succeeds and unavailable codecs
 # degrade cleanly (open() -> NULL) instead of leaving a table hole or failing.
-CM="${REPO}/src/compat"
+CM="${REPO}/src/core/compat"
 run codec_nolib_test -DXROOTD_HAVE_ZLIB -I "${CM}" "${HERE}/codec_nolib_test.c" \
     "${CM}/codec_core.c" "${CM}/codec_zlib.c" \
     "${CM}/codec_zstd.c" "${CM}/codec_lzma.c" "${CM}/codec_brotli.c" \

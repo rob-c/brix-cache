@@ -23,7 +23,7 @@
 #include "fs/core/vfs_core.h"   /* shared ngx-free VFS I/O verbs */
 #include "fs/backend/csi_tagstore.h"
 
-#include "aio/aio.h"
+#include "core/aio/aio.h"
 #include "dirlist/dcksm.h"
 #include "path/path.h"
 #include "protocol/dirlist_fmt.h"

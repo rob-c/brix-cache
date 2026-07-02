@@ -310,9 +310,9 @@ emitted and `m->registry_full_total` is incremented atomically. The counter is
 exported as the `xrootd_registry_full_total` Prometheus counter.
 
 Files changed: `src/manager/registry.h`, `src/manager/registry.c`,
-`src/config/config.h`, `src/config/server_conf.c`,
-`src/config/postconfiguration.c`, `src/stream/module.c`,
-`src/types/config.h`, `src/metrics/metrics.h`, `src/metrics/stream.c`.
+`src/core/config/config.h`, `src/core/config/server_conf.c`,
+`src/core/config/postconfiguration.c`, `src/stream/module.c`,
+`src/core/types/config.h`, `src/metrics/metrics.h`, `src/metrics/stream.c`.
 
 ---
 
@@ -374,8 +374,8 @@ time strings (`5s`, `500ms`, etc.). Stored as `ngx_msec_t cms_locate_timeout`
 in `ngx_stream_xrootd_srv_conf_t`.
 
 Files added: `src/manager/pending.h`, `src/manager/pending.c`.
-Files changed: `src/config/config.h`, `src/config/postconfiguration.c`,
-`src/config/server_conf.c`, `src/stream/module.c`, `src/types/config.h`,
+Files changed: `src/core/config/config.h`, `src/core/config/postconfiguration.c`,
+`src/core/config/server_conf.c`, `src/stream/module.c`, `src/core/types/config.h`,
 `config`.
 
 ---
@@ -403,8 +403,8 @@ Files changed: `src/cms/send.c`, `src/cms/cms_internal.h`.
 
 ### Step 5 — XRootD session suspension ✅ Implemented
 
-Added `XRD_ST_WAITING_CMS` to the state enum in `src/types/state.h` and
-`cms_wait_streamid` to `xrootd_ctx_t` in `src/types/context.h`.
+Added `XRD_ST_WAITING_CMS` to the state enum in `src/core/types/state.h` and
+`cms_wait_streamid` to `xrootd_ctx_t` in `src/core/types/context.h`.
 
 In `src/read/locate.c`, inside the `conf->manager_mode && !is_wildcard` block,
 after a registry miss: call `ngx_xrootd_cms_next_streamid()`, send a
@@ -427,7 +427,7 @@ In `src/connection/recv.c`:
   resume. The existing connection-close path is unaffected for all other
   states.
 
-Files changed: `src/types/state.h`, `src/types/context.h`,
+Files changed: `src/core/types/state.h`, `src/core/types/context.h`,
 `src/connection/recv.c`, `src/read/locate.c`, `src/read/open.c`.
 
 ---
@@ -629,11 +629,11 @@ redirects to that server.
 | `src/manager/pending.c` | New: shm zone init, insert/lookup/remove with lock, lazy expiry reaping | ✅ Step 3 done |
 | `src/read/locate.c` | CMS-suspend path when no registry match | ✅ Step 5 done |
 | `src/read/open.c` | Same | ✅ Step 5 done |
-| `src/config/config.h` | Updated `xrootd_srv_configure_registry` declaration; added `xrootd_pending_configure` declaration | ✅ Steps 1b, 3 done |
-| `src/config/server_conf.c` | `registry_slots` UNSET + default-128 merge; `cms_locate_timeout` UNSET_MSEC + 5000 ms merge | ✅ Steps 1b, 3 done |
+| `src/core/config/config.h` | Updated `xrootd_srv_configure_registry` declaration; added `xrootd_pending_configure` declaration | ✅ Steps 1b, 3 done |
+| `src/core/config/server_conf.c` | `registry_slots` UNSET + default-128 merge; `cms_locate_timeout` UNSET_MSEC + 5000 ms merge | ✅ Steps 1b, 3 done |
 | `src/connection/recv.c` | Added `XRD_ST_WAITING_CMS` loop guard and timedout handler | ✅ Step 5 done |
 | `src/stream/module.c` | Added `xrootd_registry_slots` and `xrootd_cms_locate_timeout` directive entries | ✅ Steps 1b, 3 done |
-| `src/types/state.h` | Added `XRD_ST_WAITING_CMS` | ✅ Step 5 done |
+| `src/core/types/state.h` | Added `XRD_ST_WAITING_CMS` | ✅ Step 5 done |
 | `config` | Added `pending.c` to `ngx_module_srcs` | ✅ Step 3 done |
 | `src/metrics/metrics.h` | Added `registry_full_total` counter to `ngx_xrootd_metrics_t` | ✅ Step 1b done |
 | `src/metrics/stream.c` | Added `xrootd_registry_full_total` Prometheus export | ✅ Step 1b done |
@@ -780,7 +780,7 @@ Default `redirect` preserves current behaviour. `proxy` switches the wake
 action in `cms_wake_pending_session()` from `xrootd_send_redirect()` to
 `xrootd_proxy_cms_selected()`.
 
-**File:** `src/config/config.h` + `src/config/server_conf.c` + directive entry
+**File:** `src/core/config/config.h` + `src/core/config/server_conf.c` + directive entry
 in `src/stream/module.c`.
 
 #### G2 — `xrootd_proxy_cms_selected()` in `src/upstream/start.c`

@@ -21,7 +21,7 @@ PUT/GET-verify/DELETE) faces — all emitted in the `--json` `tests[]` array. Th
 surfaced (and we then FIXED) a real module bug: `rm`/delete followed a symlink's final
 component — the existence gate + delete probe now use lstat (POSIX unlink semantics), so
 `rm <symlink>` removes the link, not its target (`src/path/op_path.c`,
-`src/compat/namespace_ops.c`). pytest in `tests/test_xrd_busybox.py`,
+`src/core/compat/namespace_ops.c`). pytest in `tests/test_xrd_busybox.py`,
 man page `client/man/xrd.1`, quirks in `docs/10-reference/quirks.md`. Two scope
 corrections: symbolic `chmod` (`u+x`) was dropped — the XRootD wire stat does not
 expose the current POSIX mode, so there is no base for relative changes (octal + `-R`

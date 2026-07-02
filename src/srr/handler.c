@@ -16,8 +16,8 @@
  */
 
 #include "srr.h"
-#include "compat/http_headers.h"
-#include "compat/alloc_guard.h"
+#include "core/compat/http_headers.h"
+#include "core/compat/alloc_guard.h"
 
 
 ngx_int_t
