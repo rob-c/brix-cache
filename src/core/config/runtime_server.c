@@ -188,6 +188,7 @@ xrootd_tier_register_stores(ngx_conf_t *cf, ngx_http_xrootd_shared_conf_t *commo
                 "cache store (got \"%s\")", cfg.driver);
             return NGX_ERROR;
         }
+        pol.cvmfs_manifest_ttl = common->cache_manifest_ttl;
         if (common->cache_quarantine_dir.len > 0) {
             ngx_cpystrn((u_char *) pol.quarantine_dir,
                         common->cache_quarantine_dir.data,

@@ -60,11 +60,11 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         return NGX_DECLINED;              /* tier serve path (handler.c) */
     case CVMFS_URL_MANIFEST:
         XROOTD_CVMFS_METRIC_INC(XROOTD_CVMFS_M_MANIFEST);
-        /* T12 stopgap: signed metadata is mutable and the cinfo TTL
-         * machinery is not in place yet — relay it uncached so a bumped
-         * manifest is never served stale. T12 flips this to NGX_DECLINED
-         * with an expires_at-stamped cache entry. */
-        return xrootd_cvmfs_geo_passthrough(r, lcf);
+        /* T12: signed metadata caches WITH a TTL — the fill stamps
+         * expires_at (= now + xrootd_cvmfs_manifest_ttl) in the cinfo, an
+         * expired entry refills, and a failed refill serves the stale copy
+         * within the bounded 10x-TTL stale-if-error window. */
+        return NGX_DECLINED;
     case CVMFS_URL_GEO:
         XROOTD_CVMFS_METRIC_INC(XROOTD_CVMFS_M_GEO);
         return xrootd_cvmfs_geo_passthrough(r, lcf);

@@ -80,6 +80,8 @@ typedef struct {
     xrootd_cache_verify_mode_e  verify;          /* off|best-effort|require|cvmfs-cas */
     char                        quarantine_dir[256]; /* verify-mismatch evidence dir;
                                                         "" = unlink the failed part */
+    time_t                      cvmfs_manifest_ttl; /* phase-68: TTL stamped on
+                                                  MANIFEST-class fills (0 = none) */
     regex_t                    *include_regex;   /* xrootd_cache_include             */
     ngx_array_t                *deny_prefixes;   /* xrootd_cache_deny  (ngx_str_t[]) */
     ngx_array_t                *allow_prefixes;  /* xrootd_cache_allow (ngx_str_t[]) */
